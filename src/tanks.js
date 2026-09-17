@@ -569,6 +569,22 @@ export class TanksGame {
     });
   }
 
+  handleRemoteInput(slotIndex, data) {
+    const tank = this.tanks[slotIndex];
+    if (!tank || !tank.isJoined || !tank.isAlive) return;
+
+    if (data.action === 'TANK_MOVE') {
+      if (data.force > 0.08) {
+        tank.angle = data.angle;
+        tank.isDriving = true;
+      } else {
+        tank.isDriving = false;
+      }
+    } else if (data.action === 'TANK_FIRE') {
+      this.attemptFire(tank);
+    }
+  }
+
   addTrauma(amount) {
     this.trauma = Math.min(1.0, this.trauma + amount);
   }

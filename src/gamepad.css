@@ -1,0 +1,452 @@
+/* Brutalist Gamepad Mobile Controller Styling */
+
+#gamepad-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #141414;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  z-index: 200;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+#gamepad-overlay.hidden {
+  display: none !important;
+}
+
+/* Controller Top Status Bar */
+.gamepad-header {
+  height: 48px;
+  background-color: #1a1a1a;
+  border-bottom: 3px solid #333333;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+
+.player-badge-pod {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-indicator-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1.5px solid #ffffff;
+}
+
+.player-name-label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.gamepad-room-info {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  color: #d99b26;
+  background-color: #26221c;
+  border: 1px solid #d99b26;
+  padding: 2px 8px;
+}
+
+.gamepad-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.emoji-reaction-btn {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.btn-leave-gamepad {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  background-color: #333333;
+  color: #ff6b6b;
+  border: 1.5px solid #555555;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+/* Controller Sub HUD / Score Strip */
+.gamepad-sub-hud {
+  height: 32px;
+  background-color: #0d0d0d;
+  border-bottom: 2px solid #292929;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+
+.hud-game-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 900;
+  color: #1a1a1a;
+  background-color: #d99b26;
+  padding: 2px 6px;
+}
+
+.hud-live-status {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  color: #a8a39a;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 75vw;
+}
+
+/* Real-time Gamepad Pulsing Alerts */
+#gamepad-overlay.bomb-carrier-alert {
+  box-shadow: inset 0 0 40px #d84727 !important;
+  border: 4px solid #d84727 !important;
+  animation: pulse-bomb-screen 0.4s infinite alternate;
+}
+
+@keyframes pulse-bomb-screen {
+  0% { box-shadow: inset 0 0 30px #d84727; border-color: #d84727; }
+  100% { box-shadow: inset 0 0 80px #ff2200; border-color: #ff3b30; }
+}
+
+#gamepad-overlay.gem-carrier-alert {
+  box-shadow: inset 0 0 40px #d99b26 !important;
+  border: 4px solid #d99b26 !important;
+  animation: pulse-gem-screen 0.5s infinite alternate;
+}
+
+@keyframes pulse-gem-screen {
+  0% { box-shadow: inset 0 0 30px #d99b26; border-color: #d99b26; }
+  100% { box-shadow: inset 0 0 80px #ffcc00; border-color: #ffe600; }
+}
+
+#gamepad-overlay.duel-flash-alert {
+  animation: duel-flash 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+@keyframes duel-flash {
+  0% { background-color: #ffffff; }
+  100% { background-color: #141414; }
+}
+
+/* Controller Workspace */
+.gamepad-workspace {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+}
+
+/* 01 // PONG CONTROLLER */
+.pong-controller-view {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: radial-gradient(circle at center, #22201e 0%, #121212 100%);
+}
+
+.pong-touch-track {
+  width: min(80vw, 320px);
+  height: 85%;
+  background-color: #1a1a18;
+  border: 3.5px solid #333333;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pong-track-thumb {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 52px;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 15px rgba(255,255,255,0.4);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.pong-instruction {
+  position: absolute;
+  top: 14px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: #777777;
+  pointer-events: none;
+}
+
+/* 02 // TANKS CONTROLLER */
+.tanks-controller-view {
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+
+.tanks-steer-zone {
+  flex: 1.2;
+  height: 100%;
+  border-right: 3px solid #282828;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.tanks-fire-zone {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  gap: 16px;
+}
+
+.tank-fire-btn {
+  width: min(40vw, 150px);
+  height: min(40vw, 150px);
+  border-radius: 50%;
+  background-color: #d84727;
+  border: 5px solid #ffffff;
+  box-shadow: 0 0 25px rgba(216, 71, 39, 0.6);
+  color: #ffffff;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+  cursor: pointer;
+  touch-action: manipulation;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tank-fire-btn:active {
+  transform: scale(0.92);
+  background-color: #ff5a36;
+}
+
+.tank-ammo-hud {
+  display: flex;
+  gap: 8px;
+}
+
+.cartridge-pip {
+  width: 20px;
+  height: 38px;
+  border: 2px solid #555555;
+  background-color: #222222;
+}
+
+.cartridge-pip.loaded {
+  background-color: #d99b26;
+  border-color: #ffffff;
+  box-shadow: 0 0 10px #d99b26;
+}
+
+/* 03 // CURVE CONTROLLER */
+.curve-controller-view {
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+
+.curve-steer-btn {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 26px;
+  font-weight: 900;
+  color: #ffffff;
+  background-color: #1a1a18;
+  border: 4px solid #2a2a28;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.curve-steer-btn:active {
+  background-color: #2f6a4f;
+}
+
+.curve-steer-btn.right-btn {
+  border-left: 2px solid #141414;
+}
+
+/* 04 & 05 // BOMB & HEIST CONTROLLER */
+.joystick-action-view {
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+
+.joystick-half {
+  flex: 1.2;
+  height: 100%;
+  position: relative;
+  border-right: 3px solid #282828;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-half {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.action-dash-btn {
+  width: min(40vw, 150px);
+  height: min(40vw, 150px);
+  border-radius: 50%;
+  background-color: #d99b26;
+  border: 5px solid #ffffff;
+  box-shadow: 0 0 25px rgba(217, 155, 38, 0.6);
+  color: #141414;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 17px;
+  font-weight: 900;
+  cursor: pointer;
+  touch-action: manipulation;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.action-dash-btn:active {
+  transform: scale(0.92);
+}
+
+/* Virtual Joystick on Phone */
+.phone-joy-base {
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  border: 3px dashed #555555;
+  background-color: rgba(40, 40, 40, 0.5);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.phone-joy-knob {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 3px solid #ffffff;
+  background-color: #1a1a1a;
+  box-shadow: 0 0 12px rgba(255,255,255,0.4);
+  position: absolute;
+  pointer-events: none;
+}
+
+/* 06 // DUEL CONTROLLER */
+.duel-controller-view {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.duel-full-trigger-btn {
+  width: 100%;
+  height: 90%;
+  border: 6px solid #ffffff;
+  background-color: #8c4830;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 0 30px rgba(140, 72, 48, 0.6);
+}
+
+.duel-trigger-state {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 32px;
+  font-weight: 900;
+  color: #ffffff;
+  text-align: center;
+}
+
+.duel-trigger-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 800;
+  color: #ffde59;
+}
+
+/* Reaction Emoji Overlay */
+.emoji-wheel-modal {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background-color: #1a1a1a;
+  border: 3px solid #ffffff;
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  z-index: 250;
+  box-shadow: 0 0 20px rgba(0,0,0,0.8);
+}
+
+.emoji-wheel-modal.hidden {
+  display: none !important;
+}
+
+.emoji-wheel-item {
+  font-size: 26px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}

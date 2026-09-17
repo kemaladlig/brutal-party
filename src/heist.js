@@ -672,6 +672,19 @@ export class HeistGame {
     }
   }
 
+  handleRemoteInput(slotIndex, data) {
+    const joy = this.joysticks[slotIndex];
+    if (!joy) return;
+
+    if (data.action === 'JOYSTICK_MOVE') {
+      joy.active = data.force > 0.05;
+      joy.angle = data.angle || 0;
+      joy.force = data.force || 0;
+    } else if (data.action === 'TACKLE') {
+      this.triggerTackle(slotIndex);
+    }
+  }
+
   update(now) {
     const dt = Math.min((now - this.lastTime) / 1000, 0.05);
     this.lastTime = now;

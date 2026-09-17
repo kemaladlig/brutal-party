@@ -367,6 +367,14 @@ export class Game {
     }
   }
 
+  handleRemoteInput(slotIndex, data) {
+    const paddle = this.paddles[slotIndex];
+    if (!paddle || !paddle.isJoined || paddle.isEliminated) return;
+    if (data.action === 'PADDLE_MOVE' && typeof data.position === 'number') {
+      paddle.setTarget(paddle.minCoord + (paddle.maxCoord - paddle.minCoord) * data.position);
+    }
+  }
+
   render() {
     const { ctx, canvas } = this;
     ctx.save();

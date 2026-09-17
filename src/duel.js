@@ -291,6 +291,12 @@ export class DuelGame {
     }
   }
 
+  handleRemoteInput(slotIndex, data) {
+    if (data.action === 'DUEL_TAP') {
+      this.handlePlayerTap(slotIndex);
+    }
+  }
+
   // Dynamic point system based on 2, 3, or 4 active players
   getPointsForRank(rank, activeCount) {
     if (activeCount === 2) {

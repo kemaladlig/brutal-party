@@ -609,6 +609,14 @@ export class CurveGame {
     });
   }
 
+  handleRemoteInput(slotIndex, data) {
+    const player = this.players[slotIndex];
+    if (!player || !player.isJoined || !player.isAlive) return;
+    if (data.action === 'CURVE_STEER') {
+      player.steer = data.dir || 0;
+    }
+  }
+
   handleRoundEnd(winner) {
     this.state = 'ROUND_OVER';
     this.roundWinner = winner;

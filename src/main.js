@@ -1,4 +1,5 @@
 // Local Party Games Suite - Main Application Controller & State Machine
+import QRCode from 'qrcode';
 import { Game as PongGame } from './game.js';
 import { TanksGame } from './tanks.js';
 import { CurveGame } from './curve.js';
@@ -6,7 +7,9 @@ import { BombGame } from './bomb.js';
 import { HeistGame } from './heist.js';
 import { DuelGame } from './duel.js';
 import { TouchManager } from './touchManager.js';
-import { toggleAudio, getIsMuted } from './audio.js';
+import { toggleAudio, getIsMuted, playJoin } from './audio.js';
+import { partyNetwork } from './network.js';
+import { GamepadManager } from './gamepad.js';
 
 // DOM Elements
 const canvas = document.getElementById('game-canvas');
@@ -329,36 +332,216 @@ function updatePlatformMode(newMode) {
   }
 }
 
+// TV Host & Controller Modals
+const tvHostModal = document.getElementById('tv-host-modal');
+const hostRoomCode = document.getElementById('host-room-code');
+const hostJoinUrl = document.getElementById('host-join-url');
+const qrCanvas = document.getElementById('qr-canvas');
+const btnHostLaunchGame = document.getElementById('btn-host-launch-game');
+const btnHostClose = document.getElementById('btn-host-close');
+const btnHostCopyLink = document.getElementById('btn-host-copy-link');
+const btnHostWhatsappShare = document.getElementById('btn-host-whatsapp-share');
+
+const joinRoomModal = document.getElementById('join-room-modal');
+const inputRoomCode = document.getElementById('input-room-code');
+const inputPlayerName = document.getElementById('input-player-name');
+const btnSubmitJoin = document.getElementById('btn-submit-join');
+const btnCancelJoin = document.getElementById('btn-cancel-join');
+const btnPasteRoomCode = document.getElementById('btn-paste-room-code');
+
+const gamepadOverlay = document.getElementById('gamepad-overlay');
+const gamepadManager = new GamepadManager(gamepadOverlay, partyNetwork);
+
+let currentHostGameMode = 'PONG';
+
+function getActiveGameEngine() {
+  if (currentMode === 'PONG') return pongGame;
+  if (currentMode === 'TANKS') return tanksGame;
+  if (currentMode === 'CURVE') return curveGame;
+  if (currentMode === 'BOMB') return bombGame;
+  if (currentMode === 'HEIST') return heistGame;
+  if (currentMode === 'DUEL') return duelGame;
+  return null;
+}
+
+function updateHostSlot(slotIndex, isConnected, name = '') {
+  const slotEl = document.getElementById(`slot-p${slotIndex + 1}`);
+  if (!slotEl) return;
+  const nameEl = slotEl.querySelector('.slot-name');
+  if (nameEl) {
+    if (isConnected) {
+      nameEl.textContent = `✓ ${name} [P${slotIndex + 1} - BAĞLANDI]`;
+      slotEl.style.borderColor = '#2F6A4F';
+      slotEl.style.backgroundColor = '#F0F9F4';
+    } else {
+      nameEl.textContent = `P${slotIndex + 1} // BEKLENİYOR...`;
+      slotEl.style.borderColor = '#1A1A1A';
+      slotEl.style.backgroundColor = '#FFFFFF';
+    }
+  }
+}
+
+async function openHostLobby(gameMode = 'PONG') {
+  currentHostGameMode = gameMode;
+  for (let i = 0; i < 4; i++) updateHostSlot(i, false);
+
+  try {
+    await partyNetwork.hostRoom(gameMode, {
+      onRoomCreated: (roomCode) => {
+        if (hostRoomCode) hostRoomCode.textContent = roomCode;
+        const joinUrl = `${window.location.origin}/?join=${roomCode}`;
+        if (hostJoinUrl) hostJoinUrl.textContent = joinUrl;
+
+        if (qrCanvas) {
+          QRCode.toCanvas(qrCanvas, joinUrl, {
+            width: 150,
+            margin: 1,
+            color: { dark: '#1A1A1A', light: '#FFFFFF' },
+          });
+        }
+        tvHostModal?.classList.remove('hidden');
+      },
+      onPlayerJoined: (msg) => {
+        playJoin();
+        updateHostSlot(msg.slotIndex, true, msg.name);
+        showInstallToast(`🎮 ${msg.name} kumanda olarak bağlandı!`);
+      },
+      onPlayerLeft: (msg) => {
+        updateHostSlot(msg.slotIndex, false);
+        showInstallToast(`🚪 ${msg.name} odadan ayrıldı.`);
+      },
+      onPlayerInput: (slotIndex, data) => {
+        const engine = getActiveGameEngine();
+        if (engine && typeof engine.handleRemoteInput === 'function') {
+          engine.handleRemoteInput(slotIndex, data);
+        }
+      },
+      onPlayerReaction: (slotIndex, emoji) => {
+        showInstallToast(`P${slotIndex + 1}: ${emoji}`);
+      },
+    });
+  } catch (err) {
+    showInstallToast('Host odası açılamadı. Sunucu bağlantısını kontrol edin.');
+  }
+}
+
+btnHostLaunchGame?.addEventListener('click', () => {
+  tvHostModal?.classList.add('hidden');
+  setGameMode(currentHostGameMode);
+  partyNetwork.broadcastHostState({ gameMode: currentHostGameMode });
+});
+
+btnHostClose?.addEventListener('click', () => {
+  tvHostModal?.classList.add('hidden');
+  partyNetwork.disconnect();
+});
+
+btnHostCopyLink?.addEventListener('click', async () => {
+  const code = hostRoomCode?.textContent?.trim() || '';
+  const joinUrl = `${window.location.origin}/?join=${code}`;
+  try {
+    await navigator.clipboard.writeText(joinUrl);
+    showInstallToast('✓ Bağlantı panoya kopyalandı!');
+  } catch (err) {
+    showInstallToast(`Bağlantı: ${joinUrl}`);
+  }
+});
+
+btnHostWhatsappShare?.addEventListener('click', () => {
+  const code = hostRoomCode?.textContent?.trim() || '';
+  const joinUrl = `${window.location.origin}/?join=${code}`;
+  const text = encodeURIComponent(`🎮 BRUTAL PARTY // 4P odasına katıl!\nOda Kodu: #${code}\nBağlantı: ${joinUrl}`);
+  window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+});
+
+function openJoinModal(prefilledCode = '') {
+  if (inputRoomCode) {
+    inputRoomCode.value = prefilledCode.toUpperCase();
+  }
+  joinRoomModal?.classList.remove('hidden');
+}
+
+btnPasteRoomCode?.addEventListener('click', async () => {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text && inputRoomCode) {
+      const match = text.match(/join=([A-Za-z0-9]{4})/i) || text.match(/\b([A-Za-z0-9]{4})\b/);
+      inputRoomCode.value = (match ? match[1] : text.slice(0, 4)).toUpperCase();
+      showInstallToast('✓ Oda kodu yapıştırıldı!');
+    }
+  } catch (err) {
+    showInstallToast('Pano okunamadı.');
+  }
+});
+
+btnCancelJoin?.addEventListener('click', () => {
+  joinRoomModal?.classList.add('hidden');
+});
+
+btnSubmitJoin?.addEventListener('click', async () => {
+  const code = (inputRoomCode?.value || '').trim().toUpperCase();
+  const name = (inputPlayerName?.value || '').trim() || 'OYUNCU';
+
+  if (!code || code.length < 4) {
+    showInstallToast('Lütfen 4 haneli geçerli bir oda kodu girin.');
+    return;
+  }
+
+  try {
+    await partyNetwork.joinRoom(code, name, {
+      onJoinedSuccess: (msg) => {
+        joinRoomModal?.classList.add('hidden');
+        menuOverlay?.classList.add('hidden');
+        gamepadManager.init(msg, msg.gameMode);
+        showInstallToast(`✓ ${msg.roomCode} odasına bağlandı!`);
+      },
+      onGameState: (data) => {
+        gamepadManager.handleStateSync(data);
+      },
+      onError: (err) => {
+        showInstallToast(`❌ ${err}`);
+      },
+      onHostDisconnected: (msg) => {
+        showInstallToast(msg);
+        gamepadManager.hide();
+        menuOverlay?.classList.remove('hidden');
+      },
+    });
+  } catch (err) {
+    showInstallToast('Odaya bağlanılamadı. Kodun doğruluğunu kontrol edin.');
+  }
+});
+
 function setupBannerActions() {
   const btnCreateTv = document.getElementById('btn-create-tv-room');
   const btnJoinController = document.getElementById('btn-join-as-controller');
   const btnCreateOnline = document.getElementById('btn-create-online-room');
   const btnEnterRoom = document.getElementById('btn-enter-room-code');
 
-  btnCreateTv?.addEventListener('click', () => {
-    showInstallToast('📺 TV Host Modu: Faz 2.2 WebSocket oda sunucusu hazırlanıyor...');
-  });
-  btnJoinController?.addEventListener('click', () => {
-    showInstallToast('📱 Gamepad Modu: Oda kodunu girin veya TV ekranındaki QR kodu taratın.');
-  });
-  btnCreateOnline?.addEventListener('click', () => {
-    showInstallToast('🌐 Online Oda: WhatsApp linki üretiliyor...');
-  });
-  btnEnterRoom?.addEventListener('click', () => {
-    showInstallToast('🔗 Online Katılım: 4 haneli oda kodunu girin.');
-  });
+  btnCreateTv?.addEventListener('click', () => openHostLobby('PONG'));
+  btnJoinController?.addEventListener('click', () => openJoinModal());
+  btnCreateOnline?.addEventListener('click', () => openHostLobby('PONG'));
+  btnEnterRoom?.addEventListener('click', () => openJoinModal());
 }
 
 addTapListener(tabModeLocal, () => updatePlatformMode('LOCAL'));
 addTapListener(tabModeTv, () => updatePlatformMode('TV_CONSOLE'));
 addTapListener(tabModeOnline, () => updatePlatformMode('ONLINE'));
 
-addTapListener(btnSelectPong, () => setGameMode('PONG'));
-addTapListener(btnSelectTanks, () => setGameMode('TANKS'));
-addTapListener(btnSelectCurve, () => setGameMode('CURVE'));
-addTapListener(btnSelectBomb, () => setGameMode('BOMB'));
-addTapListener(btnSelectHeist, () => setGameMode('HEIST'));
-addTapListener(btnSelectDuel, () => setGameMode('DUEL'));
+function handleGameCardClick(mode) {
+  if (platformMode === 'TV_CONSOLE' || platformMode === 'ONLINE') {
+    openHostLobby(mode);
+  } else {
+    setGameMode(mode);
+  }
+}
+
+addTapListener(btnSelectPong, () => handleGameCardClick('PONG'));
+addTapListener(btnSelectTanks, () => handleGameCardClick('TANKS'));
+addTapListener(btnSelectCurve, () => handleGameCardClick('CURVE'));
+addTapListener(btnSelectBomb, () => handleGameCardClick('BOMB'));
+addTapListener(btnSelectHeist, () => handleGameCardClick('HEIST'));
+addTapListener(btnSelectDuel, () => handleGameCardClick('DUEL'));
 
 addTapListener(btnOpenOptions, openPauseModal);
 addTapListener(btnResumeGame, closePauseModal);
@@ -418,6 +601,13 @@ updateInstallButtonVisibility();
 resizeCanvas();
 setGameMode('MENU');
 
+// Check URL query parameters for automatic controller join (QR scan or link)
+const urlParams = new URLSearchParams(window.location.search);
+const autoJoinCode = urlParams.get('join');
+if (autoJoinCode) {
+  openJoinModal(autoJoinCode);
+}
+
 // Service Worker Management
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -433,8 +623,45 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// Throttled Host State Broadcaster (~16Hz)
+let lastBroadcastTime = 0;
+function broadcastGameStateIfNeeded(now) {
+  if (!partyNetwork.isHosting || currentMode === 'MENU') return;
+  if (now - lastBroadcastTime < 60) return;
+  lastBroadcastTime = now;
+
+  let packet = { gameMode: currentMode };
+  if (currentMode === 'PONG') {
+    packet.scores = pongGame.matchScores;
+    packet.rally = pongGame.ball?.rallyCount || 0;
+  } else if (currentMode === 'TANKS') {
+    packet.scores = tanksGame.scores;
+    packet.ammo = tanksGame.tanks.map((t) => t.ammo);
+    packet.alive = tanksGame.tanks.map((t) => t.alive);
+  } else if (currentMode === 'CURVE') {
+    packet.scores = curveGame.scores;
+    packet.alive = curveGame.players.map((p) => p.alive);
+  } else if (currentMode === 'BOMB') {
+    packet.scores = bombGame.scores;
+    packet.carrier = bombGame.bombCarrierIndex;
+    packet.bombTime = Math.ceil(bombGame.bombTimer || 0);
+  } else if (currentMode === 'HEIST') {
+    packet.scores = heistGame.scores;
+    packet.gemCarrier = heistGame.gemCarrierIndex;
+    packet.timeLeft = Math.ceil(heistGame.roundTimer || 0);
+  } else if (currentMode === 'DUEL') {
+    packet.scores = duelGame.scores;
+    packet.duelState = duelGame.state;
+    packet.winner = duelGame.roundWinner;
+  }
+
+  partyNetwork.broadcastHostState(packet);
+}
+
 // Master Animation Loop (requestAnimationFrame)
 function loop(timestamp) {
+  broadcastGameStateIfNeeded(timestamp);
+
   if (currentMode === 'PONG') {
     if (!isPaused) {
       pongGame.update(timestamp);

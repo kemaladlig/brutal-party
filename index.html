@@ -21,6 +21,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/gamepad.css" />
   </head>
   <body>
     <div id="app">
@@ -33,6 +34,79 @@
           <span class="dots-icon">⋮</span>
         </button>
       </div>
+
+      <!-- TV Host Lobby Modal (QR Code & Connected Controllers) -->
+      <div id="tv-host-modal" class="hidden">
+        <div class="tv-host-card">
+          <div class="tv-host-header">
+            <div class="tv-host-badge">📺 TV / KONSOL HOST EKRANI</div>
+            <h2 class="tv-host-title">ODA: #<span id="host-room-code">----</span></h2>
+            <p class="tv-host-desc">Telefonunuzun kamerasıyla QR kodu taratın veya kodu girerek kumanda olarak katılın.</p>
+          </div>
+
+          <div class="tv-host-body">
+            <div class="qr-container">
+              <canvas id="qr-canvas"></canvas>
+              <div class="qr-url-text" id="host-join-url">http://...</div>
+              <div class="host-share-actions">
+                <button class="host-share-btn" id="btn-host-copy-link" type="button">📋 LİNKİ KOPYALA</button>
+                <button class="host-share-btn whatsapp" id="btn-host-whatsapp-share" type="button">💬 WHATSAPP İLE DAVET ET</button>
+              </div>
+            </div>
+
+            <div class="host-players-list">
+              <div class="host-player-slot" id="slot-p1">
+                <div class="slot-color-dot" style="background-color: #D84727"></div>
+                <div class="slot-name">P1 // BEKLENİYOR...</div>
+              </div>
+              <div class="host-player-slot" id="slot-p2">
+                <div class="slot-color-dot" style="background-color: #1D5D8A"></div>
+                <div class="slot-name">P2 // BEKLENİYOR...</div>
+              </div>
+              <div class="host-player-slot" id="slot-p3">
+                <div class="slot-color-dot" style="background-color: #D99B26"></div>
+                <div class="slot-name">P3 // BEKLENİYOR...</div>
+              </div>
+              <div class="host-player-slot" id="slot-p4">
+                <div class="slot-color-dot" style="background-color: #2F6A4F"></div>
+                <div class="slot-name">P4 // BEKLENİYOR...</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tv-host-actions">
+            <button class="tv-start-btn" id="btn-host-launch-game" type="button">▶ OYUNU BAŞLAT</button>
+            <button class="tv-close-btn" id="btn-host-close" type="button">⌂ İPTAL</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Join Room as Controller Modal -->
+      <div id="join-room-modal" class="hidden">
+        <div class="join-room-card">
+          <div class="join-header">
+            <div class="join-badge">📱 TELEFON KUMANDASI</div>
+            <h2 class="join-title">ODAYA KATIL</h2>
+          </div>
+          <div class="join-inputs">
+            <div class="join-code-row">
+              <label class="join-label">4 HANELİ ODA KODU</label>
+              <button class="paste-code-btn" id="btn-paste-room-code" type="button">📋 YAPIŞTIR</button>
+            </div>
+            <input type="text" id="input-room-code" class="brutal-input" maxlength="4" placeholder="ÖR: BOMB" autocapitalize="characters" />
+            
+            <label class="join-label">OYUNCU İSMİNİZ</label>
+            <input type="text" id="input-player-name" class="brutal-input" maxlength="12" placeholder="ÖR: AHMET" />
+          </div>
+          <div class="join-actions">
+            <button class="join-btn primary" id="btn-submit-join" type="button">KUMANDAYI BAĞLA →</button>
+            <button class="join-btn" id="btn-cancel-join" type="button">İPTAL</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fullscreen Mobile Gamepad Overlay -->
+      <div id="gamepad-overlay" class="hidden"></div>
 
       <!-- Brutalist Pause & Options Modal -->
       <div id="pause-modal" class="hidden">

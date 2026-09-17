@@ -610,6 +610,19 @@ export class BombGame {
     }
   }
 
+  handleRemoteInput(slotIndex, data) {
+    const joy = this.joysticks[slotIndex];
+    if (!joy) return;
+
+    if (data.action === 'JOYSTICK_MOVE') {
+      joy.active = data.force > 0.05;
+      joy.angle = data.angle || 0;
+      joy.force = data.force || 0;
+    } else if (data.action === 'DASH') {
+      this.triggerDash(slotIndex);
+    }
+  }
+
   onTouchEnd(touch) {
     for (let q = 0; q < 4; q++) {
       const joy = this.joysticks[q];
