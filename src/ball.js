@@ -37,9 +37,15 @@ export class Ball {
   }
 
   scaleToArena(arena) {
-    const ref = arena.height || arena.size || 600;
-    this.baseMinSpeed = ref * 0.75;
-    this.baseMaxSpeed = ref * 1.55;
+    const shortSide = Math.min(arena.width, arena.height) || 400;
+    const longSide  = Math.max(arena.width, arena.height) || 600;
+
+    // Ball radius scales with the shorter dimension (~1.8-2.0%)
+    this.radius = Math.max(9, Math.min(16, Math.round(shortSide * 0.019)));
+
+    // Speed anchored to the shorter dimension for consistent feel on any layout
+    this.baseMinSpeed = shortSide * 0.70;
+    this.baseMaxSpeed = longSide  * 1.30;
     this.currentMinSpeed = this.baseMinSpeed;
     this.currentMaxSpeed = this.baseMaxSpeed;
   }
@@ -104,9 +110,11 @@ export class Ball {
       }
     }
 
-    // Adaptive sub-stepping for ultra-high speeds (up to 2200 px/s) to guarantee zero tunneling
+    // Adaptive sub-stepping – thresholds scale with arena so tunneling never occurs
     const currentSpeed = Math.hypot(this.vx, this.vy);
-    const subSteps = currentSpeed > 1200 ? 3 : currentSpeed > 650 ? 2 : 1;
+    const fastThresh = this.baseMaxSpeed * 1.05;
+    const midThresh  = this.baseMinSpeed * 1.15;
+    const subSteps = currentSpeed > fastThresh ? 3 : currentSpeed > midThresh ? 2 : 1;
     const subDt = dt / subSteps;
 
     for (let step = 0; step < subSteps; step++) {
@@ -164,6 +172,9 @@ export class Ball {
       if (!paddle.isJoined || paddle.isEliminated) continue;
 
       if (this.checkPaddleCollision(nextX, nextY, paddle)) {
+        // Snap ball to predicted position before resolving so normal is computed correctly
+        this.x = nextX;
+        this.y = nextY;
         this.resolvePaddleCollision(paddle);
         this.consecutiveWallBounces = 0;
         nextX = this.x + this.vx * dt;
@@ -230,13 +241,13 @@ export class Ball {
     this.currentMinSpeed = Math.min(this.baseMaxSpeed, this.baseMinSpeed + this.rallyCount * escalateMin);
     this.currentMaxSpeed = Math.min(this.baseMaxSpeed * 2, this.baseMaxSpeed + this.rallyCount * escalateMax);
 
-    // Check POWER SMASH: Aggressive fast swipe (> 50% of base speed)
-    const smashThreshold = this.baseMinSpeed * 0.85;
+    // Check POWER SMASH: Fast swipe > 60% of base min-speed
+    const smashThreshold = this.baseMinSpeed * 0.60;
     const isSmashStrike = Math.abs(paddle.velocity) > smashThreshold;
     this.isSmash = isSmashStrike;
 
     let incomingSpeed = Math.hypot(this.vx, this.vy);
-    let boostMultiplier = isSmashStrike ? 1.35 : 1.18;
+    let boostMultiplier = isSmashStrike ? 1.42 : 1.20;
     let targetSpeed = Math.min(this.currentMaxSpeed, Math.max(this.currentMinSpeed, incomingSpeed * boostMultiplier));
 
     if (targetSpeed > this.baseMaxSpeed * 0.95 || isSmashStrike) {
@@ -272,15 +283,16 @@ export class Ball {
     rx += tx * (paddleTangentVel * this.spinInfluence);
     ry += ty * (paddleTangentVel * this.spinInfluence);
 
-    // Offset curvature (convex racket curve)
+    // Offset curvature (convex racket curve) – scaled proportionally to arena speed
     const halfLen = paddle.length / 2;
+    const curveStrength = this.baseMinSpeed * 0.19;  // ~19% of base min speed
     let offset = 0;
     if (paddle.axis === 'horizontal') {
       offset = Math.max(-1, Math.min(1, (this.x - paddle.coord) / halfLen));
-      rx += offset * 85;
+      rx += offset * curveStrength;
     } else {
       offset = Math.max(-1, Math.min(1, (this.y - paddle.coord) / halfLen));
-      ry += offset * 85;
+      ry += offset * curveStrength;
     }
 
     const newMag = Math.hypot(rx, ry) || 1;

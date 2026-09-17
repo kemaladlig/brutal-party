@@ -426,7 +426,7 @@ export class DuelGame {
   onTouchStart(touch) {
     const pos = { x: touch.x, y: touch.y };
 
-    // Lobby UI Clicks
+    // Lobby UI Clicks (Start Button)
     if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
       for (const btn of this.uiButtons) {
         if (
@@ -441,6 +441,22 @@ export class DuelGame {
       }
     }
 
+    // Lobby Pad Click (Generous player join toggle)
+    if (this.state === 'LOBBY') {
+      const margin = 28;
+      for (const pad of this.triggerPads) {
+        if (
+          pos.x >= pad.x - margin &&
+          pos.x <= pad.x + pad.w + margin &&
+          pos.y >= pad.y - margin &&
+          pos.y <= pad.y + pad.h + margin
+        ) {
+          this.togglePlayerJoin(pad.playerIndex);
+          return;
+        }
+      }
+    }
+
     if (this.state === 'ROUND_OVER') {
       // Any tap advances immediately if timer > 0.6s
       if (this.roundEndTimer < 2.6) {
@@ -450,12 +466,13 @@ export class DuelGame {
     }
 
     if (this.state === 'HOLSTER_WAIT' || this.state === 'TENSION' || this.state === 'DRAW_SIGNAL') {
+      const margin = 28;
       for (const pad of this.triggerPads) {
         if (
-          pos.x >= pad.x &&
-          pos.x <= pad.x + pad.w &&
-          pos.y >= pad.y &&
-          pos.y <= pad.y + pad.h
+          pos.x >= pad.x - margin &&
+          pos.x <= pad.x + pad.w + margin &&
+          pos.y >= pad.y - margin &&
+          pos.y <= pad.y + pad.h + margin
         ) {
           this.handlePlayerHoldStart(pad.playerIndex, touch.id);
           return;
@@ -492,6 +509,25 @@ export class DuelGame {
     this.roundWinner = null;
     this.matchWinner = null;
     this.smokeParticles = [];
+    this.bulletTracers = [];
+    this.signalTime = 0;
+    this.tensionTimer = 0;
+    this.roundEndTimer = 0;
+    this.flashOpacity = 0;
+    this.trauma = 0;
+    this.lastTime = performance.now();
+    this.playerStatus.forEach((p) => {
+      p.isHolding = false;
+      p.touchId = null;
+      p.hasFired = false;
+      p.falseStart = false;
+      p.reactionMs = null;
+      p.rank = 0;
+    });
+  }
+
+  resetMatch() {
+    this.reset();
   }
 
   update(now) {

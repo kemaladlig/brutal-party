@@ -79,6 +79,9 @@ function resizeCanvas() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(dpr, dpr);
 
+  // Update touch manager with exact logical dimensions
+  touchManager.setDimensions(width, height, dpr);
+
   // Resize active engines
   pongGame.resize(width, height);
   tanksGame.resize(width, height);
@@ -101,6 +104,8 @@ export function setGameMode(mode) {
   pauseModal.classList.add('hidden');
   touchManager.resetTouches();
 
+  const now = performance.now();
+
   if (mode === 'MENU') {
     menuOverlay.classList.remove('hidden');
     inGameHud.classList.add('hidden');
@@ -109,31 +114,44 @@ export function setGameMode(mode) {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
     touchManager.setHandler(pongGame);
+    pongGame.resetCurrentGame();
+    pongGame.lastTime = now;
+    pongGame.accumulator = 0;
     pongGame.resize(window.innerWidth, window.innerHeight);
   } else if (mode === 'TANKS') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
     touchManager.setHandler(tanksGame);
+    tanksGame.resetMatch();
+    tanksGame.lastTime = now;
     tanksGame.resize(window.innerWidth, window.innerHeight);
   } else if (mode === 'CURVE') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
     touchManager.setHandler(curveGame);
+    curveGame.resetMatch();
+    curveGame.lastTime = now;
     curveGame.resize(window.innerWidth, window.innerHeight);
   } else if (mode === 'BOMB') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
     touchManager.setHandler(bombGame);
+    bombGame.resetMatch();
+    bombGame.lastTime = now;
     bombGame.resize(window.innerWidth, window.innerHeight);
   } else if (mode === 'HEIST') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
     touchManager.setHandler(heistGame);
+    heistGame.resetMatch();
+    heistGame.lastTime = now;
     heistGame.resize(window.innerWidth, window.innerHeight);
   } else if (mode === 'DUEL') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
     touchManager.setHandler(duelGame);
+    duelGame.reset();
+    duelGame.lastTime = now;
     duelGame.resize(window.innerWidth, window.innerHeight);
   }
 }
@@ -141,7 +159,6 @@ export function setGameMode(mode) {
 // Pause Modal Functions
 function openPauseModal() {
   if (currentMode === 'MENU') return;
-  markTransition();
   isPaused = true;
   pauseModal.classList.remove('hidden');
   pauseGameTitle.textContent =
@@ -165,12 +182,29 @@ function closePauseModal() {
   pauseModal.classList.add('hidden');
   isPaused = false;
   touchManager.resetTouches();
+
+  // Refresh active game lastTime to prevent physics delta jump after pause
+  const now = performance.now();
+  if (currentMode === 'PONG') {
+    pongGame.lastTime = now;
+    pongGame.accumulator = 0;
+  } else if (currentMode === 'TANKS') {
+    tanksGame.lastTime = now;
+  } else if (currentMode === 'CURVE') {
+    curveGame.lastTime = now;
+  } else if (currentMode === 'BOMB') {
+    bombGame.lastTime = now;
+  } else if (currentMode === 'HEIST') {
+    heistGame.lastTime = now;
+  } else if (currentMode === 'DUEL') {
+    duelGame.lastTime = now;
+  }
 }
 
 function resetActiveGame() {
   closePauseModal();
   if (currentMode === 'PONG') {
-    pongGame.restartRound();
+    pongGame.resetCurrentGame();
   } else if (currentMode === 'TANKS') {
     tanksGame.resetMatch();
   } else if (currentMode === 'CURVE') {
@@ -178,20 +212,55 @@ function resetActiveGame() {
   } else if (currentMode === 'BOMB') {
     bombGame.resetMatch();
   } else if (currentMode === 'HEIST') {
-    heistGame.reset();
+    heistGame.resetMatch();
   } else if (currentMode === 'DUEL') {
     duelGame.reset();
   }
+  touchManager.resetTouches();
 }
 
-// Responsive Tap/Click Listeners (Uses standard click + 350ms transition guard)
+// Ultra-responsive Tap/Click Listeners for Mobile & Desktop
 function addTapListener(el, callback) {
   if (!el) return;
+  let startX = 0;
+  let startY = 0;
+  let startTime = 0;
+  let touchHandled = false;
+
+  el.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches.length > 0) {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      startTime = performance.now();
+      touchHandled = false;
+    }
+  }, { passive: true });
+
+  el.addEventListener('touchend', (e) => {
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      const dist = Math.hypot(endX - startX, endY - startY);
+      const elapsed = performance.now() - startTime;
+      // Trigger immediately if movement < 14px and tap < 450ms
+      if (dist < 14 && elapsed < 450) {
+        touchHandled = true;
+        const now = performance.now();
+        if (now - lastTransitionTime < 80) return;
+        lastTransitionTime = now;
+        e.preventDefault();
+        callback(e);
+      }
+    }
+  }, { passive: false });
+
   el.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+    if (touchHandled) {
+      touchHandled = false;
+      return;
+    }
     const now = performance.now();
-    if (now - lastTransitionTime < 350) return;
+    if (now - lastTransitionTime < 80) return;
     lastTransitionTime = now;
     callback(e);
   });
@@ -316,6 +385,12 @@ function loop(timestamp) {
     ctx.fillStyle = '#F4F4F0';
     ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
     ctx.restore();
+  }
+
+  // Draw responsive brutalist touch feedback overlay
+  if (currentMode !== 'MENU') {
+    const ctx = canvas.getContext('2d');
+    touchManager.renderOverlay(ctx);
   }
 
   requestAnimationFrame(loop);

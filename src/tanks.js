@@ -214,8 +214,19 @@ export class TanksGame {
     this.particles = [];
     this.crates = [];
     this.shotTracers = [];
+    this.cornerTouchIds = [-1, -1, -1, -1];
+    this.cornerTouchOrigins = [null, null, null, null];
+    this.trauma = 0;
+    this.roundTimer = 0;
+    this.roundTransitionTimer = 0;
+    this.spawnIntroTimer = 0;
+    this.lastTime = performance.now();
     this.pickRandomMap();
     this.initTanks();
+  }
+
+  reset() {
+    this.resetMatch();
   }
 
   restartRound() {
@@ -344,18 +355,20 @@ export class TanksGame {
   }
 
   getCornerZone(pos) {
-    for (let index = 0; index < 4; index++) {
-      const zone = this.getCornerControlRect(index);
-      if (
-        pos.x >= zone.x &&
-        pos.x <= zone.x + zone.w &&
-        pos.y >= zone.y &&
-        pos.y <= zone.y + zone.h
-      ) {
-        return index;
-      }
+    const { cx, cy } = this.arena;
+    // Center button area is reserved for Start / Restart
+    if (Math.hypot(pos.x - cx, pos.y - cy) < 65) {
+      return -1;
     }
-    return -1;
+
+    // Full quadrant mapping: eliminates deadzones at phone edges/margins
+    const isLeft = pos.x < cx;
+    const isTop = pos.y < cy;
+
+    if (isLeft && !isTop) return 0; // P1 Bottom-Left
+    if (isLeft && isTop) return 1;  // P2 Top-Left
+    if (!isLeft && isTop) return 2; // P3 Top-Right
+    return 3;                       // P4 Bottom-Right
   }
 
   getCornerControlRect(index) {
@@ -373,9 +386,11 @@ export class TanksGame {
   }
 
   onTouchStart(touch) {
+    const { cx, cy } = this.arena;
+    const distToCenter = Math.hypot(touch.x - cx, touch.y - cy);
+
     if (this.state === 'LOBBY') {
-      const { cx, cy } = this.arena;
-      if (Math.hypot(touch.x - cx, touch.y - cy) < 60) {
+      if (distToCenter < 65) {
         const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
         if (joinedCount >= 2) {
           this.startNewMatch();
@@ -396,8 +411,7 @@ export class TanksGame {
     }
 
     if (this.state === 'MATCH_OVER') {
-      const { cx, cy } = this.arena;
-      if (Math.hypot(touch.x - cx, touch.y - cy) < 70) {
+      if (distToCenter < 75) {
         this.state = 'LOBBY';
         this.scores = [0, 0, 0, 0];
         playJoin();

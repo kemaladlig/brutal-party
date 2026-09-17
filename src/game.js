@@ -24,7 +24,7 @@ export class Game {
       top: 0,
       bottom: 0,
       cornerChamfer: 0,
-      bumperRatio: 0.12,
+      bumperRatio: 0.10,
       getGoalBounds: (side) => this.getGoalBounds(side),
     };
 
@@ -63,6 +63,11 @@ export class Game {
     this.winner = null;
     this.roundWinner = null;
     this.roundOverTimer = 0;
+    this.roundPauseTimer = 0;
+    this.trauma = 0;
+    this.accumulator = 0;
+    this.lastTime = performance.now();
+    this.playerTouchIds = [-1, -1, -1, -1];
     this.setScores = [0, 0, 0, 0];
     this.matchScores = [0, 0, 0, 0];
     this.paddles.forEach((p) => {
@@ -72,20 +77,32 @@ export class Game {
     this.ball.reset(this.arena.cx, this.arena.cy);
   }
 
+  resetMatch() {
+    this.resetCurrentGame();
+  }
+
+  reset() {
+    this.resetCurrentGame();
+  }
+
   restartRound() {
     const joined = this.paddles.filter((p) => p.isJoined);
     if (joined.length < 2) {
       this.state = 'LOBBY';
       return;
     }
-    this.state = 'PLAYING';
+    this.state = 'ROUND_PAUSE';
+    this.roundPauseTimer = 1.3;
     this.winner = null;
     this.roundWinner = null;
     this.paddles.forEach((p) => {
       p.reset(p.isJoined);
       p.updateLayout(this.arena);
     });
-    this.launchBall();
+    this.ball.x = this.arena.cx;
+    this.ball.y = this.arena.cy;
+    this.ball.vx = 0;
+    this.ball.vy = 0;
   }
 
   getGoalBounds(side) {
@@ -100,25 +117,44 @@ export class Game {
   }
 
   getPlayerZoneAt(point) {
-    const { cx, cy } = this.arena;
-    if (this.arena.height > this.arena.width) {
-      return point.y < cy ? 1 : 0;
+    const { cx, cy, width, height } = this.arena;
+    const w = width || window.innerWidth;
+    const h = height || window.innerHeight;
+
+    // In 2-player game (Bottom vs Top), simple vertical split
+    const hasSidePlayers = (this.paddles[2] && this.paddles[2].isJoined) ||
+                           (this.paddles[3] && this.paddles[3].isJoined);
+
+    if (!hasSidePlayers && this.state === 'PLAYING') {
+      return point.y > cy ? 0 : 1;
     }
-    const dx = point.x - cx;
-    const dy = point.y - cy;
-    if (Math.abs(dy) >= Math.abs(dx)) {
-      return dy > 0 ? 0 : 1; // 0: Bottom, 1: Top
+
+    // Proportional normalized sector split across rectangular arena
+    const nx = (point.x - cx) / (w * 0.5);
+    const ny = (point.y - cy) / (h * 0.5);
+
+    if (Math.abs(ny) >= Math.abs(nx)) {
+      return ny > 0 ? 0 : 1; // 0: Bottom (P1), 1: Top (P2)
     } else {
-      return dx < 0 ? 2 : 3; // 2: Left, 3: Right
+      return nx < 0 ? 2 : 3; // 2: Left (P3), 3: Right (P4)
     }
   }
 
   onTouchStart(touch) {
-    // 1. UI interactions (Lobby Join / Start / Restart)
+    // 1. UI interactions (Center BAŞLAT / Restart buttons)
     const handled = this.handleUiTap(touch);
     if (handled) return;
 
-    // 2. In Gameplay: lock touch.id to player zone
+    // 2. Generous Lobby Join: Touching anywhere in a player's region toggles their join status!
+    if (this.state === 'LOBBY') {
+      const playerIndex = this.getPlayerZoneAt(touch);
+      if (playerIndex !== -1) {
+        this.togglePlayerJoin(playerIndex);
+        return;
+      }
+    }
+
+    // 3. In Gameplay: lock touch.id to player zone
     if (this.state === 'PLAYING') {
       const playerIndex = this.getPlayerZoneAt(touch);
       if (playerIndex !== -1 && this.isPlayerActive(playerIndex)) {
@@ -193,6 +229,9 @@ export class Game {
     this.arena.top = marginY;
     this.arena.bottom = marginY + arenaH;
 
+    // Bumper ratio – portrait has taller walls so opening must be proportionally wider
+    this.arena.bumperRatio = isPortrait ? 0.09 : 0.10;
+
     // Update paddle bounds to fit new goal mouth
     this.paddles.forEach((paddle) => paddle.updateLayout(this.arena));
 
@@ -236,7 +275,8 @@ export class Game {
     const joined = this.paddles.filter((p) => p.isJoined);
     if (joined.length < 2) return;
 
-    this.state = 'PLAYING';
+    this.state = 'ROUND_PAUSE';
+    this.roundPauseTimer = 1.4;
     this.winner = null;
     this.roundWinner = null;
     this.roundOverTimer = 0;
@@ -247,8 +287,12 @@ export class Game {
       p.updateLayout(this.arena);
     });
 
+    this.ball.x = this.arena.cx;
+    this.ball.y = this.arena.cy;
+    this.ball.vx = 0;
+    this.ball.vy = 0;
+
     playStart();
-    this.launchBall();
   }
 
   launchBall() {
@@ -276,7 +320,11 @@ export class Game {
       this.roundOverTimer = 2.0;
     } else {
       this.state = 'ROUND_PAUSE';
-      this.roundPauseTimer = 1.0;
+      this.roundPauseTimer = 1.3;
+      this.ball.x = this.arena.cx;
+      this.ball.y = this.arena.cy;
+      this.ball.vx = 0;
+      this.ball.vy = 0;
     }
   }
 
@@ -368,15 +416,16 @@ export class Game {
 
   renderTouchZones(ctx) {
     const { left, top, right, bottom, width: aW, height: aH } = this.arena;
-    const colors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
     const isPortrait = aH > aW;
-    const labels = isPortrait ? ['P1 ALT', 'P2 ÜST'] : ['P1 ALT', 'P2 ÜST', 'P3 SOL', 'P4 SAĞ'];
+    const hasSidePlayers = (this.paddles[2] && this.paddles[2].isJoined) ||
+                           (this.paddles[3] && this.paddles[3].isJoined);
+    const labels = ['P1 ALT', 'P2 ÜST', 'P3 SOL', 'P4 SAĞ'];
 
     ctx.save();
     for (const paddle of this.paddles) {
       if (!paddle.isJoined || paddle.isEliminated) continue;
-      if (isPortrait && paddle.index > 1) continue;
-      ctx.globalAlpha = 0.06;
+      if (isPortrait && !hasSidePlayers && paddle.index > 1) continue;
+      ctx.globalAlpha = 0.08;
       ctx.fillStyle = paddle.color;
 
       if (paddle.side === 'bottom') {
@@ -389,7 +438,7 @@ export class Game {
         ctx.fillRect(right, top, window.innerWidth - right, aH);
       }
 
-      ctx.globalAlpha = 0.42;
+      ctx.globalAlpha = 0.55;
       ctx.fillStyle = paddle.color;
       ctx.font = '800 11px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
@@ -398,6 +447,10 @@ export class Game {
         ctx.fillText(labels[paddle.index], this.arena.cx, bottom + (window.innerHeight - bottom) / 2);
       } else if (paddle.side === 'top') {
         ctx.fillText(labels[paddle.index], this.arena.cx, top / 2);
+      } else if (paddle.side === 'left') {
+        ctx.fillText(labels[paddle.index], left / 2, this.arena.cy);
+      } else if (paddle.side === 'right') {
+        ctx.fillText(labels[paddle.index], right + (window.innerWidth - right) / 2, this.arena.cy);
       }
     }
     ctx.restore();
@@ -444,32 +497,49 @@ export class Game {
       }
 
       ctx.save();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      if (this.state === 'ROUND_PAUSE') {
+        const remaining = Math.max(0.1, this.roundPauseTimer);
+        const progress = Math.min(1, remaining / 1.4);
 
-      // Rally Count
-      ctx.fillStyle = this.ball.rallyCount >= 10 ? '#D84727' : '#1C1C1A';
-      ctx.font = '900 18px "Space Grotesk", sans-serif';
-      const countY = this.ball.rallyCount >= 10 ? cy - minDim * 0.10 : cy - 10;
-      ctx.fillText(
-        this.ball.rallyCount >= 10
-          ? `HIZLANMA: ${this.ball.rallyCount}`
-          : `RALLİ: ${this.ball.rallyCount}`,
-        cx,
-        countY
-      );
+        // Animated Countdown Ring around center
+        ctx.beginPath();
+        ctx.arc(cx, cy, minDim * 0.14 * (0.82 + progress * 0.18), 0, Math.PI * 2);
+        ctx.strokeStyle = '#D84727';
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
 
-      // Speed Gauge
-      ctx.fillStyle = '#78736A';
-      ctx.font = '800 11px "JetBrains Mono", monospace';
-      const speedY = this.ball.rallyCount >= 10 ? cy + minDim * 0.10 : cy + 12;
-      ctx.fillText(`${currentSpeed} PX/S`, cx, speedY);
+        ctx.fillStyle = '#1C1C1A';
+        ctx.font = '900 18px "Space Grotesk", sans-serif';
+        ctx.fillText('HAZIR...', cx, cy - 10);
 
-      // Flash SMASH text if smash occurred
-      if (this.ball.isSmash) {
         ctx.fillStyle = '#D84727';
-        ctx.font = '900 12px "Space Grotesk", sans-serif';
-        ctx.fillText('⚡ SERT VURUŞ!', cx, countY - 20);
+        ctx.font = '800 13px "JetBrains Mono", monospace';
+        ctx.fillText(`${remaining.toFixed(1)}s`, cx, cy + 13);
+      } else {
+        // Rally Count
+        ctx.fillStyle = this.ball.rallyCount >= 10 ? '#D84727' : '#1C1C1A';
+        ctx.font = '900 18px "Space Grotesk", sans-serif';
+        const countY = this.ball.rallyCount >= 10 ? cy - minDim * 0.10 : cy - 10;
+        ctx.fillText(
+          this.ball.rallyCount >= 10
+            ? `HIZLANMA: ${this.ball.rallyCount}`
+            : `RALLİ: ${this.ball.rallyCount}`,
+          cx,
+          countY
+        );
+
+        // Speed Gauge
+        ctx.fillStyle = '#78736A';
+        ctx.font = '800 11px "JetBrains Mono", monospace';
+        const speedY = this.ball.rallyCount >= 10 ? cy + minDim * 0.10 : cy + 12;
+        ctx.fillText(`${currentSpeed} PX/S`, cx, speedY);
+
+        // Flash SMASH text if smash occurred
+        if (this.ball.isSmash) {
+          ctx.fillStyle = '#D84727';
+          ctx.font = '900 12px "Space Grotesk", sans-serif';
+          ctx.fillText('⚡ SERT VURUŞ!', cx, countY - 20);
+        }
       }
       ctx.restore();
     }
@@ -705,30 +775,34 @@ export class Game {
 
   renderPlayerLobbySlot(ctx, paddle) {
     const isJoined = paddle.isJoined;
+    const { arena } = this;
+
+    // Scale button dimensions to arena size
+    const btnLongH = Math.max(120, Math.min(190, Math.floor(arena.width  * 0.32)));
+    const btnLongV = Math.max(120, Math.min(190, Math.floor(arena.height * 0.26)));
+    const btnShortH = Math.max(38, Math.floor(arena.height * 0.052));
+    const btnShortV = Math.max(38, Math.floor(arena.width  * 0.052));
+
     let btnX, btnY, btnW, btnH;
-    const btnLong = 150;
-    const btnShort = 46;
+    const gapH = Math.floor(arena.height * 0.04);
+    const gapV = Math.floor(arena.width  * 0.04);
 
     if (paddle.side === 'bottom') {
-      btnW = btnLong;
-      btnH = btnShort;
-      btnX = this.arena.cx - btnW / 2;
-      btnY = this.arena.bottom - btnH - 32;
+      btnW = btnLongH;  btnH = btnShortH;
+      btnX = arena.cx - btnW / 2;
+      btnY = arena.bottom - btnH - gapH;
     } else if (paddle.side === 'top') {
-      btnW = btnLong;
-      btnH = btnShort;
-      btnX = this.arena.cx - btnW / 2;
-      btnY = this.arena.top + 32;
+      btnW = btnLongH;  btnH = btnShortH;
+      btnX = arena.cx - btnW / 2;
+      btnY = arena.top + gapH;
     } else if (paddle.side === 'left') {
-      btnW = btnShort;
-      btnH = btnLong;
-      btnX = this.arena.left + 32;
-      btnY = this.arena.cy - btnH / 2;
+      btnW = btnShortV;  btnH = btnLongV;
+      btnX = arena.left + gapV;
+      btnY = arena.cy - btnH / 2;
     } else if (paddle.side === 'right') {
-      btnW = btnShort;
-      btnH = btnLong;
-      btnX = this.arena.right - btnW - 32;
-      btnY = this.arena.cy - btnH / 2;
+      btnW = btnShortV;  btnH = btnLongV;
+      btnX = arena.right - btnW - gapV;
+      btnY = arena.cy - btnH / 2;
     }
 
     let label = '+ KATIL';

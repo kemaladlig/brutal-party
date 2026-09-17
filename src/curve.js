@@ -141,7 +141,15 @@ export class CurveGame {
     this.segments = [];
     this.particles = [];
     this.pickups = [];
+    this.cornerTouches = [null, null, null, null];
+    this.trauma = 0;
+    this.spawnIntroTimer = 0;
+    this.lastTime = performance.now();
     this.initPlayers();
+  }
+
+  reset() {
+    this.resetMatch();
   }
 
   startNewMatch() {
@@ -231,18 +239,21 @@ export class CurveGame {
   }
 
   onTouchStart(touch) {
-    const corner = this.getCornerZone(touch);
-    if (corner === -1) return;
+    const { cx, cy } = this.arena;
+    const distToCenter = Math.hypot(touch.x - cx, touch.y - cy);
 
+    // 1. Center Start Button (Lobby)
     if (this.state === 'LOBBY') {
-      const { cx, cy } = this.arena;
-      if (Math.hypot(touch.x - cx, touch.y - cy) < 60) {
+      if (distToCenter < 65) {
         const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
         if (joinedCount >= 2) {
           this.startNewMatch();
         }
         return;
       }
+
+      const corner = this.getCornerZone(touch);
+      if (corner === -1) return;
 
       this.cycleSlotType(corner);
       if (this.players[corner]) {
@@ -253,21 +264,26 @@ export class CurveGame {
       return;
     }
 
+    // 2. Center Restart Button (Match Over)
     if (this.state === 'MATCH_OVER') {
-      const { cx, cy } = this.arena;
-      if (Math.hypot(touch.x - cx, touch.y - cy) < 70) {
+      if (distToCenter < 75) {
         this.resetMatch();
         playJoin();
       }
       return;
     }
 
+    // 3. Gameplay: Generous quadrant steering controls
     if (this.state === 'PLAYING') {
+      const corner = this.getCornerZone(touch);
+      if (corner === -1) return;
       const player = this.players[corner];
       if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
-        const zones = this.getCornerButtonZones(corner);
-        const isLeftAction = touch.x < zones.leftBtn.x + zones.leftBtn.w;
-        const action = isLeftAction ? 'left' : 'right';
+        const w = window.innerWidth;
+        const isLeftHalf = (corner === 0 || corner === 1)
+          ? touch.x < cx * 0.5
+          : touch.x < cx + (w - cx) * 0.5;
+        const action = isLeftHalf ? 'left' : 'right';
 
         this.cornerTouches[corner] = { id: touch.id, action };
         const steerDir = action === 'left' ? -1 : 1;

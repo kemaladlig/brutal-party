@@ -13,12 +13,21 @@ export class TouchManager {
     this.isMouseDown = false;
     this.mouseId = 'mouse';
 
-    this.rect = null;
-    this.updateRect();
-    window.addEventListener('resize', () => this.updateRect());
-    window.addEventListener('scroll', () => this.updateRect(), { passive: true });
+    this.logicalWidth = 0;
+    this.logicalHeight = 0;
+    this.dpr = 1;
+
+    // Visual touch feedback ripples
+    this.ripples = [];
 
     this.initListeners();
+  }
+
+  setDimensions(width, height, dpr) {
+    this.logicalWidth = width;
+    this.logicalHeight = height;
+    this.dpr = dpr || Math.min(window.devicePixelRatio || 1, 2.5);
+    this.updateRect();
   }
 
   updateRect() {
@@ -44,19 +53,20 @@ export class TouchManager {
   }
 
   getCanvasCoords(clientX, clientY) {
-    if (!this.rect) this.updateRect();
-    const rect = this.rect;
-    const scaleX = this.canvas.width / (rect.width || 1);
-    const scaleY = this.canvas.height / (rect.height || 1);
+    // Dynamically retrieve client bounding rect to prevent drift from mobile address bar changes
+    const rect = this.canvas.getBoundingClientRect();
+    this.rect = rect;
 
-    // Convert to CSS logical coordinates (matching context scaling)
-    const rawX = (clientX - rect.left) * scaleX;
-    const rawY = (clientY - rect.top) * scaleY;
+    const logicalW = this.logicalWidth || rect.width || window.innerWidth;
+    const logicalH = this.logicalHeight || rect.height || window.innerHeight;
 
-    // Returns logical canvas coordinates
+    // Convert client CSS coordinates to canvas logical coordinate space (1:1 with drawing context)
+    const scaleX = rect.width > 0 ? logicalW / rect.width : 1;
+    const scaleY = rect.height > 0 ? logicalH / rect.height : 1;
+
     return {
-      x: rawX / (window.devicePixelRatio || 1),
-      y: rawY / (window.devicePixelRatio || 1),
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
     };
   }
 
@@ -92,6 +102,7 @@ export class TouchManager {
         startTime: performance.now(),
       };
       this.activeTouches.set(t.identifier, touchData);
+      this.addRipple(pos.x, pos.y);
 
       if (this.activeHandler && typeof this.activeHandler.onTouchStart === 'function') {
         this.activeHandler.onTouchStart(touchData);
@@ -153,6 +164,7 @@ export class TouchManager {
       startTime: performance.now(),
     };
     this.activeTouches.set(this.mouseId, touchData);
+    this.addRipple(pos.x, pos.y);
 
     if (this.activeHandler && typeof this.activeHandler.onTouchStart === 'function') {
       this.activeHandler.onTouchStart(touchData);
@@ -185,5 +197,57 @@ export class TouchManager {
       }
       this.activeTouches.delete(this.mouseId);
     }
+  }
+
+  addRipple(x, y) {
+    if (this.ripples.length > 12) {
+      this.ripples.shift();
+    }
+    this.ripples.push({
+      x,
+      y,
+      startTime: performance.now(),
+      duration: 320,
+    });
+  }
+
+  renderOverlay(ctx) {
+    const now = performance.now();
+    ctx.save();
+
+    // 1. Draw crisp brutalist feedback rings around active touching fingers
+    for (const [id, t] of this.activeTouches) {
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 22, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(28, 28, 26, 0.45)';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#1C1C1A';
+      ctx.fill();
+    }
+
+    // 2. Draw expanding tap ripples
+    for (let i = this.ripples.length - 1; i >= 0; i--) {
+      const r = this.ripples[i];
+      const elapsed = now - r.startTime;
+      if (elapsed > r.duration) {
+        this.ripples.splice(i, 1);
+        continue;
+      }
+      const progress = elapsed / r.duration;
+      const radius = 14 + progress * 32;
+      const alpha = (1 - progress) * 0.45;
+
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(216, 71, 39, ${alpha})`;
+      ctx.lineWidth = Math.max(1, 3 * (1 - progress));
+      ctx.stroke();
+    }
+
+    ctx.restore();
   }
 }

@@ -75,13 +75,22 @@ export class Paddle {
   }
 
   updateLayout(arena) {
-    const horizDim = arena.width || arena.size;
-    const vertDim = arena.height || arena.size;
-    this.length = Math.max(80, Math.floor((this.axis === 'horizontal' ? horizDim : vertDim) * 0.20));
-    this.thickness = Math.max(14, Math.floor(Math.min(horizDim, vertDim) * 0.038));
+    const horizDim = arena.width  || arena.size;
+    const vertDim  = arena.height || arena.size;
+
+    // Paddle spans ~25% of its wall's length – gives a good target without being too easy
+    if (this.axis === 'horizontal') {
+      this.length    = Math.max(72, Math.floor(horizDim * 0.24));
+      this.thickness = Math.max(14, Math.floor(vertDim  * 0.032));
+    } else {
+      this.length    = Math.max(72, Math.floor(vertDim  * 0.24));
+      this.thickness = Math.max(14, Math.floor(horizDim * 0.032));
+    }
 
     const halfPad = this.length / 2;
-    const margin = Math.min(horizDim, vertDim) * 0.028;
+    // Wall gap – use the wall-axis dimension for a proportional margin
+    const wallDim = this.axis === 'horizontal' ? horizDim : vertDim;
+    const margin  = wallDim * 0.022;
 
     if (this.axis === 'horizontal') {
       this.minCoord = arena.left + halfPad + 6;
@@ -92,7 +101,7 @@ export class Paddle {
         this.fixedPerpendicular = arena.top + margin + this.thickness / 2;
       }
     } else {
-      this.minCoord = arena.top + halfPad + 6;
+      this.minCoord = arena.top  + halfPad + 6;
       this.maxCoord = arena.bottom - halfPad - 6;
       if (this.side === 'left') {
         this.fixedPerpendicular = arena.left + margin + this.thickness / 2;
@@ -130,11 +139,15 @@ export class Paddle {
     }
 
     this.prevCoord = this.coord;
-    this.coord = this.targetCoord;
+
+    // Smooth follow – fast lerp to target for crisp 1:1 finger tracking without lag.
+    const lerpSpeed = 36; // >99% closure within 2 frames, crisp response with true velocity
+    this.coord += (this.targetCoord - this.coord) * Math.min(1, lerpSpeed * dt);
+    this.coord = Math.max(this.minCoord, Math.min(this.maxCoord, this.coord));
 
     if (dt > 0) {
       const instantaneous = (this.coord - this.prevCoord) / dt;
-      this.velocity = this.velocity * 0.35 + instantaneous * 0.65;
+      this.velocity = this.velocity * 0.3 + instantaneous * 0.7;
     }
   }
 

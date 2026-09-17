@@ -224,13 +224,28 @@ export class HeistGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.roundTimer = 45.0;
+    this.goldRushActive = false;
     this.lootItems = [];
     this.particles = [];
     this.floatingTexts = [];
+    this.trauma = 0;
+    this.lastTime = performance.now();
+    for (let i = 0; i < 4; i++) {
+      if (this.joysticks[i]) {
+        this.joysticks[i].active = false;
+        this.joysticks[i].id = null;
+        this.joysticks[i].force = 0;
+      }
+    }
     this.initPlayers();
   }
 
   resetMatch() {
+    this.resetCurrentGame();
+  }
+
+  reset() {
     this.resetCurrentGame();
   }
 
@@ -388,6 +403,13 @@ export class HeistGame {
         btn.onClick();
         return;
       }
+    }
+
+    // 1.5. Generous Lobby Join fallback (tap anywhere in quadrant)
+    if (this.state === 'LOBBY') {
+      const q = this.getCornerQuadrant(touch);
+      this.cycleSlotType(q);
+      return;
     }
 
     // 2. Tackle button tap handling

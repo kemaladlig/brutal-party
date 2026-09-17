@@ -268,10 +268,23 @@ export class BombGame {
     this.pickups = [];
     this.inkPuddles = [];
     this.particles = [];
+    this.trauma = 0;
+    this.lastTime = performance.now();
+    for (let i = 0; i < 4; i++) {
+      if (this.joysticks[i]) {
+        this.joysticks[i].active = false;
+        this.joysticks[i].id = null;
+        this.joysticks[i].force = 0;
+      }
+    }
     this.initPlayers();
   }
 
   resetMatch() {
+    this.resetCurrentGame();
+  }
+
+  reset() {
     this.resetCurrentGame();
   }
 
@@ -497,6 +510,13 @@ export class BombGame {
         btn.onClick();
         return;
       }
+    }
+
+    // 1.5. Generous Lobby Join fallback (tap anywhere in quadrant)
+    if (this.state === 'LOBBY') {
+      const q = this.getCornerQuadrant(touch);
+      this.cycleSlotType(q);
+      return;
     }
 
     // 2. Dash button tap handling
