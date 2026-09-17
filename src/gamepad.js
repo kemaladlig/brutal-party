@@ -195,7 +195,20 @@ export class GamepadManager {
         <div class="lobby-seat-card">
           <div class="lobby-seat-badge">📺 TV EKRANINDAKİ YERİNİZ</div>
           <div class="lobby-seat-title" style="color: ${this.playerColor}">${mySeat}</div>
-          <div class="lobby-seat-sub">TV karşısında kendi alanınıza bakın.</div>
+        </div>
+
+        <!-- Name Edit Section -->
+        <div class="lobby-name-section">
+          <div class="lobby-name-label">👤 İSMİNİZ</div>
+          <div class="lobby-name-row">
+            <div class="lobby-name-display" id="lobby-name-display">${this.playerName}</div>
+            <button class="lobby-name-edit-btn" id="btn-edit-name" type="button">✏️ DEĞİŞTİR</button>
+          </div>
+          <div class="lobby-name-input-row hidden" id="lobby-name-input-row">
+            <input type="text" class="lobby-name-input" id="input-lobby-name" maxlength="12"
+              placeholder="İSMİNİZ" value="${this.playerName}" autocapitalize="characters" />
+            <button class="lobby-name-save-btn" id="btn-save-name" type="button">✓ KAYDET</button>
+          </div>
         </div>
 
         <div class="lobby-game-preview-card">
@@ -204,16 +217,52 @@ export class GamepadManager {
         </div>
 
         <button class="btn-ready-toggle ${this.isReady ? 'ready' : ''}" id="btn-lobby-ready" type="button">
-          ${this.isReady ? '✓ HAZIRSINIZ (HAZIR)' : 'HAZIRIM (DOKUN)'}
+          ${this.isReady ? '✓ HAZIRSINIZ!' : '⏳ HAZIRIM — DOKUN'}
         </button>
       </div>
     `;
+
+    // Name edit toggle
+    const editBtn = document.getElementById('btn-edit-name');
+    const nameDisplay = document.getElementById('lobby-name-display');
+    const nameInputRow = document.getElementById('lobby-name-input-row');
+    const nameInput = document.getElementById('input-lobby-name');
+    const saveBtn = document.getElementById('btn-save-name');
+
+    editBtn?.addEventListener('click', () => {
+      nameInputRow?.classList.remove('hidden');
+      editBtn.classList.add('hidden');
+      nameInput?.focus();
+      nameInput?.select();
+    });
+
+    const saveName = () => {
+      const newName = (nameInput?.value || '').trim().toUpperCase().slice(0, 12) || this.playerName;
+      this.playerName = newName;
+      if (nameDisplay) nameDisplay.textContent = newName;
+      nameInputRow?.classList.add('hidden');
+      editBtn?.classList.remove('hidden');
+      // Update header label too
+      const headerLabel = document.getElementById('header-player-name');
+      if (headerLabel) {
+        const seatPositions = ['ALT // P1', 'ÜST // P2', 'SOL // P3', 'SAĞ // P4'];
+        headerLabel.textContent = `${seatPositions[this.playerIndex] || ''} • ${newName}`;
+      }
+      // Broadcast name change to server so TV sees it
+      this.network.sendInput({ action: 'SET_NAME', name: newName });
+      if (navigator.vibrate) navigator.vibrate(15);
+    };
+
+    saveBtn?.addEventListener('click', saveName);
+    nameInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveName();
+    });
 
     const readyBtn = document.getElementById('btn-lobby-ready');
     readyBtn?.addEventListener('click', () => {
       this.isReady = !this.isReady;
       readyBtn.classList.toggle('ready', this.isReady);
-      readyBtn.textContent = this.isReady ? '✓ HAZIRSINIZ (HAZIR)' : 'HAZIRIM (DOKUN)';
+      readyBtn.textContent = this.isReady ? '✓ HAZIRSINIZ!' : '⏳ HAZIRIM — DOKUN';
       this.network.setReady(this.isReady);
       if (navigator.vibrate) navigator.vibrate(this.isReady ? [20, 30] : 15);
     });

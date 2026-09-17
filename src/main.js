@@ -378,25 +378,33 @@ function updateHostSlot(slotIndex, isConnected, name = '', isReady = false) {
   if (isConnected) {
     hostPlayerSlots[slotIndex] = { name, isReady };
     slotEl.classList.add('connected');
+    slotEl.classList.toggle('ready', isReady); // green border glow
     if (nameEl) nameEl.textContent = name;
     if (readyTag) {
-      readyTag.textContent = isReady ? '✓ HAZIR' : 'BEKLİYOR';
+      readyTag.textContent = isReady ? '✓ HAZIR' : '⏳ BEKLİYOR';
       readyTag.classList.toggle('ready', isReady);
     }
   } else {
     hostPlayerSlots[slotIndex] = null;
-    slotEl.classList.remove('connected');
+    slotEl.classList.remove('connected', 'ready');
     if (nameEl) nameEl.textContent = 'BEKLENİYOR...';
     if (readyTag) {
-      readyTag.textContent = 'BOŞ';
+      readyTag.textContent = '— BOŞ';
       readyTag.classList.remove('ready');
     }
   }
 
   const connectedCount = hostPlayerSlots.filter((p) => p !== null).length;
+  const readyCount = hostPlayerSlots.filter((p) => p?.isReady).length;
   const readyCounter = document.getElementById('lobby-ready-counter');
   if (readyCounter) {
-    readyCounter.textContent = `${connectedCount}/4 BAĞLANDI`;
+    if (connectedCount === 0) {
+      readyCounter.textContent = 'OYUNCU BEKLENİYOR';
+    } else if (readyCount === connectedCount) {
+      readyCounter.textContent = `✓ ${readyCount}/${connectedCount} HAZIR — BAŞLATILABILIR`;
+    } else {
+      readyCounter.textContent = `${connectedCount} BAĞLANDI • ${readyCount} HAZIR`;
+    }
   }
 }
 
@@ -471,6 +479,15 @@ async function openHostLobby(gameMode = 'PONG') {
         showInstallToast(`🔄 Slot P${slotA + 1} ve P${slotB + 1} yer değiştirdi.`);
       },
       onPlayerInput: (slotIndex, data) => {
+        // Handle name change from controller
+        if (data.action === 'SET_NAME' && data.name) {
+          const slot = hostPlayerSlots[slotIndex];
+          if (slot) {
+            slot.name = data.name.slice(0, 12);
+            updateHostSlot(slotIndex, true, slot.name, slot.isReady);
+          }
+          return; // Don't forward name change to game engine
+        }
         const engine = getActiveGameEngine();
         if (engine && typeof engine.handleRemoteInput === 'function') {
           engine.handleRemoteInput(slotIndex, data);
