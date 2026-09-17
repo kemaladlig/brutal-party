@@ -66,70 +66,151 @@
         </button>
         <div id="install-toast" class="install-toast" role="status" aria-live="polite"></div>
         <div class="menu-container">
+          <!-- Header Banner -->
           <div class="menu-header">
-            <div class="menu-badge">PWA // 2-4 OYUNCU // LOCAL</div>
+            <div class="header-top-row">
+              <div class="menu-badge">BRUTAL PARTY // 4P</div>
+              <div class="version-badge">v2.0 • 120HZ ENGINE</div>
+            </div>
             <h1 class="menu-title">BRUTAL PARTY</h1>
-            <p class="menu-subtitle">AYNI EKRANDA, SIFIR GECİKMEYLE 4 KİŞİLİK KAOS</p>
+            <p class="menu-subtitle">SIFIR GECİKME, MAKSİMUM REFLEKS • 2-4 KİŞİLİK PARTİ OYUNLARI</p>
+
+            <!-- Mode Switcher Tabs -->
+            <div class="mode-switcher" role="tablist">
+              <button class="mode-tab active" id="tab-mode-local" type="button" role="tab" aria-selected="true">
+                <span class="tab-icon">📱</span>
+                <span class="tab-title">LOKAL MOD</span>
+                <span class="tab-sub">Tek Cihaz</span>
+              </button>
+              <button class="mode-tab" id="tab-mode-tv" type="button" role="tab" aria-selected="false">
+                <span class="tab-icon">📺</span>
+                <span class="tab-title">TV / KONSOL</span>
+                <span class="tab-sub">Telefon Kumanda</span>
+              </button>
+              <button class="mode-tab" id="tab-mode-online" type="button" role="tab" aria-selected="false">
+                <span class="tab-icon">🌐</span>
+                <span class="tab-title">ONLINE MOD</span>
+                <span class="tab-sub">Uzaktan Maç</span>
+              </button>
+            </div>
+
+            <!-- Mode Action Banner (Context-aware) -->
+            <div id="mode-action-banner" class="mode-banner local-banner">
+              <div class="banner-badge">📱 MASADA OYNA</div>
+              <div class="banner-content">
+                <div class="banner-title">Masa Ortası Tek Cihaz Modu Aktif</div>
+                <div class="banner-desc">Telefonu veya tableti masanın ortasına koyun, bir oyun seçip hemen başlayın. İnternet gerekmez!</div>
+              </div>
+            </div>
           </div>
 
-          <div class="menu-games">
-            <button class="game-card-btn" id="btn-select-pong" type="button">
-              <div class="card-num">01</div>
-              <div class="card-info">
+          <!-- Bento Grid Games (Responsive 2-3 Columns) -->
+          <div class="menu-games bento-grid">
+            <!-- 01: PONG -->
+            <button class="game-card-btn bento-card card-pong" id="btn-select-pong" type="button">
+              <div class="bento-top">
+                <span class="card-hero-icon">🏓</span>
+                <span class="card-tag">2-4 OYUNCU</span>
+              </div>
+              <div class="card-center">
+                <div class="card-number">01</div>
                 <div class="card-title">BRUTAL PONG</div>
-                <div class="card-desc">4 taraflı arena, 1D parmak sürükleme, falso ve sürtünme fiziği</div>
+                <div class="card-desc">4 yönlü arena, 1D falso fiziği, hızlanan ralli ve merkez engeli</div>
               </div>
-              <div class="card-action">BAŞLAT →</div>
+              <div class="bento-bottom">
+                <span class="card-highlight">DETERMİNİSTİK FİZİK</span>
+                <span class="card-action">OYNA →</span>
+              </div>
             </button>
 
-            <button class="game-card-btn" id="btn-select-tanks" type="button">
-              <div class="card-num">02</div>
-              <div class="card-info">
+            <!-- 02: TANKS -->
+            <button class="game-card-btn bento-card card-tanks" id="btn-select-tanks" type="button">
+              <div class="bento-top">
+                <span class="card-hero-icon">🛡️</span>
+                <span class="card-tag">2-4 OYUNCU</span>
+              </div>
+              <div class="card-center">
+                <div class="card-number">02</div>
                 <div class="card-title">MICRO-TANKS</div>
-                <div class="card-desc">Dönen tanklar, tek dokunuşla sürüş, seken mermili savaş arenası</div>
+                <div class="card-desc">Seken mermiler, 3'lü fişek kartuşu ve labirent savaş arenaları</div>
               </div>
-              <div class="card-action">BAŞLAT →</div>
+              <div class="bento-bottom">
+                <span class="card-highlight">AMMO HUD & RİKOŞE</span>
+                <span class="card-action">OYNA →</span>
+              </div>
             </button>
 
-            <button class="game-card-btn" id="btn-select-curve" type="button">
-              <div class="card-num">03</div>
-              <div class="card-info">
+            <!-- 03: CURVE -->
+            <button class="game-card-btn bento-card card-curve" id="btn-select-curve" type="button">
+              <div class="bento-top">
+                <span class="card-hero-icon">🐍</span>
+                <span class="card-tag">2-4 OYUNCU</span>
+              </div>
+              <div class="card-center">
+                <div class="card-number">03</div>
                 <div class="card-title">BRUTAL CURVE</div>
-                <div class="card-desc">Çizgi savaşı, deliklerden kaçış, taktiksel makas ve hayalet damgaları</div>
+                <div class="card-desc">Çizgi savaşı, 2 yönlü keskin dümen, deliklerden kaçış ve makas</div>
               </div>
-              <div class="card-action">BAŞLAT →</div>
+              <div class="bento-bottom">
+                <span class="card-highlight">DÜMEN KONTROLLERİ</span>
+                <span class="card-action">OYNA →</span>
+              </div>
             </button>
 
-            <button class="game-card-btn" id="btn-select-bomb" type="button">
-              <div class="card-num">04</div>
-              <div class="card-info">
+            <!-- 04: BOMB -->
+            <button class="game-card-btn bento-card card-bomb" id="btn-select-bomb" type="button">
+              <div class="bento-top">
+                <span class="card-hero-icon">💣</span>
+                <span class="card-tag">2-4 OYUNCU</span>
+              </div>
+              <div class="card-center">
+                <div class="card-number">04</div>
                 <div class="card-title">BRUTAL BOMB</div>
-                <div class="card-desc">Saatli bomba, temasla pas, 360° köşe sürüşü ve nefes kesen kaçış</div>
+                <div class="card-desc">Saatli bomba, temasla pas, depar hamlesi ve 5 dinamik arena haritası</div>
               </div>
-              <div class="card-action">BAŞLAT →</div>
+              <div class="bento-bottom">
+                <span class="card-highlight">5 HARİTA ROTASYONU</span>
+                <span class="card-action">OYNA →</span>
+              </div>
             </button>
 
-            <button class="game-card-btn" id="btn-select-heist" type="button">
-              <div class="card-num">05</div>
-              <div class="card-info">
+            <!-- 05: HEIST -->
+            <button class="game-card-btn bento-card card-heist" id="btn-select-heist" type="button">
+              <div class="bento-top">
+                <span class="card-hero-icon">💰</span>
+                <span class="card-tag">2-4 OYUNCU</span>
+              </div>
+              <div class="card-center">
+                <div class="card-number">05</div>
                 <div class="card-title">BRUTAL HEIST</div>
-                <div class="card-desc">Kasa soygunu, ağırlık fiziği, omuz darbesiyle altın düşürme ve 45s Gold Rush</div>
+                <div class="card-desc">Kasa soygunu, fener ışığı, omuz darbesi ve 45s çılgın Gold Rush</div>
               </div>
-              <div class="card-action">BAŞLAT →</div>
+              <div class="bento-bottom">
+                <span class="card-highlight">RADYAL SPAWN & FENER</span>
+                <span class="card-action">OYNA →</span>
+              </div>
             </button>
 
-            <button class="game-card-btn" id="btn-select-duel" type="button">
-              <div class="card-num">06</div>
-              <div class="card-info">
-                <div class="card-title">QUICK DRAW</div>
-                <div class="card-desc">Kovboy düellosu, basılı tut & sinyalde çek, erken çekene faul, saf refleks</div>
+            <!-- 06: DUEL -->
+            <button class="game-card-btn bento-card card-duel" id="btn-select-duel" type="button">
+              <div class="bento-top">
+                <span class="card-hero-icon">🤠</span>
+                <span class="card-tag">2-4 OYUNCU</span>
               </div>
-              <div class="card-action">BAŞLAT →</div>
+              <div class="card-center">
+                <div class="card-number">06</div>
+                <div class="card-title">QUICK DRAW</div>
+                <div class="card-desc">İlk basan kazanır, erken çekene -1 puan ceza, ms refleks yarışı</div>
+              </div>
+              <div class="bento-bottom">
+                <span class="card-highlight">İLK BASAN KAZANIR</span>
+                <span class="card-action">OYNA →</span>
+              </div>
             </button>
           </div>
 
           <div class="menu-footer">
-            <div class="footer-note">DOKUNMATİK EKRAN DESTEĞİ • 120HZ SABİT FİZİK • OFFLINE PWA</div>
+            <div class="footer-note">⚡ ULTRA DÜŞÜK GECİKME • BRUTALIST PWA • ÇOKLU CİHAZ DESTEĞİ ⚡</div>
           </div>
         </div>
       </div>

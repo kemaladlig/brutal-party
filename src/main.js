@@ -31,6 +31,15 @@ const btnSelectBomb = document.getElementById('btn-select-bomb');
 const btnSelectHeist = document.getElementById('btn-select-heist');
 const btnSelectDuel = document.getElementById('btn-select-duel');
 
+// Mode Switcher Elements
+const tabModeLocal = document.getElementById('tab-mode-local');
+const tabModeTv = document.getElementById('tab-mode-tv');
+const tabModeOnline = document.getElementById('tab-mode-online');
+const modeActionBanner = document.getElementById('mode-action-banner');
+
+// Platform / Match Mode: 'LOCAL' | 'TV_CONSOLE' | 'ONLINE'
+let platformMode = 'LOCAL';
+
 // State Machine: 'MENU' | 'PONG' | 'TANKS' | 'CURVE' | 'BOMB' | 'HEIST' | 'DUEL'
 let currentMode = 'MENU';
 let isPaused = false;
@@ -265,6 +274,84 @@ function addTapListener(el, callback) {
     callback(e);
   });
 }
+
+function updatePlatformMode(newMode) {
+  platformMode = newMode;
+  tabModeLocal?.classList.toggle('active', newMode === 'LOCAL');
+  tabModeLocal?.setAttribute('aria-selected', newMode === 'LOCAL');
+
+  tabModeTv?.classList.toggle('active', newMode === 'TV_CONSOLE');
+  tabModeTv?.setAttribute('aria-selected', newMode === 'TV_CONSOLE');
+
+  tabModeOnline?.classList.toggle('active', newMode === 'ONLINE');
+  tabModeOnline?.setAttribute('aria-selected', newMode === 'ONLINE');
+
+  if (!modeActionBanner) return;
+
+  modeActionBanner.className = 'mode-banner';
+  if (newMode === 'LOCAL') {
+    modeActionBanner.classList.add('local-banner');
+    modeActionBanner.innerHTML = `
+      <div class="banner-badge">📱 MASADA OYNA</div>
+      <div class="banner-content">
+        <div class="banner-title">Masa Ortası Tek Cihaz Modu Aktif</div>
+        <div class="banner-desc">Telefonu veya tableti masanın ortasına koyun, bir oyun seçip hemen başlayın. İnternet gerekmez!</div>
+      </div>
+    `;
+  } else if (newMode === 'TV_CONSOLE') {
+    modeActionBanner.classList.add('tv-banner');
+    modeActionBanner.innerHTML = `
+      <div class="banner-badge">📺 TV + TELEFON</div>
+      <div class="banner-content">
+        <div class="banner-title">TV Konsol Modu (AirConsole & Jackbox Modeli)</div>
+        <div class="banner-desc">Bu ekranı TV'ye yansıtıp Host yapın veya telefonunuzu kumanda olarak bağlayın.</div>
+        <div class="banner-actions">
+          <button class="banner-action-btn" id="btn-create-tv-room" type="button">📺 BU EKRANI TV HOST YAP</button>
+          <button class="banner-action-btn secondary" id="btn-join-as-controller" type="button">📱 KUMANDA OLARAK KATIL</button>
+        </div>
+      </div>
+    `;
+    setupBannerActions();
+  } else if (newMode === 'ONLINE') {
+    modeActionBanner.classList.add('online-banner');
+    modeActionBanner.innerHTML = `
+      <div class="banner-badge">🌐 UZAKTAN MAÇ</div>
+      <div class="banner-content">
+        <div class="banner-title">Online Çok Oyunculu Mod (İstanbul <-> Ankara)</div>
+        <div class="banner-desc">Farklı şehirlerden arkadaşlarınızla WhatsApp oda linkiyle bağlanın.</div>
+        <div class="banner-actions">
+          <button class="banner-action-btn" id="btn-create-online-room" type="button">🌐 YENİ ONLINE ODA AÇ</button>
+          <button class="banner-action-btn secondary" id="btn-enter-room-code" type="button">🔗 ODA KODU İLE KATIL</button>
+        </div>
+      </div>
+    `;
+    setupBannerActions();
+  }
+}
+
+function setupBannerActions() {
+  const btnCreateTv = document.getElementById('btn-create-tv-room');
+  const btnJoinController = document.getElementById('btn-join-as-controller');
+  const btnCreateOnline = document.getElementById('btn-create-online-room');
+  const btnEnterRoom = document.getElementById('btn-enter-room-code');
+
+  btnCreateTv?.addEventListener('click', () => {
+    showInstallToast('📺 TV Host Modu: Faz 2.2 WebSocket oda sunucusu hazırlanıyor...');
+  });
+  btnJoinController?.addEventListener('click', () => {
+    showInstallToast('📱 Gamepad Modu: Oda kodunu girin veya TV ekranındaki QR kodu taratın.');
+  });
+  btnCreateOnline?.addEventListener('click', () => {
+    showInstallToast('🌐 Online Oda: WhatsApp linki üretiliyor...');
+  });
+  btnEnterRoom?.addEventListener('click', () => {
+    showInstallToast('🔗 Online Katılım: 4 haneli oda kodunu girin.');
+  });
+}
+
+addTapListener(tabModeLocal, () => updatePlatformMode('LOCAL'));
+addTapListener(tabModeTv, () => updatePlatformMode('TV_CONSOLE'));
+addTapListener(tabModeOnline, () => updatePlatformMode('ONLINE'));
 
 addTapListener(btnSelectPong, () => setGameMode('PONG'));
 addTapListener(btnSelectTanks, () => setGameMode('TANKS'));

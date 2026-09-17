@@ -266,19 +266,28 @@ body {
 
 .menu-container {
   width: 100%;
-  max-width: 440px;
+  max-width: 880px;
   margin: auto;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 20px;
+  padding: 16px 8px 32px;
 }
 
 .menu-header {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   border-bottom: 4px solid #1a1a1a;
-  padding-bottom: 14px;
+  padding-bottom: 18px;
+}
+
+.header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .menu-badge {
@@ -291,15 +300,25 @@ body {
   border: 2px solid #1a1a1a;
   padding: 3px 8px;
   display: inline-block;
-  align-self: flex-start;
+}
+
+.version-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #ffffff;
+  background-color: #1a1a1a;
+  border: 2px solid #1a1a1a;
+  padding: 3px 8px;
 }
 
 .menu-title {
-  font-size: clamp(28px, 6.5vw, 40px);
+  font-size: clamp(32px, 7vw, 48px);
   font-weight: 900;
-  letter-spacing: -1px;
+  letter-spacing: -1.5px;
   color: #1a1a1a;
-  line-height: 1.05;
+  line-height: 1;
 }
 
 .menu-subtitle {
@@ -310,104 +329,342 @@ body {
   color: #635f58;
 }
 
-.menu-games {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.game-card-btn {
-  background-color: #ffffff;
+/* Mode Switcher Segmented Tabs */
+.mode-switcher {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background-color: #e8e4db;
   border: 3.5px solid #1a1a1a;
   box-shadow: 5px 5px 0px #1a1a1a;
-  padding: 16px 18px;
+  padding: 6px;
+  margin-top: 4px;
+}
+
+.mode-tab {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 14px;
+  justify-content: center;
+  padding: 10px 6px;
+  background-color: #ffffff;
+  border: 2.5px solid #1a1a1a;
   cursor: pointer;
-  text-align: left;
-  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.08s ease;
+  transition: transform 0.08s ease, background-color 0.08s ease, color 0.08s ease;
   touch-action: manipulation;
-  position: relative;
 }
 
-.game-card-btn:active {
-  transform: translate(3px, 3px);
-  box-shadow: 2px 2px 0px #1a1a1a;
-  background-color: #f0ece3;
+.mode-tab:active {
+  transform: translate(2px, 2px);
 }
 
-#btn-select-pong {
-  border-left: 9px solid #d84727;
+.mode-tab .tab-icon {
+  font-size: 20px;
+  line-height: 1.2;
 }
 
-#btn-select-tanks {
-  border-left: 9px solid #1d5d8a;
-}
-
-#btn-select-curve {
-  border-left: 9px solid #2f6a4f;
-}
-
-#btn-select-bomb {
-  border-left: 9px solid #d99b26;
-}
-
-#btn-select-heist {
-  border-left: 9px solid #b5831f;
-}
-
-#btn-select-duel {
-  border-left: 9px solid #8c4830;
-}
-
-.card-num {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 26px;
+.mode-tab .tab-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
   font-weight: 900;
+  letter-spacing: 0.3px;
   color: #1a1a1a;
-  line-height: 1;
-  padding-right: 6px;
 }
 
-.card-info {
+.mode-tab .tab-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #7a756c;
+}
+
+.mode-tab.active {
+  background-color: #1a1a1a;
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px #ffffff;
+}
+
+.mode-tab.active .tab-title {
+  color: #ffffff;
+}
+
+.mode-tab.active .tab-sub {
+  color: #d99b26;
+}
+
+/* Context-Aware Mode Action Banner */
+.mode-banner {
+  border: 3px solid #1a1a1a;
+  box-shadow: 4px 4px 0px #1a1a1a;
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background-color: #ffffff;
+  transition: all 0.15s ease;
+}
+
+.mode-banner.local-banner {
+  border-left: 8px solid #2f6a4f;
+  background-color: #f7fbf8;
+}
+
+.mode-banner.tv-banner {
+  border-left: 8px solid #1d5d8a;
+  background-color: #f4f8fb;
+}
+
+.mode-banner.online-banner {
+  border-left: 8px solid #d84727;
+  background-color: #fbf6f4;
+}
+
+.banner-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 900;
+  background-color: #1a1a1a;
+  color: #ffffff;
+  padding: 3px 6px;
+  white-space: nowrap;
+}
+
+.banner-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.card-title {
-  font-size: 19px;
+.banner-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13.5px;
   font-weight: 900;
-  letter-spacing: -0.5px;
   color: #1a1a1a;
 }
 
-.card-desc {
-  font-size: 11.5px;
+.banner-desc {
+  font-size: 11px;
   font-weight: 600;
   color: #55514a;
   line-height: 1.35;
 }
 
-.card-action {
+.banner-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.banner-action-btn {
+  padding: 7px 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11.5px;
+  font-weight: 900;
+  background-color: #1a1a1a;
+  color: #ffffff;
+  border: 2px solid #1a1a1a;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.08s ease;
+}
+
+.banner-action-btn.secondary {
+  background-color: #ffffff;
+  color: #1a1a1a;
+}
+
+.banner-action-btn:active {
+  transform: translate(1.5px, 1.5px);
+}
+
+/* Bento Grid: Responsive 2-3 Columns */
+.menu-games.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+/* Bento Card Design */
+.bento-card {
+  background-color: #ffffff;
+  border: 3.5px solid #1a1a1a;
+  box-shadow: 6px 6px 0px #1a1a1a;
+  padding: 16px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
+  touch-action: manipulation;
+  position: relative;
+  min-height: 168px;
+}
+
+.bento-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 8px 0px #1a1a1a;
+}
+
+.bento-card:active {
+  transform: translate(3px, 3px);
+  box-shadow: 2px 2px 0px #1a1a1a;
+  background-color: #f7f4ee;
+}
+
+/* Colored Top Accent Bar */
+.card-pong { border-top: 8px solid #d84727; }
+.card-tanks { border-top: 8px solid #1d5d8a; }
+.card-curve { border-top: 8px solid #2f6a4f; }
+.card-bomb { border-top: 8px solid #d99b26; }
+.card-heist { border-top: 8px solid #b5831f; }
+.card-duel { border-top: 8px solid #8c4830; }
+
+.bento-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-hero-icon {
+  font-size: 28px;
+  line-height: 1;
+  filter: drop-shadow(2px 2px 0px rgba(0, 0, 0, 0.15));
+}
+
+.card-tag {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #1a1a1a;
+  background-color: #e8e4db;
+  border: 1.5px solid #1a1a1a;
+  padding: 2px 6px;
+}
+
+.card-center {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card-number {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 900;
+  color: #8c867c;
+  letter-spacing: 1px;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  color: #1a1a1a;
+  line-height: 1.15;
+}
+
+.card-desc {
+  font-size: 11px;
+  font-weight: 600;
+  color: #55514a;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.bento-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 2px dashed #ded8cc;
+  padding-top: 10px;
+  margin-top: 2px;
+}
+
+.card-highlight {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
   font-weight: 800;
   color: #1a1a1a;
-  white-space: nowrap;
+  background-color: #fff9e6;
+  border: 1px solid #d99b26;
+  padding: 2px 5px;
+}
+
+.card-action {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12.5px;
+  font-weight: 900;
+  color: #1a1a1a;
+  background-color: #f4f0ea;
+  border: 2px solid #1a1a1a;
+  padding: 3px 8px;
+  transition: background-color 0.08s ease, color 0.08s ease;
+}
+
+.bento-card:hover .card-action {
+  background-color: #1a1a1a;
+  color: #ffffff;
 }
 
 .menu-footer {
   text-align: center;
-  padding-top: 4px;
+  padding-top: 6px;
 }
 
 .footer-note {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
   color: #7d7870;
 }
+
+/* Responsive Mobile Layout (2 square/rectangular cards per row) */
+@media (max-width: 600px) {
+  .menu-games.bento-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .bento-card {
+    padding: 12px 10px 10px;
+    gap: 10px;
+    box-shadow: 4px 4px 0px #1a1a1a;
+    min-height: 156px;
+  }
+
+  .card-hero-icon {
+    font-size: 24px;
+  }
+
+  .card-title {
+    font-size: 14.5px;
+  }
+
+  .card-desc {
+    font-size: 10px;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-highlight {
+    display: none;
+  }
+
+  .mode-tab .tab-title {
+    font-size: 10.5px;
+  }
+
+  .mode-tab .tab-sub {
+    font-size: 8.5px;
+  }
+}
+
