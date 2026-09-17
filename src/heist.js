@@ -167,15 +167,15 @@ export class HeistGame {
   }
 
   initPlayers() {
-    const { left, right, top, bottom, size } = this.arena;
-    const padding = size * 0.15;
+    const { cx, cy, size } = this.arena;
+    const spawnDist = Math.round(size * 0.35);
     const r = Math.max(14, Math.round(size * 0.038));
 
     const spawns = [
-      { x: left + padding, y: bottom - padding }, // P1
-      { x: left + padding, y: top + padding },        // P2
-      { x: right - padding, y: top + padding }, // P3
-      { x: right - padding, y: bottom - padding }, // P4
+      { x: cx - spawnDist * 0.707, y: cy + spawnDist * 0.707, angle: -Math.PI * 0.25 }, // P1: Bottom-Left
+      { x: cx - spawnDist * 0.707, y: cy - spawnDist * 0.707, angle: Math.PI * 0.25 },  // P2: Top-Left
+      { x: cx + spawnDist * 0.707, y: cy - spawnDist * 0.707, angle: Math.PI * 0.75 },  // P3: Top-Right
+      { x: cx + spawnDist * 0.707, y: cy + spawnDist * 0.707, angle: -Math.PI * 0.75 }, // P4: Bottom-Right
     ];
 
     this.players = spawns.map((s, i) => {
@@ -458,16 +458,22 @@ export class HeistGame {
     for (let q = 0; q < 4; q++) {
       const joy = this.joysticks[q];
       if (joy.active && joy.id === touch.id) {
-        joy.currX = touch.x;
-        joy.currY = touch.y;
-
-        const dx = joy.currX - joy.originX;
-        const dy = joy.currY - joy.originY;
+        const dx = touch.x - joy.originX;
+        const dy = touch.y - joy.originY;
         const dist = Math.hypot(dx, dy);
         const maxRadius = 48;
 
         joy.angle = Math.atan2(dy, dx);
         joy.force = Math.min(1.0, dist / maxRadius);
+
+        // Clamp visual joystick knob so it never drifts across boundaries
+        if (dist > maxRadius) {
+          joy.currX = joy.originX + Math.cos(joy.angle) * maxRadius;
+          joy.currY = joy.originY + Math.sin(joy.angle) * maxRadius;
+        } else {
+          joy.currX = touch.x;
+          joy.currY = touch.y;
+        }
         break;
       }
     }
@@ -1467,16 +1473,32 @@ export class HeistGame {
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      // Heading Arrow
+      // 1. Forward Tactical Light Beam (Flashlight Cone)
       ctx.save();
       ctx.rotate(player.facingAngle);
-      ctx.fillStyle = '#FFFFFF';
+
+      const coneGrad = ctx.createRadialGradient(0, 0, player.radius, 0, 0, player.radius + 36);
+      coneGrad.addColorStop(0, `${player.color}88`);
+      coneGrad.addColorStop(1, `${player.color}00`);
+      ctx.fillStyle = coneGrad;
       ctx.beginPath();
-      ctx.moveTo(player.radius - 2, 0);
-      ctx.lineTo(player.radius - 8, -5);
-      ctx.lineTo(player.radius - 8, 5);
+      ctx.moveTo(player.radius * 0.8, 0);
+      ctx.arc(0, 0, player.radius + 36, -0.42, 0.42);
       ctx.closePath();
       ctx.fill();
+
+      // 2. Prominent Sharp Heading Pointer Arrow (extending beyond body)
+      ctx.fillStyle = '#FFFFFF';
+      ctx.strokeStyle = '#1C1C1A';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(player.radius + 14, 0);
+      ctx.lineTo(player.radius + 2, -6);
+      ctx.lineTo(player.radius + 5, 0);
+      ctx.lineTo(player.radius + 2, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
       ctx.restore();
 
       // Player Name
@@ -1548,40 +1570,42 @@ export class HeistGame {
 
       if (!joy.active) {
         ctx.save();
-        ctx.globalAlpha = 0.38;
+        ctx.translate(anchors[q].x, anchors[q].y);
+        if (q === 1 || q === 2) ctx.rotate(Math.PI);
+        ctx.globalAlpha = 0.45;
         ctx.strokeStyle = player.color;
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
         ctx.beginPath();
-        ctx.arc(anchors[q].x, anchors[q].y, 34, 0, Math.PI * 2);
+        ctx.arc(0, 0, 36, 0, Math.PI * 2);
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = player.color;
-        ctx.font = '800 9px "JetBrains Mono", monospace';
+        ctx.font = '800 11px "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`P${q + 1} SÜRÜKLE`, anchors[q].x, anchors[q].y);
+        ctx.fillText(`${player.name.slice(0, 3)} SÜRÜKLE`, 0, 0);
         ctx.restore();
         continue;
       }
 
       ctx.save();
 
-        ctx.strokeStyle = 'rgba(28, 28, 26, 0.4)';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.arc(joy.originX, joy.originY, 48, 0, Math.PI * 2);
-        ctx.stroke();
+      ctx.strokeStyle = 'rgba(28, 28, 26, 0.4)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.arc(joy.originX, joy.originY, 48, 0, Math.PI * 2);
+      ctx.stroke();
 
-        ctx.setLineDash([]);
-        ctx.fillStyle = player.color;
-        ctx.beginPath();
-        ctx.arc(joy.currX, joy.currY, 20, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#1C1C1A';
-        ctx.lineWidth = 3;
-        ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = player.color;
+      ctx.beginPath();
+      ctx.arc(joy.currX, joy.currY, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1C1C1A';
+      ctx.lineWidth = 3;
+      ctx.stroke();
 
       ctx.restore();
     }
@@ -1632,32 +1656,38 @@ export class HeistGame {
       }
 
       ctx.save();
+      ctx.translate(pos.x, pos.y);
+      if (i === 1 || i === 2) {
+        ctx.rotate(Math.PI);
+      }
+
       ctx.fillStyle = '#1C1C1A';
-      ctx.fillRect(pos.x - btnW / 2 + 3, pos.y - btnH / 2 + 3, btnW, btnH);
+      ctx.fillRect(-btnW / 2 + 3, -btnH / 2 + 3, btnW, btnH);
 
       ctx.fillStyle = isTackling ? '#FFFFFF' : isReady && targetInRange ? '#FFDE59' : isReady ? '#EAE6DD' : '#D5D0C7';
-      ctx.fillRect(pos.x - btnW / 2, pos.y - btnH / 2, btnW, btnH);
+      ctx.fillRect(-btnW / 2, -btnH / 2, btnW, btnH);
 
       ctx.strokeStyle = isTackling || (isReady && targetInRange) ? '#FFDE59' : '#1C1C1A';
       ctx.lineWidth = isTackling || (isReady && targetInRange) ? 3.5 : 2.5;
-      ctx.strokeRect(pos.x - btnW / 2, pos.y - btnH / 2, btnW, btnH);
+      ctx.strokeRect(-btnW / 2, -btnH / 2, btnW, btnH);
 
       ctx.fillStyle = '#1C1C1A';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
       if (isTackling) {
-        ctx.font = '900 12.5px "Space Grotesk", sans-serif';
-        ctx.fillText('💥 HÜCUM!', pos.x, pos.y);
+        ctx.font = '900 13px "Space Grotesk", sans-serif';
+        ctx.fillText('💥 HÜCUM!', 0, 0);
       } else if (isReady && targetInRange) {
-        ctx.font = '900 12.5px "Space Grotesk", sans-serif';
-        ctx.fillText('⚡ VUR! (ÇAL)', pos.x, pos.y);
+        ctx.font = '900 13px "Space Grotesk", sans-serif';
+        ctx.fillText('⚡ OMUZ AT!', 0, 0);
       } else if (isReady) {
-        ctx.font = '900 12px "Space Grotesk", sans-serif';
-        ctx.fillText('⚡ VUR & ÇAL', pos.x, pos.y);
+        ctx.font = '800 12px "Space Grotesk", sans-serif';
+        ctx.fillText('OMUZ AT', 0, 0);
       } else {
+        const remaining = Math.max(0.1, p.tackleCooldown);
         ctx.font = '800 11px "JetBrains Mono", monospace';
-        ctx.fillText(`⏳ ${p.tackleCooldown.toFixed(1)}s`, pos.x, pos.y);
+        ctx.fillText(`${remaining.toFixed(1)}s`, 0, 0);
       }
       ctx.restore();
 

@@ -141,7 +141,12 @@ export class CurveGame {
     this.segments = [];
     this.particles = [];
     this.pickups = [];
-    this.cornerTouches = [null, null, null, null];
+    this.cornerTouches = [
+      { id: -1, action: null },
+      { id: -1, action: null },
+      { id: -1, action: null },
+      { id: -1, action: null },
+    ];
     this.trauma = 0;
     this.spawnIntroTimer = 0;
     this.lastTime = performance.now();
@@ -215,27 +220,41 @@ export class CurveGame {
 
   getCornerButtonZones(cornerIndex) {
     const { left, right, top, bottom, size } = this.arena;
-    const cSize = size * 0.28;
-    let cx = left;
-    let cy = bottom - cSize;
+    const btnW = Math.max(140, Math.min(240, size * 0.44));
+    const btnH = Math.max(56, Math.min(76, size * 0.16));
+    const halfW = btnW / 2;
+
+    let bx = left;
+    let by = bottom - btnH;
 
     if (cornerIndex === 1) {
-      cx = left;
-      cy = top;
+      bx = left;
+      by = top;
     } else if (cornerIndex === 2) {
-      cx = right - cSize;
-      cy = top;
+      bx = right - btnW;
+      by = top;
     } else if (cornerIndex === 3) {
-      cx = right - cSize;
-      cy = bottom - cSize;
+      bx = right - btnW;
+      by = bottom - btnH;
     }
 
-    const halfW = cSize / 2;
     return {
-      leftBtn: { x: cx, y: cy, w: halfW, h: cSize },
-      rightBtn: { x: cx + halfW, y: cy, w: halfW, h: cSize },
-      box: { x: cx, y: cy, w: cSize, h: cSize },
+      leftBtn: { x: bx, y: by, w: halfW, h: btnH },
+      rightBtn: { x: bx + halfW, y: by, w: halfW, h: btnH },
+      box: { x: bx, y: by, w: btnW, h: btnH },
     };
+  }
+
+  determineSteerAction(cornerIndex, touch) {
+    const zone = this.getCornerButtonZones(cornerIndex);
+    const isTop = cornerIndex === 1 || cornerIndex === 2;
+    const midX = zone.box.x + zone.box.w / 2;
+    // For top players looking down at the screen, their left is towards +X
+    if (isTop) {
+      return touch.x >= midX ? 'left' : 'right';
+    } else {
+      return touch.x < midX ? 'left' : 'right';
+    }
   }
 
   onTouchStart(touch) {
@@ -279,12 +298,7 @@ export class CurveGame {
       if (corner === -1) return;
       const player = this.players[corner];
       if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
-        const w = window.innerWidth;
-        const isLeftHalf = (corner === 0 || corner === 1)
-          ? touch.x < cx * 0.5
-          : touch.x < cx + (w - cx) * 0.5;
-        const action = isLeftHalf ? 'left' : 'right';
-
+        const action = this.determineSteerAction(corner, touch);
         this.cornerTouches[corner] = { id: touch.id, action };
         const steerDir = action === 'left' ? -1 : 1;
         player.steer = player.confusedTimer > 0 ? -steerDir : steerDir;
@@ -296,12 +310,10 @@ export class CurveGame {
     if (this.state !== 'PLAYING') return;
 
     for (let i = 0; i < 4; i++) {
-      if (this.cornerTouches[i].id === touch.id) {
+      if (this.cornerTouches[i] && this.cornerTouches[i].id === touch.id) {
         const player = this.players[i];
         if (player && player.isAlive && player.slotType === 'human') {
-          const zones = this.getCornerButtonZones(i);
-          const isLeftAction = touch.x < zones.leftBtn.x + zones.leftBtn.w;
-          const action = isLeftAction ? 'left' : 'right';
+          const action = this.determineSteerAction(i, touch);
           this.cornerTouches[i].action = action;
           const steerDir = action === 'left' ? -1 : 1;
           player.steer = player.confusedTimer > 0 ? -steerDir : steerDir;
@@ -313,7 +325,7 @@ export class CurveGame {
 
   onTouchEnd(touch) {
     for (let i = 0; i < 4; i++) {
-      if (this.cornerTouches[i].id === touch.id) {
+      if (this.cornerTouches[i] && this.cornerTouches[i].id === touch.id) {
         this.cornerTouches[i] = { id: -1, action: null };
         const player = this.players[i];
         if (player && player.slotType === 'human') {
@@ -923,8 +935,20 @@ export class CurveGame {
       const player = this.players[i];
       const zones = this.getCornerButtonZones(i);
       const isJoined = this.isSlotJoined(i);
+      const isTop = i === 1 || i === 2;
 
       ctx.save();
+      // Rotate 180° for Top players so buttons and text face that player
+      const cx = zones.box.x + zones.box.w / 2;
+      const cy = zones.box.y + zones.box.h / 2;
+      ctx.translate(cx, cy);
+      if (isTop) {
+        ctx.rotate(Math.PI);
+      }
+
+      const halfW = zones.box.w / 2;
+      const halfH = zones.box.h / 2;
+
       if (this.state === 'LOBBY') {
         let label = '+ KATIL';
         let strokeColor = '#DDD9CF';
@@ -947,49 +971,57 @@ export class CurveGame {
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = player.slotType === 'bot_god' ? 3 : 2;
         ctx.setLineDash([4, 4]);
-        ctx.strokeRect(zones.box.x, zones.box.y, zones.box.w, zones.box.h);
+        ctx.strokeRect(-halfW, -halfH, zones.box.w, zones.box.h);
 
         ctx.fillStyle = textColor;
-        ctx.font = '800 11px "Space Grotesk", sans-serif';
+        ctx.font = '800 13px "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(label, zones.box.x + zones.box.w / 2, zones.box.y + zones.box.h / 2);
+        ctx.fillText(label, 0, 0);
 
       } else if (isJoined && player.slotType === 'human' && player.isAlive) {
-        const touching = this.cornerTouches[i];
+        const touching = this.cornerTouches[i] || { id: -1, action: null };
+
+        // Player Name & Score Header
+        ctx.fillStyle = player.color;
+        ctx.font = '900 11px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`${player.name} [${this.scores[i]} PUAN]`, 0, -halfH - 4);
 
         const leftActive = touching.action === 'left';
         ctx.fillStyle = leftActive ? player.color : '#FFFFFF';
-        ctx.fillRect(zones.leftBtn.x, zones.leftBtn.y, zones.leftBtn.w, zones.leftBtn.h);
+        ctx.fillRect(-halfW, -halfH, halfW, zones.box.h);
         ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(zones.leftBtn.x, zones.leftBtn.y, zones.leftBtn.w, zones.leftBtn.h);
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(-halfW, -halfH, halfW, zones.box.h);
 
         ctx.fillStyle = leftActive ? '#FFFFFF' : '#1A1A1A';
-        ctx.font = '900 13px "Space Grotesk", sans-serif';
+        ctx.font = '900 14px "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('◄ SOL', zones.leftBtn.x + zones.leftBtn.w / 2, zones.leftBtn.y + zones.leftBtn.h / 2);
+        ctx.fillText('◄ SOL', -halfW / 2, 0);
 
         const rightActive = touching.action === 'right';
         ctx.fillStyle = rightActive ? player.color : '#FFFFFF';
-        ctx.fillRect(zones.rightBtn.x, zones.rightBtn.y, zones.rightBtn.w, zones.rightBtn.h);
-        ctx.strokeRect(zones.rightBtn.x, zones.rightBtn.y, zones.rightBtn.w, zones.rightBtn.h);
+        ctx.fillRect(0, -halfH, halfW, zones.box.h);
+        ctx.strokeRect(0, -halfH, halfW, zones.box.h);
 
         ctx.fillStyle = rightActive ? '#FFFFFF' : '#1A1A1A';
-        ctx.fillText('SAĞ ►', zones.rightBtn.x + zones.rightBtn.w / 2, zones.rightBtn.y + zones.rightBtn.h / 2);
+        ctx.fillText('SAĞ ►', halfW / 2, 0);
+
       } else if (this.state === 'PLAYING' && isJoined) {
         ctx.globalAlpha = 0.42;
         ctx.strokeStyle = player.color;
         ctx.lineWidth = 2;
         ctx.setLineDash([4, 4]);
-        ctx.strokeRect(zones.box.x, zones.box.y, zones.box.w, zones.box.h);
+        ctx.strokeRect(-halfW, -halfH, zones.box.w, zones.box.h);
         ctx.setLineDash([]);
         ctx.fillStyle = player.color;
-        ctx.font = '800 9px "JetBrains Mono", monospace';
+        ctx.font = '800 11px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('SOL / SAĞ', zones.box.x + zones.box.w / 2, zones.box.y + zones.box.h / 2);
+        ctx.fillText(`${player.name} [BOT]`, 0, 0);
       }
       ctx.restore();
     }

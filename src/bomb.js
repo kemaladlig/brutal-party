@@ -19,9 +19,11 @@ export const BOMB_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const BOMB_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
 
 export const MAP_PRESETS = [
-  { id: 'pillars', name: '4 SİPER KOLONU' },
-  { id: 'bunker', name: 'MERKEZ SIĞINAK' },
-  { id: 'cross', name: 'HAÇ & LABİRENT' },
+  { id: 'pillars', name: '01 // 4 SİPER KOLONU' },
+  { id: 'bunker', name: '02 // MERKEZ SIĞINAK' },
+  { id: 'cross', name: '03 // HAÇ & KORİDORLAR' },
+  { id: 'courtyard', name: '04 // AVLU & DÖNER SİPER' },
+  { id: 'split', name: '05 // İKİLİ BLOK BARİKAT' },
 ];
 
 export class BombGame {
@@ -203,19 +205,37 @@ export class BombGame {
         { x: cx - gap - len, y: cy - thick / 2, w: len, h: thick },
         { x: cx + gap, y: cy - thick / 2, w: len, h: thick },
       ];
+    } else if (this.selectedMapIndex === 3) {
+      // --- MAP 3: AVLU & DÖNER SİPER (Courtyard) ---
+      const bW = Math.round(size * 0.28);
+      const bH = Math.round(size * 0.07);
+      this.pillars = [
+        { x: cx - bW / 2, y: cy - size * 0.23 - bH / 2, w: bW, h: bH },
+        { x: cx - bW / 2, y: cy + size * 0.23 - bH / 2, w: bW, h: bH },
+        { x: cx - size * 0.23 - bH / 2, y: cy - bW / 2, w: bH, h: bW },
+        { x: cx + size * 0.23 - bH / 2, y: cy - bW / 2, w: bH, h: bW },
+      ];
+    } else if (this.selectedMapIndex === 4) {
+      // --- MAP 4: İKİLİ BLOK BARİKAT (Split Blocks) ---
+      const blkW = Math.round(size * 0.16);
+      const blkH = Math.round(size * 0.36);
+      this.pillars = [
+        { x: cx - size * 0.22 - blkW / 2, y: cy - blkH / 2, w: blkW, h: blkH },
+        { x: cx + size * 0.22 - blkW / 2, y: cy - blkH / 2, w: blkW, h: blkH },
+      ];
     }
   }
 
   initPlayers() {
-    const { left, right, top, bottom, size } = this.arena;
-    const padding = size * 0.15;
+    const { cx, cy, size } = this.arena;
+    const spawnDist = Math.round(size * 0.36);
     const r = Math.max(14, Math.round(size * 0.038));
 
     const spawns = [
-      { x: left + padding, y: bottom - padding }, // P1: Bottom-Left
-      { x: left + padding, y: top + padding },        // P2: Top-Left
-      { x: right - padding, y: top + padding }, // P3: Top-Right
-      { x: right - padding, y: bottom - padding }, // P4: Bottom-Right
+      { x: cx - spawnDist * 0.707, y: cy + spawnDist * 0.707 }, // P1: Bottom-Left
+      { x: cx - spawnDist * 0.707, y: cy - spawnDist * 0.707 }, // P2: Top-Left
+      { x: cx + spawnDist * 0.707, y: cy - spawnDist * 0.707 }, // P3: Top-Right
+      { x: cx + spawnDist * 0.707, y: cy + spawnDist * 0.707 }, // P4: Bottom-Right
     ];
 
     this.players = spawns.map((s, i) => {
@@ -300,6 +320,10 @@ export class BombGame {
       this.state = 'LOBBY';
       return;
     }
+
+    // Auto-rotate map preset every round to keep gameplay varied
+    this.selectedMapIndex = (this.selectedMapIndex + 1) % MAP_PRESETS.length;
+    this.buildMapPillars();
 
     this.state = 'PLAYING';
     this.roundWinner = null;
@@ -565,16 +589,22 @@ export class BombGame {
     for (let q = 0; q < 4; q++) {
       const joy = this.joysticks[q];
       if (joy.active && joy.id === touch.id) {
-        joy.currX = touch.x;
-        joy.currY = touch.y;
-
-        const dx = joy.currX - joy.originX;
-        const dy = joy.currY - joy.originY;
+        const dx = touch.x - joy.originX;
+        const dy = touch.y - joy.originY;
         const dist = Math.hypot(dx, dy);
         const maxRadius = 48;
 
         joy.angle = Math.atan2(dy, dx);
         joy.force = Math.min(1.0, dist / maxRadius);
+
+        // Clamp visual joystick knob so it never drifts across boundaries
+        if (dist > maxRadius) {
+          joy.currX = joy.originX + Math.cos(joy.angle) * maxRadius;
+          joy.currY = joy.originY + Math.sin(joy.angle) * maxRadius;
+        } else {
+          joy.currX = touch.x;
+          joy.currY = touch.y;
+        }
         break;
       }
     }
@@ -1549,16 +1579,20 @@ export class BombGame {
       ctx.lineWidth = player.dashTimer > 0 ? 4.5 : 3;
       ctx.stroke();
 
-      // Directional Heading Indicator Pointer
+      // Directional Heading Indicator Pointer (extending beyond body)
       ctx.save();
       ctx.rotate(player.facingAngle);
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = isCarrier ? '#FFDE59' : '#FFFFFF';
+      ctx.strokeStyle = '#1C1C1A';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(player.radius - 2, 0);
-      ctx.lineTo(player.radius - 8, -5);
-      ctx.lineTo(player.radius - 8, 5);
+      ctx.moveTo(player.radius + 14, 0);
+      ctx.lineTo(player.radius + 2, -6);
+      ctx.lineTo(player.radius + 5, 0);
+      ctx.lineTo(player.radius + 2, 6);
       ctx.closePath();
       ctx.fill();
+      ctx.stroke();
       ctx.restore();
 
       // Player Label
@@ -1646,43 +1680,43 @@ export class BombGame {
 
       if (!joy.active) {
         ctx.save();
-        ctx.globalAlpha = 0.38;
+        ctx.translate(anchors[q].x, anchors[q].y);
+        if (q === 1 || q === 2) ctx.rotate(Math.PI);
+        ctx.globalAlpha = 0.45;
         ctx.strokeStyle = player.color;
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
         ctx.beginPath();
-        ctx.arc(anchors[q].x, anchors[q].y, 34, 0, Math.PI * 2);
+        ctx.arc(0, 0, 36, 0, Math.PI * 2);
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = player.color;
-        ctx.font = '800 9px "JetBrains Mono", monospace';
+        ctx.font = '800 11px "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`P${q + 1} SÜRÜKLE`, anchors[q].x, anchors[q].y);
+        ctx.fillText(`${player.name.slice(0, 3)} SÜRÜKLE`, 0, 0);
         ctx.restore();
         continue;
       }
 
       ctx.save();
+      // Base Ring
+      ctx.strokeStyle = 'rgba(28, 28, 26, 0.4)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.arc(joy.originX, joy.originY, 48, 0, Math.PI * 2);
+      ctx.stroke();
 
-        // Base Ring
-        ctx.strokeStyle = 'rgba(28, 28, 26, 0.4)';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.arc(joy.originX, joy.originY, 48, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Thumbstick Knob
-        ctx.setLineDash([]);
-        ctx.fillStyle = player.color;
-        ctx.beginPath();
-        ctx.arc(joy.currX, joy.currY, 20, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#1C1C1A';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-
+      // Thumbstick Knob
+      ctx.setLineDash([]);
+      ctx.fillStyle = player.color;
+      ctx.beginPath();
+      ctx.arc(joy.currX, joy.currY, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1C1C1A';
+      ctx.lineWidth = 3;
+      ctx.stroke();
       ctx.restore();
     }
   }
@@ -1692,24 +1726,21 @@ export class BombGame {
 
     this.dashButtons = [];
     const { canvas, arena } = this;
-    const btnW = 76;
-    const btnH = 34;
+    const btnW = 82;
+    const btnH = 36;
 
     // Check vertical margin outside arena
     const bottomSpace = canvas.height - arena.bottom;
     const topSpace = arena.top;
 
-    // Placed directly adjacent to arena square edges:
-    // If enough margin, place just outside (26px); if tight, place on inner margin (22px)
     const bottomY = bottomSpace >= 42 ? arena.bottom + 26 : arena.bottom - 22;
     const topY = topSpace >= 42 ? arena.top - 26 : arena.top + 22;
 
-    // Placed to the right of each player's zone, directly below/above the arena square
     const positions = [
-      { x: arena.left + arena.size * 0.35, y: bottomY },  // P1: Karenin altında, sağında
-      { x: arena.left + arena.size * 0.35, y: topY },     // P2: Karenin üstünde, sağında
-      { x: arena.right - arena.size * 0.16, y: topY },    // P3: Karenin üstünde, sağında
-      { x: arena.right - arena.size * 0.16, y: bottomY }, // P4: Karenin altında, sağında
+      { x: arena.left + arena.size * 0.35, y: bottomY },
+      { x: arena.left + arena.size * 0.35, y: topY },
+      { x: arena.right - arena.size * 0.16, y: topY },
+      { x: arena.right - arena.size * 0.16, y: bottomY },
     ];
 
     for (let i = 0; i < 4; i++) {
@@ -1721,32 +1752,37 @@ export class BombGame {
       const isDashing = p.dashTimer > 0;
 
       ctx.save();
+      ctx.translate(pos.x, pos.y);
+      if (i === 1 || i === 2) {
+        ctx.rotate(Math.PI);
+      }
+
       // Drop Shadow
       ctx.fillStyle = '#1C1C1A';
-      ctx.fillRect(pos.x - btnW / 2 + 3, pos.y - btnH / 2 + 3, btnW, btnH);
+      ctx.fillRect(-btnW / 2 + 3, -btnH / 2 + 3, btnW, btnH);
 
       // Face
       ctx.fillStyle = isDashing ? '#FFFFFF' : isReady ? '#FFDE59' : '#D5D0C7';
-      ctx.fillRect(pos.x - btnW / 2, pos.y - btnH / 2, btnW, btnH);
+      ctx.fillRect(-btnW / 2, -btnH / 2, btnW, btnH);
 
       ctx.strokeStyle = isDashing ? '#FFDE59' : '#1C1C1A';
       ctx.lineWidth = isDashing ? 3.5 : 2.5;
-      ctx.strokeRect(pos.x - btnW / 2, pos.y - btnH / 2, btnW, btnH);
+      ctx.strokeRect(-btnW / 2, -btnH / 2, btnW, btnH);
 
-      // Icon or Cooldown text
       ctx.fillStyle = '#1C1C1A';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
       if (isDashing) {
         ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText('⚡ DEPAR!', pos.x, pos.y);
+        ctx.fillText('⚡ DEPAR!', 0, 0);
       } else if (isReady) {
         ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText('⚡ ATIL', pos.x, pos.y);
+        ctx.fillText('⚡ ATIL', 0, 0);
       } else {
+        const remaining = Math.max(0.1, p.dashCooldown);
         ctx.font = '800 11px "JetBrains Mono", monospace';
-        ctx.fillText(`⏳ ${p.dashCooldown.toFixed(1)}s`, pos.x, pos.y);
+        ctx.fillText(`⏳ ${remaining.toFixed(1)}s`, 0, 0);
       }
       ctx.restore();
 

@@ -147,7 +147,7 @@ export class Ball {
 
     // 3. Collision with Overdrive Center Core Hazard (Rally >= 10)
     if (this.rallyCount >= 10) {
-      const hazardRadius = arena.size * 0.082;
+      const hazardRadius = Math.min(arena.width, arena.height) * 0.065;
       const hdx = nextX - arena.cx;
       const hdy = nextY - arena.cy;
       const hDist = Math.hypot(hdx, hdy);
@@ -233,21 +233,21 @@ export class Ball {
     this.x = closestX + nx * (this.radius + 1.5);
     this.y = closestY + ny * (this.radius + 1.5);
 
-    // ESCALATION: Increase rally count and permanently raise speed floor!
+    // ESCALATION: Smooth, gradual speed escalation (reaches peak over 15-20 hits, not 3-4)
     this.rallyCount++;
     this.lastHitPlayer = paddle.index;
-    const escalateMin = this.baseMinSpeed * 0.08;
-    const escalateMax = this.baseMaxSpeed * 0.06;
+    const escalateMin = this.baseMinSpeed * 0.022;
+    const escalateMax = this.baseMaxSpeed * 0.018;
     this.currentMinSpeed = Math.min(this.baseMaxSpeed, this.baseMinSpeed + this.rallyCount * escalateMin);
-    this.currentMaxSpeed = Math.min(this.baseMaxSpeed * 2, this.baseMaxSpeed + this.rallyCount * escalateMax);
+    this.currentMaxSpeed = Math.min(this.baseMaxSpeed * 1.6, this.baseMaxSpeed + this.rallyCount * escalateMax);
 
-    // Check POWER SMASH: Fast swipe > 60% of base min-speed
-    const smashThreshold = this.baseMinSpeed * 0.60;
+    // Check POWER SMASH: Fast swipe > 65% of base min-speed
+    const smashThreshold = this.baseMinSpeed * 0.65;
     const isSmashStrike = Math.abs(paddle.velocity) > smashThreshold;
     this.isSmash = isSmashStrike;
 
     let incomingSpeed = Math.hypot(this.vx, this.vy);
-    let boostMultiplier = isSmashStrike ? 1.42 : 1.20;
+    let boostMultiplier = isSmashStrike ? 1.20 : 1.03;
     let targetSpeed = Math.min(this.currentMaxSpeed, Math.max(this.currentMinSpeed, incomingSpeed * boostMultiplier));
 
     if (targetSpeed > this.baseMaxSpeed * 0.95 || isSmashStrike) {
@@ -338,7 +338,7 @@ export class Ball {
           } else {
             this.x = arena.left + r;
             this.vx = Math.abs(this.vx);
-            this.onWallBounce(arena);
+            this.onWallBounce(arena, 'vertical');
             return;
           }
         }
@@ -353,7 +353,7 @@ export class Ball {
           } else {
             this.x = arena.right - r;
             this.vx = -Math.abs(this.vx);
-            this.onWallBounce(arena);
+            this.onWallBounce(arena, 'vertical');
             return;
           }
         }
@@ -368,7 +368,7 @@ export class Ball {
           } else {
             this.y = arena.top + r;
             this.vy = Math.abs(this.vy);
-            this.onWallBounce(arena);
+            this.onWallBounce(arena, 'horizontal');
             return;
           }
         }
@@ -383,7 +383,7 @@ export class Ball {
           } else {
             this.y = arena.bottom - r;
             this.vy = -Math.abs(this.vy);
-            this.onWallBounce(arena);
+            this.onWallBounce(arena, 'horizontal');
             return;
           }
         }
@@ -394,30 +394,31 @@ export class Ball {
     this.y = nextY;
   }
 
-  onWallBounce(arena) {
+  onWallBounce(arena, wallAxis = 'horizontal') {
     this.consecutiveWallBounces++;
     playWallHit();
-    this.game.addTrauma(0.07);
+    this.game.addTrauma(0.06);
+    this.spawnShockwave(this.x, this.y, '#5E5B54');
 
+    // Pure deterministic bounce: only ensure the ball doesn't glide 100% flat along a wall
     const speed = Math.hypot(this.vx, this.vy);
-    let angle = Math.atan2(this.vy, this.vx);
-
-    const naturalScatter = (Math.random() - 0.5) * 0.18;
-    angle += naturalScatter;
-
-    if (this.consecutiveWallBounces >= 3) {
-      const angleToCenter = Math.atan2(arena.cy - this.y, arena.cx - this.x);
-      angle = angle * 0.65 + angleToCenter * 0.35;
-      this.consecutiveWallBounces = 0;
+    if (speed > 1) {
+      if (wallAxis === 'vertical') {
+        const minVx = speed * 0.16;
+        if (Math.abs(this.vx) < minVx) {
+          this.vx = (this.vx >= 0 ? 1 : -1) * minVx;
+          const newVy = Math.sqrt(Math.max(1, speed * speed - this.vx * this.vx));
+          this.vy = (this.vy >= 0 ? 1 : -1) * newVy;
+        }
+      } else {
+        const minVy = speed * 0.16;
+        if (Math.abs(this.vy) < minVy) {
+          this.vy = (this.vy >= 0 ? 1 : -1) * minVy;
+          const newVx = Math.sqrt(Math.max(1, speed * speed - this.vy * this.vy));
+          this.vx = (this.vx >= 0 ? 1 : -1) * newVx;
+        }
+      }
     }
-
-    const modAngle = Math.abs(angle % (Math.PI / 2));
-    if (modAngle < 0.14 || Math.abs(modAngle - Math.PI / 2) < 0.14) {
-      angle += (Math.random() > 0.5 ? 0.2 : -0.2);
-    }
-
-    this.vx = Math.cos(angle) * speed;
-    this.vy = Math.sin(angle) * speed;
   }
 
   handleGoal(playerIndex, paddle) {

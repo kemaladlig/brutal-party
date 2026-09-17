@@ -1,5 +1,6 @@
-// QUICK DRAW (Game 06): 2-4 Player Wild West Reflex Duel (Pure Human Tension)
-// No bots - millisecond precision reaction timing, holster hold & release, false start disqualification
+// QUICK DRAW (Game 06): 2-4 Player Wild West Reflex Duel (Brutal Party // 4P)
+// Tap on Signal ("İlk Basan Kazanır") with dynamic 2/3/4 player scoring, false start penalties,
+// millisecond reaction timer, and 4-way rotated player pods.
 
 import {
   playStart,
@@ -20,7 +21,7 @@ export class DuelGame {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
 
-    // States: 'LOBBY', 'HOLSTER_WAIT', 'TENSION', 'DRAW_SIGNAL', 'ROUND_OVER', 'MATCH_OVER'
+    // States: 'LOBBY', 'STANDOFF_COUNTDOWN', 'TENSION', 'DRAW_SIGNAL', 'ROUND_OVER', 'MATCH_OVER'
     this.state = 'LOBBY';
 
     // Arena geometry
@@ -32,16 +33,19 @@ export class DuelGame {
       right: 0,
       top: 0,
       bottom: 0,
+      width: 0,
+      height: 0,
     };
 
-    // Active human player slots (Index 0..3: Bottom, Top, Left, Right)
-    // Default: P0 (Bottom) and P1 (Top) joined
+    // Active human player slots (Index 0: Bottom, 1: Top, 2: Left, 3: Right)
     this.joinedPlayers = [true, true, false, false];
 
-    // Tournament Scoring
-    this.targetWins = 3; // First to 3 round wins is Champion!
-    this.wins = [0, 0, 0, 0];
+    // Tournament Scoring (First to 10 points wins!)
+    this.targetScore = 10;
+    this.scores = [0, 0, 0, 0];
+    this.wins = this.scores; // Compatibility alias
     this.roundWinner = null;
+    this.falseStartPlayer = null;
     this.matchWinner = null;
 
     // All-time Table Reflex Record
@@ -56,21 +60,17 @@ export class DuelGame {
 
     // Timing & Reaction
     this.signalTime = 0;
-    this.tensionTimer = 0; // Countdown until DRAW
+    this.countdownTimer = 0;
+    this.tensionTimer = 0;
     this.tensionDuration = 0;
     this.tensionAudioTimer = 0;
+    this.drawWindowTimer = 0;
     this.roundEndTimer = 0;
 
     // Per-player round state:
-    // isHolding: boolean (finger on holster)
-    // touchId: id of touch holding
-    // hasFired: boolean
-    // falseStart: boolean
-    // reactionMs: number | null
-    // rank: number (1 = winner, 2 = runner up, etc.)
     this.playerStatus = this.createInitialPlayerStatus();
 
-    // Flash & Camera Shake
+    // Visual Juice & Screen Shake
     this.flashOpacity = 0;
     this.flashColor = '#FFFDF0';
     this.trauma = 0;
@@ -89,12 +89,11 @@ export class DuelGame {
 
   createInitialPlayerStatus() {
     return [0, 1, 2, 3].map(() => ({
-      isHolding: false,
-      touchId: null,
       hasFired: false,
       falseStart: false,
       reactionMs: null,
       rank: 0,
+      pointsEarned: 0,
       lastBestMs: null,
     }));
   }
@@ -102,55 +101,37 @@ export class DuelGame {
   initKeyboard() {
     window.addEventListener('keydown', (e) => {
       const code = e.code;
-      if (this.keys[code]) return; // Avoid repeat
+      if (this.keys[code]) return;
       this.keys[code] = true;
 
       // P0: Space or ArrowDown or KeyS
       if (code === 'Space' || code === 'ArrowDown' || code === 'KeyS') {
-        this.handlePlayerHoldStart(0, 'key_p0');
+        this.handlePlayerTap(0);
       }
       // P1: ArrowUp or KeyW
       if (code === 'ArrowUp' || code === 'KeyW') {
-        this.handlePlayerHoldStart(1, 'key_p1');
+        this.handlePlayerTap(1);
       }
       // P2: ArrowLeft or KeyA
       if (code === 'ArrowLeft' || code === 'KeyA') {
-        this.handlePlayerHoldStart(2, 'key_p2');
+        this.handlePlayerTap(2);
       }
       // P3: ArrowRight or KeyD
       if (code === 'ArrowRight' || code === 'KeyD') {
-        this.handlePlayerHoldStart(3, 'key_p3');
+        this.handlePlayerTap(3);
       }
     });
 
     window.addEventListener('keyup', (e) => {
-      const code = e.code;
-      this.keys[code] = false;
-
-      // P0 release
-      if (code === 'Space' || code === 'ArrowDown' || code === 'KeyS') {
-        this.handlePlayerHoldEnd(0, 'key_p0');
-      }
-      // P1 release
-      if (code === 'ArrowUp' || code === 'KeyW') {
-        this.handlePlayerHoldEnd(1, 'key_p1');
-      }
-      // P2 release
-      if (code === 'ArrowLeft' || code === 'KeyA') {
-        this.handlePlayerHoldEnd(2, 'key_p2');
-      }
-      // P3 release
-      if (code === 'ArrowRight' || code === 'KeyD') {
-        this.handlePlayerHoldEnd(3, 'key_p3');
-      }
+      this.keys[e.code] = false;
     });
   }
 
   resize(width, height) {
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width
-      ? Math.max(48, Math.floor(height * 0.12))
-      : Math.max(32, Math.floor(height * 0.06));
+      ? Math.max(52, Math.floor(height * 0.12))
+      : Math.max(36, Math.floor(height * 0.07));
     const arenaW = width - marginX * 2;
     const arenaH = height - marginY * 2;
     const size = Math.min(arenaW, arenaH, 560);
@@ -170,50 +151,55 @@ export class DuelGame {
 
   updateTriggerPads() {
     const { cx, cy, left, right, top, bottom, size } = this.arena;
-    const padW = Math.min(size * 0.44, 210);
-    const padH = Math.min(68, Math.max(50, size * 0.12));
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    // Corner / edge action pads anchored tightly around the arena
+    const padW = Math.min(size * 0.44, 220);
+    const padH = Math.min(68, Math.max(52, size * 0.12));
+
+    // Define 4 rotated trigger pads anchored around the perimeter
     this.triggerPads = [
-      // P0: Bottom
+      // P0: Bottom (Player 1) - Faces 0° (upright)
       {
         playerIndex: 0,
-        x: cx - padW / 2,
-        y: Math.min(bottom + 14, viewportHeight - padH - 12),
+        cx: cx,
+        cy: Math.min(bottom + padH / 2 + 10, viewportHeight - padH / 2 - 8),
         w: padW,
         h: padH,
+        rotation: 0,
         label: 'KIRMIZI',
         sublabel: 'OYUNCU 1',
       },
-      // P1: Top
+      // P1: Top (Player 2) - Faces 180° (upright for opponent across table)
       {
         playerIndex: 1,
-        x: cx - padW / 2,
-        y: Math.max(top - padH - 14, 12),
+        cx: cx,
+        cy: Math.max(top - padH / 2 - 10, padH / 2 + 8),
         w: padW,
         h: padH,
+        rotation: Math.PI,
         label: 'MAVİ',
         sublabel: 'OYUNCU 2',
       },
-      // P2: Left
+      // P2: Left (Player 3) - Faces 90° (upright for player on left edge)
       {
         playerIndex: 2,
-        x: Math.max(left - padW - 14, 12),
-        y: cy - padH / 2,
+        cx: Math.max(left - padH / 2 - 8, padH / 2 + 6),
+        cy: cy,
         w: padW,
         h: padH,
+        rotation: Math.PI / 2,
         label: 'SARI',
         sublabel: 'OYUNCU 3',
       },
-      // P3: Right
+      // P3: Right (Player 4) - Faces -90° (upright for player on right edge)
       {
         playerIndex: 3,
-        x: Math.min(right + 14, viewportWidth - padW - 12),
-        y: cy - padH / 2,
+        cx: Math.min(right + padH / 2 + 8, viewportWidth - padH / 2 - 6),
+        cy: cy,
         w: padW,
         h: padH,
+        rotation: -Math.PI / 2,
         label: 'YEŞİL',
         sublabel: 'OYUNCU 4',
       },
@@ -227,49 +213,49 @@ export class DuelGame {
   togglePlayerJoin(index) {
     playJoin();
     this.joinedPlayers[index] = !this.joinedPlayers[index];
-    // Ensure at least 2 players can participate
-    if (this.getActivePlayerCount() < 2) {
-      // Don't auto-force, but UI will alert
-    }
   }
 
   startMatch() {
     if (this.getActivePlayerCount() < 2) return;
     playStart();
-    this.wins = [0, 0, 0, 0];
+    this.scores = [0, 0, 0, 0];
+    this.wins = this.scores;
     this.matchWinner = null;
     this.roundWinner = null;
+    this.falseStartPlayer = null;
     this.startNewRound();
   }
 
   startNewRound() {
-    this.state = 'HOLSTER_WAIT';
+    this.state = 'STANDOFF_COUNTDOWN';
+    this.countdownTimer = 1.2;
     this.roundWinner = null;
+    this.falseStartPlayer = null;
     this.signalTime = 0;
     this.tensionTimer = 0;
+    this.drawWindowTimer = 0;
     this.roundEndTimer = 0;
     this.flashOpacity = 0;
 
     // Reset round statuses
-    this.playerStatus.forEach((p, idx) => {
-      p.isHolding = false;
-      p.touchId = null;
+    this.playerStatus.forEach((p) => {
       p.hasFired = false;
       p.falseStart = false;
       p.reactionMs = null;
       p.rank = 0;
+      p.pointsEarned = 0;
     });
   }
 
   armDuelTension() {
     this.state = 'TENSION';
-    // Random delay between 2.2 and 5.2 seconds for intense psychological standoff!
-    this.tensionDuration = 2.2 + Math.random() * 3.0;
+    // Random psychological standoff duration between 2.0 and 4.6 seconds
+    this.tensionDuration = 2.0 + Math.random() * 2.6;
     this.tensionTimer = this.tensionDuration;
     this.tensionAudioTimer = 0;
 
-    // 45% chance of psychological fakeout cue
-    this.hasFakeout = Math.random() < 0.45;
+    // 40% chance of psychological fakeout cue
+    this.hasFakeout = Math.random() < 0.40;
     this.fakeoutTriggerTime = this.tensionDuration * (0.35 + Math.random() * 0.35);
     this.fakeoutFired = false;
     this.fakeoutDisplayTimer = 0;
@@ -284,6 +270,7 @@ export class DuelGame {
     this.flashColor = '#FFFFFF';
     this.trauma = 0.8;
     this.fakeoutDisplayTimer = 0;
+    this.drawWindowTimer = 0;
 
     playGunshot();
 
@@ -304,117 +291,105 @@ export class DuelGame {
     }
   }
 
-  handlePlayerHoldStart(playerIdx, touchId) {
-    if (!this.joinedPlayers[playerIdx]) return;
-    const st = this.playerStatus[playerIdx];
-
-    if (this.state === 'HOLSTER_WAIT') {
-      st.isHolding = true;
-      st.touchId = touchId;
-
-      // Check if ALL joined players are now holding their holster
-      const allReady = this.joinedPlayers.every((joined, i) => !joined || this.playerStatus[i].isHolding);
-      if (allReady) {
-        this.armDuelTension();
-      }
-    } else if (this.state === 'DRAW_SIGNAL') {
-      // If someone wasn't holding or taps now during DRAW
-      this.handlePlayerFire(playerIdx);
+  // Dynamic point system based on 2, 3, or 4 active players
+  getPointsForRank(rank, activeCount) {
+    if (activeCount === 2) {
+      if (rank === 1) return 2;
+      return 0;
+    } else if (activeCount === 3) {
+      if (rank === 1) return 3;
+      if (rank === 2) return 1;
+      return 0;
+    } else {
+      // 4 Players
+      if (rank === 1) return 3;
+      if (rank === 2) return 2;
+      if (rank === 3) return 1;
+      return 0;
     }
   }
 
-  handlePlayerHoldEnd(playerIdx, touchId) {
+  handlePlayerTap(playerIdx) {
     if (!this.joinedPlayers[playerIdx]) return;
     const st = this.playerStatus[playerIdx];
 
-    if (this.state === 'HOLSTER_WAIT') {
-      st.isHolding = false;
-      st.touchId = null;
-    } else if (this.state === 'TENSION') {
-      // FALSE START! PLAYER DREW EARLY!
-      st.isHolding = false;
-      st.touchId = null;
+    // 1. EARLY TAP DURING TENSION / COUNTDOWN -> FALSE START PENALTY (-1 PT)
+    if (this.state === 'STANDOFF_COUNTDOWN' || this.state === 'TENSION') {
       st.falseStart = true;
+      this.falseStartPlayer = playerIdx;
+
+      // Penalize: -1 Point (floor at 0)
+      this.scores[playerIdx] = Math.max(0, this.scores[playerIdx] - 1);
+      st.pointsEarned = -1;
+
       playStumble();
-
-      this.trauma = 0.5;
+      this.trauma = 0.55;
       this.state = 'ROUND_OVER';
-      this.roundEndTimer = 3.2;
-
-      // Award round to the remaining unpenalized active player(s)
-      const survivors = [];
-      this.joinedPlayers.forEach((joined, i) => {
-        if (joined && !this.playerStatus[i].falseStart) {
-          survivors.push(i);
-        }
-      });
-
-      if (survivors.length === 1) {
-        this.roundWinner = survivors[0];
-        this.wins[this.roundWinner]++;
-        playCashRegister();
-      } else {
-        this.roundWinner = -1; // Multiple survivors or fault reset
-      }
-
-      this.checkMatchWin();
-    } else if (this.state === 'DRAW_SIGNAL') {
-      // AUTHENTIC QUICK DRAW! Releasing finger draws the weapon!
-      this.handlePlayerFire(playerIdx);
+      this.roundEndTimer = 3.0;
+      return;
     }
-  }
 
-  handlePlayerFire(playerIdx) {
-    const st = this.playerStatus[playerIdx];
-    if (st.hasFired || st.falseStart) return;
+    // 2. TAP ON SIGNAL -> RECORD MILLISECOND REACTION & SCORE
+    if (this.state === 'DRAW_SIGNAL') {
+      if (st.hasFired || st.falseStart) return;
 
-    st.hasFired = true;
-    st.reactionMs = Math.max(1, Math.round(performance.now() - this.signalTime));
-    st.isHolding = false;
+      st.hasFired = true;
+      st.reactionMs = Math.max(1, Math.round(performance.now() - this.signalTime));
 
-    // Check rank
-    const firedCount = this.playerStatus.filter((p) => p.hasFired).length;
-    st.rank = firedCount;
+      const activeCount = this.getActivePlayerCount();
+      const firedCount = this.playerStatus.filter((p) => p.hasFired).length;
+      st.rank = firedCount;
 
-    if (firedCount === 1) {
-      // FIRST TO DRAW! WINNER OF THIS ROUND!
-      this.roundWinner = playerIdx;
-      this.wins[playerIdx]++;
-      playGunshot();
-      playCashRegister();
-      this.trauma = 0.6;
-      this.state = 'ROUND_OVER';
-      this.roundEndTimer = 3.2;
+      const pts = this.getPointsForRank(firedCount, activeCount);
+      st.pointsEarned = pts;
+      this.scores[playerIdx] += pts;
 
-      // Table Record check
-      if (st.reactionMs < this.tableRecordMs) {
-        this.tableRecordMs = st.reactionMs;
+      // First to draw (Champion of this round!)
+      if (firedCount === 1) {
+        this.roundWinner = playerIdx;
+        playGunshot();
+        playCashRegister();
+        this.trauma = 0.6;
+        this.drawWindowTimer = 1.1; // Allow remaining players 1.1s to tap for 2nd/3rd place
+
+        // Record checks
+        if (st.reactionMs < this.tableRecordMs) {
+          this.tableRecordMs = st.reactionMs;
+        }
+        if (st.lastBestMs === null || st.reactionMs < st.lastBestMs) {
+          st.lastBestMs = st.reactionMs;
+        }
+
+        // Bullet Tracer from Winner Pad to Arena Center
+        const pad = this.triggerPads[playerIdx];
+        if (pad) {
+          this.bulletTracers.push({
+            x1: pad.cx,
+            y1: pad.cy,
+            x2: this.arena.cx,
+            y2: this.arena.cy,
+            life: 0.45,
+            color: DUEL_COLORS[playerIdx],
+          });
+        }
+      } else {
+        // Runner up hit
+        playGunshot();
       }
 
-      if (st.lastBestMs === null || st.reactionMs < st.lastBestMs) {
-        st.lastBestMs = st.reactionMs;
+      // If all active players have fired, end round immediately
+      const allFired = this.playerStatus.filter((p, i) => this.joinedPlayers[i] && p.hasFired).length === activeCount;
+      if (allFired) {
+        this.state = 'ROUND_OVER';
+        this.roundEndTimer = 3.0;
+        this.checkMatchWin();
       }
-
-      // Laser Bullet Tracer from Winner Pad to Arena Center
-      const pad = this.triggerPads[playerIdx];
-      if (pad) {
-        this.bulletTracers.push({
-          x1: pad.x + pad.w / 2,
-          y1: pad.y + pad.h / 2,
-          x2: this.arena.cx,
-          y2: this.arena.cy,
-          life: 0.45,
-          color: DUEL_COLORS[playerIdx],
-        });
-      }
-
-      this.checkMatchWin();
     }
   }
 
   checkMatchWin() {
     this.joinedPlayers.forEach((joined, idx) => {
-      if (joined && this.wins[idx] >= this.targetWins) {
+      if (joined && this.scores[idx] >= this.targetScore) {
         this.state = 'MATCH_OVER';
         this.matchWinner = idx;
         this.roundEndTimer = 0;
@@ -422,7 +397,7 @@ export class DuelGame {
     });
   }
 
-  // --- Touch Manager Callbacks ---
+  // --- Touch Input Handling with Rotated Bounds Detection ---
   onTouchStart(touch) {
     const pos = { x: touch.x, y: touch.y };
 
@@ -441,89 +416,78 @@ export class DuelGame {
       }
     }
 
-    // Lobby Pad Click (Generous player join toggle)
+    // Lobby Pad Click (Player join toggle)
     if (this.state === 'LOBBY') {
-      const margin = 28;
       for (const pad of this.triggerPads) {
-        if (
-          pos.x >= pad.x - margin &&
-          pos.x <= pad.x + pad.w + margin &&
-          pos.y >= pad.y - margin &&
-          pos.y <= pad.y + pad.h + margin
-        ) {
+        if (this.isPointInsidePad(pos, pad, 24)) {
           this.togglePlayerJoin(pad.playerIndex);
           return;
         }
       }
     }
 
+    // Round Over Skip Tap
     if (this.state === 'ROUND_OVER') {
-      // Any tap advances immediately if timer > 0.6s
-      if (this.roundEndTimer < 2.6) {
+      if (this.roundEndTimer < 2.4) {
         this.startNewRound();
         return;
       }
     }
 
-    if (this.state === 'HOLSTER_WAIT' || this.state === 'TENSION' || this.state === 'DRAW_SIGNAL') {
-      const margin = 28;
+    // In-game tap
+    if (
+      this.state === 'STANDOFF_COUNTDOWN' ||
+      this.state === 'TENSION' ||
+      this.state === 'DRAW_SIGNAL'
+    ) {
       for (const pad of this.triggerPads) {
-        if (
-          pos.x >= pad.x - margin &&
-          pos.x <= pad.x + pad.w + margin &&
-          pos.y >= pad.y - margin &&
-          pos.y <= pad.y + pad.h + margin
-        ) {
-          this.handlePlayerHoldStart(pad.playerIndex, touch.id);
+        if (this.isPointInsidePad(pos, pad, 28)) {
+          this.handlePlayerTap(pad.playerIndex);
           return;
         }
       }
     }
   }
 
-  onTouchMove(touch) {
-    // Keep hold active as long as touch is within reasonable margin of pad
-  }
+  onTouchMove() {}
+  onTouchEnd() {}
+  onTouchesReset() {}
 
-  onTouchEnd(touch) {
-    // Check if this touch was holding any trigger pad
-    for (const pad of this.triggerPads) {
-      const st = this.playerStatus[pad.playerIndex];
-      if (st.touchId === touch.id) {
-        this.handlePlayerHoldEnd(pad.playerIndex, touch.id);
-      }
-    }
-  }
+  // Rotated Hit Testing for Player Pods
+  isPointInsidePad(point, pad, margin = 20) {
+    const dx = point.x - pad.cx;
+    const dy = point.y - pad.cy;
+    const cos = Math.cos(-pad.rotation);
+    const sin = Math.sin(-pad.rotation);
+    const localX = dx * cos - dy * sin;
+    const localY = dx * sin + dy * cos;
 
-  onTouchesReset() {
-    this.playerStatus.forEach((st, idx) => {
-      if (st.isHolding) {
-        this.handlePlayerHoldEnd(idx, st.touchId);
-      }
-    });
+    return (
+      localX >= -pad.w / 2 - margin &&
+      localX <= pad.w / 2 + margin &&
+      localY >= -pad.h / 2 - margin &&
+      localY <= pad.h / 2 + margin
+    );
   }
 
   reset() {
-    this.wins = [0, 0, 0, 0];
+    this.scores = [0, 0, 0, 0];
+    this.wins = this.scores;
     this.state = 'LOBBY';
     this.roundWinner = null;
+    this.falseStartPlayer = null;
     this.matchWinner = null;
     this.smokeParticles = [];
     this.bulletTracers = [];
     this.signalTime = 0;
+    this.countdownTimer = 0;
     this.tensionTimer = 0;
+    this.drawWindowTimer = 0;
     this.roundEndTimer = 0;
     this.flashOpacity = 0;
     this.trauma = 0;
     this.lastTime = performance.now();
-    this.playerStatus.forEach((p) => {
-      p.isHolding = false;
-      p.touchId = null;
-      p.hasFired = false;
-      p.falseStart = false;
-      p.reactionMs = null;
-      p.rank = 0;
-    });
+    this.playerStatus = this.createInitialPlayerStatus();
   }
 
   resetMatch() {
@@ -562,12 +526,20 @@ export class DuelGame {
       if (b.life <= 0) this.bulletTracers.splice(i, 1);
     }
 
-    // TENSION STATE: Count down to DRAW signal & Psychological Fakeout
+    // COUNTDOWN STATE
+    if (this.state === 'STANDOFF_COUNTDOWN') {
+      this.countdownTimer -= dt;
+      if (this.countdownTimer <= 0) {
+        this.armDuelTension();
+      }
+    }
+
+    // TENSION STATE
     if (this.state === 'TENSION') {
       this.tensionTimer -= dt;
       this.tensionAudioTimer += dt;
 
-      // Heartbeat pulse every 0.8s during standoff
+      // Heartbeat pulse every 0.8s
       if (this.tensionAudioTimer >= 0.8) {
         this.tensionAudioTimer = 0;
         playDrawTension();
@@ -589,11 +561,26 @@ export class DuelGame {
       }
     }
 
-    // ROUND OVER STATE: Auto advance to next round
+    // DRAW SIGNAL STATE (Multi-tap reaction window)
+    if (this.state === 'DRAW_SIGNAL') {
+      if (this.drawWindowTimer > 0) {
+        this.drawWindowTimer -= dt;
+        if (this.drawWindowTimer <= 0) {
+          this.state = 'ROUND_OVER';
+          this.roundEndTimer = 3.2;
+          this.checkMatchWin();
+        }
+      }
+    }
+
+    // ROUND OVER STATE
     if (this.state === 'ROUND_OVER') {
       this.roundEndTimer -= dt;
       if (this.roundEndTimer <= 0) {
-        this.startNewRound();
+        this.checkMatchWin();
+        if (this.state !== 'MATCH_OVER') {
+          this.startNewRound();
+        }
       }
     }
   }
@@ -612,11 +599,11 @@ export class DuelGame {
       ctx.translate(shakeX, shakeY);
     }
 
-    // Background: Vintage Saloon Cream Paper
+    // Vintage Saloon Sandstone / Dark background
     ctx.fillStyle = '#141414';
     ctx.fillRect(0, 0, width, height);
 
-    // Draw Wild West Arena (Wood Grain / Sandstone Tone)
+    // Draw Western Arena
     this.renderArena();
 
     // Draw Particles
@@ -624,15 +611,15 @@ export class DuelGame {
 
     // State Renderings
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'KONTROL // TETİĞİ BASILI TUT • SİNYALDE BIRAK', [
-        'KIRMIZI P1',
-        'MAVİ P2',
-        'SARI P3',
-        'YEŞİL P4',
+      renderControlGuide(ctx, this.arena, 'KONTROL // SİNYALDE İLK BASAN KAZANIR • ERKEN BASAN -1 PUAN', [
+        'KIRMIZI P1 (ALT)',
+        'MAVİ P2 (ÜST)',
+        'SARI P3 (SOL)',
+        'YEŞİL P4 (SAĞ)',
       ]);
       this.renderLobby();
-    } else if (this.state === 'HOLSTER_WAIT') {
-      this.renderHolsterWait();
+    } else if (this.state === 'STANDOFF_COUNTDOWN') {
+      this.renderCountdown();
     } else if (this.state === 'TENSION') {
       this.renderTension();
     } else if (this.state === 'DRAW_SIGNAL') {
@@ -641,6 +628,11 @@ export class DuelGame {
       this.renderRoundOver();
     } else if (this.state === 'MATCH_OVER') {
       this.renderMatchOver();
+    }
+
+    // 4-Way Rotated Trigger Pads
+    if (this.state !== 'LOBBY') {
+      this.renderTriggerPads();
     }
 
     // Flash Overlay
@@ -664,7 +656,7 @@ export class DuelGame {
     ctx.strokeStyle = '#3A2E26';
     ctx.strokeRect(left, top, width, height);
 
-    // Diagonal Hazard Crosshairs (Subtle Standoff lines)
+    // Subtle Crosshairs
     ctx.lineWidth = 2;
     ctx.strokeStyle = '#2A2420';
     ctx.beginPath();
@@ -682,16 +674,14 @@ export class DuelGame {
     ctx.stroke();
 
     if (this.state !== 'LOBBY') {
-      // Central Skull / Revolver Emblem Watermark
+      // Central Watermark
       ctx.font = 'bold 36px "Space Grotesk", sans-serif';
       ctx.fillStyle = '#2A2420';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('⚡ 06 // KOVBOY DÜELLOSU ⚡', cx, cy - size * 0.38);
-    }
 
-    // Scoreboard at Top Center
-    if (this.state !== 'LOBBY') {
+      // Scoreboard at Top Center
       this.renderScoreboard();
     }
   }
@@ -703,8 +693,7 @@ export class DuelGame {
     ctx.save();
     ctx.translate(cx, top + 26);
 
-    const activeCount = this.getActivePlayerCount();
-    const pillW = 340;
+    const pillW = 360;
     const pillH = 34;
 
     ctx.fillStyle = '#0F0D0C';
@@ -721,10 +710,10 @@ export class DuelGame {
     let scoreText = '';
     this.joinedPlayers.forEach((joined, idx) => {
       if (joined) {
-        scoreText += `${colorNames[idx]}: ${this.wins[idx]}★   `;
+        scoreText += `${colorNames[idx]}: ${this.scores[idx]}P   `;
       }
     });
-    scoreText += `[HEDEF: ${this.targetWins}]  ⚡REKOR: ${this.tableRecordMs}ms`;
+    scoreText += `[HEDEF: ${this.targetScore}P]  ⚡REKOR: ${this.tableRecordMs}ms`;
 
     ctx.fillStyle = '#D99B26';
     ctx.fillText(scoreText.trim(), 0, 0);
@@ -733,134 +722,109 @@ export class DuelGame {
   }
 
   renderLobby() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
     const { cx, cy, size } = this.arena;
 
     this.uiButtons = [];
 
-    // Title Banner inside Arena
-    const badgeY = cy - size * 0.38;
-    const titleY = cy - size * 0.28;
-    const subtitleY = cy - size * 0.20;
+    // Title Banner
+    const titleY = cy - size * 0.26;
 
-    // Header Badge
     ctx.save();
-    ctx.fillStyle = '#2A201A';
-    const badgeW = 240;
-    const badgeH = 26;
-    ctx.fillRect(cx - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#D99B26';
-    ctx.strokeRect(cx - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH);
-
-    ctx.font = '900 11px "Space Grotesk", monospace';
-    ctx.fillStyle = '#D99B26';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('⚡ 06 // KOVBOY REFLEKS DÜELLOSU ⚡', cx, badgeY);
-    ctx.restore();
-
-    // Main Title
-    ctx.font = '900 clamp(24px, 4vw, 36px) "Space Grotesk", sans-serif';
+    ctx.font = '900 32px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#FAF8F5';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('QUICK DRAW', cx, titleY);
+    ctx.fillText('KOVBOY DÜELLOSU', cx, titleY);
 
-    // Subtitle
-    ctx.font = '700 13px "Space Grotesk", sans-serif';
-    ctx.fillStyle = '#C08552';
-    ctx.fillText('2-4 OYUNCU • KINDA TUT • SİNYALDE ÇEK', cx, subtitleY);
+    ctx.font = '700 14px "Space Grotesk", sans-serif';
+    ctx.fillStyle = '#D99B26';
+    ctx.fillText('İLK BASAN KAZANIR • ERKEN BASAN -1 PUAN ALIR', cx, titleY + 30);
 
-    // Clean 2x2 Player Slots Grid (Zero Collision)
-    const btnW = Math.min(210, Math.floor((size - 48) / 2));
-    const btnH = Math.min(52, Math.max(44, Math.floor(size * 0.10)));
-    const gapX = 14;
-    const gapY = 10;
-    const totalGridW = btnW * 2 + gapX;
+    // Scoring Breakdown Badge
+    const activeCount = this.getActivePlayerCount();
+    let scoringRuleText = '';
+    if (activeCount === 2) scoringRuleText = 'PUANLAMA (2P): 1. = +2 PUAN | 2. = 0 PUAN';
+    else if (activeCount === 3) scoringRuleText = 'PUANLAMA (3P): 1. = +3 PUAN | 2. = +1 PUAN | 3. = 0 PUAN';
+    else scoringRuleText = 'PUANLAMA (4P): 1. = +3 PUAN | 2. = +2 PUAN | 3. = +1 PUAN';
+
+    ctx.font = '800 12px "Space Grotesk", monospace';
+    ctx.fillStyle = '#FFDE59';
+    ctx.fillText(scoringRuleText, cx, titleY + 54);
+    ctx.restore();
+
+    // 2x2 Player Slot Cards
+    const totalGridW = Math.min(size * 0.88, 380);
+    const totalGridH = Math.min(size * 0.36, 120);
+    const btnW = (totalGridW - 14) / 2;
+    const btnH = (totalGridH - 12) / 2;
     const gridLeft = cx - totalGridW / 2;
-
-    const row1Y = cy - 48;
-    const row2Y = row1Y + btnH + gapY;
+    const gridTop = cy - 20;
 
     const slotConfigs = [
-      { idx: 0, col: 0, rowY: row1Y, posLabel: 'KIRMIZI' },
-      { idx: 1, col: 1, rowY: row1Y, posLabel: 'MAVİ' },
-      { idx: 2, col: 0, rowY: row2Y, posLabel: 'SARI' },
-      { idx: 3, col: 1, rowY: row2Y, posLabel: 'YEŞİL' },
+      { idx: 0, x: gridLeft, y: gridTop, posLabel: 'ALT' },
+      { idx: 1, x: gridLeft + btnW + 14, y: gridTop, posLabel: 'ÜST' },
+      { idx: 2, x: gridLeft, y: gridTop + btnH + 12, posLabel: 'SOL' },
+      { idx: 3, x: gridLeft + btnW + 14, y: gridTop + btnH + 12, posLabel: 'SAĞ' },
     ];
 
     slotConfigs.forEach((cfg) => {
-      const slotX = gridLeft + cfg.col * (btnW + gapX);
-      const slotY = cfg.rowY;
       const isJoined = this.joinedPlayers[cfg.idx];
       const color = DUEL_COLORS[cfg.idx];
 
       ctx.save();
-
-      // Brutalist Drop Shadow
+      // Drop Shadow
       ctx.fillStyle = '#000000';
-      ctx.fillRect(slotX + 3, slotY + 3, btnW, btnH);
+      ctx.fillRect(cfg.x + 3, cfg.y + 3, btnW, btnH);
 
-      // Card Background
+      // Fill
       ctx.fillStyle = isJoined ? color : '#1F1B18';
-      ctx.fillRect(slotX, slotY, btnW, btnH);
+      ctx.fillRect(cfg.x, cfg.y, btnW, btnH);
 
-      // Card Border
+      // Border
       ctx.lineWidth = isJoined ? 3 : 2;
       ctx.strokeStyle = isJoined ? '#FAF8F5' : '#42362E';
-      ctx.strokeRect(slotX, slotY, btnW, btnH);
+      ctx.strokeRect(cfg.x, cfg.y, btnW, btnH);
 
-      // Card Content
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      // Slot name header (small)
       ctx.font = '800 10px "Space Grotesk", sans-serif';
-      ctx.fillStyle = isJoined ? 'rgba(255,255,255,0.75)' : '#7A6B62';
-      ctx.fillText(`OYUNCU ${cfg.idx + 1}: ${cfg.posLabel}`, slotX + btnW / 2, slotY + 14);
+      ctx.fillStyle = isJoined ? 'rgba(255,255,255,0.85)' : '#7A6B62';
+      ctx.fillText(`OYUNCU ${cfg.idx + 1}: ${cfg.posLabel}`, cfg.x + btnW / 2, cfg.y + 14);
 
-      // Status label (prominent)
       ctx.font = '900 14px "Space Grotesk", sans-serif';
       ctx.fillStyle = isJoined ? '#FAF8F5' : '#D99B26';
-      ctx.fillText(isJoined ? '✓ HAZIR' : '+ KATIL', slotX + btnW / 2, slotY + 33);
-
+      ctx.fillText(isJoined ? '✓ HAZIR' : '+ KATIL', cfg.x + btnW / 2, cfg.y + 33);
       ctx.restore();
 
       this.uiButtons.push({
-        x: slotX,
-        y: slotY,
+        x: cfg.x,
+        y: cfg.y,
         w: btnW,
         h: btnH,
         onClick: () => this.togglePlayerJoin(cfg.idx),
       });
     });
 
-    // Start Duel Button (Directly below 2x2 Grid, matching grid width)
-    const activeCount = this.getActivePlayerCount();
+    // Start Button
     const canStart = activeCount >= 2;
-
     const startX = gridLeft;
-    const startY = row2Y + btnH + 16;
+    const startY = gridTop + totalGridH + 20;
     const startW = totalGridW;
-    const startH = Math.min(58, Math.max(48, Math.floor(size * 0.11)));
+    const startH = Math.min(56, Math.max(48, Math.floor(size * 0.11)));
 
     ctx.save();
-
-    // Brutalist Drop Shadow
     ctx.fillStyle = '#000000';
     ctx.fillRect(startX + 4, startY + 4, startW, startH);
 
-    // Button Fill
     ctx.fillStyle = canStart ? '#D99B26' : '#221E1B';
     ctx.fillRect(startX, startY, startW, startH);
 
-    // Button Border
     ctx.lineWidth = canStart ? 4 : 2;
     ctx.strokeStyle = canStart ? '#FAF8F5' : '#45382F';
     ctx.strokeRect(startX, startY, startW, startH);
 
-    // Button Text
     ctx.font = '900 17px "Space Grotesk", sans-serif';
     ctx.fillStyle = canStart ? '#141414' : '#6A5B52';
     ctx.textAlign = 'center';
@@ -870,7 +834,6 @@ export class DuelGame {
       startX + startW / 2,
       startY + startH / 2
     );
-
     ctx.restore();
 
     if (canStart) {
@@ -883,55 +846,34 @@ export class DuelGame {
       });
     }
 
-    // Rules Note (Bottom of Arena)
-    const rulesY = startY + startH + 18;
+    // Instructions
+    const rulesY = startY + startH + 20;
     ctx.save();
-    ctx.font = '800 11.5px "Space Grotesk", monospace';
+    ctx.font = '800 12px "Space Grotesk", monospace';
     ctx.fillStyle = '#A8998C';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const isNarrow = this.arena.width < 500;
-    ctx.fillText(
-      isNarrow ? 'KURAL: BASILI TUT • SİNYALDE BIRAK' : 'KURAL: TETİĞİ BASILI TUT • "ATEŞ!" DENDİĞİ AN EN HIZLI ÇEKEN KAZANIR!',
-      cx,
-      rulesY
-    );
+    ctx.fillText('DİKKAT: "ATEŞ!" DENDİĞİ AN KENDİ PADİNE İLK SEN DOKUN!', cx, rulesY);
 
     ctx.font = '700 11px "Space Grotesk", monospace';
-    ctx.fillStyle = '#7A6B62';
-    ctx.fillText(
-      isNarrow ? 'ERKEN ÇEKEN FAUL • PC: P1 SPACE / P2 W' : 'ERKEN ÇEKEN FAUL YAPAR! • PC TEST: P1 [Space/S] • P2 [W/Yukarı Ok]',
-      cx,
-      rulesY + 18
-    );
+    ctx.fillStyle = '#E76F51';
+    ctx.fillText('ERKEN BASARSAN 1 PUAN KAYBEDERSİN!', cx, rulesY + 18);
     ctx.restore();
   }
 
-  renderHolsterWait() {
+  renderCountdown() {
     const { ctx } = this;
-    const { cx, cy, width } = this.arena;
-    const isNarrow = width < 500;
+    const { cx, cy } = this.arena;
 
-    // Big central instruction
-    ctx.font = isNarrow ? '900 24px "Space Grotesk", sans-serif' : '900 28px "Space Grotesk", sans-serif';
-    ctx.fillStyle = '#FAF8F5';
+    ctx.font = '900 40px "Space Grotesk", sans-serif';
+    ctx.fillStyle = '#D99B26';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(isNarrow ? 'BASILI TUTUN' : 'SİLAHLARI KININA KOYUN!', cx, cy - 30, width - 24);
+    ctx.fillText('ELLER HAZIR!...', cx, cy - 20);
 
-    ctx.font = isNarrow ? '700 12px "Space Grotesk", sans-serif' : '700 16px "Space Grotesk", sans-serif';
-    ctx.fillStyle = '#D99B26';
-    ctx.fillText(isNarrow ? 'RENK PADİNE BASILI TUT' : 'AŞAĞIDAKİ ALANA PARMAĞINIZI BASILI TUTUN', cx, cy + 10, width - 24);
-
-    // Ready Status Counter
-    const holdingCount = this.playerStatus.filter((p, i) => this.joinedPlayers[i] && p.isHolding).length;
-    const totalJoined = this.getActivePlayerCount();
-
-    ctx.font = isNarrow ? '900 17px "Space Grotesk", monospace' : '900 20px "Space Grotesk", monospace';
-    ctx.fillStyle = holdingCount === totalJoined ? '#2D6A4F' : '#E76F51';
-    ctx.fillText(`${holdingCount} / ${totalJoined} HAZIR`, cx, cy + 50, width - 24);
-
-    this.renderTriggerPads();
+    ctx.font = '700 16px "Space Grotesk", sans-serif';
+    ctx.fillStyle = '#FAF8F5';
+    ctx.fillText('SİNYALİ BEKLEYİN, SAKIN DOKUNMAYIN!', cx, cy + 28);
   }
 
   renderTension() {
@@ -939,8 +881,8 @@ export class DuelGame {
     const { cx, cy } = this.arena;
 
     if (this.fakeoutDisplayTimer > 0) {
-      // Psychological Fakeout Alert
-      ctx.font = '900 40px "Space Grotesk", sans-serif';
+      // Psychological Bluff
+      ctx.font = '900 44px "Space Grotesk", sans-serif';
       ctx.fillStyle = '#E76F51';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -948,12 +890,11 @@ export class DuelGame {
 
       ctx.font = '700 16px "Space Grotesk", sans-serif';
       ctx.fillStyle = '#FFDE59';
-      ctx.fillText('BLÖF! SİNYALİ BEKLE, ERKEN ÇEKEN YANAR!', cx, cy + 30);
+      ctx.fillText('BLÖF! SİNYALİ BEKLE, ERKEN BASAN -1 PUAN ALIR!', cx, cy + 30);
     } else {
-      // Intense pulsating glow
       const pulse = Math.sin(performance.now() * 0.01) * 0.5 + 0.5;
 
-      ctx.font = '900 48px "Space Grotesk", sans-serif';
+      ctx.font = '900 52px "Space Grotesk", sans-serif';
       ctx.fillStyle = pulse > 0.5 ? '#E63946' : '#FAF8F5';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -961,35 +902,47 @@ export class DuelGame {
 
       ctx.font = '700 16px "Space Grotesk", sans-serif';
       ctx.fillStyle = '#C08552';
-      ctx.fillText('SİNYALİ BEKLE... ERKEN ÇEKEN FAUL YAPAR!', cx, cy + 30);
+      ctx.fillText('ERKEN DOKUNAN FAUL YAPAR (-1 PUAN)!', cx, cy + 32);
     }
-
-    this.renderTriggerPads();
   }
 
   renderDrawSignal() {
     const { ctx } = this;
     const { cx, cy } = this.arena;
 
-    // Huge Brutalist DRAW banner
+    // Huge DRAW banner
     ctx.font = '900 84px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#D99B26';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('💥 ATEŞ! 💥', cx, cy - 10);
 
-    ctx.font = '900 22px "Space Grotesk", sans-serif';
+    ctx.font = '900 24px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#FAF8F5';
-    ctx.fillText('ÇEK! HEMEN ÇEK!', cx, cy + 55);
-
-    this.renderTriggerPads();
+    ctx.fillText('HEMEN DOKUN! İLK BASAN KAZANIR!', cx, cy + 55);
   }
 
   renderRoundOver() {
     const { ctx } = this;
     const { cx, cy } = this.arena;
 
-    if (this.roundWinner !== null && this.roundWinner >= 0) {
+    if (this.falseStartPlayer !== null) {
+      // False start display
+      const offenderName = DUEL_NAMES[this.falseStartPlayer];
+      ctx.font = '900 34px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#E63946';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('❌ FAUL! ERKEN BASILDI! ❌', cx, cy - 40);
+
+      ctx.font = '900 20px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#FAF8F5';
+      ctx.fillText(`${offenderName} ERKEN BASTI (-1 PUAN CEZA)`, cx, cy);
+
+      ctx.font = '700 15px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#D99B26';
+      ctx.fillText('DEVAM ETMEK İÇİN EKRANA DOKUNUN', cx, cy + 45);
+    } else if (this.roundWinner !== null && this.roundWinner >= 0) {
       const winnerName = DUEL_NAMES[this.roundWinner];
       const winMs = this.playerStatus[this.roundWinner].reactionMs;
 
@@ -997,49 +950,35 @@ export class DuelGame {
       ctx.fillStyle = DUEL_COLORS[this.roundWinner];
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`⚡ ${winnerName} VURDU! ⚡`, cx, cy - 50);
+      ctx.fillText(`⚡ ${winnerName} VURDU! ⚡`, cx, cy - 48);
 
-      ctx.font = '900 46px "Space Grotesk", monospace';
+      ctx.font = '900 44px "Space Grotesk", monospace';
       ctx.fillStyle = '#FAF8F5';
       ctx.fillText(`${winMs} MS`, cx, cy);
 
-      ctx.font = '700 15px "Space Grotesk", sans-serif';
-      ctx.fillStyle = '#D99B26';
-      ctx.fillText('ŞİMŞEK KADAR HIZLI!', cx, cy + 42);
-    } else {
-      ctx.font = '900 36px "Space Grotesk", sans-serif';
-      ctx.fillStyle = '#E63946';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('❌ FAUL! ERKEN ÇEKİLDİ! ❌', cx, cy - 30);
+      // Score breakdown list
+      let yOff = cy + 44;
+      const rankBadges = ['', '🥇 1.', '🥈 2.', '🥉 3.', '4.'];
 
-      ctx.font = '700 16px "Space Grotesk", sans-serif';
-      ctx.fillStyle = '#FAF8F5';
-      ctx.fillText('DÜELLO KURALI ÇİĞNENDİ', cx, cy + 16);
+      this.joinedPlayers.forEach((joined, idx) => {
+        if (!joined) return;
+        const st = this.playerStatus[idx];
+        const colorName = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][idx];
+
+        let txt = `${colorName}: `;
+        if (st.hasFired) {
+          const badge = rankBadges[st.rank] || `${st.rank}.`;
+          txt += `${badge} (+${st.pointsEarned}P) • ${st.reactionMs} ms`;
+        } else {
+          txt += 'BASAMADI (0P)';
+        }
+
+        ctx.font = '800 14px "Space Grotesk", monospace';
+        ctx.fillStyle = idx === this.roundWinner ? '#D99B26' : '#8A7A70';
+        ctx.fillText(txt, cx, yOff);
+        yOff += 22;
+      });
     }
-
-    // Reaction times breakdown for all joined players
-    let yOff = cy + 78;
-    this.joinedPlayers.forEach((joined, idx) => {
-      if (!joined) return;
-      const st = this.playerStatus[idx];
-      const colorName = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][idx];
-      let txt = `${colorName}: `;
-      if (st.falseStart) {
-        txt += 'ERKEN ÇEKİŞ (FAUL)';
-      } else if (st.reactionMs !== null) {
-        txt += `${st.reactionMs} ms ${idx === this.roundWinner ? '🏆' : ''}`;
-      } else {
-        txt += 'ÇEKEMEDİ!';
-      }
-
-      ctx.font = '700 14px "Space Grotesk", monospace';
-      ctx.fillStyle = idx === this.roundWinner ? '#D99B26' : '#8A7A70';
-      ctx.fillText(txt, cx, yOff);
-      yOff += 24;
-    });
-
-    this.renderTriggerPads();
   }
 
   renderMatchOver() {
@@ -1053,7 +992,7 @@ export class DuelGame {
     const champColor = DUEL_COLORS[this.matchWinner];
     const bestMs = this.playerStatus[this.matchWinner].lastBestMs;
 
-    ctx.font = '900 44px "Space Grotesk", sans-serif';
+    ctx.font = '900 42px "Space Grotesk", sans-serif';
     ctx.fillStyle = champColor;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -1061,7 +1000,7 @@ export class DuelGame {
 
     ctx.font = '900 36px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#FAF8F5';
-    ctx.fillText(`${champName} // KAZANDI`, cx, cy - 40, this.arena.width - 24);
+    ctx.fillText(`${champName} // ŞAMPİYON!`, cx, cy - 40, this.arena.width - 24);
 
     if (bestMs) {
       ctx.font = '900 24px "Space Grotesk", monospace';
@@ -1069,18 +1008,18 @@ export class DuelGame {
       ctx.fillText(`EN İYİ REFLEKS: ${bestMs} MS`, cx, cy + 10);
     }
 
-    ctx.font = '800 12px "JetBrains Mono", monospace';
+    ctx.font = '800 13px "JetBrains Mono", monospace';
     this.joinedPlayers.forEach((joined, index) => {
       if (!joined) return;
       ctx.fillStyle = DUEL_COLORS[index];
-      ctx.fillText(`${colorNames[index]}: ${this.wins[index]} GALİBİYET`, cx, cy + 40 + index * 17);
+      ctx.fillText(`${colorNames[index]}: ${this.scores[index]} PUAN`, cx, cy + 44 + index * 18);
     });
 
     // Play Again Button
     const btnW = size * 0.72;
-    const btnH = 60;
+    const btnH = 58;
     const btnX = cx - btnW / 2;
-    const btnY = cy + 108;
+    const btnY = cy + 116;
 
     ctx.fillStyle = '#D99B26';
     ctx.fillRect(btnX, btnY, btnW, btnH);
@@ -1088,7 +1027,7 @@ export class DuelGame {
     ctx.strokeStyle = '#FAF8F5';
     ctx.strokeRect(btnX, btnY, btnW, btnH);
 
-    ctx.font = '900 20px "Space Grotesk", sans-serif';
+    ctx.font = '900 19px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#141414';
     ctx.fillText('🔄 YENİ DÜELLO OYNA', cx, btnY + btnH / 2);
 
@@ -1101,9 +1040,8 @@ export class DuelGame {
     });
   }
 
+  // 4-Way Rotated Pods with Millisecond Reaction Display & Score
   renderTriggerPads() {
-    if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') return;
-
     const { ctx } = this;
 
     this.triggerPads.forEach((pad) => {
@@ -1111,49 +1049,60 @@ export class DuelGame {
       if (!this.joinedPlayers[idx]) return;
 
       const st = this.playerStatus[idx];
-      const isHolding = st.isHolding;
-      const falseStart = st.falseStart;
       const hasFired = st.hasFired;
+      const falseStart = st.falseStart;
 
       ctx.save();
+      ctx.translate(pad.cx, pad.cy);
+      ctx.rotate(pad.rotation);
 
       let bgColor = DUEL_COLORS[idx];
       let borderColor = '#FAF8F5';
 
       if (falseStart) {
         bgColor = '#E63946';
-      } else if (isHolding) {
-        bgColor = '#D99B26'; // Holding down
+      } else if (hasFired) {
+        bgColor = st.rank === 1 ? '#D99B26' : '#2D6A4F';
       }
+
+      // Brutalist Drop Shadow
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(-pad.w / 2 + 3, -pad.h / 2 + 3, pad.w, pad.h);
 
       // Pad Background
       ctx.fillStyle = bgColor;
-      ctx.fillRect(pad.x, pad.y, pad.w, pad.h);
+      ctx.fillRect(-pad.w / 2, -pad.h / 2, pad.w, pad.h);
 
-      ctx.lineWidth = isHolding ? 5 : 3;
+      ctx.lineWidth = hasFired ? 4 : 3;
       ctx.strokeStyle = borderColor;
-      ctx.strokeRect(pad.x, pad.y, pad.w, pad.h);
+      ctx.strokeRect(-pad.w / 2, -pad.h / 2, pad.w, pad.h);
 
-      // Pad text
-      ctx.font = '900 14px "Space Grotesk", sans-serif';
-      ctx.fillStyle = isHolding ? '#141414' : '#FAF8F5';
+      // Player Label + Score Header
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      ctx.font = '900 12px "Space Grotesk", monospace';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.fillText(`${DUEL_NAMES[idx]} [${this.scores[idx]} PUAN]`, 0, -14);
 
-      let stateText = pad.label;
-      if (this.state === 'HOLSTER_WAIT') {
-        stateText = isHolding ? '✓ TUTUYORSUN' : '✋ BASILI TUT!';
-      } else if (this.state === 'TENSION') {
-        stateText = isHolding ? 'KIPIRDAMA!' : '⚠️ FAUL!';
+      // State Action / Reaction
+      let actionText = pad.label;
+      if (this.state === 'STANDOFF_COUNTDOWN' || this.state === 'TENSION') {
+        actionText = '✋ DOKUNMA! BEKLE';
       } else if (this.state === 'DRAW_SIGNAL') {
-        stateText = hasFired ? `💥 ${st.reactionMs} ms` : '⚡ ÇEK! ÇEK!';
+        if (hasFired) {
+          actionText = `✓ ${st.reactionMs} ms (+${st.pointsEarned}P)`;
+        } else {
+          actionText = '💥 BAS! BAS!';
+        }
       } else if (this.state === 'ROUND_OVER') {
-        if (falseStart) stateText = '❌ FAUL!';
-        else if (hasFired) stateText = `${st.reactionMs} ms`;
-        else stateText = 'GEÇ KALDIN!';
+        if (falseStart) actionText = '❌ ERKEN BASTIN (-1P)';
+        else if (hasFired) actionText = `${st.rank}. SIRA (${st.reactionMs} ms)`;
+        else actionText = 'GEÇ KALDIN!';
       }
 
-      ctx.fillText(stateText, pad.x + pad.w / 2, pad.y + pad.h / 2);
+      ctx.font = '900 15px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#FAF8F5';
+      ctx.fillText(actionText, 0, 14);
 
       ctx.restore();
     });
@@ -1168,7 +1117,6 @@ export class DuelGame {
       const alpha = Math.max(0, b.life / 0.45);
       ctx.globalAlpha = alpha;
 
-      // Outer gold glow
       ctx.strokeStyle = '#FFDE59';
       ctx.lineWidth = 6;
       ctx.beginPath();
@@ -1176,7 +1124,6 @@ export class DuelGame {
       ctx.lineTo(b.x2, b.y2);
       ctx.stroke();
 
-      // Core white laser beam
       ctx.strokeStyle = '#FFFFFF';
       ctx.lineWidth = 2.5;
       ctx.beginPath();

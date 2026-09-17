@@ -77,32 +77,33 @@ export class Paddle {
   updateLayout(arena) {
     const horizDim = arena.width  || arena.size;
     const vertDim  = arena.height || arena.size;
+    const minDim = Math.min(horizDim, vertDim);
 
-    // Paddle spans ~25% of its wall's length – gives a good target without being too easy
-    if (this.axis === 'horizontal') {
-      this.length    = Math.max(72, Math.floor(horizDim * 0.24));
-      this.thickness = Math.max(14, Math.floor(vertDim  * 0.032));
-    } else {
-      this.length    = Math.max(72, Math.floor(vertDim  * 0.24));
-      this.thickness = Math.max(14, Math.floor(horizDim * 0.032));
-    }
+    const goalBounds = arena.getGoalBounds ? arena.getGoalBounds(this.side) : null;
+    const goalSpan = goalBounds ? (goalBounds.goalMax - goalBounds.goalMin) : Math.round(minDim * 0.70);
+
+    // Paddle spans ~32% of the goal opening – fair and balanced on all walls
+    this.length    = Math.max(68, Math.floor(goalSpan * 0.32));
+    this.thickness = Math.max(14, Math.floor(minDim * 0.034));
 
     const halfPad = this.length / 2;
-    // Wall gap – use the wall-axis dimension for a proportional margin
-    const wallDim = this.axis === 'horizontal' ? horizDim : vertDim;
-    const margin  = wallDim * 0.022;
+    const margin  = minDim * 0.024;
 
     if (this.axis === 'horizontal') {
-      this.minCoord = arena.left + halfPad + 6;
-      this.maxCoord = arena.right - halfPad - 6;
+      const gMin = goalBounds ? goalBounds.goalMin : arena.left;
+      const gMax = goalBounds ? goalBounds.goalMax : arena.right;
+      this.minCoord = gMin + halfPad;
+      this.maxCoord = gMax - halfPad;
       if (this.side === 'bottom') {
         this.fixedPerpendicular = arena.bottom - margin - this.thickness / 2;
       } else {
         this.fixedPerpendicular = arena.top + margin + this.thickness / 2;
       }
     } else {
-      this.minCoord = arena.top  + halfPad + 6;
-      this.maxCoord = arena.bottom - halfPad - 6;
+      const gMin = goalBounds ? goalBounds.goalMin : arena.top;
+      const gMax = goalBounds ? goalBounds.goalMax : arena.bottom;
+      this.minCoord = gMin + halfPad;
+      this.maxCoord = gMax - halfPad;
       if (this.side === 'left') {
         this.fixedPerpendicular = arena.left + margin + this.thickness / 2;
       } else {
@@ -395,45 +396,48 @@ export class Paddle {
   }
 
   drawLives(ctx, arena) {
-    const squareSize = 9;
+    const squareSize = 14;
     const spacing = 5;
-    const totalWidth = 3 * squareSize + 2 * spacing;
+    const totalBlocksW = 3 * squareSize + 2 * spacing;
 
     ctx.save();
-    let startX = 0;
-    let startY = 0;
+    let cx = 0;
+    let cy = 0;
 
     if (this.side === 'bottom') {
-      startX = this.coord - totalWidth / 2;
-      startY = arena.bottom + 10;
+      cx = this.coord;
+      cy = arena.bottom + 18;
     } else if (this.side === 'top') {
-      startX = this.coord - totalWidth / 2;
-      startY = arena.top - 19;
+      cx = this.coord;
+      cy = arena.top - 18;
     } else if (this.side === 'left') {
-      startX = arena.left - 19;
-      startY = this.coord - totalWidth / 2;
+      cx = arena.left - 18;
+      cy = this.coord;
     } else if (this.side === 'right') {
-      startX = arena.right + 10;
-      startY = this.coord - totalWidth / 2;
+      cx = arena.right + 18;
+      cy = this.coord;
     }
 
+    ctx.translate(cx, cy);
+    if (this.side === 'top') ctx.rotate(Math.PI);
+    else if (this.side === 'left') ctx.rotate(Math.PI / 2);
+    else if (this.side === 'right') ctx.rotate(-Math.PI / 2);
+
+    // Draw 3 brutalist life indicator blocks
+    const startX = -totalBlocksW / 2;
     for (let i = 0; i < 3; i++) {
       const isFilled = i < this.lives;
-      ctx.fillStyle = isFilled ? this.color : '#C8C4BD';
+      ctx.fillStyle = isFilled ? this.color : '#CCC8C0';
       ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 2;
 
-      let x = startX;
-      let y = startY;
-      if (this.axis === 'horizontal') {
-        x += i * (squareSize + spacing);
-      } else {
-        y += i * (squareSize + spacing);
-      }
+      const bx = startX + i * (squareSize + spacing);
+      const by = -squareSize / 2;
 
-      ctx.fillRect(x, y, squareSize, squareSize);
-      ctx.strokeRect(x, y, squareSize, squareSize);
+      ctx.fillRect(bx, by, squareSize, squareSize);
+      ctx.strokeRect(bx, by, squareSize, squareSize);
     }
+
     ctx.restore();
   }
 }

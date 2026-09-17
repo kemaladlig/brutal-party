@@ -318,10 +318,10 @@ export class TanksGame {
         isJoined: isJoined,
         slotType: this.slotTypes[i],
         size: 26,
-        reloadCooldown: 1.1,
+        reloadCooldown: 0.95,
         reloadTimer: 0,
         muzzleFlashTimer: 0,
-        maxBullets: 2,
+        maxBullets: 3,
         botPatrolTimer: 0,
         botWantsDrive: false,
         turboTimer: 0,
@@ -1357,56 +1357,55 @@ export class TanksGame {
   drawTankAmmo(ctx, tank) {
     const activeBullets = this.bullets.filter((b) => b.owner === tank.index).length;
     const isReloading = tank.reloadTimer > 0;
-    const available = tank.maxBullets - activeBullets;
+    const available = Math.max(0, tank.maxBullets - activeBullets);
 
-    const y = tank.y - tank.size * 0.85;
-    const dotSize = 6;
-    const spacing = 4;
-    const startX = tank.x - (2 * dotSize + spacing) / 2;
+    ctx.save();
+    ctx.translate(tank.x, tank.y - tank.size - 14);
 
-    const barW = 34;
-    const barH = 4;
-    const barX = tank.x - barW / 2;
-    const barY = tank.y - tank.size - 9;
-    const reloadProgress = tank.reloadCooldown > 0
-      ? Math.max(0, Math.min(1, 1 - tank.reloadTimer / tank.reloadCooldown))
-      : 1;
-
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(barX, barY, barW, barH);
-    ctx.fillStyle = tank.reloadTimer > 0 ? '#D99B26' : tank.color;
-    ctx.fillRect(barX, barY, barW * reloadProgress, barH);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(barX, barY, barW, barH);
-
-    if (tank.reloadTimer > 0) {
-      ctx.fillStyle = '#1A1A1A';
-      ctx.font = '800 7px "JetBrains Mono", monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText('DOLDURULUYOR', tank.x, barY - 2);
+    // Rotate over-tank ammo indicator so Top players (P1, P2) see it right-side up
+    if (tank.index === 1 || tank.index === 2) {
+      ctx.rotate(Math.PI);
     }
 
-    for (let i = 0; i < 2; i++) {
+    const cartridgeW = 9;
+    const cartridgeH = 5;
+    const spacing = 3;
+    const totalW = tank.maxBullets * cartridgeW + (tank.maxBullets - 1) * spacing;
+    const startX = -totalW / 2;
+
+    // Background panel
+    ctx.fillStyle = '#1C1C1A';
+    ctx.fillRect(-totalW / 2 - 3, -cartridgeH / 2 - 3, totalW + 6, cartridgeH + 6);
+    ctx.strokeStyle = tank.color;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-totalW / 2 - 3, -cartridgeH / 2 - 3, totalW + 6, cartridgeH + 6);
+
+    // Draw individual bullet cartridges
+    for (let i = 0; i < tank.maxBullets; i++) {
       const isReady = i < available && !isReloading;
-      ctx.fillStyle = isReady ? tank.color : '#CCC7BD';
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 1.5;
+      const bx = startX + i * (cartridgeW + spacing);
+      const by = -cartridgeH / 2;
 
-      const dx = startX + i * (dotSize + spacing);
-      ctx.fillRect(dx, y, dotSize, dotSize);
-      ctx.strokeRect(dx, y, dotSize, dotSize);
+      ctx.fillStyle = isReady ? (tank.hasTripleShot ? '#FFDE59' : tank.color) : '#55524C';
+      ctx.fillRect(bx, by, cartridgeW, cartridgeH);
     }
 
-    // Flash 3X tag if tank has triple shot powerup
-    if (tank.hasTripleShot) {
-      ctx.save();
-      ctx.fillStyle = '#D84727';
-      ctx.font = '900 10px "Space Grotesk", sans-serif';
-      ctx.fillText('3×', startX + (2 * dotSize + spacing) + 8, y + dotSize / 2 + 3);
-      ctx.restore();
+    // Status text above/below cartridge bar
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.font = '900 10px "JetBrains Mono", monospace';
+    if (isReloading) {
+      ctx.fillStyle = '#D99B26';
+      ctx.fillText('DOLUYOR...', 0, -cartridgeH / 2 - 3);
+    } else if (available === 0) {
+      ctx.fillStyle = '#D99B26';
+      ctx.fillText('SEKİYOR...', 0, -cartridgeH / 2 - 3);
+    } else {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText(tank.hasTripleShot ? '3× HAZIR' : 'HAZIR', 0, -cartridgeH / 2 - 3);
     }
+
+    ctx.restore();
   }
 
   renderCornerTouchZones(ctx) {
@@ -1419,14 +1418,26 @@ export class TanksGame {
 
     corners.forEach((c, index) => {
       const zone = this.getCornerControlRect(index);
+      const isTop = index === 1 || index === 2;
+      const tank = this.tanks[index];
+      const isGameplayHuman = this.state === 'PLAYING' && c.slot === 'human';
+
       ctx.save();
-      const isJoined = c.slot !== 'empty';
-      let label = '+ DOKUN KATIL';
+      // Rotate 180° for Top players so text & HUD is right-side up for them!
+      ctx.translate(zone.x + zone.w / 2, zone.y + zone.h / 2);
+      if (isTop) {
+        ctx.rotate(Math.PI);
+      }
+
+      const halfW = zone.w / 2;
+      const halfH = zone.h / 2;
+
       let strokeColor = '#DDD9CF';
       let textColor = '#99948A';
+      let label = '+ DOKUN KATIL';
 
       if (c.slot === 'human') {
-        label = '✓ OYUNCU (BAS/ÇEK)';
+        label = '✓ OYUNCU';
         strokeColor = c.color;
         textColor = c.color;
       } else if (c.slot === 'bot_normal') {
@@ -1441,29 +1452,70 @@ export class TanksGame {
 
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = c.slot === 'bot_god' ? 3 : 2;
-      ctx.setLineDash([4, 4]);
-      ctx.strokeRect(zone.x, zone.y, zone.w, zone.h);
+      ctx.setLineDash(isGameplayHuman ? [] : [4, 4]);
+      ctx.strokeRect(-halfW, -halfH, zone.w, zone.h);
 
-      const isGameplayHuman = this.state === 'PLAYING' && c.slot === 'human';
-      if (isGameplayHuman) {
-        const isDriving = this.tanks[index]?.isDriving;
-        ctx.fillStyle = isDriving ? `${c.color}55` : `${c.color}22`;
-        ctx.fillRect(zone.x, zone.y, zone.w, zone.h);
-        ctx.setLineDash([]);
+      // Rotated Corner Header: Player Name & Tournament Score
+      ctx.fillStyle = c.color;
+      ctx.font = '900 12px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`${c.name} [${this.scores[index]} PUAN]`, 0, -halfH + 8);
+
+      if (isGameplayHuman && tank) {
+        const isDriving = tank.isDriving;
+        ctx.fillStyle = isDriving ? `${c.color}44` : `${c.color}18`;
+        ctx.fillRect(-halfW, -halfH, zone.w, zone.h);
+
+        // Control instructions
         ctx.fillStyle = isDriving ? '#1A1A1A' : c.color;
-        ctx.font = '900 10px "JetBrains Mono", monospace';
+        ctx.font = '900 13px "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(isDriving ? 'İLERLİYOR...' : 'TUT → İLERLE • BIRAK → ATEŞ', zone.x + zone.w / 2, zone.y + zone.h / 2);
+        ctx.fillText(isDriving ? '▶ İLERLİYOR...' : 'TUT: GİT  •  BIRAK: ATEŞ', 0, -14);
+
+        // Visual Ammo Cartridge Bar in Player's Corner
+        const activeBullets = this.bullets.filter((b) => b.owner === tank.index).length;
+        const available = Math.max(0, tank.maxBullets - activeBullets);
+        const isReloading = tank.reloadTimer > 0;
+
+        const cartW = 14;
+        const cartH = 8;
+        const spacing = 4;
+        const totalW = tank.maxBullets * cartW + (tank.maxBullets - 1) * spacing;
+        const startX = -totalW / 2;
+
+        for (let i = 0; i < tank.maxBullets; i++) {
+          const isReady = i < available && !isReloading;
+          const bx = startX + i * (cartW + spacing);
+          const by = 4;
+          ctx.fillStyle = isReady ? c.color : '#CCC7BD';
+          ctx.fillRect(bx, by, cartW, cartH);
+          ctx.strokeStyle = '#1C1C1A';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(bx, by, cartW, cartH);
+        }
+
+        // Ammo state text
+        ctx.font = '800 11px "JetBrains Mono", monospace';
+        if (isReloading) {
+          ctx.fillStyle = '#D99B26';
+          ctx.fillText('DOLUYOR...', 0, 24);
+        } else if (available === 0) {
+          ctx.fillStyle = '#D99B26';
+          ctx.fillText('SEKİYOR...', 0, 24);
+        } else {
+          ctx.fillStyle = '#2F6A4F';
+          ctx.fillText(tank.hasTripleShot ? '⚡ 3× HAZIR' : 'MERMİ HAZIR', 0, 24);
+        }
+      } else {
+        ctx.fillStyle = textColor;
+        ctx.font = '800 14px "Space Grotesk", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, 0, 0);
       }
 
-      if (!isGameplayHuman) {
-        ctx.fillStyle = textColor;
-        ctx.font = '800 10.5px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, zone.x + zone.w / 2, zone.y + zone.h / 2);
-      }
       ctx.restore();
     });
   }

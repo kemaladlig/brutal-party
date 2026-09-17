@@ -107,12 +107,13 @@ export class Game {
 
   getGoalBounds(side) {
     const isHorizontal = side === 'bottom' || side === 'top';
-    const start = isHorizontal ? this.arena.left : this.arena.top;
-    const total = isHorizontal ? this.arena.width : this.arena.height;
-    const ratio = this.arena.bumperRatio || 0.12;
+    const minDim = Math.min(this.arena.width, this.arena.height);
+    const goalSpan = Math.round(minDim * 0.70);
+    const center = isHorizontal ? this.arena.cx : this.arena.cy;
     return {
-      goalMin: start + total * ratio,
-      goalMax: start + total * (1 - ratio),
+      goalMin: center - goalSpan / 2,
+      goalMax: center + goalSpan / 2,
+      goalSpan,
     };
   }
 
@@ -476,8 +477,26 @@ export class Game {
     if (this.state === 'PLAYING' || this.state === 'ROUND_PAUSE') {
       const currentSpeed = Math.round(Math.hypot(this.ball.vx, this.ball.vy));
 
-      // Overdrive Center Core Hazard (Rally >= 10)
-      if (this.ball.rallyCount >= 10) {
+      // Overdrive Center Core Hazard (Rally >= 10) & Advance Warning Telegraph (Rally 7..9)
+      if (this.ball.rallyCount >= 7 && this.ball.rallyCount < 10) {
+        const pulse = (Math.sin(performance.now() * 0.012) + 1) * 0.5;
+        const warnR = minDim * 0.075 * (0.92 + pulse * 0.16);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, warnR, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(216, 71, 39, ${0.45 + pulse * 0.5})`;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([5, 5]);
+        ctx.stroke();
+
+        ctx.fillStyle = '#D84727';
+        ctx.font = '900 12px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`⚡ TEHLİKE YAKLAŞIYOR (${10 - this.ball.rallyCount}) ⚡`, cx, cy - 28);
+        ctx.restore();
+      } else if (this.ball.rallyCount >= 10) {
         const hazardR = minDim * 0.065;
         ctx.save();
         ctx.fillStyle = '#1C1C1A';
@@ -489,10 +508,10 @@ export class Game {
         ctx.stroke();
 
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = '900 9px "JetBrains Mono", monospace';
+        ctx.font = '900 11px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('⚡TEHLİKE⚡', cx, cy);
+        ctx.fillText('⚡ ENGEL ⚡', cx, cy);
         ctx.restore();
       }
 
@@ -635,9 +654,11 @@ export class Game {
   }
 
   renderCornerBumpers(ctx) {
-    const { left, right, top, bottom, width: aW, height: aH } = this.arena;
-    const bLenH = aW * this.arena.bumperRatio;
-    const bLenV = aH * this.arena.bumperRatio;
+    const { left, right, top, bottom } = this.arena;
+    const { goalMin: hGoalMin, goalMax: hGoalMax } = this.getGoalBounds('bottom');
+    const { goalMin: vGoalMin, goalMax: vGoalMax } = this.getGoalBounds('left');
+    const bLenH = hGoalMin - left;
+    const bLenV = vGoalMin - top;
     const thick = 16;
 
     ctx.fillStyle = '#8C8880';
@@ -676,19 +697,19 @@ export class Game {
 
     // Bottom Bumpers (Left & Right)
     drawBumper(left, bottom - thick, bLenH, thick);
-    drawBumper(right - bLenH, bottom - thick, bLenH, thick);
+    drawBumper(hGoalMax, bottom - thick, bLenH, thick);
 
     // Top Bumpers (Left & Right)
     drawBumper(left, top, bLenH, thick);
-    drawBumper(right - bLenH, top, bLenH, thick);
+    drawBumper(hGoalMax, top, bLenH, thick);
 
     // Left Bumpers (Top & Bottom)
     drawBumper(left, top, thick, bLenV);
-    drawBumper(left, bottom - bLenV, thick, bLenV);
+    drawBumper(left, vGoalMax, thick, bLenV);
 
     // Right Bumpers (Top & Bottom)
     drawBumper(right - thick, top, thick, bLenV);
-    drawBumper(right - thick, bottom - bLenV, thick, bLenV);
+    drawBumper(right - thick, vGoalMax, thick, bLenV);
   }
 
   renderGoalLines(ctx) {
@@ -830,21 +851,21 @@ export class Game {
     ctx.lineWidth = paddle.slotType === 'bot_god' ? 4 : 3;
     ctx.strokeRect(btnX, btnY, btnW, btnH);
 
+    ctx.save();
+    ctx.translate(btnX + btnW / 2, btnY + btnH / 2);
+    if (paddle.side === 'top') {
+      ctx.rotate(Math.PI);
+    } else if (paddle.side === 'left') {
+      ctx.rotate(Math.PI / 2);
+    } else if (paddle.side === 'right') {
+      ctx.rotate(-Math.PI / 2);
+    }
     ctx.fillStyle = textColor;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-
-    if (paddle.axis === 'horizontal') {
-      ctx.font = '800 14px "Space Grotesk", sans-serif';
-      ctx.fillText(label, btnX + btnW / 2, btnY + btnH / 2);
-    } else {
-      ctx.save();
-      ctx.translate(btnX + btnW / 2, btnY + btnH / 2);
-      ctx.rotate(paddle.side === 'left' ? -Math.PI / 2 : Math.PI / 2);
-      ctx.font = '800 14px "Space Grotesk", sans-serif';
-      ctx.fillText(label, 0, 0);
-      ctx.restore();
-    }
+    ctx.font = '800 16px "Space Grotesk", sans-serif';
+    ctx.fillText(label, 0, 0);
+    ctx.restore();
 
     ctx.restore();
 
