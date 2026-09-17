@@ -381,6 +381,22 @@ function updateHostSlot(slotIndex, isConnected, name = '') {
   }
 }
 
+let detectedLanIp = null;
+fetch('/api/lan-ip')
+  .then((res) => res.json())
+  .then((data) => {
+    if (data?.ip) detectedLanIp = `${data.ip}:${data.port || 5173}`;
+  })
+  .catch(() => {});
+
+function getEffectiveJoinUrl(roomCode) {
+  let baseOrigin = window.location.origin;
+  if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && detectedLanIp) {
+    baseOrigin = `http://${detectedLanIp}`;
+  }
+  return `${baseOrigin}/?join=${roomCode}`;
+}
+
 async function openHostLobby(gameMode = 'PONG') {
   currentHostGameMode = gameMode;
   for (let i = 0; i < 4; i++) updateHostSlot(i, false);
@@ -389,7 +405,7 @@ async function openHostLobby(gameMode = 'PONG') {
     await partyNetwork.hostRoom(gameMode, {
       onRoomCreated: (roomCode) => {
         if (hostRoomCode) hostRoomCode.textContent = roomCode;
-        const joinUrl = `${window.location.origin}/?join=${roomCode}`;
+        const joinUrl = getEffectiveJoinUrl(roomCode);
         if (hostJoinUrl) hostJoinUrl.textContent = joinUrl;
 
         if (qrCanvas) {
@@ -438,7 +454,7 @@ btnHostClose?.addEventListener('click', () => {
 
 btnHostCopyLink?.addEventListener('click', async () => {
   const code = hostRoomCode?.textContent?.trim() || '';
-  const joinUrl = `${window.location.origin}/?join=${code}`;
+  const joinUrl = getEffectiveJoinUrl(code);
   try {
     await navigator.clipboard.writeText(joinUrl);
     showInstallToast('✓ Bağlantı panoya kopyalandı!');
@@ -449,7 +465,7 @@ btnHostCopyLink?.addEventListener('click', async () => {
 
 btnHostWhatsappShare?.addEventListener('click', () => {
   const code = hostRoomCode?.textContent?.trim() || '';
-  const joinUrl = `${window.location.origin}/?join=${code}`;
+  const joinUrl = getEffectiveJoinUrl(code);
   const text = encodeURIComponent(`🎮 BRUTAL PARTY // 4P odasına katıl!\nOda Kodu: #${code}\nBağlantı: ${joinUrl}`);
   window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
 });

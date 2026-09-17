@@ -1,8 +1,22 @@
-// Vite WebSocket Plugin for development
-// Attaches WebSocketServer directly to Vite's dev server on `/party-ws`
-
+import os from 'os';
 import { WebSocketServer } from 'ws';
 import { RoomManager } from './roomManager.js';
+
+function getLanIp() {
+  const interfaces = os.networkInterfaces();
+  let fallback = 'localhost';
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        if (/wi-?fi|wlan|ethernet|eth/i.test(name) || iface.address.startsWith('192.168.')) {
+          return iface.address;
+        }
+        fallback = iface.address;
+      }
+    }
+  }
+  return fallback;
+}
 
 export function vitePluginWs() {
   const roomManager = new RoomManager();
@@ -11,6 +25,11 @@ export function vitePluginWs() {
     name: 'vite-plugin-party-ws',
     configureServer(server) {
       if (!server.httpServer) return;
+
+      server.middlewares.use('/api/lan-ip', (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ ip: getLanIp(), port: server.config.server.port || 5173 }));
+      });
 
       const wss = new WebSocketServer({
         noServer: true,
