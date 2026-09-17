@@ -172,8 +172,8 @@ export class DuelGame {
     const { cx, cy, left, right, top, bottom, size } = this.arena;
     const padW = Math.min(size * 0.44, 210);
     const padH = Math.min(68, Math.max(50, size * 0.12));
-    const viewportWidth = right + left;
-    const viewportHeight = bottom + top;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
 
     // Corner / edge action pads anchored tightly around the arena
     this.triggerPads = [
@@ -184,8 +184,8 @@ export class DuelGame {
         y: Math.min(bottom + 14, viewportHeight - padH - 12),
         w: padW,
         h: padH,
-        label: 'KOVBOY 1',
-        sublabel: 'GÜNEY (ALT)',
+        label: 'KIRMIZI',
+        sublabel: 'OYUNCU 1',
       },
       // P1: Top
       {
@@ -194,8 +194,8 @@ export class DuelGame {
         y: Math.max(top - padH - 14, 12),
         w: padW,
         h: padH,
-        label: 'KOVBOY 2',
-        sublabel: 'KUZEY (ÜST)',
+        label: 'MAVİ',
+        sublabel: 'OYUNCU 2',
       },
       // P2: Left
       {
@@ -204,8 +204,8 @@ export class DuelGame {
         y: cy - padH / 2,
         w: padW,
         h: padH,
-        label: 'KOVBOY 3',
-        sublabel: 'BATI (SOL)',
+        label: 'SARI',
+        sublabel: 'OYUNCU 3',
       },
       // P3: Right
       {
@@ -214,8 +214,8 @@ export class DuelGame {
         y: cy - padH / 2,
         w: padW,
         h: padH,
-        label: 'KOVBOY 4',
-        sublabel: 'DOĞU (SAĞ)',
+        label: 'YEŞİL',
+        sublabel: 'OYUNCU 4',
       },
     ];
   }
@@ -449,16 +449,17 @@ export class DuelGame {
       }
     }
 
-    // Check Trigger Pads
-    for (const pad of this.triggerPads) {
-      if (
-        pos.x >= pad.x &&
-        pos.x <= pad.x + pad.w &&
-        pos.y >= pad.y &&
-        pos.y <= pad.y + pad.h
-      ) {
-        this.handlePlayerHoldStart(pad.playerIndex, touch.id);
-        return;
+    if (this.state === 'HOLSTER_WAIT' || this.state === 'TENSION' || this.state === 'DRAW_SIGNAL') {
+      for (const pad of this.triggerPads) {
+        if (
+          pos.x >= pad.x &&
+          pos.x <= pad.x + pad.w &&
+          pos.y >= pad.y &&
+          pos.y <= pad.y + pad.h
+        ) {
+          this.handlePlayerHoldStart(pad.playerIndex, touch.id);
+          return;
+        }
       }
     }
   }
@@ -594,7 +595,6 @@ export class DuelGame {
         'YEŞİL P4',
       ]);
       this.renderLobby();
-      this.renderTriggerPads();
     } else if (this.state === 'HOLSTER_WAIT') {
       this.renderHolsterWait();
     } else if (this.state === 'TENSION') {
@@ -681,10 +681,11 @@ export class DuelGame {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
+    const colorNames = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
     let scoreText = '';
     this.joinedPlayers.forEach((joined, idx) => {
       if (joined) {
-        scoreText += `P${idx + 1}: ${this.wins[idx]}★   `;
+        scoreText += `${colorNames[idx]}: ${this.wins[idx]}★   `;
       }
     });
     scoreText += `[HEDEF: ${this.targetWins}]  ⚡REKOR: ${this.tableRecordMs}ms`;
@@ -747,10 +748,10 @@ export class DuelGame {
     const row2Y = row1Y + btnH + gapY;
 
     const slotConfigs = [
-      { idx: 0, col: 0, rowY: row1Y, posLabel: 'GÜNEY (ALT)' },
-      { idx: 1, col: 1, rowY: row1Y, posLabel: 'KUZEY (ÜST)' },
-      { idx: 2, col: 0, rowY: row2Y, posLabel: 'BATI (SOL)' },
-      { idx: 3, col: 1, rowY: row2Y, posLabel: 'DOĞU (SAĞ)' },
+      { idx: 0, col: 0, rowY: row1Y, posLabel: 'KIRMIZI' },
+      { idx: 1, col: 1, rowY: row1Y, posLabel: 'MAVİ' },
+      { idx: 2, col: 0, rowY: row2Y, posLabel: 'SARI' },
+      { idx: 3, col: 1, rowY: row2Y, posLabel: 'YEŞİL' },
     ];
 
     slotConfigs.forEach((cfg) => {
@@ -872,26 +873,27 @@ export class DuelGame {
 
   renderHolsterWait() {
     const { ctx } = this;
-    const { cx, cy } = this.arena;
+    const { cx, cy, width } = this.arena;
+    const isNarrow = width < 500;
 
     // Big central instruction
-    ctx.font = '900 28px "Space Grotesk", sans-serif';
+    ctx.font = isNarrow ? '900 24px "Space Grotesk", sans-serif' : '900 28px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#FAF8F5';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('SİLAHLARI KININA KOYUN!', cx, cy - 30);
+    ctx.fillText(isNarrow ? 'BASILI TUTUN' : 'SİLAHLARI KININA KOYUN!', cx, cy - 30, width - 24);
 
-    ctx.font = '700 16px "Space Grotesk", sans-serif';
+    ctx.font = isNarrow ? '700 12px "Space Grotesk", sans-serif' : '700 16px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#D99B26';
-    ctx.fillText('AŞAĞIDAKİ ALANA PARMAĞINIZI BASILI TUTUN', cx, cy + 10);
+    ctx.fillText(isNarrow ? 'RENK PADİNE BASILI TUT' : 'AŞAĞIDAKİ ALANA PARMAĞINIZI BASILI TUTUN', cx, cy + 10, width - 24);
 
     // Ready Status Counter
     const holdingCount = this.playerStatus.filter((p, i) => this.joinedPlayers[i] && p.isHolding).length;
     const totalJoined = this.getActivePlayerCount();
 
-    ctx.font = '900 20px "Space Grotesk", monospace';
+    ctx.font = isNarrow ? '900 17px "Space Grotesk", monospace' : '900 20px "Space Grotesk", monospace';
     ctx.fillStyle = holdingCount === totalJoined ? '#2D6A4F' : '#E76F51';
-    ctx.fillText(`${holdingCount} / ${totalJoined} KOVBOY HAZIRLANDI`, cx, cy + 50);
+    ctx.fillText(`${holdingCount} / ${totalJoined} HAZIR`, cx, cy + 50, width - 24);
 
     this.renderTriggerPads();
   }
@@ -1064,6 +1066,8 @@ export class DuelGame {
   }
 
   renderTriggerPads() {
+    if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') return;
+
     const { ctx } = this;
 
     this.triggerPads.forEach((pad) => {
