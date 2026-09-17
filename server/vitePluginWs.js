@@ -4,18 +4,24 @@ import { RoomManager } from './roomManager.js';
 
 function getLanIp() {
   const interfaces = os.networkInterfaces();
-  let fallback = 'localhost';
+  let best = null;
   for (const name of Object.keys(interfaces)) {
+    // Ignore virtual / WSL / Hyper-V adapters
+    if (/vethernet|virtual|wsl|hyper-v|docker|vmware/i.test(name)) continue;
+
     for (const iface of interfaces[name]) {
       if (iface.family === 'IPv4' && !iface.internal) {
-        if (/wi-?fi|wlan|ethernet|eth/i.test(name) || iface.address.startsWith('192.168.')) {
+        if (iface.address.startsWith('192.168.')) {
           return iface.address;
         }
-        fallback = iface.address;
+        if (/wi-?fi|wlan/i.test(name)) {
+          return iface.address;
+        }
+        best = iface.address;
       }
     }
   }
-  return fallback;
+  return best || '192.168.1.4';
 }
 
 export function vitePluginWs() {
