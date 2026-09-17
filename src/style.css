@@ -1,0 +1,410 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #f4f4f0;
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  touch-action: none;
+  position: fixed;
+  inset: 0;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  background-color: #f4f4f0;
+  overflow: hidden;
+}
+
+/* Centered Game Canvas */
+#game-canvas {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: block;
+  touch-action: none;
+  background-color: transparent;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  z-index: 1;
+}
+
+/* Discrete In-game HUD: 3-Dots Button */
+#in-game-hud {
+  position: fixed;
+  top: 12px;
+  right: 14px;
+  z-index: 50;
+}
+
+#in-game-hud.hidden {
+  display: none !important;
+}
+
+#btn-open-options {
+  width: 38px;
+  height: 38px;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  border: 3px solid #1a1a1a;
+  box-shadow: 3px 3px 0px #1a1a1a;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 900;
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+#btn-open-options:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+  background-color: #e2ded4;
+}
+
+/* Pause & Options Modal */
+#pause-modal {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(28, 28, 26, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  padding: 16px;
+  backdrop-filter: blur(3px);
+}
+
+#pause-modal.hidden {
+  display: none !important;
+}
+
+.pause-card {
+  width: 100%;
+  max-width: 340px;
+  background-color: #f4f4f0;
+  border: 4px solid #1a1a1a;
+  box-shadow: 8px 8px 0px #1a1a1a;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pause-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 3px solid #1a1a1a;
+  padding-bottom: 12px;
+}
+
+.pause-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #1a1a1a;
+  background-color: #e2ded4;
+  border: 2px solid #1a1a1a;
+  padding: 2px 6px;
+  align-self: flex-start;
+}
+
+.pause-title {
+  font-size: 22px;
+  font-weight: 900;
+  color: #1a1a1a;
+  letter-spacing: -0.5px;
+}
+
+.pause-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pause-btn {
+  width: 100%;
+  padding: 12px 14px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  border: 3px solid #1a1a1a;
+  box-shadow: 3px 3px 0px #1a1a1a;
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  touch-action: manipulation;
+}
+
+.pause-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+}
+
+.pause-btn.primary {
+  background-color: #1a1a1a;
+  color: #ffffff;
+}
+
+.pause-btn.danger {
+  background-color: #e2ded4;
+  color: #d84727;
+}
+
+/* Brutalist HTML Menu Overlay */
+#menu-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #f4f4f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+#menu-overlay.hidden {
+  display: none !important;
+}
+
+.install-app-btn {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  width: 42px;
+  height: 42px;
+  border: 3px solid #1a1a1a;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  box-shadow: 4px 4px 0 #1a1a1a;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 2;
+  touch-action: manipulation;
+}
+
+.install-app-btn.hidden {
+  display: none;
+}
+
+.install-app-btn span {
+  display: block;
+  transform: translateY(-2px);
+}
+
+.install-app-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #1a1a1a;
+}
+
+.install-app-btn.available {
+  background-color: #d84727;
+  color: #ffffff;
+}
+
+.install-toast {
+  position: absolute;
+  top: 68px;
+  right: max(16px, env(safe-area-inset-right));
+  width: min(300px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border: 3px solid #1a1a1a;
+  background-color: #fffefa;
+  color: #1a1a1a;
+  box-shadow: 4px 4px 0 #1a1a1a;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  z-index: 3;
+}
+
+.install-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.menu-container {
+  width: 100%;
+  max-width: 440px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.menu-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 4px solid #1a1a1a;
+  padding-bottom: 14px;
+}
+
+.menu-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #1a1a1a;
+  background-color: #e2ded4;
+  border: 2px solid #1a1a1a;
+  padding: 3px 8px;
+  display: inline-block;
+  align-self: flex-start;
+}
+
+.menu-title {
+  font-size: clamp(28px, 6.5vw, 40px);
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: #1a1a1a;
+  line-height: 1.05;
+}
+
+.menu-subtitle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #635f58;
+}
+
+.menu-games {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.game-card-btn {
+  background-color: #ffffff;
+  border: 3.5px solid #1a1a1a;
+  box-shadow: 5px 5px 0px #1a1a1a;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.08s ease;
+  touch-action: manipulation;
+  position: relative;
+}
+
+.game-card-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 2px 2px 0px #1a1a1a;
+  background-color: #f0ece3;
+}
+
+#btn-select-pong {
+  border-left: 9px solid #d84727;
+}
+
+#btn-select-tanks {
+  border-left: 9px solid #1d5d8a;
+}
+
+#btn-select-curve {
+  border-left: 9px solid #2f6a4f;
+}
+
+#btn-select-bomb {
+  border-left: 9px solid #d99b26;
+}
+
+#btn-select-heist {
+  border-left: 9px solid #b5831f;
+}
+
+#btn-select-duel {
+  border-left: 9px solid #8c4830;
+}
+
+.card-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 26px;
+  font-weight: 900;
+  color: #1a1a1a;
+  line-height: 1;
+  padding-right: 6px;
+}
+
+.card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.card-title {
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  color: #1a1a1a;
+}
+
+.card-desc {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #55514a;
+  line-height: 1.35;
+}
+
+.card-action {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1a1a1a;
+  white-space: nowrap;
+}
+
+.menu-footer {
+  text-align: center;
+  padding-top: 4px;
+}
+
+.footer-note {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: #7d7870;
+}

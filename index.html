@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>BRUTAL PARTY // 4P</title>
+    <meta name="description" content="BRUTAL PARTY // 4P - 2-4 Kişilik Yerel Brutalist Parti Oyunları Paketi (PWA)" />
+    <meta name="theme-color" content="#F4F4F0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700;800;900&family=JetBrains+Mono:wght@700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Game Canvas -->
+      <canvas id="game-canvas"></canvas>
+
+      <!-- Discrete In-Game Quick Options Button (Safe Corner Placement) -->
+      <div id="in-game-hud" class="hidden">
+        <button id="btn-open-options" type="button" aria-label="Seçenekler ve Menü">
+          <span class="dots-icon">⋮</span>
+        </button>
+      </div>
+
+      <!-- Brutalist Pause & Options Modal -->
+      <div id="pause-modal" class="hidden">
+        <div class="pause-card">
+          <div class="pause-header">
+            <div class="pause-badge">OYUN DURAKLATILDI</div>
+            <h2 id="pause-game-title" class="pause-title">BRUTAL PONG</h2>
+          </div>
+
+          <div class="pause-actions">
+            <button id="btn-resume-game" class="pause-btn primary" type="button">
+              ▶ DEVAM ET
+            </button>
+            <button id="btn-reset-match" class="pause-btn" type="button">
+              ↺ MAÇI SIFIRLA
+            </button>
+            <button id="btn-toggle-sound" class="pause-btn" type="button">
+              🔊 SES: AÇIK
+            </button>
+            <button id="btn-exit-to-menu" class="pause-btn danger" type="button">
+              ⌂ ANA MENÜYE DÖN
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- HTML Brutalist Menu Overlay -->
+      <div id="menu-overlay">
+        <button id="btn-install-app" class="install-app-btn" type="button" aria-label="Oyunu ana ekrana yükle" title="Oyunu ana ekrana yükle">
+          <span aria-hidden="true">↓</span>
+        </button>
+        <div id="install-toast" class="install-toast" role="status" aria-live="polite"></div>
+        <div class="menu-container">
+          <div class="menu-header">
+            <div class="menu-badge">PWA // 2-4 OYUNCU // LOCAL</div>
+            <h1 class="menu-title">BRUTAL PARTY</h1>
+            <p class="menu-subtitle">AYNI EKRANDA, SIFIR GECİKMEYLE 4 KİŞİLİK KAOS</p>
+          </div>
+
+          <div class="menu-games">
+            <button class="game-card-btn" id="btn-select-pong" type="button">
+              <div class="card-num">01</div>
+              <div class="card-info">
+                <div class="card-title">BRUTAL PONG</div>
+                <div class="card-desc">4 taraflı arena, 1D parmak sürükleme, falso ve sürtünme fiziği</div>
+              </div>
+              <div class="card-action">BAŞLAT →</div>
+            </button>
+
+            <button class="game-card-btn" id="btn-select-tanks" type="button">
+              <div class="card-num">02</div>
+              <div class="card-info">
+                <div class="card-title">MICRO-TANKS</div>
+                <div class="card-desc">Dönen tanklar, tek dokunuşla sürüş, seken mermili savaş arenası</div>
+              </div>
+              <div class="card-action">BAŞLAT →</div>
+            </button>
+
+            <button class="game-card-btn" id="btn-select-curve" type="button">
+              <div class="card-num">03</div>
+              <div class="card-info">
+                <div class="card-title">BRUTAL CURVE</div>
+                <div class="card-desc">Çizgi savaşı, deliklerden kaçış, taktiksel makas ve hayalet damgaları</div>
+              </div>
+              <div class="card-action">BAŞLAT →</div>
+            </button>
+
+            <button class="game-card-btn" id="btn-select-bomb" type="button">
+              <div class="card-num">04</div>
+              <div class="card-info">
+                <div class="card-title">BRUTAL BOMB</div>
+                <div class="card-desc">Saatli bomba, temasla pas, 360° köşe sürüşü ve nefes kesen kaçış</div>
+              </div>
+              <div class="card-action">BAŞLAT →</div>
+            </button>
+
+            <button class="game-card-btn" id="btn-select-heist" type="button">
+              <div class="card-num">05</div>
+              <div class="card-info">
+                <div class="card-title">BRUTAL HEIST</div>
+                <div class="card-desc">Kasa soygunu, ağırlık fiziği, omuz darbesiyle altın düşürme ve 45s Gold Rush</div>
+              </div>
+              <div class="card-action">BAŞLAT →</div>
+            </button>
+
+            <button class="game-card-btn" id="btn-select-duel" type="button">
+              <div class="card-num">06</div>
+              <div class="card-info">
+                <div class="card-title">QUICK DRAW</div>
+                <div class="card-desc">Kovboy düellosu, basılı tut & sinyalde çek, erken çekene faul, saf refleks</div>
+              </div>
+              <div class="card-action">BAŞLAT →</div>
+            </button>
+          </div>
+
+          <div class="menu-footer">
+            <div class="footer-note">DOKUNMATİK EKRAN DESTEĞİ • 120HZ SABİT FİZİK • OFFLINE PWA</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
