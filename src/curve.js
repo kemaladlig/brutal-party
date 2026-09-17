@@ -862,10 +862,10 @@ export class CurveGame {
 
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, 'KONTROL // KÖŞEDEKİ SOL / SAĞ BUTONLAR', [
-        'P1 ALT-SOL',
-        'P2 ÜST-SOL',
-        'P3 ÜST-SAĞ',
-        'P4 ALT-SAĞ',
+        'KIRMIZI P1',
+        'MAVİ P2',
+        'SARI P3',
+        'YEŞİL P4',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
@@ -1075,7 +1075,7 @@ export class CurveGame {
   renderMatchOverUI(ctx) {
     const { cx, cy, size } = this.arena;
     const boxW = Math.min(300, size * 0.85);
-    const boxH = 160;
+    const boxH = 220;
     const boxX = cx - boxW / 2;
     const boxY = cy - boxH / 2;
 
@@ -1099,13 +1099,19 @@ export class CurveGame {
     if (this.matchWinner) {
       ctx.fillStyle = this.matchWinner.color;
       ctx.font = '900 26px "Space Grotesk", sans-serif';
-      ctx.fillText(`${this.matchWinner.name}!`, cx, boxY + 68);
+      ctx.fillText(`${this.matchWinner.name} // KAZANDI`, cx, boxY + 68, boxW - 20);
     }
+
+    ctx.font = '800 11px "JetBrains Mono", monospace';
+    this.players.filter((player) => player.isJoined).forEach((player, row) => {
+      ctx.fillStyle = player.color;
+      ctx.fillText(`${player.color}: ${this.scores[player.index] || 0} SET`, cx, boxY + 94 + row * 17);
+    });
 
     const btnW = 180;
     const btnH = 42;
     const btnX = cx - btnW / 2;
-    const btnY = boxY + 102;
+    const btnY = boxY + 154;
 
     ctx.fillStyle = '#1A1A1A';
     ctx.fillRect(btnX, btnY, btnW, btnH);

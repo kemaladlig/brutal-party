@@ -1288,10 +1288,10 @@ export class BombGame {
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, 'KONTROL // JOYSTICK SÜRÜKLE • ÇİFT DOKUN: HAMLE', [
-        'P1 ALT-SOL',
-        'P2 ÜST-SOL',
-        'P3 ÜST-SAĞ',
-        'P4 ALT-SAĞ',
+        'KIRMIZI P1',
+        'MAVİ P2',
+        'SARI P3',
+        'YEŞİL P4',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
@@ -1905,7 +1905,7 @@ export class BombGame {
   renderGameOverUI(ctx) {
     const { arena } = this;
     const boxW = Math.min(320, arena.size * 0.85);
-    const boxH = 180;
+    const boxH = 220;
     const boxX = arena.cx - boxW / 2;
     const boxY = arena.cy - boxH / 2;
 
@@ -1928,22 +1928,20 @@ export class BombGame {
 
     if (this.matchWinner) {
       ctx.fillStyle = this.matchWinner.color;
-      ctx.font = '900 24px "Space Grotesk", sans-serif';
-      ctx.fillText(`${this.matchWinner.name} MAÇI KAZANDI!`, arena.cx, boxY + 66);
+      ctx.font = '900 22px "Space Grotesk", sans-serif';
+      ctx.fillText(`${this.matchWinner.color} // KAZANDI`, arena.cx, boxY + 66, boxW - 20);
 
-      ctx.fillStyle = '#78736A';
       ctx.font = '800 12px "JetBrains Mono", monospace';
-      const scoreSummary = this.players
-        .filter((p) => p.isJoined)
-        .map((p) => `${p.name}: ${this.scores[p.index] || 0}`)
-        .join('  |  ');
-      ctx.fillText(`SKOR: ${scoreSummary}`, arena.cx, boxY + 92);
+      this.players.filter((p) => p.isJoined).forEach((p, row) => {
+        ctx.fillStyle = p.color;
+        ctx.fillText(`${p.color}: ${this.scores[p.index] || 0} SET`, arena.cx, boxY + 94 + row * 17);
+      });
     }
 
     const btnW = 190;
     const btnH = 46;
     const btnX = arena.cx - btnW / 2;
-    const btnY = boxY + 114;
+    const btnY = boxY + 154;
 
     ctx.fillStyle = '#1C1C1A';
     ctx.fillRect(btnX, btnY, btnW, btnH);

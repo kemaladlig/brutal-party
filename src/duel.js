@@ -588,10 +588,10 @@ export class DuelGame {
     // State Renderings
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, 'KONTROL // TETİĞİ BASILI TUT • SİNYALDE BIRAK', [
-        'P1 ALT',
-        'P2 ÜST',
-        'P3 SOL',
-        'P4 SAĞ',
+        'KIRMIZI P1',
+        'MAVİ P2',
+        'SARI P3',
+        'YEŞİL P4',
       ]);
       this.renderLobby();
       this.renderTriggerPads();
@@ -985,7 +985,8 @@ export class DuelGame {
     this.joinedPlayers.forEach((joined, idx) => {
       if (!joined) return;
       const st = this.playerStatus[idx];
-      let txt = `${DUEL_NAMES[idx]}: `;
+      const colorName = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][idx];
+      let txt = `${colorName}: `;
       if (st.falseStart) {
         txt += 'ERKEN ÇEKİŞ (FAUL)';
       } else if (st.reactionMs !== null) {
@@ -1009,7 +1010,8 @@ export class DuelGame {
 
     this.uiButtons = [];
 
-    const champName = DUEL_NAMES[this.matchWinner];
+    const colorNames = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+    const champName = colorNames[this.matchWinner];
     const champColor = DUEL_COLORS[this.matchWinner];
     const bestMs = this.playerStatus[this.matchWinner].lastBestMs;
 
@@ -1021,7 +1023,7 @@ export class DuelGame {
 
     ctx.font = '900 36px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#FAF8F5';
-    ctx.fillText(`${champName} KAZANDI!`, cx, cy - 40);
+    ctx.fillText(`${champName} // KAZANDI`, cx, cy - 40, this.arena.width - 24);
 
     if (bestMs) {
       ctx.font = '900 24px "Space Grotesk", monospace';
@@ -1029,11 +1031,18 @@ export class DuelGame {
       ctx.fillText(`EN İYİ REFLEKS: ${bestMs} MS`, cx, cy + 10);
     }
 
+    ctx.font = '800 12px "JetBrains Mono", monospace';
+    this.joinedPlayers.forEach((joined, index) => {
+      if (!joined) return;
+      ctx.fillStyle = DUEL_COLORS[index];
+      ctx.fillText(`${colorNames[index]}: ${this.wins[index]} GALİBİYET`, cx, cy + 40 + index * 17);
+    });
+
     // Play Again Button
     const btnW = size * 0.72;
     const btnH = 60;
     const btnX = cx - btnW / 2;
-    const btnY = cy + 65;
+    const btnY = cy + 108;
 
     ctx.fillStyle = '#D99B26';
     ctx.fillRect(btnX, btnY, btnW, btnH);

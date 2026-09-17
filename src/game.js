@@ -354,9 +354,9 @@ export class Game {
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, 'KONTROL // PARMAĞINI KENDİ BÖLGENDE SÜRÜKLE', [
-        'P1 ALT',
-        'P2 ÜST',
-        'YATAYDA P3 SOL / P4 SAĞ',
+        'KIRMIZI P1',
+        'MAVİ P2',
+        'YATAYDA SARI P3 / YEŞİL P4',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'GAME_OVER') {
@@ -786,7 +786,7 @@ export class Game {
   renderGameOverUI(ctx) {
     const { arena } = this;
     const boxW = Math.min(320, arena.width * 0.75);
-    const boxH = 180;
+    const boxH = 220;
     const boxX = arena.cx - boxW / 2;
     const boxY = arena.cy - boxH / 2;
 
@@ -810,15 +810,14 @@ export class Game {
     if (this.winner) {
       ctx.fillStyle = this.winner.color;
       ctx.font = '900 24px "Space Grotesk", sans-serif';
-      ctx.fillText(`${this.winner.name} MAÇI KAZANDI!`, arena.cx, boxY + 66);
+      ctx.fillText(`${this.winner.color} // KAZANDI`, arena.cx, boxY + 66, boxW - 20);
 
       ctx.fillStyle = '#78736A';
-      ctx.font = '800 12px "JetBrains Mono", monospace';
-      const scoreSummary = this.paddles
-        .filter((p) => p.isJoined)
-        .map((p) => `${p.name}: ${this.setScores[p.index] || 0}`)
-        .join('  |  ');
-      ctx.fillText(`SONUÇ: ${scoreSummary}`, arena.cx, boxY + 92);
+      ctx.font = '800 11px "JetBrains Mono", monospace';
+      this.paddles.filter((p) => p.isJoined).forEach((p, row) => {
+        ctx.fillStyle = p.color;
+        ctx.fillText(`${p.color}: ${this.setScores[p.index] || 0} SET`, arena.cx, boxY + 94 + row * 17);
+      });
     } else {
       ctx.fillStyle = '#1C1C1A';
       ctx.font = '900 24px "Space Grotesk", sans-serif';
@@ -828,7 +827,7 @@ export class Game {
     const btnW = 190;
     const btnH = 46;
     const btnX = arena.cx - btnW / 2;
-    const btnY = boxY + 114;
+    const btnY = boxY + 154;
 
     ctx.fillStyle = '#1C1C1A';
     ctx.fillRect(btnX, btnY, btnW, btnH);

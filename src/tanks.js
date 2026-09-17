@@ -1172,10 +1172,10 @@ export class TanksGame {
 
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, 'KONTROL // SÜREKLİ DÖNER • TUT: İLERLE • BIRAK: ATEŞ ET', [
-        'P1 ALT-SOL',
-        'P2 ÜST-SOL',
-        'P3 ÜST-SAĞ',
-        'P4 ALT-SAĞ',
+        'KIRMIZI P1',
+        'MAVİ P2',
+        'SARI P3',
+        'YEŞİL P4',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
@@ -1397,10 +1397,10 @@ export class TanksGame {
 
   renderCornerTouchZones(ctx) {
     const corners = [
-      { name: 'P1 // ALT-SOL', color: TANK_COLORS[0], slot: this.slotTypes[0] },
-      { name: 'P2 // ÜST-SOL', color: TANK_COLORS[1], slot: this.slotTypes[1] },
-      { name: 'P3 // ÜST-SAĞ', color: TANK_COLORS[2], slot: this.slotTypes[2] },
-      { name: 'P4 // ALT-SAĞ', color: TANK_COLORS[3], slot: this.slotTypes[3] },
+      { name: 'KIRMIZI // P1', color: TANK_COLORS[0], slot: this.slotTypes[0] },
+      { name: 'MAVİ // P2', color: TANK_COLORS[1], slot: this.slotTypes[1] },
+      { name: 'SARI // P3', color: TANK_COLORS[2], slot: this.slotTypes[2] },
+      { name: 'YEŞİL // P4', color: TANK_COLORS[3], slot: this.slotTypes[3] },
     ];
 
     corners.forEach((c, index) => {
@@ -1515,7 +1515,7 @@ export class TanksGame {
   renderMatchOverUI(ctx) {
     const { cx, cy, size } = this.arena;
     const boxW = Math.min(300, size * 0.85);
-    const boxH = 160;
+    const boxH = 220;
     const boxX = cx - boxW / 2;
     const boxY = cy - boxH / 2;
 
@@ -1539,13 +1539,19 @@ export class TanksGame {
     if (this.matchWinner) {
       ctx.fillStyle = this.matchWinner.color;
       ctx.font = '900 26px "Space Grotesk", sans-serif';
-      ctx.fillText(`${this.matchWinner.name}!`, cx, boxY + 68);
+      ctx.fillText(`${this.matchWinner.color} // KAZANDI`, cx, boxY + 68, boxW - 20);
     }
+
+    ctx.font = '800 11px "JetBrains Mono", monospace';
+    this.tanks.filter((tank) => tank.isJoined).forEach((tank, row) => {
+      ctx.fillStyle = tank.color;
+      ctx.fillText(`${tank.color}: ${this.scores[tank.index] || 0} SET`, cx, boxY + 94 + row * 17);
+    });
 
     const btnW = 180;
     const btnH = 42;
     const btnX = cx - btnW / 2;
-    const btnY = boxY + 102;
+    const btnY = boxY + 154;
 
     ctx.fillStyle = '#1A1A1A';
     ctx.fillRect(btnX, btnY, btnW, btnH);
