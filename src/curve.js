@@ -910,22 +910,24 @@ export class CurveGame {
 
     ctx.save();
     ctx.fillStyle = '#858076';
-    ctx.font = '800 11px "JetBrains Mono", monospace';
+    ctx.font = '900 13px "JetBrains Mono", monospace';
     ctx.textAlign = 'left';
-    ctx.fillText('03 // BRUTAL CURVE (HEDEF: 5)', left + 8, top - 8);
+    ctx.textBaseline = 'middle';
+    ctx.fillText('03 // BRUTAL CURVE (HEDEF: 5)', left + 8, top - 14);
 
     let scoreX = right - 8;
     ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
     for (let i = 3; i >= 0; i--) {
       const p = this.players[i];
       if (!p || !p.isJoined) continue;
 
       ctx.fillStyle = p.color;
-      ctx.font = '900 12px "JetBrains Mono", monospace';
+      ctx.font = '900 14px "JetBrains Mono", monospace';
       const botPrefix = p.slotType === 'bot_god' ? '⚡' : p.slotType === 'bot_normal' ? '🤖' : '';
-      const text = `${botPrefix}${p.name[0]}:${this.scores[i]}`;
-      ctx.fillText(text, scoreX, top - 8);
-      scoreX -= ctx.measureText(text).width + 12;
+      const text = `${botPrefix}${p.name}: ${this.scores[i]}★`;
+      ctx.fillText(text, scoreX, top - 14);
+      scoreX -= ctx.measureText(text).width + 16;
     }
     ctx.restore();
   }

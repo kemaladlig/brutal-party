@@ -247,7 +247,7 @@ export class Ball {
     this.isSmash = isSmashStrike;
 
     let incomingSpeed = Math.hypot(this.vx, this.vy);
-    let boostMultiplier = isSmashStrike ? 1.20 : 1.03;
+    let boostMultiplier = isSmashStrike ? 1.20 : 1.05;
     let targetSpeed = Math.min(this.currentMaxSpeed, Math.max(this.currentMinSpeed, incomingSpeed * boostMultiplier));
 
     if (targetSpeed > this.baseMaxSpeed * 0.95 || isSmashStrike) {

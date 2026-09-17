@@ -1251,27 +1251,29 @@ export class TanksGame {
   }
 
   renderMatchHeader(ctx) {
-    const { left, right, top } = this.arena;
+    const { left, right, top, cx } = this.arena;
     const mapDef = MAP_LAYOUTS[this.currentMapIndex];
 
     ctx.save();
     ctx.fillStyle = '#858076';
-    ctx.font = '800 11px "JetBrains Mono", monospace';
+    ctx.font = '900 13px "JetBrains Mono", monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(mapDef.name, left + 8, top - 8);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(mapDef.name, left + 8, top - 14);
 
     let scoreX = right - 8;
     ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
     for (let i = 3; i >= 0; i--) {
       const t = this.tanks[i];
       if (!t || !t.isJoined) continue;
 
       ctx.fillStyle = t.color;
-      ctx.font = '900 12px "JetBrains Mono", monospace';
+      ctx.font = '900 14px "JetBrains Mono", monospace';
       const botPrefix = t.slotType === 'bot_god' ? '⚡' : t.slotType === 'bot_normal' ? '🤖' : '';
-      const text = `${botPrefix}${t.name[0]}:${this.scores[i]}`;
-      ctx.fillText(text, scoreX, top - 8);
-      scoreX -= ctx.measureText(text).width + 12;
+      const text = `${botPrefix}${t.name}: ${this.scores[i]}★`;
+      ctx.fillText(text, scoreX, top - 14);
+      scoreX -= ctx.measureText(text).width + 16;
     }
     ctx.restore();
   }

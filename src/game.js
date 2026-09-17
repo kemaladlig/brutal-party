@@ -439,20 +439,27 @@ export class Game {
         ctx.fillRect(right, top, window.innerWidth - right, aH);
       }
 
-      ctx.globalAlpha = 0.55;
+      ctx.globalAlpha = 0.65;
       ctx.fillStyle = paddle.color;
-      ctx.font = '800 11px "JetBrains Mono", monospace';
+      ctx.font = '900 14px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+
+      ctx.save();
       if (paddle.side === 'bottom') {
-        ctx.fillText(labels[paddle.index], this.arena.cx, bottom + (window.innerHeight - bottom) / 2);
+        ctx.translate(this.arena.cx, bottom + (window.innerHeight - bottom) / 2);
       } else if (paddle.side === 'top') {
-        ctx.fillText(labels[paddle.index], this.arena.cx, top / 2);
+        ctx.translate(this.arena.cx, top / 2);
+        ctx.rotate(Math.PI);
       } else if (paddle.side === 'left') {
-        ctx.fillText(labels[paddle.index], left / 2, this.arena.cy);
+        ctx.translate(left / 2, this.arena.cy);
+        ctx.rotate(Math.PI / 2);
       } else if (paddle.side === 'right') {
-        ctx.fillText(labels[paddle.index], right + (window.innerWidth - right) / 2, this.arena.cy);
+        ctx.translate(right + (window.innerWidth - right) / 2, this.arena.cy);
+        ctx.rotate(-Math.PI / 2);
       }
+      ctx.fillText(labels[paddle.index], 0, 0);
+      ctx.restore();
     }
     ctx.restore();
   }

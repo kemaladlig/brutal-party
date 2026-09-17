@@ -1407,22 +1407,22 @@ export class BombGame {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        const stripW = Math.min(size * 0.94, 400);
-        const stripH = 26;
+        const stripW = Math.min(size * 0.94, 440);
+        const stripH = 32;
         const stripX = cx - stripW / 2;
-        const stripY = top + 14;
+        const stripY = top + 12;
 
         ctx.fillStyle = '#E5E1D8';
         ctx.fillRect(stripX, stripY, stripW, stripH);
         ctx.strokeStyle = '#1C1C1A';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.strokeRect(stripX, stripY, stripW, stripH);
 
         const scoreSummary = joined
           .map((p) => `${p.name}: ${this.scores[p.index] || 0}`)
           .join('  |  ');
 
-        ctx.font = '800 11px "JetBrains Mono", monospace';
+        ctx.font = '900 13px "JetBrains Mono", monospace';
         ctx.fillStyle = '#1C1C1A';
         ctx.fillText(
           `SET SKORU // ${scoreSummary} // HEDEF: ${this.targetScore}`,

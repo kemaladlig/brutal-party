@@ -1215,15 +1215,15 @@ export class HeistGame {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        const stripW = Math.min(size * 0.94, 420);
-        const stripH = 26;
+        const stripW = Math.min(size * 0.94, 440);
+        const stripH = 32;
         const stripX = cx - stripW / 2;
-        const stripY = top + 14;
+        const stripY = top + 12;
 
         ctx.fillStyle = '#E5E1D8';
         ctx.fillRect(stripX, stripY, stripW, stripH);
         ctx.strokeStyle = '#1C1C1A';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.strokeRect(stripX, stripY, stripW, stripH);
 
         const scoreSummary = joined
@@ -1232,7 +1232,7 @@ export class HeistGame {
 
         const timerText = `${Math.max(0, Math.ceil(this.roundTimer))}s`;
 
-        ctx.font = '800 11px "JetBrains Mono", monospace';
+        ctx.font = '900 13px "JetBrains Mono", monospace';
         ctx.fillStyle = '#1C1C1A';
         ctx.fillText(`KASALAR // ${scoreSummary} // ⏱️ ${timerText}`, cx, stripY + stripH / 2);
         ctx.restore();
@@ -1245,6 +1245,8 @@ export class HeistGame {
       const p = this.players[v.playerIndex];
       if (!p.isJoined) continue;
 
+      const isTop = v.playerIndex === 1 || v.playerIndex === 2;
+
       ctx.save();
       // Vault Floor
       ctx.fillStyle = 'rgba(217, 155, 38, 0.12)';
@@ -1254,20 +1256,30 @@ export class HeistGame {
       ctx.lineWidth = 3;
       ctx.strokeRect(v.x, v.y, v.w, v.h);
 
+      // Inner vault content with 180° rotation for Top players
+      ctx.save();
+      ctx.translate(v.x + v.w / 2, v.y + v.h / 2);
+      if (isTop) {
+        ctx.rotate(Math.PI);
+      }
+
       // Vault Badge
+      const badgeW = v.w - 8;
+      const badgeH = 20;
       ctx.fillStyle = '#1C1C1A';
-      ctx.fillRect(v.x + 4, v.y + 4, v.w - 8, 18);
+      ctx.fillRect(-badgeW / 2, -v.h / 2 + 4, badgeW, badgeH);
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 10px "JetBrains Mono", monospace';
+      ctx.font = '900 11px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`${p.name} KASASI`, v.x + v.w / 2, v.y + 13);
+      ctx.fillText(`${p.name} KASASI`, 0, -v.h / 2 + 14);
 
       // Safe Gold Count in Vault
       ctx.fillStyle = '#D99B26';
-      ctx.font = '900 20px "Space Grotesk", sans-serif';
-      ctx.fillText(`${p.vaultGold}💰`, v.x + v.w / 2, v.y + v.h / 2 + 8);
+      ctx.font = '900 22px "Space Grotesk", sans-serif';
+      ctx.fillText(`${p.vaultGold}💰`, 0, 8);
 
+      ctx.restore();
       ctx.restore();
     }
   }
