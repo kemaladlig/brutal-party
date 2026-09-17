@@ -8,12 +8,14 @@
     "dev:https": "vite --host --mode https",
     "dev:share": "node scripts/share.mjs",
     "build": "vite build",
+    "icons": "node scripts/generate-icons.mjs",
     "build:android": "npm run build && npx cap sync android && cd android && gradlew.bat assembleDebug",
     "preview": "vite preview --host"
   },
   "devDependencies": {
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "localtunnel": "^2.0.2",
+    "sharp": "^0.35.4",
     "typescript": "^7.0.2",
     "vite": "^6.0.0"
   },
