@@ -494,14 +494,16 @@ btnCancelJoin?.addEventListener('click', () => {
   joinRoomModal?.classList.add('hidden');
 });
 
-btnSubmitJoin?.addEventListener('click', async () => {
-  const code = (inputRoomCode?.value || '').trim().toUpperCase();
-  const name = (inputPlayerName?.value || '').trim() || 'OYUNCU';
+async function executeJoin(rawCode, rawName) {
+  const code = (rawCode || '').trim().toUpperCase();
+  const name = (rawName || '').trim() || 'OYUNCU';
 
   if (!code || code.length < 4) {
     showInstallToast('Lütfen 4 haneli geçerli bir oda kodu girin.');
     return;
   }
+
+  showInstallToast(`⏳ #${code} odasına bağlanılıyor...`);
 
   try {
     await partyNetwork.joinRoom(code, name, {
@@ -526,7 +528,22 @@ btnSubmitJoin?.addEventListener('click', async () => {
   } catch (err) {
     showInstallToast('Odaya bağlanılamadı. Kodun doğruluğunu kontrol edin.');
   }
+}
+
+btnSubmitJoin?.addEventListener('click', () => {
+  executeJoin(inputRoomCode?.value, inputPlayerName?.value);
 });
+
+inputRoomCode?.addEventListener('input', (e) => {
+  const code = (e.target.value || '').trim().toUpperCase();
+  e.target.value = code;
+  if (code.length === 4) {
+    executeJoin(code, inputPlayerName?.value || 'OYUNCU');
+  }
+});
+
+const btnQuickJoinMobile = document.getElementById('btn-quick-join-mobile');
+btnQuickJoinMobile?.addEventListener('click', () => openJoinModal());
 
 function setupBannerActions() {
   const btnCreateTv = document.getElementById('btn-create-tv-room');
@@ -622,6 +639,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const autoJoinCode = urlParams.get('join');
 if (autoJoinCode) {
   openJoinModal(autoJoinCode);
+  executeJoin(autoJoinCode, 'OYUNCU');
 }
 
 // Service Worker Management

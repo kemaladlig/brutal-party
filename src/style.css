@@ -479,6 +479,28 @@ body {
   transform: translate(1.5px, 1.5px);
 }
 
+.quick-join-trigger-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 10px 14px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  background-color: #d84727;
+  color: #ffffff;
+  border: 2.5px solid #1a1a1a;
+  box-shadow: 3px 3px 0px #1a1a1a;
+  cursor: pointer;
+  touch-action: manipulation;
+  text-align: center;
+  transition: transform 0.08s ease;
+}
+
+.quick-join-trigger-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+}
+
 /* Bento Grid: Responsive 2-3 Columns */
 .menu-games.bento-grid {
   display: grid;
