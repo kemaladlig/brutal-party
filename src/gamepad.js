@@ -1,14 +1,17 @@
 // Specialized Gamepad Controller for Mobile Phones in TV/Console & Online Mode
-// Adapts dynamically to Pong, Tanks, Curve, Bomb, Heist, and Duel with ultra-low latency inputs.
+// Adapts dynamically to Lobby, Pong, Tanks, Curve, Bomb, Heist, and Duel with ultra-low latency inputs.
 
 export class GamepadManager {
   constructor(overlayEl, network) {
     this.overlay = overlayEl;
     this.network = network;
-    this.gameMode = 'PONG';
+    this.gameMode = 'LOBBY';
+    this.selectedHostGame = 'PONG';
     this.playerIndex = 0;
     this.playerName = 'OYUNCU 1';
     this.playerColor = '#D84727';
+    this.isReady = false;
+    this.isPongInverted = false;
     this.activeTouchId = null;
 
     // Joystick state
@@ -33,11 +36,13 @@ export class GamepadManager {
     this.isEmojiOpen = false;
   }
 
-  init(playerInfo, gameMode = 'PONG') {
-    this.playerIndex = playerInfo.slotIndex;
-    this.playerName = playerInfo.name;
-    this.playerColor = playerInfo.color;
-    this.gameMode = gameMode;
+  init(playerInfo, gameMode = 'LOBBY') {
+    this.playerIndex = playerInfo.slotIndex ?? 0;
+    this.playerName = playerInfo.name || `OYUNCU ${this.playerIndex + 1}`;
+    this.playerColor = playerInfo.color || '#D84727';
+    this.selectedHostGame = gameMode === 'LOBBY' ? 'PONG' : gameMode;
+    this.gameMode = gameMode || 'LOBBY';
+    this.isReady = false;
 
     this.renderShell();
     this.renderGameController(this.gameMode);
@@ -47,15 +52,18 @@ export class GamepadManager {
   hide() {
     this.overlay.classList.add('hidden');
     this.overlay.innerHTML = '';
-    this.overlay.className = 'hidden'; // clear any alert classes
+    this.overlay.className = 'hidden';
   }
 
   renderShell() {
+    const seatPositions = ['ALT // P1', 'ÜST // P2', 'SOL // P3', 'SAĞ // P4'];
+    const seatLabel = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
+
     this.overlay.innerHTML = `
       <div class="gamepad-header">
         <div class="player-badge-pod">
-          <div class="player-indicator-dot" style="background-color: ${this.playerColor}"></div>
-          <span class="player-name-label">P${this.playerIndex + 1} // ${this.playerName}</span>
+          <div class="player-indicator-dot" id="header-player-dot" style="background-color: ${this.playerColor}"></div>
+          <span class="player-name-label" id="header-player-name">${seatLabel} • ${this.playerName}</span>
         </div>
         <div class="gamepad-room-info">ODA: #${this.network.roomCode || '----'}</div>
         <div class="gamepad-header-actions">
@@ -65,7 +73,7 @@ export class GamepadManager {
       </div>
 
       <div class="gamepad-sub-hud" id="gamepad-sub-hud">
-        <span class="hud-game-tag" id="hud-game-tag">🏓 PONG</span>
+        <span class="hud-game-tag" id="hud-game-tag">📺 PARTİ LOBİSİ</span>
         <span class="hud-live-status" id="hud-live-status">BEKLENİYOR...</span>
       </div>
 
@@ -84,7 +92,7 @@ export class GamepadManager {
     document.getElementById('btn-leave-gamepad')?.addEventListener('click', () => {
       this.network.disconnect();
       this.hide();
-      window.location.href = window.location.pathname; // Clean refresh to main menu
+      window.location.href = window.location.pathname;
     });
 
     const emojiModal = document.getElementById('emoji-wheel-modal');
@@ -104,6 +112,22 @@ export class GamepadManager {
     });
   }
 
+  updateSlot(newSlot, newColor) {
+    this.playerIndex = newSlot;
+    if (newColor) this.playerColor = newColor;
+
+    const dot = document.getElementById('header-player-dot');
+    const label = document.getElementById('header-player-name');
+    const seatPositions = ['ALT // P1', 'ÜST // P2', 'SOL // P3', 'SAĞ // P4'];
+    const seatLabel = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
+
+    if (dot) dot.style.backgroundColor = this.playerColor;
+    if (label) label.textContent = `${seatLabel} • ${this.playerName}`;
+
+    // Re-render current controller to update player colors/axis
+    this.renderGameController(this.gameMode);
+  }
+
   renderGameController(mode) {
     this.gameMode = mode;
     const workspace = document.getElementById('gamepad-workspace');
@@ -114,6 +138,7 @@ export class GamepadManager {
     const modeTag = document.getElementById('hud-game-tag');
     if (modeTag) {
       const modeNames = {
+        LOBBY: '📺 PARTİ LOBİSİ',
         PONG: '🏓 PONG',
         TANKS: '🛡️ TANKS',
         CURVE: '🐍 CURVE',
@@ -124,7 +149,9 @@ export class GamepadManager {
       modeTag.textContent = modeNames[mode] || mode;
     }
 
-    if (mode === 'PONG') {
+    if (mode === 'LOBBY') {
+      this.mountLobbyController(workspace);
+    } else if (mode === 'PONG') {
       this.mountPongController(workspace);
     } else if (mode === 'TANKS') {
       this.mountTanksController(workspace);
@@ -139,59 +166,194 @@ export class GamepadManager {
     }
   }
 
-  // --- 01: PONG CONTROLLER (1D Vertical/Horizontal Touch Slider) ---
-  mountPongController(container) {
+  // --- 00: LOBBY CONTROLLER (Seat Info, Game Preview, Ready Toggle) ---
+  mountLobbyController(container) {
+    const seatNames = [
+      '🔴 P1 // ALT KALE (KIRMIZI)',
+      '🔵 P2 // ÜST KALE (MAVİ)',
+      '🟡 P3 // SOL KALE (SARI)',
+      '🟢 P4 // SAĞ KALE (YEŞİL)',
+    ];
+    const mySeat = seatNames[this.playerIndex] || `P${this.playerIndex + 1}`;
+
+    const gameTitles = {
+      PONG: '🏓 BRUTAL PONG',
+      TANKS: '🛡️ MICRO-TANKS',
+      CURVE: '🐍 BRUTAL CURVE',
+      BOMB: '💣 BRUTAL BOMB',
+      HEIST: '💰 BRUTAL HEIST',
+      DUEL: '🤠 QUICK DRAW',
+    };
+    const selectedTitle = gameTitles[this.selectedHostGame] || '🏓 BRUTAL PONG';
+
     container.innerHTML = `
-      <div class="pong-controller-view">
-        <div class="pong-instruction">PARMAĞINI SÜRÜKLE • PADDLE'I YÖNET</div>
-        <div class="pong-touch-track" id="pong-track">
-          <div class="pong-track-thumb" id="pong-thumb" style="top: 50%; background-color: ${this.playerColor}">
-            PADDLE // P${this.playerIndex + 1}
-          </div>
+      <div class="lobby-controller-view">
+        <div class="lobby-seat-card">
+          <div class="lobby-seat-badge">📺 TV EKRANINDAKİ YERİNİZ</div>
+          <div class="lobby-seat-title" style="color: ${this.playerColor}">${mySeat}</div>
+          <div class="lobby-seat-sub">TV karşısında kendi alanınıza bakın.</div>
         </div>
+
+        <div class="lobby-game-preview-card">
+          <div class="lobby-game-icon">🎯</div>
+          <div class="lobby-game-text">SEÇİLEN OYUN: <b id="lobby-selected-game-text">${selectedTitle}</b></div>
+        </div>
+
+        <button class="btn-ready-toggle ${this.isReady ? 'ready' : ''}" id="btn-lobby-ready" type="button">
+          ${this.isReady ? '✓ HAZIRSINIZ (HAZIR)' : 'HAZIRIM (DOKUN)'}
+        </button>
       </div>
     `;
 
-    const track = document.getElementById('pong-track');
-    const thumb = document.getElementById('pong-thumb');
-    let isTrackingMouse = false;
+    const readyBtn = document.getElementById('btn-lobby-ready');
+    readyBtn?.addEventListener('click', () => {
+      this.isReady = !this.isReady;
+      readyBtn.classList.toggle('ready', this.isReady);
+      readyBtn.textContent = this.isReady ? '✓ HAZIRSINIZ (HAZIR)' : 'HAZIRIM (DOKUN)';
+      this.network.setReady(this.isReady);
+      if (navigator.vibrate) navigator.vibrate(this.isReady ? [20, 30] : 15);
+    });
+  }
 
-    const updateSlider = (clientY) => {
-      const rect = track.getBoundingClientRect();
-      const relativeY = Math.max(0, Math.min(rect.height, clientY - rect.top));
-      const normalized = relativeY / rect.height; // 0.0 (top) to 1.0 (bottom)
-      this.pongPosition = normalized;
+  // --- 01: PONG CONTROLLER (Orientation Aware Horizontal/Vertical Slider) ---
+  mountPongController(container) {
+    const isHorizontal = this.playerIndex === 0 || this.playerIndex === 1;
+    const seatNames = [
+      'P1 // ALT KALE (KIRMIZI)',
+      'P2 // ÜST KALE (MAVİ)',
+      'P3 // SOL KALE (SARI)',
+      'P4 // SAĞ KALE (YEŞİL)',
+    ];
+    const posLabel = seatNames[this.playerIndex] || `P${this.playerIndex + 1}`;
 
-      if (thumb) {
-        thumb.style.top = `${normalized * 100}%`;
-        thumb.style.transform = 'translateY(-50%)';
-      }
+    if (isHorizontal) {
+      // P1 & P2: Horizontal Slider (Moving finger RIGHT moves paddle RIGHT on TV)
+      container.innerHTML = `
+        <div class="pong-controller-view horizontal">
+          <div class="pong-position-badge" style="border-color: ${this.playerColor}">📺 TV YERİ: ${posLabel}</div>
+          <div class="pong-instruction">◀ PARMAĞINI SOLA - SAĞA SÜRÜKLE ▶</div>
+          <div class="pong-horizontal-track" id="pong-track">
+            <div class="pong-track-thumb horizontal" id="pong-thumb" style="left: ${this.pongPosition * 100}%; background-color: ${this.playerColor}">
+              PADDLE
+            </div>
+          </div>
+          <button class="pong-invert-btn ${this.isPongInverted ? 'inverted' : ''}" id="btn-invert-axis" type="button">
+            ${this.isPongInverted ? '✓ YÖN TERS (AYNALI)' : '↺ YÖNÜ TERS ÇEVİR'}
+          </button>
+        </div>
+      `;
 
-      this.network.sendInput({
-        action: 'PADDLE_MOVE',
-        position: normalized,
+      const track = document.getElementById('pong-track');
+      const thumb = document.getElementById('pong-thumb');
+      const invertBtn = document.getElementById('btn-invert-axis');
+      let isTrackingMouse = false;
+
+      invertBtn?.addEventListener('click', () => {
+        this.isPongInverted = !this.isPongInverted;
+        invertBtn.classList.toggle('inverted', this.isPongInverted);
+        invertBtn.textContent = this.isPongInverted ? '✓ YÖN TERS (AYNALI)' : '↺ YÖNÜ TERS ÇEVİR';
       });
-    };
 
-    track?.addEventListener('touchstart', (e) => {
-      if (e.touches[0]) updateSlider(e.touches[0].clientY);
-    }, { passive: true });
+      const updateSliderX = (clientX) => {
+        const rect = track.getBoundingClientRect();
+        const relativeX = Math.max(0, Math.min(rect.width, clientX - rect.left));
+        let normalized = relativeX / rect.width; // 0.0 (left) to 1.0 (right)
+        if (this.isPongInverted) normalized = 1.0 - normalized;
+        this.pongPosition = normalized;
 
-    track?.addEventListener('touchmove', (e) => {
-      if (e.touches[0]) updateSlider(e.touches[0].clientY);
-    }, { passive: true });
+        if (thumb) {
+          thumb.style.left = `${(this.isPongInverted ? 1 - normalized : normalized) * 100}%`;
+        }
 
-    // Mouse support
-    track?.addEventListener('mousedown', (e) => {
-      isTrackingMouse = true;
-      updateSlider(e.clientY);
-    });
-    window.addEventListener('mousemove', (e) => {
-      if (isTrackingMouse) updateSlider(e.clientY);
-    });
-    window.addEventListener('mouseup', () => {
-      isTrackingMouse = false;
-    });
+        this.network.sendInput({
+          action: 'PADDLE_MOVE',
+          position: normalized,
+        });
+      };
+
+      track?.addEventListener('touchstart', (e) => {
+        if (e.touches[0]) updateSliderX(e.touches[0].clientX);
+      }, { passive: true });
+
+      track?.addEventListener('touchmove', (e) => {
+        if (e.touches[0]) updateSliderX(e.touches[0].clientX);
+      }, { passive: true });
+
+      track?.addEventListener('mousedown', (e) => {
+        isTrackingMouse = true;
+        updateSliderX(e.clientX);
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (isTrackingMouse) updateSliderX(e.clientX);
+      });
+      window.addEventListener('mouseup', () => {
+        isTrackingMouse = false;
+      });
+    } else {
+      // P3 & P4: Vertical Slider (Up <-> Down)
+      container.innerHTML = `
+        <div class="pong-controller-view">
+          <div class="pong-position-badge" style="border-color: ${this.playerColor}">📺 TV YERİ: ${posLabel}</div>
+          <div class="pong-instruction">▲ YUKARI - AŞAĞI SÜRÜKLE ▼</div>
+          <div class="pong-touch-track" id="pong-track">
+            <div class="pong-track-thumb" id="pong-thumb" style="top: ${this.pongPosition * 100}%; background-color: ${this.playerColor}">
+              PADDLE
+            </div>
+          </div>
+          <button class="pong-invert-btn ${this.isPongInverted ? 'inverted' : ''}" id="btn-invert-axis" type="button">
+            ${this.isPongInverted ? '✓ YÖN TERS (AYNALI)' : '↺ YÖNÜ TERS ÇEVİR'}
+          </button>
+        </div>
+      `;
+
+      const track = document.getElementById('pong-track');
+      const thumb = document.getElementById('pong-thumb');
+      const invertBtn = document.getElementById('btn-invert-axis');
+      let isTrackingMouse = false;
+
+      invertBtn?.addEventListener('click', () => {
+        this.isPongInverted = !this.isPongInverted;
+        invertBtn.classList.toggle('inverted', this.isPongInverted);
+        invertBtn.textContent = this.isPongInverted ? '✓ YÖN TERS (AYNALI)' : '↺ YÖNÜ TERS ÇEVİR';
+      });
+
+      const updateSliderY = (clientY) => {
+        const rect = track.getBoundingClientRect();
+        const relativeY = Math.max(0, Math.min(rect.height, clientY - rect.top));
+        let normalized = relativeY / rect.height; // 0.0 (top) to 1.0 (bottom)
+        if (this.isPongInverted) normalized = 1.0 - normalized;
+        this.pongPosition = normalized;
+
+        if (thumb) {
+          thumb.style.top = `${(this.isPongInverted ? 1 - normalized : normalized) * 100}%`;
+          thumb.style.transform = 'translateY(-50%)';
+        }
+
+        this.network.sendInput({
+          action: 'PADDLE_MOVE',
+          position: normalized,
+        });
+      };
+
+      track?.addEventListener('touchstart', (e) => {
+        if (e.touches[0]) updateSliderY(e.touches[0].clientY);
+      }, { passive: true });
+
+      track?.addEventListener('touchmove', (e) => {
+        if (e.touches[0]) updateSliderY(e.touches[0].clientY);
+      }, { passive: true });
+
+      track?.addEventListener('mousedown', (e) => {
+        isTrackingMouse = true;
+        updateSliderY(e.clientY);
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (isTrackingMouse) updateSliderY(e.clientY);
+      });
+      window.addEventListener('mouseup', () => {
+        isTrackingMouse = false;
+      });
+    }
   }
 
   // --- 02: TANKS CONTROLLER (Joystick + Fire Button + Ammo Pips) ---
@@ -430,7 +592,7 @@ export class GamepadManager {
     if (!data) return;
 
     // Switch controller view if host changed game
-    if (data.gameMode && data.gameMode !== this.gameMode) {
+    if (data.gameMode && data.gameMode !== this.gameMode && this.gameMode !== 'LOBBY') {
       this.renderGameController(data.gameMode);
     }
 
@@ -439,6 +601,7 @@ export class GamepadManager {
 
     if (modeTag && data.gameMode) {
       const modeIcons = {
+        LOBBY: '📺 PARTİ LOBİSİ',
         PONG: '🏓 PONG',
         TANKS: '🛡️ TANKS',
         CURVE: '🐍 CURVE',

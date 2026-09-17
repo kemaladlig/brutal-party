@@ -24,8 +24,10 @@ export class RoomManager {
       code,
       hostWs,
       gameMode,
+      state: 'LOBBY',
       createdAt: Date.now(),
       players: [null, null, null, null], // Slots 0..3
+      ready: [false, false, false, false],
     };
 
     this.rooms.set(code, room);
@@ -134,6 +136,92 @@ export class RoomManager {
       slotIndex: clientWs.slotIndex,
       emoji: emoji || '🔥',
     });
+  }
+
+  handlePlayerReady(clientWs, isReady) {
+    const room = this.getRoom(clientWs.roomCode);
+    if (!room) return;
+    const slot = clientWs.slotIndex;
+    if (slot !== undefined) {
+      room.ready[slot] = !!isReady;
+      this.sendToHost(room, {
+        type: 'PLAYER_READY_STATUS',
+        slotIndex: slot,
+        isReady: !!isReady,
+      });
+    }
+  }
+
+  handleSetGameMode(hostWs, gameMode) {
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return;
+    room.gameMode = gameMode;
+    this.broadcastToPlayers(room, {
+      type: 'GAME_MODE_CHANGED',
+      gameMode,
+    });
+  }
+
+  handleStartGame(hostWs, gameMode) {
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return;
+    room.state = 'PLAYING';
+    if (gameMode) room.gameMode = gameMode;
+    this.broadcastToPlayers(room, {
+      type: 'GAME_STARTED',
+      gameMode: room.gameMode,
+    });
+  }
+
+  handleReturnToLobby(hostWs) {
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return;
+    room.state = 'LOBBY';
+    room.ready = [false, false, false, false];
+    this.broadcastToPlayers(room, {
+      type: 'RETURNED_TO_LOBBY',
+      gameMode: room.gameMode,
+    });
+  }
+
+  handleSwapSlots(hostWs, slotA, slotB) {
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return;
+    if (slotA < 0 || slotA > 3 || slotB < 0 || slotB > 3 || slotA === slotB) return;
+
+    const playerColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
+    const pA = room.players[slotA];
+    const pB = room.players[slotB];
+
+    room.players[slotA] = pB;
+    room.players[slotB] = pA;
+
+    if (pA) {
+      pA.slotIndex = slotB;
+      pA.color = playerColors[slotB];
+      pA.ws.slotIndex = slotB;
+      pA.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex: slotB, color: playerColors[slotB] }));
+    }
+    if (pB) {
+      pB.slotIndex = slotA;
+      pB.color = playerColors[slotA];
+      pB.ws.slotIndex = slotA;
+      pB.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex: slotA, color: playerColors[slotA] }));
+    }
+
+    this.sendToHost(room, {
+      type: 'SLOTS_SWAPPED',
+      slotA,
+      slotB,
+    });
+  }
+
+  broadcastToPlayers(room, payload) {
+    for (const p of room.players) {
+      if (p && p.ws && p.ws.readyState === 1) {
+        p.ws.send(JSON.stringify(payload));
+      }
+    }
   }
 
   handleDisconnect(ws) {

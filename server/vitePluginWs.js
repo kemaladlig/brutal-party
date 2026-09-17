@@ -125,6 +125,31 @@ export function handleMessage(ws, msg, roomManager) {
       break;
     }
 
+    case 'PLAYER_READY': {
+      roomManager.handlePlayerReady(ws, msg.isReady);
+      break;
+    }
+
+    case 'SET_GAME_MODE': {
+      roomManager.handleSetGameMode(ws, msg.gameMode);
+      break;
+    }
+
+    case 'START_GAME': {
+      roomManager.handleStartGame(ws, msg.gameMode);
+      break;
+    }
+
+    case 'RETURN_TO_LOBBY': {
+      roomManager.handleReturnToLobby(ws);
+      break;
+    }
+
+    case 'SWAP_SLOTS': {
+      roomManager.handleSwapSlots(ws, msg.slotA, msg.slotB);
+      break;
+    }
+
     case 'PING': {
       ws.send(JSON.stringify({ type: 'PONG', timestamp: msg.timestamp }));
       break;

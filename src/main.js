@@ -186,6 +186,9 @@ function openPauseModal() {
       ? '05 // BRUTAL HEIST'
       : '06 // QUICK DRAW';
   btnToggleSound.textContent = getIsMuted() ? '🔇 SES: KAPALI' : '🔊 SES: AÇIK';
+  if (btnExitToMenu) {
+    btnExitToMenu.textContent = partyNetwork.isHosting ? '📺 TV LOBİSİNE DÖN' : '⌂ ANA MENÜYE DÖN';
+  }
   touchManager.resetTouches();
 }
 
@@ -364,20 +367,36 @@ function getActiveGameEngine() {
   return null;
 }
 
-function updateHostSlot(slotIndex, isConnected, name = '') {
+const hostPlayerSlots = [null, null, null, null];
+
+function updateHostSlot(slotIndex, isConnected, name = '', isReady = false) {
   const slotEl = document.getElementById(`slot-p${slotIndex + 1}`);
+  const readyTag = document.getElementById(`ready-tag-p${slotIndex + 1}`);
   if (!slotEl) return;
+
   const nameEl = slotEl.querySelector('.slot-name');
-  if (nameEl) {
-    if (isConnected) {
-      nameEl.textContent = `✓ ${name} [P${slotIndex + 1} - BAĞLANDI]`;
-      slotEl.style.borderColor = '#2F6A4F';
-      slotEl.style.backgroundColor = '#F0F9F4';
-    } else {
-      nameEl.textContent = `P${slotIndex + 1} // BEKLENİYOR...`;
-      slotEl.style.borderColor = '#1A1A1A';
-      slotEl.style.backgroundColor = '#FFFFFF';
+  if (isConnected) {
+    hostPlayerSlots[slotIndex] = { name, isReady };
+    slotEl.classList.add('connected');
+    if (nameEl) nameEl.textContent = name;
+    if (readyTag) {
+      readyTag.textContent = isReady ? '✓ HAZIR' : 'BEKLİYOR';
+      readyTag.classList.toggle('ready', isReady);
     }
+  } else {
+    hostPlayerSlots[slotIndex] = null;
+    slotEl.classList.remove('connected');
+    if (nameEl) nameEl.textContent = 'BEKLENİYOR...';
+    if (readyTag) {
+      readyTag.textContent = 'BOŞ';
+      readyTag.classList.remove('ready');
+    }
+  }
+
+  const connectedCount = hostPlayerSlots.filter((p) => p !== null).length;
+  const readyCounter = document.getElementById('lobby-ready-counter');
+  if (readyCounter) {
+    readyCounter.textContent = `${connectedCount}/4 BAĞLANDI`;
   }
 }
 
@@ -401,6 +420,16 @@ async function openHostLobby(gameMode = 'PONG') {
   currentHostGameMode = gameMode;
   for (let i = 0; i < 4; i++) updateHostSlot(i, false);
 
+  // Sync lobby game chips UI
+  document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
+    chip.classList.toggle('active', chip.dataset.game === currentHostGameMode);
+  });
+
+  const launchBtn = document.getElementById('btn-host-launch-game');
+  if (launchBtn) {
+    launchBtn.textContent = `▶ ${currentHostGameMode} BAŞLAT`;
+  }
+
   try {
     await partyNetwork.hostRoom(gameMode, {
       onRoomCreated: (roomCode) => {
@@ -410,7 +439,7 @@ async function openHostLobby(gameMode = 'PONG') {
 
         if (qrCanvas) {
           QRCode.toCanvas(qrCanvas, joinUrl, {
-            width: 150,
+            width: 140,
             margin: 1,
             color: { dark: '#1A1A1A', light: '#FFFFFF' },
           });
@@ -419,12 +448,27 @@ async function openHostLobby(gameMode = 'PONG') {
       },
       onPlayerJoined: (msg) => {
         playJoin();
-        updateHostSlot(msg.slotIndex, true, msg.name);
+        updateHostSlot(msg.slotIndex, true, msg.name, false);
         showInstallToast(`🎮 ${msg.name} kumanda olarak bağlandı!`);
       },
       onPlayerLeft: (msg) => {
         updateHostSlot(msg.slotIndex, false);
         showInstallToast(`🚪 ${msg.name} odadan ayrıldı.`);
+      },
+      onPlayerReadyStatus: (slotIndex, isReady) => {
+        if (hostPlayerSlots[slotIndex]) {
+          updateHostSlot(slotIndex, true, hostPlayerSlots[slotIndex].name, isReady);
+        }
+      },
+      onSlotsSwapped: (slotA, slotB) => {
+        const temp = hostPlayerSlots[slotA];
+        hostPlayerSlots[slotA] = hostPlayerSlots[slotB];
+        hostPlayerSlots[slotB] = temp;
+        if (hostPlayerSlots[slotA]) updateHostSlot(slotA, true, hostPlayerSlots[slotA].name, hostPlayerSlots[slotA].isReady);
+        else updateHostSlot(slotA, false);
+        if (hostPlayerSlots[slotB]) updateHostSlot(slotB, true, hostPlayerSlots[slotB].name, hostPlayerSlots[slotB].isReady);
+        else updateHostSlot(slotB, false);
+        showInstallToast(`🔄 Slot P${slotA + 1} ve P${slotB + 1} yer değiştirdi.`);
       },
       onPlayerInput: (slotIndex, data) => {
         const engine = getActiveGameEngine();
@@ -441,10 +485,34 @@ async function openHostLobby(gameMode = 'PONG') {
   }
 }
 
+// Game selector chips in Host Lobby
+document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.lobby-game-chip').forEach((c) => c.classList.remove('active'));
+    chip.classList.add('active');
+    currentHostGameMode = chip.dataset.game;
+    partyNetwork.setHostGameMode(currentHostGameMode);
+    const launchBtn = document.getElementById('btn-host-launch-game');
+    if (launchBtn) {
+      launchBtn.textContent = `▶ ${currentHostGameMode} BAŞLAT`;
+    }
+  });
+});
+
+// Slot swap buttons in Host Lobby
+document.querySelectorAll('.slot-swap-btn').forEach((btn) => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const slotA = parseInt(btn.dataset.slot, 10);
+    const slotB = (slotA + 1) % 4;
+    partyNetwork.swapSlots(slotA, slotB);
+  });
+});
+
 btnHostLaunchGame?.addEventListener('click', () => {
   tvHostModal?.classList.add('hidden');
+  partyNetwork.startGame(currentHostGameMode);
   setGameMode(currentHostGameMode);
-  partyNetwork.broadcastHostState({ gameMode: currentHostGameMode });
 });
 
 btnHostClose?.addEventListener('click', () => {
@@ -510,8 +578,28 @@ async function executeJoin(rawCode, rawName) {
       onJoinedSuccess: (msg) => {
         joinRoomModal?.classList.add('hidden');
         menuOverlay?.classList.add('hidden');
-        gamepadManager.init(msg, msg.gameMode);
+        gamepadManager.init(msg, 'LOBBY');
         showInstallToast(`✓ ${msg.roomCode} odasına bağlandı!`);
+      },
+      onGameModeChanged: (newMode) => {
+        gamepadManager.selectedHostGame = newMode;
+        if (gamepadManager.gameMode === 'LOBBY') {
+          gamepadManager.renderGameController('LOBBY');
+        }
+        showInstallToast(`🎯 Host oyunu değiştirdi: ${newMode}`);
+      },
+      onGameStarted: (mode) => {
+        gamepadManager.renderGameController(mode);
+        showInstallToast(`▶ Oyun başladı: ${mode}`);
+      },
+      onReturnedToLobby: (mode) => {
+        gamepadManager.selectedHostGame = mode || 'PONG';
+        gamepadManager.renderGameController('LOBBY');
+        showInstallToast(`📺 Lobiye dönüldü.`);
+      },
+      onSlotChanged: (slotIndex, color) => {
+        gamepadManager.updateSlot(slotIndex, color);
+        showInstallToast(`💺 Koltuğunuz değişti: P${slotIndex + 1}`);
       },
       onGameState: (data) => {
         gamepadManager.handleStateSync(data);
@@ -583,7 +671,15 @@ addTapListener(btnToggleSound, () => {
   const muted = toggleAudio();
   btnToggleSound.textContent = muted ? '🔇 SES: KAPALI' : '🔊 SES: AÇIK';
 });
-addTapListener(btnExitToMenu, () => setGameMode('MENU'));
+addTapListener(btnExitToMenu, () => {
+  if (partyNetwork.isHosting) {
+    closePauseModal();
+    partyNetwork.returnToLobby();
+    openHostLobby(currentHostGameMode);
+  } else {
+    setGameMode('MENU');
+  }
+});
 
 function showInstallToast(message) {
   if (!installToast) return;

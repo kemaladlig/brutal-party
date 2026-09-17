@@ -35,16 +35,21 @@
         </button>
       </div>
 
-      <!-- TV Host Lobby Modal (QR Code & Connected Controllers) -->
+      <!-- TV Host Lobby Modal (QR Code & Connected Controllers & Game Switcher) -->
       <div id="tv-host-modal" class="hidden">
         <div class="tv-host-card">
           <div class="tv-host-header">
-            <div class="tv-host-badge">📺 TV / KONSOL HOST EKRANI</div>
-            <h2 class="tv-host-title">ODA: #<span id="host-room-code">----</span></h2>
-            <p class="tv-host-desc">Telefonunuzun kamerasıyla QR kodu taratın veya kodu girerek kumanda olarak katılın.</p>
+            <div class="tv-host-header-left">
+              <div class="tv-host-badge">📺 TV HOST PARTİ LOBİSİ</div>
+              <h2 class="tv-host-title">ODA: #<span id="host-room-code">----</span></h2>
+            </div>
+            <div class="tv-host-header-right">
+              <div class="lobby-status-pill" id="lobby-ready-counter">0 BAĞLANDI</div>
+            </div>
           </div>
 
           <div class="tv-host-body">
+            <!-- Left: QR & Join Info -->
             <div class="qr-container">
               <canvas id="qr-canvas"></canvas>
               <div class="qr-url-text" id="host-join-url">http://...</div>
@@ -54,29 +59,82 @@
               </div>
             </div>
 
+            <!-- Center: 4 Player Slots with Positions & Ready Status -->
             <div class="host-players-list">
-              <div class="host-player-slot" id="slot-p1">
+              <div class="host-slot-header">👥 OYUNCU KOLTUKLARI & TV KONUMU</div>
+              <div class="host-player-slot" id="slot-p1" data-slot="0">
                 <div class="slot-color-dot" style="background-color: #D84727"></div>
-                <div class="slot-name">P1 // BEKLENİYOR...</div>
+                <div class="slot-info">
+                  <div class="slot-position-label">ALT ALAN // P1</div>
+                  <div class="slot-name">BEKLENİYOR...</div>
+                </div>
+                <div class="slot-status-tag" id="ready-tag-p1">BEKLİYOR</div>
+                <button class="slot-swap-btn" data-slot="0" title="Aşağı Kaydır" type="button">↕</button>
               </div>
-              <div class="host-player-slot" id="slot-p2">
+              <div class="host-player-slot" id="slot-p2" data-slot="1">
                 <div class="slot-color-dot" style="background-color: #1D5D8A"></div>
-                <div class="slot-name">P2 // BEKLENİYOR...</div>
+                <div class="slot-info">
+                  <div class="slot-position-label">ÜST ALAN // P2</div>
+                  <div class="slot-name">BEKLENİYOR...</div>
+                </div>
+                <div class="slot-status-tag" id="ready-tag-p2">BEKLİYOR</div>
+                <button class="slot-swap-btn" data-slot="1" title="Aşağı Kaydır" type="button">↕</button>
               </div>
-              <div class="host-player-slot" id="slot-p3">
+              <div class="host-player-slot" id="slot-p3" data-slot="2">
                 <div class="slot-color-dot" style="background-color: #D99B26"></div>
-                <div class="slot-name">P3 // BEKLENİYOR...</div>
+                <div class="slot-info">
+                  <div class="slot-position-label">SOL ALAN // P3</div>
+                  <div class="slot-name">BEKLENİYOR...</div>
+                </div>
+                <div class="slot-status-tag" id="ready-tag-p3">BEKLİYOR</div>
+                <button class="slot-swap-btn" data-slot="2" title="Aşağı Kaydır" type="button">↕</button>
               </div>
-              <div class="host-player-slot" id="slot-p4">
+              <div class="host-player-slot" id="slot-p4" data-slot="3">
                 <div class="slot-color-dot" style="background-color: #2F6A4F"></div>
-                <div class="slot-name">P4 // BEKLENİYOR...</div>
+                <div class="slot-info">
+                  <div class="slot-position-label">SAĞ ALAN // P4</div>
+                  <div class="slot-name">BEKLENİYOR...</div>
+                </div>
+                <div class="slot-status-tag" id="ready-tag-p4">BEKLİYOR</div>
+                <button class="slot-swap-btn" data-slot="3" title="Aşağı Kaydır" type="button">↕</button>
+              </div>
+            </div>
+
+            <!-- Right: Game Selector Grid -->
+            <div class="host-game-selector">
+              <div class="selector-header">🎯 OYNAYACAĞINIZ OYUNU SEÇİN</div>
+              <div class="selector-grid">
+                <button class="lobby-game-chip active" data-game="PONG" type="button">
+                  <span class="chip-icon">🏓</span>
+                  <span class="chip-name">BRUTAL PONG</span>
+                </button>
+                <button class="lobby-game-chip" data-game="TANKS" type="button">
+                  <span class="chip-icon">🛡️</span>
+                  <span class="chip-name">MICRO-TANKS</span>
+                </button>
+                <button class="lobby-game-chip" data-game="CURVE" type="button">
+                  <span class="chip-icon">🐍</span>
+                  <span class="chip-name">BRUTAL CURVE</span>
+                </button>
+                <button class="lobby-game-chip" data-game="BOMB" type="button">
+                  <span class="chip-icon">💣</span>
+                  <span class="chip-name">BRUTAL BOMB</span>
+                </button>
+                <button class="lobby-game-chip" data-game="HEIST" type="button">
+                  <span class="chip-icon">💰</span>
+                  <span class="chip-name">BRUTAL HEIST</span>
+                </button>
+                <button class="lobby-game-chip" data-game="DUEL" type="button">
+                  <span class="chip-icon">🤠</span>
+                  <span class="chip-name">QUICK DRAW</span>
+                </button>
               </div>
             </div>
           </div>
 
           <div class="tv-host-actions">
-            <button class="tv-start-btn" id="btn-host-launch-game" type="button">▶ OYUNU BAŞLAT</button>
-            <button class="tv-close-btn" id="btn-host-close" type="button">⌂ İPTAL</button>
+            <button class="tv-start-btn" id="btn-host-launch-game" type="button">▶ SEÇİLEN OYUNU BAŞLAT</button>
+            <button class="tv-close-btn" id="btn-host-close" type="button">⌂ LOBİYİ KAPAT</button>
           </div>
         </div>
       </div>

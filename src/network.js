@@ -130,6 +130,44 @@ export class PartyNetwork {
         }
         break;
 
+      case 'PLAYER_READY_STATUS':
+        if (this.callbacks.onPlayerReadyStatus) {
+          this.callbacks.onPlayerReadyStatus(msg.slotIndex, msg.isReady);
+        }
+        break;
+
+      case 'SLOTS_SWAPPED':
+        if (this.callbacks.onSlotsSwapped) {
+          this.callbacks.onSlotsSwapped(msg.slotA, msg.slotB);
+        }
+        break;
+
+      case 'SLOT_CHANGED':
+        this.playerIndex = msg.slotIndex;
+        this.color = msg.color;
+        if (this.callbacks.onSlotChanged) {
+          this.callbacks.onSlotChanged(msg.slotIndex, msg.color);
+        }
+        break;
+
+      case 'GAME_MODE_CHANGED':
+        if (this.callbacks.onGameModeChanged) {
+          this.callbacks.onGameModeChanged(msg.gameMode);
+        }
+        break;
+
+      case 'GAME_STARTED':
+        if (this.callbacks.onGameStarted) {
+          this.callbacks.onGameStarted(msg.gameMode);
+        }
+        break;
+
+      case 'RETURNED_TO_LOBBY':
+        if (this.callbacks.onReturnedToLobby) {
+          this.callbacks.onReturnedToLobby(msg.gameMode);
+        }
+        break;
+
       case 'PONG':
         if (msg.timestamp) {
           this.ping = Math.round((performance.now() - msg.timestamp) / 2);
@@ -189,6 +227,46 @@ export class PartyNetwork {
     this.send({
       type: 'REACTION',
       emoji,
+    });
+  }
+
+  setReady(isReady) {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.send({
+      type: 'PLAYER_READY',
+      isReady,
+    });
+  }
+
+  setHostGameMode(gameMode) {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.send({
+      type: 'SET_GAME_MODE',
+      gameMode,
+    });
+  }
+
+  startGame(gameMode) {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.send({
+      type: 'START_GAME',
+      gameMode,
+    });
+  }
+
+  returnToLobby() {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.send({
+      type: 'RETURN_TO_LOBBY',
+    });
+  }
+
+  swapSlots(slotA, slotB) {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.send({
+      type: 'SWAP_SLOTS',
+      slotA,
+      slotB,
     });
   }
 
