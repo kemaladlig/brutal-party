@@ -285,6 +285,7 @@ async function openHostLobby(gameMode = 'PONG') {
         const joinUrl = getEffectiveJoinUrl(roomCode, platformMode);
         showHostLobbyModal(roomCode, joinUrl);
         startHostPingBadge(() => activeNet().ping, platformMode);
+        setSeatTapHook();
       },
       onPlayerJoined: (msg) => {
         playJoin();
@@ -306,9 +307,20 @@ async function openHostLobby(gameMode = 'PONG') {
         if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
         showInstallToast(`🚪 ${msg.name} odadan ayrıldı.`);
       },
+      onPlayerUpdated: (msg) => {
+        const slot = hostPlayerSlots[msg.slotIndex];
+        if (slot && slot.kind !== 'bot') {
+          slot.name = msg.name;
+          updateHostSlot(msg.slotIndex, true, msg.name, slot.isReady, slot.kind);
+          refreshStagingBar();
+          const engine = getActiveGameEngine();
+          if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
+          renderPauseSeats(handleSeatSwap);
+        }
+      },
       onPlayerReadyStatus: (slotIndex, isReady) => {
         if (hostPlayerSlots[slotIndex]) {
-          updateHostSlot(slotIndex, true, hostPlayerSlots[slotIndex].name, isReady);
+          updateHostSlot(slotIndex, true, hostPlayerSlots[slotIndex].name, isReady, hostPlayerSlots[slotIndex].kind);
           refreshStagingBar();
         }
       },
@@ -316,9 +328,9 @@ async function openHostLobby(gameMode = 'PONG') {
         const temp = hostPlayerSlots[slotA];
         hostPlayerSlots[slotA] = hostPlayerSlots[slotB];
         hostPlayerSlots[slotB] = temp;
-        if (hostPlayerSlots[slotA]) updateHostSlot(slotA, true, hostPlayerSlots[slotA].name, hostPlayerSlots[slotA].isReady);
+        if (hostPlayerSlots[slotA]) updateHostSlot(slotA, true, hostPlayerSlots[slotA].name, hostPlayerSlots[slotA].isReady, hostPlayerSlots[slotA].kind);
         else updateHostSlot(slotA, false);
-        if (hostPlayerSlots[slotB]) updateHostSlot(slotB, true, hostPlayerSlots[slotB].name, hostPlayerSlots[slotB].isReady);
+        if (hostPlayerSlots[slotB]) updateHostSlot(slotB, true, hostPlayerSlots[slotB].name, hostPlayerSlots[slotB].isReady, hostPlayerSlots[slotB].kind);
         else updateHostSlot(slotB, false);
         refreshStagingBar();
 
@@ -335,7 +347,7 @@ async function openHostLobby(gameMode = 'PONG') {
           const slot = hostPlayerSlots[slotIndex];
           if (slot) {
             slot.name = data.name.slice(0, 12).toUpperCase();
-            updateHostSlot(slotIndex, true, slot.name, slot.isReady);
+            updateHostSlot(slotIndex, true, slot.name, slot.isReady, slot.kind);
             refreshStagingBar();
             activeNet().setPlayerName?.(slotIndex, slot.name);
             const engine = getActiveGameEngine();
@@ -398,6 +410,7 @@ async function executeJoin(rawCode, rawName) {
       },
       onGameStarted: (mode) => {
         gamepadManager.exitStaging();
+        gamepadManager.resetReady();
         gamepadManager.renderGameController(mode);
         showInstallToast(`▶ Oyun başladı: ${mode}`);
       },
@@ -410,6 +423,7 @@ async function executeJoin(rawCode, rawName) {
       },
       onReturnedToLobby: (mode) => {
         gamepadManager.exitStaging();
+        gamepadManager.resetReady();
         gamepadManager.selectedHostGame = mode || 'PONG';
         gamepadManager.renderGameController('LOBBY');
         showInstallToast(`📺 Lobiye dönüldü.`);
@@ -494,6 +508,7 @@ function handleExitToMenu() {
     hideHostLobbyModal();
     for (let i = 0; i < 4; i++) updateHostSlot(i, false);
     activeNet().disconnect();
+    setSeatTapHook();
     setGameMode('MENU');
   } else {
     closePauseModal();
@@ -516,8 +531,9 @@ let countdownTimer = null;
 
 function refreshStagingBar() {
   if (!stagingMode) return;
-  const connected = hostPlayerSlots.filter((p) => p !== null).length;
-  const ready = hostPlayerSlots.filter((p) => p?.isReady).length;
+  const humans = hostPlayerSlots.filter((p) => p !== null && p.kind !== 'bot');
+  const connected = humans.length;
+  const ready = humans.filter((p) => p?.isReady).length;
   const pill = document.getElementById('staging-ready-pill');
   if (pill) pill.textContent = connected === 0 ? 'OYUNCU BEKLENİYOR' : `${connected} BAĞLANDI • ${ready} HAZIR`;
   const btn = document.getElementById('btn-staging-launch');
@@ -599,6 +615,52 @@ function exitStagingToLobby() {
   hideCountdownOverlay();
 }
 
+// ── Tek koltuk gerçeği: TV sahasından koltuğa dokununca bot ekle/çıkar ──
+const BOT_SEAT_NAMES = ['BOT // KIRMIZI', 'BOT // MAVİ', 'BOT // SARI', 'BOT // YEŞİL'];
+
+function handleLobbySeatTap(index) {
+  if (!activeNet().isHosting) return;
+  if (seatsLocked) {
+    showInstallToast('⏳ Sayaç sırasında koltuk değiştirilemez.');
+    return;
+  }
+  const entry = hostPlayerSlots[index];
+  if (entry && entry.kind === 'bot') {
+    removeBotSlot(index);
+  } else if (!entry) {
+    addBotSlot(index);
+  } else {
+    showInstallToast(`P${index + 1} dolu — koltuk değişimi kumandadan yapılır.`);
+  }
+}
+
+function addBotSlot(index) {
+  const name = BOT_SEAT_NAMES[index] || `BOT // P${index + 1}`;
+  activeNet().setSlotBot?.(index, name);
+  updateHostSlot(index, true, name, false, 'bot');
+  refreshStagingBar();
+  const engine = getActiveGameEngine();
+  if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
+  renderPauseSeats(handleSeatSwap);
+  showInstallToast(`🤖 P${index + 1} koltuğuna bot eklendi.`);
+}
+
+function removeBotSlot(index) {
+  activeNet().clearSlotBot?.(index);
+  updateHostSlot(index, false);
+  refreshStagingBar();
+  const engine = getActiveGameEngine();
+  if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
+  renderPauseSeats(handleSeatSwap);
+  showInstallToast(`🤖 P${index + 1} botu kaldırıldı.`);
+}
+
+// Motorların LOBBY tap'lerini host'a yönlendir (sadece host iken aktif)
+function setSeatTapHook() {
+  const fn = activeNet().isHosting ? handleLobbySeatTap : null;
+  forEachEngine((mode, entry) => { entry.game.onLobbySeatTap = fn; });
+}
+
 // Initialise UI Submodules
 initToastAndInstall();
 initJoinModal({ onExecuteJoin: executeJoin });
@@ -612,10 +674,14 @@ initHostLobby({
     exitStagingToLobby();
     for (let i = 0; i < 4; i++) updateHostSlot(i, false);
     activeNet().disconnect();
+    setSeatTapHook();
     setGameMode('MENU');
   },
   onSwapSlots: (slotA, slotB) => {
     activeNet().swapSlots(slotA, slotB);
+  },
+  onToggleBotSlot: (slotIndex) => {
+    handleLobbySeatTap(slotIndex);
   },
 });
 

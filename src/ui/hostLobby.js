@@ -96,6 +96,7 @@ export function initHostLobby({
   onStageGame,
   onCloseLobby,
   onSwapSlots,
+  onToggleBotSlot,
 }) {
   // Game selector chips in Host Lobby
   document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
@@ -118,6 +119,17 @@ export function initHostLobby({
       const slotB = (slotA + 1) % 4;
       if (typeof onSwapSlots === 'function') {
         onSwapSlots(slotA, slotB);
+      }
+    });
+  });
+
+  // Slot gövdesine dokun: boşsa bot ekle, botsa kaldır (bekleme lobisinde hazırlık)
+  document.querySelectorAll('.host-player-slot').forEach((slotEl) => {
+    slotEl.addEventListener('click', () => {
+      const idx = parseInt(slotEl.dataset.slot, 10);
+      if (Number.isNaN(idx)) return;
+      if (typeof onToggleBotSlot === 'function') {
+        onToggleBotSlot(idx);
       }
     });
   });

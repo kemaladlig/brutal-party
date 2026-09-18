@@ -1213,6 +1213,13 @@ body {
   outline-offset: 1px;
 }
 
+.host-player-slot.connected.is-bot {
+  border-style: dashed;
+  border-color: #d99b26;
+  background-color: #fff9e6;
+  box-shadow: 3px 3px 0px #d99b26;
+}
+
 .slot-color-dot {
   width: 14px;
   height: 14px;

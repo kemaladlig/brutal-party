@@ -97,6 +97,7 @@ export function handleMessage(ws, msg, roomManager) {
             slotIndex: result.slotIndex,
             name: result.name,
             color: result.color,
+            slots: roomManager.getSlots(roomManager.getRoom(result.roomCode)),
           })
         );
       } else {
@@ -157,6 +158,21 @@ export function handleMessage(ws, msg, roomManager) {
 
     case 'SWAP_SLOTS': {
       roomManager.handleSwapSlots(ws, msg.slotA, msg.slotB);
+      break;
+    }
+
+    case 'SET_SLOT_BOT': {
+      roomManager.handleSetSlotBot(ws, msg.slotIndex, msg.name);
+      break;
+    }
+
+    case 'CLEAR_SLOT_BOT': {
+      roomManager.handleClearSlotBot(ws, msg.slotIndex);
+      break;
+    }
+
+    case 'SET_SLOT_NAME': {
+      roomManager.handleSetSlotName(ws, msg.slotIndex, msg.name);
       break;
     }
 

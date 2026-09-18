@@ -248,6 +248,7 @@ export class Game extends BaseMiniGame {
   }
 
   togglePlayerJoin(index) {
+    if (this.requestLobbySeatTap(index)) return;
     const p = this.paddles[index];
     p.cycleSlotType();
     playJoin();

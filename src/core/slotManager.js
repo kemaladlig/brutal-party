@@ -2,24 +2,30 @@
 
 export const hostPlayerSlots = [null, null, null, null];
 
-export function updateHostSlot(slotIndex, isConnected, name = '', isReady = false) {
+export function updateHostSlot(slotIndex, isConnected, name = '', isReady = false, kind = 'human') {
   const slotEl = document.getElementById(`slot-p${slotIndex + 1}`);
   const readyTag = document.getElementById(`ready-tag-p${slotIndex + 1}`);
   if (!slotEl) return;
 
   const nameEl = slotEl.querySelector('.slot-name');
   if (isConnected) {
-    hostPlayerSlots[slotIndex] = { name, isReady };
+    hostPlayerSlots[slotIndex] = { name, isReady, kind };
     slotEl.classList.add('connected');
-    slotEl.classList.toggle('ready', isReady);
-    if (nameEl) nameEl.textContent = name;
+    slotEl.classList.toggle('is-bot', kind === 'bot');
+    slotEl.classList.toggle('ready', isReady && kind !== 'bot');
+    if (nameEl) nameEl.textContent = kind === 'bot' ? `🤖 ${name}` : name;
     if (readyTag) {
-      readyTag.textContent = isReady ? '✓ HAZIR' : '⏳ BEKLİYOR';
-      readyTag.classList.toggle('ready', isReady);
+      if (kind === 'bot') {
+        readyTag.textContent = '🤖 BOT';
+        readyTag.classList.remove('ready');
+      } else {
+        readyTag.textContent = isReady ? '✓ HAZIR' : '⏳ BEKLİYOR';
+        readyTag.classList.toggle('ready', isReady);
+      }
     }
   } else {
     hostPlayerSlots[slotIndex] = null;
-    slotEl.classList.remove('connected', 'ready');
+    slotEl.classList.remove('connected', 'ready', 'is-bot');
     if (nameEl) nameEl.textContent = 'BEKLENİYOR...';
     if (readyTag) {
       readyTag.textContent = '— BOŞ';
@@ -27,8 +33,10 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
     }
   }
 
-  const connectedCount = hostPlayerSlots.filter((p) => p !== null).length;
-  const readyCount = hostPlayerSlots.filter((p) => p?.isReady).length;
+  // Botlar sayıma dahil değildir (hazır vermezler, sayacı kilitlemezler)
+  const humans = hostPlayerSlots.filter((p) => p !== null && p.kind !== 'bot');
+  const connectedCount = humans.length;
+  const readyCount = humans.filter((p) => p?.isReady).length;
   const readyCounter = document.getElementById('lobby-ready-counter');
   if (readyCounter) {
     if (connectedCount === 0) {
@@ -56,7 +64,7 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
       const slot = hostPlayerSlots[i];
       if (slot) {
         p.isJoined = true;
-        p.slotType = 'human';
+        p.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
         p.name = slot.name || `P${i + 1}`;
       } else {
         if (humanCount === 1 && i === 1) {
@@ -76,10 +84,10 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
       const slot = hostPlayerSlots[i];
       const tank = engine.tanks?.[i];
       if (slot) {
-        if (engine.slotTypes) engine.slotTypes[i] = 'human';
+        if (engine.slotTypes) engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
         if (tank) {
           tank.isJoined = true;
-          tank.slotType = 'human';
+          tank.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
           tank.name = slot.name || `P${i + 1}`;
         }
       } else {
@@ -105,10 +113,10 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
       const slot = hostPlayerSlots[i];
       const player = engine.players?.[i];
       if (slot) {
-        if (engine.slotTypes) engine.slotTypes[i] = 'human';
+        if (engine.slotTypes) engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
         if (player) {
           player.isJoined = true;
-          player.slotType = 'human';
+          player.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
           player.name = slot.name || `P${i + 1}`;
         }
       } else {
@@ -134,10 +142,10 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
       const slot = hostPlayerSlots[i];
       const player = engine.players?.[i];
       if (slot) {
-        if (engine.slotTypes) engine.slotTypes[i] = 'human';
+        if (engine.slotTypes) engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
         if (player) {
           player.isJoined = true;
-          player.slotType = 'human';
+          player.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
           player.name = slot.name || `P${i + 1}`;
         }
       } else {
@@ -163,10 +171,10 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
       const slot = hostPlayerSlots[i];
       const player = engine.players?.[i];
       if (slot) {
-        if (engine.slotTypes) engine.slotTypes[i] = 'human';
+        if (engine.slotTypes) engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
         if (player) {
           player.isJoined = true;
-          player.slotType = 'human';
+          player.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
           player.name = slot.name || `P${i + 1}`;
         }
       } else {

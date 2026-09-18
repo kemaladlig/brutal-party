@@ -154,6 +154,18 @@ export class PartyNetwork {
         }
         break;
 
+      case 'SLOTS_UPDATE':
+        if (this.callbacks.onSlotsUpdate) {
+          this.callbacks.onSlotsUpdate(msg.slots);
+        }
+        break;
+
+      case 'PLAYER_UPDATED':
+        if (this.callbacks.onPlayerUpdated) {
+          this.callbacks.onPlayerUpdated(msg);
+        }
+        break;
+
       case 'GAME_MODE_CHANGED':
         if (this.callbacks.onGameModeChanged) {
           this.callbacks.onGameModeChanged(msg.gameMode);
@@ -299,6 +311,32 @@ export class PartyNetwork {
       type: 'SWAP_SLOTS',
       slotA,
       slotB,
+    });
+  }
+
+  setSlotBot(slotIndex, name) {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.send({
+      type: 'SET_SLOT_BOT',
+      slotIndex,
+      name,
+    });
+  }
+
+  clearSlotBot(slotIndex) {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.send({
+      type: 'CLEAR_SLOT_BOT',
+      slotIndex,
+    });
+  }
+
+  setPlayerName(slotIndex, name) {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.send({
+      type: 'SET_SLOT_NAME',
+      slotIndex,
+      name,
     });
   }
 

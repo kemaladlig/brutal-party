@@ -26,6 +26,20 @@ export class BaseMiniGame {
 
     // Interactive UI Rectangles
     this.uiButtons = [];
+
+    // Host modunda main tarafından atanır: LOBBY koltuk tap'leri motora
+    // yazmadan önce host'a sorulur (bot ekleme/çıkarma). Lokal oyunda null
+    // kalır ve klasik cycleSlotType davranışı çalışır.
+    this.onLobbySeatTap = null;
+  }
+
+  // LOBBY koltuk tap'i: host varsa ona devret (true), yoksa false dön.
+  requestLobbySeatTap(index) {
+    if (typeof this.onLobbySeatTap === 'function') {
+      this.onLobbySeatTap(index);
+      return true;
+    }
+    return false;
   }
 
   isSlotJoined(index) {
@@ -37,6 +51,7 @@ export class BaseMiniGame {
   }
 
   cycleSlotType(index) {
+    if (this.requestLobbySeatTap(index)) return;
     if (this.slotTypes[index] === 'empty') {
       this.slotTypes[index] = 'human';
     } else if (this.slotTypes[index] === 'human') {

@@ -291,6 +291,13 @@
   border-color: #44413c;
 }
 
+.lobby-seat-btn.is-bot {
+  background-color: #241d12;
+  border-color: #d99b26;
+  border-style: dashed;
+  cursor: default;
+}
+
 .lobby-seat-btn .seat-dot {
   width: 12px;
   height: 12px;

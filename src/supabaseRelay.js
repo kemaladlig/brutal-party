@@ -130,9 +130,10 @@ export class SupabaseRelay {
         const cleanName = (msg.name || 'OYUNCU').slice(0, 12);
         let slotIndex = -1;
 
-        // 1. Reconnect: Daha önce bu isimle bağlanmış bir slot varsa geri ver
+        // 1. Reconnect: Daha önce bu isimle bağlanmış (insan) bir slot varsa geri ver.
+        // Bot koltukları eşleşmeye dahil değildir.
         for (let i = 0; i < 4; i++) {
-          if (this.players[i] && this.players[i].name === cleanName) {
+          if (this.players[i] && !this.players[i].isBot && this.players[i].name === cleanName) {
             slotIndex = i;
             break;
           }
@@ -145,11 +146,12 @@ export class SupabaseRelay {
           }
         }
 
-        // 3. Tüm slotlar doluysa >20sn'dir yanıt vermeyen (hayalet) slotu geri kazan
+        // 3. Tüm slotlar doluysa >20sn'dir yanıt vermeyen (hayalet, insan) slotu geri kazan.
+        // Bot koltukları geri kazanıma dahil değildir.
         if (slotIndex === -1) {
           const now = performance.now();
           for (let i = 0; i < 4; i++) {
-            if (this.players[i] && now - (this.players[i].lastSeen || 0) > 20000) {
+            if (this.players[i] && !this.players[i].isBot && now - (this.players[i].lastSeen || 0) > 20000) {
               slotIndex = i;
               break;
             }
@@ -268,7 +270,7 @@ export class SupabaseRelay {
 
   getSlots() {
     return this.players.map((p, idx) =>
-      p ? { slotIndex: idx, name: p.name, color: p.color, isReady: !!this.ready[idx] } : null
+      p ? { slotIndex: idx, name: p.name, color: p.color, isReady: !!this.ready[idx], kind: p.isBot ? 'bot' : 'human' } : null
     );
   }
 
@@ -307,10 +309,37 @@ export class SupabaseRelay {
   startGame(gameMode) {
     if (this.role !== 'HOST') return;
     if (gameMode) this.gameMode = gameMode;
+    this.ready = [false, false, false, false];
     this._broadcast('host_msg', {
       action: 'GAME_STARTED',
       gameMode: this.gameMode,
     });
+  }
+
+  // Host TV ekranından boş koltuğa bot ekler/çıkarır. Botlar relay modelinde
+  // isBot işaretli yer tutucu olarak durur: insan katılımını engeller,
+  // SLOTS_UPDATE ile tüm kumandalara duyurulur.
+  setSlotBot(slotIndex, name) {
+    if (this.role !== 'HOST') return;
+    if (slotIndex < 0 || slotIndex > 3 || this.players[slotIndex]) return;
+    this.players[slotIndex] = {
+      id: `bot-${slotIndex}`,
+      name: (name || `BOT // P${slotIndex + 1}`).slice(0, 12),
+      color: PLAYER_COLORS[slotIndex],
+      slotIndex,
+      isBot: true,
+    };
+    this.ready[slotIndex] = false;
+    this.broadcastSlots();
+  }
+
+  clearSlotBot(slotIndex) {
+    if (this.role !== 'HOST') return;
+    const p = this.players[slotIndex];
+    if (!p || !p.isBot) return;
+    this.players[slotIndex] = null;
+    this.ready[slotIndex] = false;
+    this.broadcastSlots();
   }
 
   // İki kademeli başlatma 1/2: sahayı aç (staging). Motor LOBBY'de arena gösterir,

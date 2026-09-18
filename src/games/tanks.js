@@ -232,6 +232,7 @@ export class TanksGame extends BaseMiniGame {
   }
 
   cycleSlotType(index) {
+    if (this.requestLobbySeatTap(index)) return;
     if (this.slotTypes[index] === 'empty') {
       this.slotTypes[index] = 'human';
     } else if (this.slotTypes[index] === 'human') {

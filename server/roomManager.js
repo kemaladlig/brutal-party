@@ -85,6 +85,8 @@ export class RoomManager {
       name: player.name,
       color: player.color,
     });
+    // Diğer kumandaların koltuk ızgarası güncellensin
+    this.broadcastSlots(room);
 
     return {
       success: true,
@@ -221,14 +223,18 @@ export class RoomManager {
     if (pA) {
       pA.slotIndex = slotB;
       pA.color = playerColors[slotB];
-      pA.ws.slotIndex = slotB;
-      pA.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex: slotB, color: playerColors[slotB] }));
+      if (pA.ws) {
+        pA.ws.slotIndex = slotB;
+        pA.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex: slotB, color: playerColors[slotB] }));
+      }
     }
     if (pB) {
       pB.slotIndex = slotA;
       pB.color = playerColors[slotA];
-      pB.ws.slotIndex = slotA;
-      pB.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex: slotA, color: playerColors[slotA] }));
+      if (pB.ws) {
+        pB.ws.slotIndex = slotA;
+        pB.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex: slotA, color: playerColors[slotA] }));
+      }
     }
 
     this.sendToHost(room, {
@@ -236,6 +242,83 @@ export class RoomManager {
       slotA,
       slotB,
     });
+    this.broadcastSlots(room);
+  }
+
+  // ── Tek koltuk gerçeği: bot koltukları + slot snapshot yayını ──
+
+  getSlots(room) {
+    return [0, 1, 2, 3].map((idx) => {
+      const p = room.players[idx];
+      if (!p) return null;
+      return {
+        slotIndex: idx,
+        name: p.name,
+        color: p.color,
+        isReady: !!room.ready[idx],
+        kind: p.isBot ? 'bot' : 'human',
+      };
+    });
+  }
+
+  broadcastSlots(room) {
+    if (!room) return;
+    this.broadcastToPlayers(room, {
+      type: 'SLOTS_UPDATE',
+      slots: this.getSlots(room),
+    });
+  }
+
+  handleSetSlotBot(hostWs, slotIndex, name) {
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return;
+    if (slotIndex < 0 || slotIndex > 3 || room.players[slotIndex]) return;
+    const playerColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
+    room.players[slotIndex] = {
+      slotIndex,
+      name: (name || `BOT // P${slotIndex + 1}`).slice(0, 12),
+      color: playerColors[slotIndex],
+      ws: null,
+      isBot: true,
+      joinedAt: Date.now(),
+    };
+    room.ready[slotIndex] = false;
+    this.broadcastSlots(room);
+  }
+
+  handleClearSlotBot(hostWs, slotIndex) {
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return;
+    const p = room.players[slotIndex];
+    if (!p || !p.isBot) return;
+    room.players[slotIndex] = null;
+    room.ready[slotIndex] = false;
+    this.broadcastSlots(room);
+  }
+
+  handleSetName(clientWs, name) {
+    const room = this.getRoom(clientWs.roomCode);
+    if (!room) return;
+    const slot = clientWs.slotIndex;
+    const p = room.players[slot];
+    if (slot === undefined || !p || p.isBot) return;
+    p.name = (name || '').slice(0, 12).toUpperCase() || p.name;
+    this.sendToHost(room, {
+      type: 'PLAYER_UPDATED',
+      slotIndex: slot,
+      name: p.name,
+    });
+    this.broadcastSlots(room);
+  }
+
+  // Host kaynaklı isim/bot değişimlerinin kumandalara yayını
+  handleSetSlotName(hostWs, slotIndex, name) {
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return;
+    const p = room.players[slotIndex];
+    if (!p || p.isBot) return;
+    p.name = (name || '').slice(0, 12).toUpperCase() || p.name;
+    this.broadcastSlots(room);
   }
 
   broadcastToPlayers(room, payload) {
@@ -273,6 +356,7 @@ export class RoomManager {
           slotIndex: slot,
           name: leftPlayer.name,
         });
+        this.broadcastSlots(room);
       }
     }
   }

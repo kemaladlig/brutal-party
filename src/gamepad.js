@@ -257,8 +257,9 @@ export class GamepadManager {
     const seatColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
     const isMine = idx === this.playerIndex;
     const slotData = this.slots ? this.slots[idx] : null;
-    const isOccupied = !isMine && slotData !== null && !!slotData.name;
-    const occupantName = isMine ? this.playerName : (isOccupied ? slotData.name : '');
+    const isBot = !isMine && slotData?.kind === 'bot';
+    const isOccupied = !isMine && !isBot && slotData !== null && !!slotData.name;
+    const occupantName = isMine ? this.playerName : (isOccupied || isBot ? slotData.name : '');
 
     let statusText = '';
     let btnClass = 'lobby-seat-btn';
@@ -266,6 +267,9 @@ export class GamepadManager {
     if (isMine) {
       btnClass += ' active is-mine';
       statusText = '✓ SİZİN YERİNİZ';
+    } else if (isBot) {
+      btnClass += ' is-bot';
+      statusText = '🤖 BOT KOLTUĞU';
     } else if (isOccupied) {
       btnClass += ' is-occupied';
       statusText = `${occupantName} • YERİ DEĞİŞ ⇄`;
@@ -275,13 +279,13 @@ export class GamepadManager {
     }
 
     return `
-      <button class="${btnClass}" data-seat="${idx}" type="button">
+      <button class="${btnClass}" data-seat="${idx}" type="button"${isBot ? ' disabled' : ''}>
         <span class="seat-dot" style="background-color: ${seatColors[idx]}"></span>
         <div class="seat-details">
           <div class="seat-header-line">
             <span class="seat-name">${seatNames[idx]}</span>
-            ${isOccupied ? `<span class="seat-occupant-badge">${occupantName}</span>` : ''}
-            ${!isMine && !isOccupied ? `<span class="seat-empty-badge">BOŞ</span>` : ''}
+            ${isOccupied || isBot ? `<span class="seat-occupant-badge">${occupantName}</span>` : ''}
+            ${!isMine && !isOccupied && !isBot ? `<span class="seat-empty-badge">BOŞ</span>` : ''}
           </div>
           <span class="seat-status">${statusText}</span>
         </div>
@@ -297,12 +301,25 @@ export class GamepadManager {
       btn.addEventListener('click', () => {
         if (this.countdownActive) return;
         const targetSlot = parseInt(btn.dataset.seat, 10);
-        if (targetSlot !== this.playerIndex) {
-          this.network.sendInput({ action: 'SWITCH_SLOT', targetSlot });
-          if (navigator.vibrate) navigator.vibrate(30);
-        }
+        if (targetSlot === this.playerIndex) return;
+        // Bot koltukları kilitlidir — ne hedef ne kaynak olur
+        if (this.slots?.[targetSlot]?.kind === 'bot') return;
+        if (this.slots?.[this.playerIndex]?.kind === 'bot') return;
+        this.network.sendInput({ action: 'SWITCH_SLOT', targetSlot });
+        if (navigator.vibrate) navigator.vibrate(30);
       });
     });
+  }
+
+  // Hazır bayrağını sıfırla (lobiye dönüşte / yeni oyunda takılı kalmasın).
+  // Host tarafı zaten sıfırlar; ekstra trafik yok.
+  resetReady() {
+    this.isReady = false;
+    const readyBtn = document.getElementById('btn-lobby-ready');
+    if (readyBtn) {
+      readyBtn.classList.remove('ready');
+      readyBtn.textContent = 'HAZIRIM';
+    }
   }
 
   // --- 00: LOBBY CONTROLLER (Seat Selector, Name Edit, Game Preview, Ready Toggle, Leave Room) ---
@@ -363,10 +380,11 @@ export class GamepadManager {
       btn.addEventListener('click', () => {
         if (this.countdownActive) return;
         const targetSlot = parseInt(btn.dataset.seat, 10);
-        if (targetSlot !== this.playerIndex) {
-          this.network.sendInput({ action: 'SWITCH_SLOT', targetSlot });
-          if (navigator.vibrate) navigator.vibrate(30);
-        }
+        if (targetSlot === this.playerIndex) return;
+        if (this.slots?.[targetSlot]?.kind === 'bot') return;
+        if (this.slots?.[this.playerIndex]?.kind === 'bot') return;
+        this.network.sendInput({ action: 'SWITCH_SLOT', targetSlot });
+        if (navigator.vibrate) navigator.vibrate(30);
       });
     });
 

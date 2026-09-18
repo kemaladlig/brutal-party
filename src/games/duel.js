@@ -209,6 +209,7 @@ export class DuelGame extends BaseMiniGame {
   }
 
   togglePlayerJoin(index) {
+    if (this.requestLobbySeatTap(index)) return;
     playJoin();
     this.joinedPlayers[index] = !this.joinedPlayers[index];
   }
