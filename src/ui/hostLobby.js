@@ -123,10 +123,12 @@ export function initHostLobby({
     });
   });
 
-  // Slot gövdesine dokun: boşsa bot ekle, botsa kaldır (bekleme lobisinde hazırlık)
-  document.querySelectorAll('.host-player-slot').forEach((slotEl) => {
-    slotEl.addEventListener('click', () => {
-      const idx = parseInt(slotEl.dataset.slot, 10);
+  // Açık bot butonu: boş koltukta "+ BOT" ekler, bot kartında "✕" kaldırır.
+  // (Eskiden kart gövdesine dokunuluyordu — ne yaptığı belli değildi.)
+  document.querySelectorAll('.slot-bot-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.slot, 10);
       if (Number.isNaN(idx)) return;
       if (typeof onToggleBotSlot === 'function') {
         onToggleBotSlot(idx);

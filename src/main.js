@@ -300,6 +300,7 @@ async function openHostLobby(gameMode = 'PONG') {
         showHostLobbyModal(roomCode, joinUrl);
         startHostPingBadge(() => activeNet().ping, platformMode);
         setSeatTapHook();
+        refreshHostSlotCards();
       },
       onPlayerJoined: (msg) => {
         playJoin();
@@ -501,6 +502,15 @@ function handleRotateSeats() {
   }
 }
 
+// Host lobi kartlarını state'ten yeniden çiz (butonlar + rozetler tutarlı olsun)
+function refreshHostSlotCards() {
+  for (let i = 0; i < 4; i++) {
+    const e = hostPlayerSlots[i];
+    if (e) updateHostSlot(i, true, e.name, e.isReady, e.kind);
+    else updateHostSlot(i, false);
+  }
+}
+
 function returnHostToLobby() {
   exitStagingToLobby();
   if (!activeNet().isHosting) {
@@ -510,6 +520,13 @@ function returnHostToLobby() {
   closePauseModal();
   setGameMode('MENU');
   activeNet().returnToLobby();
+  // Lobiye dönüşte botlar temizlenir — koltuklar insanlara kalır
+  for (let i = 0; i < 4; i++) {
+    if (hostPlayerSlots[i]?.kind === 'bot') {
+      activeNet().clearSlotBot?.(i);
+      updateHostSlot(i, false);
+    }
+  }
   // Oda korunur: hostRoom tekrar çağrılmaz (yeni kod üretip koltukları siliyordu —
   // kumandalar eski kanalda asılı kalıp STAGING_STARTED'i kaçırıyordu).
   const roomCode = activeNet().roomCode;
@@ -518,6 +535,7 @@ function returnHostToLobby() {
     showHostLobbyModal(roomCode, joinUrl);
     startHostPingBadge(() => activeNet().ping, platformMode);
     setSeatTapHook();
+    refreshHostSlotCards();
   } else {
     openHostLobby(getCurrentHostGameMode());
   }
@@ -654,7 +672,7 @@ function handleLobbySeatTap(index) {
   } else if (!entry) {
     addBotSlot(index);
   } else {
-    showInstallToast(`P${index + 1} dolu — koltuk değişimi kumandadan yapılır.`);
+    showInstallToast(`P${index + 1} dolu.`);
   }
 }
 
@@ -666,7 +684,7 @@ function addBotSlot(index) {
   const engine = getActiveGameEngine();
   if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
   renderPauseSeats(handleSeatSwap);
-  showInstallToast(`🤖 P${index + 1} koltuğuna bot eklendi.`);
+  showInstallToast(`P${index + 1}: BOT eklendi.`);
 }
 
 function removeBotSlot(index) {
@@ -676,7 +694,7 @@ function removeBotSlot(index) {
   const engine = getActiveGameEngine();
   if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
   renderPauseSeats(handleSeatSwap);
-  showInstallToast(`🤖 P${index + 1} botu kaldırıldı.`);
+  showInstallToast(`P${index + 1} boşaltıldı.`);
 }
 
 // Motorların LOBBY tap'lerini host'a yönlendir (sadece host iken aktif)

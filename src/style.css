@@ -1221,6 +1221,35 @@ body {
   box-shadow: 3px 3px 0px #d99b26;
 }
 
+.host-slot-hint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b675f;
+  padding: 0 2px 6px;
+}
+
+.slot-bot-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+  background-color: #fff9e6;
+  border: 2px solid #d99b26;
+  box-shadow: 2px 2px 0px #d99b26;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.slot-bot-btn.hidden {
+  display: none;
+}
+
+.slot-bot-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #d99b26;
+}
+
 .slot-color-dot {
   width: 14px;
   height: 14px;

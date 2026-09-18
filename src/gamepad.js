@@ -2,6 +2,7 @@
 // Adapts dynamically to Lobby, Pong, Tanks, Curve, Bomb, Heist, and Duel with ultra-low latency inputs.
 
 import { storePlayerName } from './net.js';
+import { showInstallToast } from './ui/toast.js';
 
 // Kumanda kayıt tablosu: yeni oyun = 1 satır (etiketler + mount fonksiyonu).
 // mount: GamepadManager prototype metot adı (string) olarak tutulur.
@@ -163,7 +164,20 @@ export class GamepadManager {
   }
 
   updateSlots(slots) {
+    const prev = this.slots;
     this.slots = slots || [null, null, null, null];
+    // Kim geldi/gitti telefonlarda da görünsün (ilk tablo sessiz; bot ve isim değişimi sessiz)
+    if (prev) {
+      for (let i = 0; i < 4; i++) {
+        const oldName = prev[i]?.kind === 'bot' ? null : prev[i]?.name || null;
+        const newName = this.slots[i]?.kind === 'bot' ? null : this.slots[i]?.name || null;
+        if (!oldName && newName && newName !== this.playerName) {
+          showInstallToast(`🎮 ${newName} katıldı.`);
+        } else if (oldName && !newName && oldName !== this.playerName) {
+          showInstallToast(`🚪 ${oldName} ayrıldı.`);
+        }
+      }
+    }
     if (this.gameMode === 'LOBBY') {
       this.refreshLobbySeats();
     }
@@ -366,7 +380,7 @@ export class GamepadManager {
 
         ${this.stagingOpen ? `
         <button class="btn-ready-toggle ${this.isReady ? 'ready' : ''}" id="btn-lobby-ready" type="button">
-          ${this.isReady ? '✓ HAZIR' : 'HAZIRIM'}
+          HAZIRIM
         </button>
         ` : ''}
 
@@ -426,8 +440,8 @@ export class GamepadManager {
     const readyBtn = document.getElementById('btn-lobby-ready');
     readyBtn?.addEventListener('click', () => {
       this.isReady = !this.isReady;
+      // Yazı sabit "HAZIRIM": durum renkle belli olur (sönük → yeşil)
       readyBtn.classList.toggle('ready', this.isReady);
-      readyBtn.textContent = this.isReady ? '✓ HAZIRSINIZ!' : '⏳ HAZIRIM — DOKUN';
       this.network.setReady(this.isReady);
       if (navigator.vibrate) navigator.vibrate(this.isReady ? [20, 30] : 15);
     });

@@ -8,28 +8,43 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
   if (!slotEl) return;
 
   const nameEl = slotEl.querySelector('.slot-name');
+  const botBtn = slotEl.querySelector('.slot-bot-btn');
   if (isConnected) {
     hostPlayerSlots[slotIndex] = { name, isReady, kind };
     slotEl.classList.add('connected');
     slotEl.classList.toggle('is-bot', kind === 'bot');
     slotEl.classList.toggle('ready', isReady && kind !== 'bot');
-    if (nameEl) nameEl.textContent = kind === 'bot' ? `🤖 ${name}` : name;
+    if (nameEl) nameEl.textContent = kind === 'bot' ? 'BOT' : name;
     if (readyTag) {
       if (kind === 'bot') {
-        readyTag.textContent = '🤖 BOT';
+        readyTag.textContent = 'BOT';
         readyTag.classList.remove('ready');
       } else {
-        readyTag.textContent = isReady ? '✓ HAZIR' : '⏳ BEKLİYOR';
+        readyTag.textContent = isReady ? 'HAZIR' : 'BEKLE';
         readyTag.classList.toggle('ready', isReady);
+      }
+    }
+    // Açık buton: bot kartında ✕ (kaldır), insan kartında buton yok
+    if (botBtn) {
+      if (kind === 'bot') {
+        botBtn.textContent = '✕';
+        botBtn.classList.remove('hidden');
+      } else {
+        botBtn.classList.add('hidden');
       }
     }
   } else {
     hostPlayerSlots[slotIndex] = null;
     slotEl.classList.remove('connected', 'ready', 'is-bot');
-    if (nameEl) nameEl.textContent = 'BEKLENİYOR...';
+    if (nameEl) nameEl.textContent = 'BOŞ';
     if (readyTag) {
-      readyTag.textContent = '— BOŞ';
+      readyTag.textContent = 'BOŞ';
       readyTag.classList.remove('ready');
+    }
+    // Boş koltukta +BOT butonu görünür
+    if (botBtn) {
+      botBtn.textContent = '+ BOT';
+      botBtn.classList.remove('hidden');
     }
   }
 
