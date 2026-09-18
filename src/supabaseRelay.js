@@ -339,7 +339,7 @@ export class SupabaseRelay {
     assertSupabaseConfig();
     this.role = 'CONTROLLER';
     this.roomCode = roomCode.toUpperCase().trim();
-    this.playerName = (playerName || 'OYUNCU').slice(0, 12);
+    this.playerName = (playerName || 'OYUNCU').toUpperCase().slice(0, 12);
     this.callbacks = { ...this.callbacks, ...callbacks };
 
     this.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -487,10 +487,12 @@ export class SupabaseRelay {
 
   sendInput(data) {
     if (this.role !== 'CONTROLLER' || !this.channel) return;
-    // Input flood koruması: Sürekli hareketler ~30ms throttle edilir.
-    // Ancak bırakma (force 0, dir 0) ve aksiyon tuşları (ATEŞ, DEPAR, SET_NAME) ASLA atlanmaz!
+    // Input flood koruması: Sürekli analog hareketler ~30ms throttle edilir.
+    // Ancak bırakma (force 0, dir 0), sürüş (TANK_DRIVE), koltuk değişimi ve aksiyon tuşları ASLA atlanmaz!
     const isDiscrete =
       data.action === 'SET_NAME' ||
+      data.action === 'SWITCH_SLOT' ||
+      data.action === 'TANK_DRIVE' ||
       data.action === 'TANK_FIRE' ||
       data.action === 'BOMB_DASH' ||
       data.force === 0 ||

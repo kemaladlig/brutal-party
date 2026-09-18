@@ -233,22 +233,26 @@ export class Ball {
     this.x = closestX + nx * (this.radius + 1.5);
     this.y = closestY + ny * (this.radius + 1.5);
 
-    // ESCALATION: Smooth, gradual speed escalation (reaches peak over 15-20 hits, not 3-4)
+    // ESCALATION: Logaritmik / Azalan ivme (ralli uzadıkça hız artışı yumuşar, tepe hız tavanı aşılmaz)
     this.rallyCount++;
     this.lastHitPlayer = paddle.index;
-    const escalateMin = this.baseMinSpeed * 0.022;
-    const escalateMax = this.baseMaxSpeed * 0.018;
-    this.currentMinSpeed = Math.min(this.baseMaxSpeed, this.baseMinSpeed + this.rallyCount * escalateMin);
-    this.currentMaxSpeed = Math.min(this.baseMaxSpeed * 1.6, this.baseMaxSpeed + this.rallyCount * escalateMax);
 
     // Check POWER SMASH: Fast swipe > 65% of base min-speed
     const smashThreshold = this.baseMinSpeed * 0.65;
     const isSmashStrike = Math.abs(paddle.velocity) > smashThreshold;
     this.isSmash = isSmashStrike;
 
+    // Tepe hız tavanı: baseMaxSpeed'in 1.25 katı ile sınırlandırılır (kontrolsüz hız patlamasını önler)
+    const speedCap = this.baseMaxSpeed * 1.25;
     let incomingSpeed = Math.hypot(this.vx, this.vy);
-    let boostMultiplier = isSmashStrike ? 1.20 : 1.05;
-    let targetSpeed = Math.min(this.currentMaxSpeed, Math.max(this.currentMinSpeed, incomingSpeed * boostMultiplier));
+
+    // Doygunluk eğrisi: Hız tavana yaklaştıkça vuruş başına kazanılan ek hız yumuşar
+    const headroom = Math.max(0, speedCap - incomingSpeed);
+    const boostStep = (isSmashStrike ? 0.25 : 0.09) * headroom;
+    let targetSpeed = Math.min(speedCap, Math.max(this.baseMinSpeed, incomingSpeed + boostStep));
+
+    this.currentMinSpeed = Math.min(speedCap * 0.9, this.baseMinSpeed + Math.min(250, this.rallyCount * 12));
+    this.currentMaxSpeed = speedCap;
 
     if (targetSpeed > this.baseMaxSpeed * 0.95 || isSmashStrike) {
       this.spawnShockwave(this.x, this.y, isSmashStrike ? '#D84727' : '#1A1A1A');

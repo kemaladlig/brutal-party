@@ -109,3 +109,50 @@ FAZ 2: Çoklu Cihaz & Online Ağ Altyapısı (Networking Core)
    - **Ekran (Display Host):** Oyunu büyük ekranda render eder.
    - **Kumanda (Gamepad Controller):** Sadece dokunmatik kontrolleri gösterir (D-Pad, Büyük Dash Tuşu, İsim seçimi).
    - **Online Oyuncu (Combined):** Uzaktan oynayanlar için hem oyun hem kontroller tek ekranda.
+
+---
+
+## 🎯 FAZ 3: CANLI TEST GERİ BİLDİRİMLERİ & OYNANIŞ POLISH (AKTİF)
+
+### 1. 📺 Kalıcı Parti Lobisi (Persistent Party Hub & Game Switcher)
+- **Problem:** Oyun bitince veya menüye dönünce oda kapanıyor / dağılıyor, oyuncular kopuyor.
+- **Çözüm:** 
+  - Bir kere lobi kurulduğunda (`#KOD`), maç bitse veya yarıda kesilse dahi **oyuncular odada kalır**.
+  - Oyun içi ekranda (TV'de) sol üstte **"📺 LOBİYE DÖN / OYUN DEĞİŞTİR"** butonu yer alacak.
+  - Maç bittiğinde veya bu butona basıldığında TV anında mevcut oyuncuların (`P1 Kemal`, `P2...`) bağlı olduğu Lobiye dönecek, telefon kumandaları da otomatik `LOBBY` ekranına geçecek.
+  - TV'den tek tıkla başka bir oyun (örneğin Tanks veya Curve) seçilip hemen başlatılabilecek.
+
+### 2. 🏓 Pong Top Hız Eğrisi (Diminishing Acceleration)
+- **Problem:** Ralli uzadıkça hız doğrusal olarak sürekli artıyor ve bir yerden sonra refleks sınırını aşan kontrolsüz bir patlama yaşanıyor.
+- **Çözüm:** Hız artışını lineer yerine **logaritmik / azalan artış (diminishing returns)** formülüne bağlamak ve maksimum tepe hız tavanı (`maxSpeedCap`) getirmek. Ralli uzadıkça hızlanma yavaşlayacak ve oyun oynanabilir hız bandında kalacak.
+
+### 3. 📱 Pong Kumanda Ergonomisi (Paddle Touch Track)
+- **Problem:** Dokunma alanı tüm telefon genişliğine yayılmış, başparmağı uçtan uca gezdirmek ergonomik değil.
+- **Çözüm:** Dokunma alanını başparmağın doğal erişim kavisinde (%75-80 kompakt genişlik) tutmak ve hassasiyet çarpanı (`sensitivity: 1.25x`) ile parmağı ekranın en dışına zorlamadan TV sahasının köşelerine tam erişim sağlamak.
+
+### 4. 📊 Kumanda Skor HUD & Canlı Bilgi Alanı
+- **Problem:** Kumanda ekranındaki boş alan değerlendirilmiyor.
+- **Çözüm:** Maç esnasında kumandada canlı skor tablosu (Örn: `🔴 3 - 2 🔵`), ralli sayacı ve maç durumu göstergesi yer alacak.
+
+### 5. 🛡️ Micro-Tanks Arcade Zamanlamalı İlerleme & Ateş Kontrolleri
+- **Problem:** Kumandada analog joystick kullanımı tank kontrolünü aşırı kolaylaştırıyor ve parti oyunu kaosunu azaltıyordu.
+- **Çözüm:**
+  - Joystick kaldırıldı. Tank kendi etrafında sürekli otomatik dönüyor.
+  - Kumandanın solunda devasa **`🚀 İLERLE (BASILI TUT)`** gaz pedalı: Parmağı basılı tutunca tank baktığı yöne gider, bırakınca durup dönmeye devam eder.
+  - Kumandanın sağında büyük **`💥 ATEŞ`** butonu ve 3 mermilik dinamik cephane kartuşu (`▮▮▮`).
+
+### 6. 💺 Mobilden 4 Koltuk Seçimi (Seat Selection Grid)
+- **Problem:** Oyuncu lobiye girdiğinde rastgele bir slota düşüyordu ve yerini değiştiremiyordu.
+- **Çözüm:**
+  - Mobil kumandaya 4 koltuklu interaktif ızgara eklendi (🔴 P1 Alt, 🔵 P2 Üst, 🟡 P3 Sol, 🟢 P4 Sağ).
+  - Oyuncu boş bir koltuğa dokunduğunda (`SWITCH_SLOT`) anında o slota ve TV'deki ilgili alana geçer.
+
+### 7. 🔠 Zorunlu BÜYÜK HARF (UPPERCASE) İsim Standardı
+- **Problem:** Küçük harf veya karışık yazım brutalist estetiği bozuyordu.
+- **Çözüm:** Tüm oyuncu isimleri (`storePlayerName`, `getStoredPlayerName`, `executeJoin`, `SET_NAME`, UI gösterimleri) sistem genelinde zorunlu `.toUpperCase()` standardına bağlandı.
+
+### 8. 📱 Birincil Katılma Butonu & Sadeleştirilmiş Host Butonu
+- **Problem:** TV Host butonu çok öne çıkıyor, asıl ihtiyaç olan kod ile kumanda olarak katılma butonu arka planda kalıyordu.
+- **Çözüm:** Menü banner'ında ve sekmelerde **`📱 ODA KODU İLE KATIL (KUMANDA)`** birincil parlak CTA buton yapıldı; **`📺 BU EKRANI TV HOST YAP`** ise ikincil, arka planda, sadeleştirilmiş kesikli buton haline getirildi.
+
+

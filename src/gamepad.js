@@ -40,7 +40,7 @@ export class GamepadManager {
 
   init(playerInfo, gameMode = 'LOBBY') {
     this.playerIndex = playerInfo.slotIndex ?? 0;
-    this.playerName = playerInfo.name || `OYUNCU ${this.playerIndex + 1}`;
+    this.playerName = (playerInfo.name || `OYUNCU ${this.playerIndex + 1}`).toUpperCase();
     this.playerColor = playerInfo.color || '#D84727';
     this.selectedHostGame = gameMode === 'LOBBY' ? 'PONG' : gameMode;
     this.gameMode = gameMode || 'LOBBY';
@@ -172,7 +172,7 @@ export class GamepadManager {
     }
   }
 
-  // --- 00: LOBBY CONTROLLER (Seat Info, Game Preview, Ready Toggle) ---
+  // --- 00: LOBBY CONTROLLER (Seat Selector, Name Edit, Game Preview, Ready Toggle, Leave Room) ---
   mountLobbyController(container) {
     const seatNames = [
       '🔴 P1 // ALT KALE (KIRMIZI)',
@@ -180,7 +180,7 @@ export class GamepadManager {
       '🟡 P3 // SOL KALE (SARI)',
       '🟢 P4 // SAĞ KALE (YEŞİL)',
     ];
-    const mySeat = seatNames[this.playerIndex] || `P${this.playerIndex + 1}`;
+    const seatColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 
     const gameTitles = {
       PONG: '🏓 BRUTAL PONG',
@@ -194,14 +194,30 @@ export class GamepadManager {
 
     container.innerHTML = `
       <div class="lobby-controller-view">
-        <div class="lobby-seat-card">
-          <div class="lobby-seat-badge">📺 TV EKRANINDAKİ YERİNİZ</div>
-          <div class="lobby-seat-title" style="color: ${this.playerColor}">${mySeat}</div>
+        <!-- Interactive Seat Selector -->
+        <div class="lobby-seats-card">
+          <div class="lobby-seat-badge">💺 KOLTUĞUNUZU SEÇİN (TV SAHASI)</div>
+          <div class="lobby-seats-grid">
+            ${[0, 1, 2, 3]
+              .map((idx) => {
+                const isMine = idx === this.playerIndex;
+                return `
+                  <button class="lobby-seat-btn ${isMine ? 'active' : ''}" data-seat="${idx}" type="button">
+                    <span class="seat-dot" style="background-color: ${seatColors[idx]}"></span>
+                    <div class="seat-details">
+                      <span class="seat-name">${seatNames[idx]}</span>
+                      <span class="seat-status">${isMine ? '✓ SİZİN YERİNİZ' : 'BURAYA GEÇ →'}</span>
+                    </div>
+                  </button>
+                `;
+              })
+              .join('')}
+          </div>
         </div>
 
         <!-- Name Edit Section -->
         <div class="lobby-name-section">
-          <div class="lobby-name-label">👤 İSMİNİZ</div>
+          <div class="lobby-name-label">👤 OYUNCU İSMİNİZ</div>
           <div class="lobby-name-row">
             <div class="lobby-name-display" id="lobby-name-display">${this.playerName}</div>
             <button class="lobby-name-edit-btn" id="btn-edit-name" type="button">✏️ DEĞİŞTİR</button>
@@ -221,8 +237,23 @@ export class GamepadManager {
         <button class="btn-ready-toggle ${this.isReady ? 'ready' : ''}" id="btn-lobby-ready" type="button">
           ${this.isReady ? '✓ HAZIRSINIZ!' : '⏳ HAZIRIM — DOKUN'}
         </button>
+
+        <button class="btn-leave-lobby-direct" id="btn-leave-lobby-direct" type="button">
+          🚪 ODADAN AYRIL
+        </button>
       </div>
     `;
+
+    // Seat switch click handlers
+    container.querySelectorAll('.lobby-seat-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const targetSlot = parseInt(btn.dataset.seat, 10);
+        if (targetSlot !== this.playerIndex) {
+          this.network.sendInput({ action: 'SWITCH_SLOT', targetSlot });
+          if (navigator.vibrate) navigator.vibrate(20);
+        }
+      });
+    });
 
     // Name edit toggle
     const editBtn = document.getElementById('btn-edit-name');
@@ -244,13 +275,11 @@ export class GamepadManager {
       if (nameDisplay) nameDisplay.textContent = newName;
       nameInputRow?.classList.add('hidden');
       editBtn?.classList.remove('hidden');
-      // Update header label too
       const headerLabel = document.getElementById('header-player-name');
       if (headerLabel) {
         const seatPositions = ['ALT // P1', 'ÜST // P2', 'SOL // P3', 'SAĞ // P4'];
         headerLabel.textContent = `${seatPositions[this.playerIndex] || ''} • ${newName}`;
       }
-      // Broadcast name change to server so TV sees it
       this.network.sendInput({ action: 'SET_NAME', name: newName });
       storePlayerName(newName);
       if (navigator.vibrate) navigator.vibrate(15);
@@ -268,6 +297,15 @@ export class GamepadManager {
       readyBtn.textContent = this.isReady ? '✓ HAZIRSINIZ!' : '⏳ HAZIRIM — DOKUN';
       this.network.setReady(this.isReady);
       if (navigator.vibrate) navigator.vibrate(this.isReady ? [20, 30] : 15);
+    });
+
+    // Leave room
+    document.getElementById('btn-leave-lobby-direct')?.addEventListener('click', () => {
+      if (confirm('Odadan ayrılmak istediğinize emin misiniz?')) {
+        this.network.disconnect();
+        this.hide();
+        window.location.href = window.location.pathname;
+      }
     });
   }
 
@@ -305,9 +343,13 @@ export class GamepadManager {
       : (this.isPongInverted ? '▲ YUKARI → TV Alt  |  Aşağı → TV Üst ▼' : '▲ YUKARI → TV Üst  |  Aşağı → TV Alt ▼');
 
     if (isHorizontal) {
-      // P1 & P2: Horizontal Slider
+      // P1 & P2: Horizontal Slider with Live Scoreboard & Ergonomic Thumb Curve
       container.innerHTML = `
         <div class="pong-controller-view horizontal">
+          <div class="pong-live-scoreboard" id="pong-live-scoreboard">
+            <div class="pong-score-pips" id="pong-score-display">SKOR: 0 - 0</div>
+            <div class="pong-rally-badge" id="pong-rally-display">⚡ RALLİ: 0</div>
+          </div>
           <div class="pong-position-badge" style="border-color: ${this.playerColor}">📺 TV YERİ: ${posLabel}</div>
           <div class="pong-instruction" id="pong-direction-hint">${directionHint}</div>
           <div class="pong-horizontal-track" id="pong-track">
@@ -340,18 +382,16 @@ export class GamepadManager {
         }
       });
 
-      // Raw position from slider (0=left edge of phone, 1=right edge)
-      // Then apply inversion to match TV coordinate space
+      // Ergonomik başparmak aralığı: Ekranın en dışına uzanmaya gerek kalmadan %10-%90 merkez aralığını 0.0-1.0 TV koordinatına eşler
       const updateSliderX = (clientX) => {
         const rect = track.getBoundingClientRect();
         const relativeX = Math.max(0, Math.min(rect.width, clientX - rect.left));
-        const rawNorm = relativeX / rect.width; // 0.0 (phone left) → 1.0 (phone right)
-        const position = this.isPongInverted ? 1.0 - rawNorm : rawNorm; // TV coordinate
+        const rawNorm = relativeX / rect.width;
+        const clampedNorm = Math.max(0, Math.min(1, (rawNorm - 0.10) / 0.80));
+        const position = this.isPongInverted ? 1.0 - clampedNorm : clampedNorm;
         this.pongPosition = position;
 
-        // Thumb visual follows the raw (physical) finger position, not the TV position
         if (thumb) thumb.style.left = `${rawNorm * 100}%`;
-
         this.network.sendInput({ action: 'PADDLE_MOVE', position });
       };
 
@@ -368,9 +408,13 @@ export class GamepadManager {
       window.addEventListener('mouseup', () => { isTrackingMouse = false; });
 
     } else {
-      // P3 & P4: Vertical Slider
+      // P3 & P4: Vertical Slider with Live Scoreboard
       container.innerHTML = `
         <div class="pong-controller-view">
+          <div class="pong-live-scoreboard" id="pong-live-scoreboard">
+            <div class="pong-score-pips" id="pong-score-display">SKOR: 0 - 0</div>
+            <div class="pong-rally-badge" id="pong-rally-display">⚡ RALLİ: 0</div>
+          </div>
           <div class="pong-position-badge" style="border-color: ${this.playerColor}">📺 TV YERİ: ${posLabel}</div>
           <div class="pong-instruction" id="pong-direction-hint">${directionHint}</div>
           <div class="pong-touch-track" id="pong-track">
@@ -406,11 +450,11 @@ export class GamepadManager {
       const updateSliderY = (clientY) => {
         const rect = track.getBoundingClientRect();
         const relativeY = Math.max(0, Math.min(rect.height, clientY - rect.top));
-        const rawNorm = relativeY / rect.height; // 0.0 (phone top) → 1.0 (phone bottom)
-        const position = this.isPongInverted ? 1.0 - rawNorm : rawNorm; // TV coordinate
+        const rawNorm = relativeY / rect.height;
+        const clampedNorm = Math.max(0, Math.min(1, (rawNorm - 0.10) / 0.80));
+        const position = this.isPongInverted ? 1.0 - clampedNorm : clampedNorm;
         this.pongPosition = position;
 
-        // Thumb follows raw finger position
         if (thumb) {
           thumb.style.top = `${rawNorm * 100}%`;
           thumb.style.transform = 'translateY(-50%)';
@@ -433,17 +477,22 @@ export class GamepadManager {
     }
   }
 
-  // --- 02: TANKS CONTROLLER (Joystick + Fire Button + Ammo Pips) ---
+  // --- 02: TANKS CONTROLLER (Zamanlamalı Arcade Sürüş Pedalı + Ateş Butonu + Ammo Pips) ---
   mountTanksController(container) {
     container.innerHTML = `
-      <div class="tanks-controller-view">
-        <div class="tanks-steer-zone" id="tank-steer-zone">
-          <div class="phone-joy-base">
-            <div class="phone-joy-knob" id="tank-joy-knob" style="background-color: ${this.playerColor}"></div>
-          </div>
+      <div class="tanks-arcade-view">
+        <div class="tank-drive-zone">
+          <button class="tank-drive-pedal" id="btn-tank-drive" type="button">
+            <span class="pedal-icon">🚀</span>
+            <span class="pedal-title">İLERLE</span>
+            <span class="pedal-sub">BASILI TUTUNCA GİDER • BIRAKINCA DÖNER</span>
+          </button>
         </div>
         <div class="tanks-fire-zone">
-          <button class="tank-fire-btn" id="btn-tank-fire" type="button">💥 ATEŞ</button>
+          <button class="tank-fire-btn" id="btn-tank-fire" type="button">
+            <span class="fire-icon">💥</span>
+            <span class="fire-title">ATEŞ</span>
+          </button>
           <div class="tank-ammo-hud" id="tank-ammo-hud">
             <div class="cartridge-pip loaded"></div>
             <div class="cartridge-pip loaded"></div>
@@ -453,9 +502,32 @@ export class GamepadManager {
       </div>
     `;
 
-    this.bindJoystick('tank-steer-zone', 'tank-joy-knob', (input) => {
-      this.network.sendInput({ action: 'TANK_MOVE', ...input });
-    });
+    const driveBtn = document.getElementById('btn-tank-drive');
+    let isDriving = false;
+
+    const startDrive = (e) => {
+      e?.preventDefault();
+      if (isDriving) return;
+      isDriving = true;
+      driveBtn?.classList.add('active');
+      this.network.sendInput({ action: 'TANK_DRIVE', driving: true });
+      if (navigator.vibrate) navigator.vibrate(20);
+    };
+
+    const stopDrive = (e) => {
+      e?.preventDefault();
+      if (!isDriving) return;
+      isDriving = false;
+      driveBtn?.classList.remove('active');
+      this.network.sendInput({ action: 'TANK_DRIVE', driving: false });
+    };
+
+    driveBtn?.addEventListener('touchstart', startDrive, { passive: false });
+    driveBtn?.addEventListener('touchend', stopDrive, { passive: false });
+    driveBtn?.addEventListener('touchcancel', stopDrive, { passive: false });
+    driveBtn?.addEventListener('mousedown', startDrive);
+    driveBtn?.addEventListener('mouseup', stopDrive);
+    driveBtn?.addEventListener('mouseleave', stopDrive);
 
     const fireBtn = document.getElementById('btn-tank-fire');
     const fireAction = (e) => {
@@ -464,7 +536,7 @@ export class GamepadManager {
       if (navigator.vibrate) navigator.vibrate(30);
     };
 
-    fireBtn?.addEventListener('touchstart', fireAction);
+    fireBtn?.addEventListener('touchstart', fireAction, { passive: false });
     fireBtn?.addEventListener('mousedown', fireAction);
   }
 
@@ -694,6 +766,10 @@ export class GamepadManager {
       let statusStr = '';
       if (data.gameMode === 'PONG') {
         statusStr = `RALLİ: ${data.rally || 0} • SKOR: ${data.scores.slice(0, 4).join('-')}`;
+        const scoreDisp = document.getElementById('pong-score-display');
+        const rallyDisp = document.getElementById('pong-rally-display');
+        if (scoreDisp && data.scores) scoreDisp.textContent = `SKOR: ${data.scores.slice(0, 4).join(' - ')}`;
+        if (rallyDisp && data.rally !== undefined) rallyDisp.textContent = `⚡ RALLİ: ${data.rally}`;
       } else if (data.gameMode === 'TANKS') {
         statusStr = `SKOR: ${data.scores.join('-')}`;
       } else if (data.gameMode === 'CURVE') {

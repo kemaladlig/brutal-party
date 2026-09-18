@@ -52,9 +52,43 @@ body {
   top: max(14px, env(safe-area-inset-top, 14px));
   right: max(14px, env(safe-area-inset-right, 14px));
   z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 #in-game-hud.hidden {
+  display: none !important;
+}
+
+.btn-quick-tv-lobby {
+  height: 44px;
+  padding: 0 14px;
+  background-color: #ffd700;
+  color: #1a1a1a;
+  border: 3px solid #1a1a1a;
+  box-shadow: 3px 3px 0px #1a1a1a;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.btn-quick-tv-lobby:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+  background-color: #e6c200;
+}
+
+.btn-quick-tv-lobby.hidden {
   display: none !important;
 }
 
@@ -179,6 +213,15 @@ body {
 .pause-btn.danger {
   background-color: #e2ded4;
   color: #d84727;
+}
+
+.pause-btn.lobby-btn {
+  background-color: #ffd700;
+  color: #1a1a1a;
+}
+
+.pause-btn.hidden {
+  display: none !important;
 }
 
 /* Brutalist HTML Menu Overlay */
@@ -458,16 +501,29 @@ body {
 }
 
 .banner-action-btn {
-  padding: 7px 12px;
+  padding: 8px 14px;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 900;
   background-color: #1a1a1a;
   color: #ffffff;
-  border: 2px solid #1a1a1a;
+  border: 2.5px solid #1a1a1a;
+  box-shadow: 2px 2px 0px #1a1a1a;
   cursor: pointer;
   touch-action: manipulation;
-  transition: transform 0.08s ease;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.banner-action-btn:active {
+  transform: translate(1.5px, 1.5px);
+  box-shadow: 0px 0px 0px #1a1a1a;
+}
+
+.banner-action-btn.primary {
+  background-color: #d84727;
+  color: #ffffff;
+  box-shadow: 3px 3px 0px #1a1a1a;
+  font-size: 12.5px;
 }
 
 .banner-action-btn.secondary {
@@ -475,8 +531,20 @@ body {
   color: #1a1a1a;
 }
 
-.banner-action-btn:active {
-  transform: translate(1.5px, 1.5px);
+.banner-action-btn.secondary.subtle {
+  background-color: #f2efe9;
+  color: #635f58;
+  border: 2px dashed #9e998e;
+  box-shadow: none;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.banner-action-btn.secondary.subtle:hover,
+.banner-action-btn.secondary.subtle:active {
+  background-color: #e4e0d6;
+  color: #1a1a1a;
+  border-style: solid;
 }
 
 .quick-join-trigger-btn {

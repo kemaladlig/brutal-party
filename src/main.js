@@ -16,6 +16,7 @@ import { PUBLIC_URL, HAS_SUPABASE_CONFIG, isPublicOrigin, getActiveNetwork, disc
 const canvas = document.getElementById('game-canvas');
 const menuOverlay = document.getElementById('menu-overlay');
 const inGameHud = document.getElementById('in-game-hud');
+const btnQuickTvLobby = document.getElementById('btn-quick-tv-lobby');
 const btnOpenOptions = document.getElementById('btn-open-options');
 const btnInstallApp = document.getElementById('btn-install-app');
 const installToast = document.getElementById('install-toast');
@@ -25,6 +26,7 @@ const pauseModal = document.getElementById('pause-modal');
 const pauseGameTitle = document.getElementById('pause-game-title');
 const btnResumeGame = document.getElementById('btn-resume-game');
 const btnResetMatch = document.getElementById('btn-reset-match');
+const btnTvLobby = document.getElementById('btn-tv-lobby');
 const btnToggleSound = document.getElementById('btn-toggle-sound');
 const btnExitToMenu = document.getElementById('btn-exit-to-menu');
 
@@ -124,6 +126,14 @@ export function setGameMode(mode) {
 
   const now = performance.now();
 
+  if (btnQuickTvLobby) {
+    if (mode === 'MENU') {
+      btnQuickTvLobby.classList.add('hidden');
+    } else {
+      btnQuickTvLobby.classList.toggle('hidden', !activeNet().isHosting);
+    }
+  }
+
   if (mode === 'MENU') {
     menuOverlay.classList.remove('hidden');
     inGameHud.classList.add('hidden');
@@ -192,8 +202,11 @@ function openPauseModal() {
       ? '05 // BRUTAL HEIST'
       : '06 // QUICK DRAW';
   btnToggleSound.textContent = getIsMuted() ? '🔇 SES: KAPALI' : '🔊 SES: AÇIK';
+  if (btnTvLobby) {
+    btnTvLobby.classList.toggle('hidden', !activeNet().isHosting);
+  }
   if (btnExitToMenu) {
-    btnExitToMenu.textContent = activeNet().isHosting ? '📺 TV LOBİSİNE DÖN' : '⌂ ANA MENÜYE DÖN';
+    btnExitToMenu.textContent = activeNet().isHosting ? '🚪 ODAYI KAPAT & ANA MENÜYE DÖN' : '⌂ ANA MENÜYE DÖN';
   }
   touchManager.resetTouches();
 }
@@ -316,10 +329,10 @@ function updatePlatformMode(newMode) {
       <div class="banner-badge">📺 TV + TELEFON</div>
       <div class="banner-content">
         <div class="banner-title">TV Konsol Modu (AirConsole & Jackbox Modeli)</div>
-        <div class="banner-desc">Bu ekranı TV'ye yansıtıp Host yapın veya telefonunuzu kumanda olarak bağlayın.</div>
+        <div class="banner-desc">Telefonunuzla anında kumanda olarak bağlanın veya bu ekranı salondaki TV ekranı yapın.</div>
         <div class="banner-actions">
-          <button class="banner-action-btn" id="btn-create-tv-room" type="button">📺 BU EKRANI TV HOST YAP</button>
-          <button class="banner-action-btn secondary" id="btn-join-as-controller" type="button">📱 KUMANDA OLARAK KATIL</button>
+          <button class="banner-action-btn primary" id="btn-join-as-controller" type="button">📱 ODA KODU İLE KATIL (KUMANDA)</button>
+          <button class="banner-action-btn secondary subtle" id="btn-create-tv-room" type="button">📺 BU EKRANI TV HOST YAP</button>
         </div>
       </div>
     `;
@@ -330,10 +343,10 @@ function updatePlatformMode(newMode) {
       <div class="banner-badge">🌐 UZAKTAN MAÇ</div>
       <div class="banner-content">
         <div class="banner-title">Online Çok Oyunculu Mod (İstanbul <-> Ankara)</div>
-        <div class="banner-desc">Farklı şehirlerden arkadaşlarınızla WhatsApp oda linkiyle bağlanın.</div>
+        <div class="banner-desc">Oda kodunu girerek maça dahil olun veya arkadaşlarınız için yeni bir oda kurun.</div>
         <div class="banner-actions">
-          <button class="banner-action-btn" id="btn-create-online-room" type="button">🌐 YENİ ONLINE ODA AÇ</button>
-          <button class="banner-action-btn secondary" id="btn-enter-room-code" type="button">🔗 ODA KODU İLE KATIL</button>
+          <button class="banner-action-btn primary" id="btn-enter-room-code" type="button">🔗 ODA KODU İLE KATIL</button>
+          <button class="banner-action-btn secondary subtle" id="btn-create-online-room" type="button">🌐 YENİ ODA KUR (HOST)</button>
         </div>
       </div>
     `;
@@ -466,11 +479,43 @@ async function openHostLobby(gameMode = 'PONG') {
   }
 
   currentHostGameMode = gameMode;
+  const net = activeNet();
+
+  // Halihazırda aktif bir oda host ediliyorsa (maç ortasında veya sonrasında lobiye dönüldüyse)
+  // odayı kapatma / yeniden kurma; mevcut odayı ve bağlı kumandaları koru
+  if (net.isHosting && net.roomCode) {
+    net.setHostGameMode(gameMode);
+    net.returnToLobby();
+
+    // Sync lobby game chips UI
+    document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
+      chip.classList.toggle('active', chip.dataset.game === currentHostGameMode);
+    });
+
+    const launchBtn = document.getElementById('btn-host-launch-game');
+    if (launchBtn) {
+      launchBtn.textContent = `▶ ${currentHostGameMode} BAŞLAT`;
+    }
+
+    // Refresh slots UI from current hostPlayerSlots
+    for (let i = 0; i < 4; i++) {
+      const slot = hostPlayerSlots[i];
+      if (slot) {
+        updateHostSlot(i, true, slot.name, slot.isReady);
+      } else {
+        updateHostSlot(i, false);
+      }
+    }
+
+    tvHostModal?.classList.remove('hidden');
+    startHostPingBadge();
+    return;
+  }
+
   for (let i = 0; i < 4; i++) updateHostSlot(i, false);
 
   // Mod değişiminde diğer transportun hayalet bağlantısını kapat
   disconnectInactiveNetwork(platformMode);
-  const net = activeNet();
 
   // Sync lobby game chips UI
   document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
@@ -483,7 +528,8 @@ async function openHostLobby(gameMode = 'PONG') {
   }
 
   try {
-    await net.hostRoom(gameMode, {      onRoomCreated: (roomCode) => {
+    await net.hostRoom(gameMode, {
+      onRoomCreated: (roomCode) => {
         if (hostRoomCode) hostRoomCode.textContent = roomCode;
         const joinUrl = getEffectiveJoinUrl(roomCode);
         if (hostJoinUrl) hostJoinUrl.textContent = joinUrl;
@@ -527,10 +573,15 @@ async function openHostLobby(gameMode = 'PONG') {
         if (data.action === 'SET_NAME' && data.name) {
           const slot = hostPlayerSlots[slotIndex];
           if (slot) {
-            slot.name = data.name.slice(0, 12);
+            slot.name = data.name.slice(0, 12).toUpperCase();
             updateHostSlot(slotIndex, true, slot.name, slot.isReady);
           }
           return; // Don't forward name change to game engine
+        }
+        // Handle slot switch requested by controller
+        if (data.action === 'SWITCH_SLOT' && typeof data.targetSlot === 'number') {
+          activeNet().swapSlots(slotIndex, data.targetSlot);
+          return;
         }
         const engine = getActiveGameEngine();
         if (engine && typeof engine.handleRemoteInput === 'function') {
@@ -580,9 +631,13 @@ btnHostLaunchGame?.addEventListener('click', () => {
 });
 
 btnHostClose?.addEventListener('click', () => {
+  const confirmed = window.confirm('Lobi kapatılsın mı? Tüm bağlı kumandaların bağlantısı kesilecektir.');
+  if (!confirmed) return;
   tvHostModal?.classList.add('hidden');
   stopHostPingBadge();
+  for (let i = 0; i < 4; i++) updateHostSlot(i, false);
   activeNet().disconnect();
+  setGameMode('MENU');
 });
 
 btnHostCopyLink?.addEventListener('click', async () => {
@@ -633,7 +688,7 @@ btnCancelJoin?.addEventListener('click', () => {
 
 async function executeJoin(rawCode, rawName) {
   const code = (rawCode || '').trim().toUpperCase();
-  const name = (rawName || '').trim() || 'OYUNCU';
+  const name = (rawName || '').trim().toUpperCase() || 'OYUNCU';
 
   if (!code || code.length < 4) {
     showInstallToast('Lütfen 4 haneli geçerli bir oda kodu girin.');
@@ -702,11 +757,15 @@ btnSubmitJoin?.addEventListener('click', () => {
   executeJoin(inputRoomCode?.value, inputPlayerName?.value);
 });
 
+inputPlayerName?.addEventListener('input', (e) => {
+  e.target.value = (e.target.value || '').toUpperCase();
+});
+
 inputRoomCode?.addEventListener('input', (e) => {
   const code = (e.target.value || '').trim().toUpperCase();
   e.target.value = code;
   if (code.length === 4) {
-    executeJoin(code, inputPlayerName?.value || getStoredPlayerName() || 'OYUNCU');
+    executeJoin(code, (inputPlayerName?.value || getStoredPlayerName() || 'OYUNCU').toUpperCase());
   }
 });
 
@@ -744,6 +803,19 @@ addTapListener(btnSelectBomb, () => handleGameCardClick('BOMB'));
 addTapListener(btnSelectHeist, () => handleGameCardClick('HEIST'));
 addTapListener(btnSelectDuel, () => handleGameCardClick('DUEL'));
 
+function returnHostToLobby() {
+  if (!activeNet().isHosting) {
+    setGameMode('MENU');
+    return;
+  }
+  closePauseModal();
+  setGameMode('MENU');
+  activeNet().returnToLobby();
+  openHostLobby(currentHostGameMode);
+}
+
+addTapListener(btnQuickTvLobby, returnHostToLobby);
+addTapListener(btnTvLobby, returnHostToLobby);
 addTapListener(btnOpenOptions, openPauseModal);
 addTapListener(btnResumeGame, closePauseModal);
 addTapListener(btnResetMatch, resetActiveGame);
@@ -753,10 +825,16 @@ addTapListener(btnToggleSound, () => {
 });
 addTapListener(btnExitToMenu, () => {
   if (activeNet().isHosting) {
+    const confirmed = window.confirm('Odayı kapatmak ve ana menüye dönmek istiyor musunuz? Tüm bağlı kumandaların bağlantısı kesilecektir.');
+    if (!confirmed) return;
     closePauseModal();
-    activeNet().returnToLobby();
-    openHostLobby(currentHostGameMode);
+    tvHostModal?.classList.add('hidden');
+    stopHostPingBadge();
+    for (let i = 0; i < 4; i++) updateHostSlot(i, false);
+    activeNet().disconnect();
+    setGameMode('MENU');
   } else {
+    closePauseModal();
     setGameMode('MENU');
   }
 });

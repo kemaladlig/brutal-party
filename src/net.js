@@ -52,18 +52,18 @@ export { partyNetwork, supabaseRelay };
 
 const PLAYER_NAME_KEY = 'brutal-party-player-name';
 
-/** Son kullanılan oyuncu ismini döndürür (yoksa ''). */
+/** Son kullanılan oyuncu ismini döndürür (her zaman BÜYÜK HARF). */
 export function getStoredPlayerName() {
   try {
-    return localStorage.getItem(PLAYER_NAME_KEY) || '';
+    return (localStorage.getItem(PLAYER_NAME_KEY) || '').toUpperCase().trim();
   } catch {
     return '';
   }
 }
 
-/** Oyuncu ismini hatırlar. Varsayılan 'OYUNCU' placeholder'ı saklanmaz. */
+/** Oyuncu ismini hatırlar. Her zaman BÜYÜK HARFLE saklanır. */
 export function storePlayerName(name) {
-  const clean = (name || '').trim().slice(0, 12);
+  const clean = (name || '').trim().toUpperCase().slice(0, 12);
   if (!clean || clean === 'OYUNCU') return;
   try {
     localStorage.setItem(PLAYER_NAME_KEY, clean);

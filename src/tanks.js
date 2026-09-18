@@ -573,7 +573,9 @@ export class TanksGame {
     const tank = this.tanks[slotIndex];
     if (!tank || !tank.isJoined || !tank.isAlive) return;
 
-    if (data.action === 'TANK_MOVE') {
+    if (data.action === 'TANK_DRIVE') {
+      tank.isDriving = !!data.driving;
+    } else if (data.action === 'TANK_MOVE') {
       if (data.force > 0.08) {
         tank.angle = data.angle;
         tank.isDriving = true;
