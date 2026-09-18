@@ -973,11 +973,13 @@
   overflow: hidden;
 }
 
-/* Portrait Ergonomics: Joystick & action buttons comfortably lower down near thumbs */
+/* Portrait Ergonomics: Joystick & action buttons in a lower-center band (not glued to bottom) */
 @media (orientation: portrait), (max-aspect-ratio: 1/1) {
   .joystick-action-view {
     flex-direction: row;
     align-items: flex-end;
+    /* vh yüksekliğe göre çalışır (yüzde genişliğe göre çalışırdı); safe-area üstüne alt-orta kuşak */
+    padding-bottom: min(max(96px, env(safe-area-inset-bottom, 0px) + 12vh), 170px);
   }
 
   .joystick-half {
@@ -988,7 +990,6 @@
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    padding-bottom: max(38px, env(safe-area-inset-bottom, 38px));
   }
 
   .action-half {
@@ -997,7 +998,6 @@
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    padding-bottom: max(38px, env(safe-area-inset-bottom, 38px));
   }
 }
 
