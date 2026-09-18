@@ -165,7 +165,12 @@ FAZ 2: Çoklu Cihaz & Online Ağ Altyapısı (Networking Core)
 - **Çözüm:**
   - **1. YOL // EN HIZLI:** Büyük net QR kod + *"Telefonunun kamerasını tut"* yönergesi.
   - **2. YOL // KOD GİR:** Kocaman `#KOD` + *"Siteye gir ve bu 4 haneli kodu yaz"* yönergesi.
-  - **3. YOL // PAYLAŞ:** Tek dokunuşla WhatsApp daveti ve link kopyalama.
+### 10. 🎨 Ultra-Minimalist İzometrik Oyun Görselleri & Standart Prompt Stratejisi
+- **Problem:** Oyunların görsel kimliği eksikti ve menü/lobi sadece metin veya emojilerden oluşuyordu.
+- **Çözüm:**
+  - 6 parti oyununun tamamı için özel ultra-minimalist 3D izometrik illüstrasyonlar üretildi (`public/assets/games/`).
+  - Ana menü bento kartlarına, TV host lobisi oyun değiştirme chiplerine ve mobil kumanda lobi ekranına entegre edildi.
+  - İleride eklenecek yeni oyunlar için prompt formülü, stil parametreleri ve mimari rehber kök dizindeki [`AGENTS.md`](file:///c:/Users/kemal/Desktop/Hockey/AGENTS.md) dosyasına kalıcı olarak kaydedildi.
 
 
 
