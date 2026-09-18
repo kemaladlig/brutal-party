@@ -60,16 +60,17 @@ export class GamepadManager {
   }
 
   renderShell() {
-    const seatPositions = ['ALT // P1', 'ÜST // P2', 'SOL // P3', 'SAĞ // P4'];
+    const seatPositions = ['P1 (ALT)', 'P2 (ÜST)', 'P3 (SOL)', 'P4 (SAĞ)'];
     const seatLabel = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
 
     this.overlay.innerHTML = `
       <div class="gamepad-header">
         <div class="player-badge-pod">
           <div class="player-indicator-dot" id="header-player-dot" style="background-color: ${this.playerColor}"></div>
-          <span class="player-name-label" id="header-player-name">${seatLabel} • ${this.playerName}</span>
+          <span class="player-name-label" id="header-player-name">${this.playerName}</span>
+          <span class="player-seat-tag" id="header-seat-tag">${seatLabel}</span>
         </div>
-        <div class="gamepad-room-info">ODA: #${this.network.roomCode || '----'}</div>
+        <div class="gamepad-room-info">#${this.network.roomCode || '----'}</div>
         <div class="gamepad-header-actions">
           <button class="emoji-reaction-btn" id="btn-toggle-emoji" type="button" title="Tepki Gönder">🔥</button>
           <button class="btn-leave-gamepad" id="btn-leave-gamepad" type="button">AYRIL</button>
@@ -124,11 +125,12 @@ export class GamepadManager {
 
     const dot = document.getElementById('header-player-dot');
     const label = document.getElementById('header-player-name');
-    const seatPositions = ['ALT // P1', 'ÜST // P2', 'SOL // P3', 'SAĞ // P4'];
-    const seatLabel = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
+    const seatTag = document.getElementById('header-seat-tag');
+    const seatPositions = ['P1 (ALT)', 'P2 (ÜST)', 'P3 (SOL)', 'P4 (SAĞ)'];
 
     if (dot) dot.style.backgroundColor = this.playerColor;
-    if (label) label.textContent = `${seatLabel} • ${this.playerName}`;
+    if (label) label.textContent = this.playerName;
+    if (seatTag) seatTag.textContent = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
 
     // Re-render current controller to update player colors/axis
     this.renderGameController(this.gameMode);
@@ -175,10 +177,10 @@ export class GamepadManager {
   // --- 00: LOBBY CONTROLLER (Seat Selector, Name Edit, Game Preview, Ready Toggle, Leave Room) ---
   mountLobbyController(container) {
     const seatNames = [
-      '🔴 P1 // ALT KALE (KIRMIZI)',
-      '🔵 P2 // ÜST KALE (MAVİ)',
-      '🟡 P3 // SOL KALE (SARI)',
-      '🟢 P4 // SAĞ KALE (YEŞİL)',
+      'P1 // ALT',
+      'P2 // ÜST',
+      'P3 // SOL',
+      'P4 // SAĞ',
     ];
     const seatColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 
@@ -277,8 +279,7 @@ export class GamepadManager {
       editBtn?.classList.remove('hidden');
       const headerLabel = document.getElementById('header-player-name');
       if (headerLabel) {
-        const seatPositions = ['ALT // P1', 'ÜST // P2', 'SOL // P3', 'SAĞ // P4'];
-        headerLabel.textContent = `${seatPositions[this.playerIndex] || ''} • ${newName}`;
+        headerLabel.textContent = newName;
       }
       this.network.sendInput({ action: 'SET_NAME', name: newName });
       storePlayerName(newName);

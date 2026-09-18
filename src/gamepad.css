@@ -21,20 +21,27 @@
 
 /* Controller Top Status Bar */
 .gamepad-header {
-  height: 48px;
+  height: 46px;
   background-color: #1a1a1a;
   border-bottom: 3px solid #333333;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
+  padding: 0 10px;
   flex-shrink: 0;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .player-badge-pod {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .player-indicator-dot {
@@ -42,6 +49,7 @@
   height: 12px;
   border-radius: 2px;
   border: 1.5px solid #ffffff;
+  flex-shrink: 0;
 }
 
 .player-name-label {
@@ -49,6 +57,23 @@
   font-size: 13px;
   font-weight: 900;
   color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: min(32vw, 120px);
+}
+
+.player-seat-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 800;
+  color: #a8a39a;
+  background-color: #262626;
+  border: 1px solid #444444;
+  padding: 1px 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .gamepad-room-info {
@@ -58,44 +83,53 @@
   color: #d99b26;
   background-color: #26221c;
   border: 1px solid #d99b26;
-  padding: 2px 8px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .gamepad-header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .emoji-reaction-btn {
   background: transparent;
   border: none;
-  font-size: 20px;
+  font-size: 18px;
   cursor: pointer;
-  padding: 4px;
+  padding: 2px;
+  line-height: 1;
 }
 
 .btn-leave-gamepad {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 900;
   background-color: #333333;
   color: #ff6b6b;
   border: 1.5px solid #555555;
-  padding: 4px 8px;
+  padding: 4px 7px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 /* Controller Sub HUD / Score Strip */
 .gamepad-sub-hud {
-  height: 32px;
+  height: 30px;
   background-color: #0d0d0d;
   border-bottom: 2px solid #292929;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
+  padding: 0 10px;
   flex-shrink: 0;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .hud-game-tag {
@@ -105,6 +139,8 @@
   color: #1a1a1a;
   background-color: #d99b26;
   padding: 2px 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .hud-live-status {
@@ -116,7 +152,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 75vw;
+  min-width: 0;
+  flex: 1;
+  text-align: right;
 }
 
 /* Real-time Gamepad Pulsing Alerts */
@@ -163,19 +201,23 @@
 .lobby-controller-view {
   width: 100%;
   height: 100%;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 24px 20px;
-  gap: 20px;
+  justify-content: flex-start;
+  padding: 16px 12px 36px;
+  gap: 14px;
   background: radial-gradient(circle at center, #22201e 0%, #121212 100%);
   text-align: center;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .lobby-seats-card {
   width: 100%;
-  max-width: 360px;
+  max-width: 380px;
   background-color: #1a1a1a;
   border: 3px solid #333333;
   padding: 12px 14px;
@@ -183,6 +225,7 @@
   flex-direction: column;
   gap: 8px;
   box-shadow: 4px 4px 0px #000000;
+  box-sizing: border-box;
 }
 
 .lobby-seat-badge {
@@ -201,6 +244,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .lobby-seat-btn {
@@ -214,6 +258,9 @@
   cursor: pointer;
   text-align: left;
   touch-action: manipulation;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
   transition: border-color 0.1s ease, transform 0.08s ease;
 }
 
@@ -238,12 +285,13 @@
 .lobby-seat-btn .seat-details {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   overflow: hidden;
 }
 
 .lobby-seat-btn .seat-name {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   color: #ffffff;
   white-space: nowrap;
@@ -253,9 +301,10 @@
 
 .lobby-seat-btn .seat-status {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 9px;
+  font-size: 9.5px;
   font-weight: 800;
   color: #a8a39a;
+  white-space: nowrap;
 }
 
 .lobby-seat-btn.active .seat-status {
@@ -265,7 +314,7 @@
 
 .btn-leave-lobby-direct {
   width: 100%;
-  max-width: 360px;
+  max-width: 380px;
   padding: 10px;
   background: transparent;
   border: 1.5px dashed #662222;
@@ -275,6 +324,7 @@
   font-weight: 800;
   cursor: pointer;
   touch-action: manipulation;
+  box-sizing: border-box;
 }
 
 .btn-leave-lobby-direct:active {

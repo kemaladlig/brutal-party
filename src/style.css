@@ -228,15 +228,17 @@ body {
 #menu-overlay {
   position: fixed;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   background-color: #f4f4f0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 100;
-  padding: 16px;
+  padding: 16px 14px 40px;
   overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 #menu-overlay.hidden {
@@ -309,12 +311,14 @@ body {
 
 .menu-container {
   width: 100%;
-  max-width: 880px;
-  margin: auto;
+  max-width: 900px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 16px 8px 32px;
+  padding: 8px 4px 32px;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .menu-header {
@@ -322,7 +326,9 @@ body {
   flex-direction: column;
   gap: 12px;
   border-bottom: 4px solid #1a1a1a;
-  padding-bottom: 18px;
+  padding-bottom: 20px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .header-top-row {
@@ -347,7 +353,7 @@ body {
 
 .version-badge {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 1px;
   color: #ffffff;
@@ -357,7 +363,7 @@ body {
 }
 
 .menu-title {
-  font-size: clamp(32px, 7vw, 48px);
+  font-size: clamp(34px, 5.5vw, 54px);
   font-weight: 900;
   letter-spacing: -1.5px;
   color: #1a1a1a;
@@ -366,18 +372,20 @@ body {
 
 .menu-subtitle {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.8px;
-  color: #635f58;
+  color: #55514a;
 }
 
 /* Dual Hero Action Cards */
 .hero-actions-container {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
-  gap: 14px;
-  margin-top: 8px;
+  gap: 16px;
+  margin-top: 10px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 @media (max-width: 720px) {
@@ -390,11 +398,13 @@ body {
 .hero-card {
   border: 3.5px solid #1a1a1a;
   box-shadow: 6px 6px 0px #1a1a1a;
-  padding: 16px 18px;
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   position: relative;
+  box-sizing: border-box;
+  width: 100%;
   transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
@@ -418,7 +428,7 @@ body {
 
 .hero-card-badge {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.5px;
   background-color: #d84727;
@@ -433,7 +443,7 @@ body {
 
 .hero-card-tag {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 800;
   color: #706b62;
   letter-spacing: 1px;
@@ -441,7 +451,7 @@ body {
 
 .hero-card-title {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: clamp(17px, 3.5vw, 21px);
+  font-size: clamp(20px, 2.8vw, 25px);
   font-weight: 900;
   color: #1a1a1a;
   letter-spacing: -0.5px;
@@ -450,10 +460,10 @@ body {
 }
 
 .hero-card-desc {
-  font-size: 11.5px;
+  font-size: 13.5px;
   font-weight: 600;
   color: #55514a;
-  line-height: 1.35;
+  line-height: 1.4;
   margin: 0;
 }
 
@@ -462,15 +472,17 @@ body {
   gap: 8px;
   align-items: stretch;
   margin-top: 4px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .hero-code-input {
   flex: 1;
   min-width: 0;
-  height: 48px;
+  height: 50px;
   padding: 0 14px;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 900;
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -479,6 +491,7 @@ body {
   border: 3px solid #1a1a1a;
   box-shadow: 3px 3px 0px #1a1a1a;
   outline: none;
+  box-sizing: border-box;
   transition: box-shadow 0.08s ease, transform 0.08s ease;
 }
 
@@ -488,17 +501,17 @@ body {
 }
 
 .hero-code-input::placeholder {
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 0.5px;
   color: #a8a398;
   font-weight: 700;
 }
 
 .hero-submit-btn {
-  height: 48px;
-  padding: 0 18px;
+  height: 50px;
+  padding: 0 20px;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 900;
   background-color: #d84727;
   color: #ffffff;
@@ -507,6 +520,8 @@ body {
   cursor: pointer;
   touch-action: manipulation;
   white-space: nowrap;
+  flex-shrink: 0;
+  box-sizing: border-box;
   transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.08s ease;
 }
 
@@ -521,7 +536,7 @@ body {
   border: none;
   padding: 0;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: #7a756c;
   cursor: pointer;
@@ -535,11 +550,11 @@ body {
 }
 
 .hero-host-btn {
-  height: 48px;
+  height: 50px;
   width: 100%;
   padding: 0 14px;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 900;
   background-color: #1d5d8a;
   color: #ffffff;
@@ -548,7 +563,8 @@ body {
   cursor: pointer;
   touch-action: manipulation;
   margin-top: 4px;
-  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  box-sizing: border-box;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.08s ease;
 }
 
 .hero-host-btn:active {
@@ -563,36 +579,41 @@ body {
   box-shadow: 3px 3px 0px #1a1a1a;
   background-color: #f4fbf5;
   border-left: 6px solid #2f6a4f;
-  padding: 10px 14px;
+  padding: 11px 15px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 4px;
+  gap: 12px;
+  margin-top: 6px;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .stripe-badge {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 900;
   background-color: #2f6a4f;
   color: #ffffff;
-  padding: 2.5px 6px;
+  padding: 3px 8px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .stripe-text {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #234434;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
 /* Bento Grid: Responsive 2-3 Columns */
 .menu-games.bento-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Bento Card Design */
@@ -600,7 +621,7 @@ body {
   background-color: #ffffff;
   border: 3.5px solid #1a1a1a;
   box-shadow: 6px 6px 0px #1a1a1a;
-  padding: 16px 14px 14px;
+  padding: 18px 16px 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -610,7 +631,9 @@ body {
   transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
   touch-action: manipulation;
   position: relative;
-  min-height: 168px;
+  min-height: 172px;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .bento-card:hover {
@@ -646,13 +669,13 @@ body {
 
 .card-tag {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.8px;
   color: #1a1a1a;
   background-color: #e8e4db;
   border: 1.5px solid #1a1a1a;
-  padding: 2px 6px;
+  padding: 2px 7px;
 }
 
 .card-center {
@@ -670,7 +693,7 @@ body {
 }
 
 .card-title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 900;
   letter-spacing: -0.5px;
   color: #1a1a1a;
@@ -678,7 +701,7 @@ body {
 }
 
 .card-desc {
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 600;
   color: #55514a;
   line-height: 1.35;
@@ -696,22 +719,22 @@ body {
 
 .card-highlight {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 800;
   color: #1a1a1a;
   background-color: #fff9e6;
   border: 1px solid #d99b26;
-  padding: 2px 5px;
+  padding: 2px 6px;
 }
 
 .card-action {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 900;
   color: #1a1a1a;
   background-color: #f4f0ea;
   border: 2px solid #1a1a1a;
-  padding: 3px 8px;
+  padding: 3px 9px;
   transition: background-color 0.08s ease, color 0.08s ease;
 }
 
@@ -727,14 +750,62 @@ body {
 
 .footer-note {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.8px;
   color: #7d7870;
 }
 
-/* Responsive Mobile Layout (2 square/rectangular cards per row) */
+/* Responsive Mobile Layout */
 @media (max-width: 600px) {
+  #menu-overlay {
+    padding: 12px 10px 36px;
+    align-items: flex-start;
+  }
+
+  .menu-container {
+    padding: 4px 0 32px;
+    gap: 16px;
+  }
+
+  .menu-title {
+    font-size: 32px;
+  }
+
+  .menu-subtitle {
+    font-size: 11.5px;
+  }
+
+  .hero-card {
+    padding: 14px 12px;
+    box-shadow: 4px 4px 0px #1a1a1a;
+  }
+
+  .hero-card-title {
+    font-size: 19px;
+  }
+
+  .hero-card-desc {
+    font-size: 12px;
+  }
+
+  .hero-code-input {
+    height: 46px;
+    font-size: 18px;
+    padding: 0 10px;
+  }
+
+  .hero-submit-btn {
+    height: 46px;
+    padding: 0 14px;
+    font-size: 13.5px;
+  }
+
+  .hero-host-btn {
+    height: 46px;
+    font-size: 13px;
+  }
+
   .menu-games.bento-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
@@ -742,9 +813,9 @@ body {
 
   .bento-card {
     padding: 12px 10px 10px;
-    gap: 10px;
+    gap: 8px;
     box-shadow: 4px 4px 0px #1a1a1a;
-    min-height: 156px;
+    min-height: 154px;
   }
 
   .card-hero-icon {
@@ -752,11 +823,11 @@ body {
   }
 
   .card-title {
-    font-size: 14.5px;
+    font-size: 15px;
   }
 
   .card-desc {
-    font-size: 10px;
+    font-size: 11px;
     line-height: 1.25;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -766,14 +837,6 @@ body {
 
   .card-highlight {
     display: none;
-  }
-
-  .mode-tab .tab-title {
-    font-size: 10.5px;
-  }
-
-  .mode-tab .tab-sub {
-    font-size: 8.5px;
   }
 }
 
@@ -1023,6 +1086,8 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .slot-position-label {
@@ -1037,6 +1102,9 @@ body {
   font-size: 13px;
   font-weight: 900;
   color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .slot-status-tag {
