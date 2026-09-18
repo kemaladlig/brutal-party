@@ -127,11 +127,35 @@ export class SupabaseRelay {
   _hostHandleMessage(msg) {
     switch (msg.action) {
       case 'JOIN': {
-        // Find free slot
+        const cleanName = (msg.name || 'OYUNCU').slice(0, 12);
         let slotIndex = -1;
+
+        // 1. Reconnect: Daha önce bu isimle bağlanmış bir slot varsa geri ver
         for (let i = 0; i < 4; i++) {
-          if (!this.players[i]) { slotIndex = i; break; }
+          if (this.players[i] && this.players[i].name === cleanName) {
+            slotIndex = i;
+            break;
+          }
         }
+
+        // 2. Boş slot bul
+        if (slotIndex === -1) {
+          for (let i = 0; i < 4; i++) {
+            if (!this.players[i]) { slotIndex = i; break; }
+          }
+        }
+
+        // 3. Tüm slotlar doluysa >20sn'dir yanıt vermeyen (hayalet) slotu geri kazan
+        if (slotIndex === -1) {
+          const now = performance.now();
+          for (let i = 0; i < 4; i++) {
+            if (this.players[i] && now - (this.players[i].lastSeen || 0) > 20000) {
+              slotIndex = i;
+              break;
+            }
+          }
+        }
+
         if (slotIndex === -1) {
           // Room full — send rejection
           this._broadcast('host_msg', {
@@ -144,9 +168,10 @@ export class SupabaseRelay {
 
         const player = {
           id: msg.senderId,
-          name: (msg.name || 'OYUNCU').slice(0, 12),
+          name: cleanName,
           color: PLAYER_COLORS[slotIndex],
           slotIndex,
+          lastSeen: performance.now(),
         };
         this.players[slotIndex] = player;
         this.ready[slotIndex] = false;
@@ -174,6 +199,7 @@ export class SupabaseRelay {
       case 'INPUT': {
         const slot = this._findSlotByPlayerId(msg.senderId);
         if (slot === -1) return;
+        if (this.players[slot]) this.players[slot].lastSeen = performance.now();
         if (this.callbacks.onPlayerInput) {
           this.callbacks.onPlayerInput(slot, msg.data);
         }
@@ -183,6 +209,7 @@ export class SupabaseRelay {
       case 'READY': {
         const slot = this._findSlotByPlayerId(msg.senderId);
         if (slot === -1) return;
+        if (this.players[slot]) this.players[slot].lastSeen = performance.now();
         this.ready[slot] = !!msg.isReady;
         if (this.callbacks.onPlayerReadyStatus) {
           this.callbacks.onPlayerReadyStatus(slot, !!msg.isReady);
@@ -193,6 +220,7 @@ export class SupabaseRelay {
       case 'REACTION': {
         const slot = this._findSlotByPlayerId(msg.senderId);
         if (slot === -1) return;
+        if (this.players[slot]) this.players[slot].lastSeen = performance.now();
         if (this.callbacks.onPlayerReaction) {
           this.callbacks.onPlayerReaction(slot, msg.emoji);
         }
@@ -212,6 +240,10 @@ export class SupabaseRelay {
       }
 
       case 'PONG_REPLY': {
+        const slot = this._findSlotByPlayerId(msg.senderId);
+        if (slot !== -1 && this.players[slot]) {
+          this.players[slot].lastSeen = performance.now();
+        }
         if (msg.targetId === this.myId && msg.timestamp) {
           this.ping = Math.round((performance.now() - msg.timestamp) / 2);
         }
@@ -455,9 +487,17 @@ export class SupabaseRelay {
 
   sendInput(data) {
     if (this.role !== 'CONTROLLER' || !this.channel) return;
-    // Input flood koruması: ~30ms throttle (Broadcast kotası için)
+    // Input flood koruması: Sürekli hareketler ~30ms throttle edilir.
+    // Ancak bırakma (force 0, dir 0) ve aksiyon tuşları (ATEŞ, DEPAR, SET_NAME) ASLA atlanmaz!
+    const isDiscrete =
+      data.action === 'SET_NAME' ||
+      data.action === 'TANK_FIRE' ||
+      data.action === 'BOMB_DASH' ||
+      data.force === 0 ||
+      data.dir === 0;
+
     const now = performance.now();
-    if (now - (this._lastInputSent || 0) < 30) return;
+    if (!isDiscrete && now - (this._lastInputSent || 0) < 30) return;
     this._lastInputSent = now;
     this._broadcast('player_msg', {
       action: 'INPUT',

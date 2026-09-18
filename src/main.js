@@ -10,7 +10,7 @@ import { TouchManager } from './touchManager.js';
 import { toggleAudio, getIsMuted, playJoin } from './audio.js';
 import { partyNetwork } from './network.js';
 import { GamepadManager } from './gamepad.js';
-import { PUBLIC_URL, HAS_SUPABASE_CONFIG, getActiveNetwork, disconnectInactiveNetwork, getStoredPlayerName, storePlayerName } from './net.js';
+import { PUBLIC_URL, HAS_SUPABASE_CONFIG, isPublicOrigin, getActiveNetwork, disconnectInactiveNetwork, getStoredPlayerName, storePlayerName } from './net.js';
 
 // DOM Elements
 const canvas = document.getElementById('game-canvas');
@@ -44,17 +44,9 @@ const modeActionBanner = document.getElementById('mode-action-banner');
 // Platform / Match Mode: 'LOCAL' | 'TV_CONSOLE' | 'ONLINE'
 let platformMode = 'LOCAL';
 
-// Aktif moda göre network: TV_CONSOLE → lokal WebSocket, ONLINE → Supabase Broadcast
+// Aktif moda göre network: TV_CONSOLE → lokal WebSocket / Supabase, ONLINE → Supabase Broadcast
 function activeNet() {
   return getActiveNetwork(platformMode);
-}
-
-function isPublicOrigin() {
-  try {
-    return window.location.origin === PUBLIC_URL;
-  } catch {
-    return false;
-  }
 }
 
 // State Machine: 'MENU' | 'PONG' | 'TANKS' | 'CURVE' | 'BOMB' | 'HEIST' | 'DUEL'
@@ -392,7 +384,9 @@ function startHostPingBadge() {
   const baseText = platformMode === 'ONLINE' ? '🌐 ONLINE LOBİ' : '📺 TV HOST PARTİ LOBİSİ';
   const tick = () => {
     const ping = activeNet().ping || 0;
-    badge.textContent = platformMode === 'ONLINE' ? `${baseText} • ${ping}ms` : baseText;
+    badge.textContent = (platformMode === 'ONLINE' || isPublicOrigin()) && ping > 0
+      ? `${baseText} • ${ping}ms`
+      : baseText;
   };
   tick();
   hostPingTimer = window.setInterval(tick, 2000);
@@ -465,9 +459,9 @@ function getEffectiveJoinUrl(roomCode) {
 }
 
 async function openHostLobby(gameMode = 'PONG') {
-  // TV modu lokal ağ gerektirir — public sitede (Vercel) WS sunucusu yoktur.
-  if (platformMode === 'TV_CONSOLE' && isPublicOrigin()) {
-    showInstallToast('📺 TV modu aynı Wi-Fi içinde çalışır (PC/tablette npm run dev). Uzaktaki arkadaş için ONLINE modu kullanın.');
+  // Public sitede Supabase yoksa oda açılamaz
+  if (isPublicOrigin() && !HAS_SUPABASE_CONFIG) {
+    showInstallToast('⚠️ Supabase yapılandırması eksik. Vercel Environment Variables ayarlarını kontrol edin.');
     return;
   }
 
