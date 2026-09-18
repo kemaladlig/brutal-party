@@ -1081,15 +1081,6 @@ body {
   gap: 8px;
 }
 
-.connect-channel-title {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.5px;
-  color: #1a1a1a;
-  padding-bottom: 2px;
-}
-
 .connect-channel-card {
   background: #ffffff;
   border: 2.5px solid #1a1a1a;
@@ -1099,17 +1090,6 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 5px;
-}
-
-.channel-badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  font-weight: 800;
-  background: #1a1a1a;
-  color: #ffffff;
-  padding: 2px 5px;
-  align-self: flex-start;
-  border: 1px solid #1a1a1a;
 }
 
 .qr-channel .qr-canvas-box {
@@ -1159,15 +1139,6 @@ body {
 .code-copy-btn:active {
   transform: translate(1px, 1px);
   box-shadow: 1px 1px 0px #1a1a1a;
-}
-
-.channel-hint {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  font-weight: 700;
-  color: #55514a;
-  text-align: center;
-  line-height: 1.2;
 }
 
 .share-channel {
@@ -1512,19 +1483,11 @@ body {
   text-overflow: ellipsis;
 }
 
-.chip-sub {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 8.5px;
-  font-weight: 800;
-  color: #6b665c;
-  letter-spacing: 0.3px;
-}
-
 .tv-host-actions {
   display: flex;
   gap: 10px;
-  border-top: 3.5px solid #1a1a1a;
-  padding-top: 14px;
+  flex-direction: column;
+  margin-top: 16px;
 }
 
 .tv-start-btn {
