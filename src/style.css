@@ -885,7 +885,7 @@ body {
 
 .tv-host-card {
   width: 100%;
-  max-width: 1020px;
+  max-width: 1140px;
   max-height: 92vh;
   overflow-y: auto;
   background-color: #faf7f2;
@@ -947,12 +947,12 @@ body {
 
 .tv-host-body {
   display: grid;
-  grid-template-columns: 220px 1.15fr 1fr;
+  grid-template-columns: 210px 260px 1fr;
   gap: 16px;
   align-items: stretch;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 920px) {
   .tv-host-body {
     grid-template-columns: 1fr;
   }
@@ -1175,57 +1175,122 @@ body {
 
 .selector-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .selector-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .lobby-game-chip {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 8px 10px;
   background-color: #ffffff;
   border: 2.5px solid #1a1a1a;
-  box-shadow: 2.5px 2.5px 0px #1a1a1a;
+  box-shadow: 3px 3px 0px #1a1a1a;
   cursor: pointer;
   touch-action: manipulation;
-  text-align: left;
-  transition: transform 0.08s ease, background-color 0.08s ease;
+  text-align: center;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
+  position: relative;
+  border-radius: 0px;
+  outline: none;
+}
+
+.lobby-game-chip:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0px #1a1a1a;
 }
 
 .lobby-game-chip:active {
-  transform: translate(1.5px, 1.5px);
+  transform: translate(2px, 2px);
   box-shadow: 1px 1px 0px #1a1a1a;
 }
 
 .lobby-game-chip.active {
   border-color: #d84727;
+  border-width: 3px;
   background-color: #fff6f3;
-  box-shadow: 3.5px 3.5px 0px #d84727;
+  box-shadow: 4px 4px 0px #d84727;
+}
+
+.chip-media-box {
+  width: 100%;
+  aspect-ratio: 16 / 11;
+  max-height: 85px;
+  border: 2px solid #1a1a1a;
+  box-shadow: 2px 2px 0px #1a1a1a;
+  background-color: #f2eee8;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chip-thumb-img {
-  width: 30px;
-  height: 30px;
-  border-radius: 4px;
-  border: 1.5px solid #1a1a1a;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  flex-shrink: 0;
   display: block;
-  background-color: #f2eee8;
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.chip-icon {
-  font-size: 18px;
-  line-height: 1;
+.lobby-game-chip:hover .chip-thumb-img {
+  transform: scale(1.08);
+}
+
+.chip-active-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background-color: #d84727;
+  color: #ffffff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  font-weight: 900;
+  padding: 2px 5px;
+  border: 1.5px solid #1a1a1a;
+  box-shadow: 1.5px 1.5px 0px #1a1a1a;
+  display: none;
+  z-index: 2;
+}
+
+.lobby-game-chip.active .chip-active-badge {
+  display: block;
+}
+
+.chip-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+  margin-top: 2px;
 }
 
 .chip-name {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 900;
   color: #1a1a1a;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  font-weight: 800;
+  color: #6b665c;
+  letter-spacing: 0.3px;
 }
 
 .tv-host-actions {
