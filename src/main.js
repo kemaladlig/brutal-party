@@ -510,7 +510,17 @@ function returnHostToLobby() {
   closePauseModal();
   setGameMode('MENU');
   activeNet().returnToLobby();
-  openHostLobby(getCurrentHostGameMode());
+  // Oda korunur: hostRoom tekrar çağrılmaz (yeni kod üretip koltukları siliyordu —
+  // kumandalar eski kanalda asılı kalıp STAGING_STARTED'i kaçırıyordu).
+  const roomCode = activeNet().roomCode;
+  if (roomCode) {
+    const joinUrl = getEffectiveJoinUrl(roomCode, platformMode);
+    showHostLobbyModal(roomCode, joinUrl);
+    startHostPingBadge(() => activeNet().ping, platformMode);
+    setSeatTapHook();
+  } else {
+    openHostLobby(getCurrentHostGameMode());
+  }
 }
 
 function handleExitToMenu() {

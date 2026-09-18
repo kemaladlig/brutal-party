@@ -201,14 +201,14 @@ export class GamepadManager {
     strip.classList.remove('hidden');
   }
 
-  // İki kademeli başlatma: host sahayı açtı → koltuk seçimi görünür
+  // İki kademeli başlatma: host sahayı açtı → koltuk seçimi görünür.
+  // STAGING her durumda lobi görünümünü basar: RETURNED_TO_LOBBY'yi kaçırmış
+  // (uyku/zamanlama) kumanda eski oyun ekranında ölü takılmasın diye koşulsuz render.
   enterStaging(gameMode) {
     this.stagingOpen = true;
     this.countdownActive = false;
     if (gameMode) this.selectedHostGame = gameMode;
-    if (this.gameMode === 'LOBBY') {
-      this.renderGameController('LOBBY');
-    }
+    this.renderGameController('LOBBY');
   }
 
   // Geri sayım tik'i: koltuklar kilitlenir, sayaç ekranı basılır
@@ -1109,6 +1109,39 @@ export class GamepadManager {
       this.overlay.classList.toggle('crown-king-alert', isKing);
     } else {
       this.overlay.classList.remove('crown-king-alert');
+    }
+
+    // 3. Duel Signal — kumandacı sinyali TV'ye bakmadan görsün
+    // (host duelState'i paketle yayınlar; daha önce bu dal yoktu, tetik hep "BEKLE..." kalıyordu)
+    if (this.gameMode === 'DUEL') {
+      const duelStateEl = document.getElementById('duel-trigger-state');
+      if (duelStateEl) {
+        const duelSub = document.getElementById('duel-trigger-sub');
+        const duelBtn = document.getElementById('btn-duel-trigger');
+        const phase = data.duelState;
+        if (phase === 'DRAW_SIGNAL') {
+          duelStateEl.textContent = '🔥 ÇEK!';
+          if (duelSub) duelSub.textContent = 'ŞİMDİ DOKUN!';
+          duelBtn?.classList.add('signal');
+          // 8Hz sync her tikte titreşmesin — sinyal başına bir kez
+          if (duelBtn && !duelBtn.dataset.signaled) {
+            duelBtn.dataset.signaled = '1';
+            if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+          }
+        } else if (phase === 'ROUND_OVER' || phase === 'MATCH_OVER') {
+          const w = data.winner;
+          duelStateEl.textContent =
+            w === null || w === undefined ? '🤝 BERABERE' : (w === this.playerIndex ? '🏆 KAZANDIN!' : `P${w + 1} ALDI`);
+          if (duelSub) duelSub.textContent = phase === 'MATCH_OVER' ? 'MAÇ BİTTİ' : 'SONRAKİ RAUNT...';
+          duelBtn?.classList.remove('signal');
+          if (duelBtn) delete duelBtn.dataset.signaled;
+        } else {
+          duelStateEl.textContent = '✋ BEKLE...';
+          if (duelSub) duelSub.textContent = 'SİNYALİ GÖRÜNCE DOKUN!';
+          duelBtn?.classList.remove('signal');
+          if (duelBtn) delete duelBtn.dataset.signaled;
+        }
+      }
     }
 
     // 3. Tanks Ammo Pips Sync

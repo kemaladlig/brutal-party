@@ -678,6 +678,30 @@
   color: #ffffff;
 }
 
+/* Yatay mod: lobi iki kolon (sol koltuklar, sağ isim+hazır) — kaydırmasız sığsın */
+@media (orientation: landscape) and (min-aspect-ratio: 1/1) {
+  .lobby-controller-view {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    align-content: center;
+    align-items: start;
+    gap: 10px;
+    padding: 12px 16px max(12px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .lobby-seats-card,
+  .lobby-wait-card {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    max-width: none;
+  }
+
+  /* Yatayda yer kazancı: oyun görseli gizlenir, oyun adı metni kalır */
+  .lobby-game-preview-card .lobby-game-thumb-preview {
+    display: none;
+  }
+}
+
 /* 01 // PONG CONTROLLER (Orientation Aware) */
 .pong-controller-view {
   width: 100%;
@@ -1149,6 +1173,17 @@
   font-size: 14px;
   font-weight: 800;
   color: #ffde59;
+}
+
+/* Sinyal anı: kumandacı TV'ye bakmadan görsün */
+.duel-full-trigger-btn.signal {
+  background-color: #25d366 !important;
+  box-shadow: 0 0 44px rgba(37, 211, 102, 0.9);
+  animation: duel-signal-flash 0.4s steps(2, jump-none) infinite;
+}
+
+@keyframes duel-signal-flash {
+  50% { filter: brightness(1.35); }
 }
 
 /* Reaction Emoji Overlay */

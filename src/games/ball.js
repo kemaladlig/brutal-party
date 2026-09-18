@@ -93,8 +93,10 @@ export class Ball {
       angle = base + (Math.random() - 0.5) * 0.12;
     }
 
-    this.vx = Math.cos(angle) * this.currentMinSpeed;
-    this.vy = Math.sin(angle) * this.currentMinSpeed;
+    // Başlangıç hızı tabanın %15 üstü (maç temposu yüksek başlasın; tavan mantığı korunur)
+    const startSpeed = this.currentMinSpeed * 1.15;
+    this.vx = Math.cos(angle) * startSpeed;
+    this.vy = Math.sin(angle) * startSpeed;
   }
 
   fixedUpdate(dt, arena, paddles) {
