@@ -290,8 +290,20 @@ function addTapListener(el, callback) {
   });
 }
 
+// Mobil tam ekran: kullanıcı dokunuşuyla (jest bağlamı) durum çubuğunu gizle.
+// Kurulu PWA'da manifest (fullscreen) işi zaten yapar; bu, tarayıcıdan açanlar içindir.
+function tryFullscreen() {
+  try {
+    if (!document.fullscreenElement && typeof document.documentElement.requestFullscreen === 'function') {
+      const p = document.documentElement.requestFullscreen();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    }
+  } catch {}
+}
+
 // TV Host Room Creation
 async function openHostLobby(gameMode = 'PONG') {
+  tryFullscreen();
   setCurrentHostGameMode(gameMode);
   try {
     await activeNet().hostRoom(gameMode, {
@@ -394,6 +406,7 @@ async function openHostLobby(gameMode = 'PONG') {
 
 // Controller Join Room Execution
 async function executeJoin(rawCode, rawName) {
+  tryFullscreen();
   const code = (rawCode || '').trim().toUpperCase();
   const name = (rawName || '').trim().toUpperCase() || 'OYUNCU';
 
@@ -545,8 +558,6 @@ function returnHostToLobby() {
 
 function handleExitToMenu() {
   if (activeNet().isHosting) {
-    const confirmed = window.confirm('Odayı kapatmak ve ana menüye dönmek istiyor musunuz? Tüm bağlı kumandaların bağlantısı kesilecektir.');
-    if (!confirmed) return;
     closePauseModal();
     exitStagingToLobby();
     hideHostLobbyModal();
@@ -619,6 +630,7 @@ function startEngineNow(mode) {
 
 // BAŞLAT #1: sahayı aç — motor LOBBY'de arena gösterir, koltuk seçimi başlar
 function enterStaging(mode) {
+  tryFullscreen();
   stagingMode = mode;
   seatsLocked = false;
   setGameMode(mode);

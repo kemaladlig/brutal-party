@@ -400,8 +400,8 @@ body {
 }
 
 .install-toast {
-  position: absolute;
-  top: 68px;
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 0px));
   right: max(16px, env(safe-area-inset-right));
   width: min(300px, calc(100vw - 32px));
   padding: 10px 12px;
@@ -417,7 +417,7 @@ body {
   pointer-events: none;
   transform: translateY(-6px);
   transition: opacity 0.16s ease, transform 0.16s ease;
-  z-index: 3;
+  z-index: 300;
 }
 
 .install-toast.visible {
@@ -1064,7 +1064,7 @@ body {
 
 .tv-host-body {
   display: grid;
-  grid-template-columns: 210px 260px 1fr;
+  grid-template-columns: 280px 250px 1fr;
   gap: 16px;
   align-items: stretch;
 }
@@ -1081,28 +1081,30 @@ body {
   gap: 8px;
 }
 
-.connect-channel-card {
+/* Tek BAĞLAN kartı: solda QR, sağda kod + link + WhatsApp */
+.host-connect-card {
   background: #ffffff;
   border: 2.5px solid #1a1a1a;
   box-shadow: 3px 3px 0px #1a1a1a;
-  padding: 8px 10px;
+  padding: 10px;
   display: flex;
-  flex-direction: column;
+  gap: 10px;
   align-items: center;
-  gap: 5px;
 }
 
-.qr-channel .qr-canvas-box {
+.host-connect-right {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px;
+  flex-direction: column;
+  gap: 8px;
 }
 
 #qr-canvas {
-  width: 105px !important;
-  height: 105px !important;
+  width: 92px !important;
+  height: 92px !important;
   image-rendering: pixelated;
+  flex-shrink: 0;
 }
 
 .channel-big-code {
@@ -1139,10 +1141,6 @@ body {
 .code-copy-btn:active {
   transform: translate(1px, 1px);
   box-shadow: 1px 1px 0px #1a1a1a;
-}
-
-.share-channel {
-  gap: 6px;
 }
 
 .host-share-btn {

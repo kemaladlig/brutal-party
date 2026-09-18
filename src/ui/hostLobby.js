@@ -144,9 +144,22 @@ export function initHostLobby({
     }
   });
 
+  // Çift-bas onay: ilk dokunuş kurar, 3sn içinde ikinci dokunuş kapatır
+  const CLOSE_LABEL = '⌂ LOBİYİ KAPAT';
+  let closeArmedTimer = null;
   btnHostClose?.addEventListener('click', () => {
-    const confirmed = window.confirm('Lobi kapatılsın mı? Tüm bağlı kumandaların bağlantısı kesilecektir.');
-    if (!confirmed) return;
+    if (!btnHostClose.dataset.armed) {
+      btnHostClose.dataset.armed = '1';
+      btnHostClose.textContent = 'EMİN MİSİN? TEKRAR BAS';
+      closeArmedTimer = window.setTimeout(() => {
+        delete btnHostClose.dataset.armed;
+        btnHostClose.textContent = CLOSE_LABEL;
+      }, 3000);
+      return;
+    }
+    window.clearTimeout(closeArmedTimer);
+    delete btnHostClose.dataset.armed;
+    btnHostClose.textContent = CLOSE_LABEL;
     hideHostLobbyModal();
     if (typeof onCloseLobby === 'function') {
       onCloseLobby();

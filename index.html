@@ -68,32 +68,23 @@
           </div>
 
           <div class="tv-host-body">
-            <!-- Left: 3 Clear Ways to Connect -->
+            <!-- Left: tek BAĞLAN kartı (QR + kod + link + WhatsApp) -->
             <div class="host-connect-channels">
-              <!-- Channel 1: Camera QR -->
-              <div class="connect-channel-card qr-channel">
-                <div class="qr-canvas-box">
-                  <canvas id="qr-canvas"></canvas>
+              <div class="host-connect-card">
+                <canvas id="qr-canvas"></canvas>
+                <div class="host-connect-right">
+                  <div class="channel-code-row">
+                    <div class="channel-big-code">#<span id="host-channel-code">---</span></div>
+                    <button class="code-copy-btn" id="btn-host-copy-code" title="Kodu kopyala" type="button">⧉</button>
+                  </div>
+                  <button class="host-link-box" id="btn-host-copy-link" type="button" title="Dokun: linki kopyala">
+                    <span class="host-link-text" id="host-join-url">http://...</span>
+                    <span class="host-link-copy">⧉</span>
+                  </button>
+                  <button class="host-share-btn whatsapp" id="btn-host-whatsapp-share" type="button">
+                    💬 WHATSAPP İLE DAVET ET
+                  </button>
                 </div>
-              </div>
-
-              <!-- Channel 2: 3-Digit Code -->
-              <div class="connect-channel-card code-channel">
-                <div class="channel-code-row">
-                  <div class="channel-big-code">#<span id="host-channel-code">---</span></div>
-                  <button class="code-copy-btn" id="btn-host-copy-code" title="Kodu kopyala" type="button">⧉</button>
-                </div>
-              </div>
-
-              <!-- Channel 3: WhatsApp & Direct Link -->
-              <div class="connect-channel-card share-channel">
-                <button class="host-link-box" id="btn-host-copy-link" type="button" title="Dokun: linki kopyala">
-                  <span class="host-link-text" id="host-join-url">http://...</span>
-                  <span class="host-link-copy">⧉</span>
-                </button>
-                <button class="host-share-btn whatsapp" id="btn-host-whatsapp-share" type="button">
-                  💬 WHATSAPP İLE DAVET ET
-                </button>
               </div>
             </div>
 
@@ -105,7 +96,7 @@
                 <div class="slot-color-dot" style="background-color: #D84727"></div>
                 <div class="slot-info">
                   <div class="slot-position-label">P1 // KIRMIZI</div>
-                  <div class="slot-name">BEKLENİYOR...</div>
+                  <div class="slot-name">BOŞ</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p1">BEKLİYOR</div>
                 <button class="slot-bot-btn hidden" data-slot="0" title="Bot ekle/kaldır" type="button">+ BOT</button>
@@ -115,7 +106,7 @@
                 <div class="slot-color-dot" style="background-color: #1D5D8A"></div>
                 <div class="slot-info">
                   <div class="slot-position-label">P2 // MAVİ</div>
-                  <div class="slot-name">BEKLENİYOR...</div>
+                  <div class="slot-name">BOŞ</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p2">BEKLİYOR</div>
                 <button class="slot-bot-btn hidden" data-slot="1" title="Bot ekle/kaldır" type="button">+ BOT</button>
@@ -125,7 +116,7 @@
                 <div class="slot-color-dot" style="background-color: #D99B26"></div>
                 <div class="slot-info">
                   <div class="slot-position-label">P3 // SARI</div>
-                  <div class="slot-name">BEKLENİYOR...</div>
+                  <div class="slot-name">BOŞ</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p3">BEKLİYOR</div>
                 <button class="slot-bot-btn hidden" data-slot="2" title="Bot ekle/kaldır" type="button">+ BOT</button>
@@ -135,7 +126,7 @@
                 <div class="slot-color-dot" style="background-color: #2F6A4F"></div>
                 <div class="slot-info">
                   <div class="slot-position-label">P4 // YEŞİL</div>
-                  <div class="slot-name">BEKLENİYOR...</div>
+                  <div class="slot-name">BOŞ</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p4">BEKLİYOR</div>
                 <button class="slot-bot-btn hidden" data-slot="3" title="Bot ekle/kaldır" type="button">+ BOT</button>
@@ -295,7 +286,6 @@
         <button id="btn-install-app" class="install-app-btn" type="button" aria-label="Oyunu ana ekrana yükle" title="Oyunu ana ekrana yükle">
           <span aria-hidden="true">↓</span>
         </button>
-        <div id="install-toast" class="install-toast" role="status" aria-live="polite"></div>
         <div class="menu-container">
           <!-- Header Banner -->
           <div class="menu-header">
@@ -486,6 +476,9 @@
         </div>
       </div>
     </div>
+
+    <!-- Global toast: body seviyesinde (gizli ebeveynde hapsolmasın) -->
+    <div id="install-toast" class="install-toast" role="status" aria-live="polite"></div>
 
     <script type="module" src="/src/main.js"></script>
   </body>

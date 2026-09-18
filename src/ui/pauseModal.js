@@ -141,7 +141,23 @@ export function initPauseModal({
     }
   });
 
-  btnExitToMenu?.addEventListener('click', onExitMenu);
+  // Çıkış çift-bas onay (host odası kapanacağı için; misafir tek basışta çıkar)
+  let exitArmedTimer = null;
+  btnExitToMenu?.addEventListener('click', () => {
+    if (getIsHosting?.() && !btnExitToMenu.dataset.armed) {
+      btnExitToMenu.dataset.armed = '1';
+      const origLabel = btnExitToMenu.textContent;
+      btnExitToMenu.textContent = 'EMİN MİSİN? TEKRAR BAS';
+      exitArmedTimer = window.setTimeout(() => {
+        delete btnExitToMenu.dataset.armed;
+        btnExitToMenu.textContent = origLabel;
+      }, 3000);
+      return;
+    }
+    window.clearTimeout(exitArmedTimer);
+    delete btnExitToMenu.dataset.armed;
+    onExitMenu();
+  });
   btnTvLobby?.addEventListener('click', onTvLobby);
 
   btnPauseRotateSeats?.addEventListener('click', () => {

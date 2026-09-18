@@ -446,13 +446,23 @@ export class GamepadManager {
       if (navigator.vibrate) navigator.vibrate(this.isReady ? [20, 30] : 15);
     });
 
-    // Leave room
-    document.getElementById('btn-leave-lobby-direct')?.addEventListener('click', () => {
-      if (confirm('Odadan ayrılmak istediğinize emin misiniz?')) {
-        this.network.disconnect();
-        this.hide();
-        window.location.href = window.location.pathname;
+    // Leave room (çift-bas onay)
+    const leaveBtn = document.getElementById('btn-leave-lobby-direct');
+    let leaveArmedTimer = null;
+    leaveBtn?.addEventListener('click', () => {
+      if (!leaveBtn.dataset.armed) {
+        leaveBtn.dataset.armed = '1';
+        leaveBtn.textContent = 'EMİN MİSİN? TEKRAR BAS';
+        leaveArmedTimer = window.setTimeout(() => {
+          delete leaveBtn.dataset.armed;
+          leaveBtn.textContent = '🚪 ODADAN AYRIL';
+        }, 3000);
+        return;
       }
+      window.clearTimeout(leaveArmedTimer);
+      this.network.disconnect();
+      this.hide();
+      window.location.href = window.location.pathname;
     });
   }
 
