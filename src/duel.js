@@ -12,17 +12,14 @@ import {
   playFakeoutCrow,
 } from './audio.js';
 import { renderControlGuide } from './controlGuide.js';
+import { BaseMiniGame } from './core/BaseGame.js';
 
 export const DUEL_COLORS = ['#8C4830', '#1F4E5B', '#C08552', '#3E5C76'];
 export const DUEL_NAMES = ['KOVBOY 1', 'KOVBOY 2', 'KOVBOY 3', 'KOVBOY 4'];
 
-export class DuelGame {
+export class DuelGame extends BaseMiniGame {
   constructor(canvas) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
-
-    // States: 'LOBBY', 'STANDOFF_COUNTDOWN', 'TENSION', 'DRAW_SIGNAL', 'ROUND_OVER', 'MATCH_OVER'
-    this.state = 'LOBBY';
+    super(canvas);
 
     // Arena geometry
     this.arena = {
@@ -410,17 +407,7 @@ export class DuelGame {
 
     // Lobby UI Clicks (Start Button)
     if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
-      for (const btn of this.uiButtons) {
-        if (
-          pos.x >= btn.x &&
-          pos.x <= btn.x + btn.w &&
-          pos.y >= btn.y &&
-          pos.y <= btn.y + btn.h
-        ) {
-          btn.onClick();
-          return;
-        }
-      }
+      if (this.handleUiTap(pos)) return;
     }
 
     // Lobby Pad Click (Player join toggle)

@@ -1,0 +1,141 @@
+// In-Game Pause Modal & Seat Switcher Manager
+import { hostPlayerSlots } from '../core/slotManager.js';
+import { showInstallToast } from './toast.js';
+import { toggleAudio } from '../audio.js';
+
+const pauseModal = document.getElementById('pause-modal');
+const pauseGameTitle = document.getElementById('pause-game-title');
+const btnResumeGame = document.getElementById('btn-resume-game');
+const btnResetMatch = document.getElementById('btn-reset-match');
+const btnTvLobby = document.getElementById('btn-tv-lobby');
+const btnToggleSound = document.getElementById('btn-toggle-sound');
+const btnExitToMenu = document.getElementById('btn-exit-to-menu');
+const btnPauseRotateSeats = document.getElementById('btn-pause-rotate-seats');
+
+let pauseSelectedSlot = null;
+let isPaused = false;
+
+export function getIsPaused() {
+  return isPaused;
+}
+
+export function setIsPaused(val) {
+  isPaused = val;
+}
+
+export function renderPauseSeats(onSwapCallback) {
+  const grid = document.getElementById('pause-seats-grid');
+  if (!grid) return;
+
+  const slotLabels = ['P1 (ALT)', 'P2 (ÜST)', 'P3 (SOL)', 'P4 (SAĞ)'];
+  const slotColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
+
+  grid.innerHTML = [0, 1, 2, 3]
+    .map((idx) => {
+      const slot = hostPlayerSlots[idx];
+      const name = slot?.name || 'BOŞ (BOT)';
+      const isSelected = pauseSelectedSlot === idx;
+      return `
+        <button type="button" class="pause-seat-btn ${isSelected ? 'selected-for-swap' : ''}" data-slot="${idx}" style="--seat-color: ${slotColors[idx]}">
+          <div class="pause-seat-color-badge" style="background: ${slotColors[idx]}"></div>
+          <div class="pause-seat-info">
+            <span class="pause-seat-slot-label">${slotLabels[idx]}</span>
+            <span class="pause-seat-player-name">${name}</span>
+          </div>
+        </button>
+      `;
+    })
+    .join('');
+
+  grid.querySelectorAll('.pause-seat-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const slotIdx = parseInt(btn.dataset.slot, 10);
+      if (pauseSelectedSlot === null) {
+        pauseSelectedSlot = slotIdx;
+        renderPauseSeats(onSwapCallback);
+      } else if (pauseSelectedSlot === slotIdx) {
+        pauseSelectedSlot = null;
+        renderPauseSeats(onSwapCallback);
+      } else {
+        const slotA = pauseSelectedSlot;
+        const slotB = slotIdx;
+        pauseSelectedSlot = null;
+        if (typeof onSwapCallback === 'function') {
+          onSwapCallback(slotA, slotB);
+        }
+        renderPauseSeats(onSwapCallback);
+        showInstallToast(`🔄 P${slotA + 1} ve P${slotB + 1} takas edildi!`);
+      }
+    });
+  });
+}
+
+export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
+  if (currentMode === 'MENU') return;
+  isPaused = true;
+  pauseModal?.classList.remove('hidden');
+
+  const titles = {
+    PONG: 'BRUTAL PONG',
+    TANKS: 'MICRO-TANKS',
+    CURVE: 'BRUTAL CURVE',
+    BOMB: 'BRUTAL BOMB',
+    HEIST: 'BRUTAL HEIST',
+    DUEL: 'QUICK DRAW',
+  };
+  if (pauseGameTitle) {
+    pauseGameTitle.textContent = `${titles[currentMode] || currentMode} // DURAKLATILDI`;
+  }
+  if (btnTvLobby) {
+    btnTvLobby.classList.toggle('hidden', !isHosting);
+  }
+  if (btnExitToMenu) {
+    btnExitToMenu.textContent = isHosting ? '🚪 ODAYI KAPAT & ANA MENÜYE DÖN' : '⌂ ANA MENÜYE DÖN';
+  }
+  pauseSelectedSlot = null;
+  renderPauseSeats(onSwapCallback);
+}
+
+export function closePauseModal(onCloseCallback) {
+  pauseModal?.classList.add('hidden');
+  isPaused = false;
+  if (typeof onCloseCallback === 'function') {
+    onCloseCallback();
+  }
+}
+
+export function initPauseModal({
+  getCurrentMode,
+  getIsHosting,
+  onSwapSeats,
+  onRotateSeats,
+  onResume,
+  onReset,
+  onExitMenu,
+  onTvLobby,
+}) {
+  btnResumeGame?.addEventListener('click', () => {
+    closePauseModal(onResume);
+  });
+
+  btnResetMatch?.addEventListener('click', () => {
+    closePauseModal(onReset);
+  });
+
+  btnToggleSound?.addEventListener('click', () => {
+    const muted = toggleAudio();
+    btnToggleSound.textContent = muted ? '🔇 SES: KAPALI' : '🔊 SES: AÇIK';
+  });
+
+  btnExitToMenu?.addEventListener('click', onExitMenu);
+  btnTvLobby?.addEventListener('click', onTvLobby);
+
+  btnPauseRotateSeats?.addEventListener('click', () => {
+    if (typeof onRotateSeats === 'function') {
+      onRotateSeats();
+    }
+    pauseSelectedSlot = null;
+    renderPauseSeats(onSwapSeats);
+    showInstallToast('🔄 Koltuklar saat yönünde 90° döndürüldü!');
+  });
+}

@@ -3,11 +3,11 @@ import { Paddle, PLAYER_CONFIGS } from './paddle.js';
 import { Ball } from './ball.js';
 import { playJoin, playStart } from './audio.js';
 import { renderControlGuide } from './controlGuide.js';
+import { BaseMiniGame } from './core/BaseGame.js';
 
-export class Game {
+export class Game extends BaseMiniGame {
   constructor(canvas) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+    super(canvas);
 
     // States: 'LOBBY', 'PLAYING', 'ROUND_PAUSE', 'GAME_OVER'
     this.state = 'LOBBY';
@@ -245,25 +245,6 @@ export class Game {
       this.ball.x = this.arena.cx;
       this.ball.y = this.arena.cy;
     }
-  }
-
-  addTrauma(amount) {
-    this.trauma = Math.min(1.0, this.trauma + amount);
-  }
-
-  handleUiTap(pos) {
-    for (const btn of this.uiButtons) {
-      if (
-        pos.x >= btn.x &&
-        pos.x <= btn.x + btn.w &&
-        pos.y >= btn.y &&
-        pos.y <= btn.y + btn.h
-      ) {
-        btn.onClick();
-        return true;
-      }
-    }
-    return false;
   }
 
   togglePlayerJoin(index) {

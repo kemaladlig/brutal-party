@@ -1,17 +1,15 @@
 // BRUTAL CURVE (Game 03): 2-4 Player Local Party Curve Fever with Gaps, Power-Ups & Bot AI
 import { playExplosion, playStart, playJoin, playGap, playItemPickup } from './audio.js';
 import { renderControlGuide } from './controlGuide.js';
+import { BaseMiniGame } from './core/BaseGame.js';
+import { updateCurveBotAI } from './ai/curveAI.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CURVE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
 
-export class CurveGame {
+export class CurveGame extends BaseMiniGame {
   constructor(canvas) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
-
-    // States: 'LOBBY', 'PLAYING', 'ROUND_OVER', 'MATCH_OVER'
-    this.state = 'LOBBY';
+    super(canvas);
 
     // Arena dimensions
     this.arena = {
@@ -49,25 +47,6 @@ export class CurveGame {
       { id: -1, action: null },
       { id: -1, action: null },
     ];
-
-    this.trauma = 0;
-    this.lastTime = performance.now();
-  }
-
-  cycleSlotType(index) {
-    if (this.slotTypes[index] === 'empty') {
-      this.slotTypes[index] = 'human';
-    } else if (this.slotTypes[index] === 'human') {
-      this.slotTypes[index] = 'bot_normal';
-    } else if (this.slotTypes[index] === 'bot_normal') {
-      this.slotTypes[index] = 'bot_god';
-    } else {
-      this.slotTypes[index] = 'empty';
-    }
-  }
-
-  isSlotJoined(index) {
-    return this.slotTypes[index] !== 'empty';
   }
 
   resize(width, height) {
@@ -624,137 +603,7 @@ export class CurveGame {
   }
 
   updateBotAI(bot, dt) {
-    const isGod = bot.slotType === 'bot_god';
-
-    if (bot.botTurnCommitment > 0) {
-      bot.botTurnCommitment -= dt;
-    }
-
-    bot.botCheckTimer -= dt;
-    if (bot.botCheckTimer > 0 && bot.botTurnCommitment > 0) {
-      return;
-    }
-    bot.botCheckTimer = isGod ? 0.035 : 0.07;
-
-    const maxDist = isGod ? 180 : 130;
-    const now = performance.now();
-
-    // 1. Raycast straight ahead
-    const frontDist = this.raycastFreeDistance(bot.x, bot.y, bot.angle, maxDist, bot.index, now);
-
-    // 2. Sample left and right rays
-    const leftAngles = isGod ? [-0.28, -0.60, -0.92] : [-0.35, -0.75];
-    const rightAngles = isGod ? [0.28, 0.60, 0.92] : [0.35, 0.75];
-
-    let leftScore = 0;
-    for (const dTheta of leftAngles) {
-      leftScore += this.raycastFreeDistance(bot.x, bot.y, bot.angle + dTheta, maxDist, bot.index, now);
-    }
-
-    let rightScore = 0;
-    for (const dTheta of rightAngles) {
-      rightScore += this.raycastFreeDistance(bot.x, bot.y, bot.angle + dTheta, maxDist, bot.index, now);
-    }
-
-    // Safety threshold distance before needing an evasion turn
-    const safetyLimit = isGod ? 95 : 75;
-
-    if (frontDist > safetyLimit) {
-      // Forward path is open - GO STRAIGHT by default!
-      if (bot.botTurnCommitment <= 0) {
-        bot.steer = 0;
-
-        // Tactical centering & pickup seeking when in open space
-        const distToCenter = Math.hypot(this.arena.cx - bot.x, this.arena.cy - bot.y);
-        const thresholdCenter = this.arena.size * (isGod ? 0.36 : 0.42);
-
-        if (distToCenter > thresholdCenter) {
-          const angleToCenter = Math.atan2(this.arena.cy - bot.y, this.arena.cx - bot.x);
-          const diff = this.normalizeAngle(angleToCenter - bot.angle);
-          if (Math.abs(diff) > 0.35) {
-            bot.steer = Math.sign(diff);
-            bot.botTurnCommitment = 0.16;
-          }
-        } else if (isGod) {
-          // God Bot seeks pickups
-          for (const item of this.pickups) {
-            const dItem = Math.hypot(item.x - bot.x, item.y - bot.y);
-            if (dItem < 130) {
-              const angleToItem = Math.atan2(item.y - bot.y, item.x - bot.x);
-              const diff = this.normalizeAngle(angleToItem - bot.angle);
-              if (Math.abs(diff) > 0.15) {
-                bot.steer = Math.sign(diff);
-                bot.botTurnCommitment = 0.12;
-              }
-              break;
-            }
-          }
-        }
-      }
-    } else {
-      // Obstacle ahead: hard turn towards the side with more open space
-      if (leftScore > rightScore + 10) {
-        bot.steer = -1;
-        bot.botTurnCommitment = isGod ? 0.22 : 0.30;
-      } else if (rightScore > leftScore + 10) {
-        bot.steer = 1;
-        bot.botTurnCommitment = isGod ? 0.22 : 0.30;
-      } else {
-        // Equal or close: keep current steer if turning, else pick randomly
-        if (bot.steer === 0) {
-          bot.steer = Math.random() > 0.5 ? 1 : -1;
-        }
-        bot.botTurnCommitment = 0.20;
-      }
-    }
-  }
-
-  normalizeAngle(a) {
-    while (a > Math.PI) a -= Math.PI * 2;
-    while (a < -Math.PI) a += Math.PI * 2;
-    return a;
-  }
-
-  raycastFreeDistance(startX, startY, angle, maxDist, ownerIndex, now) {
-    const { left, right, top, bottom } = this.arena;
-    const step = 6;
-    let dist = 0;
-    const curTime = now || performance.now();
-
-    while (dist < maxDist) {
-      dist += step;
-      const rx = startX + Math.cos(angle) * dist;
-      const ry = startY + Math.sin(angle) * dist;
-
-      // Hit wall
-      if (rx <= left + 5 || rx >= right - 5 || ry <= top + 5 || ry >= bottom - 5) {
-        return dist;
-      }
-
-      // Hit trail
-      for (let i = 0; i < this.segments.length; i++) {
-        const seg = this.segments[i];
-        if (seg.isGap) continue;
-
-        // Ignore bot's own recent trail segments (created within the last 380ms)
-        if (seg.owner === ownerIndex && curTime - seg.createdAt < 380) {
-          continue;
-        }
-
-        const minX = Math.min(seg.x1, seg.x2) - 4;
-        const maxX = Math.max(seg.x1, seg.x2) + 4;
-        const minY = Math.min(seg.y1, seg.y2) - 4;
-        const maxY = Math.max(seg.y1, seg.y2) + 4;
-        if (rx < minX || rx > maxX || ry < minY || ry > maxY) continue;
-
-        const dSq = this.distToSegmentSquared(rx, ry, seg.x1, seg.y1, seg.x2, seg.y2);
-        if (dSq < 24) {
-          return dist;
-        }
-      }
-    }
-
-    return maxDist;
+    updateCurveBotAI(this, bot, dt);
   }
 
   render() {

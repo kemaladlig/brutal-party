@@ -1,5 +1,4 @@
 // Local Party Games Suite - Main Application Controller & State Machine
-import QRCode from 'qrcode';
 import { Game as PongGame } from './game.js';
 import { TanksGame } from './tanks.js';
 import { CurveGame } from './curve.js';
@@ -7,10 +6,39 @@ import { BombGame } from './bomb.js';
 import { HeistGame } from './heist.js';
 import { DuelGame } from './duel.js';
 import { TouchManager } from './touchManager.js';
-import { toggleAudio, getIsMuted, playJoin } from './audio.js';
+import { playJoin } from './audio.js';
 import { partyNetwork } from './network.js';
 import { GamepadManager } from './gamepad.js';
-import { PUBLIC_URL, HAS_SUPABASE_CONFIG, isPublicOrigin, getActiveNetwork, disconnectInactiveNetwork, getStoredPlayerName, storePlayerName } from './net.js';
+import {
+  HAS_SUPABASE_CONFIG,
+  isPublicOrigin,
+  getActiveNetwork,
+  disconnectInactiveNetwork,
+  getStoredPlayerName,
+  storePlayerName,
+} from './net.js';
+
+import { initToastAndInstall, showInstallToast } from './ui/toast.js';
+import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots } from './core/slotManager.js';
+import {
+  initPauseModal,
+  openPauseModal,
+  closePauseModal,
+  renderPauseSeats,
+  getIsPaused,
+  setIsPaused,
+} from './ui/pauseModal.js';
+import { initJoinModal, openJoinModal } from './ui/joinModal.js';
+import {
+  initHostLobby,
+  showHostLobbyModal,
+  hideHostLobbyModal,
+  startHostPingBadge,
+  stopHostPingBadge,
+  getEffectiveJoinUrl,
+  getCurrentHostGameMode,
+  setCurrentHostGameMode,
+} from './ui/hostLobby.js';
 
 // DOM Elements
 const canvas = document.getElementById('game-canvas');
@@ -18,17 +46,7 @@ const menuOverlay = document.getElementById('menu-overlay');
 const inGameHud = document.getElementById('in-game-hud');
 const btnQuickTvLobby = document.getElementById('btn-quick-tv-lobby');
 const btnOpenOptions = document.getElementById('btn-open-options');
-const btnInstallApp = document.getElementById('btn-install-app');
-const installToast = document.getElementById('install-toast');
-
-// Pause & Options Modal
-const pauseModal = document.getElementById('pause-modal');
-const pauseGameTitle = document.getElementById('pause-game-title');
-const btnResumeGame = document.getElementById('btn-resume-game');
-const btnResetMatch = document.getElementById('btn-reset-match');
-const btnTvLobby = document.getElementById('btn-tv-lobby');
-const btnToggleSound = document.getElementById('btn-toggle-sound');
-const btnExitToMenu = document.getElementById('btn-exit-to-menu');
+const btnHeroCreateRoom = document.getElementById('btn-hero-create-room');
 
 const btnSelectPong = document.getElementById('btn-select-pong');
 const btnSelectTanks = document.getElementById('btn-select-tanks');
@@ -37,35 +55,19 @@ const btnSelectBomb = document.getElementById('btn-select-bomb');
 const btnSelectHeist = document.getElementById('btn-select-heist');
 const btnSelectDuel = document.getElementById('btn-select-duel');
 
-// Hero Action Elements
-const heroInputCode = document.getElementById('hero-input-code');
-const btnHeroJoin = document.getElementById('btn-hero-join');
-const btnHeroPaste = document.getElementById('btn-hero-paste');
-const btnHeroCreateRoom = document.getElementById('btn-hero-create-room');
-
 // Platform / Match Mode: 'LOCAL' | 'TV_CONSOLE' | 'ONLINE'
 let platformMode = isPublicOrigin() ? 'ONLINE' : 'TV_CONSOLE';
+export function updatePlatformMode(newMode) {
+  platformMode = newMode;
+}
 
-// Aktif moda göre network: TV_CONSOLE → lokal WebSocket / Supabase, ONLINE → Supabase Broadcast
-function activeNet() {
+export function activeNet() {
   return getActiveNetwork(platformMode);
 }
 
 // State Machine: 'MENU' | 'PONG' | 'TANKS' | 'CURVE' | 'BOMB' | 'HEIST' | 'DUEL'
 let currentMode = 'MENU';
-let isPaused = false;
 let lastTransitionTime = 0;
-let deferredInstallPrompt = null;
-
-function isStandaloneApp() {
-  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-}
-
-function updateInstallButtonVisibility() {
-  if (isStandaloneApp()) {
-    btnInstallApp?.classList.add('hidden');
-  }
-}
 
 export function markTransition() {
   lastTransitionTime = performance.now();
@@ -80,29 +82,37 @@ const bombGame = new BombGame(canvas);
 const heistGame = new HeistGame(canvas);
 const duelGame = new DuelGame(canvas);
 
+export function getActiveGameEngine() {
+  if (currentMode === 'PONG') return pongGame;
+  if (currentMode === 'TANKS') return tanksGame;
+  if (currentMode === 'CURVE') return curveGame;
+  if (currentMode === 'BOMB') return bombGame;
+  if (currentMode === 'HEIST') return heistGame;
+  if (currentMode === 'DUEL') return duelGame;
+  return null;
+}
+
+// Gamepad Controller Manager
+const gamepadOverlay = document.getElementById('gamepad-overlay');
+const gamepadManager = new GamepadManager(gamepadOverlay, partyNetwork);
+
 // High-DPI & Responsive 1:1 Canvas Resizing
 function resizeCanvas() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
   const width = window.innerWidth;
   const height = window.innerHeight;
 
-  // Set internal resolution for crisp rendering
   canvas.width = Math.floor(width * dpr);
   canvas.height = Math.floor(height * dpr);
-
-  // Set CSS viewport dimensions
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
 
-  // Scale context to DPR
   const ctx = canvas.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(dpr, dpr);
 
-  // Update touch manager with exact logical dimensions
   touchManager.setDimensions(width, height, dpr);
 
-  // Resize active engines
   pongGame.resize(width, height);
   tanksGame.resize(width, height);
   curveGame.resize(width, height);
@@ -116,249 +126,12 @@ window.addEventListener('orientationchange', () => {
   setTimeout(resizeCanvas, 150);
 });
 
-export function getActiveGameEngine() {
-  if (currentMode === 'PONG') return pongGame;
-  if (currentMode === 'TANKS') return tanksGame;
-  if (currentMode === 'CURVE') return curveGame;
-  if (currentMode === 'BOMB') return bombGame;
-  if (currentMode === 'HEIST') return heistGame;
-  if (currentMode === 'DUEL') return duelGame;
-  return null;
-}
-
-export const hostPlayerSlots = [null, null, null, null];
-
-export function syncSlotsToEngine(engine) {
-  if (!engine) return;
-  if (!activeNet().isHosting) return;
-
-  const humanCount = hostPlayerSlots.filter((p) => p !== null).length;
-  if (humanCount === 0) return;
-
-  if (currentMode === 'PONG') {
-    for (let i = 0; i < 4; i++) {
-      const p = engine.paddles[i];
-      if (!p) continue;
-      const slot = hostPlayerSlots[i];
-      if (slot) {
-        p.isJoined = true;
-        p.slotType = 'human';
-        p.name = slot.name || `P${i + 1}`;
-      } else {
-        if (humanCount === 1 && i === 1) {
-          p.isJoined = true;
-          p.slotType = 'bot_normal';
-          p.name = 'BOT // MAVİ';
-        } else {
-          p.isJoined = false;
-          p.slotType = 'empty';
-          p.name = ['ALT', 'ÜST', 'SOL', 'SAĞ'][i];
-        }
-      }
-      p.updateLayout(engine.arena);
-    }
-    if (engine.state === 'LOBBY' && engine.getJoinedPlayerCount() >= 2) {
-      engine.startGame();
-    }
-  } else if (currentMode === 'TANKS') {
-    for (let i = 0; i < 4; i++) {
-      const slot = hostPlayerSlots[i];
-      const tank = engine.tanks[i];
-      if (slot) {
-        engine.slotTypes[i] = 'human';
-        if (tank) {
-          tank.isJoined = true;
-          tank.slotType = 'human';
-          tank.name = slot.name || `P${i + 1}`;
-        }
-      } else {
-        if (humanCount === 1 && i === 1) {
-          engine.slotTypes[1] = 'bot_normal';
-          if (tank) {
-            tank.isJoined = true;
-            tank.slotType = 'bot_normal';
-            tank.name = 'BOT // MAVİ';
-          }
-        } else {
-          engine.slotTypes[i] = 'empty';
-          if (tank) {
-            tank.isJoined = false;
-            tank.slotType = 'empty';
-            tank.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
-          }
-        }
-      }
-    }
-    if (engine.state === 'LOBBY') {
-      engine.startRound();
-    }
-  } else if (currentMode === 'CURVE') {
-    for (let i = 0; i < 4; i++) {
-      const slot = hostPlayerSlots[i];
-      const player = engine.players[i];
-      if (slot) {
-        engine.slotTypes[i] = 'human';
-        if (player) {
-          player.isJoined = true;
-          player.slotType = 'human';
-          player.name = slot.name || `P${i + 1}`;
-        }
-      } else {
-        if (humanCount === 1 && i === 1) {
-          engine.slotTypes[1] = 'bot_normal';
-          if (player) {
-            player.isJoined = true;
-            player.slotType = 'bot_normal';
-            player.name = 'BOT // MAVİ';
-          }
-        } else {
-          engine.slotTypes[i] = 'empty';
-          if (player) {
-            player.isJoined = false;
-            player.slotType = 'empty';
-            player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
-          }
-        }
-      }
-    }
-    if (engine.state === 'LOBBY') {
-      engine.startRound();
-    }
-  } else if (currentMode === 'BOMB') {
-    for (let i = 0; i < 4; i++) {
-      const slot = hostPlayerSlots[i];
-      const player = engine.players[i];
-      if (slot) {
-        engine.slotTypes[i] = 'human';
-        if (player) {
-          player.isJoined = true;
-          player.slotType = 'human';
-          player.name = slot.name || `P${i + 1}`;
-        }
-      } else {
-        if (humanCount === 1 && i === 1) {
-          engine.slotTypes[1] = 'bot_normal';
-          if (player) {
-            player.isJoined = true;
-            player.slotType = 'bot_normal';
-            player.name = 'BOT // MAVİ';
-          }
-        } else {
-          engine.slotTypes[i] = 'empty';
-          if (player) {
-            player.isJoined = false;
-            player.slotType = 'empty';
-            player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
-          }
-        }
-      }
-    }
-    if (engine.state === 'LOBBY') {
-      engine.startRound();
-    }
-  } else if (currentMode === 'HEIST') {
-    for (let i = 0; i < 4; i++) {
-      const slot = hostPlayerSlots[i];
-      const player = engine.players[i];
-      if (slot) {
-        engine.slotTypes[i] = 'human';
-        if (player) {
-          player.isJoined = true;
-          player.slotType = 'human';
-          player.name = slot.name || `P${i + 1}`;
-        }
-      } else {
-        if (humanCount === 1 && i === 1) {
-          engine.slotTypes[1] = 'bot_normal';
-          if (player) {
-            player.isJoined = true;
-            player.slotType = 'bot_normal';
-            player.name = 'BOT // MAVİ';
-          }
-        } else {
-          engine.slotTypes[i] = 'empty';
-          if (player) {
-            player.isJoined = false;
-            player.slotType = 'empty';
-            player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
-          }
-        }
-      }
-    }
-    if (engine.state === 'LOBBY') {
-      engine.startRound();
-    }
-  } else if (currentMode === 'DUEL') {
-    if (!engine.playerNames) engine.playerNames = ['', '', '', ''];
-    for (let i = 0; i < 4; i++) {
-      const slot = hostPlayerSlots[i];
-      if (slot) {
-        engine.joinedPlayers[i] = true;
-        engine.playerNames[i] = slot.name || `P${i + 1}`;
-      } else {
-        engine.joinedPlayers[i] = humanCount === 1 && i === 1;
-        engine.playerNames[i] = '';
-      }
-    }
-    if (typeof engine.updateTriggerPads === 'function') {
-      engine.updateTriggerPads();
-    }
-    if (engine.state === 'LOBBY' && engine.getActivePlayerCount() >= 2) {
-      engine.startMatch();
-    }
-  }
-}
-
-export function swapEngineSlots(engine, slotA, slotB) {
-  if (!engine) return;
-
-  if (currentMode === 'PONG') {
-    if (engine.setScores) {
-      const tempS = engine.setScores[slotA];
-      engine.setScores[slotA] = engine.setScores[slotB];
-      engine.setScores[slotB] = tempS;
-    }
-    if (engine.matchScores) {
-      const tempM = engine.matchScores[slotA];
-      engine.matchScores[slotA] = engine.matchScores[slotB];
-      engine.matchScores[slotB] = tempM;
-    }
-    if (!activeNet().isHosting) {
-      const pA = engine.paddles[slotA];
-      const pB = engine.paddles[slotB];
-      if (pA && pB) {
-        const tempJoined = pA.isJoined;
-        pA.isJoined = pB.isJoined;
-        pB.isJoined = tempJoined;
-        const tempType = pA.slotType;
-        pA.slotType = pB.slotType;
-        pB.slotType = tempType;
-      }
-    }
-  } else if (currentMode === 'TANKS' || currentMode === 'CURVE' || currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'DUEL') {
-    if (Array.isArray(engine.scores)) {
-      const temp = engine.scores[slotA];
-      engine.scores[slotA] = engine.scores[slotB];
-      engine.scores[slotB] = temp;
-    }
-    if (!activeNet().isHosting && Array.isArray(engine.slotTypes)) {
-      const tempType = engine.slotTypes[slotA];
-      engine.slotTypes[slotA] = engine.slotTypes[slotB];
-      engine.slotTypes[slotB] = tempType;
-    }
-  }
-
-  if (activeNet().isHosting) {
-    syncSlotsToEngine(engine);
-  }
-}
-
 // State Management
 export function setGameMode(mode) {
   markTransition();
   currentMode = mode;
-  isPaused = false;
-  pauseModal.classList.add('hidden');
+  setIsPaused(false);
+  closePauseModal();
   touchManager.resetTouches();
 
   const now = performance.now();
@@ -383,7 +156,7 @@ export function setGameMode(mode) {
     pongGame.lastTime = now;
     pongGame.accumulator = 0;
     pongGame.resize(window.innerWidth, window.innerHeight);
-    syncSlotsToEngine(pongGame);
+    syncSlotsToEngine(pongGame, currentMode, activeNet().isHosting);
   } else if (mode === 'TANKS') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
@@ -391,7 +164,7 @@ export function setGameMode(mode) {
     tanksGame.resetMatch();
     tanksGame.lastTime = now;
     tanksGame.resize(window.innerWidth, window.innerHeight);
-    syncSlotsToEngine(tanksGame);
+    syncSlotsToEngine(tanksGame, currentMode, activeNet().isHosting);
   } else if (mode === 'CURVE') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
@@ -399,7 +172,7 @@ export function setGameMode(mode) {
     curveGame.resetMatch();
     curveGame.lastTime = now;
     curveGame.resize(window.innerWidth, window.innerHeight);
-    syncSlotsToEngine(curveGame);
+    syncSlotsToEngine(curveGame, currentMode, activeNet().isHosting);
   } else if (mode === 'BOMB') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
@@ -407,7 +180,7 @@ export function setGameMode(mode) {
     bombGame.resetMatch();
     bombGame.lastTime = now;
     bombGame.resize(window.innerWidth, window.innerHeight);
-    syncSlotsToEngine(bombGame);
+    syncSlotsToEngine(bombGame, currentMode, activeNet().isHosting);
   } else if (mode === 'HEIST') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
@@ -415,7 +188,7 @@ export function setGameMode(mode) {
     heistGame.resetMatch();
     heistGame.lastTime = now;
     heistGame.resize(window.innerWidth, window.innerHeight);
-    syncSlotsToEngine(heistGame);
+    syncSlotsToEngine(heistGame, currentMode, activeNet().isHosting);
   } else if (mode === 'DUEL') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
@@ -423,147 +196,12 @@ export function setGameMode(mode) {
     duelGame.reset();
     duelGame.lastTime = now;
     duelGame.resize(window.innerWidth, window.innerHeight);
-    syncSlotsToEngine(duelGame);
-  }
-}
-
-// In-Game Pause Seat Management
-let pauseSelectedSlot = null;
-
-function renderPauseSeats() {
-  const grid = document.getElementById('pause-seats-grid');
-  if (!grid) return;
-
-  const slotLabels = ['P1 (ALT)', 'P2 (ÜST)', 'P3 (SOL)', 'P4 (SAĞ)'];
-  const slotColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-
-  grid.innerHTML = [0, 1, 2, 3]
-    .map((idx) => {
-      const slot = hostPlayerSlots[idx];
-      const name = slot?.name || 'BOŞ (BOT)';
-      const isSelected = pauseSelectedSlot === idx;
-      return `
-        <button class="pause-seat-btn ${isSelected ? 'selected-for-swap' : ''}" data-slot="${idx}" type="button">
-          <span class="pause-seat-dot" style="background-color: ${slotColors[idx]}"></span>
-          <div class="pause-seat-info">
-            <span class="pause-seat-slot-label">${slotLabels[idx]}</span>
-            <span class="pause-seat-player-name">${name}</span>
-          </div>
-        </button>
-      `;
-    })
-    .join('');
-
-  grid.querySelectorAll('.pause-seat-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const slotIdx = parseInt(btn.dataset.slot, 10);
-      if (pauseSelectedSlot === null) {
-        pauseSelectedSlot = slotIdx;
-        renderPauseSeats();
-      } else if (pauseSelectedSlot === slotIdx) {
-        pauseSelectedSlot = null;
-        renderPauseSeats();
-      } else {
-        const slotA = pauseSelectedSlot;
-        const slotB = slotIdx;
-        pauseSelectedSlot = null;
-        activeNet().swapSlots(slotA, slotB);
-        if (!activeNet().isHosting) {
-          const temp = hostPlayerSlots[slotA];
-          hostPlayerSlots[slotA] = hostPlayerSlots[slotB];
-          hostPlayerSlots[slotB] = temp;
-          const engine = getActiveGameEngine();
-          if (engine) swapEngineSlots(engine, slotA, slotB);
-        }
-        renderPauseSeats();
-        showInstallToast(`🔄 P${slotA + 1} ve P${slotB + 1} takas edildi!`);
-      }
-    });
-  });
-}
-
-const btnPauseRotateSeats = document.getElementById('btn-pause-rotate-seats');
-btnPauseRotateSeats?.addEventListener('click', () => {
-  // Rotate clockwise: P1(0) -> P3(2) -> P2(1) -> P4(3) -> P1(0)
-  activeNet().swapSlots(0, 2);
-  activeNet().swapSlots(2, 1);
-  activeNet().swapSlots(1, 3);
-  if (!activeNet().isHosting) {
-    const p0 = hostPlayerSlots[0];
-    const p1 = hostPlayerSlots[1];
-    const p2 = hostPlayerSlots[2];
-    const p3 = hostPlayerSlots[3];
-    hostPlayerSlots[0] = p3;
-    hostPlayerSlots[2] = p0;
-    hostPlayerSlots[1] = p2;
-    hostPlayerSlots[3] = p1;
-    const engine = getActiveGameEngine();
-    if (engine) {
-      swapEngineSlots(engine, 0, 2);
-      swapEngineSlots(engine, 2, 1);
-      swapEngineSlots(engine, 1, 3);
-    }
-  }
-  pauseSelectedSlot = null;
-  renderPauseSeats();
-  showInstallToast('🔄 Koltuklar saat yönünde 90° döndürüldü!');
-});
-
-// Pause Modal Functions
-function openPauseModal() {
-  if (currentMode === 'MENU') return;
-  isPaused = true;
-  pauseModal.classList.remove('hidden');
-  pauseGameTitle.textContent =
-    currentMode === 'PONG'
-      ? '01 // BRUTAL PONG'
-      : currentMode === 'TANKS'
-      ? '02 // MICRO-TANKS'
-      : currentMode === 'CURVE'
-      ? '03 // BRUTAL CURVE'
-      : currentMode === 'BOMB'
-      ? '04 // BRUTAL BOMB'
-      : currentMode === 'HEIST'
-      ? '05 // BRUTAL HEIST'
-      : '06 // QUICK DRAW';
-  btnToggleSound.textContent = getIsMuted() ? '🔇 SES: KAPALI' : '🔊 SES: AÇIK';
-  if (btnTvLobby) {
-    btnTvLobby.classList.toggle('hidden', !activeNet().isHosting);
-  }
-  if (btnExitToMenu) {
-    btnExitToMenu.textContent = activeNet().isHosting ? '🚪 ODAYI KAPAT & ANA MENÜYE DÖN' : '⌂ ANA MENÜYE DÖN';
-  }
-  pauseSelectedSlot = null;
-  renderPauseSeats();
-  touchManager.resetTouches();
-}
-
-function closePauseModal() {
-  markTransition();
-  pauseModal.classList.add('hidden');
-  isPaused = false;
-  touchManager.resetTouches();
-
-  // Refresh active game lastTime to prevent physics delta jump after pause
-  const now = performance.now();
-  if (currentMode === 'PONG') {
-    pongGame.lastTime = now;
-    pongGame.accumulator = 0;
-  } else if (currentMode === 'TANKS') {
-    tanksGame.lastTime = now;
-  } else if (currentMode === 'CURVE') {
-    curveGame.lastTime = now;
-  } else if (currentMode === 'BOMB') {
-    bombGame.lastTime = now;
-  } else if (currentMode === 'HEIST') {
-    heistGame.lastTime = now;
-  } else if (currentMode === 'DUEL') {
-    duelGame.lastTime = now;
+    syncSlotsToEngine(duelGame, currentMode, activeNet().isHosting);
   }
 }
 
 function resetActiveGame() {
-  closePauseModal();
+  const now = performance.now();
   if (currentMode === 'PONG') {
     pongGame.resetCurrentGame();
   } else if (currentMode === 'TANKS') {
@@ -580,7 +218,26 @@ function resetActiveGame() {
   touchManager.resetTouches();
 }
 
-// Ultra-responsive Tap/Click Listeners for Mobile & Desktop
+function onResumeAfterPause() {
+  const now = performance.now();
+  if (currentMode === 'PONG') {
+    pongGame.lastTime = now;
+    pongGame.accumulator = 0;
+  } else if (currentMode === 'TANKS') {
+    tanksGame.lastTime = now;
+  } else if (currentMode === 'CURVE') {
+    curveGame.lastTime = now;
+  } else if (currentMode === 'BOMB') {
+    bombGame.lastTime = now;
+  } else if (currentMode === 'HEIST') {
+    heistGame.lastTime = now;
+  } else if (currentMode === 'DUEL') {
+    duelGame.lastTime = now;
+  }
+  touchManager.resetTouches();
+}
+
+// Responsive Tap Listener
 function addTapListener(el, callback) {
   if (!el) return;
   let startX = 0;
@@ -603,7 +260,6 @@ function addTapListener(el, callback) {
       const endY = e.changedTouches[0].clientY;
       const dist = Math.hypot(endX - startX, endY - startY);
       const elapsed = performance.now() - startTime;
-      // Trigger immediately if movement < 14px and tap < 450ms
       if (dist < 14 && elapsed < 450) {
         touchHandled = true;
         const now = performance.now();
@@ -627,204 +283,27 @@ function addTapListener(el, callback) {
   });
 }
 
-function updatePlatformMode(newMode) {
-  platformMode = newMode;
-}
-
-// TV Host & Controller Modals
-const tvHostModal = document.getElementById('tv-host-modal');
-const hostRoomCode = document.getElementById('host-room-code');
-const hostJoinUrl = document.getElementById('host-join-url');
-const qrCanvas = document.getElementById('qr-canvas');
-const btnHostLaunchGame = document.getElementById('btn-host-launch-game');
-const btnHostClose = document.getElementById('btn-host-close');
-const btnHostCopyLink = document.getElementById('btn-host-copy-link');
-const btnHostWhatsappShare = document.getElementById('btn-host-whatsapp-share');
-
-const joinRoomModal = document.getElementById('join-room-modal');
-const inputRoomCode = document.getElementById('input-room-code');
-const inputPlayerName = document.getElementById('input-player-name');
-const btnSubmitJoin = document.getElementById('btn-submit-join');
-const btnCancelJoin = document.getElementById('btn-cancel-join');
-const btnPasteRoomCode = document.getElementById('btn-paste-room-code');
-
-const gamepadOverlay = document.getElementById('gamepad-overlay');
-const gamepadManager = new GamepadManager(gamepadOverlay, partyNetwork);
-
-let currentHostGameMode = 'PONG';
-
-// Host lobisinde ping göstergesi (özellikle ONLINE modda gecikmeyi gösterir)
-let hostPingTimer = null;
-function startHostPingBadge() {
-  stopHostPingBadge();
-  const badge = document.querySelector('.tv-host-badge');
-  if (!badge) return;
-  const baseText = platformMode === 'ONLINE' ? '🌐 ONLINE LOBİ' : '📺 TV HOST PARTİ LOBİSİ';
-  const tick = () => {
-    const ping = activeNet().ping || 0;
-    badge.textContent = (platformMode === 'ONLINE' || isPublicOrigin()) && ping > 0
-      ? `${baseText} • ${ping}ms`
-      : baseText;
-  };
-  tick();
-  hostPingTimer = window.setInterval(tick, 2000);
-}
-function stopHostPingBadge() {
-  if (hostPingTimer) {
-    window.clearInterval(hostPingTimer);
-    hostPingTimer = null;
-  }
-}
-
-function updateHostSlot(slotIndex, isConnected, name = '', isReady = false) {
-  const slotEl = document.getElementById(`slot-p${slotIndex + 1}`);
-  const readyTag = document.getElementById(`ready-tag-p${slotIndex + 1}`);
-  if (!slotEl) return;
-
-  const nameEl = slotEl.querySelector('.slot-name');
-  if (isConnected) {
-    hostPlayerSlots[slotIndex] = { name, isReady };
-    slotEl.classList.add('connected');
-    slotEl.classList.toggle('ready', isReady); // green border glow
-    if (nameEl) nameEl.textContent = name;
-    if (readyTag) {
-      readyTag.textContent = isReady ? '✓ HAZIR' : '⏳ BEKLİYOR';
-      readyTag.classList.toggle('ready', isReady);
-    }
-  } else {
-    hostPlayerSlots[slotIndex] = null;
-    slotEl.classList.remove('connected', 'ready');
-    if (nameEl) nameEl.textContent = 'BEKLENİYOR...';
-    if (readyTag) {
-      readyTag.textContent = '— BOŞ';
-      readyTag.classList.remove('ready');
-    }
-  }
-
-  const connectedCount = hostPlayerSlots.filter((p) => p !== null).length;
-  const readyCount = hostPlayerSlots.filter((p) => p?.isReady).length;
-  const readyCounter = document.getElementById('lobby-ready-counter');
-  if (readyCounter) {
-    if (connectedCount === 0) {
-      readyCounter.textContent = 'OYUNCU BEKLENİYOR';
-    } else if (readyCount === connectedCount) {
-      readyCounter.textContent = `✓ ${readyCount}/${connectedCount} HAZIR — BAŞLATILABILIR`;
-    } else {
-      readyCounter.textContent = `${connectedCount} BAĞLANDI • ${readyCount} HAZIR`;
-    }
-  }
-}
-
-let detectedLanIp = null;
-fetch('/api/lan-ip')
-  .then((res) => res.json())
-  .then((data) => {
-    if (data?.ip) detectedLanIp = `${data.ip}:${data.port || 5173}`;
-  })
-  .catch(() => {});
-
-function getEffectiveJoinUrl(roomCode) {
-  // ONLINE modda davet linki her zaman public URL'den çıkar (uzaktaki oyuncu için).
-  // TV_CONSOLE modunda aynı Wi-Fi'deki cihazlar için LAN IP kullanılır.
-  if (platformMode === 'ONLINE' || isPublicOrigin()) {
-    return `${PUBLIC_URL}/?join=${roomCode}`;
-  }
-  let baseOrigin = window.location.origin;
-  if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && detectedLanIp) {
-    baseOrigin = `http://${detectedLanIp}`;
-  }
-  return `${baseOrigin}/?join=${roomCode}`;
-}
-
+// TV Host Room Creation
 async function openHostLobby(gameMode = 'PONG') {
-  // Public sitede Supabase yoksa oda açılamaz
-  if (isPublicOrigin() && !HAS_SUPABASE_CONFIG) {
-    showInstallToast('⚠️ Supabase yapılandırması eksik. Vercel Environment Variables ayarlarını kontrol edin.');
-    return;
-  }
-
-  currentHostGameMode = gameMode;
-  const net = activeNet();
-
-  // Halihazırda aktif bir oda host ediliyorsa (maç ortasında veya sonrasında lobiye dönüldüyse)
-  // odayı kapatma / yeniden kurma; mevcut odayı ve bağlı kumandaları koru
-  if (net.isHosting && net.roomCode) {
-    net.setHostGameMode(gameMode);
-    net.returnToLobby();
-
-    // Sync lobby game chips UI
-    document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
-      chip.classList.toggle('active', chip.dataset.game === currentHostGameMode);
-    });
-
-    const launchBtn = document.getElementById('btn-host-launch-game');
-    if (launchBtn) {
-      launchBtn.textContent = `▶ ${currentHostGameMode} BAŞLAT`;
-    }
-
-    // Refresh slots UI from current hostPlayerSlots
-    for (let i = 0; i < 4; i++) {
-      const slot = hostPlayerSlots[i];
-      if (slot) {
-        updateHostSlot(i, true, slot.name, slot.isReady);
-      } else {
-        updateHostSlot(i, false);
-      }
-    }
-
-    const channelCodeEl = document.getElementById('host-channel-code');
-    if (channelCodeEl && net.roomCode) channelCodeEl.textContent = net.roomCode;
-
-    tvHostModal?.classList.remove('hidden');
-    startHostPingBadge();
-    return;
-  }
-
-  for (let i = 0; i < 4; i++) updateHostSlot(i, false);
-
-  // Mod değişiminde diğer transportun hayalet bağlantısını kapat
-  disconnectInactiveNetwork(platformMode);
-
-  // Sync lobby game chips UI
-  document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
-    chip.classList.toggle('active', chip.dataset.game === currentHostGameMode);
-  });
-
-  const launchBtn = document.getElementById('btn-host-launch-game');
-  if (launchBtn) {
-    launchBtn.textContent = `▶ ${currentHostGameMode} BAŞLAT`;
-  }
-
+  setCurrentHostGameMode(gameMode);
   try {
-    await net.hostRoom(gameMode, {
+    const code = await activeNet().createRoom(gameMode, {
       onRoomCreated: (roomCode) => {
-        if (hostRoomCode) hostRoomCode.textContent = roomCode;
-        const channelCodeEl = document.getElementById('host-channel-code');
-        if (channelCodeEl) channelCodeEl.textContent = roomCode;
-        const joinUrl = getEffectiveJoinUrl(roomCode);
-        if (hostJoinUrl) hostJoinUrl.textContent = joinUrl;
-
-        if (qrCanvas) {
-          QRCode.toCanvas(qrCanvas, joinUrl, {
-            width: 140,
-            margin: 1,
-            color: { dark: '#1A1A1A', light: '#FFFFFF' },
-          });
-        }
-        tvHostModal?.classList.remove('hidden');
-        startHostPingBadge();
+        const joinUrl = getEffectiveJoinUrl(roomCode, platformMode);
+        showHostLobbyModal(roomCode, joinUrl);
+        startHostPingBadge(() => activeNet().ping, platformMode);
       },
       onPlayerJoined: (msg) => {
         playJoin();
         updateHostSlot(msg.slotIndex, true, msg.name, false);
         const engine = getActiveGameEngine();
-        if (engine) syncSlotsToEngine(engine);
+        if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
         showInstallToast(`🎮 ${msg.name} kumanda olarak bağlandı!`);
       },
       onPlayerLeft: (msg) => {
         updateHostSlot(msg.slotIndex, false);
         const engine = getActiveGameEngine();
-        if (engine) syncSlotsToEngine(engine);
+        if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
         showInstallToast(`🚪 ${msg.name} odadan ayrıldı.`);
       },
       onPlayerReadyStatus: (slotIndex, isReady) => {
@@ -843,16 +322,13 @@ async function openHostLobby(gameMode = 'PONG') {
 
         const engine = getActiveGameEngine();
         if (engine) {
-          swapEngineSlots(engine, slotA, slotB);
+          swapEngineSlots(engine, currentMode, activeNet().isHosting, slotA, slotB);
         }
 
         showInstallToast(`🔄 Slot P${slotA + 1} ve P${slotB + 1} yer değiştirdi.`);
-        if (pauseModal && !pauseModal.classList.contains('hidden')) {
-          renderPauseSeats();
-        }
+        renderPauseSeats(handleSeatSwap);
       },
       onPlayerInput: (slotIndex, data) => {
-        // Handle name change from controller
         if (data.action === 'SET_NAME' && data.name) {
           const slot = hostPlayerSlots[slotIndex];
           if (slot) {
@@ -860,14 +336,11 @@ async function openHostLobby(gameMode = 'PONG') {
             updateHostSlot(slotIndex, true, slot.name, slot.isReady);
             activeNet().setPlayerName?.(slotIndex, slot.name);
             const engine = getActiveGameEngine();
-            if (engine) syncSlotsToEngine(engine);
-            if (pauseModal && !pauseModal.classList.contains('hidden')) {
-              renderPauseSeats();
-            }
+            if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
+            renderPauseSeats(handleSeatSwap);
           }
-          return; // Don't forward name change to game engine
+          return;
         }
-        // Handle slot switch requested by controller
         if (data.action === 'SWITCH_SLOT' && typeof data.targetSlot === 'number') {
           activeNet().swapSlots(slotIndex, data.targetSlot);
           return;
@@ -888,93 +361,7 @@ async function openHostLobby(gameMode = 'PONG') {
   }
 }
 
-// Game selector chips in Host Lobby
-document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
-  chip.addEventListener('click', () => {
-    document.querySelectorAll('.lobby-game-chip').forEach((c) => c.classList.remove('active'));
-    chip.classList.add('active');
-    currentHostGameMode = chip.dataset.game;
-    activeNet().setHostGameMode(currentHostGameMode);
-    const launchBtn = document.getElementById('btn-host-launch-game');
-    if (launchBtn) {
-      launchBtn.textContent = `▶ ${currentHostGameMode} BAŞLAT`;
-    }
-  });
-});
-
-// Slot swap buttons in Host Lobby
-document.querySelectorAll('.slot-swap-btn').forEach((btn) => {
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const slotA = parseInt(btn.dataset.slot, 10);
-    const slotB = (slotA + 1) % 4;
-    activeNet().swapSlots(slotA, slotB);
-  });
-});
-
-btnHostLaunchGame?.addEventListener('click', () => {
-  tvHostModal?.classList.add('hidden');
-  stopHostPingBadge();
-  activeNet().startGame(currentHostGameMode);
-  setGameMode(currentHostGameMode);
-});
-
-btnHostClose?.addEventListener('click', () => {
-  const confirmed = window.confirm('Lobi kapatılsın mı? Tüm bağlı kumandaların bağlantısı kesilecektir.');
-  if (!confirmed) return;
-  tvHostModal?.classList.add('hidden');
-  stopHostPingBadge();
-  for (let i = 0; i < 4; i++) updateHostSlot(i, false);
-  activeNet().disconnect();
-  setGameMode('MENU');
-});
-
-btnHostCopyLink?.addEventListener('click', async () => {
-  const code = hostRoomCode?.textContent?.trim() || '';
-  const joinUrl = getEffectiveJoinUrl(code);
-  try {
-    await navigator.clipboard.writeText(joinUrl);
-    showInstallToast('✓ Bağlantı panoya kopyalandı!');
-  } catch (err) {
-    showInstallToast(`Bağlantı: ${joinUrl}`);
-  }
-});
-
-btnHostWhatsappShare?.addEventListener('click', () => {
-  const code = hostRoomCode?.textContent?.trim() || '';
-  const joinUrl = getEffectiveJoinUrl(code);
-  const text = encodeURIComponent(`🎮 BRUTAL PARTY // 4P odasına katıl!\nOda Kodu: #${code}\nBağlantı: ${joinUrl}`);
-  window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
-});
-
-function openJoinModal(prefilledCode = '') {
-  if (inputRoomCode) {
-    inputRoomCode.value = prefilledCode.toUpperCase();
-  }
-  // İsmi hatırlıyorsak önceden doldur
-  if (inputPlayerName && !inputPlayerName.value) {
-    inputPlayerName.value = getStoredPlayerName();
-  }
-  joinRoomModal?.classList.remove('hidden');
-}
-
-btnPasteRoomCode?.addEventListener('click', async () => {
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text && inputRoomCode) {
-      const match = text.match(/join=([A-Za-z0-9]{4})/i) || text.match(/\b([A-Za-z0-9]{4})\b/);
-      inputRoomCode.value = (match ? match[1] : text.slice(0, 4)).toUpperCase();
-      showInstallToast('✓ Oda kodu yapıştırıldı!');
-    }
-  } catch (err) {
-    showInstallToast('Pano okunamadı.');
-  }
-});
-
-btnCancelJoin?.addEventListener('click', () => {
-  joinRoomModal?.classList.add('hidden');
-});
-
+// Controller Join Room Execution
 async function executeJoin(rawCode, rawName) {
   const code = (rawCode || '').trim().toUpperCase();
   const name = (rawName || '').trim().toUpperCase() || 'OYUNCU';
@@ -984,21 +371,16 @@ async function executeJoin(rawCode, rawName) {
     return;
   }
 
-  // İsmi hatırla — yanlışlıkla kapanırsa tekrar yazmak gerekmez
   storePlayerName(name);
-
   showInstallToast(`⏳ #${code} odasına bağlanılıyor...`);
 
-  // Katılım da mod bazlı: ONLINE → Supabase, TV → lokal WebSocket
   disconnectInactiveNetwork(platformMode);
   const net = activeNet();
-  // Gamepad input'ları aktif transporta gitsin
   gamepadManager.network = net;
 
   try {
     await net.joinRoom(code, name, {
       onJoinedSuccess: (msg) => {
-        joinRoomModal?.classList.add('hidden');
         menuOverlay?.classList.add('hidden');
         gamepadManager.init(msg, 'LOBBY');
         showInstallToast(`✓ ${msg.roomCode} odasına bağlandı!`);
@@ -1045,83 +427,38 @@ async function executeJoin(rawCode, rawName) {
   }
 }
 
-btnSubmitJoin?.addEventListener('click', () => {
-  executeJoin(inputRoomCode?.value, inputPlayerName?.value);
-});
-
-inputPlayerName?.addEventListener('input', (e) => {
-  e.target.value = (e.target.value || '').toUpperCase();
-});
-
-inputRoomCode?.addEventListener('input', (e) => {
-  const code = (e.target.value || '').trim().toUpperCase();
-  e.target.value = code;
-  if (code.length === 4) {
-    executeJoin(code, (inputPlayerName?.value || getStoredPlayerName() || 'OYUNCU').toUpperCase());
-  }
-});
-
-// Hero Actions (Primary Controller Join & Big Screen TV Host)
-btnHeroJoin?.addEventListener('click', () => {
-  const code = heroInputCode?.value?.trim().toUpperCase();
-  if (!code || code.length < 4) {
-    openJoinModal(code);
-    return;
-  }
-  executeJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
-});
-
-heroInputCode?.addEventListener('input', (e) => {
-  const code = (e.target.value || '').trim().toUpperCase();
-  e.target.value = code;
-  if (code.length === 4) {
-    executeJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
-  }
-});
-
-heroInputCode?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    const code = heroInputCode?.value?.trim().toUpperCase();
-    if (code && code.length === 4) {
-      executeJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
-    }
-  }
-});
-
-btnHeroPaste?.addEventListener('click', async () => {
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text && heroInputCode) {
-      const match = text.match(/join=([A-Za-z0-9]{4})/i) || text.match(/\b([A-Za-z0-9]{4})\b/);
-      const code = (match ? match[1] : text.slice(0, 4)).toUpperCase();
-      heroInputCode.value = code;
-      if (code.length === 4) {
-        executeJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
-      }
-    }
-  } catch (err) {
-    showInstallToast('Pano okunamadı, kodu elle yazabilirsiniz.');
-  }
-});
-
-btnHeroCreateRoom?.addEventListener('click', () => {
-  openHostLobby('PONG');
-});
-
-function handleGameCardClick(mode) {
-  if (activeNet().isHosting) {
-    openHostLobby(mode);
-  } else {
-    setGameMode(mode);
+function handleSeatSwap(slotA, slotB) {
+  activeNet().swapSlots(slotA, slotB);
+  if (!activeNet().isHosting) {
+    const temp = hostPlayerSlots[slotA];
+    hostPlayerSlots[slotA] = hostPlayerSlots[slotB];
+    hostPlayerSlots[slotB] = temp;
+    const engine = getActiveGameEngine();
+    if (engine) swapEngineSlots(engine, currentMode, activeNet().isHosting, slotA, slotB);
   }
 }
 
-addTapListener(btnSelectPong, () => handleGameCardClick('PONG'));
-addTapListener(btnSelectTanks, () => handleGameCardClick('TANKS'));
-addTapListener(btnSelectCurve, () => handleGameCardClick('CURVE'));
-addTapListener(btnSelectBomb, () => handleGameCardClick('BOMB'));
-addTapListener(btnSelectHeist, () => handleGameCardClick('HEIST'));
-addTapListener(btnSelectDuel, () => handleGameCardClick('DUEL'));
+function handleRotateSeats() {
+  activeNet().swapSlots(0, 2);
+  activeNet().swapSlots(2, 1);
+  activeNet().swapSlots(1, 3);
+  if (!activeNet().isHosting) {
+    const p0 = hostPlayerSlots[0];
+    const p1 = hostPlayerSlots[1];
+    const p2 = hostPlayerSlots[2];
+    const p3 = hostPlayerSlots[3];
+    hostPlayerSlots[0] = p3;
+    hostPlayerSlots[2] = p0;
+    hostPlayerSlots[1] = p2;
+    hostPlayerSlots[3] = p1;
+    const engine = getActiveGameEngine();
+    if (engine) {
+      swapEngineSlots(engine, currentMode, activeNet().isHosting, 0, 2);
+      swapEngineSlots(engine, currentMode, activeNet().isHosting, 2, 1);
+      swapEngineSlots(engine, currentMode, activeNet().isHosting, 1, 3);
+    }
+  }
+}
 
 function returnHostToLobby() {
   if (!activeNet().isHosting) {
@@ -1131,25 +468,15 @@ function returnHostToLobby() {
   closePauseModal();
   setGameMode('MENU');
   activeNet().returnToLobby();
-  openHostLobby(currentHostGameMode);
+  openHostLobby(getCurrentHostGameMode());
 }
 
-addTapListener(btnQuickTvLobby, returnHostToLobby);
-addTapListener(btnTvLobby, returnHostToLobby);
-addTapListener(btnOpenOptions, openPauseModal);
-addTapListener(btnResumeGame, closePauseModal);
-addTapListener(btnResetMatch, resetActiveGame);
-addTapListener(btnToggleSound, () => {
-  const muted = toggleAudio();
-  btnToggleSound.textContent = muted ? '🔇 SES: KAPALI' : '🔊 SES: AÇIK';
-});
-addTapListener(btnExitToMenu, () => {
+function handleExitToMenu() {
   if (activeNet().isHosting) {
     const confirmed = window.confirm('Odayı kapatmak ve ana menüye dönmek istiyor musunuz? Tüm bağlı kumandaların bağlantısı kesilecektir.');
     if (!confirmed) return;
     closePauseModal();
-    tvHostModal?.classList.add('hidden');
-    stopHostPingBadge();
+    hideHostLobbyModal();
     for (let i = 0; i < 4; i++) updateHostSlot(i, false);
     activeNet().disconnect();
     setGameMode('MENU');
@@ -1157,68 +484,68 @@ addTapListener(btnExitToMenu, () => {
     closePauseModal();
     setGameMode('MENU');
   }
-});
-
-function showInstallToast(message) {
-  if (!installToast) return;
-  installToast.textContent = message;
-  installToast.classList.add('visible');
-  window.clearTimeout(showInstallToast.timer);
-  showInstallToast.timer = window.setTimeout(() => {
-    installToast.classList.remove('visible');
-  }, 5000);
 }
 
-window.addEventListener('beforeinstallprompt', (event) => {
-  event.preventDefault();
-  deferredInstallPrompt = event;
-  btnInstallApp?.classList.add('available');
-  updateInstallButtonVisibility();
-});
-
-btnInstallApp?.addEventListener('click', async () => {
-  if (deferredInstallPrompt) {
-    deferredInstallPrompt.prompt();
-    const choice = await deferredInstallPrompt.userChoice;
-    if (choice.outcome === 'accepted') {
-      showInstallToast('BRUTAL PARTY ana ekrana eklendi.');
-    }
-    deferredInstallPrompt = null;
-    btnInstallApp.classList.remove('available');
-    return;
+function handleGameCardClick(mode) {
+  if (activeNet().isHosting) {
+    openHostLobby(mode);
+  } else {
+    setGameMode(mode);
   }
-
-  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  showInstallToast(
-    isIos
-      ? 'Safari: Paylaş → Ana Ekrana Ekle seçeneğini kullan.'
-      : 'Tarayıcı menüsünden "Ana ekrana ekle" veya "Uygulamayı yükle" seçeneğini kullan.'
-  );
-});
-
-window.addEventListener('appinstalled', () => {
-  deferredInstallPrompt = null;
-  btnInstallApp?.classList.add('hidden');
-  showInstallToast('BRUTAL PARTY ana ekrana eklendi.');
-});
-
-updateInstallButtonVisibility();
-
-// Initial Setup
-resizeCanvas();
-setGameMode('MENU');
-
-// Public sitede Supabase bilgileri build'e gömülmemişse ONLINE çalışmaz —
-// bunu oda açmaya çalışmadan, daha sayfa açılırken söyle.
-if (isPublicOrigin() && !HAS_SUPABASE_CONFIG) {
-  showInstallToast('⚠️ ONLINE çalışmaz: Vercel Environment Variables eksik. 3 değişkeni ekleyip cache\'siz Redeploy yapın.');
 }
+
+// Initialise UI Submodules
+initToastAndInstall();
+initJoinModal({ onExecuteJoin: executeJoin });
+initHostLobby({
+  getActiveNet: () => activeNet(),
+  getPlatformMode: () => platformMode,
+  onLaunchGame: (mode) => {
+    activeNet().startGame(mode);
+    setGameMode(mode);
+  },
+  onCloseLobby: () => {
+    for (let i = 0; i < 4; i++) updateHostSlot(i, false);
+    activeNet().disconnect();
+    setGameMode('MENU');
+  },
+  onSwapSlots: (slotA, slotB) => {
+    activeNet().swapSlots(slotA, slotB);
+  },
+});
+initPauseModal({
+  getCurrentMode: () => currentMode,
+  getIsHosting: () => activeNet().isHosting,
+  onSwapSeats: handleSeatSwap,
+  onRotateSeats: handleRotateSeats,
+  onResume: onResumeAfterPause,
+  onReset: resetActiveGame,
+  onExitMenu: handleExitToMenu,
+  onTvLobby: returnHostToLobby,
+});
+
+// Menu Card Tap Listeners
+btnHeroCreateRoom?.addEventListener('click', () => openHostLobby('PONG'));
+addTapListener(btnSelectPong, () => handleGameCardClick('PONG'));
+addTapListener(btnSelectTanks, () => handleGameCardClick('TANKS'));
+addTapListener(btnSelectCurve, () => handleGameCardClick('CURVE'));
+addTapListener(btnSelectBomb, () => handleGameCardClick('BOMB'));
+addTapListener(btnSelectHeist, () => handleGameCardClick('HEIST'));
+addTapListener(btnSelectDuel, () => handleGameCardClick('DUEL'));
+
+addTapListener(btnQuickTvLobby, returnHostToLobby);
+addTapListener(btnOpenOptions, () => {
+  openPauseModal({
+    currentMode,
+    isHosting: activeNet().isHosting,
+    onSwapCallback: handleSeatSwap,
+  });
+});
 
 // Check URL query parameters for automatic controller join (QR scan or link)
 const urlParams = new URLSearchParams(window.location.search);
 const autoJoinCode = urlParams.get('join');
 if (autoJoinCode) {
-  // Public URL'den gelen davet = ONLINE mod (Supabase relay üzerinden katıl)
   if (isPublicOrigin()) {
     updatePlatformMode('ONLINE');
   }
@@ -1226,15 +553,11 @@ if (autoJoinCode) {
   executeJoin(autoJoinCode, getStoredPlayerName() || 'OYUNCU');
 }
 
-// Sayfa kapanırken host/oyuncu tarafına best-effort veda mesajı.
-// (TV/WS modunda sunucu socket kapanışını zaten algılar; bu özellikle
-//  Supabase ONLINE modu içindir — gönderim garanti değildir ama çoğunlukla ulaşır.)
+// Best-effort goodbye beacon on page hide
 function sendGoodbyeBeacon() {
   try {
     activeNet().disconnect();
-  } catch {
-    // kapanış anı — sessiz geç
-  }
+  } catch {}
 }
 window.addEventListener('pagehide', sendGoodbyeBeacon);
 window.addEventListener('beforeunload', sendGoodbyeBeacon);
@@ -1244,14 +567,14 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js')
-      .then((reg) => {
-        reg.update();
-        console.log('[PWA] ServiceWorker registered:', reg.scope);
-      })
-      .catch((err) => {
-        console.warn('[PWA] ServiceWorker registration failed:', err);
-      });
+      .then((reg) => console.log('[PWA] ServiceWorker registered:', reg.scope))
+      .catch((err) => console.warn('[PWA] ServiceWorker registration failed:', err));
   });
+}
+
+// Warning for public site missing Supabase config
+if (isPublicOrigin() && !HAS_SUPABASE_CONFIG) {
+  showInstallToast('⚠️ ONLINE çalışmaz: Vercel Environment Variables eksik.');
 }
 
 // Throttled Host State Broadcaster (~16Hz)
@@ -1295,38 +618,27 @@ function broadcastGameStateIfNeeded(now) {
 function loop(timestamp) {
   broadcastGameStateIfNeeded(timestamp);
 
+  const isPaused = getIsPaused();
+
   if (currentMode === 'PONG') {
-    if (!isPaused) {
-      pongGame.update(timestamp);
-    }
+    if (!isPaused) pongGame.update(timestamp);
     pongGame.render();
   } else if (currentMode === 'TANKS') {
-    if (!isPaused) {
-      tanksGame.update(timestamp);
-    }
+    if (!isPaused) tanksGame.update(timestamp);
     tanksGame.render();
   } else if (currentMode === 'CURVE') {
-    if (!isPaused) {
-      curveGame.update(timestamp);
-    }
+    if (!isPaused) curveGame.update(timestamp);
     curveGame.render();
   } else if (currentMode === 'BOMB') {
-    if (!isPaused) {
-      bombGame.update(timestamp);
-    }
+    if (!isPaused) bombGame.update(timestamp);
     bombGame.render();
   } else if (currentMode === 'HEIST') {
-    if (!isPaused) {
-      heistGame.update(timestamp);
-    }
+    if (!isPaused) heistGame.update(timestamp);
     heistGame.render();
   } else if (currentMode === 'DUEL') {
-    if (!isPaused) {
-      duelGame.update(timestamp);
-    }
+    if (!isPaused) duelGame.update(timestamp);
     duelGame.render();
   } else if (currentMode === 'MENU') {
-    // Subtle background render under menu
     const ctx = canvas.getContext('2d');
     ctx.save();
     ctx.fillStyle = '#F4F4F0';
@@ -1334,7 +646,6 @@ function loop(timestamp) {
     ctx.restore();
   }
 
-  // Draw responsive brutalist touch feedback overlay
   if (currentMode !== 'MENU') {
     const ctx = canvas.getContext('2d');
     touchManager.renderOverlay(ctx);
@@ -1343,5 +654,7 @@ function loop(timestamp) {
   requestAnimationFrame(loop);
 }
 
+// Initial Setup
+resizeCanvas();
+setGameMode('MENU');
 requestAnimationFrame(loop);
-
