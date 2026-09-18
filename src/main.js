@@ -37,14 +37,14 @@ const btnSelectBomb = document.getElementById('btn-select-bomb');
 const btnSelectHeist = document.getElementById('btn-select-heist');
 const btnSelectDuel = document.getElementById('btn-select-duel');
 
-// Mode Switcher Elements
-const tabModeLocal = document.getElementById('tab-mode-local');
-const tabModeTv = document.getElementById('tab-mode-tv');
-const tabModeOnline = document.getElementById('tab-mode-online');
-const modeActionBanner = document.getElementById('mode-action-banner');
+// Hero Action Elements
+const heroInputCode = document.getElementById('hero-input-code');
+const btnHeroJoin = document.getElementById('btn-hero-join');
+const btnHeroPaste = document.getElementById('btn-hero-paste');
+const btnHeroCreateRoom = document.getElementById('btn-hero-create-room');
 
 // Platform / Match Mode: 'LOCAL' | 'TV_CONSOLE' | 'ONLINE'
-let platformMode = 'LOCAL';
+let platformMode = isPublicOrigin() ? 'ONLINE' : 'TV_CONSOLE';
 
 // Aktif moda göre network: TV_CONSOLE → lokal WebSocket / Supabase, ONLINE → Supabase Broadcast
 function activeNet() {
@@ -302,56 +302,6 @@ function addTapListener(el, callback) {
 
 function updatePlatformMode(newMode) {
   platformMode = newMode;
-  tabModeLocal?.classList.toggle('active', newMode === 'LOCAL');
-  tabModeLocal?.setAttribute('aria-selected', newMode === 'LOCAL');
-
-  tabModeTv?.classList.toggle('active', newMode === 'TV_CONSOLE');
-  tabModeTv?.setAttribute('aria-selected', newMode === 'TV_CONSOLE');
-
-  tabModeOnline?.classList.toggle('active', newMode === 'ONLINE');
-  tabModeOnline?.setAttribute('aria-selected', newMode === 'ONLINE');
-
-  if (!modeActionBanner) return;
-
-  modeActionBanner.className = 'mode-banner';
-  if (newMode === 'LOCAL') {
-    modeActionBanner.classList.add('local-banner');
-    modeActionBanner.innerHTML = `
-      <div class="banner-badge">📱 MASADA OYNA</div>
-      <div class="banner-content">
-        <div class="banner-title">Masa Ortası Tek Cihaz Modu Aktif</div>
-        <div class="banner-desc">Telefonu veya tableti masanın ortasına koyun, bir oyun seçip hemen başlayın. İnternet gerekmez!</div>
-      </div>
-    `;
-  } else if (newMode === 'TV_CONSOLE') {
-    modeActionBanner.classList.add('tv-banner');
-    modeActionBanner.innerHTML = `
-      <div class="banner-badge">📺 TV + TELEFON</div>
-      <div class="banner-content">
-        <div class="banner-title">TV Konsol Modu (AirConsole & Jackbox Modeli)</div>
-        <div class="banner-desc">Telefonunuzla anında kumanda olarak bağlanın veya bu ekranı salondaki TV ekranı yapın.</div>
-        <div class="banner-actions">
-          <button class="banner-action-btn primary" id="btn-join-as-controller" type="button">📱 ODA KODU İLE KATIL (KUMANDA)</button>
-          <button class="banner-action-btn secondary subtle" id="btn-create-tv-room" type="button">📺 BU EKRANI TV HOST YAP</button>
-        </div>
-      </div>
-    `;
-    setupBannerActions();
-  } else if (newMode === 'ONLINE') {
-    modeActionBanner.classList.add('online-banner');
-    modeActionBanner.innerHTML = `
-      <div class="banner-badge">🌐 UZAKTAN MAÇ</div>
-      <div class="banner-content">
-        <div class="banner-title">Online Çok Oyunculu Mod (İstanbul <-> Ankara)</div>
-        <div class="banner-desc">Oda kodunu girerek maça dahil olun veya arkadaşlarınız için yeni bir oda kurun.</div>
-        <div class="banner-actions">
-          <button class="banner-action-btn primary" id="btn-enter-room-code" type="button">🔗 ODA KODU İLE KATIL</button>
-          <button class="banner-action-btn secondary subtle" id="btn-create-online-room" type="button">🌐 YENİ ODA KUR (HOST)</button>
-        </div>
-      </div>
-    `;
-    setupBannerActions();
-  }
 }
 
 // TV Host & Controller Modals
@@ -507,6 +457,9 @@ async function openHostLobby(gameMode = 'PONG') {
       }
     }
 
+    const channelCodeEl = document.getElementById('host-channel-code');
+    if (channelCodeEl && net.roomCode) channelCodeEl.textContent = net.roomCode;
+
     tvHostModal?.classList.remove('hidden');
     startHostPingBadge();
     return;
@@ -531,6 +484,8 @@ async function openHostLobby(gameMode = 'PONG') {
     await net.hostRoom(gameMode, {
       onRoomCreated: (roomCode) => {
         if (hostRoomCode) hostRoomCode.textContent = roomCode;
+        const channelCodeEl = document.getElementById('host-channel-code');
+        if (channelCodeEl) channelCodeEl.textContent = roomCode;
         const joinUrl = getEffectiveJoinUrl(roomCode);
         if (hostJoinUrl) hostJoinUrl.textContent = joinUrl;
 
@@ -769,27 +724,55 @@ inputRoomCode?.addEventListener('input', (e) => {
   }
 });
 
-const btnQuickJoinMobile = document.getElementById('btn-quick-join-mobile');
-btnQuickJoinMobile?.addEventListener('click', () => openJoinModal());
+// Hero Actions (Primary Controller Join & Big Screen TV Host)
+btnHeroJoin?.addEventListener('click', () => {
+  const code = heroInputCode?.value?.trim().toUpperCase();
+  if (!code || code.length < 4) {
+    openJoinModal(code);
+    return;
+  }
+  executeJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
+});
 
-function setupBannerActions() {
-  const btnCreateTv = document.getElementById('btn-create-tv-room');
-  const btnJoinController = document.getElementById('btn-join-as-controller');
-  const btnCreateOnline = document.getElementById('btn-create-online-room');
-  const btnEnterRoom = document.getElementById('btn-enter-room-code');
+heroInputCode?.addEventListener('input', (e) => {
+  const code = (e.target.value || '').trim().toUpperCase();
+  e.target.value = code;
+  if (code.length === 4) {
+    executeJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
+  }
+});
 
-  btnCreateTv?.addEventListener('click', () => openHostLobby('PONG'));
-  btnJoinController?.addEventListener('click', () => openJoinModal());
-  btnCreateOnline?.addEventListener('click', () => openHostLobby('PONG'));
-  btnEnterRoom?.addEventListener('click', () => openJoinModal());
-}
+heroInputCode?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const code = heroInputCode?.value?.trim().toUpperCase();
+    if (code && code.length === 4) {
+      executeJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
+    }
+  }
+});
 
-addTapListener(tabModeLocal, () => updatePlatformMode('LOCAL'));
-addTapListener(tabModeTv, () => updatePlatformMode('TV_CONSOLE'));
-addTapListener(tabModeOnline, () => updatePlatformMode('ONLINE'));
+btnHeroPaste?.addEventListener('click', async () => {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text && heroInputCode) {
+      const match = text.match(/join=([A-Za-z0-9]{4})/i) || text.match(/\b([A-Za-z0-9]{4})\b/);
+      const code = (match ? match[1] : text.slice(0, 4)).toUpperCase();
+      heroInputCode.value = code;
+      if (code.length === 4) {
+        executeJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
+      }
+    }
+  } catch (err) {
+    showInstallToast('Pano okunamadı, kodu elle yazabilirsiniz.');
+  }
+});
+
+btnHeroCreateRoom?.addEventListener('click', () => {
+  openHostLobby('PONG');
+});
 
 function handleGameCardClick(mode) {
-  if (platformMode === 'TV_CONSOLE' || platformMode === 'ONLINE') {
+  if (activeNet().isHosting) {
     openHostLobby(mode);
   } else {
     setGameMode(mode);
@@ -947,8 +930,10 @@ function broadcastGameStateIfNeeded(now) {
     packet.rally = pongGame.ball?.rallyCount || 0;
   } else if (currentMode === 'TANKS') {
     packet.scores = tanksGame.scores;
-    packet.ammo = tanksGame.tanks.map((t) => t.ammo);
-    packet.alive = tanksGame.tanks.map((t) => t.alive);
+    packet.ammo = tanksGame.tanks.map((t) =>
+      Math.max(0, (t.maxBullets || 2) - tanksGame.bullets.filter((b) => b.owner === t.index).length)
+    );
+    packet.alive = tanksGame.tanks.map((t) => t.isAlive);
   } else if (currentMode === 'CURVE') {
     packet.scores = curveGame.scores;
     packet.alive = curveGame.players.map((p) => p.alive);

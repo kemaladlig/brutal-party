@@ -50,13 +50,36 @@
           </div>
 
           <div class="tv-host-body">
-            <!-- Left: QR & Join Info -->
-            <div class="qr-container">
-              <canvas id="qr-canvas"></canvas>
-              <div class="qr-url-text" id="host-join-url">http://...</div>
-              <div class="host-share-actions">
-                <button class="host-share-btn" id="btn-host-copy-link" type="button">📋 LİNKİ KOPYALA</button>
-                <button class="host-share-btn whatsapp" id="btn-host-whatsapp-share" type="button">💬 WHATSAPP İLE DAVET ET</button>
+            <!-- Left: 3 Clear Ways to Connect -->
+            <div class="host-connect-channels">
+              <div class="connect-channel-title">📲 KUMANDA BAĞLAMA YOLLARI</div>
+              
+              <!-- Channel 1: Camera QR -->
+              <div class="connect-channel-card qr-channel">
+                <div class="channel-badge">1. YOL // EN HIZLI</div>
+                <div class="qr-canvas-box">
+                  <canvas id="qr-canvas"></canvas>
+                </div>
+                <div class="channel-hint">📸 Telefonunun kamerasını tut, anında açılsın!</div>
+              </div>
+
+              <!-- Channel 2: 4-Letter Code -->
+              <div class="connect-channel-card code-channel">
+                <div class="channel-badge">2. YOL // KOD GİR</div>
+                <div class="channel-big-code">#<span id="host-channel-code">----</span></div>
+                <div class="channel-hint">Siteye gir ve bu 4 haneli kodu yaz.</div>
+              </div>
+
+              <!-- Channel 3: WhatsApp & Direct Link -->
+              <div class="connect-channel-card share-channel">
+                <div class="channel-badge">3. YOL // PAYLAŞ</div>
+                <button class="host-share-btn whatsapp" id="btn-host-whatsapp-share" type="button">
+                  💬 WHATSAPP İLE DAVET ET
+                </button>
+                <button class="host-share-btn" id="btn-host-copy-link" type="button">
+                  📋 LİNKİ KOPYALA
+                </button>
+                <div class="qr-url-text hidden" id="host-join-url">http://...</div>
               </div>
             </div>
 
@@ -211,33 +234,53 @@
             <h1 class="menu-title">BRUTAL PARTY</h1>
             <p class="menu-subtitle">SIFIR GECİKME, MAKSİMUM REFLEKS • 2-4 KİŞİLİK PARTİ OYUNLARI</p>
 
-            <!-- Mode Switcher Tabs -->
-            <div class="mode-switcher" role="tablist">
-              <button class="mode-tab active" id="tab-mode-local" type="button" role="tab" aria-selected="true">
-                <span class="tab-icon">📱</span>
-                <span class="tab-title">LOKAL MOD</span>
-                <span class="tab-sub">Tek Cihaz</span>
-              </button>
-              <button class="mode-tab" id="tab-mode-tv" type="button" role="tab" aria-selected="false">
-                <span class="tab-icon">📺</span>
-                <span class="tab-title">TV / KONSOL</span>
-                <span class="tab-sub">Telefon Kumanda</span>
-              </button>
-              <button class="mode-tab" id="tab-mode-online" type="button" role="tab" aria-selected="false">
-                <span class="tab-icon">🌐</span>
-                <span class="tab-title">ONLINE MOD</span>
-                <span class="tab-sub">Uzaktan Maç</span>
-              </button>
+            <!-- Hero Action Cards: Primary Controller vs Big TV Host -->
+            <div class="hero-actions-container">
+              <!-- 1. Primary: Join As Controller -->
+              <div class="hero-card primary-hero-card">
+                <div class="hero-card-header">
+                  <span class="hero-card-badge">📱 EN ÇOK KULLANILAN</span>
+                  <span class="hero-card-tag">KUMANDA</span>
+                </div>
+                <h2 class="hero-card-title">TELEFONU KUMANDA YAP</h2>
+                <p class="hero-card-desc">Salondaki TV ekranına veya arkadaşının kurduğu odaya katıl:</p>
+                
+                <div class="hero-join-inline">
+                  <input 
+                    type="text" 
+                    id="hero-input-code" 
+                    class="hero-code-input" 
+                    maxlength="4" 
+                    placeholder="KODU YAZ" 
+                    autocapitalize="characters" 
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                  <button class="hero-submit-btn" id="btn-hero-join" type="button">
+                    BAĞLAN →
+                  </button>
+                </div>
+                <button class="hero-paste-helper-btn" id="btn-hero-paste" type="button">📋 Panodan Kodu Yapıştır</button>
+              </div>
+
+              <!-- 2. Secondary: Host as TV / Big Screen -->
+              <div class="hero-card secondary-hero-card">
+                <div class="hero-card-header">
+                  <span class="hero-card-badge tv-badge">📺 SALON & BÜYÜK EKRAN</span>
+                  <span class="hero-card-tag">TV / TABLET</span>
+                </div>
+                <h2 class="hero-card-title">BU EKRANI OYUN EKRANI YAP</h2>
+                <p class="hero-card-desc">Televizyonda veya tablette oda kur, herkes telefonunu bağlasın:</p>
+                <button class="hero-host-btn" id="btn-hero-create-room" type="button">
+                  🏠 YENİ ODA KUR (TV/TABLET) →
+                </button>
+              </div>
             </div>
 
-            <!-- Mode Action Banner (Context-aware) -->
-            <div id="mode-action-banner" class="mode-banner local-banner">
-              <div class="banner-badge">📱 MASADA OYNA</div>
-              <div class="banner-content">
-                <div class="banner-title">Masa Ortası Tek Cihaz Modu Aktif</div>
-                <div class="banner-desc">Telefonu veya tableti masanın ortasına koyun ya da aşağıdaki butondan kumanda olarak bağlanın:</div>
-                <button class="quick-join-trigger-btn" id="btn-quick-join-mobile" type="button">🎮 ODA KODU GİR (KUMANDA OLARAK BAĞLAN) →</button>
-              </div>
+            <!-- Section Divider / Quick Local Play Banner -->
+            <div class="local-play-stripe">
+              <span class="stripe-badge">📱 MASA ORTASI</span>
+              <span class="stripe-text">Tek cihazda masanın etrafında oynamak için aşağıdaki oyunlardan birine dokunup hemen başlayın:</span>
             </div>
           </div>
 

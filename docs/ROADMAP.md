@@ -134,12 +134,12 @@ FAZ 2: Çoklu Cihaz & Online Ağ Altyapısı (Networking Core)
 - **Problem:** Kumanda ekranındaki boş alan değerlendirilmiyor.
 - **Çözüm:** Maç esnasında kumandada canlı skor tablosu (Örn: `🔴 3 - 2 🔵`), ralli sayacı ve maç durumu göstergesi yer alacak.
 
-### 5. 🛡️ Micro-Tanks Arcade Zamanlamalı İlerleme & Ateş Kontrolleri
-- **Problem:** Kumandada analog joystick kullanımı tank kontrolünü aşırı kolaylaştırıyor ve parti oyunu kaosunu azaltıyordu.
+### 5. 🛡️ Micro-Tanks Arcade Sürüş & 2 Mermi / Cooldown Dengesi
+- **Problem:** Mermiler spam şeklinde üçerli çıkıyordu ve bekleme süresi yoktu.
 - **Çözüm:**
-  - Joystick kaldırıldı. Tank kendi etrafında sürekli otomatik dönüyor.
-  - Kumandanın solunda devasa **`🚀 İLERLE (BASILI TUT)`** gaz pedalı: Parmağı basılı tutunca tank baktığı yöne gider, bırakınca durup dönmeye devam eder.
-  - Kumandanın sağında büyük **`💥 ATEŞ`** butonu ve 3 mermilik dinamik cephane kartuşu (`▮▮▮`).
+  - Joystick kaldırıldı; tank kendi ekseninde otomatik dönüyor.
+  - Sol alanda **`🚀 İLERLE (BASILI TUT)`** gaz pedalı.
+  - Sağ alanda **`💥 ATEŞ`** butonu: Sahada aynı anda en fazla 2 mermi (`maxBullets = 2`), her mermi atışında 0.55s reload bekleme süresi ve kumandada 2'li kartuş HUD'u (`▮▮`).
 
 ### 6. 💺 Mobilden 4 Koltuk Seçimi (Seat Selection Grid)
 - **Problem:** Oyuncu lobiye girdiğinde rastgele bir slota düşüyordu ve yerini değiştiremiyordu.
@@ -151,8 +151,21 @@ FAZ 2: Çoklu Cihaz & Online Ağ Altyapısı (Networking Core)
 - **Problem:** Küçük harf veya karışık yazım brutalist estetiği bozuyordu.
 - **Çözüm:** Tüm oyuncu isimleri (`storePlayerName`, `getStoredPlayerName`, `executeJoin`, `SET_NAME`, UI gösterimleri) sistem genelinde zorunlu `.toUpperCase()` standardına bağlandı.
 
-### 8. 📱 Birincil Katılma Butonu & Sadeleştirilmiş Host Butonu
-- **Problem:** TV Host butonu çok öne çıkıyor, asıl ihtiyaç olan kod ile kumanda olarak katılma butonu arka planda kalıyordu.
-- **Çözüm:** Menü banner'ında ve sekmelerde **`📱 ODA KODU İLE KATIL (KUMANDA)`** birincil parlak CTA buton yapıldı; **`📺 BU EKRANI TV HOST YAP`** ise ikincil, arka planda, sadeleştirilmiş kesikli buton haline getirildi.
+### 8. 📱 Sade & Kullanıcı Dostu Ana Menü (Dual Hero Cards)
+- **Problem:** "Lokal Mod", "TV Konsol" gibi kafa karıştırıcı sekmeler ve karmaşık teknik jargonlar vardı.
+- **Çözüm:**
+  - Gereksiz 3'lü sekme yapısı kaldırıldı.
+  - İkili Hero Kartı mimarisi:
+    1. **`📱 TELEFONU KUMANDA YAP`**: Doğrudan 4 haneli kod kutusu (`[ BOMB ]`) + `BAĞLAN →` butonu ile salondaki oyuna katılma.
+    2. **`📺 BU EKRANI OYUN EKRANI YAP`**: Tek tıkla salondaki TV veya tablet için parti odası kurma.
+  - **Masa Ortası Tek Cihaz Oyunu:** Aşağıdaki 6 oyundan birine dokunulduğunda soru sormadan hemen lokal maçı başlatır.
+
+### 9. 📲 TV Lobi Ekranında 3 Adımlı Net Bağlantı Düzeni
+- **Problem:** QR kod, ham URL linki ve butonlar birbirine girmişti.
+- **Çözüm:**
+  - **1. YOL // EN HIZLI:** Büyük net QR kod + *"Telefonunun kamerasını tut"* yönergesi.
+  - **2. YOL // KOD GİR:** Kocaman `#KOD` + *"Siteye gir ve bu 4 haneli kodu yaz"* yönergesi.
+  - **3. YOL // PAYLAŞ:** Tek dokunuşla WhatsApp daveti ve link kopyalama.
+
 
 

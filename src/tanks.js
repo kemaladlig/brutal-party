@@ -318,10 +318,10 @@ export class TanksGame {
         isJoined: isJoined,
         slotType: this.slotTypes[i],
         size: 26,
-        reloadCooldown: 0.95,
+        reloadCooldown: 0.55,
         reloadTimer: 0,
         muzzleFlashTimer: 0,
-        maxBullets: 3,
+        maxBullets: 2,
         botPatrolTimer: 0,
         botWantsDrive: false,
         turboTimer: 0,
@@ -495,6 +495,8 @@ export class TanksGame {
       tank.isAlive = tank.isJoined;
       tank.isDriving = false;
       tank.reloadTimer = 0;
+      tank.reloadCooldown = 0.55;
+      tank.maxBullets = 2;
       tank.muzzleFlashTimer = 0;
       tank.botPatrolTimer = 0;
       tank.botWantsDrive = false;

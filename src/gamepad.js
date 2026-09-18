@@ -496,7 +496,6 @@ export class GamepadManager {
           <div class="tank-ammo-hud" id="tank-ammo-hud">
             <div class="cartridge-pip loaded"></div>
             <div class="cartridge-pip loaded"></div>
-            <div class="cartridge-pip loaded"></div>
           </div>
         </div>
       </div>
@@ -530,8 +529,12 @@ export class GamepadManager {
     driveBtn?.addEventListener('mouseleave', stopDrive);
 
     const fireBtn = document.getElementById('btn-tank-fire');
+    let lastFireTime = 0;
     const fireAction = (e) => {
       e?.preventDefault();
+      const now = performance.now();
+      if (now - lastFireTime < 450) return;
+      lastFireTime = now;
       this.network.sendInput({ action: 'TANK_FIRE' });
       if (navigator.vibrate) navigator.vibrate(30);
     };
