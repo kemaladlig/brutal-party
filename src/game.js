@@ -410,10 +410,11 @@ export class Game {
     // Render UI Overlays
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'KONTROL // PARMAĞINI KENDİ BÖLGENDE SÜRÜKLE', [
-        'KIRMIZI P1',
-        'MAVİ P2',
-        'YATAYDA SARI P3 / YEŞİL P4',
+      renderControlGuide(ctx, this.arena, 'PARMAĞINI KENDİ BÖLGENDE SÜRÜKLE', [
+        'P1 KIRMIZI',
+        'P2 MAVİ',
+        'P3 SARI',
+        'P4 YEŞİL',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'GAME_OVER') {

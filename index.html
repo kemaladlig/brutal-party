@@ -41,7 +41,7 @@
         <div class="tv-host-card">
           <div class="tv-host-header">
             <div class="tv-host-header-left">
-              <div class="tv-host-badge">📺 TV HOST PARTİ LOBİSİ</div>
+              <div class="tv-host-badge">📺 ODA LOBİSİ</div>
               <h2 class="tv-host-title">ODA: #<span id="host-room-code">----</span></h2>
             </div>
             <div class="tv-host-header-right">
@@ -52,27 +52,27 @@
           <div class="tv-host-body">
             <!-- Left: 3 Clear Ways to Connect -->
             <div class="host-connect-channels">
-              <div class="connect-channel-title">📲 KUMANDA BAĞLAMA YOLLARI</div>
+              <div class="connect-channel-title">📲 KUMANDAYI BAĞLA</div>
               
               <!-- Channel 1: Camera QR -->
               <div class="connect-channel-card qr-channel">
-                <div class="channel-badge">1. YOL // EN HIZLI</div>
+                <div class="channel-badge">📸 QR KOD</div>
                 <div class="qr-canvas-box">
                   <canvas id="qr-canvas"></canvas>
                 </div>
-                <div class="channel-hint">📸 Telefonunun kamerasını tut, anında açılsın!</div>
+                <div class="channel-hint">Telefonunun kamerasını tut, anında bağlan.</div>
               </div>
 
               <!-- Channel 2: 4-Letter Code -->
               <div class="connect-channel-card code-channel">
-                <div class="channel-badge">2. YOL // KOD GİR</div>
+                <div class="channel-badge">🔢 ODA KODU</div>
                 <div class="channel-big-code">#<span id="host-channel-code">----</span></div>
-                <div class="channel-hint">Siteye gir ve bu 4 haneli kodu yaz.</div>
+                <div class="channel-hint">Siteye girip bu 4 haneli kodu yaz.</div>
               </div>
 
               <!-- Channel 3: WhatsApp & Direct Link -->
               <div class="connect-channel-card share-channel">
-                <div class="channel-badge">3. YOL // PAYLAŞ</div>
+                <div class="channel-badge">🔗 DAVET ET</div>
                 <button class="host-share-btn whatsapp" id="btn-host-whatsapp-share" type="button">
                   💬 WHATSAPP İLE DAVET ET
                 </button>
@@ -85,11 +85,11 @@
 
             <!-- Center: 4 Player Slots with Positions & Ready Status -->
             <div class="host-players-list">
-              <div class="host-slot-header">👥 OYUNCU KOLTUKLARI & TV KONUMU</div>
+              <div class="host-slot-header">👥 OYUNCULAR (2-4 KİŞİ)</div>
               <div class="host-player-slot" id="slot-p1" data-slot="0">
                 <div class="slot-color-dot" style="background-color: #D84727"></div>
                 <div class="slot-info">
-                  <div class="slot-position-label">ALT ALAN // P1</div>
+                  <div class="slot-position-label">P1 // KIRMIZI</div>
                   <div class="slot-name">BEKLENİYOR...</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p1">BEKLİYOR</div>
@@ -98,7 +98,7 @@
               <div class="host-player-slot" id="slot-p2" data-slot="1">
                 <div class="slot-color-dot" style="background-color: #1D5D8A"></div>
                 <div class="slot-info">
-                  <div class="slot-position-label">ÜST ALAN // P2</div>
+                  <div class="slot-position-label">P2 // MAVİ</div>
                   <div class="slot-name">BEKLENİYOR...</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p2">BEKLİYOR</div>
@@ -107,7 +107,7 @@
               <div class="host-player-slot" id="slot-p3" data-slot="2">
                 <div class="slot-color-dot" style="background-color: #D99B26"></div>
                 <div class="slot-info">
-                  <div class="slot-position-label">SOL ALAN // P3</div>
+                  <div class="slot-position-label">P3 // SARI</div>
                   <div class="slot-name">BEKLENİYOR...</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p3">BEKLİYOR</div>
@@ -116,7 +116,7 @@
               <div class="host-player-slot" id="slot-p4" data-slot="3">
                 <div class="slot-color-dot" style="background-color: #2F6A4F"></div>
                 <div class="slot-info">
-                  <div class="slot-position-label">SAĞ ALAN // P4</div>
+                  <div class="slot-position-label">P4 // YEŞİL</div>
                   <div class="slot-name">BEKLENİYOR...</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p4">BEKLİYOR</div>
@@ -242,7 +242,7 @@
               ↺ MAÇI SIFIRLA
             </button>
             <button id="btn-tv-lobby" class="pause-btn lobby-btn hidden" type="button">
-              📺 PARTİ LOBİSİNE DÖN (OYUN DEĞİŞTİR)
+              📺 LOBİYE DÖN
             </button>
             <button id="btn-toggle-sound" class="pause-btn" type="button">
               🔊 SES: AÇIK
@@ -264,19 +264,19 @@
           <!-- Header Banner -->
           <div class="menu-header">
             <div class="header-top-row">
-              <div class="menu-badge">BRUTAL PARTY // 4P</div>
-              <div class="version-badge">v2.0 • 120HZ ENGINE</div>
+              <div class="menu-badge">PARTİ OYUNLARI</div>
+              <div class="version-badge">2-4 OYUNCU</div>
             </div>
             <h1 class="menu-title">BRUTAL PARTY</h1>
-            <p class="menu-subtitle">TELEFONLAR KUMANDA, EKRAN ARENA • 2-4 OYUNCU</p>
+            <p class="menu-subtitle">TELEFONLAR KUMANDA, EKRAN ARENA</p>
 
             <!-- Hero Action Cards: Primary Controller vs Big TV Host -->
             <div class="hero-actions-container">
               <!-- 1. Primary: Join As Controller -->
               <div class="hero-card primary-hero-card">
                 <div class="hero-card-header">
-                  <span class="hero-card-badge">🎮 EN ÇOK KULLANILAN</span>
-                  <span class="hero-card-tag">KUMANDA OL</span>
+                  <span class="hero-card-badge">🎮 OYUNCULAR</span>
+                  <span class="hero-card-tag">KUMANDA</span>
                 </div>
                 <h2 class="hero-card-title">KODU GİR VE OYNA</h2>
                 <p class="hero-card-desc">TV veya bilgisayar ekranındaki 4 haneli kodu yaz, hemen oyuna katıl:</p>
@@ -302,21 +302,21 @@
               <!-- 2. Secondary: Host as TV / Big Screen -->
               <div class="hero-card secondary-hero-card">
                 <div class="hero-card-header">
-                  <span class="hero-card-badge tv-badge">📺 TV & BİLGİSAYAR</span>
-                  <span class="hero-card-tag">EKRAN AÇ</span>
+                  <span class="hero-card-badge tv-badge">📺 ANA EKRAN</span>
+                  <span class="hero-card-tag">TV / TABLET</span>
                 </div>
                 <h2 class="hero-card-title">BU CİHAZI EKRAN YAP</h2>
                 <p class="hero-card-desc">Salondaki TV'de veya tablette oyun odası aç, herkes telefonunu bağlasın:</p>
                 <button class="hero-host-btn" id="btn-hero-create-room" type="button">
-                  🏠 ODA KUR (TV / PC) →
+                  🏠 ODA KUR →
                 </button>
               </div>
             </div>
 
             <!-- Section Divider / Quick Local Play Banner -->
             <div class="local-play-stripe">
-              <span class="stripe-badge">⚡ TEK CİHAZ</span>
-              <span class="stripe-text">Telefonu masaya koyup yan yana oynamak için bir oyun seçin:</span>
+              <span class="stripe-badge">📱 TEK TELEFON</span>
+              <span class="stripe-text">Masaya koyup yan yana oynamak için bir oyun seçin:</span>
             </div>
           </div>
 
@@ -426,7 +426,7 @@
           </div>
 
           <div class="menu-footer">
-            <div class="footer-note">⚡ ULTRA DÜŞÜK GECİKME • BRUTALIST PWA • ÇOKLU CİHAZ DESTEĞİ ⚡</div>
+            <div class="footer-note">🎮 2-4 OYUNCU • ÇOK OYUNCULU PARTİ OYUNLARI 🎮</div>
           </div>
         </div>
       </div>

@@ -617,11 +617,11 @@ export class DuelGame {
 
     // State Renderings
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'KONTROL // SİNYALDE İLK BASAN KAZANIR • ERKEN BASAN -1 PUAN', [
-        'KIRMIZI P1 (ALT)',
-        'MAVİ P2 (ÜST)',
-        'SARI P3 (SOL)',
-        'YEŞİL P4 (SAĞ)',
+      renderControlGuide(ctx, this.arena, 'SİNYALDE İLK BASAN KAZANIR • ERKEN BASAN -1 PUAN', [
+        'P1 KIRMIZI',
+        'P2 MAVİ',
+        'P3 SARI',
+        'P4 YEŞİL',
       ]);
       this.renderLobby();
     } else if (this.state === 'STANDOFF_COUNTDOWN') {

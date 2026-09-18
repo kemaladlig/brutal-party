@@ -177,10 +177,10 @@ export class GamepadManager {
   // --- 00: LOBBY CONTROLLER (Seat Selector, Name Edit, Game Preview, Ready Toggle, Leave Room) ---
   mountLobbyController(container) {
     const seatNames = [
-      'P1 // ALT',
-      'P2 // ÜST',
-      'P3 // SOL',
-      'P4 // SAĞ',
+      'P1 (ALT)',
+      'P2 (ÜST)',
+      'P3 (SOL)',
+      'P4 (SAĞ)',
     ];
     const seatColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 
@@ -198,7 +198,7 @@ export class GamepadManager {
       <div class="lobby-controller-view">
         <!-- Interactive Seat Selector -->
         <div class="lobby-seats-card">
-          <div class="lobby-seat-badge">💺 KOLTUĞUNUZU SEÇİN (TV SAHASI)</div>
+          <div class="lobby-seat-badge">💺 YERİNİZİ SEÇİN</div>
           <div class="lobby-seats-grid">
             ${[0, 1, 2, 3]
               .map((idx) => {
@@ -208,7 +208,7 @@ export class GamepadManager {
                     <span class="seat-dot" style="background-color: ${seatColors[idx]}"></span>
                     <div class="seat-details">
                       <span class="seat-name">${seatNames[idx]}</span>
-                      <span class="seat-status">${isMine ? '✓ SİZİN YERİNİZ' : 'BURAYA GEÇ →'}</span>
+                      <span class="seat-status">${isMine ? '✓ BURADASINIZ' : 'BURAYA GEÇ →'}</span>
                     </div>
                   </button>
                 `;
@@ -219,7 +219,7 @@ export class GamepadManager {
 
         <!-- Name Edit Section -->
         <div class="lobby-name-section">
-          <div class="lobby-name-label">👤 OYUNCU İSMİNİZ</div>
+          <div class="lobby-name-label">👤 İSMİNİZ</div>
           <div class="lobby-name-row">
             <div class="lobby-name-display" id="lobby-name-display">${this.playerName}</div>
             <button class="lobby-name-edit-btn" id="btn-edit-name" type="button">✏️ DEĞİŞTİR</button>
@@ -233,11 +233,11 @@ export class GamepadManager {
 
         <div class="lobby-game-preview-card">
           <img src="/assets/games/${(this.selectedHostGame || 'PONG').toLowerCase()}.jpg" class="lobby-game-thumb-preview" alt="Game" />
-          <div class="lobby-game-text">SEÇİLEN OYUN: <b id="lobby-selected-game-text">${selectedTitle}</b></div>
+          <div class="lobby-game-text">OYUN: <b id="lobby-selected-game-text">${selectedTitle}</b></div>
         </div>
 
         <button class="btn-ready-toggle ${this.isReady ? 'ready' : ''}" id="btn-lobby-ready" type="button">
-          ${this.isReady ? '✓ HAZIRSINIZ!' : '⏳ HAZIRIM — DOKUN'}
+          ${this.isReady ? '✓ HAZIR' : 'HAZIRIM'}
         </button>
 
         <button class="btn-leave-lobby-direct" id="btn-leave-lobby-direct" type="button">

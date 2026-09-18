@@ -897,11 +897,11 @@ export class CurveGame {
     }
 
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'KONTROL // KÖŞEDEKİ SOL / SAĞ BUTONLAR', [
-        'KIRMIZI P1',
-        'MAVİ P2',
-        'SARI P3',
-        'YEŞİL P4',
+      renderControlGuide(ctx, this.arena, 'KÖŞEDEKİ SOL VE SAĞ BUTONLAR', [
+        'P1 KIRMIZI',
+        'P2 MAVİ',
+        'P3 SARI',
+        'P4 YEŞİL',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
