@@ -1134,6 +1134,33 @@ body {
   padding: 2px 0;
 }
 
+/* Kod + kopya simgesi yan yana */
+.channel-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.code-copy-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 800;
+  width: 30px;
+  height: 30px;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  border: 2px solid #1a1a1a;
+  box-shadow: 2px 2px 0px #1a1a1a;
+  cursor: pointer;
+  touch-action: manipulation;
+  flex-shrink: 0;
+}
+
+.code-copy-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+}
+
 .channel-hint {
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px;
@@ -1172,6 +1199,49 @@ body {
   background-color: #25d366;
   color: #ffffff;
   border-color: #1a1a1a;
+}
+
+/* Tıklanabilir link kutusu: link gibi durur, dokununca kopyalar */
+.host-link-box {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  background-color: #f4f4f0;
+  border: 2px solid #1a1a1a;
+  box-shadow: 2px 2px 0px #1a1a1a;
+  cursor: pointer;
+  touch-action: manipulation;
+  min-width: 0;
+}
+
+.host-link-box:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+}
+
+.host-link-text {
+  flex: 1;
+  min-width: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: #1d5d8a;
+  text-decoration: underline;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.host-link-copy {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1a1a1a;
+  flex-shrink: 0;
 }
 
 /* Center: Player Slots */

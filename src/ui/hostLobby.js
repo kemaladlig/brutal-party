@@ -164,6 +164,18 @@ export function initHostLobby({
     }
   });
 
+  // Oda kodu kopyalama (simge butonu)
+  document.getElementById('btn-host-copy-code')?.addEventListener('click', async () => {
+    const code = hostRoomCode?.textContent?.trim() || '';
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      showInstallToast(`✓ Oda kodu kopyalandı: #${code}`);
+    } catch (err) {
+      showInstallToast(`Oda kodu: #${code}`);
+    }
+  });
+
   btnHostWhatsappShare?.addEventListener('click', () => {
     const code = hostRoomCode?.textContent?.trim() || '';
     const joinUrl = getEffectiveJoinUrl(code, getPlatformMode());

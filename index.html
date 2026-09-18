@@ -84,20 +84,23 @@
               <!-- Channel 2: 3-Digit Code -->
               <div class="connect-channel-card code-channel">
                 <div class="channel-badge">🔢 ODA KODU</div>
-                <div class="channel-big-code">#<span id="host-channel-code">---</span></div>
+                <div class="channel-code-row">
+                  <div class="channel-big-code">#<span id="host-channel-code">---</span></div>
+                  <button class="code-copy-btn" id="btn-host-copy-code" title="Kodu kopyala" type="button">⧉</button>
+                </div>
                 <div class="channel-hint">Siteye girip bu 3 haneli kodu yaz.</div>
               </div>
 
               <!-- Channel 3: WhatsApp & Direct Link -->
               <div class="connect-channel-card share-channel">
                 <div class="channel-badge">🔗 DAVET ET</div>
+                <button class="host-link-box" id="btn-host-copy-link" type="button" title="Dokun: linki kopyala">
+                  <span class="host-link-text" id="host-join-url">http://...</span>
+                  <span class="host-link-copy">⧉</span>
+                </button>
                 <button class="host-share-btn whatsapp" id="btn-host-whatsapp-share" type="button">
                   💬 WHATSAPP İLE DAVET ET
                 </button>
-                <button class="host-share-btn" id="btn-host-copy-link" type="button">
-                  📋 LİNKİ KOPYALA
-                </button>
-                <div class="qr-url-text hidden" id="host-join-url">http://...</div>
               </div>
             </div>
 
