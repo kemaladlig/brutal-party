@@ -213,6 +213,11 @@ export class DuelGame extends BaseMiniGame {
     this.joinedPlayers[index] = !this.joinedPlayers[index];
   }
 
+  // Registry standardı: tüm motorlar startNewMatch() ile çalışır.
+  startNewMatch() {
+    this.startMatch();
+  }
+
   startMatch() {
     if (this.getActivePlayerCount() < 2) return;
     playStart();

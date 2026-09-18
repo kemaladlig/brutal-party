@@ -3,6 +3,18 @@
 
 import { storePlayerName } from './net.js';
 
+// Kumanda kayıt tablosu: yeni oyun = 1 satır (etiketler + mount fonksiyonu).
+// mount: GamepadManager prototype metot adı (string) olarak tutulur.
+const CONTROLLER_META = {
+  LOBBY: { hudTag: '📺 PARTİ LOBİSİ' },
+  PONG: { hudTag: '🏓 PONG', lobbyTitle: '🏓 BRUTAL PONG', mount: 'mountPongController' },
+  TANKS: { hudTag: '🛡️ TANKS', lobbyTitle: '🛡️ MICRO-TANKS', mount: 'mountTanksController' },
+  CURVE: { hudTag: '🐍 CURVE', lobbyTitle: '🐍 BRUTAL CURVE', mount: 'mountCurveController' },
+  BOMB: { hudTag: '💣 BOMB', lobbyTitle: '💣 BRUTAL BOMB', mount: 'mountBombController' },
+  HEIST: { hudTag: '💰 HEIST', lobbyTitle: '💰 BRUTAL HEIST', mount: 'mountHeistController' },
+  DUEL: { hudTag: '🤠 DUEL', lobbyTitle: '🤠 QUICK DRAW', mount: 'mountDuelController' },
+};
+
 export class GamepadManager {
   constructor(overlayEl, network) {
     this.overlay = overlayEl;
@@ -194,32 +206,14 @@ export class GamepadManager {
 
     const modeTag = document.getElementById('hud-game-tag');
     if (modeTag) {
-      const modeNames = {
-        LOBBY: '📺 PARTİ LOBİSİ',
-        PONG: '🏓 PONG',
-        TANKS: '🛡️ TANKS',
-        CURVE: '🐍 CURVE',
-        BOMB: '💣 BOMB',
-        HEIST: '💰 HEIST',
-        DUEL: '🤠 DUEL',
-      };
-      modeTag.textContent = modeNames[mode] || mode;
+      modeTag.textContent = CONTROLLER_META[mode]?.hudTag || mode;
     }
 
     if (mode === 'LOBBY') {
       this.mountLobbyController(workspace);
-    } else if (mode === 'PONG') {
-      this.mountPongController(workspace);
-    } else if (mode === 'TANKS') {
-      this.mountTanksController(workspace);
-    } else if (mode === 'CURVE') {
-      this.mountCurveController(workspace);
-    } else if (mode === 'BOMB') {
-      this.mountBombController(workspace);
-    } else if (mode === 'HEIST') {
-      this.mountHeistController(workspace);
-    } else if (mode === 'DUEL') {
-      this.mountDuelController(workspace);
+    } else {
+      const mountFn = CONTROLLER_META[mode]?.mount;
+      if (mountFn && typeof this[mountFn] === 'function') this[mountFn](workspace);
     }
   }
 
@@ -278,15 +272,7 @@ export class GamepadManager {
 
   // --- 00: LOBBY CONTROLLER (Seat Selector, Name Edit, Game Preview, Ready Toggle, Leave Room) ---
   mountLobbyController(container) {
-    const gameTitles = {
-      PONG: '🏓 BRUTAL PONG',
-      TANKS: '🛡️ MICRO-TANKS',
-      CURVE: '🐍 BRUTAL CURVE',
-      BOMB: '💣 BRUTAL BOMB',
-      HEIST: '💰 BRUTAL HEIST',
-      DUEL: '🤠 QUICK DRAW',
-    };
-    const selectedTitle = gameTitles[this.selectedHostGame] || '🏓 BRUTAL PONG';
+    const selectedTitle = CONTROLLER_META[this.selectedHostGame]?.lobbyTitle || '🏓 BRUTAL PONG';
 
     container.innerHTML = `
       <div class="lobby-controller-view">

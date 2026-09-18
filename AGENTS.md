@@ -93,9 +93,14 @@ Ultra-minimalist 3D isometric illustration of [ANA OYUN NESNELERİ/KONSEPT], flo
 
 ## 5. Yeni Oyun Ekleme Kontrol Listesi (Checklist)
 
-- [ ] `src/[oyun_adi].js` motor dosyasını oluştur (Canvas render döngüsü, update fonksiyonu, skor mantığı).
-- [ ] `src/gamepad.js` içerisine ilgili oyunun kumanda layout'unu (`mount[Oyun]Controller`) ekle.
+Motor sözleşmesi: `BaseMiniGame` türevi + `resetMatch/reset()`, `update(now)`, `render()`,
+`resize(w,h)`, `handleRemoteInput(slotIndex, data)`, `startNewMatch()`.
+
+- [ ] `src/games/[oyun_adi].js` motor dosyasını oluştur (sözleşmeye uygun).
+- [ ] `src/core/engineRegistry.js` → `GAME_ORDER` listesine mod kodunu ekle.
+- [ ] `src/main.js` → 1 satır `registerEngine('MOD', { game, reset, onEnter/onResume, start, packet })`.
+- [ ] `src/gamepad.js` → `mount[Oyun]Controller` fonksiyonu + `CONTROLLER_META` tablosuna 1 satır.
+- [ ] Gerekirse `src/core/slotManager.js` → `syncSlotsToEngine` içine slot eşleme dalı (motorun varlık alanları farklıysa).
 - [ ] Yukarıdaki prompt formülüyle minimalist izometrik görseli üret ve `public/assets/games/[oyun_adi].jpg` konumuna ekle.
-- [ ] `index.html` Bento Grid ve TV Lobisi selector butonlarına ekle.
-- [ ] `src/main.js` içerisinde oyun başlatma ve lobi geçiş bağlantılarını sağla.
-- [ ] `npm run build` ile derleme hatası olmadığını doğrula.
+- [ ] `index.html` → Bento Grid kartı (`id="btn-select-[mod]"`, kural: küçük harf mod kodu) ve TV lobisi seçim çipini ekle.
+- [ ] `npm run build` ile derleme hatası olmadığını doğrula + kalıntı taraması (`else if (mode ===` zinciri çıkmamalı).

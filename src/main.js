@@ -6,6 +6,13 @@ import { BombGame } from './games/bomb.js';
 import { HeistGame } from './games/heist.js';
 import { DuelGame } from './games/duel.js';
 import { TouchManager } from './touchManager.js';
+import {
+  GAME_ORDER,
+  registerEngine,
+  getEngine,
+  getEngineGame,
+  forEachEngine,
+} from './core/engineRegistry.js';
 import { playJoin } from './audio.js';
 import { partyNetwork } from './network.js';
 import { GamepadManager } from './gamepad.js';
@@ -48,13 +55,6 @@ const btnQuickTvLobby = document.getElementById('btn-quick-tv-lobby');
 const btnOpenOptions = document.getElementById('btn-open-options');
 const btnHeroCreateRoom = document.getElementById('btn-hero-create-room');
 
-const btnSelectPong = document.getElementById('btn-select-pong');
-const btnSelectTanks = document.getElementById('btn-select-tanks');
-const btnSelectCurve = document.getElementById('btn-select-curve');
-const btnSelectBomb = document.getElementById('btn-select-bomb');
-const btnSelectHeist = document.getElementById('btn-select-heist');
-const btnSelectDuel = document.getElementById('btn-select-duel');
-
 // Platform / Match Mode: 'LOCAL' | 'TV_CONSOLE' | 'ONLINE'
 let platformMode = isPublicOrigin() ? 'ONLINE' : 'TV_CONSOLE';
 export function updatePlatformMode(newMode) {
@@ -65,7 +65,7 @@ export function activeNet() {
   return getActiveNetwork(platformMode);
 }
 
-// State Machine: 'MENU' | 'PONG' | 'TANKS' | 'CURVE' | 'BOMB' | 'HEIST' | 'DUEL'
+// State Machine: 'MENU' + GAME_ORDER ('PONG' | 'TANKS' | 'CURVE' | 'BOMB' | 'HEIST' | 'DUEL')
 let currentMode = 'MENU';
 let lastTransitionTime = 0;
 
@@ -73,7 +73,7 @@ export function markTransition() {
   lastTransitionTime = performance.now();
 }
 
-// Engine Instances
+// Engine Instances + Registry (yeni oyun = 1 registerEngine satırı)
 const touchManager = new TouchManager(canvas);
 const pongGame = new PongGame(canvas);
 const tanksGame = new TanksGame(canvas);
@@ -82,14 +82,75 @@ const bombGame = new BombGame(canvas);
 const heistGame = new HeistGame(canvas);
 const duelGame = new DuelGame(canvas);
 
+function touchStamp(game, now) {
+  game.lastTime = now;
+}
+
+registerEngine('PONG', {
+  game: pongGame,
+  reset: () => pongGame.resetCurrentGame(),
+  onEnter: (now) => { pongGame.lastTime = now; pongGame.accumulator = 0; },
+  onResume: (now) => { pongGame.lastTime = now; pongGame.accumulator = 0; },
+  start: () => pongGame.startNewMatch(),
+  packet: () => ({ scores: pongGame.matchScores, rally: pongGame.ball?.rallyCount || 0 }),
+});
+registerEngine('TANKS', {
+  game: tanksGame,
+  reset: () => tanksGame.resetMatch(),
+  onEnter: (now) => touchStamp(tanksGame, now),
+  onResume: (now) => touchStamp(tanksGame, now),
+  start: () => tanksGame.startRound(),
+  packet: () => ({
+    scores: tanksGame.scores,
+    ammo: tanksGame.tanks.map((t) =>
+      Math.max(0, (t.maxBullets || 2) - tanksGame.bullets.filter((b) => b.owner === t.index).length)
+    ),
+    alive: tanksGame.tanks.map((t) => t.isAlive),
+  }),
+});
+registerEngine('CURVE', {
+  game: curveGame,
+  reset: () => curveGame.resetMatch(),
+  onEnter: (now) => touchStamp(curveGame, now),
+  onResume: (now) => touchStamp(curveGame, now),
+  start: () => curveGame.startRound(),
+  packet: () => ({ scores: curveGame.scores, alive: curveGame.players.map((p) => p.alive) }),
+});
+registerEngine('BOMB', {
+  game: bombGame,
+  reset: () => bombGame.resetMatch(),
+  onEnter: (now) => touchStamp(bombGame, now),
+  onResume: (now) => touchStamp(bombGame, now),
+  start: () => bombGame.startNewRound(),
+  packet: () => ({
+    scores: bombGame.scores,
+    carrier: bombGame.bombCarrierIndex,
+    bombTime: Math.ceil(bombGame.bombTimer || 0),
+  }),
+});
+registerEngine('HEIST', {
+  game: heistGame,
+  reset: () => heistGame.resetMatch(),
+  onEnter: (now) => touchStamp(heistGame, now),
+  onResume: (now) => touchStamp(heistGame, now),
+  start: () => heistGame.startNewRound(),
+  packet: () => ({
+    scores: heistGame.scores,
+    gemCarrier: heistGame.gemCarrierIndex,
+    timeLeft: Math.ceil(heistGame.roundTimer || 0),
+  }),
+});
+registerEngine('DUEL', {
+  game: duelGame,
+  reset: () => duelGame.reset(),
+  onEnter: (now) => touchStamp(duelGame, now),
+  onResume: (now) => touchStamp(duelGame, now),
+  start: () => duelGame.startNewMatch(),
+  packet: () => ({ scores: duelGame.scores, duelState: duelGame.state, winner: duelGame.roundWinner }),
+});
+
 export function getActiveGameEngine() {
-  if (currentMode === 'PONG') return pongGame;
-  if (currentMode === 'TANKS') return tanksGame;
-  if (currentMode === 'CURVE') return curveGame;
-  if (currentMode === 'BOMB') return bombGame;
-  if (currentMode === 'HEIST') return heistGame;
-  if (currentMode === 'DUEL') return duelGame;
-  return null;
+  return getEngineGame(currentMode);
 }
 
 // Gamepad Controller Manager
@@ -113,12 +174,7 @@ function resizeCanvas() {
 
   touchManager.setDimensions(width, height, dpr);
 
-  pongGame.resize(width, height);
-  tanksGame.resize(width, height);
-  curveGame.resize(width, height);
-  bombGame.resize(width, height);
-  heistGame.resize(width, height);
-  duelGame.resize(width, height);
+  forEachEngine((mode, entry) => entry.game.resize(width, height));
 }
 
 window.addEventListener('resize', resizeCanvas);
@@ -148,92 +204,29 @@ export function setGameMode(mode) {
     menuOverlay.classList.remove('hidden');
     inGameHud.classList.add('hidden');
     touchManager.setHandler(null);
-  } else if (mode === 'PONG') {
-    menuOverlay.classList.add('hidden');
-    inGameHud.classList.remove('hidden');
-    touchManager.setHandler(pongGame);
-    pongGame.resetCurrentGame();
-    pongGame.lastTime = now;
-    pongGame.accumulator = 0;
-    pongGame.resize(window.innerWidth, window.innerHeight);
-    syncSlotsToEngine(pongGame, currentMode, activeNet().isHosting);
-  } else if (mode === 'TANKS') {
-    menuOverlay.classList.add('hidden');
-    inGameHud.classList.remove('hidden');
-    touchManager.setHandler(tanksGame);
-    tanksGame.resetMatch();
-    tanksGame.lastTime = now;
-    tanksGame.resize(window.innerWidth, window.innerHeight);
-    syncSlotsToEngine(tanksGame, currentMode, activeNet().isHosting);
-  } else if (mode === 'CURVE') {
-    menuOverlay.classList.add('hidden');
-    inGameHud.classList.remove('hidden');
-    touchManager.setHandler(curveGame);
-    curveGame.resetMatch();
-    curveGame.lastTime = now;
-    curveGame.resize(window.innerWidth, window.innerHeight);
-    syncSlotsToEngine(curveGame, currentMode, activeNet().isHosting);
-  } else if (mode === 'BOMB') {
-    menuOverlay.classList.add('hidden');
-    inGameHud.classList.remove('hidden');
-    touchManager.setHandler(bombGame);
-    bombGame.resetMatch();
-    bombGame.lastTime = now;
-    bombGame.resize(window.innerWidth, window.innerHeight);
-    syncSlotsToEngine(bombGame, currentMode, activeNet().isHosting);
-  } else if (mode === 'HEIST') {
-    menuOverlay.classList.add('hidden');
-    inGameHud.classList.remove('hidden');
-    touchManager.setHandler(heistGame);
-    heistGame.resetMatch();
-    heistGame.lastTime = now;
-    heistGame.resize(window.innerWidth, window.innerHeight);
-    syncSlotsToEngine(heistGame, currentMode, activeNet().isHosting);
-  } else if (mode === 'DUEL') {
-    menuOverlay.classList.add('hidden');
-    inGameHud.classList.remove('hidden');
-    touchManager.setHandler(duelGame);
-    duelGame.reset();
-    duelGame.lastTime = now;
-    duelGame.resize(window.innerWidth, window.innerHeight);
-    syncSlotsToEngine(duelGame, currentMode, activeNet().isHosting);
+  } else {
+    const entry = getEngine(mode);
+    if (entry) {
+      menuOverlay.classList.add('hidden');
+      inGameHud.classList.remove('hidden');
+      touchManager.setHandler(entry.game);
+      entry.reset();
+      entry.onEnter(now);
+      entry.game.resize(window.innerWidth, window.innerHeight);
+      syncSlotsToEngine(entry.game, currentMode, activeNet().isHosting);
+    }
   }
 }
 
 function resetActiveGame() {
   const now = performance.now();
-  if (currentMode === 'PONG') {
-    pongGame.resetCurrentGame();
-  } else if (currentMode === 'TANKS') {
-    tanksGame.resetMatch();
-  } else if (currentMode === 'CURVE') {
-    curveGame.resetMatch();
-  } else if (currentMode === 'BOMB') {
-    bombGame.resetMatch();
-  } else if (currentMode === 'HEIST') {
-    heistGame.resetMatch();
-  } else if (currentMode === 'DUEL') {
-    duelGame.reset();
-  }
+  getEngine(currentMode)?.reset();
   touchManager.resetTouches();
 }
 
 function onResumeAfterPause() {
   const now = performance.now();
-  if (currentMode === 'PONG') {
-    pongGame.lastTime = now;
-    pongGame.accumulator = 0;
-  } else if (currentMode === 'TANKS') {
-    tanksGame.lastTime = now;
-  } else if (currentMode === 'CURVE') {
-    curveGame.lastTime = now;
-  } else if (currentMode === 'BOMB') {
-    bombGame.lastTime = now;
-  } else if (currentMode === 'HEIST') {
-    heistGame.lastTime = now;
-  } else if (currentMode === 'DUEL') {
-    duelGame.lastTime = now;
-  }
+  getEngine(currentMode)?.onResume(now);
   touchManager.resetTouches();
 }
 
@@ -561,12 +554,7 @@ function cancelCountdown() {
 }
 
 function startEngineNow(mode) {
-  if (mode === 'PONG') pongGame.startGame();
-  else if (mode === 'TANKS') tanksGame.startRound();
-  else if (mode === 'CURVE') curveGame.startRound();
-  else if (mode === 'BOMB') bombGame.startNewRound();
-  else if (mode === 'HEIST') heistGame.startNewRound();
-  else if (mode === 'DUEL') duelGame.startMatch();
+  getEngine(mode)?.start();
 }
 
 // BAŞLAT #1: sahayı aç — motor LOBBY'de arena gösterir, koltuk seçimi başlar
@@ -649,14 +637,11 @@ initPauseModal({
   onTvLobby: returnHostToLobby,
 });
 
-// Menu Card Tap Listeners
+// Menu Card Tap Listeners (buton id kuralı: btn-select-<lowercase mode>)
 btnHeroCreateRoom?.addEventListener('click', () => openHostLobby('PONG'));
-addTapListener(btnSelectPong, () => handleGameCardClick('PONG'));
-addTapListener(btnSelectTanks, () => handleGameCardClick('TANKS'));
-addTapListener(btnSelectCurve, () => handleGameCardClick('CURVE'));
-addTapListener(btnSelectBomb, () => handleGameCardClick('BOMB'));
-addTapListener(btnSelectHeist, () => handleGameCardClick('HEIST'));
-addTapListener(btnSelectDuel, () => handleGameCardClick('DUEL'));
+for (const mode of GAME_ORDER) {
+  addTapListener(document.getElementById(`btn-select-${mode.toLowerCase()}`), () => handleGameCardClick(mode));
+}
 
 addTapListener(btnQuickTvLobby, returnHostToLobby);
 addTapListener(btnOpenOptions, () => {
@@ -710,31 +695,8 @@ function broadcastGameStateIfNeeded(now) {
   lastBroadcastTime = now;
 
   let packet = { gameMode: currentMode };
-  if (currentMode === 'PONG') {
-    packet.scores = pongGame.matchScores;
-    packet.rally = pongGame.ball?.rallyCount || 0;
-  } else if (currentMode === 'TANKS') {
-    packet.scores = tanksGame.scores;
-    packet.ammo = tanksGame.tanks.map((t) =>
-      Math.max(0, (t.maxBullets || 2) - tanksGame.bullets.filter((b) => b.owner === t.index).length)
-    );
-    packet.alive = tanksGame.tanks.map((t) => t.isAlive);
-  } else if (currentMode === 'CURVE') {
-    packet.scores = curveGame.scores;
-    packet.alive = curveGame.players.map((p) => p.alive);
-  } else if (currentMode === 'BOMB') {
-    packet.scores = bombGame.scores;
-    packet.carrier = bombGame.bombCarrierIndex;
-    packet.bombTime = Math.ceil(bombGame.bombTimer || 0);
-  } else if (currentMode === 'HEIST') {
-    packet.scores = heistGame.scores;
-    packet.gemCarrier = heistGame.gemCarrierIndex;
-    packet.timeLeft = Math.ceil(heistGame.roundTimer || 0);
-  } else if (currentMode === 'DUEL') {
-    packet.scores = duelGame.scores;
-    packet.duelState = duelGame.state;
-    packet.winner = duelGame.roundWinner;
-  }
+  const entry = getEngine(currentMode);
+  if (entry) Object.assign(packet, entry.packet());
 
   activeNet().broadcastHostState(packet);
 }
@@ -745,24 +707,10 @@ function loop(timestamp) {
 
   const isPaused = getIsPaused();
 
-  if (currentMode === 'PONG') {
-    if (!isPaused) pongGame.update(timestamp);
-    pongGame.render();
-  } else if (currentMode === 'TANKS') {
-    if (!isPaused) tanksGame.update(timestamp);
-    tanksGame.render();
-  } else if (currentMode === 'CURVE') {
-    if (!isPaused) curveGame.update(timestamp);
-    curveGame.render();
-  } else if (currentMode === 'BOMB') {
-    if (!isPaused) bombGame.update(timestamp);
-    bombGame.render();
-  } else if (currentMode === 'HEIST') {
-    if (!isPaused) heistGame.update(timestamp);
-    heistGame.render();
-  } else if (currentMode === 'DUEL') {
-    if (!isPaused) duelGame.update(timestamp);
-    duelGame.render();
+  const loopEntry = getEngine(currentMode);
+  if (loopEntry) {
+    if (!isPaused) loopEntry.game.update(timestamp);
+    loopEntry.game.render();
   } else if (currentMode === 'MENU') {
     const ctx = canvas.getContext('2d');
     ctx.save();

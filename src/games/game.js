@@ -253,6 +253,11 @@ export class Game extends BaseMiniGame {
     playJoin();
   }
 
+  // Registry standardı: tüm motorlar startNewMatch() ile çalışır.
+  startNewMatch() {
+    this.startGame();
+  }
+
   startGame() {
     const joined = this.paddles.filter((p) => p.isJoined);
     if (joined.length < 2) return;
