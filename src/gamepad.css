@@ -249,14 +249,16 @@
 
 .lobby-seat-btn {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 6px;
   background-color: #22201e;
   border: 2px solid #3d3a36;
   color: #ffffff;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   touch-action: manipulation;
   box-sizing: border-box;
   min-width: 0;
@@ -298,71 +300,22 @@
   cursor: default;
 }
 
-.lobby-seat-btn .seat-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 1.5px solid #ffffff;
-  flex-shrink: 0;
-}
-
-.lobby-seat-btn .seat-details {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-  gap: 2px;
-}
-
-.seat-header-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.seat-occupant-badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 8.5px;
+.lobby-seat-btn .seat-num {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 40px;
   font-weight: 900;
-  background-color: #2b2823;
-  color: #ffcc00;
-  border: 1px solid #ffcc00;
-  padding: 1px 4px;
-  border-radius: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 75px;
-}
-
-.seat-empty-badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 8px;
-  font-weight: 800;
-  background-color: #1a3324;
-  color: #4cd964;
-  border: 1px solid #4cd964;
-  padding: 1px 4px;
-  border-radius: 2px;
-}
-
-.lobby-seat-btn .seat-name {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  font-weight: 800;
-  color: #ffffff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1;
 }
 
 .lobby-seat-btn .seat-status {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 800;
   color: #a8a39a;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .lobby-seat-btn.active .seat-status {
@@ -764,7 +717,7 @@
   border: 1px solid #d99b26;
 }
 
-/* Horizontal Track (P1 & P2 - Bottom/Top Paddles) */
+/* Yatay slider pisti (tüm koltuklar) */
 .pong-horizontal-track {
   width: min(84vw, 340px);
   height: 150px;
@@ -791,34 +744,6 @@
   font-weight: 900;
   color: #ffffff;
   transform: translateX(-50%);
-}
-
-/* Vertical Track (P3 & P4 - Left/Right Paddles) */
-.pong-touch-track {
-  width: min(78vw, 290px);
-  height: 55vh;
-  background-color: #1a1a18;
-  border: 3.5px solid #444444;
-  box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
-  position: relative;
-  touch-action: none;
-}
-
-.pong-track-thumb {
-  position: absolute;
-  left: 6px;
-  right: 6px;
-  height: 52px;
-  border: 3px solid #ffffff;
-  box-shadow: 0 0 15px rgba(255,255,255,0.4);
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  font-weight: 900;
-  color: #ffffff;
 }
 
 .pong-invert-btn {

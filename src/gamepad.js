@@ -83,7 +83,7 @@ export class GamepadManager {
   }
 
   renderShell() {
-    const seatPositions = ['P1 (ALT)', 'P2 (ÜST)', 'P3 (SOL)', 'P4 (SAĞ)'];
+    const seatPositions = ['P1', 'P2', 'P3', 'P4'];
     const seatLabel = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
 
     this.overlay.innerHTML = `
@@ -151,7 +151,7 @@ export class GamepadManager {
     const dot = document.getElementById('header-player-dot');
     const label = document.getElementById('header-player-name');
     const seatTag = document.getElementById('header-seat-tag');
-    const seatPositions = ['P1 (ALT)', 'P2 (ÜST)', 'P3 (SOL)', 'P4 (SAĞ)'];
+    const seatPositions = ['P1', 'P2', 'P3', 'P4'];
 
     if (dot) dot.style.backgroundColor = this.playerColor;
     if (label) label.textContent = this.playerName;
@@ -267,8 +267,10 @@ export class GamepadManager {
     }
   }
 
+  // Koltuk kartı: kocaman numara + koltuk rengi + isim/BOŞ.
+  // Numara + renk TV ile birebir eşleşir (P1 kırmızı, P2 mavi, P3 sarı, P4 yeşil);
+  // yan etiketler bilerek yok (sadece PONG'da doğruydu, köşeli oyunlarda yanıltıcıydı).
   renderSeatButtonHtml(idx) {
-    const seatNames = ['P1 (ALT)', 'P2 (ÜST)', 'P3 (SOL)', 'P4 (SAĞ)'];
     const seatColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
     const isMine = idx === this.playerIndex;
     const slotData = this.slots ? this.slots[idx] : null;
@@ -281,29 +283,22 @@ export class GamepadManager {
 
     if (isMine) {
       btnClass += ' active is-mine';
-      statusText = '✓ SİZİN YERİNİZ';
+      statusText = 'SEN';
     } else if (isBot) {
       btnClass += ' is-bot';
-      statusText = '🤖 BOT KOLTUĞU';
+      statusText = '🤖 BOT';
     } else if (isOccupied) {
       btnClass += ' is-occupied';
-      statusText = `${occupantName} • YERİ DEĞİŞ ⇄`;
+      statusText = occupantName;
     } else {
       btnClass += ' is-empty';
-      statusText = 'BOŞ • BURAYA GEÇ →';
+      statusText = 'BOŞ';
     }
 
     return `
       <button class="${btnClass}" data-seat="${idx}" type="button"${isBot ? ' disabled' : ''}>
-        <span class="seat-dot" style="background-color: ${seatColors[idx]}"></span>
-        <div class="seat-details">
-          <div class="seat-header-line">
-            <span class="seat-name">${seatNames[idx]}</span>
-            ${isOccupied || isBot ? `<span class="seat-occupant-badge">${occupantName}</span>` : ''}
-            ${!isMine && !isOccupied && !isBot ? `<span class="seat-empty-badge">BOŞ</span>` : ''}
-          </div>
-          <span class="seat-status">${statusText}</span>
-        </div>
+        <span class="seat-num" style="color: ${seatColors[idx]}">${idx + 1}</span>
+        <span class="seat-status">${statusText}</span>
       </button>
     `;
   }
@@ -466,28 +461,17 @@ export class GamepadManager {
     });
   }
 
-  // --- 01: PONG CONTROLLER (Orientation Aware Horizontal/Vertical Slider) ---
+  // --- 01: PONG CONTROLLER (her koltukta yatay slider) ---
   //
-  // AXIS SYNC LOGIC:
-  //   TV sahası: sol = minCoord (0.0), sağ = maxCoord (1.0)  [horizontal paddles]
-  //              üst = minCoord (0.0), alt = maxCoord (1.0)  [vertical paddles]
-  //
-  //   P1 (ALT): TV'ye bakarak oturulur → telefon sola = TV sol  → baseInvert = false
-  //   P2 (ÜST): TV'ye arkası dönük   → telefon sola = TV sağ  → baseInvert = true
-  //   P3 (SOL): Sağ yanında TV var   → parmak yukarı = paddle yukarı → baseInvert = false
-  //   P4 (SAĞ): Sol yanında TV var   → parmak yukarı = TV'de aşağı  → baseInvert = true
+  // Herkes telefonu sağa-sola oynatır; TV'deki duvar eksenine eşlenir:
+  //   P1: sağ → TV sağ      P2: sağ → TV sol
+  //   P3: sağ → TV alt      P4: sağ → TV üst
+  // (PADDLE_MOVE position semantiği değişmez; ters hisseden YÖNÜ TERS ÇEVİR'e basar)
   mountPongController(container) {
-    const isHorizontal = this.playerIndex === 0 || this.playerIndex === 1;
-    const seatNames = [
-      'P1 // ALT KALE (KIRMIZI)',
-      'P2 // ÜST KALE (MAVİ)',
-      'P3 // SOL KALE (SARI)',
-      'P4 // SAĞ KALE (YEŞİL)',
-    ];
+    const seatNames = ['P1', 'P2', 'P3', 'P4'];
     const posLabel = seatNames[this.playerIndex] || `P${this.playerIndex + 1}`;
 
-    // Auto-detect base inversion based on seating perspective:
-    // P2 sits opposite side of TV (inverted X), P4 sits on right side (inverted Y)
+    // Koltuğa göre otomatik yön: karşıda/yan tarafta oturan ters görür
     const baseInvert = this.playerIndex === 1 || this.playerIndex === 3;
 
     // isPongInverted starts at baseInvert (auto), user can flip it manually
@@ -495,12 +479,10 @@ export class GamepadManager {
       this.isPongInverted = baseInvert;
     }
 
-    const directionHint = isHorizontal
-      ? (this.isPongInverted ? '▶ SAĞA → TV Sol  |  Sola → TV Sağ ◀' : '◀ SOLA → TV Sol  |  Sağa → TV Sağ ▶')
-      : (this.isPongInverted ? '▲ YUKARI → TV Alt  |  Aşağı → TV Üst ▼' : '▲ YUKARI → TV Üst  |  Aşağı → TV Alt ▼');
+    const directionHint = this.isPongInverted ? '◀ SOLA • SAĞA ▶ (TERS)' : '◀ SOLA • SAĞA ▶';
 
-    if (isHorizontal) {
-      // P1 & P2: Horizontal Slider with Live Scoreboard & Ergonomic Thumb Curve
+    {
+      // Yatay slider (tüm koltuklar) + canlı skor
       container.innerHTML = `
         <div class="pong-controller-view horizontal">
           <div class="pong-live-scoreboard" id="pong-live-scoreboard">
@@ -533,9 +515,7 @@ export class GamepadManager {
         invertBtn.classList.toggle('inverted', isManuallyFlipped);
         invertBtn.textContent = isManuallyFlipped ? '↺ OTOMATİK YÖN (DOKUN)' : '↺ YÖNÜ TERS ÇEVİR';
         if (hintEl) {
-          hintEl.textContent = this.isPongInverted
-            ? '▶ SAĞA → TV Sol  |  Sola → TV Sağ ◀'
-            : '◀ SOLA → TV Sol  |  Sağa → TV Sağ ▶';
+          hintEl.textContent = this.isPongInverted ? '◀ SOLA • SAĞA ▶ (TERS)' : '◀ SOLA • SAĞA ▶';
         }
       });
 
@@ -562,74 +542,6 @@ export class GamepadManager {
 
       track?.addEventListener('mousedown', (e) => { isTrackingMouse = true; updateSliderX(e.clientX); });
       window.addEventListener('mousemove', (e) => { if (isTrackingMouse) updateSliderX(e.clientX); });
-      window.addEventListener('mouseup', () => { isTrackingMouse = false; });
-
-    } else {
-      // P3 & P4: Vertical Slider with Live Scoreboard
-      container.innerHTML = `
-        <div class="pong-controller-view">
-          <div class="pong-live-scoreboard" id="pong-live-scoreboard">
-            <div class="pong-score-pips" id="pong-score-display">SKOR: 0 - 0</div>
-            <div class="pong-rally-badge" id="pong-rally-display">⚡ RALLİ: 0</div>
-          </div>
-          <div class="pong-position-badge" style="border-color: ${this.playerColor}">📺 TV YERİ: ${posLabel}</div>
-          <div class="pong-instruction" id="pong-direction-hint">${directionHint}</div>
-          <div class="pong-touch-track" id="pong-track">
-            <div class="pong-track-thumb" id="pong-thumb" style="top: ${this.pongPosition * 100}%; background-color: ${this.playerColor}">
-              PADDLE
-            </div>
-          </div>
-          <button class="pong-invert-btn ${this.isPongInverted !== baseInvert ? 'inverted' : ''}" id="btn-invert-axis" type="button">
-            ${this.isPongInverted !== baseInvert ? '↺ OTOMATİK YÖN (DOKUN)' : '↺ YÖNÜ TERS ÇEVİR'}
-          </button>
-        </div>
-      `;
-
-      const track = document.getElementById('pong-track');
-      const thumb = document.getElementById('pong-thumb');
-      const invertBtn = document.getElementById('btn-invert-axis');
-      const hintEl = document.getElementById('pong-direction-hint');
-      let isTrackingMouse = false;
-
-      invertBtn?.addEventListener('click', () => {
-        this.isPongInverted = !this.isPongInverted;
-        this._pongInvertManualSet = true;
-        const isManuallyFlipped = this.isPongInverted !== baseInvert;
-        invertBtn.classList.toggle('inverted', isManuallyFlipped);
-        invertBtn.textContent = isManuallyFlipped ? '↺ OTOMATİK YÖN (DOKUN)' : '↺ YÖNÜ TERS ÇEVİR';
-        if (hintEl) {
-          hintEl.textContent = this.isPongInverted
-            ? '▲ YUKARI → TV Alt  |  Aşağı → TV Üst ▼'
-            : '▲ YUKARI → TV Üst  |  Aşağı → TV Alt ▼';
-        }
-      });
-
-      const updateSliderY = (clientY) => {
-        const rect = track.getBoundingClientRect();
-        const relativeY = Math.max(0, Math.min(rect.height, clientY - rect.top));
-        const rawNorm = relativeY / rect.height;
-        const clampedNorm = Math.max(0, Math.min(1, (rawNorm - 0.10) / 0.80));
-        const position = this.isPongInverted ? 1.0 - clampedNorm : clampedNorm;
-        this.pongPosition = position;
-
-        if (thumb) {
-          thumb.style.top = `${rawNorm * 100}%`;
-          thumb.style.transform = 'translateY(-50%)';
-        }
-
-        this.network.sendInput({ action: 'PADDLE_MOVE', position });
-      };
-
-      track?.addEventListener('touchstart', (e) => {
-        if (e.touches[0]) updateSliderY(e.touches[0].clientY);
-      }, { passive: true });
-
-      track?.addEventListener('touchmove', (e) => {
-        if (e.touches[0]) updateSliderY(e.touches[0].clientY);
-      }, { passive: true });
-
-      track?.addEventListener('mousedown', (e) => { isTrackingMouse = true; updateSliderY(e.clientY); });
-      window.addEventListener('mousemove', (e) => { if (isTrackingMouse) updateSliderY(e.clientY); });
       window.addEventListener('mouseup', () => { isTrackingMouse = false; });
     }
   }
