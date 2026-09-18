@@ -140,14 +140,130 @@ body {
 
 .pause-card {
   width: 100%;
-  max-width: 340px;
+  max-width: 380px;
   background-color: #f4f4f0;
   border: 4px solid #1a1a1a;
   box-shadow: 8px 8px 0px #1a1a1a;
-  padding: 24px 20px;
+  padding: 22px 18px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+}
+
+.pause-seats-box {
+  background: #ffffff;
+  border: 2.5px solid #1a1a1a;
+  box-shadow: 3px 3px 0px #1a1a1a;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pause-seats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.pause-seats-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 900;
+  color: #1a1a1a;
+}
+
+.pause-rotate-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  font-weight: 800;
+  background: #1a1a1a;
+  color: #ffffff;
+  border: 1.5px solid #1a1a1a;
+  padding: 3px 6px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.08s ease;
+}
+
+.pause-rotate-btn:active {
+  transform: scale(0.95);
+  background: #333333;
+}
+
+.pause-seats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.pause-seat-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #faf7f2;
+  border: 2px solid #1a1a1a;
+  box-shadow: 2px 2px 0px #1a1a1a;
+  cursor: pointer;
+  touch-action: manipulation;
+  text-align: left;
+  transition: transform 0.08s ease, background 0.08s ease, border-color 0.08s ease;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pause-seat-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+}
+
+.pause-seat-btn.selected-for-swap {
+  background: #fff0d4;
+  border-color: #d99b26;
+  box-shadow: 2px 2px 0px #d99b26;
+  outline: 2px solid #d99b26;
+}
+
+.pause-seat-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid #1a1a1a;
+  flex-shrink: 0;
+}
+
+.pause-seat-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pause-seat-slot-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  font-weight: 900;
+  color: #777268;
+}
+
+.pause-seat-player-name {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pause-seats-hint {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: #777268;
+  text-align: center;
 }
 
 .pause-header {

@@ -184,6 +184,80 @@ export function setGameMode(mode) {
   }
 }
 
+// In-Game Pause Seat Management
+let pauseSelectedSlot = null;
+
+function renderPauseSeats() {
+  const grid = document.getElementById('pause-seats-grid');
+  if (!grid) return;
+
+  const slotLabels = ['P1 (ALT)', 'P2 (ÜST)', 'P3 (SOL)', 'P4 (SAĞ)'];
+  const slotColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
+
+  grid.innerHTML = [0, 1, 2, 3]
+    .map((idx) => {
+      const slot = hostPlayerSlots[idx];
+      const name = slot?.name || 'BOŞ (BOT)';
+      const isSelected = pauseSelectedSlot === idx;
+      return `
+        <button class="pause-seat-btn ${isSelected ? 'selected-for-swap' : ''}" data-slot="${idx}" type="button">
+          <span class="pause-seat-dot" style="background-color: ${slotColors[idx]}"></span>
+          <div class="pause-seat-info">
+            <span class="pause-seat-slot-label">${slotLabels[idx]}</span>
+            <span class="pause-seat-player-name">${name}</span>
+          </div>
+        </button>
+      `;
+    })
+    .join('');
+
+  grid.querySelectorAll('.pause-seat-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const slotIdx = parseInt(btn.dataset.slot, 10);
+      if (pauseSelectedSlot === null) {
+        pauseSelectedSlot = slotIdx;
+        renderPauseSeats();
+      } else if (pauseSelectedSlot === slotIdx) {
+        pauseSelectedSlot = null;
+        renderPauseSeats();
+      } else {
+        const slotA = pauseSelectedSlot;
+        const slotB = slotIdx;
+        pauseSelectedSlot = null;
+        activeNet().swapSlots(slotA, slotB);
+        if (!activeNet().isHosting) {
+          const temp = hostPlayerSlots[slotA];
+          hostPlayerSlots[slotA] = hostPlayerSlots[slotB];
+          hostPlayerSlots[slotB] = temp;
+        }
+        renderPauseSeats();
+        showInstallToast(`🔄 P${slotA + 1} ve P${slotB + 1} takas edildi!`);
+      }
+    });
+  });
+}
+
+const btnPauseRotateSeats = document.getElementById('btn-pause-rotate-seats');
+btnPauseRotateSeats?.addEventListener('click', () => {
+  // Rotate clockwise: P1(0) -> P3(2) -> P2(1) -> P4(3) -> P1(0)
+  activeNet().swapSlots(0, 2);
+  activeNet().swapSlots(2, 1);
+  activeNet().swapSlots(1, 3);
+  if (!activeNet().isHosting) {
+    const p0 = hostPlayerSlots[0];
+    const p1 = hostPlayerSlots[1];
+    const p2 = hostPlayerSlots[2];
+    const p3 = hostPlayerSlots[3];
+    hostPlayerSlots[0] = p3;
+    hostPlayerSlots[2] = p0;
+    hostPlayerSlots[1] = p2;
+    hostPlayerSlots[3] = p1;
+  }
+  pauseSelectedSlot = null;
+  renderPauseSeats();
+  showInstallToast('🔄 Koltuklar saat yönünde 90° döndürüldü!');
+});
+
 // Pause Modal Functions
 function openPauseModal() {
   if (currentMode === 'MENU') return;
@@ -208,6 +282,8 @@ function openPauseModal() {
   if (btnExitToMenu) {
     btnExitToMenu.textContent = activeNet().isHosting ? '🚪 ODAYI KAPAT & ANA MENÜYE DÖN' : '⌂ ANA MENÜYE DÖN';
   }
+  pauseSelectedSlot = null;
+  renderPauseSeats();
   touchManager.resetTouches();
 }
 
@@ -522,6 +598,9 @@ async function openHostLobby(gameMode = 'PONG') {
         if (hostPlayerSlots[slotB]) updateHostSlot(slotB, true, hostPlayerSlots[slotB].name, hostPlayerSlots[slotB].isReady);
         else updateHostSlot(slotB, false);
         showInstallToast(`🔄 Slot P${slotA + 1} ve P${slotB + 1} yer değiştirdi.`);
+        if (pauseModal && !pauseModal.classList.contains('hidden')) {
+          renderPauseSeats();
+        }
       },
       onPlayerInput: (slotIndex, data) => {
         // Handle name change from controller
@@ -530,6 +609,10 @@ async function openHostLobby(gameMode = 'PONG') {
           if (slot) {
             slot.name = data.name.slice(0, 12).toUpperCase();
             updateHostSlot(slotIndex, true, slot.name, slot.isReady);
+            activeNet().setPlayerName?.(slotIndex, slot.name);
+            if (pauseModal && !pauseModal.classList.contains('hidden')) {
+              renderPauseSeats();
+            }
           }
           return; // Don't forward name change to game engine
         }
@@ -688,6 +771,9 @@ async function executeJoin(rawCode, rawName) {
       onSlotChanged: (slotIndex, color) => {
         gamepadManager.updateSlot(slotIndex, color);
         showInstallToast(`💺 Koltuğunuz değişti: P${slotIndex + 1}`);
+      },
+      onSlotsUpdate: (slots) => {
+        gamepadManager.updateSlots(slots);
       },
       onGameState: (data) => {
         gamepadManager.handleStateSync(data);

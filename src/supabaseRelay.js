@@ -185,6 +185,7 @@ export class SupabaseRelay {
           slotIndex,
           name: player.name,
           color: player.color,
+          slots: this.getSlots(),
         });
 
         // Notify host UI
@@ -193,6 +194,7 @@ export class SupabaseRelay {
             slotIndex, name: player.name, color: player.color,
           });
         }
+        this.broadcastSlots();
         break;
       }
 
@@ -214,6 +216,7 @@ export class SupabaseRelay {
         if (this.callbacks.onPlayerReadyStatus) {
           this.callbacks.onPlayerReadyStatus(slot, !!msg.isReady);
         }
+        this.broadcastSlots();
         break;
       }
 
@@ -236,6 +239,7 @@ export class SupabaseRelay {
         if (this.callbacks.onPlayerLeft) {
           this.callbacks.onPlayerLeft({ slotIndex: slot, name: leftPlayer?.name || 'OYUNCU' });
         }
+        this.broadcastSlots();
         break;
       }
 
@@ -260,6 +264,26 @@ export class SupabaseRelay {
       if (this.players[i]?.id === playerId) return i;
     }
     return -1;
+  }
+
+  getSlots() {
+    return this.players.map((p, idx) =>
+      p ? { slotIndex: idx, name: p.name, color: p.color, isReady: !!this.ready[idx] } : null
+    );
+  }
+
+  broadcastSlots() {
+    if (this.role !== 'HOST' || !this.channel) return;
+    this._broadcast('host_msg', {
+      action: 'SLOTS_UPDATE',
+      slots: this.getSlots(),
+    });
+  }
+
+  setPlayerName(slotIndex, name) {
+    if (this.role !== 'HOST' || !this.players[slotIndex]) return;
+    this.players[slotIndex].name = name;
+    this.broadcastSlots();
   }
 
   // Host broadcasts game state to all controllers
@@ -296,6 +320,7 @@ export class SupabaseRelay {
       action: 'RETURNED_TO_LOBBY',
       gameMode: this.gameMode,
     });
+    this.broadcastSlots();
   }
 
   swapSlots(slotA, slotB) {
@@ -306,6 +331,10 @@ export class SupabaseRelay {
     const pB = this.players[slotB];
     this.players[slotA] = pB;
     this.players[slotB] = pA;
+
+    const readyA = this.ready[slotA];
+    this.ready[slotA] = this.ready[slotB];
+    this.ready[slotB] = readyA;
 
     if (pA) {
       pA.slotIndex = slotB;
@@ -331,6 +360,7 @@ export class SupabaseRelay {
     if (this.callbacks.onSlotsSwapped) {
       this.callbacks.onSlotsSwapped(slotA, slotB);
     }
+    this.broadcastSlots();
   }
 
   // ━━━━━━━━━━━━━━━━━━━ CONTROLLER API ━━━━━━━━━━━━━━━━━━━
@@ -459,6 +489,13 @@ export class SupabaseRelay {
         this.color = msg.color;
         if (this.callbacks.onSlotChanged) {
           this.callbacks.onSlotChanged(msg.slotIndex, msg.color);
+        }
+        break;
+      }
+
+      case 'SLOTS_UPDATE': {
+        if (this.callbacks.onSlotsUpdate) {
+          this.callbacks.onSlotsUpdate(msg.slots);
         }
         break;
       }

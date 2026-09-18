@@ -270,8 +270,25 @@
 
 .lobby-seat-btn.active {
   border-color: #25d366;
+  border-width: 2.5px;
   background-color: #16261c;
   box-shadow: 0 0 12px rgba(37, 211, 102, 0.35);
+}
+
+.lobby-seat-btn.is-empty {
+  border-color: #2f6a4f;
+  border-style: dashed;
+  background-color: #181d19;
+}
+
+.lobby-seat-btn.is-empty:active {
+  background-color: #233b2a;
+  border-color: #25d366;
+}
+
+.lobby-seat-btn.is-occupied {
+  background-color: #1d1b19;
+  border-color: #44413c;
 }
 
 .lobby-seat-btn .seat-dot {
@@ -287,6 +304,40 @@
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+  gap: 2px;
+}
+
+.seat-header-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.seat-occupant-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  font-weight: 900;
+  background-color: #2b2823;
+  color: #ffcc00;
+  border: 1px solid #ffcc00;
+  padding: 1px 4px;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 75px;
+}
+
+.seat-empty-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  font-weight: 800;
+  background-color: #1a3324;
+  color: #4cd964;
+  border: 1px solid #4cd964;
+  padding: 1px 4px;
+  border-radius: 2px;
 }
 
 .lobby-seat-btn .seat-name {
@@ -310,6 +361,10 @@
 .lobby-seat-btn.active .seat-status {
   color: #25d366;
   font-weight: 900;
+}
+
+.lobby-seat-btn.is-empty .seat-status {
+  color: #4cd964;
 }
 
 .btn-leave-lobby-direct {
