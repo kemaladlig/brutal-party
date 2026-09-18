@@ -394,7 +394,7 @@ export class BombGame extends BaseMiniGame {
     playStumble();
 
     // 1. Stumble Shock Delay on Receiver: heavily stunned/slowed for 0.85s!
-    newCarrier.stumbleTimer = 0.85;
+    newCarrier.stumbleTimer = 1.0;
 
     // 2. Escaper Sprint & Immunity on Giver: guarantees head start to flee!
     if (prevCarrier) {
@@ -1330,9 +1330,10 @@ export class BombGame extends BaseMiniGame {
       ctx.font = '800 11px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const pLabel = (player.name && player.name !== BOMB_NAMES[player.index])
-        ? player.name.slice(0, 6)
-        : `P${player.index + 1}`;
+      const customName = (player.name && player.name !== BOMB_NAMES[player.index])
+        ? ` • ${player.name.slice(0, 6)}`
+        : '';
+      const pLabel = `P${player.index + 1}${customName}`;
       ctx.fillText(pLabel, 0, 0);
 
       // --- Ticking Bomb Visuals for Carrier ---
@@ -1545,39 +1546,40 @@ export class BombGame extends BaseMiniGame {
       const slotType = this.slotTypes[i];
       const p = this.players[i];
 
-      let label = '+ KATIL';
-      let bgColor = '#E3DFD5';
-      let textColor = '#1C1C1A';
-
-      if (slotType === 'human') {
-        label = `✓ ${p.name}`;
-        bgColor = p.color;
-        textColor = '#FFFFFF';
-      } else if (slotType === 'bot_normal') {
-        label = `🤖 ${p.name} (BOT)`;
-        bgColor = '#3A3A38';
-        textColor = '#FAF7F2';
-      } else if (slotType === 'bot_god') {
-        label = `⚡ ${p.name} (GOD)`;
-        bgColor = '#1A1A1A';
-        textColor = '#FFDE59';
-      }
+      const numLabel = `${i + 1}`;
+      const isJoinedSeat = slotType === 'human';
+      const isBotSeat = slotType === 'bot_normal' || slotType === 'bot_god';
+      const subLabel = isJoinedSeat ? (p.name || '') : (isBotSeat ? '🤖' : '');
+      const bgColor = '#FAF7F2';
+      const numColor = isBotSeat ? '#75726B' : p.color;
+      const frameColor = isJoinedSeat ? p.color : (isBotSeat ? '#75726B' : '#1C1C1A');
 
       const btnW = 160;
-      const btnH = 46;
+      const btnH = 56;
 
       ctx.save();
       ctx.fillStyle = bgColor;
       ctx.fillRect(pos.x, pos.y, btnW, btnH);
-      ctx.strokeStyle = slotType === 'bot_god' ? '#FFDE59' : '#1C1C1A';
-      ctx.lineWidth = slotType === 'bot_god' ? 4 : 3;
+      if (isJoinedSeat) {
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(pos.x, pos.y, btnW, btnH);
+        ctx.globalAlpha = 1;
+      }
+      ctx.strokeStyle = frameColor;
+      ctx.lineWidth = isJoinedSeat ? 4 : 3;
       ctx.strokeRect(pos.x, pos.y, btnW, btnH);
 
-      ctx.fillStyle = textColor;
-      ctx.font = '800 13px "Space Grotesk", sans-serif';
+      ctx.fillStyle = numColor;
+      ctx.font = '900 28px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(label, pos.x + btnW / 2, pos.y + btnH / 2);
+      ctx.fillText(numLabel, pos.x + btnW / 2, pos.y + (subLabel ? 20 : btnH / 2));
+      if (subLabel) {
+        ctx.fillStyle = isJoinedSeat ? '#1C1C1A' : '#75726B';
+        ctx.font = '800 10px "Space Grotesk", sans-serif';
+        ctx.fillText(subLabel.slice(0, 10), pos.x + btnW / 2, pos.y + 42);
+      }
       ctx.restore();
 
       this.uiButtons.push({
@@ -1649,14 +1651,11 @@ export class BombGame extends BaseMiniGame {
         onClick: () => this.startNewMatch(),
       });
     } else {
-      ctx.fillStyle = '#1C1C1A';
-      ctx.font = '700 16px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#75726B';
+      ctx.font = '800 14px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('EN AZ 2 OYUNCU GEREKLİ', arena.cx, arena.cy - 6);
-      ctx.font = '500 13px "Space Grotesk", sans-serif';
-      ctx.fillStyle = '#75726B';
-      ctx.fillText('Köşelere dokunarak katılın', arena.cx, arena.cy + 18);
+      ctx.fillText('2 KİŞİ OLUNCA BAŞLAR', arena.cx, arena.cy + 6);
     }
   }
 

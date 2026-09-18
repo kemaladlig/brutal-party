@@ -416,7 +416,7 @@ export class Game extends BaseMiniGame {
     const isPortrait = aH > aW;
     const hasSidePlayers = (this.paddles[2] && this.paddles[2].isJoined) ||
                            (this.paddles[3] && this.paddles[3].isJoined);
-    const labels = ['P1 ALT', 'P2 ÜST', 'P3 SOL', 'P4 SAĞ'];
+    const labels = ['P1', 'P2', 'P3', 'P4'];
 
     ctx.save();
     for (const paddle of this.paddles) {
@@ -454,7 +454,7 @@ export class Game extends BaseMiniGame {
         ctx.translate(right + (window.innerWidth - right) / 2, this.arena.cy);
         ctx.rotate(-Math.PI / 2);
       }
-      const displayName = paddle.name && paddle.name !== ['ALT', 'ÜST', 'SOL', 'SAĞ'][paddle.index]
+      const displayName = paddle.name && paddle.name !== ['P1', 'P2', 'P3', 'P4'][paddle.index]
         ? `${labels[paddle.index]} • ${paddle.name}`
         : labels[paddle.index];
       ctx.fillText(displayName, 0, 0);
@@ -789,14 +789,11 @@ export class Game extends BaseMiniGame {
         onClick: () => this.startGame(),
       });
     } else {
-      ctx.fillStyle = '#1C1C1A';
-      ctx.font = '700 16px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#75726B';
+      ctx.font = '800 14px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('EN AZ 2 OYUNCU', arena.cx, arena.cy - 12);
-      ctx.font = '500 13px "Space Grotesk", sans-serif';
-      ctx.fillStyle = '#75726B';
-      ctx.fillText('Kenarlara dokunarak katılın', arena.cx, arena.cy + 14);
+      ctx.fillText('2 KİŞİ OLUNCA BAŞLAR', arena.cx, arena.cy);
     }
   }
 
@@ -807,8 +804,8 @@ export class Game extends BaseMiniGame {
     // Scale button dimensions to arena size
     const btnLongH = Math.max(120, Math.min(190, Math.floor(arena.width  * 0.32)));
     const btnLongV = Math.max(120, Math.min(190, Math.floor(arena.height * 0.26)));
-    const btnShortH = Math.max(38, Math.floor(arena.height * 0.052));
-    const btnShortV = Math.max(38, Math.floor(arena.width  * 0.052));
+    const btnShortH = Math.max(46, Math.floor(arena.height * 0.068));
+    const btnShortV = Math.max(46, Math.floor(arena.width  * 0.068));
 
     let btnX, btnY, btnW, btnH;
     const gapH = Math.floor(arena.height * 0.04);
@@ -832,29 +829,26 @@ export class Game extends BaseMiniGame {
       btnY = arena.cy - btnH / 2;
     }
 
-    let label = '+ KATIL';
-    let bgColor = '#E3DFD5';
-    let textColor = '#1C1C1A';
-
-    if (paddle.slotType === 'human') {
-      label = '✓ OYUNCU';
-      bgColor = paddle.color;
-      textColor = '#FFFFFF';
-    } else if (paddle.slotType === 'bot_normal') {
-      label = '🤖 BOT: NORMAL';
-      bgColor = '#3A3A38';
-      textColor = '#FAF7F2';
-    } else if (paddle.slotType === 'bot_god') {
-      label = '⚡ BOT: GOD';
-      bgColor = '#1A1A1A';
-      textColor = '#FFDE59';
-    }
+    const numLabel = `${paddle.index + 1}`;
+    const isJoinedSeat = paddle.slotType === 'human';
+    const isBotSeat = paddle.slotType === 'bot_normal' || paddle.slotType === 'bot_god';
+    const subLabel = isJoinedSeat ? (paddle.name || '') : (isBotSeat ? '🤖' : '');
+    const bgColor = '#FAF7F2';
+    const numColor = isBotSeat ? '#75726B' : paddle.color;
+    const frameColor = isJoinedSeat ? paddle.color : (isBotSeat ? '#75726B' : '#1C1C1A');
+    const washColor = isJoinedSeat ? paddle.color : null;
 
     ctx.save();
     ctx.fillStyle = bgColor;
     ctx.fillRect(btnX, btnY, btnW, btnH);
-    ctx.strokeStyle = paddle.slotType === 'bot_god' ? '#FFDE59' : '#1C1C1A';
-    ctx.lineWidth = paddle.slotType === 'bot_god' ? 4 : 3;
+    if (washColor) {
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = washColor;
+      ctx.fillRect(btnX, btnY, btnW, btnH);
+      ctx.globalAlpha = 1;
+    }
+    ctx.strokeStyle = frameColor;
+    ctx.lineWidth = isJoinedSeat ? 4 : 3;
     ctx.strokeRect(btnX, btnY, btnW, btnH);
 
     ctx.save();
@@ -866,11 +860,19 @@ export class Game extends BaseMiniGame {
     } else if (paddle.side === 'right') {
       ctx.rotate(-Math.PI / 2);
     }
-    ctx.fillStyle = textColor;
+    ctx.fillStyle = numColor;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = '800 16px "Space Grotesk", sans-serif';
-    ctx.fillText(label, 0, 0);
+    // Kocaman koltuk numarası; isim sığıyorsa altına küçük yazılır
+    const numSize = Math.max(22, Math.min(46, Math.floor(Math.min(btnW, btnH) * 0.52)));
+    ctx.font = `900 ${numSize}px "Space Grotesk", sans-serif`;
+    const hasSub = !!subLabel && Math.min(btnW, btnH) >= 60;
+    ctx.fillText(numLabel, 0, hasSub ? -numSize * 0.32 : 0);
+    if (hasSub) {
+      ctx.font = '800 11px "Space Grotesk", sans-serif';
+      ctx.fillStyle = isJoinedSeat ? '#1C1C1A' : '#75726B';
+      ctx.fillText(subLabel.slice(0, 10), 0, numSize * 0.42);
+    }
     ctx.restore();
 
     ctx.restore();

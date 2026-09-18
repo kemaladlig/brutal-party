@@ -143,24 +143,26 @@ export class HeistGame extends BaseMiniGame {
 
     const { left, right, top, bottom, cx, cy } = this.arena;
 
-    // 4 Corner Vault Zones
-    const vW = Math.round(size * 0.18);
-    const vH = Math.round(size * 0.18);
+    // 4 Corner Vault Zones (merkeze yakın: köşeden %8 içerde, %20 boy)
+    const vW = Math.round(size * 0.20);
+    const vH = Math.round(size * 0.20);
+    const vInset = Math.round(size * 0.08);
     this.vaults = [
-      { x: left + 6, y: bottom - vH - 6, w: vW, h: vH, playerIndex: 0 }, // P1: Bottom-Left
-      { x: left + 6, y: top + 6, w: vW, h: vH, playerIndex: 1 },        // P2: Top-Left
-      { x: right - vW - 6, y: top + 6, w: vW, h: vH, playerIndex: 2 },  // P3: Top-Right
-      { x: right - vW - 6, y: bottom - vH - 6, w: vW, h: vH, playerIndex: 3 }, // P4: Bottom-Right
+      { x: left + vInset, y: bottom - vH - vInset, w: vW, h: vH, playerIndex: 0 }, // P1: Bottom-Left
+      { x: left + vInset, y: top + vInset, w: vW, h: vH, playerIndex: 1 },        // P2: Top-Left
+      { x: right - vW - vInset, y: top + vInset, w: vW, h: vH, playerIndex: 2 },  // P3: Top-Right
+      { x: right - vW - vInset, y: bottom - vH - vInset, w: vW, h: vH, playerIndex: 3 }, // P4: Bottom-Right
     ];
 
-    // 4 Symmetrical Obstacle Pillars (for cover and strategic ambush)
-    const pSize = Math.round(size * 0.11);
-    const offset = Math.round(size * 0.22);
+    // 4 Obstacle Pillars (köşegen dışında: doğuş noktasını kapatmaz, kasaya taşmaz)
+    const pSize = Math.round(size * 0.09);
+    const offX = Math.round(size * 0.34);
+    const offY = Math.round(size * 0.20);
     this.pillars = [
-      { x: cx - offset - pSize / 2, y: cy - offset - pSize / 2, w: pSize, h: pSize },
-      { x: cx + offset - pSize / 2, y: cy - offset - pSize / 2, w: pSize, h: pSize },
-      { x: cx - offset - pSize / 2, y: cy + offset - pSize / 2, w: pSize, h: pSize },
-      { x: cx + offset - pSize / 2, y: cy + offset - pSize / 2, w: pSize, h: pSize },
+      { x: cx - offX - pSize / 2, y: cy - offY - pSize / 2, w: pSize, h: pSize },
+      { x: cx + offX - pSize / 2, y: cy - offY - pSize / 2, w: pSize, h: pSize },
+      { x: cx - offX - pSize / 2, y: cy + offY - pSize / 2, w: pSize, h: pSize },
+      { x: cx + offX - pSize / 2, y: cy + offY - pSize / 2, w: pSize, h: pSize },
     ];
 
     this.initPlayers();
@@ -168,7 +170,7 @@ export class HeistGame extends BaseMiniGame {
 
   initPlayers() {
     const { cx, cy, size } = this.arena;
-    const spawnDist = Math.round(size * 0.35);
+    const spawnDist = Math.round(size * 0.42);
     const r = Math.max(14, Math.round(size * 0.038));
 
     const spawns = [
@@ -314,7 +316,7 @@ export class HeistGame extends BaseMiniGame {
 
   spawnLootItem(type = 'COIN', customX = null, customY = null) {
     const { cx, cy, size } = this.arena;
-    const spawnRadius = size * 0.18;
+    const spawnRadius = size * 0.22;
 
     let px = customX;
     let py = customY;
@@ -885,7 +887,7 @@ export class HeistGame extends BaseMiniGame {
   executeLootKnockout(attacker, victim) {
     playHeavyImpact();
     this.trauma = 0.65;
-    victim.stumbleTimer = 0.6;
+    victim.stumbleTimer = 1.0;
     attacker.isTackling = false; // hit landed
 
     // Violent knockback momentum
@@ -1105,7 +1107,7 @@ export class HeistGame extends BaseMiniGame {
       ctx.strokeRect(pil.x, pil.y, pil.w, pil.h);
     }
 
-    // Live Vault Scoreboard Strip at Top
+    // Live Vault Scoreboard: her oyuncuya renkli kasa çipi + büyük kasa altını
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
       const joined = this.players.filter((p) => p.isJoined);
       if (joined.length > 0) {
@@ -1113,10 +1115,10 @@ export class HeistGame extends BaseMiniGame {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        const stripW = Math.min(size * 0.94, 440);
-        const stripH = 32;
+        const stripW = Math.min(size * 0.96, 560);
+        const stripH = 42;
         const stripX = cx - stripW / 2;
-        const stripY = top + 12;
+        const stripY = top + 10;
 
         ctx.fillStyle = '#E5E1D8';
         ctx.fillRect(stripX, stripY, stripW, stripH);
@@ -1124,15 +1126,24 @@ export class HeistGame extends BaseMiniGame {
         ctx.lineWidth = 2.5;
         ctx.strokeRect(stripX, stripY, stripW, stripH);
 
-        const scoreSummary = joined
-          .map((p) => `${p.name}: ${p.vaultGold}💰`)
-          .join('  |  ');
-
-        const timerText = `${Math.max(0, Math.ceil(this.roundTimer))}s`;
-
-        ctx.font = '900 13px "JetBrains Mono", monospace';
+        // Oyuncu çipleri + sağda süre çipi
+        const cells = joined.length + 1;
+        const cellW = stripW / cells;
+        joined.forEach((p, k) => {
+          const x0 = stripX + k * cellW;
+          ctx.fillStyle = p.color;
+          ctx.fillRect(x0 + 4, stripY + 5, 20, stripH - 10);
+          ctx.fillStyle = '#1C1C1A';
+          ctx.font = '900 16px "Space Grotesk", sans-serif';
+          ctx.fillText(`P${p.index + 1}  ${p.vaultGold}💰`, x0 + cellW / 2 + 10, stripY + stripH / 2);
+        });
+        const tx0 = stripX + joined.length * cellW;
         ctx.fillStyle = '#1C1C1A';
-        ctx.fillText(`KASALAR // ${scoreSummary} // ⏱️ ${timerText}`, cx, stripY + stripH / 2);
+        ctx.fillRect(tx0 + 4, stripY + 5, cellW - 8, stripH - 10);
+        ctx.fillStyle = '#FFDE59';
+        ctx.font = '900 15px "JetBrains Mono", monospace';
+        const timerText = `${Math.max(0, Math.ceil(this.roundTimer))}s`;
+        ctx.fillText(timerText, tx0 + cellW / 2, stripY + stripH / 2);
         ctx.restore();
       }
     }
@@ -1172,10 +1183,55 @@ export class HeistGame extends BaseMiniGame {
       ctx.textBaseline = 'middle';
       ctx.fillText(`${p.name} KASASI`, 0, -v.h / 2 + 14);
 
-      // Safe Gold Count in Vault
-      ctx.fillStyle = '#D99B26';
-      ctx.font = '900 22px "Space Grotesk", sans-serif';
-      ctx.fillText(`${p.vaultGold}💰`, 0, 8);
+      // Biriken altın yığını: piramit dizili, ışıklı külçeler (yer varsa)
+      if (v.h >= 80) {
+        // Kasa doldukça iç ışıma güçlenir
+        if (p.vaultGold >= 6) {
+          ctx.globalAlpha = Math.min(0.3, 0.1 + p.vaultGold * 0.012);
+          ctx.fillStyle = '#FFDE59';
+          ctx.fillRect(-v.w / 2 + 4, -v.h / 2 + 26, v.w - 8, v.h - 34);
+          ctx.globalAlpha = 1;
+        }
+        const rows = [6, 5, 4];
+        const iw = (v.w - 24) / 6;
+        const ih = 11;
+        let drawn = 0;
+        const target = Math.min(15, p.vaultGold);
+        for (let r = 0; r < rows.length && drawn < target; r++) {
+          const count = Math.min(rows[r], target - drawn);
+          const rowW = count * iw;
+          for (let c = 0; c < count; c++) {
+            const ix = -rowW / 2 + c * iw;
+            const iy = v.h / 2 - 8 - ih - r * (ih + 3);
+            // Yamuk külçe gövdesi
+            ctx.fillStyle = '#FFDE59';
+            ctx.beginPath();
+            ctx.moveTo(ix + 1, iy + ih);
+            ctx.lineTo(ix + 3, iy);
+            ctx.lineTo(ix + iw - 3, iy);
+            ctx.lineTo(ix + iw - 1, iy + ih);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#1C1C1A';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            // Üst parlama çizgisi
+            ctx.strokeStyle = '#FFF6C9';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(ix + 4, iy + 3);
+            ctx.lineTo(ix + iw - 4, iy + 3);
+            ctx.stroke();
+            drawn++;
+          }
+        }
+      }
+
+      // Kocaman kasa sayısı (kasa boyuna göre)
+      const numSize = Math.max(18, Math.min(34, Math.floor(v.w * 0.27)));
+      ctx.fillStyle = '#1C1C1A';
+      ctx.font = `900 ${numSize}px "Space Grotesk", sans-serif`;
+      ctx.fillText(`${p.vaultGold}`, 0, v.h >= 80 ? -6 : 8);
 
       ctx.restore();
       ctx.restore();
@@ -1416,24 +1472,65 @@ export class HeistGame extends BaseMiniGame {
       ctx.font = '800 11px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const pLabel = (player.name && player.name !== HEIST_NAMES[player.index])
-        ? player.name.slice(0, 6)
-        : `P${player.index + 1}`;
+      const customName = (player.name && player.name !== HEIST_NAMES[player.index])
+        ? ` • ${player.name.slice(0, 6)}`
+        : '';
+      const pLabel = `P${player.index + 1}${customName}`;
       ctx.fillText(pLabel, 0, 0);
 
-      // Carried Loot Bag Badge floating above head
+      // Taşınan ganimet: miktara göre büyüyen yığın (yük = gösteriş)
       if (player.carriedGold > 0) {
-        const bagY = -player.radius - 16;
+        const bagY = -player.radius - 12;
         const isRichest = player.index === richestIndex;
-        ctx.fillStyle = isRichest ? '#FFDE59' : '#1C1C1A';
-        ctx.fillRect(-26, bagY - 9, 52, 18);
-        ctx.strokeStyle = isRichest ? '#1C1C1A' : '#FFDE59';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-26, bagY - 9, 52, 18);
+        const gold = player.carriedGold;
+        // Kademe: 1-4 sade, 5-9 altın çerçeve + ışıma, 10+ dev külçe + taç
+        const tier = gold >= 10 ? 2 : gold >= 5 ? 1 : 0;
+        const coins = Math.min(8, gold);
+        const coinR = tier === 2 ? 8.5 : 7.5;
+        const step = coinR * 1.25;
+        // Işıma (yük büyüdükçe güçlenir)
+        if (tier >= 1) {
+          ctx.globalAlpha = tier === 2 ? 0.35 : 0.22;
+          ctx.fillStyle = '#FFDE59';
+          ctx.beginPath();
+          ctx.arc(0, bagY - 20, player.radius + 16 + tier * 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        // Sikke kulesi (plakanın üstünde birikir)
+        for (let c = 0; c < coins; c++) {
+          const cy = bagY - 12 - c * step;
+          ctx.fillStyle = '#FFDE59';
+          ctx.beginPath();
+          ctx.arc(0, cy, coinR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#1C1C1A';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          // Parıltı çizgisi
+          ctx.strokeStyle = '#FFF6C9';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(0, cy, coinR * 0.55, -Math.PI * 0.7, -Math.PI * 0.2);
+          ctx.stroke();
+        }
+        // Dev yük tacı
+        if (tier === 2) {
+          ctx.font = '900 16px "Space Grotesk", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText('👑', 0, bagY - 12 - coins * step - 4);
+        }
+        // Sayaç plaka
+        ctx.fillStyle = '#1C1C1A';
+        ctx.fillRect(-32, bagY - 9, 64, 22);
+        ctx.strokeStyle = tier >= 1 || isRichest ? '#FFDE59' : '#FFFFFF';
+        ctx.lineWidth = tier >= 1 || isRichest ? 3 : 2;
+        ctx.strokeRect(-32, bagY - 9, 64, 22);
 
-        ctx.fillStyle = isRichest ? '#1C1C1A' : '#FFDE59';
-        ctx.font = '900 11px "JetBrains Mono", monospace';
-        ctx.fillText(`${player.carriedGold} 💰`, 0, bagY);
+        ctx.fillStyle = tier >= 1 || isRichest ? '#FFDE59' : '#FFFFFF';
+        ctx.font = '900 13px "JetBrains Mono", monospace';
+        ctx.fillText(`${gold} 💰`, 0, bagY + 2);
       }
 
       ctx.restore();
@@ -1629,39 +1726,40 @@ export class HeistGame extends BaseMiniGame {
       const slotType = this.slotTypes[i];
       const p = this.players[i];
 
-      let label = '+ KATIL';
-      let bgColor = '#E3DFD5';
-      let textColor = '#1C1C1A';
-
-      if (slotType === 'human') {
-        label = `✓ ${p.name}`;
-        bgColor = p.color;
-        textColor = '#FFFFFF';
-      } else if (slotType === 'bot_normal') {
-        label = `🤖 ${p.name} (BOT)`;
-        bgColor = '#3A3A38';
-        textColor = '#FAF7F2';
-      } else if (slotType === 'bot_god') {
-        label = `⚡ ${p.name} (GOD)`;
-        bgColor = '#1A1A1A';
-        textColor = '#FFDE59';
-      }
+      const numLabel = `${i + 1}`;
+      const isJoinedSeat = slotType === 'human';
+      const isBotSeat = slotType === 'bot_normal' || slotType === 'bot_god';
+      const subLabel = isJoinedSeat ? (p.name || '') : (isBotSeat ? '🤖' : '');
+      const bgColor = '#FAF7F2';
+      const numColor = isBotSeat ? '#75726B' : p.color;
+      const frameColor = isJoinedSeat ? p.color : (isBotSeat ? '#75726B' : '#1C1C1A');
 
       const btnW = 160;
-      const btnH = 46;
+      const btnH = 56;
 
       ctx.save();
       ctx.fillStyle = bgColor;
       ctx.fillRect(pos.x, pos.y, btnW, btnH);
-      ctx.strokeStyle = slotType === 'bot_god' ? '#FFDE59' : '#1C1C1A';
-      ctx.lineWidth = slotType === 'bot_god' ? 4 : 3;
+      if (isJoinedSeat) {
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(pos.x, pos.y, btnW, btnH);
+        ctx.globalAlpha = 1;
+      }
+      ctx.strokeStyle = frameColor;
+      ctx.lineWidth = isJoinedSeat ? 4 : 3;
       ctx.strokeRect(pos.x, pos.y, btnW, btnH);
 
-      ctx.fillStyle = textColor;
-      ctx.font = '800 13px "Space Grotesk", sans-serif';
+      ctx.fillStyle = numColor;
+      ctx.font = '900 28px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(label, pos.x + btnW / 2, pos.y + btnH / 2);
+      ctx.fillText(numLabel, pos.x + btnW / 2, pos.y + (subLabel ? 20 : btnH / 2));
+      if (subLabel) {
+        ctx.fillStyle = isJoinedSeat ? '#1C1C1A' : '#75726B';
+        ctx.font = '800 10px "Space Grotesk", sans-serif';
+        ctx.fillText(subLabel.slice(0, 10), pos.x + btnW / 2, pos.y + 42);
+      }
       ctx.restore();
 
       this.uiButtons.push({
@@ -1705,14 +1803,11 @@ export class HeistGame extends BaseMiniGame {
         onClick: () => this.startNewMatch(),
       });
     } else {
-      ctx.fillStyle = '#1C1C1A';
-      ctx.font = '700 16px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#75726B';
+      ctx.font = '800 14px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('EN AZ 2 OYUNCU GEREKLİ', arena.cx, arena.cy - 12);
-      ctx.font = '500 13px "Space Grotesk", sans-serif';
-      ctx.fillStyle = '#75726B';
-      ctx.fillText('Köşelere dokunarak katılın', arena.cx, arena.cy + 14);
+      ctx.fillText('2 KİŞİ OLUNCA BAŞLAR', arena.cx, arena.cy);
     }
   }
 

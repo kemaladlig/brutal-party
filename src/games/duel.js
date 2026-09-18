@@ -763,10 +763,10 @@ export class DuelGame extends BaseMiniGame {
     const gridTop = cy - 20;
 
     const slotConfigs = [
-      { idx: 0, x: gridLeft, y: gridTop, posLabel: 'ALT' },
-      { idx: 1, x: gridLeft + btnW + 14, y: gridTop, posLabel: 'ÜST' },
-      { idx: 2, x: gridLeft, y: gridTop + btnH + 12, posLabel: 'SOL' },
-      { idx: 3, x: gridLeft + btnW + 14, y: gridTop + btnH + 12, posLabel: 'SAĞ' },
+      { idx: 0, x: gridLeft, y: gridTop, posLabel: 'P1' },
+      { idx: 1, x: gridLeft + btnW + 14, y: gridTop, posLabel: 'P2' },
+      { idx: 2, x: gridLeft, y: gridTop + btnH + 12, posLabel: 'P3' },
+      { idx: 3, x: gridLeft + btnW + 14, y: gridTop + btnH + 12, posLabel: 'P4' },
     ];
 
     slotConfigs.forEach((cfg) => {
@@ -778,25 +778,27 @@ export class DuelGame extends BaseMiniGame {
       ctx.fillStyle = '#000000';
       ctx.fillRect(cfg.x + 3, cfg.y + 3, btnW, btnH);
 
-      // Fill
-      ctx.fillStyle = isJoined ? color : '#1F1B18';
+      // Fill: krem zemin + doluda hafif renk yıkaması
+      ctx.fillStyle = '#FAF7F2';
       ctx.fillRect(cfg.x, cfg.y, btnW, btnH);
+      if (isJoined) {
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = color;
+        ctx.fillRect(cfg.x, cfg.y, btnW, btnH);
+        ctx.globalAlpha = 1;
+      }
 
       // Border
-      ctx.lineWidth = isJoined ? 3 : 2;
-      ctx.strokeStyle = isJoined ? '#FAF8F5' : '#42362E';
+      ctx.lineWidth = isJoined ? 4 : 2;
+      ctx.strokeStyle = isJoined ? color : '#42362E';
       ctx.strokeRect(cfg.x, cfg.y, btnW, btnH);
 
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      ctx.font = '800 10px "Space Grotesk", sans-serif';
-      ctx.fillStyle = isJoined ? 'rgba(255,255,255,0.85)' : '#7A6B62';
-      ctx.fillText(`OYUNCU ${cfg.idx + 1}: ${cfg.posLabel}`, cfg.x + btnW / 2, cfg.y + 14);
-
-      ctx.font = '900 14px "Space Grotesk", sans-serif';
-      ctx.fillStyle = isJoined ? '#FAF8F5' : '#D99B26';
-      ctx.fillText(isJoined ? '✓ HAZIR' : '+ KATIL', cfg.x + btnW / 2, cfg.y + 33);
+      ctx.font = '900 26px "Space Grotesk", sans-serif';
+      ctx.fillStyle = isJoined ? color : '#7A6B62';
+      ctx.fillText(cfg.posLabel, cfg.x + btnW / 2, cfg.y + btnH / 2);
       ctx.restore();
 
       this.uiButtons.push({
@@ -831,7 +833,7 @@ export class DuelGame extends BaseMiniGame {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(
-      canStart ? `🤠 DÜELLOYU BAŞLAT (${activeCount} KOVBOY)` : '⚠️ EN AZ 2 OYUNCU KATILMALI',
+      canStart ? `▶ BAŞLAT (${activeCount})` : '2 KİŞİ OLUNCA BAŞLAR',
       startX + startW / 2,
       startY + startH / 2
     );

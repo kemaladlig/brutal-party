@@ -217,13 +217,13 @@
 
 .lobby-seats-card {
   width: 100%;
-  max-width: 380px;
+  max-width: 430px;
   background-color: #1a1a1a;
   border: 3px solid #333333;
-  padding: 12px 14px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   box-shadow: 4px 4px 0px #000000;
   box-sizing: border-box;
 }
@@ -242,7 +242,7 @@
 .lobby-seats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -255,7 +255,7 @@
   gap: 2px;
   padding: 10px 6px;
   background-color: #22201e;
-  border: 2px solid #3d3a36;
+  border: 2px solid #e8e4da;
   color: #ffffff;
   cursor: pointer;
   text-align: center;
@@ -270,46 +270,48 @@
   transform: scale(0.96);
 }
 
+/* Benim koltuğum: beyaz çerçeve + hafif ışıma (yeşil yok) */
 .lobby-seat-btn.active {
-  border-color: #25d366;
+  border-color: #ffffff;
   border-width: 2.5px;
-  background-color: #16261c;
-  box-shadow: 0 0 12px rgba(37, 211, 102, 0.35);
+  background-color: #26241f;
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.25);
 }
 
+/* Boş koltuk: kesik beyaz çerçeve */
 .lobby-seat-btn.is-empty {
-  border-color: #2f6a4f;
+  border-color: #e8e4da;
   border-style: dashed;
-  background-color: #181d19;
+  background-color: #1a1917;
 }
 
 .lobby-seat-btn.is-empty:active {
-  background-color: #233b2a;
-  border-color: #25d366;
+  background-color: #26241f;
+  border-color: #ffffff;
 }
 
 .lobby-seat-btn.is-occupied {
-  background-color: #1d1b19;
-  border-color: #44413c;
+  background-color: #22201e;
+  border-color: #e8e4da;
 }
 
 .lobby-seat-btn.is-bot {
-  background-color: #241d12;
-  border-color: #d99b26;
+  background-color: #1a1917;
+  border-color: #8a857a;
   border-style: dashed;
   cursor: default;
 }
 
 .lobby-seat-btn .seat-num {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 40px;
+  font-size: 58px;
   font-weight: 900;
   line-height: 1;
 }
 
 .lobby-seat-btn .seat-status {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   color: #a8a39a;
   white-space: nowrap;
@@ -319,12 +321,12 @@
 }
 
 .lobby-seat-btn.active .seat-status {
-  color: #25d366;
+  color: #ffffff;
   font-weight: 900;
 }
 
 .lobby-seat-btn.is-empty .seat-status {
-  color: #4cd964;
+  color: #a8a39a;
 }
 
 .btn-leave-lobby-direct {

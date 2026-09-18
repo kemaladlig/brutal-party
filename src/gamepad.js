@@ -56,6 +56,7 @@ export class GamepadManager {
     // İki kademeli başlatma: staging açılmadan koltuk seçimi gösterilmez
     this.stagingOpen = false;
     this.countdownActive = false;
+    this._countdownT = null;
   }
 
   init(playerInfo, gameMode = 'LOBBY') {
@@ -221,6 +222,7 @@ export class GamepadManager {
   enterStaging(gameMode) {
     this.stagingOpen = true;
     this.countdownActive = false;
+    this._countdownT = null;
     if (gameMode) this.selectedHostGame = gameMode;
     this.renderGameController('LOBBY');
   }
@@ -228,6 +230,7 @@ export class GamepadManager {
   // Geri sayım tik'i: koltuklar kilitlenir, sayaç ekranı basılır
   showCountdown(t) {
     this.countdownActive = true;
+    this._countdownT = t;
     const workspace = document.getElementById('gamepad-workspace');
     if (!workspace) return;
     workspace.innerHTML = `
@@ -244,6 +247,7 @@ export class GamepadManager {
   exitStaging() {
     this.stagingOpen = false;
     this.countdownActive = false;
+    this._countdownT = null;
   }
 
   renderGameController(mode) {
@@ -970,6 +974,28 @@ export class GamepadManager {
   handleStateSync(data) {
     if (!data) return;
 
+    // Faz uzlaşması: tek-atışlık mesajları (STAGING/COUNTDOWN/GAME_STARTED/LOBBY)
+    // kaçıran kumanda periyodik paketten kendini toparlar. Normal akışta no-op'tur.
+    const phase = data.phase;
+    if (phase === 'GAME' && data.gameMode && data.gameMode !== 'MENU'
+        && (this.gameMode === 'LOBBY' || this.countdownActive)) {
+      this.exitStaging();
+      this.resetReady();
+      this.renderGameController(data.gameMode);
+      showInstallToast(`▶ Oyuna bağlanıldı: ${data.gameMode}`);
+    } else if (phase === 'STAGING' && data.gameMode
+        && (!this.stagingOpen || this.gameMode !== 'LOBBY')) {
+      this.enterStaging(data.gameMode);
+    } else if (phase === 'COUNTDOWN' && typeof data.t === 'number') {
+      if (!this.countdownActive || this._countdownT !== data.t) {
+        this.showCountdown(data.t);
+      }
+    } else if (phase === 'LOBBY' && this.gameMode !== 'LOBBY') {
+      this.exitStaging();
+      this.resetReady();
+      this.renderGameController('LOBBY');
+    }
+
     // Switch controller view if host changed game
     if (data.gameMode && data.gameMode !== this.gameMode && this.gameMode !== 'LOBBY') {
       this.renderGameController(data.gameMode);
@@ -1080,12 +1106,21 @@ export class GamepadManager {
       }
     }
 
-    // 3. Tanks Ammo Pips Sync
+    // 3. Tanks Ammo Pips Sync (dolan pip gri + ilerleme çubuğu)
     if (this.gameMode === 'TANKS' && Array.isArray(data.ammo)) {
-      const myAmmo = data.ammo[this.playerIndex] ?? 0;
+      const raw = data.ammo[this.playerIndex];
+      const n = typeof raw === 'number' ? raw : (raw?.n ?? 0);
+      const load = typeof raw === 'object' ? (raw?.load ?? 0) : 0;
       const ammoPips = document.querySelectorAll('#tank-ammo-hud .cartridge-pip');
       ammoPips.forEach((pip, idx) => {
-        pip.classList.toggle('loaded', idx < myAmmo);
+        pip.classList.toggle('loaded', idx < n);
+        if (idx === n && load > 0) {
+          pip.classList.remove('loaded');
+          const pct = Math.round(load * 100);
+          pip.style.background = `linear-gradient(90deg, ${this.playerColor} ${pct}%, #3a3835 ${pct}%)`;
+        } else {
+          pip.style.background = '';
+        }
       });
     }
 

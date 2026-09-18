@@ -104,9 +104,10 @@ registerEngine('TANKS', {
   start: () => tanksGame.startRound(),
   packet: () => ({
     scores: tanksGame.scores,
-    ammo: tanksGame.tanks.map((t) =>
-      Math.max(0, (t.maxBullets || 2) - tanksGame.bullets.filter((b) => b.owner === t.index).length)
-    ),
+    ammo: tanksGame.tanks.map((t) => {
+      const v = tanksGame.ammoVisual(t);
+      return { n: v.readyCount, load: Math.round(v.progress * 100) / 100 };
+    }),
     alive: tanksGame.tanks.map((t) => t.isAlive),
   }),
 });
@@ -444,6 +445,9 @@ async function executeJoin(rawCode, rawName) {
       },
       onStagingStarted: (mode) => {
         gamepadManager.enterStaging(mode);
+        // Saha açılırken hazır da sıfırlanır (host tarafıyla aynı kural; geç kalmış
+        // bayrak bir sonraki turun sayacına sızamaz)
+        gamepadManager.resetReady();
         showInstallToast('🏟 Saha açıldı! Koltuğunu seç ve hazır ol.');
       },
       onCountdown: (t) => {
@@ -633,6 +637,13 @@ function enterStaging(mode) {
   tryFullscreen();
   stagingMode = mode;
   seatsLocked = false;
+  // Lobiden çıkışta herkes BEKLE'ye çekilir (yerel sıfırlama, ekstra çağrı yok —
+  // aksi halde eski turun bayrağı yeni turun sayacına sızar)
+  for (let i = 0; i < 4; i++) {
+    const e = hostPlayerSlots[i];
+    if (e) updateHostSlot(i, true, e.name, false, e.kind);
+  }
+  refreshStagingBar();
   setGameMode(mode);
   // Saha açılırken koltuklar bir kez daha yazılır (kurucu varsayılan botları ezilir)
   const engine = getActiveGameEngine();
@@ -651,6 +662,7 @@ function runCountdown() {
   const tick = () => {
     if (t > 0) {
       showCountdownOverlay(t);
+      lastCountdownT = t;
       activeNet().broadcastCountdown(t);
       t -= 1;
     } else {
@@ -835,12 +847,22 @@ if (isPublicOrigin() && !HAS_SUPABASE_CONFIG) {
 // sakin anlarda tekrar yayın yapılmaz (kota korunur).
 let lastBroadcastTime = 0;
 let lastBroadcastJson = '';
+let lastCountdownT = 0;
 function broadcastGameStateIfNeeded(now) {
-  if (!activeNet().isHosting || currentMode === 'MENU') return;
+  if (!activeNet().isHosting) return;
 
-  let packet = { gameMode: currentMode };
-  const entry = getEngine(currentMode);
-  if (entry) Object.assign(packet, entry.packet());
+  let packet;
+  if (currentMode === 'MENU') {
+    // Boşta tiny paket: kirlenme kontrollü olduğu için ~1 kez gider, sonra susar.
+    // Kumandalar kaçırdıkları LOBBY dönüşünü buradan yakalar.
+    packet = { gameMode: 'MENU', phase: 'LOBBY' };
+  } else {
+    packet = { gameMode: currentMode };
+    const entry = getEngine(currentMode);
+    if (entry) Object.assign(packet, entry.packet());
+    packet.phase = countdownTimer ? 'COUNTDOWN' : (stagingMode ? 'STAGING' : 'GAME');
+    if (countdownTimer) packet.t = lastCountdownT;
+  }
   packet.names = hostPlayerSlots.map((p) => (p ? p.name : null));
 
   const json = JSON.stringify(packet);

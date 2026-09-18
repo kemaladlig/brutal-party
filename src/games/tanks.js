@@ -494,8 +494,9 @@ export class TanksGame extends BaseMiniGame {
       tank.isAlive = tank.isJoined;
       tank.isDriving = false;
       tank.reloadTimer = 0;
-      tank.reloadCooldown = 0.55;
+      tank.reloadCooldown = 1.1;
       tank.maxBullets = 2;
+      tank.chamber = tank.maxBullets;
       tank.muzzleFlashTimer = 0;
       tank.botPatrolTimer = 0;
       tank.botWantsDrive = false;
@@ -506,16 +507,17 @@ export class TanksGame extends BaseMiniGame {
   }
 
   attemptFire(tank) {
-    const activeBullets = this.bullets.filter((b) => b.owner === tank.index).length;
-
-    if (tank.reloadTimer > 0 || activeBullets >= tank.maxBullets) {
+    // Şarjör mantığı: dolu yuva varsa ateşlenir (peş peşe 2 el mümkün).
+    // Dolum sayacı sadece boş yuvayı doldurur, hazır mermiyi kilitlemez.
+    if ((tank.chamber ?? tank.maxBullets) <= 0) {
       if (tank.slotType === 'human') {
         playDryFire();
       }
       return;
     }
 
-    tank.reloadTimer = tank.reloadCooldown;
+    tank.chamber = Math.max(0, (tank.chamber ?? tank.maxBullets) - 1);
+    if (tank.reloadTimer <= 0) tank.reloadTimer = tank.reloadCooldown;
     tank.muzzleFlashTimer = 0.12;
 
     const barrelLen = tank.size * 0.82;
@@ -641,6 +643,8 @@ export class TanksGame extends BaseMiniGame {
               tank.turboTimer = 6.0;
             } else if (crate.type === 'TRIPLE') {
               tank.hasTripleShot = true;
+              tank.chamber = tank.maxBullets;
+              tank.reloadTimer = 0;
             } else if (crate.type === 'SHIELD') {
               tank.hasShield = true;
             }
@@ -657,6 +661,12 @@ export class TanksGame extends BaseMiniGame {
 
         if (tank.reloadTimer > 0) {
           tank.reloadTimer = Math.max(0, tank.reloadTimer - dt);
+          if (tank.reloadTimer <= 0 && tank.chamber < tank.maxBullets) {
+            tank.chamber++;
+            if (tank.chamber < tank.maxBullets) tank.reloadTimer = tank.reloadCooldown;
+          }
+        } else if (tank.chamber < tank.maxBullets) {
+          tank.reloadTimer = tank.reloadCooldown;
         }
         if (tank.muzzleFlashTimer > 0) {
           tank.muzzleFlashTimer = Math.max(0, tank.muzzleFlashTimer - dt);
@@ -1212,10 +1222,22 @@ export class TanksGame extends BaseMiniGame {
     }
   }
 
+  // Mermi görseli kuralı (3 yüzeyde aynı): her yuva hep çizilir.
+  // dolu = tam renk, dolan = gri zemin + renkli ilerleme, boş = içi boş çerçeve. Yazı yok.
+  // Şarjör sayacı: ateşlenen yuva soldan dolar, ikinci mermi de animasyonla gelir.
+  ammoVisual(tank) {
+    const max = tank.maxBullets || 2;
+    const chamber = Math.max(0, Math.min(max, tank.chamber ?? max));
+    const isReloading = tank.reloadTimer > 0 && chamber < max;
+    const loadIdx = isReloading ? chamber : -1;
+    const progress = loadIdx >= 0
+      ? Math.max(0, Math.min(1, 1 - tank.reloadTimer / (tank.reloadCooldown || 1.1)))
+      : 0;
+    return { available: chamber, isReloading, loadIdx, progress, readyCount: chamber };
+  }
+
   drawTankAmmo(ctx, tank) {
-    const activeBullets = this.bullets.filter((b) => b.owner === tank.index).length;
-    const isReloading = tank.reloadTimer > 0;
-    const available = Math.max(0, tank.maxBullets - activeBullets);
+    const v = this.ammoVisual(tank);
 
     ctx.save();
     ctx.translate(tank.x, tank.y - tank.size - 14);
@@ -1225,8 +1247,8 @@ export class TanksGame extends BaseMiniGame {
       ctx.rotate(Math.PI);
     }
 
-    const cartridgeW = 9;
-    const cartridgeH = 5;
+    const cartridgeW = 12;
+    const cartridgeH = 8;
     const spacing = 3;
     const totalW = tank.maxBullets * cartridgeW + (tank.maxBullets - 1) * spacing;
     const startX = -totalW / 2;
@@ -1238,29 +1260,25 @@ export class TanksGame extends BaseMiniGame {
     ctx.lineWidth = 1.5;
     ctx.strokeRect(-totalW / 2 - 3, -cartridgeH / 2 - 3, totalW + 6, cartridgeH + 6);
 
-    // Draw individual bullet cartridges
+    // Yuvalar: dolu = tam renk, dolan = gri + ilerleme, boş = içi boş çerçeve
+    const pipColor = tank.hasTripleShot ? '#FFDE59' : tank.color;
     for (let i = 0; i < tank.maxBullets; i++) {
-      const isReady = i < available && !isReloading;
       const bx = startX + i * (cartridgeW + spacing);
       const by = -cartridgeH / 2;
 
-      ctx.fillStyle = isReady ? (tank.hasTripleShot ? '#FFDE59' : tank.color) : '#55524C';
-      ctx.fillRect(bx, by, cartridgeW, cartridgeH);
-    }
-
-    // Status text above/below cartridge bar
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.font = '900 10px "JetBrains Mono", monospace';
-    if (isReloading) {
-      ctx.fillStyle = '#D99B26';
-      ctx.fillText('DOLUYOR...', 0, -cartridgeH / 2 - 3);
-    } else if (available === 0) {
-      ctx.fillStyle = '#D99B26';
-      ctx.fillText('SEKİYOR...', 0, -cartridgeH / 2 - 3);
-    } else {
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillText(tank.hasTripleShot ? '3× HAZIR' : 'HAZIR', 0, -cartridgeH / 2 - 3);
+      if (i < v.readyCount) {
+        ctx.fillStyle = pipColor;
+        ctx.fillRect(bx, by, cartridgeW, cartridgeH);
+      } else if (i === v.loadIdx && v.progress > 0) {
+        ctx.fillStyle = '#55524C';
+        ctx.fillRect(bx, by, cartridgeW, cartridgeH);
+        ctx.fillStyle = pipColor;
+        ctx.fillRect(bx, by, cartridgeW * v.progress, cartridgeH);
+      } else {
+        ctx.strokeStyle = '#55524C';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(bx, by, cartridgeW, cartridgeH);
+      }
     }
 
     ctx.restore();
@@ -1290,22 +1308,19 @@ export class TanksGame extends BaseMiniGame {
       const halfW = zone.w / 2;
       const halfH = zone.h / 2;
 
+      let numLabel = `${index + 1}`;
+      let subLabel = '';
       let strokeColor = '#DDD9CF';
-      let textColor = '#99948A';
-      let label = '+ DOKUN KATIL';
+      let numColor = '#99948A';
 
       if (c.slot === 'human') {
-        label = '✓ OYUNCU';
+        subLabel = (tank && tank.name && tank.name !== TANK_NAMES[index]) ? tank.name : '';
         strokeColor = c.color;
-        textColor = c.color;
-      } else if (c.slot === 'bot_normal') {
-        label = '🤖 BOT: NORMAL';
+        numColor = c.color;
+      } else if (c.slot === 'bot_normal' || c.slot === 'bot_god') {
+        subLabel = '🤖';
         strokeColor = '#3A3A38';
-        textColor = '#3A3A38';
-      } else if (c.slot === 'bot_god') {
-        label = '⚡ BOT: GOD MODE';
-        strokeColor = '#1A1A1A';
-        textColor = '#D84727';
+        numColor = '#3A3A38';
       }
 
       ctx.strokeStyle = strokeColor;
@@ -1335,10 +1350,8 @@ export class TanksGame extends BaseMiniGame {
         ctx.textBaseline = 'middle';
         ctx.fillText(isDriving ? '▶ İLERLİYOR...' : 'TUT: GİT  •  BIRAK: ATEŞ', 0, -14);
 
-        // Visual Ammo Cartridge Bar in Player's Corner
-        const activeBullets = this.bullets.filter((b) => b.owner === tank.index).length;
-        const available = Math.max(0, tank.maxBullets - activeBullets);
-        const isReloading = tank.reloadTimer > 0;
+        // Visual Ammo Cartridge Bar in Player's Corner (aynı kural, yazısız)
+        const v = this.ammoVisual(tank);
 
         const cartW = 14;
         const cartH = 8;
@@ -1347,34 +1360,37 @@ export class TanksGame extends BaseMiniGame {
         const startX = -totalW / 2;
 
         for (let i = 0; i < tank.maxBullets; i++) {
-          const isReady = i < available && !isReloading;
           const bx = startX + i * (cartW + spacing);
           const by = 4;
-          ctx.fillStyle = isReady ? c.color : '#CCC7BD';
-          ctx.fillRect(bx, by, cartW, cartH);
+          if (i < v.readyCount) {
+            ctx.fillStyle = c.color;
+            ctx.fillRect(bx, by, cartW, cartH);
+          } else if (i === v.loadIdx && v.progress > 0) {
+            ctx.fillStyle = '#8A8578';
+            ctx.fillRect(bx, by, cartW, cartH);
+            ctx.fillStyle = c.color;
+            ctx.fillRect(bx, by, cartW * v.progress, cartH);
+          } else {
+            ctx.strokeStyle = '#8A8578';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(bx, by, cartW, cartH);
+          }
           ctx.strokeStyle = '#1C1C1A';
           ctx.lineWidth = 1.5;
           ctx.strokeRect(bx, by, cartW, cartH);
         }
-
-        // Ammo state text
-        ctx.font = '800 11px "JetBrains Mono", monospace';
-        if (isReloading) {
-          ctx.fillStyle = '#D99B26';
-          ctx.fillText('DOLUYOR...', 0, 24);
-        } else if (available === 0) {
-          ctx.fillStyle = '#D99B26';
-          ctx.fillText('SEKİYOR...', 0, 24);
-        } else {
-          ctx.fillStyle = '#2F6A4F';
-          ctx.fillText(tank.hasTripleShot ? '⚡ 3× HAZIR' : 'MERMİ HAZIR', 0, 24);
-        }
       } else {
-        ctx.fillStyle = textColor;
-        ctx.font = '800 14px "Space Grotesk", sans-serif';
+        const numSize = Math.max(24, Math.min(44, Math.floor(Math.min(zone.w, zone.h) * 0.36)));
+        ctx.fillStyle = numColor;
+        ctx.font = `900 ${numSize}px "Space Grotesk", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(label, 0, 0);
+        ctx.fillText(numLabel, 0, subLabel ? -numSize * 0.3 : 0);
+        if (subLabel) {
+          ctx.fillStyle = '#1C1C1A';
+          ctx.font = '800 10px "Space Grotesk", sans-serif';
+          ctx.fillText(subLabel.slice(0, 10), 0, numSize * 0.45);
+        }
       }
 
       ctx.restore();
@@ -1404,9 +1420,12 @@ export class TanksGame extends BaseMiniGame {
     ctx.font = '900 16px "Space Grotesk", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(joinedCount >= 2 ? 'BAŞLAT' : 'EN AZ 2', cx, cy - 8);
-    ctx.font = '700 11px "Space Grotesk", sans-serif';
-    ctx.fillText(joinedCount >= 2 ? 'TANK' : 'KATILIM', cx, cy + 10);
+    if (joinedCount >= 2) {
+      ctx.fillText('BAŞLAT', cx, cy);
+    } else {
+      ctx.font = '800 12px "Space Grotesk", sans-serif';
+      ctx.fillText('2 KİŞİ OLUNCA BAŞLAR', cx, cy);
+    }
     ctx.restore();
   }
 

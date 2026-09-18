@@ -105,7 +105,7 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
       } else {
         p.isJoined = false;
         p.slotType = 'empty';
-        p.name = ['ALT', 'ÜST', 'SOL', 'SAĞ'][i];
+        p.name = ['P1', 'P2', 'P3', 'P4'][i];
       }
       p.updateLayout?.(engine.arena);
     }

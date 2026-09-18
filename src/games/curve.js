@@ -809,22 +809,19 @@ export class CurveGame extends BaseMiniGame {
       const halfH = zones.box.h / 2;
 
       if (this.state === 'LOBBY') {
-        let label = '+ KATIL';
+        let numLabel = `${i + 1}`;
+        let subLabel = '';
         let strokeColor = '#DDD9CF';
-        let textColor = '#99948A';
+        let numColor = '#99948A';
 
         if (player.slotType === 'human') {
-          label = '✓ OYUNCU';
+          subLabel = player.name || '';
           strokeColor = player.color;
-          textColor = player.color;
-        } else if (player.slotType === 'bot_normal') {
-          label = '🤖 BOT: NORMAL';
+          numColor = player.color;
+        } else if (player.slotType === 'bot_normal' || player.slotType === 'bot_god') {
+          subLabel = '🤖';
           strokeColor = '#3A3A38';
-          textColor = '#3A3A38';
-        } else if (player.slotType === 'bot_god') {
-          label = '⚡ BOT: GOD';
-          strokeColor = '#1A1A1A';
-          textColor = '#D84727';
+          numColor = '#3A3A38';
         }
 
         ctx.strokeStyle = strokeColor;
@@ -832,11 +829,17 @@ export class CurveGame extends BaseMiniGame {
         ctx.setLineDash([4, 4]);
         ctx.strokeRect(-halfW, -halfH, zones.box.w, zones.box.h);
 
-        ctx.fillStyle = textColor;
-        ctx.font = '800 13px "Space Grotesk", sans-serif';
+        const numSize = Math.max(22, Math.min(40, Math.floor(Math.min(zones.box.w, zones.box.h) * 0.42)));
+        ctx.fillStyle = numColor;
+        ctx.font = `900 ${numSize}px "Space Grotesk", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(label, 0, 0);
+        ctx.fillText(numLabel, 0, subLabel ? -numSize * 0.3 : 0);
+        if (subLabel) {
+          ctx.fillStyle = '#1C1C1A';
+          ctx.font = '800 10px "Space Grotesk", sans-serif';
+          ctx.fillText(subLabel.slice(0, 10), 0, numSize * 0.45);
+        }
 
       } else if (isJoined && player.slotType === 'human' && player.isAlive) {
         const touching = this.cornerTouches[i] || { id: -1, action: null };
@@ -944,9 +947,12 @@ export class CurveGame extends BaseMiniGame {
     ctx.font = '900 16px "Space Grotesk", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(joinedCount >= 2 ? 'BAŞLAT' : 'EN AZ 2', cx, cy - 8);
-    ctx.font = '700 11px "Space Grotesk", sans-serif';
-    ctx.fillText(joinedCount >= 2 ? 'ÇİZGİ' : 'OYUNCU', cx, cy + 10);
+    if (joinedCount >= 2) {
+      ctx.fillText('BAŞLAT', cx, cy);
+    } else {
+      ctx.font = '800 13px "Space Grotesk", sans-serif';
+      ctx.fillText('2 KİŞİ OLUNCA BAŞLAR', cx, cy);
+    }
     ctx.restore();
   }
 

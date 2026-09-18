@@ -13,6 +13,8 @@ import {
   playWallHit,
   playPaddleHit,
   playCashRegister,
+  playItemPickup,
+  playTeleport,
 } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -55,6 +57,7 @@ export class CrownGame extends BaseMiniGame {
     this.speedPads = [];
     this.bananaPeels = [];
     this.pickups = [];
+    this.inkPuddles = [];
     this.pickupTimer = 5.0;
 
     // Slot types: 'empty' | 'human' | 'bot_normal' (clean 3-state cycle)
@@ -216,6 +219,7 @@ export class CrownGame extends BaseMiniGame {
     this.speedPads = [];
     this.bananaPeels = [];
     this.pickups = [];
+    this.inkPuddles = [];
 
     const bRad = 26;
 
@@ -595,6 +599,42 @@ export class CrownGame extends BaseMiniGame {
     }
   }
 
+  // Taç rastgele bir noktaya savrulur (haritada aksiyon dağılır)
+  scatterCrown() {
+    const { left, right, top, bottom } = this.arena;
+    const pad = 70;
+    for (let tries = 0; tries < 12; tries++) {
+      const tx = left + pad + Math.random() * (right - left - pad * 2);
+      const ty = top + pad + Math.random() * (bottom - top - pad * 2);
+      let inside = false;
+      for (const pil of this.pillars) {
+        if (tx > pil.x - 24 && tx < pil.x + pil.w + 24 && ty > pil.y - 24 && ty < pil.y + pil.h + 24) {
+          inside = true;
+          break;
+        }
+      }
+      if (!inside) {
+        this.crown.x = tx;
+        this.crown.y = ty;
+        break;
+      }
+    }
+    this.crown.vx = (Math.random() - 0.5) * 120;
+    this.crown.vy = (Math.random() - 0.5) * 120;
+    playDashWhoosh();
+    for (let k = 0; k < 14; k++) {
+      this.particles.push({
+        x: this.crown.x,
+        y: this.crown.y,
+        vx: (Math.random() - 0.5) * 260,
+        vy: (Math.random() - 0.5) * 260,
+        color: '#FFDE59',
+        size: 4 + Math.random() * 5,
+        life: 0.45,
+      });
+    }
+  }
+
   addFloatingText(x, y, text, color = '#1A1A1A') {
     this.floatingTexts.push({
       x,
@@ -606,13 +646,19 @@ export class CrownGame extends BaseMiniGame {
     });
   }
 
-  resolvePillarCollisions(entity, radius) {
+  // Bariyer: katı duvar (içinden geçilmez) + çevresinde yavaşlatma alanı.
+  // Sekme yok, ses yok — hissedilir ama sessiz engel.
+  resolvePillarCollisions(entity, radius, isCrown = false) {
     for (const pil of this.pillars) {
       const closestX = Math.max(pil.x, Math.min(entity.x, pil.x + pil.w));
       const closestY = Math.max(pil.y, Math.min(entity.y, pil.y + pil.h));
       const dx = entity.x - closestX;
       const dy = entity.y - closestY;
       const distSq = dx * dx + dy * dy;
+
+      if (!isCrown && distSq < (radius + 26) * (radius + 26)) {
+        entity.inSlow = true;
+      }
 
       if (distSq < radius * radius) {
         const dist = Math.sqrt(distSq);
@@ -633,8 +679,11 @@ export class CrownGame extends BaseMiniGame {
     }
   }
 
+  // Rastgele pickup (bomba moduyla aynı: TURBO / TELEPORT / SLIP, 8-12 sn'de bir, max 2)
   spawnRandomPickup() {
     const { left, top, width, height } = this.arena;
+    const types = ['TURBO', 'TELEPORT', 'SLIP'];
+    const type = types[Math.floor(Math.random() * types.length)];
     const px = left + width * 0.15 + Math.random() * (width * 0.7);
     const py = top + height * 0.15 + Math.random() * (height * 0.7);
 
@@ -644,11 +693,7 @@ export class CrownGame extends BaseMiniGame {
       }
     }
 
-    if (Math.random() < 0.55 && this.bananaPeels.length < 6) {
-      this.bananaPeels.push({ x: px, y: py, radius: 14 });
-    } else if (this.pickups.length < 3) {
-      this.pickups.push({ x: px, y: py, radius: 16, type: 'TURBO' });
-    }
+    this.pickups.push({ x: px, y: py, type, radius: 15, animTime: 0 });
   }
 
   update(now) {
@@ -682,14 +727,21 @@ export class CrownGame extends BaseMiniGame {
         h.y = h.minPos + progress * (h.maxPos - h.minPos);
       }
       if (h.pulse > 0) h.pulse = Math.max(0, h.pulse - dt * 3.5);
+      if (h.hitCool > 0) h.hitCool -= dt;
     }
 
-    // --- 3. Dynamic Pickups & Bananas ---
+    // --- 3. Dynamic Pickups (bomba temposu: 8-12 sn, max 2) & Mürekkep kuruma ---
     this.pickupTimer -= dt;
     if (this.pickupTimer <= 0) {
-      this.spawnRandomPickup();
-      this.pickupTimer = 5.0 + Math.random() * 3.0;
+      if (this.pickups.length < 2) this.spawnRandomPickup();
+      this.pickupTimer = 8.0 + Math.random() * 4.0;
     }
+    for (let i = this.inkPuddles.length - 1; i >= 0; i--) {
+      const ink = this.inkPuddles[i];
+      ink.duration -= dt;
+      if (ink.duration <= 0) this.inkPuddles.splice(i, 1);
+    }
+    for (const pk of this.pickups) pk.animTime = (pk.animTime || 0) + dt;
 
     // --- 4. Update Crown State & Time ---
     this.crown.floatAnim += dt * 3.5;
@@ -758,7 +810,7 @@ export class CrownGame extends BaseMiniGame {
       if (this.crown.y - cr < top) { this.crown.y = top + cr; this.crown.vy *= -0.8; playWallHit(); }
       if (this.crown.y + cr > bottom) { this.crown.y = bottom - cr; this.crown.vy *= -0.8; playWallHit(); }
 
-      this.resolvePillarCollisions(this.crown, cr);
+      this.resolvePillarCollisions(this.crown, cr, true);
 
       for (const h of this.movingHazards) {
         const dx = this.crown.x - h.x;
@@ -788,8 +840,11 @@ export class CrownGame extends BaseMiniGame {
           this.crown.y = b.y + ny * minDist;
           this.crown.vx = nx * 380;
           this.crown.vy = ny * 380;
-          b.pulse = 1.0;
-          playPaddleHit();
+          if (!b.hitCool || b.hitCool <= 0) {
+            b.hitCool = 0.25;
+            b.pulse = 1.0;
+            playPaddleHit();
+          }
         }
       }
     }
@@ -797,11 +852,16 @@ export class CrownGame extends BaseMiniGame {
     // --- Update Bumpers Pulse Decay ---
     for (const b of this.bumpers) {
       if (b.pulse > 0) b.pulse = Math.max(0, b.pulse - dt * 3.5);
+      if (b.hitCool > 0) b.hitCool -= dt;
     }
+
+    // --- Bariyer yavaşlatma bayrağı her frame sıfırlanır ---
+    if (this.rubCool > 0) this.rubCool -= dt;
 
     // --- 5. Update Players ---
     for (const p of this.players) {
       if (!p.isJoined || !p.isAlive) continue;
+      p.inSlow = false;
 
       if (p.tackleCooldown > 0) p.tackleCooldown -= dt;
       if (p.tackleTimer > 0) {
@@ -855,13 +915,19 @@ export class CrownGame extends BaseMiniGame {
       // Heavy crown handicap: 165 px/s vs 250 px/s
       let speed = p.hasCrown ? 165 : 250;
       if (p.turboTimer > 0) speed = 340;
-      if (p.stumbleTimer > 0) speed *= 0.15; // 0.85s stun!
+      if (p.inSlow) speed *= 0.55; // bariyer yavaşlatma alanı
 
+      const inLen = Math.hypot(inX, inY);
       if (p.slipTimer > 0) {
         p.vx *= 0.97;
         p.vy *= 0.97;
+      } else if (p.stumbleTimer > 0) {
+        // Sersemlikte savrulma korunur (uçuş hissi): hız ezilmez, sadece süzülür
+        const damp = Math.max(0, 1 - 2.2 * dt);
+        p.vx *= damp;
+        p.vy *= damp;
+        if (inLen > 0.05) p.facingAngle = Math.atan2(inY, inX);
       } else {
-        const inLen = Math.hypot(inX, inY);
         if (inLen > 0.05) {
           p.facingAngle = Math.atan2(inY, inX);
         }
@@ -912,12 +978,17 @@ export class CrownGame extends BaseMiniGame {
           p.x = h.x + nx * minDist;
           p.y = h.y + ny * minDist;
 
-          const bounceSpeed = Math.max(400, Math.hypot(p.vx, p.vy) * 1.4);
+          const bounceSpeed = Math.max(460, Math.hypot(p.vx, p.vy) * 1.4);
           p.vx = nx * bounceSpeed;
           p.vy = ny * bounceSpeed;
           p.facingAngle = Math.atan2(ny, nx);
-          h.pulse = 1.0;
-          playWallHit();
+          // Sersem + ses soğumalı: piston üstünde duran kilitlenmesin
+          if (!h.hitCool || h.hitCool <= 0) {
+            h.hitCool = 1.0;
+            h.pulse = 1.0;
+            p.stumbleTimer = Math.max(p.stumbleTimer, 1.0);
+            playWallHit();
+          }
 
           for (let k = 0; k < 6; k++) {
             this.particles.push({
@@ -949,8 +1020,11 @@ export class CrownGame extends BaseMiniGame {
           p.vx = nx * bounceSpeed;
           p.vy = ny * bounceSpeed;
           p.facingAngle = Math.atan2(ny, nx);
-          b.pulse = 1.0;
-          playHeavyImpact();
+          if (!b.hitCool || b.hitCool <= 0) {
+            b.hitCool = 0.25;
+            b.pulse = 1.0;
+            playHeavyImpact();
+          }
 
           for (let k = 0; k < 7; k++) {
             this.particles.push({
@@ -1006,15 +1080,52 @@ export class CrownGame extends BaseMiniGame {
         }
       }
 
-      // Pickups (Turbo Boost ⚡)
+      // Pickups (bomba moduyla aynı üçlü: TURBO / TELEPORT / SLIP)
       for (let i = this.pickups.length - 1; i >= 0; i--) {
         const pk = this.pickups[i];
         const distPk = Math.hypot(p.x - pk.x, p.y - pk.y);
         if (distPk < pr + pk.radius) {
-          p.turboTimer = 2.8;
-          playDashWhoosh();
-          this.addFloatingText(p.x, p.y - 25, '⚡ TURBO!', '#D99B26');
+          playItemPickup();
+          if (pk.type === 'TURBO') {
+            p.turboTimer = 3.5;
+            this.addFloatingText(p.x, p.y - 25, '⚡ TURBO!', '#D99B26');
+          } else if (pk.type === 'TELEPORT') {
+            // Taçtan en uzak köşeye kaçış
+            const ref = this.crown.carrierIndex !== null && this.players[this.crown.carrierIndex]
+              ? this.players[this.crown.carrierIndex]
+              : this.crown;
+            const pad = 60;
+            const corners = [
+              { x: left + pad, y: top + pad },
+              { x: right - pad, y: top + pad },
+              { x: left + pad, y: bottom - pad },
+              { x: right - pad, y: bottom - pad },
+            ];
+            let best = corners[0];
+            let bestD = -1;
+            for (const c of corners) {
+              const d = Math.hypot(c.x - ref.x, c.y - ref.y);
+              if (d > bestD) { bestD = d; best = c; }
+            }
+            p.x = Math.max(left + pr, Math.min(right - pr, best.x));
+            p.y = Math.max(top + pr, Math.min(bottom - pr, best.y));
+            playTeleport();
+            this.addFloatingText(p.x, p.y - 25, '🌀 KAÇIŞ!', '#48CAE4');
+          } else if (pk.type === 'SLIP') {
+            this.inkPuddles.push({ x: p.x, y: p.y, radius: 22, duration: 10.0 });
+            this.addFloatingText(p.x, p.y - 25, '🍌 TUZAK!', '#FFDE59');
+          }
           this.pickups.splice(i, 1);
+          break;
+        }
+      }
+
+      // Mürekkep birikintisi (bomba moduyla aynı: 1.3 sn kayma)
+      for (const ink of this.inkPuddles) {
+        const dInk = Math.hypot(p.x - ink.x, p.y - ink.y);
+        if (dInk < pr + ink.radius * 0.75 && p.slipTimer <= 0) {
+          p.slipTimer = 1.3;
+          playSlip();
           break;
         }
       }
@@ -1089,16 +1200,10 @@ export class CrownGame extends BaseMiniGame {
               if (target.hasCrown) {
                 target.hasCrown = false;
                 this.crown.carrierIndex = null;
-                // 0.85s stun and pickup cooldown
-                this.crown.pickupCooldown = 0.85;
-                target.stumbleTimer = 0.85;
-
-                const launchAngle = Math.atan2(ny, nx) * (tackler === p1 ? 1 : -1) + (Math.random() - 0.5) * 0.8;
-                const launchSpeed = 360;
-                this.crown.x = target.x;
-                this.crown.y = target.y;
-                this.crown.vx = Math.cos(launchAngle) * launchSpeed;
-                this.crown.vy = Math.sin(launchAngle) * launchSpeed;
+                // 1s sersem ve yerden alma kilidi
+                this.crown.pickupCooldown = 1.0;
+                target.stumbleTimer = 1.0;
+                this.scatterCrown();
 
                 target.vx = (tackler === p1 ? nx : -nx) * 380;
                 target.vy = (tackler === p1 ? ny : -ny) * 380;
@@ -1121,26 +1226,42 @@ export class CrownGame extends BaseMiniGame {
               } else {
                 target.vx = (tackler === p1 ? nx : -nx) * 340;
                 target.vy = (tackler === p1 ? ny : -ny) * 340;
-                target.stumbleTimer = 0.5;
+                target.stumbleTimer = 1.0;
                 tackler.vx = -(tackler === p1 ? nx : -nx) * 120;
                 tackler.vy = -(tackler === p1 ? ny : -ny) * 120;
                 playPaddleHit(1.6);
               }
             }
-          } else {
-            const relVx = p2.vx - p1.vx;
-            const relVy = p2.vy - p1.vy;
-            const velAlongNormal = relVx * nx + relVy * ny;
+            } else {
+              const relVx = p2.vx - p1.vx;
+              const relVy = p2.vy - p1.vy;
+              const velAlongNormal = relVx * nx + relVy * ny;
 
-            if (velAlongNormal < 0) {
-              const impulse = -1.2 * velAlongNormal;
-              p1.vx -= impulse * nx * 0.5;
-              p1.vy -= impulse * ny * 0.5;
-              p2.vx += impulse * nx * 0.5;
-              p2.vy += impulse * ny * 0.5;
-              playPaddleHit(0.8);
+              if (velAlongNormal < 0) {
+                const impulse = -1.2 * velAlongNormal;
+                p1.vx -= impulse * nx * 0.5;
+                p1.vy -= impulse * ny * 0.5;
+                p2.vx += impulse * nx * 0.5;
+                p2.vy += impulse * ny * 0.5;
+                // Sürtünme sesi: sert temas + soğumalı (yaslanınca makinelisi yok)
+                if (-velAlongNormal > 160 && (!this.rubCool || this.rubCool <= 0)) {
+                  this.rubCool = 0.2;
+                  playPaddleHit(0.8);
+                }
+              }
+
+              // Dokunma çalma: dash şart değil — taçlıya değen düşürür
+              const crowned = p1.hasCrown ? p1 : (p2.hasCrown ? p2 : null);
+              if (crowned) {
+                crowned.hasCrown = false;
+                this.crown.carrierIndex = null;
+                this.crown.pickupCooldown = 1.0;
+                crowned.stumbleTimer = Math.max(crowned.stumbleTimer, 1.0);
+                this.scatterCrown();
+                playStumble();
+                this.addFloatingText(crowned.x, crowned.y - 30, '👑 TAÇ BOŞTA!', '#FFDE59');
+              }
             }
-          }
         }
       }
     }
@@ -1176,6 +1297,24 @@ export class CrownGame extends BaseMiniGame {
     // Arena Floor
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, aW, aH);
+
+    // Taç geri sayımı: zemin katmanında devasa (her şeyin altında, sahaya gömülü)
+    if (this.state === 'PLAYING' && this.crown.carrierIndex !== null) {
+      const king = this.players[this.crown.carrierIndex];
+      if (king && king.isAlive) {
+        const remain = Math.max(0, this.targetCrownTime - king.crownHoldTime);
+        const urgent = remain <= 5.0;
+        const bigSize = Math.max(90, Math.min(170, Math.floor(Math.min(aW, aH) * 0.22)));
+        ctx.save();
+        ctx.globalAlpha = 0.28;
+        ctx.font = `900 ${bigSize}px "Space Grotesk", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = urgent ? '#D84727' : '#8A8478';
+        ctx.fillText(remain.toFixed(1), this.arena.cx, this.arena.cy);
+        ctx.restore();
+      }
+    }
 
     // Subtle Arena Grid
     ctx.strokeStyle = '#E5DFD5';
@@ -1222,6 +1361,11 @@ export class CrownGame extends BaseMiniGame {
     // 5. Render Banana Peels 🍌
     for (const b of this.bananaPeels) {
       this.renderBananaPeel(ctx, b);
+    }
+
+    // 5.5. Render Ink Puddles (SLIP tuzağı)
+    for (const ink of this.inkPuddles) {
+      this.renderInkPuddle(ctx, ink);
     }
 
     // 6. Render Pickups (Turbo ⚡)
@@ -1431,6 +1575,10 @@ export class CrownGame extends BaseMiniGame {
 
   renderPillar(ctx, pil) {
     ctx.save();
+    // Yavaşlatma alanı halesi (yeşil soluk)
+    ctx.fillStyle = 'rgba(47, 106, 79, 0.16)';
+    ctx.fillRect(pil.x - 8, pil.y - 8, pil.w + 16, pil.h + 16);
+
     ctx.fillStyle = '#1A1A1A';
     ctx.fillRect(pil.x + 5, pil.y + 5, pil.w, pil.h);
 
@@ -1499,24 +1647,43 @@ export class CrownGame extends BaseMiniGame {
 
   renderPickup(ctx, pk) {
     ctx.save();
+    const pulse = 1 + Math.sin((pk.animTime || 0) * 6) * 0.08;
+    ctx.translate(pk.x, pk.y);
+    ctx.scale(pulse, pulse);
+
     ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
     ctx.beginPath();
-    ctx.arc(pk.x + 3, pk.y + 3, pk.radius, 0, Math.PI * 2);
+    ctx.arc(3, 3, pk.radius, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#D99B26';
+    // Bomba moduyla aynı rozet renkleri
+    ctx.fillStyle = pk.type === 'TURBO' ? '#FFDE59' : pk.type === 'TELEPORT' ? '#48CAE4' : '#2D2D2A';
     ctx.beginPath();
-    ctx.arc(pk.x, pk.y, pk.radius, 0, Math.PI * 2);
+    ctx.arc(0, 0, pk.radius, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 2.5;
     ctx.stroke();
 
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = pk.type === 'SLIP' ? '#FFFFFF' : '#1A1A1A';
     ctx.font = '900 13px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('⚡', pk.x, pk.y);
+    ctx.fillText(pk.type === 'TURBO' ? '⚡' : pk.type === 'TELEPORT' ? '🌀' : '🍌', 0, 0);
+    ctx.restore();
+  }
+
+  renderInkPuddle(ctx, ink) {
+    ctx.save();
+    ctx.fillStyle = '#1A1A1A';
+    ctx.beginPath();
+    ctx.arc(ink.x, ink.y, ink.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#333330';
+    ctx.beginPath();
+    ctx.arc(ink.x - 6, ink.y - 4, ink.radius * 0.4, 0, Math.PI * 2);
+    ctx.arc(ink.x + 8, ink.y + 5, ink.radius * 0.35, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 
@@ -1660,10 +1827,18 @@ export class CrownGame extends BaseMiniGame {
 
     if (p.hasCrown) {
       const progress = Math.min(1.0, p.crownHoldTime / this.targetCrownTime);
-      ctx.strokeStyle = '#D99B26';
-      ctx.lineWidth = 4;
+      const remain = Math.max(0, this.targetCrownTime - p.crownHoldTime);
+      const urgent = remain <= 5.0;
+      // Zemin halka (koyu) + ilerleme (altın, son 5 sn kırmızı) + kocaman geri sayım
+      ctx.strokeStyle = 'rgba(26, 26, 26, 0.4)';
+      ctx.lineWidth = 8;
       ctx.beginPath();
-      ctx.arc(x, y, r + 5, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+      ctx.arc(x, y, r + 9, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = urgent ? '#D84727' : '#D99B26';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 9, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
       ctx.stroke();
     }
 
@@ -1837,22 +2012,41 @@ export class CrownGame extends BaseMiniGame {
     for (let i = 0; i < 4; i++) {
       const pos = positions[i];
       const type = this.slotTypes[i];
+      const p = this.players[i];
+
+      const numLabel = `${i + 1}`;
+      const custom = p && p.name && p.name !== CROWN_NAMES[i] ? p.name.slice(0, 8) : '';
+      const subLabel = type === 'empty' ? '' : (type === 'human' ? custom : '🤖');
+      const isBot = type === 'bot_normal' || type === 'bot_god';
+      const isJoinedSeat = type === 'human';
+      const numColor = type === 'empty' ? '#1C1C1A' : (isBot ? '#75726B' : CROWN_COLORS[i]);
+      const frameColor = isJoinedSeat ? CROWN_COLORS[i] : '#1A1A1A';
 
       ctx.fillStyle = '#1A1A1A';
       ctx.fillRect(pos.x + 3, pos.y + 3, cardW, cardH);
 
-      ctx.fillStyle = type === 'empty' ? '#E2DCD2' : CROWN_COLORS[i];
+      ctx.fillStyle = '#FAF7F2';
       ctx.fillRect(pos.x, pos.y, cardW, cardH);
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
+      if (isJoinedSeat) {
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = CROWN_COLORS[i];
+        ctx.fillRect(pos.x, pos.y, cardW, cardH);
+        ctx.globalAlpha = 1;
+      }
+      ctx.strokeStyle = frameColor;
+      ctx.lineWidth = isJoinedSeat ? 3.5 : 2.5;
       ctx.strokeRect(pos.x, pos.y, cardW, cardH);
 
-      ctx.fillStyle = type === 'empty' ? '#1A1A1A' : '#FFFFFF';
-      ctx.font = '800 11px "JetBrains Mono", monospace';
+      ctx.fillStyle = numColor;
+      ctx.font = '900 28px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const label = type === 'empty' ? `P${i + 1}: BOŞ` : (type === 'human' ? `P${i + 1}: İNSAN` : `P${i + 1}: BOT`);
-      ctx.fillText(label, pos.x + cardW / 2, pos.y + cardH / 2);
+      ctx.fillText(numLabel, pos.x + cardW / 2, pos.y + (subLabel ? 18 : cardH / 2));
+      if (subLabel) {
+        ctx.fillStyle = isJoinedSeat ? '#1C1C1A' : '#75726B';
+        ctx.font = '800 9px "Space Grotesk", sans-serif';
+        ctx.fillText(subLabel, pos.x + cardW / 2, pos.y + 38);
+      }
 
       this.uiButtons.push({
         x: pos.x,
@@ -1893,11 +2087,11 @@ export class CrownGame extends BaseMiniGame {
         onClick: () => this.startNewMatch(),
       });
     } else {
-      ctx.fillStyle = '#1A1A1A';
-      ctx.font = '700 14px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#75726B';
+      ctx.font = '800 14px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('EN AZ 2 OYUNCU SEÇİN (KÖŞELERE DOKUNUN)', cx, cy + 24);
+      ctx.fillText('2 KİŞİ OLUNCA BAŞLAR', cx, cy + 24);
     }
 
     ctx.restore();
