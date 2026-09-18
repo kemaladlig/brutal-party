@@ -232,7 +232,7 @@ export class GamepadManager {
         </div>
 
         <div class="lobby-game-preview-card">
-          <div class="lobby-game-icon">🎯</div>
+          <img src="/assets/games/${(this.selectedHostGame || 'PONG').toLowerCase()}.jpg" class="lobby-game-thumb-preview" alt="Game" />
           <div class="lobby-game-text">SEÇİLEN OYUN: <b id="lobby-selected-game-text">${selectedTitle}</b></div>
         </div>
 
