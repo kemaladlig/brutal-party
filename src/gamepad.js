@@ -103,6 +103,8 @@ export class GamepadManager {
         <span class="hud-live-status" id="hud-live-status">BEKLENİYOR...</span>
       </div>
 
+      <div class="score-strip hidden" id="score-strip"></div>
+
       <div class="gamepad-workspace" id="gamepad-workspace"></div>
 
       <!-- Quick Emoji Reaction Bar -->
@@ -166,6 +168,38 @@ export class GamepadManager {
     }
   }
 
+  // İsimli skor şeridi (sub-HUD): koltuk rengi + isim + skor. PONG hariç tüm
+  // oyun modlarında görünür (PONG'un kendi canlı skorbord'u isim alır).
+  renderScoreStrip(names, scores) {
+    const strip = document.getElementById('score-strip');
+    if (!strip) return;
+    if (this.gameMode === 'LOBBY' || !Array.isArray(names) || !Array.isArray(scores)) {
+      strip.classList.add('hidden');
+      strip.innerHTML = '';
+      return;
+    }
+    if (this.gameMode === 'PONG') {
+      strip.classList.add('hidden');
+      strip.innerHTML = '';
+      return;
+    }
+    const seatColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
+    const seatTags = ['P1', 'P2', 'P3', 'P4'];
+    strip.innerHTML = [0, 1, 2, 3].map((idx) => {
+      const name = names[idx];
+      const isEmpty = !name;
+      const isMine = idx === this.playerIndex;
+      return `
+        <div class="score-chip${isMine ? ' is-mine' : ''}${isEmpty ? ' is-empty' : ''}">
+          <span class="score-dot" style="background-color: ${seatColors[idx]}"></span>
+          <span class="score-name">${isEmpty ? 'BOŞ' : name}</span>
+          <span class="score-val">${scores[idx] ?? 0}</span>
+        </div>
+      `;
+    }).join('');
+    strip.classList.remove('hidden');
+  }
+
   // İki kademeli başlatma: host sahayı açtı → koltuk seçimi görünür
   enterStaging(gameMode) {
     this.stagingOpen = true;
@@ -210,6 +244,7 @@ export class GamepadManager {
     }
 
     if (mode === 'LOBBY') {
+      document.getElementById('score-strip')?.classList.add('hidden');
       this.mountLobbyController(workspace);
     } else {
       const mountFn = CONTROLLER_META[mode]?.mount;
@@ -307,7 +342,7 @@ export class GamepadManager {
         </div>
 
         <div class="lobby-game-preview-card">
-          <img src="/assets/games/${(this.selectedHostGame || 'PONG').toLowerCase()}.jpg" class="lobby-game-thumb-preview" alt="Game" />
+          <img src="/assets/games/${(this.selectedHostGame || 'PONG').toLowerCase()}.jpg" class="lobby-game-thumb-preview" alt="Game" onerror="this.style.display='none'" />
           <div class="lobby-game-text">OYUN: <b id="lobby-selected-game-text">${selectedTitle}</b></div>
         </div>
 
@@ -561,7 +596,7 @@ export class GamepadManager {
     container.innerHTML = `
       <div class="tanks-arcade-view">
         <div class="tank-drive-zone">
-          <button class="tank-drive-pedal" id="btn-tank-drive" type="button">
+          <button class="tank-drive-pedal" id="btn-tank-drive" type="button" style="border-color: ${this.playerColor}">
             <span class="pedal-icon">🚀</span>
             <span class="pedal-title">İLERLE</span>
             <span class="pedal-sub">BASILI TUTUNCA GİDER • BIRAKINCA DÖNER</span>
@@ -918,16 +953,12 @@ export class GamepadManager {
     const liveStatus = document.getElementById('hud-live-status');
 
     if (modeTag && data.gameMode) {
-      const modeIcons = {
-        LOBBY: '📺 PARTİ LOBİSİ',
-        PONG: '🏓 PONG',
-        TANKS: '🛡️ TANKS',
-        CURVE: '🐍 CURVE',
-        BOMB: '💣 BOMB',
-        HEIST: '💰 HEIST',
-        DUEL: '🤠 DUEL',
-      };
-      modeTag.textContent = modeIcons[data.gameMode] || data.gameMode;
+      modeTag.textContent = CONTROLLER_META[data.gameMode]?.hudTag || data.gameMode;
+    }
+
+    // İsimli skor şeridi (PONG kendi skorbord'unu kullanır, diğer modlar şeridi)
+    if (data.scores) {
+      this.renderScoreStrip(data.names, data.scores);
     }
 
     // Update live status text
@@ -937,7 +968,12 @@ export class GamepadManager {
         statusStr = `RALLİ: ${data.rally || 0} • SKOR: ${data.scores.slice(0, 4).join('-')}`;
         const scoreDisp = document.getElementById('pong-score-display');
         const rallyDisp = document.getElementById('pong-rally-display');
-        if (scoreDisp && data.scores) scoreDisp.textContent = `SKOR: ${data.scores.slice(0, 4).join(' - ')}`;
+        if (scoreDisp && data.scores) {
+          // İsimler varsa kimin skoru olduğu görünür: "AHMET 2 • MEHMET 1"
+          scoreDisp.textContent = Array.isArray(data.names)
+            ? data.scores.slice(0, 4).map((s, i) => `${data.names[i] || `P${i + 1}`} ${s}`).join(' • ')
+            : `SKOR: ${data.scores.slice(0, 4).join(' - ')}`;
+        }
         if (rallyDisp && data.rally !== undefined) rallyDisp.textContent = `⚡ RALLİ: ${data.rally}`;
       } else if (data.gameMode === 'TANKS') {
         statusStr = `SKOR: ${data.scores.join('-')}`;
@@ -995,7 +1031,10 @@ export class GamepadManager {
         if (subEl) subEl.textContent = 'ERKEN BASMA! (-1 CEZA)';
       } else if (data.duelState === 'ROUND_OVER') {
         if (stateEl) stateEl.textContent = '🏁 TUR BİTTİ';
-        if (subEl) subEl.textContent = data.winner !== null ? `KAZANAN: P${data.winner + 1}` : 'BERABERE';
+        const winnerName = data.winner !== null && data.winner !== undefined
+          ? (Array.isArray(data.names) && data.names[data.winner] ? data.names[data.winner] : `P${data.winner + 1}`)
+          : null;
+        if (subEl) subEl.textContent = winnerName ? `KAZANAN: ${winnerName}` : 'BERABERE';
       }
     }
   }

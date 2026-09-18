@@ -697,6 +697,10 @@ function broadcastGameStateIfNeeded(now) {
   let packet = { gameMode: currentMode };
   const entry = getEngine(currentMode);
   if (entry) Object.assign(packet, entry.packet());
+  // Kumandalardaki isimli skor şeridi için: koltuk sırasına göre isimler
+  // (boş koltuk null → şeritte soluk "BOŞ"). Renkler koltuğa sabit olduğundan
+  // pakete renk eklenmez; kumanda SEAT_COLORS ile çizer.
+  packet.names = hostPlayerSlots.map((p) => (p ? p.name : null));
 
   activeNet().broadcastHostState(packet);
 }
