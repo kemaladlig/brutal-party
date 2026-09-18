@@ -1482,7 +1482,10 @@ export class TanksGame {
       ctx.font = '900 12px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(`${c.name} [${this.scores[index]} PUAN]`, 0, -halfH + 8);
+      const pName = (tank && tank.name && tank.name !== TANK_NAMES[index])
+        ? `${c.name} (${tank.name})`
+        : c.name;
+      ctx.fillText(`${pName} [${this.scores[index]} PUAN]`, 0, -halfH + 8);
 
       if (isGameplayHuman && tank) {
         const isDriving = tank.isDriving;

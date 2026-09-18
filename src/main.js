@@ -116,6 +116,243 @@ window.addEventListener('orientationchange', () => {
   setTimeout(resizeCanvas, 150);
 });
 
+export function getActiveGameEngine() {
+  if (currentMode === 'PONG') return pongGame;
+  if (currentMode === 'TANKS') return tanksGame;
+  if (currentMode === 'CURVE') return curveGame;
+  if (currentMode === 'BOMB') return bombGame;
+  if (currentMode === 'HEIST') return heistGame;
+  if (currentMode === 'DUEL') return duelGame;
+  return null;
+}
+
+export const hostPlayerSlots = [null, null, null, null];
+
+export function syncSlotsToEngine(engine) {
+  if (!engine) return;
+  if (!activeNet().isHosting) return;
+
+  const humanCount = hostPlayerSlots.filter((p) => p !== null).length;
+  if (humanCount === 0) return;
+
+  if (currentMode === 'PONG') {
+    for (let i = 0; i < 4; i++) {
+      const p = engine.paddles[i];
+      if (!p) continue;
+      const slot = hostPlayerSlots[i];
+      if (slot) {
+        p.isJoined = true;
+        p.slotType = 'human';
+        p.name = slot.name || `P${i + 1}`;
+      } else {
+        if (humanCount === 1 && i === 1) {
+          p.isJoined = true;
+          p.slotType = 'bot_normal';
+          p.name = 'BOT // MAVİ';
+        } else {
+          p.isJoined = false;
+          p.slotType = 'empty';
+          p.name = ['ALT', 'ÜST', 'SOL', 'SAĞ'][i];
+        }
+      }
+      p.updateLayout(engine.arena);
+    }
+    if (engine.state === 'LOBBY' && engine.getJoinedPlayerCount() >= 2) {
+      engine.startGame();
+    }
+  } else if (currentMode === 'TANKS') {
+    for (let i = 0; i < 4; i++) {
+      const slot = hostPlayerSlots[i];
+      const tank = engine.tanks[i];
+      if (slot) {
+        engine.slotTypes[i] = 'human';
+        if (tank) {
+          tank.isJoined = true;
+          tank.slotType = 'human';
+          tank.name = slot.name || `P${i + 1}`;
+        }
+      } else {
+        if (humanCount === 1 && i === 1) {
+          engine.slotTypes[1] = 'bot_normal';
+          if (tank) {
+            tank.isJoined = true;
+            tank.slotType = 'bot_normal';
+            tank.name = 'BOT // MAVİ';
+          }
+        } else {
+          engine.slotTypes[i] = 'empty';
+          if (tank) {
+            tank.isJoined = false;
+            tank.slotType = 'empty';
+            tank.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
+          }
+        }
+      }
+    }
+    if (engine.state === 'LOBBY') {
+      engine.startRound();
+    }
+  } else if (currentMode === 'CURVE') {
+    for (let i = 0; i < 4; i++) {
+      const slot = hostPlayerSlots[i];
+      const player = engine.players[i];
+      if (slot) {
+        engine.slotTypes[i] = 'human';
+        if (player) {
+          player.isJoined = true;
+          player.slotType = 'human';
+          player.name = slot.name || `P${i + 1}`;
+        }
+      } else {
+        if (humanCount === 1 && i === 1) {
+          engine.slotTypes[1] = 'bot_normal';
+          if (player) {
+            player.isJoined = true;
+            player.slotType = 'bot_normal';
+            player.name = 'BOT // MAVİ';
+          }
+        } else {
+          engine.slotTypes[i] = 'empty';
+          if (player) {
+            player.isJoined = false;
+            player.slotType = 'empty';
+            player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
+          }
+        }
+      }
+    }
+    if (engine.state === 'LOBBY') {
+      engine.startRound();
+    }
+  } else if (currentMode === 'BOMB') {
+    for (let i = 0; i < 4; i++) {
+      const slot = hostPlayerSlots[i];
+      const player = engine.players[i];
+      if (slot) {
+        engine.slotTypes[i] = 'human';
+        if (player) {
+          player.isJoined = true;
+          player.slotType = 'human';
+          player.name = slot.name || `P${i + 1}`;
+        }
+      } else {
+        if (humanCount === 1 && i === 1) {
+          engine.slotTypes[1] = 'bot_normal';
+          if (player) {
+            player.isJoined = true;
+            player.slotType = 'bot_normal';
+            player.name = 'BOT // MAVİ';
+          }
+        } else {
+          engine.slotTypes[i] = 'empty';
+          if (player) {
+            player.isJoined = false;
+            player.slotType = 'empty';
+            player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
+          }
+        }
+      }
+    }
+    if (engine.state === 'LOBBY') {
+      engine.startRound();
+    }
+  } else if (currentMode === 'HEIST') {
+    for (let i = 0; i < 4; i++) {
+      const slot = hostPlayerSlots[i];
+      const player = engine.players[i];
+      if (slot) {
+        engine.slotTypes[i] = 'human';
+        if (player) {
+          player.isJoined = true;
+          player.slotType = 'human';
+          player.name = slot.name || `P${i + 1}`;
+        }
+      } else {
+        if (humanCount === 1 && i === 1) {
+          engine.slotTypes[1] = 'bot_normal';
+          if (player) {
+            player.isJoined = true;
+            player.slotType = 'bot_normal';
+            player.name = 'BOT // MAVİ';
+          }
+        } else {
+          engine.slotTypes[i] = 'empty';
+          if (player) {
+            player.isJoined = false;
+            player.slotType = 'empty';
+            player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
+          }
+        }
+      }
+    }
+    if (engine.state === 'LOBBY') {
+      engine.startRound();
+    }
+  } else if (currentMode === 'DUEL') {
+    if (!engine.playerNames) engine.playerNames = ['', '', '', ''];
+    for (let i = 0; i < 4; i++) {
+      const slot = hostPlayerSlots[i];
+      if (slot) {
+        engine.joinedPlayers[i] = true;
+        engine.playerNames[i] = slot.name || `P${i + 1}`;
+      } else {
+        engine.joinedPlayers[i] = humanCount === 1 && i === 1;
+        engine.playerNames[i] = '';
+      }
+    }
+    if (typeof engine.updateTriggerPads === 'function') {
+      engine.updateTriggerPads();
+    }
+    if (engine.state === 'LOBBY' && engine.getActivePlayerCount() >= 2) {
+      engine.startMatch();
+    }
+  }
+}
+
+export function swapEngineSlots(engine, slotA, slotB) {
+  if (!engine) return;
+
+  if (currentMode === 'PONG') {
+    if (engine.setScores) {
+      const tempS = engine.setScores[slotA];
+      engine.setScores[slotA] = engine.setScores[slotB];
+      engine.setScores[slotB] = tempS;
+    }
+    if (engine.matchScores) {
+      const tempM = engine.matchScores[slotA];
+      engine.matchScores[slotA] = engine.matchScores[slotB];
+      engine.matchScores[slotB] = tempM;
+    }
+    if (!activeNet().isHosting) {
+      const pA = engine.paddles[slotA];
+      const pB = engine.paddles[slotB];
+      if (pA && pB) {
+        const tempJoined = pA.isJoined;
+        pA.isJoined = pB.isJoined;
+        pB.isJoined = tempJoined;
+        const tempType = pA.slotType;
+        pA.slotType = pB.slotType;
+        pB.slotType = tempType;
+      }
+    }
+  } else if (currentMode === 'TANKS' || currentMode === 'CURVE' || currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'DUEL') {
+    if (Array.isArray(engine.scores)) {
+      const temp = engine.scores[slotA];
+      engine.scores[slotA] = engine.scores[slotB];
+      engine.scores[slotB] = temp;
+    }
+    if (!activeNet().isHosting && Array.isArray(engine.slotTypes)) {
+      const tempType = engine.slotTypes[slotA];
+      engine.slotTypes[slotA] = engine.slotTypes[slotB];
+      engine.slotTypes[slotB] = tempType;
+    }
+  }
+
+  if (activeNet().isHosting) {
+    syncSlotsToEngine(engine);
+  }
+}
+
 // State Management
 export function setGameMode(mode) {
   markTransition();
@@ -146,6 +383,7 @@ export function setGameMode(mode) {
     pongGame.lastTime = now;
     pongGame.accumulator = 0;
     pongGame.resize(window.innerWidth, window.innerHeight);
+    syncSlotsToEngine(pongGame);
   } else if (mode === 'TANKS') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
@@ -153,6 +391,7 @@ export function setGameMode(mode) {
     tanksGame.resetMatch();
     tanksGame.lastTime = now;
     tanksGame.resize(window.innerWidth, window.innerHeight);
+    syncSlotsToEngine(tanksGame);
   } else if (mode === 'CURVE') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
@@ -160,6 +399,7 @@ export function setGameMode(mode) {
     curveGame.resetMatch();
     curveGame.lastTime = now;
     curveGame.resize(window.innerWidth, window.innerHeight);
+    syncSlotsToEngine(curveGame);
   } else if (mode === 'BOMB') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
@@ -167,6 +407,7 @@ export function setGameMode(mode) {
     bombGame.resetMatch();
     bombGame.lastTime = now;
     bombGame.resize(window.innerWidth, window.innerHeight);
+    syncSlotsToEngine(bombGame);
   } else if (mode === 'HEIST') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
@@ -174,6 +415,7 @@ export function setGameMode(mode) {
     heistGame.resetMatch();
     heistGame.lastTime = now;
     heistGame.resize(window.innerWidth, window.innerHeight);
+    syncSlotsToEngine(heistGame);
   } else if (mode === 'DUEL') {
     menuOverlay.classList.add('hidden');
     inGameHud.classList.remove('hidden');
@@ -181,6 +423,7 @@ export function setGameMode(mode) {
     duelGame.reset();
     duelGame.lastTime = now;
     duelGame.resize(window.innerWidth, window.innerHeight);
+    syncSlotsToEngine(duelGame);
   }
 }
 
@@ -229,6 +472,8 @@ function renderPauseSeats() {
           const temp = hostPlayerSlots[slotA];
           hostPlayerSlots[slotA] = hostPlayerSlots[slotB];
           hostPlayerSlots[slotB] = temp;
+          const engine = getActiveGameEngine();
+          if (engine) swapEngineSlots(engine, slotA, slotB);
         }
         renderPauseSeats();
         showInstallToast(`🔄 P${slotA + 1} ve P${slotB + 1} takas edildi!`);
@@ -252,6 +497,12 @@ btnPauseRotateSeats?.addEventListener('click', () => {
     hostPlayerSlots[2] = p0;
     hostPlayerSlots[1] = p2;
     hostPlayerSlots[3] = p1;
+    const engine = getActiveGameEngine();
+    if (engine) {
+      swapEngineSlots(engine, 0, 2);
+      swapEngineSlots(engine, 2, 1);
+      swapEngineSlots(engine, 1, 3);
+    }
   }
   pauseSelectedSlot = null;
   renderPauseSeats();
@@ -401,18 +652,6 @@ const gamepadOverlay = document.getElementById('gamepad-overlay');
 const gamepadManager = new GamepadManager(gamepadOverlay, partyNetwork);
 
 let currentHostGameMode = 'PONG';
-
-function getActiveGameEngine() {
-  if (currentMode === 'PONG') return pongGame;
-  if (currentMode === 'TANKS') return tanksGame;
-  if (currentMode === 'CURVE') return curveGame;
-  if (currentMode === 'BOMB') return bombGame;
-  if (currentMode === 'HEIST') return heistGame;
-  if (currentMode === 'DUEL') return duelGame;
-  return null;
-}
-
-const hostPlayerSlots = [null, null, null, null];
 
 // Host lobisinde ping göstergesi (özellikle ONLINE modda gecikmeyi gösterir)
 let hostPingTimer = null;
@@ -578,10 +817,14 @@ async function openHostLobby(gameMode = 'PONG') {
       onPlayerJoined: (msg) => {
         playJoin();
         updateHostSlot(msg.slotIndex, true, msg.name, false);
+        const engine = getActiveGameEngine();
+        if (engine) syncSlotsToEngine(engine);
         showInstallToast(`🎮 ${msg.name} kumanda olarak bağlandı!`);
       },
       onPlayerLeft: (msg) => {
         updateHostSlot(msg.slotIndex, false);
+        const engine = getActiveGameEngine();
+        if (engine) syncSlotsToEngine(engine);
         showInstallToast(`🚪 ${msg.name} odadan ayrıldı.`);
       },
       onPlayerReadyStatus: (slotIndex, isReady) => {
@@ -597,6 +840,12 @@ async function openHostLobby(gameMode = 'PONG') {
         else updateHostSlot(slotA, false);
         if (hostPlayerSlots[slotB]) updateHostSlot(slotB, true, hostPlayerSlots[slotB].name, hostPlayerSlots[slotB].isReady);
         else updateHostSlot(slotB, false);
+
+        const engine = getActiveGameEngine();
+        if (engine) {
+          swapEngineSlots(engine, slotA, slotB);
+        }
+
         showInstallToast(`🔄 Slot P${slotA + 1} ve P${slotB + 1} yer değiştirdi.`);
         if (pauseModal && !pauseModal.classList.contains('hidden')) {
           renderPauseSeats();
@@ -610,6 +859,8 @@ async function openHostLobby(gameMode = 'PONG') {
             slot.name = data.name.slice(0, 12).toUpperCase();
             updateHostSlot(slotIndex, true, slot.name, slot.isReady);
             activeNet().setPlayerName?.(slotIndex, slot.name);
+            const engine = getActiveGameEngine();
+            if (engine) syncSlotsToEngine(engine);
             if (pauseModal && !pauseModal.classList.contains('hidden')) {
               renderPauseSeats();
             }

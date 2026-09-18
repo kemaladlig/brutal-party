@@ -39,6 +39,7 @@ export class DuelGame {
 
     // Active human player slots (Index 0: Bottom, 1: Top, 2: Left, 3: Right)
     this.joinedPlayers = [true, true, false, false];
+    this.playerNames = ['', '', '', ''];
 
     // Tournament Scoring (First to 10 points wins!)
     this.targetScore = 10;
@@ -168,7 +169,7 @@ export class DuelGame {
         h: padH,
         rotation: 0,
         label: 'KIRMIZI',
-        sublabel: 'OYUNCU 1',
+        sublabel: this.playerNames?.[0] || 'OYUNCU 1',
       },
       // P1: Top (Player 2) - Faces 180° (upright for opponent across table)
       {
@@ -179,7 +180,7 @@ export class DuelGame {
         h: padH,
         rotation: Math.PI,
         label: 'MAVİ',
-        sublabel: 'OYUNCU 2',
+        sublabel: this.playerNames?.[1] || 'OYUNCU 2',
       },
       // P2: Left (Player 3) - Faces 90° (upright for player on left edge)
       {
@@ -190,7 +191,7 @@ export class DuelGame {
         h: padH,
         rotation: Math.PI / 2,
         label: 'SARI',
-        sublabel: 'OYUNCU 3',
+        sublabel: this.playerNames?.[2] || 'OYUNCU 3',
       },
       // P3: Right (Player 4) - Faces -90° (upright for player on right edge)
       {
@@ -201,7 +202,7 @@ export class DuelGame {
         h: padH,
         rotation: -Math.PI / 2,
         label: 'YEŞİL',
-        sublabel: 'OYUNCU 4',
+        sublabel: this.playerNames?.[3] || 'OYUNCU 4',
       },
     ];
   }
@@ -716,7 +717,8 @@ export class DuelGame {
     let scoreText = '';
     this.joinedPlayers.forEach((joined, idx) => {
       if (joined) {
-        scoreText += `${colorNames[idx]}: ${this.scores[idx]}P   `;
+        const pName = this.playerNames?.[idx] || colorNames[idx];
+        scoreText += `${pName}: ${this.scores[idx]}P   `;
       }
     });
     scoreText += `[HEDEF: ${this.targetScore}P]  ⚡REKOR: ${this.tableRecordMs}ms`;

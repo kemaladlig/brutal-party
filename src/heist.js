@@ -1531,7 +1531,10 @@ export class HeistGame {
       ctx.font = '800 11px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`P${player.index + 1}`, 0, 0);
+      const pLabel = (player.name && player.name !== HEIST_NAMES[player.index])
+        ? player.name.slice(0, 6)
+        : `P${player.index + 1}`;
+      ctx.fillText(pLabel, 0, 0);
 
       // Carried Loot Bag Badge floating above head
       if (player.carriedGold > 0) {

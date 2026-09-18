@@ -467,7 +467,10 @@ export class Game {
         ctx.translate(right + (window.innerWidth - right) / 2, this.arena.cy);
         ctx.rotate(-Math.PI / 2);
       }
-      ctx.fillText(labels[paddle.index], 0, 0);
+      const displayName = paddle.name && paddle.name !== ['ALT', 'ÜST', 'SOL', 'SAĞ'][paddle.index]
+        ? `${labels[paddle.index]} • ${paddle.name}`
+        : labels[paddle.index];
+      ctx.fillText(displayName, 0, 0);
       ctx.restore();
     }
     ctx.restore();
