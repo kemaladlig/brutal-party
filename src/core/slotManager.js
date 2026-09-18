@@ -2,6 +2,21 @@
 
 export const hostPlayerSlots = [null, null, null, null];
 
+// Bot ekleme ayarı (varsayılan KAPALI; pause menüsünden açılır, localStorage'da saklanır)
+const BOT_SETTING_KEY = 'brutalparty.botEkle';
+export function isBotEkleEnabled() {
+  try {
+    return localStorage.getItem(BOT_SETTING_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+export function setBotEkleEnabled(on) {
+  try {
+    localStorage.setItem(BOT_SETTING_KEY, on ? '1' : '0');
+  } catch {}
+}
+
 export function updateHostSlot(slotIndex, isConnected, name = '', isReady = false, kind = 'human') {
   const slotEl = document.getElementById(`slot-p${slotIndex + 1}`);
   const readyTag = document.getElementById(`ready-tag-p${slotIndex + 1}`);
@@ -24,9 +39,11 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
         readyTag.classList.toggle('ready', isReady);
       }
     }
-    // Açık buton: bot kartında ✕ (kaldır), insan kartında buton yok
+    // Açık buton (sadece ayar açıksa): bot kartında ✕ (kaldır), boş koltukta +BOT.
+    // Kapalıyken normal akışta sadece oyuncu eklenir/çıkarılır.
+    const botsOn = isBotEkleEnabled();
     if (botBtn) {
-      if (kind === 'bot') {
+      if (botsOn && kind === 'bot') {
         botBtn.textContent = '✕';
         botBtn.classList.remove('hidden');
       } else {
@@ -41,10 +58,14 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
       readyTag.textContent = 'BOŞ';
       readyTag.classList.remove('ready');
     }
-    // Boş koltukta +BOT butonu görünür
+    // Boş koltukta +BOT butonu (sadece ayar açıksa)
     if (botBtn) {
-      botBtn.textContent = '+ BOT';
-      botBtn.classList.remove('hidden');
+      if (isBotEkleEnabled()) {
+        botBtn.textContent = '+ BOT';
+        botBtn.classList.remove('hidden');
+      } else {
+        botBtn.classList.add('hidden');
+      }
     }
   }
 

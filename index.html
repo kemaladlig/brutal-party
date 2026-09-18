@@ -104,7 +104,7 @@
             <!-- Center: 4 Player Slots with Positions & Ready Status -->
             <div class="host-players-list">
               <div class="host-slot-header">👥 OYUNCULAR (2-4 KİŞİ)</div>
-              <div class="host-slot-hint">Boş koltukta +BOT: bot koy • BOT kartında ✕: kaldır • ↕: koltuk kaydır</div>
+              <div class="host-slot-hint" id="host-slot-hint">Boş koltukta +BOT: bot koy • BOT kartında ✕: kaldır • ↕: koltuk kaydır</div>
               <div class="host-player-slot" id="slot-p1" data-slot="0">
                 <div class="slot-color-dot" style="background-color: #D84727"></div>
                 <div class="slot-info">
@@ -291,6 +291,9 @@
             </button>
             <button id="btn-toggle-sound" class="pause-btn" type="button">
               🔊 SES: AÇIK
+            </button>
+            <button id="btn-toggle-bots" class="pause-btn" type="button">
+              🤖 BOT EKLEME: KAPALI
             </button>
             <button id="btn-exit-to-menu" class="pause-btn danger" type="button">
               ⌂ ANA MENÜYE DÖN

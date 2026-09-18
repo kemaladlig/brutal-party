@@ -27,7 +27,7 @@ import {
 } from './net.js';
 
 import { initToastAndInstall, showInstallToast } from './ui/toast.js';
-import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots } from './core/slotManager.js';
+import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, isBotEkleEnabled } from './core/slotManager.js';
 import {
   initPauseModal,
   openPauseModal,
@@ -509,6 +509,8 @@ function refreshHostSlotCards() {
     if (e) updateHostSlot(i, true, e.name, e.isReady, e.kind);
     else updateHostSlot(i, false);
   }
+  // Bot ipucu sadece ayar açıksa görünür
+  document.getElementById('host-slot-hint')?.classList.toggle('hidden', !isBotEkleEnabled());
 }
 
 function returnHostToLobby() {
@@ -662,6 +664,8 @@ const BOT_SEAT_NAMES = ['BOT // KIRMIZI', 'BOT // MAVİ', 'BOT // SARI', 'BOT //
 
 function handleLobbySeatTap(index) {
   if (!activeNet().isHosting) return;
+  // Bot ekleme kapalıysa normal akış: sadece oyuncu eklenir/çıkarılır
+  if (!isBotEkleEnabled()) return;
   if (seatsLocked) {
     showInstallToast('⏳ Sayaç sırasında koltuk değiştirilemez.');
     return;
@@ -743,6 +747,21 @@ initPauseModal({
   onReset: resetActiveGame,
   onExitMenu: handleExitToMenu,
   onTvLobby: returnHostToLobby,
+  onBotsToggled: (enabled) => {
+    // Kapatılınca mevcut botlar temizlenir; açılınca kartlar butonları gösterir
+    if (!enabled) {
+      for (let i = 0; i < 4; i++) {
+        if (hostPlayerSlots[i]?.kind === 'bot') {
+          activeNet().clearSlotBot?.(i);
+          updateHostSlot(i, false);
+        }
+      }
+      const engine = getActiveGameEngine();
+      if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
+    }
+    refreshHostSlotCards();
+    showInstallToast(enabled ? '🤖 Bot ekleme AÇIK.' : 'Bot ekleme KAPALI.');
+  },
 });
 
 // Menu Card Tap Listeners (buton id kuralı: btn-select-<lowercase mode>)

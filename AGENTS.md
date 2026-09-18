@@ -40,6 +40,7 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 - `SLOTS_UPDATE` parity kuralı: WS ve Supabase **aynı payload şeklini** yayınlar (`slotIndex, name, color, kind, isReady`). Birine eklenen alan diğerine de eklenir.
 - İsimler `toUpperCase()`, en fazla 12 karakter.
 - Bot koltuğu ne hedef ne kaynak olur: `SWITCH_SLOT` hedefi olamaz, ghost-reconnect botu yiyemez, hayalet geri kazanım botları atlar, sayaçta koltuk işlemleri kilitlidir (`seatsLocked`).
+- Bot ekleme **varsayılan kapalıdır** (`isBotEkleEnabled()` → localStorage); pause menüsündeki `🤖 BOT EKLEME` düğmesiyle açılır. Kapalıyken bot butonları/ipucu çizilmez, saha tap'i bot eklemez — normal akışta sadece oyuncu eklenir/çıkarılır.
 - **Ready-reset kuralı:** `GAME_STARTED` ve `RETURNED_TO_LOBBY` olaylarında hazır bayrağı **iki tarafta da** sıfırlanır (host `hostPlayerSlots` + kumanda `resetReady()`). Tek taraflı sıfırlama "takılı HAZIR" bug'ı üretir.
 - Oda kodu 3 haneli sayı (`100–999`).
 

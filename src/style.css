@@ -1229,6 +1229,10 @@ body {
   padding: 0 2px 6px;
 }
 
+.host-slot-hint.hidden {
+  display: none;
+}
+
 .slot-bot-btn {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;

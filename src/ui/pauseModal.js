@@ -1,5 +1,5 @@
 // In-Game Pause Modal & Seat Switcher Manager
-import { hostPlayerSlots } from '../core/slotManager.js';
+import { hostPlayerSlots, isBotEkleEnabled, setBotEkleEnabled } from '../core/slotManager.js';
 import { showInstallToast } from './toast.js';
 import { toggleAudio } from '../audio.js';
 
@@ -9,6 +9,7 @@ const btnResumeGame = document.getElementById('btn-resume-game');
 const btnResetMatch = document.getElementById('btn-reset-match');
 const btnTvLobby = document.getElementById('btn-tv-lobby');
 const btnToggleSound = document.getElementById('btn-toggle-sound');
+const btnToggleBots = document.getElementById('btn-toggle-bots');
 const btnExitToMenu = document.getElementById('btn-exit-to-menu');
 const btnPauseRotateSeats = document.getElementById('btn-pause-rotate-seats');
 
@@ -33,7 +34,7 @@ export function renderPauseSeats(onSwapCallback) {
   grid.innerHTML = [0, 1, 2, 3]
     .map((idx) => {
       const slot = hostPlayerSlots[idx];
-      const name = slot?.name || 'BOŞ (BOT)';
+      const name = slot?.name || 'BOŞ';
       const isSelected = pauseSelectedSlot === idx;
       return `
         <button type="button" class="pause-seat-btn ${isSelected ? 'selected-for-swap' : ''}" data-slot="${idx}" style="--seat-color: ${slotColors[idx]}">
@@ -92,6 +93,9 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
   if (btnExitToMenu) {
     btnExitToMenu.textContent = isHosting ? '🚪 ODAYI KAPAT & ANA MENÜYE DÖN' : '⌂ ANA MENÜYE DÖN';
   }
+  if (btnToggleBots) {
+    btnToggleBots.textContent = isBotEkleEnabled() ? '🤖 BOT EKLEME: AÇIK' : '🤖 BOT EKLEME: KAPALI';
+  }
   pauseSelectedSlot = null;
   renderPauseSeats(onSwapCallback);
 }
@@ -113,6 +117,7 @@ export function initPauseModal({
   onReset,
   onExitMenu,
   onTvLobby,
+  onBotsToggled,
 }) {
   btnResumeGame?.addEventListener('click', () => {
     closePauseModal(onResume);
@@ -125,6 +130,15 @@ export function initPauseModal({
   btnToggleSound?.addEventListener('click', () => {
     const muted = toggleAudio();
     btnToggleSound.textContent = muted ? '🔇 SES: KAPALI' : '🔊 SES: AÇIK';
+  });
+
+  btnToggleBots?.addEventListener('click', () => {
+    const next = !isBotEkleEnabled();
+    setBotEkleEnabled(next);
+    btnToggleBots.textContent = next ? '🤖 BOT EKLEME: AÇIK' : '🤖 BOT EKLEME: KAPALI';
+    if (typeof onBotsToggled === 'function') {
+      onBotsToggled(next);
+    }
   });
 
   btnExitToMenu?.addEventListener('click', onExitMenu);
