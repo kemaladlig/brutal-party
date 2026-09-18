@@ -1,106 +1,92 @@
-# AGENTS.md — Party Games Architecture & AI Guidelines
+# AGENTS.md — AI Agent Çalışma Kuralları
 
-Bu doküman, projede çalışan tüm AI agent'lar ve geliştiriciler için **temel mimari harita**, **kodlama standartları** ve **görsel üretim stratejisi** rehberidir.
-
----
-
-## 1. Proje Özeti & Teknoloji Yığını
-
-- **Platform:** Çok oyunculu (2-4 Kişilik) Web & Mobil Party Game (PWA).
-- **Hedef Ekranlar:**
-  - **Ekran / TV Host:** Masaüstü/TV/Tablet ekranında büyük canvas sahası, lobi yönetimi, QR kod ve oda pin kodu.
-  - **Gamepad Kumanda:** Oyuncuların telefonlarından bağlandığı ultra düşük gecikmeli dokunmatik kontrolör (Joystick, dinamik aksiyon butonları, titreşim desteği).
-- **Teknoloji:**
-  - **Frontend:** Vanilla HTML5, CSS3, ES Modules (Modern JavaScript), HTML5 Canvas.
-  - **Build Tool:** Vite.
-  - **Realtime Ağ İletişimi:** Supabase Broadcast Channels (`supabaseRelay.js`) + WebSocket fallback.
-  - **Tasarım Dili:** Neo-Brutalist UI (Space Grotesk + JetBrains Mono, kalın sınırlar `2.5px - 4px #1a1a1a`, sert kutu gölgeleri `4px 4px 0px #1a1a1a`, yüksek kontrast, mikro animasyonlar).
+Bu dosya **AI agent'lar ve geliştiriciler** içindir: mimari sözleşmeler, yasaklar, sayısal bütçeler, iş akışları.
+Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar defteri, açık işler) **`docs/PROJECT_MAP.md`**'dedir — çalışmaya başlamadan önce **ikisini de oku**.
 
 ---
 
-## 2. Mevcut Oyun Modları (6 Mini-Game)
+## 1. Yığın & Platform Modları
 
-1. **BRUTAL PONG (`PONG`):** 4 kaleli dinamik masa tenisi, falsolu vuruşlar ve ivmelenen ralli.
-2. **MICRO-TANKS (`TANKS`):** Labirent arenası, seken 2 mermi, kendi kendine dönen tank ve zamanlamalı dokunarak ilerleme.
-3. **BRUTAL CURVE (`CURVE`):** Achtung die Kurve stili, rakipleri sıkıştırma, deliklerden geçme ve hayatta kalma dümeni.
-4. **BRUTAL BOMB (`BOMB`):** Sıcak bomba saklambaç arenası, depar tuşu ve patlama geri sayımı.
-5. **BRUTAL HEIST (`HEIST`):** Ortadan altın ve elmas toplama, kendi kasana taşıma ve rakiplere omuz atma.
-6. **QUICK DRAW (`DUEL`):** Vahşi batı refleksi; ses veya sinyali bekle, tetiğe ilk dokunan kazanır.
+- Vanilla HTML5 + CSS3 + ES Modules, HTML5 Canvas, Vite build, PWA (`public/manifest.webmanifest`, `sw.js`).
+- Üç platform modu: `LOCAL` (tek cihaz, ağ yok) · `TV_CONSOLE` (TV host + telefon kumandalar, lokal WebSocket) · `ONLINE` (uzak oyuncular, Supabase Broadcast).
+- Ağ seçici: `src/net.js` — TV_CONSOLE → `src/network.js` (PartyNetwork/WS), ONLINE → `src/supabaseRelay.js`. LOCAL'de ağ kullanılmaz.
+- Supabase kimlik bilgileri **build'e gömülür**: `.env` → `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (**publishable key** `sb_publishable_...` formatı), `VITE_PUBLIC_URL`. Anahtarları asla koda gömme, asla commit'le.
 
----
+## 2. Yetki Modeli (değiştirilemez)
 
-## 3. Oyun Görselleri & Prompt Üretim Stratejisi
+- **TV host tek yetkilidir (authoritative).** Simülasyon sadece host'ta çalışır.
+- Kumandalar **sadece input** gönderir: joystick `(x, y)` veya buton eylemleri. Kumandada oyun mantığı yürütülmez.
+- Motorlar uzak girdiyi yalnızca `handleRemoteInput(slotIndex, data)` üzerinden alır.
+- Host, oyun durumunu kumandalara yayınlar (madde 5'teki bütçeyle).
 
-Yeni bir oyun eklendiğinde menü, TV lobisi ve kumanda önizlemelerinde kullanılacak görsel asset'ler aşağıdaki standart formülle üretilmelidir:
+## 3. Engine Registry — tek kayıt noktası
 
-### A. Görsel Tasarım Felsefesi
-- **Ultra Minimalist & İzometrik (Isometric):** Ayrıntılı çizimler veya karmaşık 2D pop-art yerine, 45 derece açılı temiz 3D izometrik platform.
-- **Sade Geometri (Low-Poly / Stylized):** Mat pürüzsüz plastik/seramik yüzeyler, abartısız ve sembolik figürler.
-- **Temiz Zemin:** Kare şeklinde havada asılı duran izometrik bir platform (tile) ve nötr/sıcak açık gri arkaplan (`#f4f4f0`).
-- **Sıfır Metin / Sıfır Karmaşa:** Asla metin, logo, filigran veya insan yüzü içermemeli.
+- `src/core/engineRegistry.js` → `GAME_ORDER = ['PONG','TANKS','CURVE','BOMB','HEIST','DUEL']`.
+- Yeni oyun = **1 satır** `registerEngine('MOD', { game, reset, onEnter/onResume, start, packet })`. `main.js`'e `else if (mode === ...)` zinciri **eklemek yasaktır**.
+- Entry sözleşmesi: `game` (BaseMiniGame türevi) · `reset()` · `onEnter/onResume(now)` (fizik sıçramasını önler) · `start()` (sayaç sonrası) · `packet()` (host state'e oyuna özel alanlar).
+- Motor sözleşmesi: `resetMatch/reset()`, `update(now)`, `render()`, `resize(w,h)`, `handleRemoteInput(slotIndex, data)`, `startNewMatch()`.
+- **LOBBY tap kuralı:** Motor sahasındaki koltuk dokunuşu önce `this.onLobbySeatTap(index)` hook'una sorar (host bot ekle/çıkar için kullanır). Hook yoksa ve `isHosting` ise `cycleSlotType` çalışır; host değilse hiçbir şey yapılmaz. Motor içine ağ/relay kodu yazılmaz.
 
-### B. Prompt Şablonu (Formula)
-```text
-Ultra-minimalist 3D isometric illustration of [ANA OYUN NESNELERİ/KONSEPT], floating on a clean square platform with subtle thickness, stylized low-poly matte smooth surfaces, soft studio key lighting from top-left, gentle ambient occlusion, subtle crisp drop shadow on warm cream background (#f4f4f0), modern neo-brutalist game icon aesthetic, clean geometry, no text, no watermark, 1:1 aspect ratio.
+## 4. Slot Modeli — tek koltuk gerçeği
+
+- TV tarafı: `hostPlayerSlots[i] = { name, isReady, kind }`, `kind ∈ 'human' | 'bot'`.
+- Relay tarafı (Supabase `players[]`, WS `room.players[]`) koltukların kaynağıdır; TV listesi, motor slotları ve telefon ızgarası **hep snapshot'tan** beslenir.
+- `SLOTS_UPDATE` parity kuralı: WS ve Supabase **aynı payload şeklini** yayınlar (`slotIndex, name, color, kind, isReady`). Birine eklenen alan diğerine de eklenir.
+- İsimler `toUpperCase()`, en fazla 12 karakter.
+- Bot koltuğu ne hedef ne kaynak olur: `SWITCH_SLOT` hedefi olamaz, ghost-reconnect botu yiyemez, hayalet geri kazanım botları atlar, sayaçta koltuk işlemleri kilitlidir (`seatsLocked`).
+- **Ready-reset kuralı:** `GAME_STARTED` ve `RETURNED_TO_LOBBY` olaylarında hazır bayrağı **iki tarafta da** sıfırlanır (host `hostPlayerSlots` + kumanda `resetReady()`). Tek taraflı sıfırlama "takılı HAZIR" bug'ı üretir.
+- Oda kodu 3 haneli sayı (`100–999`).
+
+## 5. Ağ Bütçesi (sayılar değişmeden korunur)
+
+- Host broadcast **8 Hz (125 ms)** + JSON dirty-check; skor/taşıyıcı/sinyal gibi kritik olaylar **anında** gönderilir (hızlı yol).
+- Kumanda input throttle **50 ms** + ölübant (`JOYSTICK/MOVE/PADDLE/CURVE`); `DASH/TACKLE/ateş` throttle dışıdır.
+- Ping **15 sn**, kopma watchdog **30 sn**.
+
+## 6. Oda Akışı
+
+`Bekleme lobisi (modal) → SAHAYA GEÇ (staging, koltuk seçimi serbest) → 3-2-1 sayaç (koltuklar kilitli) → oyun → LOBİYE DÖN (oda kapanmaz, oyuncular kalır)`.
+Modal açıkken canvas tap'leri motora düşmez; staging'de düşer (bot ekleme/çıkarma bu yolla çalışır).
+
+## 7. UI Kuralları
+
+- Neo-brutalist dil: Space Grotesk + JetBrains Mono, kalın sınırlar, sert kutu gölgeleri, yüksek kontrast.
+- Modaller `src/ui/` altındadır (`hostLobby`, `joinModal`, `pauseModal`, `toast`); `main.js` orkestrasyonu yapar, modal DOM'u kurmaz.
+- Kumanda tarafı: `CONTROLLER_META` tablosu + `mount[Oyun]Controller`; PONG hariç tüm oyunlarda isimli skor şeridi (`score-strip`).
+- Kumanda ergonomisi kararı: **dikeyde alt-orta kuşak** (`safe-area + 12vh`, 96px taban / 170px tavan), **yatayda köşeler** (sol-alt joystick, sağ-alt aksiyon). Yeni kumanda bu düzene uyar.
+- Mobil: `portrait` + `landscape` desteklenir, `overflow-x` yasak, dokunmatiklerde `touch-action` zorunlu.
+
+## 8. Yasaklar
+
+- `main.js` / `gamepad.js` içine moda özel `if/else` zinciri ekleme — registry + `CONTROLLER_META` kullan.
+- State'i iki yerde tutma (TV listesi ↔ relay tablosu çakışırsa relay kazanır).
+- Kumandaya oyun simülasyonu, motora ağ kodu koyma.
+- `*.md` dosyası oluşturma (bu dosya + `docs/PROJECT_MAP.md` yeterlidir).
+
+## 9. Yeni Oyun Ekleme Checklist'i
+
+Motor sözleşmesi (madde 3) +:
+
+- [ ] `src/games/[oyun].js` (varlık alanları farklıysa `syncSlotsToEngine` içine dal ekle)
+- [ ] `GAME_ORDER` + 1 satır `registerEngine`
+- [ ] `gamepad.js` → `mount[Oyun]Controller` + `CONTROLLER_META` satırı
+- [ ] `index.html` → bento kartı (`id="btn-select-[mod]"`, küçük harf) + TV lobi çipi + kumanda önizlemesi
+- [ ] Madde 10'daki formülle `public/assets/games/[oyun].jpg` (1:1, optimize)
+- [ ] `npm run build` temiz + kalıntı taraması (`else if (mode ===` dönmemeli)
+
+## 10. Oyun Görseli Üretim Formülü
+
+```
+Ultra-minimalist 3D isometric illustration of [OYUN NESNELERİ/KONSEPT], floating on a clean square platform
+with subtle thickness, stylized low-poly matte smooth surfaces, soft studio key lighting from top-left,
+gentle ambient occlusion, subtle crisp drop shadow on warm cream background (#f4f4f0),
+modern neo-brutalist game icon aesthetic, clean geometry, no text, no watermark, 1:1 aspect ratio.
 ```
 
-### C. Referans Promptlar (Mevcut 6 Oyun İçin Kullanılanlar)
+Kurallar: metin/logo/filigran/yüz yok; 1:1 (512/1024px, sıkıştırılmış JPEG/WebP); kullanıldığı 3 yer — menü bento kartı, TV lobi çipi, kumanda lobi önizlemesi. (Eski 6 oyunun birebir promptları git geçmişindedir, buraya kopyalanmaz.)
 
-1. **Pong (`pong.jpg`):**
-   > *"Ultra-minimalist 3D isometric illustration of an air hockey table with two vibrant minimalist paddles (one red, one blue) and a glowing white cube puck in motion, floating on a clean square arena platform with subtle border walls, stylized low-poly matte smooth finish, soft studio lighting, subtle shadow, warm off-white background, modern neo-brutalist game icon, no text, 1:1 aspect ratio."*
+## 11. Doğrulama
 
-2. **Micro-Tanks (`tanks.jpg`):**
-   > *"Ultra-minimalist 3D isometric illustration of a stylized toy battle tank inside a clean minimalist maze obstacle course, one blue toy tank and a glowing yellow ricochet projectile path, floating square platform with crisp geometric maze blocks, low-poly matte smooth surface, soft studio lighting, warm cream background, modern neo-brutalist game icon aesthetic, no text, 1:1 aspect ratio."*
-
-3. **Brutal Curve (`curve.jpg`):**
-   > *"Ultra-minimalist 3D isometric illustration of two sleek 3D tubular snake lines (one vibrant green, one crimson) curving and weaving across a clean square floor tile with deliberate line gaps, floating minimalist platform, smooth rounded geometry, soft studio key lighting, subtle crisp shadow, warm off-white background, neo-brutalist game icon style, no text, 1:1 aspect ratio."*
-
-4. **Brutal Bomb (`bomb.jpg`):**
-   > *"Ultra-minimalist 3D isometric illustration of a classic matte black spherical bomb with a lit glowing spark star fuse, sitting on a clean square floating platform tile with subtle warning stripes, stylized smooth low-poly finish, soft studio lighting, crisp drop shadow, warm neutral background, modern neo-brutalist party game aesthetic, no text, 1:1 aspect ratio."*
-
-5. **Brutal Heist (`heist.jpg`):**
-   > *"Ultra-minimalist 3D isometric illustration of an open miniature bank vault safe door with a sparkling golden diamond gem and stacked minimalist gold ingots inside, resting on a clean floating square platform, smooth matte materials, soft studio lighting, warm cream background, modern game icon, no text, 1:1 aspect ratio."*
-
-6. **Quick Draw (`duel.jpg`):**
-   > *"Ultra-minimalist 3D isometric illustration of a stylized vintage revolver pistol resting on a floating terracotta square tile with a miniature cowboy hat and a bold 3D lightning bolt exclamation symbol, smooth matte finish, soft studio lighting, warm neutral background, clean neo-brutalist game icon style, no text, 1:1 aspect ratio."*
-
-### D. Asset Dosya ve Entegrasyon Kuralları
-- **Konum:** `public/assets/games/[oyun_adi].jpg` (Örn: `pong.jpg`, `tanks.jpg`).
-- **Format / Boyut:** 1:1 kare (512x512 veya 1024x1024 px, web için optimize sıkıştırılmış JPEG/WebP).
-- **Kullanıldığı Yerler:**
-  1. `index.html` → Ana Menü Bento Grid (`.bento-media-box > .bento-thumb-img`)
-  2. `index.html` → TV Host Lobi Seçim Grid'i (`.lobby-game-chip > .chip-thumb-img`)
-  3. `src/gamepad.js` → Mobil Kumanda Lobisi (`.lobby-game-preview-card > .lobby-game-thumb-preview`)
-
----
-
-## 4. Mimari & Kodlama Kuralları
-
-1. **State & Ağ Senkronizasyonu:**
-   - TV Host tam yetkili (authoritative) simülatördür.
-   - Kumandalar sadece input (joystick `(x, y)` veya buton basışları) gönderir.
-   - Kumanda input frekansı `20-30Hz` (30-50ms) aralığında throttle edilir.
-2. **Koltuk & Oyuncu Yönetimi:**
-   - 4 sabit koltuk vardır: P1 (Kırmızı), P2 (Mavi), P3 (Sarı), P4 (Yeşil).
-   - Oyuncular lobide hem mobilden hem de host ekranından boş koltuklara tıklayarak geçiş yapabilir (`SWITCH_SLOT`).
-   - Oyuncu isimleri her zaman büyük harfe (`toUpperCase()`) normalize edilir.
-3. **Mobil Uyumluluk:**
-   - Yatay (`landscape`) ve dikey (`portrait`) modları desteklenmelidir.
-   - Asla viewport taşması (`overflow-x`) olmamalıdır (`box-sizing: border-box`, `max-width: 100vw`).
-   - Dokunmatik kontrollerde `touch-action: none` / `touch-action: manipulation` zorunludur.
-
----
-
-## 5. Yeni Oyun Ekleme Kontrol Listesi (Checklist)
-
-Motor sözleşmesi: `BaseMiniGame` türevi + `resetMatch/reset()`, `update(now)`, `render()`,
-`resize(w,h)`, `handleRemoteInput(slotIndex, data)`, `startNewMatch()`.
-
-- [ ] `src/games/[oyun_adi].js` motor dosyasını oluştur (sözleşmeye uygun).
-- [ ] `src/core/engineRegistry.js` → `GAME_ORDER` listesine mod kodunu ekle.
-- [ ] `src/main.js` → 1 satır `registerEngine('MOD', { game, reset, onEnter/onResume, start, packet })`.
-- [ ] `src/gamepad.js` → `mount[Oyun]Controller` fonksiyonu + `CONTROLLER_META` tablosuna 1 satır.
-- [ ] Gerekirse `src/core/slotManager.js` → `syncSlotsToEngine` içine slot eşleme dalı (motorun varlık alanları farklıysa).
-- [ ] Yukarıdaki prompt formülüyle minimalist izometrik görseli üret ve `public/assets/games/[oyun_adi].jpg` konumuna ekle.
-- [ ] `index.html` → Bento Grid kartı (`id="btn-select-[mod]"`, kural: küçük harf mod kodu) ve TV lobisi seçim çipini ekle.
-- [ ] `npm run build` ile derleme hatası olmadığını doğrula + kalıntı taraması (`else if (mode ===` zinciri çıkmamalı).
+- `npm run build` hatasız geçmeli.
+- Davranış değişikliğinde 3 prova: (a) hazır→lobi dönüşü bayrakları, (b) koltuk takasında TV+kumanda isimleri, (c) bot ekle/çıkar görünürlüğü.
+- Commit mesajı kısa ve Türkçe/İngilizce karışık mevcut stile uygun; push yalnızca kullanıcı isterse.
