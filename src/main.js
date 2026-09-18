@@ -1,10 +1,10 @@
 // Local Party Games Suite - Main Application Controller & State Machine
-import { Game as PongGame } from './game.js';
-import { TanksGame } from './tanks.js';
-import { CurveGame } from './curve.js';
-import { BombGame } from './bomb.js';
-import { HeistGame } from './heist.js';
-import { DuelGame } from './duel.js';
+import { Game as PongGame } from './games/game.js';
+import { TanksGame } from './games/tanks.js';
+import { CurveGame } from './games/curve.js';
+import { BombGame } from './games/bomb.js';
+import { HeistGame } from './games/heist.js';
+import { DuelGame } from './games/duel.js';
 import { TouchManager } from './touchManager.js';
 import { playJoin } from './audio.js';
 import { partyNetwork } from './network.js';

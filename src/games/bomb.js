@@ -12,11 +12,11 @@ import {
   playDashWhoosh,
   playPanicHeartbeat,
   playStumble,
-} from './audio.js';
-import { renderControlGuide } from './controlGuide.js';
+} from '../audio.js';
+import { renderControlGuide } from '../controlGuide.js';
 
-import { BaseMiniGame } from './core/BaseGame.js';
-import { updateBombBotAI } from './ai/bombAI.js';
+import { BaseMiniGame } from '../core/BaseGame.js';
+import { updateBombBotAI } from '../ai/bombAI.js';
 
 export const BOMB_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const BOMB_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];

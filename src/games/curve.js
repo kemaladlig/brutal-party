@@ -1,8 +1,8 @@
 // BRUTAL CURVE (Game 03): 2-4 Player Local Party Curve Fever with Gaps, Power-Ups & Bot AI
-import { playExplosion, playStart, playJoin, playGap, playItemPickup } from './audio.js';
-import { renderControlGuide } from './controlGuide.js';
-import { BaseMiniGame } from './core/BaseGame.js';
-import { updateCurveBotAI } from './ai/curveAI.js';
+import { playExplosion, playStart, playJoin, playGap, playItemPickup } from '../audio.js';
+import { renderControlGuide } from '../controlGuide.js';
+import { BaseMiniGame } from '../core/BaseGame.js';
+import { updateCurveBotAI } from '../ai/curveAI.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CURVE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];

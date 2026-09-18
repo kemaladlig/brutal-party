@@ -10,9 +10,9 @@ import {
   playStumble,
   playCashRegister,
   playFakeoutCrow,
-} from './audio.js';
-import { renderControlGuide } from './controlGuide.js';
-import { BaseMiniGame } from './core/BaseGame.js';
+} from '../audio.js';
+import { renderControlGuide } from '../controlGuide.js';
+import { BaseMiniGame } from '../core/BaseGame.js';
 
 export const DUEL_COLORS = ['#8C4830', '#1F4E5B', '#C08552', '#3E5C76'];
 export const DUEL_NAMES = ['KOVBOY 1', 'KOVBOY 2', 'KOVBOY 3', 'KOVBOY 4'];

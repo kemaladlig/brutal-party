@@ -10,11 +10,11 @@ import {
   playVaultAlarm,
   playHeavyImpact,
   playPiggyBreak,
-} from './audio.js';
-import { renderControlGuide } from './controlGuide.js';
+} from '../audio.js';
+import { renderControlGuide } from '../controlGuide.js';
 
-import { BaseMiniGame } from './core/BaseGame.js';
-import { updateHeistBotAI } from './ai/heistAI.js';
+import { BaseMiniGame } from '../core/BaseGame.js';
+import { updateHeistBotAI } from '../ai/heistAI.js';
 
 export const HEIST_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const HEIST_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];

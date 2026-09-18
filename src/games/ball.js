@@ -1,5 +1,5 @@
 // Ball physics with progressive speed escalation, smash mechanics, sonic booms & overdrive hazards
-import { playPaddleHit, playWallHit, playGoal, playShoot, playSonicBoom } from './audio.js';
+import { playPaddleHit, playWallHit, playGoal, playShoot, playSonicBoom } from '../audio.js';
 
 export class Ball {
   constructor(game) {

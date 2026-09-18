@@ -1,8 +1,8 @@
 // Micro-Tanks: 8 Labyrinths with Multi-Tier Bot AI (Normal & God Mode), Tactical Crates & Sudden Death
-import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from './audio.js';
-import { renderControlGuide } from './controlGuide.js';
-import { BaseMiniGame } from './core/BaseGame.js';
-import { updateTankBotAI as runTankBotAI } from './ai/tankAI.js';
+import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
+import { renderControlGuide } from '../controlGuide.js';
+import { BaseMiniGame } from '../core/BaseGame.js';
+import { updateTankBotAI as runTankBotAI } from '../ai/tankAI.js';
 
 export const TANK_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const TANK_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];

@@ -1,9 +1,9 @@
 // Core Game Engine: Arena with Corner Bumpers & Goal Mouths, Lobby, Fixed Physics Loop & Brutalist Rendering
 import { Paddle, PLAYER_CONFIGS } from './paddle.js';
 import { Ball } from './ball.js';
-import { playJoin, playStart } from './audio.js';
-import { renderControlGuide } from './controlGuide.js';
-import { BaseMiniGame } from './core/BaseGame.js';
+import { playJoin, playStart } from '../audio.js';
+import { renderControlGuide } from '../controlGuide.js';
+import { BaseMiniGame } from '../core/BaseGame.js';
 
 export class Game extends BaseMiniGame {
   constructor(canvas) {
