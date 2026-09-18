@@ -1,6 +1,8 @@
 // Specialized Gamepad Controller for Mobile Phones in TV/Console & Online Mode
 // Adapts dynamically to Lobby, Pong, Tanks, Curve, Bomb, Heist, and Duel with ultra-low latency inputs.
 
+import { storePlayerName } from './net.js';
+
 export class GamepadManager {
   constructor(overlayEl, network) {
     this.overlay = overlayEl;
@@ -250,6 +252,7 @@ export class GamepadManager {
       }
       // Broadcast name change to server so TV sees it
       this.network.sendInput({ action: 'SET_NAME', name: newName });
+      storePlayerName(newName);
       if (navigator.vibrate) navigator.vibrate(15);
     };
 

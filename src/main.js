@@ -10,6 +10,7 @@ import { TouchManager } from './touchManager.js';
 import { toggleAudio, getIsMuted, playJoin } from './audio.js';
 import { partyNetwork } from './network.js';
 import { GamepadManager } from './gamepad.js';
+import { PUBLIC_URL, HAS_SUPABASE_CONFIG, getActiveNetwork, disconnectInactiveNetwork, getStoredPlayerName, storePlayerName } from './net.js';
 
 // DOM Elements
 const canvas = document.getElementById('game-canvas');
@@ -42,6 +43,19 @@ const modeActionBanner = document.getElementById('mode-action-banner');
 
 // Platform / Match Mode: 'LOCAL' | 'TV_CONSOLE' | 'ONLINE'
 let platformMode = 'LOCAL';
+
+// Aktif moda göre network: TV_CONSOLE → lokal WebSocket, ONLINE → Supabase Broadcast
+function activeNet() {
+  return getActiveNetwork(platformMode);
+}
+
+function isPublicOrigin() {
+  try {
+    return window.location.origin === PUBLIC_URL;
+  } catch {
+    return false;
+  }
+}
 
 // State Machine: 'MENU' | 'PONG' | 'TANKS' | 'CURVE' | 'BOMB' | 'HEIST' | 'DUEL'
 let currentMode = 'MENU';
@@ -187,7 +201,7 @@ function openPauseModal() {
       : '06 // QUICK DRAW';
   btnToggleSound.textContent = getIsMuted() ? '🔇 SES: KAPALI' : '🔊 SES: AÇIK';
   if (btnExitToMenu) {
-    btnExitToMenu.textContent = partyNetwork.isHosting ? '📺 TV LOBİSİNE DÖN' : '⌂ ANA MENÜYE DÖN';
+    btnExitToMenu.textContent = activeNet().isHosting ? '📺 TV LOBİSİNE DÖN' : '⌂ ANA MENÜYE DÖN';
   }
   touchManager.resetTouches();
 }
@@ -369,6 +383,27 @@ function getActiveGameEngine() {
 
 const hostPlayerSlots = [null, null, null, null];
 
+// Host lobisinde ping göstergesi (özellikle ONLINE modda gecikmeyi gösterir)
+let hostPingTimer = null;
+function startHostPingBadge() {
+  stopHostPingBadge();
+  const badge = document.querySelector('.tv-host-badge');
+  if (!badge) return;
+  const baseText = platformMode === 'ONLINE' ? '🌐 ONLINE LOBİ' : '📺 TV HOST PARTİ LOBİSİ';
+  const tick = () => {
+    const ping = activeNet().ping || 0;
+    badge.textContent = platformMode === 'ONLINE' ? `${baseText} • ${ping}ms` : baseText;
+  };
+  tick();
+  hostPingTimer = window.setInterval(tick, 2000);
+}
+function stopHostPingBadge() {
+  if (hostPingTimer) {
+    window.clearInterval(hostPingTimer);
+    hostPingTimer = null;
+  }
+}
+
 function updateHostSlot(slotIndex, isConnected, name = '', isReady = false) {
   const slotEl = document.getElementById(`slot-p${slotIndex + 1}`);
   const readyTag = document.getElementById(`ready-tag-p${slotIndex + 1}`);
@@ -417,6 +452,11 @@ fetch('/api/lan-ip')
   .catch(() => {});
 
 function getEffectiveJoinUrl(roomCode) {
+  // ONLINE modda davet linki her zaman public URL'den çıkar (uzaktaki oyuncu için).
+  // TV_CONSOLE modunda aynı Wi-Fi'deki cihazlar için LAN IP kullanılır.
+  if (platformMode === 'ONLINE' || isPublicOrigin()) {
+    return `${PUBLIC_URL}/?join=${roomCode}`;
+  }
   let baseOrigin = window.location.origin;
   if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && detectedLanIp) {
     baseOrigin = `http://${detectedLanIp}`;
@@ -425,8 +465,18 @@ function getEffectiveJoinUrl(roomCode) {
 }
 
 async function openHostLobby(gameMode = 'PONG') {
+  // TV modu lokal ağ gerektirir — public sitede (Vercel) WS sunucusu yoktur.
+  if (platformMode === 'TV_CONSOLE' && isPublicOrigin()) {
+    showInstallToast('📺 TV modu aynı Wi-Fi içinde çalışır (PC/tablette npm run dev). Uzaktaki arkadaş için ONLINE modu kullanın.');
+    return;
+  }
+
   currentHostGameMode = gameMode;
   for (let i = 0; i < 4; i++) updateHostSlot(i, false);
+
+  // Mod değişiminde diğer transportun hayalet bağlantısını kapat
+  disconnectInactiveNetwork(platformMode);
+  const net = activeNet();
 
   // Sync lobby game chips UI
   document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
@@ -439,8 +489,7 @@ async function openHostLobby(gameMode = 'PONG') {
   }
 
   try {
-    await partyNetwork.hostRoom(gameMode, {
-      onRoomCreated: (roomCode) => {
+    await net.hostRoom(gameMode, {      onRoomCreated: (roomCode) => {
         if (hostRoomCode) hostRoomCode.textContent = roomCode;
         const joinUrl = getEffectiveJoinUrl(roomCode);
         if (hostJoinUrl) hostJoinUrl.textContent = joinUrl;
@@ -453,6 +502,7 @@ async function openHostLobby(gameMode = 'PONG') {
           });
         }
         tvHostModal?.classList.remove('hidden');
+        startHostPingBadge();
       },
       onPlayerJoined: (msg) => {
         playJoin();
@@ -498,7 +548,9 @@ async function openHostLobby(gameMode = 'PONG') {
       },
     });
   } catch (err) {
-    showInstallToast('Host odası açılamadı. Sunucu bağlantısını kontrol edin.');
+    console.error('[Host] Oda açılamadı:', err);
+    const detail = err?.message ? ` Sebep: ${err.message}` : '';
+    showInstallToast(`Host odası açılamadı.${detail}`);
   }
 }
 
@@ -508,7 +560,7 @@ document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
     document.querySelectorAll('.lobby-game-chip').forEach((c) => c.classList.remove('active'));
     chip.classList.add('active');
     currentHostGameMode = chip.dataset.game;
-    partyNetwork.setHostGameMode(currentHostGameMode);
+    activeNet().setHostGameMode(currentHostGameMode);
     const launchBtn = document.getElementById('btn-host-launch-game');
     if (launchBtn) {
       launchBtn.textContent = `▶ ${currentHostGameMode} BAŞLAT`;
@@ -522,19 +574,21 @@ document.querySelectorAll('.slot-swap-btn').forEach((btn) => {
     e.stopPropagation();
     const slotA = parseInt(btn.dataset.slot, 10);
     const slotB = (slotA + 1) % 4;
-    partyNetwork.swapSlots(slotA, slotB);
+    activeNet().swapSlots(slotA, slotB);
   });
 });
 
 btnHostLaunchGame?.addEventListener('click', () => {
   tvHostModal?.classList.add('hidden');
-  partyNetwork.startGame(currentHostGameMode);
+  stopHostPingBadge();
+  activeNet().startGame(currentHostGameMode);
   setGameMode(currentHostGameMode);
 });
 
 btnHostClose?.addEventListener('click', () => {
   tvHostModal?.classList.add('hidden');
-  partyNetwork.disconnect();
+  stopHostPingBadge();
+  activeNet().disconnect();
 });
 
 btnHostCopyLink?.addEventListener('click', async () => {
@@ -558,6 +612,10 @@ btnHostWhatsappShare?.addEventListener('click', () => {
 function openJoinModal(prefilledCode = '') {
   if (inputRoomCode) {
     inputRoomCode.value = prefilledCode.toUpperCase();
+  }
+  // İsmi hatırlıyorsak önceden doldur
+  if (inputPlayerName && !inputPlayerName.value) {
+    inputPlayerName.value = getStoredPlayerName();
   }
   joinRoomModal?.classList.remove('hidden');
 }
@@ -588,10 +646,19 @@ async function executeJoin(rawCode, rawName) {
     return;
   }
 
+  // İsmi hatırla — yanlışlıkla kapanırsa tekrar yazmak gerekmez
+  storePlayerName(name);
+
   showInstallToast(`⏳ #${code} odasına bağlanılıyor...`);
 
+  // Katılım da mod bazlı: ONLINE → Supabase, TV → lokal WebSocket
+  disconnectInactiveNetwork(platformMode);
+  const net = activeNet();
+  // Gamepad input'ları aktif transporta gitsin
+  gamepadManager.network = net;
+
   try {
-    await partyNetwork.joinRoom(code, name, {
+    await net.joinRoom(code, name, {
       onJoinedSuccess: (msg) => {
         joinRoomModal?.classList.add('hidden');
         menuOverlay?.classList.add('hidden');
@@ -631,7 +698,9 @@ async function executeJoin(rawCode, rawName) {
       },
     });
   } catch (err) {
-    showInstallToast('Odaya bağlanılamadı. Kodun doğruluğunu kontrol edin.');
+    console.error('[Join] Odaya bağlanılamadı:', err);
+    const detail = err?.message ? ` Sebep: ${err.message}` : '';
+    showInstallToast(`Odaya bağlanılamadı. Kodun doğruluğunu kontrol edin.${detail}`);
   }
 }
 
@@ -643,7 +712,7 @@ inputRoomCode?.addEventListener('input', (e) => {
   const code = (e.target.value || '').trim().toUpperCase();
   e.target.value = code;
   if (code.length === 4) {
-    executeJoin(code, inputPlayerName?.value || 'OYUNCU');
+    executeJoin(code, inputPlayerName?.value || getStoredPlayerName() || 'OYUNCU');
   }
 });
 
@@ -689,9 +758,9 @@ addTapListener(btnToggleSound, () => {
   btnToggleSound.textContent = muted ? '🔇 SES: KAPALI' : '🔊 SES: AÇIK';
 });
 addTapListener(btnExitToMenu, () => {
-  if (partyNetwork.isHosting) {
+  if (activeNet().isHosting) {
     closePauseModal();
-    partyNetwork.returnToLobby();
+    activeNet().returnToLobby();
     openHostLobby(currentHostGameMode);
   } else {
     setGameMode('MENU');
@@ -747,13 +816,36 @@ updateInstallButtonVisibility();
 resizeCanvas();
 setGameMode('MENU');
 
+// Public sitede Supabase bilgileri build'e gömülmemişse ONLINE çalışmaz —
+// bunu oda açmaya çalışmadan, daha sayfa açılırken söyle.
+if (isPublicOrigin() && !HAS_SUPABASE_CONFIG) {
+  showInstallToast('⚠️ ONLINE çalışmaz: Vercel Environment Variables eksik. 3 değişkeni ekleyip cache\'siz Redeploy yapın.');
+}
+
 // Check URL query parameters for automatic controller join (QR scan or link)
 const urlParams = new URLSearchParams(window.location.search);
 const autoJoinCode = urlParams.get('join');
 if (autoJoinCode) {
+  // Public URL'den gelen davet = ONLINE mod (Supabase relay üzerinden katıl)
+  if (isPublicOrigin()) {
+    updatePlatformMode('ONLINE');
+  }
   openJoinModal(autoJoinCode);
-  executeJoin(autoJoinCode, 'OYUNCU');
+  executeJoin(autoJoinCode, getStoredPlayerName() || 'OYUNCU');
 }
+
+// Sayfa kapanırken host/oyuncu tarafına best-effort veda mesajı.
+// (TV/WS modunda sunucu socket kapanışını zaten algılar; bu özellikle
+//  Supabase ONLINE modu içindir — gönderim garanti değildir ama çoğunlukla ulaşır.)
+function sendGoodbyeBeacon() {
+  try {
+    activeNet().disconnect();
+  } catch {
+    // kapanış anı — sessiz geç
+  }
+}
+window.addEventListener('pagehide', sendGoodbyeBeacon);
+window.addEventListener('beforeunload', sendGoodbyeBeacon);
 
 // Service Worker Management
 if ('serviceWorker' in navigator) {
@@ -773,7 +865,7 @@ if ('serviceWorker' in navigator) {
 // Throttled Host State Broadcaster (~16Hz)
 let lastBroadcastTime = 0;
 function broadcastGameStateIfNeeded(now) {
-  if (!partyNetwork.isHosting || currentMode === 'MENU') return;
+  if (!activeNet().isHosting || currentMode === 'MENU') return;
   if (now - lastBroadcastTime < 60) return;
   lastBroadcastTime = now;
 
@@ -802,7 +894,7 @@ function broadcastGameStateIfNeeded(now) {
     packet.winner = duelGame.roundWinner;
   }
 
-  partyNetwork.broadcastHostState(packet);
+  activeNet().broadcastHostState(packet);
 }
 
 // Master Animation Loop (requestAnimationFrame)

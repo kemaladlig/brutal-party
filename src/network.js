@@ -26,6 +26,10 @@ export class PartyNetwork {
     };
   }
 
+  get isHosting() {
+    return this.role === 'HOST';
+  }
+
   getWsUrl() {
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${proto}//${window.location.host}/party-ws`;

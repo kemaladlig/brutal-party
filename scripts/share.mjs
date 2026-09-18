@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import localtunnel from 'localtunnel';
 
-const port = 5174;
+const port = 5173;
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const server = spawn(npmCommand, ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
   stdio: 'inherit',
