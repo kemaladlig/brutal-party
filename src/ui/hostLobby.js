@@ -72,6 +72,8 @@ export function stopHostPingBadge() {
 
 export function showHostLobbyModal(code, joinUrl) {
   if (hostRoomCode) hostRoomCode.textContent = code;
+  const channelCode = document.getElementById('host-channel-code');
+  if (channelCode) channelCode.textContent = code;
   if (hostJoinUrl) hostJoinUrl.textContent = joinUrl.replace(/^https?:\/\//, '');
   if (qrCanvas) {
     QRCode.toCanvas(qrCanvas, joinUrl, {

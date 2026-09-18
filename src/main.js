@@ -377,8 +377,8 @@ async function executeJoin(rawCode, rawName) {
   const code = (rawCode || '').trim().toUpperCase();
   const name = (rawName || '').trim().toUpperCase() || 'OYUNCU';
 
-  if (!code || code.length < 4) {
-    showInstallToast('Lütfen 4 haneli geçerli bir oda kodu girin.');
+  if (!code || code.length < 3) {
+    showInstallToast('Lütfen 3 haneli geçerli bir oda kodu girin.');
     return;
   }
 

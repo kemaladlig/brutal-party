@@ -79,7 +79,7 @@ export class GamepadManager {
           <span class="player-name-label" id="header-player-name">${this.playerName}</span>
           <span class="player-seat-tag" id="header-seat-tag">${seatLabel}</span>
         </div>
-        <div class="gamepad-room-info">#${this.network.roomCode || '----'}</div>
+        <div class="gamepad-room-info">#${this.network.roomCode || '---'}</div>
         <div class="gamepad-header-actions">
           <button class="emoji-reaction-btn" id="btn-toggle-emoji" type="button" title="Tepki Gönder">🔥</button>
           <button class="btn-leave-gamepad" id="btn-leave-gamepad" type="button">AYRIL</button>

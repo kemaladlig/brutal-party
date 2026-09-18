@@ -605,13 +605,9 @@ export class SupabaseRelay {
     });
   }
 
+  // 3 haneli sayısal oda kodu (100-999). Baştaki sıfır bilerek yok.
   _generateRoomCode() {
-    const chars = 'BCDFGHJKLMNPQRSTVWXYZ';
-    let code = '';
-    for (let i = 0; i < 4; i++) {
-      code += chars[Math.floor(Math.random() * chars.length)];
-    }
-    return code;
+    return String(Math.floor(100 + Math.random() * 900));
   }
 
   _startPingHeartbeat() {

@@ -32,8 +32,8 @@ export function initJoinModal({ onExecuteJoin }) {
     try {
       const text = await navigator.clipboard.readText();
       if (text && inputRoomCode) {
-        const match = text.match(/join=([A-Za-z0-9]{4})/i) || text.match(/\b([A-Za-z0-9]{4})\b/);
-        inputRoomCode.value = (match ? match[1] : text.slice(0, 4)).toUpperCase();
+        const match = text.match(/join=([A-Za-z0-9]{3})/i) || text.match(/\b([A-Za-z0-9]{3})\b/);
+        inputRoomCode.value = (match ? match[1] : text.slice(0, 3)).toUpperCase();
         showInstallToast('✓ Oda kodu yapıştırıldı!');
       }
     } catch (err) {
@@ -46,8 +46,8 @@ export function initJoinModal({ onExecuteJoin }) {
   btnSubmitJoin?.addEventListener('click', () => {
     const code = inputRoomCode?.value?.trim().toUpperCase();
     const name = (inputPlayerName?.value || getStoredPlayerName() || 'OYUNCU').toUpperCase();
-    if (!code || code.length < 4) {
-      showInstallToast('Geçerli 4 haneli oda kodunu girin.');
+    if (!code || code.length < 3) {
+      showInstallToast('Geçerli 3 haneli oda kodunu girin.');
       return;
     }
     closeJoinModal();
@@ -61,7 +61,7 @@ export function initJoinModal({ onExecuteJoin }) {
   inputRoomCode?.addEventListener('input', (e) => {
     const code = (e.target.value || '').trim().toUpperCase();
     e.target.value = code;
-    if (code.length === 4) {
+    if (code.length === 3) {
       closeJoinModal();
       onExecuteJoin(code, (inputPlayerName?.value || getStoredPlayerName() || 'OYUNCU').toUpperCase());
     }
@@ -70,7 +70,7 @@ export function initJoinModal({ onExecuteJoin }) {
   // Hero Quick Join
   btnHeroJoin?.addEventListener('click', () => {
     const code = heroInputCode?.value?.trim().toUpperCase();
-    if (!code || code.length < 4) {
+    if (!code || code.length < 3) {
       openJoinModal(code);
       return;
     }
@@ -80,7 +80,7 @@ export function initJoinModal({ onExecuteJoin }) {
   heroInputCode?.addEventListener('input', (e) => {
     const code = (e.target.value || '').trim().toUpperCase();
     e.target.value = code;
-    if (code.length === 4) {
+    if (code.length === 3) {
       onExecuteJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
     }
   });
@@ -88,7 +88,7 @@ export function initJoinModal({ onExecuteJoin }) {
   heroInputCode?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       const code = heroInputCode?.value?.trim().toUpperCase();
-      if (code && code.length === 4) {
+      if (code && code.length === 3) {
         onExecuteJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
       }
     }
@@ -98,10 +98,10 @@ export function initJoinModal({ onExecuteJoin }) {
     try {
       const text = await navigator.clipboard.readText();
       if (text && heroInputCode) {
-        const match = text.match(/join=([A-Za-z0-9]{4})/i) || text.match(/\b([A-Za-z0-9]{4})\b/);
-        const code = (match ? match[1] : text.slice(0, 4)).toUpperCase();
+        const match = text.match(/join=([A-Za-z0-9]{3})/i) || text.match(/\b([A-Za-z0-9]{3})\b/);
+        const code = (match ? match[1] : text.slice(0, 3)).toUpperCase();
         heroInputCode.value = code;
-        if (code.length === 4) {
+        if (code.length === 3) {
           onExecuteJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
         }
       }

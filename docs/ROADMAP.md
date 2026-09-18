@@ -156,7 +156,7 @@ FAZ 2: Çoklu Cihaz & Online Ağ Altyapısı (Networking Core)
 - **Çözüm:**
   - Gereksiz 3'lü sekme yapısı kaldırıldı.
   - İkili Hero Kartı mimarisi:
-    1. **`📱 TELEFONU KUMANDA YAP`**: Doğrudan 4 haneli kod kutusu (`[ BOMB ]`) + `BAĞLAN →` butonu ile salondaki oyuna katılma.
+    1. **`📱 TELEFONU KUMANDA YAP`**: Doğrudan 3 haneli kod kutusu (`[ 421 ]`) + `BAĞLAN →` butonu ile salondaki oyuna katılma.
     2. **`📺 BU EKRANI OYUN EKRANI YAP`**: Tek tıkla salondaki TV veya tablet için parti odası kurma.
   - **Masa Ortası Tek Cihaz Oyunu:** Aşağıdaki 6 oyundan birine dokunulduğunda soru sormadan hemen lokal maçı başlatır.
 
@@ -164,7 +164,7 @@ FAZ 2: Çoklu Cihaz & Online Ağ Altyapısı (Networking Core)
 - **Problem:** QR kod, ham URL linki ve butonlar birbirine girmişti.
 - **Çözüm:**
   - **1. YOL // EN HIZLI:** Büyük net QR kod + *"Telefonunun kamerasını tut"* yönergesi.
-  - **2. YOL // KOD GİR:** Kocaman `#KOD` + *"Siteye gir ve bu 4 haneli kodu yaz"* yönergesi.
+  - **2. YOL // KOD GİR:** Kocaman `#KOD` + *"Siteye gir ve bu 3 haneli kodu yaz"* yönergesi.
 ### 10. 🎨 Ultra-Minimalist İzometrik Oyun Görselleri & Standart Prompt Stratejisi
 - **Problem:** Oyunların görsel kimliği eksikti ve menü/lobi sadece metin veya emojilerden oluşuyordu.
 - **Çözüm:**

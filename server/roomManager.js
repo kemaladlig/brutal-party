@@ -7,12 +7,10 @@ export class RoomManager {
     this.rooms = new Map();
   }
 
+  // 3 haneli sayısal oda kodu (100-999): yazması ve söylemesi kolay.
+  // Baştaki sıfır bilerek yok (042 vs 42 karmaşası olmaz).
   generateRoomCode() {
-    const chars = 'BCDFGHJKLMNPQRSTVWXYZ';
-    let code = '';
-    for (let i = 0; i < 4; i++) {
-      code += chars[Math.floor(Math.random() * chars.length)];
-    }
+    const code = String(Math.floor(100 + Math.random() * 900));
     // Guarantee uniqueness
     if (this.rooms.has(code)) return this.generateRoomCode();
     return code;

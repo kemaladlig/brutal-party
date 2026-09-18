@@ -60,7 +60,7 @@
           <div class="tv-host-header">
             <div class="tv-host-header-left">
               <div class="tv-host-badge">📺 ODA LOBİSİ</div>
-              <h2 class="tv-host-title">ODA: #<span id="host-room-code">----</span></h2>
+              <h2 class="tv-host-title">ODA: #<span id="host-room-code">---</span></h2>
             </div>
             <div class="tv-host-header-right">
               <div class="lobby-status-pill" id="lobby-ready-counter">0 BAĞLANDI</div>
@@ -81,11 +81,11 @@
                 <div class="channel-hint">Telefonunun kamerasını tut, anında bağlan.</div>
               </div>
 
-              <!-- Channel 2: 4-Letter Code -->
+              <!-- Channel 2: 3-Digit Code -->
               <div class="connect-channel-card code-channel">
                 <div class="channel-badge">🔢 ODA KODU</div>
-                <div class="channel-big-code">#<span id="host-channel-code">----</span></div>
-                <div class="channel-hint">Siteye girip bu 4 haneli kodu yaz.</div>
+                <div class="channel-big-code">#<span id="host-channel-code">---</span></div>
+                <div class="channel-hint">Siteye girip bu 3 haneli kodu yaz.</div>
               </div>
 
               <!-- Channel 3: WhatsApp & Direct Link -->
@@ -226,10 +226,10 @@
           </div>
           <div class="join-inputs">
             <div class="join-code-row">
-              <label class="join-label">4 HANELİ ODA KODU</label>
+              <label class="join-label">3 HANELİ ODA KODU</label>
               <button class="paste-code-btn" id="btn-paste-room-code" type="button">📋 YAPIŞTIR</button>
             </div>
-            <input type="text" id="input-room-code" class="brutal-input" maxlength="4" placeholder="ÖR: BOMB" autocapitalize="characters" />
+            <input type="text" id="input-room-code" class="brutal-input" maxlength="3" placeholder="ÖR: 421" autocapitalize="characters" inputmode="numeric" />
             
             <label class="join-label">OYUNCU İSMİNİZ</label>
             <input type="text" id="input-player-name" class="brutal-input" maxlength="12" placeholder="ÖR: AHMET" />
@@ -309,18 +309,19 @@
                   <span class="hero-card-tag">KUMANDA</span>
                 </div>
                 <h2 class="hero-card-title">KODU GİR VE OYNA</h2>
-                <p class="hero-card-desc">TV veya bilgisayar ekranındaki 4 haneli kodu yaz, hemen oyuna katıl:</p>
+                <p class="hero-card-desc">TV veya bilgisayar ekranındaki 3 haneli kodu yaz, hemen oyuna katıl:</p>
                 
                 <div class="hero-join-inline">
                   <input 
                     type="text" 
                     id="hero-input-code" 
                     class="hero-code-input" 
-                    maxlength="4" 
+                    maxlength="3" 
                     placeholder="ODA KODU" 
                     autocapitalize="characters" 
                     autocomplete="off"
                     spellcheck="false"
+                    inputmode="numeric"
                   />
                   <button class="hero-submit-btn" id="btn-hero-join" type="button">
                     KATIL →
