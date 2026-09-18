@@ -487,14 +487,12 @@ export class SupabaseRelay {
 
   sendInput(data) {
     if (this.role !== 'CONTROLLER' || !this.channel) return;
-    // Input flood koruması: Sürekli analog hareketler ~30ms throttle edilir.
-    // Ancak bırakma (force 0, dir 0), sürüş (TANK_DRIVE), koltuk değişimi ve aksiyon tuşları ASLA atlanmaz!
+    // Input flood koruması: Sadece sürekli analog hareketler (JOYSTICK_MOVE, PADDLE_MOVE, CURVE_STEER) throttle edilir.
+    // DASH, TACKLE, TANK_FIRE, TANK_DRIVE, koltuk/isim değişimi ve durma/bırakma sinyalleri ASLA throttle edilmez!
     const isDiscrete =
-      data.action === 'SET_NAME' ||
-      data.action === 'SWITCH_SLOT' ||
-      data.action === 'TANK_DRIVE' ||
-      data.action === 'TANK_FIRE' ||
-      data.action === 'BOMB_DASH' ||
+      (data.action !== 'JOYSTICK_MOVE' &&
+       data.action !== 'PADDLE_MOVE' &&
+       data.action !== 'CURVE_STEER') ||
       data.force === 0 ||
       data.dir === 0;
 

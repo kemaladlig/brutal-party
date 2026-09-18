@@ -587,7 +587,10 @@ export class GamepadManager {
           </div>
         </div>
         <div class="action-half">
-          <button class="action-dash-btn" id="btn-bomb-dash" type="button">⚡ DEPAR</button>
+          <button class="action-dash-btn" id="btn-bomb-dash" type="button">
+            <span class="dash-btn-label">⚡ DEPAR</span>
+            <span class="dash-btn-sub">DOKUN</span>
+          </button>
         </div>
       </div>
     `;
@@ -597,12 +600,51 @@ export class GamepadManager {
     });
 
     const dashBtn = document.getElementById('btn-bomb-dash');
+    let isCooling = false;
+    let cdTimer = null;
+
     const dashAction = (e) => {
       e?.preventDefault();
+      if (isCooling) return;
+      isCooling = true;
       this.network.sendInput({ action: 'DASH' });
-      if (navigator.vibrate) navigator.vibrate([20, 30]);
+      if (navigator.vibrate) navigator.vibrate([25, 35]);
+
+      if (dashBtn) {
+        dashBtn.classList.add('cooling');
+        let remaining = 2.2;
+        const updateText = () => {
+          if (!dashBtn) return;
+          dashBtn.innerHTML = `
+            <span class="dash-btn-label">⏳ ${remaining.toFixed(1)}s</span>
+            <span class="dash-btn-sub">DOLUYOR</span>
+          `;
+        };
+        updateText();
+
+        if (cdTimer) clearInterval(cdTimer);
+        cdTimer = setInterval(() => {
+          remaining -= 0.1;
+          if (remaining <= 0.05) {
+            clearInterval(cdTimer);
+            cdTimer = null;
+            isCooling = false;
+            if (dashBtn) {
+              dashBtn.classList.remove('cooling');
+              dashBtn.innerHTML = `
+                <span class="dash-btn-label">⚡ DEPAR</span>
+                <span class="dash-btn-sub">HAZIR!</span>
+              `;
+              if (navigator.vibrate) navigator.vibrate(15);
+            }
+          } else {
+            updateText();
+          }
+        }, 100);
+      }
     };
-    dashBtn?.addEventListener('touchstart', dashAction);
+
+    dashBtn?.addEventListener('touchstart', dashAction, { passive: false });
     dashBtn?.addEventListener('mousedown', dashAction);
   }
 
@@ -616,7 +658,10 @@ export class GamepadManager {
           </div>
         </div>
         <div class="action-half">
-          <button class="action-dash-btn" id="btn-heist-tackle" type="button" style="background-color: #d99b26">💥 OMUZ AT</button>
+          <button class="action-dash-btn" id="btn-heist-tackle" type="button" style="background-color: #d99b26">
+            <span class="dash-btn-label">💥 OMUZ AT</span>
+            <span class="dash-btn-sub">DOKUN</span>
+          </button>
         </div>
       </div>
     `;
@@ -626,12 +671,51 @@ export class GamepadManager {
     });
 
     const tackleBtn = document.getElementById('btn-heist-tackle');
+    let isCooling = false;
+    let cdTimer = null;
+
     const tackleAction = (e) => {
       e?.preventDefault();
+      if (isCooling) return;
+      isCooling = true;
       this.network.sendInput({ action: 'TACKLE' });
-      if (navigator.vibrate) navigator.vibrate([20, 40]);
+      if (navigator.vibrate) navigator.vibrate([25, 40]);
+
+      if (tackleBtn) {
+        tackleBtn.classList.add('cooling');
+        let remaining = 3.5;
+        const updateText = () => {
+          if (!tackleBtn) return;
+          tackleBtn.innerHTML = `
+            <span class="dash-btn-label">⏳ ${remaining.toFixed(1)}s</span>
+            <span class="dash-btn-sub">DOLUYOR</span>
+          `;
+        };
+        updateText();
+
+        if (cdTimer) clearInterval(cdTimer);
+        cdTimer = setInterval(() => {
+          remaining -= 0.1;
+          if (remaining <= 0.05) {
+            clearInterval(cdTimer);
+            cdTimer = null;
+            isCooling = false;
+            if (tackleBtn) {
+              tackleBtn.classList.remove('cooling');
+              tackleBtn.innerHTML = `
+                <span class="dash-btn-label">💥 OMUZ AT</span>
+                <span class="dash-btn-sub">HAZIR!</span>
+              `;
+              if (navigator.vibrate) navigator.vibrate(15);
+            }
+          } else {
+            updateText();
+          }
+        }, 100);
+      }
     };
-    tackleBtn?.addEventListener('touchstart', tackleAction);
+
+    tackleBtn?.addEventListener('touchstart', tackleAction, { passive: false });
     tackleBtn?.addEventListener('mousedown', tackleAction);
   }
 
@@ -666,10 +750,11 @@ export class GamepadManager {
     let isMouseDown = false;
     let centerX = 0;
     let centerY = 0;
-    const maxRadius = 48;
+    const maxRadius = 38;
 
     const startAt = (clientX, clientY) => {
-      const rect = zone.getBoundingClientRect();
+      const baseEl = knob.parentElement;
+      const rect = baseEl ? baseEl.getBoundingClientRect() : zone.getBoundingClientRect();
       centerX = rect.left + rect.width / 2;
       centerY = rect.top + rect.height / 2;
       this.updateJoy(clientX, clientY, centerX, centerY, maxRadius, knob, onInput);
@@ -688,20 +773,22 @@ export class GamepadManager {
 
     zone.addEventListener('touchstart', (e) => {
       if (activeTouchId !== null) return;
+      e.preventDefault();
       const touch = e.changedTouches[0];
       activeTouchId = touch.identifier;
       startAt(touch.clientX, touch.clientY);
-    }, { passive: true });
+    }, { passive: false });
 
     zone.addEventListener('touchmove', (e) => {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
         if (touch.identifier === activeTouchId) {
+          e.preventDefault();
           moveAt(touch.clientX, touch.clientY);
           break;
         }
       }
-    }, { passive: true });
+    }, { passive: false });
 
     zone.addEventListener('touchend', endJoy, { passive: true });
     zone.addEventListener('touchcancel', endJoy, { passive: true });

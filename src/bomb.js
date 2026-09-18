@@ -351,7 +351,7 @@ export class BombGame {
     const p = this.players[playerIndex];
     if (!p || !p.isAlive || p.dashCooldown > 0 || p.slipTimer > 0) return;
 
-    p.dashCooldown = 4.0;
+    p.dashCooldown = 2.2;
     p.dashTimer = 0.22;
     p.isDashing = true;
     this.trauma = Math.min(1.0, this.trauma + 0.15);
