@@ -42,6 +42,8 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
 }
 
 export function syncSlotsToEngine(engine, currentMode, isHosting) {
+  // NOT: Bu fonksiyon SADECE slot eşitleme yapar, motoru ASLA çalıştırmaz.
+  // Maç başlangıcı iki kademeli host akışıyla olur: SAHAYA GEÇ (staging) → sayaç → start.
   if (!engine || !isHosting) return;
 
   const humanCount = hostPlayerSlots.filter((p) => p !== null).length;
@@ -68,9 +70,6 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
         }
       }
       p.updateLayout?.(engine.arena);
-    }
-    if (engine.state === 'LOBBY' && engine.getJoinedPlayerCount?.() >= 2) {
-      engine.startGame?.();
     }
   } else if (currentMode === 'TANKS') {
     for (let i = 0; i < 4; i++) {
@@ -101,9 +100,6 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
         }
       }
     }
-    if (engine.state === 'LOBBY') {
-      engine.startRound?.();
-    }
   } else if (currentMode === 'CURVE') {
     for (let i = 0; i < 4; i++) {
       const slot = hostPlayerSlots[i];
@@ -132,9 +128,6 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
           }
         }
       }
-    }
-    if (engine.state === 'LOBBY') {
-      engine.startRound?.();
     }
   } else if (currentMode === 'BOMB') {
     for (let i = 0; i < 4; i++) {
@@ -165,9 +158,6 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
         }
       }
     }
-    if (engine.state === 'LOBBY') {
-      engine.startRound?.();
-    }
   } else if (currentMode === 'HEIST') {
     for (let i = 0; i < 4; i++) {
       const slot = hostPlayerSlots[i];
@@ -197,9 +187,6 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
         }
       }
     }
-    if (engine.state === 'LOBBY') {
-      engine.startRound?.();
-    }
   } else if (currentMode === 'DUEL') {
     if (!engine.playerNames) engine.playerNames = ['', '', '', ''];
     for (let i = 0; i < 4; i++) {
@@ -214,9 +201,6 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
     }
     if (typeof engine.updateTriggerPads === 'function') {
       engine.updateTriggerPads();
-    }
-    if (engine.state === 'LOBBY' && engine.getActivePlayerCount?.() >= 2) {
-      engine.startMatch?.();
     }
   }
 }

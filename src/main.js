@@ -287,7 +287,7 @@ function addTapListener(el, callback) {
 async function openHostLobby(gameMode = 'PONG') {
   setCurrentHostGameMode(gameMode);
   try {
-    const code = await activeNet().createRoom(gameMode, {
+    await activeNet().hostRoom(gameMode, {
       onRoomCreated: (roomCode) => {
         const joinUrl = getEffectiveJoinUrl(roomCode, platformMode);
         showHostLobbyModal(roomCode, joinUrl);
@@ -296,12 +296,19 @@ async function openHostLobby(gameMode = 'PONG') {
       onPlayerJoined: (msg) => {
         playJoin();
         updateHostSlot(msg.slotIndex, true, msg.name, false);
+        refreshStagingBar();
+        // Staging/sayaç sırasında katılan geç kalanı mevcut faza sok
+        // (STAGING_STARTED geçmişte kaldı, yoksa bekleme ekranında takılır)
+        if (stagingMode && !countdownTimer) {
+          activeNet().startStaging(stagingMode);
+        }
         const engine = getActiveGameEngine();
         if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
         showInstallToast(`🎮 ${msg.name} kumanda olarak bağlandı!`);
       },
       onPlayerLeft: (msg) => {
         updateHostSlot(msg.slotIndex, false);
+        refreshStagingBar();
         const engine = getActiveGameEngine();
         if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
         showInstallToast(`🚪 ${msg.name} odadan ayrıldı.`);
@@ -309,6 +316,7 @@ async function openHostLobby(gameMode = 'PONG') {
       onPlayerReadyStatus: (slotIndex, isReady) => {
         if (hostPlayerSlots[slotIndex]) {
           updateHostSlot(slotIndex, true, hostPlayerSlots[slotIndex].name, isReady);
+          refreshStagingBar();
         }
       },
       onSlotsSwapped: (slotA, slotB) => {
@@ -319,6 +327,7 @@ async function openHostLobby(gameMode = 'PONG') {
         else updateHostSlot(slotA, false);
         if (hostPlayerSlots[slotB]) updateHostSlot(slotB, true, hostPlayerSlots[slotB].name, hostPlayerSlots[slotB].isReady);
         else updateHostSlot(slotB, false);
+        refreshStagingBar();
 
         const engine = getActiveGameEngine();
         if (engine) {
@@ -334,6 +343,7 @@ async function openHostLobby(gameMode = 'PONG') {
           if (slot) {
             slot.name = data.name.slice(0, 12).toUpperCase();
             updateHostSlot(slotIndex, true, slot.name, slot.isReady);
+            refreshStagingBar();
             activeNet().setPlayerName?.(slotIndex, slot.name);
             const engine = getActiveGameEngine();
             if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
@@ -342,6 +352,7 @@ async function openHostLobby(gameMode = 'PONG') {
           return;
         }
         if (data.action === 'SWITCH_SLOT' && typeof data.targetSlot === 'number') {
+          if (seatsLocked) return; // sayaç sırasında koltuklar kilitli
           activeNet().swapSlots(slotIndex, data.targetSlot);
           return;
         }
@@ -393,10 +404,19 @@ async function executeJoin(rawCode, rawName) {
         showInstallToast(`🎯 Host oyunu değiştirdi: ${newMode}`);
       },
       onGameStarted: (mode) => {
+        gamepadManager.exitStaging();
         gamepadManager.renderGameController(mode);
         showInstallToast(`▶ Oyun başladı: ${mode}`);
       },
+      onStagingStarted: (mode) => {
+        gamepadManager.enterStaging(mode);
+        showInstallToast('🏟 Saha açıldı! Koltuğunu seç ve hazır ol.');
+      },
+      onCountdown: (t) => {
+        gamepadManager.showCountdown(t);
+      },
       onReturnedToLobby: (mode) => {
+        gamepadManager.exitStaging();
         gamepadManager.selectedHostGame = mode || 'PONG';
         gamepadManager.renderGameController('LOBBY');
         showInstallToast(`📺 Lobiye dönüldü.`);
@@ -461,6 +481,7 @@ function handleRotateSeats() {
 }
 
 function returnHostToLobby() {
+  exitStagingToLobby();
   if (!activeNet().isHosting) {
     setGameMode('MENU');
     return;
@@ -476,6 +497,7 @@ function handleExitToMenu() {
     const confirmed = window.confirm('Odayı kapatmak ve ana menüye dönmek istiyor musunuz? Tüm bağlı kumandaların bağlantısı kesilecektir.');
     if (!confirmed) return;
     closePauseModal();
+    exitStagingToLobby();
     hideHostLobbyModal();
     for (let i = 0; i < 4; i++) updateHostSlot(i, false);
     activeNet().disconnect();
@@ -494,17 +516,112 @@ function handleGameCardClick(mode) {
   }
 }
 
+// ── İki kademeli başlatma: LOBİ → STAGING (saha+koltuk) → sayaç → OYUN ──
+let stagingMode = null;
+let seatsLocked = false;
+let countdownTimer = null;
+
+function refreshStagingBar() {
+  if (!stagingMode) return;
+  const connected = hostPlayerSlots.filter((p) => p !== null).length;
+  const ready = hostPlayerSlots.filter((p) => p?.isReady).length;
+  const pill = document.getElementById('staging-ready-pill');
+  if (pill) pill.textContent = connected === 0 ? 'OYUNCU BEKLENİYOR' : `${connected} BAĞLANDI • ${ready} HAZIR`;
+  const btn = document.getElementById('btn-staging-launch');
+  if (btn) btn.textContent = `▶ MAÇI BAŞLAT (${ready}/${connected} HAZIR)`;
+}
+
+function showStagingBar() {
+  document.getElementById('staging-bar')?.classList.remove('hidden');
+  refreshStagingBar();
+}
+
+function hideStagingBar() {
+  document.getElementById('staging-bar')?.classList.add('hidden');
+}
+
+function showCountdownOverlay(t) {
+  const ov = document.getElementById('countdown-overlay');
+  const num = document.getElementById('countdown-overlay-number');
+  if (!ov || !num) return;
+  num.textContent = t > 0 ? String(t) : 'BAŞLA!';
+  ov.classList.remove('hidden');
+}
+
+function hideCountdownOverlay() {
+  document.getElementById('countdown-overlay')?.classList.add('hidden');
+}
+
+function cancelCountdown() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+  hideCountdownOverlay();
+}
+
+function startEngineNow(mode) {
+  if (mode === 'PONG') pongGame.startGame();
+  else if (mode === 'TANKS') tanksGame.startRound();
+  else if (mode === 'CURVE') curveGame.startRound();
+  else if (mode === 'BOMB') bombGame.startNewRound();
+  else if (mode === 'HEIST') heistGame.startNewRound();
+  else if (mode === 'DUEL') duelGame.startMatch();
+}
+
+// BAŞLAT #1: sahayı aç — motor LOBBY'de arena gösterir, koltuk seçimi başlar
+function enterStaging(mode) {
+  stagingMode = mode;
+  seatsLocked = false;
+  setGameMode(mode);
+  activeNet().startStaging(mode);
+  showStagingBar();
+  showInstallToast('🏟 Saha açıldı! Herkes koltuğuna yerleşsin.');
+}
+
+// BAŞLAT #2: 3-2-1 → oyun (koltuklar kilitli)
+function runCountdown() {
+  if (!stagingMode || countdownTimer) return;
+  const mode = stagingMode;
+  seatsLocked = true;
+  let t = 3;
+  const tick = () => {
+    if (t > 0) {
+      showCountdownOverlay(t);
+      activeNet().broadcastCountdown(t);
+      t -= 1;
+    } else {
+      cancelCountdown();
+      seatsLocked = false;
+      hideStagingBar();
+      stagingMode = null;
+      activeNet().startGame(mode);
+      startEngineNow(mode);
+    }
+  };
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
+function exitStagingToLobby() {
+  cancelCountdown();
+  seatsLocked = false;
+  stagingMode = null;
+  hideStagingBar();
+  hideCountdownOverlay();
+}
+
 // Initialise UI Submodules
 initToastAndInstall();
 initJoinModal({ onExecuteJoin: executeJoin });
 initHostLobby({
   getActiveNet: () => activeNet(),
   getPlatformMode: () => platformMode,
-  onLaunchGame: (mode) => {
-    activeNet().startGame(mode);
-    setGameMode(mode);
+  onStageGame: (mode) => {
+    enterStaging(mode);
   },
   onCloseLobby: () => {
+    exitStagingToLobby();
     for (let i = 0; i < 4; i++) updateHostSlot(i, false);
     activeNet().disconnect();
     setGameMode('MENU');
@@ -512,6 +629,14 @@ initHostLobby({
   onSwapSlots: (slotA, slotB) => {
     activeNet().swapSlots(slotA, slotB);
   },
+});
+
+// Staging bar (BAŞLAT #2 + lobiye dönüş)
+document.getElementById('btn-staging-launch')?.addEventListener('click', () => {
+  runCountdown();
+});
+document.getElementById('btn-staging-lobby')?.addEventListener('click', () => {
+  returnHostToLobby();
 });
 initPauseModal({
   getCurrentMode: () => currentMode,

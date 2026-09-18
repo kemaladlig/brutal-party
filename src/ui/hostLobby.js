@@ -34,7 +34,7 @@ export function setCurrentHostGameMode(mode) {
     chip.classList.toggle('active', chip.dataset.game === mode);
   });
   if (btnHostLaunchGame) {
-    btnHostLaunchGame.textContent = `▶ ${mode} BAŞLAT`;
+    btnHostLaunchGame.textContent = `▶ SAHAYA GEÇ`;
   }
 }
 
@@ -91,7 +91,7 @@ export function hideHostLobbyModal() {
 export function initHostLobby({
   getActiveNet,
   getPlatformMode,
-  onLaunchGame,
+  onStageGame,
   onCloseLobby,
   onSwapSlots,
 }) {
@@ -103,7 +103,7 @@ export function initHostLobby({
       currentHostGameMode = chip.dataset.game;
       getActiveNet().setHostGameMode?.(currentHostGameMode);
       if (btnHostLaunchGame) {
-        btnHostLaunchGame.textContent = `▶ ${currentHostGameMode} BAŞLAT`;
+        btnHostLaunchGame.textContent = `▶ SAHAYA GEÇ`;
       }
     });
   });
@@ -120,10 +120,11 @@ export function initHostLobby({
     });
   });
 
+  // BAŞLAT #1: sahayı aç (staging). Oyun başlamaz; koltuk seçimi başlar.
   btnHostLaunchGame?.addEventListener('click', () => {
     hideHostLobbyModal();
-    if (typeof onLaunchGame === 'function') {
-      onLaunchGame(currentHostGameMode);
+    if (typeof onStageGame === 'function') {
+      onStageGame(currentHostGameMode);
     }
   });
 

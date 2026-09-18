@@ -313,6 +313,28 @@ export class SupabaseRelay {
     });
   }
 
+  // İki kademeli başlatma 1/2: sahayı aç (staging). Motor LOBBY'de arena gösterir,
+  // kumandalar koltuk seçimine geçer. Oyun henüz başlamaz.
+  startStaging(gameMode) {
+    if (this.role !== 'HOST') return;
+    if (gameMode) this.gameMode = gameMode;
+    this._broadcast('host_msg', {
+      action: 'STAGING_STARTED',
+      gameMode: this.gameMode,
+    });
+  }
+
+  // İki kademeli başlatma 2/2: geri sayım tik'i (3-2-1). Son tik sonrası
+  // host startGame() çağırır.
+  broadcastCountdown(t) {
+    if (this.role !== 'HOST') return;
+    this._broadcast('host_msg', {
+      action: 'COUNTDOWN',
+      t,
+      gameMode: this.gameMode,
+    });
+  }
+
   returnToLobby() {
     if (this.role !== 'HOST') return;
     this.ready = [false, false, false, false];
@@ -473,6 +495,20 @@ export class SupabaseRelay {
       case 'GAME_STARTED': {
         if (this.callbacks.onGameStarted) {
           this.callbacks.onGameStarted(msg.gameMode);
+        }
+        break;
+      }
+
+      case 'STAGING_STARTED': {
+        if (this.callbacks.onStagingStarted) {
+          this.callbacks.onStagingStarted(msg.gameMode);
+        }
+        break;
+      }
+
+      case 'COUNTDOWN': {
+        if (this.callbacks.onCountdown) {
+          this.callbacks.onCountdown(msg.t, msg.gameMode);
         }
         break;
       }

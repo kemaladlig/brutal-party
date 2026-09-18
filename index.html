@@ -36,6 +36,24 @@
         </button>
       </div>
 
+      <!-- Host Staging Bar (saha açıkken: sayaç öncesi son kontrol) -->
+      <div id="staging-bar" class="hidden">
+        <div class="staging-info">
+          <span class="staging-badge">🏟 SAHA AÇIK — KOLTUKLAR YERLEŞİYOR</span>
+          <span class="staging-ready-pill" id="staging-ready-pill">0 BAĞLANDI</span>
+        </div>
+        <div class="staging-actions">
+          <button class="staging-launch-btn" id="btn-staging-launch" type="button">▶ MAÇI BAŞLAT</button>
+          <button class="staging-lobby-btn" id="btn-staging-lobby" type="button">LOBİYE DÖN</button>
+        </div>
+      </div>
+
+      <!-- Geri Sayım Overlay (TV ekranı, 3-2-1) -->
+      <div id="countdown-overlay" class="hidden">
+        <div class="countdown-overlay-number" id="countdown-overlay-number">3</div>
+        <div class="countdown-overlay-sub">MAÇ BAŞLIYOR</div>
+      </div>
+
       <!-- TV Host Lobby Modal (QR Code & Connected Controllers & Game Switcher) -->
       <div id="tv-host-modal" class="hidden">
         <div class="tv-host-card">

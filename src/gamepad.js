@@ -39,6 +39,9 @@ export class GamepadManager {
 
     // Slots occupancy state from host
     this.slots = [null, null, null, null];
+    // İki kademeli başlatma: staging açılmadan koltuk seçimi gösterilmez
+    this.stagingOpen = false;
+    this.countdownActive = false;
   }
 
   init(playerInfo, gameMode = 'LOBBY') {
@@ -49,6 +52,8 @@ export class GamepadManager {
     this.selectedHostGame = gameMode === 'LOBBY' ? 'PONG' : gameMode;
     this.gameMode = gameMode || 'LOBBY';
     this.isReady = false;
+    this.stagingOpen = false;
+    this.countdownActive = false;
     // Reset manual invert flag on fresh join so auto-detection kicks in
     this._pongInvertManualSet = false;
 
@@ -136,6 +141,8 @@ export class GamepadManager {
     if (label) label.textContent = this.playerName;
     if (seatTag) seatTag.textContent = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
 
+    // Sayaç sırasında workspace'i bozma (sayaç ekranı korunur)
+    if (this.countdownActive) return;
     // Re-render current controller to update player colors/axis
     this.renderGameController(this.gameMode);
   }
@@ -145,6 +152,37 @@ export class GamepadManager {
     if (this.gameMode === 'LOBBY') {
       this.refreshLobbySeats();
     }
+  }
+
+  // İki kademeli başlatma: host sahayı açtı → koltuk seçimi görünür
+  enterStaging(gameMode) {
+    this.stagingOpen = true;
+    this.countdownActive = false;
+    if (gameMode) this.selectedHostGame = gameMode;
+    if (this.gameMode === 'LOBBY') {
+      this.renderGameController('LOBBY');
+    }
+  }
+
+  // Geri sayım tik'i: koltuklar kilitlenir, sayaç ekranı basılır
+  showCountdown(t) {
+    this.countdownActive = true;
+    const workspace = document.getElementById('gamepad-workspace');
+    if (!workspace) return;
+    workspace.innerHTML = `
+      <div class="countdown-view">
+        <div class="countdown-badge">⏳ MAÇ BAŞLIYOR</div>
+        <div class="countdown-number">${t > 0 ? t : 'BAŞLA!'}</div>
+        <div class="countdown-sub">TELEFONU TUT • EKRANA BAK</div>
+      </div>
+    `;
+    if (navigator.vibrate) navigator.vibrate(t > 0 ? 40 : [40, 60, 80]);
+  }
+
+  // Staging/sayaç durumunu sıfırla (oyun başladı veya lobiye dönüldü)
+  exitStaging() {
+    this.stagingOpen = false;
+    this.countdownActive = false;
   }
 
   renderGameController(mode) {
@@ -228,6 +266,7 @@ export class GamepadManager {
     grid.innerHTML = [0, 1, 2, 3].map((idx) => this.renderSeatButtonHtml(idx)).join('');
     grid.querySelectorAll('.lobby-seat-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (this.countdownActive) return;
         const targetSlot = parseInt(btn.dataset.seat, 10);
         if (targetSlot !== this.playerIndex) {
           this.network.sendInput({ action: 'SWITCH_SLOT', targetSlot });
@@ -251,13 +290,21 @@ export class GamepadManager {
 
     container.innerHTML = `
       <div class="lobby-controller-view">
-        <!-- Interactive Seat Selector -->
+        ${this.stagingOpen ? `
+        <!-- Interactive Seat Selector (sadece staging'de: saha açıkken) -->
         <div class="lobby-seats-card">
           <div class="lobby-seat-badge">💺 KOLTUĞUNUZU SEÇİN</div>
           <div class="lobby-seats-grid">
             ${[0, 1, 2, 3].map((idx) => this.renderSeatButtonHtml(idx)).join('')}
           </div>
         </div>
+        ` : `
+        <!-- Bekleme (staging öncesi saha kapalı: koltuk seçimi yok) -->
+        <div class="lobby-wait-card">
+          <div class="lobby-wait-badge">🏟 SAHA HAZIRLANIYOR</div>
+          <div class="lobby-wait-text">Host sahayı açınca koltuğunu seçeceksin.<br>İsmini kontrol et, hazır bekle!</div>
+        </div>
+        `}
 
         <!-- Name Edit Section -->
         <div class="lobby-name-section">
@@ -278,9 +325,11 @@ export class GamepadManager {
           <div class="lobby-game-text">OYUN: <b id="lobby-selected-game-text">${selectedTitle}</b></div>
         </div>
 
+        ${this.stagingOpen ? `
         <button class="btn-ready-toggle ${this.isReady ? 'ready' : ''}" id="btn-lobby-ready" type="button">
           ${this.isReady ? '✓ HAZIR' : 'HAZIRIM'}
         </button>
+        ` : ''}
 
         <button class="btn-leave-lobby-direct" id="btn-leave-lobby-direct" type="button">
           🚪 ODADAN AYRIL
@@ -291,6 +340,7 @@ export class GamepadManager {
     // Seat switch click handlers
     container.querySelectorAll('.lobby-seat-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (this.countdownActive) return;
         const targetSlot = parseInt(btn.dataset.seat, 10);
         if (targetSlot !== this.playerIndex) {
           this.network.sendInput({ action: 'SWITCH_SLOT', targetSlot });

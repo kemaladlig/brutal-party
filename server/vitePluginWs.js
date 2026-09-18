@@ -140,6 +140,16 @@ export function handleMessage(ws, msg, roomManager) {
       break;
     }
 
+    case 'START_STAGING': {
+      roomManager.handleStartStaging(ws, msg.gameMode);
+      break;
+    }
+
+    case 'COUNTDOWN': {
+      roomManager.handleCountdown(ws, msg.t);
+      break;
+    }
+
     case 'RETURN_TO_LOBBY': {
       roomManager.handleReturnToLobby(ws);
       break;

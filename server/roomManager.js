@@ -166,9 +166,33 @@ export class RoomManager {
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     room.state = 'PLAYING';
+    room.ready = [false, false, false, false];
     if (gameMode) room.gameMode = gameMode;
     this.broadcastToPlayers(room, {
       type: 'GAME_STARTED',
+      gameMode: room.gameMode,
+    });
+  }
+
+  // İki kademeli başlatma 1/2: sahayı aç (staging). Oyun başlamaz.
+  handleStartStaging(hostWs, gameMode) {
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return;
+    room.state = 'STAGING';
+    if (gameMode) room.gameMode = gameMode;
+    this.broadcastToPlayers(room, {
+      type: 'STAGING_STARTED',
+      gameMode: room.gameMode,
+    });
+  }
+
+  // İki kademeli başlatma 2/2: geri sayım tik'i.
+  handleCountdown(hostWs, t) {
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return;
+    this.broadcastToPlayers(room, {
+      type: 'COUNTDOWN',
+      t,
       gameMode: room.gameMode,
     });
   }

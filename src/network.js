@@ -166,6 +166,18 @@ export class PartyNetwork {
         }
         break;
 
+      case 'STAGING_STARTED':
+        if (this.callbacks.onStagingStarted) {
+          this.callbacks.onStagingStarted(msg.gameMode);
+        }
+        break;
+
+      case 'COUNTDOWN':
+        if (this.callbacks.onCountdown) {
+          this.callbacks.onCountdown(msg.t, msg.gameMode);
+        }
+        break;
+
       case 'RETURNED_TO_LOBBY':
         if (this.callbacks.onReturnedToLobby) {
           this.callbacks.onReturnedToLobby(msg.gameMode);
@@ -255,6 +267,22 @@ export class PartyNetwork {
     this.send({
       type: 'START_GAME',
       gameMode,
+    });
+  }
+
+  startStaging(gameMode) {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.send({
+      type: 'START_STAGING',
+      gameMode,
+    });
+  }
+
+  broadcastCountdown(t) {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.send({
+      type: 'COUNTDOWN',
+      t,
     });
   }
 
