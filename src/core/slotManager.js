@@ -90,8 +90,8 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
   // Maç başlangıcı iki kademeli host akışıyla olur: SAHAYA GEÇ (staging) → sayaç → start.
   if (!engine || !isHosting) return;
 
-  const humanCount = hostPlayerSlots.filter((p) => p !== null).length;
-  if (humanCount === 0) return;
+  // NOT: boş oda dahil her durumda slotlar aynen yazılır (otomatik bot doldurma yok).
+  // LOCAL mod bu fonksiyona hiç girmez (isHosting=false) — solo antrenman düzeni korunur.
 
   if (currentMode === 'PONG') {
     for (let i = 0; i < 4; i++) {
@@ -103,15 +103,9 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
         p.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
         p.name = slot.name || `P${i + 1}`;
       } else {
-        if (humanCount === 1 && i === 1) {
-          p.isJoined = true;
-          p.slotType = 'bot_normal';
-          p.name = 'BOT // MAVİ';
-        } else {
-          p.isJoined = false;
-          p.slotType = 'empty';
-          p.name = ['ALT', 'ÜST', 'SOL', 'SAĞ'][i];
-        }
+        p.isJoined = false;
+        p.slotType = 'empty';
+        p.name = ['ALT', 'ÜST', 'SOL', 'SAĞ'][i];
       }
       p.updateLayout?.(engine.arena);
     }
@@ -127,20 +121,11 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
           tank.name = slot.name || `P${i + 1}`;
         }
       } else {
-        if (humanCount === 1 && i === 1) {
-          if (engine.slotTypes) engine.slotTypes[1] = 'bot_normal';
-          if (tank) {
-            tank.isJoined = true;
-            tank.slotType = 'bot_normal';
-            tank.name = 'BOT // MAVİ';
-          }
-        } else {
-          if (engine.slotTypes) engine.slotTypes[i] = 'empty';
-          if (tank) {
-            tank.isJoined = false;
-            tank.slotType = 'empty';
-            tank.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
-          }
+        if (engine.slotTypes) engine.slotTypes[i] = 'empty';
+        if (tank) {
+          tank.isJoined = false;
+          tank.slotType = 'empty';
+          tank.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
         }
       }
     }
@@ -156,20 +141,11 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
           player.name = slot.name || `P${i + 1}`;
         }
       } else {
-        if (humanCount === 1 && i === 1) {
-          if (engine.slotTypes) engine.slotTypes[1] = 'bot_normal';
-          if (player) {
-            player.isJoined = true;
-            player.slotType = 'bot_normal';
-            player.name = 'BOT // MAVİ';
-          }
-        } else {
-          if (engine.slotTypes) engine.slotTypes[i] = 'empty';
-          if (player) {
-            player.isJoined = false;
-            player.slotType = 'empty';
-            player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
-          }
+        if (engine.slotTypes) engine.slotTypes[i] = 'empty';
+        if (player) {
+          player.isJoined = false;
+          player.slotType = 'empty';
+          player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
         }
       }
     }
@@ -185,20 +161,11 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
           player.name = slot.name || `P${i + 1}`;
         }
       } else {
-        if (humanCount === 1 && i === 1) {
-          if (engine.slotTypes) engine.slotTypes[1] = 'bot_normal';
-          if (player) {
-            player.isJoined = true;
-            player.slotType = 'bot_normal';
-            player.name = 'BOT // MAVİ';
-          }
-        } else {
-          if (engine.slotTypes) engine.slotTypes[i] = 'empty';
-          if (player) {
-            player.isJoined = false;
-            player.slotType = 'empty';
-            player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
-          }
+        if (engine.slotTypes) engine.slotTypes[i] = 'empty';
+        if (player) {
+          player.isJoined = false;
+          player.slotType = 'empty';
+          player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
         }
       }
     }
@@ -214,20 +181,11 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
           player.name = slot.name || `P${i + 1}`;
         }
       } else {
-        if (humanCount === 1 && i === 1) {
-          if (engine.slotTypes) engine.slotTypes[1] = 'bot_normal';
-          if (player) {
-            player.isJoined = true;
-            player.slotType = 'bot_normal';
-            player.name = 'BOT // MAVİ';
-          }
-        } else {
-          if (engine.slotTypes) engine.slotTypes[i] = 'empty';
-          if (player) {
-            player.isJoined = false;
-            player.slotType = 'empty';
-            player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
-          }
+        if (engine.slotTypes) engine.slotTypes[i] = 'empty';
+        if (player) {
+          player.isJoined = false;
+          player.slotType = 'empty';
+          player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
         }
       }
     }
@@ -243,20 +201,11 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
           player.name = slot.name || `P${i + 1}`;
         }
       } else {
-        if (humanCount === 1 && i === 1) {
-          if (engine.slotTypes) engine.slotTypes[1] = 'bot_normal';
-          if (player) {
-            player.isJoined = true;
-            player.slotType = 'bot_normal';
-            player.name = 'BOT // MAVİ';
-          }
-        } else {
-          if (engine.slotTypes) engine.slotTypes[i] = 'empty';
-          if (player) {
-            player.isJoined = false;
-            player.slotType = 'empty';
-            player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
-          }
+        if (engine.slotTypes) engine.slotTypes[i] = 'empty';
+        if (player) {
+          player.isJoined = false;
+          player.slotType = 'empty';
+          player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
         }
       }
     }
@@ -268,7 +217,7 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
         if (engine.joinedPlayers) engine.joinedPlayers[i] = true;
         engine.playerNames[i] = slot.name || `P${i + 1}`;
       } else {
-        if (engine.joinedPlayers) engine.joinedPlayers[i] = humanCount === 1 && i === 1;
+        if (engine.joinedPlayers) engine.joinedPlayers[i] = false;
         engine.playerNames[i] = '';
       }
     }

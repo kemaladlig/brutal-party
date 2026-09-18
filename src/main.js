@@ -622,6 +622,9 @@ function enterStaging(mode) {
   stagingMode = mode;
   seatsLocked = false;
   setGameMode(mode);
+  // Saha açılırken koltuklar bir kez daha yazılır (kurucu varsayılan botları ezilir)
+  const engine = getActiveGameEngine();
+  if (engine) syncSlotsToEngine(engine, mode, activeNet().isHosting);
   activeNet().startStaging(mode);
   showStagingBar();
   showInstallToast('🏟 Saha açıldı! Herkes koltuğuna yerleşsin.');
