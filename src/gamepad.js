@@ -13,6 +13,7 @@ const CONTROLLER_META = {
   BOMB: { hudTag: '💣 BOMB', lobbyTitle: '💣 BRUTAL BOMB', mount: 'mountBombController' },
   HEIST: { hudTag: '💰 HEIST', lobbyTitle: '💰 BRUTAL HEIST', mount: 'mountHeistController' },
   DUEL: { hudTag: '🤠 DUEL', lobbyTitle: '🤠 QUICK DRAW', mount: 'mountDuelController' },
+  CROWN: { hudTag: '👑 CROWN', lobbyTitle: '👑 BRUTAL CROWN', mount: 'mountCrownController' },
 };
 
 export class GamepadManager {
@@ -872,6 +873,77 @@ export class GamepadManager {
     triggerBtn?.addEventListener('mousedown', triggerAction);
   }
 
+  // --- 07: CROWN CONTROLLER (Joystick + Shoulder Tackle) ---
+  mountCrownController(container) {
+    container.innerHTML = `
+      <div class="joystick-action-view">
+        <div class="joystick-half" id="crown-joy-zone">
+          <div class="phone-joy-base">
+            <div class="phone-joy-knob" id="crown-joy-knob" style="background-color: ${this.playerColor}"></div>
+          </div>
+        </div>
+        <div class="action-half">
+          <button class="action-dash-btn" id="btn-crown-tackle" type="button" style="background-color: #f59e0b">
+            <span class="dash-btn-label">💥 OMUZ AT</span>
+            <span class="dash-btn-sub">DOKUN</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    this.bindJoystick('crown-joy-zone', 'crown-joy-knob', (input) => {
+      this.network.sendInput({ action: 'JOYSTICK_MOVE', ...input });
+    });
+
+    const tackleBtn = document.getElementById('btn-crown-tackle');
+    let isCooling = false;
+    let cdTimer = null;
+
+    const tackleAction = (e) => {
+      e?.preventDefault();
+      if (isCooling) return;
+      isCooling = true;
+      this.network.sendInput({ action: 'TACKLE' });
+      if (navigator.vibrate) navigator.vibrate([25, 40]);
+
+      if (tackleBtn) {
+        tackleBtn.classList.add('cooling');
+        let remaining = 2.0;
+        const updateText = () => {
+          if (!tackleBtn) return;
+          tackleBtn.innerHTML = `
+            <span class="dash-btn-label">⏳ ${remaining.toFixed(1)}s</span>
+            <span class="dash-btn-sub">DOLUYOR</span>
+          `;
+        };
+        updateText();
+
+        if (cdTimer) clearInterval(cdTimer);
+        cdTimer = setInterval(() => {
+          remaining -= 0.1;
+          if (remaining <= 0.05) {
+            clearInterval(cdTimer);
+            cdTimer = null;
+            isCooling = false;
+            if (tackleBtn) {
+              tackleBtn.classList.remove('cooling');
+              tackleBtn.innerHTML = `
+                <span class="dash-btn-label">💥 OMUZ AT</span>
+                <span class="dash-btn-sub">HAZIR!</span>
+              `;
+              if (navigator.vibrate) navigator.vibrate(15);
+            }
+          } else {
+            updateText();
+          }
+        }, 100);
+      }
+    };
+
+    tackleBtn?.addEventListener('touchstart', tackleAction, { passive: false });
+    tackleBtn?.addEventListener('mousedown', tackleAction);
+  }
+
   // Generic Touch & Mouse Joystick Helper
   bindJoystick(zoneId, knobId, onInput) {
     const zone = document.getElementById(zoneId);
@@ -1005,6 +1077,12 @@ export class GamepadManager {
         statusStr = data.gemCarrier === this.playerIndex ? `💎 ELMAS SENDE!` : `SÜRE: ${timeStr} • ${data.scores.join('-')}`;
       } else if (data.gameMode === 'DUEL') {
         statusStr = `SKOR: ${data.scores.join('-')}`;
+      } else if (data.gameMode === 'CROWN') {
+        const isKing = data.king === this.playerIndex;
+        const myTime = data.crownTimes ? (data.crownTimes[this.playerIndex] || 0).toFixed(1) : '0.0';
+        statusStr = isKing
+          ? `👑 TAÇ SENDE! (${myTime}s)`
+          : (data.king !== null && data.king !== undefined ? `KRAL: P${data.king + 1} (${myTime}s)` : `TAÇ BOŞTA! (${myTime}s)`);
       }
       liveStatus.textContent = statusStr;
     }
@@ -1023,6 +1101,14 @@ export class GamepadManager {
       this.overlay.classList.toggle('gem-carrier-alert', isGemCarrier);
     } else {
       this.overlay.classList.remove('gem-carrier-alert');
+    }
+
+    // 2.5. Crown King Alert
+    if (this.gameMode === 'CROWN') {
+      const isKing = data.king === this.playerIndex;
+      this.overlay.classList.toggle('crown-king-alert', isKing);
+    } else {
+      this.overlay.classList.remove('crown-king-alert');
     }
 
     // 3. Tanks Ammo Pips Sync

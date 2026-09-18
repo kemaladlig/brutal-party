@@ -387,19 +387,19 @@ export class BombGame extends BaseMiniGame {
     if (!newCarrier || newCarrier.immunityTimer > 0) return;
 
     this.bombCarrierIndex = toPlayerIndex;
-    this.passCooldown = 1.4; // Solid window before another pass can occur
-    this.trauma = 0.4;
+    this.passCooldown = 1.6; // Solid window before another pass can occur
+    this.trauma = 0.55;
 
     playBombPass();
     playStumble();
 
-    // 1. Stumble Shock Delay on Receiver: heavily stunned/slowed for 0.45s!
-    newCarrier.stumbleTimer = 0.45;
+    // 1. Stumble Shock Delay on Receiver: heavily stunned/slowed for 0.85s!
+    newCarrier.stumbleTimer = 0.85;
 
     // 2. Escaper Sprint & Immunity on Giver: guarantees head start to flee!
     if (prevCarrier) {
-      prevCarrier.escapeBoostTimer = 1.1; // +35% escape sprint
-      prevCarrier.immunityTimer = 1.5;    // immune to bomb for 1.5s
+      prevCarrier.escapeBoostTimer = 1.2; // +35% escape sprint
+      prevCarrier.immunityTimer = 1.6;    // immune to bomb for 1.6s
     }
 
     // 3. Kinetic separation: physically push runners apart by 32px
@@ -1230,9 +1230,37 @@ export class BombGame extends BaseMiniGame {
         ctx.rotate(player.slipAngle);
       }
 
-      // Receiver Stumble Jitter & Dizzy Indicator
+      // Receiver Stumble Jitter & Dizzy Indicator (0.85s heavy stun)
       if (player.stumbleTimer > 0) {
-        ctx.translate((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
+        ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
+
+        // Orbiting Dizzy Stars & Daze Ring
+        ctx.save();
+        const dazeAngle = performance.now() * 0.008;
+        const starR = player.radius + 14;
+        ctx.font = '900 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        for (let s = 0; s < 3; s++) {
+          const a = dazeAngle + (s * Math.PI * 2) / 3;
+          const sx = Math.cos(a) * starR;
+          const sy = Math.sin(a) * (starR * 0.4) - player.radius - 10;
+          ctx.fillText('💫', sx, sy);
+        }
+
+        // Stun floor ring
+        ctx.strokeStyle = '#FFDE59';
+        ctx.lineWidth = 3.5;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.arc(0, 0, player.radius + 6, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Stun text badge
+        ctx.fillStyle = '#FFDE59';
+        ctx.font = '900 10px "JetBrains Mono", monospace';
+        ctx.fillText('💥 SERSEM!', 0, -player.radius - 26);
+        ctx.restore();
       }
 
       // Escaper Immunity Shield Ring (cannot be given bomb back)

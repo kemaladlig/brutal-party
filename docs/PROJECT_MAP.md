@@ -40,14 +40,16 @@ src/ai/
   curveAI.js                Brutal Curve bot zekâsı: sol/sağ ışın örnekleme, delik geçişi, merkez takibi
   heistAI.js                Brutal Heist bot zekâsı: kasa bankalama stratejisi, ganimet önceliği, taktiksel omuz atma
   tankAI.js                 Micro-Tanks bot zekâsı: duvar seken mermi hesaplaması, hedef önleme raycast'i, akıllı ateş
+  crownAI.js                Brutal Crown bot zekâsı: taç kovalama, önleyici tackle/omuz atma, kral kaçış manevrası
 
-src/ (Oyun Motorları - BaseMiniGame türevleri):
-  game.js                   Brutal Pong motoru (+ src/ball.js, src/paddle.js)
+src/games/ (Oyun Motorları - BaseMiniGame türevleri):
+  game.js                   Brutal Pong motoru (+ src/games/ball.js, src/games/paddle.js)
   tanks.js                  Micro-Tanks motoru (sekme fiziği, mermi cooldown & HUD)
   curve.js                  Brutal Curve motoru (kuyruk izi, delikler, power-up)
   bomb.js                   Brutal Bomb motoru (patlama zamanlayıcısı, depar, çoklu harita)
   heist.js                  Brutal Heist motoru (altın toplama, kasa bankalama, omuz atma)
   duel.js                   Quick Draw kovboy düellosu (refleks tetiği, false-start cezası)
+  crown.js                  Brutal Crown motoru (altın taç, omuz atma, pinball bumper'lar, taç süresi)
 
 server/
   index.js                  Lokal WebSocket bağımsız sunucu başlatıcı
@@ -63,12 +65,13 @@ public/                     PWA (manifest.webmanifest, sw.js, ikonlar) + public/
 
 | Kod | Mod adı | Motor dosyası | Bot Yapay Zekâsı | Kumanda Mount | Not |
 |-----|---------|---------------|------------------|---------------|-----|
-| PONG | Brutal Pong | `src/game.js` | Paddle içinde | `mountPongController` | Kendi saha skor tabelası var; score-strip yok |
-| TANKS | Micro-Tanks | `src/tanks.js` | `src/ai/tankAI.js` | `mountTanksController` | Gaz pedalı + ateş, kartuş HUD; max 2 mermi, 0.55s reload |
-| CURVE | Brutal Curve | `src/curve.js` | `src/ai/curveAI.js` | `mountCurveController` | Sol/sağ keskin dönüş yarıları |
-| BOMB | Brutal Bomb | `src/bomb.js` | `src/ai/bombAI.js` | `mountBombController` | Sanal joystick + depar; MAP_PRESETS çoklu arena |
-| HEIST | Brutal Heist | `src/heist.js` | `src/ai/heistAI.js` | `mountHeistController` | Sanal joystick + omuz atma; merkezi elmas, kasa bankalama |
-| DUEL | Quick Draw | `src/duel.js` | Refleks timer | `mountDuelController` | Sinyalde ilk dokunan; false-start cezası |
+| PONG | Brutal Pong | `src/games/game.js` | Paddle içinde | `mountPongController` | Kendi saha skor tabelası var; score-strip yok |
+| TANKS | Micro-Tanks | `src/games/tanks.js` | `src/ai/tankAI.js` | `mountTanksController` | Gaz pedalı + ateş, kartuş HUD; max 2 mermi, 0.55s reload |
+| CURVE | Brutal Curve | `src/games/curve.js` | `src/ai/curveAI.js` | `mountCurveController` | Sol/sağ keskin dönüş yarıları |
+| BOMB | Brutal Bomb | `src/games/bomb.js` | `src/ai/bombAI.js` | `mountBombController` | Sanal joystick + depar; MAP_PRESETS çoklu arena |
+| HEIST | Brutal Heist | `src/games/heist.js` | `src/ai/heistAI.js` | `mountHeistController` | Sanal joystick + omuz atma; merkezi elmas, kasa bankalama |
+| DUEL | Quick Draw | `src/games/duel.js` | Refleks timer | `mountDuelController` | Sinyalde ilk dokunan; false-start cezası |
+| CROWN | Brutal Crown | `src/games/crown.js` | `src/ai/crownAI.js` | `mountCrownController` | Altın taç krallığı (15s tutan kazanır), omuz atarak taç düşürme, pinball tamponları |
 
 ---
 
@@ -120,15 +123,27 @@ Sistem iki relay kullanabilir:
    * Dokunmatik alanlar dikeyde `safe-area + 12vh` alt-orta kuşakta, yatayda sol/sağ alt köşelerdedir (Sol: yön, Sağ: aksiyon).
 5. **3 Haneli Sayısal Oda Kodu (100–999):**
    * Mobil klavyeden tek elle hızlıca girilebilmesi için 4 harfli kodlardan 3 haneli sayılara geçildi.
+6. **Çift Platform (Lokal & TV/Kumanda) Eşitliği:**
+   * Her motor sadece TV+telefon modunda değil, tek cihazda (`LOCAL`) da tam oynanabilir olmalıdır.
+   * LOBBY durumunda canvas üzerinde 4 köşe slot kartı (`uiButtons` -> `cycleSlotType`) ve merkez `▶ MAÇI BAŞLAT` (`startNewMatch`) bulunmalıdır.
+   * PC için 4 oyunculu klavye eşlemesi (WASD, Oklar, IJKL, TFGH) ve mobil için 4 köşe dokunmatik joystick tam desteklenmelidir.
 
 ---
 
 ## 6. Yeni Oyun Ekleme Adımları (Hızlı Rehber)
 
-Yeni bir oyun ekleneceğinde aşağıdaki 6 dosya güncellenir:
-1. `src/[oyun].js`: `BaseMiniGame`'den türetilmiş oyun motoru.
+Yeni bir oyun ekleneceğinde aşağıdaki dosyalar güncellenir:
+1. `src/games/[oyun].js`: `BaseMiniGame`'den türetilmiş oyun motoru:
+   * Motor sözleşmesi: `resetMatch()`, `startNewRound()`, `update()`, `render()`, `resize()`, `handleRemoteInput()`.
+   * Lokal Lobi: Canvas üzerinde 4 köşe slot kartı (`uiButtons` -> `cycleSlotType`) ve merkez `▶ MAÇI BAŞLAT` (`startNewMatch`).
+   * Lokal Kontroller: 4 slot klavye eşlemesi (WASD, Oklar, IJKL, TFGH) + 4 köşe dokunmatik joystick (`TouchManager`).
+   * Kontrol Rehberi: `renderControlGuide` çağrısı.
 2. `src/ai/[oyun]AI.js`: Bot karar mekanizması.
-3. `src/core/engineRegistry.js`: `GAME_ORDER` dizisine ekleme ve `registerEngine` kaydı.
-4. `src/gamepad.js`: `mount[Oyun]Controller` fonksiyonu ve `CONTROLLER_META` tablosuna satır ekleme.
-5. `index.html`: Bento menü kartı (`#btn-select-[mod]`), TV lobi çipi ve kumanda önizlemesi.
-6. `npm run build`: 0 hata doğrulaması.
+3. `src/core/engineRegistry.js`: `GAME_ORDER` dizisine ekleme.
+4. `src/core/slotManager.js`: `syncSlotsToEngine` ve `swapEngineSlots` içine mod desteği.
+5. `src/main.js`: `registerEngine` kaydı (tek satır).
+6. `src/gamepad.js`: `mount[Oyun]Controller` fonksiyonu ve `CONTROLLER_META` tablosuna satır ekleme.
+7. `index.html`: Bento menü kartı (`#btn-select-[mod]`), TV lobi çipi (`data-game="[MOD]"`).
+8. `src/style.css`: `.card-[mod]` üst kenarlık vurgu rengi.
+9. `public/assets/games/[oyun].jpg`: Madde 10 formülüyle 1:1 neo-brutalist izometrik görsel.
+10. `npm run build`: 0 hata doğrulaması.

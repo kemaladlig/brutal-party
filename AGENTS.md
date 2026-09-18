@@ -21,10 +21,16 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 
 ## 3. Engine Registry — tek kayıt noktası
 
-- `src/core/engineRegistry.js` → `GAME_ORDER = ['PONG','TANKS','CURVE','BOMB','HEIST','DUEL']`.
+- `src/core/engineRegistry.js` → `GAME_ORDER = ['PONG','TANKS','CURVE','BOMB','HEIST','DUEL','CROWN']`.
 - Yeni oyun = **1 satır** `registerEngine('MOD', { game, reset, onEnter/onResume, start, packet })`. `main.js`'e `else if (mode === ...)` zinciri **eklemek yasaktır**.
 - Entry sözleşmesi: `game` (BaseMiniGame türevi) · `reset()` · `onEnter/onResume(now)` (fizik sıçramasını önler) · `start()` (sayaç sonrası) · `packet()` (host state'e oyuna özel alanlar).
 - Motor sözleşmesi: `resetMatch/reset()`, `update(now)`, `render()`, `resize(w,h)`, `handleRemoteInput(slotIndex, data)`, `startNewMatch()`.
+- **Lokal (Tek Cihaz / PC & Masa-ortası) Sözleşmesi:**
+  - Her motor sadece TV+telefon modunda değil, tek cihazda (`LOCAL`) da tam oynanabilir olmalıdır.
+  - **LOBBY UI & Başlatma:** Motor LOBBY durumundayken canvas üzerinde `uiButtons` ile 4 köşe koltuk kartlarını (`cycleSlotType(i)`) ve merkezde `▶ MAÇI BAŞLAT` butonunu (`startNewMatch()`) çizmelidir. `onTouchStart` içinde `uiButtons` tap dispatch zorunludur.
+  - **Klavye Desteği:** PC testleri ve yerel klavye oyunu için 4 slot klavye eşlemesi: P1 (`WASD` + `Space`), P2 (`Ok Tuşları` + `Enter`), P3 (`IJKL` + `O`), P4 (`TFGH` + `B`).
+  - **Masa-ortası Dokunmatik:** Tablet/telefon masa-ortası modu için 4 köşe dinamik yüzen sanal joystick ve aksiyon butonları.
+  - **Kontrol Kılavuzu:** `renderControlGuide(ctx, arena, ...)` çağrısı.
 - **LOBBY tap kuralı:** Motor sahasındaki koltuk dokunuşu önce `this.onLobbySeatTap(index)` hook'una sorar (host bot ekle/çıkar için kullanır). Hook yoksa ve `isHosting` ise `cycleSlotType` çalışır; host değilse hiçbir şey yapılmaz. Motor içine ağ/relay kodu yazılmaz.
 
 ## 4. Slot Modeli — tek koltuk gerçeği
@@ -68,10 +74,15 @@ Modal açıkken canvas tap'leri motora düşmez; staging'de düşer (bot ekleme/
 Motor sözleşmesi (madde 3) +:
 
 - [ ] `src/games/[oyun].js` (varlık alanları farklıysa `syncSlotsToEngine` içine dal ekle)
-- [ ] `GAME_ORDER` + 1 satır `registerEngine`
+  - [ ] **Lokal Lobi:** Canvas üzerinde 4 köşe slot kartı (`uiButtons` -> `cycleSlotType`) ve merkez `▶ MAÇI BAŞLAT` (`startNewMatch`)
+  - [ ] **Lokal Kontroller:** 4 slot klavye eşlemesi (WASD, Oklar, IJKL, TFGH) + dokunmatik 360° yüzen joystick
+  - [ ] **Kontrol Rehberi:** `renderControlGuide` çağrısı
+- [ ] `src/ai/[oyun]AI.js` (bot karar motoru)
+- [ ] `GAME_ORDER` + 1 satır `registerEngine` (`src/core/engineRegistry.js` & `src/main.js`)
 - [ ] `gamepad.js` → `mount[Oyun]Controller` + `CONTROLLER_META` satırı
 - [ ] `index.html` → bento kartı (`id="btn-select-[mod]"`, küçük harf) + TV lobi çipi + kumanda önizlemesi
 - [ ] Madde 10'daki formülle `public/assets/games/[oyun].jpg` (1:1, optimize)
+- [ ] `docs/PROJECT_MAP.md` motor tablosu ve dosya listesi güncellemesi
 - [ ] `npm run build` temiz + kalıntı taraması (`else if (mode ===` dönmemeli)
 
 ## 10. Oyun Görseli Üretim Formülü

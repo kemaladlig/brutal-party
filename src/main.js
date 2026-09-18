@@ -5,6 +5,7 @@ import { CurveGame } from './games/curve.js';
 import { BombGame } from './games/bomb.js';
 import { HeistGame } from './games/heist.js';
 import { DuelGame } from './games/duel.js';
+import { CrownGame } from './games/crown.js';
 import { TouchManager } from './touchManager.js';
 import {
   GAME_ORDER,
@@ -81,6 +82,7 @@ const curveGame = new CurveGame(canvas);
 const bombGame = new BombGame(canvas);
 const heistGame = new HeistGame(canvas);
 const duelGame = new DuelGame(canvas);
+const crownGame = new CrownGame(canvas);
 
 function touchStamp(game, now) {
   game.lastTime = now;
@@ -147,6 +149,18 @@ registerEngine('DUEL', {
   onResume: (now) => touchStamp(duelGame, now),
   start: () => duelGame.startNewMatch(),
   packet: () => ({ scores: duelGame.scores, duelState: duelGame.state, winner: duelGame.roundWinner }),
+});
+registerEngine('CROWN', {
+  game: crownGame,
+  reset: () => crownGame.resetMatch(),
+  onEnter: (now) => touchStamp(crownGame, now),
+  onResume: (now) => touchStamp(crownGame, now),
+  start: () => crownGame.startNewRound(),
+  packet: () => ({
+    scores: crownGame.scores,
+    king: crownGame.crown.carrierIndex,
+    crownTimes: crownGame.players.map((p) => p.crownHoldTime),
+  }),
 });
 
 export function getActiveGameEngine() {
