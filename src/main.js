@@ -687,21 +687,26 @@ if (isPublicOrigin() && !HAS_SUPABASE_CONFIG) {
   showInstallToast('⚠️ ONLINE çalışmaz: Vercel Environment Variables eksik.');
 }
 
-// Throttled Host State Broadcaster (~16Hz)
+// Throttled Host State Broadcaster: 8Hz taban + değişiklikte anında gönderim.
+// Kirlenme kontrolü güvenli — pakette timestamp/random yok (PING ayrı yolda).
+// Skor/taşıyıcı/sinyal gibi kritik değişimler throttle beklemez (refleks korunur),
+// sakin anlarda tekrar yayın yapılmaz (kota korunur).
 let lastBroadcastTime = 0;
+let lastBroadcastJson = '';
 function broadcastGameStateIfNeeded(now) {
   if (!activeNet().isHosting || currentMode === 'MENU') return;
-  if (now - lastBroadcastTime < 60) return;
-  lastBroadcastTime = now;
 
   let packet = { gameMode: currentMode };
   const entry = getEngine(currentMode);
   if (entry) Object.assign(packet, entry.packet());
-  // Kumandalardaki isimli skor şeridi için: koltuk sırasına göre isimler
-  // (boş koltuk null → şeritte soluk "BOŞ"). Renkler koltuğa sabit olduğundan
-  // pakete renk eklenmez; kumanda SEAT_COLORS ile çizer.
   packet.names = hostPlayerSlots.map((p) => (p ? p.name : null));
 
+  const json = JSON.stringify(packet);
+  const intervalElapsed = now - lastBroadcastTime >= 125;
+  if (json === lastBroadcastJson && !intervalElapsed) return;
+
+  lastBroadcastTime = now;
+  lastBroadcastJson = json;
   activeNet().broadcastHostState(packet);
 }
 

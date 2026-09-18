@@ -570,7 +570,25 @@ export class SupabaseRelay {
       data.dir === 0;
 
     const now = performance.now();
-    if (!isDiscrete && now - (this._lastInputSent || 0) < 30) return;
+    if (!isDiscrete) {
+      // 50ms throttle (20Hz paddle/joystick göz için akıcıdır) + ölübant:
+      // parmak kımıldamadıysa tekrar gönderme (kota dostu, his kaybı yok).
+      if (now - (this._lastInputSent || 0) < 50) return;
+      if (data.action === 'PADDLE_MOVE' && typeof data.position === 'number') {
+        if (Math.abs(data.position - (this._lastPaddlePos ?? -1)) < 0.003) return;
+        this._lastPaddlePos = data.position;
+      } else if (data.action === 'JOYSTICK_MOVE') {
+        const dx = data.dx || 0;
+        const dy = data.dy || 0;
+        const ldx = this._lastJoy?.dx || 0;
+        const ldy = this._lastJoy?.dy || 0;
+        if (Math.hypot(dx - ldx, dy - ldy) < 0.02) return;
+        this._lastJoy = { dx, dy };
+      } else if (data.action === 'CURVE_STEER') {
+        if (data.dir === this._lastCurveDir) return;
+        this._lastCurveDir = data.dir;
+      }
+    }
     this._lastInputSent = now;
     this._broadcast('player_msg', {
       action: 'INPUT',
@@ -612,6 +630,7 @@ export class SupabaseRelay {
 
   _startPingHeartbeat() {
     this._stopPingHeartbeat();
+    // Kota dostu ping: lobideki ms göstergesinin 5sn'de tazelenmesine gerek yok.
     this.pingInterval = setInterval(() => {
       if (this.role === 'HOST') {
         this._broadcast('host_msg', {
@@ -619,7 +638,7 @@ export class SupabaseRelay {
           timestamp: performance.now(),
         });
       }
-    }, 5000);
+    }, 15000);
   }
 
   _stopPingHeartbeat() {
@@ -629,14 +648,15 @@ export class SupabaseRelay {
     }
   }
 
-  // Controller tarafı: host'tan 15sn'dir hiç mesaj gelmediyse
-  // (PING_REQ 5sn'de bir gelir) host ölmüş demektir — lobiye düşür.
+  // Controller tarafı: host'tan 30sn'dir hiç mesaj gelmediyse host ölmüş
+  // demektir — lobiye düşür. Eşik, PING_REQ aralığının (15sn) 2 katıdır;
+  // oyunda STATE_SYNC zaten çok daha sık gelir.
   _startHostWatchdog() {
     this._stopHostWatchdog();
     this._hostWatchdog = setInterval(() => {
       if (this.role !== 'CONTROLLER') return;
       if (this.playerIndex === null || this.playerIndex === undefined) return;
-      if (performance.now() - this._lastHostMsgAt < 15000) return;
+      if (performance.now() - this._lastHostMsgAt < 30000) return;
       this._stopHostWatchdog();
       if (this.callbacks.onHostDisconnected) {
         this.callbacks.onHostDisconnected('📡 HOST BAĞLANTISI KOPTU — lobiye dönüp tekrar katılın.');
