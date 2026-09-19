@@ -27,6 +27,7 @@ import {
 } from './net.js';
 
 import { initToastAndInstall, showInstallToast } from './ui/toast.js';
+import { UI_COLORS, uiFont } from './ui/tokens.js';
 import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, isBotEkleEnabled } from './core/slotManager.js';
 import {
   initPauseModal,
@@ -877,6 +878,34 @@ function broadcastGameStateIfNeeded(now) {
   activeNet().broadcastHostState(packet);
 }
 
+// Duraklatma göstergesi: donmuş karenin üstünde canvas-içi rozet
+// (DOM modal zaten açık; TV'de "oyun mu bozuldu" belirsizliğini giderir).
+function renderPauseOverlay(ctx) {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const pillW = 260;
+  const pillH = 56;
+  const pillX = w / 2 - pillW / 2;
+  const pillY = h / 2 - pillH / 2;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(26, 26, 26, 0.45)';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = UI_COLORS.ink;
+  ctx.fillRect(pillX + 4, pillY + 4, pillW, pillH);
+  ctx.fillStyle = UI_COLORS.ink;
+  ctx.fillRect(pillX, pillY, pillW, pillH);
+  ctx.strokeStyle = UI_COLORS.paperWarm;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(pillX, pillY, pillW, pillH);
+  ctx.fillStyle = UI_COLORS.white;
+  ctx.font = uiFont('button');
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('⏸ DURAKLATILDI', w / 2, pillY + pillH / 2);
+  ctx.restore();
+}
+
 // Master Animation Loop (requestAnimationFrame)
 function loop(timestamp) {
   broadcastGameStateIfNeeded(timestamp);
@@ -887,6 +916,7 @@ function loop(timestamp) {
   if (loopEntry) {
     if (!isPaused) loopEntry.game.update(timestamp);
     loopEntry.game.render();
+    if (isPaused) renderPauseOverlay(canvas.getContext('2d'));
   } else if (currentMode === 'MENU') {
     const ctx = canvas.getContext('2d');
     ctx.save();

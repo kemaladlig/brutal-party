@@ -16,7 +16,8 @@ import {
   playItemPickup,
   playTeleport,
 } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { renderTopPill, renderCornerScores } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCrownBotAI } from '../ai/crownAI.js';
 
@@ -777,7 +778,7 @@ export class CrownGame extends BaseMiniGame {
           this.addFloatingText(cx, cy, `👑 ${king.name} RAUNDU KAZANDI!`, king.color);
 
           if (this.scores[king.index] >= this.targetScore) {
-            this.state = 'GAME_OVER';
+            this.state = 'MATCH_OVER';
             this.matchWinner = king;
             return;
           } else {
@@ -1300,29 +1301,12 @@ export class CrownGame extends BaseMiniGame {
 
     // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları
     if (this.state === 'PLAYING') {
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const scoreSize = Math.max(32, Math.min(52, Math.floor(Math.min(aW, aH) * 0.08)));
-
-      const cornerOffsets = [
-        { x: left + aW * 0.11, y: bottom - aH * 0.11 },
-        { x: left + aW * 0.11, y: top + aH * 0.11 },
-        { x: right - aW * 0.11, y: top + aH * 0.11 },
-        { x: right - aW * 0.11, y: bottom - aH * 0.11 },
-      ];
-      this.players.forEach((p, i) => {
-        if (!p.isJoined) return;
-        const pos = cornerOffsets[i];
-        ctx.save();
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = 0.85;
-        ctx.font = `900 ${scoreSize}px "Space Grotesk", sans-serif`;
-        ctx.fillText(`${this.scores[i] || 0}★`, pos.x, pos.y);
-        ctx.restore();
+      renderCornerScores(ctx, {
+        arena: this.arena,
+        entries: this.players.map((p, i) =>
+          p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}★` } : null
+        ),
       });
-
-      ctx.restore();
     }
 
     // Subtle Arena Grid
@@ -1433,11 +1417,17 @@ export class CrownGame extends BaseMiniGame {
 
     // 14. Render Lobby Overlay if LOBBY
     if (this.state === 'LOBBY') {
+      renderControlGuide(ctx, this.arena, 'TACI KAP • 15 SN TUT • 2 RAUND ALAN KAZANIR', [
+        'P1 KIRMIZI',
+        'P2 MAVİ',
+        'P3 SARI',
+        'P4 YEŞİL',
+      ]);
       this.renderLobby(ctx);
     }
 
     // 15. Render Round / Match Over Overlay
-    if (this.state === 'ROUND_OVER' || this.state === 'GAME_OVER') {
+    if (this.state === 'ROUND_OVER' || this.state === 'MATCH_OVER') {
       this.renderGameOver(ctx);
     }
 
@@ -1928,45 +1918,16 @@ export class CrownGame extends BaseMiniGame {
   renderHUD(ctx) {
     if (this.state === 'PLAYING') {
       const king = this.crown.carrierIndex !== null ? this.players[this.crown.carrierIndex] : null;
-      const { cx, top } = this.arena;
-      const pillW = king ? 112 : 126;
-      const pillH = 34;
-      const pillX = cx - pillW / 2;
-      const pillY = top + 12;
-
-      ctx.save();
-      // Solid Shadow
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(pillX + 3, pillY + 3, pillW, pillH);
-
       if (king && king.isAlive) {
         const remain = Math.max(0, this.targetCrownTime - king.crownHoldTime);
-        const urgent = remain <= 4.0;
-        ctx.fillStyle = urgent ? '#D84727' : '#1C1C1A';
-        ctx.fillRect(pillX, pillY, pillW, pillH);
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 2.5;
-        ctx.strokeRect(pillX, pillY, pillW, pillH);
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '900 17px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`👑 ${remain.toFixed(1)}s`, cx, pillY + pillH / 2);
+        renderTopPill(ctx, {
+          arena: this.arena,
+          text: `👑 ${remain.toFixed(1)}s`,
+          urgent: remain <= 4.0,
+        });
       } else {
-        ctx.fillStyle = '#1C1C1A';
-        ctx.fillRect(pillX, pillY, pillW, pillH);
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 2.5;
-        ctx.strokeRect(pillX, pillY, pillW, pillH);
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '900 15px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('👑 TACI KAP', cx, pillY + pillH / 2);
+        renderTopPill(ctx, { arena: this.arena, text: '👑 TACI KAP' });
       }
-      ctx.restore();
     }
   }
 
@@ -2013,105 +1974,54 @@ export class CrownGame extends BaseMiniGame {
       onClick: () => this.cycleMap(),
     });
 
-    const cardW = Math.min(160, width * 0.38);
-    const cardH = 54;
-    const positions = [
-      { x: left + 20, y: bottom - cardH - 20 },
-      { x: left + 20, y: top + 20 },
-      { x: right - cardW - 20, y: top + 20 },
-      { x: right - cardW - 20, y: bottom - cardH - 20 },
-    ];
+    // Standart kare koltuklar (4 köşe, tüm oyunlarla aynı ölçü)
+    const positions = getStandardSeatRects(this.arena);
 
     for (let i = 0; i < 4; i++) {
       const pos = positions[i];
       const type = this.slotTypes[i];
       const p = this.players[i];
+      const custom = p && p.name && p.name !== CROWN_NAMES[i] ? p.name : '';
 
-      const numLabel = `${i + 1}`;
-      const custom = p && p.name && p.name !== CROWN_NAMES[i] ? p.name.slice(0, 10) : '';
-      const subLabel = type === 'empty' ? '' : (type === 'human' ? custom : '🤖');
-      const isBot = type === 'bot_normal' || type === 'bot_god';
-      const isJoinedSeat = type === 'human';
-      const numColor = type === 'empty' ? '#1C1C1A' : (isBot ? '#75726B' : CROWN_COLORS[i]);
-      const frameColor = isJoinedSeat ? CROWN_COLORS[i] : (isBot ? '#3A3A38' : '#1A1A1A');
-
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(pos.x + 3, pos.y + 3, cardW, cardH);
-
-      ctx.fillStyle = '#FAF7F2';
-      ctx.fillRect(pos.x, pos.y, cardW, cardH);
-      if (isJoinedSeat) {
-        ctx.globalAlpha = 0.16;
-        ctx.fillStyle = CROWN_COLORS[i];
-        ctx.fillRect(pos.x, pos.y, cardW, cardH);
-        ctx.globalAlpha = 1;
-      }
-      ctx.strokeStyle = frameColor;
-      ctx.lineWidth = isJoinedSeat ? 3.5 : 2.5;
-      ctx.strokeRect(pos.x, pos.y, cardW, cardH);
-
-      ctx.fillStyle = numColor;
-      ctx.font = '900 28px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(numLabel, pos.x + cardW / 2, pos.y + (subLabel ? 18 : cardH / 2));
-      if (subLabel) {
-        ctx.fillStyle = isJoinedSeat ? '#1C1C1A' : '#75726B';
-        ctx.font = '800 11px "Space Grotesk", sans-serif';
-        ctx.fillText(subLabel, pos.x + cardW / 2, pos.y + 39);
-      }
+      renderLobbySeatCard(ctx, {
+        x: pos.x,
+        y: pos.y,
+        w: pos.w,
+        h: pos.h,
+        slotIndex: i,
+        slotType: type,
+        playerName: custom,
+        playerColor: CROWN_COLORS[i],
+        rotation: 0,
+      });
 
       this.uiButtons.push({
         x: pos.x,
         y: pos.y,
-        w: cardW,
-        h: cardH,
+        w: pos.w,
+        h: pos.h,
         onClick: () => this.cycleSlotType(i),
       });
     }
 
-    const joined = this.players.filter((p) => p.isJoined);
-    const joinedCount = joined.length;
-    const btnW = Math.min(220, width * 0.45);
-    const btnH = 60;
-    const btnX = cx - btnW / 2;
-    const btnY = cy + 16;
-
-    ctx.save();
-    // Solid Shadow
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(btnX + 5, btnY + 5, btnW, btnH);
-
-    // Button Face
-    ctx.fillStyle = joinedCount >= 2 ? '#D84727' : '#E5E0D6';
-    ctx.fillRect(btnX, btnY, btnW, btnH);
-
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(btnX, btnY, btnW, btnH);
-
-    ctx.fillStyle = joinedCount >= 2 ? '#FFFFFF' : '#75726B';
-    ctx.font = joinedCount >= 2 ? '900 20px "Space Grotesk", sans-serif' : '800 13px "Space Grotesk", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(joinedCount >= 2 ? '▶ MAÇI BAŞLAT' : '2 KİŞİ GEREKİYOR', cx, btnY + btnH / 2);
-    ctx.restore();
-
-    if (joinedCount >= 2) {
-      this.uiButtons.push({
-        x: btnX,
-        y: btnY,
-        w: btnW,
-        h: btnH,
-        onClick: () => this.startNewMatch(),
-      });
-    }
+    // Standart başlat butonu (harita butonunun altında)
+    const joinedCount = this.players.filter((p) => p.isJoined).length;
+    renderLobbyStartButton(ctx, {
+      arena: this.arena,
+      uiButtons: this.uiButtons,
+      joinedCount,
+      accent: '#D84727',
+      onStart: () => this.startNewMatch(),
+      centerYOffset: 46,
+    });
 
     ctx.restore();
   }
 
   renderGameOver(ctx) {
     const { cx, cy, width } = this.arena;
+    // Lobi butonları finalde ölü olmalı: önce temizle.
+    this.uiButtons = [];
     ctx.save();
     const boxW = Math.min(width * 0.8, 440);
     ctx.fillStyle = 'rgba(250, 247, 242, 0.94)';
@@ -2120,21 +2030,47 @@ export class CrownGame extends BaseMiniGame {
     ctx.lineWidth = 3.5;
     ctx.strokeRect(cx - boxW / 2, cy - 80, boxW, 160);
 
-    const isMatch = this.state === 'GAME_OVER';
+    const isMatch = this.state === 'MATCH_OVER';
     const winner = isMatch ? this.matchWinner : this.roundWinner;
 
     ctx.fillStyle = '#1A1A1A';
     ctx.font = '900 28px "Space Grotesk", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(isMatch ? '🏆 TAÇ ŞAMPİYONU!' : '👑 RAUND KAZANILDI!', cx, cy - 24);
+    ctx.fillText(isMatch ? '🏆 TAÇ ŞAMPİYONU!' : '👑 RAUND KAZANILDI!', cx, cy - 24, boxW - 20);
 
     if (winner) {
       ctx.fillStyle = winner.color;
       ctx.font = '800 20px "JetBrains Mono", monospace';
-      ctx.fillText(`${winner.name} KAZANDI!`, cx, cy + 18);
+      ctx.fillText(`${winner.name} KAZANDI!`, cx, cy + 18, boxW - 20);
     }
     ctx.restore();
+
+    // Maç sonu (raund değil): yeni maç butonu. Raund sonu sayaçla ilerler.
+    if (isMatch) {
+      const btnW = 190;
+      const btnH = 46;
+      const btnX = cx - btnW / 2;
+      const btnY = cy + 80 + 14;
+
+      ctx.save();
+      ctx.fillStyle = '#1A1A1A';
+      ctx.fillRect(btnX, btnY, btnW, btnH);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '800 16px "Space Grotesk", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('YENİDEN OYNA', cx, btnY + btnH / 2);
+      ctx.restore();
+
+      this.uiButtons.push({
+        x: btnX,
+        y: btnY,
+        w: btnW,
+        h: btnH,
+        onClick: () => this.startNewMatch(),
+      });
+    }
   }
 
   getCornerQuadrant(point) {

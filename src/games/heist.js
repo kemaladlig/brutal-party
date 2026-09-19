@@ -11,7 +11,9 @@ import {
   playHeavyImpact,
   playPiggyBreak,
 } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { renderTopPill, renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateHeistBotAI } from '../ai/heistAI.js';
@@ -620,7 +622,7 @@ export class HeistGame extends BaseMiniGame {
         this.roundWinner = winner;
         this.scores[winner.index]++;
         if (this.scores[winner.index] >= this.targetScore) {
-          this.state = 'GAME_OVER';
+          this.state = 'MATCH_OVER';
           this.matchWinner = winner;
           return;
         }
@@ -1036,19 +1038,21 @@ export class HeistGame extends BaseMiniGame {
 
     // Gold Rush border vignette
     if (this.state === 'PLAYING' && this.goldRushActive) {
-      const pulseAlpha = 0.18 + Math.sin(performance.now() * 0.012) * 0.1;
+      const pulseAlpha = pulse(0.18, 0.1, 0.012);
       ctx.fillStyle = `rgba(217, 155, 38, ${pulseAlpha})`;
+      // Arena kenar şeritleri (CSS pikseli; canvas.width device-px olur, kullanılmaz)
+      const { left, top, width, height, right, bottom } = this.arena;
       const edge = 16;
-      ctx.fillRect(0, 0, canvas.width, edge);
-      ctx.fillRect(0, canvas.height - edge, canvas.width, edge);
-      ctx.fillRect(0, 0, edge, canvas.height);
-      ctx.fillRect(canvas.width - edge, 0, edge, canvas.height);
+      ctx.fillRect(left, top - edge, width, edge);
+      ctx.fillRect(left, bottom, width, edge);
+      ctx.fillRect(left - edge, top - edge, edge, height + edge * 2);
+      ctx.fillRect(right, top - edge, edge, height + edge * 2);
     }
 
     // UI Overlays
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'JOYSTICK SÜRÜKLE • DOKUN: OMUZ AT', [
+      renderControlGuide(ctx, this.arena, 'JOYSTICK: KOŞ • DOKUN: OMUZ AT • 2 RAUND ALAN KAZANIR', [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -1057,7 +1061,7 @@ export class HeistGame extends BaseMiniGame {
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
       this.renderRoundOverUI(ctx);
-    } else if (this.state === 'GAME_OVER') {
+    } else if (this.state === 'MATCH_OVER') {
       this.renderGameOverUI(ctx);
     }
 
@@ -1067,33 +1071,19 @@ export class HeistGame extends BaseMiniGame {
   renderTopHUD(ctx) {
     if (this.state !== 'PLAYING') return;
     const remain = Math.max(0, this.roundTimer);
-    const urgent = remain <= 10.0;
-    const { cx, top } = this.arena;
-    const pillW = 104;
-    const pillH = 34;
-    const pillX = cx - pillW / 2;
-    const pillY = top + 12;
+    renderTopPill(ctx, {
+      arena: this.arena,
+      text: `⏱ ${Math.ceil(remain)}s`,
+      urgent: remain <= 10.0,
+    });
 
-    ctx.save();
-    // Solid Shadow
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(pillX + 3, pillY + 3, pillW, pillH);
-
-    // Pill Face
-    ctx.fillStyle = urgent ? '#D84727' : '#1C1C1A';
-    ctx.fillRect(pillX, pillY, pillW, pillH);
-
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5;
-    ctx.strokeRect(pillX, pillY, pillW, pillH);
-
-    // Text
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '900 17px "JetBrains Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`⏱ ${Math.ceil(remain)}s`, cx, pillY + pillH / 2);
-    ctx.restore();
+    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları
+    renderCornerScores(ctx, {
+      arena: this.arena,
+      entries: this.players.map((p) =>
+        p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}★` } : null
+      ),
+    });
   }
 
   renderArena(ctx) {
@@ -1158,7 +1148,7 @@ export class HeistGame extends BaseMiniGame {
         ctx.rotate(Math.PI);
       }
 
-      // Vault Badge
+      // Vault Badge: sadece isim (genel ★ skoru köşe skorlarında okunur)
       const badgeW = v.w - 8;
       const badgeH = 28;
       ctx.fillStyle = '#1C1C1A';
@@ -1167,17 +1157,7 @@ export class HeistGame extends BaseMiniGame {
       ctx.font = '900 14px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`${p.name} · ${this.scores[p.index] || 0}★`, 0, -v.h / 2 + 18);
-
-      // Kasa zemininde devasa biriken altın sayısı (Yüksek görünürlük)
-      ctx.save();
-      ctx.globalAlpha = 0.55;
-      ctx.font = '900 52px "Space Grotesk", sans-serif';
-      ctx.fillStyle = '#D99B26';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`${p.vaultGold}`, 0, 6);
-      ctx.restore();
+      ctx.fillText(`${p.name}`, 0, -v.h / 2 + 18);
 
       // Biriken altın yığını: piramit dizili, ışıklı külçeler (yer varsa)
       if (v.h >= 80) {
@@ -1710,15 +1690,8 @@ export class HeistGame extends BaseMiniGame {
   renderLobbyUI(ctx) {
     const { arena } = this;
 
-    const btnW = Math.min(160, arena.size * 0.38);
-    const btnH = 56;
-
-    const corners = [
-      { x: arena.left + 20, y: arena.bottom - btnH - 20 },
-      { x: arena.left + 20, y: arena.top + 20 },
-      { x: arena.right - btnW - 20, y: arena.top + 20 },
-      { x: arena.right - btnW - 20, y: arena.bottom - btnH - 20 },
-    ];
+    // Standart kare koltuklar (4 köşe, tüm oyunlarla aynı ölçü)
+    const corners = getStandardSeatRects(arena);
 
     for (let i = 0; i < 4; i++) {
       const pos = corners[i];
@@ -1728,8 +1701,8 @@ export class HeistGame extends BaseMiniGame {
       renderLobbySeatCard(ctx, {
         x: pos.x,
         y: pos.y,
-        w: btnW,
-        h: btnH,
+        w: pos.w,
+        h: pos.h,
         slotIndex: i,
         slotType: slotType,
         playerName: p ? (p.name || '') : '',
@@ -1740,138 +1713,46 @@ export class HeistGame extends BaseMiniGame {
       this.uiButtons.push({
         x: pos.x,
         y: pos.y,
-        w: btnW,
-        h: btnH,
+        w: pos.w,
+        h: pos.h,
         onClick: () => this.cycleSlotType(i),
       });
     }
 
-    // Center Start Button
-    const joined = this.players.filter((p) => p.isJoined);
-    const joinedCount = joined.length;
-    const startW = Math.min(220, arena.size * 0.5);
-    const startH = 60;
-    const startX = arena.cx - startW / 2;
-    const startY = arena.cy - startH / 2;
-
-    ctx.save();
-    // Solid Shadow
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(startX + 5, startY + 5, startW, startH);
-
-    // Button Face
-    ctx.fillStyle = joinedCount >= 2 ? '#D84727' : '#E5E0D6';
-    ctx.fillRect(startX, startY, startW, startH);
-
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(startX, startY, startW, startH);
-
-    ctx.fillStyle = joinedCount >= 2 ? '#FFFFFF' : '#75726B';
-    ctx.font = joinedCount >= 2 ? '900 20px "Space Grotesk", sans-serif' : '800 13px "Space Grotesk", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(joinedCount >= 2 ? '▶ MAÇI BAŞLAT' : '2 KİŞİ GEREKİYOR', arena.cx, arena.cy);
-    ctx.restore();
-
-    if (joinedCount >= 2) {
-      this.uiButtons.push({
-        x: startX,
-        y: startY,
-        w: startW,
-        h: startH,
-        onClick: () => this.startNewMatch(),
-      });
-    }
+    // Center Start Button (standart)
+    const joinedCount = this.players.filter((p) => p.isJoined).length;
+    renderLobbyStartButton(ctx, {
+      arena,
+      uiButtons: this.uiButtons,
+      joinedCount,
+      accent: '#D84727',
+      onStart: () => this.startNewMatch(),
+    });
   }
 
   renderRoundOverUI(ctx) {
     if (!this.roundWinner) return;
-    const { arena } = this;
-    const bW = Math.min(320, arena.size * 0.85);
-    const bH = 86;
-    const bX = arena.cx - bW / 2;
-    const bY = arena.cy - bH / 2;
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.fillRect(bX + 6, bY + 6, bW, bH);
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(bX, bY, bW, bH);
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(bX, bY, bW, bH);
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = this.roundWinner.color;
-    ctx.font = '900 20px "Space Grotesk", sans-serif';
-    ctx.fillText(`+1 SET: ${this.roundWinner.name}! (${this.roundWinner.vaultGold} 💰)`, arena.cx, arena.cy - 14);
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.font = '800 12px "JetBrains Mono", monospace';
-    ctx.fillText(
-      `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}`,
-      arena.cx,
-      arena.cy + 16
-    );
+    renderRoundBanner(ctx, {
+      arena: this.arena,
+      title: `+1 SET: ${this.roundWinner.name}! (${this.roundWinner.vaultGold} 💰)`,
+      titleColor: this.roundWinner.color,
+      sub: `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}`,
+    });
   }
 
   renderGameOverUI(ctx) {
-    const { arena } = this;
-    const boxW = Math.min(320, arena.size * 0.85);
-    const boxH = 220;
-    const boxX = arena.cx - boxW / 2;
-    const boxY = arena.cy - boxH / 2;
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.fillRect(boxX + 8, boxY + 8, boxW, boxH);
-
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(boxX, boxY, boxW, boxH);
-
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(boxX, boxY, boxW, boxH);
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.font = '800 14px "Space Grotesk", sans-serif';
-    ctx.fillText('HAZİNE ŞAMPİYONU! 🏆', arena.cx, boxY + 34);
-
-    if (this.matchWinner) {
-      ctx.fillStyle = this.matchWinner.color;
-      ctx.font = '900 24px "Space Grotesk", sans-serif';
-      ctx.fillText(`${this.matchWinner.name} KAZANDI!`, arena.cx, boxY + 68, boxW - 20);
-
-      ctx.font = '800 12px "JetBrains Mono", monospace';
-      this.players.filter((p) => p.isJoined).forEach((p, row) => {
-        ctx.fillStyle = p.color;
-        ctx.fillText(`${p.name}: ${this.scores[p.index]}★`, arena.cx, boxY + 96 + row * 18);
-      });
-    }
-
-    const btnW = 190;
-    const btnH = 46;
-    const btnX = arena.cx - btnW / 2;
-    const btnY = boxY + 154;
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.fillRect(btnX, btnY, btnW, btnH);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '800 16px "Space Grotesk", sans-serif';
-    ctx.fillText('YENİDEN OYNA', arena.cx, btnY + btnH / 2);
-
-    this.uiButtons.push({
-      x: btnX,
-      y: btnY,
-      w: btnW,
-      h: btnH,
-      onClick: () => {
-        this.resetCurrentGame();
-      },
+    renderMatchOver(ctx, {
+      arena: this.arena,
+      uiButtons: this.uiButtons,
+      headline: 'HAZİNE ŞAMPİYONU! 🏆',
+      winnerName: this.matchWinner ? this.matchWinner.name : '',
+      winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
+      rows: this.matchWinner
+        ? this.players
+            .filter((p) => p.isJoined)
+            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` }))
+        : [],
+      onRestart: () => this.resetCurrentGame(),
     });
   }
 }

@@ -13,7 +13,9 @@ import {
   playPanicHeartbeat,
   playStumble,
 } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { renderTopPill, renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
@@ -464,7 +466,7 @@ export class BombGame extends BaseMiniGame {
         this.scores[survivor.index]++;
 
         if (this.scores[survivor.index] >= this.targetScore) {
-          this.state = 'GAME_OVER';
+          this.state = 'MATCH_OVER';
           this.matchWinner = survivor;
           return;
         }
@@ -1027,20 +1029,21 @@ export class BombGame extends BaseMiniGame {
 
     // Panic Phase Red Border Vignette (Last 4 Seconds)
     if (this.state === 'PLAYING' && this.bombTimer <= 4.0) {
-      const pulseAlpha = 0.18 + Math.sin(performance.now() * 0.015) * 0.12;
+      const pulseAlpha = pulse(0.18, 0.12, 0.015);
       ctx.fillStyle = `rgba(216, 71, 39, ${pulseAlpha})`;
-      // Top, bottom, left, right edge hazard stripes
+      // Arena kenar şeritleri (CSS pikseli; canvas.width device-px olur, kullanılmaz)
+      const { left, top, width, height, right, bottom } = this.arena;
       const edge = 16;
-      ctx.fillRect(0, 0, canvas.width, edge);
-      ctx.fillRect(0, canvas.height - edge, canvas.width, edge);
-      ctx.fillRect(0, 0, edge, canvas.height);
-      ctx.fillRect(canvas.width - edge, 0, edge, canvas.height);
+      ctx.fillRect(left, top - edge, width, edge);
+      ctx.fillRect(left, bottom, width, edge);
+      ctx.fillRect(left - edge, top - edge, edge, height + edge * 2);
+      ctx.fillRect(right, top - edge, edge, height + edge * 2);
     }
 
     // Render UI Overlays
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'JOYSTICK SÜRÜKLE • DOKUN: DEPAR AT', [
+      renderControlGuide(ctx, this.arena, 'JOYSTICK: KAÇ • DOKUN: DEPAR • 3 SET ALAN KAZANIR', [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -1049,7 +1052,7 @@ export class BombGame extends BaseMiniGame {
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
       this.renderRoundOverUI(ctx);
-    } else if (this.state === 'GAME_OVER') {
+    } else if (this.state === 'MATCH_OVER') {
       this.renderGameOverUI(ctx);
     }
 
@@ -1065,29 +1068,12 @@ export class BombGame extends BaseMiniGame {
 
     // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları
     if (this.state === 'PLAYING') {
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const scoreSize = Math.max(32, Math.min(52, Math.floor(Math.min(width, height) * 0.08)));
-
-      const cornerOffsets = [
-        { x: left + width * 0.11, y: bottom - height * 0.11 },
-        { x: left + width * 0.11, y: top + height * 0.11 },
-        { x: right - width * 0.11, y: top + height * 0.11 },
-        { x: right - width * 0.11, y: bottom - height * 0.11 },
-      ];
-      this.players.forEach((p, i) => {
-        if (!p.isJoined) return;
-        const pos = cornerOffsets[i];
-        ctx.save();
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = 0.85;
-        ctx.font = `900 ${scoreSize}px "Space Grotesk", sans-serif`;
-        ctx.fillText(`${this.scores[i] || 0}★`, pos.x, pos.y);
-        ctx.restore();
+      renderCornerScores(ctx, {
+        arena: this.arena,
+        entries: this.players.map((p, i) =>
+          p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}★` } : null
+        ),
       });
-
-      ctx.restore();
     }
 
     // Arena Grid
@@ -1182,33 +1168,11 @@ export class BombGame extends BaseMiniGame {
   renderTopHUD(ctx) {
     if (this.state !== 'PLAYING') return;
     const remain = Math.max(0, this.bombTimer);
-    const urgent = remain <= 4.0;
-    const { cx, top } = this.arena;
-    const pillW = 112;
-    const pillH = 34;
-    const pillX = cx - pillW / 2;
-    const pillY = top + 12;
-
-    ctx.save();
-    // Solid Shadow
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(pillX + 3, pillY + 3, pillW, pillH);
-
-    // Pill Face
-    ctx.fillStyle = urgent ? '#D84727' : '#1C1C1A';
-    ctx.fillRect(pillX, pillY, pillW, pillH);
-
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5;
-    ctx.strokeRect(pillX, pillY, pillW, pillH);
-
-    // Text
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '900 17px "JetBrains Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`💣 ${remain.toFixed(1)}s`, cx, pillY + pillH / 2);
-    ctx.restore();
+    renderTopPill(ctx, {
+      arena: this.arena,
+      text: `💣 ${remain.toFixed(1)}s`,
+      urgent: remain <= 4.0,
+    });
   }
 
   renderPickups(ctx) {
@@ -1561,16 +1525,8 @@ export class BombGame extends BaseMiniGame {
   renderLobbyUI(ctx) {
     const { arena } = this;
 
-    const btnW = Math.min(160, arena.size * 0.38);
-    const btnH = 56;
-
-    // Corner Slots for 4 Players
-    const corners = [
-      { x: arena.left + 20, y: arena.bottom - btnH - 20 }, // P1
-      { x: arena.left + 20, y: arena.top + 20 },           // P2
-      { x: arena.right - btnW - 20, y: arena.top + 20 },   // P3
-      { x: arena.right - btnW - 20, y: arena.bottom - btnH - 20 }, // P4
-    ];
+    // Standart kare koltuklar (4 köşe, tüm oyunlarla aynı ölçü)
+    const corners = getStandardSeatRects(arena);
 
     for (let i = 0; i < 4; i++) {
       const pos = corners[i];
@@ -1580,8 +1536,8 @@ export class BombGame extends BaseMiniGame {
       renderLobbySeatCard(ctx, {
         x: pos.x,
         y: pos.y,
-        w: btnW,
-        h: btnH,
+        w: pos.w,
+        h: pos.h,
         slotIndex: i,
         slotType: slotType,
         playerName: p ? (p.name || '') : '',
@@ -1592,8 +1548,8 @@ export class BombGame extends BaseMiniGame {
       this.uiButtons.push({
         x: pos.x,
         y: pos.y,
-        w: btnW,
-        h: btnH,
+        w: pos.w,
+        h: pos.h,
         onClick: () => this.cycleSlotType(i),
       });
     }
@@ -1630,132 +1586,41 @@ export class BombGame extends BaseMiniGame {
       onClick: () => this.cycleMap(),
     });
 
-    // Center Start Button
-    const joined = this.players.filter((p) => p.isJoined);
-    const joinedCount = joined.length;
-    const startW = Math.min(220, arena.size * 0.5);
-    const startH = 60;
-    const startX = arena.cx - startW / 2;
-    const startY = arena.cy - 12;
-
-    ctx.save();
-    // Solid Shadow
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(startX + 5, startY + 5, startW, startH);
-
-    // Button Face
-    ctx.fillStyle = joinedCount >= 2 ? '#D84727' : '#E5E0D6';
-    ctx.fillRect(startX, startY, startW, startH);
-
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(startX, startY, startW, startH);
-
-    ctx.fillStyle = joinedCount >= 2 ? '#FFFFFF' : '#75726B';
-    ctx.font = joinedCount >= 2 ? '900 20px "Space Grotesk", sans-serif' : '800 13px "Space Grotesk", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(joinedCount >= 2 ? '▶ MAÇI BAŞLAT' : '2 KİŞİ GEREKİYOR', arena.cx, startY + startH / 2);
-    ctx.restore();
-
-    if (joinedCount >= 2) {
-      this.uiButtons.push({
-        x: startX,
-        y: startY,
-        w: startW,
-        h: startH,
-        onClick: () => this.startNewMatch(),
-      });
-    }
+    // Center Start Button (standart, harita butonunun altında)
+    const joinedCount = this.players.filter((p) => p.isJoined).length;
+    renderLobbyStartButton(ctx, {
+      arena,
+      uiButtons: this.uiButtons,
+      joinedCount,
+      accent: '#D84727',
+      onStart: () => this.startNewMatch(),
+      centerYOffset: 18,
+    });
   }
 
   renderRoundOverUI(ctx) {
     if (!this.roundWinner) return;
-    const { arena } = this;
-    const bW = Math.min(300, arena.size * 0.82);
-    const bH = 80;
-    const bX = arena.cx - bW / 2;
-    const bY = arena.cy - bH / 2;
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.fillRect(bX + 5, bY + 5, bW, bH);
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(bX, bY, bW, bH);
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(bX, bY, bW, bH);
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = this.roundWinner.color;
-    ctx.font = '900 20px "Space Grotesk", sans-serif';
-    ctx.fillText(`+1 SET: ${this.roundWinner.name}!`, arena.cx, arena.cy - 12);
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.font = '800 12px "JetBrains Mono", monospace';
-    ctx.fillText(
-      `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}`,
-      arena.cx,
-      arena.cy + 15
-    );
+    renderRoundBanner(ctx, {
+      arena: this.arena,
+      title: `+1 SET: ${this.roundWinner.name}!`,
+      titleColor: this.roundWinner.color,
+      sub: `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}`,
+    });
   }
 
   renderGameOverUI(ctx) {
-    const { arena } = this;
-    const boxW = Math.min(320, arena.size * 0.85);
-    const boxH = 220;
-    const boxX = arena.cx - boxW / 2;
-    const boxY = arena.cy - boxH / 2;
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.fillRect(boxX + 8, boxY + 8, boxW, boxH);
-
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(boxX, boxY, boxW, boxH);
-
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(boxX, boxY, boxW, boxH);
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.font = '800 14px "Space Grotesk", sans-serif';
-    ctx.fillText('ŞAMPİYONLUK KAZANILDI! 🏆', arena.cx, boxY + 34);
-
-    if (this.matchWinner) {
-      ctx.fillStyle = this.matchWinner.color;
-      ctx.font = '900 24px "Space Grotesk", sans-serif';
-      ctx.fillText(`${this.matchWinner.name} KAZANDI!`, arena.cx, boxY + 68, boxW - 20);
-
-      ctx.font = '800 12px "JetBrains Mono", monospace';
-      this.players.filter((p) => p.isJoined).forEach((p, row) => {
-        ctx.fillStyle = p.color;
-        ctx.fillText(`${p.name}: ${this.scores[p.index] || 0}★`, arena.cx, boxY + 96 + row * 18);
-      });
-    }
-
-    const btnW = 190;
-    const btnH = 46;
-    const btnX = arena.cx - btnW / 2;
-    const btnY = boxY + 154;
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.fillRect(btnX, btnY, btnW, btnH);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '800 16px "Space Grotesk", sans-serif';
-    ctx.fillText('YENİDEN OYNA', arena.cx, btnY + btnH / 2);
-
-    this.uiButtons.push({
-      x: btnX,
-      y: btnY,
-      w: btnW,
-      h: btnH,
-      onClick: () => {
-        this.resetCurrentGame();
-      },
+    renderMatchOver(ctx, {
+      arena: this.arena,
+      uiButtons: this.uiButtons,
+      headline: 'ŞAMPİYONLUK KAZANILDI! 🏆',
+      winnerName: this.matchWinner ? this.matchWinner.name : '',
+      winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
+      rows: this.matchWinner
+        ? this.players
+            .filter((p) => p.isJoined)
+            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` }))
+        : [],
+      onRestart: () => this.resetCurrentGame(),
     });
   }
 }

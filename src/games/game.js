@@ -2,14 +2,15 @@
 import { Paddle, PLAYER_CONFIGS } from './paddle.js';
 import { Ball } from './ball.js';
 import { playJoin, playStart } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton } from '../controlGuide.js';
+import { renderTopPill, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 
 export class Game extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
 
-    // States: 'LOBBY', 'PLAYING', 'ROUND_PAUSE', 'GAME_OVER'
+    // States: 'LOBBY', 'PLAYING', 'ROUND_PAUSE', 'MATCH_OVER'
     this.state = 'LOBBY';
 
     // Arena geometry (responsive rectangle)
@@ -297,7 +298,7 @@ export class Game extends BaseMiniGame {
         this.setScores[setWinner.index] = (this.setScores[setWinner.index] || 0) + 1;
 
         if (this.setScores[setWinner.index] >= this.targetSets) {
-          this.state = 'GAME_OVER';
+          this.state = 'MATCH_OVER';
           this.winner = setWinner;
           return;
         }
@@ -398,14 +399,14 @@ export class Game extends BaseMiniGame {
     // Render UI Overlays
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'PARMAĞINI KENDİ BÖLGENDE SÜRÜKLE', [
+      renderControlGuide(ctx, this.arena, 'SÜRÜKLE: RAKETİ YÖNET • 3 SET ALAN KAZANIR', [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
         'P4 YEŞİL',
       ]);
       this.renderLobbyUI(ctx);
-    } else if (this.state === 'GAME_OVER') {
+    } else if (this.state === 'MATCH_OVER') {
       this.renderGameOverUI(ctx);
     }
 
@@ -442,29 +443,11 @@ export class Game extends BaseMiniGame {
   renderTopHUD(ctx) {
     if (this.state !== 'PLAYING') return;
     if (this.ball.rallyCount >= 5) {
-      const { cx, top } = this.arena;
-      const pillW = 124;
-      const pillH = 34;
-      const pillX = cx - pillW / 2;
-      const pillY = top + 12;
-
-      ctx.save();
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(pillX + 3, pillY + 3, pillW, pillH);
-
-      ctx.fillStyle = this.ball.rallyCount >= 10 ? '#D84727' : '#1C1C1A';
-      ctx.fillRect(pillX, pillY, pillW, pillH);
-
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(pillX, pillY, pillW, pillH);
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 15px "JetBrains Mono", monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`⚡ ${this.ball.rallyCount} VURUŞ`, cx, pillY + pillH / 2);
-      ctx.restore();
+      renderTopPill(ctx, {
+        arena: this.arena,
+        text: `⚡ ${this.ball.rallyCount} VURUŞ`,
+        urgent: this.ball.rallyCount >= 10,
+      });
     }
   }
 
@@ -553,34 +536,12 @@ export class Game extends BaseMiniGame {
 
     // Round Over Banner
     if (this.state === 'ROUND_OVER' && this.roundWinner) {
-      ctx.save();
-      const bW = Math.min(300, aW * 0.7);
-      const bH = 74;
-      const bX = cx - bW / 2;
-      const bY = cy - bH / 2;
-
-      ctx.fillStyle = '#1C1C1A';
-      ctx.fillRect(bX + 5, bY + 5, bW, bH);
-      ctx.fillStyle = '#FAF7F2';
-      ctx.fillRect(bX, bY, bW, bH);
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(bX, bY, bW, bH);
-
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = this.roundWinner.color;
-      ctx.font = '900 19px "Space Grotesk", sans-serif';
-      ctx.fillText(`+1 SET: ${this.roundWinner.name}!`, cx, cy - 11);
-
-      ctx.fillStyle = '#1C1C1A';
-      ctx.font = '800 12px "JetBrains Mono", monospace';
-      ctx.fillText(
-        `TOPLAM SET: ${this.setScores[this.roundWinner.index]} / ${this.targetSets}`,
-        cx,
-        cy + 14
-      );
-      ctx.restore();
+      renderRoundBanner(ctx, {
+        arena: this.arena,
+        title: `+1 SET: ${this.roundWinner.name}!`,
+        titleColor: this.roundWinner.color,
+        sub: `TOPLAM SET: ${this.setScores[this.roundWinner.index]} / ${this.targetSets}`,
+      });
     } else {
       // Center Cross in Lobby
       const crossSize = 18;
@@ -701,69 +662,39 @@ export class Game extends BaseMiniGame {
       this.renderPlayerLobbySlot(ctx, p);
     });
 
-    // Center Area: Information or "BAŞLAT" Button
-    const btnW = Math.min(220, arena.width * 0.45);
-    const btnH = 60;
-    const btnX = arena.cx - btnW / 2;
-    const btnY = arena.cy - btnH / 2;
-
-    ctx.save();
-    // Solid Shadow Box
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(btnX + 5, btnY + 5, btnW, btnH);
-
-    // Button Face
-    ctx.fillStyle = joinedCount >= 2 ? '#D84727' : '#E5E0D6';
-    ctx.fillRect(btnX, btnY, btnW, btnH);
-
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(btnX, btnY, btnW, btnH);
-
-    ctx.fillStyle = joinedCount >= 2 ? '#FFFFFF' : '#75726B';
-    ctx.font = joinedCount >= 2 ? '900 20px "Space Grotesk", sans-serif' : '800 13px "Space Grotesk", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(joinedCount >= 2 ? '▶ MAÇI BAŞLAT' : '2 KİŞİ GEREKİYOR', arena.cx, arena.cy);
-    ctx.restore();
-
-    if (joinedCount >= 2) {
-      this.uiButtons.push({
-        x: btnX,
-        y: btnY,
-        w: btnW,
-        h: btnH,
-        onClick: () => this.startGame(),
-      });
-    }
+    // Center Area: Information or "BAŞLAT" Button (standart)
+    renderLobbyStartButton(ctx, {
+      arena,
+      uiButtons: this.uiButtons,
+      joinedCount,
+      accent: '#D84727',
+      onStart: () => this.startGame(),
+    });
   }
 
   renderPlayerLobbySlot(ctx, paddle) {
     const isJoined = paddle.isJoined;
     const { arena } = this;
 
-    // Uniform slot card sizing regardless of screen aspect ratio
+    // PONG istisnası: konum kenar-orta (paddle tarafı), ölçü standart kare
     const baseSize = Math.min(arena.width, arena.height);
-    const cardLong = Math.max(130, Math.min(170, Math.floor(baseSize * 0.32)));
-    const cardShort = Math.max(48, Math.min(56, Math.floor(cardLong * 0.34)));
+    const S = getStandardSeatSize(arena);
     const gap = Math.max(16, Math.floor(baseSize * 0.035));
 
-    let btnX, btnY, btnW, btnH;
+    let btnX, btnY;
+    const btnW = S;
+    const btnH = S;
 
     if (paddle.side === 'bottom') {
-      btnW = cardLong;  btnH = cardShort;
       btnX = arena.cx - btnW / 2;
       btnY = arena.bottom - btnH - gap;
     } else if (paddle.side === 'top') {
-      btnW = cardLong;  btnH = cardShort;
       btnX = arena.cx - btnW / 2;
       btnY = arena.top + gap;
     } else if (paddle.side === 'left') {
-      btnW = cardShort;  btnH = cardLong;
       btnX = arena.left + gap;
       btnY = arena.cy - btnH / 2;
     } else if (paddle.side === 'right') {
-      btnW = cardShort;  btnH = cardLong;
       btnX = arena.right - btnW - gap;
       btnY = arena.cy - btnH / 2;
     }
@@ -799,64 +730,18 @@ export class Game extends BaseMiniGame {
   }
 
   renderGameOverUI(ctx) {
-    const { arena } = this;
-    const boxW = Math.min(320, arena.width * 0.75);
-    const boxH = 220;
-    const boxX = arena.cx - boxW / 2;
-    const boxY = arena.cy - boxH / 2;
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.fillRect(boxX + 8, boxY + 8, boxW, boxH);
-
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(boxX, boxY, boxW, boxH);
-
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(boxX, boxY, boxW, boxH);
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.font = '800 14px "Space Grotesk", sans-serif';
-    ctx.fillText('ŞAMPİYONLUK KAZANILDI! 🏆', arena.cx, boxY + 34);
-
-    if (this.winner) {
-      ctx.fillStyle = this.winner.color;
-      ctx.font = '900 24px "Space Grotesk", sans-serif';
-      ctx.fillText(`${this.winner.color} // KAZANDI`, arena.cx, boxY + 66, boxW - 20);
-
-      ctx.fillStyle = '#78736A';
-      ctx.font = '800 11px "JetBrains Mono", monospace';
-      this.paddles.filter((p) => p.isJoined).forEach((p, row) => {
-        ctx.fillStyle = p.color;
-        ctx.fillText(`${p.color}: ${this.setScores[p.index] || 0} SET`, arena.cx, boxY + 94 + row * 17);
-      });
-    } else {
-      ctx.fillStyle = '#1C1C1A';
-      ctx.font = '900 24px "Space Grotesk", sans-serif';
-      ctx.fillText('BERABERE', arena.cx, boxY + 74);
-    }
-
-    const btnW = 190;
-    const btnH = 46;
-    const btnX = arena.cx - btnW / 2;
-    const btnY = boxY + 154;
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.fillRect(btnX, btnY, btnW, btnH);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '800 16px "Space Grotesk", sans-serif';
-    ctx.fillText('YENİDEN OYNA', arena.cx, btnY + btnH / 2);
-
-    this.uiButtons.push({
-      x: btnX,
-      y: btnY,
-      w: btnW,
-      h: btnH,
-      onClick: () => {
+    renderMatchOver(ctx, {
+      arena: this.arena,
+      uiButtons: this.uiButtons,
+      headline: 'ŞAMPİYONLUK KAZANILDI! 🏆',
+      winnerName: this.winner ? this.winner.name : '',
+      winnerColor: this.winner ? this.winner.color : '#1A1A1A',
+      rows: this.winner
+        ? this.paddles
+            .filter((p) => p.isJoined)
+            .map((p) => ({ color: p.color, text: `${p.name}: ${this.setScores[p.index] || 0} SET` }))
+        : [],
+      onRestart: () => {
         this.state = 'LOBBY';
         this.setScores = [0, 0, 0, 0];
         this.winner = null;

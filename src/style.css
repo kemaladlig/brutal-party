@@ -1,3 +1,24 @@
+/* Tasarım Token'ları — src/ui/tokens.js ile aynı değerler (tek sözlük, iki taraf). */
+:root {
+  --ink: #1a1a1a;
+  --paper: #f4f4f0;
+  --paper-warm: #f4f0ea;
+  --card: #faf7f2;
+  --muted: #75726b;
+  --faint: #99948a;
+  --line: #1c1c1a;
+  --gold: #d99b26;
+  --danger: #d84727;
+  --p1: #d84727;
+  --p2: #1d5d8a;
+  --p3: #d99b26;
+  --p4: #2f6a4f;
+  --bot-tag: #ffde59;
+  --bot-god: #ffd700;
+  --font-grotesk: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -41,8 +62,6 @@ body {
   display: block;
   touch-action: none;
   background-color: transparent;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
   z-index: 1;
 }
 

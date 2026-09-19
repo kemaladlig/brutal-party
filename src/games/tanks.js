@@ -1,6 +1,8 @@
 // Micro-Tanks: 8 Labyrinths with Multi-Tier Bot AI (Normal & God Mode), Tactical Crates & Sudden Death
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { renderTopPill, renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateTankBotAI as runTankBotAI } from '../ai/tankAI.js';
 
@@ -389,6 +391,7 @@ export class TanksGame extends BaseMiniGame {
     const distToCenter = Math.hypot(touch.x - cx, touch.y - cy);
 
     if (this.state === 'LOBBY') {
+      if (this.handleUiTap(touch)) return;
       if (distToCenter < 65) {
         const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
         if (joinedCount >= 2) {
@@ -410,6 +413,7 @@ export class TanksGame extends BaseMiniGame {
     }
 
     if (this.state === 'MATCH_OVER') {
+      if (this.handleUiTap(touch)) return;
       if (distToCenter < 75) {
         this.state = 'LOBBY';
         this.scores = [0, 0, 0, 0];
@@ -944,7 +948,7 @@ export class TanksGame extends BaseMiniGame {
     ctx.fillStyle = '#F4F4F0';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    if (this.trauma > 0) {
+    if (this.trauma > 0 && !prefersReducedMotion()) {
       const intensity = this.trauma * this.trauma * 16;
       ctx.translate((Math.random() - 0.5) * intensity, (Math.random() - 0.5) * intensity);
     }
@@ -955,29 +959,12 @@ export class TanksGame extends BaseMiniGame {
 
     // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları
     if (this.state === 'PLAYING') {
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const scoreSize = Math.max(32, Math.min(52, Math.floor(Math.min(width, height) * 0.08)));
-
-      const cornerOffsets = [
-        { x: left + width * 0.11, y: bottom - height * 0.11 },
-        { x: left + width * 0.11, y: top + height * 0.11 },
-        { x: right - width * 0.11, y: top + height * 0.11 },
-        { x: right - width * 0.11, y: bottom - height * 0.11 },
-      ];
-      this.tanks.forEach((t, i) => {
-        if (!t.isJoined) return;
-        const pos = cornerOffsets[i];
-        ctx.save();
-        ctx.fillStyle = t.color;
-        ctx.globalAlpha = 0.85;
-        ctx.font = `900 ${scoreSize}px "Space Grotesk", sans-serif`;
-        ctx.fillText(`${this.scores[i] || 0}★`, pos.x, pos.y);
-        ctx.restore();
+      renderCornerScores(ctx, {
+        arena: this.arena,
+        entries: this.tanks.map((t) =>
+          t.isJoined ? { color: t.color, text: `${this.scores[t.index] || 0}★` } : null
+        ),
       });
-
-      ctx.restore();
     }
 
     ctx.strokeStyle = '#E2DDD4';
@@ -1008,6 +995,7 @@ export class TanksGame extends BaseMiniGame {
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
 
+    this.uiButtons = [];
     this.renderCornerTouchZones(ctx);
 
     for (const b of this.bullets) {
@@ -1068,33 +1056,11 @@ export class TanksGame extends BaseMiniGame {
 
     // Sudden Death Top HUD Pill
     if (this.state === 'PLAYING' && this.roundTimer > 35) {
-      const { cx, top } = this.arena;
-      const pillW = 136;
-      const pillH = 34;
-      const pillX = cx - pillW / 2;
-      const pillY = top + 12;
-
-      ctx.save();
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(pillX + 3, pillY + 3, pillW, pillH);
-
-      ctx.fillStyle = '#D84727';
-      ctx.fillRect(pillX, pillY, pillW, pillH);
-
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(pillX, pillY, pillW, pillH);
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 15px "JetBrains Mono", monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('⚠️ ANİ ÖLÜM', cx, pillY + pillH / 2);
-      ctx.restore();
+      renderTopPill(ctx, { arena: this.arena, text: '⚠️ ANİ ÖLÜM', urgent: true });
     }
 
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'TUT: İLERLE • BIRAK: ATEŞ ET', [
+      renderControlGuide(ctx, this.arena, 'TUT: İLERLE • BIRAK: ATEŞ ET • 3 KEZ KAZANAN ŞAMPİYON', [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -1307,11 +1273,45 @@ export class TanksGame extends BaseMiniGame {
       { name: 'YEŞİL // P4', color: TANK_COLORS[3], slot: this.slotTypes[3] },
     ];
 
+    const seatRects = this.state === 'LOBBY' ? getStandardSeatRects(this.arena) : null;
+
     corners.forEach((c, index) => {
       const zone = this.getCornerControlRect(index);
       const isTop = index === 1 || index === 2;
       const tank = this.tanks[index];
       const isGameplayHuman = this.state === 'PLAYING' && c.slot === 'human';
+
+      // LOBBY: standart kare koltuk (tüm oyunlarla aynı ölçü) + uiButtons tap
+      if (this.state === 'LOBBY') {
+        const rect = seatRects[index];
+        const pName = (tank && tank.name && tank.name !== TANK_NAMES[index]) ? tank.name : '';
+        renderLobbySeatCard(ctx, {
+          x: rect.x,
+          y: rect.y,
+          w: rect.w,
+          h: rect.h,
+          slotIndex: index,
+          slotType: c.slot,
+          playerName: pName,
+          playerColor: c.color,
+          rotation: isTop ? Math.PI : 0,
+        });
+        this.uiButtons.push({
+          x: rect.x,
+          y: rect.y,
+          w: rect.w,
+          h: rect.h,
+          onClick: () => {
+            this.cycleSlotType(index);
+            if (this.tanks[index]) {
+              this.tanks[index].isJoined = this.isSlotJoined(index);
+              this.tanks[index].slotType = this.slotTypes[index];
+            }
+            playJoin();
+          },
+        });
+        return;
+      }
 
       ctx.save();
       // Rotate 180° for Top players so text & HUD is right-side up for them!
@@ -1322,32 +1322,7 @@ export class TanksGame extends BaseMiniGame {
 
       const halfW = zone.w / 2;
       const halfH = zone.h / 2;
-
-      let numLabel = `${index + 1}`;
-      let subLabel = '';
-      let isJoinedSeat = c.slot === 'human';
-      let isBotSeat = c.slot === 'bot_normal' || c.slot === 'bot_god';
-
-      if (isJoinedSeat) {
-        subLabel = (tank && tank.name && tank.name !== TANK_NAMES[index]) ? tank.name : '';
-      } else if (isBotSeat) {
-        subLabel = '🤖';
-      }
-
-      if (this.state === 'LOBBY') {
-        const pName = (tank && tank.name && tank.name !== TANK_NAMES[index]) ? tank.name : '';
-        renderLobbySeatCard(ctx, {
-          x: -halfW,
-          y: -halfH,
-          w: zone.w,
-          h: zone.h,
-          slotIndex: index,
-          slotType: c.slot,
-          playerName: pName,
-          playerColor: c.color,
-          rotation: 0,
-        });
-      } else {
+      {
         // In-game corner header & HUD
         ctx.strokeStyle = c.color;
         ctx.lineWidth = c.slot === 'bot_god' ? 3 : 2;
@@ -1412,111 +1387,35 @@ export class TanksGame extends BaseMiniGame {
   }
 
   renderLobbyUI(ctx) {
-    const { cx, cy } = this.arena;
     const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-
-    const btnW = Math.min(220, this.arena.width * 0.45);
-    const btnH = 60;
-    const btnX = cx - btnW / 2;
-    const btnY = cy - btnH / 2;
-
-    ctx.save();
-    // Solid Shadow
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(btnX + 5, btnY + 5, btnW, btnH);
-
-    // Button Face
-    ctx.fillStyle = joinedCount >= 2 ? '#D84727' : '#E5E0D6';
-    ctx.fillRect(btnX, btnY, btnW, btnH);
-
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(btnX, btnY, btnW, btnH);
-
-    ctx.fillStyle = joinedCount >= 2 ? '#FFFFFF' : '#75726B';
-    ctx.font = joinedCount >= 2 ? '900 20px "Space Grotesk", sans-serif' : '800 13px "Space Grotesk", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(joinedCount >= 2 ? '▶ MAÇI BAŞLAT' : '2 KİŞİ GEREKİYOR', cx, cy);
-    ctx.restore();
+    renderLobbyStartButton(ctx, {
+      arena: this.arena,
+      uiButtons: this.uiButtons,
+      joinedCount,
+      accent: '#D84727',
+      onStart: () => this.startNewMatch(),
+    });
   }
 
   renderRoundBanner(ctx) {
-    const { cx, cy, size } = this.arena;
-    const boxW = Math.min(260, size * 0.7);
-    const boxH = 64;
-
-    ctx.save();
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(cx - boxW / 2 + 5, cy - boxH / 2 + 5, boxW, boxH);
-
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(cx - boxW / 2, cy - boxH / 2, boxW, boxH);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(cx - boxW / 2, cy - boxH / 2, boxW, boxH);
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    if (this.roundWinner) {
-      ctx.fillStyle = this.roundWinner.color;
-      ctx.font = '900 20px "Space Grotesk", sans-serif';
-      ctx.fillText(`${this.roundWinner.name} KAZANDI!`, cx, cy);
-    } else {
-      ctx.fillStyle = '#1A1A1A';
-      ctx.font = '900 18px "Space Grotesk", sans-serif';
-      ctx.fillText('BERABERE!', cx, cy);
-    }
-    ctx.restore();
+    renderRoundBanner(ctx, {
+      arena: this.arena,
+      title: this.roundWinner ? `${this.roundWinner.name} KAZANDI!` : 'BERABERE!',
+      titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A',
+    });
   }
 
   renderMatchOverUI(ctx) {
-    const { cx, cy, size } = this.arena;
-    const boxW = Math.min(300, size * 0.85);
-    const boxH = 220;
-    const boxX = cx - boxW / 2;
-    const boxY = cy - boxH / 2;
-
-    ctx.save();
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(boxX + 6, boxY + 6, boxW, boxH);
-
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(boxX, boxY, boxW, boxH);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(boxX, boxY, boxW, boxH);
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    ctx.fillStyle = '#1A1A1A';
-    ctx.font = '800 13px "Space Grotesk", sans-serif';
-    ctx.fillText('ŞAMPİYON BELLİ OLDU', cx, boxY + 32);
-
-    if (this.matchWinner) {
-      ctx.fillStyle = this.matchWinner.color;
-      ctx.font = '900 24px "Space Grotesk", sans-serif';
-      ctx.fillText(`${this.matchWinner.name} KAZANDI!`, cx, boxY + 68, boxW - 20);
-    }
-
-    ctx.font = '800 12px "JetBrains Mono", monospace';
-    this.tanks.filter((tank) => tank.isJoined).forEach((tank, row) => {
-      ctx.fillStyle = tank.color;
-      ctx.fillText(`${tank.name}: ${this.scores[tank.index] || 0}★`, cx, boxY + 96 + row * 18);
+    renderMatchOver(ctx, {
+      arena: this.arena,
+      uiButtons: this.uiButtons,
+      headline: 'ŞAMPİYON BELLİ OLDU',
+      winnerName: this.matchWinner ? this.matchWinner.name : '',
+      winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
+      rows: this.tanks
+        .filter((tank) => tank.isJoined)
+        .map((tank) => ({ color: tank.color, text: `${tank.name}: ${this.scores[tank.index] || 0}★` })),
+      onRestart: () => this.startNewMatch(),
     });
-
-    const btnW = 180;
-    const btnH = 42;
-    const btnX = cx - btnW / 2;
-    const btnY = boxY + 154;
-
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(btnX, btnY, btnW, btnH);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '800 15px "Space Grotesk", sans-serif';
-    ctx.fillText('YENİDEN OYNA', cx, btnY + btnH / 2);
-    ctx.restore();
   }
 }

@@ -338,7 +338,7 @@ export class Paddle {
       ctx.save();
       const score = this.game.setScores[this.index] || 0;
       ctx.fillStyle = this.color;
-      ctx.font = '900 22px "Space Grotesk", sans-serif';
+      ctx.font = '900 30px "Space Grotesk", sans-serif';
 
       const livesStr = this.lives > 0 ? '● '.repeat(this.lives).trim() : 'ELENDİ';
 
@@ -346,20 +346,20 @@ export class Paddle {
         // Score on left, lives on right
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`${score}★`, bounds.left - 14, this.fixedPerpendicular);
+        ctx.fillText(`${score}★`, bounds.left - 20, this.fixedPerpendicular);
 
         ctx.textAlign = 'left';
-        ctx.font = '900 16px "JetBrains Mono", monospace';
-        ctx.fillText(livesStr, bounds.right + 14, this.fixedPerpendicular);
+        ctx.font = '900 20px "JetBrains Mono", monospace';
+        ctx.fillText(livesStr, bounds.right + 20, this.fixedPerpendicular);
       } else {
         // Score on top, lives on bottom
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(`${score}★`, this.fixedPerpendicular, bounds.top - 10);
+        ctx.fillText(`${score}★`, this.fixedPerpendicular, bounds.top - 16);
 
         ctx.textBaseline = 'top';
-        ctx.font = '900 16px "JetBrains Mono", monospace';
-        ctx.fillText(livesStr, this.fixedPerpendicular, bounds.bottom + 10);
+        ctx.font = '900 20px "JetBrains Mono", monospace';
+        ctx.fillText(livesStr, this.fixedPerpendicular, bounds.bottom + 16);
       }
       ctx.restore();
     }

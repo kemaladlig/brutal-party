@@ -1119,6 +1119,17 @@
   50% { filter: brightness(1.35); }
 }
 
+/* Azaltılmış hareket: nabız animasyonları statik duruma iner.
+   Sinyal yeşili ve taşıyıcı çerçeveler korunur (oyun bilgisi kaybolmaz). */
+@media (prefers-reduced-motion: reduce) {
+  #gamepad-overlay.bomb-carrier-alert,
+  #gamepad-overlay.gem-carrier-alert,
+  #gamepad-overlay.duel-flash-alert,
+  .duel-full-trigger-btn.signal {
+    animation: none !important;
+  }
+}
+
 /* Reaction Emoji Overlay */
 .emoji-wheel-modal {
   position: absolute;

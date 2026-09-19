@@ -1,6 +1,8 @@
 // BaseMiniGame: Unified Base Class for All Mini-Game Engines
 // Provides common state management, fixed timing, screen trauma/shake, slot helpers & UI tap handling
 
+import { prefersReducedMotion } from '../ui/motion.js';
+
 export class BaseMiniGame {
   constructor(canvas) {
     this.canvas = canvas;
@@ -74,6 +76,7 @@ export class BaseMiniGame {
   }
 
   applyScreenShake(ctx, maxOffset = 14) {
+    if (prefersReducedMotion()) return;
     if (this.trauma > 0) {
       const shakeIntensity = this.trauma * this.trauma * maxOffset;
       const offsetX = (Math.random() - 0.5) * 2 * shakeIntensity;

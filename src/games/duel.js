@@ -11,10 +11,13 @@ import {
   playCashRegister,
   playFakeoutCrow,
 } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { UI_COLORS } from '../ui/tokens.js';
+import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 
-export const DUEL_COLORS = ['#8C4830', '#1F4E5B', '#C08552', '#3E5C76'];
+// Kanonik parti paleti (TV lobi + kumanda şeridi ile birebir; koyu salonda kontrast daha iyi).
+export const DUEL_COLORS = UI_COLORS.players;
 export const DUEL_NAMES = ['KOVBOY 1', 'KOVBOY 2', 'KOVBOY 3', 'KOVBOY 4'];
 
 export class DuelGame extends BaseMiniGame {
@@ -593,7 +596,7 @@ export class DuelGame extends BaseMiniGame {
     ctx.save();
 
     // Camera Shake
-    if (this.trauma > 0) {
+    if (this.trauma > 0 && !prefersReducedMotion()) {
       const shakeX = (Math.random() - 0.5) * this.trauma * 24;
       const shakeY = (Math.random() - 0.5) * this.trauma * 24;
       ctx.translate(shakeX, shakeY);
@@ -799,103 +802,45 @@ export class DuelGame extends BaseMiniGame {
     ctx.fillText(scoringRuleText, cx, titleY + 54);
     ctx.restore();
 
-    // 2x2 Player Slot Cards
-    const totalGridW = Math.min(size * 0.88, 380);
-    const totalGridH = Math.min(size * 0.36, 120);
-    const btnW = (totalGridW - 14) / 2;
-    const btnH = (totalGridH - 12) / 2;
-    const gridLeft = cx - totalGridW / 2;
-    const gridTop = cy - 20;
+    // Standart kare koltuklar (4 köşe, tüm oyunlarla aynı ölçü)
+    const slotRects = getStandardSeatRects(this.arena);
 
-    const slotConfigs = [
-      { idx: 0, x: gridLeft, y: gridTop, posLabel: 'P1' },
-      { idx: 1, x: gridLeft + btnW + 14, y: gridTop, posLabel: 'P2' },
-      { idx: 2, x: gridLeft, y: gridTop + btnH + 12, posLabel: 'P3' },
-      { idx: 3, x: gridLeft + btnW + 14, y: gridTop + btnH + 12, posLabel: 'P4' },
-    ];
+    slotRects.forEach((rect, idx) => {
+      const isJoined = this.joinedPlayers[idx];
 
-    slotConfigs.forEach((cfg) => {
-      const isJoined = this.joinedPlayers[cfg.idx];
-      const color = DUEL_COLORS[cfg.idx];
-
-      ctx.save();
-      // Drop Shadow
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(cfg.x + 3, cfg.y + 3, btnW, btnH);
-
-      // Fill: krem zemin + doluda hafif renk yıkaması
-      ctx.fillStyle = '#FAF7F2';
-      ctx.fillRect(cfg.x, cfg.y, btnW, btnH);
-      if (isJoined) {
-        ctx.globalAlpha = 0.16;
-        ctx.fillStyle = color;
-        ctx.fillRect(cfg.x, cfg.y, btnW, btnH);
-        ctx.globalAlpha = 1;
-      }
-
-      // Border
-      ctx.lineWidth = isJoined ? 4 : 2;
-      ctx.strokeStyle = isJoined ? color : '#42362E';
-      ctx.strokeRect(cfg.x, cfg.y, btnW, btnH);
-
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      ctx.font = '900 26px "Space Grotesk", sans-serif';
-      ctx.fillStyle = isJoined ? color : '#7A6B62';
-      ctx.fillText(cfg.posLabel, cfg.x + btnW / 2, cfg.y + btnH / 2);
-      ctx.restore();
+      renderLobbySeatCard(ctx, {
+        x: rect.x,
+        y: rect.y,
+        w: rect.w,
+        h: rect.h,
+        slotIndex: idx,
+        slotType: isJoined ? 'human' : 'empty',
+        playerName: this.playerNames[idx] || '',
+        playerColor: DUEL_COLORS[idx],
+        rotation: 0,
+      });
 
       this.uiButtons.push({
-        x: cfg.x,
-        y: cfg.y,
-        w: btnW,
-        h: btnH,
-        onClick: () => this.togglePlayerJoin(cfg.idx),
+        x: rect.x,
+        y: rect.y,
+        w: rect.w,
+        h: rect.h,
+        onClick: () => this.togglePlayerJoin(idx),
       });
     });
 
-    // Start Button
-    const canStart = activeCount >= 2;
-    const startX = gridLeft;
-    const startY = gridTop + totalGridH + 20;
-    const startW = totalGridW;
-    const startH = Math.min(56, Math.max(48, Math.floor(size * 0.11)));
-
-    ctx.save();
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(startX + 4, startY + 4, startW, startH);
-
-    ctx.fillStyle = canStart ? '#D99B26' : '#221E1B';
-    ctx.fillRect(startX, startY, startW, startH);
-
-    ctx.lineWidth = canStart ? 4 : 2;
-    ctx.strokeStyle = canStart ? '#FAF8F5' : '#45382F';
-    ctx.strokeRect(startX, startY, startW, startH);
-
-    ctx.font = '900 17px "Space Grotesk", sans-serif';
-    ctx.fillStyle = canStart ? '#141414' : '#6A5B52';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(
-      canStart ? '▶ MAÇI BAŞLAT' : '2 KİŞİ GEREKİYOR',
-      startX + startW / 2,
-      startY + startH / 2
-    );
-    ctx.restore();
-
-    if (canStart) {
-      this.uiButtons.push({
-        x: startX,
-        y: startY,
-        w: startW,
-        h: startH,
-        onClick: () => this.startMatch(),
-      });
-    }
+    // Start Button (standart)
+    const startRect = renderLobbyStartButton(ctx, {
+      arena: this.arena,
+      uiButtons: this.uiButtons,
+      joinedCount: activeCount,
+      accent: '#D99B26',
+      textColor: '#141414',
+      onStart: () => this.startMatch(),
+    });
 
     // Instructions
-    const rulesY = startY + startH + 20;
+    const rulesY = startRect.y + startRect.h + 20;
     ctx.save();
     ctx.font = '800 12px "Space Grotesk", monospace';
     ctx.fillStyle = '#A8998C';
@@ -998,7 +943,7 @@ export class DuelGame extends BaseMiniGame {
       ctx.fillStyle = DUEL_COLORS[this.roundWinner];
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`⚡ ${winnerName} VURDU! ⚡`, cx, cy - 48);
+      ctx.fillText(`⚡ ${winnerName} VURDU! ⚡`, cx, cy - 48, this.arena.width - 24);
 
       ctx.font = '900 44px "Space Grotesk", monospace';
       ctx.fillStyle = '#FAF8F5';
@@ -1044,7 +989,7 @@ export class DuelGame extends BaseMiniGame {
     ctx.fillStyle = champColor;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('👑 KASABANIN EN HIZLISI 👑', cx, cy - 90);
+    ctx.fillText('👑 KASABANIN EN HIZLISI 👑', cx, cy - 90, this.arena.width - 24);
 
     ctx.font = '900 36px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#FAF8F5';
