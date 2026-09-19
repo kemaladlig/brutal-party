@@ -589,12 +589,13 @@ export class SupabaseRelay {
 
   sendInput(data) {
     if (this.role !== 'CONTROLLER' || !this.channel) return;
-    // Input flood koruması: Sadece sürekli analog hareketler (JOYSTICK_MOVE, PADDLE_MOVE, CURVE_STEER) throttle edilir.
-    // DASH, TACKLE, TANK_FIRE, TANK_DRIVE, koltuk/isim değişimi ve durma/bırakma sinyalleri ASLA throttle edilmez!
+    // Input flood koruması: Sadece sürekli analog hareketler (JOYSTICK_MOVE, PADDLE_MOVE) throttle edilir.
+    // DASH, TACKLE, TANK_FIRE, TANK_DRIVE, CURVE_STEER (yön değişimi), koltuk/isim değişimi ve durma/bırakma sinyalleri ASLA throttle edilmez!
+    const isCurveSteerChange = data.action === 'CURVE_STEER' && data.dir !== this._lastCurveDir;
     const isDiscrete =
       (data.action !== 'JOYSTICK_MOVE' &&
-       data.action !== 'PADDLE_MOVE' &&
-       data.action !== 'CURVE_STEER') ||
+       data.action !== 'PADDLE_MOVE') ||
+      isCurveSteerChange ||
       data.force === 0 ||
       data.dir === 0;
 
@@ -613,11 +614,13 @@ export class SupabaseRelay {
         const ldy = this._lastJoy?.dy || 0;
         if (Math.hypot(dx - ldx, dy - ldy) < 0.02) return;
         this._lastJoy = { dx, dy };
-      } else if (data.action === 'CURVE_STEER') {
-        if (data.dir === this._lastCurveDir) return;
-        this._lastCurveDir = data.dir;
       }
     }
+
+    if (data.action === 'CURVE_STEER') {
+      this._lastCurveDir = data.dir;
+    }
+
     this._lastInputSent = now;
     this._broadcast('player_msg', {
       action: 'INPUT',

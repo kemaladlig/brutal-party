@@ -906,10 +906,14 @@
   background-color: #1a1a18;
   border: 4px solid #2a2a28;
   cursor: pointer;
-  touch-action: manipulation;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-.curve-steer-btn:active {
+.curve-steer-btn:active,
+.curve-steer-btn.active {
   background-color: #2f6a4f;
 }
 

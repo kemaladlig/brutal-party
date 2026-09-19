@@ -597,9 +597,12 @@ export class GamepadManager {
     driveBtn?.addEventListener('touchstart', startDrive, { passive: false });
     driveBtn?.addEventListener('touchend', stopDrive, { passive: false });
     driveBtn?.addEventListener('touchcancel', stopDrive, { passive: false });
+    window.addEventListener('touchend', stopDrive, { passive: true });
+    window.addEventListener('touchcancel', stopDrive, { passive: true });
     driveBtn?.addEventListener('mousedown', startDrive);
     driveBtn?.addEventListener('mouseup', stopDrive);
     driveBtn?.addEventListener('mouseleave', stopDrive);
+    window.addEventListener('mouseup', stopDrive);
 
     const fireBtn = document.getElementById('btn-tank-fire');
     let lastFireTime = 0;
@@ -619,35 +622,103 @@ export class GamepadManager {
   // --- 03: CURVE CONTROLLER (Left 50% Sol / Right 50% Sağ) ---
   mountCurveController(container) {
     container.innerHTML = `
-      <div class="curve-controller-view">
+      <div class="curve-controller-view" id="curve-controller-view">
         <button class="curve-steer-btn" id="btn-curve-left" type="button">◀ SOL</button>
         <button class="curve-steer-btn right-btn" id="btn-curve-right" type="button">SAĞ ▶</button>
       </div>
     `;
 
+    const view = document.getElementById('curve-controller-view');
     const btnLeft = document.getElementById('btn-curve-left');
     const btnRight = document.getElementById('btn-curve-right');
 
-    const bindHold = (btn, dir) => {
-      if (!btn) return;
-      const start = (e) => {
-        e.preventDefault();
-        this.network.sendInput({ action: 'CURVE_STEER', dir });
-      };
-      const end = (e) => {
-        e.preventDefault();
-        this.network.sendInput({ action: 'CURVE_STEER', dir: 0 });
-      };
-      btn.addEventListener('touchstart', start);
-      btn.addEventListener('touchend', end);
-      btn.addEventListener('touchcancel', end);
-      btn.addEventListener('mousedown', start);
-      btn.addEventListener('mouseup', end);
-      btn.addEventListener('mouseleave', end);
+    // Aktif dokunuşların haritası: touchId -> dir (-1 veya 1)
+    const activeTouches = new Map();
+    let mouseDir = 0;
+    let currentActiveDir = 0;
+
+    const syncSteer = () => {
+      let desiredDir = 0;
+      if (activeTouches.size > 0) {
+        // En son eklenen / aktif dokunuşun yönünü al
+        for (const dir of activeTouches.values()) {
+          desiredDir = dir;
+        }
+      } else if (mouseDir !== 0) {
+        desiredDir = mouseDir;
+      }
+
+      btnLeft?.classList.toggle('active', desiredDir === -1);
+      btnRight?.classList.toggle('active', desiredDir === 1);
+
+      if (desiredDir !== currentActiveDir) {
+        currentActiveDir = desiredDir;
+        this.network.sendInput({ action: 'CURVE_STEER', dir: currentActiveDir });
+      }
     };
 
-    bindHold(btnLeft, -1);
-    bindHold(btnRight, 1);
+    const getDirForPoint = (clientX) => {
+      const rect = view ? view.getBoundingClientRect() : null;
+      if (!rect) return 0;
+      return clientX < rect.left + rect.width / 2 ? -1 : 1;
+    };
+
+    // Touch event'leri container üzerinde dinlenir (buton sınırlarından çıksa bile kaybolmaz)
+    const onTouchStart = (e) => {
+      e.preventDefault();
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        activeTouches.set(t.identifier, getDirForPoint(t.clientX));
+      }
+      syncSteer();
+    };
+
+    const onTouchMove = (e) => {
+      e.preventDefault();
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (activeTouches.has(t.identifier)) {
+          activeTouches.set(t.identifier, getDirForPoint(t.clientX));
+        }
+      }
+      syncSteer();
+    };
+
+    const onTouchEnd = (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        activeTouches.delete(t.identifier);
+      }
+      syncSteer();
+    };
+
+    const onTouchCancel = (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        activeTouches.delete(t.identifier);
+      }
+      syncSteer();
+    };
+
+    view?.addEventListener('touchstart', onTouchStart, { passive: false });
+    view?.addEventListener('touchmove', onTouchMove, { passive: false });
+    view?.addEventListener('touchend', onTouchEnd, { passive: true });
+    view?.addEventListener('touchcancel', onTouchCancel, { passive: true });
+
+    // Ekran dışına kayıp kalkan veya takılan parmaklar için global güvenlik ağı
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', onTouchCancel, { passive: true });
+
+    // Masaüstü / Fare desteği
+    btnLeft?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = -1; syncSteer(); });
+    btnRight?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = 1; syncSteer(); });
+    const onMouseUp = () => {
+      if (mouseDir !== 0) {
+        mouseDir = 0;
+        syncSteer();
+      }
+    };
+    window.addEventListener('mouseup', onMouseUp);
   }
 
   // --- 04: BOMB CONTROLLER (Joystick + Dash) ---
