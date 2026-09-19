@@ -11,7 +11,7 @@ import {
   playHeavyImpact,
   playPiggyBreak,
 } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard } from '../controlGuide.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateHeistBotAI } from '../ai/heistAI.js';
@@ -1032,6 +1032,7 @@ export class HeistGame extends BaseMiniGame {
     this.renderFloatingTexts(ctx);
     this.renderVirtualJoysticks(ctx);
     this.renderTackleButtons(ctx);
+    this.renderTopHUD(ctx);
 
     // Gold Rush border vignette
     if (this.state === 'PLAYING' && this.goldRushActive) {
@@ -1063,6 +1064,38 @@ export class HeistGame extends BaseMiniGame {
     ctx.restore();
   }
 
+  renderTopHUD(ctx) {
+    if (this.state !== 'PLAYING') return;
+    const remain = Math.max(0, this.roundTimer);
+    const urgent = remain <= 10.0;
+    const { cx, top } = this.arena;
+    const pillW = 104;
+    const pillH = 34;
+    const pillX = cx - pillW / 2;
+    const pillY = top + 12;
+
+    ctx.save();
+    // Solid Shadow
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(pillX + 3, pillY + 3, pillW, pillH);
+
+    // Pill Face
+    ctx.fillStyle = urgent ? '#D84727' : '#1C1C1A';
+    ctx.fillRect(pillX, pillY, pillW, pillH);
+
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(pillX, pillY, pillW, pillH);
+
+    // Text
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '900 17px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`⏱ ${Math.ceil(remain)}s`, cx, pillY + pillH / 2);
+    ctx.restore();
+  }
+
   renderArena(ctx) {
     const { left, top, right, bottom, width, height, size, cx, cy } = this.arena;
 
@@ -1078,12 +1111,6 @@ export class HeistGame extends BaseMiniGame {
     ctx.arc(cx, cy, size * 0.22, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.font = '800 11px "JetBrains Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('⚡ HAZİNE ÇUKURU ⚡', cx, cy - size * 0.22 - 10);
 
     // Outer Border & Cast Iron Drop Shadow
     ctx.fillStyle = '#1A1A1A';
@@ -1105,47 +1132,6 @@ export class HeistGame extends BaseMiniGame {
       ctx.strokeStyle = '#1A1A1A';
       ctx.lineWidth = 2.5;
       ctx.strokeRect(pil.x, pil.y, pil.w, pil.h);
-    }
-
-    // Live Vault Scoreboard: her oyuncuya renkli kasa çipi + büyük kasa altını
-    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      const joined = this.players.filter((p) => p.isJoined);
-      if (joined.length > 0) {
-        ctx.save();
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        const stripW = Math.min(size * 0.96, 560);
-        const stripH = 42;
-        const stripX = cx - stripW / 2;
-        const stripY = top + 10;
-
-        ctx.fillStyle = '#E5E1D8';
-        ctx.fillRect(stripX, stripY, stripW, stripH);
-        ctx.strokeStyle = '#1C1C1A';
-        ctx.lineWidth = 2.5;
-        ctx.strokeRect(stripX, stripY, stripW, stripH);
-
-        // Oyuncu çipleri + sağda süre çipi
-        const cells = joined.length + 1;
-        const cellW = stripW / cells;
-        joined.forEach((p, k) => {
-          const x0 = stripX + k * cellW;
-          ctx.fillStyle = p.color;
-          ctx.fillRect(x0 + 4, stripY + 5, 20, stripH - 10);
-          ctx.fillStyle = '#1C1C1A';
-          ctx.font = '900 16px "Space Grotesk", sans-serif';
-          ctx.fillText(`P${p.index + 1}  ${p.vaultGold}💰`, x0 + cellW / 2 + 10, stripY + stripH / 2);
-        });
-        const tx0 = stripX + joined.length * cellW;
-        ctx.fillStyle = '#1C1C1A';
-        ctx.fillRect(tx0 + 4, stripY + 5, cellW - 8, stripH - 10);
-        ctx.fillStyle = '#FFDE59';
-        ctx.font = '900 15px "JetBrains Mono", monospace';
-        const timerText = `${Math.max(0, Math.ceil(this.roundTimer))}s`;
-        ctx.fillText(timerText, tx0 + cellW / 2, stripY + stripH / 2);
-        ctx.restore();
-      }
     }
   }
 
@@ -1174,14 +1160,24 @@ export class HeistGame extends BaseMiniGame {
 
       // Vault Badge
       const badgeW = v.w - 8;
-      const badgeH = 20;
+      const badgeH = 28;
       ctx.fillStyle = '#1C1C1A';
       ctx.fillRect(-badgeW / 2, -v.h / 2 + 4, badgeW, badgeH);
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 11px "JetBrains Mono", monospace';
+      ctx.font = '900 14px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`${p.name} KASASI`, 0, -v.h / 2 + 14);
+      ctx.fillText(`${p.name} · ${this.scores[p.index] || 0}★`, 0, -v.h / 2 + 18);
+
+      // Kasa zemininde devasa biriken altın sayısı (Yüksek görünürlük)
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.font = '900 52px "Space Grotesk", sans-serif';
+      ctx.fillStyle = '#D99B26';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${p.vaultGold}`, 0, 6);
+      ctx.restore();
 
       // Biriken altın yığını: piramit dizili, ışıklı külçeler (yer varsa)
       if (v.h >= 80) {
@@ -1469,7 +1465,7 @@ export class HeistGame extends BaseMiniGame {
 
       // Player Name
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = '800 11px "Space Grotesk", sans-serif';
+      ctx.font = '900 13px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const customName = (player.name && player.name !== HEIST_NAMES[player.index])
@@ -1714,11 +1710,14 @@ export class HeistGame extends BaseMiniGame {
   renderLobbyUI(ctx) {
     const { arena } = this;
 
+    const btnW = Math.min(160, arena.size * 0.38);
+    const btnH = 56;
+
     const corners = [
-      { x: arena.left + 24, y: arena.bottom - 60 },
-      { x: arena.left + 24, y: arena.top + 24 },
-      { x: arena.right - 184, y: arena.top + 24 },
-      { x: arena.right - 184, y: arena.bottom - 60 },
+      { x: arena.left + 20, y: arena.bottom - btnH - 20 },
+      { x: arena.left + 20, y: arena.top + 20 },
+      { x: arena.right - btnW - 20, y: arena.top + 20 },
+      { x: arena.right - btnW - 20, y: arena.bottom - btnH - 20 },
     ];
 
     for (let i = 0; i < 4; i++) {
@@ -1726,41 +1725,17 @@ export class HeistGame extends BaseMiniGame {
       const slotType = this.slotTypes[i];
       const p = this.players[i];
 
-      const numLabel = `${i + 1}`;
-      const isJoinedSeat = slotType === 'human';
-      const isBotSeat = slotType === 'bot_normal' || slotType === 'bot_god';
-      const subLabel = isJoinedSeat ? (p.name || '') : (isBotSeat ? '🤖' : '');
-      const bgColor = '#FAF7F2';
-      const numColor = isBotSeat ? '#75726B' : p.color;
-      const frameColor = isJoinedSeat ? p.color : (isBotSeat ? '#75726B' : '#1C1C1A');
-
-      const btnW = 160;
-      const btnH = 56;
-
-      ctx.save();
-      ctx.fillStyle = bgColor;
-      ctx.fillRect(pos.x, pos.y, btnW, btnH);
-      if (isJoinedSeat) {
-        ctx.globalAlpha = 0.16;
-        ctx.fillStyle = p.color;
-        ctx.fillRect(pos.x, pos.y, btnW, btnH);
-        ctx.globalAlpha = 1;
-      }
-      ctx.strokeStyle = frameColor;
-      ctx.lineWidth = isJoinedSeat ? 4 : 3;
-      ctx.strokeRect(pos.x, pos.y, btnW, btnH);
-
-      ctx.fillStyle = numColor;
-      ctx.font = '900 28px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(numLabel, pos.x + btnW / 2, pos.y + (subLabel ? 20 : btnH / 2));
-      if (subLabel) {
-        ctx.fillStyle = isJoinedSeat ? '#1C1C1A' : '#75726B';
-        ctx.font = '800 10px "Space Grotesk", sans-serif';
-        ctx.fillText(subLabel.slice(0, 10), pos.x + btnW / 2, pos.y + 42);
-      }
-      ctx.restore();
+      renderLobbySeatCard(ctx, {
+        x: pos.x,
+        y: pos.y,
+        w: btnW,
+        h: btnH,
+        slotIndex: i,
+        slotType: slotType,
+        playerName: p ? (p.name || '') : '',
+        playerColor: HEIST_COLORS[i],
+        rotation: 0,
+      });
 
       this.uiButtons.push({
         x: pos.x,
@@ -1773,41 +1748,40 @@ export class HeistGame extends BaseMiniGame {
 
     // Center Start Button
     const joined = this.players.filter((p) => p.isJoined);
-    if (joined.length >= 2) {
-      const btnW = Math.min(220, arena.size * 0.5);
-      const btnH = 64;
-      const btnX = arena.cx - btnW / 2;
-      const btnY = arena.cy - btnH / 2;
+    const joinedCount = joined.length;
+    const startW = Math.min(220, arena.size * 0.5);
+    const startH = 60;
+    const startX = arena.cx - startW / 2;
+    const startY = arena.cy - startH / 2;
 
-      ctx.fillStyle = '#1C1C1A';
-      ctx.fillRect(btnX + 6, btnY + 6, btnW, btnH);
+    ctx.save();
+    // Solid Shadow
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(startX + 5, startY + 5, startW, startH);
 
-      ctx.fillStyle = '#D99B26';
-      ctx.fillRect(btnX, btnY, btnW, btnH);
+    // Button Face
+    ctx.fillStyle = joinedCount >= 2 ? '#D84727' : '#E5E0D6';
+    ctx.fillRect(startX, startY, startW, startH);
 
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(btnX, btnY, btnW, btnH);
+    ctx.strokeStyle = '#1C1C1A';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(startX, startY, startW, startH);
 
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '800 24px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('BAŞLAT', arena.cx, arena.cy);
+    ctx.fillStyle = joinedCount >= 2 ? '#FFFFFF' : '#75726B';
+    ctx.font = joinedCount >= 2 ? '900 20px "Space Grotesk", sans-serif' : '800 13px "Space Grotesk", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(joinedCount >= 2 ? '▶ MAÇI BAŞLAT' : '2 KİŞİ GEREKİYOR', arena.cx, arena.cy);
+    ctx.restore();
 
+    if (joinedCount >= 2) {
       this.uiButtons.push({
-        x: btnX,
-        y: btnY,
-        w: btnW,
-        h: btnH,
+        x: startX,
+        y: startY,
+        w: startW,
+        h: startH,
         onClick: () => this.startNewMatch(),
       });
-    } else {
-      ctx.fillStyle = '#75726B';
-      ctx.font = '800 14px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('2 KİŞİ OLUNCA BAŞLAR', arena.cx, arena.cy);
     }
   }
 
@@ -1868,13 +1842,13 @@ export class HeistGame extends BaseMiniGame {
 
     if (this.matchWinner) {
       ctx.fillStyle = this.matchWinner.color;
-      ctx.font = '900 22px "Space Grotesk", sans-serif';
-      ctx.fillText(`${this.matchWinner.color} // KAZANDI`, arena.cx, boxY + 66, boxW - 20);
+      ctx.font = '900 24px "Space Grotesk", sans-serif';
+      ctx.fillText(`${this.matchWinner.name} KAZANDI!`, arena.cx, boxY + 68, boxW - 20);
 
       ctx.font = '800 12px "JetBrains Mono", monospace';
       this.players.filter((p) => p.isJoined).forEach((p, row) => {
         ctx.fillStyle = p.color;
-        ctx.fillText(`${p.color}: ${this.scores[p.index]} SET`, arena.cx, boxY + 94 + row * 17);
+        ctx.fillText(`${p.name}: ${this.scores[p.index]}★`, arena.cx, boxY + 96 + row * 18);
       });
     }
 

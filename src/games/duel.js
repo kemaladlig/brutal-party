@@ -652,6 +652,36 @@ export class DuelGame extends BaseMiniGame {
     ctx.fillStyle = '#1A1816';
     ctx.fillRect(left, top, width, height);
 
+    // Devasa Zemin Filigranı (Crown standardı: sahaya gömülü devasa durum göstergesi)
+    if (this.state !== 'LOBBY') {
+      const bigSize = Math.max(90, Math.min(180, Math.floor(Math.min(width, height) * 0.24)));
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      if (this.state === 'DRAW_SIGNAL') {
+        ctx.globalAlpha = 0.44;
+        ctx.font = `900 ${bigSize}px "Space Grotesk", sans-serif`;
+        ctx.fillStyle = '#FFDE59';
+        ctx.fillText('ATEŞ!', cx, cy);
+      } else if (this.state === 'TENSION' || this.state === 'STANDOFF_COUNTDOWN') {
+        ctx.globalAlpha = 0.26;
+        ctx.font = `900 ${Math.floor(bigSize * 0.85)}px "Space Grotesk", sans-serif`;
+        ctx.fillStyle = '#C08552';
+        ctx.fillText('BEKLE', cx, cy);
+      } else if (this.state === 'ROUND_OVER' && this.roundWinner !== null) {
+        const winTime = this.reactionTimes[this.roundWinner];
+        const winnerColor = DUEL_COLORS[this.roundWinner];
+        ctx.globalAlpha = 0.38;
+        ctx.font = `900 ${Math.floor(bigSize * 0.75)}px "Space Grotesk", sans-serif`;
+        ctx.fillStyle = winnerColor || '#D99B26';
+        if (winTime && winTime > 0) {
+          ctx.fillText(`${Math.round(winTime)} MS`, cx, cy);
+        }
+      }
+      ctx.restore();
+    }
+
     ctx.lineWidth = 6;
     ctx.strokeStyle = '#3A2E26';
     ctx.strokeRect(left, top, width, height);
@@ -674,13 +704,6 @@ export class DuelGame extends BaseMiniGame {
     ctx.stroke();
 
     if (this.state !== 'LOBBY') {
-      // Central Watermark
-      ctx.font = 'bold 36px "Space Grotesk", sans-serif';
-      ctx.fillStyle = '#2A2420';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('⚡ 06 // KOVBOY DÜELLOSU ⚡', cx, cy - size * 0.38);
-
       // Scoreboard at Top Center
       this.renderScoreboard();
     }
@@ -688,36 +711,58 @@ export class DuelGame extends BaseMiniGame {
 
   renderScoreboard() {
     const { ctx } = this;
-    const { cx, top } = this.arena;
+    const { cx, top, width } = this.arena;
 
     ctx.save();
-    ctx.translate(cx, top + 26);
+    const stripW = Math.min(width * 0.94, 540);
+    const stripH = 44;
+    const stripX = cx - stripW / 2;
+    const stripY = top + 12;
 
-    const pillW = 360;
-    const pillH = 34;
-
-    ctx.fillStyle = '#0F0D0C';
-    ctx.fillRect(-pillW / 2, -pillH / 2, pillW, pillH);
-    ctx.lineWidth = 2;
+    // Solid Shadow & Board
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(stripX + 3, stripY + 3, stripW, stripH);
+    ctx.fillStyle = '#1A1816';
+    ctx.fillRect(stripX, stripY, stripW, stripH);
+    ctx.lineWidth = 2.5;
     ctx.strokeStyle = '#C08552';
-    ctx.strokeRect(-pillW / 2, -pillH / 2, pillW, pillH);
+    ctx.strokeRect(stripX, stripY, stripW, stripH);
 
-    ctx.font = '900 12px "Space Grotesk", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    const activeCount = this.joinedPlayers.filter(Boolean).length || 1;
+    const slotW = (stripW - 130) / activeCount;
+    let currSlot = 0;
 
-    const colorNames = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
-    let scoreText = '';
     this.joinedPlayers.forEach((joined, idx) => {
       if (joined) {
-        const pName = this.playerNames?.[idx] || colorNames[idx];
-        scoreText += `${pName}: ${this.scores[idx]}P   `;
+        const px = stripX + currSlot * slotW;
+        const color = DUEL_COLORS[idx];
+        // Swatch
+        ctx.fillStyle = color;
+        ctx.fillRect(px + 6, stripY + 7, 10, stripH - 14);
+
+        ctx.fillStyle = '#FAF8F5';
+        ctx.font = '900 13px "JetBrains Mono", monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        const pName = this.playerNames?.[idx] || DUEL_NAMES[idx];
+        ctx.fillText(`${pName}: ${this.scores[idx]}P`, px + 22, stripY + stripH / 2, slotW - 26);
+        currSlot++;
       }
     });
-    scoreText += `[HEDEF: ${this.targetScore}P]  ⚡REKOR: ${this.tableRecordMs}ms`;
 
-    ctx.fillStyle = '#D99B26';
-    ctx.fillText(scoreText.trim(), 0, 0);
+    // Right Record Tag
+    const recX = stripX + stripW - 124;
+    ctx.fillStyle = '#0F0D0C';
+    ctx.fillRect(recX, stripY + 5, 118, stripH - 10);
+    ctx.strokeStyle = '#D99B26';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(recX, stripY + 5, 118, stripH - 10);
+
+    ctx.fillStyle = '#FFDE59';
+    ctx.font = '900 12px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`⚡ ${this.tableRecordMs}ms`, recX + 59, stripY + stripH / 2);
 
     ctx.restore();
   }
@@ -833,7 +878,7 @@ export class DuelGame extends BaseMiniGame {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(
-      canStart ? `▶ BAŞLAT (${activeCount})` : '2 KİŞİ OLUNCA BAŞLAR',
+      canStart ? '▶ MAÇI BAŞLAT' : '2 KİŞİ GEREKİYOR',
       startX + startW / 2,
       startY + startH / 2
     );
@@ -1080,12 +1125,12 @@ export class DuelGame extends BaseMiniGame {
       ctx.strokeStyle = borderColor;
       ctx.strokeRect(-pad.w / 2, -pad.h / 2, pad.w, pad.h);
 
-      // Player Label + Score Header
+      // Player Label & Score
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = '900 12px "Space Grotesk", monospace';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.fillText(`${DUEL_NAMES[idx]} [${this.scores[idx]} PUAN]`, 0, -14);
+      ctx.font = '900 16px "Space Grotesk", sans-serif';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
+      ctx.fillText(`${DUEL_NAMES[idx]} // ${this.scores[idx] || 0}★`, 0, -14);
 
       // State Action / Reaction
       let actionText = pad.label;
@@ -1103,7 +1148,7 @@ export class DuelGame extends BaseMiniGame {
         else actionText = 'GEÇ KALDIN!';
       }
 
-      ctx.font = '900 15px "Space Grotesk", sans-serif';
+      ctx.font = '900 16px "Space Grotesk", sans-serif';
       ctx.fillStyle = '#FAF8F5';
       ctx.fillText(actionText, 0, 14);
 

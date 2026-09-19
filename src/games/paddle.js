@@ -325,7 +325,7 @@ export class Paddle {
     if (this.isBot) {
       ctx.save();
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 10px "JetBrains Mono", monospace';
+      ctx.font = '900 12px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const label = this.isGodBot ? '⚡GOD' : '🤖BOT';
@@ -333,8 +333,36 @@ export class Paddle {
       ctx.restore();
     }
 
-    // Draw Health Blocks (■ ■ ■)
-    this.drawLives(ctx, arena);
+    // Clean, high-visibility score indicator and lives next to paddle
+    if (this.game && this.game.setScores) {
+      ctx.save();
+      const score = this.game.setScores[this.index] || 0;
+      ctx.fillStyle = this.color;
+      ctx.font = '900 22px "Space Grotesk", sans-serif';
+
+      const livesStr = this.lives > 0 ? '● '.repeat(this.lives).trim() : 'ELENDİ';
+
+      if (this.axis === 'horizontal') {
+        // Score on left, lives on right
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${score}★`, bounds.left - 14, this.fixedPerpendicular);
+
+        ctx.textAlign = 'left';
+        ctx.font = '900 16px "JetBrains Mono", monospace';
+        ctx.fillText(livesStr, bounds.right + 14, this.fixedPerpendicular);
+      } else {
+        // Score on top, lives on bottom
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`${score}★`, this.fixedPerpendicular, bounds.top - 10);
+
+        ctx.textBaseline = 'top';
+        ctx.font = '900 16px "JetBrains Mono", monospace';
+        ctx.fillText(livesStr, this.fixedPerpendicular, bounds.bottom + 10);
+      }
+      ctx.restore();
+    }
   }
 
   drawFullClosedWall(ctx, arena) {
@@ -392,52 +420,6 @@ export class Paddle {
       }
       ctx.stroke();
     }
-    ctx.restore();
-  }
-
-  drawLives(ctx, arena) {
-    const squareSize = 14;
-    const spacing = 5;
-    const totalBlocksW = 3 * squareSize + 2 * spacing;
-
-    ctx.save();
-    let cx = 0;
-    let cy = 0;
-
-    if (this.side === 'bottom') {
-      cx = this.coord;
-      cy = arena.bottom + 18;
-    } else if (this.side === 'top') {
-      cx = this.coord;
-      cy = arena.top - 18;
-    } else if (this.side === 'left') {
-      cx = arena.left - 18;
-      cy = this.coord;
-    } else if (this.side === 'right') {
-      cx = arena.right + 18;
-      cy = this.coord;
-    }
-
-    ctx.translate(cx, cy);
-    if (this.side === 'top') ctx.rotate(Math.PI);
-    else if (this.side === 'left') ctx.rotate(Math.PI / 2);
-    else if (this.side === 'right') ctx.rotate(-Math.PI / 2);
-
-    // Draw 3 brutalist life indicator blocks
-    const startX = -totalBlocksW / 2;
-    for (let i = 0; i < 3; i++) {
-      const isFilled = i < this.lives;
-      ctx.fillStyle = isFilled ? this.color : '#CCC8C0';
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 2;
-
-      const bx = startX + i * (squareSize + spacing);
-      const by = -squareSize / 2;
-
-      ctx.fillRect(bx, by, squareSize, squareSize);
-      ctx.strokeRect(bx, by, squareSize, squareSize);
-    }
-
     ctx.restore();
   }
 }

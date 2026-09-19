@@ -4,8 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host",
-    "dev:https": "vite --host --mode https",
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "start": "node server/index.js",
+    "dev:https": "vite --host 0.0.0.0 --port 3000 --mode https",
     "dev:share": "node scripts/share.mjs",
     "build": "vite build",
     "icons": "node scripts/generate-icons.mjs",

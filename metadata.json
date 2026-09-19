@@ -1,0 +1,6 @@
+{
+  "name": "BRUTAL PARTY // 4P",
+  "description": "BRUTAL PARTY // 4P - 2-4 Kişilik Yerel Brutalist Parti Oyunları Paketi (PWA)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

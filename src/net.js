@@ -4,7 +4,10 @@
 import { partyNetwork } from './network.js';
 import { supabaseRelay } from './supabaseRelay.js';
 
-export const PUBLIC_URL = (import.meta.env.VITE_PUBLIC_URL || 'https://mini-game-4p.vercel.app').replace(/\/$/, '');
+export const PUBLIC_URL = (
+  import.meta.env.VITE_PUBLIC_URL ||
+  (typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://mini-game-4p.vercel.app')
+).replace(/\/$/, '');
 
 /** Build'e Supabase bilgileri gömülmüş mü? (Vercel'de env eksikse false) */
 export const HAS_SUPABASE_CONFIG = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
@@ -30,11 +33,11 @@ export function isPublicOrigin() {
 /** Aktif platforma göre kullanılacak network singleton'ını döndürür. */
 export function getActiveNetwork(platformMode) {
   // Public sitede (Vercel, PWA vb.) yerel Node.js WS sunucusu bulunmaz;
-  // bu yüzden hem TV_CONSOLE hem ONLINE modu Supabase Broadcast üzerinden çalışır.
-  if (isPublicOrigin()) {
+  // bu yüzden Supabase tanımlıysa TV_CONSOLE ve ONLINE modu Supabase Broadcast üzerinden çalışır.
+  if (isPublicOrigin() && HAS_SUPABASE_CONFIG) {
     return supabaseRelay;
   }
-  return isOnlineMode(platformMode) ? supabaseRelay : partyNetwork;
+  return isOnlineMode(platformMode) && HAS_SUPABASE_CONFIG ? supabaseRelay : partyNetwork;
 }
 
 /** Kullanılmayan tarafı sessizce kapatır (mod değişiminde hayalet bağlantı kalmasın). */

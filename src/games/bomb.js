@@ -13,7 +13,7 @@ import {
   playPanicHeartbeat,
   playStumble,
 } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard } from '../controlGuide.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
@@ -1023,6 +1023,7 @@ export class BombGame extends BaseMiniGame {
     this.renderParticles(ctx);
     this.renderVirtualJoysticks(ctx);
     this.renderDashButtons(ctx);
+    this.renderTopHUD(ctx);
 
     // Panic Phase Red Border Vignette (Last 4 Seconds)
     if (this.state === 'PLAYING' && this.bombTimer <= 4.0) {
@@ -1061,6 +1062,33 @@ export class BombGame extends BaseMiniGame {
     // Arena Floor
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
+
+    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları
+    if (this.state === 'PLAYING') {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const scoreSize = Math.max(32, Math.min(52, Math.floor(Math.min(width, height) * 0.08)));
+
+      const cornerOffsets = [
+        { x: left + width * 0.11, y: bottom - height * 0.11 },
+        { x: left + width * 0.11, y: top + height * 0.11 },
+        { x: right - width * 0.11, y: top + height * 0.11 },
+        { x: right - width * 0.11, y: bottom - height * 0.11 },
+      ];
+      this.players.forEach((p, i) => {
+        if (!p.isJoined) return;
+        const pos = cornerOffsets[i];
+        ctx.save();
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = 0.85;
+        ctx.font = `900 ${scoreSize}px "Space Grotesk", sans-serif`;
+        ctx.fillText(`${this.scores[i] || 0}★`, pos.x, pos.y);
+        ctx.restore();
+      });
+
+      ctx.restore();
+    }
 
     // Arena Grid
     ctx.strokeStyle = '#E2DCD2';
@@ -1101,39 +1129,6 @@ export class BombGame extends BaseMiniGame {
       ctx.stroke();
     }
 
-    // Set Championship Scoreboard Strip at Top
-    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      const joined = this.players.filter((p) => p.isJoined);
-      if (joined.length > 0) {
-        ctx.save();
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        const stripW = Math.min(size * 0.94, 440);
-        const stripH = 32;
-        const stripX = cx - stripW / 2;
-        const stripY = top + 12;
-
-        ctx.fillStyle = '#E5E1D8';
-        ctx.fillRect(stripX, stripY, stripW, stripH);
-        ctx.strokeStyle = '#1C1C1A';
-        ctx.lineWidth = 2.5;
-        ctx.strokeRect(stripX, stripY, stripW, stripH);
-
-        const scoreSummary = joined
-          .map((p) => `${p.name}: ${this.scores[p.index] || 0}`)
-          .join('  |  ');
-
-        ctx.font = '900 13px "JetBrains Mono", monospace';
-        ctx.fillStyle = '#1C1C1A';
-        ctx.fillText(
-          `SET SKORU // ${scoreSummary} // HEDEF: ${this.targetScore}`,
-          cx,
-          stripY + stripH / 2
-        );
-        ctx.restore();
-      }
-    }
     // Dynamic Floor Hazard Ring Under Bomb Carrier
     const carrier = this.players[this.bombCarrierIndex];
     if (carrier && carrier.isAlive && this.state === 'PLAYING') {
@@ -1182,6 +1177,38 @@ export class BombGame extends BaseMiniGame {
 
       ctx.restore();
     }
+  }
+
+  renderTopHUD(ctx) {
+    if (this.state !== 'PLAYING') return;
+    const remain = Math.max(0, this.bombTimer);
+    const urgent = remain <= 4.0;
+    const { cx, top } = this.arena;
+    const pillW = 112;
+    const pillH = 34;
+    const pillX = cx - pillW / 2;
+    const pillY = top + 12;
+
+    ctx.save();
+    // Solid Shadow
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(pillX + 3, pillY + 3, pillW, pillH);
+
+    // Pill Face
+    ctx.fillStyle = urgent ? '#D84727' : '#1C1C1A';
+    ctx.fillRect(pillX, pillY, pillW, pillH);
+
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(pillX, pillY, pillW, pillH);
+
+    // Text
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '900 17px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`💣 ${remain.toFixed(1)}s`, cx, pillY + pillH / 2);
+    ctx.restore();
   }
 
   renderPickups(ctx) {
@@ -1327,7 +1354,7 @@ export class BombGame extends BaseMiniGame {
 
       // Player Label
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = '800 11px "Space Grotesk", sans-serif';
+      ctx.font = '900 13px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const customName = (player.name && player.name !== BOMB_NAMES[player.index])
@@ -1369,16 +1396,17 @@ export class BombGame extends BaseMiniGame {
           ? `⚡ ${Math.max(0, this.bombTimer).toFixed(1)}s`
           : `${Math.max(0, this.bombTimer).toFixed(1)}s`;
 
-        const badgeW = isPanic ? 56 : 46;
+        const badgeW = isPanic ? 74 : 64;
+        const badgeH = 22;
         ctx.fillStyle = isPanic ? '#D84727' : '#1C1C1A';
-        ctx.fillRect(-badgeW / 2, bombY - 34, badgeW, 16);
+        ctx.fillRect(-badgeW / 2, bombY - 38, badgeW, badgeH);
         ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(-badgeW / 2, bombY - 34, badgeW, 16);
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-badgeW / 2, bombY - 38, badgeW, badgeH);
 
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = '900 11px "JetBrains Mono", monospace';
-        ctx.fillText(timerText, 0, bombY - 25);
+        ctx.font = '900 13px "JetBrains Mono", monospace';
+        ctx.fillText(timerText, 0, bombY - 26);
       }
 
       ctx.restore();
@@ -1533,12 +1561,15 @@ export class BombGame extends BaseMiniGame {
   renderLobbyUI(ctx) {
     const { arena } = this;
 
+    const btnW = Math.min(160, arena.size * 0.38);
+    const btnH = 56;
+
     // Corner Slots for 4 Players
     const corners = [
-      { x: arena.left + 24, y: arena.bottom - 60 }, // P1
-      { x: arena.left + 24, y: arena.top + 24 },    // P2
-      { x: arena.right - 184, y: arena.top + 24 },  // P3
-      { x: arena.right - 184, y: arena.bottom - 60 }, // P4
+      { x: arena.left + 20, y: arena.bottom - btnH - 20 }, // P1
+      { x: arena.left + 20, y: arena.top + 20 },           // P2
+      { x: arena.right - btnW - 20, y: arena.top + 20 },   // P3
+      { x: arena.right - btnW - 20, y: arena.bottom - btnH - 20 }, // P4
     ];
 
     for (let i = 0; i < 4; i++) {
@@ -1546,41 +1577,17 @@ export class BombGame extends BaseMiniGame {
       const slotType = this.slotTypes[i];
       const p = this.players[i];
 
-      const numLabel = `${i + 1}`;
-      const isJoinedSeat = slotType === 'human';
-      const isBotSeat = slotType === 'bot_normal' || slotType === 'bot_god';
-      const subLabel = isJoinedSeat ? (p.name || '') : (isBotSeat ? '🤖' : '');
-      const bgColor = '#FAF7F2';
-      const numColor = isBotSeat ? '#75726B' : p.color;
-      const frameColor = isJoinedSeat ? p.color : (isBotSeat ? '#75726B' : '#1C1C1A');
-
-      const btnW = 160;
-      const btnH = 56;
-
-      ctx.save();
-      ctx.fillStyle = bgColor;
-      ctx.fillRect(pos.x, pos.y, btnW, btnH);
-      if (isJoinedSeat) {
-        ctx.globalAlpha = 0.16;
-        ctx.fillStyle = p.color;
-        ctx.fillRect(pos.x, pos.y, btnW, btnH);
-        ctx.globalAlpha = 1;
-      }
-      ctx.strokeStyle = frameColor;
-      ctx.lineWidth = isJoinedSeat ? 4 : 3;
-      ctx.strokeRect(pos.x, pos.y, btnW, btnH);
-
-      ctx.fillStyle = numColor;
-      ctx.font = '900 28px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(numLabel, pos.x + btnW / 2, pos.y + (subLabel ? 20 : btnH / 2));
-      if (subLabel) {
-        ctx.fillStyle = isJoinedSeat ? '#1C1C1A' : '#75726B';
-        ctx.font = '800 10px "Space Grotesk", sans-serif';
-        ctx.fillText(subLabel.slice(0, 10), pos.x + btnW / 2, pos.y + 42);
-      }
-      ctx.restore();
+      renderLobbySeatCard(ctx, {
+        x: pos.x,
+        y: pos.y,
+        w: btnW,
+        h: btnH,
+        slotIndex: i,
+        slotType: slotType,
+        playerName: p ? (p.name || '') : '',
+        playerColor: BOMB_COLORS[i],
+        rotation: 0,
+      });
 
       this.uiButtons.push({
         x: pos.x,
@@ -1592,12 +1599,16 @@ export class BombGame extends BaseMiniGame {
     }
 
     // Map Selector Button in Lobby
-    const mapBtnW = 200;
+    const mapBtnW = Math.min(220, arena.size * 0.52);
     const mapBtnH = 36;
     const mapBtnX = arena.cx - mapBtnW / 2;
     const mapBtnY = arena.cy - 72;
 
     ctx.save();
+    // Solid Shadow
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(mapBtnX + 3, mapBtnY + 3, mapBtnW, mapBtnH);
+
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
     ctx.strokeStyle = '#1C1C1A';
@@ -1621,41 +1632,40 @@ export class BombGame extends BaseMiniGame {
 
     // Center Start Button
     const joined = this.players.filter((p) => p.isJoined);
-    if (joined.length >= 2) {
-      const btnW = Math.min(220, arena.size * 0.5);
-      const btnH = 64;
-      const btnX = arena.cx - btnW / 2;
-      const btnY = arena.cy - 12;
+    const joinedCount = joined.length;
+    const startW = Math.min(220, arena.size * 0.5);
+    const startH = 60;
+    const startX = arena.cx - startW / 2;
+    const startY = arena.cy - 12;
 
-      ctx.fillStyle = '#1C1C1A';
-      ctx.fillRect(btnX + 6, btnY + 6, btnW, btnH);
+    ctx.save();
+    // Solid Shadow
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(startX + 5, startY + 5, startW, startH);
 
-      ctx.fillStyle = '#D84727';
-      ctx.fillRect(btnX, btnY, btnW, btnH);
+    // Button Face
+    ctx.fillStyle = joinedCount >= 2 ? '#D84727' : '#E5E0D6';
+    ctx.fillRect(startX, startY, startW, startH);
 
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(btnX, btnY, btnW, btnH);
+    ctx.strokeStyle = '#1C1C1A';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(startX, startY, startW, startH);
 
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '800 24px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('BAŞLAT', arena.cx, btnY + btnH / 2);
+    ctx.fillStyle = joinedCount >= 2 ? '#FFFFFF' : '#75726B';
+    ctx.font = joinedCount >= 2 ? '900 20px "Space Grotesk", sans-serif' : '800 13px "Space Grotesk", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(joinedCount >= 2 ? '▶ MAÇI BAŞLAT' : '2 KİŞİ GEREKİYOR', arena.cx, startY + startH / 2);
+    ctx.restore();
 
+    if (joinedCount >= 2) {
       this.uiButtons.push({
-        x: btnX,
-        y: btnY,
-        w: btnW,
-        h: btnH,
+        x: startX,
+        y: startY,
+        w: startW,
+        h: startH,
         onClick: () => this.startNewMatch(),
       });
-    } else {
-      ctx.fillStyle = '#75726B';
-      ctx.font = '800 14px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('2 KİŞİ OLUNCA BAŞLAR', arena.cx, arena.cy + 6);
     }
   }
 
@@ -1716,13 +1726,13 @@ export class BombGame extends BaseMiniGame {
 
     if (this.matchWinner) {
       ctx.fillStyle = this.matchWinner.color;
-      ctx.font = '900 22px "Space Grotesk", sans-serif';
-      ctx.fillText(`${this.matchWinner.color} // KAZANDI`, arena.cx, boxY + 66, boxW - 20);
+      ctx.font = '900 24px "Space Grotesk", sans-serif';
+      ctx.fillText(`${this.matchWinner.name} KAZANDI!`, arena.cx, boxY + 68, boxW - 20);
 
       ctx.font = '800 12px "JetBrains Mono", monospace';
       this.players.filter((p) => p.isJoined).forEach((p, row) => {
         ctx.fillStyle = p.color;
-        ctx.fillText(`${p.color}: ${this.scores[p.index] || 0} SET`, arena.cx, boxY + 94 + row * 17);
+        ctx.fillText(`${p.name}: ${this.scores[p.index] || 0}★`, arena.cx, boxY + 96 + row * 18);
       });
     }
 

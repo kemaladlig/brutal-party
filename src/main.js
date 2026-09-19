@@ -57,7 +57,7 @@ const btnOpenOptions = document.getElementById('btn-open-options');
 const btnHeroCreateRoom = document.getElementById('btn-hero-create-room');
 
 // Platform / Match Mode: 'LOCAL' | 'TV_CONSOLE' | 'ONLINE'
-let platformMode = isPublicOrigin() ? 'ONLINE' : 'TV_CONSOLE';
+let platformMode = isPublicOrigin() && HAS_SUPABASE_CONFIG ? 'ONLINE' : 'TV_CONSOLE';
 export function updatePlatformMode(newMode) {
   platformMode = newMode;
 }
@@ -826,12 +826,15 @@ function sendGoodbyeBeacon() {
 window.addEventListener('pagehide', sendGoodbyeBeacon);
 window.addEventListener('beforeunload', sendGoodbyeBeacon);
 
-// Service Worker Management
+// Service Worker Management (with auto update & cache busting)
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js')
-      .then((reg) => console.log('[PWA] ServiceWorker registered:', reg.scope))
+      .then((reg) => {
+        reg.update();
+        console.log('[PWA] ServiceWorker registered and updated:', reg.scope);
+      })
       .catch((err) => console.warn('[PWA] ServiceWorker registration failed:', err));
   });
 }

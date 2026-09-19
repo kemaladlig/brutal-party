@@ -1,6 +1,6 @@
 // Micro-Tanks: 8 Labyrinths with Multi-Tier Bot AI (Normal & God Mode), Tactical Crates & Sudden Death
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard } from '../controlGuide.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateTankBotAI as runTankBotAI } from '../ai/tankAI.js';
 
@@ -949,9 +949,36 @@ export class TanksGame extends BaseMiniGame {
       ctx.translate((Math.random() - 0.5) * intensity, (Math.random() - 0.5) * intensity);
     }
 
-    const { left, top, width, height, size, right, bottom } = this.arena;
+    const { left, top, width, height, size, right, bottom, cx, cy } = this.arena;
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
+
+    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları
+    if (this.state === 'PLAYING') {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const scoreSize = Math.max(32, Math.min(52, Math.floor(Math.min(width, height) * 0.08)));
+
+      const cornerOffsets = [
+        { x: left + width * 0.11, y: bottom - height * 0.11 },
+        { x: left + width * 0.11, y: top + height * 0.11 },
+        { x: right - width * 0.11, y: top + height * 0.11 },
+        { x: right - width * 0.11, y: bottom - height * 0.11 },
+      ];
+      this.tanks.forEach((t, i) => {
+        if (!t.isJoined) return;
+        const pos = cornerOffsets[i];
+        ctx.save();
+        ctx.fillStyle = t.color;
+        ctx.globalAlpha = 0.85;
+        ctx.font = `900 ${scoreSize}px "Space Grotesk", sans-serif`;
+        ctx.fillText(`${this.scores[i] || 0}★`, pos.x, pos.y);
+        ctx.restore();
+      });
+
+      ctx.restore();
+    }
 
     ctx.strokeStyle = '#E2DDD4';
     ctx.lineWidth = 1.5;
@@ -981,7 +1008,6 @@ export class TanksGame extends BaseMiniGame {
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
 
-    this.renderMatchHeader(ctx);
     this.renderCornerTouchZones(ctx);
 
     for (const b of this.bullets) {
@@ -1040,13 +1066,30 @@ export class TanksGame extends BaseMiniGame {
       this.renderSpawnBeacons(ctx);
     }
 
-    // Sudden Death Banner
+    // Sudden Death Top HUD Pill
     if (this.state === 'PLAYING' && this.roundTimer > 35) {
+      const { cx, top } = this.arena;
+      const pillW = 136;
+      const pillH = 34;
+      const pillX = cx - pillW / 2;
+      const pillY = top + 12;
+
       ctx.save();
+      ctx.fillStyle = '#1A1A1A';
+      ctx.fillRect(pillX + 3, pillY + 3, pillW, pillH);
+
       ctx.fillStyle = '#D84727';
-      ctx.font = '900 12px "JetBrains Mono", monospace';
+      ctx.fillRect(pillX, pillY, pillW, pillH);
+
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(pillX, pillY, pillW, pillH);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '900 15px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('⚠️ SUDDEN DEATH // ALAN DARALIYOR', this.arena.cx, this.arena.top + 20);
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⚠️ ANİ ÖLÜM', cx, pillY + pillH / 2);
       ctx.restore();
     }
 
@@ -1092,10 +1135,10 @@ export class TanksGame extends BaseMiniGame {
       ctx.arc(tank.x, tank.y, ringRadius, 0, Math.PI * 2);
       ctx.stroke();
 
-      const tagW = 86;
-      const tagH = 22;
+      const tagW = 104;
+      const tagH = 26;
       const tagX = tank.x - tagW / 2;
-      const tagY = tank.y - tank.size - 22;
+      const tagY = tank.y - tank.size - 26;
 
       ctx.fillStyle = '#1A1A1A';
       ctx.fillRect(tagX + 3, tagY + 3, tagW, tagH);
@@ -1103,45 +1146,17 @@ export class TanksGame extends BaseMiniGame {
       ctx.fillStyle = tank.color;
       ctx.fillRect(tagX, tagY, tagW, tagH);
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.5;
       ctx.strokeRect(tagX, tagY, tagW, tagH);
 
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 10.5px "Space Grotesk", sans-serif';
+      ctx.font = '900 12.5px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const role = tank.slotType === 'bot_god' ? '⚡GOD' : tank.slotType === 'bot_normal' ? '🤖BOT' : 'P' + (tank.index + 1);
-      ctx.fillText(`${role} // ${tank.name}`, tank.x, tagY + tagH / 2);
+      ctx.fillText(`${role} • ${tank.name}`, tank.x, tagY + tagH / 2);
       ctx.restore();
     });
-  }
-
-  renderMatchHeader(ctx) {
-    const { left, right, top, cx } = this.arena;
-    const mapDef = MAP_LAYOUTS[this.currentMapIndex];
-
-    ctx.save();
-    ctx.fillStyle = '#858076';
-    ctx.font = '900 13px "JetBrains Mono", monospace';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(mapDef.name, left + 8, top - 14);
-
-    let scoreX = right - 8;
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    for (let i = 3; i >= 0; i--) {
-      const t = this.tanks[i];
-      if (!t || !t.isJoined) continue;
-
-      ctx.fillStyle = t.color;
-      ctx.font = '900 14px "JetBrains Mono", monospace';
-      const botPrefix = t.slotType === 'bot_god' ? '⚡' : t.slotType === 'bot_normal' ? '🤖' : '';
-      const text = `${botPrefix}${t.name}: ${this.scores[i]}★`;
-      ctx.fillText(text, scoreX, top - 14);
-      scoreX -= ctx.measureText(text).width + 16;
-    }
-    ctx.restore();
   }
 
   drawTank(ctx, tank) {
@@ -1247,18 +1262,18 @@ export class TanksGame extends BaseMiniGame {
       ctx.rotate(Math.PI);
     }
 
-    const cartridgeW = 12;
-    const cartridgeH = 8;
-    const spacing = 3;
+    const cartridgeW = 16;
+    const cartridgeH = 10;
+    const spacing = 4;
     const totalW = tank.maxBullets * cartridgeW + (tank.maxBullets - 1) * spacing;
     const startX = -totalW / 2;
 
     // Background panel
     ctx.fillStyle = '#1C1C1A';
-    ctx.fillRect(-totalW / 2 - 3, -cartridgeH / 2 - 3, totalW + 6, cartridgeH + 6);
+    ctx.fillRect(-totalW / 2 - 4, -cartridgeH / 2 - 4, totalW + 8, cartridgeH + 8);
     ctx.strokeStyle = tank.color;
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(-totalW / 2 - 3, -cartridgeH / 2 - 3, totalW + 6, cartridgeH + 6);
+    ctx.lineWidth = 2;
+    ctx.strokeRect(-totalW / 2 - 4, -cartridgeH / 2 - 4, totalW + 8, cartridgeH + 8);
 
     // Yuvalar: dolu = tam renk, dolan = gri + ilerleme, boş = içi boş çerçeve
     const pipColor = tank.hasTripleShot ? '#FFDE59' : tank.color;
@@ -1310,86 +1325,85 @@ export class TanksGame extends BaseMiniGame {
 
       let numLabel = `${index + 1}`;
       let subLabel = '';
-      let strokeColor = '#DDD9CF';
-      let numColor = '#99948A';
+      let isJoinedSeat = c.slot === 'human';
+      let isBotSeat = c.slot === 'bot_normal' || c.slot === 'bot_god';
 
-      if (c.slot === 'human') {
+      if (isJoinedSeat) {
         subLabel = (tank && tank.name && tank.name !== TANK_NAMES[index]) ? tank.name : '';
-        strokeColor = c.color;
-        numColor = c.color;
-      } else if (c.slot === 'bot_normal' || c.slot === 'bot_god') {
+      } else if (isBotSeat) {
         subLabel = '🤖';
-        strokeColor = '#3A3A38';
-        numColor = '#3A3A38';
       }
 
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = c.slot === 'bot_god' ? 3 : 2;
-      ctx.setLineDash(isGameplayHuman ? [] : [4, 4]);
-      ctx.strokeRect(-halfW, -halfH, zone.w, zone.h);
+      if (this.state === 'LOBBY') {
+        const pName = (tank && tank.name && tank.name !== TANK_NAMES[index]) ? tank.name : '';
+        renderLobbySeatCard(ctx, {
+          x: -halfW,
+          y: -halfH,
+          w: zone.w,
+          h: zone.h,
+          slotIndex: index,
+          slotType: c.slot,
+          playerName: pName,
+          playerColor: c.color,
+          rotation: 0,
+        });
+      } else {
+        // In-game corner header & HUD
+        ctx.strokeStyle = c.color;
+        ctx.lineWidth = c.slot === 'bot_god' ? 3 : 2;
+        ctx.strokeRect(-halfW, -halfH, zone.w, zone.h);
 
-      // Rotated Corner Header: Player Name & Tournament Score
-      ctx.fillStyle = c.color;
-      ctx.font = '900 12px "JetBrains Mono", monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      const pName = (tank && tank.name && tank.name !== TANK_NAMES[index])
-        ? `${c.name} (${tank.name})`
-        : c.name;
-      ctx.fillText(`${pName} [${this.scores[index]} PUAN]`, 0, -halfH + 8);
-
-      if (isGameplayHuman && tank) {
-        const isDriving = tank.isDriving;
-        ctx.fillStyle = isDriving ? `${c.color}44` : `${c.color}18`;
-        ctx.fillRect(-halfW, -halfH, zone.w, zone.h);
-
-        // Control instructions
-        ctx.fillStyle = isDriving ? '#1A1A1A' : c.color;
-        ctx.font = '900 13px "Space Grotesk", sans-serif';
+        // Rotated Corner Header: Player Name
+        ctx.fillStyle = c.color;
+        ctx.font = '900 13px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(isDriving ? '▶ İLERLİYOR...' : 'TUT: GİT  •  BIRAK: ATEŞ', 0, -14);
+        ctx.textBaseline = 'top';
+        const pName = (tank && tank.name && tank.name !== TANK_NAMES[index])
+          ? `${c.name} (${tank.name})`
+          : c.name;
+        ctx.fillText(pName, 0, -halfH + 8);
 
-        // Visual Ammo Cartridge Bar in Player's Corner (aynı kural, yazısız)
-        const v = this.ammoVisual(tank);
+        if (isGameplayHuman && tank) {
+          const isDriving = tank.isDriving;
+          ctx.fillStyle = isDriving ? `${c.color}44` : `${c.color}18`;
+          ctx.fillRect(-halfW, -halfH, zone.w, zone.h);
 
-        const cartW = 14;
-        const cartH = 8;
-        const spacing = 4;
-        const totalW = tank.maxBullets * cartW + (tank.maxBullets - 1) * spacing;
-        const startX = -totalW / 2;
+          // Control instructions
+          ctx.fillStyle = isDriving ? '#1A1A1A' : c.color;
+          ctx.font = '900 13px "Space Grotesk", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(isDriving ? '▶ İLERLİYOR...' : 'TUT: GİT  •  BIRAK: ATEŞ', 0, -14);
 
-        for (let i = 0; i < tank.maxBullets; i++) {
-          const bx = startX + i * (cartW + spacing);
-          const by = 4;
-          if (i < v.readyCount) {
-            ctx.fillStyle = c.color;
-            ctx.fillRect(bx, by, cartW, cartH);
-          } else if (i === v.loadIdx && v.progress > 0) {
-            ctx.fillStyle = '#8A8578';
-            ctx.fillRect(bx, by, cartW, cartH);
-            ctx.fillStyle = c.color;
-            ctx.fillRect(bx, by, cartW * v.progress, cartH);
-          } else {
-            ctx.strokeStyle = '#8A8578';
+          // Visual Ammo Cartridge Bar in Player's Corner
+          const v = this.ammoVisual(tank);
+
+          const cartW = 14;
+          const cartH = 8;
+          const spacing = 4;
+          const totalW = tank.maxBullets * cartW + (tank.maxBullets - 1) * spacing;
+          const startX = -totalW / 2;
+
+          for (let i = 0; i < tank.maxBullets; i++) {
+            const bx = startX + i * (cartW + spacing);
+            const by = 4;
+            if (i < v.readyCount) {
+              ctx.fillStyle = c.color;
+              ctx.fillRect(bx, by, cartW, cartH);
+            } else if (i === v.loadIdx && v.progress > 0) {
+              ctx.fillStyle = '#8A8578';
+              ctx.fillRect(bx, by, cartW, cartH);
+              ctx.fillStyle = c.color;
+              ctx.fillRect(bx, by, cartW * v.progress, cartH);
+            } else {
+              ctx.strokeStyle = '#8A8578';
+              ctx.lineWidth = 1.5;
+              ctx.strokeRect(bx, by, cartW, cartH);
+            }
+            ctx.strokeStyle = '#1C1C1A';
             ctx.lineWidth = 1.5;
             ctx.strokeRect(bx, by, cartW, cartH);
           }
-          ctx.strokeStyle = '#1C1C1A';
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(bx, by, cartW, cartH);
-        }
-      } else {
-        const numSize = Math.max(24, Math.min(44, Math.floor(Math.min(zone.w, zone.h) * 0.36)));
-        ctx.fillStyle = numColor;
-        ctx.font = `900 ${numSize}px "Space Grotesk", sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(numLabel, 0, subLabel ? -numSize * 0.3 : 0);
-        if (subLabel) {
-          ctx.fillStyle = '#1C1C1A';
-          ctx.font = '800 10px "Space Grotesk", sans-serif';
-          ctx.fillText(subLabel.slice(0, 10), 0, numSize * 0.45);
         }
       }
 
@@ -1401,31 +1415,29 @@ export class TanksGame extends BaseMiniGame {
     const { cx, cy } = this.arena;
     const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
 
-    ctx.save();
-    const btnRadius = 52;
-    ctx.fillStyle = '#1A1A1A';
-    ctx.beginPath();
-    ctx.arc(cx + 4, cy + 4, btnRadius, 0, Math.PI * 2);
-    ctx.fill();
+    const btnW = Math.min(220, this.arena.width * 0.45);
+    const btnH = 60;
+    const btnX = cx - btnW / 2;
+    const btnY = cy - btnH / 2;
 
-    ctx.fillStyle = joinedCount >= 2 ? '#D84727' : '#CCC7BD';
-    ctx.beginPath();
-    ctx.arc(cx, cy, btnRadius, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.save();
+    // Solid Shadow
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(btnX + 5, btnY + 5, btnW, btnH);
+
+    // Button Face
+    ctx.fillStyle = joinedCount >= 2 ? '#D84727' : '#E5E0D6';
+    ctx.fillRect(btnX, btnY, btnW, btnH);
+
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 3;
-    ctx.stroke();
+    ctx.strokeRect(btnX, btnY, btnW, btnH);
 
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '900 16px "Space Grotesk", sans-serif';
+    ctx.fillStyle = joinedCount >= 2 ? '#FFFFFF' : '#75726B';
+    ctx.font = joinedCount >= 2 ? '900 20px "Space Grotesk", sans-serif' : '800 13px "Space Grotesk", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    if (joinedCount >= 2) {
-      ctx.fillText('BAŞLAT', cx, cy);
-    } else {
-      ctx.font = '800 12px "Space Grotesk", sans-serif';
-      ctx.fillText('2 KİŞİ OLUNCA BAŞLAR', cx, cy);
-    }
+    ctx.fillText(joinedCount >= 2 ? '▶ MAÇI BAŞLAT' : '2 KİŞİ GEREKİYOR', cx, cy);
     ctx.restore();
   }
 
@@ -1484,14 +1496,14 @@ export class TanksGame extends BaseMiniGame {
 
     if (this.matchWinner) {
       ctx.fillStyle = this.matchWinner.color;
-      ctx.font = '900 26px "Space Grotesk", sans-serif';
-      ctx.fillText(`${this.matchWinner.color} // KAZANDI`, cx, boxY + 68, boxW - 20);
+      ctx.font = '900 24px "Space Grotesk", sans-serif';
+      ctx.fillText(`${this.matchWinner.name} KAZANDI!`, cx, boxY + 68, boxW - 20);
     }
 
-    ctx.font = '800 11px "JetBrains Mono", monospace';
+    ctx.font = '800 12px "JetBrains Mono", monospace';
     this.tanks.filter((tank) => tank.isJoined).forEach((tank, row) => {
       ctx.fillStyle = tank.color;
-      ctx.fillText(`${tank.color}: ${this.scores[tank.index] || 0} SET`, cx, boxY + 94 + row * 17);
+      ctx.fillText(`${tank.name}: ${this.scores[tank.index] || 0}★`, cx, boxY + 96 + row * 18);
     });
 
     const btnW = 180;

@@ -43,7 +43,7 @@ export function getEffectiveJoinUrl(code, platformMode) {
     const base = PUBLIC_URL.replace(/\/$/, '');
     return `${base}/?join=${code}`;
   }
-  const port = window.location.port || '5173';
+  const port = window.location.port || '3000';
   const host = detectedLanIp || window.location.hostname;
   return `http://${host}:${port}/?join=${code}`;
 }

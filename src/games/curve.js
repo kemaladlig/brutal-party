@@ -1,6 +1,6 @@
 // BRUTAL CURVE (Game 03): 2-4 Player Local Party Curve Fever with Gaps, Power-Ups & Bot AI
 import { playExplosion, playStart, playJoin, playGap, playItemPickup } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard } from '../controlGuide.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCurveBotAI } from '../ai/curveAI.js';
 
@@ -619,10 +619,37 @@ export class CurveGame extends BaseMiniGame {
       ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
     }
 
-    const { left, top, width, height, size, right, bottom } = this.arena;
+    const { left, top, width, height, size, right, bottom, cx, cy } = this.arena;
 
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
+
+    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları
+    if (this.state === 'PLAYING') {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const scoreSize = Math.max(32, Math.min(52, Math.floor(Math.min(width, height) * 0.08)));
+
+      const cornerOffsets = [
+        { x: left + width * 0.11, y: bottom - height * 0.11 },
+        { x: left + width * 0.11, y: top + height * 0.11 },
+        { x: right - width * 0.11, y: top + height * 0.11 },
+        { x: right - width * 0.11, y: bottom - height * 0.11 },
+      ];
+      this.players.forEach((p, i) => {
+        if (!p.isJoined) return;
+        const pos = cornerOffsets[i];
+        ctx.save();
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = 0.85;
+        ctx.font = `900 ${scoreSize}px "Space Grotesk", sans-serif`;
+        ctx.fillText(`${this.scores[i] || 0}★`, pos.x, pos.y);
+        ctx.restore();
+      });
+
+      ctx.restore();
+    }
 
     ctx.strokeStyle = '#E2DDD4';
     ctx.lineWidth = 1.5;
@@ -643,8 +670,6 @@ export class CurveGame extends BaseMiniGame {
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
-
-    this.renderHeader(ctx);
 
     // Trail Segments
     ctx.lineWidth = 4;
@@ -671,7 +696,7 @@ export class CurveGame extends BaseMiniGame {
       ctx.strokeRect(item.x - s / 2, item.y - s / 2, s, s);
 
       ctx.fillStyle = '#1A1A1A';
-      ctx.font = '900 11px "Space Grotesk", sans-serif';
+      ctx.font = '900 15px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const icon =
@@ -762,33 +787,6 @@ export class CurveGame extends BaseMiniGame {
     ctx.restore();
   }
 
-  renderHeader(ctx) {
-    const { left, right, top } = this.arena;
-
-    ctx.save();
-    ctx.fillStyle = '#858076';
-    ctx.font = '900 13px "JetBrains Mono", monospace';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('03 // BRUTAL CURVE (HEDEF: 5)', left + 8, top - 14);
-
-    let scoreX = right - 8;
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    for (let i = 3; i >= 0; i--) {
-      const p = this.players[i];
-      if (!p || !p.isJoined) continue;
-
-      ctx.fillStyle = p.color;
-      ctx.font = '900 14px "JetBrains Mono", monospace';
-      const botPrefix = p.slotType === 'bot_god' ? '⚡' : p.slotType === 'bot_normal' ? '🤖' : '';
-      const text = `${botPrefix}${p.name}: ${this.scores[i]}★`;
-      ctx.fillText(text, scoreX, top - 14);
-      scoreX -= ctx.measureText(text).width + 16;
-    }
-    ctx.restore();
-  }
-
   renderCornerControls(ctx) {
     for (let i = 0; i < 4; i++) {
       const player = this.players[i];
@@ -808,48 +806,39 @@ export class CurveGame extends BaseMiniGame {
       const halfW = zones.box.w / 2;
       const halfH = zones.box.h / 2;
 
+      let numLabel = `${i + 1}`;
+      let subLabel = '';
+      let isJoinedSeat = player.slotType === 'human';
+      let isBotSeat = player.slotType === 'bot_normal' || player.slotType === 'bot_god';
+
+      if (isJoinedSeat) {
+        subLabel = player.name || '';
+      } else if (isBotSeat) {
+        subLabel = '🤖';
+      }
+
       if (this.state === 'LOBBY') {
-        let numLabel = `${i + 1}`;
-        let subLabel = '';
-        let strokeColor = '#DDD9CF';
-        let numColor = '#99948A';
-
-        if (player.slotType === 'human') {
-          subLabel = player.name || '';
-          strokeColor = player.color;
-          numColor = player.color;
-        } else if (player.slotType === 'bot_normal' || player.slotType === 'bot_god') {
-          subLabel = '🤖';
-          strokeColor = '#3A3A38';
-          numColor = '#3A3A38';
-        }
-
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = player.slotType === 'bot_god' ? 3 : 2;
-        ctx.setLineDash([4, 4]);
-        ctx.strokeRect(-halfW, -halfH, zones.box.w, zones.box.h);
-
-        const numSize = Math.max(22, Math.min(40, Math.floor(Math.min(zones.box.w, zones.box.h) * 0.42)));
-        ctx.fillStyle = numColor;
-        ctx.font = `900 ${numSize}px "Space Grotesk", sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(numLabel, 0, subLabel ? -numSize * 0.3 : 0);
-        if (subLabel) {
-          ctx.fillStyle = '#1C1C1A';
-          ctx.font = '800 10px "Space Grotesk", sans-serif';
-          ctx.fillText(subLabel.slice(0, 10), 0, numSize * 0.45);
-        }
+        renderLobbySeatCard(ctx, {
+          x: -halfW,
+          y: -halfH,
+          w: zones.box.w,
+          h: zones.box.h,
+          slotIndex: i,
+          slotType: player.slotType,
+          playerName: player.name || '',
+          playerColor: player.color,
+          rotation: 0,
+        });
 
       } else if (isJoined && player.slotType === 'human' && player.isAlive) {
         const touching = this.cornerTouches[i] || { id: -1, action: null };
 
-        // Player Name & Score Header
+        // Player Name Header
         ctx.fillStyle = player.color;
-        ctx.font = '900 11px "JetBrains Mono", monospace';
+        ctx.font = '900 12px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(`${player.name} [${this.scores[i]} PUAN]`, 0, -halfH - 4);
+        ctx.fillText(player.name, 0, -halfH - 4);
 
         const leftActive = touching.action === 'left';
         ctx.fillStyle = leftActive ? player.color : '#FFFFFF';
@@ -928,31 +917,29 @@ export class CurveGame extends BaseMiniGame {
     const { cx, cy } = this.arena;
     const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
 
-    ctx.save();
-    const btnRadius = 52;
-    ctx.fillStyle = '#1A1A1A';
-    ctx.beginPath();
-    ctx.arc(cx + 4, cy + 4, btnRadius, 0, Math.PI * 2);
-    ctx.fill();
+    const btnW = Math.min(220, this.arena.width * 0.45);
+    const btnH = 60;
+    const btnX = cx - btnW / 2;
+    const btnY = cy - btnH / 2;
 
-    ctx.fillStyle = joinedCount >= 2 ? '#D84727' : '#CCC7BD';
-    ctx.beginPath();
-    ctx.arc(cx, cy, btnRadius, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.save();
+    // Solid Shadow
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(btnX + 5, btnY + 5, btnW, btnH);
+
+    // Button Face
+    ctx.fillStyle = joinedCount >= 2 ? '#D84727' : '#E5E0D6';
+    ctx.fillRect(btnX, btnY, btnW, btnH);
+
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 3;
-    ctx.stroke();
+    ctx.strokeRect(btnX, btnY, btnW, btnH);
 
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '900 16px "Space Grotesk", sans-serif';
+    ctx.fillStyle = joinedCount >= 2 ? '#FFFFFF' : '#75726B';
+    ctx.font = joinedCount >= 2 ? '900 20px "Space Grotesk", sans-serif' : '800 13px "Space Grotesk", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    if (joinedCount >= 2) {
-      ctx.fillText('BAŞLAT', cx, cy);
-    } else {
-      ctx.font = '800 13px "Space Grotesk", sans-serif';
-      ctx.fillText('2 KİŞİ OLUNCA BAŞLAR', cx, cy);
-    }
+    ctx.fillText(joinedCount >= 2 ? '▶ MAÇI BAŞLAT' : '2 KİŞİ GEREKİYOR', cx, cy);
     ctx.restore();
   }
 
@@ -1011,14 +998,14 @@ export class CurveGame extends BaseMiniGame {
 
     if (this.matchWinner) {
       ctx.fillStyle = this.matchWinner.color;
-      ctx.font = '900 26px "Space Grotesk", sans-serif';
-      ctx.fillText(`${this.matchWinner.name} // KAZANDI`, cx, boxY + 68, boxW - 20);
+      ctx.font = '900 24px "Space Grotesk", sans-serif';
+      ctx.fillText(`${this.matchWinner.name} KAZANDI!`, cx, boxY + 68, boxW - 20);
     }
 
-    ctx.font = '800 11px "JetBrains Mono", monospace';
+    ctx.font = '800 12px "JetBrains Mono", monospace';
     this.players.filter((player) => player.isJoined).forEach((player, row) => {
       ctx.fillStyle = player.color;
-      ctx.fillText(`${player.color}: ${this.scores[player.index] || 0} SET`, cx, boxY + 94 + row * 17);
+      ctx.fillText(`${player.name}: ${this.scores[player.index] || 0}★`, cx, boxY + 96 + row * 18);
     });
 
     const btnW = 180;
