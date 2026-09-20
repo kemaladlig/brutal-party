@@ -7,6 +7,7 @@ import { HeistGame } from './games/heist.js';
 import { DuelGame } from './games/duel.js';
 import { CrownGame } from './games/crown.js';
 import { ZoneGame } from './games/zone.js';
+import { SnakeGame } from './games/snake.js';
 import { TouchManager } from './touchManager.js';
 import {
   GAME_ORDER,
@@ -87,6 +88,7 @@ const heistGame = new HeistGame(canvas);
 const duelGame = new DuelGame(canvas);
 const crownGame = new CrownGame(canvas);
 const zoneGame = new ZoneGame(canvas);
+const snakeGame = new SnakeGame(canvas);
 
 function touchStamp(game, now) {
   game.lastTime = now;
@@ -193,6 +195,17 @@ registerEngine('ZONE', {
     kills: zoneGame.kills,
     timeLeft: Math.ceil(zoneGame.roundTimer || 0),
     leader: zoneGame.leaderIndex,
+  }),
+});
+registerEngine('SNAKE', {
+  game: snakeGame,
+  reset: () => snakeGame.resetMatch(),
+  onEnter: (now) => touchStamp(snakeGame, now),
+  onResume: (now) => touchStamp(snakeGame, now),
+  start: () => snakeGame.startRound(),
+  packet: () => ({
+    scores: snakeGame.scores,
+    alive: snakeGame.players.map((p) => p.isAlive),
   }),
 });
 

@@ -48,6 +48,8 @@ function isValidRelayInput(data) {
     case 'DASH':
     case 'TACKLE':
     case 'SPIN':
+    case 'SNAKE_BOOST':
+    case 'SNAKE_BOOST_RELEASE':
     case 'DUEL_TAP':
     case 'SET_NAME':
     case 'SWITCH_SLOT':

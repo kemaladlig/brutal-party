@@ -861,6 +861,7 @@ body {
 .card-duel { border-top: 8px solid #8c4830; }
 .card-crown { border-top: 8px solid #f59e0b; }
 .card-zone { border-top: 8px solid #2f6a4f; }
+.card-snake { border-top: 8px solid #3fa34d; }
 
 .bento-media-box {
   width: 100%;

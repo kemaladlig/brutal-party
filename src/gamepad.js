@@ -16,6 +16,7 @@ const CONTROLLER_META = {
   DUEL: { hudTag: '🤠 DUEL', lobbyTitle: '🤠 QUICK DRAW', mount: 'mountDuelController' },
   CROWN: { hudTag: '👑 CROWN', lobbyTitle: '👑 BRUTAL CROWN', mount: 'mountCrownController' },
   ZONE: { hudTag: '🗺️ ZONE', lobbyTitle: '🗺️ BRUTAL ZONE', mount: 'mountZoneController' },
+  SNAKE: { hudTag: '🐍 SNAKE', lobbyTitle: '🐍 BRUTAL SNAKE', mount: 'mountSnakeController' },
 };
 
 export class GamepadManager {
@@ -1046,6 +1047,58 @@ export class GamepadManager {
     });
   }
 
+  // --- 09: SNAKE CONTROLLER (Joystick + hold BOOST) ---
+  mountSnakeController(container) {
+    container.innerHTML = `
+      <div class="joystick-action-view">
+        <div class="joystick-half" id="snake-joy-zone">
+          <div class="phone-joy-base">
+            <div class="phone-joy-knob" id="snake-joy-knob" style="background-color: ${this.playerColor}"></div>
+          </div>
+        </div>
+        <div class="action-half">
+          <button class="action-dash-btn" id="btn-snake-boost" type="button" style="background-color: #2F6A4F">
+            <span class="dash-btn-label">⚡ HIZLAN</span>
+            <span class="dash-btn-sub">BASILI TUT</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    this.bindJoystick('snake-joy-zone', 'snake-joy-knob', (input) => {
+      this._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
+    });
+
+    // Hold-release boost: basış ve bırakış throttle dışı discrete gider
+    const boostBtn = document.getElementById('btn-snake-boost');
+    let boosting = false;
+    const startBoost = (e) => {
+      e?.preventDefault();
+      if (boosting) return;
+      boosting = true;
+      boostBtn?.classList.add('active');
+      this.network.sendInput({ action: 'SNAKE_BOOST' });
+      if (navigator.vibrate) navigator.vibrate(20);
+    };
+    const stopBoost = (e) => {
+      e?.preventDefault();
+      if (!boosting) return;
+      boosting = false;
+      boostBtn?.classList.remove('active');
+      this.network.sendInput({ action: 'SNAKE_BOOST_RELEASE' });
+    };
+    const boostSignal = this._mountAbort?.signal;
+    boostBtn?.addEventListener('touchstart', startBoost, { passive: false });
+    boostBtn?.addEventListener('touchend', stopBoost, { passive: false });
+    boostBtn?.addEventListener('touchcancel', stopBoost, { passive: false });
+    window.addEventListener('touchend', stopBoost, { passive: true, signal: boostSignal });
+    window.addEventListener('touchcancel', stopBoost, { passive: true, signal: boostSignal });
+    boostBtn?.addEventListener('mousedown', startBoost);
+    boostBtn?.addEventListener('mouseup', stopBoost);
+    boostBtn?.addEventListener('mouseleave', stopBoost);
+    window.addEventListener('mouseup', stopBoost, { signal: boostSignal });
+  }
+
   // Generic Touch & Mouse Joystick Helper
   bindJoystick(zoneId, knobId, onInput) {
     const zone = document.getElementById(zoneId);
@@ -1262,6 +1315,9 @@ export class GamepadManager {
         statusStr = data.leader === this.playerIndex
           ? `👑 ÖNDESİN! %${myPct} • ⏱ ${timeStr}`
           : `⏱ ${timeStr} • SEN %${myPct} • 👑 ${leadName} %${leadPct}`;
+      } else if (data.gameMode === 'SNAKE') {
+        const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
+        statusStr = `SKOR: ${data.scores.join('-')} • 🐍 ${aliveCount} CANLI`;
       }
       if (statusStr !== this._lastStatusStr) {
         this._lastStatusStr = statusStr;

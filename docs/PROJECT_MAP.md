@@ -77,6 +77,7 @@ public/                     PWA (manifest.webmanifest, sw.js, ikonlar) + public/
 | DUEL | Quick Draw | `src/games/duel.js` | `src/ai/duelAI.js` | `mountDuelController` | Sinyalde ateş + salınan namlu (TAM/SIYIRMA/ISKA) + gezgin çalı siperi (BLOKE); false-start cezası; rekor sadece TAM'da |
 | CROWN | Brutal Crown | `src/games/crown.js` | `src/ai/crownAI.js` | `mountCrownController` | Altın taç krallığı (15s tutan kazanır), omuz atarak taç düşürme, pinball tamponları |
 | ZONE | Brutal Zone | `src/games/zone.js` | `src/ai/zoneAI.js` | `mountZoneController` | Grid bölge kapma (iz kesme→base-reset+2sn stun, ölüm yok); 90sn + %40 erken zafer, 2 raund alan şampiyon; kumanda joystick-only |
+| SNAKE | Brutal Snake | `src/games/snake.js` | `src/ai/snakeAI.js` | `mountSnakeController` | Yemle büyü (max 300), kuyruk/çarpışma eleme, hold-boost; bot ızgara-raycast + yem kovalama; kumanda joystick + basılı boost |
 
 ---
 
