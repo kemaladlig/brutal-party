@@ -20,6 +20,7 @@ const CONTROLLER_META = {
   LASER: { hudTag: '🔫 LASER', lobbyTitle: '🔫 BRUTAL LASER', mount: 'mountLaserController' },
   CLONE: { hudTag: '👥 CLONE', lobbyTitle: '👥 BRUTAL CLONE', mount: 'mountCloneController' },
   COLLAPSE: { hudTag: '🕳️ COLLAPSE', lobbyTitle: '🕳️ BRUTAL COLLAPSE', mount: 'mountCollapseController' },
+  NINJA: { hudTag: '🥷 NINJA', lobbyTitle: '🥷 BRUTAL NINJA', mount: 'mountNinjaController' },
 };
 
 export class GamepadManager {
@@ -1200,6 +1201,35 @@ export class GamepadManager {
     jumpBtn?.addEventListener('mousedown', jumpAction);
   }
 
+  // --- 13: NINJA CONTROLLER (Joystick + STRIKE, 1.5s host cooldown) ---
+  mountNinjaController(container) {
+    container.innerHTML = `
+      <div class="joystick-action-view">
+        <div class="joystick-half" id="ninja-joy-zone">
+          <div class="phone-joy-base">
+            <div class="phone-joy-knob" id="ninja-joy-knob" style="background-color: ${this.playerColor}"></div>
+          </div>
+        </div>
+        <div class="action-half">
+          <button class="action-dash-btn" id="btn-ninja-strike" type="button" style="background-color: #1A1A1A">
+            <span class="dash-btn-label">🗡️ KILIÇ</span>
+            <span class="dash-btn-sub">DOKUN</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    this.bindJoystick('ninja-joy-zone', 'ninja-joy-knob', (input) => {
+      this._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
+    });
+
+    const strikeBtn = document.getElementById('btn-ninja-strike');
+    const strikeAction = this.cooledAction(strikeBtn, 1.5, '🗡️ KILIÇ',
+      () => this.network.sendInput({ action: 'DASH' }), [25, 40]);
+    strikeBtn?.addEventListener('touchstart', strikeAction, { passive: false });
+    strikeBtn?.addEventListener('mousedown', strikeAction);
+  }
+
   // Generic Touch & Mouse Joystick Helper
   bindJoystick(zoneId, knobId, onInput) {
     const zone = document.getElementById(zoneId);
@@ -1438,6 +1468,14 @@ export class GamepadManager {
         const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
         if (jumpBtn) {
           jumpBtn.style.opacity = cdPct > 0 ? 0.55 : 1;
+        }
+      } else if (data.gameMode === 'NINJA') {
+        const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
+        statusStr = `SKOR: ${data.scores.join('-')} • 🥷 ${aliveCount} CANLI`;
+        const strikeBtn = this._el('btn-ninja-strike');
+        const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
+        if (strikeBtn) {
+          strikeBtn.style.opacity = cdPct > 0 ? 0.55 : 1;
         }
       }
       if (statusStr !== this._lastStatusStr) {

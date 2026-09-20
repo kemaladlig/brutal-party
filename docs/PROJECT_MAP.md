@@ -81,6 +81,7 @@ public/                     PWA (manifest.webmanifest, sw.js, ikonlar) + public/
 | LASER | Brutal Laser | `src/games/laser.js` | `src/ai/laserAI.js` | `mountLaserController` | Sabit taret, 4 sekme + substep lazer (600px/s), 0.8s cooldown; bot sanal-mermi simülasyonu; kumanda joystick-nişan + ATEŞ (`TANK_FIRE` yeniden kullanımı) |
 | CLONE | Brutal Clone | `src/games/clone.js` | `src/ai/cloneAI.js` | `mountCloneController` | 2 gecikmeli kopya (0.6/1.2sn), gerçek-vuruş skor + sahte-vuruş 2.5sn slow; bot devriye + menzil omuzu (blöf yer); kumanda joystick + OMUZ (`TACKLE` yeniden kullanımı, %cd göstergeli) |
 | COLLAPSE | Brutal Collapse | `src/games/collapse.js` | `src/ai/collapseAI.js` | `mountCollapseController` | 13x13 çöken ızgara (0.8sn uyarı), zıplama 0.45sn/1.8s cooldown + itişme; bot güvenli-hücre + tehlike zıplaması; kumanda joystick + ZIPLA (`DASH` yeniden kullanımı, %cd göstergeli) |
+| NINJA | Brutal Ninja | `src/games/ninja.js` | `src/ai/ninjaAI.js` | `mountNinjaController` | Durunca görünmezleşme (0.3sn/0.05 iz), kılıç atılması 0.2sn/1.5s cooldown + siper kutuları; bot MOVE/HIDE pusu + 90px av; kumanda joystick + KILIÇ (`DASH` yeniden kullanımı, %cd göstergeli) |
 
 ---
 

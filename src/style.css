@@ -865,6 +865,7 @@ body {
 .card-laser { border-top: 8px solid #e63946; }
 .card-clone { border-top: 8px solid #6a4c93; }
 .card-collapse { border-top: 8px solid #8c8880; }
+.card-ninja { border-top: 8px solid #1a1a1a; }
 
 .bento-media-box {
   width: 100%;

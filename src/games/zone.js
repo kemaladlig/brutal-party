@@ -56,6 +56,8 @@ export class ZoneGame extends BaseMiniGame {
     this.roundTimer = ZONE_TUNING.ROUND_TIME;
     this.pct = [0, 0, 0, 0];
     this.kills = [0, 0, 0, 0];
+    // Tur köşe kurası: oyuncu index'i → köşe (0..3). null iken lobide sabit köşeler.
+    this.baseCorner = null;
     this.leaderIndex = -1;
     // Beraberlik çözücü: son toprak kazananın damgası
     this.lastCaptureBy = -1;
@@ -157,14 +159,28 @@ export class ZoneGame extends BaseMiniGame {
     return this.grid[cellIdx];
   }
 
-  // Oyuncunun köşe base dikdörtgeni (hücre koordinatı): P1 sol-alt, P2 sol-üst, P3 sağ-üst, P4 sağ-alt
+  // Oyuncunun köşe base dikdörtgeni (hücre koordinatı). Tur kurası varsa
+  // (baseCorner) rastgele köşe, yoksa lobide sabit köşe: 0 sol-alt, 1 sol-üst,
+  // 2 sağ-üst, 3 sağ-alt.
   baseRect(index) {
     const G = ZONE_TUNING.GRID;
     const B = ZONE_TUNING.BASE;
-    if (index === 0) return { x0: 1, y0: G - B - 1, x1: B, y1: G - 2 };
-    if (index === 1) return { x0: 1, y0: 1, x1: B, y1: B };
-    if (index === 2) return { x0: G - B - 1, y0: 1, x1: G - 2, y1: B };
+    const c = this.baseCorner?.[index] ?? index;
+    if (c === 0) return { x0: 1, y0: G - B - 1, x1: B, y1: G - 2 };
+    if (c === 1) return { x0: 1, y0: 1, x1: B, y1: B };
+    if (c === 2) return { x0: G - B - 1, y0: 1, x1: G - 2, y1: B };
     return { x0: G - B - 1, y0: G - B - 1, x1: G - 2, y1: G - 2 };
+  }
+
+  // Tur başı köşe kurası: katılanlar 4 köşeye rastgele dağıtılır.
+  drawBaseCorners(joined) {
+    const corners = [0, 1, 2, 3];
+    for (let i = corners.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [corners[i], corners[j]] = [corners[j], corners[i]];
+    }
+    this.baseCorner = {};
+    joined.forEach((pi, k) => { this.baseCorner[pi] = corners[k]; });
   }
 
   paintBase(index) {
@@ -334,6 +350,7 @@ export class ZoneGame extends BaseMiniGame {
     this.particles = [];
     this.floatingTexts = [];
     this.trauma = 0;
+    this.baseCorner = null;
     this.lastTime = performance.now();
     for (const joy of this.joysticks) {
       joy.active = false; joy.id = -1; joy.force = 0;
@@ -362,6 +379,8 @@ export class ZoneGame extends BaseMiniGame {
     this.roundTimer = ZONE_TUNING.ROUND_TIME;
     this.roundWinner = null;
     this.roundTransitionTimer = 0;
+    // Her tur köşeler yeniden çekilir — doğum bölgeleri rastgele
+    this.drawBaseCorners(joined);
     this.lastCaptureBy = -1;
     this.lastCaptureAt = 0;
     this.tieBreak = false;
@@ -890,9 +909,9 @@ export class ZoneGame extends BaseMiniGame {
           // Spawn koruması varken kesme işlemez (üstünden geçilir).
           if (this.spawnProtect <= 0) this.shatterPlayer(t, p.index);
         } else if (t === p.index) {
-          // Kendi izine bastın: reset yok, iz silinir + donarsın
-          this.wipeTrail(p.index);
-          this.stunPlayer(p.index, true);
+          // Kendi izine bastın: öldün — base boyuna dön + don
+          // (shatterPlayer katilsiz çağrısı 'KENDİNİ KESTİN!' akışını çalıştırır)
+          this.shatterPlayer(p.index, null);
           continue;
         }
         if (p.trail.length >= ZONE_TUNING.TRAIL_CAP) {
@@ -1038,13 +1057,13 @@ export class ZoneGame extends BaseMiniGame {
     }
     ctx.stroke();
 
-    // Açık izler (anchor çıkış noktasından başlar — kopukluk yok)
+    // Açık izler: tek renk şerit, çerçevesiz (anchor çıkış noktasından başlar)
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     for (const p of this.players) {
       if (!p.isJoined || p.trail.length === 0) continue;
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = this.cell * 0.85;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = this.cell * 0.7;
       ctx.beginPath();
       ctx.moveTo(p.trailStartX, p.trailStartY);
       for (const ci of p.trail) {
@@ -1052,9 +1071,6 @@ export class ZoneGame extends BaseMiniGame {
         ctx.lineTo(c.x, c.y);
       }
       ctx.lineTo(p.x, p.y);
-      ctx.stroke();
-      ctx.strokeStyle = p.color;
-      ctx.lineWidth = this.cell * 0.55;
       ctx.stroke();
     }
 
