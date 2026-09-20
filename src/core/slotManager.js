@@ -189,7 +189,7 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
         }
       }
     }
-  } else if (currentMode === 'CROWN' || currentMode === 'ZONE' || currentMode === 'SNAKE') {
+  } else if (currentMode === 'CROWN' || currentMode === 'ZONE' || currentMode === 'SNAKE' || currentMode === 'LASER') {
     for (let i = 0; i < 4; i++) {
       const slot = hostPlayerSlots[i];
       const player = engine.players?.[i];

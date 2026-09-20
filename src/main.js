@@ -8,6 +8,7 @@ import { DuelGame } from './games/duel.js';
 import { CrownGame } from './games/crown.js';
 import { ZoneGame } from './games/zone.js';
 import { SnakeGame } from './games/snake.js';
+import { LaserGame } from './games/laser.js';
 import { TouchManager } from './touchManager.js';
 import {
   GAME_ORDER,
@@ -89,6 +90,7 @@ const duelGame = new DuelGame(canvas);
 const crownGame = new CrownGame(canvas);
 const zoneGame = new ZoneGame(canvas);
 const snakeGame = new SnakeGame(canvas);
+const laserGame = new LaserGame(canvas);
 
 function touchStamp(game, now) {
   game.lastTime = now;
@@ -206,6 +208,17 @@ registerEngine('SNAKE', {
   packet: () => ({
     scores: snakeGame.scores,
     alive: snakeGame.players.map((p) => p.isAlive),
+  }),
+});
+registerEngine('LASER', {
+  game: laserGame,
+  reset: () => laserGame.resetMatch(),
+  onEnter: (now) => touchStamp(laserGame, now),
+  onResume: (now) => touchStamp(laserGame, now),
+  start: () => laserGame.startRound(),
+  packet: () => ({
+    scores: laserGame.scores,
+    alive: laserGame.players.map((p) => p.isAlive),
   }),
 });
 

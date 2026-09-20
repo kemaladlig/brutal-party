@@ -17,6 +17,7 @@ const CONTROLLER_META = {
   CROWN: { hudTag: '👑 CROWN', lobbyTitle: '👑 BRUTAL CROWN', mount: 'mountCrownController' },
   ZONE: { hudTag: '🗺️ ZONE', lobbyTitle: '🗺️ BRUTAL ZONE', mount: 'mountZoneController' },
   SNAKE: { hudTag: '🐍 SNAKE', lobbyTitle: '🐍 BRUTAL SNAKE', mount: 'mountSnakeController' },
+  LASER: { hudTag: '🔫 LASER', lobbyTitle: '🔫 BRUTAL LASER', mount: 'mountLaserController' },
 };
 
 export class GamepadManager {
@@ -1099,6 +1100,35 @@ export class GamepadManager {
     window.addEventListener('mouseup', stopBoost, { signal: boostSignal });
   }
 
+  // --- 10: LASER CONTROLLER (Joystick aim + FIRE, 0.8s host cooldown) ---
+  mountLaserController(container) {
+    container.innerHTML = `
+      <div class="joystick-action-view">
+        <div class="joystick-half" id="laser-joy-zone">
+          <div class="phone-joy-base">
+            <div class="phone-joy-knob" id="laser-joy-knob" style="background-color: ${this.playerColor}"></div>
+          </div>
+        </div>
+        <div class="action-half">
+          <button class="action-dash-btn" id="btn-laser-fire" type="button" style="background-color: #D84727">
+            <span class="dash-btn-label">🔫 ATEŞ</span>
+            <span class="dash-btn-sub">DOKUN</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    this.bindJoystick('laser-joy-zone', 'laser-joy-knob', (input) => {
+      this._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
+    });
+
+    const fireBtn = document.getElementById('btn-laser-fire');
+    const fireAction = this.cooledAction(fireBtn, 0.8, '🔫 ATEŞ',
+      () => this.network.sendInput({ action: 'TANK_FIRE' }), [25, 40]);
+    fireBtn?.addEventListener('touchstart', fireAction, { passive: false });
+    fireBtn?.addEventListener('mousedown', fireAction);
+  }
+
   // Generic Touch & Mouse Joystick Helper
   bindJoystick(zoneId, knobId, onInput) {
     const zone = document.getElementById(zoneId);
@@ -1318,6 +1348,9 @@ export class GamepadManager {
       } else if (data.gameMode === 'SNAKE') {
         const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
         statusStr = `SKOR: ${data.scores.join('-')} • 🐍 ${aliveCount} CANLI`;
+      } else if (data.gameMode === 'LASER') {
+        const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
+        statusStr = `SKOR: ${data.scores.join('-')} • 🔫 ${aliveCount} CANLI`;
       }
       if (statusStr !== this._lastStatusStr) {
         this._lastStatusStr = statusStr;
