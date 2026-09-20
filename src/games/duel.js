@@ -1,6 +1,7 @@
-// QUICK DRAW (Game 06): 2-4 Player Wild West Reflex Duel (Brutal Party // 4P)
-// Tap on Signal ("İlk Basan Kazanır") with dynamic 2/3/4 player scoring, false start penalties,
-// millisecond reaction timer, and 4-way rotated player pods.
+// QUICK DRAW (Game 06): 2-4 Player Wild West Aim Duel (Brutal Party // 4P)
+// Fire on Signal with swaying aim lines (TAM/SIYIRMA/ISKA tiers), roaming tumbleweed
+// blocker (BLOKE), dynamic 2/3/4 player scoring, false start penalties,
+// millisecond reaction timer, bot AI (normal/god), and 4-way rotated player pods.
 
 import {
   playStart,
@@ -10,7 +11,11 @@ import {
   playStumble,
   playCashRegister,
   playFakeoutCrow,
+  playRicochet,
+  playDryFire,
+  playHeavyImpact,
 } from '../audio.js';
+import { updateDuelBotAI } from '../ai/duelAI.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import { prefersReducedMotion } from '../ui/motion.js';
@@ -40,6 +45,20 @@ export class DuelGame extends BaseMiniGame {
     // Active human player slots (Index 0: Bottom, 1: Top, 2: Left, 3: Right)
     this.joinedPlayers = [true, true, false, false];
     this.playerNames = ['', '', '', ''];
+    // Slot türleri: 'empty' | 'human' | 'bot_normal' | 'bot_god' (joinedPlayers ile çift yönlü senkron)
+    this.slotTypes = ['human', 'human', 'empty', 'empty'];
+
+    // Salınan Namlu + Gezgin Siper (Faz-1): deterministik, host-only görsel + isabet hesabı
+    this.roundSeed = 0;
+    this.aimTime = 0;
+    this.aimPhase = [0, 0, 0, 0];
+    this.aimSpeed = [2.6, 2.6, 2.6, 2.6];
+    this.aimAmpDeg = 11;
+    this.aimSpread = 1.0;
+    this.fakeoutSpreadTimer = 0;
+    this.blockerT = 0;
+    this.blockerX = 0;
+    this.blockerDir = 1;
 
     // Tournament Scoring (First to 10 points wins!)
     this.targetScore = 10;
@@ -96,7 +115,91 @@ export class DuelGame extends BaseMiniGame {
       rank: 0,
       pointsEarned: 0,
       lastBestMs: null,
+      offsetDeg: null,
+      accuracy: null, // 'TAM' | 'SIYIRMA' | 'ISKA' | 'BLOKE'
+      blocked: false,
+      botFireAt: 0,
+      botPlanned: false,
     }));
+  }
+
+  // slotTypes <-> joinedPlayers çift yönlü senkron (LOCAL cycle + host sync ortak)
+  syncJoinFromSlots() {
+    for (let i = 0; i < 4; i++) {
+      this.joinedPlayers[i] = this.slotTypes[i] !== 'empty';
+    }
+  }
+
+  isBotSlot(index) {
+    const t = this.slotTypes?.[index];
+    return t === 'bot_normal' || t === 'bot_god';
+  }
+
+  // Anlık nişan ofseti (derece): amp * spread * sin(aimTime*hız+faz)
+  getAimOffsetDeg(index) {
+    const spread = this.state === 'DRAW_SIGNAL' ? this.aimSpread * 0.65 : this.aimSpread;
+    return this.aimAmpDeg * spread * Math.sin(this.aimTime * this.aimSpeed[index] + this.aimPhase[index]);
+  }
+
+  // Gezgin siper merkezde mi? (tüm atışlar merkeze yakınsar → tek eşik yeterli)
+  isBlockerClosed() {
+    return Math.abs(this.blockerX) < this.getBlockerRadius() * 0.9;
+  }
+
+  getBlockerRadius() {
+    return Math.max(14, this.arena.size * 0.055);
+  }
+
+  getBlockerRange() {
+    return this.arena.size * 0.22;
+  }
+
+  getBlockerPos() {
+    return { x: this.arena.cx + this.blockerX, y: this.arena.cy };
+  }
+
+  puffBlockerDust() {
+    const b = this.getBlockerPos();
+    for (let i = 0; i < 10; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const spd = 40 + Math.random() * 120;
+      this.smokeParticles.push({
+        x: b.x,
+        y: b.y,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd,
+        radius: 5 + Math.random() * 10,
+        life: 0.4 + Math.random() * 0.4,
+        maxLife: 0.8,
+        color: '#C08552',
+      });
+    }
+  }
+
+  // Tur birincisi: en çok puan alan; eşitlikte erken ateşleyen (rank küçük) kazanır
+  resolveRoundWinner() {
+    let best = -1;
+    let bestPts = -1;
+    let bestRank = 99;
+    this.joinedPlayers.forEach((joined, idx) => {
+      if (!joined) return;
+      const st = this.playerStatus[idx];
+      if (!st.hasFired || st.falseStart) return;
+      if (st.pointsEarned > bestPts || (st.pointsEarned === bestPts && st.rank < bestRank)) {
+        best = idx;
+        bestPts = st.pointsEarned;
+        bestRank = st.rank;
+      }
+    });
+    // Hiç isabet yoksa (hepsi ISKA/BLOKE/ateşsiz) ilk ateşleyen vitrine çıkar ama puansız
+    if (best === -1) {
+      this.joinedPlayers.forEach((joined, idx) => {
+        if (!joined) return;
+        const st = this.playerStatus[idx];
+        if (st.hasFired && best === -1) best = idx;
+      });
+    }
+    this.roundWinner = best === -1 ? null : best;
   }
 
   initKeyboard() {
@@ -215,7 +318,15 @@ export class DuelGame extends BaseMiniGame {
   togglePlayerJoin(index) {
     if (this.requestLobbySeatTap(index)) return;
     playJoin();
-    this.joinedPlayers[index] = !this.joinedPlayers[index];
+    // Lokal: empty → human → bot_normal → bot_god → empty (diğer motorlarla aynı zincir)
+    const cur = this.slotTypes[index] || 'empty';
+    const next =
+      cur === 'empty' ? 'human'
+      : cur === 'human' ? 'bot_normal'
+      : cur === 'bot_normal' ? 'bot_god'
+      : 'empty';
+    this.slotTypes[index] = next;
+    this.syncJoinFromSlots();
   }
 
   // Registry standardı: tüm motorlar startNewMatch() ile çalışır.
@@ -245,6 +356,19 @@ export class DuelGame extends BaseMiniGame {
     this.roundEndTimer = 0;
     this.flashOpacity = 0;
 
+    // Nişan + siper sıfırla (deterministik tur tohumu)
+    this.roundSeed = Math.random() * 1000;
+    this.aimTime = 0;
+    this.aimSpread = 1.0;
+    this.fakeoutSpreadTimer = 0;
+    this.blockerT = Math.random() * 2;
+    this.blockerX = 0;
+    this.blockerDir = Math.random() > 0.5 ? 1 : -1;
+    for (let i = 0; i < 4; i++) {
+      this.aimPhase[i] = Math.random() * Math.PI * 2;
+      this.aimSpeed[i] = 2.2 + Math.random() * 1.6;
+    }
+
     // Reset round statuses
     this.playerStatus.forEach((p) => {
       p.hasFired = false;
@@ -252,6 +376,11 @@ export class DuelGame extends BaseMiniGame {
       p.reactionMs = null;
       p.rank = 0;
       p.pointsEarned = 0;
+      p.offsetDeg = null;
+      p.accuracy = null;
+      p.blocked = false;
+      p.botFireAt = 0;
+      p.botPlanned = false;
     });
   }
 
@@ -279,6 +408,14 @@ export class DuelGame extends BaseMiniGame {
     this.trauma = 0.8;
     this.fakeoutDisplayTimer = 0;
     this.drawWindowTimer = 0;
+    // Sinyalde nişan daralır (spread çarpanı getAimOffsetDeg içinde 0.65'e iner)
+    this.aimSpread = 1.0;
+    // Botlar için ateş planı kur (reaksiyon + nişan + siper bekleme)
+    for (let i = 0; i < 4; i++) {
+      if (this.joinedPlayers[i] && this.isBotSlot(i)) {
+        this.planBotShot(i);
+      }
+    }
 
     playGunshot();
 
@@ -297,6 +434,45 @@ export class DuelGame extends BaseMiniGame {
         color: Math.random() > 0.4 ? '#FAF8F5' : '#D99B26',
       });
     }
+  }
+
+  // Bot ateş planı: reaksiyon + nişan sıfır-geçişi + siper bekleme (host-only)
+  planBotShot(index) {
+    const st = this.playerStatus[index];
+    const god = this.slotTypes[index] === 'bot_god';
+    const now = performance.now();
+    // Baz reaksiyon: normal 220-360ms, god 150-230ms
+    let delay = god ? 150 + Math.random() * 80 : 220 + Math.random() * 140;
+    // Nişan: ileriye dönük ilk iyi pencereyi bekle (maks +350ms)
+    const wantDeg = god ? 4 : 6;
+    const stepMs = 25;
+    for (let fwd = 0; fwd <= 350; fwd += stepMs) {
+      const t = this.aimTime + (delay + fwd) / 1000;
+      const spread = 0.65; // DRAW_SIGNAL daralması
+      const off = this.aimAmpDeg * spread * Math.sin(t * this.aimSpeed[index] + this.aimPhase[index]);
+      if (Math.abs(off) <= wantDeg) {
+        delay += fwd;
+        break;
+      }
+    }
+    // Siper: planlanan anda çalı merkezde olacaksa bekle (normal bazen aldırmaz)
+    const blockerFreq = (Math.PI * 2) / 1.8;
+    const range = this.getBlockerRange();
+    const radius = this.getBlockerRadius() * 0.9;
+    const tFire = this.blockerT + delay / 1000;
+    const xFire = Math.sin(tFire * blockerFreq) * range * this.blockerDir;
+    if (Math.abs(xFire) < radius && (god || Math.random() > 0.35)) {
+      delay += 120 + Math.random() * 80;
+    }
+    st.botFireAt = now + delay;
+    st.botPlanned = true;
+  }
+
+  // İsabet kademesi: TAM (tam puan) · SIYIRMA (tavan-1, min 1) · ISKA/BLOKE (0)
+  getAccuracyForOffset(absDeg) {
+    if (absDeg <= 4) return 'TAM';
+    if (absDeg <= 10) return 'SIYIRMA';
+    return 'ISKA';
   }
 
   handleRemoteInput(slotIndex, data) {
@@ -343,57 +519,105 @@ export class DuelGame extends BaseMiniGame {
       return;
     }
 
-    // 2. TAP ON SIGNAL -> RECORD MILLISECOND REACTION & SCORE
+    // 2. TAP ON SIGNAL -> REACTION + AIM OFFSET + BLOCKER -> TIERED SCORE
     if (this.state === 'DRAW_SIGNAL') {
       if (st.hasFired || st.falseStart) return;
 
       st.hasFired = true;
       st.reactionMs = Math.max(1, Math.round(performance.now() - this.signalTime));
+      st.offsetDeg = this.getAimOffsetDeg(playerIdx);
 
       const activeCount = this.getActivePlayerCount();
       const firedCount = this.playerStatus.filter((p) => p.hasFired).length;
       st.rank = firedCount;
 
-      const pts = this.getPointsForRank(firedCount, activeCount);
-      st.pointsEarned = pts;
-      this.scores[playerIdx] += pts;
+      const base = this.getPointsForRank(firedCount, activeCount);
+      st.blocked = this.isBlockerClosed();
+      if (st.blocked) {
+        st.accuracy = 'BLOKE';
+        st.pointsEarned = 0;
+      } else {
+        st.accuracy = this.getAccuracyForOffset(Math.abs(st.offsetDeg));
+        if (st.accuracy === 'TAM') {
+          st.pointsEarned = base;
+        } else if (st.accuracy === 'SIYIRMA') {
+          st.pointsEarned = base > 0 ? Math.max(1, base - 1) : 0;
+        } else {
+          st.pointsEarned = 0;
+        }
+      }
+      this.scores[playerIdx] += st.pointsEarned;
+
+      // Tracer rengi kademeye göre
+      const tracerColor =
+        st.accuracy === 'TAM' ? '#FFDE59'
+        : st.accuracy === 'SIYIRMA' ? '#2D6A4F'
+        : st.accuracy === 'BLOKE' ? '#E63946'
+        : '#8A7A70';
+      const pad = this.triggerPads[playerIdx];
+      if (pad) {
+        this.bulletTracers.push({
+          x1: pad.cx,
+          y1: pad.cy,
+          x2: st.blocked ? this.arena.cx + this.blockerX : this.arena.cx,
+          y2: this.arena.cy,
+          life: st.accuracy === 'TAM' ? 0.55 : 0.4,
+          color: tracerColor,
+        });
+      }
 
       // First to draw (Champion of this round!)
       if (firedCount === 1) {
         this.roundWinner = playerIdx;
-        playGunshot();
-        playCashRegister();
         this.trauma = 0.6;
         this.drawWindowTimer = 1.1; // Allow remaining players 1.1s to tap for 2nd/3rd place
 
-        // Record checks
-        if (st.reactionMs < this.tableRecordMs) {
-          this.tableRecordMs = st.reactionMs;
-        }
-        if (st.lastBestMs === null || st.reactionMs < st.lastBestMs) {
-          st.lastBestMs = st.reactionMs;
-        }
-
-        // Bullet Tracer from Winner Pad to Arena Center
-        const pad = this.triggerPads[playerIdx];
-        if (pad) {
-          this.bulletTracers.push({
-            x1: pad.cx,
-            y1: pad.cy,
-            x2: this.arena.cx,
-            y2: this.arena.cy,
-            life: 0.45,
-            color: DUEL_COLORS[playerIdx],
-          });
+        if (st.accuracy === 'TAM') {
+          playGunshot();
+          playCashRegister();
+          // Rekor sadece TAM vuruşta kırılır
+          if (st.reactionMs < this.tableRecordMs) {
+            this.tableRecordMs = st.reactionMs;
+          }
+          if (st.lastBestMs === null || st.reactionMs < st.lastBestMs) {
+            st.lastBestMs = st.reactionMs;
+          }
+        } else if (st.accuracy === 'SIYIRMA') {
+          playGunshot();
+          playRicochet();
+          if (st.lastBestMs === null || st.reactionMs < st.lastBestMs) {
+            st.lastBestMs = st.reactionMs;
+          }
+        } else if (st.blocked) {
+          playGunshot();
+          playHeavyImpact();
+          this.puffBlockerDust();
+        } else {
+          playGunshot();
+          playDryFire();
         }
       } else {
         // Runner up hit
-        playGunshot();
+        if (st.accuracy === 'TAM') {
+          playGunshot();
+          if (st.lastBestMs === null || st.reactionMs < st.lastBestMs) {
+            st.lastBestMs = st.reactionMs;
+          }
+        } else if (st.accuracy === 'SIYIRMA') {
+          playGunshot();
+          playRicochet();
+        } else if (st.blocked) {
+          playHeavyImpact();
+          this.puffBlockerDust();
+        } else {
+          playDryFire();
+        }
       }
 
       // If all active players have fired, end round immediately
       const allFired = this.playerStatus.filter((p, i) => this.joinedPlayers[i] && p.hasFired).length === activeCount;
       if (allFired) {
+        this.resolveRoundWinner();
         this.state = 'ROUND_OVER';
         this.roundEndTimer = 3.0;
         this.checkMatchWin();
@@ -490,6 +714,11 @@ export class DuelGame extends BaseMiniGame {
     this.roundEndTimer = 0;
     this.flashOpacity = 0;
     this.trauma = 0;
+    this.aimTime = 0;
+    this.aimSpread = 1.0;
+    this.fakeoutSpreadTimer = 0;
+    this.blockerT = 0;
+    this.blockerX = 0;
     this.lastTime = performance.now();
     this.playerStatus = this.createInitialPlayerStatus();
   }
@@ -563,6 +792,16 @@ export class DuelGame extends BaseMiniGame {
     if (this.state === 'TENSION') {
       this.tensionTimer -= dt;
       this.tensionAudioTimer += dt;
+      // Nişan sarkacı + gezgin siper ilerler
+      this.aimTime += dt;
+      this.blockerT += dt;
+      this.blockerX = Math.sin(this.blockerT * ((Math.PI * 2) / 1.8)) * this.getBlockerRange() * this.blockerDir;
+      if (this.fakeoutSpreadTimer > 0) {
+        this.fakeoutSpreadTimer -= dt;
+        this.aimSpread = 1.5;
+      } else {
+        this.aimSpread = 1.0;
+      }
 
       // Heartbeat pulse every 0.8s
       if (this.tensionAudioTimer >= 0.8) {
@@ -574,11 +813,19 @@ export class DuelGame extends BaseMiniGame {
       if (this.hasFakeout && !this.fakeoutFired && this.tensionTimer <= this.fakeoutTriggerTime) {
         this.fakeoutFired = true;
         this.fakeoutDisplayTimer = 0.6;
+        this.fakeoutSpreadTimer = 0.45; // blöf anında namlu açılır
         playFakeoutCrow();
       }
 
       if (this.fakeoutDisplayTimer > 0) {
         this.fakeoutDisplayTimer -= dt;
+      }
+
+      // Bot blöf hatası (erken basma)
+      for (let i = 0; i < 4; i++) {
+        if (this.joinedPlayers[i] && this.isBotSlot(i)) {
+          updateDuelBotAI(this, i, dt);
+        }
       }
 
       if (this.tensionTimer <= 0) {
@@ -588,9 +835,19 @@ export class DuelGame extends BaseMiniGame {
 
     // DRAW SIGNAL STATE (Multi-tap reaction window)
     if (this.state === 'DRAW_SIGNAL') {
+      this.aimTime += dt;
+      this.blockerT += dt;
+      this.blockerX = Math.sin(this.blockerT * ((Math.PI * 2) / 1.8)) * this.getBlockerRange() * this.blockerDir;
+      // Bot ateşleri (planlanan zamanda)
+      for (let i = 0; i < 4; i++) {
+        if (this.joinedPlayers[i] && this.isBotSlot(i)) {
+          updateDuelBotAI(this, i, dt);
+        }
+      }
       if (this.drawWindowTimer > 0) {
         this.drawWindowTimer -= dt;
         if (this.drawWindowTimer <= 0) {
+          this.resolveRoundWinner();
           this.state = 'ROUND_OVER';
           this.roundEndTimer = 3.2;
           this.checkMatchWin();
@@ -631,12 +888,18 @@ export class DuelGame extends BaseMiniGame {
     // Draw Western Arena
     this.renderArena();
 
+    // Nişan çizgileri + gezgin siper (maç akışında)
+    if (this.state === 'TENSION' || this.state === 'DRAW_SIGNAL' || this.state === 'ROUND_OVER') {
+      this.renderAimLines();
+      this.renderBlocker();
+    }
+
     // Draw Particles
     this.renderParticles();
 
     // State Renderings
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'SİNYALDE İLK BASAN KAZANIR • ERKEN BASAN -1 PUAN', [
+      renderControlGuide(ctx, this.arena, 'SİNYALDE ATEŞLE • ÇİZGİYİ ORTALA • ÇALI SİPERDEYKEN VURULMAZ', [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -734,6 +997,93 @@ export class DuelGame extends BaseMiniGame {
     }
   }
 
+  // Salınan namlu çizgileri: pad → merkez, ofset kadar açıyla sapar
+  renderAimLines() {
+    const { ctx } = this;
+    const { cx, cy } = this.arena;
+    const motionOK = !prefersReducedMotion();
+    this.triggerPads.forEach((pad) => {
+      const idx = pad.playerIndex;
+      if (!this.joinedPlayers[idx]) return;
+      const st = this.playerStatus[idx];
+      if (st.hasFired || st.falseStart) return;
+      const offDeg = this.state === 'ROUND_OVER' ? 0 : this.getAimOffsetDeg(idx);
+      const offRad = (offDeg * Math.PI) / 180;
+      const baseAng = Math.atan2(cy - pad.cy, cx - pad.cx);
+      const ang = baseAng + offRad;
+      const len = Math.hypot(cx - pad.cx, cy - pad.cy);
+      const ex = pad.cx + Math.cos(ang) * len;
+      const ey = pad.cy + Math.sin(ang) * len;
+      const absOff = Math.abs(offDeg);
+      const col = absOff <= 4 ? '#FFDE59' : absOff <= 10 ? '#E9C46A' : '#8A7A70';
+      ctx.save();
+      ctx.globalAlpha = this.state === 'DRAW_SIGNAL' ? 0.85 : 0.4;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = this.state === 'DRAW_SIGNAL' ? 3 : 2;
+      ctx.setLineDash(motionOK ? [] : [6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(pad.cx, pad.cy);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Uç nokta işareti
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(ex, ey, this.state === 'DRAW_SIGNAL' ? 6 : 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  // Gezgin siper: merkez halkada gidip gelen tumbleweed
+  renderBlocker() {
+    const { ctx } = this;
+    const { cy } = this.arena;
+    const b = this.getBlockerPos();
+    const r = this.getBlockerRadius();
+    const closed = this.isBlockerClosed();
+    const spin = this.blockerT * 3.1;
+    ctx.save();
+    // Gölge
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.ellipse(b.x, cy + r * 0.9, r * 1.05, r * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // Çalı gövdesi
+    ctx.fillStyle = closed ? '#E76F51' : '#C08552';
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#3A2E26';
+    ctx.stroke();
+    // Dönen dallar
+    ctx.strokeStyle = '#6B4F3A';
+    ctx.lineWidth = 1.5;
+    for (let k = 0; k < 3; k++) {
+      const a = spin + (k * Math.PI * 2) / 3;
+      ctx.beginPath();
+      ctx.moveTo(b.x - Math.cos(a) * r, b.y - Math.sin(a) * r);
+      ctx.quadraticCurveTo(b.x, b.y, b.x + Math.cos(a) * r, b.y + Math.sin(a) * r);
+      ctx.stroke();
+    }
+    // Kapalıysa uyarı halkası
+    if (closed && (this.state === 'TENSION' || this.state === 'DRAW_SIGNAL')) {
+      ctx.strokeStyle = '#E63946';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, r + 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#E63946';
+      ctx.font = '900 12px "Space Grotesk", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('SİPER!', b.x, b.y - r - 8);
+    }
+    ctx.restore();
+  }
+
   renderScoreboard() {
     const { ctx } = this;
     const { cx, top, width } = this.arena;
@@ -810,7 +1160,7 @@ export class DuelGame extends BaseMiniGame {
 
     ctx.font = '700 14px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#D99B26';
-    ctx.fillText('İLK BASAN KAZANIR • ERKEN BASAN -1 PUAN ALIR', cx, titleY + 30);
+    ctx.fillText('TAM İSABET TAM PUAN • SIYIRMA -1 • ÇALI SİPERDEYKEN VURULMAZ', cx, titleY + 30);
 
     // Scoring Breakdown Badge
     const activeCount = this.getActivePlayerCount();
@@ -828,15 +1178,13 @@ export class DuelGame extends BaseMiniGame {
     const slotRects = getStandardSeatRects(this.arena);
 
     slotRects.forEach((rect, idx) => {
-      const isJoined = this.joinedPlayers[idx];
-
       renderLobbySeatCard(ctx, {
         x: rect.x,
         y: rect.y,
         w: rect.w,
         h: rect.h,
         slotIndex: idx,
-        slotType: isJoined ? 'human' : 'empty',
+        slotType: this.slotTypes[idx] || 'empty',
         playerName: this.playerNames[idx] || '',
         playerColor: DUEL_COLORS[idx],
         rotation: 0,
@@ -869,11 +1217,11 @@ export class DuelGame extends BaseMiniGame {
     ctx.fillStyle = '#A8998C';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('DİKKAT: "ATEŞ!" DENDİĞİ AN KENDİ PADİNE İLK SEN DOKUN!', cx, rulesY);
+    ctx.fillText('DİKKAT: "ATEŞ!" ANINDA ÇİZGİN ORTADAYKEN + ÇALI KENARDAYKEN BAS!', cx, rulesY);
 
     ctx.font = '700 11px "Space Grotesk", monospace';
     ctx.fillStyle = '#E76F51';
-    ctx.fillText('ERKEN BASARSAN 1 PUAN KAYBEDERSİN!', cx, rulesY + 18);
+    ctx.fillText('ERKEN BASARSAN 1 PUAN KAYBEDERSİN! SARI ÇİZGİ = TAM VURUŞ', cx, rulesY + 18);
     ctx.restore();
   }
 
@@ -975,6 +1323,7 @@ export class DuelGame extends BaseMiniGame {
       // Score breakdown list
       let yOff = cy + 44;
       const rankBadges = ['', '🥇 1.', '🥈 2.', '🥉 3.', '4.'];
+      const accTag = { TAM: '🎯TAM', SIYIRMA: '↗SIYIRMA', ISKA: '💨ISKA', BLOKE: '🌵SİPER' };
 
       this.joinedPlayers.forEach((joined, idx) => {
         if (!joined) return;
@@ -984,7 +1333,9 @@ export class DuelGame extends BaseMiniGame {
         let txt = `${colorName}: `;
         if (st.hasFired) {
           const badge = rankBadges[st.rank] || `${st.rank}.`;
-          txt += `${badge} (+${st.pointsEarned}P) • ${st.reactionMs} ms`;
+          const acc = accTag[st.accuracy] || '';
+          const off = st.offsetDeg !== null && st.offsetDeg !== undefined ? `${Math.abs(st.offsetDeg).toFixed(0)}°` : '';
+          txt += `${badge} ${acc} (+${st.pointsEarned}P) • ${st.reactionMs}ms ${off}`;
         } else {
           txt += 'BASAMADI (0P)';
         }
@@ -1078,7 +1429,11 @@ export class DuelGame extends BaseMiniGame {
       if (falseStart) {
         bgColor = '#E63946';
       } else if (hasFired) {
-        bgColor = st.rank === 1 ? '#D99B26' : '#2D6A4F';
+        bgColor =
+          st.accuracy === 'TAM' ? '#D99B26'
+          : st.accuracy === 'SIYIRMA' ? '#2D6A4F'
+          : st.accuracy === 'BLOKE' ? '#9D0208'
+          : '#5C5C5C';
       }
 
       // Brutalist Drop Shadow
@@ -1098,22 +1453,26 @@ export class DuelGame extends BaseMiniGame {
       ctx.textBaseline = 'middle';
       ctx.font = '900 16px "Space Grotesk", sans-serif';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
-      ctx.fillText(`${DUEL_NAMES[idx]} // ${this.scores[idx] || 0}★`, 0, -14);
+      const botTag = this.isBotSlot(idx) ? '🤖' : '';
+      ctx.fillText(`${botTag}${DUEL_NAMES[idx]} // ${this.scores[idx] || 0}★`, 0, -14);
 
       // State Action / Reaction
       let actionText = pad.label;
       if (this.state === 'STANDOFF_COUNTDOWN' || this.state === 'TENSION') {
-        actionText = '✋ DOKUNMA! BEKLE';
+        actionText = this.isBlockerClosed() ? '🌵 SİPERDE! BEKLE' : '✋ DOKUNMA! BEKLE';
       } else if (this.state === 'DRAW_SIGNAL') {
         if (hasFired) {
-          actionText = `✓ ${st.reactionMs} ms (+${st.pointsEarned}P)`;
+          const short = st.accuracy === 'TAM' ? '🎯' : st.accuracy === 'SIYIRMA' ? '↗' : st.accuracy === 'BLOKE' ? '🌵' : '💨';
+          actionText = `${short} ${st.reactionMs}ms (+${st.pointsEarned}P)`;
         } else {
-          actionText = '💥 BAS! BAS!';
+          actionText = this.isBlockerClosed() ? '🌵 SİPER! BEKLE...' : '💥 BAS! BAS!';
         }
       } else if (this.state === 'ROUND_OVER') {
         if (falseStart) actionText = '❌ ERKEN BASTIN (-1P)';
-        else if (hasFired) actionText = `${st.rank}. SIRA (${st.reactionMs} ms)`;
-        else actionText = 'GEÇ KALDIN!';
+        else if (hasFired) {
+          const short = st.accuracy === 'TAM' ? '🎯' : st.accuracy === 'SIYIRMA' ? '↗' : st.accuracy === 'BLOKE' ? '🌵' : '💨';
+          actionText = `${short} ${st.rank}. (${st.reactionMs}ms)`;
+        } else actionText = 'GEÇ KALDIN!';
       }
 
       ctx.font = '900 16px "Space Grotesk", sans-serif';
@@ -1130,10 +1489,10 @@ export class DuelGame extends BaseMiniGame {
     // Laser Bullet Tracers
     this.bulletTracers.forEach((b) => {
       ctx.save();
-      const alpha = Math.max(0, b.life / 0.45);
+      const alpha = Math.max(0, b.life / 0.55);
       ctx.globalAlpha = alpha;
 
-      ctx.strokeStyle = '#FFDE59';
+      ctx.strokeStyle = b.color || '#FFDE59';
       ctx.lineWidth = 6;
       ctx.beginPath();
       ctx.moveTo(b.x1, b.y1);

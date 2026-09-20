@@ -211,12 +211,15 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
     }
   } else if (currentMode === 'DUEL') {
     if (!engine.playerNames) engine.playerNames = ['', '', '', ''];
+    if (!engine.slotTypes) engine.slotTypes = ['empty', 'empty', 'empty', 'empty'];
     for (let i = 0; i < 4; i++) {
       const slot = hostPlayerSlots[i];
       if (slot) {
+        engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
         if (engine.joinedPlayers) engine.joinedPlayers[i] = true;
         engine.playerNames[i] = slot.name || `P${i + 1}`;
       } else {
+        engine.slotTypes[i] = 'empty';
         if (engine.joinedPlayers) engine.joinedPlayers[i] = false;
         engine.playerNames[i] = '';
       }
@@ -291,6 +294,20 @@ export function swapEngineSlots(engine, currentMode, isHosting, slotA, slotB) {
       const tempType = engine.slotTypes[slotA];
       engine.slotTypes[slotA] = engine.slotTypes[slotB];
       engine.slotTypes[slotB] = tempType;
+    }
+    // DUEL: slotTypes takasda joinedPlayers/playerNames de döner (lokal koltuk takası senkronu)
+    if (!isHosting && currentMode === 'DUEL') {
+      if (Array.isArray(engine.joinedPlayers)) {
+        const tj = engine.joinedPlayers[slotA];
+        engine.joinedPlayers[slotA] = engine.joinedPlayers[slotB];
+        engine.joinedPlayers[slotB] = tj;
+      }
+      if (Array.isArray(engine.playerNames)) {
+        const tn = engine.playerNames[slotA];
+        engine.playerNames[slotA] = engine.playerNames[slotB];
+        engine.playerNames[slotB] = tn;
+      }
+      if (typeof engine.syncJoinFromSlots === 'function') engine.syncJoinFromSlots();
     }
   }
 

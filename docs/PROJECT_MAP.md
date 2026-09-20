@@ -43,6 +43,7 @@ src/ai/
    crownAI.js                Brutal Crown bot zekâsı: taç kovalama, önleyici tackle/omuz atma, kral kaçış manevrası
    pongAI.js                 Brutal Pong bot zekâsı: normal takip + god matador vuruşu, gölgeleme, iniş tahmini
    zoneAI.js                 Brutal Zone bot zekâsı: risk-bütçeli açılım/dönüş, BFS eve dönüş, düşman izi avı
+   duelAI.js                 Quick Draw bot zekâsı: reaksiyon + nişan penceresi + siper bekleme, normal blöfe kanar
 
 src/games/ (Oyun Motorları - BaseMiniGame türevleri):
   game.js                   Brutal Pong motoru (+ src/games/ball.js, src/games/paddle.js)
@@ -50,7 +51,7 @@ src/games/ (Oyun Motorları - BaseMiniGame türevleri):
   curve.js                  Brutal Curve motoru (kuyruk izi, delikler, power-up)
   bomb.js                   Brutal Bomb motoru (patlama zamanlayıcısı, depar, çoklu harita)
   heist.js                  Brutal Heist motoru (altın toplama, kasa bankalama, omuz atma)
-  duel.js                   Quick Draw kovboy düellosu (refleks tetiği, false-start cezası)
+   duel.js                   Quick Draw kovboy düellosu (nişan sarkacı + çalı siperi + kademe skor, false-start cezası)
    crown.js                  Brutal Crown motoru (altın taç, omuz atma, pinball bumper'lar, taç süresi)
    zone.js                   Brutal Zone motoru (64x64 grid bölge kapma, iz kesme→base-reset+2sn stun, %40/90sn)
 
@@ -73,7 +74,7 @@ public/                     PWA (manifest.webmanifest, sw.js, ikonlar) + public/
 | CURVE | Brutal Curve | `src/games/curve.js` | `src/ai/curveAI.js` | `mountCurveController` | Sol/sağ keskin dönüş yarıları |
 | BOMB | Brutal Bomb | `src/games/bomb.js` | `src/ai/bombAI.js` | `mountBombController` | Sanal joystick + depar; MAP_PRESETS çoklu arena |
 | HEIST | Brutal Heist | `src/games/heist.js` | `src/ai/heistAI.js` | `mountHeistController` | Sanal joystick + omuz atma; merkezi elmas, kasa bankalama |
-| DUEL | Quick Draw | `src/games/duel.js` | Refleks timer | `mountDuelController` | Sinyalde ilk dokunan; false-start cezası |
+| DUEL | Quick Draw | `src/games/duel.js` | `src/ai/duelAI.js` | `mountDuelController` | Sinyalde ateş + salınan namlu (TAM/SIYIRMA/ISKA) + gezgin çalı siperi (BLOKE); false-start cezası; rekor sadece TAM'da |
 | CROWN | Brutal Crown | `src/games/crown.js` | `src/ai/crownAI.js` | `mountCrownController` | Altın taç krallığı (15s tutan kazanır), omuz atarak taç düşürme, pinball tamponları |
 | ZONE | Brutal Zone | `src/games/zone.js` | `src/ai/zoneAI.js` | `mountZoneController` | Grid bölge kapma (iz kesme→base-reset+2sn stun, ölüm yok); 90sn + %40 erken zafer, 2 raund alan şampiyon; kumanda joystick-only |
 
