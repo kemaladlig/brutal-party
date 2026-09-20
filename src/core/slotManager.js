@@ -131,25 +131,28 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
   // NOT: boş oda dahil her durumda slotlar aynen yazılır (otomatik bot doldurma yok).
   // LOCAL mod bu fonksiyona hiç girmez (isHosting=false) — solo antrenman düzeni korunur.
 
-  if (currentMode === 'PONG') {
-    for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 4; i++) {
+    const slot = hostPlayerSlots[i];
+    const custom = getSlotCustomization(i);
+    const slotColor = (slot && slot.kind === 'bot') ? '#8E8E93' : custom.color;
+
+    if (currentMode === 'PONG') {
       const p = engine.paddles?.[i];
-      if (!p) continue;
-      const slot = hostPlayerSlots[i];
-      if (slot) {
-        p.isJoined = true;
-        p.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
-        p.name = slot.name || `P${i + 1}`;
-      } else {
-        p.isJoined = false;
-        p.slotType = 'empty';
-        p.name = ['P1', 'P2', 'P3', 'P4'][i];
+      if (p) {
+        if (slot) {
+          p.isJoined = true;
+          p.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
+          p.name = slot.name || `P${i + 1}`;
+          p.color = slotColor;
+        } else {
+          p.isJoined = false;
+          p.slotType = 'empty';
+          p.name = ['P1', 'P2', 'P3', 'P4'][i];
+          p.color = custom.color;
+        }
+        p.updateLayout?.(engine.arena);
       }
-      p.updateLayout?.(engine.arena);
-    }
-  } else if (currentMode === 'TANKS') {
-    for (let i = 0; i < 4; i++) {
-      const slot = hostPlayerSlots[i];
+    } else if (currentMode === 'TANKS') {
       const tank = engine.tanks?.[i];
       if (slot) {
         if (engine.slotTypes) engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
@@ -157,6 +160,7 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
           tank.isJoined = true;
           tank.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
           tank.name = slot.name || `P${i + 1}`;
+          tank.color = slotColor;
         }
       } else {
         if (engine.slotTypes) engine.slotTypes[i] = 'empty';
@@ -164,12 +168,10 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
           tank.isJoined = false;
           tank.slotType = 'empty';
           tank.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
+          tank.color = custom.color;
         }
       }
-    }
-  } else if (currentMode === 'CURVE') {
-    for (let i = 0; i < 4; i++) {
-      const slot = hostPlayerSlots[i];
+    } else if (currentMode === 'CURVE') {
       const player = engine.players?.[i];
       if (slot) {
         if (engine.slotTypes) engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
@@ -177,6 +179,7 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
           player.isJoined = true;
           player.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
           player.name = slot.name || `P${i + 1}`;
+          player.color = slotColor;
         }
       } else {
         if (engine.slotTypes) engine.slotTypes[i] = 'empty';
@@ -184,12 +187,10 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
           player.isJoined = false;
           player.slotType = 'empty';
           player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
+          player.color = custom.color;
         }
       }
-    }
-  } else if (currentMode === 'BOMB') {
-    for (let i = 0; i < 4; i++) {
-      const slot = hostPlayerSlots[i];
+    } else if (currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'CROWN' || currentMode === 'ZONE' || currentMode === 'SNAKE' || currentMode === 'LASER' || currentMode === 'CLONE' || currentMode === 'COLLAPSE' || currentMode === 'NINJA') {
       const player = engine.players?.[i];
       if (slot) {
         if (engine.slotTypes) engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
@@ -197,6 +198,7 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
           player.isJoined = true;
           player.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
           player.name = slot.name || `P${i + 1}`;
+          player.color = slotColor;
         }
       } else {
         if (engine.slotTypes) engine.slotTypes[i] = 'empty';
@@ -204,66 +206,24 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
           player.isJoined = false;
           player.slotType = 'empty';
           player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
+          player.color = custom.color;
         }
       }
-    }
-  } else if (currentMode === 'HEIST') {
-    for (let i = 0; i < 4; i++) {
-      const slot = hostPlayerSlots[i];
-      const player = engine.players?.[i];
-      if (slot) {
-        if (engine.slotTypes) engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
-        if (player) {
-          player.isJoined = true;
-          player.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
-          player.name = slot.name || `P${i + 1}`;
-        }
-      } else {
-        if (engine.slotTypes) engine.slotTypes[i] = 'empty';
-        if (player) {
-          player.isJoined = false;
-          player.slotType = 'empty';
-          player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
-        }
-      }
-    }
-  } else if (currentMode === 'CROWN' || currentMode === 'ZONE' || currentMode === 'SNAKE' || currentMode === 'LASER' || currentMode === 'CLONE' || currentMode === 'COLLAPSE' || currentMode === 'NINJA') {
-    for (let i = 0; i < 4; i++) {
-      const slot = hostPlayerSlots[i];
-      const player = engine.players?.[i];
-      if (slot) {
-        if (engine.slotTypes) engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
-        if (player) {
-          player.isJoined = true;
-          player.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
-          player.name = slot.name || `P${i + 1}`;
-        }
-      } else {
-        if (engine.slotTypes) engine.slotTypes[i] = 'empty';
-        if (player) {
-          player.isJoined = false;
-          player.slotType = 'empty';
-          player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
-        }
-      }
-    }
-  } else if (currentMode === 'DUEL') {
-    if (!engine.playerNames) engine.playerNames = ['', '', '', ''];
-    if (!engine.slotTypes) engine.slotTypes = ['empty', 'empty', 'empty', 'empty'];
-    for (let i = 0; i < 4; i++) {
-      const slot = hostPlayerSlots[i];
+    } else if (currentMode === 'DUEL') {
+      if (!engine.playerNames) engine.playerNames = ['', '', '', ''];
+      if (!engine.slotTypes) engine.slotTypes = ['empty', 'empty', 'empty', 'empty'];
+      if (!engine.playerColors) engine.playerColors = ['', '', '', ''];
       if (slot) {
         engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
         if (engine.joinedPlayers) engine.joinedPlayers[i] = true;
         engine.playerNames[i] = slot.name || `P${i + 1}`;
+        engine.playerColors[i] = slotColor;
       } else {
         engine.slotTypes[i] = 'empty';
         if (engine.joinedPlayers) engine.joinedPlayers[i] = false;
         engine.playerNames[i] = '';
+        engine.playerColors[i] = custom.color;
       }
-    }
-    if (typeof engine.updateTriggerPads === 'function') {
-      engine.updateTriggerPads();
     }
   }
 }

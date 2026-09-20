@@ -1,4 +1,5 @@
 // Micro-Tanks: 8 Labyrinths with Multi-Tier Bot AI (Normal & God Mode), Tactical Crates & Sudden Death
+import { getSlotCustomization } from '../core/customizationManager.js';
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
 import { renderTopPill, renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
@@ -380,10 +381,12 @@ export class TanksGame extends BaseMiniGame {
       const sx = left + spawn.x * aW;
       const sy = top + spawn.y * aH;
       const isJoined = this.isSlotJoined(i);
+      const custom = getSlotCustomization(i);
+      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
       return {
         index: i,
         name: TANK_NAMES[i],
-        color: TANK_COLORS[i],
+        color: isBot ? '#8E8E93' : custom.color,
         x: sx,
         y: sy,
         startX: sx,

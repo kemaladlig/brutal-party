@@ -3,6 +3,7 @@
 // capture. Enemy steps on your trail -> you shatter back to base size + 2s stun
 // (no elimination, party flow preserved). 90s rounds, first to 40% takes the
 // round early, first to 2 rounds is the champion.
+import { getSlotCustomization } from '../core/customizationManager.js';
 import {
   playStart,
   playJoin,
@@ -348,8 +349,10 @@ export class ZoneGame extends BaseMiniGame {
       const bcx = this.field.x + ((r.x0 + r.x1 + 1) / 2) * this.cell;
       const bcy = this.field.y + ((r.y0 + r.y1 + 1) / 2) * this.cell;
       const outward = Math.atan2(this.arena.cy - bcy, this.arena.cx - bcx);
+      const custom = getSlotCustomization(i);
+      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
       return {
-        index: i, name: ZONE_NAMES[i], color: ZONE_COLORS[i],
+        index: i, name: ZONE_NAMES[i], color: isBot ? '#8E8E93' : custom.color,
         x: bcx, y: bcy, heading: outward,
         radius: Math.max(6, this.cell * 0.9),
         isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],

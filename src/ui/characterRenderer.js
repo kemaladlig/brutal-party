@@ -15,7 +15,9 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {
   const slotIdx = typeof options.slotIndex === 'number' ? options.slotIndex : null;
   const slotData = slotIdx !== null ? getSlotCustomization(slotIdx) : null;
 
-  const color = options.color || slotData?.color || '#D84727';
+  const isBot = options.isBot || options.slotType === 'bot_normal' || options.slotType === 'bot_god';
+  const customColor = (slotIdx !== null && !isBot && slotData?.color) ? slotData.color : null;
+  const color = customColor || options.color || slotData?.color || '#D84727';
   const expressionRaw = options.expression || slotData?.expression || 'FOCUS';
   const accessoryRaw = options.accessory !== undefined ? options.accessory : (slotData?.accessory || 'NONE');
   const patternRaw = options.pattern || slotData?.pattern || 'SOLID';

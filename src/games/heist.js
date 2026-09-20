@@ -1,5 +1,6 @@
 // BRUTAL HEIST (Game 05): 2-4 Player Local Party Gold & Vault Stealing
 // Weight Physics, Shoulder Tackle Loot Knockout, Vault Banking & Raids, 45s Gold Rush & Bot AI
+import { getSlotCustomization } from '../core/customizationManager.js';
 import {
   playStart,
   playJoin,
@@ -195,11 +196,13 @@ export class HeistGame extends BaseMiniGame {
 
     this.players = spawns.map((s, i) => {
       const existing = this.players[i];
+      const custom = getSlotCustomization(i);
+      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
       return {
         index: i,
         // Raunt başı TV isimlerini silme (CROWN deseni): kumanda ismi korunur
         name: existing?.name || HEIST_NAMES[i],
-        color: HEIST_COLORS[i],
+        color: isBot ? '#8E8E93' : custom.color,
         x: s.x,
         y: s.y,
         vx: 0,

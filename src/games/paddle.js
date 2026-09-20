@@ -1,6 +1,7 @@
 // Paddle entity: movement, physics bounds & brutalist rendering.
 // Bot kararı src/ai/pongAI.js'tedir (diğer motorlarla aynı desen).
 
+import { getSlotCustomization } from '../core/customizationManager.js';
 import { updatePongBotAI as runPongBotAI } from '../ai/pongAI.js';
 
 export const PLAYER_CONFIGS = [
@@ -16,7 +17,7 @@ export class Paddle {
     this.name = config.name;
     this.side = config.side;
     this.axis = config.axis;
-    this.color = config.color;
+    this.color = getSlotCustomization(config.index).color || config.color;
     this.game = game;
 
     this.lives = 3;

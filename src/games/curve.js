@@ -1,4 +1,5 @@
 // BRUTAL CURVE (Game 03): 2-4 Player Local Party Curve Fever with Gaps, Power-Ups & Bot AI
+import { getSlotCustomization } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGap, playItemPickup } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
@@ -161,10 +162,12 @@ export class CurveGame extends BaseMiniGame {
     ];
 
     this.players = spawns.map((s, i) => {
+      const custom = getSlotCustomization(i);
+      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
       return {
         index: i,
         name: CURVE_NAMES[i],
-        color: CURVE_COLORS[i],
+        color: isBot ? '#8E8E93' : custom.color,
         x: s.x,
         y: s.y,
         prevX: s.x,
@@ -251,6 +254,9 @@ export class CurveGame extends BaseMiniGame {
     this.players.forEach((p, i) => {
       const s = spawns[i];
       const randomAngleOffset = (Math.random() - 0.5) * 0.4;
+      const custom = getSlotCustomization(i);
+      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      p.color = isBot ? '#8E8E93' : custom.color;
       p.x = s.x;
       p.y = s.y;
       p.prevX = s.x;

@@ -1,5 +1,6 @@
 // BRUTAL BOMB (Game 04): 2-4 Player Local Party Bomb Tag / Saatli Bomba
 // 360° Floating Corner Joysticks, Passing Physics, Whiskers & Waypoint Steering, Tackle Dash, 3 Maps & Panic Phase
+import { getSlotCustomization } from '../core/customizationManager.js';
 import {
   playExplosion,
   playStart,
@@ -252,12 +253,14 @@ export class BombGame extends BaseMiniGame {
 
     this.players = spawns.map((s, i) => {
       const existing = this.players[i];
+      const custom = getSlotCustomization(i);
+      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
       return {
         index: i,
         // Raunt başı TV isimlerini silme (CROWN deseni): kumanda ismi korunur,
         // syncSlotsToEngine bir sonraki turda zaten yazar
         name: existing?.name || BOMB_NAMES[i],
-        color: BOMB_COLORS[i],
+        color: isBot ? '#8E8E93' : custom.color,
         x: s.x,
         y: s.y,
         vx: 0,

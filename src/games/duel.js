@@ -3,6 +3,7 @@
 // blocker (BLOKE), dynamic 2/3/4 player scoring, false start penalties,
 // millisecond reaction timer, bot AI (normal/god), and 4-way rotated player pods.
 
+import { getSlotCustomization } from '../core/customizationManager.js';
 import {
   playStart,
   playJoin,
@@ -121,6 +122,13 @@ export class DuelGame extends BaseMiniGame {
       botFireAt: 0,
       botPlanned: false,
     }));
+  }
+
+  getPlayerColor(idx) {
+    if (this.playerColors?.[idx]) return this.playerColors[idx];
+    const custom = getSlotCustomization(idx);
+    const isBot = this.slotTypes[idx] === 'bot_normal' || this.slotTypes[idx] === 'bot_god';
+    return isBot ? '#8E8E93' : (custom?.color || DUEL_COLORS[idx]);
   }
 
   // slotTypes <-> joinedPlayers çift yönlü senkron (LOCAL cycle + host sync ortak)
@@ -1114,7 +1122,7 @@ export class DuelGame extends BaseMiniGame {
     this.joinedPlayers.forEach((joined, idx) => {
       if (joined) {
         const px = stripX + currSlot * slotW;
-        const color = DUEL_COLORS[idx];
+        const color = this.getPlayerColor(idx);
         // Swatch
         ctx.fillStyle = color;
         ctx.fillRect(px + 6, stripY + 7, Math.round(10 * Math.min(1.3, scale)), stripH - 14);
@@ -1430,7 +1438,7 @@ export class DuelGame extends BaseMiniGame {
       ctx.translate(pad.cx, pad.cy);
       ctx.rotate(pad.rotation);
 
-      let bgColor = DUEL_COLORS[idx];
+      let bgColor = this.getPlayerColor(idx);
       let borderColor = '#FAF8F5';
 
       if (falseStart) {
