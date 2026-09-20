@@ -716,6 +716,15 @@ export class ZoneGame extends BaseMiniGame {
       return;
     }
 
+    // Tek katılımcı kalınca süre beklenmez — kalan raundu alır
+    {
+      const joined = this.players.filter((p) => p.isJoined);
+      if (joined.length <= 1) {
+        this.finishRound(joined.length === 1 ? joined[0] : null);
+        return;
+      }
+    }
+
     this.roundTimer -= dt;
     if (this.spawnProtect > 0) this.spawnProtect = Math.max(0, this.spawnProtect - dt);
     if (this.roundTimer <= 0) {

@@ -484,21 +484,7 @@ export class BombGame extends BaseMiniGame {
     const alive = this.players.filter((p) => p.isJoined && p.isAlive);
 
     if (alive.length <= 1) {
-      if (alive.length === 1) {
-        const survivor = alive[0];
-        this.roundWinner = survivor;
-        this.scores[survivor.index]++;
-
-        if (this.scores[survivor.index] >= this.targetScore) {
-          this.state = 'MATCH_OVER';
-          this.matchWinner = survivor;
-          return;
-        }
-      } else {
-        this.roundWinner = null;
-      }
-      this.state = 'ROUND_OVER';
-      this.roundTransitionTimer = 2.4;
+      this.resolveLoneSurvivor(alive);
     } else {
       // Multiple players still alive: pick survivor for next bomb
       const nextIndex = Math.floor(Math.random() * alive.length);
@@ -507,6 +493,27 @@ export class BombGame extends BaseMiniGame {
       this.bombMaxTime = this.bombTimer;
       this.passCooldown = 1.2;
     }
+  }
+
+  // Tek katılımcı kalınca raunt hemen biter (patlama beklenmez)
+  resolveLoneSurvivor(alive) {
+    const remaining = alive || this.players.filter((p) => p.isJoined && p.isAlive);
+    if (remaining.length > 1 || this.state !== 'PLAYING') return false;
+    if (remaining.length === 1) {
+      const survivor = remaining[0];
+      this.roundWinner = survivor;
+      this.scores[survivor.index]++;
+      if (this.scores[survivor.index] >= this.targetScore) {
+        this.state = 'MATCH_OVER';
+        this.matchWinner = survivor;
+        return true;
+      }
+    } else {
+      this.roundWinner = null;
+    }
+    this.state = 'ROUND_OVER';
+    this.roundTransitionTimer = 2.4;
+    return true;
   }
 
   spawnPickup() {
@@ -751,6 +758,24 @@ export class BombGame extends BaseMiniGame {
     }
 
     if (this.state !== 'PLAYING') return;
+
+    // Taşıyıcı ayrıldıysa/öldüyse bomba canlı birine geçer; kimse kalmadıysa bitir
+    const activeCarrier = this.players[this.bombCarrierIndex];
+    if (!activeCarrier || !activeCarrier.isJoined || !activeCarrier.isAlive) {
+      const alive = this.players.filter((p) => p.isJoined && p.isAlive);
+      if (alive.length <= 1) {
+        this.resolveLoneSurvivor(alive);
+        return;
+      }
+      const nextIndex = Math.floor(Math.random() * alive.length);
+      this.bombCarrierIndex = alive[nextIndex].index;
+      this.bombTimer = Math.max(9.0, 15.0 - (4 - alive.length) * 2.0);
+      this.bombMaxTime = this.bombTimer;
+      this.passCooldown = 1.2;
+    }
+
+    // Tek katılımcı kontrolü (ayrılma patlamayı beklemez)
+    if (this.resolveLoneSurvivor()) return;
 
     // Decrement Bomb Timer & Audio
     this.bombTimer -= dt;

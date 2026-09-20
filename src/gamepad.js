@@ -655,21 +655,24 @@ export class GamepadManager {
           <button class="pong-invert-btn ${this.isPongInverted !== baseInvert ? 'inverted' : ''}" id="btn-invert-axis" type="button">
             ${this.isPongInverted !== baseInvert ? '↺ OTOMATİK YÖN (DOKUN)' : '↺ YÖNÜ TERS ÇEVİR'}
           </button>
-          <button class="pong-invert-btn" id="btn-pong-freeze" type="button">❄️ DONDUR</button>
+          <button class="action-spin-btn" id="btn-pong-spin" type="button">
+            <span class="dash-btn-label">🌀 FALSO</span>
+            <span class="dash-btn-sub">DOKUN</span>
+          </button>
         </div>
       `;
 
       const track = document.getElementById('pong-track');
       const thumb = document.getElementById('pong-thumb');
       const invertBtn = document.getElementById('btn-invert-axis');
-      const freezeBtn = document.getElementById('btn-pong-freeze');
+      const spinBtn = document.getElementById('btn-pong-spin');
       const hintEl = document.getElementById('pong-direction-hint');
       let isTrackingMouse = false;
 
-      freezeBtn?.addEventListener('click', () => {
-        this.network.sendInput({ action: 'FREEZE' });
-        if (navigator.vibrate) navigator.vibrate(30);
-      });
+      // Falso butonu ortak soğutma deseninde (20sn host cooldown ile eşleşir)
+      const spinAction = this.cooledAction(spinBtn, 20.0, '🌀 FALSO',
+        () => this.network.sendInput({ action: 'SPIN' }), [30, 40, 30]);
+      spinBtn?.addEventListener('click', spinAction);
 
       invertBtn?.addEventListener('click', () => {
         this.isPongInverted = !this.isPongInverted;
@@ -1200,16 +1203,23 @@ export class GamepadManager {
           const rallyTxt = `⚡ RALLİ: ${data.rally}`;
           if (rallyDisp.textContent !== rallyTxt) rallyDisp.textContent = rallyTxt;
         }
-        const frzBtn = this._el('btn-pong-freeze');
-        if (frzBtn && Array.isArray(data.cd)) {
-          const cd = data.cd[this.playerIndex] || 0;
-          frzBtn.disabled = cd > 0;
-          frzBtn.style.opacity = cd > 0 ? 0.45 : 1;
-          frzBtn.textContent = cd > 0 ? `❄️ ${cd}sn` : (data.frz ? '❄️ MAVİ TOP!' : '❄️ DONDUR');
+        const spinBtn = this._el('btn-pong-spin');
+        if (spinBtn) {
+          const label = spinBtn.querySelector('.dash-btn-label');
+          const sub = spinBtn.querySelector('.dash-btn-sub');
+          const cd = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
+          const isCharged = data.chgIdx === this.playerIndex;
+          // Host cooldown gerçek kaynaktır; lokal 20sn sayacı yalnızca görseldir
+          const txt = cd > 0 && !isCharged ? `⏳ ${cd}sn` : (isCharged ? `🌀 ${(data.chgT || 0).toFixed(1)}sn` : '🌀 FALSO');
+          if (label && label.textContent !== txt) label.textContent = txt;
+          if (sub) {
+            const subTxt = isCharged ? 'KURULU!' : (cd > 0 ? 'DOLUYOR' : 'DOKUN');
+            if (sub.textContent !== subTxt) sub.textContent = subTxt;
+          }
         }
-        if (rallyDisp && data.fzIdx !== undefined && data.fzIdx >= 0) {
-          const frz = `❄️ P${data.fzIdx + 1} DONDU (${data.fzT || 0}sn)`;
-          if (rallyDisp.textContent !== frz) rallyDisp.textContent = frz;
+        if (rallyDisp && data.spn) {
+          const spn = '🌀 TOP DÖNÜYOR!';
+          if (rallyDisp.textContent !== spn) rallyDisp.textContent = spn;
         }
       } else if (data.gameMode === 'TANKS') {
         statusStr = `SKOR: ${data.scores.join('-')}`;

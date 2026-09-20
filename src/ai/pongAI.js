@@ -30,9 +30,9 @@ export function updatePongBotAI(game, paddle, dt) {
 
   if (paddle.isGodBot) {
     // ⚡ GOD MODE BOT: matador vuruşu + gölgeleme + derin tahmin
-    // ❄️ Gerideyken nadir dondurma: top başkasına giderken açar (kendine de değebilir — risk)
-    if (!isHeadingTowards && paddle.lives === 1 && !ball.isFreezing) {
-      if (Math.random() < dt * 0.3) game.triggerFreeze(paddle.index);
+    // 🌀 Gerideyken nadir falso kurma: top başkasına giderken açar
+    if (!isHeadingTowards && paddle.lives === 1 && paddle.spinCharge <= 0) {
+      if (Math.random() < dt * 0.3) game.triggerSpin(paddle.index);
     }
     if (isHeadingTowards) {
       const predicted = predictPongLanding(paddle, ball, arena);

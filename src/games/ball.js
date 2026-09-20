@@ -32,10 +32,8 @@ export class Ball {
     this.isSmash = false;
     this.lastHitPlayer = -1;
 
-    // ❄️ Freeze skill: dondurucu top penceresi (mavi, hareketli)
-    this.isFreezing = false;
-    this.freezeWindow = 0;
-    this.frozenBy = -1;
+    // 🌀 Falso eğriliği: işaretli dikey ivme (px/s²), üstel söner
+    this.spin = 0;
 
     // Anti-loop tracker
     this.consecutiveWallBounces = 0;
@@ -81,9 +79,7 @@ export class Ball {
     this.currentMaxSpeed = this.baseMaxSpeed;
     this.isSmash = false;
     this.lastHitPlayer = -1;
-    this.isFreezing = false;
-    this.freezeWindow = 0;
-    this.frozenBy = -1;
+    this.spin = 0;
 
     let angle = directionAngle;
     if (angle === null || angle === undefined) {
@@ -107,32 +103,29 @@ export class Ball {
     this.vy = Math.sin(angle) * startSpeed;
   }
 
-  // Dondurucu modu kur: top mavi gezer, ilk değdiği raket donar.
-  // Top zaten dondurucuysa veya bir raket donmuşsa false (tek aktif donma).
-  tryArmFreeze(casterIndex) {
-    if (this.isDead || this.isFreezing) return false;
-    const paddles = this.game?.paddles || [];
-    if (paddles.some((p) => p && p.frozenTimer > 0)) return false;
-    this.isFreezing = true;
-    this.freezeWindow = 5.0;
-    this.frozenBy = casterIndex;
-    return true;
-  }
-
-  disarmFreeze() {
-    this.isFreezing = false;
-    this.freezeWindow = 0;
-    this.frozenBy = -1;
+  // Falso eğriliği uygula: hıza dik ivme + üstel sönüm (kavisli yörünge)
+  applySpinCurve(dt) {
+    if (this.spin === 0) return;
+    const mag = Math.hypot(this.vx, this.vy) || 1;
+    const px = -this.vy / mag;
+    const py = this.vx / mag;
+    this.vx += px * this.spin * dt;
+    this.vy += py * this.spin * dt;
+    // Hız tavanını koru (eğrilik hız pompalamasın)
+    const cap = this.currentMaxSpeed * 1.25;
+    const newMag = Math.hypot(this.vx, this.vy) || 1;
+    if (newMag > cap) {
+      this.vx = (this.vx / newMag) * cap;
+      this.vy = (this.vy / newMag) * cap;
+    }
+    this.spin *= Math.exp(-dt * 1.1);
+    if (Math.abs(this.spin) < 8) this.spin = 0;
   }
 
   fixedUpdate(dt, arena, paddles) {
     if (this.isDead) return;
 
-    // Dondurucu pencere sayacı: temas olmazsa yetenek söner
-    if (this.isFreezing) {
-      this.freezeWindow -= dt;
-      if (this.freezeWindow <= 0) this.disarmFreeze();
-    }
+    this.applySpinCurve(dt);
 
     // Update shockwaves
     for (let i = this.shockwaves.length - 1; i >= 0; i--) {
@@ -362,11 +355,25 @@ export class Ball {
     this.vx = (rx / newMag) * targetSpeed;
     this.vy = (ry / newMag) * targetSpeed;
 
-    // ❄️ Dondurucu top ilk değdiği raketi dondurur (atan dahil — risk mekaniğin parçası)
-    if (this.isFreezing) {
-      paddle.frozenTimer = 2.5;
-      this.disarmFreeze();
-      this.spawnShockwave(this.x, this.y, '#7FD4FF');
+    // 🌀 Kurulu falso: şarjlı raket topa değerse teğetsel vuruş x3 + kalıcı eğrilik.
+    // Yön raketin kayma yönünden gelir (duran rakette vuruş noktası/para atışı).
+    if (paddle.spinCharge > 0) {
+      paddle.spinCharge = 0;
+      const dir = Math.sign(paddleTangentVel)
+        || Math.sign(offset)
+        || (Math.random() < 0.5 ? -1 : 1);
+      const tangentBoost = tx * paddleTangentVel * this.spinInfluence * 2 + tx * dir * this.baseMinSpeed * 0.35;
+      const tangentBoostY = ty * paddleTangentVel * this.spinInfluence * 2 + ty * dir * this.baseMinSpeed * 0.35;
+      this.vx += tangentBoost;
+      this.vy += tangentBoostY;
+      // Falso vuruşu hız tavanını delmesin
+      const boostMag = Math.hypot(this.vx, this.vy) || 1;
+      if (boostMag > speedCap) {
+        this.vx = (this.vx / boostMag) * speedCap;
+        this.vy = (this.vy / boostMag) * speedCap;
+      }
+      this.spin = dir * this.baseMinSpeed * 2.2;
+      this.spawnShockwave(this.x, this.y, '#D99B26');
       this.game.addTrauma(0.22);
       playPowerUp();
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -569,10 +576,11 @@ export class Ball {
       ctx.fill();
     }
 
-    // Ball Core (dondurucu modda buz mavisi + ❄️ işareti)
+    // Ball Core (falso dönüyorsa altın + 🌀 işareti)
+    const spinning = Math.abs(this.spin) > 8;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.fillStyle = this.isFreezing ? '#7FD4FF' : (this.isSmash ? '#D84727' : '#111111');
+    ctx.fillStyle = spinning ? '#D99B26' : (this.isSmash ? '#D84727' : '#111111');
     ctx.fill();
 
     ctx.strokeStyle = '#000000';
@@ -580,19 +588,19 @@ export class Ball {
     ctx.stroke();
 
     // Inner highlight if smash
-    if (this.isSmash && !this.isFreezing) {
+    if (this.isSmash && !spinning) {
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius * 0.45, 0, Math.PI * 2);
       ctx.fillStyle = '#FFFFFF';
       ctx.fill();
     }
 
-    if (this.isFreezing) {
+    if (spinning) {
       ctx.fillStyle = '#FFFFFF';
       ctx.font = `900 ${Math.max(12, this.radius)}px "Space Grotesk", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('❄', this.x, this.y - this.radius - 10);
+      ctx.fillText('🌀', this.x, this.y - this.radius - 10);
     }
   }
 }

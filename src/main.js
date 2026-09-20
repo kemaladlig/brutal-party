@@ -99,15 +99,15 @@ registerEngine('PONG', {
   onResume: (now) => { pongGame.lastTime = now; pongGame.accumulator = 0; },
   start: () => pongGame.startNewMatch(),
   packet: () => {
-    const frzIdx = pongGame.paddles.findIndex((p) => p.frozenTimer > 0);
+    const chgIdx = pongGame.paddles.findIndex((p) => p.spinCharge > 0);
     return {
       // setScores gerçektir (matchScores ölü alandır — telefonda skor hep 0 görünüyordu)
       scores: pongGame.setScores,
       rally: pongGame.ball?.rallyCount || 0,
-      frz: pongGame.ball?.isFreezing ? 1 : 0,
-      fzIdx: frzIdx,
-      fzT: frzIdx >= 0 ? Math.round(pongGame.paddles[frzIdx].frozenTimer * 10) / 10 : 0,
-      cd: pongGame.freezeCooldowns.map((c) => Math.ceil(c)),
+      spn: Math.abs(pongGame.ball?.spin || 0) > 8 ? 1 : 0,
+      chgIdx,
+      chgT: chgIdx >= 0 ? Math.round(pongGame.paddles[chgIdx].spinCharge * 10) / 10 : 0,
+      cd: pongGame.spinCooldowns.map((c) => Math.ceil(c)),
     };
   },
 });

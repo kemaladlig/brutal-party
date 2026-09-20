@@ -318,6 +318,20 @@ export class HeistGame extends BaseMiniGame {
     playStart();
   }
 
+  // Kasa liderine set verir (hedefe ulaşırsa maç biter)
+  awardVaultWinner(winner) {
+    this.roundTied = false;
+    this.roundWinner = winner;
+    this.scores[winner.index]++;
+    if (this.scores[winner.index] >= this.targetScore) {
+      this.state = 'MATCH_OVER';
+      this.matchWinner = winner;
+      return;
+    }
+    this.state = 'ROUND_OVER';
+    this.roundTransitionTimer = 2.8;
+  }
+
   spawnPiggyBank() {
     const angle = Math.random() * Math.PI * 2;
     const speed = 120;
@@ -654,6 +668,22 @@ export class HeistGame extends BaseMiniGame {
       if (pig.y + pig.radius > bottom) { pig.y = bottom - pig.radius; pig.vy = -Math.abs(pig.vy); }
     }
 
+    // Tek katılımcı kalınca süre beklenmez — kasa lideri raundu alır
+    if (this.state === 'PLAYING') {
+      const joined = this.players.filter((p) => p.isJoined);
+      if (joined.length <= 1) {
+        if (joined.length === 1) {
+          this.awardVaultWinner(joined[0]);
+        } else {
+          this.roundTied = false;
+          this.roundWinner = null;
+          this.state = 'ROUND_OVER';
+          this.roundTransitionTimer = 2.8;
+        }
+        return;
+      }
+    }
+
     if (this.roundTimer <= 0) {
       // Round Complete: tek lider + en az 1 banko gerekir; eşitlikte/boş
       // rauntta skor yazılmaz (önce düşük indeks hep kazanıyordu)
@@ -674,13 +704,8 @@ export class HeistGame extends BaseMiniGame {
 
       this.roundTied = !winner || tied || highestGold <= 0;
       if (!this.roundTied) {
-        this.roundWinner = winner;
-        this.scores[winner.index]++;
-        if (this.scores[winner.index] >= this.targetScore) {
-          this.state = 'MATCH_OVER';
-          this.matchWinner = winner;
-          return;
-        }
+        this.awardVaultWinner(winner);
+        return;
       } else {
         this.roundWinner = null;
       }

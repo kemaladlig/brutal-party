@@ -530,6 +530,27 @@ export class DuelGame extends BaseMiniGame {
       if (b.life <= 0) this.bulletTracers.splice(i, 1);
     }
 
+    // Tek katılımcı kalınca sinyal beklenmez — kalan raundu alır
+    if (this.state === 'STANDOFF_COUNTDOWN' || this.state === 'TENSION' || this.state === 'DRAW_SIGNAL') {
+      const joinedIdx = [];
+      this.joinedPlayers.forEach((j, i) => { if (j) joinedIdx.push(i); });
+      if (joinedIdx.length <= 1) {
+        if (joinedIdx.length === 1) {
+          const survivor = joinedIdx[0];
+          this.roundWinner = survivor;
+          const pts = this.getPointsForRank(1, Math.max(2, this.getActivePlayerCount()));
+          this.scores[survivor] += pts;
+          this.playerStatus[survivor].pointsEarned = pts;
+        } else {
+          this.roundWinner = null;
+        }
+        this.state = 'ROUND_OVER';
+        this.roundEndTimer = 3.0;
+        this.checkMatchWin();
+        return;
+      }
+    }
+
     // COUNTDOWN STATE
     if (this.state === 'STANDOFF_COUNTDOWN') {
       this.countdownTimer -= dt;

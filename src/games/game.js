@@ -50,8 +50,8 @@ export class Game extends BaseMiniGame {
 
     // Assigned touch identifier for each player (0: Bottom, 1: Top, 2: Left, 3: Right)
     this.playerTouchIds = [-1, -1, -1, -1];
-    // ❄️ Freeze skill: oyuncu başına bekleme + çift-dokun takibi
-    this.freezeCooldowns = [0, 0, 0, 0];
+    // 🌀 Falso skill: oyuncu başına bekleme + çift-dokun takibi
+    this.spinCooldowns = [0, 0, 0, 0];
     this.lastTapIdx = -1;
     this.lastTapTime = 0;
     // PC klavye durumu (P1 WASD, P2 oklar, P3 IJKL, P4 TFGH)
@@ -76,7 +76,7 @@ export class Game extends BaseMiniGame {
     this.accumulator = 0;
     this.lastTime = performance.now();
     this.playerTouchIds = [-1, -1, -1, -1];
-    this.freezeCooldowns = [0, 0, 0, 0];
+    this.spinCooldowns = [0, 0, 0, 0];
     this.stallTimer = 0;
     this.rallyStallT = 0;
     this.lastRallySeen = 0;
@@ -115,7 +115,7 @@ export class Game extends BaseMiniGame {
     this.ball.y = this.arena.cy;
     this.ball.vx = 0;
     this.ball.vy = 0;
-    this.ball.disarmFreeze();
+    if (this.ball) this.ball.spin = 0;
   }
 
   initKeyboard() {
@@ -125,27 +125,29 @@ export class Game extends BaseMiniGame {
         e.preventDefault();
       }
       this.keys[e.code] = true;
-      // Aksiyon tuşları: ❄️ dondurma (basımda bir kez)
-      if (e.code === 'Space') this.triggerFreeze(0);
-      else if (e.code === 'Enter') this.triggerFreeze(1);
-      else if (e.code === 'KeyO') this.triggerFreeze(2);
-      else if (e.code === 'KeyB') this.triggerFreeze(3);
+      // Aksiyon tuşları: 🌀 falso (basımda bir kez)
+      if (e.code === 'Space') this.triggerSpin(0);
+      else if (e.code === 'Enter') this.triggerSpin(1);
+      else if (e.code === 'KeyO') this.triggerSpin(2);
+      else if (e.code === 'KeyB') this.triggerSpin(3);
     });
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
     });
   }
 
-  // ❄️ Freeze skill: 25 sn bekleme, 5 sn mavi pencere, ilk temas donar (atan dahil).
-  triggerFreeze(index) {
+  // 🌀 Falso skill: 20 sn bekleme, 6 sn kurulu pencere — bu sırada topa
+  // değersen teğetsel vuruş x3 + top ~2 sn kavis çizer. Kullanılmazsa söner.
+  triggerSpin(index) {
     if (this.state !== 'PLAYING') return false;
     const p = this.paddles[index];
-    if (!p || !p.isJoined || p.isEliminated || p.frozenTimer > 0) return false;
-    if (this.freezeCooldowns[index] > 0) return false;
+    if (!p || !p.isJoined || p.isEliminated) return false;
+    if (this.spinCooldowns[index] > 0) return false;
     if (!this.ball || this.ball.isDead) return false;
-    if (!this.ball.tryArmFreeze(index)) return false;
-    this.freezeCooldowns[index] = 25;
+    p.spinCharge = 6.0;
+    this.spinCooldowns[index] = 20;
     playPowerUp();
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([25, 35]);
     return true;
   }
 
@@ -226,13 +228,13 @@ export class Game extends BaseMiniGame {
       }
     }
 
-    // 3. In Gameplay: lock touch.id to player zone (+ çift-dokun = ❄️)
+    // 3. In Gameplay: lock touch.id to player zone (+ çift-dokun = 🌀)
     if (this.state === 'PLAYING') {
       const playerIndex = this.getPlayerZoneAt(touch);
       if (playerIndex !== -1 && this.isPlayerActive(playerIndex)) {
         const now = performance.now();
         if (playerIndex === this.lastTapIdx && now - this.lastTapTime < 320) {
-          this.triggerFreeze(playerIndex);
+          this.triggerSpin(playerIndex);
         }
         this.lastTapIdx = playerIndex;
         this.lastTapTime = now;
@@ -362,8 +364,8 @@ export class Game extends BaseMiniGame {
     this.ball.y = this.arena.cy;
     this.ball.vx = 0;
     this.ball.vy = 0;
-    this.ball.disarmFreeze();
-    this.freezeCooldowns = [0, 0, 0, 0];
+    if (this.ball) this.ball.spin = 0;
+    this.spinCooldowns = [0, 0, 0, 0];
     this.stallTimer = 0;
     this.rallyStallT = 0;
     this.lastRallySeen = 0;
@@ -376,9 +378,9 @@ export class Game extends BaseMiniGame {
   }
 
   onPlayerScoredOn(playerIndex) {
-    // Gol her şeyi sıfırlar: donma modu + donmuş raketler temizlenir
-    this.ball.disarmFreeze();
-    this.paddles.forEach((p) => { p.frozenTimer = 0; });
+    // Gol her şeyi sıfırlar: falso eğriliği + kurulu şarjlar temizlenir
+    if (this.ball) this.ball.spin = 0;
+    this.paddles.forEach((p) => { p.spinCharge = 0; });
     const remaining = this.paddles.filter((p) => p.isJoined && !p.isEliminated);
 
     if (remaining.length <= 1) {
@@ -412,10 +414,10 @@ export class Game extends BaseMiniGame {
     const frameTime = Math.min((now - this.lastTime) / 1000, 0.1);
     this.lastTime = now;
 
-    // Freeze beklemeleri her framede erir
+    // Falso beklemeleri her framede erir
     for (let i = 0; i < 4; i++) {
-      if (this.freezeCooldowns[i] > 0) {
-        this.freezeCooldowns[i] = Math.max(0, this.freezeCooldowns[i] - frameTime);
+      if (this.spinCooldowns[i] > 0) {
+        this.spinCooldowns[i] = Math.max(0, this.spinCooldowns[i] - frameTime);
       }
     }
 
@@ -433,6 +435,13 @@ export class Game extends BaseMiniGame {
       this.roundOverTimer -= frameTime;
       if (this.roundOverTimer <= 0) {
         this.restartRound();
+      }
+    } else if (this.state === 'PLAYING') {
+      // Tek aktif kalınca raunt hemen biter (gol beklenmez — ayrılma da bitirir)
+      const active = this.paddles.filter((p) => p.isJoined && !p.isEliminated);
+      if (active.length <= 1) {
+        this.onPlayerScoredOn(-1);
+        return;
       }
     }
 
@@ -514,8 +523,8 @@ export class Game extends BaseMiniGame {
     if (data.action === 'PADDLE_MOVE' && typeof data.position === 'number' && Number.isFinite(data.position)) {
       const pos = Math.max(0, Math.min(1, data.position));
       paddle.setTarget(paddle.minCoord + (paddle.maxCoord - paddle.minCoord) * pos);
-    } else if (data.action === 'FREEZE') {
-      this.triggerFreeze(slotIndex);
+    } else if (data.action === 'SPIN') {
+      this.triggerSpin(slotIndex);
     }
   }
 

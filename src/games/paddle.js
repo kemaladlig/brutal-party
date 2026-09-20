@@ -44,8 +44,8 @@ export class Paddle {
     this.botErrorOffset = 0;
     this.botErrorTimer = 0;
 
-    // ❄️ Donma sayacı (>0 iken raket kıpırdayamaz ama fiziksel duvardır)
-    this.frozenTimer = 0;
+    // 🌀 Falso şarjı (>0 iken topa değerse kavis verir, sonra söner)
+    this.spinCharge = 0;
   }
 
   cycleSlotType() {
@@ -77,7 +77,7 @@ export class Paddle {
     this.lives = 3;
     this.isEliminated = !isJoined;
     this.velocity = 0;
-    this.frozenTimer = 0;
+    this.spinCharge = 0;
     this.centerInBounds();
   }
 
@@ -135,18 +135,16 @@ export class Paddle {
   }
 
   setTarget(value) {
-    if (!this.isJoined || this.isEliminated || this.frozenTimer > 0) return;
+    if (!this.isJoined || this.isEliminated) return;
     this.targetCoord = Math.max(this.minCoord, Math.min(this.maxCoord, value));
   }
 
   update(dt) {
     if (!this.isJoined || this.isEliminated) return;
 
-    // Donmuş raket: sayaç işler, hareket/AI durur
-    if (this.frozenTimer > 0) {
-      this.frozenTimer = Math.max(0, this.frozenTimer - dt);
-      this.velocity = 0;
-      return;
+    // Falso şarj penceresi erir (kullanılmasa da söner)
+    if (this.spinCharge > 0) {
+      this.spinCharge = Math.max(0, this.spinCharge - dt);
     }
 
     // Run AI Controller if bot (karar motoru: src/ai/pongAI.js)
@@ -172,7 +170,7 @@ export class Paddle {
     this.lives = Math.max(0, this.lives - 1);
     if (this.lives === 0) {
       this.isEliminated = true;
-      this.frozenTimer = 0;
+      this.spinCharge = 0;
     }
   }
 
@@ -265,16 +263,14 @@ export class Paddle {
       ctx.restore();
     }
 
-    // ❄️ Donma kaplaması + kocaman geri sayım (adillik sayacı)
-    if (this.frozenTimer > 0) {
+    // 🌀 Falso şarj göstergesi: altın çerçeve + kalan süre çipi
+    if (this.spinCharge > 0) {
       ctx.save();
-      ctx.globalAlpha = 0.55;
-      ctx.fillStyle = '#7FD4FF';
-      ctx.fillRect(bounds.left - 4, bounds.top - 4, w + 8, h + 8);
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = '#1D5D8A';
-      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.8;
+      ctx.strokeStyle = '#D99B26';
+      ctx.lineWidth = 4;
       ctx.strokeRect(bounds.left - 4, bounds.top - 4, w + 8, h + 8);
+      ctx.globalAlpha = 1;
 
       const chipW = 104;
       const chipH = 42;
@@ -282,11 +278,11 @@ export class Paddle {
       const chipY = (bounds.top + bounds.bottom) / 2 - chipH / 2;
       ctx.fillStyle = '#1A1A1A';
       ctx.fillRect(chipX, chipY, chipW, chipH);
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = '#FFDE59';
       ctx.font = '900 24px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`❄ ${this.frozenTimer.toFixed(1)}`, chipX + chipW / 2, chipY + chipH / 2 + 1);
+      ctx.fillText(`🌀 ${this.spinCharge.toFixed(1)}`, chipX + chipW / 2, chipY + chipH / 2 + 1);
       ctx.restore();
     }
   }

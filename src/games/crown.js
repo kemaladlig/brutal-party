@@ -734,6 +734,30 @@ export class CrownGame extends BaseMiniGame {
 
     if (this.state !== 'PLAYING') return;
 
+    // Tek katılımcı kalınca taç süresi beklenmez — kalan raundu alır
+    {
+      const joined = this.players.filter((p) => p.isJoined);
+      if (joined.length <= 1) {
+        if (joined.length === 1) {
+          const survivor = joined[0];
+          this.roundWinner = survivor;
+          this.scores[survivor.index]++;
+          playCashRegister();
+          this.addFloatingText(this.arena.cx, this.arena.cy, `👑 ${survivor.name} RAUNDU KAZANDI!`, survivor.color);
+          if (this.scores[survivor.index] >= this.targetScore) {
+            this.state = 'MATCH_OVER';
+            this.matchWinner = survivor;
+            return;
+          }
+        } else {
+          this.roundWinner = null;
+        }
+        this.state = 'ROUND_OVER';
+        this.roundTransitionTimer = 2.8;
+        return;
+      }
+    }
+
     const { left, right, top, bottom, cx, cy } = this.arena;
 
     // --- 1. Update Conveyor Belts ---

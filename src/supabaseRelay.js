@@ -47,7 +47,7 @@ function isValidRelayInput(data) {
     case 'TANK_FIRE':
     case 'DASH':
     case 'TACKLE':
-    case 'FREEZE':
+    case 'SPIN':
     case 'DUEL_TAP':
     case 'SET_NAME':
     case 'SWITCH_SLOT':
