@@ -147,12 +147,13 @@ body {
   background-color: #e2ded4;
 }
 
-/* Pause & Options Modal */
+/* Pause & Options Modal (PC/TV: ortada; dokunmatik: alttan sayfa) */
 #pause-modal {
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   background-color: rgba(28, 28, 26, 0.72);
   display: flex;
   align-items: center;
@@ -160,6 +161,24 @@ body {
   z-index: 150;
   padding: 16px;
   backdrop-filter: blur(3px);
+}
+
+@media (pointer: coarse) {
+  #pause-modal,
+  #join-room-modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+  #pause-modal .pause-card,
+  #join-room-modal .join-room-card {
+    width: 100%;
+    max-width: none;
+    border-radius: 18px 18px 0 0;
+    border-bottom: none;
+    max-height: 88dvh;
+    overflow-y: auto;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  }
 }
 
 #pause-modal.hidden {
@@ -624,6 +643,44 @@ body {
   box-sizing: border-box;
 }
 
+/* Kod girişi × temizleme: sağ içte, değer varken görünür */
+.code-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.code-input-wrap .brutal-input,
+.code-input-wrap .hero-code-input {
+  width: 100%;
+  padding-right: 44px;
+}
+
+.code-clear-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  border: 2px solid #1a1a1a;
+  background: #ffffff;
+  color: #1a1a1a;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.code-clear-btn.hidden {
+  display: none;
+}
+
 .hero-code-input {
   flex: 1;
   min-width: 0;
@@ -925,7 +982,7 @@ body {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.8px;
-  color: #7d7870;
+  color: #6e6a62;
 }
 
 /* Responsive Mobile Layout */
@@ -981,6 +1038,27 @@ body {
   .menu-games.bento-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
+  }
+
+  /* Azaltılmış hareket: hover zıplaması yok, active baskın */
+  @media (prefers-reduced-motion: reduce) {
+    .bento-card,
+    .lobby-game-chip,
+    .hero-submit-btn,
+    .join-btn {
+      transition: none !important;
+    }
+    .bento-card:hover,
+    .lobby-game-chip:hover {
+      transform: none !important;
+    }
+  }
+
+  /* Çok dar telefon: 2'li ızgara yerine tek sütun (kart ~150px'de boğulmasın) */
+  @media (max-width: 380px) {
+    .menu-games.bento-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   .bento-card {
@@ -1420,14 +1498,8 @@ body {
 
 .selector-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 10px;
-}
-
-@media (max-width: 600px) {
-  .selector-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 .lobby-game-chip {

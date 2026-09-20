@@ -161,6 +161,28 @@ export function initPauseModal({
   });
   btnTvLobby?.addEventListener('click', onTvLobby);
 
+  // Kapatma jestleri: backdrop dokunuş + ESC + (dokunmatikte) aşağı kaydırma.
+  // Hepsi DEVAM ET ile aynı kapıdan çıkar (yanlışlıkla sıfırlama/çıkış yok).
+  pauseModal?.addEventListener('click', (e) => {
+    if (e.target === pauseModal) btnResumeGame?.click();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && pauseModal && !pauseModal.classList.contains('hidden')) {
+      btnResumeGame?.click();
+    }
+  });
+  const pauseCard = pauseModal?.querySelector('.pause-card');
+  let sheetStartY = null;
+  pauseCard?.addEventListener('touchstart', (e) => {
+    if (e.touches[0]) sheetStartY = e.touches[0].clientY;
+  }, { passive: true });
+  pauseCard?.addEventListener('touchend', (e) => {
+    if (sheetStartY === null) return;
+    const dy = (e.changedTouches[0]?.clientY ?? sheetStartY) - sheetStartY;
+    sheetStartY = null;
+    if (dy > 90) btnResumeGame?.click();
+  }, { passive: true });
+
   btnPauseRotateSeats?.addEventListener('click', () => {
     if (typeof onRotateSeats === 'function') {
       onRotateSeats();

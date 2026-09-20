@@ -12,6 +12,25 @@ const btnPasteRoomCode = document.getElementById('btn-paste-room-code');
 const heroInputCode = document.getElementById('hero-input-code');
 const btnHeroJoin = document.getElementById('btn-hero-join');
 const btnHeroPaste = document.getElementById('btn-hero-paste');
+const btnClearRoomCode = document.getElementById('btn-clear-room-code');
+const btnClearHeroCode = document.getElementById('btn-clear-hero-code');
+
+// × temizleme: değer varken görünür, basınca auto-join tetiklemez
+function bindClearButton(btn, input) {
+  if (!btn || !input) return;
+  const refresh = () => btn.classList.toggle('hidden', !(input.value && input.value.length > 0));
+  input.addEventListener('input', refresh);
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    input.value = '';
+    refresh();
+    input.focus();
+  });
+  refresh();
+}
+bindClearButton(btnClearRoomCode, inputRoomCode);
+bindClearButton(btnClearHeroCode, heroInputCode);
 
 export function openJoinModal(prefilledCode = '') {
   if (inputRoomCode) {
@@ -42,6 +61,27 @@ export function initJoinModal({ onExecuteJoin }) {
   });
 
   btnCancelJoin?.addEventListener('click', closeJoinModal);
+
+  // Kapatma jestleri: backdrop + ESC + aşağı kaydırma (katılım tetiklemez)
+  joinRoomModal?.addEventListener('click', (e) => {
+    if (e.target === joinRoomModal) closeJoinModal();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && joinRoomModal && !joinRoomModal.classList.contains('hidden')) {
+      closeJoinModal();
+    }
+  });
+  const joinCard = joinRoomModal?.querySelector('.join-room-card');
+  let joinStartY = null;
+  joinCard?.addEventListener('touchstart', (e) => {
+    if (e.touches[0]) joinStartY = e.touches[0].clientY;
+  }, { passive: true });
+  joinCard?.addEventListener('touchend', (e) => {
+    if (joinStartY === null) return;
+    const dy = (e.changedTouches[0]?.clientY ?? joinStartY) - joinStartY;
+    joinStartY = null;
+    if (dy > 90) closeJoinModal();
+  }, { passive: true });
 
   btnSubmitJoin?.addEventListener('click', () => {
     const code = inputRoomCode?.value?.trim().toUpperCase();

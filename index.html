@@ -234,7 +234,10 @@
               <label class="join-label">3 HANELİ ODA KODU</label>
               <button class="paste-code-btn" id="btn-paste-room-code" type="button">📋 YAPIŞTIR</button>
             </div>
-            <input type="text" id="input-room-code" class="brutal-input" maxlength="3" placeholder="ÖR: 421" autocapitalize="characters" inputmode="numeric" />
+            <div class="code-input-wrap">
+              <input type="text" id="input-room-code" class="brutal-input" maxlength="3" placeholder="ÖR: 421" autocapitalize="characters" inputmode="numeric" />
+              <button class="code-clear-btn hidden" id="btn-clear-room-code" type="button" aria-label="Kodu temizle">×</button>
+            </div>
             
             <label class="join-label">OYUNCU İSMİNİZ</label>
             <input type="text" id="input-player-name" class="brutal-input" maxlength="12" placeholder="ÖR: AHMET" />
@@ -319,17 +322,20 @@
                 <p class="hero-card-desc">TV veya bilgisayar ekranındaki 3 haneli kodu yaz, hemen oyuna katıl:</p>
                 
                 <div class="hero-join-inline">
-                  <input 
-                    type="text" 
-                    id="hero-input-code" 
-                    class="hero-code-input" 
-                    maxlength="3" 
-                    placeholder="ODA KODU" 
-                    autocapitalize="characters" 
-                    autocomplete="off"
-                    spellcheck="false"
-                    inputmode="numeric"
-                  />
+                  <div class="code-input-wrap hero-code-wrap">
+                    <input
+                      type="text"
+                      id="hero-input-code"
+                      class="hero-code-input"
+                      maxlength="3"
+                      placeholder="ODA KODU"
+                      autocapitalize="characters"
+                      autocomplete="off"
+                      spellcheck="false"
+                      inputmode="numeric"
+                    />
+                    <button class="code-clear-btn hidden" id="btn-clear-hero-code" type="button" aria-label="Kodu temizle">×</button>
+                  </div>
                   <button class="hero-submit-btn" id="btn-hero-join" type="button">
                     KATIL →
                   </button>
