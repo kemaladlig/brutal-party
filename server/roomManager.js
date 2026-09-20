@@ -50,8 +50,12 @@ export class RoomManager {
     // Map<roomCode, RoomData>
     this.rooms = new Map();
     // Hayalet süpürücü: close gelmeden ölüp kalan soketleri 10sn'de bir yokla,
-    // >20sn sessiz + ölü soketli insan slotunu boşa çıkar (Supabase reclaim eşiğiyle aynı)
-    setInterval(() => this._sweepGhosts(), 10000);
+    // >20sn sessiz + ölü soketli insan slotunu boşa çıkar (Supabase reclaim eşiğiyle aynı).
+    // unref ŞART: RoomManager vite.config'te import anında kurulur; ref'li timer
+    // `vite build` bitse bile Node sürecini açık tutar (çıktıda ✓ built görünür ama
+    // kabuk dönmez). unref ile timer süreci tek başına ayakta tutamaz.
+    const sweepTimer = setInterval(() => this._sweepGhosts(), 10000);
+    if (sweepTimer && typeof sweepTimer.unref === 'function') sweepTimer.unref();
   }
 
   _touchSlot(room, slotIndex) {
