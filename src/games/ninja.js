@@ -28,6 +28,8 @@ export class NinjaGame extends BaseMiniGame {
     this.targetScore = 5;
     this.players = [];
     this.obstacles = [];
+    this.particles = [];
+    this.roundTime = 40;
     this.keys = {};
     this.roundTransitionTimer = 0;
     this.touches = [
@@ -127,6 +129,7 @@ export class NinjaGame extends BaseMiniGame {
     this.roundWinner = null;
     this.matchWinner = null;
     this.roundTransitionTimer = 0;
+    this.particles = [];
     this.initPlayers();
     this.onTouchesReset();
   }
@@ -150,6 +153,8 @@ export class NinjaGame extends BaseMiniGame {
     this.state = 'PLAYING';
     this.roundWinner = null;
     this.roundTransitionTimer = 0;
+    this.roundTime = 45;
+    this.particles = [];
     this.onTouchesReset();
     playStart();
 
@@ -185,6 +190,40 @@ export class NinjaGame extends BaseMiniGame {
       player.alpha = 1.0;
       player.hideTimer = 0;
       playItemPickup();
+      this.spawnSlashTrail(player.x, player.y, player.angle, player.color);
+    }
+  }
+
+  spawnSmoke(x, y, color) {
+    for (let i = 0; i < 22; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const spd = 20 + Math.random() * 90;
+      this.particles.push({
+        x, y,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd,
+        color: i % 2 === 0 ? color : '#333333',
+        radius: 4 + Math.random() * 5,
+        alpha: 0.9,
+        decay: 1.6,
+      });
+    }
+  }
+
+  spawnSlashTrail(x, y, angle, color) {
+    for (let i = 0; i < 10; i++) {
+      const pAngle = angle + (Math.random() - 0.5) * 0.8;
+      const spd = 70 + Math.random() * 110;
+      this.particles.push({
+        x: x + Math.cos(angle) * 12,
+        y: y + Math.sin(angle) * 12,
+        vx: Math.cos(pAngle) * spd,
+        vy: Math.sin(pAngle) * spd,
+        color: '#FFFFFF',
+        radius: 2 + Math.random() * 2,
+        alpha: 1.0,
+        decay: 3.5,
+      });
     }
   }
 
@@ -306,6 +345,13 @@ export class NinjaGame extends BaseMiniGame {
 
     if (this.state !== 'PLAYING') return;
 
+    this.roundTime -= dt;
+    if (this.roundTime <= 0) {
+      const alivePlayers = this.players.filter((p) => p.isJoined && p.isAlive);
+      this.handleRoundEnd(alivePlayers.length === 1 ? alivePlayers[0] : null);
+      return;
+    }
+
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
 
@@ -404,6 +450,7 @@ export class NinjaGame extends BaseMiniGame {
           this.scores[attacker.index]++;
           this.addTrauma(0.6);
           playExplosion();
+          this.spawnSmoke(victim.x, victim.y, victim.color);
 
           if (this.scores[attacker.index] >= this.targetScore) {
             this.matchWinner = attacker;
@@ -411,6 +458,15 @@ export class NinjaGame extends BaseMiniGame {
           break;
         }
       }
+    }
+
+    // Parçacıklar
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.alpha -= p.decay * dt;
+      if (p.alpha <= 0) this.particles.splice(i, 1);
     }
 
     const alive = this.players.filter((p) => p.isJoined && p.isAlive);
@@ -486,6 +542,19 @@ export class NinjaGame extends BaseMiniGame {
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
 
+      // Kendi ninjasını kaybetmemesi için lokal oyuncuya hafif kesikli halka
+      if (player.slotType === 'human' && player.alpha < 0.4) {
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.strokeStyle = player.color;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, 16, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
       ctx.save();
       ctx.globalAlpha = player.alpha;
       ctx.translate(player.x, player.y);
@@ -510,6 +579,27 @@ export class NinjaGame extends BaseMiniGame {
       ctx.beginPath(); ctx.arc(7, -3, 1.5, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(7, 3, 1.5, 0, Math.PI * 2); ctx.fill();
 
+      ctx.restore();
+    }
+
+    // Parçacıklar
+    for (const p of this.particles) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Geri sayım filigranı (son 15 saniye)
+    if (this.state === 'PLAYING' && this.roundTime <= 15) {
+      ctx.save();
+      ctx.font = 'bold 36px monospace';
+      ctx.fillStyle = this.roundTime <= 5 ? '#E63946' : 'rgba(26,26,26,0.3)';
+      ctx.textAlign = 'center';
+      ctx.fillText(Math.ceil(this.roundTime), this.arena.cx, this.arena.top + 45);
       ctx.restore();
     }
 

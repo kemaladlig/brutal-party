@@ -27,6 +27,7 @@ export class CollapseGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.targetScore = 5;
     this.players = [];
+    this.particles = [];
 
     // Izgara: 0 sağlam, 1 uyarı (çöküyor), 2 boşluk
     this.gridCOLS = 13;
@@ -315,7 +316,12 @@ export class CollapseGame extends BaseMiniGame {
         const tile = this.grid[r][c];
         if (tile.state === 1) {
           tile.timer -= dt;
-          if (tile.timer <= 0) tile.state = 2;
+          if (tile.timer <= 0) {
+            tile.state = 2;
+            const cx = this.offsetX + (c + 0.5) * this.cellSize;
+            const cy = this.offsetY + (r + 0.5) * this.cellSize;
+            this.spawnCrumble(cx, cy);
+          }
         }
       }
     }
@@ -402,25 +408,58 @@ export class CollapseGame extends BaseMiniGame {
       }
     }
 
+    // Parçacıklar
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.alpha -= p.decay * dt;
+      if (p.alpha <= 0) this.particles.splice(i, 1);
+    }
+
     const alive = this.players.filter((p) => p.isJoined && p.isAlive);
     if (alive.length <= 1) {
       this.handleRoundEnd(alive.length === 1 ? alive[0] : null);
     }
   }
 
+  spawnCrumble(x, y) {
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const spd = 20 + Math.random() * 50;
+      this.particles.push({
+        x, y,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd + 30, // yerçekimi etkisi
+        color: '#D99B26',
+        radius: 2 + Math.random() * 2,
+        alpha: 1.0,
+        decay: 2.0,
+      });
+    }
+  }
+
+  spawnVoidDust(x, y, color) {
+    for (let i = 0; i < 18; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const spd = 30 + Math.random() * 80;
+      this.particles.push({
+        x, y,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd,
+        color: i % 2 === 0 ? color : '#FAF7F2',
+        radius: 3 + Math.random() * 3,
+        alpha: 1.0,
+        decay: 1.8,
+      });
+    }
+  }
+
   eliminatePlayer(player) {
     player.isAlive = false;
-    this.addTrauma(0.4);
+    this.addTrauma(0.45);
     playExplosion();
-
-    this.players.forEach((p) => {
-      if (p.index !== player.index && p.isJoined && p.isAlive) {
-        this.scores[p.index]++;
-        if (this.scores[p.index] >= this.targetScore) {
-          this.matchWinner = p;
-        }
-      }
-    });
+    this.spawnVoidDust(player.x, player.y, player.color);
   }
 
   handleRemoteInput(slotIndex, data) {
@@ -455,9 +494,11 @@ export class CollapseGame extends BaseMiniGame {
     this.state = 'ROUND_OVER';
     this.roundWinner = winner;
     this.roundTransitionTimer = 2.5;
-    // Skor yalnızca eleme anında yazılır (hayatta kalma puanı yok)
-    if (winner && this.scores[winner.index] >= this.targetScore) {
-      this.matchWinner = winner;
+    if (winner) {
+      this.scores[winner.index]++;
+      if (this.scores[winner.index] >= this.targetScore) {
+        this.matchWinner = winner;
+      }
     }
   }
 
@@ -484,16 +525,40 @@ export class CollapseGame extends BaseMiniGame {
         const ty = this.offsetY + r * this.cellSize;
         const padding = 1.5;
 
+        let wobbleX = 0, wobbleY = 0;
         if (tile.state === 0) {
           ctx.fillStyle = '#FAF7F2';
         } else {
-          // Uyarı: sarıdan kırmızıya
+          // Uyarı: sarıdan kırmızıya + çatlama titremesi
           const ratio = Math.max(0, Math.min(1, tile.timer / 0.8));
           ctx.fillStyle = `rgb(255, ${Math.floor(ratio * 200)}, 50)`;
+          wobbleX = (Math.random() - 0.5) * 2.5;
+          wobbleY = (Math.random() - 0.5) * 2.5;
         }
 
-        ctx.fillRect(tx + padding, ty + padding, this.cellSize - padding * 2, this.cellSize - padding * 2);
+        ctx.fillRect(tx + padding + wobbleX, ty + padding + wobbleY, this.cellSize - padding * 2, this.cellSize - padding * 2);
+
+        if (tile.state === 1) {
+          ctx.strokeStyle = 'rgba(26,26,26,0.7)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(tx + padding + wobbleX + 3, ty + padding + wobbleY + 3);
+          ctx.lineTo(tx + this.cellSize * 0.5 + wobbleX, ty + this.cellSize * 0.55 + wobbleY);
+          ctx.lineTo(tx + this.cellSize - padding - 3 + wobbleX, ty + this.cellSize - padding - 3 + wobbleY);
+          ctx.stroke();
+        }
       }
+    }
+
+    // Parçacıklar
+    for (const p of this.particles) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
 
     // Oyuncular (zıplayan büyür + gölgelenir)

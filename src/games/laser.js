@@ -63,6 +63,8 @@ export class LaserGame extends BaseMiniGame {
     this.lasers = [];
     this.obstacles = [];
     this.pickups = [];
+    this.particles = [];
+    this.floatingTexts = [];
     this.keys = {};
     this.selectedMapIndex = 0;
     this.matchTimer = LASER_TUNING.MATCH_TIME;
@@ -201,6 +203,8 @@ export class LaserGame extends BaseMiniGame {
     this.pickupTimer = LASER_TUNING.PICKUP_EVERY;
     this.lasers = [];
     this.pickups = [];
+    this.particles = [];
+    this.floatingTexts = [];
     this.onTouchesReset();
     // Seçili harita korunur (BOMB deseni)
     this.buildMap();
@@ -228,6 +232,8 @@ export class LaserGame extends BaseMiniGame {
     this.matchWinner = null;
     this.lasers = [];
     this.pickups = [];
+    this.particles = [];
+    this.floatingTexts = [];
     this.matchTimer = LASER_TUNING.MATCH_TIME;
     this.pickupTimer = LASER_TUNING.PICKUP_EVERY;
     this.onTouchesReset();
@@ -243,6 +249,33 @@ export class LaserGame extends BaseMiniGame {
       p.dashTimer = 0; p.dashCooldown = 0;
       p.invulnTimer = p.isJoined ? LASER_TUNING.SPAWN_PROTECT : 0;
       p.respawnTimer = 0; p.fastTimer = 0;
+    });
+  }
+
+  spawnSparks(x, y, color, count = 8) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const spd = 40 + Math.random() * 120;
+      this.particles.push({
+        x, y,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd,
+        color,
+        radius: 2 + Math.random() * 2.5,
+        alpha: 1.0,
+        decay: 2.2,
+      });
+    }
+  }
+
+  spawnFloatingText(x, y, text, color) {
+    this.floatingTexts.push({
+      x, y,
+      text,
+      color,
+      vy: -30,
+      alpha: 1.0,
+      decay: 1.2,
     });
   }
 
@@ -288,6 +321,7 @@ export class LaserGame extends BaseMiniGame {
     if (victim.dashTimer > 0 || victim.invulnTimer > 0) return;
     victim.hp -= 1;
     victim.invulnTimer = LASER_TUNING.INVULN;
+    this.spawnSparks(victim.x, victim.y, laser.color, 8);
     // Geri tepme: lazer yönünde itiş
     const spd = Math.hypot(laser.vx, laser.vy) || 1;
     victim.kbx += (laser.vx / spd) * 260;
@@ -296,6 +330,8 @@ export class LaserGame extends BaseMiniGame {
       victim.isAlive = false;
       victim.respawnTimer = LASER_TUNING.RESPAWN;
       victim.steerX = 0; victim.steerY = 0;
+      this.spawnSparks(victim.x, victim.y, victim.color, 24);
+      this.spawnFloatingText(victim.x, victim.y - 20, '+1 KILL ★', '#2F6A4F');
       const owner = this.players[laser.owner];
       if (owner && owner.isJoined) {
         this.scores[owner.index]++;
@@ -619,11 +655,13 @@ export class LaserGame extends BaseMiniGame {
           laser.vx *= -1;
           laser.x = Math.max(this.arena.left, Math.min(this.arena.right, laser.x));
           laser.bounces--;
+          this.spawnSparks(laser.x, laser.y, laser.color, 4);
         }
         if (laser.y < this.arena.top || laser.y > this.arena.bottom) {
           laser.vy *= -1;
           laser.y = Math.max(this.arena.top, Math.min(this.arena.bottom, laser.y));
           laser.bounces--;
+          this.spawnSparks(laser.x, laser.y, laser.color, 4);
         }
 
         for (const obs of this.obstacles) {
@@ -636,6 +674,7 @@ export class LaserGame extends BaseMiniGame {
             if (min === dx1 || min === dx2) laser.vx *= -1;
             else laser.vy *= -1;
             laser.bounces--;
+            this.spawnSparks(laser.x, laser.y, laser.color, 4);
             break;
           }
         }
@@ -664,6 +703,23 @@ export class LaserGame extends BaseMiniGame {
         this.lasers.splice(i, 1);
       }
       if (this.state !== 'PLAYING') return;
+    }
+
+    // Parçacıklar
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.alpha -= p.decay * dt;
+      if (p.alpha <= 0) this.particles.splice(i, 1);
+    }
+
+    // Uçuşan metinler
+    for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+      const ft = this.floatingTexts[i];
+      ft.y += ft.vy * dt;
+      ft.alpha -= ft.decay * dt;
+      if (ft.alpha <= 0) this.floatingTexts.splice(i, 1);
     }
   }
 
@@ -863,6 +919,28 @@ export class LaserGame extends BaseMiniGame {
         ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.arc(startX + h * (pw + 2) + pw / 2, player.y - 26, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       }
+    }
+
+    // Parçacıklar (lazer kıvılcımları)
+    for (const p of this.particles) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Uçuşan metinler (+1 KILL ★)
+    for (const ft of this.floatingTexts) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, ft.alpha));
+      ctx.font = 'bold 16px monospace';
+      ctx.fillStyle = ft.color;
+      ctx.textAlign = 'center';
+      ctx.fillText(ft.text, ft.x, ft.y);
+      ctx.restore();
     }
 
     this.uiButtons = [];

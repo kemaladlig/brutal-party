@@ -28,6 +28,9 @@ export class CloneGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.targetScore = 5;
     this.players = [];
+    this.particles = [];
+    this.floatingTexts = [];
+    this.roundTime = 45;
     this.keys = {};
     this.roundTransitionTimer = 0;
 
@@ -391,7 +394,84 @@ export class CloneGame extends BaseMiniGame {
       }
     }
 
-    // Çarpışma: atılan omuz gerçeğe değerse skor, sahteye değerse slow
+    // Çarpışma kontrolü
+    this.checkCollisions();
+
+    // Parçacıklar
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.alpha -= p.decay * dt;
+      if (p.alpha <= 0) this.particles.splice(i, 1);
+    }
+
+    // Uçuşan metinler
+    for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+      const ft = this.floatingTexts[i];
+      ft.y += ft.vy * dt;
+      ft.alpha -= ft.decay * dt;
+      if (ft.alpha <= 0) this.floatingTexts.splice(i, 1);
+    }
+
+    this.roundTime -= dt;
+    if (this.roundTime <= 0) {
+      const alivePlayers = this.players.filter((p) => p.isJoined && p.isAlive);
+      this.handleRoundEnd(alivePlayers.length === 1 ? alivePlayers[0] : null);
+      return;
+    }
+
+    const alive = this.players.filter((p) => p.isJoined && p.isAlive);
+    if (alive.length <= 1) {
+      this.handleRoundEnd(alive.length === 1 ? alive[0] : null);
+    }
+  }
+
+  spawnBurst(x, y, color) {
+    for (let i = 0; i < 20; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const spd = 30 + Math.random() * 90;
+      this.particles.push({
+        x, y,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd,
+        color: i % 2 === 0 ? color : '#1A1A1A',
+        radius: 3 + Math.random() * 3,
+        alpha: 1.0,
+        decay: 1.8,
+      });
+    }
+  }
+
+  spawnGlitch(x, y, color) {
+    for (let i = 0; i < 16; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const spd = 20 + Math.random() * 70;
+      this.particles.push({
+        x, y,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd,
+        color: '#E63946',
+        radius: 2 + Math.random() * 2,
+        alpha: 1.0,
+        decay: 2.2,
+      });
+    }
+  }
+
+  spawnFloatingText(x, y, text, color) {
+    this.floatingTexts.push({
+      x, y,
+      text,
+      color,
+      vy: -35,
+      alpha: 1.0,
+      decay: 1.2,
+    });
+  }
+
+  // Çarpışma: atılan omuz gerçeğe değerse skor, sahteye değerse slow
+  checkCollisions() {
     for (const attacker of this.players) {
       if (!attacker.isJoined || !attacker.isAlive || attacker.dashTimer <= 0) continue;
 
@@ -406,6 +486,8 @@ export class CloneGame extends BaseMiniGame {
           this.scores[attacker.index]++;
           this.addTrauma(0.5);
           playExplosion();
+          this.spawnBurst(victim.x, victim.y, victim.color);
+          this.spawnFloatingText(victim.x, victim.y - 15, '+1 ★', '#2F6A4F');
 
           if (this.scores[attacker.index] >= this.targetScore) {
             this.matchWinner = attacker;
@@ -421,15 +503,12 @@ export class CloneGame extends BaseMiniGame {
             attacker.slowTimer = 2.5;
             this.addTrauma(0.2);
             playExplosion();
+            this.spawnGlitch(clone.x, clone.y, victim.color);
+            this.spawnFloatingText(clone.x, clone.y - 15, 'SAHTE! ⚡', '#E63946');
             break;
           }
         }
       }
-    }
-
-    const alive = this.players.filter((p) => p.isJoined && p.isAlive);
-    if (alive.length <= 1) {
-      this.handleRoundEnd(alive.length === 1 ? alive[0] : null);
     }
   }
 
@@ -541,6 +620,38 @@ export class CloneGame extends BaseMiniGame {
         }
       }
       this.drawCharacter(ctx, player.x, player.y, player.angle, player.color, player.dashTimer > 0, player.slowTimer > 0);
+    }
+
+    // Parçacıklar
+    for (const p of this.particles) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Uçuşan metinler (+1 PUAN / SAHTE)
+    for (const ft of this.floatingTexts) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, ft.alpha));
+      ctx.font = 'bold 16px monospace';
+      ctx.fillStyle = ft.color;
+      ctx.textAlign = 'center';
+      ctx.fillText(ft.text, ft.x, ft.y);
+      ctx.restore();
+    }
+
+    // Geri sayım filigranı (son 15 saniye)
+    if (this.state === 'PLAYING' && this.roundTime <= 15) {
+      ctx.save();
+      ctx.font = 'bold 36px monospace';
+      ctx.fillStyle = this.roundTime <= 5 ? '#E63946' : 'rgba(26,26,26,0.3)';
+      ctx.textAlign = 'center';
+      ctx.fillText(Math.ceil(this.roundTime), this.arena.cx, this.arena.top + 45);
+      ctx.restore();
     }
 
     // Lokal dokunmatik joystick göstergesi

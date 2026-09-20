@@ -33,6 +33,7 @@ export class SnakeGame extends BaseMiniGame {
     this.targetScore = 5;
     this.players = [];
     this.foods = [];
+    this.particles = [];
 
     // İz sorgu ızgarası (hücre → segment referansları) + sorgu damgası
     this.segGrid = new Map();
@@ -238,6 +239,20 @@ export class SnakeGame extends BaseMiniGame {
     return 3;
   }
 
+  determineSteer(cornerIndex, touch) {
+    const { cx, left, right } = this.arena;
+    const isLeftQuadrant = cornerIndex === 0 || cornerIndex === 1;
+    const qMidX = isLeftQuadrant ? (left + cx) / 2 : (cx + right) / 2;
+    const isTop = cornerIndex === 1 || cornerIndex === 2;
+    if (isTop) {
+      // Üst oyuncu karşıdan bakar: ekran sağı onun soludur
+      return touch.x >= qMidX ? -1 : 1;
+    } else {
+      // Alt oyuncu: ekran solu onun soludur
+      return touch.x < qMidX ? -1 : 1;
+    }
+  }
+
   onTouchStart(touch) {
     const { cx, cy } = this.arena;
     const distToCenter = Math.hypot(touch.x - cx, touch.y - cy);
@@ -272,16 +287,15 @@ export class SnakeGame extends BaseMiniGame {
       const corner = this.getCornerZone(touch);
       const player = this.players[corner];
       if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
-      const zone = this.arena;
-      const midX = zone.left + zone.width / 2;
       // İkinci parmak aynı köşede = boost basılı
       if (this.cornerTouches[corner].id !== -1) {
         this.touchBoost[corner] = true;
         player.isBoost = true;
         return;
       }
-      this.cornerTouches[corner] = { id: touch.id, action: touch.x < midX ? 'left' : 'right' };
-      player.steer = touch.x < midX ? -1 : 1;
+      const steerVal = this.determineSteer(corner, touch);
+      this.cornerTouches[corner] = { id: touch.id, action: steerVal < 0 ? 'left' : 'right' };
+      player.steer = steerVal;
     }
   }
 
@@ -289,13 +303,12 @@ export class SnakeGame extends BaseMiniGame {
     if (this.state !== 'PLAYING') return;
     for (let i = 0; i < 4; i++) {
       if (this.cornerTouches[i] && this.cornerTouches[i].id === touch.id) {
-        const zone = this.arena;
-        const midX = zone.left + zone.width / 2;
-        const action = touch.x < midX ? 'left' : 'right';
+        const steerVal = this.determineSteer(i, touch);
+        const action = steerVal < 0 ? 'left' : 'right';
         this.cornerTouches[i].action = action;
         const player = this.players[i];
         if (player && player.isAlive && player.slotType === 'human') {
-          player.steer = action === 'left' ? -1 : 1;
+          player.steer = steerVal;
         }
         break;
       }
@@ -391,7 +404,8 @@ export class SnakeGame extends BaseMiniGame {
         if (Math.hypot(player.x - this.foods[i].x, player.y - this.foods[i].y) < 16) {
           player.targetLen += 40;
           if (player.targetLen > SNAKE_MAX_LEN) player.targetLen = SNAKE_MAX_LEN;
-          this.scores[player.index]++;
+          player.foodCount = (player.foodCount || 0) + 1;
+          this.spawnSparkles(this.foods[i].x, this.foods[i].y, player.color);
           this.foods.splice(i, 1);
           this.spawnFood();
           playItemPickup();
@@ -401,6 +415,15 @@ export class SnakeGame extends BaseMiniGame {
       if (this.checkCollision(player, now)) {
         this.eliminatePlayer(player);
       }
+    }
+
+    // Parçacıklar
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.alpha -= p.decay * dt;
+      if (p.alpha <= 0) this.particles.splice(i, 1);
     }
 
     const alive = this.players.filter((p) => p.isJoined && p.isAlive);
@@ -432,10 +455,43 @@ export class SnakeGame extends BaseMiniGame {
     return (px - projX) * (px - projX) + (py - projY) * (py - projY);
   }
 
+  spawnSparkles(x, y, color) {
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8 + Math.random() * 0.4;
+      const spd = 30 + Math.random() * 60;
+      this.particles.push({
+        x, y,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd,
+        color: '#FFDE59',
+        radius: 2.5 + Math.random() * 2,
+        alpha: 1.0,
+        decay: 2.5,
+      });
+    }
+  }
+
+  spawnExplosion(x, y, color) {
+    for (let i = 0; i < 24; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const spd = 40 + Math.random() * 120;
+      this.particles.push({
+        x, y,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd,
+        color: i % 2 === 0 ? color : '#1A1A1A',
+        radius: 3 + Math.random() * 3,
+        alpha: 1.0,
+        decay: 1.8,
+      });
+    }
+  }
+
   eliminatePlayer(player) {
     player.isAlive = false;
     this.addTrauma(0.4);
     playExplosion();
+    this.spawnExplosion(player.x, player.y, player.color);
 
     // Ölenin kuyruğu yeme dönüşür (max 6)
     let dropCount = 0;
@@ -533,6 +589,17 @@ export class SnakeGame extends BaseMiniGame {
       ctx.beginPath(); ctx.arc(player.x, player.y, 6, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#FFF';
       ctx.beginPath(); ctx.arc(player.x + Math.cos(player.angle) * 3, player.y + Math.sin(player.angle) * 3, 2, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Parçacık çizimi
+    for (const p of this.particles) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
 
     this.uiButtons = [];
