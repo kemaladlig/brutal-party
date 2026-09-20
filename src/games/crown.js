@@ -104,33 +104,8 @@ export class CrownGame extends BaseMiniGame {
   }
 
   initKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      if (!this.isLocalInputActive) return;
-      this.keys[e.key] = true;
-      if (e.key) this.keys[e.key.toLowerCase()] = true;
-      this.keys[e.code] = true;
-
-      // Tackle shortcuts
-      if (this.state === 'PLAYING') {
-        if (e.code === 'Space' || e.code === 'KeyE' || e.key === 'e' || e.key === 'E' || e.code === 'ShiftLeft') {
-          this.triggerTackle(0);
-        }
-        if (e.code === 'Enter' || e.code === 'Numpad0' || e.code === 'ControlRight') {
-          this.triggerTackle(1);
-        }
-        if (e.code === 'KeyO' || e.key === 'o' || e.key === 'O') {
-          this.triggerTackle(2);
-        }
-        if (e.code === 'KeyB' || e.key === 'b' || e.key === 'B') {
-          this.triggerTackle(3);
-        }
-      }
-    });
-
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.key] = false;
-      if (e.key) this.keys[e.key.toLowerCase()] = false;
-      this.keys[e.code] = false;
+    this.bindStandardKeyboard((slot) => {
+      this.triggerTackle(slot);
     });
 
     // P1 mouse click fallback for solo PC testing
@@ -2048,60 +2023,38 @@ export class CrownGame extends BaseMiniGame {
     ctx.lineWidth = 2.5;
     ctx.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
 
-    ctx.fillStyle = '#1A1A1A';
-    ctx.font = '800 12px "JetBrains Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`🗺️ ${CROWN_MAP_PRESETS[this.selectedMapIndex].name} ▾`, cx, mapBtnY + mapBtnH / 2);
-
-    this.uiButtons.push({
-      x: mapBtnX,
-      y: mapBtnY,
-      w: mapBtnW,
-      h: mapBtnH,
-      onClick: () => this.cycleMap(),
-    });
-
-    // Standart kare koltuklar (4 köşe, tüm oyunlarla aynı ölçü)
-    const positions = getStandardSeatRects(this.arena);
-
-    for (let i = 0; i < 4; i++) {
-      const pos = positions[i];
-      const type = this.slotTypes[i];
-      const p = this.players[i];
-      const custom = p && p.name && p.name !== CROWN_NAMES[i] ? p.name : '';
-
-      renderLobbySeatCard(ctx, {
-        x: pos.x,
-        y: pos.y,
-        w: pos.w,
-        h: pos.h,
-        slotIndex: i,
-        slotType: type,
-        playerName: custom,
-        playerColor: CROWN_COLORS[i],
-        rotation: 0,
-      });
-
-      this.uiButtons.push({
-        x: pos.x,
-        y: pos.y,
-        w: pos.w,
-        h: pos.h,
-        onClick: () => this.cycleSlotType(i),
-      });
-    }
-
-    // Standart başlat butonu (harita butonunun altında)
-    const joinedCount = this.players.filter((p) => p.isJoined).length;
-    renderLobbyStartButton(ctx, {
+    this.renderStandardLobby(ctx, {
       arena: this.arena,
-      uiButtons: this.uiButtons,
-      joinedCount,
+      colors: CROWN_COLORS,
+      playerNames: CROWN_NAMES,
       accent: '#D84727',
       onStart: () => this.startNewMatch(),
       centerYOffset: 46,
-      hidden: !!this.hideLobbyStartButton,
+      customControls: (c) => {
+        c.save();
+        c.fillStyle = '#1A1A1A';
+        c.fillRect(mapBtnX + 3, mapBtnY + 3, mapBtnW, mapBtnH);
+        c.fillStyle = '#FFFFFF';
+        c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+        c.strokeStyle = '#1C1C1A';
+        c.lineWidth = 2.5;
+        c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+
+        c.fillStyle = '#1A1A1A';
+        c.font = '800 12px "JetBrains Mono", monospace';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(`🗺️ ${CROWN_MAP_PRESETS[this.selectedMapIndex].name} ▾`, cx, mapBtnY + mapBtnH / 2);
+        c.restore();
+
+        this.uiButtons.push({
+          x: mapBtnX,
+          y: mapBtnY,
+          w: mapBtnW,
+          h: mapBtnH,
+          onClick: () => this.cycleMap(),
+        });
+      },
     });
 
     ctx.restore();
@@ -2171,17 +2124,7 @@ export class CrownGame extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
-    for (const btn of this.uiButtons) {
-      if (
-        touch.x >= btn.x &&
-        touch.x <= btn.x + btn.w &&
-        touch.y >= btn.y &&
-        touch.y <= btn.y + btn.h
-      ) {
-        btn.onClick?.();
-        return;
-      }
-    }
+    if (this.handleUiTap(touch)) return;
 
     if (this.state === 'LOBBY') {
       const q = this.getCornerQuadrant(touch);
@@ -2202,86 +2145,28 @@ export class CrownGame extends BaseMiniGame {
         }
       }
 
-      const q = this.getCornerQuadrant(touch);
-      const joy = this.joysticks[q];
-      const p = this.players[q];
-
-      if (p && p.isJoined && p.slotType === 'human' && !joy.active) {
-        const now = performance.now();
-        if (p.lastTapTime && now - p.lastTapTime < 300) {
-          this.triggerTackle(q);
-        }
-        p.lastTapTime = now;
-
-        joy.id = touch.id;
-        joy.originX = touch.x;
-        joy.originY = touch.y;
-        joy.currX = touch.x;
-        joy.currY = touch.y;
-        joy.active = true;
-        joy.angle = 0;
-        joy.force = 0;
-      }
+      this.handleStandardJoystickTouchStart(touch, (q) => this.triggerTackle(q));
     }
   }
 
   onTouchMove(touch) {
     if (this.state !== 'PLAYING') return;
-
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      if (joy.active && joy.id === touch.id) {
-        const dx = touch.x - joy.originX;
-        const dy = touch.y - joy.originY;
-        const dist = Math.hypot(dx, dy);
-        const maxRadius = 46;
-
-        joy.angle = Math.atan2(dy, dx);
-        joy.force = Math.min(1.0, dist / maxRadius);
-
-        if (dist > maxRadius) {
-          joy.currX = joy.originX + Math.cos(joy.angle) * maxRadius;
-          joy.currY = joy.originY + Math.sin(joy.angle) * maxRadius;
-        } else {
-          joy.currX = touch.x;
-          joy.currY = touch.y;
-        }
-        break;
-      }
-    }
+    this.handleStandardJoystickTouchMove(touch);
   }
 
   onTouchEnd(touch) {
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      if (joy.active && joy.id === touch.id) {
-        joy.active = false;
-        joy.id = -1;
-        joy.force = 0;
-      }
-    }
+    this.handleStandardJoystickTouchEnd(touch);
   }
 
   onTouchesReset() {
-    for (const joy of this.joysticks) {
-      joy.active = false;
-      joy.id = -1;
-      joy.force = 0;
-    }
+    this.resetStandardJoysticks();
   }
 
   handleRemoteInput(slotIndex, data) {
-    const joy = this.joysticks[slotIndex];
-    if (!joy) return;
-    const player = this.players?.[slotIndex];
-    if (data.action === 'JOYSTICK_MOVE') {
-      if (player && (!player.isJoined || !player.isAlive)) return;
-      const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : 0;
-      joy.active = force > 0.05;
-      joy.angle = Number.isFinite(data.angle) ? data.angle : 0;
-      joy.force = force;
-    } else if (data.action === 'TACKLE') {
-      this.triggerTackle(slotIndex);
-    }
+    this.handleStandardRemoteJoystick(slotIndex, data, (slot, d) => {
+      if (d.action === 'TACKLE') {
+        this.triggerTackle(slot);
+      }
+    });
   }
 }

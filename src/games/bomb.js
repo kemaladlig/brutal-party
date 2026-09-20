@@ -104,22 +104,8 @@ export class BombGame extends BaseMiniGame {
   }
 
   initKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      if (!this.isLocalInputActive) return;
-      this.keys[e.key] = true;
-      this.keys[e.code] = true;
-
-      // Tackle Dash shortcut triggers
-      if (this.state === 'PLAYING') {
-        if (e.code === 'Space') this.triggerDash(0);
-        if (e.code === 'Enter') this.triggerDash(1);
-        if (e.code === 'KeyO' || e.key === 'o' || e.key === 'O') this.triggerDash(2);
-        if (e.code === 'KeyB' || e.key === 'b' || e.key === 'B') this.triggerDash(3);
-      }
-    });
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.key] = false;
-      this.keys[e.code] = false;
+    this.bindStandardKeyboard((slot) => {
+      this.triggerDash(slot);
     });
   }
 
@@ -564,17 +550,7 @@ export class BombGame extends BaseMiniGame {
 
   onTouchStart(touch) {
     // 1. UI Buttons tap handling
-    for (const btn of this.uiButtons) {
-      if (
-        touch.x >= btn.x &&
-        touch.x <= btn.x + btn.w &&
-        touch.y >= btn.y &&
-        touch.y <= btn.y + btn.h
-      ) {
-        btn.onClick();
-        return;
-      }
-    }
+    if (this.handleUiTap(touch)) return;
 
     // 1.5. Generous Lobby Join fallback (tap anywhere in quadrant)
     if (this.state === 'LOBBY') {
@@ -596,93 +572,29 @@ export class BombGame extends BaseMiniGame {
           return;
         }
       }
-    }
-
-    // 3. Multi-Touch 360° Floating Joystick per corner quadrant + Double-Tap Dash
-    if (this.state === 'PLAYING') {
-      const q = this.getCornerQuadrant(touch);
-      const joy = this.joysticks[q];
-      const p = this.players[q];
-
-      if (p && p.isJoined && p.slotType === 'human' && !joy.active) {
-        const now = performance.now();
-        if (p.lastTapTime && now - p.lastTapTime < 280) {
-          this.triggerDash(q);
-        }
-        p.lastTapTime = now;
-
-        joy.id = touch.id;
-        joy.originX = touch.x;
-        joy.originY = touch.y;
-        joy.currX = touch.x;
-        joy.currY = touch.y;
-        joy.active = true;
-        joy.angle = 0;
-        joy.force = 0;
-      }
+      this.handleStandardJoystickTouchStart(touch, (q) => this.triggerDash(q));
     }
   }
 
   onTouchMove(touch) {
     if (this.state !== 'PLAYING') return;
-
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      if (joy.active && joy.id === touch.id) {
-        const dx = touch.x - joy.originX;
-        const dy = touch.y - joy.originY;
-        const dist = Math.hypot(dx, dy);
-        const maxRadius = 48;
-
-        joy.angle = Math.atan2(dy, dx);
-        joy.force = Math.min(1.0, dist / maxRadius);
-
-        // Clamp visual joystick knob so it never drifts across boundaries
-        if (dist > maxRadius) {
-          joy.currX = joy.originX + Math.cos(joy.angle) * maxRadius;
-          joy.currY = joy.originY + Math.sin(joy.angle) * maxRadius;
-        } else {
-          joy.currX = touch.x;
-          joy.currY = touch.y;
-        }
-        break;
-      }
-    }
+    this.handleStandardJoystickTouchMove(touch);
   }
 
   handleRemoteInput(slotIndex, data) {
-    const joy = this.joysticks[slotIndex];
-    if (!joy) return;
-    // Ölü/katılmamış slotun joystick state'i yazılmasın (hayalet sürüklenme)
-    const player = this.players?.[slotIndex];
-    if (data.action === 'JOYSTICK_MOVE') {
-      if (player && (!player.isJoined || !player.isAlive)) return;
-      const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : 0;
-      joy.active = force > 0.05;
-      joy.angle = Number.isFinite(data.angle) ? data.angle : 0;
-      joy.force = force;
-    } else if (data.action === 'DASH') {
-      this.triggerDash(slotIndex);
-    }
+    this.handleStandardRemoteJoystick(slotIndex, data, (slot, d) => {
+      if (d.action === 'DASH') {
+        this.triggerDash(slot);
+      }
+    });
   }
 
   onTouchEnd(touch) {
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      if (joy.active && joy.id === touch.id) {
-        joy.active = false;
-        joy.id = -1;
-        joy.force = 0;
-      }
-    }
+    this.handleStandardJoystickTouchEnd(touch);
   }
 
   onTouchesReset() {
-    for (const joy of this.joysticks) {
-      joy.active = false;
-      joy.id = -1;
-      joy.force = 0;
-    }
+    this.resetStandardJoysticks();
   }
 
   // --- SMART BOT AI (Delegated to src/ai/bombAI.js) ---
@@ -1599,78 +1511,42 @@ export class BombGame extends BaseMiniGame {
 
   renderLobbyUI(ctx) {
     const { arena } = this;
-
-    // Standart kare koltuklar (4 köşe, tüm oyunlarla aynı ölçü)
-    const corners = getStandardSeatRects(arena);
-
-    for (let i = 0; i < 4; i++) {
-      const pos = corners[i];
-      const slotType = this.slotTypes[i];
-      const p = this.players[i];
-
-      renderLobbySeatCard(ctx, {
-        x: pos.x,
-        y: pos.y,
-        w: pos.w,
-        h: pos.h,
-        slotIndex: i,
-        slotType: slotType,
-        playerName: p ? (p.name || '') : '',
-        playerColor: BOMB_COLORS[i],
-        rotation: 0,
-      });
-
-      this.uiButtons.push({
-        x: pos.x,
-        y: pos.y,
-        w: pos.w,
-        h: pos.h,
-        onClick: () => this.cycleSlotType(i),
-      });
-    }
-
-    // Map Selector Button in Lobby
     const mapBtnW = Math.min(220, arena.size * 0.52);
     const mapBtnH = 36;
     const mapBtnX = arena.cx - mapBtnW / 2;
     const mapBtnY = arena.cy - 72;
 
-    ctx.save();
-    // Solid Shadow
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(mapBtnX + 3, mapBtnY + 3, mapBtnW, mapBtnH);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 2.5;
-    ctx.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-
-    ctx.fillStyle = '#1C1C1A';
-    ctx.font = '800 12px "JetBrains Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`🗺️ ${MAP_PRESETS[this.selectedMapIndex].name} ▾`, arena.cx, mapBtnY + mapBtnH / 2);
-    ctx.restore();
-
-    this.uiButtons.push({
-      x: mapBtnX,
-      y: mapBtnY,
-      w: mapBtnW,
-      h: mapBtnH,
-      onClick: () => this.cycleMap(),
-    });
-
-    // Center Start Button (standart, harita butonunun altında)
-    const joinedCount = this.players.filter((p) => p.isJoined).length;
-    renderLobbyStartButton(ctx, {
+    this.renderStandardLobby(ctx, {
       arena,
-      uiButtons: this.uiButtons,
-      joinedCount,
+      colors: BOMB_COLORS,
+      playerNames: BOMB_NAMES,
       accent: '#D84727',
       onStart: () => this.startNewMatch(),
-      centerYOffset: 18,
-      hidden: !!this.hideLobbyStartButton,
+      customControls: (c) => {
+        c.save();
+        c.fillStyle = '#1A1A1A';
+        c.fillRect(mapBtnX + 3, mapBtnY + 3, mapBtnW, mapBtnH);
+        c.fillStyle = '#FFFFFF';
+        c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+        c.strokeStyle = '#1C1C1A';
+        c.lineWidth = 2.5;
+        c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+
+        c.fillStyle = '#1C1C1A';
+        c.font = '800 12px "JetBrains Mono", monospace';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(`🗺️ ${MAP_PRESETS[this.selectedMapIndex].name} ▾`, arena.cx, mapBtnY + mapBtnH / 2);
+        c.restore();
+
+        this.uiButtons.push({
+          x: mapBtnX,
+          y: mapBtnY,
+          w: mapBtnW,
+          h: mapBtnH,
+          onClick: () => this.cycleMap(),
+        });
+      },
     });
   }
 

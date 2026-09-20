@@ -14,8 +14,11 @@ src/main.js                 Ana orkestratör: mod/oda akışı, host slot listes
 src/net.js                  Ağ seçici (LOCAL / TV_CONSOLE→WS / ONLINE→Supabase) + PUBLIC_URL, env bayrakları
 src/network.js              PartyNetwork: lokal WebSocket istemcisi (host + kumanda rolleri)
 src/supabaseRelay.js        Supabase Broadcast relay: player_msg / host_msg kanalları, slot tablosu
-src/gamepad.js              Telefon kumandası: CONTROLLER_META, mount*Controller, koltuk ızgarası,
+src/gamepad.js              Telefon kumandası: CONTROLLER_META, koltuk ızgarası,
                             skor şeridi, ready yönetimi, dokunmatik girdiler
+src/controllers/
+  controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, REACTION_TAP, DPAD_BOOST)
+  gamepadSchemas.js         13 oyun için deklaratif kumanda konfigürasyonları ve canlı senkronizasyon hook'ları
 src/gamepad.css             Kumanda stilleri (neo-brutalist mobil ergonomi)
 src/style.css               TV konsolu + ana menü stilleri (neo-brutalist)
 src/controlGuide.js         Oyun-içi kontrol yardımcısı overlay'i
@@ -25,11 +28,17 @@ src/audio.js                Synthesizer / Web Audio API ses efektleri
 
 src/core/
   BaseGame.js               BaseMiniGame: Tüm motorların ortak ata sınıfı (canvas, state, scores,
-                            slotTypes, trauma/screenshake, handleUiTap)
-  engineRegistry.js         GAME_ORDER + registerEngine/getEngine/forEachEngine
+                            slotTypes, trauma/screenshake, handleUiTap, bindStandardKeyboard,
+                            handleStandardJoystickTouchStart/Move/End, renderStandardLobby,
+                            handleStandardRemoteJoystick)
+  engineRegistry.js         GAME_ORDER, CARTRIDGES (13 oyun kartuşu + metadatalar), initAllCartridges, getControllerMeta, registerEngine/getEngine/forEachEngine
   slotManager.js            Koltuk yönetimi: hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots
 
 src/ui/
+  canvasUI.js               Tüm motorlar için ortak Canvas UI bileşenleri (renderLobbySeatCard,
+                            renderLobbyStartButton, renderStandardLobbySeats, renderMatchOver,
+                            renderRoundBanner, renderControlGuide, renderCornerScores,
+                            renderArenaWatermarkTimer, getStandardSeatRects)
   hostLobby.js              TV bekleme lobisi modali (QR kod canvas, oda kodu, lobi oyun chip'leri, WhatsApp/link paylaşımı, ping badge)
   joinModal.js              Kumanda katılım modali & Hero kod kutusu, panodan yapıştırma
   pauseModal.js             Oyun içi duraklatma menüsü, 4 koltuk takası, 90° saat yönü ekran döndürme, ses aç/kapa

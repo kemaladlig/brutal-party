@@ -92,22 +92,8 @@ export class HeistGame extends BaseMiniGame {
   }
 
   initKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      if (!this.isLocalInputActive) return;
-      this.keys[e.key] = true;
-      this.keys[e.code] = true;
-
-      // Tackle shortcuts
-      if (this.state === 'PLAYING') {
-        if (e.code === 'Space') this.triggerTackle(0);
-        if (e.code === 'Enter') this.triggerTackle(1);
-        if (e.code === 'KeyO' || e.key === 'o' || e.key === 'O') this.triggerTackle(2);
-        if (e.code === 'KeyB' || e.key === 'b' || e.key === 'B') this.triggerTackle(3);
-      }
-    });
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.key] = false;
-      this.keys[e.code] = false;
+    this.bindStandardKeyboard((slot) => {
+      this.triggerTackle(slot);
     });
   }
 
@@ -440,17 +426,7 @@ export class HeistGame extends BaseMiniGame {
 
   onTouchStart(touch) {
     // 1. UI Buttons tap handling
-    for (const btn of this.uiButtons) {
-      if (
-        touch.x >= btn.x &&
-        touch.x <= btn.x + btn.w &&
-        touch.y >= btn.y &&
-        touch.y <= btn.y + btn.h
-      ) {
-        btn.onClick();
-        return;
-      }
-    }
+    if (this.handleUiTap(touch)) return;
 
     // 1.5. Generous Lobby Join fallback (tap anywhere in quadrant)
     if (this.state === 'LOBBY') {
@@ -472,77 +448,21 @@ export class HeistGame extends BaseMiniGame {
           return;
         }
       }
-    }
-
-    // 3. Multi-Touch 360° Joystick & Double-Tap Tackle
-    if (this.state === 'PLAYING') {
-      const q = this.getCornerQuadrant(touch);
-      const joy = this.joysticks[q];
-      const p = this.players[q];
-
-      if (p && p.isJoined && p.slotType === 'human' && !joy.active) {
-        const now = performance.now();
-        if (p.lastTapTime && now - p.lastTapTime < 280) {
-          this.triggerTackle(q);
-        }
-        p.lastTapTime = now;
-
-        joy.id = touch.id;
-        joy.originX = touch.x;
-        joy.originY = touch.y;
-        joy.currX = touch.x;
-        joy.currY = touch.y;
-        joy.active = true;
-        joy.angle = 0;
-        joy.force = 0;
-      }
+      this.handleStandardJoystickTouchStart(touch, (q) => this.triggerTackle(q));
     }
   }
 
   onTouchMove(touch) {
     if (this.state !== 'PLAYING') return;
-
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      if (joy.active && joy.id === touch.id) {
-        const dx = touch.x - joy.originX;
-        const dy = touch.y - joy.originY;
-        const dist = Math.hypot(dx, dy);
-        const maxRadius = 48;
-
-        joy.angle = Math.atan2(dy, dx);
-        joy.force = Math.min(1.0, dist / maxRadius);
-
-        // Clamp visual joystick knob so it never drifts across boundaries
-        if (dist > maxRadius) {
-          joy.currX = joy.originX + Math.cos(joy.angle) * maxRadius;
-          joy.currY = joy.originY + Math.sin(joy.angle) * maxRadius;
-        } else {
-          joy.currX = touch.x;
-          joy.currY = touch.y;
-        }
-        break;
-      }
-    }
+    this.handleStandardJoystickTouchMove(touch);
   }
 
   onTouchEnd(touch) {
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      if (joy.active && joy.id === touch.id) {
-        joy.active = false;
-        joy.id = -1;
-        joy.force = 0;
-      }
-    }
+    this.handleStandardJoystickTouchEnd(touch);
   }
 
   onTouchesReset() {
-    for (const joy of this.joysticks) {
-      joy.active = false;
-      joy.id = -1;
-      joy.force = 0;
-    }
+    this.resetStandardJoysticks();
   }
 
   // --- BOT AI BEHAVIORS ---
@@ -605,18 +525,11 @@ export class HeistGame extends BaseMiniGame {
   }
 
   handleRemoteInput(slotIndex, data) {
-    const joy = this.joysticks[slotIndex];
-    if (!joy) return;
-    const player = this.players?.[slotIndex];
-    if (data.action === 'JOYSTICK_MOVE') {
-      if (player && (!player.isJoined || !player.isAlive)) return;
-      const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : 0;
-      joy.active = force > 0.05;
-      joy.angle = Number.isFinite(data.angle) ? data.angle : 0;
-      joy.force = force;
-    } else if (data.action === 'TACKLE') {
-      this.triggerTackle(slotIndex);
-    }
+    this.handleStandardRemoteJoystick(slotIndex, data, (slot, d) => {
+      if (d.action === 'TACKLE') {
+        this.triggerTackle(slot);
+      }
+    });
   }
 
   update(now) {
@@ -1835,46 +1748,12 @@ export class HeistGame extends BaseMiniGame {
   }
 
   renderLobbyUI(ctx) {
-    const { arena } = this;
-
-    // Standart kare koltuklar (4 köşe, tüm oyunlarla aynı ölçü)
-    const corners = getStandardSeatRects(arena);
-
-    for (let i = 0; i < 4; i++) {
-      const pos = corners[i];
-      const slotType = this.slotTypes[i];
-      const p = this.players[i];
-
-      renderLobbySeatCard(ctx, {
-        x: pos.x,
-        y: pos.y,
-        w: pos.w,
-        h: pos.h,
-        slotIndex: i,
-        slotType: slotType,
-        playerName: p ? (p.name || '') : '',
-        playerColor: HEIST_COLORS[i],
-        rotation: 0,
-      });
-
-      this.uiButtons.push({
-        x: pos.x,
-        y: pos.y,
-        w: pos.w,
-        h: pos.h,
-        onClick: () => this.cycleSlotType(i),
-      });
-    }
-
-    // Center Start Button (standart)
-    const joinedCount = this.players.filter((p) => p.isJoined).length;
-    renderLobbyStartButton(ctx, {
-      arena,
-      uiButtons: this.uiButtons,
-      joinedCount,
+    this.renderStandardLobby(ctx, {
+      arena: this.arena,
+      colors: HEIST_COLORS,
+      playerNames: HEIST_NAMES,
       accent: '#D84727',
       onStart: () => this.startNewMatch(),
-      hidden: !!this.hideLobbyStartButton,
     });
   }
 

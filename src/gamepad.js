@@ -4,25 +4,15 @@
 import { storePlayerName, escapeHtml } from './net.js';
 import { showInstallToast } from './ui/toast.js';
 import { UI_COLORS } from './ui/tokens.js';
+import { mountDeclarativeController } from './controllers/controllerTemplates.js';
+import { getControllerMeta } from './core/engineRegistry.js';
 
-// Kumanda kayıt tablosu: yeni oyun = 1 satır (etiketler + mount fonksiyonu + taktik ipucu).
-// mount: GamepadManager prototype metot adı (string) olarak tutulur.
-const CONTROLLER_META = {
-  LOBBY: { hudTag: '📺 PARTİ LOBİSİ' },
-  PONG: { hudTag: '🏓 PONG', lobbyTitle: '🏓 BRUTAL PONG', mount: 'mountPongController', tacticalHint: 'PADDLE SÜRÜKLE • 🌀 FALSO İLE ŞAŞIRT' },
-  TANKS: { hudTag: '🛡️ TANKS', lobbyTitle: '🛡️ MICRO-TANKS', mount: 'mountTanksController', tacticalHint: '🚀 GAZ VER (BASILI TUT) • 💥 NİŞAN ALIP ATEŞ ET' },
-  CURVE: { hudTag: '🐍 CURVE', lobbyTitle: '🐍 BRUTAL CURVE', mount: 'mountCurveController', tacticalHint: '◀ SOL / SAĞ ▶ DÖNÜŞ • DUVARLARDAN KAÇ' },
-  BOMB: { hudTag: '💣 BOMB', lobbyTitle: '💣 BRUTAL BOMB', mount: 'mountBombController', tacticalHint: '🕹️ HAREKET ET • ⚡ DEPAR İLE KAÇ VEYA DOKUN' },
-  HEIST: { hudTag: '💰 HEIST', lobbyTitle: '💰 BRUTAL HEIST', mount: 'mountHeistController', tacticalHint: '🕹️ HAREKET ET • 💥 OMUZ AT VE ELMASI ÇAL' },
-  DUEL: { hudTag: '🤠 DUEL', lobbyTitle: '🤠 QUICK DRAW', mount: 'mountDuelController', tacticalHint: '✋ BEKLE • SİNYALİ GÖRÜNCE EN HIZLI DOKUN!' },
-  CROWN: { hudTag: '👑 CROWN', lobbyTitle: '👑 BRUTAL CROWN', mount: 'mountCrownController', tacticalHint: '🕹️ HAREKET ET • 💥 OMUZ AT VE TACI KORU' },
-  ZONE: { hudTag: '🗺️ ZONE', lobbyTitle: '🗺️ BRUTAL ZONE', mount: 'mountZoneController', tacticalHint: '🕹️ HAREKET ET • ⚡ DEPAR İLE ALANA GİR' },
-  SNAKE: { hudTag: '🐍 SNAKE', lobbyTitle: '🐍 BRUTAL SNAKE', mount: 'mountSnakeController', tacticalHint: '🕹️ 4-YÖN D-PAD İLE YÖNLEN • ⚡ BASILI TUTUP HIZLAN' },
-  LASER: { hudTag: '🔫 LASER', lobbyTitle: '🔫 BRUTAL LASER', mount: 'mountLaserController', tacticalHint: '🕹️ NİŞAN AL • 🔫 ATEŞ ET & 💨 DEPAR AT' },
-  CLONE: { hudTag: '👥 CLONE', lobbyTitle: '👥 BRUTAL CLONE', mount: 'mountCloneController', tacticalHint: '🕹️ ROL YAP & GÖREV YAP • 💥 RAKİBİ BUL VE OMUZ AT' },
-  COLLAPSE: { hudTag: '🕳️ COLLAPSE', lobbyTitle: '🕳️ BRUTAL COLLAPSE', mount: 'mountCollapseController', tacticalHint: '🕹️ HAREKET ET • ⤴️ BOŞLUKTAN ZIPLA' },
-  NINJA: { hudTag: '🥷 NINJA', lobbyTitle: '🥷 BRUTAL NINJA', mount: 'mountNinjaController', tacticalHint: '🕹️ HAREKET ET • DURUP GİZLEN • 🗡️ KILIÇ • 💨 SİS' },
-};
+// Kumanda kayıt tablosu: tek kaynaktan (engineRegistry) beslenir
+const CONTROLLER_META = new Proxy({}, {
+  get(target, prop) {
+    return getControllerMeta(prop);
+  },
+});
 
 export class GamepadManager {
   constructor(overlayEl, network) {
@@ -81,6 +71,7 @@ export class GamepadManager {
     this._visibilityBound = false;
     this._wakeLock = null;
     this._browserLocksBound = false;
+    this._activeController = null;
   }
 
   // Güvenli ve merkezi Haptic Geri Bildirim
@@ -207,6 +198,10 @@ export class GamepadManager {
   // Mevcut mount'un window listener'larını sök, joystick takılı kalmasın diye
   // nötr paket gönder (zone innerHTML ile sökülmeden ÖNCE çağrılmalı)
   _teardownMount() {
+    if (this._activeController?.teardown) {
+      try { this._activeController.teardown(); } catch {}
+      this._activeController = null;
+    }
     if (this._mountAbort) {
       try { this._mountAbort.abort(); } catch {}
       this._mountAbort = null;
@@ -530,8 +525,12 @@ export class GamepadManager {
         this.toggleFullscreen();
       });
       const mountTarget = document.getElementById('gamepad-game-mount') || workspace;
-      const mountFn = meta.mount;
-      if (mountFn && typeof this[mountFn] === 'function') this[mountFn](mountTarget);
+      if (meta.schema) {
+        this._activeController = mountDeclarativeController(this, mountTarget, meta.schema);
+      } else {
+        const mountFn = meta.mount;
+        if (mountFn && typeof this[mountFn] === 'function') this[mountFn](mountTarget);
+      }
     }
   }
 
@@ -1548,6 +1547,10 @@ export class GamepadManager {
     // Switch controller view if host changed game
     if (data.gameMode && data.gameMode !== this.gameMode && this.gameMode !== 'LOBBY') {
       this.renderGameController(data.gameMode);
+    }
+
+    if (this._activeController?.handleSync) {
+      try { this._activeController.handleSync(data); } catch {}
     }
 
     const modeTag = this._el('hud-game-tag');

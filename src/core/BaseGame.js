@@ -1,7 +1,9 @@
 // BaseMiniGame: Unified Base Class for All Mini-Game Engines
-// Provides common state management, fixed timing, screen trauma/shake, slot helpers & UI tap handling
+// Provides common state management, fixed timing, screen trauma/shake, slot helpers,
+// standardized 4-player local keyboard listeners, multi-touch virtual joysticks & lobby rendering.
 
 import { prefersReducedMotion, motionScale } from '../ui/motion.js';
+import { getStandardSeatRects, renderLobbySeatCard, renderLobbyStartButton } from '../controlGuide.js';
 
 export class BaseMiniGame {
   constructor(canvas) {
@@ -26,7 +28,7 @@ export class BaseMiniGame {
     // Timing
     this.lastTime = performance.now();
 
-    // Interactive UI Rectangles
+    // Interactive UI Rectangles [{ x, y, w, h, onClick }]
     this.uiButtons = [];
 
     // Host modunda main tarafından atanır: LOBBY koltuk tap'leri motora
@@ -38,7 +40,23 @@ export class BaseMiniGame {
     // açar (E27). Pasif motorda kalan PLAYING + Space gibi ortak tuşlar
     // yanlış oyunda dash/ateş/tap üretmesin diye keydown guard'ları buna bakar.
     this.isLocalInputActive = false;
+
+    // Shared Local Keyboard Input State
+    this.keys = {};
+    this._keyboardBound = false;
+
+    // 4 Corner Floating Virtual Joysticks (P1: BL, P2: TL, P3: TR, P4: BR)
+    this.joysticks = [
+      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
+      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
+      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
+      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
+    ];
   }
+
+  // ---------------------------------------------------------------------------
+  // Slot & Lobby Management
+  // ---------------------------------------------------------------------------
 
   // LOBBY koltuk tap'i: host varsa ona devret (true), yoksa false dön.
   requestLobbySeatTap(index) {
@@ -69,6 +87,10 @@ export class BaseMiniGame {
       this.slotTypes[index] = 'empty';
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Screen Shake & Motion
+  // ---------------------------------------------------------------------------
 
   addTrauma(amount) {
     // Azaltılmış harekette sarsıntı birikmez (motionScale 0)
@@ -102,6 +124,252 @@ export class BaseMiniGame {
     p.y = newArena.top + Math.max(0, Math.min(1, ry)) * newArena.height;
   }
 
+  // ---------------------------------------------------------------------------
+  // Local Keyboard Input (4 Slots: WASD, Arrows, IJKL, TFGH)
+  // ---------------------------------------------------------------------------
+
+  bindStandardKeyboard(onPlayerAction = null) {
+    if (this._keyboardBound) return;
+    this._keyboardBound = true;
+
+    window.addEventListener('keydown', (e) => {
+      if (!this.isLocalInputActive) return;
+      this.keys[e.key] = true;
+      if (e.key) this.keys[e.key.toLowerCase()] = true;
+      this.keys[e.code] = true;
+
+      if (this.state === 'PLAYING' && typeof onPlayerAction === 'function') {
+        for (let i = 0; i < 4; i++) {
+          if (this.isPlayerActionKey(e, i)) {
+            onPlayerAction(i, e);
+          }
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      this.keys[e.key] = false;
+      if (e.key) this.keys[e.key.toLowerCase()] = false;
+      this.keys[e.code] = false;
+    });
+  }
+
+  isPlayerActionKey(e, slotIndex) {
+    if (slotIndex === 0) {
+      return e.code === 'Space' || e.code === 'KeyE' || e.key === 'e' || e.key === 'E' || e.code === 'ShiftLeft';
+    }
+    if (slotIndex === 1) {
+      return e.code === 'Enter' || e.code === 'Numpad0' || e.code === 'ControlRight';
+    }
+    if (slotIndex === 2) {
+      return e.code === 'KeyO' || e.key === 'o' || e.key === 'O';
+    }
+    if (slotIndex === 3) {
+      return e.code === 'KeyB' || e.key === 'b' || e.key === 'B';
+    }
+    return false;
+  }
+
+  getPlayerKeyboardVector(slotIndex) {
+    let inputX = 0;
+    let inputY = 0;
+    if (!this.isLocalInputActive) return { x: 0, y: 0 };
+
+    if (slotIndex === 0) {
+      if (this.keys['KeyA'] || this.keys['a']) inputX -= 1;
+      if (this.keys['KeyD'] || this.keys['d']) inputX += 1;
+      if (this.keys['KeyW'] || this.keys['w']) inputY -= 1;
+      if (this.keys['KeyS'] || this.keys['s']) inputY += 1;
+    } else if (slotIndex === 1) {
+      if (this.keys['ArrowLeft']) inputX -= 1;
+      if (this.keys['ArrowRight']) inputX += 1;
+      if (this.keys['ArrowUp']) inputY -= 1;
+      if (this.keys['ArrowDown']) inputY += 1;
+    } else if (slotIndex === 2) {
+      if (this.keys['KeyJ'] || this.keys['j']) inputX -= 1;
+      if (this.keys['KeyL'] || this.keys['l']) inputX += 1;
+      if (this.keys['KeyI'] || this.keys['i']) inputY -= 1;
+      if (this.keys['KeyK'] || this.keys['k']) inputY += 1;
+    } else if (slotIndex === 3) {
+      if (this.keys['KeyF'] || this.keys['f']) inputX -= 1;
+      if (this.keys['KeyH'] || this.keys['h']) inputX += 1;
+      if (this.keys['KeyT'] || this.keys['t']) inputY -= 1;
+      if (this.keys['KeyG'] || this.keys['g']) inputY += 1;
+    }
+
+    return { x: inputX, y: inputY };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Multi-Touch Virtual Joysticks (4 Corners)
+  // ---------------------------------------------------------------------------
+
+  getCornerQuadrant(point) {
+    const cx = this.arena?.cx ?? (this.canvas.width / 2);
+    const cy = this.arena?.cy ?? (this.canvas.height / 2);
+    if (point.x < cx && point.y >= cy) return 0; // Bottom-Left (P1)
+    if (point.x < cx && point.y < cy) return 1;  // Top-Left (P2)
+    if (point.x >= cx && point.y < cy) return 2; // Top-Right (P3)
+    return 3; // Bottom-Right (P4)
+  }
+
+  handleStandardJoystickTouchStart(touch, onDoubleTapAction = null) {
+    const q = this.getCornerQuadrant(touch);
+    const joy = this.joysticks[q];
+    const p = this.players?.[q];
+
+    if (p && p.isJoined && p.slotType === 'human' && !joy.active) {
+      const now = performance.now();
+      if (p.lastTapTime && now - p.lastTapTime < 280 && typeof onDoubleTapAction === 'function') {
+        onDoubleTapAction(q);
+      }
+      p.lastTapTime = now;
+
+      joy.id = touch.id;
+      joy.originX = touch.x;
+      joy.originY = touch.y;
+      joy.currX = touch.x;
+      joy.currY = touch.y;
+      joy.active = true;
+      joy.angle = 0;
+      joy.force = 0;
+      return true;
+    }
+    return false;
+  }
+
+  handleStandardJoystickTouchMove(touch, maxRadius = 48) {
+    for (let q = 0; q < 4; q++) {
+      const joy = this.joysticks[q];
+      if (joy.active && joy.id === touch.id) {
+        const dx = touch.x - joy.originX;
+        const dy = touch.y - joy.originY;
+        const dist = Math.hypot(dx, dy);
+
+        joy.angle = Math.atan2(dy, dx);
+        joy.force = Math.min(1.0, dist / maxRadius);
+
+        if (dist > maxRadius) {
+          joy.currX = joy.originX + Math.cos(joy.angle) * maxRadius;
+          joy.currY = joy.originY + Math.sin(joy.angle) * maxRadius;
+        } else {
+          joy.currX = touch.x;
+          joy.currY = touch.y;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  handleStandardJoystickTouchEnd(touch) {
+    for (let q = 0; q < 4; q++) {
+      const joy = this.joysticks[q];
+      if (joy.active && joy.id === touch.id) {
+        joy.active = false;
+        joy.id = -1;
+        joy.force = 0;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  resetStandardJoysticks() {
+    for (const joy of this.joysticks) {
+      joy.active = false;
+      joy.id = -1;
+      joy.force = 0;
+    }
+  }
+
+  renderStandardJoysticks(ctx, players = this.players) {
+    if (this.state !== 'PLAYING') return;
+    for (let i = 0; i < 4; i++) {
+      const joy = this.joysticks[i];
+      const player = players?.[i];
+      if (!joy.active || !player || !player.isJoined || !player.isAlive || player.slotType !== 'human') {
+        continue;
+      }
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(28, 28, 26, 0.4)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.arc(joy.originX, joy.originY, 48, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.setLineDash([]);
+      ctx.fillStyle = player.color || '#D84727';
+      ctx.beginPath();
+      ctx.arc(joy.currX, joy.currY, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1C1C1A';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Resolves combined input intent from both virtual touch joystick and local keyboard
+  getPlayerMovementVector(slotIndex) {
+    const p = this.players?.[slotIndex];
+    if (!p || !p.isJoined || !p.isAlive) return { x: 0, y: 0, active: false };
+
+    let inputX = 0;
+    let inputY = 0;
+    let active = false;
+
+    if (p.slotType === 'human') {
+      const joy = this.joysticks?.[slotIndex];
+      if (joy && joy.active && joy.force > 0.05) {
+        inputX = Math.cos(joy.angle) * joy.force;
+        inputY = Math.sin(joy.angle) * joy.force;
+        active = true;
+      }
+
+      const kb = this.getPlayerKeyboardVector(slotIndex);
+      if (kb.x !== 0 || kb.y !== 0) {
+        inputX += kb.x;
+        inputY += kb.y;
+        active = true;
+      }
+    }
+
+    const mag = Math.hypot(inputX, inputY);
+    if (mag > 1) {
+      inputX /= mag;
+      inputY /= mag;
+    }
+
+    return { x: inputX, y: inputY, active, magnitude: Math.min(1, mag) };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Remote Input Handling
+  // ---------------------------------------------------------------------------
+
+  handleStandardRemoteJoystick(slotIndex, data, onAction = null) {
+    const joy = this.joysticks?.[slotIndex];
+    if (!joy) return;
+    const player = this.players?.[slotIndex];
+
+    if (data.action === 'JOYSTICK_MOVE') {
+      if (player && (!player.isJoined || !player.isAlive)) return;
+      const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : 0;
+      joy.active = force > 0.05;
+      joy.angle = Number.isFinite(data.angle) ? data.angle : 0;
+      joy.force = force;
+    } else if (typeof onAction === 'function') {
+      onAction(slotIndex, data);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Interactive UI & Canvas Lobby Rendering
+  // ---------------------------------------------------------------------------
+
   handleUiTap(pos) {
     for (const btn of this.uiButtons) {
       if (
@@ -115,5 +383,59 @@ export class BaseMiniGame {
       }
     }
     return false;
+  }
+
+  renderStandardLobby(ctx, {
+    arena = this.arena,
+    colors = [],
+    playerNames = [],
+    onStart = () => this.startNewMatch(),
+    accent = '#D84727',
+    customControls = null,
+  } = {}) {
+    const corners = getStandardSeatRects(arena);
+
+    for (let i = 0; i < 4; i++) {
+      const pos = corners[i];
+      const slotType = this.slotTypes[i];
+      const p = this.players?.[i];
+      const name = p ? (p.name || '') : (playerNames[i] || '');
+      const color = colors[i] || '#D84727';
+
+      renderLobbySeatCard(ctx, {
+        x: pos.x,
+        y: pos.y,
+        w: pos.w,
+        h: pos.h,
+        slotIndex: i,
+        slotType: slotType,
+        playerName: name,
+        playerColor: color,
+        rotation: 0,
+      });
+
+      this.uiButtons.push({
+        x: pos.x,
+        y: pos.y,
+        w: pos.w,
+        h: pos.h,
+        onClick: () => this.cycleSlotType(i),
+      });
+    }
+
+    if (typeof customControls === 'function') {
+      customControls(ctx);
+    }
+
+    const joinedCount = this.getActivePlayerCount();
+    renderLobbyStartButton(ctx, {
+      arena,
+      uiButtons: this.uiButtons,
+      joinedCount,
+      accent,
+      onStart,
+      centerYOffset: customControls ? 18 : 0,
+      hidden: !!this.hideLobbyStartButton,
+    });
   }
 }
