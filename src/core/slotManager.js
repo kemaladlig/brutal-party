@@ -189,7 +189,7 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
         }
       }
     }
-  } else if (currentMode === 'CROWN') {
+  } else if (currentMode === 'CROWN' || currentMode === 'ZONE') {
     for (let i = 0; i < 4; i++) {
       const slot = hostPlayerSlots[i];
       const player = engine.players?.[i];
@@ -227,6 +227,34 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
   }
 }
 
+// Kopan/kapanan kumandanın latch'li girdisini nötrle — koltuk, isim, skor,
+// bot bayrakları AYNEN korunur (koltuğu tut politikası). Host bot ekle/çıkar,
+// sayaç kilidi, ready-reset kurallarına dokunmaz.
+export function clearRemoteSlot(engine, currentMode, slotIndex) {
+  if (!engine || slotIndex < 0 || slotIndex > 3) return;
+  try {
+    if (currentMode === 'TANKS') {
+      const tank = engine.tanks?.[slotIndex];
+      if (tank) tank.isDriving = false;
+    } else if (currentMode === 'CURVE') {
+      const player = engine.players?.[slotIndex];
+      if (player) player.steer = 0;
+    } else if (currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'CROWN' || currentMode === 'ZONE') {
+      const joy = engine.joysticks?.[slotIndex];
+      if (joy) {
+        joy.active = false;
+        joy.force = 0;
+        if ('id' in joy) joy.id = -1;
+      }
+    }
+    // PONG mutlak pozisyondur (sürüklenmez), DUEL stateless event'tir — nötr gerekmez.
+  } catch {}
+}
+
+export function clearAllRemoteSlots(engine, currentMode) {
+  for (let i = 0; i < 4; i++) clearRemoteSlot(engine, currentMode, i);
+}
+
 export function swapEngineSlots(engine, currentMode, isHosting, slotA, slotB) {
   if (!engine) return;
 
@@ -253,7 +281,7 @@ export function swapEngineSlots(engine, currentMode, isHosting, slotA, slotB) {
         pB.slotType = tempType;
       }
     }
-  } else if (currentMode === 'TANKS' || currentMode === 'CURVE' || currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'DUEL' || currentMode === 'CROWN') {
+  } else if (currentMode === 'TANKS' || currentMode === 'CURVE' || currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'DUEL' || currentMode === 'CROWN' || currentMode === 'ZONE') {
     if (Array.isArray(engine.scores)) {
       const temp = engine.scores[slotA];
       engine.scores[slotA] = engine.scores[slotB];

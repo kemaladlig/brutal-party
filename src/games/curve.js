@@ -9,6 +9,21 @@ import { updateCurveBotAI } from '../ai/curveAI.js';
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CURVE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
 
+// Lokal klavye eşleşmesi: [sol, sağ] — P1 AD, P2 Oklar, P3 JL, P4 FH
+const CURVE_KEY_SLOTS_PAIRS = [
+  ['KeyA', 'KeyD'],
+  ['ArrowLeft', 'ArrowRight'],
+  ['KeyJ', 'KeyL'],
+  ['KeyF', 'KeyH'],
+];
+const CURVE_KEY_SLOTS = {};
+CURVE_KEY_SLOTS_PAIRS.forEach((pair, i) => pair.forEach((c) => (CURVE_KEY_SLOTS[c] = i)));
+
+// İz sorgu ızgarası: uzun rauntlarda O(n) tarama yerine yakın hücreler.
+// Oyun kuralı değişmez — sadece aday kümesi daralır.
+const SEG_GRID_CELL = 48;
+const SEG_MAX = 24000;
+
 export class CurveGame extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
@@ -49,9 +64,49 @@ export class CurveGame extends BaseMiniGame {
       { id: -1, action: null },
       { id: -1, action: null },
     ];
+
+    // Trail spatial grid (hücre → segment indeksleri) + sorgu damgası
+    this.segGrid = new Map();
+    this.segGridDirty = false;
+    this._segQueryStamp = 0;
+
+    // Keyboard Controls (P1 AD, P2 Oklar, P3 JL, P4 FH — sol tuş = sol butonla aynı yön)
+    this.keys = {};
+    this.initKeyboard();
+  }
+
+  initKeyboard() {
+    window.addEventListener('keydown', (e) => {
+      if (!this.isLocalInputActive) return;
+      this.keys[e.code] = true;
+      this.keys[e.key] = true;
+    });
+    window.addEventListener('keyup', (e) => {
+      this.keys[e.code] = false;
+      this.keys[e.key] = false;
+      // Tuş bırakma: o slotta dokunmatik direksiyon yoksa düz git
+      // (dokunmatik basılıyken klavye bırakması dokunuşu ezmesin)
+      const slot = CURVE_KEY_SLOTS[e.code];
+      if (slot === undefined) return;
+      if (this.cornerTouches[slot]?.id !== -1) return;
+      const player = this.players[slot];
+      if (player && player.slotType === 'human' && this.keyboardSteer(slot) === 0) {
+        player.steer = 0;
+      }
+    });
+  }
+
+  // -1 sol, +1 sağ, 0 düz (ikisi birden/basılmıyorsa düz)
+  keyboardSteer(index) {
+    const pair = CURVE_KEY_SLOTS_PAIRS[index];
+    if (!pair) return 0;
+    const l = this.keys[pair[0]] ? -1 : 0;
+    const r = this.keys[pair[1]] ? 1 : 0;
+    return l + r;
   }
 
   resize(width, height) {
+    const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width
       ? Math.max(48, Math.floor(height * 0.12))
@@ -71,7 +126,27 @@ export class CurveGame extends BaseMiniGame {
       bottom: marginY + arenaH,
     };
 
-    this.initPlayers();
+    // Maç ortası resize izleri/oyuncuları sıfırlamasın
+    if (this.state === 'LOBBY' || !this.players.length) {
+      this.initPlayers();
+      return;
+    }
+    for (const p of this.players) {
+      this.remapPoint(p, oldArena, this.arena);
+      p.prevX = p.x;
+      p.prevY = p.y;
+    }
+    for (const seg of this.segments) {
+      // remapPoint p.x/p.y yazar — seg iki uçlu olduğu için iki ucu ayrı eşle
+      const a = { x: seg.x1, y: seg.y1 };
+      const b = { x: seg.x2, y: seg.y2 };
+      this.remapPoint(a, oldArena, this.arena);
+      this.remapPoint(b, oldArena, this.arena);
+      seg.x1 = a.x; seg.y1 = a.y; seg.x2 = b.x; seg.y2 = b.y;
+    }
+    this.segGridDirty = true;
+    for (const item of this.pickups) this.remapPoint(item, oldArena, this.arena);
+    this.particles = [];
   }
 
   initPlayers() {
@@ -120,6 +195,8 @@ export class CurveGame extends BaseMiniGame {
     this.roundWinner = null;
     this.matchWinner = null;
     this.segments = [];
+    this.segGrid = new Map();
+    this.segGridDirty = false;
     this.particles = [];
     this.pickups = [];
     this.cornerTouches = [
@@ -147,6 +224,8 @@ export class CurveGame extends BaseMiniGame {
   startRound() {
     this.state = 'PLAYING';
     this.segments = [];
+    this.segGrid = new Map();
+    this.segGridDirty = false;
     this.particles = [];
     this.pickups = [];
     this.pickupSpawnTimer = 7.0;
@@ -420,6 +499,15 @@ export class CurveGame extends BaseMiniGame {
           this.updateBotAI(player, dt);
         }
 
+        // Keyboard Fallback (BOMB deseni: eklemeli, dokunmatik/uzak girdiyi ezmez —
+        // tuş basılıyken yazar, bırakınca keyup sıfırlar)
+        if (player.slotType === 'human') {
+          const ks = this.keyboardSteer(player.index);
+          if (ks !== 0) {
+            player.steer = player.confusedTimer > 0 ? -ks : ks;
+          }
+        }
+
         // Steer & Movement
         const currentTurn = player.turnSpeed * (player.confusedTimer > 0 ? -1 : 1);
         player.angle += player.steer * currentTurn * dt;
@@ -430,8 +518,8 @@ export class CurveGame extends BaseMiniGame {
         player.x += Math.cos(player.angle) * currentSpeed * dt;
         player.y += Math.sin(player.angle) * currentSpeed * dt;
 
-        // Record Trail Segment
-        this.segments.push({
+        // Record Trail Segment (ızgaraya işlenir; emniyet supabı taşanı budar)
+        const newSeg = {
           x1: player.prevX,
           y1: player.prevY,
           x2: player.x,
@@ -440,7 +528,14 @@ export class CurveGame extends BaseMiniGame {
           owner: player.index,
           color: player.color,
           createdAt: performance.now(),
-        });
+          _qstamp: 0,
+        };
+        this.segments.push(newSeg);
+        this._indexSegment(newSeg, this.segments.length - 1);
+        if (this.segments.length > SEG_MAX) {
+          this.segments.splice(0, 2000);
+          this.segGridDirty = true;
+        }
 
         // Check Pickup Collision
         for (let pIdx = this.pickups.length - 1; pIdx >= 0; pIdx--) {
@@ -493,6 +588,8 @@ export class CurveGame extends BaseMiniGame {
           if (removed >= toRemove) break;
         }
       }
+      // Izgara indeksleri kaydı — bir sonraki sorguda tembel yeniden kurulum
+      this.segGridDirty = true;
     } else if (item.type === 'GHOST') {
       player.ghostTimer = 3.5;
     } else if (item.type === 'TURBO') {
@@ -504,6 +601,60 @@ export class CurveGame extends BaseMiniGame {
         }
       });
     }
+  }
+
+  _gridKey(cx, cy) {
+    return cx * 4096 + cy;
+  }
+
+  _indexSegment(seg, idx) {
+    const minCX = Math.floor(Math.min(seg.x1, seg.x2) / SEG_GRID_CELL);
+    const maxCX = Math.floor(Math.max(seg.x1, seg.x2) / SEG_GRID_CELL);
+    const minCY = Math.floor(Math.min(seg.y1, seg.y2) / SEG_GRID_CELL);
+    const maxCY = Math.floor(Math.max(seg.y1, seg.y2) / SEG_GRID_CELL);
+    for (let cx = minCX; cx <= maxCX; cx++) {
+      for (let cy = minCY; cy <= maxCY; cy++) {
+        const key = this._gridKey(cx, cy);
+        let bucket = this.segGrid.get(key);
+        if (!bucket) {
+          bucket = [];
+          this.segGrid.set(key, bucket);
+        }
+        bucket.push(idx);
+      }
+    }
+  }
+
+  _rebuildSegGrid() {
+    this.segGrid.clear();
+    for (let i = 0; i < this.segments.length; i++) {
+      this._indexSegment(this.segments[i], i);
+    }
+    this.segGridDirty = false;
+  }
+
+  // (x,y) noktasına pad mesafedeki segmentlerde cb(seg) çalıştırır;
+  // cb true dönerse erken durur. Damga ile hücre çakışması elenir.
+  forEachSegmentNear(x, y, pad, cb) {
+    if (this.segGridDirty) this._rebuildSegGrid();
+    const stamp = ++this._segQueryStamp;
+    const minCX = Math.floor((x - pad) / SEG_GRID_CELL);
+    const maxCX = Math.floor((x + pad) / SEG_GRID_CELL);
+    const minCY = Math.floor((y - pad) / SEG_GRID_CELL);
+    const maxCY = Math.floor((y + pad) / SEG_GRID_CELL);
+    for (let cx = minCX; cx <= maxCX; cx++) {
+      for (let cy = minCY; cy <= maxCY; cy++) {
+        const bucket = this.segGrid.get(this._gridKey(cx, cy));
+        if (!bucket) continue;
+        for (let k = 0; k < bucket.length; k++) {
+          const seg = this.segments[bucket[k]];
+          if (!seg || seg._qstamp === stamp) continue;
+          seg._qstamp = stamp;
+          if (cb(seg)) return true;
+        }
+      }
+    }
+    return false;
   }
 
   checkCollision(player) {
@@ -519,17 +670,18 @@ export class CurveGame extends BaseMiniGame {
 
     if (player.isGap) return false;
 
-    // 2. Line Segment Collision
+    // 2. Line Segment Collision (ızgara adayları — kural aynı)
     const px = player.x;
     const py = player.y;
     const now = performance.now();
+    const hitR = (r + 1.8) * (r + 1.8);
+    const game = this;
 
-    for (let i = 0; i < this.segments.length; i++) {
-      const seg = this.segments[i];
-      if (seg.isGap) continue;
+    return this.forEachSegmentNear(px, py, 12, (seg) => {
+      if (seg.isGap) return false;
 
       if (seg.owner === player.index && now - seg.createdAt < 220) {
-        continue;
+        return false;
       }
 
       const minX = Math.min(seg.x1, seg.x2) - r;
@@ -537,15 +689,11 @@ export class CurveGame extends BaseMiniGame {
       const minY = Math.min(seg.y1, seg.y2) - r;
       const maxY = Math.max(seg.y1, seg.y2) + r;
 
-      if (px < minX || px > maxX || py < minY || py > maxY) continue;
+      if (px < minX || px > maxX || py < minY || py > maxY) return false;
 
-      const distSq = this.distToSegmentSquared(px, py, seg.x1, seg.y1, seg.x2, seg.y2);
-      if (distSq <= (r + 1.8) * (r + 1.8)) {
-        return true;
-      }
-    }
-
-    return false;
+      const distSq = game.distToSegmentSquared(px, py, seg.x1, seg.y1, seg.x2, seg.y2);
+      return distSq <= hitR;
+    });
   }
 
   distToSegmentSquared(px, py, vx, vy, wx, wy) {
@@ -596,7 +744,8 @@ export class CurveGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
     if (data.action === 'CURVE_STEER') {
-      player.steer = data.dir || 0;
+      const dir = data.dir | 0;
+      player.steer = Math.max(-1, Math.min(1, dir));
     }
   }
 

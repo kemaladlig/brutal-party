@@ -9,6 +9,7 @@
 //  service_role anahtarı ASLA frontend'e konmaz.)
 
 import { createClient } from '@supabase/supabase-js';
+import { cleanPlayerName, getClientId } from './net.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -26,6 +27,35 @@ function assertSupabaseConfig() {
 const MY_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const PLAYER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
+
+// Relay girdisi şema + aralık denetimi (WS roomManager ile aynı kural)
+function isValidRelayInput(data) {
+  if (!data || typeof data.action !== 'string') return false;
+  const fin = (v) => typeof v === 'number' && Number.isFinite(v);
+  switch (data.action) {
+    case 'JOYSTICK_MOVE':
+      return fin(data.dx) && fin(data.dy)
+        && Math.abs(data.dx) <= 1 && Math.abs(data.dy) <= 1
+        && fin(data.angle) && fin(data.force)
+        && data.force >= 0 && data.force <= 1;
+    case 'PADDLE_MOVE':
+      return fin(data.position) && data.position >= 0 && data.position <= 1;
+    case 'CURVE_STEER':
+      return data.dir === -1 || data.dir === 0 || data.dir === 1;
+    case 'TANK_DRIVE':
+      return typeof data.driving === 'boolean';
+    case 'TANK_FIRE':
+    case 'DASH':
+    case 'TACKLE':
+    case 'FREEZE':
+    case 'DUEL_TAP':
+    case 'SET_NAME':
+    case 'SWITCH_SLOT':
+      return true;
+    default:
+      return false;
+  }
+}
 
 export class SupabaseRelay {
   constructor() {
@@ -57,6 +87,13 @@ export class SupabaseRelay {
     // Host canlılık takibi (controller tarafı watchdog için)
     this._lastHostMsgAt = 0;
     this._hostWatchdog = null;
+
+    // Otomatik re-join durumu (WS PartyNetwork muadili)
+    this._lastJoin = null;
+    this._joinedOnce = false;
+    this._manualClose = false;
+    this._reconnectTries = 0;
+    this._reconnectTimer = null;
   }
 
   get isHosting() {
@@ -104,6 +141,9 @@ export class SupabaseRelay {
           if (status === 'SUBSCRIBED') {
             clearTimeout(failTimer);
             console.log(`[SupabaseRelay] HOST subscribed to ${channelName}`);
+            // Oda kodu çakışma kalkanı: host kendini periyodik ilan eder,
+            // kumanda JOIN'i ilan edilen hostId'ye kilitler
+            this._startHostAnnounce();
             if (this.callbacks.onRoomCreated) {
               this.callbacks.onRoomCreated(this.roomCode, this.gameMode);
             }
@@ -124,19 +164,44 @@ export class SupabaseRelay {
     this._startPingHeartbeat();
   }
 
+  _startHostAnnounce() {
+    this._stopHostAnnounce();
+    const announce = () => {
+      this._broadcast('host_msg', {
+        action: 'HOST_ANNOUNCE',
+        hostId: this.myId,
+        gameMode: this.gameMode,
+        roomCode: this.roomCode,
+      });
+    };
+    announce();
+    this._announceInterval = setInterval(announce, 5000);
+  }
+
+  _stopHostAnnounce() {
+    if (this._announceInterval) {
+      clearInterval(this._announceInterval);
+      this._announceInterval = null;
+    }
+  }
+
   _hostHandleMessage(msg) {
     switch (msg.action) {
       case 'JOIN': {
-        const cleanName = (msg.name || 'OYUNCU').slice(0, 12);
+        // Başka hosta kilitli JOIN bize değil — aynı kodda çakışan oda varsa yoksay
+        if (msg.hostId && msg.hostId !== this.myId) return;
+        const now = performance.now();
+        let baseName = cleanPlayerName(msg.name);
         let slotIndex = -1;
 
-        // 1. Reconnect: Daha önce bu isimle bağlanmış (insan) bir slot varsa geri ver.
-        // Bot koltukları eşleşmeye dahil değildir.
+        // 1. Reconnect: aynı kalıcı istemci kimliği (reload güvenli) VEYA bayat
+        // (>20sn sessiz) aynı isimli slot geri verilir. Canlı başkasının slotu
+        // gasp edilemez. Bot koltukları eşleşmeye dahil değildir.
         for (let i = 0; i < 4; i++) {
-          if (this.players[i] && !this.players[i].isBot && this.players[i].name === cleanName) {
-            slotIndex = i;
-            break;
-          }
+          const p = this.players[i];
+          if (!p || p.isBot) continue;
+          if (msg.clientId && p.clientId && p.clientId === msg.clientId) { slotIndex = i; break; }
+          if (p.name === baseName && now - (p.lastSeen || 0) > 20000) { slotIndex = i; break; }
         }
 
         // 2. Boş slot bul
@@ -149,7 +214,6 @@ export class SupabaseRelay {
         // 3. Tüm slotlar doluysa >20sn'dir yanıt vermeyen (hayalet, insan) slotu geri kazan.
         // Bot koltukları geri kazanıma dahil değildir.
         if (slotIndex === -1) {
-          const now = performance.now();
           for (let i = 0; i < 4; i++) {
             if (this.players[i] && !this.players[i].isBot && now - (this.players[i].lastSeen || 0) > 20000) {
               slotIndex = i;
@@ -168,12 +232,26 @@ export class SupabaseRelay {
           return;
         }
 
+        // 4. İsim tekilleştir: dolu insan slotundaki isim alınırsa suffix ver
+        // (reclaim edilen kendi slotu hariç) — skor şeridinde kim kim belli olur
+        const takenByOther = (name) => this.players.some(
+          (p, i) => p && !p.isBot && i !== slotIndex && p.name === name
+        );
+        let finalName = baseName;
+        if (takenByOther(finalName)) {
+          for (let n = 2; n <= 9; n++) {
+            const cand = `${baseName.slice(0, 10)}·${n}`;
+            if (!takenByOther(cand)) { finalName = cand; break; }
+          }
+        }
+
         const player = {
           id: msg.senderId,
-          name: cleanName,
+          clientId: msg.clientId || null,
+          name: finalName,
           color: PLAYER_COLORS[slotIndex],
           slotIndex,
-          lastSeen: performance.now(),
+          lastSeen: now,
         };
         this.players[slotIndex] = player;
         this.ready[slotIndex] = false;
@@ -182,6 +260,7 @@ export class SupabaseRelay {
         this._broadcast('host_msg', {
           action: 'JOIN_SUCCESS',
           targetId: msg.senderId,
+          hostId: this.myId,
           roomCode: this.roomCode,
           gameMode: this.gameMode,
           slotIndex,
@@ -203,6 +282,7 @@ export class SupabaseRelay {
       case 'INPUT': {
         const slot = this._findSlotByPlayerId(msg.senderId);
         if (slot === -1) return;
+        if (!isValidRelayInput(msg.data)) return;
         if (this.players[slot]) this.players[slot].lastSeen = performance.now();
         if (this.callbacks.onPlayerInput) {
           this.callbacks.onPlayerInput(slot, msg.data);
@@ -314,6 +394,7 @@ export class SupabaseRelay {
       action: 'GAME_STARTED',
       gameMode: this.gameMode,
     });
+    this.broadcastSlots();
   }
 
   // Host TV ekranından boş koltuğa bot ekler/çıkarır. Botlar relay modelinde
@@ -347,10 +428,12 @@ export class SupabaseRelay {
   startStaging(gameMode) {
     if (this.role !== 'HOST') return;
     if (gameMode) this.gameMode = gameMode;
+    this.ready = [false, false, false, false];
     this._broadcast('host_msg', {
       action: 'STAGING_STARTED',
       gameMode: this.gameMode,
     });
+    this.broadcastSlots();
   }
 
   // İki kademeli başlatma 2/2: geri sayım tik'i (3-2-1). Son tik sonrası
@@ -377,6 +460,8 @@ export class SupabaseRelay {
   swapSlots(slotA, slotB) {
     if (this.role !== 'HOST') return;
     if (slotA < 0 || slotA > 3 || slotB < 0 || slotB > 3 || slotA === slotB) return;
+    // Bot koltuğu ne hedef ne kaynak olur (main.js ön kapı + burası son kapı)
+    if (this.players[slotA]?.isBot || this.players[slotB]?.isBot) return;
 
     const pA = this.players[slotA];
     const pB = this.players[slotB];
@@ -414,14 +499,46 @@ export class SupabaseRelay {
     this.broadcastSlots();
   }
 
+  // Atomik rotate: tek permütasyon + kumanda başına tek SLOT_CHANGED +
+  // tek SLOTS_UPDATE (ara flicker yok). Skor takasını host yerelde yapar.
+  rotateSeats() {
+    if (this.role !== 'HOST') return;
+    const order = [2, 3, 1, 0];
+    const old = [this.players[0], this.players[1], this.players[2], this.players[3]];
+    if (old.some((p) => p?.isBot)) return;
+    const oldReady = [...this.ready];
+    for (let i = 0; i < 4; i++) {
+      const p = old[order[i]];
+      this.players[i] = p || null;
+      this.ready[i] = oldReady[order[i]];
+      if (p) {
+        p.slotIndex = i;
+        p.color = PLAYER_COLORS[i];
+        this._broadcast('host_msg', {
+          action: 'SLOT_CHANGED',
+          targetId: p.id,
+          slotIndex: i,
+          color: PLAYER_COLORS[i],
+        });
+      }
+    }
+    this.broadcastSlots();
+  }
+
   // ━━━━━━━━━━━━━━━━━━━ CONTROLLER API ━━━━━━━━━━━━━━━━━━━
 
-  async joinRoom(roomCode, playerName, callbacks = {}) {
+  async joinRoom(roomCode, playerName, callbacks = {}, _isRetry = false) {
     assertSupabaseConfig();
     this.role = 'CONTROLLER';
     this.roomCode = roomCode.toUpperCase().trim();
-    this.playerName = (playerName || 'OYUNCU').toUpperCase().slice(0, 12);
+    this.playerName = cleanPlayerName(playerName);
     this.callbacks = { ...this.callbacks, ...callbacks };
+    if (!_isRetry) {
+      this._manualClose = false;
+      this._reconnectTries = 0;
+      if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+      this._lastJoin = { roomCode: this.roomCode, playerName: this.playerName };
+    }
 
     this.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       realtime: { params: { eventsPerSecond: 30 } },
@@ -447,20 +564,11 @@ export class SupabaseRelay {
           if (status === 'SUBSCRIBED') {
             clearTimeout(failTimer);
             console.log(`[SupabaseRelay] CONTROLLER subscribed to ${channelName}`);
-            // Send join request
-            this._broadcast('player_msg', {
-              action: 'JOIN',
-              name: this.playerName,
-            });
-
-            // Set a timeout — if no response in 5s, the room doesn't exist
-            this._joinTimeout = setTimeout(() => {
-              if (!this.playerIndex && this.playerIndex !== 0) {
-                if (this.callbacks.onError) {
-                  this.callbacks.onError('ODA BULUNAMADI veya HOST AKTİF DEĞİL');
-                }
-              }
-            }, 5000);
+            // Çakışma kalkanı: JOIN'den önce ~1.5sn host ilanlarını topla.
+            // 1 host → kilitli JOIN; 2+ → çakışma hatası; 0 → eski host uyumu (kilitsiz).
+            this._seenHosts = new Map();
+            this.hostId = null;
+            this._announceWait = setTimeout(() => this._sendLockedJoin(), 1500);
             resolve();
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             clearTimeout(failTimer);
@@ -478,6 +586,35 @@ export class SupabaseRelay {
     this._startPingHeartbeat();
   }
 
+  _sendLockedJoin() {
+    this._announceWait = null;
+    const now = performance.now();
+    const fresh = [...(this._seenHosts || [])].filter(([, at]) => now - at < 10000).map(([id]) => id);
+    if (fresh.length >= 2) {
+      if (this.callbacks.onError) {
+        this.callbacks.onError('ODA KODU ÇAKIŞTI — host yeni oda açsın.');
+      }
+      this.disconnect();
+      return;
+    }
+    if (fresh.length === 1) {
+      this.hostId = fresh[0];
+    }
+    const joinPayload = { action: 'JOIN', name: this.playerName, clientId: getClientId() };
+    if (this.hostId) joinPayload.hostId = this.hostId;
+    this._broadcast('player_msg', joinPayload);
+
+    // Set a timeout — if no response in 5s, the room doesn't exist
+    if (this._joinTimeout) clearTimeout(this._joinTimeout);
+    this._joinTimeout = setTimeout(() => {
+      if (!this.playerIndex && this.playerIndex !== 0) {
+        if (this.callbacks.onError) {
+          this.callbacks.onError('ODA BULUNAMADI veya HOST AKTİF DEĞİL');
+        }
+      }
+    }, 5000);
+  }
+
   _controllerHandleMessage(msg) {
     // Host'tan gelen HER mesaj canlılık kanıtıdır (watchdog için)
     this._lastHostMsgAt = performance.now();
@@ -486,8 +623,22 @@ export class SupabaseRelay {
     if (msg.targetId && msg.targetId !== this.myId) return;
 
     switch (msg.action) {
+      case 'HOST_ANNOUNCE': {
+        // Aynı koddaki her hostu kaydet (çakışma tespiti + JOIN kilidi için)
+        if (msg.hostId) {
+          if (!this._seenHosts) this._seenHosts = new Map();
+          this._seenHosts.set(msg.hostId, performance.now());
+        }
+        break;
+      }
+
       case 'JOIN_SUCCESS': {
+        // Kilitli odaya başka host cevap verdiyse yoksay
+        if (msg.hostId && this.hostId && msg.hostId !== this.hostId) break;
+        if (this._announceWait) { clearTimeout(this._announceWait); this._announceWait = null; }
         clearTimeout(this._joinTimeout);
+        this._joinedOnce = true;
+        this._reconnectTries = 0;
         this.playerIndex = msg.slotIndex;
         this.playerName = msg.name;
         this.color = msg.color;
@@ -621,11 +772,18 @@ export class SupabaseRelay {
       this._lastCurveDir = data.dir;
     }
 
-    this._lastInputSent = now;
+    // Discrete paket 50ms penceresini sıfırlamasın — yoksa dash/tackle sonrası
+    // ilk analog kare düşer (küçük direksiyon çentiği hissi)
+    if (!isDiscrete) this._lastInputSent = now;
     this._broadcast('player_msg', {
       action: 'INPUT',
       data,
     });
+  }
+
+  // SET_NAME sonrası re-join eski isimle dönmesin (C10)
+  notePlayerName(name) {
+    if (name) this.playerName = cleanPlayerName(name);
   }
 
   sendReaction(emoji) {
@@ -681,8 +839,8 @@ export class SupabaseRelay {
   }
 
   // Controller tarafı: host'tan 30sn'dir hiç mesaj gelmediyse host ölmüş
-  // demektir — lobiye düşür. Eşik, PING_REQ aralığının (15sn) 2 katıdır;
-  // oyunda STATE_SYNC zaten çok daha sık gelir.
+  // demektir — bildir + sessizce yeniden bağlanmayı dene (WS muadili, maks 5).
+  // Eşik, PING_REQ aralığının (15sn) 2 katıdır; oyunda STATE_SYNC çok daha sık gelir.
   _startHostWatchdog() {
     this._stopHostWatchdog();
     this._hostWatchdog = setInterval(() => {
@@ -691,10 +849,41 @@ export class SupabaseRelay {
       if (performance.now() - this._lastHostMsgAt < 30000) return;
       this._stopHostWatchdog();
       if (this.callbacks.onHostDisconnected) {
-        this.callbacks.onHostDisconnected('📡 HOST BAĞLANTISI KOPTU — lobiye dönüp tekrar katılın.');
+        this.callbacks.onHostDisconnected('📡 HOST BAĞLANTISI KOPTU — yeniden bağlanılıyor…');
       }
+      const lastJoin = this._lastJoin;
+      const wasJoined = this._joinedOnce;
       this.disconnect();
+      // disconnect kapatma sayar + retry bilgisini siler — retry için geri koy
+      if (wasJoined && lastJoin) {
+        this._manualClose = false;
+        this._lastJoin = lastJoin;
+        this._scheduleRelayReconnect();
+      }
     }, 5000);
+  }
+
+  // Üstel geri çekilmeli re-join (1s/2s/4s/8s/8s). Kalıcı clientId sayesinde
+  // dönen kumanda eski koltuğunu reclaim eder.
+  _scheduleRelayReconnect() {
+    if (this._manualClose || !this._lastJoin) return;
+    if ((this._reconnectTries || 0) >= 5) {
+      this._lastJoin = null;
+      if (this.callbacks.onError) this.callbacks.onError('BAĞLANTI KOPTU — odaya tekrar katılın.');
+      return;
+    }
+    const delay = Math.min(8000, 1000 * 2 ** (this._reconnectTries || 0));
+    this._reconnectTries = (this._reconnectTries || 0) + 1;
+    if (this.callbacks.onError) this.callbacks.onError(`🔄 Yeniden bağlanılıyor (${this._reconnectTries}/5)…`);
+    this._reconnectTimer = setTimeout(async () => {
+      this._reconnectTimer = null;
+      if (this._manualClose || !this._lastJoin) return;
+      try {
+        await this.joinRoom(this._lastJoin.roomCode, this._lastJoin.playerName, {}, true);
+      } catch {
+        this._scheduleRelayReconnect();
+      }
+    }, delay);
   }
 
   _stopHostWatchdog() {
@@ -705,12 +894,23 @@ export class SupabaseRelay {
   }
 
   disconnect() {
+    this._manualClose = true;
+    if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+    this._lastJoin = null;
+    this._joinedOnce = false;
+    this._reconnectTries = 0;
     this._stopPingHeartbeat();
     this._stopHostWatchdog();
+    this._stopHostAnnounce();
     if (this._joinTimeout) {
       clearTimeout(this._joinTimeout);
       this._joinTimeout = null;
     }
+    if (this._announceWait) {
+      clearTimeout(this._announceWait);
+      this._announceWait = null;
+    }
+    this._seenHosts = null;
 
     if (this.role === 'CONTROLLER') {
       this._broadcast('player_msg', { action: 'LEAVE' });

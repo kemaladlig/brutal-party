@@ -1,9 +1,9 @@
 // Core Game Engine: Arena with Corner Bumpers & Goal Mouths, Lobby, Fixed Physics Loop & Brutalist Rendering
 import { Paddle, PLAYER_CONFIGS } from './paddle.js';
 import { Ball } from './ball.js';
-import { playJoin, playStart } from '../audio.js';
+import { playJoin, playStart, playPowerUp } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton } from '../controlGuide.js';
-import { renderTopPill, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 
 export class Game extends BaseMiniGame {
@@ -50,6 +50,13 @@ export class Game extends BaseMiniGame {
 
     // Assigned touch identifier for each player (0: Bottom, 1: Top, 2: Left, 3: Right)
     this.playerTouchIds = [-1, -1, -1, -1];
+    // ❄️ Freeze skill: oyuncu başına bekleme + çift-dokun takibi
+    this.freezeCooldowns = [0, 0, 0, 0];
+    this.lastTapIdx = -1;
+    this.lastTapTime = 0;
+    // PC klavye durumu (P1 WASD, P2 oklar, P3 IJKL, P4 TFGH)
+    this.keys = {};
+    this.initKeyboard();
     this.matchScores = [0, 0, 0, 0];
 
     // Tournament Set Championship
@@ -69,6 +76,10 @@ export class Game extends BaseMiniGame {
     this.accumulator = 0;
     this.lastTime = performance.now();
     this.playerTouchIds = [-1, -1, -1, -1];
+    this.freezeCooldowns = [0, 0, 0, 0];
+    this.stallTimer = 0;
+    this.rallyStallT = 0;
+    this.lastRallySeen = 0;
     this.setScores = [0, 0, 0, 0];
     this.matchScores = [0, 0, 0, 0];
     this.paddles.forEach((p) => {
@@ -93,7 +104,7 @@ export class Game extends BaseMiniGame {
       return;
     }
     this.state = 'ROUND_PAUSE';
-    this.roundPauseTimer = 1.3;
+    this.roundPauseTimer = 0.9;
     this.winner = null;
     this.roundWinner = null;
     this.paddles.forEach((p) => {
@@ -104,18 +115,77 @@ export class Game extends BaseMiniGame {
     this.ball.y = this.arena.cy;
     this.ball.vx = 0;
     this.ball.vy = 0;
+    this.ball.disarmFreeze();
+  }
+
+  initKeyboard() {
+    window.addEventListener('keydown', (e) => {
+      if (!this.isLocalInputActive) return;
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) {
+        e.preventDefault();
+      }
+      this.keys[e.code] = true;
+      // Aksiyon tuşları: ❄️ dondurma (basımda bir kez)
+      if (e.code === 'Space') this.triggerFreeze(0);
+      else if (e.code === 'Enter') this.triggerFreeze(1);
+      else if (e.code === 'KeyO') this.triggerFreeze(2);
+      else if (e.code === 'KeyB') this.triggerFreeze(3);
+    });
+    window.addEventListener('keyup', (e) => {
+      this.keys[e.code] = false;
+    });
+  }
+
+  // ❄️ Freeze skill: 25 sn bekleme, 5 sn mavi pencere, ilk temas donar (atan dahil).
+  triggerFreeze(index) {
+    if (this.state !== 'PLAYING') return false;
+    const p = this.paddles[index];
+    if (!p || !p.isJoined || p.isEliminated || p.frozenTimer > 0) return false;
+    if (this.freezeCooldowns[index] > 0) return false;
+    if (!this.ball || this.ball.isDead) return false;
+    if (!this.ball.tryArmFreeze(index)) return false;
+    this.freezeCooldowns[index] = 25;
+    playPowerUp();
+    return true;
+  }
+
+  // Lokal klavye: her slot kendi ekseninde sürer (bot/ölü/katılmamış etkilenmez)
+  applyKeyboardControls(dt) {
+    if (this.state !== 'PLAYING') return;
+    const minDim = Math.min(this.arena.width, this.arena.height);
+    const speed = minDim * 1.5;
+    const K = this.keys;
+    const dirs = [
+      (K.KeyA ? -1 : 0) + (K.KeyD ? 1 : 0),
+      (K.ArrowLeft ? -1 : 0) + (K.ArrowRight ? 1 : 0),
+      (K.KeyI ? -1 : 0) + (K.KeyK ? 1 : 0),
+      (K.KeyT ? -1 : 0) + (K.KeyG ? 1 : 0),
+    ];
+    this.paddles.forEach((p, i) => {
+      if (!p.isJoined || p.isEliminated || p.isBot) return;
+      const d = dirs[i];
+      if (d) p.setTarget(p.targetCoord + d * speed * dt);
+    });
   }
 
   getGoalBounds(side) {
     const isHorizontal = side === 'bottom' || side === 'top';
-    const minDim = Math.min(this.arena.width, this.arena.height);
-    const goalSpan = Math.round(minDim * 0.70);
+    // Kale açıklığı kendi kenarına oranlı: her duvarda %62 açık, her aspect'te adil.
+    // (Eskiden minDim*0.70 sabitti; kısa kenar orantısız geniş kale açıyordu.)
+    const edgeLen = isHorizontal ? this.arena.width : this.arena.height;
+    const goalSpan = Math.round(edgeLen * 0.62);
     const center = isHorizontal ? this.arena.cx : this.arena.cy;
     return {
       goalMin: center - goalSpan / 2,
       goalMax: center + goalSpan / 2,
       goalSpan,
     };
+  }
+
+  // Köşe pahı bacağı (fizik + dikiş çizgisi aynı değerden beslenir)
+  getChamferLeg() {
+    const minDim = Math.min(this.arena.width, this.arena.height);
+    return Math.round(minDim * 0.085);
   }
 
   getPlayerZoneAt(point) {
@@ -156,10 +226,16 @@ export class Game extends BaseMiniGame {
       }
     }
 
-    // 3. In Gameplay: lock touch.id to player zone
+    // 3. In Gameplay: lock touch.id to player zone (+ çift-dokun = ❄️)
     if (this.state === 'PLAYING') {
       const playerIndex = this.getPlayerZoneAt(touch);
       if (playerIndex !== -1 && this.isPlayerActive(playerIndex)) {
+        const now = performance.now();
+        if (playerIndex === this.lastTapIdx && now - this.lastTapTime < 320) {
+          this.triggerFreeze(playerIndex);
+        }
+        this.lastTapIdx = playerIndex;
+        this.lastTapTime = now;
         this.playerTouchIds[playerIndex] = touch.id;
         this.updatePaddlePosition(playerIndex, touch);
       }
@@ -201,7 +277,9 @@ export class Game extends BaseMiniGame {
 
   isPlayerActive(index) {
     const p = this.paddles[index];
-    return p && p.isJoined && !p.isEliminated;
+    // Klavye yoluyla aynı kapı (applyKeyboardControls): bot/ölü/katılmamış
+    // dokunmatikle de sürülemez
+    return p && p.isJoined && !p.isEliminated && !p.isBot;
   }
 
   getActivePlayerCount() {
@@ -213,6 +291,7 @@ export class Game extends BaseMiniGame {
   }
 
   resize(width, height) {
+    const oldArena = { ...this.arena };
     const isPortrait = height > width;
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = isPortrait
@@ -245,6 +324,9 @@ export class Game extends BaseMiniGame {
     if (this.state === 'LOBBY' || this.state === 'ROUND_PAUSE') {
       this.ball.x = this.arena.cx;
       this.ball.y = this.arena.cy;
+    } else if (this.ball) {
+      // Maç ortası: top orantılı taşınır, hız korunur
+      this.remapPoint(this.ball, oldArena, this.arena);
     }
   }
 
@@ -280,6 +362,11 @@ export class Game extends BaseMiniGame {
     this.ball.y = this.arena.cy;
     this.ball.vx = 0;
     this.ball.vy = 0;
+    this.ball.disarmFreeze();
+    this.freezeCooldowns = [0, 0, 0, 0];
+    this.stallTimer = 0;
+    this.rallyStallT = 0;
+    this.lastRallySeen = 0;
 
     playStart();
   }
@@ -289,6 +376,9 @@ export class Game extends BaseMiniGame {
   }
 
   onPlayerScoredOn(playerIndex) {
+    // Gol her şeyi sıfırlar: donma modu + donmuş raketler temizlenir
+    this.ball.disarmFreeze();
+    this.paddles.forEach((p) => { p.frozenTimer = 0; });
     const remaining = this.paddles.filter((p) => p.isJoined && !p.isEliminated);
 
     if (remaining.length <= 1) {
@@ -308,8 +398,9 @@ export class Game extends BaseMiniGame {
       this.state = 'ROUND_OVER';
       this.roundOverTimer = 2.0;
     } else {
+      // Gol sonrası kısa duraklama (uzun ölü top "donma" gibi hissettiriyor)
       this.state = 'ROUND_PAUSE';
-      this.roundPauseTimer = 1.3;
+      this.roundPauseTimer = 0.9;
       this.ball.x = this.arena.cx;
       this.ball.y = this.arena.cy;
       this.ball.vx = 0;
@@ -320,6 +411,13 @@ export class Game extends BaseMiniGame {
   update(now) {
     const frameTime = Math.min((now - this.lastTime) / 1000, 0.1);
     this.lastTime = now;
+
+    // Freeze beklemeleri her framede erir
+    for (let i = 0; i < 4; i++) {
+      if (this.freezeCooldowns[i] > 0) {
+        this.freezeCooldowns[i] = Math.max(0, this.freezeCooldowns[i] - frameTime);
+      }
+    }
 
     if (this.trauma > 0) {
       this.trauma = Math.max(0, this.trauma - frameTime * 2.2);
@@ -346,20 +444,78 @@ export class Game extends BaseMiniGame {
   }
 
   fixedUpdate(dt) {
+    this.applyKeyboardControls(dt);
     for (const paddle of this.paddles) {
       paddle.update(dt);
     }
 
     if (this.state === 'PLAYING') {
       this.ball.fixedUpdate(dt, this.arena, this.paddles);
+      this.breakStall(dt);
     }
+  }
+
+  // Takılma-kırıcı: top 2.5 sn'de 4px bile oynamadıysa VEYA ralli 6 sn'dir
+  // ilerlemiyorsa (disk çevresi oyalanması) rastgele aktif kaleye şut çeker.
+  // Fizik tuzaklarının (disk/cep/köşe) son sigortasıdır.
+  breakStall(dt) {
+    const b = this.ball;
+    if (b.isDead) {
+      this.stallTimer = 0;
+      this.rallyStallT = 0;
+      return;
+    }
+    if (b.rallyCount !== (this.lastRallySeen ?? b.rallyCount)) {
+      this.lastRallySeen = b.rallyCount;
+      this.rallyStallT = 0;
+    } else {
+      this.rallyStallT = (this.rallyStallT || 0) + dt;
+    }
+    const moved = Math.hypot(b.x - (this.stallX ?? b.x), b.y - (this.stallY ?? b.y));
+    if (moved > 4) {
+      this.stallTimer = 0;
+      this.stallX = b.x;
+      this.stallY = b.y;
+    } else {
+      this.stallTimer = (this.stallTimer || 0) + dt;
+    }
+    const posStuck = this.stallTimer >= 2.5;
+    const rallyStuck = b.rallyCount >= 10 && (this.rallyStallT || 0) >= 6;
+    if (!posStuck && !rallyStuck) return;
+    this.stallTimer = 0;
+    this.rallyStallT = 0;
+    this.stallX = b.x;
+    this.stallY = b.y;
+
+    const targets = this.paddles.filter((p) => p.isJoined && !p.isEliminated);
+    if (!targets.length) return;
+    const goal = targets[Math.floor(Math.random() * targets.length)];
+    const bounds = this.arena.getGoalBounds(goal.side);
+    const gx = goal.axis === 'horizontal'
+      ? (bounds.goalMin + bounds.goalMax) / 2
+      : goal.side === 'left' ? this.arena.left : this.arena.right;
+    const gy = goal.axis === 'horizontal'
+      ? (goal.side === 'top' ? this.arena.top : this.arena.bottom)
+      : (bounds.goalMin + bounds.goalMax) / 2;
+    const dx = gx - b.x;
+    const dy = gy - b.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const sp = b.currentMinSpeed * 1.2;
+    b.vx = (dx / len) * sp;
+    b.vy = (dy / len) * sp;
+    b.x += (dx / len) * 4;
+    b.y += (dy / len) * 4;
+    b.spawnShockwave(b.x, b.y, '#D99B26');
   }
 
   handleRemoteInput(slotIndex, data) {
     const paddle = this.paddles[slotIndex];
     if (!paddle || !paddle.isJoined || paddle.isEliminated) return;
-    if (data.action === 'PADDLE_MOVE' && typeof data.position === 'number') {
-      paddle.setTarget(paddle.minCoord + (paddle.maxCoord - paddle.minCoord) * data.position);
+    if (data.action === 'PADDLE_MOVE' && typeof data.position === 'number' && Number.isFinite(data.position)) {
+      const pos = Math.max(0, Math.min(1, data.position));
+      paddle.setTarget(paddle.minCoord + (paddle.maxCoord - paddle.minCoord) * pos);
+    } else if (data.action === 'FREEZE') {
+      this.triggerFreeze(slotIndex);
     }
   }
 
@@ -390,10 +546,9 @@ export class Game extends BaseMiniGame {
       paddle.draw(ctx, this.arena);
     }
 
-    // Render Ball
+    // Render Ball (streak hapı yok: ralli bilgisi telegraf/ENGEL ile verilir)
     if (this.state === 'PLAYING' || this.state === 'ROUND_PAUSE') {
       this.ball.draw(ctx);
-      this.renderTopHUD(ctx);
     }
 
     // Render UI Overlays
@@ -438,17 +593,6 @@ export class Game extends BaseMiniGame {
       }
     }
     ctx.restore();
-  }
-
-  renderTopHUD(ctx) {
-    if (this.state !== 'PLAYING') return;
-    if (this.ball.rallyCount >= 5) {
-      renderTopPill(ctx, {
-        arena: this.arena,
-        text: `⚡ ${this.ball.rallyCount} VURUŞ`,
-        urgent: this.ball.rallyCount >= 10,
-      });
-    }
   }
 
   renderArena(ctx) {
@@ -622,6 +766,25 @@ export class Game extends BaseMiniGame {
     // Right Bumpers (Top & Bottom)
     drawBumper(right - thick, top, thick, bLenV);
     drawBumper(right - thick, vGoalMax, thick, bLenV);
+
+    // 45° pah dikişleri: ince tek çizgi (fizik yüzüyle birebir, taşma yok)
+    const L = this.getChamferLeg();
+    const seams = [
+      [[left + L, top], [left, top + L]],
+      [[right - L, top], [right, top + L]],
+      [[left + L, bottom], [left, bottom - L]],
+      [[right - L, bottom], [right, bottom - L]],
+    ];
+    ctx.save();
+    ctx.strokeStyle = '#1C1C1A';
+    ctx.lineWidth = 3;
+    for (const [[x1, y1], [x2, y2]] of seams) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   renderGoalLines(ctx) {

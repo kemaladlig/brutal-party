@@ -196,6 +196,13 @@ export class TanksGame extends BaseMiniGame {
     this.cornerTouchOrigins = [null, null, null, null];
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty']; // P1 Human, P2 Normal Bot default
 
+    // Keyboard Controls (P1 WASD+Space, P2 Oklar+Enter, P3 IJKL+O, P4 TFGH+B)
+    this.keys = {};
+    // Sürüş sahibi: 'kb' | 'touch' | 'remote' | null — bırakma sinyali sadece
+    // kendi latch'ini temizler, diğer kaynağın sürüşünü ezmez
+    this.driveOwner = [null, null, null, null];
+    this.initKeyboard();
+
     // Tactical Supply Crates & Sudden Death
     this.crates = [];
     this.crateSpawnTimer = 6.0;
@@ -229,6 +236,65 @@ export class TanksGame extends BaseMiniGame {
     this.resetMatch();
   }
 
+  // Lokal klavye: basılı hareket tuşu = sür (dokunmatik TUT ile aynı),
+  // bırakma = dur + ateş (dokunmatik BIRAK ile aynı). Kumanda girdisiyle
+  // aynı alana yazar (last-writer-wins); kbDriving bayrağı klavyenin
+  // bıraktığı latch'i, uzaktaki sürüşü ezmeden temizler.
+  initKeyboard() {
+    const MOVE_KEYS = [
+      ['KeyW', 'KeyA', 'KeyS', 'KeyD'],
+      ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'],
+      ['KeyI', 'KeyJ', 'KeyK', 'KeyL'],
+      ['KeyT', 'KeyF', 'KeyG', 'KeyH'],
+    ];
+    const FIRE_KEYS = ['Space', 'Enter', 'KeyO', 'KeyB'];
+    const slotOfMove = {};
+    MOVE_KEYS.forEach((set, i) => set.forEach((c) => (slotOfMove[c] = i)));
+    const isHumanAlive = (i) => {
+      const tank = this.tanks[i];
+      return tank && tank.isJoined && tank.isAlive && tank.slotType === 'human' ? tank : null;
+    };
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
+      if (!this.isLocalInputActive) return;
+      this.keys[e.code] = true;
+      this.keys[e.key] = true;
+      if (this.state !== 'PLAYING') return;
+      const slot = slotOfMove[e.code];
+      if (slot !== undefined) {
+        e.preventDefault();
+        const tank = isHumanAlive(slot);
+        if (tank) {
+          this.driveOwner[slot] = 'kb';
+          tank.isDriving = true;
+        }
+        return;
+      }
+      const fireSlot = FIRE_KEYS.indexOf(e.code);
+      if (fireSlot !== -1) {
+        e.preventDefault();
+        const tank = isHumanAlive(fireSlot);
+        if (tank) this.attemptFire(tank);
+      }
+    });
+    window.addEventListener('keyup', (e) => {
+      this.keys[e.code] = false;
+      this.keys[e.key] = false;
+      const slot = slotOfMove[e.code];
+      if (slot === undefined) return;
+      if (MOVE_KEYS[slot].some((c) => this.keys[c])) return;
+      // Sadece klavye sürdüyse dur+ateş; kumanda/dokunmatik sürüşüne dokunma
+      if (this.driveOwner[slot] !== 'kb') return;
+      this.driveOwner[slot] = null;
+      const tank = this.tanks[slot];
+      if (!tank) return;
+      tank.isDriving = false;
+      if (this.state === 'PLAYING' && tank.isJoined && tank.isAlive && tank.slotType === 'human') {
+        this.attemptFire(tank);
+      }
+    });
+  }
+
   restartRound() {
     this.startRound();
   }
@@ -251,6 +317,7 @@ export class TanksGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = Math.max(32, Math.floor(height * 0.06));
     const arenaW = width - marginX * 2;
@@ -269,7 +336,19 @@ export class TanksGame extends BaseMiniGame {
     };
 
     this.loadMap(this.currentMapIndex);
-    this.initTanks();
+    // Maç ortası resize raundu sıfırlamasın: geometri yenilenir, canlı
+    // varlıklar orantılı taşınır (ölü dirilmez, şarjör/skor korunur)
+    if (this.state === 'LOBBY' || !this.tanks.length) {
+      this.initTanks();
+      return;
+    }
+    for (const tank of this.tanks) {
+      this.remapPoint(tank, oldArena, this.arena);
+    }
+    for (const b of this.bullets) this.remapPoint(b, oldArena, this.arena);
+    for (const c of this.crates) this.remapPoint(c, oldArena, this.arena);
+    this.particles = [];
+    this.shotTracers = [];
   }
 
   loadMap(index) {
@@ -430,6 +509,7 @@ export class TanksGame extends BaseMiniGame {
       if (tank && tank.isJoined && tank.isAlive && tank.slotType === 'human') {
         this.cornerTouchIds[corner] = touch.id;
         this.cornerTouchOrigins[corner] = { x: touch.x, y: touch.y };
+        this.driveOwner[corner] = 'touch';
         tank.isDriving = true;
       }
     }
@@ -445,6 +525,7 @@ export class TanksGame extends BaseMiniGame {
         this.cornerTouchIds[i] = -1;
         this.cornerTouchOrigins[i] = null;
         const tank = this.tanks[i];
+        if (this.driveOwner[i] === 'touch') this.driveOwner[i] = null;
         if (tank && tank.isJoined && tank.isAlive && tank.slotType === 'human' && this.state === 'PLAYING') {
           tank.isDriving = false;
           this.attemptFire(tank);
@@ -457,6 +538,7 @@ export class TanksGame extends BaseMiniGame {
   onTouchesReset() {
     this.cornerTouchIds = [-1, -1, -1, -1];
     this.cornerTouchOrigins = [null, null, null, null];
+    this.driveOwner = [null, null, null, null];
     this.tanks.forEach((t) => (t.isDriving = false));
   }
 
@@ -497,6 +579,7 @@ export class TanksGame extends BaseMiniGame {
       tank.isJoined = this.isSlotJoined(i);
       tank.isAlive = tank.isJoined;
       tank.isDriving = false;
+      this.driveOwner[i] = null;
       tank.reloadTimer = 0;
       tank.reloadCooldown = 1.1;
       tank.maxBullets = 2;
@@ -511,6 +594,8 @@ export class TanksGame extends BaseMiniGame {
   }
 
   attemptFire(tank) {
+    // Lobi/maç-sonunda kumandadan ateş tetiklenemez (uzak girdi kapısı)
+    if (this.state !== 'PLAYING') return;
     // Şarjör mantığı: dolu yuva varsa ateşlenir (peş peşe 2 el mümkün).
     // Dolum sayacı sadece boş yuvayı doldurur, hazır mermiyi kilitlemez.
     if ((tank.chamber ?? tank.maxBullets) <= 0) {
@@ -582,12 +667,10 @@ export class TanksGame extends BaseMiniGame {
 
     if (data.action === 'TANK_DRIVE') {
       tank.isDriving = !!data.driving;
-    } else if (data.action === 'TANK_MOVE') {
-      if (data.force > 0.08) {
-        tank.angle = data.angle;
-        tank.isDriving = true;
-      } else {
-        tank.isDriving = false;
+      if (data.driving) {
+        this.driveOwner[slotIndex] = 'remote';
+      } else if (this.driveOwner[slotIndex] === 'remote') {
+        this.driveOwner[slotIndex] = null;
       }
     } else if (data.action === 'TANK_FIRE') {
       this.attemptFire(tank);
@@ -694,9 +777,11 @@ export class TanksGame extends BaseMiniGame {
 
         if (tank.isDriving && this.state === 'PLAYING') {
           this.moveTankWithCollision(tank, dt);
-        } else if (tank.slotType !== 'human') {
+        } else if (tank.slotType !== 'human' && !tank._aiSteered) {
+          // AI bu kare aktif direksiyon yapmadıysa boşta yavaşça dön (lobi/ruh hali)
           tank.angle += tank.rotationSpeed * dt;
         }
+        tank._aiSteered = false;
       }
 
       this.updateBullets(dt);

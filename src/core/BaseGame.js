@@ -1,7 +1,7 @@
 // BaseMiniGame: Unified Base Class for All Mini-Game Engines
 // Provides common state management, fixed timing, screen trauma/shake, slot helpers & UI tap handling
 
-import { prefersReducedMotion } from '../ui/motion.js';
+import { prefersReducedMotion, motionScale } from '../ui/motion.js';
 
 export class BaseMiniGame {
   constructor(canvas) {
@@ -33,6 +33,11 @@ export class BaseMiniGame {
     // yazmadan önce host'a sorulur (bot ekleme/çıkarma). Lokal oyunda null
     // kalır ve klasik cycleSlotType davranışı çalışır.
     this.onLobbySeatTap = null;
+
+    // Klavye çapraz-konuşma kilidi: main.setGameMode yalnızca aktif motoru
+    // açar (E27). Pasif motorda kalan PLAYING + Space gibi ortak tuşlar
+    // yanlış oyunda dash/ateş/tap üretmesin diye keydown guard'ları buna bakar.
+    this.isLocalInputActive = false;
   }
 
   // LOBBY koltuk tap'i: host varsa ona devret (true), yoksa false dön.
@@ -66,7 +71,8 @@ export class BaseMiniGame {
   }
 
   addTrauma(amount) {
-    this.trauma = Math.min(1.0, this.trauma + amount);
+    // Azaltılmış harekette sarsıntı birikmez (motionScale 0)
+    this.trauma = Math.min(1.0, this.trauma + amount * motionScale());
   }
 
   updateTrauma(dt, decayRate = 2.2) {
@@ -83,6 +89,17 @@ export class BaseMiniGame {
       const offsetY = (Math.random() - 0.5) * 2 * shakeIntensity;
       ctx.translate(offsetX, offsetY);
     }
+  }
+
+  // Resize'da canlı varlığı orantılı taşı: eski arenadaki göreli konum
+  // yeni arenaya yazılır (raunt sıfırlanmaz, ölü dirilmez, skor korunur).
+  // Yalnızca LOBBY'de tam kurulum yapılır; maç ortası hep remap'tir.
+  remapPoint(p, oldArena, newArena) {
+    if (!p || !oldArena || !newArena) return;
+    const rx = oldArena.width > 0 ? (p.x - oldArena.left) / oldArena.width : 0.5;
+    const ry = oldArena.height > 0 ? (p.y - oldArena.top) / oldArena.height : 0.5;
+    p.x = newArena.left + Math.max(0, Math.min(1, rx)) * newArena.width;
+    p.y = newArena.top + Math.max(0, Math.min(1, ry)) * newArena.height;
   }
 
   handleUiTap(pos) {

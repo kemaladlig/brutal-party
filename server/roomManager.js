@@ -1,10 +1,79 @@
 // Room & Networking Manager for Brutal Party // 4P
 // Manages rooms, host connections, controller slots (P1..P4), and low-latency input streaming.
 
+// Sunucu tarafı isim temizleyici (istemcideki net.js cleanPlayerName ile aynı
+// kural: trim + BÜYÜK HARF + 12 + HTML/tehlikeli karakterleri at)
+function cleanSlotName(name) {
+  const clean = (name ?? '').toString().replace(/<[^>]*>/g, '').trim().toUpperCase().slice(0, 12).replace(/[<>&"'`=\\/]/g, '');
+  return clean || 'OYUNCU';
+}
+
+const finiteNum = (v) => typeof v === 'number' && Number.isFinite(v);
+
+// Kumanda girdisi şema + aralık denetimi: bozuk/kötü niyetli paket hosta
+// ulaşmadan düşer (paddle ışınlama, NaN zehirlenmesi, koltuk flicker'ı kapanır)
+function isValidInputData(data) {
+  if (!data || typeof data.action !== 'string') return false;
+  switch (data.action) {
+    case 'JOYSTICK_MOVE':
+      return finiteNum(data.dx) && finiteNum(data.dy)
+        && Math.abs(data.dx) <= 1 && Math.abs(data.dy) <= 1
+        && finiteNum(data.angle) && finiteNum(data.force)
+        && data.force >= 0 && data.force <= 1;
+    case 'PADDLE_MOVE':
+      return finiteNum(data.position) && data.position >= 0 && data.position <= 1;
+    case 'CURVE_STEER':
+      return data.dir === -1 || data.dir === 0 || data.dir === 1;
+    case 'TANK_DRIVE':
+      return typeof data.driving === 'boolean';
+    case 'TANK_FIRE':
+    case 'DASH':
+    case 'TACKLE':
+    case 'FREEZE':
+    case 'DUEL_TAP':
+      return true;
+    default:
+      return false;
+  }
+}
+
+// Discrete aksiyon hız limiti (slot başına, ms): sel/flicker koruması.
+// Sürekli akış (JOYSTICK/PADDLE) kendi ~30Hz kısmasına tabidir.
+const DISCRETE_MIN_GAP = {
+  TANK_FIRE: 100, DASH: 100, TACKLE: 100, CURVE_STEER: 30, TANK_DRIVE: 30,
+  FREEZE: 500, DUEL_TAP: 30, SWITCH_SLOT: 500, SET_NAME: 1000,
+  READY: 300, REACTION: 1000,
+};
+
 export class RoomManager {
   constructor() {
     // Map<roomCode, RoomData>
     this.rooms = new Map();
+    // Hayalet süpürücü: close gelmeden ölüp kalan soketleri 10sn'de bir yokla,
+    // >20sn sessiz + ölü soketli insan slotunu boşa çıkar (Supabase reclaim eşiğiyle aynı)
+    setInterval(() => this._sweepGhosts(), 10000);
+  }
+
+  _touchSlot(room, slotIndex) {
+    (room.lastSeen ||= {})[slotIndex] = Date.now();
+  }
+
+  _sweepGhosts() {
+    const now = Date.now();
+    for (const room of this.rooms.values()) {
+      let changed = false;
+      for (let i = 0; i < 4; i++) {
+        const p = room.players[i];
+        if (!p || p.isBot || (p.ws && p.ws.readyState === 1)) continue;
+        if (now - ((room.lastSeen || {})[i] || p.joinedAt || 0) < 20000) continue;
+        const name = p.name;
+        room.players[i] = null;
+        room.ready[i] = false;
+        changed = true;
+        this.sendToHost(room, { type: 'PLAYER_LEFT', slotIndex: i, name });
+      }
+      if (changed) this.broadcastSlots(room);
+    }
   }
 
   // 3 haneli sayısal oda kodu (100-999): yazması ve söylemesi kolay.
@@ -42,18 +111,42 @@ export class RoomManager {
     return this.rooms.get(code.toUpperCase().trim()) || null;
   }
 
-  joinRoom(code, clientWs, playerName = 'OYUNCU') {
+  joinRoom(code, clientWs, playerName = 'OYUNCU', clientId = null) {
     const room = this.getRoom(code);
     if (!room) {
       return { success: false, error: 'ODA BULUNAMADI' };
     }
 
-    // Find first free slot (0..3)
+    const baseName = cleanSlotName(playerName);
+    // 1. Reconnect: aynı kalıcı istemci kimliği slotunu geri ver (reload güvenli)
     let slotIndex = -1;
-    for (let i = 0; i < 4; i++) {
-      if (!room.players[i]) {
-        slotIndex = i;
-        break;
+    if (clientId) {
+      for (let i = 0; i < 4; i++) {
+        if (room.players[i] && !room.players[i].isBot && room.players[i].clientId === clientId) {
+          slotIndex = i;
+          break;
+        }
+      }
+    }
+
+    // 2. Find first free slot (0..3)
+    if (slotIndex === -1) {
+      for (let i = 0; i < 4; i++) {
+        if (!room.players[i]) {
+          slotIndex = i;
+          break;
+        }
+      }
+    }
+
+    // 3. Ölü soketli (kapanmış ama close gelmemiş) insan slotunu geri kazan
+    if (slotIndex === -1) {
+      for (let i = 0; i < 4; i++) {
+        const p = room.players[i];
+        if (p && !p.isBot && (!p.ws || p.ws.readyState !== 1)) {
+          slotIndex = i;
+          break;
+        }
       }
     }
 
@@ -61,10 +154,23 @@ export class RoomManager {
       return { success: false, error: 'ODA DOLU (MAKSİMUM 4 OYUNCU)' };
     }
 
+    // 4. İsim tekilleştir (reclaim edilen kendi slotu hariç)
+    let finalName = baseName;
+    const takenByOther = (name) => room.players.some(
+      (p, i) => p && !p.isBot && i !== slotIndex && p.name === name
+    );
+    if (takenByOther(finalName)) {
+      for (let n = 2; n <= 9; n++) {
+        const cand = `${baseName.slice(0, 10)}·${n}`;
+        if (!takenByOther(cand)) { finalName = cand; break; }
+      }
+    }
+
     const playerColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
     const player = {
       slotIndex,
-      name: playerName.slice(0, 12).trim() || `OYUNCU ${slotIndex + 1}`,
+      name: finalName,
+      clientId: clientId || null,
       color: playerColors[slotIndex],
       ws: clientWs,
       joinedAt: Date.now(),
@@ -98,10 +204,33 @@ export class RoomManager {
     };
   }
 
+  // Kumanda seli koruması: sürekli analog akış slot başına ~30Hz'e kısılır
+  // (AGENTS §5'in 50ms throttle'ı kumanda tarafında; burası ikinci sigortadır).
+  // Bozuk paket düşer, discrete aksiyonlar hıza bağlanır (spam/flicker kapanır).
   handlePlayerInput(clientWs, inputData) {
     const room = this.getRoom(clientWs.roomCode);
     if (!room || !room.hostWs) return;
+    if (!isValidInputData(inputData)) return;
 
+    const now = Date.now();
+    const action = inputData.action;
+    const isContinuous = action === 'JOYSTICK_MOVE' || action === 'PADDLE_MOVE';
+    const isStopSignal = inputData.force === 0 || inputData.dir === 0
+      || (action === 'TANK_DRIVE' && inputData.driving === false);
+    if (isContinuous && !isStopSignal) {
+      const key = `in_${clientWs.slotIndex}`;
+      if (room._lastInputAt?.[key] && now - room._lastInputAt[key] < 33) return;
+      (room._lastInputAt ||= {})[key] = now;
+    } else {
+      const gap = DISCRETE_MIN_GAP[action] || 0;
+      if (gap > 0) {
+        const key = `d_${clientWs.slotIndex}_${action}`;
+        if (room._lastInputAt?.[key] && now - room._lastInputAt[key] < gap) return;
+        (room._lastInputAt ||= {})[key] = now;
+      }
+    }
+
+    this._touchSlot(room, clientWs.slotIndex);
     // Forward raw input directly to Host with zero allocation overhead
     this.sendToHost(room, {
       type: 'PLAYER_INPUT',
@@ -110,7 +239,18 @@ export class RoomManager {
     });
   }
 
+  // Yavaş telefonda ws buffer şişerse head-of-line blocking olur — 64KB üstü
+  // host yayınını o telefona atla (sonraki 8Hz tik zaten toparlar).
+  _sendToPlayer(player, payloadStr) {
+    try {
+      if (!player?.ws || player.ws.readyState !== 1) return;
+      if (player.ws.bufferedAmount > 65536) return;
+      player.ws.send(payloadStr);
+    } catch {}
+  }
+
   handleHostBroadcast(hostWs, payload) {
+    if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
 
@@ -120,21 +260,30 @@ export class RoomManager {
     }
 
     // Broadcast state to all connected controller phones
+    const json = JSON.stringify(payload);
     for (const p of room.players) {
-      if (p && p.ws && p.ws.readyState === 1) {
-        p.ws.send(JSON.stringify(payload));
-      }
+      this._sendToPlayer(p, json);
     }
+  }
+
+  // Slot başına hız kapısı (spam/flicker koruması)
+  _rateOk(room, key, gapMs) {
+    const now = Date.now();
+    if (room._lastInputAt?.[key] && now - room._lastInputAt[key] < gapMs) return false;
+    (room._lastInputAt ||= {})[key] = now;
+    return true;
   }
 
   handleReaction(clientWs, emoji) {
     const room = this.getRoom(clientWs.roomCode);
     if (!room || !room.hostWs) return;
+    if (!this._rateOk(room, `r_${clientWs.slotIndex}_REACTION`, 1000)) return;
+    this._touchSlot(room, clientWs.slotIndex);
 
     this.sendToHost(room, {
       type: 'PLAYER_REACTION',
       slotIndex: clientWs.slotIndex,
-      emoji: emoji || '🔥',
+      emoji: (emoji ?? '🔥').toString().slice(0, 8),
     });
   }
 
@@ -143,6 +292,8 @@ export class RoomManager {
     if (!room) return;
     const slot = clientWs.slotIndex;
     if (slot !== undefined) {
+      if (!this._rateOk(room, `r_${slot}_READY`, 300)) return;
+      this._touchSlot(room, slot);
       room.ready[slot] = !!isReady;
       this.sendToHost(room, {
         type: 'PLAYER_READY_STATUS',
@@ -153,6 +304,7 @@ export class RoomManager {
   }
 
   handleSetGameMode(hostWs, gameMode) {
+    if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     room.gameMode = gameMode;
@@ -163,6 +315,7 @@ export class RoomManager {
   }
 
   handleStartGame(hostWs, gameMode) {
+    if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     room.state = 'PLAYING';
@@ -172,22 +325,27 @@ export class RoomManager {
       type: 'GAME_STARTED',
       gameMode: room.gameMode,
     });
+    this.broadcastSlots(room);
   }
 
   // İki kademeli başlatma 1/2: sahayı aç (staging). Oyun başlamaz.
   handleStartStaging(hostWs, gameMode) {
+    if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     room.state = 'STAGING';
+    room.ready = [false, false, false, false];
     if (gameMode) room.gameMode = gameMode;
     this.broadcastToPlayers(room, {
       type: 'STAGING_STARTED',
       gameMode: room.gameMode,
     });
+    this.broadcastSlots(room);
   }
 
   // İki kademeli başlatma 2/2: geri sayım tik'i.
   handleCountdown(hostWs, t) {
+    if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     this.broadcastToPlayers(room, {
@@ -198,6 +356,7 @@ export class RoomManager {
   }
 
   handleReturnToLobby(hostWs) {
+    if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     room.state = 'LOBBY';
@@ -206,12 +365,16 @@ export class RoomManager {
       type: 'RETURNED_TO_LOBBY',
       gameMode: room.gameMode,
     });
+    this.broadcastSlots(room);
   }
 
   handleSwapSlots(hostWs, slotA, slotB) {
+    if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     if (slotA < 0 || slotA > 3 || slotB < 0 || slotB > 3 || slotA === slotB) return;
+    // Bot koltuğu ne hedef ne kaynak olur
+    if (room.players[slotA]?.isBot || room.players[slotB]?.isBot) return;
 
     const playerColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
     const pA = room.players[slotA];
@@ -245,6 +408,36 @@ export class RoomManager {
     this.broadcastSlots(room);
   }
 
+  // Atomik rotate: 3 ayrı takas yerine tek permütasyon ([2,3,1,0] —
+  // swap(0,2)+swap(2,1)+swap(1,3) ile aynı sonuç). Ara yayın yok: her kumandaya
+  // tek SLOT_CHANGED + tek SLOTS_UPDATE gider, flicker/yanlış koltuk kapanır.
+  // Host skor takasını yerelde yapar (SLOTS_SWAPPED gönderilmez, çift takas olmaz).
+  handleRotateSeats(hostWs) {
+    if (!hostWs || !hostWs.isHost) return;
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return;
+    const order = [2, 3, 1, 0];
+    const old = [room.players[0], room.players[1], room.players[2], room.players[3]];
+    // Bot koltuğu takasa girmez — biri bot ise rotate iptal (kısmi dönüşüm yok)
+    if (old.some((p) => p?.isBot)) return;
+    const playerColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
+    for (let i = 0; i < 4; i++) {
+      const p = old[order[i]];
+      room.players[i] = p || null;
+      if (p && !p.isBot) {
+        p.slotIndex = i;
+        p.color = playerColors[i];
+        if (p.ws) {
+          p.ws.slotIndex = i;
+          try {
+            p.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex: i, color: playerColors[i] }));
+          } catch {}
+        }
+      }
+    }
+    this.broadcastSlots(room);
+  }
+
   // ── Tek koltuk gerçeği: bot koltukları + slot snapshot yayını ──
 
   getSlots(room) {
@@ -270,6 +463,7 @@ export class RoomManager {
   }
 
   handleSetSlotBot(hostWs, slotIndex, name) {
+    if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     if (slotIndex < 0 || slotIndex > 3 || room.players[slotIndex]) return;
@@ -287,6 +481,7 @@ export class RoomManager {
   }
 
   handleClearSlotBot(hostWs, slotIndex) {
+    if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     const p = room.players[slotIndex];
@@ -302,7 +497,7 @@ export class RoomManager {
     const slot = clientWs.slotIndex;
     const p = room.players[slot];
     if (slot === undefined || !p || p.isBot) return;
-    p.name = (name || '').slice(0, 12).toUpperCase() || p.name;
+    p.name = cleanSlotName(name) || p.name;
     this.sendToHost(room, {
       type: 'PLAYER_UPDATED',
       slotIndex: slot,
@@ -313,6 +508,7 @@ export class RoomManager {
 
   // Host kaynaklı isim/bot değişimlerinin kumandalara yayını
   handleSetSlotName(hostWs, slotIndex, name) {
+    if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     const p = room.players[slotIndex];
@@ -322,10 +518,9 @@ export class RoomManager {
   }
 
   broadcastToPlayers(room, payload) {
+    const json = JSON.stringify(payload);
     for (const p of room.players) {
-      if (p && p.ws && p.ws.readyState === 1) {
-        p.ws.send(JSON.stringify(payload));
-      }
+      this._sendToPlayer(p, json);
     }
   }
 
@@ -348,8 +543,11 @@ export class RoomManager {
       // A controller player disconnected
       const slot = ws.slotIndex;
       if (slot !== undefined && room.players[slot]) {
+        // Yalnızca bu soketin slotuysa boşalt (reclaim edilmişse dokunma)
+        if (room.players[slot].ws !== ws) return;
         const leftPlayer = room.players[slot];
         room.players[slot] = null;
+        room.ready[slot] = false;
 
         this.sendToHost(room, {
           type: 'PLAYER_LEFT',

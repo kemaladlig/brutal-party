@@ -1,7 +1,7 @@
 // Specialized Gamepad Controller for Mobile Phones in TV/Console & Online Mode
 // Adapts dynamically to Lobby, Pong, Tanks, Curve, Bomb, Heist, and Duel with ultra-low latency inputs.
 
-import { storePlayerName } from './net.js';
+import { storePlayerName, escapeHtml } from './net.js';
 import { showInstallToast } from './ui/toast.js';
 
 // Kumanda kayıt tablosu: yeni oyun = 1 satır (etiketler + mount fonksiyonu).
@@ -15,6 +15,7 @@ const CONTROLLER_META = {
   HEIST: { hudTag: '💰 HEIST', lobbyTitle: '💰 BRUTAL HEIST', mount: 'mountHeistController' },
   DUEL: { hudTag: '🤠 DUEL', lobbyTitle: '🤠 QUICK DRAW', mount: 'mountDuelController' },
   CROWN: { hudTag: '👑 CROWN', lobbyTitle: '👑 BRUTAL CROWN', mount: 'mountCrownController' },
+  ZONE: { hudTag: '🗺️ ZONE', lobbyTitle: '🗺️ BRUTAL ZONE', mount: 'mountZoneController' },
 };
 
 export class GamepadManager {
@@ -57,6 +58,141 @@ export class GamepadManager {
     this.stagingOpen = false;
     this.countdownActive = false;
     this._countdownT = null;
+
+    // Taşıma-bağımsız analog throttle (AGENTS §5: 50ms + ölübant — WS ve
+    // Supabase yollarını birlikte kapsar, çift throttle jitter'ı olmaz)
+    this._lastAnalogSent = 0;
+    this._lastPaddlePos = null;
+    this._lastJoySent = { dx: 0, dy: 0 };
+    // Mount başına window listener temizliği (re-mount sızıntısı → yinelenen gönderim)
+    this._mountAbort = null;
+    // 8Hz DOM churn kalkanı: eleman önbelleği + diff'li yazım
+    this._elCache = new Map();
+    this._lastStripJson = '';
+    this._lastStatusStr = '';
+    // DUEL emüle-mousedown bastırma
+    this._lastDuelTouchAt = 0;
+    this._visibilityBound = false;
+  }
+
+  // Sürekli analog akış için tek gönderim noktası: 50ms throttle + ölübant.
+  // Sıfır paketleri (bırakma/durma) ve discrete aksiyonlar ASLA throttle edilmez.
+  _sendAnalog(data) {
+    const now = performance.now();
+    const isZero = data.action === 'JOYSTICK_MOVE'
+      ? (data.force === 0)
+      : (data.action === 'PADDLE_MOVE' && false);
+    if (!isZero) {
+      if (now - this._lastAnalogSent < 50) return;
+      if (data.action === 'PADDLE_MOVE' && typeof data.position === 'number') {
+        if (this._lastPaddlePos !== null && Math.abs(data.position - this._lastPaddlePos) < 0.003) return;
+        this._lastPaddlePos = data.position;
+      } else if (data.action === 'JOYSTICK_MOVE') {
+        const dx = data.dx || 0;
+        const dy = data.dy || 0;
+        if (Math.hypot(dx - this._lastJoySent.dx, dy - this._lastJoySent.dy) < 0.02) return;
+        this._lastJoySent = { dx, dy };
+      }
+    } else {
+      this._lastJoySent = { dx: 0, dy: 0 };
+    }
+    this._lastAnalogSent = now;
+    this.network.sendInput(data);
+  }
+
+  // Ortak aksiyon-buton soğutması (BOMB/HEIST/CROWN aynı desen):
+  // bas → onFire() + buton kilitlenir, süre dolunca eski haline döner.
+  // Sayaç mount sökümünde temizlenir (CdTimer sızıntısı kapandı).
+  cooledAction(btn, secs, readyLabel, onFire, vibratePattern) {
+    const state = { cooling: false, timer: null };
+    const signal = this._mountAbort?.signal;
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        if (state.timer) clearInterval(state.timer);
+        state.timer = null;
+        state.cooling = false;
+      }, { once: true });
+    }
+    return (e) => {
+      e?.preventDefault();
+      if (state.cooling) return;
+      state.cooling = true;
+      try { onFire(); } catch {}
+      if (navigator.vibrate) navigator.vibrate(vibratePattern);
+      if (!btn || !btn.isConnected) return;
+      btn.classList.add('cooling');
+      let remaining = secs;
+      const paint = (label, sub) => {
+        if (!btn.isConnected) return;
+        btn.innerHTML = `<span class="dash-btn-label">${label}</span><span class="dash-btn-sub">${sub}</span>`;
+      };
+      paint(`⏳ ${remaining.toFixed(1)}s`, 'DOLUYOR');
+      if (state.timer) clearInterval(state.timer);
+      state.timer = setInterval(() => {
+        remaining -= 0.1;
+        if (remaining <= 0.05) {
+          clearInterval(state.timer);
+          state.timer = null;
+          state.cooling = false;
+          if (!btn.isConnected) return;
+          btn.classList.remove('cooling');
+          paint(readyLabel, 'HAZIR!');
+          if (navigator.vibrate) navigator.vibrate(15);
+        } else {
+          paint(`⏳ ${remaining.toFixed(1)}s`, 'DOLUYOR');
+        }
+      }, 100);
+    };
+  }
+
+  // Koltuk değiştirme ön kapısı (lobi ızgarası + refresh tek kaynaktan;
+  // sunucu/host son kapılar yerinde durur)
+  canSwitchSlot(targetSlot) {
+    if (this.countdownActive) return false;
+    if (targetSlot === this.playerIndex) return false;
+    if (this.slots?.[targetSlot]?.kind === 'bot') return false;
+    if (this.slots?.[this.playerIndex]?.kind === 'bot') return false;
+    return true;
+  }
+
+  // 8Hz'de getElementById yerine önbellek (mount değişince temizlenir)
+  _el(id) {
+    let el = this._elCache.get(id);
+    if (el && el.isConnected) return el;
+    el = document.getElementById(id);
+    if (el) this._elCache.set(id, el);
+    return el;
+  }
+
+  // Mevcut mount'un window listener'larını sök, joystick takılı kalmasın diye
+  // nötr paket gönder (zone innerHTML ile sökülmeden ÖNCE çağrılmalı)
+  _teardownMount() {
+    if (this._mountAbort) {
+      try { this._mountAbort.abort(); } catch {}
+      this._mountAbort = null;
+    }
+  }
+
+  // Sekme arka plana alınınca / sayfa kapanırken host'ta latch kalmasın
+  _sendNeutralForMode() {
+    try {
+      if (this.gameMode === 'TANKS') {
+        this.network.sendInput({ action: 'TANK_DRIVE', driving: false });
+      } else if (this.gameMode === 'CURVE') {
+        this.network.sendInput({ action: 'CURVE_STEER', dir: 0 });
+      } else if (this.gameMode === 'BOMB' || this.gameMode === 'HEIST' || this.gameMode === 'CROWN' || this.gameMode === 'ZONE') {
+        this.network.sendInput({ action: 'JOYSTICK_MOVE', dx: 0, dy: 0, angle: 0, force: 0 });
+      }
+    } catch {}
+  }
+
+  _bindVisibilityNeutral() {
+    if (this._visibilityBound) return;
+    this._visibilityBound = true;
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this._sendNeutralForMode();
+    });
+    window.addEventListener('pagehide', () => this._sendNeutralForMode());
   }
 
   init(playerInfo, gameMode = 'LOBBY') {
@@ -73,6 +209,7 @@ export class GamepadManager {
     this._pongInvertManualSet = false;
 
     this.renderShell();
+    this._bindVisibilityNeutral();
     this.renderGameController(this.gameMode);
     this.overlay.classList.remove('hidden');
   }
@@ -187,18 +324,27 @@ export class GamepadManager {
   // İsimli skor şeridi (sub-HUD): koltuk rengi + isim + skor. PONG hariç tüm
   // oyun modlarında görünür (PONG'un kendi canlı skorbord'u isim alır).
   renderScoreStrip(names, scores) {
-    const strip = document.getElementById('score-strip');
+    const strip = this._el('score-strip');
     if (!strip) return;
     if (this.gameMode === 'LOBBY' || !Array.isArray(names) || !Array.isArray(scores)) {
       strip.classList.add('hidden');
       strip.innerHTML = '';
+      this._lastStripJson = '';
       return;
     }
     if (this.gameMode === 'PONG') {
       strip.classList.add('hidden');
       strip.innerHTML = '';
+      this._lastStripJson = '';
       return;
     }
+    // Skor/isim değişmediyse innerHTML'i yeniden kurma (8Hz layout/GC titremesi)
+    const sig = JSON.stringify([names, scores, this.playerIndex]);
+    if (sig === this._lastStripJson) {
+      strip.classList.remove('hidden');
+      return;
+    }
+    this._lastStripJson = sig;
     const seatColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
     const seatTags = ['P1', 'P2', 'P3', 'P4'];
     strip.innerHTML = [0, 1, 2, 3].map((idx) => {
@@ -208,7 +354,7 @@ export class GamepadManager {
       return `
         <div class="score-chip${isMine ? ' is-mine' : ''}${isEmpty ? ' is-empty' : ''}">
           <span class="score-dot" style="background-color: ${seatColors[idx]}"></span>
-          <span class="score-name">${isEmpty ? 'BOŞ' : name}</span>
+          <span class="score-name">${isEmpty ? 'BOŞ' : escapeHtml(name)}</span>
           <span class="score-val">${scores[idx] ?? 0}</span>
         </div>
       `;
@@ -251,6 +397,18 @@ export class GamepadManager {
   }
 
   renderGameController(mode) {
+    // Eski mount sökülmeden önce: takılı joystick/sürüş varsa host'a nötr paket
+    // (zone innerHTML ile gidince endJoy hiç çalışmıyordu → hayalet girdi)
+    if (this.gameMode === 'BOMB' || this.gameMode === 'HEIST' || this.gameMode === 'CROWN' || this.gameMode === 'ZONE') {
+      this._sendNeutralForMode();
+    } else if (this.gameMode === 'TANKS' || this.gameMode === 'CURVE') {
+      this._sendNeutralForMode();
+    }
+    this._teardownMount();
+    this._mountAbort = new AbortController();
+    this._elCache.clear();
+    this._lastStripJson = '';
+    this._lastStatusStr = '';
     this.gameMode = mode;
     const workspace = document.getElementById('gamepad-workspace');
     if (!workspace) return;
@@ -302,7 +460,7 @@ export class GamepadManager {
     return `
       <button class="${btnClass}" data-seat="${idx}" type="button"${isBot ? ' disabled' : ''}>
         <span class="seat-num" style="color: ${seatColors[idx]}">${idx + 1}</span>
-        <span class="seat-status">${statusText}</span>
+        <span class="seat-status">${escapeHtml(statusText)}</span>
       </button>
     `;
   }
@@ -313,12 +471,8 @@ export class GamepadManager {
     grid.innerHTML = [0, 1, 2, 3].map((idx) => this.renderSeatButtonHtml(idx)).join('');
     grid.querySelectorAll('.lobby-seat-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (this.countdownActive) return;
         const targetSlot = parseInt(btn.dataset.seat, 10);
-        if (targetSlot === this.playerIndex) return;
-        // Bot koltukları kilitlidir — ne hedef ne kaynak olur
-        if (this.slots?.[targetSlot]?.kind === 'bot') return;
-        if (this.slots?.[this.playerIndex]?.kind === 'bot') return;
+        if (!this.canSwitchSlot(targetSlot)) return;
         this.network.sendInput({ action: 'SWITCH_SLOT', targetSlot });
         if (navigator.vibrate) navigator.vibrate(30);
       });
@@ -373,7 +527,7 @@ export class GamepadManager {
         </div>
 
         <div class="lobby-game-preview-card">
-          <img src="/assets/games/${(this.selectedHostGame || 'PONG').toLowerCase()}.jpg" class="lobby-game-thumb-preview" alt="Game" onerror="this.style.display='none'" />
+          <img src="/assets/games/${(this.selectedHostGame || 'PONG').toLowerCase()}.jpg" class="lobby-game-thumb-preview" alt="${escapeHtml(CONTROLLER_META[this.selectedHostGame]?.lobbyTitle || 'Oyun')}" onerror="this.style.display='none'" />
           <div class="lobby-game-text">OYUN: <b id="lobby-selected-game-text">${selectedTitle}</b></div>
         </div>
 
@@ -392,11 +546,8 @@ export class GamepadManager {
     // Seat switch click handlers
     container.querySelectorAll('.lobby-seat-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (this.countdownActive) return;
         const targetSlot = parseInt(btn.dataset.seat, 10);
-        if (targetSlot === this.playerIndex) return;
-        if (this.slots?.[targetSlot]?.kind === 'bot') return;
-        if (this.slots?.[this.playerIndex]?.kind === 'bot') return;
+        if (!this.canSwitchSlot(targetSlot)) return;
         this.network.sendInput({ action: 'SWITCH_SLOT', targetSlot });
         if (navigator.vibrate) navigator.vibrate(30);
       });
@@ -427,6 +578,7 @@ export class GamepadManager {
         headerLabel.textContent = newName;
       }
       this.network.sendInput({ action: 'SET_NAME', name: newName });
+      this.network.notePlayerName?.(newName);
       storePlayerName(newName);
       if (navigator.vibrate) navigator.vibrate(15);
     };
@@ -503,14 +655,21 @@ export class GamepadManager {
           <button class="pong-invert-btn ${this.isPongInverted !== baseInvert ? 'inverted' : ''}" id="btn-invert-axis" type="button">
             ${this.isPongInverted !== baseInvert ? '↺ OTOMATİK YÖN (DOKUN)' : '↺ YÖNÜ TERS ÇEVİR'}
           </button>
+          <button class="pong-invert-btn" id="btn-pong-freeze" type="button">❄️ DONDUR</button>
         </div>
       `;
 
       const track = document.getElementById('pong-track');
       const thumb = document.getElementById('pong-thumb');
       const invertBtn = document.getElementById('btn-invert-axis');
+      const freezeBtn = document.getElementById('btn-pong-freeze');
       const hintEl = document.getElementById('pong-direction-hint');
       let isTrackingMouse = false;
+
+      freezeBtn?.addEventListener('click', () => {
+        this.network.sendInput({ action: 'FREEZE' });
+        if (navigator.vibrate) navigator.vibrate(30);
+      });
 
       invertBtn?.addEventListener('click', () => {
         this.isPongInverted = !this.isPongInverted;
@@ -524,6 +683,7 @@ export class GamepadManager {
       });
 
       // Ergonomik başparmak aralığı: Ekranın en dışına uzanmaya gerek kalmadan %10-%90 merkez aralığını 0.0-1.0 TV koordinatına eşler
+      const mountSignal = this._mountAbort?.signal;
       const updateSliderX = (clientX) => {
         const rect = track.getBoundingClientRect();
         const relativeX = Math.max(0, Math.min(rect.width, clientX - rect.left));
@@ -533,20 +693,26 @@ export class GamepadManager {
         this.pongPosition = position;
 
         if (thumb) thumb.style.left = `${rawNorm * 100}%`;
-        this.network.sendInput({ action: 'PADDLE_MOVE', position });
+        this._sendAnalog({ action: 'PADDLE_MOVE', position });
       };
 
       track?.addEventListener('touchstart', (e) => {
+        e.preventDefault();
         if (e.touches[0]) updateSliderX(e.touches[0].clientX);
-      }, { passive: true });
+      }, { passive: false });
 
       track?.addEventListener('touchmove', (e) => {
+        e.preventDefault();
         if (e.touches[0]) updateSliderX(e.touches[0].clientX);
-      }, { passive: true });
+      }, { passive: false });
+      // Parmak kesilirse (çağrı/pencere) son konum latch'te kalır — tasarım gereği
+      // güvenlidir (mutlak pozisyon, sürüklenme yok); sadece kaydırma engellenir
+      track?.addEventListener('touchend', (e) => { e.preventDefault(); }, { passive: false });
+      track?.addEventListener('touchcancel', (e) => { e.preventDefault(); }, { passive: false });
 
       track?.addEventListener('mousedown', (e) => { isTrackingMouse = true; updateSliderX(e.clientX); });
-      window.addEventListener('mousemove', (e) => { if (isTrackingMouse) updateSliderX(e.clientX); });
-      window.addEventListener('mouseup', () => { isTrackingMouse = false; });
+      window.addEventListener('mousemove', (e) => { if (isTrackingMouse) updateSliderX(e.clientX); }, { signal: mountSignal });
+      window.addEventListener('mouseup', () => { isTrackingMouse = false; }, { signal: mountSignal });
     }
   }
 
@@ -594,15 +760,16 @@ export class GamepadManager {
       this.network.sendInput({ action: 'TANK_DRIVE', driving: false });
     };
 
+    const tanksSignal = this._mountAbort?.signal;
     driveBtn?.addEventListener('touchstart', startDrive, { passive: false });
     driveBtn?.addEventListener('touchend', stopDrive, { passive: false });
     driveBtn?.addEventListener('touchcancel', stopDrive, { passive: false });
-    window.addEventListener('touchend', stopDrive, { passive: true });
-    window.addEventListener('touchcancel', stopDrive, { passive: true });
+    window.addEventListener('touchend', stopDrive, { passive: true, signal: tanksSignal });
+    window.addEventListener('touchcancel', stopDrive, { passive: true, signal: tanksSignal });
     driveBtn?.addEventListener('mousedown', startDrive);
     driveBtn?.addEventListener('mouseup', stopDrive);
     driveBtn?.addEventListener('mouseleave', stopDrive);
-    window.addEventListener('mouseup', stopDrive);
+    window.addEventListener('mouseup', stopDrive, { signal: tanksSignal });
 
     const fireBtn = document.getElementById('btn-tank-fire');
     let lastFireTime = 0;
@@ -706,8 +873,9 @@ export class GamepadManager {
     view?.addEventListener('touchcancel', onTouchCancel, { passive: true });
 
     // Ekran dışına kayıp kalkan veya takılan parmaklar için global güvenlik ağı
-    window.addEventListener('touchend', onTouchEnd, { passive: true });
-    window.addEventListener('touchcancel', onTouchCancel, { passive: true });
+    const curveSignal = this._mountAbort?.signal;
+    window.addEventListener('touchend', onTouchEnd, { passive: true, signal: curveSignal });
+    window.addEventListener('touchcancel', onTouchCancel, { passive: true, signal: curveSignal });
 
     // Masaüstü / Fare desteği
     btnLeft?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = -1; syncSteer(); });
@@ -718,7 +886,7 @@ export class GamepadManager {
         syncSteer();
       }
     };
-    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('mouseup', onMouseUp, { signal: curveSignal });
   }
 
   // --- 04: BOMB CONTROLLER (Joystick + Dash) ---
@@ -740,53 +908,12 @@ export class GamepadManager {
     `;
 
     this.bindJoystick('bomb-joy-zone', 'bomb-joy-knob', (input) => {
-      this.network.sendInput({ action: 'JOYSTICK_MOVE', ...input });
+      this._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
     });
 
     const dashBtn = document.getElementById('btn-bomb-dash');
-    let isCooling = false;
-    let cdTimer = null;
-
-    const dashAction = (e) => {
-      e?.preventDefault();
-      if (isCooling) return;
-      isCooling = true;
-      this.network.sendInput({ action: 'DASH' });
-      if (navigator.vibrate) navigator.vibrate([25, 35]);
-
-      if (dashBtn) {
-        dashBtn.classList.add('cooling');
-        let remaining = 2.2;
-        const updateText = () => {
-          if (!dashBtn) return;
-          dashBtn.innerHTML = `
-            <span class="dash-btn-label">⏳ ${remaining.toFixed(1)}s</span>
-            <span class="dash-btn-sub">DOLUYOR</span>
-          `;
-        };
-        updateText();
-
-        if (cdTimer) clearInterval(cdTimer);
-        cdTimer = setInterval(() => {
-          remaining -= 0.1;
-          if (remaining <= 0.05) {
-            clearInterval(cdTimer);
-            cdTimer = null;
-            isCooling = false;
-            if (dashBtn) {
-              dashBtn.classList.remove('cooling');
-              dashBtn.innerHTML = `
-                <span class="dash-btn-label">⚡ DEPAR</span>
-                <span class="dash-btn-sub">HAZIR!</span>
-              `;
-              if (navigator.vibrate) navigator.vibrate(15);
-            }
-          } else {
-            updateText();
-          }
-        }, 100);
-      }
-    };
+    const dashAction = this.cooledAction(dashBtn, 2.2, '⚡ DEPAR',
+      () => this.network.sendInput({ action: 'DASH' }), [25, 35]);
 
     dashBtn?.addEventListener('touchstart', dashAction, { passive: false });
     dashBtn?.addEventListener('mousedown', dashAction);
@@ -811,53 +938,12 @@ export class GamepadManager {
     `;
 
     this.bindJoystick('heist-joy-zone', 'heist-joy-knob', (input) => {
-      this.network.sendInput({ action: 'JOYSTICK_MOVE', ...input });
+      this._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
     });
 
     const tackleBtn = document.getElementById('btn-heist-tackle');
-    let isCooling = false;
-    let cdTimer = null;
-
-    const tackleAction = (e) => {
-      e?.preventDefault();
-      if (isCooling) return;
-      isCooling = true;
-      this.network.sendInput({ action: 'TACKLE' });
-      if (navigator.vibrate) navigator.vibrate([25, 40]);
-
-      if (tackleBtn) {
-        tackleBtn.classList.add('cooling');
-        let remaining = 3.5;
-        const updateText = () => {
-          if (!tackleBtn) return;
-          tackleBtn.innerHTML = `
-            <span class="dash-btn-label">⏳ ${remaining.toFixed(1)}s</span>
-            <span class="dash-btn-sub">DOLUYOR</span>
-          `;
-        };
-        updateText();
-
-        if (cdTimer) clearInterval(cdTimer);
-        cdTimer = setInterval(() => {
-          remaining -= 0.1;
-          if (remaining <= 0.05) {
-            clearInterval(cdTimer);
-            cdTimer = null;
-            isCooling = false;
-            if (tackleBtn) {
-              tackleBtn.classList.remove('cooling');
-              tackleBtn.innerHTML = `
-                <span class="dash-btn-label">💥 OMUZ AT</span>
-                <span class="dash-btn-sub">HAZIR!</span>
-              `;
-              if (navigator.vibrate) navigator.vibrate(15);
-            }
-          } else {
-            updateText();
-          }
-        }, 100);
-      }
-    };
+    const tackleAction = this.cooledAction(tackleBtn, 3.5, '💥 OMUZ AT',
+      () => this.network.sendInput({ action: 'TACKLE' }), [25, 40]);
 
     tackleBtn?.addEventListener('touchstart', tackleAction, { passive: false });
     tackleBtn?.addEventListener('mousedown', tackleAction);
@@ -877,11 +963,20 @@ export class GamepadManager {
     const triggerBtn = document.getElementById('btn-duel-trigger');
     const triggerAction = (e) => {
       e?.preventDefault();
+      this._lastDuelTouchAt = performance.now();
       this.network.sendInput({ action: 'DUEL_TAP' });
       if (navigator.vibrate) navigator.vibrate(50);
     };
-    triggerBtn?.addEventListener('touchstart', triggerAction);
-    triggerBtn?.addEventListener('mousedown', triggerAction);
+    // Emüle mousedown bastırma: dokunmatik sonrası ~600ms içindeki mousedown
+    // ikinci DUEL_TAP üretmesin (host hasFired guard'ı skoru korur ama gürültü gider)
+    const triggerMouse = (e) => {
+      if (performance.now() - this._lastDuelTouchAt < 600) return;
+      e?.preventDefault();
+      this.network.sendInput({ action: 'DUEL_TAP' });
+      if (navigator.vibrate) navigator.vibrate(50);
+    };
+    triggerBtn?.addEventListener('touchstart', triggerAction, { passive: false });
+    triggerBtn?.addEventListener('mousedown', triggerMouse);
   }
 
   // --- 07: CROWN CONTROLLER (Joystick + Shoulder Tackle) ---
@@ -903,56 +998,38 @@ export class GamepadManager {
     `;
 
     this.bindJoystick('crown-joy-zone', 'crown-joy-knob', (input) => {
-      this.network.sendInput({ action: 'JOYSTICK_MOVE', ...input });
+      this._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
     });
 
     const tackleBtn = document.getElementById('btn-crown-tackle');
-    let isCooling = false;
-    let cdTimer = null;
-
-    const tackleAction = (e) => {
-      e?.preventDefault();
-      if (isCooling) return;
-      isCooling = true;
-      this.network.sendInput({ action: 'TACKLE' });
-      if (navigator.vibrate) navigator.vibrate([25, 40]);
-
-      if (tackleBtn) {
-        tackleBtn.classList.add('cooling');
-        let remaining = 2.0;
-        const updateText = () => {
-          if (!tackleBtn) return;
-          tackleBtn.innerHTML = `
-            <span class="dash-btn-label">⏳ ${remaining.toFixed(1)}s</span>
-            <span class="dash-btn-sub">DOLUYOR</span>
-          `;
-        };
-        updateText();
-
-        if (cdTimer) clearInterval(cdTimer);
-        cdTimer = setInterval(() => {
-          remaining -= 0.1;
-          if (remaining <= 0.05) {
-            clearInterval(cdTimer);
-            cdTimer = null;
-            isCooling = false;
-            if (tackleBtn) {
-              tackleBtn.classList.remove('cooling');
-              tackleBtn.innerHTML = `
-                <span class="dash-btn-label">💥 OMUZ AT</span>
-                <span class="dash-btn-sub">HAZIR!</span>
-              `;
-              if (navigator.vibrate) navigator.vibrate(15);
-            }
-          } else {
-            updateText();
-          }
-        }, 100);
-      }
-    };
+    const tackleAction = this.cooledAction(tackleBtn, 2.0, '💥 OMUZ AT',
+      () => this.network.sendInput({ action: 'TACKLE' }), [25, 40]);
 
     tackleBtn?.addEventListener('touchstart', tackleAction, { passive: false });
     tackleBtn?.addEventListener('mousedown', tackleAction);
+  }
+
+  // --- 08: ZONE CONTROLLER (Joystick-only; aksiyon butonu yok, sağda hedef kartı) ---
+  mountZoneController(container) {
+    container.innerHTML = `
+      <div class="joystick-action-view">
+        <div class="joystick-half" id="zone-joy-zone">
+          <div class="phone-joy-base">
+            <div class="phone-joy-knob" id="zone-joy-knob" style="background-color: ${this.playerColor}"></div>
+          </div>
+        </div>
+        <div class="action-half">
+          <button class="action-dash-btn" id="btn-zone-goal" type="button" style="background-color: #2f6a4f" disabled>
+            <span class="dash-btn-label">🗺️ %40 ALAN</span>
+            <span class="dash-btn-sub">İZİNİ KORU!</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    this.bindJoystick('zone-joy-zone', 'zone-joy-knob', (input) => {
+      this._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
+    });
   }
 
   // Generic Touch & Mouse Joystick Helper
@@ -1005,8 +1082,28 @@ export class GamepadManager {
       }
     }, { passive: false });
 
-    zone.addEventListener('touchend', endJoy, { passive: true });
-    zone.addEventListener('touchcancel', endJoy, { passive: true });
+    zone.addEventListener('touchend', (e) => {
+      // Zone-local bırakma: sadece bizim parmağımızsa sıfırla
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === activeTouchId) { endJoy(); break; }
+      }
+    }, { passive: true });
+    zone.addEventListener('touchcancel', (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === activeTouchId) { endJoy(); break; }
+      }
+    }, { passive: true });
+
+    // Zone dışı bırakma / çağrı kesmesi güvenlik ağı (TANKS/CURVE deseni)
+    const joySignal = this._mountAbort?.signal;
+    const onWindowTouchEnd = (e) => {
+      if (activeTouchId === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === activeTouchId) { endJoy(); break; }
+      }
+    };
+    window.addEventListener('touchend', onWindowTouchEnd, { passive: true, signal: joySignal });
+    window.addEventListener('touchcancel', onWindowTouchEnd, { passive: true, signal: joySignal });
 
     // Mouse fallback for desktop testing
     zone.addEventListener('mousedown', (e) => {
@@ -1015,10 +1112,10 @@ export class GamepadManager {
     });
     window.addEventListener('mousemove', (e) => {
       if (isMouseDown) moveAt(e.clientX, e.clientY);
-    });
+    }, { signal: joySignal });
     window.addEventListener('mouseup', () => {
       if (isMouseDown) endJoy();
-    });
+    }, { signal: joySignal });
   }
 
   updateJoy(clientX, clientY, cx, cy, maxR, knobEl, onInput) {
@@ -1072,11 +1169,12 @@ export class GamepadManager {
       this.renderGameController(data.gameMode);
     }
 
-    const modeTag = document.getElementById('hud-game-tag');
-    const liveStatus = document.getElementById('hud-live-status');
+    const modeTag = this._el('hud-game-tag');
+    const liveStatus = this._el('hud-live-status');
 
     if (modeTag && data.gameMode) {
-      modeTag.textContent = CONTROLLER_META[data.gameMode]?.hudTag || data.gameMode;
+      const tag = CONTROLLER_META[data.gameMode]?.hudTag || data.gameMode;
+      if (modeTag.textContent !== tag) modeTag.textContent = tag;
     }
 
     // İsimli skor şeridi (PONG kendi skorbord'unu kullanır, diğer modlar şeridi)
@@ -1089,25 +1187,44 @@ export class GamepadManager {
       let statusStr = '';
       if (data.gameMode === 'PONG') {
         statusStr = `RALLİ: ${data.rally || 0} • SKOR: ${data.scores.slice(0, 4).join('-')}`;
-        const scoreDisp = document.getElementById('pong-score-display');
-        const rallyDisp = document.getElementById('pong-rally-display');
+        const scoreDisp = this._el('pong-score-display');
+        const rallyDisp = this._el('pong-rally-display');
         if (scoreDisp && data.scores) {
           // İsimler varsa kimin skoru olduğu görünür: "AHMET 2 • MEHMET 1"
-          scoreDisp.textContent = Array.isArray(data.names)
+          const scoreTxt = Array.isArray(data.names)
             ? data.scores.slice(0, 4).map((s, i) => `${data.names[i] || `P${i + 1}`} ${s}`).join(' • ')
             : `SKOR: ${data.scores.slice(0, 4).join(' - ')}`;
+          if (scoreDisp.textContent !== scoreTxt) scoreDisp.textContent = scoreTxt;
         }
-        if (rallyDisp && data.rally !== undefined) rallyDisp.textContent = `⚡ RALLİ: ${data.rally}`;
+        if (rallyDisp && data.rally !== undefined) {
+          const rallyTxt = `⚡ RALLİ: ${data.rally}`;
+          if (rallyDisp.textContent !== rallyTxt) rallyDisp.textContent = rallyTxt;
+        }
+        const frzBtn = this._el('btn-pong-freeze');
+        if (frzBtn && Array.isArray(data.cd)) {
+          const cd = data.cd[this.playerIndex] || 0;
+          frzBtn.disabled = cd > 0;
+          frzBtn.style.opacity = cd > 0 ? 0.45 : 1;
+          frzBtn.textContent = cd > 0 ? `❄️ ${cd}sn` : (data.frz ? '❄️ MAVİ TOP!' : '❄️ DONDUR');
+        }
+        if (rallyDisp && data.fzIdx !== undefined && data.fzIdx >= 0) {
+          const frz = `❄️ P${data.fzIdx + 1} DONDU (${data.fzT || 0}sn)`;
+          if (rallyDisp.textContent !== frz) rallyDisp.textContent = frz;
+        }
       } else if (data.gameMode === 'TANKS') {
         statusStr = `SKOR: ${data.scores.join('-')}`;
       } else if (data.gameMode === 'CURVE') {
         statusStr = `SKOR: ${data.scores.join('-')}`;
       } else if (data.gameMode === 'BOMB') {
         const timeStr = data.bombTime !== undefined ? `${data.bombTime}s` : '';
-        statusStr = data.carrier === this.playerIndex ? `🔥 BOMBA SENDE! (${timeStr})` : `BOMBA: P${(data.carrier ?? 0) + 1} (${timeStr})`;
+        statusStr = data.carrier === this.playerIndex
+          ? `🔥 BOMBA SENDE! (${timeStr})`
+          : (data.carrier === -1 || data.carrier === null || data.carrier === undefined
+            ? `BOMBA BOŞTA (${timeStr})`
+            : `BOMBA: P${data.carrier + 1} (${timeStr})`);
       } else if (data.gameMode === 'HEIST') {
         const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
-        statusStr = data.gemCarrier === this.playerIndex ? `💎 ELMAS SENDE!` : `SÜRE: ${timeStr} • ${data.scores.join('-')}`;
+        statusStr = `SÜRE: ${timeStr} • ${data.scores.join('-')}`;
       } else if (data.gameMode === 'DUEL') {
         statusStr = `SKOR: ${data.scores.join('-')}`;
       } else if (data.gameMode === 'CROWN') {
@@ -1116,8 +1233,19 @@ export class GamepadManager {
         statusStr = isKing
           ? `👑 TAÇ SENDE! (${myTime}s)`
           : (data.king !== null && data.king !== undefined ? `KRAL: P${data.king + 1} (${myTime}s)` : `TAÇ BOŞTA! (${myTime}s)`);
+      } else if (data.gameMode === 'ZONE') {
+        const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
+        const myPct = Array.isArray(data.pct) ? (data.pct[this.playerIndex] ?? 0) : 0;
+        const leadPct = Array.isArray(data.pct) && data.leader >= 0 ? (data.pct[data.leader] ?? 0) : 0;
+        const leadName = Array.isArray(data.names) && data.leader >= 0 ? (data.names[data.leader] || `P${data.leader + 1}`) : '';
+        statusStr = data.leader === this.playerIndex
+          ? `👑 ÖNDESİN! %${myPct} • ⏱ ${timeStr}`
+          : `⏱ ${timeStr} • SEN %${myPct} • 👑 ${leadName} %${leadPct}`;
       }
-      liveStatus.textContent = statusStr;
+      if (statusStr !== this._lastStatusStr) {
+        this._lastStatusStr = statusStr;
+        liveStatus.textContent = statusStr;
+      }
     }
 
     // 1. Bomb Alert
@@ -1128,13 +1256,8 @@ export class GamepadManager {
       this.overlay.classList.remove('bomb-carrier-alert');
     }
 
-    // 2. Heist Alert
-    if (this.gameMode === 'HEIST') {
-      const isGemCarrier = data.gemCarrier === this.playerIndex;
-      this.overlay.classList.toggle('gem-carrier-alert', isGemCarrier);
-    } else {
-      this.overlay.classList.remove('gem-carrier-alert');
-    }
+    // 2. Heist Alert (pakette taşıyıcı yok — skor+süre şeridi yeterli)
+    this.overlay.classList.remove('gem-carrier-alert');
 
     // 2.5. Crown King Alert
     if (this.gameMode === 'CROWN') {

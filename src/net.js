@@ -74,3 +74,40 @@ export function storePlayerName(name) {
     // private mode vb. — sessiz geç
   }
 }
+
+// İsim temizleyici (tek kaynak): trim + BÜYÜK HARF + 12 + etiket gruplarını
+// ve tehlikeli karakterleri at. TV listesi ↔ relay ↔ kumanda hep buradan
+// geçer (AGENTS §4 parity).
+export function cleanPlayerName(name) {
+  const clean = (name || '')
+    .toString()
+    .replace(/<[^>]*>/g, '')
+    .trim()
+    .toUpperCase()
+    .slice(0, 12)
+    .replace(/[<>&"'`=\\/]/g, '');
+  return clean || 'OYUNCU';
+}
+
+// Kalıcı istemci kimliği (reclaim token): reload'da değişmez, gaspı önler.
+// SenderId sekme başına değiştiği için isim-reclaim tek başına güvenli değil.
+const CLIENT_ID_KEY = 'brutal-party-client-id';
+export function getClientId() {
+  try {
+    let id = localStorage.getItem(CLIENT_ID_KEY);
+    if (!id) {
+      id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem(CLIENT_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+
+// HTML'e gömülen isimler için kaçış (skor şeridi innerHTML kullanır)
+export function escapeHtml(s) {
+  return (s ?? '').toString().replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}

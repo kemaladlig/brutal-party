@@ -72,7 +72,26 @@ export function vitePluginWs() {
   };
 }
 
+// Kumanda rolleri (JOIN_ROOM/INPUT/REACTION/PLAYER_READY/PING) bu kümede yok:
+// onlar isHost=false ile serbestçe geçer.
+const HOST_ONLY_MSG = new Set([
+  'HOST_STATE_SYNC',
+  'SET_GAME_MODE',
+  'START_GAME',
+  'START_STAGING',
+  'COUNTDOWN',
+  'RETURN_TO_LOBBY',
+  'SWAP_SLOTS',
+  'ROTATE_SEATS',
+  'SET_SLOT_BOT',
+  'CLEAR_SLOT_BOT',
+  'SET_SLOT_NAME',
+]);
+
 export function handleMessage(ws, msg, roomManager) {
+  // Rol kapısı: yalnızca TV host bu komutları basabilir. Kumandadan gelirse
+  // sessizce düşer (maçı başlatma/bitirme, sahte skor, bot/koltuk gaspı kapanır).
+  if (HOST_ONLY_MSG.has(msg.type) && !ws.isHost) return;
   switch (msg.type) {
     case 'HOST_CREATE_ROOM': {
       const room = roomManager.createRoom(ws, msg.gameMode || 'PONG');
@@ -87,7 +106,7 @@ export function handleMessage(ws, msg, roomManager) {
     }
 
     case 'JOIN_ROOM': {
-      const result = roomManager.joinRoom(msg.roomCode, ws, msg.playerName);
+      const result = roomManager.joinRoom(msg.roomCode, ws, msg.playerName, msg.clientId || null);
       if (result.success) {
         ws.send(
           JSON.stringify({
@@ -158,6 +177,11 @@ export function handleMessage(ws, msg, roomManager) {
 
     case 'SWAP_SLOTS': {
       roomManager.handleSwapSlots(ws, msg.slotA, msg.slotB);
+      break;
+    }
+
+    case 'ROTATE_SEATS': {
+      roomManager.handleRotateSeats(ws);
       break;
     }
 

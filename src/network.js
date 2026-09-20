@@ -1,6 +1,8 @@
 // Client Networking Module for Brutal Party // 4P
 // Connects Host (TV) or Controller (Phone) to the WebSocket room server.
 
+import { getClientId } from './net.js';
+
 export class PartyNetwork {
   constructor() {
     this.ws = null;
@@ -11,6 +13,15 @@ export class PartyNetwork {
     this.color = null;
     this.ping = 0;
     this.pingInterval = null;
+    // AGENTS §5 bütçesiyle simetrik kopma gözetimi (Supabase 15s/30s ile aynı):
+    // ping 4s'de atılır (lobi rozeti), watchdog 30s sessizlikte koparır.
+    this._lastHostMsgAt = 0;
+    this._hostWatchdog = null;
+    // Otomatik re-join için son katılım bilgileri (kullanıcı kapatmadan koparsa)
+    this._lastJoin = null;
+    this._reconnectTimer = null;
+    this._reconnectTries = 0;
+    this._manualClose = false;
 
     // Event Callbacks
     this.callbacks = {
@@ -64,7 +75,9 @@ export class PartyNetwork {
 
         this.ws.onclose = () => {
           this.stopPingHeartbeat();
+          this._stopHostWatchdog();
           console.log('[Network] WebSocket closed');
+          this._scheduleReconnect();
         };
       } catch (err) {
         reject(err);
@@ -110,6 +123,8 @@ export class PartyNetwork {
         this.playerIndex = msg.slotIndex;
         this.playerName = msg.name;
         this.color = msg.color;
+        this._reconnectTries = 0;
+        this._lastHostMsgAt = performance.now();
         if (this.callbacks.onJoinedSuccess) {
           this.callbacks.onJoinedSuccess(msg);
         }
@@ -123,11 +138,11 @@ export class PartyNetwork {
 
       case 'HOST_STATE_SYNC':
       case 'GAME_STATE':
+        this._lastHostMsgAt = performance.now();
         if (this.callbacks.onGameState) {
           this.callbacks.onGameState(msg);
         }
         break;
-
       case 'HOST_DISCONNECTED':
         if (this.callbacks.onHostDisconnected) {
           this.callbacks.onHostDisconnected(msg.message);
@@ -155,6 +170,7 @@ export class PartyNetwork {
         break;
 
       case 'SLOTS_UPDATE':
+        this._lastHostMsgAt = performance.now();
         if (this.callbacks.onSlotsUpdate) {
           this.callbacks.onSlotsUpdate(msg.slots);
         }
@@ -173,24 +189,28 @@ export class PartyNetwork {
         break;
 
       case 'GAME_STARTED':
+        this._lastHostMsgAt = performance.now();
         if (this.callbacks.onGameStarted) {
           this.callbacks.onGameStarted(msg.gameMode);
         }
         break;
 
       case 'STAGING_STARTED':
+        this._lastHostMsgAt = performance.now();
         if (this.callbacks.onStagingStarted) {
           this.callbacks.onStagingStarted(msg.gameMode);
         }
         break;
 
       case 'COUNTDOWN':
+        this._lastHostMsgAt = performance.now();
         if (this.callbacks.onCountdown) {
           this.callbacks.onCountdown(msg.t, msg.gameMode);
         }
         break;
 
       case 'RETURNED_TO_LOBBY':
+        this._lastHostMsgAt = performance.now();
         if (this.callbacks.onReturnedToLobby) {
           this.callbacks.onReturnedToLobby(msg.gameMode);
         }
@@ -232,14 +252,29 @@ export class PartyNetwork {
   async joinRoom(roomCode, playerName, callbacks = {}) {
     this.role = 'CONTROLLER';
     this.callbacks = { ...this.callbacks, ...callbacks };
+    this._manualClose = false;
+    this._reconnectTries = 0;
+    if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+    this._lastJoin = {
+      roomCode: roomCode.toUpperCase().trim(),
+      playerName,
+    };
 
     await this.connect(() => {
+      this._lastHostMsgAt = performance.now();
+      this._startHostWatchdog();
       this.send({
         type: 'JOIN_ROOM',
         roomCode: roomCode.toUpperCase().trim(),
         playerName,
+        clientId: getClientId(),
       });
     });
+  }
+
+  // SET_NAME sonrası re-join eski isimle dönmesin (C10)
+  notePlayerName(name) {
+    if (this._lastJoin && name) this._lastJoin.playerName = name;
   }
 
   sendInput(data) {
@@ -314,6 +349,12 @@ export class PartyNetwork {
     });
   }
 
+  // Atomik koltuk döndürme (tek yayın; ara flicker yok)
+  rotateSeats() {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.send({ type: 'ROTATE_SEATS' });
+  }
+
   setSlotBot(slotIndex, name) {
     if (!this.ws || this.ws.readyState !== 1) return;
     this.send({
@@ -362,10 +403,72 @@ export class PartyNetwork {
     }
   }
 
+  // Kumanda tarafı: host'tan 30sn mesaj gelmezse host ölmüş say (Supabase
+  // _startHostWatchdog ile aynı eşik; AGENTS §5: ping 15s / kopma 30s).
+  _startHostWatchdog() {
+    this._stopHostWatchdog();
+    if (this.role !== 'CONTROLLER') return;
+    if (this._lastHostMsgAt === 0) this._lastHostMsgAt = performance.now();
+    this._hostWatchdog = setInterval(() => {
+      if (this.role !== 'CONTROLLER') return;
+      if (this.playerIndex === null || this.playerIndex === undefined) return;
+      if (performance.now() - this._lastHostMsgAt < 30000) return;
+      this._stopHostWatchdog();
+      if (this.callbacks.onHostDisconnected) {
+        this.callbacks.onHostDisconnected('📡 HOST BAĞLANTISI KOPTU — lobiye dönüp tekrar katılın.');
+      }
+      this.disconnect();
+    }, 5000);
+  }
+
+  _stopHostWatchdog() {
+    if (this._hostWatchdog) {
+      clearInterval(this._hostWatchdog);
+      this._hostWatchdog = null;
+    }
+  }
+
+  // Görünür hata + üstel geri çekilmeli otomatik re-join (maks ~5 deneme).
+  // Sunucu isim-bazlı reclaim yapmaz; dönen kumanda ilk boşa düşebilir —
+  // host koltuk ızgarası SLOTS_UPDATE ile kendini toparlar.
+  _scheduleReconnect() {
+    if (this._manualClose) return;
+    if (!this._lastJoin || this.role === 'HOST') return;
+    if (this._reconnectTries >= 5) {
+      this._lastJoin = null;
+      if (this.callbacks.onError) this.callbacks.onError('BAĞLANTI KOPTU — odaya tekrar katılın.');
+      return;
+    }
+    const delay = Math.min(8000, 1000 * 2 ** this._reconnectTries);
+    this._reconnectTries += 1;
+    if (this.callbacks.onError) this.callbacks.onError(`🔄 Yeniden bağlanılıyor (${this._reconnectTries}/5)...`);
+    this._reconnectTimer = setTimeout(async () => {
+      this._reconnectTimer = null;
+      try {
+        await this.connect(() => {
+          this._lastHostMsgAt = performance.now();
+          this._startHostWatchdog();
+          this.send({
+            type: 'JOIN_ROOM',
+            roomCode: this._lastJoin.roomCode,
+            playerName: this._lastJoin.playerName,
+          });
+        });
+      } catch {
+        this._scheduleReconnect();
+      }
+    }, delay);
+  }
+
   disconnect() {
+    this._manualClose = true;
+    if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+    this._lastJoin = null;
+    this._reconnectTries = 0;
     this.stopPingHeartbeat();
+    this._stopHostWatchdog();
     if (this.ws) {
-      this.ws.close();
+      try { this.ws.close(); } catch {}
       this.ws = null;
     }
     this.role = null;

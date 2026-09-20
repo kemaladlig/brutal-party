@@ -2,6 +2,22 @@
 let audioCtx = null;
 let isAudioMuted = false;
 
+// Paylaşımlı noise tamponu: her ateşte buffer üretmek yerine bir kez üretilir,
+// üst üste binen atışlar aynı tamponu farklı fazdan okur (jank kapanır)
+let sharedNoiseBuffer = null;
+let sharedNoiseSampleRate = 0;
+function getNoiseBuffer(ctx, seconds = 0.15) {
+  if (sharedNoiseBuffer && sharedNoiseSampleRate === ctx.sampleRate) return sharedNoiseBuffer;
+  const size = Math.floor(ctx.sampleRate * seconds);
+  sharedNoiseBuffer = ctx.createBuffer(1, size, ctx.sampleRate);
+  sharedNoiseSampleRate = ctx.sampleRate;
+  const data = sharedNoiseBuffer.getChannelData(0);
+  for (let i = 0; i < size; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.03));
+  }
+  return sharedNoiseBuffer;
+}
+
 export function toggleAudio() {
   isAudioMuted = !isAudioMuted;
   return isAudioMuted;
@@ -555,16 +571,9 @@ export function playGunshot() {
 
   const now = ctx.currentTime;
 
-  // 1. Noise burst (Gunpowder explosion crack)
-  const bufferSize = ctx.sampleRate * 0.15;
-  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.03));
-  }
-
+  // 1. Noise burst (Gunpowder explosion crack) — paylaşımlı tampon
   const noise = ctx.createBufferSource();
-  noise.buffer = buffer;
+  noise.buffer = getNoiseBuffer(ctx, 0.15);
 
   const filter = ctx.createBiquadFilter();
   filter.type = 'bandpass';

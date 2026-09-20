@@ -104,6 +104,7 @@ export class CrownGame extends BaseMiniGame {
 
   initKeyboard() {
     window.addEventListener('keydown', (e) => {
+      if (!this.isLocalInputActive) return;
       this.keys[e.key] = true;
       if (e.key) this.keys[e.key.toLowerCase()] = true;
       this.keys[e.code] = true;
@@ -155,13 +156,15 @@ export class CrownGame extends BaseMiniGame {
     });
   }
 
-  // Simplified Slot Cycle: BOŞ -> İNSAN -> BOT -> BOŞ
+  // Standart slot döngüsü (diğer motorlarla aynı): BOŞ -> İNSAN -> BOT -> GOD -> BOŞ
   cycleSlotType(index) {
     if (this.requestLobbySeatTap(index)) return;
     if (this.slotTypes[index] === 'empty') {
       this.slotTypes[index] = 'human';
     } else if (this.slotTypes[index] === 'human') {
       this.slotTypes[index] = 'bot_normal';
+    } else if (this.slotTypes[index] === 'bot_normal') {
+      this.slotTypes[index] = 'bot_god';
     } else {
       this.slotTypes[index] = 'empty';
     }
@@ -175,6 +178,7 @@ export class CrownGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    const oldArena = { ...this.arena };
     const marginX = Math.max(16, Math.floor(width * 0.04));
     const marginY = height > width
       ? Math.max(48, Math.floor(height * 0.12))
@@ -196,7 +200,26 @@ export class CrownGame extends BaseMiniGame {
     };
 
     this.buildMap();
-    this.initPlayers();
+    // Maç ortası resize raundu sıfırlamasın (harita geometrisi yenilenir,
+    // taç/oyuncular orantılı taşınır)
+    if (this.state === 'LOBBY' || !this.players.length) {
+      this.initPlayers();
+    } else {
+      for (const p of this.players) {
+        this.remapPoint(p, oldArena, this.arena);
+        p.vx = 0; p.vy = 0;
+      }
+      if (this.crown && this.crown.carrierIndex !== null && this.crown.carrierIndex !== undefined) {
+        const carrier = this.players[this.crown.carrierIndex];
+        if (carrier) { this.crown.x = carrier.x; this.crown.y = carrier.y; }
+      } else if (this.crown) {
+        this.remapPoint(this.crown, oldArena, this.arena);
+        this.crown.vx = 0; this.crown.vy = 0;
+      }
+      for (const item of this.pickups) this.remapPoint(item, oldArena, this.arena);
+      for (const ink of this.inkPuddles) this.remapPoint(ink, oldArena, this.arena);
+      this.particles = [];
+    }
 
     // Setup Tackle Buttons for Tabletop Mobile
     const btnSize = Math.max(52, Math.min(74, Math.round(size * 0.14)));
@@ -2184,12 +2207,14 @@ export class CrownGame extends BaseMiniGame {
   handleRemoteInput(slotIndex, data) {
     const joy = this.joysticks[slotIndex];
     if (!joy) return;
-
-    if (data.action === 'JOYSTICK_MOVE' || data.action === 'JOYSTICK' || data.action === 'MOVE') {
-      joy.active = (data.force || 0) > 0.05;
-      joy.angle = data.angle || 0;
-      joy.force = data.force || 0;
-    } else if (data.action === 'TACKLE' || data.action === 'DASH') {
+    const player = this.players?.[slotIndex];
+    if (data.action === 'JOYSTICK_MOVE') {
+      if (player && (!player.isJoined || !player.isAlive)) return;
+      const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : 0;
+      joy.active = force > 0.05;
+      joy.angle = Number.isFinite(data.angle) ? data.angle : 0;
+      joy.force = force;
+    } else if (data.action === 'TACKLE') {
       this.triggerTackle(slotIndex);
     }
   }

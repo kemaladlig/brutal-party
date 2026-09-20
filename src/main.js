@@ -6,6 +6,7 @@ import { BombGame } from './games/bomb.js';
 import { HeistGame } from './games/heist.js';
 import { DuelGame } from './games/duel.js';
 import { CrownGame } from './games/crown.js';
+import { ZoneGame } from './games/zone.js';
 import { TouchManager } from './touchManager.js';
 import {
   GAME_ORDER,
@@ -24,11 +25,12 @@ import {
   disconnectInactiveNetwork,
   getStoredPlayerName,
   storePlayerName,
+  cleanPlayerName,
 } from './net.js';
 
 import { initToastAndInstall, showInstallToast } from './ui/toast.js';
 import { UI_COLORS, uiFont } from './ui/tokens.js';
-import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, isBotEkleEnabled } from './core/slotManager.js';
+import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, isBotEkleEnabled } from './core/slotManager.js';
 import {
   initPauseModal,
   openPauseModal,
@@ -84,6 +86,7 @@ const bombGame = new BombGame(canvas);
 const heistGame = new HeistGame(canvas);
 const duelGame = new DuelGame(canvas);
 const crownGame = new CrownGame(canvas);
+const zoneGame = new ZoneGame(canvas);
 
 function touchStamp(game, now) {
   game.lastTime = now;
@@ -95,7 +98,18 @@ registerEngine('PONG', {
   onEnter: (now) => { pongGame.lastTime = now; pongGame.accumulator = 0; },
   onResume: (now) => { pongGame.lastTime = now; pongGame.accumulator = 0; },
   start: () => pongGame.startNewMatch(),
-  packet: () => ({ scores: pongGame.matchScores, rally: pongGame.ball?.rallyCount || 0 }),
+  packet: () => {
+    const frzIdx = pongGame.paddles.findIndex((p) => p.frozenTimer > 0);
+    return {
+      // setScores gerçektir (matchScores ölü alandır — telefonda skor hep 0 görünüyordu)
+      scores: pongGame.setScores,
+      rally: pongGame.ball?.rallyCount || 0,
+      frz: pongGame.ball?.isFreezing ? 1 : 0,
+      fzIdx: frzIdx,
+      fzT: frzIdx >= 0 ? Math.round(pongGame.paddles[frzIdx].frozenTimer * 10) / 10 : 0,
+      cd: pongGame.freezeCooldowns.map((c) => Math.ceil(c)),
+    };
+  },
 });
 registerEngine('TANKS', {
   game: tanksGame,
@@ -107,7 +121,9 @@ registerEngine('TANKS', {
     scores: tanksGame.scores,
     ammo: tanksGame.tanks.map((t) => {
       const v = tanksGame.ammoVisual(t);
-      return { n: v.readyCount, load: Math.round(v.progress * 100) / 100 };
+      // Kaba kuantum (0.05): reload çubuğu 8Hz'de akıcı görünür, her-kare
+      // float değişimiyle 60Hz yayın fırtınası üretmez (kumanda pip'i %5 basamaklı)
+      return { n: v.readyCount, load: Math.round(v.progress * 20) / 20 };
     }),
     alive: tanksGame.tanks.map((t) => t.isAlive),
   }),
@@ -140,7 +156,6 @@ registerEngine('HEIST', {
   start: () => heistGame.startNewRound(),
   packet: () => ({
     scores: heistGame.scores,
-    gemCarrier: heistGame.gemCarrierIndex,
     timeLeft: Math.ceil(heistGame.roundTimer || 0),
   }),
 });
@@ -161,7 +176,23 @@ registerEngine('CROWN', {
   packet: () => ({
     scores: crownGame.scores,
     king: crownGame.crown.carrierIndex,
-    crownTimes: crownGame.players.map((p) => p.crownHoldTime),
+    // 0.1s kuantum: kumanda zaten tek ondalık gösteriyor; ham float her karede
+    // farklı JSON üretip 8Hz'i deliyordu
+    crownTimes: crownGame.players.map((p) => Math.round(p.crownHoldTime * 10) / 10),
+  }),
+});
+registerEngine('ZONE', {
+  game: zoneGame,
+  reset: () => zoneGame.resetMatch(),
+  onEnter: (now) => touchStamp(zoneGame, now),
+  onResume: (now) => touchStamp(zoneGame, now),
+  start: () => zoneGame.startNewRound(),
+  packet: () => ({
+    scores: zoneGame.scores,
+    pct: zoneGame.pct.map((p) => Math.round(p)),
+    kills: zoneGame.kills,
+    timeLeft: Math.ceil(zoneGame.roundTimer || 0),
+    leader: zoneGame.leaderIndex,
   }),
 });
 
@@ -205,6 +236,12 @@ export function setGameMode(mode) {
   setIsPaused(false);
   closePauseModal();
   touchManager.resetTouches();
+  // Klavye sahipliği: yalnızca aktif motor dinler, diğerlerinin basılı tuş
+  // haritası temizlenir (mod değişiminde takılı tuş kalmasın)
+  forEachEngine((engineMode, entry) => {
+    entry.game.isLocalInputActive = engineMode === mode;
+    if (engineMode !== mode && entry.game.keys) entry.game.keys = {};
+  });
 
   const now = performance.now();
 
@@ -321,15 +358,24 @@ async function openHostLobby(gameMode = 'PONG') {
         updateHostSlot(msg.slotIndex, true, msg.name, false);
         refreshStagingBar();
         // Staging/sayaç sırasında katılan geç kalanı mevcut faza sok
-        // (STAGING_STARTED geçmişte kaldı, yoksa bekleme ekranında takılır)
+        // (STAGING_STARTED geçmişte kaldı, yoksa bekleme ekranında takılır).
+        // Sayaçtaysa STAGING + güncel tik + koltuklar yeniden basılır —
+        // katılan odaya girdiği için yayın ona da ulaşır.
         if (stagingMode && !countdownTimer) {
           activeNet().startStaging(stagingMode);
+        } else if (stagingMode && countdownTimer) {
+          activeNet().startStaging(stagingMode);
+          activeNet().broadcastCountdown(lastCountdownT);
         }
         const engine = getActiveGameEngine();
         if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
         showInstallToast(`🎮 ${msg.name} kumanda olarak bağlandı!`);
       },
       onPlayerLeft: (msg) => {
+        // Önce latch'i nötrle (hayalet sürüş/dönüş kalmasın), sonra koltuğu boşa çıkar
+        const engineLeft = getActiveGameEngine();
+        if (engineLeft) clearRemoteSlot(engineLeft, currentMode, msg.slotIndex);
+        delete lastRemoteInputAt[msg.slotIndex];
         updateHostSlot(msg.slotIndex, false);
         refreshStagingBar();
         const engine = getActiveGameEngine();
@@ -348,6 +394,8 @@ async function openHostLobby(gameMode = 'PONG') {
         }
       },
       onPlayerReadyStatus: (slotIndex, isReady) => {
+        // Sayaç anında gelen READY yeni turun sayacına sızmasın
+        if (seatsLocked) return;
         if (hostPlayerSlots[slotIndex]) {
           updateHostSlot(slotIndex, true, hostPlayerSlots[slotIndex].name, isReady, hostPlayerSlots[slotIndex].kind);
           refreshStagingBar();
@@ -375,7 +423,7 @@ async function openHostLobby(gameMode = 'PONG') {
         if (data.action === 'SET_NAME' && data.name) {
           const slot = hostPlayerSlots[slotIndex];
           if (slot) {
-            slot.name = data.name.slice(0, 12).toUpperCase();
+            slot.name = cleanPlayerName(data.name);
             updateHostSlot(slotIndex, true, slot.name, slot.isReady, slot.kind);
             refreshStagingBar();
             activeNet().setPlayerName?.(slotIndex, slot.name);
@@ -387,8 +435,20 @@ async function openHostLobby(gameMode = 'PONG') {
         }
         if (data.action === 'SWITCH_SLOT' && typeof data.targetSlot === 'number') {
           if (seatsLocked) return; // sayaç sırasında koltuklar kilitli
-          activeNet().swapSlots(slotIndex, data.targetSlot);
+          const t = data.targetSlot;
+          // Koltuk gaspı kapısı: aralık dışı, bot hedef/kaynak reddedilir
+          // (istemcideki guard atlatılsa bile host son sözü söyler)
+          if (!Number.isInteger(t) || t < 0 || t > 3) return;
+          if (hostPlayerSlots[t]?.kind === 'bot') return;
+          if (hostPlayerSlots[slotIndex]?.kind === 'bot') return;
+          activeNet().swapSlots(slotIndex, t);
           return;
+        }
+        if (typeof slotIndex !== 'number' || slotIndex < 0 || slotIndex > 3) return;
+        // Analog sessizlik süpürücüsü için son-girdi damgası (sürekli akış takibi)
+        if (data.action === 'JOYSTICK_MOVE' || data.action === 'PADDLE_MOVE'
+          || data.action === 'TANK_DRIVE' || data.action === 'CURVE_STEER') {
+          lastRemoteInputAt[slotIndex] = performance.now();
         }
         const engine = getActiveGameEngine();
         if (engine && typeof engine.handleRemoteInput === 'function') {
@@ -499,9 +559,15 @@ function handleSeatSwap(slotA, slotB) {
 }
 
 function handleRotateSeats() {
-  activeNet().swapSlots(0, 2);
-  activeNet().swapSlots(2, 1);
-  activeNet().swapSlots(1, 3);
+  // Skor permütasyonu (relay'deki [2,3,1,0] ile aynı sonuç)
+  const rotateScoresLocally = () => {
+    const engine = getActiveGameEngine();
+    if (engine) {
+      swapEngineSlots(engine, currentMode, activeNet().isHosting, 0, 2);
+      swapEngineSlots(engine, currentMode, activeNet().isHosting, 2, 1);
+      swapEngineSlots(engine, currentMode, activeNet().isHosting, 1, 3);
+    }
+  };
   if (!activeNet().isHosting) {
     const p0 = hostPlayerSlots[0];
     const p1 = hostPlayerSlots[1];
@@ -511,12 +577,22 @@ function handleRotateSeats() {
     hostPlayerSlots[2] = p0;
     hostPlayerSlots[1] = p2;
     hostPlayerSlots[3] = p1;
-    const engine = getActiveGameEngine();
-    if (engine) {
-      swapEngineSlots(engine, currentMode, activeNet().isHosting, 0, 2);
-      swapEngineSlots(engine, currentMode, activeNet().isHosting, 2, 1);
-      swapEngineSlots(engine, currentMode, activeNet().isHosting, 1, 3);
-    }
+    rotateScoresLocally();
+    return;
+  }
+  // Host: skorları yerelde döndür, koltukları relay'de atomik döndür
+  // (tek yayın — ara flicker/yanlış koltuk yok). Bot varsa iptal (relay de iptal eder).
+  if (hostPlayerSlots.some((s) => s?.kind === 'bot')) {
+    showInstallToast('🤖 Bot varken koltuk döndürülemez.');
+    return;
+  }
+  rotateScoresLocally();
+  if (typeof activeNet().rotateSeats === 'function') {
+    activeNet().rotateSeats();
+  } else {
+    activeNet().swapSlots(0, 2);
+    activeNet().swapSlots(2, 1);
+    activeNet().swapSlots(1, 3);
   }
 }
 
@@ -538,6 +614,10 @@ function returnHostToLobby() {
     return;
   }
   closePauseModal();
+  // Lobiye dönüşte latch'ler nötrlenir (maç-sonu hayaleti lobiye/staging'e sızmasın)
+  const engineLobby = getActiveGameEngine();
+  if (engineLobby) clearAllRemoteSlots(engineLobby, currentMode);
+  for (let i = 0; i < 4; i++) delete lastRemoteInputAt[i];
   setGameMode('MENU');
   activeNet().returnToLobby();
   // Lobiye dönüşte botlar temizlenir — koltuklar insanlara kalır
@@ -588,6 +668,26 @@ function handleGameCardClick(mode) {
 let stagingMode = null;
 let seatsLocked = false;
 let countdownTimer = null;
+
+// Uzak-girdi canlılık damgaları: analog sessizlik süpürücüsü için.
+// Koltuk politikası değişmez — sadece latch nötrlenir, koltuk dolu kalır.
+const lastRemoteInputAt = {};
+const STALE_ANALOG_MS = 1500;
+setInterval(() => {
+  if (!activeNet().isHosting) return;
+  if (currentMode === 'MENU' || stagingMode || countdownTimer) return;
+  const engine = getActiveGameEngine();
+  if (!engine) return;
+  const now = performance.now();
+  for (let i = 0; i < 4; i++) {
+    const last = lastRemoteInputAt[i];
+    if (last === undefined) continue;
+    if (now - last >= STALE_ANALOG_MS) {
+      clearRemoteSlot(engine, currentMode, i);
+      delete lastRemoteInputAt[i];
+    }
+  }
+}, 500);
 
 function refreshStagingBar() {
   if (!stagingMode) return;
@@ -658,6 +758,10 @@ function enterStaging(mode) {
 function runCountdown() {
   if (!stagingMode || countdownTimer) return;
   const mode = stagingMode;
+  // Sayaç başında yarım kalmış latch taşınmasın (önceki turun hayaleti)
+  const enginePre = getActiveGameEngine();
+  if (enginePre) clearAllRemoteSlots(enginePre, mode);
+  for (let i = 0; i < 4; i++) delete lastRemoteInputAt[i];
   seatsLocked = true;
   let t = 3;
   const tick = () => {
@@ -835,6 +939,18 @@ if ('serviceWorker' in navigator) {
       .then((reg) => {
         reg.update();
         console.log('[PWA] ServiceWorker registered and updated:', reg.scope);
+        // Yeni sürüm hazırsa kullanıcıya bildir (sayfayı yenilesin)
+        const notifyUpdate = () => showInstallToast('🆕 Yeni sürüm hazır — sayfayı yenileyin.');
+        if (reg.waiting) notifyUpdate();
+        reg.addEventListener('updatefound', () => {
+          const worker = reg.installing;
+          if (!worker) return;
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+              notifyUpdate();
+            }
+          });
+        });
       })
       .catch((err) => console.warn('[PWA] ServiceWorker registration failed:', err));
   });
@@ -847,14 +963,44 @@ if (isPublicOrigin() && !HAS_SUPABASE_CONFIG) {
 
 // Throttled Host State Broadcaster: 8Hz taban + değişiklikte anında gönderim.
 // Kirlenme kontrolü güvenli — pakette timestamp/random yok (PING ayrı yolda).
-// Skor/taşıyıcı/sinyal gibi kritik değişimler throttle beklemez (refleks korunur),
-// sakin anlarda tekrar yayın yapılmaz (kota korunur).
+// Skor/taşıyıcı/sinyal gibi kritik değişimler throttle beklemez (refleks korunur);
+// değişiklik yoksa 125ms tabanında aynı paket tekrar gider (kumanda faz-uzlaşması).
 let lastBroadcastTime = 0;
 let lastBroadcastJson = '';
+let lastBroadcastPacket = null;
 let lastCountdownT = 0;
+
+// Sığ paket karşılaştırma: stringify maliyetine girmeden kirlenme tespiti.
+// Davranış aynı (değişiklikte anında + 125ms taban), sadece sakin karelerde
+// JSON.stringify çalışmaz.
+function samePacket(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  for (const k of ka) {
+    const va = a[k];
+    const vb = b[k];
+    if (Array.isArray(va) && Array.isArray(vb)) {
+      if (va.length !== vb.length) return false;
+      for (let i = 0; i < va.length; i++) {
+        const ea = va[i];
+        const eb = vb[i];
+        if (ea && typeof ea === 'object') {
+          if (JSON.stringify(ea) !== JSON.stringify(eb)) return false;
+        } else if (ea !== eb) return false;
+      }
+    } else if (va !== vb) return false;
+  }
+  return true;
+}
+
 function broadcastGameStateIfNeeded(now) {
   if (!activeNet().isHosting) return;
 
+  const intervalElapsed = now - lastBroadcastTime >= 125;
+  // Paket her karede kurulur (değişiklik tespiti için şart) ama pahalı
+  // stringify yalnızca kirlenme varsa veya 125ms taban dolduysa çalışır.
   let packet;
   if (currentMode === 'MENU') {
     // Boşta tiny paket: kirlenme kontrollü olduğu için ~1 kez gider, sonra susar.
@@ -869,12 +1015,14 @@ function broadcastGameStateIfNeeded(now) {
   }
   packet.names = hostPlayerSlots.map((p) => (p ? p.name : null));
 
+  if (samePacket(packet, lastBroadcastPacket) && !intervalElapsed) return;
+
   const json = JSON.stringify(packet);
-  const intervalElapsed = now - lastBroadcastTime >= 125;
   if (json === lastBroadcastJson && !intervalElapsed) return;
 
   lastBroadcastTime = now;
   lastBroadcastJson = json;
+  lastBroadcastPacket = packet;
   activeNet().broadcastHostState(packet);
 }
 
@@ -907,6 +1055,7 @@ function renderPauseOverlay(ctx) {
 }
 
 // Master Animation Loop (requestAnimationFrame)
+const ctx2d = canvas.getContext('2d');
 function loop(timestamp) {
   broadcastGameStateIfNeeded(timestamp);
 
@@ -916,18 +1065,16 @@ function loop(timestamp) {
   if (loopEntry) {
     if (!isPaused) loopEntry.game.update(timestamp);
     loopEntry.game.render();
-    if (isPaused) renderPauseOverlay(canvas.getContext('2d'));
+    if (isPaused) renderPauseOverlay(ctx2d);
   } else if (currentMode === 'MENU') {
-    const ctx = canvas.getContext('2d');
-    ctx.save();
-    ctx.fillStyle = '#F4F4F0';
-    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-    ctx.restore();
+    ctx2d.save();
+    ctx2d.fillStyle = '#F4F4F0';
+    ctx2d.fillRect(0, 0, window.innerWidth, window.innerHeight);
+    ctx2d.restore();
   }
 
   if (currentMode !== 'MENU') {
-    const ctx = canvas.getContext('2d');
-    touchManager.renderOverlay(ctx);
+    touchManager.renderOverlay(ctx2d);
   }
 
   requestAnimationFrame(loop);

@@ -87,6 +87,7 @@ export class HeistGame extends BaseMiniGame {
 
   initKeyboard() {
     window.addEventListener('keydown', (e) => {
+      if (!this.isLocalInputActive) return;
       this.keys[e.key] = true;
       this.keys[e.code] = true;
 
@@ -123,6 +124,7 @@ export class HeistGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width
       ? Math.max(48, Math.floor(height * 0.12))
@@ -167,7 +169,23 @@ export class HeistGame extends BaseMiniGame {
       { x: cx + offX - pSize / 2, y: cy + offY - pSize / 2, w: pSize, h: pSize },
     ];
 
-    this.initPlayers();
+    // Maç ortası resize raundu sıfırlamasın
+    if (this.state === 'LOBBY' || !this.players.length) {
+      this.initPlayers();
+      return;
+    }
+    for (const p of this.players) {
+      this.remapPoint(p, oldArena, this.arena);
+      p.vx = 0; p.vy = 0;
+      p.lastX = p.x; p.lastY = p.y;
+    }
+    for (const item of this.lootItems) this.remapPoint(item, oldArena, this.arena);
+    if (this.piggyBank) {
+      this.remapPoint(this.piggyBank, oldArena, this.arena);
+      this.piggyBank.vx = 0; this.piggyBank.vy = 0;
+    }
+    this.particles = [];
+    this.floatingTexts = [];
   }
 
   initPlayers() {
@@ -183,9 +201,11 @@ export class HeistGame extends BaseMiniGame {
     ];
 
     this.players = spawns.map((s, i) => {
+      const existing = this.players[i];
       return {
         index: i,
-        name: HEIST_NAMES[i],
+        // Raunt başı TV isimlerini silme (CROWN deseni): kumanda ismi korunur
+        name: existing?.name || HEIST_NAMES[i],
         color: HEIST_COLORS[i],
         x: s.x,
         y: s.y,
@@ -270,6 +290,7 @@ export class HeistGame extends BaseMiniGame {
     this.roundTimer = 45.0;
     this.goldRushActive = false;
     this.roundWinner = null;
+    this.roundTied = false;
     this.roundTransitionTimer = 0;
     this.lootItems = [];
     this.particles = [];
@@ -349,6 +370,8 @@ export class HeistGame extends BaseMiniGame {
   }
 
   triggerTackle(playerIndex) {
+    // Lobi/maç-sonunda kumandadan omuz tetiklenemez (uzak girdi kapısı)
+    if (this.state !== 'PLAYING') return;
     const p = this.players[playerIndex];
     if (!p || !p.isAlive || p.tackleCooldown > 0 || p.stumbleTimer > 0) return;
 
@@ -564,11 +587,13 @@ export class HeistGame extends BaseMiniGame {
   handleRemoteInput(slotIndex, data) {
     const joy = this.joysticks[slotIndex];
     if (!joy) return;
-
+    const player = this.players?.[slotIndex];
     if (data.action === 'JOYSTICK_MOVE') {
-      joy.active = data.force > 0.05;
-      joy.angle = data.angle || 0;
-      joy.force = data.force || 0;
+      if (player && (!player.isJoined || !player.isAlive)) return;
+      const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : 0;
+      joy.active = force > 0.05;
+      joy.angle = Number.isFinite(data.angle) ? data.angle : 0;
+      joy.force = force;
     } else if (data.action === 'TACKLE') {
       this.triggerTackle(slotIndex);
     }
@@ -605,20 +630,50 @@ export class HeistGame extends BaseMiniGame {
       this.spawnLootItem('CROWN');
     }
 
+    // Piggy Bank schedule: 30sn ve 15sn kala sahaya iner (bayraklar raunt başı sıfırlanır)
+    if (this.roundTimer <= 30.0 && !this.piggySpawned30) {
+      this.piggySpawned30 = true;
+      if (!this.piggyBank) this.spawnPiggyBank();
+    }
+    if (this.roundTimer <= 15.0 && !this.piggySpawned15) {
+      this.piggySpawned15 = true;
+      if (!this.piggyBank) this.spawnPiggyBank();
+    }
+
+    // Piggy physics: sekerek gezinir
+    if (this.piggyBank) {
+      const pig = this.piggyBank;
+      pig.animTime += dt;
+      if (pig.hitTimer > 0) pig.hitTimer = Math.max(0, pig.hitTimer - dt);
+      pig.x += pig.vx * dt;
+      pig.y += pig.vy * dt;
+      const { left, right, top, bottom } = this.arena;
+      if (pig.x - pig.radius < left) { pig.x = left + pig.radius; pig.vx = Math.abs(pig.vx); }
+      if (pig.x + pig.radius > right) { pig.x = right - pig.radius; pig.vx = -Math.abs(pig.vx); }
+      if (pig.y - pig.radius < top) { pig.y = top + pig.radius; pig.vy = Math.abs(pig.vy); }
+      if (pig.y + pig.radius > bottom) { pig.y = bottom - pig.radius; pig.vy = -Math.abs(pig.vy); }
+    }
+
     if (this.roundTimer <= 0) {
-      // Round Complete: Determine winner with most Vault Gold
+      // Round Complete: tek lider + en az 1 banko gerekir; eşitlikte/boş
+      // rauntta skor yazılmaz (önce düşük indeks hep kazanıyordu)
       let highestGold = -1;
       let winner = null;
+      let tied = false;
 
       for (const p of this.players) {
         if (!p.isJoined) continue;
         if (p.vaultGold > highestGold) {
           highestGold = p.vaultGold;
           winner = p;
+          tied = false;
+        } else if (p.vaultGold === highestGold) {
+          tied = true;
         }
       }
 
-      if (winner) {
+      this.roundTied = !winner || tied || highestGold <= 0;
+      if (!this.roundTied) {
         this.roundWinner = winner;
         this.scores[winner.index]++;
         if (this.scores[winner.index] >= this.targetScore) {
@@ -884,6 +939,52 @@ export class HeistGame extends BaseMiniGame {
         }
       }
     }
+
+    // Piggy Bank hits: omuz atan oyuncu kumbaraya değerse canı azalır,
+    // 0 olunca altın saçar (dokunmatik/klavye/kumanda hepsi isTackling üzerinden gelir)
+    if (this.piggyBank) {
+      for (const p of this.players) {
+        if (!p.isJoined || !p.isAlive || !p.isTackling) continue;
+        const pig = this.piggyBank;
+        if (!pig) break;
+        if (Math.hypot(pig.x - p.x, pig.y - p.y) < pig.radius + p.radius + 26) {
+          this.hitPiggyBank(p);
+        }
+      }
+    }
+  }
+
+  hitPiggyBank(attacker) {
+    const pig = this.piggyBank;
+    if (!pig) return;
+    attacker.isTackling = false; // hit landed
+    pig.hp -= 1;
+    pig.hitTimer = 0.25;
+    playHeavyImpact();
+    this.trauma = Math.min(1.0, this.trauma + 0.3);
+    const dx = pig.x - attacker.x;
+    const dy = pig.y - attacker.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    pig.vx = (dx / dist) * 260;
+    pig.vy = (dy / dist) * 260;
+    if (pig.hp <= 0) {
+      this.piggyBank = null;
+      for (let i = 0; i < 5; i++) {
+        this.spawnLootItem('COIN', pig.x + (Math.random() - 0.5) * 70, pig.y + (Math.random() - 0.5) * 70);
+      }
+      this.spawnLootItem('DIAMOND', pig.x, pig.y);
+      for (let i = 0; i < 10; i++) {
+        this.particles.push({
+          x: pig.x, y: pig.y,
+          vx: (Math.random() - 0.5) * 320, vy: (Math.random() - 0.5) * 320,
+          life: 0.4, maxLife: 0.5, color: '#FFDE59', size: 4 + Math.random() * 4,
+        });
+      }
+      this.addFloatingText(pig.x, pig.y - 34, '🐷 KUMBARA KIRILDI!', '#FFDE59');
+      playPiggyBreak();
+    } else {
+      this.addFloatingText(pig.x, pig.y - 34, `🐷 ÇAT! (${pig.hp})`, '#FFFFFF');
+    }
   }
 
   executeLootKnockout(attacker, victim) {
@@ -1028,6 +1129,7 @@ export class HeistGame extends BaseMiniGame {
     if (this.state !== 'LOBBY') {
       this.renderVaults(ctx);
       this.renderLoot(ctx);
+      this.renderPiggyBank(ctx);
       this.renderPlayers(ctx);
     }
     this.renderParticles(ctx);
@@ -1731,7 +1833,17 @@ export class HeistGame extends BaseMiniGame {
   }
 
   renderRoundOverUI(ctx) {
-    if (!this.roundWinner) return;
+    if (!this.roundWinner) {
+      if (this.roundTied) {
+        renderRoundBanner(ctx, {
+          arena: this.arena,
+          title: '🤝 BERABERE!',
+          titleColor: '#FFFFFF',
+          sub: 'SKOR YAZILMADI',
+        });
+      }
+      return;
+    }
     renderRoundBanner(ctx, {
       arena: this.arena,
       title: `+1 SET: ${this.roundWinner.name}! (${this.roundWinner.vaultGold} 💰)`,

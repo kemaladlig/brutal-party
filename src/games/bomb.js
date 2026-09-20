@@ -98,6 +98,7 @@ export class BombGame extends BaseMiniGame {
 
   initKeyboard() {
     window.addEventListener('keydown', (e) => {
+      if (!this.isLocalInputActive) return;
       this.keys[e.key] = true;
       this.keys[e.code] = true;
 
@@ -131,6 +132,8 @@ export class BombGame extends BaseMiniGame {
 
   cycleMap() {
     this.selectedMapIndex = (this.selectedMapIndex + 1) % MAP_PRESETS.length;
+    // Lobide elle seçilen harita bir sonraki rauntta korunur (oto-döndürme ezmez)
+    this.mapPickedInLobby = true;
     this.buildMapPillars();
     playJoin();
   }
@@ -140,6 +143,7 @@ export class BombGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width
       ? Math.max(48, Math.floor(height * 0.12))
@@ -161,7 +165,19 @@ export class BombGame extends BaseMiniGame {
     };
 
     this.buildMapPillars();
-    this.initPlayers();
+    // Maç ortası resize raundu sıfırlamasın
+    if (this.state === 'LOBBY' || !this.players.length) {
+      this.initPlayers();
+      return;
+    }
+    for (const p of this.players) {
+      this.remapPoint(p, oldArena, this.arena);
+      p.vx = 0; p.vy = 0;
+      p.lastX = p.x; p.lastY = p.y;
+    }
+    for (const item of this.pickups) this.remapPoint(item, oldArena, this.arena);
+    for (const ink of this.inkPuddles) this.remapPoint(ink, oldArena, this.arena);
+    this.particles = [];
   }
 
   buildMapPillars() {
@@ -181,9 +197,9 @@ export class BombGame extends BaseMiniGame {
         { x: cx + offset - pSize / 2, y: cy + offset - pSize / 2, w: pSize, h: pSize }, // Bottom-Right
       ];
     } else if (this.selectedMapIndex === 1) {
-      // --- MAP 1: MERKEZ SIĞINAK (Bunker with 4 open doorways) ---
-      const bSize = Math.round(size * 0.13);
-      const bOffset = Math.round(size * 0.155);
+      // --- MAP 1: MERKEZ SIĞINAK (Bunker with 4 open doorways, widened) ---
+      const bSize = Math.round(size * 0.115);
+      const bOffset = Math.round(size * 0.165);
       // 4 bunker corner posts + 2 edge barricades
       this.pillars = [
         { x: cx - bOffset - bSize / 2, y: cy - bOffset - bSize / 2, w: bSize, h: bSize },
@@ -191,14 +207,14 @@ export class BombGame extends BaseMiniGame {
         { x: cx - bOffset - bSize / 2, y: cy + bOffset - bSize / 2, w: bSize, h: bSize },
         { x: cx + bOffset - bSize / 2, y: cy + bOffset - bSize / 2, w: bSize, h: bSize },
         // Outer flank covers
-        { x: cx - size * 0.38, y: cy - size * 0.05, w: size * 0.09, h: size * 0.1 },
-        { x: cx + size * 0.29, y: cy - size * 0.05, w: size * 0.09, h: size * 0.1 },
+        { x: cx - size * 0.38, y: cy - size * 0.05, w: size * 0.08, h: size * 0.09 },
+        { x: cx + size * 0.30, y: cy - size * 0.05, w: size * 0.08, h: size * 0.09 },
       ];
     } else if (this.selectedMapIndex === 2) {
-      // --- MAP 2: HAÇ & LABİRENT (Crossfire Corridors) ---
-      const thick = Math.round(size * 0.08);
-      const len = Math.round(size * 0.23);
-      const gap = Math.round(size * 0.15);
+      // --- MAP 2: HAÇ & LABİRENT (Crossfire Corridors, widened) ---
+      const thick = Math.round(size * 0.07);
+      const len = Math.round(size * 0.2);
+      const gap = Math.round(size * 0.19);
       this.pillars = [
         // North & South vertical wings
         { x: cx - thick / 2, y: cy - gap - len, w: thick, h: len },
@@ -208,8 +224,8 @@ export class BombGame extends BaseMiniGame {
         { x: cx + gap, y: cy - thick / 2, w: len, h: thick },
       ];
     } else if (this.selectedMapIndex === 3) {
-      // --- MAP 3: AVLU & DÖNER SİPER (Courtyard) ---
-      const bW = Math.round(size * 0.28);
+      // --- MAP 3: AVLU & DÖNER SİPER (Courtyard, widened corners) ---
+      const bW = Math.round(size * 0.24);
       const bH = Math.round(size * 0.07);
       this.pillars = [
         { x: cx - bW / 2, y: cy - size * 0.23 - bH / 2, w: bW, h: bH },
@@ -218,9 +234,9 @@ export class BombGame extends BaseMiniGame {
         { x: cx + size * 0.23 - bH / 2, y: cy - bW / 2, w: bH, h: bW },
       ];
     } else if (this.selectedMapIndex === 4) {
-      // --- MAP 4: İKİLİ BLOK BARİKAT (Split Blocks) ---
-      const blkW = Math.round(size * 0.16);
-      const blkH = Math.round(size * 0.36);
+      // --- MAP 4: İKİLİ BLOK BARİKAT (Split Blocks, widened lanes) ---
+      const blkW = Math.round(size * 0.14);
+      const blkH = Math.round(size * 0.32);
       this.pillars = [
         { x: cx - size * 0.22 - blkW / 2, y: cy - blkH / 2, w: blkW, h: blkH },
         { x: cx + size * 0.22 - blkW / 2, y: cy - blkH / 2, w: blkW, h: blkH },
@@ -241,9 +257,12 @@ export class BombGame extends BaseMiniGame {
     ];
 
     this.players = spawns.map((s, i) => {
+      const existing = this.players[i];
       return {
         index: i,
-        name: BOMB_NAMES[i],
+        // Raunt başı TV isimlerini silme (CROWN deseni): kumanda ismi korunur,
+        // syncSlotsToEngine bir sonraki turda zaten yazar
+        name: existing?.name || BOMB_NAMES[i],
         color: BOMB_COLORS[i],
         x: s.x,
         y: s.y,
@@ -323,8 +342,11 @@ export class BombGame extends BaseMiniGame {
       return;
     }
 
-    // Auto-rotate map preset every round to keep gameplay varied
-    this.selectedMapIndex = (this.selectedMapIndex + 1) % MAP_PRESETS.length;
+    // Lobide seçilmediyse haritayı döndür; seçildiyse kullanıcının seçimi kalır
+    if (!this.mapPickedInLobby) {
+      this.selectedMapIndex = (this.selectedMapIndex + 1) % MAP_PRESETS.length;
+    }
+    this.mapPickedInLobby = false;
     this.buildMapPillars();
 
     this.state = 'PLAYING';
@@ -350,6 +372,8 @@ export class BombGame extends BaseMiniGame {
   }
 
   triggerDash(playerIndex) {
+    // Lobi/maç-sonunda kumandadan depar tetiklenemez (uzak girdi kapısı)
+    if (this.state !== 'PLAYING') return;
     const p = this.players[playerIndex];
     if (!p || !p.isAlive || p.dashCooldown > 0 || p.slipTimer > 0) return;
 
@@ -615,11 +639,14 @@ export class BombGame extends BaseMiniGame {
   handleRemoteInput(slotIndex, data) {
     const joy = this.joysticks[slotIndex];
     if (!joy) return;
-
+    // Ölü/katılmamış slotun joystick state'i yazılmasın (hayalet sürüklenme)
+    const player = this.players?.[slotIndex];
     if (data.action === 'JOYSTICK_MOVE') {
-      joy.active = data.force > 0.05;
-      joy.angle = data.angle || 0;
-      joy.force = data.force || 0;
+      if (player && (!player.isJoined || !player.isAlive)) return;
+      const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : 0;
+      joy.active = force > 0.05;
+      joy.angle = Number.isFinite(data.angle) ? data.angle : 0;
+      joy.force = force;
     } else if (data.action === 'DASH') {
       this.triggerDash(slotIndex);
     }

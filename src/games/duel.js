@@ -101,24 +101,25 @@ export class DuelGame extends BaseMiniGame {
 
   initKeyboard() {
     window.addEventListener('keydown', (e) => {
+      if (!this.isLocalInputActive) return;
       const code = e.code;
       if (this.keys[code]) return;
       this.keys[code] = true;
 
-      // P0: Space or ArrowDown or KeyS
+      // P1 (slot 0): Space + alternatifler
       if (code === 'Space' || code === 'ArrowDown' || code === 'KeyS') {
         this.handlePlayerTap(0);
       }
-      // P1: ArrowUp or KeyW
-      if (code === 'ArrowUp' || code === 'KeyW') {
+      // P2 (slot 1): Oklar + Enter
+      if (code === 'ArrowUp' || code === 'KeyW' || code === 'Enter') {
         this.handlePlayerTap(1);
       }
-      // P2: ArrowLeft or KeyA
-      if (code === 'ArrowLeft' || code === 'KeyA') {
+      // P3 (slot 2): IJKL + O
+      if (code === 'ArrowLeft' || code === 'KeyA' || code === 'KeyO') {
         this.handlePlayerTap(2);
       }
-      // P3: ArrowRight or KeyD
-      if (code === 'ArrowRight' || code === 'KeyD') {
+      // P4 (slot 3): TFGH + B
+      if (code === 'ArrowRight' || code === 'KeyD' || code === 'KeyB') {
         this.handlePlayerTap(3);
       }
     });
@@ -673,7 +674,7 @@ export class DuelGame extends BaseMiniGame {
         ctx.fillStyle = '#C08552';
         ctx.fillText('BEKLE', cx, cy);
       } else if (this.state === 'ROUND_OVER' && this.roundWinner !== null) {
-        const winTime = this.reactionTimes[this.roundWinner];
+        const winTime = this.playerStatus[this.roundWinner]?.reactionMs;
         const winnerColor = DUEL_COLORS[this.roundWinner];
         ctx.globalAlpha = 0.38;
         ctx.font = `900 ${Math.floor(bigSize * 0.75)}px "Space Grotesk", sans-serif`;

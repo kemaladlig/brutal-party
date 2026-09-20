@@ -1,4 +1,7 @@
-// Paddle implementation with multi-tier Bot AI (Normal & God Mode), full-span movement and brutalist rendering
+// Paddle entity: movement, physics bounds & brutalist rendering.
+// Bot kararı src/ai/pongAI.js'tedir (diğer motorlarla aynı desen).
+
+import { updatePongBotAI as runPongBotAI } from '../ai/pongAI.js';
 
 export const PLAYER_CONFIGS = [
   { index: 0, name: 'ALT', side: 'bottom', axis: 'horizontal', color: '#D84727' },
@@ -40,6 +43,9 @@ export class Paddle {
     // Bot AI state
     this.botErrorOffset = 0;
     this.botErrorTimer = 0;
+
+    // ❄️ Donma sayacı (>0 iken raket kıpırdayamaz ama fiziksel duvardır)
+    this.frozenTimer = 0;
   }
 
   cycleSlotType() {
@@ -71,6 +77,7 @@ export class Paddle {
     this.lives = 3;
     this.isEliminated = !isJoined;
     this.velocity = 0;
+    this.frozenTimer = 0;
     this.centerInBounds();
   }
 
@@ -82,8 +89,9 @@ export class Paddle {
     const goalBounds = arena.getGoalBounds ? arena.getGoalBounds(this.side) : null;
     const goalSpan = goalBounds ? (goalBounds.goalMax - goalBounds.goalMin) : Math.round(minDim * 0.70);
 
-    // Paddle spans ~32% of the goal opening – fair and balanced on all walls
-    this.length    = Math.max(68, Math.floor(goalSpan * 0.32));
+    // Paddle spans ~32% of the goal opening – fair and balanced on all walls.
+    // Üst sınır: dar kenarda hareket payı kalsın (range = span - length > 0).
+    this.length    = Math.min(goalSpan * 0.8, Math.max(68, Math.floor(goalSpan * 0.32)));
     this.thickness = Math.max(14, Math.floor(minDim * 0.034));
 
     const halfPad = this.length / 2;
@@ -127,16 +135,23 @@ export class Paddle {
   }
 
   setTarget(value) {
-    if (!this.isJoined || this.isEliminated) return;
+    if (!this.isJoined || this.isEliminated || this.frozenTimer > 0) return;
     this.targetCoord = Math.max(this.minCoord, Math.min(this.maxCoord, value));
   }
 
   update(dt) {
     if (!this.isJoined || this.isEliminated) return;
 
-    // Run AI Controller if bot
+    // Donmuş raket: sayaç işler, hareket/AI durur
+    if (this.frozenTimer > 0) {
+      this.frozenTimer = Math.max(0, this.frozenTimer - dt);
+      this.velocity = 0;
+      return;
+    }
+
+    // Run AI Controller if bot (karar motoru: src/ai/pongAI.js)
     if (this.isBot && this.game.state === 'PLAYING') {
-      this.updateBotAI(dt);
+      runPongBotAI(this.game, this, dt);
     }
 
     this.prevCoord = this.coord;
@@ -152,136 +167,22 @@ export class Paddle {
     }
   }
 
-  updateBotAI(dt) {
-    const ball = this.game.ball;
-    if (!ball || ball.isDead) return;
-
-    const arena = this.game.arena;
-    const isHorizontal = this.axis === 'horizontal';
-
-    // Check if ball is heading towards this paddle
-    let isHeadingTowards = false;
-    if (this.side === 'bottom') isHeadingTowards = ball.vy > 0;
-    else if (this.side === 'top') isHeadingTowards = ball.vy < 0;
-    else if (this.side === 'left') isHeadingTowards = ball.vx < 0;
-    else if (this.side === 'right') isHeadingTowards = ball.vx > 0;
-
-    let desiredCoord = (this.minCoord + this.maxCoord) / 2;
-
-    if (this.isGodBot) {
-      // ⚡ GOD MODE BOT: Full multi-bounce vector raycast & tactical smash swipe
-      if (isHeadingTowards) {
-        const predicted = this.predictBallLanding(ball, arena);
-        desiredCoord = predicted;
-
-        // Tactical smash flick when ball is close:
-        // Intentionally offset to hit with the outer 30% of the paddle for devastating spin & swipe velocity!
-        const distToBall = isHorizontal
-          ? Math.abs(this.fixedPerpendicular - ball.y)
-          : Math.abs(this.fixedPerpendicular - ball.x);
-
-        if (distToBall < 110) {
-          // Swipe towards whichever side has opposing open goals
-          const swipeOffset = Math.sin(performance.now() * 0.004) > 0 ? this.length * 0.35 : -this.length * 0.35;
-          desiredCoord += swipeOffset;
-        }
-      } else {
-        // Return swiftly to center
-        desiredCoord = (this.minCoord + this.maxCoord) / 2;
-      }
-
-      // God Mode moves scaled to arena
-      const arenaRef = Math.min(this.game.arena.width || 400, this.game.arena.height || 400);
-      const godSpeed = arenaRef * 1.4 + Math.min(arenaRef * 0.4, (this.game.ball ? this.game.ball.rallyCount : 0) * arenaRef * 0.03);
-      const maxMove = godSpeed * dt;
-      const diff = desiredCoord - this.coord;
-      this.coord += Math.sign(diff) * Math.min(Math.abs(diff), maxMove);
-      this.targetCoord = Math.max(this.minCoord, Math.min(this.maxCoord, this.coord));
-
-    } else {
-      // 🤖 NORMAL BOT: Human-like latency, soft tracking, occasional misses
-      this.botErrorTimer -= dt;
-      if (this.botErrorTimer <= 0) {
-        this.botErrorOffset = (Math.random() - 0.5) * 32;
-        this.botErrorTimer = 0.4 + Math.random() * 0.3;
-      }
-
-      if (isHeadingTowards) {
-        // Track current ball position with slight error
-        const ballPos = isHorizontal ? ball.x : ball.y;
-        desiredCoord = ballPos + this.botErrorOffset;
-      } else {
-        desiredCoord = (this.minCoord + this.maxCoord) / 2;
-      }
-
-      // Normal Bot moves at human-relative speed
-      const arenaRef = Math.min(this.game.arena.width || 400, this.game.arena.height || 400);
-      const maxMove = arenaRef * 0.85 * dt;
-      const diff = desiredCoord - this.coord;
-      this.coord += Math.sign(diff) * Math.min(Math.abs(diff), maxMove);
-      this.targetCoord = Math.max(this.minCoord, Math.min(this.maxCoord, this.coord));
-    }
-  }
-
-  predictBallLanding(ball, arena) {
-    // Multi-bounce geometric trajectory simulation
-    let simX = ball.x;
-    let simY = ball.y;
-    let simVx = ball.vx;
-    let simVy = ball.vy;
-
-    const isHorizontal = this.axis === 'horizontal';
-    const targetPerp = this.fixedPerpendicular;
-    const dtSim = 1 / 180;
-    const maxSteps = 240;
-
-    for (let step = 0; step < maxSteps; step++) {
-      simX += simVx * dtSim;
-      simY += simVy * dtSim;
-
-      // Bounce off lateral walls
-      if (isHorizontal) {
-        if (simX <= arena.left + ball.radius) {
-          simVx = Math.abs(simVx);
-          simX = arena.left + ball.radius;
-        } else if (simX >= arena.right - ball.radius) {
-          simVx = -Math.abs(simVx);
-          simX = arena.right - ball.radius;
-        }
-
-        // Check arrival at horizontal paddle line
-        if (this.side === 'bottom' && simY >= targetPerp) return simX;
-        if (this.side === 'top' && simY <= targetPerp) return simX;
-      } else {
-        if (simY <= arena.top + ball.radius) {
-          simVy = Math.abs(simVy);
-          simY = arena.top + ball.radius;
-        } else if (simY >= arena.bottom - ball.radius) {
-          simVy = -Math.abs(simVy);
-          simY = arena.bottom - ball.radius;
-        }
-
-        if (this.side === 'left' && simX <= targetPerp) return simY;
-        if (this.side === 'right' && simX >= targetPerp) return simY;
-      }
-    }
-
-    return isHorizontal ? simX : simY;
-  }
-
   takeDamage() {
     if (this.isEliminated) return;
     this.lives = Math.max(0, this.lives - 1);
     if (this.lives === 0) {
       this.isEliminated = true;
+      this.frozenTimer = 0;
     }
   }
 
   getBounds() {
     let curLen = this.length;
-    // Sudden Death / Overdrive shrink after rally 10
-    if (this.game && this.game.ball && this.game.ball.rallyCount >= 10) {
-      curLen = Math.max(65, this.length * 0.82);
+    // Progresif daralma: ralli 6'dan sonra her vuruşta %2.5 kısalır (%62 taban).
+    // Ani kademe yerine yumuşak baskı; hareket payı etkilenmez (sadece boy).
+    const rally = (this.game && this.game.ball && this.game.ball.rallyCount) || 0;
+    if (rally >= 6) {
+      curLen = Math.max(60, this.length * Math.max(0.62, 1 - (rally - 6) * 0.025));
     }
     const halfLen = curLen / 2;
     const halfThick = this.thickness / 2;
@@ -361,6 +262,31 @@ export class Paddle {
         ctx.font = '900 20px "JetBrains Mono", monospace';
         ctx.fillText(livesStr, this.fixedPerpendicular, bounds.bottom + 16);
       }
+      ctx.restore();
+    }
+
+    // ❄️ Donma kaplaması + kocaman geri sayım (adillik sayacı)
+    if (this.frozenTimer > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#7FD4FF';
+      ctx.fillRect(bounds.left - 4, bounds.top - 4, w + 8, h + 8);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#1D5D8A';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(bounds.left - 4, bounds.top - 4, w + 8, h + 8);
+
+      const chipW = 104;
+      const chipH = 42;
+      const chipX = (bounds.left + bounds.right) / 2 - chipW / 2;
+      const chipY = (bounds.top + bounds.bottom) / 2 - chipH / 2;
+      ctx.fillStyle = '#1A1A1A';
+      ctx.fillRect(chipX, chipY, chipW, chipH);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '900 24px "Space Grotesk", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`❄ ${this.frozenTimer.toFixed(1)}`, chipX + chipW / 2, chipY + chipH / 2 + 1);
       ctx.restore();
     }
   }

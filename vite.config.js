@@ -12,4 +12,16 @@ export default defineConfig(({ mode }) => ({
     port: 3000,
     allowedHosts: true,
   },
+  build: {
+    rollupOptions: {
+      // Vendor ayrımı: önbellek isabeti + paralel indirme (uyarı eşiği altı için değil,
+      // TTI/LCP için — supabase/qrcode ana oyun kodundan ayrı hash'lenir)
+      output: {
+        manualChunks: {
+          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-qr': ['qrcode'],
+        },
+      },
+    },
+  },
 }));

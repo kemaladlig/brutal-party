@@ -1,5 +1,11 @@
 /* Brutalist Gamepad Mobile Controller Styling */
 
+#gamepad-overlay button:focus-visible,
+#gamepad-overlay input:focus-visible {
+  outline: 3px solid #ffde59;
+  outline-offset: 2px;
+}
+
 #gamepad-overlay {
   position: fixed;
   inset: 0;
@@ -102,6 +108,8 @@
   cursor: pointer;
   padding: 2px;
   line-height: 1;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .btn-leave-gamepad {
@@ -112,6 +120,7 @@
   color: #ff6b6b;
   border: 1.5px solid #555555;
   padding: 4px 7px;
+  min-height: 44px;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -385,6 +394,7 @@
 
 .lobby-name-edit-btn {
   padding: 4px 10px;
+  min-height: 44px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   font-weight: 800;
@@ -752,10 +762,11 @@
   font-family: 'Space Grotesk', sans-serif;
   font-size: 11px;
   font-weight: 800;
-  color: #888888;
+  color: #b0aca4;
   background: transparent;
   border: 1px solid #444444;
   padding: 4px 10px;
+  min-height: 44px;
   cursor: pointer;
 }
 

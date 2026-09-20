@@ -83,6 +83,7 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
     BOMB: 'BRUTAL BOMB',
     HEIST: 'BRUTAL HEIST',
     DUEL: 'QUICK DRAW',
+    CROWN: 'BRUTAL CROWN',
   };
   if (pauseGameTitle) {
     pauseGameTitle.textContent = `${titles[currentMode] || currentMode} // DURAKLATILDI`;

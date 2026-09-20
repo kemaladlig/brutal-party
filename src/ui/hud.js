@@ -6,13 +6,15 @@ import { UI_COLORS, UI_SIZES, uiFont } from './tokens.js';
 
 // Standart üst hap: sabit 128x34, arena üstünde ortalı (top+12).
 // text: '💣 4.2s' gibi kısa durum metni, urgent: kırmızı zemin.
-export function renderTopPill(ctx, { arena, text, urgent = false }) {
+// alpha: oyun alanı çakışmasında hapı soldurmak için (örn. PONG üst topu).
+export function renderTopPill(ctx, { arena, text, urgent = false, alpha = 1 }) {
   const pillW = 128;
   const pillH = UI_SIZES.pillH;
   const pillX = arena.cx - pillW / 2;
   const pillY = arena.top + 12;
 
   ctx.save();
+  ctx.globalAlpha = alpha;
   ctx.fillStyle = UI_COLORS.ink;
   ctx.fillRect(pillX + 3, pillY + 3, pillW, pillH);
   ctx.fillStyle = urgent ? UI_COLORS.danger : UI_COLORS.line;

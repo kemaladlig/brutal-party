@@ -1,5 +1,5 @@
 // Ball physics with progressive speed escalation, smash mechanics, sonic booms & overdrive hazards
-import { playPaddleHit, playWallHit, playGoal, playShoot, playSonicBoom } from '../audio.js';
+import { playPaddleHit, playWallHit, playGoal, playShoot, playSonicBoom, playPowerUp } from '../audio.js';
 
 export class Ball {
   constructor(game) {
@@ -31,6 +31,11 @@ export class Ball {
     this.rallyCount = 0;
     this.isSmash = false;
     this.lastHitPlayer = -1;
+
+    // ❄️ Freeze skill: dondurucu top penceresi (mavi, hareketli)
+    this.isFreezing = false;
+    this.freezeWindow = 0;
+    this.frozenBy = -1;
 
     // Anti-loop tracker
     this.consecutiveWallBounces = 0;
@@ -76,6 +81,9 @@ export class Ball {
     this.currentMaxSpeed = this.baseMaxSpeed;
     this.isSmash = false;
     this.lastHitPlayer = -1;
+    this.isFreezing = false;
+    this.freezeWindow = 0;
+    this.frozenBy = -1;
 
     let angle = directionAngle;
     if (angle === null || angle === undefined) {
@@ -93,14 +101,38 @@ export class Ball {
       angle = base + (Math.random() - 0.5) * 0.12;
     }
 
-    // Başlangıç hızı tabanın %15 üstü (maç temposu yüksek başlasın; tavan mantığı korunur)
-    const startSpeed = this.currentMinSpeed * 1.15;
+    // Başlangıç hızı tabanın %30 üstü (servis temposuz kalmasın; tavan mantığı korunur)
+    const startSpeed = this.currentMinSpeed * 1.3;
     this.vx = Math.cos(angle) * startSpeed;
     this.vy = Math.sin(angle) * startSpeed;
   }
 
+  // Dondurucu modu kur: top mavi gezer, ilk değdiği raket donar.
+  // Top zaten dondurucuysa veya bir raket donmuşsa false (tek aktif donma).
+  tryArmFreeze(casterIndex) {
+    if (this.isDead || this.isFreezing) return false;
+    const paddles = this.game?.paddles || [];
+    if (paddles.some((p) => p && p.frozenTimer > 0)) return false;
+    this.isFreezing = true;
+    this.freezeWindow = 5.0;
+    this.frozenBy = casterIndex;
+    return true;
+  }
+
+  disarmFreeze() {
+    this.isFreezing = false;
+    this.freezeWindow = 0;
+    this.frozenBy = -1;
+  }
+
   fixedUpdate(dt, arena, paddles) {
     if (this.isDead) return;
+
+    // Dondurucu pencere sayacı: temas olmazsa yetenek söner
+    if (this.isFreezing) {
+      this.freezeWindow -= dt;
+      if (this.freezeWindow <= 0) this.disarmFreeze();
+    }
 
     // Update shockwaves
     for (let i = this.shockwaves.length - 1; i >= 0; i--) {
@@ -155,8 +187,17 @@ export class Ball {
       const hDist = Math.hypot(hdx, hdy);
 
       if (hDist < hazardRadius + this.radius) {
-        const nx = hdx / (hDist || 1);
-        const ny = hdy / (hDist || 1);
+        // Derinde sıkışma tuzağı: hDist≈0 iken normal çöker, top diskte hapsolur.
+        // Çözüm: merkeze gömülmüşse geliş yönünün tersine (kafa kafaya) sek.
+        let nx, ny;
+        if (hDist > this.radius * 0.5) {
+          nx = hdx / hDist;
+          ny = hdy / hDist;
+        } else {
+          const sp = Math.hypot(this.vx, this.vy) || 1;
+          nx = -this.vx / sp;
+          ny = -this.vy / sp;
+        }
         const dot = this.vx * nx + this.vy * ny;
         this.vx = this.vx - 2 * dot * nx;
         this.vy = this.vy - 2 * dot * ny;
@@ -301,9 +342,37 @@ export class Ball {
       ry += offset * curveStrength;
     }
 
+    // Anti-lock: izleyen rakete ortalanan topun dikey/yatay sonsuz döngüsü kırılır.
+    // Teğetsel pay ralliyle büyür (%10 → %35 tavan); yön vuruş noktasından, yoksa
+    // ralli tek/çiftinden alınır (sistematik sapma olmaz).
+    const minTangentShare = Math.min(0.35, 0.10 + this.rallyCount * 0.015);
+    const curSpd = Math.hypot(rx, ry) || 1;
+    let tComp = rx * tx + ry * ty;
+    if (Math.abs(tComp) < curSpd * minTangentShare) {
+      const tSign = tComp !== 0
+        ? Math.sign(tComp)
+        : (offset !== 0 ? Math.sign(offset) : (this.rallyCount % 2 === 0 ? 1 : -1));
+      const nComp = rx * nx + ry * ny;
+      tComp = tSign * curSpd * minTangentShare;
+      rx = nx * nComp + tx * tComp;
+      ry = ny * nComp + ty * tComp;
+    }
+
     const newMag = Math.hypot(rx, ry) || 1;
     this.vx = (rx / newMag) * targetSpeed;
     this.vy = (ry / newMag) * targetSpeed;
+
+    // ❄️ Dondurucu top ilk değdiği raketi dondurur (atan dahil — risk mekaniğin parçası)
+    if (this.isFreezing) {
+      paddle.frozenTimer = 2.5;
+      this.disarmFreeze();
+      this.spawnShockwave(this.x, this.y, '#7FD4FF');
+      this.game.addTrauma(0.22);
+      playPowerUp();
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([30, 40, 30]);
+      }
+    }
 
     // Audio & Haptics
     const pitchIntensity = Math.min(2.2, 1.0 + this.rallyCount * 0.08);
@@ -322,7 +391,41 @@ export class Ball {
     }
   }
 
+  // 45° köşe pahı: üçgene gömülen top diyagonal yüzden seker.
+  // Kale ağzına taşmaz (bacak < %19 köşe payı).
+  resolveChamferCollision(nextX, nextY, arena) {
+    const L = this.game && this.game.getChamferLeg
+      ? this.game.getChamferLeg()
+      : Math.round(Math.min(arena.width, arena.height) * 0.085);
+    if (L <= 0) return false;
+    const r = this.radius;
+    const q = Math.SQRT1_2;
+    const corners = [
+      { x: arena.left, y: arena.top, nx: q, ny: q },
+      { x: arena.right, y: arena.top, nx: -q, ny: q },
+      { x: arena.left, y: arena.bottom, nx: q, ny: -q },
+      { x: arena.right, y: arena.bottom, nx: -q, ny: -q },
+    ];
+    const faceDist = L / Math.SQRT2;
+    for (const c of corners) {
+      const d = (nextX - c.x) * c.nx + (nextY - c.y) * c.ny;
+      if (d < faceDist + r) {
+        const vn = this.vx * c.nx + this.vy * c.ny;
+        if (vn >= 0) continue;
+        this.vx -= 2 * vn * c.nx;
+        this.vy -= 2 * vn * c.ny;
+        const push = faceDist + r + 1 - d;
+        this.x = nextX + c.nx * push;
+        this.y = nextY + c.ny * push;
+        this.onWallBounce(arena, 'chamfer');
+        return true;
+      }
+    }
+    return false;
+  }
+
   resolveArenaCollisions(nextX, nextY, arena, paddles) {
+    if (this.resolveChamferCollision(nextX, nextY, arena)) return;
     const r = this.radius;
     const sides = ['left', 'right', 'top', 'bottom'];
 
@@ -466,10 +569,10 @@ export class Ball {
       ctx.fill();
     }
 
-    // Ball Core
+    // Ball Core (dondurucu modda buz mavisi + ❄️ işareti)
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.fillStyle = this.isSmash ? '#D84727' : '#111111';
+    ctx.fillStyle = this.isFreezing ? '#7FD4FF' : (this.isSmash ? '#D84727' : '#111111');
     ctx.fill();
 
     ctx.strokeStyle = '#000000';
@@ -477,11 +580,19 @@ export class Ball {
     ctx.stroke();
 
     // Inner highlight if smash
-    if (this.isSmash) {
+    if (this.isSmash && !this.isFreezing) {
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius * 0.45, 0, Math.PI * 2);
       ctx.fillStyle = '#FFFFFF';
       ctx.fill();
+    }
+
+    if (this.isFreezing) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `900 ${Math.max(12, this.radius)}px "Space Grotesk", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('❄', this.x, this.y - this.radius - 10);
     }
   }
 }

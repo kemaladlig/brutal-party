@@ -1,11 +1,29 @@
-const CACHE_NAME = 'brutal-party-v10';
+const CACHE_NAME = 'brutal-party-v11';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
   '/icon-192.png',
   '/icon-512.png',
+  '/assets/games/pong.jpg',
+  '/assets/games/tanks.jpg',
+  '/assets/games/curve.jpg',
+  '/assets/games/bomb.jpg',
+  '/assets/games/heist.jpg',
+  '/assets/games/duel.jpg',
+  '/assets/games/crown.jpg',
+  '/assets/games/zone.jpg',
 ];
+
+// Runtime cache şişmesin: üst sınırı aşınca en eskiler silinir
+const MAX_RUNTIME_ENTRIES = 60;
+function trimCache(cache) {
+  return cache.keys().then((keys) => {
+    if (keys.length <= MAX_RUNTIME_ENTRIES) return;
+    const overflow = keys.length - MAX_RUNTIME_ENTRIES;
+    return Promise.all(keys.slice(0, overflow).map((k) => cache.delete(k)));
+  });
+}
 
 // ASLA cache'lenmeyecek / bypass edilecek istekler:
 // - Supabase Realtime/REST (çevrimiçi relay)
@@ -51,17 +69,24 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const isNavigate = event.request.mode === 'navigate';
+
   // Network-first stratejisi: her zaman önce şebekeden taze kodu al
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200 && url.origin === self.location.origin) {
           const copy = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, copy).then(() => trimCache(cache));
+          });
         }
         return networkResponse;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() =>
+        // ?join= / ?source=pwa gibi navigasyonlar offline'da index'e düşer
+        caches.match(event.request).then((hit) => hit || (isNavigate ? caches.match('/index.html') : undefined))
+      )
   );
 });
 

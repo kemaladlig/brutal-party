@@ -11,7 +11,7 @@
 //   start() — sayaç sonrası çalıştırma (mevcut start davranışı birebir korunur)
 //   packet() — host state paketi için oyuna özel alanlar { scores, ... }
 
-export const GAME_ORDER = ['PONG', 'TANKS', 'CURVE', 'BOMB', 'HEIST', 'DUEL', 'CROWN'];
+export const GAME_ORDER = ['PONG', 'TANKS', 'CURVE', 'BOMB', 'HEIST', 'DUEL', 'CROWN', 'ZONE'];
 
 const registry = {};
 
