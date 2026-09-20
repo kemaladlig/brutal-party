@@ -1111,7 +1111,7 @@ export class GamepadManager {
     window.addEventListener('mouseup', stopBoost, { signal: boostSignal });
   }
 
-  // --- 10: LASER CONTROLLER (Joystick aim + FIRE, 0.8s host cooldown) ---
+  // --- 10: LASER CONTROLLER (Joystick move+aim + FIRE + DASH) ---
   mountLaserController(container) {
     container.innerHTML = `
       <div class="joystick-action-view">
@@ -1121,10 +1121,16 @@ export class GamepadManager {
           </div>
         </div>
         <div class="action-half">
-          <button class="action-dash-btn" id="btn-laser-fire" type="button" style="background-color: #D84727">
-            <span class="dash-btn-label">🔫 ATEŞ</span>
-            <span class="dash-btn-sub">DOKUN</span>
-          </button>
+          <div style="display:flex;flex-direction:column;gap:10px;align-items:center;">
+            <button class="action-dash-btn" id="btn-laser-fire" type="button" style="background-color: #D84727; width: min(26vw, 96px); height: min(26vw, 96px);">
+              <span class="dash-btn-label">🔫 ATEŞ</span>
+              <span class="dash-btn-sub">DOKUN</span>
+            </button>
+            <button class="action-dash-btn" id="btn-laser-dash" type="button" style="background-color: #2f6a4f; width: min(26vw, 96px); height: min(26vw, 96px);">
+              <span class="dash-btn-label">💨 DASH</span>
+              <span class="dash-btn-sub">DOKUN</span>
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -1134,10 +1140,19 @@ export class GamepadManager {
     });
 
     const fireBtn = document.getElementById('btn-laser-fire');
-    const fireAction = this.cooledAction(fireBtn, 0.8, '🔫 ATEŞ',
+    const fireAction = this.cooledAction(fireBtn, 1.0, '🔫 ATEŞ',
       () => this.network.sendInput({ action: 'TANK_FIRE' }), [25, 40]);
     fireBtn?.addEventListener('touchstart', fireAction, { passive: false });
     fireBtn?.addEventListener('mousedown', fireAction);
+
+    const dashBtn = document.getElementById('btn-laser-dash');
+    const dashAction = this.cooledAction(dashBtn, 4.0, '💨 DASH',
+      () => this.network.sendInput({ action: 'DASH' }), [25, 35]);
+    dashBtn?.addEventListener('touchstart', dashAction, { passive: false });
+    dashBtn?.addEventListener('mousedown', dashAction);
+
+    // Host bekleme yüzdesi butona yansır (paketteki cd dizisi)
+    this._laserDashBtn = dashBtn;
   }
 
   // --- 11: CLONE CONTROLLER (Joystick + TACKLE, 1.5s host cooldown) ---
@@ -1450,8 +1465,15 @@ export class GamepadManager {
         const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
         statusStr = `SKOR: ${data.scores.join('-')} • 🐍 ${aliveCount} CANLI`;
       } else if (data.gameMode === 'LASER') {
-        const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
-        statusStr = `SKOR: ${data.scores.join('-')} • 🔫 ${aliveCount} CANLI`;
+        const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
+        const myHp = Array.isArray(data.hp) ? (data.hp[this.playerIndex] ?? 0) : 0;
+        statusStr = `SKOR: ${data.scores.join('-')} • ❤${myHp} • ⏱ ${timeStr}`;
+        // Host bekleme yüzdesi: dolmadan buton sönük görünür
+        const dashBtn = this._laserDashBtn;
+        const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
+        if (dashBtn && dashBtn.isConnected) {
+          dashBtn.style.opacity = cdPct > 0 ? 0.55 : 1;
+        }
       } else if (data.gameMode === 'CLONE') {
         const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
         statusStr = `SKOR: ${data.scores.join('-')} • 👥 ${aliveCount} CANLI`;

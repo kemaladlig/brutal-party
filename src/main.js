@@ -225,6 +225,10 @@ registerEngine('LASER', {
   packet: () => ({
     scores: laserGame.scores,
     alive: laserGame.players.map((p) => p.isAlive),
+    hp: laserGame.players.map((p) => p.hp || 0),
+    timeLeft: Math.ceil(laserGame.matchTimer || 0),
+    // Dash bekleme yüzdesi (kumanda buton göstergesi için)
+    cd: laserGame.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 4.0) * 100)),
   }),
 });
 registerEngine('CLONE', {

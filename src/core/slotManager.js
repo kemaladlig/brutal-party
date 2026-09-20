@@ -249,8 +249,8 @@ export function clearRemoteSlot(engine, currentMode, slotIndex) {
         player.steer = 0;
         player.isBoost = false;
       }
-    } else if (currentMode === 'CLONE' || currentMode === 'COLLAPSE' || currentMode === 'NINJA') {
-      // Takılı yön sıfırlanır (atılma/zıplama/kılıç anlık olaydır, latch tutmaz)
+    } else if (currentMode === 'CLONE' || currentMode === 'COLLAPSE' || currentMode === 'NINJA' || currentMode === 'LASER') {
+      // Takılı yön sıfırlanır (atılma/zıplama/kılıç/ateş anlık olaydır, latch tutmaz)
       const player = engine.players?.[slotIndex];
       if (player) {
         player.steerX = 0;
