@@ -3,24 +3,25 @@
 
 import { storePlayerName, escapeHtml } from './net.js';
 import { showInstallToast } from './ui/toast.js';
+import { UI_COLORS } from './ui/tokens.js';
 
-// Kumanda kayıt tablosu: yeni oyun = 1 satır (etiketler + mount fonksiyonu).
+// Kumanda kayıt tablosu: yeni oyun = 1 satır (etiketler + mount fonksiyonu + taktik ipucu).
 // mount: GamepadManager prototype metot adı (string) olarak tutulur.
 const CONTROLLER_META = {
   LOBBY: { hudTag: '📺 PARTİ LOBİSİ' },
-  PONG: { hudTag: '🏓 PONG', lobbyTitle: '🏓 BRUTAL PONG', mount: 'mountPongController' },
-  TANKS: { hudTag: '🛡️ TANKS', lobbyTitle: '🛡️ MICRO-TANKS', mount: 'mountTanksController' },
-  CURVE: { hudTag: '🐍 CURVE', lobbyTitle: '🐍 BRUTAL CURVE', mount: 'mountCurveController' },
-  BOMB: { hudTag: '💣 BOMB', lobbyTitle: '💣 BRUTAL BOMB', mount: 'mountBombController' },
-  HEIST: { hudTag: '💰 HEIST', lobbyTitle: '💰 BRUTAL HEIST', mount: 'mountHeistController' },
-  DUEL: { hudTag: '🤠 DUEL', lobbyTitle: '🤠 QUICK DRAW', mount: 'mountDuelController' },
-  CROWN: { hudTag: '👑 CROWN', lobbyTitle: '👑 BRUTAL CROWN', mount: 'mountCrownController' },
-  ZONE: { hudTag: '🗺️ ZONE', lobbyTitle: '🗺️ BRUTAL ZONE', mount: 'mountZoneController' },
-  SNAKE: { hudTag: '🐍 SNAKE', lobbyTitle: '🐍 BRUTAL SNAKE', mount: 'mountSnakeController' },
-  LASER: { hudTag: '🔫 LASER', lobbyTitle: '🔫 BRUTAL LASER', mount: 'mountLaserController' },
-  CLONE: { hudTag: '👥 CLONE', lobbyTitle: '👥 BRUTAL CLONE', mount: 'mountCloneController' },
-  COLLAPSE: { hudTag: '🕳️ COLLAPSE', lobbyTitle: '🕳️ BRUTAL COLLAPSE', mount: 'mountCollapseController' },
-  NINJA: { hudTag: '🥷 NINJA', lobbyTitle: '🥷 BRUTAL NINJA', mount: 'mountNinjaController' },
+  PONG: { hudTag: '🏓 PONG', lobbyTitle: '🏓 BRUTAL PONG', mount: 'mountPongController', tacticalHint: 'PADDLE SÜRÜKLE • 🌀 FALSO İLE ŞAŞIRT' },
+  TANKS: { hudTag: '🛡️ TANKS', lobbyTitle: '🛡️ MICRO-TANKS', mount: 'mountTanksController', tacticalHint: '🚀 GAZ VER (BASILI TUT) • 💥 NİŞAN ALIP ATEŞ ET' },
+  CURVE: { hudTag: '🐍 CURVE', lobbyTitle: '🐍 BRUTAL CURVE', mount: 'mountCurveController', tacticalHint: '◀ SOL / SAĞ ▶ DÖNÜŞ • DUVARLARDAN KAÇ' },
+  BOMB: { hudTag: '💣 BOMB', lobbyTitle: '💣 BRUTAL BOMB', mount: 'mountBombController', tacticalHint: '🕹️ HAREKET ET • ⚡ DEPAR İLE KAÇ VEYA DOKUN' },
+  HEIST: { hudTag: '💰 HEIST', lobbyTitle: '💰 BRUTAL HEIST', mount: 'mountHeistController', tacticalHint: '🕹️ HAREKET ET • 💥 OMUZ AT VE ELMASI ÇAL' },
+  DUEL: { hudTag: '🤠 DUEL', lobbyTitle: '🤠 QUICK DRAW', mount: 'mountDuelController', tacticalHint: '✋ BEKLE • SİNYALİ GÖRÜNCE EN HIZLI DOKUN!' },
+  CROWN: { hudTag: '👑 CROWN', lobbyTitle: '👑 BRUTAL CROWN', mount: 'mountCrownController', tacticalHint: '🕹️ HAREKET ET • 💥 OMUZ AT VE TACI KORU' },
+  ZONE: { hudTag: '🗺️ ZONE', lobbyTitle: '🗺️ BRUTAL ZONE', mount: 'mountZoneController', tacticalHint: '🕹️ HAREKET ET • ⚡ DEPAR İLE ALANA GİR' },
+  SNAKE: { hudTag: '🐍 SNAKE', lobbyTitle: '🐍 BRUTAL SNAKE', mount: 'mountSnakeController', tacticalHint: '🕹️ YÖNLENDİR • ⚡ BASILI TUTUP HIZLAN' },
+  LASER: { hudTag: '🔫 LASER', lobbyTitle: '🔫 BRUTAL LASER', mount: 'mountLaserController', tacticalHint: '🕹️ NİŞAN AL • 🔫 ATEŞ ET & 💨 DEPAR AT' },
+  CLONE: { hudTag: '👥 CLONE', lobbyTitle: '👥 BRUTAL CLONE', mount: 'mountCloneController', tacticalHint: '🕹️ HAREKET ET • 💥 OMUZ ATIP RAKİBİ İT' },
+  COLLAPSE: { hudTag: '🕳️ COLLAPSE', lobbyTitle: '🕳️ BRUTAL COLLAPSE', mount: 'mountCollapseController', tacticalHint: '🕹️ HAREKET ET • ⤴️ BOŞLUKTAN ZIPLA' },
+  NINJA: { hudTag: '🥷 NINJA', lobbyTitle: '🥷 BRUTAL NINJA', mount: 'mountNinjaController', tacticalHint: '🕹️ HAREKET ET • 🗡️ KILIÇ SAVUR' },
 };
 
 export class GamepadManager {
@@ -31,7 +32,7 @@ export class GamepadManager {
     this.selectedHostGame = 'PONG';
     this.playerIndex = 0;
     this.playerName = 'OYUNCU 1';
-    this.playerColor = '#D84727';
+    this.playerColor = UI_COLORS.players[0] || '#D84727';
     this.isReady = false;
     this.isPongInverted = false;
     this.activeTouchId = null;
@@ -78,6 +79,40 @@ export class GamepadManager {
     // DUEL emüle-mousedown bastırma
     this._lastDuelTouchAt = 0;
     this._visibilityBound = false;
+    this._wakeLock = null;
+    this._browserLocksBound = false;
+  }
+
+  // Güvenli ve merkezi Haptic Geri Bildirim
+  vibrate(pattern) {
+    try {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(pattern);
+      }
+    } catch {}
+  }
+
+  // Screen Wake Lock API — kumanda açıkken telefon ekranının kararmasını / kapanmasını önler
+  async requestWakeLock() {
+    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && !this._wakeLock) {
+      try {
+        this._wakeLock = await navigator.wakeLock.request('screen');
+        this._wakeLock.addEventListener('release', () => {
+          this._wakeLock = null;
+        });
+      } catch {
+        this._wakeLock = null;
+      }
+    }
+  }
+
+  releaseWakeLock() {
+    if (this._wakeLock) {
+      try {
+        this._wakeLock.release();
+      } catch {}
+      this._wakeLock = null;
+    }
   }
 
   // Sürekli analog akış için tek gönderim noktası: 50ms throttle + ölübant.
@@ -123,7 +158,7 @@ export class GamepadManager {
       if (state.cooling) return;
       state.cooling = true;
       try { onFire(); } catch {}
-      if (navigator.vibrate) navigator.vibrate(vibratePattern);
+      this.vibrate(vibratePattern);
       if (!btn || !btn.isConnected) return;
       btn.classList.add('cooling');
       let remaining = secs;
@@ -142,7 +177,7 @@ export class GamepadManager {
           if (!btn.isConnected) return;
           btn.classList.remove('cooling');
           paint(readyLabel, 'HAZIR!');
-          if (navigator.vibrate) navigator.vibrate(15);
+          this.vibrate(15);
         } else {
           paint(`⏳ ${remaining.toFixed(1)}s`, 'DOLUYOR');
         }
@@ -195,15 +230,36 @@ export class GamepadManager {
     if (this._visibilityBound) return;
     this._visibilityBound = true;
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) this._sendNeutralForMode();
+      if (document.visibilityState === 'visible' && !this.overlay.classList.contains('hidden')) {
+        this.requestWakeLock();
+      } else if (document.hidden) {
+        this._sendNeutralForMode();
+      }
     });
-    window.addEventListener('pagehide', () => this._sendNeutralForMode());
+    window.addEventListener('pagehide', () => {
+      this._sendNeutralForMode();
+      this.releaseWakeLock();
+    });
+  }
+
+  _bindBrowserLocks() {
+    if (this._browserLocksBound) return;
+    this._browserLocksBound = true;
+    const prevent = (e) => {
+      if (!this.overlay.classList.contains('hidden')) {
+        e.preventDefault();
+      }
+    };
+    this.overlay.addEventListener('contextmenu', prevent);
+    this.overlay.addEventListener('gesturestart', prevent);
+    this.overlay.addEventListener('gesturechange', prevent);
+    this.overlay.addEventListener('gestureend', prevent);
   }
 
   init(playerInfo, gameMode = 'LOBBY') {
     this.playerIndex = playerInfo.slotIndex ?? 0;
     this.playerName = (playerInfo.name || `OYUNCU ${this.playerIndex + 1}`).toUpperCase();
-    this.playerColor = playerInfo.color || '#D84727';
+    this.playerColor = playerInfo.color || UI_COLORS.players[this.playerIndex] || '#D84727';
     this.slots = playerInfo.slots || [null, null, null, null];
     this.selectedHostGame = gameMode === 'LOBBY' ? 'PONG' : gameMode;
     this.gameMode = gameMode || 'LOBBY';
@@ -213,13 +269,16 @@ export class GamepadManager {
     // Reset manual invert flag on fresh join so auto-detection kicks in
     this._pongInvertManualSet = false;
 
+    this._bindBrowserLocks();
     this.renderShell();
     this._bindVisibilityNeutral();
     this.renderGameController(this.gameMode);
     this.overlay.classList.remove('hidden');
+    this.requestWakeLock();
   }
 
   hide() {
+    this.releaseWakeLock();
     this.overlay.classList.add('hidden');
     this.overlay.innerHTML = '';
     this.overlay.className = 'hidden';
@@ -238,6 +297,7 @@ export class GamepadManager {
         </div>
         <div class="gamepad-room-info">#${this.network.roomCode || '---'}</div>
         <div class="gamepad-header-actions">
+          <button class="btn-fullscreen-toggle" id="btn-toggle-fullscreen" type="button" title="Tam Ekran Modu">⛶</button>
           <button class="emoji-reaction-btn" id="btn-toggle-emoji" type="button" title="Tepki Gönder">🔥</button>
           <button class="btn-leave-gamepad" id="btn-leave-gamepad" type="button">AYRIL</button>
         </div>
@@ -268,6 +328,18 @@ export class GamepadManager {
       window.location.href = window.location.pathname;
     });
 
+    const fsBtn = document.getElementById('btn-toggle-fullscreen');
+    fsBtn?.addEventListener('click', () => {
+      this.toggleFullscreen();
+    });
+
+    const updateFsIcon = () => {
+      if (fsBtn) {
+        fsBtn.textContent = document.fullscreenElement ? '✕' : '⛶';
+      }
+    };
+    document.addEventListener('fullscreenchange', updateFsIcon);
+
     const emojiModal = document.getElementById('emoji-wheel-modal');
     document.getElementById('btn-toggle-emoji')?.addEventListener('click', () => {
       this.isEmojiOpen = !this.isEmojiOpen;
@@ -280,9 +352,19 @@ export class GamepadManager {
         this.network.sendReaction(emoji);
         this.isEmojiOpen = false;
         emojiModal?.classList.add('hidden');
-        if (navigator.vibrate) navigator.vibrate(20);
+        this.vibrate(20);
       });
     });
+  }
+
+  toggleFullscreen() {
+    try {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      } else {
+        document.exitFullscreen?.().catch(() => {});
+      }
+    } catch {}
   }
 
   updateSlot(newSlot, newColor) {
@@ -391,7 +473,7 @@ export class GamepadManager {
         <div class="countdown-sub">TELEFONU TUT • EKRANA BAK</div>
       </div>
     `;
-    if (navigator.vibrate) navigator.vibrate(t > 0 ? 40 : [40, 60, 80]);
+    this.vibrate(t > 0 ? 40 : [40, 60, 80]);
   }
 
   // Staging/sayaç durumunu sıfırla (oyun başladı veya lobiye dönüldü)
@@ -430,8 +512,26 @@ export class GamepadManager {
       document.getElementById('score-strip')?.classList.add('hidden');
       this.mountLobbyController(workspace);
     } else {
-      const mountFn = CONTROLLER_META[mode]?.mount;
-      if (mountFn && typeof this[mountFn] === 'function') this[mountFn](workspace);
+      const meta = CONTROLLER_META[mode] || {};
+      workspace.innerHTML = `
+        <div class="gamepad-tactical-card" id="gamepad-tactical-card">
+          <div class="tactical-header-row">
+            <span class="tactical-game-pill">${meta.hudTag || mode}</span>
+            <button class="btn-orientation-hint" id="btn-orientation-hint" type="button" title="Konsol hissi için yatay çevir / tam ekran">
+              <span class="hint-icon">🎮</span>
+              <span class="hint-label">KONSOL İÇİN YATAY ÇEVİR</span>
+            </button>
+          </div>
+          <div class="tactical-role-text" id="tactical-role-text">${meta.tacticalHint || ''}</div>
+        </div>
+        <div class="gamepad-game-mount" id="gamepad-game-mount"></div>
+      `;
+      document.getElementById('btn-orientation-hint')?.addEventListener('click', () => {
+        this.toggleFullscreen();
+      });
+      const mountTarget = document.getElementById('gamepad-game-mount') || workspace;
+      const mountFn = meta.mount;
+      if (mountFn && typeof this[mountFn] === 'function') this[mountFn](mountTarget);
     }
   }
 
@@ -480,7 +580,7 @@ export class GamepadManager {
         const targetSlot = parseInt(btn.dataset.seat, 10);
         if (!this.canSwitchSlot(targetSlot)) return;
         this.network.sendInput({ action: 'SWITCH_SLOT', targetSlot });
-        if (navigator.vibrate) navigator.vibrate(30);
+        this.vibrate(30);
       });
     });
   }
@@ -555,7 +655,7 @@ export class GamepadManager {
         const targetSlot = parseInt(btn.dataset.seat, 10);
         if (!this.canSwitchSlot(targetSlot)) return;
         this.network.sendInput({ action: 'SWITCH_SLOT', targetSlot });
-        if (navigator.vibrate) navigator.vibrate(30);
+        this.vibrate(30);
       });
     });
 
@@ -586,7 +686,7 @@ export class GamepadManager {
       this.network.sendInput({ action: 'SET_NAME', name: newName });
       this.network.notePlayerName?.(newName);
       storePlayerName(newName);
-      if (navigator.vibrate) navigator.vibrate(15);
+      this.vibrate(15);
     };
 
     saveBtn?.addEventListener('click', saveName);
@@ -600,7 +700,7 @@ export class GamepadManager {
       // Yazı sabit "HAZIRIM": durum renkle belli olur (sönük → yeşil)
       readyBtn.classList.toggle('ready', this.isReady);
       this.network.setReady(this.isReady);
-      if (navigator.vibrate) navigator.vibrate(this.isReady ? [20, 30] : 15);
+      this.vibrate(this.isReady ? [20, 30] : 15);
     });
 
     // Leave room (çift-bas onay)
@@ -769,7 +869,7 @@ export class GamepadManager {
       isDriving = true;
       driveBtn?.classList.add('active');
       this.network.sendInput({ action: 'TANK_DRIVE', driving: true });
-      if (navigator.vibrate) navigator.vibrate(20);
+      this.vibrate(20);
     };
 
     const stopDrive = (e) => {
@@ -799,7 +899,7 @@ export class GamepadManager {
       if (now - lastFireTime < 450) return;
       lastFireTime = now;
       this.network.sendInput({ action: 'TANK_FIRE' });
-      if (navigator.vibrate) navigator.vibrate(30);
+      this.vibrate(30);
     };
 
     fireBtn?.addEventListener('touchstart', fireAction, { passive: false });
@@ -985,7 +1085,7 @@ export class GamepadManager {
       e?.preventDefault();
       this._lastDuelTouchAt = performance.now();
       this.network.sendInput({ action: 'DUEL_TAP' });
-      if (navigator.vibrate) navigator.vibrate(50);
+      this.vibrate(50);
     };
     // Emüle mousedown bastırma: dokunmatik sonrası ~600ms içindeki mousedown
     // ikinci DUEL_TAP üretmesin (host hasFired guard'ı skoru korur ama gürültü gider)
@@ -993,7 +1093,7 @@ export class GamepadManager {
       if (performance.now() - this._lastDuelTouchAt < 600) return;
       e?.preventDefault();
       this.network.sendInput({ action: 'DUEL_TAP' });
-      if (navigator.vibrate) navigator.vibrate(50);
+      this.vibrate(50);
     };
     triggerBtn?.addEventListener('touchstart', triggerAction, { passive: false });
     triggerBtn?.addEventListener('mousedown', triggerMouse);
@@ -1090,7 +1190,7 @@ export class GamepadManager {
       boosting = true;
       boostBtn?.classList.add('active');
       this.network.sendInput({ action: 'SNAKE_BOOST' });
-      if (navigator.vibrate) navigator.vibrate(20);
+      this.vibrate(20);
     };
     const stopBoost = (e) => {
       e?.preventDefault();
@@ -1121,12 +1221,12 @@ export class GamepadManager {
           </div>
         </div>
         <div class="action-half">
-          <div style="display:flex;flex-direction:column;gap:10px;align-items:center;">
-            <button class="action-dash-btn" id="btn-laser-fire" type="button" style="background-color: #D84727; width: min(26vw, 96px); height: min(26vw, 96px);">
+          <div class="laser-actions-cluster">
+            <button class="action-dash-btn laser-btn-fire" id="btn-laser-fire" type="button">
               <span class="dash-btn-label">🔫 ATEŞ</span>
               <span class="dash-btn-sub">DOKUN</span>
             </button>
-            <button class="action-dash-btn" id="btn-laser-dash" type="button" style="background-color: #2f6a4f; width: min(26vw, 96px); height: min(26vw, 96px);">
+            <button class="action-dash-btn laser-btn-dash" id="btn-laser-dash" type="button">
               <span class="dash-btn-label">💨 DASH</span>
               <span class="dash-btn-sub">DOKUN</span>
             </button>
@@ -1245,34 +1345,58 @@ export class GamepadManager {
     strikeBtn?.addEventListener('mousedown', strikeAction);
   }
 
-  // Generic Touch & Mouse Joystick Helper
+  // Floating Dynamic Joystick Helper (Center-on-touch, no fixed center)
   bindJoystick(zoneId, knobId, onInput) {
     const zone = document.getElementById(zoneId);
     const knob = document.getElementById(knobId);
     if (!zone || !knob) return;
+    const baseEl = knob.parentElement;
 
     let activeTouchId = null;
     let isMouseDown = false;
-    let centerX = 0;
-    let centerY = 0;
-    const maxRadius = 38;
+    let originX = 0;
+    let originY = 0;
+    let maxRadius = 46;
+    let hitEdge = false;
 
     const startAt = (clientX, clientY) => {
-      const baseEl = knob.parentElement;
-      const rect = baseEl ? baseEl.getBoundingClientRect() : zone.getBoundingClientRect();
-      centerX = rect.left + rect.width / 2;
-      centerY = rect.top + rect.height / 2;
-      this.updateJoy(clientX, clientY, centerX, centerY, maxRadius, knob, onInput);
+      const zoneRect = zone.getBoundingClientRect();
+      originX = clientX;
+      originY = clientY;
+      maxRadius = Math.min(52, Math.max(38, zoneRect.width * 0.22));
+      hitEdge = false;
+
+      if (baseEl) {
+        const relX = clientX - zoneRect.left;
+        const relY = clientY - zoneRect.top;
+        baseEl.classList.add('floating');
+        baseEl.style.left = `${relX}px`;
+        baseEl.style.top = `${relY}px`;
+      }
+      this.vibrate(10);
+      this.updateJoy(clientX, clientY, originX, originY, maxRadius, knob, onInput);
     };
 
     const moveAt = (clientX, clientY) => {
-      this.updateJoy(clientX, clientY, centerX, centerY, maxRadius, knob, onInput);
+      const reachedMax = this.updateJoy(clientX, clientY, originX, originY, maxRadius, knob, onInput);
+      if (reachedMax && !hitEdge) {
+        hitEdge = true;
+        this.vibrate(8);
+      } else if (!reachedMax && hitEdge) {
+        hitEdge = false;
+      }
     };
 
     const endJoy = () => {
       activeTouchId = null;
       isMouseDown = false;
+      hitEdge = false;
       knob.style.transform = 'translate(0px, 0px)';
+      if (baseEl) {
+        baseEl.classList.remove('floating');
+        baseEl.style.left = '';
+        baseEl.style.top = '';
+      }
       onInput({ dx: 0, dy: 0, angle: 0, force: 0 });
     };
 
@@ -1296,7 +1420,6 @@ export class GamepadManager {
     }, { passive: false });
 
     zone.addEventListener('touchend', (e) => {
-      // Zone-local bırakma: sadece bizim parmağımızsa sıfırla
       for (let i = 0; i < e.changedTouches.length; i++) {
         if (e.changedTouches[i].identifier === activeTouchId) { endJoy(); break; }
       }
@@ -1342,13 +1465,19 @@ export class GamepadManager {
     const knobY = Math.sin(angle) * clampedDist;
     knobEl.style.transform = `translate(${knobX}px, ${knobY}px)`;
 
-    const force = clampedDist / maxR;
+    const rawForce = clampedDist / maxR;
+    // 8% deadband to eliminate resting thumb jitter
+    const deadzone = 0.08;
+    const force = rawForce < deadzone ? 0 : (rawForce - deadzone) / (1 - deadzone);
+
     onInput({
       dx: Math.cos(angle) * force,
       dy: Math.sin(angle) * force,
       angle,
       force,
     });
+
+    return rawForce >= 0.98;
   }
 
   // Handle live state sync broadcasts from Host
@@ -1506,10 +1635,18 @@ export class GamepadManager {
       }
     }
 
+    const tacticalRoleEl = document.getElementById('tactical-role-text');
+
     // 1. Bomb Alert
     if (this.gameMode === 'BOMB') {
       const isCarrier = data.carrier === this.playerIndex;
       this.overlay.classList.toggle('bomb-carrier-alert', isCarrier);
+      if (tacticalRoleEl) {
+        tacticalRoleEl.textContent = isCarrier
+          ? '💣 BOMBA SENDE! RAKİPLERE DOKUN VE AKTAR!'
+          : '🏃 GÜVENLİSİN! BOMBALI OYUNCUDAN UZAK DUR!';
+        tacticalRoleEl.style.color = isCarrier ? '#ff6b6b' : '#25d366';
+      }
     } else {
       this.overlay.classList.remove('bomb-carrier-alert');
     }
@@ -1521,6 +1658,12 @@ export class GamepadManager {
     if (this.gameMode === 'CROWN') {
       const isKing = data.king === this.playerIndex;
       this.overlay.classList.toggle('crown-king-alert', isKing);
+      if (tacticalRoleEl) {
+        tacticalRoleEl.textContent = isKing
+          ? '👑 KRALSIN! TACI HERKESTEN KORU!'
+          : '⚔️ KRALA OMUZ AT VE TACI ÇAL!';
+        tacticalRoleEl.style.color = isKing ? '#ffd700' : '#ffffff';
+      }
     } else {
       this.overlay.classList.remove('crown-king-alert');
     }
@@ -1536,22 +1679,34 @@ export class GamepadManager {
         if (phase === 'DRAW_SIGNAL') {
           duelStateEl.textContent = '🔥 ÇEK!';
           if (duelSub) duelSub.textContent = 'ŞİMDİ DOKUN!';
+          if (tacticalRoleEl) {
+            tacticalRoleEl.textContent = '🔥 ÇEK! ŞİMDİ DOKUN!';
+            tacticalRoleEl.style.color = '#25d366';
+          }
           duelBtn?.classList.add('signal');
           // 8Hz sync her tikte titreşmesin — sinyal başına bir kez
           if (duelBtn && !duelBtn.dataset.signaled) {
             duelBtn.dataset.signaled = '1';
-            if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+            this.vibrate([60, 40, 60]);
           }
         } else if (phase === 'ROUND_OVER' || phase === 'MATCH_OVER') {
           const w = data.winner;
           duelStateEl.textContent =
             w === null || w === undefined ? '🤝 BERABERE' : (w === this.playerIndex ? '🏆 KAZANDIN!' : `P${w + 1} ALDI`);
           if (duelSub) duelSub.textContent = phase === 'MATCH_OVER' ? 'MAÇ BİTTİ' : 'SONRAKİ RAUNT...';
+          if (tacticalRoleEl) {
+            tacticalRoleEl.textContent = w === this.playerIndex ? '🏆 RAUNDU KAZANDIN!' : '⚔️ HAZIRLAN...';
+            tacticalRoleEl.style.color = '#ffd700';
+          }
           duelBtn?.classList.remove('signal');
           if (duelBtn) delete duelBtn.dataset.signaled;
         } else {
           duelStateEl.textContent = '✋ BEKLE...';
           if (duelSub) duelSub.textContent = 'SİNYALİ GÖRÜNCE DOKUN!';
+          if (tacticalRoleEl) {
+            tacticalRoleEl.textContent = '✋ BEKLE... SİNYALİ GÖRÜNCE DOKUN!';
+            tacticalRoleEl.style.color = '#ffd700';
+          }
           duelBtn?.classList.remove('signal');
           if (duelBtn) delete duelBtn.dataset.signaled;
         }
@@ -1585,7 +1740,7 @@ export class GamepadManager {
         window.setTimeout(() => this.overlay.classList.remove('duel-flash-alert'), 300);
         if (stateEl) stateEl.textContent = '💥 ATEŞ! DOKUN!';
         if (subEl) subEl.textContent = 'HEMEN BAS!';
-        if (navigator.vibrate) navigator.vibrate([30, 40, 60]);
+        this.vibrate([30, 40, 60]);
       } else if (data.duelState === 'STANDOFF_COUNTDOWN' || data.duelState === 'TENSION') {
         if (stateEl) stateEl.textContent = 'SİNYAL BEKLENİYOR...';
         if (subEl) subEl.textContent = 'ERKEN BASMA! (-1 CEZA)';

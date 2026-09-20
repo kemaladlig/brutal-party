@@ -11,6 +11,7 @@
   inset: 0;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   background-color: #141414;
   color: #ffffff;
   display: flex;
@@ -18,7 +19,11 @@
   z-index: 200;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
   touch-action: none;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
 }
 
 #gamepad-overlay.hidden {
@@ -99,6 +104,34 @@
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.btn-fullscreen-toggle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 900;
+  background-color: #242220;
+  color: #ffd700;
+  border: 1.5px solid #d99b26;
+  padding: 4px 8px;
+  min-height: 44px;
+  min-width: 44px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  box-shadow: 2px 2px 0px #000000;
+  transition: transform 0.05s ease, background-color 0.05s ease;
+}
+
+.btn-fullscreen-toggle:active {
+  background-color: #d99b26;
+  color: #141414;
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #000000;
 }
 
 .emoji-reaction-btn {
@@ -204,6 +237,11 @@
   position: relative;
   overflow: hidden;
   display: flex;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+  overscroll-behavior: none;
 }
 
 /* 00 // LOBBY CONTROLLER VIEW */
@@ -577,6 +615,106 @@
   flex-shrink: 0;
 }
 
+/* Taktiksel Durum Paneli (Dikey modda üst alanı doldurur, yatayda konsol modu için gizlenir) */
+.gamepad-tactical-card {
+  width: calc(100% - 20px);
+  max-width: 480px;
+  background: #1c1a18;
+  border: 2.5px solid #3d3a36;
+  box-shadow: 3px 3px 0px #000000;
+  padding: 8px 12px;
+  margin: 8px auto 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.tactical-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tactical-game-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 900;
+  color: #d99b26;
+  background: #2a2215;
+  border: 1px solid #d99b26;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+.btn-orientation-hint {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  background: #252320;
+  color: #ffd700;
+  border: 1px solid #ffd700;
+  padding: 3px 8px;
+  min-height: 28px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  box-shadow: 2px 2px 0px #000000;
+  transition: transform 0.05s ease, background-color 0.05s ease;
+}
+
+.btn-orientation-hint:active {
+  background: #ffd700;
+  color: #000000;
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #000000;
+}
+
+.tactical-role-text {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: #e8e4da;
+  line-height: 1.35;
+  text-align: center;
+  letter-spacing: -0.2px;
+}
+
+.gamepad-game-mount {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+}
+
+/* Landscape Mode: Taktiksel kartı gizle, tepe barları incelt; tüm ekran kumanda alanına kalsın */
+@media (orientation: landscape) and (min-aspect-ratio: 1/1) {
+  .gamepad-tactical-card {
+    display: none !important;
+  }
+  .gamepad-header {
+    height: 38px !important;
+    padding: 0 8px !important;
+  }
+  .btn-leave-gamepad,
+  .btn-fullscreen-toggle,
+  .emoji-reaction-btn {
+    min-height: 34px !important;
+    padding: 2px 6px !important;
+  }
+  .gamepad-sub-hud {
+    height: 26px !important;
+    padding: 0 8px !important;
+  }
+}
+
 /* Staging öncesi bekleme kartı (saha kapalı: koltuk seçimi yok) */
 .lobby-wait-card {
   width: 100%;
@@ -676,11 +814,15 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 16px;
-  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 16px max(16px, env(safe-area-inset-bottom, 16px));
+  box-sizing: border-box;
   background: radial-gradient(circle at center, #22201e 0%, #121212 100%);
   position: relative;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .pong-position-badge {
@@ -706,9 +848,8 @@
   margin-top: auto;
   width: 100%;
   display: flex;
-  gap: 12px;
+  gap: 14px;
   align-items: flex-end;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
 }
 
 .pong-track-wrap {
@@ -726,8 +867,8 @@
   gap: 12px;
   background-color: #161616;
   border: 2px solid #333333;
-  padding: 5px 14px;
-  margin-bottom: 2px;
+  padding: 6px 14px;
+  box-shadow: 3px 3px 0px #000000;
 }
 
 .pong-score-pips {
@@ -747,30 +888,32 @@
   border: 1px solid #d99b26;
 }
 
-/* Yatay slider pisti (tüm koltuklar, alt kuşak): kısa boy, tam genişlik */
+/* Yatay slider pisti: rahat genişlik ve dokunsal kalınlık */
 .pong-horizontal-track {
   width: 100%;
-  height: 84px;
+  height: 92px;
   background-color: #1a1a18;
-  border: 3.5px solid #444444;
-  box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+  border: 4px solid #444444;
+  box-shadow: inset 0 0 24px rgba(0,0,0,0.9), 3px 3px 0px #000000;
   position: relative;
   touch-action: none;
+  border-radius: 10px;
 }
 
 .pong-track-thumb.horizontal {
   position: absolute;
   top: 6px;
   bottom: 6px;
-  width: 56px;
-  border: 3px solid #ffffff;
-  box-shadow: 0 0 15px rgba(255,255,255,0.4);
+  width: 70px;
+  border: 3.5px solid #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 0 20px rgba(255,255,255,0.6), 2px 2px 0px #000000;
   pointer-events: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
   font-weight: 900;
   color: #ffffff;
   transform: translateX(-50%);
@@ -781,11 +924,18 @@
   font-size: 11px;
   font-weight: 800;
   color: #b0aca4;
-  background: transparent;
-  border: 1px solid #444444;
+  background: #1e1d1a;
+  border: 1.5px solid #444444;
   padding: 4px 10px;
   min-height: 44px;
   cursor: pointer;
+  box-shadow: 2px 2px 0px #000000;
+  transition: transform 0.05s ease, border-color 0.05s ease;
+}
+
+.pong-invert-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #000000;
 }
 
 .pong-invert-btn.inverted {
@@ -798,36 +948,97 @@
   width: 100%;
   height: 100%;
   display: flex;
-  padding: 14px;
+  padding: 12px;
   gap: 14px;
+  box-sizing: border-box;
+  align-items: center;
 }
 
-.tank-drive-zone {
-  flex: 1.3;
-  height: 100%;
-  display: flex;
+@media (orientation: portrait), (max-aspect-ratio: 1/1) {
+  .tanks-arcade-view {
+    max-height: 420px;
+    margin: auto 0;
+    padding: 10px 14px max(16px, env(safe-area-inset-bottom, 16px));
+  }
+  .tank-drive-zone {
+    flex: 1.2;
+    height: 100%;
+    display: flex;
+  }
+  .tanks-fire-zone {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+}
+
+@media (orientation: landscape) and (min-aspect-ratio: 1/1) {
+  .tanks-arcade-view {
+    padding: 6px max(28px, env(safe-area-inset-left, 28px)) max(10px, env(safe-area-inset-bottom, 10px)) max(28px, env(safe-area-inset-right, 28px));
+    gap: 20px;
+  }
+  .tank-drive-zone {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    justify-content: flex-start;
+  }
+  .tank-drive-pedal {
+    max-width: 320px;
+  }
+  .tanks-fire-zone {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 12px;
+  }
 }
 
 .tank-drive-pedal {
   width: 100%;
   height: 100%;
-  background: linear-gradient(180deg, #2a2826 0%, #1a1816 100%);
-  border: 3.5px solid #555555;
-  box-shadow: 4px 4px 0px #000000;
+  background: linear-gradient(180deg, #2a2826 0%, #171514 100%);
+  border: 4px solid #555555;
+  border-radius: 12px;
+  box-shadow: 4px 5px 0px #000000;
   color: #ffffff;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
   touch-action: none;
-  transition: transform 0.05s ease, background 0.05s ease;
+  transition: transform 0.06s ease, background 0.06s ease, border-color 0.06s ease, box-shadow 0.06s ease;
   user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.tank-drive-pedal::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.035) 0px,
+    rgba(255, 255, 255, 0.035) 6px,
+    transparent 6px,
+    transparent 14px
+  );
+  pointer-events: none;
+  border-radius: 6px;
 }
 
 .tank-drive-pedal .pedal-icon {
-  font-size: 38px;
+  font-size: 40px;
 }
 
 .tank-drive-pedal .pedal-title {
@@ -839,7 +1050,7 @@
 
 .tank-drive-pedal .pedal-sub {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   color: #a8a39a;
   text-align: center;
@@ -848,29 +1059,19 @@
 
 .tank-drive-pedal.active,
 .tank-drive-pedal:active {
-  transform: translate(3px, 3px);
-  box-shadow: 1px 1px 0px #000000;
-  background: linear-gradient(180deg, #25d366 0%, #1b9e4b 100%);
-  border-color: #ffffff;
-}
-
-.tanks-fire-zone {
-  flex: 1;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
+  transform: translate(3px, 4px) !important;
+  box-shadow: 1px 1px 0px #000000 !important;
+  background: linear-gradient(180deg, #25d366 0%, #179648 100%) !important;
+  border-color: #ffffff !important;
 }
 
 .tank-fire-btn {
-  width: min(38vw, 140px);
-  height: min(38vw, 140px);
+  width: clamp(110px, 34vw, 142px);
+  height: clamp(110px, 34vw, 142px);
   border-radius: 50%;
-  background-color: #d84727;
+  background: linear-gradient(180deg, #e05232 0%, #b83416 100%);
   border: 4px solid #ffffff;
-  box-shadow: 0 0 25px rgba(216, 71, 39, 0.6);
+  box-shadow: 5px 6px 0px #000000, 0 0 25px rgba(216, 71, 39, 0.6);
   color: #ffffff;
   cursor: pointer;
   touch-action: manipulation;
@@ -879,21 +1080,23 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
+  transition: transform 0.06s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.06s ease, filter 0.06s ease;
 }
 
 .tank-fire-btn .fire-icon {
-  font-size: 28px;
+  font-size: 32px;
 }
 
 .tank-fire-btn .fire-title {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 900;
 }
 
 .tank-fire-btn:active {
-  transform: scale(0.92);
-  background-color: #ff5a36;
+  transform: translate(4px, 5px) scale(0.95) !important;
+  box-shadow: 1px 1px 0px #000000, inset 0 0 18px rgba(0, 0, 0, 0.6) !important;
+  filter: brightness(1.25) !important;
 }
 
 .tank-ammo-hud {
@@ -906,12 +1109,13 @@
   height: 38px;
   border: 2px solid #555555;
   background-color: #222222;
+  border-radius: 3px;
 }
 
 .cartridge-pip.loaded {
   background-color: #d99b26;
   border-color: #ffffff;
-  box-shadow: 0 0 10px #d99b26;
+  box-shadow: 0 0 10px #d99b26, 2px 2px 0px #000000;
 }
 
 /* 03 // CURVE CONTROLLER */
@@ -919,6 +1123,31 @@
   width: 100%;
   height: 100%;
   display: flex;
+  box-sizing: border-box;
+}
+
+@media (orientation: portrait), (max-aspect-ratio: 1/1) {
+  .curve-controller-view {
+    max-height: 420px;
+    margin: auto 0;
+    padding: 10px 14px max(16px, env(safe-area-inset-bottom, 16px));
+    gap: 12px;
+  }
+  .curve-steer-btn {
+    border-radius: 12px !important;
+    border: 4px solid #333333 !important;
+    box-shadow: 4px 5px 0px #000000 !important;
+  }
+}
+
+@media (orientation: landscape) and (min-aspect-ratio: 1/1) {
+  .curve-controller-view {
+    padding: 0;
+    gap: 0;
+  }
+  .curve-steer-btn {
+    border-radius: 0;
+  }
 }
 
 .curve-steer-btn {
@@ -928,8 +1157,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 26px;
+  font-size: clamp(24px, 5vw, 34px);
   font-weight: 900;
   color: #ffffff;
   background-color: #1a1a18;
@@ -939,11 +1169,16 @@
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+  transition: background-color 0.06s ease, border-color 0.06s ease, color 0.06s ease, transform 0.06s ease, box-shadow 0.06s ease;
 }
 
 .curve-steer-btn:active,
 .curve-steer-btn.active {
-  background-color: #2f6a4f;
+  background-color: #25d366 !important;
+  border-color: #ffffff !important;
+  color: #0d0d0d !important;
+  transform: translate(2px, 3px) scale(0.98);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.7), 0 0 25px rgba(37, 211, 102, 0.5) !important;
 }
 
 .curve-steer-btn.right-btn {
@@ -957,24 +1192,25 @@
   display: flex;
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
-/* Portrait Ergonomics: Joystick & action buttons in a lower-center band (not glued to bottom) */
+/* Portrait Ergonomics: Center-zone joystick and action buttons */
 @media (orientation: portrait), (max-aspect-ratio: 1/1) {
   .joystick-action-view {
     flex-direction: row;
-    align-items: flex-end;
-    /* vh yüksekliğe göre çalışır (yüzde genişliğe göre çalışırdı); safe-area üstüne alt-orta kuşak */
-    padding-bottom: min(max(96px, env(safe-area-inset-bottom, 0px) + 12vh), 170px);
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px max(16px, env(safe-area-inset-bottom, 16px));
   }
 
   .joystick-half {
     flex: 1.1;
     height: 100%;
     position: relative;
-    border-right: 2px solid #282828;
+    border-right: 2px dashed rgba(255, 255, 255, 0.12);
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
   }
 
@@ -982,16 +1218,18 @@
     flex: 1;
     height: 100%;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
   }
 }
 
-/* Landscape Ergonomics: Joystick to lower-left corner, action button to lower-right corner */
+/* Landscape Ergonomics: Joystick to lower-left, action button to lower-right */
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .joystick-action-view {
     flex-direction: row;
-    align-items: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 max(28px, env(safe-area-inset-left, 28px)) max(12px, env(safe-area-inset-bottom, 12px)) max(28px, env(safe-area-inset-right, 28px));
   }
 
   .joystick-half {
@@ -1000,31 +1238,27 @@
     position: relative;
     border-right: 1px dashed rgba(255, 255, 255, 0.08);
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: flex-start;
-    padding-left: max(36px, env(safe-area-inset-left, 36px));
-    padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
   }
 
   .action-half {
     flex: 1;
     height: 100%;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: flex-end;
-    padding-right: max(36px, env(safe-area-inset-right, 36px));
-    padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
   }
 }
 
-/* Action button (Dash / Tackle) - Nimble & ergonomic */
+/* Action button (Dash / Tackle / Stomp) - Mechanical Tactile Push */
 .action-dash-btn {
-  width: min(30vw, 114px);
-  height: min(30vw, 114px);
+  width: clamp(100px, 32vw, 130px);
+  height: clamp(100px, 32vw, 130px);
   border-radius: 50%;
   background-color: #d99b26;
   border: 4px solid #ffffff;
-  box-shadow: 0 0 22px rgba(217, 155, 38, 0.6);
+  box-shadow: 4px 5px 0px #000000, 0 0 24px rgba(217, 155, 38, 0.6);
   color: #141414;
   font-family: 'Space Grotesk', sans-serif;
   cursor: pointer;
@@ -1036,17 +1270,24 @@
   text-align: center;
   user-select: none;
   -webkit-user-select: none;
-  transition: transform 0.1s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s ease, opacity 0.2s ease;
+  transition: transform 0.06s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.06s ease, filter 0.06s ease;
 }
 
-/* PONG falso butonu: dash diliyle aynı (Faz 3'te kumanda baştan çizilecek) */
+@media (orientation: landscape) and (min-aspect-ratio: 1/1) {
+  .action-dash-btn {
+    width: clamp(86px, 24vh, 120px);
+    height: clamp(86px, 24vh, 120px);
+  }
+}
+
+/* PONG falso butonu: dash diliyle aynı */
 .action-spin-btn {
-  width: min(30vw, 114px);
-  height: min(30vw, 114px);
+  width: clamp(94px, 28vw, 120px);
+  height: clamp(94px, 28vw, 120px);
   border-radius: 50%;
   background-color: #1d5d8a;
   border: 4px solid #ffffff;
-  box-shadow: 0 0 22px rgba(29, 93, 138, 0.65);
+  box-shadow: 4px 5px 0px #000000, 0 0 24px rgba(29, 93, 138, 0.65);
   color: #ffffff;
   font-family: 'Space Grotesk', sans-serif;
   cursor: pointer;
@@ -1058,12 +1299,13 @@
   text-align: center;
   user-select: none;
   -webkit-user-select: none;
-  transition: transform 0.1s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s ease, opacity 0.2s ease;
+  transition: transform 0.06s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.06s ease, filter 0.06s ease;
 }
 
 .action-spin-btn:active:not(.cooling) {
-  transform: scale(0.91);
-  filter: brightness(1.2);
+  transform: translate(3px, 4px) scale(0.95) !important;
+  box-shadow: 1px 1px 0px #000000, inset 0 0 16px rgba(0, 0, 0, 0.6) !important;
+  filter: brightness(1.25) !important;
 }
 
 .action-spin-btn.cooling {
@@ -1076,8 +1318,9 @@
 }
 
 .action-dash-btn:active:not(.cooling) {
-  transform: scale(0.91);
-  filter: brightness(1.2);
+  transform: translate(3px, 4px) scale(0.95) !important;
+  box-shadow: 1px 1px 0px #000000, inset 0 0 16px rgba(0, 0, 0, 0.6) !important;
+  filter: brightness(1.25) !important;
 }
 
 .action-dash-btn.cooling {
@@ -1091,45 +1334,118 @@
 
 .dash-btn-label {
   display: block;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 900;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.3px;
+  line-height: 1.1;
 }
 
 .dash-btn-sub {
   display: block;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
-  opacity: 0.8;
-  margin-top: 2px;
+  opacity: 0.85;
+  margin-top: 3px;
 }
 
-/* Virtual Joystick on Phone - Scaled down for nimble thumb radius */
+/* LASER Actions Cluster */
+.laser-actions-cluster {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (orientation: landscape) and (min-aspect-ratio: 1/1) {
+  .laser-actions-cluster {
+    flex-direction: row;
+    gap: 14px;
+  }
+}
+
+.laser-btn-fire {
+  background-color: #d84727 !important;
+  width: clamp(94px, 26vw, 114px) !important;
+  height: clamp(94px, 26vw, 114px) !important;
+  border-color: #ffffff !important;
+  box-shadow: 4px 5px 0px #000000, 0 0 20px rgba(216, 71, 39, 0.6) !important;
+}
+
+.laser-btn-dash {
+  background-color: #2f6a4f !important;
+  width: clamp(86px, 23vw, 104px) !important;
+  height: clamp(86px, 23vw, 104px) !important;
+  border-color: #ffffff !important;
+  box-shadow: 4px 5px 0px #000000, 0 0 20px rgba(47, 106, 79, 0.6) !important;
+}
+
+/* Virtual Floating Dynamic Joystick on Phone */
 .phone-joy-base {
-  width: 106px;
-  height: 106px;
+  width: 124px;
+  height: 124px;
   border-radius: 50%;
-  border: 3px dashed rgba(255, 255, 255, 0.35);
-  background-color: rgba(30, 30, 30, 0.6);
-  box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.7);
+  border: 2.5px dashed rgba(255, 255, 255, 0.4);
+  background-color: rgba(30, 30, 30, 0.65);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.8), 0 0 10px rgba(0, 0, 0, 0.5);
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.phone-joy-base::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+}
+
+.phone-joy-base.floating {
+  position: absolute !important;
+  transform: translate(-50%, -50%) !important;
+  margin: 0 !important;
+  transition: none !important;
+  border-style: solid;
+  border-width: 3.5px;
+  border-color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(20, 20, 20, 0.95);
+  box-shadow: 0 0 35px rgba(0, 0, 0, 0.95), inset 0 0 20px rgba(0, 0, 0, 0.85);
+  opacity: 1 !important;
+  z-index: 15;
+}
+
+.phone-joy-base.floating::after {
+  display: none;
 }
 
 .phone-joy-knob {
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  border: 3px solid #ffffff;
+  border: 3.5px solid #ffffff;
   background-color: #1a1a1a;
-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.6), 2px 2px 0px #000000;
   position: absolute;
   pointer-events: none;
   will-change: transform;
+  box-sizing: border-box;
+}
+
+.phone-joy-knob::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  pointer-events: none;
 }
 
 /* 06 // DUEL CONTROLLER */
@@ -1141,12 +1457,16 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
+  box-sizing: border-box;
 }
 
 .duel-full-trigger-btn {
   width: 100%;
   height: 90%;
-  border: 6px solid #ffffff;
+  max-width: 520px;
+  max-height: 480px;
+  border: 5px solid #ffffff;
+  border-radius: 16px;
   background-color: #8c4830;
   display: flex;
   flex-direction: column;
@@ -1155,7 +1475,13 @@
   gap: 16px;
   cursor: pointer;
   touch-action: manipulation;
-  box-shadow: 0 0 30px rgba(140, 72, 48, 0.6);
+  box-shadow: 6px 7px 0px #000000, 0 0 35px rgba(140, 72, 48, 0.6);
+  transition: transform 0.06s ease, box-shadow 0.06s ease, background-color 0.1s ease;
+}
+
+.duel-full-trigger-btn:active {
+  transform: translate(4px, 5px) scale(0.98) !important;
+  box-shadow: 2px 2px 0px #000000 !important;
 }
 
 .duel-trigger-state {
