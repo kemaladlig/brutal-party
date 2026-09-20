@@ -1914,4 +1914,61 @@ body {
   }
 }
 
+/* Brutal D-PAD for Snake / Grid Controls */
+.snake-dpad-half {
+  flex: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
+.brutal-dpad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dpad-row-mid {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dpad-core {
+  width: 48px;
+  height: 48px;
+  background-color: #2a2a2a;
+  border: 3px solid #1a1a1a;
+}
+
+.dpad-btn {
+  width: 58px;
+  height: 58px;
+  background-color: #faf7f2;
+  border: 3.5px solid #1a1a1a;
+  box-shadow: 4px 4px 0px #1a1a1a;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 900;
+  font-size: 24px;
+  color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.05s ease, box-shadow 0.05s ease, background-color 0.05s ease;
+}
+
+.dpad-btn:active,
+.dpad-btn.active {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+  background-color: #ffd700;
+}
+
+
 

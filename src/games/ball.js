@@ -37,6 +37,8 @@ export class Ball {
 
     // Anti-loop tracker
     this.consecutiveWallBounces = 0;
+    this.paddleHitCooldown = 0;
+    this.lastHitPaddle = -1;
   }
 
   scaleToArena(arena) {
@@ -72,6 +74,8 @@ export class Ball {
     this.shockwaves = [];
     this.isDead = false;
     this.consecutiveWallBounces = 0;
+    this.paddleHitCooldown = 0;
+    this.lastHitPaddle = -1;
 
     // Reset progressive rally escalations
     this.rallyCount = 0;
@@ -124,6 +128,10 @@ export class Ball {
 
   fixedUpdate(dt, arena, paddles) {
     if (this.isDead) return;
+
+    if (this.paddleHitCooldown > 0) {
+      this.paddleHitCooldown = Math.max(0, this.paddleHitCooldown - dt);
+    }
 
     this.applySpinCurve(dt);
 
@@ -206,6 +214,7 @@ export class Ball {
     // 4. Collision with active paddles
     for (const paddle of paddles) {
       if (!paddle.isJoined || paddle.isEliminated) continue;
+      if (this.paddleHitCooldown > 0 && this.lastHitPaddle === paddle.index) continue;
 
       if (this.checkPaddleCollision(nextX, nextY, paddle)) {
         // Snap ball to predicted position before resolving so normal is computed correctly
@@ -213,6 +222,8 @@ export class Ball {
         this.y = nextY;
         this.resolvePaddleCollision(paddle);
         this.consecutiveWallBounces = 0;
+        this.lastHitPaddle = paddle.index;
+        this.paddleHitCooldown = 0.08;
         nextX = this.x + this.vx * dt;
         nextY = this.y + this.vy * dt;
         break;
@@ -265,9 +276,9 @@ export class Ball {
     nx /= nLen;
     ny /= nLen;
 
-    // Separate ball from paddle
-    this.x = closestX + nx * (this.radius + 1.5);
-    this.y = closestY + ny * (this.radius + 1.5);
+    // Separate ball from paddle with safe clearance
+    this.x = closestX + nx * (this.radius + 3.0);
+    this.y = closestY + ny * (this.radius + 3.0);
 
     // ESCALATION: Logaritmik / Azalan ivme (ralli uzadıkça hız artışı yumuşar, tepe hız tavanı aşılmaz)
     this.rallyCount++;
@@ -278,13 +289,13 @@ export class Ball {
     const isSmashStrike = Math.abs(paddle.velocity) > smashThreshold;
     this.isSmash = isSmashStrike;
 
-    // Tepe hız tavanı: baseMaxSpeed'in 1.25 katı ile sınırlandırılır (kontrolsüz hız patlamasını önler)
-    const speedCap = this.baseMaxSpeed * 1.25;
-    let incomingSpeed = Math.hypot(this.vx, this.vy);
+    // Tepe hız tavanı: kesin tavan (840 px/s) ve baseMaxSpeed'in 1.15 katı ile sınırlandırılır
+    const speedCap = Math.min(840, this.baseMaxSpeed * 1.15);
+    let incomingSpeed = Math.hypot(this.vx, this.vy) || this.baseMinSpeed;
 
     // Doygunluk eğrisi: Hız tavana yaklaştıkça vuruş başına kazanılan ek hız yumuşar
     const headroom = Math.max(0, speedCap - incomingSpeed);
-    const boostStep = (isSmashStrike ? 0.25 : 0.09) * headroom;
+    const boostStep = (isSmashStrike ? 0.22 : 0.08) * headroom;
     let targetSpeed = Math.min(speedCap, Math.max(this.baseMinSpeed, incomingSpeed + boostStep));
 
     this.currentMinSpeed = Math.min(speedCap * 0.9, this.baseMinSpeed + Math.min(250, this.rallyCount * 12));
@@ -399,7 +410,7 @@ export class Ball {
   }
 
   // 45° köşe pahı: üçgene gömülen top diyagonal yüzden seker.
-  // Kale ağzına taşmaz (bacak < %19 köşe payı).
+  // Köşe pahı sadece kendi köşe sınırları içindeyken test edilir (boşlukta rastgele sekmeyi önler).
   resolveChamferCollision(nextX, nextY, arena) {
     const L = this.game && this.game.getChamferLeg
       ? this.game.getChamferLeg()
@@ -407,12 +418,24 @@ export class Ball {
     if (L <= 0) return false;
     const r = this.radius;
     const q = Math.SQRT1_2;
+
+    const margin = L + r + 4;
+    const inTopLeft = nextX <= arena.left + margin && nextY <= arena.top + margin;
+    const inTopRight = nextX >= arena.right - margin && nextY <= arena.top + margin;
+    const inBottomLeft = nextX <= arena.left + margin && nextY >= arena.bottom - margin;
+    const inBottomRight = nextX >= arena.right - margin && nextY >= arena.bottom - margin;
+
+    if (!inTopLeft && !inTopRight && !inBottomLeft && !inBottomRight) {
+      return false;
+    }
+
     const corners = [
-      { x: arena.left, y: arena.top, nx: q, ny: q },
-      { x: arena.right, y: arena.top, nx: -q, ny: q },
-      { x: arena.left, y: arena.bottom, nx: q, ny: -q },
-      { x: arena.right, y: arena.bottom, nx: -q, ny: -q },
-    ];
+      inTopLeft ? { x: arena.left, y: arena.top, nx: q, ny: q } : null,
+      inTopRight ? { x: arena.right, y: arena.top, nx: -q, ny: q } : null,
+      inBottomLeft ? { x: arena.left, y: arena.bottom, nx: q, ny: -q } : null,
+      inBottomRight ? { x: arena.right, y: arena.bottom, nx: -q, ny: -q } : null,
+    ].filter(Boolean);
+
     const faceDist = L / Math.SQRT2;
     for (const c of corners) {
       const d = (nextX - c.x) * c.nx + (nextY - c.y) * c.ny;
@@ -421,7 +444,7 @@ export class Ball {
         if (vn >= 0) continue;
         this.vx -= 2 * vn * c.nx;
         this.vy -= 2 * vn * c.ny;
-        const push = faceDist + r + 1 - d;
+        const push = faceDist + r + 2 - d;
         this.x = nextX + c.nx * push;
         this.y = nextY + c.ny * push;
         this.onWallBounce(arena, 'chamfer');

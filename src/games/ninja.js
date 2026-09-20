@@ -11,13 +11,15 @@ export const NINJA_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const NINJA_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
 
 const NINJA_KEY_SLOTS = [
-  { u: 'KeyW', d: 'KeyS', l: 'KeyA', r: 'KeyD', action: 'Space' },
-  { u: 'ArrowUp', d: 'ArrowDown', l: 'ArrowLeft', r: 'ArrowRight', action: 'Enter' },
-  { u: 'KeyI', d: 'KeyK', l: 'KeyJ', r: 'KeyL', action: 'KeyO' },
-  { u: 'KeyT', d: 'KeyG', l: 'KeyF', r: 'KeyH', action: 'KeyB' },
+  { u: 'KeyW', d: 'KeyS', l: 'KeyA', r: 'KeyD', action: 'Space', smoke: 'KeyE' },
+  { u: 'ArrowUp', d: 'ArrowDown', l: 'ArrowLeft', r: 'ArrowRight', action: 'Enter', smoke: 'ShiftRight' },
+  { u: 'KeyI', d: 'KeyK', l: 'KeyJ', r: 'KeyL', action: 'KeyO', smoke: 'KeyU' },
+  { u: 'KeyT', d: 'KeyG', l: 'KeyF', r: 'KeyH', action: 'KeyB', smoke: 'KeyV' },
 ];
 
-const NINJA_STRIKE_COOLDOWN = 1.5;
+const NINJA_STRIKE_COOLDOWN = 1.3;
+const NINJA_SMOKE_COOLDOWN = 5.0;
+const NINJA_RADIUS = 18;
 
 export class NinjaGame extends BaseMiniGame {
   constructor(canvas) {
@@ -28,6 +30,8 @@ export class NinjaGame extends BaseMiniGame {
     this.targetScore = 5;
     this.players = [];
     this.obstacles = [];
+    this.lanterns = [];
+    this.footsteps = [];
     this.particles = [];
     this.roundTime = 40;
     this.keys = {};
@@ -54,10 +58,10 @@ export class NinjaGame extends BaseMiniGame {
 
   keyboardInput(index) {
     const map = NINJA_KEY_SLOTS[index];
-    if (!map) return { dx: 0, dy: 0, action: false };
+    if (!map) return { dx: 0, dy: 0, action: false, smoke: false };
     const dx = (this.keys[map.r] ? 1 : 0) - (this.keys[map.l] ? 1 : 0);
     const dy = (this.keys[map.d] ? 1 : 0) - (this.keys[map.u] ? 1 : 0);
-    return { dx, dy, action: !!this.keys[map.action] };
+    return { dx, dy, action: !!this.keys[map.action], smoke: !!this.keys[map.smoke] };
   }
 
   resize(width, height) {
@@ -85,16 +89,23 @@ export class NinjaGame extends BaseMiniGame {
 
   buildMap() {
     this.obstacles = [];
+    this.lanterns = [];
     const { cx, cy, size } = this.arena;
     const bw = size * 0.18;
 
-    // Pusu kurmalık 4 ana sütun + merkez siper
+    // Pusu kurmalık 4 ana tapınak sütunu + merkez siper
     this.obstacles.push(
-      { x: cx - bw * 1.2 - bw / 2, y: cy - bw * 0.8 - bw / 2, w: bw, h: bw },
-      { x: cx + bw * 1.2 - bw / 2, y: cy - bw * 0.8 - bw / 2, w: bw, h: bw },
-      { x: cx - bw * 1.2 - bw / 2, y: cy + bw * 0.8 - bw / 2, w: bw, h: bw },
-      { x: cx + bw * 1.2 - bw / 2, y: cy + bw * 0.8 - bw / 2, w: bw, h: bw },
-      { x: cx - bw * 0.3, y: cy - bw * 0.3, w: bw * 0.6, h: bw * 0.6 }
+      { x: cx - bw * 1.3 - bw / 2, y: cy - bw * 0.9 - bw / 2, w: bw, h: bw },
+      { x: cx + bw * 1.3 - bw / 2, y: cy - bw * 0.9 - bw / 2, w: bw, h: bw },
+      { x: cx - bw * 1.3 - bw / 2, y: cy + bw * 0.9 - bw / 2, w: bw, h: bw },
+      { x: cx + bw * 1.3 - bw / 2, y: cy + bw * 0.9 - bw / 2, w: bw, h: bw },
+      { x: cx - bw * 0.35, y: cy - bw * 0.35, w: bw * 0.7, h: bw * 0.7 }
+    );
+
+    // 2 adet ışık feneri (ışık halkasına giren ninjanın görünmezliği bozulur!)
+    this.lanterns.push(
+      { x: cx, y: cy - bw * 1.25, radius: bw * 0.95 },
+      { x: cx, y: cy + bw * 1.25, radius: bw * 0.95 }
     );
   }
 
@@ -113,12 +124,13 @@ export class NinjaGame extends BaseMiniGame {
       return {
         index: i, name: existing?.name || NINJA_NAMES[i], color: NINJA_COLORS[i],
         x: s.x, y: s.y, angle: 0,
-        speed: 130, steerX: 0, steerY: 0,
+        speed: 145, steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
-        alpha: 1.0, hideTimer: 0,
+        alpha: 1.0, hideTimer: 0, inLight: false,
         strikeTimer: 0, strikeCooldown: 0,
+        smokeTimer: 0, smokeCooldown: 0,
         botState: 'HIDE', botTimer: 0.5, botTargetX: s.x, botTargetY: s.y,
-        keyActionLatch: false,
+        keyActionLatch: false, keySmokeLatch: false,
       };
     });
   }
@@ -130,6 +142,7 @@ export class NinjaGame extends BaseMiniGame {
     this.matchWinner = null;
     this.roundTransitionTimer = 0;
     this.particles = [];
+    this.footsteps = [];
     this.initPlayers();
     this.onTouchesReset();
   }
@@ -155,6 +168,7 @@ export class NinjaGame extends BaseMiniGame {
     this.roundTransitionTimer = 0;
     this.roundTime = 45;
     this.particles = [];
+    this.footsteps = [];
     this.onTouchesReset();
     playStart();
 
@@ -172,8 +186,11 @@ export class NinjaGame extends BaseMiniGame {
       player.isAlive = player.isJoined;
       player.alpha = 1.0;
       player.hideTimer = 0;
+      player.inLight = false;
       player.strikeTimer = 0;
       player.strikeCooldown = 0;
+      player.smokeTimer = 0;
+      player.smokeCooldown = 0;
       player.steerX = 0;
       player.steerY = 0;
       player.botState = 'HIDE';
@@ -182,15 +199,27 @@ export class NinjaGame extends BaseMiniGame {
   }
 
   attemptStrike(player) {
-    // Lobi/maç-sonunda kumandadan kılıç tetiklenemez (uzak girdi kapısı)
     if (this.state !== 'PLAYING') return;
     if (player.strikeCooldown <= 0) {
-      player.strikeTimer = 0.2;
+      player.strikeTimer = 0.22;
       player.strikeCooldown = NINJA_STRIKE_COOLDOWN;
       player.alpha = 1.0;
       player.hideTimer = 0;
       playItemPickup();
       this.spawnSlashTrail(player.x, player.y, player.angle, player.color);
+    }
+  }
+
+  attemptSmoke(player) {
+    if (this.state !== 'PLAYING') return;
+    if (player.smokeCooldown <= 0) {
+      player.smokeCooldown = NINJA_SMOKE_COOLDOWN;
+      player.smokeTimer = 2.2;
+      player.alpha = 0.0;
+      player.hideTimer = 1.0;
+      playExplosion();
+      this.spawnSmoke(player.x, player.y, '#333333', 35);
+      this.addTrauma(0.18);
     }
   }
 
@@ -327,12 +356,24 @@ export class NinjaGame extends BaseMiniGame {
     this.players.forEach((p) => { p.steerX = 0; p.steerY = 0; });
   }
 
+  spawnFootstep(x, y) {
+    if (this.footsteps.length > 40) this.footsteps.shift();
+    this.footsteps.push({ x, y, alpha: 0.45 });
+  }
+
   update(now) {
     const dt = Math.min((now - this.lastTime) / 1000, 0.08);
     this.lastTime = now;
 
     if (this.trauma > 0) {
       this.trauma = Math.max(0, this.trauma - dt * 2.2);
+    }
+
+    // Ayak izleri güncellemesi
+    for (let i = this.footsteps.length - 1; i >= 0; i--) {
+      const f = this.footsteps[i];
+      f.alpha -= dt * 1.1;
+      if (f.alpha <= 0) this.footsteps.splice(i, 1);
     }
 
     if (this.state === 'ROUND_OVER') {
@@ -357,6 +398,7 @@ export class NinjaGame extends BaseMiniGame {
 
       if (player.strikeCooldown > 0) player.strikeCooldown -= dt;
       if (player.strikeTimer > 0) player.strikeTimer -= dt;
+      if (player.smokeCooldown > 0) player.smokeCooldown -= dt;
 
       if (player.slotType !== 'human') {
         updateNinjaBotAI(this, player, dt);
@@ -385,22 +427,49 @@ export class NinjaGame extends BaseMiniGame {
         } else if (!ki.action) {
           player.keyActionLatch = false;
         }
-      }
 
-      // Görünmezlik: duran 0.3sn sonra solar, kıpırdayan parlar
-      const isMoving = player.steerX !== 0 || player.steerY !== 0 || player.strikeTimer > 0;
-
-      if (isMoving) {
-        player.hideTimer = 0;
-        player.alpha = Math.min(1.0, player.alpha + dt * 5);
-      } else {
-        player.hideTimer += dt;
-        if (player.hideTimer > 0.3) {
-          player.alpha = Math.max(0.05, player.alpha - dt * 2.5);
+        if (ki.smoke && !player.keySmokeLatch) {
+          this.attemptSmoke(player);
+          player.keySmokeLatch = true;
+        } else if (!ki.smoke) {
+          player.keySmokeLatch = false;
         }
       }
 
-      const spd = player.strikeTimer > 0 ? 550 : player.speed;
+      // Fener ışık kontrolü
+      let inLight = false;
+      for (const lantern of this.lanterns) {
+        if (Math.hypot(player.x - lantern.x, player.y - lantern.y) < lantern.radius) {
+          inLight = true;
+          break;
+        }
+      }
+      player.inLight = inLight;
+
+      const isMoving = player.steerX !== 0 || player.steerY !== 0 || player.strikeTimer > 0;
+
+      // Görünmezlik: Durunca TAM 0.0'a iner (TAM GÖRÜNMEZLİK!)
+      if (player.smokeTimer > 0) {
+        player.smokeTimer -= dt;
+        player.alpha = 0.0;
+      } else if (inLight) {
+        // Fener ışığında ninja ifşa olur
+        player.alpha = Math.min(1.0, player.alpha + dt * 6.0);
+        player.hideTimer = 0;
+      } else if (isMoving) {
+        player.hideTimer = 0;
+        player.alpha = Math.min(1.0, player.alpha + dt * 4.5);
+        if (Math.random() < 0.22) {
+          this.spawnFootstep(player.x, player.y);
+        }
+      } else {
+        player.hideTimer += dt;
+        if (player.hideTimer > 0.2) {
+          player.alpha = Math.max(0.0, player.alpha - dt * 3.5);
+        }
+      }
+
+      const spd = player.strikeTimer > 0 ? 600 : player.speed;
 
       if (player.strikeTimer <= 0) {
         player.x += player.steerX * spd * dt;
@@ -410,11 +479,11 @@ export class NinjaGame extends BaseMiniGame {
         player.y += Math.sin(player.angle) * spd * dt;
       }
 
-      const r = 12;
+      const r = NINJA_RADIUS;
       player.x = Math.max(this.arena.left + r, Math.min(this.arena.right - r, player.x));
       player.y = Math.max(this.arena.top + r, Math.min(this.arena.bottom - r, player.y));
 
-      // Siper kutuları: eksen-ayrık kayma; duvara çarpan atılma iptal olur
+      // Siper kutuları
       for (const obs of this.obstacles) {
         const minX = obs.x - r;
         const maxX = obs.x + obs.w + r;
@@ -437,24 +506,24 @@ export class NinjaGame extends BaseMiniGame {
       }
     }
 
-    // Kılıç isabeti: atılan + 26px içindekini eler
+    // Kılıç isabeti: atılan + 38px içindekini eler
     for (const attacker of this.players) {
       if (!attacker.isJoined || !attacker.isAlive || attacker.strikeTimer <= 0) continue;
 
       for (const victim of this.players) {
         if (!victim.isJoined || !victim.isAlive || victim.index === attacker.index) continue;
 
-        if (Math.hypot(attacker.x - victim.x, attacker.y - victim.y) < 26) {
+        if (Math.hypot(attacker.x - victim.x, attacker.y - victim.y) < 38) {
           victim.isAlive = false;
           attacker.strikeTimer = 0;
           this.scores[attacker.index]++;
-          this.addTrauma(0.6);
+          this.addTrauma(0.45);
           playExplosion();
-          this.spawnSmoke(victim.x, victim.y, victim.color);
-
+          this.spawnSmoke(victim.x, victim.y, victim.color, 28);
           if (this.scores[attacker.index] >= this.targetScore) {
             this.matchWinner = attacker;
           }
+          this.checkRoundWinner();
           break;
         }
       }
@@ -497,6 +566,8 @@ export class NinjaGame extends BaseMiniGame {
       }
     } else if (data.action === 'DASH' || data.action === 'STRIKE') {
       this.attemptStrike(player);
+    } else if (data.action === 'NINJA_SMOKE') {
+      this.attemptSmoke(player);
     }
   }
 
@@ -504,7 +575,6 @@ export class NinjaGame extends BaseMiniGame {
     this.state = 'ROUND_OVER';
     this.roundWinner = winner;
     this.roundTransitionTimer = 2.5;
-    // Skor yalnızca kılıç isabetiyle yazılır (hayatta kalma puanı yok)
     if (winner && this.scores[winner.index] >= this.targetScore) {
       this.matchWinner = winner;
     }
@@ -522,15 +592,56 @@ export class NinjaGame extends BaseMiniGame {
     ctx.fillStyle = '#E8E5DF';
     ctx.fillRect(left, top, width, height);
 
+    // Ayak izleri (karanlıkta ninjanın yönünü ele verir)
+    for (const f of this.footsteps) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, f.alpha));
+      ctx.fillStyle = '#9C988F';
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Fenerler ve Aydınlatma Alanı
+    for (const lantern of this.lanterns) {
+      // Işık halesi (fenerin aydınlattığı bölge: sarı transparan)
+      ctx.save();
+      const grad = ctx.createRadialGradient(lantern.x, lantern.y, 10, lantern.x, lantern.y, lantern.radius);
+      grad.addColorStop(0, 'rgba(255, 215, 0, 0.28)');
+      grad.addColorStop(0.7, 'rgba(255, 215, 0, 0.12)');
+      grad.addColorStop(1, 'rgba(255, 215, 0, 0.0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(lantern.x, lantern.y, lantern.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // İnce altın halka sınırı
+      ctx.strokeStyle = 'rgba(217, 155, 38, 0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+
+      // Fener kaidesi (🏮)
+      ctx.fillStyle = '#1A1A1A';
+      ctx.fillRect(lantern.x - 11, lantern.y - 11, 22, 22);
+      ctx.fillStyle = '#FFD700';
+      ctx.beginPath();
+      ctx.arc(lantern.x, lantern.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
       renderCornerScores(ctx, { arena: this.arena, entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null) });
     }
 
-    // Siper kutuları
+    // Siper kutuları (Tapınak taşları)
     ctx.fillStyle = '#1A1A1A';
     for (const obs of this.obstacles) {
       ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-      ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+      ctx.strokeStyle = '#3A3A3A';
+      ctx.lineWidth = 2.5;
       ctx.strokeRect(obs.x + 4, obs.y + 4, obs.w - 8, obs.h - 8);
     }
 
@@ -538,21 +649,25 @@ export class NinjaGame extends BaseMiniGame {
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
 
-    // Oyuncular (görünmezlik alphası ile)
+    // Oyuncular (Görünmezlik alphası ile)
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
 
-      // Kendi ninjasını kaybetmemesi için lokal oyuncuya hafif kesikli halka
-      if (player.slotType === 'human' && player.alpha < 0.4) {
-        ctx.save();
-        ctx.globalAlpha = 0.35;
-        ctx.strokeStyle = player.color;
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, 16, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
+      // Tamamen görünmezken (alpha === 0):
+      // Yalnızca lokal ekranda oynayan kendi ninjasını hafifçe görsün (zen odak noktası)
+      if (player.alpha <= 0.02) {
+        if (player.slotType === 'human' && this.isLocalInputActive) {
+          ctx.save();
+          ctx.globalAlpha = 0.22;
+          ctx.strokeStyle = player.color;
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([2, 3]);
+          ctx.beginPath();
+          ctx.arc(player.x, player.y, NINJA_RADIUS, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+        continue;
       }
 
       ctx.save();
@@ -560,29 +675,56 @@ export class NinjaGame extends BaseMiniGame {
       ctx.translate(player.x, player.y);
       ctx.rotate(player.angle);
 
+      // Kılıç savurma efekti (Slash arc)
       if (player.strikeTimer > 0) {
-        ctx.fillStyle = '#1A1A1A';
+        ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
-        ctx.moveTo(10, -18);
-        ctx.lineTo(28, 0);
-        ctx.lineTo(10, 18);
+        ctx.arc(0, 0, 36, -0.7, 0.7);
+        ctx.lineTo(12, 0);
+        ctx.closePath();
         ctx.fill();
+
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 3;
+        ctx.stroke();
       }
 
+      // Bandana kurdelesi (arka kuyruk)
       ctx.fillStyle = player.color;
-      ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
-      ctx.lineWidth = 2.5; ctx.strokeStyle = '#1A1A1A'; ctx.stroke();
+      ctx.fillRect(-NINJA_RADIUS - 8, -4, 9, 3.5);
+      ctx.fillRect(-NINJA_RADIUS - 6, 2, 7, 3.5);
 
+      // Ana gövde / Kukuleta (Hood)
       ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(4, -8, 7, 16);
-      ctx.fillStyle = '#FFF';
-      ctx.beginPath(); ctx.arc(7, -3, 1.5, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(7, 3, 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, 0, NINJA_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#111';
+      ctx.stroke();
+
+      // Kafa Bandı (Oyuncu renginde headband)
+      ctx.fillStyle = player.color;
+      ctx.fillRect(-2, -NINJA_RADIUS + 2, 8, NINJA_RADIUS * 2 - 4);
+
+      // Göz Maskesi Aralığı
+      ctx.fillStyle = '#1A1A1A';
+      ctx.fillRect(5, -9, 8, 18);
+
+      // Parlayan Ninja Gözleri
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.arc(9, -4, 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(9, 4, 2.2, 0, Math.PI * 2); ctx.fill();
+
+      // Gözbebekleri (ileri bakan keskin bakış)
+      ctx.fillStyle = '#1A1A1A';
+      ctx.beginPath(); ctx.arc(10, -4, 1.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(10, 4, 1.2, 0, Math.PI * 2); ctx.fill();
 
       ctx.restore();
     }
 
-    // Parçacıklar
+    // Parçacıklar (Duman / Darbe)
     for (const p of this.particles) {
       ctx.save();
       ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
@@ -593,7 +735,7 @@ export class NinjaGame extends BaseMiniGame {
       ctx.restore();
     }
 
-    // Geri sayım filigranı (son 15 saniye)
+    // Geri sayım filigranı
     if (this.state === 'PLAYING' && this.roundTime <= 15) {
       ctx.save();
       ctx.font = 'bold 36px monospace';

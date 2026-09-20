@@ -1,48 +1,68 @@
-// Brutal Clone bot zekâsı: rastgele devriye + yakın-menzil omuz (gerçek/kopya
-// ayırt etmez — blöfü yiyebilir, tasarım gereği).
+// Brutal Clone RPG bot zekâsı:
+// Görev istasyonlarına gidip görev yapar (rol yapar),
+// etrafında şüpheli koşan veya görev alanına yaklaşan karakterlere pusu kurup omuz atar.
 
 export function updateCloneBotAI(game, bot, dt) {
   bot.botCheckTimer -= dt;
 
-  if (bot.botCheckTimer <= 0) {
-    bot.botCheckTimer = 0.5 + Math.random();
-    bot.botTargetX = game.arena.cx + (Math.random() - 0.5) * game.arena.size * 0.8;
-    bot.botTargetY = game.arena.cy + (Math.random() - 0.5) * game.arena.size * 0.8;
+  // Hedef görev noktası belirleme
+  if (!bot.botTargetTask || bot.botCheckTimer <= 0) {
+    bot.botCheckTimer = 3.0 + Math.random() * 2.0;
+    const tasks = game.taskPoints;
+    if (tasks && tasks.length) {
+      bot.botTargetTask = tasks[Math.floor(Math.random() * tasks.length)];
+    }
   }
 
-  const dx = bot.botTargetX - bot.x;
-  const dy = bot.botTargetY - bot.y;
-  const dist = Math.hypot(dx, dy);
+  if (bot.botTargetTask) {
+    const dx = bot.botTargetTask.x - bot.x;
+    const dy = bot.botTargetTask.y - bot.y;
+    const dist = Math.hypot(dx, dy);
 
-  if (dist > 10) {
-    bot.steerX = dx / dist;
-    bot.steerY = dy / dist;
-    bot.angle = Math.atan2(dy, dx);
-  } else {
-    bot.steerX = 0;
-    bot.steerY = 0;
+    if (dist > 25) {
+      bot.steerX = dx / dist;
+      bot.steerY = dy / dist;
+      bot.angle = Math.atan2(dy, dx);
+    } else {
+      // Görev alanında sakin durup rol yapma
+      bot.steerX = 0;
+      bot.steerY = 0;
+    }
   }
 
+  // Tehdit algılama & infaz: 75px menzilde şüpheli veya yakın hedef
   if (bot.dashCooldown <= 0 && bot.slowTimer <= 0) {
+    // 1. Canlı gerçek rakipler
     for (const enemy of game.players) {
       if (!enemy.isJoined || !enemy.isAlive || enemy.index === bot.index) continue;
 
-      const targets = [{ x: enemy.x, y: enemy.y }, ...enemy.clones.filter((c) => c.active)];
+      const tDx = enemy.x - bot.x;
+      const tDy = enemy.y - bot.y;
+      const tDist = Math.hypot(tDx, tDy);
 
-      for (const t of targets) {
-        const tDx = t.x - bot.x;
-        const tDy = t.y - bot.y;
-        const tDist = Math.hypot(tDx, tDy);
+      // Yakın veya koşan düşman
+      if (tDist < 75) {
+        bot.angle = Math.atan2(tDy, tDx);
+        bot.steerX = Math.cos(bot.angle);
+        bot.steerY = Math.sin(bot.angle);
+        game.attemptTackle(bot);
+        bot.botCheckTimer = 1.5;
+        return;
+      }
+    }
 
-        if (tDist < 80) {
-          const angleToTarget = Math.atan2(tDy, tDx);
-          const angleDiff = Math.abs(Math.atan2(Math.sin(angleToTarget - bot.angle), Math.cos(angleToTarget - bot.angle)));
-
-          if (angleDiff < 0.5) {
-            game.attemptTackle(bot);
-            bot.botCheckTimer = 1.0;
-            return;
-          }
+    // 2. Klonlara yanlışlıkla saldırma ihtimali (insansı hata)
+    if (Math.random() < 0.03) {
+      for (const clone of game.npcClones) {
+        if (!clone.active || clone.ownerIndex === bot.index) continue;
+        const cDist = Math.hypot(clone.x - bot.x, clone.y - bot.y);
+        if (cDist < 60) {
+          bot.angle = Math.atan2(clone.y - bot.y, clone.x - bot.x);
+          bot.steerX = Math.cos(bot.angle);
+          bot.steerY = Math.sin(bot.angle);
+          game.attemptTackle(bot);
+          bot.botCheckTimer = 2.0;
+          return;
         }
       }
     }

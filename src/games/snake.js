@@ -10,15 +10,17 @@ import { updateSnakeBotAI } from '../ai/snakeAI.js';
 export const SNAKE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const SNAKE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
 
-// Lokal klavye: [sol, sağ, boost] — P1 WASD+Space, P2 Oklar+Enter, P3 IJKL+O, P4 TFGH+B
-const SNAKE_KEY_SLOTS_PAIRS = [
-  ['KeyA', 'KeyD', 'Space'],
-  ['ArrowLeft', 'ArrowRight', 'Enter'],
-  ['KeyJ', 'KeyL', 'KeyO'],
-  ['KeyF', 'KeyH', 'KeyB'],
+// Lokal klavye: 4 yön + boost — P1 WASD+Space, P2 Oklar+Enter, P3 IJKL+O, P4 TFGH+B
+const SNAKE_KEY_MAPS = [
+  { u: 'KeyW', d: 'KeyS', l: 'KeyA', r: 'KeyD', boost: 'Space' },
+  { u: 'ArrowUp', d: 'ArrowDown', l: 'ArrowLeft', r: 'ArrowRight', boost: 'Enter' },
+  { u: 'KeyI', d: 'KeyK', l: 'KeyJ', r: 'KeyL', boost: 'KeyO' },
+  { u: 'KeyT', d: 'KeyG', l: 'KeyF', r: 'KeyH', boost: 'KeyB' },
 ];
 const SNAKE_KEY_SLOTS = {};
-SNAKE_KEY_SLOTS_PAIRS.forEach((pair, i) => pair.forEach((c) => (SNAKE_KEY_SLOTS[c] = i)));
+SNAKE_KEY_MAPS.forEach((map, i) => {
+  Object.values(map).forEach((code) => { SNAKE_KEY_SLOTS[code] = i; });
+});
 
 // Kuyruk boyu tavanı: uzayan oyunda ızgara-rebuild sınırlı kalır
 const SNAKE_MAX_LEN = 300;
@@ -60,23 +62,37 @@ export class SnakeGame extends BaseMiniGame {
     });
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
-      // Tuş bırakma: o slotta basılı yön kalmadıysa + dokunmatik yoksa düz git
+      // Tuş bırakma
       const slot = SNAKE_KEY_SLOTS[e.code];
       if (slot === undefined) return;
-      if (this.cornerTouches[slot]?.id !== -1) return;
       const player = this.players[slot];
-      if (player && player.slotType === 'human' && this.keyboardInput(slot).steer === 0) {
+      if (!player || player.slotType !== 'human') return;
+      const ki = this.keyboardInput(slot);
+      if (this.cornerTouches[slot]?.id === -1 && ki.steer === 0) {
         player.steer = 0;
       }
+      player.isBoost = ki.boost || this.touchBoost[slot];
     });
   }
 
   keyboardInput(index) {
-    const keys = SNAKE_KEY_SLOTS_PAIRS[index];
-    if (!keys) return { steer: 0, boost: false };
-    const l = this.keys[keys[0]] ? -1 : 0;
-    const r = this.keys[keys[1]] ? 1 : 0;
-    return { steer: l + r, boost: !!this.keys[keys[2]] };
+    const map = SNAKE_KEY_MAPS[index];
+    if (!map) return { steer: 0, boost: false, targetAngle: null };
+    const up = !!this.keys[map.u];
+    const down = !!this.keys[map.d];
+    const left = !!this.keys[map.l];
+    const right = !!this.keys[map.r];
+    const boost = !!this.keys[map.boost];
+
+    let targetAngle = null;
+    if (up && !down) targetAngle = -Math.PI / 2;
+    else if (down && !up) targetAngle = Math.PI / 2;
+    else if (left && !right) targetAngle = Math.PI;
+    else if (right && !left) targetAngle = 0;
+
+    const l = left ? -1 : 0;
+    const r = right ? 1 : 0;
+    return { steer: l + r, boost, targetAngle };
   }
 
   resize(width, height) {
@@ -128,7 +144,7 @@ export class SnakeGame extends BaseMiniGame {
       const existing = this.players[i];
       return {
         index: i, name: existing?.name || SNAKE_NAMES[i], color: SNAKE_COLORS[i],
-        x: s.x, y: s.y, angle: s.angle, speed: 140, turnSpeed: 3.0,
+        x: s.x, y: s.y, angle: s.angle, targetAngle: null, speed: 140, turnSpeed: 3.2,
         steer: 0, isBoost: false, isAlive: true, isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i], segments: [], currentLen: 0, targetLen: 60,
         botCheckTimer: 0,
@@ -370,15 +386,33 @@ export class SnakeGame extends BaseMiniGame {
       } else {
         // Klavye eklemeli: basılı yön yazar, basılı değilse ve kumanda/dokunmatik yoksa düz git
         const ki = this.keyboardInput(player.index);
-        if (ki.steer !== 0) {
+        if (ki.targetAngle !== null) {
+          player.targetAngle = ki.targetAngle;
+          player.steer = 0;
+        } else if (ki.steer !== 0) {
           player.steer = ki.steer;
+          player.targetAngle = null;
         } else if (!player.remoteSteerActive && this.cornerTouches[player.index]?.id === -1) {
           player.steer = 0;
         }
         player.isBoost = ki.boost || this.touchBoost[player.index] || !!player.remoteBoostActive;
       }
 
-      player.angle += player.steer * player.turnSpeed * dt;
+      if (player.targetAngle !== null && player.targetAngle !== undefined) {
+        let diff = player.targetAngle - player.angle;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        if (Math.abs(diff) > Math.PI * 0.88) {
+          diff = Math.sign(diff || 1) * Math.PI * 0.88;
+        }
+        const maxTurn = player.turnSpeed * 1.8 * dt;
+        player.angle += Math.max(-maxTurn, Math.min(maxTurn, diff));
+        if (Math.abs(diff) < 0.05) {
+          player.angle = player.targetAngle;
+        }
+      } else {
+        player.angle += player.steer * player.turnSpeed * dt;
+      }
       const moveSpeed = player.isBoost ? player.speed * 1.6 : player.speed;
       const prevX = player.x;
       const prevY = player.y;
@@ -508,13 +542,27 @@ export class SnakeGame extends BaseMiniGame {
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
-    if (data.action === 'SNAKE_STEER' || data.action === 'CURVE_STEER') {
+
+    if (data.action === 'SNAKE_DIR') {
+      if (Number.isFinite(data.angle)) {
+        player.targetAngle = data.angle;
+      } else if (Number.isFinite(data.dx) && Number.isFinite(data.dy) && (data.dx !== 0 || data.dy !== 0)) {
+        player.targetAngle = Math.atan2(data.dy, data.dx);
+      }
+      player.steer = 0;
+      player.remoteSteerActive = false;
+    } else if (data.action === 'SNAKE_STEER' || data.action === 'CURVE_STEER') {
       player.steer = Number.isFinite(data.dir) ? data.dir : 0;
       player.remoteSteerActive = (player.steer !== 0);
+      if (player.steer !== 0) player.targetAngle = null;
     } else if (data.action === 'JOYSTICK_MOVE') {
-      const dir = Number.isFinite(data.dir) ? data.dir : (Number.isFinite(data.dx) ? data.dx : 0);
-      player.steer = Math.max(-1, Math.min(1, dir));
-      player.remoteSteerActive = (player.steer !== 0);
+      const dx = data.dx || 0;
+      const dy = data.dy || 0;
+      if (Math.hypot(dx, dy) > 0.3) {
+        player.targetAngle = Math.atan2(dy, dx);
+        player.steer = 0;
+        player.remoteSteerActive = false;
+      }
     } else if (data.action === 'SNAKE_BOOST') {
       player.isBoost = true;
       player.remoteBoostActive = true;

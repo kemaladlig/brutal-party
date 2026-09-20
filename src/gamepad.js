@@ -17,11 +17,11 @@ const CONTROLLER_META = {
   DUEL: { hudTag: '🤠 DUEL', lobbyTitle: '🤠 QUICK DRAW', mount: 'mountDuelController', tacticalHint: '✋ BEKLE • SİNYALİ GÖRÜNCE EN HIZLI DOKUN!' },
   CROWN: { hudTag: '👑 CROWN', lobbyTitle: '👑 BRUTAL CROWN', mount: 'mountCrownController', tacticalHint: '🕹️ HAREKET ET • 💥 OMUZ AT VE TACI KORU' },
   ZONE: { hudTag: '🗺️ ZONE', lobbyTitle: '🗺️ BRUTAL ZONE', mount: 'mountZoneController', tacticalHint: '🕹️ HAREKET ET • ⚡ DEPAR İLE ALANA GİR' },
-  SNAKE: { hudTag: '🐍 SNAKE', lobbyTitle: '🐍 BRUTAL SNAKE', mount: 'mountSnakeController', tacticalHint: '◀ SOL / SAĞ ▶ DÖNÜŞ • ⚡ BASILI TUTUP HIZLAN' },
+  SNAKE: { hudTag: '🐍 SNAKE', lobbyTitle: '🐍 BRUTAL SNAKE', mount: 'mountSnakeController', tacticalHint: '🕹️ 4-YÖN D-PAD İLE YÖNLEN • ⚡ BASILI TUTUP HIZLAN' },
   LASER: { hudTag: '🔫 LASER', lobbyTitle: '🔫 BRUTAL LASER', mount: 'mountLaserController', tacticalHint: '🕹️ NİŞAN AL • 🔫 ATEŞ ET & 💨 DEPAR AT' },
-  CLONE: { hudTag: '👥 CLONE', lobbyTitle: '👥 BRUTAL CLONE', mount: 'mountCloneController', tacticalHint: '🕹️ HAREKET ET • 💥 OMUZ ATIP RAKİBİ İT' },
+  CLONE: { hudTag: '👥 CLONE', lobbyTitle: '👥 BRUTAL CLONE', mount: 'mountCloneController', tacticalHint: '🕹️ ROL YAP & GÖREV YAP • 💥 RAKİBİ BUL VE OMUZ AT' },
   COLLAPSE: { hudTag: '🕳️ COLLAPSE', lobbyTitle: '🕳️ BRUTAL COLLAPSE', mount: 'mountCollapseController', tacticalHint: '🕹️ HAREKET ET • ⤴️ BOŞLUKTAN ZIPLA' },
-  NINJA: { hudTag: '🥷 NINJA', lobbyTitle: '🥷 BRUTAL NINJA', mount: 'mountNinjaController', tacticalHint: '🕹️ HAREKET ET • 🗡️ KILIÇ SAVUR' },
+  NINJA: { hudTag: '🥷 NINJA', lobbyTitle: '🥷 BRUTAL NINJA', mount: 'mountNinjaController', tacticalHint: '🕹️ HAREKET ET • DURUP GİZLEN • 🗡️ KILIÇ • 💨 SİS' },
 };
 
 export class GamepadManager {
@@ -1159,21 +1159,22 @@ export class GamepadManager {
     dashBtn?.addEventListener('mousedown', dashAction);
   }
 
-  // --- 09: SNAKE CONTROLLER (Arcade Steer Left/Right + Boost) ---
+  // --- 09: SNAKE CONTROLLER (Arcade 4-Way D-PAD + Boost) ---
   mountSnakeController(container) {
     container.innerHTML = `
       <div class="snake-controller-view">
-        <div class="snake-steer-zone" id="snake-steer-zone">
-          <button class="curve-steer-btn snake-steer-btn left-btn" id="btn-snake-left" type="button">
-            <span class="steer-icon">◀</span>
-            <span class="steer-title">SOLA DÖN</span>
-          </button>
-          <button class="curve-steer-btn snake-steer-btn right-btn" id="btn-snake-right" type="button">
-            <span class="steer-icon">▶</span>
-            <span class="steer-title">SAĞA DÖN</span>
-          </button>
+        <div class="snake-dpad-half">
+          <div class="brutal-dpad" id="snake-dpad">
+            <button class="dpad-btn dpad-up" id="btn-snake-up" type="button">▲</button>
+            <div class="dpad-row-mid">
+              <button class="dpad-btn dpad-left" id="btn-snake-left" type="button">◀</button>
+              <div class="dpad-core"></div>
+              <button class="dpad-btn dpad-right" id="btn-snake-right" type="button">▶</button>
+            </div>
+            <button class="dpad-btn dpad-down" id="btn-snake-down" type="button">▼</button>
+          </div>
         </div>
-        <div class="snake-boost-zone">
+        <div class="action-half">
           <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" style="background-color: #2F6A4F">
             <span class="dash-btn-label">⚡ HIZLAN</span>
             <span class="dash-btn-sub">BASILI TUT</span>
@@ -1182,103 +1183,33 @@ export class GamepadManager {
       </div>
     `;
 
+    const btnUp = document.getElementById('btn-snake-up');
+    const btnDown = document.getElementById('btn-snake-down');
     const btnLeft = document.getElementById('btn-snake-left');
     const btnRight = document.getElementById('btn-snake-right');
     const btnBoost = document.getElementById('btn-snake-boost');
-    const steerZone = document.getElementById('snake-steer-zone');
 
-    let currentDir = 0;
-    const activeTouches = new Map();
-    let mouseDir = 0;
-
-    const syncSteer = () => {
-      let newDir = mouseDir;
-      if (activeTouches.size > 0) {
-        let leftActive = false;
-        let rightActive = false;
-        activeTouches.forEach((dir) => {
-          if (dir === -1) leftActive = true;
-          if (dir === 1) rightActive = true;
-        });
-        if (leftActive && !rightActive) newDir = -1;
-        else if (rightActive && !leftActive) newDir = 1;
-        else newDir = 0;
-      }
-
-      if (newDir !== currentDir) {
-        currentDir = newDir;
-        if (currentDir === -1) {
-          btnLeft?.classList.add('active');
-          btnRight?.classList.remove('active');
-          this.vibrate(15);
-        } else if (currentDir === 1) {
-          btnRight?.classList.add('active');
-          btnLeft?.classList.remove('active');
-          this.vibrate(15);
-        } else {
-          btnLeft?.classList.remove('active');
-          btnRight?.classList.remove('active');
-        }
-        this._sendAnalog({ action: 'SNAKE_STEER', dir: currentDir, dx: currentDir });
-      }
+    const sendDir = (angle, dx, dy, btn) => {
+      this.network.sendInput({ action: 'SNAKE_DIR', angle, dx, dy });
+      this.vibrate(15);
+      [btnUp, btnDown, btnLeft, btnRight].forEach((b) => b?.classList.remove('active'));
+      btn?.classList.add('active');
     };
 
-    const resolveSteerTouch = (touch) => {
-      const rectLeft = btnLeft?.getBoundingClientRect();
-      const rectRight = btnRight?.getBoundingClientRect();
-      if (rectLeft && touch.clientX >= rectLeft.left && touch.clientX <= rectLeft.right &&
-          touch.clientY >= rectLeft.top && touch.clientY <= rectLeft.bottom) {
-        return -1;
-      }
-      if (rectRight && touch.clientX >= rectRight.left && touch.clientX <= rectRight.right &&
-          touch.clientY >= rectRight.top && touch.clientY <= rectRight.bottom) {
-        return 1;
-      }
-      return null;
+    const bindDir = (btn, angle, dx, dy) => {
+      if (!btn) return;
+      const act = (e) => {
+        e?.preventDefault();
+        sendDir(angle, dx, dy, btn);
+      };
+      btn.addEventListener('touchstart', act, { passive: false });
+      btn.addEventListener('mousedown', act);
     };
 
-    const onTouchStart = (e) => {
-      e.preventDefault();
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const t = e.changedTouches[i];
-        const dir = resolveSteerTouch(t);
-        if (dir !== null) activeTouches.set(t.identifier, dir);
-      }
-      syncSteer();
-    };
-
-    const onTouchMove = (e) => {
-      e.preventDefault();
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const t = e.changedTouches[i];
-        const dir = resolveSteerTouch(t);
-        if (dir !== null) activeTouches.set(t.identifier, dir);
-        else activeTouches.delete(t.identifier);
-      }
-      syncSteer();
-    };
-
-    const onTouchEnd = (e) => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const t = e.changedTouches[i];
-        activeTouches.delete(t.identifier);
-      }
-      syncSteer();
-    };
-
-    steerZone?.addEventListener('touchstart', onTouchStart, { passive: false });
-    steerZone?.addEventListener('touchmove', onTouchMove, { passive: false });
-    steerZone?.addEventListener('touchend', onTouchEnd, { passive: true });
-    steerZone?.addEventListener('touchcancel', onTouchEnd, { passive: true });
-
-    const snakeSignal = this._mountAbort?.signal;
-    window.addEventListener('touchend', onTouchEnd, { passive: true, signal: snakeSignal });
-    window.addEventListener('touchcancel', onTouchEnd, { passive: true, signal: snakeSignal });
-
-    // Masaüstü / Fare desteği
-    btnLeft?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = -1; syncSteer(); });
-    btnRight?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = 1; syncSteer(); });
-    window.addEventListener('mouseup', () => { if (mouseDir !== 0) { mouseDir = 0; syncSteer(); } }, { signal: snakeSignal });
+    bindDir(btnUp, -Math.PI / 2, 0, -1);
+    bindDir(btnDown, Math.PI / 2, 0, 1);
+    bindDir(btnLeft, Math.PI, -1, 0);
+    bindDir(btnRight, 0, 1, 0);
 
     // Boost butonu
     let boosting = false;
@@ -1298,6 +1229,7 @@ export class GamepadManager {
       this.network.sendInput({ action: 'SNAKE_BOOST_RELEASE' });
     };
 
+    const snakeSignal = this._mountAbort?.signal;
     btnBoost?.addEventListener('touchstart', startBoost, { passive: false });
     btnBoost?.addEventListener('touchend', stopBoost, { passive: false });
     btnBoost?.addEventListener('touchcancel', stopBoost, { passive: false });
@@ -1413,7 +1345,7 @@ export class GamepadManager {
     jumpBtn?.addEventListener('mousedown', jumpAction);
   }
 
-  // --- 13: NINJA CONTROLLER (Joystick + STRIKE, 1.5s host cooldown) ---
+  // --- 13: NINJA CONTROLLER (Joystick + STRIKE 1.3s + SMOKE BOMB 5s) ---
   mountNinjaController(container) {
     container.innerHTML = `
       <div class="joystick-action-view">
@@ -1422,10 +1354,14 @@ export class GamepadManager {
             <div class="phone-joy-knob" id="ninja-joy-knob" style="background-color: ${this.playerColor}"></div>
           </div>
         </div>
-        <div class="action-half">
-          <button class="action-dash-btn" id="btn-ninja-strike" type="button" style="background-color: #1A1A1A">
+        <div class="action-half" style="display: flex; flex-direction: column; gap: 10px; justify-content: center; height: 100%;">
+          <button class="action-dash-btn" id="btn-ninja-strike" type="button" style="background-color: #1A1A1A; flex: 1.2; min-height: 80px;">
             <span class="dash-btn-label">🗡️ KILIÇ</span>
-            <span class="dash-btn-sub">DOKUN</span>
+            <span class="dash-btn-sub">ATIL</span>
+          </button>
+          <button class="action-dash-btn" id="btn-ninja-smoke" type="button" style="background-color: #333333; border-color: #555555; flex: 0.9; min-height: 60px;">
+            <span class="dash-btn-label">💨 SİS BOMBASI</span>
+            <span class="dash-btn-sub">GİZLEN</span>
           </button>
         </div>
       </div>
@@ -1436,10 +1372,16 @@ export class GamepadManager {
     });
 
     const strikeBtn = document.getElementById('btn-ninja-strike');
-    const strikeAction = this.cooledAction(strikeBtn, 1.5, '🗡️ KILIÇ',
+    const strikeAction = this.cooledAction(strikeBtn, 1.3, '🗡️ KILIÇ',
       () => this.network.sendInput({ action: 'DASH' }), [25, 40]);
     strikeBtn?.addEventListener('touchstart', strikeAction, { passive: false });
     strikeBtn?.addEventListener('mousedown', strikeAction);
+
+    const smokeBtn = document.getElementById('btn-ninja-smoke');
+    const smokeAction = this.cooledAction(smokeBtn, 5.0, '💨 SİS',
+      () => this.network.sendInput({ action: 'NINJA_SMOKE' }), [20, 35]);
+    smokeBtn?.addEventListener('touchstart', smokeAction, { passive: false });
+    smokeBtn?.addEventListener('mousedown', smokeAction);
   }
 
   // Floating Dynamic Joystick Helper (Center-on-touch, no fixed center)

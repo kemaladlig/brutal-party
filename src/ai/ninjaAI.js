@@ -32,7 +32,22 @@ export function updateNinjaBotAI(game, bot, dt) {
     }
   }
 
-  // Tehdit/av algılama: 90px içinde ve (görünür veya 50px dibinde) ise saldır
+  // Tehlike veya fener ışığı durumunda sis bombası
+  if (bot.smokeCooldown <= 0 && (bot.inLight || Math.random() < 0.05)) {
+    for (const enemy of game.players) {
+      if (!enemy.isJoined || !enemy.isAlive || enemy.index === bot.index) continue;
+      if (Math.hypot(enemy.x - bot.x, enemy.y - bot.y) < 110) {
+        game.attemptSmoke(bot);
+        bot.botState = 'MOVE';
+        bot.botTimer = 1.0;
+        bot.botTargetX = game.arena.cx + (Math.random() - 0.5) * game.arena.size * 0.7;
+        bot.botTargetY = game.arena.cy + (Math.random() - 0.5) * game.arena.size * 0.7;
+        break;
+      }
+    }
+  }
+
+  // Tehdit/av algılama: 100px içinde ve (görünür veya 55px dibinde) ise saldır
   if (bot.strikeCooldown <= 0) {
     for (const enemy of game.players) {
       if (!enemy.isJoined || !enemy.isAlive || enemy.index === bot.index) continue;
@@ -41,7 +56,7 @@ export function updateNinjaBotAI(game, bot, dt) {
       const tDy = enemy.y - bot.y;
       const tDist = Math.hypot(tDx, tDy);
 
-      if (tDist < 90 && (enemy.alpha > 0.3 || tDist < 50)) {
+      if (tDist < 105 && (enemy.alpha > 0.25 || tDist < 55)) {
         bot.angle = Math.atan2(tDy, tDx);
         bot.steerX = Math.cos(bot.angle);
         bot.steerY = Math.sin(bot.angle);

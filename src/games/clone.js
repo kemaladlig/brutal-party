@@ -1,5 +1,6 @@
-// BRUTAL CLONE: 2-4 oyunculu sahtekar avı — 2 gecikmeli kopyanla gez,
-// omuz atarak gerçeği bul. Sahteye vurursan 2.5sn yavaşlarsın.
+// BRUTAL CLONE: RPG Dedektiflik & Klon Avı
+// Gerçek oyuncular, tapınakta görev yapan NPC klon kalabalığının arasına karışır.
+// Rol yap, görevleri tamamla veya şüphelendiğin rakibe omuz atıp infaz et!
 
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
@@ -18,7 +19,8 @@ const CLONE_KEY_SLOTS_PAIRS = [
   { u: 'KeyT', d: 'KeyG', l: 'KeyF', r: 'KeyH', action: 'KeyB' },
 ];
 
-const CLONE_DASH_COOLDOWN = 1.5;
+const CLONE_DASH_COOLDOWN = 1.6;
+const CLONE_RADIUS = 15;
 
 export class CloneGame extends BaseMiniGame {
   constructor(canvas) {
@@ -28,9 +30,12 @@ export class CloneGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.targetScore = 5;
     this.players = [];
+    this.walls = [];
+    this.taskPoints = [];
+    this.npcClones = [];
     this.particles = [];
     this.floatingTexts = [];
-    this.roundTime = 45;
+    this.roundTime = 60;
     this.keys = {};
     this.roundTransitionTimer = 0;
 
@@ -76,48 +81,160 @@ export class CloneGame extends BaseMiniGame {
       top: marginY, bottom: marginY + arenaH,
     };
 
+    this.buildMap();
+
     if (this.state === 'LOBBY' || !this.players.length) {
       this.initPlayers();
     } else {
-      // Maç içinde sadece remap, initPlayers yasak
-      for (const p of this.players) {
-        this.remapPoint(p, oldArena, this.arena);
-        for (const c of p.clones) this.remapPoint(c, oldArena, this.arena);
-        for (const h of p.history) this.remapPoint(h, oldArena, this.arena);
+      for (const p of this.players) this.remapPoint(p, oldArena, this.arena);
+      for (const c of this.npcClones) this.remapPoint(c, oldArena, this.arena);
+    }
+  }
+
+  buildMap() {
+    this.walls = [];
+    this.taskPoints = [];
+    const { left, right, top, bottom, width, height, cx, cy } = this.arena;
+    const wallThick = 14;
+
+    // 4 köşe tapınak odası (kapı açıklıkları olan L-duvarlar)
+    const roomW = width * 0.35;
+    const roomH = height * 0.35;
+    const doorSize = Math.min(width, height) * 0.14;
+
+    // Sol Üst Oda: 🧪 SİMYA ODASI
+    this.walls.push(
+      { x: left, y: top + roomH, w: roomW - doorSize, h: wallThick },
+      { x: left + roomW, y: top, w: wallThick, h: roomH - doorSize }
+    );
+    this.taskPoints.push({
+      id: 'alchemy', name: 'SİMYA KAZANI', icon: '🧪', color: '#8A2BE2',
+      x: left + roomW * 0.45, y: top + roomH * 0.45, radius: 40,
+    });
+
+    // Sağ Üst Oda: 📜 KÜTÜPHANE / ARŞİV
+    this.walls.push(
+      { x: right - roomW + doorSize, y: top + roomH, w: roomW - doorSize, h: wallThick },
+      { x: right - roomW, y: top, w: wallThick, h: roomH - doorSize }
+    );
+    this.taskPoints.push({
+      id: 'library', name: 'KÜTÜPHANE', icon: '📜', color: '#D99B26',
+      x: right - roomW * 0.45, y: top + roomH * 0.45, radius: 40,
+    });
+
+    // Sol Alt Oda: 💎 HAZİNE ODASI
+    this.walls.push(
+      { x: left, y: bottom - roomH, w: roomW - doorSize, h: wallThick },
+      { x: left + roomW, y: bottom - roomH + doorSize, w: wallThick, h: roomH - doorSize }
+    );
+    this.taskPoints.push({
+      id: 'treasury', name: 'HAZİNE SANDIĞI', icon: '💎', color: '#1D5D8A',
+      x: left + roomW * 0.45, y: bottom - roomH * 0.45, radius: 40,
+    });
+
+    // Sağ Alt Oda: ⚔️ KUTSAL SUNAK
+    this.walls.push(
+      { x: right - roomW + doorSize, y: bottom - roomH, w: roomW - doorSize, h: wallThick },
+      { x: right - roomW, y: bottom - roomH + doorSize, w: wallThick, h: roomH - doorSize }
+    );
+    this.taskPoints.push({
+      id: 'altar', name: 'KUTSAL SUNAK', icon: '⚔️', color: '#D84727',
+      x: right - roomW * 0.45, y: bottom - roomH * 0.45, radius: 40,
+    });
+
+    // Merkez Avlu Sütunları
+    const pillar = Math.min(width, height) * 0.08;
+    const offset = Math.min(width, height) * 0.16;
+    this.walls.push(
+      { x: cx - offset - pillar / 2, y: cy - offset - pillar / 2, w: pillar, h: pillar },
+      { x: cx + offset - pillar / 2, y: cy - offset - pillar / 2, w: pillar, h: pillar },
+      { x: cx - offset - pillar / 2, y: cy + offset - pillar / 2, w: pillar, h: pillar },
+      { x: cx + offset - pillar / 2, y: cy + offset - pillar / 2, w: pillar, h: pillar }
+    );
+  }
+
+  resolveWallCollision(entity, radius = CLONE_RADIUS) {
+    const { left, right, top, bottom } = this.arena;
+    entity.x = Math.max(left + radius, Math.min(right - radius, entity.x));
+    entity.y = Math.max(top + radius, Math.min(bottom - radius, entity.y));
+
+    for (const w of this.walls) {
+      const minX = w.x - radius;
+      const maxX = w.x + w.w + radius;
+      const minY = w.y - radius;
+      const maxY = w.y + w.h + radius;
+
+      if (entity.x > minX && entity.x < maxX && entity.y > minY && entity.y < maxY) {
+        const dLeft = Math.abs(entity.x - minX);
+        const dRight = Math.abs(entity.x - maxX);
+        const dTop = Math.abs(entity.y - minY);
+        const dBottom = Math.abs(entity.y - maxY);
+        const minD = Math.min(dLeft, dRight, dTop, dBottom);
+
+        if (minD === dLeft) entity.x = minX;
+        else if (minD === dRight) entity.x = maxX;
+        else if (minD === dTop) entity.y = minY;
+        else entity.y = maxY;
       }
     }
   }
 
   initPlayers() {
-    const { left, right, top, bottom, size } = this.arena;
-    const p = size * 0.15;
+    const { cx, cy, size } = this.arena;
+    const p = size * 0.22;
     const spawns = [
-      { x: left + p, y: bottom - p, angle: -Math.PI / 4 },
-      { x: left + p, y: top + p, angle: Math.PI / 4 },
-      { x: right - p, y: top + p, angle: Math.PI * 0.75 },
-      { x: right - p, y: bottom - p, angle: -Math.PI * 0.75 },
+      { x: cx - p, y: cy + p, angle: -Math.PI / 4 },
+      { x: cx - p, y: cy - p, angle: Math.PI / 4 },
+      { x: cx + p, y: cy - p, angle: Math.PI * 0.75 },
+      { x: cx + p, y: cy + p, angle: -Math.PI * 0.75 },
     ];
 
     this.players = spawns.map((s, i) => {
-      // Raunt başı TV isimleri silinmez (CROWN deseni)
       const existing = this.players[i];
       return {
         index: i,
         name: existing?.name || CLONE_NAMES[i],
         color: CLONE_COLORS[i],
         x: s.x, y: s.y, angle: s.angle,
-        speed: 150, steerX: 0, steerY: 0,
+        speed: 135, steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
-        history: [],
-        clones: [
-          { x: s.x, y: s.y, angle: s.angle, delay: 600, active: true },
-          { x: s.x, y: s.y, angle: s.angle, delay: 1200, active: true },
-        ],
         dashTimer: 0, dashCooldown: 0, slowTimer: 0,
+        taskTimer: 0, currentTaskId: null,
         botTargetX: 0, botTargetY: 0, botCheckTimer: 0,
         keyActionLatch: false,
       };
     });
+
+    this.initNpcClones();
+  }
+
+  initNpcClones() {
+    this.npcClones = [];
+    const joined = this.players.filter((p) => p.isJoined);
+    if (!joined.length) return;
+
+    // Her katılan oyuncu için 3 adet bağımsız dolaşan RPG klonu
+    for (const p of joined) {
+      for (let k = 0; k < 3; k++) {
+        const t = this.taskPoints[(p.index + k) % this.taskPoints.length] || this.taskPoints[0];
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 30 + Math.random() * 80;
+        this.npcClones.push({
+          ownerIndex: p.index,
+          color: p.color,
+          x: this.arena.cx + Math.cos(angle) * dist,
+          y: this.arena.cy + Math.sin(angle) * dist,
+          angle: Math.random() * Math.PI * 2,
+          speed: 80 + Math.random() * 25,
+          steerX: 0,
+          steerY: 0,
+          state: 'WALK',
+          targetTask: t,
+          taskWaitTimer: 1.5 + Math.random() * 2.0,
+          active: true,
+        });
+      }
+    }
   }
 
   resetMatch() {
@@ -126,6 +243,8 @@ export class CloneGame extends BaseMiniGame {
     this.roundWinner = null;
     this.matchWinner = null;
     this.roundTransitionTimer = 0;
+    this.particles = [];
+    this.floatingTexts = [];
     this.initPlayers();
     this.onTouchesReset();
   }
@@ -149,16 +268,19 @@ export class CloneGame extends BaseMiniGame {
     this.state = 'PLAYING';
     this.roundWinner = null;
     this.roundTransitionTimer = 0;
+    this.roundTime = 60;
+    this.particles = [];
+    this.floatingTexts = [];
     this.onTouchesReset();
     playStart();
 
-    const { left, right, top, bottom, size } = this.arena;
-    const p = size * 0.15;
+    const { cx, cy, size } = this.arena;
+    const p = size * 0.22;
     const spawns = [
-      { x: left + p, y: bottom - p, angle: -Math.PI / 4 },
-      { x: left + p, y: top + p, angle: Math.PI / 4 },
-      { x: right - p, y: top + p, angle: Math.PI * 0.75 },
-      { x: right - p, y: bottom - p, angle: -Math.PI * 0.75 },
+      { x: cx - p, y: cy + p, angle: -Math.PI / 4 },
+      { x: cx - p, y: cy - p, angle: Math.PI / 4 },
+      { x: cx + p, y: cy - p, angle: Math.PI * 0.75 },
+      { x: cx + p, y: cy + p, angle: -Math.PI * 0.75 },
     ];
 
     this.players.forEach((player, i) => {
@@ -171,21 +293,68 @@ export class CloneGame extends BaseMiniGame {
       player.slowTimer = 0;
       player.steerX = 0;
       player.steerY = 0;
-      player.history = [];
-      player.clones = [
-        { x: player.x, y: player.y, angle: player.angle, delay: 600, active: true },
-        { x: player.x, y: player.y, angle: player.angle, delay: 1200, active: true },
-      ];
+      player.taskTimer = 0;
+      player.currentTaskId = null;
     });
+
+    this.initNpcClones();
   }
 
   attemptTackle(player) {
-    // Lobi/maç-sonunda kumandadan omuz tetiklenemez (uzak girdi kapısı)
     if (this.state !== 'PLAYING') return;
     if (player.dashCooldown <= 0 && player.slowTimer <= 0) {
-      player.dashTimer = 0.25;
+      player.dashTimer = 0.22;
       player.dashCooldown = CLONE_DASH_COOLDOWN;
       playItemPickup();
+      this.checkTackleHit(player);
+    }
+  }
+
+  checkTackleHit(attacker) {
+    const hitRadius = 34;
+
+    // 1. Önce diğer canlı gerçek oyunculara bak
+    for (const victim of this.players) {
+      if (!victim.isJoined || !victim.isAlive || victim.index === attacker.index) continue;
+
+      if (Math.hypot(attacker.x - victim.x, attacker.y - victim.y) < hitRadius) {
+        victim.isAlive = false;
+        attacker.dashTimer = 0;
+        this.scores[attacker.index] += 2;
+        this.addTrauma(0.5);
+        playExplosion();
+        this.spawnBurst(victim.x, victim.y, victim.color);
+        this.spawnFloatingText(victim.x, victim.y - 18, '🎯 GERÇEK HEDEF! +2★', '#2F6A4F');
+
+        if (this.scores[attacker.index] >= this.targetScore) {
+          this.matchWinner = attacker;
+        }
+        this.checkAlive();
+        return;
+      }
+    }
+
+    // 2. Eğer gerçek oyuncu değilse, NPC klonlara bak
+    for (const clone of this.npcClones) {
+      if (!clone.active) continue;
+
+      if (Math.hypot(attacker.x - clone.x, attacker.y - clone.y) < hitRadius) {
+        clone.active = false;
+        attacker.dashTimer = 0;
+        attacker.slowTimer = 2.5; // Ceza!
+        this.addTrauma(0.25);
+        playExplosion();
+        this.spawnGlitch(clone.x, clone.y, clone.color);
+        this.spawnFloatingText(attacker.x, attacker.y - 18, '⚡ MASUM KLON! (CEZA)', '#E63946');
+        return;
+      }
+    }
+  }
+
+  checkAlive() {
+    const alive = this.players.filter((p) => p.isJoined && p.isAlive);
+    if (alive.length <= 1) {
+      this.handleRoundEnd(alive.length === 1 ? alive[0] : null);
     }
   }
 
@@ -347,10 +516,10 @@ export class CloneGame extends BaseMiniGame {
         }
       }
 
-      // Hareket hızı: atılma 480, slow cezası 60, normal 150
+      // Hız hesaplama
       let currentSpeed = player.speed;
-      if (player.dashTimer > 0) currentSpeed = 480;
-      else if (player.slowTimer > 0) currentSpeed = 60;
+      if (player.dashTimer > 0) currentSpeed = 460;
+      else if (player.slowTimer > 0) currentSpeed = 55;
 
       if (player.dashTimer <= 0) {
         player.x += player.steerX * currentSpeed * dt;
@@ -358,44 +527,81 @@ export class CloneGame extends BaseMiniGame {
       } else {
         player.x += Math.cos(player.angle) * currentSpeed * dt;
         player.y += Math.sin(player.angle) * currentSpeed * dt;
+        this.checkTackleHit(player);
       }
 
-      // Duvar sınırları (kayarak çarpma)
-      const r = 12;
-      player.x = Math.max(this.arena.left + r, Math.min(this.arena.right - r, player.x));
-      player.y = Math.max(this.arena.top + r, Math.min(this.arena.bottom - r, player.y));
+      // Duvar çarpışması (AABB slide)
+      this.resolveWallCollision(player, CLONE_RADIUS);
 
-      // Geçmişi kaydet (kopyalar 0.6sn + 1.2sn geriden oynatır)
-      player.history.push({ x: player.x, y: player.y, angle: player.angle, time: now });
-
-      // 1.5sn'den eski kareler gereksiz
-      while (player.history.length > 0 && now - player.history[0].time > 1500) {
-        player.history.shift();
-      }
-
-      // Kopyaları geçmişten oynat
-      for (const clone of player.clones) {
-        if (!clone.active) continue;
-        const targetTime = now - clone.delay;
-
-        let bestFrame = player.history[0];
-        for (let i = player.history.length - 1; i >= 0; i--) {
-          if (player.history[i].time <= targetTime) {
-            bestFrame = player.history[i];
-            break;
+      // RPG Görev Alanı Etkileşimi (Rol yapma & Görev tamamlama)
+      let insideAnyTask = false;
+      for (const t of this.taskPoints) {
+        const distToTask = Math.hypot(player.x - t.x, player.y - t.y);
+        if (distToTask < t.radius) {
+          insideAnyTask = true;
+          player.currentTaskId = t.id;
+          // Eğer sakin duruyorsa görev ilerler
+          const isStationary = Math.hypot(player.steerX, player.steerY) < 0.2;
+          if (isStationary && player.dashTimer <= 0 && player.slowTimer <= 0) {
+            player.taskTimer += dt;
+            if (player.taskTimer >= 2.0) {
+              // Görev başarıyla tamamlandı!
+              player.taskTimer = 0;
+              this.scores[player.index]++;
+              playItemPickup();
+              this.spawnBurst(t.x, t.y, t.color);
+              this.spawnFloatingText(player.x, player.y - 20, `📜 ${t.name} +1★`, '#2F6A4F');
+              if (this.scores[player.index] >= this.targetScore) {
+                this.matchWinner = player;
+                this.handleRoundEnd(player);
+                return;
+              }
+            }
           }
+          break;
         }
-
-        if (bestFrame) {
-          clone.x = bestFrame.x;
-          clone.y = bestFrame.y;
-          clone.angle = bestFrame.angle;
-        }
+      }
+      if (!insideAnyTask) {
+        player.taskTimer = Math.max(0, player.taskTimer - dt * 2.0);
+        if (player.taskTimer === 0) player.currentTaskId = null;
       }
     }
 
-    // Çarpışma kontrolü
-    this.checkCollisions();
+    // NPC Klon Yapay Zekası & Hareketi
+    for (const clone of this.npcClones) {
+      if (!clone.active) continue;
+
+      if (clone.state === 'WALK') {
+        const dx = clone.targetTask.x - clone.x;
+        const dy = clone.targetTask.y - clone.y;
+        const dist = Math.hypot(dx, dy) || 1;
+
+        if (dist < 28) {
+          // İstasyonuna vardı, rol yapmaya başla
+          clone.state = 'TASK';
+          clone.taskWaitTimer = 2.2 + Math.random() * 2.5;
+          clone.steerX = 0;
+          clone.steerY = 0;
+        } else {
+          clone.steerX = dx / dist;
+          clone.steerY = dy / dist;
+          clone.angle = Math.atan2(dy, dx);
+          clone.x += clone.steerX * clone.speed * dt;
+          clone.y += clone.steerY * clone.speed * dt;
+          this.resolveWallCollision(clone, CLONE_RADIUS);
+        }
+      } else if (clone.state === 'TASK') {
+        // Görev alanında durup bekler, hafifçe sağa sola bakar
+        clone.angle += Math.sin(now / 500) * 0.02;
+        clone.taskWaitTimer -= dt;
+        if (clone.taskWaitTimer <= 0) {
+          // Başka bir göreve doğru yola çık
+          const otherTasks = this.taskPoints.filter((tp) => tp.id !== clone.targetTask.id);
+          clone.targetTask = otherTasks[Math.floor(Math.random() * otherTasks.length)] || this.taskPoints[0];
+          clone.state = 'WALK';
+        }
+      }
+    }
 
     // Parçacıklar
     for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -421,38 +627,35 @@ export class CloneGame extends BaseMiniGame {
       return;
     }
 
-    const alive = this.players.filter((p) => p.isJoined && p.isAlive);
-    if (alive.length <= 1) {
-      this.handleRoundEnd(alive.length === 1 ? alive[0] : null);
-    }
+    this.checkAlive();
   }
 
   spawnBurst(x, y, color) {
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 22; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const spd = 30 + Math.random() * 90;
+      const spd = 40 + Math.random() * 110;
       this.particles.push({
         x, y,
         vx: Math.cos(angle) * spd,
         vy: Math.sin(angle) * spd,
         color: i % 2 === 0 ? color : '#1A1A1A',
-        radius: 3 + Math.random() * 3,
+        radius: 3 + Math.random() * 3.5,
         alpha: 1.0,
-        decay: 1.8,
+        decay: 1.7,
       });
     }
   }
 
   spawnGlitch(x, y, color) {
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 18; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const spd = 20 + Math.random() * 70;
+      const spd = 25 + Math.random() * 80;
       this.particles.push({
         x, y,
         vx: Math.cos(angle) * spd,
         vy: Math.sin(angle) * spd,
         color: '#E63946',
-        radius: 2 + Math.random() * 2,
+        radius: 2.5 + Math.random() * 2.5,
         alpha: 1.0,
         decay: 2.2,
       });
@@ -466,50 +669,8 @@ export class CloneGame extends BaseMiniGame {
       color,
       vy: -35,
       alpha: 1.0,
-      decay: 1.2,
+      decay: 1.1,
     });
-  }
-
-  // Çarpışma: atılan omuz gerçeğe değerse skor, sahteye değerse slow
-  checkCollisions() {
-    for (const attacker of this.players) {
-      if (!attacker.isJoined || !attacker.isAlive || attacker.dashTimer <= 0) continue;
-
-      for (const victim of this.players) {
-        if (!victim.isJoined || !victim.isAlive || victim.index === attacker.index) continue;
-
-        const hitRadius = 24;
-
-        if (Math.hypot(attacker.x - victim.x, attacker.y - victim.y) < hitRadius) {
-          victim.isAlive = false;
-          attacker.dashTimer = 0;
-          this.scores[attacker.index]++;
-          this.addTrauma(0.5);
-          playExplosion();
-          this.spawnBurst(victim.x, victim.y, victim.color);
-          this.spawnFloatingText(victim.x, victim.y - 15, '+1 ★', '#2F6A4F');
-
-          if (this.scores[attacker.index] >= this.targetScore) {
-            this.matchWinner = attacker;
-          }
-          break;
-        }
-
-        for (const clone of victim.clones) {
-          if (!clone.active) continue;
-          if (Math.hypot(attacker.x - clone.x, attacker.y - clone.y) < hitRadius) {
-            clone.active = false;
-            attacker.dashTimer = 0;
-            attacker.slowTimer = 2.5;
-            this.addTrauma(0.2);
-            playExplosion();
-            this.spawnGlitch(clone.x, clone.y, victim.color);
-            this.spawnFloatingText(clone.x, clone.y - 15, 'SAHTE! ⚡', '#E63946');
-            break;
-          }
-        }
-      }
-    }
   }
 
   handleRemoteInput(slotIndex, data) {
@@ -532,7 +693,7 @@ export class CloneGame extends BaseMiniGame {
         player.steerY = 0;
         player.remoteActive = false;
       }
-    } else if (data.action === 'TACKLE') {
+    } else if (data.action === 'TACKLE' || data.action === 'DASH') {
       this.attemptTackle(player);
     }
   }
@@ -541,41 +702,70 @@ export class CloneGame extends BaseMiniGame {
     this.state = 'ROUND_OVER';
     this.roundWinner = winner;
     this.roundTransitionTimer = 2.5;
-    // Skor yalnızca adam eleyince yazılır (hayatta kalma puanı yok)
     if (winner && this.scores[winner.index] >= this.targetScore) {
       this.matchWinner = winner;
     }
   }
 
-  drawCharacter(ctx, x, y, angle, color, isDashing, isSlowed) {
+  drawCharacter(ctx, x, y, angle, color, isDashing, isSlowed, taskProgress = 0) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(angle);
 
-    // Yavaşlık titremesi
+    // Yavaşlık / sersemlik titremesi & dönen yıldızlar
     if (isSlowed) {
-      ctx.translate((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4);
-      ctx.globalAlpha = 0.7;
+      ctx.translate((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3);
+      ctx.fillStyle = '#E63946';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('💫 CEZA', 0, -22);
+    }
+
+    // Görev yaparken dolum barı / rün halkası
+    if (taskProgress > 0) {
+      ctx.beginPath();
+      ctx.arc(0, 0, CLONE_RADIUS + 7, -Math.PI / 2, -Math.PI / 2 + (taskProgress / 2.0) * Math.PI * 2);
+      ctx.strokeStyle = '#2F6A4F';
+      ctx.lineWidth = 3;
+      ctx.stroke();
     }
 
     // Atılma halesi
     if (isDashing) {
       ctx.beginPath();
-      ctx.arc(0, 0, 18, 0, Math.PI * 2);
+      ctx.arc(0, 0, CLONE_RADIUS + 8, 0, Math.PI * 2);
       ctx.fillStyle = '#FFFFFF';
-      ctx.globalAlpha = 0.5;
+      ctx.globalAlpha = 0.6;
       ctx.fill();
       ctx.globalAlpha = 1.0;
     }
 
-    // Gövde
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = '#1A1A1A'; ctx.stroke();
+    ctx.rotate(angle);
 
-    // Yön işareti
+    // RPG Pelerin / Gövde
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(0, 0, CLONE_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.stroke();
+
+    // Başlık / Kukuleta içi
     ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(4, -6, 8, 12);
+    ctx.beginPath();
+    ctx.arc(3, 0, 7, -Math.PI / 2, Math.PI / 2);
+    ctx.fill();
+
+    // Minik parlayan gözler / yön işareti
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(5, -2, 2, 0, Math.PI * 2);
+    ctx.arc(5, 2, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Asa / Hançer Ucu
+    ctx.fillStyle = '#D99B26';
+    ctx.fillRect(8, -2, 6, 4);
 
     ctx.restore();
   }
@@ -583,18 +773,20 @@ export class CloneGame extends BaseMiniGame {
   render() {
     const { ctx, canvas } = this;
     ctx.save();
-    ctx.fillStyle = '#F4F4F0';
+    ctx.fillStyle = '#151515';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     this.applyScreenShake(ctx);
 
     const { left, top, width, height } = this.arena;
-    ctx.fillStyle = '#FAF7F2';
+
+    // Tapınak Taş Zemini
+    ctx.fillStyle = '#E8E5DF';
     ctx.fillRect(left, top, width, height);
 
-    // Izgara zemini
-    ctx.strokeStyle = '#E2DDD4';
+    // Taş zemin karoları
+    ctx.strokeStyle = '#D5D1C7';
     ctx.lineWidth = 1.5;
-    const step = this.arena.size / 8;
+    const step = this.arena.size / 9;
     for (let x = left + step; x < this.arena.right; x += step) {
       ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, this.arena.bottom); ctx.stroke();
     }
@@ -602,24 +794,86 @@ export class CloneGame extends BaseMiniGame {
       ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(this.arena.right, y); ctx.stroke();
     }
 
-    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      renderCornerScores(ctx, { arena: this.arena, entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null) });
+    // 4 Görev İstasyonu (Rün çemberleri & semboller)
+    for (const t of this.taskPoints) {
+      ctx.save();
+      // Dış rün çemberi
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
+      ctx.fillStyle = `${t.color}22`;
+      ctx.fill();
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([6, 6]);
+      ctx.stroke();
+
+      // İç simge ve zemin
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 16, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fill();
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.font = '16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(t.icon, t.x, t.y);
+
+      // İstasyon etiketi
+      ctx.font = 'bold 11px monospace';
+      ctx.fillStyle = '#1A1A1A';
+      ctx.fillText(t.name, t.x, t.y + t.radius + 14);
+      ctx.restore();
     }
 
+    // Harita Duvarları ve Sütunları
+    for (const w of this.walls) {
+      // Duvar gölgesi
+      ctx.fillStyle = '#101010';
+      ctx.fillRect(w.x + 3, w.y + 3, w.w, w.h);
+
+      // Duvar ana gövdesi
+      ctx.fillStyle = '#2A2A2A';
+      ctx.fillRect(w.x, w.y, w.w, w.h);
+
+      // Duvar üst vurgusu
+      ctx.strokeStyle = '#484848';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(w.x, w.y, w.w, w.h);
+    }
+
+    // Dış arena çerçevesi
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
 
-    // Oyuncular ve tıpatıp kopyaları (blöf: görsel fark yok)
+    // Skorlar
+    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
+      renderCornerScores(ctx, { arena: this.arena, entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null) });
+    }
+
+    // NPC Klonları çiz (tamamen oyuncularla aynı model)
+    for (const c of this.npcClones) {
+      if (!c.active) continue;
+      this.drawCharacter(ctx, c.x, c.y, c.angle, c.color, false, false, c.state === 'TASK' ? (1 - c.taskWaitTimer / 4) * 2 : 0);
+    }
+
+    // Gerçek Oyuncuları çiz
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
-
-      for (const clone of player.clones) {
-        if (clone.active) {
-          this.drawCharacter(ctx, clone.x, clone.y, clone.angle, player.color, false, false);
-        }
-      }
-      this.drawCharacter(ctx, player.x, player.y, player.angle, player.color, player.dashTimer > 0, player.slowTimer > 0);
+      this.drawCharacter(
+        ctx,
+        player.x,
+        player.y,
+        player.angle,
+        player.color,
+        player.dashTimer > 0,
+        player.slowTimer > 0,
+        player.taskTimer
+      );
     }
 
     // Parçacıklar
@@ -633,13 +887,13 @@ export class CloneGame extends BaseMiniGame {
       ctx.restore();
     }
 
-    // Uçuşan metinler (+1 PUAN / SAHTE)
+    // Uçuşan metinler
     for (const ft of this.floatingTexts) {
       ctx.save();
       ctx.globalAlpha = Math.max(0, Math.min(1, ft.alpha));
-      ctx.font = 'bold 16px monospace';
-      ctx.fillStyle = ft.color;
+      ctx.font = 'bold 15px monospace';
       ctx.textAlign = 'center';
+      ctx.fillStyle = ft.color;
       ctx.fillText(ft.text, ft.x, ft.y);
       ctx.restore();
     }
