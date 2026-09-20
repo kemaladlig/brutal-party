@@ -19,6 +19,7 @@ const CONTROLLER_META = {
   SNAKE: { hudTag: '🐍 SNAKE', lobbyTitle: '🐍 BRUTAL SNAKE', mount: 'mountSnakeController' },
   LASER: { hudTag: '🔫 LASER', lobbyTitle: '🔫 BRUTAL LASER', mount: 'mountLaserController' },
   CLONE: { hudTag: '👥 CLONE', lobbyTitle: '👥 BRUTAL CLONE', mount: 'mountCloneController' },
+  COLLAPSE: { hudTag: '🕳️ COLLAPSE', lobbyTitle: '🕳️ BRUTAL COLLAPSE', mount: 'mountCollapseController' },
 };
 
 export class GamepadManager {
@@ -1027,7 +1028,7 @@ export class GamepadManager {
     tackleBtn?.addEventListener('mousedown', tackleAction);
   }
 
-  // --- 08: ZONE CONTROLLER (Joystick-only; aksiyon butonu yok, sağda hedef kartı) ---
+  // --- 08: ZONE CONTROLLER (Joystick + Dash) ---
   mountZoneController(container) {
     container.innerHTML = `
       <div class="joystick-action-view">
@@ -1037,9 +1038,9 @@ export class GamepadManager {
           </div>
         </div>
         <div class="action-half">
-          <button class="action-dash-btn" id="btn-zone-goal" type="button" style="background-color: #2f6a4f" disabled>
-            <span class="dash-btn-label">🗺️ %40 ALAN</span>
-            <span class="dash-btn-sub">İZİNİ KORU!</span>
+          <button class="action-dash-btn" id="btn-zone-dash" type="button" style="background-color: #2f6a4f">
+            <span class="dash-btn-label">⚡ DEPAR</span>
+            <span class="dash-btn-sub">DOKUN</span>
           </button>
         </div>
       </div>
@@ -1048,6 +1049,13 @@ export class GamepadManager {
     this.bindJoystick('zone-joy-zone', 'zone-joy-knob', (input) => {
       this._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
     });
+
+    const dashBtn = document.getElementById('btn-zone-dash');
+    const dashAction = this.cooledAction(dashBtn, 4.0, '⚡ DEPAR',
+      () => this.network.sendInput({ action: 'DASH' }), [25, 35]);
+
+    dashBtn?.addEventListener('touchstart', dashAction, { passive: false });
+    dashBtn?.addEventListener('mousedown', dashAction);
   }
 
   // --- 09: SNAKE CONTROLLER (Joystick + hold BOOST) ---
@@ -1161,6 +1169,35 @@ export class GamepadManager {
 
     // Host bekleme yüzdesi butona yansır (paketteki cd dizisi)
     this._cloneCdBtn = tackleBtn;
+  }
+
+  // --- 12: COLLAPSE CONTROLLER (Joystick + JUMP, 1.8s host cooldown) ---
+  mountCollapseController(container) {
+    container.innerHTML = `
+      <div class="joystick-action-view">
+        <div class="joystick-half" id="collapse-joy-zone">
+          <div class="phone-joy-base">
+            <div class="phone-joy-knob" id="collapse-joy-knob" style="background-color: ${this.playerColor}"></div>
+          </div>
+        </div>
+        <div class="action-half">
+          <button class="action-dash-btn" id="btn-collapse-jump" type="button" style="background-color: #B5831F">
+            <span class="dash-btn-label">⤴️ ZIPLA</span>
+            <span class="dash-btn-sub">DOKUN</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    this.bindJoystick('collapse-joy-zone', 'collapse-joy-knob', (input) => {
+      this._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
+    });
+
+    const jumpBtn = document.getElementById('btn-collapse-jump');
+    const jumpAction = this.cooledAction(jumpBtn, 1.8, '⤴️ ZIPLA',
+      () => this.network.sendInput({ action: 'DASH' }), [25, 40]);
+    jumpBtn?.addEventListener('touchstart', jumpAction, { passive: false });
+    jumpBtn?.addEventListener('mousedown', jumpAction);
   }
 
   // Generic Touch & Mouse Joystick Helper
@@ -1393,6 +1430,14 @@ export class GamepadManager {
         const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
         if (cdBtn && cdBtn.isConnected) {
           cdBtn.style.opacity = cdPct > 0 ? 0.55 : 1;
+        }
+      } else if (data.gameMode === 'COLLAPSE') {
+        const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
+        statusStr = `SKOR: ${data.scores.join('-')} • 🕳️ ${aliveCount} CANLI`;
+        const jumpBtn = this._el('btn-collapse-jump');
+        const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
+        if (jumpBtn) {
+          jumpBtn.style.opacity = cdPct > 0 ? 0.55 : 1;
         }
       }
       if (statusStr !== this._lastStatusStr) {

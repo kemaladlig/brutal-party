@@ -10,6 +10,7 @@ import { ZoneGame } from './games/zone.js';
 import { SnakeGame } from './games/snake.js';
 import { LaserGame } from './games/laser.js';
 import { CloneGame } from './games/clone.js';
+import { CollapseGame } from './games/collapse.js';
 import { TouchManager } from './touchManager.js';
 import {
   GAME_ORDER,
@@ -93,6 +94,7 @@ const zoneGame = new ZoneGame(canvas);
 const snakeGame = new SnakeGame(canvas);
 const laserGame = new LaserGame(canvas);
 const cloneGame = new CloneGame(canvas);
+const collapseGame = new CollapseGame(canvas);
 
 function touchStamp(game, now) {
   game.lastTime = now;
@@ -234,6 +236,19 @@ registerEngine('CLONE', {
     alive: cloneGame.players.map((p) => p.isAlive),
     // Dash bekleme yüzdesi (kumanda buton göstergesi için)
     cd: cloneGame.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 1.5) * 100)),
+  }),
+});
+registerEngine('COLLAPSE', {
+  game: collapseGame,
+  reset: () => collapseGame.resetMatch(),
+  onEnter: (now) => touchStamp(collapseGame, now),
+  onResume: (now) => touchStamp(collapseGame, now),
+  start: () => collapseGame.startRound(),
+  packet: () => ({
+    scores: collapseGame.scores,
+    alive: collapseGame.players.map((p) => p.isAlive),
+    // Zıplama bekleme yüzdesi (kumanda buton göstergesi için)
+    cd: collapseGame.players.map((p) => Math.ceil((Math.max(0, p.jumpCooldown) / 1.8) * 100)),
   }),
 });
 

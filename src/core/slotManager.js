@@ -189,7 +189,7 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
         }
       }
     }
-  } else if (currentMode === 'CROWN' || currentMode === 'ZONE' || currentMode === 'SNAKE' || currentMode === 'LASER' || currentMode === 'CLONE') {
+  } else if (currentMode === 'CROWN' || currentMode === 'ZONE' || currentMode === 'SNAKE' || currentMode === 'LASER' || currentMode === 'CLONE' || currentMode === 'COLLAPSE') {
     for (let i = 0; i < 4; i++) {
       const slot = hostPlayerSlots[i];
       const player = engine.players?.[i];
@@ -249,8 +249,8 @@ export function clearRemoteSlot(engine, currentMode, slotIndex) {
         player.steer = 0;
         player.isBoost = false;
       }
-    } else if (currentMode === 'CLONE') {
-      // Takılı yön sıfırlanır (atılma anlık olaydır, latch tutmaz)
+    } else if (currentMode === 'CLONE' || currentMode === 'COLLAPSE') {
+      // Takılı yön sıfırlanır (atılma/zıplama anlık olaydır, latch tutmaz)
       const player = engine.players?.[slotIndex];
       if (player) {
         player.steerX = 0;

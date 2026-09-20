@@ -107,6 +107,16 @@ export function updateZoneBotAI(game, bot, dt) {
   }
 
   steer(game, bot, prof, plan, myCell, myTag, trailing, dt);
+
+  // Depar: eve uzun dönüşte + av kovalamacasında (god her zaman, normal seyrek)
+  if (typeof game.triggerDash === 'function'
+      && (bot.dashCooldown || 0) <= 0 && bot.stunTimer <= 0 && game.state === 'PLAYING') {
+    if (plan.phase === 'HOME' && trailing && bot.trail.length > prof.risk * 0.6) {
+      if (bot.slotType === 'bot_god' || Math.random() < 0.03) game.triggerDash(bot.index);
+    } else if (plan.phase === 'HUNT' && bot.slotType === 'bot_god' && Math.random() < 0.05) {
+      game.triggerDash(bot.index);
+    }
+  }
 }
 
 function think(game, bot, prof, plan, myCell, myTag, trailing) {
@@ -363,8 +373,9 @@ function steer(game, bot, prof, plan, myCell, myTag, trailing, dt) {
       const look = game.cell * 4;
       tx = bot.x + plan.sweepDx * look;
       ty = bot.y + plan.sweepDy * look;
-      // SWEEP ilerlemesi: hücre cinsinden kabaca takip
-      plan.sweepLeft -= (game.cell * 7.5 * dt) / game.cell;
+      // SWEEP ilerlemesi: oyun hızıyla senkron (game.moveSpeed her kare güncellenir)
+      const spd = game.moveSpeed > 0 ? game.moveSpeed : game.cell * 10.5;
+      plan.sweepLeft -= (spd * dt) / game.cell;
     } else if (plan.target >= 0) {
       const c = game.cellCenter(plan.target);
       tx = c.x; ty = c.y;

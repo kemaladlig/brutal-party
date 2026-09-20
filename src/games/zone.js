@@ -6,7 +6,7 @@
 import {
   playStart,
   playJoin,
-  playWallHit,
+  playDashWhoosh,
   playExplosion,
   playCoinPickup,
   playCashRegister,
@@ -24,13 +24,16 @@ export const ZONE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
 export const ZONE_TUNING = {
   GRID: 64,          // capture alanı: 64x64 hücre
   BASE: 7,           // başlangıç base kenarı (7x7 hücre)
-  SPEED: 7.5,        // hücre/sn
-  TURN: 10.0,        // rad/sn yumuşak dönüş
+  SPEED: 10.5,       // hücre/sn
+  TURN: 12.5,        // rad/sn yumuşak dönüş
   ROUND_TIME: 90.0,  // sn
   WIN_PCT: 40,       // erken zafer eşiği (%)
   STUN: 2.0,         // çarpışma dondurması (sn)
   TARGET_SCORE: 2,   // maçı alan raund sayısı
   TRAIL_CAP: 1500,   // güvenlik tavanı (aşılırsa iz silinir + stun)
+  DASH_MULT: 2.2,    // depar hız çarpanı
+  DASH_TIME: 0.22,   // depar süresi (sn)
+  DASH_CD: 4.0,      // depar bekleme (sn)
 };
 
 export class ZoneGame extends BaseMiniGame {
@@ -98,6 +101,15 @@ export class ZoneGame extends BaseMiniGame {
       this.keys[e.key] = false;
       if (e.key) this.keys[e.key.toLowerCase()] = false;
       this.keys[e.code] = false;
+    });
+    // Depar kısayolları (BOMB eşlemesi): P1 Space, P2 Enter, P3 O, P4 B
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat || !this.isLocalInputActive) return;
+      if (this.state !== 'PLAYING') return;
+      if (e.code === 'Space') this.triggerDash(0);
+      else if (e.code === 'Enter') this.triggerDash(1);
+      else if (e.code === 'KeyO') this.triggerDash(2);
+      else if (e.code === 'KeyB') this.triggerDash(3);
     });
   }
 
@@ -263,8 +275,9 @@ export class ZoneGame extends BaseMiniGame {
     // Mevcut maç varsa konumu yeni alana taşı (bölge sahipliği korunur)
     for (const p of this.players) {
       if (!p) continue;
-      p.x = Math.min(Math.max(p.x, this.field.x + 2), this.field.x + this.field.s - 2);
-      p.y = Math.min(Math.max(p.y, this.field.y + 2), this.field.y + this.field.s - 2);
+      const rr = (p.radius || 6) + 1;
+      p.x = Math.min(Math.max(p.x, this.field.x + rr), this.field.x + this.field.s - rr);
+      p.y = Math.min(Math.max(p.y, this.field.y + rr), this.field.y + this.field.s - rr);
       p.lastCell = this.posToCell(p.x, p.y);
     }
     if (this.players.length === 0) this.initPlayers();
@@ -288,7 +301,8 @@ export class ZoneGame extends BaseMiniGame {
         // kopukluğunu önler — ilk iz hücresinin merkezi değil, çıkış noktası).
         trailStartX: bcx, trailStartY: bcy,
         px: bcx, py: bcy,
-        stunTimer: 0, blinkTimer: 0, wallCooldown: 0,
+        stunTimer: 0, blinkTimer: 0,
+        dashTimer: 0, dashCooldown: 0, isDashing: false,
         aiMoveX: 0, aiMoveY: 0, aiForce: 0,
         aiMode: 'EXPAND', aiPath: [], aiTarget: -1, aiThink: Math.random() * 0.3,
         aiPlan: null, stuckTimer: 0, stuckX: bcx, stuckY: bcy,
@@ -354,6 +368,13 @@ export class ZoneGame extends BaseMiniGame {
     this.spawnProtect = 1.5;
     this.particles = [];
     this.floatingTexts = [];
+    this.trauma = 0;
+    // Raund hijyeni: önceki turdan joystick/tuş girdisi sarkmasın
+    // (takılı input yeni turda hayalet hareket/donma yapıyordu).
+    for (const joy of this.joysticks) {
+      joy.active = false; joy.id = -1; joy.force = 0; joy.angle = 0;
+    }
+    this.keys = {};
     this.grid.fill(0);
     this.trailOwner.fill(-1);
     this.initPlayers();
@@ -370,6 +391,30 @@ export class ZoneGame extends BaseMiniGame {
     if (announce) {
       this.addFloatingText(p.x, p.y - 24, '❄ DONDU!', '#FFFFFF');
       playStumble();
+    }
+  }
+
+  triggerDash(playerIndex) {
+    // Lobi/maç-sonunda kumandadan depar tetiklenemez (uzak girdi kapısı)
+    if (this.state !== 'PLAYING') return;
+    const p = this.players[playerIndex];
+    if (!p || !p.isJoined || p.stunTimer > 0 || p.dashCooldown > 0) return;
+    p.dashCooldown = ZONE_TUNING.DASH_CD;
+    p.dashTimer = ZONE_TUNING.DASH_TIME;
+    p.isDashing = true;
+    this.addTrauma(0.15);
+    playDashWhoosh();
+    // Depar toz bulutu (arka taraf)
+    for (let i = 0; i < 9; i++) {
+      const a = p.heading + Math.PI + (Math.random() - 0.5) * 0.9;
+      const spd = 40 + Math.random() * 90;
+      this.particles.push({
+        x: p.x - Math.cos(p.heading) * p.radius,
+        y: p.y - Math.sin(p.heading) * p.radius,
+        vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+        life: 0.3 + Math.random() * 0.2, maxLife: 0.5,
+        color: '#D5D0C7', size: 4 + Math.random() * 4,
+      });
     }
   }
 
@@ -670,6 +715,9 @@ export class ZoneGame extends BaseMiniGame {
       joy.active = data.force > 0.05;
       joy.angle = data.angle || 0;
       joy.force = data.force || 0;
+    } else if (data.action === 'DASH') {
+      if (player && (!player.isJoined || player.slotType !== 'human')) return;
+      this.triggerDash(slotIndex);
     }
   }
 
@@ -754,10 +802,17 @@ export class ZoneGame extends BaseMiniGame {
     }
 
     const speed = this.cell * ZONE_TUNING.SPEED;
+    // Bot AI hız senkronu (SWEEP ilerleme takibi gerçek hızı kullanır)
+    this.moveSpeed = speed;
 
     for (const p of this.players) {
       if (!p.isJoined) continue;
-      if (p.wallCooldown > 0) p.wallCooldown = Math.max(0, p.wallCooldown - dt);
+      // Depar sayaçları stun'dan bağımsız işler (donarken süre erir)
+      if (p.dashCooldown > 0) p.dashCooldown = Math.max(0, p.dashCooldown - dt);
+      if (p.dashTimer > 0) {
+        p.dashTimer -= dt;
+        if (p.dashTimer <= 0) p.isDashing = false;
+      }
       if (p.stunTimer > 0) {
         p.stunTimer = Math.max(0, p.stunTimer - dt);
         p.blinkTimer += dt;
@@ -789,37 +844,35 @@ export class ZoneGame extends BaseMiniGame {
         }
       }
 
+      const dashing = p.dashTimer > 0;
       if (force > 0.05) {
         const target = Math.atan2(iy, ix);
-        p.heading = this.turnToward(p.heading, target, ZONE_TUNING.TURN * dt);
+        // Depar anında dönüş yarıya iner (hız kararlılığı)
+        p.heading = this.turnToward(p.heading, target, ZONE_TUNING.TURN * dt * (dashing ? 0.5 : 1));
       }
-      const step = speed * (0.35 + 0.65 * Math.max(force, force > 0.05 ? 0.6 : 0));
+      let step = speed * (0.35 + 0.65 * Math.max(force, force > 0.05 ? 0.6 : 0));
+      if (dashing) step *= ZONE_TUNING.DASH_MULT;
       p.px = p.x; p.py = p.y;
       const mx = Math.cos(p.heading) * step * dt;
       const my = Math.sin(p.heading) * step * dt;
 
-      // Duvar kayması: eksen eksen dene, takılan ekseni sabitle, diğeriyle
-      // kaymaya devam et. Ceza mantığı: iz varken duvara vurmak izi siler +
-      // dondurur; izsiz temas cezasızdır (duvara yaslanıp takılmak serbest).
-      // wallCooldown zincir-stun'u önler (perma-stun bug'ının ilacı).
-      let tryX = p.x + mx;
-      let tryY = p.y + my;
-      let hitX = false;
-      let hitY = false;
-      if (tryX < this.field.x + 1) { tryX = this.field.x + 1; hitX = true; }
-      if (tryX > this.field.x + this.field.s - 1) { tryX = this.field.x + this.field.s - 1; hitX = true; }
-      if (tryY < this.field.y + 1) { tryY = this.field.y + 1; hitY = true; }
-      if (tryY > this.field.y + this.field.s - 1) { tryY = this.field.y + this.field.s - 1; hitY = true; }
-      p.x = tryX; p.y = tryY;
-      if ((hitX || hitY) && p.wallCooldown <= 0) {
-        if (p.trail.length > 0) {
-          this.wipeTrail(p.index);
-          this.stunPlayer(p.index, true);
-          p.wallCooldown = 1.5;
-          playWallHit();
-          continue;
-        }
-        p.wallCooldown = 0.25;
+      // Duvar kayması: yarıçap payıyla clamp'le, eksenler bağımsız kayar.
+      // Duvar teması cezasızdır — iz silinmez, donma yok, ses yok.
+      const wr = p.radius + 1;
+      p.x = Math.min(Math.max(p.x + mx, this.field.x + wr), this.field.x + this.field.s - wr);
+      p.y = Math.min(Math.max(p.y + my, this.field.y + wr), this.field.y + this.field.s - wr);
+
+      // Güvenlik: konum/başlık bozulursa (NaN) tabana dön —
+      // yoksa oyuncu görünmez/donmuş kalır.
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.heading)) {
+        const br = this.baseRect(p.index);
+        p.x = this.field.x + ((br.x0 + br.x1 + 1) / 2) * this.cell;
+        p.y = this.field.y + ((br.y0 + br.y1 + 1) / 2) * this.cell;
+        p.px = p.x; p.py = p.y;
+        p.heading = Math.atan2(this.arena.cy - p.y, this.arena.cx - p.x);
+        this.wipeTrail(p.index);
+        p.lastCell = this.posToCell(p.x, p.y);
+        continue;
       }
 
       const cellIdx = this.posToCell(p.x, p.y);
@@ -931,7 +984,7 @@ export class ZoneGame extends BaseMiniGame {
 
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'JOYSTICK: YÖN VER • İZİNİ KORU • %40 ALAN KAZANIR', [
+      renderControlGuide(ctx, this.arena, 'JOYSTICK: YÖN • DEPAR: HIZLAN • %40 ALAN KAZANIR', [
         'P1 KIRMIZI', 'P2 MAVİ', 'P3 SARI', 'P4 YEŞİL',
       ]);
       this.renderLobbyUI(ctx);
