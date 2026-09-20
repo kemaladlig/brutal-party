@@ -1,15 +1,10 @@
+// src/supabaseRelay.js
 // Supabase Realtime Broadcast Relay for Online Multiplayer
-// Replaces the WebSocket relay server for ONLINE mode.
-// The HOST acts as the room authority — assigns slots, processes inputs.
-// Supabase Broadcast is the transport layer (ephemeral pub/sub).
-//
-// Kimlik bilgileri KODDA DURMAZ — .env / Vercel Environment Variables:
-//   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
-// (anon key herkese açık dağıtılır; güvenlik RLS + kanal tasarımıyla sağlanır,
-//  service_role anahtarı ASLA frontend'e konmaz.)
+// With WebRTC DataChannel acceleration for zero-quota, low-latency gameplay.
 
 import { createClient } from '@supabase/supabase-js';
 import { cleanPlayerName, getClientId } from './net.js';
+import { WebRTCManager } from './webrtcManager.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -67,6 +62,10 @@ export class SupabaseRelay {
     this.roomCode = null;
     this.myId = MY_ID;
     this.ping = 0;
+
+    // WebRTC Katmanı (direct peer-to-peer input/state)
+    this.webrtcManager = null;
+    this._webRtcAvailable = false; // Supabase Broadcast fallback bayrağı
 
     // --- HOST state ---
     this.players = [null, null, null, null]; // { id, name, color, slotIndex }
@@ -131,20 +130,34 @@ export class SupabaseRelay {
       this._hostHandleMessage(payload);
     });
 
-    // Not: subscribe() promise döndürmez — durumlar callback ile gelir.
-    // Başarıda SUBSCRIBED, hatada CHANNEL_ERROR/TIMED_OUT/CLOSED.
-    // Hiçbir durum gelmezse 10sn zaman aşımı devreye girer (sonsuz kilitlenme yok).
+    // Host WebRTC Yöneticisini Başlat
+    this.webrtcManager = new WebRTCManager({
+      isHost: true,
+      sendSignal: (targetId, signal) => {
+        this._broadcast('host_msg', {
+          action: 'WEBRTC_SIGNAL',
+          targetId,
+          signal,
+        });
+      },
+      onMessage: (peerId, data) => {
+        // WebRTC üzerinden gelen oyuncu verisi
+        this._hostHandleMessage({ ...data, senderId: peerId });
+      },
+      onStatusChange: (peerId, status) => {
+        console.log(`[SupabaseRelay] Host WebRTC durumu (${peerId}): ${status}`);
+      },
+    });
+
     try {
       await new Promise((resolve, reject) => {
         const failTimer = setTimeout(() => {
-          reject(new Error("Supabase relay'e bağlanılamadı (zaman aşımı). İnternet bağlantısını ve Supabase proje durumunu kontrol edin."));
+          reject(new Error("Supabase relay'e bağlanılamadı (zaman aşımı)."));
         }, 10000);
         this.channel.subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
             clearTimeout(failTimer);
             console.log(`[SupabaseRelay] HOST subscribed to ${channelName}`);
-            // Oda kodu çakışma kalkanı: host kendini periyodik ilan eder,
-            // kumanda JOIN'i ilan edilen hostId'ye kilitler
             this._startHostAnnounce();
             if (this.callbacks.onRoomCreated) {
               this.callbacks.onRoomCreated(this.roomCode, this.gameMode);
@@ -153,7 +166,7 @@ export class SupabaseRelay {
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             clearTimeout(failTimer);
             console.error('[SupabaseRelay] HOST subscribe failed:', status, err?.message || '');
-            reject(new Error(`Supabase relay'e bağlanılamadı (${status}). İnternet bağlantısını ve Supabase proje durumunu kontrol edin.`));
+            reject(new Error(`Supabase relay'e bağlanılamadı (${status}).`));
           }
         });
       });
@@ -189,16 +202,19 @@ export class SupabaseRelay {
 
   _hostHandleMessage(msg) {
     switch (msg.action) {
+      case 'WEBRTC_SIGNAL': {
+        if (msg.targetId === this.myId && this.webrtcManager) {
+          this.webrtcManager.handleSignal(msg.senderId, msg.signal);
+        }
+        break;
+      }
+
       case 'JOIN': {
-        // Başka hosta kilitli JOIN bize değil — aynı kodda çakışan oda varsa yoksay
         if (msg.hostId && msg.hostId !== this.myId) return;
         const now = performance.now();
         let baseName = cleanPlayerName(msg.name);
         let slotIndex = -1;
 
-        // 1. Reconnect: aynı kalıcı istemci kimliği (reload güvenli) VEYA bayat
-        // (>20sn sessiz) aynı isimli slot geri verilir. Canlı başkasının slotu
-        // gasp edilemez. Bot koltukları eşleşmeye dahil değildir.
         for (let i = 0; i < 4; i++) {
           const p = this.players[i];
           if (!p || p.isBot) continue;
@@ -206,15 +222,12 @@ export class SupabaseRelay {
           if (p.name === baseName && now - (p.lastSeen || 0) > 20000) { slotIndex = i; break; }
         }
 
-        // 2. Boş slot bul
         if (slotIndex === -1) {
           for (let i = 0; i < 4; i++) {
             if (!this.players[i]) { slotIndex = i; break; }
           }
         }
 
-        // 3. Tüm slotlar doluysa >20sn'dir yanıt vermeyen (hayalet, insan) slotu geri kazan.
-        // Bot koltukları geri kazanıma dahil değildir.
         if (slotIndex === -1) {
           for (let i = 0; i < 4; i++) {
             if (this.players[i] && !this.players[i].isBot && now - (this.players[i].lastSeen || 0) > 20000) {
@@ -225,7 +238,6 @@ export class SupabaseRelay {
         }
 
         if (slotIndex === -1) {
-          // Room full — send rejection
           this._broadcast('host_msg', {
             action: 'JOIN_ERROR',
             targetId: msg.senderId,
@@ -234,8 +246,6 @@ export class SupabaseRelay {
           return;
         }
 
-        // 4. İsim tekilleştir: dolu insan slotundaki isim alınırsa suffix ver
-        // (reclaim edilen kendi slotu hariç) — skor şeridinde kim kim belli olur
         const takenByOther = (name) => this.players.some(
           (p, i) => p && !p.isBot && i !== slotIndex && p.name === name
         );
@@ -258,7 +268,6 @@ export class SupabaseRelay {
         this.players[slotIndex] = player;
         this.ready[slotIndex] = false;
 
-        // Send slot assignment to the joining player
         this._broadcast('host_msg', {
           action: 'JOIN_SUCCESS',
           targetId: msg.senderId,
@@ -271,7 +280,6 @@ export class SupabaseRelay {
           slots: this.getSlots(),
         });
 
-        // Notify host UI
         if (this.callbacks.onPlayerJoined) {
           this.callbacks.onPlayerJoined({
             slotIndex, name: player.name, color: player.color,
@@ -357,11 +365,10 @@ export class SupabaseRelay {
   }
 
   broadcastSlots() {
-    if (this.role !== 'HOST' || !this.channel) return;
-    this._broadcast('host_msg', {
-      action: 'SLOTS_UPDATE',
-      slots: this.getSlots(),
-    });
+    if (this.role !== 'HOST') return;
+    const payload = { action: 'SLOTS_UPDATE', slots: this.getSlots() };
+    this.webrtcManager?.broadcast(payload);
+    this._broadcast('host_msg', payload);
   }
 
   setPlayerName(slotIndex, name) {
@@ -370,38 +377,40 @@ export class SupabaseRelay {
     this.broadcastSlots();
   }
 
-  // Host broadcasts game state to all controllers
+  // Host broadcasts game state: Önce WebRTC'ye bakar, bağlı oyuncu varsa oradan iletir
   broadcastHostState(state) {
-    if (this.role !== 'HOST' || !this.channel) return;
-    this._broadcast('host_msg', {
-      action: 'STATE_SYNC',
-      ...state,
-    });
+    if (this.role !== 'HOST') return;
+    const payload = { action: 'STATE_SYNC', ...state };
+
+    let sentViaRtc = false;
+    if (this.webrtcManager && this.webrtcManager.hasAnyConnection()) {
+      sentViaRtc = this.webrtcManager.broadcast(payload);
+    }
+
+    // WebRTC bağlı değilse Supabase Broadcast ile yedekle
+    if (!sentViaRtc && this.channel) {
+      this._broadcast('host_msg', payload);
+    }
   }
 
   setHostGameMode(gameMode) {
     if (this.role !== 'HOST') return;
     this.gameMode = gameMode;
-    this._broadcast('host_msg', {
-      action: 'GAME_MODE_CHANGED',
-      gameMode,
-    });
+    const payload = { action: 'GAME_MODE_CHANGED', gameMode };
+    this.webrtcManager?.broadcast(payload);
+    this._broadcast('host_msg', payload);
   }
 
   startGame(gameMode) {
     if (this.role !== 'HOST') return;
     if (gameMode) this.gameMode = gameMode;
     this.ready = [false, false, false, false];
-    this._broadcast('host_msg', {
-      action: 'GAME_STARTED',
-      gameMode: this.gameMode,
-    });
+    const payload = { action: 'GAME_STARTED', gameMode: this.gameMode };
+    this.webrtcManager?.broadcast(payload);
+    this._broadcast('host_msg', payload);
     this.broadcastSlots();
   }
 
-  // Host TV ekranından boş koltuğa bot ekler/çıkarır. Botlar relay modelinde
-  // isBot işaretli yer tutucu olarak durur: insan katılımını engeller,
-  // SLOTS_UPDATE ile tüm kumandalara duyurulur.
   setSlotBot(slotIndex, name) {
     if (this.role !== 'HOST') return;
     if (slotIndex < 0 || slotIndex > 3 || this.players[slotIndex]) return;
@@ -425,44 +434,35 @@ export class SupabaseRelay {
     this.broadcastSlots();
   }
 
-  // İki kademeli başlatma 1/2: sahayı aç (staging). Motor LOBBY'de arena gösterir,
-  // kumandalar koltuk seçimine geçer. Oyun henüz başlamaz.
   startStaging(gameMode) {
     if (this.role !== 'HOST') return;
     if (gameMode) this.gameMode = gameMode;
     this.ready = [false, false, false, false];
-    this._broadcast('host_msg', {
-      action: 'STAGING_STARTED',
-      gameMode: this.gameMode,
-    });
+    const payload = { action: 'STAGING_STARTED', gameMode: this.gameMode };
+    this.webrtcManager?.broadcast(payload);
+    this._broadcast('host_msg', payload);
     this.broadcastSlots();
   }
 
-  // İki kademeli başlatma 2/2: geri sayım tik'i (3-2-1). Son tik sonrası
-  // host startGame() çağırır.
   broadcastCountdown(t) {
     if (this.role !== 'HOST') return;
-    this._broadcast('host_msg', {
-      action: 'COUNTDOWN',
-      t,
-      gameMode: this.gameMode,
-    });
+    const payload = { action: 'COUNTDOWN', t, gameMode: this.gameMode };
+    this.webrtcManager?.broadcast(payload);
+    this._broadcast('host_msg', payload);
   }
 
   returnToLobby() {
     if (this.role !== 'HOST') return;
     this.ready = [false, false, false, false];
-    this._broadcast('host_msg', {
-      action: 'RETURNED_TO_LOBBY',
-      gameMode: this.gameMode,
-    });
+    const payload = { action: 'RETURNED_TO_LOBBY', gameMode: this.gameMode };
+    this.webrtcManager?.broadcast(payload);
+    this._broadcast('host_msg', payload);
     this.broadcastSlots();
   }
 
   swapSlots(slotA, slotB) {
     if (this.role !== 'HOST') return;
     if (slotA < 0 || slotA > 3 || slotB < 0 || slotB > 3 || slotA === slotB) return;
-    // Bot koltuğu ne hedef ne kaynak olur (main.js ön kapı + burası son kapı)
     if (this.players[slotA]?.isBot || this.players[slotB]?.isBot) return;
 
     const pA = this.players[slotA];
@@ -477,22 +477,16 @@ export class SupabaseRelay {
     if (pA) {
       pA.slotIndex = slotB;
       pA.color = PLAYER_COLORS[slotB];
-      this._broadcast('host_msg', {
-        action: 'SLOT_CHANGED',
-        targetId: pA.id,
-        slotIndex: slotB,
-        color: PLAYER_COLORS[slotB],
-      });
+      const p = { action: 'SLOT_CHANGED', targetId: pA.id, slotIndex: slotB, color: PLAYER_COLORS[slotB] };
+      this.webrtcManager?.broadcast(p);
+      this._broadcast('host_msg', p);
     }
     if (pB) {
       pB.slotIndex = slotA;
       pB.color = PLAYER_COLORS[slotA];
-      this._broadcast('host_msg', {
-        action: 'SLOT_CHANGED',
-        targetId: pB.id,
-        slotIndex: slotA,
-        color: PLAYER_COLORS[slotA],
-      });
+      const p = { action: 'SLOT_CHANGED', targetId: pB.id, slotIndex: slotA, color: PLAYER_COLORS[slotA] };
+      this.webrtcManager?.broadcast(p);
+      this._broadcast('host_msg', p);
     }
 
     if (this.callbacks.onSlotsSwapped) {
@@ -501,12 +495,10 @@ export class SupabaseRelay {
     this.broadcastSlots();
   }
 
-  // Atomik rotate: tek permütasyon + kumanda başına tek SLOT_CHANGED +
-  // tek SLOTS_UPDATE (ara flicker yok). Skor takasını host yerelde yapar.
   rotateSeats() {
     if (this.role !== 'HOST') return;
-    const order = [2, 3, 1, 0];
-    const old = [this.players[0], this.players[1], this.players[2], this.players[3]];
+    const order = Array(2, 3, 1, 0);
+    const old = this.players.slice(0, 4);
     if (old.some((p) => p?.isBot)) return;
     const oldReady = [...this.ready];
     for (let i = 0; i < 4; i++) {
@@ -516,12 +508,9 @@ export class SupabaseRelay {
       if (p) {
         p.slotIndex = i;
         p.color = PLAYER_COLORS[i];
-        this._broadcast('host_msg', {
-          action: 'SLOT_CHANGED',
-          targetId: p.id,
-          slotIndex: i,
-          color: PLAYER_COLORS[i],
-        });
+        const pl = { action: 'SLOT_CHANGED', targetId: p.id, slotIndex: i, color: PLAYER_COLORS[i] };
+        this.webrtcManager?.broadcast(pl);
+        this._broadcast('host_msg', pl);
       }
     }
     this.broadcastSlots();
@@ -560,14 +549,12 @@ export class SupabaseRelay {
     try {
       await new Promise((resolve, reject) => {
         const failTimer = setTimeout(() => {
-          reject(new Error("Supabase relay'e bağlanılamadı (zaman aşımı). İnternet bağlantısını kontrol edin."));
+          reject(new Error("Supabase relay'e bağlanılamadı (zaman aşımı)."));
         }, 10000);
         this.channel.subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
             clearTimeout(failTimer);
             console.log(`[SupabaseRelay] CONTROLLER subscribed to ${channelName}`);
-            // Çakışma kalkanı: JOIN'den önce ~1.5sn host ilanlarını topla.
-            // 1 host → kilitli JOIN; 2+ → çakışma hatası; 0 → eski host uyumu (kilitsiz).
             this._seenHosts = new Map();
             this.hostId = null;
             this._announceWait = setTimeout(() => this._sendLockedJoin(), 1500);
@@ -575,7 +562,7 @@ export class SupabaseRelay {
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             clearTimeout(failTimer);
             console.error('[SupabaseRelay] CONTROLLER subscribe failed:', status, err?.message || '');
-            reject(new Error(`Supabase relay'e bağlanılamadı (${status}). İnternet bağlantısını kontrol edin.`));
+            reject(new Error(`Supabase relay'e bağlanılamadı (${status}).`));
           }
         });
       });
@@ -606,7 +593,6 @@ export class SupabaseRelay {
     if (this.hostId) joinPayload.hostId = this.hostId;
     this._broadcast('player_msg', joinPayload);
 
-    // Set a timeout — if no response in 5s, the room doesn't exist
     if (this._joinTimeout) clearTimeout(this._joinTimeout);
     this._joinTimeout = setTimeout(() => {
       if (!this.playerIndex && this.playerIndex !== 0) {
@@ -618,15 +604,18 @@ export class SupabaseRelay {
   }
 
   _controllerHandleMessage(msg) {
-    // Host'tan gelen HER mesaj canlılık kanıtıdır (watchdog için)
     this._lastHostMsgAt = performance.now();
-
-    // Filter messages targeted to other players
     if (msg.targetId && msg.targetId !== this.myId) return;
 
     switch (msg.action) {
+      case 'WEBRTC_SIGNAL': {
+        if (msg.targetId === this.myId && this.webrtcManager) {
+          this.webrtcManager.handleSignal(msg.senderId, msg.signal);
+        }
+        break;
+      }
+
       case 'HOST_ANNOUNCE': {
-        // Aynı koddaki her hostu kaydet (çakışma tespiti + JOIN kilidi için)
         if (msg.hostId) {
           if (!this._seenHosts) this._seenHosts = new Map();
           this._seenHosts.set(msg.hostId, performance.now());
@@ -635,7 +624,6 @@ export class SupabaseRelay {
       }
 
       case 'JOIN_SUCCESS': {
-        // Kilitli odaya başka host cevap verdiyse yoksay
         if (msg.hostId && this.hostId && msg.hostId !== this.hostId) break;
         if (this._announceWait) { clearTimeout(this._announceWait); this._announceWait = null; }
         clearTimeout(this._joinTimeout);
@@ -644,8 +632,13 @@ export class SupabaseRelay {
         this.playerIndex = msg.slotIndex;
         this.playerName = msg.name;
         this.color = msg.color;
+        this.hostId = msg.hostId || this.hostId;
         this._lastHostMsgAt = performance.now();
         this._startHostWatchdog();
+
+        // Odaya katılım başarılı olunca Host'a WebRTC DataChannel el sıkışması başlat
+        this._initControllerWebRTC();
+
         if (this.callbacks.onJoinedSuccess) {
           this.callbacks.onJoinedSuccess(msg);
         }
@@ -726,12 +719,16 @@ export class SupabaseRelay {
       }
 
       case 'PING_REQ': {
-        // Reply to host's ping
-        this._broadcast('player_msg', {
+        const reply = {
           action: 'PONG_REPLY',
           targetId: msg.senderId,
           timestamp: msg.timestamp,
-        });
+        };
+        if (this._webRtcAvailable && this.webrtcManager?.hasActiveConnection(this.hostId)) {
+          this.webrtcManager.sendTo(this.hostId, reply);
+        } else {
+          this._broadcast('player_msg', reply);
+        }
         break;
       }
 
@@ -740,22 +737,45 @@ export class SupabaseRelay {
     }
   }
 
+  _initControllerWebRTC() {
+    if (!this.hostId) return;
+    if (this.webrtcManager) {
+      this.webrtcManager.destroy();
+    }
+
+    this.webrtcManager = new WebRTCManager({
+      isHost: false,
+      sendSignal: (targetId, signal) => {
+        this._broadcast('player_msg', {
+          action: 'WEBRTC_SIGNAL',
+          targetId: this.hostId,
+          signal,
+        });
+      },
+      onMessage: (peerId, data) => {
+        this._controllerHandleMessage(data);
+      },
+      onStatusChange: (peerId, status) => {
+        this._webRtcAvailable = (status === 'connected');
+        console.log(`[SupabaseRelay] Controller WebRTC durumu: ${status}`);
+      },
+    });
+
+    this.webrtcManager.connectToHost(this.hostId);
+  }
+
   sendInput(data) {
-    if (this.role !== 'CONTROLLER' || !this.channel) return;
-    // Input flood koruması: Sadece sürekli analog hareketler (JOYSTICK_MOVE, PADDLE_MOVE) throttle edilir.
-    // DASH, TACKLE, TANK_FIRE, TANK_DRIVE, CURVE_STEER (yön değişimi), koltuk/isim değişimi ve durma/bırakma sinyalleri ASLA throttle edilmez!
+    if (this.role !== 'CONTROLLER') return;
     const isCurveSteerChange = data.action === 'CURVE_STEER' && data.dir !== this._lastCurveDir;
     const isDiscrete =
       (data.action !== 'JOYSTICK_MOVE' &&
-       data.action !== 'PADDLE_MOVE') ||
+        data.action !== 'PADDLE_MOVE') ||
       isCurveSteerChange ||
       data.force === 0 ||
       data.dir === 0;
 
     const now = performance.now();
     if (!isDiscrete) {
-      // 50ms throttle (20Hz paddle/joystick göz için akıcıdır) + ölübant:
-      // parmak kımıldamadıysa tekrar gönderme (kota dostu, his kaybı yok).
       if (now - (this._lastInputSent || 0) < 50) return;
       if (data.action === 'PADDLE_MOVE' && typeof data.position === 'number') {
         if (Math.abs(data.position - (this._lastPaddlePos ?? -1)) < 0.003) return;
@@ -774,34 +794,46 @@ export class SupabaseRelay {
       this._lastCurveDir = data.dir;
     }
 
-    // Discrete paket 50ms penceresini sıfırlamasın — yoksa dash/tackle sonrası
-    // ilk analog kare düşer (küçük direksiyon çentiği hissi)
     if (!isDiscrete) this._lastInputSent = now;
-    this._broadcast('player_msg', {
-      action: 'INPUT',
-      data,
-    });
+
+    const payload = { action: 'INPUT', data };
+
+    // WebRTC DataChannel açıksa Supabase'e hiç uğramadan gönder!
+    if (this._webRtcAvailable && this.webrtcManager?.hasActiveConnection(this.hostId)) {
+      this.webrtcManager.sendTo(this.hostId, payload);
+      return;
+    }
+
+    // WebRTC henüz hazır değilse Supabase Broadcast fallback
+    if (this.channel) {
+      this._broadcast('player_msg', payload);
+    }
   }
 
-  // SET_NAME sonrası re-join eski isimle dönmesin (C10)
   notePlayerName(name) {
     if (name) this.playerName = cleanPlayerName(name);
   }
 
   sendReaction(emoji) {
-    if (!this.channel) return;
-    this._broadcast('player_msg', {
-      action: 'REACTION',
-      emoji,
-    });
+    const payload = { action: 'REACTION', emoji };
+    if (this._webRtcAvailable && this.webrtcManager?.hasActiveConnection(this.hostId)) {
+      this.webrtcManager.sendTo(this.hostId, payload);
+      return;
+    }
+    if (this.channel) {
+      this._broadcast('player_msg', payload);
+    }
   }
 
   setReady(isReady) {
-    if (!this.channel) return;
-    this._broadcast('player_msg', {
-      action: 'READY',
-      isReady,
-    });
+    const payload = { action: 'READY', isReady };
+    if (this._webRtcAvailable && this.webrtcManager?.hasActiveConnection(this.hostId)) {
+      this.webrtcManager.sendTo(this.hostId, payload);
+      return;
+    }
+    if (this.channel) {
+      this._broadcast('player_msg', payload);
+    }
   }
 
   // ━━━━━━━━━━━━━━━━━━━ SHARED ━━━━━━━━━━━━━━━━━━━
@@ -815,14 +847,12 @@ export class SupabaseRelay {
     });
   }
 
-  // 3 haneli sayısal oda kodu (100-999). Baştaki sıfır bilerek yok.
   _generateRoomCode() {
     return String(Math.floor(100 + Math.random() * 900));
   }
 
   _startPingHeartbeat() {
     this._stopPingHeartbeat();
-    // Kota dostu ping: lobideki ms göstergesinin 5sn'de tazelenmesine gerek yok.
     this.pingInterval = setInterval(() => {
       if (this.role === 'HOST') {
         this._broadcast('host_msg', {
@@ -840,9 +870,6 @@ export class SupabaseRelay {
     }
   }
 
-  // Controller tarafı: host'tan 30sn'dir hiç mesaj gelmediyse host ölmüş
-  // demektir — bildir + sessizce yeniden bağlanmayı dene (WS muadili, maks 5).
-  // Eşik, PING_REQ aralığının (15sn) 2 katıdır; oyunda STATE_SYNC çok daha sık gelir.
   _startHostWatchdog() {
     this._stopHostWatchdog();
     this._hostWatchdog = setInterval(() => {
@@ -856,7 +883,6 @@ export class SupabaseRelay {
       const lastJoin = this._lastJoin;
       const wasJoined = this._joinedOnce;
       this.disconnect();
-      // disconnect kapatma sayar + retry bilgisini siler — retry için geri koy
       if (wasJoined && lastJoin) {
         this._manualClose = false;
         this._lastJoin = lastJoin;
@@ -865,8 +891,6 @@ export class SupabaseRelay {
     }, 5000);
   }
 
-  // Üstel geri çekilmeli re-join (1s/2s/4s/8s/8s). Kalıcı clientId sayesinde
-  // dönen kumanda eski koltuğunu reclaim eder.
   _scheduleRelayReconnect() {
     if (this._manualClose || !this._lastJoin) return;
     if ((this._reconnectTries || 0) >= 5) {
@@ -913,6 +937,12 @@ export class SupabaseRelay {
       this._announceWait = null;
     }
     this._seenHosts = null;
+
+    if (this.webrtcManager) {
+      this.webrtcManager.destroy();
+      this.webrtcManager = null;
+    }
+    this._webRtcAvailable = false;
 
     if (this.role === 'CONTROLLER') {
       this._broadcast('player_msg', { action: 'LEAVE' });
