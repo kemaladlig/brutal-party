@@ -4,6 +4,7 @@ import { Ball } from './ball.js';
 import { playJoin, playStart, playPowerUp } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton } from '../controlGuide.js';
 import { renderCornerScores } from '../ui/hud.js';
+import { getUiScale } from '../ui/tokens.js';
 import { renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 
@@ -678,6 +679,7 @@ export class Game extends BaseMiniGame {
 
       ctx.save();
       if (this.state === 'ROUND_PAUSE') {
+        const scale = getUiScale(this.arena);
         const remaining = Math.max(0.1, this.roundPauseTimer);
         const progress = Math.min(1, remaining / 1.4);
 
@@ -685,18 +687,18 @@ export class Game extends BaseMiniGame {
         ctx.beginPath();
         ctx.arc(cx, cy, minDim * 0.16 * (0.82 + progress * 0.18), 0, Math.PI * 2);
         ctx.strokeStyle = '#D84727';
-        ctx.lineWidth = 4;
+        ctx.lineWidth = Math.max(4, Math.round(5 * scale));
         ctx.stroke();
 
         ctx.fillStyle = '#1C1C1A';
-        ctx.font = '900 28px "Space Grotesk", sans-serif';
+        ctx.font = `900 ${Math.round(32 * scale)}px "Space Grotesk", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('HAZIR!', cx, cy - 14);
+        ctx.fillText('HAZIR!', cx, cy - Math.round(18 * scale));
 
         ctx.fillStyle = '#D84727';
-        ctx.font = '900 22px "JetBrains Mono", monospace';
-        ctx.fillText(`${remaining.toFixed(1)}s`, cx, cy + 18);
+        ctx.font = `900 ${Math.round(28 * scale)}px "JetBrains Mono", monospace`;
+        ctx.fillText(`${remaining.toFixed(1)}s`, cx, cy + Math.round(20 * scale));
       }
       ctx.restore();
     }

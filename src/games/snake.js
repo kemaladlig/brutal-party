@@ -355,10 +355,14 @@ export class SnakeGame extends BaseMiniGame {
       if (player.slotType !== 'human') {
         updateSnakeBotAI(this, player, dt);
       } else {
-        // Klavye eklemeli: basılı yön yazar, boost basılı olduğu sürece açık
+        // Klavye eklemeli: basılı yön yazar, basılı değilse ve kumanda/dokunmatik yoksa düz git
         const ki = this.keyboardInput(player.index);
-        if (ki.steer !== 0) player.steer = ki.steer;
-        player.isBoost = ki.boost || this.touchBoost[player.index];
+        if (ki.steer !== 0) {
+          player.steer = ki.steer;
+        } else if (!player.remoteSteerActive && this.cornerTouches[player.index]?.id === -1) {
+          player.steer = 0;
+        }
+        player.isBoost = ki.boost || this.touchBoost[player.index] || !!player.remoteBoostActive;
       }
 
       player.angle += player.steer * player.turnSpeed * dt;
@@ -448,13 +452,19 @@ export class SnakeGame extends BaseMiniGame {
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
-    if (data.action === 'JOYSTICK_MOVE') {
-      const dx = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
-      player.steer = dx;
+    if (data.action === 'SNAKE_STEER' || data.action === 'CURVE_STEER') {
+      player.steer = Number.isFinite(data.dir) ? data.dir : 0;
+      player.remoteSteerActive = (player.steer !== 0);
+    } else if (data.action === 'JOYSTICK_MOVE') {
+      const dir = Number.isFinite(data.dir) ? data.dir : (Number.isFinite(data.dx) ? data.dx : 0);
+      player.steer = Math.max(-1, Math.min(1, dir));
+      player.remoteSteerActive = (player.steer !== 0);
     } else if (data.action === 'SNAKE_BOOST') {
       player.isBoost = true;
+      player.remoteBoostActive = true;
     } else if (data.action === 'SNAKE_BOOST_RELEASE') {
       player.isBoost = false;
+      player.remoteBoostActive = false;
     }
   }
 

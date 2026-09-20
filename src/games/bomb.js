@@ -14,7 +14,14 @@ import {
   playStumble,
 } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
-import { renderTopPill, renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import {
+  renderTopPill,
+  renderCornerScores,
+  renderRoundBanner,
+  renderMatchOver,
+  renderArenaWatermarkTimer,
+} from '../ui/hud.js';
+import { getUiScale } from '../ui/tokens.js';
 import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -1126,6 +1133,20 @@ export class BombGame extends BaseMiniGame {
           p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}★` } : null
         ),
       });
+
+      // Saha ortasında büyük, oyunu engellemeyen yarı-saydam bomba geri sayımı (TV ve monitörlerde yüksek görünürlük)
+      const remain = Math.max(0, this.bombTimer);
+      const isPanic = remain <= 4.0;
+      const carrier = this.bombCarrierIndex !== null ? this.players[this.bombCarrierIndex] : null;
+      renderArenaWatermarkTimer(ctx, {
+        arena: this.arena,
+        text: `${remain.toFixed(1)}s`,
+        subText: isPanic ? '⚡ DİKKAT! PATLIYOR! ⚡' : (carrier ? `${carrier.name} BOMBALI` : 'BOMBA GERİ SAYIM'),
+        urgent: isPanic,
+        color: isPanic ? '#D84727' : (carrier ? carrier.color : null),
+        alpha: isPanic ? 0.26 : 0.16,
+        ringProgress: 1.0 - (remain / this.bombMaxTime),
+      });
     }
 
     // Arena Grid
@@ -1412,17 +1433,19 @@ export class BombGame extends BaseMiniGame {
           ? `⚡ ${Math.max(0, this.bombTimer).toFixed(1)}s`
           : `${Math.max(0, this.bombTimer).toFixed(1)}s`;
 
-        const badgeW = isPanic ? 74 : 64;
-        const badgeH = 22;
+        const bScale = Math.min(1.4, getUiScale(this.arena));
+        const badgeW = Math.round((isPanic ? 78 : 68) * bScale);
+        const badgeH = Math.round(22 * bScale);
+        const badgeY = bombY - Math.round(38 * bScale);
         ctx.fillStyle = isPanic ? '#D84727' : '#1C1C1A';
-        ctx.fillRect(-badgeW / 2, bombY - 38, badgeW, badgeH);
+        ctx.fillRect(-badgeW / 2, badgeY, badgeW, badgeH);
         ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-badgeW / 2, bombY - 38, badgeW, badgeH);
+        ctx.lineWidth = Math.max(2, Math.round(2 * bScale));
+        ctx.strokeRect(-badgeW / 2, badgeY, badgeW, badgeH);
 
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = '900 13px "JetBrains Mono", monospace';
-        ctx.fillText(timerText, 0, bombY - 26);
+        ctx.font = `900 ${Math.round(13 * bScale)}px "JetBrains Mono", monospace`;
+        ctx.fillText(timerText, 0, badgeY + badgeH / 2);
       }
 
       ctx.restore();

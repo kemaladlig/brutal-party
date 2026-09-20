@@ -17,7 +17,8 @@ import {
   playTeleport,
 } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
-import { renderTopPill, renderCornerScores } from '../ui/hud.js';
+import { renderTopPill, renderCornerScores, renderArenaWatermarkTimer } from '../ui/hud.js';
+import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCrownBotAI } from '../ai/crownAI.js';
 
@@ -1354,6 +1355,30 @@ export class CrownGame extends BaseMiniGame {
           p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}★` } : null
         ),
       });
+
+      // Saha ortasında oyunu engellemeyen büyük taç süresi filigranı (TV ve monitörlerde yüksek görünürlük)
+      const king = this.crown.carrierIndex !== null ? this.players[this.crown.carrierIndex] : null;
+      if (king && king.isAlive) {
+        const remain = Math.max(0, this.targetCrownTime - king.crownHoldTime);
+        const urgent = remain <= 4.0;
+        const progress = Math.min(1.0, king.crownHoldTime / this.targetCrownTime);
+        renderArenaWatermarkTimer(ctx, {
+          arena: this.arena,
+          text: `${remain.toFixed(1)}s`,
+          subText: `${king.name} TAÇTA (%${Math.round(progress * 100)})`,
+          urgent,
+          color: urgent ? '#D84727' : king.color,
+          alpha: urgent ? 0.28 : 0.18,
+          ringProgress: progress,
+        });
+      } else {
+        renderArenaWatermarkTimer(ctx, {
+          arena: this.arena,
+          text: '👑 TACI KAP!',
+          subText: '15 SANİYE TUT VE KAZAN',
+          alpha: 0.14,
+        });
+      }
     }
 
     // Subtle Arena Grid
@@ -1886,6 +1911,22 @@ export class CrownGame extends BaseMiniGame {
       ctx.beginPath();
       ctx.arc(x, y, r + 9, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
       ctx.stroke();
+
+      // Taç taşıyıcısının tepesinde net geri sayım rozeti
+      const bScale = Math.min(1.4, getUiScale(this.arena));
+      const badgeW = Math.round(72 * bScale);
+      const badgeH = Math.round(22 * bScale);
+      const badgeY = y - r - Math.round(32 * bScale);
+      ctx.fillStyle = urgent ? '#D84727' : '#D99B26';
+      ctx.fillRect(x - badgeW / 2, badgeY, badgeW, badgeH);
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = Math.max(2, Math.round(2 * bScale));
+      ctx.strokeRect(x - badgeW / 2, badgeY, badgeW, badgeH);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `900 ${Math.round(12 * bScale)}px "JetBrains Mono", monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`👑 ${remain.toFixed(1)}s`, x, badgeY + badgeH / 2);
     }
 
     const eyeX = x + Math.cos(facingAngle) * (r * 0.48);

@@ -4,7 +4,7 @@
 
 import { playExplosion, playStart, playJoin, playGunshot, playDashWhoosh, playItemPickup, playStumble } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
-import { renderTopPill, renderCornerScores, renderMatchOver } from '../ui/hud.js';
+import { renderTopPill, renderCornerScores, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
 
@@ -745,6 +745,15 @@ export class LaserGame extends BaseMiniGame {
 
     if (this.state === 'PLAYING') {
       const remain = Math.max(0, Math.ceil(this.matchTimer));
+      renderArenaWatermarkTimer(ctx, {
+        arena: this.arena,
+        text: `${remain}s`,
+        subText: `HEDEF: ${LASER_TUNING.TARGET_KILLS} KILL`,
+        urgent: remain <= 10,
+        alpha: remain <= 10 ? 0.22 : 0.14,
+        ringProgress: 1.0 - (remain / 90),
+      });
+
       renderTopPill(ctx, {
         arena: this.arena,
         text: `⏱ ${remain}s • 🎯 ${LASER_TUNING.TARGET_KILLS} KILL`,

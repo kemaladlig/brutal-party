@@ -12,7 +12,13 @@ import {
   playPiggyBreak,
 } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
-import { renderTopPill, renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import {
+  renderTopPill,
+  renderCornerScores,
+  renderRoundBanner,
+  renderMatchOver,
+  renderArenaWatermarkTimer,
+} from '../ui/hud.js';
 import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -1228,6 +1234,20 @@ export class HeistGame extends BaseMiniGame {
     ctx.arc(cx, cy, size * 0.22, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
+
+    // Saha ortasında oyunu engellemeyen büyük süre filigranı (TV ve monitörlerde yüksek görünürlük)
+    if (this.state === 'PLAYING') {
+      const remain = Math.max(0, this.roundTimer);
+      const isUrgent = remain <= 10.0;
+      renderArenaWatermarkTimer(ctx, {
+        arena: this.arena,
+        text: `${Math.ceil(remain)}s`,
+        subText: 'ELMAS SOYGUNU',
+        urgent: isUrgent,
+        alpha: isUrgent ? 0.24 : 0.15,
+        ringProgress: 1.0 - (remain / 90),
+      });
+    }
 
     // Outer Border & Cast Iron Drop Shadow
     ctx.fillStyle = '#1A1A1A';

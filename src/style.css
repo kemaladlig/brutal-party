@@ -1861,7 +1861,7 @@ body {
   box-shadow: 1px 1px 0px #1a1a1a;
 }
 
-/* Geri Sayım Overlay (TV ekranı) */
+/* Geri Sayım Overlay (TV ekranı & Monitör) */
 #countdown-overlay {
   position: fixed;
   inset: 0;
@@ -1870,7 +1870,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 16px;
   background-color: rgba(26, 26, 26, 0.72);
   pointer-events: none;
 }
@@ -1882,19 +1882,36 @@ body {
 .countdown-overlay-number {
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 900;
-  font-size: min(38vw, 220px);
+  font-size: min(38vw, 260px);
   line-height: 1;
   color: #ffd700;
-  -webkit-text-stroke: 3px #1a1a1a;
-  text-shadow: 8px 8px 0px #1a1a1a;
+  -webkit-text-stroke: 4px #1a1a1a;
+  text-shadow: 10px 10px 0px #1a1a1a;
 }
 
 .countdown-overlay-sub {
   font-family: 'JetBrains Mono', monospace;
   font-weight: 800;
-  font-size: 14px;
-  letter-spacing: 2px;
+  font-size: clamp(16px, 2vw, 24px);
+  letter-spacing: 2.5px;
   color: #ffffff;
+}
+
+@media (min-width: 900px) and (min-height: 540px) {
+  #countdown-overlay {
+    gap: 24px;
+  }
+
+  .countdown-overlay-number {
+    font-size: min(32vw, 420px);
+    -webkit-text-stroke: 6px #1a1a1a;
+    text-shadow: 16px 16px 0px #1a1a1a;
+  }
+
+  .countdown-overlay-sub {
+    font-size: clamp(20px, 2.2vw, 34px);
+    letter-spacing: 4px;
+  }
 }
 
 

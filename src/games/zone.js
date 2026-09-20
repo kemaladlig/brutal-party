@@ -13,7 +13,13 @@ import {
   playStumble,
 } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
-import { renderTopPill, renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import {
+  renderTopPill,
+  renderCornerScores,
+  renderRoundBanner,
+  renderMatchOver,
+  renderArenaWatermarkTimer,
+} from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateZoneBotAI } from '../ai/zoneAI.js';
 
@@ -1057,6 +1063,24 @@ export class ZoneGame extends BaseMiniGame {
     }
     ctx.stroke();
 
+    // Saha ortasında oyunu engellemeyen büyük süre ve lider durumu filigranı (TV ve monitörlerde yüksek görünürlük)
+    if (this.state === 'PLAYING') {
+      const remain = Math.max(0, this.roundTimer);
+      const leader = this.leaderIndex >= 0 ? this.players[this.leaderIndex] : null;
+      const isUrgent = remain <= 10.0 || (leader && this.pct[leader.index] >= 35);
+      renderArenaWatermarkTimer(ctx, {
+        arena: this.arena,
+        text: `${Math.ceil(remain)}s`,
+        subText: leader && leader.isJoined
+          ? `${leader.name} ÖNDE: %${this.pct[leader.index]} (HEDEF: %40)`
+          : 'HEDEF: %40 ALAN KONTROLÜ',
+        urgent: isUrgent,
+        color: isUrgent ? '#D84727' : (leader ? leader.color : null),
+        alpha: isUrgent ? 0.22 : 0.14,
+        ringProgress: Math.min(1.0, leader ? (this.pct[leader.index] / 40) : (1.0 - remain / 90)),
+      });
+    }
+
     // Açık izler: tek renk şerit, çerçevesiz (anchor çıkış noktasından başlar)
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -1086,11 +1110,11 @@ export class ZoneGame extends BaseMiniGame {
   renderTopHUD(ctx) {
     const remain = Math.max(0, this.roundTimer);
     const leader = this.leaderIndex >= 0 ? this.players[this.leaderIndex] : null;
-    // Dar hap: süre + önder (128px sabit ölçü korunur, taşmayı kes)
+    const isUrgent = remain <= 10.0 || (leader && this.pct[leader.index] >= 35);
     const text = leader && leader.isJoined
-      ? `⏱ ${Math.ceil(remain)}s ${leader.name.slice(0, 5)} %${this.pct[leader.index]}`
+      ? `⏱ ${Math.ceil(remain)}s • ${leader.name} %${this.pct[leader.index]}`
       : `⏱ ${Math.ceil(remain)}s`;
-    renderTopPill(ctx, { arena: this.arena, text, urgent: remain <= 10.0 });
+    renderTopPill(ctx, { arena: this.arena, text, urgent: isUrgent });
     renderCornerScores(ctx, {
       arena: this.arena,
       entries: this.players.map((p) =>

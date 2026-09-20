@@ -50,9 +50,27 @@ export const UI_TEXT = {
 };
 
 // `900 15px "JetBrains Mono", monospace` üretir.
-export function uiFont(role) {
+// scale parametresi ile büyük ekranlarda (TV / monitör) orantılı büyütülür.
+export function uiFont(role, scale = 1.0) {
   const [weight, px, family] = UI_TEXT[role] || UI_TEXT.body;
-  return `${weight} ${px}px ${UI_FONTS[family]}`;
+  const scaledPx = Math.round(px * scale);
+  return `${weight} ${scaledPx}px ${UI_FONTS[family]}`;
+}
+
+// Ekran / Arena boyutuna göre dinamik ölçek çarpanı (Mobil: 1.0, Tablet: ~1.3, TV / Monitör: 1.6 - 2.2)
+export function getUiScale(arena) {
+  if (!arena) {
+    const w = typeof window !== 'undefined' ? window.innerWidth : 800;
+    const h = typeof window !== 'undefined' ? window.innerHeight : 600;
+    const minD = Math.min(w, h);
+    return Math.max(1.0, Math.min(2.4, minD / 520));
+  }
+  const minDim = Math.min(arena.width || 800, arena.height || 600);
+  return Math.max(1.0, Math.min(2.4, minDim / 520));
+}
+
+export function isLargeDisplay(arena) {
+  return getUiScale(arena) >= 1.35;
 }
 
 // Standart ölçüler (CSS pikseli)

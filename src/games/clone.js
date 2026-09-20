@@ -324,7 +324,14 @@ export class CloneGame extends BaseMiniGame {
           player.steerX = ki.dx / mag;
           player.steerY = ki.dy / mag;
           player.angle = Math.atan2(ki.dy, ki.dx);
-        } else if (!this.touches[player.index].active) {
+          player.keyHeld = true;
+        } else if (player.keyHeld) {
+          player.keyHeld = false;
+          if (!this.touches[player.index].active && !player.remoteActive) {
+            player.steerX = 0;
+            player.steerY = 0;
+          }
+        } else if (!this.touches[player.index].active && !player.remoteActive) {
           player.steerX = 0;
           player.steerY = 0;
         }
@@ -430,12 +437,21 @@ export class CloneGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
 
-    if (data.action === 'JOYSTICK_MOVE') {
-      // Uzak girdi guard'ı: sonlu + [-1,1] aralığında
-      player.steerX = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
-      player.steerY = Number.isFinite(data.dy) ? Math.max(-1, Math.min(1, data.dy)) : 0;
-      if (Number.isFinite(data.angle) && data.force > 0.05) {
-        player.angle = data.angle;
+    if (data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
+      const force = Number.isFinite(data.force) ? data.force : Math.hypot(data.dx || 0, data.dy || 0);
+      if (force > 0.05) {
+        player.steerX = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
+        player.steerY = Number.isFinite(data.dy) ? Math.max(-1, Math.min(1, data.dy)) : 0;
+        if (Number.isFinite(data.angle)) {
+          player.angle = data.angle;
+        } else if (player.steerX !== 0 || player.steerY !== 0) {
+          player.angle = Math.atan2(player.steerY, player.steerX);
+        }
+        player.remoteActive = true;
+      } else {
+        player.steerX = 0;
+        player.steerY = 0;
+        player.remoteActive = false;
       }
     } else if (data.action === 'TACKLE') {
       this.attemptTackle(player);

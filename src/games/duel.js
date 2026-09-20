@@ -17,7 +17,7 @@ import {
 } from '../audio.js';
 import { updateDuelBotAI } from '../ai/duelAI.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
-import { UI_COLORS } from '../ui/tokens.js';
+import { UI_COLORS, getUiScale } from '../ui/tokens.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 
@@ -1087,57 +1087,61 @@ export class DuelGame extends BaseMiniGame {
   renderScoreboard() {
     const { ctx } = this;
     const { cx, top, width } = this.arena;
+    const scale = getUiScale(this.arena);
 
     ctx.save();
-    const stripW = Math.min(width * 0.94, 540);
-    const stripH = 44;
+    const stripW = Math.min(width * 0.95, Math.round(580 * Math.min(1.35, scale)));
+    const stripH = Math.round(44 * Math.min(1.35, scale));
     const stripX = cx - stripW / 2;
-    const stripY = top + 12;
+    const stripY = top + Math.round(10 * scale);
+    const shadow = Math.max(2, Math.round(3 * Math.min(1.4, scale)));
 
     // Solid Shadow & Board
     ctx.fillStyle = '#000000';
-    ctx.fillRect(stripX + 3, stripY + 3, stripW, stripH);
+    ctx.fillRect(stripX + shadow, stripY + shadow, stripW, stripH);
     ctx.fillStyle = '#1A1816';
     ctx.fillRect(stripX, stripY, stripW, stripH);
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = Math.max(2.5, Math.round(2.5 * Math.min(1.3, scale)));
     ctx.strokeStyle = '#C08552';
     ctx.strokeRect(stripX, stripY, stripW, stripH);
 
     const activeCount = this.joinedPlayers.filter(Boolean).length || 1;
-    const slotW = (stripW - 130) / activeCount;
+    const recTagW = Math.round(124 * Math.min(1.25, scale));
+    const slotW = (stripW - recTagW - 10) / activeCount;
     let currSlot = 0;
 
+    const fontPx = Math.round(13 * Math.min(1.3, scale));
     this.joinedPlayers.forEach((joined, idx) => {
       if (joined) {
         const px = stripX + currSlot * slotW;
         const color = DUEL_COLORS[idx];
         // Swatch
         ctx.fillStyle = color;
-        ctx.fillRect(px + 6, stripY + 7, 10, stripH - 14);
+        ctx.fillRect(px + 6, stripY + 7, Math.round(10 * Math.min(1.3, scale)), stripH - 14);
 
         ctx.fillStyle = '#FAF8F5';
-        ctx.font = '900 13px "JetBrains Mono", monospace';
+        ctx.font = `900 ${fontPx}px "JetBrains Mono", monospace`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         const pName = this.playerNames?.[idx] || DUEL_NAMES[idx];
-        ctx.fillText(`${pName}: ${this.scores[idx]}P`, px + 22, stripY + stripH / 2, slotW - 26);
+        ctx.fillText(`${pName}: ${this.scores[idx]}P`, px + Math.round(22 * Math.min(1.3, scale)), stripY + stripH / 2, slotW - 24);
         currSlot++;
       }
     });
 
     // Right Record Tag
-    const recX = stripX + stripW - 124;
+    const recX = stripX + stripW - recTagW - 4;
     ctx.fillStyle = '#0F0D0C';
-    ctx.fillRect(recX, stripY + 5, 118, stripH - 10);
+    ctx.fillRect(recX, stripY + 5, recTagW, stripH - 10);
     ctx.strokeStyle = '#D99B26';
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(recX, stripY + 5, 118, stripH - 10);
+    ctx.strokeRect(recX, stripY + 5, recTagW, stripH - 10);
 
     ctx.fillStyle = '#FFDE59';
-    ctx.font = '900 12px "JetBrains Mono", monospace';
+    ctx.font = `900 ${Math.round(12 * Math.min(1.25, scale))}px "JetBrains Mono", monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`⚡ ${this.tableRecordMs}ms`, recX + 59, stripY + stripH / 2);
+    ctx.fillText(`⚡ ${this.tableRecordMs}ms`, recX + recTagW / 2, stripY + stripH / 2);
 
     ctx.restore();
   }
@@ -1228,62 +1232,65 @@ export class DuelGame extends BaseMiniGame {
   renderCountdown() {
     const { ctx } = this;
     const { cx, cy } = this.arena;
+    const scale = getUiScale(this.arena);
 
-    ctx.font = '900 40px "Space Grotesk", sans-serif';
+    ctx.font = `900 ${Math.round(44 * scale)}px "Space Grotesk", sans-serif`;
     ctx.fillStyle = '#D99B26';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('ELLER HAZIR!...', cx, cy - 20);
+    ctx.fillText('ELLER HAZIR!...', cx, cy - Math.round(22 * scale));
 
-    ctx.font = '700 16px "Space Grotesk", sans-serif';
+    ctx.font = `700 ${Math.round(18 * scale)}px "Space Grotesk", sans-serif`;
     ctx.fillStyle = '#FAF8F5';
-    ctx.fillText('SİNYALİ BEKLEYİN, SAKIN DOKUNMAYIN!', cx, cy + 28);
+    ctx.fillText('SİNYALİ BEKLEYİN, SAKIN DOKUNMAYIN!', cx, cy + Math.round(30 * scale));
   }
 
   renderTension() {
     const { ctx } = this;
     const { cx, cy } = this.arena;
+    const scale = getUiScale(this.arena);
 
     if (this.fakeoutDisplayTimer > 0) {
       // Psychological Bluff
-      ctx.font = '900 44px "Space Grotesk", sans-serif';
+      ctx.font = `900 ${Math.round(48 * scale)}px "Space Grotesk", sans-serif`;
       ctx.fillStyle = '#E76F51';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('⚠️ ...DİKKAT! BEKLE!... ⚠️', cx, cy - 20);
+      ctx.fillText('⚠️ ...DİKKAT! BEKLE!... ⚠️', cx, cy - Math.round(22 * scale));
 
-      ctx.font = '700 16px "Space Grotesk", sans-serif';
+      ctx.font = `700 ${Math.round(18 * scale)}px "Space Grotesk", sans-serif`;
       ctx.fillStyle = '#FFDE59';
-      ctx.fillText('BLÖF! SİNYALİ BEKLE, ERKEN BASAN -1 PUAN ALIR!', cx, cy + 30);
+      ctx.fillText('BLÖF! SİNYALİ BEKLE, ERKEN BASAN -1 PUAN ALIR!', cx, cy + Math.round(32 * scale));
     } else {
       const pulse = Math.sin(performance.now() * 0.01) * 0.5 + 0.5;
 
-      ctx.font = '900 52px "Space Grotesk", sans-serif';
+      ctx.font = `900 ${Math.round(56 * scale)}px "Space Grotesk", sans-serif`;
       ctx.fillStyle = pulse > 0.5 ? '#E63946' : '#FAF8F5';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('KIPIRDAMA!...', cx, cy - 20);
+      ctx.fillText('KIPIRDAMA!...', cx, cy - Math.round(22 * scale));
 
-      ctx.font = '700 16px "Space Grotesk", sans-serif';
+      ctx.font = `700 ${Math.round(18 * scale)}px "Space Grotesk", sans-serif`;
       ctx.fillStyle = '#C08552';
-      ctx.fillText('ERKEN DOKUNAN FAUL YAPAR (-1 PUAN)!', cx, cy + 32);
+      ctx.fillText('ERKEN DOKUNAN FAUL YAPAR (-1 PUAN)!', cx, cy + Math.round(34 * scale));
     }
   }
 
   renderDrawSignal() {
     const { ctx } = this;
     const { cx, cy } = this.arena;
+    const scale = getUiScale(this.arena);
 
     // Huge DRAW banner
-    ctx.font = '900 84px "Space Grotesk", sans-serif';
+    ctx.font = `900 ${Math.round(92 * scale)}px "Space Grotesk", sans-serif`;
     ctx.fillStyle = '#D99B26';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('💥 ATEŞ! 💥', cx, cy - 10);
+    ctx.fillText('💥 ATEŞ! 💥', cx, cy - Math.round(12 * scale));
 
-    ctx.font = '900 24px "Space Grotesk", sans-serif';
+    ctx.font = `900 ${Math.round(26 * scale)}px "Space Grotesk", sans-serif`;
     ctx.fillStyle = '#FAF8F5';
-    ctx.fillText('HEMEN DOKUN! İLK BASAN KAZANIR!', cx, cy + 55);
+    ctx.fillText('HEMEN DOKUN! İLK BASAN KAZANIR!', cx, cy + Math.round(62 * scale));
   }
 
   renderRoundOver() {

@@ -17,7 +17,7 @@ const CONTROLLER_META = {
   DUEL: { hudTag: '🤠 DUEL', lobbyTitle: '🤠 QUICK DRAW', mount: 'mountDuelController', tacticalHint: '✋ BEKLE • SİNYALİ GÖRÜNCE EN HIZLI DOKUN!' },
   CROWN: { hudTag: '👑 CROWN', lobbyTitle: '👑 BRUTAL CROWN', mount: 'mountCrownController', tacticalHint: '🕹️ HAREKET ET • 💥 OMUZ AT VE TACI KORU' },
   ZONE: { hudTag: '🗺️ ZONE', lobbyTitle: '🗺️ BRUTAL ZONE', mount: 'mountZoneController', tacticalHint: '🕹️ HAREKET ET • ⚡ DEPAR İLE ALANA GİR' },
-  SNAKE: { hudTag: '🐍 SNAKE', lobbyTitle: '🐍 BRUTAL SNAKE', mount: 'mountSnakeController', tacticalHint: '🕹️ YÖNLENDİR • ⚡ BASILI TUTUP HIZLAN' },
+  SNAKE: { hudTag: '🐍 SNAKE', lobbyTitle: '🐍 BRUTAL SNAKE', mount: 'mountSnakeController', tacticalHint: '◀ SOL / SAĞ ▶ DÖNÜŞ • ⚡ BASILI TUTUP HIZLAN' },
   LASER: { hudTag: '🔫 LASER', lobbyTitle: '🔫 BRUTAL LASER', mount: 'mountLaserController', tacticalHint: '🕹️ NİŞAN AL • 🔫 ATEŞ ET & 💨 DEPAR AT' },
   CLONE: { hudTag: '👥 CLONE', lobbyTitle: '👥 BRUTAL CLONE', mount: 'mountCloneController', tacticalHint: '🕹️ HAREKET ET • 💥 OMUZ ATIP RAKİBİ İT' },
   COLLAPSE: { hudTag: '🕳️ COLLAPSE', lobbyTitle: '🕳️ BRUTAL COLLAPSE', mount: 'mountCollapseController', tacticalHint: '🕹️ HAREKET ET • ⤴️ BOŞLUKTAN ZIPLA' },
@@ -1159,17 +1159,22 @@ export class GamepadManager {
     dashBtn?.addEventListener('mousedown', dashAction);
   }
 
-  // --- 09: SNAKE CONTROLLER (Joystick + hold BOOST) ---
+  // --- 09: SNAKE CONTROLLER (Arcade Steer Left/Right + Boost) ---
   mountSnakeController(container) {
     container.innerHTML = `
-      <div class="joystick-action-view">
-        <div class="joystick-half" id="snake-joy-zone">
-          <div class="phone-joy-base">
-            <div class="phone-joy-knob" id="snake-joy-knob" style="background-color: ${this.playerColor}"></div>
-          </div>
+      <div class="snake-controller-view">
+        <div class="snake-steer-zone" id="snake-steer-zone">
+          <button class="curve-steer-btn snake-steer-btn left-btn" id="btn-snake-left" type="button">
+            <span class="steer-icon">◀</span>
+            <span class="steer-title">SOLA DÖN</span>
+          </button>
+          <button class="curve-steer-btn snake-steer-btn right-btn" id="btn-snake-right" type="button">
+            <span class="steer-icon">▶</span>
+            <span class="steer-title">SAĞA DÖN</span>
+          </button>
         </div>
-        <div class="action-half">
-          <button class="action-dash-btn" id="btn-snake-boost" type="button" style="background-color: #2F6A4F">
+        <div class="snake-boost-zone">
+          <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" style="background-color: #2F6A4F">
             <span class="dash-btn-label">⚡ HIZLAN</span>
             <span class="dash-btn-sub">BASILI TUT</span>
           </button>
@@ -1177,18 +1182,111 @@ export class GamepadManager {
       </div>
     `;
 
-    this.bindJoystick('snake-joy-zone', 'snake-joy-knob', (input) => {
-      this._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
-    });
+    const btnLeft = document.getElementById('btn-snake-left');
+    const btnRight = document.getElementById('btn-snake-right');
+    const btnBoost = document.getElementById('btn-snake-boost');
+    const steerZone = document.getElementById('snake-steer-zone');
 
-    // Hold-release boost: basış ve bırakış throttle dışı discrete gider
-    const boostBtn = document.getElementById('btn-snake-boost');
+    let currentDir = 0;
+    const activeTouches = new Map();
+    let mouseDir = 0;
+
+    const syncSteer = () => {
+      let newDir = mouseDir;
+      if (activeTouches.size > 0) {
+        let leftActive = false;
+        let rightActive = false;
+        activeTouches.forEach((dir) => {
+          if (dir === -1) leftActive = true;
+          if (dir === 1) rightActive = true;
+        });
+        if (leftActive && !rightActive) newDir = -1;
+        else if (rightActive && !leftActive) newDir = 1;
+        else newDir = 0;
+      }
+
+      if (newDir !== currentDir) {
+        currentDir = newDir;
+        if (currentDir === -1) {
+          btnLeft?.classList.add('active');
+          btnRight?.classList.remove('active');
+          this.vibrate(15);
+        } else if (currentDir === 1) {
+          btnRight?.classList.add('active');
+          btnLeft?.classList.remove('active');
+          this.vibrate(15);
+        } else {
+          btnLeft?.classList.remove('active');
+          btnRight?.classList.remove('active');
+        }
+        this._sendAnalog({ action: 'SNAKE_STEER', dir: currentDir, dx: currentDir });
+      }
+    };
+
+    const resolveSteerTouch = (touch) => {
+      const rectLeft = btnLeft?.getBoundingClientRect();
+      const rectRight = btnRight?.getBoundingClientRect();
+      if (rectLeft && touch.clientX >= rectLeft.left && touch.clientX <= rectLeft.right &&
+          touch.clientY >= rectLeft.top && touch.clientY <= rectLeft.bottom) {
+        return -1;
+      }
+      if (rectRight && touch.clientX >= rectRight.left && touch.clientX <= rectRight.right &&
+          touch.clientY >= rectRight.top && touch.clientY <= rectRight.bottom) {
+        return 1;
+      }
+      return null;
+    };
+
+    const onTouchStart = (e) => {
+      e.preventDefault();
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        const dir = resolveSteerTouch(t);
+        if (dir !== null) activeTouches.set(t.identifier, dir);
+      }
+      syncSteer();
+    };
+
+    const onTouchMove = (e) => {
+      e.preventDefault();
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        const dir = resolveSteerTouch(t);
+        if (dir !== null) activeTouches.set(t.identifier, dir);
+        else activeTouches.delete(t.identifier);
+      }
+      syncSteer();
+    };
+
+    const onTouchEnd = (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        activeTouches.delete(t.identifier);
+      }
+      syncSteer();
+    };
+
+    steerZone?.addEventListener('touchstart', onTouchStart, { passive: false });
+    steerZone?.addEventListener('touchmove', onTouchMove, { passive: false });
+    steerZone?.addEventListener('touchend', onTouchEnd, { passive: true });
+    steerZone?.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    const snakeSignal = this._mountAbort?.signal;
+    window.addEventListener('touchend', onTouchEnd, { passive: true, signal: snakeSignal });
+    window.addEventListener('touchcancel', onTouchEnd, { passive: true, signal: snakeSignal });
+
+    // Masaüstü / Fare desteği
+    btnLeft?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = -1; syncSteer(); });
+    btnRight?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = 1; syncSteer(); });
+    window.addEventListener('mouseup', () => { if (mouseDir !== 0) { mouseDir = 0; syncSteer(); } }, { signal: snakeSignal });
+
+    // Boost butonu
     let boosting = false;
     const startBoost = (e) => {
       e?.preventDefault();
       if (boosting) return;
       boosting = true;
-      boostBtn?.classList.add('active');
+      btnBoost?.classList.add('active');
       this.network.sendInput({ action: 'SNAKE_BOOST' });
       this.vibrate(20);
     };
@@ -1196,19 +1294,18 @@ export class GamepadManager {
       e?.preventDefault();
       if (!boosting) return;
       boosting = false;
-      boostBtn?.classList.remove('active');
+      btnBoost?.classList.remove('active');
       this.network.sendInput({ action: 'SNAKE_BOOST_RELEASE' });
     };
-    const boostSignal = this._mountAbort?.signal;
-    boostBtn?.addEventListener('touchstart', startBoost, { passive: false });
-    boostBtn?.addEventListener('touchend', stopBoost, { passive: false });
-    boostBtn?.addEventListener('touchcancel', stopBoost, { passive: false });
-    window.addEventListener('touchend', stopBoost, { passive: true, signal: boostSignal });
-    window.addEventListener('touchcancel', stopBoost, { passive: true, signal: boostSignal });
-    boostBtn?.addEventListener('mousedown', startBoost);
-    boostBtn?.addEventListener('mouseup', stopBoost);
-    boostBtn?.addEventListener('mouseleave', stopBoost);
-    window.addEventListener('mouseup', stopBoost, { signal: boostSignal });
+
+    btnBoost?.addEventListener('touchstart', startBoost, { passive: false });
+    btnBoost?.addEventListener('touchend', stopBoost, { passive: false });
+    btnBoost?.addEventListener('touchcancel', stopBoost, { passive: false });
+    window.addEventListener('touchend', stopBoost, { passive: true, signal: snakeSignal });
+    window.addEventListener('touchcancel', stopBoost, { passive: true, signal: snakeSignal });
+    btnBoost?.addEventListener('mousedown', startBoost);
+    btnBoost?.addEventListener('mouseup', stopBoost);
+    btnBoost?.addEventListener('mouseleave', stopBoost);
   }
 
   // --- 10: LASER CONTROLLER (Joystick move+aim + FIRE + DASH) ---

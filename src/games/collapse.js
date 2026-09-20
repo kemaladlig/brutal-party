@@ -334,7 +334,14 @@ export class CollapseGame extends BaseMiniGame {
           const mag = Math.hypot(ki.dx, ki.dy) || 1;
           player.steerX = ki.dx / mag;
           player.steerY = ki.dy / mag;
-        } else if (!this.touches[player.index].active) {
+          player.keyHeld = true;
+        } else if (player.keyHeld) {
+          player.keyHeld = false;
+          if (!this.touches[player.index].active && !player.remoteActive) {
+            player.steerX = 0;
+            player.steerY = 0;
+          }
+        } else if (!this.touches[player.index].active && !player.remoteActive) {
           player.steerX = 0;
           player.steerY = 0;
         }
@@ -420,11 +427,26 @@ export class CollapseGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
 
-    if (data.action === 'JOYSTICK_MOVE') {
-      // Uzak girdi guard'ı: sonlu + [-1,1] aralığında
-      player.steerX = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
-      player.steerY = Number.isFinite(data.dy) ? Math.max(-1, Math.min(1, data.dy)) : 0;
-    } else if (data.action === 'DASH') {
+    if (data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
+      const force = Number.isFinite(data.force) ? data.force : Math.hypot(data.dx || 0, data.dy || 0);
+      if (force > 0.08) {
+        if (Number.isFinite(data.angle)) {
+          player.steerX = Math.cos(data.angle);
+          player.steerY = Math.sin(data.angle);
+        } else {
+          const dx = Number.isFinite(data.dx) ? data.dx : 0;
+          const dy = Number.isFinite(data.dy) ? data.dy : 0;
+          const mag = Math.hypot(dx, dy) || 1;
+          player.steerX = dx / mag;
+          player.steerY = dy / mag;
+        }
+        player.remoteActive = true;
+      } else {
+        player.steerX = 0;
+        player.steerY = 0;
+        player.remoteActive = false;
+      }
+    } else if (data.action === 'DASH' || data.action === 'JUMP') {
       this.attemptJump(player);
     }
   }
