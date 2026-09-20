@@ -2546,6 +2546,209 @@ body {
   box-shadow: 1px 1px 0px #1A1A1A;
 }
 
+/* ==========================================================================
+   NEO-BRUTALIST PREMIUM STATE TRANSITIONS & ANIMATIONS
+   ========================================================================== */
+
+/* 1. Backdrop Fade-in and Blurring */
+#tv-host-modal:not(.hidden),
+#join-room-modal:not(.hidden),
+#pause-modal:not(.hidden),
+#customize-modal:not(.hidden) {
+  animation: brutal-overlay-fade 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes brutal-overlay-fade {
+  0% {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  100% {
+    opacity: 1;
+    backdrop-filter: blur(4px);
+  }
+}
+
+/* 2. Tactile Card Pop-up with Spring Feedback */
+#tv-host-modal:not(.hidden) .tv-host-card,
+#join-room-modal:not(.hidden) .join-room-card,
+#pause-modal:not(.hidden) .pause-card,
+#customize-modal:not(.hidden) .customize-card {
+  animation: brutal-card-pop 320ms cubic-bezier(0.175, 0.885, 0.32, 1.18) forwards;
+}
+
+@keyframes brutal-card-pop {
+  0% {
+    transform: scale(0.92) translateY(20px);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* 3. In-Game UI: Sliding HUD and Staging Bar */
+#staging-bar:not(.hidden) {
+  animation: brutal-staging-slide-up 350ms cubic-bezier(0.175, 0.885, 0.32, 1.15) forwards;
+}
+
+@keyframes brutal-staging-slide-up {
+  0% {
+    transform: translateY(120%) translateX(-50%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) translateX(-50%);
+    opacity: 1;
+  }
+}
+
+#in-game-hud:not(.hidden) {
+  animation: brutal-hud-slide-down 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes brutal-hud-slide-down {
+  0% {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* 4. High-Impact Countdown Overlay Ticks */
+.countdown-overlay-number.animate {
+  animation: brutal-countdown-tick 400ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes brutal-countdown-tick {
+  0% {
+    transform: scale(0.3) rotate(-8deg);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.18) rotate(4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* 5. Menu Bento Grid Game Cards Stagger Pop-in */
+#menu-overlay:not(.hidden) .bento-card {
+  animation: brutal-bento-pop 380ms cubic-bezier(0.175, 0.885, 0.32, 1.12) both;
+}
+
+.bento-card:nth-child(1) { animation-delay: 40ms; }
+.bento-card:nth-child(2) { animation-delay: 80ms; }
+.bento-card:nth-child(3) { animation-delay: 120ms; }
+.bento-card:nth-child(4) { animation-delay: 160ms; }
+.bento-card:nth-child(5) { animation-delay: 200ms; }
+.bento-card:nth-child(6) { animation-delay: 240ms; }
+.bento-card:nth-child(7) { animation-delay: 280ms; }
+.bento-card:nth-child(8) { animation-delay: 320ms; }
+.bento-card:nth-child(9) { animation-delay: 360ms; }
+.bento-card:nth-child(10) { animation-delay: 400ms; }
+.bento-card:nth-child(11) { animation-delay: 440ms; }
+.bento-card:nth-child(12) { animation-delay: 480ms; }
+.bento-card:nth-child(13) { animation-delay: 520ms; }
+
+@keyframes brutal-bento-pop {
+  0% {
+    transform: translateY(24px) scale(0.95);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* 6. Lobby Game chips Stagger Pop-in */
+#tv-host-modal:not(.hidden) .lobby-game-chip {
+  animation: brutal-chip-pop 320ms cubic-bezier(0.175, 0.885, 0.32, 1.15) both;
+}
+
+.lobby-game-chip:nth-child(1) { animation-delay: 30ms; }
+.lobby-game-chip:nth-child(2) { animation-delay: 60ms; }
+.lobby-game-chip:nth-child(3) { animation-delay: 90ms; }
+.lobby-game-chip:nth-child(4) { animation-delay: 120ms; }
+.lobby-game-chip:nth-child(5) { animation-delay: 150ms; }
+.lobby-game-chip:nth-child(6) { animation-delay: 180ms; }
+.lobby-game-chip:nth-child(7) { animation-delay: 210ms; }
+.lobby-game-chip:nth-child(8) { animation-delay: 240ms; }
+.lobby-game-chip:nth-child(9) { animation-delay: 270ms; }
+.lobby-game-chip:nth-child(10) { animation-delay: 300ms; }
+.lobby-game-chip:nth-child(11) { animation-delay: 330ms; }
+.lobby-game-chip:nth-child(12) { animation-delay: 360ms; }
+
+@keyframes brutal-chip-pop {
+  0% {
+    transform: translateY(12px) scale(0.96);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* 7. Lobby Player Slots Stagger Slide-in */
+#tv-host-modal:not(.hidden) .host-player-slot {
+  animation: brutal-slot-slide-in 350ms cubic-bezier(0.175, 0.885, 0.32, 1.15) both;
+}
+
+.host-player-slot:nth-child(1) { animation-delay: 80ms; }
+.host-player-slot:nth-child(2) { animation-delay: 130ms; }
+.host-player-slot:nth-child(3) { animation-delay: 180ms; }
+.host-player-slot:nth-child(4) { animation-delay: 230ms; }
+
+@keyframes brutal-slot-slide-in {
+  0% {
+    transform: translateX(-24px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* 8. Active Readiness Snappy State Transitions */
+.host-player-slot.connected.ready {
+  animation: brutal-ready-pulse 240ms cubic-bezier(0.175, 0.885, 0.32, 1.35) forwards;
+}
+
+@keyframes brutal-ready-pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 9. Respect Reduced Motion Accessibility Option */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-delay: 0s !important;
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
 
 
 

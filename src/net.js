@@ -10,7 +10,16 @@ export const PUBLIC_URL = (
 ).replace(/\/$/, '');
 
 /** Build'e Supabase bilgileri gömülmüş mü? (Vercel'de env eksikse false) */
-export const HAS_SUPABASE_CONFIG = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+export const HAS_SUPABASE_CONFIG = (() => {
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!url || !key) return false;
+  const u = String(url).trim();
+  const k = String(key).trim();
+  if (u === '' || k === '' || u === 'undefined' || k === 'undefined') return false;
+  if (u.includes('placeholder') || u.includes('YOUR_') || k.includes('placeholder') || k.includes('YOUR_')) return false;
+  return u.startsWith('http://') || u.startsWith('https://');
+})();
 
 export function isOnlineMode(mode) {
   return mode === 'ONLINE';

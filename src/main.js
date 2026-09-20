@@ -340,8 +340,17 @@ async function openHostLobby(gameMode = 'PONG') {
     });
   } catch (err) {
     console.error('[Host] Oda açılamadı:', err);
-    const detail = err?.message ? ` Sebep: ${err.message}` : '';
-    showInstallToast(`Host odası açılamadı.${detail}`);
+    if (activeNet() === supabaseRelay) {
+      console.warn('[Host] Supabase subscription failed, falling back to local WebSocket...');
+      showInstallToast('⚠️ Supabase bağlantısı başarısız. Lokal sunucuya geçiliyor...');
+      updatePlatformMode('TV_CONSOLE');
+      setTimeout(() => {
+        openHostLobby(gameMode);
+      }, 500);
+    } else {
+      const detail = err?.message ? ` Sebep: ${err.message}` : '';
+      showInstallToast(`Host odası açılamadı.${detail}`);
+    }
   }
 }
 
@@ -421,8 +430,18 @@ async function executeJoin(rawCode, rawName) {
     });
   } catch (err) {
     console.error('[Join] Odaya bağlanılamadı:', err);
-    const detail = err?.message ? ` Sebep: ${err.message}` : '';
-    showInstallToast(`Odaya bağlanılamadı. Kodun doğruluğunu kontrol edin.${detail}`);
+    if (net === supabaseRelay) {
+      console.warn('[Join] Supabase connection failed, falling back to local WebSocket...');
+      showInstallToast('⚠️ Supabase bağlantısı başarısız. Lokal sunucuya geçiliyor...');
+      updatePlatformMode('TV_CONSOLE');
+      gamepadManager.network = partyNetwork;
+      setTimeout(() => {
+        executeJoin(rawCode, rawName);
+      }, 500);
+    } else {
+      const detail = err?.message ? ` Sebep: ${err.message}` : '';
+      showInstallToast(`Odaya bağlanılamadı. Kodun doğruluğunu kontrol edin.${detail}`);
+    }
   }
 }
 
@@ -594,6 +613,11 @@ function showCountdownOverlay(t) {
   if (!ov || !num) return;
   num.textContent = t > 0 ? String(t) : 'BAŞLA!';
   ov.classList.remove('hidden');
+
+  // Force layout reflow and retrigger CSS animation on each tick
+  num.classList.remove('animate');
+  void num.offsetWidth;
+  num.classList.add('animate');
 }
 
 function hideCountdownOverlay() {
