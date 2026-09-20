@@ -568,15 +568,55 @@ export class CloneGame extends BaseMiniGame {
     }
 
     // NPC Klon Yapay Zekası & Hareketi
+    const { left, right, top, bottom, width, height } = this.arena;
+    const roomW = width * 0.35;
+    const roomH = height * 0.35;
+    const doorSize = Math.min(width, height) * 0.14;
+    const doorWaypoints = {
+      alchemy: { x: left + roomW - doorSize * 0.5, y: top + roomH + 15 },
+      library: { x: right - roomW + doorSize * 0.5, y: top + roomH + 15 },
+      treasury: { x: left + roomW - doorSize * 0.5, y: bottom - roomH - 15 },
+      altar: { x: right - roomW + doorSize * 0.5, y: bottom - roomH - 15 },
+    };
+
+    const getEntityZone = (x, y) => {
+      if (x < left + roomW && y < top + roomH) return 'alchemy';
+      if (x > right - roomW && y < top + roomH) return 'library';
+      if (x < left + roomW && y > bottom - roomH) return 'treasury';
+      if (x > right - roomW && y > bottom - roomH) return 'altar';
+      return 'courtyard';
+    };
+
     for (const clone of this.npcClones) {
       if (!clone.active) continue;
 
       if (clone.state === 'WALK') {
-        const dx = clone.targetTask.x - clone.x;
-        const dy = clone.targetTask.y - clone.y;
+        let targetX = clone.targetTask.x;
+        let targetY = clone.targetTask.y;
+        const curZone = getEntityZone(clone.x, clone.y);
+        const tgtZone = clone.targetTask.id;
+
+        if (curZone !== tgtZone) {
+          if (curZone === 'courtyard' && doorWaypoints[tgtZone]) {
+            const dw = doorWaypoints[tgtZone];
+            if (Math.hypot(dw.x - clone.x, dw.y - clone.y) > 25) {
+              targetX = dw.x;
+              targetY = dw.y;
+            }
+          } else if (curZone !== 'courtyard' && doorWaypoints[curZone]) {
+            const dw = doorWaypoints[curZone];
+            if (Math.hypot(dw.x - clone.x, dw.y - clone.y) > 25) {
+              targetX = dw.x;
+              targetY = dw.y;
+            }
+          }
+        }
+
+        const dx = targetX - clone.x;
+        const dy = targetY - clone.y;
         const dist = Math.hypot(dx, dy) || 1;
 
-        if (dist < 28) {
+        if (Math.hypot(clone.targetTask.x - clone.x, clone.targetTask.y - clone.y) < 28) {
           // İstasyonuna vardı, rol yapmaya başla
           clone.state = 'TASK';
           clone.taskWaitTimer = 2.2 + Math.random() * 2.5;

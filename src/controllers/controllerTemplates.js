@@ -31,6 +31,8 @@ export function mountDeclarativeController(gamepad, container, schema) {
       return mountReactionTap(gamepad, container, schema);
     case 'DPAD_BOOST':
       return mountDpadBoost(gamepad, container, schema);
+    case 'STEER_BOOST':
+      return mountSteerBoost(gamepad, container, schema);
     default:
       console.warn(`[declarativeGamepad] Unknown controller schema type: ${schema.type}`);
       return null;
@@ -663,6 +665,161 @@ function mountDpadBoost(gamepad, container, schema) {
   return {
     handleSync() {},
     teardown() {
+      if (boosting) {
+        try {
+          gamepad.network.sendInput({ action: schema.boostEndAction || 'SNAKE_BOOST_RELEASE' });
+        } catch {}
+      }
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 7. STEER_BOOST Archetype (SNAKE v2 - Ultra ergonomic Left/Right Steering + Boost)
+// ---------------------------------------------------------------------------
+function mountSteerBoost(gamepad, container, schema) {
+  const steerZoneId = `steer-zone-${Date.now()}`;
+  container.innerHTML = `
+    <div class="snake-controller-view">
+      <div class="snake-steer-half" id="${steerZoneId}" style="display: flex; gap: 8px; flex: 1.2; height: 100%;">
+        <button class="curve-steer-btn" id="btn-snake-left" type="button" style="flex: 1; height: 100%; border-radius: 12px; font-size: clamp(20px, 4.5vw, 28px); font-weight: 900; background-color: #262626; border: 3px solid #404040; color: #FFF;">
+          ${escapeHtml(schema.leftLabel || '◀ SOL')}
+        </button>
+        <button class="curve-steer-btn right-btn" id="btn-snake-right" type="button" style="flex: 1; height: 100%; border-radius: 12px; font-size: clamp(20px, 4.5vw, 28px); font-weight: 900; background-color: #262626; border: 3px solid #404040; color: #FFF;">
+          ${escapeHtml(schema.rightLabel || 'SAĞ ▶')}
+        </button>
+      </div>
+      <div class="action-half" style="flex: 0.9; height: 100%;">
+        <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" style="width: 100%; height: 100%; background-color: ${schema.boostColor || '#2F6A4F'}; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+          <span class="dash-btn-label" style="font-size: clamp(20px, 5vw, 28px); font-weight: 900;">${escapeHtml(schema.boostLabel || '⚡ HIZLAN')}</span>
+          <span class="dash-btn-sub" style="font-size: clamp(12px, 2.5vw, 15px); opacity: 0.85;">${escapeHtml(schema.boostSub || 'BASILI TUT')}</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  const steerView = document.getElementById(steerZoneId);
+  const btnLeft = document.getElementById('btn-snake-left');
+  const btnRight = document.getElementById('btn-snake-right');
+  const btnBoost = document.getElementById('btn-snake-boost');
+
+  const activeTouches = new Map();
+  let mouseDir = 0;
+  let currentActiveDir = 0;
+
+  const syncSteer = () => {
+    let desiredDir = 0;
+    if (activeTouches.size > 0) {
+      for (const dir of activeTouches.values()) {
+        desiredDir = dir;
+      }
+    } else if (mouseDir !== 0) {
+      desiredDir = mouseDir;
+    }
+
+    btnLeft?.classList.toggle('active', desiredDir === -1);
+    btnRight?.classList.toggle('active', desiredDir === 1);
+    if (btnLeft) btnLeft.style.borderColor = desiredDir === -1 ? '#22C55E' : '#404040';
+    if (btnRight) btnRight.style.borderColor = desiredDir === 1 ? '#22C55E' : '#404040';
+
+    if (desiredDir !== currentActiveDir) {
+      currentActiveDir = desiredDir;
+      gamepad.network.sendInput({ action: schema.steerAction || 'SNAKE_STEER', dir: currentActiveDir });
+      if (currentActiveDir !== 0) gamepad.vibrate(15);
+    }
+  };
+
+  const getDirForPoint = (clientX) => {
+    const rect = steerView ? steerView.getBoundingClientRect() : null;
+    if (!rect) return 0;
+    return clientX < rect.left + rect.width / 2 ? -1 : 1;
+  };
+
+  const onTouchStart = (e) => {
+    e.preventDefault();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      activeTouches.set(t.identifier, getDirForPoint(t.clientX));
+    }
+    syncSteer();
+  };
+
+  const onTouchMove = (e) => {
+    e.preventDefault();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      if (activeTouches.has(t.identifier)) {
+        activeTouches.set(t.identifier, getDirForPoint(t.clientX));
+      }
+    }
+    syncSteer();
+  };
+
+  const onTouchEnd = (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      activeTouches.delete(t.identifier);
+    }
+    syncSteer();
+  };
+
+  steerView?.addEventListener('touchstart', onTouchStart, { passive: false });
+  steerView?.addEventListener('touchmove', onTouchMove, { passive: false });
+  steerView?.addEventListener('touchend', onTouchEnd, { passive: true });
+  steerView?.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+  const mountSignal = gamepad._mountAbort?.signal;
+  window.addEventListener('touchend', onTouchEnd, { passive: true, signal: mountSignal });
+  window.addEventListener('touchcancel', onTouchEnd, { passive: true, signal: mountSignal });
+
+  btnLeft?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = -1; syncSteer(); });
+  btnRight?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = 1; syncSteer(); });
+  const onMouseUp = () => {
+    if (mouseDir !== 0) {
+      mouseDir = 0;
+      syncSteer();
+    }
+  };
+  window.addEventListener('mouseup', onMouseUp, { signal: mountSignal });
+
+  // Boost Button
+  let boosting = false;
+  const startBoost = (e) => {
+    e?.preventDefault();
+    if (boosting) return;
+    boosting = true;
+    btnBoost?.classList.add('active');
+    if (btnBoost) btnBoost.style.filter = 'brightness(1.3)';
+    gamepad.network.sendInput({ action: schema.boostStartAction || 'SNAKE_BOOST' });
+    gamepad.vibrate(20);
+  };
+
+  const stopBoost = (e) => {
+    e?.preventDefault();
+    if (!boosting) return;
+    boosting = false;
+    btnBoost?.classList.remove('active');
+    if (btnBoost) btnBoost.style.filter = '';
+    gamepad.network.sendInput({ action: schema.boostEndAction || 'SNAKE_BOOST_RELEASE' });
+  };
+
+  btnBoost?.addEventListener('touchstart', startBoost, { passive: false });
+  btnBoost?.addEventListener('touchend', stopBoost, { passive: false });
+  btnBoost?.addEventListener('touchcancel', stopBoost, { passive: false });
+  window.addEventListener('touchend', stopBoost, { passive: true, signal: mountSignal });
+  window.addEventListener('touchcancel', stopBoost, { passive: true, signal: mountSignal });
+  btnBoost?.addEventListener('mousedown', startBoost);
+  btnBoost?.addEventListener('mouseup', stopBoost);
+  btnBoost?.addEventListener('mouseleave', stopBoost);
+
+  return {
+    handleSync() {},
+    teardown() {
+      if (currentActiveDir !== 0) {
+        try {
+          gamepad.network.sendInput({ action: schema.steerAction || 'SNAKE_STEER', dir: 0 });
+        } catch {}
+      }
       if (boosting) {
         try {
           gamepad.network.sendInput({ action: schema.boostEndAction || 'SNAKE_BOOST_RELEASE' });

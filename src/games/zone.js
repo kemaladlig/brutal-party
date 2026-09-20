@@ -11,6 +11,7 @@ import {
   playCoinPickup,
   playCashRegister,
   playStumble,
+  playPowerUp,
 } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
 import {
@@ -26,20 +27,48 @@ import { updateZoneBotAI } from '../ai/zoneAI.js';
 export const ZONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ZONE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
 
+// Relic tipleri: Arena içinde nötr/orta alanda beliren taktiksel güç kristalleri
+export const ZONE_RELIC_DEFS = {
+  FLASH: {
+    id: 'FLASH',
+    name: 'FLASH CORE',
+    badge: '⚡',
+    title: 'HIZ KORU',
+    color: '#FFD122',
+    glowColor: 'rgba(255, 209, 34, 0.45)',
+    desc: 'DEPAR SIFIRLANDI + EKSTRA HIZ',
+  },
+  SEISMIC: {
+    id: 'SEISMIC',
+    name: 'SEISMIC PULSE',
+    badge: '💣',
+    title: 'SİSMİK DARBE',
+    color: '#FF473A',
+    glowColor: 'rgba(255, 71, 58, 0.45)',
+    desc: '5x5 ÇAPINDA ALAN PATLAMASI',
+  },
+};
+
 // Tek akort noktası: tüm sayısal denge burada.
 export const ZONE_TUNING = {
   GRID: 64,          // capture alanı: 64x64 hücre
   BASE: 7,           // başlangıç base kenarı (7x7 hücre)
   SPEED: 10.5,       // hücre/sn
+  TURF_SPEED_MULT: 1.15, // Kendi bölgesinde %15 defansif hız bonusu (Home Turf)
   TURN: 12.5,        // rad/sn yumuşak dönüş
   ROUND_TIME: 90.0,  // sn
   WIN_PCT: 40,       // erken zafer eşiği (%)
   STUN: 2.0,         // çarpışma dondurması (sn)
   TARGET_SCORE: 2,   // maçı alan raund sayısı
   TRAIL_CAP: 1500,   // güvenlik tavanı (aşılırsa iz silinir + stun)
+  TRAIL_RISK_WARN: 15, // Yüksek risk iz uyarısı
+  TRAIL_HAZARD: 22,   // Tehlikeli iz kritik seviyesi (yanıp sönen şerit)
   DASH_MULT: 2.2,    // depar hız çarpanı
   DASH_TIME: 0.22,   // depar süresi (sn)
   DASH_CD: 4.0,      // depar bekleme (sn)
+  RELIC_SPAWN_INIT: 4.5, // İlk relic çıkış süresi (sn)
+  RELIC_SPAWN_CD: 8.5,   // Relic çıkış periyodu (sn)
+  MAX_RELICS: 2,         // Sahada aynı anda en fazla relic sayısı
 };
 
 export class ZoneGame extends BaseMiniGame {
@@ -78,6 +107,9 @@ export class ZoneGame extends BaseMiniGame {
     this.trailOwner = new Int8Array(ZONE_TUNING.GRID * ZONE_TUNING.GRID).fill(-1);
 
     this.players = [];
+    this.relics = [];
+    this.relicSpawnTimer = ZONE_TUNING.RELIC_SPAWN_INIT;
+    this.captureWaves = [];
     this.particles = [];
     this.floatingTexts = [];
     this.territoryDirty = true;
@@ -353,6 +385,9 @@ export class ZoneGame extends BaseMiniGame {
     this.lastCaptureAt = 0;
     this.tieBreak = false;
     this.spawnProtect = 0;
+    this.relics = [];
+    this.relicSpawnTimer = ZONE_TUNING.RELIC_SPAWN_INIT;
+    this.captureWaves = [];
     this.particles = [];
     this.floatingTexts = [];
     this.trauma = 0;
@@ -391,6 +426,9 @@ export class ZoneGame extends BaseMiniGame {
     this.lastCaptureAt = 0;
     this.tieBreak = false;
     this.spawnProtect = 1.5;
+    this.relics = [];
+    this.relicSpawnTimer = ZONE_TUNING.RELIC_SPAWN_INIT;
+    this.captureWaves = [];
     this.particles = [];
     this.floatingTexts = [];
     this.trauma = 0;
@@ -404,6 +442,112 @@ export class ZoneGame extends BaseMiniGame {
     this.trailOwner.fill(-1);
     this.initPlayers();
     playStart();
+  }
+
+  // --- Güç Kristalleri (Relics): Flash Core & Seismic Pulse ---
+
+  spawnRelic() {
+    if (this.relics.length >= ZONE_TUNING.MAX_RELICS) return;
+    const G = ZONE_TUNING.GRID;
+    // Nötr ya da çekişmeli orta kuşakta uygun boş hücre ara
+    const type = Math.random() < 0.55 ? 'FLASH' : 'SEISMIC';
+    let bestCell = -1;
+    let minOwnerCount = 999;
+    for (let attempts = 0; attempts < 16; attempts++) {
+      const cx = 14 + Math.floor(Math.random() * (G - 28));
+      const cy = 14 + Math.floor(Math.random() * (G - 28));
+      const ci = cy * G + cx;
+      if (this.relics.some((r) => r.cellIdx === ci)) continue;
+      const owner = this.grid[ci];
+      if (owner === 0) {
+        bestCell = ci;
+        break;
+      } else if (owner < minOwnerCount) {
+        minOwnerCount = owner;
+        bestCell = ci;
+      }
+    }
+    if (bestCell < 0) return;
+    const center = this.cellCenter(bestCell);
+    this.relics.push({
+      id: Math.random().toString(36).slice(2, 7),
+      type,
+      x: center.x,
+      y: center.y,
+      cellIdx: bestCell,
+      lifetime: 20.0,
+      maxLife: 20.0,
+      bobPhase: Math.random() * Math.PI * 2,
+      scale: 0,
+    });
+    this.burst(center.x, center.y, ZONE_RELIC_DEFS[type].color, 12);
+  }
+
+  collectRelic(playerIndex, relicIndex) {
+    const p = this.players[playerIndex];
+    const r = this.relics[relicIndex];
+    if (!p || !r) return;
+
+    const def = ZONE_RELIC_DEFS[r.type];
+    this.relics.splice(relicIndex, 1);
+
+    if (r.type === 'FLASH') {
+      p.dashCooldown = 0;
+      p.dashTimer = ZONE_TUNING.DASH_TIME * 1.5;
+      p.isDashing = true;
+      this.addFloatingText(p.x, p.y - 34, '⚡ FLASH DEPAR!', '#FFD122');
+      this.burst(r.x, r.y, '#FFD122', 26);
+      this.addTrauma(0.2);
+      playPowerUp();
+      playDashWhoosh();
+    } else if (r.type === 'SEISMIC') {
+      // 5x5 çapında dairesel alan fethi
+      const G = ZONE_TUNING.GRID;
+      const rc = r.cellIdx;
+      const cx = rc % G;
+      const cy = (rc / G) | 0;
+      const radius = 3;
+      const tag = playerIndex + 1;
+      let claimedCount = 0;
+
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (dx * dx + dy * dy > (radius + 0.5) * (radius + 0.5)) continue;
+          const nx = cx + dx;
+          const ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= G || ny >= G) continue;
+          const nci = ny * G + nx;
+          
+          // Patlama içindeki düşman açık izlerini kes
+          const to = this.trailOwner[nci];
+          if (to >= 0 && to !== playerIndex && this.spawnProtect <= 0) {
+            this.shatterPlayer(to, playerIndex);
+          }
+
+          if (this.grid[nci] !== tag) {
+            this.grid[nci] = tag;
+            claimedCount++;
+          }
+        }
+      }
+
+      this.recomputePct();
+      this.territoryDirty = true;
+      this.addFloatingText(p.x, p.y - 34, `💣 SİSMİK DARBE (+${claimedCount})!`, '#FF473A');
+      this.burst(r.x, r.y, '#FF473A', 36);
+      this.captureWaves.push({
+        x: r.x,
+        y: r.y,
+        radius: this.cell * 2,
+        maxRadius: this.cell * 8,
+        color: '#FF473A',
+        alpha: 1.0,
+        speed: this.cell * 24,
+      });
+      this.addTrauma(0.45);
+      playExplosion();
+      playCashRegister();
+    }
   }
 
   // --- Cezalar ---
@@ -468,7 +612,7 @@ export class ZoneGame extends BaseMiniGame {
       if (cx > 0 && dist[cur - 1] === -1) { dist[cur - 1] = nd; queue.push(cur - 1); }
       if (cx < G - 1 && dist[cur + 1] === -1) { dist[cur + 1] = nd; queue.push(cur + 1); }
       if (cy > 0 && dist[cur - G] === -1) { dist[cur - G] = nd; queue.push(cur - G); }
-      if (cy < G - 1 && dist[cur + G] === -1) { dist[cur + G] = nd; queue.push(cur + G); }
+      if (cy < G - 1 && dist[cur + 1] === -1) { dist[cur + G] = nd; queue.push(cur + G); }
     }
 
     const br = this.baseRect(victimIndex);
@@ -501,6 +645,7 @@ export class ZoneGame extends BaseMiniGame {
     if (killerIndex !== null && killerIndex !== undefined && killerIndex >= 0) {
       bounty = this.awardKillBounty(victimIndex, killerIndex);
     }
+    const oldTrail = [...v.trail];
     this.clearOwnership(victimIndex);
     this.wipeTrail(victimIndex);
     this.paintBase(victimIndex);
@@ -508,6 +653,29 @@ export class ZoneGame extends BaseMiniGame {
     // Base merkezi: dikdörtgen ortası (piksel)
     const bcx = this.field.x + ((r.x0 + r.x1 + 1) / 2) * this.cell;
     const bcy = this.field.y + ((r.y0 + r.y1 + 1) / 2) * this.cell;
+
+    // Shatter Fragment Recall: İz parçacıkları üsse geri uçar
+    if (oldTrail.length > 0) {
+      const step = Math.max(1, Math.floor(oldTrail.length / 10));
+      for (let ti = 0; ti < oldTrail.length; ti += step) {
+        const tc = this.cellCenter(oldTrail[ti]);
+        const dx = bcx - tc.x;
+        const dy = bcy - tc.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const spd = 120 + Math.random() * 160;
+        this.particles.push({
+          x: tc.x,
+          y: tc.y,
+          vx: (dx / dist) * spd,
+          vy: (dy / dist) * spd,
+          life: 0.55,
+          maxLife: 0.55,
+          color: v.color,
+          size: 4 + Math.random() * 3,
+        });
+      }
+    }
+
     v.x = bcx; v.y = bcy;
     v.px = bcx; v.py = bcy;
     v.trailStartX = bcx; v.trailStartY = bcy;
@@ -541,7 +709,7 @@ export class ZoneGame extends BaseMiniGame {
     }
     this.addFloatingText(v.x, v.y - 12, 'BASE BOYUNA DÖNDÜN!', '#FFFFFF');
     this.recomputePct();
-    this.burst(v.x, v.y, v.color, 22);
+    this.burst(v.x, v.y, v.color, 24);
     this.addTrauma(0.55);
     playExplosion();
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([40, 50, 70]);
@@ -590,6 +758,16 @@ export class ZoneGame extends BaseMiniGame {
     if (gained > 0) {
       this.lastCaptureBy = index;
       this.lastCaptureAt = performance.now();
+      // Wavefront Capture Ring
+      this.captureWaves.push({
+        x: p.x,
+        y: p.y,
+        radius: this.cell * 2,
+        maxRadius: this.cell * Math.min(22, Math.max(7, Math.sqrt(gained) * 2.4)),
+        color: p.color,
+        alpha: 0.95,
+        speed: this.cell * 30,
+      });
     }
     // Kademeli kapanış geri bildirimi: küçük hamle fısıldar, devasa hamle gümler
     if (gained >= 100) {
@@ -800,6 +978,23 @@ export class ZoneGame extends BaseMiniGame {
 
     this.roundTimer -= dt;
     if (this.spawnProtect > 0) this.spawnProtect = Math.max(0, this.spawnProtect - dt);
+
+    // Relic Doğuş & Süre Yönetimi
+    this.relicSpawnTimer -= dt;
+    if (this.relicSpawnTimer <= 0) {
+      this.spawnRelic();
+      this.relicSpawnTimer = ZONE_TUNING.RELIC_SPAWN_CD + (Math.random() * 2 - 1);
+    }
+    for (let ri = this.relics.length - 1; ri >= 0; ri--) {
+      const rel = this.relics[ri];
+      rel.lifetime -= dt;
+      rel.scale = Math.min(1.0, rel.scale + dt * 4);
+      if (rel.lifetime <= 0) {
+        this.burst(rel.x, rel.y, ZONE_RELIC_DEFS[rel.type].color, 8);
+        this.relics.splice(ri, 1);
+      }
+    }
+
     if (this.roundTimer <= 0) {
       this.roundTimer = 0;
       // Beraberlikte son capture'ı yapan alır (tieBreak bayrağı banner'a yansır)
@@ -826,14 +1021,17 @@ export class ZoneGame extends BaseMiniGame {
       return;
     }
 
-    const speed = this.cell * ZONE_TUNING.SPEED;
-    // Bot AI hız senkronu (SWEEP ilerleme takibi gerçek hızı kullanır)
-    this.moveSpeed = speed;
+    const baseSpeed = this.cell * ZONE_TUNING.SPEED;
+    this.moveSpeed = baseSpeed;
 
     for (const p of this.players) {
       if (!p.isJoined) continue;
+      // Underdog comeback (Son 20sn geride olanın depar cooldown'ı %25 hızlı erir)
+      const isUnderdog = this.roundTimer <= 20 && this.leaderIndex >= 0 && this.leaderIndex !== p.index && (this.pct[p.index] + 8 <= this.pct[this.leaderIndex]);
+      const cdRate = isUnderdog ? dt * 1.3 : dt;
+
       // Depar sayaçları stun'dan bağımsız işler (donarken süre erir)
-      if (p.dashCooldown > 0) p.dashCooldown = Math.max(0, p.dashCooldown - dt);
+      if (p.dashCooldown > 0) p.dashCooldown = Math.max(0, p.dashCooldown - cdRate);
       if (p.dashTimer > 0) {
         p.dashTimer -= dt;
         if (p.dashTimer <= 0) p.isDashing = false;
@@ -869,23 +1067,55 @@ export class ZoneGame extends BaseMiniGame {
         }
       }
 
+      const currentCell = this.posToCell(p.x, p.y);
+      const onHomeTurf = currentCell >= 0 && this.grid[currentCell] === (p.index + 1);
+      p.onHomeTurf = onHomeTurf;
+
       const dashing = p.dashTimer > 0;
       if (force > 0.05) {
         const target = Math.atan2(iy, ix);
         // Depar anında dönüş yarıya iner (hız kararlılığı)
         p.heading = this.turnToward(p.heading, target, ZONE_TUNING.TURN * dt * (dashing ? 0.5 : 1));
       }
-      let step = speed * (0.35 + 0.65 * Math.max(force, force > 0.05 ? 0.6 : 0));
-      if (dashing) step *= ZONE_TUNING.DASH_MULT;
+
+      let speed = baseSpeed * (0.35 + 0.65 * Math.max(force, force > 0.05 ? 0.6 : 0));
+      // Kendi toprağında %15 hız avantajı (Home Turf Advantage)
+      if (onHomeTurf) speed *= ZONE_TUNING.TURF_SPEED_MULT;
+      if (dashing) speed *= ZONE_TUNING.DASH_MULT;
+
+      // Home Turf hafif rüzgar/kıvılcım efekti
+      if (onHomeTurf && Math.random() < 0.18) {
+        this.particles.push({
+          x: p.x + (Math.random() - 0.5) * p.radius,
+          y: p.y + (Math.random() - 0.5) * p.radius,
+          vx: -Math.cos(p.heading) * 20,
+          vy: -Math.sin(p.heading) * 20,
+          life: 0.22,
+          maxLife: 0.22,
+          color: p.color,
+          size: 2.5,
+        });
+      }
+
       p.px = p.x; p.py = p.y;
-      const mx = Math.cos(p.heading) * step * dt;
-      const my = Math.sin(p.heading) * step * dt;
+      const mx = Math.cos(p.heading) * speed * dt;
+      const my = Math.sin(p.heading) * speed * dt;
 
       // Duvar kayması: yarıçap payıyla clamp'le, eksenler bağımsız kayar.
       // Duvar teması cezasızdır — iz silinmez, donma yok, ses yok.
       const wr = p.radius + 1;
       p.x = Math.min(Math.max(p.x + mx, this.field.x + wr), this.field.x + this.field.s - wr);
       p.y = Math.min(Math.max(p.y + my, this.field.y + wr), this.field.y + this.field.s - wr);
+
+      // Relic Toplama Kontrolü
+      for (let ri = this.relics.length - 1; ri >= 0; ri--) {
+        const rel = this.relics[ri];
+        const dist = Math.hypot(p.x - rel.x, p.y - rel.y);
+        if (dist < p.radius + this.cell * 0.9) {
+          this.collectRelic(p.index, ri);
+          break;
+        }
+      }
 
       // Güvenlik: konum/başlık bozulursa (NaN) tabana dön —
       // yoksa oyuncu görünmez/donmuş kalır.
@@ -931,6 +1161,10 @@ export class ZoneGame extends BaseMiniGame {
           p.trailStartX = p.px;
           p.trailStartY = p.py;
         }
+        // Yüksek risk uyarısı (16 hücreye ulaştığında bir kez uyar)
+        if (p.trail.length === ZONE_TUNING.TRAIL_RISK_WARN) {
+          this.addFloatingText(p.x, p.y - 20, '⚠️ YÜKSEK RİSK!', '#D84727');
+        }
         p.trail.push(cellIdx);
         this.trailOwner[cellIdx] = p.index;
       }
@@ -971,6 +1205,14 @@ export class ZoneGame extends BaseMiniGame {
       pt.y += pt.vy * dt;
       pt.life -= dt;
       if (pt.life <= 0) this.particles.splice(i, 1);
+    }
+    for (let i = this.captureWaves.length - 1; i >= 0; i--) {
+      const cw = this.captureWaves[i];
+      cw.radius += cw.speed * dt;
+      cw.alpha = Math.max(0, 1.0 - cw.radius / cw.maxRadius);
+      if (cw.radius >= cw.maxRadius || cw.alpha <= 0) {
+        this.captureWaves.splice(i, 1);
+      }
     }
   }
 
@@ -1081,13 +1323,89 @@ export class ZoneGame extends BaseMiniGame {
       });
     }
 
-    // Açık izler: tek renk şerit, çerçevesiz (anchor çıkış noktasından başlar)
+    // Güç Kristalleri (Relics) Çizimi
+    const nowSec = performance.now() / 1000;
+    for (const rel of this.relics) {
+      const def = ZONE_RELIC_DEFS[rel.type];
+      const bob = Math.sin(nowSec * 4 + rel.bobPhase) * 4;
+      const rx = rel.x;
+      const ry = rel.y + bob;
+      const rSize = (this.cell * 1.35) * rel.scale;
+
+      ctx.save();
+      ctx.translate(rx, ry);
+
+      // Zemin gölgesi
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.beginPath();
+      ctx.ellipse(0, 10 - bob * 0.5, rSize * 0.7, rSize * 0.35, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Nabız Işıltısı / Halo
+      const pulse = 0.5 + 0.5 * Math.sin(nowSec * 6 + rel.bobPhase);
+      ctx.strokeStyle = def.color;
+      ctx.globalAlpha = 0.4 + 0.3 * pulse;
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(-rSize * 0.65, -rSize * 0.65, rSize * 1.3, rSize * 1.3);
+
+      // Kristal Gövde (Neo-Brutalist 45° elmas)
+      ctx.globalAlpha = 1.0;
+      ctx.fillStyle = def.color;
+      ctx.beginPath();
+      ctx.moveTo(0, -rSize);
+      ctx.lineTo(rSize, 0);
+      ctx.lineTo(0, rSize);
+      ctx.lineTo(-rSize, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#1C1C1A';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // İç İkon
+      ctx.fillStyle = '#1C1C1A';
+      ctx.font = '900 13px "Space Grotesk", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(def.icon, 0, 1);
+
+      ctx.restore();
+    }
+
+    // Açık izler: dinamik risk renklendirmesi ve yüksek tehlike şeritleri
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     for (const p of this.players) {
       if (!p.isJoined || p.trail.length === 0) continue;
+      const trailLen = p.trail.length;
+      const isRiskWarn = trailLen >= ZONE_TUNING.TRAIL_RISK_WARN;
+      const isHazard = trailLen >= ZONE_TUNING.TRAIL_HAZARD;
+
+      ctx.save();
+      // Yüksek risk uyarısında neon kırmızı parlama katmanı
+      if (isRiskWarn) {
+        ctx.strokeStyle = isHazard ? '#D84727' : p.color;
+        ctx.lineWidth = this.cell * (isHazard ? 1.0 : 0.85);
+        ctx.globalAlpha = isHazard ? (0.6 + 0.4 * Math.sin(nowSec * 16)) : 0.4;
+        ctx.beginPath();
+        ctx.moveTo(p.trailStartX, p.trailStartY);
+        for (const ci of p.trail) {
+          const c = this.cellCenter(ci);
+          ctx.lineTo(c.x, c.y);
+        }
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+      }
+
+      // Ana iz çizgisi
+      ctx.globalAlpha = 1.0;
       ctx.strokeStyle = p.color;
       ctx.lineWidth = this.cell * 0.7;
+      if (isHazard) {
+        // Kritik seviyede animasyonlu tehlike şeridi (moving dash pattern)
+        ctx.setLineDash([8, 6]);
+        ctx.lineDashOffset = -(nowSec * 32) % 14;
+      }
       ctx.beginPath();
       ctx.moveTo(p.trailStartX, p.trailStartY);
       for (const ci of p.trail) {
@@ -1096,6 +1414,7 @@ export class ZoneGame extends BaseMiniGame {
       }
       ctx.lineTo(p.x, p.y);
       ctx.stroke();
+      ctx.restore();
     }
 
     // Dış çerçeve + sert gölge
@@ -1134,6 +1453,17 @@ export class ZoneGame extends BaseMiniGame {
 
       ctx.save();
       ctx.translate(p.x, p.y);
+
+      // Home Turf Aura (Kendi alanında parıldayan halka)
+      if (p.onHomeTurf && p.stunTimer <= 0) {
+        ctx.strokeStyle = p.color;
+        ctx.globalAlpha = 0.45;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius + 3.5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+      }
 
       // Lider tacı
       if (this.state === 'PLAYING' && p.index === this.leaderIndex && this.pct[p.index] > 0) {
@@ -1185,6 +1515,10 @@ export class ZoneGame extends BaseMiniGame {
         ctx.fillStyle = '#48CAE4';
         ctx.font = '900 10px "JetBrains Mono", monospace';
         ctx.fillText('DONDU', 0, p.radius + 30);
+      } else if (p.trail.length >= ZONE_TUNING.TRAIL_HAZARD) {
+        ctx.fillStyle = '#D84727';
+        ctx.font = '900 10px "JetBrains Mono", monospace';
+        ctx.fillText('TEHLİKE!', 0, p.radius + 30);
       }
 
       ctx.restore();
@@ -1192,6 +1526,17 @@ export class ZoneGame extends BaseMiniGame {
   }
 
   renderFx(ctx) {
+    // Wavefront Capture Şok Dalgaları
+    for (const cw of this.captureWaves) {
+      ctx.save();
+      ctx.strokeStyle = cw.color;
+      ctx.globalAlpha = cw.alpha;
+      ctx.lineWidth = Math.max(2, this.cell * 0.45 * cw.alpha);
+      ctx.beginPath();
+      ctx.arc(cw.x, cw.y, cw.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
     for (const pt of this.particles) {
       ctx.save();
       ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);

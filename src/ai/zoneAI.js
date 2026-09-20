@@ -108,12 +108,14 @@ export function updateZoneBotAI(game, bot, dt) {
 
   steer(game, bot, prof, plan, myCell, myTag, trailing, dt);
 
-  // Depar: eve uzun dönüşte + av kovalamacasında (god her zaman, normal seyrek)
+  // Depar: eve uzun dönüşte + av kovalamacasında + relic kapışında
   if (typeof game.triggerDash === 'function'
       && (bot.dashCooldown || 0) <= 0 && bot.stunTimer <= 0 && game.state === 'PLAYING') {
     if (plan.phase === 'HOME' && trailing && bot.trail.length > prof.risk * 0.6) {
       if (bot.slotType === 'bot_god' || Math.random() < 0.03) game.triggerDash(bot.index);
     } else if (plan.phase === 'HUNT' && bot.slotType === 'bot_god' && Math.random() < 0.05) {
+      game.triggerDash(bot.index);
+    } else if (plan.phase === 'RELIC' && (bot.slotType === 'bot_god' || Math.random() < 0.04)) {
       game.triggerDash(bot.index);
     }
   }
@@ -161,6 +163,18 @@ function think(game, bot, prof, plan, myCell, myTag, trailing) {
     return;
   }
 
+  // 2b. Relic Avı: Yakında Flash veya Seismic relic varsa ve izim güvenliyse relic'e yönel
+  if (game.relics && game.relics.length > 0 && bot.trail.length < prof.risk * 0.4) {
+    const rIdx = nearestRelicIndex(game, bot, prof.huntR * 1.2);
+    if (rIdx >= 0) {
+      const targetRelic = game.relics[rIdx];
+      plan.phase = 'RELIC';
+      plan.target = targetRelic.cellIdx;
+      bot.aiPath = [];
+      return;
+    }
+  }
+
   // 3. HUNT: izim kısayken menzildeki açık düşman izini kes
   if (bot.trail.length < prof.risk * 0.45) {
     const prey = nearestEnemyTrail(game, bot, prof.huntR);
@@ -183,6 +197,25 @@ function think(game, bot, prof, plan, myCell, myTag, trailing) {
     plan.repath -= prof.think;
     if (plan.repath <= 0 || bot.aiPath.length === 0) {
       returnHome(game, bot, plan, myCell, myTag);
+    }
+    return;
+  }
+
+  // 4b. RELIC takibi: relic alındıysa veya süresi bittiyse OUT'a dön
+  if (plan.phase === 'RELIC') {
+    const rStillExists = game.relics && game.relics.some((r) => r.cellIdx === plan.target);
+    if (!rStillExists || bot.trail.length >= prof.risk * 0.6) {
+      plan.phase = 'HOME';
+      plan.repath = 0;
+      returnHome(game, bot, plan, myCell, myTag);
+      return;
+    }
+    const rc = game.cellCenter(plan.target);
+    if (Math.hypot(rc.x - bot.x, rc.y - bot.y) < game.cell * 1.5) {
+      plan.phase = 'HOME';
+      plan.repath = 0;
+      returnHome(game, bot, plan, myCell, myTag);
+      return;
     }
     return;
   }
@@ -498,3 +531,20 @@ function nearestFoeLand(game, bot, from, myTag) {
   }
   return -1;
 }
+
+function nearestRelicIndex(game, bot, rangeCells) {
+  if (!game.relics || game.relics.length === 0) return -1;
+  const rangePx = rangeCells * game.cell;
+  let bestIdx = -1;
+  let bestDist = rangePx;
+  for (let i = 0; i < game.relics.length; i++) {
+    const r = game.relics[i];
+    const dist = Math.hypot(r.x - bot.x, r.y - bot.y);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+

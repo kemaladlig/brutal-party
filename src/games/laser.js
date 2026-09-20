@@ -22,22 +22,23 @@ const LASER_KEY_SLOTS = [
 
 export const LASER_TUNING = {
   SPEED: 220,          // koşu hızı (px/s)
-  FIRE_CD: 1.0,        // ateş bekleme (sn)
+  FIRE_CD: 0.9,        // ateş bekleme (sn)
   MAX_ACTIVE: 2,       // oyuncu başına havada max lazer
-  LASER_SPEED: 600,    // lazer hızı (px/s)
-  FAST_MULT: 1.5,      // ⚡ pickup hız çarpanı
+  LASER_SPEED: 620,    // lazer hızı (px/s)
+  FAST_MULT: 1.45,     // ⚡ pickup hız çarpanı
   FAST_TIME: 8.0,      // ⚡ süresi (sn)
+  TRIPLE_TIME: 8.0,    // 💥 üçlü lazer süresi (sn)
   BOUNCES: 4,          // sekme hakkı
   MAX_HP: 3,           // can
   INVULN: 0.8,         // vuruş sonrası dokunulmazlık (sn)
   RESPAWN: 2.0,        // yeniden doğma (sn)
   SPAWN_PROTECT: 1.5,  // doğma koruması (sn)
-  DASH_MULT: 2.2,      // depar hız çarpanı (ZONE kanıtlı)
+  DASH_MULT: 2.2,      // depar hız çarpanı
   DASH_TIME: 0.22,     // depar süresi (sn)
   DASH_CD: 4.0,        // depar bekleme (sn)
   MATCH_TIME: 90,      // maç süresi (sn)
   TARGET_KILLS: 10,    // erken zafer kill sayısı
-  PICKUP_EVERY: 15.0,  // pickup aralığı (sn)
+  PICKUP_EVERY: 10.0,  // pickup aralığı (sn)
   DOUBLE_TAP_MS: 280,  // lokal çift-dokunuş dash penceresi
 };
 
@@ -186,7 +187,8 @@ export class LaserGame extends BaseMiniGame {
         steerX: 0, steerY: 0, kbx: 0, kby: 0,
         hp: LASER_TUNING.MAX_HP, cooldown: 0,
         dashTimer: 0, dashCooldown: 0,
-        invulnTimer: 0, respawnTimer: 0, fastTimer: 0,
+        invulnTimer: 0, respawnTimer: 0, fastTimer: 0, tripleTimer: 0,
+        shield: false, wasReady: true,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         botCheckTimer: Math.random(), botStrafeDir: Math.random() < 0.5 ? 1 : -1,
         botRetarget: 0, keyFireLatch: false, keyDashLatch: false, keyHeld: false, lastTapTime: 0,
@@ -236,6 +238,8 @@ export class LaserGame extends BaseMiniGame {
     this.floatingTexts = [];
     this.matchTimer = LASER_TUNING.MATCH_TIME;
     this.pickupTimer = LASER_TUNING.PICKUP_EVERY;
+    this.selectedMapIndex = Math.floor(Math.random() * LASER_MAPS.length);
+    this.buildMap();
     this.onTouchesReset();
     playStart();
     this.players.forEach((p) => {
@@ -245,10 +249,11 @@ export class LaserGame extends BaseMiniGame {
       p.steerX = 0; p.steerY = 0; p.kbx = 0; p.kby = 0;
       p.hp = LASER_TUNING.MAX_HP;
       p.isAlive = p.isJoined;
-      p.cooldown = 1.0;
+      p.cooldown = 0.5;
       p.dashTimer = 0; p.dashCooldown = 0;
       p.invulnTimer = p.isJoined ? LASER_TUNING.SPAWN_PROTECT : 0;
-      p.respawnTimer = 0; p.fastTimer = 0;
+      p.respawnTimer = 0; p.fastTimer = 0; p.tripleTimer = 0;
+      p.shield = false; p.wasReady = true;
     });
   }
 
@@ -287,19 +292,24 @@ export class LaserGame extends BaseMiniGame {
     let active = 0;
     for (const lz of this.lasers) if (lz.owner === player.index) active++;
     if (active >= LASER_TUNING.MAX_ACTIVE) return;
-    player.cooldown = LASER_TUNING.FIRE_CD;
+    player.cooldown = player.fastTimer > 0 ? LASER_TUNING.FIRE_CD * 0.45 : LASER_TUNING.FIRE_CD;
     playGunshot();
     const spd = LASER_TUNING.LASER_SPEED * (player.fastTimer > 0 ? LASER_TUNING.FAST_MULT : 1);
-    this.lasers.push({
-      x: player.x + Math.cos(player.angle) * 20,
-      y: player.y + Math.sin(player.angle) * 20,
-      vx: Math.cos(player.angle) * spd,
-      vy: Math.sin(player.angle) * spd,
-      owner: player.index,
-      color: player.color,
-      bounces: LASER_TUNING.BOUNCES,
-      history: [],
-    });
+    
+    // Triple Laser modu aktifse: 3 yöne ateş (-16°, 0°, +16°)
+    const angles = player.tripleTimer > 0 ? [player.angle - 0.28, player.angle, player.angle + 0.28] : [player.angle];
+    for (const ang of angles) {
+      this.lasers.push({
+        x: player.x + Math.cos(ang) * 20,
+        y: player.y + Math.sin(ang) * 20,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        owner: player.index,
+        color: player.color,
+        bounces: LASER_TUNING.BOUNCES,
+        history: [],
+      });
+    }
     this.addTrauma(0.12);
   }
 
@@ -319,6 +329,18 @@ export class LaserGame extends BaseMiniGame {
     if (!victim.isJoined || !victim.isAlive) return;
     // Dash i-frame + vuruş dokunulmazlığı
     if (victim.dashTimer > 0 || victim.invulnTimer > 0) return;
+
+    // 🛡️ KALKAN VURULDUYSA: Hasarı tamamen absorbe et
+    if (victim.shield) {
+      victim.shield = false;
+      victim.invulnTimer = 0.5;
+      this.spawnSparks(victim.x, victim.y, '#0EA5E9', 16);
+      this.spawnFloatingText(victim.x, victim.y - 20, '🛡️ KALKAN KORUDU!', '#0EA5E9');
+      this.addTrauma(0.2);
+      playStumble();
+      return;
+    }
+
     victim.hp -= 1;
     victim.invulnTimer = LASER_TUNING.INVULN;
     this.spawnSparks(victim.x, victim.y, laser.color, 8);
@@ -330,6 +352,7 @@ export class LaserGame extends BaseMiniGame {
       victim.isAlive = false;
       victim.respawnTimer = LASER_TUNING.RESPAWN;
       victim.steerX = 0; victim.steerY = 0;
+      victim.shield = false; victim.fastTimer = 0; victim.tripleTimer = 0;
       this.spawnSparks(victim.x, victim.y, victim.color, 24);
       this.spawnFloatingText(victim.x, victim.y - 20, '+1 KILL ★', '#2F6A4F');
       const owner = this.players[laser.owner];
@@ -367,12 +390,12 @@ export class LaserGame extends BaseMiniGame {
   }
 
   spawnPickup() {
-    if (this.pickups.length > 0) return;
+    if (this.pickups.length >= 2) return;
     const { cx, cy, size } = this.arena;
-    const type = this.pickupFlip ? 'HEAL' : 'FAST';
-    this.pickupFlip = !this.pickupFlip;
+    const types = ['HEAL', 'FAST', 'SHIELD', 'TRIPLE'];
+    const type = types[Math.floor(Math.random() * types.length)];
     const a = Math.random() * Math.PI * 2;
-    const r = size * 0.08 * Math.random();
+    const r = size * 0.18 * Math.random();
     this.pickups.push({
       x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r,
       type, radius: 15, animTime: Math.random() * 10,
@@ -541,11 +564,28 @@ export class LaserGame extends BaseMiniGame {
     for (const player of this.players) {
       if (!player.isJoined) continue;
 
+      const prevCd = player.cooldown;
       if (player.cooldown > 0) player.cooldown -= dt;
       if (player.dashCooldown > 0) player.dashCooldown -= dt;
       if (player.dashTimer > 0) player.dashTimer -= dt;
       if (player.invulnTimer > 0) player.invulnTimer -= dt;
       if (player.fastTimer > 0) player.fastTimer -= dt;
+      if (player.tripleTimer > 0) player.tripleTimer -= dt;
+
+      // Cooldown bittiğinde görsel mermi hazır flaşı
+      let activeLasers = 0;
+      for (const lz of this.lasers) if (lz.owner === player.index) activeLasers++;
+      const isReadyNow = player.cooldown <= 0 && activeLasers < LASER_TUNING.MAX_ACTIVE;
+      if (isReadyNow && !player.wasReady) {
+        this.spawnSparks(
+          player.x + Math.cos(player.angle) * 18,
+          player.y + Math.sin(player.angle) * 18,
+          player.color,
+          5
+        );
+      }
+      player.wasReady = isReadyNow;
+
       // Geri tepme sönümü
       player.kbx *= Math.max(0, 1 - dt * 6);
       player.kby *= Math.max(0, 1 - dt * 6);
@@ -560,6 +600,9 @@ export class LaserGame extends BaseMiniGame {
           player.isAlive = true;
           player.invulnTimer = LASER_TUNING.SPAWN_PROTECT;
           player.cooldown = 0.5;
+          player.shield = false;
+          player.fastTimer = 0;
+          player.tripleTimer = 0;
           playJoin();
         }
         continue;
@@ -627,8 +670,16 @@ export class LaserGame extends BaseMiniGame {
         if (Math.hypot(player.x - pk.x, player.y - pk.y) < 28) {
           if (pk.type === 'HEAL') {
             player.hp = Math.min(LASER_TUNING.MAX_HP + 1, player.hp + 1);
-          } else {
+            this.spawnFloatingText(player.x, player.y - 20, '❤ +1 CAN', '#2F6A4F');
+          } else if (pk.type === 'FAST') {
             player.fastTimer = LASER_TUNING.FAST_TIME;
+            this.spawnFloatingText(player.x, player.y - 20, '⚡ SERİ ATEŞ!', '#FFDE59');
+          } else if (pk.type === 'SHIELD') {
+            player.shield = true;
+            this.spawnFloatingText(player.x, player.y - 20, '🛡️ KALKAN AKTİF!', '#0EA5E9');
+          } else if (pk.type === 'TRIPLE') {
+            player.tripleTimer = LASER_TUNING.TRIPLE_TIME;
+            this.spawnFloatingText(player.x, player.y - 20, '💥 ÜÇLÜ LAZER!', '#F97316');
           }
           this.pickups.splice(i, 1);
           playItemPickup();
@@ -833,31 +884,50 @@ export class LaserGame extends BaseMiniGame {
       ctx.save();
       ctx.translate(pk.x, pk.y);
       ctx.scale(pulse, pulse);
-      ctx.fillStyle = pk.type === 'HEAL' ? '#2F6A4F' : '#FFDE59';
-      ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
+      
+      let pColor = '#2F6A4F';
+      let pIcon = '❤';
+      if (pk.type === 'FAST') { pColor = '#FFDE59'; pIcon = '⚡'; }
+      else if (pk.type === 'SHIELD') { pColor = '#0EA5E9'; pIcon = '🛡️'; }
+      else if (pk.type === 'TRIPLE') { pColor = '#F97316'; pIcon = '💥'; }
+
+      ctx.fillStyle = pColor;
+      ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill();
       ctx.lineWidth = 3; ctx.strokeStyle = '#1A1A1A'; ctx.stroke();
-      ctx.fillStyle = '#1A1A1A';
-      ctx.font = 'bold 15px sans-serif';
+      ctx.fillStyle = pk.type === 'FAST' ? '#1A1A1A' : '#FFF';
+      ctx.font = 'bold 14px sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(pk.type === 'HEAL' ? '❤' : '⚡', 0, 1);
+      ctx.fillText(pIcon, 0, 1);
       ctx.restore();
     }
 
-    // Nişan önizlemeleri (canlı oyuncular, 2 sekme, silik noktalı)
+    // Nişan önizlemeleri (canlı oyuncular, 2 sekme)
     if (this.state === 'PLAYING') {
       ctx.save();
       for (const player of this.players) {
         if (!player.isJoined || !player.isAlive) continue;
+        let active = 0;
+        for (const lz of this.lasers) if (lz.owner === player.index) active++;
+        const isReady = player.cooldown <= 0 && active < LASER_TUNING.MAX_ACTIVE;
+
         const pts = this.traceAim(player);
         ctx.strokeStyle = player.color;
-        ctx.globalAlpha = 0.35;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 6]);
+        ctx.globalAlpha = isReady ? 0.55 : 0.18;
+        ctx.lineWidth = isReady ? 2.5 : 1.5;
+        ctx.setLineDash(isReady ? [6, 4] : [2, 6]);
         ctx.beginPath();
         ctx.moveTo(pts[0].x, pts[0].y);
         for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
         ctx.stroke();
         ctx.setLineDash([]);
+
+        // Sekme noktalarında parlama
+        if (isReady && pts.length > 2) {
+          ctx.fillStyle = player.color;
+          for (let i = 1; i < pts.length - 1; i++) {
+            ctx.beginPath(); ctx.arc(pts[i].x, pts[i].y, 3, 0, Math.PI * 2); ctx.fill();
+          }
+        }
       }
       ctx.restore();
     }
@@ -884,40 +954,117 @@ export class LaserGame extends BaseMiniGame {
 
     // Oyuncular
     const blink = Math.floor(performance.now() / 120) % 2 === 0;
+    const nowTime = performance.now() / 1000;
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
       // Vuruş dokunulmazlığında göz kırp
       if (player.invulnTimer > 0 && player.respawnTimer <= 0 && blink) continue;
 
+      let activeLasers = 0;
+      for (const lz of this.lasers) if (lz.owner === player.index) activeLasers++;
+      const isFireReady = player.cooldown <= 0 && activeLasers < LASER_TUNING.MAX_ACTIVE;
+
       ctx.save();
       ctx.translate(player.x, player.y);
 
-      // Dash hazır halkası
+      // 🛡️ Kalkan balonu
+      if (player.shield) {
+        ctx.save();
+        ctx.strokeStyle = '#0EA5E9';
+        ctx.lineWidth = 2.5;
+        ctx.fillStyle = 'rgba(14, 165, 233, 0.18)';
+        ctx.beginPath(); ctx.arc(0, 0, 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        // Dönen kalkan uydusu
+        const sAng = nowTime * 3;
+        ctx.fillStyle = '#38BDF8';
+        ctx.beginPath(); ctx.arc(Math.cos(sAng) * 24, Math.sin(sAng) * 24, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+
+      // Dash hazır halkası (hazırsa beyaz parlar, cooldown'daysa dolum yayı çizer)
       ctx.lineWidth = 3;
-      ctx.strokeStyle = player.dashCooldown > 0 ? '#B9B2A6' : '#FFFFFF';
-      ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
+      if (player.dashCooldown <= 0) {
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
+      } else {
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.25)';
+        ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
+        const cdProg = 1 - Math.max(0, player.dashCooldown / LASER_TUNING.DASH_CD);
+        ctx.strokeStyle = player.color;
+        ctx.beginPath(); ctx.arc(0, 0, 19, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2); ctx.stroke();
+      }
 
       ctx.rotate(player.angle);
 
+      // Gövde
       ctx.fillStyle = player.color;
       ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
       ctx.lineWidth = 3; ctx.strokeStyle = '#1A1A1A'; ctx.stroke();
 
-      // Namlu: cooldown'da gri, ⚡ varken sarı
-      ctx.fillStyle = player.fastTimer > 0 ? '#FFDE59' : (player.cooldown > 0 ? '#888' : '#FFF');
+      // Namlu: Hazırsa parlak beyaz/sarı/turuncu, cooldown'da koyu gri
+      let barrelColor = '#FFFFFF';
+      if (player.tripleTimer > 0) barrelColor = '#F97316';
+      else if (player.fastTimer > 0) barrelColor = '#FFDE59';
+      else if (!isFireReady) barrelColor = '#525252';
+
+      ctx.fillStyle = barrelColor;
       ctx.fillRect(8, -4, 14, 8);
+      ctx.lineWidth = 2; ctx.strokeStyle = '#1A1A1A';
       ctx.strokeRect(8, -4, 14, 8);
+
+      // Namlu ucu hazır şarj diyotu
+      if (isFireReady) {
+        ctx.fillStyle = player.tripleTimer > 0 ? '#F97316' : (player.fastTimer > 0 ? '#FFDE59' : '#00F0FF');
+        ctx.beginPath(); ctx.arc(22, 0, 3, 0, Math.PI * 2); ctx.fill();
+      }
+
       ctx.restore();
 
-      // HP pip'leri
-      const total = Math.max(player.hp, LASER_TUNING.MAX_HP);
+      // --- MERMİ & CAN GÖSTERGELERİ (Host Ekranı Görsel İpuçları) ---
+      // 1. HP Pip'leri (y - 25)
+      const totalHp = Math.max(player.hp, LASER_TUNING.MAX_HP);
       const pw = 8;
-      const startX = player.x - (total * (pw + 2)) / 2;
-      for (let h = 0; h < total; h++) {
+      const startX = player.x - (totalHp * (pw + 2)) / 2;
+      for (let h = 0; h < totalHp; h++) {
         ctx.fillStyle = h < player.hp ? player.color : '#D5D0C7';
         ctx.strokeStyle = '#1A1A1A';
         ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(startX + h * (pw + 2) + pw / 2, player.y - 26, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(startX + h * (pw + 2) + pw / 2, player.y - 25, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+
+      // 2. MERMİ / LAZER HAZIR GÖSTERGESİ (y - 34)
+      // 2 adet mermi kapsülü: Hazırsa neon parlar, şarj oluyorsa dolum çizgisi gösterir
+      const ammoSlotW = 10;
+      const ammoGap = 3;
+      const ammoStartX = player.x - (2 * ammoSlotW + ammoGap) / 2;
+      const ammoY = player.y - 35;
+
+      for (let a = 0; a < 2; a++) {
+        const slotX = ammoStartX + a * (ammoSlotW + ammoGap);
+        // Bu mermi slotu dolu mu?
+        const isSlotAvailable = (2 - activeLasers) > a;
+        const isSlotCharged = isSlotAvailable && (a === 0 ? player.cooldown <= 0 : true);
+
+        // Kapsül kutusu
+        ctx.save();
+        ctx.fillStyle = isSlotCharged ? (player.tripleTimer > 0 ? '#F97316' : (player.fastTimer > 0 ? '#FFDE59' : '#1A1A1A')) : 'rgba(40, 40, 40, 0.4)';
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 1.5;
+        ctx.fillRect(slotX, ammoY, ammoSlotW, 5);
+        ctx.strokeRect(slotX, ammoY, ammoSlotW, 5);
+
+        // Şarj dolum barı (eğer birinci mermi doluyorsa)
+        if (a === 0 && player.cooldown > 0 && isSlotAvailable) {
+          const cdMax = player.fastTimer > 0 ? LASER_TUNING.FIRE_CD * 0.45 : LASER_TUNING.FIRE_CD;
+          const fillFrac = 1 - Math.max(0, player.cooldown / cdMax);
+          ctx.fillStyle = '#00F0FF';
+          ctx.fillRect(slotX, ammoY, ammoSlotW * fillFrac, 5);
+        } else if (isSlotCharged) {
+          // Parlayan çekirdek
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(slotX + 2, ammoY + 1.5, ammoSlotW - 4, 2);
+        }
+        ctx.restore();
       }
     }
 
@@ -945,7 +1092,7 @@ export class LaserGame extends BaseMiniGame {
 
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'JOYSTICK: KOŞ+NİŞAN • ATEŞ: VUR • ÇİFT DOKUN: DASH • 3 CAN', [
+      renderControlGuide(ctx, this.arena, 'JOYSTICK: KOŞ+NİŞAN • ATEŞ: VUR • DASH: KAÇIŞ • 🛡️⚡💥 PICKUP', [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',

@@ -1,5 +1,6 @@
-// BRUTAL SNAKE: 2-4 oyunculu yılan — yemle büyü, duvara/kuyruğa çarpma, boost.
+// BRUTAL SNAKE: 2-4 oyunculu yılan — yemle büyü, duvara/kuyruğa/engellere çarpma, taktiksel boost.
 // Uzayan kuyruk ızgarada sorgulanır (uzun oyunda O(n) tarama yok).
+// Çoklu rastgele harita varyasyonları, boost enerji mekaniği ve canlı meyve türleri.
 
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
@@ -23,8 +24,59 @@ SNAKE_KEY_MAPS.forEach((map, i) => {
 });
 
 // Kuyruk boyu tavanı: uzayan oyunda ızgara-rebuild sınırlı kalır
-const SNAKE_MAX_LEN = 300;
+const SNAKE_MAX_LEN = 320;
 const SEG_GRID_CELL = 48;
+
+// Harita Varyasyonları (Her maç/raunt otomatik rastgele seçilir)
+export const SNAKE_MAPS = [
+  {
+    id: 'open',
+    name: 'AÇIK ARENA',
+    createWalls: () => [],
+  },
+  {
+    id: 'pillars',
+    name: '4 SÜTUN',
+    createWalls: (arena) => {
+      const { cx, cy, size } = arena;
+      const offset = size * 0.20;
+      const s = Math.max(26, size * 0.08);
+      return [
+        { x: cx - offset - s / 2, y: cy - offset - s / 2, w: s, h: s },
+        { x: cx + offset - s / 2, y: cy - offset - s / 2, w: s, h: s },
+        { x: cx - offset - s / 2, y: cy + offset - s / 2, w: s, h: s },
+        { x: cx + offset - s / 2, y: cy + offset - s / 2, w: s, h: s },
+      ];
+    },
+  },
+  {
+    id: 'cross',
+    name: 'MERKEZİ HAÇ',
+    createWalls: (arena) => {
+      const { cx, cy, size } = arena;
+      const len = size * 0.32;
+      const thick = Math.max(18, size * 0.05);
+      return [
+        { x: cx - len / 2, y: cy - thick / 2, w: len, h: thick },
+        { x: cx - thick / 2, y: cy - len / 2, w: thick, h: len },
+      ];
+    },
+  },
+  {
+    id: 'lanes',
+    name: '3 KORİDOR',
+    createWalls: (arena) => {
+      const { cx, cy, size } = arena;
+      const offset = size * 0.24;
+      const thick = Math.max(18, size * 0.045);
+      const h = size * 0.44;
+      return [
+        { x: cx - offset - thick / 2, y: cy - h / 2, w: thick, h },
+        { x: cx + offset - thick / 2, y: cy - h / 2, w: thick, h },
+      ];
+    },
+  },
+];
 
 export class SnakeGame extends BaseMiniGame {
   constructor(canvas) {
@@ -36,6 +88,8 @@ export class SnakeGame extends BaseMiniGame {
     this.players = [];
     this.foods = [];
     this.particles = [];
+    this.walls = [];
+    this.mapIndex = 0;
 
     // İz sorgu ızgarası (hücre → segment referansları) + sorgu damgası
     this.segGrid = new Map();
@@ -62,7 +116,6 @@ export class SnakeGame extends BaseMiniGame {
     });
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
-      // Tuş bırakma
       const slot = SNAKE_KEY_SLOTS[e.code];
       if (slot === undefined) return;
       const player = this.players[slot];
@@ -82,17 +135,22 @@ export class SnakeGame extends BaseMiniGame {
     const down = !!this.keys[map.d];
     const left = !!this.keys[map.l];
     const right = !!this.keys[map.r];
-    const boost = !!this.keys[map.boost];
-
-    let targetAngle = null;
-    if (up && !down) targetAngle = -Math.PI / 2;
-    else if (down && !up) targetAngle = Math.PI / 2;
-    else if (left && !right) targetAngle = Math.PI;
-    else if (right && !left) targetAngle = 0;
+    const boostKey = !!this.keys[map.boost];
 
     const l = left ? -1 : 0;
     const r = right ? 1 : 0;
-    return { steer: l + r, boost, targetAngle };
+    const boost = boostKey || up || down;
+    return { steer: l + r, boost, targetAngle: null };
+  }
+
+  pickRandomMap() {
+    this.mapIndex = Math.floor(Math.random() * SNAKE_MAPS.length);
+    this.buildMapWalls();
+  }
+
+  buildMapWalls() {
+    const mapDef = SNAKE_MAPS[this.mapIndex] || SNAKE_MAPS[0];
+    this.walls = mapDef.createWalls(this.arena);
   }
 
   resize(width, height) {
@@ -108,7 +166,8 @@ export class SnakeGame extends BaseMiniGame {
       top: marginY, bottom: marginY + arenaH,
     };
 
-    // Maç ortası resize sıfırlamaz: geometri yenilenir, varlıklar orantılı taşınır
+    this.buildMapWalls();
+
     if (this.state === 'LOBBY' || !this.players.length) {
       this.initPlayers();
       return;
@@ -140,14 +199,14 @@ export class SnakeGame extends BaseMiniGame {
     ];
 
     this.players = spawns.map((s, i) => {
-      // Raunt başı TV isimleri silinmez (CROWN deseni)
       const existing = this.players[i];
       return {
         index: i, name: existing?.name || SNAKE_NAMES[i], color: SNAKE_COLORS[i],
-        x: s.x, y: s.y, angle: s.angle, targetAngle: null, speed: 140, turnSpeed: 3.2,
-        steer: 0, isBoost: false, isAlive: true, isJoined: this.isSlotJoined(i),
-        slotType: this.slotTypes[i], segments: [], currentLen: 0, targetLen: 60,
-        botCheckTimer: 0,
+        x: s.x, y: s.y, angle: s.angle, targetAngle: null, speed: 140, turnSpeed: 3.4,
+        steer: 0, isBoost: false, boostEnergy: 100, boostLocked: false,
+        isAlive: true, isJoined: this.isSlotJoined(i),
+        slotType: this.slotTypes[i], segments: [], currentLen: 0, targetLen: 65,
+        botCheckTimer: 0, tongueTimer: Math.random() * 2,
       };
     });
   }
@@ -161,6 +220,7 @@ export class SnakeGame extends BaseMiniGame {
     this.segGrid = new Map();
     this.segGridDirty = false;
     this.onTouchesReset();
+    this.pickRandomMap();
     this.initPlayers();
   }
 
@@ -187,18 +247,59 @@ export class SnakeGame extends BaseMiniGame {
     this.segGrid = new Map();
     this.segGridDirty = false;
     this.onTouchesReset();
+    this.pickRandomMap();
     playStart();
     this.initPlayers();
     this.players.forEach((p) => { p.isAlive = p.isJoined; });
-    for (let i = 0; i < 3; i++) this.spawnFood();
+    for (let i = 0; i < 4; i++) this.spawnFood();
   }
 
-  spawnFood(x, y) {
+  spawnFood(x, y, forceType = null) {
     if (x === undefined || y === undefined) {
-      x = this.arena.left + 30 + Math.random() * (this.arena.width - 60);
-      y = this.arena.top + 30 + Math.random() * (this.arena.height - 60);
+      // Yemin duvarların veya köşe kontrollerin tam üstüne düşmesini engelle
+      let attempts = 0;
+      let valid = false;
+      while (!valid && attempts < 25) {
+        attempts++;
+        x = this.arena.left + 35 + Math.random() * (this.arena.width - 70);
+        y = this.arena.top + 35 + Math.random() * (this.arena.height - 70);
+
+        valid = true;
+        // Duvar kontrolü
+        for (const w of this.walls) {
+          if (x >= w.x - 15 && x <= w.x + w.w + 15 && y >= w.y - 15 && y <= w.y + w.h + 15) {
+            valid = false;
+            break;
+          }
+        }
+        // Köşe buton kutularından kaçınma
+        for (let i = 0; i < 4; i++) {
+          const zone = this.getCornerButtonZones(i);
+          if (x >= zone.box.x - 10 && x <= zone.box.x + zone.box.w + 10 &&
+              y >= zone.box.y - 10 && y <= zone.box.y + zone.box.h + 10) {
+            valid = false;
+            break;
+          }
+        }
+      }
     }
-    this.foods.push({ x, y, size: 14, id: Math.random() });
+
+    // Yem Türleri: Apple 🍎 (Standart), Golden Star 🌟 (Nadir, +3), Turbo Berry 🍇 (Hız enerjisi doldurur)
+    let type = forceType;
+    if (!type) {
+      const r = Math.random();
+      if (r < 0.18) type = 'GOLDEN_STAR';
+      else if (r < 0.38) type = 'TURBO_BERRY';
+      else type = 'APPLE';
+    }
+
+    this.foods.push({
+      x, y,
+      type,
+      size: type === 'GOLDEN_STAR' ? 17 : (type === 'TURBO_BERRY' ? 15 : 13),
+      id: Math.random(),
+      pulse: Math.random() * Math.PI * 2,
+    });
   }
 
   _gridKey(cx, cy) { return cx * 4096 + cy; }
@@ -255,18 +356,45 @@ export class SnakeGame extends BaseMiniGame {
     return 3;
   }
 
-  determineSteer(cornerIndex, touch) {
-    const { cx, left, right } = this.arena;
-    const isLeftQuadrant = cornerIndex === 0 || cornerIndex === 1;
-    const qMidX = isLeftQuadrant ? (left + cx) / 2 : (cx + right) / 2;
-    const isTop = cornerIndex === 1 || cornerIndex === 2;
-    if (isTop) {
-      // Üst oyuncu karşıdan bakar: ekran sağı onun soludur
-      return touch.x >= qMidX ? -1 : 1;
-    } else {
-      // Alt oyuncu: ekran solu onun soludur
-      return touch.x < qMidX ? -1 : 1;
+  getCornerButtonZones(cornerIndex) {
+    const { left, right, top, bottom, size } = this.arena;
+    const btnW = Math.max(160, Math.min(250, size * 0.42));
+    const btnH = Math.max(50, Math.min(68, size * 0.15));
+
+    let bx = left + 6;
+    let by = bottom - btnH - 6;
+
+    if (cornerIndex === 1) {
+      bx = left + 6;
+      by = top + 6;
+    } else if (cornerIndex === 2) {
+      bx = right - btnW - 6;
+      by = top + 6;
+    } else if (cornerIndex === 3) {
+      bx = right - btnW - 6;
+      by = bottom - btnH - 6;
     }
+
+    const wSteer = btnW * 0.38;
+    const wBoost = btnW * 0.24;
+
+    return {
+      leftBtn: { x: bx, y: by, w: wSteer, h: btnH },
+      boostBtn: { x: bx + wSteer, y: by, w: wBoost, h: btnH },
+      rightBtn: { x: bx + wSteer + wBoost, y: by, w: wSteer, h: btnH },
+      box: { x: bx, y: by, w: btnW, h: btnH },
+    };
+  }
+
+  determineTouchAction(cornerIndex, touch) {
+    const zone = this.getCornerButtonZones(cornerIndex);
+    const isTop = cornerIndex === 1 || cornerIndex === 2;
+    const relX = isTop ? (zone.box.x + zone.box.w - touch.x) : (touch.x - zone.box.x);
+    const frac = relX / zone.box.w;
+
+    if (frac < 0.38) return 'left';
+    if (frac <= 0.62) return 'boost';
+    return 'right';
   }
 
   onTouchStart(touch) {
@@ -303,15 +431,26 @@ export class SnakeGame extends BaseMiniGame {
       const corner = this.getCornerZone(touch);
       const player = this.players[corner];
       if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
-      // İkinci parmak aynı köşede = boost basılı
+
       if (this.cornerTouches[corner].id !== -1) {
         this.touchBoost[corner] = true;
         player.isBoost = true;
         return;
       }
-      const steerVal = this.determineSteer(corner, touch);
-      this.cornerTouches[corner] = { id: touch.id, action: steerVal < 0 ? 'left' : 'right' };
-      player.steer = steerVal;
+
+      const action = this.determineTouchAction(corner, touch);
+      this.cornerTouches[corner] = { id: touch.id, action };
+
+      if (action === 'left') {
+        player.steer = -1;
+        player.isBoost = this.touchBoost[corner] || this.keyboardInput(corner).boost;
+      } else if (action === 'right') {
+        player.steer = 1;
+        player.isBoost = this.touchBoost[corner] || this.keyboardInput(corner).boost;
+      } else if (action === 'boost') {
+        player.steer = 0;
+        player.isBoost = true;
+      }
     }
   }
 
@@ -319,12 +458,20 @@ export class SnakeGame extends BaseMiniGame {
     if (this.state !== 'PLAYING') return;
     for (let i = 0; i < 4; i++) {
       if (this.cornerTouches[i] && this.cornerTouches[i].id === touch.id) {
-        const steerVal = this.determineSteer(i, touch);
-        const action = steerVal < 0 ? 'left' : 'right';
+        const action = this.determineTouchAction(i, touch);
         this.cornerTouches[i].action = action;
         const player = this.players[i];
         if (player && player.isAlive && player.slotType === 'human') {
-          player.steer = steerVal;
+          if (action === 'left') {
+            player.steer = -1;
+            player.isBoost = this.touchBoost[i] || this.keyboardInput(i).boost;
+          } else if (action === 'right') {
+            player.steer = 1;
+            player.isBoost = this.touchBoost[i] || this.keyboardInput(i).boost;
+          } else if (action === 'boost') {
+            player.steer = 0;
+            player.isBoost = true;
+          }
         }
         break;
       }
@@ -375,16 +522,17 @@ export class SnakeGame extends BaseMiniGame {
 
     if (this.state !== 'PLAYING') return;
 
-    // Her frame kuyruk kısaldığı için ızgara kirli işaretlenir (tavanlı boyda ucuz)
     this.segGridDirty = true;
 
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
 
+      player.tongueTimer -= dt;
+      if (player.tongueTimer <= 0) player.tongueTimer = 1.8 + Math.random() * 2.2;
+
       if (player.slotType !== 'human') {
         updateSnakeBotAI(this, player, dt);
       } else {
-        // Klavye eklemeli: basılı yön yazar, basılı değilse ve kumanda/dokunmatik yoksa düz git
         const ki = this.keyboardInput(player.index);
         if (ki.targetAngle !== null) {
           player.targetAngle = ki.targetAngle;
@@ -396,6 +544,32 @@ export class SnakeGame extends BaseMiniGame {
           player.steer = 0;
         }
         player.isBoost = ki.boost || this.touchBoost[player.index] || !!player.remoteBoostActive;
+      }
+
+      // ⚡ BOOST ENERJİSİ / STAMİNA MEKANİĞİ
+      if (player.isBoost) {
+        if (!player.boostLocked && player.boostEnergy > 0) {
+          player.boostEnergy = Math.max(0, player.boostEnergy - dt * 36);
+          // Kuyruk arkasından kıvılcım & duman parçacığı
+          if (Math.random() < 0.6) {
+            const tailSeg = player.segments[0];
+            const tx = tailSeg ? tailSeg.x1 : player.x;
+            const ty = tailSeg ? tailSeg.y1 : player.y;
+            this.spawnExhaust(tx, ty, player.color);
+          }
+          if (player.boostEnergy <= 0) {
+            player.boostLocked = true;
+            player.isBoost = false;
+          }
+        } else {
+          player.isBoost = false;
+        }
+      } else {
+        // Boost basılı değilken enerji yavaşça dolar
+        player.boostEnergy = Math.min(100, player.boostEnergy + dt * 24);
+        if (player.boostEnergy >= 25) {
+          player.boostLocked = false;
+        }
       }
 
       if (player.targetAngle !== null && player.targetAngle !== undefined) {
@@ -413,7 +587,8 @@ export class SnakeGame extends BaseMiniGame {
       } else {
         player.angle += player.steer * player.turnSpeed * dt;
       }
-      const moveSpeed = player.isBoost ? player.speed * 1.6 : player.speed;
+
+      const moveSpeed = player.isBoost ? player.speed * 1.65 : player.speed;
       const prevX = player.x;
       const prevY = player.y;
 
@@ -426,7 +601,6 @@ export class SnakeGame extends BaseMiniGame {
       player.segments.push(newSeg);
       player.currentLen += distMoved;
 
-      // Kuyruk boyu tavanlı (hedef + mevcut birlikte budanır)
       if (player.targetLen > SNAKE_MAX_LEN) player.targetLen = SNAKE_MAX_LEN;
       while (player.currentLen > player.targetLen && player.segments.length > 0) {
         const removed = player.segments.shift();
@@ -435,11 +609,27 @@ export class SnakeGame extends BaseMiniGame {
 
       // Yem yeme kontrolü
       for (let i = this.foods.length - 1; i >= 0; i--) {
-        if (Math.hypot(player.x - this.foods[i].x, player.y - this.foods[i].y) < 16) {
-          player.targetLen += 40;
+        const f = this.foods[i];
+        if (Math.hypot(player.x - f.x, player.y - f.y) < f.size + 4) {
+          if (f.type === 'GOLDEN_STAR') {
+            player.targetLen += 70;
+            player.foodCount = (player.foodCount || 0) + 3;
+            this.scores[player.index] = (this.scores[player.index] || 0) + 1; // +1 ekstra yıldız puanı!
+            this.spawnSparkles(f.x, f.y, '#FFDE59', 16);
+          } else if (f.type === 'TURBO_BERRY') {
+            player.targetLen += 40;
+            player.foodCount = (player.foodCount || 0) + 1;
+            player.boostEnergy = Math.min(100, player.boostEnergy + 55);
+            player.boostLocked = false;
+            this.spawnSparkles(f.x, f.y, '#A259FF', 12);
+          } else {
+            player.targetLen += 38;
+            player.foodCount = (player.foodCount || 0) + 1;
+            player.boostEnergy = Math.min(100, player.boostEnergy + 15);
+            this.spawnSparkles(f.x, f.y, '#D84727', 8);
+          }
+
           if (player.targetLen > SNAKE_MAX_LEN) player.targetLen = SNAKE_MAX_LEN;
-          player.foodCount = (player.foodCount || 0) + 1;
-          this.spawnSparkles(this.foods[i].x, this.foods[i].y, player.color);
           this.foods.splice(i, 1);
           this.spawnFood();
           playItemPickup();
@@ -468,15 +658,25 @@ export class SnakeGame extends BaseMiniGame {
 
   checkCollision(player, now) {
     const { left, right, top, bottom } = this.arena;
-    const r = 4;
+    const r = 5;
 
+    // Dış Saha Sınırları
     if (player.x - r <= left || player.x + r >= right || player.y - r <= top || player.y + r >= bottom) return true;
 
+    // Harita Engel Duvarları (AABB çarpışması)
+    for (const w of this.walls) {
+      if (player.x + r > w.x && player.x - r < w.x + w.w &&
+          player.y + r > w.y && player.y - r < w.y + w.h) {
+        return true;
+      }
+    }
+
+    // Kendi ve diğer yılanların kuyruk gövdeleri
     return this.forEachSegmentNear(player.x, player.y, 12, (seg) => {
-      if (seg.owner === player.index && now - seg.createdAt < 250) return false;
+      if (seg.owner === player.index && now - seg.createdAt < 220) return false;
 
       const distSq = this.distToSegmentSquared(player.x, player.y, seg.x1, seg.y1, seg.x2, seg.y2);
-      return distSq <= (r + 2) * (r + 2);
+      return distSq <= (r + 3) * (r + 3);
     });
   }
 
@@ -489,34 +689,46 @@ export class SnakeGame extends BaseMiniGame {
     return (px - projX) * (px - projX) + (py - projY) * (py - projY);
   }
 
-  spawnSparkles(x, y, color) {
-    for (let i = 0; i < 8; i++) {
-      const angle = (Math.PI * 2 * i) / 8 + Math.random() * 0.4;
-      const spd = 30 + Math.random() * 60;
+  spawnExhaust(x, y, color) {
+    this.particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 30,
+      vy: (Math.random() - 0.5) * 30,
+      color: Math.random() < 0.5 ? '#FFDE59' : color,
+      radius: 2 + Math.random() * 2.5,
+      alpha: 0.8,
+      decay: 3.5,
+    });
+  }
+
+  spawnSparkles(x, y, color, count = 8) {
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+      const spd = 35 + Math.random() * 70;
       this.particles.push({
         x, y,
         vx: Math.cos(angle) * spd,
         vy: Math.sin(angle) * spd,
-        color: '#FFDE59',
+        color,
         radius: 2.5 + Math.random() * 2,
         alpha: 1.0,
-        decay: 2.5,
+        decay: 2.2,
       });
     }
   }
 
   spawnExplosion(x, y, color) {
-    for (let i = 0; i < 24; i++) {
+    for (let i = 0; i < 26; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const spd = 40 + Math.random() * 120;
+      const spd = 40 + Math.random() * 130;
       this.particles.push({
         x, y,
         vx: Math.cos(angle) * spd,
         vy: Math.sin(angle) * spd,
         color: i % 2 === 0 ? color : '#1A1A1A',
-        radius: 3 + Math.random() * 3,
+        radius: 3 + Math.random() * 3.5,
         alpha: 1.0,
-        decay: 1.8,
+        decay: 1.6,
       });
     }
   }
@@ -527,10 +739,10 @@ export class SnakeGame extends BaseMiniGame {
     playExplosion();
     this.spawnExplosion(player.x, player.y, player.color);
 
-    // Ölenin kuyruğu yeme dönüşür (max 6)
+    // Ölen yılanın vücudu zengin meyve parçalarına dönüşür
     let dropCount = 0;
-    for (let i = 0; i < player.segments.length; i += 8) {
-      if (dropCount >= 6) break;
+    for (let i = 0; i < player.segments.length; i += 7) {
+      if (dropCount >= 7) break;
       const seg = player.segments[i];
       this.spawnFood(seg.x1, seg.y1);
       dropCount++;
@@ -588,6 +800,7 @@ export class SnakeGame extends BaseMiniGame {
 
   render() {
     const { ctx, canvas } = this;
+    const now = performance.now();
     ctx.save();
     ctx.fillStyle = '#F4F4F0';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -597,29 +810,124 @@ export class SnakeGame extends BaseMiniGame {
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
 
+    // Saha Zemin Izgarası (Sade neo-brutalist doku)
+    ctx.strokeStyle = '#EBE7DF';
+    ctx.lineWidth = 1;
+    const step = 36;
+    ctx.beginPath();
+    for (let x = left + step; x < left + width; x += step) {
+      ctx.moveTo(x, top); ctx.lineTo(x, top + height);
+    }
+    for (let y = top + step; y < top + height; y += step) {
+      ctx.moveTo(left, y); ctx.lineTo(left + width, y);
+    }
+    ctx.stroke();
+
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
       renderCornerScores(ctx, { arena: this.arena, entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null) });
     }
 
+    // 1. ENGEL DUVARLARI
+    for (const w of this.walls) {
+      // 3D Gölge
+      ctx.fillStyle = '#1A1A1A';
+      ctx.fillRect(w.x + 4, w.y + 4, w.w, w.h);
+      // Ana Blok
+      ctx.fillStyle = '#E8E4DA';
+      ctx.fillRect(w.x, w.y, w.w, w.h);
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(w.x, w.y, w.w, w.h);
+
+      // Çapraz Uyarı Çizgileri
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(w.x, w.y, w.w, w.h);
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(26, 26, 26, 0.12)';
+      ctx.lineWidth = 4;
+      for (let ox = -w.h; ox < w.w + w.h; ox += 14) {
+        ctx.beginPath();
+        ctx.moveTo(w.x + ox, w.y);
+        ctx.lineTo(w.x + ox + w.h, w.y + w.h);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Saha Sınır Çizgisi
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
 
-    // Yemler
+    // 2. KÖŞE BUTONLARI (Alt katmanda yarı saydam neo-brutalist panel olarak çizilir)
+    this.uiButtons = [];
+    this.renderCornerControls(ctx);
+
+    // 3. YEMLER (Butonların ve sahanın üstünde parlar)
     for (const f of this.foods) {
-      ctx.fillStyle = '#1A1A1A';
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.size / 2, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#D99B26';
-      ctx.beginPath(); ctx.arc(f.x - 2, f.y - 2, f.size / 4, 0, Math.PI * 2); ctx.fill();
+      const pulse = 1 + Math.sin(now / 220 + f.pulse) * 0.08;
+      const r = (f.size / 2) * pulse;
+
+      // Zemin gölgesi
+      ctx.fillStyle = 'rgba(26, 26, 26, 0.25)';
+      ctx.beginPath();
+      ctx.arc(f.x + 2, f.y + 2, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (f.type === 'GOLDEN_STAR') {
+        // Altın Yıldız Meyvesi
+        ctx.fillStyle = '#FFDE59';
+        ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 2.5; ctx.stroke();
+        // Merkez parıltı
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '900 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('★', f.x, f.y);
+      } else if (f.type === 'TURBO_BERRY') {
+        // Turbo Berry (Enerji)
+        ctx.fillStyle = '#A259FF';
+        ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 2.5; ctx.stroke();
+        ctx.fillStyle = '#FFDE59';
+        ctx.font = '900 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('⚡', f.x, f.y);
+      } else {
+        // Standart Elma
+        ctx.fillStyle = '#D84727';
+        ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 2; ctx.stroke();
+        // Parlak nokta
+        ctx.fillStyle = '#FFF';
+        ctx.beginPath(); ctx.arc(f.x - r * 0.35, f.y - r * 0.35, r * 0.28, 0, Math.PI * 2); ctx.fill();
+        // Sap
+        ctx.strokeStyle = '#2F6A4F'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(f.x, f.y - r); ctx.lineTo(f.x + 2, f.y - r - 3); ctx.stroke();
+      }
     }
 
-    // Yılanlar
+    // 4. YILANLAR (Her zaman en üstte, kalın dış hat ve net gözler)
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
 
-      ctx.lineWidth = 8;
+      // Gövde Dış Hat (Siyah kontrast kenar)
+      ctx.lineWidth = 14;
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.beginPath();
+      if (player.segments.length > 0) {
+        ctx.moveTo(player.segments[0].x1, player.segments[0].y1);
+        for (const seg of player.segments) ctx.lineTo(seg.x2, seg.y2);
+      }
+      ctx.stroke();
+
+      // Gövde İçi (Oyuncu Rengi)
+      ctx.lineWidth = 9;
       ctx.strokeStyle = player.color;
       ctx.beginPath();
       if (player.segments.length > 0) {
@@ -628,18 +936,69 @@ export class SnakeGame extends BaseMiniGame {
       }
       ctx.stroke();
 
-      // Kafa (+ boost parlaması)
+      // Kafa (+ Boost Efekti)
+      const headR = player.isBoost ? 10 : 8.5;
+
+      // Boost Aura
       if (player.isBoost) {
         ctx.fillStyle = '#FFDE59';
-        ctx.beginPath(); ctx.arc(player.x, player.y, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(player.x, player.y, headR + 4, 0, Math.PI * 2); ctx.fill();
       }
+
+      // Kafa Dış Çember
+      ctx.fillStyle = '#1A1A1A';
+      ctx.beginPath(); ctx.arc(player.x, player.y, headR + 2, 0, Math.PI * 2); ctx.fill();
+
+      // Kafa Rengi
       ctx.fillStyle = player.color;
-      ctx.beginPath(); ctx.arc(player.x, player.y, 6, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#FFF';
-      ctx.beginPath(); ctx.arc(player.x + Math.cos(player.angle) * 3, player.y + Math.sin(player.angle) * 3, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(player.x, player.y, headR, 0, Math.PI * 2); ctx.fill();
+
+      // Çatallı Yılan Dili (Flicking tongue)
+      if (player.tongueTimer < 0.4) {
+        const tongueLen = 9;
+        const tx = player.x + Math.cos(player.angle) * (headR + tongueLen);
+        const ty = player.y + Math.sin(player.angle) * (headR + tongueLen);
+        ctx.strokeStyle = '#D84727';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(player.x + Math.cos(player.angle) * headR, player.y + Math.sin(player.angle) * headR);
+        ctx.lineTo(tx, ty);
+        ctx.stroke();
+      }
+
+      // Gözler (Harekete bakan canlı göz bebekleri)
+      const eyeOffsetAngle = 0.55;
+      const eyeDist = headR * 0.75;
+      const leftEyeX = player.x + Math.cos(player.angle - eyeOffsetAngle) * eyeDist;
+      const leftEyeY = player.y + Math.sin(player.angle - eyeOffsetAngle) * eyeDist;
+      const rightEyeX = player.x + Math.cos(player.angle + eyeOffsetAngle) * eyeDist;
+      const rightEyeY = player.y + Math.sin(player.angle + eyeOffsetAngle) * eyeDist;
+
+      // Göz Akı
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.arc(leftEyeX, leftEyeY, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(rightEyeX, rightEyeY, 3, 0, Math.PI * 2); ctx.fill();
+
+      // Göz Bebeği
+      const pupilDx = Math.cos(player.angle) * 1.2;
+      const pupilDy = Math.sin(player.angle) * 1.2;
+      ctx.fillStyle = '#1A1A1A';
+      ctx.beginPath(); ctx.arc(leftEyeX + pupilDx, leftEyeY + pupilDy, 1.6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(rightEyeX + pupilDx, rightEyeY + pupilDy, 1.6, 0, Math.PI * 2); ctx.fill();
+
+      // Baş Üstü Mini Boost Enerji Arkı
+      if (player.boostEnergy < 95) {
+        ctx.strokeStyle = player.boostLocked ? '#D84727' : '#FFDE59';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        const startA = -Math.PI / 2;
+        const endA = startA + (Math.PI * 2 * (player.boostEnergy / 100));
+        ctx.arc(player.x, player.y, headR + 6, startA, endA);
+        ctx.stroke();
+      }
     }
 
-    // Parçacık çizimi
+    // 5. PARÇACIKLAR
     for (const p of this.particles) {
       ctx.save();
       ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
@@ -650,9 +1009,8 @@ export class SnakeGame extends BaseMiniGame {
       ctx.restore();
     }
 
-    this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'SOL/SAĞ: YÖN VER • ÇİFT PARMAK: HIZLAN • DUVARA ÇARPMA', [
+      renderControlGuide(ctx, this.arena, '◀ SOL / SAĞ ▶ DÖNÜŞ • ⚡ BASILI TUTUP HIZLAN', [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -704,5 +1062,103 @@ export class SnakeGame extends BaseMiniGame {
     }
 
     ctx.restore();
+  }
+
+  renderCornerControls(ctx) {
+    if (this.state !== 'PLAYING') return;
+
+    const KEY_HINTS = ['WASD / SPACE', 'OKLAR / ENTER', 'IJKL / O', 'TFGH / B'];
+
+    for (let i = 0; i < 4; i++) {
+      const player = this.players[i];
+      const zones = this.getCornerButtonZones(i);
+      const isJoined = this.isSlotJoined(i);
+      const isTop = i === 1 || i === 2;
+
+      ctx.save();
+      const cx = zones.box.x + zones.box.w / 2;
+      const cy = zones.box.y + zones.box.h / 2;
+      ctx.translate(cx, cy);
+      if (isTop) {
+        ctx.rotate(Math.PI);
+      }
+
+      const halfW = zones.box.w / 2;
+      const halfH = zones.box.h / 2;
+      const wSteer = zones.box.w * 0.38;
+      const wBoost = zones.box.w * 0.24;
+
+      if (isJoined && player.slotType === 'human' && player.isAlive) {
+        const touching = this.cornerTouches[i] || { id: -1, action: null };
+        const isBoosting = player.isBoost;
+        const kb = this.keyboardInput(i);
+
+        // Arka Plan Hafif Saydam Kart Paneli (Oyun sahasını tıkamaz)
+        ctx.fillStyle = 'rgba(250, 247, 242, 0.78)';
+        ctx.fillRect(-halfW - 2, -halfH - 18, zones.box.w + 4, zones.box.h + 24);
+
+        // Oyuncu İsim ve Klavye İpucu Başlığı
+        ctx.fillStyle = player.color;
+        ctx.font = '900 12px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`${player.name} [${KEY_HINTS[i]}]`, 0, -halfH - 4);
+
+        // 1. SOL DÖNÜŞ BUTONU
+        const leftActive = touching.action === 'left' || (kb.steer < 0);
+        ctx.fillStyle = leftActive ? player.color : 'rgba(255, 255, 255, 0.88)';
+        ctx.fillRect(-halfW, -halfH, wSteer, zones.box.h);
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(-halfW, -halfH, wSteer, zones.box.h);
+
+        ctx.fillStyle = leftActive ? '#FFFFFF' : '#1A1A1A';
+        ctx.font = '900 13px "Space Grotesk", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('◄ SOL', -halfW + wSteer / 2, 0);
+
+        // 2. ⚡ BOOST (HIZLANMA) BUTONU
+        const boostActive = isBoosting || touching.action === 'boost' || kb.boost;
+        ctx.fillStyle = boostActive ? (player.boostLocked ? '#D84727' : '#FFDE59') : 'rgba(255, 255, 255, 0.88)';
+        ctx.fillRect(-halfW + wSteer, -halfH, wBoost, zones.box.h);
+        ctx.strokeRect(-halfW + wSteer, -halfH, wBoost, zones.box.h);
+
+        // Enerji Doluluk Çizgisi
+        const energyHeight = (player.boostEnergy / 100) * (zones.box.h - 4);
+        ctx.fillStyle = player.boostLocked ? 'rgba(216, 71, 39, 0.4)' : 'rgba(255, 222, 89, 0.5)';
+        ctx.fillRect(-halfW + wSteer + 2, halfH - 2 - energyHeight, wBoost - 4, energyHeight);
+
+        ctx.fillStyle = '#1A1A1A';
+        ctx.font = '900 13px "Space Grotesk", sans-serif';
+        ctx.fillText(player.boostLocked ? '🔥 KİLİT' : '⚡ HIZ', -halfW + wSteer + wBoost / 2, 0);
+
+        // 3. SAĞ DÖNÜŞ BUTONU
+        const rightActive = touching.action === 'right' || (kb.steer > 0);
+        ctx.fillStyle = rightActive ? player.color : 'rgba(255, 255, 255, 0.88)';
+        ctx.fillRect(-halfW + wSteer + wBoost, -halfH, wSteer, zones.box.h);
+        ctx.strokeRect(-halfW + wSteer + wBoost, -halfH, wSteer, zones.box.h);
+
+        ctx.fillStyle = rightActive ? '#FFFFFF' : '#1A1A1A';
+        ctx.font = '900 13px "Space Grotesk", sans-serif';
+        ctx.fillText('SAĞ ►', -halfW + wSteer + wBoost + wSteer / 2, 0);
+
+      } else if (this.state === 'PLAYING' && isJoined) {
+        // BOT Koltuğu
+        ctx.globalAlpha = 0.42;
+        ctx.strokeStyle = player.color;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(-halfW, -halfH, zones.box.w, zones.box.h);
+        ctx.setLineDash([]);
+        ctx.fillStyle = player.color;
+        ctx.font = '800 11px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${player.name} [BOT]`, 0, 0);
+      }
+
+      ctx.restore();
+    }
   }
 }

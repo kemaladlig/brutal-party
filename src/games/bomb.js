@@ -335,9 +335,9 @@ export class BombGame extends BaseMiniGame {
       return;
     }
 
-    // Lobide seçilmediyse haritayı döndür; seçildiyse kullanıcının seçimi kalır
+    // Lobide seçilmediyse haritayı rastgele seç; seçildiyse kullanıcının seçimi kalır
     if (!this.mapPickedInLobby) {
-      this.selectedMapIndex = (this.selectedMapIndex + 1) % MAP_PRESETS.length;
+      this.selectedMapIndex = Math.floor(Math.random() * MAP_PRESETS.length);
     }
     this.mapPickedInLobby = false;
     this.buildMapPillars();

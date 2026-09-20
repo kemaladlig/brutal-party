@@ -116,10 +116,15 @@ export const GAMEPAD_SCHEMAS = {
   },
 
   SNAKE: {
-    type: 'DPAD_BOOST',
-    boostColor: '#2F6A4F',
+    type: 'STEER_BOOST',
+    leftLabel: '◀ SOL',
+    rightLabel: 'SAĞ ▶',
     boostLabel: '⚡ HIZLAN',
     boostSub: 'BASILI TUT',
+    boostColor: '#2F6A4F',
+    steerAction: 'SNAKE_STEER',
+    boostStartAction: 'SNAKE_BOOST',
+    boostEndAction: 'SNAKE_BOOST_RELEASE',
   },
 
   LASER: {

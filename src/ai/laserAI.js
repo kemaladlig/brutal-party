@@ -84,11 +84,26 @@ export function updateLaserBotAI(game, bot, dt) {
     return;
   }
 
-  // --- Can azsa pickup'a yönel ---
+  // --- Pickup arama: yakında pickup varsa veya can/kalkan/silah lazımsa yönel ---
   let destX = null; let destY = null;
-  if (bot.hp < 3 && game.pickups.length > 0) {
-    const pk = game.pickups[0];
-    destX = pk.x; destY = pk.y;
+  if (game.pickups.length > 0) {
+    let bestPickup = null;
+    let bestScore = -Infinity;
+    for (const pk of game.pickups) {
+      const d = Math.hypot(pk.x - bot.x, pk.y - bot.y);
+      let score = 200 - d;
+      if (pk.type === 'HEAL' && bot.hp < 3) score += 300;
+      if (pk.type === 'SHIELD' && !bot.shield) score += 250;
+      if (pk.type === 'TRIPLE' && bot.tripleTimer <= 0) score += 200;
+      if (pk.type === 'FAST' && bot.fastTimer <= 0) score += 150;
+      if (score > bestScore) {
+        bestScore = score;
+        bestPickup = pk;
+      }
+    }
+    if (bestPickup && (bestScore > 100 || (bot.hp < 3 && bestPickup.type === 'HEAL') || (bestPickup.type === 'SHIELD' && !bot.shield))) {
+      destX = bestPickup.x; destY = bestPickup.y;
+    }
   }
 
   if (target) {

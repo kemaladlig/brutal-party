@@ -1,6 +1,4 @@
-// Brutal Snake bot zekâsı: ızgara-sorgulu ışın kaçınma + yem kovalama.
-// Curve'ün raycast'i buraya uymaz (game.segments düz dizisini okur;
-// SNAKE'te izler oyuncu başınadır) — o yüzden ızgara tabanlı yerel sürüm.
+// Brutal Snake bot zekâsı: ızgara-sorgulu ışın kaçınma + duvar algılama + yem önceliği.
 
 function normalizeAngle(a) {
   while (a > Math.PI) a -= Math.PI * 2;
@@ -19,13 +17,24 @@ function raycastFreeDistance(game, startX, startY, angle, maxDist, ownerIndex, n
     const rx = startX + Math.cos(angle) * dist;
     const ry = startY + Math.sin(angle) * dist;
 
-    if (rx <= left + 5 || rx >= right - 5 || ry <= top + 5 || ry >= bottom - 5) {
+    // Dış Sınırlar
+    if (rx <= left + 6 || rx >= right - 6 || ry <= top + 6 || ry >= bottom - 6) {
       return dist;
     }
 
+    // Harita Duvarları
+    if (game.walls) {
+      for (const w of game.walls) {
+        if (rx >= w.x - 4 && rx <= w.x + w.w + 4 && ry >= w.y - 4 && ry <= w.y + w.h + 4) {
+          return dist;
+        }
+      }
+    }
+
+    // Kuyruk Segmentleri
     const hit = game.forEachSegmentNear(rx, ry, 8, (seg) => {
       if (seg.isGap) return false;
-      if (seg.owner === ownerIndex && curTime - seg.createdAt < 380) {
+      if (seg.owner === ownerIndex && curTime - seg.createdAt < 340) {
         return false;
       }
       const minX = Math.min(seg.x1, seg.x2) - 4;
@@ -33,7 +42,7 @@ function raycastFreeDistance(game, startX, startY, angle, maxDist, ownerIndex, n
       const minY = Math.min(seg.y1, seg.y2) - 4;
       const maxY = Math.max(seg.y1, seg.y2) + 4;
       if (rx < minX || rx > maxX || ry < minY || ry > maxY) return false;
-      return game.distToSegmentSquared(rx, ry, seg.x1, seg.y1, seg.x2, seg.y2) < 24;
+      return game.distToSegmentSquared(rx, ry, seg.x1, seg.y1, seg.x2, seg.y2) < 26;
     });
     if (hit) return dist;
   }
@@ -44,39 +53,45 @@ function raycastFreeDistance(game, startX, startY, angle, maxDist, ownerIndex, n
 export function updateSnakeBotAI(game, bot, dt) {
   bot.botCheckTimer -= dt;
   if (bot.botCheckTimer > 0) return;
-  bot.botCheckTimer = 0.08;
+  bot.botCheckTimer = 0.06;
 
   const now = performance.now();
-  const maxDist = 140;
+  const maxDist = 150;
 
   const frontDist = raycastFreeDistance(game, bot.x, bot.y, bot.angle, maxDist, bot.index, now);
-  const leftDist = raycastFreeDistance(game, bot.x, bot.y, bot.angle - 0.6, maxDist, bot.index, now);
-  const rightDist = raycastFreeDistance(game, bot.x, bot.y, bot.angle + 0.6, maxDist, bot.index, now);
+  const leftDist = raycastFreeDistance(game, bot.x, bot.y, bot.angle - 0.55, maxDist, bot.index, now);
+  const rightDist = raycastFreeDistance(game, bot.x, bot.y, bot.angle + 0.55, maxDist, bot.index, now);
 
   let targetSteer = 0;
-  let bestDist = Infinity;
+  let bestScore = -Infinity;
   let targetFood = null;
 
+  // Yem Önceliği: Golden Star > Turbo Berry > Apple
   for (const food of game.foods) {
     const d = Math.hypot(food.x - bot.x, food.y - bot.y);
-    if (d < bestDist) {
-      bestDist = d;
+    let value = 100 - d;
+    if (food.type === 'GOLDEN_STAR') value += 80;
+    else if (food.type === 'TURBO_BERRY') value += 40;
+
+    if (value > bestScore) {
+      bestScore = value;
       targetFood = food;
     }
   }
 
-  if (targetFood && frontDist > 60) {
+  if (targetFood && frontDist > 65) {
     const angleToFood = Math.atan2(targetFood.y - bot.y, targetFood.x - bot.x);
     const diff = normalizeAngle(angleToFood - bot.angle);
-    if (Math.abs(diff) > 0.2) {
+    if (Math.abs(diff) > 0.15) {
       targetSteer = Math.sign(diff);
     }
   }
 
-  if (frontDist < 50) {
+  // Acil Kaçınma Manevrası
+  if (frontDist < 55) {
     targetSteer = leftDist > rightDist ? -1 : 1;
     bot.isBoost = false;
-  } else if (targetFood && bestDist < 100 && frontDist > 80) {
+  } else if (targetFood && bestScore > 40 && frontDist > 90 && !bot.boostLocked && bot.boostEnergy > 30) {
     bot.isBoost = true;
   } else {
     bot.isBoost = false;
