@@ -6,6 +6,7 @@ import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLo
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateNinjaBotAI } from '../ai/ninjaAI.js';
+import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const NINJA_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const NINJA_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -102,10 +103,30 @@ export class NinjaGame extends BaseMiniGame {
       { x: cx - bw * 0.35, y: cy - bw * 0.35, w: bw * 0.7, h: bw * 0.7 }
     );
 
-    // 2 adet ışık feneri (ışık halkasına giren ninjanın görünmezliği bozulur!)
+    // 2 adet dinamik devriye gezen ışık feneri (ışık konisi sürekli sahayı tarar)
     this.lanterns.push(
-      { x: cx, y: cy - bw * 1.25, radius: bw * 0.95 },
-      { x: cx, y: cy + bw * 1.25, radius: bw * 0.95 }
+      {
+        baseX: cx,
+        baseY: cy - bw * 1.05,
+        x: cx,
+        y: cy - bw * 1.05,
+        radius: bw * 0.95,
+        speed: 1.15,
+        phase: 0,
+        rangeX: bw * 1.55,
+        rangeY: bw * 0.35,
+      },
+      {
+        baseX: cx,
+        baseY: cy + bw * 1.05,
+        x: cx,
+        y: cy + bw * 1.05,
+        radius: bw * 0.95,
+        speed: 1.3,
+        phase: Math.PI,
+        rangeX: bw * 1.55,
+        rangeY: bw * 0.35,
+      }
     );
   }
 
@@ -386,6 +407,15 @@ export class NinjaGame extends BaseMiniGame {
 
     if (this.state !== 'PLAYING') return;
 
+    // Hareketli Devriye Fenerleri: Işık konisi sahada yumuşakça devriye gezer
+    const timeSec = now / 1000;
+    for (const lantern of this.lanterns) {
+      if (lantern.baseX !== undefined) {
+        lantern.x = lantern.baseX + Math.sin(timeSec * lantern.speed + lantern.phase) * lantern.rangeX;
+        lantern.y = lantern.baseY + Math.cos(timeSec * lantern.speed * 1.4 + lantern.phase) * lantern.rangeY;
+      }
+    }
+
     this.roundTime -= dt;
     if (this.roundTime <= 0) {
       const alivePlayers = this.players.filter((p) => p.isJoined && p.isAlive);
@@ -523,7 +553,6 @@ export class NinjaGame extends BaseMiniGame {
           if (this.scores[attacker.index] >= this.targetScore) {
             this.matchWinner = attacker;
           }
-          this.checkRoundWinner();
           break;
         }
       }
@@ -689,37 +718,17 @@ export class NinjaGame extends BaseMiniGame {
         ctx.stroke();
       }
 
-      // Bandana kurdelesi (arka kuyruk)
-      ctx.fillStyle = player.color;
-      ctx.fillRect(-NINJA_RADIUS - 8, -4, 9, 3.5);
-      ctx.fillRect(-NINJA_RADIUS - 6, 2, 7, 3.5);
-
-      // Ana gövde / Kukuleta (Hood)
-      ctx.fillStyle = '#1A1A1A';
-      ctx.beginPath();
-      ctx.arc(0, 0, NINJA_RADIUS, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = '#111';
-      ctx.stroke();
-
-      // Kafa Bandı (Oyuncu renginde headband)
-      ctx.fillStyle = player.color;
-      ctx.fillRect(-2, -NINJA_RADIUS + 2, 8, NINJA_RADIUS * 2 - 4);
-
-      // Göz Maskesi Aralığı
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(5, -9, 8, 18);
-
-      // Parlayan Ninja Gözleri
-      ctx.fillStyle = '#FFFFFF';
-      ctx.beginPath(); ctx.arc(9, -4, 2.2, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(9, 4, 2.2, 0, Math.PI * 2); ctx.fill();
-
-      // Gözbebekleri (ileri bakan keskin bakış)
-      ctx.fillStyle = '#1A1A1A';
-      ctx.beginPath(); ctx.arc(10, -4, 1.2, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(10, 4, 1.2, 0, Math.PI * 2); ctx.fill();
+      drawBrutalAvatar(ctx, 0, 0, NINJA_RADIUS, {
+        color: player.color,
+        slotIndex: player.index,
+        facingAngle: 0, // already translated and rotated to player.angle
+        label: `P${player.index + 1}`,
+        expression: player.strikeTimer > 0 ? 'angry' : 'normal',
+        accessory: 'headband',
+        showPointer: true,
+        borderColor: '#1A1A1A',
+        borderWidth: 2.5,
+      });
 
       ctx.restore();
     }

@@ -21,6 +21,7 @@ import { renderTopPill, renderCornerScores, renderArenaWatermarkTimer } from '..
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCrownBotAI } from '../ai/crownAI.js';
+import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const CROWN_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CROWN_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -1835,18 +1836,22 @@ export class CrownGame extends BaseMiniGame {
       ctx.stroke();
     }
 
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-    ctx.beginPath();
-    ctx.arc(x + 3, y + 4, r, 0, Math.PI * 2);
-    ctx.fill();
+    let currentExp = 'normal';
+    if (p.stumbleTimer > 0) currentExp = 'dizzy';
+    else if (p.isTackling) currentExp = 'angry';
+    else if (p.hasCrown) currentExp = 'excited';
 
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = p.isTackling ? '#FFFFFF' : '#1A1A1A';
-    ctx.lineWidth = p.isTackling ? 4.5 : 3;
-    ctx.stroke();
+    drawBrutalAvatar(ctx, x, y, r, {
+      color: color,
+      slotIndex: p.index,
+      facingAngle: facingAngle,
+      label: `P${p.index + 1}`,
+      expression: currentExp,
+      accessory: p.hasCrown ? 'crown' : undefined,
+      showPointer: true,
+      borderColor: p.isTackling ? '#FFFFFF' : '#1A1A1A',
+      borderWidth: p.isTackling ? 4.5 : 3,
+    });
 
     // Tackle readiness / cooldown ring indicator
     if (p.isAlive) {
@@ -1903,23 +1908,6 @@ export class CrownGame extends BaseMiniGame {
       ctx.textBaseline = 'middle';
       ctx.fillText(`👑 ${remain.toFixed(1)}s`, x, badgeY + badgeH / 2);
     }
-
-    const eyeX = x + Math.cos(facingAngle) * (r * 0.48);
-    const eyeY = y + Math.sin(facingAngle) * (r * 0.48);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath();
-    ctx.arc(eyeX, eyeY, r * 0.28, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#1A1A1A';
-    ctx.beginPath();
-    ctx.arc(eyeX + Math.cos(facingAngle) * 2, eyeY + Math.sin(facingAngle) * 2, r * 0.14, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#1A1A1A';
-    ctx.font = '900 13px "JetBrains Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(`P${p.index + 1}`, x, y + r + 5);
 
     ctx.restore();
   }

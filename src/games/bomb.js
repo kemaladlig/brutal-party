@@ -26,6 +26,7 @@ import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
+import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const BOMB_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const BOMB_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -1269,48 +1270,27 @@ export class BombGame extends BaseMiniGame {
         ctx.stroke();
       }
 
-      // Runner Body Shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-      ctx.beginPath();
-      ctx.arc(3, 3, player.radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Runner Circle Face
-      ctx.fillStyle = player.color;
-      ctx.beginPath();
-      ctx.arc(0, 0, player.radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = player.dashTimer > 0 ? '#FFFFFF' : '#1C1C1A';
-      ctx.lineWidth = player.dashTimer > 0 ? 4.5 : 3;
-      ctx.stroke();
-
-      // Directional Heading Indicator Pointer (extending beyond body)
-      ctx.save();
-      ctx.rotate(player.facingAngle);
-      ctx.fillStyle = isCarrier ? '#FFDE59' : '#FFFFFF';
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(player.radius + 14, 0);
-      ctx.lineTo(player.radius + 2, -6);
-      ctx.lineTo(player.radius + 5, 0);
-      ctx.lineTo(player.radius + 2, 6);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
-
-      // Player Label
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 13px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
       const customName = (player.name && player.name !== BOMB_NAMES[player.index])
         ? ` • ${player.name.slice(0, 6)}`
         : '';
       const pLabel = `P${player.index + 1}${customName}`;
-      ctx.fillText(pLabel, 0, 0);
+
+      let currentExp = 'normal';
+      if (isCarrier) currentExp = 'panic';
+      else if (player.stumbleTimer > 0) currentExp = 'dizzy';
+      else if (player.dashTimer > 0) currentExp = 'angry';
+      else if (player.turboTimer > 0) currentExp = 'wink';
+
+      drawBrutalAvatar(ctx, 0, 0, player.radius, {
+        color: player.color,
+        slotIndex: player.index,
+        facingAngle: player.facingAngle,
+        label: pLabel,
+        expression: currentExp,
+        showPointer: true,
+        borderColor: player.dashTimer > 0 ? '#FFFFFF' : '#1C1C1A',
+        borderWidth: player.dashTimer > 0 ? 4.5 : 3,
+      });
 
       // --- Ticking Bomb Visuals for Carrier ---
       if (isCarrier) {

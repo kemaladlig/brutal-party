@@ -7,6 +7,7 @@ import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLo
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateSnakeBotAI } from '../ai/snakeAI.js';
+import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const SNAKE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const SNAKE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -945,14 +946,6 @@ export class SnakeGame extends BaseMiniGame {
         ctx.beginPath(); ctx.arc(player.x, player.y, headR + 4, 0, Math.PI * 2); ctx.fill();
       }
 
-      // Kafa Dış Çember
-      ctx.fillStyle = '#1A1A1A';
-      ctx.beginPath(); ctx.arc(player.x, player.y, headR + 2, 0, Math.PI * 2); ctx.fill();
-
-      // Kafa Rengi
-      ctx.fillStyle = player.color;
-      ctx.beginPath(); ctx.arc(player.x, player.y, headR, 0, Math.PI * 2); ctx.fill();
-
       // Çatallı Yılan Dili (Flicking tongue)
       if (player.tongueTimer < 0.4) {
         const tongueLen = 9;
@@ -966,25 +959,21 @@ export class SnakeGame extends BaseMiniGame {
         ctx.stroke();
       }
 
-      // Gözler (Harekete bakan canlı göz bebekleri)
-      const eyeOffsetAngle = 0.55;
-      const eyeDist = headR * 0.75;
-      const leftEyeX = player.x + Math.cos(player.angle - eyeOffsetAngle) * eyeDist;
-      const leftEyeY = player.y + Math.sin(player.angle - eyeOffsetAngle) * eyeDist;
-      const rightEyeX = player.x + Math.cos(player.angle + eyeOffsetAngle) * eyeDist;
-      const rightEyeY = player.y + Math.sin(player.angle + eyeOffsetAngle) * eyeDist;
+      let exp = 'normal';
+      if (player.isBoosting) exp = 'excited';
+      else if (player.boostLocked) exp = 'panic';
 
-      // Göz Akı
-      ctx.fillStyle = '#FFFFFF';
-      ctx.beginPath(); ctx.arc(leftEyeX, leftEyeY, 3, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(rightEyeX, rightEyeY, 3, 0, Math.PI * 2); ctx.fill();
-
-      // Göz Bebeği
-      const pupilDx = Math.cos(player.angle) * 1.2;
-      const pupilDy = Math.sin(player.angle) * 1.2;
-      ctx.fillStyle = '#1A1A1A';
-      ctx.beginPath(); ctx.arc(leftEyeX + pupilDx, leftEyeY + pupilDy, 1.6, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(rightEyeX + pupilDx, rightEyeY + pupilDy, 1.6, 0, Math.PI * 2); ctx.fill();
+      drawBrutalAvatar(ctx, player.x, player.y, headR, {
+        color: player.color,
+        slotIndex: player.index,
+        facingAngle: player.angle,
+        label: `P${player.index + 1}`,
+        expression: exp,
+        showPointer: true,
+        borderColor: '#1A1A1A',
+        borderWidth: 2.5,
+        shadowOffset: 2,
+      });
 
       // Baş Üstü Mini Boost Enerji Arkı
       if (player.boostEnergy < 95) {

@@ -23,6 +23,7 @@ import {
 } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateZoneBotAI } from '../ai/zoneAI.js';
+import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const ZONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ZONE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -33,6 +34,7 @@ export const ZONE_RELIC_DEFS = {
     id: 'FLASH',
     name: 'FLASH CORE',
     badge: '⚡',
+    icon: '⚡',
     title: 'HIZ KORU',
     color: '#FFD122',
     glowColor: 'rgba(255, 209, 34, 0.45)',
@@ -42,6 +44,7 @@ export const ZONE_RELIC_DEFS = {
     id: 'SEISMIC',
     name: 'SEISMIC PULSE',
     badge: '💣',
+    icon: '💣',
     title: 'SİSMİK DARBE',
     color: '#FF473A',
     glowColor: 'rgba(255, 71, 58, 0.45)',
@@ -1364,10 +1367,10 @@ export class ZoneGame extends BaseMiniGame {
 
       // İç İkon
       ctx.fillStyle = '#1C1C1A';
-      ctx.font = '900 13px "Space Grotesk", sans-serif';
+      ctx.font = '900 15px "Space Grotesk", "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(def.icon, 0, 1);
+      ctx.fillText(def?.icon || def?.badge || '★', 0, 1);
 
       ctx.restore();
     }
@@ -1472,53 +1475,40 @@ export class ZoneGame extends BaseMiniGame {
         ctx.fillText('👑', 0, -p.radius - 26);
       }
 
-      // Gölge + gövde
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.beginPath();
-      ctx.arc(3, 3, p.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = p.stunTimer > 0 ? '#48CAE4' : '#1C1C1A';
-      ctx.lineWidth = 3;
-      ctx.stroke();
+      let currentExp = 'normal';
+      if (p.stunTimer > 0) currentExp = 'dizzy';
+      else if (p.trail.length >= ZONE_TUNING.TRAIL_HAZARD) currentExp = 'panic';
+      else if (p.relicTimer > 0) currentExp = 'excited';
 
-      // Yön oku
-      ctx.save();
-      ctx.rotate(p.heading);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(p.radius + 10, 0);
-      ctx.lineTo(p.radius + 1, -5);
-      ctx.lineTo(p.radius + 3.5, 0);
-      ctx.lineTo(p.radius + 1, 5);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
+      drawBrutalAvatar(ctx, 0, 0, p.radius, {
+        color: p.color,
+        slotIndex: p.index,
+        facingAngle: p.heading,
+        label: `P${p.index + 1}`,
+        expression: currentExp,
+        showPointer: true,
+        borderColor: p.stunTimer > 0 ? '#48CAE4' : '#1C1C1A',
+        borderWidth: 3,
+      });
 
       // İsim + canlı % plakası
-      const label = `${p.index + 1} • %${this.pct[p.index]}`;
+      const label = `P${p.index + 1} • %${this.pct[p.index]}`;
       ctx.font = '900 11px "Space Grotesk", sans-serif';
       const tw = ctx.measureText(label).width + 12;
       ctx.fillStyle = '#1C1C1A';
-      ctx.fillRect(-tw / 2, p.radius + 4, tw, 18);
+      ctx.fillRect(-tw / 2, p.radius + 6, tw, 18);
       ctx.fillStyle = '#FFFFFF';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(label, 0, p.radius + 13);
+      ctx.fillText(label, 0, p.radius + 15);
       if (p.stunTimer > 0) {
         ctx.fillStyle = '#48CAE4';
         ctx.font = '900 10px "JetBrains Mono", monospace';
-        ctx.fillText('DONDU', 0, p.radius + 30);
+        ctx.fillText('DONDU', 0, p.radius + 32);
       } else if (p.trail.length >= ZONE_TUNING.TRAIL_HAZARD) {
         ctx.fillStyle = '#D84727';
         ctx.font = '900 10px "JetBrains Mono", monospace';
-        ctx.fillText('TEHLİKE!', 0, p.radius + 30);
+        ctx.fillText('TEHLİKE!', 0, p.radius + 32);
       }
 
       ctx.restore();

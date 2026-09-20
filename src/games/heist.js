@@ -23,6 +23,7 @@ import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateHeistBotAI } from '../ai/heistAI.js';
+import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const HEIST_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const HEIST_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -1459,26 +1460,9 @@ export class HeistGame extends BaseMiniGame {
         ctx.stroke();
       }
 
-      // Shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-      ctx.beginPath();
-      ctx.arc(3, 3, player.radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Body Circle
-      ctx.fillStyle = player.color;
-      ctx.beginPath();
-      ctx.arc(0, 0, player.radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = player.isTackling ? '#FFDE59' : '#1C1C1A';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-
       // 1. Forward Tactical Light Beam (Flashlight Cone)
       ctx.save();
       ctx.rotate(player.facingAngle);
-
       const coneGrad = ctx.createRadialGradient(0, 0, player.radius, 0, 0, player.radius + 36);
       coneGrad.addColorStop(0, `${player.color}88`);
       coneGrad.addColorStop(1, `${player.color}00`);
@@ -1488,31 +1472,29 @@ export class HeistGame extends BaseMiniGame {
       ctx.arc(0, 0, player.radius + 36, -0.42, 0.42);
       ctx.closePath();
       ctx.fill();
-
-      // 2. Prominent Sharp Heading Pointer Arrow (extending beyond body)
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(player.radius + 14, 0);
-      ctx.lineTo(player.radius + 2, -6);
-      ctx.lineTo(player.radius + 5, 0);
-      ctx.lineTo(player.radius + 2, 6);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
       ctx.restore();
 
-      // Player Name
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 13px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
       const customName = (player.name && player.name !== HEIST_NAMES[player.index])
         ? ` • ${player.name.slice(0, 6)}`
         : '';
       const pLabel = `P${player.index + 1}${customName}`;
-      ctx.fillText(pLabel, 0, 0);
+
+      let currentExp = 'normal';
+      if (player.stumbleTimer > 0) currentExp = 'dizzy';
+      else if (player.isTackling) currentExp = 'angry';
+      else if (player.carriedGold >= 5) currentExp = 'excited';
+      else if (player.carriedGold > 0) currentExp = 'wink';
+
+      drawBrutalAvatar(ctx, 0, 0, player.radius, {
+        color: player.color,
+        slotIndex: player.index,
+        facingAngle: player.facingAngle,
+        label: pLabel,
+        expression: currentExp,
+        showPointer: true,
+        borderColor: player.isTackling ? '#FFDE59' : '#1C1C1A',
+        borderWidth: player.isTackling ? 4.5 : 3,
+      });
 
       // Taşınan ganimet: miktara göre büyüyen yığın (yük = gösteriş)
       if (player.carriedGold > 0) {

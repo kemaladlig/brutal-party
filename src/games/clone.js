@@ -7,6 +7,7 @@ import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLo
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCloneBotAI } from '../ai/cloneAI.js';
+import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const CLONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CLONE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -779,33 +780,19 @@ export class CloneGame extends BaseMiniGame {
       ctx.globalAlpha = 1.0;
     }
 
-    ctx.rotate(angle);
+    let exp = 'normal';
+    if (isSlowed) exp = 'dizzy';
+    else if (isDashing) exp = 'angry';
+    else if (taskProgress > 0) exp = 'wink';
 
-    // RPG Pelerin / Gövde
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(0, 0, CLONE_RADIUS, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.stroke();
-
-    // Başlık / Kukuleta içi
-    ctx.fillStyle = '#1A1A1A';
-    ctx.beginPath();
-    ctx.arc(3, 0, 7, -Math.PI / 2, Math.PI / 2);
-    ctx.fill();
-
-    // Minik parlayan gözler / yön işareti
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath();
-    ctx.arc(5, -2, 2, 0, Math.PI * 2);
-    ctx.arc(5, 2, 2, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Asa / Hançer Ucu
-    ctx.fillStyle = '#D99B26';
-    ctx.fillRect(8, -2, 6, 4);
+    drawBrutalAvatar(ctx, 0, 0, CLONE_RADIUS, {
+      color: color,
+      facingAngle: angle,
+      expression: exp,
+      showPointer: true,
+      borderColor: '#1A1A1A',
+      borderWidth: 2.5,
+    });
 
     ctx.restore();
   }

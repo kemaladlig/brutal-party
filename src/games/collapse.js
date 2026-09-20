@@ -7,6 +7,7 @@ import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLo
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCollapseBotAI } from '../ai/collapseAI.js';
+import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const COLLAPSE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const COLLAPSE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -928,17 +929,15 @@ export class CollapseGame extends BaseMiniGame {
         ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.stroke();
       }
 
-      ctx.fillStyle = player.color;
-      ctx.beginPath(); ctx.arc(0, 0, 9.5, 0, Math.PI * 2); ctx.fill();
-      ctx.lineWidth = 2.5; ctx.strokeStyle = '#1A1A1A'; ctx.stroke();
-
-      // Gözler
-      ctx.fillStyle = '#FFFFFF';
-      ctx.beginPath(); ctx.arc(-3, -2, 2.8, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(3, -2, 2.8, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#1A1A1A';
-      ctx.beginPath(); ctx.arc(-3, -2, 1.4, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(3, -2, 1.4, 0, Math.PI * 2); ctx.fill();
+      drawBrutalAvatar(ctx, 0, 0, 9.5, {
+        color: player.color,
+        slotIndex: player.index,
+        label: `P${player.index + 1}`,
+        expression: isJumping ? 'excited' : (player.superJumpTimer > 0 ? 'wink' : 'normal'),
+        showPointer: false,
+        borderWidth: 2.5,
+        shadowOffset: 2,
+      });
 
       ctx.restore();
     }

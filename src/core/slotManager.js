@@ -1,4 +1,6 @@
 // Slot Manager: Host Player Slots State, UI Sync, Engine Slot & Score Mapping
+import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { getSlotCustomization } from './customizationManager.js';
 
 export const hostPlayerSlots = [null, null, null, null];
 
@@ -24,6 +26,42 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
 
   const nameEl = slotEl.querySelector('.slot-name');
   const botBtn = slotEl.querySelector('.slot-bot-btn');
+  const slotCanvas = document.getElementById(`slot-canvas-p${slotIndex + 1}`);
+
+  if (slotCanvas) {
+    const ctx = slotCanvas.getContext('2d');
+    ctx.clearRect(0, 0, slotCanvas.width, slotCanvas.height);
+    if (isConnected) {
+      if (kind === 'bot') {
+        drawBrutalAvatar(ctx, 17, 17, 13, {
+          color: '#8E8E93',
+          expression: 'CYBORG',
+          accessory: 'NONE',
+          pattern: 'SOLID',
+          showPointer: false,
+          borderWidth: 2,
+          shadowOffset: 1.5,
+        });
+      } else {
+        drawBrutalAvatar(ctx, 17, 17, 13, {
+          slotIndex,
+          showPointer: false,
+          borderWidth: 2,
+          shadowOffset: 1.5,
+        });
+      }
+    } else {
+      // Boş yuvarlak kesikli sınır
+      ctx.strokeStyle = '#C8C3BA';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.arc(17, 17, 12, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
   if (isConnected) {
     hostPlayerSlots[slotIndex] = { name, isReady, kind };
     slotEl.classList.add('connected');
@@ -329,3 +367,21 @@ export function swapEngineSlots(engine, currentMode, isHosting, slotA, slotB) {
     syncSlotsToEngine(engine, currentMode, isHosting);
   }
 }
+
+export function refreshAllHostSlots() {
+  for (let i = 0; i < 4; i++) {
+    const slot = hostPlayerSlots[i];
+    if (slot) {
+      updateHostSlot(i, true, slot.name, slot.isReady, slot.kind);
+    } else {
+      updateHostSlot(i, false);
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('brutal_customization_changed', () => {
+    refreshAllHostSlots();
+  });
+}
+

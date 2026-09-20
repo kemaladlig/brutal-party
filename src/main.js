@@ -23,6 +23,7 @@ import {
 
 import { initToastAndInstall, showInstallToast } from './ui/toast.js';
 import { UI_COLORS, uiFont } from './ui/tokens.js';
+import { openCustomizeModal, initMenuAvatarCard } from './ui/customizeModal.js';
 import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, isBotEkleEnabled } from './core/slotManager.js';
 import {
   initPauseModal,
@@ -782,6 +783,26 @@ initPauseModal({
 
 // Menu Card Tap Listeners (buton id kuralı: btn-select-<lowercase mode>)
 btnHeroCreateRoom?.addEventListener('click', () => openHostLobby('PONG'));
+addTapListener(document.getElementById('btn-menu-customize'), () => openCustomizeModal(0));
+initMenuAvatarCard();
+
+// Kategori Filtre Çipleri
+const categoryTabs = document.getElementById('menu-category-tabs');
+categoryTabs?.addEventListener('click', (e) => {
+  const chip = e.target.closest('.category-filter-chip');
+  if (!chip) return;
+  const filter = chip.dataset.filter || 'all';
+  categoryTabs.querySelectorAll('.category-filter-chip').forEach((c) => c.classList.toggle('active', c === chip));
+  const cards = document.querySelectorAll('#menu-games-grid .game-card-btn');
+  cards.forEach((card) => {
+    if (filter === 'all' || card.dataset.category === filter) {
+      card.classList.remove('filtered-out');
+    } else {
+      card.classList.add('filtered-out');
+    }
+  });
+});
+
 for (const mode of GAME_ORDER) {
   addTapListener(document.getElementById(`btn-select-${mode.toLowerCase()}`), () => handleGameCardClick(mode));
 }
@@ -967,4 +988,5 @@ function loop(timestamp) {
 // Initial Setup
 resizeCanvas();
 setGameMode('MENU');
+refreshHostSlotCards();
 requestAnimationFrame(loop);

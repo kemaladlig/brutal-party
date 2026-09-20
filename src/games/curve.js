@@ -182,6 +182,9 @@ export class CurveGame extends BaseMiniGame {
         ghostTimer: 0,
         turboTimer: 0,
         confusedTimer: 0,
+        shrinkTimer: 0,
+        thickTimer: 0,
+        freezeTimer: 0,
         botCheckTimer: 0,
         botSteer: 0,
         botTurnCommitment: 0,
@@ -199,6 +202,7 @@ export class CurveGame extends BaseMiniGame {
     this.segGridDirty = false;
     this.particles = [];
     this.pickups = [];
+    this.floatingTexts = [];
     this.cornerTouches = [
       { id: -1, action: null },
       { id: -1, action: null },
@@ -228,7 +232,8 @@ export class CurveGame extends BaseMiniGame {
     this.segGridDirty = false;
     this.particles = [];
     this.pickups = [];
-    this.pickupSpawnTimer = 7.0;
+    this.floatingTexts = [];
+    this.pickupSpawnTimer = 5.5;
     this.roundWinner = null;
     this.spawnIntroTimer = 1.8;
     playStart();
@@ -261,6 +266,9 @@ export class CurveGame extends BaseMiniGame {
       p.ghostTimer = 0;
       p.turboTimer = 0;
       p.confusedTimer = 0;
+      p.shrinkTimer = 0;
+      p.thickTimer = 0;
+      p.freezeTimer = 0;
       p.botCheckTimer = 0;
       p.botSteer = 0;
       p.botTurnCommitment = 0;
@@ -410,9 +418,9 @@ export class CurveGame extends BaseMiniGame {
 
   spawnPickup() {
     const { left, top, right, bottom } = this.arena;
-    const types = ['SCISSORS', 'GHOST', 'TURBO', 'INVERT'];
+    const types = ['SCISSORS', 'GHOST', 'TURBO', 'INVERT', 'SHRINK', 'FREEZE', 'BOMB', 'THICK'];
     const type = types[Math.floor(Math.random() * types.length)];
-    const size = 22;
+    const size = 24;
 
     const px = left + 45 + Math.random() * (right - left - 90);
     const py = top + 45 + Math.random() * (bottom - top - 90);
@@ -423,11 +431,60 @@ export class CurveGame extends BaseMiniGame {
       size,
       type,
       life: 14.0,
+      phase: Math.random() * Math.PI * 2,
     });
   }
 
   addTrauma(amount) {
     this.trauma = Math.min(1.0, this.trauma + amount);
+  }
+
+  spawnFloatingText(x, y, text, color) {
+    if (!this.floatingTexts) this.floatingTexts = [];
+    this.floatingTexts.push({
+      x,
+      y,
+      text,
+      color,
+      life: 1.2,
+      maxLife: 1.2,
+    });
+  }
+
+  spawnBombBlast(x, y) {
+    playExplosion();
+    this.addTrauma(0.35);
+
+    // 70px yarıçapındaki segmentleri sil
+    const radiusSq = 70 * 70;
+    let removed = false;
+    for (let i = this.segments.length - 1; i >= 0; i--) {
+      const s = this.segments[i];
+      const distSq = this.distToSegmentSquared(x, y, s.x1, s.y1, s.x2, s.y2);
+      if (distSq < radiusSq) {
+        this.segments.splice(i, 1);
+        removed = true;
+      }
+    }
+    if (removed) {
+      this.segGridDirty = true;
+    }
+
+    // Patlama parçacıkları
+    for (let i = 0; i < 28; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 40 + Math.random() * 150;
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0.6,
+        maxLife: 0.6,
+        size: 3 + Math.random() * 5,
+        color: i % 2 === 0 ? '#FFD122' : '#FF473A',
+      });
+    }
   }
 
   update(now) {
@@ -456,9 +513,9 @@ export class CurveGame extends BaseMiniGame {
     if (this.state === 'PLAYING') {
       // Pickups timer
       this.pickupSpawnTimer -= dt;
-      if (this.pickupSpawnTimer <= 0 && this.pickups.length < 2) {
+      if (this.pickupSpawnTimer <= 0 && this.pickups.length < 3) {
         this.spawnPickup();
-        this.pickupSpawnTimer = 9.0 + Math.random() * 4.0;
+        this.pickupSpawnTimer = 6.5 + Math.random() * 3.5;
       }
 
       // Update pickups
@@ -477,6 +534,9 @@ export class CurveGame extends BaseMiniGame {
         if (player.ghostTimer > 0) player.ghostTimer = Math.max(0, player.ghostTimer - dt);
         if (player.turboTimer > 0) player.turboTimer = Math.max(0, player.turboTimer - dt);
         if (player.confusedTimer > 0) player.confusedTimer = Math.max(0, player.confusedTimer - dt);
+        if (player.shrinkTimer > 0) player.shrinkTimer = Math.max(0, player.shrinkTimer - dt);
+        if (player.thickTimer > 0) player.thickTimer = Math.max(0, player.thickTimer - dt);
+        if (player.freezeTimer > 0) player.freezeTimer = Math.max(0, player.freezeTimer - dt);
 
         // Gap Cycle Management
         if (player.isGap) {
@@ -512,7 +572,11 @@ export class CurveGame extends BaseMiniGame {
         const currentTurn = player.turnSpeed * (player.confusedTimer > 0 ? -1 : 1);
         player.angle += player.steer * currentTurn * dt;
 
-        const currentSpeed = player.turboTimer > 0 ? player.speed * 1.5 : player.speed;
+        let speedMult = 1.0;
+        if (player.turboTimer > 0) speedMult *= 1.5;
+        if (player.freezeTimer > 0) speedMult *= 0.55;
+
+        const currentSpeed = player.speed * speedMult;
         player.prevX = player.x;
         player.prevY = player.y;
         player.x += Math.cos(player.angle) * currentSpeed * dt;
@@ -527,6 +591,8 @@ export class CurveGame extends BaseMiniGame {
           isGap: player.isGap,
           owner: player.index,
           color: player.color,
+          shrink: player.shrinkTimer > 0,
+          thick: player.thickTimer > 0,
           createdAt: performance.now(),
           _qstamp: 0,
         };
@@ -540,7 +606,7 @@ export class CurveGame extends BaseMiniGame {
         // Check Pickup Collision
         for (let pIdx = this.pickups.length - 1; pIdx >= 0; pIdx--) {
           const item = this.pickups[pIdx];
-          if (Math.hypot(player.x - item.x, player.y - item.y) < item.size * 0.8 + 4) {
+          if (Math.hypot(player.x - item.x, player.y - item.y) < item.size * 0.8 + 6) {
             this.applyPickup(player, item);
             this.pickups.splice(pIdx, 1);
             break;
@@ -557,6 +623,18 @@ export class CurveGame extends BaseMiniGame {
       const alivePlayers = this.players.filter((p) => p.isJoined && p.isAlive);
       if (alivePlayers.length <= 1) {
         this.handleRoundEnd(alivePlayers.length === 1 ? alivePlayers[0] : null);
+      }
+    }
+
+    // Update Floating Texts
+    if (this.floatingTexts) {
+      for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+        const ft = this.floatingTexts[i];
+        ft.y -= dt * 24;
+        ft.life -= dt;
+        if (ft.life <= 0) {
+          this.floatingTexts.splice(i, 1);
+        }
       }
     }
 
@@ -588,18 +666,39 @@ export class CurveGame extends BaseMiniGame {
           if (removed >= toRemove) break;
         }
       }
-      // Izgara indeksleri kaydı — bir sonraki sorguda tembel yeniden kurulum
       this.segGridDirty = true;
+      this.spawnFloatingText(player.x, player.y - 14, '✂️ İZİ SİL!', player.color);
     } else if (item.type === 'GHOST') {
-      player.ghostTimer = 3.5;
+      player.ghostTimer = 4.0;
+      this.spawnFloatingText(player.x, player.y - 14, '👻 HAYALET!', '#70E000');
     } else if (item.type === 'TURBO') {
-      player.turboTimer = 4.0;
+      player.turboTimer = 4.5;
+      this.spawnFloatingText(player.x, player.y - 14, '⚡ TURBO!', '#FFD122');
     } else if (item.type === 'INVERT') {
       this.players.forEach((p) => {
         if (p.index !== player.index && p.isJoined && p.isAlive) {
-          p.confusedTimer = 3.5;
+          p.confusedTimer = 4.0;
+          this.spawnFloatingText(p.x, p.y - 14, '🌀 TERS YÖN!', '#FF473A');
         }
       });
+      this.spawnFloatingText(player.x, player.y - 14, '🌀 TERS ÇEVİR!', player.color);
+    } else if (item.type === 'SHRINK') {
+      player.shrinkTimer = 6.0;
+      this.spawnFloatingText(player.x, player.y - 14, '🔬 MİNİ BOY!', '#00B4D8');
+    } else if (item.type === 'FREEZE') {
+      this.players.forEach((p) => {
+        if (p.index !== player.index && p.isJoined && p.isAlive) {
+          p.freezeTimer = 2.5;
+          this.spawnFloatingText(p.x, p.y - 14, '❄️ DONDU!', '#90E0EF');
+        }
+      });
+      this.spawnFloatingText(player.x, player.y - 14, '❄️ BUZ ÇAĞI!', player.color);
+    } else if (item.type === 'BOMB') {
+      this.spawnBombBlast(player.x, player.y);
+      this.spawnFloatingText(player.x, player.y - 14, '💣 PATLAMA!', '#FF473A');
+    } else if (item.type === 'THICK') {
+      player.thickTimer = 4.5;
+      this.spawnFloatingText(player.x, player.y - 14, '🚧 BARİKAT!', '#D99B26');
     }
   }
 
@@ -661,7 +760,7 @@ export class CurveGame extends BaseMiniGame {
     if (player.ghostTimer > 0) return false;
 
     const { left, right, top, bottom } = this.arena;
-    const r = 3;
+    const r = player.shrinkTimer > 0 ? 2.0 : 3.0;
 
     // 1. Boundary Wall Collision
     if (player.x - r <= left || player.x + r >= right || player.y - r <= top || player.y + r >= bottom) {
@@ -674,20 +773,23 @@ export class CurveGame extends BaseMiniGame {
     const px = player.x;
     const py = player.y;
     const now = performance.now();
-    const hitR = (r + 1.8) * (r + 1.8);
     const game = this;
 
-    return this.forEachSegmentNear(px, py, 12, (seg) => {
+    return this.forEachSegmentNear(px, py, 14, (seg) => {
       if (seg.isGap) return false;
 
       if (seg.owner === player.index && now - seg.createdAt < 220) {
         return false;
       }
 
-      const minX = Math.min(seg.x1, seg.x2) - r;
-      const maxX = Math.max(seg.x1, seg.x2) + r;
-      const minY = Math.min(seg.y1, seg.y2) - r;
-      const maxY = Math.max(seg.y1, seg.y2) + r;
+      const segBonus = seg.thick ? 2.5 : (seg.shrink ? -1.0 : 0);
+      const effectiveR = r + 1.8 + segBonus;
+      const hitR = effectiveR * effectiveR;
+
+      const minX = Math.min(seg.x1, seg.x2) - effectiveR;
+      const maxX = Math.max(seg.x1, seg.x2) + effectiveR;
+      const minY = Math.min(seg.y1, seg.y2) - effectiveR;
+      const maxY = Math.max(seg.y1, seg.y2) + effectiveR;
 
       if (px < minX || px > maxX || py < minY || py > maxY) return false;
 
@@ -807,11 +909,11 @@ export class CurveGame extends BaseMiniGame {
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
 
-    // Trail Segments
-    ctx.lineWidth = 4;
+    // Trail Segments (Dinamik kalınlık: Mini 2px, Normal 4px, Kalın Duvar 8px)
     ctx.lineCap = 'round';
     for (const seg of this.segments) {
       if (seg.isGap) continue;
+      ctx.lineWidth = seg.thick ? 8.5 : (seg.shrink ? 2.2 : 4);
       ctx.strokeStyle = seg.color;
       ctx.beginPath();
       ctx.moveTo(seg.x1, seg.y1);
@@ -820,19 +922,31 @@ export class CurveGame extends BaseMiniGame {
     }
 
     // Pickups
+    const nowSec = performance.now() / 1000;
     for (const item of this.pickups) {
       ctx.save();
       const s = item.size;
+      const bob = Math.sin(nowSec * 5 + (item.phase || 0)) * 2;
+      const ix = item.x;
+      const iy = item.y + bob;
+
+      // Gölge
+      ctx.fillStyle = 'rgba(26,26,26,0.18)';
+      ctx.beginPath();
+      ctx.ellipse(ix, iy + s * 0.6, s * 0.6, s * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Kutu
       ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(item.x - s / 2 + 2, item.y - s / 2 + 2, s, s);
+      ctx.fillRect(ix - s / 2 + 2, iy - s / 2 + 2, s, s);
       ctx.fillStyle = '#FAF7F2';
-      ctx.fillRect(item.x - s / 2, item.y - s / 2, s, s);
+      ctx.fillRect(ix - s / 2, iy - s / 2, s, s);
       ctx.strokeStyle = '#1A1A1A';
       ctx.lineWidth = 2;
-      ctx.strokeRect(item.x - s / 2, item.y - s / 2, s, s);
+      ctx.strokeRect(ix - s / 2, iy - s / 2, s, s);
 
       ctx.fillStyle = '#1A1A1A';
-      ctx.font = '900 15px "Space Grotesk", sans-serif';
+      ctx.font = '900 15px "Space Grotesk", "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const icon =
@@ -842,9 +956,31 @@ export class CurveGame extends BaseMiniGame {
           ? '👻'
           : item.type === 'TURBO'
           ? '⚡'
-          : '🌀';
-      ctx.fillText(icon, item.x, item.y);
+          : item.type === 'INVERT'
+          ? '🌀'
+          : item.type === 'SHRINK'
+          ? '🔬'
+          : item.type === 'FREEZE'
+          ? '❄️'
+          : item.type === 'BOMB'
+          ? '💣'
+          : '🚧';
+      ctx.fillText(icon, ix, iy + 1);
       ctx.restore();
+    }
+
+    // Floating Text Notifications (Kazanılan güçler)
+    if (this.floatingTexts) {
+      for (const ft of this.floatingTexts) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, ft.life / ft.maxLife);
+        ctx.fillStyle = ft.color;
+        ctx.font = '900 12px "Space Grotesk", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.restore();
+      }
     }
 
     // Particles
@@ -861,37 +997,65 @@ export class CurveGame extends BaseMiniGame {
       if (!player.isJoined || !player.isAlive) continue;
 
       ctx.save();
+      const headRadius = player.shrinkTimer > 0 ? 3.2 : 5;
+
+      // Dondurma aurası
+      if (player.freezeTimer > 0) {
+        ctx.strokeStyle = '#00B4D8';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, headRadius + 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Barikat kalkanı aurası
+      if (player.thickTimer > 0) {
+        ctx.strokeStyle = '#D99B26';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, headRadius + 4.5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Hayalet aurası
+      if (player.ghostTimer > 0) {
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, headRadius + 5, 0, Math.PI * 2);
+        ctx.setLineDash([3, 3]);
+        ctx.strokeStyle = '#70E000';
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Gap Warning Halo (0.4s before gap opens)
+      if (player.gapTimer <= 0.4 && !player.isGap) {
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, headRadius + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = '#D84727';
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([2, 2]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Ana Kafa Noktası
       ctx.beginPath();
-      ctx.arc(player.x, player.y, 5, 0, Math.PI * 2);
+      ctx.arc(player.x, player.y, headRadius, 0, Math.PI * 2);
       ctx.fillStyle = player.color;
       ctx.fill();
       ctx.strokeStyle = '#1A1A1A';
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      if (player.ghostTimer > 0) {
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, 10, 0, Math.PI * 2);
-        ctx.setLineDash([3, 3]);
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.stroke();
-      }
-
-      // Gap Warning Halo (0.4s before gap opens)
-      if (player.gapTimer <= 0.4 && !player.isGap) {
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, 9, 0, Math.PI * 2);
-        ctx.strokeStyle = '#D84727';
-        ctx.lineWidth = 1.8;
-        ctx.setLineDash([2, 2]);
-        ctx.stroke();
-      }
-
+      // Göz/Yön Noktası
       ctx.beginPath();
       ctx.arc(
-        player.x + Math.cos(player.angle) * 3,
-        player.y + Math.sin(player.angle) * 3,
-        1.8,
+        player.x + Math.cos(player.angle) * (headRadius * 0.6),
+        player.y + Math.sin(player.angle) * (headRadius * 0.6),
+        Math.max(1.2, headRadius * 0.35),
         0,
         Math.PI * 2
       );

@@ -95,42 +95,46 @@
               <div class="host-slot-header">👥 OYUNCULAR (2-4 KİŞİ)</div>
               <div class="host-slot-hint" id="host-slot-hint">Sırayı değiştirmek için ↕ kullanın.</div>
               <div class="host-player-slot" id="slot-p1" data-slot="0">
-                <div class="slot-color-dot" style="background-color: #D84727"></div>
+                <canvas class="slot-avatar-preview" id="slot-canvas-p1" width="34" height="34"></canvas>
                 <div class="slot-info">
-                  <div class="slot-position-label">P1 // KIRMIZI</div>
+                  <div class="slot-position-label">KOLTUK 01</div>
                   <div class="slot-name">BOŞ</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p1">BEKLİYOR</div>
+                <button class="slot-customize-btn" data-slot="0" title="Karakteri Özelleştir" type="button">🎨</button>
                 <button class="slot-bot-btn hidden" data-slot="0" title="Bot ekle/kaldır" type="button">+ BOT</button>
                 <button class="slot-swap-btn" data-slot="0" title="Aşağı Kaydır" type="button">↕</button>
               </div>
               <div class="host-player-slot" id="slot-p2" data-slot="1">
-                <div class="slot-color-dot" style="background-color: #1D5D8A"></div>
+                <canvas class="slot-avatar-preview" id="slot-canvas-p2" width="34" height="34"></canvas>
                 <div class="slot-info">
-                  <div class="slot-position-label">P2 // MAVİ</div>
+                  <div class="slot-position-label">KOLTUK 02</div>
                   <div class="slot-name">BOŞ</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p2">BEKLİYOR</div>
+                <button class="slot-customize-btn" data-slot="1" title="Karakteri Özelleştir" type="button">🎨</button>
                 <button class="slot-bot-btn hidden" data-slot="1" title="Bot ekle/kaldır" type="button">+ BOT</button>
                 <button class="slot-swap-btn" data-slot="1" title="Aşağı Kaydır" type="button">↕</button>
               </div>
               <div class="host-player-slot" id="slot-p3" data-slot="2">
-                <div class="slot-color-dot" style="background-color: #D99B26"></div>
+                <canvas class="slot-avatar-preview" id="slot-canvas-p3" width="34" height="34"></canvas>
                 <div class="slot-info">
-                  <div class="slot-position-label">P3 // SARI</div>
+                  <div class="slot-position-label">KOLTUK 03</div>
                   <div class="slot-name">BOŞ</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p3">BEKLİYOR</div>
+                <button class="slot-customize-btn" data-slot="2" title="Karakteri Özelleştir" type="button">🎨</button>
                 <button class="slot-bot-btn hidden" data-slot="2" title="Bot ekle/kaldır" type="button">+ BOT</button>
                 <button class="slot-swap-btn" data-slot="2" title="Aşağı Kaydır" type="button">↕</button>
               </div>
               <div class="host-player-slot" id="slot-p4" data-slot="3">
-                <div class="slot-color-dot" style="background-color: #2F6A4F"></div>
+                <canvas class="slot-avatar-preview" id="slot-canvas-p4" width="34" height="34"></canvas>
                 <div class="slot-info">
-                  <div class="slot-position-label">P4 // YEŞİL</div>
+                  <div class="slot-position-label">KOLTUK 04</div>
                   <div class="slot-name">BOŞ</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p4">BEKLİYOR</div>
+                <button class="slot-customize-btn" data-slot="3" title="Karakteri Özelleştir" type="button">🎨</button>
                 <button class="slot-bot-btn hidden" data-slot="3" title="Bot ekle/kaldır" type="button">+ BOT</button>
                 <button class="slot-swap-btn" data-slot="3" title="Aşağı Kaydır" type="button">↕</button>
               </div>
@@ -349,13 +353,15 @@
           <!-- Header Banner -->
           <div class="menu-header">
             <div class="header-top-row">
-              <div class="menu-badge">PARTİ OYUNLARI</div>
-              <div class="version-badge">2-4 OYUNCU</div>
+              <div class="menu-badge">⚡ BRUTAL PARTY // 4P</div>
+              <div class="version-badge">13 OYUN • 2-4 KİŞİ</div>
             </div>
-            <h1 class="menu-title">BRUTAL PARTY</h1>
-            <p class="menu-subtitle">TELEFONLAR KUMANDA, EKRAN ARENA</p>
+            <div class="menu-title-block">
+              <h1 class="menu-title">BRUTAL PARTY</h1>
+              <p class="menu-subtitle">TELEFONLAR KUMANDA • EKRAN ARENA</p>
+            </div>
 
-            <!-- Hero Action Cards: Primary Controller vs Big TV Host -->
+            <!-- Hero Action Cards: Controller Join, TV Host & Character Customizer -->
             <div class="hero-actions-container">
               <!-- 1. Primary: Join As Controller -->
               <div class="hero-card primary-hero-card">
@@ -364,7 +370,7 @@
                   <span class="hero-card-tag">KUMANDA</span>
                 </div>
                 <h2 class="hero-card-title">KODU GİR VE OYNA</h2>
-                <p class="hero-card-desc">TV veya bilgisayar ekranındaki 3 haneli kodu yaz, hemen oyuna katıl:</p>
+                <p class="hero-card-desc">TV veya tabletteki 3 haneli oda kodunu yaz, anında katıl:</p>
                 
                 <div class="hero-join-inline">
                   <div class="code-input-wrap hero-code-wrap">
@@ -391,7 +397,7 @@
               <!-- 2. Secondary: Host as TV / Big Screen -->
               <div class="hero-card secondary-hero-card">
                 <div class="hero-card-header">
-                  <span class="hero-card-badge tv-badge">📺 ANA EKRAN</span>
+                  <span class="hero-card-badge tv-badge">📺 SALON EKRANI</span>
                   <span class="hero-card-tag">TV / TABLET</span>
                 </div>
                 <h2 class="hero-card-title">BU CİHAZI EKRAN YAP</h2>
@@ -400,19 +406,51 @@
                   🏠 ODA KUR →
                 </button>
               </div>
+
+              <!-- 3. Character Customizer Card -->
+              <div class="hero-card customize-hero-card" id="menu-customize-card">
+                <div class="hero-card-header">
+                  <span class="hero-card-badge custom-badge">🎭 ATÖLYE</span>
+                  <span class="hero-card-tag">AVATAR & KOSTÜM</span>
+                </div>
+                <div class="customize-card-body">
+                  <div class="menu-avatar-stage">
+                    <canvas id="menu-avatar-canvas" width="110" height="110" class="menu-avatar-canvas"></canvas>
+                  </div>
+                  <div class="menu-avatar-info">
+                    <div class="menu-avatar-title">KARAKTERİNİ SEÇ</div>
+                    <div class="menu-avatar-pills">
+                      <span id="menu-avatar-color-pill" class="avatar-pill color-pill">KIRMIZI</span>
+                      <span id="menu-avatar-exp-pill" class="avatar-pill">👀 Odaklı</span>
+                      <span id="menu-avatar-acc-pill" class="avatar-pill">⚪ Sade</span>
+                    </div>
+                  </div>
+                </div>
+                <button id="btn-menu-customize" class="hero-custom-btn" type="button">
+                  🎨 ÖZELLEŞTİR →
+                </button>
+              </div>
             </div>
 
-            <!-- Section Divider / Quick Local Play Banner -->
-            <div class="local-play-stripe">
-              <span class="stripe-badge">📱 TEK TELEFON</span>
-              <span class="stripe-text">Masaya koyup yan yana oynamak için bir oyun seçin:</span>
+            <!-- Section Divider & Category Filters -->
+            <div class="menu-section-header">
+              <div class="local-play-stripe">
+                <span class="stripe-badge">📱 TEK CİHAZ / ARENA</span>
+                <span class="stripe-text">Masaya koyup yan yana veya TV'de oynamak için oyun seçin:</span>
+              </div>
+              <div class="menu-category-tabs" id="menu-category-tabs">
+                <button class="category-filter-chip active" data-filter="all" type="button">TÜM OYUNLAR (13)</button>
+                <button class="category-filter-chip" data-filter="fight" type="button">⚔️ DÖVÜŞ & SAVAŞ (5)</button>
+                <button class="category-filter-chip" data-filter="speed" type="button">⚡ HIZ & REFLEKS (3)</button>
+                <button class="category-filter-chip" data-filter="strategy" type="button">🧠 ALAN & TAKTİK (5)</button>
+              </div>
             </div>
           </div>
 
-          <!-- Bento Grid Games (Responsive 2-3 Columns) -->
-          <div class="menu-games bento-grid">
+          <!-- Bento Grid Games (Responsive 2-3-4 Columns) -->
+          <div class="menu-games bento-grid" id="menu-games-grid">
             <!-- 01: PONG -->
-            <button class="game-card-btn bento-card card-pong" id="btn-select-pong" type="button">
+            <button class="game-card-btn bento-card card-pong" id="btn-select-pong" data-category="speed" type="button">
               <div class="bento-media-box">
                 <img src="/assets/games/pong.jpg" alt="BRUTAL PONG" class="bento-thumb-img" loading="lazy" />
                 <span class="card-tag">2-4 OYUNCU</span>
@@ -429,7 +467,7 @@
             </button>
 
             <!-- 02: TANKS -->
-            <button class="game-card-btn bento-card card-tanks" id="btn-select-tanks" type="button">
+            <button class="game-card-btn bento-card card-tanks" id="btn-select-tanks" data-category="fight" type="button">
               <div class="bento-media-box">
                 <img src="/assets/games/tanks.jpg" alt="MICRO-TANKS" class="bento-thumb-img" loading="lazy" />
                 <span class="card-tag">2-4 OYUNCU</span>
@@ -446,7 +484,7 @@
             </button>
 
             <!-- 03: CURVE -->
-            <button class="game-card-btn bento-card card-curve" id="btn-select-curve" type="button">
+            <button class="game-card-btn bento-card card-curve" id="btn-select-curve" data-category="strategy" type="button">
               <div class="bento-media-box">
                 <img src="/assets/games/curve.jpg" alt="BRUTAL CURVE" class="bento-thumb-img" loading="lazy" />
                 <span class="card-tag">2-4 OYUNCU</span>
@@ -463,7 +501,7 @@
             </button>
 
             <!-- 04: BOMB -->
-            <button class="game-card-btn bento-card card-bomb" id="btn-select-bomb" type="button">
+            <button class="game-card-btn bento-card card-bomb" id="btn-select-bomb" data-category="fight" type="button">
               <div class="bento-media-box">
                 <img src="/assets/games/bomb.jpg" alt="BRUTAL BOMB" class="bento-thumb-img" loading="lazy" />
                 <span class="card-tag">2-4 OYUNCU</span>
@@ -480,7 +518,7 @@
             </button>
 
             <!-- 05: HEIST -->
-            <button class="game-card-btn bento-card card-heist" id="btn-select-heist" type="button">
+            <button class="game-card-btn bento-card card-heist" id="btn-select-heist" data-category="fight" type="button">
               <div class="bento-media-box">
                 <img src="/assets/games/heist.jpg" alt="BRUTAL HEIST" class="bento-thumb-img" loading="lazy" />
                 <span class="card-tag">2-4 OYUNCU</span>
@@ -497,7 +535,7 @@
             </button>
 
             <!-- 06: DUEL -->
-            <button class="game-card-btn bento-card card-duel" id="btn-select-duel" type="button">
+            <button class="game-card-btn bento-card card-duel" id="btn-select-duel" data-category="speed" type="button">
               <div class="bento-media-box">
                 <img src="/assets/games/duel.jpg" alt="QUICK DRAW" class="bento-thumb-img" loading="lazy" />
                 <span class="card-tag">2-4 OYUNCU</span>
@@ -514,7 +552,7 @@
             </button>
 
             <!-- 07: CROWN -->
-            <button class="game-card-btn bento-card card-crown" id="btn-select-crown" type="button">
+            <button class="game-card-btn bento-card card-crown" id="btn-select-crown" data-category="fight" type="button">
               <div class="bento-media-box">
                 <img src="/assets/games/crown.jpg" alt="BRUTAL CROWN" class="bento-thumb-img" loading="lazy" />
                 <span class="card-tag">2-4 OYUNCU</span>
@@ -531,7 +569,7 @@
             </button>
 
             <!-- 08: ZONE -->
-            <button class="game-card-btn bento-card card-zone" id="btn-select-zone" type="button">
+            <button class="game-card-btn bento-card card-zone" id="btn-select-zone" data-category="strategy" type="button">
               <div class="bento-media-box">
                 <img src="/assets/games/zone.jpg" alt="BRUTAL ZONE" class="bento-thumb-img" loading="lazy" />
                 <span class="card-tag">2-4 OYUNCU</span>
@@ -548,7 +586,7 @@
             </button>
 
             <!-- 09: SNAKE -->
-            <button class="game-card-btn bento-card card-snake" id="btn-select-snake" type="button">
+            <button class="game-card-btn bento-card card-snake" id="btn-select-snake" data-category="strategy" type="button">
               <div class="bento-media-box">
                 <img src="/assets/games/snake.jpg" alt="BRUTAL SNAKE" class="bento-thumb-img" loading="lazy" />
                 <span class="card-tag">2-4 OYUNCU</span>
@@ -565,7 +603,7 @@
             </button>
 
             <!-- 10: LASER -->
-            <button class="game-card-btn bento-card card-laser" id="btn-select-laser" type="button">
+            <button class="game-card-btn bento-card card-laser" id="btn-select-laser" data-category="speed" type="button">
               <div class="bento-media-box">
                 <img src="/assets/games/laser.jpg" alt="BRUTAL LASER" class="bento-thumb-img" loading="lazy" />
                 <span class="card-tag">2-4 OYUNCU</span>
@@ -582,7 +620,7 @@
             </button>
 
             <!-- 11: CLONE -->
-            <button class="game-card-btn bento-card card-clone" id="btn-select-clone" type="button">
+            <button class="game-card-btn bento-card card-clone" id="btn-select-clone" data-category="strategy" type="button">
               <div class="bento-media-box">
                 <img src="/assets/games/clone.jpg" alt="BRUTAL CLONE" class="bento-thumb-img" loading="lazy" />
                 <span class="card-tag">2-4 OYUNCU</span>
@@ -599,7 +637,7 @@
             </button>
 
             <!-- 12: COLLAPSE -->
-            <button class="game-card-btn bento-card card-collapse" id="btn-select-collapse" type="button">
+            <button class="game-card-btn bento-card card-collapse" id="btn-select-collapse" data-category="strategy" type="button">
               <div class="bento-media-box">
                 <img src="/assets/games/collapse.jpg" alt="BRUTAL COLLAPSE" class="bento-thumb-img" loading="lazy" />
                 <span class="card-tag">2-4 OYUNCU</span>
@@ -616,7 +654,7 @@
             </button>
 
             <!-- 13: NINJA -->
-            <button class="game-card-btn bento-card card-ninja" id="btn-select-ninja" type="button">
+            <button class="game-card-btn bento-card card-ninja" id="btn-select-ninja" data-category="fight" type="button">
               <div class="bento-media-box">
                 <img src="/assets/games/ninja.jpg" alt="BRUTAL NINJA" class="bento-thumb-img" loading="lazy" />
                 <span class="card-tag">2-4 OYUNCU</span>

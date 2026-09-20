@@ -1,4 +1,5 @@
 import { UI_COLORS, UI_SIZES, uiFont } from './ui/tokens.js';
+import { drawBrutalAvatar } from './ui/characterRenderer.js';
 
 const GUIDE_COLORS = UI_COLORS.players;
 
@@ -102,9 +103,9 @@ export function getGuideColor(index) {
 /**
  * Standardized Neo-Brutalist Lobby Seat Card
  * Instantly distinguishes between:
- * 1. EMPTY  -> Soft warm background, dashed border, "+ KATIL"
- * 2. HUMAN  -> Color tint, 4px player-color border, "👤 NAME"
- * 3. BOT    -> Dark charcoal card, high-contrast, "🤖 BOT" yellow badge
+ * 1. EMPTY  -> Soft dashed border, clean seat marker
+ * 2. HUMAN  -> Avatar prominence, clean name pill or clean seat number
+ * 3. BOT    -> Antracite card with cyber robot avatar
  */
 export function renderLobbySeatCard(ctx, {
   x,
@@ -142,15 +143,17 @@ export function renderLobbySeatCard(ctx, {
     ctx.strokeRect(-halfW, -halfH, w, h);
     ctx.setLineDash([]);
 
+    // Koltuk rozeti (P1..P4 sembolü)
+    ctx.fillStyle = 'rgba(26, 26, 26, 0.08)';
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.min(22, halfW * 0.45), 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = UI_COLORS.muted;
     ctx.font = uiFont('seatEmpty');
-    ctx.fillText(`${slotIndex + 1}`, 0, -8);
-
-    ctx.fillStyle = UI_COLORS.dim;
-    ctx.font = uiFont('label');
-    ctx.fillText('+ KATIL', 0, 14);
+    ctx.fillText(`${slotIndex + 1}`, 0, 1);
 
   } else if (isHuman) {
     // 2. OYUNCU (HUMAN)
@@ -158,37 +161,39 @@ export function renderLobbySeatCard(ctx, {
     ctx.fillStyle = UI_COLORS.ink;
     ctx.fillRect(-halfW + 4, -halfH + 4, w, h);
 
-    // Card Face: Krem + %22 Oyuncu Rengi
+    // Card Face: Krem
     ctx.fillStyle = UI_COLORS.card;
     ctx.fillRect(-halfW, -halfH, w, h);
-    ctx.globalAlpha = 0.22;
-    ctx.fillStyle = playerColor;
-    ctx.fillRect(-halfW, -halfH, w, h);
-    ctx.globalAlpha = 1.0;
 
     // Bold Color Border
     ctx.strokeStyle = playerColor;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3.5;
     ctx.strokeRect(-halfW, -halfH, w, h);
 
-    // Slot Number
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = playerColor;
-    ctx.font = uiFont('seatNum');
-    const hasName = !!playerName;
-    ctx.fillText(`${slotIndex + 1}`, 0, hasName ? -9 : 0);
+    const avatarR = Math.min(24, Math.round(Math.min(w, h) * 0.26));
+    const avatarY = playerName ? -halfH + avatarR + 10 : 0;
 
-    if (hasName) {
-      // Player Name Pill
+    drawBrutalAvatar(ctx, 0, avatarY, avatarR, {
+      slotIndex: slotIndex,
+      color: playerColor,
+      expression: 'normal',
+      showPointer: false,
+      borderWidth: 2.5,
+      shadowOffset: 2,
+    });
+
+    // Sadece özel oyuncu ismi varsa minimal etiket çiz
+    if (playerName) {
       ctx.fillStyle = UI_COLORS.ink;
       ctx.font = uiFont('nameTag');
-      const displayName = playerName.length > 10 ? playerName.slice(0, 9) + '…' : playerName;
-      ctx.fillText(`👤 ${displayName.toUpperCase()}`, 0, 14);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const displayName = playerName.length > 8 ? playerName.slice(0, 7) + '…' : playerName;
+      ctx.fillText(displayName.toUpperCase(), 0, halfH - 12);
     }
 
   } else if (isBot) {
-    // 3. BOT (KOYU ANTRASİT + SARI ROZET)
+    // 3. BOT (KOYU ANTRASİT + VİZÖR AVATAR)
     // Solid Shadow
     ctx.fillStyle = UI_COLORS.ink;
     ctx.fillRect(-halfW + 4, -halfH + 4, w, h);
@@ -202,17 +207,26 @@ export function renderLobbySeatCard(ctx, {
     ctx.lineWidth = isBotGod ? 3.5 : 2.5;
     ctx.strokeRect(-halfW, -halfH, w, h);
 
-    // Bot Number
+    const avatarR = Math.min(24, Math.round(Math.min(w, h) * 0.26));
+    const avatarY = -halfH + avatarR + 10;
+
+    drawBrutalAvatar(ctx, 0, avatarY, avatarR, {
+      slotIndex: slotIndex,
+      color: isBotGod ? '#FFDE59' : '#8E8E93',
+      expression: isBotGod ? 'ANGRY' : 'CYBORG',
+      accessory: 'NONE',
+      pattern: 'SOLID',
+      showPointer: false,
+      borderWidth: 2,
+      shadowOffset: 2,
+    });
+
+    // Bot Minimal Rozet
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = UI_COLORS.white;
-    ctx.font = uiFont('seatNum');
-    ctx.fillText(`${slotIndex + 1}`, 0, -9);
-
-    // Bot Tag
     ctx.fillStyle = isBotGod ? UI_COLORS.botGod : UI_COLORS.botTag;
     ctx.font = uiFont('tag');
-    ctx.fillText(isBotGod ? '⚡ GOD BOT' : '🤖 BOT', 0, 14);
+    ctx.fillText(isBotGod ? '⚡ GOD' : '🤖 BOT', 0, halfH - 12);
   }
 
   ctx.restore();

@@ -7,6 +7,7 @@ import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLo
 import { renderTopPill, renderCornerScores, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
+import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const LASER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const LASER_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -994,19 +995,14 @@ export class LaserGame extends BaseMiniGame {
         ctx.beginPath(); ctx.arc(0, 0, 19, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2); ctx.stroke();
       }
 
-      ctx.rotate(player.angle);
-
-      // Gövde
-      ctx.fillStyle = player.color;
-      ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#1A1A1A'; ctx.stroke();
-
       // Namlu: Hazırsa parlak beyaz/sarı/turuncu, cooldown'da koyu gri
       let barrelColor = '#FFFFFF';
       if (player.tripleTimer > 0) barrelColor = '#F97316';
       else if (player.fastTimer > 0) barrelColor = '#FFDE59';
       else if (!isFireReady) barrelColor = '#525252';
 
+      ctx.save();
+      ctx.rotate(player.angle);
       ctx.fillStyle = barrelColor;
       ctx.fillRect(8, -4, 14, 8);
       ctx.lineWidth = 2; ctx.strokeStyle = '#1A1A1A';
@@ -1017,6 +1013,23 @@ export class LaserGame extends BaseMiniGame {
         ctx.fillStyle = player.tripleTimer > 0 ? '#F97316' : (player.fastTimer > 0 ? '#FFDE59' : '#00F0FF');
         ctx.beginPath(); ctx.arc(22, 0, 3, 0, Math.PI * 2); ctx.fill();
       }
+      ctx.restore();
+
+      let currentExp = 'normal';
+      if (player.invulnTimer > 0) currentExp = 'dizzy';
+      else if (player.tripleTimer > 0 || player.fastTimer > 0) currentExp = 'excited';
+      else if (player.hp === 1) currentExp = 'panic';
+
+      drawBrutalAvatar(ctx, 0, 0, 14, {
+        color: player.color,
+        slotIndex: player.index,
+        facingAngle: player.angle,
+        label: `P${player.index + 1}`,
+        expression: currentExp,
+        showPointer: false,
+        borderWidth: 3,
+        shadowOffset: 2,
+      });
 
       ctx.restore();
 

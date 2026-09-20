@@ -2,6 +2,8 @@
 import QRCode from 'qrcode';
 import { PUBLIC_URL, isPublicOrigin } from '../net.js';
 import { showInstallToast } from './toast.js';
+import { openCustomizeModal } from './customizeModal.js';
+import { refreshAllHostSlots } from '../core/slotManager.js';
 
 const tvHostModal = document.getElementById('tv-host-modal');
 const hostRoomCode = document.getElementById('host-room-code');
@@ -107,6 +109,19 @@ export function initHostLobby({
       getActiveNet().setHostGameMode?.(currentHostGameMode);
       if (btnHostLaunchGame) {
         btnHostLaunchGame.textContent = `▶ SAHAYA GEÇ`;
+      }
+    });
+  });
+
+  // Slot customize buttons in Host Lobby
+  document.querySelectorAll('.slot-customize-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.slot, 10);
+      if (!Number.isNaN(idx)) {
+        openCustomizeModal(idx, () => {
+          refreshAllHostSlots();
+        });
       }
     });
   });
