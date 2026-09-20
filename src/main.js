@@ -834,9 +834,15 @@ function removeBotSlot(index) {
 }
 
 // Motorların LOBBY tap'lerini host'a yönlendir (sadece host iken aktif)
+// + canvas MAÇI BAŞLAT butonunu host'ta gizle: TV akışı tek yoldan
+// (DOM staging çubuğu → sayaç) yürür, çift başlat düğmesi kalmaz.
 function setSeatTapHook() {
-  const fn = activeNet().isHosting ? handleLobbySeatTap : null;
-  forEachEngine((mode, entry) => { entry.game.onLobbySeatTap = fn; });
+  const hosting = activeNet().isHosting;
+  const fn = hosting ? handleLobbySeatTap : null;
+  forEachEngine((mode, entry) => {
+    entry.game.onLobbySeatTap = fn;
+    entry.game.hideLobbyStartButton = hosting;
+  });
 }
 
 // Initialise UI Submodules

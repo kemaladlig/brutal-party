@@ -2036,6 +2036,7 @@ export class CrownGame extends BaseMiniGame {
       accent: '#D84727',
       onStart: () => this.startNewMatch(),
       centerYOffset: 46,
+      hidden: !!this.hideLobbyStartButton,
     });
 
     ctx.restore();

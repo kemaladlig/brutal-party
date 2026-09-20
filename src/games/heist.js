@@ -1829,6 +1829,7 @@ export class HeistGame extends BaseMiniGame {
       joinedCount,
       accent: '#D84727',
       onStart: () => this.startNewMatch(),
+      hidden: !!this.hideLobbyStartButton,
     });
   }
 

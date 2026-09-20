@@ -832,6 +832,7 @@ export class Game extends BaseMiniGame {
       joinedCount,
       accent: '#D84727',
       onStart: () => this.startGame(),
+      hidden: !!this.hideLobbyStartButton,
     });
   }
 

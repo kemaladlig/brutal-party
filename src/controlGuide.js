@@ -241,6 +241,8 @@ export function getStandardSeatRects(arena, inset = LOBBY_SEAT_INSET) {
 
 // Standart lobi başlat butonu: min(220)x60, şartlı yazı, hazırsa uiButtons'a basar.
 // accent: oyunun kimlik rengi, textColor: accent üstü yazı rengi, centerYOffset: merkezden kayma.
+// hidden: TV host modunda canvas butonu çizilmez — başlatma tek yoldan
+// (DOM staging çubuğu) yapılır, sayaç/telefon bildirimi atlanamaz.
 export function renderLobbyStartButton(ctx, {
   arena,
   uiButtons,
@@ -249,7 +251,9 @@ export function renderLobbyStartButton(ctx, {
   textColor = '#FFFFFF',
   onStart,
   centerYOffset = 0,
+  hidden = false,
 }) {
+  if (hidden) return null;
   const btnW = Math.min(UI_SIZES.startW, arena.width * 0.45);
   const btnH = UI_SIZES.startH;
   const btnX = arena.cx - btnW / 2;

@@ -1622,6 +1622,7 @@ export class BombGame extends BaseMiniGame {
       accent: '#D84727',
       onStart: () => this.startNewMatch(),
       centerYOffset: 18,
+      hidden: !!this.hideLobbyStartButton,
     });
   }
 

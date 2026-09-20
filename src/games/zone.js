@@ -1188,6 +1188,7 @@ export class ZoneGame extends BaseMiniGame {
       joinedCount,
       accent: '#2F6A4F',
       onStart: () => this.startNewMatch(),
+      hidden: !!this.hideLobbyStartButton,
     });
   }
 }

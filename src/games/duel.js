@@ -838,10 +838,11 @@ export class DuelGame extends BaseMiniGame {
       accent: '#D99B26',
       textColor: '#141414',
       onStart: () => this.startMatch(),
+      hidden: !!this.hideLobbyStartButton,
     });
 
-    // Instructions
-    const rulesY = startRect.y + startRect.h + 20;
+    // Instructions (host modunda buton gizliyse merkez referans alınır)
+    const rulesY = startRect ? startRect.y + startRect.h + 20 : this.arena.cy + 50;
     ctx.save();
     ctx.font = '800 12px "Space Grotesk", monospace';
     ctx.fillStyle = '#A8998C';
