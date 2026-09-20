@@ -18,6 +18,7 @@ const CONTROLLER_META = {
   ZONE: { hudTag: '🗺️ ZONE', lobbyTitle: '🗺️ BRUTAL ZONE', mount: 'mountZoneController' },
   SNAKE: { hudTag: '🐍 SNAKE', lobbyTitle: '🐍 BRUTAL SNAKE', mount: 'mountSnakeController' },
   LASER: { hudTag: '🔫 LASER', lobbyTitle: '🔫 BRUTAL LASER', mount: 'mountLaserController' },
+  CLONE: { hudTag: '👥 CLONE', lobbyTitle: '👥 BRUTAL CLONE', mount: 'mountCloneController' },
 };
 
 export class GamepadManager {
@@ -411,6 +412,7 @@ export class GamepadManager {
     this._elCache.clear();
     this._lastStripJson = '';
     this._lastStatusStr = '';
+    this._cloneCdBtn = null;
     this.gameMode = mode;
     const workspace = document.getElementById('gamepad-workspace');
     if (!workspace) return;
@@ -1129,6 +1131,38 @@ export class GamepadManager {
     fireBtn?.addEventListener('mousedown', fireAction);
   }
 
+  // --- 11: CLONE CONTROLLER (Joystick + TACKLE, 1.5s host cooldown) ---
+  mountCloneController(container) {
+    container.innerHTML = `
+      <div class="joystick-action-view">
+        <div class="joystick-half" id="clone-joy-zone">
+          <div class="phone-joy-base">
+            <div class="phone-joy-knob" id="clone-joy-knob" style="background-color: ${this.playerColor}"></div>
+          </div>
+        </div>
+        <div class="action-half">
+          <button class="action-dash-btn" id="btn-clone-tackle" type="button" style="background-color: #6A4C93">
+            <span class="dash-btn-label">💥 OMUZ AT</span>
+            <span class="dash-btn-sub">DOKUN</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    this.bindJoystick('clone-joy-zone', 'clone-joy-knob', (input) => {
+      this._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
+    });
+
+    const tackleBtn = document.getElementById('btn-clone-tackle');
+    const tackleAction = this.cooledAction(tackleBtn, 1.5, '💥 OMUZ AT',
+      () => this.network.sendInput({ action: 'TACKLE' }), [25, 40]);
+    tackleBtn?.addEventListener('touchstart', tackleAction, { passive: false });
+    tackleBtn?.addEventListener('mousedown', tackleAction);
+
+    // Host bekleme yüzdesi butona yansır (paketteki cd dizisi)
+    this._cloneCdBtn = tackleBtn;
+  }
+
   // Generic Touch & Mouse Joystick Helper
   bindJoystick(zoneId, knobId, onInput) {
     const zone = document.getElementById(zoneId);
@@ -1351,6 +1385,15 @@ export class GamepadManager {
       } else if (data.gameMode === 'LASER') {
         const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
         statusStr = `SKOR: ${data.scores.join('-')} • 🔫 ${aliveCount} CANLI`;
+      } else if (data.gameMode === 'CLONE') {
+        const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
+        statusStr = `SKOR: ${data.scores.join('-')} • 👥 ${aliveCount} CANLI`;
+        // Host bekleme yüzdesi: dolmadan buton sönük görünür
+        const cdBtn = this._cloneCdBtn;
+        const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
+        if (cdBtn && cdBtn.isConnected) {
+          cdBtn.style.opacity = cdPct > 0 ? 0.55 : 1;
+        }
       }
       if (statusStr !== this._lastStatusStr) {
         this._lastStatusStr = statusStr;

@@ -9,6 +9,7 @@ import { CrownGame } from './games/crown.js';
 import { ZoneGame } from './games/zone.js';
 import { SnakeGame } from './games/snake.js';
 import { LaserGame } from './games/laser.js';
+import { CloneGame } from './games/clone.js';
 import { TouchManager } from './touchManager.js';
 import {
   GAME_ORDER,
@@ -91,6 +92,7 @@ const crownGame = new CrownGame(canvas);
 const zoneGame = new ZoneGame(canvas);
 const snakeGame = new SnakeGame(canvas);
 const laserGame = new LaserGame(canvas);
+const cloneGame = new CloneGame(canvas);
 
 function touchStamp(game, now) {
   game.lastTime = now;
@@ -219,6 +221,19 @@ registerEngine('LASER', {
   packet: () => ({
     scores: laserGame.scores,
     alive: laserGame.players.map((p) => p.isAlive),
+  }),
+});
+registerEngine('CLONE', {
+  game: cloneGame,
+  reset: () => cloneGame.resetMatch(),
+  onEnter: (now) => touchStamp(cloneGame, now),
+  onResume: (now) => touchStamp(cloneGame, now),
+  start: () => cloneGame.startRound(),
+  packet: () => ({
+    scores: cloneGame.scores,
+    alive: cloneGame.players.map((p) => p.isAlive),
+    // Dash bekleme yüzdesi (kumanda buton göstergesi için)
+    cd: cloneGame.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 1.5) * 100)),
   }),
 });
 

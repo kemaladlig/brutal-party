@@ -79,6 +79,7 @@ public/                     PWA (manifest.webmanifest, sw.js, ikonlar) + public/
 | ZONE | Brutal Zone | `src/games/zone.js` | `src/ai/zoneAI.js` | `mountZoneController` | Grid bölge kapma (iz kesme→base-reset+2sn stun, ölüm yok); 90sn + %40 erken zafer, 2 raund alan şampiyon; kumanda joystick-only |
 | SNAKE | Brutal Snake | `src/games/snake.js` | `src/ai/snakeAI.js` | `mountSnakeController` | Yemle büyü (max 300), kuyruk/çarpışma eleme, hold-boost; bot ızgara-raycast + yem kovalama; kumanda joystick + basılı boost |
 | LASER | Brutal Laser | `src/games/laser.js` | `src/ai/laserAI.js` | `mountLaserController` | Sabit taret, 4 sekme + substep lazer (600px/s), 0.8s cooldown; bot sanal-mermi simülasyonu; kumanda joystick-nişan + ATEŞ (`TANK_FIRE` yeniden kullanımı) |
+| CLONE | Brutal Clone | `src/games/clone.js` | `src/ai/cloneAI.js` | `mountCloneController` | 2 gecikmeli kopya (0.6/1.2sn), gerçek-vuruş skor + sahte-vuruş 2.5sn slow; bot devriye + menzil omuzu (blöf yer); kumanda joystick + OMUZ (`TACKLE` yeniden kullanımı, %cd göstergeli) |
 
 ---
 

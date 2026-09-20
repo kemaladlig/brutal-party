@@ -86,6 +86,7 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
     CROWN: 'BRUTAL CROWN',
     SNAKE: 'BRUTAL SNAKE',
     LASER: 'BRUTAL LASER',
+    CLONE: 'BRUTAL CLONE',
   };
   if (pauseGameTitle) {
     pauseGameTitle.textContent = `${titles[currentMode] || currentMode} // DURAKLATILDI`;
