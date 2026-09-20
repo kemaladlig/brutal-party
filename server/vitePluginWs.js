@@ -186,7 +186,7 @@ export function handleMessage(ws, msg, roomManager) {
     }
 
     case 'SET_SLOT_BOT': {
-      roomManager.handleSetSlotBot(ws, msg.slotIndex, msg.name);
+      roomManager.handleSetSlotBot(ws, msg.slotIndex, msg.name, msg.kind);
       break;
     }
 

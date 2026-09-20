@@ -411,7 +411,7 @@ export class SupabaseRelay {
     this.broadcastSlots();
   }
 
-  setSlotBot(slotIndex, name) {
+  setSlotBot(slotIndex, name, kind = 'bot') {
     if (this.role !== 'HOST') return;
     if (slotIndex < 0 || slotIndex > 3 || this.players[slotIndex]) return;
     this.players[slotIndex] = {
@@ -420,6 +420,7 @@ export class SupabaseRelay {
       color: PLAYER_COLORS[slotIndex],
       slotIndex,
       isBot: true,
+      kind: kind || 'bot',
     };
     this.ready[slotIndex] = false;
     this.broadcastSlots();

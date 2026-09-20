@@ -32,7 +32,17 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
     const ctx = slotCanvas.getContext('2d');
     ctx.clearRect(0, 0, slotCanvas.width, slotCanvas.height);
     if (isConnected) {
-      if (kind === 'bot') {
+      if (kind === 'bot_god') {
+        drawBrutalAvatar(ctx, 17, 17, 13, {
+          color: '#FF0055',
+          expression: 'ANGRY',
+          accessory: 'GLASSES',
+          pattern: 'STRIPES',
+          showPointer: false,
+          borderWidth: 2,
+          shadowOffset: 1.5,
+        });
+      } else if (kind === 'bot') {
         drawBrutalAvatar(ctx, 17, 17, 13, {
           color: '#8E8E93',
           expression: 'CYBORG',
@@ -64,12 +74,21 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
 
   if (isConnected) {
     hostPlayerSlots[slotIndex] = { name, isReady, kind };
+    const isBotNormal = kind === 'bot';
+    const isBotGod = kind === 'bot_god';
+    const isAnyBot = isBotNormal || isBotGod;
+
     slotEl.classList.add('connected');
-    slotEl.classList.toggle('is-bot', kind === 'bot');
-    slotEl.classList.toggle('ready', isReady && kind !== 'bot');
-    if (nameEl) nameEl.textContent = kind === 'bot' ? 'BOT' : name;
+    slotEl.classList.toggle('is-bot', isAnyBot);
+    slotEl.classList.toggle('is-bot-god', isBotGod);
+    slotEl.classList.toggle('ready', isReady && !isAnyBot);
+
+    if (nameEl) nameEl.textContent = isBotGod ? '⚡ GOD' : (isBotNormal ? 'BOT' : name);
     if (readyTag) {
-      if (kind === 'bot') {
+      if (isBotGod) {
+        readyTag.textContent = '⚡ GOD';
+        readyTag.classList.remove('ready');
+      } else if (isBotNormal) {
         readyTag.textContent = 'BOT';
         readyTag.classList.remove('ready');
       } else {
@@ -81,7 +100,7 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
     // Kapalıyken normal akışta sadece oyuncu eklenir/çıkarılır.
     const botsOn = isBotEkleEnabled();
     if (botBtn) {
-      if (botsOn && kind === 'bot') {
+      if (botsOn && isAnyBot) {
         botBtn.textContent = '✕';
         botBtn.classList.remove('hidden');
       } else {
@@ -90,7 +109,7 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
     }
   } else {
     hostPlayerSlots[slotIndex] = null;
-    slotEl.classList.remove('connected', 'ready', 'is-bot');
+    slotEl.classList.remove('connected', 'ready', 'is-bot', 'is-bot-god');
     if (nameEl) nameEl.textContent = 'BOŞ';
     if (readyTag) {
       readyTag.textContent = 'BOŞ';
@@ -108,7 +127,7 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
   }
 
   // Botlar sayıma dahil değildir (hazır vermezler, sayacı kilitlemezler)
-  const humans = hostPlayerSlots.filter((p) => p !== null && p.kind !== 'bot');
+  const humans = hostPlayerSlots.filter((p) => p !== null && p.kind !== 'bot' && p.kind !== 'bot_god');
   const connectedCount = humans.length;
   const readyCount = humans.filter((p) => p?.isReady).length;
   const readyCounter = document.getElementById('lobby-ready-counter');
@@ -134,14 +153,15 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
   for (let i = 0; i < 4; i++) {
     const slot = hostPlayerSlots[i];
     const custom = getSlotCustomization(i);
-    const slotColor = (slot && slot.kind === 'bot') ? '#8E8E93' : custom.color;
+    const botType = slot ? (slot.kind === 'bot_god' ? 'bot_god' : (slot.kind === 'bot' ? 'bot_normal' : 'human')) : 'human';
+    const slotColor = (slot && (slot.kind === 'bot' || slot.kind === 'bot_god')) ? (slot.kind === 'bot_god' ? '#FF0055' : '#8E8E93') : custom.color;
 
     if (currentMode === 'PONG') {
       const p = engine.paddles?.[i];
       if (p) {
         if (slot) {
           p.isJoined = true;
-          p.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
+          p.slotType = botType;
           p.name = slot.name || `P${i + 1}`;
           p.color = slotColor;
         } else {
@@ -155,10 +175,10 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
     } else if (currentMode === 'TANKS') {
       const tank = engine.tanks?.[i];
       if (slot) {
-        if (engine.slotTypes) engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
+        if (engine.slotTypes) engine.slotTypes[i] = botType;
         if (tank) {
           tank.isJoined = true;
-          tank.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
+          tank.slotType = botType;
           tank.name = slot.name || `P${i + 1}`;
           tank.color = slotColor;
         }
@@ -174,10 +194,10 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
     } else if (currentMode === 'CURVE') {
       const player = engine.players?.[i];
       if (slot) {
-        if (engine.slotTypes) engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
+        if (engine.slotTypes) engine.slotTypes[i] = botType;
         if (player) {
           player.isJoined = true;
-          player.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
+          player.slotType = botType;
           player.name = slot.name || `P${i + 1}`;
           player.color = slotColor;
         }
@@ -193,10 +213,10 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
     } else if (currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'CROWN' || currentMode === 'ZONE' || currentMode === 'SNAKE' || currentMode === 'LASER' || currentMode === 'CLONE' || currentMode === 'COLLAPSE' || currentMode === 'NINJA') {
       const player = engine.players?.[i];
       if (slot) {
-        if (engine.slotTypes) engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
+        if (engine.slotTypes) engine.slotTypes[i] = botType;
         if (player) {
           player.isJoined = true;
-          player.slotType = slot.kind === 'bot' ? 'bot_normal' : 'human';
+          player.slotType = botType;
           player.name = slot.name || `P${i + 1}`;
           player.color = slotColor;
         }
@@ -214,7 +234,7 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
       if (!engine.slotTypes) engine.slotTypes = ['empty', 'empty', 'empty', 'empty'];
       if (!engine.playerColors) engine.playerColors = ['', '', '', ''];
       if (slot) {
-        engine.slotTypes[i] = slot.kind === 'bot' ? 'bot_normal' : 'human';
+        engine.slotTypes[i] = botType;
         if (engine.joinedPlayers) engine.joinedPlayers[i] = true;
         engine.playerNames[i] = slot.name || `P${i + 1}`;
         engine.playerColors[i] = slotColor;

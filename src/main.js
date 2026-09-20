@@ -683,23 +683,29 @@ function handleLobbySeatTap(index) {
   }
   const entry = hostPlayerSlots[index];
   if (entry && entry.kind === 'bot') {
+    addBotGodSlot(index);
+  } else if (entry && entry.kind === 'bot_god') {
     removeBotSlot(index);
   } else if (!entry) {
-    addBotSlot(index);
+    addBotSlot(index, 'bot');
   } else {
     showInstallToast(`P${index + 1} dolu.`);
   }
 }
 
-function addBotSlot(index) {
-  const name = BOT_SEAT_NAMES[index] || `BOT // P${index + 1}`;
-  activeNet().setSlotBot?.(index, name);
-  updateHostSlot(index, true, name, false, 'bot');
+function addBotSlot(index, kind = 'bot') {
+  const name = kind === 'bot_god' ? `⚡ GOD // P${index + 1}` : (BOT_SEAT_NAMES[index] || `BOT // P${index + 1}`);
+  activeNet().setSlotBot?.(index, name, kind);
+  updateHostSlot(index, true, name, false, kind);
   refreshStagingBar();
   const engine = getActiveGameEngine();
   if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
   renderPauseSeats(handleSeatSwap);
-  showInstallToast(`P${index + 1}: BOT eklendi.`);
+  showInstallToast(kind === 'bot_god' ? `⚡ P${index + 1}: GOD BOT (EFSANEVİ) eklendi!` : `🤖 P${index + 1}: BOT (NORMAL) eklendi.`);
+}
+
+function addBotGodSlot(index) {
+  addBotSlot(index, 'bot_god');
 }
 
 function removeBotSlot(index) {
@@ -709,7 +715,7 @@ function removeBotSlot(index) {
   const engine = getActiveGameEngine();
   if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
   renderPauseSeats(handleSeatSwap);
-  showInstallToast(`P${index + 1} boşaltıldı.`);
+  showInstallToast(`🗑 P${index + 1} boşaltıldı.`);
 }
 
 // Motorların LOBBY tap'lerini host'a yönlendir (sadece host iken aktif)

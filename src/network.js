@@ -355,12 +355,13 @@ export class PartyNetwork {
     this.send({ type: 'ROTATE_SEATS' });
   }
 
-  setSlotBot(slotIndex, name) {
+  setSlotBot(slotIndex, name, kind = 'bot') {
     if (!this.ws || this.ws.readyState !== 1) return;
     this.send({
       type: 'SET_SLOT_BOT',
       slotIndex,
       name,
+      kind,
     });
   }
 

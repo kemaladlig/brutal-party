@@ -456,7 +456,7 @@ export class RoomManager {
         name: p.name,
         color: p.color,
         isReady: !!room.ready[idx],
-        kind: p.isBot ? 'bot' : 'human',
+        kind: p.isBot ? (p.kind || 'bot') : 'human',
       };
     });
   }
@@ -469,7 +469,7 @@ export class RoomManager {
     });
   }
 
-  handleSetSlotBot(hostWs, slotIndex, name) {
+  handleSetSlotBot(hostWs, slotIndex, name, kind = 'bot') {
     if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
@@ -481,6 +481,7 @@ export class RoomManager {
       color: playerColors[slotIndex],
       ws: null,
       isBot: true,
+      kind: kind || 'bot',
       joinedAt: Date.now(),
     };
     room.ready[slotIndex] = false;
