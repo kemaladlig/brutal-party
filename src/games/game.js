@@ -3,6 +3,7 @@ import { Paddle, PLAYER_CONFIGS } from './paddle.js';
 import { Ball } from './ball.js';
 import { playJoin, playStart, playPowerUp } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton } from '../controlGuide.js';
+import { renderCornerScores } from '../ui/hud.js';
 import { renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 
@@ -184,10 +185,11 @@ export class Game extends BaseMiniGame {
     };
   }
 
-  // Köşe pahı bacağı (fizik + dikiş çizgisi aynı değerden beslenir)
+  // Köşe pahı bacağı (fizik + dikiş çizgisi aynı değerden beslenir).
+  // Portrait'te duvarlar uzadığı için oran bumperRatio'dan gelir (ölü koddu, bağlandı).
   getChamferLeg() {
     const minDim = Math.min(this.arena.width, this.arena.height);
-    return Math.round(minDim * 0.085);
+    return Math.round(minDim * (this.arena.bumperRatio || 0.085));
   }
 
   getPlayerZoneAt(point) {
@@ -560,6 +562,18 @@ export class Game extends BaseMiniGame {
       this.ball.draw(ctx);
     }
 
+    // Standart köşe skorları (diğer oyunlarla aynı dil: saha üstü 4 köşe)
+    if (this.state !== 'LOBBY') {
+      renderCornerScores(ctx, {
+        arena: this.arena,
+        entries: this.paddles.map((p, i) =>
+          p.isJoined && !p.isEliminated
+            ? { color: p.color, text: `${this.setScores[i] || 0}★` }
+            : null
+        ),
+      });
+    }
+
     // Render UI Overlays
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
@@ -719,12 +733,13 @@ export class Game extends BaseMiniGame {
   }
 
   renderCornerBumpers(ctx) {
-    const { left, right, top, bottom } = this.arena;
+    const { left, right, top, bottom, width: aW, height: aH } = this.arena;
     const { goalMin: hGoalMin, goalMax: hGoalMax } = this.getGoalBounds('bottom');
     const { goalMin: vGoalMin, goalMax: vGoalMax } = this.getGoalBounds('left');
     const bLenH = hGoalMin - left;
     const bLenV = vGoalMin - top;
-    const thick = 16;
+    // Bumper kalınlığı arenaya oranlı (dar telefonda pahla orantı korunur)
+    const thick = Math.max(10, Math.round(Math.min(aW, aH) * 0.03));
 
     ctx.fillStyle = '#8C8880';
     ctx.strokeStyle = '#1C1C1A';
