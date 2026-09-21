@@ -108,11 +108,25 @@ export function updateZoneBotAI(game, bot, dt) {
 
   steer(game, bot, prof, plan, myCell, myTag, trailing, dt);
 
-  // Depar: eve uzun dönüşte + av kovalamacasında + relic kapışında
+  // Depar: eve uzun dönüşte + av kovalamacasında + relic kapışında.
+  // Eve-giriş kapısı: hedefe çok yakınken veya keskin dönüş gerekirken depar
+  // atılmaz — depar dönüşü yarıya indirir, ıskalayıp kendi izine girilir.
   if (typeof game.triggerDash === 'function'
       && (bot.dashCooldown || 0) <= 0 && bot.stunTimer <= 0 && game.state === 'PLAYING') {
     if (plan.phase === 'HOME' && trailing && bot.trail.length > prof.risk * 0.6) {
-      if (bot.slotType === 'bot_god' || Math.random() < 0.03) game.triggerDash(bot.index);
+      const homeLeg = bot.aiPath ? bot.aiPath.length : 0;
+      let turnNeed = 0;
+      const mvLen = Math.hypot(bot.aiMoveX, bot.aiMoveY);
+      if (mvLen > 0.01) {
+        let d = Math.atan2(bot.aiMoveY, bot.aiMoveX) - bot.heading;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        turnNeed = Math.abs(d);
+      }
+      const closeToHome = homeLeg > 0 && homeLeg <= 6;
+      if (!closeToHome && turnNeed < 1.0) {
+        if (bot.slotType === 'bot_god' || Math.random() < 0.03) game.triggerDash(bot.index);
+      }
     } else if (plan.phase === 'HUNT' && bot.slotType === 'bot_god' && Math.random() < 0.05) {
       game.triggerDash(bot.index);
     } else if (plan.phase === 'RELIC' && (bot.slotType === 'bot_god' || Math.random() < 0.04)) {
@@ -453,6 +467,31 @@ function steer(game, bot, prof, plan, myCell, myTag, trailing, dt) {
   // Organik sapma
   dx += (Math.random() - 0.5) * prof.noise * game.cell;
   dy += (Math.random() - 0.5) * prof.noise * game.cell;
+
+  // Kendi izinden kaçınma (basit guard): niyet yönünde 1.5 ve 2.8 hücre
+  // ileride kendi izi varsa ±45°/±90° alternatiflerden temiz olanına kay.
+  // Plan fazına dokunmaz, sadece direksiyon bias'ıdır.
+  if (trailing) {
+    const probeDist = [game.cell * 1.5, game.cell * 2.8];
+    const isOwnTrailAhead = (nx, ny) => {
+      const l = Math.hypot(nx, ny) || 1;
+      for (const pd of probeDist) {
+        const ci = game.posToCell(bot.x + (nx / l) * pd, bot.y + (ny / l) * pd);
+        if (ci >= 0 && game.trailOwner[ci] === bot.index) return true;
+      }
+      return false;
+    };
+    if (isOwnTrailAhead(dx, dy)) {
+      const baseAng = Math.atan2(dy, dx);
+      const baseLen = Math.hypot(dx, dy) || 1;
+      const alts = [Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2];
+      for (const off of alts) {
+        const ax = Math.cos(baseAng + off) * baseLen;
+        const ay = Math.sin(baseAng + off) * baseLen;
+        if (!isOwnTrailAhead(ax, ay)) { dx = ax; dy = ay; break; }
+      }
+    }
+  }
 
   const len = Math.hypot(dx, dy) || 1;
   bot.aiMoveX = dx / len;

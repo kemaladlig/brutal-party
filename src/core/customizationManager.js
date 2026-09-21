@@ -58,6 +58,17 @@ function defaultFace() {
   return { expression: 'FOCUS', accessory: 'NONE', pattern: 'SOLID' };
 }
 
+// Rastgele karakter zarı: renk dışı tüm yüz öğelerini listelerden seçer.
+// (reset butonu + ilk kurulum fallback'i kullanır; kayıtlı profillere dokunmaz.)
+function randomFace() {
+  const pick = (arr) => arr[(Math.random() * arr.length) | 0].id;
+  return {
+    expression: pick(AVATAR_EXPRESSIONS),
+    accessory: pick(AVATAR_ACCESSORIES),
+    pattern: pick(AVATAR_PATTERNS),
+  };
+}
+
 export function randomAvatarColor(excludeHexes = []) {
   const taken = new Set((excludeHexes || []).map((h) => String(h || '').toUpperCase()));
   const free = AVATAR_PALETTES.filter((p) => !taken.has(p.hex.toUpperCase()));
@@ -85,7 +96,7 @@ function migrateLegacyProfile() {
 // her yeni cihaz farklı renkle gelir, herkes varsayılan kırmızıda buluşmaz.
 export function getAvatarProfile() {
   migrateLegacyProfile();
-  const fallback = { color: randomAvatarColor(), ...defaultFace() };
+  const fallback = { color: randomAvatarColor(), ...randomFace() };
   try {
     const raw = localStorage.getItem(PROFILE_KEY);
     if (raw) {
@@ -109,7 +120,7 @@ export function saveAvatarProfile(profile) {
 }
 
 export function resetAvatarProfile() {
-  const def = { color: randomAvatarColor(), ...defaultFace() };
+  const def = { color: randomAvatarColor(), ...randomFace() };
   return saveAvatarProfile(def);
 }
 
@@ -299,7 +310,7 @@ export function saveSlotCustomization(slotIndex, custom) {
 
 export function resetSlotCustomization(slotIndex) {
   const safeIdx = Math.max(0, Math.min(3, slotIndex || 0));
-  const clean = { color: randomAvatarColor(), ...defaultFace() };
+  const clean = { color: randomAvatarColor(), ...randomFace() };
   setSlotAvatar(safeIdx, clean);
   return { ...clean };
 }

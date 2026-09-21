@@ -12,6 +12,7 @@ import {
 } from '../core/customizationManager.js';
 import { drawBrutalAvatar } from './characterRenderer.js';
 import { showInstallToast } from './toast.js';
+import { getStoredPlayerName, storePlayerName, cleanPlayerName, generateNick } from '../net.js';
 
 let currentCustom = null;
 let animFrameId = null;
@@ -341,46 +342,95 @@ export function initMenuAvatarCard() {
   const canvasEl = document.getElementById('menu-avatar-canvas');
   if (!canvasEl) return;
 
-  const updateCardDetails = () => {
-    const custom = getAvatarProfile();
-    const colorObj = AVATAR_PALETTES.find((p) => p.hex.toLowerCase() === (custom.color || '').toLowerCase()) || { name: 'ÖZEL', hex: custom.color };
-    const expObj = AVATAR_EXPRESSIONS.find((e) => e.id === custom.expression) || { name: 'Odaklı', icon: '👀' };
-    const accObj = AVATAR_ACCESSORIES.find((a) => a.id === custom.accessory) || { name: 'Sade', icon: '⚪' };
-
-    const colorPill = document.getElementById('menu-avatar-color-pill');
-    if (colorPill) {
-      colorPill.textContent = colorObj.name;
-      colorPill.style.backgroundColor = custom.color;
-      colorPill.style.color = '#FFFFFF';
-    }
-
-    const expPill = document.getElementById('menu-avatar-exp-pill');
-    if (expPill) {
-      expPill.textContent = `${expObj.icon} ${expObj.name}`;
-    }
-
-    const accPill = document.getElementById('menu-avatar-acc-pill');
-    if (accPill) {
-      accPill.textContent = `${accObj.icon} ${accObj.name}`;
+  // Karttaki kullanıcı adı (kayıtlı isim; menü her açıldığında tazelenir)
+  const updateCardName = () => {
+    const nameEl = document.getElementById('menu-avatar-name');
+    if (nameEl) {
+      try {
+        nameEl.textContent = getStoredPlayerName() || 'OYUNCU';
+      } catch {
+        nameEl.textContent = 'OYUNCU';
+      }
     }
   };
+  updateCardName();
 
-  updateCardDetails();
+  const viewRow = document.getElementById('menu-name-view-row');
+  const editBtn = document.getElementById('btn-edit-menu-name');
+  const rerollBtn = document.getElementById('btn-reroll-menu-name');
+  const inputRow = document.getElementById('menu-name-input-row');
+  const nameInput = document.getElementById('input-menu-name');
 
-  // Customization değiştiğinde kartı anında tazele
-  window.addEventListener('brutal_customization_changed', () => {
-    updateCardDetails();
+  const closeNameEdit = () => {
+    inputRow?.classList.add('hidden');
+    viewRow?.classList.remove('hidden');
+  };
+
+  const saveMenuName = () => {
+    const raw = (nameInput?.value || '').trim();
+    const clean = raw ? cleanPlayerName(raw) : (getStoredPlayerName() || ensureStoredNick());
+    storePlayerName(clean);
+    updateCardName();
+    closeNameEdit();
+  };
+
+  inputRow?.addEventListener('click', (e) => e.stopPropagation());
+
+  editBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    try {
+      if (nameInput) nameInput.value = getStoredPlayerName() || '';
+    } catch {}
+    viewRow?.classList.add('hidden');
+    inputRow?.classList.remove('hidden');
+    nameInput?.focus();
+    nameInput?.select();
   });
 
-  // Tıklama ile modal açılışı
+  rerollBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    try {
+      const cur = getStoredPlayerName() || '';
+      const nick = generateNick(cur);
+      storePlayerName(nick);
+    } catch {}
+    updateCardName();
+    closeNameEdit();
+    showInstallToast('🎲 Yeni nick hazır!');
+  });
+
+  document.getElementById('btn-save-menu-name')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    saveMenuName();
+  });
+
+  nameInput?.addEventListener('click', (e) => e.stopPropagation());
+  nameInput?.addEventListener('input', (e) => {
+    e.target.value = (e.target.value || '').toUpperCase();
+  });
+  nameInput?.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') saveMenuName();
+    else if (e.key === 'Escape') closeNameEdit();
+  });
+
+  // Tıklama ile modal açılışı (kart sade vitrin: canlı önizleme + başlık)
   cardEl?.addEventListener('click', (e) => {
-    // Eğer doğrudan bir butona basılmadıysa da tüm karta tıklamayı destekle
+    if (inputRow && !inputRow.classList.contains('hidden')) {
+      closeNameEdit();
+      return;
+    }
     openCustomizeModal();
   });
 
   // 60 FPS Canlı Menü Önizleme Döngüsü
   const ctx = canvasEl.getContext('2d');
   let lastTime = performance.now();
+  let cachedProfile = getAvatarProfile();
+
+  window.addEventListener('brutal_customization_changed', (e) => {
+    cachedProfile = e.detail?.customization || getAvatarProfile();
+  });
 
   const menuLoop = (now) => {
     const dt = Math.min(0.08, (now - lastTime) / 1000);
@@ -406,8 +456,8 @@ export function initMenuAvatarCard() {
     const cy = canvasEl.height / 2;
     const bounce = Math.sin(now * 0.0035) * 3;
 
-    const custom = getAvatarProfile();
-    drawBrutalAvatar(ctx, cx, cy + bounce, 36, {
+    const custom = cachedProfile;
+    drawBrutalAvatar(ctx, cx, cy + bounce, 58, {
       color: custom.color,
       expression: custom.expression,
       accessory: custom.accessory,
@@ -416,8 +466,8 @@ export function initMenuAvatarCard() {
       isBlinking: isMenuBlinking,
       showPips: false,
       showPointer: false,
-      borderWidth: 3,
-      shadowOffset: 4,
+      borderWidth: 4,
+      shadowOffset: 5,
     });
 
     const menuOverlay = document.getElementById('menu-overlay');
@@ -432,13 +482,17 @@ export function initMenuAvatarCard() {
     menuAnimFrameId = requestAnimationFrame(menuLoop);
   }
 
-  // Menü tekrar açıldığında döngüyü yeniden başlatmak için observer
+  // Menü tekrar açıldığında döngüyü yeniden başlatmak + ismi tazelemek için observer
   const menuOverlay = document.getElementById('menu-overlay');
   if (menuOverlay) {
     const observer = new MutationObserver(() => {
-      if (!menuOverlay.classList.contains('hidden') && !menuAnimFrameId) {
-        lastTime = performance.now();
-        menuAnimFrameId = requestAnimationFrame(menuLoop);
+      if (!menuOverlay.classList.contains('hidden')) {
+        updateCardName();
+        cachedProfile = getAvatarProfile();
+        if (!menuAnimFrameId) {
+          lastTime = performance.now();
+          menuAnimFrameId = requestAnimationFrame(menuLoop);
+        }
       }
     });
     observer.observe(menuOverlay, { attributes: true, attributeFilter: ['class'] });

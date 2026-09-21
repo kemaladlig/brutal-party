@@ -19,6 +19,7 @@ import {
   getStoredPlayerName,
   storePlayerName,
   cleanPlayerName,
+  ensureStoredNick,
 } from './net.js';
 
 import { initToastAndInstall, showInstallToast } from './ui/toast.js';
@@ -425,7 +426,7 @@ async function openHostLobby(gameMode = 'PONG') {
 async function executeJoin(rawCode, rawName) {
   tryFullscreen();
   const code = (rawCode || '').trim().toUpperCase();
-  const name = (rawName || '').trim().toUpperCase() || 'OYUNCU';
+  const name = (rawName || '').trim().toUpperCase() || ensureStoredNick();
 
   if (!code || code.length < 3) {
     showInstallToast('Lütfen 3 haneli geçerli bir oda kodu girin.');
@@ -863,6 +864,7 @@ function setSeatTapHook() {
 }
 
 // Initialise UI Submodules
+ensureStoredNick();
 initToastAndInstall();
 initJoinModal({ onExecuteJoin: executeJoin });
 initHostLobby({
@@ -996,7 +998,7 @@ if (autoJoinCode) {
     updatePlatformMode('ONLINE');
   }
   openJoinModal(autoJoinCode);
-  executeJoin(autoJoinCode, getStoredPlayerName() || 'OYUNCU');
+  executeJoin(autoJoinCode, ensureStoredNick());
 }
 
 // Best-effort goodbye beacon on page hide

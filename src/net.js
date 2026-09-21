@@ -84,6 +84,71 @@ export function storePlayerName(name) {
   }
 }
 
+// ── Tek isim + nick generator ──
+// Cihaz sahibinin nick'i: menü kartında bir kere belirlenir, katılım formu ve
+// kumanda lobisi hep aynısını kullanır. Boşta "OYUNCU" ile başlanmaz.
+const NICK_ADJ = [
+  'HIZLI', 'ÇILGIN', 'DELİ', 'SERİ', 'UÇUK', 'KARA', 'SARI', 'KIZIL', 'MAVİ',
+  'ZEKİ', 'ÇEVİK', 'SÜPER', 'MEGA', 'ULTRA', 'GİZLİ', 'YAMAN', 'ATEŞ', 'BUZ',
+  'KESKİN', 'SİNSİ', 'VAHŞİ', 'ASİ', 'NEON', 'PİXEL', 'ŞANSLI', 'ATİK', 'GÖLGE',
+  'DEMİR', 'ALTIN', 'KAYA', 'DEV', 'MİNİK', 'USTA', 'ÇAKAL', 'ALFA', 'CESUR', 'PARLAK'
+];
+
+const NICK_NOUN = [
+  'TİLKİ', 'KURT', 'KOBRA', 'ASLAN', 'BOĞA', 'KARTAL', 'KAPLAN', 'ŞAHİN', 'ATMACA',
+  'PUMA', 'AYI', 'PANDA', 'TAVŞAN', 'PENGUEN', 'ROKET', 'ŞİMŞEK', 'LİDER', 'BOMBA',
+  'HAYALET', 'KORSAN', 'NİNJA', 'ROBOT', 'KAPTAN', 'AVCI', 'AJAN', 'KOZMO',
+  'RADAR', 'BLOK', 'TURBO', 'SONİK', 'VORTEX', 'SAMURAY', 'UZAYLI', 'ŞERİF'
+];
+
+const NICK_STANDALONE = [
+  'KASIRGA', 'VOLTRAN', 'VORTEX', 'FIRTINA', 'HAYALET', 'SAMURAY', 'KORSAN',
+  'ŞAMPİYON', 'TITAN', 'METEOR', 'BLITZ', 'HAVOC', 'PHANTOM', 'GHOST', 'SHADOW',
+  'VIPER', 'FALCON', 'HUNTER', 'RAPTOR', 'FRENZY', 'TURBO', 'SONIC', 'LEGEND',
+  'BANDIT', 'CYBER', 'GLADIATOR', 'APEX', 'ZENITH'
+];
+
+const NICK_PREFIX = ['BAY', 'ŞEF', 'KRAL', 'LORD', 'KAPTAN', 'ALFA'];
+
+const randOf = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+/** Karışık stil zengin kısa nick üretir (sıfat+isim / isim+sayı / tekil / unvan). Her zaman ≤12 harf. */
+export function generateNick(exclude = '') {
+  const normExclude = String(exclude || '').trim().toUpperCase();
+  for (let attempt = 0; attempt < 25; attempt++) {
+    const roll = Math.random();
+    let cand = '';
+    if (roll < 0.42) {
+      const adj = randOf(NICK_ADJ);
+      const noun = randOf(NICK_NOUN);
+      if (adj !== noun) cand = `${adj} ${noun}`;
+    } else if (roll < 0.68) {
+      const num = Math.random() < 0.65 ? (10 + Math.floor(Math.random() * 89)) : (2 + Math.floor(Math.random() * 8));
+      cand = `${randOf(NICK_NOUN)} ${num}`;
+    } else if (roll < 0.86) {
+      cand = randOf(NICK_STANDALONE);
+    } else {
+      cand = `${randOf(NICK_PREFIX)} ${randOf(NICK_NOUN)}`;
+    }
+    if (cand && cand.length <= 12 && cand !== normExclude) {
+      return cleanPlayerName(cand);
+    }
+  }
+  const fallback = randOf(NICK_STANDALONE);
+  return cleanPlayerName(fallback !== normExclude ? fallback : randOf(NICK_NOUN));
+}
+
+/** Kayıtlı nick yoksa üretip saklar; her zaman geçerli nick döner. */
+export function ensureStoredNick() {
+  const cur = getStoredPlayerName();
+  if (cur && cur !== 'OYUNCU') return cur;
+  const nick = generateNick();
+  try {
+    localStorage.setItem(PLAYER_NAME_KEY, nick);
+  } catch {}
+  return nick;
+}
+
 // İsim temizleyici (tek kaynak): trim + BÜYÜK HARF + 12 + etiket gruplarını
 // ve tehlikeli karakterleri at. TV listesi ↔ relay ↔ kumanda hep buradan
 // geçer (AGENTS §4 parity).

@@ -288,8 +288,10 @@
               <button class="code-clear-btn hidden" id="btn-clear-room-code" type="button" aria-label="Kodu temizle">×</button>
             </div>
             
-            <label class="join-label">OYUNCU İSMİNİZ</label>
-            <input type="text" id="input-player-name" class="brutal-input" maxlength="12" placeholder="ÖR: AHMET" />
+            <div class="join-as-row">
+              <span class="join-as-badge">🎮 <b id="join-as-name">OYUNCU</b> OLARAK KATILIYORSUN</span>
+              <span class="join-as-hint">İsmi menüdeki karakter kartından değiştirebilirsin.</span>
+            </div>
           </div>
           <div class="join-actions">
             <button class="join-btn primary" id="btn-submit-join" type="button">KUMANDAYI BAĞLA →</button>
@@ -415,14 +417,22 @@
                 </div>
                 <div class="customize-card-body">
                   <div class="menu-avatar-stage">
-                    <canvas id="menu-avatar-canvas" width="110" height="110" class="menu-avatar-canvas"></canvas>
+                    <canvas id="menu-avatar-canvas" width="192" height="192" class="menu-avatar-canvas"></canvas>
                   </div>
                   <div class="menu-avatar-info">
-                    <div class="menu-avatar-title">KARAKTERİNİ SEÇ</div>
-                    <div class="menu-avatar-pills">
-                      <span id="menu-avatar-color-pill" class="avatar-pill color-pill">KIRMIZI</span>
-                      <span id="menu-avatar-exp-pill" class="avatar-pill">👀 Odaklı</span>
-                      <span id="menu-avatar-acc-pill" class="avatar-pill">⚪ Sade</span>
+                    <div class="menu-avatar-header-row">
+                      <div class="menu-avatar-title">KARAKTERİN</div>
+                      <div class="menu-avatar-actions">
+                        <button class="menu-name-icon-btn" id="btn-edit-menu-name" type="button" title="İsmi düzenle">✏️</button>
+                        <button class="menu-name-icon-btn" id="btn-reroll-menu-name" type="button" title="Rastgele nick">🎲</button>
+                      </div>
+                    </div>
+                    <div class="menu-name-row" id="menu-name-view-row">
+                      <div class="menu-avatar-name" id="menu-avatar-name">OYUNCU</div>
+                    </div>
+                    <div class="menu-name-input-row hidden" id="menu-name-input-row">
+                      <input type="text" class="menu-name-input" id="input-menu-name" maxlength="12" placeholder="NICK'İN" autocapitalize="characters" autocomplete="off" spellcheck="false" />
+                      <button class="menu-name-save-btn" id="btn-save-menu-name" type="button">✓</button>
                     </div>
                   </div>
                 </div>

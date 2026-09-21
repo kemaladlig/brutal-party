@@ -70,6 +70,10 @@ export const ZONE_TUNING = {
   DASH_MULT: 2.2,    // depar hız çarpanı
   DASH_TIME: 0.22,   // depar süresi (sn)
   DASH_CD: 4.0,      // depar bekleme (sn)
+  AVATAR_R_MULT: 1.15, // karakter yarıçapı = hücre * bu (iri görünüm, grid'e dokunmaz)
+  AVATAR_R_MIN: 8,     // küçük ekranda taban yarıçap (px)
+  TRAIL_W_MULT: 0.95,  // açık iz çizgi kalınlığı = hücre * bu
+  TRAIL_GLOW_MULT: 1.05, // risk uyarısı dış parlama = hücre * bu (hazard'da +0.2)
   RELIC_SPAWN_INIT: 4.5, // İlk relic çıkış süresi (sn)
   RELIC_SPAWN_CD: 8.5,   // Relic çıkış periyodu (sn)
   MAX_RELICS: 2,         // Sahada aynı anda en fazla relic sayısı
@@ -317,10 +321,10 @@ export class ZoneGame extends BaseMiniGame {
   }
 
   resize(width, height) {
-    const marginX = Math.max(12, Math.floor(width * 0.04));
+    const marginX = Math.max(8, Math.floor(width * 0.025));
     const marginY = height > width
       ? Math.max(48, Math.floor(height * 0.12))
-      : Math.max(32, Math.floor(height * 0.06));
+      : Math.max(24, Math.floor(height * 0.045));
     const arenaW = width - marginX * 2;
     const arenaH = height - marginY * 2;
     this.arena = {
@@ -330,7 +334,7 @@ export class ZoneGame extends BaseMiniGame {
     };
 
     // Kare capture alanı arena ortasında
-    const s = Math.max(64, Math.min(arenaW, arenaH) - 8);
+    const s = Math.max(64, Math.min(arenaW, arenaH) - 4);
     this.field = { x: this.arena.cx - s / 2, y: this.arena.cy - s / 2, s };
     this.cell = s / ZONE_TUNING.GRID;
 
@@ -358,7 +362,7 @@ export class ZoneGame extends BaseMiniGame {
       return {
         index: i, name: ZONE_NAMES[i], color: isBot ? '#8E8E93' : custom.color,
         x: bcx, y: bcy, heading: outward,
-        radius: Math.max(6, this.cell * 0.9),
+        radius: Math.max(ZONE_TUNING.AVATAR_R_MIN, this.cell * ZONE_TUNING.AVATAR_R_MULT),
         isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         trail: [], lastCell: -1,
         // İz-başlangıç anchor'ı: base'den çıkılan tam piksel nokta (render
@@ -1340,7 +1344,7 @@ export class ZoneGame extends BaseMiniGame {
       const bob = Math.sin(nowSec * 4 + rel.bobPhase) * 4;
       const rx = rel.x;
       const ry = rel.y + bob;
-      const rSize = (this.cell * 1.35) * rel.scale;
+      const rSize = (this.cell * 1.6) * rel.scale;
 
       ctx.save();
       ctx.translate(rx, ry);
@@ -1395,7 +1399,7 @@ export class ZoneGame extends BaseMiniGame {
       // Yüksek risk uyarısında neon kırmızı parlama katmanı
       if (isRiskWarn) {
         ctx.strokeStyle = isHazard ? '#D84727' : p.color;
-        ctx.lineWidth = this.cell * (isHazard ? 1.0 : 0.85);
+        ctx.lineWidth = this.cell * (isHazard ? ZONE_TUNING.TRAIL_GLOW_MULT + 0.2 : ZONE_TUNING.TRAIL_GLOW_MULT);
         ctx.globalAlpha = isHazard ? (0.6 + 0.4 * Math.sin(nowSec * 16)) : 0.4;
         ctx.beginPath();
         ctx.moveTo(p.trailStartX, p.trailStartY);
@@ -1410,7 +1414,7 @@ export class ZoneGame extends BaseMiniGame {
       // Ana iz çizgisi
       ctx.globalAlpha = 1.0;
       ctx.strokeStyle = p.color;
-      ctx.lineWidth = this.cell * 0.7;
+      ctx.lineWidth = this.cell * ZONE_TUNING.TRAIL_W_MULT;
       if (isHazard) {
         // Kritik seviyede animasyonlu tehlike şeridi (moving dash pattern)
         ctx.setLineDash([8, 6]);

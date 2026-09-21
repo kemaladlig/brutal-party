@@ -1,10 +1,12 @@
 // Join Modal & Hero Code Input Controller
-import { getStoredPlayerName } from '../net.js';
+// İsim sorulmaz: cihazın tek nick'i (ensureStoredNick) ile katılınır.
+// İsim düzenleme noktası ana menüdeki karakter kartıdır.
+import { ensureStoredNick } from '../net.js';
 import { showInstallToast } from './toast.js';
 
 const joinRoomModal = document.getElementById('join-room-modal');
 const inputRoomCode = document.getElementById('input-room-code');
-const inputPlayerName = document.getElementById('input-player-name');
+const joinAsName = document.getElementById('join-as-name');
 const btnSubmitJoin = document.getElementById('btn-submit-join');
 const btnCancelJoin = document.getElementById('btn-cancel-join');
 const btnPasteRoomCode = document.getElementById('btn-paste-room-code');
@@ -36,8 +38,8 @@ export function openJoinModal(prefilledCode = '') {
   if (inputRoomCode) {
     inputRoomCode.value = prefilledCode.toUpperCase();
   }
-  if (inputPlayerName && !inputPlayerName.value) {
-    inputPlayerName.value = getStoredPlayerName();
+  if (joinAsName) {
+    joinAsName.textContent = ensureStoredNick();
   }
   joinRoomModal?.classList.remove('hidden');
 }
@@ -85,17 +87,12 @@ export function initJoinModal({ onExecuteJoin }) {
 
   btnSubmitJoin?.addEventListener('click', () => {
     const code = inputRoomCode?.value?.trim().toUpperCase();
-    const name = (inputPlayerName?.value || getStoredPlayerName() || 'OYUNCU').toUpperCase();
     if (!code || code.length < 3) {
       showInstallToast('Geçerli 3 haneli oda kodunu girin.');
       return;
     }
     closeJoinModal();
-    onExecuteJoin(code, name);
-  });
-
-  inputPlayerName?.addEventListener('input', (e) => {
-    e.target.value = (e.target.value || '').toUpperCase();
+    onExecuteJoin(code, ensureStoredNick());
   });
 
   inputRoomCode?.addEventListener('input', (e) => {
@@ -103,7 +100,7 @@ export function initJoinModal({ onExecuteJoin }) {
     e.target.value = code;
     if (code.length === 3) {
       closeJoinModal();
-      onExecuteJoin(code, (inputPlayerName?.value || getStoredPlayerName() || 'OYUNCU').toUpperCase());
+      onExecuteJoin(code, ensureStoredNick());
     }
   });
 
@@ -114,14 +111,14 @@ export function initJoinModal({ onExecuteJoin }) {
       openJoinModal(code);
       return;
     }
-    onExecuteJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
+    onExecuteJoin(code, ensureStoredNick());
   });
 
   heroInputCode?.addEventListener('input', (e) => {
     const code = (e.target.value || '').trim().toUpperCase();
     e.target.value = code;
     if (code.length === 3) {
-      onExecuteJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
+      onExecuteJoin(code, ensureStoredNick());
     }
   });
 
@@ -129,7 +126,7 @@ export function initJoinModal({ onExecuteJoin }) {
     if (e.key === 'Enter') {
       const code = heroInputCode?.value?.trim().toUpperCase();
       if (code && code.length === 3) {
-        onExecuteJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
+        onExecuteJoin(code, ensureStoredNick());
       }
     }
   });
@@ -142,7 +139,7 @@ export function initJoinModal({ onExecuteJoin }) {
         const code = (match ? match[1] : text.slice(0, 3)).toUpperCase();
         heroInputCode.value = code;
         if (code.length === 3) {
-          onExecuteJoin(code, (getStoredPlayerName() || 'OYUNCU').toUpperCase());
+          onExecuteJoin(code, ensureStoredNick());
         }
       }
     } catch (err) {

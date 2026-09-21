@@ -555,7 +555,7 @@ body {
 /* 3-Pillar Action Command Hub */
 .hero-actions-container {
   display: grid;
-  grid-template-columns: 1.15fr 0.95fr 1.05fr;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr) minmax(0, 1.05fr);
   gap: 16px;
   margin-top: 6px;
   width: 100%;
@@ -564,7 +564,7 @@ body {
 
 @media (max-width: 960px) {
   .hero-actions-container {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 14px;
   }
   .customize-hero-card {
@@ -574,7 +574,7 @@ body {
 
 @media (max-width: 640px) {
   .hero-actions-container {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
   .customize-hero-card {
@@ -592,6 +592,7 @@ body {
   position: relative;
   box-sizing: border-box;
   width: 100%;
+  min-width: 0;
   transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
@@ -609,6 +610,8 @@ body {
   background-color: #faf5ff;
   border-top: 6px solid #7928ca;
   cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .customize-hero-card:hover {
@@ -619,6 +622,14 @@ body {
 .customize-hero-card:active {
   transform: translate(2px, 2px);
   box-shadow: 2px 2px 0px #1a1a1a;
+}
+
+/* Butonlara basılırken kartın kendisi çökmesin, sadece buton gömülsün */
+.customize-hero-card:has(.menu-name-icon-btn:active),
+.customize-hero-card:has(.menu-name-save-btn:active),
+.customize-hero-card:has(.hero-custom-btn:active) {
+  transform: none !important;
+  box-shadow: 6px 6px 0px #1a1a1a !important;
 }
 
 .hero-card-header {
@@ -822,14 +833,18 @@ body {
 .customize-card-body {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   margin: 2px 0;
+  min-width: 0;
+  width: 100%;
 }
 
 .menu-avatar-stage {
-  width: 76px;
-  height: 76px;
-  min-width: 76px;
+  width: 120px;
+  height: 120px;
+  min-width: 120px;
+  max-width: 120px;
+  flex-shrink: 0;
   background: #ffffff;
   border: 2.5px solid #1a1a1a;
   box-shadow: 3px 3px 0px #1a1a1a;
@@ -840,54 +855,188 @@ body {
 }
 
 .menu-avatar-canvas {
-  width: 76px;
-  height: 76px;
+  width: 120px;
+  height: 120px;
   display: block;
 }
 
 .menu-avatar-info {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 6px;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+}
+
+.menu-avatar-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
 }
 
 .menu-avatar-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #75726b;
+  letter-spacing: 1.5px;
+}
+
+.menu-avatar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.menu-name-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 38px;
+}
+
+.menu-name-row.hidden {
+  display: none !important;
+}
+
+.menu-avatar-name {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 14px;
+  font-size: clamp(17px, 2.2vw, 22px);
   font-weight: 900;
   color: #1a1a1a;
   letter-spacing: -0.3px;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
 }
 
-.menu-avatar-pills {
+.menu-name-icon-btn {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  background-color: #ffffff;
+  border: 2px solid #1a1a1a;
+  box-shadow: 2px 2px 0px #1a1a1a;
+  cursor: pointer;
+  touch-action: manipulation;
+  padding: 0;
+  transition: transform 0.06s ease, box-shadow 0.06s ease, background-color 0.1s ease;
 }
 
-.avatar-pill {
+.menu-name-icon-btn:hover {
+  background-color: #ffde59;
+}
+
+.menu-name-icon-btn:active {
+  transform: translate(2px, 2px) !important;
+  box-shadow: 0px 0px 0px #1a1a1a !important;
+  background-color: #ffd214;
+}
+
+.menu-name-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 38px;
+  width: 100%;
+  min-width: 0;
+}
+
+.menu-name-input-row.hidden {
+  display: none !important;
+}
+
+.menu-name-input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 900;
+  color: #1a1a1a;
+  background-color: #ffffff;
+  border: 2.5px solid #1a1a1a;
+  box-shadow: 2px 2px 0px #1a1a1a;
+  text-transform: uppercase;
+}
+
+.menu-name-save-btn {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  font-weight: 900;
+  color: #ffffff;
+  background-color: #2f6a4f;
+  border: 2.5px solid #1a1a1a;
+  box-shadow: 2px 2px 0px #1a1a1a;
+  cursor: pointer;
+  touch-action: manipulation;
+  padding: 0;
+}
+
+.menu-name-save-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+}
+
+/* Katılım penceresi: salt-okunur nick satırı */
+.join-as-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background-color: #f4f4f0;
+  border: 2.5px solid #1a1a1a;
+  box-shadow: 3px 3px 0px #1a1a1a;
+}
+
+.join-as-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 800;
+  color: #1a1a1a;
+}
+
+.join-as-badge b {
+  font-weight: 900;
+  background-color: #ffde59;
+  border: 2px solid #1a1a1a;
+  padding: 0 6px;
+}
+
+.join-as-hint {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
-  font-weight: 800;
-  background: #ede9fe;
-  color: #5b21b6;
-  border: 1.5px solid #1a1a1a;
-  padding: 2px 6px;
-  white-space: nowrap;
-}
-
-.avatar-pill.color-pill {
-  border-color: #1a1a1a;
+  font-weight: 700;
+  color: #75726b;
 }
 
 .hero-custom-btn {
-  height: 48px;
+  height: 40px;
   width: 100%;
   padding: 0 14px;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 14.5px;
+  font-size: 13px;
   font-weight: 900;
   background-color: #7928ca;
   color: #ffffff;
