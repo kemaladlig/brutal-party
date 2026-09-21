@@ -1861,21 +1861,21 @@ export class CrownGame extends BaseMiniGame {
       borderWidth: p.isTackling ? 4.5 : 3,
     });
 
-    // Tackle readiness / cooldown ring indicator
+    // Tackle readiness / cooldown ring indicator (krem zeminde görünür koyu halka)
     if (p.isAlive) {
       if (p.tackleCooldown > 0) {
         const cdRatio = 1.0 - (p.tackleCooldown / 2.0);
         ctx.save();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.8)';
+        ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(x, y, r + 4, -Math.PI / 2, -Math.PI / 2 + cdRatio * Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       } else if (p.stumbleTimer <= 0 && p.slipTimer <= 0) {
         ctx.save();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.55)';
+        ctx.lineWidth = 2;
         ctx.setLineDash([4, 3]);
         ctx.beginPath();
         ctx.arc(x, y, r + 4, 0, Math.PI * 2);
@@ -1958,16 +1958,16 @@ export class CrownGame extends BaseMiniGame {
       ctx.strokeRect(btn.x - btn.w / 2, btn.y - btn.h / 2, btn.w, btn.h);
 
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 11px "Space Grotesk", sans-serif';
+      ctx.font = '900 12px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       if (isReady) {
         ctx.fillText('💥 OMUZ', btn.x, btn.y - 6);
-        ctx.font = '800 9px "JetBrains Mono", monospace';
+        ctx.font = '800 10px "JetBrains Mono", monospace';
         ctx.fillText('HAZIR', btn.x, btn.y + 8);
       } else {
         ctx.fillText('⏳ BEKLE', btn.x, btn.y - 6);
-        ctx.font = '800 9px "JetBrains Mono", monospace';
+        ctx.font = '800 10px "JetBrains Mono", monospace';
         ctx.fillText(`${p.tackleCooldown.toFixed(1)}s`, btn.x, btn.y + 8);
       }
       ctx.restore();

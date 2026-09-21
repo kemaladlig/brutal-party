@@ -127,14 +127,15 @@ function mountJoystickAction(gamepad, container, schema) {
   return {
     handleSync(data) {
       // Sync Host Cooldown percentage to dim buttons if configured
-      if (Array.isArray(data.cd)) {
-        const cdPct = data.cd[gamepad.playerIndex] || 0;
-        buttonEls.forEach(({ config, el }) => {
-          if (config.syncHostCooldown && el.isConnected) {
-            el.style.opacity = cdPct > 0 ? 0.55 : 1;
-          }
-        });
-      }
+      // (per-action field: varsayılan 'cd', örn. LASER ateş 'cdFire', NINJA sis 'cd2')
+      buttonEls.forEach(({ config, el }) => {
+        if (config.syncHostCooldown && el.isConnected) {
+          const field = config.hostCdField || 'cd';
+          const arr = Array.isArray(data[field]) ? data[field] : null;
+          const cdPct = arr ? arr[gamepad.playerIndex] || 0 : 0;
+          el.style.opacity = cdPct > 0 ? 0.55 : 1;
+        }
+      });
 
       // Custom onSync callback from schema (e.g. carrier alert, king alert, role text)
       if (typeof schema.onSync === 'function') {
@@ -813,7 +814,18 @@ function mountSteerBoost(gamepad, container, schema) {
   btnBoost?.addEventListener('mouseleave', stopBoost);
 
   return {
-    handleSync() {},
+    handleSync(data) {
+      if (!btnBoost || !btnBoost.isConnected) return;
+      const nrg = Array.isArray(data?.nrg) ? (data.nrg[gamepad.playerIndex] ?? 100) : 100;
+      const locked = Array.isArray(data?.lock) ? !!data.lock[gamepad.playerIndex] : false;
+      const dead = Array.isArray(data?.alive) ? data.alive[gamepad.playerIndex] === false : false;
+      btnBoost.style.opacity = locked || dead ? 0.55 : 1;
+      const sub = btnBoost.querySelector('.dash-btn-sub');
+      if (sub) {
+        const txt = dead ? 'ELENDİN' : locked ? '🔥 KİLİT' : `⚡ %${nrg}`;
+        if (sub.textContent !== txt) sub.textContent = txt;
+      }
+    },
     teardown() {
       if (currentActiveDir !== 0) {
         try {

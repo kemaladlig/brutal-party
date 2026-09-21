@@ -1335,7 +1335,7 @@ export class GamepadManager {
     });
 
     const fireBtn = document.getElementById('btn-laser-fire');
-    const fireAction = this.cooledAction(fireBtn, 1.0, '🔫 ATEŞ',
+    const fireAction = this.cooledAction(fireBtn, 0.9, '🔫 ATEŞ',
       () => this.network.sendInput({ action: 'TANK_FIRE' }), [25, 40]);
     fireBtn?.addEventListener('touchstart', fireAction, { passive: false });
     fireBtn?.addEventListener('mousedown', fireAction);
@@ -1373,7 +1373,7 @@ export class GamepadManager {
     });
 
     const tackleBtn = document.getElementById('btn-clone-tackle');
-    const tackleAction = this.cooledAction(tackleBtn, 1.5, '💥 OMUZ AT',
+    const tackleAction = this.cooledAction(tackleBtn, 1.6, '💥 OMUZ AT',
       () => this.network.sendInput({ action: 'TACKLE' }), [25, 40]);
     tackleBtn?.addEventListener('touchstart', tackleAction, { passive: false });
     tackleBtn?.addEventListener('mousedown', tackleAction);
@@ -1405,7 +1405,7 @@ export class GamepadManager {
     });
 
     const jumpBtn = document.getElementById('btn-collapse-jump');
-    const jumpAction = this.cooledAction(jumpBtn, 1.8, '⤴️ ZIPLA',
+    const jumpAction = this.cooledAction(jumpBtn, 1.6, '⤴️ ZIPLA',
       () => this.network.sendInput({ action: 'DASH' }), [25, 40]);
     jumpBtn?.addEventListener('touchstart', jumpAction, { passive: false });
     jumpBtn?.addEventListener('mousedown', jumpAction);
@@ -1670,9 +1670,11 @@ export class GamepadManager {
           if (rallyDisp.textContent !== spn) rallyDisp.textContent = spn;
         }
       } else if (data.gameMode === 'TANKS') {
-        statusStr = `SKOR: ${data.scores.join('-')}`;
+        const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
+        statusStr = dead ? `ELENDİN • SKOR: ${data.scores.join('-')}` : `SKOR: ${data.scores.join('-')}`;
       } else if (data.gameMode === 'CURVE') {
-        statusStr = `SKOR: ${data.scores.join('-')}`;
+        const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
+        statusStr = dead ? `ELENDİN • SKOR: ${data.scores.join('-')}` : `SKOR: ${data.scores.join('-')}`;
       } else if (data.gameMode === 'BOMB') {
         const timeStr = data.bombTime !== undefined ? `${data.bombTime}s` : '';
         statusStr = data.carrier === this.playerIndex
@@ -1682,7 +1684,9 @@ export class GamepadManager {
             : `BOMBA: P${data.carrier + 1} (${timeStr})`);
       } else if (data.gameMode === 'HEIST') {
         const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
-        statusStr = `SÜRE: ${timeStr} • ${data.scores.join('-')}`;
+        const myCarried = Array.isArray(data.carried) ? (data.carried[this.playerIndex] ?? 0) : 0;
+        const myVault = Array.isArray(data.vault) ? (data.vault[this.playerIndex] ?? 0) : 0;
+        statusStr = `SÜRE: ${timeStr} • TAŞINAN:${myCarried} • KASA:${myVault}`;
       } else if (data.gameMode === 'DUEL') {
         statusStr = `SKOR: ${data.scores.join('-')}`;
       } else if (data.gameMode === 'CROWN') {
@@ -1701,7 +1705,12 @@ export class GamepadManager {
           : `⏱ ${timeStr} • SEN %${myPct} • 👑 ${leadName} %${leadPct}`;
       } else if (data.gameMode === 'SNAKE') {
         const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
-        statusStr = `SKOR: ${data.scores.join('-')} • 🐍 ${aliveCount} CANLI`;
+        const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
+        const nrg = Array.isArray(data.nrg) ? (data.nrg[this.playerIndex] ?? 100) : 100;
+        const locked = Array.isArray(data.lock) ? !!data.lock[this.playerIndex] : false;
+        statusStr = dead
+          ? `ELENDİN • SKOR: ${data.scores.join('-')}`
+          : `SKOR: ${data.scores.join('-')} • ⚡%${nrg}${locked ? ' KİLİT' : ''} • 🐍 ${aliveCount} CANLI`;
       } else if (data.gameMode === 'LASER') {
         const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
         const myHp = Array.isArray(data.hp) ? (data.hp[this.playerIndex] ?? 0) : 0;
@@ -1714,7 +1723,10 @@ export class GamepadManager {
         }
       } else if (data.gameMode === 'CLONE') {
         const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
-        statusStr = `SKOR: ${data.scores.join('-')} • 👥 ${aliveCount} CANLI`;
+        const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
+        statusStr = dead
+          ? `ELENDİN • SKOR: ${data.scores.join('-')}`
+          : `SKOR: ${data.scores.join('-')} • 👥 ${aliveCount} CANLI`;
         // Host bekleme yüzdesi: dolmadan buton sönük görünür
         const cdBtn = this._cloneCdBtn;
         const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
@@ -1723,7 +1735,10 @@ export class GamepadManager {
         }
       } else if (data.gameMode === 'COLLAPSE') {
         const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
-        statusStr = `SKOR: ${data.scores.join('-')} • 🕳️ ${aliveCount} CANLI`;
+        const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
+        statusStr = dead
+          ? `ELENDİN • SKOR: ${data.scores.join('-')}`
+          : `SKOR: ${data.scores.join('-')} • 🕳️ ${aliveCount} CANLI`;
         const jumpBtn = this._el('btn-collapse-jump');
         const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
         if (jumpBtn) {
@@ -1731,7 +1746,10 @@ export class GamepadManager {
         }
       } else if (data.gameMode === 'NINJA') {
         const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
-        statusStr = `SKOR: ${data.scores.join('-')} • 🥷 ${aliveCount} CANLI`;
+        const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
+        statusStr = dead
+          ? `ELENDİN • SKOR: ${data.scores.join('-')}`
+          : `SKOR: ${data.scores.join('-')} • 🥷 ${aliveCount} CANLI`;
         const strikeBtn = this._el('btn-ninja-strike');
         const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
         if (strikeBtn) {
@@ -1760,8 +1778,26 @@ export class GamepadManager {
       this.overlay.classList.remove('bomb-carrier-alert');
     }
 
-    // 2. Heist Alert (pakette taşıyıcı yok — skor+süre şeridi yeterli)
-    this.overlay.classList.remove('gem-carrier-alert');
+    // 2. Heist Alert (pakette carried/vault var — en çok taşıyan vurgulanır)
+    if (this.gameMode === 'HEIST' && Array.isArray(data.carried)) {
+      let lead = -1;
+      let max = 0;
+      data.carried.forEach((c, i) => {
+        if ((c || 0) > max) { max = c || 0; lead = i; }
+      });
+      const isLead = lead === this.playerIndex && max > 0;
+      this.overlay.classList.toggle('gem-carrier-alert', isLead);
+      if (tacticalRoleEl) {
+        tacticalRoleEl.textContent = isLead
+          ? '💰 EN ÇOK ALTIN SENDE! KASAYA KAÇ!'
+          : lead >= 0 && max > 0
+            ? `💰 EN ÇOK ALTIN P${lead + 1}'DE! OMUZ AT!`
+            : '💰 ALTIN TOPLA VE KASAYA TAŞI!';
+        tacticalRoleEl.style.color = isLead ? '#ffd700' : '#ffffff';
+      }
+    } else {
+      this.overlay.classList.remove('gem-carrier-alert');
+    }
 
     // 2.5. Crown King Alert
     if (this.gameMode === 'CROWN') {

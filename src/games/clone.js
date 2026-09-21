@@ -774,10 +774,10 @@ export class CloneGame extends BaseMiniGame {
       ctx.fillText('💫 CEZA', 0, -22);
     }
 
-    // Görev yaparken dolum barı / rün halkası
+    // Görev yaparken dolum barı / rün halkası (görev eşiği 1.5sn)
     if (taskProgress > 0) {
       ctx.beginPath();
-      ctx.arc(0, 0, CLONE_RADIUS + 7, -Math.PI / 2, -Math.PI / 2 + (taskProgress / 2.0) * Math.PI * 2);
+      ctx.arc(0, 0, CLONE_RADIUS + 7, -Math.PI / 2, -Math.PI / 2 + (taskProgress / 1.5) * Math.PI * 2);
       ctx.strokeStyle = '#2F6A4F';
       ctx.lineWidth = 3;
       ctx.stroke();
