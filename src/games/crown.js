@@ -1330,13 +1330,14 @@ export class CrownGame extends BaseMiniGame {
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, aW, aH);
 
-    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları
+    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları (Proximity Ghosting)
     if (this.state === 'PLAYING') {
       renderCornerScores(ctx, {
         arena: this.arena,
         entries: this.players.map((p, i) =>
           p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}★` } : null
         ),
+        entities: [...this.players.filter((p) => p.isJoined), this.crown],
       });
 
       // Saha ortasında oyunu engellemeyen büyük taç süresi filigranı (TV ve monitörlerde yüksek görünürlük)

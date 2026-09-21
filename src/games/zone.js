@@ -18,6 +18,7 @@ import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLo
 import {
   renderTopPill,
   renderCornerScores,
+  renderSpatialBadge,
   renderRoundBanner,
   renderMatchOver,
   renderArenaWatermarkTimer,
@@ -1536,6 +1537,7 @@ export class ZoneGame extends BaseMiniGame {
           ? { color: p.color, text: `%${this.pct[p.index]}${this.scores[p.index] > 0 ? `★${this.scores[p.index]}` : ''}` }
           : null
       ),
+      entities: this.players.filter((p) => p.isJoined),
     });
   }
 
@@ -1593,14 +1595,26 @@ export class ZoneGame extends BaseMiniGame {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(label, 0, p.radius + 15);
+
       if (p.stunTimer > 0) {
-        ctx.fillStyle = '#48CAE4';
-        ctx.font = '900 10px "JetBrains Mono", monospace';
-        ctx.fillText('DONDU', 0, p.radius + 32);
+        renderSpatialBadge(ctx, {
+          x: 0,
+          y: p.radius + 33,
+          text: 'DONDU',
+          icon: '❄️',
+          color: '#1C1C1A',
+          bg: '#48CAE4',
+          scale: 0.9,
+        });
       } else if (p.trail.length >= ZONE_TUNING.TRAIL_HAZARD) {
-        ctx.fillStyle = '#D84727';
-        ctx.font = '900 10px "JetBrains Mono", monospace';
-        ctx.fillText('TEHLİKE!', 0, p.radius + 32);
+        renderSpatialBadge(ctx, {
+          x: 0,
+          y: p.radius + 33,
+          text: 'TEHLİKE!',
+          icon: '⚡',
+          urgent: true,
+          scale: 0.9,
+        });
       }
 
       ctx.restore();

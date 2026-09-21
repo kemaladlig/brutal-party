@@ -1133,18 +1133,74 @@ function renderPauseOverlay(ctx) {
   ctx.restore();
 }
 
-// Master Animation Loop (requestAnimationFrame)
+// Master Animation Loop (requestAnimationFrame) - Safe Execution Sandbox & Error Boundary
 const ctx2d = canvas.getContext('2d');
+let consecutiveEngineErrors = 0;
+let lastEngineError = null;
+
+function renderEngineCrashOverlay(ctx, error) {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  ctx.save();
+  ctx.fillStyle = 'rgba(26, 26, 26, 0.88)';
+  ctx.fillRect(0, 0, w, h);
+
+  const cardW = Math.min(480, w * 0.9);
+  const cardH = 140;
+  const cx = w / 2;
+  const cy = h / 2;
+
+  ctx.fillStyle = '#D84727';
+  ctx.fillRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH);
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH);
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '900 16px "Space Grotesk", sans-serif';
+  ctx.fillText('⚠️ OYUN MOTORUNDA BİR HATA OLUŞTU', cx, cy - 25);
+
+  ctx.font = '800 12px "JetBrains Mono", monospace';
+  ctx.fillText(String(error?.message || 'Bilinmeyen motor hatası').slice(0, 50), cx, cy + 5);
+
+  ctx.font = '900 13px "Space Grotesk", sans-serif';
+  ctx.fillText('MENÜ / SEÇENEKLER İÇİN SAĞ ÜSTTEKİ (⋮) BUTONUNA DOKUNUN', cx, cy + 38);
+  ctx.restore();
+}
+
 function loop(timestamp) {
-  broadcastGameStateIfNeeded(timestamp);
+  try {
+    broadcastGameStateIfNeeded(timestamp);
+  } catch (err) {
+    console.warn('[Broadcast] Error:', err);
+  }
 
   const isPaused = getIsPaused();
-
   const loopEntry = getEngine(currentMode);
+
   if (loopEntry) {
-    if (!isPaused) loopEntry.game.update(timestamp);
-    loopEntry.game.render();
-    if (isPaused) renderPauseOverlay(ctx2d);
+    try {
+      if (!isPaused && consecutiveEngineErrors < 5) {
+        loopEntry.game.update(timestamp);
+      }
+      loopEntry.game.render();
+      consecutiveEngineErrors = 0;
+    } catch (err) {
+      consecutiveEngineErrors++;
+      lastEngineError = err;
+      console.error(`[Engine Error: ${currentMode}]`, err);
+      if (consecutiveEngineErrors >= 5) {
+        renderEngineCrashOverlay(ctx2d, lastEngineError);
+      }
+    }
+
+    if (isPaused) {
+      try {
+        renderPauseOverlay(ctx2d);
+      } catch (_) {}
+    }
   } else if (currentMode === 'MENU') {
     ctx2d.save();
     ctx2d.fillStyle = '#F4F4F0';
@@ -1153,7 +1209,11 @@ function loop(timestamp) {
   }
 
   if (currentMode !== 'MENU') {
-    touchManager.renderOverlay(ctx2d);
+    try {
+      touchManager.renderOverlay(ctx2d);
+    } catch (err) {
+      console.warn('[Touch Overlay] Error:', err);
+    }
   }
 
   requestAnimationFrame(loop);

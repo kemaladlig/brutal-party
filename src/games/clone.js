@@ -890,9 +890,17 @@ export class CloneGame extends BaseMiniGame {
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
 
-    // Skorlar
+    // Skorlar (Proximity Ghosting)
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      renderCornerScores(ctx, { arena: this.arena, entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null) });
+      const activeEntities = [
+        ...this.players.filter((p) => p.isJoined),
+        ...this.npcClones.filter((c) => c.active),
+      ];
+      renderCornerScores(ctx, {
+        arena: this.arena,
+        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null),
+        entities: activeEntities,
+      });
     }
 
     // NPC Klonları çiz (tamamen oyuncularla aynı model)

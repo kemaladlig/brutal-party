@@ -1049,13 +1049,21 @@ export class TanksGame extends BaseMiniGame {
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
 
-    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları
+    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları (Proximity Ghosting)
     if (this.state === 'PLAYING') {
+      const activeEntities = [];
+      this.tanks.forEach((t) => {
+        if (t.isJoined && t.isAlive) activeEntities.push({ x: t.x, y: t.y, radius: t.size || 20 });
+      });
+      this.bullets.forEach((b) => {
+        activeEntities.push({ x: b.x, y: b.y, radius: 10 });
+      });
       renderCornerScores(ctx, {
         arena: this.arena,
         entries: this.tanks.map((t) =>
           t.isJoined ? { color: t.color, text: `${this.scores[t.index] || 0}★` } : null
         ),
+        entities: activeEntities,
       });
     }
 

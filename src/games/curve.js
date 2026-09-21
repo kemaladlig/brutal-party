@@ -885,13 +885,14 @@ export class CurveGame extends BaseMiniGame {
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
 
-    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları
+    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları (Proximity Ghosting)
     if (this.state === 'PLAYING') {
       renderCornerScores(ctx, {
         arena: this.arena,
         entries: this.players.map((p) =>
           p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}★` } : null
         ),
+        entities: this.players.filter((p) => p.isJoined && p.isAlive),
       });
     }
 

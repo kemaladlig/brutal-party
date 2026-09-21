@@ -826,7 +826,17 @@ export class SnakeGame extends BaseMiniGame {
     ctx.stroke();
 
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      renderCornerScores(ctx, { arena: this.arena, entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null) });
+      const activeEntities = [];
+      this.players.forEach((p) => {
+        if (p.isJoined && p.isAlive && p.body && p.body.length > 0) {
+          activeEntities.push({ x: p.body[0].x, y: p.body[0].y, radius: 18 });
+        }
+      });
+      renderCornerScores(ctx, {
+        arena: this.arena,
+        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null),
+        entities: activeEntities,
+      });
     }
 
     // 1. ENGEL DUVARLARI

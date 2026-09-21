@@ -4,9 +4,8 @@ import { Ball } from './ball.js';
 import { playJoin, playStart, playPowerUp } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { getLocalSeatColors, ensureLocalSeatColor } from '../core/customizationManager.js';
-import { renderCornerScores } from '../ui/hud.js';
+import { renderCornerScores, renderSpatialBadge, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
-import { renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 
 export class Game extends BaseMiniGame {
@@ -568,8 +567,14 @@ export class Game extends BaseMiniGame {
       this.ball.draw(ctx);
     }
 
-    // Standart köşe skorları (diğer oyunlarla aynı dil: saha üstü 4 köşe)
+    // Standart köşe skorları (Proximity Ghosting ile: top veya raket yaklaşınca saydamlaşır)
     if (this.state !== 'LOBBY') {
+      const activeEntities = [this.ball];
+      this.paddles.forEach((p) => {
+        if (p.isJoined && !p.isEliminated) {
+          activeEntities.push({ x: p.coord, y: p.fixedPerpendicular, radius: 24 });
+        }
+      });
       renderCornerScores(ctx, {
         arena: this.arena,
         entries: this.paddles.map((p, i) =>
@@ -577,6 +582,7 @@ export class Game extends BaseMiniGame {
             ? { color: p.color, text: `${this.setScores[i] || 0}★` }
             : null
         ),
+        entities: activeEntities,
       });
     }
 
@@ -656,13 +662,16 @@ export class Game extends BaseMiniGame {
         ctx.lineWidth = 3;
         ctx.setLineDash([5, 5]);
         ctx.stroke();
-
-        ctx.fillStyle = '#D84727';
-        ctx.font = '900 12px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`⚡ TEHLİKE YAKLAŞIYOR (${10 - this.ball.rallyCount}) ⚡`, cx, cy - 28);
         ctx.restore();
+
+        renderSpatialBadge(ctx, {
+          x: cx,
+          y: cy - 28,
+          text: `TEHLİKE (${10 - this.ball.rallyCount})`,
+          icon: '⚡',
+          urgent: true,
+          scale: 1.1,
+        });
       } else if (this.ball.rallyCount >= 10) {
         const hazardR = minDim * 0.065;
         ctx.save();
@@ -673,13 +682,16 @@ export class Game extends BaseMiniGame {
         ctx.strokeStyle = '#D84727';
         ctx.lineWidth = 3.5;
         ctx.stroke();
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '900 11px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('⚡ ENGEL ⚡', cx, cy);
         ctx.restore();
+
+        renderSpatialBadge(ctx, {
+          x: cx,
+          y: cy,
+          text: 'ENGEL',
+          icon: '⚡',
+          urgent: true,
+          scale: 1.0,
+        });
       }
 
       ctx.save();

@@ -820,7 +820,11 @@ export class CollapseGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      renderCornerScores(ctx, { arena: this.arena, entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null) });
+      renderCornerScores(ctx, {
+        arena: this.arena,
+        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null),
+        entities: this.players.filter((p) => p.isJoined && p.isAlive),
+      });
     }
 
     // 2. DÜŞEN 3D BLOKLAR (Uçurumda aşağı düşenler — dönerek düşer)

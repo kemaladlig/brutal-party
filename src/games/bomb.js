@@ -1045,13 +1045,14 @@ export class BombGame extends BaseMiniGame {
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
 
-    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları
+    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları (Proximity Ghosting)
     if (this.state === 'PLAYING') {
       renderCornerScores(ctx, {
         arena: this.arena,
         entries: this.players.map((p, i) =>
           p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}★` } : null
         ),
+        entities: this.players.filter((p) => p.isJoined),
       });
 
       // Saha ortasında büyük, oyunu engellemeyen yarı-saydam bomba geri sayımı (TV ve monitörlerde yüksek görünürlük)

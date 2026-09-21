@@ -20,6 +20,7 @@ import { updateDuelBotAI } from '../ai/duelAI.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { getLocalSeatColors, ensureLocalSeatColor } from '../core/customizationManager.js';
 import { UI_COLORS, getUiScale } from '../ui/tokens.js';
+import { renderSpatialBadge, checkProximity } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 
@@ -1090,10 +1091,14 @@ export class DuelGame extends BaseMiniGame {
       ctx.beginPath();
       ctx.arc(b.x, b.y, r + 5, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.fillStyle = '#E63946';
-      ctx.font = '900 12px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('SİPER!', b.x, b.y - r - 8);
+      renderSpatialBadge(ctx, {
+        x: b.x,
+        y: b.y - r - 12,
+        text: 'SİPER!',
+        icon: '🛡️',
+        urgent: true,
+        scale: 0.95,
+      });
     }
     ctx.restore();
   }
@@ -1109,6 +1114,10 @@ export class DuelGame extends BaseMiniGame {
     const stripX = cx - stripW / 2;
     const stripY = top + Math.round(10 * scale);
     const shadow = Math.max(2, Math.round(3 * Math.min(1.4, scale)));
+
+    // Proximity ghosting: Siper veya oyuncu şeride yaklaşırsa saydamlaş
+    const isNearby = checkProximity({ x: stripX, y: stripY, w: stripW, h: stripH }, this.tumbleweeds, 25);
+    ctx.globalAlpha = isNearby ? 0.25 : 0.96;
 
     // Solid Shadow & Board
     ctx.fillStyle = '#000000';

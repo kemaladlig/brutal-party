@@ -1131,12 +1131,13 @@ export class HeistGame extends BaseMiniGame {
       urgent: remain <= 10.0,
     });
 
-    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları
+    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları (Proximity Ghosting)
     renderCornerScores(ctx, {
       arena: this.arena,
       entries: this.players.map((p) =>
         p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}★` } : null
       ),
+      entities: this.players.filter((p) => p.isJoined),
     });
   }
 

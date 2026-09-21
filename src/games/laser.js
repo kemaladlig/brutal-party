@@ -999,7 +999,11 @@ export class LaserGame extends BaseMiniGame {
         text: `⏱ ${remain}s • 🎯 ${LASER_TUNING.TARGET_KILLS} KILL`,
         urgent: remain <= 10,
       });
-      renderCornerScores(ctx, { arena: this.arena, entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null) });
+      renderCornerScores(ctx, {
+        arena: this.arena,
+        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null),
+        entities: this.players.filter((p) => p.isJoined && p.isAlive),
+      });
     }
 
     ctx.fillStyle = '#1A1A1A';

@@ -42,6 +42,10 @@ export const UI_TEXT = {
   seatEmpty: [900, 24, 'grotesk'], // koltuk numarası (boş)
   pill: [900, 15, 'mono'], // üst hap (süre/skor)
   body: [800, 13, 'grotesk'], // bekleme yazısı
+  hudScore: [900, 22, 'mono'], // broadcast skor sayısı
+  hudBadge: [900, 10, 'grotesk'], // mikro rozet (P1, LEADER vb.)
+  hudName: [800, 11, 'grotesk'], // HUD oyuncu adı
+  floating: [900, 15, 'mono'], // havaya süzülen bildirim (+1★, HASAR)
   button: [900, 20, 'grotesk'], // BAŞLAT / YENİDEN OYNA (büyük)
   buttonSmall: [800, 15, 'grotesk'], // final butonu
   title: [900, 24, 'grotesk'], // final kazananı
