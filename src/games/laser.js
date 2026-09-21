@@ -65,6 +65,7 @@ export class LaserGame extends BaseMiniGame {
     this.players = [];
     this.lasers = [];
     this.obstacles = [];
+    this.movingWalls = [];
     this.pickups = [];
     this.particles = [];
     this.floatingTexts = [];
@@ -129,40 +130,143 @@ export class LaserGame extends BaseMiniGame {
 
   buildMap() {
     this.obstacles = [];
+    this.movingWalls = [];
     const { cx, cy, size, width, height, left, top } = this.arena;
     const preset = LASER_MAPS[this.selectedMapIndex]?.id || 'klasik';
+
     if (preset === 'siginak') {
-      // Merkez blok + 4 köşe diş
-      const bw = size * 0.22;
+      // 02 // MERKEZ SIĞINAK: Merkez blok küçültüldü + köşe dişler güvenli mesafede
+      const bw = size * 0.17;
       this.obstacles.push({ x: cx - bw / 2, y: cy - bw / 2, w: bw, h: bw });
-      const t = size * 0.1;
+      const t = Math.max(16, size * 0.065);
+      const margin = size * 0.22;
       this.obstacles.push(
-        { x: left + size * 0.2, y: top + size * 0.2, w: t, h: t },
-        { x: left + width - size * 0.2 - t, y: top + size * 0.2, w: t, h: t },
-        { x: left + size * 0.2, y: top + height - size * 0.2 - t, w: t, h: t },
-        { x: left + width - size * 0.2 - t, y: top + height - size * 0.2 - t, w: t, h: t },
+        { x: left + margin, y: top + margin, w: t, h: t },
+        { x: left + width - margin - t, y: top + margin, w: t, h: t },
+        { x: left + margin, y: top + height - margin - t, w: t, h: t },
+        { x: left + width - margin - t, y: top + height - margin - t, w: t, h: t }
+      );
+
+      // Hareketli duvarlar: Üst ve alt koridorda yavaşça yatay kayan 2 sürgülü siper
+      const mwW = Math.max(36, size * 0.11);
+      const mwH = Math.max(12, size * 0.032);
+      const mSpd = Math.max(22, size * 0.07);
+      this.movingWalls.push(
+        {
+          x: cx - mwW / 2,
+          y: cy - size * 0.28,
+          w: mwW,
+          h: mwH,
+          vx: mSpd,
+          vy: 0,
+          minX: cx - size * 0.2,
+          maxX: cx + size * 0.2 - mwW,
+          minY: cy - size * 0.28,
+          maxY: cy - size * 0.28,
+          axis: 'x',
+        },
+        {
+          x: cx - mwW / 2,
+          y: cy + size * 0.28 - mwH,
+          w: mwW,
+          h: mwH,
+          vx: -mSpd,
+          vy: 0,
+          minX: cx - size * 0.2,
+          maxX: cx + size * 0.2 - mwW,
+          minY: cy + size * 0.28 - mwH,
+          maxY: cy + size * 0.28 - mwH,
+          axis: 'x',
+        }
       );
     } else if (preset === 'koridor') {
-      // Haç: dikey + yatay bar (ortada küçük boşluk)
-      const gap = size * 0.09;
-      const th = size * 0.05;
+      // 03 // HAÇ KORİDOR: Merkez geçiş boşluğu genişletildi (min 56px, karakter sıkışmaz)
+      const gap = Math.max(56, size * 0.16);
+      const th = Math.max(16, size * 0.045);
+      const armLen = Math.max(30, size * 0.22 - gap / 2);
       this.obstacles.push(
-        { x: cx - th / 2, y: cy - size * 0.32, w: th, h: size * 0.23 - gap / 2 },
-        { x: cx - th / 2, y: cy + gap / 2, w: th, h: size * 0.23 - gap / 2 },
-        { x: cx - size * 0.32, y: cy - th / 2, w: size * 0.23 - gap / 2, h: th },
-        { x: cx + gap / 2, y: cy - th / 2, w: size * 0.23 - gap / 2, h: th },
+        { x: cx - th / 2, y: cy - gap / 2 - armLen, w: th, h: armLen },
+        { x: cx - th / 2, y: cy + gap / 2, w: th, h: armLen },
+        { x: cx - gap / 2 - armLen, y: cy - th / 2, w: armLen, h: th },
+        { x: cx + gap / 2, y: cy - th / 2, w: armLen, h: th }
+      );
+
+      // Hareketli duvarlar: Yan kanatlarda dikey kayan 2 mini koruma plakası
+      const mwW = Math.max(12, size * 0.032);
+      const mwH = Math.max(36, size * 0.11);
+      const mSpd = Math.max(22, size * 0.07);
+      this.movingWalls.push(
+        {
+          x: cx - size * 0.28,
+          y: cy - mwH / 2,
+          w: mwW,
+          h: mwH,
+          vx: 0,
+          vy: mSpd,
+          minX: cx - size * 0.28,
+          maxX: cx - size * 0.28,
+          minY: cy - size * 0.18,
+          maxY: cy + size * 0.18 - mwH,
+          axis: 'y',
+        },
+        {
+          x: cx + size * 0.28 - mwW,
+          y: cy - mwH / 2,
+          w: mwW,
+          h: mwH,
+          vx: 0,
+          vy: -mSpd,
+          minX: cx + size * 0.28 - mwW,
+          maxX: cx + size * 0.28 - mwW,
+          minY: cy - size * 0.18,
+          maxY: cy + size * 0.18 - mwH,
+          axis: 'y',
+        }
       );
     } else {
-      // Klasik çapraz sekme engelleri
-      const bw = size * 0.15;
-      const bh = size * 0.05;
+      // 01 // KLASİK ÇAPRAZ: Geçiş aralıkları artırıldı
+      const bw = size * 0.13;
+      const bh = Math.max(15, size * 0.04);
       this.obstacles.push(
         { x: cx - bw * 1.5, y: cy - bw, w: bw, h: bh },
         { x: cx + bw * 0.5, y: cy - bw, w: bw, h: bh },
         { x: cx - bw * 1.5, y: cy + bw - bh, w: bw, h: bh },
         { x: cx + bw * 0.5, y: cy + bw - bh, w: bw, h: bh },
-        { x: cx - bh / 2, y: cy - bw * 1.5, w: bh, h: bw },
-        { x: cx - bh / 2, y: cy + bw * 0.5, w: bh, h: bw }
+        { x: cx - bh / 2, y: cy - bw * 1.4, w: bh, h: bw * 0.85 },
+        { x: cx - bh / 2, y: cy + bw * 0.55, w: bh, h: bw * 0.85 }
+      );
+
+      // Hareketli duvarlar: Merkez çevresinde yavaş yatay kayan 2 dikey bar
+      const mwW = Math.max(14, size * 0.035);
+      const mwH = Math.max(34, size * 0.12);
+      const mSpd = Math.max(20, size * 0.065);
+      this.movingWalls.push(
+        {
+          x: cx - size * 0.22,
+          y: cy - size * 0.24,
+          w: mwW,
+          h: mwH,
+          vx: mSpd,
+          vy: 0,
+          minX: cx - size * 0.22,
+          maxX: cx + size * 0.22 - mwW,
+          minY: cy - size * 0.24,
+          maxY: cy - size * 0.24,
+          axis: 'x',
+        },
+        {
+          x: cx + size * 0.22 - mwW,
+          y: cy + size * 0.12,
+          w: mwW,
+          h: mwH,
+          vx: -mSpd,
+          vy: 0,
+          minX: cx - size * 0.22,
+          maxX: cx + size * 0.22 - mwW,
+          minY: cy + size * 0.12,
+          maxY: cy + size * 0.12,
+          axis: 'x',
+        }
       );
     }
   }
@@ -514,7 +618,8 @@ export class LaserGame extends BaseMiniGame {
   }
 
   collideObstacles(p, r) {
-    for (const obs of this.obstacles) {
+    const all = this.movingWalls.length ? [...this.obstacles, ...this.movingWalls] : this.obstacles;
+    for (const obs of all) {
       const nx = Math.max(obs.x, Math.min(p.x, obs.x + obs.w));
       const ny = Math.max(obs.y, Math.min(p.y, obs.y + obs.h));
       let dx = p.x - nx;
@@ -547,6 +652,26 @@ export class LaserGame extends BaseMiniGame {
     }
 
     if (this.state !== 'PLAYING') return;
+
+    // Hareketli duvarlar (ping-pong, yavaş & tahmin edilebilir)
+    for (const mw of this.movingWalls) {
+      mw.x += mw.vx * dt;
+      mw.y += mw.vy * dt;
+      if (mw.vx > 0 && mw.x >= mw.maxX) {
+        mw.x = mw.maxX;
+        mw.vx *= -1;
+      } else if (mw.vx < 0 && mw.x <= mw.minX) {
+        mw.x = mw.minX;
+        mw.vx *= -1;
+      }
+      if (mw.vy > 0 && mw.y >= mw.maxY) {
+        mw.y = mw.maxY;
+        mw.vy *= -1;
+      } else if (mw.vy < 0 && mw.y <= mw.minY) {
+        mw.y = mw.minY;
+        mw.vy *= -1;
+      }
+    }
 
     // Maç saati + pickup
     this.matchTimer -= dt;
@@ -717,7 +842,8 @@ export class LaserGame extends BaseMiniGame {
           this.spawnSparks(laser.x, laser.y, laser.color, 4);
         }
 
-        for (const obs of this.obstacles) {
+        const allObs = this.movingWalls.length ? [...this.obstacles, ...this.movingWalls] : this.obstacles;
+        for (const obs of allObs) {
           if (laser.x > obs.x && laser.x < obs.x + obs.w && laser.y > obs.y && laser.y < obs.y + obs.h) {
             const dx1 = laser.x - obs.x;
             const dx2 = (obs.x + obs.w) - laser.x;
@@ -795,19 +921,24 @@ export class LaserGame extends BaseMiniGame {
     }
   }
 
-  // Nişan önizlemesi: ilk 2 sekmenin izdüşümü (noktalı çizgi)
+  // Nişan önizlemesi: Sınırlı menzil (uzağı göstermez) + en fazla 1 sekme
   traceAim(player) {
     const pts = [{ x: player.x, y: player.y }];
     let x = player.x + Math.cos(player.angle) * 20;
     let y = player.y + Math.sin(player.angle) * 20;
     let vx = Math.cos(player.angle);
     let vy = Math.sin(player.angle);
-    let bounces = 2;
-    const step = 8;
+    let bounces = 1;
+    const step = 7;
+    const maxRange = Math.min(this.arena.size * 0.36, 190);
+    let traveled = 0;
     pts.push({ x, y });
-    for (let s = 0; s < 120 && bounces >= 0; s++) {
+    const allObs = this.movingWalls.length ? [...this.obstacles, ...this.movingWalls] : this.obstacles;
+
+    while (traveled < maxRange && bounces >= 0) {
       x += vx * step;
       y += vy * step;
+      traveled += step;
       let bounced = false;
       if (x < this.arena.left || x > this.arena.right) {
         vx *= -1;
@@ -819,7 +950,7 @@ export class LaserGame extends BaseMiniGame {
         y = Math.max(this.arena.top, Math.min(this.arena.bottom, y));
         bounced = true;
       }
-      for (const obs of this.obstacles) {
+      for (const obs of allObs) {
         if (x > obs.x && x < obs.x + obs.w && y > obs.y && y < obs.y + obs.h) {
           const dx1 = x - obs.x;
           const dx2 = (obs.x + obs.w) - x;
@@ -874,6 +1005,43 @@ export class LaserGame extends BaseMiniGame {
     ctx.fillStyle = '#1A1A1A';
     for (const obs of this.obstacles) {
       ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+    }
+
+    // Hareketli duvarlar (ray çizgisi + neo-brutalist sarı/gri desenli sürgülü gövde)
+    for (const mw of this.movingWalls) {
+      ctx.save();
+      // Ray / hareket ekseni izi
+      ctx.strokeStyle = 'rgba(26, 26, 26, 0.22)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      if (mw.axis === 'y') {
+        const midX = mw.x + mw.w / 2;
+        ctx.moveTo(midX, mw.minY);
+        ctx.lineTo(midX, mw.maxY + mw.h);
+      } else {
+        const midY = mw.y + mw.h / 2;
+        ctx.moveTo(mw.minX, midY);
+        ctx.lineTo(mw.maxX + mw.w, midY);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Duvar gövdesi
+      ctx.fillStyle = '#262626';
+      ctx.fillRect(mw.x, mw.y, mw.w, mw.h);
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(mw.x, mw.y, mw.w, mw.h);
+
+      // Merkez uyarı şeridi (sarı neo-brutalist aksan)
+      ctx.fillStyle = '#EAB308';
+      if (mw.axis === 'y') {
+        ctx.fillRect(mw.x + 2, mw.y + mw.h * 0.3, mw.w - 4, mw.h * 0.4);
+      } else {
+        ctx.fillRect(mw.x + mw.w * 0.3, mw.y + 2, mw.w * 0.4, mw.h - 4);
+      }
+      ctx.restore();
     }
 
     ctx.strokeStyle = '#1A1A1A';
@@ -1046,40 +1214,64 @@ export class LaserGame extends BaseMiniGame {
         ctx.beginPath(); ctx.arc(startX + h * (pw + 2) + pw / 2, player.y - 25, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       }
 
-      // 2. MERMİ / LAZER HAZIR GÖSTERGESİ (y - 34)
-      // 2 adet mermi kapsülü: Hazırsa neon parlar, şarj oluyorsa dolum çizgisi gösterir
-      const ammoSlotW = 10;
-      const ammoGap = 3;
-      const ammoStartX = player.x - (2 * ammoSlotW + ammoGap) / 2;
-      const ammoY = player.y - 35;
+      // 2. MERMİ / LAZER HAZIR GÖSTERGESİ (y - 38)
+      // Neo-brutalist yüksek kontrastlı kapsül yuvası (krem zeminde ASLA kaybolmaz)
+      const ammoBoxW = 38;
+      const ammoBoxH = 11;
+      const ammoBoxX = player.x - ammoBoxW / 2;
+      const ammoBoxY = player.y - 38;
+
+      ctx.save();
+      // Koyu koruyucu çerçeve
+      ctx.fillStyle = '#141416';
+      ctx.fillRect(ammoBoxX, ammoBoxY, ammoBoxW, ammoBoxH);
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(ammoBoxX, ammoBoxY, ammoBoxW, ammoBoxH);
+
+      const bulletW = 14;
+      const bulletH = 7;
+      const bulletGap = 4;
+      const bulletStartX = ammoBoxX + (ammoBoxW - (2 * bulletW + bulletGap)) / 2;
+      const bulletY = ammoBoxY + (ammoBoxH - bulletH) / 2;
 
       for (let a = 0; a < 2; a++) {
-        const slotX = ammoStartX + a * (ammoSlotW + ammoGap);
-        // Bu mermi slotu dolu mu?
+        const bx = bulletStartX + a * (bulletW + bulletGap);
         const isSlotAvailable = (2 - activeLasers) > a;
         const isSlotCharged = isSlotAvailable && (a === 0 ? player.cooldown <= 0 : true);
 
-        // Kapsül kutusu
-        ctx.save();
-        ctx.fillStyle = isSlotCharged ? (player.tripleTimer > 0 ? '#F97316' : (player.fastTimer > 0 ? '#FFDE59' : '#1A1A1A')) : 'rgba(40, 40, 40, 0.4)';
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 1.5;
-        ctx.fillRect(slotX, ammoY, ammoSlotW, 5);
-        ctx.strokeRect(slotX, ammoY, ammoSlotW, 5);
+        // Fişek yuvası arka planı
+        ctx.fillStyle = '#26262B';
+        ctx.fillRect(bx, bulletY, bulletW, bulletH);
 
-        // Şarj dolum barı (eğer birinci mermi doluyorsa)
-        if (a === 0 && player.cooldown > 0 && isSlotAvailable) {
-          const cdMax = player.fastTimer > 0 ? LASER_TUNING.FIRE_CD * 0.45 : LASER_TUNING.FIRE_CD;
-          const fillFrac = 1 - Math.max(0, player.cooldown / cdMax);
-          ctx.fillStyle = '#00F0FF';
-          ctx.fillRect(slotX, ammoY, ammoSlotW * fillFrac, 5);
-        } else if (isSlotCharged) {
-          // Parlayan çekirdek
+        if (isSlotCharged) {
+          // Dolu fişek: Canlı oyuncu rengi veya güçlendirici rengi + parlak beyaz çekirdek
+          const bulletColor = player.tripleTimer > 0 ? '#FB923C' : (player.fastTimer > 0 ? '#FACC15' : player.color);
+          ctx.fillStyle = bulletColor;
+          ctx.fillRect(bx, bulletY, bulletW, bulletH);
+          // Fişek ucu parıltısı
           ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(slotX + 2, ammoY + 1.5, ammoSlotW - 4, 2);
+          ctx.fillRect(bx + bulletW - 4, bulletY + 1.5, 3, bulletH - 3);
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(bx, bulletY, bulletW, bulletH);
+        } else if (a === 0 && player.cooldown > 0 && isSlotAvailable) {
+          // Şarj dolum animasyonu (soldan sağa akıcı dolum)
+          const cdMax = player.fastTimer > 0 ? LASER_TUNING.FIRE_CD * 0.45 : LASER_TUNING.FIRE_CD;
+          const fillFrac = Math.max(0, Math.min(1, 1 - (player.cooldown / cdMax)));
+          ctx.fillStyle = '#38BDF8';
+          ctx.fillRect(bx, bulletY, bulletW * fillFrac, bulletH);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(bx, bulletY, bulletW, bulletH);
+        } else {
+          // Havada/boş mermi yuvası (faint outline)
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(bx, bulletY, bulletW, bulletH);
         }
-        ctx.restore();
       }
+      ctx.restore();
     }
 
     // Parçacıklar (lazer kıvılcımları)

@@ -21,7 +21,8 @@ function simHitsSomeone(game, bot) {
     simY += simVy * 25;
     if (simX < game.arena.left || simX > game.arena.right) { simVx *= -1; bounces--; }
     if (simY < game.arena.top || simY > game.arena.bottom) { simVy *= -1; bounces--; }
-    for (const obs of game.obstacles) {
+    const allObs = game.movingWalls?.length ? [...game.obstacles, ...game.movingWalls] : game.obstacles;
+    for (const obs of allObs) {
       if (simX > obs.x && simX < obs.x + obs.w && simY > obs.y && simY < obs.y + obs.h) {
         // Sanal yansımada eksen kabaca seçilir (hızlı kontrol için yeterli)
         simVx *= -1;

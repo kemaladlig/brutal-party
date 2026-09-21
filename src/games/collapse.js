@@ -53,11 +53,14 @@ export const COLLAPSE_MAPS = [
       for (let r = 0; r < rows; r++) {
         const row = [];
         for (let c = 0; c < cols; c++) {
-          // Ada sınırları
+          // Ada sınırları (daha geniş adalar)
           const inIsland = (r < midR - 1 || r > midR + 1) && (c < midC - 1 || c > midC + 1);
-          // Köprüler
-          const isBridge = (r === midR && c > 1 && c < cols - 2) || (c === midC && r > 1 && r < rows - 2);
-          const isCenter = r === midR && c === midC;
+          // Köprüler: 3 hücre genişliğinde
+          const isBridge = (
+            (Math.abs(r - midR) <= 1 && c > 1 && c < cols - 2) ||
+            (Math.abs(c - midC) <= 1 && r > 1 && r < rows - 2)
+          );
+          const isCenter = Math.abs(r - midR) <= 1 && Math.abs(c - midC) <= 1;
           row.push(inIsland || isBridge || isCenter ? 0 : 2);
         }
         g.push(row);
@@ -76,9 +79,11 @@ export const COLLAPSE_MAPS = [
         const row = [];
         for (let c = 0; c < cols; c++) {
           const dist = Math.hypot(r - midR, c - midC);
-          const isCenter = dist <= 1.8;
-          const isRing = dist >= 3.4 && dist <= 5.4;
-          const isCrossWalk = (Math.abs(r - midR) <= 0.5 || Math.abs(c - midC) <= 0.5) && dist <= 3.8;
+          // Daha geniş merkez + daha geniş halka
+          const isCenter = dist <= 2.5;
+          const isRing = dist >= 2.8 && dist <= 6.0;
+          // Çapraz geçitler 2 hücre genişliğinde
+          const isCrossWalk = (Math.abs(r - midR) <= 1.0 || Math.abs(c - midC) <= 1.0) && dist <= 6.2;
           row.push(isCenter || isRing || isCrossWalk ? 0 : 2);
         }
         g.push(row);
@@ -106,18 +111,37 @@ export const COLLAPSE_MAPS = [
   },
   {
     id: 'corridors',
-    name: 'DAR KORİDORLAR',
+    name: 'GENİŞ KORİDORLAR',
     generate: (rows, cols) => {
       const g = [];
       for (let r = 0; r < rows; r++) {
         const row = [];
         for (let c = 0; c < cols; c++) {
           const isBorder = r === 0 || r === rows - 1 || c === 0 || c === cols - 1;
-          const isOuterCorridor = r === 2 || r === rows - 3 || c === 2 || c === cols - 3;
-          const isCenterCross = (r === 6 && c >= 3 && c <= 9) || (c === 6 && r >= 3 && r <= 9);
+          // Dış koridor 3 hücre genişliğinde (önceki 1 hücre → fazla dar)
+          const isOuterCorridor = (r >= 1 && r <= 3) || (r >= rows - 4 && r <= rows - 2) ||
+                                  (c >= 1 && c <= 3) || (c >= cols - 4 && c <= cols - 2);
+          // Merkez haç 3 hücre genişliğinde
+          const isCenterCross = (
+            (Math.abs(r - Math.floor(rows / 2)) <= 1 && c >= 2 && c <= cols - 3) ||
+            (Math.abs(c - Math.floor(cols / 2)) <= 1 && r >= 2 && r <= rows - 3)
+          );
           row.push(!isBorder && (isOuterCorridor || isCenterCross) ? 0 : 2);
         }
         g.push(row);
+      }
+      // Minimum alan garantisi: %45 altında rastgele boşlukları sağlama çevir
+      const totalCells = rows * cols;
+      let solidCount = g.flat().filter((v) => v === 0).length;
+      if (solidCount / totalCells < 0.45) {
+        for (let r = 1; r < rows - 1; r++) {
+          for (let c = 1; c < cols - 1; c++) {
+            if (g[r][c] === 2 && solidCount / totalCells < 0.45 && Math.random() < 0.3) {
+              g[r][c] = 0;
+              solidCount++;
+            }
+          }
+        }
       }
       return g;
     },
@@ -527,21 +551,26 @@ export class CollapseGame extends BaseMiniGame {
             const cx = this.offsetX + (c + 0.5) * this.cellSize;
             const cy = this.offsetY + (r + 0.5) * this.cellSize;
             this.spawnCrumble(cx, cy);
-            // Düşen 3D blok efekti
+            // Düşen 3D blok efekti (dönerek düşer, renk varyasyonu)
+            const tileColors = ['#D99B26', '#D84727', '#C85A00', '#B8760A'];
             this.fallingTiles.push({
               x: cx, y: cy, size: this.cellSize * 0.9,
-              vy: 60, vz: 180, scale: 1.0, rot: (Math.random() - 0.5) * 2,
+              vy: 60, scale: 1.0, rot: (Math.random() - 0.5) * 2,
+              rotSpd: (Math.random() - 0.5) * 8,
               alpha: 1.0,
+              colorVariant: tileColors[Math.floor(Math.random() * tileColors.length)],
             });
           }
         }
       }
     }
 
-    // Düşen blokların fiziği
+    // Düşen blokların fiziği (döndürme dahil)
     for (let i = this.fallingTiles.length - 1; i >= 0; i--) {
       const ft = this.fallingTiles[i];
       ft.y += ft.vy * dt;
+      ft.vy += 200 * dt; // yerçekimi hızlanması
+      ft.rot += (ft.rotSpd || 0) * dt;
       ft.scale -= dt * 0.7;
       ft.alpha -= dt * 1.3;
       if (ft.alpha <= 0 || ft.scale <= 0) {
@@ -794,13 +823,16 @@ export class CollapseGame extends BaseMiniGame {
       renderCornerScores(ctx, { arena: this.arena, entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null) });
     }
 
-    // 2. DÜŞEN 3D BLOKLAR (Uçurumda aşağı düşenler)
+    // 2. DÜŞEN 3D BLOKLAR (Uçurumda aşağı düşenler — dönerek düşer)
     for (const ft of this.fallingTiles) {
       ctx.save();
       ctx.globalAlpha = Math.max(0, ft.alpha);
       ctx.translate(ft.x, ft.y);
+      ctx.rotate(ft.rot || 0);
       ctx.scale(ft.scale, ft.scale);
-      ctx.fillStyle = '#D99B26';
+      // Renk varyasyonu: turuncu-kırmızı tonları
+      const rc = ft.colorVariant || '#D99B26';
+      ctx.fillStyle = rc;
       ctx.fillRect(-ft.size / 2, -ft.size / 2, ft.size, ft.size);
       ctx.strokeStyle = '#1A1A1A';
       ctx.lineWidth = 2;
@@ -811,6 +843,7 @@ export class CollapseGame extends BaseMiniGame {
     // 3. 3D IZGARA ZEMİNİ (Derinlikli Bloklar)
     const padding = 1.5;
     const bevel = 4;
+    const nowMs = performance.now();
 
     for (let r = 0; r < this.gridROWS; r++) {
       for (let c = 0; c < this.gridCOLS; c++) {
@@ -822,46 +855,54 @@ export class CollapseGame extends BaseMiniGame {
         const tw = this.cellSize - padding * 2;
         const th = this.cellSize - padding * 2;
 
-        let wobbleX = 0, wobbleY = 0;
+        let wobbleX = 0, wobbleY = 0, scaleAdd = 0;
         if (tile.state === 1) {
-          wobbleX = (Math.random() - 0.5) * 3;
-          wobbleY = (Math.random() - 0.5) * 3;
+          wobbleX = (Math.random() - 0.5) * 5;
+          wobbleY = (Math.random() - 0.5) * 5;
+          // Pulse: skalede hafif büyüme-küçülme (ratio ile orantılı)
+          const ratio = Math.max(0, Math.min(1, tile.timer / 0.85));
+          scaleAdd = Math.sin(nowMs / 80 + r + c) * 0.045 * ratio;
         }
 
         const bx = tx + padding + wobbleX;
         const by = ty + padding + wobbleY;
+        const scl = 1 + scaleAdd;
+        const ox = bx + tw / 2;
+        const oy = by + th / 2;
 
         // 3D Taban Gölgesi
+        ctx.save();
+        ctx.translate(ox, oy);
+        ctx.scale(scl, scl);
         ctx.fillStyle = '#0B0B0B';
-        ctx.fillRect(bx, by + bevel, tw, th);
+        ctx.fillRect(-tw / 2, -th / 2 + bevel, tw, th);
 
         if (tile.state === 0) {
-          // Sağlam zemin
-          ctx.fillStyle = '#FAF7F2';
-          ctx.fillRect(bx, by, tw, th);
+          // Sağlam zemin — hafif renk varyasyonu (her karo biraz farklı ton)
+          const toneShift = ((r * 7 + c * 13) % 18) - 9; // -9 to +9
+          const baseL = 248 + toneShift;
+          ctx.fillStyle = `rgb(${baseL}, ${baseL - 3}, ${baseL - 8})`;
+          ctx.fillRect(-tw / 2, -th / 2, tw, th);
           ctx.strokeStyle = '#2B2B2B';
           ctx.lineWidth = 1.5;
-          ctx.strokeRect(bx, by, tw, th);
+          ctx.strokeRect(-tw / 2, -th / 2, tw, th);
         } else {
-          // Uyarı / Çöken Zemin (Sarıdan kızıl kırmızıya + çatlaklar)
+          // Uyarı / Çöken Zemin: Sarıdan kızıl kırmızıya smooth gradient geçişi
           const ratio = Math.max(0, Math.min(1, tile.timer / 0.85));
-          ctx.fillStyle = `rgb(255, ${Math.floor(ratio * 180 + 30)}, 40)`;
-          ctx.fillRect(bx, by, tw, th);
-          ctx.strokeStyle = '#D84727';
+          // ratio=1 → sarı (#FF9A00), ratio=0 → kırmızı (#FF1A0A)
+          const rr = 255;
+          const gg = Math.floor(154 * ratio + 26 * (1 - ratio));
+          const bb = Math.floor(0);
+          ctx.fillStyle = `rgb(${rr}, ${gg}, ${bb})`;
+          ctx.fillRect(-tw / 2, -th / 2, tw, th);
+          // Üst parlak şerit (ısı vurgusu)
+          ctx.fillStyle = `rgba(255, ${Math.floor(220 * ratio + 100)}, 60, 0.55)`;
+          ctx.fillRect(-tw / 2, -th / 2, tw, th * 0.35);
+          ctx.strokeStyle = ratio > 0.5 ? '#C84A00' : '#991200';
           ctx.lineWidth = 2;
-          ctx.strokeRect(bx, by, tw, th);
-
-          // Çatlak Çizgileri
-          ctx.strokeStyle = 'rgba(26,26,26,0.85)';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(bx + 4, by + 4);
-          ctx.lineTo(bx + tw * 0.45, by + th * 0.55);
-          ctx.lineTo(bx + tw - 4, by + th - 4);
-          ctx.moveTo(bx + tw - 4, by + 4);
-          ctx.lineTo(bx + tw * 0.5, by + th * 0.5);
-          ctx.stroke();
+          ctx.strokeRect(-tw / 2, -th / 2, tw, th);
         }
+        ctx.restore();
       }
     }
 

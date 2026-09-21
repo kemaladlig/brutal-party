@@ -109,40 +109,24 @@ export class CloneGame extends BaseMiniGame {
       { x: left, y: top + roomH, w: roomW - doorSize, h: wallThick },
       { x: left + roomW, y: top, w: wallThick, h: roomH - doorSize }
     );
-    this.taskPoints.push({
-      id: 'alchemy', name: 'SİMYA KAZANI', icon: '🧪', color: '#8A2BE2',
-      x: left + roomW * 0.45, y: top + roomH * 0.45, radius: 40,
-    });
 
     // Sağ Üst Oda: 📜 KÜTÜPHANE / ARŞİV
     this.walls.push(
       { x: right - roomW + doorSize, y: top + roomH, w: roomW - doorSize, h: wallThick },
       { x: right - roomW, y: top, w: wallThick, h: roomH - doorSize }
     );
-    this.taskPoints.push({
-      id: 'library', name: 'KÜTÜPHANE', icon: '📜', color: '#D99B26',
-      x: right - roomW * 0.45, y: top + roomH * 0.45, radius: 40,
-    });
 
     // Sol Alt Oda: 💎 HAZİNE ODASI
     this.walls.push(
       { x: left, y: bottom - roomH, w: roomW - doorSize, h: wallThick },
       { x: left + roomW, y: bottom - roomH + doorSize, w: wallThick, h: roomH - doorSize }
     );
-    this.taskPoints.push({
-      id: 'treasury', name: 'HAZİNE SANDIĞI', icon: '💎', color: '#1D5D8A',
-      x: left + roomW * 0.45, y: bottom - roomH * 0.45, radius: 40,
-    });
 
     // Sağ Alt Oda: ⚔️ KUTSAL SUNAK
     this.walls.push(
       { x: right - roomW + doorSize, y: bottom - roomH, w: roomW - doorSize, h: wallThick },
       { x: right - roomW, y: bottom - roomH + doorSize, w: wallThick, h: roomH - doorSize }
     );
-    this.taskPoints.push({
-      id: 'altar', name: 'KUTSAL SUNAK', icon: '⚔️', color: '#D84727',
-      x: right - roomW * 0.45, y: bottom - roomH * 0.45, radius: 40,
-    });
 
     // Merkez Avlu Sütunları
     const pillar = Math.min(width, height) * 0.08;
@@ -153,6 +137,30 @@ export class CloneGame extends BaseMiniGame {
       { x: cx - offset - pillar / 2, y: cy + offset - pillar / 2, w: pillar, h: pillar },
       { x: cx + offset - pillar / 2, y: cy + offset - pillar / 2, w: pillar, h: pillar }
     );
+
+    // 6 aday görev noktası: 4 köşe oda + 2 avlu merkez noktası
+    const avluOffset = Math.min(width, height) * 0.22;
+    const allCandidates = [
+      { id: 'alchemy',  name: 'SİMYA KAZANI',   icon: '🧪', color: '#8A2BE2', x: left  + roomW * 0.45, y: top    + roomH * 0.45, radius: 40 },
+      { id: 'library',  name: 'KÜTÜPHANE',       icon: '📜', color: '#D99B26', x: right - roomW * 0.45, y: top    + roomH * 0.45, radius: 40 },
+      { id: 'treasury', name: 'HAZİNE SANDIĞI',  icon: '💎', color: '#1D5D8A', x: left  + roomW * 0.45, y: bottom - roomH * 0.45, radius: 40 },
+      { id: 'altar',    name: 'KUTSAL SUNAK',     icon: '⚔️', color: '#D84727', x: right - roomW * 0.45, y: bottom - roomH * 0.45, radius: 40 },
+      { id: 'fountain', name: 'ÇEŞME',            icon: '⛲', color: '#2F6A4F', x: cx, y: cy - avluOffset, radius: 38 },
+      { id: 'statue',   name: 'HEYKEL',           icon: '🗿', color: '#888888', x: cx, y: cy + avluOffset, radius: 38 },
+    ];
+
+    // Her raunt rastgele 3 tanesi seçilir (Fisher-Yates shuffle, ilk 3 al)
+    const shuffled = [...allCandidates];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    this.taskPoints = shuffled.slice(0, 3);
+
+    // Her görev noktası için kaç kez tamamlandığı takibini başlat
+    for (const tp of this.taskPoints) {
+      tp.completions = 0; // raunt içi sıfırlama
+    }
   }
 
   resolveWallCollision(entity, radius = CLONE_RADIUS) {
@@ -542,17 +550,19 @@ export class CloneGame extends BaseMiniGame {
         if (distToTask < t.radius) {
           insideAnyTask = true;
           player.currentTaskId = t.id;
-          // Eğer sakin duruyorsa görev ilerler
+          // Eğer sakin duruyorsa görev ilerler (1.5sn - daha dinamik tempo)
           const isStationary = Math.hypot(player.steerX, player.steerY) < 0.2;
           if (isStationary && player.dashTimer <= 0 && player.slowTimer <= 0) {
             player.taskTimer += dt;
-            if (player.taskTimer >= 2.0) {
+            if (player.taskTimer >= 1.5) {
               // Görev başarıyla tamamlandı!
               player.taskTimer = 0;
+              t.completions = (t.completions || 0) + 1;
               this.scores[player.index]++;
               playItemPickup();
               this.spawnBurst(t.x, t.y, t.color);
-              this.spawnFloatingText(player.x, player.y - 20, `📜 ${t.name} +1★`, '#2F6A4F');
+              const compText = t.completions >= 2 ? ` (${t.completions}x ✓)` : '';
+              this.spawnFloatingText(player.x, player.y - 20, `${t.icon} ${t.name} +1★${compText}`, '#2F6A4F');
               if (this.scores[player.index] >= this.targetScore) {
                 this.matchWinner = player;
                 this.handleRoundEnd(player);
@@ -575,10 +585,12 @@ export class CloneGame extends BaseMiniGame {
     const roomH = height * 0.35;
     const doorSize = Math.min(width, height) * 0.14;
     const doorWaypoints = {
-      alchemy: { x: left + roomW - doorSize * 0.5, y: top + roomH + 15 },
-      library: { x: right - roomW + doorSize * 0.5, y: top + roomH + 15 },
-      treasury: { x: left + roomW - doorSize * 0.5, y: bottom - roomH - 15 },
-      altar: { x: right - roomW + doorSize * 0.5, y: bottom - roomH - 15 },
+      alchemy:  { x: left  + roomW - doorSize * 0.5, y: top    + roomH + 15 },
+      library:  { x: right - roomW + doorSize * 0.5, y: top    + roomH + 15 },
+      treasury: { x: left  + roomW - doorSize * 0.5, y: bottom - roomH - 15 },
+      altar:    { x: right - roomW + doorSize * 0.5, y: bottom - roomH - 15 },
+      fountain: null, // avlu içi — doğrudan git
+      statue:   null, // avlu içi — doğrudan git
     };
 
     const getEntityZone = (x, y) => {

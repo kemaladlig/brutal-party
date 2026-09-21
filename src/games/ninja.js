@@ -104,31 +104,28 @@ export class NinjaGame extends BaseMiniGame {
       { x: cx - bw * 0.35, y: cy - bw * 0.35, w: bw * 0.7, h: bw * 0.7 }
     );
 
-    // 2 adet dinamik devriye gezen ışık feneri (ışık konisi sürekli sahayı tarar)
-    this.lanterns.push(
-      {
-        baseX: cx,
-        baseY: cy - bw * 1.05,
-        x: cx,
-        y: cy - bw * 1.05,
+    // 3 adet fizik tabanlı seken top gibi devriye gezen ışık feneri
+    // Her fener arena sınırlarından ve engellerden seker, tahmin edilemez ama yavaş hareket eder
+    const lanternSpeed = Math.max(55, size * 0.12);
+    const startAngles = [Math.PI * 0.22, Math.PI * 0.78, Math.PI * 1.45];
+    const startPositions = [
+      { x: cx - size * 0.22, y: cy - size * 0.18 },
+      { x: cx + size * 0.22, y: cy + size * 0.18 },
+      { x: cx, y: cy - size * 0.28 },
+    ];
+    for (let i = 0; i < 3; i++) {
+      const ang = startAngles[i];
+      const spd = lanternSpeed * (0.85 + Math.random() * 0.3);
+      this.lanterns.push({
+        x: startPositions[i].x,
+        y: startPositions[i].y,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
         radius: bw * 0.95,
-        speed: 1.15,
-        phase: 0,
-        rangeX: bw * 1.55,
-        rangeY: bw * 0.35,
-      },
-      {
-        baseX: cx,
-        baseY: cy + bw * 1.05,
-        x: cx,
-        y: cy + bw * 1.05,
-        radius: bw * 0.95,
-        speed: 1.3,
-        phase: Math.PI,
-        rangeX: bw * 1.55,
-        rangeY: bw * 0.35,
-      }
-    );
+        active: true,
+        respawnTimer: 0, // sıfırken aktif; >0 ise söndürülmüş, sayıyor
+      });
+    }
   }
 
   initPlayers() {
@@ -191,6 +188,12 @@ export class NinjaGame extends BaseMiniGame {
     this.roundTime = 45;
     this.particles = [];
     this.footsteps = [];
+    if (this.lanterns) {
+      this.lanterns.forEach((l) => {
+        l.active = true;
+        l.respawnTimer = 0;
+      });
+    }
     this.onTouchesReset();
     playStart();
 
@@ -229,6 +232,20 @@ export class NinjaGame extends BaseMiniGame {
       player.hideTimer = 0;
       playItemPickup();
       this.spawnSlashTrail(player.x, player.y, player.angle, player.color);
+
+      // Kılıç savururken menzildeki feneri anında kes
+      if (this.lanterns) {
+        for (const lantern of this.lanterns) {
+          if (!lantern.active) continue;
+          if (Math.hypot(player.x - lantern.x, player.y - lantern.y) < 46) {
+            lantern.active = false;
+            lantern.respawnTimer = 7.0;
+            this.addTrauma(0.25);
+            playExplosion();
+            this.spawnLanternBreak(lantern.x, lantern.y);
+          }
+        }
+      }
     }
   }
 
@@ -262,18 +279,34 @@ export class NinjaGame extends BaseMiniGame {
   }
 
   spawnSlashTrail(x, y, angle, color) {
-    for (let i = 0; i < 10; i++) {
-      const pAngle = angle + (Math.random() - 0.5) * 0.8;
-      const spd = 70 + Math.random() * 110;
+    for (let i = 0; i < 14; i++) {
+      const pAngle = angle + (Math.random() - 0.5) * 1.0;
+      const spd = 90 + Math.random() * 140;
       this.particles.push({
-        x: x + Math.cos(angle) * 12,
-        y: y + Math.sin(angle) * 12,
+        x: x + Math.cos(angle) * 14,
+        y: y + Math.sin(angle) * 14,
         vx: Math.cos(pAngle) * spd,
         vy: Math.sin(pAngle) * spd,
-        color: '#FFFFFF',
-        radius: 2 + Math.random() * 2,
+        color: i % 3 === 0 ? color : '#FFFFFF',
+        radius: 2 + Math.random() * 2.5,
         alpha: 1.0,
-        decay: 3.5,
+        decay: 4.0,
+      });
+    }
+  }
+
+  spawnLanternBreak(x, y) {
+    for (let i = 0; i < 18; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const spd = 70 + Math.random() * 150;
+      this.particles.push({
+        x, y,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd,
+        color: i % 3 === 0 ? '#1A1A1A' : (i % 2 === 0 ? '#FFD700' : '#E63946'),
+        radius: 2 + Math.random() * 3,
+        alpha: 1.0,
+        decay: 2.2,
       });
     }
   }
@@ -408,12 +441,68 @@ export class NinjaGame extends BaseMiniGame {
 
     if (this.state !== 'PLAYING') return;
 
-    // Hareketli Devriye Fenerleri: Işık konisi sahada yumuşakça devriye gezer
-    const timeSec = now / 1000;
+    // Fizik Tabanlı Seken Fenerler: Arena sınırları + engellerden sekme
     for (const lantern of this.lanterns) {
-      if (lantern.baseX !== undefined) {
-        lantern.x = lantern.baseX + Math.sin(timeSec * lantern.speed + lantern.phase) * lantern.rangeX;
-        lantern.y = lantern.baseY + Math.cos(timeSec * lantern.speed * 1.4 + lantern.phase) * lantern.rangeY;
+      // Söndürülmüş fener respawn sayacı
+      if (!lantern.active) {
+        lantern.respawnTimer -= dt;
+        if (lantern.respawnTimer <= 0) {
+          lantern.active = true;
+          lantern.x = this.arena.cx;
+          lantern.y = this.arena.cy;
+          // Yeniden doğduğunda rastgele yön
+          const ang = Math.random() * Math.PI * 2;
+          const spd = Math.max(55, this.arena.size * 0.12);
+          lantern.vx = Math.cos(ang) * spd;
+          lantern.vy = Math.sin(ang) * spd;
+        }
+        continue;
+      }
+
+      lantern.x += lantern.vx * dt;
+      lantern.y += lantern.vy * dt;
+
+      let bounced = false;
+      // Arena duvar sekmesi
+      if (lantern.x < this.arena.left + 8) {
+        lantern.x = this.arena.left + 8;
+        lantern.vx = Math.abs(lantern.vx);
+        bounced = true;
+      } else if (lantern.x > this.arena.right - 8) {
+        lantern.x = this.arena.right - 8;
+        lantern.vx = -Math.abs(lantern.vx);
+        bounced = true;
+      }
+      if (lantern.y < this.arena.top + 8) {
+        lantern.y = this.arena.top + 8;
+        lantern.vy = Math.abs(lantern.vy);
+        bounced = true;
+      } else if (lantern.y > this.arena.bottom - 8) {
+        lantern.y = this.arena.bottom - 8;
+        lantern.vy = -Math.abs(lantern.vy);
+        bounced = true;
+      }
+
+      // Engel sekmesi (AABB)
+      for (const obs of this.obstacles) {
+        if (lantern.x > obs.x - 6 && lantern.x < obs.x + obs.w + 6 &&
+            lantern.y > obs.y - 6 && lantern.y < obs.y + obs.h + 6) {
+          const dx1 = lantern.x - obs.x;
+          const dx2 = (obs.x + obs.w) - lantern.x;
+          const dy1 = lantern.y - obs.y;
+          const dy2 = (obs.y + obs.h) - lantern.y;
+          const minD = Math.min(dx1, dx2, dy1, dy2);
+          if (minD === dx1 || minD === dx2) lantern.vx *= -1;
+          else lantern.vy *= -1;
+          // Küçük rastgele sapma (tamamen tahmin edilemez yol)
+          const angNoise = (Math.random() - 0.5) * 0.25;
+          const curAng = Math.atan2(lantern.vy, lantern.vx) + angNoise;
+          const spd = Math.hypot(lantern.vx, lantern.vy);
+          lantern.vx = Math.cos(curAng) * spd;
+          lantern.vy = Math.sin(curAng) * spd;
+          bounced = true;
+          break;
+        }
       }
     }
 
@@ -470,6 +559,7 @@ export class NinjaGame extends BaseMiniGame {
       // Fener ışık kontrolü
       let inLight = false;
       for (const lantern of this.lanterns) {
+        if (!lantern.active) continue;
         if (Math.hypot(player.x - lantern.x, player.y - lantern.y) < lantern.radius) {
           inLight = true;
           break;
@@ -537,9 +627,23 @@ export class NinjaGame extends BaseMiniGame {
       }
     }
 
-    // Kılıç isabeti: atılan + 38px içindekini eler
+    // Kılıç isabeti: fener kesme ve kurban eleme
     for (const attacker of this.players) {
       if (!attacker.isJoined || !attacker.isAlive || attacker.strikeTimer <= 0) continue;
+
+      // Fener kesme
+      if (this.lanterns) {
+        for (const lantern of this.lanterns) {
+          if (!lantern.active) continue;
+          if (Math.hypot(attacker.x - lantern.x, attacker.y - lantern.y) < 44) {
+            lantern.active = false;
+            lantern.respawnTimer = 7.0; // 7 sn sonra geri döner
+            this.addTrauma(0.25);
+            playExplosion();
+            this.spawnLanternBreak(lantern.x, lantern.y);
+          }
+        }
+      }
 
       for (const victim of this.players) {
         if (!victim.isJoined || !victim.isAlive || victim.index === attacker.index) continue;
@@ -635,6 +739,25 @@ export class NinjaGame extends BaseMiniGame {
 
     // Fenerler ve Aydınlatma Alanı
     for (const lantern of this.lanterns) {
+      if (!lantern.active) {
+        // Sönmüş fener (Kılıçla vuruldu, 7 saniye sönük kalır)
+        ctx.save();
+        ctx.fillStyle = '#2A2A2A';
+        ctx.fillRect(lantern.x - 9, lantern.y - 9, 18, 18);
+        ctx.strokeStyle = '#555555';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(lantern.x - 9, lantern.y - 9, 18, 18);
+
+        // Kırmızı sönen köz efekti (canlanma uyarısı)
+        const emberPulse = (Math.sin(now / 160) + 1) * 0.5;
+        ctx.fillStyle = `rgba(230, 57, 70, ${0.4 + emberPulse * 0.5})`;
+        ctx.beginPath();
+        ctx.arc(lantern.x, lantern.y, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
+
       // Işık halesi (fenerin aydınlattığı bölge: sarı transparan)
       ctx.save();
       const grad = ctx.createRadialGradient(lantern.x, lantern.y, 10, lantern.x, lantern.y, lantern.radius);
@@ -705,18 +828,54 @@ export class NinjaGame extends BaseMiniGame {
       ctx.translate(player.x, player.y);
       ctx.rotate(player.angle);
 
-      // Kılıç savurma efekti (Slash arc)
+      // Katana Savurma Efekti (Dinamik Keskin Kılıç Hilali & Katana İzi)
       if (player.strikeTimer > 0) {
-        ctx.fillStyle = '#FFFFFF';
+        const progress = 1 - Math.max(0, player.strikeTimer / 0.22);
+        const sweepSpan = 1.7; // ~100 derece kesim yayı
+        const startAng = -sweepSpan * 0.6 + progress * 0.3;
+        const endAng = startAng + sweepSpan * (0.6 + progress * 0.4);
+        const outerR = 44;
+        const innerR = 14;
+
+        ctx.save();
+        // 1. Katana rüzgar dalgası (yarı saydam beyaz arka dolgu)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
         ctx.beginPath();
-        ctx.arc(0, 0, 36, -0.7, 0.7);
-        ctx.lineTo(12, 0);
+        ctx.arc(0, 0, outerR, startAng, endAng, false);
+        ctx.arc(0, 0, innerR, endAng, startAng, true);
         ctx.closePath();
         ctx.fill();
 
+        // 2. Neo-brutalist keskin koyu sınır
         ctx.strokeStyle = '#1A1A1A';
         ctx.lineWidth = 3;
         ctx.stroke();
+
+        // 3. Katana jilet kenarı (parıldayan beyaz keskin hat)
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, outerR - 1, startAng, endAng, false);
+        ctx.stroke();
+
+        // 4. Oyuncu renginde enerji kavis çizgisi
+        ctx.strokeStyle = player.color;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, (outerR + innerR) * 0.5, startAng + 0.15, endAng - 0.1, false);
+        ctx.stroke();
+
+        // 5. Kılıç ucu parlaması (Katana tip glint)
+        const tipX = Math.cos(endAng) * outerR;
+        const tipY = Math.sin(endAng) * outerR;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(tipX, tipY, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
       }
 
       drawBrutalAvatar(ctx, 0, 0, NINJA_RADIUS, {

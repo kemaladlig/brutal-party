@@ -47,6 +47,21 @@ export function updateNinjaBotAI(game, bot, dt) {
     }
   }
 
+  // Işık altındaysa ve fener yakınsa feneri kes
+  if (bot.strikeCooldown <= 0 && bot.inLight && game.lanterns) {
+    for (const lantern of game.lanterns) {
+      if (!lantern.active) continue;
+      const lDist = Math.hypot(lantern.x - bot.x, lantern.y - bot.y);
+      if (lDist < 60) {
+        bot.angle = Math.atan2(lantern.y - bot.y, lantern.x - bot.x);
+        bot.steerX = Math.cos(bot.angle);
+        bot.steerY = Math.sin(bot.angle);
+        game.attemptStrike(bot);
+        break;
+      }
+    }
+  }
+
   // Tehdit/av algılama: 100px içinde ve (görünür veya 55px dibinde) ise saldır
   if (bot.strikeCooldown <= 0) {
     for (const enemy of game.players) {

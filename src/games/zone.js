@@ -729,6 +729,92 @@ export class ZoneGame extends BaseMiniGame {
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([40, 50, 70]);
   }
 
+  // Kafa kafaya çarpışma: Her iki oyuncu da üsse geri ışınlanır, izleri silinir
+  // ve üsse en uzak %50 toprakları nötr bölgeye geri döner (orta yol cezası).
+  handleHeadOnCollision(i, j) {
+    const a = this.players[i];
+    const b = this.players[j];
+    if (!a || !b) return;
+
+    const midX = (a.x + b.x) / 2;
+    const midY = (a.y + b.y) / 2;
+    this.addFloatingText(midX, midY - 20, '💥 KAFA KAFAYA!', '#FFFFFF');
+    this.burst(midX, midY, '#FFFFFF', 28);
+    this.addTrauma(0.45);
+    playExplosion();
+
+    const penalizeAndReset = (idx) => {
+      const p = this.players[idx];
+      if (!p || !p.isJoined) return;
+
+      const oldTrail = [...p.trail];
+      this.wipeTrail(idx);
+
+      const r = this.baseRect(idx);
+      const bcx = this.field.x + ((r.x0 + r.x1 + 1) / 2) * this.cell;
+      const bcy = this.field.y + ((r.y0 + r.y1 + 1) / 2) * this.cell;
+
+      // İz parçacıkları üsse geri uçar
+      if (oldTrail.length > 0) {
+        const step = Math.max(1, Math.floor(oldTrail.length / 8));
+        for (let ti = 0; ti < oldTrail.length; ti += step) {
+          const tc = this.cellCenter(oldTrail[ti]);
+          const dx = bcx - tc.x, dy = bcy - tc.y;
+          const dist = Math.hypot(dx, dy) || 1;
+          this.particles.push({
+            x: tc.x, y: tc.y,
+            vx: (dx / dist) * 160, vy: (dy / dist) * 160,
+            life: 0.5, maxLife: 0.5,
+            color: p.color, size: 4,
+          });
+        }
+      }
+
+      // %50 Toprak Kaybı: Base dışı hücrelerin en uzaktaki %50'si nötrleşir
+      const G = ZONE_TUNING.GRID;
+      const tag = idx + 1;
+      const nonBase = [];
+      const baseMidX = (r.x0 + r.x1) / 2;
+      const baseMidY = (r.y0 + r.y1) / 2;
+      for (let ci = 0; ci < this.grid.length; ci++) {
+        if (this.grid[ci] !== tag) continue;
+        const cx = ci % G;
+        const cy = (ci / G) | 0;
+        if (cx >= r.x0 && cx <= r.x1 && cy >= r.y0 && cy <= r.y1) continue;
+        const dist = Math.hypot(cx - baseMidX, cy - baseMidY);
+        nonBase.push({ ci, dist });
+      }
+
+      if (nonBase.length > 0) {
+        nonBase.sort((n1, n2) => n2.dist - n1.dist);
+        const removeCount = Math.floor(nonBase.length * 0.5);
+        for (let k = 0; k < removeCount; k++) {
+          this.grid[nonBase[k].ci] = 0;
+        }
+        this.territoryDirty = true;
+      }
+      this.paintBase(idx);
+
+      p.x = bcx; p.y = bcy;
+      p.px = bcx; p.py = bcy;
+      p.trailStartX = bcx; p.trailStartY = bcy;
+      p.aiPlan = null;
+      p.aiPath = [];
+      p.aiTarget = -1;
+      p.aiThink = 0;
+      p.heading = Math.atan2(this.arena.cy - bcy, this.arena.cx - bcx);
+      p.lastCell = this.posToCell(bcx, bcy);
+      p.stunTimer = ZONE_TUNING.STUN;
+      this.addFloatingText(bcx, bcy - 20, 'BASE\'E DÖNDÜN (%50 KAYIP)!', '#FFFFFF');
+      this.burst(bcx, bcy, p.color, 16);
+    };
+
+    penalizeAndReset(i);
+    penalizeAndReset(j);
+    this.recomputePct();
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([40, 50, 70]);
+  }
+
   // İz kapanışı: iz hücreleri + çevrili kalan nötr/düşman hücreler kapanana geçer.
   closeTrail(index) {
     const p = this.players[index];
@@ -1184,7 +1270,7 @@ export class ZoneGame extends BaseMiniGame {
       }
     }
 
-    // Kafa kafaya: iki iz de silinir, ikisi de donar (reset yok)
+    // Kafa kafaya çarpışma: iki oyuncu da %50 toprak kaybıyla base'e döner + stun
     for (let i = 0; i < this.players.length; i++) {
       const a = this.players[i];
       if (!a.isJoined || a.stunTimer > 0) continue;
@@ -1193,12 +1279,7 @@ export class ZoneGame extends BaseMiniGame {
         if (!b.isJoined || b.stunTimer > 0) continue;
         const rr = (a.radius + b.radius) * 0.8;
         if (Math.hypot(a.x - b.x, a.y - b.y) < rr) {
-          this.wipeTrail(i);
-          this.wipeTrail(j);
-          this.stunPlayer(i, true);
-          this.stunPlayer(j, true);
-          this.addFloatingText((a.x + b.x) / 2, (a.y + b.y) / 2 - 20, '💥 KAFA KAFAYA!', '#FFFFFF');
-          this.addTrauma(0.3);
+          this.handleHeadOnCollision(i, j);
         }
       }
     }
