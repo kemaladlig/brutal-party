@@ -2,9 +2,12 @@
 import { TouchManager } from './touchManager.js';
 import {
   GAME_ORDER,
-  initAllCartridges,
-  registerEngine,
+  initEngineRegistry,
+  ensureEngine,
+  preloadEngine,
+  isEngineLoaded,
   getEngine,
+  getControllerMeta,
   getEngineGame,
   forEachEngine,
 } from './core/engineRegistry.js';
@@ -73,9 +76,9 @@ export function markTransition() {
   lastTransitionTime = performance.now();
 }
 
-// Engine Instances & Cartridge Registry
+// Engine Instances & Cartridge Registry (code-split: engines load on demand)
 const touchManager = new TouchManager(canvas);
-initAllCartridges(canvas);
+initEngineRegistry(canvas);
 
 export function getActiveGameEngine() {
   return getEngineGame(currentMode);
@@ -111,9 +114,13 @@ window.addEventListener('orientationchange', () => {
 });
 
 // State Management
-export function setGameMode(mode) {
+// Mode switches are async: game engines load on demand (code-splitting).
+// A token guard drops stale switches (user taps A then quickly B).
+let modeSwitchToken = 0;
+export async function setGameMode(mode) {
   markTransition();
-  currentMode = mode;
+  modeSwitchToken += 1;
+  const token = modeSwitchToken;
   // Error boundary kurtarma: mod değişiminde hata sayacı sıfırlanır, yoksa
   // çöken motordan dönülünce yeni motorun update() döngüsü kilitli kalırdı.
   consecutiveEngineErrors = 0;
@@ -121,54 +128,78 @@ export function setGameMode(mode) {
   setIsPaused(false);
   closePauseModal();
   touchManager.resetTouches();
+
+  if (mode === 'MENU') {
+    currentMode = mode;
+    // Klavye sahipliği: yalnızca aktif motor dinler, diğerlerinin basılı tuş
+    // haritası temizlenir (mod değişiminde takılı tuş kalmasın)
+    forEachEngine((engineMode, entry) => {
+      entry.game.isLocalInputActive = engineMode === mode;
+      if (engineMode !== mode && entry.game.keys) entry.game.keys = {};
+    });
+
+    if (btnQuickTvLobby) {
+      btnQuickTvLobby.classList.add('hidden');
+    }
+
+    menuOverlay.classList.remove('hidden');
+    inGameHud.classList.add('hidden');
+    touchManager.setHandler(null);
+    return;
+  }
+
+  // Oyun yolu: motoru istenirse yükle (dinamik import + kurulum).
+  // Yükleme bildirimi sadece ilk indirmede gösterilir (önbellekteyse anlıktır).
+  if (!isEngineLoaded(mode)) {
+    showInstallToast(`⏳ ${getControllerMeta(mode)?.lobbyTitle || mode} YÜKLENİYOR…`);
+  }
+  let entry = null;
+  try {
+    entry = await ensureEngine(mode);
+  } catch (err) {
+    console.error(`[Engine Load: ${mode}]`, err);
+    showInstallToast('❌ OYUN YÜKLENEMEDİ — tekrar deneyin.');
+    return;
+  }
+  if (token !== modeSwitchToken || !entry) return;
+  currentMode = mode;
+
   // Klavye sahipliği: yalnızca aktif motor dinler, diğerlerinin basılı tuş
   // haritası temizlenir (mod değişiminde takılı tuş kalmasın)
-  forEachEngine((engineMode, entry) => {
-    entry.game.isLocalInputActive = engineMode === mode;
-    if (engineMode !== mode && entry.game.keys) entry.game.keys = {};
+  forEachEngine((engineMode, loaded) => {
+    loaded.game.isLocalInputActive = engineMode === mode;
+    if (engineMode !== mode && loaded.game.keys) loaded.game.keys = {};
   });
 
   const now = performance.now();
 
   if (btnQuickTvLobby) {
-    if (mode === 'MENU') {
-      btnQuickTvLobby.classList.add('hidden');
-    } else {
-      btnQuickTvLobby.classList.toggle('hidden', !activeNet().isHosting);
-    }
+    btnQuickTvLobby.classList.toggle('hidden', !activeNet().isHosting);
   }
 
-  if (mode === 'MENU') {
-    menuOverlay.classList.remove('hidden');
-    inGameHud.classList.add('hidden');
-    touchManager.setHandler(null);
-  } else {
-    const entry = getEngine(mode);
-    if (entry) {
-      menuOverlay.classList.add('hidden');
-      inGameHud.classList.remove('hidden');
-      touchManager.setHandler(entry.game);
-      // LOCAL: kayıtlı koltuk renkleri reset ÖNCESİ deftere yüklenir (init renkleri
-      // doğru kurulsun), reset sonrası varsayılan insan koltuklarına boş renk atanır.
-      if (!activeNet().isHosting) {
-        loadLocalSeatColors();
+  menuOverlay.classList.add('hidden');
+  inGameHud.classList.remove('hidden');
+  touchManager.setHandler(entry.game);
+  // LOCAL: kayıtlı koltuk renkleri reset ÖNCESİ deftere yüklenir (init renkleri
+  // doğru kurulsun), reset sonrası varsayılan insan koltuklarına boş renk atanır.
+  if (!activeNet().isHosting) {
+    loadLocalSeatColors();
+  }
+  entry.reset();
+  if (!activeNet().isHosting) {
+    ensureLocalSeatColorsForTypes(entry.game.slotTypes);
+    // Reset'te kurulan oyuncu renklerini LOCAL koltuk renkleriyle eşitle
+    const locals = getLocalSeatColors();
+    for (let i = 0; i < 4; i++) {
+      if (locals[i] && typeof entry.game.applyLocalSeatColor === 'function') {
+        entry.game.applyLocalSeatColor(i, locals[i]);
       }
-      entry.reset();
-      if (!activeNet().isHosting) {
-        ensureLocalSeatColorsForTypes(entry.game.slotTypes);
-        // Reset'te kurulan oyuncu renklerini LOCAL koltuk renkleriyle eşitle
-        const locals = getLocalSeatColors();
-        for (let i = 0; i < 4; i++) {
-          if (locals[i] && typeof entry.game.applyLocalSeatColor === 'function') {
-            entry.game.applyLocalSeatColor(i, locals[i]);
-          }
-        }
-      }
-      entry.onEnter(now);
-      entry.game.resize(window.innerWidth, window.innerHeight);
-      syncSlotsToEngine(entry.game, currentMode, activeNet().isHosting);
     }
   }
+  entry.onEnter(now);
+  entry.game.resize(window.innerWidth, window.innerHeight);
+  syncSlotsToEngine(entry.game, currentMode, activeNet().isHosting);
+  setSeatTapHook();
 }
 
 function resetActiveGame() {
@@ -761,7 +792,7 @@ function startEngineNow(mode) {
 }
 
 // BAŞLAT #1: sahayı aç — motor LOBBY'de arena gösterir, koltuk seçimi başlar
-function enterStaging(mode) {
+async function enterStaging(mode) {
   tryFullscreen();
   // Sert renk engeli: aynı display rengine sahip iki insan koltuğu varken
   // sahaya geçilemez (LOCAL'de koltuklar boş → küme boş → engel yok).
@@ -769,6 +800,9 @@ function enterStaging(mode) {
     showInstallToast('⚠️ Aynı renkte koltuklar var — önce 🎲 ile renkleri ayırın.');
     return;
   }
+  await setGameMode(mode);
+  // Yükleme başarısızsa veya araya yeni geçiş girdiyse saha açılmaz.
+  if (currentMode !== mode) return;
   stagingMode = mode;
   seatsLocked = false;
   // Lobiden çıkışta herkes BEKLE'ye çekilir (yerel sıfırlama, ekstra çağrı yok —
@@ -778,7 +812,6 @@ function enterStaging(mode) {
     if (e) updateHostSlot(i, true, e.name, false, e.kind);
   }
   refreshStagingBar();
-  setGameMode(mode);
   // Saha açılırken koltuklar bir kez daha yazılır (kurucu varsayılan botları ezilir)
   const engine = getActiveGameEngine();
   if (engine) syncSlotsToEngine(engine, mode, activeNet().isHosting);
@@ -1014,6 +1047,11 @@ categoryTabs?.addEventListener('click', (e) => {
 
 for (const mode of GAME_ORDER) {
   addTapListener(document.getElementById(`btn-select-${mode.toLowerCase()}`), () => handleGameCardClick(mode));
+  // Hover/touchstart ön-yükleme: kullanıcı karta bakarken chunk arka planda
+  // iner, dokunuş anında motor çoğunlukla hazırdır (seçim akışı değişmez).
+  const cardEl = document.getElementById(`btn-select-${mode.toLowerCase()}`);
+  cardEl?.addEventListener('mouseenter', () => preloadEngine(mode));
+  cardEl?.addEventListener('touchstart', () => preloadEngine(mode), { passive: true });
 }
 
 addTapListener(btnQuickTvLobby, returnHostToLobby);

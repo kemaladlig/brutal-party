@@ -1,19 +1,11 @@
 // Brutal Party Games — Central Cartridge & Engine Registry
 // Single authoritative source for game definitions, metadata, engines, and controller bindings.
+//
+// Code-splitting: game modules are NOT imported eagerly. Each cartridge holds a
+// `load()` returning its game class via dynamic import; `ensureEngine(mode)`
+// imports on demand (first select / card hover) and caches the instance.
+// AI modules ride along automatically (each game imports only its own AI).
 
-import { Game as PongGame } from '../games/game.js';
-import { TanksGame } from '../games/tanks.js';
-import { CurveGame } from '../games/curve.js';
-import { BombGame } from '../games/bomb.js';
-import { HeistGame } from '../games/heist.js';
-import { DuelGame } from '../games/duel.js';
-import { CrownGame } from '../games/crown.js';
-import { ZoneGame } from '../games/zone.js';
-import { SnakeGame } from '../games/snake.js';
-import { LaserGame } from '../games/laser.js';
-import { CloneGame } from '../games/clone.js';
-import { CollapseGame } from '../games/collapse.js';
-import { NinjaGame } from '../games/ninja.js';
 import { GAMEPAD_SCHEMAS } from '../controllers/gamepadSchemas.js';
 
 export const GAME_ORDER = [
@@ -39,10 +31,9 @@ export const CARTRIDGES = {
     hudTag: '🏓 PONG',
     tacticalHint: 'PADDLE SÜRÜKLE • 🌀 FALSO İLE ŞAŞIRT',
     color: '#D84727',
-    GameClass: PongGame,
     schema: GAMEPAD_SCHEMAS.PONG,
-    createEngine: (canvas) => {
-      const game = new PongGame(canvas);
+    load: () => import('../games/game.js').then((m) => m.Game),
+    createEngine: (game) => {
       return {
         game,
         reset: () => game.resetCurrentGame(),
@@ -70,10 +61,9 @@ export const CARTRIDGES = {
     hudTag: '🛡️ TANKS',
     tacticalHint: '🚀 GAZ VER (BASILI TUT) • 💥 NİŞAN ALIP ATEŞ ET',
     color: '#3B82F6',
-    GameClass: TanksGame,
     schema: GAMEPAD_SCHEMAS.TANKS,
-    createEngine: (canvas) => {
-      const game = new TanksGame(canvas);
+    load: () => import('../games/tanks.js').then((m) => m.TanksGame),
+    createEngine: (game) => {
       return {
         game,
         reset: () => game.resetMatch(),
@@ -98,17 +88,16 @@ export const CARTRIDGES = {
     hudTag: '🐍 CURVE',
     tacticalHint: '◀ SOL / SAĞ ▶ DÖNÜŞ • DUVARLARDAN KAÇ',
     color: '#10B981',
-    GameClass: CurveGame,
     schema: GAMEPAD_SCHEMAS.CURVE,
-    createEngine: (canvas) => {
-      const game = new CurveGame(canvas);
+    load: () => import('../games/curve.js').then((m) => m.CurveGame),
+    createEngine: (game) => {
       return {
         game,
         reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startRound(),
-        packet: () => ({ scores: game.scores, alive: game.players.map((p) => p.alive) }),
+        packet: () => ({ scores: game.scores, alive: game.players.map((p) => p.isAlive ?? p.alive) }),
       };
     },
   },
@@ -119,10 +108,9 @@ export const CARTRIDGES = {
     hudTag: '💣 BOMB',
     tacticalHint: '🕹️ HAREKET ET • ⚡ DEPAR İLE KAÇ VEYA DOKUN',
     color: '#EF4444',
-    GameClass: BombGame,
     schema: GAMEPAD_SCHEMAS.BOMB,
-    createEngine: (canvas) => {
-      const game = new BombGame(canvas);
+    load: () => import('../games/bomb.js').then((m) => m.BombGame),
+    createEngine: (game) => {
       return {
         game,
         reset: () => game.resetMatch(),
@@ -133,6 +121,7 @@ export const CARTRIDGES = {
           scores: game.scores,
           carrier: game.bombCarrierIndex,
           bombTime: Math.ceil(game.bombTimer || 0),
+          cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown || 0) / 2.2) * 100)),
         }),
       };
     },
@@ -144,10 +133,9 @@ export const CARTRIDGES = {
     hudTag: '💰 HEIST',
     tacticalHint: '🕹️ HAREKET ET • 💥 OMUZ AT VE ELMASI ÇAL',
     color: '#F59E0B',
-    GameClass: HeistGame,
     schema: GAMEPAD_SCHEMAS.HEIST,
-    createEngine: (canvas) => {
-      const game = new HeistGame(canvas);
+    load: () => import('../games/heist.js').then((m) => m.HeistGame),
+    createEngine: (game) => {
       return {
         game,
         reset: () => game.resetMatch(),
@@ -157,6 +145,9 @@ export const CARTRIDGES = {
         packet: () => ({
           scores: game.scores,
           timeLeft: Math.ceil(game.roundTimer || 0),
+          carried: game.players.map((p) => p.carriedGold || 0),
+          vault: game.players.map((p) => p.vaultGold || 0),
+          cd: game.players.map((p) => Math.ceil((Math.max(0, p.tackleCooldown || 0) / 3.5) * 100)),
         }),
       };
     },
@@ -168,10 +159,9 @@ export const CARTRIDGES = {
     hudTag: '🤠 DUEL',
     tacticalHint: '✋ BEKLE • SİNYALİ GÖRÜNCE EN HIZLI DOKUN!',
     color: '#8B5CF6',
-    GameClass: DuelGame,
     schema: GAMEPAD_SCHEMAS.DUEL,
-    createEngine: (canvas) => {
-      const game = new DuelGame(canvas);
+    load: () => import('../games/duel.js').then((m) => m.DuelGame),
+    createEngine: (game) => {
       return {
         game,
         reset: () => game.reset(),
@@ -189,10 +179,9 @@ export const CARTRIDGES = {
     hudTag: '👑 CROWN',
     tacticalHint: '🕹️ HAREKET ET • 💥 OMUZ AT VE TACI KORU',
     color: '#EAB308',
-    GameClass: CrownGame,
     schema: GAMEPAD_SCHEMAS.CROWN,
-    createEngine: (canvas) => {
-      const game = new CrownGame(canvas);
+    load: () => import('../games/crown.js').then((m) => m.CrownGame),
+    createEngine: (game) => {
       return {
         game,
         reset: () => game.resetMatch(),
@@ -203,6 +192,7 @@ export const CARTRIDGES = {
           scores: game.scores,
           king: game.crown.carrierIndex,
           crownTimes: game.players.map((p) => Math.round(p.crownHoldTime * 10) / 10),
+          cd: game.players.map((p) => Math.ceil((Math.max(0, p.tackleCooldown || 0) / 2.0) * 100)),
         }),
       };
     },
@@ -214,10 +204,9 @@ export const CARTRIDGES = {
     hudTag: '🗺️ ZONE',
     tacticalHint: '🕹️ HAREKET ET • ⚡ DEPAR İLE ALANA GİR',
     color: '#06B6D4',
-    GameClass: ZoneGame,
     schema: GAMEPAD_SCHEMAS.ZONE,
-    createEngine: (canvas) => {
-      const game = new ZoneGame(canvas);
+    load: () => import('../games/zone.js').then((m) => m.ZoneGame),
+    createEngine: (game) => {
       return {
         game,
         reset: () => game.resetMatch(),
@@ -230,6 +219,7 @@ export const CARTRIDGES = {
           kills: game.kills,
           timeLeft: Math.ceil(game.roundTimer || 0),
           leader: game.leaderIndex,
+          cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown || 0) / 4.0) * 100)),
         }),
       };
     },
@@ -241,10 +231,9 @@ export const CARTRIDGES = {
     hudTag: '🐍 SNAKE',
     tacticalHint: '◀ SOL / SAĞ ▶ DÖNÜŞ • ⚡ BASILI TUTUP HIZLAN',
     color: '#22C55E',
-    GameClass: SnakeGame,
     schema: GAMEPAD_SCHEMAS.SNAKE,
-    createEngine: (canvas) => {
-      const game = new SnakeGame(canvas);
+    load: () => import('../games/snake.js').then((m) => m.SnakeGame),
+    createEngine: (game) => {
       return {
         game,
         reset: () => game.resetMatch(),
@@ -254,6 +243,8 @@ export const CARTRIDGES = {
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
+          nrg: game.players.map((p) => Math.round(p.boostEnergy ?? 100)),
+          lock: game.players.map((p) => (p.boostLocked ? 1 : 0)),
         }),
       };
     },
@@ -265,10 +256,9 @@ export const CARTRIDGES = {
     hudTag: '🔫 LASER',
     tacticalHint: '🕹️ NİŞAN AL & KOŞ • 🔫 ATEŞ • 💨 DEPAR • 🛡️ PICKUP',
     color: '#EC4899',
-    GameClass: LaserGame,
     schema: GAMEPAD_SCHEMAS.LASER,
-    createEngine: (canvas) => {
-      const game = new LaserGame(canvas);
+    load: () => import('../games/laser.js').then((m) => m.LaserGame),
+    createEngine: (game) => {
       return {
         game,
         reset: () => game.resetMatch(),
@@ -281,6 +271,13 @@ export const CARTRIDGES = {
           hp: game.players.map((p) => p.hp || 0),
           timeLeft: Math.ceil(game.matchTimer || 0),
           cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 4.0) * 100)),
+          cdFire: game.players.map((p, i) => {
+            let active = 0;
+            for (const lz of game.lasers || []) if (lz.owner === i) active++;
+            if (active >= 2) return 100;
+            const div = p.fastTimer > 0 ? 0.9 * 0.45 : 0.9;
+            return Math.ceil((Math.max(0, p.cooldown || 0) / div) * 100);
+          }),
         }),
       };
     },
@@ -292,10 +289,9 @@ export const CARTRIDGES = {
     hudTag: '👥 CLONE',
     tacticalHint: '🕹️ ROL YAP & GÖREV YAP • 💥 RAKİBİ BUL VE OMUZ AT',
     color: '#6366F1',
-    GameClass: CloneGame,
     schema: GAMEPAD_SCHEMAS.CLONE,
-    createEngine: (canvas) => {
-      const game = new CloneGame(canvas);
+    load: () => import('../games/clone.js').then((m) => m.CloneGame),
+    createEngine: (game) => {
       return {
         game,
         reset: () => game.resetMatch(),
@@ -305,7 +301,7 @@ export const CARTRIDGES = {
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
-          cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 1.5) * 100)),
+          cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 1.6) * 100)),
         }),
       };
     },
@@ -317,10 +313,9 @@ export const CARTRIDGES = {
     hudTag: '🕳️ COLLAPSE',
     tacticalHint: '🕹️ HAREKET ET • ⤴️ BOŞLUKTAN ZIPLA',
     color: '#64748B',
-    GameClass: CollapseGame,
     schema: GAMEPAD_SCHEMAS.COLLAPSE,
-    createEngine: (canvas) => {
-      const game = new CollapseGame(canvas);
+    load: () => import('../games/collapse.js').then((m) => m.CollapseGame),
+    createEngine: (game) => {
       return {
         game,
         reset: () => game.resetMatch(),
@@ -330,7 +325,7 @@ export const CARTRIDGES = {
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
-          cd: game.players.map((p) => Math.ceil((Math.max(0, p.jumpCooldown) / 1.8) * 100)),
+          cd: game.players.map((p) => Math.ceil((Math.max(0, p.jumpCooldown) / 1.6) * 100)),
         }),
       };
     },
@@ -342,10 +337,9 @@ export const CARTRIDGES = {
     hudTag: '🥷 NINJA',
     tacticalHint: '🕹️ HAREKET ET • DURUP GİZLEN • 🗡️ KILIÇ • 💨 SİS',
     color: '#1E293B',
-    GameClass: NinjaGame,
     schema: GAMEPAD_SCHEMAS.NINJA,
-    createEngine: (canvas) => {
-      const game = new NinjaGame(canvas);
+    load: () => import('../games/ninja.js').then((m) => m.NinjaGame),
+    createEngine: (game) => {
       return {
         game,
         reset: () => game.resetMatch(),
@@ -355,7 +349,8 @@ export const CARTRIDGES = {
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
-          cd: game.players.map((p) => Math.ceil((Math.max(0, p.strikeCooldown) / 1.5) * 100)),
+          cd: game.players.map((p) => Math.ceil((Math.max(0, p.strikeCooldown) / 1.3) * 100)),
+          cd2: game.players.map((p) => Math.ceil((Math.max(0, p.smokeCooldown || 0) / 5.0) * 100)),
         }),
       };
     },
@@ -363,12 +358,51 @@ export const CARTRIDGES = {
 };
 
 const registry = {};
+const loadingPromises = {};
+let engineCanvas = null;
 
 export function registerCartridge(cartridge) {
   CARTRIDGES[cartridge.id] = cartridge;
   if (!GAME_ORDER.includes(cartridge.id)) {
     GAME_ORDER.push(cartridge.id);
   }
+}
+
+// Boot'ta bir kez çağrılır (motor kurmaz — sadece canvas'ı saklar).
+export function initEngineRegistry(canvas) {
+  engineCanvas = canvas;
+}
+
+// Motoru istenirse yükler (dinamik import), kurar ve önbelleğe alır.
+// Aynı motora eşzamanlı istekler tek promise'i paylaşır; hata hâli temizlenir
+// (sonraki deneme yeniden yüklemeyi dener).
+export async function ensureEngine(mode) {
+  if (registry[mode]) return registry[mode];
+  const cart = CARTRIDGES[mode];
+  if (!cart || typeof cart.load !== 'function') return null;
+  if (!loadingPromises[mode]) {
+    loadingPromises[mode] = cart.load().then((GameClass) => {
+      if (!engineCanvas) throw new Error('Engine canvas not set');
+      const entry = cart.createEngine(new GameClass(engineCanvas));
+      registerEngine(mode, entry);
+      return entry;
+    }).catch((err) => {
+      delete loadingPromises[mode];
+      throw err;
+    });
+  }
+  return loadingPromises[mode];
+}
+
+export function isEngineLoaded(mode) {
+  return !!registry[mode];
+}
+
+// Fire-and-forget ön-yükleme (kart hover/touchstart): hatalar sessizce yutulur,
+// gerçek seçim anındaki ensureEngine yine de sonucu/hatayı yönetir.
+export function preloadEngine(mode) {
+  if (registry[mode] || loadingPromises[mode]) return;
+  ensureEngine(mode).catch(() => {});
 }
 
 export function registerEngine(mode, entry) {
@@ -389,14 +423,8 @@ export function forEachEngine(cb) {
   }
 }
 
-export function initAllCartridges(canvas) {
-  for (const mode of GAME_ORDER) {
-    const cart = CARTRIDGES[mode];
-    if (cart && typeof cart.createEngine === 'function') {
-      registerEngine(mode, cart.createEngine(canvas));
-    }
-  }
-}
+// NOTE: initAllCartridges removed (code-splitting) — engines load on demand
+// via ensureEngine(). forEachEngine/getEngine only see loaded engines.
 
 export function getControllerMeta(mode) {
   if (mode === 'LOBBY') {
