@@ -1,5 +1,6 @@
 import { UI_COLORS, UI_SIZES, uiFont } from './ui/tokens.js';
 import { drawBrutalAvatar } from './ui/characterRenderer.js';
+import { t } from './i18n.js';
 
 const GUIDE_COLORS = UI_COLORS.players;
 
@@ -50,7 +51,7 @@ export function renderControlGuide(ctx, arena, title, entries) {
     ctx.strokeRect(panelX, footerY, panelWidth, footerHeight);
     ctx.fillStyle = UI_COLORS.danger;
     ctx.font = uiFont('section');
-    ctx.fillText('OYUNCU BÖLGELERİ', viewportWidth / 2, footerY + 16);
+    ctx.fillText(t('canvas.zones'), viewportWidth / 2, footerY + 16);
 
     const swatchY = footerY + 30;
     const swatchStartX = viewportWidth / 2 - Math.min(entries.length, 4) * 44;
@@ -331,7 +332,7 @@ export function renderLobbyStartButton(ctx, {
   ctx.font = ready ? uiFont('button') : uiFont('body');
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(ready ? '▶ MAÇI BAŞLAT' : '2 KİŞİ GEREKİYOR', arena.cx, btnY + btnH / 2);
+  ctx.fillText(ready ? t('pause.resume') : t('canvas.need2'), arena.cx, btnY + btnH / 2);
   ctx.restore();
 
   if (ready) {

@@ -3,6 +3,7 @@
 // İsim düzenleme noktası ana menüdeki karakter kartıdır.
 import { ensureStoredNick } from '../net.js';
 import { showInstallToast } from './toast.js';
+import { t } from '../i18n.js';
 
 const joinRoomModal = document.getElementById('join-room-modal');
 const inputRoomCode = document.getElementById('input-room-code');
@@ -55,10 +56,10 @@ export function initJoinModal({ onExecuteJoin }) {
       if (text && inputRoomCode) {
         const match = text.match(/join=([A-Za-z0-9]{3})/i) || text.match(/\b([A-Za-z0-9]{3})\b/);
         inputRoomCode.value = (match ? match[1] : text.slice(0, 3)).toUpperCase();
-        showInstallToast('✓ Oda kodu yapıştırıldı!');
+        showInstallToast(t('join.pasted'));
       }
     } catch (err) {
-      showInstallToast('Pano okunamadı.');
+      showInstallToast(t('join.clipFail'));
     }
   });
 
@@ -88,7 +89,7 @@ export function initJoinModal({ onExecuteJoin }) {
   btnSubmitJoin?.addEventListener('click', () => {
     const code = inputRoomCode?.value?.trim().toUpperCase();
     if (!code || code.length < 3) {
-      showInstallToast('Geçerli 3 haneli oda kodunu girin.');
+      showInstallToast(t('join.needCode'));
       return;
     }
     closeJoinModal();
@@ -143,7 +144,7 @@ export function initJoinModal({ onExecuteJoin }) {
         }
       }
     } catch (err) {
-      showInstallToast('Pano okunamadı, kodu elle yazabilirsiniz.');
+      showInstallToast(t('join.clipHint'));
     }
   });
 }

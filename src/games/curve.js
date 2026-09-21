@@ -2,6 +2,7 @@
 import { getSlotCustomization, getLocalSeatColors } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGap, playItemPickup } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { t } from '../i18n.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -673,7 +674,7 @@ export class CurveGame extends BaseMiniGame {
         }
       }
       this.segGridDirty = true;
-      this.spawnFloatingText(player.x, player.y - 14, '✂️ İZİ SİL!', player.color);
+      this.spawnFloatingText(player.x, player.y - 14, t('curve.cut'), player.color);
     } else if (item.type === 'GHOST') {
       player.ghostTimer = 4.0;
       this.spawnFloatingText(player.x, player.y - 14, '👻 HAYALET!', '#70E000');
@@ -684,13 +685,13 @@ export class CurveGame extends BaseMiniGame {
       this.players.forEach((p) => {
         if (p.index !== player.index && p.isJoined && p.isAlive) {
           p.confusedTimer = 4.0;
-          this.spawnFloatingText(p.x, p.y - 14, '🌀 TERS YÖN!', '#FF473A');
+          this.spawnFloatingText(p.x, p.y - 14, t('curve.rev'), '#FF473A');
         }
       });
-      this.spawnFloatingText(player.x, player.y - 14, '🌀 TERS ÇEVİR!', player.color);
+      this.spawnFloatingText(player.x, player.y - 14, t('curve.revYou'), player.color);
     } else if (item.type === 'SHRINK') {
       player.shrinkTimer = 6.0;
-      this.spawnFloatingText(player.x, player.y - 14, '🔬 MİNİ BOY!', '#00B4D8');
+      this.spawnFloatingText(player.x, player.y - 14, t('curve.mini'), '#00B4D8');
     } else if (item.type === 'FREEZE') {
       this.players.forEach((p) => {
         if (p.index !== player.index && p.isJoined && p.isAlive) {
@@ -698,13 +699,13 @@ export class CurveGame extends BaseMiniGame {
           this.spawnFloatingText(p.x, p.y - 14, '❄️ DONDU!', '#90E0EF');
         }
       });
-      this.spawnFloatingText(player.x, player.y - 14, '❄️ BUZ ÇAĞI!', player.color);
+      this.spawnFloatingText(player.x, player.y - 14, t('curve.ice'), player.color);
     } else if (item.type === 'BOMB') {
       this.spawnBombBlast(player.x, player.y);
       this.spawnFloatingText(player.x, player.y - 14, '💣 PATLAMA!', '#FF473A');
     } else if (item.type === 'THICK') {
       player.thickTimer = 4.5;
-      this.spawnFloatingText(player.x, player.y - 14, '🚧 BARİKAT!', '#D99B26');
+      this.spawnFloatingText(player.x, player.y - 14, t('curve.wall'), '#D99B26');
     }
   }
 
@@ -1079,7 +1080,7 @@ export class CurveGame extends BaseMiniGame {
     }
 
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'SOL/SAĞ: YÖN VER • ÇARPMA • 5 PUAN ALAN KAZANIR', [
+      renderControlGuide(ctx, this.arena, t('guide.curve'), [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -1188,7 +1189,7 @@ export class CurveGame extends BaseMiniGame {
         ctx.strokeRect(0, -halfH, halfW, zones.box.h);
 
         ctx.fillStyle = rightActive ? '#FFFFFF' : '#1A1A1A';
-        ctx.fillText('SAĞ ►', halfW / 2, 0);
+        ctx.fillText(t('curve.right'), halfW / 2, 0);
 
       } else if (this.state === 'PLAYING' && isJoined) {
         ctx.globalAlpha = 0.42;
@@ -1266,7 +1267,7 @@ export class CurveGame extends BaseMiniGame {
     renderMatchOver(ctx, {
       arena: this.arena,
       uiButtons: this.uiButtons,
-      headline: 'ÇİZGİ ŞAMPİYONU',
+      headline: t('curve.champ'),
       winnerName: this.matchWinner ? this.matchWinner.name : '',
       winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
       rows: this.players

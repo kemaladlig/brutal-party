@@ -4,6 +4,7 @@
 
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { t } from '../i18n.js';
 import { getLocalSeatColors } from '../core/customizationManager.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -1010,7 +1011,7 @@ export class SnakeGame extends BaseMiniGame {
     }
 
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, '◀ SOL / SAĞ ▶ DÖNÜŞ • ⚡ BASILI TUTUP HIZLAN', [
+      renderControlGuide(ctx, this.arena, t('guide.snake'), [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -1063,7 +1064,7 @@ export class SnakeGame extends BaseMiniGame {
       renderMatchOver(ctx, {
         arena: this.arena,
         uiButtons: this.uiButtons,
-        headline: 'YILAN ŞAMPİYONU!',
+        headline: t('snake.champ'),
         winnerName: this.matchWinner ? this.matchWinner.name : '',
         winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
         rows: this.players
@@ -1143,7 +1144,7 @@ export class SnakeGame extends BaseMiniGame {
 
         ctx.fillStyle = '#1A1A1A';
         ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText(player.boostLocked ? '🔥 KİLİT' : '⚡ HIZ', -halfW + wSteer + wBoost / 2, 0);
+        ctx.fillText(player.boostLocked ? t('snake.lock') : t('snake.boost'), -halfW + wSteer + wBoost / 2, 0);
 
         // 3. SAĞ DÖNÜŞ BUTONU
         const rightActive = touching.action === 'right' || (kb.steer > 0);
@@ -1153,7 +1154,7 @@ export class SnakeGame extends BaseMiniGame {
 
         ctx.fillStyle = rightActive ? '#FFFFFF' : '#1A1A1A';
         ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText('SAĞ ►', -halfW + wSteer + wBoost + wSteer / 2, 0);
+        ctx.fillText(t('snake.right'), -halfW + wSteer + wBoost + wSteer / 2, 0);
 
       } else if (this.state === 'PLAYING' && isJoined) {
         // BOT Koltuğu

@@ -3,6 +3,7 @@
 
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { t } from '../i18n.js';
 import { getLocalSeatColors } from '../core/customizationManager.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -932,7 +933,7 @@ export class NinjaGame extends BaseMiniGame {
 
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'JOYSTICK: HAREKET ET • DUR VE GÖRÜNMEZ OL • AKSİYON: KILIÇ ÇEK', [
+      renderControlGuide(ctx, this.arena, t('guide.ninja'), [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -980,9 +981,9 @@ export class NinjaGame extends BaseMiniGame {
       const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
       renderLobbyStartButton(ctx, { arena: this.arena, uiButtons: this.uiButtons, joinedCount, accent: '#D84727', onStart: () => this.startNewMatch(), hidden: !!this.hideLobbyStartButton });
     } else if (this.state === 'ROUND_OVER') {
-      renderRoundBanner(ctx, { arena: this.arena, title: this.roundWinner ? `${this.roundWinner.name} KAZANDI!` : 'BERABERE!', titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A' });
+      renderRoundBanner(ctx, { arena: this.arena, title: this.roundWinner ? t('game.won', this.roundWinner.name) : t('game.draw'), titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A' });
     } else if (this.state === 'MATCH_OVER') {
-      renderMatchOver(ctx, { arena: this.arena, uiButtons: this.uiButtons, headline: 'GÖLGE ŞAMPİYONU', winnerName: this.matchWinner ? this.matchWinner.name : '', winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A', rows: this.players.filter((p) => p.isJoined).map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` })), onRestart: () => this.startNewMatch() });
+      renderMatchOver(ctx, { arena: this.arena, uiButtons: this.uiButtons, headline: t('ninja.champ'), winnerName: this.matchWinner ? this.matchWinner.name : '', winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A', rows: this.players.filter((p) => p.isJoined).map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` })), onRestart: () => this.startNewMatch() });
     }
     ctx.restore();
   }

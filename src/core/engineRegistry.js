@@ -7,6 +7,7 @@
 // AI modules ride along automatically (each game imports only its own AI).
 
 import { GAMEPAD_SCHEMAS } from '../controllers/gamepadSchemas.js';
+import { t } from '../i18n.js';
 
 export const GAME_ORDER = [
   'PONG',
@@ -29,7 +30,7 @@ export const CARTRIDGES = {
     id: 'PONG',
     title: 'BRUTAL PONG',
     hudTag: '🏓 PONG',
-    tacticalHint: 'PADDLE SÜRÜKLE • 🌀 FALSO İLE ŞAŞIRT',
+    tacticalHintKey: 'hint.pong',
     color: '#D84727',
     schema: GAMEPAD_SCHEMAS.PONG,
     load: () => import('../games/game.js').then((m) => m.Game),
@@ -59,7 +60,7 @@ export const CARTRIDGES = {
     id: 'TANKS',
     title: 'MICRO-TANKS',
     hudTag: '🛡️ TANKS',
-    tacticalHint: '🚀 GAZ VER (BASILI TUT) • 💥 NİŞAN ALIP ATEŞ ET',
+    tacticalHintKey: 'hint.tanks',
     color: '#3B82F6',
     schema: GAMEPAD_SCHEMAS.TANKS,
     load: () => import('../games/tanks.js').then((m) => m.TanksGame),
@@ -86,7 +87,7 @@ export const CARTRIDGES = {
     id: 'CURVE',
     title: 'BRUTAL CURVE',
     hudTag: '🐍 CURVE',
-    tacticalHint: '◀ SOL / SAĞ ▶ DÖNÜŞ • DUVARLARDAN KAÇ',
+    tacticalHintKey: 'hint.curve',
     color: '#10B981',
     schema: GAMEPAD_SCHEMAS.CURVE,
     load: () => import('../games/curve.js').then((m) => m.CurveGame),
@@ -106,7 +107,7 @@ export const CARTRIDGES = {
     id: 'BOMB',
     title: 'BRUTAL BOMB',
     hudTag: '💣 BOMB',
-    tacticalHint: '🕹️ HAREKET ET • ⚡ DEPAR İLE KAÇ VEYA DOKUN',
+    tacticalHintKey: 'hint.bomb',
     color: '#EF4444',
     schema: GAMEPAD_SCHEMAS.BOMB,
     load: () => import('../games/bomb.js').then((m) => m.BombGame),
@@ -131,7 +132,7 @@ export const CARTRIDGES = {
     id: 'HEIST',
     title: 'BRUTAL HEIST',
     hudTag: '💰 HEIST',
-    tacticalHint: '🕹️ HAREKET ET • 💥 OMUZ AT VE ELMASI ÇAL',
+    tacticalHintKey: 'hint.heist',
     color: '#F59E0B',
     schema: GAMEPAD_SCHEMAS.HEIST,
     load: () => import('../games/heist.js').then((m) => m.HeistGame),
@@ -157,7 +158,7 @@ export const CARTRIDGES = {
     id: 'DUEL',
     title: 'QUICK DRAW',
     hudTag: '🤠 DUEL',
-    tacticalHint: '✋ BEKLE • SİNYALİ GÖRÜNCE EN HIZLI DOKUN!',
+    tacticalHintKey: 'hint.duel',
     color: '#8B5CF6',
     schema: GAMEPAD_SCHEMAS.DUEL,
     load: () => import('../games/duel.js').then((m) => m.DuelGame),
@@ -177,7 +178,7 @@ export const CARTRIDGES = {
     id: 'CROWN',
     title: 'BRUTAL CROWN',
     hudTag: '👑 CROWN',
-    tacticalHint: '🕹️ HAREKET ET • 💥 OMUZ AT VE TACI KORU',
+    tacticalHintKey: 'hint.crown',
     color: '#EAB308',
     schema: GAMEPAD_SCHEMAS.CROWN,
     load: () => import('../games/crown.js').then((m) => m.CrownGame),
@@ -202,7 +203,7 @@ export const CARTRIDGES = {
     id: 'ZONE',
     title: 'BRUTAL ZONE',
     hudTag: '🗺️ ZONE',
-    tacticalHint: '🕹️ HAREKET ET • ⚡ DEPAR İLE ALANA GİR',
+    tacticalHintKey: 'hint.zone',
     color: '#06B6D4',
     schema: GAMEPAD_SCHEMAS.ZONE,
     load: () => import('../games/zone.js').then((m) => m.ZoneGame),
@@ -229,7 +230,7 @@ export const CARTRIDGES = {
     id: 'SNAKE',
     title: 'BRUTAL SNAKE',
     hudTag: '🐍 SNAKE',
-    tacticalHint: '◀ SOL / SAĞ ▶ DÖNÜŞ • ⚡ BASILI TUTUP HIZLAN',
+    tacticalHintKey: 'hint.snake',
     color: '#22C55E',
     schema: GAMEPAD_SCHEMAS.SNAKE,
     load: () => import('../games/snake.js').then((m) => m.SnakeGame),
@@ -254,7 +255,7 @@ export const CARTRIDGES = {
     id: 'LASER',
     title: 'BRUTAL LASER',
     hudTag: '🔫 LASER',
-    tacticalHint: '🕹️ NİŞAN AL & KOŞ • 🔫 ATEŞ • 💨 DEPAR • 🛡️ PICKUP',
+    tacticalHintKey: 'hint.laser',
     color: '#EC4899',
     schema: GAMEPAD_SCHEMAS.LASER,
     load: () => import('../games/laser.js').then((m) => m.LaserGame),
@@ -287,7 +288,7 @@ export const CARTRIDGES = {
     id: 'CLONE',
     title: 'BRUTAL CLONE',
     hudTag: '👥 CLONE',
-    tacticalHint: '🕹️ ROL YAP & GÖREV YAP • 💥 RAKİBİ BUL VE OMUZ AT',
+    tacticalHintKey: 'hint.clone',
     color: '#6366F1',
     schema: GAMEPAD_SCHEMAS.CLONE,
     load: () => import('../games/clone.js').then((m) => m.CloneGame),
@@ -311,7 +312,7 @@ export const CARTRIDGES = {
     id: 'COLLAPSE',
     title: 'BRUTAL COLLAPSE',
     hudTag: '🕳️ COLLAPSE',
-    tacticalHint: '🕹️ HAREKET ET • ⤴️ BOŞLUKTAN ZIPLA',
+    tacticalHintKey: 'hint.collapse',
     color: '#64748B',
     schema: GAMEPAD_SCHEMAS.COLLAPSE,
     load: () => import('../games/collapse.js').then((m) => m.CollapseGame),
@@ -335,7 +336,7 @@ export const CARTRIDGES = {
     id: 'NINJA',
     title: 'BRUTAL NINJA',
     hudTag: '🥷 NINJA',
-    tacticalHint: '🕹️ HAREKET ET • DURUP GİZLEN • 🗡️ KILIÇ • 💨 SİS',
+    tacticalHintKey: 'hint.ninja',
     color: '#1E293B',
     schema: GAMEPAD_SCHEMAS.NINJA,
     load: () => import('../games/ninja.js').then((m) => m.NinjaGame),
@@ -428,14 +429,15 @@ export function forEachEngine(cb) {
 
 export function getControllerMeta(mode) {
   if (mode === 'LOBBY') {
-    return { hudTag: '📺 PARTİ LOBİSİ' };
+    return { hudTag: t('pad.lobbyTag') };
   }
   const cart = CARTRIDGES[mode];
   if (!cart) return null;
   return {
     hudTag: cart.hudTag,
     lobbyTitle: `${cart.hudTag.split(' ')[0]} ${cart.title}`,
-    tacticalHint: cart.tacticalHint,
+    tacticalHint: t(cart.tacticalHintKey || ''),
+    tacticalHintKey: cart.tacticalHintKey,
     schema: cart.schema,
   };
 }

@@ -28,7 +28,7 @@ import {
 import { initToastAndInstall, showInstallToast, showConnectionBanner, hideConnectionBanner } from './ui/toast.js';
 import { UI_COLORS, uiFont } from './ui/tokens.js';
 import { openCustomizeModal, initMenuAvatarCard } from './ui/customizeModal.js';
-import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, isBotEkleEnabled, getColorClashIndices } from './core/slotManager.js';
+import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, isBotEkleEnabled, getColorClashIndices, refreshAllHostSlots } from './core/slotManager.js';
 import { getAvatarProfile, sanitizeAvatar, pickFreeColor, setSlotAvatar, clearSlotAvatar, loadLocalSeatColors, ensureLocalSeatColorsForTypes, getLocalSeatColors } from './core/customizationManager.js';
 import {
   initPauseModal,
@@ -39,6 +39,8 @@ import {
   setIsPaused,
 } from './ui/pauseModal.js';
 import { initJoinModal, openJoinModal } from './ui/joinModal.js';
+import { initSettingsModal, openSettingsModal } from './ui/settingsModal.js';
+import { applyI18nToDOM, onLangChange, t } from './i18n.js';
 import {
   initHostLobby,
   showHostLobbyModal,
@@ -151,14 +153,14 @@ export async function setGameMode(mode) {
   // Oyun yolu: motoru istenirse yükle (dinamik import + kurulum).
   // Yükleme bildirimi sadece ilk indirmede gösterilir (önbellekteyse anlıktır).
   if (!isEngineLoaded(mode)) {
-    showInstallToast(`⏳ ${getControllerMeta(mode)?.lobbyTitle || mode} YÜKLENİYOR…`);
+    showInstallToast(t('toast.loading', getControllerMeta(mode)?.lobbyTitle || mode));
   }
   let entry = null;
   try {
     entry = await ensureEngine(mode);
   } catch (err) {
     console.error(`[Engine Load: ${mode}]`, err);
-    showInstallToast('❌ OYUN YÜKLENEMEDİ — tekrar deneyin.');
+    showInstallToast(t('toast.loadFail'));
     return;
   }
   if (token !== modeSwitchToken || !entry) return;
@@ -315,7 +317,7 @@ async function openHostLobby(gameMode = 'PONG') {
         }
         const engine = getActiveGameEngine();
         if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
-        showInstallToast(`🎮 ${msg.name} kumanda olarak bağlandı!`);
+        showInstallToast(t('toast.ctrlJoined', msg.name));
       },
       onPlayerLeft: (msg) => {
         // Önce latch'i nötrle (hayalet sürüş/dönüş kalmasın), sonra koltuğu boşa çıkar
@@ -328,7 +330,7 @@ async function openHostLobby(gameMode = 'PONG') {
         refreshStagingBar();
         const engine = getActiveGameEngine();
         if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
-        showInstallToast(`🚪 ${msg.name} odadan ayrıldı.`);
+        showInstallToast(t('toast.ctrlLeft', msg.name));
       },
       onPlayerUpdated: (msg) => {
         const slot = hostPlayerSlots[msg.slotIndex];
@@ -375,7 +377,7 @@ async function openHostLobby(gameMode = 'PONG') {
           swapEngineSlots(engine, currentMode, activeNet().isHosting, slotA, slotB);
         }
 
-        showInstallToast(`🔄 Slot P${slotA + 1} ve P${slotB + 1} yer değiştirdi.`);
+        showInstallToast(t('toast.slotsSwapped', slotA + 1, slotB + 1));
         renderPauseSeats(handleSeatSwap);
       },
       onPlayerInput: (slotIndex, data) => {
@@ -445,14 +447,14 @@ async function openHostLobby(gameMode = 'PONG') {
     console.error('[Host] Oda açılamadı:', err);
     if (activeNet() === supabaseRelay) {
       console.warn('[Host] Supabase subscription failed, falling back to local WebSocket...');
-      showInstallToast('⚠️ Supabase bağlantısı başarısız. Lokal sunucuya geçiliyor...');
+      showInstallToast(t('toast.supabaseFallback'));
       updatePlatformMode('TV_CONSOLE');
       setTimeout(() => {
         openHostLobby(gameMode);
       }, 500);
     } else {
       const detail = err?.message ? ` Sebep: ${err.message}` : '';
-      showInstallToast(`Host odası açılamadı.${detail}`);
+      showInstallToast(t('toast.hostOpenFail', detail));
     }
   }
 }
@@ -463,11 +465,13 @@ async function openHostLobby(gameMode = 'PONG') {
 // Kopuş sonrası ilk oyun durumu geldiğinde online flash'i için bayrak tutulur.
 let connectionWasDown = false;
 function routeConnectionMessage(err) {
-  const msg = String(err || '');
-  if (/yeniden bağlanılıyor/i.test(msg)) {
+  let msg = String(err?.message || err || '');
+  // Sunucudan gelen bilinen hata kodları istemci diline çevrilir (kablo sabit).
+  if (/ODA DOLU|ROOM FULL/.test(msg)) msg = t('net.roomFull');
+  if (/yeniden bağlanılıyor|reconnecting/i.test(msg)) {
     connectionWasDown = true;
     showConnectionBanner('reconnecting', msg);
-  } else if (/BAĞLANTI KOPTU/i.test(msg)) {
+  } else if (/BAĞLANTI KOPTU|CONNECTION LOST/i.test(msg)) {
     connectionWasDown = true;
     showConnectionBanner('offline', msg);
   } else {
@@ -481,12 +485,12 @@ async function executeJoin(rawCode, rawName) {
   const name = (rawName || '').trim().toUpperCase() || ensureStoredNick();
 
   if (!code || code.length < 3) {
-    showInstallToast('Lütfen 3 haneli geçerli bir oda kodu girin.');
+    showInstallToast(t('toast.enterCode'));
     return;
   }
 
   storePlayerName(name);
-  showInstallToast(`⏳ #${code} odasına bağlanılıyor...`);
+  showInstallToast(t('toast.joining', code));
 
   disconnectInactiveNetwork(platformMode);
   const net = activeNet();
@@ -500,27 +504,27 @@ async function executeJoin(rawCode, rawName) {
         menuOverlay?.classList.add('hidden');
         gamepadManager.init(msg, 'LOBBY');
         hideConnectionBanner();
-        showInstallToast(`✓ ${msg.roomCode} odasına bağlandı!`);
+        showInstallToast(t('toast.joined', msg.roomCode));
       },
       onGameModeChanged: (newMode) => {
         gamepadManager.selectedHostGame = newMode;
         if (gamepadManager.gameMode === 'LOBBY') {
           gamepadManager.renderGameController('LOBBY');
         }
-        showInstallToast(`🎯 Host oyunu değiştirdi: ${newMode}`);
+        showInstallToast(t('toast.modeChanged', newMode));
       },
       onGameStarted: (mode) => {
         gamepadManager.exitStaging();
         gamepadManager.resetReady();
         gamepadManager.renderGameController(mode);
-        showInstallToast(`▶ Oyun başladı: ${mode}`);
+        showInstallToast(t('toast.gameStarted', mode));
       },
       onStagingStarted: (mode) => {
         gamepadManager.enterStaging(mode);
         // Saha açılırken hazır da sıfırlanır (host tarafıyla aynı kural; geç kalmış
         // bayrak bir sonraki turun sayacına sızamaz)
         gamepadManager.resetReady();
-        showInstallToast('🏟 Saha açıldı! Koltuğunu seç ve hazır ol.');
+        showInstallToast(t('toast.stagingOpen'));
       },
       onCountdown: (t) => {
         gamepadManager.showCountdown(t);
@@ -530,11 +534,11 @@ async function executeJoin(rawCode, rawName) {
         gamepadManager.resetReady();
         gamepadManager.selectedHostGame = mode || 'PONG';
         gamepadManager.renderGameController('LOBBY');
-        showInstallToast(`📺 Lobiye dönüldü.`);
+        showInstallToast(t('toast.backToLobby'));
       },
       onSlotChanged: (slotIndex, color) => {
         gamepadManager.updateSlot(slotIndex, color);
-        showInstallToast(`💺 Koltuğunuz değişti: P${slotIndex + 1}`);
+        showInstallToast(t('toast.slotChanged', slotIndex + 1));
       },
       onSlotsUpdate: (slots) => {
         gamepadManager.updateSlots(slots);
@@ -542,7 +546,7 @@ async function executeJoin(rawCode, rawName) {
       onGameState: (data) => {
         if (connectionWasDown) {
           connectionWasDown = false;
-          showConnectionBanner('online', '✓ BAĞLANTI KURULDU');
+          showConnectionBanner('online', t('net.reconnected'));
         }
         gamepadManager.handleStateSync(data);
       },
@@ -550,7 +554,7 @@ async function executeJoin(rawCode, rawName) {
         routeConnectionMessage(err);
       },
       onHostDisconnected: (msg) => {
-        showConnectionBanner('offline', String(msg || '📡 HOST BAĞLANTISI KOPTU'));
+        showConnectionBanner('offline', String(msg || t('net.hostLost')));
         gamepadManager.hide();
         menuOverlay?.classList.remove('hidden');
       },
@@ -559,7 +563,7 @@ async function executeJoin(rawCode, rawName) {
     console.error('[Join] Odaya bağlanılamadı:', err);
     if (net === supabaseRelay) {
       console.warn('[Join] Supabase connection failed, falling back to local WebSocket...');
-      showInstallToast('⚠️ Supabase bağlantısı başarısız. Lokal sunucuya geçiliyor...');
+      showInstallToast(t('toast.supabaseFallback'));
       updatePlatformMode('TV_CONSOLE');
       gamepadManager.network = partyNetwork;
       setTimeout(() => {
@@ -567,7 +571,7 @@ async function executeJoin(rawCode, rawName) {
       }, 500);
     } else {
       const detail = err?.message ? ` Sebep: ${err.message}` : '';
-      showInstallToast(`Odaya bağlanılamadı. Kodun doğruluğunu kontrol edin.${detail}`);
+      showInstallToast(t('toast.joinFail', detail));
     }
   }
 }
@@ -608,7 +612,7 @@ function handleRotateSeats() {
   // Host: skorları yerelde döndür, koltukları relay'de atomik döndür
   // (tek yayın — ara flicker/yanlış koltuk yok). Bot varsa iptal (relay de iptal eder).
   if (hostPlayerSlots.some((s) => s?.kind === 'bot' || s?.kind === 'bot_god')) {
-    showInstallToast('🤖 Bot varken koltuk döndürülemez.');
+    showInstallToast(t('toast.botLockRotate'));
     return;
   }
   rotateScoresLocally();
@@ -737,13 +741,13 @@ function refreshStagingBar() {
   const clash = activeNet().isHosting ? getColorClashIndices() : [];
   const pill = document.getElementById('staging-ready-pill');
   if (pill) {
-    pill.textContent = connected === 0 ? 'OYUNCU BEKLENİYOR' : `${connected} BAĞLANDI • ${ready} HAZIR`;
-    if (clash.length > 0) pill.textContent += ' • ⚠️ AYNI RENK';
+    pill.textContent = connected === 0 ? t('lobby.waiting') : t('lobby.connected', connected, ready);
+    if (clash.length > 0) pill.textContent += ` • ${t('lobby.clash')}`;
     pill.classList.toggle('clash', clash.length > 0);
   }
   const btn = document.getElementById('btn-staging-launch');
   if (btn) {
-    btn.textContent = clash.length > 0 ? `⚠️ RENKLERİ AYIRIN` : `▶ MAÇI BAŞLAT (${ready}/${connected} HAZIR)`;
+    btn.textContent = clash.length > 0 ? t('stage.split') : t('stage.start', ready, connected);
     btn.classList.toggle('blocked', clash.length > 0);
   }
 }
@@ -761,7 +765,7 @@ function showCountdownOverlay(t) {
   const ov = document.getElementById('countdown-overlay');
   const num = document.getElementById('countdown-overlay-number');
   if (!ov || !num) return;
-  num.textContent = t > 0 ? String(t) : 'BAŞLA!';
+  num.textContent = t > 0 ? String(t) : t('count.go');
   ov.classList.remove('hidden');
 
   // Force layout reflow and retrigger CSS animation on each tick
@@ -797,7 +801,7 @@ async function enterStaging(mode) {
   // Sert renk engeli: aynı display rengine sahip iki insan koltuğu varken
   // sahaya geçilemez (LOCAL'de koltuklar boş → küme boş → engel yok).
   if (activeNet().isHosting && getColorClashIndices().length > 0) {
-    showInstallToast('⚠️ Aynı renkte koltuklar var — önce 🎲 ile renkleri ayırın.');
+    showInstallToast(t('toast.clashLobby'));
     return;
   }
   await setGameMode(mode);
@@ -817,7 +821,7 @@ async function enterStaging(mode) {
   if (engine) syncSlotsToEngine(engine, mode, activeNet().isHosting);
   activeNet().startStaging(mode);
   showStagingBar();
-  showInstallToast('🏟 Saha açıldı! Herkes koltuğuna yerleşsin.');
+  showInstallToast(t('toast.stagingOpenHost'));
 }
 
 // BAŞLAT #2: 3-2-1 → oyun (koltuklar kilitli)
@@ -825,7 +829,7 @@ function runCountdown() {
   if (!stagingMode || countdownTimer) return;
   // Staging sırasında avatar değişimi çakışma doğurmuş olabilir → sayaç kapısı
   if (activeNet().isHosting && getColorClashIndices().length > 0) {
-    showInstallToast('⚠️ Aynı renkte koltuklar var — sayaç başlamadı. 🎲 ile ayırın.');
+    showInstallToast(t('toast.clashCountdown'));
     return;
   }
   const mode = stagingMode;
@@ -870,7 +874,7 @@ function handleLobbySeatTap(index) {
   // Bot ekleme kapalıysa normal akış: sadece oyuncu eklenir/çıkarılır
   if (!isBotEkleEnabled()) return;
   if (seatsLocked) {
-    showInstallToast('⏳ Sayaç sırasında koltuk değiştirilemez.');
+    showInstallToast(t('toast.countdownLock'));
     return;
   }
   const entry = hostPlayerSlots[index];
@@ -881,7 +885,7 @@ function handleLobbySeatTap(index) {
   } else if (!entry) {
     addBotSlot(index, 'bot');
   } else {
-    showInstallToast(`P${index + 1} dolu.`);
+    showInstallToast(t('toast.seatFull', index + 1));
   }
 }
 
@@ -893,7 +897,7 @@ function addBotSlot(index, kind = 'bot') {
   const engine = getActiveGameEngine();
   if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
   renderPauseSeats(handleSeatSwap);
-  showInstallToast(kind === 'bot_god' ? `⚡ P${index + 1}: GOD BOT (EFSANEVİ) eklendi!` : `🤖 P${index + 1}: BOT (NORMAL) eklendi.`);
+  showInstallToast(kind === 'bot_god' ? t('toast.godAdded', index + 1) : t('toast.botAdded', index + 1));
 }
 
 function addBotGodSlot(index) {
@@ -907,7 +911,7 @@ function removeBotSlot(index) {
   const engine = getActiveGameEngine();
   if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
   renderPauseSeats(handleSeatSwap);
-  showInstallToast(`🗑 P${index + 1} boşaltıldı.`);
+  showInstallToast(t('toast.seatCleared', index + 1));
 }
 
 // Motorların LOBBY tap'lerini host'a yönlendir (sadece host iken aktif)
@@ -929,12 +933,19 @@ initToastAndInstall();
 // tarafında anlık bant bildirimi. Relay mesajları aynı banda yazar.
 window.addEventListener('offline', () => {
   connectionWasDown = true;
-  showConnectionBanner('offline', '📡 İNTERNET BAĞLANTISI KESİLDİ');
+  showConnectionBanner('offline', t('net.offline'));
 });
 window.addEventListener('online', () => {
-  showConnectionBanner('online', '✓ İNTERNET GERİ GELDİ');
+  showConnectionBanner('online', t('net.onlineBack'));
 });
 initJoinModal({ onExecuteJoin: executeJoin });
+initSettingsModal();
+applyI18nToDOM();
+// Dil değişiminde TV lobi kartları anında yeniden çizilir (BOŞ/HAZIR etiketleri).
+onLangChange(() => {
+  try { refreshAllHostSlots(); } catch {}
+});
+document.getElementById('btn-open-settings')?.addEventListener('click', openSettingsModal);
 initHostLobby({
   getActiveNet: () => activeNet(),
   getPlatformMode: () => platformMode,
@@ -986,7 +997,7 @@ initHostLobby({
     refreshStagingBar();
     const engine = getActiveGameEngine();
     if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
-    showInstallToast(`🎲 P${slotIndex + 1} rengine geçti.`);
+    showInstallToast(t('toast.seatColor', slotIndex + 1));
   },
 });
 
@@ -1019,7 +1030,7 @@ initPauseModal({
       if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
     }
     refreshHostSlotCards();
-    showInstallToast(enabled ? '🤖 Bot ekleme AÇIK.' : 'Bot ekleme KAPALI.');
+    showInstallToast(enabled ? t('toast.botsOn') : t('toast.botsOff'));
   },
 });
 
@@ -1092,7 +1103,7 @@ if ('serviceWorker' in navigator) {
         reg.update();
         console.log('[PWA] ServiceWorker registered and updated:', reg.scope);
         // Yeni sürüm hazırsa kullanıcıya bildir (sayfayı yenilesin)
-        const notifyUpdate = () => showInstallToast('🆕 Yeni sürüm hazır — sayfayı yenileyin.');
+        const notifyUpdate = () => showInstallToast(t('toast.updateReady'));
         if (reg.waiting) notifyUpdate();
         reg.addEventListener('updatefound', () => {
           const worker = reg.installing;
@@ -1110,7 +1121,7 @@ if ('serviceWorker' in navigator) {
 
 // Warning for public site missing Supabase config
 if (isPublicOrigin() && !HAS_SUPABASE_CONFIG) {
-  showInstallToast('⚠️ ONLINE çalışmaz: Vercel Environment Variables eksik.');
+  showInstallToast(t('toast.noOnlineEnv'));
 }
 
 // Throttled Host State Broadcaster: 8Hz taban + değişiklikte anında gönderim.
@@ -1233,13 +1244,13 @@ function renderEngineCrashOverlay(ctx, error) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = '900 16px "Space Grotesk", sans-serif';
-  ctx.fillText('⚠️ OYUN MOTORUNDA BİR HATA OLUŞTU', cx, cy - 25);
+  ctx.fillText(t('crash.title'), cx, cy - 25);
 
   ctx.font = '800 12px "JetBrains Mono", monospace';
-  ctx.fillText(String(error?.message || 'Bilinmeyen motor hatası').slice(0, 50), cx, cy + 5);
+  ctx.fillText(String(error?.message || t('crash.default')).slice(0, 50), cx, cy + 5);
 
   ctx.font = '900 13px "Space Grotesk", sans-serif';
-  ctx.fillText('MENÜ / SEÇENEKLER İÇİN SAĞ ÜSTTEKİ (⋮) BUTONUNA DOKUNUN', cx, cy + 38);
+  ctx.fillText(t('crash.action'), cx, cy + 38);
   ctx.restore();
 }
 

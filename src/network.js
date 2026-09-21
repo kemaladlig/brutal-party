@@ -2,6 +2,7 @@
 // Connects Host (TV) or Controller (Phone) to the WebSocket room server.
 
 import { getClientId } from './net.js';
+import { t } from './i18n.js';
 
 export class PartyNetwork {
   constructor() {
@@ -69,7 +70,7 @@ export class PartyNetwork {
 
         this.ws.onerror = (err) => {
           console.error('[Network] WebSocket error:', err);
-          if (this.callbacks.onError) this.callbacks.onError('Bağlantı hatası oluştu.');
+          if (this.callbacks.onError) this.callbacks.onError(t('net.connError'));
           reject(err);
         };
 
@@ -438,7 +439,7 @@ export class PartyNetwork {
       if (performance.now() - this._lastHostMsgAt < 30000) return;
       this._stopHostWatchdog();
       if (this.callbacks.onHostDisconnected) {
-        this.callbacks.onHostDisconnected('📡 HOST BAĞLANTISI KOPTU — lobiye dönüp tekrar katılın.');
+        this.callbacks.onHostDisconnected(t('net.hostGoneWs'));
       }
       this.disconnect();
     }, 5000);
@@ -459,12 +460,12 @@ export class PartyNetwork {
     if (!this._lastJoin || this.role === 'HOST') return;
     if (this._reconnectTries >= 5) {
       this._lastJoin = null;
-      if (this.callbacks.onError) this.callbacks.onError('BAĞLANTI KOPTU — odaya tekrar katılın.');
+      if (this.callbacks.onError) this.callbacks.onError(t('net.retryFail'));
       return;
     }
     const delay = Math.min(8000, 1000 * 2 ** this._reconnectTries);
     this._reconnectTries += 1;
-    if (this.callbacks.onError) this.callbacks.onError(`🔄 Yeniden bağlanılıyor (${this._reconnectTries}/5)...`);
+    if (this.callbacks.onError) this.callbacks.onError(t('net.retrying', this._reconnectTries));
     this._reconnectTimer = setTimeout(async () => {
       this._reconnectTimer = null;
       try {

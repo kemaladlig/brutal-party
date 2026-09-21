@@ -2,6 +2,7 @@
 // Bot kararı src/ai/pongAI.js'tedir (diğer motorlarla aynı desen).
 
 import { getSlotCustomization } from '../core/customizationManager.js';
+import { t } from '../i18n.js';
 import { updatePongBotAI as runPongBotAI } from '../ai/pongAI.js';
 
 export const PLAYER_CONFIGS = [
@@ -236,7 +237,7 @@ export class Paddle {
     // Skor köşelerde (renderCornerScores); raket yanında yalnız canlar durur
     {
       ctx.save();
-      const livesStr = this.lives > 0 ? '● '.repeat(this.lives).trim() : 'ELENDİ';
+      const livesStr = this.lives > 0 ? '● '.repeat(this.lives).trim() : t('pad.out');
 
       if (this.axis === 'horizontal') {
         ctx.fillStyle = this.color;

@@ -1,11 +1,15 @@
-// In-Game Pause Modal & Seat Switcher Manager
+// In-Game Command Sheet (slide-over panel / bottom sheet) & Seat Switcher.
+// Same public API as the old pause modal: initPauseModal, openPauseModal,
+// closePauseModal, renderPauseSeats, getIsPaused, setIsPaused — main.js untouched.
 import { hostPlayerSlots, isBotEkleEnabled, setBotEkleEnabled } from '../core/slotManager.js';
 import { isColorblindEnabled, setColorblindEnabled } from '../core/customizationManager.js';
 import { showInstallToast } from './toast.js';
-import { toggleAudio } from '../audio.js';
+import { toggleAudio, getIsMuted } from '../audio.js';
+import { t, onLangChange } from '../i18n.js';
 
 const pauseModal = document.getElementById('pause-modal');
 const pauseGameTitle = document.getElementById('pause-game-title');
+const btnPauseClose = document.getElementById('btn-pause-close');
 const btnResumeGame = document.getElementById('btn-resume-game');
 const btnResetMatch = document.getElementById('btn-reset-match');
 const btnTvLobby = document.getElementById('btn-tv-lobby');
@@ -17,6 +21,7 @@ const btnPauseRotateSeats = document.getElementById('btn-pause-rotate-seats');
 
 let pauseSelectedSlot = null;
 let isPaused = false;
+let lastSwapCallback = null;
 
 export function getIsPaused() {
   return isPaused;
@@ -26,17 +31,34 @@ export function setIsPaused(val) {
   isPaused = val;
 }
 
+function setSwitch(el, on) {
+  if (!el) return;
+  el.classList.toggle('on', !!on);
+  el.setAttribute('aria-checked', on ? 'true' : 'false');
+}
+
+export function refreshPauseSwitches() {
+  setSwitch(btnToggleSound, !getIsMuted());
+  setSwitch(btnToggleBots, isBotEkleEnabled());
+  setSwitch(btnToggleColorblind, isColorblindEnabled());
+}
+
 export function renderPauseSeats(onSwapCallback) {
   const grid = document.getElementById('pause-seats-grid');
   if (!grid) return;
 
-  const slotLabels = ['P1 (ALT)', 'P2 (ÜST)', 'P3 (SOL)', 'P4 (SAĞ)'];
+  const slotLabels = [
+    `P1 (${t('pause.slotBottom')})`,
+    `P2 (${t('pause.slotTop')})`,
+    `P3 (${t('pause.slotLeft')})`,
+    `P4 (${t('pause.slotRight')})`,
+  ];
   const fallbackColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 
   grid.innerHTML = [0, 1, 2, 3]
     .map((idx) => {
       const slot = hostPlayerSlots[idx];
-      const name = slot?.name || 'BOŞ';
+      const name = slot?.name || t('pause.empty');
       const isSelected = pauseSelectedSlot === idx;
       // Display rengi: host override → oyuncu avatarı → kanonik koltuk rengi
       const seatColor = slot?.displayColor || slot?.avatar?.color || fallbackColors[idx];
@@ -69,7 +91,7 @@ export function renderPauseSeats(onSwapCallback) {
           onSwapCallback(slotA, slotB);
         }
         renderPauseSeats(onSwapCallback);
-        showInstallToast(`🔄 P${slotA + 1} ve P${slotB + 1} takas edildi!`);
+        showInstallToast(t('toast.swapped', slotA + 1, slotB + 1));
       }
     });
   });
@@ -78,6 +100,7 @@ export function renderPauseSeats(onSwapCallback) {
 export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
   if (currentMode === 'MENU') return;
   isPaused = true;
+  lastSwapCallback = (typeof onSwapCallback === 'function') ? onSwapCallback : null;
   pauseModal?.classList.remove('hidden');
 
   const titles = {
@@ -95,22 +118,17 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
     NINJA: 'BRUTAL NINJA',
   };
   if (pauseGameTitle) {
-    pauseGameTitle.textContent = `${titles[currentMode] || currentMode} // DURAKLATILDI`;
+    pauseGameTitle.textContent = `${titles[currentMode] || currentMode} // ${t('pause.badge')}`;
   }
   if (btnTvLobby) {
     btnTvLobby.classList.toggle('hidden', !isHosting);
   }
   if (btnExitToMenu) {
-    btnExitToMenu.textContent = isHosting ? '🚪 ODAYI KAPAT & ANA MENÜYE DÖN' : '⌂ ANA MENÜYE DÖN';
+    btnExitToMenu.textContent = isHosting ? `🚪 ${t('pause.exit')}` : t('pause.exit');
   }
-  if (btnToggleBots) {
-    btnToggleBots.textContent = isBotEkleEnabled() ? '🤖 BOT EKLEME: AÇIK' : '🤖 BOT EKLEME: KAPALI';
-  }
-  if (btnToggleColorblind) {
-    btnToggleColorblind.textContent = isColorblindEnabled() ? '👁 RENK KÖRLÜĞÜ: AÇIK' : '👁 RENK KÖRLÜĞÜ: KAPALI';
-  }
+  refreshPauseSwitches();
   pauseSelectedSlot = null;
-  renderPauseSeats(onSwapCallback);
+  renderPauseSeats(lastSwapCallback);
 }
 
 export function closePauseModal(onCloseCallback) {
@@ -136,19 +154,25 @@ export function initPauseModal({
     closePauseModal(onResume);
   });
 
+  btnPauseClose?.addEventListener('click', () => {
+    closePauseModal(onResume);
+  });
+
   btnResetMatch?.addEventListener('click', () => {
     closePauseModal(onReset);
   });
 
   btnToggleSound?.addEventListener('click', () => {
     const muted = toggleAudio();
-    btnToggleSound.textContent = muted ? '🔇 SES: KAPALI' : '🔊 SES: AÇIK';
+    setSwitch(btnToggleSound, !muted);
+    showInstallToast(muted ? t('toast.soundOff') : t('toast.soundOn'));
   });
 
   btnToggleBots?.addEventListener('click', () => {
     const next = !isBotEkleEnabled();
     setBotEkleEnabled(next);
-    btnToggleBots.textContent = next ? '🤖 BOT EKLEME: AÇIK' : '🤖 BOT EKLEME: KAPALI';
+    setSwitch(btnToggleBots, next);
+    showInstallToast(next ? t('toast.botsOn') : t('toast.botsOff'));
     if (typeof onBotsToggled === 'function') {
       onBotsToggled(next);
     }
@@ -157,8 +181,8 @@ export function initPauseModal({
   btnToggleColorblind?.addEventListener('click', () => {
     const next = !isColorblindEnabled();
     setColorblindEnabled(next);
-    btnToggleColorblind.textContent = next ? '👁 RENK KÖRLÜĞÜ: AÇIK' : '👁 RENK KÖRLÜĞÜ: KAPALI';
-    showInstallToast(next ? '👁 Renk körü güvenli palet AÇIK (Okabe-Ito).' : '👁 Klasik palete dönüldü.');
+    setSwitch(btnToggleColorblind, next);
+    showInstallToast(next ? t('toast.cbOn') : t('toast.cbOff'));
   });
 
   // Çıkış çift-bas onay (host odası kapanacağı için; misafir tek basışta çıkar)
@@ -167,7 +191,7 @@ export function initPauseModal({
     if (getIsHosting?.() && !btnExitToMenu.dataset.armed) {
       btnExitToMenu.dataset.armed = '1';
       const origLabel = btnExitToMenu.textContent;
-      btnExitToMenu.textContent = 'EMİN MİSİN? TEKRAR BAS';
+      btnExitToMenu.textContent = t('pause.exitArmed');
       exitArmedTimer = window.setTimeout(() => {
         delete btnExitToMenu.dataset.armed;
         btnExitToMenu.textContent = origLabel;
@@ -190,12 +214,12 @@ export function initPauseModal({
       btnResumeGame?.click();
     }
   });
-  const pauseCard = pauseModal?.querySelector('.pause-card');
+  const pauseSheet = pauseModal?.querySelector('.pause-sheet');
   let sheetStartY = null;
-  pauseCard?.addEventListener('touchstart', (e) => {
+  pauseSheet?.addEventListener('touchstart', (e) => {
     if (e.touches[0]) sheetStartY = e.touches[0].clientY;
   }, { passive: true });
-  pauseCard?.addEventListener('touchend', (e) => {
+  pauseSheet?.addEventListener('touchend', (e) => {
     if (sheetStartY === null) return;
     const dy = (e.changedTouches[0]?.clientY ?? sheetStartY) - sheetStartY;
     sheetStartY = null;
@@ -208,6 +232,13 @@ export function initPauseModal({
     }
     pauseSelectedSlot = null;
     renderPauseSeats(onSwapSeats);
-    showInstallToast('🔄 Koltuklar saat yönünde 90° döndürüldü!');
+    showInstallToast(t('toast.rotated'));
+  });
+
+  // Dil değişiminde açık sheet anında yenilenir.
+  onLangChange(() => {
+    if (!pauseModal || pauseModal.classList.contains('hidden')) return;
+    refreshPauseSwitches();
+    renderPauseSeats(lastSwapCallback);
   });
 }

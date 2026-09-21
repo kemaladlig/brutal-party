@@ -3,6 +3,7 @@ import { Paddle, PLAYER_CONFIGS } from './paddle.js';
 import { Ball } from './ball.js';
 import { playJoin, playStart, playPowerUp } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { t } from '../i18n.js';
 import { getLocalSeatColors, ensureLocalSeatColor } from '../core/customizationManager.js';
 import { renderCornerScores, renderSpatialBadge, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
@@ -589,7 +590,7 @@ export class Game extends BaseMiniGame {
     // Render UI Overlays
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'SÜRÜKLE: RAKETİ YÖNET • 3 SET ALAN KAZANIR', [
+      renderControlGuide(ctx, this.arena, t('guide.pong'), [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -667,7 +668,7 @@ export class Game extends BaseMiniGame {
         renderSpatialBadge(ctx, {
           x: cx,
           y: cy - 28,
-          text: `TEHLİKE (${10 - this.ball.rallyCount})`,
+          text: t('game.dangerN', 10 - this.ball.rallyCount),
           icon: '⚡',
           urgent: true,
           scale: 1.1,
@@ -956,7 +957,7 @@ export class Game extends BaseMiniGame {
     renderMatchOver(ctx, {
       arena: this.arena,
       uiButtons: this.uiButtons,
-      headline: 'ŞAMPİYONLUK KAZANILDI! 🏆',
+      headline: t('game.champWon'),
       winnerName: this.winner ? this.winner.name : '',
       winnerColor: this.winner ? this.winner.color : '#1A1A1A',
       rows: this.winner

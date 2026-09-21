@@ -2,6 +2,7 @@
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { getSlotCustomization, findSlotColorDuplicates } from './customizationManager.js';
 import { safeGet, safeSet } from './safeStorage.js';
+import { t } from '../i18n.js';
 
 // Koltuk girişi: { name, isReady, kind, avatar, displayColor }
 // avatar: oyuncunun cihaz profili (relay) · displayColor: host override dahil
@@ -102,16 +103,16 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
     slotEl.classList.toggle('is-bot-god', isBotGod);
     slotEl.classList.toggle('ready', isReady && !isAnyBot);
 
-    if (nameEl) nameEl.textContent = isBotGod ? '⚡ GOD' : (isBotNormal ? 'BOT' : name);
+    if (nameEl) nameEl.textContent = isBotGod ? t('lobby.god') : (isBotNormal ? t('lobby.bot') : name);
     if (readyTag) {
       if (isBotGod) {
-        readyTag.textContent = '⚡ GOD';
+        readyTag.textContent = t('lobby.god');
         readyTag.classList.remove('ready');
       } else if (isBotNormal) {
-        readyTag.textContent = 'BOT';
+        readyTag.textContent = t('lobby.bot');
         readyTag.classList.remove('ready');
       } else {
-        readyTag.textContent = isReady ? 'HAZIR' : 'BEKLE';
+        readyTag.textContent = isReady ? t('lobby.ready') : t('lobby.wait');
         readyTag.classList.toggle('ready', isReady);
       }
     }
@@ -129,9 +130,9 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
   } else {
     hostPlayerSlots[slotIndex] = null;
     slotEl.classList.remove('connected', 'ready', 'is-bot', 'is-bot-god');
-    if (nameEl) nameEl.textContent = 'BOŞ';
+    if (nameEl) nameEl.textContent = t('pause.empty');
     if (readyTag) {
-      readyTag.textContent = 'BOŞ';
+      readyTag.textContent = t('pause.empty');
       readyTag.classList.remove('ready');
     }
     // Boş koltukta +BOT butonu (sadece ayar açıksa)
@@ -152,11 +153,11 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
   const readyCounter = document.getElementById('lobby-ready-counter');
   if (readyCounter) {
     if (connectedCount === 0) {
-      readyCounter.textContent = 'OYUNCU BEKLENİYOR';
+      readyCounter.textContent = t('lobby.waiting');
     } else if (readyCount === connectedCount) {
-      readyCounter.textContent = `✓ ${readyCount}/${connectedCount} HAZIR — BAŞLATILABILIR`;
+      readyCounter.textContent = t('lobby.readyToStart', readyCount, connectedCount);
     } else {
-      readyCounter.textContent = `${connectedCount} BAĞLANDI • ${readyCount} HAZIR`;
+      readyCounter.textContent = t('lobby.connected', connectedCount, readyCount);
     }
   }
   refreshColorClashUI();
@@ -181,7 +182,7 @@ export function refreshColorClashUI() {
       slotEl.appendChild(warn);
     }
     if (warn) {
-      warn.textContent = isClash ? '⚠️ AYNI RENK' : '';
+      warn.textContent = isClash ? t('lobby.clash') : '';
       warn.classList.toggle('hidden', !isClash);
     }
   }

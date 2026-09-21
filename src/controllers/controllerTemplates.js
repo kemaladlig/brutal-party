@@ -3,6 +3,7 @@
 // allowing games and agents to declare controls via high-level schemas rather than writing imperative DOM code.
 
 import { escapeHtml } from '../net.js';
+import { t } from '../i18n.js';
 
 /**
  * Mounts a declarative controller onto the given container.
@@ -65,8 +66,8 @@ function mountJoystickAction(gamepad, container, schema) {
           const customClass = act.className || '';
           return `
             <button class="action-dash-btn ${customClass}" data-action-index="${i}" type="button" style="${bg} ${border} ${flex} ${minHeight}">
-              <span class="dash-btn-label">${escapeHtml(act.label || 'EYLEM')}</span>
-              <span class="dash-btn-sub">${escapeHtml(act.sub || 'DOKUN')}</span>
+              <span class="dash-btn-label">${escapeHtml(act.label || t('pad.action'))}</span>
+              <span class="dash-btn-sub">${escapeHtml(act.sub || t('pad.tap'))}</span>
             </button>
           `;
         }).join('')}
@@ -110,7 +111,7 @@ function mountJoystickAction(gamepad, container, schema) {
 
     const secs = act.cooldown ?? 2.0;
     const vibratePattern = act.vibrate ?? [25, 35];
-    const readyLabel = act.label || 'EYLEM';
+    const readyLabel = act.label || t('pad.action');
 
     const handler = gamepad.cooledAction(
       btn,
@@ -159,14 +160,14 @@ function mountArcadeDrive(gamepad, container, schema) {
       <div class="tank-drive-zone">
         <button class="tank-drive-pedal" id="btn-tank-drive" type="button" style="border-color: ${gamepad.playerColor}">
           <span class="pedal-icon">${escapeHtml(schema.pedalIcon || '🚀')}</span>
-          <span class="pedal-title">${escapeHtml(schema.pedalTitle || 'İLERLE')}</span>
-          <span class="pedal-sub">${escapeHtml(schema.pedalSub || 'BASILI TUTUNCA GİDER • BIRAKINCA DÖNER')}</span>
+          <span class="pedal-title">${escapeHtml(schema.pedalTitle || t('pad.drive'))}</span>
+          <span class="pedal-sub">${escapeHtml(schema.pedalSub || t('pad.pedalSub'))}</span>
         </button>
       </div>
       <div class="tanks-fire-zone">
         <button class="tank-fire-btn" id="btn-tank-fire" type="button">
           <span class="fire-icon">${escapeHtml(schema.fireIcon || '💥')}</span>
-          <span class="fire-title">${escapeHtml(schema.fireTitle || 'ATEŞ')}</span>
+          <span class="fire-title">${escapeHtml(schema.fireTitle || t('pad.fire'))}</span>
         </button>
         <div class="tank-ammo-hud" id="tank-ammo-hud">
           <div class="cartridge-pip loaded"></div>
@@ -257,8 +258,8 @@ function mountArcadeDrive(gamepad, container, schema) {
 function mountTwoButtonSteer(gamepad, container, schema) {
   container.innerHTML = `
     <div class="curve-controller-view" id="curve-controller-view">
-      <button class="curve-steer-btn" id="btn-curve-left" type="button">${escapeHtml(schema.leftLabel || '◀ SOL')}</button>
-      <button class="curve-steer-btn right-btn" id="btn-curve-right" type="button">${escapeHtml(schema.rightLabel || 'SAĞ ▶')}</button>
+      <button class="curve-steer-btn" id="btn-curve-left" type="button">${escapeHtml(schema.leftLabel || t('pad.steerLeft'))}</button>
+      <button class="curve-steer-btn right-btn" id="btn-curve-right" type="button">${escapeHtml(schema.rightLabel || t('pad.steerRight'))}</button>
     </div>
   `;
 
@@ -374,21 +375,26 @@ function mountSlider1D(gamepad, container, schema) {
     gamepad.isPongInverted = baseInvert;
   }
 
-  const tvTargets = ['SAĞA', 'SOLA', 'AŞAĞI', 'YUKARI'];
+  const tvTargets = [t('pad.dirRight'), t('pad.dirLeft'), t('pad.dirDown'), t('pad.dirUp')];
   const tvDir = () => {
-    const base = tvTargets[gamepad.playerIndex] || 'SAĞA';
+    const base = tvTargets[gamepad.playerIndex] || t('pad.dirRight');
     if (!gamepad.isPongInverted) return base;
-    return { SAĞA: 'SOLA', SOLA: 'SAĞA', 'AŞAĞI': 'YUKARI', YUKARI: 'AŞAĞI' }[base] || base;
+    const flip = {};
+    flip[t('pad.dirRight')] = t('pad.dirLeft');
+    flip[t('pad.dirLeft')] = t('pad.dirRight');
+    flip[t('pad.dirDown')] = t('pad.dirUp');
+    flip[t('pad.dirUp')] = t('pad.dirDown');
+    return flip[base] || base;
   };
-  const directionHint = () => `SAĞA SÜRÜKLE → TV'DE ${tvDir()}`;
+  const directionHint = () => t('pad.dragRight', tvDir());
 
   container.innerHTML = `
     <div class="pong-controller-view horizontal">
       <div class="pong-live-scoreboard" id="pong-live-scoreboard">
-        <div class="pong-score-pips" id="pong-score-display">SKOR: 0 - 0</div>
-        <div class="pong-rally-badge" id="pong-rally-display">⚡ RALLİ: 0</div>
+        <div class="pong-score-pips" id="pong-score-display">${t('pad.scoreJoin', '0 - 0')}</div>
+        <div class="pong-rally-badge" id="pong-rally-display">${t('pad.rally', 0)}</div>
       </div>
-      <div class="pong-position-badge" style="border-color: ${gamepad.playerColor}">📺 TV YERİ: ${posLabel}</div>
+      <div class="pong-position-badge" style="border-color: ${gamepad.playerColor}">${t('pad.tvPlace', posLabel)}</div>
       <div class="pong-bottom-zone">
         <div class="pong-track-wrap">
           <div class="pong-instruction" id="pong-direction-hint">${directionHint()}</div>
@@ -398,12 +404,12 @@ function mountSlider1D(gamepad, container, schema) {
             </div>
           </div>
           <button class="pong-invert-btn ${gamepad.isPongInverted !== baseInvert ? 'inverted' : ''}" id="btn-invert-axis" type="button">
-            ${gamepad.isPongInverted !== baseInvert ? '↺ OTOMATİK YÖN (DOKUN)' : '↺ YÖNÜ TERS ÇEVİR'}
+            ${gamepad.isPongInverted !== baseInvert ? t('pad.autoDir') : t('pad.flipDir')}
           </button>
         </div>
         <button class="action-spin-btn" id="btn-pong-spin" type="button">
           <span class="dash-btn-label">🌀 FALSO</span>
-          <span class="dash-btn-sub">DOKUN</span>
+          <span class="dash-btn-sub">${t('pad.tap')}</span>
         </button>
       </div>
     </div>
@@ -419,7 +425,7 @@ function mountSlider1D(gamepad, container, schema) {
   const spinAction = gamepad.cooledAction(
     spinBtn,
     schema.spinCooldown ?? 20.0,
-    '🌀 FALSO',
+    t('pad.spinShort'),
     () => gamepad.network.sendInput({ action: 'SPIN' }),
     [30, 40, 30]
   );
@@ -430,7 +436,7 @@ function mountSlider1D(gamepad, container, schema) {
     gamepad._pongInvertManualSet = true;
     const isManuallyFlipped = gamepad.isPongInverted !== baseInvert;
     invertBtn.classList.toggle('inverted', isManuallyFlipped);
-    invertBtn.textContent = isManuallyFlipped ? '↺ OTOMATİK YÖN (DOKUN)' : '↺ YÖNÜ TERS ÇEVİR';
+    invertBtn.textContent = isManuallyFlipped ? t('pad.autoDir') : t('pad.flipDir');
     if (hintEl) hintEl.textContent = directionHint();
   });
 
@@ -471,11 +477,11 @@ function mountSlider1D(gamepad, container, schema) {
         if (scoreDisp && data.scores) {
           const scoreTxt = Array.isArray(data.names)
             ? data.scores.slice(0, 4).map((s, i) => `${data.names[i] || `P${i + 1}`} ${s}`).join(' • ')
-            : `SKOR: ${data.scores.slice(0, 4).join(' - ')}`;
+            : t('pad.scoreJoin', data.scores.slice(0, 4).join(' - '));
           if (scoreDisp.textContent !== scoreTxt) scoreDisp.textContent = scoreTxt;
         }
         if (rallyDisp && data.rally !== undefined) {
-          const rallyTxt = `⚡ RALLİ: ${data.rally}`;
+          const rallyTxt = t('pad.rally', data.rally);
           if (rallyDisp.textContent !== rallyTxt) rallyDisp.textContent = rallyTxt;
         }
         const sBtn = document.getElementById('btn-pong-spin');
@@ -487,12 +493,12 @@ function mountSlider1D(gamepad, container, schema) {
           const txt = cd > 0 && !isCharged ? `⏳ ${cd}sn` : (isCharged ? `🌀 ${(data.chgT || 0).toFixed(1)}sn` : '🌀 FALSO');
           if (label && label.textContent !== txt) label.textContent = txt;
           if (sub) {
-            const subTxt = isCharged ? 'KURULU!' : (cd > 0 ? 'DOLUYOR' : 'DOKUN');
+            const subTxt = isCharged ? t('pad.charged') : (cd > 0 ? t('pad.filling') : t('pad.tap'));
             if (sub.textContent !== subTxt) sub.textContent = subTxt;
           }
         }
         if (rallyDisp && data.spn) {
-          const spn = '🌀 TOP DÖNÜYOR!';
+          const spn = t('pad.spinning');
           if (rallyDisp.textContent !== spn) rallyDisp.textContent = spn;
         }
       }
@@ -508,8 +514,8 @@ function mountReactionTap(gamepad, container, schema) {
   container.innerHTML = `
     <div class="duel-controller-view">
       <button class="duel-full-trigger-btn" id="btn-duel-trigger" type="button" style="background-color: ${gamepad.playerColor}">
-        <div class="duel-trigger-state" id="duel-trigger-state">✋ BEKLE...</div>
-        <div class="duel-trigger-sub" id="duel-trigger-sub">SİNYALİ GÖRÜNCE DOKUN!</div>
+        <div class="duel-trigger-state" id="duel-trigger-state">${t('pad.duelWait')}</div>
+        <div class="duel-trigger-sub" id="duel-trigger-sub">${t('pad.duelWaitSub')}</div>
       </button>
     </div>
   `;
@@ -543,10 +549,10 @@ function mountReactionTap(gamepad, container, schema) {
       if (phase === 'DRAW_SIGNAL') {
         gamepad.overlay.classList.add('duel-flash-alert');
         window.setTimeout(() => gamepad.overlay.classList.remove('duel-flash-alert'), 300);
-        if (duelStateEl) duelStateEl.textContent = '🔥 ÇEK!';
-        if (duelSub) duelSub.textContent = 'ŞİMDİ DOKUN!';
+        if (duelStateEl) duelStateEl.textContent = t('pad.duelGo');
+        if (duelSub) duelSub.textContent = t('pad.duelGoSub');
         if (tacticalRoleEl) {
-          tacticalRoleEl.textContent = '🔥 ÇEK! ŞİMDİ DOKUN!';
+          tacticalRoleEl.textContent = t('pad.duelGoFull');
           tacticalRoleEl.style.color = '#25d366';
         }
         duelBtn?.classList.add('signal');
@@ -558,20 +564,20 @@ function mountReactionTap(gamepad, container, schema) {
         const w = data.winner;
         if (duelStateEl) {
           duelStateEl.textContent =
-            w === null || w === undefined ? '🤝 BERABERE' : (w === gamepad.playerIndex ? '🏆 KAZANDIN!' : `P${w + 1} ALDI`);
+            w === null || w === undefined ? t('pad.duelDraw') : (w === gamepad.playerIndex ? t('pad.duelWon') : t('pad.duelTakes', w + 1));
         }
-        if (duelSub) duelSub.textContent = phase === 'MATCH_OVER' ? 'MAÇ BİTTİ' : 'SONRAKİ RAUNT...';
+        if (duelSub) duelSub.textContent = phase === 'MATCH_OVER' ? t('pad.duelMatchOver') : t('pad.duelNext');
         if (tacticalRoleEl) {
-          tacticalRoleEl.textContent = w === gamepad.playerIndex ? '🏆 RAUNDU KAZANDIN!' : '⚔️ HAZIRLAN...';
+          tacticalRoleEl.textContent = w === gamepad.playerIndex ? t('pad.duelWon') : t('pad.duelGetReady');
           tacticalRoleEl.style.color = '#ffd700';
         }
         duelBtn?.classList.remove('signal');
         if (duelBtn) delete duelBtn.dataset.signaled;
       } else {
-        if (duelStateEl) duelStateEl.textContent = '✋ BEKLE...';
-        if (duelSub) duelSub.textContent = 'SİNYALİ GÖRÜNCE DOKUN!';
+        if (duelStateEl) duelStateEl.textContent = t('pad.duelWait');
+        if (duelSub) duelSub.textContent = t('pad.duelWaitSub');
         if (tacticalRoleEl) {
-          tacticalRoleEl.textContent = '✋ BEKLE... SİNYALİ GÖRÜNCE DOKUN!';
+          tacticalRoleEl.textContent = t('pad.duelWaitFull');
           tacticalRoleEl.style.color = '#ffd700';
         }
         duelBtn?.classList.remove('signal');
@@ -601,8 +607,8 @@ function mountDpadBoost(gamepad, container, schema) {
       </div>
       <div class="action-half">
         <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" style="background-color: ${schema.boostColor || '#2F6A4F'}">
-          <span class="dash-btn-label">${escapeHtml(schema.boostLabel || '⚡ HIZLAN')}</span>
-          <span class="dash-btn-sub">${escapeHtml(schema.boostSub || 'BASILI TUT')}</span>
+          <span class="dash-btn-label">${escapeHtml(schema.boostLabel || t('pad.boost'))}</span>
+          <span class="dash-btn-sub">${escapeHtml(schema.boostSub || t('pad.hold'))}</span>
         </button>
       </div>
     </div>
@@ -684,10 +690,10 @@ function mountSteerBoost(gamepad, container, schema) {
     <div class="snake-controller-view">
       <div class="snake-steer-half" id="${steerZoneId}" style="display: flex; gap: 8px; flex: 1.2; height: 100%;">
         <button class="curve-steer-btn" id="btn-snake-left" type="button" style="flex: 1; height: 100%; border-radius: 12px; font-size: clamp(20px, 4.5vw, 28px); font-weight: 900; background-color: #262626; border: 3px solid #404040; color: #FFF;">
-          ${escapeHtml(schema.leftLabel || '◀ SOL')}
+          ${escapeHtml(schema.leftLabel || t('pad.steerLeft'))}
         </button>
         <button class="curve-steer-btn right-btn" id="btn-snake-right" type="button" style="flex: 1; height: 100%; border-radius: 12px; font-size: clamp(20px, 4.5vw, 28px); font-weight: 900; background-color: #262626; border: 3px solid #404040; color: #FFF;">
-          ${escapeHtml(schema.rightLabel || 'SAĞ ▶')}
+          ${escapeHtml(schema.rightLabel || t('pad.steerRight'))}
         </button>
       </div>
       <div class="action-half" style="flex: 0.9; height: 100%;">
@@ -822,7 +828,7 @@ function mountSteerBoost(gamepad, container, schema) {
       btnBoost.style.opacity = locked || dead ? 0.55 : 1;
       const sub = btnBoost.querySelector('.dash-btn-sub');
       if (sub) {
-        const txt = dead ? 'ELENDİN' : locked ? '🔥 KİLİT' : `⚡ %${nrg}`;
+        const txt = dead ? t('pad.deadShort') : locked ? t('pad.lockedFire') : t('pad.nrg', nrg);
         if (sub.textContent !== txt) sub.textContent = txt;
       }
     },

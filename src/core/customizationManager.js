@@ -4,6 +4,34 @@
 // Renkler, yüz ifadeleri, aksesuarlar ve gövde desenleri için tek gerçek kaynak.
 
 import { safeGet, safeSet, safeRemove } from './safeStorage.js';
+import { t } from '../i18n.js';
+
+// Çevrilmiş görünen adlar (id → sözlük; eksik anahtarda TR veri aynen durur).
+function tx(key, fallback) {
+  const v = t(key);
+  return v === key ? fallback : v;
+}
+export function paletteName(p) {
+  return (p && tx(`color.${p.id}`, p.name)) || '';
+}
+export function expressionName(id, fallback) {
+  return tx(`expr.${id}`, fallback ?? id);
+}
+export function expressionDesc(id, fallback) {
+  return tx(`expr.${id}.desc`, fallback ?? '');
+}
+export function accessoryName(id, fallback) {
+  return tx(`acc.${id}`, fallback ?? id);
+}
+export function accessoryDesc(id, fallback) {
+  return tx(`acc.${id}.desc`, fallback ?? '');
+}
+export function patternName(id, fallback) {
+  return tx(`pat.${id}`, fallback ?? id);
+}
+export function patternDesc(id, fallback) {
+  return tx(`pat.${id}.desc`, fallback ?? '');
+}
 
 export const AVATAR_PALETTES = [
   { id: 'red', name: 'KIRMIZI', hex: '#D84727', border: '#1A1A1A' },

@@ -13,6 +13,7 @@ import {
   playPiggyBreak,
 } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { t } from '../i18n.js';
 import {
   renderTopPill,
   renderCornerScores,
@@ -348,7 +349,7 @@ export class HeistGame extends BaseMiniGame {
     };
     playVaultAlarm();
     this.trauma = 0.4;
-    this.addFloatingText(this.arena.cx, this.arena.cy - 40, '🐷 ALTIN KUMBARA GELDİ! OMUZ AT & KIR!', '#FFDE59');
+    this.addFloatingText(this.arena.cx, this.arena.cy - 40, t('heist.pig'), '#FFDE59');
   }
 
   spawnLootItem(type = 'COIN', customX = null, customY = null) {
@@ -564,7 +565,7 @@ export class HeistGame extends BaseMiniGame {
     if (this.roundTimer <= 10.0 && !this.goldRushActive) {
       this.goldRushActive = true;
       this.trauma = 0.5;
-      this.addFloatingText(this.arena.cx, this.arena.cy - 30, '⚡ ÇILGIN MADEN // GOLD RUSH!', '#FFDE59');
+      this.addFloatingText(this.arena.cx, this.arena.cy - 30, t('heist.rush'), '#FFDE59');
       playVaultAlarm();
       // Drop royal loot
       for (let i = 0; i < 4; i++) this.spawnLootItem('DIAMOND');
@@ -843,7 +844,7 @@ export class HeistGame extends BaseMiniGame {
 
                 playVaultAlarm();
                 this.trauma = 0.4;
-                this.addFloatingText(player.x, player.y - 20, `🚨 ${stolen} ÇALINDI!`, '#D84727');
+                this.addFloatingText(player.x, player.y - 20, t('heist.stolen', stolen), '#D84727');
               }
             }
             break;
@@ -935,7 +936,7 @@ export class HeistGame extends BaseMiniGame {
       this.addFloatingText(pig.x, pig.y - 34, '🐷 KUMBARA KIRILDI!', '#FFDE59');
       playPiggyBreak();
     } else {
-      this.addFloatingText(pig.x, pig.y - 34, `🐷 ÇAT! (${pig.hp})`, '#FFFFFF');
+      this.addFloatingText(pig.x, pig.y - 34, t('heist.crack', pig.hp), '#FFFFFF');
     }
   }
 
@@ -980,7 +981,7 @@ export class HeistGame extends BaseMiniGame {
       attacker.carriedWeight += stolen;
 
       playCoinPickup();
-      this.addFloatingText(attacker.x, attacker.y - 25, `+${stolen} 🪙 ÇALINDI!`, '#FFDE59');
+      this.addFloatingText(attacker.x, attacker.y - 25, t('heist.robbed', stolen), '#FFDE59');
       this.addFloatingText(victim.x, victim.y - 25, `-${stolen} 🪙 SOYULDUN!`, '#D84727');
 
       // Golden particle beam siphon from victim to attacker
@@ -1019,7 +1020,7 @@ export class HeistGame extends BaseMiniGame {
             animTime: 0,
           });
         }
-        this.addFloatingText(victim.x, victim.y - 45, `💥 ${dropRest} YERE SAÇILDI!`, '#D84727');
+        this.addFloatingText(victim.x, victim.y - 45, t('heist.spilled', dropRest), '#D84727');
       }
     } else if (victim.vaultGold > 0) {
       // Victim has no loose coins, but has banked gold in vault: KNOCK 1 COIN OUT OF VAULT!
@@ -1037,10 +1038,10 @@ export class HeistGame extends BaseMiniGame {
         animTime: 0,
       });
       playStumble();
-      this.addFloatingText(victim.x, victim.y - 25, '💥 KASADAN DÜŞTÜ! (-1 🪙)', '#D84727');
+      this.addFloatingText(victim.x, victim.y - 25, t('heist.vaultDrop'), '#D84727');
     } else {
       // Victim is completely empty, still get satisfying slam!
-      this.addFloatingText(victim.x, victim.y - 25, '💥 GÜÜÜM!', '#FFFFFF');
+      this.addFloatingText(victim.x, victim.y - 25, t('heist.boom'), '#FFFFFF');
     }
 
     // Comic book impact sparks
@@ -1106,7 +1107,7 @@ export class HeistGame extends BaseMiniGame {
     // UI Overlays
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'JOYSTICK: KOŞ • DOKUN: OMUZ AT • 2 RAUND ALAN KAZANIR', [
+      renderControlGuide(ctx, this.arena, t('guide.heist'), [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -1620,7 +1621,7 @@ export class HeistGame extends BaseMiniGame {
         ctx.font = '800 11px "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`${player.name.slice(0, 3)} SÜRÜKLE`, 0, 0);
+        ctx.fillText(t('game.drag', player.name.slice(0, 3)), 0, 0);
         ctx.restore();
         continue;
       }
@@ -1713,7 +1714,7 @@ export class HeistGame extends BaseMiniGame {
 
       if (isTackling) {
         ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText('💥 HÜCUM!', 0, 0);
+        ctx.fillText(t('heist.charge'), 0, 0);
       } else if (isReady && targetInRange) {
         ctx.font = '900 13px "Space Grotesk", sans-serif';
         ctx.fillText('⚡ OMUZ AT!', 0, 0);
@@ -1771,7 +1772,7 @@ export class HeistGame extends BaseMiniGame {
     renderMatchOver(ctx, {
       arena: this.arena,
       uiButtons: this.uiButtons,
-      headline: 'HAZİNE ŞAMPİYONU! 🏆',
+      headline: t('heist.champ'),
       winnerName: this.matchWinner ? this.matchWinner.name : '',
       winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
       rows: this.matchWinner

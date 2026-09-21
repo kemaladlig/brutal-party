@@ -2,6 +2,7 @@
 import { getSlotCustomization, ensureLocalSeatColor, getLocalSeatColors } from '../core/customizationManager.js';
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { t } from '../i18n.js';
 import { renderTopPill, renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -1156,11 +1157,11 @@ export class TanksGame extends BaseMiniGame {
 
     // Sudden Death Top HUD Pill
     if (this.state === 'PLAYING' && this.roundTimer > 35) {
-      renderTopPill(ctx, { arena: this.arena, text: '⚠️ ANİ ÖLÜM', urgent: true });
+      renderTopPill(ctx, { arena: this.arena, text: t('tanks.sudden'), urgent: true });
     }
 
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'TUT: İLERLE • BIRAK: ATEŞ ET • 3 KEZ KAZANAN ŞAMPİYON', [
+      renderControlGuide(ctx, this.arena, t('guide.tanks'), [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -1463,7 +1464,7 @@ export class TanksGame extends BaseMiniGame {
           ctx.font = '900 13px "Space Grotesk", sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(isDriving ? '▶ İLERLİYOR...' : 'TUT: GİT  •  BIRAK: ATEŞ', 0, -14);
+          ctx.fillText(isDriving ? t('tanks.moving') : t('tanks.driveHint'), 0, -14);
 
           // Visual Ammo Cartridge Bar in Player's Corner
           const v = this.ammoVisual(tank);
@@ -1525,7 +1526,7 @@ export class TanksGame extends BaseMiniGame {
     renderMatchOver(ctx, {
       arena: this.arena,
       uiButtons: this.uiButtons,
-      headline: 'ŞAMPİYON BELLİ OLDU',
+      headline: t('tanks.champ'),
       winnerName: this.matchWinner ? this.matchWinner.name : '',
       winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
       rows: this.tanks

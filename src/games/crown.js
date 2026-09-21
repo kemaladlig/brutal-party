@@ -18,6 +18,7 @@ import {
   playTeleport,
 } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { t } from '../i18n.js';
 import { renderTopPill, renderCornerScores, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -1142,7 +1143,7 @@ export class CrownGame extends BaseMiniGame {
             p.x = Math.max(left + pr, Math.min(right - pr, best.x));
             p.y = Math.max(top + pr, Math.min(bottom - pr, best.y));
             playTeleport();
-            this.addFloatingText(p.x, p.y - 25, '🌀 KAÇIŞ!', '#48CAE4');
+            this.addFloatingText(p.x, p.y - 25, t('crown.escape'), '#48CAE4');
           } else if (pk.type === 'SLIP') {
             this.inkPuddles.push({ x: p.x, y: p.y, radius: 22, duration: 10.0 });
             this.addFloatingText(p.x, p.y - 25, '🍌 TUZAK!', '#FFDE59');
@@ -1242,7 +1243,7 @@ export class CrownGame extends BaseMiniGame {
 
                 playHeavyImpact();
                 playStumble();
-                this.addFloatingText(target.x, target.y - 30, '💥 TAÇ DÜŞTÜ!', '#FFDE59');
+                this.addFloatingText(target.x, target.y - 30, t('crown.dropped'), '#FFDE59');
 
                 for (let k = 0; k < 32; k++) {
                   this.particles.push({
@@ -1291,7 +1292,7 @@ export class CrownGame extends BaseMiniGame {
                 crowned.stumbleTimer = Math.max(crowned.stumbleTimer, 1.0);
                 this.scatterCrown();
                 playStumble();
-                this.addFloatingText(crowned.x, crowned.y - 30, '👑 TAÇ BOŞTA!', '#FFDE59');
+                this.addFloatingText(crowned.x, crowned.y - 30, t('crown.free'), '#FFDE59');
               }
             }
         }
@@ -1349,7 +1350,7 @@ export class CrownGame extends BaseMiniGame {
         renderArenaWatermarkTimer(ctx, {
           arena: this.arena,
           text: `${remain.toFixed(1)}s`,
-          subText: `${king.name} TAÇTA (%${Math.round(progress * 100)})`,
+          subText: t('crown.holding', king.name, Math.round(progress * 100)),
           urgent,
           color: urgent ? '#D84727' : king.color,
           alpha: urgent ? 0.28 : 0.18,
@@ -1358,8 +1359,8 @@ export class CrownGame extends BaseMiniGame {
       } else {
         renderArenaWatermarkTimer(ctx, {
           arena: this.arena,
-          text: '👑 TACI KAP!',
-          subText: '15 SANİYE TUT VE KAZAN',
+          text: t('crown.grab'),
+          subText: t('crown.hold15'),
           alpha: 0.14,
         });
       }
@@ -2006,7 +2007,7 @@ export class CrownGame extends BaseMiniGame {
 
     ctx.fillStyle = '#75726B';
     ctx.font = '700 13px "Space Grotesk", sans-serif';
-    ctx.fillText('TACI KAP, MUZLARDAN KAÇ, 15 SANİYE TUT VE KAZAN!', cx, cy - height * 0.28 + 28);
+    ctx.fillText(t('crown.intro'), cx, cy - height * 0.28 + 28);
 
     const mapBtnW = Math.min(460, width * 0.8);
     const mapBtnH = 38;
@@ -2075,7 +2076,7 @@ export class CrownGame extends BaseMiniGame {
     ctx.font = '900 28px "Space Grotesk", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(isMatch ? '🏆 TAÇ ŞAMPİYONU!' : '👑 RAUND KAZANILDI!', cx, cy - 24, boxW - 20);
+    ctx.fillText(isMatch ? t('crown.champ') : t('crown.round'), cx, cy - 24, boxW - 20);
 
     if (winner) {
       ctx.fillStyle = winner.color;
@@ -2098,7 +2099,7 @@ export class CrownGame extends BaseMiniGame {
       ctx.font = '800 16px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('YENİDEN OYNA', cx, btnY + btnH / 2);
+      ctx.fillText(t('canvas.playAgain'), cx, btnY + btnH / 2);
       ctx.restore();
 
       this.uiButtons.push({

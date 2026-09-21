@@ -3,6 +3,7 @@
 // burası sadece çizer. Ölçü/stil kararları src/ui/tokens.js'tedir.
 
 import { UI_COLORS, UI_SIZES, UI_FONTS, uiFont, getUiScale } from './tokens.js';
+import { t } from '../i18n.js';
 
 // Standart üst hap: arena üstünde ortalı.
 // Ekran boyutuna (TV / monitör vs telefon) göre orantılı büyür, metin uzunluğuna göre genişler.
@@ -474,7 +475,7 @@ export function renderMatchOver(ctx, {
   ctx.fillRect(btnX, btnY, btnW, btnH);
   ctx.fillStyle = UI_COLORS.white;
   ctx.font = uiFont('buttonSmall', Math.min(1.3, scale));
-  ctx.fillText('YENİDEN OYNA', arena.cx, btnY + btnH / 2);
+  ctx.fillText(t('canvas.playAgain'), arena.cx, btnY + btnH / 2);
   ctx.restore();
 
   uiButtons.push({ x: btnX, y: btnY, w: btnW, h: btnH, onClick: onRestart });

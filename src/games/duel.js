@@ -18,6 +18,7 @@ import {
 } from '../audio.js';
 import { updateDuelBotAI } from '../ai/duelAI.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { t } from '../i18n.js';
 import { getLocalSeatColors, ensureLocalSeatColor } from '../core/customizationManager.js';
 import { UI_COLORS, getUiScale } from '../ui/tokens.js';
 import { renderSpatialBadge, checkProximity } from '../ui/hud.js';
@@ -914,7 +915,7 @@ export class DuelGame extends BaseMiniGame {
 
     // State Renderings
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'SİNYALDE ATEŞLE • ÇİZGİYİ ORTALA • ÇALI SİPERDEYKEN VURULMAZ', [
+      renderControlGuide(ctx, this.arena, t('guide.duel'), [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -966,7 +967,7 @@ export class DuelGame extends BaseMiniGame {
         ctx.globalAlpha = 0.44;
         ctx.font = `900 ${bigSize}px "Space Grotesk", sans-serif`;
         ctx.fillStyle = '#FFDE59';
-        ctx.fillText('ATEŞ!', cx, cy);
+        ctx.fillText(t('duel.fire'), cx, cy);
       } else if (this.state === 'TENSION' || this.state === 'STANDOFF_COUNTDOWN') {
         ctx.globalAlpha = 0.26;
         ctx.font = `900 ${Math.floor(bigSize * 0.85)}px "Space Grotesk", sans-serif`;
@@ -1094,7 +1095,7 @@ export class DuelGame extends BaseMiniGame {
       renderSpatialBadge(ctx, {
         x: b.x,
         y: b.y - r - 12,
-        text: 'SİPER!',
+        text: t('duel.cover'),
         icon: '🛡️',
         urgent: true,
         scale: 0.95,
@@ -1183,18 +1184,18 @@ export class DuelGame extends BaseMiniGame {
     ctx.fillStyle = '#FAF8F5';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('KOVBOY DÜELLOSU', cx, titleY);
+    ctx.fillText(t('duel.title'), cx, titleY);
 
     ctx.font = '700 14px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#D99B26';
-    ctx.fillText('TAM İSABET TAM PUAN • SIYIRMA -1 • ÇALI SİPERDEYKEN VURULMAZ', cx, titleY + 30);
+    ctx.fillText(t('duel.rules1'), cx, titleY + 30);
 
     // Scoring Breakdown Badge
     const activeCount = this.getActivePlayerCount();
     let scoringRuleText = '';
-    if (activeCount === 2) scoringRuleText = 'PUANLAMA (2P): 1. = +2 PUAN | 2. = 0 PUAN';
-    else if (activeCount === 3) scoringRuleText = 'PUANLAMA (3P): 1. = +3 PUAN | 2. = +1 PUAN | 3. = 0 PUAN';
-    else scoringRuleText = 'PUANLAMA (4P): 1. = +3 PUAN | 2. = +2 PUAN | 3. = +1 PUAN';
+    if (activeCount === 2) scoringRuleText = t('duel.score2');
+    else if (activeCount === 3) scoringRuleText = t('duel.score3');
+    else scoringRuleText = t('duel.score4');
 
     ctx.font = '800 12px "Space Grotesk", monospace';
     ctx.fillStyle = '#FFDE59';
@@ -1260,11 +1261,11 @@ export class DuelGame extends BaseMiniGame {
     ctx.fillStyle = '#A8998C';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('DİKKAT: "ATEŞ!" ANINDA ÇİZGİN ORTADAYKEN + ÇALI KENARDAYKEN BAS!', cx, rulesY);
+    ctx.fillText(t('duel.rules2'), cx, rulesY);
 
     ctx.font = '700 11px "Space Grotesk", monospace';
     ctx.fillStyle = '#E76F51';
-    ctx.fillText('ERKEN BASARSAN 1 PUAN KAYBEDERSİN! SARI ÇİZGİ = TAM VURUŞ', cx, rulesY + 18);
+    ctx.fillText(t('duel.rules3'), cx, rulesY + 18);
     ctx.restore();
   }
 
@@ -1277,11 +1278,11 @@ export class DuelGame extends BaseMiniGame {
     ctx.fillStyle = '#D99B26';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('ELLER HAZIR!...', cx, cy - Math.round(22 * scale));
+    ctx.fillText(t('duel.hands'), cx, cy - Math.round(22 * scale));
 
     ctx.font = `700 ${Math.round(18 * scale)}px "Space Grotesk", sans-serif`;
     ctx.fillStyle = '#FAF8F5';
-    ctx.fillText('SİNYALİ BEKLEYİN, SAKIN DOKUNMAYIN!', cx, cy + Math.round(30 * scale));
+    ctx.fillText(t('duel.waitAll'), cx, cy + Math.round(30 * scale));
   }
 
   renderTension() {
@@ -1295,11 +1296,11 @@ export class DuelGame extends BaseMiniGame {
       ctx.fillStyle = '#E76F51';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('⚠️ ...DİKKAT! BEKLE!... ⚠️', cx, cy - Math.round(22 * scale));
+      ctx.fillText(t('duel.careful'), cx, cy - Math.round(22 * scale));
 
       ctx.font = `700 ${Math.round(18 * scale)}px "Space Grotesk", sans-serif`;
       ctx.fillStyle = '#FFDE59';
-      ctx.fillText('BLÖF! SİNYALİ BEKLE, ERKEN BASAN -1 PUAN ALIR!', cx, cy + Math.round(32 * scale));
+      ctx.fillText(t('duel.bluff'), cx, cy + Math.round(32 * scale));
     } else {
       const pulse = Math.sin(performance.now() * 0.01) * 0.5 + 0.5;
 
@@ -1307,11 +1308,11 @@ export class DuelGame extends BaseMiniGame {
       ctx.fillStyle = pulse > 0.5 ? '#E63946' : '#FAF8F5';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('KIPIRDAMA!...', cx, cy - Math.round(22 * scale));
+      ctx.fillText(t('duel.freeze'), cx, cy - Math.round(22 * scale));
 
       ctx.font = `700 ${Math.round(18 * scale)}px "Space Grotesk", sans-serif`;
       ctx.fillStyle = '#C08552';
-      ctx.fillText('ERKEN DOKUNAN FAUL YAPAR (-1 PUAN)!', cx, cy + Math.round(34 * scale));
+      ctx.fillText(t('duel.foulTouch'), cx, cy + Math.round(34 * scale));
     }
   }
 
@@ -1325,11 +1326,11 @@ export class DuelGame extends BaseMiniGame {
     ctx.fillStyle = '#D99B26';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('💥 ATEŞ! 💥', cx, cy - Math.round(12 * scale));
+    ctx.fillText(t('duel.fireBig'), cx, cy - Math.round(12 * scale));
 
     ctx.font = `900 ${Math.round(26 * scale)}px "Space Grotesk", sans-serif`;
     ctx.fillStyle = '#FAF8F5';
-    ctx.fillText('HEMEN DOKUN! İLK BASAN KAZANIR!', cx, cy + Math.round(62 * scale));
+    ctx.fillText(t('duel.tapNow'), cx, cy + Math.round(62 * scale));
   }
 
   renderRoundOver() {
@@ -1343,15 +1344,15 @@ export class DuelGame extends BaseMiniGame {
       ctx.fillStyle = '#E63946';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('❌ FAUL! ERKEN BASILDI! ❌', cx, cy - 40);
+      ctx.fillText(t('duel.foul'), cx, cy - 40);
 
       ctx.font = '900 20px "Space Grotesk", sans-serif';
       ctx.fillStyle = '#FAF8F5';
-      ctx.fillText(`${offenderName} ERKEN BASTI (-1 PUAN CEZA)`, cx, cy);
+      ctx.fillText(t('duel.foulWho', offenderName), cx, cy);
 
       ctx.font = '700 15px "Space Grotesk", sans-serif';
       ctx.fillStyle = '#D99B26';
-      ctx.fillText('DEVAM ETMEK İÇİN EKRANA DOKUNUN', cx, cy + 45);
+      ctx.fillText(t('duel.touchCont'), cx, cy + 45);
     } else if (this.roundWinner !== null && this.roundWinner >= 0) {
       const winnerName = DUEL_NAMES[this.roundWinner];
       const winMs = this.playerStatus[this.roundWinner].reactionMs;
@@ -1369,7 +1370,7 @@ export class DuelGame extends BaseMiniGame {
       // Score breakdown list
       let yOff = cy + 44;
       const rankBadges = ['', '🥇 1.', '🥈 2.', '🥉 3.', '4.'];
-      const accTag = { TAM: '🎯TAM', SIYIRMA: '↗SIYIRMA', ISKA: '💨ISKA', BLOKE: '🌵SİPER' };
+      const accTag = { TAM: t('duel.accFull'), SIYIRMA: t('duel.accGraze'), ISKA: t('duel.accMiss'), BLOKE: t('duel.accBlock') };
 
       this.joinedPlayers.forEach((joined, idx) => {
         if (!joined) return;
@@ -1409,16 +1410,16 @@ export class DuelGame extends BaseMiniGame {
     ctx.fillStyle = champColor;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('👑 KASABANIN EN HIZLISI 👑', cx, cy - 90, this.arena.width - 24);
+    ctx.fillText(t('duel.fastest'), cx, cy - 90, this.arena.width - 24);
 
     ctx.font = '900 36px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#FAF8F5';
-    ctx.fillText(`${champName} // ŞAMPİYON!`, cx, cy - 40, this.arena.width - 24);
+    ctx.fillText(t('duel.champIs', champName), cx, cy - 40, this.arena.width - 24);
 
     if (bestMs) {
       ctx.font = '900 24px "Space Grotesk", monospace';
       ctx.fillStyle = '#D99B26';
-      ctx.fillText(`EN İYİ REFLEKS: ${bestMs} MS`, cx, cy + 10);
+      ctx.fillText(t('duel.best', bestMs), cx, cy + 10);
     }
 
     ctx.font = '800 13px "JetBrains Mono", monospace';
@@ -1442,7 +1443,7 @@ export class DuelGame extends BaseMiniGame {
 
     ctx.font = '900 19px "Space Grotesk", sans-serif';
     ctx.fillStyle = '#141414';
-    ctx.fillText('🔄 YENİ DÜELLO OYNA', cx, btnY + btnH / 2);
+      ctx.fillText(t('duel.new'), cx, btnY + btnH / 2);
 
     this.uiButtons.push({
       x: btnX,
@@ -1505,20 +1506,20 @@ export class DuelGame extends BaseMiniGame {
       // State Action / Reaction
       let actionText = pad.label;
       if (this.state === 'STANDOFF_COUNTDOWN' || this.state === 'TENSION') {
-        actionText = this.isBlockerClosed() ? '🌵 SİPERDE! BEKLE' : '✋ DOKUNMA! BEKLE';
+        actionText = this.isBlockerClosed() ? t('duel.blockedWait') : t('duel.tapWait');
       } else if (this.state === 'DRAW_SIGNAL') {
         if (hasFired) {
           const short = st.accuracy === 'TAM' ? '🎯' : st.accuracy === 'SIYIRMA' ? '↗' : st.accuracy === 'BLOKE' ? '🌵' : '💨';
           actionText = `${short} ${st.reactionMs}ms (+${st.pointsEarned}P)`;
         } else {
-          actionText = this.isBlockerClosed() ? '🌵 SİPER! BEKLE...' : '💥 BAS! BAS!';
+          actionText = this.isBlockerClosed() ? t('duel.blockWait') : t('duel.smash');
         }
       } else if (this.state === 'ROUND_OVER') {
-        if (falseStart) actionText = '❌ ERKEN BASTIN (-1P)';
+        if (falseStart) actionText = t('duel.early');
         else if (hasFired) {
           const short = st.accuracy === 'TAM' ? '🎯' : st.accuracy === 'SIYIRMA' ? '↗' : st.accuracy === 'BLOKE' ? '🌵' : '💨';
           actionText = `${short} ${st.rank}. (${st.reactionMs}ms)`;
-        } else actionText = 'GEÇ KALDIN!';
+        } else actionText = t('duel.late');
       }
 
       ctx.font = '900 16px "Space Grotesk", sans-serif';

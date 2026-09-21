@@ -15,6 +15,7 @@ import {
   playStumble,
 } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { t } from '../i18n.js';
 import {
   renderTopPill,
   renderCornerScores,
@@ -1022,7 +1023,7 @@ export class BombGame extends BaseMiniGame {
     // Render UI Overlays
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'JOYSTICK: KAÇ • DOKUN: DEPAR • 3 SET ALAN KAZANIR', [
+      renderControlGuide(ctx, this.arena, t('guide.bomb'), [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -1062,7 +1063,7 @@ export class BombGame extends BaseMiniGame {
       renderArenaWatermarkTimer(ctx, {
         arena: this.arena,
         text: `${remain.toFixed(1)}s`,
-        subText: isPanic ? '⚡ DİKKAT! PATLIYOR! ⚡' : (carrier ? `${carrier.name} BOMBALI` : 'BOMBA GERİ SAYIM'),
+        subText: isPanic ? t('bomb.panic') : (carrier ? t('bomb.carrier', carrier.name) : t('bomb.countdown')),
         urgent: isPanic,
         color: isPanic ? '#D84727' : (carrier ? carrier.color : null),
         alpha: isPanic ? 0.26 : 0.16,
@@ -1261,7 +1262,7 @@ export class BombGame extends BaseMiniGame {
         ctx.fillStyle = '#2D6A4F';
         ctx.font = '900 10px "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('🛡️ GÜVENDE', 0, -player.radius - 12);
+        ctx.fillText(t('bomb.safe'), 0, -player.radius - 12);
         ctx.restore();
       }
 
@@ -1395,7 +1396,7 @@ export class BombGame extends BaseMiniGame {
         ctx.font = '800 11px "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`${player.name.slice(0, 3)} SÜRÜKLE`, 0, 0);
+        ctx.fillText(t('game.drag', player.name.slice(0, 3)), 0, 0);
         ctx.restore();
         continue;
       }
@@ -1552,7 +1553,7 @@ export class BombGame extends BaseMiniGame {
     renderMatchOver(ctx, {
       arena: this.arena,
       uiButtons: this.uiButtons,
-      headline: 'ŞAMPİYONLUK KAZANILDI! 🏆',
+      headline: t('game.champWon'),
       winnerName: this.matchWinner ? this.matchWinner.name : '',
       winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
       rows: this.matchWinner

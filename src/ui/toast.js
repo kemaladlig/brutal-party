@@ -1,4 +1,6 @@
 // PWA Install Prompt & Toast Notification Manager
+import { t } from '../i18n.js';
+
 const installToast = document.getElementById('install-toast');
 const connectionBanner = document.getElementById('connection-banner');
 const btnInstallApp = document.getElementById('btn-install-app');
@@ -64,7 +66,7 @@ export function initToastAndInstall() {
       deferredInstallPrompt.prompt();
       const choice = await deferredInstallPrompt.userChoice;
       if (choice.outcome === 'accepted') {
-        showInstallToast('BRUTAL PARTY ana ekrana eklendi.');
+        showInstallToast(t('pwa.added'));
       }
       deferredInstallPrompt = null;
       btnInstallApp.classList.remove('available');
@@ -72,16 +74,12 @@ export function initToastAndInstall() {
     }
 
     const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    showInstallToast(
-      isIos
-        ? 'Safari: Paylaş → Ana Ekrana Ekle seçeneğini kullan.'
-        : 'Tarayıcı menüsünden "Ana ekrana ekle" veya "Uygulamayı yükle" seçeneğini kullan.'
-    );
+    showInstallToast(isIos ? t('pwa.ios') : t('pwa.other'));
   });
 
   window.addEventListener('appinstalled', () => {
     deferredInstallPrompt = null;
     btnInstallApp?.classList.add('hidden');
-    showInstallToast('BRUTAL PARTY ana ekrana eklendi.');
+    showInstallToast(t('pwa.added'));
   });
 }

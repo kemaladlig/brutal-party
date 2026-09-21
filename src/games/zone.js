@@ -15,6 +15,7 @@ import {
   playPowerUp,
 } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { t } from '../i18n.js';
 import {
   renderTopPill,
   renderCornerScores,
@@ -548,7 +549,7 @@ export class ZoneGame extends BaseMiniGame {
 
       this.recomputePct();
       this.territoryDirty = true;
-      this.addFloatingText(p.x, p.y - 34, `💣 SİSMİK DARBE (+${claimedCount})!`, '#FF473A');
+      this.addFloatingText(p.x, p.y - 34, t('zone.quake', claimedCount), '#FF473A');
       this.burst(r.x, r.y, '#FF473A', 36);
       this.captureWaves.push({
         x: r.x,
@@ -715,14 +716,14 @@ export class ZoneGame extends BaseMiniGame {
     if (killerIndex !== null && killerIndex !== undefined && killerIndex >= 0) {
       this.kills[killerIndex]++;
       const k = this.players[killerIndex];
-      this.addFloatingText(v.x, v.y - 30, `✂ ${k ? k.name : ''} KESTİ!`, '#D84727');
+      this.addFloatingText(v.x, v.y - 30, t('zone.cut', k ? k.name : ''), '#D84727');
       if (bounty > 0 && k) {
-        this.addFloatingText(k.x, k.y - 30, `+${bounty} ÖDÜL BÖLGE!`, k.color);
+        this.addFloatingText(k.x, k.y - 30, t('zone.bounty', bounty), k.color);
       }
     } else {
-      this.addFloatingText(v.x, v.y - 30, '✂ KENDİNİ KESTİN!', '#D84727');
+      this.addFloatingText(v.x, v.y - 30, t('zone.selfCut'), '#D84727');
     }
-    this.addFloatingText(v.x, v.y - 12, 'BASE BOYUNA DÖNDÜN!', '#FFFFFF');
+    this.addFloatingText(v.x, v.y - 12, t('zone.baseBack'), '#FFFFFF');
     this.recomputePct();
     this.burst(v.x, v.y, v.color, 24);
     this.addTrauma(0.55);
@@ -806,7 +807,7 @@ export class ZoneGame extends BaseMiniGame {
       p.heading = Math.atan2(this.arena.cy - bcy, this.arena.cx - bcx);
       p.lastCell = this.posToCell(bcx, bcy);
       p.stunTimer = ZONE_TUNING.STUN;
-      this.addFloatingText(bcx, bcy - 20, 'BASE\'E DÖNDÜN (%50 KAYIP)!', '#FFFFFF');
+      this.addFloatingText(bcx, bcy - 20, t('zone.baseBack2'), '#FFFFFF');
       this.burst(bcx, bcy, p.color, 16);
     };
 
@@ -872,13 +873,13 @@ export class ZoneGame extends BaseMiniGame {
     }
     // Kademeli kapanış geri bildirimi: küçük hamle fısıldar, devasa hamle gümler
     if (gained >= 100) {
-      this.addFloatingText(p.x, p.y - 22, `+%${this.pct[index]} DEVASA BÖLGE!`, p.color);
+      this.addFloatingText(p.x, p.y - 22, t('zone.mega', this.pct[index]), p.color);
       this.burst(p.x, p.y, '#FFDE59', 30);
       this.addTrauma(0.45);
       playCoinPickup();
       playCashRegister();
     } else if (gained >= 20) {
-      this.addFloatingText(p.x, p.y - 22, `+%${this.pct[index]} BÖLGE!`, p.color);
+      this.addFloatingText(p.x, p.y - 22, t('zone.area', this.pct[index]), p.color);
       this.burst(p.x, p.y, '#FFDE59', 16);
       this.addTrauma(0.25);
       playCoinPickup();
@@ -1264,7 +1265,7 @@ export class ZoneGame extends BaseMiniGame {
         }
         // Yüksek risk uyarısı (16 hücreye ulaştığında bir kez uyar)
         if (p.trail.length === ZONE_TUNING.TRAIL_RISK_WARN) {
-          this.addFloatingText(p.x, p.y - 20, '⚠️ YÜKSEK RİSK!', '#D84727');
+          this.addFloatingText(p.x, p.y - 20, t('zone.risk'), '#D84727');
         }
         p.trail.push(cellIdx);
         this.trailOwner[cellIdx] = p.index;
@@ -1347,24 +1348,24 @@ export class ZoneGame extends BaseMiniGame {
 
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'JOYSTICK: YÖN • DEPAR: HIZLAN • %40 ALAN KAZANIR', [
+      renderControlGuide(ctx, this.arena, t('guide.zone'), [
         'P1 KIRMIZI', 'P2 MAVİ', 'P3 SARI', 'P4 YEŞİL',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
       renderRoundBanner(ctx, {
         arena: this.arena,
-        title: this.roundWinner ? `${this.roundWinner.name} ALDI!` : 'BERABERE!',
+        title: this.roundWinner ? t('zone.took', this.roundWinner.name) : t('game.draw'),
         titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A',
         sub: this.roundWinner
-          ? `%${this.pct[this.roundWinner.index]} BÖLGE • ${this.kills[this.roundWinner.index]} KESME${this.tieBreak ? ' • SON HAMLE!' : ''}`
+          ? t('zone.roundSub', this.pct[this.roundWinner.index], this.kills[this.roundWinner.index], this.tieBreak ? t('zone.lastMove') : '')
           : '',
       });
     } else if (this.state === 'MATCH_OVER') {
       renderMatchOver(ctx, {
         arena: this.arena,
         uiButtons: this.uiButtons,
-        headline: 'BÖLGE ŞAMPİYONU',
+        headline: t('zone.champ'),
         winnerName: this.matchWinner ? this.matchWinner.name : '',
         winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
         rows: this.players
@@ -1410,8 +1411,8 @@ export class ZoneGame extends BaseMiniGame {
         arena: this.arena,
         text: `${Math.ceil(remain)}s`,
         subText: leader && leader.isJoined
-          ? `${leader.name} ÖNDE: %${this.pct[leader.index]} (HEDEF: %40)`
-          : 'HEDEF: %40 ALAN KONTROLÜ',
+          ? t('zone.leader', leader.name, this.pct[leader.index])
+          : t('zone.goal'),
         urgent: isUrgent,
         color: isUrgent ? '#D84727' : (leader ? leader.color : null),
         alpha: isUrgent ? 0.22 : 0.14,
@@ -1610,7 +1611,7 @@ export class ZoneGame extends BaseMiniGame {
         renderSpatialBadge(ctx, {
           x: 0,
           y: p.radius + 33,
-          text: 'TEHLİKE!',
+          text: t('game.danger'),
           icon: '⚡',
           urgent: true,
           scale: 0.9,
@@ -1681,7 +1682,7 @@ export class ZoneGame extends BaseMiniGame {
         ctx.font = '800 11px "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`${p.name.slice(0, 3)} SÜRÜKLE`, 0, 0);
+        ctx.fillText(t('game.drag', p.name.slice(0, 3)), 0, 0);
         ctx.restore();
         continue;
       }

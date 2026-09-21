@@ -9,7 +9,12 @@ import {
   getAvatarProfile,
   saveAvatarProfile,
   resetAvatarProfile,
+  paletteName,
+  expressionName,
+  accessoryName,
+  patternName,
 } from '../core/customizationManager.js';
+import { t, onLangChange } from '../i18n.js';
 import { drawBrutalAvatar } from './characterRenderer.js';
 import { showInstallToast } from './toast.js';
 import { getStoredPlayerName, storePlayerName, cleanPlayerName, generateNick } from '../net.js';
@@ -58,10 +63,10 @@ function createModalDOM() {
       <div class="customize-card">
         <div class="customize-header">
           <div class="customize-header-left">
-            <span class="customize-badge">🎭 AVATAR ATÖLYESİ</span>
-            <h2 class="customize-title">KARAKTERİN</h2>
+            <span class="customize-badge" data-i18n="custom.badge">${t('custom.badge')}</span>
+            <h2 class="customize-title" data-i18n="custom.title">${t('custom.title')}</h2>
           </div>
-          <button class="customize-close-btn" id="btn-close-customize" type="button" aria-label="Kapat">✕</button>
+          <button class="customize-close-btn" id="btn-close-customize" type="button" aria-label="${t('pause.close')}">✕</button>
         </div>
 
         <div class="customize-body">
@@ -70,9 +75,9 @@ function createModalDOM() {
             <div class="preview-stage" id="customize-preview-stage">
               <canvas id="customize-preview-canvas" width="220" height="220"></canvas>
             </div>
-            <div class="preview-tip">Döndürmek için parmağınızı / fareyi kaydırın</div>
+            <div class="preview-tip" data-i18n="custom.tip">${t('custom.tip')}</div>
             <div class="preview-actions">
-              <button id="btn-reset-customize" class="btn-reset-customize" type="button">↺ RASTGELE KARAKTER</button>
+              <button id="btn-reset-customize" class="btn-reset-customize" type="button" data-i18n="custom.random">${t('custom.random')}</button>
             </div>
           </div>
 
@@ -80,32 +85,32 @@ function createModalDOM() {
           <div class="customize-options-scroll">
             <!-- 1. Renk Seçimi -->
             <div class="custom-section">
-              <div class="custom-section-title">🎨 GÖVDE RENGİ</div>
+              <div class="custom-section-title" data-i18n="custom.secColor">${t('custom.secColor')}</div>
               <div class="palette-grid" id="grid-palettes"></div>
             </div>
 
             <!-- 2. Yüz İfadesi -->
             <div class="custom-section">
-              <div class="custom-section-title">👀 YÜZ VE BAKIŞ</div>
+              <div class="custom-section-title" data-i18n="custom.secFace">${t('custom.secFace')}</div>
               <div class="chips-grid" id="grid-expressions"></div>
             </div>
 
             <!-- 3. Başlık & Aksesuar -->
             <div class="custom-section">
-              <div class="custom-section-title">🧢 BAŞLIK VE AKSESUAR</div>
+              <div class="custom-section-title" data-i18n="custom.secAcc">${t('custom.secAcc')}</div>
               <div class="chips-grid" id="grid-accessories"></div>
             </div>
 
             <!-- 4. Gövde Deseni -->
             <div class="custom-section">
-              <div class="custom-section-title">🏁 GÖVDE DESENİ</div>
+              <div class="custom-section-title" data-i18n="custom.secPattern">${t('custom.secPattern')}</div>
               <div class="chips-grid" id="grid-patterns"></div>
             </div>
           </div>
         </div>
 
         <div class="customize-footer">
-          <button class="btn-save-customize" id="btn-save-customize" type="button">✓ KAYDET VE TAMAMLA</button>
+          <button class="btn-save-customize" id="btn-save-customize" type="button" data-i18n="custom.save">${t('custom.save')}</button>
         </div>
       </div>
     </div>
@@ -121,14 +126,14 @@ function createModalDOM() {
     if (currentCustom) {
       saveAvatarProfile(currentCustom);
     }
-    showInstallToast('✓ Karakterin kaydedildi!');
+    showInstallToast(t('custom.saved'));
     closeCustomizeModal();
   });
 
   document.getElementById('btn-reset-customize')?.addEventListener('click', () => {
     currentCustom = resetAvatarProfile();
     renderSelectionGrids();
-    showInstallToast('🎲 Rastgele karakter üretildi.');
+    showInstallToast(t('custom.diced'));
   });
 
   // ESC ile kapatma
@@ -191,7 +196,7 @@ function renderSelectionGrids() {
     palGrid.innerHTML = getActivePalettes().map((p) => {
       const isSelected = currentCustom.color.toLowerCase() === p.hex.toLowerCase();
       return `
-        <button class="color-swatch-btn ${isSelected ? 'selected' : ''}" data-hex="${p.hex}" style="background-color: ${p.hex}" title="${p.name}" type="button">
+        <button class="color-swatch-btn ${isSelected ? 'selected' : ''}" data-hex="${p.hex}" style="background-color: ${p.hex}" title="${paletteName(p)}" type="button">
           ${isSelected ? '<span class="swatch-check">✓</span>' : ''}
         </button>
       `;
@@ -214,7 +219,7 @@ function renderSelectionGrids() {
       return `
         <button class="custom-chip-btn ${isSelected ? 'selected' : ''}" data-id="${exp.id}" type="button">
           <span class="chip-icon">${exp.icon}</span>
-          <span class="chip-title">${exp.name}</span>
+          <span class="chip-title">${expressionName(exp.id, exp.name)}</span>
         </button>
       `;
     }).join('');
@@ -236,7 +241,7 @@ function renderSelectionGrids() {
       return `
         <button class="custom-chip-btn ${isSelected ? 'selected' : ''}" data-id="${acc.id}" type="button">
           <span class="chip-icon">${acc.icon}</span>
-          <span class="chip-title">${acc.name}</span>
+          <span class="chip-title">${accessoryName(acc.id, acc.name)}</span>
         </button>
       `;
     }).join('');
@@ -258,7 +263,7 @@ function renderSelectionGrids() {
       return `
         <button class="custom-chip-btn ${isSelected ? 'selected' : ''}" data-id="${pat.id}" type="button">
           <span class="chip-icon">${pat.icon}</span>
-          <span class="chip-title">${pat.name}</span>
+          <span class="chip-title">${patternName(pat.id, pat.name)}</span>
         </button>
       `;
     }).join('');
@@ -396,7 +401,7 @@ export function initMenuAvatarCard() {
     } catch {}
     updateCardName();
     closeNameEdit();
-    showInstallToast('🎲 Yeni nick hazır!');
+    showInstallToast(t('custom.nickReady'));
   });
 
   document.getElementById('btn-save-menu-name')?.addEventListener('click', (e) => {
@@ -497,4 +502,13 @@ export function initMenuAvatarCard() {
     });
     observer.observe(menuOverlay, { attributes: true, attributeFilter: ['class'] });
   }
+
+  // Dil değişiminde açık customize modalının ızgaraları anında yenilenir
+  // (statik başlıklar global applyI18nToDOM ile gelir).
+  onLangChange(() => {
+    const modalEl = document.getElementById('customize-modal');
+    if (modalEl && !modalEl.classList.contains('hidden') && currentCustom) {
+      renderSelectionGrids();
+    }
+  });
 }

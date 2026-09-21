@@ -4,6 +4,7 @@
 
 import { playExplosion, playStart, playJoin, playGunshot, playDashWhoosh, playItemPickup, playStumble } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { t } from '../i18n.js';
 import { getLocalSeatColors } from '../core/customizationManager.js';
 import { renderTopPill, renderCornerScores, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -800,13 +801,13 @@ export class LaserGame extends BaseMiniGame {
             this.spawnFloatingText(player.x, player.y - 20, '❤ +1 CAN', '#2F6A4F');
           } else if (pk.type === 'FAST') {
             player.fastTimer = LASER_TUNING.FAST_TIME;
-            this.spawnFloatingText(player.x, player.y - 20, '⚡ SERİ ATEŞ!', '#FFDE59');
+            this.spawnFloatingText(player.x, player.y - 20, t('laser.rapid'), '#FFDE59');
           } else if (pk.type === 'SHIELD') {
             player.shield = true;
-            this.spawnFloatingText(player.x, player.y - 20, '🛡️ KALKAN AKTİF!', '#0EA5E9');
+            this.spawnFloatingText(player.x, player.y - 20, t('laser.shield'), '#0EA5E9');
           } else if (pk.type === 'TRIPLE') {
             player.tripleTimer = LASER_TUNING.TRIPLE_TIME;
-            this.spawnFloatingText(player.x, player.y - 20, '💥 ÜÇLÜ LAZER!', '#F97316');
+            this.spawnFloatingText(player.x, player.y - 20, t('laser.triple'), '#F97316');
           }
           this.pickups.splice(i, 1);
           playItemPickup();
@@ -1302,7 +1303,7 @@ export class LaserGame extends BaseMiniGame {
 
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'JOYSTICK: KOŞ+NİŞAN • ATEŞ: VUR • DASH: KAÇIŞ • 🛡️⚡💥 PICKUP', [
+      renderControlGuide(ctx, this.arena, t('guide.laser'), [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -1387,7 +1388,7 @@ export class LaserGame extends BaseMiniGame {
       renderMatchOver(ctx, {
         arena: this.arena,
         uiButtons: this.uiButtons,
-        headline: this.matchWinner ? 'LAZER ŞAMPİYONU!' : 'BERABERE!',
+        headline: this.matchWinner ? t('laser.champ') : t('game.draw'),
         winnerName: this.matchWinner ? this.matchWinner.name : '',
         winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
         rows,

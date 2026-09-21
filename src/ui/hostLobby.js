@@ -2,7 +2,8 @@
 import QRCode from 'qrcode';
 import { PUBLIC_URL, isPublicOrigin } from '../net.js';
 import { showInstallToast } from './toast.js';
-import { getActivePalettes } from '../core/customizationManager.js';
+import { getActivePalettes, paletteName } from '../core/customizationManager.js';
+import { t } from '../i18n.js';
 
 const tvHostModal = document.getElementById('tv-host-modal');
 const hostRoomCode = document.getElementById('host-room-code');
@@ -35,7 +36,7 @@ export function setCurrentHostGameMode(mode) {
     chip.classList.toggle('active', chip.dataset.game === mode);
   });
   if (btnHostLaunchGame) {
-    btnHostLaunchGame.textContent = `▶ SAHAYA GEÇ`;
+    btnHostLaunchGame.textContent = t('host.stage');
   }
 }
 
@@ -53,8 +54,9 @@ export function startHostPingBadge(getPing, platformMode) {
   stopHostPingBadge();
   const badge = document.querySelector('.tv-host-badge');
   if (!badge) return;
-  const baseText = platformMode === 'ONLINE' ? '🌐 ONLINE LOBİ' : '📺 TV HOST PARTİ LOBİSİ';
   const tick = () => {
+    // Dil anlık çözülür: dil değişimi 2sn içinde rozete yansır.
+    const baseText = platformMode === 'ONLINE' ? t('host.onlineLobby') : t('host.tvLobby');
     const ping = getPing?.() || 0;
     badge.textContent = (platformMode === 'ONLINE' || isPublicOrigin()) && ping > 0
       ? `${baseText} • ${ping}ms`
@@ -109,7 +111,7 @@ export function initHostLobby({
       currentHostGameMode = chip.dataset.game;
       getActiveNet().setHostGameMode?.(currentHostGameMode);
       if (btnHostLaunchGame) {
-        btnHostLaunchGame.textContent = `▶ SAHAYA GEÇ`;
+        btnHostLaunchGame.textContent = t('host.stage');
       }
     });
   });
@@ -126,13 +128,13 @@ export function initHostLobby({
     pop.id = 'slot-palette-pop';
     pop.className = 'slot-palette-pop';
     pop.innerHTML = `
-      <div class="slot-palette-title">P${idx + 1} RENGİ</div>
+      <div class="slot-palette-title">${t('host.seatColor', idx + 1)}</div>
       <div class="slot-palette-grid">
         ${getActivePalettes().map((p) => `
-          <button class="slot-palette-swatch" data-hex="${p.hex}" style="background-color: ${p.hex}" title="${p.name}" type="button"></button>
+          <button class="slot-palette-swatch" data-hex="${p.hex}" style="background-color: ${p.hex}" title="${paletteName(p)}" type="button"></button>
         `).join('')}
       </div>
-      <button class="slot-palette-dice" type="button">🎲 BOŞ RENK ATA</button>
+      <button class="slot-palette-dice" type="button">${t('host.diceFree')}</button>
     `;
     document.body.appendChild(pop);
     const r = anchorBtn.getBoundingClientRect();
@@ -178,7 +180,7 @@ export function initHostLobby({
   const paintLaunchGuard = (clashCount) => {
     if (!launchBtn) return;
     launchBtn.classList.toggle('blocked', clashCount > 0);
-    launchBtn.textContent = clashCount > 0 ? `⚠️ RENKLERİ AYIRIN` : `▶ SAHAYA GEÇ`;
+    launchBtn.textContent = clashCount > 0 ? t('stage.split') : t('host.stage');
   };
   window.addEventListener('brutal_color_clash', (e) => {
     paintLaunchGuard(e.detail?.clash?.length || 0);
@@ -218,21 +220,20 @@ export function initHostLobby({
   });
 
   // Çift-bas onay: ilk dokunuş kurar, 3sn içinde ikinci dokunuş kapatır
-  const CLOSE_LABEL = '⌂ LOBİYİ KAPAT';
   let closeArmedTimer = null;
   btnHostClose?.addEventListener('click', () => {
     if (!btnHostClose.dataset.armed) {
       btnHostClose.dataset.armed = '1';
-      btnHostClose.textContent = 'EMİN MİSİN? TEKRAR BAS';
+      btnHostClose.textContent = t('pause.exitArmed');
       closeArmedTimer = window.setTimeout(() => {
         delete btnHostClose.dataset.armed;
-        btnHostClose.textContent = CLOSE_LABEL;
+        btnHostClose.textContent = t('host.close');
       }, 3000);
       return;
     }
     window.clearTimeout(closeArmedTimer);
     delete btnHostClose.dataset.armed;
-    btnHostClose.textContent = CLOSE_LABEL;
+    btnHostClose.textContent = t('host.close');
     hideHostLobbyModal();
     if (typeof onCloseLobby === 'function') {
       onCloseLobby();
@@ -244,9 +245,9 @@ export function initHostLobby({
     const joinUrl = getEffectiveJoinUrl(code, getPlatformMode());
     try {
       await navigator.clipboard.writeText(joinUrl);
-      showInstallToast('✓ Bağlantı panoya kopyalandı!');
+      showInstallToast(t('host.copied'));
     } catch (err) {
-      showInstallToast(`Bağlantı: ${joinUrl}`);
+      showInstallToast(t('host.link', joinUrl));
     }
   });
 
@@ -256,16 +257,16 @@ export function initHostLobby({
     if (!code) return;
     try {
       await navigator.clipboard.writeText(code);
-      showInstallToast(`✓ Oda kodu kopyalandı: #${code}`);
+      showInstallToast(t('host.codeCopied', code));
     } catch (err) {
-      showInstallToast(`Oda kodu: #${code}`);
+      showInstallToast(t('host.code', code));
     }
   });
 
   btnHostWhatsappShare?.addEventListener('click', () => {
     const code = hostRoomCode?.textContent?.trim() || '';
     const joinUrl = getEffectiveJoinUrl(code, getPlatformMode());
-    const text = encodeURIComponent(`🎮 BRUTAL PARTY // 4P odasına katıl!\nOda Kodu: #${code}\nBağlantı: ${joinUrl}`);
+    const text = encodeURIComponent(t('host.share', code, joinUrl));
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   });
 }

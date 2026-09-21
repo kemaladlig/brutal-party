@@ -6,16 +6,14 @@ import { createClient } from '@supabase/supabase-js';
 import { cleanPlayerName, getClientId } from './net.js';
 import { WebRTCManager } from './webrtcManager.js';
 import { sanitizeAvatar, pickFreeColor, isPaletteHex, getAvatarProfile } from './core/customizationManager.js';
+import { t } from './i18n.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 function assertSupabaseConfig() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    throw new Error(
-      'Supabase yapılandırması eksik: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY tanımlı değil. ' +
-      '.env dosyasını (.env.example şablon) veya Vercel Environment Variables ayarlarını kontrol edin.'
-    );
+    throw new Error(t('net.noConfig'));
   }
 }
 
@@ -156,7 +154,7 @@ export class SupabaseRelay {
     try {
       await new Promise((resolve, reject) => {
         const failTimer = setTimeout(() => {
-          reject(new Error("Supabase relay'e bağlanılamadı (zaman aşımı)."));
+          reject(new Error(t('net.relayTimeout')));
         }, 10000);
         this.channel.subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
@@ -170,7 +168,7 @@ export class SupabaseRelay {
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             clearTimeout(failTimer);
             console.error('[SupabaseRelay] HOST subscribe failed:', status, err?.message || '');
-            reject(new Error(`Supabase relay'e bağlanılamadı (${status}).`));
+            reject(new Error(t('net.relayStatus', status)));
           }
         });
       });
@@ -593,7 +591,7 @@ export class SupabaseRelay {
     try {
       await new Promise((resolve, reject) => {
         const failTimer = setTimeout(() => {
-          reject(new Error("Supabase relay'e bağlanılamadı (zaman aşımı)."));
+          reject(new Error(t('net.relayTimeout')));
         }, 10000);
         this.channel.subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
@@ -606,7 +604,7 @@ export class SupabaseRelay {
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             clearTimeout(failTimer);
             console.error('[SupabaseRelay] CONTROLLER subscribe failed:', status, err?.message || '');
-            reject(new Error(`Supabase relay'e bağlanılamadı (${status}).`));
+            reject(new Error(t('net.relayStatus', status)));
           }
         });
       });
@@ -625,7 +623,7 @@ export class SupabaseRelay {
     const fresh = [...(this._seenHosts || [])].filter(([, at]) => now - at < 10000).map(([id]) => id);
     if (fresh.length >= 2) {
       if (this.callbacks.onError) {
-        this.callbacks.onError('ODA KODU ÇAKIŞTI — host yeni oda açsın.');
+        this.callbacks.onError(t('net.roomClash'));
       }
       this.disconnect();
       return;
@@ -645,7 +643,7 @@ export class SupabaseRelay {
     this._joinTimeout = setTimeout(() => {
       if (!this.playerIndex && this.playerIndex !== 0) {
         if (this.callbacks.onError) {
-          this.callbacks.onError('ODA BULUNAMADI veya HOST AKTİF DEĞİL');
+          this.callbacks.onError(t('net.roomMissing'));
         }
       }
     }, 5000);
@@ -761,7 +759,7 @@ export class SupabaseRelay {
 
       case 'HOST_DISCONNECTED': {
         if (this.callbacks.onHostDisconnected) {
-          this.callbacks.onHostDisconnected(msg.message || 'Host odadan ayrıldı.');
+          this.callbacks.onHostDisconnected(msg.message || t('net.hostLeft'));
         }
         break;
       }
@@ -940,7 +938,7 @@ export class SupabaseRelay {
       if (performance.now() - this._lastHostMsgAt < 30000) return;
       this._stopHostWatchdog();
       if (this.callbacks.onHostDisconnected) {
-        this.callbacks.onHostDisconnected('📡 HOST BAĞLANTISI KOPTU — yeniden bağlanılıyor…');
+        this.callbacks.onHostDisconnected(t('net.hostGoneRetry'));
       }
       const lastJoin = this._lastJoin;
       const wasJoined = this._joinedOnce;
@@ -957,12 +955,12 @@ export class SupabaseRelay {
     if (this._manualClose || !this._lastJoin) return;
     if ((this._reconnectTries || 0) >= 5) {
       this._lastJoin = null;
-      if (this.callbacks.onError) this.callbacks.onError('BAĞLANTI KOPTU — odaya tekrar katılın.');
+      if (this.callbacks.onError) this.callbacks.onError(t('net.retryFail'));
       return;
     }
     const delay = Math.min(8000, 1000 * 2 ** (this._reconnectTries || 0));
     this._reconnectTries = (this._reconnectTries || 0) + 1;
-    if (this.callbacks.onError) this.callbacks.onError(`🔄 Yeniden bağlanılıyor (${this._reconnectTries}/5)…`);
+    if (this.callbacks.onError) this.callbacks.onError(t('net.retrying', this._reconnectTries));
     this._reconnectTimer = setTimeout(async () => {
       this._reconnectTimer = null;
       if (this._manualClose || !this._lastJoin) return;

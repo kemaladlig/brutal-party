@@ -4,6 +4,7 @@
 
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { t } from '../i18n.js';
 import { getLocalSeatColors } from '../core/customizationManager.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -334,7 +335,7 @@ export class CloneGame extends BaseMiniGame {
         this.addTrauma(0.5);
         playExplosion();
         this.spawnBurst(victim.x, victim.y, victim.color);
-        this.spawnFloatingText(victim.x, victim.y - 18, '🎯 GERÇEK HEDEF! +2★', '#2F6A4F');
+        this.spawnFloatingText(victim.x, victim.y - 18, t('clone.real'), '#2F6A4F');
 
         if (this.scores[attacker.index] >= this.targetScore) {
           this.matchWinner = attacker;
@@ -971,7 +972,7 @@ export class CloneGame extends BaseMiniGame {
 
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'JOYSTICK: HAREKET ET • AKSİYON: OMUZ AT • SAHTELERE DİKKAT', [
+      renderControlGuide(ctx, this.arena, t('guide.clone'), [
         'P1 KIRMIZI',
         'P2 MAVİ',
         'P3 SARI',
@@ -1019,9 +1020,9 @@ export class CloneGame extends BaseMiniGame {
       const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
       renderLobbyStartButton(ctx, { arena: this.arena, uiButtons: this.uiButtons, joinedCount, accent: '#D84727', onStart: () => this.startNewMatch(), hidden: !!this.hideLobbyStartButton });
     } else if (this.state === 'ROUND_OVER') {
-      renderRoundBanner(ctx, { arena: this.arena, title: this.roundWinner ? 'TUR BİTTİ' : 'BERABERE!', titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A' });
+      renderRoundBanner(ctx, { arena: this.arena, title: this.roundWinner ? t('game.roundOver') : t('game.draw'), titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A' });
     } else if (this.state === 'MATCH_OVER') {
-      renderMatchOver(ctx, { arena: this.arena, uiButtons: this.uiButtons, headline: 'SAHTEKAR ŞAMPİYONU', winnerName: this.matchWinner ? this.matchWinner.name : '', winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A', rows: this.players.filter((p) => p.isJoined).map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` })), onRestart: () => this.startNewMatch() });
+      renderMatchOver(ctx, { arena: this.arena, uiButtons: this.uiButtons, headline: t('clone.champ'), winnerName: this.matchWinner ? this.matchWinner.name : '', winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A', rows: this.players.filter((p) => p.isJoined).map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` })), onRestart: () => this.startNewMatch() });
     }
     ctx.restore();
   }

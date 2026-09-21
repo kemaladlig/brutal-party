@@ -6,6 +6,7 @@ import { showInstallToast } from './ui/toast.js';
 import { UI_COLORS } from './ui/tokens.js';
 import { mountDeclarativeController } from './controllers/controllerTemplates.js';
 import { getControllerMeta } from './core/engineRegistry.js';
+import { t, onLangChange } from './i18n.js';
 import { getAvatarProfile } from './core/customizationManager.js';
 import { drawBrutalAvatar } from './ui/characterRenderer.js';
 import { openCustomizeModal } from './ui/customizeModal.js';
@@ -160,7 +161,7 @@ export class GamepadManager {
         if (!btn.isConnected) return;
         btn.innerHTML = `<span class="dash-btn-label">${label}</span><span class="dash-btn-sub">${sub}</span>`;
       };
-      paint(`⏳ ${remaining.toFixed(1)}s`, 'DOLUYOR');
+      paint(`⏳ ${remaining.toFixed(1)}s`, t('pad.filling'));
       if (state.timer) clearInterval(state.timer);
       state.timer = setInterval(() => {
         remaining -= 0.1;
@@ -170,10 +171,10 @@ export class GamepadManager {
           state.cooling = false;
           if (!btn.isConnected) return;
           btn.classList.remove('cooling');
-          paint(readyLabel, 'HAZIR!');
+          paint(readyLabel, t('pad.readyEx'));
           this.vibrate(15);
         } else {
-          paint(`⏳ ${remaining.toFixed(1)}s`, 'DOLUYOR');
+          paint(`⏳ ${remaining.toFixed(1)}s`, t('pad.filling'));
         }
       }, 100);
     };
@@ -278,6 +279,21 @@ export class GamepadManager {
     this.renderGameController(this.gameMode);
     this.overlay.classList.remove('hidden');
     this.requestWakeLock();
+    // Dil değişimi: lobide tam re-render (güvenli), oyunda sadece taktik ipucu
+    // tazelenir (dokunmatik mount'a dokunulmaz — girdi kesilmez).
+    if (!this._langBound) {
+      this._langBound = true;
+      onLangChange(() => {
+        if (this.overlay.classList.contains('hidden')) return;
+        if (this.gameMode === 'LOBBY') {
+          this.renderShell();
+          this.renderGameController('LOBBY');
+        } else {
+          const hintEl = document.getElementById('tactical-role-text');
+          if (hintEl) hintEl.textContent = CONTROLLER_META[this.gameMode]?.tacticalHint || '';
+        }
+      });
+    }
   }
 
   hide() {
@@ -300,15 +316,15 @@ export class GamepadManager {
         </div>
         <div class="gamepad-room-info">#${this.network.roomCode || '---'}</div>
         <div class="gamepad-header-actions">
-          <button class="btn-fullscreen-toggle" id="btn-toggle-fullscreen" type="button" title="Tam Ekran Modu">⛶</button>
-          <button class="emoji-reaction-btn" id="btn-toggle-emoji" type="button" title="Tepki Gönder">🔥</button>
-          <button class="btn-leave-gamepad" id="btn-leave-gamepad" type="button">AYRIL</button>
+          <button class="btn-fullscreen-toggle" id="btn-toggle-fullscreen" type="button" data-i18n-aria="pad.fullscreenTitle" title="Tam Ekran Modu">⛶</button>
+          <button class="emoji-reaction-btn" id="btn-toggle-emoji" type="button" data-i18n-aria="pad.reactTitle" title="Tepki Gönder">🔥</button>
+          <button class="btn-leave-gamepad" id="btn-leave-gamepad" type="button">${t('pad.leave')}</button>
         </div>
       </div>
 
       <div class="gamepad-sub-hud" id="gamepad-sub-hud">
-        <span class="hud-game-tag" id="hud-game-tag">📺 PARTİ LOBİSİ</span>
-        <span class="hud-live-status" id="hud-live-status">BEKLENİYOR...</span>
+        <span class="hud-game-tag" id="hud-game-tag">${t('pad.lobbyTag')}</span>
+        <span class="hud-live-status" id="hud-live-status">${t('pad.waiting')}</span>
       </div>
 
       <div class="score-strip hidden" id="score-strip"></div>
@@ -400,9 +416,9 @@ export class GamepadManager {
         const oldName = prev[i]?.kind === 'bot' ? null : prev[i]?.name || null;
         const newName = this.slots[i]?.kind === 'bot' ? null : this.slots[i]?.name || null;
         if (!oldName && newName && newName !== this.playerName) {
-          showInstallToast(`🎮 ${newName} katıldı.`);
+          showInstallToast(t('pad.joined', newName));
         } else if (oldName && !newName && oldName !== this.playerName) {
-          showInstallToast(`🚪 ${oldName} ayrıldı.`);
+          showInstallToast(t('pad.left', oldName));
         }
       }
     }
@@ -445,7 +461,7 @@ export class GamepadManager {
       return `
         <div class="score-chip${isMine ? ' is-mine' : ''}${isEmpty ? ' is-empty' : ''}">
           <span class="score-dot" style="background-color: ${dotColor}"></span>
-          <span class="score-name">${isEmpty ? 'BOŞ' : escapeHtml(name)}</span>
+          <span class="score-name">${isEmpty ? t('pad.empty') : escapeHtml(name)}</span>
           <span class="score-val">${scores[idx] ?? 0}</span>
         </div>
       `;
@@ -472,9 +488,9 @@ export class GamepadManager {
     if (!workspace) return;
     workspace.innerHTML = `
       <div class="countdown-view">
-        <div class="countdown-badge">⏳ MAÇ BAŞLIYOR</div>
-        <div class="countdown-number">${t > 0 ? t : 'BAŞLA!'}</div>
-        <div class="countdown-sub">TELEFONU TUT • EKRANA BAK</div>
+        <div class="countdown-badge">${t('pad.countBadge')}</div>
+        <div class="countdown-number">${t > 0 ? t : t('pad.go')}</div>
+        <div class="countdown-sub">${t('pad.countSub')}</div>
       </div>
     `;
     this.vibrate(t > 0 ? 40 : [40, 60, 80]);
@@ -521,9 +537,9 @@ export class GamepadManager {
         <div class="gamepad-tactical-card" id="gamepad-tactical-card">
           <div class="tactical-header-row">
             <span class="tactical-game-pill">${meta.hudTag || mode}</span>
-            <button class="btn-orientation-hint" id="btn-orientation-hint" type="button" title="Konsol hissi için yatay çevir / tam ekran">
+            <button class="btn-orientation-hint" id="btn-orientation-hint" type="button" data-i18n-aria="pad.orientTitle" title="Konsol hissi için yatay çevir / tam ekran">
               <span class="hint-icon">🎮</span>
-              <span class="hint-label">KONSOL İÇİN YATAY ÇEVİR</span>
+              <span class="hint-label">${t('pad.orient')}</span>
             </button>
           </div>
           <div class="tactical-role-text" id="tactical-role-text">${meta.tacticalHint || ''}</div>
@@ -560,7 +576,7 @@ export class GamepadManager {
 
     if (isMine) {
       btnClass += ' active is-mine';
-      statusText = 'SEN';
+      statusText = t('pad.you');
     } else if (isBot) {
       btnClass += ' is-bot';
       statusText = '🤖 BOT';
@@ -569,7 +585,7 @@ export class GamepadManager {
       statusText = occupantName;
     } else {
       btnClass += ' is-empty';
-      statusText = 'BOŞ';
+      statusText = t('pad.empty');
     }
 
     return `
@@ -624,7 +640,7 @@ export class GamepadManager {
     const readyBtn = document.getElementById('btn-lobby-ready');
     if (readyBtn) {
       readyBtn.classList.remove('ready');
-      readyBtn.textContent = 'HAZIRIM';
+      readyBtn.textContent = t('pad.ready');
     }
   }
 
@@ -637,7 +653,7 @@ export class GamepadManager {
         ${this.stagingOpen ? `
         <!-- Interactive Seat Selector (sadece staging'de: saha açıkken) -->
         <div class="lobby-seats-card">
-          <div class="lobby-seat-badge">💺 KOLTUĞUNUZU SEÇİN</div>
+          <div class="lobby-seat-badge">${t('pad.seatPick')}</div>
           <div class="lobby-seats-grid">
             ${[0, 1, 2, 3].map((idx) => this.renderSeatButtonHtml(idx)).join('')}
           </div>
@@ -645,48 +661,48 @@ export class GamepadManager {
         ` : `
         <!-- Bekleme (staging öncesi saha kapalı: koltuk seçimi yok) -->
         <div class="lobby-wait-card">
-          <div class="lobby-wait-badge">🏟 SAHA HAZIRLANIYOR</div>
-          <div class="lobby-wait-text">Host sahayı açınca koltuğunu seçeceksin.<br>İsmini kontrol et, hazır bekle!</div>
+          <div class="lobby-wait-badge">${t('pad.arenaPrep')}</div>
+          <div class="lobby-wait-text">${t('pad.arenaPrepText')}</div>
         </div>
         `}
 
         <!-- Name Edit Section -->
         <div class="lobby-name-section">
-          <div class="lobby-name-label">👤 İSMİNİZ</div>
+          <div class="lobby-name-label">${t('pad.yourName')}</div>
           <div class="lobby-name-row">
             <div class="lobby-name-display" id="lobby-name-display">${this.playerName}</div>
-            <button class="lobby-name-edit-btn" id="btn-edit-name" type="button">✏️ DEĞİŞTİR</button>
+            <button class="lobby-name-edit-btn" id="btn-edit-name" type="button">${t('pad.change')}</button>
           </div>
           <div class="lobby-name-input-row hidden" id="lobby-name-input-row">
             <input type="text" class="lobby-name-input" id="input-lobby-name" maxlength="12"
-              placeholder="İSMİNİZ" value="${this.playerName}" autocapitalize="characters" />
-            <button class="lobby-name-save-btn" id="btn-save-name" type="button">✓ KAYDET</button>
+              placeholder="${t('pad.namePh')}" value="${this.playerName}" autocapitalize="characters" />
+            <button class="lobby-name-save-btn" id="btn-save-name" type="button">${t('pad.save')}</button>
           </div>
         </div>
 
         <!-- Character Section: cihaz-başı tek profil -->
         <div class="lobby-character-section">
-          <div class="lobby-name-label">🎭 KARAKTERİN</div>
+          <div class="lobby-name-label">${t('pad.yourChar')}</div>
           <div class="lobby-character-row">
             <canvas class="lobby-character-preview" id="lobby-character-preview" width="56" height="56"></canvas>
-            <button class="lobby-character-edit-btn" id="btn-edit-character" type="button">🎨 ÖZELLEŞTİR</button>
+            <button class="lobby-character-edit-btn" id="btn-edit-character" type="button">${t('pad.customize')}</button>
           </div>
-          <div class="lobby-character-hint">Rengini farklı seç — aynı renkte SAHAYA GEÇ kilitlenir.</div>
+          <div class="lobby-character-hint">${t('pad.charHint')}</div>
         </div>
 
         <div class="lobby-game-preview-card">
           <img src="/assets/games/${(this.selectedHostGame || 'PONG').toLowerCase()}.jpg" class="lobby-game-thumb-preview" alt="${escapeHtml(CONTROLLER_META[this.selectedHostGame]?.lobbyTitle || 'Oyun')}" onerror="this.style.display='none'" />
-          <div class="lobby-game-text">OYUN: <b id="lobby-selected-game-text">${selectedTitle}</b></div>
+          <div class="lobby-game-text">${t('pad.game')} <b id="lobby-selected-game-text">${selectedTitle}</b></div>
         </div>
 
         ${this.stagingOpen ? `
         <button class="btn-ready-toggle ${this.isReady ? 'ready' : ''}" id="btn-lobby-ready" type="button">
-          HAZIRIM
+          ${t('pad.ready')}
         </button>
         ` : ''}
 
         <button class="btn-leave-lobby-direct" id="btn-leave-lobby-direct" type="button">
-          🚪 ODADAN AYRIL
+          ${t('pad.leaveRoom')}
         </button>
       </div>
     `;
@@ -755,7 +771,7 @@ export class GamepadManager {
         try {
           this.network.sendAvatarUpdate?.(this.avatar);
         } catch {}
-        showInstallToast('✓ Karakterin host ile paylaşıldı!');
+        showInstallToast(t('pad.avatarShared'));
         this.vibrate(15);
       });
     });
@@ -775,10 +791,10 @@ export class GamepadManager {
     leaveBtn?.addEventListener('click', () => {
       if (!leaveBtn.dataset.armed) {
         leaveBtn.dataset.armed = '1';
-        leaveBtn.textContent = 'EMİN MİSİN? TEKRAR BAS';
+        leaveBtn.textContent = t('pad.leaveArmed');
         leaveArmedTimer = window.setTimeout(() => {
           delete leaveBtn.dataset.armed;
-          leaveBtn.textContent = '🚪 ODADAN AYRIL';
+          leaveBtn.textContent = t('pad.leaveRoom');
         }, 3000);
         return;
       }
@@ -809,23 +825,28 @@ export class GamepadManager {
     }
 
     // Sağa sürükleyince TV'de ne olur? (koltuk + ters modu açıklar)
-    const tvTargets = ['SAĞA', 'SOLA', 'AŞAĞI', 'YUKARI'];
+    const tvTargets = [t('pad.dirRight'), t('pad.dirLeft'), t('pad.dirDown'), t('pad.dirUp')];
     const tvDir = () => {
-      const base = tvTargets[this.playerIndex] || 'SAĞA';
+      const base = tvTargets[this.playerIndex] || t('pad.dirRight');
       if (!this.isPongInverted) return base;
-      return { SAĞA: 'SOLA', SOLA: 'SAĞA', 'AŞAĞI': 'YUKARI', YUKARI: 'AŞAĞI' }[base] || base;
+      const flip = {};
+      flip[t('pad.dirRight')] = t('pad.dirLeft');
+      flip[t('pad.dirLeft')] = t('pad.dirRight');
+      flip[t('pad.dirDown')] = t('pad.dirUp');
+      flip[t('pad.dirUp')] = t('pad.dirDown');
+      return flip[base] || base;
     };
-    const directionHint = () => `SAĞA SÜRÜKLE → TV'DE ${tvDir()}`;
+    const directionHint = () => t('pad.dragRight', tvDir());
 
     {
       // Üstte skor, altta sürgü+falso (başparmak kuşağı)
       container.innerHTML = `
         <div class="pong-controller-view horizontal">
-          <div class="pong-live-scoreboard" id="pong-live-scoreboard">
-            <div class="pong-score-pips" id="pong-score-display">SKOR: 0 - 0</div>
-            <div class="pong-rally-badge" id="pong-rally-display">⚡ RALLİ: 0</div>
+            <div class="pong-live-scoreboard" id="pong-live-scoreboard">
+            <div class="pong-score-pips" id="pong-score-display">${t('pad.scoreJoin', '0 - 0')}</div>
+            <div class="pong-rally-badge" id="pong-rally-display">${t('pad.rally', 0)}</div>
           </div>
-          <div class="pong-position-badge" style="border-color: ${this.playerColor}">📺 TV YERİ: ${posLabel}</div>
+          <div class="pong-position-badge" style="border-color: ${this.playerColor}">${t('pad.tvPlace', posLabel)}</div>
           <div class="pong-bottom-zone">
             <div class="pong-track-wrap">
               <div class="pong-instruction" id="pong-direction-hint">${directionHint()}</div>
@@ -835,12 +856,12 @@ export class GamepadManager {
                 </div>
               </div>
               <button class="pong-invert-btn ${this.isPongInverted !== baseInvert ? 'inverted' : ''}" id="btn-invert-axis" type="button">
-                ${this.isPongInverted !== baseInvert ? '↺ OTOMATİK YÖN (DOKUN)' : '↺ YÖNÜ TERS ÇEVİR'}
+                ${this.isPongInverted !== baseInvert ? t('pad.autoDir') : t('pad.flipDir')}
               </button>
             </div>
             <button class="action-spin-btn" id="btn-pong-spin" type="button">
               <span class="dash-btn-label">🌀 FALSO</span>
-              <span class="dash-btn-sub">DOKUN</span>
+              <span class="dash-btn-sub">${t('pad.tap')}</span>
             </button>
           </div>
         </div>
@@ -863,7 +884,7 @@ export class GamepadManager {
         this._pongInvertManualSet = true;
         const isManuallyFlipped = this.isPongInverted !== baseInvert;
         invertBtn.classList.toggle('inverted', isManuallyFlipped);
-        invertBtn.textContent = isManuallyFlipped ? '↺ OTOMATİK YÖN (DOKUN)' : '↺ YÖNÜ TERS ÇEVİR';
+        invertBtn.textContent = isManuallyFlipped ? t('pad.autoDir') : t('pad.flipDir');
         if (hintEl) hintEl.textContent = directionHint();
       });
 
@@ -909,14 +930,14 @@ export class GamepadManager {
         <div class="tank-drive-zone">
           <button class="tank-drive-pedal" id="btn-tank-drive" type="button" style="border-color: ${this.playerColor}">
             <span class="pedal-icon">🚀</span>
-            <span class="pedal-title">İLERLE</span>
-            <span class="pedal-sub">BASILI TUTUNCA GİDER • BIRAKINCA DÖNER</span>
+            <span class="pedal-title">${t('pad.drive')}</span>
+            <span class="pedal-sub">${t('pad.pedalSub')}</span>
           </button>
         </div>
         <div class="tanks-fire-zone">
           <button class="tank-fire-btn" id="btn-tank-fire" type="button">
             <span class="fire-icon">💥</span>
-            <span class="fire-title">ATEŞ</span>
+            <span class="fire-title">${t('pad.fire')}</span>
           </button>
           <div class="tank-ammo-hud" id="tank-ammo-hud">
             <div class="cartridge-pip loaded"></div>
@@ -976,8 +997,8 @@ export class GamepadManager {
   mountCurveController(container) {
     container.innerHTML = `
       <div class="curve-controller-view" id="curve-controller-view">
-        <button class="curve-steer-btn" id="btn-curve-left" type="button">◀ SOL</button>
-        <button class="curve-steer-btn right-btn" id="btn-curve-right" type="button">SAĞ ▶</button>
+        <button class="curve-steer-btn" id="btn-curve-left" type="button">${t('pad.steerLeft')}</button>
+        <button class="curve-steer-btn right-btn" id="btn-curve-right" type="button">${t('pad.steerRight')}</button>
       </div>
     `;
 
@@ -1087,7 +1108,7 @@ export class GamepadManager {
         <div class="action-half">
           <button class="action-dash-btn" id="btn-bomb-dash" type="button">
             <span class="dash-btn-label">⚡ DEPAR</span>
-            <span class="dash-btn-sub">DOKUN</span>
+            <span class="dash-btn-sub">${t('pad.tap')}</span>
           </button>
         </div>
       </div>
@@ -1117,7 +1138,7 @@ export class GamepadManager {
         <div class="action-half">
           <button class="action-dash-btn" id="btn-heist-tackle" type="button" style="background-color: #d99b26">
             <span class="dash-btn-label">💥 OMUZ AT</span>
-            <span class="dash-btn-sub">DOKUN</span>
+            <span class="dash-btn-sub">${t('pad.tap')}</span>
           </button>
         </div>
       </div>
@@ -1140,8 +1161,8 @@ export class GamepadManager {
     container.innerHTML = `
       <div class="duel-controller-view">
         <button class="duel-full-trigger-btn" id="btn-duel-trigger" type="button" style="background-color: ${this.playerColor}">
-          <div class="duel-trigger-state" id="duel-trigger-state">✋ BEKLE...</div>
-          <div class="duel-trigger-sub" id="duel-trigger-sub">SİNYALİ GÖRÜNCE DOKUN!</div>
+          <div class="duel-trigger-state" id="duel-trigger-state">${t('pad.duelWait')}</div>
+          <div class="duel-trigger-sub" id="duel-trigger-sub">${t('pad.duelWaitSub')}</div>
         </button>
       </div>
     `;
@@ -1177,7 +1198,7 @@ export class GamepadManager {
         <div class="action-half">
           <button class="action-dash-btn" id="btn-crown-tackle" type="button" style="background-color: #f59e0b">
             <span class="dash-btn-label">💥 OMUZ AT</span>
-            <span class="dash-btn-sub">DOKUN</span>
+            <span class="dash-btn-sub">${t('pad.tap')}</span>
           </button>
         </div>
       </div>
@@ -1207,7 +1228,7 @@ export class GamepadManager {
         <div class="action-half">
           <button class="action-dash-btn" id="btn-zone-dash" type="button" style="background-color: #2f6a4f">
             <span class="dash-btn-label">⚡ DEPAR</span>
-            <span class="dash-btn-sub">DOKUN</span>
+            <span class="dash-btn-sub">${t('pad.tap')}</span>
           </button>
         </div>
       </div>
@@ -1243,7 +1264,7 @@ export class GamepadManager {
         <div class="action-half">
           <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" style="background-color: #2F6A4F">
             <span class="dash-btn-label">⚡ HIZLAN</span>
-            <span class="dash-btn-sub">BASILI TUT</span>
+            <span class="dash-btn-sub">${t('pad.hold')}</span>
           </button>
         </div>
       </div>
@@ -1318,12 +1339,12 @@ export class GamepadManager {
         <div class="action-half">
           <div class="laser-actions-cluster">
             <button class="action-dash-btn laser-btn-fire" id="btn-laser-fire" type="button">
-              <span class="dash-btn-label">🔫 ATEŞ</span>
-              <span class="dash-btn-sub">DOKUN</span>
+              <span class="dash-btn-label">${t('pad.fireGun')}</span>
+              <span class="dash-btn-sub">${t('pad.tap')}</span>
             </button>
             <button class="action-dash-btn laser-btn-dash" id="btn-laser-dash" type="button">
               <span class="dash-btn-label">💨 DASH</span>
-              <span class="dash-btn-sub">DOKUN</span>
+              <span class="dash-btn-sub">${t('pad.tap')}</span>
             </button>
           </div>
         </div>
@@ -1335,7 +1356,7 @@ export class GamepadManager {
     });
 
     const fireBtn = document.getElementById('btn-laser-fire');
-    const fireAction = this.cooledAction(fireBtn, 0.9, '🔫 ATEŞ',
+    const fireAction = this.cooledAction(fireBtn, 0.9, t('pad.fireGun'),
       () => this.network.sendInput({ action: 'TANK_FIRE' }), [25, 40]);
     fireBtn?.addEventListener('touchstart', fireAction, { passive: false });
     fireBtn?.addEventListener('mousedown', fireAction);
@@ -1362,7 +1383,7 @@ export class GamepadManager {
         <div class="action-half">
           <button class="action-dash-btn" id="btn-clone-tackle" type="button" style="background-color: #6A4C93">
             <span class="dash-btn-label">💥 OMUZ AT</span>
-            <span class="dash-btn-sub">DOKUN</span>
+            <span class="dash-btn-sub">${t('pad.tap')}</span>
           </button>
         </div>
       </div>
@@ -1394,7 +1415,7 @@ export class GamepadManager {
         <div class="action-half">
           <button class="action-dash-btn" id="btn-collapse-jump" type="button" style="background-color: #B5831F">
             <span class="dash-btn-label">⤴️ ZIPLA</span>
-            <span class="dash-btn-sub">DOKUN</span>
+            <span class="dash-btn-sub">${t('pad.tap')}</span>
           </button>
         </div>
       </div>
@@ -1422,12 +1443,12 @@ export class GamepadManager {
         </div>
         <div class="action-half" style="display: flex; flex-direction: column; gap: 10px; justify-content: center; height: 100%;">
           <button class="action-dash-btn" id="btn-ninja-strike" type="button" style="background-color: #1A1A1A; flex: 1.2; min-height: 80px;">
-            <span class="dash-btn-label">🗡️ KILIÇ</span>
-            <span class="dash-btn-sub">ATIL</span>
+            <span class="dash-btn-label">${t('pad.blade')}</span>
+            <span class="dash-btn-sub">${t('pad.lunge')}</span>
           </button>
           <button class="action-dash-btn" id="btn-ninja-smoke" type="button" style="background-color: #333333; border-color: #555555; flex: 0.9; min-height: 60px;">
-            <span class="dash-btn-label">💨 SİS BOMBASI</span>
-            <span class="dash-btn-sub">GİZLEN</span>
+            <span class="dash-btn-label">${t('pad.smoke')}</span>
+            <span class="dash-btn-sub">${t('pad.hide')}</span>
           </button>
         </div>
       </div>
@@ -1438,13 +1459,13 @@ export class GamepadManager {
     });
 
     const strikeBtn = document.getElementById('btn-ninja-strike');
-    const strikeAction = this.cooledAction(strikeBtn, 1.3, '🗡️ KILIÇ',
+    const strikeAction = this.cooledAction(strikeBtn, 1.3, t('pad.blade'),
       () => this.network.sendInput({ action: 'DASH' }), [25, 40]);
     strikeBtn?.addEventListener('touchstart', strikeAction, { passive: false });
     strikeBtn?.addEventListener('mousedown', strikeAction);
 
     const smokeBtn = document.getElementById('btn-ninja-smoke');
-    const smokeAction = this.cooledAction(smokeBtn, 5.0, '💨 SİS',
+    const smokeAction = this.cooledAction(smokeBtn, 5.0, t('pad.smokeShort'),
       () => this.network.sendInput({ action: 'NINJA_SMOKE' }), [20, 35]);
     smokeBtn?.addEventListener('touchstart', smokeAction, { passive: false });
     smokeBtn?.addEventListener('mousedown', smokeAction);
@@ -1597,7 +1618,7 @@ export class GamepadManager {
       this.exitStaging();
       this.resetReady();
       this.renderGameController(data.gameMode);
-      showInstallToast(`▶ Oyuna bağlanıldı: ${data.gameMode}`);
+      showInstallToast(t('pad.joinedGame', data.gameMode));
     } else if (phase === 'STAGING' && data.gameMode
         && (!this.stagingOpen || this.gameMode !== 'LOBBY')) {
       this.enterStaging(data.gameMode);
@@ -1637,18 +1658,18 @@ export class GamepadManager {
     if (liveStatus && data.scores) {
       let statusStr = '';
       if (data.gameMode === 'PONG') {
-        statusStr = `RALLİ: ${data.rally || 0} • SKOR: ${data.scores.slice(0, 4).join('-')}`;
+        statusStr = t('pad.rallyLive', data.rally || 0, data.scores.slice(0, 4).join('-'));
         const scoreDisp = this._el('pong-score-display');
         const rallyDisp = this._el('pong-rally-display');
         if (scoreDisp && data.scores) {
           // İsimler varsa kimin skoru olduğu görünür: "AHMET 2 • MEHMET 1"
           const scoreTxt = Array.isArray(data.names)
             ? data.scores.slice(0, 4).map((s, i) => `${data.names[i] || `P${i + 1}`} ${s}`).join(' • ')
-            : `SKOR: ${data.scores.slice(0, 4).join(' - ')}`;
+            : t('pad.scoreJoin', data.scores.slice(0, 4).join(' - '));
           if (scoreDisp.textContent !== scoreTxt) scoreDisp.textContent = scoreTxt;
         }
         if (rallyDisp && data.rally !== undefined) {
-          const rallyTxt = `⚡ RALLİ: ${data.rally}`;
+          const rallyTxt = t('pad.rally', data.rally);
           if (rallyDisp.textContent !== rallyTxt) rallyDisp.textContent = rallyTxt;
         }
         const spinBtn = this._el('btn-pong-spin');
@@ -1661,60 +1682,60 @@ export class GamepadManager {
           const txt = cd > 0 && !isCharged ? `⏳ ${cd}sn` : (isCharged ? `🌀 ${(data.chgT || 0).toFixed(1)}sn` : '🌀 FALSO');
           if (label && label.textContent !== txt) label.textContent = txt;
           if (sub) {
-            const subTxt = isCharged ? 'KURULU!' : (cd > 0 ? 'DOLUYOR' : 'DOKUN');
+            const subTxt = isCharged ? t('pad.charged') : (cd > 0 ? t('pad.filling') : t('pad.tap'));
             if (sub.textContent !== subTxt) sub.textContent = subTxt;
           }
         }
         if (rallyDisp && data.spn) {
-          const spn = '🌀 TOP DÖNÜYOR!';
+          const spn = t('pad.spinning');
           if (rallyDisp.textContent !== spn) rallyDisp.textContent = spn;
         }
       } else if (data.gameMode === 'TANKS') {
         const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
-        statusStr = dead ? `ELENDİN • SKOR: ${data.scores.join('-')}` : `SKOR: ${data.scores.join('-')}`;
+        statusStr = dead ? t('pad.dead', data.scores.join('-')) : t('pad.scoreJoin', data.scores.join('-'));
       } else if (data.gameMode === 'CURVE') {
         const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
-        statusStr = dead ? `ELENDİN • SKOR: ${data.scores.join('-')}` : `SKOR: ${data.scores.join('-')}`;
+        statusStr = dead ? t('pad.dead', data.scores.join('-')) : t('pad.scoreJoin', data.scores.join('-'));
       } else if (data.gameMode === 'BOMB') {
         const timeStr = data.bombTime !== undefined ? `${data.bombTime}s` : '';
         statusStr = data.carrier === this.playerIndex
-          ? `🔥 BOMBA SENDE! (${timeStr})`
+          ? t('pad.bombYou', timeStr)
           : (data.carrier === -1 || data.carrier === null || data.carrier === undefined
-            ? `BOMBA BOŞTA (${timeStr})`
-            : `BOMBA: P${data.carrier + 1} (${timeStr})`);
+            ? t('pad.bombFree', timeStr)
+            : t('pad.bombAt', data.carrier + 1, timeStr));
       } else if (data.gameMode === 'HEIST') {
         const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
         const myCarried = Array.isArray(data.carried) ? (data.carried[this.playerIndex] ?? 0) : 0;
         const myVault = Array.isArray(data.vault) ? (data.vault[this.playerIndex] ?? 0) : 0;
-        statusStr = `SÜRE: ${timeStr} • TAŞINAN:${myCarried} • KASA:${myVault}`;
+        statusStr = t('pad.heistStatus', timeStr, myCarried, myVault);
       } else if (data.gameMode === 'DUEL') {
-        statusStr = `SKOR: ${data.scores.join('-')}`;
+        statusStr = t('pad.scoreJoin', data.scores.join('-'));
       } else if (data.gameMode === 'CROWN') {
         const isKing = data.king === this.playerIndex;
         const myTime = data.crownTimes ? (data.crownTimes[this.playerIndex] || 0).toFixed(1) : '0.0';
         statusStr = isKing
-          ? `👑 TAÇ SENDE! (${myTime}s)`
-          : (data.king !== null && data.king !== undefined ? `KRAL: P${data.king + 1} (${myTime}s)` : `TAÇ BOŞTA! (${myTime}s)`);
+          ? t('pad.kingYou', myTime)
+          : (data.king !== null && data.king !== undefined ? t('pad.kingAt', data.king + 1, myTime) : t('pad.crownFree', myTime));
       } else if (data.gameMode === 'ZONE') {
         const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
         const myPct = Array.isArray(data.pct) ? (data.pct[this.playerIndex] ?? 0) : 0;
         const leadPct = Array.isArray(data.pct) && data.leader >= 0 ? (data.pct[data.leader] ?? 0) : 0;
         const leadName = Array.isArray(data.names) && data.leader >= 0 ? (data.names[data.leader] || `P${data.leader + 1}`) : '';
         statusStr = data.leader === this.playerIndex
-          ? `👑 ÖNDESİN! %${myPct} • ⏱ ${timeStr}`
-          : `⏱ ${timeStr} • SEN %${myPct} • 👑 ${leadName} %${leadPct}`;
+          ? t('pad.zoneLead', myPct, timeStr)
+          : t('pad.zoneChase', timeStr, myPct, leadName, leadPct);
       } else if (data.gameMode === 'SNAKE') {
         const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
         const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
         const nrg = Array.isArray(data.nrg) ? (data.nrg[this.playerIndex] ?? 100) : 100;
         const locked = Array.isArray(data.lock) ? !!data.lock[this.playerIndex] : false;
         statusStr = dead
-          ? `ELENDİN • SKOR: ${data.scores.join('-')}`
-          : `SKOR: ${data.scores.join('-')} • ⚡%${nrg}${locked ? ' KİLİT' : ''} • 🐍 ${aliveCount} CANLI`;
+          ? t('pad.dead', data.scores.join('-'))
+          : `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.nrg', nrg)}${locked ? ` ${t('pad.locked')}` : ''} • ${t('pad.snakeAlive', aliveCount)}`;
       } else if (data.gameMode === 'LASER') {
         const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
         const myHp = Array.isArray(data.hp) ? (data.hp[this.playerIndex] ?? 0) : 0;
-        statusStr = `SKOR: ${data.scores.join('-')} • ❤${myHp} • ⏱ ${timeStr}`;
+        statusStr = `${t('pad.scoreJoin', data.scores.join('-'))} • ❤${myHp} • ⏱ ${timeStr}`;
         // Host bekleme yüzdesi: dolmadan buton sönük görünür
         const dashBtn = this._laserDashBtn;
         const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
@@ -1725,8 +1746,8 @@ export class GamepadManager {
         const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
         const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
         statusStr = dead
-          ? `ELENDİN • SKOR: ${data.scores.join('-')}`
-          : `SKOR: ${data.scores.join('-')} • 👥 ${aliveCount} CANLI`;
+          ? t('pad.dead', data.scores.join('-'))
+          : `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.cloneAlive', aliveCount)}`;
         // Host bekleme yüzdesi: dolmadan buton sönük görünür
         const cdBtn = this._cloneCdBtn;
         const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
@@ -1737,8 +1758,8 @@ export class GamepadManager {
         const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
         const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
         statusStr = dead
-          ? `ELENDİN • SKOR: ${data.scores.join('-')}`
-          : `SKOR: ${data.scores.join('-')} • 🕳️ ${aliveCount} CANLI`;
+          ? t('pad.dead', data.scores.join('-'))
+          : `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.collapseAlive', aliveCount)}`;
         const jumpBtn = this._el('btn-collapse-jump');
         const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
         if (jumpBtn) {
@@ -1748,8 +1769,8 @@ export class GamepadManager {
         const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
         const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
         statusStr = dead
-          ? `ELENDİN • SKOR: ${data.scores.join('-')}`
-          : `SKOR: ${data.scores.join('-')} • 🥷 ${aliveCount} CANLI`;
+          ? t('pad.dead', data.scores.join('-'))
+          : `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.ninjaAlive', aliveCount)}`;
         const strikeBtn = this._el('btn-ninja-strike');
         const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
         if (strikeBtn) {
@@ -1770,8 +1791,8 @@ export class GamepadManager {
       this.overlay.classList.toggle('bomb-carrier-alert', isCarrier);
       if (tacticalRoleEl) {
         tacticalRoleEl.textContent = isCarrier
-          ? '💣 BOMBA SENDE! RAKİPLERE DOKUN VE AKTAR!'
-          : '🏃 GÜVENLİSİN! BOMBALI OYUNCUDAN UZAK DUR!';
+          ? t('pad.bombCarry')
+          : t('pad.bombSafe');
         tacticalRoleEl.style.color = isCarrier ? '#ff6b6b' : '#25d366';
       }
     } else {
@@ -1789,10 +1810,10 @@ export class GamepadManager {
       this.overlay.classList.toggle('gem-carrier-alert', isLead);
       if (tacticalRoleEl) {
         tacticalRoleEl.textContent = isLead
-          ? '💰 EN ÇOK ALTIN SENDE! KASAYA KAÇ!'
+          ? t('pad.heistLead')
           : lead >= 0 && max > 0
-            ? `💰 EN ÇOK ALTIN P${lead + 1}'DE! OMUZ AT!`
-            : '💰 ALTIN TOPLA VE KASAYA TAŞI!';
+            ? t('pad.heistChase', lead + 1)
+            : t('pad.heistGrab');
         tacticalRoleEl.style.color = isLead ? '#ffd700' : '#ffffff';
       }
     } else {
@@ -1805,8 +1826,8 @@ export class GamepadManager {
       this.overlay.classList.toggle('crown-king-alert', isKing);
       if (tacticalRoleEl) {
         tacticalRoleEl.textContent = isKing
-          ? '👑 KRALSIN! TACI HERKESTEN KORU!'
-          : '⚔️ KRALA OMUZ AT VE TACI ÇAL!';
+          ? t('pad.kingKeep')
+          : t('pad.kingSteal');
         tacticalRoleEl.style.color = isKing ? '#ffd700' : '#ffffff';
       }
     } else {
@@ -1822,10 +1843,10 @@ export class GamepadManager {
         const duelBtn = document.getElementById('btn-duel-trigger');
         const phase = data.duelState;
         if (phase === 'DRAW_SIGNAL') {
-          duelStateEl.textContent = '🔥 ÇEK!';
-          if (duelSub) duelSub.textContent = 'ŞİMDİ DOKUN!';
+          duelStateEl.textContent = t('pad.duelGo');
+          if (duelSub) duelSub.textContent = t('pad.duelGoSub');
           if (tacticalRoleEl) {
-            tacticalRoleEl.textContent = '🔥 ÇEK! ŞİMDİ DOKUN!';
+            tacticalRoleEl.textContent = t('pad.duelGoFull');
             tacticalRoleEl.style.color = '#25d366';
           }
           duelBtn?.classList.add('signal');
@@ -1837,19 +1858,19 @@ export class GamepadManager {
         } else if (phase === 'ROUND_OVER' || phase === 'MATCH_OVER') {
           const w = data.winner;
           duelStateEl.textContent =
-            w === null || w === undefined ? '🤝 BERABERE' : (w === this.playerIndex ? '🏆 KAZANDIN!' : `P${w + 1} ALDI`);
-          if (duelSub) duelSub.textContent = phase === 'MATCH_OVER' ? 'MAÇ BİTTİ' : 'SONRAKİ RAUNT...';
+            w === null || w === undefined ? t('pad.duelDraw') : (w === this.playerIndex ? t('pad.duelWon') : t('pad.duelTakes', w + 1));
+          if (duelSub) duelSub.textContent = phase === 'MATCH_OVER' ? t('pad.duelMatchOver') : t('pad.duelNext');
           if (tacticalRoleEl) {
-            tacticalRoleEl.textContent = w === this.playerIndex ? '🏆 RAUNDU KAZANDIN!' : '⚔️ HAZIRLAN...';
+            tacticalRoleEl.textContent = w === this.playerIndex ? t('pad.duelWon') : t('pad.duelGetReady');
             tacticalRoleEl.style.color = '#ffd700';
           }
           duelBtn?.classList.remove('signal');
           if (duelBtn) delete duelBtn.dataset.signaled;
         } else {
-          duelStateEl.textContent = '✋ BEKLE...';
-          if (duelSub) duelSub.textContent = 'SİNYALİ GÖRÜNCE DOKUN!';
+          duelStateEl.textContent = t('pad.duelWait');
+          if (duelSub) duelSub.textContent = t('pad.duelWaitSub');
           if (tacticalRoleEl) {
-            tacticalRoleEl.textContent = '✋ BEKLE... SİNYALİ GÖRÜNCE DOKUN!';
+            tacticalRoleEl.textContent = t('pad.duelWaitFull');
             tacticalRoleEl.style.color = '#ffd700';
           }
           duelBtn?.classList.remove('signal');
@@ -1883,18 +1904,18 @@ export class GamepadManager {
       if (data.duelState === 'DRAW_SIGNAL') {
         this.overlay.classList.add('duel-flash-alert');
         window.setTimeout(() => this.overlay.classList.remove('duel-flash-alert'), 300);
-        if (stateEl) stateEl.textContent = '💥 ATEŞ! DOKUN!';
-        if (subEl) subEl.textContent = 'HEMEN BAS!';
+        if (stateEl) stateEl.textContent = t('pad.duelFire');
+        if (subEl) subEl.textContent = t('pad.duelFireSub');
         this.vibrate([30, 40, 60]);
       } else if (data.duelState === 'STANDOFF_COUNTDOWN' || data.duelState === 'TENSION') {
-        if (stateEl) stateEl.textContent = 'SİNYAL BEKLENİYOR...';
-        if (subEl) subEl.textContent = 'ERKEN BASMA! (-1 CEZA)';
+        if (stateEl) stateEl.textContent = t('pad.duelNoSignal');
+        if (subEl) subEl.textContent = t('pad.duelNoEarly');
       } else if (data.duelState === 'ROUND_OVER') {
-        if (stateEl) stateEl.textContent = '🏁 TUR BİTTİ';
+        if (stateEl) stateEl.textContent = t('pad.duelOver');
         const winnerName = data.winner !== null && data.winner !== undefined
           ? (Array.isArray(data.names) && data.names[data.winner] ? data.names[data.winner] : `P${data.winner + 1}`)
           : null;
-        if (subEl) subEl.textContent = winnerName ? `KAZANAN: ${winnerName}` : 'BERABERE';
+        if (subEl) subEl.textContent = winnerName ? t('pad.duelWinner', winnerName) : t('pad.duelDrawSub');
       }
     }
   }
