@@ -2,7 +2,7 @@
 // Cihaz-başı TEK profil: sekmeler yok, kullanıcı kendini bir kere belirler.
 // Hem Ana Menüden, hem TV lobisinden, hem telefon kumandasından açılır.
 import {
-  AVATAR_PALETTES,
+  getActivePalettes,
   AVATAR_EXPRESSIONS,
   AVATAR_ACCESSORIES,
   AVATAR_PATTERNS,
@@ -188,7 +188,7 @@ function renderSelectionGrids() {
   // 1. Renkler
   const palGrid = document.getElementById('grid-palettes');
   if (palGrid) {
-    palGrid.innerHTML = AVATAR_PALETTES.map((p) => {
+    palGrid.innerHTML = getActivePalettes().map((p) => {
       const isSelected = currentCustom.color.toLowerCase() === p.hex.toLowerCase();
       return `
         <button class="color-swatch-btn ${isSelected ? 'selected' : ''}" data-hex="${p.hex}" style="background-color: ${p.hex}" title="${p.name}" type="button">

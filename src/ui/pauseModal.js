@@ -1,5 +1,6 @@
 // In-Game Pause Modal & Seat Switcher Manager
 import { hostPlayerSlots, isBotEkleEnabled, setBotEkleEnabled } from '../core/slotManager.js';
+import { isColorblindEnabled, setColorblindEnabled } from '../core/customizationManager.js';
 import { showInstallToast } from './toast.js';
 import { toggleAudio } from '../audio.js';
 
@@ -10,6 +11,7 @@ const btnResetMatch = document.getElementById('btn-reset-match');
 const btnTvLobby = document.getElementById('btn-tv-lobby');
 const btnToggleSound = document.getElementById('btn-toggle-sound');
 const btnToggleBots = document.getElementById('btn-toggle-bots');
+const btnToggleColorblind = document.getElementById('btn-toggle-colorblind');
 const btnExitToMenu = document.getElementById('btn-exit-to-menu');
 const btnPauseRotateSeats = document.getElementById('btn-pause-rotate-seats');
 
@@ -104,6 +106,9 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
   if (btnToggleBots) {
     btnToggleBots.textContent = isBotEkleEnabled() ? '🤖 BOT EKLEME: AÇIK' : '🤖 BOT EKLEME: KAPALI';
   }
+  if (btnToggleColorblind) {
+    btnToggleColorblind.textContent = isColorblindEnabled() ? '👁 RENK KÖRLÜĞÜ: AÇIK' : '👁 RENK KÖRLÜĞÜ: KAPALI';
+  }
   pauseSelectedSlot = null;
   renderPauseSeats(onSwapCallback);
 }
@@ -147,6 +152,13 @@ export function initPauseModal({
     if (typeof onBotsToggled === 'function') {
       onBotsToggled(next);
     }
+  });
+
+  btnToggleColorblind?.addEventListener('click', () => {
+    const next = !isColorblindEnabled();
+    setColorblindEnabled(next);
+    btnToggleColorblind.textContent = next ? '👁 RENK KÖRLÜĞÜ: AÇIK' : '👁 RENK KÖRLÜĞÜ: KAPALI';
+    showInstallToast(next ? '👁 Renk körü güvenli palet AÇIK (Okabe-Ito).' : '👁 Klasik palete dönüldü.');
   });
 
   // Çıkış çift-bas onay (host odası kapanacağı için; misafir tek basışta çıkar)

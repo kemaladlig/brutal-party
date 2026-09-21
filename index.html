@@ -339,6 +339,9 @@
             <button id="btn-toggle-bots" class="pause-btn" type="button">
               🤖 BOT EKLEME: KAPALI
             </button>
+            <button id="btn-toggle-colorblind" class="pause-btn" type="button">
+              👁 RENK KÖRLÜĞÜ: KAPALI
+            </button>
             <button id="btn-exit-to-menu" class="pause-btn danger" type="button">
               ⌂ ANA MENÜYE DÖN
             </button>
@@ -691,6 +694,9 @@
 
     <!-- Global toast: body seviyesinde (gizli ebeveynde hapsolmasın) -->
     <div id="install-toast" class="install-toast" role="status" aria-live="polite"></div>
+
+    <!-- Kalıcı bağlantı durum bandı: offline/reconnecting süresince görünür -->
+    <div id="connection-banner" class="connection-banner" role="alert" aria-live="assertive"></div>
 
     <script type="module" src="/src/main.js"></script>
   </body>

@@ -475,6 +475,47 @@ body {
   transform: translateY(0);
 }
 
+/* Kalıcı bağlantı durum bandı: ekran üstü tam-genişlik şerit, toast'tan ayrı.
+   offline/reconnecting boyunca görünür kalır; online'da 2sn flash yapar. */
+.connection-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: max(8px, env(safe-area-inset-top, 0px)) 12px 8px;
+  border-bottom: 3px solid #1a1a1a;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-100%);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 400;
+}
+
+.connection-banner.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.connection-banner[data-state='offline'] {
+  background-color: #d84727;
+  color: #ffffff;
+}
+
+.connection-banner[data-state='reconnecting'] {
+  background-color: #d99b26;
+  color: #1a1a1a;
+}
+
+.connection-banner[data-state='online'] {
+  background-color: #2f6a4f;
+  color: #ffffff;
+}
+
 .menu-container {
   width: 100%;
   max-width: 1140px;

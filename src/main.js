@@ -22,7 +22,7 @@ import {
   ensureStoredNick,
 } from './net.js';
 
-import { initToastAndInstall, showInstallToast } from './ui/toast.js';
+import { initToastAndInstall, showInstallToast, showConnectionBanner, hideConnectionBanner } from './ui/toast.js';
 import { UI_COLORS, uiFont } from './ui/tokens.js';
 import { openCustomizeModal, initMenuAvatarCard } from './ui/customizeModal.js';
 import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, isBotEkleEnabled, getColorClashIndices } from './core/slotManager.js';
@@ -427,6 +427,23 @@ async function openHostLobby(gameMode = 'PONG') {
 }
 
 // Controller Join Room Execution
+// Bağlantı vs uygulama hatası yönlendirici: reconnect/kopuş mesajları kalıcı
+// banda, diğer hatalar (oda bulunamadı, kod çakışması vb.) kaybolan toast'a.
+// Kopuş sonrası ilk oyun durumu geldiğinde online flash'i için bayrak tutulur.
+let connectionWasDown = false;
+function routeConnectionMessage(err) {
+  const msg = String(err || '');
+  if (/yeniden bağlanılıyor/i.test(msg)) {
+    connectionWasDown = true;
+    showConnectionBanner('reconnecting', msg);
+  } else if (/BAĞLANTI KOPTU/i.test(msg)) {
+    connectionWasDown = true;
+    showConnectionBanner('offline', msg);
+  } else {
+    showInstallToast(`❌ ${msg}`);
+  }
+}
+
 async function executeJoin(rawCode, rawName) {
   tryFullscreen();
   const code = (rawCode || '').trim().toUpperCase();
@@ -451,6 +468,7 @@ async function executeJoin(rawCode, rawName) {
       onJoinedSuccess: (msg) => {
         menuOverlay?.classList.add('hidden');
         gamepadManager.init(msg, 'LOBBY');
+        hideConnectionBanner();
         showInstallToast(`✓ ${msg.roomCode} odasına bağlandı!`);
       },
       onGameModeChanged: (newMode) => {
@@ -491,13 +509,17 @@ async function executeJoin(rawCode, rawName) {
         gamepadManager.updateSlots(slots);
       },
       onGameState: (data) => {
+        if (connectionWasDown) {
+          connectionWasDown = false;
+          showConnectionBanner('online', '✓ BAĞLANTI KURULDU');
+        }
         gamepadManager.handleStateSync(data);
       },
       onError: (err) => {
-        showInstallToast(`❌ ${err}`);
+        routeConnectionMessage(err);
       },
       onHostDisconnected: (msg) => {
-        showInstallToast(msg);
+        showConnectionBanner('offline', String(msg || '📡 HOST BAĞLANTISI KOPTU'));
         gamepadManager.hide();
         menuOverlay?.classList.remove('hidden');
       },
@@ -870,6 +892,15 @@ function setSeatTapHook() {
 // Initialise UI Submodules
 ensureStoredNick();
 initToastAndInstall();
+// Tarayıcı çevrimdışı/çevrimiçi geçişleri (uçak modu, Wi-Fi kopuşu): kumanda
+// tarafında anlık bant bildirimi. Relay mesajları aynı banda yazar.
+window.addEventListener('offline', () => {
+  connectionWasDown = true;
+  showConnectionBanner('offline', '📡 İNTERNET BAĞLANTISI KESİLDİ');
+});
+window.addEventListener('online', () => {
+  showConnectionBanner('online', '✓ İNTERNET GERİ GELDİ');
+});
 initJoinModal({ onExecuteJoin: executeJoin });
 initHostLobby({
   getActiveNet: () => activeNet(),

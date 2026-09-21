@@ -2,7 +2,7 @@
 import QRCode from 'qrcode';
 import { PUBLIC_URL, isPublicOrigin } from '../net.js';
 import { showInstallToast } from './toast.js';
-import { AVATAR_PALETTES } from '../core/customizationManager.js';
+import { getActivePalettes } from '../core/customizationManager.js';
 
 const tvHostModal = document.getElementById('tv-host-modal');
 const hostRoomCode = document.getElementById('host-room-code');
@@ -128,7 +128,7 @@ export function initHostLobby({
     pop.innerHTML = `
       <div class="slot-palette-title">P${idx + 1} RENGİ</div>
       <div class="slot-palette-grid">
-        ${AVATAR_PALETTES.map((p) => `
+        ${getActivePalettes().map((p) => `
           <button class="slot-palette-swatch" data-hex="${p.hex}" style="background-color: ${p.hex}" title="${p.name}" type="button"></button>
         `).join('')}
       </div>

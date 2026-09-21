@@ -18,6 +18,39 @@ export const AVATAR_PALETTES = [
   { id: 'cyan', name: 'BUZ MAVİSİ', hex: '#0984E3', border: '#1A1A1A' },
 ];
 
+// ── Renk körü güvenli palet (Okabe-Ito, protanopi/deuteranopi dostu) ──
+// Kırmızı-yeşil çifti yoktur; ayırt edicilik renk + isim etiketiyle sağlanır.
+export const COLORBLIND_PALETTES = [
+  { id: 'cb-orange', name: 'TURUNCU', hex: '#E69F00', border: '#1A1A1A' },
+  { id: 'cb-sky', name: 'GÖK MAVİSİ', hex: '#56B4E9', border: '#1A1A1A' },
+  { id: 'cb-teal', name: 'CAMGÖBEĞİ', hex: '#009E73', border: '#1A1A1A' },
+  { id: 'cb-yellow', name: 'AÇIK SARI', hex: '#F0E442', border: '#1A1A1A' },
+  { id: 'cb-blue', name: 'KOYU MAVİ', hex: '#0072B2', border: '#1A1A1A' },
+  { id: 'cb-vermillion', name: 'KIZIL', hex: '#D55E00', border: '#1A1A1A' },
+  { id: 'cb-purple', name: 'LEYLAK', hex: '#CC79A7', border: '#1A1A1A' },
+  { id: 'cb-grey', name: 'GRİ', hex: '#999999', border: '#1A1A1A' },
+  { id: 'cb-black', name: 'SİYAH', hex: '#222222', border: '#F4F4F0' },
+  { id: 'cb-white', name: 'BEYAZ', hex: '#F4F4F0', border: '#1A1A1A' },
+];
+
+const COLORBLIND_KEY = 'brutalparty.colorblind';
+
+// Renk körü modu açık mı? (safeStorage: gizli modda oturum içi bellekte yaşar)
+export function isColorblindEnabled() {
+  return safeGet(COLORBLIND_KEY) === '1';
+}
+
+export function setColorblindEnabled(on) {
+  safeSet(COLORBLIND_KEY, on ? '1' : '0');
+}
+
+// Aktif palet: renk körü modu açıksa Okabe-Ito, değilse klasik.
+// Izgaralar + rastgele atamalar buradan beslenir; kayıtlı renkler her iki
+// palet birleşiminde de geçerli sayılır (mod değişimi profili bozmaz).
+export function getActivePalettes() {
+  return isColorblindEnabled() ? COLORBLIND_PALETTES : AVATAR_PALETTES;
+}
+
 export const AVATAR_EXPRESSIONS = [
   { id: 'FOCUS', name: 'Odaklı', icon: '👀', desc: 'Klasik keskin bakışlar' },
   { id: 'SHADES', name: 'Gözlük', icon: '🕶️', desc: 'Neo-brutalist güneş gözlüğü' },
@@ -47,7 +80,11 @@ export const AVATAR_PATTERNS = [
 ];
 
 // ── Whitelist kümeleri (relay/sunucu validasyonu + sanitize tek kaynaktan) ──
-const PALETTE_HEX = new Set(AVATAR_PALETTES.map((p) => p.hex.toUpperCase()));
+// Her iki paletin birleşimi: mod değişiminde eski kayıtlı renk geçersiz sayılmaz.
+const PALETTE_HEX = new Set([
+  ...AVATAR_PALETTES.map((p) => p.hex.toUpperCase()),
+  ...COLORBLIND_PALETTES.map((p) => p.hex.toUpperCase()),
+]);
 const EXPRESSION_IDS = new Set(AVATAR_EXPRESSIONS.map((e) => e.id));
 const ACCESSORY_IDS = new Set(AVATAR_ACCESSORIES.map((a) => a.id));
 const PATTERN_IDS = new Set(AVATAR_PATTERNS.map((p) => p.id));
@@ -73,8 +110,9 @@ function randomFace() {
 
 export function randomAvatarColor(excludeHexes = []) {
   const taken = new Set((excludeHexes || []).map((h) => String(h || '').toUpperCase()));
-  const free = AVATAR_PALETTES.filter((p) => !taken.has(p.hex.toUpperCase()));
-  const pool = free.length > 0 ? free : AVATAR_PALETTES;
+  const palettes = getActivePalettes();
+  const free = palettes.filter((p) => !taken.has(p.hex.toUpperCase()));
+  const pool = free.length > 0 ? free : palettes;
   return pool[Math.floor(Math.random() * pool.length)].hex;
 }
 
@@ -129,8 +167,12 @@ export function resetAvatarProfile() {
 export function sanitizeAvatar(input, opts = {}) {
   const src = (input && typeof input === 'object') ? input : {};
   const rawColor = String(src.color || '').toUpperCase();
-  const color = PALETTE_HEX.has(rawColor)
-    ? AVATAR_PALETTES.find((p) => p.hex.toUpperCase() === rawColor).hex
+  // Kanonik hex: önce aktif palette, yoksa diğer palette ara (mod değişimi
+  // kayıtlı rengi bozmaz; iki palet de whitelist'tedir).
+  const known = [...AVATAR_PALETTES, ...COLORBLIND_PALETTES]
+    .find((p) => p.hex.toUpperCase() === rawColor);
+  const color = known
+    ? known.hex
     : (opts.keepColor && PALETTE_HEX.has(String(opts.fallbackColor || '').toUpperCase())
       ? opts.fallbackColor
       : randomAvatarColor());
@@ -208,8 +250,9 @@ export function nextFreeLocalColor(slotIndex) {
   const taken = new Set(
     localSeatCache.filter((c, i) => c && i !== slotIndex).map((c) => c.toUpperCase())
   );
-  const free = AVATAR_PALETTES.find((p) => !taken.has(p.hex.toUpperCase()));
-  return (free || AVATAR_PALETTES[slotIndex % AVATAR_PALETTES.length]).hex;
+  const palettes = getActivePalettes();
+  const free = palettes.find((p) => !taken.has(p.hex.toUpperCase()));
+  return (free || palettes[slotIndex % palettes.length]).hex;
 }
 
 // Kayıt defterine LOCAL avatarını yaz (yüz = cihaz profili, renk = koltuk rengi).
@@ -238,9 +281,10 @@ export function cycleLocalSeatColor(slotIndex) {
     localSeatCache.filter((c, i) => c && i !== slotIndex).map((c) => c.toUpperCase())
   );
   const current = (localSeatCache[slotIndex] || '').toUpperCase();
-  let startIdx = AVATAR_PALETTES.findIndex((p) => p.hex.toUpperCase() === current);
-  for (let step = 1; step <= AVATAR_PALETTES.length; step++) {
-    const cand = AVATAR_PALETTES[(startIdx + step) % AVATAR_PALETTES.length];
+  const palettes = getActivePalettes();
+  let startIdx = palettes.findIndex((p) => p.hex.toUpperCase() === current);
+  for (let step = 1; step <= palettes.length; step++) {
+    const cand = palettes[(startIdx + step) % palettes.length];
     if (!taken.has(cand.hex.toUpperCase())) {
       setLocalSeatColor(slotIndex, cand.hex);
       applyLocalSeatToRegistry(slotIndex, cand.hex);
