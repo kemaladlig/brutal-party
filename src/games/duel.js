@@ -986,12 +986,8 @@ export class DuelGame extends BaseMiniGame {
       ctx.restore();
     }
 
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = '#3A2E26';
-    ctx.strokeRect(left, top, width, height);
-
-    // Subtle Crosshairs
-    ctx.lineWidth = 2;
+    // Subtle Crosshairs & Ground Division Grid
+    ctx.lineWidth = 1.5;
     ctx.strokeStyle = '#2A2420';
     ctx.beginPath();
     ctx.moveTo(left, top);
@@ -1000,12 +996,40 @@ export class DuelGame extends BaseMiniGame {
     ctx.lineTo(left, top + height);
     ctx.stroke();
 
-    // Center Standoff Ring
+    // 4 Köşe Takviye Braketleri (Vahşi Batı Dövme Demir L-plates)
+    const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
+    ctx.strokeStyle = '#D99B26';
+    ctx.lineWidth = 2.5;
+    const cornerPlates = [
+      [[left, top + bLen], [left, top], [left + bLen, top]],
+      [[left + width - bLen, top], [left + width, top], [left + width, top + bLen]],
+      [[left, top + height - bLen], [left, top + height], [left + bLen, top + height]],
+      [[left + width - bLen, top + height], [left + width, top + height], [left + width, top + height - bLen]],
+    ];
+    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
+      ctx.stroke();
+    }
+
+    // Center Standoff Ring (Halka + Taktiksel Çentikler)
+    const ringR = size * 0.28;
     ctx.beginPath();
-    ctx.arc(cx, cy, size * 0.28, 0, Math.PI * 2);
+    ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#4A3B30';
     ctx.stroke();
+
+    // Dış Sert Gölge & Ağır Döküm Çerçeve
+    ctx.fillStyle = '#0B0B0A';
+    ctx.fillRect(left + width, top + 6, 6, height);
+    ctx.fillRect(left + 6, top + height, width, 6);
+
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#3A2E26';
+    ctx.strokeRect(left, top, width, height);
 
     if (this.state !== 'LOBBY') {
       // Scoreboard at Top Center

@@ -28,6 +28,10 @@ export function updatePongBotAI(game, paddle, dt) {
 
   let desiredCoord = (paddle.minCoord + paddle.maxCoord) / 2;
 
+  if (!Number.isFinite(desiredCoord)) {
+    desiredCoord = (paddle.minCoord + paddle.maxCoord) / 2;
+  }
+
   if (paddle.isGodBot) {
     // ⚡ GOD MODE BOT: matador vuruşu + gölgeleme + derin tahmin
     // 🌀 Gerideyken nadir falso kurma: top başkasına giderken açar
@@ -56,6 +60,10 @@ export function updatePongBotAI(game, paddle, dt) {
       desiredCoord = isHorizontal ? ball.x : ball.y;
     }
 
+    if (!Number.isFinite(desiredCoord)) {
+      desiredCoord = (paddle.minCoord + paddle.maxCoord) / 2;
+    }
+
     // God hızı: arena + ralli ölçekli, tavan kapaklı (ışınlanma yok)
     const arenaRef = Math.min(game.arena.width || 400, game.arena.height || 400);
     const godSpeed = Math.min(
@@ -63,8 +71,9 @@ export function updatePongBotAI(game, paddle, dt) {
       arenaRef * 2.8 + (game.ball ? game.ball.rallyCount : 0) * arenaRef * 0.05
     );
     const maxMove = godSpeed * dt;
-    const diff = desiredCoord - paddle.coord;
-    paddle.coord += Math.sign(diff) * Math.min(Math.abs(diff), maxMove);
+    const curCoord = Number.isFinite(paddle.coord) ? paddle.coord : (paddle.minCoord + paddle.maxCoord) / 2;
+    const diff = desiredCoord - curCoord;
+    paddle.coord = curCoord + Math.sign(diff) * Math.min(Math.abs(diff), maxMove);
     paddle.targetCoord = Math.max(paddle.minCoord, Math.min(paddle.maxCoord, paddle.coord));
 
   } else {
@@ -83,16 +92,27 @@ export function updatePongBotAI(game, paddle, dt) {
       desiredCoord = (paddle.minCoord + paddle.maxCoord) / 2;
     }
 
+    if (!Number.isFinite(desiredCoord)) {
+      desiredCoord = (paddle.minCoord + paddle.maxCoord) / 2;
+    }
+
     // Normal Bot moves at human-relative speed
     const arenaRef = Math.min(game.arena.width || 400, game.arena.height || 400);
     const maxMove = arenaRef * 0.85 * dt;
-    const diff = desiredCoord - paddle.coord;
-    paddle.coord += Math.sign(diff) * Math.min(Math.abs(diff), maxMove);
+    const curCoord = Number.isFinite(paddle.coord) ? paddle.coord : (paddle.minCoord + paddle.maxCoord) / 2;
+    const diff = desiredCoord - curCoord;
+    paddle.coord = curCoord + Math.sign(diff) * Math.min(Math.abs(diff), maxMove);
     paddle.targetCoord = Math.max(paddle.minCoord, Math.min(paddle.maxCoord, paddle.coord));
   }
 }
 
 export function predictPongLanding(paddle, ball, arena) {
+  const fallback = (paddle.minCoord + paddle.maxCoord) / 2;
+  if (!ball || !Number.isFinite(ball.x) || !Number.isFinite(ball.y) ||
+      !Number.isFinite(ball.vx) || !Number.isFinite(ball.vy)) {
+    return fallback;
+  }
+
   // 🔮 GOD-TIER GEOMETRIC PREDICTION: ~6.6 sn'lik sekme simülasyonu
   let simX = ball.x;
   let simY = ball.y;
@@ -119,8 +139,8 @@ export function predictPongLanding(paddle, ball, arena) {
       }
 
       // Check arrival at horizontal paddle line
-      if (paddle.side === 'bottom' && simY >= targetPerp) return simX;
-      if (paddle.side === 'top' && simY <= targetPerp) return simX;
+      if (paddle.side === 'bottom' && simY >= targetPerp) return Number.isFinite(simX) ? simX : fallback;
+      if (paddle.side === 'top' && simY <= targetPerp) return Number.isFinite(simX) ? simX : fallback;
     } else {
       if (simY <= arena.top + ball.radius) {
         simVy = Math.abs(simVy);
@@ -130,10 +150,11 @@ export function predictPongLanding(paddle, ball, arena) {
         simY = arena.bottom - ball.radius;
       }
 
-      if (paddle.side === 'left' && simX <= targetPerp) return simY;
-      if (paddle.side === 'right' && simX >= targetPerp) return simY;
+      if (paddle.side === 'left' && simX <= targetPerp) return Number.isFinite(simY) ? simY : fallback;
+      if (paddle.side === 'right' && simX >= targetPerp) return Number.isFinite(simY) ? simY : fallback;
     }
   }
 
-  return isHorizontal ? simX : simY;
+  const res = isHorizontal ? simX : simY;
+  return Number.isFinite(res) ? res : fallback;
 }

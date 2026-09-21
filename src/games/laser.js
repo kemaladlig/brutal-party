@@ -989,27 +989,76 @@ export class LaserGame extends BaseMiniGame {
       renderArenaWatermarkTimer(ctx, {
         arena: this.arena,
         text: `${remain}s`,
-        subText: `HEDEF: ${LASER_TUNING.TARGET_KILLS} KILL`,
+        subText: '',
         urgent: remain <= 10,
-        alpha: remain <= 10 ? 0.22 : 0.14,
-        ringProgress: 1.0 - (remain / 90),
+        alpha: remain <= 10 ? 0.70 : 0.46,
+        ringProgress: Math.max(0, remain / 90),
       });
 
-      renderTopPill(ctx, {
-        arena: this.arena,
-        text: `⏱ ${remain}s • 🎯 ${LASER_TUNING.TARGET_KILLS} KILL`,
-        urgent: remain <= 10,
-      });
       renderCornerScores(ctx, {
         arena: this.arena,
-        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null),
+        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}` } : null),
         entities: this.players.filter((p) => p.isJoined && p.isAlive),
       });
     }
 
-    ctx.fillStyle = '#1A1A1A';
+    // Floor Markings Grid & Tactile Corner Brackets
+    ctx.strokeStyle = '#E8E2D8';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(left + width * 0.12, top + height * 0.12, width * 0.76, height * 0.76);
+
+    const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
+    ctx.strokeStyle = '#2B2B28';
+    ctx.lineWidth = 3;
+    const cornerPlates = [
+      [[left, top + bLen], [left, top], [left + bLen, top]],
+      [[left + width - bLen, top], [left + width, top], [left + width, top + bLen]],
+      [[left, top + height - bLen], [left, top + height], [left + bLen, top + height]],
+      [[left + width - bLen, top + height], [left + width, top + height], [left + width, top + height - bLen]],
+    ];
+    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
+      ctx.stroke();
+    }
+
+    // Sabit Döküm Duvar ve Barikat Engelleri (Tactile Cast Obstacles)
     for (const obs of this.obstacles) {
+      // 1. Zemin Sert Gölge
+      ctx.fillStyle = '#1A1A1A';
+      ctx.fillRect(obs.x + 4, obs.y + 4, obs.w, obs.h);
+
+      // 2. Barikat Gövdesi
+      ctx.fillStyle = '#262624';
       ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+
+      // 3. Kalın Dış Çerçeve
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+
+      // 4. Üst/Sol Metalik Pah Çizgisi
+      ctx.strokeStyle = '#5A5A52';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(obs.x + 2, obs.y + obs.h - 2);
+      ctx.lineTo(obs.x + 2, obs.y + 2);
+      ctx.lineTo(obs.x + obs.w - 2, obs.y + 2);
+      ctx.stroke();
+
+      // 5. İç Taktik Barikat Çaprazı (Yeterli boyut varsa)
+      if (obs.w >= 28 && obs.h >= 28) {
+        ctx.strokeStyle = '#3A3A34';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(obs.x + 6, obs.y + 6);
+        ctx.lineTo(obs.x + obs.w - 6, obs.y + obs.h - 6);
+        ctx.moveTo(obs.x + obs.w - 6, obs.y + 6);
+        ctx.lineTo(obs.x + 6, obs.y + obs.h - 6);
+        ctx.stroke();
+      }
     }
 
     // Hareketli duvarlar (ray çizgisi + neo-brutalist sarı/gri desenli sürgülü gövde)
@@ -1061,16 +1110,16 @@ export class LaserGame extends BaseMiniGame {
       ctx.scale(pulse, pulse);
       
       let pColor = '#2F6A4F';
-      let pIcon = '❤';
-      if (pk.type === 'FAST') { pColor = '#FFDE59'; pIcon = '⚡'; }
-      else if (pk.type === 'SHIELD') { pColor = '#0EA5E9'; pIcon = '🛡️'; }
-      else if (pk.type === 'TRIPLE') { pColor = '#F97316'; pIcon = '💥'; }
+      let pIcon = '+';
+      if (pk.type === 'FAST') { pColor = '#FFDE59'; pIcon = 'HIZ'; }
+      else if (pk.type === 'SHIELD') { pColor = '#0EA5E9'; pIcon = 'KOR'; }
+      else if (pk.type === 'TRIPLE') { pColor = '#F97316'; pIcon = '3×'; }
 
       ctx.fillStyle = pColor;
       ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill();
       ctx.lineWidth = 3; ctx.strokeStyle = '#1A1A1A'; ctx.stroke();
       ctx.fillStyle = pk.type === 'FAST' ? '#1A1A1A' : '#FFF';
-      ctx.font = 'bold 14px sans-serif';
+      ctx.font = '900 10.5px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(pIcon, 0, 1);
       ctx.restore();

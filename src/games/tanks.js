@@ -1062,13 +1062,14 @@ export class TanksGame extends BaseMiniGame {
       renderCornerScores(ctx, {
         arena: this.arena,
         entries: this.tanks.map((t) =>
-          t.isJoined ? { color: t.color, text: `${this.scores[t.index] || 0}★` } : null
+          t.isJoined ? { color: t.color, text: `${this.scores[t.index] || 0}` } : null
         ),
         entities: activeEntities,
       });
     }
 
-    ctx.strokeStyle = '#E2DDD4';
+    // Taktik Zemin Izgarası & Brutalist Çapraz Merkez İşaretleri
+    ctx.strokeStyle = '#E5E0D6';
     ctx.lineWidth = 1.5;
     const gridStep = size / 6;
     for (let x = left + gridStep; x < right; x += gridStep) {
@@ -1084,13 +1085,73 @@ export class TanksGame extends BaseMiniGame {
       ctx.stroke();
     }
 
-    ctx.fillStyle = '#1A1A1A';
-    for (const obs of this.obstacles) {
-      ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-      ctx.strokeStyle = '#3A3A38';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+    // Merkez hedef taktik halkası
+    ctx.strokeStyle = '#DDD7CC';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, size * 0.15, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 4 Köşe Takviye Braketleri (L-plates)
+    const bLen = Math.max(16, Math.round(size * 0.05));
+    ctx.strokeStyle = '#2B2B28';
+    ctx.lineWidth = 3;
+    const cornerPlates = [
+      [[left, top + bLen], [left, top], [left + bLen, top]],
+      [[right - bLen, top], [right, top], [right, top + bLen]],
+      [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
+      [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
+    ];
+    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
+      ctx.stroke();
     }
+
+    // Taktik Döküm Duvar ve Engel Blokları (Sert Gölge + Üst Işık Piti + Köşe Perçinleri)
+    for (const obs of this.obstacles) {
+      // 1. Sert Zemin Döküm Gölgesi
+      ctx.fillStyle = '#1A1A1A';
+      ctx.fillRect(obs.x + 4, obs.y + 4, obs.w, obs.h);
+
+      // 2. Beton / Zırh Gövde
+      ctx.fillStyle = '#2B2B28';
+      ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+
+      // 3. Kalın Dış Çerçeve
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+
+      // 4. Üst/Sol Metalik Işık Çizgisi
+      ctx.strokeStyle = '#5E5E58';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(obs.x + 2, obs.y + obs.h - 2);
+      ctx.lineTo(obs.x + 2, obs.y + 2);
+      ctx.lineTo(obs.x + obs.w - 2, obs.y + 2);
+      ctx.stroke();
+
+      // 5. İç Havalandırma / Taktik Yarık Deseni (Yeterince genişse)
+      if (obs.w >= 28 && obs.h >= 28) {
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 2;
+        const pad = 6;
+        ctx.strokeRect(obs.x + pad, obs.y + pad, obs.w - pad * 2, obs.h - pad * 2);
+        // Merkez Perçin Noktası
+        ctx.fillStyle = '#D99B26';
+        ctx.beginPath();
+        ctx.arc(obs.x + obs.w / 2, obs.y + obs.h / 2, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Dış Sınır & Döküm Çelik Gölge
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(right, top + 6, 6, height);
+    ctx.fillRect(left + 6, bottom, width, 6);
 
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 6;
@@ -1141,8 +1202,8 @@ export class TanksGame extends BaseMiniGame {
       ctx.font = '900 11px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const icon = crate.type === 'TURBO' ? '⚡' : crate.type === 'TRIPLE' ? '3×' : '🛡';
-      ctx.fillText(icon, crate.x, crate.y);
+      const label = crate.type === 'TURBO' ? 'HIZ' : crate.type === 'TRIPLE' ? '3×' : 'ZIRH';
+      ctx.fillText(label, crate.x, crate.y);
       ctx.restore();
     }
 

@@ -1350,26 +1350,44 @@ export class CrownGame extends BaseMiniGame {
         renderArenaWatermarkTimer(ctx, {
           arena: this.arena,
           text: `${remain.toFixed(1)}s`,
-          subText: t('crown.holding', king.name, Math.round(progress * 100)),
+          subText: '',
           urgent,
           color: urgent ? '#D84727' : king.color,
-          alpha: urgent ? 0.28 : 0.18,
-          ringProgress: progress,
+          alpha: urgent ? 0.70 : 0.48,
+          ringProgress: 1.0 - progress,
         });
       } else {
         renderArenaWatermarkTimer(ctx, {
           arena: this.arena,
-          text: t('crown.grab'),
-          subText: t('crown.hold15'),
-          alpha: 0.14,
+          text: 'TACI KAP',
+          subText: '',
+          alpha: 0.35,
         });
       }
     }
 
-    // Subtle Arena Grid
+    // Subtle Arena Grid & Tactile Corner Brackets
     ctx.strokeStyle = '#E5DFD5';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(left + aW * 0.12, top + aH * 0.12, aW * 0.76, aH * 0.76);
+
+    // 4 Köşe Takviye Braketleri (L-plates)
+    const bLen = Math.max(16, Math.round(Math.min(aW, aH) * 0.05));
+    ctx.strokeStyle = '#2B2B28';
+    ctx.lineWidth = 3;
+    const cornerPlates = [
+      [[left, top + bLen], [left, top], [left + bLen, top]],
+      [[right - bLen, top], [right, top], [right, top + bLen]],
+      [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
+      [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
+    ];
+    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
+      ctx.stroke();
+    }
 
     // Arena Cast-Iron Border & Drop Shadow
     ctx.fillStyle = '#1A1A1A';
@@ -1645,6 +1663,15 @@ export class CrownGame extends BaseMiniGame {
     ctx.lineWidth = 3;
     ctx.strokeRect(pil.x, pil.y, pil.w, pil.h);
 
+    // Üst/Sol Metalik Pah Çizgisi
+    ctx.strokeStyle = '#6E6E66';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pil.x + 2, pil.y + pil.h - 2);
+    ctx.lineTo(pil.x + 2, pil.y + 2);
+    ctx.lineTo(pil.x + pil.w - 2, pil.y + 2);
+    ctx.stroke();
+
     ctx.strokeStyle = '#4A4A45';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -1653,6 +1680,13 @@ export class CrownGame extends BaseMiniGame {
     ctx.moveTo(pil.x + pil.w - 4, pil.y + 4);
     ctx.lineTo(pil.x + 4, pil.y + pil.h - 4);
     ctx.stroke();
+
+    // Merkez Kraliyet Altın Perçin Noktası
+    ctx.fillStyle = '#D99B26';
+    ctx.beginPath();
+    ctx.arc(pil.x + pil.w / 2, pil.y + pil.h / 2, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.restore();
   }
 
@@ -1967,7 +2001,7 @@ export class CrownGame extends BaseMiniGame {
         ctx.font = '800 10px "JetBrains Mono", monospace';
         ctx.fillText('HAZIR', btn.x, btn.y + 8);
       } else {
-        ctx.fillText('⏳ BEKLE', btn.x, btn.y - 6);
+        ctx.fillText('BEKLE', btn.x, btn.y - 6);
         ctx.font = '800 10px "JetBrains Mono", monospace';
         ctx.fillText(`${p.tackleCooldown.toFixed(1)}s`, btn.x, btn.y + 8);
       }
@@ -1976,19 +2010,7 @@ export class CrownGame extends BaseMiniGame {
   }
 
   renderHUD(ctx) {
-    if (this.state === 'PLAYING') {
-      const king = this.crown.carrierIndex !== null ? this.players[this.crown.carrierIndex] : null;
-      if (king && king.isAlive) {
-        const remain = Math.max(0, this.targetCrownTime - king.crownHoldTime);
-        renderTopPill(ctx, {
-          arena: this.arena,
-          text: `👑 ${remain.toFixed(1)}s`,
-          urgent: remain <= 4.0,
-        });
-      } else {
-        renderTopPill(ctx, { arena: this.arena, text: '👑 TACI KAP' });
-      }
-    }
+    // Merkezi otoriter filigran sayaç devrede; üst pill zamanlayıcı kaldırıldı
   }
 
   renderLobby(ctx) {

@@ -68,8 +68,8 @@ export class Ball {
   }
 
   reset(cx, cy, directionAngle = null) {
-    this.x = cx;
-    this.y = cy;
+    this.x = Number.isFinite(cx) ? cx : 0;
+    this.y = Number.isFinite(cy) ? cy : 0;
     this.trail = [];
     this.shockwaves = [];
     this.isDead = false;
@@ -166,6 +166,11 @@ export class Ball {
   }
 
   singleSubStep(dt, arena, paddles) {
+    if (!Number.isFinite(this.x) || !Number.isFinite(this.y) || !Number.isFinite(this.vx) || !Number.isFinite(this.vy)) {
+      this.reset(arena.cx, arena.cy);
+      return;
+    }
+
     // 1. Air drag (floored at current escalating minSpeed)
     let currentSpeed = Math.hypot(this.vx, this.vy);
     if (currentSpeed > this.currentMinSpeed) {
@@ -577,10 +582,11 @@ export class Ball {
   draw(ctx) {
     // Render expanding brutalist shockwaves
     for (const sw of this.shockwaves) {
+      const swR = Math.max(0.1, Number.isFinite(sw.radius) ? sw.radius : 0.1);
       const alpha = sw.life / sw.maxLife;
       ctx.save();
       ctx.beginPath();
-      ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+      ctx.arc(sw.x, sw.y, swR, 0, Math.PI * 2);
       ctx.strokeStyle = sw.color;
       ctx.lineWidth = 3 * alpha;
       ctx.stroke();
@@ -589,12 +595,15 @@ export class Ball {
 
     if (this.isDead) return;
 
+    const baseRadius = Math.max(1, Number.isFinite(this.radius) ? this.radius : 11);
+
     // Dynamic Trail with Smash Flash
     for (let i = this.trail.length - 1; i >= 0; i--) {
       const pt = this.trail[i];
+      const trailR = Math.max(0.5, baseRadius * (1 - i / (this.trail.length + 1)));
       const alpha = (pt.isSmash ? 0.28 : 0.18) * (1 - i / this.trail.length);
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, this.radius * (1 - i * 0.07), 0, Math.PI * 2);
+      ctx.arc(pt.x, pt.y, trailR, 0, Math.PI * 2);
       ctx.fillStyle = pt.isSmash ? `rgba(216, 71, 39, ${alpha})` : `rgba(17, 17, 17, ${alpha})`;
       ctx.fill();
     }
@@ -602,7 +611,7 @@ export class Ball {
     // Ball Core (falso dönüyorsa altın + 🌀 işareti)
     const spinning = Math.abs(this.spin) > 8;
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.arc(this.x, this.y, baseRadius, 0, Math.PI * 2);
     ctx.fillStyle = spinning ? '#D99B26' : (this.isSmash ? '#D84727' : '#111111');
     ctx.fill();
 
@@ -613,17 +622,17 @@ export class Ball {
     // Inner highlight if smash
     if (this.isSmash && !spinning) {
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius * 0.45, 0, Math.PI * 2);
+      ctx.arc(this.x, this.y, Math.max(0.5, baseRadius * 0.45), 0, Math.PI * 2);
       ctx.fillStyle = '#FFFFFF';
       ctx.fill();
     }
 
     if (spinning) {
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = `900 ${Math.max(12, this.radius)}px "Space Grotesk", sans-serif`;
+      ctx.font = `900 ${Math.max(12, Math.round(baseRadius))}px "Space Grotesk", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🌀', this.x, this.y - this.radius - 10);
+      ctx.fillText('~', this.x, this.y - baseRadius - 8);
     }
   }
 }

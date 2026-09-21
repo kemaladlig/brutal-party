@@ -36,8 +36,8 @@ export const ZONE_RELIC_DEFS = {
   FLASH: {
     id: 'FLASH',
     name: 'FLASH CORE',
-    badge: '⚡',
-    icon: '⚡',
+    badge: 'HIZ',
+    icon: 'HIZ',
     title: 'HIZ KORU',
     color: '#FFD122',
     glowColor: 'rgba(255, 209, 34, 0.45)',
@@ -46,8 +46,8 @@ export const ZONE_RELIC_DEFS = {
   SEISMIC: {
     id: 'SEISMIC',
     name: 'SEISMIC PULSE',
-    badge: '💣',
-    icon: '💣',
+    badge: 'DARBE',
+    icon: 'DARBE',
     title: 'SİSMİK DARBE',
     color: '#FF473A',
     glowColor: 'rgba(255, 71, 58, 0.45)',
@@ -1402,7 +1402,25 @@ export class ZoneGame extends BaseMiniGame {
     }
     ctx.stroke();
 
-    // Saha ortasında oyunu engellemeyen büyük süre ve lider durumu filigranı (TV ve monitörlerde yüksek görünürlük)
+    // 4 Köşe Takviye Braketleri (L-plates) ve İç Sınır Çizgisi
+    const bLen = Math.max(16, Math.round(s * 0.05));
+    ctx.strokeStyle = '#2B2B28';
+    ctx.lineWidth = 3;
+    const cornerPlates = [
+      [[x, y + bLen], [x, y], [x + bLen, y]],
+      [[x + s - bLen, y], [x + s, y], [x + s, y + bLen]],
+      [[x, y + s - bLen], [x, y + s], [x + bLen, y + s]],
+      [[x + s - bLen, y + s], [x + s, y + s], [x + s, y + s - bLen]],
+    ];
+    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
+      ctx.stroke();
+    }
+
+    // Saha ortasında net, yüksek görünürlüklü süre sayacı
     if (this.state === 'PLAYING') {
       const remain = Math.max(0, this.roundTimer);
       const leader = this.leaderIndex >= 0 ? this.players[this.leaderIndex] : null;
@@ -1410,13 +1428,11 @@ export class ZoneGame extends BaseMiniGame {
       renderArenaWatermarkTimer(ctx, {
         arena: this.arena,
         text: `${Math.ceil(remain)}s`,
-        subText: leader && leader.isJoined
-          ? t('zone.leader', leader.name, this.pct[leader.index])
-          : t('zone.goal'),
+        subText: '',
         urgent: isUrgent,
         color: isUrgent ? '#D84727' : (leader ? leader.color : null),
-        alpha: isUrgent ? 0.22 : 0.14,
-        ringProgress: Math.min(1.0, leader ? (this.pct[leader.index] / 40) : (1.0 - remain / 90)),
+        alpha: isUrgent ? 0.70 : 0.46,
+        ringProgress: Math.max(0, remain / 90),
       });
     }
 
@@ -1459,12 +1475,12 @@ export class ZoneGame extends BaseMiniGame {
       ctx.lineWidth = 2.5;
       ctx.stroke();
 
-      // İç İkon
+      // İç İkon / Tipografi
       ctx.fillStyle = '#1C1C1A';
-      ctx.font = '900 15px "Space Grotesk", "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+      ctx.font = '900 11px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(def?.icon || def?.badge || '★', 0, 1);
+      ctx.fillText(def?.badge || '★', 0, 1);
 
       ctx.restore();
     }

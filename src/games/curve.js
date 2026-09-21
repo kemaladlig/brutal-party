@@ -891,7 +891,7 @@ export class CurveGame extends BaseMiniGame {
       renderCornerScores(ctx, {
         arena: this.arena,
         entries: this.players.map((p) =>
-          p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}★` } : null
+          p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}` } : null
         ),
         entities: this.players.filter((p) => p.isJoined && p.isAlive),
       });
@@ -912,6 +912,29 @@ export class CurveGame extends BaseMiniGame {
       ctx.lineTo(right, y);
       ctx.stroke();
     }
+
+    // 4 Köşe Takviye Braketleri (L-plates)
+    const bLen = Math.max(16, Math.round(size * 0.05));
+    ctx.strokeStyle = '#2B2B28';
+    ctx.lineWidth = 3;
+    const cornerPlates = [
+      [[left, top + bLen], [left, top], [left + bLen, top]],
+      [[right - bLen, top], [right, top], [right, top + bLen]],
+      [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
+      [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
+    ];
+    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
+      ctx.stroke();
+    }
+
+    // Dış Sert Döküm Kenarlık & Gölge
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(right, top + 6, 6, height);
+    ctx.fillRect(left + 6, bottom, width, 6);
 
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 6;
@@ -954,26 +977,26 @@ export class CurveGame extends BaseMiniGame {
       ctx.strokeRect(ix - s / 2, iy - s / 2, s, s);
 
       ctx.fillStyle = '#1A1A1A';
-      ctx.font = '900 15px "Space Grotesk", "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+      ctx.font = '900 11px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const icon =
         item.type === 'SCISSORS'
-          ? '✂️'
+          ? 'KES'
           : item.type === 'GHOST'
-          ? '👻'
+          ? 'HAY'
           : item.type === 'TURBO'
-          ? '⚡'
+          ? 'HIZ'
           : item.type === 'INVERT'
-          ? '🌀'
+          ? 'TERS'
           : item.type === 'SHRINK'
-          ? '🔬'
+          ? 'MINI'
           : item.type === 'FREEZE'
-          ? '❄️'
+          ? 'BUZ'
           : item.type === 'BOMB'
-          ? '💣'
-          : '🚧';
-      ctx.fillText(icon, ix, iy + 1);
+          ? 'BOM'
+          : 'DUV';
+      ctx.fillText(icon, ix, iy);
       ctx.restore();
     }
 

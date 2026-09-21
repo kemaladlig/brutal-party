@@ -48,14 +48,14 @@ export function renderTopPill(ctx, { arena, text, urgent = false, alpha = 1, cus
 
 // Saha ortası büyük filigran sayaç / zamanlayıcı / durum metni.
 // TV ve büyük monitörlerde koltuktan rahatça görülecek kadar büyüktür,
-// ancak yarı-saydam (alpha) ve saha zemininde çizildiği için oyuncuları ve oyunu asla engellemez.
+// yüksek kontrastlı ve net, ancak saha zemininde çizildiği için oyuncuları ve oyunu engellemez.
 export function renderArenaWatermarkTimer(ctx, {
   arena,
   text,
   subText = '',
   urgent = false,
   color = null,
-  alpha = 0.16,
+  alpha = 0.45,
   ringProgress = null,
   offsetY = 0,
 }) {
@@ -76,18 +76,34 @@ export function renderArenaWatermarkTimer(ctx, {
   let effAlpha = alpha;
   if (urgent) {
     const pulse = (Math.sin(performance.now() * 0.01) + 1) * 0.5;
-    effAlpha = Math.min(0.32, alpha + 0.10 + pulse * 0.08);
+    effAlpha = Math.min(0.85, alpha + 0.18 + pulse * 0.12);
   }
   ctx.globalAlpha = effAlpha;
 
-  // İlerleme halkası (opsiyonel)
-  if (typeof ringProgress === 'number' && ringProgress >= 0) {
+  // İlerleme halkası: 12 yönünden (üst) başlar, kalan süreyi temsil ederek saat yönünde azalarak biter
+  if (typeof ringProgress === 'number' && Number.isFinite(ringProgress)) {
     const ringR = Math.max(minDim * 0.14, mainFontSize * 0.85);
+    const clamped = Math.max(0, Math.min(1.0, ringProgress));
+
+    // Arka plan sabit ray halkası (ince, silik)
+    ctx.save();
+    ctx.globalAlpha = effAlpha * 0.25;
     ctx.strokeStyle = color || (urgent ? UI_COLORS.danger : UI_COLORS.ink);
-    ctx.lineWidth = Math.max(4, Math.round(6 * scale));
+    ctx.lineWidth = Math.max(3, Math.round(4 * scale));
     ctx.beginPath();
-    ctx.arc(cx, cy, ringR, -Math.PI / 2, -Math.PI / 2 + Math.min(1.0, ringProgress) * Math.PI * 2);
+    ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.restore();
+
+    // Kalan süre arkı
+    if (clamped > 0.005) {
+      ctx.strokeStyle = color || (urgent ? UI_COLORS.danger : UI_COLORS.ink);
+      ctx.lineWidth = Math.max(5, Math.round(7 * scale));
+      ctx.lineCap = 'butt';
+      ctx.beginPath();
+      ctx.arc(cx, cy, ringR, -Math.PI / 2, -Math.PI / 2 + clamped * Math.PI * 2);
+      ctx.stroke();
+    }
   }
 
   // Ana metin (sayaç sayısı veya durum)
@@ -246,6 +262,7 @@ export function renderCornerScores(ctx, { arena, entries, entities = [] }) {
   entries.forEach((entry, i) => {
     if (!entry) return;
     const spot = spots[i];
+    if (!spot) return;
     const rect = { x: spot.x, y: spot.y, w: cardW, h: cardH };
 
     // Proximity Ghosting: Eğer herhangi bir oyuncu/top/mermi bu kutunun üstüne/yakınına gelirse
@@ -274,7 +291,7 @@ export function renderCornerScores(ctx, { arena, entries, entities = [] }) {
     ctx.fillStyle = entry.color || UI_COLORS.players[i];
     ctx.fillRect(rect.x, rect.y, stripeW, rect.h);
 
-    // İçerik: P1..P4 etiketi + Oyuncu Adı + Skor Sayısı + Lider Tacı
+    // İçerik: P1..P4 etiketi + Oyuncu Adı + Skor Sayısı + Lider Göstergesi
     const scoreVal = parseInt(entry.text, 10);
     const isLeader = highestScore > 0 && scoreVal === highestScore;
 
@@ -285,11 +302,11 @@ export function renderCornerScores(ctx, { arena, entries, entities = [] }) {
     ctx.textBaseline = 'middle';
     ctx.fillText(`P${i + 1}`, rect.x + stripeW + Math.round(6 * scale), rect.y + rect.h / 2);
 
-    // Eğer liderse taç rozeti
+    // Eğer liderse brutalist altın yıldız simgesi (emoji yerine temiz vektör karakter)
     if (isLeader) {
       ctx.fillStyle = UI_COLORS.gold;
-      ctx.font = `${Math.round(13 * scale)}px sans-serif`;
-      ctx.fillText('👑', rect.x + stripeW + Math.round(25 * scale), rect.y + rect.h / 2 - 1);
+      ctx.font = `900 ${Math.round(12 * scale)}px ${UI_FONTS.mono}`;
+      ctx.fillText('★', rect.x + stripeW + Math.round(27 * scale), rect.y + rect.h / 2);
     }
 
     // Skor (Büyük, Okunaklı Sayı)

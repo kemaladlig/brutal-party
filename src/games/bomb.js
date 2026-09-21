@@ -1051,30 +1051,48 @@ export class BombGame extends BaseMiniGame {
       renderCornerScores(ctx, {
         arena: this.arena,
         entries: this.players.map((p, i) =>
-          p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}★` } : null
+          p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}` } : null
         ),
         entities: this.players.filter((p) => p.isJoined),
       });
 
-      // Saha ortasında büyük, oyunu engellemeyen yarı-saydam bomba geri sayımı (TV ve monitörlerde yüksek görünürlük)
+      // Saha ortasında net, yüksek görünürlüklü bomba geri sayımı (TV ve monitörlerde otoriter zamanlayıcı)
       const remain = Math.max(0, this.bombTimer);
       const isPanic = remain <= 4.0;
       const carrier = this.bombCarrierIndex !== null ? this.players[this.bombCarrierIndex] : null;
       renderArenaWatermarkTimer(ctx, {
         arena: this.arena,
         text: `${remain.toFixed(1)}s`,
-        subText: isPanic ? t('bomb.panic') : (carrier ? t('bomb.carrier', carrier.name) : t('bomb.countdown')),
+        subText: '',
         urgent: isPanic,
         color: isPanic ? '#D84727' : (carrier ? carrier.color : null),
-        alpha: isPanic ? 0.26 : 0.16,
-        ringProgress: 1.0 - (remain / this.bombMaxTime),
+        alpha: isPanic ? 0.72 : 0.50,
+        ringProgress: Math.max(0, remain / this.bombMaxTime),
       });
     }
 
-    // Arena Grid
+    // Arena Floor Grid & Tactile Corner Brackets
     ctx.strokeStyle = '#E2DCD2';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(left + width * 0.15, top + height * 0.15, width * 0.7, height * 0.7);
+
+    // 4 Köşe Ağır L-Braketleri
+    const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
+    ctx.strokeStyle = '#2B2B28';
+    ctx.lineWidth = 3;
+    const cornerPlates = [
+      [[left, top + bLen], [left, top], [left + bLen, top]],
+      [[right - bLen, top], [right, top], [right, top + bLen]],
+      [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
+      [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
+    ];
+    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
+      ctx.stroke();
+    }
 
     // Arena Outer Heavy Cast Iron Border & Drop Shadow
     ctx.fillStyle = '#1A1A1A';
@@ -1085,7 +1103,7 @@ export class BombGame extends BaseMiniGame {
     ctx.lineWidth = 4;
     ctx.strokeRect(left, top, width, height);
 
-    // Pillars / Obstacles
+    // Pillars / Obstacles (Bomba Arenası Döküm Takviyeli Sütunları)
     for (const pil of this.pillars) {
       // Solid Shadow
       ctx.fillStyle = '#1A1A1A';
@@ -1099,6 +1117,15 @@ export class BombGame extends BaseMiniGame {
       ctx.lineWidth = 3;
       ctx.strokeRect(pil.x, pil.y, pil.w, pil.h);
 
+      // Üst/Sol Metalik Işık Çizgisi
+      ctx.strokeStyle = '#6E6E66';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(pil.x + 2, pil.y + pil.h - 2);
+      ctx.lineTo(pil.x + 2, pil.y + 2);
+      ctx.lineTo(pil.x + pil.w - 2, pil.y + 2);
+      ctx.stroke();
+
       // Cross Rivet pattern
       ctx.strokeStyle = '#42423E';
       ctx.lineWidth = 1.5;
@@ -1108,6 +1135,12 @@ export class BombGame extends BaseMiniGame {
       ctx.moveTo(pil.x + pil.w - 4, pil.y + 4);
       ctx.lineTo(pil.x + 4, pil.y + pil.h - 4);
       ctx.stroke();
+
+      // Merkez Pirinç Perçin
+      ctx.fillStyle = '#D99B26';
+      ctx.beginPath();
+      ctx.arc(pil.x + pil.w / 2, pil.y + pil.h / 2, 2.5, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     // Dynamic Floor Hazard Ring Under Bomb Carrier
@@ -1161,13 +1194,7 @@ export class BombGame extends BaseMiniGame {
   }
 
   renderTopHUD(ctx) {
-    if (this.state !== 'PLAYING') return;
-    const remain = Math.max(0, this.bombTimer);
-    renderTopPill(ctx, {
-      arena: this.arena,
-      text: `💣 ${remain.toFixed(1)}s`,
-      urgent: remain <= 4.0,
-    });
+    // Merkezi otoriter geri sayım sayacı kullanıldığından üst hap zamanlayıcı kaldırıldı
   }
 
   renderPickups(ctx) {
@@ -1191,12 +1218,12 @@ export class BombGame extends BaseMiniGame {
       ctx.lineWidth = 2.5;
       ctx.strokeRect(-14, -14, 28, 28);
 
-      // Icon
+      // Icon (Temiz neo-brutalist tipografi, emojisiz)
       ctx.fillStyle = item.type === 'SLIP' ? '#FFFFFF' : '#1C1C1A';
-      ctx.font = '900 14px "Space Grotesk", sans-serif';
+      ctx.font = '900 10px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const label = item.type === 'TURBO' ? '⚡' : item.type === 'TELEPORT' ? '🌀' : '🍌';
+      const label = item.type === 'TURBO' ? 'TRB' : item.type === 'TELEPORT' ? 'TEL' : 'KAY';
       ctx.fillText(label, 0, 0);
 
       ctx.restore();
@@ -1220,18 +1247,16 @@ export class BombGame extends BaseMiniGame {
       if (player.stumbleTimer > 0) {
         ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
 
-        // Orbiting Dizzy Stars & Daze Ring
+        // Orbiting Dizzy Sparks & Daze Ring (Geometrik kıvılcımlar, emojisiz)
         ctx.save();
         const dazeAngle = performance.now() * 0.008;
         const starR = player.radius + 14;
-        ctx.font = '900 14px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#FFDE59';
         for (let s = 0; s < 3; s++) {
           const a = dazeAngle + (s * Math.PI * 2) / 3;
           const sx = Math.cos(a) * starR;
           const sy = Math.sin(a) * (starR * 0.4) - player.radius - 10;
-          ctx.fillText('💫', sx, sy);
+          ctx.fillRect(sx - 3, sy - 3, 6, 6);
         }
 
         // Stun floor ring
@@ -1245,7 +1270,8 @@ export class BombGame extends BaseMiniGame {
         // Stun text badge
         ctx.fillStyle = '#FFDE59';
         ctx.font = '900 10px "JetBrains Mono", monospace';
-        ctx.fillText('💥 SERSEM!', 0, -player.radius - 26);
+        ctx.textAlign = 'center';
+        ctx.fillText('SERSEM!', 0, -player.radius - 26);
         ctx.restore();
       }
 
@@ -1327,26 +1353,6 @@ export class BombGame extends BaseMiniGame {
         ctx.beginPath();
         ctx.arc(4, bombY - 20, 3.5, 0, Math.PI * 2);
         ctx.fill();
-
-        // Countdown Timer Badge (Panic mode highlighted)
-        const isPanic = this.bombTimer <= 4.0;
-        const timerText = isPanic
-          ? `⚡ ${Math.max(0, this.bombTimer).toFixed(1)}s`
-          : `${Math.max(0, this.bombTimer).toFixed(1)}s`;
-
-        const bScale = Math.min(1.4, getUiScale(this.arena));
-        const badgeW = Math.round((isPanic ? 78 : 68) * bScale);
-        const badgeH = Math.round(22 * bScale);
-        const badgeY = bombY - Math.round(38 * bScale);
-        ctx.fillStyle = isPanic ? '#D84727' : '#1C1C1A';
-        ctx.fillRect(-badgeW / 2, badgeY, badgeW, badgeH);
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = Math.max(2, Math.round(2 * bScale));
-        ctx.strokeRect(-badgeW / 2, badgeY, badgeW, badgeH);
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = `900 ${Math.round(13 * bScale)}px "JetBrains Mono", monospace`;
-        ctx.fillText(timerText, 0, badgeY + badgeH / 2);
       }
 
       ctx.restore();

@@ -130,9 +130,11 @@ export class Paddle {
   }
 
   centerInBounds() {
-    this.coord = (this.minCoord + this.maxCoord) / 2;
-    this.targetCoord = this.coord;
-    this.prevCoord = this.coord;
+    if (Number.isFinite(this.minCoord) && Number.isFinite(this.maxCoord)) {
+      this.coord = (this.minCoord + this.maxCoord) / 2;
+      this.targetCoord = this.coord;
+      this.prevCoord = this.coord;
+    }
     this.velocity = 0;
   }
 
@@ -229,7 +231,7 @@ export class Paddle {
       ctx.font = '900 12px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const label = this.isGodBot ? '⚡GOD' : '🤖BOT';
+      const label = this.isGodBot ? 'GOD' : 'BOT';
       ctx.fillText(label, this.coord, this.fixedPerpendicular);
       ctx.restore();
     }
@@ -237,7 +239,8 @@ export class Paddle {
     // Skor köşelerde (renderCornerScores); raket yanında yalnız canlar durur
     {
       ctx.save();
-      const livesStr = this.lives > 0 ? '● '.repeat(this.lives).trim() : t('pad.out');
+      const count = Math.max(0, Math.floor(this.lives || 0));
+      const livesStr = count > 0 ? '● '.repeat(count).trim() : t('pad.out');
 
       if (this.axis === 'horizontal') {
         ctx.fillStyle = this.color;
@@ -255,7 +258,7 @@ export class Paddle {
       ctx.restore();
     }
 
-    // 🌀 Falso şarj göstergesi: altın çerçeve + kalan süre çipi
+    // Falso şarj göstergesi: altın çerçeve + kalan süre çipi
     if (this.spinCharge > 0) {
       ctx.save();
       ctx.globalAlpha = 0.8;
@@ -271,10 +274,10 @@ export class Paddle {
       ctx.fillStyle = '#1A1A1A';
       ctx.fillRect(chipX, chipY, chipW, chipH);
       ctx.fillStyle = '#FFDE59';
-      ctx.font = '900 24px "Space Grotesk", sans-serif';
+      ctx.font = '900 20px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`🌀 ${this.spinCharge.toFixed(1)}`, chipX + chipW / 2, chipY + chipH / 2 + 1);
+      ctx.fillText(`SPIN ${this.spinCharge.toFixed(1)}`, chipX + chipW / 2, chipY + chipH / 2 + 1);
       ctx.restore();
     }
   }

@@ -800,7 +800,7 @@ export class HeistGame extends BaseMiniGame {
 
           playCashRegister();
           this.trauma = 0.25;
-          this.addFloatingText(myVault.x + myVault.w / 2, myVault.y + myVault.h / 2, `+${banked} 💰 KASALANDI!`, '#FFFFFF');
+          this.addFloatingText(myVault.x + myVault.w / 2, myVault.y + myVault.h / 2, `+${banked} KASALANDI!`, '#FFFFFF');
 
           // Golden sparkle burst inside vault
           for (let s = 0; s < 18; s++) {
@@ -933,7 +933,7 @@ export class HeistGame extends BaseMiniGame {
           life: 0.4, maxLife: 0.5, color: '#FFDE59', size: 4 + Math.random() * 4,
         });
       }
-      this.addFloatingText(pig.x, pig.y - 34, '🐷 KUMBARA KIRILDI!', '#FFDE59');
+      this.addFloatingText(pig.x, pig.y - 34, 'KUMBARA KIRILDI!', '#FFDE59');
       playPiggyBreak();
     } else {
       this.addFloatingText(pig.x, pig.y - 34, t('heist.crack', pig.hp), '#FFFFFF');
@@ -1125,18 +1125,12 @@ export class HeistGame extends BaseMiniGame {
 
   renderTopHUD(ctx) {
     if (this.state !== 'PLAYING') return;
-    const remain = Math.max(0, this.roundTimer);
-    renderTopPill(ctx, {
-      arena: this.arena,
-      text: `⏱ ${Math.ceil(remain)}s`,
-      urgent: remain <= 10.0,
-    });
 
     // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları (Proximity Ghosting)
     renderCornerScores(ctx, {
       arena: this.arena,
       entries: this.players.map((p) =>
-        p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}★` } : null
+        p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}` } : null
       ),
       entities: this.players.filter((p) => p.isJoined),
     });
@@ -1149,6 +1143,11 @@ export class HeistGame extends BaseMiniGame {
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
 
+    // Floor Markings Grid
+    ctx.strokeStyle = '#E8E2D8';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(left + width * 0.12, top + height * 0.12, width * 0.76, height * 0.76);
+
     // Central Treasure Pit circle
     ctx.strokeStyle = '#D99B26';
     ctx.lineWidth = 2.5;
@@ -1158,18 +1157,37 @@ export class HeistGame extends BaseMiniGame {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Saha ortasında oyunu engellemeyen büyük süre filigranı (TV ve monitörlerde yüksek görünürlük)
+    // Saha ortasında net, yüksek görünürlüklü süre sayacı
     if (this.state === 'PLAYING') {
       const remain = Math.max(0, this.roundTimer);
       const isUrgent = remain <= 10.0;
       renderArenaWatermarkTimer(ctx, {
         arena: this.arena,
         text: `${Math.ceil(remain)}s`,
-        subText: 'ELMAS SOYGUNU',
+        subText: '',
         urgent: isUrgent,
-        alpha: isUrgent ? 0.24 : 0.15,
-        ringProgress: 1.0 - (remain / 90),
+        color: isUrgent ? '#D84727' : '#D99B26',
+        alpha: isUrgent ? 0.70 : 0.46,
+        ringProgress: Math.max(0, remain / 90),
       });
+    }
+
+    // 4 Köşe Takviye Braketleri (L-plates)
+    const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
+    ctx.strokeStyle = '#2B2B28';
+    ctx.lineWidth = 3;
+    const cornerPlates = [
+      [[left, top + bLen], [left, top], [left + bLen, top]],
+      [[right - bLen, top], [right, top], [right, top + bLen]],
+      [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
+      [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
+    ];
+    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
+      ctx.stroke();
     }
 
     // Outer Border & Cast Iron Drop Shadow
@@ -1181,17 +1199,43 @@ export class HeistGame extends BaseMiniGame {
     ctx.lineWidth = 4;
     ctx.strokeRect(left, top, width, height);
 
-    // Obstacle Pillars
+    // Obstacle Pillars (Kasa Mahzeni Döküm Taş Sütunları)
     for (const pil of this.pillars) {
+      // 1. Zemin Döküm Sert Gölgesi
       ctx.fillStyle = '#1A1A1A';
       ctx.fillRect(pil.x + 4, pil.y + 4, pil.w, pil.h);
 
+      // 2. Taş Sütun Gövdesi
       ctx.fillStyle = '#2B2B28';
       ctx.fillRect(pil.x, pil.y, pil.w, pil.h);
 
+      // 3. Kalın Dış Sınır Çerçevesi
       ctx.strokeStyle = '#1A1A1A';
       ctx.lineWidth = 2.5;
       ctx.strokeRect(pil.x, pil.y, pil.w, pil.h);
+
+      // 4. Üst / Sol Metalik Işık Çizgisi
+      ctx.strokeStyle = '#6E6E66';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(pil.x + 2, pil.y + pil.h - 2);
+      ctx.lineTo(pil.x + 2, pil.y + 2);
+      ctx.lineTo(pil.x + pil.w - 2, pil.y + 2);
+      ctx.stroke();
+
+      // 5. İç Çelik Güçlendirme & Pirinç Perçin
+      if (pil.w >= 28 && pil.h >= 28) {
+        ctx.strokeStyle = '#3E3E38';
+        ctx.lineWidth = 1.5;
+        const pad = 6;
+        ctx.strokeRect(pil.x + pad, pil.y + pad, pil.w - pad * 2, pil.h - pad * 2);
+
+        // Pirinç/Altın Mahzen Plaka Noktası
+        ctx.fillStyle = '#D99B26';
+        ctx.beginPath();
+        ctx.arc(pil.x + pil.w / 2, pil.y + pil.h / 2, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 
@@ -1541,12 +1585,23 @@ export class HeistGame extends BaseMiniGame {
           ctx.arc(0, cy, coinR * 0.55, -Math.PI * 0.7, -Math.PI * 0.2);
           ctx.stroke();
         }
-        // Dev yük tacı
+        // Dev yük tacı (Geometrik taç bandı)
         if (tier === 2) {
-          ctx.font = '900 16px "Space Grotesk", sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'bottom';
-          ctx.fillText('👑', 0, bagY - 12 - coins * step - 4);
+          const cy = bagY - 12 - coins * step - 6;
+          ctx.fillStyle = '#FFDE59';
+          ctx.strokeStyle = '#1C1C1A';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(-10, cy + 6);
+          ctx.lineTo(-10, cy);
+          ctx.lineTo(-5, cy + 3);
+          ctx.lineTo(0, cy - 2);
+          ctx.lineTo(5, cy + 3);
+          ctx.lineTo(10, cy);
+          ctx.lineTo(10, cy + 6);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
         }
         // Sayaç plaka
         ctx.fillStyle = '#1C1C1A';
@@ -1557,7 +1612,7 @@ export class HeistGame extends BaseMiniGame {
 
         ctx.fillStyle = tier >= 1 || isRichest ? '#FFDE59' : '#FFFFFF';
         ctx.font = '900 13px "JetBrains Mono", monospace';
-        ctx.fillText(`${gold} 💰`, 0, bagY + 2);
+        ctx.fillText(`${gold} G`, 0, bagY + 2);
       }
 
       ctx.restore();
@@ -1717,7 +1772,7 @@ export class HeistGame extends BaseMiniGame {
         ctx.fillText(t('heist.charge'), 0, 0);
       } else if (isReady && targetInRange) {
         ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText('⚡ OMUZ AT!', 0, 0);
+        ctx.fillText('OMUZ AT!', 0, 0);
       } else if (isReady) {
         ctx.font = '800 12px "Space Grotesk", sans-serif';
         ctx.fillText('OMUZ AT', 0, 0);
@@ -1753,7 +1808,7 @@ export class HeistGame extends BaseMiniGame {
       if (this.roundTied) {
         renderRoundBanner(ctx, {
           arena: this.arena,
-          title: '🤝 BERABERE!',
+          title: 'BERABERE!',
           titleColor: '#FFFFFF',
           sub: 'SKOR YAZILMADI',
         });
@@ -1762,7 +1817,7 @@ export class HeistGame extends BaseMiniGame {
     }
     renderRoundBanner(ctx, {
       arena: this.arena,
-      title: `+1 SET: ${this.roundWinner.name}! (${this.roundWinner.vaultGold} 💰)`,
+      title: `+1 SET: ${this.roundWinner.name}! (${this.roundWinner.vaultGold} ALTIN)`,
       titleColor: this.roundWinner.color,
       sub: `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}`,
     });
@@ -1778,7 +1833,7 @@ export class HeistGame extends BaseMiniGame {
       rows: this.matchWinner
         ? this.players
             .filter((p) => p.isJoined)
-            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` }))
+            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}` }))
         : [],
       onRestart: () => this.resetCurrentGame(),
     });

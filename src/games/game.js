@@ -340,6 +340,7 @@ export class Game extends BaseMiniGame {
     if (this.requestLobbySeatTap(index)) return;
     const p = this.paddles[index];
     p.cycleSlotType();
+    this.slotTypes[index] = p.slotType;
     // LOCAL: yeni insan koltuğuna boş renk ata (hook dönmediyse lokaldir)
     if (p.slotType === 'human' && !this.hideLobbyStartButton) {
       p.color = ensureLocalSeatColor(index);
@@ -419,7 +420,7 @@ export class Game extends BaseMiniGame {
   }
 
   update(now) {
-    const frameTime = Math.min((now - this.lastTime) / 1000, 0.1);
+    const frameTime = Math.max(0, Math.min((now - (this.lastTime || now)) / 1000, 0.1));
     this.lastTime = now;
 
     // Falso beklemeleri her framede erir
@@ -447,13 +448,17 @@ export class Game extends BaseMiniGame {
     } else if (this.state === 'PLAYING') {
       // Tek aktif kalınca raunt hemen biter (gol beklenmez — ayrılma da bitirir)
       const active = this.paddles.filter((p) => p.isJoined && !p.isEliminated);
-      if (active.length <= 1) {
+      if (active.length < 1) {
+        this.state = 'LOBBY';
+        return;
+      }
+      if (active.length === 1) {
         this.onPlayerScoredOn(-1);
         return;
       }
     }
 
-    this.accumulator += frameTime;
+    this.accumulator = Math.min(0.2, (this.accumulator || 0) + frameTime);
     while (this.accumulator >= this.fixedStep) {
       this.fixedUpdate(this.fixedStep);
       this.accumulator -= this.fixedStep;
@@ -580,7 +585,7 @@ export class Game extends BaseMiniGame {
         arena: this.arena,
         entries: this.paddles.map((p, i) =>
           p.isJoined && !p.isEliminated
-            ? { color: p.color, text: `${this.setScores[i] || 0}★` }
+            ? { color: p.color, text: `${this.setScores[i] || 0}` }
             : null
         ),
         entities: activeEntities,
@@ -639,13 +644,82 @@ export class Game extends BaseMiniGame {
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, aW, aH);
 
-    // Center Court Markings
-    ctx.strokeStyle = '#D5D0C7';
-    ctx.lineWidth = 2;
+    // Tactile Drop Shadow for Arena Depth
+    ctx.fillStyle = '#1C1C1A';
+    ctx.fillRect(right, top + 5, 5, aH);
+    ctx.fillRect(left + 5, bottom, aW + 5, 5);
 
-    // Center Circle
+    // Subtle Court Markings & Grid Geometry
+    const inset = Math.max(12, Math.round(minDim * 0.045));
+    ctx.strokeStyle = '#EBE5DA';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(left + inset, top + inset, aW - inset * 2, aH - inset * 2);
+
+    // Saha Zemin Izgarası
+    ctx.strokeStyle = '#F0EAE0';
+    ctx.lineWidth = 1;
+    const gridStep = aW / 6;
+    for (let x = left + gridStep; x < right; x += gridStep) {
+      ctx.beginPath();
+      ctx.moveTo(x, top + inset);
+      ctx.lineTo(x, bottom - inset);
+      ctx.stroke();
+    }
+    for (let y = top + gridStep; y < bottom; y += gridStep) {
+      ctx.beginPath();
+      ctx.moveTo(left + inset, y);
+      ctx.lineTo(right - inset, y);
+      ctx.stroke();
+    }
+
+    // Inner Corner Accent Crosshairs
+    const chLen = Math.max(6, Math.round(minDim * 0.02));
+    const chSpots = [
+      [left + inset, top + inset],
+      [right - inset, top + inset],
+      [left + inset, bottom - inset],
+      [right - inset, bottom - inset],
+    ];
+    ctx.strokeStyle = '#D5CFC4';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(cx, cy, minDim * 0.14, 0, Math.PI * 2);
+    for (const [sx, sy] of chSpots) {
+      ctx.moveTo(sx - chLen, sy);
+      ctx.lineTo(sx + chLen, sy);
+      ctx.moveTo(sx, sy - chLen);
+      ctx.lineTo(sx, sy + chLen);
+    }
+    ctx.stroke();
+
+    // 4 Köşe Takviye Braketleri (L-plates)
+    const bLen = Math.max(16, Math.round(minDim * 0.05));
+    ctx.strokeStyle = '#2B2B28';
+    ctx.lineWidth = 3;
+    const cornerPlates = [
+      [[left, top + bLen], [left, top], [left + bLen, top]],
+      [[right - bLen, top], [right, top], [right, top + bLen]],
+      [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
+      [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
+    ];
+    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
+      ctx.stroke();
+    }
+
+    // Center Court Markings (Dual Concentric Rings)
+    ctx.strokeStyle = '#E2DDD2';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(1, minDim * 0.22), 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#D0CAC0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(1, minDim * 0.14), 0, Math.PI * 2);
     ctx.stroke();
 
     if (this.state === 'PLAYING' || this.state === 'ROUND_PAUSE') {
@@ -654,7 +728,7 @@ export class Game extends BaseMiniGame {
       // Overdrive Center Core Hazard (Rally >= 10) & Advance Warning Telegraph (Rally 7..9)
       if (this.ball.rallyCount >= 7 && this.ball.rallyCount < 10) {
         const pulse = (Math.sin(performance.now() * 0.012) + 1) * 0.5;
-        const warnR = minDim * 0.075 * (0.92 + pulse * 0.16);
+        const warnR = Math.max(1, minDim * 0.075 * (0.92 + pulse * 0.16));
 
         ctx.save();
         ctx.beginPath();
@@ -664,17 +738,8 @@ export class Game extends BaseMiniGame {
         ctx.setLineDash([5, 5]);
         ctx.stroke();
         ctx.restore();
-
-        renderSpatialBadge(ctx, {
-          x: cx,
-          y: cy - 28,
-          text: t('game.dangerN', 10 - this.ball.rallyCount),
-          icon: '⚡',
-          urgent: true,
-          scale: 1.1,
-        });
       } else if (this.ball.rallyCount >= 10) {
-        const hazardR = minDim * 0.065;
+        const hazardR = Math.max(1, minDim * 0.065);
         ctx.save();
         ctx.fillStyle = '#1C1C1A';
         ctx.beginPath();
@@ -683,16 +748,12 @@ export class Game extends BaseMiniGame {
         ctx.strokeStyle = '#D84727';
         ctx.lineWidth = 3.5;
         ctx.stroke();
+        // Inner core accent
+        ctx.fillStyle = '#D84727';
+        ctx.beginPath();
+        ctx.arc(cx, cy, Math.max(0.5, hazardR * 0.35), 0, Math.PI * 2);
+        ctx.fill();
         ctx.restore();
-
-        renderSpatialBadge(ctx, {
-          x: cx,
-          y: cy,
-          text: 'ENGEL',
-          icon: '⚡',
-          urgent: true,
-          scale: 1.0,
-        });
       }
 
       ctx.save();
@@ -703,7 +764,7 @@ export class Game extends BaseMiniGame {
 
         // Animated Countdown Ring around center
         ctx.beginPath();
-        ctx.arc(cx, cy, minDim * 0.16 * (0.82 + progress * 0.18), 0, Math.PI * 2);
+        ctx.arc(cx, cy, Math.max(1, minDim * 0.16 * (0.82 + progress * 0.18)), 0, Math.PI * 2);
         ctx.strokeStyle = '#D84727';
         ctx.lineWidth = Math.max(4, Math.round(5 * scale));
         ctx.stroke();
@@ -758,76 +819,101 @@ export class Game extends BaseMiniGame {
     const { goalMin: vGoalMin, goalMax: vGoalMax } = this.getGoalBounds('left');
     const bLenH = hGoalMin - left;
     const bLenV = vGoalMin - top;
-    // Bumper kalınlığı arenaya oranlı (dar telefonda pahla orantı korunur)
-    const thick = Math.max(10, Math.round(Math.min(aW, aH) * 0.03));
+    const thick = Math.max(12, Math.round(Math.min(aW, aH) * 0.032));
+    const L = this.getChamferLeg();
 
-    ctx.fillStyle = '#8C8880';
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 2.5;
+    ctx.save();
 
-    // Helper to draw a hatched bumper rect
-    const drawBumper = (x, y, w, h) => {
+    // 1. 4 Köşe Katı Pah Takozları (Fiziksel sekme yüzeyleri, endüstriyel perçinli takozlar)
+    const corners = [
+      {
+        poly: [[left, top], [left + L, top], [left, top + L]],
+        hypotenuse: [[left + L, top], [left, top + L]],
+        rivet: [left + L * 0.35, top + L * 0.35],
+      },
+      {
+        poly: [[right, top], [right - L, top], [right, top + L]],
+        hypotenuse: [[right - L, top], [right, top + L]],
+        rivet: [right - L * 0.35, top + L * 0.35],
+      },
+      {
+        poly: [[left, bottom], [left + L, bottom], [left, bottom - L]],
+        hypotenuse: [[left + L, bottom], [left, bottom - L]],
+        rivet: [left + L * 0.35, bottom - L * 0.35],
+      },
+      {
+        poly: [[right, bottom], [right - L, bottom], [right, bottom - L]],
+        hypotenuse: [[right - L, bottom], [right, bottom - L]],
+        rivet: [right - L * 0.35, bottom - L * 0.35],
+      },
+    ];
+
+    for (const c of corners) {
+      // Takoz Gövdesi (Koyu Döküm Demir)
+      ctx.fillStyle = '#2E2C29';
+      ctx.beginPath();
+      ctx.moveTo(c.poly[0][0], c.poly[0][1]);
+      ctx.lineTo(c.poly[1][0], c.poly[1][1]);
+      ctx.lineTo(c.poly[2][0], c.poly[2][1]);
+      ctx.closePath();
+      ctx.fill();
+
+      // Sekme Yüzü (Kalın Neo-Brutalist Kenar)
+      ctx.strokeStyle = '#1C1C1A';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(c.hypotenuse[0][0], c.hypotenuse[0][1]);
+      ctx.lineTo(c.hypotenuse[1][0], c.hypotenuse[1][1]);
+      ctx.stroke();
+
+      // Endüstriyel Pirinç/Çelik Vida Perçini
+      ctx.fillStyle = '#D99B26';
+      ctx.strokeStyle = '#1C1C1A';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(c.rivet[0], c.rivet[1], Math.max(3, thick * 0.22), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // 2. 8 Adet Sağlam Bumper Direkleri (Dokunsal derinlik pahı ile)
+    const drawBumper = (x, y, w, h, isHoriz) => {
+      ctx.fillStyle = '#5A564F';
       ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = '#1C1C1A';
+      ctx.lineWidth = 3;
       ctx.strokeRect(x, y, w, h);
 
-      // Brutalist hatching
-      ctx.save();
-      ctx.strokeStyle = '#5E5B54';
+      // Üst Işık Çizgisi (3D Dokunma Hissi)
+      ctx.strokeStyle = '#7D786F';
       ctx.lineWidth = 1.5;
-      const step = 8;
-      for (let offset = -Math.max(w, h); offset < Math.max(w, h) + 20; offset += step) {
-        ctx.beginPath();
-        if (w > h) {
-          const sx = x + offset;
-          if (sx >= x - h && sx <= x + w) {
-            ctx.moveTo(Math.max(x, sx), y);
-            ctx.lineTo(Math.min(x + w, sx + h), y + h);
-          }
-        } else {
-          const sy = y + offset;
-          if (sy >= y - w && sy <= y + h) {
-            ctx.moveTo(x, Math.max(y, sy));
-            ctx.lineTo(x + w, Math.min(y + h, sy + w));
-          }
-        }
-        ctx.stroke();
+      ctx.beginPath();
+      if (isHoriz) {
+        ctx.moveTo(x + 2, y + 3);
+        ctx.lineTo(x + w - 2, y + 3);
+      } else {
+        ctx.moveTo(x + 3, y + 2);
+        ctx.lineTo(x + 3, y + h - 2);
       }
-      ctx.restore();
+      ctx.stroke();
     };
 
     // Bottom Bumpers (Left & Right)
-    drawBumper(left, bottom - thick, bLenH, thick);
-    drawBumper(hGoalMax, bottom - thick, bLenH, thick);
+    drawBumper(left, bottom - thick, bLenH, thick, true);
+    drawBumper(hGoalMax, bottom - thick, bLenH, thick, true);
 
     // Top Bumpers (Left & Right)
-    drawBumper(left, top, bLenH, thick);
-    drawBumper(hGoalMax, top, bLenH, thick);
+    drawBumper(left, top, bLenH, thick, true);
+    drawBumper(hGoalMax, top, bLenH, thick, true);
 
     // Left Bumpers (Top & Bottom)
-    drawBumper(left, top, thick, bLenV);
-    drawBumper(left, vGoalMax, thick, bLenV);
+    drawBumper(left, top, thick, bLenV, false);
+    drawBumper(left, vGoalMax, thick, bLenV, false);
 
     // Right Bumpers (Top & Bottom)
-    drawBumper(right - thick, top, thick, bLenV);
-    drawBumper(right - thick, vGoalMax, thick, bLenV);
+    drawBumper(right - thick, top, thick, bLenV, false);
+    drawBumper(right - thick, vGoalMax, thick, bLenV, false);
 
-    // 45° pah dikişleri: ince tek çizgi (fizik yüzüyle birebir, taşma yok)
-    const L = this.getChamferLeg();
-    const seams = [
-      [[left + L, top], [left, top + L]],
-      [[right - L, top], [right, top + L]],
-      [[left + L, bottom], [left, bottom - L]],
-      [[right - L, bottom], [right, bottom - L]],
-    ];
-    ctx.save();
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 3;
-    for (const [[x1, y1], [x2, y2]] of seams) {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-    }
     ctx.restore();
   }
 
