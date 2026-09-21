@@ -1,4 +1,4 @@
-const CACHE_NAME = 'brutal-party-v11';
+const CACHE_NAME = 'brutal-party-v12';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
