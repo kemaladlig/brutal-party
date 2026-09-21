@@ -3,6 +3,7 @@
 
 import { partyNetwork } from './network.js';
 import { supabaseRelay } from './supabaseRelay.js';
+import { safeGet, safeSet } from './core/safeStorage.js';
 
 export const PUBLIC_URL = (
   import.meta.env.VITE_PUBLIC_URL ||
@@ -66,22 +67,14 @@ const PLAYER_NAME_KEY = 'brutal-party-player-name';
 
 /** Son kullanılan oyuncu ismini döndürür (her zaman BÜYÜK HARF). */
 export function getStoredPlayerName() {
-  try {
-    return (localStorage.getItem(PLAYER_NAME_KEY) || '').toUpperCase().trim();
-  } catch {
-    return '';
-  }
+  return (safeGet(PLAYER_NAME_KEY) || '').toUpperCase().trim();
 }
 
 /** Oyuncu ismini hatırlar. Her zaman BÜYÜK HARFLE saklanır. */
 export function storePlayerName(name) {
   const clean = (name || '').trim().toUpperCase().slice(0, 12);
   if (!clean || clean === 'OYUNCU') return;
-  try {
-    localStorage.setItem(PLAYER_NAME_KEY, clean);
-  } catch {
-    // private mode vb. — sessiz geç
-  }
+  safeSet(PLAYER_NAME_KEY, clean);
 }
 
 // ── Tek isim + nick generator ──
@@ -143,9 +136,7 @@ export function ensureStoredNick() {
   const cur = getStoredPlayerName();
   if (cur && cur !== 'OYUNCU') return cur;
   const nick = generateNick();
-  try {
-    localStorage.setItem(PLAYER_NAME_KEY, nick);
-  } catch {}
+  safeSet(PLAYER_NAME_KEY, nick);
   return nick;
 }
 
@@ -167,16 +158,12 @@ export function cleanPlayerName(name) {
 // SenderId sekme başına değiştiği için isim-reclaim tek başına güvenli değil.
 const CLIENT_ID_KEY = 'brutal-party-client-id';
 export function getClientId() {
-  try {
-    let id = localStorage.getItem(CLIENT_ID_KEY);
-    if (!id) {
-      id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-      localStorage.setItem(CLIENT_ID_KEY, id);
-    }
-    return id;
-  } catch {
-    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  let id = safeGet(CLIENT_ID_KEY);
+  if (!id) {
+    id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    safeSet(CLIENT_ID_KEY, id);
   }
+  return id;
 }
 
 // HTML'e gömülen isimler için kaçış (skor şeridi innerHTML kullanır)

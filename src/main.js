@@ -114,6 +114,10 @@ window.addEventListener('orientationchange', () => {
 export function setGameMode(mode) {
   markTransition();
   currentMode = mode;
+  // Error boundary kurtarma: mod değişiminde hata sayacı sıfırlanır, yoksa
+  // çöken motordan dönülünce yeni motorun update() döngüsü kilitli kalırdı.
+  consecutiveEngineErrors = 0;
+  lastEngineError = null;
   setIsPaused(false);
   closePauseModal();
   touchManager.resetTouches();

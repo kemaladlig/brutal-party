@@ -3,6 +3,8 @@
 // koltukta aynı karakter görünür (kumanda kendi profilini relay ile host'a taşır).
 // Renkler, yüz ifadeleri, aksesuarlar ve gövde desenleri için tek gerçek kaynak.
 
+import { safeGet, safeSet, safeRemove } from './safeStorage.js';
+
 export const AVATAR_PALETTES = [
   { id: 'red', name: 'KIRMIZI', hex: '#D84727', border: '#1A1A1A' },
   { id: 'blue', name: 'MAVİ', hex: '#1D5D8A', border: '#1A1A1A' },
@@ -79,17 +81,15 @@ export function randomAvatarColor(excludeHexes = []) {
 // Eski 4-slot kayıtlarından tek profile migrasyon (bir kez).
 function migrateLegacyProfile() {
   try {
-    if (localStorage.getItem(PROFILE_KEY)) return;
-    const raw = localStorage.getItem(`${LEGACY_PREFIX}0`);
+    if (safeGet(PROFILE_KEY)) return;
+    const raw = safeGet(`${LEGACY_PREFIX}0`);
     if (raw) {
       const parsed = JSON.parse(raw);
       const clean = sanitizeAvatar(parsed, { keepColor: true });
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(clean));
+      safeSet(PROFILE_KEY, JSON.stringify(clean));
     }
   } catch {}
-  try {
-    for (let i = 0; i < 4; i++) localStorage.removeItem(`${LEGACY_PREFIX}${i}`);
-  } catch {}
+  for (let i = 0; i < 4; i++) safeRemove(`${LEGACY_PREFIX}${i}`);
 }
 
 // Bu cihazın tek karakter profili. İlk açılışta rastgele renk üretilir —
@@ -98,20 +98,20 @@ export function getAvatarProfile() {
   migrateLegacyProfile();
   const fallback = { color: randomAvatarColor(), ...randomFace() };
   try {
-    const raw = localStorage.getItem(PROFILE_KEY);
+    const raw = safeGet(PROFILE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       return sanitizeAvatar(parsed, { keepColor: true, fallbackColor: fallback.color });
     }
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(fallback));
+    safeSet(PROFILE_KEY, JSON.stringify(fallback));
   } catch {}
   return { ...fallback };
 }
 
 export function saveAvatarProfile(profile) {
   const clean = sanitizeAvatar(profile, { keepColor: true });
+  safeSet(PROFILE_KEY, JSON.stringify(clean));
   try {
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(clean));
     window.dispatchEvent(new CustomEvent('brutal_customization_changed', {
       detail: { customization: clean },
     }));
@@ -174,7 +174,7 @@ const LOCAL_SEAT_KEY = 'brutalparty.local.seatColors';
 
 function readLocalSeatColors() {
   try {
-    const raw = localStorage.getItem(LOCAL_SEAT_KEY);
+    const raw = safeGet(LOCAL_SEAT_KEY);
     if (raw) {
       const arr = JSON.parse(raw);
       if (Array.isArray(arr)) {
@@ -198,9 +198,7 @@ export function setLocalSeatColor(slotIndex, hex) {
   if (slotIndex < 0 || slotIndex > 3 || !isPaletteHex(hex)) return null;
   if (!localSeatCache) localSeatCache = readLocalSeatColors();
   localSeatCache[slotIndex] = String(hex).toUpperCase();
-  try {
-    localStorage.setItem(LOCAL_SEAT_KEY, JSON.stringify(localSeatCache));
-  } catch {}
+  safeSet(LOCAL_SEAT_KEY, JSON.stringify(localSeatCache));
   return localSeatCache[slotIndex];
 }
 

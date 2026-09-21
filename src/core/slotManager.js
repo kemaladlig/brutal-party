@@ -1,6 +1,7 @@
 // Slot Manager: Host Player Slots State, UI Sync, Engine Slot & Score Mapping
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { getSlotCustomization, findSlotColorDuplicates } from './customizationManager.js';
+import { safeGet, safeSet } from './safeStorage.js';
 
 // Koltuk girişi: { name, isReady, kind, avatar, displayColor }
 // avatar: oyuncunun cihaz profili (relay) · displayColor: host override dahil
@@ -22,16 +23,10 @@ export function getColorClashIndices() {
 // Bot ekleme ayarı (varsayılan KAPALI; pause menüsünden açılır, localStorage'da saklanır)
 const BOT_SETTING_KEY = 'brutalparty.botEkle';
 export function isBotEkleEnabled() {
-  try {
-    return localStorage.getItem(BOT_SETTING_KEY) === '1';
-  } catch {
-    return false;
-  }
+  return safeGet(BOT_SETTING_KEY) === '1';
 }
 export function setBotEkleEnabled(on) {
-  try {
-    localStorage.setItem(BOT_SETTING_KEY, on ? '1' : '0');
-  } catch {}
+  safeSet(BOT_SETTING_KEY, on ? '1' : '0');
 }
 
 export function updateHostSlot(slotIndex, isConnected, name = '', isReady = false, kind = 'human', avatar = undefined, displayColor = undefined) {
