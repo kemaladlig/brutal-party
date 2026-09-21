@@ -1,0 +1,211 @@
+// SaaS Main Menu Manager: Navbar controls, Quick Lang/Sound, Search & Bento Grid Filters
+import { getLang, setLang, onLangChange, t } from '../i18n.js';
+import { toggleAudio, getIsMuted } from '../audio.js';
+import { showInstallToast } from './toast.js';
+import { isFullscreen, toggleFullscreen, onFullscreenChange } from './fullscreen.js';
+
+export function initMainMenu({ onGameSelect }) {
+  // ── 1. Navbar: Quick Language Switcher ──
+  const btnMenuLang = document.getElementById('btn-menu-lang');
+  const navLangLabel = document.getElementById('nav-lang-label');
+
+  function updateLangUI(currentLang) {
+    if (navLangLabel) {
+      navLangLabel.textContent = (currentLang || getLang()).toUpperCase();
+    }
+  }
+  updateLangUI(getLang());
+
+  btnMenuLang?.addEventListener('click', () => {
+    const nextLang = getLang() === 'tr' ? 'en' : 'tr';
+    setLang(nextLang);
+    updateLangUI(nextLang);
+    showInstallToast(nextLang === 'tr' ? '🇹🇷 Türkçe seçildi' : '🇬🇧 English selected');
+  });
+
+  // ── 2. Navbar: Quick Audio Toggle ──
+  const btnMenuSound = document.getElementById('btn-menu-sound');
+  const navSoundIcon = document.getElementById('nav-sound-icon');
+
+  function updateSoundUI() {
+    const muted = getIsMuted();
+    if (navSoundIcon) {
+      navSoundIcon.textContent = muted ? '🔇' : '🔊';
+    }
+    if (btnMenuSound) {
+      btnMenuSound.setAttribute('aria-pressed', String(!muted));
+    }
+  }
+  updateSoundUI();
+
+  btnMenuSound?.addEventListener('click', () => {
+    const isMuted = toggleAudio();
+    updateSoundUI();
+    showInstallToast(isMuted ? t('toast.soundOff') : t('toast.soundOn'));
+  });
+
+  // ── 2b. Navbar: Fullscreen Mode Toggle ──
+  const btnMenuFullscreen = document.getElementById('btn-menu-fullscreen');
+  const navFullscreenIcon = document.getElementById('nav-fullscreen-icon');
+  const navFullscreenLabel = document.getElementById('nav-fullscreen-label');
+
+  function updateFullscreenUI(active) {
+    const isFs = typeof active === 'boolean' ? active : isFullscreen();
+    if (navFullscreenIcon) {
+      navFullscreenIcon.textContent = isFs ? '🗗' : '⛶';
+    }
+    if (navFullscreenLabel) {
+      navFullscreenLabel.textContent = isFs ? t('menu.exitFullscreen') : t('menu.fullscreen');
+    }
+    if (btnMenuFullscreen) {
+      btnMenuFullscreen.classList.toggle('active', isFs);
+      btnMenuFullscreen.setAttribute('aria-pressed', String(isFs));
+      btnMenuFullscreen.setAttribute('title', isFs ? t('menu.exitFullscreen') : t('menu.fullscreen'));
+    }
+  }
+  updateFullscreenUI();
+  onFullscreenChange(updateFullscreenUI);
+  onLangChange(() => updateFullscreenUI());
+
+  btnMenuFullscreen?.addEventListener('click', () => {
+    toggleFullscreen();
+  });
+
+  // ── 3. Navbar: Online / Offline Platform Status Pill ──
+  const navbarPlatformPill = document.getElementById('navbar-platform-pill');
+  function updateNetworkPill(isOnline) {
+    if (!navbarPlatformPill) return;
+    if (isOnline) {
+      navbarPlatformPill.textContent = `● ${t('menu.onlinePill') || 'ONLINE'}`;
+      navbarPlatformPill.classList.remove('offline');
+      navbarPlatformPill.classList.add('online');
+    } else {
+      navbarPlatformPill.textContent = `○ ${t('menu.localPill') || 'YEREL'}`;
+      navbarPlatformPill.classList.remove('online');
+      navbarPlatformPill.classList.add('offline');
+    }
+  }
+  updateNetworkPill(navigator.onLine);
+  window.addEventListener('online', () => updateNetworkPill(true));
+  window.addEventListener('offline', () => updateNetworkPill(false));
+
+  // ── 4. Search & Filter Toolbar ──
+  const searchInput = document.getElementById('menu-game-search');
+  const btnClearSearchInput = document.getElementById('btn-clear-search-input');
+  const btnClearSearch = document.getElementById('btn-clear-search');
+  const categoryTabs = document.getElementById('menu-category-tabs');
+  const countPill = document.getElementById('menu-games-count');
+  const noResultsCard = document.getElementById('menu-no-results');
+  const gameGrid = document.getElementById('menu-games-grid');
+  const allCards = gameGrid ? Array.from(gameGrid.querySelectorAll('.game-card-btn')) : [];
+
+  let activeCategory = 'all';
+  let searchQuery = '';
+
+  function normalize(str) {
+    return (str || '')
+      .toLowerCase()
+      .replace(/ğ/g, 'g')
+      .replace(/ü/g, 'u')
+      .replace(/ş/g, 's')
+      .replace(/ı/g, 'i')
+      .replace(/ö/g, 'o')
+      .replace(/ç/g, 'c')
+      .trim();
+  }
+
+  function applyFilters() {
+    const q = normalize(searchQuery);
+    let visibleCount = 0;
+
+    allCards.forEach((card) => {
+      const cardCategory = card.dataset.category || '';
+      const categoryMatch = activeCategory === 'all' || cardCategory === activeCategory;
+
+      let searchMatch = true;
+      if (q) {
+        const title = normalize(card.querySelector('.card-title')?.textContent);
+        const desc = normalize(card.querySelector('.card-desc')?.textContent);
+        const hl = normalize(card.querySelector('.card-highlight')?.textContent);
+        const id = normalize(card.id);
+        const keywords = normalize(card.dataset.keywords);
+        searchMatch = title.includes(q) || desc.includes(q) || hl.includes(q) || id.includes(q) || keywords.includes(q);
+      }
+
+      const isVisible = categoryMatch && searchMatch;
+      card.classList.toggle('filtered-out', !isVisible);
+      if (isVisible) visibleCount++;
+    });
+
+    // Update count pill
+    if (countPill) {
+      countPill.textContent = t('menu.gamesFound', visibleCount) || `${visibleCount} OYUN`;
+    }
+
+    // Toggle empty state card
+    if (noResultsCard) {
+      noResultsCard.classList.toggle('hidden', visibleCount > 0);
+    }
+
+    // Toggle clear search button
+    if (btnClearSearchInput) {
+      btnClearSearchInput.classList.toggle('hidden', searchQuery.length === 0);
+    }
+  }
+
+  // Search input listeners
+  searchInput?.addEventListener('input', (e) => {
+    searchQuery = e.target.value;
+    applyFilters();
+  });
+
+  btnClearSearchInput?.addEventListener('click', () => {
+    if (searchInput) {
+      searchInput.value = '';
+      searchQuery = '';
+      applyFilters();
+      searchInput.focus();
+    }
+  });
+
+  btnClearSearch?.addEventListener('click', () => {
+    if (searchInput) {
+      searchInput.value = '';
+      searchQuery = '';
+    }
+    activeCategory = 'all';
+    if (categoryTabs) {
+      categoryTabs.querySelectorAll('.category-filter-chip').forEach((c) => {
+        const isActive = c.dataset.filter === 'all';
+        c.classList.toggle('active', isActive);
+        c.setAttribute('aria-selected', String(isActive));
+      });
+    }
+    applyFilters();
+    searchInput?.focus();
+  });
+
+  // Category filter tabs listener
+  categoryTabs?.addEventListener('click', (e) => {
+    const chip = e.target.closest('.category-filter-chip');
+    if (!chip) return;
+    activeCategory = chip.dataset.filter || 'all';
+    categoryTabs.querySelectorAll('.category-filter-chip').forEach((c) => {
+      const isActive = c === chip;
+      c.classList.toggle('active', isActive);
+      c.setAttribute('aria-selected', String(isActive));
+    });
+    applyFilters();
+  });
+
+  // Re-run filter on language change (updates localized text and counts)
+  onLangChange((newLang) => {
+    updateLangUI(newLang);
+    updateSoundUI();
+    updateNetworkPill(navigator.onLine);
+    applyFilters();
+  });
+
+  // Initial pass
+  applyFilters();
+}

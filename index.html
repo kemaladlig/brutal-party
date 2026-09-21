@@ -33,6 +33,9 @@
       <!-- Discrete In-Game Quick Options Button (Safe Corner Placement) -->
       <div id="in-game-hud" class="hidden">
         <button id="btn-quick-tv-lobby" class="btn-quick-tv-lobby hidden" type="button">📺 LOBİYE DÖN</button>
+        <button id="btn-quick-fullscreen" class="btn-quick-fullscreen" type="button" aria-label="Tam Ekran" title="Tam Ekran Aç/Kapat">
+          <span id="quick-fullscreen-icon" class="fs-icon">⛶</span>
+        </button>
         <button id="btn-open-options" type="button" aria-label="Seçenekler ve Menü">
           <span class="dots-icon">⋮</span>
         </button>
@@ -352,6 +355,10 @@
                 <span class="switch-label" data-i18n="pause.sound">🔊 Ses</span>
                 <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
               </button>
+              <button id="btn-toggle-fullscreen" class="switch-row" type="button" role="switch" aria-checked="false">
+                <span class="switch-label" data-i18n="pause.fullscreen">⛶ Tam ekran modu</span>
+                <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+              </button>
               <button id="btn-toggle-bots" class="switch-row" type="button" role="switch" aria-checked="false">
                 <span class="switch-label" data-i18n="pause.bots">🤖 Bot ekleme</span>
                 <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
@@ -374,19 +381,45 @@
 
       <!-- HTML Brutalist Menu Overlay -->
       <div id="menu-overlay">
-        <button id="btn-install-app" class="install-app-btn" type="button" aria-label="Oyunu ana ekrana yükle" title="Oyunu ana ekrana yükle">
-          <span aria-hidden="true">↓</span>
-        </button>
-        <button id="btn-open-settings" class="settings-gear-btn" type="button" aria-label="Ayarlar" title="Ayarlar">
-          <span aria-hidden="true">⚙</span>
-        </button>
         <div class="menu-container">
+          <!-- SaaS Top Navigation Bar -->
+          <header class="menu-navbar">
+            <div class="navbar-left">
+              <div class="brand-badge">⚡ BRUTAL PARTY // 4P</div>
+              <span class="navbar-status-pill online" id="navbar-platform-pill">● ONLINE</span>
+              <span class="navbar-meta-pill" data-i18n="menu.meta">13 OYUN • 2-4 KİŞİ</span>
+            </div>
+            <div class="navbar-right">
+              <!-- Fullscreen Mode Toggle -->
+              <button id="btn-menu-fullscreen" class="nav-btn nav-fullscreen-btn" type="button" aria-label="Tam Ekran" title="Tam Ekran Modunu Aç/Kapat">
+                <span id="nav-fullscreen-icon" class="nav-btn-icon">⛶</span>
+                <span id="nav-fullscreen-label" class="nav-btn-label" data-i18n="menu.fullscreen">Tam Ekran</span>
+              </button>
+              <!-- Quick 1-click Language Switcher -->
+              <button id="btn-menu-lang" class="nav-btn nav-lang-btn" type="button" aria-label="Dil / Language" title="Dil Değiştir / Switch Language">
+                <span class="nav-btn-icon">🌍</span>
+                <span id="nav-lang-label" class="nav-btn-label">TR</span>
+              </button>
+              <!-- Quick Audio Mute/Unmute -->
+              <button id="btn-menu-sound" class="nav-btn nav-sound-btn" type="button" aria-label="Ses" title="Sesi Aç/Kapat">
+                <span id="nav-sound-icon" class="nav-btn-icon">🔊</span>
+                <span class="nav-btn-label" data-i18n="menu.sound">Ses</span>
+              </button>
+              <!-- Settings Button -->
+              <button id="btn-open-settings" class="nav-btn nav-settings-btn" type="button" aria-label="Ayarlar" title="Ayarlar">
+                <span class="nav-btn-icon">⚙</span>
+                <span class="nav-btn-label" data-i18n="menu.settings">Ayarlar</span>
+              </button>
+              <!-- Install App Button (hidden until available or prompted) -->
+              <button id="btn-install-app" class="nav-btn nav-install-btn hidden" type="button" aria-label="Oyunu ana ekrana yükle" title="Oyunu ana ekrana yükle">
+                <span class="nav-btn-icon">↓</span>
+                <span class="nav-btn-label" data-i18n="menu.install">Yükle</span>
+              </button>
+            </div>
+          </header>
+
           <!-- Header Banner -->
           <div class="menu-header">
-            <div class="header-top-row">
-              <div class="menu-badge">⚡ BRUTAL PARTY // 4P</div>
-              <div class="version-badge" data-i18n="menu.meta">13 OYUN • 2-4 KİŞİ</div>
-            </div>
             <div class="menu-title-block">
               <h1 class="menu-title">BRUTAL PARTY</h1>
               <p class="menu-subtitle" data-i18n="menu.subtitle">TELEFONLAR KUMANDA • EKRAN ARENA</p>
@@ -423,7 +456,10 @@
                     KATIL →
                   </button>
                 </div>
-                <button class="hero-paste-helper-btn" id="btn-hero-paste" type="button" data-i18n="menu.joinPaste">📋 Kodu Yapıştır</button>
+                <div class="hero-join-helpers">
+                  <button class="hero-paste-helper-btn" id="btn-hero-paste" type="button" data-i18n="menu.joinPaste">📋 Kodu Yapıştır</button>
+                  <span class="hero-kbd-hint">↵ ENTER</span>
+                </div>
               </div>
 
               <!-- 2. Secondary: Host as TV / Big Screen -->
@@ -434,6 +470,11 @@
                 </div>
                 <h2 class="hero-card-title" data-i18n="menu.hostTitle">BU CİHAZI EKRAN YAP</h2>
                 <p class="hero-card-desc" data-i18n="menu.hostDesc">Salondaki TV'de veya tablette oyun odası aç, herkes telefonunu bağlasın:</p>
+                <div class="hero-host-features">
+                  <span class="host-feat-pill" data-i18n="menu.hostFeat1">📱 Sıfır Kurulum</span>
+                  <span class="host-feat-pill" data-i18n="menu.hostFeat2">⚡ Anında QR & Kod</span>
+                  <span class="host-feat-pill" data-i18n="menu.hostFeat3">🎉 13 Parti Oyunu</span>
+                </div>
                 <button class="hero-host-btn" id="btn-hero-create-room" type="button" data-i18n="menu.hostCta">
                   🏠 ODA KUR →
                 </button>
@@ -478,13 +519,40 @@
                 <span class="stripe-badge" data-i18n="menu.stripeBadge">📱 TEK CİHAZ / ARENA</span>
                 <span class="stripe-text" data-i18n="menu.stripeText">Masaya koyup yan yana veya TV'de oynamak için oyun seçin:</span>
               </div>
-              <div class="menu-category-tabs" id="menu-category-tabs">
-                <button class="category-filter-chip active" data-filter="all" type="button" data-i18n="menu.chipAll">TÜM OYUNLAR (13)</button>
-                <button class="category-filter-chip" data-filter="fight" type="button" data-i18n="menu.chipFight">⚔️ DÖVÜŞ & SAVAŞ (5)</button>
-                <button class="category-filter-chip" data-filter="speed" type="button" data-i18n="menu.chipSpeed">⚡ HIZ & REFLEKS (3)</button>
-                <button class="category-filter-chip" data-filter="strategy" type="button" data-i18n="menu.chipStrategy">🧠 ALAN & TAKTİK (5)</button>
+              <div class="menu-filter-toolbar">
+                <div class="menu-category-tabs" id="menu-category-tabs" role="tablist" aria-label="Oyun Kategorileri">
+                  <button class="category-filter-chip active" data-filter="all" type="button" role="tab" aria-selected="true" data-i18n="menu.chipAll">TÜM OYUNLAR (13)</button>
+                  <button class="category-filter-chip" data-filter="fight" type="button" role="tab" aria-selected="false" data-i18n="menu.chipFight">⚔️ DÖVÜŞ & SAVAŞ (5)</button>
+                  <button class="category-filter-chip" data-filter="speed" type="button" role="tab" aria-selected="false" data-i18n="menu.chipSpeed">⚡ HIZ & REFLEKS (3)</button>
+                  <button class="category-filter-chip" data-filter="strategy" type="button" role="tab" aria-selected="false" data-i18n="menu.chipStrategy">🧠 ALAN & TAKTİK (5)</button>
+                </div>
+                <div class="menu-filter-right">
+                  <div class="menu-search-box">
+                    <span class="search-icon" aria-hidden="true">🔍</span>
+                    <input
+                      type="text"
+                      id="menu-game-search"
+                      class="menu-search-input"
+                      data-i18n-ph="menu.searchPh"
+                      placeholder="Oyun ara... (örn: tank, pong, lazer)"
+                      autocomplete="off"
+                      spellcheck="false"
+                    />
+                    <button id="btn-clear-search-input" class="search-clear-btn hidden" type="button" aria-label="Aramayı temizle">×</button>
+                  </div>
+                  <div class="menu-games-count-wrap">
+                    <span id="menu-games-count" class="games-count-pill">13 OYUN</span>
+                  </div>
+                </div>
               </div>
             </div>
+          </div>
+
+          <!-- Empty state when no games match filter/search -->
+          <div id="menu-no-results" class="no-results-card hidden">
+            <div class="no-results-icon">🔍</div>
+            <div class="no-results-title" data-i18n="menu.noResults">Aramanızla eşleşen oyun bulunamadı.</div>
+            <button id="btn-clear-search" class="clear-search-btn" type="button" data-i18n="menu.clearSearch">Filtreyi Temizle</button>
           </div>
 
           <!-- Bento Grid Games (Responsive 2-3-4 Columns) -->

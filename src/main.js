@@ -11,7 +11,7 @@ import {
   getEngineGame,
   forEachEngine,
 } from './core/engineRegistry.js';
-import { playJoin } from './audio.js';
+import { playJoin, toggleAudio, getIsMuted } from './audio.js';
 import { partyNetwork } from './network.js';
 import { GamepadManager } from './gamepad.js';
 import {
@@ -40,7 +40,9 @@ import {
 } from './ui/pauseModal.js';
 import { initJoinModal, openJoinModal } from './ui/joinModal.js';
 import { initSettingsModal, openSettingsModal } from './ui/settingsModal.js';
-import { applyI18nToDOM, onLangChange, t } from './i18n.js';
+import { initMainMenu } from './ui/menuManager.js';
+import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
+import { tryFullscreen, isFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
 import {
   initHostLobby,
   showHostLobbyModal,
@@ -57,6 +59,8 @@ const canvas = document.getElementById('game-canvas');
 const menuOverlay = document.getElementById('menu-overlay');
 const inGameHud = document.getElementById('in-game-hud');
 const btnQuickTvLobby = document.getElementById('btn-quick-tv-lobby');
+const btnQuickFullscreen = document.getElementById('btn-quick-fullscreen');
+const quickFullscreenIcon = document.getElementById('quick-fullscreen-icon');
 const btnOpenOptions = document.getElementById('btn-open-options');
 const btnHeroCreateRoom = document.getElementById('btn-hero-create-room');
 
@@ -262,20 +266,8 @@ function addTapListener(el, callback) {
   });
 }
 
-// Mobil tam ekran: kullanıcı dokunuşuyla (jest bağlamı) durum çubuğunu gizle.
-// Kurulu PWA'da manifest (fullscreen) işi zaten yapar; bu, tarayıcıdan açanlar içindir.
-function tryFullscreen() {
-  try {
-    if (!document.fullscreenElement && typeof document.documentElement.requestFullscreen === 'function') {
-      const p = document.documentElement.requestFullscreen();
-      if (p && typeof p.catch === 'function') p.catch(() => {});
-    }
-  } catch {}
-}
-
 // TV Host Room Creation
 async function openHostLobby(gameMode = 'PONG') {
-  tryFullscreen();
   setCurrentHostGameMode(gameMode);
   try {
     await activeNet().hostRoom(gameMode, {
@@ -787,6 +779,7 @@ function cancelCountdown() {
 }
 
 function startEngineNow(mode) {
+  tryFullscreen();
   // Maç başı reset motorun oyuncu renklerini yeniden kurar; host display
   // renkleri (override dahil) hemen ardından tekrar yazılır.
   const engine = getEngine(mode);
@@ -797,7 +790,6 @@ function startEngineNow(mode) {
 
 // BAŞLAT #1: sahayı aç — motor LOBBY'de arena gösterir, koltuk seçimi başlar
 async function enterStaging(mode) {
-  tryFullscreen();
   // Sert renk engeli: aynı display rengine sahip iki insan koltuğu varken
   // sahaya geçilemez (LOCAL'de koltuklar boş → küme boş → engel yok).
   if (activeNet().isHosting && getColorClashIndices().length > 0) {
@@ -1039,22 +1031,8 @@ btnHeroCreateRoom?.addEventListener('click', () => openHostLobby('PONG'));
 addTapListener(document.getElementById('btn-menu-customize'), () => openCustomizeModal());
 initMenuAvatarCard();
 
-// Kategori Filtre Çipleri
-const categoryTabs = document.getElementById('menu-category-tabs');
-categoryTabs?.addEventListener('click', (e) => {
-  const chip = e.target.closest('.category-filter-chip');
-  if (!chip) return;
-  const filter = chip.dataset.filter || 'all';
-  categoryTabs.querySelectorAll('.category-filter-chip').forEach((c) => c.classList.toggle('active', c === chip));
-  const cards = document.querySelectorAll('#menu-games-grid .game-card-btn');
-  cards.forEach((card) => {
-    if (filter === 'all' || card.dataset.category === filter) {
-      card.classList.remove('filtered-out');
-    } else {
-      card.classList.add('filtered-out');
-    }
-  });
-});
+// SaaS Main Menu Setup: Navbar controls, Quick Lang/Sound, Search & Bento Grid Filters
+initMainMenu({ onGameSelect: handleGameCardClick });
 
 for (const mode of GAME_ORDER) {
   addTapListener(document.getElementById(`btn-select-${mode.toLowerCase()}`), () => handleGameCardClick(mode));
@@ -1066,6 +1044,19 @@ for (const mode of GAME_ORDER) {
 }
 
 addTapListener(btnQuickTvLobby, returnHostToLobby);
+
+function updateQuickFullscreen(active) {
+  const isFs = typeof active === 'boolean' ? active : isFullscreen();
+  if (quickFullscreenIcon) quickFullscreenIcon.textContent = isFs ? '🗗' : '⛶';
+  btnQuickFullscreen?.classList.toggle('active', isFs);
+  btnQuickFullscreen?.setAttribute('title', isFs ? t('menu.exitFullscreen') : t('menu.fullscreen'));
+  btnQuickFullscreen?.setAttribute('aria-pressed', String(isFs));
+}
+updateQuickFullscreen();
+onFullscreenChange(updateQuickFullscreen);
+onLangChange(() => updateQuickFullscreen());
+addTapListener(btnQuickFullscreen, () => toggleFullscreen());
+
 addTapListener(btnOpenOptions, () => {
   openPauseModal({
     currentMode,

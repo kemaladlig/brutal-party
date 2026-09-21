@@ -6,6 +6,7 @@ import { isColorblindEnabled, setColorblindEnabled } from '../core/customization
 import { showInstallToast } from './toast.js';
 import { toggleAudio, getIsMuted } from '../audio.js';
 import { t, onLangChange } from '../i18n.js';
+import { isFullscreen, toggleFullscreen, onFullscreenChange } from './fullscreen.js';
 
 const pauseModal = document.getElementById('pause-modal');
 const pauseGameTitle = document.getElementById('pause-game-title');
@@ -14,6 +15,7 @@ const btnResumeGame = document.getElementById('btn-resume-game');
 const btnResetMatch = document.getElementById('btn-reset-match');
 const btnTvLobby = document.getElementById('btn-tv-lobby');
 const btnToggleSound = document.getElementById('btn-toggle-sound');
+const btnToggleFullscreen = document.getElementById('btn-toggle-fullscreen');
 const btnToggleBots = document.getElementById('btn-toggle-bots');
 const btnToggleColorblind = document.getElementById('btn-toggle-colorblind');
 const btnExitToMenu = document.getElementById('btn-exit-to-menu');
@@ -39,6 +41,7 @@ function setSwitch(el, on) {
 
 export function refreshPauseSwitches() {
   setSwitch(btnToggleSound, !getIsMuted());
+  setSwitch(btnToggleFullscreen, isFullscreen());
   setSwitch(btnToggleBots, isBotEkleEnabled());
   setSwitch(btnToggleColorblind, isColorblindEnabled());
 }
@@ -166,6 +169,15 @@ export function initPauseModal({
     const muted = toggleAudio();
     setSwitch(btnToggleSound, !muted);
     showInstallToast(muted ? t('toast.soundOff') : t('toast.soundOn'));
+  });
+
+  btnToggleFullscreen?.addEventListener('click', () => {
+    const active = toggleFullscreen();
+    setSwitch(btnToggleFullscreen, active);
+  });
+
+  onFullscreenChange((active) => {
+    setSwitch(btnToggleFullscreen, active);
   });
 
   btnToggleBots?.addEventListener('click', () => {

@@ -14,6 +14,8 @@ export function isStandaloneApp() {
 export function updateInstallButtonVisibility() {
   if (isStandaloneApp()) {
     btnInstallApp?.classList.add('hidden');
+  } else {
+    btnInstallApp?.classList.remove('hidden');
   }
 }
 
