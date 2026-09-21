@@ -32,13 +32,19 @@ src/core/
                             handleStandardJoystickTouchStart/Move/End, renderStandardLobby,
                             handleStandardRemoteJoystick)
   engineRegistry.js         GAME_ORDER, CARTRIDGES (13 oyun kartuşu + metadatalar), initAllCartridges, getControllerMeta, registerEngine/getEngine/forEachEngine
-  slotManager.js            Koltuk yönetimi: hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots
+  slotManager.js            Koltuk yönetimi: hostPlayerSlots (+avatar/displayColor), updateHostSlot,
+                            syncSlotsToEngine, swapEngineSlots, getColorClashIndices (sert renk engeli)
+  customizationManager.js   Cihaz-başı TEK profil (localStorage), rastgele varsayılan renk,
+                            sanitizeAvatar/pickFreeColor/findSlotColorDuplicates, koltuk avatar kayıt defteri
 
 src/ui/
   canvasUI.js               Tüm motorlar için ortak Canvas UI bileşenleri (renderLobbySeatCard,
                             renderLobbyStartButton, renderStandardLobbySeats, renderMatchOver,
                             renderRoundBanner, renderControlGuide, renderCornerScores,
                             renderArenaWatermarkTimer, getStandardSeatRects)
+  customizeModal.js         Sekmesiz tek-profil avatar atölyesi (TV menü + host + kumanda lobi)
+  characterRenderer.js      Birleşik avatar çizimi: options.avatar/kayıt defteri, yazısız pip kimliği
+                            (P1=● … P4=●●●●), saha içi text-label yasaktır
   hostLobby.js              TV bekleme lobisi modali (QR kod canvas, oda kodu, lobi oyun chip'leri, WhatsApp/link paylaşımı, ping badge)
   joinModal.js              Kumanda katılım modali & Hero kod kutusu, panodan yapıştırma
   pauseModal.js             Oyun içi duraklatma menüsü, 4 koltuk takası, 90° saat yönü ekran döndürme, ses aç/kapa
@@ -102,7 +108,8 @@ Sistem iki relay kullanabilir:
 
 ### Kumanda → TV Host (`player_msg`):
 * `INPUT`: Joystick yönü `(x, y)` veya buton basımları (`FIRE`, `DASH`, `TACKLE`). 50ms throttle ile sınırlandırılmıştır; aksiyon butonları throttlesızdır.
-* `JOIN_ROOM`: 3 haneli oda kodu + oyuncu adı ile odaya katılma isteği.
+* `INPUT` tüneli `AVATAR_UPDATE`: kumanda kendi karakterini bildirir (`{color, expression, accessory, pattern}`; host sanitize eder, 1sn rate-limit).
+* `JOIN_ROOM` / `JOIN`: 3 haneli oda kodu + oyuncu adı + `avatar` ile odaya katılma isteği. Avatarsız eski istemciye host boş rastgele renk + varsayılan yüz atar; alınmış renkle gelenin rengi boşa çekilir (yüz korunur).
 * `SWITCH_SLOT`: Kumandadan boş bir koltuğa geçiş talebi (`targetIndex`).
 * `PLAYER_READY`: Hazır / Hazır değil durum değişimi.
 * `SET_NAME`: İsim güncellemesi (büyük harf, maks 12 karakter).
@@ -110,7 +117,9 @@ Sistem iki relay kullanabilir:
 
 ### TV Host → Kumanda (`host_msg`):
 * `HOST_STATE_SYNC` / `GAME_STATE`: 8Hz periyodik oyun durumu yayını (dirty-check ile değişmediyse göndermez).
-* `SLOTS_UPDATE`: 4 koltuğun güncel durumu (`slotIndex, name, color, kind, isReady`). Hem WS hem Supabase'de birebir aynı şemadır.
+* `SLOTS_UPDATE`: 4 koltuğun güncel durumu (`slotIndex, name, color, kind, isReady` + insanlarda `avatar`). Hem WS hem Supabase'de birebir aynı şemadır.
+* `SLOT_CHANGED`: koltuk no + display rengi. Renk oyuncuyla taşınır (takas/döndürmede koltuğa sabitlenmez).
+* `SET_SLOT_COLOR` (host-only): host lobi hızlı palet/🎲 display-renk override'ı (profil değişmez).
 * `SLOT_CHANGED`: Oyuncuya atanan yeni slot indeksi ve rengi.
 * `SLOTS_SWAPPED`: Host tarafından iki koltuk takas edildiğinde kumandaları bilgilendirir.
 * `STAGING_STARTED` / `COUNTDOWN` / `GAME_STARTED`: Lobi akış geçişleri.
@@ -120,8 +129,9 @@ Sistem iki relay kullanabilir:
 
 ## 4. Slot Modeli Kuralları
 
-* TV tarafında: `hostPlayerSlots[i] = { name, isReady, kind }`, `kind ∈ 'human' | 'bot'`.
+* TV tarafında: `hostPlayerSlots[i] = { name, isReady, kind, avatar, displayColor }`, `kind ∈ 'human' | 'bot'`.
 * Relay tarafı (`supabaseRelay.players[]` veya `room.players[]`) tek doğru gerçektir (Single Source of Truth).
+* **Sert renk engeli:** İki insan koltuğu aynı display rengine sahipse `SAHAYA GEÇ` + sayaç kilitlenir (lobide `⚠️ AYNI RENK` + 🎲 hızlı atama). LOCAL muaf (koltuklar boş → küme boş).
 * **Bot Kuralları:**
   * Bot koltukları ne hedef ne kaynak olabilir; `SWITCH_SLOT` ile botun üstüne oturulamaz.
   * Sayaç başladığında (`COUNTDOWN`) koltuk seçimleri kilitlenir (`seatsLocked`).
@@ -197,6 +207,12 @@ Sistem iki relay kullanabilir:
    * Klavye: `isLocalInputActive` (BaseGame + setGameMode) — pasif motorun tuşu yanlış oyunu tetiklemez.
    * Tank botu aktif direksiyon (kısa-yön dönüş + duvar kaçışı), boşta spin korunur.
    * Kalan: ses `playTone` birleştirme + DUEL ok-tuşu gerilimi (sözleşme literali korundu).
+16. **Cihaz-başı karakter + yazısız kimlik (avatar senkronu):**
+    * Her cihaz tek profil tutar (`brutalparty.avatar.profile`); ilk açılışta rastgele renk — herkes default kırmızıyla gelmez. Atölye sekmesizdir (TV menü + kumanda lobi aynı modal).
+    * Kumanda profilini relay ile taşır (JOIN/`AVATAR_UPDATE`); host sanitize eder (`sanitizeAvatar`), yüz kayıt defterinden (`slotIndex` → avatar) okunur. Renk koltuğa değil oyuncuya aittir (takasta taşınır).
+    * Saha içi yazı yasaktır: kimlik = display rengi + pip (koltuk no kadar nokta) + köşe/koltuk pozisyonu. `renderTextLabel` kapısı kaldırıldı.
+    * Ağ bütçesi korunur: avatar ~40B, JOIN/slot yayınlarında taşınır; 8Hz dirty-check + discrete 1sn kısma geçerlidir.
+    * LOCAL (tek cihaz): yüz cihaz profilinden, renk koltuk başınadır (`brutalparty.local.seatColors`, kalıcı). Lobi kartındaki renk noktasına dokununca sıradaki boş renge geçilir; yeni insan koltuğuna otomatik boş renk atanır. Nokta butonu tap dispatch'te karttan önce gelir (ilk eşleşme kazanır).
 
 ---
 

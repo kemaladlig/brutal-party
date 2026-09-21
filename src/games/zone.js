@@ -3,7 +3,7 @@
 // capture. Enemy steps on your trail -> you shatter back to base size + 2s stun
 // (no elimination, party flow preserved). 90s rounds, first to 40% takes the
 // round early, first to 2 rounds is the champion.
-import { getSlotCustomization } from '../core/customizationManager.js';
+import { getSlotCustomization, ensureLocalSeatColor, getLocalSeatColors } from '../core/customizationManager.js';
 import {
   playStart,
   playJoin,
@@ -14,7 +14,7 @@ import {
   playStumble,
   playPowerUp,
 } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import {
   renderTopPill,
   renderCornerScores,
@@ -167,6 +167,10 @@ export class ZoneGame extends BaseMiniGame {
       this.slotTypes[index] = 'bot_god';
     } else {
       this.slotTypes[index] = 'empty';
+    }
+    // LOCAL: yeni insan koltuğuna boş renk ata (hook dönmediyse lokaldir)
+    if (this.slotTypes[index] === 'human' && !this.hideLobbyStartButton) {
+      this.applyLocalSeatColor(index, ensureLocalSeatColor(index));
     }
     playJoin();
   }
@@ -1604,6 +1608,8 @@ export class ZoneGame extends BaseMiniGame {
   renderLobbyUI(ctx) {
     const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
     const seatRects = getStandardSeatRects(this.arena);
+    const localMode = !this.hideLobbyStartButton;
+    const localColors = localMode ? getLocalSeatColors() : null;
     for (let i = 0; i < 4; i++) {
       const rect = seatRects[i];
       const isTop = i === 1 || i === 2;
@@ -1613,7 +1619,17 @@ export class ZoneGame extends BaseMiniGame {
         playerName: this.players[i] ? this.players[i].name : '',
         playerColor: ZONE_COLORS[i],
         rotation: isTop ? Math.PI : 0,
+        seatColor: localMode ? (localColors[i] || ZONE_COLORS[i]) : null,
+        showColorDot: localMode,
       });
+      // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
+      if (localMode) {
+        const dot = getSeatColorDotRect(rect);
+        this.uiButtons.push({
+          x: dot.x, y: dot.y, w: dot.w, h: dot.h,
+          onClick: () => this.cycleLocalSeat(i),
+        });
+      }
       this.uiButtons.push({
         x: rect.x, y: rect.y, w: rect.w, h: rect.h,
         onClick: () => {

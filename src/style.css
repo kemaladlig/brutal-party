@@ -2257,39 +2257,6 @@ body {
   box-shadow: 1px 1px 0px #1A1A1A;
 }
 
-/* Slot Tabs */
-.customize-slot-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  background-color: #E5E0D6;
-  border-bottom: 3.5px solid #1A1A1A;
-}
-
-.slot-tab {
-  padding: 10px 4px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  font-weight: 900;
-  color: #55514A;
-  background-color: transparent;
-  border: none;
-  border-right: 2px solid #1A1A1A;
-  cursor: pointer;
-  text-align: center;
-  transition: all 0.1s ease;
-}
-
-.slot-tab:last-child {
-  border-right: none;
-}
-
-.slot-tab.active {
-  background-color: #FAF7F2;
-  color: #1A1A1A;
-  font-weight: 900;
-  box-shadow: inset 0 3px 0 #1A1A1A;
-}
-
 .customize-body {
   display: grid;
   grid-template-columns: 260px 1fr;
@@ -2526,7 +2493,7 @@ body {
   box-shadow: 2px 2px 0px #1A1A1A;
 }
 
-.slot-customize-btn {
+.slot-color-btn {
   padding: 4px 8px;
   background-color: #FAF7F2;
   border: 2px solid #1A1A1A;
@@ -2541,9 +2508,94 @@ body {
   justify-content: center;
 }
 
-.slot-customize-btn:active {
+.slot-color-btn:active {
   transform: translate(1px, 1px);
   box-shadow: 1px 1px 0px #1A1A1A;
+}
+
+/* Renk çakışması: aynı display rengine sahip koltuklar */
+.host-player-slot.color-clash {
+  border-color: #D84727;
+  box-shadow: 3px 3px 0px #D84727;
+}
+
+.slot-clash-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 900;
+  color: #FFFFFF;
+  background-color: #D84727;
+  border: 2px solid #1A1A1A;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+/* Hızlı renk paleti popover (host lobisi) */
+.slot-palette-pop {
+  position: absolute;
+  z-index: 120;
+  width: 208px;
+  background-color: #FAF7F2;
+  border: 3px solid #1A1A1A;
+  box-shadow: 4px 4px 0px #1A1A1A;
+  padding: 10px;
+}
+
+.slot-palette-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 900;
+  color: #1A1A1A;
+  margin-bottom: 8px;
+}
+
+.slot-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.slot-palette-swatch {
+  width: 30px;
+  height: 30px;
+  border: 2.5px solid #1A1A1A;
+  cursor: pointer;
+  padding: 0;
+}
+
+.slot-palette-swatch:active {
+  transform: scale(0.92);
+}
+
+.slot-palette-dice {
+  width: 100%;
+  padding: 8px 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 900;
+  color: #1A1A1A;
+  background-color: #FFDE59;
+  border: 2.5px solid #1A1A1A;
+  box-shadow: 2px 2px 0px #1A1A1A;
+  cursor: pointer;
+}
+
+.slot-palette-dice:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #1A1A1A;
+}
+
+/* Sert engel: kilitli başlat butonları */
+#btn-host-launch-game.blocked,
+#btn-staging-launch.blocked {
+  background-color: #D84727;
+  color: #FFFFFF;
+}
+
+#staging-ready-pill.clash {
+  background-color: #D84727;
+  color: #FFFFFF;
 }
 
 /* ==========================================================================

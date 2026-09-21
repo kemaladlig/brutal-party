@@ -3,7 +3,8 @@
 // Otomatik rastgele harita varyasyonları, 3D derinlikli zeminler ve dinamik parçalanma.
 
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { getLocalSeatColors } from '../core/customizationManager.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCollapseBotAI } from '../ai/collapseAI.js';
@@ -975,6 +976,8 @@ export class CollapseGame extends BaseMiniGame {
         'P4 YEŞİL',
       ]);
       const seatRects = getStandardSeatRects(this.arena);
+      const localMode = !this.hideLobbyStartButton;
+      const localColors = localMode ? getLocalSeatColors() : null;
       for (let i = 0; i < 4; i++) {
         const rect = seatRects[i];
         const isTop = i === 1 || i === 2;
@@ -988,7 +991,17 @@ export class CollapseGame extends BaseMiniGame {
           playerName: this.players[i]?.name || '',
           playerColor: COLLAPSE_COLORS[i],
           rotation: isTop ? Math.PI : 0,
+          seatColor: localMode ? (localColors[i] || COLLAPSE_COLORS[i]) : null,
+          showColorDot: localMode,
         });
+        // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
+        if (localMode) {
+          const dot = getSeatColorDotRect(rect);
+          this.uiButtons.push({
+            x: dot.x, y: dot.y, w: dot.w, h: dot.h,
+            onClick: () => this.cycleLocalSeat(i),
+          });
+        }
         this.uiButtons.push({
           x: rect.x, y: rect.y, w: rect.w, h: rect.h,
           onClick: () => {

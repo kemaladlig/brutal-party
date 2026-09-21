@@ -1,20 +1,18 @@
 // Brutal Party — Karakter Özelleştirme Modali (Character Customization UI)
-// Hem Ana Menüden hem de TV/Lobi ekranından tek dokunuşla açılır.
-// 4 slot seçimi, 60fps interaktif Canvas önizleme, anlık geri bildirim.
-
+// Cihaz-başı TEK profil: sekmeler yok, kullanıcı kendini bir kere belirler.
+// Hem Ana Menüden, hem TV lobisinden, hem telefon kumandasından açılır.
 import {
   AVATAR_PALETTES,
   AVATAR_EXPRESSIONS,
   AVATAR_ACCESSORIES,
   AVATAR_PATTERNS,
-  getSlotCustomization,
-  saveSlotCustomization,
-  resetSlotCustomization,
+  getAvatarProfile,
+  saveAvatarProfile,
+  resetAvatarProfile,
 } from '../core/customizationManager.js';
 import { drawBrutalAvatar } from './characterRenderer.js';
 import { showInstallToast } from './toast.js';
 
-let activeSlot = 0;
 let currentCustom = null;
 let animFrameId = null;
 let onSaveCallback = null;
@@ -22,10 +20,9 @@ let previewAngle = 0;
 let previewBlinkTimer = 0;
 let isPreviewBlinking = false;
 
-export function openCustomizeModal(initialSlot = 0, onSave) {
-  activeSlot = Math.max(0, Math.min(3, initialSlot));
-  onSaveCallback = onSave || null;
-  currentCustom = getSlotCustomization(activeSlot);
+export function openCustomizeModal(onSave) {
+  onSaveCallback = (typeof onSave === 'function') ? onSave : null;
+  currentCustom = getAvatarProfile();
 
   let modalEl = document.getElementById('customize-modal');
   if (!modalEl) {
@@ -34,7 +31,6 @@ export function openCustomizeModal(initialSlot = 0, onSave) {
   }
 
   modalEl.classList.remove('hidden');
-  updateSlotTabs();
   renderSelectionGrids();
   startPreviewLoop();
 }
@@ -48,8 +44,9 @@ export function closeCustomizeModal() {
   }
   if (typeof onSaveCallback === 'function') {
     try {
-      onSaveCallback(activeSlot, currentCustom);
+      onSaveCallback(currentCustom);
     } catch {}
+    onSaveCallback = null;
   }
 }
 
@@ -61,17 +58,9 @@ function createModalDOM() {
         <div class="customize-header">
           <div class="customize-header-left">
             <span class="customize-badge">🎭 AVATAR ATÖLYESİ</span>
-            <h2 class="customize-title">KARAKTERİ ÖZELLEŞTİR</h2>
+            <h2 class="customize-title">KARAKTERİN</h2>
           </div>
           <button class="customize-close-btn" id="btn-close-customize" type="button" aria-label="Kapat">✕</button>
-        </div>
-
-        <!-- 4 Koltuk Slot Sekmesi -->
-        <div class="customize-slot-tabs" id="customize-slot-tabs">
-          <button class="slot-tab active" data-slot="0">P1 // KIRMIZI</button>
-          <button class="slot-tab" data-slot="1">P2 // MAVİ</button>
-          <button class="slot-tab" data-slot="2">P3 // SARI</button>
-          <button class="slot-tab" data-slot="3">P4 // YEŞİL</button>
         </div>
 
         <div class="customize-body">
@@ -82,7 +71,7 @@ function createModalDOM() {
             </div>
             <div class="preview-tip">Döndürmek için parmağınızı / fareyi kaydırın</div>
             <div class="preview-actions">
-              <button id="btn-reset-customize" class="btn-reset-customize" type="button">↺ VARSAYILANA DÖN</button>
+              <button id="btn-reset-customize" class="btn-reset-customize" type="button">↺ RASTGELE KARAKTER</button>
             </div>
           </div>
 
@@ -129,16 +118,16 @@ function createModalDOM() {
 
   document.getElementById('btn-save-customize')?.addEventListener('click', () => {
     if (currentCustom) {
-      saveSlotCustomization(activeSlot, currentCustom);
+      saveAvatarProfile(currentCustom);
     }
-    showInstallToast(`✓ P${activeSlot + 1} karakteri kaydedildi!`);
+    showInstallToast('✓ Karakterin kaydedildi!');
     closeCustomizeModal();
   });
 
   document.getElementById('btn-reset-customize')?.addEventListener('click', () => {
-    currentCustom = resetSlotCustomization(activeSlot);
+    currentCustom = resetAvatarProfile();
     renderSelectionGrids();
-    showInstallToast(`↺ P${activeSlot + 1} varsayılana döndürüldü.`);
+    showInstallToast('🎲 Rastgele karakter üretildi.');
   });
 
   // ESC ile kapatma
@@ -149,21 +138,6 @@ function createModalDOM() {
         closeCustomizeModal();
       }
     }
-  });
-
-  // Slot tab geçişleri
-  const tabsContainer = document.getElementById('customize-slot-tabs');
-  tabsContainer?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.slot-tab');
-    if (!btn) return;
-    // Mevcut slotu kaydet
-    if (currentCustom) {
-      saveSlotCustomization(activeSlot, currentCustom);
-    }
-    activeSlot = parseInt(btn.dataset.slot, 10);
-    currentCustom = getSlotCustomization(activeSlot);
-    updateSlotTabs();
-    renderSelectionGrids();
   });
 
   // Önizleme tuvali mouse/touch yön takibi (Canvas'a güvenli bağlı)
@@ -207,14 +181,6 @@ function createModalDOM() {
   window.addEventListener('touchcancel', onUp, { passive: true });
 }
 
-function updateSlotTabs() {
-  const tabs = document.querySelectorAll('.slot-tab');
-  tabs.forEach((tab) => {
-    const s = parseInt(tab.dataset.slot, 10);
-    tab.classList.toggle('active', s === activeSlot);
-  });
-}
-
 function renderSelectionGrids() {
   if (!currentCustom) return;
 
@@ -234,7 +200,7 @@ function renderSelectionGrids() {
       const btn = e.target.closest('.color-swatch-btn');
       if (!btn) return;
       currentCustom.color = btn.dataset.hex;
-      saveSlotCustomization(activeSlot, currentCustom);
+      saveAvatarProfile(currentCustom);
       renderSelectionGrids();
     };
   }
@@ -256,7 +222,7 @@ function renderSelectionGrids() {
       const btn = e.target.closest('.custom-chip-btn');
       if (!btn) return;
       currentCustom.expression = btn.dataset.id;
-      saveSlotCustomization(activeSlot, currentCustom);
+      saveAvatarProfile(currentCustom);
       renderSelectionGrids();
     };
   }
@@ -278,7 +244,7 @@ function renderSelectionGrids() {
       const btn = e.target.closest('.custom-chip-btn');
       if (!btn) return;
       currentCustom.accessory = btn.dataset.id;
-      saveSlotCustomization(activeSlot, currentCustom);
+      saveAvatarProfile(currentCustom);
       renderSelectionGrids();
     };
   }
@@ -300,7 +266,7 @@ function renderSelectionGrids() {
       const btn = e.target.closest('.custom-chip-btn');
       if (!btn) return;
       currentCustom.pattern = btn.dataset.id;
-      saveSlotCustomization(activeSlot, currentCustom);
+      saveAvatarProfile(currentCustom);
       renderSelectionGrids();
     };
   }
@@ -339,7 +305,7 @@ function startPreviewLoop() {
     const cy = canvas.height / 2;
     const bounce = Math.sin(now * 0.004) * 4;
 
-    // Avatar Çizimi
+    // Avatar Çizimi (yazısız önizleme)
     if (currentCustom) {
       drawBrutalAvatar(ctx, cx, cy + bounce, 56, {
         color: currentCustom.color,
@@ -348,7 +314,7 @@ function startPreviewLoop() {
         pattern: currentCustom.pattern,
         facingAngle: previewAngle,
         isBlinking: isPreviewBlinking,
-        label: `P${activeSlot + 1}`,
+        showPips: false,
         showPointer: false,
         borderWidth: 4,
         shadowOffset: 5,
@@ -376,8 +342,8 @@ export function initMenuAvatarCard() {
   if (!canvasEl) return;
 
   const updateCardDetails = () => {
-    const custom = getSlotCustomization(0);
-    const colorObj = AVATAR_PALETTES.find((p) => p.hex.toLowerCase() === (custom.color || '').toLowerCase()) || { name: 'KIRMIZI', hex: custom.color };
+    const custom = getAvatarProfile();
+    const colorObj = AVATAR_PALETTES.find((p) => p.hex.toLowerCase() === (custom.color || '').toLowerCase()) || { name: 'ÖZEL', hex: custom.color };
     const expObj = AVATAR_EXPRESSIONS.find((e) => e.id === custom.expression) || { name: 'Odaklı', icon: '👀' };
     const accObj = AVATAR_ACCESSORIES.find((a) => a.id === custom.accessory) || { name: 'Sade', icon: '⚪' };
 
@@ -409,7 +375,7 @@ export function initMenuAvatarCard() {
   // Tıklama ile modal açılışı
   cardEl?.addEventListener('click', (e) => {
     // Eğer doğrudan bir butona basılmadıysa da tüm karta tıklamayı destekle
-    openCustomizeModal(0);
+    openCustomizeModal();
   });
 
   // 60 FPS Canlı Menü Önizleme Döngüsü
@@ -440,7 +406,7 @@ export function initMenuAvatarCard() {
     const cy = canvasEl.height / 2;
     const bounce = Math.sin(now * 0.0035) * 3;
 
-    const custom = getSlotCustomization(0);
+    const custom = getAvatarProfile();
     drawBrutalAvatar(ctx, cx, cy + bounce, 36, {
       color: custom.color,
       expression: custom.expression,
@@ -448,7 +414,7 @@ export function initMenuAvatarCard() {
       pattern: custom.pattern,
       facingAngle: menuAvatarAngle,
       isBlinking: isMenuBlinking,
-      label: 'P1',
+      showPips: false,
       showPointer: false,
       borderWidth: 3,
       shadowOffset: 4,
@@ -478,4 +444,3 @@ export function initMenuAvatarCard() {
     observer.observe(menuOverlay, { attributes: true, attributeFilter: ['class'] });
   }
 }
-

@@ -1,8 +1,23 @@
 // Slot Manager: Host Player Slots State, UI Sync, Engine Slot & Score Mapping
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
-import { getSlotCustomization } from './customizationManager.js';
+import { getSlotCustomization, findSlotColorDuplicates } from './customizationManager.js';
 
+// Koltuk girişi: { name, isReady, kind, avatar, displayColor }
+// avatar: oyuncunun cihaz profili (relay) · displayColor: host override dahil
+// o koltukta GÖRÜNEN renk (yoksa avatar rengi). Renk oyuncuyla taşınır.
 export const hostPlayerSlots = [null, null, null, null];
+
+export function getSlotDisplayColor(i) {
+  const s = hostPlayerSlots[i];
+  if (!s || s.kind === 'bot' || s.kind === 'bot_god') return null;
+  return s.displayColor || s.avatar?.color || s.color || null;
+}
+
+// Bağlı insan koltukları arasında aynı display rengine sahip indisler.
+// Boşsa sahaya geçiş serbest; doluysa SAHAYA GEÇ kilitlenir (relay modları).
+export function getColorClashIndices() {
+  return [...findSlotColorDuplicates(hostPlayerSlots)];
+}
 
 // Bot ekleme ayarı (varsayılan KAPALI; pause menüsünden açılır, localStorage'da saklanır)
 const BOT_SETTING_KEY = 'brutalparty.botEkle';
@@ -19,7 +34,7 @@ export function setBotEkleEnabled(on) {
   } catch {}
 }
 
-export function updateHostSlot(slotIndex, isConnected, name = '', isReady = false, kind = 'human') {
+export function updateHostSlot(slotIndex, isConnected, name = '', isReady = false, kind = 'human', avatar = undefined, displayColor = undefined) {
   const slotEl = document.getElementById(`slot-p${slotIndex + 1}`);
   const readyTag = document.getElementById(`ready-tag-p${slotIndex + 1}`);
   if (!slotEl) return;
@@ -53,8 +68,12 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
           shadowOffset: 1.5,
         });
       } else {
+        const entryPrev = hostPlayerSlots[slotIndex];
         drawBrutalAvatar(ctx, 17, 17, 13, {
           slotIndex,
+          avatar: entryPrev?.avatar || undefined,
+          color: entryPrev?.displayColor || entryPrev?.avatar?.color || undefined,
+          showPips: false,
           showPointer: false,
           borderWidth: 2,
           shadowOffset: 1.5,
@@ -73,7 +92,12 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
   }
 
   if (isConnected) {
-    hostPlayerSlots[slotIndex] = { name, isReady, kind };
+    const prevEntry = hostPlayerSlots[slotIndex];
+    hostPlayerSlots[slotIndex] = {
+      name, isReady, kind,
+      avatar: avatar !== undefined ? avatar : (prevEntry?.avatar || null),
+      displayColor: displayColor !== undefined ? displayColor : (prevEntry?.displayColor || null),
+    };
     const isBotNormal = kind === 'bot';
     const isBotGod = kind === 'bot_god';
     const isAnyBot = isBotNormal || isBotGod;
@@ -140,6 +164,37 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
       readyCounter.textContent = `${connectedCount} BAĞLANDI • ${readyCount} HAZIR`;
     }
   }
+  refreshColorClashUI();
+}
+
+// Aynı display rengine sahip insan koltuklarına ⚠️ rozeti + kart vurgusu.
+// Kart DOM'u yoksa (LOCAL/oyun içi) sessizce geçilir.
+export function refreshColorClashUI() {
+  let clash = new Set();
+  try {
+    clash = findSlotColorDuplicates(hostPlayerSlots);
+  } catch { clash = new Set(); }
+  for (let i = 0; i < 4; i++) {
+    const slotEl = document.getElementById(`slot-p${i + 1}`);
+    if (!slotEl) continue;
+    const isClash = clash.has(i);
+    slotEl.classList.toggle('color-clash', isClash);
+    let warn = slotEl.querySelector('.slot-clash-tag');
+    if (isClash && !warn) {
+      warn = document.createElement('span');
+      warn.className = 'slot-clash-tag';
+      slotEl.appendChild(warn);
+    }
+    if (warn) {
+      warn.textContent = isClash ? '⚠️ AYNI RENK' : '';
+      warn.classList.toggle('hidden', !isClash);
+    }
+  }
+  try {
+    window.dispatchEvent(new CustomEvent('brutal_color_clash', {
+      detail: { clash: [...clash] },
+    }));
+  } catch {}
 }
 
 export function syncSlotsToEngine(engine, currentMode, isHosting) {
@@ -154,7 +209,8 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
     const slot = hostPlayerSlots[i];
     const custom = getSlotCustomization(i);
     const botType = slot ? (slot.kind === 'bot_god' ? 'bot_god' : (slot.kind === 'bot' ? 'bot_normal' : 'human')) : 'human';
-    const slotColor = (slot && (slot.kind === 'bot' || slot.kind === 'bot_god')) ? (slot.kind === 'bot_god' ? '#FF0055' : '#8E8E93') : custom.color;
+    // Display rengi: host override → oyuncu avatar rengi → cihaz profili.
+    const slotColor = (slot && (slot.kind === 'bot' || slot.kind === 'bot_god')) ? (slot.kind === 'bot_god' ? '#FF0055' : '#8E8E93') : (slot?.displayColor || slot?.avatar?.color || custom.color);
 
     if (currentMode === 'PONG') {
       const p = engine.paddles?.[i];

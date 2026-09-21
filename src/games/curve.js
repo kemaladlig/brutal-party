@@ -1,7 +1,7 @@
 // BRUTAL CURVE (Game 03): 2-4 Player Local Party Curve Fever with Gaps, Power-Ups & Bot AI
-import { getSlotCustomization } from '../core/customizationManager.js';
+import { getSlotCustomization, getLocalSeatColors } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGap, playItemPickup } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -1106,6 +1106,8 @@ export class CurveGame extends BaseMiniGame {
       // LOBBY: standart kare koltuk (tüm oyunlarla aynı ölçü) + uiButtons tap
       if (this.state === 'LOBBY') {
         const rect = seatRects[i];
+        const localMode = !this.hideLobbyStartButton;
+        const localColors = localMode ? getLocalSeatColors() : null;
         renderLobbySeatCard(ctx, {
           x: rect.x,
           y: rect.y,
@@ -1116,7 +1118,17 @@ export class CurveGame extends BaseMiniGame {
           playerName: player.name || '',
           playerColor: player.color,
           rotation: isTop ? Math.PI : 0,
+          seatColor: localMode ? (localColors[i] || player.color) : null,
+          showColorDot: localMode,
         });
+        // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
+        if (localMode) {
+          const dot = getSeatColorDotRect(rect);
+          this.uiButtons.push({
+            x: dot.x, y: dot.y, w: dot.w, h: dot.h,
+            onClick: () => this.cycleLocalSeat(i),
+          });
+        }
         this.uiButtons.push({
           x: rect.x,
           y: rect.y,

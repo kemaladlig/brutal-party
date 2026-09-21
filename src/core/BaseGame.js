@@ -3,7 +3,8 @@
 // standardized 4-player local keyboard listeners, multi-touch virtual joysticks & lobby rendering.
 
 import { prefersReducedMotion, motionScale } from '../ui/motion.js';
-import { getStandardSeatRects, renderLobbySeatCard, renderLobbyStartButton } from '../controlGuide.js';
+import { getStandardSeatRects, renderLobbySeatCard, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { getLocalSeatColors, ensureLocalSeatColor, cycleLocalSeatColor } from './customizationManager.js';
 
 export class BaseMiniGame {
   constructor(canvas) {
@@ -86,6 +87,25 @@ export class BaseMiniGame {
     } else {
       this.slotTypes[index] = 'empty';
     }
+    // LOCAL: yeni insan koltuğuna boş renk ata (hook dönmediyse lokaldir)
+    if (this.slotTypes[index] === 'human' && !this.hideLobbyStartButton) {
+      this.applyLocalSeatColor(index, ensureLocalSeatColor(index));
+    }
+  }
+
+  // Canlı motor varlığına LOCAL koltuk rengini yaz (players/tanks/paddles/DUEL).
+  applyLocalSeatColor(index, hex) {
+    if (!hex) return;
+    const p = this.players?.[index] || this.tanks?.[index] || this.paddles?.[index];
+    if (p) p.color = hex;
+    if (Array.isArray(this.playerColors)) this.playerColors[index] = hex;
+  }
+
+  // LOCAL lobi renk noktası: sıradaki boş renge geçir.
+  cycleLocalSeat(index) {
+    if (this.hideLobbyStartButton) return;
+    if (this.requestLobbySeatTap(index)) return;
+    this.applyLocalSeatColor(index, cycleLocalSeatColor(index));
   }
 
   // ---------------------------------------------------------------------------
@@ -394,6 +414,8 @@ export class BaseMiniGame {
     customControls = null,
   } = {}) {
     const corners = getStandardSeatRects(arena);
+    const localMode = !this.hideLobbyStartButton;
+    const localColors = localMode ? getLocalSeatColors() : null;
 
     for (let i = 0; i < 4; i++) {
       const pos = corners[i];
@@ -412,7 +434,21 @@ export class BaseMiniGame {
         playerName: name,
         playerColor: color,
         rotation: 0,
+        seatColor: localMode ? (localColors[i] || color) : null,
+        showColorDot: localMode,
       });
+
+      // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
+      if (localMode) {
+        const dot = getSeatColorDotRect(pos);
+        this.uiButtons.push({
+          x: dot.x,
+          y: dot.y,
+          w: dot.w,
+          h: dot.h,
+          onClick: () => this.cycleLocalSeat(i),
+        });
+      }
 
       this.uiButtons.push({
         x: pos.x,

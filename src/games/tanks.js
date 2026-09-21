@@ -1,7 +1,7 @@
 // Micro-Tanks: 8 Labyrinths with Multi-Tier Bot AI (Normal & God Mode), Tactical Crates & Sudden Death
-import { getSlotCustomization } from '../core/customizationManager.js';
+import { getSlotCustomization, ensureLocalSeatColor, getLocalSeatColors } from '../core/customizationManager.js';
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { renderTopPill, renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -310,6 +310,10 @@ export class TanksGame extends BaseMiniGame {
       this.slotTypes[index] = 'bot_god';
     } else {
       this.slotTypes[index] = 'empty';
+    }
+    // LOCAL: yeni insan koltuğuna boş renk ata (hook dönmediyse lokaldir)
+    if (this.slotTypes[index] === 'human' && !this.hideLobbyStartButton) {
+      this.applyLocalSeatColor(index, ensureLocalSeatColor(index));
     }
   }
 
@@ -1373,6 +1377,8 @@ export class TanksGame extends BaseMiniGame {
       if (this.state === 'LOBBY') {
         const rect = seatRects[index];
         const pName = (tank && tank.name && tank.name !== TANK_NAMES[index]) ? tank.name : '';
+        const localMode = !this.hideLobbyStartButton;
+        const localColors = localMode ? getLocalSeatColors() : null;
         renderLobbySeatCard(ctx, {
           x: rect.x,
           y: rect.y,
@@ -1383,7 +1389,20 @@ export class TanksGame extends BaseMiniGame {
           playerName: pName,
           playerColor: c.color,
           rotation: isTop ? Math.PI : 0,
+          seatColor: localMode ? (localColors[index] || c.color) : null,
+          showColorDot: localMode,
         });
+        // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
+        if (localMode) {
+          const dot = getSeatColorDotRect(rect);
+          this.uiButtons.push({
+            x: dot.x,
+            y: dot.y,
+            w: dot.w,
+            h: dot.h,
+            onClick: () => this.cycleLocalSeat(index),
+          });
+        }
         this.uiButtons.push({
           x: rect.x,
           y: rect.y,

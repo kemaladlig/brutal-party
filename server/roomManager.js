@@ -1,5 +1,6 @@
 // Room & Networking Manager for Brutal Party // 4P
 // Manages rooms, host connections, controller slots (P1..P4), and low-latency input streaming.
+import { sanitizeAvatar, pickFreeColor, isPaletteHex } from '../src/core/customizationManager.js';
 
 // Sunucu tarafı isim temizleyici (istemcideki net.js cleanPlayerName ile aynı
 // kural: trim + BÜYÜK HARF + 12 + HTML/tehlikeli karakterleri at)
@@ -34,6 +35,9 @@ function isValidInputData(data) {
     case 'SNAKE_BOOST_RELEASE':
     case 'DUEL_TAP':
       return true;
+    case 'AVATAR_UPDATE':
+      // Derin temizlik host'ta (sanitizeAvatar) yapılır; burada şekil kapısı
+      return data.avatar && typeof data.avatar === 'object';
     default:
       return false;
   }
@@ -45,7 +49,7 @@ const DISCRETE_MIN_GAP = {
   TANK_FIRE: 100, DASH: 100, TACKLE: 100, CURVE_STEER: 30, TANK_DRIVE: 30,
   SPIN: 500, SNAKE_BOOST: 30, SNAKE_BOOST_RELEASE: 30,
   DUEL_TAP: 30, SWITCH_SLOT: 500, SET_NAME: 1000,
-  READY: 300, REACTION: 1000,
+  READY: 300, REACTION: 1000, AVATAR_UPDATE: 1000,
 };
 
 export class RoomManager {
@@ -118,7 +122,9 @@ export class RoomManager {
     return this.rooms.get(code.toUpperCase().trim()) || null;
   }
 
-  joinRoom(code, clientWs, playerName = 'OYUNCU', clientId = null) {
+  // Cihaz-başı karakter: renk oyuncuyla gelir (koltukla değil). Avatarı olmayan
+  // eski istemciye boş rastgele renk + varsayılan yüz atanır.
+  joinRoom(code, clientWs, playerName = 'OYUNCU', clientId = null, avatar = null) {
     const room = this.getRoom(code);
     if (!room) {
       return { success: false, error: 'ODA BULUNAMADI' };
@@ -173,12 +179,31 @@ export class RoomManager {
       }
     }
 
-    const playerColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
+    // Avatar çözümleme: reclaim'de mevcut korunur, yeni katılımda istemciden
+    // gelir; yoksa/geçersizse boş rastgele renk + varsayılan yüz.
+    const takenColors = room.players
+      .filter((p, i) => p && !p.isBot && i !== slotIndex)
+      .map((p) => p.color);
+    const isReclaim = !!(room.players[slotIndex] && !room.players[slotIndex].isBot);
+    let cleanAvatar = null;
+    if (avatar && typeof avatar === 'object') {
+      try { cleanAvatar = sanitizeAvatar(avatar, { keepColor: true }); } catch { cleanAvatar = null; }
+    }
+    if (!cleanAvatar && isReclaim && room.players[slotIndex].avatar) {
+      cleanAvatar = room.players[slotIndex].avatar;
+    }
+    if (!cleanAvatar) {
+      cleanAvatar = sanitizeAvatar({ color: pickFreeColor(takenColors) }, { keepColor: true });
+    } else if (takenColors.map((c) => String(c).toUpperCase()).includes(cleanAvatar.color.toUpperCase())) {
+      // Geçerli ama alınmış renk → boş rastgele renge çek (yüz/aksesuar korunur)
+      cleanAvatar = { ...cleanAvatar, color: pickFreeColor(takenColors) };
+    }
     const player = {
       slotIndex,
       name: finalName,
       clientId: clientId || null,
-      color: playerColors[slotIndex],
+      color: cleanAvatar.color,
+      avatar: cleanAvatar,
       ws: clientWs,
       joinedAt: Date.now(),
       ping: 0,
@@ -197,6 +222,7 @@ export class RoomManager {
       slotIndex: player.slotIndex,
       name: player.name,
       color: player.color,
+      avatar: player.avatar,
     });
     // Diğer kumandaların koltuk ızgarası güncellensin
     this.broadcastSlots(room);
@@ -208,6 +234,7 @@ export class RoomManager {
       slotIndex: player.slotIndex,
       name: player.name,
       color: player.color,
+      avatar: player.avatar,
     };
   }
 
@@ -390,20 +417,20 @@ export class RoomManager {
     room.players[slotA] = pB;
     room.players[slotB] = pA;
 
+    // Renk oyuncuyla taşınır (koltuğa sabit değil): takasta renk/avatar değişmez,
+    // sadece koltuk numarası güncellenir.
     if (pA) {
       pA.slotIndex = slotB;
-      pA.color = playerColors[slotB];
       if (pA.ws) {
         pA.ws.slotIndex = slotB;
-        pA.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex: slotB, color: playerColors[slotB] }));
+        pA.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex: slotB, color: pA.color }));
       }
     }
     if (pB) {
       pB.slotIndex = slotA;
-      pB.color = playerColors[slotA];
       if (pB.ws) {
         pB.ws.slotIndex = slotA;
-        pB.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex: slotA, color: playerColors[slotA] }));
+        pB.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex: slotA, color: pB.color }));
       }
     }
 
@@ -427,17 +454,15 @@ export class RoomManager {
     const old = [room.players[0], room.players[1], room.players[2], room.players[3]];
     // Bot koltuğu takasa girmez — biri bot ise rotate iptal (kısmi dönüşüm yok)
     if (old.some((p) => p?.isBot)) return;
-    const playerColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
     for (let i = 0; i < 4; i++) {
       const p = old[order[i]];
       room.players[i] = p || null;
       if (p && !p.isBot) {
         p.slotIndex = i;
-        p.color = playerColors[i];
         if (p.ws) {
           p.ws.slotIndex = i;
           try {
-            p.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex: i, color: playerColors[i] }));
+            p.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex: i, color: p.color }));
           } catch {}
         }
       }
@@ -451,14 +476,36 @@ export class RoomManager {
     return [0, 1, 2, 3].map((idx) => {
       const p = room.players[idx];
       if (!p) return null;
-      return {
+      const entry = {
         slotIndex: idx,
         name: p.name,
         color: p.color,
         isReady: !!room.ready[idx],
         kind: p.isBot ? (p.kind || 'bot') : 'human',
       };
+      if (!p.isBot && p.avatar) entry.avatar = p.avatar;
+      return entry;
     });
+  }
+
+  // Host kaynaklı display-renk override (lobi hızlı palet/🎲): profil değişmez,
+  // sadece o odalık görüntü rengi. Kumandaya SLOT_CHANGED ile yansır.
+  handleSetSlotColor(hostWs, slotIndex, color) {
+    if (!hostWs || !hostWs.isHost) return;
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return;
+    if (slotIndex < 0 || slotIndex > 3) return;
+    const p = room.players[slotIndex];
+    if (!p || p.isBot) return;
+    if (!isPaletteHex(color)) return;
+    const hex = String(color).toUpperCase();
+    p.color = hex;
+    if (p.ws && p.ws.readyState === 1) {
+      try {
+        p.ws.send(JSON.stringify({ type: 'SLOT_CHANGED', slotIndex, color: hex }));
+      } catch {}
+    }
+    this.broadcastSlots(room);
   }
 
   broadcastSlots(room) {

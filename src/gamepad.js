@@ -6,6 +6,9 @@ import { showInstallToast } from './ui/toast.js';
 import { UI_COLORS } from './ui/tokens.js';
 import { mountDeclarativeController } from './controllers/controllerTemplates.js';
 import { getControllerMeta } from './core/engineRegistry.js';
+import { getAvatarProfile } from './core/customizationManager.js';
+import { drawBrutalAvatar } from './ui/characterRenderer.js';
+import { openCustomizeModal } from './ui/customizeModal.js';
 
 // Kumanda kayıt tablosu: tek kaynaktan (engineRegistry) beslenir
 const CONTROLLER_META = new Proxy({}, {
@@ -255,6 +258,11 @@ export class GamepadManager {
     this.playerIndex = playerInfo.slotIndex ?? 0;
     this.playerName = (playerInfo.name || `OYUNCU ${this.playerIndex + 1}`).toUpperCase();
     this.playerColor = playerInfo.color || UI_COLORS.players[this.playerIndex] || '#D84727';
+    try {
+      this.avatar = playerInfo.avatar || getAvatarProfile();
+    } catch {
+      this.avatar = playerInfo.avatar || null;
+    }
     this.slots = playerInfo.slots || [null, null, null, null];
     this.selectedHostGame = gameMode === 'LOBBY' ? 'PONG' : gameMode;
     this.gameMode = gameMode || 'LOBBY';
@@ -420,22 +428,23 @@ export class GamepadManager {
       this._lastStripJson = '';
       return;
     }
-    // Skor/isim değişmediyse innerHTML'i yeniden kurma (8Hz layout/GC titremesi)
-    const sig = JSON.stringify([names, scores, this.playerIndex]);
+    // Skor/isim/renk değişmediyse innerHTML'i yeniden kurma (8Hz layout/GC titremesi)
+    const slotColorsSig = (this.slots || []).map((s) => s?.color || '').join('|');
+    const sig = JSON.stringify([names, scores, this.playerIndex, slotColorsSig]);
     if (sig === this._lastStripJson) {
       strip.classList.remove('hidden');
       return;
     }
     this._lastStripJson = sig;
-    const seatColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-    const seatTags = ['P1', 'P2', 'P3', 'P4'];
+    const fallbackColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
     strip.innerHTML = [0, 1, 2, 3].map((idx) => {
       const name = names[idx];
       const isEmpty = !name;
       const isMine = idx === this.playerIndex;
+      const dotColor = this.slots?.[idx]?.color || fallbackColors[idx];
       return `
         <div class="score-chip${isMine ? ' is-mine' : ''}${isEmpty ? ' is-empty' : ''}">
-          <span class="score-dot" style="background-color: ${seatColors[idx]}"></span>
+          <span class="score-dot" style="background-color: ${dotColor}"></span>
           <span class="score-name">${isEmpty ? 'BOŞ' : escapeHtml(name)}</span>
           <span class="score-val">${scores[idx] ?? 0}</span>
         </div>
@@ -538,9 +547,10 @@ export class GamepadManager {
   // Numara + renk TV ile birebir eşleşir (P1 kırmızı, P2 mavi, P3 sarı, P4 yeşil);
   // yan etiketler bilerek yok (sadece PONG'da doğruydu, köşeli oyunlarda yanıltıcıydı).
   renderSeatButtonHtml(idx) {
-    const seatColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
+    const fallbackColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
     const isMine = idx === this.playerIndex;
     const slotData = this.slots ? this.slots[idx] : null;
+    const seatColors = [0, 1, 2, 3].map((i) => this.slots?.[i]?.color || fallbackColors[i]);
     const isBot = !isMine && slotData?.kind === 'bot';
     const isOccupied = !isMine && !isBot && slotData !== null && !!slotData.name;
     const occupantName = isMine ? this.playerName : (isOccupied || isBot ? slotData.name : '');
@@ -582,6 +592,29 @@ export class GamepadManager {
         this.vibrate(30);
       });
     });
+  }
+
+  // Lobi karakter önizlemesi (kendi cihaz profili, yazısız)
+  drawLobbyCharacterPreview() {
+    const canvas = document.getElementById('lobby-character-preview');
+    if (!canvas) return;
+    try {
+      if (!this.avatar) this.avatar = getAvatarProfile();
+    } catch { return; }
+    try {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBrutalAvatar(ctx, canvas.width / 2, canvas.height / 2, 20, {
+        color: this.avatar.color,
+        expression: this.avatar.expression,
+        accessory: this.avatar.accessory,
+        pattern: this.avatar.pattern,
+        showPips: false,
+        showPointer: false,
+        borderWidth: 2.5,
+        shadowOffset: 2,
+      });
+    } catch {}
   }
 
   // Hazır bayrağını sıfırla (lobiye dönüşte / yeni oyunda takılı kalmasın).
@@ -629,6 +662,16 @@ export class GamepadManager {
               placeholder="İSMİNİZ" value="${this.playerName}" autocapitalize="characters" />
             <button class="lobby-name-save-btn" id="btn-save-name" type="button">✓ KAYDET</button>
           </div>
+        </div>
+
+        <!-- Character Section: cihaz-başı tek profil -->
+        <div class="lobby-character-section">
+          <div class="lobby-name-label">🎭 KARAKTERİN</div>
+          <div class="lobby-character-row">
+            <canvas class="lobby-character-preview" id="lobby-character-preview" width="56" height="56"></canvas>
+            <button class="lobby-character-edit-btn" id="btn-edit-character" type="button">🎨 ÖZELLEŞTİR</button>
+          </div>
+          <div class="lobby-character-hint">Rengini farklı seç — aynı renkte SAHAYA GEÇ kilitlenir.</div>
         </div>
 
         <div class="lobby-game-preview-card">
@@ -691,6 +734,30 @@ export class GamepadManager {
     saveBtn?.addEventListener('click', saveName);
     nameInput?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') saveName();
+    });
+
+    // Karakter önizleme + özelleştirme (gerçek değişiklik host'a AVATAR_UPDATE ile gider)
+    this.drawLobbyCharacterPreview();
+    document.getElementById('btn-edit-character')?.addEventListener('click', () => {
+      let before = '';
+      try {
+        if (!this.avatar) this.avatar = getAvatarProfile();
+        before = JSON.stringify(this.avatar);
+      } catch {}
+      openCustomizeModal((profile) => {
+        if (!profile) return;
+        if (JSON.stringify(profile) === before) return; // bakıp kapattı, trafik yok
+        this.avatar = { ...profile };
+        this.playerColor = profile.color || this.playerColor;
+        const dot = document.getElementById('header-player-dot');
+        if (dot) dot.style.backgroundColor = this.playerColor;
+        this.drawLobbyCharacterPreview();
+        try {
+          this.network.sendAvatarUpdate?.(this.avatar);
+        } catch {}
+        showInstallToast('✓ Karakterin host ile paylaşıldı!');
+        this.vibrate(15);
+      });
     });
 
     const readyBtn = document.getElementById('btn-lobby-ready');

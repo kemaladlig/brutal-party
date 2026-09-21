@@ -2,8 +2,7 @@
 import QRCode from 'qrcode';
 import { PUBLIC_URL, isPublicOrigin } from '../net.js';
 import { showInstallToast } from './toast.js';
-import { openCustomizeModal } from './customizeModal.js';
-import { refreshAllHostSlots } from '../core/slotManager.js';
+import { AVATAR_PALETTES } from '../core/customizationManager.js';
 
 const tvHostModal = document.getElementById('tv-host-modal');
 const hostRoomCode = document.getElementById('host-room-code');
@@ -99,6 +98,8 @@ export function initHostLobby({
   onCloseLobby,
   onSwapSlots,
   onToggleBotSlot,
+  onSetSlotColor,
+  onRandomizeSlotColor,
 }) {
   // Game selector chips in Host Lobby
   document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
@@ -113,17 +114,74 @@ export function initHostLobby({
     });
   });
 
-  // Slot customize buttons in Host Lobby
-  document.querySelectorAll('.slot-customize-btn').forEach((btn) => {
+  // Koltuk hızlı renk düğmeleri: mini palet popover + 🎲 boş rastgele renk.
+  // (Yüz/aksesuar her oyuncunun kendi cihazındadır; host sadece display rengini yönetir.)
+  const closePalette = () => {
+    document.getElementById('slot-palette-pop')?.remove();
+  };
+
+  const openPalette = (anchorBtn, idx) => {
+    closePalette();
+    const pop = document.createElement('div');
+    pop.id = 'slot-palette-pop';
+    pop.className = 'slot-palette-pop';
+    pop.innerHTML = `
+      <div class="slot-palette-title">P${idx + 1} RENGİ</div>
+      <div class="slot-palette-grid">
+        ${AVATAR_PALETTES.map((p) => `
+          <button class="slot-palette-swatch" data-hex="${p.hex}" style="background-color: ${p.hex}" title="${p.name}" type="button"></button>
+        `).join('')}
+      </div>
+      <button class="slot-palette-dice" type="button">🎲 BOŞ RENK ATA</button>
+    `;
+    document.body.appendChild(pop);
+    const r = anchorBtn.getBoundingClientRect();
+    pop.style.left = `${Math.max(8, Math.min(window.innerWidth - 220, r.left + window.scrollX - 60))}px`;
+    pop.style.top = `${r.bottom + window.scrollY + 6}px`;
+
+    pop.querySelectorAll('.slot-palette-swatch').forEach((sw) => {
+      sw.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (typeof onSetSlotColor === 'function') onSetSlotColor(idx, sw.dataset.hex);
+        closePalette();
+      });
+    });
+    pop.querySelector('.slot-palette-dice')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (typeof onRandomizeSlotColor === 'function') onRandomizeSlotColor(idx);
+      closePalette();
+    });
+    setTimeout(() => {
+      const dismiss = (e) => {
+        if (!pop.contains(e.target)) {
+          closePalette();
+          document.removeEventListener('click', dismiss);
+        }
+      };
+      document.addEventListener('click', dismiss);
+    }, 0);
+  };
+
+  document.querySelectorAll('.slot-color-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const idx = parseInt(btn.dataset.slot, 10);
-      if (!Number.isNaN(idx)) {
-        openCustomizeModal(idx, () => {
-          refreshAllHostSlots();
-        });
-      }
+      if (Number.isNaN(idx)) return;
+      if (document.getElementById('slot-palette-pop')) closePalette();
+      else openPalette(btn, idx);
     });
+  });
+
+  // Sert renk engeli: çakışma varken SAHAYA GEÇ görsel olarak kilitlenir
+  // (gerçek kapı main.js enterStaging içindedir).
+  const launchBtn = document.getElementById('btn-host-launch-game');
+  const paintLaunchGuard = (clashCount) => {
+    if (!launchBtn) return;
+    launchBtn.classList.toggle('blocked', clashCount > 0);
+    launchBtn.textContent = clashCount > 0 ? `⚠️ RENKLERİ AYIRIN` : `▶ SAHAYA GEÇ`;
+  };
+  window.addEventListener('brutal_color_clash', (e) => {
+    paintLaunchGuard(e.detail?.clash?.length || 0);
   });
 
   // Slot swap buttons in Host Lobby

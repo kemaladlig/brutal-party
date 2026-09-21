@@ -2,7 +2,7 @@
 // Full-arena brutalist layout, moving patrol pistons, conveyor belts (yürüyen zeminler),
 // banana peel slip traps 🍌, turbo pickups ⚡, heavy crown physics (-34% speed), 0.85s stun & zero screen-shake.
 
-import { getSlotCustomization } from '../core/customizationManager.js';
+import { getSlotCustomization, ensureLocalSeatColor } from '../core/customizationManager.js';
 import {
   playStart,
   playJoin,
@@ -145,6 +145,10 @@ export class CrownGame extends BaseMiniGame {
       this.slotTypes[index] = 'bot_god';
     } else {
       this.slotTypes[index] = 'empty';
+    }
+    // LOCAL: yeni insan koltuğuna boş renk ata (hook dönmediyse lokaldir)
+    if (this.slotTypes[index] === 'human' && !this.hideLobbyStartButton) {
+      this.applyLocalSeatColor(index, ensureLocalSeatColor(index));
     }
     playJoin();
   }

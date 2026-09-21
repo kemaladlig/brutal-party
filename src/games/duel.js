@@ -17,7 +17,8 @@ import {
   playHeavyImpact,
 } from '../audio.js';
 import { updateDuelBotAI } from '../ai/duelAI.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { getLocalSeatColors, ensureLocalSeatColor } from '../core/customizationManager.js';
 import { UI_COLORS, getUiScale } from '../ui/tokens.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -335,6 +336,11 @@ export class DuelGame extends BaseMiniGame {
       : 'empty';
     this.slotTypes[index] = next;
     this.syncJoinFromSlots();
+    // LOCAL: yeni insan koltuğuna boş renk ata (hook dönmediyse lokaldir)
+    if (next === 'human' && !this.hideLobbyStartButton) {
+      const hex = ensureLocalSeatColor(index);
+      if (Array.isArray(this.playerColors)) this.playerColors[index] = hex;
+    }
   }
 
   // Registry standardı: tüm motorlar startNewMatch() ile çalışır.
@@ -1188,6 +1194,8 @@ export class DuelGame extends BaseMiniGame {
 
     // Standart kare koltuklar (4 köşe, tüm oyunlarla aynı ölçü)
     const slotRects = getStandardSeatRects(this.arena);
+    const localMode = !this.hideLobbyStartButton;
+    const localColors = localMode ? getLocalSeatColors() : null;
 
     slotRects.forEach((rect, idx) => {
       renderLobbySeatCard(ctx, {
@@ -1200,7 +1208,21 @@ export class DuelGame extends BaseMiniGame {
         playerName: this.playerNames[idx] || '',
         playerColor: DUEL_COLORS[idx],
         rotation: 0,
+        seatColor: localMode ? (localColors[idx] || DUEL_COLORS[idx]) : null,
+        showColorDot: localMode,
       });
+
+      // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
+      if (localMode) {
+        const dot = getSeatColorDotRect(rect);
+        this.uiButtons.push({
+          x: dot.x,
+          y: dot.y,
+          w: dot.w,
+          h: dot.h,
+          onClick: () => this.cycleLocalSeat(idx),
+        });
+      }
 
       this.uiButtons.push({
         x: rect.x,

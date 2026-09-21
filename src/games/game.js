@@ -2,7 +2,8 @@
 import { Paddle, PLAYER_CONFIGS } from './paddle.js';
 import { Ball } from './ball.js';
 import { playJoin, playStart, playPowerUp } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { getLocalSeatColors, ensureLocalSeatColor } from '../core/customizationManager.js';
 import { renderCornerScores } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { renderRoundBanner, renderMatchOver } from '../ui/hud.js';
@@ -339,6 +340,10 @@ export class Game extends BaseMiniGame {
     if (this.requestLobbySeatTap(index)) return;
     const p = this.paddles[index];
     p.cycleSlotType();
+    // LOCAL: yeni insan koltuğuna boş renk ata (hook dönmediyse lokaldir)
+    if (p.slotType === 'human' && !this.hideLobbyStartButton) {
+      p.color = ensureLocalSeatColor(index);
+    }
     playJoin();
   }
 
@@ -898,6 +903,8 @@ export class Game extends BaseMiniGame {
       rotation = -Math.PI / 2;
     }
 
+    const localMode = !this.hideLobbyStartButton;
+    const localColors = localMode ? getLocalSeatColors() : null;
     renderLobbySeatCard(ctx, {
       x: btnX,
       y: btnY,
@@ -908,7 +915,21 @@ export class Game extends BaseMiniGame {
       playerName: paddle.name || '',
       playerColor: paddle.color,
       rotation,
+      seatColor: localMode ? (localColors[paddle.index] || paddle.color) : null,
+      showColorDot: localMode,
     });
+
+    // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
+    if (localMode) {
+      const dot = getSeatColorDotRect({ x: btnX, y: btnY, w: btnW, h: btnH });
+      this.uiButtons.push({
+        x: dot.x,
+        y: dot.y,
+        w: dot.w,
+        h: dot.h,
+        onClick: () => this.cycleLocalSeat(paddle.index),
+      });
+    }
 
     this.uiButtons.push({
       x: btnX,

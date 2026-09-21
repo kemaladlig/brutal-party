@@ -1,6 +1,7 @@
 // Brutal Party — Karakter Özelleştirme Veri Yöneticisi
+// Cihaz-başı TEK profil: kullanıcı kendini bir kere belirler, oturduğu her
+// koltukta aynı karakter görünür (kumanda kendi profilini relay ile host'a taşır).
 // Renkler, yüz ifadeleri, aksesuarlar ve gövde desenleri için tek gerçek kaynak.
-// LocalStorage kalıcılığı + 4 slot için varsayılan profiller.
 
 export const AVATAR_PALETTES = [
   { id: 'red', name: 'KIRMIZI', hex: '#D84727', border: '#1A1A1A' },
@@ -43,48 +44,272 @@ export const AVATAR_PATTERNS = [
   { id: 'TARGET', name: 'Hedef', icon: '🎯', desc: 'İç içe halka deseni' },
 ];
 
-// 4 koltuk için varsayılan kimlikler
-export const DEFAULT_SLOT_CUSTOMIZATIONS = [
-  { color: '#D84727', expression: 'FOCUS', accessory: 'HEADBAND', pattern: 'SOLID' },
-  { color: '#1D5D8A', expression: 'SHADES', accessory: 'CAP', pattern: 'STRIPE' },
-  { color: '#D99B26', expression: 'ANGRY', accessory: 'HEADPHONES', pattern: 'SOLID' },
-  { color: '#2F6A4F', expression: 'WINK', accessory: 'HORNS', pattern: 'DUAL' },
-];
+// ── Whitelist kümeleri (relay/sunucu validasyonu + sanitize tek kaynaktan) ──
+const PALETTE_HEX = new Set(AVATAR_PALETTES.map((p) => p.hex.toUpperCase()));
+const EXPRESSION_IDS = new Set(AVATAR_EXPRESSIONS.map((e) => e.id));
+const ACCESSORY_IDS = new Set(AVATAR_ACCESSORIES.map((a) => a.id));
+const PATTERN_IDS = new Set(AVATAR_PATTERNS.map((p) => p.id));
 
-const STORAGE_PREFIX = 'brutalparty.avatar.slot_';
+// ── Tek profil kalıcılığı ──
+const PROFILE_KEY = 'brutalparty.avatar.profile';
+const LEGACY_PREFIX = 'brutalparty.avatar.slot_';
 
-export function getSlotCustomization(slotIndex) {
-  const safeIdx = Math.max(0, Math.min(3, slotIndex || 0));
-  const fallback = DEFAULT_SLOT_CUSTOMIZATIONS[safeIdx];
+function defaultFace() {
+  return { expression: 'FOCUS', accessory: 'NONE', pattern: 'SOLID' };
+}
+
+export function randomAvatarColor(excludeHexes = []) {
+  const taken = new Set((excludeHexes || []).map((h) => String(h || '').toUpperCase()));
+  const free = AVATAR_PALETTES.filter((p) => !taken.has(p.hex.toUpperCase()));
+  const pool = free.length > 0 ? free : AVATAR_PALETTES;
+  return pool[Math.floor(Math.random() * pool.length)].hex;
+}
+
+// Eski 4-slot kayıtlarından tek profile migrasyon (bir kez).
+function migrateLegacyProfile() {
   try {
-    const raw = localStorage.getItem(`${STORAGE_PREFIX}${safeIdx}`);
+    if (localStorage.getItem(PROFILE_KEY)) return;
+    const raw = localStorage.getItem(`${LEGACY_PREFIX}0`);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return {
-        color: parsed.color || fallback.color,
-        expression: parsed.expression || fallback.expression,
-        accessory: parsed.accessory || fallback.accessory,
-        pattern: parsed.pattern || fallback.pattern,
-      };
+      const clean = sanitizeAvatar(parsed, { keepColor: true });
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(clean));
     }
+  } catch {}
+  try {
+    for (let i = 0; i < 4; i++) localStorage.removeItem(`${LEGACY_PREFIX}${i}`);
+  } catch {}
+}
+
+// Bu cihazın tek karakter profili. İlk açılışta rastgele renk üretilir —
+// her yeni cihaz farklı renkle gelir, herkes varsayılan kırmızıda buluşmaz.
+export function getAvatarProfile() {
+  migrateLegacyProfile();
+  const fallback = { color: randomAvatarColor(), ...defaultFace() };
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return sanitizeAvatar(parsed, { keepColor: true, fallbackColor: fallback.color });
+    }
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(fallback));
   } catch {}
   return { ...fallback };
 }
 
-export function saveSlotCustomization(slotIndex, custom) {
-  const safeIdx = Math.max(0, Math.min(3, slotIndex || 0));
+export function saveAvatarProfile(profile) {
+  const clean = sanitizeAvatar(profile, { keepColor: true });
   try {
-    localStorage.setItem(`${STORAGE_PREFIX}${safeIdx}`, JSON.stringify(custom));
-    // Özel event yayınla (dinleyen motorlar ve UI hemen güncellensin)
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(clean));
     window.dispatchEvent(new CustomEvent('brutal_customization_changed', {
-      detail: { slotIndex: safeIdx, customization: custom }
+      detail: { customization: clean },
+    }));
+  } catch {}
+  return clean;
+}
+
+export function resetAvatarProfile() {
+  const def = { color: randomAvatarColor(), ...defaultFace() };
+  return saveAvatarProfile(def);
+}
+
+// ── Validasyon / sanitizasyon (istemci + relay + sunucu ortak) ──
+// Bozuk/kötü niyetli avatar hosta ulaşmadan temizlenir; sonuç her zaman geçerlidir.
+export function sanitizeAvatar(input, opts = {}) {
+  const src = (input && typeof input === 'object') ? input : {};
+  const rawColor = String(src.color || '').toUpperCase();
+  const color = PALETTE_HEX.has(rawColor)
+    ? AVATAR_PALETTES.find((p) => p.hex.toUpperCase() === rawColor).hex
+    : (opts.keepColor && PALETTE_HEX.has(String(opts.fallbackColor || '').toUpperCase())
+      ? opts.fallbackColor
+      : randomAvatarColor());
+  const expression = EXPRESSION_IDS.has(src.expression) ? src.expression : 'FOCUS';
+  const accessory = ACCESSORY_IDS.has(src.accessory) ? src.accessory : 'NONE';
+  const pattern = PATTERN_IDS.has(src.pattern) ? src.pattern : 'SOLID';
+  return { color, expression, accessory, pattern };
+}
+
+export function isPaletteHex(hex) {
+  return PALETTE_HEX.has(String(hex || '').toUpperCase());
+}
+
+// Alınmış renkler dışında rastgele boş renk (lobi hızlı atama + yeni katılım).
+export function pickFreeColor(takenHexes = []) {
+  return randomAvatarColor(takenHexes);
+}
+
+// 4 koltukluk renk dizisindeki çakışan indisler (boş koltuklar atlanır).
+// Sert engel + ⚠️ uyarısı bu kümeye bakar.
+export function findDuplicateColorIndices(colors4) {
+  const seen = new Map();
+  const dups = new Set();
+  (colors4 || []).forEach((c, i) => {
+    if (!c) return;
+    const key = String(c).toUpperCase();
+    if (seen.has(key)) {
+      dups.add(seen.get(key));
+      dups.add(i);
+    } else {
+      seen.set(key, i);
+    }
+  });
+  return dups;
+}
+
+// ── LOCAL koltuk renkleri (tek cihaz, kalıcı) ──
+// Tek cihazda 4 koltuk aynı cihaz profilini paylaşır; ayırt edicilik için her
+// koltuğun display rengi ayrı tutulur. Relay modlarını etkilemez.
+const LOCAL_SEAT_KEY = 'brutalparty.local.seatColors';
+
+function readLocalSeatColors() {
+  try {
+    const raw = localStorage.getItem(LOCAL_SEAT_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        return [0, 1, 2, 3].map((i) => (
+          typeof arr[i] === 'string' && PALETTE_HEX.has(arr[i].toUpperCase()) ? arr[i].toUpperCase() : null
+        ));
+      }
+    }
+  } catch {}
+  return [null, null, null, null];
+}
+
+let localSeatCache = null;
+
+export function getLocalSeatColors() {
+  if (!localSeatCache) localSeatCache = readLocalSeatColors();
+  return [...localSeatCache];
+}
+
+export function setLocalSeatColor(slotIndex, hex) {
+  if (slotIndex < 0 || slotIndex > 3 || !isPaletteHex(hex)) return null;
+  if (!localSeatCache) localSeatCache = readLocalSeatColors();
+  localSeatCache[slotIndex] = String(hex).toUpperCase();
+  try {
+    localStorage.setItem(LOCAL_SEAT_KEY, JSON.stringify(localSeatCache));
+  } catch {}
+  return localSeatCache[slotIndex];
+}
+
+// Palet sırasında diğer koltukların almadığı ilk boş renk (deterministik tur).
+export function nextFreeLocalColor(slotIndex) {
+  if (!localSeatCache) localSeatCache = readLocalSeatColors();
+  const taken = new Set(
+    localSeatCache.filter((c, i) => c && i !== slotIndex).map((c) => c.toUpperCase())
+  );
+  const free = AVATAR_PALETTES.find((p) => !taken.has(p.hex.toUpperCase()));
+  return (free || AVATAR_PALETTES[slotIndex % AVATAR_PALETTES.length]).hex;
+}
+
+// Kayıt defterine LOCAL avatarını yaz (yüz = cihaz profili, renk = koltuk rengi).
+export function applyLocalSeatToRegistry(slotIndex, hex) {
+  let profile = null;
+  try { profile = getAvatarProfile(); } catch { profile = defaultFace(); }
+  setSlotAvatar(slotIndex, { ...(profile || {}), color: hex });
+}
+
+// Rengi yoksa ata (koltuk insan olduğunda çağrılır); her zaman geçerli hex döner.
+export function ensureLocalSeatColor(slotIndex) {
+  if (!localSeatCache) localSeatCache = readLocalSeatColors();
+  let hex = localSeatCache[slotIndex];
+  if (!hex || !isPaletteHex(hex)) {
+    hex = nextFreeLocalColor(slotIndex);
+    setLocalSeatColor(slotIndex, hex);
+  }
+  applyLocalSeatToRegistry(slotIndex, hex);
+  return hex;
+}
+
+// Noktaya dokununca: sıradaki boş renge geçir (persist + registry).
+export function cycleLocalSeatColor(slotIndex) {
+  if (!localSeatCache) localSeatCache = readLocalSeatColors();
+  const taken = new Set(
+    localSeatCache.filter((c, i) => c && i !== slotIndex).map((c) => c.toUpperCase())
+  );
+  const current = (localSeatCache[slotIndex] || '').toUpperCase();
+  let startIdx = AVATAR_PALETTES.findIndex((p) => p.hex.toUpperCase() === current);
+  for (let step = 1; step <= AVATAR_PALETTES.length; step++) {
+    const cand = AVATAR_PALETTES[(startIdx + step) % AVATAR_PALETTES.length];
+    if (!taken.has(cand.hex.toUpperCase())) {
+      setLocalSeatColor(slotIndex, cand.hex);
+      applyLocalSeatToRegistry(slotIndex, cand.hex);
+      return cand.hex;
+    }
+  }
+  return localSeatCache[slotIndex];
+}
+
+// LOCAL oturum girişi: kayıtlı renkleri deftere yükle, renksizleri profile düşür.
+export function loadLocalSeatColors() {
+  if (!localSeatCache) localSeatCache = readLocalSeatColors();
+  for (let i = 0; i < 4; i++) {
+    if (localSeatCache[i]) applyLocalSeatToRegistry(i, localSeatCache[i]);
+    else clearSlotAvatar(i);
+  }
+}
+
+// LOCAL lobi/hükmen insan koltukları: renksiz kalanlara boş renk ata.
+export function ensureLocalSeatColorsForTypes(slotTypes) {
+  if (!Array.isArray(slotTypes)) return;
+  const isHumanLike = (t) => !!t && !['empty', 'bot', 'bot_normal', 'bot_god'].includes(t);
+  for (let i = 0; i < 4; i++) {
+    if (isHumanLike(slotTypes[i])) ensureLocalSeatColor(i);
+  }
+}
+
+// ── Koltuk avatar kayıt defteri (bellek içi, host tarafı) ──
+// TV host: relay'den gelen her koltuğun avatarı burada durur; renderer buradan okur.
+// LOCAL modda kayıt boştur → renderer cihaz profiline düşer (4 koltuk aynı yüz,
+// renk+pip+koltuk pozisyonu ayırt eder; renk engeli LOCAL'de uygulanmaz).
+const slotAvatarRegistry = [null, null, null, null];
+
+export function setSlotAvatar(slotIndex, avatar) {
+  if (slotIndex < 0 || slotIndex > 3) return;
+  slotAvatarRegistry[slotIndex] = avatar ? { ...avatar } : null;
+  try {
+    window.dispatchEvent(new CustomEvent('brutal_slot_avatar_changed', {
+      detail: { slotIndex },
     }));
   } catch {}
 }
 
+export function getSlotAvatar(slotIndex) {
+  if (slotIndex < 0 || slotIndex > 3) return null;
+  return slotAvatarRegistry[slotIndex];
+}
+
+export function clearSlotAvatar(slotIndex) {
+  setSlotAvatar(slotIndex, null);
+}
+
+// ── Geriye uyumluluk: koltuk-bazlı okuma artık cihaz profiline + kayıt defterine düşer ──
+export function getSlotCustomization(slotIndex) {
+  const safeIdx = Math.max(0, Math.min(3, slotIndex || 0));
+  return getSlotAvatar(safeIdx) || getAvatarProfile();
+}
+
+export function saveSlotCustomization(slotIndex, custom) {
+  const safeIdx = Math.max(0, Math.min(3, slotIndex || 0));
+  const clean = sanitizeAvatar(custom, { keepColor: true });
+  setSlotAvatar(safeIdx, clean);
+  return clean;
+}
+
 export function resetSlotCustomization(slotIndex) {
   const safeIdx = Math.max(0, Math.min(3, slotIndex || 0));
-  const def = DEFAULT_SLOT_CUSTOMIZATIONS[safeIdx];
-  saveSlotCustomization(safeIdx, def);
-  return { ...def };
+  const clean = { color: randomAvatarColor(), ...defaultFace() };
+  setSlotAvatar(safeIdx, clean);
+  return { ...clean };
+}
+
+// Koltuk display renkleri üzerinden çakışma hesabı (hostPlayerSlots benzeri
+// {name,isReady,kind,avatar,displayColor} dizisi alır).
+export function findSlotColorDuplicates(slots4) {
+  const colors = (slots4 || []).map((s) => {
+    if (!s || s.kind === 'bot' || s.kind === 'bot_god') return null;
+    return s.displayColor || s.avatar?.color || s.color || null;
+  });
+  return findDuplicateColorIndices(colors);
 }

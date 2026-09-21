@@ -1,7 +1,7 @@
 // Brutal Party — Birleşik Karakter Çizim Motoru (Unified Brutal Avatar Renderer)
 // Tüm mini-oyunlarda (BOMB, HEIST, CROWN, COLLAPSE, CLONE, NINJA, LASER, ZONE, vb.)
 // ve Karakter Özelleştirme Arayüzünde standart avatar çizimini sağlar.
-import { getSlotCustomization } from '../core/customizationManager.js';
+import { getSlotAvatar, getAvatarProfile } from '../core/customizationManager.js';
 
 /**
  * Tek tip Neo-Brutalist Avatar Çizer
@@ -13,18 +13,22 @@ import { getSlotCustomization } from '../core/customizationManager.js';
  */
 export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {
   const slotIdx = typeof options.slotIndex === 'number' ? options.slotIndex : null;
-  const slotData = slotIdx !== null ? getSlotCustomization(slotIdx) : null;
+  // Koltuk avatarı: host kayıt defteri (relay) → cihaz profili (LOCAL/fallback).
+  // Renk kimlik değildir; display rengi (options.color) her zaman kazanır.
+  const avatarOpt = options.avatar
+    || (slotIdx !== null ? getSlotAvatar(slotIdx) : null)
+    || null;
+  const profileFallback = (() => { try { return getAvatarProfile(); } catch { return null; } })();
 
   const isBot = options.isBot || options.slotType === 'bot_normal' || options.slotType === 'bot_god';
-  const customColor = (slotIdx !== null && !isBot && slotData?.color) ? slotData.color : null;
-  const color = customColor || options.color || slotData?.color || '#D84727';
-  const expressionRaw = options.expression || slotData?.expression || 'FOCUS';
-  const accessoryRaw = options.accessory !== undefined ? options.accessory : (slotData?.accessory || 'NONE');
-  const patternRaw = options.pattern || slotData?.pattern || 'SOLID';
+  const color = options.color || avatarOpt?.color || profileFallback?.color || '#D84727';
+  const expressionRaw = options.expression || avatarOpt?.expression || profileFallback?.expression || 'FOCUS';
+  const accessoryRaw = options.accessory !== undefined ? options.accessory : (avatarOpt?.accessory || profileFallback?.accessory || 'NONE');
+  const patternRaw = options.pattern || avatarOpt?.pattern || profileFallback?.pattern || 'SOLID';
 
   // İfade normalizasyonu (küçük harf / durum eşleştirmeleri)
   let expression = expressionRaw;
-  if (expression === 'normal') expression = slotData?.expression || 'FOCUS';
+  if (expression === 'normal') expression = avatarOpt?.expression || profileFallback?.expression || 'FOCUS';
   else if (expression === 'excited') expression = 'WINK';
   else if (expression === 'panic') expression = 'DERP';
   else if (expression === 'dizzy') expression = 'CYCLOPS';
@@ -439,16 +443,25 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {
 
   ctx.restore(); // Başlık dönme sonu
 
-  // 7. Oyuncu Rozeti (Yazı yerine temiz, saf minimal rozet veya sadece açıkça istenmişse)
-  if (label && typeof options.renderTextLabel === 'boolean' && options.renderTextLabel) {
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = `900 ${Math.max(10, Math.round(r * 0.6))}px "Space Grotesk", sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5;
-    ctx.strokeText(label, 0, 0);
-    ctx.fillText(label, 0, 0);
+  // 7. Yazısız koltuk kimliği: koltuk numarası kadar pip noktası (P1=●, P4=●●●●).
+  // Saha içi yazı YASAKTIR — kimlik renk + pip + koltuk/köşe pozisyonudur.
+  // `label` parametresi artık çizilmez (ölü parametre, motorlardan temizlenecek).
+  if (slotIdx !== null && !isBot && options.showPips !== false) {
+    const n = Math.max(1, Math.min(4, slotIdx + 1));
+    const pr = Math.max(1.6, r * 0.10);
+    const gap = pr * 2.7;
+    const totalW = (n - 1) * gap;
+    const py = r + pr + 3;
+    for (let k = 0; k < n; k++) {
+      const px = -totalW / 2 + k * gap;
+      ctx.beginPath();
+      ctx.arc(px, py, pr, 0, Math.PI * 2);
+      ctx.fillStyle = '#1A1A1A';
+      ctx.fill();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.stroke();
+    }
   }
 
   ctx.restore();

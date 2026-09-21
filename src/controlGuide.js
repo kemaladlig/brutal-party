@@ -107,6 +107,17 @@ export function getGuideColor(index) {
  * 2. HUMAN  -> Avatar prominence, clean name pill or clean seat number
  * 3. BOT    -> Antracite card with cyber robot avatar
  */
+// Koltuk renk noktası kutusu: kartın sağ-üst köşesi (tap hedefi, 44px dokunmatik).
+export function getSeatColorDotRect(seatRect) {
+  const s = 40;
+  return {
+    x: seatRect.x + seatRect.w - s - 8,
+    y: seatRect.y + 8,
+    w: s,
+    h: s,
+  };
+}
+
 export function renderLobbySeatCard(ctx, {
   x,
   y,
@@ -117,6 +128,8 @@ export function renderLobbySeatCard(ctx, {
   playerName = '',
   playerColor = '#D84727',
   rotation = 0,
+  seatColor = null,
+  showColorDot = false,
 }) {
   const isHuman = slotType === 'human';
   const isBot = slotType === 'bot_normal' || slotType === 'bot_god';
@@ -131,6 +144,8 @@ export function renderLobbySeatCard(ctx, {
 
   const halfW = w / 2;
   const halfH = h / 2;
+  let drawColorDotAfter = false;
+  let colorDotFill = playerColor;
 
   if (isEmpty) {
     // 1. BOŞ KOLTUK
@@ -157,6 +172,7 @@ export function renderLobbySeatCard(ctx, {
 
   } else if (isHuman) {
     // 2. OYUNCU (HUMAN)
+    const effectiveColor = seatColor || playerColor;
     // Solid 4px Shadow
     ctx.fillStyle = UI_COLORS.ink;
     ctx.fillRect(-halfW + 4, -halfH + 4, w, h);
@@ -166,7 +182,7 @@ export function renderLobbySeatCard(ctx, {
     ctx.fillRect(-halfW, -halfH, w, h);
 
     // Bold Color Border
-    ctx.strokeStyle = playerColor;
+    ctx.strokeStyle = effectiveColor;
     ctx.lineWidth = 3.5;
     ctx.strokeRect(-halfW, -halfH, w, h);
 
@@ -175,12 +191,17 @@ export function renderLobbySeatCard(ctx, {
 
     drawBrutalAvatar(ctx, 0, avatarY, avatarR, {
       slotIndex: slotIndex,
-      color: playerColor,
+      color: effectiveColor,
       expression: 'normal',
       showPointer: false,
       borderWidth: 2.5,
       shadowOffset: 2,
     });
+
+    // LOCAL hızlı renk noktası bayrağı: kart dönüşünden etkilenmemesi için
+    // mutlak koordinatta (restore sonrası) çizilir — tap kutusuyla birebir eşleşir.
+    drawColorDotAfter = showColorDot;
+    colorDotFill = effectiveColor;
 
     // Sadece özel oyuncu ismi varsa minimal etiket çiz
     if (playerName) {
@@ -230,6 +251,30 @@ export function renderLobbySeatCard(ctx, {
   }
 
   ctx.restore();
+
+  // LOCAL hızlı renk noktası (kartın sağ-üstü, mutlak koordinat — tap kutusuyla eşleşir)
+  if (drawColorDotAfter) {
+    const dotR = 11;
+    const dotX = x + w - 28;
+    const dotY = y + 28;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(dotX + 2, dotY + 2, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = UI_COLORS.ink;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = colorDotFill;
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = UI_COLORS.ink;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, dotR * 0.38, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 // --- Standart Lobi Ölçüleri: tüm motorlarda aynı kare koltuk + aynı başlat butonu ---

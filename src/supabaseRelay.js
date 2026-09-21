@@ -5,6 +5,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { cleanPlayerName, getClientId } from './net.js';
 import { WebRTCManager } from './webrtcManager.js';
+import { sanitizeAvatar, pickFreeColor, isPaletteHex, getAvatarProfile } from './core/customizationManager.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -49,6 +50,9 @@ function isValidRelayInput(data) {
     case 'SET_NAME':
     case 'SWITCH_SLOT':
       return true;
+    case 'AVATAR_UPDATE':
+      // Derin temizlik host'ta (sanitizeAvatar) yapılır; burada şekil kapısı
+      return data.avatar && typeof data.avatar === 'object';
     default:
       return false;
   }
@@ -257,11 +261,31 @@ export class SupabaseRelay {
           }
         }
 
+        // Cihaz-başı karakter: renk oyuncuyla gelir; yoksa boş rastgele renk.
+        // Reclaim'de mevcut avatar korunur.
+        const takenColors = this.players
+          .filter((p, i) => p && !p.isBot && i !== slotIndex)
+          .map((p) => p.color);
+        const isReclaim = !!(this.players[slotIndex] && !this.players[slotIndex].isBot);
+        let cleanAvatar = null;
+        if (msg.avatar && typeof msg.avatar === 'object') {
+          try { cleanAvatar = sanitizeAvatar(msg.avatar, { keepColor: true }); } catch { cleanAvatar = null; }
+        }
+        if (!cleanAvatar && isReclaim && this.players[slotIndex].avatar) {
+          cleanAvatar = this.players[slotIndex].avatar;
+        }
+        if (!cleanAvatar) {
+          cleanAvatar = sanitizeAvatar({ color: pickFreeColor(takenColors) }, { keepColor: true });
+        } else if (takenColors.map((c) => String(c).toUpperCase()).includes(cleanAvatar.color.toUpperCase())) {
+          // Geçerli ama alınmış renk → boş rastgele renge çek (yüz/aksesuar korunur)
+          cleanAvatar = { ...cleanAvatar, color: pickFreeColor(takenColors) };
+        }
         const player = {
           id: msg.senderId,
           clientId: msg.clientId || null,
           name: finalName,
-          color: PLAYER_COLORS[slotIndex],
+          color: cleanAvatar.color,
+          avatar: cleanAvatar,
           slotIndex,
           lastSeen: now,
         };
@@ -277,12 +301,13 @@ export class SupabaseRelay {
           slotIndex,
           name: player.name,
           color: player.color,
+          avatar: player.avatar,
           slots: this.getSlots(),
         });
 
         if (this.callbacks.onPlayerJoined) {
           this.callbacks.onPlayerJoined({
-            slotIndex, name: player.name, color: player.color,
+            slotIndex, name: player.name, color: player.color, avatar: player.avatar,
           });
         }
         this.broadcastSlots();
@@ -359,9 +384,27 @@ export class SupabaseRelay {
   }
 
   getSlots() {
-    return this.players.map((p, idx) =>
-      p ? { slotIndex: idx, name: p.name, color: p.color, isReady: !!this.ready[idx], kind: p.isBot ? 'bot' : 'human' } : null
-    );
+    return this.players.map((p, idx) => {
+      if (!p) return null;
+      const entry = { slotIndex: idx, name: p.name, color: p.color, isReady: !!this.ready[idx], kind: p.isBot ? 'bot' : 'human' };
+      if (!p.isBot && p.avatar) entry.avatar = p.avatar;
+      return entry;
+    });
+  }
+
+  // Host kaynaklı display-renk override (lobi hızlı palet/🎲): profil değişmez.
+  setSlotColor(slotIndex, color) {
+    if (this.role !== 'HOST') return;
+    if (slotIndex < 0 || slotIndex > 3) return;
+    const p = this.players[slotIndex];
+    if (!p || p.isBot) return;
+    if (!isPaletteHex(color)) return;
+    const hex = String(color).toUpperCase();
+    p.color = hex;
+    const msg = { action: 'SLOT_CHANGED', targetId: p.id, slotIndex, color: hex };
+    this.webrtcManager?.broadcast(msg);
+    this._broadcast('host_msg', msg);
+    this.broadcastSlots();
   }
 
   broadcastSlots() {
@@ -475,17 +518,16 @@ export class SupabaseRelay {
     this.ready[slotA] = this.ready[slotB];
     this.ready[slotB] = readyA;
 
+    // Renk oyuncuyla taşınır: takasta renk/avatar değişmez, sadece koltuk no güncellenir.
     if (pA) {
       pA.slotIndex = slotB;
-      pA.color = PLAYER_COLORS[slotB];
-      const p = { action: 'SLOT_CHANGED', targetId: pA.id, slotIndex: slotB, color: PLAYER_COLORS[slotB] };
+      const p = { action: 'SLOT_CHANGED', targetId: pA.id, slotIndex: slotB, color: pA.color };
       this.webrtcManager?.broadcast(p);
       this._broadcast('host_msg', p);
     }
     if (pB) {
       pB.slotIndex = slotA;
-      pB.color = PLAYER_COLORS[slotA];
-      const p = { action: 'SLOT_CHANGED', targetId: pB.id, slotIndex: slotA, color: PLAYER_COLORS[slotA] };
+      const p = { action: 'SLOT_CHANGED', targetId: pB.id, slotIndex: slotA, color: pB.color };
       this.webrtcManager?.broadcast(p);
       this._broadcast('host_msg', p);
     }
@@ -508,8 +550,7 @@ export class SupabaseRelay {
       this.ready[i] = oldReady[order[i]];
       if (p) {
         p.slotIndex = i;
-        p.color = PLAYER_COLORS[i];
-        const pl = { action: 'SLOT_CHANGED', targetId: p.id, slotIndex: i, color: PLAYER_COLORS[i] };
+        const pl = { action: 'SLOT_CHANGED', targetId: p.id, slotIndex: i, color: p.color };
         this.webrtcManager?.broadcast(pl);
         this._broadcast('host_msg', pl);
       }
@@ -519,7 +560,7 @@ export class SupabaseRelay {
 
   // ━━━━━━━━━━━━━━━━━━━ CONTROLLER API ━━━━━━━━━━━━━━━━━━━
 
-  async joinRoom(roomCode, playerName, callbacks = {}, _isRetry = false) {
+  async joinRoom(roomCode, playerName, callbacks = {}, avatar = null, _isRetry = false) {
     assertSupabaseConfig();
     this.role = 'CONTROLLER';
     this.roomCode = roomCode.toUpperCase().trim();
@@ -529,7 +570,9 @@ export class SupabaseRelay {
       this._manualClose = false;
       this._reconnectTries = 0;
       if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
-      this._lastJoin = { roomCode: this.roomCode, playerName: this.playerName };
+      this._lastJoin = { roomCode: this.roomCode, playerName: this.playerName, avatar };
+    } else if (avatar && this._lastJoin) {
+      this._lastJoin.avatar = avatar;
     }
 
     this.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -590,7 +633,11 @@ export class SupabaseRelay {
     if (fresh.length === 1) {
       this.hostId = fresh[0];
     }
-    const joinPayload = { action: 'JOIN', name: this.playerName, clientId: getClientId() };
+    let joinAvatar = this._lastJoin?.avatar || null;
+    if (!joinAvatar) {
+      try { joinAvatar = getAvatarProfile(); } catch { joinAvatar = null; }
+    }
+    const joinPayload = { action: 'JOIN', name: this.playerName, clientId: getClientId(), avatar: joinAvatar };
     if (this.hostId) joinPayload.hostId = this.hostId;
     this._broadcast('player_msg', joinPayload);
 
@@ -815,6 +862,20 @@ export class SupabaseRelay {
     if (name) this.playerName = cleanPlayerName(name);
   }
 
+  // Kumanda kendi karakterini host'a bildirir (INPUT tüneli).
+  sendAvatarUpdate(avatar) {
+    if (this.role !== 'CONTROLLER') return;
+    if (this._lastJoin) this._lastJoin.avatar = avatar;
+    const payload = { action: 'INPUT', data: { action: 'AVATAR_UPDATE', avatar } };
+    if (this._webRtcAvailable && this.webrtcManager?.hasActiveConnection(this.hostId)) {
+      this.webrtcManager.sendTo(this.hostId, payload);
+      return;
+    }
+    if (this.channel) {
+      this._broadcast('player_msg', payload);
+    }
+  }
+
   sendReaction(emoji) {
     const payload = { action: 'REACTION', emoji };
     if (this._webRtcAvailable && this.webrtcManager?.hasActiveConnection(this.hostId)) {
@@ -906,7 +967,7 @@ export class SupabaseRelay {
       this._reconnectTimer = null;
       if (this._manualClose || !this._lastJoin) return;
       try {
-        await this.joinRoom(this._lastJoin.roomCode, this._lastJoin.playerName, {}, true);
+        await this.joinRoom(this._lastJoin.roomCode, this._lastJoin.playerName, {}, this._lastJoin.avatar || null, true);
       } catch {
         this._scheduleRelayReconnect();
       }

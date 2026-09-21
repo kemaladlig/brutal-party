@@ -249,7 +249,7 @@ export class PartyNetwork {
   }
 
   // --- Controller API ---
-  async joinRoom(roomCode, playerName, callbacks = {}) {
+  async joinRoom(roomCode, playerName, callbacks = {}, avatar = null) {
     this.role = 'CONTROLLER';
     this.callbacks = { ...this.callbacks, ...callbacks };
     this._manualClose = false;
@@ -258,6 +258,7 @@ export class PartyNetwork {
     this._lastJoin = {
       roomCode: roomCode.toUpperCase().trim(),
       playerName,
+      avatar,
     };
 
     await this.connect(() => {
@@ -268,6 +269,7 @@ export class PartyNetwork {
         roomCode: roomCode.toUpperCase().trim(),
         playerName,
         clientId: getClientId(),
+        avatar,
       });
     });
   }
@@ -282,6 +284,16 @@ export class PartyNetwork {
     this.send({
       type: 'INPUT',
       data,
+    });
+  }
+
+  // Kumanda kendi karakterini host'a bildirir (INPUT tüneli; 1sn rate-limit sunucuda).
+  sendAvatarUpdate(avatar) {
+    if (this.role !== 'CONTROLLER') return;
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.send({
+      type: 'INPUT',
+      data: { action: 'AVATAR_UPDATE', avatar },
     });
   }
 
@@ -382,6 +394,16 @@ export class PartyNetwork {
     });
   }
 
+  // Host kaynaklı display-renk override (lobi hızlı palet/🎲; host-only).
+  setSlotColor(slotIndex, color) {
+    if (this.role !== 'HOST' || !this.ws || this.ws.readyState !== 1) return;
+    this.send({
+      type: 'SET_SLOT_COLOR',
+      slotIndex,
+      color,
+    });
+  }
+
   send(obj) {
     if (this.ws && this.ws.readyState === 1) {
       this.ws.send(JSON.stringify(obj));
@@ -453,6 +475,8 @@ export class PartyNetwork {
             type: 'JOIN_ROOM',
             roomCode: this._lastJoin.roomCode,
             playerName: this._lastJoin.playerName,
+            clientId: getClientId(),
+            avatar: this._lastJoin.avatar || null,
           });
         });
       } catch {

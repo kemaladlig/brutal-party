@@ -3,7 +3,8 @@
 // Rol yap, görevleri tamamla veya şüphelendiğin rakibe omuz atıp infaz et!
 
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
+import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { getLocalSeatColors } from '../core/customizationManager.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCloneBotAI } from '../ai/cloneAI.js';
@@ -957,6 +958,8 @@ export class CloneGame extends BaseMiniGame {
         'P4 YEŞİL',
       ]);
       const seatRects = getStandardSeatRects(this.arena);
+      const localMode = !this.hideLobbyStartButton;
+      const localColors = localMode ? getLocalSeatColors() : null;
       for (let i = 0; i < 4; i++) {
         const rect = seatRects[i];
         const isTop = i === 1 || i === 2;
@@ -970,7 +973,17 @@ export class CloneGame extends BaseMiniGame {
           playerName: this.players[i]?.name || '',
           playerColor: CLONE_COLORS[i],
           rotation: isTop ? Math.PI : 0,
+          seatColor: localMode ? (localColors[i] || CLONE_COLORS[i]) : null,
+          showColorDot: localMode,
         });
+        // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
+        if (localMode) {
+          const dot = getSeatColorDotRect(rect);
+          this.uiButtons.push({
+            x: dot.x, y: dot.y, w: dot.w, h: dot.h,
+            onClick: () => this.cycleLocalSeat(i),
+          });
+        }
         this.uiButtons.push({
           x: rect.x, y: rect.y, w: rect.w, h: rect.h,
           onClick: () => {

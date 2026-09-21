@@ -24,7 +24,8 @@ import {
 import { initToastAndInstall, showInstallToast } from './ui/toast.js';
 import { UI_COLORS, uiFont } from './ui/tokens.js';
 import { openCustomizeModal, initMenuAvatarCard } from './ui/customizeModal.js';
-import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, isBotEkleEnabled } from './core/slotManager.js';
+import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, isBotEkleEnabled, getColorClashIndices } from './core/slotManager.js';
+import { getAvatarProfile, sanitizeAvatar, pickFreeColor, setSlotAvatar, clearSlotAvatar, loadLocalSeatColors, ensureLocalSeatColorsForTypes, getLocalSeatColors } from './core/customizationManager.js';
 import {
   initPauseModal,
   openPauseModal,
@@ -142,7 +143,22 @@ export function setGameMode(mode) {
       menuOverlay.classList.add('hidden');
       inGameHud.classList.remove('hidden');
       touchManager.setHandler(entry.game);
+      // LOCAL: kayıtlı koltuk renkleri reset ÖNCESİ deftere yüklenir (init renkleri
+      // doğru kurulsun), reset sonrası varsayılan insan koltuklarına boş renk atanır.
+      if (!activeNet().isHosting) {
+        loadLocalSeatColors();
+      }
       entry.reset();
+      if (!activeNet().isHosting) {
+        ensureLocalSeatColorsForTypes(entry.game.slotTypes);
+        // Reset'te kurulan oyuncu renklerini LOCAL koltuk renkleriyle eşitle
+        const locals = getLocalSeatColors();
+        for (let i = 0; i < 4; i++) {
+          if (locals[i] && typeof entry.game.applyLocalSeatColor === 'function') {
+            entry.game.applyLocalSeatColor(i, locals[i]);
+          }
+        }
+      }
       entry.onEnter(now);
       entry.game.resize(window.innerWidth, window.innerHeight);
       syncSlotsToEngine(entry.game, currentMode, activeNet().isHosting);
@@ -230,11 +246,26 @@ async function openHostLobby(gameMode = 'PONG') {
         showHostLobbyModal(roomCode, joinUrl);
         startHostPingBadge(() => activeNet().ping, platformMode);
         setSeatTapHook();
+        // LOCAL koltuk renkleri relay odasına sızmasın (gelen avatarlar yazar)
+        for (let i = 0; i < 4; i++) clearSlotAvatar(i);
         refreshHostSlotCards();
       },
       onPlayerJoined: (msg) => {
         playJoin();
-        updateHostSlot(msg.slotIndex, true, msg.name, false);
+        // Cihaz-başı avatar: relay'den gelir; yoksa/geçersizse boş rastgele renk.
+        let av = null;
+        try {
+          av = msg.avatar ? sanitizeAvatar(msg.avatar, { keepColor: true }) : null;
+        } catch { av = null; }
+        if (!av) {
+          const taken = hostPlayerSlots
+            .filter((p, i) => p && p.kind !== 'bot' && p.kind !== 'bot_god' && i !== msg.slotIndex)
+            .map((p) => p.displayColor || p.avatar?.color || p.color)
+            .filter(Boolean);
+          av = sanitizeAvatar({ color: pickFreeColor(taken) }, { keepColor: true });
+        }
+        setSlotAvatar(msg.slotIndex, av);
+        updateHostSlot(msg.slotIndex, true, msg.name, false, 'human', av, msg.color || av.color);
         refreshStagingBar();
         // Staging/sayaç sırasında katılan geç kalanı mevcut faza sok
         // (STAGING_STARTED geçmişte kaldı, yoksa bekleme ekranında takılır).
@@ -255,6 +286,8 @@ async function openHostLobby(gameMode = 'PONG') {
         const engineLeft = getActiveGameEngine();
         if (engineLeft) clearRemoteSlot(engineLeft, currentMode, msg.slotIndex);
         delete lastRemoteInputAt[msg.slotIndex];
+        delete lastAvatarAt[msg.slotIndex];
+        clearSlotAvatar(msg.slotIndex);
         updateHostSlot(msg.slotIndex, false);
         refreshStagingBar();
         const engine = getActiveGameEngine();
@@ -265,6 +298,14 @@ async function openHostLobby(gameMode = 'PONG') {
         const slot = hostPlayerSlots[msg.slotIndex];
         if (slot && slot.kind !== 'bot') {
           slot.name = msg.name;
+          if (msg.avatar) {
+            try {
+              const clean = sanitizeAvatar(msg.avatar, { keepColor: true });
+              slot.avatar = clean;
+              slot.displayColor = msg.color || clean.color;
+              setSlotAvatar(msg.slotIndex, clean);
+            } catch {}
+          }
           updateHostSlot(msg.slotIndex, true, msg.name, slot.isReady, slot.kind);
           refreshStagingBar();
           const engine = getActiveGameEngine();
@@ -284,6 +325,9 @@ async function openHostLobby(gameMode = 'PONG') {
         const temp = hostPlayerSlots[slotA];
         hostPlayerSlots[slotA] = hostPlayerSlots[slotB];
         hostPlayerSlots[slotB] = temp;
+        // Avatar kayıt defteri koltuk-bazlıdır: takas sonrası iki koltuğu yeniden yaz
+        setSlotAvatar(slotA, hostPlayerSlots[slotA]?.avatar || null);
+        setSlotAvatar(slotB, hostPlayerSlots[slotB]?.avatar || null);
         if (hostPlayerSlots[slotA]) updateHostSlot(slotA, true, hostPlayerSlots[slotA].name, hostPlayerSlots[slotA].isReady, hostPlayerSlots[slotA].kind);
         else updateHostSlot(slotA, false);
         if (hostPlayerSlots[slotB]) updateHostSlot(slotB, true, hostPlayerSlots[slotB].name, hostPlayerSlots[slotB].isReady, hostPlayerSlots[slotB].kind);
@@ -299,6 +343,29 @@ async function openHostLobby(gameMode = 'PONG') {
         renderPauseSeats(handleSeatSwap);
       },
       onPlayerInput: (slotIndex, data) => {
+        // Kumanda kendi karakterini güncelledi: avatar + display tazelenir,
+        // host override sıfırlanır (çakışırsa lobi uyarısı yeniden doğar).
+        if (data.action === 'AVATAR_UPDATE' && data.avatar) {
+          const slot = hostPlayerSlots[slotIndex];
+          if (slot && slot.kind !== 'bot' && slot.kind !== 'bot_god') {
+            const nowAv = performance.now();
+            if (!lastAvatarAt[slotIndex] || nowAv - lastAvatarAt[slotIndex] > 1000) {
+              lastAvatarAt[slotIndex] = nowAv;
+              try {
+                const clean = sanitizeAvatar(data.avatar, { keepColor: true });
+                slot.avatar = clean;
+                slot.displayColor = clean.color;
+                setSlotAvatar(slotIndex, clean);
+                updateHostSlot(slotIndex, true, slot.name, slot.isReady, slot.kind, clean, clean.color);
+                refreshStagingBar();
+                const engineAv = getActiveGameEngine();
+                if (engineAv) syncSlotsToEngine(engineAv, currentMode, activeNet().isHosting);
+                renderPauseSeats(handleSeatSwap);
+              } catch {}
+            }
+          }
+          return;
+        }
         if (data.action === 'SET_NAME' && data.name) {
           const slot = hostPlayerSlots[slotIndex];
           if (slot) {
@@ -373,6 +440,8 @@ async function executeJoin(rawCode, rawName) {
   gamepadManager.network = net;
 
   try {
+    let joinAvatar = null;
+    try { joinAvatar = getAvatarProfile(); } catch { joinAvatar = null; }
     await net.joinRoom(code, name, {
       onJoinedSuccess: (msg) => {
         menuOverlay?.classList.add('hidden');
@@ -427,7 +496,7 @@ async function executeJoin(rawCode, rawName) {
         gamepadManager.hide();
         menuOverlay?.classList.remove('hidden');
       },
-    });
+    }, joinAvatar);
   } catch (err) {
     console.error('[Join] Odaya bağlanılamadı:', err);
     if (net === supabaseRelay) {
@@ -480,13 +549,23 @@ function handleRotateSeats() {
   }
   // Host: skorları yerelde döndür, koltukları relay'de atomik döndür
   // (tek yayın — ara flicker/yanlış koltuk yok). Bot varsa iptal (relay de iptal eder).
-  if (hostPlayerSlots.some((s) => s?.kind === 'bot')) {
+  if (hostPlayerSlots.some((s) => s?.kind === 'bot' || s?.kind === 'bot_god')) {
     showInstallToast('🤖 Bot varken koltuk döndürülemez.');
     return;
   }
   rotateScoresLocally();
   if (typeof activeNet().rotateSeats === 'function') {
     activeNet().rotateSeats();
+    // Relay aynı permütasyonu uygular; host tablosu + avatar kayıt defteri de
+    // yerelde döner (yoksa isimler/yüzler yanlış koltukta kalır).
+    const order = [2, 3, 1, 0];
+    const oldEntries = [hostPlayerSlots[0], hostPlayerSlots[1], hostPlayerSlots[2], hostPlayerSlots[3]];
+    for (let i = 0; i < 4; i++) {
+      hostPlayerSlots[i] = oldEntries[order[i]];
+      setSlotAvatar(i, hostPlayerSlots[i]?.avatar || null);
+    }
+    refreshHostSlotCards();
+    renderPauseSeats(handleSeatSwap);
   } else {
     activeNet().swapSlots(0, 2);
     activeNet().swapSlots(2, 1);
@@ -544,7 +623,10 @@ function handleExitToMenu() {
     closePauseModal();
     exitStagingToLobby();
     hideHostLobbyModal();
-    for (let i = 0; i < 4; i++) updateHostSlot(i, false);
+    for (let i = 0; i < 4; i++) {
+      clearSlotAvatar(i);
+      updateHostSlot(i, false);
+    }
     activeNet().disconnect();
     setSeatTapHook();
     setGameMode('MENU');
@@ -570,6 +652,8 @@ let countdownTimer = null;
 // Uzak-girdi canlılık damgaları: analog sessizlik süpürücüsü için.
 // Koltuk politikası değişmez — sadece latch nötrlenir, koltuk dolu kalır.
 const lastRemoteInputAt = {};
+// Kumanda avatar-güncelleme kısması (slot başına 1sn sel koruması)
+const lastAvatarAt = {};
 const STALE_ANALOG_MS = 1500;
 setInterval(() => {
   if (!activeNet().isHosting) return;
@@ -592,10 +676,18 @@ function refreshStagingBar() {
   const humans = hostPlayerSlots.filter((p) => p !== null && p.kind !== 'bot');
   const connected = humans.length;
   const ready = humans.filter((p) => p?.isReady).length;
+  const clash = activeNet().isHosting ? getColorClashIndices() : [];
   const pill = document.getElementById('staging-ready-pill');
-  if (pill) pill.textContent = connected === 0 ? 'OYUNCU BEKLENİYOR' : `${connected} BAĞLANDI • ${ready} HAZIR`;
+  if (pill) {
+    pill.textContent = connected === 0 ? 'OYUNCU BEKLENİYOR' : `${connected} BAĞLANDI • ${ready} HAZIR`;
+    if (clash.length > 0) pill.textContent += ' • ⚠️ AYNI RENK';
+    pill.classList.toggle('clash', clash.length > 0);
+  }
   const btn = document.getElementById('btn-staging-launch');
-  if (btn) btn.textContent = `▶ MAÇI BAŞLAT (${ready}/${connected} HAZIR)`;
+  if (btn) {
+    btn.textContent = clash.length > 0 ? `⚠️ RENKLERİ AYIRIN` : `▶ MAÇI BAŞLAT (${ready}/${connected} HAZIR)`;
+    btn.classList.toggle('blocked', clash.length > 0);
+  }
 }
 
 function showStagingBar() {
@@ -633,12 +725,23 @@ function cancelCountdown() {
 }
 
 function startEngineNow(mode) {
-  getEngine(mode)?.start();
+  // Maç başı reset motorun oyuncu renklerini yeniden kurar; host display
+  // renkleri (override dahil) hemen ardından tekrar yazılır.
+  const engine = getEngine(mode);
+  engine?.start();
+  const active = getActiveGameEngine();
+  if (active) syncSlotsToEngine(active, mode, activeNet().isHosting);
 }
 
 // BAŞLAT #1: sahayı aç — motor LOBBY'de arena gösterir, koltuk seçimi başlar
 function enterStaging(mode) {
   tryFullscreen();
+  // Sert renk engeli: aynı display rengine sahip iki insan koltuğu varken
+  // sahaya geçilemez (LOCAL'de koltuklar boş → küme boş → engel yok).
+  if (activeNet().isHosting && getColorClashIndices().length > 0) {
+    showInstallToast('⚠️ Aynı renkte koltuklar var — önce 🎲 ile renkleri ayırın.');
+    return;
+  }
   stagingMode = mode;
   seatsLocked = false;
   // Lobiden çıkışta herkes BEKLE'ye çekilir (yerel sıfırlama, ekstra çağrı yok —
@@ -660,6 +763,11 @@ function enterStaging(mode) {
 // BAŞLAT #2: 3-2-1 → oyun (koltuklar kilitli)
 function runCountdown() {
   if (!stagingMode || countdownTimer) return;
+  // Staging sırasında avatar değişimi çakışma doğurmuş olabilir → sayaç kapısı
+  if (activeNet().isHosting && getColorClashIndices().length > 0) {
+    showInstallToast('⚠️ Aynı renkte koltuklar var — sayaç başlamadı. 🎲 ile ayırın.');
+    return;
+  }
   const mode = stagingMode;
   // Sayaç başında yarım kalmış latch taşınmasın (önceki turun hayaleti)
   const enginePre = getActiveGameEngine();
@@ -765,7 +873,10 @@ initHostLobby({
   },
   onCloseLobby: () => {
     exitStagingToLobby();
-    for (let i = 0; i < 4; i++) updateHostSlot(i, false);
+    for (let i = 0; i < 4; i++) {
+      clearSlotAvatar(i);
+      updateHostSlot(i, false);
+    }
     activeNet().disconnect();
     setSeatTapHook();
     setGameMode('MENU');
@@ -775,6 +886,37 @@ initHostLobby({
   },
   onToggleBotSlot: (slotIndex) => {
     handleLobbySeatTap(slotIndex);
+  },
+  onSetSlotColor: (slotIndex, hex) => {
+    const entry = hostPlayerSlots[slotIndex];
+    if (!entry || entry.kind === 'bot' || entry.kind === 'bot_god') return;
+    entry.displayColor = hex;
+    try {
+      activeNet().setSlotColor?.(slotIndex, hex);
+    } catch {}
+    updateHostSlot(slotIndex, true, entry.name, entry.isReady, entry.kind);
+    refreshStagingBar();
+    const engine = getActiveGameEngine();
+    if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
+    renderPauseSeats(handleSeatSwap);
+  },
+  onRandomizeSlotColor: (slotIndex) => {
+    const entry = hostPlayerSlots[slotIndex];
+    if (!entry || entry.kind === 'bot' || entry.kind === 'bot_god') return;
+    const taken = hostPlayerSlots
+      .filter((p, i) => p && p.kind !== 'bot' && p.kind !== 'bot_god' && i !== slotIndex)
+      .map((p) => p.displayColor || p.avatar?.color || p.color)
+      .filter(Boolean);
+    const hex = pickFreeColor(taken);
+    entry.displayColor = hex;
+    try {
+      activeNet().setSlotColor?.(slotIndex, hex);
+    } catch {}
+    updateHostSlot(slotIndex, true, entry.name, entry.isReady, entry.kind);
+    refreshStagingBar();
+    const engine = getActiveGameEngine();
+    if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
+    showInstallToast(`🎲 P${slotIndex + 1} rengine geçti.`);
   },
 });
 
@@ -813,7 +955,7 @@ initPauseModal({
 
 // Menu Card Tap Listeners (buton id kuralı: btn-select-<lowercase mode>)
 btnHeroCreateRoom?.addEventListener('click', () => openHostLobby('PONG'));
-addTapListener(document.getElementById('btn-menu-customize'), () => openCustomizeModal(0));
+addTapListener(document.getElementById('btn-menu-customize'), () => openCustomizeModal());
 initMenuAvatarCard();
 
 // Kategori Filtre Çipleri

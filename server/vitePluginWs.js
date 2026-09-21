@@ -86,6 +86,7 @@ const HOST_ONLY_MSG = new Set([
   'SET_SLOT_BOT',
   'CLEAR_SLOT_BOT',
   'SET_SLOT_NAME',
+  'SET_SLOT_COLOR',
 ]);
 
 export function handleMessage(ws, msg, roomManager) {
@@ -106,7 +107,7 @@ export function handleMessage(ws, msg, roomManager) {
     }
 
     case 'JOIN_ROOM': {
-      const result = roomManager.joinRoom(msg.roomCode, ws, msg.playerName, msg.clientId || null);
+      const result = roomManager.joinRoom(msg.roomCode, ws, msg.playerName, msg.clientId || null, msg.avatar || null);
       if (result.success) {
         ws.send(
           JSON.stringify({
@@ -116,6 +117,7 @@ export function handleMessage(ws, msg, roomManager) {
             slotIndex: result.slotIndex,
             name: result.name,
             color: result.color,
+            avatar: result.avatar,
             slots: roomManager.getSlots(roomManager.getRoom(result.roomCode)),
           })
         );
@@ -197,6 +199,11 @@ export function handleMessage(ws, msg, roomManager) {
 
     case 'SET_SLOT_NAME': {
       roomManager.handleSetSlotName(ws, msg.slotIndex, msg.name);
+      break;
+    }
+
+    case 'SET_SLOT_COLOR': {
+      roomManager.handleSetSlotColor(ws, msg.slotIndex, msg.color);
       break;
     }
 

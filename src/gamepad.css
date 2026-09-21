@@ -543,6 +543,55 @@
   display: none;
 }
 
+/* Character Section (cihaz-başı tek profil) */
+.lobby-character-section {
+  width: 100%;
+  max-width: 340px;
+  background-color: #1a1a1a;
+  border: 2px solid #333333;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lobby-character-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lobby-character-preview {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  background-color: #242220;
+  border: 2px solid #44403a;
+}
+
+.lobby-character-edit-btn {
+  flex: 1;
+  padding: 4px 10px;
+  min-height: 44px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  background-color: #2a2620;
+  color: #ffde59;
+  border: 1.5px solid #ffde59;
+  cursor: pointer;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+
+.lobby-character-hint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: #777268;
+  letter-spacing: 0.3px;
+}
+
 .lobby-name-input-row {
   display: flex;
   gap: 6px;

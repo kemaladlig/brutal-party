@@ -29,16 +29,18 @@ export function renderPauseSeats(onSwapCallback) {
   if (!grid) return;
 
   const slotLabels = ['P1 (ALT)', 'P2 (ÜST)', 'P3 (SOL)', 'P4 (SAĞ)'];
-  const slotColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
+  const fallbackColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 
   grid.innerHTML = [0, 1, 2, 3]
     .map((idx) => {
       const slot = hostPlayerSlots[idx];
       const name = slot?.name || 'BOŞ';
       const isSelected = pauseSelectedSlot === idx;
+      // Display rengi: host override → oyuncu avatarı → kanonik koltuk rengi
+      const seatColor = slot?.displayColor || slot?.avatar?.color || fallbackColors[idx];
       return `
-        <button type="button" class="pause-seat-btn ${isSelected ? 'selected-for-swap' : ''}" data-slot="${idx}" style="--seat-color: ${slotColors[idx]}">
-          <div class="pause-seat-color-badge" style="background: ${slotColors[idx]}"></div>
+        <button type="button" class="pause-seat-btn ${isSelected ? 'selected-for-swap' : ''}" data-slot="${idx}" style="--seat-color: ${seatColor}">
+          <div class="pause-seat-color-badge" style="background: ${seatColor}"></div>
           <div class="pause-seat-info">
             <span class="pause-seat-slot-label">${slotLabels[idx]}</span>
             <span class="pause-seat-player-name">${name}</span>
