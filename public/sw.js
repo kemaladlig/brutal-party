@@ -13,6 +13,11 @@ const ASSETS_TO_CACHE = [
   '/assets/games/duel.jpg',
   '/assets/games/crown.jpg',
   '/assets/games/zone.jpg',
+  '/assets/games/snake.jpg',
+  '/assets/games/laser.jpg',
+  '/assets/games/clone.jpg',
+  '/assets/games/collapse.jpg',
+  '/assets/games/ninja.jpg',
 ];
 
 // Runtime cache şişmesin: üst sınırı aşınca en eskiler silinir
