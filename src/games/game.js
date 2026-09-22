@@ -8,6 +8,7 @@ import { getLocalSeatColors, ensureLocalSeatColor } from '../core/customizationM
 import { renderCornerScores, renderSpatialBadge, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
 
 export class Game extends BaseMiniGame {
   constructor(canvas) {
@@ -128,11 +129,9 @@ export class Game extends BaseMiniGame {
         e.preventDefault();
       }
       this.keys[e.code] = true;
-      // Aksiyon tuşları: 🌀 falso (basımda bir kez)
-      if (e.code === 'Space') this.triggerSpin(0);
-      else if (e.code === 'Enter') this.triggerSpin(1);
-      else if (e.code === 'KeyO') this.triggerSpin(2);
-      else if (e.code === 'KeyB') this.triggerSpin(3);
+      // Aksiyon tuşları: 🌀 falso (basımda bir kez) — Space/Enter/O/B
+      const spinSlot = slotForActionCode(e.code);
+      if (spinSlot !== -1) this.triggerSpin(spinSlot);
     });
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
@@ -160,12 +159,12 @@ export class Game extends BaseMiniGame {
     const minDim = Math.min(this.arena.width, this.arena.height);
     const speed = minDim * 1.5;
     const K = this.keys;
-    const dirs = [
-      (K.KeyA ? -1 : 0) + (K.KeyD ? 1 : 0),
-      (K.ArrowLeft ? -1 : 0) + (K.ArrowRight ? 1 : 0),
-      (K.KeyI ? -1 : 0) + (K.KeyK ? 1 : 0),
-      (K.KeyT ? -1 : 0) + (K.KeyG ? 1 : 0),
-    ];
+    // Yatay kaleler l/r, dikey kaleler u/d okur (eksen kısıtı korunur)
+    const dirs = [0, 1, 2, 3].map((i) => {
+      const m = getSlotKeys(i);
+      if (i < 2) return (K[m.l] ? -1 : 0) + (K[m.r] ? 1 : 0);
+      return (K[m.u] ? -1 : 0) + (K[m.d] ? 1 : 0);
+    });
     this.paddles.forEach((p, i) => {
       if (!p.isJoined || p.isEliminated || p.isBot) return;
       const d = dirs[i];
@@ -223,11 +222,7 @@ export class Game extends BaseMiniGame {
     const handled = this.handleUiTap(touch);
     if (handled) return;
 
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundOverTimer > 0) {
-      this.roundOverTimer = 0;
-      return;
-    }
+    if (this.handleRoundOverSkip('roundOverTimer')) return;
 
     // 2. Generous Lobby Join: Touching anywhere in a player's region toggles their join status!
     if (this.state === 'LOBBY') {

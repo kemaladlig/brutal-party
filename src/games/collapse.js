@@ -3,23 +3,17 @@
 // Otomatik rastgele harita varyasyonları, 3D derinlikli zeminler ve dinamik parçalanma.
 
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { getLocalSeatColors } from '../core/customizationManager.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCollapseBotAI } from '../ai/collapseAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { readSlotKeys } from '../core/inputMaps.js';
+import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 
 export const COLLAPSE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const COLLAPSE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
-
-const COLLAPSE_KEY_SLOTS = [
-  { u: 'KeyW', d: 'KeyS', l: 'KeyA', r: 'KeyD', action: 'Space' },
-  { u: 'ArrowUp', d: 'ArrowDown', l: 'ArrowLeft', r: 'ArrowRight', action: 'Enter' },
-  { u: 'KeyI', d: 'KeyK', l: 'KeyJ', r: 'KeyL', action: 'KeyO' },
-  { u: 'KeyT', d: 'KeyG', l: 'KeyF', r: 'KeyH', action: 'KeyB' },
-];
 
 const COLLAPSE_JUMP_COOLDOWN = 1.6;
 
@@ -195,11 +189,7 @@ export class CollapseGame extends BaseMiniGame {
   }
 
   keyboardInput(index) {
-    const map = COLLAPSE_KEY_SLOTS[index];
-    if (!map) return { dx: 0, dy: 0, action: false };
-    const dx = (this.keys[map.r] ? 1 : 0) - (this.keys[map.l] ? 1 : 0);
-    const dy = (this.keys[map.d] ? 1 : 0) - (this.keys[map.u] ? 1 : 0);
-    return { dx, dy, action: !!this.keys[map.action] };
+    return readSlotKeys(this.keys, index);
   }
 
   pickRandomMap() {
@@ -417,48 +407,32 @@ export class CollapseGame extends BaseMiniGame {
     });
   }
 
-  getQuadrant(x, y) {
-    const { cx, cy } = this.arena;
-    if (x < cx && y >= cy) return 0;
-    if (x < cx && y < cy) return 1;
-    if (x >= cx && y < cy) return 2;
-    return 3;
-  }
-
   onTouchStart(touch) {
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
-      this.roundTransitionTimer = 0;
-      return;
-    }
+    if (this.handleRoundOverSkip()) return;
 
     if (this.state === 'LOBBY') {
       if (this.handleUiTap(touch)) return;
-      if (Math.hypot(touch.x - this.arena.cx, touch.y - this.arena.cy) < 65) {
-        if (this.slotTypes.filter((s) => s !== 'empty').length >= 2) this.startNewMatch();
-        return;
-      }
-      const q = this.getQuadrant(touch.x, touch.y);
-      this.cycleSlotType(q);
-      if (this.players[q]) {
-        this.players[q].isJoined = this.isSlotJoined(q);
-        this.players[q].slotType = this.slotTypes[q];
-      }
+      if (lobbyCenterStartTap(this, touch)) return;
+      lobbyQuadrantTap(this, touch, {
+        onSeatChange: (q) => {
+          if (this.players[q]) {
+            this.players[q].isJoined = this.isSlotJoined(q);
+            this.players[q].slotType = this.slotTypes[q];
+          }
+        },
+      });
       playJoin();
       return;
     }
 
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      if (Math.hypot(touch.x - this.arena.cx, touch.y - this.arena.cy) < 75) {
-        this.resetMatch();
-        playJoin();
-      }
+      matchOverRestartTap(this, touch, { onRestart: () => { this.resetMatch(); playJoin(); } });
       return;
     }
 
     if (this.state === 'PLAYING') {
-      const q = this.getQuadrant(touch.x, touch.y);
+      const q = getQuadrant(this.arena, touch.x, touch.y);
       const player = this.players[q];
       if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
 
@@ -1027,47 +1001,20 @@ export class CollapseGame extends BaseMiniGame {
         'P3 SARI',
         'P4 YEŞİL',
       ]);
-      const seatRects = getStandardSeatRects(this.arena);
-      const localMode = !this.hideLobbyStartButton;
-      const localColors = localMode ? getLocalSeatColors() : null;
-      for (let i = 0; i < 4; i++) {
-        const rect = seatRects[i];
-        const isTop = i === 1 || i === 2;
-        renderLobbySeatCard(ctx, {
-          x: rect.x,
-          y: rect.y,
-          w: rect.w,
-          h: rect.h,
-          slotIndex: i,
-          slotType: this.players[i]?.slotType || this.slotTypes[i],
-          playerName: this.players[i]?.name || '',
-          playerColor: COLLAPSE_COLORS[i],
-          rotation: isTop ? Math.PI : 0,
-          seatColor: localMode ? (localColors[i] || COLLAPSE_COLORS[i]) : null,
-          showColorDot: localMode,
-        });
-        // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
-        if (localMode) {
-          const dot = getSeatColorDotRect(rect);
-          this.uiButtons.push({
-            x: dot.x, y: dot.y, w: dot.w, h: dot.h,
-            onClick: () => this.cycleLocalSeat(i),
-          });
-        }
-        this.uiButtons.push({
-          x: rect.x, y: rect.y, w: rect.w, h: rect.h,
-          onClick: () => {
-            this.cycleSlotType(i);
-            if (this.players[i]) {
-              this.players[i].isJoined = this.isSlotJoined(i);
-              this.players[i].slotType = this.slotTypes[i];
-            }
-            playJoin();
-          },
-        });
-      }
-      const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-      renderLobbyStartButton(ctx, { arena: this.arena, uiButtons: this.uiButtons, joinedCount, accent: '#D84727', onStart: () => this.startNewMatch(), hidden: !!this.hideLobbyStartButton });
+      this.renderStandardLobby(ctx, {
+        arena: this.arena,
+        colors: COLLAPSE_COLORS,
+        accent: '#D84727',
+        onStart: () => this.startNewMatch(),
+        rotateTop: true,
+        onSeatChange: (i) => {
+          if (this.players[i]) {
+            this.players[i].isJoined = this.isSlotJoined(i);
+            this.players[i].slotType = this.slotTypes[i];
+          }
+          playJoin();
+        },
+      });
     } else if (this.state === 'ROUND_OVER') {
       renderRoundBanner(ctx, { arena: this.arena, title: this.roundWinner ? t('game.won', this.roundWinner.name) : t('game.draw'), titleColor: this.roundWinner ? this.roundWinner.color : '#FFFFFF' });
     } else if (this.state === 'MATCH_OVER') {

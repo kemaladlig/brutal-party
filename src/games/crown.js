@@ -25,6 +25,7 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup } from '../core/arenaKit.js';
 import { updateCrownBotAI } from '../ai/crownAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { keyboardVectorFrom } from '../core/inputMaps.js';
 
 export const CROWN_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CROWN_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -919,27 +920,9 @@ export class CrownGame extends BaseMiniGame {
           inY = Math.sin(joy.angle) * joy.force;
         }
 
-        if (p.index === 0) {
-          if (this.keys['KeyA'] || this.keys['a']) inX -= 1;
-          if (this.keys['KeyD'] || this.keys['d']) inX += 1;
-          if (this.keys['KeyW'] || this.keys['w']) inY -= 1;
-          if (this.keys['KeyS'] || this.keys['s']) inY += 1;
-        } else if (p.index === 1) {
-          if (this.keys['ArrowLeft']) inX -= 1;
-          if (this.keys['ArrowRight']) inX += 1;
-          if (this.keys['ArrowUp']) inY -= 1;
-          if (this.keys['ArrowDown']) inY += 1;
-        } else if (p.index === 2) {
-          if (this.keys['KeyJ'] || this.keys['j']) inX -= 1;
-          if (this.keys['KeyL'] || this.keys['l']) inX += 1;
-          if (this.keys['KeyI'] || this.keys['i']) inY -= 1;
-          if (this.keys['KeyK'] || this.keys['k']) inY += 1;
-        } else if (p.index === 3) {
-          if (this.keys['KeyF'] || this.keys['f']) inX -= 1;
-          if (this.keys['KeyH'] || this.keys['h']) inX += 1;
-          if (this.keys['KeyT'] || this.keys['t']) inY -= 1;
-          if (this.keys['KeyG'] || this.keys['g']) inY += 1;
-        }
+        const kb = keyboardVectorFrom(this.keys, p.index);
+        inX += kb.x;
+        inY += kb.y;
       } else {
         updateCrownBotAI(this, p, dt);
         inX = p.inputX;
@@ -2122,11 +2105,7 @@ export class CrownGame extends BaseMiniGame {
   onTouchStart(touch) {
     if (this.handleUiTap(touch)) return;
 
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
-      this.roundTransitionTimer = 0;
-      return;
-    }
+    if (this.handleRoundOverSkip()) return;
 
     if (this.state === 'LOBBY') {
       const q = this.getCornerQuadrant(touch);

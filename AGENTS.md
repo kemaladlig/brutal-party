@@ -2,6 +2,7 @@
 
 Bu dosya **AI agent'lar ve geliştiriciler** içindir: mimari sözleşmeler, yasaklar, sayısal bütçeler, iş akışları.
 Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar defteri, açık işler) **`docs/PROJECT_MAP.md`**'dedir — çalışmaya başlamadan önce **ikisini de oku**.
+Global temel kurallar (mimari prensipler, UI/UX, agentic süreç) `~/.config/opencode/AGENTS.md`'den gelir; bu dosya yalnızca **Brutal Party'ye özgü** sözleşmeleri tutar — çakışma olursa bu dosya kazanır.
 
 ---
 
@@ -21,7 +22,7 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 
 ## 3. Engine Registry — tek kayıt noktası
 
-- `src/core/engineRegistry.js` → `GAME_ORDER = ['PONG','TANKS','CURVE','BOMB','HEIST','ARCHER','CROWN']`.
+- `src/core/engineRegistry.js` → `GAME_ORDER` (13 oyun: PONG…NINJA — güncel liste dosyadadır, buraya kopyalanmaz).
 - Yeni oyun = **1 satır** `registerEngine('MOD', { game, reset, onEnter/onResume, start, packet })`. `main.js`'e `else if (mode === ...)` zinciri **eklemek yasaktır**.
 - Entry sözleşmesi: `game` (BaseMiniGame türevi) · `reset()` · `onEnter/onResume(now)` (fizik sıçramasını önler) · `start()` (sayaç sonrası) · `packet()` (host state'e oyuna özel alanlar).
 - Motor sözleşmesi: `resetMatch/reset()`, `update(now)`, `render()`, `resize(w,h)`, `handleRemoteInput(slotIndex, data)`, `startNewMatch()`.
@@ -62,13 +63,14 @@ Modal açıkken canvas tap'leri motora düşmez; staging'de düşer (bot ekleme/
 - Kumanda tarafı: `CONTROLLER_META` tablosu + `mount[Oyun]Controller`; PONG hariç tüm oyunlarda isimli skor şeridi (`score-strip`).
 - Kumanda ergonomisi kararı: **dikeyde alt-orta kuşak** (`safe-area + 12vh`, 96px taban / 170px tavan), **yatayda köşeler** (sol-alt joystick, sağ-alt aksiyon). Yeni kumanda bu düzene uyar.
 - Mobil: `portrait` + `landscape` desteklenir, `overflow-x` yasak, dokunmatiklerde `touch-action` zorunlu.
+- Motion: `src/ui/motion.js` (`prefersReducedMotion`, `motionScale`) + tokenlar (`src/ui/tokens.js`) tek kaynaktır; yeni UI bu iki dosyadan sızar, lokal stil tanımlamaz. Temel UI hissi global kurala uyar (kısa fade/press, kuru pop-in yok).
 
 ## 8. Yasaklar
 
 - `main.js` / `gamepad.js` içine moda özel `if/else` zinciri ekleme — registry + `CONTROLLER_META` kullan.
 - State'i iki yerde tutma (TV listesi ↔ relay tablosu çakışırsa relay kazanır).
 - Kumandaya oyun simülasyonu, motora ağ kodu koyma.
-- `*.md` dosyası oluşturma (bu dosya + `docs/PROJECT_MAP.md` yeterlidir).
+- Çok gerekmedikçe yeni `*.md` dosyası oluşturma. Mevcut `AGENTS.md` + `docs/PROJECT_MAP.md` yeterlidir; yapı/protokol değişince ikisi de güncellenir. Yeni döküman şartsa kullanıcıya sor.
 
 ## 9. Yeni Oyun Ekleme Checklist'i
 

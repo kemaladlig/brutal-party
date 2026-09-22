@@ -5,6 +5,8 @@
 import { prefersReducedMotion, motionScale } from '../ui/motion.js';
 import { getStandardSeatRects, renderLobbySeatCard, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { getLocalSeatColors, ensureLocalSeatColor, cycleLocalSeatColor } from './customizationManager.js';
+import { isSlotActionEvent, keyboardVectorFrom } from './inputMaps.js';
+import { getQuadrant, roundOverSkipGuard } from './touchFlow.js';
 
 export class BaseMiniGame {
   constructor(canvas) {
@@ -175,49 +177,12 @@ export class BaseMiniGame {
   }
 
   isPlayerActionKey(e, slotIndex) {
-    if (slotIndex === 0) {
-      return e.code === 'Space' || e.code === 'KeyE' || e.key === 'e' || e.key === 'E' || e.code === 'ShiftLeft';
-    }
-    if (slotIndex === 1) {
-      return e.code === 'Enter' || e.code === 'Numpad0' || e.code === 'ControlRight';
-    }
-    if (slotIndex === 2) {
-      return e.code === 'KeyO' || e.key === 'o' || e.key === 'O';
-    }
-    if (slotIndex === 3) {
-      return e.code === 'KeyB' || e.key === 'b' || e.key === 'B';
-    }
-    return false;
+    return isSlotActionEvent(e, slotIndex);
   }
 
   getPlayerKeyboardVector(slotIndex) {
-    let inputX = 0;
-    let inputY = 0;
     if (!this.isLocalInputActive) return { x: 0, y: 0 };
-
-    if (slotIndex === 0) {
-      if (this.keys['KeyA'] || this.keys['a']) inputX -= 1;
-      if (this.keys['KeyD'] || this.keys['d']) inputX += 1;
-      if (this.keys['KeyW'] || this.keys['w']) inputY -= 1;
-      if (this.keys['KeyS'] || this.keys['s']) inputY += 1;
-    } else if (slotIndex === 1) {
-      if (this.keys['ArrowLeft']) inputX -= 1;
-      if (this.keys['ArrowRight']) inputX += 1;
-      if (this.keys['ArrowUp']) inputY -= 1;
-      if (this.keys['ArrowDown']) inputY += 1;
-    } else if (slotIndex === 2) {
-      if (this.keys['KeyJ'] || this.keys['j']) inputX -= 1;
-      if (this.keys['KeyL'] || this.keys['l']) inputX += 1;
-      if (this.keys['KeyI'] || this.keys['i']) inputY -= 1;
-      if (this.keys['KeyK'] || this.keys['k']) inputY += 1;
-    } else if (slotIndex === 3) {
-      if (this.keys['KeyF'] || this.keys['f']) inputX -= 1;
-      if (this.keys['KeyH'] || this.keys['h']) inputX += 1;
-      if (this.keys['KeyT'] || this.keys['t']) inputY -= 1;
-      if (this.keys['KeyG'] || this.keys['g']) inputY += 1;
-    }
-
-    return { x: inputX, y: inputY };
+    return keyboardVectorFrom(this.keys, slotIndex);
   }
 
   // ---------------------------------------------------------------------------
@@ -225,12 +190,13 @@ export class BaseMiniGame {
   // ---------------------------------------------------------------------------
 
   getCornerQuadrant(point) {
-    const cx = this.arena?.cx ?? (this.canvas.width / 2);
-    const cy = this.arena?.cy ?? (this.canvas.height / 2);
-    if (point.x < cx && point.y >= cy) return 0; // Bottom-Left (P1)
-    if (point.x < cx && point.y < cy) return 1;  // Top-Left (P2)
-    if (point.x >= cx && point.y < cy) return 2; // Top-Right (P3)
-    return 3; // Bottom-Right (P4)
+    const arena = this.arena ?? { cx: this.canvas.width / 2, cy: this.canvas.height / 2 };
+    return getQuadrant(arena, point.x, point.y);
+  }
+
+  // ROUND_OVER tap-to-skip gardı (touchFlow tek kayıt; PONG 'roundOverTimer' verir)
+  handleRoundOverSkip(timerField = 'roundTransitionTimer') {
+    return roundOverSkipGuard(this, timerField);
   }
 
   handleStandardJoystickTouchStart(touch, onDoubleTapAction = null) {
@@ -412,6 +378,8 @@ export class BaseMiniGame {
     onStart = () => this.startNewMatch(),
     accent = '#D84727',
     customControls = null,
+    rotateTop = false,
+    onSeatChange = null,
   } = {}) {
     const corners = getStandardSeatRects(arena);
     const localMode = !this.hideLobbyStartButton;
@@ -423,6 +391,7 @@ export class BaseMiniGame {
       const p = this.players?.[i];
       const name = p ? (p.name || '') : (playerNames[i] || '');
       const color = colors[i] || '#D84727';
+      const isTop = i === 1 || i === 2;
 
       renderLobbySeatCard(ctx, {
         x: pos.x,
@@ -433,7 +402,7 @@ export class BaseMiniGame {
         slotType: slotType,
         playerName: name,
         playerColor: color,
-        rotation: 0,
+        rotation: rotateTop && isTop ? Math.PI : 0,
         seatColor: localMode ? (localColors[i] || color) : null,
         showColorDot: localMode,
       });
@@ -455,7 +424,10 @@ export class BaseMiniGame {
         y: pos.y,
         w: pos.w,
         h: pos.h,
-        onClick: () => this.cycleSlotType(i),
+        onClick: () => {
+          this.cycleSlotType(i);
+          if (typeof onSeatChange === 'function') onSeatChange(i);
+        },
       });
     }
 

@@ -23,7 +23,7 @@ src/gamepad.css             Kumanda stilleri (neo-brutalist mobil ergonomi)
 src/style.css               TV konsolu + ana menü stilleri (neo-brutalist)
 src/controlGuide.js         Oyun-içi kontrol yardımcısı overlay'i
 src/touchManager.js         Dokunmatik giriş yöneticisi (TV / masa-ortası lokal mod)
-src/touch.js                [YEDEK/LEGACY] Eski dokunmatik modülü (touchManager.js kullanılır)
+src/i18n.js                 UI metin sözlüğü (t() anahtarları)
 src/audio.js                Synthesizer / Web Audio API ses efektleri
 
 src/core/
@@ -34,8 +34,23 @@ src/core/
   engineRegistry.js         GAME_ORDER, CARTRIDGES (13 oyun kartuşu + metadatalar), initAllCartridges, getControllerMeta, registerEngine/getEngine/forEachEngine
   slotManager.js            Koltuk yönetimi: hostPlayerSlots (+avatar/displayColor), updateHostSlot,
                             syncSlotsToEngine, swapEngineSlots, getColorClashIndices (sert renk engeli)
+  safeStorage.js            localStorage sarmalayıcı (JSON parse/try-catch tek nokta)
+  inputMaps.js              Tek klavye slot haritası: STANDARD_KEY_SLOTS (P1 WASD+Space…P4 TFGH+B),
+                            SECOND_ACTION_KEYS (ninja smoke/laser dash), getSlotKeys, keyboardVectorFrom,
+                            readSlotKeys, isSlotActionEvent, slotForActionCode, buildCodeToSlotMap —
+                            motorlar tuş kopyası tutmaz (Faz 1 refactor, Eylül 2026)
   customizationManager.js   Cihaz-başı TEK profil (localStorage), rastgele varsayılan renk,
                             sanitizeAvatar/pickFreeColor/findSlotColorDuplicates, koltuk avatar kayıt defteri
+  touchFlow.js              Tek dokunmatik akış: getQuadrant (BL/BR→TL/TR: 0/1/2/3),
+                            roundOverSkipGuard (timerField varsayılan roundTransitionTimer;
+                            PONG roundOverTimer geçirir), lobbyCenterStartTap (r=65, min 2),
+                            lobbyQuadrantTap (+onSeatChange), matchOverRestartTap (r=75) —
+                            motorlar quadrant/skip kopyası tutmaz (Faz 2 refactor, Eylül 2026);
+                            İSTİSNA: tanks getCornerZone (merkez -1, PLAYING'de gerekli),
+                            PONG getPlayerZoneAt (paddle bölgeleri), bomb/zone MATCH_OVER→LOBBY.
+                            Faz 2c (Eylül 2026): 12 motor lobi kartı renderStandardLobby'ye
+                            geçti (archer/bomb/clone/collapse/crown/curve/heist/laser/ninja/
+                            snake/tanks/zone); only PONG hand-rolled kaldı (rotate kart + bölge)
   arenaKit.js               Ortak arena görsel kiti: drawObstacle (neo-brutalist blok) +
                             PICKUP_META/drawPickup (power-up rozetleri, tek kayıt) —
                             ARCHER/NINJA engel + BOMB/CROWN pickup çizimleri buradan;
@@ -53,6 +68,9 @@ src/ui/
   joinModal.js              Kumanda katılım modali & Hero kod kutusu, panodan yapıştırma
   pauseModal.js             Oyun içi duraklatma menüsü, 4 koltuk takası, 90° saat yönü ekran döndürme, ses aç/kapa
   toast.js                  PWA yükleme bildirimleri (showInstallToast, setupPwaInstallPrompt)
+  menuManager.js            TV ana menü orkestrasyonu (bento kart, ayar/ses kısayolları)
+  settingsModal.js          Ayarlar modalı (ses, tam ekran, bot ekleme tercihi)
+  fullscreen.js             Tam ekran istek/yönetim (TV + kumanda)
 
 src/ai/
   bombAI.js                 Brutal Bomb bot zekâsı: duvar kaçınması, tehlike raycast'i, bomba paslaşma/kaçış
@@ -61,8 +79,13 @@ src/ai/
   tankAI.js                 Micro-Tanks bot zekâsı: duvar seken mermi hesaplaması, hedef önleme raycast'i, akıllı ateş
    crownAI.js                Brutal Crown bot zekâsı: taç kovalama, önleyici tackle/omuz atma, kral kaçış manevrası
    pongAI.js                 Brutal Pong bot zekâsı: normal takip + god matador vuruşu, gölgeleme, iniş tahmini
-   zoneAI.js                 Brutal Zone bot zekâsı: risk-bütçeli açılım/dönüş, BFS eve dönüş, düşman izi avı
-   archerAI.js               Brutal Archery bot zekâsı: mesafe yönetimi + yay germe zamanlaması + kaçınma
+    zoneAI.js                 Brutal Zone bot zekâsı: risk-bütçeli açılım/dönüş, BFS eve dönüş, düşman izi avı
+    archerAI.js               Brutal Archery bot zekâsı: mesafe yönetimi + yay germe zamanlaması + kaçınma
+    snakeAI.js                Brutal Snake bot zekâsı: ızgara raycast + yem kovalama
+    laserAI.js                Brutal Laser bot zekâsı: strafe/dodge + pickup önceliği
+    cloneAI.js                Brutal Clone bot zekâsı: devriye + menzil omuz tehdidi
+    collapseAI.js             Brutal Collapse bot zekâsı: güvenli hücre + tehlike zıplaması
+    ninjaAI.js                Brutal Ninja bot zekâsı: pusu/saklanma + kısa menzil av
 
 src/games/ (Oyun Motorları - BaseMiniGame türevleri):
   game.js                   Brutal Pong motoru (+ src/games/ball.js, src/games/paddle.js)
@@ -72,7 +95,12 @@ src/games/ (Oyun Motorları - BaseMiniGame türevleri):
   heist.js                  Brutal Heist motoru (altın toplama, kasa bankalama, omuz atma)
    archer.js                 Brutal Archery okçuluk arenası (yay germe + nişan salınımı + yakın menzil 2 puan, 60sn/2 raund)
    crown.js                  Brutal Crown motoru (altın taç, omuz atma, pinball bumper'lar, taç süresi)
-   zone.js                   Brutal Zone motoru (64x64 grid bölge kapma, iz kesme→base-reset+2sn stun, %40/90sn)
+    zone.js                   Brutal Zone motoru (64x64 grid bölge kapma, iz kesme→base-reset+2sn stun, %40/90sn)
+    snake.js                  Brutal Snake motoru (yemle büyü, kuyruk/çarpışma, hold-boost)
+    laser.js                  Brutal Laser motoru (hareketli lazer-tag, 3 can, dash i-frame)
+    clone.js                  Brutal Clone motoru (2 gecikmeli kopya, gerçek/sahte vuruş)
+    collapse.js               Brutal Collapse motoru (13x13 çöken ızgara, zıplama, itişme)
+    ninja.js                  Brutal Ninja motoru (görünmezleşme, kılıç cooldown, siper kutuları)
 
 server/
   index.js                  Lokal WebSocket bağımsız sunucu başlatıcı
@@ -238,3 +266,11 @@ Yeni bir oyun ekleneceğinde aşağıdaki dosyalar güncellenir:
 8. `src/style.css`: `.card-[mod]` üst kenarlık vurgu rengi.
 9. `public/assets/games/[oyun].jpg`: Madde 10 formülüyle 1:1 neo-brutalist izometrik görsel.
 10. `npm run build`: 0 hata doğrulaması.
+
+---
+
+## 7. Global Kurallar Katmanı
+
+- `~/.config/opencode/AGENTS.md` — tüm projelerde geçerli temel (mimari, UI/UX motion/responsive, agentic süreç, hard rules).
+- Bu depo: `AGENTS.md` (proje sözleşmeleri) + `docs/PROJECT_MAP.md` (harita). Global ile çakışırsa **proje dosyası kazanır**.
+- Antigravity/Claude/Copilot global dosyaları master'dan import/kopya ile beslenir; master değişince Copilot elle senkronlanır.

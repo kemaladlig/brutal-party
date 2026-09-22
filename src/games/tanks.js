@@ -1,12 +1,14 @@
 // Micro-Tanks: 8 Labyrinths with Multi-Tier Bot AI (Normal & God Mode), Tactical Crates & Sudden Death
-import { getSlotCustomization, ensureLocalSeatColor, getLocalSeatColors } from '../core/customizationManager.js';
+import { getSlotCustomization, ensureLocalSeatColor } from '../core/customizationManager.js';
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
 import { renderTopPill, renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateTankBotAI as runTankBotAI } from '../ai/tankAI.js';
+import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
+import { lobbyCenterStartTap } from '../core/touchFlow.js';
 
 export const TANK_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const TANK_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -243,15 +245,13 @@ export class TanksGame extends BaseMiniGame {
   // aynı alana yazar (last-writer-wins); kbDriving bayrağı klavyenin
   // bıraktığı latch'i, uzaktaki sürüşü ezmeden temizler.
   initKeyboard() {
-    const MOVE_KEYS = [
-      ['KeyW', 'KeyA', 'KeyS', 'KeyD'],
-      ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'],
-      ['KeyI', 'KeyJ', 'KeyK', 'KeyL'],
-      ['KeyT', 'KeyF', 'KeyG', 'KeyH'],
-    ];
-    const FIRE_KEYS = ['Space', 'Enter', 'KeyO', 'KeyB'];
-    const slotOfMove = {};
-    MOVE_KEYS.forEach((set, i) => set.forEach((c) => (slotOfMove[c] = i)));
+    // Hareket/set ve ateş tuşları inputMaps STANDARD'tan türetilir (kopya yok)
+    const MOVE_KEYS = [0, 1, 2, 3].map((i) => {
+      const m = getSlotKeys(i);
+      return [m.u, m.d, m.l, m.r];
+    });
+    const FIRE_KEYS = [0, 1, 2, 3].map((i) => getSlotKeys(i).action);
+    const slotOfMove = buildCodeToSlotMap(['u', 'd', 'l', 'r']);
     const isHumanAlive = (i) => {
       const tank = this.tanks[i];
       return tank && tank.isJoined && tank.isAlive && tank.slotType === 'human' ? tank : null;
@@ -474,24 +474,11 @@ export class TanksGame extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
-    const { cx, cy } = this.arena;
-    const distToCenter = Math.hypot(touch.x - cx, touch.y - cy);
-
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
-      this.roundTransitionTimer = 0;
-      return;
-    }
+    if (this.handleRoundOverSkip()) return;
 
     if (this.state === 'LOBBY') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 65) {
-        const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-        if (joinedCount >= 2) {
-          this.startNewMatch();
-        }
-        return;
-      }
+      if (lobbyCenterStartTap(this, touch)) return;
 
       const corner = this.getCornerZone(touch);
       if (corner === -1) return;
@@ -507,7 +494,7 @@ export class TanksGame extends BaseMiniGame {
 
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 75) {
+      if (Math.hypot(touch.x - this.arena.cx, touch.y - this.arena.cy) < 75) {
         this.state = 'LOBBY';
         this.scores = [0, 0, 0, 0];
         playJoin();
@@ -1434,6 +1421,8 @@ export class TanksGame extends BaseMiniGame {
   }
 
   renderCornerTouchZones(ctx) {
+    if (this.state === 'LOBBY') return;
+
     const corners = [
       { name: 'KIRMIZI // P1', color: TANK_COLORS[0], slot: this.slotTypes[0] },
       { name: 'MAVİ // P2', color: TANK_COLORS[1], slot: this.slotTypes[1] },
@@ -1441,60 +1430,11 @@ export class TanksGame extends BaseMiniGame {
       { name: 'YEŞİL // P4', color: TANK_COLORS[3], slot: this.slotTypes[3] },
     ];
 
-    const seatRects = this.state === 'LOBBY' ? getStandardSeatRects(this.arena) : null;
-
     corners.forEach((c, index) => {
       const zone = this.getCornerControlRect(index);
       const isTop = index === 1 || index === 2;
       const tank = this.tanks[index];
       const isGameplayHuman = this.state === 'PLAYING' && c.slot === 'human';
-
-      // LOBBY: standart kare koltuk (tüm oyunlarla aynı ölçü) + uiButtons tap
-      if (this.state === 'LOBBY') {
-        const rect = seatRects[index];
-        const pName = (tank && tank.name && tank.name !== TANK_NAMES[index]) ? tank.name : '';
-        const localMode = !this.hideLobbyStartButton;
-        const localColors = localMode ? getLocalSeatColors() : null;
-        renderLobbySeatCard(ctx, {
-          x: rect.x,
-          y: rect.y,
-          w: rect.w,
-          h: rect.h,
-          slotIndex: index,
-          slotType: c.slot,
-          playerName: pName,
-          playerColor: c.color,
-          rotation: isTop ? Math.PI : 0,
-          seatColor: localMode ? (localColors[index] || c.color) : null,
-          showColorDot: localMode,
-        });
-        // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
-        if (localMode) {
-          const dot = getSeatColorDotRect(rect);
-          this.uiButtons.push({
-            x: dot.x,
-            y: dot.y,
-            w: dot.w,
-            h: dot.h,
-            onClick: () => this.cycleLocalSeat(index),
-          });
-        }
-        this.uiButtons.push({
-          x: rect.x,
-          y: rect.y,
-          w: rect.w,
-          h: rect.h,
-          onClick: () => {
-            this.cycleSlotType(index);
-            if (this.tanks[index]) {
-              this.tanks[index].isJoined = this.isSlotJoined(index);
-              this.tanks[index].slotType = this.slotTypes[index];
-            }
-            playJoin();
-          },
-        });
-        return;
-      }
 
       ctx.save();
       // Rotate 180° for Top players so text & HUD is right-side up for them!
@@ -1570,14 +1510,20 @@ export class TanksGame extends BaseMiniGame {
   }
 
   renderLobbyUI(ctx) {
-    const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-    renderLobbyStartButton(ctx, {
+    this.renderStandardLobby(ctx, {
       arena: this.arena,
-      uiButtons: this.uiButtons,
-      joinedCount,
+      colors: TANK_COLORS,
+      playerNames: this.tanks.map((tank, i) => (tank && tank.name && tank.name !== TANK_NAMES[i]) ? tank.name : ''),
       accent: '#D84727',
       onStart: () => this.startNewMatch(),
-      hidden: !!this.hideLobbyStartButton,
+      rotateTop: true,
+      onSeatChange: (i) => {
+        if (this.tanks[i]) {
+          this.tanks[i].isJoined = this.isSlotJoined(i);
+          this.tanks[i].slotType = this.slotTypes[i];
+        }
+        playJoin();
+      },
     });
   }
 

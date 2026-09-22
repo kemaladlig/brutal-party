@@ -3,25 +3,17 @@
 // Tek çubuk: joystick yönü hem hareket hem nişan verir (it=koş+nişan, bırak=dur).
 
 import { playExplosion, playStart, playJoin, playGunshot, playDashWhoosh, playItemPickup, playStumble } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { getLocalSeatColors } from '../core/customizationManager.js';
 import { renderTopPill, renderCornerScores, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
+import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 
 export const LASER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const LASER_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
-
-// Lokal klavye: Hareket + Ateş + Dash
-// (P1 WASD+Space, P2 Oklar+Enter, P3 IJKL+O, P4 TFGH+B sözleşmesi korunur; dash eklenir)
-const LASER_KEY_SLOTS = [
-  { u: 'KeyW', d: 'KeyS', l: 'KeyA', r: 'KeyD', fire: 'Space', dash: 'ShiftLeft' },
-  { u: 'ArrowUp', d: 'ArrowDown', l: 'ArrowLeft', r: 'ArrowRight', fire: 'Enter', dash: 'ShiftRight' },
-  { u: 'KeyI', d: 'KeyK', l: 'KeyJ', r: 'KeyL', fire: 'KeyO', dash: 'KeyU' },
-  { u: 'KeyT', d: 'KeyG', l: 'KeyF', r: 'KeyH', fire: 'KeyB', dash: 'KeyR' },
-];
 
 export const LASER_TUNING = {
   SPEED: 220,          // koşu hızı (px/s)
@@ -98,11 +90,8 @@ export class LaserGame extends BaseMiniGame {
   }
 
   keyboardInput(index) {
-    const map = LASER_KEY_SLOTS[index];
-    if (!map) return { dx: 0, dy: 0, fire: false, dash: false };
-    const dx = (this.keys[map.r] ? 1 : 0) - (this.keys[map.l] ? 1 : 0);
-    const dy = (this.keys[map.d] ? 1 : 0) - (this.keys[map.u] ? 1 : 0);
-    return { dx, dy, fire: !!this.keys[map.fire], dash: !!this.keys[map.dash] };
+    const base = readSlotKeys(this.keys, index);
+    return { dx: base.dx, dy: base.dy, fire: base.action, dash: !!this.keys[getSecondActionKey('dash', index)] };
   }
 
   resize(width, height) {
@@ -509,49 +498,31 @@ export class LaserGame extends BaseMiniGame {
     });
   }
 
-  getCornerZone(pos) {
-    const { cx, cy } = this.arena;
-    const isLeft = pos.x < cx;
-    const isTop = pos.y < cy;
-    if (isLeft && !isTop) return 0;
-    if (isLeft && isTop) return 1;
-    if (!isLeft && isTop) return 2;
-    return 3;
-  }
-
   onTouchStart(touch) {
-    const { cx, cy } = this.arena;
-    const distToCenter = Math.hypot(touch.x - cx, touch.y - cy);
-
     if (this.state === 'LOBBY') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 65) {
-        const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-        if (joinedCount >= 2) this.startNewMatch();
-        return;
-      }
-      const corner = this.getCornerZone(touch);
-      this.cycleSlotType(corner);
-      if (this.players[corner]) {
-        this.players[corner].isJoined = this.isSlotJoined(corner);
-        this.players[corner].slotType = this.slotTypes[corner];
-      }
+      if (lobbyCenterStartTap(this, touch)) return;
+      lobbyQuadrantTap(this, touch, {
+        onSeatChange: (corner) => {
+          if (this.players[corner]) {
+            this.players[corner].isJoined = this.isSlotJoined(corner);
+            this.players[corner].slotType = this.slotTypes[corner];
+          }
+        },
+      });
       playJoin();
       return;
     }
 
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 75) {
-        this.resetMatch();
-        playJoin();
-      }
+      matchOverRestartTap(this, touch, { onRestart: () => { this.resetMatch(); playJoin(); } });
       return;
     }
 
     if (this.state === 'PLAYING') {
       if (this.handleUiTap(touch)) return;
-      const corner = this.getCornerZone(touch);
+      const corner = getQuadrant(this.arena, touch.x, touch.y);
       const player = this.players[corner];
       if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
       const t = this.touches[corner];
@@ -1358,75 +1329,50 @@ export class LaserGame extends BaseMiniGame {
         'P3 SARI',
         'P4 YEŞİL',
       ]);
-      const seatRects = getStandardSeatRects(this.arena);
-      const localMode = !this.hideLobbyStartButton;
-      const localColors = localMode ? getLocalSeatColors() : null;
-      for (let i = 0; i < 4; i++) {
-        const rect = seatRects[i];
-        const isTop = i === 1 || i === 2;
-        renderLobbySeatCard(ctx, {
-          x: rect.x,
-          y: rect.y,
-          w: rect.w,
-          h: rect.h,
-          slotIndex: i,
-          slotType: this.players[i]?.slotType || this.slotTypes[i],
-          playerName: this.players[i]?.name || '',
-          playerColor: LASER_COLORS[i],
-          rotation: isTop ? Math.PI : 0,
-          seatColor: localMode ? (localColors[i] || LASER_COLORS[i]) : null,
-          showColorDot: localMode,
-        });
-        // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
-        if (localMode) {
-          const dot = getSeatColorDotRect(rect);
-          this.uiButtons.push({
-            x: dot.x, y: dot.y, w: dot.w, h: dot.h,
-            onClick: () => this.cycleLocalSeat(i),
-          });
-        }
-        this.uiButtons.push({
-          x: rect.x, y: rect.y, w: rect.w, h: rect.h,
-          onClick: () => {
-            this.cycleSlotType(i);
-            if (this.players[i]) {
-              this.players[i].isJoined = this.isSlotJoined(i);
-              this.players[i].slotType = this.slotTypes[i];
-            }
-            playJoin();
-          },
-        });
-      }
-      const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-      renderLobbyStartButton(ctx, { arena: this.arena, uiButtons: this.uiButtons, joinedCount, accent: '#D84727', onStart: () => this.startNewMatch(), hidden: !!this.hideLobbyStartButton });
-      // Harita seçici (start butonunun altında küçük buton)
-      const mapName = LASER_MAPS[this.selectedMapIndex]?.name || '';
-      const mw = 210; const mh = 34;
-      const mx = this.arena.cx - mw / 2;
-      const my = this.arena.cy + 78;
-      ctx.save();
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 3;
-      ctx.fillRect(mx, my, mw, mh);
-      ctx.strokeRect(mx, my, mw, mh);
-      ctx.fillStyle = '#1A1A1A';
-      ctx.font = 'bold 13px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(`🗺 ${mapName}`, this.arena.cx, my + mh / 2);
-      ctx.restore();
-      this.uiButtons.push({
-        x: mx, y: my, w: mw, h: mh,
-        onClick: () => {
-          this.selectedMapIndex = (this.selectedMapIndex + 1) % LASER_MAPS.length;
-          this.buildMap();
-          const s = this.spawnPoint.bind(this);
-          this.players.forEach((p, i) => {
-            const sp = s(i);
-            p.x = sp.x; p.y = sp.y;
-            p.angle = sp.angle; p.targetAngle = sp.angle;
-          });
+      this.renderStandardLobby(ctx, {
+        arena: this.arena,
+        colors: LASER_COLORS,
+        accent: '#D84727',
+        onStart: () => this.startNewMatch(),
+        rotateTop: true,
+        onSeatChange: (i) => {
+          if (this.players[i]) {
+            this.players[i].isJoined = this.isSlotJoined(i);
+            this.players[i].slotType = this.slotTypes[i];
+          }
           playJoin();
+        },
+        customControls: (c) => {
+          // Harita seçici (start butonunun altında küçük buton)
+          const mapName = LASER_MAPS[this.selectedMapIndex]?.name || '';
+          const mw = 210; const mh = 34;
+          const mx = this.arena.cx - mw / 2;
+          const my = this.arena.cy + 78;
+          c.save();
+          c.fillStyle = '#FFFFFF';
+          c.strokeStyle = '#1A1A1A';
+          c.lineWidth = 3;
+          c.fillRect(mx, my, mw, mh);
+          c.strokeRect(mx, my, mw, mh);
+          c.fillStyle = '#1A1A1A';
+          c.font = 'bold 13px sans-serif';
+          c.textAlign = 'center'; c.textBaseline = 'middle';
+          c.fillText(`🗺 ${mapName}`, this.arena.cx, my + mh / 2);
+          c.restore();
+          this.uiButtons.push({
+            x: mx, y: my, w: mw, h: mh,
+            onClick: () => {
+              this.selectedMapIndex = (this.selectedMapIndex + 1) % LASER_MAPS.length;
+              this.buildMap();
+              const s = this.spawnPoint.bind(this);
+              this.players.forEach((p, i) => {
+                const sp = s(i);
+                p.x = sp.x; p.y = sp.y;
+                p.angle = sp.angle; p.targetAngle = sp.angle;
+              });
+              playJoin();
+            },
+          });
         },
       });
     } else if (this.state === 'MATCH_OVER') {

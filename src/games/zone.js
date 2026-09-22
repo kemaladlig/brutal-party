@@ -3,7 +3,7 @@
 // capture. Enemy steps on your trail -> you shatter back to base size + 2s stun
 // (no elimination, party flow preserved). 90s rounds, first to 40% takes the
 // round early, first to 2 rounds is the champion.
-import { getSlotCustomization, ensureLocalSeatColor, getLocalSeatColors } from '../core/customizationManager.js';
+import { getSlotCustomization, ensureLocalSeatColor } from '../core/customizationManager.js';
 import {
   playStart,
   playJoin,
@@ -14,7 +14,7 @@ import {
   playStumble,
   playPowerUp,
 } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
 import {
   renderTopPill,
@@ -27,6 +27,7 @@ import {
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateZoneBotAI } from '../ai/zoneAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { keyboardVectorFrom, slotForActionCode } from '../core/inputMaps.js';
 
 export const ZONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ZONE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -156,10 +157,8 @@ export class ZoneGame extends BaseMiniGame {
     window.addEventListener('keydown', (e) => {
       if (e.repeat || !this.isLocalInputActive) return;
       if (this.state !== 'PLAYING') return;
-      if (e.code === 'Space') this.triggerDash(0);
-      else if (e.code === 'Enter') this.triggerDash(1);
-      else if (e.code === 'KeyO') this.triggerDash(2);
-      else if (e.code === 'KeyB') this.triggerDash(3);
+      const slot = slotForActionCode(e.code);
+      if (slot !== -1) this.triggerDash(slot);
     });
   }
 
@@ -951,11 +950,7 @@ export class ZoneGame extends BaseMiniGame {
   onTouchStart(touch) {
     if (this.handleUiTap(touch)) return;
 
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
-      this.roundTransitionTimer = 0;
-      return;
-    }
+    if (this.handleRoundOverSkip()) return;
 
     if (this.state === 'LOBBY') {
       const q = this.getCornerQuadrant(touch);
@@ -1034,30 +1029,7 @@ export class ZoneGame extends BaseMiniGame {
   }
 
   keyboardVector(index) {
-    const k = this.keys;
-    let x = 0; let y = 0;
-    if (index === 0) {
-      if (k['KeyA'] || k['a']) x -= 1;
-      if (k['KeyD'] || k['d']) x += 1;
-      if (k['KeyW'] || k['w']) y -= 1;
-      if (k['KeyS'] || k['s']) y += 1;
-    } else if (index === 1) {
-      if (k['ArrowLeft']) x -= 1;
-      if (k['ArrowRight']) x += 1;
-      if (k['ArrowUp']) y -= 1;
-      if (k['ArrowDown']) y += 1;
-    } else if (index === 2) {
-      if (k['KeyJ'] || k['j']) x -= 1;
-      if (k['KeyL'] || k['l']) x += 1;
-      if (k['KeyI'] || k['i']) y -= 1;
-      if (k['KeyK'] || k['k']) y += 1;
-    } else if (index === 3) {
-      if (k['KeyF'] || k['f']) x -= 1;
-      if (k['KeyH'] || k['h']) x += 1;
-      if (k['KeyT'] || k['t']) y -= 1;
-      if (k['KeyG'] || k['g']) y += 1;
-    }
-    return { x, y };
+    return keyboardVectorFrom(this.keys, index);
   }
 
   update(now) {
@@ -1729,45 +1701,13 @@ export class ZoneGame extends BaseMiniGame {
   }
 
   renderLobbyUI(ctx) {
-    const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-    const seatRects = getStandardSeatRects(this.arena);
-    const localMode = !this.hideLobbyStartButton;
-    const localColors = localMode ? getLocalSeatColors() : null;
-    for (let i = 0; i < 4; i++) {
-      const rect = seatRects[i];
-      const isTop = i === 1 || i === 2;
-      renderLobbySeatCard(ctx, {
-        x: rect.x, y: rect.y, w: rect.w, h: rect.h,
-        slotIndex: i, slotType: this.slotTypes[i],
-        playerName: this.players[i] ? this.players[i].name : '',
-        playerColor: ZONE_COLORS[i],
-        rotation: isTop ? Math.PI : 0,
-        seatColor: localMode ? (localColors[i] || ZONE_COLORS[i]) : null,
-        showColorDot: localMode,
-      });
-      // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
-      if (localMode) {
-        const dot = getSeatColorDotRect(rect);
-        this.uiButtons.push({
-          x: dot.x, y: dot.y, w: dot.w, h: dot.h,
-          onClick: () => this.cycleLocalSeat(i),
-        });
-      }
-      this.uiButtons.push({
-        x: rect.x, y: rect.y, w: rect.w, h: rect.h,
-        onClick: () => {
-          this.cycleSlotType(i);
-          this.syncLobbySeat(i);
-        },
-      });
-    }
-    renderLobbyStartButton(ctx, {
+    this.renderStandardLobby(ctx, {
       arena: this.arena,
-      uiButtons: this.uiButtons,
-      joinedCount,
+      colors: ZONE_COLORS,
       accent: '#2F6A4F',
       onStart: () => this.startNewMatch(),
-      hidden: !!this.hideLobbyStartButton,
+      rotateTop: true,
+      onSeatChange: (i) => this.syncLobbySeat(i),
     });
   }
 }

@@ -3,28 +3,20 @@
 // Çoklu rastgele harita varyasyonları, boost enerji mekaniği ve canlı meyve türleri.
 
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { getLocalSeatColors } from '../core/customizationManager.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateSnakeBotAI } from '../ai/snakeAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
+import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 
 export const SNAKE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const SNAKE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
 
-// Lokal klavye: 4 yön + boost — P1 WASD+Space, P2 Oklar+Enter, P3 IJKL+O, P4 TFGH+B
-const SNAKE_KEY_MAPS = [
-  { u: 'KeyW', d: 'KeyS', l: 'KeyA', r: 'KeyD', boost: 'Space' },
-  { u: 'ArrowUp', d: 'ArrowDown', l: 'ArrowLeft', r: 'ArrowRight', boost: 'Enter' },
-  { u: 'KeyI', d: 'KeyK', l: 'KeyJ', r: 'KeyL', boost: 'KeyO' },
-  { u: 'KeyT', d: 'KeyG', l: 'KeyF', r: 'KeyH', boost: 'KeyB' },
-];
-const SNAKE_KEY_SLOTS = {};
-SNAKE_KEY_MAPS.forEach((map, i) => {
-  Object.values(map).forEach((code) => { SNAKE_KEY_SLOTS[code] = i; });
-});
+// keyup ters haritası (tuş code → slot); harita inputMaps STANDARD'dan türetilir
+const SNAKE_KEY_SLOTS = buildCodeToSlotMap();
 
 // Kuyruk boyu tavanı: uzayan oyunda ızgara-rebuild sınırlı kalır
 const SNAKE_MAX_LEN = 320;
@@ -132,13 +124,13 @@ export class SnakeGame extends BaseMiniGame {
   }
 
   keyboardInput(index) {
-    const map = SNAKE_KEY_MAPS[index];
+    const map = getSlotKeys(index);
     if (!map) return { steer: 0, boost: false, targetAngle: null };
     const up = !!this.keys[map.u];
     const down = !!this.keys[map.d];
     const left = !!this.keys[map.l];
     const right = !!this.keys[map.r];
-    const boostKey = !!this.keys[map.boost];
+    const boostKey = !!this.keys[map.action];
 
     const l = left ? -1 : 0;
     const r = right ? 1 : 0;
@@ -349,16 +341,6 @@ export class SnakeGame extends BaseMiniGame {
     return false;
   }
 
-  getCornerZone(pos) {
-    const { cx, cy } = this.arena;
-    const isLeft = pos.x < cx;
-    const isTop = pos.y < cy;
-    if (isLeft && !isTop) return 0;
-    if (isLeft && isTop) return 1;
-    if (!isLeft && isTop) return 2;
-    return 3;
-  }
-
   getCornerButtonZones(cornerIndex) {
     const { left, right, top, bottom, size } = this.arena;
     const btnW = Math.max(160, Math.min(250, size * 0.42));
@@ -401,43 +383,31 @@ export class SnakeGame extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
-    const { cx, cy } = this.arena;
-    const distToCenter = Math.hypot(touch.x - cx, touch.y - cy);
-
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
-      this.roundTransitionTimer = 0;
-      return;
-    }
+    if (this.handleRoundOverSkip()) return;
 
     if (this.state === 'LOBBY') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 65) {
-        const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-        if (joinedCount >= 2) this.startNewMatch();
-        return;
-      }
-      const corner = this.getCornerZone(touch);
-      this.cycleSlotType(corner);
-      if (this.players[corner]) {
-        this.players[corner].isJoined = this.isSlotJoined(corner);
-        this.players[corner].slotType = this.slotTypes[corner];
-      }
+      if (lobbyCenterStartTap(this, touch)) return;
+      lobbyQuadrantTap(this, touch, {
+        onSeatChange: (corner) => {
+          if (this.players[corner]) {
+            this.players[corner].isJoined = this.isSlotJoined(corner);
+            this.players[corner].slotType = this.slotTypes[corner];
+          }
+        },
+      });
       playJoin();
       return;
     }
 
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 75) {
-        this.resetMatch();
-        playJoin();
-      }
+      matchOverRestartTap(this, touch, { onRestart: () => { this.resetMatch(); playJoin(); } });
       return;
     }
 
     if (this.state === 'PLAYING') {
-      const corner = this.getCornerZone(touch);
+      const corner = getQuadrant(this.arena, touch.x, touch.y);
       const player = this.players[corner];
       if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
 
@@ -1023,47 +993,20 @@ export class SnakeGame extends BaseMiniGame {
         'P3 SARI',
         'P4 YEŞİL',
       ]);
-      const seatRects = getStandardSeatRects(this.arena);
-      const localMode = !this.hideLobbyStartButton;
-      const localColors = localMode ? getLocalSeatColors() : null;
-      for (let i = 0; i < 4; i++) {
-        const rect = seatRects[i];
-        const isTop = i === 1 || i === 2;
-        renderLobbySeatCard(ctx, {
-          x: rect.x,
-          y: rect.y,
-          w: rect.w,
-          h: rect.h,
-          slotIndex: i,
-          slotType: this.players[i]?.slotType || this.slotTypes[i],
-          playerName: this.players[i]?.name || '',
-          playerColor: SNAKE_COLORS[i],
-          rotation: isTop ? Math.PI : 0,
-          seatColor: localMode ? (localColors[i] || SNAKE_COLORS[i]) : null,
-          showColorDot: localMode,
-        });
-        // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
-        if (localMode) {
-          const dot = getSeatColorDotRect(rect);
-          this.uiButtons.push({
-            x: dot.x, y: dot.y, w: dot.w, h: dot.h,
-            onClick: () => this.cycleLocalSeat(i),
-          });
-        }
-        this.uiButtons.push({
-          x: rect.x, y: rect.y, w: rect.w, h: rect.h,
-          onClick: () => {
-            this.cycleSlotType(i);
-            if (this.players[i]) {
-              this.players[i].isJoined = this.isSlotJoined(i);
-              this.players[i].slotType = this.slotTypes[i];
-            }
-            playJoin();
-          },
-        });
-      }
-      const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-      renderLobbyStartButton(ctx, { arena: this.arena, uiButtons: this.uiButtons, joinedCount, accent: '#2F6A4F', onStart: () => this.startNewMatch(), hidden: !!this.hideLobbyStartButton });
+      this.renderStandardLobby(ctx, {
+        arena: this.arena,
+        colors: SNAKE_COLORS,
+        accent: '#2F6A4F',
+        onStart: () => this.startNewMatch(),
+        rotateTop: true,
+        onSeatChange: (i) => {
+          if (this.players[i]) {
+            this.players[i].isJoined = this.isSlotJoined(i);
+            this.players[i].slotType = this.slotTypes[i];
+          }
+          playJoin();
+        },
+      });
     } else if (this.state === 'ROUND_OVER') {
       renderRoundBanner(ctx, { arena: this.arena, title: this.roundWinner ? `${this.roundWinner.name} KAZANDI!` : 'BERABERE!', titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A' });
     } else if (this.state === 'MATCH_OVER') {

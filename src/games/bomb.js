@@ -30,6 +30,7 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup } from '../core/arenaKit.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { keyboardVectorFrom } from '../core/inputMaps.js';
 
 export const BOMB_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const BOMB_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -562,11 +563,7 @@ export class BombGame extends BaseMiniGame {
     // 1. UI Buttons tap handling
     if (this.handleUiTap(touch)) return;
 
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
-      this.roundTransitionTimer = 0;
-      return;
-    }
+    if (this.handleRoundOverSkip()) return;
 
     // 1.5. Generous Lobby Join fallback (tap anywhere in quadrant)
     if (this.state === 'LOBBY') {
@@ -812,27 +809,9 @@ export class BombGame extends BaseMiniGame {
         }
 
         // Keyboard Fallback
-        if (player.index === 0) {
-          if (this.keys['KeyA'] || this.keys['a']) inputX -= 1;
-          if (this.keys['KeyD'] || this.keys['d']) inputX += 1;
-          if (this.keys['KeyW'] || this.keys['w']) inputY -= 1;
-          if (this.keys['KeyS'] || this.keys['s']) inputY += 1;
-        } else if (player.index === 1) {
-          if (this.keys['ArrowLeft']) inputX -= 1;
-          if (this.keys['ArrowRight']) inputX += 1;
-          if (this.keys['ArrowUp']) inputY -= 1;
-          if (this.keys['ArrowDown']) inputY += 1;
-        } else if (player.index === 2) {
-          if (this.keys['KeyJ'] || this.keys['j']) inputX -= 1;
-          if (this.keys['KeyL'] || this.keys['l']) inputX += 1;
-          if (this.keys['KeyI'] || this.keys['i']) inputY -= 1;
-          if (this.keys['KeyK'] || this.keys['k']) inputY += 1;
-        } else if (player.index === 3) {
-          if (this.keys['KeyF'] || this.keys['f']) inputX -= 1;
-          if (this.keys['KeyH'] || this.keys['h']) inputX += 1;
-          if (this.keys['KeyT'] || this.keys['t']) inputY -= 1;
-          if (this.keys['KeyG'] || this.keys['g']) inputY += 1;
-        }
+        const kb = keyboardVectorFrom(this.keys, player.index);
+        inputX += kb.x;
+        inputY += kb.y;
       } else {
         // Smart Bot AI (Whiskers, Waypoints & Wall Tangent Slide)
         this.updateBotAI(player, dt);

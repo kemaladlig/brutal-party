@@ -1,25 +1,20 @@
 // BRUTAL CURVE (Game 03): 2-4 Player Local Party Curve Fever with Gaps, Power-Ups & Bot AI
-import { getSlotCustomization, getLocalSeatColors } from '../core/customizationManager.js';
+import { getSlotCustomization } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGap, playItemPickup } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCurveBotAI } from '../ai/curveAI.js';
+import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
+import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CURVE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
 
-// Lokal klavye eşleşmesi: [sol, sağ] — P1 AD, P2 Oklar, P3 JL, P4 FH
-const CURVE_KEY_SLOTS_PAIRS = [
-  ['KeyA', 'KeyD'],
-  ['ArrowLeft', 'ArrowRight'],
-  ['KeyJ', 'KeyL'],
-  ['KeyF', 'KeyH'],
-];
-const CURVE_KEY_SLOTS = {};
-CURVE_KEY_SLOTS_PAIRS.forEach((pair, i) => pair.forEach((c) => (CURVE_KEY_SLOTS[c] = i)));
+// keyup ters haritası: sadece sol/sağ tuşlar (eklemeli steer)
+const CURVE_KEY_SLOTS = buildCodeToSlotMap(['l', 'r']);
 
 // İz sorgu ızgarası: uzun rauntlarda O(n) tarama yerine yakın hücreler.
 // Oyun kuralı değişmez — sadece aday kümesi daralır.
@@ -100,10 +95,10 @@ export class CurveGame extends BaseMiniGame {
 
   // -1 sol, +1 sağ, 0 düz (ikisi birden/basılmıyorsa düz)
   keyboardSteer(index) {
-    const pair = CURVE_KEY_SLOTS_PAIRS[index];
-    if (!pair) return 0;
-    const l = this.keys[pair[0]] ? -1 : 0;
-    const r = this.keys[pair[1]] ? 1 : 0;
+    const map = getSlotKeys(index);
+    if (!map) return 0;
+    const l = this.keys[map.l] ? -1 : 0;
+    const r = this.keys[map.r] ? 1 : 0;
     return l + r;
   }
 
@@ -282,17 +277,6 @@ export class CurveGame extends BaseMiniGame {
     });
   }
 
-  getCornerZone(pos) {
-    const { cx, cy } = this.arena;
-    const isLeft = pos.x < cx;
-    const isTop = pos.y < cy;
-
-    if (isLeft && !isTop) return 0; // P1 Bottom-Left
-    if (isLeft && isTop) return 1;  // P2 Top-Left
-    if (!isLeft && isTop) return 2; // P3 Top-Right
-    return 3;                       // P4 Bottom-Right
-  }
-
   getCornerButtonZones(cornerIndex) {
     const { left, right, top, bottom, size } = this.arena;
     const btnW = Math.max(140, Math.min(240, size * 0.44));
@@ -333,34 +317,21 @@ export class CurveGame extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
-    const { cx, cy } = this.arena;
-    const distToCenter = Math.hypot(touch.x - cx, touch.y - cy);
-
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
-      this.roundTransitionTimer = 0;
-      return;
-    }
+    if (this.handleRoundOverSkip()) return;
 
     // 1. Center Start Button (Lobby)
     if (this.state === 'LOBBY') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 65) {
-        const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-        if (joinedCount >= 2) {
-          this.startNewMatch();
-        }
-        return;
-      }
+      if (lobbyCenterStartTap(this, touch)) return;
 
-      const corner = this.getCornerZone(touch);
-      if (corner === -1) return;
-
-      this.cycleSlotType(corner);
-      if (this.players[corner]) {
-        this.players[corner].isJoined = this.isSlotJoined(corner);
-        this.players[corner].slotType = this.slotTypes[corner];
-      }
+      lobbyQuadrantTap(this, touch, {
+        onSeatChange: (corner) => {
+          if (this.players[corner]) {
+            this.players[corner].isJoined = this.isSlotJoined(corner);
+            this.players[corner].slotType = this.slotTypes[corner];
+          }
+        },
+      });
       playJoin();
       return;
     }
@@ -368,17 +339,13 @@ export class CurveGame extends BaseMiniGame {
     // 2. Center Restart Button (Match Over)
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 75) {
-        this.resetMatch();
-        playJoin();
-      }
+      matchOverRestartTap(this, touch, { onRestart: () => { this.resetMatch(); playJoin(); } });
       return;
     }
 
     // 3. Gameplay: Generous quadrant steering controls
     if (this.state === 'PLAYING') {
-      const corner = this.getCornerZone(touch);
-      if (corner === -1) return;
+      const corner = getQuadrant(this.arena, touch.x, touch.y);
       const player = this.players[corner];
       if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
         const action = this.determineSteerAction(corner, touch);
@@ -1126,56 +1093,13 @@ export class CurveGame extends BaseMiniGame {
   }
 
   renderCornerControls(ctx) {
-    const seatRects = this.state === 'LOBBY' ? getStandardSeatRects(this.arena) : null;
+    if (this.state === 'LOBBY') return;
 
     for (let i = 0; i < 4; i++) {
       const player = this.players[i];
       const zones = this.getCornerButtonZones(i);
       const isJoined = this.isSlotJoined(i);
       const isTop = i === 1 || i === 2;
-
-      // LOBBY: standart kare koltuk (tüm oyunlarla aynı ölçü) + uiButtons tap
-      if (this.state === 'LOBBY') {
-        const rect = seatRects[i];
-        const localMode = !this.hideLobbyStartButton;
-        const localColors = localMode ? getLocalSeatColors() : null;
-        renderLobbySeatCard(ctx, {
-          x: rect.x,
-          y: rect.y,
-          w: rect.w,
-          h: rect.h,
-          slotIndex: i,
-          slotType: player.slotType,
-          playerName: player.name || '',
-          playerColor: player.color,
-          rotation: isTop ? Math.PI : 0,
-          seatColor: localMode ? (localColors[i] || player.color) : null,
-          showColorDot: localMode,
-        });
-        // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
-        if (localMode) {
-          const dot = getSeatColorDotRect(rect);
-          this.uiButtons.push({
-            x: dot.x, y: dot.y, w: dot.w, h: dot.h,
-            onClick: () => this.cycleLocalSeat(i),
-          });
-        }
-        this.uiButtons.push({
-          x: rect.x,
-          y: rect.y,
-          w: rect.w,
-          h: rect.h,
-          onClick: () => {
-            this.cycleSlotType(i);
-            if (this.players[i]) {
-              this.players[i].isJoined = this.isSlotJoined(i);
-              this.players[i].slotType = this.slotTypes[i];
-            }
-            playJoin();
-          },
-        });
-        continue;
-      }
 
       ctx.save();
       // Rotate 180° for Top players so buttons and text face that player
@@ -1273,14 +1197,19 @@ export class CurveGame extends BaseMiniGame {
   }
 
   renderLobbyUI(ctx) {
-    const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-    renderLobbyStartButton(ctx, {
+    this.renderStandardLobby(ctx, {
       arena: this.arena,
-      uiButtons: this.uiButtons,
-      joinedCount,
+      colors: this.players.map((p) => p.color),
       accent: '#D84727',
       onStart: () => this.startNewMatch(),
-      hidden: !!this.hideLobbyStartButton,
+      rotateTop: true,
+      onSeatChange: (i) => {
+        if (this.players[i]) {
+          this.players[i].isJoined = this.isSlotJoined(i);
+          this.players[i].slotType = this.slotTypes[i];
+        }
+        playJoin();
+      },
     });
   }
 
