@@ -319,61 +319,69 @@
           </div>
 
           <div class="pause-sheet-body">
-            <section class="sheet-section">
-              <div class="sheet-section-title" data-i18n="pause.sectionMatch">MAÇ</div>
+            <!-- 1. Primary Action Block: DEVAM ET + SIFIRLA / LOBİ / ANA MENÜ (Zero-Scroll Instant Access) -->
+            <section class="sheet-section pause-main-actions">
               <button id="btn-resume-game" class="pause-btn primary" type="button" data-i18n="pause.resume">
                 ▶ DEVAM ET
               </button>
-              <div class="sheet-row-2">
-                <button id="btn-reset-match" class="pause-btn" type="button" data-i18n="pause.reset">
+              <div class="sheet-row-actions">
+                <button id="btn-reset-match" class="pause-btn reset-btn" type="button" data-i18n="pause.reset">
                   ↺ MAÇI SIFIRLA
                 </button>
                 <button id="btn-tv-lobby" class="pause-btn lobby-btn hidden" type="button" data-i18n="pause.lobby">
                   📺 LOBİYE DÖN
                 </button>
+                <button id="btn-exit-to-menu" class="pause-btn danger-btn" type="button" data-i18n="pause.exit">
+                  ⌂ ANA MENÜ
+                </button>
               </div>
             </section>
 
-            <!-- In-Game Seat Swap Panel -->
-            <section class="sheet-section">
-              <div class="sheet-section-title" data-i18n="pause.sectionSeats">KOLTUKLAR</div>
-              <div class="pause-seats-box">
-                <div class="pause-seats-header">
-                  <span class="pause-seats-title" data-i18n="pause.seatsTitle">💺 KOLTUK / YER DEĞİŞTİR</span>
-                  <button id="btn-pause-rotate-seats" class="pause-rotate-btn" type="button" data-i18n="pause.rotate">
-                    🔄 90° DÖNDÜR
-                  </button>
-                </div>
-                <div class="pause-seats-grid" id="pause-seats-grid"></div>
-                <div class="pause-seats-hint" data-i18n="pause.seatsHint">İki koltuğa dokunarak yerlerini anında takas edebilirsiniz.</div>
+            <!-- 2. Quick Toggles Grid (Ses, Botlar, Tam Ekran, Renk Körü) -->
+            <section class="sheet-section pause-quick-section">
+              <div class="sheet-section-title" data-i18n="pause.sectionDisplay">HIZLI AYARLAR</div>
+              <div class="pause-quick-grid">
+                <button id="btn-toggle-sound" class="quick-toggle-btn on" type="button" role="switch" aria-checked="true">
+                  <span class="toggle-icon">🔊</span>
+                  <div class="toggle-meta">
+                    <span class="toggle-title" data-i18n="pause.sound">Ses</span>
+                    <span class="toggle-state-badge">AÇIK</span>
+                  </div>
+                </button>
+                <button id="btn-toggle-bots" class="quick-toggle-btn" type="button" role="switch" aria-checked="false">
+                  <span class="toggle-icon">🤖</span>
+                  <div class="toggle-meta">
+                    <span class="toggle-title" data-i18n="pause.bots">Botlar</span>
+                    <span class="toggle-state-badge">KAPALI</span>
+                  </div>
+                </button>
+                <button id="btn-toggle-fullscreen" class="quick-toggle-btn" type="button" role="switch" aria-checked="false">
+                  <span class="toggle-icon">⛶</span>
+                  <div class="toggle-meta">
+                    <span class="toggle-title" data-i18n="pause.fullscreen">Tam Ekran</span>
+                    <span class="toggle-state-badge">KAPALI</span>
+                  </div>
+                </button>
+                <button id="btn-toggle-colorblind" class="quick-toggle-btn" type="button" role="switch" aria-checked="false">
+                  <span class="toggle-icon">👁</span>
+                  <div class="toggle-meta">
+                    <span class="toggle-title" data-i18n="pause.colorblind">Renk Körü</span>
+                    <span class="toggle-state-badge">KAPALI</span>
+                  </div>
+                </button>
               </div>
             </section>
 
-            <section class="sheet-section">
-              <div class="sheet-section-title" data-i18n="pause.sectionDisplay">GÖRÜNÜM &amp; SES</div>
-              <button id="btn-toggle-sound" class="switch-row" type="button" role="switch" aria-checked="true">
-                <span class="switch-label" data-i18n="pause.sound">🔊 Ses</span>
-                <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
-              </button>
-              <button id="btn-toggle-fullscreen" class="switch-row" type="button" role="switch" aria-checked="false">
-                <span class="switch-label" data-i18n="pause.fullscreen">⛶ Tam ekran modu</span>
-                <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
-              </button>
-              <button id="btn-toggle-bots" class="switch-row" type="button" role="switch" aria-checked="false">
-                <span class="switch-label" data-i18n="pause.bots">🤖 Bot ekleme</span>
-                <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
-              </button>
-              <button id="btn-toggle-colorblind" class="switch-row" type="button" role="switch" aria-checked="false">
-                <span class="switch-label" data-i18n="pause.colorblind">👁 Renk körü modu</span>
-                <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
-              </button>
-            </section>
-
-            <section class="sheet-section">
-              <div class="sheet-section-title danger" data-i18n="pause.sectionDanger">TEHLİKELİ BÖLGE</div>
-              <button id="btn-exit-to-menu" class="pause-btn danger" type="button" data-i18n="pause.exit">
-                ⌂ ANA MENÜYE DÖN
-              </button>
+            <!-- 3. In-Game Seat Swap Panel (Compact) -->
+            <section class="sheet-section pause-seats-section">
+              <div class="pause-seats-header">
+                <span class="sheet-section-title" data-i18n="pause.sectionSeats">💺 KOLTUKLAR</span>
+                <button id="btn-pause-rotate-seats" class="pause-rotate-btn" type="button" data-i18n="pause.rotate">
+                  🔄 90° DÖNDÜR
+                </button>
+              </div>
+              <div class="pause-seats-grid" id="pause-seats-grid"></div>
+              <div class="pause-seats-hint" data-i18n="pause.seatsHint">İki koltuğa dokunarak yerlerini anında takas edebilirsiniz.</div>
             </section>
           </div>
         </div>

@@ -37,6 +37,10 @@ function setSwitch(el, on) {
   if (!el) return;
   el.classList.toggle('on', !!on);
   el.setAttribute('aria-checked', on ? 'true' : 'false');
+  const badge = el.querySelector('.toggle-state-badge');
+  if (badge) {
+    badge.textContent = on ? t('pause.on') : t('pause.off');
+  }
 }
 
 export function refreshPauseSwitches() {

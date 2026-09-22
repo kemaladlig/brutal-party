@@ -37,8 +37,8 @@ src/core/
   safeStorage.js            localStorage sarmalayıcı (JSON parse/try-catch tek nokta)
   inputMaps.js              Tek klavye slot haritası: STANDARD_KEY_SLOTS (P1 WASD+Space…P4 TFGH+B),
                             SECOND_ACTION_KEYS (ninja smoke/laser dash), getSlotKeys, keyboardVectorFrom,
-                            readSlotKeys, isSlotActionEvent, slotForActionCode, buildCodeToSlotMap —
-                            motorlar tuş kopyası tutmaz (Faz 1 refactor, Eylül 2026)
+                            readSlotKeys, isSlotActionEvent, slotForActionCode, buildCodeToSlotMap,
+                            KEY_LABELS/getKeyLabel — motorlar tuş kopyası tutmaz (Faz 1 refactor, Eylül 2026)
   customizationManager.js   Cihaz-başı TEK profil (localStorage), rastgele varsayılan renk,
                             sanitizeAvatar/pickFreeColor/findSlotColorDuplicates, koltuk avatar kayıt defteri
   touchFlow.js              Tek dokunmatik akış: getQuadrant (BL/BR→TL/TR: 0/1/2/3),

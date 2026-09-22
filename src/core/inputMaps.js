@@ -16,6 +16,16 @@ export const SECOND_ACTION_KEYS = {
   dash: ['ShiftLeft', 'ShiftRight', 'KeyU', 'KeyR'],
 };
 
+export const KEY_LABELS = {
+  action: ['SPACE', 'ENTER', 'O', 'B'],
+  smoke: ['E', 'R-SHIFT', 'U', 'V'],
+};
+
+export function getKeyLabel(kind, index) {
+  const list = KEY_LABELS[kind];
+  return list ? list[index] : '';
+}
+
 // Aksiyon alias süper-kümesi (BaseGame bindStandardKeyboard yolu):
 // P1 Space|KeyE|ShiftLeft|e · P2 Enter|Numpad0|ControlRight · P3 KeyO|o · P4 KeyB|b
 const ACTION_ALIASES = [
