@@ -353,7 +353,7 @@ function startPreviewLoop() {
 
     // Avatar Çizimi (yazısız önizleme)
     if (currentCustom) {
-      drawBrutalAvatar(ctx, cx, cy + bounce, 56, {
+      drawBrutalAvatar(ctx, cx, cy + bounce, 50, {
         color: currentCustom.color,
         expression: currentCustom.expression,
         accessory: currentCustom.accessory,
@@ -502,7 +502,7 @@ export function initMenuAvatarCard() {
     const bounce = Math.sin(now * 0.0035) * 3;
 
     const custom = cachedProfile;
-    drawBrutalAvatar(ctx, cx, cy + bounce, 58, {
+    drawBrutalAvatar(ctx, cx, cy + bounce, 52, {
       color: custom.color,
       expression: custom.expression,
       accessory: custom.accessory,

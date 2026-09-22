@@ -684,7 +684,7 @@ export class GamepadManager {
         <div class="lobby-character-section">
           <div class="lobby-name-label">${t('pad.yourChar')}</div>
           <div class="lobby-character-row">
-            <canvas class="lobby-character-preview" id="lobby-character-preview" width="56" height="56"></canvas>
+            <canvas class="lobby-character-preview" id="lobby-character-preview" width="80" height="80"></canvas>
             <button class="lobby-character-edit-btn" id="btn-edit-character" type="button">${t('pad.customize')}</button>
           </div>
           <div class="lobby-character-hint">${t('pad.charHint')}</div>
