@@ -40,9 +40,9 @@ export const BOMB_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const BOMB_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
 
 export const MAP_PRESETS = [
-  { id: 'pillars', name: '01 // 4 SİPER KOLONU' },
+  { id: 'columns4', name: '01 // 4 SİPER KOLONU' },
   { id: 'bunker', name: '02 // MERKEZ SIĞINAK' },
-  { id: 'cross', name: '03 // HAÇ & KORİDORLAR' },
+  { id: 'crossfire', name: '03 // HAÇ & KORİDORLAR' },
   { id: 'courtyard', name: '04 // AVLU & DÖNER SİPER' },
   { id: 'split', name: '05 // İKİLİ BLOK BARİKAT' },
 ];

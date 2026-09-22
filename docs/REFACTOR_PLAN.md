@@ -121,6 +121,7 @@ export function distToSegmentSquared(px, py, ax, ay, bx, by)
 
 - `src/core/arenaKit.js` modülüne `buildLayout(name, arena)` eklendi (`pillars`, `cross`, `scatter`, `bunker`, `courtyard`, `split`).
 - `archer.js` ve `bomb.js` harita oluşturma mantığı `buildLayout`'a taşındı. Build yeşil.
+- **Parity düzeltmesi (2026-09-22):** bomb'un 1. (`pillars`) ve 3. (`cross`) haritası archer presets'ine bağlanınca geometrisi değişmişti — bomb'a özgü `columns4` (4 sade köşe kolonu) ve `crossfire` (merkezsiz 4 koridor kanadı) presets eklendi, `bomb.js` MAP_PRESETS id'leri bunlara çevrildi. Crown map 0 aynı `buildLayout('pillars')`'a bağlanınca merkez blok yüzünden taç engel üstünde doğuyordu — crown map 0 (SARAY AVCILARI) orijinal 4 köşe kolonuna geri döndü (yerel geometri, `buildLayout` kullanmıyor). Bomb ve crown harita geometrileri parent'taki hâline birebir döndü.
 
 ## Faz 6 — `src/core/playerEntity.js` (kademeli) — [x] ✓ (2026-09-22)
 

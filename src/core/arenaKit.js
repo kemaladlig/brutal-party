@@ -99,6 +99,31 @@ export function buildLayout(name, arena) {
     ];
   }
 
+  // Bomb '04 SİPER KOLONU' — 4 sade köşe kolonu (merkez blok yok)
+  if (layoutName === 'columns4') {
+    const pSize = Math.round(size * 0.125);
+    const offset = Math.round(size * 0.22);
+    return [
+      { x: cx - offset - pSize / 2, y: cy - offset - pSize / 2, w: pSize, h: pSize },
+      { x: cx + offset - pSize / 2, y: cy - offset - pSize / 2, w: pSize, h: pSize },
+      { x: cx - offset - pSize / 2, y: cy + offset - pSize / 2, w: pSize, h: pSize },
+      { x: cx + offset - pSize / 2, y: cy + offset - pSize / 2, w: pSize, h: pSize },
+    ];
+  }
+
+  // Bomb 'HAÇ & KORİDORLAR' — merkezsiz 4 koridor kanadı (archer cross'undan farklı)
+  if (layoutName === 'crossfire') {
+    const thick = Math.round(size * 0.07);
+    const len = Math.round(size * 0.2);
+    const gap = Math.round(size * 0.19);
+    return [
+      { x: cx - thick / 2, y: cy - gap - len, w: thick, h: len },
+      { x: cx - thick / 2, y: cy + gap, w: thick, h: len },
+      { x: cx - gap - len, y: cy - thick / 2, w: len, h: thick },
+      { x: cx + gap, y: cy - thick / 2, w: len, h: thick },
+    ];
+  }
+
   // 'pillars' (default)
   const bw = Math.round(size * 0.16);
   return [

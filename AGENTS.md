@@ -33,6 +33,14 @@ Global temel kurallar (mimari prensipler, UI/UX, agentic süreç) `~/.config/ope
   - **Masa-ortası Dokunmatik:** Tablet/telefon masa-ortası modu için 4 köşe dinamik yüzen sanal joystick ve aksiyon butonları.
   - **Kontrol Kılavuzu:** `renderControlGuide(ctx, arena, ...)` çağrısı.
 - **LOBBY tap kuralı:** Motor sahasındaki koltuk dokunuşu önce `this.onLobbySeatTap(index)` hook'una sorar (host bot ekle/çıkar için kullanır). Hook yoksa ve `isHosting` ise `cycleSlotType` çalışır; host değilse hiçbir şey yapılmaz. Motor içine ağ/relay kodu yazılmaz.
+- **Ortak `src/core/` yardımcıları (refactor Faz 1-7, tek kaynak):** Motorlar aşağıdakileri kopyalamaz/yeniden yazmaz, `import` eder:
+  - `inputMaps.js` — klavye slot haritaları: `getSlotKeys`, `keyboardVectorFrom`, `readSlotKeys`, `isSlotActionEvent`, `slotForActionCode`, `buildCodeToSlotMap` (standart 4x harita + `SECOND_ACTION_KEYS`).
+  - `touchFlow.js` — dokunmatik akış: `getQuadrant`, `roundOverSkipGuard` (BaseGame `handleRoundOverSkip(timerField)`; PONG `roundOverTimer` geçirir), `lobbyCenterStartTap`, `lobbyQuadrantTap`, `matchOverRestartTap` (istisna: tanks `getCornerZone`, PONG `getPlayerZoneAt`).
+  - `physics2d.js` — fizik/çarpışma: `clampToArena`, `resolveAABB`, `pointBlocked`, `updateMovers`, `distToSegmentSquared`.
+  - `pickupSystem.js` — power-up akışı: `spawnPickup`, `collectPickups`, `tickPickupTimers` + `EFFECTS` kayıt defteri.
+  - `arenaKit.js` — ortak görsel + `buildLayout(name, arena)` düzen presets (`pillars`, `columns4`, `cross`, `crossfire`, `scatter`, `bunker`, `courtyard`, `split`) + `drawObstacle`/`drawPickup`. Motor kendi `buildMap()`'inde yalnız oyuna özgü ek katmanları/meta'yı tutar; ortak geometri preset adıyla çağrılır.
+  - `playerEntity.js` — oyuncu varlığı: `createPlayer`, `tickEffectTimers`, `advancePlayer` (kademeli çıkarım — bomb/heist entegre; PONG/tanks/curve/snake/zone/collapse kendi gövdesinde kalır).
+  - `avatarInGame.js` — oyun içi avatar: `drawGameAvatar`, `normalizeExpression`.
 
 ## 4. Slot Modeli — tek koltuk gerçeği
 
@@ -68,6 +76,7 @@ Modal açıkken canvas tap'leri motora düşmez; staging'de düşer (bot ekleme/
 ## 8. Yasaklar
 
 - `main.js` / `gamepad.js` içine moda özel `if/else` zinciri ekleme — registry + `CONTROLLER_META` kullan.
+- Motora `src/core/` ortak yardımcı mantığını kopyalama / yeniden yazma (inputMaps, touchFlow, physics2d, pickupSystem, arenaKit/buildLayout, playerEntity, avatarInGame) — tek kaynak `src/core/`'dur.
 - State'i iki yerde tutma (TV listesi ↔ relay tablosu çakışırsa relay kazanır).
 - Kumandaya oyun simülasyonu, motora ağ kodu koyma.
 - Çok gerekmedikçe yeni `*.md` dosyası oluşturma. Mevcut `AGENTS.md` + `docs/PROJECT_MAP.md` yeterlidir; yapı/protokol değişince ikisi de güncellenir. Yeni döküman şartsa kullanıcıya sor.

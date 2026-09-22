@@ -22,7 +22,7 @@ import { t } from '../i18n.js';
 import { renderTopPill, renderCornerScores, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
-import { drawPickup, buildLayout } from '../core/arenaKit.js';
+import { drawPickup } from '../core/arenaKit.js';
 import { clampToArena, resolveAABB, pointBlocked } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { createPlayer } from '../core/playerEntity.js';
@@ -243,7 +243,12 @@ export class CrownGame extends BaseMiniGame {
       const offX = Math.round(width * 0.28);
       const offY = Math.round(height * 0.24);
 
-      this.pillars = buildLayout('pillars', this.arena);
+      this.pillars = [
+        { x: cx - offX - pW / 2, y: cy - offY - pH / 2, w: pW, h: pH }, // Top-Left
+        { x: cx + offX - pW / 2, y: cy - offY - pH / 2, w: pW, h: pH }, // Top-Right
+        { x: cx - offX - pW / 2, y: cy + offY - pH / 2, w: pW, h: pH }, // Bottom-Left
+        { x: cx + offX - pW / 2, y: cy + offY - pH / 2, w: pW, h: pH }, // Bottom-Right
+      ];
 
       // 2 Moving Patrol Bumpers sliding horizontally with visible tracks
       this.movingHazards = [
