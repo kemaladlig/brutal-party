@@ -602,10 +602,10 @@ export class Game extends BaseMiniGame {
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.pong'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [W/S]',
+        'P2 [↑/↓]',
+        'P3 [I/K]',
+        'P4 [T/G]',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'MATCH_OVER') {

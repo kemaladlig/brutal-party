@@ -28,7 +28,7 @@ import { updateHeistBotAI } from '../ai/heistAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const HEIST_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
-export const HEIST_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const HEIST_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 export class HeistGame extends BaseMiniGame {
   constructor(canvas) {
@@ -206,8 +206,8 @@ export class HeistGame extends BaseMiniGame {
       return {
         index: i,
         // Raunt başı TV isimlerini silme (CROWN deseni): kumanda ismi korunur
-        name: existing?.name || HEIST_NAMES[i],
-        color: isBot ? '#8E8E93' : custom.color,
+        name: existing?.name || `P${i + 1}`,
+        color: isBot ? '#8E8E93' : (custom.color || HEIST_COLORS[i]),
         x: s.x,
         y: s.y,
         vx: 0,
@@ -1114,10 +1114,10 @@ export class HeistGame extends BaseMiniGame {
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.heist'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
@@ -1162,21 +1162,6 @@ export class HeistGame extends BaseMiniGame {
     ctx.arc(cx, cy, size * 0.22, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
-
-    // Saha ortasında net, yüksek görünürlüklü süre sayacı
-    if (this.state === 'PLAYING') {
-      const remain = Math.max(0, this.roundTimer);
-      const isUrgent = remain <= 10.0;
-      renderArenaWatermarkTimer(ctx, {
-        arena: this.arena,
-        text: `${Math.ceil(remain)}s`,
-        subText: '',
-        urgent: isUrgent,
-        color: isUrgent ? '#D84727' : '#D99B26',
-        alpha: isUrgent ? 0.70 : 0.46,
-        ringProgress: Math.max(0, remain / 90),
-      });
-    }
 
     // 4 Köşe Takviye Braketleri (L-plates)
     const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
@@ -1242,6 +1227,21 @@ export class HeistGame extends BaseMiniGame {
         ctx.arc(pil.x + pil.w / 2, pil.y + pil.h / 2, 2.5, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+
+    // Sütunların üzerinde her zaman net, yüksek görünürlüklü süre sayacı
+    if (this.state === 'PLAYING') {
+      const remain = Math.max(0, this.roundTimer);
+      const isUrgent = remain <= 10.0;
+      renderArenaWatermarkTimer(ctx, {
+        arena: this.arena,
+        text: `${Math.ceil(remain)}s`,
+        subText: '',
+        urgent: isUrgent,
+        color: isUrgent ? '#D84727' : '#D99B26',
+        alpha: isUrgent ? 0.70 : 0.46,
+        ringProgress: Math.max(0, remain / 90),
+      });
     }
   }
 
@@ -1555,6 +1555,27 @@ export class HeistGame extends BaseMiniGame {
         borderWidth: player.isTackling ? 4.5 : 3,
       });
 
+      // Omuz Darbesi Cooldown Göstergesi (Zemin ve altınların üstünde her zaman net görünür)
+      if (player.tackleCooldown > 0) {
+        const maxCd = HEIST_TUNING.TACKLE_COOLDOWN;
+        const cdProg = 1.0 - Math.max(0, Math.min(1, player.tackleCooldown / maxCd));
+        ctx.save();
+        // Zemin Koyu Halka
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, player.radius + 5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Dolum Arkı
+        ctx.strokeStyle = '#FFDE59';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, player.radius + 5, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
       // Taşınan ganimet: miktara göre büyüyen yığın (yük = gösteriş)
       if (player.carriedGold > 0) {
         const bagY = -player.radius - 12;
@@ -1688,6 +1709,7 @@ export class HeistGame extends BaseMiniGame {
       }
 
       ctx.save();
+      ctx.globalAlpha = 0.55;
 
       ctx.strokeStyle = 'rgba(28, 28, 26, 0.4)';
       ctx.lineWidth = 3;
@@ -1754,6 +1776,7 @@ export class HeistGame extends BaseMiniGame {
       }
 
       ctx.save();
+      ctx.globalAlpha = 0.65;
       ctx.translate(pos.x, pos.y);
       if (i === 1 || i === 2) {
         ctx.rotate(Math.PI);

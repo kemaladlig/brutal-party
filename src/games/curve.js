@@ -9,7 +9,7 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCurveBotAI } from '../ai/curveAI.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-export const CURVE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const CURVE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 // Lokal klavye eşleşmesi: [sol, sağ] — P1 AD, P2 Oklar, P3 JL, P4 FH
 const CURVE_KEY_SLOTS_PAIRS = [
@@ -165,10 +165,11 @@ export class CurveGame extends BaseMiniGame {
     this.players = spawns.map((s, i) => {
       const custom = getSlotCustomization(i);
       const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      const existing = this.players?.[i];
       return {
         index: i,
-        name: CURVE_NAMES[i],
-        color: isBot ? '#8E8E93' : custom.color,
+        name: existing?.name || CURVE_NAMES[i],
+        color: isBot ? '#8E8E93' : (custom.color || CURVE_COLORS[i]),
         x: s.x,
         y: s.y,
         prevX: s.x,
@@ -1110,10 +1111,10 @@ export class CurveGame extends BaseMiniGame {
 
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.curve'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [A/D]',
+        'P2 [←/→]',
+        'P3 [J/L]',
+        'P4 [F/H]',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
@@ -1200,10 +1201,10 @@ export class CurveGame extends BaseMiniGame {
         ctx.fillText(player.name, 0, -halfH - 4);
 
         const leftActive = touching.action === 'left';
-        ctx.fillStyle = leftActive ? player.color : '#FFFFFF';
+        ctx.fillStyle = leftActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
         ctx.fillRect(-halfW, -halfH, halfW, zones.box.h);
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
+        ctx.lineWidth = 2;
         ctx.strokeRect(-halfW, -halfH, halfW, zones.box.h);
 
         ctx.fillStyle = leftActive ? '#FFFFFF' : '#1A1A1A';
@@ -1213,8 +1214,9 @@ export class CurveGame extends BaseMiniGame {
         ctx.fillText('◄ SOL', -halfW / 2, 0);
 
         const rightActive = touching.action === 'right';
-        ctx.fillStyle = rightActive ? player.color : '#FFFFFF';
+        ctx.fillStyle = rightActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
         ctx.fillRect(0, -halfH, halfW, zones.box.h);
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.strokeRect(0, -halfH, halfW, zones.box.h);
 
         ctx.fillStyle = rightActive ? '#FFFFFF' : '#1A1A1A';
@@ -1266,8 +1268,7 @@ export class CurveGame extends BaseMiniGame {
       ctx.font = '900 10px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const role = p.slotType === 'bot_god' ? '⚡GOD' : p.slotType === 'bot_normal' ? '🤖BOT' : 'P' + (p.index + 1);
-      ctx.fillText(`${role} // ${p.name}`, p.x, p.y - 22);
+      ctx.fillText(p.name, p.x, p.y - 22);
       ctx.restore();
     });
   }

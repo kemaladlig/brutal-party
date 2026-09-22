@@ -7,14 +7,14 @@ import { playExplosion, playStart, playJoin, playItemPickup, playTeleport, playD
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
 import { getLocalSeatColors } from '../core/customizationManager.js';
-import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { renderCornerScores, renderRoundBanner, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateArcherBotAI } from '../ai/archerAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { drawObstacle, drawPickup } from '../core/arenaKit.js';
 
 export const ARCHER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-export const ARCHER_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const ARCHER_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 const ARCHER_KEY_SLOTS = [
   { u: 'KeyW', d: 'KeyS', l: 'KeyA', r: 'KeyD', action: 'Space' },
@@ -177,8 +177,10 @@ export class ArcherGame extends BaseMiniGame {
     this.players = spawns.map((s, i) => {
       // Raunt başı TV isimleri silinmez (CROWN deseni)
       const existing = this.players[i];
+      const custom = getSlotCustomization(i);
+      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
       return {
-        index: i, name: existing?.name || ARCHER_NAMES[i], color: ARCHER_COLORS[i],
+        index: i, name: existing?.name || `P${i + 1}`, color: isBot ? '#8E8E93' : (custom.color || ARCHER_COLORS[i]),
         x: s.x, y: s.y, angle: 0,
         speed: ARCHER_SPEED, steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
@@ -761,14 +763,6 @@ export class ArcherGame extends BaseMiniGame {
     ctx.fillStyle = '#E8E5DF';
     ctx.fillRect(left, top, width, height);
 
-    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      renderCornerScores(ctx, {
-        arena: this.arena,
-        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null),
-        entities: this.players.filter((p) => p.isJoined && p.isAlive),
-      });
-    }
-
     // Siper blokları (ortak arenaKit)
     for (const obs of this.obstacles) drawObstacle(ctx, obs, { variant: 'stone' });
 
@@ -778,6 +772,25 @@ export class ArcherGame extends BaseMiniGame {
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
+
+    // Engellerin üzerinde her zaman net, yüksek görünürlüklü süre sayacı & köşe skorları
+    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
+      const remain = Math.max(0, Math.ceil(this.roundTime));
+      renderArenaWatermarkTimer(ctx, {
+        arena: this.arena,
+        text: `${remain}s`,
+        subText: '',
+        urgent: remain <= 10,
+        alpha: remain <= 10 ? 0.70 : 0.46,
+        ringProgress: Math.max(0, remain / ARCHER_ROUND_TIME),
+      });
+
+      renderCornerScores(ctx, {
+        arena: this.arena,
+        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null),
+        entities: this.players.filter((p) => p.isJoined && p.isAlive),
+      });
+    }
 
     // Oklar
     for (const a of this.arrows) {
@@ -856,12 +869,30 @@ export class ArcherGame extends BaseMiniGame {
         slotIndex: player.index,
         facingAngle: 0, // already translated and rotated to player.angle
         label: `P${player.index + 1}`,
-        expression: player.charging ? 'angry' : 'normal',
+        expression: player.charging ? 'angry' : (player.stun > 0 ? 'dizzy' : 'normal'),
         accessory: 'headband',
         showPointer: true,
         borderColor: '#1A1A1A',
         borderWidth: 2.5,
       });
+
+      // Ok Dolum / Yeniden Yükleme ve Sersemleme Cooldown Arkı (Zemin ve okların üstünde her zaman görünür)
+      if (player.reloadCooldown > 0) {
+        const cdProg = 1.0 - Math.max(0, Math.min(1, player.reloadCooldown / 0.8));
+        ctx.save();
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, ARCHER_RADIUS + 5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#8B5CF6';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, ARCHER_RADIUS + 5, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
 
       ctx.restore();
     }
@@ -874,16 +905,6 @@ export class ArcherGame extends BaseMiniGame {
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
-    }
-
-    // Süre filigranı
-    if (this.state === 'PLAYING' && this.roundTime <= 15) {
-      ctx.save();
-      ctx.font = 'bold 36px monospace';
-      ctx.fillStyle = this.roundTime <= 5 ? '#E63946' : 'rgba(26,26,26,0.3)';
-      ctx.textAlign = 'center';
-      ctx.fillText(Math.ceil(this.roundTime), this.arena.cx, this.arena.top + 45);
       ctx.restore();
     }
 
@@ -902,10 +923,10 @@ export class ArcherGame extends BaseMiniGame {
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.archer'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
       ]);
       const seatRects = getStandardSeatRects(this.arena);
       const localMode = !this.hideLobbyStartButton;

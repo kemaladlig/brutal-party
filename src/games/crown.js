@@ -27,7 +27,7 @@ import { updateCrownBotAI } from '../ai/crownAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const CROWN_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-export const CROWN_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const CROWN_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 export const CROWN_MAP_PRESETS = [
   { id: 'citadel_patrol', name: '01 // 🏰 SARAY AVCILARI (SİPERLER, PİSTONLAR & MANTARLAR)' },
@@ -467,8 +467,8 @@ export class CrownGame extends BaseMiniGame {
         vx: 0,
         vy: 0,
         radius: r,
-        color: isBot ? '#8E8E93' : custom.color,
-        name: existing?.name || CROWN_NAMES[i],
+        color: isBot ? '#8E8E93' : (custom.color || CROWN_COLORS[i]),
+        name: existing?.name || `P${i + 1}`,
         isJoined: this.isSlotJoined(i),
         isAlive: true,
         slotType: this.slotTypes[i],
@@ -1332,41 +1332,6 @@ export class CrownGame extends BaseMiniGame {
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, aW, aH);
 
-    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları (Proximity Ghosting)
-    if (this.state === 'PLAYING') {
-      renderCornerScores(ctx, {
-        arena: this.arena,
-        entries: this.players.map((p, i) =>
-          p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}★` } : null
-        ),
-        entities: [...this.players.filter((p) => p.isJoined), this.crown],
-      });
-
-      // Saha ortasında oyunu engellemeyen büyük taç süresi filigranı (TV ve monitörlerde yüksek görünürlük)
-      const king = this.crown.carrierIndex !== null ? this.players[this.crown.carrierIndex] : null;
-      if (king && king.isAlive) {
-        const remain = Math.max(0, this.targetCrownTime - king.crownHoldTime);
-        const urgent = remain <= 4.0;
-        const progress = Math.min(1.0, king.crownHoldTime / this.targetCrownTime);
-        renderArenaWatermarkTimer(ctx, {
-          arena: this.arena,
-          text: `${remain.toFixed(1)}s`,
-          subText: '',
-          urgent,
-          color: urgent ? '#D84727' : king.color,
-          alpha: urgent ? 0.70 : 0.48,
-          ringProgress: 1.0 - progress,
-        });
-      } else {
-        renderArenaWatermarkTimer(ctx, {
-          arena: this.arena,
-          text: 'TACI KAP',
-          subText: '',
-          alpha: 0.35,
-        });
-      }
-    }
-
     // Subtle Arena Grid & Tactile Corner Brackets
     ctx.strokeStyle = '#E5DFD5';
     ctx.lineWidth = 1.5;
@@ -1437,6 +1402,41 @@ export class CrownGame extends BaseMiniGame {
       this.renderInkPuddle(ctx, ink);
     }
 
+    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları & Sütunların Üzerinde Net Taç Süresi
+    if (this.state === 'PLAYING') {
+      renderCornerScores(ctx, {
+        arena: this.arena,
+        entries: this.players.map((p, i) =>
+          p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}★` } : null
+        ),
+        entities: [...this.players.filter((p) => p.isJoined), this.crown],
+      });
+
+      // Saha ortasında sütun ve engellerin üzerinde her zaman net görünen taç süresi filigranı
+      const king = this.crown.carrierIndex !== null ? this.players[this.crown.carrierIndex] : null;
+      if (king && king.isAlive) {
+        const remain = Math.max(0, this.targetCrownTime - king.crownHoldTime);
+        const urgent = remain <= 4.0;
+        const progress = Math.min(1.0, king.crownHoldTime / this.targetCrownTime);
+        renderArenaWatermarkTimer(ctx, {
+          arena: this.arena,
+          text: `${remain.toFixed(1)}s`,
+          subText: '',
+          urgent,
+          color: urgent ? '#D84727' : king.color,
+          alpha: urgent ? 0.70 : 0.48,
+          ringProgress: 1.0 - progress,
+        });
+      } else {
+        renderArenaWatermarkTimer(ctx, {
+          arena: this.arena,
+          text: 'TACI KAP',
+          subText: '',
+          alpha: 0.35,
+        });
+      }
+    }
+
     // 6. Render Pickups (Turbo ⚡)
     for (const pk of this.pickups) {
       this.renderPickup(ctx, pk);
@@ -1494,10 +1494,10 @@ export class CrownGame extends BaseMiniGame {
     // 14. Render Lobby Overlay if LOBBY
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, 'TACI KAP • 15 SN TUT • 2 RAUND ALAN KAZANIR', [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
       ]);
       this.renderLobby(ctx);
     }
@@ -1873,24 +1873,32 @@ export class CrownGame extends BaseMiniGame {
       borderWidth: p.isTackling ? 4.5 : 3,
     });
 
-    // Tackle readiness / cooldown ring indicator (krem zeminde görünür koyu halka)
+    // Tackle readiness / cooldown ring indicator (krem zeminde ve nesnelerin üstünde her zaman net görünür)
     if (p.isAlive) {
       if (p.tackleCooldown > 0) {
-        const cdRatio = 1.0 - (p.tackleCooldown / 2.0);
+        const cdRatio = 1.0 - Math.max(0, Math.min(1, p.tackleCooldown / 2.0));
         ctx.save();
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.8)';
-        ctx.lineWidth = 3;
+        // Zemin Koyu Halka
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
+        ctx.lineWidth = 4;
         ctx.beginPath();
-        ctx.arc(x, y, r + 4, -Math.PI / 2, -Math.PI / 2 + cdRatio * Math.PI * 2);
+        ctx.arc(x, y, r + 5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Dolum Arkı
+        ctx.strokeStyle = '#D99B26';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(x, y, r + 5, -Math.PI / 2, -Math.PI / 2 + cdRatio * Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       } else if (p.stumbleTimer <= 0 && p.slipTimer <= 0) {
         ctx.save();
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.55)';
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
         ctx.lineWidth = 2;
         ctx.setLineDash([4, 3]);
         ctx.beginPath();
-        ctx.arc(x, y, r + 4, 0, Math.PI * 2);
+        ctx.arc(x, y, r + 5, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
@@ -1962,11 +1970,12 @@ export class CrownGame extends BaseMiniGame {
       if (!p || !p.isJoined || p.slotType !== 'human') continue;
 
       ctx.save();
+      ctx.globalAlpha = 0.65;
       const isReady = p.tackleCooldown <= 0;
       ctx.fillStyle = isReady ? p.color : '#A5A096';
       ctx.fillRect(btn.x - btn.w / 2, btn.y - btn.h / 2, btn.w, btn.h);
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2.5;
       ctx.strokeRect(btn.x - btn.w / 2, btn.y - btn.h / 2, btn.w, btn.h);
 
       ctx.fillStyle = '#FFFFFF';

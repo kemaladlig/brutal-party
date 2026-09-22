@@ -9,7 +9,7 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateTankBotAI as runTankBotAI } from '../ai/tankAI.js';
 
 export const TANK_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-export const TANK_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const TANK_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 // 8 Handcrafted Brutalist Labyrinth Layouts with custom tactical spawns
 export const MAP_LAYOUTS = [
@@ -388,10 +388,11 @@ export class TanksGame extends BaseMiniGame {
       const isJoined = this.isSlotJoined(i);
       const custom = getSlotCustomization(i);
       const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      const existing = this.tanks?.[i];
       return {
         index: i,
-        name: TANK_NAMES[i],
-        color: isBot ? '#8E8E93' : custom.color,
+        name: existing?.name || `P${i + 1}`,
+        color: isBot ? '#8E8E93' : (custom.color || TANK_COLORS[i]),
         x: sx,
         y: sy,
         startX: sx,
@@ -1229,10 +1230,10 @@ export class TanksGame extends BaseMiniGame {
 
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.tanks'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
@@ -1435,10 +1436,10 @@ export class TanksGame extends BaseMiniGame {
 
   renderCornerTouchZones(ctx) {
     const corners = [
-      { name: 'KIRMIZI // P1', color: TANK_COLORS[0], slot: this.slotTypes[0] },
-      { name: 'MAVİ // P2', color: TANK_COLORS[1], slot: this.slotTypes[1] },
-      { name: 'SARI // P3', color: TANK_COLORS[2], slot: this.slotTypes[2] },
-      { name: 'YEŞİL // P4', color: TANK_COLORS[3], slot: this.slotTypes[3] },
+      { name: 'P1', color: TANK_COLORS[0], slot: this.slotTypes[0] },
+      { name: 'P2', color: TANK_COLORS[1], slot: this.slotTypes[1] },
+      { name: 'P3', color: TANK_COLORS[2], slot: this.slotTypes[2] },
+      { name: 'P4', color: TANK_COLORS[3], slot: this.slotTypes[3] },
     ];
 
     const seatRects = this.state === 'LOBBY' ? getStandardSeatRects(this.arena) : null;
@@ -1516,9 +1517,7 @@ export class TanksGame extends BaseMiniGame {
         ctx.font = '900 13px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        const pName = (tank && tank.name && tank.name !== TANK_NAMES[index])
-          ? `${c.name} (${tank.name})`
-          : c.name;
+        const pName = (tank && tank.name) ? tank.name : c.name;
         ctx.fillText(pName, 0, -halfH + 8);
 
         if (isGameplayHuman && tank) {

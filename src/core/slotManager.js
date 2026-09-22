@@ -239,7 +239,7 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
         if (tank) {
           tank.isJoined = false;
           tank.slotType = 'empty';
-          tank.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
+          tank.name = ['P1', 'P2', 'P3', 'P4'][i];
           tank.color = custom.color;
         }
       }
@@ -258,7 +258,7 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
         if (player) {
           player.isJoined = false;
           player.slotType = 'empty';
-          player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
+          player.name = ['P1', 'P2', 'P3', 'P4'][i];
           player.color = custom.color;
         }
       }
@@ -277,7 +277,7 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
         if (player) {
           player.isJoined = false;
           player.slotType = 'empty';
-          player.name = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'][i];
+          player.name = ['P1', 'P2', 'P3', 'P4'][i];
           player.color = custom.color;
         }
       }

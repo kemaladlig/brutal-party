@@ -4,7 +4,7 @@
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { getLocalSeatColors } from '../core/customizationManager.js';
+import { getLocalSeatColors, getSlotCustomization } from '../core/customizationManager.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver, renderFloatingTexts } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawObstacle } from '../core/arenaKit.js';
@@ -13,7 +13,7 @@ import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { UI_COLORS, UI_FONTS } from '../ui/tokens.js';
 
 export const NINJA_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-export const NINJA_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const NINJA_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 const NINJA_KEY_SLOTS = [
   { u: 'KeyW', d: 'KeyS', l: 'KeyA', r: 'KeyD', action: 'Space', smoke: 'KeyE', labelAction: 'SPACE', labelSmoke: 'E' },
@@ -148,8 +148,10 @@ export class NinjaGame extends BaseMiniGame {
 
     this.players = spawns.map((s, i) => {
       const existing = this.players[i];
+      const custom = getSlotCustomization(i);
+      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
       return {
-        index: i, name: existing?.name || NINJA_NAMES[i], color: NINJA_COLORS[i],
+        index: i, name: existing?.name || `P${i + 1}`, color: isBot ? '#8E8E93' : (custom.color || NINJA_COLORS[i]),
         x: s.x, y: s.y, angle: 0,
         speed: 145, steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
@@ -1145,6 +1147,47 @@ export class NinjaGame extends BaseMiniGame {
         borderWidth: 2.5,
       });
 
+      // Saldırı (Katana Slash) ve Duman Bombası Cooldown Göstergeleri (Sahada her zaman net görünür)
+      if (player.isAlive) {
+        // 1. Katana Slash Cooldown Arkı
+        if (player.strikeCooldown > 0) {
+          const maxCd = NINJA_TUNING.STRIKE_COOLDOWN;
+          const prog = 1.0 - Math.max(0, Math.min(1, player.strikeCooldown / maxCd));
+          ctx.save();
+          // Arka plan koyu ray
+          ctx.strokeStyle = 'rgba(20, 20, 22, 0.4)';
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.arc(0, 0, NINJA_RADIUS + 4, 0, Math.PI * 2);
+          ctx.stroke();
+          // Dolum arkı
+          ctx.strokeStyle = '#F59E0B';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(0, 0, NINJA_RADIUS + 4, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+        // 2. Duman Bombası Cooldown Arkı (Eğer beklemedeyse dış halka)
+        if (player.smokeCooldown > 0) {
+          const maxCd = NINJA_TUNING.SMOKE_COOLDOWN;
+          const prog = 1.0 - Math.max(0, Math.min(1, player.smokeCooldown / maxCd));
+          ctx.save();
+          ctx.strokeStyle = 'rgba(100, 100, 110, 0.3)';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.arc(0, 0, NINJA_RADIUS + 8, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.strokeStyle = '#A855F7';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.arc(0, 0, NINJA_RADIUS + 8, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
       ctx.restore();
     }
 
@@ -1311,10 +1354,10 @@ export class NinjaGame extends BaseMiniGame {
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.ninja'), [
-        'P1 KIRMIZI [SPACE/E]',
-        'P2 MAVİ [ENTER/R-SHIFT]',
-        'P3 SARI [O/U]',
-        'P4 YEŞİL [B/V]',
+        'P1 [WASD/SPACE/E]',
+        'P2 [OKLAR/ENTER/R-SHIFT]',
+        'P3 [IJKL/O/U]',
+        'P4 [TFGH/B/V]',
       ]);
       const seatRects = getStandardSeatRects(this.arena);
       const localMode = !this.hideLobbyStartButton;
@@ -1426,6 +1469,7 @@ export class NinjaGame extends BaseMiniGame {
 
   drawOnScreenSkillButton(ctx, { rect, icon, label, color, isReady, cooldown, maxCooldown, isPressed, keyHint }) {
     ctx.save();
+    ctx.globalAlpha = isPressed ? 0.85 : 0.65;
     const offset = isPressed ? 2 : 0;
     const shadow = isPressed ? 1 : 3;
 

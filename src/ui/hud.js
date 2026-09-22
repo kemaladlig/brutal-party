@@ -8,8 +8,8 @@ import { t } from '../i18n.js';
 // Standart üst hap: arena üstünde ortalı.
 // Ekran boyutuna (TV / monitör vs telefon) göre orantılı büyür, metin uzunluğuna göre genişler.
 // text: '💣 4.2s' gibi durum metni, urgent: kırmızı zemin.
-// alpha: oyun alanı çakışmasında hapı soldurmak için.
-export function renderTopPill(ctx, { arena, text, urgent = false, alpha = 1, customW = null }) {
+// alpha: oyun alanı çakışmasında hapı soldurmak için (varsayılan 0.78 yarı saydam).
+export function renderTopPill(ctx, { arena, text, urgent = false, alpha = 0.78, customW = null }) {
   const scale = getUiScale(arena);
   const fontSize = Math.round(15 * scale);
 
@@ -85,9 +85,15 @@ export function renderArenaWatermarkTimer(ctx, {
     const ringR = Math.max(minDim * 0.14, mainFontSize * 0.85);
     const clamped = Math.max(0, Math.min(1.0, ringProgress));
 
-    // Arka plan sabit ray halkası (ince, silik)
+    // Arka plan sabit ray halkası (kontrastlı dış çizgi + iç ray)
     ctx.save();
-    ctx.globalAlpha = effAlpha * 0.25;
+    ctx.strokeStyle = 'rgba(250, 247, 242, 0.75)';
+    ctx.lineWidth = Math.max(5, Math.round(7 * scale));
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.globalAlpha = effAlpha * 0.35;
     ctx.strokeStyle = color || (urgent ? UI_COLORS.danger : UI_COLORS.ink);
     ctx.lineWidth = Math.max(3, Math.round(4 * scale));
     ctx.beginPath();
@@ -97,29 +103,48 @@ export function renderArenaWatermarkTimer(ctx, {
 
     // Kalan süre arkı
     if (clamped > 0.005) {
-      ctx.strokeStyle = color || (urgent ? UI_COLORS.danger : UI_COLORS.ink);
-      ctx.lineWidth = Math.max(5, Math.round(7 * scale));
-      ctx.lineCap = 'butt';
+      ctx.save();
+      // Koyu ve açık zeminlerde her zaman net görünmesi için açık dış çerçeve
+      ctx.strokeStyle = 'rgba(250, 247, 242, 0.88)';
+      ctx.lineWidth = Math.max(8, Math.round(10 * scale));
+      ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.arc(cx, cy, ringR, -Math.PI / 2, -Math.PI / 2 + clamped * Math.PI * 2);
       ctx.stroke();
+
+      ctx.strokeStyle = color || (urgent ? UI_COLORS.danger : UI_COLORS.ink);
+      ctx.lineWidth = Math.max(5, Math.round(7 * scale));
+      ctx.stroke();
+      ctx.restore();
     }
   }
 
   // Ana metin (sayaç sayısı veya durum)
-  ctx.fillStyle = color || (urgent ? UI_COLORS.danger : UI_COLORS.ink);
+  ctx.save();
   ctx.font = `900 ${mainFontSize}px ${UI_FONTS.mono}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const textY = subText ? cy - subFontSize * 0.7 : cy;
+
+  // Kontrastlı dış hat (Duvar veya koyu engellerin üstünden geçerken yazının okunmasını sağlar)
+  ctx.strokeStyle = 'rgba(250, 247, 242, 0.90)';
+  ctx.lineWidth = Math.max(5, Math.round(7 * scale));
+  ctx.lineJoin = 'round';
+  ctx.strokeText(text, cx, textY);
+
+  ctx.fillStyle = color || (urgent ? UI_COLORS.danger : UI_COLORS.ink);
   ctx.fillText(text, cx, textY);
 
   // Alt bilgi etiketi
   if (subText) {
     ctx.font = `800 ${subFontSize}px ${UI_FONTS.mono}`;
     ctx.letterSpacing = `${Math.round(1.5 * scale)}px`;
+    ctx.strokeStyle = 'rgba(250, 247, 242, 0.90)';
+    ctx.lineWidth = Math.max(3, Math.round(4 * scale));
+    ctx.strokeText(subText, cx, textY + mainFontSize * 0.56 + subFontSize * 0.5);
     ctx.fillText(subText, cx, textY + mainFontSize * 0.56 + subFontSize * 0.5);
   }
+  ctx.restore();
 
   ctx.restore();
 }
@@ -266,9 +291,9 @@ export function renderCornerScores(ctx, { arena, entries, entities = [] }) {
     const rect = { x: spot.x, y: spot.y, w: cardW, h: cardH };
 
     // Proximity Ghosting: Eğer herhangi bir oyuncu/top/mermi bu kutunun üstüne/yakınına gelirse
-    // kutu transparanlaşır (alpha: 0.22), saha görüşü asla engellenmez. Boşken jilet gibi opaktır (0.95).
+    // kutu transparanlaşır (alpha: 0.18), saha görüşü asla engellenmez. Boşken oyun alanını tıkamayan hafif yarı saydamdır (0.68).
     const isNearby = checkProximity(rect, entities, Math.round(35 * scale));
-    const cardAlpha = isNearby ? 0.22 : 0.94;
+    const cardAlpha = isNearby ? 0.18 : 0.68;
     const shadowOffset = Math.max(2, Math.round(3 * Math.min(1.4, scale)));
 
     ctx.globalAlpha = cardAlpha;
@@ -357,7 +382,7 @@ export function renderUniversalScoreboard(ctx, {
   const shadow = Math.max(2, Math.round(3 * scale));
 
   const isNearby = checkProximity({ x: barX, y: barY, w: barW, h: barH }, entities, 30);
-  const barAlpha = isNearby ? 0.25 : 0.96;
+  const barAlpha = isNearby ? 0.20 : 0.70;
 
   ctx.save();
   ctx.globalAlpha = barAlpha;

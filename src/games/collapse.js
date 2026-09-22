@@ -5,14 +5,14 @@
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { getLocalSeatColors } from '../core/customizationManager.js';
+import { getLocalSeatColors, getSlotCustomization } from '../core/customizationManager.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCollapseBotAI } from '../ai/collapseAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const COLLAPSE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-export const COLLAPSE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const COLLAPSE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 const COLLAPSE_KEY_SLOTS = [
   { u: 'KeyW', d: 'KeyS', l: 'KeyA', r: 'KeyD', action: 'Space' },
@@ -256,8 +256,10 @@ export class CollapseGame extends BaseMiniGame {
 
     this.players = spawns.map((s, i) => {
       const existing = this.players[i];
+      const custom = getSlotCustomization(i);
+      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
       return {
-        index: i, name: existing?.name || COLLAPSE_NAMES[i], color: COLLAPSE_COLORS[i],
+        index: i, name: existing?.name || `P${i + 1}`, color: isBot ? '#8E8E93' : (custom.color || COLLAPSE_COLORS[i]),
         x: s.x, y: s.y, angle: 0,
         speed: 125, steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
@@ -1022,10 +1024,10 @@ export class CollapseGame extends BaseMiniGame {
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.collapse'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
       ]);
       const seatRects = getStandardSeatRects(this.arena);
       const localMode = !this.hideLobbyStartButton;

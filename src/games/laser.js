@@ -5,14 +5,14 @@
 import { playExplosion, playStart, playJoin, playGunshot, playDashWhoosh, playItemPickup, playStumble } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { getLocalSeatColors } from '../core/customizationManager.js';
+import { getLocalSeatColors, getSlotCustomization } from '../core/customizationManager.js';
 import { renderTopPill, renderCornerScores, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const LASER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-export const LASER_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const LASER_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 // Lokal klavye: Hareket + Ateş + Dash
 // (P1 WASD+Space, P2 Oklar+Enter, P3 IJKL+O, P4 TFGH+B sözleşmesi korunur; dash eklenir)
@@ -287,9 +287,11 @@ export class LaserGame extends BaseMiniGame {
   initPlayers() {
     this.players = [0, 1, 2, 3].map((i) => {
       const existing = this.players[i];
+      const custom = getSlotCustomization(i);
+      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
       const s = this.spawnPoint(i);
       return {
-        index: i, name: existing?.name || LASER_NAMES[i], color: LASER_COLORS[i],
+        index: i, name: existing?.name || `P${i + 1}`, color: isBot ? '#8E8E93' : (custom.color || LASER_COLORS[i]),
         x: s.x, y: s.y, angle: s.angle, targetAngle: s.angle,
         steerX: 0, steerY: 0, kbx: 0, kby: 0,
         hp: LASER_TUNING.MAX_HP, cooldown: 0,
@@ -984,24 +986,6 @@ export class LaserGame extends BaseMiniGame {
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
 
-    if (this.state === 'PLAYING') {
-      const remain = Math.max(0, Math.ceil(this.matchTimer));
-      renderArenaWatermarkTimer(ctx, {
-        arena: this.arena,
-        text: `${remain}s`,
-        subText: '',
-        urgent: remain <= 10,
-        alpha: remain <= 10 ? 0.70 : 0.46,
-        ringProgress: Math.max(0, remain / 90),
-      });
-
-      renderCornerScores(ctx, {
-        arena: this.arena,
-        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}` } : null),
-        entities: this.players.filter((p) => p.isJoined && p.isAlive),
-      });
-    }
-
     // Floor Markings Grid & Tactile Corner Brackets
     ctx.strokeStyle = '#E8E2D8';
     ctx.lineWidth = 1.5;
@@ -1101,6 +1085,25 @@ export class LaserGame extends BaseMiniGame {
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
+
+    // Duvar ve engellerin üzerinde her zaman net görünen sayaç & köşe skorları
+    if (this.state === 'PLAYING') {
+      const remain = Math.max(0, Math.ceil(this.matchTimer));
+      renderArenaWatermarkTimer(ctx, {
+        arena: this.arena,
+        text: `${remain}s`,
+        subText: '',
+        urgent: remain <= 10,
+        alpha: remain <= 10 ? 0.70 : 0.46,
+        ringProgress: Math.max(0, remain / 90),
+      });
+
+      renderCornerScores(ctx, {
+        arena: this.arena,
+        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}` } : null),
+        entities: this.players.filter((p) => p.isJoined && p.isAlive),
+      });
+    }
 
     // Pickup'lar
     for (const pk of this.pickups) {
@@ -1353,10 +1356,10 @@ export class LaserGame extends BaseMiniGame {
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.laser'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
       ]);
       const seatRects = getStandardSeatRects(this.arena);
       const localMode = !this.hideLobbyStartButton;

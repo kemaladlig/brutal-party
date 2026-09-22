@@ -78,14 +78,25 @@ export class BaseMiniGame {
 
   cycleSlotType(index) {
     if (this.requestLobbySeatTap(index)) return;
+    let newName = `P${index + 1}`;
     if (this.slotTypes[index] === 'empty') {
       this.slotTypes[index] = 'human';
+      newName = `P${index + 1}`;
     } else if (this.slotTypes[index] === 'human') {
       this.slotTypes[index] = 'bot_normal';
+      newName = `BOT · ${index + 1}`;
     } else if (this.slotTypes[index] === 'bot_normal') {
       this.slotTypes[index] = 'bot_god';
+      newName = `⚡ GOD · ${index + 1}`;
     } else {
       this.slotTypes[index] = 'empty';
+      newName = `P${index + 1}`;
+    }
+    const ent = this.players?.[index] || this.tanks?.[index] || this.paddles?.[index];
+    if (ent) {
+      ent.name = newName;
+      ent.slotType = this.slotTypes[index];
+      ent.isJoined = this.slotTypes[index] !== 'empty';
     }
     // LOCAL: yeni insan koltuğuna boş renk ata (hook dönmediyse lokaldir)
     if (this.slotTypes[index] === 'human' && !this.hideLobbyStartButton) {

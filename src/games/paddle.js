@@ -6,10 +6,10 @@ import { t } from '../i18n.js';
 import { updatePongBotAI as runPongBotAI } from '../ai/pongAI.js';
 
 export const PLAYER_CONFIGS = [
-  { index: 0, name: 'ALT', side: 'bottom', axis: 'horizontal', color: '#D84727' },
-  { index: 1, name: 'ÜST', side: 'top', axis: 'horizontal', color: '#1D5D8A' },
-  { index: 2, name: 'SOL', side: 'left', axis: 'vertical', color: '#D99B26' },
-  { index: 3, name: 'SAĞ', side: 'right', axis: 'vertical', color: '#2F6A4F' },
+  { index: 0, name: 'P1', side: 'bottom', axis: 'horizontal', color: '#D84727' },
+  { index: 1, name: 'P2', side: 'top', axis: 'horizontal', color: '#1D5D8A' },
+  { index: 2, name: 'P3', side: 'left', axis: 'vertical', color: '#D99B26' },
+  { index: 3, name: 'P4', side: 'right', axis: 'vertical', color: '#2F6A4F' },
 ];
 
 export class Paddle {
@@ -54,15 +54,19 @@ export class Paddle {
     if (this.slotType === 'empty') {
       this.slotType = 'human';
       this.isJoined = true;
+      this.name = `P${this.index + 1}`;
     } else if (this.slotType === 'human') {
       this.slotType = 'bot_normal';
       this.isJoined = true;
+      this.name = `BOT · ${this.index + 1}`;
     } else if (this.slotType === 'bot_normal') {
       this.slotType = 'bot_god';
       this.isJoined = true;
+      this.name = `⚡ GOD · ${this.index + 1}`;
     } else {
       this.slotType = 'empty';
       this.isJoined = false;
+      this.name = `P${this.index + 1}`;
     }
   }
 

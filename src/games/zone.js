@@ -29,7 +29,7 @@ import { updateZoneBotAI } from '../ai/zoneAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
 export const ZONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-export const ZONE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const ZONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 // Relic tipleri: Arena içinde nötr/orta alanda beliren taktiksel güç kristalleri
 export const ZONE_RELIC_DEFS = {
@@ -265,7 +265,7 @@ export class ZoneGame extends BaseMiniGame {
     const wasJoined = p.isJoined;
     p.isJoined = this.isSlotJoined(index);
     p.slotType = this.slotTypes[index];
-    p.name = ZONE_NAMES[index];
+    if (!p.name) p.name = `P${index + 1}`;
     if (p.isJoined && !wasJoined) {
       const r = this.baseRect(index);
       p.x = this.field.x + ((r.x0 + r.x1 + 1) / 2) * this.cell;
@@ -361,8 +361,9 @@ export class ZoneGame extends BaseMiniGame {
       const outward = Math.atan2(this.arena.cy - bcy, this.arena.cx - bcx);
       const custom = getSlotCustomization(i);
       const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      const existing = this.players?.[i];
       return {
-        index: i, name: ZONE_NAMES[i], color: isBot ? '#8E8E93' : custom.color,
+        index: i, name: existing?.name || `P${i + 1}`, color: isBot ? '#8E8E93' : (custom.color || ZONE_COLORS[i]),
         x: bcx, y: bcy, heading: outward,
         radius: Math.max(ZONE_TUNING.AVATAR_R_MIN, this.cell * ZONE_TUNING.AVATAR_R_MULT),
         isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
@@ -1356,7 +1357,10 @@ export class ZoneGame extends BaseMiniGame {
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.zone'), [
-        'P1 KIRMIZI', 'P2 MAVİ', 'P3 SARI', 'P4 YEŞİL',
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
@@ -1608,6 +1612,24 @@ export class ZoneGame extends BaseMiniGame {
         borderColor: p.stunTimer > 0 ? '#48CAE4' : '#1C1C1A',
         borderWidth: 3,
       });
+
+      // Depar (Dash) Cooldown Göstergesi (Bölge ve şekillerin üstünde her zaman net görünür)
+      if (p.dashCooldown > 0) {
+        const cdProg = 1.0 - Math.max(0, Math.min(1, p.dashCooldown / ZONE_TUNING.DASH_CD));
+        ctx.save();
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius + 5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#FFDE59';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius + 5, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
 
       // İsim + canlı % plakası
       const label = `P${p.index + 1} • %${this.pct[p.index]}`;
