@@ -47,8 +47,8 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
         drawBrutalAvatar(ctx, 17, 17, 13, {
           color: '#FF0055',
           expression: 'ANGRY',
-          accessory: 'GLASSES',
-          pattern: 'STRIPES',
+          accessory: 'SHADES',
+          pattern: 'STRIPE',
           showPointer: false,
           borderWidth: 2,
           shadowOffset: 1.5,

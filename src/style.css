@@ -3189,6 +3189,44 @@ body {
   gap: 8px;
 }
 
+.custom-section.hidden {
+  display: none;
+}
+
+/* Sekme çubuğu (Avatar Atölyesi) */
+.customize-tabs {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.customize-tab {
+  flex: 1;
+  padding: 10px 6px;
+  background-color: #FAF7F2;
+  border: 2.5px solid #1A1A1A;
+  box-shadow: 3px 3px 0px #1A1A1A;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #1A1A1A;
+  cursor: pointer;
+  transition: transform 0.05s ease, box-shadow 0.05s ease, background-color 0.1s ease;
+  white-space: nowrap;
+}
+
+.customize-tab:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1A1A1A;
+}
+
+.customize-tab.active {
+  background-color: #FFDE59;
+  box-shadow: 1px 1px 0px #1A1A1A;
+  transform: translate(2px, 2px);
+}
+
 .custom-section-title {
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;

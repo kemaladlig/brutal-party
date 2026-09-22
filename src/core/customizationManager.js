@@ -87,6 +87,11 @@ export const AVATAR_EXPRESSIONS = [
   { id: 'CYBORG', name: 'Sayborg', icon: '🤖', desc: 'Neon siber vizör' },
   { id: 'CYCLOPS', name: 'Tepegöz', icon: '👁️', desc: 'Dev tek göz' },
   { id: 'DERP', name: 'Çılgın', icon: '🤪', desc: 'Eğlenceli şaşkın bakış' },
+  { id: 'HEART', name: 'Aşık', icon: '😍', desc: 'Kalp şeklinde gözler' },
+  { id: 'STAR', name: 'Yıldız', icon: '🤩', desc: 'Yıldızlı heyecanlı bakış' },
+  { id: 'SLEEPY', name: 'Uykulu', icon: '😴', desc: 'Yarım kapalı uykulu gözler' },
+  { id: 'ZOMBIE', name: 'Zombi', icon: '🧟', desc: 'Donuk zombi bakışı' },
+  { id: 'GRIN', name: 'Sırıtış', icon: '😁', desc: 'Kötü niyetli geniş sırıtış' },
 ];
 
 export const AVATAR_ACCESSORIES = [
@@ -98,6 +103,12 @@ export const AVATAR_ACCESSORIES = [
   { id: 'MINI_CROWN', name: 'Mini Taç', icon: '👑', desc: 'Altın asil taç' },
   { id: 'NINJA_COWL', name: 'Ninja', icon: '🥷', desc: 'Karanlık kukuleta' },
   { id: 'BANDIT_MASK', name: 'Maske', icon: '🎭', desc: 'Haydut göz maskesi' },
+  { id: 'BONE', name: 'Kemik', icon: '💀', desc: 'Korsan kafa kemiği' },
+  { id: 'WINGS', name: 'Kanatlar', icon: '👼', desc: 'Arka melek kanatları' },
+  { id: 'TOP_HAT', name: 'Silindir Şapka', icon: '🎩', desc: 'Asil siyah silindir' },
+  { id: 'ANTENNA', name: 'Anten', icon: '📡', desc: 'Uzaylı antenli kafa' },
+  { id: 'HALO', name: 'Hale', icon: '😇', desc: 'Baş üstü altın hale' },
+  { id: 'BEANIE', name: 'Bere', icon: '🧢', desc: 'Sıcak kış bere' },
 ];
 
 export const AVATAR_PATTERNS = [
@@ -105,6 +116,10 @@ export const AVATAR_PATTERNS = [
   { id: 'STRIPE', name: 'Çizgili', icon: '🏁', desc: 'Sportif yarış çizgisi' },
   { id: 'DUAL', name: 'Çift Ton', icon: '🌗', desc: 'İki renkli bölünmüş gövde' },
   { id: 'TARGET', name: 'Hedef', icon: '🎯', desc: 'İç içe halka deseni' },
+  { id: 'CHECKER', name: 'Damalı', icon: '♟️', desc: 'Satranç daması dokusu' },
+  { id: 'DOTS', name: 'Benekli', icon: '⚪', desc: 'Neo polka noktaları' },
+  { id: 'BOLT', name: 'Şimşek', icon: '⚡', desc: 'Enerjik yıldırım çizgisi' },
+  { id: 'RIBBON', name: 'Kurdele', icon: '🎀', desc: 'Çapraz festen şerit' },
 ];
 
 // ── Whitelist kümeleri (relay/sunucu validasyonu + sanitize tek kaynaktan) ──

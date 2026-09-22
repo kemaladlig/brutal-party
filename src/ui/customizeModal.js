@@ -15,6 +15,7 @@ import {
   patternName,
 } from '../core/customizationManager.js';
 import { t, onLangChange } from '../i18n.js';
+import { safeGet, safeSet } from '../core/safeStorage.js';
 import { drawBrutalAvatar } from './characterRenderer.js';
 import { showInstallToast } from './toast.js';
 import { getStoredPlayerName, storePlayerName, cleanPlayerName, generateNick } from '../net.js';
@@ -25,6 +26,33 @@ let onSaveCallback = null;
 let previewAngle = 0;
 let previewBlinkTimer = 0;
 let isPreviewBlinking = false;
+const TAB_KEY = 'brutalparty.avatar.tab';
+const TAB_IDS = ['color', 'face', 'acc', 'pattern'];
+let activeTab = 'color';
+
+function loadActiveTab() {
+  try {
+    const raw = safeGet(TAB_KEY);
+    if (TAB_IDS.includes(raw)) activeTab = raw;
+  } catch {}
+  return activeTab;
+}
+
+function setActiveTab(tabId) {
+  if (!TAB_IDS.includes(tabId)) return;
+  activeTab = tabId;
+  try { safeSet(TAB_KEY, tabId); } catch {}
+  applyTabVisibility();
+}
+
+function applyTabVisibility() {
+  document.querySelectorAll('.customize-tab').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.tab === activeTab);
+  });
+  document.querySelectorAll('.custom-section[data-section]').forEach((sec) => {
+    sec.classList.toggle('hidden', sec.dataset.section !== activeTab);
+  });
+}
 
 export function openCustomizeModal(onSave) {
   onSaveCallback = (typeof onSave === 'function') ? onSave : null;
@@ -37,6 +65,8 @@ export function openCustomizeModal(onSave) {
   }
 
   modalEl.classList.remove('hidden');
+  loadActiveTab();
+  applyTabVisibility();
   renderSelectionGrids();
   startPreviewLoop();
 }
@@ -81,29 +111,32 @@ function createModalDOM() {
             </div>
           </div>
 
-          <!-- Sağ: Özelleştirme Seçenekleri Izgarası -->
+          <!-- Sağ: Özelleştirme Seçenekleri (sekmeli) -->
           <div class="customize-options-scroll">
+            <div class="customize-tabs" role="tablist">
+              <button class="customize-tab active" data-tab="color" type="button" data-i18n="custom.tabColor">${t('custom.tabColor')}</button>
+              <button class="customize-tab" data-tab="face" type="button" data-i18n="custom.tabFace">${t('custom.tabFace')}</button>
+              <button class="customize-tab" data-tab="acc" type="button" data-i18n="custom.tabAcc">${t('custom.tabAcc')}</button>
+              <button class="customize-tab" data-tab="pattern" type="button" data-i18n="custom.tabPattern">${t('custom.tabPattern')}</button>
+            </div>
+
             <!-- 1. Renk Seçimi -->
-            <div class="custom-section">
-              <div class="custom-section-title" data-i18n="custom.secColor">${t('custom.secColor')}</div>
+            <div class="custom-section" data-section="color">
               <div class="palette-grid" id="grid-palettes"></div>
             </div>
 
             <!-- 2. Yüz İfadesi -->
-            <div class="custom-section">
-              <div class="custom-section-title" data-i18n="custom.secFace">${t('custom.secFace')}</div>
+            <div class="custom-section hidden" data-section="face">
               <div class="chips-grid" id="grid-expressions"></div>
             </div>
 
             <!-- 3. Başlık & Aksesuar -->
-            <div class="custom-section">
-              <div class="custom-section-title" data-i18n="custom.secAcc">${t('custom.secAcc')}</div>
+            <div class="custom-section hidden" data-section="acc">
               <div class="chips-grid" id="grid-accessories"></div>
             </div>
 
             <!-- 4. Gövde Deseni -->
-            <div class="custom-section">
-              <div class="custom-section-title" data-i18n="custom.secPattern">${t('custom.secPattern')}</div>
+            <div class="custom-section hidden" data-section="pattern">
               <div class="chips-grid" id="grid-patterns"></div>
             </div>
           </div>
@@ -121,6 +154,13 @@ function createModalDOM() {
   // Olay Dinleyicileri
   document.getElementById('btn-close-customize')?.addEventListener('click', closeCustomizeModal);
   document.getElementById('customize-backdrop')?.addEventListener('click', closeCustomizeModal);
+
+  // Sekme çubuğu
+  document.querySelector('.customize-tabs')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.customize-tab');
+    if (!btn) return;
+    setActiveTab(btn.dataset.tab);
+  });
 
   document.getElementById('btn-save-customize')?.addEventListener('click', () => {
     if (currentCustom) {
