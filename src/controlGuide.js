@@ -1,5 +1,6 @@
 import { UI_COLORS, UI_SIZES, uiFont } from './ui/tokens.js';
 import { drawBrutalAvatar } from './ui/characterRenderer.js';
+import { getBotPersona } from './core/customizationManager.js';
 import { t } from './i18n.js';
 import { tryFullscreen } from './ui/fullscreen.js';
 
@@ -216,7 +217,9 @@ export function renderLobbySeatCard(ctx, {
     }
 
   } else if (isBot) {
-    // 3. BOT (KOYU ANTRASİT + VİZÖR AVATAR)
+    // 3. BOT (ÖZGÜN BOT PERSONA & KARAKTER KİMLİĞİ)
+    const persona = getBotPersona(slotIndex, isBotGod);
+
     // Solid Shadow
     ctx.fillStyle = UI_COLORS.ink;
     ctx.fillRect(-halfW + 4, -halfH + 4, w, h);
@@ -226,7 +229,7 @@ export function renderLobbySeatCard(ctx, {
     ctx.fillRect(-halfW, -halfH, w, h);
 
     // High Contrast Border
-    ctx.strokeStyle = isBotGod ? UI_COLORS.botGod : UI_COLORS.botEdge;
+    ctx.strokeStyle = persona.color;
     ctx.lineWidth = isBotGod ? 3.5 : 2.5;
     ctx.strokeRect(-halfW, -halfH, w, h);
 
@@ -235,21 +238,23 @@ export function renderLobbySeatCard(ctx, {
 
     drawBrutalAvatar(ctx, 0, avatarY, avatarR, {
       slotIndex: slotIndex,
-      color: isBotGod ? '#FFDE59' : '#8E8E93',
-      expression: isBotGod ? 'ANGRY' : 'CYBORG',
-      accessory: 'NONE',
-      pattern: 'SOLID',
+      isBot: true,
+      isGodBot: isBotGod,
+      color: persona.color,
+      expression: persona.expression,
+      accessory: persona.accessory,
+      pattern: persona.pattern,
       showPointer: false,
       borderWidth: 2,
       shadowOffset: 2,
     });
 
-    // Bot Minimal Rozet
+    // Bot İsim & Rozet
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = isBotGod ? UI_COLORS.botGod : UI_COLORS.botTag;
+    ctx.fillStyle = persona.color;
     ctx.font = uiFont('tag');
-    ctx.fillText(isBotGod ? '⚡ GOD' : '🤖 BOT', 0, halfH - 12);
+    ctx.fillText(persona.name, 0, halfH - 12);
   }
 
   ctx.restore();

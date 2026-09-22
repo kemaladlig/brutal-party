@@ -1,6 +1,6 @@
 // BRUTAL HEIST (Game 05): 2-4 Player Local Party Gold & Vault Stealing
 // Weight Physics, Shoulder Tackle Loot Knockout, Vault Banking & Raids, 45s Gold Rush & Bot AI
-import { getSlotCustomization, ensureLocalSeatColor } from '../core/customizationManager.js';
+import { getSlotCustomization, ensureLocalSeatColor, getBotPersona } from '../core/customizationManager.js';
 import {
   playStart,
   playJoin,
@@ -203,11 +203,13 @@ export class HeistGame extends BaseMiniGame {
       const existing = this.players[i];
       const custom = getSlotCustomization(i);
       const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      const isGod = this.slotTypes[i] === 'bot_god';
+      const persona = isBot ? getBotPersona(i, isGod) : null;
       return {
         index: i,
         // Raunt başı TV isimlerini silme (CROWN deseni): kumanda ismi korunur
-        name: existing?.name || `P${i + 1}`,
-        color: isBot ? '#8E8E93' : (custom.color || HEIST_COLORS[i]),
+        name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
+        color: isBot ? persona.color : (custom.color || HEIST_COLORS[i]),
         x: s.x,
         y: s.y,
         vx: 0,
@@ -1346,7 +1348,7 @@ export class HeistGame extends BaseMiniGame {
       ctx.fill();
 
       if (item.type === 'COIN') {
-        // Gold Coin
+        // Gold Coin with star icon
         ctx.fillStyle = '#FFDE59';
         ctx.beginPath();
         ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
@@ -1356,10 +1358,10 @@ export class HeistGame extends BaseMiniGame {
         ctx.stroke();
 
         ctx.fillStyle = '#1C1C1A';
-        ctx.font = '900 10px "Space Grotesk", sans-serif';
+        ctx.font = '900 11px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('1', 0, 0);
+        ctx.fillText('★', 0, 0);
       } else if (item.type === 'DIAMOND') {
         // Royal Diamond
         ctx.fillStyle = '#48CAE4';
@@ -1375,12 +1377,12 @@ export class HeistGame extends BaseMiniGame {
         ctx.stroke();
 
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = '900 11px "Space Grotesk", sans-serif';
+        ctx.font = '12px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('3', 0, 0);
+        ctx.fillText('💎', 0, 1);
       } else if (item.type === 'CROWN') {
-        // Heavy Gold Bar
+        // Heavy Gold Bar with Crown icon
         ctx.fillStyle = '#D99B26';
         ctx.fillRect(-12, -8, 24, 16);
         ctx.strokeStyle = '#1C1C1A';
@@ -1388,10 +1390,10 @@ export class HeistGame extends BaseMiniGame {
         ctx.strokeRect(-12, -8, 24, 16);
 
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = '900 10px "JetBrains Mono", monospace';
+        ctx.font = '12px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('5K', 0, 0);
+        ctx.fillText('👑', 0, 1);
       }
 
       ctx.restore();
@@ -1533,11 +1535,6 @@ export class HeistGame extends BaseMiniGame {
       ctx.fill();
       ctx.restore();
 
-      const customName = (player.name && player.name !== HEIST_NAMES[player.index])
-        ? ` • ${player.name.slice(0, 6)}`
-        : '';
-      const pLabel = `P${player.index + 1}${customName}`;
-
       let currentExp = 'normal';
       if (player.stumbleTimer > 0) currentExp = 'dizzy';
       else if (player.isTackling) currentExp = 'angry';
@@ -1548,7 +1545,6 @@ export class HeistGame extends BaseMiniGame {
         color: player.color,
         slotIndex: player.index,
         facingAngle: player.facingAngle,
-        label: pLabel,
         expression: currentExp,
         showPointer: true,
         borderColor: player.isTackling ? '#FFDE59' : '#1C1C1A',

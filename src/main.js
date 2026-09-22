@@ -185,6 +185,10 @@ export async function setGameMode(mode) {
 
   menuOverlay.classList.add('hidden');
   inGameHud.classList.remove('hidden');
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    try { document.activeElement.blur(); } catch {}
+  }
+  try { canvas.focus(); } catch {}
   touchManager.setHandler(entry.game);
   // LOCAL: kayıtlı koltuk renkleri reset ÖNCESİ deftere yüklenir (init renkleri
   // doğru kurulsun), reset sonrası varsayılan insan koltuklarına boş renk atanır.

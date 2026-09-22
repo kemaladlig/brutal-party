@@ -1,7 +1,7 @@
 // Brutal Party — Birleşik Karakter Çizim Motoru (Unified Brutal Avatar Renderer)
 // Tüm mini-oyunlarda (BOMB, HEIST, CROWN, COLLAPSE, CLONE, NINJA, LASER, ZONE, vb.)
 // ve Karakter Özelleştirme Arayüzünde standart avatar çizimini sağlar.
-import { getSlotAvatar, getAvatarProfile } from '../core/customizationManager.js';
+import { getSlotAvatar, getAvatarProfile, getBotPersona } from '../core/customizationManager.js';
 
 /**
  * Tek tip Neo-Brutalist Avatar Çizer
@@ -13,31 +13,38 @@ import { getSlotAvatar, getAvatarProfile } from '../core/customizationManager.js
  */
 export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {
   const slotIdx = typeof options.slotIndex === 'number' ? options.slotIndex : null;
-  // Koltuk avatarı: host kayıt defteri (relay) → cihaz profili (LOCAL/fallback).
-  // Renk kimlik değildir; display rengi (options.color) her zaman kazanır.
-  const avatarOpt = options.avatar
-    || (slotIdx !== null ? getSlotAvatar(slotIdx) : null)
-    || null;
+  const isBot = options.isBot || options.slotType === 'bot_normal' || options.slotType === 'bot_god';
+  const isGod = options.isGodBot || options.slotType === 'bot_god';
+
+  const botPersona = (isBot && slotIdx !== null) ? getBotPersona(slotIdx, isGod) : null;
+  const registeredAvatar = slotIdx !== null ? getSlotAvatar(slotIdx) : null;
   const profileFallback = (() => { try { return getAvatarProfile(); } catch { return null; } })();
 
-  const isBot = options.isBot || options.slotType === 'bot_normal' || options.slotType === 'bot_god';
-  const color = options.color || avatarOpt?.color || profileFallback?.color || '#D84727';
-  const expressionRaw = options.expression || avatarOpt?.expression || profileFallback?.expression || 'FOCUS';
-  const accessoryRaw = options.accessory !== undefined ? options.accessory : (avatarOpt?.accessory || profileFallback?.accessory || 'NONE');
-  const patternRaw = options.pattern || avatarOpt?.pattern || profileFallback?.pattern || 'SOLID';
+  // Koltuk avatarı: bot persona → host kayıt defteri (relay) → cihaz profili (LOCAL/fallback).
+  // Renk kimlik değildir; display rengi (options.color) her zaman kazanır.
+  const avatarOpt = options.avatar
+    || (isBot ? botPersona : null)
+    || registeredAvatar
+    || profileFallback
+    || null;
+
+  const color = options.color || (isBot ? botPersona?.color : null) || avatarOpt?.color || profileFallback?.color || '#D84727';
+  const expressionRaw = options.expression || (isBot ? botPersona?.expression : null) || avatarOpt?.expression || profileFallback?.expression || 'FOCUS';
+  const accessoryRaw = options.accessory !== undefined ? options.accessory : ((isBot ? botPersona?.accessory : null) || avatarOpt?.accessory || profileFallback?.accessory || 'NONE');
+  const patternRaw = options.pattern || (isBot ? botPersona?.pattern : null) || avatarOpt?.pattern || profileFallback?.pattern || 'SOLID';
 
   // İfade normalizasyonu (küçük harf / durum eşleştirmeleri)
   let expression = expressionRaw;
-  if (expression === 'normal') expression = avatarOpt?.expression || profileFallback?.expression || 'FOCUS';
+  if (expression === 'normal') expression = (isBot ? botPersona?.expression : null) || avatarOpt?.expression || profileFallback?.expression || 'FOCUS';
   else if (expression === 'excited') expression = 'WINK';
   else if (expression === 'panic') expression = 'DERP';
   else if (expression === 'dizzy') expression = 'CYCLOPS';
   else if (expression === 'robot') expression = 'CYBORG';
 
   // LOD (Level of Detail) Kuralı:
-  // r < 12 (Küçük kafa/vücut): Aksesuarlar kaldırılır veya sadeleştirilir
-  // r < 16 (Orta ölçek): Desen ve aksesuarlar sadeleştirilir
-  const isMicro = radius < 12;
+  // r < 5 (Aşırı küçük): Detaylar sadeleştirilir
+  // r >= 5 (Collapse, Snake, Tanks vb.): Şapka, gözlük, boynuz, bandana, taç ve desenler orantılı çizilir
+  const isMicro = radius < 5;
   const pattern = isMicro ? 'SOLID' : patternRaw;
   const accessory = isMicro ? 'NONE' : accessoryRaw;
 

@@ -1,11 +1,13 @@
 // BRUTAL CURVE (Game 03): 2-4 Player Local Party Curve Fever with Gaps, Power-Ups & Bot AI
-import { getSlotCustomization, getLocalSeatColors } from '../core/customizationManager.js';
+import { getSlotCustomization, getLocalSeatColors, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGap, playItemPickup } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { renderCornerScores, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { drawPickup } from '../core/arenaKit.js';
+import { resolveSlotName } from '../core/slotManager.js';
 import { updateCurveBotAI } from '../ai/curveAI.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -165,11 +167,13 @@ export class CurveGame extends BaseMiniGame {
     this.players = spawns.map((s, i) => {
       const custom = getSlotCustomization(i);
       const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      const isGod = this.slotTypes[i] === 'bot_god';
+      const persona = isBot ? getBotPersona(i, isGod) : null;
       const existing = this.players?.[i];
       return {
         index: i,
-        name: existing?.name || CURVE_NAMES[i],
-        color: isBot ? '#8E8E93' : (custom.color || CURVE_COLORS[i]),
+        name: resolveSlotName(i, this.slotTypes[i], existing?.name),
+        color: isBot ? persona.color : (custom.color || CURVE_COLORS[i]),
         x: s.x,
         y: s.y,
         prevX: s.x,
@@ -959,52 +963,9 @@ export class CurveGame extends BaseMiniGame {
       ctx.stroke();
     }
 
-    // Pickups
-    const nowSec = performance.now() / 1000;
+    // Pickups (Canlı İkon Rozetleri)
     for (const item of this.pickups) {
-      ctx.save();
-      const s = item.size;
-      const bob = Math.sin(nowSec * 5 + (item.phase || 0)) * 2;
-      const ix = item.x;
-      const iy = item.y + bob;
-
-      // Gölge
-      ctx.fillStyle = 'rgba(26,26,26,0.18)';
-      ctx.beginPath();
-      ctx.ellipse(ix, iy + s * 0.6, s * 0.6, s * 0.3, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Kutu
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(ix - s / 2 + 2, iy - s / 2 + 2, s, s);
-      ctx.fillStyle = '#FAF7F2';
-      ctx.fillRect(ix - s / 2, iy - s / 2, s, s);
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(ix - s / 2, iy - s / 2, s, s);
-
-      ctx.fillStyle = '#1A1A1A';
-      ctx.font = '900 11px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const icon =
-        item.type === 'SCISSORS'
-          ? 'KES'
-          : item.type === 'GHOST'
-          ? 'HAY'
-          : item.type === 'TURBO'
-          ? 'HIZ'
-          : item.type === 'INVERT'
-          ? 'TERS'
-          : item.type === 'SHRINK'
-          ? 'MINI'
-          : item.type === 'FREEZE'
-          ? 'BUZ'
-          : item.type === 'BOMB'
-          ? 'BOM'
-          : 'DUV';
-      ctx.fillText(icon, ix, iy);
-      ctx.restore();
+      drawPickup(ctx, item, { size: item.size || 24 });
     }
 
     // Floating Text Notifications (Kazanılan güçler)
@@ -1286,9 +1247,10 @@ export class CurveGame extends BaseMiniGame {
   }
 
   renderRoundBanner(ctx) {
+    const cleanWinner = this.roundWinner ? cleanWinnerName(this.roundWinner.name) : '';
     renderRoundBanner(ctx, {
       arena: this.arena,
-      title: this.roundWinner ? `${this.roundWinner.name} KAZANDI!` : 'BERABERE!',
+      title: cleanWinner ? `${cleanWinner} KAZANDI!` : 'BERABERE!',
       titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A',
     });
   }

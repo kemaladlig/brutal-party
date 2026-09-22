@@ -471,6 +471,11 @@ export function renderRoundBanner(ctx, { arena, title, titleColor, sub = '' }) {
   ctx.restore();
 }
 
+export function cleanWinnerName(name) {
+  if (!name || typeof name !== 'string') return '';
+  return name.replace(/^P[1-4]\s*[•·\-–—]\s*/i, '').trim();
+}
+
 // Standart final kutusu: başlık + kazanan + skor listesi + çalışan 'YENİDEN OYNA' butonu.
 export function renderMatchOver(ctx, {
   arena, uiButtons, headline, winnerName = '', winnerColor = UI_COLORS.ink, rows = [], onRestart,
@@ -497,9 +502,10 @@ export function renderMatchOver(ctx, {
   ctx.font = uiFont('body', Math.min(1.3, scale));
   ctx.fillText(headline, arena.cx, boxY + Math.round(30 * scale));
 
-  ctx.fillStyle = winnerName ? winnerColor : UI_COLORS.ink;
+  const cleanWinner = cleanWinnerName(winnerName);
+  ctx.fillStyle = cleanWinner ? winnerColor : UI_COLORS.ink;
   ctx.font = uiFont('title', Math.min(1.3, scale));
-  ctx.fillText(winnerName ? `${winnerName} KAZANDI!` : 'BERABERE!', arena.cx, boxY + Math.round(68 * scale), boxW - 24);
+  ctx.fillText(cleanWinner ? `${cleanWinner} KAZANDI!` : 'BERABERE!', arena.cx, boxY + Math.round(68 * scale), boxW - 24);
 
   ctx.font = uiFont('monoBody', Math.min(1.2, scale));
   const rowStep = Math.round(18 * Math.min(1.3, scale));

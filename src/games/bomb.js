@@ -22,12 +22,14 @@ import {
   renderRoundBanner,
   renderMatchOver,
   renderArenaWatermarkTimer,
+  cleanWinnerName,
 } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup } from '../core/arenaKit.js';
+import { resolveSlotName } from '../core/slotManager.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
@@ -265,7 +267,7 @@ export class BombGame extends BaseMiniGame {
         index: i,
         // Raunt başı TV isimlerini silme (CROWN deseni): kumanda ismi korunur,
         // syncSlotsToEngine bir sonraki turda zaten yazar
-        name: existing?.name || `P${i + 1}`,
+        name: resolveSlotName(i, this.slotTypes[i], existing?.name),
         color: isBot ? '#8E8E93' : (custom.color || BOMB_COLORS[i]),
         x: s.x,
         y: s.y,
@@ -1283,11 +1285,6 @@ export class BombGame extends BaseMiniGame {
         ctx.stroke();
       }
 
-      const customName = (player.name && player.name !== BOMB_NAMES[player.index])
-        ? ` • ${player.name.slice(0, 6)}`
-        : '';
-      const pLabel = `P${player.index + 1}${customName}`;
-
       let currentExp = 'normal';
       if (isCarrier) currentExp = 'panic';
       else if (player.stumbleTimer > 0) currentExp = 'dizzy';
@@ -1298,7 +1295,6 @@ export class BombGame extends BaseMiniGame {
         color: player.color,
         slotIndex: player.index,
         facingAngle: player.facingAngle,
-        label: pLabel,
         expression: currentExp,
         showPointer: true,
         borderColor: player.dashTimer > 0 ? '#FFFFFF' : '#1C1C1A',
@@ -1547,9 +1543,10 @@ export class BombGame extends BaseMiniGame {
 
   renderRoundOverUI(ctx) {
     if (!this.roundWinner) return;
+    const cleanWinner = cleanWinnerName(this.roundWinner.name);
     renderRoundBanner(ctx, {
       arena: this.arena,
-      title: `+1 SET: ${this.roundWinner.name}!`,
+      title: `+1 SET: ${cleanWinner || this.roundWinner.name}!`,
       titleColor: this.roundWinner.color,
       sub: `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}`,
     });

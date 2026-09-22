@@ -4,7 +4,8 @@
 
 import { prefersReducedMotion, motionScale } from '../ui/motion.js';
 import { getStandardSeatRects, renderLobbySeatCard, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
-import { getLocalSeatColors, ensureLocalSeatColor, cycleLocalSeatColor } from './customizationManager.js';
+import { getLocalSeatColors, ensureLocalSeatColor, cycleLocalSeatColor, getBotPersona } from './customizationManager.js';
+import { resolveSlotName } from './slotManager.js';
 
 export class BaseMiniGame {
   constructor(canvas) {
@@ -78,29 +79,33 @@ export class BaseMiniGame {
 
   cycleSlotType(index) {
     if (this.requestLobbySeatTap(index)) return;
-    let newName = `P${index + 1}`;
+    let newColor = null;
     if (this.slotTypes[index] === 'empty') {
       this.slotTypes[index] = 'human';
-      newName = `P${index + 1}`;
     } else if (this.slotTypes[index] === 'human') {
       this.slotTypes[index] = 'bot_normal';
-      newName = `BOT · ${index + 1}`;
+      const persona = getBotPersona(index, false);
+      newColor = persona.color;
     } else if (this.slotTypes[index] === 'bot_normal') {
       this.slotTypes[index] = 'bot_god';
-      newName = `⚡ GOD · ${index + 1}`;
+      const persona = getBotPersona(index, true);
+      newColor = persona.color;
     } else {
       this.slotTypes[index] = 'empty';
-      newName = `P${index + 1}`;
     }
+    const newName = resolveSlotName(index, this.slotTypes[index]);
     const ent = this.players?.[index] || this.tanks?.[index] || this.paddles?.[index];
     if (ent) {
       ent.name = newName;
       ent.slotType = this.slotTypes[index];
       ent.isJoined = this.slotTypes[index] !== 'empty';
+      if (newColor) ent.color = newColor;
     }
     // LOCAL: yeni insan koltuğuna boş renk ata (hook dönmediyse lokaldir)
     if (this.slotTypes[index] === 'human' && !this.hideLobbyStartButton) {
       this.applyLocalSeatColor(index, ensureLocalSeatColor(index));
+    } else if (newColor) {
+      this.applyLocalSeatColor(index, newColor);
     }
   }
 
@@ -165,6 +170,17 @@ export class BaseMiniGame {
 
     window.addEventListener('keydown', (e) => {
       if (!this.isLocalInputActive) return;
+
+      // Blur any focused DOM element (like bento menu buttons) to avoid accidental click invocation via Space
+      if (document.activeElement && document.activeElement !== document.body && document.activeElement !== this.canvas) {
+        try { document.activeElement.blur(); } catch {}
+      }
+
+      // Prevent default scrolling / button triggering on game control keys
+      if (e.code === 'Space' || e.key === ' ' || e.code.startsWith('Arrow') || e.code === 'Tab') {
+        e.preventDefault();
+      }
+
       this.keys[e.key] = true;
       if (e.key) this.keys[e.key.toLowerCase()] = true;
       this.keys[e.code] = true;

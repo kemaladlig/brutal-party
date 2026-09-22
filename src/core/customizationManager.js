@@ -122,6 +122,83 @@ export const AVATAR_PATTERNS = [
   { id: 'RIBBON', name: 'Kurdele', icon: '🎀', desc: 'Çapraz festen şerit' },
 ];
 
+// ── Özgün Bot Karakter Kimlikleri (Bot Personas & Visual Distinction) ──
+// Her bot slotu ve zorluk seviyesi için özgün isim, renk, yüz, aksesuar ve gövde deseni
+export const BOT_PERSONAS = [
+  {
+    name: 'VOLT [BOT]',
+    shortName: 'VOLT',
+    color: '#00B894', // Mint / Siber Yeşil
+    expression: 'CYBORG',
+    accessory: 'ANTENNA',
+    pattern: 'BOLT',
+  },
+  {
+    name: 'BYTE [BOT]',
+    shortName: 'BYTE',
+    color: '#D99B26', // Altın Sarı
+    expression: 'FOCUS',
+    accessory: 'HEADPHONES',
+    pattern: 'STRIPE',
+  },
+  {
+    name: 'MECHA [BOT]',
+    shortName: 'MECHA',
+    color: '#E84393', // Punk Pembe
+    expression: 'GRIN',
+    accessory: 'HORNS',
+    pattern: 'TARGET',
+  },
+  {
+    name: 'NEXUS [BOT]',
+    shortName: 'NEXUS',
+    color: '#1D5D8A', // Kobalt Mavi
+    expression: 'CYCLOPS',
+    accessory: 'CAP',
+    pattern: 'CHECKER',
+  },
+];
+
+export const GOD_BOT_PERSONAS = [
+  {
+    name: '⚡ ZEUS [GOD]',
+    shortName: '⚡ ZEUS',
+    color: '#D84727', // Kızıl Kırmızı
+    expression: 'ANGRY',
+    accessory: 'MINI_CROWN',
+    pattern: 'BOLT',
+  },
+  {
+    name: '⚡ TITAN [GOD]',
+    shortName: '⚡ TITAN',
+    color: '#FF5722', // Alev Turuncu
+    expression: 'SHADES',
+    accessory: 'HORNS',
+    pattern: 'STRIPE',
+  },
+  {
+    name: '⚡ ARES [GOD]',
+    shortName: '⚡ ARES',
+    color: '#7928CA', // Siber Mor
+    expression: 'ANGRY',
+    accessory: 'NINJA_COWL',
+    pattern: 'TARGET',
+  },
+  {
+    name: '⚡ OMEGA [GOD]',
+    shortName: '⚡ OMEGA',
+    color: '#2D3436', // Karbon Siyah
+    expression: 'CYBORG',
+    accessory: 'HALO',
+    pattern: 'DUAL',
+  },
+];
+
+export function getBotPersona(slotIndex, isGod = false) {
+  const safeIdx = Math.max(0, Math.min(3, Math.abs(slotIndex ?? 0) % 4));
+  return isGod ? GOD_BOT_PERSONAS[safeIdx] : BOT_PERSONAS[safeIdx];
+}
+
 // ── Whitelist kümeleri (relay/sunucu validasyonu + sanitize tek kaynaktan) ──
 // Her iki paletin birleşimi: mod değişiminde eski kayıtlı renk geçersiz sayılmaz.
 const PALETTE_HEX = new Set([
@@ -192,6 +269,15 @@ export function getAvatarProfile() {
 export function saveAvatarProfile(profile) {
   const clean = sanitizeAvatar(profile, { keepColor: true });
   safeSet(PROFILE_KEY, JSON.stringify(clean));
+
+  // Local seat registry güncelleme: aktif local seat'leri yeni özelleştirmeyle tazele
+  for (let i = 0; i < 4; i++) {
+    if (slotAvatarRegistry[i]) {
+      const seatColor = slotAvatarRegistry[i].color || clean.color;
+      slotAvatarRegistry[i] = { ...clean, color: seatColor };
+    }
+  }
+
   try {
     window.dispatchEvent(new CustomEvent('brutal_customization_changed', {
       detail: { customization: clean },

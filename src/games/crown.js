@@ -2,7 +2,7 @@
 // Full-arena brutalist layout, moving patrol pistons, conveyor belts (yürüyen zeminler),
 // banana peel slip traps 🍌, turbo pickups ⚡, heavy crown physics (-34% speed), 0.85s stun & zero screen-shake.
 
-import { getSlotCustomization, ensureLocalSeatColor } from '../core/customizationManager.js';
+import { getSlotCustomization, ensureLocalSeatColor, getBotPersona } from '../core/customizationManager.js';
 import {
   playStart,
   playJoin,
@@ -460,6 +460,8 @@ export class CrownGame extends BaseMiniGame {
       const existing = this.players[i];
       const custom = getSlotCustomization(i);
       const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      const isGod = this.slotTypes[i] === 'bot_god';
+      const persona = isBot ? getBotPersona(i, isGod) : null;
       return {
         index: i,
         x: s.x,
@@ -467,8 +469,8 @@ export class CrownGame extends BaseMiniGame {
         vx: 0,
         vy: 0,
         radius: r,
-        color: isBot ? '#8E8E93' : (custom.color || CROWN_COLORS[i]),
-        name: existing?.name || `P${i + 1}`,
+        color: isBot ? persona.color : (custom.color || CROWN_COLORS[i]),
+        name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         isJoined: this.isSlotJoined(i),
         isAlive: true,
         slotType: this.slotTypes[i],

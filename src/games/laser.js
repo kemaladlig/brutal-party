@@ -5,9 +5,10 @@
 import { playExplosion, playStart, playJoin, playGunshot, playDashWhoosh, playItemPickup, playStumble } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { getLocalSeatColors, getSlotCustomization } from '../core/customizationManager.js';
+import { getLocalSeatColors, getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { renderTopPill, renderCornerScores, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { drawPickup } from '../core/arenaKit.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
@@ -289,9 +290,13 @@ export class LaserGame extends BaseMiniGame {
       const existing = this.players[i];
       const custom = getSlotCustomization(i);
       const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      const isGod = this.slotTypes[i] === 'bot_god';
+      const persona = isBot ? getBotPersona(i, isGod) : null;
       const s = this.spawnPoint(i);
       return {
-        index: i, name: existing?.name || `P${i + 1}`, color: isBot ? '#8E8E93' : (custom.color || LASER_COLORS[i]),
+        index: i,
+        name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
+        color: isBot ? persona.color : (custom.color || LASER_COLORS[i]),
         x: s.x, y: s.y, angle: s.angle, targetAngle: s.angle,
         steerX: 0, steerY: 0, kbx: 0, kby: 0,
         hp: LASER_TUNING.MAX_HP, cooldown: 0,
@@ -1105,27 +1110,9 @@ export class LaserGame extends BaseMiniGame {
       });
     }
 
-    // Pickup'lar
+    // Pickup'lar (Canlı İkon Rozetleri)
     for (const pk of this.pickups) {
-      const pulse = 1 + Math.sin(pk.animTime * 6) * 0.12;
-      ctx.save();
-      ctx.translate(pk.x, pk.y);
-      ctx.scale(pulse, pulse);
-      
-      let pColor = '#2F6A4F';
-      let pIcon = '+';
-      if (pk.type === 'FAST') { pColor = '#FFDE59'; pIcon = 'HIZ'; }
-      else if (pk.type === 'SHIELD') { pColor = '#0EA5E9'; pIcon = 'KOR'; }
-      else if (pk.type === 'TRIPLE') { pColor = '#F97316'; pIcon = '3×'; }
-
-      ctx.fillStyle = pColor;
-      ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#1A1A1A'; ctx.stroke();
-      ctx.fillStyle = pk.type === 'FAST' ? '#1A1A1A' : '#FFF';
-      ctx.font = '900 10.5px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(pIcon, 0, 1);
-      ctx.restore();
+      drawPickup(ctx, pk, { size: 30 });
     }
 
     // Nişan önizlemeleri (canlı oyuncular, 2 sekme)

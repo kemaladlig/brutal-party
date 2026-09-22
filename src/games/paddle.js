@@ -1,7 +1,7 @@
 // Paddle entity: movement, physics bounds & brutalist rendering.
 // Bot kararı src/ai/pongAI.js'tedir (diğer motorlarla aynı desen).
 
-import { getSlotCustomization } from '../core/customizationManager.js';
+import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { t } from '../i18n.js';
 import { updatePongBotAI as runPongBotAI } from '../ai/pongAI.js';
 
@@ -54,15 +54,21 @@ export class Paddle {
     if (this.slotType === 'empty') {
       this.slotType = 'human';
       this.isJoined = true;
-      this.name = `P${this.index + 1}`;
+      const custom = getSlotCustomization(this.index);
+      this.name = custom.name || `P${this.index + 1}`;
+      this.color = custom.color || PLAYER_CONFIGS[this.index].color;
     } else if (this.slotType === 'human') {
       this.slotType = 'bot_normal';
       this.isJoined = true;
-      this.name = `BOT · ${this.index + 1}`;
+      const persona = getBotPersona(this.index, false);
+      this.name = persona.name;
+      this.color = persona.color;
     } else if (this.slotType === 'bot_normal') {
       this.slotType = 'bot_god';
       this.isJoined = true;
-      this.name = `⚡ GOD · ${this.index + 1}`;
+      const persona = getBotPersona(this.index, true);
+      this.name = persona.name;
+      this.color = persona.color;
     } else {
       this.slotType = 'empty';
       this.isJoined = false;
@@ -235,8 +241,8 @@ export class Paddle {
       ctx.font = '900 12px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const label = this.isGodBot ? 'GOD' : 'BOT';
-      ctx.fillText(label, this.coord, this.fixedPerpendicular);
+      const persona = getBotPersona(this.index, this.isGodBot);
+      ctx.fillText(persona.name, this.coord, this.fixedPerpendicular);
       ctx.restore();
     }
 

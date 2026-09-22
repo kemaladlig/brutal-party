@@ -3,7 +3,7 @@
 // capture. Enemy steps on your trail -> you shatter back to base size + 2s stun
 // (no elimination, party flow preserved). 90s rounds, first to 40% takes the
 // round early, first to 2 rounds is the champion.
-import { getSlotCustomization, ensureLocalSeatColor, getLocalSeatColors } from '../core/customizationManager.js';
+import { getSlotCustomization, ensureLocalSeatColor, getLocalSeatColors, getBotPersona } from '../core/customizationManager.js';
 import {
   playStart,
   playJoin,
@@ -36,8 +36,9 @@ export const ZONE_RELIC_DEFS = {
   FLASH: {
     id: 'FLASH',
     name: 'FLASH CORE',
-    badge: 'HIZ',
-    icon: 'HIZ',
+    badge: '⚡',
+    icon: '⚡',
+    glyph: '⚡',
     title: 'HIZ KORU',
     color: '#FFD122',
     glowColor: 'rgba(255, 209, 34, 0.45)',
@@ -46,8 +47,9 @@ export const ZONE_RELIC_DEFS = {
   SEISMIC: {
     id: 'SEISMIC',
     name: 'SEISMIC PULSE',
-    badge: 'DARBE',
-    icon: 'DARBE',
+    badge: '💥',
+    icon: '💥',
+    glyph: '💥',
     title: 'SİSMİK DARBE',
     color: '#FF473A',
     glowColor: 'rgba(255, 71, 58, 0.45)',
@@ -361,9 +363,13 @@ export class ZoneGame extends BaseMiniGame {
       const outward = Math.atan2(this.arena.cy - bcy, this.arena.cx - bcx);
       const custom = getSlotCustomization(i);
       const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      const isGod = this.slotTypes[i] === 'bot_god';
+      const persona = isBot ? getBotPersona(i, isGod) : null;
       const existing = this.players?.[i];
       return {
-        index: i, name: existing?.name || `P${i + 1}`, color: isBot ? '#8E8E93' : (custom.color || ZONE_COLORS[i]),
+        index: i,
+        name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
+        color: isBot ? persona.color : (custom.color || ZONE_COLORS[i]),
         x: bcx, y: bcy, heading: outward,
         radius: Math.max(ZONE_TUNING.AVATAR_R_MIN, this.cell * ZONE_TUNING.AVATAR_R_MULT),
         isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
@@ -1486,12 +1492,12 @@ export class ZoneGame extends BaseMiniGame {
       ctx.lineWidth = 2.5;
       ctx.stroke();
 
-      // İç İkon / Tipografi
+      // İç İkon / Glif
       ctx.fillStyle = '#1C1C1A';
-      ctx.font = '900 11px "Space Grotesk", sans-serif';
+      ctx.font = '14px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(def?.badge || '★', 0, 1);
+      ctx.fillText(def?.glyph || def?.icon || '⭐', 0, 1);
 
       ctx.restore();
     }
