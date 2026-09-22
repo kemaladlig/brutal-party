@@ -71,6 +71,32 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {
   ctx.arc(shadowOffset, shadowOffset + 1, r, 0, Math.PI * 2);
   ctx.fill();
 
+  // 1b. Arka katman aksesuarları (gövdenin arkasında çizilir)
+  if (accessory === 'WINGS') {
+    ctx.save();
+    ctx.rotate(facingAngle);
+    const drawWing = (sy) => {
+      ctx.fillStyle = '#FAF7F2';
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.2, sy * r * 0.35);
+      ctx.quadraticCurveTo(-r * 1.5, sy * (r + 16), -r * 1.8, sy * r * 0.2);
+      ctx.quadraticCurveTo(-r * 1.1, sy * r * 0.55, -r * 0.3, sy * r * 0.1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Tüy detayı
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.5, sy * r * 0.3);
+      ctx.quadraticCurveTo(-r * 1.2, sy * r * 0.5, -r * 1.45, sy * r * 0.15);
+      ctx.stroke();
+    };
+    drawWing(-1);
+    drawWing(1);
+    ctx.restore();
+  }
+
   // 2. Ana Gövde & Desen (Clipping Mask ile desen sınır taşmasını engeller)
   ctx.save();
   ctx.beginPath();
@@ -105,6 +131,74 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 1.5;
     ctx.stroke();
+  } else if (pattern === 'CHECKER') {
+    // Satranç daması: iki sıra kare, gövde merkezine hizalı
+    const cell = Math.max(4, r * 0.42);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    for (let cyi = -2; cyi <= 2; cyi++) {
+      for (let cxi = -2; cxi <= 2; cxi++) {
+        if ((cxi + cyi) % 2 === 0) {
+          ctx.fillRect(cxi * cell - cell / 2, cyi * cell - cell / 2, cell, cell);
+        }
+      }
+    }
+    ctx.fillStyle = 'rgba(26, 26, 26, 0.35)';
+    for (let cyi = -2; cyi <= 2; cyi++) {
+      for (let cxi = -2; cxi <= 2; cxi++) {
+        if ((cxi + cyi) % 2 !== 0) {
+          ctx.fillRect(cxi * cell - cell / 2, cyi * cell - cell / 2, cell, cell);
+        }
+      }
+    }
+  } else if (pattern === 'DOTS') {
+    const dr = Math.max(1.8, r * 0.14);
+    const gap = dr * 3.2;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    ctx.strokeStyle = 'rgba(26, 26, 26, 0.4)';
+    ctx.lineWidth = 1;
+    for (let row = -3; row <= 3; row++) {
+      for (let col = -3; col <= 3; col++) {
+        const px = col * gap + (row % 2 ? gap / 2 : 0);
+        const py = row * gap * 0.9;
+        ctx.beginPath();
+        ctx.arc(px, py, dr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+  } else if (pattern === 'BOLT') {
+    // Enerjik yıldırım: gövde boyunca sarı şimşek
+    ctx.save();
+    ctx.rotate(facingAngle);
+    ctx.fillStyle = '#FFDE59';
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.15, -r * 0.95);
+    ctx.lineTo(-r * 0.45, r * 0.05);
+    ctx.lineTo(-r * 0.05, r * 0.05);
+    ctx.lineTo(-r * 0.3, r * 0.95);
+    ctx.lineTo(r * 0.5, -r * 0.15);
+    ctx.lineTo(r * 0.05, -r * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  } else if (pattern === 'RIBBON') {
+    // Çapraz festen şerit (iki bant, kesişim ortası)
+    ctx.save();
+    ctx.rotate(facingAngle + Math.PI / 4);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 1.4;
+    ctx.fillRect(-r * 1.4, -r * 0.2, r * 2.8, r * 0.4);
+    ctx.strokeRect(-r * 1.4, -r * 0.2, r * 2.8, r * 0.4);
+    ctx.restore();
+    ctx.save();
+    ctx.rotate(facingAngle - Math.PI / 4);
+    ctx.fillStyle = 'rgba(26, 26, 26, 0.55)';
+    ctx.fillRect(-r * 1.4, -r * 0.14, r * 2.8, r * 0.28);
+    ctx.restore();
   }
 
   // Ninja kukuleta gövde kaplaması
@@ -295,6 +389,170 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {
       ctx.arc(eyeOffsetX + 1, eyeSpreadY + 2, eyeR * 0.4, 0, Math.PI * 2);
       ctx.fill();
     }
+  } else if (expression === 'HEART') {
+    // Kalp şeklinde gözler (aşık)
+    const drawHeart = (ey) => {
+      const hr = eyeR * 1.25;
+      ctx.fillStyle = '#FF3B6B';
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(eyeOffsetX, ey + hr * 0.85);
+      ctx.bezierCurveTo(eyeOffsetX - hr * 1.3, ey, eyeOffsetX - hr * 0.55, ey - hr * 0.95, eyeOffsetX, ey - hr * 0.25);
+      ctx.bezierCurveTo(eyeOffsetX + hr * 0.55, ey - hr * 0.95, eyeOffsetX + hr * 1.3, ey, eyeOffsetX, ey + hr * 0.85);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      if (!isEyeClosed) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX - hr * 0.35, ey - hr * 0.3, hr * 0.18, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+    if (!isEyeClosed) {
+      drawHeart(-eyeSpreadY);
+      drawHeart(eyeSpreadY);
+    } else {
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(eyeOffsetX - eyeR, -eyeSpreadY);
+      ctx.lineTo(eyeOffsetX + eyeR, -eyeSpreadY);
+      ctx.moveTo(eyeOffsetX - eyeR, eyeSpreadY);
+      ctx.lineTo(eyeOffsetX + eyeR, eyeSpreadY);
+      ctx.stroke();
+    }
+  } else if (expression === 'STAR') {
+    // Yıldız gözler (heyecan)
+    const drawStar = (ey, sr) => {
+      ctx.fillStyle = '#FFDE59';
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let k = 0; k < 5; k++) {
+        const a1 = -Math.PI / 2 + (k * 2 * Math.PI) / 5;
+        const a2 = a1 + Math.PI / 5;
+        ctx.lineTo(eyeOffsetX + Math.cos(a1) * sr, ey + Math.sin(a1) * sr);
+        ctx.lineTo(eyeOffsetX + Math.cos(a2) * sr * 0.45, ey + Math.sin(a2) * sr * 0.45);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    };
+    if (!isEyeClosed) {
+      drawStar(-eyeSpreadY, eyeR * 1.3);
+      drawStar(eyeSpreadY, eyeR * 1.3);
+    } else {
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(eyeOffsetX - eyeR, -eyeSpreadY);
+      ctx.lineTo(eyeOffsetX + eyeR, -eyeSpreadY);
+      ctx.moveTo(eyeOffsetX - eyeR, eyeSpreadY);
+      ctx.lineTo(eyeOffsetX + eyeR, eyeSpreadY);
+      ctx.stroke();
+    }
+  } else if (expression === 'SLEEPY') {
+    // Yarım kapalı uykulu gözler + Z damlası
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(eyeOffsetX, -eyeSpreadY, eyeR, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(eyeOffsetX, eyeSpreadY, eyeR, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+    if (!isEyeClosed) {
+      ctx.fillStyle = '#1A1A1A';
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX + eyeR * 0.1, -eyeSpreadY + eyeR * 0.4, eyeR * 0.28, 0, Math.PI * 2);
+      ctx.arc(eyeOffsetX + eyeR * 0.1, eyeSpreadY + eyeR * 0.4, eyeR * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Uyku "Z" (yazı değil: çizgi yolu)
+    ctx.save();
+    ctx.strokeStyle = 'rgba(26, 26, 26, 0.75)';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    const zx = eyeOffsetX + r * 0.72;
+    const zy = -eyeSpreadY - r * 0.55;
+    const zw = Math.max(5, r * 0.26);
+    ctx.beginPath();
+    ctx.moveTo(zx - zw / 2, zy - zw / 2);
+    ctx.lineTo(zx + zw / 2, zy - zw / 2);
+    ctx.lineTo(zx - zw / 2, zy + zw / 2);
+    ctx.lineTo(zx + zw / 2, zy + zw / 2);
+    ctx.stroke();
+    ctx.restore();
+  } else if (expression === 'ZOMBIE') {
+    // Donuk zombi gözler (solmuş iris + çentikli kaş)
+    const drawZombieEye = (ey) => {
+      ctx.fillStyle = '#DDF5DD';
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      if (!isEyeClosed) {
+        ctx.fillStyle = '#2F6A4F';
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 1, ey, eyeR * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1A1A1A';
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 1.5, ey + 0.5, eyeR * 0.18, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(eyeOffsetX - eyeR + 1, ey);
+        ctx.lineTo(eyeOffsetX + eyeR - 1, ey);
+        ctx.stroke();
+      }
+    };
+    drawZombieEye(-eyeSpreadY);
+    drawZombieEye(eyeSpreadY);
+    // Yatay dikiş izleri
+    ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(eyeOffsetX - eyeR * 1.4, -eyeSpreadY - eyeR * 1.6);
+    ctx.lineTo(eyeOffsetX + eyeR * 0.6, -eyeSpreadY - eyeR * 1.6);
+    ctx.stroke();
+  } else if (expression === 'GRIN') {
+    // Geniş sırıtış: standart gözler + dişli ağız
+    const drawEye = (ey) => {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      if (!isEyeClosed) {
+        ctx.fillStyle = '#1A1A1A';
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 2.5, ey, eyeR * 0.48, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+    drawEye(-eyeSpreadY);
+    drawEye(eyeSpreadY);
+    // Sırıtış ağzı
+    ctx.fillStyle = '#1A1A1A';
+    ctx.beginPath();
+    ctx.moveTo(eyeOffsetX + r * 0.05, r * 0.32);
+    ctx.quadraticCurveTo(eyeOffsetX + r * 0.55, r * 0.72, eyeOffsetX + r * 0.9, r * 0.28);
+    ctx.quadraticCurveTo(eyeOffsetX + r * 0.5, r * 0.5, eyeOffsetX + r * 0.05, r * 0.32);
+    ctx.closePath();
+    ctx.fill();
+    // Dişler
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(eyeOffsetX + r * 0.28, r * 0.38, r * 0.16, r * 0.14);
+    ctx.fillRect(eyeOffsetX + r * 0.52, r * 0.4, r * 0.16, r * 0.14);
   } else {
     // FOCUS / Standart çift göz
     const drawEye = (ey) => {
@@ -439,6 +697,114 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {
     ctx.fill();
     ctx.stroke();
     ctx.restore();
+  } else if (accessory === 'BONE') {
+    // Korsan kafa kemiği: tepede klasik femur kemiği
+    ctx.save();
+    ctx.translate(-r * 0.15, -r * 1.05);
+    ctx.rotate(-0.35);
+    ctx.fillStyle = '#FAF7F2';
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 1.6;
+    const bw = r * 1.1;
+    const bh = r * 0.28;
+    ctx.beginPath();
+    ctx.rect(-bw / 2, -bh / 2, bw, bh);
+    ctx.fill();
+    ctx.stroke();
+    // Kemik uçları (ikişer top)
+    const boneEnd = (sx) => {
+      ctx.beginPath();
+      ctx.arc(sx * bw / 2, -bh * 0.45, bh * 0.55, 0, Math.PI * 2);
+      ctx.arc(sx * bw / 2, bh * 0.45, bh * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    };
+    boneEnd(-1);
+    boneEnd(1);
+    ctx.restore();
+  } else if (accessory === 'TOP_HAT') {
+    // Silindir şapka: geniş siper + yüksek külâh
+    ctx.save();
+    ctx.translate(-r * 0.15, 0);
+    // Siper
+    ctx.fillStyle = '#1A1A1A';
+    ctx.beginPath();
+    ctx.ellipse(0, -r * 0.75, r * 0.95, r * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#FAF7F2';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Külâh
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(-r * 0.55, -r * 1.85, r * 1.1, r * 1.1);
+    ctx.strokeStyle = '#FAF7F2';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-r * 0.55, -r * 1.85, r * 1.1, r * 1.1);
+    // Kırmızı şerit
+    ctx.fillStyle = '#D84727';
+    ctx.fillRect(-r * 0.55, -r * 0.95, r * 1.1, r * 0.22);
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(-r * 0.55, -r * 0.95, r * 1.1, r * 0.22);
+    ctx.restore();
+  } else if (accessory === 'ANTENNA') {
+    // Uzaylı anten: ince çubuk + top uç
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = Math.max(2, r * 0.12);
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.1, -r * 0.75);
+    ctx.quadraticCurveTo(r * 0.15, -r * 1.6, r * 0.55, -r * 1.7);
+    ctx.stroke();
+    ctx.fillStyle = '#00F0FF';
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(r * 0.6, -r * 1.75, Math.max(3.5, r * 0.22), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Parıltı
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.beginPath();
+    ctx.arc(r * 0.66, -r * 1.82, Math.max(1.2, r * 0.08), 0, Math.PI * 2);
+    ctx.fill();
+  } else if (accessory === 'HALO') {
+    // Altın hale: tepede elliptik halka
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = Math.max(3, r * 0.2);
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.1, -r * 1.35, r * 0.7, r * 0.24, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.1, -r * 1.35, r * 0.7, r * 0.24, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // İç parlaklık
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.1, -r * 1.35, r * 0.55, r * 0.15, 0, Math.PI * 1.05, Math.PI * 1.75);
+    ctx.stroke();
+  } else if (accessory === 'BEANIE') {
+    // Bere: yarım küre + kıvrım fileto + ponpon
+    ctx.fillStyle = '#1D5D8A';
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(-r * 0.15, 0, r * 0.95, -Math.PI * 0.62, Math.PI * 0.62);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Fileto kıvrımı
+    ctx.fillStyle = '#FAF7F2';
+    ctx.fillRect(-r * 0.1, -r * 0.85, r * 0.35, r * 1.7);
+    ctx.strokeRect(-r * 0.1, -r * 0.85, r * 0.35, r * 1.7);
+    // Ponpon
+    ctx.fillStyle = '#FAF7F2';
+    ctx.beginPath();
+    ctx.arc(r * 0.85, 0, Math.max(3.5, r * 0.24), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
   }
 
   ctx.restore(); // Başlık dönme sonu
