@@ -320,16 +320,16 @@ body {
 .pause-sheet-body {
   flex: 1;
   overflow-y: auto;
-  padding: 14px 16px calc(env(safe-area-inset-bottom, 0px) + 18px);
+  padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 14px);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .sheet-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .sheet-section-title {
@@ -342,6 +342,114 @@ body {
 
 .sheet-section-title.danger {
   color: #d84727;
+}
+
+.sheet-row-actions {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.sheet-row-actions .pause-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 6px;
+  font-size: 12px;
+}
+
+/* Quick Toggles 2x2 Grid */
+.pause-quick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.quick-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  background-color: #ffffff;
+  border: 2px solid #1a1a1a;
+  box-shadow: 2px 2px 0px #1a1a1a;
+  cursor: pointer;
+  touch-action: manipulation;
+  text-align: left;
+  transition: transform 0.05s ease, background-color 0.1s ease, box-shadow 0.05s ease;
+  min-height: 42px;
+  box-sizing: border-box;
+}
+
+.quick-toggle-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+}
+
+.quick-toggle-btn .toggle-icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.quick-toggle-btn .toggle-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.quick-toggle-btn .toggle-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11.5px;
+  font-weight: 900;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-toggle-btn .toggle-state-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  font-weight: 900;
+  padding: 1px 4px;
+  background-color: #e2ded4;
+  color: #55514a;
+  border: 1px solid #1a1a1a;
+  align-self: flex-start;
+  line-height: 1.1;
+  letter-spacing: 0.4px;
+}
+
+.quick-toggle-btn.on {
+  background-color: #f2fbf4;
+}
+
+.quick-toggle-btn.on .toggle-state-badge {
+  background-color: #25d366;
+  color: #ffffff;
+  border-color: #1a1a1a;
+}
+
+.pause-btn.danger-btn,
+.pause-btn.danger {
+  background-color: #fff2ef;
+  color: #d84727;
+  border-color: #d84727;
+  box-shadow: 2.5px 2.5px 0px #d84727;
+  font-weight: 900;
+}
+
+.pause-btn.danger-btn:active,
+.pause-btn.danger:active {
+  transform: translate(1.5px, 1.5px);
+  box-shadow: 1px 1px 0px #d84727;
+}
+
+.pause-btn.reset-btn {
+  background-color: #ffffff;
+  color: #1a1a1a;
 }
 
 .sheet-row-2 {
@@ -492,9 +600,8 @@ body {
   background: #1a1a1a;
   color: #ffffff;
   border: 1.5px solid #1a1a1a;
-  padding: 3px 6px;
-  min-width: 44px;
-  min-height: 44px;
+  padding: 3px 8px;
+  min-height: 28px;
   cursor: pointer;
   touch-action: manipulation;
   transition: transform 0.08s ease;

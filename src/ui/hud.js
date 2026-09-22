@@ -16,7 +16,7 @@ export function renderTopPill(ctx, { arena, text, urgent = false, alpha = 1, cus
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.font = `900 ${fontSize}px ${UI_FONTS.mono}`;
-  const measured = ctx.measureText(text).width;
+  const measured = ctx.measureText ? (ctx.measureText(text || '')?.width || 100) : 100;
 
   const minW = Math.round(136 * scale);
   const pillW = customW ? Math.round(customW * scale) : Math.max(minW, Math.round(measured + 28 * scale));
@@ -165,10 +165,10 @@ export function renderSpatialBadge(ctx, {
 
   ctx.save();
   ctx.font = `900 ${Math.round(12 * s)}px ${UI_FONTS.mono}`;
-  const textMetrics = ctx.measureText(fullText);
+  const textW = (ctx.measureText ? ctx.measureText(fullText)?.width : 0) || 60;
   const padX = Math.round(10 * s);
   const padY = Math.round(5 * s);
-  const boxW = Math.round(textMetrics.width + padX * 2);
+  const boxW = Math.round(textW + padX * 2);
   const boxH = Math.round(22 * s);
   const boxX = Math.round(x - boxW / 2);
   const boxY = Math.round(y - boxH / 2);
