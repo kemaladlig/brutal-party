@@ -9,6 +9,8 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCurveBotAI } from '../ai/curveAI.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { distToSegmentSquared } from '../core/physics2d.js';
+import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CURVE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -397,21 +399,11 @@ export class CurveGame extends BaseMiniGame {
   }
 
   spawnPickup() {
-    const { left, top, right, bottom } = this.arena;
-    const types = ['SCISSORS', 'GHOST', 'TURBO', 'INVERT', 'SHRINK', 'FREEZE', 'BOMB', 'THICK'];
-    const type = types[Math.floor(Math.random() * types.length)];
-    const size = 24;
-
-    const px = left + 45 + Math.random() * (right - left - 90);
-    const py = top + 45 + Math.random() * (bottom - top - 90);
-
-    this.pickups.push({
-      x: px,
-      y: py,
-      size,
-      type,
+    spawnPickup(this, {
+      types: ['SCISSORS', 'GHOST', 'TURBO', 'INVERT', 'SHRINK', 'FREEZE', 'BOMB', 'THICK'],
+      max: 3,
+      size: 24,
       life: 14.0,
-      phase: Math.random() * Math.PI * 2,
     });
   }
 
@@ -440,7 +432,7 @@ export class CurveGame extends BaseMiniGame {
     let removed = false;
     for (let i = this.segments.length - 1; i >= 0; i--) {
       const s = this.segments[i];
-      const distSq = this.distToSegmentSquared(x, y, s.x1, s.y1, s.x2, s.y2);
+      const distSq = distToSegmentSquared(x, y, s.x1, s.y1, s.x2, s.y2);
       if (distSq < radiusSq) {
         this.segments.splice(i, 1);
         removed = true;
@@ -491,20 +483,13 @@ export class CurveGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING') {
-      // Pickups timer
+      // Pickups timer & update
       this.pickupSpawnTimer -= dt;
       if (this.pickupSpawnTimer <= 0 && this.pickups.length < 3) {
         this.spawnPickup();
         this.pickupSpawnTimer = 6.5 + Math.random() * 3.5;
       }
-
-      // Update pickups
-      for (let i = this.pickups.length - 1; i >= 0; i--) {
-        this.pickups[i].life -= dt;
-        if (this.pickups[i].life <= 0) {
-          this.pickups.splice(i, 1);
-        }
-      }
+      tickPickupTimers(this, dt);
 
       // Update Players
       for (const player of this.players) {
@@ -584,14 +569,10 @@ export class CurveGame extends BaseMiniGame {
         }
 
         // Check Pickup Collision
-        for (let pIdx = this.pickups.length - 1; pIdx >= 0; pIdx--) {
-          const item = this.pickups[pIdx];
-          if (Math.hypot(player.x - item.x, player.y - item.y) < item.size * 0.8 + 6) {
-            this.applyPickup(player, item);
-            this.pickups.splice(pIdx, 1);
-            break;
-          }
-        }
+        collectPickups(this, player, {
+          radiusOf: (p) => (p.shrinkTimer > 0 ? 2.0 : 3.0) + 6,
+          onCollect: (g, p, item) => this.applyPickup(p, item),
+        });
 
         // Check Collision with Arena Walls & Trails
         if (this.checkCollision(player)) {
@@ -773,19 +754,13 @@ export class CurveGame extends BaseMiniGame {
 
       if (px < minX || px > maxX || py < minY || py > maxY) return false;
 
-      const distSq = game.distToSegmentSquared(px, py, seg.x1, seg.y1, seg.x2, seg.y2);
+      const distSq = distToSegmentSquared(px, py, seg.x1, seg.y1, seg.x2, seg.y2);
       return distSq <= hitR;
     });
   }
 
   distToSegmentSquared(px, py, vx, vy, wx, wy) {
-    const l2 = (wx - vx) * (wx - vx) + (wy - vy) * (wy - vy);
-    if (l2 === 0) return (px - vx) * (px - vx) + (py - vy) * (py - vy);
-    let t = ((px - vx) * (wx - vx) + (py - vy) * (wy - vy)) / l2;
-    t = Math.max(0, Math.min(1, t));
-    const projX = vx + t * (wx - vx);
-    const projY = vy + t * (wy - vy);
-    return (px - projX) * (px - projX) + (py - projY) * (py - projY);
+    return distToSegmentSquared(px, py, vx, vy, wx, wy);
   }
 
   eliminatePlayer(player) {

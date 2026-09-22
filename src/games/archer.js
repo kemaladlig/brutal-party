@@ -10,9 +10,12 @@ import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hu
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateArcherBotAI } from '../ai/archerAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
-import { drawObstacle, drawPickup } from '../core/arenaKit.js';
+import { drawGameAvatar } from '../core/avatarInGame.js';
+import { drawObstacle, drawPickup, buildLayout } from '../core/arenaKit.js';
 import { readSlotKeys } from '../core/inputMaps.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { pointBlocked, updateMovers, clampToArena, resolveAABB } from '../core/physics2d.js';
+import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 
 export const ARCHER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ARCHER_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -95,64 +98,14 @@ export class ArcherGame extends BaseMiniGame {
   }
 
   buildMap() {
-    this.obstacles = [];
     this.mapTime = 0;
-    const { cx, cy, size } = this.arena;
-
-    if (this.mapIndex === 1) {
-      // CROSS — artı biçiminde orta duvarlar (kuzey/güney/doğu/batı kollar)
-      const armL = size * 0.26;
-      const armT = size * 0.055;
-      this.obstacles.push(
-        { x: cx - armL - armT / 2, y: cy - armT / 2, w: armL * 0.85, h: armT },
-        { x: cx + armT / 2, y: cy - armT / 2, w: armL * 0.85, h: armT },
-        { x: cx - armT / 2, y: cy - armL - armT / 2, w: armT, h: armL * 0.85 },
-        { x: cx - armT / 2, y: cy + armT / 2, w: armT, h: armL * 0.85 },
-        { x: cx - armT * 1.4, y: cy - armT * 1.4, w: armT * 2.8, h: armT * 2.8 }
-      );
-      return;
-    }
-
-    if (this.mapIndex === 2) {
-      // SCATTER + MOVERS — dağınık bloklar + 2 hareketli duvar
-      const bw = size * 0.13;
-      this.obstacles.push(
-        { x: cx - size * 0.30, y: cy - size * 0.05, w: bw, h: bw * 0.7 },
-        { x: cx + size * 0.18, y: cy - size * 0.05, w: bw, h: bw * 0.7 },
-        { x: cx - size * 0.05, y: cy - size * 0.30, w: bw * 0.7, h: bw },
-        { x: cx - size * 0.05, y: cy + size * 0.20, w: bw * 0.7, h: bw },
-        { x: cx - size * 0.34, y: cy - size * 0.34, w: bw * 0.8, h: bw * 0.8 },
-        { x: cx + size * 0.28, y: cy + size * 0.28, w: bw * 0.8, h: bw * 0.8 }
-      );
-      // Hareketli duvarlar (sinek kaydırmalı — base + axis + amp)
-      const mw = size * 0.05;
-      this.obstacles.push(
-        { x: cx - size * 0.22, y: cy + size * 0.40, w: size * 0.16, h: mw, mover: { baseX: cx - size * 0.22, baseY: cy + size * 0.40, axis: 'x', amp: size * 0.16, speed: 0.9, phase: 0 } },
-        { x: cx + size * 0.40, y: cy - size * 0.22, w: mw, h: size * 0.16, mover: { baseX: cx + size * 0.40, baseY: cy - size * 0.22, axis: 'y', amp: size * 0.16, speed: 1.2, phase: Math.PI / 2 } }
-      );
-      return;
-    }
-
-    // PILLARS (varsayılan) — 4 köşe sütun + merkez alçak siper
-    const bw = size * 0.16;
-    this.obstacles.push(
-      { x: cx - bw * 1.4 - bw / 2, y: cy - bw - bw / 2, w: bw, h: bw },
-      { x: cx + bw * 1.4 - bw / 2, y: cy - bw - bw / 2, w: bw, h: bw },
-      { x: cx - bw * 1.4 - bw / 2, y: cy + bw - bw / 2, w: bw, h: bw },
-      { x: cx + bw * 1.4 - bw / 2, y: cy + bw - bw / 2, w: bw, h: bw },
-      { x: cx - bw * 0.35, y: cy - bw * 0.35, w: bw * 0.7, h: bw * 0.7 }
-    );
+    const presetNames = ['pillars', 'cross', 'scatter'];
+    const name = presetNames[this.mapIndex] || 'pillars';
+    this.obstacles = buildLayout(name, this.arena);
   }
 
   updateMovers(dt) {
-    this.mapTime += dt;
-    for (const obs of this.obstacles) {
-      if (!obs.mover) continue;
-      const m = obs.mover;
-      const off = Math.sin(this.mapTime * m.speed + m.phase) * m.amp;
-      if (m.axis === 'x') obs.x = m.baseX + off;
-      else obs.y = m.baseY + off;
-    }
+    updateMovers(this.obstacles, dt, 'sine');
   }
 
   initPlayers() {
@@ -326,21 +279,12 @@ export class ArcherGame extends BaseMiniGame {
   }
 
   spawnPickup() {
-    const type = ARCHER_PICKUP_TYPES[Math.floor(Math.random() * ARCHER_PICKUP_TYPES.length)];
-    const { left, top, size } = this.arena;
-    const margin = size * 0.15;
-    for (let tries = 0; tries < 8; tries++) {
-      const px = left + margin + Math.random() * (size - margin * 2);
-      const py = top + margin + Math.random() * (size - margin * 2);
-      if (this.pointBlocked(px, py)) continue;
-      let nearPlayer = false;
-      for (const p of this.players) {
-        if (p.isJoined && Math.hypot(p.x - px, p.y - py) < 70) { nearPlayer = true; break; }
-      }
-      if (nearPlayer) continue;
-      this.pickups.push({ x: px, y: py, type, radius: 15, animTime: 0 });
-      return;
-    }
+    spawnPickup(this, {
+      types: ARCHER_PICKUP_TYPES,
+      max: 2,
+      obstacles: this.obstacles,
+      pad: 0,
+    });
   }
 
   applyPickup(player, pk) {
@@ -476,10 +420,7 @@ export class ArcherGame extends BaseMiniGame {
   }
 
   pointBlocked(x, y) {
-    for (const obs of this.obstacles) {
-      if (x > obs.x && x < obs.x + obs.w && y > obs.y && y < obs.y + obs.h) return true;
-    }
-    return false;
+    return pointBlocked(x, y, this.obstacles, 0);
   }
 
   update(now) {
@@ -515,7 +456,7 @@ export class ArcherGame extends BaseMiniGame {
       this.spawnPickup();
       this.pickupTimer = 8.0 + Math.random() * 4.0;
     }
-    for (const pk of this.pickups) pk.animTime += dt;
+    tickPickupTimers(this, dt);
 
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
@@ -570,29 +511,8 @@ export class ArcherGame extends BaseMiniGame {
         player.y += player.steerY * moveSpd * dt;
       }
 
-      const r = ARCHER_RADIUS;
-      player.x = Math.max(this.arena.left + r, Math.min(this.arena.right - r, player.x));
-      player.y = Math.max(this.arena.top + r, Math.min(this.arena.bottom - r, player.y));
-
-      // Siper blokları
-      for (const obs of this.obstacles) {
-        const minX = obs.x - r;
-        const maxX = obs.x + obs.w + r;
-        const minY = obs.y - r;
-        const maxY = obs.y + obs.h + r;
-
-        if (player.x > minX && player.x < maxX && player.y > minY && player.y < maxY) {
-          const dists = [
-            Math.abs(player.x - minX), Math.abs(player.x - maxX),
-            Math.abs(player.y - minY), Math.abs(player.y - maxY),
-          ];
-          const minD = Math.min(...dists);
-          if (minD === dists[0]) player.x = minX;
-          else if (minD === dists[1]) player.x = maxX;
-          else if (minD === dists[2]) player.y = minY;
-          else player.y = maxY;
-        }
-      }
+      clampToArena(player, ARCHER_RADIUS, this.arena);
+      resolveAABB(player, this.obstacles, ARCHER_RADIUS);
     }
 
     // Oklar
@@ -652,13 +572,10 @@ export class ArcherGame extends BaseMiniGame {
     // Power-up toplama
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
-      for (let i = this.pickups.length - 1; i >= 0; i--) {
-        const pk = this.pickups[i];
-        if (Math.hypot(player.x - pk.x, player.y - pk.y) < ARCHER_RADIUS + pk.radius) {
-          this.applyPickup(player, pk);
-          this.pickups.splice(i, 1);
-        }
-      }
+      collectPickups(this, player, {
+        radiusOf: () => ARCHER_RADIUS,
+        onCollect: (g, p, pk) => this.applyPickup(p, pk),
+      });
     }
 
     // Parçacıklar
@@ -825,14 +742,10 @@ export class ArcherGame extends BaseMiniGame {
         ctx.restore();
       }
 
-      drawBrutalAvatar(ctx, 0, 0, ARCHER_RADIUS, {
+      drawGameAvatar(ctx, 0, 0, ARCHER_RADIUS, player, {
         color: player.stun > 0 ? '#9C988F' : player.color,
-        slotIndex: player.index,
-        facingAngle: 0, // already translated and rotated to player.angle
-        label: `P${player.index + 1}`,
+        facingAngle: 0,
         expression: player.charging ? 'angry' : 'normal',
-        accessory: 'headband',
-        showPointer: true,
         borderColor: '#1A1A1A',
         borderWidth: 2.5,
       });

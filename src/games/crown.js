@@ -22,7 +22,11 @@ import { t } from '../i18n.js';
 import { renderTopPill, renderCornerScores, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
-import { drawPickup } from '../core/arenaKit.js';
+import { drawPickup, buildLayout } from '../core/arenaKit.js';
+import { clampToArena, resolveAABB, pointBlocked } from '../core/physics2d.js';
+import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
+import { createPlayer } from '../core/playerEntity.js';
+import { drawGameAvatar } from '../core/avatarInGame.js';
 import { updateCrownBotAI } from '../ai/crownAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
@@ -239,12 +243,7 @@ export class CrownGame extends BaseMiniGame {
       const offX = Math.round(width * 0.28);
       const offY = Math.round(height * 0.24);
 
-      this.pillars = [
-        { x: cx - offX - pW / 2, y: cy - offY - pH / 2, w: pW, h: pH }, // Top-Left
-        { x: cx + offX - pW / 2, y: cy - offY - pH / 2, w: pW, h: pH }, // Top-Right
-        { x: cx - offX - pW / 2, y: cy + offY - pH / 2, w: pW, h: pH }, // Bottom-Left
-        { x: cx + offX - pW / 2, y: cy + offY - pH / 2, w: pW, h: pH }, // Bottom-Right
-      ];
+      this.pillars = buildLayout('pillars', this.arena);
 
       // 2 Moving Patrol Bumpers sliding horizontally with visible tracks
       this.movingHazards = [
@@ -459,21 +458,14 @@ export class CrownGame extends BaseMiniGame {
 
     this.players = spawns.map((s, i) => {
       const existing = this.players[i];
-      const custom = getSlotCustomization(i);
-      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
-      return {
-        index: i,
-        x: s.x,
-        y: s.y,
-        vx: 0,
-        vy: 0,
+      return createPlayer(i, s, {
+        existingName: existing?.name,
+        defaultNames: CROWN_NAMES,
+        defaultColors: CROWN_COLORS,
         radius: r,
-        color: isBot ? '#8E8E93' : custom.color,
-        name: existing?.name || CROWN_NAMES[i],
+        speed: 250,
         isJoined: this.isSlotJoined(i),
-        isAlive: true,
         slotType: this.slotTypes[i],
-        facingAngle: 0,
         hasCrown: false,
         crownHoldTime: 0,
         tackleCooldown: 0,
@@ -487,7 +479,7 @@ export class CrownGame extends BaseMiniGame {
         slipAngle: 0,
         inputX: 0,
         inputY: 0,
-      };
+      });
     });
 
     if (this.state === 'LOBBY' || this.crown.carrierIndex === null) {
@@ -692,19 +684,11 @@ export class CrownGame extends BaseMiniGame {
 
   // Rastgele pickup (bomba moduyla aynı: TURBO / TELEPORT / SLIP, 8-12 sn'de bir, max 2)
   spawnRandomPickup() {
-    const { left, top, width, height } = this.arena;
-    const types = ['TURBO', 'TELEPORT', 'SLIP'];
-    const type = types[Math.floor(Math.random() * types.length)];
-    const px = left + width * 0.15 + Math.random() * (width * 0.7);
-    const py = top + height * 0.15 + Math.random() * (height * 0.7);
-
-    for (const pil of this.pillars) {
-      if (px >= pil.x - 20 && px <= pil.x + pil.w + 20 && py >= pil.y - 20 && py <= pil.y + pil.h + 20) {
-        return;
-      }
-    }
-
-    this.pickups.push({ x: px, y: py, type, radius: 15, animTime: 0 });
+    spawnPickup(this, {
+      types: ['TURBO', 'TELEPORT', 'SLIP'],
+      max: 2,
+      obstacles: this.pillars,
+    });
   }
 
   update(now) {
@@ -1844,14 +1828,10 @@ export class CrownGame extends BaseMiniGame {
     else if (p.isTackling) currentExp = 'angry';
     else if (p.hasCrown) currentExp = 'excited';
 
-    drawBrutalAvatar(ctx, x, y, r, {
-      color: color,
-      slotIndex: p.index,
+      drawGameAvatar(ctx, x, y, r, p, {
       facingAngle: facingAngle,
-      label: `P${p.index + 1}`,
       expression: currentExp,
-      accessory: p.hasCrown ? 'crown' : undefined,
-      showPointer: true,
+        gameAccessory: p.hasCrown ? 'crown' : undefined,
       borderColor: p.isTackling ? '#FFFFFF' : '#1A1A1A',
       borderWidth: p.isTackling ? 4.5 : 3,
     });

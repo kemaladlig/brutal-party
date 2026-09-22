@@ -51,10 +51,18 @@ src/core/
                             Faz 2c (Eylül 2026): 12 motor lobi kartı renderStandardLobby'ye
                             geçti (archer/bomb/clone/collapse/crown/curve/heist/laser/ninja/
                             snake/tanks/zone); only PONG hand-rolled kaldı (rotate kart + bölge)
-  arenaKit.js               Ortak arena görsel kiti: drawObstacle (neo-brutalist blok) +
-                            PICKUP_META/drawPickup (power-up rozetleri, tek kayıt) —
-                            ARCHER/NINJA engel + BOMB/CROWN pickup çizimleri buradan;
-                            KALAN İŞ: tanks/laser/snake/curve/clone/collapse engel+pickup taşıması
+  physics2d.js              Ortak 2D fizik & çarpışma yardımcıları: clampToArena (arena sınır kısıtlama),
+                            resolveAABB (çember-AABB engel kayma çarpışması), pointBlocked (engel nokta testi),
+                            updateMovers (hareketli engel salınımı), distToSegmentSquared (çizgi mesafesi) —
+                            bomb, heist, archer, ninja, clone, laser, curve, snake entegre (Faz 3 refactor, Eylül 2026)
+  pickupSystem.js           Ortak taktiksel power-up yönetimi: EFFECTS (etki kayıt defteri), spawnPickup,
+                            collectPickups, tickPickupTimers — bomb, archer, laser, curve entegre (Faz 4 refactor, Eylül 2026)
+  arenaKit.js               Ortak arena görsel kiti: buildLayout (düzen builder) + drawObstacle (neo-brutalist blok) +
+                            PICKUP_META/drawPickup (power-up rozetleri, tek kayıt) — (Faz 5 refactor, Eylül 2026)
+  playerEntity.js           Ortak oyuncu varlığı yönetimi: createPlayer (varlık üretimi), tickEffectTimers, advancePlayer —
+                            bomb, heist entegre (Faz 6 refactor, Eylül 2026)
+  avatarInGame.js           Ortak oyun içi avatar çizimi: drawGameAvatar & normalizeExpression —
+                            archer, ninja, bomb, heist entegre (Faz 7 refactor, Eylül 2026)
 
 src/ui/
   canvasUI.js               Tüm motorlar için ortak Canvas UI bileşenleri (renderLobbySeatCard,

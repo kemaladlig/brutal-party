@@ -26,7 +26,10 @@ import { pulse } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateHeistBotAI } from '../ai/heistAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { drawGameAvatar } from '../core/avatarInGame.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
+import { clampToArena, resolveAABB } from '../core/physics2d.js';
+import { createPlayer } from '../core/playerEntity.js';
 
 export const HEIST_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const HEIST_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -202,36 +205,25 @@ export class HeistGame extends BaseMiniGame {
 
     this.players = spawns.map((s, i) => {
       const existing = this.players[i];
-      const custom = getSlotCustomization(i);
-      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
-      return {
-        index: i,
-        // Raunt başı TV isimlerini silme (CROWN deseni): kumanda ismi korunur
-        name: existing?.name || HEIST_NAMES[i],
-        color: isBot ? '#8E8E93' : custom.color,
-        x: s.x,
-        y: s.y,
-        vx: 0,
-        vy: 0,
+      return createPlayer(i, s, {
+        existingName: existing?.name,
+        defaultNames: HEIST_NAMES,
+        defaultColors: HEIST_COLORS,
         radius: r,
-        facingAngle: 0,
-        baseSpeed: 190,
-        isAlive: true,
+        speed: 190,
         isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i],
-        // Banked score in safe vault & carried loot in hands
+        baseSpeed: 190,
         vaultGold: 0,
         carriedGold: 0,
         carriedItems: 0,
         carriedWeight: 0,
-        // Combat & Tackle
         tackleCooldown: 0,
         tackleTimer: 0,
         isTackling: false,
         stumbleTimer: 0,
-        raidTimer: 0, // Timer standing on enemy vault
+        raidTimer: 0,
         raidTarget: -1,
-        // Anti-Stuck & Navigation
         lastX: s.x,
         lastY: s.y,
         stuckAccumulator: 0,
@@ -240,8 +232,8 @@ export class HeistGame extends BaseMiniGame {
         aiMoveX: 0,
         aiMoveY: 0,
         aiForce: 0,
-        aiState: 'COLLECT', // 'COLLECT', 'BANK', 'AMBUSH', 'RAID'
-      };
+        aiState: 'COLLECT',
+      });
     });
   }
 
@@ -486,54 +478,8 @@ export class HeistGame extends BaseMiniGame {
   // --- COLLISION RESOLUTION ---
 
   resolveCollisions(player) {
-    const { left, right, top, bottom } = this.arena;
-    const r = player.radius;
-
-    if (player.x - r < left) {
-      player.x = left + r;
-      player.vx = 0;
-    }
-    if (player.x + r > right) {
-      player.x = right - r;
-      player.vx = 0;
-    }
-    if (player.y - r < top) {
-      player.y = top + r;
-      player.vy = 0;
-    }
-    if (player.y + r > bottom) {
-      player.y = bottom - r;
-      player.vy = 0;
-    }
-
-    // Pillars collision
-    for (const pil of this.pillars) {
-      const closestX = Math.max(pil.x, Math.min(player.x, pil.x + pil.w));
-      const closestY = Math.max(pil.y, Math.min(player.y, pil.y + pil.h));
-
-      const dx = player.x - closestX;
-      const dy = player.y - closestY;
-      const distSq = dx * dx + dy * dy;
-
-      if (distSq < r * r) {
-        const dist = Math.sqrt(distSq);
-        if (dist > 0.001) {
-          const nx = dx / dist;
-          const ny = dy / dist;
-          const overlap = r - dist;
-          player.x += nx * overlap;
-          player.y += ny * overlap;
-
-          const dot = player.vx * nx + player.vy * ny;
-          if (dot < 0) {
-            player.vx -= dot * nx;
-            player.vy -= dot * ny;
-          }
-        } else {
-          player.x += r;
-        }
-      }
-    }
+    clampToArena(player, player.radius, this.arena, { zeroVelocity: true });
+    resolveAABB(player, this.pillars, player.radius);
   }
 
   handleRemoteInput(slotIndex, data) {
@@ -1523,13 +1469,10 @@ export class HeistGame extends BaseMiniGame {
       else if (player.carriedGold >= 5) currentExp = 'excited';
       else if (player.carriedGold > 0) currentExp = 'wink';
 
-      drawBrutalAvatar(ctx, 0, 0, player.radius, {
-        color: player.color,
-        slotIndex: player.index,
+      drawGameAvatar(ctx, 0, 0, player.radius, player, {
         facingAngle: player.facingAngle,
         label: pLabel,
         expression: currentExp,
-        showPointer: true,
         borderColor: player.isTackling ? '#FFDE59' : '#1C1C1A',
         borderWidth: player.isTackling ? 4.5 : 3,
       });

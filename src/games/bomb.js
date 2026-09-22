@@ -27,10 +27,14 @@ import { getUiScale } from '../ui/tokens.js';
 import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
-import { drawPickup } from '../core/arenaKit.js';
+import { drawPickup, buildLayout } from '../core/arenaKit.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { drawGameAvatar } from '../core/avatarInGame.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
+import { clampToArena, resolveAABB } from '../core/physics2d.js';
+import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
+import { createPlayer, tickEffectTimers, advancePlayer } from '../core/playerEntity.js';
 
 export const BOMB_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const BOMB_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -183,67 +187,9 @@ export class BombGame extends BaseMiniGame {
   }
 
   buildMapPillars() {
-    const { cx, cy, size } = this.arena;
-    if (size <= 0) return;
-
-    this.pillars = [];
-
-    if (this.selectedMapIndex === 0) {
-      // --- MAP 0: 4 SİPER KOLONU (Klasik 4 Köşe Kolonu) ---
-      const pSize = Math.round(size * 0.125);
-      const offset = Math.round(size * 0.22);
-      this.pillars = [
-        { x: cx - offset - pSize / 2, y: cy - offset - pSize / 2, w: pSize, h: pSize }, // Top-Left
-        { x: cx + offset - pSize / 2, y: cy - offset - pSize / 2, w: pSize, h: pSize }, // Top-Right
-        { x: cx - offset - pSize / 2, y: cy + offset - pSize / 2, w: pSize, h: pSize }, // Bottom-Left
-        { x: cx + offset - pSize / 2, y: cy + offset - pSize / 2, w: pSize, h: pSize }, // Bottom-Right
-      ];
-    } else if (this.selectedMapIndex === 1) {
-      // --- MAP 1: MERKEZ SIĞINAK (Bunker with 4 open doorways, widened) ---
-      const bSize = Math.round(size * 0.115);
-      const bOffset = Math.round(size * 0.165);
-      // 4 bunker corner posts + 2 edge barricades
-      this.pillars = [
-        { x: cx - bOffset - bSize / 2, y: cy - bOffset - bSize / 2, w: bSize, h: bSize },
-        { x: cx + bOffset - bSize / 2, y: cy - bOffset - bSize / 2, w: bSize, h: bSize },
-        { x: cx - bOffset - bSize / 2, y: cy + bOffset - bSize / 2, w: bSize, h: bSize },
-        { x: cx + bOffset - bSize / 2, y: cy + bOffset - bSize / 2, w: bSize, h: bSize },
-        // Outer flank covers
-        { x: cx - size * 0.38, y: cy - size * 0.05, w: size * 0.08, h: size * 0.09 },
-        { x: cx + size * 0.30, y: cy - size * 0.05, w: size * 0.08, h: size * 0.09 },
-      ];
-    } else if (this.selectedMapIndex === 2) {
-      // --- MAP 2: HAÇ & LABİRENT (Crossfire Corridors, widened) ---
-      const thick = Math.round(size * 0.07);
-      const len = Math.round(size * 0.2);
-      const gap = Math.round(size * 0.19);
-      this.pillars = [
-        // North & South vertical wings
-        { x: cx - thick / 2, y: cy - gap - len, w: thick, h: len },
-        { x: cx - thick / 2, y: cy + gap, w: thick, h: len },
-        // West & East horizontal wings
-        { x: cx - gap - len, y: cy - thick / 2, w: len, h: thick },
-        { x: cx + gap, y: cy - thick / 2, w: len, h: thick },
-      ];
-    } else if (this.selectedMapIndex === 3) {
-      // --- MAP 3: AVLU & DÖNER SİPER (Courtyard, widened corners) ---
-      const bW = Math.round(size * 0.24);
-      const bH = Math.round(size * 0.07);
-      this.pillars = [
-        { x: cx - bW / 2, y: cy - size * 0.23 - bH / 2, w: bW, h: bH },
-        { x: cx - bW / 2, y: cy + size * 0.23 - bH / 2, w: bW, h: bH },
-        { x: cx - size * 0.23 - bH / 2, y: cy - bW / 2, w: bH, h: bW },
-        { x: cx + size * 0.23 - bH / 2, y: cy - bW / 2, w: bH, h: bW },
-      ];
-    } else if (this.selectedMapIndex === 4) {
-      // --- MAP 4: İKİLİ BLOK BARİKAT (Split Blocks, widened lanes) ---
-      const blkW = Math.round(size * 0.14);
-      const blkH = Math.round(size * 0.32);
-      this.pillars = [
-        { x: cx - size * 0.22 - blkW / 2, y: cy - blkH / 2, w: blkW, h: blkH },
-        { x: cx + size * 0.22 - blkW / 2, y: cy - blkH / 2, w: blkW, h: blkH },
-      ];
-    }
+    const preset = MAP_PRESETS[this.selectedMapIndex];
+    const layoutName = preset ? preset.id : 'pillars';
+    this.pillars = buildLayout(layoutName, this.arena);
   }
 
   initPlayers() {
@@ -260,38 +206,15 @@ export class BombGame extends BaseMiniGame {
 
     this.players = spawns.map((s, i) => {
       const existing = this.players[i];
-      const custom = getSlotCustomization(i);
-      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
-      return {
-        index: i,
-        // Raunt başı TV isimlerini silme (CROWN deseni): kumanda ismi korunur,
-        // syncSlotsToEngine bir sonraki turda zaten yazar
-        name: existing?.name || BOMB_NAMES[i],
-        color: isBot ? '#8E8E93' : custom.color,
-        x: s.x,
-        y: s.y,
-        vx: 0,
-        vy: 0,
+      return createPlayer(i, s, {
+        existingName: existing?.name,
+        defaultNames: BOMB_NAMES,
+        defaultColors: BOMB_COLORS,
         radius: r,
-        facingAngle: 0,
         speed: 175,
-        isAlive: true,
         isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i],
-        turboTimer: 0,
-        slipTimer: 0,
-        slipAngle: 0,
-        invulnTimer: 0,
         stepCycle: 0,
-        // Dash / Hamle
-        dashCooldown: 0,
-        dashTimer: 0,
-        isDashing: false,
-        // Stumble Shock Delay & Escaper Immunity
-        stumbleTimer: 0,
-        immunityTimer: 0,
-        escapeBoostTimer: 0,
-        // Anti-Stuck & Navigation Watchdog
         lastX: s.x,
         lastY: s.y,
         stuckAccumulator: 0,
@@ -300,7 +223,7 @@ export class BombGame extends BaseMiniGame {
         aiMoveX: 0,
         aiMoveY: 0,
         aiForce: 0,
-      };
+      });
     });
   }
 
@@ -521,32 +444,10 @@ export class BombGame extends BaseMiniGame {
   }
 
   spawnPickup() {
-    const types = ['TURBO', 'TELEPORT', 'SLIP'];
-    const type = types[Math.floor(Math.random() * types.length)];
-
-    const { left, top, size } = this.arena;
-    const margin = size * 0.15;
-    const px = left + margin + Math.random() * (size - margin * 2);
-    const py = top + margin + Math.random() * (size - margin * 2);
-
-    // Make sure it doesn't spawn inside a pillar
-    for (const pil of this.pillars) {
-      if (
-        px >= pil.x - 20 &&
-        px <= pil.x + pil.w + 20 &&
-        py >= pil.y - 20 &&
-        py <= pil.y + pil.h + 20
-      ) {
-        return;
-      }
-    }
-
-    this.pickups.push({
-      x: px,
-      y: py,
-      type: type,
-      radius: 15,
-      animTime: 0,
+    spawnPickup(this, {
+      types: ['TURBO', 'TELEPORT', 'SLIP'],
+      max: 2,
+      obstacles: this.pillars,
     });
   }
 
@@ -618,57 +519,8 @@ export class BombGame extends BaseMiniGame {
   // --- COLLISION RESOLUTION ---
 
   resolveCollisions(player) {
-    const { left, right, top, bottom } = this.arena;
-    const r = player.radius;
-
-    // Arena outer walls
-    if (player.x - r < left) {
-      player.x = left + r;
-      player.vx = 0;
-    }
-    if (player.x + r > right) {
-      player.x = right - r;
-      player.vx = 0;
-    }
-    if (player.y - r < top) {
-      player.y = top + r;
-      player.vy = 0;
-    }
-    if (player.y + r > bottom) {
-      player.y = bottom - r;
-      player.vy = 0;
-    }
-
-    // Symmetrical Pillars (AABB vs Circle)
-    for (const pil of this.pillars) {
-      const closestX = Math.max(pil.x, Math.min(player.x, pil.x + pil.w));
-      const closestY = Math.max(pil.y, Math.min(player.y, pil.y + pil.h));
-
-      const dx = player.x - closestX;
-      const dy = player.y - closestY;
-      const distSq = dx * dx + dy * dy;
-
-      if (distSq < r * r) {
-        const dist = Math.sqrt(distSq);
-        if (dist > 0.001) {
-          const nx = dx / dist;
-          const ny = dy / dist;
-          const overlap = r - dist;
-          player.x += nx * overlap;
-          player.y += ny * overlap;
-
-          // Slide along pillar surface
-          const dot = player.vx * nx + player.vy * ny;
-          if (dot < 0) {
-            player.vx -= dot * nx;
-            player.vy -= dot * ny;
-          }
-        } else {
-          // Inside pillar center emergency ejection
-          player.x += r;
-        }
-      }
-    }
+    clampToArena(player, player.radius, this.arena, { zeroVelocity: true });
+    resolveAABB(player, this.pillars, player.radius);
   }
 
   update(now) {
@@ -744,17 +596,14 @@ export class BombGame extends BaseMiniGame {
       return;
     }
 
-    // Spawning Pickups
+    // Spawning Pickups & Timers
     this.pickupSpawnTimer -= dt;
     if (this.pickupSpawnTimer <= 0 && this.pickups.length < 2) {
       this.spawnPickup();
       this.pickupSpawnTimer = 8.0 + Math.random() * 4.0;
     }
 
-    // Pickups animation
-    for (const pickup of this.pickups) {
-      pickup.animTime += dt;
-    }
+    tickPickupTimers(this, dt);
 
     // Update Ink Puddles
     for (let i = this.inkPuddles.length - 1; i >= 0; i--) {
@@ -886,48 +735,7 @@ export class BombGame extends BaseMiniGame {
       }
 
       // Pickups interaction
-      for (let i = this.pickups.length - 1; i >= 0; i--) {
-        const item = this.pickups[i];
-        const distItem = Math.hypot(player.x - item.x, player.y - item.y);
-        if (distItem < player.radius + item.radius) {
-          playItemPickup();
-
-          if (item.type === 'TURBO') {
-            player.turboTimer = 3.5;
-          } else if (item.type === 'TELEPORT') {
-            const carrier = this.players[this.bombCarrierIndex];
-            const { left, right, top, bottom, size } = this.arena;
-            const pad = size * 0.16;
-            const corners = [
-              { x: left + pad, y: top + pad },
-              { x: right - pad, y: top + pad },
-              { x: left + pad, y: bottom - pad },
-              { x: right - pad, y: bottom - pad },
-            ];
-            let bestCorner = corners[0];
-            let maxDist = -1;
-            for (const c of corners) {
-              const d = Math.hypot(c.x - carrier.x, c.y - carrier.y);
-              if (d > maxDist) {
-                maxDist = d;
-                bestCorner = c;
-              }
-            }
-            player.x = bestCorner.x;
-            player.y = bestCorner.y;
-            playTeleport();
-          } else if (item.type === 'SLIP') {
-            this.inkPuddles.push({
-              x: player.x,
-              y: player.y,
-              radius: 22,
-              duration: 10.0,
-            });
-          }
-
-          this.pickups.splice(i, 1);
-        }
-      }
+      collectPickups(this, player);
     }
 
     // Carrier vs Opponents Collision & Bomb Transfer!
@@ -1273,13 +1081,10 @@ export class BombGame extends BaseMiniGame {
       else if (player.dashTimer > 0) currentExp = 'angry';
       else if (player.turboTimer > 0) currentExp = 'wink';
 
-      drawBrutalAvatar(ctx, 0, 0, player.radius, {
-        color: player.color,
-        slotIndex: player.index,
+      drawGameAvatar(ctx, 0, 0, player.radius, player, {
         facingAngle: player.facingAngle,
         label: pLabel,
         expression: currentExp,
-        showPointer: true,
         borderColor: player.dashTimer > 0 ? '#FFFFFF' : '#1C1C1A',
         borderWidth: player.dashTimer > 0 ? 4.5 : 3,
       });

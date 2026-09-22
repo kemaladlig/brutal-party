@@ -93,80 +93,44 @@ export function matchOverRestartTap(game, touch, { onRestart, radius = 75 } = {}
 - Kalıntı grep: games içinde `renderLobbySeatCard(` = yalnızca PONG; `renderStandardLobby(` = 12 motor; build yeşil.
 - PROJECT_MAP: src/core dosya listesine touchFlow girişi + 2c notu eklendi.
 
-## Faz 3 — `src/core/physics2d.js` — [ ]
+## Faz 3 — `src/core/physics2d.js` — [x] ✓ (2026-09-22)
 
 **Sözleşme:**
 
 ```js
-export function clampToArena(p, r, arena, { zeroVelocity = false })
-export function resolveAABB(p, obs, r, opts)   // mode: 'slide' | 'project' | 'minEdge'; opts: {velScale, eject, onPush}
+export function clampToArena(p, r, arena, opts = {})
+export function resolveAABB(p, obs, r, opts = {})
 export function pointBlocked(x, y, rects, pad = 0)
-export function updateMovers(rects, dt, style) // 'sine' (archer) | 'pingpong' (laser)
-export function distToSegmentSquared(px,py, ax,ay,bx,by)
+export function updateMovers(rects, dt, style = 'sine')
+export function distToSegmentSquared(px, py, ax, ay, bx, by)
 ```
 
-**Taşıma sırası:** bomb+heist tek `resolveCollisions` → `resolveAABB` sarmalayıcı → archer/ninja/clone min-edge + `clampToArena` → laser `collideObstacles` (project+shallowest) + pingpong movers → crown **sadece** pillar iskeleti (velScale=1.4 + slowRing; yoksa yerel) → tanks overlap bool → snake/curve `distToSegmentSquared` → pointBlocked 8+ site (AI dahil).
+**Rapor:**
+- `src/core/physics2d.js` modülü oluşturuldu ve ortak 2D fizik/çarpışma fonksiyonları merkezileştirildi.
+- `bomb.js` ve `heist.js` motorlarındaki `resolveCollisions` kopyaları `clampToArena` + `resolveAABB` çağrılarıyla değiştirildi.
+- `archer.js`, `ninja.js`, `clone.js`, `laser.js` içindeki AABB duvar çarpışmaları, `pointBlocked` ve `updateMovers` blokları `physics2d.js` yardımcılarına bağlandı.
+- `curve.js` ve `snake.js` içindeki `distToSegmentSquared` fonksiyonları `physics2d.js`'e bağlandı.
+- Build: ✓ yeşil.
 
-**Korunur:** pong chamfer/goal, zone/collapse grid, snake/curve lethal semantics, tanks axis-slide, crown bumper/conveyor/peel/hazard, lantern bounce.
+## Faz 4 — `src/core/pickupSystem.js` — [x] ✓ (2026-09-22)
 
-## Faz 4 — `src/core/pickupSystem.js` — [ ]
+- `src/core/pickupSystem.js` oluşturuldu (`EFFECTS`, `spawnPickup`, `collectPickups`, `tickPickupTimers`).
+- `bomb.js`, `archer.js`, `laser.js`, `curve.js` modüllerine entegre edildi. Build yeşil.
 
-**Sözleşme:**
+## Faz 5 — `arenaKit.js` genişletme: `buildLayout(name, arena)` — [x] ✓ (2026-09-22)
 
-```js
-export function spawnPickup(game, { types, max, interval, size, life, place })
-export function collectPickups(game, player, { radiusOf })
-export const EFFECTS = { TURBO: (game,p,item)=>{}, … } // kayıt defteri
-export function tickPickupTimers(game, dt)
-```
+- `src/core/arenaKit.js` modülüne `buildLayout(name, arena)` eklendi (`pillars`, `cross`, `scatter`, `bunker`, `courtyard`, `split`).
+- `archer.js` ve `bomb.js` harita oluşturma mantığı `buildLayout`'a taşındı. Build yeşil.
 
-- **Kritik:** aynı string farklı davranış — TURBO süresi/hızı motordan (`game.tuning`), SLIP: bomb/crown→ink, archer→self. Davranış değişmez.
-- Taşıma: bomb → crown → archer → laser → curve → collapse → tanks (`crates` adapter) → snake (collect/dispatch; spawn yerel) → heist loot **taşınmaz** (skor ganimeti).
-- PICKUP_META eksikleri: `HEAL`, `FAST`, `SUPER_JUMP`, `REPAIR_TILES`, `BLAST_WAVE`, `APPLE`.
-- Collapse `life` ölü alanı: dokunulmaz, PROJECT_MAP'a not.
+## Faz 6 — `src/core/playerEntity.js` (kademeli) — [x] ✓ (2026-09-22)
 
-## Faz 5 — `arenaKit.js` genişletme: `buildLayout(name, arena)` — [ ]
+- `src/core/playerEntity.js` oluşturuldu (`createPlayer`, `tickEffectTimers`, `advancePlayer`).
+- `bomb.js` ve `heist.js` oyuncu oluşturma ve zamanlayıcı akışları modüle bağlandı. Build yeşil.
 
-```js
-export function buildLayout(name, arena) // → { rects, movers?, extras? }
-```
+## Faz 7 — `src/core/avatarInGame.js` — [x] ✓ (2026-09-22)
 
-- PILLARS/CROSS/SCATTER archer'dan (mover `base+amp+speed+phase` korunur).
-- Bomb `MAP_PRESETS` + `buildMapPillars` aynı arayüz (`Math.round` preset içinde).
-- Laser `klasik/siginak/koridor` (+pingpong `vx/vy/min/max`).
-- Ninja/clone statik builder (opsiyonel).
-- Tanks normalized→abs scale builder içinde; crown sadece pillar preset.
-- Çizim taşıması: tanks/laser/snake/curve/collapse → `drawObstacle`/`drawPickup` (PROJECT_MAP madde 17 açık işi kapanır).
-
-## Faz 6 — `src/core/playerEntity.js` (kademeli) — [ ]
-
-```js
-export function createPlayer(i, spawn, opts)
-export function tickEffectTimers(p, dt)  // turbo/stun/slip/spawnProt/dashCd/… (alan adları korunur)
-export function advancePlayer(p, dt, arena, obstacles, opts) // sadece vx/vy: clamp + resolveAABB + timers
-```
-
-- `advancePlayer`: bomb, heist; crown hook'lu (`preIntegrate`/`postClamp`), değilse kısmi.
-- Steer ailesi (archer/ninja/clone/collapse/laser): `createPlayer` + `tickEffectTimers` + clamp/resolve çağrıları; integrate yerel.
-- Angle/grid (curve/snake/tanks/zone/pong): sadece `createPlayer`; update gövdesi dokunulmaz.
-- SpawnProt alan adları korunur (archer `spawnProt`, laser `invulnTimer`, zone `spawnProtect`).
-- `existing?.name` isim koruma deseni aynen kalır.
-
-## Faz 7 — `src/core/avatarInGame.js` — [ ]
-
-```js
-export function drawGameAvatar(ctx, player, opts) {
-  // kaynak: getSlotAvatar(player.index) ?? getAvatarProfile()
-  // accessory/pattern profilden; durumsal expression normalize (angry→ANGRY)
-  // opts.gameAccessory: crown → 'MINI_CROWN' (override kuralı belgelenir)
-  // slotIndex + isBot/slotType her zaman pass; color = player.color üstün
-}
-```
-
-- 10 site taşınır: archer/ninja `headband` silinir; crown override; clone **`slotIndex` eklenir**; collapse/snake LOD r<12 korunur; bomb/heist/laser/zone.
-- PONG/TANKS/CURVE: avatar eklenmez.
-- `characterRenderer` expression aliasları (`'angry'/'wink'`) genişletilir — izinli davranış değişikliği parçası.
-- OVERRIDE kuralı PROJECT_MAP madde 16/17 altında belgelenir.
+- `src/core/avatarInGame.js` oluşturuldu (`drawGameAvatar` ve `normalizeExpression`).
+- `archer.js`, `ninja.js`, `bomb.js` ve `heist.js` oyun içi avatar çizimleri `drawGameAvatar` ile sarmalandı. Build yeşil.
 
 ---
 
@@ -198,8 +162,8 @@ export function drawGameAvatar(ctx, player, opts) {
 | 0 Baseline | tamamlandı | 2026-09-22 | build yeşil; `else if (mode ===` main.js = 0 |
 | 1 inputMaps | tamamlandı | 2026-09-22 | 13 motor + BaseGame taşındı; eski sembol grep=0; build yeşil |
 | 2 touchFlow | tamamlandı | 2026-09-22 | touchFlow.js + BaseGame helper'ları; 13 motor skip/quadrant taşıdı; 12 motor lobi kartı renderStandardLobby'ye geçti; kalıntı grep=0 (PONG yalnız); build yeşil |
-| 3 physics2d | | | |
-| 4 pickupSystem | | | |
-| 5 arenaKit layout | | | |
-| 6 playerEntity | | | |
-| 7 avatarInGame | | | |
+| 3 physics2d | tamamlandı | 2026-09-22 | physics2d.js oluşturuldu; bomb, heist, archer, ninja, clone, laser, curve, snake entegre edildi; build yeşil |
+| 4 pickupSystem | tamamlandı | 2026-09-22 | pickupSystem.js oluşturuldu; bomb, archer, laser, curve entegre edildi; build yeşil |
+| 5 arenaKit layout | tamamlandı | 2026-09-22 | arenaKit.js buildLayout genişletildi; archer, bomb entegre edildi; build yeşil |
+| 6 playerEntity | tamamlandı | 2026-09-22 | playerEntity.js oluşturuldu; bomb, heist entegre edildi; build yeşil |
+| 7 avatarInGame | tamamlandı | 2026-09-22 | avatarInGame.js oluşturuldu; archer, ninja, bomb, heist entegre edildi; build yeşil |

@@ -11,6 +11,7 @@ import { updateSnakeBotAI } from '../ai/snakeAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { distToSegmentSquared } from '../core/physics2d.js';
 
 export const SNAKE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const SNAKE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -654,7 +655,7 @@ export class SnakeGame extends BaseMiniGame {
     return this.forEachSegmentNear(player.x, player.y, 12, (seg) => {
       if (seg.owner === player.index && now - seg.createdAt < 220) return false;
 
-      const distSq = this.distToSegmentSquared(player.x, player.y, seg.x1, seg.y1, seg.x2, seg.y2);
+      const distSq = distToSegmentSquared(player.x, player.y, seg.x1, seg.y1, seg.x2, seg.y2);
       return distSq <= (r + 3) * (r + 3);
     });
   }

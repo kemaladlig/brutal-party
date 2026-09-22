@@ -9,8 +9,10 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawObstacle } from '../core/arenaKit.js';
 import { updateNinjaBotAI } from '../ai/ninjaAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { drawGameAvatar } from '../core/avatarInGame.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { clampToArena, resolveAABB } from '../core/physics2d.js';
 
 export const NINJA_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const NINJA_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -583,30 +585,12 @@ export class NinjaGame extends BaseMiniGame {
         player.y += Math.sin(player.angle) * spd * dt;
       }
 
-      const r = NINJA_RADIUS;
-      player.x = Math.max(this.arena.left + r, Math.min(this.arena.right - r, player.x));
-      player.y = Math.max(this.arena.top + r, Math.min(this.arena.bottom - r, player.y));
-
-      // Siper kutuları
-      for (const obs of this.obstacles) {
-        const minX = obs.x - r;
-        const maxX = obs.x + obs.w + r;
-        const minY = obs.y - r;
-        const maxY = obs.y + obs.h + r;
-
-        if (player.x > minX && player.x < maxX && player.y > minY && player.y < maxY) {
-          const dists = [
-            Math.abs(player.x - minX), Math.abs(player.x - maxX),
-            Math.abs(player.y - minY), Math.abs(player.y - maxY),
-          ];
-          const minD = Math.min(...dists);
-          if (minD === dists[0]) player.x = minX;
-          else if (minD === dists[1]) player.x = maxX;
-          else if (minD === dists[2]) player.y = minY;
-          else player.y = maxY;
-
-          if (player.strikeTimer > 0) player.strikeTimer = 0;
-        }
+      clampToArena(player, NINJA_RADIUS, this.arena);
+      const prevX = player.x;
+      const prevY = player.y;
+      resolveAABB(player, this.obstacles, NINJA_RADIUS);
+      if (player.strikeTimer > 0 && (player.x !== prevX || player.y !== prevY)) {
+        player.strikeTimer = 0;
       }
     }
 
@@ -859,14 +843,9 @@ export class NinjaGame extends BaseMiniGame {
         ctx.restore();
       }
 
-      drawBrutalAvatar(ctx, 0, 0, NINJA_RADIUS, {
-        color: player.color,
-        slotIndex: player.index,
-        facingAngle: 0, // already translated and rotated to player.angle
-        label: `P${player.index + 1}`,
+      drawGameAvatar(ctx, 0, 0, NINJA_RADIUS, player, {
+        facingAngle: 0,
         expression: player.strikeTimer > 0 ? 'angry' : 'normal',
-        accessory: 'headband',
-        showPointer: true,
         borderColor: '#1A1A1A',
         borderWidth: 2.5,
       });

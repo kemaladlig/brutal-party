@@ -11,6 +11,7 @@ import { updateCloneBotAI } from '../ai/cloneAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { readSlotKeys } from '../core/inputMaps.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { clampToArena, resolveAABB } from '../core/physics2d.js';
 
 export const CLONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CLONE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -154,29 +155,8 @@ export class CloneGame extends BaseMiniGame {
   }
 
   resolveWallCollision(entity, radius = CLONE_RADIUS) {
-    const { left, right, top, bottom } = this.arena;
-    entity.x = Math.max(left + radius, Math.min(right - radius, entity.x));
-    entity.y = Math.max(top + radius, Math.min(bottom - radius, entity.y));
-
-    for (const w of this.walls) {
-      const minX = w.x - radius;
-      const maxX = w.x + w.w + radius;
-      const minY = w.y - radius;
-      const maxY = w.y + w.h + radius;
-
-      if (entity.x > minX && entity.x < maxX && entity.y > minY && entity.y < maxY) {
-        const dLeft = Math.abs(entity.x - minX);
-        const dRight = Math.abs(entity.x - maxX);
-        const dTop = Math.abs(entity.y - minY);
-        const dBottom = Math.abs(entity.y - maxY);
-        const minD = Math.min(dLeft, dRight, dTop, dBottom);
-
-        if (minD === dLeft) entity.x = minX;
-        else if (minD === dRight) entity.x = maxX;
-        else if (minD === dTop) entity.y = minY;
-        else entity.y = maxY;
-      }
-    }
+    clampToArena(entity, radius, this.arena);
+    resolveAABB(entity, this.walls, radius);
   }
 
   initPlayers() {

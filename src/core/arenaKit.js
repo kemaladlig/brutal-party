@@ -1,6 +1,5 @@
-// Ortak arena görsel kiti — engeller ve power-up rozetleri tek yerden.
-// Motorlar kendi buildMap()/spawn mantığını tutar; sadece ÇİZİM buradan gelir.
-// Yeni pickup tipi ekle: PICKUP_META'ya 1 satır yaz, motorlar otomatik görür.
+// Ortak arena görsel kiti — engeller, layout oluşturma ve power-up rozetleri tek yerden.
+// Motorlar buildLayout(name, arena) çağırabilir; ÇİZİM (drawObstacle, drawPickup) buradan gelir.
 
 export const PICKUP_META = {
   TURBO:    { label: 'TRB', glyph: '⚡', color: '#FFDE59', ink: '#1C1C1A' },
@@ -27,6 +26,89 @@ const OBSTACLE_STYLES = {
   dark:  { fill: '#1A1A1A', bevel: 'rgba(255,255,255,0.18)', inner: '#3A3A3A' },
   crate: { fill: '#8A6A3B', bevel: 'rgba(255,255,255,0.28)', inner: '#5C4526' },
 };
+
+/**
+ * Builds preset map obstacle layouts for games.
+ * @param {string} name - Layout preset name ('pillars' | 'cross' | 'scatter' | 'bunker' | 'courtyard' | 'split')
+ * @param {Object} arena - Arena geometry object { cx, cy, size }
+ * @returns {Array<Object>} List of obstacle rect objects { x, y, w, h, mover? }
+ */
+export function buildLayout(name, arena) {
+  const { cx, cy, size } = arena;
+  if (!size || size <= 0) return [];
+
+  const layoutName = (name || 'pillars').toLowerCase();
+
+  if (layoutName === 'cross') {
+    const armL = size * 0.26;
+    const armT = size * 0.055;
+    return [
+      { x: cx - armL - armT / 2, y: cy - armT / 2, w: armL * 0.85, h: armT },
+      { x: cx + armT / 2, y: cy - armT / 2, w: armL * 0.85, h: armT },
+      { x: cx - armT / 2, y: cy - armL - armT / 2, w: armT, h: armL * 0.85 },
+      { x: cx - armT / 2, y: cy + armT / 2, w: armT, h: armL * 0.85 },
+      { x: cx - armT * 1.4, y: cy - armT * 1.4, w: armT * 2.8, h: armT * 2.8 },
+    ];
+  }
+
+  if (layoutName === 'scatter') {
+    const bw = size * 0.13;
+    const mw = size * 0.05;
+    return [
+      { x: cx - size * 0.30, y: cy - size * 0.05, w: bw, h: bw * 0.7 },
+      { x: cx + size * 0.18, y: cy - size * 0.05, w: bw, h: bw * 0.7 },
+      { x: cx - size * 0.05, y: cy - size * 0.30, w: bw * 0.7, h: bw },
+      { x: cx - size * 0.05, y: cy + size * 0.20, w: bw * 0.7, h: bw },
+      { x: cx - size * 0.34, y: cy - size * 0.34, w: bw * 0.8, h: bw * 0.8 },
+      { x: cx + size * 0.28, y: cy + size * 0.28, w: bw * 0.8, h: bw * 0.8 },
+      { x: cx - size * 0.22, y: cy + size * 0.40, w: size * 0.16, h: mw, mover: { baseX: cx - size * 0.22, baseY: cy + size * 0.40, axis: 'x', amp: size * 0.16, speed: 0.9, phase: 0 } },
+      { x: cx + size * 0.40, y: cy - size * 0.22, w: mw, h: size * 0.16, mover: { baseX: cx + size * 0.40, baseY: cy - size * 0.22, axis: 'y', amp: size * 0.16, speed: 1.2, phase: Math.PI / 2 } },
+    ];
+  }
+
+  if (layoutName === 'bunker') {
+    const bSize = Math.round(size * 0.115);
+    const bOffset = Math.round(size * 0.165);
+    return [
+      { x: cx - bOffset - bSize / 2, y: cy - bOffset - bSize / 2, w: bSize, h: bSize },
+      { x: cx + bOffset - bSize / 2, y: cy - bOffset - bSize / 2, w: bSize, h: bSize },
+      { x: cx - bOffset - bSize / 2, y: cy + bOffset - bSize / 2, w: bSize, h: bSize },
+      { x: cx + bOffset - bSize / 2, y: cy + bOffset - bSize / 2, w: bSize, h: bSize },
+      { x: cx - size * 0.38, y: cy - size * 0.05, w: size * 0.08, h: size * 0.09 },
+      { x: cx + size * 0.30, y: cy - size * 0.05, w: size * 0.08, h: size * 0.09 },
+    ];
+  }
+
+  if (layoutName === 'courtyard') {
+    const bW = Math.round(size * 0.24);
+    const bH = Math.round(size * 0.07);
+    return [
+      { x: cx - bW / 2, y: cy - size * 0.23 - bH / 2, w: bW, h: bH },
+      { x: cx - bW / 2, y: cy + size * 0.23 - bH / 2, w: bW, h: bH },
+      { x: cx - size * 0.23 - bH / 2, y: cy - bW / 2, w: bH, h: bW },
+      { x: cx + size * 0.23 - bH / 2, y: cy - bW / 2, w: bH, h: bW },
+    ];
+  }
+
+  if (layoutName === 'split') {
+    const blkW = Math.round(size * 0.14);
+    const blkH = Math.round(size * 0.32);
+    return [
+      { x: cx - size * 0.22 - blkW / 2, y: cy - blkH / 2, w: blkW, h: blkH },
+      { x: cx + size * 0.22 - blkW / 2, y: cy - blkH / 2, w: blkW, h: blkH },
+    ];
+  }
+
+  // 'pillars' (default)
+  const bw = Math.round(size * 0.16);
+  return [
+    { x: cx - bw * 1.4 - bw / 2, y: cy - bw - bw / 2, w: bw, h: bw },
+    { x: cx + bw * 1.4 - bw / 2, y: cy - bw - bw / 2, w: bw, h: bw },
+    { x: cx - bw * 1.4 - bw / 2, y: cy + bw - bw / 2, w: bw, h: bw },
+    { x: cx + bw * 1.4 - bw / 2, y: cy + bw - bw / 2, w: bw, h: bw },
+    { x: cx - bw * 0.35, y: cy - bw * 0.35, w: bw * 0.7, h: bw * 0.7 },
+  ];
+}
 
 // Neo-brutalist engel bloğu: sert gölge, düz dolgu, kalın kenar, iç bevel, perçinler.
 export function drawObstacle(ctx, obs, opts = {}) {

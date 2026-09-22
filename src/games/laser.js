@@ -11,6 +11,8 @@ import { updateLaserBotAI } from '../ai/laserAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { clampToArena, resolveAABB, updateMovers } from '../core/physics2d.js';
+import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 
 export const LASER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const LASER_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
@@ -486,15 +488,10 @@ export class LaserGame extends BaseMiniGame {
   }
 
   spawnPickup() {
-    if (this.pickups.length >= 2) return;
-    const { cx, cy, size } = this.arena;
-    const types = ['HEAL', 'FAST', 'SHIELD', 'TRIPLE'];
-    const type = types[Math.floor(Math.random() * types.length)];
-    const a = Math.random() * Math.PI * 2;
-    const r = size * 0.18 * Math.random();
-    this.pickups.push({
-      x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r,
-      type, radius: 15, animTime: Math.random() * 10,
+    spawnPickup(this, {
+      types: ['HEAL', 'FAST', 'SHIELD', 'TRIPLE'],
+      max: 2,
+      obstacles: this.obstacles,
     });
   }
 
@@ -591,28 +588,7 @@ export class LaserGame extends BaseMiniGame {
 
   collideObstacles(p, r) {
     const all = this.movingWalls.length ? [...this.obstacles, ...this.movingWalls] : this.obstacles;
-    for (const obs of all) {
-      const nx = Math.max(obs.x, Math.min(p.x, obs.x + obs.w));
-      const ny = Math.max(obs.y, Math.min(p.y, obs.y + obs.h));
-      let dx = p.x - nx;
-      let dy = p.y - ny;
-      let d = Math.hypot(dx, dy);
-      if (d < r) {
-        if (d < 0.001) {
-          // Merkez içeride: en sığ yüzden dışarı it
-          const l = p.x - obs.x, rr = obs.x + obs.w - p.x;
-          const t = p.y - obs.y, b = obs.y + obs.h - p.y;
-          const m = Math.min(l, rr, t, b);
-          if (m === l) p.x = obs.x - r;
-          else if (m === rr) p.x = obs.x + obs.w + r;
-          else if (m === t) p.y = obs.y - r;
-          else p.y = obs.y + obs.h + r;
-        } else {
-          p.x = nx + (dx / d) * r;
-          p.y = ny + (dy / d) * r;
-        }
-      }
-    }
+    resolveAABB(p, all, r);
   }
 
   update(now) {
@@ -626,24 +602,7 @@ export class LaserGame extends BaseMiniGame {
     if (this.state !== 'PLAYING') return;
 
     // Hareketli duvarlar (ping-pong, yavaş & tahmin edilebilir)
-    for (const mw of this.movingWalls) {
-      mw.x += mw.vx * dt;
-      mw.y += mw.vy * dt;
-      if (mw.vx > 0 && mw.x >= mw.maxX) {
-        mw.x = mw.maxX;
-        mw.vx *= -1;
-      } else if (mw.vx < 0 && mw.x <= mw.minX) {
-        mw.x = mw.minX;
-        mw.vx *= -1;
-      }
-      if (mw.vy > 0 && mw.y >= mw.maxY) {
-        mw.y = mw.maxY;
-        mw.vy *= -1;
-      } else if (mw.vy < 0 && mw.y <= mw.minY) {
-        mw.y = mw.minY;
-        mw.vy *= -1;
-      }
-    }
+    updateMovers(this.movingWalls, dt, 'pingpong');
 
     // Maç saati + pickup
     this.matchTimer -= dt;
@@ -657,7 +616,7 @@ export class LaserGame extends BaseMiniGame {
       this.pickupTimer = LASER_TUNING.PICKUP_EVERY;
       this.spawnPickup();
     }
-    for (const pk of this.pickups) pk.animTime += dt;
+    tickPickupTimers(this, dt);
 
     // 1. Oyuncular
     for (const player of this.players) {
@@ -758,33 +717,28 @@ export class LaserGame extends BaseMiniGame {
       player.x += player.kbx * dt;
       player.y += player.kby * dt;
 
-      const r = 14;
-      player.x = Math.max(this.arena.left + r, Math.min(this.arena.right - r, player.x));
-      player.y = Math.max(this.arena.top + r, Math.min(this.arena.bottom - r, player.y));
-      this.collideObstacles(player, r);
+      clampToArena(player, 14, this.arena);
+      this.collideObstacles(player, 14);
 
       // Pickup yeme
-      for (let i = this.pickups.length - 1; i >= 0; i--) {
-        const pk = this.pickups[i];
-        if (Math.hypot(player.x - pk.x, player.y - pk.y) < 28) {
+      collectPickups(this, player, {
+        radiusOf: () => 14,
+        onCollect: (g, p, pk) => {
           if (pk.type === 'HEAL') {
-            player.hp = Math.min(LASER_TUNING.MAX_HP + 1, player.hp + 1);
-            this.spawnFloatingText(player.x, player.y - 20, '❤ +1 CAN', '#2F6A4F');
+            p.hp = Math.min(LASER_TUNING.MAX_HP + 1, p.hp + 1);
+            this.spawnFloatingText(p.x, p.y - 20, '❤ +1 CAN', '#2F6A4F');
           } else if (pk.type === 'FAST') {
-            player.fastTimer = LASER_TUNING.FAST_TIME;
-            this.spawnFloatingText(player.x, player.y - 20, t('laser.rapid'), '#FFDE59');
+            p.fastTimer = LASER_TUNING.FAST_TIME;
+            this.spawnFloatingText(p.x, p.y - 20, t('laser.rapid'), '#FFDE59');
           } else if (pk.type === 'SHIELD') {
-            player.shield = true;
-            this.spawnFloatingText(player.x, player.y - 20, t('laser.shield'), '#0EA5E9');
+            p.shield = true;
+            this.spawnFloatingText(p.x, p.y - 20, t('laser.shield'), '#0EA5E9');
           } else if (pk.type === 'TRIPLE') {
-            player.tripleTimer = LASER_TUNING.TRIPLE_TIME;
-            this.spawnFloatingText(player.x, player.y - 20, t('laser.triple'), '#F97316');
+            p.tripleTimer = LASER_TUNING.TRIPLE_TIME;
+            this.spawnFloatingText(p.x, p.y - 20, t('laser.triple'), '#F97316');
           }
-          this.pickups.splice(i, 1);
-          playItemPickup();
-          break;
-        }
-      }
+        },
+      });
     }
 
     // 2. Lazer fiziği (hıza oranlı alt-adım: mermi köşelerden geçmez)
