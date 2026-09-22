@@ -36,6 +36,10 @@ src/core/
                             syncSlotsToEngine, swapEngineSlots, getColorClashIndices (sert renk engeli)
   customizationManager.js   Cihaz-başı TEK profil (localStorage), rastgele varsayılan renk,
                             sanitizeAvatar/pickFreeColor/findSlotColorDuplicates, koltuk avatar kayıt defteri
+  arenaKit.js               Ortak arena görsel kiti: drawObstacle (neo-brutalist blok) +
+                            PICKUP_META/drawPickup (power-up rozetleri, tek kayıt) —
+                            ARCHER/NINJA engel + BOMB/CROWN pickup çizimleri buradan;
+                            KALAN İŞ: tanks/laser/snake/curve/clone/collapse engel+pickup taşıması
 
 src/ui/
   canvasUI.js               Tüm motorlar için ortak Canvas UI bileşenleri (renderLobbySeatCard,
@@ -58,7 +62,7 @@ src/ai/
    crownAI.js                Brutal Crown bot zekâsı: taç kovalama, önleyici tackle/omuz atma, kral kaçış manevrası
    pongAI.js                 Brutal Pong bot zekâsı: normal takip + god matador vuruşu, gölgeleme, iniş tahmini
    zoneAI.js                 Brutal Zone bot zekâsı: risk-bütçeli açılım/dönüş, BFS eve dönüş, düşman izi avı
-   duelAI.js                 Quick Draw bot zekâsı: reaksiyon + nişan penceresi + siper bekleme, normal blöfe kanar
+   archerAI.js               Brutal Archery bot zekâsı: mesafe yönetimi + yay germe zamanlaması + kaçınma
 
 src/games/ (Oyun Motorları - BaseMiniGame türevleri):
   game.js                   Brutal Pong motoru (+ src/games/ball.js, src/games/paddle.js)
@@ -66,7 +70,7 @@ src/games/ (Oyun Motorları - BaseMiniGame türevleri):
   curve.js                  Brutal Curve motoru (kuyruk izi, delikler, power-up)
   bomb.js                   Brutal Bomb motoru (patlama zamanlayıcısı, depar, çoklu harita)
   heist.js                  Brutal Heist motoru (altın toplama, kasa bankalama, omuz atma)
-   duel.js                   Quick Draw kovboy düellosu (nişan sarkacı + çalı siperi + kademe skor, false-start cezası)
+   archer.js                 Brutal Archery okçuluk arenası (yay germe + nişan salınımı + yakın menzil 2 puan, 60sn/2 raund)
    crown.js                  Brutal Crown motoru (altın taç, omuz atma, pinball bumper'lar, taç süresi)
    zone.js                   Brutal Zone motoru (64x64 grid bölge kapma, iz kesme→base-reset+2sn stun, %40/90sn)
 
@@ -89,7 +93,7 @@ public/                     PWA (manifest.webmanifest, sw.js, ikonlar) + public/
 | CURVE | Brutal Curve | `src/games/curve.js` | `src/ai/curveAI.js` | `mountCurveController` | Sol/sağ keskin dönüş yarıları |
 | BOMB | Brutal Bomb | `src/games/bomb.js` | `src/ai/bombAI.js` | `mountBombController` | Sanal joystick + depar; MAP_PRESETS çoklu arena |
 | HEIST | Brutal Heist | `src/games/heist.js` | `src/ai/heistAI.js` | `mountHeistController` | Sanal joystick + omuz atma; merkezi elmas, kasa bankalama |
-| DUEL | Quick Draw | `src/games/duel.js` | `src/ai/duelAI.js` | `mountDuelController` | Sinyalde ateş + salınan namlu (TAM/SIYIRMA/ISKA) + gezgin çalı siperi (BLOKE); false-start cezası; rekor sadece TAM'da |
+| ARCHER | Brutal Archery | `src/games/archer.js` | `src/ai/archerAI.js` | `JOYSTICK_ACTION` (hold-charge schema) | Serbest hareket + basılı yay germe (nişan salınımı) + bırakınca ok; yakın vuruş 2p / uzak 1p; 60sn raund, 2 raund alan şampiyon; **raund başına rastgele 3 harita (PILLARS/CROSS/SCATTER+hareketli duvar)**; power-up: TURBO/TELEPORT/SLIP + MULTI/QUICKDRAW/SHIELD; mesafe ölçekli stun (yakın 0.12sn → uzak 0.8sn, spam kilitlenmesin) |
 | CROWN | Brutal Crown | `src/games/crown.js` | `src/ai/crownAI.js` | `mountCrownController` | Altın taç krallığı (15s tutan kazanır), omuz atarak taç düşürme, pinball tamponları |
 | ZONE | Brutal Zone | `src/games/zone.js` | `src/ai/zoneAI.js` | `mountZoneController` | Grid bölge kapma (iz kesme→base-reset+2sn stun, ölüm yok; duvar cezasız); 90sn + %40 erken zafer, 2 raund alan şampiyon; kumanda joystick + ⚡depar (2.2x/0.22sn/4sn) |
 | SNAKE | Brutal Snake | `src/games/snake.js` | `src/ai/snakeAI.js` | `mountSnakeController` | Yemle büyü (max 300), kuyruk/çarpışma eleme, hold-boost; bot ızgara-raycast + yem kovalama; kumanda joystick + basılı boost |
@@ -213,6 +217,7 @@ Sistem iki relay kullanabilir:
     * Saha içi yazı yasaktır: kimlik = display rengi + pip (koltuk no kadar nokta) + köşe/koltuk pozisyonu. `renderTextLabel` kapısı kaldırıldı.
     * Ağ bütçesi korunur: avatar ~40B, JOIN/slot yayınlarında taşınır; 8Hz dirty-check + discrete 1sn kısma geçerlidir.
     * LOCAL (tek cihaz): yüz cihaz profilinden, renk koltuk başınadır (`brutalparty.local.seatColors`, kalıcı). Lobi kartındaki renk noktasına dokununca sıradaki boş renge geçilir; yeni insan koltuğuna otomatik boş renk atanır. Nokta butonu tap dispatch'te karttan önce gelir (ilk eşleşme kazanır).
+17. **Ortak arena görsel kiti (`src/core/arenaKit.js`):** Engel/power-up çizimleri motorlara kopyalanmaz — `drawObstacle` + `PICKUP_META`/`drawPickup` tek noktadan servis eder. Motor kendi `buildMap()`/spawn mantığını tutar (sahne düzeni oyuna özgü), sadece **görsel** ortaktır. Bu turda ARCHER+NINJA engel, BOMB+CROWN pickup taşındı; **açık iş:** tanks/laser/snake/curve/clone/collapse aynı kitle taşınacak (metadata `PICKUP_META`'da hazır). ARCHER power-up tipleri de meta'ya eklidir (MULTI/QUICKDRAW/SHIELD).
 
 ---
 

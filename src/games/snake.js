@@ -404,6 +404,12 @@ export class SnakeGame extends BaseMiniGame {
     const { cx, cy } = this.arena;
     const distToCenter = Math.hypot(touch.x - cx, touch.y - cy);
 
+    // Round Over Skip Tap
+    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
+      this.roundTransitionTimer = 0;
+      return;
+    }
+
     if (this.state === 'LOBBY') {
       if (this.handleUiTap(touch)) return;
       if (distToCenter < 65) {

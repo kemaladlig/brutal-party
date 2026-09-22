@@ -426,6 +426,12 @@ export class CollapseGame extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
+    // Round Over Skip Tap
+    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
+      this.roundTransitionTimer = 0;
+      return;
+    }
+
     if (this.state === 'LOBBY') {
       if (this.handleUiTap(touch)) return;
       if (Math.hypot(touch.x - this.arena.cx, touch.y - this.arena.cy) < 65) {

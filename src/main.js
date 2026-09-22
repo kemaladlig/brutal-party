@@ -74,7 +74,7 @@ export function activeNet() {
   return getActiveNetwork(platformMode);
 }
 
-// State Machine: 'MENU' + GAME_ORDER ('PONG' | 'TANKS' | 'CURVE' | 'BOMB' | 'HEIST' | 'DUEL')
+// State Machine: 'MENU' + GAME_ORDER ('PONG' | 'TANKS' | 'CURVE' | 'BOMB' | 'HEIST' | 'ARCHER')
 let currentMode = 'MENU';
 let lastTransitionTime = 0;
 

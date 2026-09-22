@@ -71,9 +71,22 @@ export const GAMEPAD_SCHEMAS = {
     ],
   },
 
-  DUEL: {
-    type: 'REACTION_TAP',
-    tapAction: 'DUEL_TAP',
+  ARCHER: {
+    type: 'JOYSTICK_ACTION',
+    actions: [
+      {
+        id: 'charge',
+        action: 'ARCHER_CHARGE',
+        releaseAction: 'ARCHER_CHARGE_END',
+        hold: true,
+        label: t('pad.archerCharge'),
+        sub: t('pad.archerHold'),
+        color: '#8B5CF6',
+        flex: 1.2,
+        minHeight: '80px',
+        vibrate: [25, 40],
+      },
+    ],
   },
 
   CROWN: {

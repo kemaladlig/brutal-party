@@ -1,5 +1,5 @@
 // Specialized Gamepad Controller for Mobile Phones in TV/Console & Online Mode
-// Adapts dynamically to Lobby, Pong, Tanks, Curve, Bomb, Heist, and Duel with ultra-low latency inputs.
+// Adapts dynamically to Lobby, Pong, Tanks, Curve, Bomb, Heist, and Archery with ultra-low latency inputs.
 
 import { storePlayerName, escapeHtml } from './net.js';
 import { showInstallToast } from './ui/toast.js';
@@ -45,10 +45,6 @@ export class GamepadManager {
     // Pong touch track
     this.pongPosition = 0.5;
 
-    // Duel state
-    this.duelState = 'WAIT';
-    this.duelReactionMs = null;
-
     // Emoji reaction state
     this.isEmojiOpen = false;
 
@@ -70,8 +66,6 @@ export class GamepadManager {
     this._elCache = new Map();
     this._lastStripJson = '';
     this._lastStatusStr = '';
-    // DUEL emüle-mousedown bastırma
-    this._lastDuelTouchAt = 0;
     this._visibilityBound = false;
     this._wakeLock = null;
     this._browserLocksBound = false;
@@ -1156,37 +1150,7 @@ export class GamepadManager {
     tackleBtn?.addEventListener('mousedown', tackleAction);
   }
 
-  // --- 06: DUEL CONTROLLER (Full Screen Tap-on-Signal Trigger) ---
-  mountDuelController(container) {
-    container.innerHTML = `
-      <div class="duel-controller-view">
-        <button class="duel-full-trigger-btn" id="btn-duel-trigger" type="button" style="background-color: ${this.playerColor}">
-          <div class="duel-trigger-state" id="duel-trigger-state">${t('pad.duelWait')}</div>
-          <div class="duel-trigger-sub" id="duel-trigger-sub">${t('pad.duelWaitSub')}</div>
-        </button>
-      </div>
-    `;
-
-    const triggerBtn = document.getElementById('btn-duel-trigger');
-    const triggerAction = (e) => {
-      e?.preventDefault();
-      this._lastDuelTouchAt = performance.now();
-      this.network.sendInput({ action: 'DUEL_TAP' });
-      this.vibrate(50);
-    };
-    // Emüle mousedown bastırma: dokunmatik sonrası ~600ms içindeki mousedown
-    // ikinci DUEL_TAP üretmesin (host hasFired guard'ı skoru korur ama gürültü gider)
-    const triggerMouse = (e) => {
-      if (performance.now() - this._lastDuelTouchAt < 600) return;
-      e?.preventDefault();
-      this.network.sendInput({ action: 'DUEL_TAP' });
-      this.vibrate(50);
-    };
-    triggerBtn?.addEventListener('touchstart', triggerAction, { passive: false });
-    triggerBtn?.addEventListener('mousedown', triggerMouse);
-  }
-
-  // --- 07: CROWN CONTROLLER (Joystick + Shoulder Tackle) ---
+  // --- 06: CROWN CONTROLLER (Joystick + Shoulder Tackle) ---
   mountCrownController(container) {
     container.innerHTML = `
       <div class="joystick-action-view">
@@ -1708,8 +1672,6 @@ export class GamepadManager {
         const myCarried = Array.isArray(data.carried) ? (data.carried[this.playerIndex] ?? 0) : 0;
         const myVault = Array.isArray(data.vault) ? (data.vault[this.playerIndex] ?? 0) : 0;
         statusStr = t('pad.heistStatus', timeStr, myCarried, myVault);
-      } else if (data.gameMode === 'DUEL') {
-        statusStr = t('pad.scoreJoin', data.scores.join('-'));
       } else if (data.gameMode === 'CROWN') {
         const isKing = data.king === this.playerIndex;
         const myTime = data.crownTimes ? (data.crownTimes[this.playerIndex] || 0).toFixed(1) : '0.0';
@@ -1834,51 +1796,6 @@ export class GamepadManager {
       this.overlay.classList.remove('crown-king-alert');
     }
 
-    // 3. Duel Signal — kumandacı sinyali TV'ye bakmadan görsün
-    // (host duelState'i paketle yayınlar; daha önce bu dal yoktu, tetik hep "BEKLE..." kalıyordu)
-    if (this.gameMode === 'DUEL') {
-      const duelStateEl = document.getElementById('duel-trigger-state');
-      if (duelStateEl) {
-        const duelSub = document.getElementById('duel-trigger-sub');
-        const duelBtn = document.getElementById('btn-duel-trigger');
-        const phase = data.duelState;
-        if (phase === 'DRAW_SIGNAL') {
-          duelStateEl.textContent = t('pad.duelGo');
-          if (duelSub) duelSub.textContent = t('pad.duelGoSub');
-          if (tacticalRoleEl) {
-            tacticalRoleEl.textContent = t('pad.duelGoFull');
-            tacticalRoleEl.style.color = '#25d366';
-          }
-          duelBtn?.classList.add('signal');
-          // 8Hz sync her tikte titreşmesin — sinyal başına bir kez
-          if (duelBtn && !duelBtn.dataset.signaled) {
-            duelBtn.dataset.signaled = '1';
-            this.vibrate([60, 40, 60]);
-          }
-        } else if (phase === 'ROUND_OVER' || phase === 'MATCH_OVER') {
-          const w = data.winner;
-          duelStateEl.textContent =
-            w === null || w === undefined ? t('pad.duelDraw') : (w === this.playerIndex ? t('pad.duelWon') : t('pad.duelTakes', w + 1));
-          if (duelSub) duelSub.textContent = phase === 'MATCH_OVER' ? t('pad.duelMatchOver') : t('pad.duelNext');
-          if (tacticalRoleEl) {
-            tacticalRoleEl.textContent = w === this.playerIndex ? t('pad.duelWon') : t('pad.duelGetReady');
-            tacticalRoleEl.style.color = '#ffd700';
-          }
-          duelBtn?.classList.remove('signal');
-          if (duelBtn) delete duelBtn.dataset.signaled;
-        } else {
-          duelStateEl.textContent = t('pad.duelWait');
-          if (duelSub) duelSub.textContent = t('pad.duelWaitSub');
-          if (tacticalRoleEl) {
-            tacticalRoleEl.textContent = t('pad.duelWaitFull');
-            tacticalRoleEl.style.color = '#ffd700';
-          }
-          duelBtn?.classList.remove('signal');
-          if (duelBtn) delete duelBtn.dataset.signaled;
-        }
-      }
-    }
-
     // 3. Tanks Ammo Pips Sync (dolan pip gri + ilerleme çubuğu)
     if (this.gameMode === 'TANKS' && Array.isArray(data.ammo)) {
       const raw = data.ammo[this.playerIndex];
@@ -1895,28 +1812,6 @@ export class GamepadManager {
           pip.style.background = '';
         }
       });
-    }
-
-    // 4. Duel State updates
-    if (this.gameMode === 'DUEL') {
-      const stateEl = document.getElementById('duel-trigger-state');
-      const subEl = document.getElementById('duel-trigger-sub');
-      if (data.duelState === 'DRAW_SIGNAL') {
-        this.overlay.classList.add('duel-flash-alert');
-        window.setTimeout(() => this.overlay.classList.remove('duel-flash-alert'), 300);
-        if (stateEl) stateEl.textContent = t('pad.duelFire');
-        if (subEl) subEl.textContent = t('pad.duelFireSub');
-        this.vibrate([30, 40, 60]);
-      } else if (data.duelState === 'STANDOFF_COUNTDOWN' || data.duelState === 'TENSION') {
-        if (stateEl) stateEl.textContent = t('pad.duelNoSignal');
-        if (subEl) subEl.textContent = t('pad.duelNoEarly');
-      } else if (data.duelState === 'ROUND_OVER') {
-        if (stateEl) stateEl.textContent = t('pad.duelOver');
-        const winnerName = data.winner !== null && data.winner !== undefined
-          ? (Array.isArray(data.names) && data.names[data.winner] ? data.names[data.winner] : `P${data.winner + 1}`)
-          : null;
-        if (subEl) subEl.textContent = winnerName ? t('pad.duelWinner', winnerName) : t('pad.duelDrawSub');
-      }
     }
   }
 }

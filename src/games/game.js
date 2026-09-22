@@ -223,6 +223,12 @@ export class Game extends BaseMiniGame {
     const handled = this.handleUiTap(touch);
     if (handled) return;
 
+    // Round Over Skip Tap
+    if (this.state === 'ROUND_OVER' && this.roundOverTimer > 0) {
+      this.roundOverTimer = 0;
+      return;
+    }
+
     // 2. Generous Lobby Join: Touching anywhere in a player's region toggles their join status!
     if (this.state === 'LOBBY') {
       const playerIndex = this.getPlayerZoneAt(touch);

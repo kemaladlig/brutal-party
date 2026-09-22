@@ -1,5 +1,5 @@
 // Declarative Gamepad Controller Templates
-// Provides standardized archetypes (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, REACTION_TAP, DPAD_BOOST)
+// Provides standardized archetypes (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, DPAD_BOOST)
 // allowing games and agents to declare controls via high-level schemas rather than writing imperative DOM code.
 
 import { escapeHtml } from '../net.js';
@@ -28,8 +28,6 @@ export function mountDeclarativeController(gamepad, container, schema) {
       return mountTwoButtonSteer(gamepad, container, schema);
     case 'SLIDER_1D':
       return mountSlider1D(gamepad, container, schema);
-    case 'REACTION_TAP':
-      return mountReactionTap(gamepad, container, schema);
     case 'DPAD_BOOST':
       return mountDpadBoost(gamepad, container, schema);
     case 'STEER_BOOST':
@@ -109,8 +107,34 @@ function mountJoystickAction(gamepad, container, schema) {
     if (!btn) return;
     buttonEls.push({ config: act, el: btn });
 
-    const secs = act.cooldown ?? 2.0;
     const vibratePattern = act.vibrate ?? [25, 35];
+
+    if (act.hold && act.releaseAction) {
+      // Hold-to-charge: press sends act.action, release sends act.releaseAction.
+      // No cooldown — charge state is host-authoritative (ARCHER bow).
+      const sendDown = (e) => {
+        e?.preventDefault?.();
+        gamepad.network.sendInput({ action: act.action, ...(act.payload || {}) });
+        gamepad.vibrate(vibratePattern);
+        btn.classList.add('holding');
+      };
+      const sendUp = (e) => {
+        e?.preventDefault?.();
+        gamepad.network.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) });
+        btn.classList.remove('holding');
+      };
+      btn.addEventListener('touchstart', sendDown, { passive: false });
+      btn.addEventListener('touchend', sendUp, { passive: false });
+      btn.addEventListener('touchcancel', sendUp, { passive: false });
+      btn.addEventListener('mousedown', sendDown);
+      btn.addEventListener('mouseup', sendUp);
+      btn.addEventListener('mouseleave', () => {
+        if (btn.classList.contains('holding')) sendUp();
+      });
+      return;
+    }
+
+    const secs = act.cooldown ?? 2.0;
     const readyLabel = act.label || t('pad.action');
 
     const handler = gamepad.cooledAction(
@@ -508,88 +532,7 @@ function mountSlider1D(gamepad, container, schema) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. REACTION_TAP Archetype (DUEL)
-// ---------------------------------------------------------------------------
-function mountReactionTap(gamepad, container, schema) {
-  container.innerHTML = `
-    <div class="duel-controller-view">
-      <button class="duel-full-trigger-btn" id="btn-duel-trigger" type="button" style="background-color: ${gamepad.playerColor}">
-        <div class="duel-trigger-state" id="duel-trigger-state">${t('pad.duelWait')}</div>
-        <div class="duel-trigger-sub" id="duel-trigger-sub">${t('pad.duelWaitSub')}</div>
-      </button>
-    </div>
-  `;
-
-  const triggerBtn = document.getElementById('btn-duel-trigger');
-  const triggerAction = (e) => {
-    e?.preventDefault();
-    gamepad._lastDuelTouchAt = performance.now();
-    gamepad.network.sendInput({ action: schema.tapAction || 'DUEL_TAP' });
-    gamepad.vibrate(50);
-  };
-
-  const triggerMouse = (e) => {
-    if (performance.now() - (gamepad._lastDuelTouchAt || 0) < 600) return;
-    e?.preventDefault();
-    gamepad.network.sendInput({ action: schema.tapAction || 'DUEL_TAP' });
-    gamepad.vibrate(50);
-  };
-
-  triggerBtn?.addEventListener('touchstart', triggerAction, { passive: false });
-  triggerBtn?.addEventListener('mousedown', triggerMouse);
-
-  return {
-    handleSync(data) {
-      const duelStateEl = document.getElementById('duel-trigger-state');
-      const duelSub = document.getElementById('duel-trigger-sub');
-      const duelBtn = document.getElementById('btn-duel-trigger');
-      const tacticalRoleEl = document.getElementById('tactical-role-text');
-      const phase = data.duelState;
-
-      if (phase === 'DRAW_SIGNAL') {
-        gamepad.overlay.classList.add('duel-flash-alert');
-        window.setTimeout(() => gamepad.overlay.classList.remove('duel-flash-alert'), 300);
-        if (duelStateEl) duelStateEl.textContent = t('pad.duelGo');
-        if (duelSub) duelSub.textContent = t('pad.duelGoSub');
-        if (tacticalRoleEl) {
-          tacticalRoleEl.textContent = t('pad.duelGoFull');
-          tacticalRoleEl.style.color = '#25d366';
-        }
-        duelBtn?.classList.add('signal');
-        if (duelBtn && !duelBtn.dataset.signaled) {
-          duelBtn.dataset.signaled = '1';
-          gamepad.vibrate([60, 40, 60]);
-        }
-      } else if (phase === 'ROUND_OVER' || phase === 'MATCH_OVER') {
-        const w = data.winner;
-        if (duelStateEl) {
-          duelStateEl.textContent =
-            w === null || w === undefined ? t('pad.duelDraw') : (w === gamepad.playerIndex ? t('pad.duelWon') : t('pad.duelTakes', w + 1));
-        }
-        if (duelSub) duelSub.textContent = phase === 'MATCH_OVER' ? t('pad.duelMatchOver') : t('pad.duelNext');
-        if (tacticalRoleEl) {
-          tacticalRoleEl.textContent = w === gamepad.playerIndex ? t('pad.duelWon') : t('pad.duelGetReady');
-          tacticalRoleEl.style.color = '#ffd700';
-        }
-        duelBtn?.classList.remove('signal');
-        if (duelBtn) delete duelBtn.dataset.signaled;
-      } else {
-        if (duelStateEl) duelStateEl.textContent = t('pad.duelWait');
-        if (duelSub) duelSub.textContent = t('pad.duelWaitSub');
-        if (tacticalRoleEl) {
-          tacticalRoleEl.textContent = t('pad.duelWaitFull');
-          tacticalRoleEl.style.color = '#ffd700';
-        }
-        duelBtn?.classList.remove('signal');
-        if (duelBtn) delete duelBtn.dataset.signaled;
-      }
-    },
-    teardown() {}
-  };
-}
-
-// ---------------------------------------------------------------------------
-// 6. DPAD_BOOST Archetype (SNAKE)
+// 5. DPAD_BOOST Archetype (SNAKE)
 // ---------------------------------------------------------------------------
 function mountDpadBoost(gamepad, container, schema) {
   container.innerHTML = `
@@ -682,7 +625,7 @@ function mountDpadBoost(gamepad, container, schema) {
 }
 
 // ---------------------------------------------------------------------------
-// 7. STEER_BOOST Archetype (SNAKE v2 - Ultra ergonomic Left/Right Steering + Boost)
+// 6. STEER_BOOST Archetype (SNAKE v2 - Ultra ergonomic Left/Right Steering + Boost)
 // ---------------------------------------------------------------------------
 function mountSteerBoost(gamepad, container, schema) {
   const steerZoneId = `steer-zone-${Date.now()}`;

@@ -22,6 +22,7 @@ import { t } from '../i18n.js';
 import { renderTopPill, renderCornerScores, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { drawPickup } from '../core/arenaKit.js';
 import { updateCrownBotAI } from '../ai/crownAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
@@ -1736,31 +1737,7 @@ export class CrownGame extends BaseMiniGame {
   }
 
   renderPickup(ctx, pk) {
-    ctx.save();
-    const pulse = 1 + Math.sin((pk.animTime || 0) * 6) * 0.08;
-    ctx.translate(pk.x, pk.y);
-    ctx.scale(pulse, pulse);
-
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-    ctx.beginPath();
-    ctx.arc(3, 3, pk.radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Bomba moduyla aynı rozet renkleri
-    ctx.fillStyle = pk.type === 'TURBO' ? '#FFDE59' : pk.type === 'TELEPORT' ? '#48CAE4' : '#2D2D2A';
-    ctx.beginPath();
-    ctx.arc(0, 0, pk.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-
-    ctx.fillStyle = pk.type === 'SLIP' ? '#FFFFFF' : '#1A1A1A';
-    ctx.font = '900 13px "JetBrains Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(pk.type === 'TURBO' ? '⚡' : pk.type === 'TELEPORT' ? '🌀' : '🍌', 0, 0);
-    ctx.restore();
+    drawPickup(ctx, pk);
   }
 
   renderInkPuddle(ctx, ink) {
@@ -2144,6 +2121,12 @@ export class CrownGame extends BaseMiniGame {
 
   onTouchStart(touch) {
     if (this.handleUiTap(touch)) return;
+
+    // Round Over Skip Tap
+    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
+      this.roundTransitionTimer = 0;
+      return;
+    }
 
     if (this.state === 'LOBBY') {
       const q = this.getCornerQuadrant(touch);

@@ -437,6 +437,12 @@ export class HeistGame extends BaseMiniGame {
     // 1. UI Buttons tap handling
     if (this.handleUiTap(touch)) return;
 
+    // Round Over Skip Tap
+    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
+      this.roundTransitionTimer = 0;
+      return;
+    }
+
     // 1.5. Generous Lobby Join fallback (tap anywhere in quadrant)
     if (this.state === 'LOBBY') {
       const q = this.getCornerQuadrant(touch);

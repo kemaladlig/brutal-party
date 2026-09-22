@@ -10,7 +10,7 @@ const ASSETS_TO_CACHE = [
   '/assets/games/curve.jpg',
   '/assets/games/bomb.jpg',
   '/assets/games/heist.jpg',
-  '/assets/games/duel.jpg',
+  '/assets/games/archer.jpg',
   '/assets/games/crown.jpg',
   '/assets/games/zone.jpg',
   '/assets/games/snake.jpg',

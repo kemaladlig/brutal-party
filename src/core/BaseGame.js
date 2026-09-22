@@ -93,7 +93,7 @@ export class BaseMiniGame {
     }
   }
 
-  // Canlı motor varlığına LOCAL koltuk rengini yaz (players/tanks/paddles/DUEL).
+  // Canlı motor varlığına LOCAL koltuk rengini yaz (players/tanks/paddles).
   applyLocalSeatColor(index, hex) {
     if (!hex) return;
     const p = this.players?.[index] || this.tanks?.[index] || this.paddles?.[index];

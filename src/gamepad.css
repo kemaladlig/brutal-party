@@ -222,15 +222,6 @@
   100% { box-shadow: inset 0 0 80px #ffcc00; border-color: #ffe600; }
 }
 
-#gamepad-overlay.duel-flash-alert {
-  animation: duel-flash 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
-}
-
-@keyframes duel-flash {
-  0% { background-color: #ffffff; }
-  100% { background-color: #141414; }
-}
-
 /* Controller Workspace */
 .gamepad-workspace {
   flex: 1;
@@ -1685,75 +1676,11 @@
   pointer-events: none;
 }
 
-/* 06 // DUEL CONTROLLER */
-.duel-controller-view {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  box-sizing: border-box;
-}
-
-.duel-full-trigger-btn {
-  width: 100%;
-  height: 90%;
-  max-width: 520px;
-  max-height: 480px;
-  border: 5px solid #ffffff;
-  border-radius: 16px;
-  background-color: #8c4830;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  cursor: pointer;
-  touch-action: manipulation;
-  box-shadow: 6px 7px 0px #000000, 0 0 35px rgba(140, 72, 48, 0.6);
-  transition: transform 0.06s ease, box-shadow 0.06s ease, background-color 0.1s ease;
-}
-
-.duel-full-trigger-btn:active {
-  transform: translate(4px, 5px) scale(0.98) !important;
-  box-shadow: 2px 2px 0px #000000 !important;
-}
-
-.duel-trigger-state {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 32px;
-  font-weight: 900;
-  color: #ffffff;
-  text-align: center;
-}
-
-.duel-trigger-sub {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 14px;
-  font-weight: 800;
-  color: #ffde59;
-}
-
-/* Sinyal anı: kumandacı TV'ye bakmadan görsün */
-.duel-full-trigger-btn.signal {
-  background-color: #25d366 !important;
-  box-shadow: 0 0 44px rgba(37, 211, 102, 0.9);
-  animation: duel-signal-flash 0.4s steps(2, jump-none) infinite;
-}
-
-@keyframes duel-signal-flash {
-  50% { filter: brightness(1.35); }
-}
-
 /* Azaltılmış hareket: nabız animasyonları statik duruma iner.
    Sinyal yeşili ve taşıyıcı çerçeveler korunur (oyun bilgisi kaybolmaz). */
 @media (prefers-reduced-motion: reduce) {
   #gamepad-overlay.bomb-carrier-alert,
-  #gamepad-overlay.gem-carrier-alert,
-  #gamepad-overlay.duel-flash-alert,
-  .duel-full-trigger-btn.signal {
+  #gamepad-overlay.gem-carrier-alert {
     animation: none !important;
   }
 }

@@ -27,6 +27,7 @@ import { getUiScale } from '../ui/tokens.js';
 import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { drawPickup } from '../core/arenaKit.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
@@ -421,8 +422,8 @@ export class BombGame extends BaseMiniGame {
     playBombPass();
     playStumble();
 
-    // 1. Stumble Shock Delay on Receiver: heavily stunned/slowed for 0.85s!
-    newCarrier.stumbleTimer = 1.0;
+    // 1. Stumble Shock Delay on Receiver: heavily stunned/slowed for 0.6s!
+    newCarrier.stumbleTimer = 0.6;
 
     // 2. Escaper Sprint & Immunity on Giver: guarantees head start to flee!
     if (prevCarrier) {
@@ -560,6 +561,12 @@ export class BombGame extends BaseMiniGame {
   onTouchStart(touch) {
     // 1. UI Buttons tap handling
     if (this.handleUiTap(touch)) return;
+
+    // Round Over Skip Tap
+    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
+      this.roundTransitionTimer = 0;
+      return;
+    }
 
     // 1.5. Generous Lobby Join fallback (tap anywhere in quadrant)
     if (this.state === 'LOBBY') {
@@ -848,7 +855,7 @@ export class BombGame extends BaseMiniGame {
         currentSpeed = 360; // Supersonic dash speed!
       }
       if (player.stumbleTimer > 0) {
-        currentSpeed *= 0.15; // Receiver stumble delay: heavily slowed down for 0.45s!
+        currentSpeed *= 0.15; // Receiver stumble delay: heavily slowed down for 0.6s!
       }
 
       if (player.slipTimer > 0) {
@@ -1198,36 +1205,7 @@ export class BombGame extends BaseMiniGame {
   }
 
   renderPickups(ctx) {
-    for (const item of this.pickups) {
-      ctx.save();
-      const pulse = 1 + Math.sin(item.animTime * 6) * 0.08;
-
-      ctx.translate(item.x, item.y);
-      ctx.scale(pulse, pulse);
-
-      // Solid Shadow
-      ctx.fillStyle = '#1C1C1A';
-      ctx.fillRect(-14 + 3, -14 + 3, 28, 28);
-
-      // Background badge
-      ctx.fillStyle =
-        item.type === 'TURBO' ? '#FFDE59' : item.type === 'TELEPORT' ? '#48CAE4' : '#2D2D2A';
-      ctx.fillRect(-14, -14, 28, 28);
-
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(-14, -14, 28, 28);
-
-      // Icon (Temiz neo-brutalist tipografi, emojisiz)
-      ctx.fillStyle = item.type === 'SLIP' ? '#FFFFFF' : '#1C1C1A';
-      ctx.font = '900 10px "JetBrains Mono", monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const label = item.type === 'TURBO' ? 'TRB' : item.type === 'TELEPORT' ? 'TEL' : 'KAY';
-      ctx.fillText(label, 0, 0);
-
-      ctx.restore();
-    }
+    for (const item of this.pickups) drawPickup(ctx, item);
   }
 
   renderPlayers(ctx) {

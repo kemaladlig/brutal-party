@@ -44,7 +44,8 @@ function isValidRelayInput(data) {
     case 'SPIN':
     case 'SNAKE_BOOST':
     case 'SNAKE_BOOST_RELEASE':
-    case 'DUEL_TAP':
+    case 'ARCHER_CHARGE':
+    case 'ARCHER_CHARGE_END':
     case 'SET_NAME':
     case 'SWITCH_SLOT':
       return true;

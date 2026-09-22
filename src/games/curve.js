@@ -336,6 +336,12 @@ export class CurveGame extends BaseMiniGame {
     const { cx, cy } = this.arena;
     const distToCenter = Math.hypot(touch.x - cx, touch.y - cy);
 
+    // Round Over Skip Tap
+    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
+      this.roundTransitionTimer = 0;
+      return;
+    }
+
     // 1. Center Start Button (Lobby)
     if (this.state === 'LOBBY') {
       if (this.handleUiTap(touch)) return;

@@ -15,7 +15,7 @@ export const GAME_ORDER = [
   'CURVE',
   'BOMB',
   'HEIST',
-  'DUEL',
+  'ARCHER',
   'CROWN',
   'ZONE',
   'SNAKE',
@@ -154,22 +154,28 @@ export const CARTRIDGES = {
     },
   },
 
-  DUEL: {
-    id: 'DUEL',
-    title: 'QUICK DRAW',
-    hudTag: '🤠 DUEL',
-    tacticalHintKey: 'hint.duel',
+  ARCHER: {
+    id: 'ARCHER',
+    title: 'BRUTAL ARCHERY',
+    hudTag: '🏹 ARCHER',
+    tacticalHintKey: 'hint.archer',
     color: '#8B5CF6',
-    schema: GAMEPAD_SCHEMAS.DUEL,
-    load: () => import('../games/duel.js').then((m) => m.DuelGame),
+    schema: GAMEPAD_SCHEMAS.ARCHER,
+    load: () => import('../games/archer.js').then((m) => m.ArcherGame),
     createEngine: (game) => {
       return {
         game,
-        reset: () => game.reset(),
+        reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        packet: () => ({ scores: game.scores, duelState: game.state, winner: game.roundWinner }),
+        start: () => game.startRound(),
+        packet: () => ({
+          scores: game.scores,
+          alive: game.players.map((p) => p.isAlive),
+          timeLeft: Math.ceil(game.roundTimer || 0),
+          chg: game.players.map((p) => Math.round((p.charge || 0) * 100)),
+          cd: game.players.map((p) => Math.ceil((Math.max(0, p.shotCooldown || 0) / 0.8) * 100)),
+        }),
       };
     },
   },

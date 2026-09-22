@@ -950,6 +950,13 @@ export class ZoneGame extends BaseMiniGame {
 
   onTouchStart(touch) {
     if (this.handleUiTap(touch)) return;
+
+    // Round Over Skip Tap
+    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
+      this.roundTransitionTimer = 0;
+      return;
+    }
+
     if (this.state === 'LOBBY') {
       const q = this.getCornerQuadrant(touch);
       this.cycleSlotType(q);

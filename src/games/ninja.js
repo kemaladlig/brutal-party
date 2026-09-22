@@ -7,6 +7,7 @@ import { t } from '../i18n.js';
 import { getLocalSeatColors } from '../core/customizationManager.js';
 import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { drawObstacle } from '../core/arenaKit.js';
 import { updateNinjaBotAI } from '../ai/ninjaAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 
@@ -321,6 +322,12 @@ export class NinjaGame extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
+    // Round Over Skip Tap
+    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
+      this.roundTransitionTimer = 0;
+      return;
+    }
+
     if (this.state === 'LOBBY') {
       if (this.handleUiTap(touch)) return;
       if (Math.hypot(touch.x - this.arena.cx, touch.y - this.arena.cy) < 65) {
@@ -794,14 +801,8 @@ export class NinjaGame extends BaseMiniGame {
       });
     }
 
-    // Siper kutuları (Tapınak taşları)
-    ctx.fillStyle = '#1A1A1A';
-    for (const obs of this.obstacles) {
-      ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-      ctx.strokeStyle = '#3A3A3A';
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(obs.x + 4, obs.y + 4, obs.w - 8, obs.h - 8);
-    }
+    // Siper kutuları (Tapınak taşları — ortak arenaKit)
+    for (const obs of this.obstacles) drawObstacle(ctx, obs, { variant: 'dark' });
 
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 6;

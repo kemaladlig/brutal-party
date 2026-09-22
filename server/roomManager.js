@@ -33,7 +33,8 @@ function isValidInputData(data) {
     case 'SPIN':
     case 'SNAKE_BOOST':
     case 'SNAKE_BOOST_RELEASE':
-    case 'DUEL_TAP':
+    case 'ARCHER_CHARGE':
+    case 'ARCHER_CHARGE_END':
       return true;
     case 'AVATAR_UPDATE':
       // Derin temizlik host'ta (sanitizeAvatar) yapılır; burada şekil kapısı
@@ -48,7 +49,7 @@ function isValidInputData(data) {
 const DISCRETE_MIN_GAP = {
   TANK_FIRE: 100, DASH: 100, TACKLE: 100, CURVE_STEER: 30, TANK_DRIVE: 30,
   SPIN: 500, SNAKE_BOOST: 30, SNAKE_BOOST_RELEASE: 30,
-  DUEL_TAP: 30, SWITCH_SLOT: 500, SET_NAME: 1000,
+  ARCHER_CHARGE: 30, ARCHER_CHARGE_END: 30, SWITCH_SLOT: 500, SET_NAME: 1000,
   READY: 300, REACTION: 1000, AVATAR_UPDATE: 1000,
 };
 

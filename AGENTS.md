@@ -21,7 +21,7 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 
 ## 3. Engine Registry — tek kayıt noktası
 
-- `src/core/engineRegistry.js` → `GAME_ORDER = ['PONG','TANKS','CURVE','BOMB','HEIST','DUEL','CROWN']`.
+- `src/core/engineRegistry.js` → `GAME_ORDER = ['PONG','TANKS','CURVE','BOMB','HEIST','ARCHER','CROWN']`.
 - Yeni oyun = **1 satır** `registerEngine('MOD', { game, reset, onEnter/onResume, start, packet })`. `main.js`'e `else if (mode === ...)` zinciri **eklemek yasaktır**.
 - Entry sözleşmesi: `game` (BaseMiniGame türevi) · `reset()` · `onEnter/onResume(now)` (fizik sıçramasını önler) · `start()` (sayaç sonrası) · `packet()` (host state'e oyuna özel alanlar).
 - Motor sözleşmesi: `resetMatch/reset()`, `update(now)`, `render()`, `resize(w,h)`, `handleRemoteInput(slotIndex, data)`, `startNewMatch()`.

@@ -112,7 +112,7 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
     CURVE: 'BRUTAL CURVE',
     BOMB: 'BRUTAL BOMB',
     HEIST: 'BRUTAL HEIST',
-    DUEL: 'QUICK DRAW',
+    ARCHER: 'BRUTAL ARCHERY',
     CROWN: 'BRUTAL CROWN',
     SNAKE: 'BRUTAL SNAKE',
     LASER: 'BRUTAL LASER',
