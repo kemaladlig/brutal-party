@@ -5,7 +5,7 @@ import { getSlotCustomization, getBotPersona } from '../core/customizationManage
 import { playExplosion, playStart, playJoin, playGunshot, playDashWhoosh, playItemPickup, playStumble } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderTopPill, renderCornerScores, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
+import { renderTopPill, renderAdaptiveScoreboard, renderEntityHUD, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup } from '../core/arenaKit.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
@@ -1103,10 +1103,13 @@ export class LaserGame extends BaseMiniGame {
         ringProgress: Math.max(0, remain / 90),
       });
 
-      renderCornerScores(ctx, {
+      renderAdaptiveScoreboard(ctx, {
         arena: this.arena,
-        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}` } : null),
+        players: this.players,
+        scores: this.scores,
         entities: this.players.filter((p) => p.isJoined && p.isAlive),
+        isHosting: !!this.hideLobbyStartButton,
+        state: this.state,
       });
     }
 
@@ -1260,85 +1263,27 @@ export class LaserGame extends BaseMiniGame {
 
       ctx.restore();
 
-      // --- MERMİ & CAN GÖSTERGELERİ (Host Ekranı Görsel İpuçları) ---
-      // 1. HP Pip'leri (y - 25)
-      const totalHp = Math.max(player.hp, LASER_TUNING.MAX_HP);
-      const pw = 8;
-      const startX = player.x - (totalHp * (pw + 2)) / 2;
-      for (let h = 0; h < totalHp; h++) {
-        ctx.fillStyle = h < player.hp ? player.color : '#D5D0C7';
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(startX + h * (pw + 2) + pw / 2, player.y - 25, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      }
-
-      // 2. MERMİ / LAZER HAZIR GÖSTERGESİ (y - 38)
-      // Neo-brutalist yüksek kontrastlı kapsül yuvası (krem zeminde ASLA kaybolmaz)
-      const ammoBoxW = 38;
-      const ammoBoxH = 11;
-      const ammoBoxX = player.x - ammoBoxW / 2;
-      const ammoBoxY = player.y - 38;
-
-      ctx.save();
-      // Koyu koruyucu çerçeve
-      ctx.fillStyle = '#141416';
-      ctx.fillRect(ammoBoxX, ammoBoxY, ammoBoxW, ammoBoxH);
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(ammoBoxX, ammoBoxY, ammoBoxW, ammoBoxH);
-
-      const bulletW = 14;
-      const bulletH = 7;
-      const bulletGap = 4;
-      const bulletStartX = ammoBoxX + (ammoBoxW - (2 * bulletW + bulletGap)) / 2;
-      const bulletY = ammoBoxY + (ammoBoxH - bulletH) / 2;
-
+      // --- MERMİ, CAN & YETENEK GÖSTERGELERİ (Merkezi renderEntityHUD) ---
       const maxAmmo = LASER_TUNING.MAX_AMMO || 2;
       const reloadDuration = player.fastTimer > 0 ? LASER_TUNING.RELOAD_TIME * 0.5 : LASER_TUNING.RELOAD_TIME;
-      const curAmmo = player.ammo !== undefined ? player.ammo : 2;
       const reloadFrac = player.reloadTimer > 0
         ? Math.max(0, Math.min(1, 1 - (player.reloadTimer / reloadDuration)))
         : 1.0;
+      const bulletColor = player.tripleTimer > 0 ? '#FB923C' : (player.fastTimer > 0 ? '#FACC15' : player.color);
 
-      for (let a = 0; a < 2; a++) {
-        const bx = bulletStartX + a * (bulletW + bulletGap);
-        const isCharged = a < curAmmo;
-        const isCurrentlyReloading = a === curAmmo && curAmmo < maxAmmo && player.reloadTimer > 0;
-
-        // Fişek yuvası arka planı
-        ctx.fillStyle = '#26262B';
-        ctx.fillRect(bx, bulletY, bulletW, bulletH);
-
-        if (isCharged) {
-          // Dolu fişek: Canlı oyuncu rengi veya güçlendirici rengi + parlak beyaz çekirdek
-          const bulletColor = player.tripleTimer > 0 ? '#FB923C' : (player.fastTimer > 0 ? '#FACC15' : player.color);
-          ctx.fillStyle = bulletColor;
-          ctx.fillRect(bx, bulletY, bulletW, bulletH);
-          // Fişek ucu parıltısı
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(bx + bulletW - 4, bulletY + 1.5, 3, bulletH - 3);
-          ctx.strokeStyle = '#000000';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(bx, bulletY, bulletW, bulletH);
-        } else if (isCurrentlyReloading) {
-          // Şarj dolum animasyonu (soldan sağa akıcı dolum)
-          const fillW = Math.max(1, bulletW * reloadFrac);
-          ctx.fillStyle = player.fastTimer > 0 ? '#FACC15' : '#38BDF8';
-          ctx.fillRect(bx, bulletY, fillW, bulletH);
-          // Dolum ucu dikey parlak beyaz çizgi
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(Math.min(bx + bulletW - 2, bx + fillW - 1.5), bulletY, 2, bulletH);
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(bx, bulletY, bulletW, bulletH);
-        } else {
-          // Havada/boş mermi yuvası (faint outline)
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(bx, bulletY, bulletW, bulletH);
-        }
-      }
-      ctx.restore();
+      renderEntityHUD(ctx, {
+        x: player.x,
+        y: player.y,
+        radius: 16,
+        color: bulletColor,
+        arena: this.arena,
+        hp: player.hp,
+        maxHp: LASER_TUNING.MAX_HP,
+        ammo: player.ammo,
+        maxAmmo: maxAmmo,
+        reloadProgress: reloadFrac,
+        cooldownProgress: 1 - Math.max(0, player.dashCooldown / LASER_TUNING.DASH_CD),
+      });
     }
 
     // Parçacıklar (lazer kıvılcımları)

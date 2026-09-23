@@ -5,7 +5,7 @@ import { getSlotCustomization, getBotPersona } from '../core/customizationManage
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCloneBotAI } from '../ai/cloneAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
@@ -860,10 +860,13 @@ export class CloneGame extends BaseMiniGame {
         ...this.players.filter((p) => p.isJoined),
         ...this.npcClones.filter((c) => c.active),
       ];
-      renderCornerScores(ctx, {
+      renderAdaptiveScoreboard(ctx, {
         arena: this.arena,
-        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null),
+        players: this.players,
+        scores: this.scores,
         entities: activeEntities,
+        isHosting: !!this.hideLobbyStartButton,
+        state: this.state,
       });
     }
 

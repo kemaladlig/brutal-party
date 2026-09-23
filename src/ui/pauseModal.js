@@ -7,6 +7,11 @@ import { showInstallToast } from './toast.js';
 import { toggleAudio, getIsMuted } from '../audio.js';
 import { t, onLangChange } from '../i18n.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange } from './fullscreen.js';
+import {
+  getVirtualControlsSetting,
+  setVirtualControlsSetting,
+  shouldShowVirtualControls,
+} from './tokens.js';
 
 const pauseModal = document.getElementById('pause-modal');
 const pauseGameTitle = document.getElementById('pause-game-title');
@@ -18,6 +23,7 @@ const btnToggleSound = document.getElementById('btn-toggle-sound');
 const btnToggleFullscreen = document.getElementById('btn-toggle-fullscreen');
 const btnToggleBots = document.getElementById('btn-toggle-bots');
 const btnToggleColorblind = document.getElementById('btn-toggle-colorblind');
+const btnToggleTouchControls = document.getElementById('btn-toggle-touch-controls');
 const btnExitToMenu = document.getElementById('btn-exit-to-menu');
 const btnPauseRotateSeats = document.getElementById('btn-pause-rotate-seats');
 
@@ -43,11 +49,33 @@ function setSwitch(el, on) {
   }
 }
 
+function setControlsSwitch(el) {
+  if (!el) return;
+  const setting = getVirtualControlsSetting();
+  const badge = el.querySelector('.toggle-state-badge');
+  if (setting === 'on') {
+    el.classList.add('on');
+    el.setAttribute('aria-checked', 'true');
+    if (badge) badge.textContent = t('pause.on');
+  } else if (setting === 'off') {
+    el.classList.remove('on');
+    el.setAttribute('aria-checked', 'false');
+    if (badge) badge.textContent = t('pause.off');
+  } else {
+    // 'auto'
+    const active = shouldShowVirtualControls();
+    el.classList.toggle('on', active);
+    el.setAttribute('aria-checked', active ? 'true' : 'false');
+    if (badge) badge.textContent = t('pause.auto') || 'OTO';
+  }
+}
+
 export function refreshPauseSwitches() {
   setSwitch(btnToggleSound, !getIsMuted());
   setSwitch(btnToggleFullscreen, isFullscreen());
   setSwitch(btnToggleBots, isBotEkleEnabled());
   setSwitch(btnToggleColorblind, isColorblindEnabled());
+  setControlsSwitch(btnToggleTouchControls);
 }
 
 export function renderPauseSeats(onSwapCallback) {
@@ -156,6 +184,7 @@ export function initPauseModal({
   onExitMenu,
   onTvLobby,
   onBotsToggled,
+  onControlsToggled,
 }) {
   btnResumeGame?.addEventListener('click', () => {
     closePauseModal(onResume);
@@ -199,6 +228,20 @@ export function initPauseModal({
     setColorblindEnabled(next);
     setSwitch(btnToggleColorblind, next);
     showInstallToast(next ? t('toast.cbOn') : t('toast.cbOff'));
+  });
+
+  btnToggleTouchControls?.addEventListener('click', () => {
+    const current = getVirtualControlsSetting();
+    const next = current === 'auto' ? 'on' : (current === 'on' ? 'off' : 'auto');
+    setVirtualControlsSetting(next);
+    setControlsSwitch(btnToggleTouchControls);
+    const msg = next === 'auto'
+      ? t('toast.controlsAuto')
+      : (next === 'on' ? t('toast.controlsOn') : t('toast.controlsOff'));
+    showInstallToast(msg);
+    if (typeof onControlsToggled === 'function') {
+      onControlsToggled(next);
+    }
   });
 
   // Çıkış çift-bas onay (host odası kapanacağı için; misafir tek basışta çıkar)

@@ -3,7 +3,7 @@ import { getSlotCustomization, ensureLocalSeatColor, getBotPersona } from '../co
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderTopPill, renderCornerScores, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
+import { renderTopPill, renderAdaptiveScoreboard, renderEntityHUD, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup } from '../core/arenaKit.js';
@@ -1059,12 +1059,13 @@ export class TanksGame extends BaseMiniGame {
       this.bullets.forEach((b) => {
         activeEntities.push({ x: b.x, y: b.y, radius: 10 });
       });
-      renderCornerScores(ctx, {
+      renderAdaptiveScoreboard(ctx, {
         arena: this.arena,
-        entries: this.tanks.map((t) =>
-          t.isJoined ? { color: t.color, text: `${this.scores[t.index] || 0}` } : null
-        ),
+        players: this.tanks,
+        scores: this.scores,
         entities: activeEntities,
+        isHosting: !!this.hideLobbyStartButton,
+        state: this.state,
       });
     }
 
@@ -1377,50 +1378,20 @@ export class TanksGame extends BaseMiniGame {
 
   drawTankAmmo(ctx, tank) {
     const v = this.ammoVisual(tank);
-
-    ctx.save();
-    ctx.translate(tank.x, tank.y - tank.size - 14);
-
-    // Rotate over-tank ammo indicator so Top players (P1, P2) see it right-side up
-    if (tank.index === 1 || tank.index === 2) {
-      ctx.rotate(Math.PI);
-    }
-
-    const cartridgeW = 16;
-    const cartridgeH = 10;
-    const spacing = 4;
-    const totalW = tank.maxBullets * cartridgeW + (tank.maxBullets - 1) * spacing;
-    const startX = -totalW / 2;
-
-    // Background panel
-    ctx.fillStyle = '#1C1C1A';
-    ctx.fillRect(-totalW / 2 - 4, -cartridgeH / 2 - 4, totalW + 8, cartridgeH + 8);
-    ctx.strokeStyle = tank.color;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-totalW / 2 - 4, -cartridgeH / 2 - 4, totalW + 8, cartridgeH + 8);
-
-    // Yuvalar: dolu = tam renk, dolan = gri + ilerleme, boş = içi boş çerçeve
     const pipColor = tank.hasTripleShot ? '#FFDE59' : tank.color;
-    for (let i = 0; i < tank.maxBullets; i++) {
-      const bx = startX + i * (cartridgeW + spacing);
-      const by = -cartridgeH / 2;
 
-      if (i < v.readyCount) {
-        ctx.fillStyle = pipColor;
-        ctx.fillRect(bx, by, cartridgeW, cartridgeH);
-      } else if (i === v.loadIdx && v.progress > 0) {
-        ctx.fillStyle = '#55524C';
-        ctx.fillRect(bx, by, cartridgeW, cartridgeH);
-        ctx.fillStyle = pipColor;
-        ctx.fillRect(bx, by, cartridgeW * v.progress, cartridgeH);
-      } else {
-        ctx.strokeStyle = '#55524C';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(bx, by, cartridgeW, cartridgeH);
-      }
-    }
-
-    ctx.restore();
+    renderEntityHUD(ctx, {
+      x: tank.x,
+      y: tank.y,
+      radius: tank.size || 20,
+      color: pipColor,
+      arena: this.arena,
+      ammo: v.readyCount,
+      maxAmmo: tank.maxBullets || 2,
+      reloadProgress: v.progress,
+      shield: !!tank.shield,
+      stun: !!tank.stunTimer,
+    });
   }
 
   renderCornerTouchZones(ctx) {
@@ -1472,37 +1443,7 @@ export class TanksGame extends BaseMiniGame {
           ctx.font = '900 13px "Space Grotesk", sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(isDriving ? t('tanks.moving') : t('tanks.driveHint'), 0, -14);
-
-          // Visual Ammo Cartridge Bar in Player's Corner
-          const v = this.ammoVisual(tank);
-
-          const cartW = 14;
-          const cartH = 8;
-          const spacing = 4;
-          const totalW = tank.maxBullets * cartW + (tank.maxBullets - 1) * spacing;
-          const startX = -totalW / 2;
-
-          for (let i = 0; i < tank.maxBullets; i++) {
-            const bx = startX + i * (cartW + spacing);
-            const by = 4;
-            if (i < v.readyCount) {
-              ctx.fillStyle = c.color;
-              ctx.fillRect(bx, by, cartW, cartH);
-            } else if (i === v.loadIdx && v.progress > 0) {
-              ctx.fillStyle = '#8A8578';
-              ctx.fillRect(bx, by, cartW, cartH);
-              ctx.fillStyle = c.color;
-              ctx.fillRect(bx, by, cartW * v.progress, cartH);
-            } else {
-              ctx.strokeStyle = '#8A8578';
-              ctx.lineWidth = 1.5;
-              ctx.strokeRect(bx, by, cartW, cartH);
-            }
-            ctx.strokeStyle = '#1C1C1A';
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(bx, by, cartW, cartH);
-          }
+          ctx.fillText(isDriving ? t('tanks.moving') : t('tanks.driveHint'), 0, 0);
         }
       }
 

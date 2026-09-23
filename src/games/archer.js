@@ -6,7 +6,7 @@ import { getSlotCustomization, getBotPersona } from '../core/customizationManage
 import { playExplosion, playStart, playJoin, playItemPickup, playTeleport, playDashWhoosh, playPowerUp } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderCornerScores, renderRoundBanner, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
+import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateArcherBotAI } from '../ai/archerAI.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
@@ -679,10 +679,13 @@ export class ArcherGame extends BaseMiniGame {
         ringProgress: Math.max(0, remain / ARCHER_ROUND_TIME),
       });
 
-      renderCornerScores(ctx, {
+      renderAdaptiveScoreboard(ctx, {
         arena: this.arena,
-        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null),
+        players: this.players,
+        scores: this.scores,
         entities: this.players.filter((p) => p.isJoined && p.isAlive),
+        isHosting: !!this.hideLobbyStartButton,
+        state: this.state,
       });
     }
 

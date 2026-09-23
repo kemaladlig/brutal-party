@@ -5,7 +5,7 @@ import { getSlotCustomization, getBotPersona } from '../core/customizationManage
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCollapseBotAI } from '../ai/collapseAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
@@ -807,10 +807,13 @@ export class CollapseGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      renderCornerScores(ctx, {
+      renderAdaptiveScoreboard(ctx, {
         arena: this.arena,
-        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null),
+        players: this.players,
+        scores: this.scores,
         entities: this.players.filter((p) => p.isJoined && p.isAlive),
+        isHosting: !!this.hideLobbyStartButton,
+        state: this.state,
       });
     }
 

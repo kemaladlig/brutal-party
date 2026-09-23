@@ -2,10 +2,10 @@
 import { Paddle, PLAYER_CONFIGS } from './paddle.js';
 import { Ball } from './ball.js';
 import { playJoin, playStart, playPowerUp } from '../audio.js';
+import { getLocalSeatColors } from '../core/customizationManager.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { getLocalSeatColors, ensureLocalSeatColor } from '../core/customizationManager.js';
-import { renderCornerScores, renderSpatialBadge, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { renderAdaptiveScoreboard, renderSpatialBadge, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
@@ -582,14 +582,13 @@ export class Game extends BaseMiniGame {
           activeEntities.push({ x: p.coord, y: p.fixedPerpendicular, radius: 24 });
         }
       });
-      renderCornerScores(ctx, {
+      renderAdaptiveScoreboard(ctx, {
         arena: this.arena,
-        entries: this.paddles.map((p, i) =>
-          p.isJoined && !p.isEliminated
-            ? { color: p.color, text: `${this.setScores[i] || 0}` }
-            : null
-        ),
+        players: this.paddles,
+        scores: this.setScores,
         entities: activeEntities,
+        isHosting: !!this.hideLobbyStartButton,
+        state: this.state,
       });
     }
 

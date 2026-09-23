@@ -16,12 +16,13 @@ import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLo
 import { t } from '../i18n.js';
 import {
   renderTopPill,
-  renderCornerScores,
+  renderAdaptiveScoreboard,
   renderRoundBanner,
   renderMatchOver,
   renderArenaWatermarkTimer,
 } from '../ui/hud.js';
 import { pulse } from '../ui/motion.js';
+import { shouldShowVirtualControls } from '../ui/tokens.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateHeistBotAI } from '../ai/heistAI.js';
@@ -259,12 +260,14 @@ export class HeistGame extends BaseMiniGame {
   }
 
   startNewMatch() {
+    this.uiButtons = [];
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
     this.startNewRound();
   }
 
   startNewRound() {
+    this.uiButtons = [];
     const joined = this.players.filter((p) => p.isJoined);
     if (joined.length < 2) {
       this.state = 'LOBBY';
@@ -409,8 +412,10 @@ export class HeistGame extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
-    // 1. UI Buttons tap handling
-    if (this.handleUiTap(touch)) return;
+    // 1. UI Buttons tap handling (yalnızca Lobi ve Maç Sonu ekranlarında)
+    if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
+      if (this.handleUiTap(touch)) return;
+    }
 
     if (this.handleRoundOverSkip()) return;
 
@@ -966,6 +971,7 @@ export class HeistGame extends BaseMiniGame {
   render() {
     const { ctx, canvas } = this;
     ctx.save();
+    this.uiButtons = [];
 
     // Background paper
     ctx.fillStyle = '#F4F0EA';
@@ -1024,15 +1030,16 @@ export class HeistGame extends BaseMiniGame {
   }
 
   renderTopHUD(ctx) {
-    if (this.state !== 'PLAYING') return;
+    if (this.state === 'LOBBY') return;
 
-    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları (Proximity Ghosting)
-    renderCornerScores(ctx, {
+    // Standart Yüksek Görünürlüklü Oyuncu Skorları (Uyarlanabilir & Parmak Korumalı)
+    renderAdaptiveScoreboard(ctx, {
       arena: this.arena,
-      entries: this.players.map((p) =>
-        p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}` } : null
-      ),
+      players: this.players,
+      scores: this.scores,
       entities: this.players.filter((p) => p.isJoined),
+      isHosting: !!this.hideLobbyStartButton,
+      state: this.state,
     });
   }
 
@@ -1558,6 +1565,7 @@ export class HeistGame extends BaseMiniGame {
 
   renderVirtualJoysticks(ctx) {
     if (this.state !== 'PLAYING') return;
+    if (!shouldShowVirtualControls({ isHosting: !!this.hideLobbyStartButton })) return;
 
     const { left, right, top, bottom, width, height } = this.arena;
     const anchors = [
@@ -1618,6 +1626,7 @@ export class HeistGame extends BaseMiniGame {
 
   renderTackleButtons(ctx) {
     if (this.state !== 'PLAYING') return;
+    if (!shouldShowVirtualControls({ isHosting: !!this.hideLobbyStartButton })) return;
 
     this.tackleButtons = [];
     const { canvas, arena } = this;

@@ -18,7 +18,7 @@ import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
 import {
   renderTopPill,
-  renderCornerScores,
+  renderAdaptiveScoreboard,
   renderSpatialBadge,
   renderRoundBanner,
   renderMatchOver,
@@ -948,7 +948,9 @@ export class ZoneGame extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
-    if (this.handleUiTap(touch)) return;
+    if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
+      if (this.handleUiTap(touch)) return;
+    }
 
     if (this.handleRoundOverSkip()) return;
 
@@ -1481,15 +1483,13 @@ export class ZoneGame extends BaseMiniGame {
     const text = leader && leader.isJoined
       ? `⏱ ${Math.ceil(remain)}s • ${leader.name} %${this.pct[leader.index]}`
       : `⏱ ${Math.ceil(remain)}s`;
-    renderTopPill(ctx, { arena: this.arena, text, urgent: isUrgent });
-    renderCornerScores(ctx, {
+    renderAdaptiveScoreboard(ctx, {
       arena: this.arena,
-      entries: this.players.map((p) =>
-        p.isJoined
-          ? { color: p.color, text: `%${this.pct[p.index]}${this.scores[p.index] > 0 ? `★${this.scores[p.index]}` : ''}` }
-          : null
-      ),
+      players: this.players,
+      scores: this.scores,
       entities: this.players.filter((p) => p.isJoined),
+      isHosting: !!this.hideLobbyStartButton,
+      state: this.state,
     });
   }
 

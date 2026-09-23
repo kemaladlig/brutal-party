@@ -18,7 +18,8 @@ import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLo
 import { t } from '../i18n.js';
 import {
   renderTopPill,
-  renderCornerScores,
+  renderAdaptiveScoreboard,
+  renderEntityHUD,
   renderRoundBanner,
   renderMatchOver,
   renderArenaWatermarkTimer,
@@ -461,8 +462,10 @@ export class BombGame extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
-    // 1. UI Buttons tap handling
-    if (this.handleUiTap(touch)) return;
+    // 1. UI Buttons tap handling (yalnızca Lobi ve Maç Sonu ekranlarında)
+    if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
+      if (this.handleUiTap(touch)) return;
+    }
 
     if (this.handleRoundOverSkip()) return;
 
@@ -943,13 +946,14 @@ export class BombGame extends BaseMiniGame {
     }
 
     // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları & Sütunların Üzerinde Net Geri Sayım
-    if (this.state === 'PLAYING') {
-      renderCornerScores(ctx, {
+    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
+      renderAdaptiveScoreboard(ctx, {
         arena: this.arena,
-        entries: this.players.map((p, i) =>
-          p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}` } : null
-        ),
+        players: this.players,
+        scores: this.scores,
         entities: this.players.filter((p) => p.isJoined),
+        isHosting: !!this.hideLobbyStartButton,
+        state: this.state,
       });
 
       // Saha ortasında sütunların üstünde net, yüksek görünürlüklü bomba geri sayımı
@@ -1083,25 +1087,18 @@ export class BombGame extends BaseMiniGame {
         borderWidth: player.dashTimer > 0 ? 4.5 : 3,
       });
 
-      // Depar Cooldown Göstergesi (Zemin ve engellerin üstünde her zaman net görünür)
-      if (player.dashCooldown > 0) {
-        const cdProg = 1.0 - Math.max(0, Math.min(1, player.dashCooldown / player.dashMaxCooldown));
-        ctx.save();
-        // Zemin Koyu Halka
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.arc(0, 0, player.radius + 5, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Dolum Arkı
-        ctx.strokeStyle = '#FFDE59';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(0, 0, player.radius + 5, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
+      // Merkezi Başüstü HUD (Dash cooldown ring & stun)
+      const cdProg = player.dashCooldown > 0
+        ? 1.0 - Math.max(0, Math.min(1, player.dashCooldown / player.dashMaxCooldown))
+        : 1.0;
+      renderEntityHUD(ctx, {
+        x: 0,
+        y: 0,
+        radius: player.radius,
+        color: '#FFDE59',
+        cooldownProgress: player.dashCooldown > 0 ? cdProg : null,
+        stun: player.stumbleTimer > 0,
+      });
 
       // --- Ticking Bomb Visuals for Carrier ---
       if (isCarrier) {

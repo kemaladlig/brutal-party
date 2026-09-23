@@ -8,6 +8,7 @@ import { getLocalSeatColors, ensureLocalSeatColor, cycleLocalSeatColor, getBotPe
 import { resolveSlotName } from './slotManager.js';
 import { isSlotActionEvent, keyboardVectorFrom } from './inputMaps.js';
 import { getQuadrant, roundOverSkipGuard } from './touchFlow.js';
+import { UI_COLORS, getDisplayProfile, shouldShowVirtualControls } from '../ui/tokens.js';
 
 export class BaseMiniGame {
   constructor(canvas) {
@@ -311,6 +312,14 @@ export class BaseMiniGame {
 
   renderStandardJoysticks(ctx, players = this.players) {
     if (this.state !== 'PLAYING') return;
+    if (!shouldShowVirtualControls({ isHosting: !!this.hideLobbyStartButton })) {
+      return;
+    }
+
+    const profile = getDisplayProfile(this.arena);
+    const baseR = Math.round(44 * profile.baseUnit);
+    const knobR = Math.round(19 * profile.baseUnit);
+
     for (let i = 0; i < 4; i++) {
       const joy = this.joysticks[i];
       const player = players?.[i];
@@ -319,20 +328,28 @@ export class BaseMiniGame {
       }
 
       ctx.save();
-      ctx.strokeStyle = 'rgba(28, 28, 26, 0.4)';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([4, 4]);
+      // Yüksek kontrastlı dış halka (açık kontur + koyu kesikli çizgi)
+      ctx.strokeStyle = UI_COLORS.outlineContrast || 'rgba(250, 247, 242, 0.9)';
+      ctx.lineWidth = Math.max(3, Math.round(4.5 * profile.baseUnit));
       ctx.beginPath();
-      ctx.arc(joy.originX, joy.originY, 48, 0, Math.PI * 2);
+      ctx.arc(joy.originX, joy.originY, baseR, 0, Math.PI * 2);
       ctx.stroke();
 
+      ctx.strokeStyle = UI_COLORS.ink || '#1A1A1A';
+      ctx.lineWidth = Math.max(2, Math.round(2.5 * profile.baseUnit));
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.arc(joy.originX, joy.originY, baseR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Topuz (Knob)
       ctx.setLineDash([]);
       ctx.fillStyle = player.color || '#D84727';
       ctx.beginPath();
-      ctx.arc(joy.currX, joy.currY, 20, 0, Math.PI * 2);
+      ctx.arc(joy.currX, joy.currY, knobR, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = UI_COLORS.ink || '#1A1A1A';
+      ctx.lineWidth = Math.max(2, Math.round(2.5 * profile.baseUnit));
       ctx.stroke();
       ctx.restore();
     }

@@ -4,7 +4,8 @@ import { getSlotCustomization, getBotPersona } from '../core/customizationManage
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderCornerScores, renderRoundBanner, renderMatchOver, renderFloatingTexts } from '../ui/hud.js';
+import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, renderFloatingTexts } from '../ui/hud.js';
+import { shouldShowVirtualControls } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawObstacle } from '../core/arenaKit.js';
 import { updateNinjaBotAI } from '../ai/ninjaAI.js';
@@ -1291,10 +1292,13 @@ export class NinjaGame extends BaseMiniGame {
     // ARAYÜZDE SKİLL KULLANIMI VE DURUM GÖSTERGELERİ (HUD & ON-SCREEN CONTROLS)
     // =========================================================================
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      renderCornerScores(ctx, {
+      renderAdaptiveScoreboard(ctx, {
         arena: this.arena,
-        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null),
+        players: this.players,
+        scores: this.scores,
         entities: this.players.filter((p) => p.isJoined && p.isAlive),
+        isHosting: !!this.hideLobbyStartButton,
+        state: this.state,
       });
 
       // Dokunmatik / Masa-ortası modunda ekranda doğrudan tıklanabilir 2'li Kare Skill Butonları
@@ -1347,6 +1351,7 @@ export class NinjaGame extends BaseMiniGame {
   // DOKUNMATİK EKRAN SKİLL BUTONLARI & SANAL JOYSTICK (Masa-ortası / Mobil Oyun)
   // ---------------------------------------------------------------------------
   renderLocalTouchControls(ctx) {
+    if (!shouldShowVirtualControls({ isHosting: !!this.hideLobbyStartButton })) return;
     for (let q = 0; q < 4; q++) {
       const p = this.players[q];
       if (!p || !p.isJoined || !p.isAlive || p.slotType !== 'human') continue;

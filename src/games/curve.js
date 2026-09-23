@@ -3,7 +3,7 @@ import { getSlotCustomization, getBotPersona } from '../core/customizationManage
 import { playExplosion, playStart, playJoin, playGap, playItemPickup } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderCornerScores, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
+import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup } from '../core/arenaKit.js';
@@ -840,13 +840,14 @@ export class CurveGame extends BaseMiniGame {
     ctx.fillRect(left, top, width, height);
 
     // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları (Proximity Ghosting)
-    if (this.state === 'PLAYING') {
-      renderCornerScores(ctx, {
+    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
+      renderAdaptiveScoreboard(ctx, {
         arena: this.arena,
-        entries: this.players.map((p) =>
-          p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}` } : null
-        ),
+        players: this.players,
+        scores: this.scores,
         entities: this.players.filter((p) => p.isJoined && p.isAlive),
+        isHosting: !!this.hideLobbyStartButton,
+        state: this.state,
       });
     }
 

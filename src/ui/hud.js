@@ -1,8 +1,12 @@
-// Oyun-içi HUD helper'ları — tüm motorlarda aynı üst hap, köşe skoru,
-// raund bandı ve final kutusu. Davranış (sayaç, skor, state) motora aittir;
-// burası sadece çizer. Ölçü/stil kararları src/ui/tokens.js'tedir.
-
-import { UI_COLORS, UI_SIZES, UI_FONTS, uiFont, getUiScale } from './tokens.js';
+import {
+  UI_COLORS,
+  UI_SIZES,
+  UI_FONTS,
+  uiFont,
+  getUiScale,
+  getDisplayProfile,
+  shouldShowVirtualControls,
+} from './tokens.js';
 import { t } from '../i18n.js';
 
 // Standart üst hap: arena üstünde ortalı.
@@ -257,7 +261,7 @@ export function renderFloatingTexts(ctx, list, dt = 0.016) {
 // Kurumsal SaaS & Broadcast Seviyesinde Standart Köşe Skorları:
 // 4 köşede yüksek kontrastlı, TV'den okunacak büyüklükte, lider tacı 👑 ve
 // yakınına oyuncu/top geldiğinde dinamik olarak saydamlaşan (Proximity Ghosting) brutalist rozetler.
-export function renderCornerScores(ctx, { arena, entries, entities = [] }) {
+export function renderCornerScores(ctx, { arena, entries, entities = [], isRoundOver = false }) {
   const { left, right, top, bottom, width, height } = arena;
   const scale = getUiScale(arena);
 
@@ -291,25 +295,34 @@ export function renderCornerScores(ctx, { arena, entries, entities = [] }) {
     const rect = { x: spot.x, y: spot.y, w: cardW, h: cardH };
 
     // Proximity Ghosting: Eğer herhangi bir oyuncu/top/mermi bu kutunun üstüne/yakınına gelirse
-    // kutu transparanlaşır (alpha: 0.18), saha görüşü asla engellenmez. Boşken oyun alanını tıkamayan hafif yarı saydamdır (0.68).
+    // kutu transparanlaşır (alpha: 0.12), saha görüşü asla engellenmez. Boşken oyun alanını tıkamayan hafif yarı saydamdır (0.38).
     const isNearby = checkProximity(rect, entities, Math.round(35 * scale));
-    const cardAlpha = isNearby ? 0.18 : 0.68;
-    const shadowOffset = Math.max(2, Math.round(3 * Math.min(1.4, scale)));
+    const cardAlpha = isRoundOver ? 1.0 : isNearby ? 0.12 : 0.38;
 
     ctx.globalAlpha = cardAlpha;
 
-    // Sert Brutalist Gölge
-    ctx.fillStyle = UI_COLORS.ink;
-    ctx.fillRect(rect.x + shadowOffset, rect.y + shadowOffset, rect.w, rect.h);
+    if (isRoundOver) {
+      const shadowOffset = Math.max(2, Math.round(3 * Math.min(1.4, scale)));
+      // Sert Brutalist Gölge
+      ctx.fillStyle = UI_COLORS.ink;
+      ctx.fillRect(rect.x + shadowOffset, rect.y + shadowOffset, rect.w, rect.h);
 
-    // Kart Gövdesi (Krem)
-    ctx.fillStyle = UI_COLORS.card;
-    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      // Kart Gövdesi (Krem)
+      ctx.fillStyle = UI_COLORS.card;
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
 
-    // Dış Kenarlık
-    ctx.strokeStyle = UI_COLORS.ink;
-    ctx.lineWidth = Math.max(2, Math.round(2.5 * Math.min(1.4, scale)));
-    ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+      // Dış Kenarlık
+      ctx.strokeStyle = UI_COLORS.ink;
+      ctx.lineWidth = Math.max(2, Math.round(2.5 * Math.min(1.4, scale)));
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+    } else {
+      // Oyun esnasında: Saydam Füme Kapsül (Zemin ve aksiyon net görülür)
+      ctx.fillStyle = 'rgba(24, 24, 22, 0.40)';
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+    }
 
     // Sol Oyuncu Renk Çubuğu (Kimin skoru olduğu 1 saniyede anlaşılır)
     const stripeW = Math.round(7 * scale);
@@ -321,13 +334,13 @@ export function renderCornerScores(ctx, { arena, entries, entities = [] }) {
     const isLeader = highestScore > 0 && scoreVal === highestScore;
 
     // Koltuk rozeti (P1..P4)
-    ctx.fillStyle = UI_COLORS.muted;
+    ctx.fillStyle = isRoundOver ? UI_COLORS.muted : 'rgba(255, 255, 255, 0.7)';
     ctx.font = `900 ${Math.round(11 * scale)}px ${UI_FONTS.mono}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText(`P${i + 1}`, rect.x + stripeW + Math.round(6 * scale), rect.y + rect.h / 2);
 
-    // Eğer liderse brutalist altın yıldız simgesi (emoji yerine temiz vektör karakter)
+    // Eğer liderse brutalist altın yıldız simgesi
     if (isLeader) {
       ctx.fillStyle = UI_COLORS.gold;
       ctx.font = `900 ${Math.round(12 * scale)}px ${UI_FONTS.mono}`;
@@ -335,11 +348,118 @@ export function renderCornerScores(ctx, { arena, entries, entities = [] }) {
     }
 
     // Skor (Büyük, Okunaklı Sayı)
-    ctx.fillStyle = entry.color || UI_COLORS.ink;
+    ctx.fillStyle = isRoundOver ? (entry.color || UI_COLORS.ink) : '#FFFFFF';
     ctx.font = `900 ${Math.round(18 * scale)}px ${UI_FONTS.mono}`;
     ctx.textAlign = 'right';
     ctx.fillText(entry.text, rect.x + rect.w - Math.round(8 * scale), rect.y + rect.h / 2);
   });
+
+  ctx.restore();
+}
+
+// Skor tablosuna geçici göz atma (Peek) durumu
+let peekScoreboardUntil = 0;
+let lastPeekButtonRect = null;
+
+export function triggerScoreboardPeek(durationMs = 2800) {
+  peekScoreboardUntil = performance.now() + durationMs;
+}
+
+export function isScoreboardPeeking() {
+  return performance.now() < peekScoreboardUntil;
+}
+
+// Dokunma/tıklama koordinatının Peek butonuna isabet edip etmediğini kontrol eder
+export function checkScoreboardPeekTap(touch) {
+  if (!lastPeekButtonRect || !touch) return false;
+  const pad = 10;
+  if (
+    touch.x >= lastPeekButtonRect.x - pad &&
+    touch.x <= lastPeekButtonRect.x + lastPeekButtonRect.w + pad &&
+    touch.y >= lastPeekButtonRect.y - pad &&
+    touch.y <= lastPeekButtonRect.y + lastPeekButtonRect.h + pad
+  ) {
+    triggerScoreboardPeek(2800);
+    return true;
+  }
+  return false;
+}
+
+// Mobilde oyun esnasında sahayı 1 piksel bile işgal etmeyen Sınır Duvarı Mikro-İmleri (Top Rail Micro-Tally)
+export function renderArenaRailTally(ctx, { arena, players = [], scores = [0, 0, 0, 0], uiButtons = null }) {
+  const activePlayers = players.filter((p, i) => p && (p.isJoined ?? (p.slotType !== 'empty')));
+  const count = activePlayers.length;
+  if (count === 0) return;
+
+  const scale = getUiScale(arena);
+  const maxScore = Math.max(...scores.slice(0, 4));
+
+  const itemW = Math.round(36 * scale);
+  const gap = Math.round(5 * scale);
+  const totalW = count * itemW + (count - 1) * gap;
+  const startX = arena.cx - totalW / 2;
+  const barH = Math.round(14 * scale);
+  const barY = arena.top - barH / 2; // Tam üst duvar sınır çizgisinin ortasına oturur (oyun alanını işgal etmez)
+
+  ctx.save();
+  ctx.globalAlpha = 0.88;
+
+  activePlayers.forEach((p, idx) => {
+    const origIdx = p.index ?? idx;
+    const score = scores[origIdx] || 0;
+    const isLeader = maxScore > 0 && score === maxScore;
+    const x = startX + idx * (itemW + gap);
+    const y = barY;
+
+    // Mini koyu zemin kapsülü
+    ctx.fillStyle = 'rgba(20, 20, 18, 0.85)';
+    ctx.fillRect(x, y, itemW, barH);
+    ctx.strokeStyle = p.color || UI_COLORS.players[origIdx];
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(x, y, itemW, barH);
+
+    // Renk noktası
+    ctx.fillStyle = p.color || UI_COLORS.players[origIdx];
+    ctx.beginPath();
+    ctx.arc(x + 5.5 * scale, y + barH / 2, 2.5 * scale, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Skor sayısı
+    ctx.fillStyle = isLeader ? UI_COLORS.gold : '#FFFFFF';
+    ctx.font = `900 ${Math.round(8.5 * scale)}px ${UI_FONTS.mono}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${score}${isLeader ? '★' : ''}`, x + itemW / 2 + 3 * scale, y + barH / 2 + 0.5);
+  });
+
+  // Sağ üst dış boşlukta minik dokunulabilir Peek (Göz At) Çipi
+  const peekW = Math.round(32 * scale);
+  const peekH = Math.round(20 * scale);
+  const peekX = Math.min(arena.right - peekW, (arena.cx + totalW / 2) + 12);
+  const peekY = Math.max(4, arena.top - peekH - 3);
+
+  lastPeekButtonRect = { x: peekX, y: peekY, w: peekW, h: peekH };
+
+  ctx.fillStyle = 'rgba(24, 24, 22, 0.65)';
+  ctx.fillRect(peekX, peekY, peekW, peekH);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(peekX, peekY, peekW, peekH);
+
+  ctx.font = `${Math.round(11 * scale)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🏆', peekX + peekW / 2, peekY + peekH / 2);
+
+  if (uiButtons && Array.isArray(uiButtons)) {
+    uiButtons.push({
+      x: peekX,
+      y: peekY,
+      w: peekW,
+      h: peekH,
+      onClick: () => triggerScoreboardPeek(2800),
+    });
+  }
 
   ctx.restore();
 }
@@ -355,8 +475,11 @@ export function renderUniversalScoreboard(ctx, {
   entities = [],
   layout = 'corners', // 'corners' | 'top-bar'
   timeRemaining = null,
+  isRoundOver = false,
+  state = null,
 }) {
   const scale = getUiScale(arena);
+  const roundOver = Boolean(isRoundOver || state === 'ROUND_OVER' || state === 'MATCH_OVER' || state === 'ROUND_PAUSE');
 
   // 1. KÖŞE DÜZENİ (Saha İçi Sabitlenmiş + Proximity Ghosting)
   if (layout === 'corners') {
@@ -370,70 +493,354 @@ export function renderUniversalScoreboard(ctx, {
         name: p.name || `P${idx + 1}`,
       };
     });
-    renderCornerScores(ctx, { arena, entries, entities });
+    renderCornerScores(ctx, { arena, entries, entities, isRoundOver: roundOver });
     return;
   }
 
   // 2. ÜST YAYIN ŞERİDİ (Broadcast Bar)
-  const barW = Math.min(arena.width * 0.94, Math.round(560 * scale));
-  const barH = Math.round(42 * scale);
-  const barX = arena.cx - barW / 2;
-  const barY = arena.top + Math.round(8 * scale);
-  const shadow = Math.max(2, Math.round(3 * scale));
+  // Oyun esnasında: İnce, alçak profilli, yarı saydam füme kapsül (duvar hissi vermez, zemin görünür).
+  // Raunt sonunda: Geniş, opak, sert gölgeli kutlama kartı.
+  const activePlayers = players.filter((p, i) => p && (p.isJoined ?? (p.slotType !== 'empty')));
+  const count = Math.max(1, activePlayers.length);
 
-  const isNearby = checkProximity({ x: barX, y: barY, w: barW, h: barH }, entities, 30);
-  const barAlpha = isNearby ? 0.20 : 0.70;
+  const barW = Math.min(arena.width * 0.94, Math.round((roundOver ? 560 : 440) * scale));
+  const barH = Math.round((roundOver ? 40 : 25) * scale);
+  const barX = arena.cx - barW / 2;
+
+  // Akıllı Marj Yerleşimi: Arena üstünde dış boşluk varsa sahanın DIŞINA yerleştirilir (sahaya sıfır temas!)
+  const topMargin = arena.top;
+  let barY;
+  if (topMargin >= barH + 4) {
+    barY = arena.top - barH - 3;
+  } else {
+    barY = arena.top + Math.round((roundOver ? 4 : 1) * scale);
+  }
+
+  const isNearby = checkProximity({ x: barX, y: barY, w: barW, h: barH }, entities, 35);
+  const barAlpha = roundOver ? 1.0 : isNearby ? 0.12 : 0.40;
 
   ctx.save();
   ctx.globalAlpha = barAlpha;
 
-  // Sert gölge + Gövde
-  ctx.fillStyle = UI_COLORS.ink;
-  ctx.fillRect(barX + shadow, barY + shadow, barW, barH);
-  ctx.fillStyle = UI_COLORS.card;
-  ctx.fillRect(barX, barY, barW, barH);
-  ctx.strokeStyle = UI_COLORS.ink;
-  ctx.lineWidth = Math.max(2, Math.round(2.5 * scale));
-  ctx.strokeRect(barX, barY, barW, barH);
+  if (roundOver) {
+    const shadow = Math.max(2, Math.round(3 * scale));
+    ctx.fillStyle = UI_COLORS.ink;
+    ctx.fillRect(barX + shadow, barY + shadow, barW, barH);
+    ctx.fillStyle = UI_COLORS.card;
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.strokeStyle = UI_COLORS.ink;
+    ctx.lineWidth = Math.max(2, Math.round(2.5 * scale));
+    ctx.strokeRect(barX, barY, barW, barH);
+  } else {
+    // Saydam füme cam kapsül
+    ctx.fillStyle = 'rgba(24, 24, 22, 0.42)';
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(barX, barY, barW, barH);
+  }
 
   // Oyuncuları yatay diz
-  const activePlayers = players.filter((p, i) => p && (p.isJoined ?? (p.slotType !== 'empty')));
-  const count = Math.max(1, activePlayers.length);
-  const colW = (barW - Math.round(20 * scale)) / count;
-
-  // Lider skoru bul
+  const colW = (barW - Math.round(16 * scale)) / count;
   const maxScore = Math.max(...scores.slice(0, 4));
 
   activePlayers.forEach((p, idx) => {
     const origIdx = p.index ?? idx;
     const score = scores[origIdx] || 0;
     const isLeader = maxScore > 0 && score === maxScore;
-    const colX = barX + Math.round(10 * scale) + idx * colW;
+    const colX = barX + Math.round(8 * scale) + idx * colW;
 
     // Oyuncu rengi mini dikey çubuk
+    const stripeW = Math.max(3, Math.round((roundOver ? 5 : 3.5) * scale));
+    const stripeH = barH - Math.round((roundOver ? 14 : 8) * scale);
     ctx.fillStyle = p.color || UI_COLORS.players[origIdx];
-    ctx.fillRect(colX, barY + Math.round(8 * scale), Math.round(4 * scale), barH - Math.round(16 * scale));
+    ctx.fillRect(colX, barY + (barH - stripeH) / 2, stripeW, stripeH);
 
     // P1 + İsim
-    ctx.fillStyle = UI_COLORS.ink;
-    ctx.font = `900 ${Math.round(12 * scale)}px ${UI_FONTS.mono}`;
+    ctx.fillStyle = roundOver ? UI_COLORS.ink : '#FFFFFF';
+    ctx.font = `900 ${Math.round((roundOver ? 12 : 10.5) * scale)}px ${UI_FONTS.mono}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    const pName = (p.name || `P${origIdx + 1}`).slice(0, 6);
-    ctx.fillText(`${pName}`, colX + Math.round(8 * scale), barY + barH / 2);
+    const pName = (p.name || `P${origIdx + 1}`).slice(0, 5);
+    ctx.fillText(`${pName}`, colX + stripeW + Math.round(5 * scale), barY + barH / 2);
 
-    // Taç
+    // Taç / Yıldız
     if (isLeader) {
-      ctx.font = `${Math.round(11 * scale)}px sans-serif`;
-      ctx.fillText('👑', colX + Math.round(52 * scale), barY + barH / 2 - 1);
+      ctx.fillStyle = UI_COLORS.gold;
+      ctx.font = `900 ${Math.round((roundOver ? 12 : 10) * scale)}px ${UI_FONTS.mono}`;
+      ctx.fillText('★', colX + stripeW + Math.round((roundOver ? 46 : 38) * scale), barY + barH / 2);
     }
 
     // Skor
-    ctx.fillStyle = p.color || UI_COLORS.ink;
-    ctx.font = `900 ${Math.round(16 * scale)}px ${UI_FONTS.mono}`;
+    ctx.fillStyle = roundOver ? (p.color || UI_COLORS.ink) : '#FFFFFF';
+    ctx.font = `900 ${Math.round((roundOver ? 16 : 12.5) * scale)}px ${UI_FONTS.mono}`;
     ctx.textAlign = 'right';
-    ctx.fillText(`${score}★`, colX + colW - Math.round(8 * scale), barY + barH / 2);
+    ctx.fillText(`${score}★`, colX + colW - Math.round(6 * scale), barY + barH / 2);
   });
+
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------------------
+// Uyarlanabilir Skor Paneli (Adaptive Scoreboard)
+// ---------------------------------------------------------------------------
+// Ekran ve kontrol moduna göre en ergonomik düzeni dinamik seçer.
+// - Mobilde oyun esnasında saha zeminini %100 temiz tutar, sadece üst duvara gömülü mikro-çentik çizer.
+// - Raunt/maç sonunda veya peek butonuna dokunulduğunda tam boy kutlama kartı açılır.
+// - TV veya PC modunda: Yayın şeridini sahanın üst dış marjına veya sınırına çizer.
+export function renderAdaptiveScoreboard(ctx, {
+  arena,
+  players = [],
+  scores = [0, 0, 0, 0],
+  targetScore = 3,
+  entities = [],
+  forceLayout = null, // 'corners' | 'top-bar' | null (otomatik)
+  isHosting = false,
+  timeRemaining = null,
+  isRoundOver = false,
+  state = null,
+  uiButtons = null,
+}) {
+  const profile = getDisplayProfile(arena);
+  const roundOver = Boolean(isRoundOver || state === 'ROUND_OVER' || state === 'MATCH_OVER' || state === 'ROUND_PAUSE');
+  const peeking = isScoreboardPeeking();
+
+  // Mobilde oyun esnasında (ve peek aktif değilse):
+  // Sahada oynanabilir alanı %100 temiz ve ferah bırak; sadece üst duvar sınır mikro-çentiğini ve peek çipini çiz.
+  if (profile.type === 'MOBILE' && !roundOver && !peeking) {
+    renderArenaRailTally(ctx, { arena, players, scores, uiButtons });
+    return;
+  }
+
+  let layout = forceLayout;
+  if (!layout) {
+    const controlsActive = shouldShowVirtualControls({ isHosting });
+    // Sanal kontroller ekrandaysa parmak çakışmasını önlemek için daima top-bar
+    layout = controlsActive ? 'top-bar' : 'corners';
+  }
+
+  renderUniversalScoreboard(ctx, {
+    arena,
+    players,
+    scores,
+    targetScore,
+    entities,
+    layout,
+    timeRemaining,
+    isRoundOver: roundOver,
+    state,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Merkezi Varlık HUD (Entity Overhead Status System)
+// ---------------------------------------------------------------------------
+// Tüm oyun motorlarında (Tanks, Laser, Bomb, Crown vb.) oyuncunun/tankın üstünde
+// veya etrafında cephane, can, yetenek dolum arkı, kalkan ve sersemleme gösterir.
+// - Kenar Koruma (Edge Clamping): Karakter arena tavanına yaklaştığında göstergeler
+//   otomatik olarak alta döner (flip), tavan veya duvar arkasında kaybolmaz.
+// - Neo-Brutalist Yüksek Kontrast: Açık ve koyu zeminlerde %100 okunur siyah kutu + krem kontur.
+export function renderEntityHUD(ctx, {
+  x,
+  y,
+  radius = 16,
+  color = UI_COLORS.ink,
+  arena = null,
+  scale = 1.0,
+  hp = null,
+  maxHp = null,
+  ammo = null,
+  maxAmmo = null,
+  reloadProgress = 0,
+  cooldownProgress = null, // null: yok/pasif; 0..1: doluyor; >= 1: hazır parıltı
+  shield = false,
+  stun = false,
+  label = '',
+}) {
+  const s = Math.max(0.75, Math.min(1.4, scale));
+  const now = performance.now();
+
+  ctx.save();
+
+  // 1. Kalkan Balonu & Dönen Uydu
+  if (shield) {
+    const shieldR = radius + Math.round(9 * s);
+    ctx.save();
+    ctx.strokeStyle = UI_COLORS.shield || '#0EA5E9';
+    ctx.lineWidth = Math.max(2, Math.round(2.5 * s));
+    ctx.fillStyle = UI_COLORS.shieldBg || 'rgba(14, 165, 233, 0.18)';
+    ctx.beginPath();
+    ctx.arc(x, y, shieldR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    const sAng = (now / 1000) * 3.2;
+    ctx.fillStyle = '#38BDF8';
+    ctx.beginPath();
+    ctx.arc(x + Math.cos(sAng) * shieldR, y + Math.sin(sAng) * shieldR, 3.5 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // 2. Yetenek / Dash / Cooldown Çemberi (Varlık etrafında yüksek kontrastlı ark)
+  if (cooldownProgress !== null && cooldownProgress !== undefined) {
+    const ringR = radius + Math.round(4.5 * s);
+    const prog = Math.max(0, Math.min(1.0, cooldownProgress));
+
+    ctx.save();
+    if (prog >= 1.0 || prog <= 0.001) {
+      // Tam hazır: İnce parlak beyaz dış hat
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.lineWidth = Math.max(2, Math.round(2.5 * s));
+      ctx.beginPath();
+      ctx.arc(x, y, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // Doluyor: Koyu zemin rayı + renkli dolum yayı
+      ctx.strokeStyle = UI_COLORS.cooldownTrack || 'rgba(26, 26, 26, 0.28)';
+      ctx.lineWidth = Math.max(2.5, Math.round(3 * s));
+      ctx.beginPath();
+      ctx.arc(x, y, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = color || UI_COLORS.white;
+      ctx.lineWidth = Math.max(2.5, Math.round(3 * s));
+      ctx.beginPath();
+      ctx.arc(x, y, ringR, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // 3. Sersemleme / Daze Yıldızları
+  if (stun) {
+    ctx.save();
+    const starTime = now / 320;
+    for (let k = 0; k < 3; k++) {
+      const ang = starTime + (k * Math.PI * 2) / 3;
+      const sx = x + Math.cos(ang) * (radius + 7 * s);
+      const sy = (y - radius * 0.3) + Math.sin(ang) * (4 * s);
+      ctx.fillStyle = UI_COLORS.gold || '#D99B26';
+      ctx.font = `900 ${Math.round(11 * s)}px ${UI_FONTS.mono}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('★', sx, sy);
+    }
+    ctx.restore();
+  }
+
+  // 4. Başüstü Göstergeleri: Cephane (Ammo) ve Can (HP)
+  const hasHp = typeof hp === 'number' && typeof maxHp === 'number' && maxHp > 0;
+  const hasAmmo = typeof ammo === 'number' && typeof maxAmmo === 'number' && maxAmmo > 0;
+
+  if (hasHp || hasAmmo) {
+    // Tavan / Kenar çakışma koruması (Edge Clamping / Flipping)
+    const totalOverheadH = (hasHp ? 12 * s : 0) + (hasAmmo ? 15 * s : 0);
+    let flipBelow = false;
+    if (arena && (y - radius - totalOverheadH < (arena.top || 0) + 10 * s)) {
+      flipBelow = true;
+    }
+
+    let currentAnchorY = flipBelow
+      ? y + radius + Math.round(10 * s)
+      : y - radius - Math.round(8 * s);
+
+    // Yatay eksende ekran dışına taşmayı önle
+    let anchorX = x;
+    if (arena) {
+      const minX = (arena.left || 0) + Math.round(32 * s);
+      const maxX = (arena.right || 800) - Math.round(32 * s);
+      anchorX = Math.max(minX, Math.min(maxX, anchorX));
+    }
+
+    // A. Can (HP Pip'leri)
+    if (hasHp) {
+      const pw = Math.round(7 * s);
+      const gap = Math.round(3 * s);
+      const totalW = maxHp * pw + (maxHp - 1) * gap;
+      const startX = anchorX - totalW / 2;
+      const hpY = flipBelow ? currentAnchorY + Math.round(5 * s) : currentAnchorY - Math.round(5 * s);
+
+      ctx.save();
+      for (let h = 0; h < maxHp; h++) {
+        const cx = startX + h * (pw + gap) + pw / 2;
+        ctx.fillStyle = h < hp ? color : (UI_COLORS.disabled || '#E5E0D6');
+        ctx.strokeStyle = UI_COLORS.ink;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, hpY, pw / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      currentAnchorY = flipBelow ? currentAnchorY + Math.round(14 * s) : currentAnchorY - Math.round(14 * s);
+    }
+
+    // B. Mermi / Cephane Kutusu (Ammo Cartridges Box)
+    if (hasAmmo) {
+      const bulletW = Math.round(12 * s);
+      const bulletH = Math.round(7 * s);
+      const bulletGap = Math.round(3 * s);
+      const totalBulletsW = maxAmmo * bulletW + (maxAmmo - 1) * bulletGap;
+      const padX = Math.round(4 * s);
+      const padY = Math.round(2.5 * s);
+      const boxW = totalBulletsW + padX * 2;
+      const boxH = bulletH + padY * 2;
+      const boxX = Math.round(anchorX - boxW / 2);
+      const boxY = Math.round(flipBelow ? currentAnchorY : currentAnchorY - boxH);
+
+      ctx.save();
+      // Koyu koruyucu çerçeve + kenarlık
+      ctx.fillStyle = UI_COLORS.ammoFrame || '#141416';
+      ctx.fillRect(boxX, boxY, boxW, boxH);
+      ctx.strokeStyle = UI_COLORS.ink;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+      for (let a = 0; a < maxAmmo; a++) {
+        const bx = boxX + padX + a * (bulletW + bulletGap);
+        const by = boxY + padY;
+        const isReady = a < ammo;
+        const isReloading = a === ammo && ammo < maxAmmo && reloadProgress > 0;
+
+        // Fişek yuvası arka planı
+        ctx.fillStyle = UI_COLORS.ammoEmpty || '#26262B';
+        ctx.fillRect(bx, by, bulletW, bulletH);
+
+        if (isReady) {
+          // Dolu fişek: Oyuncu rengi + beyaz uç parıltısı
+          ctx.fillStyle = color;
+          ctx.fillRect(bx, by, bulletW, bulletH);
+          ctx.fillStyle = UI_COLORS.white;
+          ctx.fillRect(bx + bulletW - Math.round(3 * s), by + 1, Math.round(2.5 * s), bulletH - 2);
+        } else if (isReloading) {
+          // Doluyor: Altın sarısı dolum ilerlemesi
+          ctx.fillStyle = UI_COLORS.ammoReloading || '#FACC15';
+          ctx.fillRect(bx, by, Math.round(bulletW * Math.min(1.0, reloadProgress)), bulletH);
+        }
+
+        ctx.strokeStyle = UI_COLORS.ink;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx, by, bulletW, bulletH);
+      }
+      ctx.restore();
+    }
+  }
+
+  // 5. İsteğe Bağlı Etiket (P1, P2 vb.)
+  if (label) {
+    ctx.save();
+    ctx.font = `900 ${Math.round(10 * s)}px ${UI_FONTS.mono}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = UI_COLORS.outlineContrast || 'rgba(250, 247, 242, 0.92)';
+    ctx.lineWidth = 3;
+    ctx.strokeText(label, x, y + radius + Math.round(8 * s));
+    ctx.fillStyle = color;
+    ctx.fillText(label, x, y + radius + Math.round(8 * s));
+    ctx.restore();
+  }
 
   ctx.restore();
 }
