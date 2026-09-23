@@ -14,14 +14,10 @@ import {
   playStumble,
   playPowerUp,
 } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
 import {
   renderTopPill,
-  renderAdaptiveScoreboard,
   renderSpatialBadge,
-  renderRoundBanner,
-  renderMatchOver,
   renderArenaWatermarkTimer,
 } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -137,6 +133,26 @@ export class ZoneGame extends BaseMiniGame {
     this.bindStandardKeyboard((slot) => {
       this.triggerDash(slot);
     });
+  }
+
+  getTabletopSchema() {
+    return {
+      joystick: true,
+      actions: [
+        {
+          id: 'dash',
+          icon: '⚡',
+          label: 'DEPAR',
+          cooldownField: 'dashCooldown',
+          maxCooldown: ZONE_TUNING.DASH_CD,
+        },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (!isDown || actionId !== 'dash') return;
+    this.triggerDash(slotIndex);
   }
 
   cycleSlotType(index) {
@@ -317,6 +333,7 @@ export class ZoneGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const marginX = Math.max(8, Math.floor(width * 0.025));
     const marginY = height > width
       ? Math.max(48, Math.floor(height * 0.12))
@@ -966,7 +983,7 @@ export class ZoneGame extends BaseMiniGame {
       return;
     }
     if (this.state === 'PLAYING') {
-      this.handleStandardJoystickTouchStart(touch);
+      this.handleTabletopTouchStart(touch);
     }
   }
 
@@ -1274,43 +1291,32 @@ export class ZoneGame extends BaseMiniGame {
 
     this.renderField(ctx);
 
-    if (this.state === 'PLAYING') this.renderTopHUD(ctx);
-
     this.renderPlayers(ctx);
     this.renderFx(ctx);
-    this.renderJoystickHints(ctx);
+    this.renderControls(ctx);
 
-    this.uiButtons = [];
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.zone'), [
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.zone'),
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      this.renderLobbyUI(ctx);
-    } else if (this.state === 'ROUND_OVER') {
-      renderRoundBanner(ctx, {
-        arena: this.arena,
-        title: this.roundWinner ? t('zone.took', this.roundWinner.name) : t('game.draw'),
-        titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A',
-        sub: this.roundWinner
-          ? t('zone.roundSub', this.pct[this.roundWinner.index], this.kills[this.roundWinner.index], this.tieBreak ? t('zone.lastMove') : '')
-          : '',
-      });
-    } else if (this.state === 'MATCH_OVER') {
-      renderMatchOver(ctx, {
-        arena: this.arena,
-        uiButtons: this.uiButtons,
-        headline: t('zone.champ'),
-        winnerName: this.matchWinner ? this.matchWinner.name : '',
-        winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
-        rows: this.players
-          .filter((p) => p.isJoined)
-          .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★ • %${this.pct[p.index]} • ${this.kills[p.index]}✂` })),
-        onRestart: () => this.startNewMatch(),
-      });
-    }
+      ],
+      colors: ZONE_COLORS,
+      accent: '#2F6A4F',
+      roundBannerTitle: this.roundWinner ? t('zone.took', this.roundWinner.name) : t('game.draw'),
+      roundBannerColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A',
+      roundBannerSub: this.roundWinner
+        ? t('zone.roundSub', this.pct[this.roundWinner.index], this.kills[this.roundWinner.index], this.tieBreak ? t('zone.lastMove') : '')
+        : '',
+      matchOverHeadline: t('zone.champ'),
+      matchOverRows: this.players
+        .filter((p) => p.isJoined)
+        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★ • %${this.pct[p.index]} • ${this.kills[p.index]}✂` })),
+      onSeatChange: (i) => this.syncLobbySeat(i),
+      onRestart: () => this.startNewMatch(),
+    });
 
     ctx.restore();
   }
@@ -1476,22 +1482,6 @@ export class ZoneGame extends BaseMiniGame {
     ctx.strokeRect(x, y, s, s);
   }
 
-  renderTopHUD(ctx) {
-    const remain = Math.max(0, this.roundTimer);
-    const leader = this.leaderIndex >= 0 ? this.players[this.leaderIndex] : null;
-    const isUrgent = remain <= 10.0 || (leader && this.pct[leader.index] >= 35);
-    const text = leader && leader.isJoined
-      ? `⏱ ${Math.ceil(remain)}s • ${leader.name} %${this.pct[leader.index]}`
-      : `⏱ ${Math.ceil(remain)}s`;
-    renderAdaptiveScoreboard(ctx, {
-      arena: this.arena,
-      players: this.players,
-      scores: this.scores,
-      entities: this.players.filter((p) => p.isJoined),
-      isHosting: !!this.hideLobbyStartButton,
-      state: this.state,
-    });
-  }
 
   renderPlayers(ctx) {
     if (this.state === 'LOBBY') return;
@@ -1576,15 +1566,6 @@ export class ZoneGame extends BaseMiniGame {
           bg: '#48CAE4',
           scale: 0.9,
         });
-      } else if (p.trail.length >= ZONE_TUNING.TRAIL_HAZARD) {
-        renderSpatialBadge(ctx, {
-          x: 0,
-          y: p.radius + 33,
-          text: t('game.danger'),
-          icon: '⚡',
-          urgent: true,
-          scale: 0.9,
-        });
       }
 
       ctx.restore();
@@ -1626,66 +1607,5 @@ export class ZoneGame extends BaseMiniGame {
     }
   }
 
-  renderJoystickHints(ctx) {
-    if (this.state !== 'PLAYING') return;
-    const { left, right, top, bottom, width, height } = this.arena;
-    const anchors = [
-      { x: left + width * 0.14, y: bottom - height * 0.14 },
-      { x: left + width * 0.14, y: top + height * 0.14 },
-      { x: right - width * 0.14, y: top + height * 0.14 },
-      { x: right - width * 0.14, y: bottom - height * 0.14 },
-    ];
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      const p = this.players[q];
-      if (!p || !p.isJoined || p.slotType !== 'human') continue;
-      if (!joy.active) {
-        ctx.save();
-        ctx.translate(anchors[q].x, anchors[q].y);
-        if (q === 1 || q === 2) ctx.rotate(Math.PI);
-        ctx.globalAlpha = 0.45;
-        ctx.strokeStyle = p.color;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.arc(0, 0, 34, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = p.color;
-        ctx.font = '800 11px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(t('game.drag', p.name.slice(0, 3)), 0, 0);
-        ctx.restore();
-        continue;
-      }
-      ctx.save();
-      ctx.strokeStyle = 'rgba(28,28,26,0.4)';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.arc(joy.originX, joy.originY, 48, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(joy.currX, joy.currY, 20, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
 
-  renderLobbyUI(ctx) {
-    this.renderStandardLobby(ctx, {
-      arena: this.arena,
-      colors: ZONE_COLORS,
-      accent: '#2F6A4F',
-      onStart: () => this.startNewMatch(),
-      rotateTop: true,
-      onSeatChange: (i) => this.syncLobbySeat(i),
-    });
-  }
 }

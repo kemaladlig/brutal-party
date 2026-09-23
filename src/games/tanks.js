@@ -1,9 +1,8 @@
 // Micro-Tanks: 8 Labyrinths with Multi-Tier Bot AI (Normal & God Mode), Tactical Crates & Sudden Death
 import { getSlotCustomization, ensureLocalSeatColor, getBotPersona } from '../core/customizationManager.js';
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderTopPill, renderAdaptiveScoreboard, renderEntityHUD, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
+import { renderTopPill, renderEntityHUD } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup } from '../core/arenaKit.js';
@@ -304,6 +303,31 @@ export class TanksGame extends BaseMiniGame {
     this.startRound();
   }
 
+  getTabletopSchema() {
+    return {
+      // Sürüüş köşe-tut mantığıyla çalışır; ped yalnızca görsel rehberdir
+      joystick: true,
+      actions: [
+        {
+          id: 'fire',
+          icon: '💣',
+          label: 'ATEŞ',
+          cooldownField: 'reloadTimer',
+          cooldownMaxField: 'reloadCooldown',
+          readyField: 'chamber',
+        },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (!isDown || actionId !== 'fire') return;
+    const tank = this.tanks[slotIndex];
+    if (tank && tank.isJoined && tank.isAlive && tank.slotType === 'human') {
+      this.attemptFire(tank);
+    }
+  }
+
   cycleSlotType(index) {
     if (this.requestLobbySeatTap(index)) return;
     if (this.slotTypes[index] === 'empty') {
@@ -331,6 +355,7 @@ export class TanksGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = Math.max(32, Math.floor(height * 0.06));
@@ -514,6 +539,8 @@ export class TanksGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING') {
+      // Masa-ortası ATEŞ butonları önce (varsa); köşe-tut sürüşü ardından
+      if (this.handleTabletopTouchStart(touch)) return;
       const corner = this.getCornerZone(touch);
       if (corner === -1) return;
       const tank = this.tanks[corner];
@@ -1050,25 +1077,6 @@ export class TanksGame extends BaseMiniGame {
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
 
-    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları (Proximity Ghosting)
-    if (this.state === 'PLAYING') {
-      const activeEntities = [];
-      this.tanks.forEach((t) => {
-        if (t.isJoined && t.isAlive) activeEntities.push({ x: t.x, y: t.y, radius: t.size || 20 });
-      });
-      this.bullets.forEach((b) => {
-        activeEntities.push({ x: b.x, y: b.y, radius: 10 });
-      });
-      renderAdaptiveScoreboard(ctx, {
-        arena: this.arena,
-        players: this.tanks,
-        scores: this.scores,
-        entities: activeEntities,
-        isHosting: !!this.hideLobbyStartButton,
-        state: this.state,
-      });
-    }
-
     // Taktik Zemin Izgarası & Brutalist Çapraz Merkez İşaretleri
     ctx.strokeStyle = '#E5E0D6';
     ctx.lineWidth = 1.5;
@@ -1159,7 +1167,6 @@ export class TanksGame extends BaseMiniGame {
     ctx.strokeRect(left, top, width, height);
 
     this.uiButtons = [];
-    this.renderCornerTouchZones(ctx);
 
     for (const b of this.bullets) {
       ctx.beginPath();
@@ -1206,19 +1213,34 @@ export class TanksGame extends BaseMiniGame {
       renderTopPill(ctx, { arena: this.arena, text: t('tanks.sudden'), urgent: true });
     }
 
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.tanks'), [
+    this.renderControls(ctx, { extraEntities: this.bullets });
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.tanks'),
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      this.renderLobbyUI(ctx);
-    } else if (this.state === 'ROUND_OVER') {
-      this.renderRoundBanner(ctx);
-    } else if (this.state === 'MATCH_OVER') {
-      this.renderMatchOverUI(ctx);
-    }
+      ],
+      colors: TANK_COLORS,
+      playerNames: this.tanks.map((tank, i) => (tank && tank.name && tank.name !== TANK_NAMES[i]) ? tank.name : ''),
+      accent: '#D84727',
+      scoreboardEntities: [
+        ...this.tanks.filter((t) => t.isJoined && t.isAlive).map((t) => ({ x: t.x, y: t.y, radius: t.size || 20 })),
+        ...this.bullets.map((b) => ({ x: b.x, y: b.y, radius: 10 })),
+      ],
+      matchOverHeadline: t('tanks.champ'),
+      matchOverRows: this.tanks
+        .filter((tank) => tank.isJoined)
+        .map((tank) => ({ color: tank.color, text: `${tank.name}: ${this.scores[tank.index] || 0}★` })),
+      onSeatChange: (i) => {
+        if (this.tanks[i]) {
+          this.tanks[i].isJoined = this.isSlotJoined(i);
+          this.tanks[i].slotType = this.slotTypes[i];
+        }
+        playJoin();
+      },
+    });
 
     ctx.restore();
   }
@@ -1394,101 +1416,5 @@ export class TanksGame extends BaseMiniGame {
     });
   }
 
-  renderCornerTouchZones(ctx) {
-    if (this.state === 'LOBBY') return;
 
-    const corners = [
-      { name: 'P1', color: TANK_COLORS[0], slot: this.slotTypes[0] },
-      { name: 'P2', color: TANK_COLORS[1], slot: this.slotTypes[1] },
-      { name: 'P3', color: TANK_COLORS[2], slot: this.slotTypes[2] },
-      { name: 'P4', color: TANK_COLORS[3], slot: this.slotTypes[3] },
-    ];
-
-    corners.forEach((c, index) => {
-      const zone = this.getCornerControlRect(index);
-      const isTop = index === 1 || index === 2;
-      const tank = this.tanks[index];
-      const isGameplayHuman = this.state === 'PLAYING' && c.slot === 'human';
-
-      ctx.save();
-      // Rotate 180° for Top players so text & HUD is right-side up for them!
-      ctx.translate(zone.x + zone.w / 2, zone.y + zone.h / 2);
-      if (isTop) {
-        ctx.rotate(Math.PI);
-      }
-
-      const halfW = zone.w / 2;
-      const halfH = zone.h / 2;
-      {
-        // In-game corner header & HUD
-        ctx.strokeStyle = c.color;
-        ctx.lineWidth = c.slot === 'bot_god' ? 3 : 2;
-        ctx.strokeRect(-halfW, -halfH, zone.w, zone.h);
-
-        // Rotated Corner Header: Player Name
-        ctx.fillStyle = c.color;
-        ctx.font = '900 13px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        const pName = (tank && tank.name) ? tank.name : c.name;
-        ctx.fillText(pName, 0, -halfH + 8);
-
-        if (isGameplayHuman && tank) {
-          const isDriving = tank.isDriving;
-          ctx.fillStyle = isDriving ? `${c.color}44` : `${c.color}18`;
-          ctx.fillRect(-halfW, -halfH, zone.w, zone.h);
-
-          // Control instructions
-          ctx.fillStyle = isDriving ? '#1A1A1A' : c.color;
-          ctx.font = '900 13px "Space Grotesk", sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(isDriving ? t('tanks.moving') : t('tanks.driveHint'), 0, 0);
-        }
-      }
-
-      ctx.restore();
-    });
-  }
-
-  renderLobbyUI(ctx) {
-    this.renderStandardLobby(ctx, {
-      arena: this.arena,
-      colors: TANK_COLORS,
-      playerNames: this.tanks.map((tank, i) => (tank && tank.name && tank.name !== TANK_NAMES[i]) ? tank.name : ''),
-      accent: '#D84727',
-      onStart: () => this.startNewMatch(),
-      rotateTop: true,
-      onSeatChange: (i) => {
-        if (this.tanks[i]) {
-          this.tanks[i].isJoined = this.isSlotJoined(i);
-          this.tanks[i].slotType = this.slotTypes[i];
-        }
-        playJoin();
-      },
-    });
-  }
-
-  renderRoundBanner(ctx) {
-    const cleanWinner = this.roundWinner ? cleanWinnerName(this.roundWinner.name) : '';
-    renderRoundBanner(ctx, {
-      arena: this.arena,
-      title: cleanWinner ? `${cleanWinner} KAZANDI!` : 'BERABERE!',
-      titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A',
-    });
-  }
-
-  renderMatchOverUI(ctx) {
-    renderMatchOver(ctx, {
-      arena: this.arena,
-      uiButtons: this.uiButtons,
-      headline: t('tanks.champ'),
-      winnerName: this.matchWinner ? this.matchWinner.name : '',
-      winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
-      rows: this.tanks
-        .filter((tank) => tank.isJoined)
-        .map((tank) => ({ color: tank.color, text: `${tank.name}: ${this.scores[tank.index] || 0}★` })),
-      onRestart: () => this.startNewMatch(),
-    });
-  }
 }

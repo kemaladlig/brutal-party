@@ -3,9 +3,7 @@
 // Çoklu rastgele harita varyasyonları, boost enerji mekaniği ve canlı meyve türleri.
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateSnakeBotAI } from '../ai/snakeAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
@@ -150,6 +148,7 @@ export class SnakeGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
@@ -809,22 +808,6 @@ export class SnakeGame extends BaseMiniGame {
     }
     ctx.stroke();
 
-    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      const activeEntities = [];
-      this.players.forEach((p) => {
-        if (p.isJoined && p.isAlive && p.body && p.body.length > 0) {
-          activeEntities.push({ x: p.body[0].x, y: p.body[0].y, radius: 18 });
-        }
-      });
-      renderAdaptiveScoreboard(ctx, {
-        arena: this.arena,
-        players: this.players,
-        scores: this.scores,
-        entities: activeEntities,
-        isHosting: !!this.hideLobbyStartButton,
-        state: this.state,
-      });
-    }
 
     // 1. ENGEL DUVARLARI
     for (const w of this.walls) {
@@ -1007,42 +990,28 @@ export class SnakeGame extends BaseMiniGame {
       ctx.restore();
     }
 
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.snake'), [
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.snake'),
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      this.renderStandardLobby(ctx, {
-        arena: this.arena,
-        colors: SNAKE_COLORS,
-        accent: '#2F6A4F',
-        onStart: () => this.startNewMatch(),
-        rotateTop: true,
-        onSeatChange: (i) => {
-          if (this.players[i]) {
-            this.players[i].isJoined = this.isSlotJoined(i);
-            this.players[i].slotType = this.slotTypes[i];
-          }
-          playJoin();
-        },
-      });
-    } else if (this.state === 'ROUND_OVER') {
-      renderRoundBanner(ctx, { arena: this.arena, title: this.roundWinner ? `${this.roundWinner.name} KAZANDI!` : 'BERABERE!', titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A' });
-    } else if (this.state === 'MATCH_OVER') {
-      renderMatchOver(ctx, {
-        arena: this.arena,
-        uiButtons: this.uiButtons,
-        headline: t('snake.champ'),
-        winnerName: this.matchWinner ? this.matchWinner.name : '',
-        winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
-        rows: this.players
-          .filter((p) => p.isJoined)
-          .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` })),
-        onRestart: () => this.startNewMatch(),
-      });
-    }
+      ],
+      colors: SNAKE_COLORS,
+      accent: '#2F6A4F',
+      matchOverHeadline: t('snake.champ'),
+      matchOverRows: this.players
+        .filter((p) => p.isJoined)
+        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` })),
+      onSeatChange: (i) => {
+        if (this.players[i]) {
+          this.players[i].isJoined = this.isSlotJoined(i);
+          this.players[i].slotType = this.slotTypes[i];
+        }
+        playJoin();
+      },
+    });
 
     ctx.restore();
   }
@@ -1061,6 +1030,10 @@ export class SnakeGame extends BaseMiniGame {
       ctx.save();
       const cx = zones.box.x + zones.box.w / 2;
       const cy = zones.box.y + zones.box.h / 2;
+      // Proximity Ghosting: Karakter köşeye yaklaşınca kontroller şeffaflaşır (alpha: 0.25)
+      const isNear = this.checkEntityProximity(cx, cy, 90);
+      if (isNear) ctx.globalAlpha = 0.25;
+
       ctx.translate(cx, cy);
       if (isTop) {
         ctx.rotate(Math.PI);

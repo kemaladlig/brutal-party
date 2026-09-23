@@ -1,9 +1,7 @@
 // BRUTAL CURVE (Game 03): 2-4 Player Local Party Curve Fever with Gaps, Power-Ups & Bot AI
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGap, playItemPickup } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup } from '../core/arenaKit.js';
@@ -107,6 +105,7 @@ export class CurveGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width
@@ -839,18 +838,6 @@ export class CurveGame extends BaseMiniGame {
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
 
-    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları (Proximity Ghosting)
-    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      renderAdaptiveScoreboard(ctx, {
-        arena: this.arena,
-        players: this.players,
-        scores: this.scores,
-        entities: this.players.filter((p) => p.isJoined && p.isAlive),
-        isHosting: !!this.hideLobbyStartButton,
-        state: this.state,
-      });
-    }
-
     ctx.strokeStyle = '#E2DDD4';
     ctx.lineWidth = 1.5;
     const gridStep = size / 6;
@@ -1017,19 +1004,28 @@ export class CurveGame extends BaseMiniGame {
       this.renderSpawnBeacons(ctx);
     }
 
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.curve'), [
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.curve'),
+      guideEntries: [
         'P1 [A/D]',
         'P2 [←/→]',
         'P3 [J/L]',
         'P4 [F/H]',
-      ]);
-      this.renderLobbyUI(ctx);
-    } else if (this.state === 'ROUND_OVER') {
-      this.renderRoundBanner(ctx);
-    } else if (this.state === 'MATCH_OVER') {
-      this.renderMatchOverUI(ctx);
-    }
+      ],
+      colors: this.players.map((p) => p.color),
+      accent: '#D84727',
+      matchOverHeadline: t('curve.champ'),
+      matchOverRows: this.players
+        .filter((player) => player.isJoined)
+        .map((player) => ({ color: player.color, text: `${player.name}: ${this.scores[player.index] || 0}★` })),
+      onSeatChange: (i) => {
+        if (this.players[i]) {
+          this.players[i].isJoined = this.isSlotJoined(i);
+          this.players[i].slotType = this.slotTypes[i];
+        }
+        playJoin();
+      },
+    });
 
     ctx.restore();
   }
@@ -1044,9 +1040,13 @@ export class CurveGame extends BaseMiniGame {
       const isTop = i === 1 || i === 2;
 
       ctx.save();
-      // Rotate 180° for Top players so buttons and text face that player
       const cx = zones.box.x + zones.box.w / 2;
       const cy = zones.box.y + zones.box.h / 2;
+      // Proximity Ghosting: Karakter köşeye yaklaşınca kontroller şeffaflaşır (alpha: 0.25)
+      const isNear = this.checkEntityProximity(cx, cy, 90);
+      if (isNear) ctx.globalAlpha = 0.25;
+
+      // Rotate 180° for Top players so buttons and text face that player
       ctx.translate(cx, cy);
       if (isTop) {
         ctx.rotate(Math.PI);
@@ -1138,43 +1138,4 @@ export class CurveGame extends BaseMiniGame {
     });
   }
 
-  renderLobbyUI(ctx) {
-    this.renderStandardLobby(ctx, {
-      arena: this.arena,
-      colors: this.players.map((p) => p.color),
-      accent: '#D84727',
-      onStart: () => this.startNewMatch(),
-      rotateTop: true,
-      onSeatChange: (i) => {
-        if (this.players[i]) {
-          this.players[i].isJoined = this.isSlotJoined(i);
-          this.players[i].slotType = this.slotTypes[i];
-        }
-        playJoin();
-      },
-    });
-  }
-
-  renderRoundBanner(ctx) {
-    const cleanWinner = this.roundWinner ? cleanWinnerName(this.roundWinner.name) : '';
-    renderRoundBanner(ctx, {
-      arena: this.arena,
-      title: cleanWinner ? `${cleanWinner} KAZANDI!` : 'BERABERE!',
-      titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A',
-    });
-  }
-
-  renderMatchOverUI(ctx) {
-    renderMatchOver(ctx, {
-      arena: this.arena,
-      uiButtons: this.uiButtons,
-      headline: t('curve.champ'),
-      winnerName: this.matchWinner ? this.matchWinner.name : '',
-      winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
-      rows: this.players
-        .filter((player) => player.isJoined)
-        .map((player) => ({ color: player.color, text: `${player.name}: ${this.scores[player.index] || 0}★` })),
-      onRestart: () => this.startNewMatch(),
-    });
-  }
 }

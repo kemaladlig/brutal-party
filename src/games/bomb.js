@@ -14,16 +14,12 @@ import {
   playPanicHeartbeat,
   playStumble,
 } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
 import { t } from '../i18n.js';
 import {
   renderTopPill,
-  renderAdaptiveScoreboard,
   renderEntityHUD,
-  renderRoundBanner,
-  renderMatchOver,
   renderArenaWatermarkTimer,
-  cleanWinnerName,
+  renderAdaptiveScoreboard,
 } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { pulse } from '../ui/motion.js';
@@ -39,6 +35,9 @@ import { createPlayer, tickEffectTimers, advancePlayer } from '../core/playerEnt
 
 export const BOMB_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const BOMB_NAMES = ['P1', 'P2', 'P3', 'P4'];
+
+// Depar bekleme süresi (sn) — triggerDash, entity HUD ve masa-ortası butonu aynı kaynaktan okur
+const BOMB_DASH_COOLDOWN = 2.2;
 
 export const MAP_PRESETS = [
   { id: 'columns4', name: '01 // 4 SİPER KOLONU' },
@@ -98,7 +97,6 @@ export class BombGame extends BaseMiniGame {
 
     // UI Buttons
     this.uiButtons = [];
-    this.dashButtons = [];
 
     // 4 Corner Floating Virtual Joysticks (P1: BL, P2: TL, P3: TR, P4: BR)
     this.joysticks = [
@@ -111,6 +109,30 @@ export class BombGame extends BaseMiniGame {
     // Keyboard Controls
     this.keys = {};
     this.initKeyboard();
+  }
+
+  getTabletopSchema() {
+    return {
+      joystick: true,
+      actions: [
+        {
+          id: 'dash',
+          icon: '⚡',
+          label: 'DEPAR',
+          color: '#FFDE59',
+          cooldownField: 'dashCooldown',
+          cooldownMaxField: 'dashMaxCooldown',
+          maxCooldown: BOMB_DASH_COOLDOWN,
+        },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (!isDown) return;
+    if (actionId === 'dash') {
+      this.triggerDash(slotIndex);
+    }
   }
 
   initKeyboard() {
@@ -150,6 +172,7 @@ export class BombGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width
@@ -305,7 +328,8 @@ export class BombGame extends BaseMiniGame {
     const p = this.players[playerIndex];
     if (!p || !p.isAlive || p.dashCooldown > 0 || p.slipTimer > 0) return;
 
-    p.dashCooldown = 2.2;
+    p.dashCooldown = BOMB_DASH_COOLDOWN;
+    p.dashMaxCooldown = BOMB_DASH_COOLDOWN;
     p.dashTimer = 0.22;
     p.isDashing = true;
     this.trauma = Math.min(1.0, this.trauma + 0.15);
@@ -476,26 +500,15 @@ export class BombGame extends BaseMiniGame {
       return;
     }
 
-    // 2. Dash button tap handling
+    // 2. Tabletop butonları + joystick (tek merkezden, BaseGame)
     if (this.state === 'PLAYING') {
-      for (const dBtn of this.dashButtons) {
-        if (
-          touch.x >= dBtn.x - dBtn.w / 2 - 12 &&
-          touch.x <= dBtn.x + dBtn.w / 2 + 12 &&
-          touch.y >= dBtn.y - dBtn.h / 2 - 12 &&
-          touch.y <= dBtn.y + dBtn.h / 2 + 12
-        ) {
-          this.triggerDash(dBtn.playerIndex);
-          return;
-        }
-      }
-      this.handleStandardJoystickTouchStart(touch, (q) => this.triggerDash(q));
+      this.handleTabletopTouchStart(touch);
     }
   }
 
   onTouchMove(touch) {
     if (this.state !== 'PLAYING') return;
-    this.handleStandardJoystickTouchMove(touch);
+    this.handleTabletopTouchMove(touch);
   }
 
   handleRemoteInput(slotIndex, data) {
@@ -507,11 +520,11 @@ export class BombGame extends BaseMiniGame {
   }
 
   onTouchEnd(touch) {
-    this.handleStandardJoystickTouchEnd(touch);
+    this.handleTabletopTouchEnd(touch);
   }
 
   onTouchesReset() {
-    this.resetStandardJoysticks();
+    this.resetTabletopTouches();
   }
 
   // --- SMART BOT AI (Delegated to src/ai/bombAI.js) ---
@@ -800,9 +813,7 @@ export class BombGame extends BaseMiniGame {
     this.renderPickups(ctx);
     this.renderPlayers(ctx);
     this.renderParticles(ctx);
-    this.renderVirtualJoysticks(ctx);
-    this.renderDashButtons(ctx);
-    this.renderTopHUD(ctx);
+    this.renderControls(ctx);
 
     // Panic Phase Red Border Vignette (Last 4 Seconds)
     if (this.state === 'PLAYING' && this.bombTimer <= 4.0) {
@@ -817,21 +828,58 @@ export class BombGame extends BaseMiniGame {
       ctx.fillRect(right, top - edge, edge, height + edge * 2);
     }
 
-    // Render UI Overlays
-    this.uiButtons = [];
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.bomb'), [
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.bomb'),
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      this.renderLobbyUI(ctx);
-    } else if (this.state === 'ROUND_OVER') {
-      this.renderRoundOverUI(ctx);
-    } else if (this.state === 'MATCH_OVER') {
-      this.renderGameOverUI(ctx);
-    }
+      ],
+      colors: BOMB_COLORS,
+      playerNames: BOMB_NAMES,
+      accent: '#D84727',
+      roundBannerTitle: this.roundWinner ? `+1 SET: ${this.roundWinner.name}!` : null,
+      roundBannerColor: this.roundWinner?.color,
+      roundBannerSub: this.roundWinner ? `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}` : '',
+      matchOverHeadline: t('game.champWon'),
+      matchOverRows: this.matchWinner
+        ? this.players
+            .filter((p) => p.isJoined)
+            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` }))
+        : [],
+      onRestart: () => this.resetCurrentGame(),
+      customControls: (c) => {
+        const { arena } = this;
+        const mapBtnW = Math.min(220, arena.size * 0.52);
+        const mapBtnH = 36;
+        const mapBtnX = arena.cx - mapBtnW / 2;
+        const mapBtnY = arena.cy - 72;
+        c.save();
+        c.fillStyle = '#1A1A1A';
+        c.fillRect(mapBtnX + 3, mapBtnY + 3, mapBtnW, mapBtnH);
+        c.fillStyle = '#FFFFFF';
+        c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+        c.strokeStyle = '#1C1C1A';
+        c.lineWidth = 2.5;
+        c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+
+        c.fillStyle = '#1C1C1A';
+        c.font = '800 12px "JetBrains Mono", monospace';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(`🗺️ ${MAP_PRESETS[this.selectedMapIndex].name} ▾`, arena.cx, mapBtnY + mapBtnH / 2);
+        c.restore();
+
+        this.uiButtons.push({
+          x: mapBtnX,
+          y: mapBtnY,
+          w: mapBtnW,
+          h: mapBtnH,
+          onClick: () => this.cycleMap(),
+        });
+      },
+    });
 
     ctx.restore();
   }
@@ -991,9 +1039,7 @@ export class BombGame extends BaseMiniGame {
     }
   }
 
-  renderTopHUD(ctx) {
-    // Merkezi otoriter geri sayım sayacı kullanıldığından üst hap zamanlayıcı kaldırıldı
-  }
+
 
   renderPickups(ctx) {
     for (const item of this.pickups) drawPickup(ctx, item);
@@ -1151,209 +1197,5 @@ export class BombGame extends BaseMiniGame {
       ctx.fillRect(part.x - part.size / 2, part.y - part.size / 2, part.size, part.size);
       ctx.restore();
     }
-  }
-
-  renderVirtualJoysticks(ctx) {
-    if (this.state !== 'PLAYING') return;
-
-    const { left, right, top, bottom, width, height } = this.arena;
-    const anchors = [
-      { x: left + width * 0.14, y: bottom - height * 0.14 },
-      { x: left + width * 0.14, y: top + height * 0.14 },
-      { x: right - width * 0.14, y: top + height * 0.14 },
-      { x: right - width * 0.14, y: bottom - height * 0.14 },
-    ];
-
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      const player = this.players[q];
-      if (!player.isJoined || player.slotType !== 'human') continue;
-
-      if (!joy.active) {
-        ctx.save();
-        ctx.translate(anchors[q].x, anchors[q].y);
-        if (q === 1 || q === 2) ctx.rotate(Math.PI);
-        ctx.globalAlpha = 0.45;
-        ctx.strokeStyle = player.color;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.arc(0, 0, 36, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = player.color;
-        ctx.font = '800 11px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(t('game.drag', player.name.slice(0, 3)), 0, 0);
-        ctx.restore();
-        continue;
-      }
-
-      ctx.save();
-      ctx.globalAlpha = 0.55;
-      // Base Ring
-      ctx.strokeStyle = 'rgba(28, 28, 26, 0.4)';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.arc(joy.originX, joy.originY, 48, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Thumbstick Knob
-      ctx.setLineDash([]);
-      ctx.fillStyle = player.color;
-      ctx.beginPath();
-      ctx.arc(joy.currX, joy.currY, 20, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-
-  renderDashButtons(ctx) {
-    if (this.state !== 'PLAYING') return;
-
-    this.dashButtons = [];
-    const { canvas, arena } = this;
-    const btnW = 82;
-    const btnH = 36;
-
-    // Check vertical margin outside arena
-    const bottomSpace = canvas.height - arena.bottom;
-    const topSpace = arena.top;
-
-    const bottomY = bottomSpace >= 42 ? arena.bottom + 26 : arena.bottom - 22;
-    const topY = topSpace >= 42 ? arena.top - 26 : arena.top + 22;
-
-    const positions = [
-      { x: arena.left + arena.size * 0.35, y: bottomY },
-      { x: arena.left + arena.size * 0.35, y: topY },
-      { x: arena.right - arena.size * 0.16, y: topY },
-      { x: arena.right - arena.size * 0.16, y: bottomY },
-    ];
-
-    for (let i = 0; i < 4; i++) {
-      const p = this.players[i];
-      if (!p.isJoined || !p.isAlive || p.slotType !== 'human') continue;
-
-      const pos = positions[i];
-      const isReady = p.dashCooldown <= 0;
-      const isDashing = p.dashTimer > 0;
-
-      ctx.save();
-      ctx.globalAlpha = 0.65;
-      ctx.translate(pos.x, pos.y);
-      if (i === 1 || i === 2) {
-        ctx.rotate(Math.PI);
-      }
-
-      // Drop Shadow
-      ctx.fillStyle = '#1C1C1A';
-      ctx.fillRect(-btnW / 2 + 3, -btnH / 2 + 3, btnW, btnH);
-
-      // Face
-      ctx.fillStyle = isDashing ? '#FFFFFF' : isReady ? '#FFDE59' : '#D5D0C7';
-      ctx.fillRect(-btnW / 2, -btnH / 2, btnW, btnH);
-
-      ctx.strokeStyle = isDashing ? '#FFDE59' : '#1C1C1A';
-      ctx.lineWidth = isDashing ? 3.5 : 2.5;
-      ctx.strokeRect(-btnW / 2, -btnH / 2, btnW, btnH);
-
-      ctx.fillStyle = '#1C1C1A';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      if (isDashing) {
-        ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText('⚡ DEPAR!', 0, 0);
-      } else if (isReady) {
-        ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText('⚡ ATIL', 0, 0);
-      } else {
-        const remaining = Math.max(0.1, p.dashCooldown);
-        ctx.font = '800 11px "JetBrains Mono", monospace';
-        ctx.fillText(`⏳ ${remaining.toFixed(1)}s`, 0, 0);
-      }
-      ctx.restore();
-
-      this.dashButtons.push({
-        x: pos.x,
-        y: pos.y,
-        w: btnW,
-        h: btnH,
-        playerIndex: i,
-      });
-    }
-  }
-
-  renderLobbyUI(ctx) {
-    const { arena } = this;
-    const mapBtnW = Math.min(220, arena.size * 0.52);
-    const mapBtnH = 36;
-    const mapBtnX = arena.cx - mapBtnW / 2;
-    const mapBtnY = arena.cy - 72;
-
-    this.renderStandardLobby(ctx, {
-      arena,
-      colors: BOMB_COLORS,
-      playerNames: BOMB_NAMES,
-      accent: '#D84727',
-      onStart: () => this.startNewMatch(),
-      customControls: (c) => {
-        c.save();
-        c.fillStyle = '#1A1A1A';
-        c.fillRect(mapBtnX + 3, mapBtnY + 3, mapBtnW, mapBtnH);
-        c.fillStyle = '#FFFFFF';
-        c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-        c.strokeStyle = '#1C1C1A';
-        c.lineWidth = 2.5;
-        c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-
-        c.fillStyle = '#1C1C1A';
-        c.font = '800 12px "JetBrains Mono", monospace';
-        c.textAlign = 'center';
-        c.textBaseline = 'middle';
-        c.fillText(`🗺️ ${MAP_PRESETS[this.selectedMapIndex].name} ▾`, arena.cx, mapBtnY + mapBtnH / 2);
-        c.restore();
-
-        this.uiButtons.push({
-          x: mapBtnX,
-          y: mapBtnY,
-          w: mapBtnW,
-          h: mapBtnH,
-          onClick: () => this.cycleMap(),
-        });
-      },
-    });
-  }
-
-  renderRoundOverUI(ctx) {
-    if (!this.roundWinner) return;
-    const cleanWinner = cleanWinnerName(this.roundWinner.name);
-    renderRoundBanner(ctx, {
-      arena: this.arena,
-      title: `+1 SET: ${cleanWinner || this.roundWinner.name}!`,
-      titleColor: this.roundWinner.color,
-      sub: `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}`,
-    });
-  }
-
-  renderGameOverUI(ctx) {
-    renderMatchOver(ctx, {
-      arena: this.arena,
-      uiButtons: this.uiButtons,
-      headline: t('game.champWon'),
-      winnerName: this.matchWinner ? this.matchWinner.name : '',
-      winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
-      rows: this.matchWinner
-        ? this.players
-            .filter((p) => p.isJoined)
-            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` }))
-        : [],
-      onRestart: () => this.resetCurrentGame(),
-    });
   }
 }

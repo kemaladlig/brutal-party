@@ -3,14 +3,12 @@
 // Otomatik rastgele harita varyasyonları, 3D derinlikli zeminler ve dinamik parçalanma.
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCollapseBotAI } from '../ai/collapseAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { readSlotKeys } from '../core/inputMaps.js';
-import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 
 export const COLLAPSE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const COLLAPSE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -168,14 +166,31 @@ export class CollapseGame extends BaseMiniGame {
 
     this.keys = {};
     this.roundTransitionTimer = 0;
-    this.touches = [
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-    ];
 
     this.initKeyboard();
+  }
+
+  getTabletopSchema() {
+    return {
+      joystick: true,
+      actions: [
+        {
+          id: 'jump',
+          icon: '🦘',
+          label: 'ZIPLA',
+          cooldownField: 'jumpCooldown',
+          maxCooldown: COLLAPSE_JUMP_COOLDOWN,
+        },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (!isDown || actionId !== 'jump') return;
+    const player = this.players[slotIndex];
+    if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
+      this.attemptJump(player);
+    }
   }
 
   initKeyboard() {
@@ -198,6 +213,7 @@ export class CollapseGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
@@ -438,67 +454,22 @@ export class CollapseGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING') {
-      const q = getQuadrant(this.arena, touch.x, touch.y);
-      const player = this.players[q];
-      if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
-
-      const t = this.touches[q];
-      const isRightSide = (q === 0 || q === 1)
-        ? (touch.x > this.arena.left + this.arena.width / 4)
-        : (touch.x > this.arena.right - this.arena.width / 4);
-
-      if (isRightSide && t.actionId === -1) {
-        t.actionId = touch.id;
-        this.attemptJump(player);
-      } else if (!isRightSide && t.id === -1) {
-        t.active = true;
-        t.id = touch.id;
-        t.cx = touch.x;
-        t.cy = touch.y;
-        t.jx = touch.x;
-        t.jy = touch.y;
-      }
+      if (this.handleUiTap(touch)) return;
+      this.handleTabletopTouchStart(touch);
     }
   }
 
   onTouchMove(touch) {
     if (this.state !== 'PLAYING') return;
-    for (let i = 0; i < 4; i++) {
-      const t = this.touches[i];
-      if (t.active && t.id === touch.id) {
-        t.jx = touch.x;
-        t.jy = touch.y;
-        const dx = t.jx - t.cx;
-        const dy = t.jy - t.cy;
-        const dist = Math.hypot(dx, dy);
-        const player = this.players[i];
-        if (player && player.isAlive && player.slotType === 'human' && dist > 10) {
-          player.steerX = dx / dist;
-          player.steerY = dy / dist;
-        }
-      }
-    }
+    this.handleTabletopTouchMove(touch);
   }
 
   onTouchEnd(touch) {
-    for (let i = 0; i < 4; i++) {
-      const t = this.touches[i];
-      if (t.id === touch.id) {
-        t.active = false;
-        t.id = -1;
-        if (this.players[i] && this.players[i].slotType === 'human') {
-          this.players[i].steerX = 0;
-          this.players[i].steerY = 0;
-        }
-      }
-      if (t.actionId === touch.id) {
-        t.actionId = -1;
-      }
-    }
+    this.handleTabletopTouchEnd(touch);
   }
 
   onTouchesReset() {
-    this.touches.forEach((t) => { t.active = false; t.id = -1; t.actionId = -1; });
+    this.resetTabletopTouches();
     this.players.forEach((p) => { p.steerX = 0; p.steerY = 0; });
   }
 
@@ -593,18 +564,16 @@ export class CollapseGame extends BaseMiniGame {
         updateCollapseBotAI(this, player, dt);
       } else {
         const ki = this.keyboardInput(player.index);
-        if (ki.dx !== 0 || ki.dy !== 0) {
+        const joy = this.joysticks[player.index];
+        if (joy && joy.active && joy.force > 0.08) {
+          player.steerX = Math.cos(joy.angle) * joy.force;
+          player.steerY = Math.sin(joy.angle) * joy.force;
+        } else if (ki.dx !== 0 || ki.dy !== 0) {
           const mag = Math.hypot(ki.dx, ki.dy) || 1;
           player.steerX = ki.dx / mag;
           player.steerY = ki.dy / mag;
-          player.keyHeld = true;
-        } else if (player.keyHeld) {
-          player.keyHeld = false;
-          if (!this.touches[player.index].active && !player.remoteActive) {
-            player.steerX = 0;
-            player.steerY = 0;
-          }
-        } else if (!this.touches[player.index].active && !player.remoteActive) {
+        } else if (!player.remoteActive) {
+          // Klavye bırakıldı: sadece kendi yazdığını siler (uzak/dokunmatik korunur)
           player.steerX = 0;
           player.steerY = 0;
         }
@@ -806,17 +775,6 @@ export class CollapseGame extends BaseMiniGame {
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
     }
 
-    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      renderAdaptiveScoreboard(ctx, {
-        arena: this.arena,
-        players: this.players,
-        scores: this.scores,
-        entities: this.players.filter((p) => p.isJoined && p.isAlive),
-        isHosting: !!this.hideLobbyStartButton,
-        state: this.state,
-      });
-    }
-
     // 2. DÜŞEN 3D BLOKLAR (Uçurumda aşağı düşenler — dönerek düşer)
     for (const ft of this.fallingTiles) {
       ctx.save();
@@ -992,50 +950,33 @@ export class CollapseGame extends BaseMiniGame {
       ctx.restore();
     }
 
-    // Lokal Dokunmatik Kontroller
-    if (this.state === 'PLAYING' && this.isLocalInputActive) {
-      for (let i = 0; i < 4; i++) {
-        const t = this.touches[i];
-        if (t.active) {
-          // Çift-stroke halka (koyu taban + beyaz üst) + koyu konturlu topuz — açık zeminde görünür
-          ctx.beginPath(); ctx.arc(t.cx, t.cy, 32, 0, Math.PI * 2);
-          ctx.strokeStyle = 'rgba(26, 26, 26, 0.85)'; ctx.lineWidth = 5; ctx.stroke();
-          ctx.beginPath(); ctx.arc(t.cx, t.cy, 32, 0, Math.PI * 2);
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'; ctx.lineWidth = 2.5; ctx.stroke();
-          ctx.beginPath(); ctx.arc(t.jx, t.jy, 16, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'; ctx.fill();
-          ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 2.5; ctx.stroke();
-        }
-      }
+    if (this.state === 'PLAYING') {
+      this.renderControls(ctx);
     }
 
-    this.uiButtons = [];
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.collapse'), [
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.collapse'),
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      this.renderStandardLobby(ctx, {
-        arena: this.arena,
-        colors: COLLAPSE_COLORS,
-        accent: '#D84727',
-        onStart: () => this.startNewMatch(),
-        rotateTop: true,
-        onSeatChange: (i) => {
-          if (this.players[i]) {
-            this.players[i].isJoined = this.isSlotJoined(i);
-            this.players[i].slotType = this.slotTypes[i];
-          }
-          playJoin();
-        },
-      });
-    } else if (this.state === 'ROUND_OVER') {
-      renderRoundBanner(ctx, { arena: this.arena, title: this.roundWinner ? t('game.won', this.roundWinner.name) : t('game.draw'), titleColor: this.roundWinner ? this.roundWinner.color : '#FFFFFF' });
-    } else if (this.state === 'MATCH_OVER') {
-      renderMatchOver(ctx, { arena: this.arena, uiButtons: this.uiButtons, headline: t('collapse.champ'), winnerName: this.matchWinner ? this.matchWinner.name : '', winnerColor: this.matchWinner ? this.matchWinner.color : '#FFFFFF', rows: this.players.filter((p) => p.isJoined).map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` })), onRestart: () => this.startNewMatch() });
-    }
+      ],
+      colors: COLLAPSE_COLORS,
+      accent: '#D84727',
+      matchOverHeadline: t('collapse.champ'),
+      matchOverRows: this.players
+        .filter((p) => p.isJoined)
+        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` })),
+      onRestart: () => this.startNewMatch(),
+      onSeatChange: (i) => {
+        if (this.players[i]) {
+          this.players[i].isJoined = this.isSlotJoined(i);
+          this.players[i].slotType = this.slotTypes[i];
+        }
+        playJoin();
+      },
+    });
 
     ctx.restore();
   }

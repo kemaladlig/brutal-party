@@ -19,6 +19,7 @@ export const SECOND_ACTION_KEYS = {
 export const KEY_LABELS = {
   action: ['SPACE', 'ENTER', 'O', 'B'],
   smoke: ['E', 'R-SHIFT', 'U', 'V'],
+  dash: ['L-SHIFT', 'R-SHIFT', 'U', 'R'],
 };
 
 export function getKeyLabel(kind, index) {

@@ -4,15 +4,14 @@
 // raundu alır; 2 raund alan şampiyon.
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playItemPickup, playTeleport, playDashWhoosh, playPowerUp } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
+import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateArcherBotAI } from '../ai/archerAI.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawObstacle, drawPickup, buildLayout } from '../core/arenaKit.js';
 import { readSlotKeys } from '../core/inputMaps.js';
-import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { pointBlocked, updateMovers, clampToArena, resolveAABB } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 
@@ -48,12 +47,6 @@ export class ArcherGame extends BaseMiniGame {
     this.mapTime = 0;
     this.keys = {};
     this.roundTransitionTimer = 0;
-    this.touches = [
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-    ];
 
     this.initKeyboard();
   }
@@ -73,6 +66,7 @@ export class ArcherGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
@@ -330,6 +324,28 @@ export class ArcherGame extends BaseMiniGame {
     }
   }
 
+  getTabletopSchema() {
+    return {
+      joystick: true,
+      actions: [
+        // keyHint verilmedi: rozet slot başına doğru aksiyon tuşunu gösterir (SPACE/ENTER/O/B)
+        { id: 'action', icon: '🏹', label: 'YAY GER', holdToCharge: true, chargeField: 'charge' },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    const player = this.players[slotIndex];
+    if (!player || !player.isJoined || !player.isAlive) return;
+    if (actionId === 'action') {
+      if (isDown) {
+        this.beginCharge(player);
+      } else {
+        this.looseArrow(player);
+      }
+    }
+  }
+
   onTouchStart(touch) {
     if (this.handleRoundOverSkip()) return;
 
@@ -355,72 +371,22 @@ export class ArcherGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING') {
-      const q = getQuadrant(this.arena, touch.x, touch.y);
-      const player = this.players[q];
-      if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
-
-      const t = this.touches[q];
-      const isRightSide = (q === 0 || q === 1)
-        ? (touch.x > this.arena.left + this.arena.width / 4)
-        : (touch.x > this.arena.right - this.arena.width / 4);
-
-      if (isRightSide && t.actionId === -1) {
-        t.actionId = touch.id;
-        this.beginCharge(player);
-      } else if (!isRightSide && t.id === -1) {
-        t.active = true;
-        t.id = touch.id;
-        t.cx = touch.x;
-        t.cy = touch.y;
-        t.jx = touch.x;
-        t.jy = touch.y;
-      }
+      if (this.handleUiTap(touch)) return;
+      if (this.handleTabletopTouchStart(touch)) return;
     }
   }
 
   onTouchMove(touch) {
     if (this.state !== 'PLAYING') return;
-    for (let i = 0; i < 4; i++) {
-      const t = this.touches[i];
-      if (t.active && t.id === touch.id) {
-        t.jx = touch.x;
-        t.jy = touch.y;
-        const dx = t.jx - t.cx;
-        const dy = t.jy - t.cy;
-        const dist = Math.hypot(dx, dy);
-        const player = this.players[i];
-        if (player && player.isAlive && player.slotType === 'human' && dist > 10) {
-          player.steerX = dx / dist;
-          player.steerY = dy / dist;
-          player.angle = Math.atan2(dy, dx);
-        }
-      }
-    }
+    this.handleTabletopTouchMove(touch);
   }
 
   onTouchEnd(touch) {
-    for (let i = 0; i < 4; i++) {
-      const t = this.touches[i];
-      if (t.id === touch.id) {
-        t.active = false;
-        t.id = -1;
-        if (this.players[i] && this.players[i].slotType === 'human') {
-          this.players[i].steerX = 0;
-          this.players[i].steerY = 0;
-        }
-      }
-      if (t.actionId === touch.id) {
-        t.actionId = -1;
-        // Yay düğmesi bırakıldı: oku sal
-        if (this.players[i] && this.players[i].slotType === 'human') {
-          this.looseArrow(this.players[i]);
-        }
-      }
-    }
+    this.handleTabletopTouchEnd(touch);
   }
 
   onTouchesReset() {
-    this.touches.forEach((t) => { t.active = false; t.id = -1; t.actionId = -1; });
+    this.resetTabletopTouches();
     this.players.forEach((p) => { p.steerX = 0; p.steerY = 0; p.charging = false; p.charge = 0; });
   }
 
@@ -478,20 +444,33 @@ export class ArcherGame extends BaseMiniGame {
         updateArcherBotAI(this, player, dt);
       } else {
         const ki = this.keyboardInput(player.index);
-        if (ki.dx !== 0 || ki.dy !== 0) {
+        const joy = this.joysticks[player.index];
+        if (joy && joy.active && joy.force > 0.08) {
+          player.steerX = Math.cos(joy.angle) * joy.force;
+          player.steerY = Math.sin(joy.angle) * joy.force;
+          player.angle = joy.angle;
+        } else if (ki.dx !== 0 || ki.dy !== 0) {
           const mag = Math.hypot(ki.dx, ki.dy) || 1;
           player.steerX = ki.dx / mag;
           player.steerY = ki.dy / mag;
           player.angle = Math.atan2(ki.dy, ki.dx);
-        } else if (!this.touches[player.index].active && !player.remoteActive) {
+        } else if (!player.remoteActive) {
           player.steerX = 0;
           player.steerY = 0;
         }
 
+        // Yay: klavye geçiş-temelli (latch) — uzak oyuncunun charging'ini yerel
+        // tuş yokken boş frame'de iptal etmez; masa-ortası butonu basılıysa korur
         if (ki.action) {
-          this.beginCharge(player);
-        } else if (player.charging) {
-          this.looseArrow(player);
+          if (!player.keyActionLatch) {
+            this.beginCharge(player);
+            player.keyActionLatch = true;
+          }
+        } else if (player.keyActionLatch) {
+          player.keyActionLatch = false;
+          if (!this.tabletopActionState[player.index]?.action) {
+            this.looseArrow(player);
+          }
         }
       }
 
@@ -667,7 +646,7 @@ export class ArcherGame extends BaseMiniGame {
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
 
-    // Engellerin üzerinde her zaman net, yüksek görünürlüklü süre sayacı & köşe skorları
+    // Engellerin üzerinde her zaman net, yüksek görünürlüklü süre sayacı
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
       const remain = Math.max(0, Math.ceil(this.roundTime));
       renderArenaWatermarkTimer(ctx, {
@@ -677,16 +656,6 @@ export class ArcherGame extends BaseMiniGame {
         urgent: remain <= 10,
         alpha: remain <= 10 ? 0.70 : 0.46,
         ringProgress: Math.max(0, remain / ARCHER_ROUND_TIME),
-      });
-
-      renderAdaptiveScoreboard(ctx, {
-        arena: this.arena,
-        players: this.players,
-        scores: this.scores,
-        // Uçan oklar da ghosting'e dahil (köşedeki aksiyon kartı kapatmasın)
-        entities: [...this.players.filter((p) => p.isJoined && p.isAlive), ...this.arrows],
-        isHosting: !!this.hideLobbyStartButton,
-        state: this.state,
       });
     }
 
@@ -804,45 +773,31 @@ export class ArcherGame extends BaseMiniGame {
       ctx.restore();
     }
 
-    if (this.state === 'PLAYING' && this.isLocalInputActive) {
-      for (let i = 0; i < 4; i++) {
-        const tc = this.touches[i];
-        if (tc.active) {
-          ctx.beginPath(); ctx.arc(tc.cx, tc.cy, 30, 0, Math.PI * 2);
-          ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 3; ctx.stroke();
-          ctx.beginPath(); ctx.arc(tc.jx, tc.jy, 15, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fill();
-        }
-      }
-    }
-
-    this.uiButtons = [];
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.archer'), [
+    this.renderControls(ctx, { extraEntities: this.arrows });
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.archer'),
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      this.renderStandardLobby(ctx, {
-        arena: this.arena,
-        colors: ARCHER_COLORS,
-        accent: '#8B5CF6',
-        onStart: () => this.startNewMatch(),
-        rotateTop: true,
-        onSeatChange: (i) => {
-          if (this.players[i]) {
-            this.players[i].isJoined = this.isSlotJoined(i);
-            this.players[i].slotType = this.slotTypes[i];
-          }
-          playJoin();
-        },
-      });
-    } else if (this.state === 'ROUND_OVER') {
-      renderRoundBanner(ctx, { arena: this.arena, title: this.roundWinner ? t('game.won', this.roundWinner.name) : t('game.draw'), titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A' });
-    } else if (this.state === 'MATCH_OVER') {
-      renderMatchOver(ctx, { arena: this.arena, uiButtons: this.uiButtons, headline: t('archer.champ'), winnerName: this.matchWinner ? this.matchWinner.name : '', winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A', rows: this.players.filter((p) => p.isJoined).map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★ · ${this.roundWins[p.index]}R` })), onRestart: () => this.startNewMatch() });
-    }
+      ],
+      colors: ARCHER_COLORS,
+      accent: '#8B5CF6',
+      scoreboardEntities: [...this.players.filter((p) => p.isJoined && p.isAlive), ...this.arrows],
+      matchOverHeadline: t('archer.champ'),
+      matchOverRows: this.players.filter((p) => p.isJoined).map((p) => ({
+        color: p.color,
+        text: `${p.name}: ${this.scores[p.index]}★ · ${this.roundWins[p.index]}R`,
+      })),
+      onSeatChange: (i) => {
+        if (this.players[i]) {
+          this.players[i].isJoined = this.isSlotJoined(i);
+          this.players[i].slotType = this.slotTypes[i];
+        }
+        playJoin();
+      },
+    });
     ctx.restore();
   }
 }

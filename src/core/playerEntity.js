@@ -14,26 +14,38 @@ import { clampToArena, resolveAABB } from './physics2d.js';
  * @returns {Object} Player entity
  */
 export function createPlayer(i, spawn, opts = {}) {
+  const {
+    existingName,
+    defaultColors = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'],
+    defaultNames = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'],
+    radius = 18,
+    speed = 175,
+    baseSpeed = opts.baseSpeed || speed,
+    isAlive = opts.isAlive !== undefined ? opts.isAlive : true,
+    isJoined = opts.isJoined !== undefined ? opts.isJoined : true,
+    slotType = 'human',
+    ...extra
+  } = opts;
+
   const custom = getSlotCustomization(i);
-  const isBot = opts.slotType === 'bot_normal' || opts.slotType === 'bot_god';
-  const defaultColors = opts.defaultColors || ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
-  const defaultNames = opts.defaultNames || ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+  const isBot = slotType === 'bot_normal' || slotType === 'bot_god';
 
   return {
     index: i,
-    name: opts.existingName || defaultNames[i] || `P${i + 1}`,
+    name: existingName || defaultNames[i] || `P${i + 1}`,
     color: isBot ? '#8E8E93' : custom.color || defaultColors[i],
     x: spawn.x,
     y: spawn.y,
     vx: 0,
     vy: 0,
-    radius: opts.radius || 18,
+    radius,
     facingAngle: spawn.angle || 0,
     angle: spawn.angle || 0,
-    speed: opts.speed || 175,
-    isAlive: opts.isAlive !== undefined ? opts.isAlive : true,
-    isJoined: opts.isJoined !== undefined ? opts.isJoined : true,
-    slotType: opts.slotType || 'human',
+    speed,
+    baseSpeed,
+    isAlive,
+    isJoined,
+    slotType,
 
     // Standard effect timers
     turboTimer: 0,
@@ -51,6 +63,8 @@ export function createPlayer(i, spawn, opts = {}) {
     fastTimer: 0,
     tripleTimer: 0,
     shield: false,
+
+    ...extra,
   };
 }
 

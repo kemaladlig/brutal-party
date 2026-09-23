@@ -3,14 +3,12 @@
 // Rol yap, görevleri tamamla veya şüphelendiğin rakibe omuz atıp infaz et!
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCloneBotAI } from '../ai/cloneAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { readSlotKeys } from '../core/inputMaps.js';
-import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
 
 export const CLONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -36,15 +34,30 @@ export class CloneGame extends BaseMiniGame {
     this.keys = {};
     this.roundTransitionTimer = 0;
 
-    // Lokal dokunmatik: köşe başına yüzen joystick durumu
-    this.touches = [
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-    ];
-
     this.initKeyboard();
+  }
+
+  getTabletopSchema() {
+    return {
+      joystick: true,
+      actions: [
+        {
+          id: 'tackle',
+          icon: '💥',
+          label: 'İNFAZ',
+          cooldownField: 'dashCooldown',
+          maxCooldown: CLONE_DASH_COOLDOWN,
+        },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (!isDown || actionId !== 'tackle') return;
+    const player = this.players[slotIndex];
+    if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
+      this.attemptTackle(player);
+    }
   }
 
   initKeyboard() {
@@ -62,6 +75,7 @@ export class CloneGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
@@ -367,72 +381,22 @@ export class CloneGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING') {
-      const q = getQuadrant(this.arena, touch.x, touch.y);
-      const player = this.players[q];
-      if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
-
-      const t = this.touches[q];
-      // Kadranın dış çeyreği action (omuz), içi joystick
-      const isRightSide = (q === 0 || q === 1)
-        ? (touch.x > this.arena.left + this.arena.width / 4)
-        : (touch.x > this.arena.right - this.arena.width / 4);
-
-      if (isRightSide && t.actionId === -1) {
-        t.actionId = touch.id;
-        this.attemptTackle(player);
-      } else if (!isRightSide && t.id === -1) {
-        t.active = true;
-        t.id = touch.id;
-        t.cx = touch.x;
-        t.cy = touch.y;
-        t.jx = touch.x;
-        t.jy = touch.y;
-      }
+      if (this.handleUiTap(touch)) return;
+      this.handleTabletopTouchStart(touch);
     }
   }
 
   onTouchMove(touch) {
     if (this.state !== 'PLAYING') return;
-    for (let i = 0; i < 4; i++) {
-      const t = this.touches[i];
-      if (t.active && t.id === touch.id) {
-        t.jx = touch.x;
-        t.jy = touch.y;
-        const player = this.players[i];
-        if (player && player.isAlive && player.slotType === 'human') {
-          const dx = t.jx - t.cx;
-          const dy = t.jy - t.cy;
-          const dist = Math.hypot(dx, dy);
-          if (dist > 10) {
-            player.steerX = dx / dist;
-            player.steerY = dy / dist;
-            player.angle = Math.atan2(dy, dx);
-          }
-        }
-      }
-    }
+    this.handleTabletopTouchMove(touch);
   }
 
   onTouchEnd(touch) {
-    for (let i = 0; i < 4; i++) {
-      const t = this.touches[i];
-      if (t.id === touch.id) {
-        t.active = false;
-        t.id = -1;
-        const player = this.players[i];
-        if (player && player.slotType === 'human') {
-          player.steerX = 0;
-          player.steerY = 0;
-        }
-      }
-      if (t.actionId === touch.id) {
-        t.actionId = -1;
-      }
-    }
+    this.handleTabletopTouchEnd(touch);
   }
 
   onTouchesReset() {
-    this.touches.forEach((t) => { t.active = false; t.id = -1; t.actionId = -1; });
+    this.resetTabletopTouches();
     this.players.forEach((p) => { p.steerX = 0; p.steerY = 0; });
   }
 
@@ -465,19 +429,18 @@ export class CloneGame extends BaseMiniGame {
         updateCloneBotAI(this, player, dt);
       } else {
         const ki = this.keyboardInput(player.index);
-        if (ki.dx !== 0 || ki.dy !== 0) {
+        const joy = this.joysticks[player.index];
+        if (joy && joy.active && joy.force > 0.08) {
+          player.steerX = Math.cos(joy.angle) * joy.force;
+          player.steerY = Math.sin(joy.angle) * joy.force;
+          player.angle = joy.angle;
+        } else if (ki.dx !== 0 || ki.dy !== 0) {
           const mag = Math.hypot(ki.dx, ki.dy) || 1;
           player.steerX = ki.dx / mag;
           player.steerY = ki.dy / mag;
           player.angle = Math.atan2(ki.dy, ki.dx);
-          player.keyHeld = true;
-        } else if (player.keyHeld) {
-          player.keyHeld = false;
-          if (!this.touches[player.index].active && !player.remoteActive) {
-            player.steerX = 0;
-            player.steerY = 0;
-          }
-        } else if (!this.touches[player.index].active && !player.remoteActive) {
+        } else if (!player.remoteActive) {
+          // Klavye bırakıldı: sadece kendi yazdığını siler (uzak/dokunmatik korunur)
           player.steerX = 0;
           player.steerY = 0;
         }
@@ -854,21 +817,6 @@ export class CloneGame extends BaseMiniGame {
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
 
-    // Skorlar (Proximity Ghosting)
-    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      const activeEntities = [
-        ...this.players.filter((p) => p.isJoined),
-        ...this.npcClones.filter((c) => c.active),
-      ];
-      renderAdaptiveScoreboard(ctx, {
-        arena: this.arena,
-        players: this.players,
-        scores: this.scores,
-        entities: activeEntities,
-        isHosting: !!this.hideLobbyStartButton,
-        state: this.state,
-      });
-    }
 
     // NPC Klonları çiz (tamamen oyuncularla aynı model)
     for (const c of this.npcClones) {
@@ -923,46 +871,33 @@ export class CloneGame extends BaseMiniGame {
       ctx.restore();
     }
 
-    // Lokal dokunmatik joystick göstergesi
-    if (this.state === 'PLAYING' && this.isLocalInputActive) {
-      for (let i = 0; i < 4; i++) {
-        const t = this.touches[i];
-        if (t.active) {
-          ctx.beginPath(); ctx.arc(t.cx, t.cy, 30, 0, Math.PI * 2);
-          ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 3; ctx.stroke();
-          ctx.beginPath(); ctx.arc(t.jx, t.jy, 15, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fill();
-        }
-      }
+    if (this.state === 'PLAYING') {
+      this.renderControls(ctx);
     }
 
-    this.uiButtons = [];
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.clone'), [
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.clone'),
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      this.renderStandardLobby(ctx, {
-        arena: this.arena,
-        colors: CLONE_COLORS,
-        accent: '#D84727',
-        onStart: () => this.startNewMatch(),
-        rotateTop: true,
-        onSeatChange: (i) => {
-          if (this.players[i]) {
-            this.players[i].isJoined = this.isSlotJoined(i);
-            this.players[i].slotType = this.slotTypes[i];
-          }
-          playJoin();
-        },
-      });
-    } else if (this.state === 'ROUND_OVER') {
-      renderRoundBanner(ctx, { arena: this.arena, title: this.roundWinner ? t('game.roundOver') : t('game.draw'), titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A' });
-    } else if (this.state === 'MATCH_OVER') {
-      renderMatchOver(ctx, { arena: this.arena, uiButtons: this.uiButtons, headline: t('clone.champ'), winnerName: this.matchWinner ? this.matchWinner.name : '', winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A', rows: this.players.filter((p) => p.isJoined).map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` })), onRestart: () => this.startNewMatch() });
-    }
+      ],
+      colors: CLONE_COLORS,
+      accent: '#D84727',
+      matchOverHeadline: t('clone.champ'),
+      matchOverRows: this.players
+        .filter((p) => p.isJoined)
+        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` })),
+      onRestart: () => this.startNewMatch(),
+      onSeatChange: (i) => {
+        if (this.players[i]) {
+          this.players[i].isJoined = this.isSlotJoined(i);
+          this.players[i].slotType = this.slotTypes[i];
+        }
+        playJoin();
+      },
+    });
     ctx.restore();
   }
 }

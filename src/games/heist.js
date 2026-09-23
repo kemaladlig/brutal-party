@@ -12,17 +12,12 @@ import {
   playHeavyImpact,
   playPiggyBreak,
 } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
 import { t } from '../i18n.js';
 import {
   renderTopPill,
-  renderAdaptiveScoreboard,
-  renderRoundBanner,
-  renderMatchOver,
   renderArenaWatermarkTimer,
 } from '../ui/hud.js';
 import { pulse } from '../ui/motion.js';
-import { shouldShowVirtualControls } from '../ui/tokens.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateHeistBotAI } from '../ai/heistAI.js';
@@ -85,9 +80,27 @@ export class HeistGame extends BaseMiniGame {
     this.trauma = 0;
     this.lastTime = performance.now();
 
-    // UI Buttons
-    this.tackleButtons = [];
     this.initKeyboard();
+  }
+
+  getTabletopSchema() {
+    return {
+      joystick: true,
+      actions: [
+        {
+          id: 'tackle',
+          icon: '💥',
+          label: 'OMUZ',
+          cooldownField: 'tackleCooldown',
+          maxCooldown: HEIST_TUNING.TACKLE_COOLDOWN,
+        },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (!isDown || actionId !== 'tackle') return;
+    this.triggerTackle(slotIndex);
   }
 
   initKeyboard() {
@@ -119,6 +132,7 @@ export class HeistGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width
@@ -377,7 +391,7 @@ export class HeistGame extends BaseMiniGame {
     const p = this.players[playerIndex];
     if (!p || !p.isAlive || p.tackleCooldown > 0 || p.stumbleTimer > 0) return;
 
-    p.tackleCooldown = 3.5;
+    p.tackleCooldown = HEIST_TUNING.TACKLE_COOLDOWN;
     p.tackleTimer = 0.22;
     p.isTackling = true;
     this.trauma = Math.min(1.0, this.trauma + 0.18);
@@ -426,20 +440,9 @@ export class HeistGame extends BaseMiniGame {
       return;
     }
 
-    // 2. Tackle button tap handling
+    // 2. Masa-ortası butonları + joystick (tek merkezden, BaseGame)
     if (this.state === 'PLAYING') {
-      for (const tBtn of this.tackleButtons) {
-        if (
-          touch.x >= tBtn.x - tBtn.w / 2 - 12 &&
-          touch.x <= tBtn.x + tBtn.w / 2 + 12 &&
-          touch.y >= tBtn.y - tBtn.h / 2 - 12 &&
-          touch.y <= tBtn.y + tBtn.h / 2 + 12
-        ) {
-          this.triggerTackle(tBtn.playerIndex);
-          return;
-        }
-      }
-      this.handleStandardJoystickTouchStart(touch, (q) => this.triggerTackle(q));
+      this.handleTabletopTouchStart(touch);
     }
   }
 
@@ -452,8 +455,16 @@ export class HeistGame extends BaseMiniGame {
   // --- COLLISION RESOLUTION ---
 
   resolveCollisions(player) {
+    if (!Number.isFinite(player.x) || !Number.isFinite(player.y)) {
+      const { cx, cy } = this.arena;
+      player.x = cx || 100;
+      player.y = cy || 100;
+      player.vx = 0;
+      player.vy = 0;
+    }
     clampToArena(player, player.radius, this.arena, { zeroVelocity: true });
     resolveAABB(player, this.pillars, player.radius);
+    clampToArena(player, player.radius, this.arena, { zeroVelocity: true });
   }
 
   handleRemoteInput(slotIndex, data) {
@@ -632,7 +643,9 @@ export class HeistGame extends BaseMiniGame {
       }
 
       // --- GREED WEIGHT CURVE: speed scales down with carried loot ---
-      let currentSpeed = Math.max(108, player.baseSpeed - player.carriedWeight * 13);
+      const base = Number.isFinite(player.baseSpeed) ? player.baseSpeed : (player.speed || 190);
+      const weight = Number.isFinite(player.carriedWeight) ? player.carriedWeight : 0;
+      let currentSpeed = Math.max(108, base - weight * 13);
       if (player.tackleTimer > 0) {
         currentSpeed = 340; // Tackle surge speed!
       }
@@ -641,7 +654,7 @@ export class HeistGame extends BaseMiniGame {
       }
 
       const inputLen = Math.hypot(inputX, inputY);
-      if (inputLen > 0.05) {
+      if (inputLen > 0.05 && Number.isFinite(currentSpeed)) {
         const normX = inputX / inputLen;
         const normY = inputY / inputLen;
         player.vx = normX * currentSpeed;
@@ -993,9 +1006,7 @@ export class HeistGame extends BaseMiniGame {
     }
     this.renderParticles(ctx);
     this.renderFloatingTexts(ctx);
-    this.renderVirtualJoysticks(ctx);
-    this.renderTackleButtons(ctx);
-    this.renderTopHUD(ctx);
+    this.renderControls(ctx);
 
     // Gold Rush border vignette
     if (this.state === 'PLAYING' && this.goldRushActive) {
@@ -1010,38 +1021,37 @@ export class HeistGame extends BaseMiniGame {
       ctx.fillRect(right, top - edge, edge, height + edge * 2);
     }
 
-    // UI Overlays
-    this.uiButtons = [];
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.heist'), [
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.heist'),
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      this.renderLobbyUI(ctx);
-    } else if (this.state === 'ROUND_OVER') {
-      this.renderRoundOverUI(ctx);
-    } else if (this.state === 'MATCH_OVER') {
-      this.renderGameOverUI(ctx);
-    }
+      ],
+      colors: HEIST_COLORS,
+      playerNames: HEIST_NAMES,
+      accent: '#D84727',
+      roundBannerTitle: this.roundWinner
+        ? `+1 SET: ${this.roundWinner.name}! (${this.roundWinner.vaultGold} ALTIN)`
+        : (this.roundTied ? 'BERABERE!' : null),
+      roundBannerColor: this.roundWinner?.color || '#FFFFFF',
+      roundBannerSub: this.roundWinner
+        ? `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}`
+        : (this.roundTied ? 'SKOR YAZILMADI' : ''),
+      matchOverHeadline: t('heist.champ'),
+      matchOverRows: this.matchWinner
+        ? this.players
+            .filter((p) => p.isJoined)
+            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}` }))
+        : [],
+      onRestart: () => this.resetCurrentGame(),
+    });
 
     ctx.restore();
   }
 
-  renderTopHUD(ctx) {
-    if (this.state === 'LOBBY') return;
 
-    // Standart Yüksek Görünürlüklü Oyuncu Skorları (Uyarlanabilir & Parmak Korumalı)
-    renderAdaptiveScoreboard(ctx, {
-      arena: this.arena,
-      players: this.players,
-      scores: this.scores,
-      entities: this.players.filter((p) => p.isJoined),
-      isHosting: !!this.hideLobbyStartButton,
-      state: this.state,
-    });
-  }
 
   renderArena(ctx) {
     const { left, top, right, bottom, width, height, size, cx, cy } = this.arena;
@@ -1388,7 +1398,9 @@ export class HeistGame extends BaseMiniGame {
       if (!player.isJoined || !player.isAlive) continue;
 
       ctx.save();
-      ctx.translate(player.x, player.y);
+      const px = Number.isFinite(player.x) ? player.x : this.arena.cx;
+      const py = Number.isFinite(player.y) ? player.y : this.arena.cy;
+      ctx.translate(px, py);
 
       // Stumble Shake
       if (player.stumbleTimer > 0) {
@@ -1565,204 +1577,5 @@ export class HeistGame extends BaseMiniGame {
       ctx.fillText(ft.text, ft.x, ft.y);
       ctx.restore();
     }
-  }
-
-  renderVirtualJoysticks(ctx) {
-    if (this.state !== 'PLAYING') return;
-    if (!shouldShowVirtualControls({ isHosting: !!this.hideLobbyStartButton })) return;
-
-    const { left, right, top, bottom, width, height } = this.arena;
-    const anchors = [
-      { x: left + width * 0.14, y: bottom - height * 0.14 },
-      { x: left + width * 0.14, y: top + height * 0.14 },
-      { x: right - width * 0.14, y: top + height * 0.14 },
-      { x: right - width * 0.14, y: bottom - height * 0.14 },
-    ];
-
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      const player = this.players[q];
-      if (!player.isJoined || player.slotType !== 'human') continue;
-
-      if (!joy.active) {
-        ctx.save();
-        ctx.translate(anchors[q].x, anchors[q].y);
-        if (q === 1 || q === 2) ctx.rotate(Math.PI);
-        ctx.globalAlpha = 0.45;
-        ctx.strokeStyle = player.color;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.arc(0, 0, 36, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = player.color;
-        ctx.font = '800 11px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(t('game.drag', player.name.slice(0, 3)), 0, 0);
-        ctx.restore();
-        continue;
-      }
-
-      ctx.save();
-      ctx.globalAlpha = 0.55;
-
-      ctx.strokeStyle = 'rgba(28, 28, 26, 0.4)';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.arc(joy.originX, joy.originY, 48, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.setLineDash([]);
-      ctx.fillStyle = player.color;
-      ctx.beginPath();
-      ctx.arc(joy.currX, joy.currY, 20, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-
-      ctx.restore();
-    }
-  }
-
-  renderTackleButtons(ctx) {
-    if (this.state !== 'PLAYING') return;
-    if (!shouldShowVirtualControls({ isHosting: !!this.hideLobbyStartButton })) return;
-
-    this.tackleButtons = [];
-    const { canvas, arena } = this;
-    const btnW = 86;
-    const btnH = 36;
-
-    const bottomSpace = canvas.height - arena.bottom;
-    const topSpace = arena.top;
-
-    const bottomY = bottomSpace >= 42 ? arena.bottom + 26 : arena.bottom - 22;
-    const topY = topSpace >= 42 ? arena.top - 26 : arena.top + 22;
-
-    const positions = [
-      { x: arena.left + arena.size * 0.35, y: bottomY },
-      { x: arena.left + arena.size * 0.35, y: topY },
-      { x: arena.right - arena.size * 0.16, y: topY },
-      { x: arena.right - arena.size * 0.16, y: bottomY },
-    ];
-
-    for (let i = 0; i < 4; i++) {
-      const p = this.players[i];
-      if (!p.isJoined || !p.isAlive || p.slotType !== 'human') continue;
-
-      const pos = positions[i];
-      const isReady = p.tackleCooldown <= 0;
-      const isTackling = p.tackleTimer > 0;
-
-      // Check proximity to enemies or piggy bank
-      let targetInRange = false;
-      if (this.piggyBank && Math.hypot(this.piggyBank.x - p.x, this.piggyBank.y - p.y) < 140) {
-        targetInRange = true;
-      } else {
-        for (const other of this.players) {
-          if (other.index !== i && other.isJoined && other.isAlive) {
-            if (Math.hypot(other.x - p.x, other.y - p.y) < 140) {
-              targetInRange = true;
-              break;
-            }
-          }
-        }
-      }
-
-      ctx.save();
-      ctx.globalAlpha = 0.65;
-      ctx.translate(pos.x, pos.y);
-      if (i === 1 || i === 2) {
-        ctx.rotate(Math.PI);
-      }
-
-      ctx.fillStyle = '#1C1C1A';
-      ctx.fillRect(-btnW / 2 + 3, -btnH / 2 + 3, btnW, btnH);
-
-      ctx.fillStyle = isTackling ? '#FFFFFF' : isReady && targetInRange ? '#FFDE59' : isReady ? '#EAE6DD' : '#D5D0C7';
-      ctx.fillRect(-btnW / 2, -btnH / 2, btnW, btnH);
-
-      ctx.strokeStyle = isTackling || (isReady && targetInRange) ? '#FFDE59' : '#1C1C1A';
-      ctx.lineWidth = isTackling || (isReady && targetInRange) ? 3.5 : 2.5;
-      ctx.strokeRect(-btnW / 2, -btnH / 2, btnW, btnH);
-
-      ctx.fillStyle = '#1C1C1A';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      if (isTackling) {
-        ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText(t('heist.charge'), 0, 0);
-      } else if (isReady && targetInRange) {
-        ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText('OMUZ AT!', 0, 0);
-      } else if (isReady) {
-        ctx.font = '800 12px "Space Grotesk", sans-serif';
-        ctx.fillText('OMUZ AT', 0, 0);
-      } else {
-        const remaining = Math.max(0.1, p.tackleCooldown);
-        ctx.font = '800 11px "JetBrains Mono", monospace';
-        ctx.fillText(`${remaining.toFixed(1)}s`, 0, 0);
-      }
-      ctx.restore();
-
-      this.tackleButtons.push({
-        x: pos.x,
-        y: pos.y,
-        w: btnW,
-        h: btnH,
-        playerIndex: i,
-      });
-    }
-  }
-
-  renderLobbyUI(ctx) {
-    this.renderStandardLobby(ctx, {
-      arena: this.arena,
-      colors: HEIST_COLORS,
-      playerNames: HEIST_NAMES,
-      accent: '#D84727',
-      onStart: () => this.startNewMatch(),
-    });
-  }
-
-  renderRoundOverUI(ctx) {
-    if (!this.roundWinner) {
-      if (this.roundTied) {
-        renderRoundBanner(ctx, {
-          arena: this.arena,
-          title: 'BERABERE!',
-          titleColor: '#FFFFFF',
-          sub: 'SKOR YAZILMADI',
-        });
-      }
-      return;
-    }
-    renderRoundBanner(ctx, {
-      arena: this.arena,
-      title: `+1 SET: ${this.roundWinner.name}! (${this.roundWinner.vaultGold} ALTIN)`,
-      titleColor: this.roundWinner.color,
-      sub: `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}`,
-    });
-  }
-
-  renderGameOverUI(ctx) {
-    renderMatchOver(ctx, {
-      arena: this.arena,
-      uiButtons: this.uiButtons,
-      headline: t('heist.champ'),
-      winnerName: this.matchWinner ? this.matchWinner.name : '',
-      winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
-      rows: this.matchWinner
-        ? this.players
-            .filter((p) => p.isJoined)
-            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}` }))
-        : [],
-      onRestart: () => this.resetCurrentGame(),
-    });
   }
 }

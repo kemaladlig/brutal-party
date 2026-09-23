@@ -3,9 +3,9 @@ import { Paddle, PLAYER_CONFIGS } from './paddle.js';
 import { Ball } from './ball.js';
 import { playJoin, playStart, playPowerUp } from '../audio.js';
 import { getLocalSeatColors } from '../core/customizationManager.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderAdaptiveScoreboard, renderSpatialBadge, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { renderSpatialBadge } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
@@ -296,6 +296,7 @@ export class Game extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const isPortrait = height > width;
     const marginX = Math.max(12, Math.floor(width * 0.04));
@@ -572,37 +573,43 @@ export class Game extends BaseMiniGame {
       this.ball.draw(ctx);
     }
 
-    // Standart köşe skorları (Proximity Ghosting ile: top veya raket yaklaşınca saydamlaşır)
-    if (this.state !== 'LOBBY') {
-      const activeEntities = [this.ball];
-      this.paddles.forEach((p) => {
-        if (p.isJoined && !p.isEliminated) {
-          activeEntities.push({ x: p.coord, y: p.fixedPerpendicular, radius: 24 });
-        }
-      });
-      renderAdaptiveScoreboard(ctx, {
-        arena: this.arena,
-        players: this.paddles,
-        scores: this.setScores,
-        entities: activeEntities,
-        isHosting: !!this.hideLobbyStartButton,
-        state: this.state,
-      });
-    }
+    const activeEntities = [this.ball];
+    this.paddles.forEach((p) => {
+      if (p.isJoined && !p.isEliminated) {
+        activeEntities.push({ x: p.coord, y: p.fixedPerpendicular, radius: 24 });
+      }
+    });
 
-    // Render UI Overlays
-    this.uiButtons = [];
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.pong'), [
+    this.renderControls(ctx, { players: this.paddles, extraEntities: [this.ball] });
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.pong'),
+      guideEntries: [
         'P1 [W/S]',
         'P2 [↑/↓]',
         'P3 [I/K]',
         'P4 [T/G]',
-      ]);
-      this.renderLobbyUI(ctx);
-    } else if (this.state === 'MATCH_OVER') {
-      this.renderGameOverUI(ctx);
-    }
+      ],
+      showScoreboard: this.state !== 'LOBBY',
+      targetScore: this.targetSets,
+      scoreboardEntities: activeEntities,
+      colors: this.paddles.map((p) => p.color),
+      accent: '#D84727',
+      matchOverHeadline: t('game.champWon') || 'ŞAMPİYON',
+      matchOverRows: (this.winner || this.matchWinner)
+        ? this.paddles
+            .filter((p) => p.isJoined)
+            .map((p) => ({ color: p.color, text: `${p.name}: ${this.setScores[p.index] || 0} SET` }))
+        : [],
+      onRestart: () => {
+        this.state = 'LOBBY';
+        this.setScores = [0, 0, 0, 0];
+        this.winner = null;
+        this.roundWinner = null;
+        this.matchWinner = null;
+        this.paddles.forEach((p) => p.reset(p.isJoined));
+      },
+      customLobby: (c) => this.renderLobbyUI(c),
+    });
 
     ctx.restore();
   }
@@ -1037,25 +1044,5 @@ export class Game extends BaseMiniGame {
     });
   }
 
-  renderGameOverUI(ctx) {
-    renderMatchOver(ctx, {
-      arena: this.arena,
-      uiButtons: this.uiButtons,
-      headline: t('game.champWon'),
-      winnerName: this.winner ? this.winner.name : '',
-      winnerColor: this.winner ? this.winner.color : '#1A1A1A',
-      rows: this.winner
-        ? this.paddles
-            .filter((p) => p.isJoined)
-            .map((p) => ({ color: p.color, text: `${p.name}: ${this.setScores[p.index] || 0} SET` }))
-        : [],
-      onRestart: () => {
-        this.state = 'LOBBY';
-        this.setScores = [0, 0, 0, 0];
-        this.winner = null;
-        this.roundWinner = null;
-        this.paddles.forEach((p) => p.reset(p.isJoined));
-      },
-    });
-  }
+
 }

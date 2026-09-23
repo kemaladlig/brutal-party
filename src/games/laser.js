@@ -3,15 +3,14 @@
 // Tek çubuk: joystick yönü hem hareket hem nişan verir (it=koş+nişan, bırak=dur).
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGunshot, playDashWhoosh, playItemPickup, playStumble } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderTopPill, renderAdaptiveScoreboard, renderEntityHUD, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
+import { renderEntityHUD, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup } from '../core/arenaKit.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
-import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, updateMovers } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 
@@ -41,7 +40,6 @@ export const LASER_TUNING = {
   MATCH_TIME: 90,      // maç süresi (sn)
   TARGET_KILLS: 10,    // erken zafer kill sayısı
   PICKUP_EVERY: 10.0,  // pickup aralığı (sn)
-  DOUBLE_TAP_MS: 280,  // lokal çift-dokunuş dash penceresi
 };
 
 export const LASER_MAPS = [
@@ -76,14 +74,32 @@ export class LaserGame extends BaseMiniGame {
     this.pickupFlip = false;
     this.lastTime = performance.now();
 
-    // Lokal dokunmatik: köşe başına yüzen joystick (hareket+nişan)
-    this.touches = [
-      { active: false, ox: 0, oy: 0, id: -1, actionId: -1 },
-      { active: false, ox: 0, oy: 0, id: -1, actionId: -1 },
-      { active: false, ox: 0, oy: 0, id: -1, actionId: -1 },
-      { active: false, ox: 0, oy: 0, id: -1, actionId: -1 },
-    ];
     this.initKeyboard();
+  }
+
+  getTabletopSchema() {
+    return {
+      joystick: true,
+      actions: [
+        // Basılı tut = nişan (yavaşla), bırak = ateş; şarj barı isAiming'den gelir
+        { id: 'fire', icon: '🎯', label: 'NİŞAN/ATEŞ', holdToCharge: true },
+        { id: 'dash', icon: '⚡', label: 'DASH', cooldownField: 'dashCooldown', maxCooldown: LASER_TUNING.DASH_CD },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    const player = this.players[slotIndex];
+    if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
+    if (actionId === 'fire') {
+      if (isDown) {
+        this.beginAim(player);
+      } else {
+        this.releaseAim(player);
+      }
+    } else if (actionId === 'dash' && isDown) {
+      this.triggerDash(slotIndex);
+    }
   }
 
   initKeyboard() {
@@ -102,6 +118,7 @@ export class LaserGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
@@ -301,7 +318,7 @@ export class LaserGame extends BaseMiniGame {
         shield: false, wasReady: true,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         botCheckTimer: Math.random(), botStrafeDir: Math.random() < 0.5 ? 1 : -1,
-        botRetarget: 0, keyFireLatch: false, keyDashLatch: false, keyHeld: false, lastTapTime: 0,
+        botRetarget: 0, keyFireLatch: false, keyDashLatch: false,
       };
     });
   }
@@ -558,79 +575,26 @@ export class LaserGame extends BaseMiniGame {
 
     if (this.state === 'PLAYING') {
       if (this.handleUiTap(touch)) return;
-      const corner = getQuadrant(this.arena, touch.x, touch.y);
-      const player = this.players[corner];
-      if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
-      const t = this.touches[corner];
-      // İkinci parmak aynı kadran = basılı tutarak nişan alma (Hold to Aim)
-      if (t.active && t.id !== -1) {
-        t.actionId = touch.id;
-        this.beginAim(player);
-        return;
-      }
-      // Çift dokunuş = dash (BOMB deseni)
-      const now = performance.now();
-      if (now - player.lastTapTime < LASER_TUNING.DOUBLE_TAP_MS) {
-        this.triggerDash(corner);
-      }
-      player.lastTapTime = now;
-      t.active = true;
-      t.id = touch.id;
-      t.ox = touch.x;
-      t.oy = touch.y;
+      this.handleTabletopTouchStart(touch);
     }
   }
 
   onTouchMove(touch) {
     if (this.state !== 'PLAYING') return;
-    for (let i = 0; i < 4; i++) {
-      const t = this.touches[i];
-      if (t.active && t.id === touch.id) {
-        const player = this.players[i];
-        if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
-          const dx = touch.x - t.ox;
-          const dy = touch.y - t.oy;
-          const dist = Math.hypot(dx, dy);
-          if (dist > 10) {
-            player.steerX = dx / dist;
-            player.steerY = dy / dist;
-            player.targetAngle = Math.atan2(dy, dx);
-          }
-        }
-        break;
-      }
-    }
+    this.handleTabletopTouchMove(touch);
   }
 
   onTouchEnd(touch) {
-    for (let i = 0; i < 4; i++) {
-      const t = this.touches[i];
-      if (t.actionId === touch.id) {
-        t.actionId = -1;
-        const player = this.players[i];
-        if (player && player.slotType === 'human') {
-          this.releaseAim(player);
-        }
-      }
-      if (t.id === touch.id) {
-        t.active = false;
-        t.id = -1;
-        const player = this.players[i];
-        if (player && player.slotType === 'human') {
-          player.steerX = 0;
-          player.steerY = 0;
-        }
-      }
-    }
+    this.handleTabletopTouchEnd(touch);
   }
 
   onTouchesReset() {
-    this.touches = [
-      { active: false, ox: 0, oy: 0, id: -1, actionId: -1 },
-      { active: false, ox: 0, oy: 0, id: -1, actionId: -1 },
-      { active: false, ox: 0, oy: 0, id: -1, actionId: -1 },
-      { active: false, ox: 0, oy: 0, id: -1, actionId: -1 },
-    ];
+    this.resetTabletopTouches();
+    this.players.forEach((p) => {
+      p.steerX = 0;
+      p.steerY = 0;
+      p.isAiming = false;
+    });
   }
 
   collideObstacles(p, r) {
@@ -744,21 +708,24 @@ export class LaserGame extends BaseMiniGame {
         updateLaserBotAI(this, player, dt);
       } else {
         const ki = this.keyboardInput(player.index);
-        if (ki.dx !== 0 || ki.dy !== 0) {
-          // Klavye sahiplenir (dokunmatik/uzak girdiyi ezerken basılı tutar)
+        const joy = this.joysticks[player.index];
+        if (joy && joy.active && joy.force > 0.08) {
+          player.steerX = Math.cos(joy.angle) * joy.force;
+          player.steerY = Math.sin(joy.angle) * joy.force;
+          player.targetAngle = joy.angle;
+        } else if (ki.dx !== 0 || ki.dy !== 0) {
           const mag = Math.hypot(ki.dx, ki.dy) || 1;
           player.steerX = ki.dx / mag;
           player.steerY = ki.dy / mag;
           player.targetAngle = Math.atan2(ki.dy, ki.dx);
-          player.keyHeld = true;
-        } else if (player.keyHeld) {
+        } else if (!player.remoteActive) {
           // Klavye bırakıldı: sadece kendi yazdığını siler (uzak/dokunmatik korunur)
-          player.keyHeld = false;
-          if (!this.touches[player.index].active) {
-            player.steerX = 0;
-            player.steerY = 0;
-          }
+          player.steerX = 0;
+          player.steerY = 0;
         }
+
+        // Nişan: klavye geçiş-temelli (latch) — uzak oyuncunun isAiming'ini
+        // yerel tuş yokken boş frame'de tetiklemez; masa-ortası butonu basılıysa korur
         if (ki.fire) {
           if (!player.keyFireLatch) {
             this.beginAim(player);
@@ -766,7 +733,9 @@ export class LaserGame extends BaseMiniGame {
           }
         } else if (player.keyFireLatch) {
           player.keyFireLatch = false;
-          this.releaseAim(player);
+          if (!this.tabletopActionState[player.index]?.fire) {
+            this.releaseAim(player);
+          }
         }
         if (ki.dash && !player.keyDashLatch) {
           this.triggerDash(player.index);
@@ -1103,14 +1072,6 @@ export class LaserGame extends BaseMiniGame {
         ringProgress: Math.max(0, remain / 90),
       });
 
-      renderAdaptiveScoreboard(ctx, {
-        arena: this.arena,
-        players: this.players,
-        scores: this.scores,
-        entities: this.players.filter((p) => p.isJoined && p.isAlive),
-        isHosting: !!this.hideLobbyStartButton,
-        state: this.state,
-      });
     }
 
     // Pickup'lar (Canlı İkon Rozetleri)
@@ -1324,75 +1285,66 @@ export class LaserGame extends BaseMiniGame {
       ctx.restore();
     }
 
-    this.uiButtons = [];
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.laser'), [
+    if (this.state === 'PLAYING') {
+      this.renderControls(ctx, { extraEntities: this.lasers });
+    }
+
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.laser'),
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      this.renderStandardLobby(ctx, {
-        arena: this.arena,
-        colors: LASER_COLORS,
-        accent: '#D84727',
-        onStart: () => this.startNewMatch(),
-        rotateTop: true,
-        onSeatChange: (i) => {
-          if (this.players[i]) {
-            this.players[i].isJoined = this.isSlotJoined(i);
-            this.players[i].slotType = this.slotTypes[i];
-          }
-          playJoin();
-        },
-        customControls: (c) => {
-          // Harita seçici (start butonunun altında küçük buton)
-          const mapName = LASER_MAPS[this.selectedMapIndex]?.name || '';
-          const mw = 210; const mh = 34;
-          const mx = this.arena.cx - mw / 2;
-          const my = this.arena.cy + 78;
-          c.save();
-          c.fillStyle = '#FFFFFF';
-          c.strokeStyle = '#1A1A1A';
-          c.lineWidth = 3;
-          c.fillRect(mx, my, mw, mh);
-          c.strokeRect(mx, my, mw, mh);
-          c.fillStyle = '#1A1A1A';
-          c.font = 'bold 13px sans-serif';
-          c.textAlign = 'center'; c.textBaseline = 'middle';
-          c.fillText(`🗺 ${mapName}`, this.arena.cx, my + mh / 2);
-          c.restore();
-          this.uiButtons.push({
-            x: mx, y: my, w: mw, h: mh,
-            onClick: () => {
-              this.selectedMapIndex = (this.selectedMapIndex + 1) % LASER_MAPS.length;
-              this.buildMap();
-              const s = this.spawnPoint.bind(this);
-              this.players.forEach((p, i) => {
-                const sp = s(i);
-                p.x = sp.x; p.y = sp.y;
-                p.angle = sp.angle; p.targetAngle = sp.angle;
-              });
-              playJoin();
-            },
-          });
-        },
-      });
-    } else if (this.state === 'MATCH_OVER') {
-      const rows = this.players
+      ],
+      colors: LASER_COLORS,
+      accent: '#D84727',
+      matchOverHeadline: this.matchWinner ? t('laser.champ') : t('game.draw'),
+      matchOverRows: this.players
         .filter((p) => p.isJoined)
         .sort((a, b) => (this.scores[b.index] || 0) - (this.scores[a.index] || 0))
-        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` }));
-      renderMatchOver(ctx, {
-        arena: this.arena,
-        uiButtons: this.uiButtons,
-        headline: this.matchWinner ? t('laser.champ') : t('game.draw'),
-        winnerName: this.matchWinner ? this.matchWinner.name : '',
-        winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
-        rows,
-        onRestart: () => this.startNewMatch(),
-      });
-    }
+        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` })),
+      onRestart: () => this.startNewMatch(),
+      onSeatChange: (i) => {
+        if (this.players[i]) {
+          this.players[i].isJoined = this.isSlotJoined(i);
+          this.players[i].slotType = this.slotTypes[i];
+        }
+        playJoin();
+      },
+      customControls: (c) => {
+        // Harita seçici (start butonunun altında küçük buton)
+        const mapName = LASER_MAPS[this.selectedMapIndex]?.name || '';
+        const mw = 210; const mh = 34;
+        const mx = this.arena.cx - mw / 2;
+        const my = this.arena.cy + 78;
+        c.save();
+        c.fillStyle = '#FFFFFF';
+        c.strokeStyle = '#1A1A1A';
+        c.lineWidth = 3;
+        c.fillRect(mx, my, mw, mh);
+        c.strokeRect(mx, my, mw, mh);
+        c.fillStyle = '#1A1A1A';
+        c.font = 'bold 13px sans-serif';
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillText(`🗺 ${mapName}`, this.arena.cx, my + mh / 2);
+        c.restore();
+        this.uiButtons.push({
+          x: mx, y: my, w: mw, h: mh,
+          onClick: () => {
+            this.selectedMapIndex = (this.selectedMapIndex + 1) % LASER_MAPS.length;
+            this.buildMap();
+            const s = this.spawnPoint.bind(this);
+            this.players.forEach((p, i) => {
+              const sp = s(i);
+              p.x = sp.x; p.y = sp.y;
+              p.angle = sp.angle; p.targetAngle = sp.angle;
+            });
+            playJoin();
+          },
+        });
+      },
+    });
     ctx.restore();
   }
 }

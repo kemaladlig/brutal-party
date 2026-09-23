@@ -2,16 +2,14 @@
 // tek vuruşta ele. Siper kutuları pusuya yatmaya yarar.
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
-import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, renderFloatingTexts } from '../ui/hud.js';
-import { shouldShowVirtualControls } from '../ui/tokens.js';
+import { renderFloatingTexts } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawObstacle } from '../core/arenaKit.js';
 import { updateNinjaBotAI } from '../ai/ninjaAI.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
-import { readSlotKeys, getSecondActionKey, getKeyLabel } from '../core/inputMaps.js';
-import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
 
 export const NINJA_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -46,18 +44,42 @@ export class NinjaGame extends BaseMiniGame {
     this.roundTime = 40;
     this.keys = {};
     this.roundTransitionTimer = 0;
-    this.touches = [
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-      { active: false, cx: 0, cy: 0, jx: 0, jy: 0, id: -1, actionId: -1 },
-    ];
-    this.buttonPressState = {
-      strike: [false, false, false, false],
-      smoke: [false, false, false, false],
-    };
 
     this.initKeyboard();
+  }
+
+  getTabletopSchema() {
+    return {
+      joystick: true,
+      actions: [
+        {
+          id: 'action',
+          icon: '🗡️',
+          label: 'ATIL',
+          cooldownField: 'strikeCooldown',
+          maxCooldown: NINJA_STRIKE_COOLDOWN,
+        },
+        {
+          id: 'smoke',
+          icon: '💨',
+          label: 'SİS',
+          color: '#6366F1',
+          cooldownField: 'smokeCooldown',
+          maxCooldown: NINJA_SMOKE_COOLDOWN,
+        },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (!isDown) return;
+    const player = this.players[slotIndex];
+    if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
+    if (actionId === 'action') {
+      this.attemptStrike(player);
+    } else if (actionId === 'smoke') {
+      this.attemptSmoke(player);
+    }
   }
 
   initKeyboard() {
@@ -76,6 +98,7 @@ export class NinjaGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
@@ -409,54 +432,6 @@ export class NinjaGame extends BaseMiniGame {
     }
   }
 
-  // 4 Köşe Masa-Ortası / Tek Cihaz Dokunmatik Skill Butonları
-  getQuadrantActionButtons(q) {
-    const { left, right, top, bottom, cx, cy } = this.arena;
-    const isLeft = q === 0 || q === 1;
-    const isBottom = q === 0 || q === 3;
-
-    const qLeft = isLeft ? left : cx;
-    const qRight = isLeft ? cx : right;
-    const qTop = isBottom ? cy : top;
-    const qBottom = isBottom ? bottom : cy;
-    const qW = qRight - qLeft;
-    const qH = qBottom - qTop;
-
-    const btnSize = Math.max(46, Math.min(56, Math.floor(Math.min(qW, qH) * 0.26)));
-    const gap = 8;
-    const margin = 12;
-
-    let strikeRect, smokeRect;
-    if (isBottom) {
-      if (isLeft) {
-        // Q0: P1 Sol-Alt -> Butonlar Q0'ın sağ-altında (iç merkeze yakın, skordan uzak)
-        strikeRect = { x: cx - btnSize - margin, y: bottom - btnSize - margin, w: btnSize, h: btnSize };
-        smokeRect = { x: cx - btnSize * 2 - margin - gap, y: bottom - btnSize - margin, w: btnSize, h: btnSize };
-      } else {
-        // Q3: P4 Sağ-Alt -> Butonlar Q3'ün sol-altında (iç merkeze yakın, P4 skordan uzak)
-        smokeRect = { x: cx + margin, y: bottom - btnSize - margin, w: btnSize, h: btnSize };
-        strikeRect = { x: cx + margin + btnSize + gap, y: bottom - btnSize - margin, w: btnSize, h: btnSize };
-      }
-    } else {
-      if (isLeft) {
-        // Q1: P2 Sol-Üst -> Butonlar Q1'in sağ-üstünde (iç merkeze yakın, P2 skordan uzak)
-        strikeRect = { x: cx - btnSize - margin, y: top + margin, w: btnSize, h: btnSize };
-        smokeRect = { x: cx - btnSize * 2 - margin - gap, y: top + margin, w: btnSize, h: btnSize };
-      } else {
-        // Q2: P3 Sağ-Üst -> Butonlar Q2'nin sol-üstünde (iç merkeze yakın, P3 skordan uzak)
-        smokeRect = { x: cx + margin, y: top + margin, w: btnSize, h: btnSize };
-        strikeRect = { x: cx + margin + btnSize + gap, y: top + margin, w: btnSize, h: btnSize };
-      }
-    }
-
-    return { strikeRect, smokeRect };
-  }
-
-  pointInRect(pt, rect) {
-    if (!rect) return false;
-    return pt.x >= rect.x && pt.x <= rect.x + rect.w && pt.y >= rect.y && pt.y <= rect.y + rect.h;
-  }
-
   onTouchStart(touch) {
     if (this.handleRoundOverSkip()) return;
 
@@ -482,79 +457,22 @@ export class NinjaGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING') {
-      const q = getQuadrant(this.arena, touch.x, touch.y);
-      const player = this.players[q];
-      if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
-
-      const { strikeRect, smokeRect } = this.getQuadrantActionButtons(q);
-
-      // 1. KILIÇ / DASH Butonuna Dokunma
-      if (this.pointInRect(touch, strikeRect)) {
-        this.buttonPressState.strike[q] = true;
-        this.attemptStrike(player);
-        return;
-      }
-
-      // 2. SİS BOMBASI Butonuna Dokunma
-      if (this.pointInRect(touch, smokeRect)) {
-        this.buttonPressState.smoke[q] = true;
-        this.attemptSmoke(player);
-        return;
-      }
-
-      // 3. Joystick Hareketi (Quadrant içindeki serbest alana basılınca)
-      const t = this.touches[q];
-      if (!t.active) {
-        t.active = true;
-        t.id = touch.id;
-        t.cx = touch.x;
-        t.cy = touch.y;
-        t.jx = touch.x;
-        t.jy = touch.y;
-      }
+      if (this.handleUiTap(touch)) return;
+      this.handleTabletopTouchStart(touch);
     }
   }
 
   onTouchMove(touch) {
     if (this.state !== 'PLAYING') return;
-    for (let i = 0; i < 4; i++) {
-      const t = this.touches[i];
-      if (t.active && t.id === touch.id) {
-        t.jx = touch.x;
-        t.jy = touch.y;
-        const dx = t.jx - t.cx;
-        const dy = t.jy - t.cy;
-        const dist = Math.hypot(dx, dy);
-        const player = this.players[i];
-        if (player && player.isAlive && player.slotType === 'human' && dist > 10) {
-          player.steerX = dx / dist;
-          player.steerY = dy / dist;
-          player.angle = Math.atan2(dy, dx);
-        }
-      }
-    }
+    this.handleTabletopTouchMove(touch);
   }
 
   onTouchEnd(touch) {
-    for (let i = 0; i < 4; i++) {
-      const t = this.touches[i];
-      if (t.id === touch.id) {
-        t.active = false;
-        t.id = -1;
-        if (this.players[i] && this.players[i].slotType === 'human') {
-          this.players[i].steerX = 0;
-          this.players[i].steerY = 0;
-        }
-      }
-      this.buttonPressState.strike[i] = false;
-      this.buttonPressState.smoke[i] = false;
-    }
+    this.handleTabletopTouchEnd(touch);
   }
 
   onTouchesReset() {
-    this.touches.forEach((t) => { t.active = false; t.id = -1; t.actionId = -1; });
-    this.buttonPressState.strike = [false, false, false, false];
-    this.buttonPressState.smoke = [false, false, false, false];
+    this.resetTabletopTouches();
     this.players.forEach((p) => { p.steerX = 0; p.steerY = 0; });
   }
 
@@ -711,19 +629,18 @@ export class NinjaGame extends BaseMiniGame {
         updateNinjaBotAI(this, player, dt);
       } else {
         const ki = this.keyboardInput(player.index);
-        if (ki.dx !== 0 || ki.dy !== 0) {
+        const joy = this.joysticks[player.index];
+        if (joy && joy.active && joy.force > 0.08) {
+          player.steerX = Math.cos(joy.angle) * joy.force;
+          player.steerY = Math.sin(joy.angle) * joy.force;
+          player.angle = joy.angle;
+        } else if (ki.dx !== 0 || ki.dy !== 0) {
           const mag = Math.hypot(ki.dx, ki.dy) || 1;
           player.steerX = ki.dx / mag;
           player.steerY = ki.dy / mag;
           player.angle = Math.atan2(ki.dy, ki.dx);
-          player.keyHeld = true;
-        } else if (player.keyHeld) {
-          player.keyHeld = false;
-          if (!this.touches[player.index].active && !player.remoteActive) {
-            player.steerX = 0;
-            player.steerY = 0;
-          }
-        } else if (!this.touches[player.index].active && !player.remoteActive) {
+        } else if (!player.remoteActive) {
+          // Klavye bırakıldı: sadece kendi yazdığını siler (uzak/dokunmatik korunur)
           player.steerX = 0;
           player.steerY = 0;
         }
@@ -1291,20 +1208,8 @@ export class NinjaGame extends BaseMiniGame {
     // =========================================================================
     // ARAYÜZDE SKİLL KULLANIMI VE DURUM GÖSTERGELERİ (HUD & ON-SCREEN CONTROLS)
     // =========================================================================
-    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      renderAdaptiveScoreboard(ctx, {
-        arena: this.arena,
-        players: this.players,
-        scores: this.scores,
-        entities: this.players.filter((p) => p.isJoined && p.isAlive),
-        isHosting: !!this.hideLobbyStartButton,
-        state: this.state,
-      });
-
-      // Dokunmatik / Masa-ortası modunda ekranda doğrudan tıklanabilir 2'li Kare Skill Butonları
-      if (this.isLocalInputActive) {
-        this.renderLocalTouchControls(ctx);
-      }
+    if (this.state === 'PLAYING') {
+      this.renderControls(ctx);
     }
 
     // Geri sayım filigranı
@@ -1317,149 +1222,29 @@ export class NinjaGame extends BaseMiniGame {
       ctx.restore();
     }
 
-    this.uiButtons = [];
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.ninja'), [
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.ninja'),
+      guideEntries: [
         'P1 [WASD/SPACE/E]',
         'P2 [OKLAR/ENTER/R-SHIFT]',
         'P3 [IJKL/O/U]',
         'P4 [TFGH/B/V]',
-      ]);
-      this.renderStandardLobby(ctx, {
-        arena: this.arena,
-        colors: NINJA_COLORS,
-        accent: '#D84727',
-        onStart: () => this.startNewMatch(),
-        rotateTop: true,
-        onSeatChange: (i) => {
-          if (this.players[i]) {
-            this.players[i].isJoined = this.isSlotJoined(i);
-            this.players[i].slotType = this.slotTypes[i];
-          }
-          playJoin();
-        },
-      });
-    } else if (this.state === 'ROUND_OVER') {
-      renderRoundBanner(ctx, { arena: this.arena, title: this.roundWinner ? t('game.won', this.roundWinner.name) : t('game.draw'), titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A' });
-    } else if (this.state === 'MATCH_OVER') {
-      renderMatchOver(ctx, { arena: this.arena, uiButtons: this.uiButtons, headline: t('ninja.champ'), winnerName: this.matchWinner ? this.matchWinner.name : '', winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A', rows: this.players.filter((p) => p.isJoined).map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` })), onRestart: () => this.startNewMatch() });
-    }
-    ctx.restore();
-  }
-
-  // ---------------------------------------------------------------------------
-  // DOKUNMATİK EKRAN SKİLL BUTONLARI & SANAL JOYSTICK (Masa-ortası / Mobil Oyun)
-  // ---------------------------------------------------------------------------
-  renderLocalTouchControls(ctx) {
-    if (!shouldShowVirtualControls({ isHosting: !!this.hideLobbyStartButton })) return;
-    for (let q = 0; q < 4; q++) {
-      const p = this.players[q];
-      if (!p || !p.isJoined || !p.isAlive || p.slotType !== 'human') continue;
-
-      const { strikeRect, smokeRect } = this.getQuadrantActionButtons(q);
-
-      // 1. KILIÇ / DASH Butonu Çizimi
-      this.drawOnScreenSkillButton(ctx, {
-        rect: strikeRect,
-        icon: '🗡️',
-        label: 'ATIL',
-        color: p.color,
-        isReady: p.strikeCooldown <= 0,
-        cooldown: p.strikeCooldown,
-        maxCooldown: NINJA_STRIKE_COOLDOWN,
-        isPressed: this.buttonPressState.strike[q],
-        keyHint: getKeyLabel('action', q),
-      });
-
-      // 2. SİS BOMBASI Butonu Çizimi
-      this.drawOnScreenSkillButton(ctx, {
-        rect: smokeRect,
-        icon: '💨',
-        label: 'SİS',
-        color: '#6366F1',
-        isReady: p.smokeCooldown <= 0,
-        cooldown: p.smokeCooldown,
-        maxCooldown: NINJA_SMOKE_COOLDOWN,
-        isPressed: this.buttonPressState.smoke[q],
-        keyHint: getKeyLabel('smoke', q),
-      });
-
-      // 3. Sanal Joystick Çizimi
-      const t = this.touches[q];
-      if (t.active) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(t.cx, t.cy, 36, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-        ctx.fill();
-        ctx.strokeStyle = p.color;
-        ctx.lineWidth = 2.5;
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(t.jx, t.jy, 18, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.fill();
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-  }
-
-  drawOnScreenSkillButton(ctx, { rect, icon, label, color, isReady, cooldown, maxCooldown, isPressed, keyHint }) {
-    ctx.save();
-    ctx.globalAlpha = isPressed ? 0.85 : 0.65;
-    const offset = isPressed ? 2 : 0;
-    const shadow = isPressed ? 1 : 3;
-
-    // Sert Brutalist Gölge
-    ctx.fillStyle = '#141416';
-    ctx.fillRect(rect.x + shadow, rect.y + shadow, rect.w, rect.h);
-
-    // Buton Gövdesi
-    ctx.fillStyle = isReady ? (isPressed ? '#E0DFDC' : '#FFFFFF') : '#2A2A2E';
-    ctx.fillRect(rect.x + offset, rect.y + offset, rect.w, rect.h);
-
-    // Kenarlık
-    ctx.strokeStyle = isReady ? color : '#555555';
-    ctx.lineWidth = isReady ? 2.5 : 1.5;
-    ctx.strokeRect(rect.x + offset, rect.y + offset, rect.w, rect.h);
-
-    // Cooldown Maskesi (Aşağıdan yukarıya veya radyal dolum)
-    if (!isReady && maxCooldown > 0) {
-      const frac = Math.max(0, Math.min(1, cooldown / maxCooldown));
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-      ctx.fillRect(rect.x + offset, rect.y + offset, rect.w, rect.h * frac);
-    }
-
-    // İkon
-    ctx.font = 'bold 16px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(icon, rect.x + offset + rect.w / 2, rect.y + offset + rect.h * 0.38);
-
-    // Etiket ve Cooldown Süresi
-    ctx.font = '900 10px "JetBrains Mono", monospace';
-    if (isReady) {
-      ctx.fillStyle = '#141416';
-      ctx.fillText(label, rect.x + offset + rect.w / 2, rect.y + offset + rect.h * 0.76);
-    } else {
-      ctx.fillStyle = '#F59E0B';
-      ctx.fillText(`${cooldown.toFixed(1)}s`, rect.x + offset + rect.w / 2, rect.y + offset + rect.h * 0.76);
-    }
-
-    // Mini klavye ipucu rozeti
-    if (keyHint) {
-      ctx.fillStyle = 'rgba(20, 20, 22, 0.85)';
-      ctx.fillRect(rect.x + offset + 2, rect.y + offset + 2, 22, 9);
-      ctx.font = '900 7px monospace';
-      ctx.fillStyle = '#FFFFFF';
-      ctx.textAlign = 'center';
-      ctx.fillText(keyHint, rect.x + offset + 13, rect.y + offset + 7);
-    }
-
+      ],
+      colors: NINJA_COLORS,
+      accent: '#D84727',
+      matchOverHeadline: t('ninja.champ'),
+      matchOverRows: this.players
+        .filter((p) => p.isJoined)
+        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` })),
+      onRestart: () => this.startNewMatch(),
+      onSeatChange: (i) => {
+        if (this.players[i]) {
+          this.players[i].isJoined = this.isSlotJoined(i);
+          this.players[i].slotType = this.slotTypes[i];
+        }
+        playJoin();
+      },
+    });
     ctx.restore();
   }
 }

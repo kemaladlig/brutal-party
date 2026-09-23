@@ -17,9 +17,8 @@ import {
   playItemPickup,
   playTeleport,
 } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderTopPill, renderAdaptiveScoreboard, renderEntityHUD, renderArenaWatermarkTimer, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { renderTopPill, renderEntityHUD, renderArenaWatermarkTimer, renderAdaptiveScoreboard } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { clampToArena, resolveAABB, pointBlocked } from '../core/physics2d.js';
@@ -93,20 +92,32 @@ export class CrownGame extends BaseMiniGame {
 
     this.particles = [];
     this.floatingTexts = [];
-    this.tackleButtons = [];
     this.initKeyboard();
+  }
+
+  getTabletopSchema() {
+    return {
+      joystick: true,
+      actions: [
+        {
+          id: 'tackle',
+          icon: '💥',
+          label: 'TACKLE',
+          cooldownField: 'tackleCooldown',
+          maxCooldown: 2.0,
+        },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (!isDown || actionId !== 'tackle') return;
+    this.triggerTackle(slotIndex);
   }
 
   initKeyboard() {
     this.bindStandardKeyboard((slot) => {
       this.triggerTackle(slot);
-    });
-
-    // P1 mouse click fallback for solo PC testing
-    this.canvas.addEventListener('mousedown', () => {
-      if (this.state === 'PLAYING' && this.players[0]?.slotType === 'human' && this.players[0]?.isJoined) {
-        this.triggerTackle(0);
-      }
     });
   }
 
@@ -136,6 +147,7 @@ export class CrownGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(16, Math.floor(width * 0.04));
     const marginY = height > width
@@ -178,16 +190,6 @@ export class CrownGame extends BaseMiniGame {
       for (const ink of this.inkPuddles) this.remapPoint(ink, oldArena, this.arena);
       this.particles = [];
     }
-
-    // Setup Tackle Buttons for Tabletop Mobile
-    const btnSize = Math.max(52, Math.min(74, Math.round(size * 0.14)));
-    const pad = 12;
-    this.tackleButtons = [
-      { playerIndex: 0, x: this.arena.left + pad + btnSize / 2, y: this.arena.bottom - pad - btnSize / 2, w: btnSize, h: btnSize },
-      { playerIndex: 1, x: this.arena.left + pad + btnSize / 2, y: this.arena.top + pad + btnSize / 2, w: btnSize, h: btnSize },
-      { playerIndex: 2, x: this.arena.right - pad - btnSize / 2, y: this.arena.top + pad + btnSize / 2, w: btnSize, h: btnSize },
-      { playerIndex: 3, x: this.arena.right - pad - btnSize / 2, y: this.arena.bottom - pad - btnSize / 2, w: btnSize, h: btnSize },
-    ];
   }
 
   buildMap() {
@@ -1411,9 +1413,9 @@ export class CrownGame extends BaseMiniGame {
       }
     }
 
-    // 11. Render Touch Virtual Joysticks & Tackle Buttons
+    // 11. Masa-ortası sanal kontroller (joystick + TACKLE butonu, BaseGame tek kaynak)
     if (this.state === 'PLAYING') {
-      this.renderTouchControls(ctx);
+      this.renderControls(ctx, { players: this.players });
     }
 
     // 12. Render Floating Texts
@@ -1430,24 +1432,59 @@ export class CrownGame extends BaseMiniGame {
       ctx.restore();
     }
 
-    // 13. Render HUD & Control Guide
-    this.renderHUD(ctx);
-
-    // 14. Render Lobby Overlay if LOBBY
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'TACI KAP • 15 SN TUT • 2 RAUND ALAN KAZANIR', [
+    this.renderHUD(ctx, {
+      guideTitle: 'TACI KAP • 15 SN TUT • 2 RAUND ALAN KAZANIR',
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      this.renderLobby(ctx);
-    }
+      ],
+      colors: CROWN_COLORS,
+      playerNames: CROWN_NAMES,
+      accent: '#D84727',
+      roundBannerTitle: this.roundWinner ? `${this.roundWinner.name} RAUNDU KAZANDI!` : t('crown.round'),
+      roundBannerColor: this.roundWinner?.color || '#D99B26',
+      roundBannerSub: t('crown.round'),
+      matchOverHeadline: t('crown.champ') || 'ŞAMPİYON',
+      matchOverRows: this.matchWinner
+        ? this.players
+            .filter((p) => p.isJoined)
+            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` }))
+        : [],
+      onRestart: () => this.startNewMatch(),
+      customControls: (c) => {
+        const { cx, cy, width, height } = this.arena;
+        const mapBtnW = Math.min(460, width * 0.8);
+        const mapBtnH = 38;
+        const mapBtnX = cx - mapBtnW / 2;
+        const mapBtnY = cy - height * 0.14;
 
-    // 15. Render Round / Match Over Overlay
-    if (this.state === 'ROUND_OVER' || this.state === 'MATCH_OVER') {
-      this.renderGameOver(ctx);
-    }
+        c.save();
+        c.fillStyle = '#1A1A1A';
+        c.fillRect(mapBtnX + 3, mapBtnY + 3, mapBtnW, mapBtnH);
+        c.fillStyle = '#FFFFFF';
+        c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+        c.strokeStyle = '#1C1C1A';
+        c.lineWidth = 2.5;
+        c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+
+        c.fillStyle = '#1A1A1A';
+        c.font = '800 12px "JetBrains Mono", monospace';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(`🗺️ ${CROWN_MAP_PRESETS[this.selectedMapIndex].name} ▾`, cx, mapBtnY + mapBtnH / 2);
+        c.restore();
+
+        this.uiButtons.push({
+          x: mapBtnX,
+          y: mapBtnY,
+          w: mapBtnW,
+          h: mapBtnH,
+          onClick: () => this.cycleMap(),
+        });
+      },
+    });
 
     ctx.restore();
   }
@@ -1862,128 +1899,6 @@ export class CrownGame extends BaseMiniGame {
     ctx.restore();
   }
 
-  renderTouchControls(ctx) {
-    this.renderStandardJoysticks(ctx, this.players);
-
-    for (const btn of this.tackleButtons) {
-      const p = this.players[btn.playerIndex];
-      if (!p || !p.isJoined || p.slotType !== 'human') continue;
-
-      ctx.save();
-      ctx.globalAlpha = 0.65;
-      const isReady = p.tackleCooldown <= 0;
-      ctx.fillStyle = isReady ? p.color : '#A5A096';
-      ctx.fillRect(btn.x - btn.w / 2, btn.y - btn.h / 2, btn.w, btn.h);
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(btn.x - btn.w / 2, btn.y - btn.h / 2, btn.w, btn.h);
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 12px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      if (isReady) {
-        ctx.fillText('💥 OMUZ', btn.x, btn.y - 6);
-        ctx.font = '800 10px "JetBrains Mono", monospace';
-        ctx.fillText('HAZIR', btn.x, btn.y + 8);
-      } else {
-        ctx.fillText('BEKLE', btn.x, btn.y - 6);
-        ctx.font = '800 10px "JetBrains Mono", monospace';
-        ctx.fillText(`${p.tackleCooldown.toFixed(1)}s`, btn.x, btn.y + 8);
-      }
-      ctx.restore();
-    }
-  }
-
-  renderHUD(ctx) {
-    // Merkezi otoriter filigran sayaç devrede; üst pill zamanlayıcı kaldırıldı
-  }
-
-  renderLobby(ctx) {
-    const { cx, cy, left, right, top, bottom, width, height } = this.arena;
-    this.uiButtons = [];
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(250, 247, 242, 0.78)';
-    ctx.fillRect(left, top, width, height);
-
-    ctx.fillStyle = '#1A1A1A';
-    ctx.font = '900 32px "Space Grotesk", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('👑 BRUTAL CROWN', cx, cy - height * 0.28);
-
-    ctx.fillStyle = '#75726B';
-    ctx.font = '700 13px "Space Grotesk", sans-serif';
-    ctx.fillText(t('crown.intro'), cx, cy - height * 0.28 + 28);
-
-    const mapBtnW = Math.min(460, width * 0.8);
-    const mapBtnH = 38;
-    const mapBtnX = cx - mapBtnW / 2;
-    const mapBtnY = cy - height * 0.14;
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5;
-    ctx.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-
-    this.renderStandardLobby(ctx, {
-      arena: this.arena,
-      colors: CROWN_COLORS,
-      playerNames: CROWN_NAMES,
-      accent: '#D84727',
-      onStart: () => this.startNewMatch(),
-      centerYOffset: 46,
-      customControls: (c) => {
-        c.save();
-        c.fillStyle = '#1A1A1A';
-        c.fillRect(mapBtnX + 3, mapBtnY + 3, mapBtnW, mapBtnH);
-        c.fillStyle = '#FFFFFF';
-        c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-        c.strokeStyle = '#1C1C1A';
-        c.lineWidth = 2.5;
-        c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-
-        c.fillStyle = '#1A1A1A';
-        c.font = '800 12px "JetBrains Mono", monospace';
-        c.textAlign = 'center';
-        c.textBaseline = 'middle';
-        c.fillText(`🗺️ ${CROWN_MAP_PRESETS[this.selectedMapIndex].name} ▾`, cx, mapBtnY + mapBtnH / 2);
-        c.restore();
-
-        this.uiButtons.push({
-          x: mapBtnX,
-          y: mapBtnY,
-          w: mapBtnW,
-          h: mapBtnH,
-          onClick: () => this.cycleMap(),
-        });
-      },
-    });
-
-    ctx.restore();
-  }
-
-  renderGameOver(ctx) {
-    this.uiButtons = [];
-    if (this.state === 'MATCH_OVER') {
-      renderMatchOver(ctx, {
-        arena: this.arena,
-        winner: this.matchWinner,
-        onRestart: () => this.startNewMatch(),
-        uiButtons: this.uiButtons,
-      });
-    } else if (this.state === 'ROUND_OVER') {
-      renderRoundBanner(ctx, {
-        arena: this.arena,
-        title: this.roundWinner ? `${this.roundWinner.name} RAUNDU KAZANDI!` : t('crown.round'),
-        titleColor: this.roundWinner?.color || '#D99B26',
-        sub: t('crown.round'),
-      });
-    }
-  }
-
   onTouchStart(touch) {
     if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
@@ -1998,19 +1913,7 @@ export class CrownGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING') {
-      for (const tBtn of this.tackleButtons) {
-        if (
-          touch.x >= tBtn.x - tBtn.w / 2 &&
-          touch.x <= tBtn.x + tBtn.w / 2 &&
-          touch.y >= tBtn.y - tBtn.h / 2 &&
-          touch.y <= tBtn.y + tBtn.h / 2
-        ) {
-          this.triggerTackle(tBtn.playerIndex);
-          return;
-        }
-      }
-
-      this.handleStandardJoystickTouchStart(touch, (q) => this.triggerTackle(q));
+      this.handleTabletopTouchStart(touch);
     }
   }
 
