@@ -296,6 +296,19 @@ export class BaseMiniGame {
     }
   }
 
+  onTouchMove(touch) {
+    if (this.state !== 'PLAYING') return;
+    this.handleStandardJoystickTouchMove(touch);
+  }
+
+  onTouchEnd(touch) {
+    this.handleStandardJoystickTouchEnd(touch);
+  }
+
+  onTouchesReset() {
+    this.resetStandardJoysticks();
+  }
+
   renderStandardJoysticks(ctx, players = this.players) {
     if (this.state !== 'PLAYING') return;
     for (let i = 0; i < 4; i++) {

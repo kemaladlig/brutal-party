@@ -1,7 +1,7 @@
 // BRUTAL SNAKE: 2-4 oyunculu yılan — yemle büyü, duvara/kuyruğa/engellere çarpma, taktiksel boost.
 // Uzayan kuyruk ızgarada sorgulanır (uzun oyunda O(n) tarama yok).
 // Çoklu rastgele harita varyasyonları, boost enerji mekaniği ve canlı meyve türleri.
-
+import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';

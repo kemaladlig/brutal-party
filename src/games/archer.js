@@ -2,7 +2,7 @@
 // yay ger, bırakınca ok at. Nişan = bakış yönü + salınım (tam geriş daha stabil).
 // Yakın mesafe vuruş 2 puan, uzak vuruş 1 puan. 60sn raundu en çok puanla bitiren
 // raundu alır; 2 raund alan şampiyon.
-
+import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playItemPickup, playTeleport, playDashWhoosh, playPowerUp } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';

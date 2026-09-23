@@ -20,10 +20,13 @@ src/controllers/
   controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, REACTION_TAP, DPAD_BOOST)
   gamepadSchemas.js         13 oyun için deklaratif kumanda konfigürasyonları ve canlı senkronizasyon hook'ları
 src/gamepad.css             Kumanda stilleri (neo-brutalist mobil ergonomi)
-src/style.css               TV konsolu + ana menü stilleri (neo-brutalist)
+src/style.css               Modüler stil orkestratörü (@import src/styles/*)
+src/styles/                 Modüler CSS katmanı (tokens, base, hud, modals, menu, lobby, animations)
 src/controlGuide.js         Oyun-içi kontrol yardımcısı overlay'i
 src/touchManager.js         Dokunmatik giriş yöneticisi (TV / masa-ortası lokal mod)
-src/i18n.js                 UI metin sözlüğü (t() anahtarları)
+src/i18n.js                 Hafif UI metin motoru (t(), dil state, olaylar)
+src/locales/                Yerelleştirme sözlükleri (tr.js, en.js)
+src/types/game.d.ts         Ortak tip tanımları (PlayerSlot, Cartridge, EngineContract)
 src/audio.js                Synthesizer / Web Audio API ses efektleri
 
 src/core/

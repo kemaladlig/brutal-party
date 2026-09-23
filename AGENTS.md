@@ -68,18 +68,19 @@ Modal açıkken canvas tap'leri motora düşmez; staging'de düşer (bot ekleme/
 
 - Neo-brutalist dil: Space Grotesk + JetBrains Mono, kalın sınırlar, sert kutu gölgeleri, yüksek kontrast.
 - Modaller `src/ui/` altındadır (`hostLobby`, `joinModal`, `pauseModal`, `toast`); `main.js` orkestrasyonu yapar, modal DOM'u kurmaz.
-- Kumanda tarafı: `CONTROLLER_META` tablosu + `mount[Oyun]Controller`; PONG hariç tüm oyunlarda isimli skor şeridi (`score-strip`).
+- Kumanda tarafı: `CARTRIDGES[MOD].schema` deklaratif tanımı (`src/controllers/gamepadSchemas.js`); PONG hariç tüm oyunlarda isimli skor şeridi (`score-strip`).
 - Kumanda ergonomisi kararı: **dikeyde alt-orta kuşak** (`safe-area + 12vh`, 96px taban / 170px tavan), **yatayda köşeler** (sol-alt joystick, sağ-alt aksiyon). Yeni kumanda bu düzene uyar.
 - Mobil: `portrait` + `landscape` desteklenir, `overflow-x` yasak, dokunmatiklerde `touch-action` zorunlu.
 - Motion: `src/ui/motion.js` (`prefersReducedMotion`, `motionScale`) + tokenlar (`src/ui/tokens.js`) tek kaynaktır; yeni UI bu iki dosyadan sızar, lokal stil tanımlamaz. Temel UI hissi global kurala uyar (kısa fade/press, kuru pop-in yok).
 
 ## 8. Yasaklar
 
-- `main.js` / `gamepad.js` içine moda özel `if/else` zinciri ekleme — registry + `CONTROLLER_META` kullan.
+- `main.js` / `gamepad.js` içine moda özel `if/else` zinciri veya imperatif mount fonksiyonu ekleme — `src/controllers/gamepadSchemas.js` + `CARTRIDGES[MOD].schema` kullan.
 - Motora `src/core/` ortak yardımcı mantığını kopyalama / yeniden yazma (inputMaps, touchFlow, physics2d, pickupSystem, arenaKit/buildLayout, playerEntity, avatarInGame) — tek kaynak `src/core/`'dur.
 - State'i iki yerde tutma (TV listesi ↔ relay tablosu çakışırsa relay kazanır).
 - Kumandaya oyun simülasyonu, motora ağ kodu koyma.
 - Çok gerekmedikçe yeni `*.md` dosyası oluşturma. Mevcut `AGENTS.md` + `docs/PROJECT_MAP.md` yeterlidir; yapı/protokol değişince ikisi de güncellenir. Yeni döküman şartsa kullanıcıya sor.
+- **Token Tasarrufu Kuralı:** 400+ satırlık dosyalarda (`crown.js`, `style.css`, `gamepad.js`, `main.js`, vb.) dosyanın tamamını tek seferde okumak (`view_file`) YASAKTIR. Önce `grep_search` ile hedef blok bulunur, yalnızca ilgili 80-120 satırlık dilim okunur. CSS için dosyanın tamamını taramak yerine doğrudan class adı aranır.
 
 ## 9. Yeni Oyun Ekleme Checklist'i
 
@@ -91,11 +92,11 @@ Motor sözleşmesi (madde 3) +:
   - [ ] **Kontrol Rehberi:** `renderControlGuide` çağrısı
 - [ ] `src/ai/[oyun]AI.js` (bot karar motoru)
 - [ ] `GAME_ORDER` + 1 satır `registerEngine` (`src/core/engineRegistry.js` & `src/main.js`)
-- [ ] `gamepad.js` → `mount[Oyun]Controller` + `CONTROLLER_META` satırı
+- [ ] `src/controllers/gamepadSchemas.js` → `GAMEPAD_SCHEMAS[MOD]` deklaratif şeması
 - [ ] `index.html` → bento kartı (`id="btn-select-[mod]"`, küçük harf) + TV lobi çipi + kumanda önizlemesi
 - [ ] Madde 10'daki formülle `public/assets/games/[oyun].jpg` (1:1, optimize)
 - [ ] `docs/PROJECT_MAP.md` motor tablosu ve dosya listesi güncellemesi
-- [ ] `npm run build` temiz + kalıntı taraması (`else if (mode ===` dönmemeli)
+- [ ] `npm run check` ve `npm run build` temiz + kalıntı taraması (`else if (mode ===` dönmemeli)
 
 ## 10. Oyun Görseli Üretim Formülü
 
@@ -110,6 +111,7 @@ Kurallar: metin/logo/filigran/yüz yok; 1:1 (512/1024px, sıkıştırılmış JP
 
 ## 11. Doğrulama
 
+- `npm run check` (`tsc --noEmit`) hatasız geçmeli.
 - `npm run build` hatasız geçmeli.
 - Davranış değişikliğinde 3 prova: (a) hazır→lobi dönüşü bayrakları, (b) koltuk takasında TV+kumanda isimleri, (c) bot ekle/çıkar görünürlüğü.
 - Commit mesajı kısa ve Türkçe/İngilizce karışık mevcut stile uygun; push yalnızca kullanıcı isterse.

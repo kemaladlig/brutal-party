@@ -130,37 +130,12 @@ export class ZoneGame extends BaseMiniGame {
     this.territoryLayer.width = ZONE_TUNING.GRID;
     this.territoryLayer.height = ZONE_TUNING.GRID;
 
-    this.uiButtons = [];
-
-    // 4 köşe yüzen sanal joystick (HEIST/CROWN deseni)
-    this.joysticks = [
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-    ];
-
-    this.keys = {};
     this.initKeyboard();
   }
 
   initKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      this.keys[e.key] = true;
-      if (e.key) this.keys[e.key.toLowerCase()] = true;
-      this.keys[e.code] = true;
-    });
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.key] = false;
-      if (e.key) this.keys[e.key.toLowerCase()] = false;
-      this.keys[e.code] = false;
-    });
-    // Depar kısayolları (BOMB eşlemesi): P1 Space, P2 Enter, P3 O, P4 B
-    window.addEventListener('keydown', (e) => {
-      if (e.repeat || !this.isLocalInputActive) return;
-      if (this.state !== 'PLAYING') return;
-      const slot = slotForActionCode(e.code);
-      if (slot !== -1) this.triggerDash(slot);
+    this.bindStandardKeyboard((slot) => {
+      this.triggerDash(slot);
     });
   }
 
@@ -193,9 +168,27 @@ export class ZoneGame extends BaseMiniGame {
   }
 
   posToCell(x, y) {
+    if (!this.field || !this.cell) return -1;
     const G = ZONE_TUNING.GRID;
-    const cx = Math.floor((x - this.field.x) / this.cell);
-    const cy = Math.floor((y - this.field.y) / this.cell);
+    const wallPad = (this.players?.[0]?.radius || 14) + 2;
+    let cx;
+    if (x <= this.field.x + wallPad) {
+      cx = 0;
+    } else if (x >= this.field.x + this.field.s - wallPad) {
+      cx = G - 1;
+    } else {
+      cx = Math.floor((x - this.field.x) / this.cell);
+    }
+
+    let cy;
+    if (y <= this.field.y + wallPad) {
+      cy = 0;
+    } else if (y >= this.field.y + this.field.s - wallPad) {
+      cy = G - 1;
+    } else {
+      cy = Math.floor((y - this.field.y) / this.cell);
+    }
+
     if (cx < 0 || cy < 0 || cx >= G || cy >= G) return -1;
     return cy * G + cx;
   }
@@ -219,10 +212,10 @@ export class ZoneGame extends BaseMiniGame {
     const G = ZONE_TUNING.GRID;
     const B = ZONE_TUNING.BASE;
     const c = this.baseCorner?.[index] ?? index;
-    if (c === 0) return { x0: 1, y0: G - B - 1, x1: B, y1: G - 2 };
-    if (c === 1) return { x0: 1, y0: 1, x1: B, y1: B };
-    if (c === 2) return { x0: G - B - 1, y0: 1, x1: G - 2, y1: B };
-    return { x0: G - B - 1, y0: G - B - 1, x1: G - 2, y1: G - 2 };
+    if (c === 0) return { x0: 0, y0: G - B, x1: B - 1, y1: G - 1 };
+    if (c === 1) return { x0: 0, y0: 0, x1: B - 1, y1: B - 1 };
+    if (c === 2) return { x0: G - B, y0: 0, x1: G - 1, y1: B - 1 };
+    return { x0: G - B, y0: G - B, x1: G - 1, y1: G - 1 };
   }
 
   // Tur başı köşe kurası: katılanlar 4 köşeye rastgele dağıtılır.
@@ -971,68 +964,16 @@ export class ZoneGame extends BaseMiniGame {
       return;
     }
     if (this.state === 'PLAYING') {
-      const q = this.getCornerQuadrant(touch);
-      const joy = this.joysticks[q];
-      const p = this.players[q];
-      if (p && p.isJoined && p.slotType === 'human' && !joy.active) {
-        joy.id = touch.id;
-        joy.originX = touch.x; joy.originY = touch.y;
-        joy.currX = touch.x; joy.currY = touch.y;
-        joy.active = true; joy.angle = 0; joy.force = 0;
-      }
-    }
-  }
-
-  onTouchMove(touch) {
-    if (this.state !== 'PLAYING') return;
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      if (joy.active && joy.id === touch.id) {
-        const dx = touch.x - joy.originX;
-        const dy = touch.y - joy.originY;
-        const dist = Math.hypot(dx, dy);
-        const maxRadius = 48;
-        joy.angle = Math.atan2(dy, dx);
-        joy.force = Math.min(1.0, dist / maxRadius);
-        if (dist > maxRadius) {
-          joy.currX = joy.originX + Math.cos(joy.angle) * maxRadius;
-          joy.currY = joy.originY + Math.sin(joy.angle) * maxRadius;
-        } else {
-          joy.currX = touch.x; joy.currY = touch.y;
-        }
-        break;
-      }
-    }
-  }
-
-  onTouchEnd(touch) {
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      if (joy.active && joy.id === touch.id) {
-        joy.active = false; joy.id = -1; joy.force = 0;
-      }
-    }
-  }
-
-  onTouchesReset() {
-    for (const joy of this.joysticks) {
-      joy.active = false; joy.id = -1; joy.force = 0;
+      this.handleStandardJoystickTouchStart(touch);
     }
   }
 
   handleRemoteInput(slotIndex, data) {
-    const joy = this.joysticks[slotIndex];
-    if (!joy) return;
-    const player = this.players?.[slotIndex];
-    if (data.action === 'JOYSTICK_MOVE') {
-      if (player && (!player.isJoined || player.slotType !== 'human')) return;
-      joy.active = data.force > 0.05;
-      joy.angle = data.angle || 0;
-      joy.force = data.force || 0;
-    } else if (data.action === 'DASH') {
-      if (player && (!player.isJoined || player.slotType !== 'human')) return;
-      this.triggerDash(slotIndex);
-    }
+    this.handleStandardRemoteJoystick(slotIndex, data, (slot, d) => {
+      if (d.action === 'DASH') {
+        this.triggerDash(slot);
+      }
+    });
   }
 
   keyboardVector(index) {
@@ -1227,16 +1168,19 @@ export class ZoneGame extends BaseMiniGame {
       if (owner === p.index + 1) {
         if (p.trail.length > 0) this.closeTrail(p.index);
       } else {
-        const t = this.trailOwner[cellIdx];
-        if (t >= 0 && t !== p.index) {
+        const trailOwnerId = this.trailOwner[cellIdx];
+        if (trailOwnerId >= 0 && trailOwnerId !== p.index) {
           // Düşman izine bastın: iz sahibi base boyuna döner + donar.
           // Spawn koruması varken kesme işlemez (üstünden geçilir).
-          if (this.spawnProtect <= 0) this.shatterPlayer(t, p.index);
-        } else if (t === p.index) {
-          // Kendi izine bastın: öldün — base boyuna dön + don
-          // (shatterPlayer katilsiz çağrısı 'KENDİNİ KESTİN!' akışını çalıştırır)
-          this.shatterPlayer(p.index, null);
-          continue;
+          if (this.spawnProtect <= 0) this.shatterPlayer(trailOwnerId, p.index);
+        } else if (trailOwnerId === p.index) {
+          // Kendi izine bastın: sadece önceki eski ize basılırsa öl (son 3 hücre hemen arkandadır, dönüş yaparken intihar olmasın)
+          const recentIndex = p.trail.lastIndexOf(cellIdx);
+          const isImmediateTail = recentIndex >= 0 && (p.trail.length - 1 - recentIndex) <= 3;
+          if (!isImmediateTail) {
+            this.shatterPlayer(p.index, null);
+            continue;
+          }
         }
         if (p.trail.length >= ZONE_TUNING.TRAIL_CAP) {
           this.wipeTrail(p.index);
@@ -1249,12 +1193,14 @@ export class ZoneGame extends BaseMiniGame {
           p.trailStartX = p.px;
           p.trailStartY = p.py;
         }
-        // Yüksek risk uyarısı (16 hücreye ulaştığında bir kez uyar)
-        if (p.trail.length === ZONE_TUNING.TRAIL_RISK_WARN) {
-          this.addFloatingText(p.x, p.y - 20, t('zone.risk'), '#D84727');
+        if (p.trail[p.trail.length - 1] !== cellIdx) {
+          // Yüksek risk uyarısı (16 hücreye ulaştığında bir kez uyar)
+          if (p.trail.length === ZONE_TUNING.TRAIL_RISK_WARN) {
+            this.addFloatingText(p.x, p.y - 20, t('zone.risk'), '#D84727');
+          }
+          p.trail.push(cellIdx);
+          this.trailOwner[cellIdx] = p.index;
         }
-        p.trail.push(cellIdx);
-        this.trailOwner[cellIdx] = p.index;
       }
     }
 

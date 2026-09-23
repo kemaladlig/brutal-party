@@ -1,5 +1,5 @@
 // BRUTAL CURVE (Game 03): 2-4 Player Local Party Curve Fever with Gaps, Power-Ups & Bot AI
-import { getSlotCustomization } from '../core/customizationManager.js';
+import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGap, playItemPickup } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';

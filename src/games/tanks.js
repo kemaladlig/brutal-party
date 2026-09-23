@@ -1,5 +1,5 @@
 // Micro-Tanks: 8 Labyrinths with Multi-Tier Bot AI (Normal & God Mode), Tactical Crates & Sudden Death
-import { getSlotCustomization, ensureLocalSeatColor } from '../core/customizationManager.js';
+import { getSlotCustomization, ensureLocalSeatColor, getBotPersona } from '../core/customizationManager.js';
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
@@ -687,10 +687,6 @@ export class TanksGame extends BaseMiniGame {
     } else if (data.action === 'TANK_FIRE') {
       this.attemptFire(tank);
     }
-  }
-
-  addTrauma(amount) {
-    this.trauma = Math.min(1.0, this.trauma + amount);
   }
 
   update(now) {

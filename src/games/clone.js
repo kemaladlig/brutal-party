@@ -1,7 +1,7 @@
 // BRUTAL CLONE: RPG Dedektiflik & Klon Avı
 // Gerçek oyuncular, tapınakta görev yapan NPC klon kalabalığının arasına karışır.
 // Rol yap, görevleri tamamla veya şüphelendiğin rakibe omuz atıp infaz et!
-
+import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';

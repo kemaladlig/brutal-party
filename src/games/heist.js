@@ -33,6 +33,10 @@ import { createPlayer } from '../core/playerEntity.js';
 export const HEIST_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const HEIST_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
+export const HEIST_TUNING = {
+  TACKLE_COOLDOWN: 3.5,
+};
+
 export class HeistGame extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
@@ -81,19 +85,7 @@ export class HeistGame extends BaseMiniGame {
     this.lastTime = performance.now();
 
     // UI Buttons
-    this.uiButtons = [];
     this.tackleButtons = [];
-
-    // 4 Corner Floating Virtual Joysticks
-    this.joysticks = [
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-    ];
-
-    // Keyboard Controls
-    this.keys = {};
     this.initKeyboard();
   }
 
@@ -416,15 +408,6 @@ export class HeistGame extends BaseMiniGame {
     });
   }
 
-  getCornerQuadrant(point) {
-    const { cx, cy } = this.arena;
-
-    if (point.x < cx && point.y >= cy) return 0; // P1
-    if (point.x < cx && point.y < cy) return 1;  // P2
-    if (point.x >= cx && point.y < cy) return 2; // P3
-    return 3; // P4
-  }
-
   onTouchStart(touch) {
     // 1. UI Buttons tap handling
     if (this.handleUiTap(touch)) return;
@@ -453,19 +436,6 @@ export class HeistGame extends BaseMiniGame {
       }
       this.handleStandardJoystickTouchStart(touch, (q) => this.triggerTackle(q));
     }
-  }
-
-  onTouchMove(touch) {
-    if (this.state !== 'PLAYING') return;
-    this.handleStandardJoystickTouchMove(touch);
-  }
-
-  onTouchEnd(touch) {
-    this.handleStandardJoystickTouchEnd(touch);
-  }
-
-  onTouchesReset() {
-    this.resetStandardJoysticks();
   }
 
   // --- BOT AI BEHAVIORS ---

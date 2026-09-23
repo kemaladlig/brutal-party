@@ -1,7 +1,7 @@
 // BRUTAL COLLAPSE: 2-4 oyunculu çöken zemin — ayakta kal, zıplayarak boşlukları geç,
 // rakipleri iniş şokuyla it, güçlendirmeleri topla ve sona kalan ol.
 // Otomatik rastgele harita varyasyonları, 3D derinlikli zeminler ve dinamik parçalanma.
-
+import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';

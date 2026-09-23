@@ -152,11 +152,12 @@ export const GAMEPAD_SCHEMAS = {
     actions: [
       {
         id: 'fire',
-        action: 'TANK_FIRE',
+        action: 'LASER_AIM',
+        releaseAction: 'LASER_FIRE',
+        hold: true,
         label: t('pad.fireGun'),
-        sub: t('pad.tap'),
+        sub: t('pad.holdToAim'),
         className: 'laser-btn-fire',
-        cooldown: 0.9,
         vibrate: [25, 40],
         syncHostCooldown: true,
         hostCdField: 'cdFire',

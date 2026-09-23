@@ -148,16 +148,21 @@ export function updateLaserBotAI(game, bot, dt) {
     bot.targetAngle = Math.atan2(aimY, aimX);
 
     // Ateş: namlu hedefe dönük + simülasyon tutuyorsa (tepki gecikmeli)
-    if (bot.cooldown <= 0 && bot.botCheckTimer <= 0) {
+    const canShoot = (bot.ammo ?? 2) > 0 && (bot.shotCooldown || 0) <= 0;
+    if (canShoot && bot.botCheckTimer <= 0) {
       const diff = Math.abs(normalizeAngle(bot.targetAngle - bot.angle));
+      bot.isAiming = diff < 0.35;
       if (diff < 0.25) {
         if (simHitsSomeone(game, bot)) {
           game.fireLaser(bot);
-          bot.botCheckTimer = 0.5 + Math.random() * 0.5;
+          bot.isAiming = false;
+          bot.botCheckTimer = 0.4 + Math.random() * 0.4;
         } else {
-          bot.botCheckTimer = 0.25;
+          bot.botCheckTimer = 0.2;
         }
       }
+    } else {
+      bot.isAiming = false;
     }
   } else if (destX !== null) {
     const px = destX - bot.x;

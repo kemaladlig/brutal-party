@@ -1,6 +1,6 @@
 // BRUTAL NINJA: 2-4 oyunculu gölge avı — durunca görünmez ol, kılıç atılmasıyla
 // tek vuruşta ele. Siper kutuları pusuya yatmaya yarar.
-
+import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
@@ -19,6 +19,11 @@ export const NINJA_NAMES = ['P1', 'P2', 'P3', 'P4'];
 const NINJA_STRIKE_COOLDOWN = 1.3;
 const NINJA_SMOKE_COOLDOWN = 5.0;
 const NINJA_RADIUS = 18;
+
+export const NINJA_TUNING = {
+  STRIKE_COOLDOWN: NINJA_STRIKE_COOLDOWN,
+  SMOKE_COOLDOWN: NINJA_SMOKE_COOLDOWN,
+};
 
 export class NinjaGame extends BaseMiniGame {
   constructor(canvas) {

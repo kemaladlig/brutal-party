@@ -19,16 +19,16 @@ import {
 } from '../audio.js';
 import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderTopPill, renderCornerScores, renderArenaWatermarkTimer } from '../ui/hud.js';
+import { renderTopPill, renderCornerScores, renderArenaWatermarkTimer, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
-import { drawPickup } from '../core/arenaKit.js';
 import { clampToArena, resolveAABB, pointBlocked } from '../core/physics2d.js';
-import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { createPlayer } from '../core/playerEntity.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { updateCrownBotAI } from '../ai/crownAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
+import { spawnPickup } from '../core/pickupSystem.js';
+import { drawPickup } from '../core/arenaKit.js';
 
 export const CROWN_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CROWN_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -93,21 +93,7 @@ export class CrownGame extends BaseMiniGame {
 
     this.particles = [];
     this.floatingTexts = [];
-
-    // UI Buttons
-    this.uiButtons = [];
     this.tackleButtons = [];
-
-    // 4 Corner Floating Virtual Joysticks (P1: BL, P2: TL, P3: TR, P4: BR)
-    this.joysticks = [
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-    ];
-
-    // Keyboard Controls
-    this.keys = {};
     this.initKeyboard();
   }
 
@@ -117,25 +103,9 @@ export class CrownGame extends BaseMiniGame {
     });
 
     // P1 mouse click fallback for solo PC testing
-    this.canvas.addEventListener('mousedown', (e) => {
-      if (this.state === 'PLAYING') {
-        const rect = this.canvas.getBoundingClientRect();
-        const clickX = ((e.clientX - rect.left) / rect.width) * this.canvas.width;
-        const clickY = ((e.clientY - rect.top) / rect.height) * this.canvas.height;
-        for (const tBtn of this.tackleButtons) {
-          if (
-            clickX >= tBtn.x - tBtn.w / 2 &&
-            clickX <= tBtn.x + tBtn.w / 2 &&
-            clickY >= tBtn.y - tBtn.h / 2 &&
-            clickY <= tBtn.y + tBtn.h / 2
-          ) {
-            this.triggerTackle(tBtn.playerIndex);
-            return;
-          }
-        }
-        if (this.players[0]?.slotType === 'human' && this.players[0]?.isJoined) {
-          this.triggerTackle(0);
-        }
+    this.canvas.addEventListener('mousedown', () => {
+      if (this.state === 'PLAYING' && this.players[0]?.slotType === 'human' && this.players[0]?.isJoined) {
+        this.triggerTackle(0);
       }
     });
   }
@@ -1908,29 +1878,7 @@ export class CrownGame extends BaseMiniGame {
   }
 
   renderTouchControls(ctx) {
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      const p = this.players[q];
-      if (p && p.isJoined && p.slotType === 'human' && joy.active) {
-        ctx.save();
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
-        ctx.strokeStyle = p.color;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(joy.originX, joy.originY, 46, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        ctx.arc(joy.currX, joy.currY, 20, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
+    this.renderStandardJoysticks(ctx, this.players);
 
     for (const btn of this.tackleButtons) {
       const p = this.players[btn.playerIndex];
@@ -2033,66 +1981,22 @@ export class CrownGame extends BaseMiniGame {
   }
 
   renderGameOver(ctx) {
-    const { cx, cy, width } = this.arena;
-    // Lobi butonları finalde ölü olmalı: önce temizle.
     this.uiButtons = [];
-    ctx.save();
-    const boxW = Math.min(width * 0.8, 440);
-    ctx.fillStyle = 'rgba(250, 247, 242, 0.94)';
-    ctx.fillRect(cx - boxW / 2, cy - 80, boxW, 160);
-    ctx.strokeStyle = '#D99B26';
-    ctx.lineWidth = 3.5;
-    ctx.strokeRect(cx - boxW / 2, cy - 80, boxW, 160);
-
-    const isMatch = this.state === 'MATCH_OVER';
-    const winner = isMatch ? this.matchWinner : this.roundWinner;
-
-    ctx.fillStyle = '#1A1A1A';
-    ctx.font = '900 28px "Space Grotesk", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(isMatch ? t('crown.champ') : t('crown.round'), cx, cy - 24, boxW - 20);
-
-    if (winner) {
-      ctx.fillStyle = winner.color;
-      ctx.font = '800 20px "JetBrains Mono", monospace';
-      ctx.fillText(`${winner.name} KAZANDI!`, cx, cy + 18, boxW - 20);
-    }
-    ctx.restore();
-
-    // Maç sonu (raund değil): yeni maç butonu. Raund sonu sayaçla ilerler.
-    if (isMatch) {
-      const btnW = 190;
-      const btnH = 46;
-      const btnX = cx - btnW / 2;
-      const btnY = cy + 80 + 14;
-
-      ctx.save();
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(btnX, btnY, btnW, btnH);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '800 16px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(t('canvas.playAgain'), cx, btnY + btnH / 2);
-      ctx.restore();
-
-      this.uiButtons.push({
-        x: btnX,
-        y: btnY,
-        w: btnW,
-        h: btnH,
-        onClick: () => this.startNewMatch(),
+    if (this.state === 'MATCH_OVER') {
+      renderMatchOver(ctx, {
+        arena: this.arena,
+        winner: this.matchWinner,
+        onRestart: () => this.startNewMatch(),
+        uiButtons: this.uiButtons,
+      });
+    } else if (this.state === 'ROUND_OVER') {
+      renderRoundBanner(ctx, {
+        arena: this.arena,
+        title: this.roundWinner ? `${this.roundWinner.name} RAUNDU KAZANDI!` : t('crown.round'),
+        titleColor: this.roundWinner?.color || '#D99B26',
+        sub: t('crown.round'),
       });
     }
-  }
-
-  getCornerQuadrant(point) {
-    const { cx, cy } = this.arena;
-    if (point.x < cx && point.y >= cy) return 0;
-    if (point.x < cx && point.y < cy) return 1;
-    if (point.x >= cx && point.y < cy) return 2;
-    return 3;
   }
 
   onTouchStart(touch) {
@@ -2121,19 +2025,6 @@ export class CrownGame extends BaseMiniGame {
 
       this.handleStandardJoystickTouchStart(touch, (q) => this.triggerTackle(q));
     }
-  }
-
-  onTouchMove(touch) {
-    if (this.state !== 'PLAYING') return;
-    this.handleStandardJoystickTouchMove(touch);
-  }
-
-  onTouchEnd(touch) {
-    this.handleStandardJoystickTouchEnd(touch);
-  }
-
-  onTouchesReset() {
-    this.resetStandardJoysticks();
   }
 
   handleRemoteInput(slotIndex, data) {
