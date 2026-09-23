@@ -1028,18 +1028,28 @@ export class BombGame extends BaseMiniGame {
           ctx.fillRect(sx - 3, sy - 3, 6, 6);
         }
 
-        // Stun floor ring
-        ctx.strokeStyle = '#FFDE59';
-        ctx.lineWidth = 3.5;
+        // Stun floor ring (çift-stroke: koyu taban + sarı üst)
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 5.5;
         ctx.setLineDash([5, 5]);
         ctx.beginPath();
         ctx.arc(0, 0, player.radius + 6, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.strokeStyle = '#FFDE59';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, player.radius + 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
-        // Stun text badge
+        // Stun text badge (koyu konturlu)
         ctx.fillStyle = '#FFDE59';
         ctx.font = '900 10px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+        ctx.lineWidth = 3;
+        ctx.strokeText('SERSEM!', 0, -player.radius - 26);
         ctx.fillText('SERSEM!', 0, -player.radius - 26);
         ctx.restore();
       }

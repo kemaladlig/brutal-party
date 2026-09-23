@@ -731,8 +731,13 @@ export function renderEntityHUD(ctx, {
 
     ctx.save();
     if (prog >= 1.0 || prog <= 0.001) {
-      // Tam hazır: İnce parlak beyaz dış hat
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      // Tam hazır: Çift stroke (koyu taban + parlak beyaz üst) — açık kağıt zeminde de görünür
+      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+      ctx.lineWidth = Math.max(4, Math.round(4.5 * s));
+      ctx.beginPath();
+      ctx.arc(x, y, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
       ctx.lineWidth = Math.max(2, Math.round(2.5 * s));
       ctx.beginPath();
       ctx.arc(x, y, ringR, 0, Math.PI * 2);

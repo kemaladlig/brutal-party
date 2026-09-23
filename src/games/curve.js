@@ -916,10 +916,14 @@ export class CurveGame extends BaseMiniGame {
       for (const ft of this.floatingTexts) {
         ctx.save();
         ctx.globalAlpha = Math.max(0, ft.life / ft.maxLife);
-        ctx.fillStyle = ft.color;
         ctx.font = '900 12px "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+        ctx.lineWidth = 3.5;
+        ctx.strokeText(ft.text, ft.x, ft.y);
+        ctx.fillStyle = ft.color;
         ctx.fillText(ft.text, ft.x, ft.y);
         ctx.restore();
       }
@@ -1062,7 +1066,7 @@ export class CurveGame extends BaseMiniGame {
         ctx.fillText(player.name, 0, -halfH - 4);
 
         const leftActive = touching.action === 'left';
-        ctx.fillStyle = leftActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
+        ctx.fillStyle = leftActive ? `${player.color}CC` : 'rgba(26, 26, 26, 0.12)';
         ctx.fillRect(-halfW, -halfH, halfW, zones.box.h);
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.lineWidth = 2;
@@ -1075,7 +1079,7 @@ export class CurveGame extends BaseMiniGame {
         ctx.fillText('◄ SOL', -halfW / 2, 0);
 
         const rightActive = touching.action === 'right';
-        ctx.fillStyle = rightActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
+        ctx.fillStyle = rightActive ? `${player.color}CC` : 'rgba(26, 26, 26, 0.12)';
         ctx.fillRect(0, -halfH, halfW, zones.box.h);
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.strokeRect(0, -halfH, halfW, zones.box.h);

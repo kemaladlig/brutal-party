@@ -958,8 +958,11 @@ export class CollapseGame extends BaseMiniGame {
       ctx.translate(player.x, player.y - jumpHeight);
       ctx.scale(scale, scale);
 
-      // Süper Zıplama Aurası
+      // Süper Zıplama Aurası (çift-stroke: koyu taban + sarı üst)
       if (player.superJumpTimer > 0) {
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 4.5;
+        ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.stroke();
         ctx.strokeStyle = '#FFDE59';
         ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.stroke();
@@ -994,10 +997,14 @@ export class CollapseGame extends BaseMiniGame {
       for (let i = 0; i < 4; i++) {
         const t = this.touches[i];
         if (t.active) {
+          // Çift-stroke halka (koyu taban + beyaz üst) + koyu konturlu topuz — açık zeminde görünür
           ctx.beginPath(); ctx.arc(t.cx, t.cy, 32, 0, Math.PI * 2);
-          ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 3; ctx.stroke();
+          ctx.strokeStyle = 'rgba(26, 26, 26, 0.85)'; ctx.lineWidth = 5; ctx.stroke();
+          ctx.beginPath(); ctx.arc(t.cx, t.cy, 32, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'; ctx.lineWidth = 2.5; ctx.stroke();
           ctx.beginPath(); ctx.arc(t.jx, t.jy, 16, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fill();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'; ctx.fill();
+          ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 2.5; ctx.stroke();
         }
       }
     }

@@ -1554,10 +1554,14 @@ export class HeistGame extends BaseMiniGame {
       ctx.save();
       const alpha = Math.max(0, ft.life / ft.maxLife);
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = ft.color;
       ctx.font = '900 13px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+      ctx.lineWidth = 3.5;
+      ctx.strokeText(ft.text, ft.x, ft.y);
+      ctx.fillStyle = ft.color;
       ctx.fillText(ft.text, ft.x, ft.y);
       ctx.restore();
     }

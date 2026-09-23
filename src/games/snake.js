@@ -1089,7 +1089,7 @@ export class SnakeGame extends BaseMiniGame {
 
         // 1. SOL DÖNÜŞ BUTONU
         const leftActive = touching.action === 'left' || (kb.steer < 0);
-        ctx.fillStyle = leftActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
+        ctx.fillStyle = leftActive ? `${player.color}CC` : 'rgba(26, 26, 26, 0.12)';
         ctx.fillRect(-halfW, -halfH, wSteer, zones.box.h);
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.lineWidth = 2;
@@ -1103,7 +1103,7 @@ export class SnakeGame extends BaseMiniGame {
 
         // 2. ⚡ BOOST (HIZLANMA) BUTONU
         const boostActive = isBoosting || touching.action === 'boost' || kb.boost;
-        ctx.fillStyle = boostActive ? (player.boostLocked ? 'rgba(216, 71, 39, 0.75)' : 'rgba(255, 222, 89, 0.85)') : 'rgba(255, 255, 255, 0.45)';
+        ctx.fillStyle = boostActive ? (player.boostLocked ? 'rgba(216, 71, 39, 0.75)' : 'rgba(255, 222, 89, 0.85)') : 'rgba(26, 26, 26, 0.12)';
         ctx.fillRect(-halfW + wSteer, -halfH, wBoost, zones.box.h);
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.strokeRect(-halfW + wSteer, -halfH, wBoost, zones.box.h);
@@ -1119,7 +1119,7 @@ export class SnakeGame extends BaseMiniGame {
 
         // 3. SAĞ DÖNÜŞ BUTONU
         const rightActive = touching.action === 'right' || (kb.steer > 0);
-        ctx.fillStyle = rightActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
+        ctx.fillStyle = rightActive ? `${player.color}CC` : 'rgba(26, 26, 26, 0.12)';
         ctx.fillRect(-halfW + wSteer + wBoost, -halfH, wSteer, zones.box.h);
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.strokeRect(-halfW + wSteer + wBoost, -halfH, wSteer, zones.box.h);

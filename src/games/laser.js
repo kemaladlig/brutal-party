@@ -1134,8 +1134,8 @@ export class LaserGame extends BaseMiniGame {
           ctx.lineWidth = 3.5;
           ctx.setLineDash([8, 4]);
         } else {
-          ctx.globalAlpha = isReady ? 0.45 : 0.15;
-          ctx.lineWidth = isReady ? 2.0 : 1.2;
+          ctx.globalAlpha = isReady ? 0.55 : 0.3;
+          ctx.lineWidth = isReady ? 2.2 : 1.6;
           ctx.setLineDash(isReady ? [6, 4] : [2, 6]);
         }
         ctx.beginPath();
@@ -1152,6 +1152,11 @@ export class LaserGame extends BaseMiniGame {
           }
           if (player.isAiming) {
             const endPt = pts[pts.length - 1];
+            ctx.strokeStyle = '#1A1A1A';
+            ctx.lineWidth = 3.5;
+            ctx.beginPath();
+            ctx.arc(endPt.x, endPt.y, 5, 0, Math.PI * 2);
+            ctx.stroke();
             ctx.strokeStyle = '#FFFFFF';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
@@ -1181,6 +1186,9 @@ export class LaserGame extends BaseMiniGame {
 
       ctx.fillStyle = '#FFF';
       ctx.beginPath(); ctx.arc(laser.x, laser.y, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
     }
 
     // Oyuncular
@@ -1212,12 +1220,16 @@ export class LaserGame extends BaseMiniGame {
         ctx.restore();
       }
 
-      // Dash hazır halkası (hazırsa beyaz parlar, cooldown'daysa dolum yayı çizer)
-      ctx.lineWidth = 3;
+      // Dash hazır halkası (hazırsa çift stroke: koyu taban + beyaz üst — açık zeminde de görünür)
       if (player.dashCooldown <= 0) {
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
         ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
       } else {
+        ctx.lineWidth = 3;
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.25)';
         ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
         const cdProg = 1 - Math.max(0, player.dashCooldown / LASER_TUNING.DASH_CD);
@@ -1300,10 +1312,14 @@ export class LaserGame extends BaseMiniGame {
     // Uçuşan metinler (+1 KILL ★)
     for (const ft of this.floatingTexts) {
       ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, ft.alpha));
+      ctx.globalAlpha = Math.max(0, ft.alpha);
       ctx.font = 'bold 16px monospace';
-      ctx.fillStyle = ft.color;
       ctx.textAlign = 'center';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+      ctx.lineWidth = 3.5;
+      ctx.strokeText(ft.text, ft.x, ft.y);
+      ctx.fillStyle = ft.color;
       ctx.fillText(ft.text, ft.x, ft.y);
       ctx.restore();
     }
