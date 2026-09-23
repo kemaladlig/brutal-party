@@ -11,11 +11,11 @@ import { t } from '../i18n.js';
 
 export const GAME_ORDER = [
   'PONG',
+  'ARCHER',
   'TANKS',
   'CURVE',
   'BOMB',
   'HEIST',
-  'ARCHER',
   'CROWN',
   'ZONE',
   'SNAKE',
