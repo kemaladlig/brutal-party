@@ -1,6 +1,6 @@
 // BRUTAL HEIST (Game 05): 2-4 Player Local Party Gold & Vault Stealing
 // Weight Physics, Shoulder Tackle Loot Knockout, Vault Banking & Raids, 45s Gold Rush & Bot AI
-import { getSlotCustomization, ensureLocalSeatColor } from '../core/customizationManager.js';
+import { getSlotCustomization, ensureLocalSeatColor, getBotPersona } from '../core/customizationManager.js';
 import {
   playStart,
   playJoin,
@@ -25,14 +25,13 @@ import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateHeistBotAI } from '../ai/heistAI.js';
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
 import { createPlayer } from '../core/playerEntity.js';
 
 export const HEIST_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
-export const HEIST_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const HEIST_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 export class HeistGame extends BaseMiniGame {
   constructor(canvas) {
@@ -1039,10 +1038,10 @@ export class HeistGame extends BaseMiniGame {
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.heist'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
@@ -1087,21 +1086,6 @@ export class HeistGame extends BaseMiniGame {
     ctx.arc(cx, cy, size * 0.22, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
-
-    // Saha ortasında net, yüksek görünürlüklü süre sayacı
-    if (this.state === 'PLAYING') {
-      const remain = Math.max(0, this.roundTimer);
-      const isUrgent = remain <= 10.0;
-      renderArenaWatermarkTimer(ctx, {
-        arena: this.arena,
-        text: `${Math.ceil(remain)}s`,
-        subText: '',
-        urgent: isUrgent,
-        color: isUrgent ? '#D84727' : '#D99B26',
-        alpha: isUrgent ? 0.70 : 0.46,
-        ringProgress: Math.max(0, remain / 90),
-      });
-    }
 
     // 4 Köşe Takviye Braketleri (L-plates)
     const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
@@ -1167,6 +1151,21 @@ export class HeistGame extends BaseMiniGame {
         ctx.arc(pil.x + pil.w / 2, pil.y + pil.h / 2, 2.5, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+
+    // Sütunların üzerinde her zaman net, yüksek görünürlüklü süre sayacı
+    if (this.state === 'PLAYING') {
+      const remain = Math.max(0, this.roundTimer);
+      const isUrgent = remain <= 10.0;
+      renderArenaWatermarkTimer(ctx, {
+        arena: this.arena,
+        text: `${Math.ceil(remain)}s`,
+        subText: '',
+        urgent: isUrgent,
+        color: isUrgent ? '#D84727' : '#D99B26',
+        alpha: isUrgent ? 0.70 : 0.46,
+        ringProgress: Math.max(0, remain / 90),
+      });
     }
   }
 
@@ -1271,7 +1270,7 @@ export class HeistGame extends BaseMiniGame {
       ctx.fill();
 
       if (item.type === 'COIN') {
-        // Gold Coin
+        // Gold Coin with star icon
         ctx.fillStyle = '#FFDE59';
         ctx.beginPath();
         ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
@@ -1281,10 +1280,10 @@ export class HeistGame extends BaseMiniGame {
         ctx.stroke();
 
         ctx.fillStyle = '#1C1C1A';
-        ctx.font = '900 10px "Space Grotesk", sans-serif';
+        ctx.font = '900 11px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('1', 0, 0);
+        ctx.fillText('★', 0, 0);
       } else if (item.type === 'DIAMOND') {
         // Royal Diamond
         ctx.fillStyle = '#48CAE4';
@@ -1300,12 +1299,12 @@ export class HeistGame extends BaseMiniGame {
         ctx.stroke();
 
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = '900 11px "Space Grotesk", sans-serif';
+        ctx.font = '12px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('3', 0, 0);
+        ctx.fillText('💎', 0, 1);
       } else if (item.type === 'CROWN') {
-        // Heavy Gold Bar
+        // Heavy Gold Bar with Crown icon
         ctx.fillStyle = '#D99B26';
         ctx.fillRect(-12, -8, 24, 16);
         ctx.strokeStyle = '#1C1C1A';
@@ -1313,10 +1312,10 @@ export class HeistGame extends BaseMiniGame {
         ctx.strokeRect(-12, -8, 24, 16);
 
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = '900 10px "JetBrains Mono", monospace';
+        ctx.font = '12px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('5K', 0, 0);
+        ctx.fillText('👑', 0, 1);
       }
 
       ctx.restore();
@@ -1458,11 +1457,6 @@ export class HeistGame extends BaseMiniGame {
       ctx.fill();
       ctx.restore();
 
-      const customName = (player.name && player.name !== HEIST_NAMES[player.index])
-        ? ` • ${player.name.slice(0, 6)}`
-        : '';
-      const pLabel = `P${player.index + 1}${customName}`;
-
       let currentExp = 'normal';
       if (player.stumbleTimer > 0) currentExp = 'dizzy';
       else if (player.isTackling) currentExp = 'angry';
@@ -1471,11 +1465,31 @@ export class HeistGame extends BaseMiniGame {
 
       drawGameAvatar(ctx, 0, 0, player.radius, player, {
         facingAngle: player.facingAngle,
-        label: pLabel,
         expression: currentExp,
         borderColor: player.isTackling ? '#FFDE59' : '#1C1C1A',
         borderWidth: player.isTackling ? 4.5 : 3,
       });
+
+      // Omuz Darbesi Cooldown Göstergesi (Zemin ve altınların üstünde her zaman net görünür)
+      if (player.tackleCooldown > 0) {
+        const maxCd = HEIST_TUNING.TACKLE_COOLDOWN;
+        const cdProg = 1.0 - Math.max(0, Math.min(1, player.tackleCooldown / maxCd));
+        ctx.save();
+        // Zemin Koyu Halka
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, player.radius + 5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Dolum Arkı
+        ctx.strokeStyle = '#FFDE59';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, player.radius + 5, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
 
       // Taşınan ganimet: miktara göre büyüyen yığın (yük = gösteriş)
       if (player.carriedGold > 0) {
@@ -1610,6 +1624,7 @@ export class HeistGame extends BaseMiniGame {
       }
 
       ctx.save();
+      ctx.globalAlpha = 0.55;
 
       ctx.strokeStyle = 'rgba(28, 28, 26, 0.4)';
       ctx.lineWidth = 3;
@@ -1676,6 +1691,7 @@ export class HeistGame extends BaseMiniGame {
       }
 
       ctx.save();
+      ctx.globalAlpha = 0.65;
       ctx.translate(pos.x, pos.y);
       if (i === 1 || i === 2) {
         ctx.rotate(Math.PI);

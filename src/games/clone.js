@@ -14,7 +14,7 @@ import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
 
 export const CLONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-export const CLONE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const CLONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 const CLONE_DASH_COOLDOWN = 1.6;
 const CLONE_RADIUS = 15;
@@ -171,10 +171,14 @@ export class CloneGame extends BaseMiniGame {
 
     this.players = spawns.map((s, i) => {
       const existing = this.players[i];
+      const custom = getSlotCustomization(i);
+      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      const isGod = this.slotTypes[i] === 'bot_god';
+      const persona = isBot ? getBotPersona(i, isGod) : null;
       return {
         index: i,
-        name: existing?.name || CLONE_NAMES[i],
-        color: CLONE_COLORS[i],
+        name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
+        color: isBot ? persona.color : (custom.color || CLONE_COLORS[i]),
         x: s.x, y: s.y, angle: s.angle,
         speed: 135, steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
@@ -932,10 +936,10 @@ export class CloneGame extends BaseMiniGame {
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.clone'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
       ]);
       this.renderStandardLobby(ctx, {
         arena: this.arena,

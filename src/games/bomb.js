@@ -22,6 +22,7 @@ import {
   renderRoundBanner,
   renderMatchOver,
   renderArenaWatermarkTimer,
+  cleanWinnerName,
 } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { pulse } from '../ui/motion.js';
@@ -29,7 +30,6 @@ import { pulse } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup, buildLayout } from '../core/arenaKit.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
@@ -37,7 +37,7 @@ import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSys
 import { createPlayer, tickEffectTimers, advancePlayer } from '../core/playerEntity.js';
 
 export const BOMB_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
-export const BOMB_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const BOMB_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 export const MAP_PRESETS = [
   { id: 'columns4', name: '01 // 4 SİPER KOLONU' },
@@ -818,10 +818,10 @@ export class BombGame extends BaseMiniGame {
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.bomb'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
@@ -839,31 +839,6 @@ export class BombGame extends BaseMiniGame {
     // Arena Floor
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
-
-    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları (Proximity Ghosting)
-    if (this.state === 'PLAYING') {
-      renderCornerScores(ctx, {
-        arena: this.arena,
-        entries: this.players.map((p, i) =>
-          p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}` } : null
-        ),
-        entities: this.players.filter((p) => p.isJoined),
-      });
-
-      // Saha ortasında net, yüksek görünürlüklü bomba geri sayımı (TV ve monitörlerde otoriter zamanlayıcı)
-      const remain = Math.max(0, this.bombTimer);
-      const isPanic = remain <= 4.0;
-      const carrier = this.bombCarrierIndex !== null ? this.players[this.bombCarrierIndex] : null;
-      renderArenaWatermarkTimer(ctx, {
-        arena: this.arena,
-        text: `${remain.toFixed(1)}s`,
-        subText: '',
-        urgent: isPanic,
-        color: isPanic ? '#D84727' : (carrier ? carrier.color : null),
-        alpha: isPanic ? 0.72 : 0.50,
-        ringProgress: Math.max(0, remain / this.bombMaxTime),
-      });
-    }
 
     // Arena Floor Grid & Tactile Corner Brackets
     ctx.strokeStyle = '#E2DCD2';
@@ -965,6 +940,31 @@ export class BombGame extends BaseMiniGame {
       ctx.lineTo(carrier.x, carrier.y + ringRadius + chLen);
       ctx.stroke();
       ctx.restore();
+    }
+
+    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları & Sütunların Üzerinde Net Geri Sayım
+    if (this.state === 'PLAYING') {
+      renderCornerScores(ctx, {
+        arena: this.arena,
+        entries: this.players.map((p, i) =>
+          p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}` } : null
+        ),
+        entities: this.players.filter((p) => p.isJoined),
+      });
+
+      // Saha ortasında sütunların üstünde net, yüksek görünürlüklü bomba geri sayımı
+      const remain = Math.max(0, this.bombTimer);
+      const isPanic = remain <= 4.0;
+      const carrierP = this.bombCarrierIndex !== null ? this.players[this.bombCarrierIndex] : null;
+      renderArenaWatermarkTimer(ctx, {
+        arena: this.arena,
+        text: `${remain.toFixed(1)}s`,
+        subText: '',
+        urgent: isPanic,
+        color: isPanic ? '#D84727' : (carrierP ? carrierP.color : null),
+        alpha: isPanic ? 0.72 : 0.50,
+        ringProgress: Math.max(0, remain / this.bombMaxTime),
+      });
     }
   }
 
@@ -1070,11 +1070,6 @@ export class BombGame extends BaseMiniGame {
         ctx.stroke();
       }
 
-      const customName = (player.name && player.name !== BOMB_NAMES[player.index])
-        ? ` • ${player.name.slice(0, 6)}`
-        : '';
-      const pLabel = `P${player.index + 1}${customName}`;
-
       let currentExp = 'normal';
       if (isCarrier) currentExp = 'panic';
       else if (player.stumbleTimer > 0) currentExp = 'dizzy';
@@ -1083,11 +1078,30 @@ export class BombGame extends BaseMiniGame {
 
       drawGameAvatar(ctx, 0, 0, player.radius, player, {
         facingAngle: player.facingAngle,
-        label: pLabel,
         expression: currentExp,
         borderColor: player.dashTimer > 0 ? '#FFFFFF' : '#1C1C1A',
         borderWidth: player.dashTimer > 0 ? 4.5 : 3,
       });
+
+      // Depar Cooldown Göstergesi (Zemin ve engellerin üstünde her zaman net görünür)
+      if (player.dashCooldown > 0) {
+        const cdProg = 1.0 - Math.max(0, Math.min(1, player.dashCooldown / player.dashMaxCooldown));
+        ctx.save();
+        // Zemin Koyu Halka
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, player.radius + 5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Dolum Arkı
+        ctx.strokeStyle = '#FFDE59';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, player.radius + 5, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
 
       // --- Ticking Bomb Visuals for Carrier ---
       if (isCarrier) {
@@ -1170,6 +1184,7 @@ export class BombGame extends BaseMiniGame {
       }
 
       ctx.save();
+      ctx.globalAlpha = 0.55;
       // Base Ring
       ctx.strokeStyle = 'rgba(28, 28, 26, 0.4)';
       ctx.lineWidth = 3;
@@ -1222,6 +1237,7 @@ export class BombGame extends BaseMiniGame {
       const isDashing = p.dashTimer > 0;
 
       ctx.save();
+      ctx.globalAlpha = 0.65;
       ctx.translate(pos.x, pos.y);
       if (i === 1 || i === 2) {
         ctx.rotate(Math.PI);
@@ -1309,9 +1325,10 @@ export class BombGame extends BaseMiniGame {
 
   renderRoundOverUI(ctx) {
     if (!this.roundWinner) return;
+    const cleanWinner = cleanWinnerName(this.roundWinner.name);
     renderRoundBanner(ctx, {
       arena: this.arena,
-      title: `+1 SET: ${this.roundWinner.name}!`,
+      title: `+1 SET: ${cleanWinner || this.roundWinner.name}!`,
       titleColor: this.roundWinner.color,
       sub: `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}`,
     });

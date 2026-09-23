@@ -3,15 +3,18 @@ import { getSlotCustomization, ensureLocalSeatColor } from '../core/customizatio
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderTopPill, renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { renderTopPill, renderCornerScores, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { drawPickup } from '../core/arenaKit.js';
+import { resolveSlotName } from '../core/slotManager.js';
 import { updateTankBotAI as runTankBotAI } from '../ai/tankAI.js';
+import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { lobbyCenterStartTap } from '../core/touchFlow.js';
 
 export const TANK_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-export const TANK_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const TANK_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 // 8 Handcrafted Brutalist Labyrinth Layouts with custom tactical spawns
 export const MAP_LAYOUTS = [
@@ -316,6 +319,11 @@ export class TanksGame extends BaseMiniGame {
     if (this.slotTypes[index] === 'human' && !this.hideLobbyStartButton) {
       this.applyLocalSeatColor(index, ensureLocalSeatColor(index));
     }
+    if (this.tanks[index]) {
+      this.tanks[index].slotType = this.slotTypes[index];
+      this.tanks[index].isJoined = this.isSlotJoined(index);
+      this.tanks[index].name = resolveSlotName(index, this.slotTypes[index]);
+    }
   }
 
   isSlotJoined(index) {
@@ -388,10 +396,13 @@ export class TanksGame extends BaseMiniGame {
       const isJoined = this.isSlotJoined(i);
       const custom = getSlotCustomization(i);
       const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      const isGod = this.slotTypes[i] === 'bot_god';
+      const persona = isBot ? getBotPersona(i, isGod) : null;
+      const existing = this.tanks?.[i];
       return {
         index: i,
-        name: TANK_NAMES[i],
-        color: isBot ? '#8E8E93' : custom.color,
+        name: resolveSlotName(i, this.slotTypes[i], existing?.name),
+        color: isBot ? persona.color : (custom.color || TANK_COLORS[i]),
         x: sx,
         y: sy,
         startX: sx,
@@ -1179,25 +1190,9 @@ export class TanksGame extends BaseMiniGame {
 
     this.renderShotTracers(ctx);
 
-    // Render Tactical Supply Crates
+    // Render Tactical Supply Crates (Canlı İkon Rozetleri)
     for (const crate of this.crates) {
-      ctx.save();
-      const s = crate.size;
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(crate.x - s / 2 + 3, crate.y - s / 2 + 3, s, s);
-      ctx.fillStyle = '#E8E4DA';
-      ctx.fillRect(crate.x - s / 2, crate.y - s / 2, s, s);
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(crate.x - s / 2, crate.y - s / 2, s, s);
-
-      ctx.fillStyle = '#1A1A1A';
-      ctx.font = '900 11px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const label = crate.type === 'TURBO' ? 'HIZ' : crate.type === 'TRIPLE' ? '3×' : 'ZIRH';
-      ctx.fillText(label, crate.x, crate.y);
-      ctx.restore();
+      drawPickup(ctx, crate, { size: crate.size || 24 });
     }
 
     for (const tank of this.tanks) {
@@ -1216,10 +1211,10 @@ export class TanksGame extends BaseMiniGame {
 
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.tanks'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
@@ -1305,11 +1300,23 @@ export class TanksGame extends BaseMiniGame {
     ctx.fillStyle = '#1A1A1A';
     ctx.fillRect(0, -3.5, s * 0.78, 7);
 
-    // Turret Center Dome
-    ctx.beginPath();
-    ctx.arc(0, 0, s * 0.28, 0, Math.PI * 2);
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fill();
+    // Turret Center Dome / Commander Cupola (Avatar Hatch)
+    ctx.save();
+    const isBot = tank.slotType === 'bot_normal' || tank.slotType === 'bot_god';
+    const isGod = tank.slotType === 'bot_god';
+    drawBrutalAvatar(ctx, 0, 0, s * 0.32, {
+      color: tank.color,
+      slotIndex: tank.index,
+      slotType: tank.slotType,
+      isBot: isBot,
+      isGodBot: isGod,
+      facingAngle: 0,
+      expression: tank.isDriving ? 'FOCUS' : 'normal',
+      showPointer: false,
+      borderWidth: 1.8,
+      shadowOffset: 1,
+    });
+    ctx.restore();
 
     ctx.restore();
 
@@ -1424,10 +1431,10 @@ export class TanksGame extends BaseMiniGame {
     if (this.state === 'LOBBY') return;
 
     const corners = [
-      { name: 'KIRMIZI // P1', color: TANK_COLORS[0], slot: this.slotTypes[0] },
-      { name: 'MAVİ // P2', color: TANK_COLORS[1], slot: this.slotTypes[1] },
-      { name: 'SARI // P3', color: TANK_COLORS[2], slot: this.slotTypes[2] },
-      { name: 'YEŞİL // P4', color: TANK_COLORS[3], slot: this.slotTypes[3] },
+      { name: 'P1', color: TANK_COLORS[0], slot: this.slotTypes[0] },
+      { name: 'P2', color: TANK_COLORS[1], slot: this.slotTypes[1] },
+      { name: 'P3', color: TANK_COLORS[2], slot: this.slotTypes[2] },
+      { name: 'P4', color: TANK_COLORS[3], slot: this.slotTypes[3] },
     ];
 
     corners.forEach((c, index) => {
@@ -1456,9 +1463,7 @@ export class TanksGame extends BaseMiniGame {
         ctx.font = '900 13px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        const pName = (tank && tank.name && tank.name !== TANK_NAMES[index])
-          ? `${c.name} (${tank.name})`
-          : c.name;
+        const pName = (tank && tank.name) ? tank.name : c.name;
         ctx.fillText(pName, 0, -halfH + 8);
 
         if (isGameplayHuman && tank) {
@@ -1528,9 +1533,10 @@ export class TanksGame extends BaseMiniGame {
   }
 
   renderRoundBanner(ctx) {
+    const cleanWinner = this.roundWinner ? cleanWinnerName(this.roundWinner.name) : '';
     renderRoundBanner(ctx, {
       arena: this.arena,
-      title: this.roundWinner ? `${this.roundWinner.name} KAZANDI!` : 'BERABERE!',
+      title: cleanWinner ? `${cleanWinner} KAZANDI!` : 'BERABERE!',
       titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A',
     });
   }

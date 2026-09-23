@@ -81,7 +81,7 @@ export function storePlayerName(name) {
 // Cihaz sahibinin nick'i: menü kartında bir kere belirlenir, katılım formu ve
 // kumanda lobisi hep aynısını kullanır. Boşta "OYUNCU" ile başlanmaz.
 const NICK_ADJ = [
-  'HIZLI', 'ÇILGIN', 'DELİ', 'SERİ', 'UÇUK', 'KARA', 'SARI', 'KIZIL', 'MAVİ',
+  'HIZLI', 'ÇILGIN', 'DELİ', 'SERİ', 'UÇUK', 'TURBO', 'SONİK', 'DİNAMİK', 'KUVVETLİ',
   'ZEKİ', 'ÇEVİK', 'SÜPER', 'MEGA', 'ULTRA', 'GİZLİ', 'YAMAN', 'ATEŞ', 'BUZ',
   'KESKİN', 'SİNSİ', 'VAHŞİ', 'ASİ', 'NEON', 'PİXEL', 'ŞANSLI', 'ATİK', 'GÖLGE',
   'DEMİR', 'ALTIN', 'KAYA', 'DEV', 'MİNİK', 'USTA', 'ÇAKAL', 'ALFA', 'CESUR', 'PARLAK'

@@ -185,6 +185,10 @@ export async function setGameMode(mode) {
 
   menuOverlay.classList.add('hidden');
   inGameHud.classList.remove('hidden');
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    try { document.activeElement.blur(); } catch {}
+  }
+  try { canvas.focus(); } catch {}
   touchManager.setHandler(entry.game);
   // LOCAL: kayıtlı koltuk renkleri reset ÖNCESİ deftere yüklenir (init renkleri
   // doğru kurulsun), reset sonrası varsayılan insan koltuklarına boş renk atanır.
@@ -859,7 +863,7 @@ function exitStagingToLobby() {
 }
 
 // ── Tek koltuk gerçeği: TV sahasından koltuğa dokununca bot ekle/çıkar ──
-const BOT_SEAT_NAMES = ['BOT // KIRMIZI', 'BOT // MAVİ', 'BOT // SARI', 'BOT // YEŞİL'];
+const BOT_SEAT_NAMES = ['BOT · 1', 'BOT · 2', 'BOT · 3', 'BOT · 4'];
 
 function handleLobbySeatTap(index) {
   if (!activeNet().isHosting) return;
@@ -882,7 +886,7 @@ function handleLobbySeatTap(index) {
 }
 
 function addBotSlot(index, kind = 'bot') {
-  const name = kind === 'bot_god' ? `⚡ GOD // P${index + 1}` : (BOT_SEAT_NAMES[index] || `BOT // P${index + 1}`);
+  const name = kind === 'bot_god' ? `⚡ GOD · ${index + 1}` : (BOT_SEAT_NAMES[index] || `BOT · ${index + 1}`);
   activeNet().setSlotBot?.(index, name, kind);
   updateHostSlot(index, true, name, false, kind);
   refreshStagingBar();

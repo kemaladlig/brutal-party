@@ -7,6 +7,7 @@ import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
 import { renderTopPill, renderCornerScores, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { drawPickup } from '../core/arenaKit.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
@@ -15,7 +16,7 @@ import { clampToArena, resolveAABB, updateMovers } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 
 export const LASER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-export const LASER_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const LASER_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 export const LASER_TUNING = {
   SPEED: 220,          // koşu hızı (px/s)
@@ -278,9 +279,15 @@ export class LaserGame extends BaseMiniGame {
   initPlayers() {
     this.players = [0, 1, 2, 3].map((i) => {
       const existing = this.players[i];
+      const custom = getSlotCustomization(i);
+      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      const isGod = this.slotTypes[i] === 'bot_god';
+      const persona = isBot ? getBotPersona(i, isGod) : null;
       const s = this.spawnPoint(i);
       return {
-        index: i, name: existing?.name || LASER_NAMES[i], color: LASER_COLORS[i],
+        index: i,
+        name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
+        color: isBot ? persona.color : (custom.color || LASER_COLORS[i]),
         x: s.x, y: s.y, angle: s.angle, targetAngle: s.angle,
         steerX: 0, steerY: 0, kbx: 0, kby: 0,
         hp: LASER_TUNING.MAX_HP, cooldown: 0,
@@ -909,24 +916,6 @@ export class LaserGame extends BaseMiniGame {
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
 
-    if (this.state === 'PLAYING') {
-      const remain = Math.max(0, Math.ceil(this.matchTimer));
-      renderArenaWatermarkTimer(ctx, {
-        arena: this.arena,
-        text: `${remain}s`,
-        subText: '',
-        urgent: remain <= 10,
-        alpha: remain <= 10 ? 0.70 : 0.46,
-        ringProgress: Math.max(0, remain / 90),
-      });
-
-      renderCornerScores(ctx, {
-        arena: this.arena,
-        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}` } : null),
-        entities: this.players.filter((p) => p.isJoined && p.isAlive),
-      });
-    }
-
     // Floor Markings Grid & Tactile Corner Brackets
     ctx.strokeStyle = '#E8E2D8';
     ctx.lineWidth = 1.5;
@@ -1027,27 +1016,28 @@ export class LaserGame extends BaseMiniGame {
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
 
-    // Pickup'lar
-    for (const pk of this.pickups) {
-      const pulse = 1 + Math.sin(pk.animTime * 6) * 0.12;
-      ctx.save();
-      ctx.translate(pk.x, pk.y);
-      ctx.scale(pulse, pulse);
-      
-      let pColor = '#2F6A4F';
-      let pIcon = '+';
-      if (pk.type === 'FAST') { pColor = '#FFDE59'; pIcon = 'HIZ'; }
-      else if (pk.type === 'SHIELD') { pColor = '#0EA5E9'; pIcon = 'KOR'; }
-      else if (pk.type === 'TRIPLE') { pColor = '#F97316'; pIcon = '3×'; }
+    // Duvar ve engellerin üzerinde her zaman net görünen sayaç & köşe skorları
+    if (this.state === 'PLAYING') {
+      const remain = Math.max(0, Math.ceil(this.matchTimer));
+      renderArenaWatermarkTimer(ctx, {
+        arena: this.arena,
+        text: `${remain}s`,
+        subText: '',
+        urgent: remain <= 10,
+        alpha: remain <= 10 ? 0.70 : 0.46,
+        ringProgress: Math.max(0, remain / 90),
+      });
 
-      ctx.fillStyle = pColor;
-      ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#1A1A1A'; ctx.stroke();
-      ctx.fillStyle = pk.type === 'FAST' ? '#1A1A1A' : '#FFF';
-      ctx.font = '900 10.5px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(pIcon, 0, 1);
-      ctx.restore();
+      renderCornerScores(ctx, {
+        arena: this.arena,
+        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}` } : null),
+        entities: this.players.filter((p) => p.isJoined && p.isAlive),
+      });
+    }
+
+    // Pickup'lar (Canlı İkon Rozetleri)
+    for (const pk of this.pickups) {
+      drawPickup(ctx, pk, { size: 30 });
     }
 
     // Nişan önizlemeleri (canlı oyuncular, 2 sekme)
@@ -1278,10 +1268,10 @@ export class LaserGame extends BaseMiniGame {
     this.uiButtons = [];
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.laser'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
       ]);
       this.renderStandardLobby(ctx, {
         arena: this.arena,

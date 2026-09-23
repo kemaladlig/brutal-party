@@ -3,9 +3,11 @@ import { getSlotCustomization } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGap, playItemPickup } from '../audio.js';
 import { renderControlGuide } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { renderCornerScores, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { drawPickup } from '../core/arenaKit.js';
+import { resolveSlotName } from '../core/slotManager.js';
 import { updateCurveBotAI } from '../ai/curveAI.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
@@ -13,7 +15,7 @@ import { distToSegmentSquared } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-export const CURVE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const CURVE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 // keyup ters haritası: sadece sol/sağ tuşlar (eklemeli steer)
 const CURVE_KEY_SLOTS = buildCodeToSlotMap(['l', 'r']);
@@ -162,10 +164,13 @@ export class CurveGame extends BaseMiniGame {
     this.players = spawns.map((s, i) => {
       const custom = getSlotCustomization(i);
       const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      const isGod = this.slotTypes[i] === 'bot_god';
+      const persona = isBot ? getBotPersona(i, isGod) : null;
+      const existing = this.players?.[i];
       return {
         index: i,
-        name: CURVE_NAMES[i],
-        color: isBot ? '#8E8E93' : custom.color,
+        name: resolveSlotName(i, this.slotTypes[i], existing?.name),
+        color: isBot ? persona.color : (custom.color || CURVE_COLORS[i]),
         x: s.x,
         y: s.y,
         prevX: s.x,
@@ -900,52 +905,9 @@ export class CurveGame extends BaseMiniGame {
       ctx.stroke();
     }
 
-    // Pickups
-    const nowSec = performance.now() / 1000;
+    // Pickups (Canlı İkon Rozetleri)
     for (const item of this.pickups) {
-      ctx.save();
-      const s = item.size;
-      const bob = Math.sin(nowSec * 5 + (item.phase || 0)) * 2;
-      const ix = item.x;
-      const iy = item.y + bob;
-
-      // Gölge
-      ctx.fillStyle = 'rgba(26,26,26,0.18)';
-      ctx.beginPath();
-      ctx.ellipse(ix, iy + s * 0.6, s * 0.6, s * 0.3, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Kutu
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(ix - s / 2 + 2, iy - s / 2 + 2, s, s);
-      ctx.fillStyle = '#FAF7F2';
-      ctx.fillRect(ix - s / 2, iy - s / 2, s, s);
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(ix - s / 2, iy - s / 2, s, s);
-
-      ctx.fillStyle = '#1A1A1A';
-      ctx.font = '900 11px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const icon =
-        item.type === 'SCISSORS'
-          ? 'KES'
-          : item.type === 'GHOST'
-          ? 'HAY'
-          : item.type === 'TURBO'
-          ? 'HIZ'
-          : item.type === 'INVERT'
-          ? 'TERS'
-          : item.type === 'SHRINK'
-          ? 'MINI'
-          : item.type === 'FREEZE'
-          ? 'BUZ'
-          : item.type === 'BOMB'
-          ? 'BOM'
-          : 'DUV';
-      ctx.fillText(icon, ix, iy);
-      ctx.restore();
+      drawPickup(ctx, item, { size: item.size || 24 });
     }
 
     // Floating Text Notifications (Kazanılan güçler)
@@ -1052,10 +1014,10 @@ export class CurveGame extends BaseMiniGame {
 
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.curve'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [A/D]',
+        'P2 [←/→]',
+        'P3 [J/L]',
+        'P4 [F/H]',
       ]);
       this.renderLobbyUI(ctx);
     } else if (this.state === 'ROUND_OVER') {
@@ -1099,10 +1061,10 @@ export class CurveGame extends BaseMiniGame {
         ctx.fillText(player.name, 0, -halfH - 4);
 
         const leftActive = touching.action === 'left';
-        ctx.fillStyle = leftActive ? player.color : '#FFFFFF';
+        ctx.fillStyle = leftActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
         ctx.fillRect(-halfW, -halfH, halfW, zones.box.h);
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
+        ctx.lineWidth = 2;
         ctx.strokeRect(-halfW, -halfH, halfW, zones.box.h);
 
         ctx.fillStyle = leftActive ? '#FFFFFF' : '#1A1A1A';
@@ -1112,8 +1074,9 @@ export class CurveGame extends BaseMiniGame {
         ctx.fillText('◄ SOL', -halfW / 2, 0);
 
         const rightActive = touching.action === 'right';
-        ctx.fillStyle = rightActive ? player.color : '#FFFFFF';
+        ctx.fillStyle = rightActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
         ctx.fillRect(0, -halfH, halfW, zones.box.h);
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.strokeRect(0, -halfH, halfW, zones.box.h);
 
         ctx.fillStyle = rightActive ? '#FFFFFF' : '#1A1A1A';
@@ -1165,8 +1128,7 @@ export class CurveGame extends BaseMiniGame {
       ctx.font = '900 10px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const role = p.slotType === 'bot_god' ? '⚡GOD' : p.slotType === 'bot_normal' ? '🤖BOT' : 'P' + (p.index + 1);
-      ctx.fillText(`${role} // ${p.name}`, p.x, p.y - 22);
+      ctx.fillText(p.name, p.x, p.y - 22);
       ctx.restore();
     });
   }
@@ -1189,9 +1151,10 @@ export class CurveGame extends BaseMiniGame {
   }
 
   renderRoundBanner(ctx) {
+    const cleanWinner = this.roundWinner ? cleanWinnerName(this.roundWinner.name) : '';
     renderRoundBanner(ctx, {
       arena: this.arena,
-      title: this.roundWinner ? `${this.roundWinner.name} KAZANDI!` : 'BERABERE!',
+      title: cleanWinner ? `${cleanWinner} KAZANDI!` : 'BERABERE!',
       titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A',
     });
   }

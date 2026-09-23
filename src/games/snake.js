@@ -14,7 +14,7 @@ import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap
 import { distToSegmentSquared } from '../core/physics2d.js';
 
 export const SNAKE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-export const SNAKE_NAMES = ['KIRMIZI', 'MAVİ', 'SARI', 'YEŞİL'];
+export const SNAKE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 // keyup ters haritası (tuş code → slot); harita inputMaps STANDARD'dan türetilir
 const SNAKE_KEY_SLOTS = buildCodeToSlotMap();
@@ -196,8 +196,14 @@ export class SnakeGame extends BaseMiniGame {
 
     this.players = spawns.map((s, i) => {
       const existing = this.players[i];
+      const custom = getSlotCustomization(i);
+      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
+      const isGod = this.slotTypes[i] === 'bot_god';
+      const persona = isBot ? getBotPersona(i, isGod) : null;
       return {
-        index: i, name: existing?.name || SNAKE_NAMES[i], color: SNAKE_COLORS[i],
+        index: i,
+        name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
+        color: isBot ? persona.color : (custom.color || SNAKE_COLORS[i]),
         x: s.x, y: s.y, angle: s.angle, targetAngle: null, speed: 140, turnSpeed: 3.4,
         steer: 0, isBoost: false, boostEnergy: 100, boostLocked: false,
         isAlive: true, isJoined: this.isSlotJoined(i),
@@ -964,15 +970,26 @@ export class SnakeGame extends BaseMiniGame {
         shadowOffset: 2,
       });
 
-      // Baş Üstü Mini Boost Enerji Arkı
-      if (player.boostEnergy < 95) {
+      // Baş Üstü Mini Boost Enerji Arkı (Zemin üzerinde her zaman net ve okunaklı)
+      if (player.boostEnergy < 98) {
+        ctx.save();
+        const arcR = headR + 6;
+        // Zemin Koyu Ray
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, arcR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Dolum Arkı
         ctx.strokeStyle = player.boostLocked ? '#D84727' : '#FFDE59';
         ctx.lineWidth = 3;
         ctx.beginPath();
         const startA = -Math.PI / 2;
         const endA = startA + (Math.PI * 2 * (player.boostEnergy / 100));
-        ctx.arc(player.x, player.y, headR + 6, startA, endA);
+        ctx.arc(player.x, player.y, arcR, startA, endA);
         ctx.stroke();
+        ctx.restore();
       }
     }
 
@@ -989,10 +1006,10 @@ export class SnakeGame extends BaseMiniGame {
 
     if (this.state === 'LOBBY') {
       renderControlGuide(ctx, this.arena, t('guide.snake'), [
-        'P1 KIRMIZI',
-        'P2 MAVİ',
-        'P3 SARI',
-        'P4 YEŞİL',
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
       ]);
       this.renderStandardLobby(ctx, {
         arena: this.arena,
@@ -1057,7 +1074,7 @@ export class SnakeGame extends BaseMiniGame {
         const kb = this.keyboardInput(i);
 
         // Arka Plan Hafif Saydam Kart Paneli (Oyun sahasını tıkamaz)
-        ctx.fillStyle = 'rgba(250, 247, 242, 0.78)';
+        ctx.fillStyle = 'rgba(250, 247, 242, 0.45)';
         ctx.fillRect(-halfW - 2, -halfH - 18, zones.box.w + 4, zones.box.h + 24);
 
         // Oyuncu İsim ve Klavye İpucu Başlığı
@@ -1069,10 +1086,10 @@ export class SnakeGame extends BaseMiniGame {
 
         // 1. SOL DÖNÜŞ BUTONU
         const leftActive = touching.action === 'left' || (kb.steer < 0);
-        ctx.fillStyle = leftActive ? player.color : 'rgba(255, 255, 255, 0.88)';
+        ctx.fillStyle = leftActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
         ctx.fillRect(-halfW, -halfH, wSteer, zones.box.h);
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
+        ctx.lineWidth = 2;
         ctx.strokeRect(-halfW, -halfH, wSteer, zones.box.h);
 
         ctx.fillStyle = leftActive ? '#FFFFFF' : '#1A1A1A';
@@ -1083,13 +1100,14 @@ export class SnakeGame extends BaseMiniGame {
 
         // 2. ⚡ BOOST (HIZLANMA) BUTONU
         const boostActive = isBoosting || touching.action === 'boost' || kb.boost;
-        ctx.fillStyle = boostActive ? (player.boostLocked ? '#D84727' : '#FFDE59') : 'rgba(255, 255, 255, 0.88)';
+        ctx.fillStyle = boostActive ? (player.boostLocked ? 'rgba(216, 71, 39, 0.75)' : 'rgba(255, 222, 89, 0.85)') : 'rgba(255, 255, 255, 0.45)';
         ctx.fillRect(-halfW + wSteer, -halfH, wBoost, zones.box.h);
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.strokeRect(-halfW + wSteer, -halfH, wBoost, zones.box.h);
 
         // Enerji Doluluk Çizgisi
         const energyHeight = (player.boostEnergy / 100) * (zones.box.h - 4);
-        ctx.fillStyle = player.boostLocked ? 'rgba(216, 71, 39, 0.4)' : 'rgba(255, 222, 89, 0.5)';
+        ctx.fillStyle = player.boostLocked ? 'rgba(216, 71, 39, 0.35)' : 'rgba(255, 222, 89, 0.45)';
         ctx.fillRect(-halfW + wSteer + 2, halfH - 2 - energyHeight, wBoost - 4, energyHeight);
 
         ctx.fillStyle = '#1A1A1A';
@@ -1098,8 +1116,9 @@ export class SnakeGame extends BaseMiniGame {
 
         // 3. SAĞ DÖNÜŞ BUTONU
         const rightActive = touching.action === 'right' || (kb.steer > 0);
-        ctx.fillStyle = rightActive ? player.color : 'rgba(255, 255, 255, 0.88)';
+        ctx.fillStyle = rightActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
         ctx.fillRect(-halfW + wSteer + wBoost, -halfH, wSteer, zones.box.h);
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.strokeRect(-halfW + wSteer + wBoost, -halfH, wSteer, zones.box.h);
 
         ctx.fillStyle = rightActive ? '#FFFFFF' : '#1A1A1A';

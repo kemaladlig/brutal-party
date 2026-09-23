@@ -2,23 +2,30 @@
 // Motorlar buildLayout(name, arena) çağırabilir; ÇİZİM (drawObstacle, drawPickup) buradan gelir.
 
 export const PICKUP_META = {
-  TURBO:    { label: 'TRB', glyph: '⚡', color: '#FFDE59', ink: '#1C1C1A' },
-  TELEPORT: { label: 'TEL', glyph: '🌀', color: '#48CAE4', ink: '#1C1C1A' },
-  SLIP:     { label: 'KAY', glyph: '🍌', color: '#2D2D2A', ink: '#FFFFFF' },
-  MULTI:    { label: '3OK', glyph: '🎯', color: '#8B5CF6', ink: '#FFFFFF' },
-  QUICKDRAW:{ label: 'ÇEK', glyph: '🏹', color: '#F97316', ink: '#1C1C1A' },
-  SHIELD:   { label: 'KLK', glyph: '🛡️', color: '#06B6D4', ink: '#1C1C1A' },
-  TRIPLE:   { label: '3×',  glyph: '🔺', color: '#E63946', ink: '#FFFFFF' },
-  // Diğer motorların tipleri (ileride taşınacak — metadata hazır dursun)
-  SCISSORS: { label: 'KES', glyph: '✂️', color: '#D99B26', ink: '#1C1C1A' },
-  GHOST:    { label: 'HAY', glyph: '👻', color: '#94A3B8', ink: '#1C1C1A' },
-  INVERT:   { label: 'TERS',glyph: '🔃', color: '#A78BFA', ink: '#1C1C1A' },
-  SHRINK:   { label: 'KÜÇ', glyph: '🔍', color: '#38BDF8', ink: '#1C1C1A' },
-  FREEZE:   { label: 'BUZ', glyph: '❄️', color: '#BAE6FD', ink: '#1C1C1A' },
-  BOMB:     { label: 'PAT', glyph: '💣', color: '#EF4444', ink: '#FFFFFF' },
-  THICK:    { label: 'KAL', glyph: '🟫', color: '#A8A29E', ink: '#1C1C1A' },
-  GOLDEN_STAR: { label: '★', glyph: '⭐', color: '#FFD700', ink: '#1C1C1A' },
+  TURBO:       { label: 'TRB', glyph: '⚡', color: '#FFDE59', ink: '#1C1C1A' },
+  FAST:        { label: 'HIZ', glyph: '⚡', color: '#FFDE59', ink: '#1C1C1A' },
+  SPEED:       { label: 'HIZ', glyph: '⚡', color: '#FFDE59', ink: '#1C1C1A' },
+  TELEPORT:    { label: 'TEL', glyph: '🌀', color: '#48CAE4', ink: '#1C1C1A' },
+  SLIP:        { label: 'KAY', glyph: '🍌', color: '#FCD34D', ink: '#1C1C1A' },
+  MULTI:       { label: '3OK', glyph: '🎯', color: '#8B5CF6', ink: '#FFFFFF' },
+  QUICKDRAW:   { label: 'ÇEK', glyph: '🏹', color: '#F97316', ink: '#1C1C1A' },
+  SHIELD:      { label: 'KLK', glyph: '🛡️', color: '#06B6D4', ink: '#1C1C1A' },
+  TRIPLE:      { label: '3×',  glyph: '💥', color: '#E63946', ink: '#FFFFFF' },
+  SCISSORS:    { label: 'KES', glyph: '✂️', color: '#D99B26', ink: '#1C1C1A' },
+  GHOST:       { label: 'HAY', glyph: '👻', color: '#94A3B8', ink: '#1C1C1A' },
+  INVERT:      { label: 'TERS',glyph: '🔃', color: '#A78BFA', ink: '#1C1C1A' },
+  SHRINK:      { label: 'KÜÇ', glyph: '🔍', color: '#38BDF8', ink: '#1C1C1A' },
+  FREEZE:      { label: 'BUZ', glyph: '❄️', color: '#BAE6FD', ink: '#1C1C1A' },
+  BOMB:        { label: 'PAT', glyph: '💣', color: '#EF4444', ink: '#FFFFFF' },
+  THICK:       { label: 'KAL', glyph: '🧱', color: '#A8A29E', ink: '#1C1C1A' },
+  WALL:        { label: 'DUV', glyph: '🧱', color: '#E59866', ink: '#1C1C1A' },
+  SLOW:        { label: 'YAV', glyph: '🐢', color: '#3B82F6', ink: '#FFFFFF' },
+  GOLDEN_STAR: { label: '★',   glyph: '⭐', color: '#FFD700', ink: '#1C1C1A' },
   TURBO_BERRY: { label: 'HIZ', glyph: '🍓', color: '#F43F5E', ink: '#FFFFFF' },
+  FLASH:       { label: 'HIZ', glyph: '⚡', color: '#FFD122', ink: '#1C1C1A' },
+  SEISMIC:     { label: 'DAR', glyph: '💥', color: '#FF473A', ink: '#FFFFFF' },
+  SUPER_JUMP:  { label: 'ZIP', glyph: '🦘', color: '#FFDE59', ink: '#1C1C1A' },
+  REPAIR_TILES:{ label: 'TAM', glyph: '🔨', color: '#2F6A4F', ink: '#FFFFFF' },
 };
 
 const OBSTACLE_STYLES = {
@@ -167,40 +174,36 @@ export function drawObstacle(ctx, obs, opts = {}) {
   ctx.restore();
 }
 
-// Ortak power-up rozeti: pulse + sert gölge + ikon (emoji); ikon yoksa mono etiket.
+// Ortak power-up rozeti: pulse + sert gölge + canlı ikon rozeti.
 export function drawPickup(ctx, pk, opts = {}) {
-  const meta = PICKUP_META[pk.type] || { label: '???', glyph: '?', color: '#666666', ink: '#FFFFFF' };
+  const meta = PICKUP_META[pk.type] || { label: '★', glyph: '⭐', color: '#FFDE59', ink: '#1C1C1A' };
   const color = opts.color || meta.color;
-  const ink = opts.ink || meta.ink;
-  const glyph = opts.glyph || meta.glyph;
-  const label = opts.label || meta.label;
-  const half = (opts.size || pk.radius * 2 || 28) / 2;
+  const glyph = opts.glyph || meta.glyph || '⭐';
+  const half = (opts.size || (pk.radius ? pk.radius * 2 : 28)) / 2;
 
   ctx.save();
   const pulse = 1 + Math.sin((pk.animTime || 0) * 6) * 0.08;
   ctx.translate(pk.x, pk.y);
   ctx.scale(pulse, pulse);
 
+  // Sert Brutalist Gölge
   ctx.fillStyle = '#1C1C1A';
   ctx.fillRect(-half + 3, -half + 3, half * 2, half * 2);
 
+  // Canlı Renkli Gövde
   ctx.fillStyle = color;
   ctx.fillRect(-half, -half, half * 2, half * 2);
 
+  // Kalın Çerçeve
   ctx.strokeStyle = '#1C1C1A';
   ctx.lineWidth = 2.5;
   ctx.strokeRect(-half, -half, half * 2, half * 2);
 
+  // İç İkon / Glif
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  if (glyph) {
-    ctx.font = `${Math.round(half * 1.15)}px sans-serif`;
-    ctx.fillText(glyph, 0, 2);
-  } else {
-    ctx.fillStyle = ink;
-    ctx.font = `900 ${Math.max(9, Math.round(half * 0.72))}px "JetBrains Mono", monospace`;
-    ctx.fillText(label, 0, 1);
-  }
+  ctx.font = `${Math.max(13, Math.round(half * 1.22))}px sans-serif`;
+  ctx.fillText(glyph, 0, 1);
 
   ctx.restore();
 }

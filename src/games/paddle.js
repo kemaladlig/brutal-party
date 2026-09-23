@@ -1,15 +1,15 @@
 // Paddle entity: movement, physics bounds & brutalist rendering.
 // Bot kararı src/ai/pongAI.js'tedir (diğer motorlarla aynı desen).
 
-import { getSlotCustomization } from '../core/customizationManager.js';
+import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { t } from '../i18n.js';
 import { updatePongBotAI as runPongBotAI } from '../ai/pongAI.js';
 
 export const PLAYER_CONFIGS = [
-  { index: 0, name: 'ALT', side: 'bottom', axis: 'horizontal', color: '#D84727' },
-  { index: 1, name: 'ÜST', side: 'top', axis: 'horizontal', color: '#1D5D8A' },
-  { index: 2, name: 'SOL', side: 'left', axis: 'vertical', color: '#D99B26' },
-  { index: 3, name: 'SAĞ', side: 'right', axis: 'vertical', color: '#2F6A4F' },
+  { index: 0, name: 'P1', side: 'bottom', axis: 'horizontal', color: '#D84727' },
+  { index: 1, name: 'P2', side: 'top', axis: 'horizontal', color: '#1D5D8A' },
+  { index: 2, name: 'P3', side: 'left', axis: 'vertical', color: '#D99B26' },
+  { index: 3, name: 'P4', side: 'right', axis: 'vertical', color: '#2F6A4F' },
 ];
 
 export class Paddle {
@@ -54,15 +54,25 @@ export class Paddle {
     if (this.slotType === 'empty') {
       this.slotType = 'human';
       this.isJoined = true;
+      const custom = getSlotCustomization(this.index);
+      this.name = custom.name || `P${this.index + 1}`;
+      this.color = custom.color || PLAYER_CONFIGS[this.index].color;
     } else if (this.slotType === 'human') {
       this.slotType = 'bot_normal';
       this.isJoined = true;
+      const persona = getBotPersona(this.index, false);
+      this.name = persona.name;
+      this.color = persona.color;
     } else if (this.slotType === 'bot_normal') {
       this.slotType = 'bot_god';
       this.isJoined = true;
+      const persona = getBotPersona(this.index, true);
+      this.name = persona.name;
+      this.color = persona.color;
     } else {
       this.slotType = 'empty';
       this.isJoined = false;
+      this.name = `P${this.index + 1}`;
     }
   }
 
@@ -231,8 +241,8 @@ export class Paddle {
       ctx.font = '900 12px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const label = this.isGodBot ? 'GOD' : 'BOT';
-      ctx.fillText(label, this.coord, this.fixedPerpendicular);
+      const persona = getBotPersona(this.index, this.isGodBot);
+      ctx.fillText(persona.name, this.coord, this.fixedPerpendicular);
       ctx.restore();
     }
 
