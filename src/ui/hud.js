@@ -295,9 +295,10 @@ export function renderCornerScores(ctx, { arena, entries, entities = [], isRound
     const rect = { x: spot.x, y: spot.y, w: cardW, h: cardH };
 
     // Proximity Ghosting: Eğer herhangi bir oyuncu/top/mermi bu kutunun üstüne/yakınına gelirse
-    // kutu transparanlaşır (alpha: 0.12), saha görüşü asla engellenmez. Boşken oyun alanını tıkamayan hafif yarı saydamdır (0.38).
+    // kutu saydamlaşır (alpha: 0.25), saha görüşü engellenmez. Boşken okunabilir koyu karttır (0.72);
+    // açık kağıt zeminlerde beyaz metnin kaybolmaması için taban yüksek tutulur.
     const isNearby = checkProximity(rect, entities, Math.round(35 * scale));
-    const cardAlpha = isRoundOver ? 1.0 : isNearby ? 0.12 : 0.38;
+    const cardAlpha = isRoundOver ? 1.0 : isNearby ? 0.25 : 0.72;
 
     ctx.globalAlpha = cardAlpha;
 
@@ -316,10 +317,10 @@ export function renderCornerScores(ctx, { arena, entries, entities = [], isRound
       ctx.lineWidth = Math.max(2, Math.round(2.5 * Math.min(1.4, scale)));
       ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
     } else {
-      // Oyun esnasında: Saydam Füme Kapsül (Zemin ve aksiyon net görülür)
-      ctx.fillStyle = 'rgba(24, 24, 22, 0.40)';
+      // Oyun esnasında: Koyu Füme Kapsül (açık zeminde beyaz metin okunur, aksiyon alttan seçilir)
+      ctx.fillStyle = 'rgba(24, 24, 22, 0.62)';
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
       ctx.lineWidth = 1.2;
       ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
     }
@@ -329,29 +330,57 @@ export function renderCornerScores(ctx, { arena, entries, entities = [], isRound
     ctx.fillStyle = entry.color || UI_COLORS.players[i];
     ctx.fillRect(rect.x, rect.y, stripeW, rect.h);
 
-    // İçerik: P1..P4 etiketi + Oyuncu Adı + Skor Sayısı + Lider Göstergesi
+    // İçerik: koltuk rozeti (P1..P4) + kısa oyuncu adı + skor sayısı + lider yıldızı
     const scoreVal = parseInt(entry.text, 10);
     const isLeader = highestScore > 0 && scoreVal === highestScore;
+    const midY = rect.y + rect.h / 2;
 
-    // Koltuk rozeti (P1..P4)
-    ctx.fillStyle = isRoundOver ? UI_COLORS.muted : 'rgba(255, 255, 255, 0.7)';
+    // Skor genişliğini önce ölç (etiket çakışmasın)
+    const scoreFont = `900 ${Math.round(18 * scale)}px ${UI_FONTS.mono}`;
+    ctx.font = scoreFont;
+    const scoreW = ctx.measureText ? (ctx.measureText(entry.text)?.width || 40) : 40;
+    const scoreRightX = rect.x + rect.w - Math.round(8 * scale);
+    const scoreLeftX = scoreRightX - scoreW;
+
+    // Lider yıldızı: skorun hemen solunda (etikete taşmaz)
+    let starZone = 0;
+    if (isLeader) {
+      ctx.font = `900 ${Math.round(12 * scale)}px ${UI_FONTS.mono}`;
+      const starW = ctx.measureText ? (ctx.measureText('★')?.width || 12) : 12;
+      starZone = starW + Math.round(8 * scale);
+      ctx.fillStyle = UI_COLORS.gold;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('★', scoreLeftX - Math.round(4 * scale), midY);
+    }
+
+    // Koltuk rozeti + kısa isim (P1 AHMET); taşarsa yoğunlaşır, skora taşmaz
+    const labelX = rect.x + stripeW + Math.round(6 * scale);
+    const labelMaxW = Math.max(24, scoreLeftX - starZone - Math.round(4 * scale) - labelX);
+    const shortName = (entry.name || '').toString().toUpperCase().slice(0, 7);
+    const labelText = shortName ? `P${i + 1} ${shortName}` : `P${i + 1}`;
     ctx.font = `900 ${Math.round(11 * scale)}px ${UI_FONTS.mono}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`P${i + 1}`, rect.x + stripeW + Math.round(6 * scale), rect.y + rect.h / 2);
-
-    // Eğer liderse brutalist altın yıldız simgesi
-    if (isLeader) {
-      ctx.fillStyle = UI_COLORS.gold;
-      ctx.font = `900 ${Math.round(12 * scale)}px ${UI_FONTS.mono}`;
-      ctx.fillText('★', rect.x + stripeW + Math.round(27 * scale), rect.y + rect.h / 2);
+    if (!isRoundOver) {
+      // Açık zeminlerde okunurluk için koyu kontur
+      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+      ctx.lineWidth = Math.max(1.5, Math.round(2 * scale));
+      ctx.strokeText(labelText, labelX, midY, labelMaxW);
     }
+    ctx.fillStyle = isRoundOver ? UI_COLORS.muted : 'rgba(255, 255, 255, 0.92)';
+    ctx.fillText(labelText, labelX, midY, labelMaxW);
 
-    // Skor (Büyük, Okunaklı Sayı)
-    ctx.fillStyle = isRoundOver ? (entry.color || UI_COLORS.ink) : '#FFFFFF';
-    ctx.font = `900 ${Math.round(18 * scale)}px ${UI_FONTS.mono}`;
+    // Skor (Büyük, Okunaklı Sayı + koyu kontur)
+    ctx.font = scoreFont;
     ctx.textAlign = 'right';
-    ctx.fillText(entry.text, rect.x + rect.w - Math.round(8 * scale), rect.y + rect.h / 2);
+    if (!isRoundOver) {
+      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+      ctx.lineWidth = Math.max(2, Math.round(3 * scale));
+      ctx.strokeText(entry.text, scoreRightX, midY);
+    }
+    ctx.fillStyle = isRoundOver ? (entry.color || UI_COLORS.ink) : '#FFFFFF';
+    ctx.fillText(entry.text, scoreRightX, midY);
   });
 
   ctx.restore();
@@ -394,11 +423,11 @@ export function renderArenaRailTally(ctx, { arena, players = [], scores = [0, 0,
   const scale = getUiScale(arena);
   const maxScore = Math.max(...scores.slice(0, 4));
 
-  const itemW = Math.round(36 * scale);
+  const itemW = Math.round(42 * scale);
   const gap = Math.round(5 * scale);
   const totalW = count * itemW + (count - 1) * gap;
   const startX = arena.cx - totalW / 2;
-  const barH = Math.round(14 * scale);
+  const barH = Math.round(17 * scale);
   const barY = arena.top - barH / 2; // Tam üst duvar sınır çizgisinin ortasına oturur (oyun alanını işgal etmez)
 
   ctx.save();
@@ -424,17 +453,17 @@ export function renderArenaRailTally(ctx, { arena, players = [], scores = [0, 0,
     ctx.arc(x + 5.5 * scale, y + barH / 2, 2.5 * scale, 0, Math.PI * 2);
     ctx.fill();
 
-    // Skor sayısı
+    // Skor sayısı (küçük ekranda okunur boy)
     ctx.fillStyle = isLeader ? UI_COLORS.gold : '#FFFFFF';
-    ctx.font = `900 ${Math.round(8.5 * scale)}px ${UI_FONTS.mono}`;
+    ctx.font = `900 ${Math.round(10.5 * scale)}px ${UI_FONTS.mono}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(`${score}${isLeader ? '★' : ''}`, x + itemW / 2 + 3 * scale, y + barH / 2 + 0.5);
   });
 
-  // Sağ üst dış boşlukta minik dokunulabilir Peek (Göz At) Çipi
-  const peekW = Math.round(32 * scale);
-  const peekH = Math.round(20 * scale);
+  // Sağ üst dış boşlukta dokunulabilir Peek (Göz At) Çipi
+  const peekW = Math.round(40 * scale);
+  const peekH = Math.round(24 * scale);
   const peekX = Math.min(arena.right - peekW, (arena.cx + totalW / 2) + 12);
   const peekY = Math.max(4, arena.top - peekH - 3);
 
@@ -517,7 +546,8 @@ export function renderUniversalScoreboard(ctx, {
   }
 
   const isNearby = checkProximity({ x: barX, y: barY, w: barW, h: barH }, entities, 35);
-  const barAlpha = roundOver ? 1.0 : isNearby ? 0.12 : 0.40;
+  // Oyun sırasında okunabilir taban (0.72), aksiyon yaklaşınca 0.25'e iner — skor kaybolmaz.
+  const barAlpha = roundOver ? 1.0 : isNearby ? 0.25 : 0.72;
 
   ctx.save();
   ctx.globalAlpha = barAlpha;
@@ -532,10 +562,10 @@ export function renderUniversalScoreboard(ctx, {
     ctx.lineWidth = Math.max(2, Math.round(2.5 * scale));
     ctx.strokeRect(barX, barY, barW, barH);
   } else {
-    // Saydam füme cam kapsül
-    ctx.fillStyle = 'rgba(24, 24, 22, 0.42)';
+    // Koyu füme cam kapsül (açık zeminde beyaz metin okunur)
+    ctx.fillStyle = 'rgba(24, 24, 22, 0.62)';
     ctx.fillRect(barX, barY, barW, barH);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.lineWidth = 1.2;
     ctx.strokeRect(barX, barY, barW, barH);
   }
@@ -556,13 +586,19 @@ export function renderUniversalScoreboard(ctx, {
     ctx.fillStyle = p.color || UI_COLORS.players[origIdx];
     ctx.fillRect(colX, barY + (barH - stripeH) / 2, stripeW, stripeH);
 
-    // P1 + İsim
-    ctx.fillStyle = roundOver ? UI_COLORS.ink : '#FFFFFF';
+    // P1 + İsim (açık zeminde okunurluk için koyu kontur)
+    const pName = (p.name || `P${origIdx + 1}`).slice(0, 5);
+    const nameX = colX + stripeW + Math.round(5 * scale);
     ctx.font = `900 ${Math.round((roundOver ? 12 : 10.5) * scale)}px ${UI_FONTS.mono}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    const pName = (p.name || `P${origIdx + 1}`).slice(0, 5);
-    ctx.fillText(`${pName}`, colX + stripeW + Math.round(5 * scale), barY + barH / 2);
+    if (!roundOver) {
+      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+      ctx.lineWidth = Math.max(1.5, Math.round(2 * scale));
+      ctx.strokeText(`${pName}`, nameX, barY + barH / 2);
+    }
+    ctx.fillStyle = roundOver ? UI_COLORS.ink : '#FFFFFF';
+    ctx.fillText(`${pName}`, nameX, barY + barH / 2);
 
     // Taç / Yıldız
     if (isLeader) {
@@ -571,11 +607,17 @@ export function renderUniversalScoreboard(ctx, {
       ctx.fillText('★', colX + stripeW + Math.round((roundOver ? 46 : 38) * scale), barY + barH / 2);
     }
 
-    // Skor
-    ctx.fillStyle = roundOver ? (p.color || UI_COLORS.ink) : '#FFFFFF';
+    // Skor (açık zeminde okunurluk için koyu kontur)
+    const scoreX = colX + colW - Math.round(6 * scale);
     ctx.font = `900 ${Math.round((roundOver ? 16 : 12.5) * scale)}px ${UI_FONTS.mono}`;
     ctx.textAlign = 'right';
-    ctx.fillText(`${score}★`, colX + colW - Math.round(6 * scale), barY + barH / 2);
+    if (!roundOver) {
+      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+      ctx.lineWidth = Math.max(2, Math.round(2.5 * scale));
+      ctx.strokeText(`${score}★`, scoreX, barY + barH / 2);
+    }
+    ctx.fillStyle = roundOver ? (p.color || UI_COLORS.ink) : '#FFFFFF';
+    ctx.fillText(`${score}★`, scoreX, barY + barH / 2);
   });
 
   ctx.restore();

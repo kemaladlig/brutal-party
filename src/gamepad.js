@@ -989,9 +989,15 @@ export class GamepadManager {
         const scoreDisp = this._el('pong-score-display');
         const rallyDisp = this._el('pong-rally-display');
         if (scoreDisp && data.scores) {
-          // İsimler varsa kimin skoru olduğu görünür: "AHMET 2 • MEHMET 1"
+          // İsimler varsa kimin skoru olduğu görünür: "AHMET 2❤3 • MEHMET 1❤2"
+          // (set skoru + kalan can; boş koltukta can gösterilmez)
+          const lives = Array.isArray(data.lives) ? data.lives : null;
           const scoreTxt = Array.isArray(data.names)
-            ? data.scores.slice(0, 4).map((s, i) => `${data.names[i] || `P${i + 1}`} ${s}`).join(' • ')
+            ? data.scores.slice(0, 4).map((s, i) => {
+              const nm = data.names[i] || `P${i + 1}`;
+              const heart = lives && data.names[i] ? `❤${lives[i] ?? 0}` : '';
+              return `${nm} ${s}${heart}`;
+            }).join(' • ')
             : t('pad.scoreJoin', data.scores.slice(0, 4).join(' - '));
           if (scoreDisp.textContent !== scoreTxt) scoreDisp.textContent = scoreTxt;
         }

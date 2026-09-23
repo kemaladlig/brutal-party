@@ -351,11 +351,6 @@ export function swapEngineSlots(engine, currentMode, isHosting, slotA, slotB) {
       engine.setScores[slotA] = engine.setScores[slotB];
       engine.setScores[slotB] = tempS;
     }
-    if (engine.matchScores) {
-      const tempM = engine.matchScores[slotA];
-      engine.matchScores[slotA] = engine.matchScores[slotB];
-      engine.matchScores[slotB] = tempM;
-    }
     if (!isHosting && engine.paddles) {
       const pA = engine.paddles[slotA];
       const pB = engine.paddles[slotB];

@@ -683,7 +683,8 @@ export class ArcherGame extends BaseMiniGame {
         arena: this.arena,
         players: this.players,
         scores: this.scores,
-        entities: this.players.filter((p) => p.isJoined && p.isAlive),
+        // Uçan oklar da ghosting'e dahil (köşedeki aksiyon kartı kapatmasın)
+        entities: [...this.players.filter((p) => p.isJoined && p.isAlive), ...this.arrows],
         isHosting: !!this.hideLobbyStartButton,
         state: this.state,
       });

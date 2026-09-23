@@ -45,6 +45,7 @@ export const CARTRIDGES = {
           const chgIdx = game.paddles.findIndex((p) => p.spinCharge > 0);
           return {
             scores: game.setScores,
+            lives: game.paddles.map((p) => Math.max(0, p.lives || 0)),
             rally: game.ball?.rallyCount || 0,
             spn: Math.abs(game.ball?.spin || 0) > 8 ? 1 : 0,
             chgIdx,

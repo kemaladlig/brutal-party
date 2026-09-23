@@ -61,7 +61,6 @@ export class Game extends BaseMiniGame {
     // PC klavye durumu (P1 WASD, P2 oklar, P3 IJKL, P4 TFGH)
     this.keys = {};
     this.initKeyboard();
-    this.matchScores = [0, 0, 0, 0];
 
     // Tournament Set Championship
     this.targetSets = 3;
@@ -85,7 +84,6 @@ export class Game extends BaseMiniGame {
     this.rallyStallT = 0;
     this.lastRallySeen = 0;
     this.setScores = [0, 0, 0, 0];
-    this.matchScores = [0, 0, 0, 0];
     this.paddles.forEach((p) => {
       p.reset(p.isJoined);
       p.updateLayout(this.arena);
