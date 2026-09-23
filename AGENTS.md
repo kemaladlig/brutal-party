@@ -1,8 +1,7 @@
 # AGENTS.md — AI Agent Çalışma Kuralları
 
 Bu dosya **AI agent'lar ve geliştiriciler** içindir: mimari sözleşmeler, yasaklar, sayısal bütçeler, iş akışları.
-Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar defteri, açık işler) **`docs/PROJECT_MAP.md`**'dedir — çalışmaya başlamadan önce **ikisini de oku**.
-Global temel kurallar (mimari prensipler, UI/UX, agentic süreç) `~/.config/opencode/AGENTS.md`'den gelir; bu dosya yalnızca **Brutal Party'ye özgü** sözleşmeleri tutar — çakışma olursa bu dosya kazanır.
+Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar defteri, açık işler) **`docs/PROJECT_MAP.md`**'dedir — mimari, protokol, motor veya sözleşme değişikliklerinde ilgili bölümüne mutlaka başvurulur; küçük ve izole düzeltmelerde haritanın tamamını yüklemek yerine hedefe odaklanılır.
 
 ---
 
@@ -80,7 +79,7 @@ Modal açıkken canvas tap'leri motora düşmez; staging'de düşer (bot ekleme/
 - State'i iki yerde tutma (TV listesi ↔ relay tablosu çakışırsa relay kazanır).
 - Kumandaya oyun simülasyonu, motora ağ kodu koyma.
 - Çok gerekmedikçe yeni `*.md` dosyası oluşturma. Mevcut `AGENTS.md` + `docs/PROJECT_MAP.md` yeterlidir; yapı/protokol değişince ikisi de güncellenir. Yeni döküman şartsa kullanıcıya sor.
-- **Token Tasarrufu Kuralı:** 400+ satırlık dosyalarda (`crown.js`, `style.css`, `gamepad.js`, `main.js`, vb.) dosyanın tamamını tek seferde okumak (`view_file`) YASAKTIR. Önce `grep_search` ile hedef blok bulunur, yalnızca ilgili 80-120 satırlık dilim okunur. CSS için dosyanın tamamını taramak yerine doğrudan class adı aranır.
+- **Doğal ve hedefe yönelik okuma:** Belirli bir sembol veya fonksiyon aranırken önce `grep_search` ile hedefe odaklanılır; ancak mimari akışı, dosya yapısını veya stilleri doğru anlamak gerektiğinde tam dosya veya geniş blok okumaktan çekinilmez. Yapay satır sınırlaması veya okuma yasağı yoktur; gereksiz devasa dosyalar (bundle, lockfile, dev loglar) bağlama dökülmez.
 
 ## 9. Yeni Oyun Ekleme Checklist'i
 

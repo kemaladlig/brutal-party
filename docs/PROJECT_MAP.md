@@ -1,6 +1,6 @@
 # PROJECT_MAP — Brutal Party (mini-game-4p) Proje Haritası
 
-Yaşayan doküman: kod veya mimari değiştiğinde burası güncellenir. Temel kurallar ve yasaklar **`AGENTS.md`**'dedir.
+Yaşayan doküman: kod veya mimari değiştiğinde burası güncellenir. Temel kurallar ve yasaklar **`AGENTS.md`**'dedir. Teknik yol haritası ve faz planı **`docs/TECHNICAL_ROADMAP.md`**'dedir.
 Son doğrulama: Refactoring & Modülerleştirme sonrası (Eylül 2026).
 
 ---
@@ -33,7 +33,17 @@ src/core/
   BaseGame.js               BaseMiniGame: Tüm motorların ortak ata sınıfı (canvas, state, scores,
                             slotTypes, trauma/screenshake, handleUiTap, bindStandardKeyboard,
                             handleStandardJoystickTouchStart/Move/End, renderStandardLobby,
-                            handleStandardRemoteJoystick)
+                            handleStandardRemoteJoystick, viewport docking, renderHUD,
+                            renderControls [tabletop sanal joystickler & proximity ghosting],
+                            renderStandardScoreboard, renderStandardRoundBanner, renderStandardMatchOver;
+                            Evrensel Masa-ortası Katmanı (Eylül 2026): getTabletopSchema (deklaratif
+                            buton şeması — joystick + actions[]: icon/label/cooldownField/maxCooldown/
+                            cooldownMaxField/readyField/holdToCharge/keyHint), getTabletopControlCorners
+                            (koşe başına joystick + buton kutuları), handleTabletopTouchStart/Move/End
+                            (buton geometrisi tek merkezden eşlenir, handleSlotAction(slot,id,isDown)
+                            sinyali), resetTabletopTouches. Motorlar özel buton çizimi geometrisi
+                            tutmaz — yalnız şema bildirir; renderControls cooldown maskesi/charge
+                            barı/proximity ghosting/slot-başı klavye rozeti çizer)
   engineRegistry.js         GAME_ORDER, CARTRIDGES (13 oyun kartuşu + metadatalar), initAllCartridges, getControllerMeta, registerEngine/getEngine/forEachEngine
   slotManager.js            Koltuk yönetimi: hostPlayerSlots (+avatar/displayColor), updateHostSlot,
                             syncSlotsToEngine, swapEngineSlots, getColorClashIndices (sert renk engeli)
