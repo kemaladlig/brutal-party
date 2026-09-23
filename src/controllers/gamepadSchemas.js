@@ -238,4 +238,20 @@ export const GAMEPAD_SCHEMAS = {
       },
     ],
   },
+
+  RACE: {
+    type: 'JOYSTICK_ACTION',
+    actions: [
+      {
+        id: 'dash',
+        action: 'DASH',
+        label: t('pad.dash'),
+        sub: t('pad.tap'),
+        color: '#FFDE59',
+        cooldown: 3.0,
+        vibrate: [25, 35],
+        syncHostCooldown: true,
+      },
+    ],
+  },
 };

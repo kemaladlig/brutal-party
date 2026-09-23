@@ -14,7 +14,8 @@ export function renderControlGuide(ctx, arena, title, entries) {
   const panelY = 6;
   const panelWidth = Math.min(arena.width, viewportWidth - 24);
   const panelX = (viewportWidth - panelWidth) / 2;
-  const text = entries.join('   •   ');
+  const entriesList = Array.isArray(entries) ? entries : [];
+  const text = entriesList.join('   •   ');
 
   if (panelHeight <= 14) return;
 

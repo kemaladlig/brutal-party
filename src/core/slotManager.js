@@ -245,7 +245,7 @@ function applySlotDataToEntity(engine, currentMode, i, slotType, slotName, slotC
     currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'ARCHER' ||
     currentMode === 'CROWN' || currentMode === 'ZONE' || currentMode === 'SNAKE' ||
     currentMode === 'LASER' || currentMode === 'CLONE' || currentMode === 'COLLAPSE' ||
-    currentMode === 'NINJA'
+    currentMode === 'NINJA' || currentMode === 'RACE'
   ) {
     if (engine.slotTypes) engine.slotTypes[i] = slotType;
     const player = engine.players?.[i];
@@ -319,7 +319,7 @@ export function clearRemoteSlot(engine, currentMode, slotIndex) {
         player.steer = 0;
         player.isBoost = false;
       }
-    } else if (currentMode === 'CLONE' || currentMode === 'COLLAPSE' || currentMode === 'NINJA' || currentMode === 'LASER') {
+    } else if (currentMode === 'CLONE' || currentMode === 'COLLAPSE' || currentMode === 'NINJA' || currentMode === 'LASER' || currentMode === 'RACE') {
       // Takılı yön sıfırlanır (atılma/zıplama/kılıç/ateş anlık olaydır, latch tutmaz)
       const player = engine.players?.[slotIndex];
       if (player) {
@@ -368,7 +368,7 @@ export function swapEngineSlots(engine, currentMode, isHosting, slotA, slotB) {
         pB.slotType = tempType;
       }
     }
-  } else if (['TANKS', 'CURVE', 'BOMB', 'HEIST', 'ARCHER', 'CROWN', 'ZONE', 'SNAKE', 'LASER', 'CLONE', 'COLLAPSE', 'NINJA'].includes(currentMode)) {
+  } else if (['TANKS', 'CURVE', 'BOMB', 'HEIST', 'ARCHER', 'CROWN', 'ZONE', 'SNAKE', 'LASER', 'CLONE', 'COLLAPSE', 'NINJA', 'RACE'].includes(currentMode)) {
     if (Array.isArray(engine.scores)) {
       const temp = engine.scores[slotA];
       engine.scores[slotA] = engine.scores[slotB];

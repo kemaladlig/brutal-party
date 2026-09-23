@@ -1909,6 +1909,7 @@ body {
 .card-clone { border-top: 8px solid #6a4c93; }
 .card-collapse { border-top: 8px solid #8c8880; }
 .card-ninja { border-top: 8px solid #1a1a1a; }
+.card-race { border-top: 8px solid #FFDE59; }
 
 .bento-media-box {
   width: 100%;
@@ -3685,6 +3686,7 @@ body {
 .bento-card:nth-child(11) { animation-delay: 440ms; }
 .bento-card:nth-child(12) { animation-delay: 480ms; }
 .bento-card:nth-child(13) { animation-delay: 520ms; }
+.bento-card:nth-child(14) { animation-delay: 560ms; }
 
 @keyframes brutal-bento-pop {
   0% {

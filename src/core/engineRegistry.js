@@ -23,6 +23,7 @@ export const GAME_ORDER = [
   'CLONE',
   'COLLAPSE',
   'NINJA',
+  'RACE',
 ];
 
 export const CARTRIDGES = {
@@ -358,6 +359,31 @@ export const CARTRIDGES = {
           alive: game.players.map((p) => p.isAlive),
           cd: game.players.map((p) => Math.ceil((Math.max(0, p.strikeCooldown) / 1.3) * 100)),
           cd2: game.players.map((p) => Math.ceil((Math.max(0, p.smokeCooldown || 0) / 5.0) * 100)),
+        }),
+      };
+    },
+  },
+
+  RACE: {
+    id: 'RACE',
+    title: 'BRUTAL RACE',
+    hudTag: '🏁 RACE',
+    tacticalHintKey: 'hint.race',
+    color: '#FFDE59',
+    schema: GAMEPAD_SCHEMAS.RACE,
+    load: () => import('../games/race.js').then((m) => m.RaceGame),
+    createEngine: (game) => {
+      return {
+        game,
+        reset: () => game.resetMatch(),
+        onEnter: (now) => { game.lastTime = now; },
+        onResume: (now) => { game.lastTime = now; },
+        start: () => game.startRound(),
+        packet: () => ({
+          scores: game.scores,
+          timeLeft: Math.ceil(game.roundTimer || 0),
+          laps: game.players.map((p) => p.laps || 0),
+          cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown || 0) / 3.0) * 100)),
         }),
       };
     },

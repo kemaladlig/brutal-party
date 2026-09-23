@@ -318,6 +318,7 @@ const TR = {
   'guide.ninja': 'WASD / JOYSTICK: HAREKET • 🗡️ BOŞLUK: KILIÇ ATIL • 💨 E: SİS BOMBASI • DURUNCA GİZLEN',
   'guide.snake': '◀ SOL / SAĞ ▶ DÖNÜŞ • ⚡ BASILI TUTUP HIZLAN',
   'guide.tanks': 'TUT: İLERLE • BIRAK: ATEŞ ET • 3 KEZ KAZANAN ŞAMPİYON',
+  'guide.race': 'WASD / JOYSTICK: DÜMEN • DOKUN: NİTRO DEPAR • 3 CHECKPOINTİ TAMAMLA',
   'guide.zone': 'JOYSTICK: YÖN • DEPAR: HIZLAN • %40 ALAN KAZANIR',
   // ── BOMB ──
   'bomb.panic': '⚡ DİKKAT! PATLIYOR! ⚡',
@@ -484,6 +485,8 @@ const TR = {
   'card.hl.collapse': 'AYAKTA KAL',
   'card.desc.ninja': 'Dur ve görünmez ol, kılıçla tek vuruşta avla!',
   'card.hl.ninja': 'GÖLGE AVI',
+  'card.desc.race': 'Checkpoints kap, depar at, 3 tur yarışını kazan!',
+  'card.hl.race': 'PARKOUR YARIŞ',
   // ── Tactical hints (controller) ──
   'hint.pong': 'PADDLE SÜRÜKLE • 🌀 FALSO İLE ŞAŞIRT',
   'hint.tanks': '🚀 GAZ VER (BASILI TUT) • 💥 NİŞAN ALIP ATEŞ ET',
@@ -498,6 +501,7 @@ const TR = {
   'hint.clone': '🕹️ ROL YAP & GÖREV YAP • 💥 RAKİBİ BUL VE OMUZ AT',
   'hint.collapse': '🕹️ HAREKET ET • ⤴️ BOŞLUKTAN ZIPLA',
   'hint.ninja': '🕹️ HAREKET ET • DURUP GİZLEN • 🗡️ KILIÇ • 💨 SİS',
+  'hint.race': '🕹️ YÖN VER • ⚡ NİTRO DEPAR İLE FIRLA',
   // ── Controller (phone) ──
   'pad.leave': 'AYRIL',
   'pad.fullscreenTitle': 'Tam Ekran Modu',
@@ -879,6 +883,7 @@ const EN = {
   'guide.ninja': 'WASD / JOYSTICK: MOVE • 🗡️ SPACE: BLADE DASH • 💨 E: SMOKE BOMB • STAND TO VANISH',
   'guide.snake': '◀ LEFT / RIGHT ▶ STEER • ⚡ HOLD TO BOOST',
   'guide.tanks': 'HOLD: DRIVE • RELEASE: FIRE • 3 WINS TAKE CROWN',
+  'guide.race': 'WASD / JOYSTICK: STEER • TAP: NITRO BOOST • PASS 3 CHECKPOINTS',
   'guide.zone': 'JOYSTICK: DIRECTION • DASH: SPEED • 40% ZONE WINS',
   // ── BOMB ──
   'bomb.panic': '⚡ WARNING! EXPLODING! ⚡',
@@ -1045,6 +1050,8 @@ const EN = {
   'card.hl.collapse': 'STAY UP',
   'card.desc.ninja': 'Stand still to vanish, strike once with the blade!',
   'card.hl.ninja': 'SHADOW HUNT',
+  'card.desc.race': 'Grab checkpoints, nitro boost, win 3 laps!',
+  'card.hl.race': 'PARKOUR RACE',
   // ── Tactical hints (controller) ──
   'hint.pong': 'DRAG PADDLE • 🌀 CURVE TO TRICK',
   'hint.tanks': '🚀 THROTTLE (HOLD) • 💥 AIM & FIRE',
@@ -1059,6 +1066,7 @@ const EN = {
   'hint.clone': '🕹️ BLEND IN & TASK • 💥 FIND & SHOVE RIVALS',
   'hint.collapse': '🕹️ MOVE • ⤴️ JUMP THE GAPS',
   'hint.ninja': '🕹️ MOVE • STAND STILL TO HIDE • 🗡️ BLADE • 💨 SMOKE',
+  'hint.race': '🕹️ STEER • ⚡ NITRO BOOST TO CHARGE AHEAD',
   // ── Controller (phone) ──
   'pad.leave': 'LEAVE',
   'pad.fullscreenTitle': 'Fullscreen mode',
