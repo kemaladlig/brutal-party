@@ -17,7 +17,7 @@ src/supabaseRelay.js        Supabase Broadcast relay: player_msg / host_msg kana
 src/gamepad.js              Telefon kumandası: CONTROLLER_META, koltuk ızgarası,
                             skor şeridi, ready yönetimi, dokunmatik girdiler
 src/controllers/
-  controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, REACTION_TAP, DPAD_BOOST)
+  controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, STEER_BOOST)
   gamepadSchemas.js         13 oyun için deklaratif kumanda konfigürasyonları ve canlı senkronizasyon hook'ları
 src/gamepad.css             Kumanda stilleri (neo-brutalist mobil ergonomi)
 src/style.css               Modüler stil orkestratörü (@import src/styles/*)
