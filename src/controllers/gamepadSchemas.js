@@ -3,15 +3,18 @@
 // Labels resolve via t() at import (boot language); controller re-mounts pick up language changes.
 
 import { t } from '../i18n.js';
+import { CONTROL_DEFS } from './controlDefs.js';
 
 export const GAMEPAD_SCHEMAS = {
   PONG: {
     type: 'SLIDER_1D',
+    def: CONTROL_DEFS.PONG,
     spinCooldown: 20.0,
   },
 
   TANKS: {
     type: 'ARCADE_DRIVE',
+    def: CONTROL_DEFS.TANKS,
     pedalIcon: '🚀',
     pedalTitle: t('pad.drive'),
     pedalSub: t('pad.pedalSub'),
@@ -22,12 +25,14 @@ export const GAMEPAD_SCHEMAS = {
 
   CURVE: {
     type: 'TWO_BUTTON_STEER',
+    def: CONTROL_DEFS.CURVE,
     leftLabel: t('pad.steerLeft'),
     rightLabel: t('pad.steerRight'),
   },
 
   BOMB: {
     type: 'JOYSTICK_ACTION',
+    def: CONTROL_DEFS.BOMB,
     actions: [
       {
         id: 'dash',
@@ -57,6 +62,7 @@ export const GAMEPAD_SCHEMAS = {
 
   HEIST: {
     type: 'JOYSTICK_ACTION',
+    def: CONTROL_DEFS.HEIST,
     actions: [
       {
         id: 'tackle',
@@ -69,10 +75,33 @@ export const GAMEPAD_SCHEMAS = {
         syncHostCooldown: true,
       },
     ],
+    onSync(gamepad, data) {
+      if (!Array.isArray(data.carried)) return;
+      let lead = -1;
+      let max = 0;
+      data.carried.forEach((c, i) => {
+        if ((c || 0) > max) { max = c || 0; lead = i; }
+      });
+      const isLead = lead === gamepad.playerIndex && max > 0;
+      gamepad.overlay.classList.toggle('gem-carrier-alert', isLead);
+      const tacticalRoleEl = document.getElementById('tactical-role-text');
+      if (tacticalRoleEl) {
+        tacticalRoleEl.textContent = isLead
+          ? t('pad.heistLead')
+          : lead >= 0 && max > 0
+            ? t('pad.heistChase', lead + 1)
+            : t('pad.heistGrab');
+        tacticalRoleEl.style.color = isLead ? '#ffd700' : '#ffffff';
+      }
+    },
+    onTeardown(gamepad) {
+      gamepad.overlay.classList.remove('gem-carrier-alert');
+    },
   },
 
   ARCHER: {
     type: 'JOYSTICK_ACTION',
+    def: CONTROL_DEFS.ARCHER,
     actions: [
       {
         id: 'charge',
@@ -91,6 +120,7 @@ export const GAMEPAD_SCHEMAS = {
 
   CROWN: {
     type: 'JOYSTICK_ACTION',
+    def: CONTROL_DEFS.CROWN,
     actions: [
       {
         id: 'tackle',
@@ -121,6 +151,7 @@ export const GAMEPAD_SCHEMAS = {
 
   ZONE: {
     type: 'JOYSTICK_ACTION',
+    def: CONTROL_DEFS.ZONE,
     actions: [
       {
         id: 'dash',
@@ -137,6 +168,7 @@ export const GAMEPAD_SCHEMAS = {
 
   SNAKE: {
     type: 'STEER_BOOST',
+    def: CONTROL_DEFS.SNAKE,
     leftLabel: t('pad.steerLeft'),
     rightLabel: t('pad.steerRight'),
     boostLabel: t('pad.boost'),
@@ -149,6 +181,7 @@ export const GAMEPAD_SCHEMAS = {
 
   LASER: {
     type: 'JOYSTICK_ACTION',
+    def: CONTROL_DEFS.LASER,
     actions: [
       {
         id: 'fire',
@@ -177,6 +210,7 @@ export const GAMEPAD_SCHEMAS = {
 
   CLONE: {
     type: 'JOYSTICK_ACTION',
+    def: CONTROL_DEFS.CLONE,
     actions: [
       {
         id: 'tackle',
@@ -193,6 +227,7 @@ export const GAMEPAD_SCHEMAS = {
 
   COLLAPSE: {
     type: 'JOYSTICK_ACTION',
+    def: CONTROL_DEFS.COLLAPSE,
     actions: [
       {
         id: 'jump',
@@ -209,6 +244,7 @@ export const GAMEPAD_SCHEMAS = {
 
   NINJA: {
     type: 'JOYSTICK_ACTION',
+    def: CONTROL_DEFS.NINJA,
     layout: 'stack',
     actions: [
       {

@@ -12,6 +12,7 @@ import { UI_COLORS, getDisplayProfile, shouldShowVirtualControls } from '../ui/t
 import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { t } from '../i18n.js';
 import { drawTabletopIcon } from './tabletopIcons.js';
+import { getTabletopLayout, validateControlDef } from '../controllers/controlDefs.js';
 
 const STEER_KEY_HINTS = ['A/D', '←/→', 'J/L', 'F/H'];
 
@@ -348,6 +349,19 @@ export class BaseMiniGame {
     };
   }
 
+  // Merkezi sözleşme köprüsü: motor kendi şemasını bildirir, yapı
+  // `controlDefs.js` ile parite denetiminden geçer (sol + max 2 sağ).
+  // Yeni oyunlar `getTabletopLayout(MOD)` çıktısını doğrudan dönebilir.
+  getCentralTabletopLayout(mode) {
+    return getTabletopLayout(mode);
+  }
+
+  assertTabletopParity(mode) {
+    try {
+      return validateControlDef(mode, this.getTabletopSchema());
+    } catch { return true; }
+  }
+
   handleSlotSteer(slotIndex, dir) {
     if (typeof this.onSlotSteer === 'function') {
       this.onSlotSteer(slotIndex, dir);
@@ -556,6 +570,11 @@ export class BaseMiniGame {
 
     const schema = this.getTabletopSchema();
     const actions = schema?.actions || [];
+    // Merkezi sözleşme: sağda en fazla 2 aksiyon (controlDefs.MAX_TABLETOP_ACTIONS).
+    // Uyarı-only: davranış değişmez, yeni oyunlar şemayı buna göre kurar.
+    if (actions.length > 2) {
+      console.warn('[tabletop] sağ aksiyon sayısı 2 sınırını aşıyor');
+    }
 
     if (schema.steer) {
       const steerBtnW = Math.max(72, Math.round(72 * profile.baseUnit));

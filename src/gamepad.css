@@ -1718,3 +1718,80 @@
   border: none;
   cursor: pointer;
 }
+
+/* Döndür-geçidi (landscape-first): portrait + oyun ise workspace üstünde.
+   Girdi kesilmez hissi için yarı saydam, animasyon yalnız transform. */
+.rotate-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 20px;
+  box-sizing: border-box;
+  background: rgba(20, 20, 20, 0.92);
+  touch-action: manipulation;
+}
+
+.rotate-gate.hidden {
+  display: none !important;
+}
+
+.rotate-phone {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #ffd700;
+  background: #1a1a1a;
+  box-shadow: 4px 4px 0px #000000;
+}
+
+.rotate-phone-body {
+  display: inline-block;
+  font-size: 34px;
+  line-height: 1;
+  animation: rotate-phone-hint 1.6s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes rotate-phone-hint {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(90deg); }
+}
+
+.rotate-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 17px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 0.3px;
+}
+
+.rotate-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  color: #ffd700;
+  letter-spacing: 0.5px;
+}
+
+/* Oyun anında üst tek şerit: header + taktik kart kompakt, yön ipucu gizli */
+#gamepad-overlay.is-playing.is-landscape .gamepad-tactical-card {
+  margin-top: 4px;
+}
+
+#gamepad-overlay.is-playing.is-landscape .btn-orientation-hint {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rotate-phone-body {
+    animation: none !important;
+  }
+}

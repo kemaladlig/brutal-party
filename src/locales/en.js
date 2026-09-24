@@ -499,6 +499,8 @@ export const EN = {
   'pad.countSub': 'HOLD PHONE • WATCH SCREEN',
   'pad.orient': 'ROTATE FOR CONSOLE',
   'pad.orientTitle': 'Rotate / fullscreen for console feel',
+  'pad.rotateTitle': 'ROTATE PHONE SIDEWAYS',
+  'pad.rotateSub': 'Games play in landscape • controls at the bottom',
   'pad.seatPick': '💺 PICK YOUR SEAT',
   'pad.arenaPrep': '🏟 ARENA PREPARING',
   'pad.arenaPrepText': 'When the host opens the arena, pick your seat.<br>Check your name, stand by!',

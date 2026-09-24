@@ -499,6 +499,8 @@ export const TR = {
   'pad.countSub': 'TELEFONU TUT • EKRANA BAK',
   'pad.orient': 'KONSOL İÇİN YATAY ÇEVİR',
   'pad.orientTitle': 'Konsol hissi için yatay çevir / tam ekran',
+  'pad.rotateTitle': 'TELEFONU YATAY ÇEVİR',
+  'pad.rotateSub': 'Oyun yatay oynanır • kontroller altta',
   'pad.seatPick': '💺 KOLTUĞUNUZU SEÇİN',
   'pad.arenaPrep': '🏟 SAHA HAZIRLANIYOR',
   'pad.arenaPrepText': 'Host sahayı açınca koltuğunu seçeceksin.<br>İsmini kontrol et, hazır bekle!',

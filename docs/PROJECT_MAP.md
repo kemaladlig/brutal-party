@@ -17,8 +17,10 @@ src/supabaseRelay.js        Supabase Broadcast relay: player_msg / host_msg kana
 src/gamepad.js              Telefon kumandası: CONTROLLER_META, koltuk ızgarası,
                             skor şeridi, ready yönetimi, dokunmatik girdiler
 src/controllers/
-  controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, STEER_BOOST)
-  gamepadSchemas.js         13 oyun için deklaratif kumanda konfigürasyonları ve canlı senkronizasyon hook'ları
+  controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, STEER_BOOST) + PONG canlı skorbord/falso senkronu
+  gamepadSchemas.js         13 oyun için deklaratif kumanda konfigürasyonları, canlı senkronizasyon hook'ları (BOMB/CROWN/HEIST uyarıları) + merkezi `def` referansı
+  controlDefs.js            Merkezi kontrol sözleşmesi: sol (joystick/steer/slider/pedal) + sağ (max 2 aksiyon) + landscape-first politikası + nötr paket haritası; telefon + tabletop parite kaynağı
+  controllerStatus.js       Üst durum şeridi metinleri (13 oyun, tek kayıt) — gamepad handleStateSync zincirsiz çağırır
 src/gamepad.css             Kumanda stilleri (neo-brutalist mobil ergonomi)
 src/style.css               Modüler stil orkestratörü (@import src/styles/*)
 src/styles/                 Modüler CSS katmanı (tokens, base, hud, modals, menu, lobby, animations)
@@ -208,8 +210,12 @@ Sistem iki relay kullanabilir:
    * `main.js` içinde `if (mode === 'PONG') ... else if` zincirleri yasaktır. Tüm oyunlar `engineRegistry.js` üzerinden `registerEngine` ile kaydedilir ve polimorfik olarak çağrılır.
 3. **BaseMiniGame Ortak Tabanı:**
    * Tüm oyunlar `src/core/BaseGame.js` sınıfından türer; ekran sarsıntısı (`trauma`), skorlar, buton tıklamaları ortak işletilir.
-4. **Kumanda Ergonomisi Kuşağı:**
-   * Dokunmatik alanlar dikeyde `safe-area + 12vh` alt-orta kuşakta, yatayda sol/sağ alt köşelerdedir (Sol: yön, Sağ: aksiyon).
+4. **Kumanda Ergonomisi Kuşağı (landscape-first):**
+   * Oyun yatay oynanır; lobi portrait kalabilir. Portrait + oyun ise kumanda `rotate-gate` animasyonu basar (iOS lock API yok — telkin, kilit yok).
+   * Dokunmatik alanlar dikeyde `safe-area + 12vh` alt-orta kuşakta, yatayda sol/sağ alt köşelerdedir (Sol: yön, Sağ: max 2 aksiyon). Üst-orta asla buton olmaz — üstte tek durum şeridi.
+   * Merkezi sözleşme `src/controllers/controlDefs.js` (sol + sağ-max-2); telefon `gamepadSchemas.def`, tabletop `BaseGame.getCentralTabletopLayout/assertTabletopParity` ile aynı kaynağa bakar.
+   * Yüzey farkı sabittir: PONG telefonda slider / masada steer, TANKS telefonda pedal / masada joystick (`TABLETOP_LEFT` haritası). Sözleşme sol tipi + sağ-max-2'yi kilitler, oyuna özgü detay (ikon/cooldown) motorda kalır.
+   * Telefon senkronu zincirsizdir: durum metni `controllerStatus.getControllerStatus`, uyarılar şema `onSync/onTeardown`, nötr paket `controlDefs.getNeutralInput` — `gamepad.js` içinde oyun-`if/else` tutulmaz (PONG score-strip muafiyeti hariç: kendi skorbord'u var).
 5. **3 Haneli Sayısal Oda Kodu (100–999):**
    * Mobil klavyeden tek elle hızlıca girilebilmesi için 4 harfli kodlardan 3 haneli sayılara geçildi.
 6. **Çift Platform (Lokal & TV/Kumanda) Eşitliği:**
