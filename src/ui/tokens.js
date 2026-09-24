@@ -184,4 +184,12 @@ export const UI_SIZES = {
   pillH: 34,
   bannerW: 260,
   bannerH: 64,
+  // Telefon kumanda bölgeleri (landscape-first düzen sözleşmesi):
+  // üst tek şerit / orta boş / alt kontrol kuşağı. Değerler CSS ile aynıdır.
+  phoneHeaderH: 46,
+  phoneHeaderHCompact: 38,
+  phoneStripH: 30,
+  phoneControlBeltMin: 96,
+  phoneControlBeltMax: 170,
+  rotateGateZ: 300,
 };

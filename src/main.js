@@ -42,7 +42,7 @@ import { initJoinModal, openJoinModal } from './ui/joinModal.js';
 import { initSettingsModal, openSettingsModal } from './ui/settingsModal.js';
 import { initMainMenu } from './ui/menuManager.js';
 import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
-import { tryFullscreen, isFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
+import { isFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
 import {
   initHostLobby,
   showHostLobbyModal,
@@ -427,7 +427,7 @@ async function openHostLobby(gameMode = 'PONG') {
         if (typeof slotIndex !== 'number' || slotIndex < 0 || slotIndex > 3) return;
         // Analog sessizlik süpürücüsü için son-girdi damgası (sürekli akış takibi)
         if (data.action === 'JOYSTICK_MOVE' || data.action === 'PADDLE_MOVE'
-          || data.action === 'TANK_DRIVE' || data.action === 'CURVE_STEER') {
+          || data.action === 'TANK_DRIVE' || data.action === 'CURVE_STEER' || data.action === 'SNAKE_STEER') {
           lastRemoteInputAt[slotIndex] = performance.now();
         }
         const engine = getActiveGameEngine();
@@ -476,7 +476,6 @@ function routeConnectionMessage(err) {
 }
 
 async function executeJoin(rawCode, rawName) {
-  tryFullscreen();
   const code = (rawCode || '').trim().toUpperCase();
   const name = (rawName || '').trim().toUpperCase() || ensureStoredNick();
 
@@ -783,7 +782,6 @@ function cancelCountdown() {
 }
 
 function startEngineNow(mode) {
-  tryFullscreen();
   // Maç başı reset motorun oyuncu renklerini yeniden kurar; host display
   // renkleri (override dahil) hemen ardından tekrar yazılır.
   const engine = getEngine(mode);
@@ -1031,15 +1029,151 @@ initPauseModal({
 });
 
 // Menu Card Tap Listeners (buton id kuralı: btn-select-<lowercase mode>)
+const gamePickerModal = document.getElementById('game-picker-modal');
+const btnCloseGamePicker = document.getElementById('btn-close-game-picker');
+
+function openGamePicker() {
+  gamePickerModal?.classList.remove('hidden');
+}
+
+function closeGamePicker() {
+  gamePickerModal?.classList.add('hidden');
+}
+
 btnHeroCreateRoom?.addEventListener('click', () => openHostLobby('PONG'));
+addTapListener(document.getElementById('btn-hero-browse-games'), openGamePicker);
+addTapListener(btnCloseGamePicker, closeGamePicker);
+
+gamePickerModal?.addEventListener('click', (e) => {
+  if (e.target === gamePickerModal) closeGamePicker();
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !gamePickerModal?.classList.contains('hidden')) {
+    closeGamePicker();
+  }
+});
+
+// Local 2-Card Showcase Slide Controls & Quick Play Tap
+const carouselTrack = document.getElementById('local-carousel-track');
+const carouselViewport = document.getElementById('local-carousel-viewport');
+const btnCarouselPrev = document.getElementById('btn-carousel-prev');
+const btnCarouselNext = document.getElementById('btn-carousel-next');
+const pageIndicator = document.getElementById('local-carousel-page-num');
+
+let currentSlideIndex = 0;
+const totalSlides = 7;
+
+function updateCarouselSlide(newIndex) {
+  currentSlideIndex = (newIndex + totalSlides) % totalSlides;
+  if (carouselTrack) {
+    carouselTrack.style.transform = `translateX(-${currentSlideIndex * 100}%)`;
+  }
+  if (pageIndicator) {
+    pageIndicator.textContent = `${currentSlideIndex + 1} / ${totalSlides}`;
+  }
+}
+
+if (btnCarouselPrev && btnCarouselNext) {
+  addTapListener(btnCarouselPrev, () => updateCarouselSlide(currentSlideIndex - 1));
+  addTapListener(btnCarouselNext, () => updateCarouselSlide(currentSlideIndex + 1));
+}
+
+// Touch swipe support on carousel
+if (carouselViewport) {
+  let touchStartX = 0;
+  let touchStartY = 0;
+  carouselViewport.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+
+  carouselViewport.addEventListener('touchend', (e) => {
+    if (e.changedTouches.length === 1) {
+      const diffX = e.changedTouches[0].clientX - touchStartX;
+      const diffY = e.changedTouches[0].clientY - touchStartY;
+      if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
+        if (diffX < 0) {
+          updateCarouselSlide(currentSlideIndex + 1);
+        } else {
+          updateCarouselSlide(currentSlideIndex - 1);
+        }
+      }
+    }
+  }, { passive: true });
+}
+
+document.querySelectorAll('.local-showcase-card[data-game]').forEach((card) => {
+  addTapListener(card, () => {
+    const game = card.getAttribute('data-game');
+    if (game) handleGameCardClick(game);
+  });
+});
+
+const btnHeroShowcaseAll = document.getElementById('btn-hero-showcase-all');
+if (btnHeroShowcaseAll) {
+  addTapListener(btnHeroShowcaseAll, openGamePicker);
+}
 addTapListener(document.getElementById('btn-menu-customize'), () => openCustomizeModal());
 initMenuAvatarCard();
 
+function initHeroMediaDropzones() {
+  const tvImg = document.querySelector('.tv-media-box img');
+  const localImg = document.querySelector('.local-media-box img');
+
+  const savedTv = localStorage.getItem('bp_tv_banner');
+  if (savedTv && tvImg) tvImg.src = savedTv;
+
+  const savedLocal = localStorage.getItem('bp_local_banner');
+  if (savedLocal && localImg) localImg.src = savedLocal;
+
+  function bindDrop(box, storageKey, targetImg) {
+    if (!box || !targetImg) return;
+    box.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      box.style.borderColor = '#1d5d8a';
+    });
+    box.addEventListener('dragleave', () => {
+      box.style.borderColor = '';
+    });
+    box.addEventListener('drop', (e) => {
+      e.preventDefault();
+      box.style.borderColor = '';
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const dataUri = evt.target?.result;
+          if (typeof dataUri === 'string') {
+            targetImg.src = dataUri;
+            try { localStorage.setItem(storageKey, dataUri); } catch {}
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  bindDrop(document.querySelector('.tv-media-box'), 'bp_tv_banner', tvImg);
+  bindDrop(document.querySelector('.local-media-box'), 'bp_local_banner', localImg);
+}
+initHeroMediaDropzones();
+
 // SaaS Main Menu Setup: Navbar controls, Quick Lang/Sound, Search & Bento Grid Filters
-initMainMenu({ onGameSelect: handleGameCardClick });
+initMainMenu({
+  onGameSelect: (mode) => {
+    closeGamePicker();
+    handleGameCardClick(mode);
+  },
+});
 
 for (const mode of GAME_ORDER) {
-  addTapListener(document.getElementById(`btn-select-${mode.toLowerCase()}`), () => handleGameCardClick(mode));
+  addTapListener(document.getElementById(`btn-select-${mode.toLowerCase()}`), () => {
+    closeGamePicker();
+    handleGameCardClick(mode);
+  });
   // Hover/touchstart ön-yükleme: kullanıcı karta bakarken chunk arka planda
   // iner, dokunuş anında motor çoğunlukla hazırdır (seçim akışı değişmez).
   const cardEl = document.getElementById(`btn-select-${mode.toLowerCase()}`);

@@ -10,6 +10,7 @@
     "dev:share": "node scripts/share.mjs",
     "build": "vite build",
     "check": "tsc --noEmit",
+    "test": "node --test tests/raceLogic.test.mjs tests/raceEngine.test.mjs tests/networkProtocol.test.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "build:android": "npm run build && npx cap sync android && cd android && gradlew.bat assembleDebug",
     "preview": "vite preview --host"

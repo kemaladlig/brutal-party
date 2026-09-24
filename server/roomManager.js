@@ -1,6 +1,7 @@
 // Room & Networking Manager for Brutal Party // 4P
 // Manages rooms, host connections, controller slots (P1..P4), and low-latency input streaming.
 import { sanitizeAvatar, pickFreeColor, isPaletteHex } from '../src/core/customizationManager.js';
+import { isValidNetworkInput } from '../src/core/networkProtocol.js';
 
 // Sunucu tarafı isim temizleyici (istemcideki net.js cleanPlayerName ile aynı
 // kural: trim + BÜYÜK HARF + 12 + HTML/tehlikeli karakterleri at)
@@ -9,47 +10,16 @@ function cleanSlotName(name) {
   return clean || 'OYUNCU';
 }
 
-const finiteNum = (v) => typeof v === 'number' && Number.isFinite(v);
-
-// Kumanda girdisi şema + aralık denetimi: bozuk/kötü niyetli paket hosta
-// ulaşmadan düşer (paddle ışınlama, NaN zehirlenmesi, koltuk flicker'ı kapanır)
-function isValidInputData(data) {
-  if (!data || typeof data.action !== 'string') return false;
-  switch (data.action) {
-    case 'JOYSTICK_MOVE':
-      return finiteNum(data.dx) && finiteNum(data.dy)
-        && Math.abs(data.dx) <= 1 && Math.abs(data.dy) <= 1
-        && finiteNum(data.angle) && finiteNum(data.force)
-        && data.force >= 0 && data.force <= 1;
-    case 'PADDLE_MOVE':
-      return finiteNum(data.position) && data.position >= 0 && data.position <= 1;
-    case 'CURVE_STEER':
-      return data.dir === -1 || data.dir === 0 || data.dir === 1;
-    case 'TANK_DRIVE':
-      return typeof data.driving === 'boolean';
-    case 'TANK_FIRE':
-    case 'DASH':
-    case 'TACKLE':
-    case 'SPIN':
-    case 'SNAKE_BOOST':
-    case 'SNAKE_BOOST_RELEASE':
-    case 'ARCHER_CHARGE':
-    case 'ARCHER_CHARGE_END':
-      return true;
-    case 'AVATAR_UPDATE':
-      // Derin temizlik host'ta (sanitizeAvatar) yapılır; burada şekil kapısı
-      return data.avatar && typeof data.avatar === 'object';
-    default:
-      return false;
-  }
-}
+// Input validation is shared with the Supabase relay in src/core/networkProtocol.js.
+// This keeps local WebSocket and ONLINE mode behavior identical.
 
 // Discrete aksiyon hız limiti (slot başına, ms): sel/flicker koruması.
 // Sürekli akış (JOYSTICK/PADDLE) kendi ~30Hz kısmasına tabidir.
 const DISCRETE_MIN_GAP = {
-  TANK_FIRE: 100, DASH: 100, TACKLE: 100, CURVE_STEER: 30, TANK_DRIVE: 30,
+  TANK_FIRE: 100, DASH: 100, TACKLE: 100, CURVE_STEER: 30, SNAKE_STEER: 30, TANK_DRIVE: 30,
   SPIN: 500, SNAKE_BOOST: 30, SNAKE_BOOST_RELEASE: 30,
-  ARCHER_CHARGE: 30, ARCHER_CHARGE_END: 30, SWITCH_SLOT: 500, SET_NAME: 1000,
+  ARCHER_CHARGE: 30, ARCHER_CHARGE_END: 30, LASER_AIM: 30, LASER_FIRE: 100, NINJA_SMOKE: 100,
+  SWITCH_SLOT: 500, SET_NAME: 1000,
   READY: 300, REACTION: 1000, AVATAR_UPDATE: 1000,
 };
 
@@ -245,7 +215,7 @@ export class RoomManager {
   handlePlayerInput(clientWs, inputData) {
     const room = this.getRoom(clientWs.roomCode);
     if (!room || !room.hostWs) return;
-    if (!isValidInputData(inputData)) return;
+    if (!isValidNetworkInput(inputData)) return;
 
     const now = Date.now();
     const action = inputData.action;

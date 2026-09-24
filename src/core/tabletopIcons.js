@@ -228,6 +228,12 @@ const LUCIDE_REGISTRY = {
     path: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3',
     mode: 'stroke',
   },
+  message_square: {
+    id: 'message-square',
+    aliases: ['💬', 'chat', 'message', 'message_square', 'message-square', 'reaction'],
+    path: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
+    mode: 'stroke',
+  },
 };
 
 // Anahtar ve takma adlardan (alias) hızlı erişim haritası

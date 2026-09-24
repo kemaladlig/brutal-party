@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cleanPlayerName, getClientId } from './net.js';
 import { WebRTCManager } from './webrtcManager.js';
 import { sanitizeAvatar, pickFreeColor, isPaletteHex, getAvatarProfile } from './core/customizationManager.js';
+import { isValidNetworkInput } from './core/networkProtocol.js';
 import { t } from './i18n.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -21,41 +22,6 @@ function assertSupabaseConfig() {
 const MY_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const PLAYER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-
-// Relay girdisi şema + aralık denetimi (WS roomManager ile aynı kural)
-function isValidRelayInput(data) {
-  if (!data || typeof data.action !== 'string') return false;
-  const fin = (v) => typeof v === 'number' && Number.isFinite(v);
-  switch (data.action) {
-    case 'JOYSTICK_MOVE':
-      return fin(data.dx) && fin(data.dy)
-        && Math.abs(data.dx) <= 1 && Math.abs(data.dy) <= 1
-        && fin(data.angle) && fin(data.force)
-        && data.force >= 0 && data.force <= 1;
-    case 'PADDLE_MOVE':
-      return fin(data.position) && data.position >= 0 && data.position <= 1;
-    case 'CURVE_STEER':
-      return data.dir === -1 || data.dir === 0 || data.dir === 1;
-    case 'TANK_DRIVE':
-      return typeof data.driving === 'boolean';
-    case 'TANK_FIRE':
-    case 'DASH':
-    case 'TACKLE':
-    case 'SPIN':
-    case 'SNAKE_BOOST':
-    case 'SNAKE_BOOST_RELEASE':
-    case 'ARCHER_CHARGE':
-    case 'ARCHER_CHARGE_END':
-    case 'SET_NAME':
-    case 'SWITCH_SLOT':
-      return true;
-    case 'AVATAR_UPDATE':
-      // Derin temizlik host'ta (sanitizeAvatar) yapılır; burada şekil kapısı
-      return data.avatar && typeof data.avatar === 'object';
-    default:
-      return false;
-  }
-}
 
 export class SupabaseRelay {
   constructor() {
@@ -98,10 +64,61 @@ export class SupabaseRelay {
     this._manualClose = false;
     this._reconnectTries = 0;
     this._reconnectTimer = null;
+    this._joinAttempts = 0;
   }
 
   get isHosting() {
     return this.role === 'HOST';
+  }
+
+  /**
+   * Deliver a host message to each player over the best available transport.
+   * WebRTC is per-peer; Supabase fallback is targeted so players connected by
+   * DataChannel do not receive duplicate room-wide state packets.
+   */
+  _sendHostPayload(payload) {
+    if (!payload || typeof payload !== 'object') return;
+
+    const openPeerIds = new Set(this.webrtcManager?.getOpenPeerIds?.() || []);
+    if (this.webrtcManager) {
+      for (const peerId of openPeerIds) {
+        if (!this.webrtcManager.sendTo(peerId, payload)) {
+          openPeerIds.delete(peerId);
+        }
+      }
+    }
+
+    if (!this.channel) return;
+
+    if (payload.targetId) {
+      if (!openPeerIds.has(payload.targetId)) {
+        this._broadcast('host_msg', payload);
+      }
+      return;
+    }
+
+    // No WebRTC peers: preserve the original one room-wide Supabase packet.
+    if (openPeerIds.size === 0) {
+      this._broadcast('host_msg', payload);
+      return;
+    }
+
+    for (const player of this.players) {
+      if (!player || player.isBot || openPeerIds.has(player.id)) continue;
+      this._broadcast('host_msg', { ...payload, targetId: player.id });
+    }
+  }
+
+  _sendControllerPayload(payload) {
+    if (
+      this._webRtcAvailable
+      && this.hostId
+      && this.webrtcManager?.hasActiveConnection(this.hostId)
+      && this.webrtcManager.sendTo(this.hostId, payload)
+    ) {
+      return true;
+    }
+    return false;
   }
 
   // ━━━━━━━━━━━━━━━━━━━ HOST API ━━━━━━━━━━━━━━━━━━━
@@ -316,7 +333,7 @@ export class SupabaseRelay {
       case 'INPUT': {
         const slot = this._findSlotByPlayerId(msg.senderId);
         if (slot === -1) return;
-        if (!isValidRelayInput(msg.data)) return;
+        if (!isValidNetworkInput(msg.data)) return;
         if (this.players[slot]) this.players[slot].lastSeen = performance.now();
         if (this.callbacks.onPlayerInput) {
           this.callbacks.onPlayerInput(slot, msg.data);
@@ -401,16 +418,14 @@ export class SupabaseRelay {
     const hex = String(color).toUpperCase();
     p.color = hex;
     const msg = { action: 'SLOT_CHANGED', targetId: p.id, slotIndex, color: hex };
-    this.webrtcManager?.broadcast(msg);
-    this._broadcast('host_msg', msg);
+    this._sendHostPayload(msg);
     this.broadcastSlots();
   }
 
   broadcastSlots() {
     if (this.role !== 'HOST') return;
     const payload = { action: 'SLOTS_UPDATE', slots: this.getSlots() };
-    this.webrtcManager?.broadcast(payload);
-    this._broadcast('host_msg', payload);
+    this._sendHostPayload(payload);
   }
 
   setPlayerName(slotIndex, name) {
@@ -419,28 +434,18 @@ export class SupabaseRelay {
     this.broadcastSlots();
   }
 
-  // Host broadcasts game state: Önce WebRTC'ye bakar, bağlı oyuncu varsa oradan iletir
+  // Host broadcasts game state: WebRTC for connected peers, targeted Supabase
+  // fallback for every other player in the room.
   broadcastHostState(state) {
     if (this.role !== 'HOST') return;
-    const payload = { action: 'STATE_SYNC', ...state };
-
-    let sentViaRtc = false;
-    if (this.webrtcManager && this.webrtcManager.hasAnyConnection()) {
-      sentViaRtc = this.webrtcManager.broadcast(payload);
-    }
-
-    // WebRTC bağlı değilse Supabase Broadcast ile yedekle
-    if (!sentViaRtc && this.channel) {
-      this._broadcast('host_msg', payload);
-    }
+    this._sendHostPayload({ action: 'STATE_SYNC', ...state });
   }
 
   setHostGameMode(gameMode) {
     if (this.role !== 'HOST') return;
     this.gameMode = gameMode;
     const payload = { action: 'GAME_MODE_CHANGED', gameMode };
-    this.webrtcManager?.broadcast(payload);
-    this._broadcast('host_msg', payload);
+    this._sendHostPayload(payload);
   }
 
   startGame(gameMode) {
@@ -448,8 +453,7 @@ export class SupabaseRelay {
     if (gameMode) this.gameMode = gameMode;
     this.ready = [false, false, false, false];
     const payload = { action: 'GAME_STARTED', gameMode: this.gameMode };
-    this.webrtcManager?.broadcast(payload);
-    this._broadcast('host_msg', payload);
+    this._sendHostPayload(payload);
     this.broadcastSlots();
   }
 
@@ -482,24 +486,21 @@ export class SupabaseRelay {
     if (gameMode) this.gameMode = gameMode;
     this.ready = [false, false, false, false];
     const payload = { action: 'STAGING_STARTED', gameMode: this.gameMode };
-    this.webrtcManager?.broadcast(payload);
-    this._broadcast('host_msg', payload);
+    this._sendHostPayload(payload);
     this.broadcastSlots();
   }
 
   broadcastCountdown(t) {
     if (this.role !== 'HOST') return;
     const payload = { action: 'COUNTDOWN', t, gameMode: this.gameMode };
-    this.webrtcManager?.broadcast(payload);
-    this._broadcast('host_msg', payload);
+    this._sendHostPayload(payload);
   }
 
   returnToLobby() {
     if (this.role !== 'HOST') return;
     this.ready = [false, false, false, false];
     const payload = { action: 'RETURNED_TO_LOBBY', gameMode: this.gameMode };
-    this.webrtcManager?.broadcast(payload);
-    this._broadcast('host_msg', payload);
+    this._sendHostPayload(payload);
     this.broadcastSlots();
   }
 
@@ -521,14 +522,12 @@ export class SupabaseRelay {
     if (pA) {
       pA.slotIndex = slotB;
       const p = { action: 'SLOT_CHANGED', targetId: pA.id, slotIndex: slotB, color: pA.color };
-      this.webrtcManager?.broadcast(p);
-      this._broadcast('host_msg', p);
+      this._sendHostPayload(p);
     }
     if (pB) {
       pB.slotIndex = slotA;
       const p = { action: 'SLOT_CHANGED', targetId: pB.id, slotIndex: slotA, color: pB.color };
-      this.webrtcManager?.broadcast(p);
-      this._broadcast('host_msg', p);
+      this._sendHostPayload(p);
     }
 
     if (this.callbacks.onSlotsSwapped) {
@@ -550,8 +549,7 @@ export class SupabaseRelay {
       if (p) {
         p.slotIndex = i;
         const pl = { action: 'SLOT_CHANGED', targetId: p.id, slotIndex: i, color: p.color };
-        this.webrtcManager?.broadcast(pl);
-        this._broadcast('host_msg', pl);
+        this._sendHostPayload(pl);
       }
     }
     this.broadcastSlots();
@@ -568,6 +566,7 @@ export class SupabaseRelay {
     if (!_isRetry) {
       this._manualClose = false;
       this._reconnectTries = 0;
+      this._joinAttempts = 0;
       if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
       this._lastJoin = { roomCode: this.roomCode, playerName: this.playerName, avatar };
     } else if (avatar && this._lastJoin) {
@@ -620,8 +619,12 @@ export class SupabaseRelay {
 
   _sendLockedJoin() {
     this._announceWait = null;
+    if (this._manualClose || this._joinedOnce || !this._lastJoin) return;
+
     const now = performance.now();
-    const fresh = [...(this._seenHosts || [])].filter(([, at]) => now - at < 10000).map(([id]) => id);
+    const fresh = [...(this._seenHosts || [])]
+      .filter(([, at]) => now - at < 10000)
+      .map(([id]) => id);
     if (fresh.length >= 2) {
       if (this.callbacks.onError) {
         this.callbacks.onError(t('net.roomClash'));
@@ -632,27 +635,32 @@ export class SupabaseRelay {
     if (fresh.length === 1) {
       this.hostId = fresh[0];
     }
-    let joinAvatar = this._lastJoin?.avatar || null;
+
+    let joinAvatar = this._lastJoin.avatar || null;
     if (!joinAvatar) {
       try { joinAvatar = getAvatarProfile(); } catch { joinAvatar = null; }
     }
     const joinPayload = { action: 'JOIN', name: this.playerName, clientId: getClientId(), avatar: joinAvatar };
     if (this.hostId) joinPayload.hostId = this.hostId;
+    this._joinAttempts += 1;
     this._broadcast('player_msg', joinPayload);
 
     if (this._joinTimeout) clearTimeout(this._joinTimeout);
     this._joinTimeout = setTimeout(() => {
-      if (!this.playerIndex && this.playerIndex !== 0) {
-        if (this.callbacks.onError) {
-          this.callbacks.onError(t('net.roomMissing'));
-        }
+      if (this._joinedOnce) return;
+      if (this._joinAttempts < 5) {
+        this._sendLockedJoin();
+        return;
       }
-    }, 5000);
+      if (this.callbacks.onError) {
+        this.callbacks.onError(t('net.roomMissing'));
+      }
+    }, 2500);
   }
 
   _controllerHandleMessage(msg) {
+    if (!msg || (msg.targetId && msg.targetId !== this.myId)) return;
     this._lastHostMsgAt = performance.now();
-    if (msg.targetId && msg.targetId !== this.myId) return;
 
     switch (msg.action) {
       case 'WEBRTC_SIGNAL': {
@@ -666,6 +674,15 @@ export class SupabaseRelay {
         if (msg.hostId) {
           if (!this._seenHosts) this._seenHosts = new Map();
           this._seenHosts.set(msg.hostId, performance.now());
+          // Host may subscribe after the controller's first join attempt.
+          // Retry immediately when a fresh announcement arrives.
+          if (!this._joinedOnce && this._lastJoin && this._joinAttempts < 5) {
+            if (this._announceWait) {
+              clearTimeout(this._announceWait);
+              this._announceWait = null;
+            }
+            this._sendLockedJoin();
+          }
         }
         break;
       }
@@ -673,8 +690,9 @@ export class SupabaseRelay {
       case 'JOIN_SUCCESS': {
         if (msg.hostId && this.hostId && msg.hostId !== this.hostId) break;
         if (this._announceWait) { clearTimeout(this._announceWait); this._announceWait = null; }
-        clearTimeout(this._joinTimeout);
+        if (this._joinTimeout) { clearTimeout(this._joinTimeout); this._joinTimeout = null; }
         this._joinedOnce = true;
+        this._joinAttempts = 0;
         this._reconnectTries = 0;
         this.playerIndex = msg.slotIndex;
         this.playerName = msg.name;
@@ -771,9 +789,7 @@ export class SupabaseRelay {
           targetId: msg.senderId,
           timestamp: msg.timestamp,
         };
-        if (this._webRtcAvailable && this.webrtcManager?.hasActiveConnection(this.hostId)) {
-          this.webrtcManager.sendTo(this.hostId, reply);
-        } else {
+        if (!this._sendControllerPayload(reply)) {
           this._broadcast('player_msg', reply);
         }
         break;
@@ -845,13 +861,10 @@ export class SupabaseRelay {
 
     const payload = { action: 'INPUT', data };
 
-    // WebRTC DataChannel açıksa Supabase'e hiç uğramadan gönder!
-    if (this._webRtcAvailable && this.webrtcManager?.hasActiveConnection(this.hostId)) {
-      this.webrtcManager.sendTo(this.hostId, payload);
-      return;
-    }
+    // WebRTC DataChannel açıksa Supabase'e hiç uğramadan gönder; gönderim
+    // başarısız olursa aynı paketi Supabase fallback ile tekrar dene.
+    if (this._sendControllerPayload(payload)) return;
 
-    // WebRTC henüz hazır değilse Supabase Broadcast fallback
     if (this.channel) {
       this._broadcast('player_msg', payload);
     }
@@ -866,10 +879,7 @@ export class SupabaseRelay {
     if (this.role !== 'CONTROLLER') return;
     if (this._lastJoin) this._lastJoin.avatar = avatar;
     const payload = { action: 'INPUT', data: { action: 'AVATAR_UPDATE', avatar } };
-    if (this._webRtcAvailable && this.webrtcManager?.hasActiveConnection(this.hostId)) {
-      this.webrtcManager.sendTo(this.hostId, payload);
-      return;
-    }
+    if (this._sendControllerPayload(payload)) return;
     if (this.channel) {
       this._broadcast('player_msg', payload);
     }
@@ -877,10 +887,7 @@ export class SupabaseRelay {
 
   sendReaction(emoji) {
     const payload = { action: 'REACTION', emoji };
-    if (this._webRtcAvailable && this.webrtcManager?.hasActiveConnection(this.hostId)) {
-      this.webrtcManager.sendTo(this.hostId, payload);
-      return;
-    }
+    if (this._sendControllerPayload(payload)) return;
     if (this.channel) {
       this._broadcast('player_msg', payload);
     }
@@ -888,10 +895,7 @@ export class SupabaseRelay {
 
   setReady(isReady) {
     const payload = { action: 'READY', isReady };
-    if (this._webRtcAvailable && this.webrtcManager?.hasActiveConnection(this.hostId)) {
-      this.webrtcManager.sendTo(this.hostId, payload);
-      return;
-    }
+    if (this._sendControllerPayload(payload)) return;
     if (this.channel) {
       this._broadcast('player_msg', payload);
     }
@@ -986,6 +990,7 @@ export class SupabaseRelay {
     this._lastJoin = null;
     this._joinedOnce = false;
     this._reconnectTries = 0;
+    this._joinAttempts = 0;
     this._stopPingHeartbeat();
     this._stopHostWatchdog();
     this._stopHostAnnounce();

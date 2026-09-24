@@ -525,6 +525,13 @@ export function initMenuAvatarCard() {
     triggerAvatarBoing();
   });
 
+  // Sahne üzerine gelindiğinde meraklı ve neşeli tepki ver (dokunma daveti animasyonu)
+  stageEl?.addEventListener('pointerenter', () => {
+    excitedTimer = 0.8;
+    squashX = 0.92;
+    squashY = 1.08;
+  });
+
   // Kart gövdesine dokunulduğunda açık isim düzenlemesi varsa kapat
   cardEl?.addEventListener('click', (e) => {
     // Tıklanan eleman butonlar veya input değilse ve isim düzenleme açıksa kapat
@@ -563,6 +570,8 @@ export function initMenuAvatarCard() {
     updateCardName();
   });
 
+  let idleHopTimer = 0;
+
   const menuLoop = (now) => {
     const dt = Math.min(0.06, (now - lastTime) / 1000);
     lastTime = now;
@@ -579,6 +588,16 @@ export function initMenuAvatarCard() {
 
     if (excitedTimer > 0) {
       excitedTimer -= dt;
+    }
+
+    // Periyodik neşeli mini zıplama ve göz kırpma (kullanıcıya canlı ve dokunulabilir olduğunu hissettirir)
+    idleHopTimer += dt;
+    if (idleHopTimer > 4.8 && jumpY === 0 && jumpVy === 0) {
+      idleHopTimer = 0;
+      jumpVy = -190;
+      squashX = 0.94;
+      squashY = 1.06;
+      excitedTimer = 0.6;
     }
 
     // İmleç hareketsizliği kontrolü (>2.2 sn ise doğal etrafa bakınma modu)
@@ -638,15 +657,15 @@ export function initMenuAvatarCard() {
     ctx.save();
     ctx.fillStyle = 'rgba(26, 26, 26, 0.16)';
     ctx.beginPath();
-    ctx.ellipse(cx, cy + 54, 42 * shadowScale, 13 * shadowScale, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, cy + 48, 36 * shadowScale, 11 * shadowScale, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // Kaide hedef halkası (reticle ring)
-    ctx.strokeStyle = 'rgba(26, 26, 26, 0.18)';
+    ctx.strokeStyle = 'rgba(26, 26, 26, 0.15)';
     ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 4]);
+    ctx.setLineDash([3, 3]);
     ctx.beginPath();
-    ctx.ellipse(cx, cy + 54, 48, 15, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, cy + 48, 42, 13, 0, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
@@ -656,7 +675,7 @@ export function initMenuAvatarCard() {
     const finalExpression = excitedTimer > 0 ? 'WINK' : custom.expression;
     const combinedScale = ((squashX + squashY) / 2) * (1 + breath * 0.02);
 
-    drawBrutalAvatar(ctx, cx, avatarY, 52, {
+    drawBrutalAvatar(ctx, cx, avatarY - 2, 44, {
       color: custom.color,
       expression: finalExpression,
       accessory: custom.accessory,
@@ -666,8 +685,8 @@ export function initMenuAvatarCard() {
       scale: combinedScale,
       showPips: false,
       showPointer: false,
-      borderWidth: 4,
-      shadowOffset: 5,
+      borderWidth: 3.5,
+      shadowOffset: 4,
     });
 
     // 3. Kıvılcım / Yıldız Parçacıkları (Boing efekti)

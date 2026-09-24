@@ -5,11 +5,14 @@ import { storePlayerName, escapeHtml } from './net.js';
 import { showInstallToast } from './ui/toast.js';
 import { UI_COLORS } from './ui/tokens.js';
 import { mountDeclarativeController } from './controllers/controllerTemplates.js';
+import { getNeutralInput } from './controllers/controlDefs.js';
+import { getControllerStatus } from './controllers/controllerStatus.js';
 import { getControllerMeta } from './core/engineRegistry.js';
 import { t, onLangChange } from './i18n.js';
 import { getAvatarProfile } from './core/customizationManager.js';
 import { drawBrutalAvatar } from './ui/characterRenderer.js';
 import { openCustomizeModal } from './ui/customizeModal.js';
+import { getTabletopIconSvg } from './core/tabletopIcons.js';
 
 // Kumanda kayıt tablosu: tek kaynaktan (engineRegistry) beslenir
 const CONTROLLER_META = new Proxy({}, {
@@ -206,16 +209,12 @@ export class GamepadManager {
     }
   }
 
-  // Sekme arka plana alınınca / sayfa kapanırken host'ta latch kalmasın
+  // Sekme arka plana alınınca / sayfa kapanırken host'ta latch kalmasın.
+  // Nötr paket sol kontrole göre merkezden gelir (controlDefs.getNeutralInput).
   _sendNeutralForMode() {
     try {
-      if (this.gameMode === 'TANKS') {
-        this.network.sendInput({ action: 'TANK_DRIVE', driving: false });
-      } else if (this.gameMode === 'CURVE') {
-        this.network.sendInput({ action: 'CURVE_STEER', dir: 0 });
-      } else if (this.gameMode === 'BOMB' || this.gameMode === 'HEIST' || this.gameMode === 'CROWN' || this.gameMode === 'ZONE') {
-        this.network.sendInput({ action: 'JOYSTICK_MOVE', dx: 0, dy: 0, angle: 0, force: 0 });
-      }
+      const neutral = getNeutralInput(this.gameMode);
+      if (neutral) this.network.sendInput(neutral);
     } catch {}
   }
 
@@ -249,6 +248,27 @@ export class GamepadManager {
     this.overlay.addEventListener('gestureend', prevent);
   }
 
+  // Landscape-first geçidi: oyun portrait ise animasyonlu döndür uyarısı basılır.
+  // Lobi portrait kalır; sayaç/oyun dışı dokunmaz. iOS lock API yok — telkin edilir.
+  _bindOrientationGate() {
+    if (this._orientBound) return;
+    this._orientBound = true;
+    window.addEventListener('resize', () => this._updateOrientationGate());
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => this._updateOrientationGate(), 150);
+    });
+  }
+
+  _updateOrientationGate() {
+    if (!this.overlay || this.overlay.classList.contains('hidden')) return;
+    const portrait = window.innerHeight > window.innerWidth;
+    const playing = this.gameMode !== 'LOBBY';
+    this.overlay.classList.toggle('is-playing', playing);
+    this.overlay.classList.toggle('is-lobby', !playing);
+    this.overlay.classList.toggle('is-portrait', portrait);
+    this.overlay.classList.toggle('is-landscape', !portrait);
+  }
+
   init(playerInfo, gameMode = 'LOBBY') {
     this.playerIndex = playerInfo.slotIndex ?? 0;
     this.playerName = (playerInfo.name || `OYUNCU ${this.playerIndex + 1}`).toUpperCase();
@@ -259,7 +279,7 @@ export class GamepadManager {
       this.avatar = playerInfo.avatar || null;
     }
     this.slots = playerInfo.slots || [null, null, null, null];
-    this.selectedHostGame = gameMode === 'LOBBY' ? 'PONG' : gameMode;
+    this.selectedHostGame = gameMode === 'LOBBY' ? (playerInfo.gameMode || 'PONG') : gameMode;
     this.gameMode = gameMode || 'LOBBY';
     this.isReady = false;
     this.stagingOpen = false;
@@ -270,6 +290,7 @@ export class GamepadManager {
     this._bindBrowserLocks();
     this.renderShell();
     this._bindVisibilityNeutral();
+    this._bindOrientationGate();
     this.renderGameController(this.gameMode);
     this.overlay.classList.remove('hidden');
     this.requestWakeLock();
@@ -300,25 +321,21 @@ export class GamepadManager {
   renderShell() {
     const seatPositions = ['P1', 'P2', 'P3', 'P4'];
     const seatLabel = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
+    const initialGameTag = CONTROLLER_META[this.gameMode]?.hudTag || (this.gameMode === 'LOBBY' ? t('pad.lobbyTag') : this.gameMode);
 
     this.overlay.innerHTML = `
       <div class="gamepad-header">
-        <div class="player-badge-pod">
-          <div class="player-indicator-dot" id="header-player-dot" style="background-color: ${this.playerColor}"></div>
+        <div class="header-left-group">
+          <span class="player-slot-chip" id="header-seat-tag" style="background-color: ${this.playerColor}">${seatLabel}</span>
           <span class="player-name-label" id="header-player-name">${this.playerName}</span>
-          <span class="player-seat-tag" id="header-seat-tag">${seatLabel}</span>
+          <span class="header-game-chip" id="header-game-tag">${initialGameTag}</span>
         </div>
-        <div class="gamepad-room-info">#${this.network.roomCode || '---'}</div>
-        <div class="gamepad-header-actions">
-          <button class="btn-fullscreen-toggle" id="btn-toggle-fullscreen" type="button" data-i18n-aria="pad.fullscreenTitle" title="Tam Ekran Modu">⛶</button>
-          <button class="emoji-reaction-btn" id="btn-toggle-emoji" type="button" data-i18n-aria="pad.reactTitle" title="Tepki Gönder">🔥</button>
+        <div class="header-right-group">
+          <span class="gamepad-room-info">#${this.network.roomCode || '---'}</span>
+          <button class="emoji-reaction-btn" id="btn-toggle-emoji" type="button" data-i18n-aria="pad.reactTitle" title="Tepki Gönder">${getTabletopIconSvg('message_square', { size: 18, color: '#141414', strokeWidth: 2.3 })}</button>
+          <button class="btn-fullscreen-toggle" id="btn-fullscreen-toggle" type="button" title="Tam Ekran">${getTabletopIconSvg('maximize_2', { size: 16, color: '#141414', strokeWidth: 2.3 })}</button>
           <button class="btn-leave-gamepad" id="btn-leave-gamepad" type="button">${t('pad.leave')}</button>
         </div>
-      </div>
-
-      <div class="gamepad-sub-hud" id="gamepad-sub-hud">
-        <span class="hud-game-tag" id="hud-game-tag">${t('pad.lobbyTag')}</span>
-        <span class="hud-live-status" id="hud-live-status">${t('pad.waiting')}</span>
       </div>
 
       <div class="score-strip hidden" id="score-strip"></div>
@@ -341,17 +358,9 @@ export class GamepadManager {
       window.location.href = window.location.pathname;
     });
 
-    const fsBtn = document.getElementById('btn-toggle-fullscreen');
-    fsBtn?.addEventListener('click', () => {
+    document.getElementById('btn-fullscreen-toggle')?.addEventListener('click', () => {
       this.toggleFullscreen();
     });
-
-    const updateFsIcon = () => {
-      if (fsBtn) {
-        fsBtn.textContent = document.fullscreenElement ? '✕' : '⛶';
-      }
-    };
-    document.addEventListener('fullscreenchange', updateFsIcon);
 
     const emojiModal = document.getElementById('emoji-wheel-modal');
     document.getElementById('btn-toggle-emoji')?.addEventListener('click', () => {
@@ -386,14 +395,15 @@ export class GamepadManager {
     // Reset manual invert so new seat's auto-direction is applied
     this._pongInvertManualSet = false;
 
-    const dot = document.getElementById('header-player-dot');
     const label = document.getElementById('header-player-name');
     const seatTag = document.getElementById('header-seat-tag');
     const seatPositions = ['P1', 'P2', 'P3', 'P4'];
 
-    if (dot) dot.style.backgroundColor = this.playerColor;
     if (label) label.textContent = this.playerName;
-    if (seatTag) seatTag.textContent = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
+    if (seatTag) {
+      seatTag.textContent = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
+      seatTag.style.backgroundColor = this.playerColor;
+    }
 
     // Sayaç sırasında workspace'i bozma (sayaç ekranı korunur)
     if (this.countdownActive) return;
@@ -500,11 +510,7 @@ export class GamepadManager {
   renderGameController(mode) {
     // Eski mount sökülmeden önce: takılı joystick/sürüş varsa host'a nötr paket
     // (zone innerHTML ile gidince endJoy hiç çalışmıyordu → hayalet girdi)
-    if (this.gameMode === 'BOMB' || this.gameMode === 'HEIST' || this.gameMode === 'CROWN' || this.gameMode === 'ZONE') {
-      this._sendNeutralForMode();
-    } else if (this.gameMode === 'TANKS' || this.gameMode === 'CURVE') {
-      this._sendNeutralForMode();
-    }
+    this._sendNeutralForMode();
     this._teardownMount();
     this._mountAbort = new AbortController();
     this._elCache.clear();
@@ -517,9 +523,9 @@ export class GamepadManager {
 
     workspace.innerHTML = '';
 
-    const modeTag = document.getElementById('hud-game-tag');
+    const modeTag = document.getElementById('header-game-tag');
     if (modeTag) {
-      modeTag.textContent = CONTROLLER_META[mode]?.hudTag || mode;
+      modeTag.textContent = CONTROLLER_META[mode]?.hudTag || (mode === 'LOBBY' ? t('pad.lobbyTag') : mode);
     }
 
     if (mode === 'LOBBY') {
@@ -528,21 +534,8 @@ export class GamepadManager {
     } else {
       const meta = CONTROLLER_META[mode] || {};
       workspace.innerHTML = `
-        <div class="gamepad-tactical-card" id="gamepad-tactical-card">
-          <div class="tactical-header-row">
-            <span class="tactical-game-pill">${meta.hudTag || mode}</span>
-            <button class="btn-orientation-hint" id="btn-orientation-hint" type="button" data-i18n-aria="pad.orientTitle" title="Konsol hissi için yatay çevir / tam ekran">
-              <span class="hint-icon">🎮</span>
-              <span class="hint-label">${t('pad.orient')}</span>
-            </button>
-          </div>
-          <div class="tactical-role-text" id="tactical-role-text">${meta.tacticalHint || ''}</div>
-        </div>
         <div class="gamepad-game-mount" id="gamepad-game-mount"></div>
       `;
-      document.getElementById('btn-orientation-hint')?.addEventListener('click', () => {
-        this.toggleFullscreen();
-      });
       const mountTarget = document.getElementById('gamepad-game-mount') || workspace;
       if (meta.schema) {
         this._activeController = mountDeclarativeController(this, mountTarget, meta.schema);
@@ -550,6 +543,7 @@ export class GamepadManager {
         console.warn(`[GamepadManager] No controller schema defined for mode: ${mode}`);
       }
     }
+    this._updateOrientationGate();
   }
 
   // Koltuk kartı: kocaman numara + koltuk rengi + isim/BOŞ.
@@ -637,14 +631,36 @@ export class GamepadManager {
     }
   }
 
-  // --- 00: LOBBY CONTROLLER (Seat Selector, Name Edit, Game Preview, Ready Toggle, Leave Room) ---
+  // --- 00: LOBBY CONTROLLER (Seat Selector, Profile Card, Game Preview, Ready Toggle, Leave Room) ---
   mountLobbyController(container) {
     const selectedTitle = CONTROLLER_META[this.selectedHostGame]?.lobbyTitle || '🏓 BRUTAL PONG';
 
     container.innerHTML = `
       <div class="lobby-controller-view">
+        <!-- 1. Unified Player Profile Card -->
+        <div class="lobby-profile-card">
+          <canvas class="lobby-character-preview" id="lobby-character-preview" width="52" height="52"></canvas>
+          <div class="lobby-profile-info">
+            <div class="lobby-profile-row">
+              <span class="player-slot-chip" id="lobby-slot-tag" style="background-color: ${this.playerColor}">P${this.playerIndex + 1}</span>
+              <span class="lobby-profile-name" id="lobby-name-display">${this.playerName}</span>
+            </div>
+            <span class="lobby-profile-hint">${t('pad.charHint')}</span>
+          </div>
+          <button class="lobby-profile-edit-btn" id="btn-edit-character" type="button">✏️ ${t('pad.customize')}</button>
+        </div>
+
+        <!-- 2. Selected Game Preview Pill -->
+        <div class="lobby-game-chip-bar">
+          <img src="/assets/games/${(this.selectedHostGame || 'PONG').toLowerCase()}.jpg" class="lobby-game-thumb-preview" alt="${escapeHtml(selectedTitle)}" onerror="this.style.display='none'" />
+          <div class="lobby-game-chip-info">
+            <span class="lobby-game-label">${t('pad.game')}</span>
+            <span class="lobby-game-title" id="lobby-selected-game-text">${selectedTitle}</span>
+          </div>
+        </div>
+
+        <!-- 3. Seat Picker (sadece staging'de) -->
         ${this.stagingOpen ? `
-        <!-- Interactive Seat Selector (sadece staging'de: saha açıkken) -->
         <div class="lobby-seats-card">
           <div class="lobby-seat-badge">${t('pad.seatPick')}</div>
           <div class="lobby-seats-grid">
@@ -652,48 +668,20 @@ export class GamepadManager {
           </div>
         </div>
         ` : `
-        <!-- Bekleme (staging öncesi saha kapalı: koltuk seçimi yok) -->
         <div class="lobby-wait-card">
           <div class="lobby-wait-badge">${t('pad.arenaPrep')}</div>
           <div class="lobby-wait-text">${t('pad.arenaPrepText')}</div>
         </div>
         `}
 
-        <!-- Name Edit Section -->
-        <div class="lobby-name-section">
-          <div class="lobby-name-label">${t('pad.yourName')}</div>
-          <div class="lobby-name-row">
-            <div class="lobby-name-display" id="lobby-name-display">${this.playerName}</div>
-            <button class="lobby-name-edit-btn" id="btn-edit-name" type="button">${t('pad.change')}</button>
-          </div>
-          <div class="lobby-name-input-row hidden" id="lobby-name-input-row">
-            <input type="text" class="lobby-name-input" id="input-lobby-name" maxlength="12"
-              placeholder="${t('pad.namePh')}" value="${this.playerName}" autocapitalize="characters" />
-            <button class="lobby-name-save-btn" id="btn-save-name" type="button">${t('pad.save')}</button>
-          </div>
-        </div>
-
-        <!-- Character Section: cihaz-başı tek profil -->
-        <div class="lobby-character-section">
-          <div class="lobby-name-label">${t('pad.yourChar')}</div>
-          <div class="lobby-character-row">
-            <canvas class="lobby-character-preview" id="lobby-character-preview" width="80" height="80"></canvas>
-            <button class="lobby-character-edit-btn" id="btn-edit-character" type="button">${t('pad.customize')}</button>
-          </div>
-          <div class="lobby-character-hint">${t('pad.charHint')}</div>
-        </div>
-
-        <div class="lobby-game-preview-card">
-          <img src="/assets/games/${(this.selectedHostGame || 'PONG').toLowerCase()}.jpg" class="lobby-game-thumb-preview" alt="${escapeHtml(CONTROLLER_META[this.selectedHostGame]?.lobbyTitle || 'Oyun')}" onerror="this.style.display='none'" />
-          <div class="lobby-game-text">${t('pad.game')} <b id="lobby-selected-game-text">${selectedTitle}</b></div>
-        </div>
-
+        <!-- 4. Hero Ready Button -->
         ${this.stagingOpen ? `
         <button class="btn-ready-toggle ${this.isReady ? 'ready' : ''}" id="btn-lobby-ready" type="button">
-          ${t('pad.ready')}
+          ${this.isReady ? '✓ ' + t('pad.ready') : '▶ ' + t('pad.ready')}
         </button>
         ` : ''}
 
+        <!-- 5. Leave button -->
         <button class="btn-leave-lobby-direct" id="btn-leave-lobby-direct" type="button">
           ${t('pad.leaveRoom')}
         </button>
@@ -710,42 +698,14 @@ export class GamepadManager {
       });
     });
 
-    // Name edit toggle
-    const editBtn = document.getElementById('btn-edit-name');
-    const nameDisplay = document.getElementById('lobby-name-display');
-    const nameInputRow = document.getElementById('lobby-name-input-row');
-    const nameInput = document.getElementById('input-lobby-name');
-    const saveBtn = document.getElementById('btn-save-name');
-
-    editBtn?.addEventListener('click', () => {
-      nameInputRow?.classList.remove('hidden');
-      editBtn.classList.add('hidden');
-      nameInput?.focus();
-      nameInput?.select();
+    // Leave room direct button
+    document.getElementById('btn-leave-lobby-direct')?.addEventListener('click', () => {
+      this.network.disconnect();
+      this.hide();
+      window.location.href = window.location.pathname;
     });
 
-    const saveName = () => {
-      const newName = (nameInput?.value || '').trim().toUpperCase().slice(0, 12) || this.playerName;
-      this.playerName = newName;
-      if (nameDisplay) nameDisplay.textContent = newName;
-      nameInputRow?.classList.add('hidden');
-      editBtn?.classList.remove('hidden');
-      const headerLabel = document.getElementById('header-player-name');
-      if (headerLabel) {
-        headerLabel.textContent = newName;
-      }
-      this.network.sendInput({ action: 'SET_NAME', name: newName });
-      this.network.notePlayerName?.(newName);
-      storePlayerName(newName);
-      this.vibrate(15);
-    };
-
-    saveBtn?.addEventListener('click', saveName);
-    nameInput?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') saveName();
-    });
-
-    // Karakter önizleme + özelleştirme (gerçek değişiklik host'a AVATAR_UPDATE ile gider)
+    // Karakter önizleme + özelleştirme (isim dahil tek modal)
     this.drawLobbyCharacterPreview();
     document.getElementById('btn-edit-character')?.addEventListener('click', () => {
       let before = '';
@@ -755,11 +715,15 @@ export class GamepadManager {
       } catch {}
       openCustomizeModal((profile) => {
         if (!profile) return;
-        if (JSON.stringify(profile) === before) return; // bakıp kapattı, trafik yok
+        if (JSON.stringify(profile) === before) return;
         this.avatar = { ...profile };
         this.playerColor = profile.color || this.playerColor;
         const dot = document.getElementById('header-player-dot');
         if (dot) dot.style.backgroundColor = this.playerColor;
+        const seatTag = document.getElementById('header-seat-tag');
+        if (seatTag) seatTag.style.backgroundColor = this.playerColor;
+        const lobbySlotTag = document.getElementById('lobby-slot-tag');
+        if (lobbySlotTag) lobbySlotTag.style.backgroundColor = this.playerColor;
         this.drawLobbyCharacterPreview();
         try {
           this.network.sendAvatarUpdate?.(this.avatar);
@@ -908,11 +872,11 @@ export class GamepadManager {
   }
 
   updateJoy(clientX, clientY, cx, cy, maxR, knobEl, onInput) {
-    const dx = clientX - cx;
-    const dy = clientY - cy;
-    const dist = Math.hypot(dx, dy);
+    const rawDx = clientX - cx;
+    const rawDy = clientY - cy;
+    const dist = Math.hypot(rawDx, rawDy);
     const clampedDist = Math.min(maxR, dist);
-    const angle = Math.atan2(dy, dx);
+    const angle = Math.atan2(rawDy, rawDx);
 
     const knobX = Math.cos(angle) * clampedDist;
     const knobY = Math.sin(angle) * clampedDist;
@@ -921,11 +885,13 @@ export class GamepadManager {
     const rawForce = clampedDist / maxR;
     // 8% deadband to eliminate resting thumb jitter
     const deadzone = 0.08;
-    const force = rawForce < deadzone ? 0 : (rawForce - deadzone) / (1 - deadzone);
+    const force = rawForce < deadzone ? 0 : Math.max(0, Math.min(1, (rawForce - deadzone) / (1 - deadzone)));
+    const dx = Math.max(-1, Math.min(1, Math.cos(angle) * force));
+    const dy = Math.max(-1, Math.min(1, Math.sin(angle) * force));
 
     onInput({
-      dx: Math.cos(angle) * force,
-      dy: Math.sin(angle) * force,
+      dx,
+      dy,
       angle,
       force,
     });
@@ -981,206 +947,15 @@ export class GamepadManager {
       this.renderScoreStrip(data.names, data.scores);
     }
 
-    // Update live status text
+    // Üst durum şeridi: metin tek kaynaktan (controllerStatus registry).
+    // PONG skorbord/falso, TANKS cephane, BOMB/CROWN/HEIST uyarıları şablonların
+    // handleSync/onSync'inde yaşar — burada oyun-özel dal tutulmaz.
     if (liveStatus && data.scores) {
-      let statusStr = '';
-      if (data.gameMode === 'PONG') {
-        statusStr = t('pad.rallyLive', data.rally || 0, data.scores.slice(0, 4).join('-'));
-        const scoreDisp = this._el('pong-score-display');
-        const rallyDisp = this._el('pong-rally-display');
-        if (scoreDisp && data.scores) {
-          // İsimler varsa kimin skoru olduğu görünür: "AHMET 2❤3 • MEHMET 1❤2"
-          // (set skoru + kalan can; boş koltukta can gösterilmez)
-          const lives = Array.isArray(data.lives) ? data.lives : null;
-          const scoreTxt = Array.isArray(data.names)
-            ? data.scores.slice(0, 4).map((s, i) => {
-              const nm = data.names[i] || `P${i + 1}`;
-              const heart = lives && data.names[i] ? `❤${lives[i] ?? 0}` : '';
-              return `${nm} ${s}${heart}`;
-            }).join(' • ')
-            : t('pad.scoreJoin', data.scores.slice(0, 4).join(' - '));
-          if (scoreDisp.textContent !== scoreTxt) scoreDisp.textContent = scoreTxt;
-        }
-        if (rallyDisp && data.rally !== undefined) {
-          const rallyTxt = t('pad.rally', data.rally);
-          if (rallyDisp.textContent !== rallyTxt) rallyDisp.textContent = rallyTxt;
-        }
-        const spinBtn = this._el('btn-pong-spin');
-        if (spinBtn) {
-          const label = spinBtn.querySelector('.dash-btn-label');
-          const sub = spinBtn.querySelector('.dash-btn-sub');
-          const cd = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
-          const isCharged = data.chgIdx === this.playerIndex;
-          // Host cooldown gerçek kaynaktır; lokal 20sn sayacı yalnızca görseldir
-          const txt = cd > 0 && !isCharged ? `⏳ ${cd}sn` : (isCharged ? `🌀 ${(data.chgT || 0).toFixed(1)}sn` : '🌀 FALSO');
-          if (label && label.textContent !== txt) label.textContent = txt;
-          if (sub) {
-            const subTxt = isCharged ? t('pad.charged') : (cd > 0 ? t('pad.filling') : t('pad.tap'));
-            if (sub.textContent !== subTxt) sub.textContent = subTxt;
-          }
-        }
-        if (rallyDisp && data.spn) {
-          const spn = t('pad.spinning');
-          if (rallyDisp.textContent !== spn) rallyDisp.textContent = spn;
-        }
-      } else if (data.gameMode === 'TANKS') {
-        const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
-        statusStr = dead ? t('pad.dead', data.scores.join('-')) : t('pad.scoreJoin', data.scores.join('-'));
-      } else if (data.gameMode === 'CURVE') {
-        const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
-        statusStr = dead ? t('pad.dead', data.scores.join('-')) : t('pad.scoreJoin', data.scores.join('-'));
-      } else if (data.gameMode === 'BOMB') {
-        const timeStr = data.bombTime !== undefined ? `${data.bombTime}s` : '';
-        statusStr = data.carrier === this.playerIndex
-          ? t('pad.bombYou', timeStr)
-          : (data.carrier === -1 || data.carrier === null || data.carrier === undefined
-            ? t('pad.bombFree', timeStr)
-            : t('pad.bombAt', data.carrier + 1, timeStr));
-      } else if (data.gameMode === 'HEIST') {
-        const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
-        const myCarried = Array.isArray(data.carried) ? (data.carried[this.playerIndex] ?? 0) : 0;
-        const myVault = Array.isArray(data.vault) ? (data.vault[this.playerIndex] ?? 0) : 0;
-        statusStr = t('pad.heistStatus', timeStr, myCarried, myVault);
-      } else if (data.gameMode === 'CROWN') {
-        const isKing = data.king === this.playerIndex;
-        const myTime = data.crownTimes ? (data.crownTimes[this.playerIndex] || 0).toFixed(1) : '0.0';
-        statusStr = isKing
-          ? t('pad.kingYou', myTime)
-          : (data.king !== null && data.king !== undefined ? t('pad.kingAt', data.king + 1, myTime) : t('pad.crownFree', myTime));
-      } else if (data.gameMode === 'ZONE') {
-        const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
-        const myPct = Array.isArray(data.pct) ? (data.pct[this.playerIndex] ?? 0) : 0;
-        const leadPct = Array.isArray(data.pct) && data.leader >= 0 ? (data.pct[data.leader] ?? 0) : 0;
-        const leadName = Array.isArray(data.names) && data.leader >= 0 ? (data.names[data.leader] || `P${data.leader + 1}`) : '';
-        statusStr = data.leader === this.playerIndex
-          ? t('pad.zoneLead', myPct, timeStr)
-          : t('pad.zoneChase', timeStr, myPct, leadName, leadPct);
-      } else if (data.gameMode === 'SNAKE') {
-        const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
-        const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
-        const nrg = Array.isArray(data.nrg) ? (data.nrg[this.playerIndex] ?? 100) : 100;
-        const locked = Array.isArray(data.lock) ? !!data.lock[this.playerIndex] : false;
-        statusStr = dead
-          ? t('pad.dead', data.scores.join('-'))
-          : `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.nrg', nrg)}${locked ? ` ${t('pad.locked')}` : ''} • ${t('pad.snakeAlive', aliveCount)}`;
-      } else if (data.gameMode === 'LASER') {
-        const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
-        const myHp = Array.isArray(data.hp) ? (data.hp[this.playerIndex] ?? 0) : 0;
-        statusStr = `${t('pad.scoreJoin', data.scores.join('-'))} • ❤${myHp} • ⏱ ${timeStr}`;
-        // Host bekleme yüzdesi: dolmadan buton sönük görünür
-        const dashBtn = this._laserDashBtn;
-        const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
-        if (dashBtn && dashBtn.isConnected) {
-          dashBtn.style.opacity = cdPct > 0 ? 0.55 : 1;
-        }
-      } else if (data.gameMode === 'CLONE') {
-        const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
-        const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
-        statusStr = dead
-          ? t('pad.dead', data.scores.join('-'))
-          : `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.cloneAlive', aliveCount)}`;
-        // Host bekleme yüzdesi: dolmadan buton sönük görünür
-        const cdBtn = this._cloneCdBtn;
-        const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
-        if (cdBtn && cdBtn.isConnected) {
-          cdBtn.style.opacity = cdPct > 0 ? 0.55 : 1;
-        }
-      } else if (data.gameMode === 'COLLAPSE') {
-        const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
-        const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
-        statusStr = dead
-          ? t('pad.dead', data.scores.join('-'))
-          : `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.collapseAlive', aliveCount)}`;
-        const jumpBtn = this._el('btn-collapse-jump');
-        const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
-        if (jumpBtn) {
-          jumpBtn.style.opacity = cdPct > 0 ? 0.55 : 1;
-        }
-      } else if (data.gameMode === 'NINJA') {
-        const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
-        const dead = Array.isArray(data.alive) ? data.alive[this.playerIndex] === false : false;
-        statusStr = dead
-          ? t('pad.dead', data.scores.join('-'))
-          : `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.ninjaAlive', aliveCount)}`;
-        const strikeBtn = this._el('btn-ninja-strike');
-        const cdPct = Array.isArray(data.cd) ? (data.cd[this.playerIndex] || 0) : 0;
-        if (strikeBtn) {
-          strikeBtn.style.opacity = cdPct > 0 ? 0.55 : 1;
-        }
-      }
-      if (statusStr !== this._lastStatusStr) {
+      const statusStr = getControllerStatus(data.gameMode, this.playerIndex, data);
+      if (statusStr && statusStr !== this._lastStatusStr) {
         this._lastStatusStr = statusStr;
         liveStatus.textContent = statusStr;
       }
-    }
-
-    const tacticalRoleEl = document.getElementById('tactical-role-text');
-
-    // 1. Bomb Alert
-    if (this.gameMode === 'BOMB') {
-      const isCarrier = data.carrier === this.playerIndex;
-      this.overlay.classList.toggle('bomb-carrier-alert', isCarrier);
-      if (tacticalRoleEl) {
-        tacticalRoleEl.textContent = isCarrier
-          ? t('pad.bombCarry')
-          : t('pad.bombSafe');
-        tacticalRoleEl.style.color = isCarrier ? '#ff6b6b' : '#25d366';
-      }
-    } else {
-      this.overlay.classList.remove('bomb-carrier-alert');
-    }
-
-    // 2. Heist Alert (pakette carried/vault var — en çok taşıyan vurgulanır)
-    if (this.gameMode === 'HEIST' && Array.isArray(data.carried)) {
-      let lead = -1;
-      let max = 0;
-      data.carried.forEach((c, i) => {
-        if ((c || 0) > max) { max = c || 0; lead = i; }
-      });
-      const isLead = lead === this.playerIndex && max > 0;
-      this.overlay.classList.toggle('gem-carrier-alert', isLead);
-      if (tacticalRoleEl) {
-        tacticalRoleEl.textContent = isLead
-          ? t('pad.heistLead')
-          : lead >= 0 && max > 0
-            ? t('pad.heistChase', lead + 1)
-            : t('pad.heistGrab');
-        tacticalRoleEl.style.color = isLead ? '#ffd700' : '#ffffff';
-      }
-    } else {
-      this.overlay.classList.remove('gem-carrier-alert');
-    }
-
-    // 2.5. Crown King Alert
-    if (this.gameMode === 'CROWN') {
-      const isKing = data.king === this.playerIndex;
-      this.overlay.classList.toggle('crown-king-alert', isKing);
-      if (tacticalRoleEl) {
-        tacticalRoleEl.textContent = isKing
-          ? t('pad.kingKeep')
-          : t('pad.kingSteal');
-        tacticalRoleEl.style.color = isKing ? '#ffd700' : '#ffffff';
-      }
-    } else {
-      this.overlay.classList.remove('crown-king-alert');
-    }
-
-    // 3. Tanks Ammo Pips Sync (dolan pip gri + ilerleme çubuğu)
-    if (this.gameMode === 'TANKS' && Array.isArray(data.ammo)) {
-      const raw = data.ammo[this.playerIndex];
-      const n = typeof raw === 'number' ? raw : (raw?.n ?? 0);
-      const load = typeof raw === 'object' ? (raw?.load ?? 0) : 0;
-      const ammoPips = document.querySelectorAll('#tank-ammo-hud .cartridge-pip');
-      ammoPips.forEach((pip, idx) => {
-        pip.classList.toggle('loaded', idx < n);
-        if (idx === n && load > 0) {
-          pip.classList.remove('loaded');
-          const pct = Math.round(load * 100);
-          pip.style.background = `linear-gradient(90deg, ${this.playerColor} ${pct}%, #3a3835 ${pct}%)`;
-        } else {
-          pip.style.background = '';
-        }
-      });
     }
   }
 }

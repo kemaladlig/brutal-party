@@ -32,8 +32,9 @@ export function isOnlineMode(mode) {
 export function isPublicOrigin() {
   try {
     const host = window.location.hostname;
-    if (!host || host === 'localhost' || host === '127.0.0.1') return false;
+    if (!host || host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') return false;
     if (/^192\.168\./.test(host) || /^10\./.test(host) || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)) return false;
+    if (/\.local$/i.test(host)) return false;
     return true;
   } catch {
     return false;
