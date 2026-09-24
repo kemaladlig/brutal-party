@@ -9,9 +9,9 @@ import { toggleAudio, getIsMuted } from '../audio.js';
 import { t, onLangChange } from '../i18n.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange } from './fullscreen.js';
 import {
-  getVirtualControlsSetting,
-  setVirtualControlsSetting,
-  shouldShowVirtualControls,
+  CONTROL_SURFACE,
+  getControlSurface,
+  setControlSurface,
 } from './tokens.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 
@@ -64,23 +64,11 @@ function setSwitch(el, on) {
 
 function setControlsSwitch(el) {
   if (!el) return;
-  const setting = getVirtualControlsSetting();
+  const mobile = getControlSurface() === CONTROL_SURFACE.MOBILE;
   const badge = el.querySelector('.toggle-state-badge');
-  if (setting === 'on') {
-    el.classList.add('on');
-    el.setAttribute('aria-checked', 'true');
-    if (badge) badge.textContent = t('pause.on');
-  } else if (setting === 'off') {
-    el.classList.remove('on');
-    el.setAttribute('aria-checked', 'false');
-    if (badge) badge.textContent = t('pause.off');
-  } else {
-    // 'auto'
-    const active = shouldShowVirtualControls();
-    el.classList.toggle('on', active);
-    el.setAttribute('aria-checked', active ? 'true' : 'false');
-    if (badge) badge.textContent = t('pause.auto') || 'OTO';
-  }
+  el.classList.toggle('on', mobile);
+  el.setAttribute('aria-checked', mobile ? 'true' : 'false');
+  if (badge) badge.textContent = mobile ? t('pause.on') : t('pause.off');
 }
 
 export function refreshPauseSwitches() {
@@ -241,14 +229,14 @@ export function initPauseModal({
   });
 
   btnToggleTouchControls?.addEventListener('click', () => {
-    const current = getVirtualControlsSetting();
-    const next = current === 'auto' ? 'on' : (current === 'on' ? 'off' : 'auto');
-    setVirtualControlsSetting(next);
+    const next = getControlSurface() === CONTROL_SURFACE.MOBILE
+      ? CONTROL_SURFACE.TABLETOP
+      : CONTROL_SURFACE.MOBILE;
+    setControlSurface(next);
     setControlsSwitch(btnToggleTouchControls);
-    const msg = next === 'auto'
-      ? t('toast.controlsAuto')
-      : (next === 'on' ? t('toast.controlsOn') : t('toast.controlsOff'));
-    showInstallToast(msg);
+    showInstallToast(next === CONTROL_SURFACE.MOBILE
+      ? t('toast.controlsMobile')
+      : t('toast.controlsTabletop'));
     if (typeof onControlsToggled === 'function') {
       onControlsToggled(next);
     }

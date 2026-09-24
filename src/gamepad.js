@@ -23,9 +23,11 @@ const CONTROLLER_META = new Proxy({}, {
 });
 
 export class GamepadManager {
-  constructor(overlayEl, network) {
+  constructor(overlayEl, network, { localMode = false } = {}) {
     this.overlay = overlayEl;
     this.network = network;
+    this.localMode = localMode;
+    this._workspaceOverride = null;
     this.gameMode = 'LOBBY';
     this.selectedHostGame = 'PONG';
     this.playerIndex = 0;
@@ -323,6 +325,35 @@ export class GamepadManager {
     this.overlay.classList.toggle('is-landscape', !portrait);
   }
 
+  initLocal(playerInfo = {}, gameMode = 'PONG') {
+    this.localMode = true;
+    this.playerIndex = Number.isInteger(playerInfo.slotIndex) ? playerInfo.slotIndex : 0;
+    this.playerName = (playerInfo.name || `OYUNCU ${this.playerIndex + 1}`).toUpperCase();
+    this.playerColor = playerInfo.color || UI_COLORS.players[this.playerIndex] || '#D84727';
+    try {
+      this.avatar = playerInfo.avatar || getAvatarProfile();
+    } catch {
+      this.avatar = playerInfo.avatar || null;
+    }
+    this.slots = [null, null, null, null];
+    this.slots[this.playerIndex] = { ...playerInfo, slotIndex: this.playerIndex };
+    this.selectedHostGame = gameMode;
+    this.gameMode = gameMode;
+    this.isReady = false;
+    this.stagingOpen = false;
+    this.countdownActive = false;
+    this._pongInvertManualSet = false;
+    this._worldViewEnabled = false;
+    this.overlay.innerHTML = '<div class="local-mobile-workspace" id="local-mobile-workspace"></div>';
+    this._workspaceOverride = document.getElementById('local-mobile-workspace');
+    this.overlay.classList.remove('hidden');
+    this._bindBrowserLocks();
+    this._bindVisibilityNeutral();
+    this._bindOrientationGate();
+    this.renderGameController(gameMode);
+    this.requestWakeLock();
+  }
+
   init(playerInfo, gameMode = 'LOBBY') {
     this.playerIndex = playerInfo.slotIndex ?? 0;
     if (this._worldView) this._worldView.setSelfSlot(this.playerIndex);
@@ -367,11 +398,12 @@ export class GamepadManager {
   }
 
   hide() {
+    if (this.localMode) this._sendNeutralForMode();
     this.releaseWakeLock();
     this._teardownMount();
     this.overlay.classList.add('hidden');
     this.overlay.innerHTML = '';
-    this.overlay.className = 'hidden';
+    this._workspaceOverride = null;
   }
 
   renderShell() {
@@ -579,7 +611,7 @@ export class GamepadManager {
     this._lastStatusStr = '';
     this._cloneCdBtn = null;
     this.gameMode = mode;
-    const workspace = document.getElementById('gamepad-workspace');
+    const workspace = this._workspaceOverride || document.getElementById('gamepad-workspace');
     if (!workspace) return;
 
     workspace.innerHTML = '';

@@ -376,6 +376,9 @@
       <!-- Fullscreen Mobile Gamepad Overlay -->
       <div id="gamepad-overlay" class="hidden"></div>
 
+      <!-- LOCAL one-player mobile controller surface; canvas remains the game authority. -->
+      <div id="local-mobile-controls" class="hidden" aria-label="Mobile controls"></div>
+
       <!-- In-Game Command Sheet (slide-over panel; bottom sheet on touch) -->
       <!-- In-Game Command Sheet (slide-over panel; bottom sheet on touch) -->
       <div id="pause-modal" class="hidden">
@@ -493,8 +496,8 @@
                     </span>
                   </div>
                   <div class="toggle-meta">
-                    <span class="toggle-title" data-i18n="pause.virtualControls">Sanal Kontrol</span>
-                    <span class="toggle-state-badge">OTO</span>
+                    <span class="toggle-title" data-i18n="pause.virtualControls">Mobil Kontrol</span>
+                    <span class="toggle-state-badge">AÇIK</span>
                   </div>
                 </button>
               </div>
@@ -1308,6 +1311,13 @@
               <span class="switch-label" data-i18n="settings.colorblind">👁 Renk körü modu (Okabe-Ito)</span>
               <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
             </button>
+            <div class="switch-row static">
+              <span class="switch-label" data-i18n="settings.controlSurface">Kontrol düzeni</span>
+              <span class="lang-segment" role="group" aria-label="Control surface">
+                <button id="btn-settings-control-mobile" class="lang-seg-btn" type="button" data-i18n="settings.controlMobile">Mobil</button>
+                <button id="btn-settings-control-tabletop" class="lang-seg-btn" type="button" data-i18n="settings.controlTabletop">Masa-ortası</button>
+              </span>
+            </div>
             <div class="switch-row static">
               <span class="switch-label" data-i18n="settings.language">🌍 Dil / Language</span>
               <span class="lang-segment" role="group" aria-label="Language">

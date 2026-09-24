@@ -6,12 +6,19 @@ import { isPersistent } from '../core/safeStorage.js';
 import { toggleAudio, getIsMuted } from '../audio.js';
 import { showInstallToast } from './toast.js';
 import { t, getLang, setLang, onLangChange } from '../i18n.js';
+import {
+  CONTROL_SURFACE,
+  getControlSurface,
+  setControlSurface,
+} from './tokens.js';
 
 const settingsModal = document.getElementById('settings-modal');
 const btnSettingsClose = document.getElementById('btn-settings-close');
 const btnSettingsSound = document.getElementById('btn-settings-sound');
 const btnSettingsBots = document.getElementById('btn-settings-bots');
 const btnSettingsColorblind = document.getElementById('btn-settings-colorblind');
+const btnSettingsControlMobile = document.getElementById('btn-settings-control-mobile');
+const btnSettingsControlTabletop = document.getElementById('btn-settings-control-tabletop');
 const btnLangTr = document.getElementById('btn-lang-tr');
 const btnLangEn = document.getElementById('btn-lang-en');
 const settingsStorage = document.getElementById('settings-storage');
@@ -26,6 +33,12 @@ export function refreshSettingsSwitches() {
   setSwitch(btnSettingsSound, !getIsMuted());
   setSwitch(btnSettingsBots, isBotEkleEnabled());
   setSwitch(btnSettingsColorblind, isColorblindEnabled());
+  const surface = getControlSurface();
+  const mobileSelected = surface === CONTROL_SURFACE.MOBILE;
+  btnSettingsControlMobile?.classList.toggle('selected', mobileSelected);
+  btnSettingsControlMobile?.setAttribute('aria-pressed', String(mobileSelected));
+  btnSettingsControlTabletop?.classList.toggle('selected', !mobileSelected);
+  btnSettingsControlTabletop?.setAttribute('aria-pressed', String(!mobileSelected));
   const lang = getLang();
   btnLangTr?.classList.toggle('selected', lang === 'tr');
   btnLangEn?.classList.toggle('selected', lang === 'en');
@@ -47,7 +60,7 @@ export function isSettingsOpen() {
   return !!settingsModal && !settingsModal.classList.contains('hidden');
 }
 
-export function initSettingsModal({ onBotsToggled } = {}) {
+export function initSettingsModal({ onBotsToggled, onControlsChanged } = {}) {
   btnSettingsClose?.addEventListener('click', closeSettingsModal);
 
   btnSettingsSound?.addEventListener('click', () => {
@@ -70,6 +83,19 @@ export function initSettingsModal({ onBotsToggled } = {}) {
     setSwitch(btnSettingsColorblind, next);
     showInstallToast(next ? t('toast.cbOn') : t('toast.cbOff'));
   });
+
+  const applyControlSurface = (surface) => {
+    if (getControlSurface() === surface) return;
+    setControlSurface(surface);
+    refreshSettingsSwitches();
+    showInstallToast(surface === CONTROL_SURFACE.MOBILE
+      ? t('toast.controlsMobile')
+      : t('toast.controlsTabletop'));
+    if (typeof onControlsChanged === 'function') onControlsChanged(surface);
+  };
+
+  btnSettingsControlMobile?.addEventListener('click', () => applyControlSurface(CONTROL_SURFACE.MOBILE));
+  btnSettingsControlTabletop?.addEventListener('click', () => applyControlSurface(CONTROL_SURFACE.TABLETOP));
 
   btnLangTr?.addEventListener('click', () => setLang('tr'));
   btnLangEn?.addEventListener('click', () => setLang('en'));

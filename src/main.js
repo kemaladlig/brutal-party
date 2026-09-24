@@ -27,7 +27,13 @@ import {
 } from './net.js';
 
 import { initToastAndInstall, showInstallToast, showConnectionBanner, hideConnectionBanner } from './ui/toast.js';
-import { UI_COLORS, uiFont } from './ui/tokens.js';
+import {
+  UI_COLORS,
+  uiFont,
+  CONTROL_SURFACE,
+  getControlSurface,
+  isTouchDevice,
+} from './ui/tokens.js';
 import { openCustomizeModal, initMenuAvatarCard } from './ui/customizeModal.js';
 import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, isBotEkleEnabled, getColorClashIndices, refreshAllHostSlots } from './core/slotManager.js';
 import { getAvatarProfile, sanitizeAvatar, pickFreeColor, setSlotAvatar, clearSlotAvatar, loadLocalSeatColors, ensureLocalSeatColorsForTypes, getLocalSeatColors } from './core/customizationManager.js';
@@ -109,6 +115,22 @@ export function getActiveGameEngine() {
 const gamepadOverlay = document.getElementById('gamepad-overlay');
 const gamepadManager = new GamepadManager(gamepadOverlay, partyNetwork);
 
+// LOCAL one-player mobile surface uses the same declarative controller templates,
+// but its input is routed directly to the local authoritative engine.
+const localMobileOverlay = document.getElementById('local-mobile-controls');
+const localGamepadManager = new GamepadManager(localMobileOverlay, {
+  roomCode: null,
+  reservedHostSlot: null,
+  supportsWorldFrames: false,
+  sendInput(data) {
+    const engine = getActiveGameEngine();
+    if (engine && typeof engine.handleRemoteInput === 'function') {
+      const slot = getLocalControlSlot(engine);
+      if (slot >= 0) engine.handleRemoteInput(slot, data);
+    }
+  },
+}, { localMode: true });
+
 // High-DPI & Responsive 1:1 Canvas Resizing
 function resizeCanvas() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
@@ -152,6 +174,8 @@ export async function setGameMode(mode) {
 
   if (mode === 'MENU') {
     currentMode = mode;
+    localGamepadManager.hide();
+    localMobileControlsActive = false;
     // Klavye sahipliği: yalnızca aktif motor dinler, diğerlerinin basılı tuş
     // haritası temizlenir (mod değişiminde takılı tuş kalmasın)
     forEachEngine((engineMode, entry) => {
@@ -982,6 +1006,7 @@ function startEngineNow(mode) {
   engine?.start();
   const active = getActiveGameEngine();
   if (active) syncSlotsToEngine(active, mode, activeNet().isHosting);
+  syncLocalMobileControls();
 }
 
 // BAŞLAT #1: sahayı aç — motor LOBBY'de arena gösterir, koltuk seçimi başlar
@@ -1115,19 +1140,71 @@ function removeBotSlot(index) {
 function setSeatTapHook() {
   const hosting = activeNet().isHosting;
   const localHostPlayer = hosting && hostPlayerActive && hostPlayerSlot !== null;
-  const onlinePhoneHost = hosting && platformMode === 'ONLINE' && hostPlayerActive;
-  const touchDevice = typeof window !== 'undefined'
-    && ('ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0);
+  const touchDevice = isTouchDevice();
+  const localMobileSurface = platformMode === 'LOCAL'
+    && touchDevice
+    && getControlSurface() === CONTROL_SURFACE.MOBILE;
   const fn = hosting ? handleLobbySeatTap : null;
   forEachEngine((mode, entry) => {
     entry.game.onLobbySeatTap = fn;
     entry.game.hideLobbyStartButton = hosting;
-    // TV host oyuncuya katılmadıkça ekran salt arena; katılınca P1
-    // klavye/dokunmatik kontrolü aynı authority motorunda çalışır.
-    entry.game.suppressVirtualControls = hosting && !localHostPlayer;
-    entry.game.forceVirtualControls = localHostPlayer && (onlinePhoneHost || touchDevice);
+    // LOCAL mobile: DOM controller owns P1 input; canvas tabletop stays hidden.
+    // TV/ONLINE host: only a touch-capable local host gets authority-local touch.
+    entry.game.suppressVirtualControls = hosting
+      ? hosting && !localHostPlayer
+      : localMobileSurface;
+    entry.game.forceVirtualControls = hosting && localHostPlayer && touchDevice;
     entry.game.localControlSlot = localHostPlayer ? hostPlayerSlot : null;
   });
+}
+
+let localMobileControlsActive = false;
+let lastLocalControlSyncAt = 0;
+
+function getLocalControlSlot(engine = getActiveGameEngine()) {
+  const entities = typeof engine?.getEntitiesList === 'function'
+    ? engine.getEntitiesList()
+    : (engine?.players || engine?.tanks || engine?.paddles || []);
+  return entities.findIndex((entity) => entity?.isJoined && entity?.slotType === 'human');
+}
+
+function syncLocalMobileControls(now = performance.now()) {
+  const engine = getActiveGameEngine();
+  const localSlot = getLocalControlSlot(engine);
+  const shouldShow = platformMode === 'LOCAL'
+    && isTouchDevice()
+    && getControlSurface() === CONTROL_SURFACE.MOBILE
+    && currentMode !== 'MENU'
+    && engine?.state === 'PLAYING'
+    && localSlot >= 0
+    && !getIsPaused();
+
+  if (shouldShow && (!localMobileControlsActive || localGamepadManager.gameMode !== currentMode)) {
+    const localColors = getLocalSeatColors();
+    localGamepadManager.initLocal({
+      slotIndex: localSlot,
+      name: ensureStoredNick(),
+      color: localColors[localSlot] || UI_COLORS.players[localSlot] || '#D84727',
+    }, currentMode);
+    localMobileControlsActive = true;
+    lastLocalControlSyncAt = 0;
+  } else if (!shouldShow && localMobileControlsActive) {
+    localGamepadManager.hide();
+    localMobileControlsActive = false;
+    lastLocalControlSyncAt = 0;
+  }
+
+  if (!localMobileControlsActive || now - lastLocalControlSyncAt < 125) return;
+  const entry = getEngine(currentMode);
+  if (!entry || typeof entry.packet !== 'function') return;
+  const packet = { ...entry.packet(), gameMode: currentMode, phase: 'GAME' };
+  localGamepadManager.handleStateSync(packet);
+  lastLocalControlSyncAt = now;
+}
+
+function applyControlSurfacePreference() {
+  setSeatTapHook();
+  syncLocalMobileControls();
 }
 
 // Initialise UI Submodules
@@ -1143,7 +1220,7 @@ window.addEventListener('online', () => {
   markConnectionRestored(t('net.onlineBack'), true);
 });
 initJoinModal({ onExecuteJoin: executeJoin });
-initSettingsModal();
+initSettingsModal({ onControlsChanged: applyControlSurfacePreference });
 applyI18nToDOM();
 // Dil değişiminde TV lobi kartları anında yeniden çizilir (BOŞ/HAZIR etiketleri).
 onLangChange(() => {
@@ -1241,6 +1318,7 @@ initPauseModal({
     refreshHostSlotCards();
     showInstallToast(enabled ? t('toast.botsOn') : t('toast.botsOff'));
   },
+  onControlsToggled: applyControlSurfacePreference,
 });
 
 // Menu Card Tap Listeners (buton id kuralı: btn-select-<lowercase mode>)
@@ -1641,6 +1719,8 @@ function renderEngineCrashOverlay(ctx, error) {
 }
 
 function loop(timestamp) {
+  syncLocalMobileControls(timestamp);
+
   try {
     broadcastGameStateIfNeeded(timestamp);
   } catch (err) {

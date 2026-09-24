@@ -8,7 +8,7 @@ import { getLocalSeatColors, ensureLocalSeatColor, cycleLocalSeatColor, getBotPe
 import { resolveSlotName } from './slotManager.js';
 import { isSlotActionEvent, keyboardVectorFrom, getKeyLabel } from './inputMaps.js';
 import { getQuadrant, roundOverSkipGuard } from './touchFlow.js';
-import { UI_COLORS, getDisplayProfile, shouldShowVirtualControls } from '../ui/tokens.js';
+import { UI_COLORS, getDisplayProfile, shouldShowVirtualControls, isTouchDevice } from '../ui/tokens.js';
 import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { t } from '../i18n.js';
 import { drawTabletopIcon } from './tabletopIcons.js';
@@ -797,9 +797,7 @@ export class BaseMiniGame {
   }
 
   getControlAlpha(value, active = false, near = false) {
-    const isTouchDevice = typeof window !== 'undefined'
-      && ('ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0);
-    if (!isTouchDevice) return value;
+    if (!isTouchDevice()) return value;
     if (near) return Math.min(value, 0.12);
     return Math.min(value, active ? 0.4 : 0.22);
   }

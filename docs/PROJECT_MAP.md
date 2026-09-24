@@ -294,6 +294,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
 10. **Kontrol Eşleşmesi (kumanda↔motor + lokal klavye):**
    * 7/7 telefon kumandası motora doğru konuşur. HEIST `gemCarrier` alanı motorda hiç yoktu → rozet söküldü (kumanda skor+süre şeridi, pakette `timeLeft` durur). BOMB `carrier:-1` artık `BOMBA BOŞTA` gösterir (`P0` etiketi kapandı).
    * Klavyesi olmayan motor kalmadı: TANKS (bas=TUT/sür, bırak=dur+ateş + `driveOwner` sahipliği — bırakma başka kaynağın sürüşü ezmez) ve CURVE (eklemeli `keyboardSteer`, dokunmatik basılıyken klavye bırakması ezmez) BOMB desenini izler. DUEL klavyeye `Enter/O/B` eklendi (P2/P3/P4).
+   * Kontrol yüzeyi tercihi: `bp_control_surface` (`mobile` varsayılan / `tabletop`) LOCAL'da tek oyunculu mobil kumanda ile aynı cihazda çok oyunculu masa-ortası canvas katmanını seçer. Dokunmatik olmayan cihazlarda görsel yüzey açılmaz; klavye authority girişini korur. TV/ONLINE authority-local dokunmatik köprüsü bu ayardan bağımsız çalışır.
    * PONG dokunmatik `isPlayerActive` artık botu dışlar (klavyeyle aynı kapı). Ölü dallar silindi: `TANK_MOVE`, CROWN `JOYSTICK/MOVE/DASH` aliasları.
 11. **Faz A — Çökme + kritik mantık (tarama raporu):**
    * DUEL `ROUND_OVER` filigranı tanımsız `reactionTimes` okuyordu → `playerStatus[].reactionMs` (çökme kapandı).

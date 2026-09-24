@@ -1,7 +1,8 @@
 /* Brutalist Gamepad Mobile Controller Styling */
 
 #gamepad-overlay button:focus-visible,
-#gamepad-overlay input:focus-visible {
+#gamepad-overlay input:focus-visible,
+#local-mobile-controls button:focus-visible {
   outline: 3px solid #ffde59;
   outline-offset: 2px;
 }
@@ -33,6 +34,40 @@
 
 #gamepad-overlay.hidden {
   display: none !important;
+}
+
+/* LOCAL mobile surface: the game canvas stays mounted underneath. */
+#local-mobile-controls {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: block;
+  pointer-events: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  overflow: hidden;
+}
+
+#local-mobile-controls.hidden {
+  display: none !important;
+}
+
+#local-mobile-controls .local-mobile-workspace {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#local-mobile-controls .gamepad-game-mount {
+  pointer-events: none;
+  background: transparent;
+}
+
+#local-mobile-controls .pong-controller-view {
+  background: transparent;
 }
 
 /* Controller Single Minimalist Header Bar */
@@ -647,6 +682,25 @@
   z-index: 2;
   overflow: hidden;
   pointer-events: none;
+}
+
+/* Keep the world canvas pass-through, but re-enable the real controller zones. */
+.gamepad-control-overlay .joystick-half,
+.gamepad-control-overlay .action-half,
+.gamepad-control-overlay .tank-drive-zone,
+.gamepad-control-overlay .tanks-fire-zone,
+.gamepad-control-overlay .curve-controller-view .steer-rocker-cluster,
+#local-mobile-controls .joystick-half,
+#local-mobile-controls .action-half,
+#local-mobile-controls .tank-drive-zone,
+#local-mobile-controls .tanks-fire-zone,
+#local-mobile-controls .curve-controller-view .steer-rocker-cluster,
+#local-mobile-controls .pong-horizontal-track,
+#local-mobile-controls .pong-invert-btn,
+#local-mobile-controls .action-spin-btn,
+#local-mobile-controls .snake-steer-zone,
+#local-mobile-controls .snake-boost-zone {
+  pointer-events: auto;
 }
 
 .gamepad-control-overlay .snake-controller-view {

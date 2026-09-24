@@ -90,7 +90,7 @@ export function getDisplayProfile(dimA, dimB = null, forceTouch = null) {
   const maxDim = Math.max(w, h);
   const isTouch = forceTouch !== null
     ? !!forceTouch
-    : (typeof window !== 'undefined' && ('ontouchstart' in window || (navigator.maxTouchPoints > 0)));
+    : isTouchDevice();
 
   let type = 'DESKTOP_TV';
   let baseUnit = 1.0;
@@ -138,39 +138,72 @@ export function isLargeDisplay(arena) {
 }
 
 // ---------------------------------------------------------------------------
-// Sanal Dokunmatik Kontroller Tercih Yöneticisi (Virtual Controls State)
+// Sanal Kontrol Tercih Yöneticisi (Control Surface State)
 // ---------------------------------------------------------------------------
 
-export const STORAGE_KEY_VIRTUAL_CONTROLS = 'bp_virtual_controls'; // 'auto' | 'on' | 'off'
+export const CONTROL_SURFACE = Object.freeze({
+  MOBILE: 'mobile',
+  TABLETOP: 'tabletop',
+});
 
+export const STORAGE_KEY_CONTROL_SURFACE = 'bp_control_surface';
+export const STORAGE_KEY_VIRTUAL_CONTROLS = 'bp_virtual_controls'; // legacy: 'auto' | 'on' | 'off'
+
+export function isTouchDevice() {
+  if (typeof window === 'undefined') return false;
+  return 'ontouchstart' in window
+    || (typeof navigator !== 'undefined' && (navigator.maxTouchPoints || 0) > 0);
+}
+
+export function getControlSurface() {
+  try {
+    const value = localStorage.getItem(STORAGE_KEY_CONTROL_SURFACE);
+    if (value === CONTROL_SURFACE.MOBILE || value === CONTROL_SURFACE.TABLETOP) {
+      return value;
+    }
+
+    // Eski AÇIK/KAPALI tercihi ilk açılışta yeni yüzey seçimine taşır.
+    const legacy = localStorage.getItem(STORAGE_KEY_VIRTUAL_CONTROLS);
+    if (legacy === 'off') return CONTROL_SURFACE.TABLETOP;
+  } catch (_) {}
+  return CONTROL_SURFACE.MOBILE;
+}
+
+export function setControlSurface(value) {
+  if (value !== CONTROL_SURFACE.MOBILE && value !== CONTROL_SURFACE.TABLETOP) return;
+  try {
+    localStorage.setItem(STORAGE_KEY_CONTROL_SURFACE, value);
+    localStorage.removeItem(STORAGE_KEY_VIRTUAL_CONTROLS);
+  } catch (_) {}
+}
+
+// Eski çağıranlar için uyum katmanı; yeni tek kaynak control surface'tır.
 export function getVirtualControlsSetting() {
-  try {
-    const val = localStorage.getItem(STORAGE_KEY_VIRTUAL_CONTROLS);
-    if (val === 'on' || val === 'off' || val === 'auto') return val;
-  } catch (_) {}
-  return 'auto';
+  return getControlSurface() === CONTROL_SURFACE.MOBILE ? 'on' : 'off';
 }
 
-export function setVirtualControlsSetting(val) {
-  if (val !== 'on' && val !== 'off' && val !== 'auto') return;
-  try {
-    localStorage.setItem(STORAGE_KEY_VIRTUAL_CONTROLS, val);
-  } catch (_) {}
+export function setVirtualControlsSetting(value) {
+  if (value === 'auto' || value === 'on') setControlSurface(CONTROL_SURFACE.MOBILE);
+  else if (value === 'off') setControlSurface(CONTROL_SURFACE.TABLETOP);
 }
 
-export function shouldShowVirtualControls({ isHosting = false, isTouchDevice = null, force = false } = {}) {
-  // ONLINE P1 host telefonunda kontroller zorunludur; TV_CONSOLE host
-  // seyirci ekranıyken kontroller kapanır, local P1'e katılınca açılır.
+export function shouldShowVirtualControls({
+  isHosting = false,
+  isTouchDevice: touchDevice = null,
+  force = false,
+  surface = null,
+} = {}) {
+  // ONLINE/TV host authority-local touch veya LOCAL masa-ortası modu.
   if (force) return true;
   if (isHosting) return false;
 
-  const setting = getVirtualControlsSetting();
-  if (setting === 'on') return true;
-  if (setting === 'off') return false;
+  // Mobil yüzey LOCAL'da DOM kumandasıyla karşılanır; canvas masa-ortası
+  // katmanı yalnız tabletop tercihinde görünür.
+  const selectedSurface = surface || getControlSurface();
+  if (selectedSurface === CONTROL_SURFACE.MOBILE) return false;
 
-  // 'auto': Dokunmatik özellikli cihazlarda açık, salt fare/klavyede kapalı
-  if (isTouchDevice !== null) return !!isTouchDevice;
-  return typeof window !== 'undefined' && ('ontouchstart' in window || (navigator.maxTouchPoints > 0));
+  const touch = touchDevice === null ? isTouchDevice() : touchDevice;
+  return !!touch;
 }
 
 // Standart ölçüler (CSS pikseli)
