@@ -13,7 +13,7 @@
     <meta name="theme-color" content="#F4F4F0" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -534,7 +534,57 @@
 
             <!-- Pure Bento Command Grid: Seamless Card-Integrated Cover Design -->
             <div class="hero-actions-container hero-bento-layout">
-              <!-- 1. Master Hero A: Living Room & TV Party (Left Top) -->
+              <!-- 1. Online Phone Party: one phone is P1 host, everyone plays on their phone -->
+              <div class="hero-card master-hero-card online-mode-card" data-platform-mode="ONLINE">
+                <div class="hero-card-media online-media-box">
+                  <img
+                    src="/assets/illustrations/online.jpg"
+                    alt="Uzaktan bağlanan telefon oyuncuları"
+                    class="hero-mode-illustration"
+                    loading="eager"
+                    referrerpolicy="no-referrer"
+                  />
+                </div>
+
+                <div class="hero-card-content online-content-box">
+                  <div class="bento-card-header-row">
+                    <div class="bento-title-block">
+                      <h2 class="bento-tile-title" data-i18n="menu.onlineCardTitle">ONLINE PARTİ</h2>
+                      <p class="bento-tile-sub" data-i18n="menu.onlineCardDesc">Farklı Şehirler • Telefonda Gör + Oyna</p>
+                    </div>
+                    <span class="hero-mode-pill online-pill">P1 HOST</span>
+                  </div>
+
+                  <div class="hero-master-actions online-actions-flow">
+                    <button class="hero-master-cta online-host-cta" id="btn-online-create-room" type="button" data-i18n="menu.onlineHostBtn">
+                      ODA KUR (P1)
+                    </button>
+
+                    <div class="hero-join-inline bento-join-bar">
+                      <div class="code-input-wrap hero-code-wrap">
+                        <input
+                          type="text"
+                          id="online-input-code"
+                          class="hero-code-input"
+                          maxlength="3"
+                          data-i18n-ph="menu.codePh"
+                          placeholder="KOD"
+                          autocapitalize="characters"
+                          autocomplete="off"
+                          spellcheck="false"
+                          inputmode="numeric"
+                        />
+                        <button class="code-clear-btn hidden" id="btn-clear-online-code" type="button" data-i18n-aria="menu.clearCode" aria-label="Kodu temizle">×</button>
+                      </div>
+                      <button class="hero-submit-btn" id="btn-online-join" type="button" data-i18n="menu.onlineJoinBtn">
+                        ONLINE KATIL →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. Master Hero A: Living Room & TV Party (Left Top) -->
               <div class="hero-card master-hero-card tv-mode-card">
                 <div class="hero-card-media tv-media-box">
                   <img
