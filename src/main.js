@@ -1031,15 +1031,96 @@ initPauseModal({
 });
 
 // Menu Card Tap Listeners (buton id kuralı: btn-select-<lowercase mode>)
+const gamePickerModal = document.getElementById('game-picker-modal');
+const btnCloseGamePicker = document.getElementById('btn-close-game-picker');
+
+function openGamePicker() {
+  gamePickerModal?.classList.remove('hidden');
+}
+
+function closeGamePicker() {
+  gamePickerModal?.classList.add('hidden');
+}
+
 btnHeroCreateRoom?.addEventListener('click', () => openHostLobby('PONG'));
+addTapListener(document.getElementById('btn-hero-quick-local'), () => handleGameCardClick('PONG'));
+addTapListener(document.getElementById('btn-hero-browse-games'), openGamePicker);
+addTapListener(btnCloseGamePicker, closeGamePicker);
+
+gamePickerModal?.addEventListener('click', (e) => {
+  if (e.target === gamePickerModal) closeGamePicker();
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !gamePickerModal?.classList.contains('hidden')) {
+    closeGamePicker();
+  }
+});
+
+document.querySelectorAll('.hero-pick-chip').forEach((chip) => {
+  addTapListener(chip, () => {
+    const game = chip.getAttribute('data-quick-game');
+    if (game) handleGameCardClick(game);
+  });
+});
 addTapListener(document.getElementById('btn-menu-customize'), () => openCustomizeModal());
 initMenuAvatarCard();
 
+function initHeroMediaDropzones() {
+  const tvImg = document.querySelector('.tv-media-box img');
+  const localImg = document.querySelector('.local-media-box img');
+
+  const savedTv = localStorage.getItem('bp_tv_banner');
+  if (savedTv && tvImg) tvImg.src = savedTv;
+
+  const savedLocal = localStorage.getItem('bp_local_banner');
+  if (savedLocal && localImg) localImg.src = savedLocal;
+
+  function bindDrop(box, storageKey, targetImg) {
+    if (!box || !targetImg) return;
+    box.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      box.style.borderColor = '#1d5d8a';
+    });
+    box.addEventListener('dragleave', () => {
+      box.style.borderColor = '';
+    });
+    box.addEventListener('drop', (e) => {
+      e.preventDefault();
+      box.style.borderColor = '';
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const dataUri = evt.target?.result;
+          if (typeof dataUri === 'string') {
+            targetImg.src = dataUri;
+            try { localStorage.setItem(storageKey, dataUri); } catch {}
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  bindDrop(document.querySelector('.tv-media-box'), 'bp_tv_banner', tvImg);
+  bindDrop(document.querySelector('.local-media-box'), 'bp_local_banner', localImg);
+}
+initHeroMediaDropzones();
+
 // SaaS Main Menu Setup: Navbar controls, Quick Lang/Sound, Search & Bento Grid Filters
-initMainMenu({ onGameSelect: handleGameCardClick });
+initMainMenu({
+  onGameSelect: (mode) => {
+    closeGamePicker();
+    handleGameCardClick(mode);
+  },
+});
 
 for (const mode of GAME_ORDER) {
-  addTapListener(document.getElementById(`btn-select-${mode.toLowerCase()}`), () => handleGameCardClick(mode));
+  addTapListener(document.getElementById(`btn-select-${mode.toLowerCase()}`), () => {
+    closeGamePicker();
+    handleGameCardClick(mode);
+  });
   // Hover/touchstart ön-yükleme: kullanıcı karta bakarken chunk arka planda
   // iner, dokunuş anında motor çoğunlukla hazırdır (seçim akışı değişmez).
   const cardEl = document.getElementById(`btn-select-${mode.toLowerCase()}`);
