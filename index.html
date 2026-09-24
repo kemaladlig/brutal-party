@@ -307,6 +307,7 @@
       <div id="gamepad-overlay" class="hidden"></div>
 
       <!-- In-Game Command Sheet (slide-over panel; bottom sheet on touch) -->
+      <!-- In-Game Command Sheet (slide-over panel; bottom sheet on touch) -->
       <div id="pause-modal" class="hidden">
         <div class="pause-sheet" role="dialog" aria-modal="true" aria-labelledby="pause-game-title">
           <div class="sheet-handle" aria-hidden="true"></div>
@@ -320,7 +321,9 @@
               <h2 id="pause-game-title" class="pause-title">BRUTAL PONG</h2>
             </div>
             <button id="btn-pause-close" class="sheet-close" type="button" aria-label="Kapat" title="Kapat (ESC)">
-              <span class="close-icon">✕</span>
+              <span class="close-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-x"><path d="M18 6 6 18 M6 6l12 12"/></svg>
+              </span>
               <span class="btn-esc-hint">ESC</span>
             </button>
           </div>
@@ -328,23 +331,31 @@
           <div class="pause-sheet-body">
             <!-- 1. Primary Action Block: DEVAM ET + SIFIRLA / LOBİ / ANA MENÜ (Zero-Scroll Instant Access) -->
             <section class="sheet-section pause-main-actions">
-              <button id="btn-resume-game" class="pause-btn primary hero-resume-btn" type="button" data-i18n="pause.resume">
-                <span class="btn-symbol">▶</span>
+              <button id="btn-resume-game" class="pause-btn primary hero-resume-btn" type="button">
+                <span class="btn-symbol">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-play"><path d="M6 3l14 9-14 9V3z"/></svg>
+                </span>
                 <span class="btn-text" data-i18n="pause.resume">DEVAM ET</span>
                 <span class="btn-hint-badge">ESC</span>
               </button>
               
               <div class="sheet-row-actions">
-                <button id="btn-reset-match" class="pause-btn reset-btn" type="button" data-i18n="pause.reset">
-                  <span class="btn-symbol">↺</span>
+                <button id="btn-reset-match" class="pause-btn reset-btn" type="button">
+                  <span class="btn-symbol">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-rotate-ccw"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5"/></svg>
+                  </span>
                   <span class="btn-text" data-i18n="pause.reset">MAÇI SIFIRLA</span>
                 </button>
-                <button id="btn-tv-lobby" class="pause-btn lobby-btn hidden" type="button" data-i18n="pause.lobby">
-                  <span class="btn-symbol">📺</span>
+                <button id="btn-tv-lobby" class="pause-btn lobby-btn hidden" type="button">
+                  <span class="btn-symbol">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-tv"><path d="M4 7h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z M17 2l-5 5-5-5"/></svg>
+                  </span>
                   <span class="btn-text" data-i18n="pause.lobby">TV LOBİSİ</span>
                 </button>
-                <button id="btn-exit-to-menu" class="pause-btn danger-btn" type="button" data-i18n="pause.exit">
-                  <span class="btn-symbol">🚪</span>
+                <button id="btn-exit-to-menu" class="pause-btn danger-btn" type="button">
+                  <span class="btn-symbol">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-log-out"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9"/></svg>
+                  </span>
                   <span class="btn-text" data-i18n="pause.exit">ANA MENÜ</span>
                 </button>
               </div>
@@ -354,12 +365,14 @@
             <section class="sheet-section pause-quick-section">
               <div class="sheet-section-header">
                 <span class="sheet-section-title" data-i18n="pause.sectionDisplay">HIZLI AYARLAR</span>
-                <span class="sheet-section-sub">ANLIK TERCİHLER</span>
+                <span class="sheet-section-sub">DOKUN & DEĞİŞTİR</span>
               </div>
               <div class="pause-quick-grid">
                 <button id="btn-toggle-sound" class="quick-toggle-btn on" type="button" role="switch" aria-checked="true">
                   <div class="toggle-icon-wrap">
-                    <span class="toggle-icon">🔊</span>
+                    <span class="toggle-icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-volume-2"><path d="M11 5L6 9H2v6h4l5 4V5z M15.54 8.46a5 5 0 0 1 0 7.07 M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                    </span>
                   </div>
                   <div class="toggle-meta">
                     <span class="toggle-title" data-i18n="pause.sound">Ses</span>
@@ -369,7 +382,9 @@
 
                 <button id="btn-toggle-bots" class="quick-toggle-btn" type="button" role="switch" aria-checked="false">
                   <div class="toggle-icon-wrap">
-                    <span class="toggle-icon">🤖</span>
+                    <span class="toggle-icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-bot"><path d="M4 8h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z M12 2v4 M8 2h8 M9 13h.01 M15 13h.01"/></svg>
+                    </span>
                   </div>
                   <div class="toggle-meta">
                     <span class="toggle-title" data-i18n="pause.bots">Botlar</span>
@@ -379,7 +394,9 @@
 
                 <button id="btn-toggle-fullscreen" class="quick-toggle-btn" type="button" role="switch" aria-checked="false">
                   <div class="toggle-icon-wrap">
-                    <span class="toggle-icon">⛶</span>
+                    <span class="toggle-icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-maximize-2"><path d="M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7"/></svg>
+                    </span>
                   </div>
                   <div class="toggle-meta">
                     <span class="toggle-title" data-i18n="pause.fullscreen">Tam Ekran</span>
@@ -389,7 +406,9 @@
 
                 <button id="btn-toggle-colorblind" class="quick-toggle-btn" type="button" role="switch" aria-checked="false">
                   <div class="toggle-icon-wrap">
-                    <span class="toggle-icon">👁</span>
+                    <span class="toggle-icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-eye"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg>
+                    </span>
                   </div>
                   <div class="toggle-meta">
                     <span class="toggle-title" data-i18n="pause.colorblind">Renk Körü</span>
@@ -397,9 +416,11 @@
                   </div>
                 </button>
 
-                <button id="btn-toggle-touch-controls" class="quick-toggle-btn" type="button" role="switch" aria-checked="false">
+                <button id="btn-toggle-touch-controls" class="quick-toggle-btn quick-toggle-wide" type="button" role="switch" aria-checked="false">
                   <div class="toggle-icon-wrap">
-                    <span class="toggle-icon">🕹️</span>
+                    <span class="toggle-icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-gamepad-2"><path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z M6 12h4 M8 10v4 M15 13h.01 M18 11h.01"/></svg>
+                    </span>
                   </div>
                   <div class="toggle-meta">
                     <span class="toggle-title" data-i18n="pause.virtualControls">Sanal Kontrol</span>
@@ -413,15 +434,20 @@
             <section class="sheet-section pause-seats-section">
               <div class="pause-seats-header">
                 <div class="pause-seats-title-wrap">
-                  <span class="sheet-section-title" data-i18n="pause.sectionSeats">💺 KOLTUKLAR & TAKAS</span>
+                  <span class="sheet-section-title" data-i18n="pause.sectionSeats">KOLTUKLAR & TAKAS</span>
                 </div>
                 <button id="btn-pause-rotate-seats" class="pause-rotate-btn" type="button" data-i18n="pause.rotate">
-                  <span class="rotate-icon">🔄</span> 90° ÇEVİR
+                  <span class="rotate-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-rotate-cw"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8 M21 3v5h-5"/></svg>
+                  </span>
+                  <span>90° ÇEVİR</span>
                 </button>
               </div>
               <div class="pause-seats-grid" id="pause-seats-grid"></div>
               <div class="pause-seats-hint">
-                <span class="hint-bullet">💡</span>
+                <span class="hint-bullet">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-arrow-left-right"><path d="M8 3 4 7l4 4 M4 7h16 M16 21l4-4-4-4 M20 17H4"/></svg>
+                </span>
                 <span data-i18n="pause.seatsHint">İki koltuğa dokunarak yerlerini anında takas edebilirsiniz.</span>
               </div>
             </section>
@@ -442,27 +468,37 @@
             <div class="navbar-right">
               <!-- Fullscreen Mode Toggle -->
               <button id="btn-menu-fullscreen" class="nav-btn nav-fullscreen-btn" type="button" aria-label="Tam Ekran" title="Tam Ekran Modunu Aç/Kapat">
-                <span id="nav-fullscreen-icon" class="nav-btn-icon">⛶</span>
+                <span id="nav-fullscreen-icon" class="nav-btn-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-maximize-2"><path d="M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7"/></svg>
+                </span>
                 <span id="nav-fullscreen-label" class="nav-btn-label" data-i18n="menu.fullscreen">Tam Ekran</span>
               </button>
               <!-- Quick 1-click Language Switcher -->
               <button id="btn-menu-lang" class="nav-btn nav-lang-btn" type="button" aria-label="Dil / Language" title="Dil Değiştir / Switch Language">
-                <span class="nav-btn-icon">🌍</span>
+                <span class="nav-btn-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-globe"><path d="M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20 M2 12h20"/></svg>
+                </span>
                 <span id="nav-lang-label" class="nav-btn-label">TR</span>
               </button>
               <!-- Quick Audio Mute/Unmute -->
               <button id="btn-menu-sound" class="nav-btn nav-sound-btn" type="button" aria-label="Ses" title="Sesi Aç/Kapat">
-                <span id="nav-sound-icon" class="nav-btn-icon">🔊</span>
+                <span id="nav-sound-icon" class="nav-btn-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-volume-2"><path d="M11 5L6 9H2v6h4l5 4V5z M15.54 8.46a5 5 0 0 1 0 7.07 M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                </span>
                 <span class="nav-btn-label" data-i18n="menu.sound">Ses</span>
               </button>
               <!-- Settings Button -->
               <button id="btn-open-settings" class="nav-btn nav-settings-btn" type="button" aria-label="Ayarlar" title="Ayarlar">
-                <span class="nav-btn-icon">⚙</span>
+                <span class="nav-btn-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></svg>
+                </span>
                 <span class="nav-btn-label" data-i18n="menu.settings">Ayarlar</span>
               </button>
               <!-- Install App Button (hidden until available or prompted) -->
               <button id="btn-install-app" class="nav-btn nav-install-btn hidden" type="button" aria-label="Oyunu ana ekrana yükle" title="Oyunu ana ekrana yükle">
-                <span class="nav-btn-icon">↓</span>
+                <span class="nav-btn-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3"/></svg>
+                </span>
                 <span class="nav-btn-label" data-i18n="menu.install">Yükle</span>
               </button>
             </div>

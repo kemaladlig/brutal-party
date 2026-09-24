@@ -66,6 +66,11 @@
   overflow: hidden;
 }
 
+.quick-toggle-btn.quick-toggle-wide {
+  grid-column: 1 / -1;
+  padding: 8px 12px;
+}
+
 .quick-toggle-btn:hover {
   background-color: #faf7f2;
 }
@@ -89,8 +94,14 @@
 }
 
 .quick-toggle-btn .toggle-icon {
-  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
+}
+
+.quick-toggle-btn .toggle-icon svg {
+  display: block;
 }
 
 .quick-toggle-btn .toggle-meta {
@@ -135,6 +146,10 @@
 .quick-toggle-btn.on .toggle-icon-wrap {
   background-color: #d1f4da;
   transform: scale(1.04);
+}
+
+.quick-toggle-btn.on .toggle-icon svg {
+  stroke: #2f6a4f;
 }
 
 .quick-toggle-btn.on .toggle-state-badge {

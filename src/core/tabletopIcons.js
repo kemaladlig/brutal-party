@@ -130,6 +130,104 @@ const LUCIDE_REGISTRY = {
     path: 'M3 22h18 M6 18v-7 M10 18v-7 M14 18v-7 M18 18v-7 M12 2l8 5H4z',
     mode: 'stroke',
   },
+  // UI & Menu Icons
+  close: {
+    id: 'x',
+    aliases: ['✕', 'x', 'close'],
+    path: 'M18 6 6 18 M6 6l12 12',
+    mode: 'stroke',
+    strokeWidth: 2.5,
+  },
+  play: {
+    id: 'play',
+    aliases: ['▶', 'play', 'resume'],
+    path: 'M6 3l14 9-14 9V3z',
+    mode: 'both',
+  },
+  rotate_ccw: {
+    id: 'rotate-ccw',
+    aliases: ['↺', 'rotate_ccw', 'rotate-ccw', 'reset'],
+    path: 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5',
+    mode: 'stroke',
+  },
+  log_out: {
+    id: 'log-out',
+    aliases: ['🚪', 'log_out', 'log-out', 'exit'],
+    path: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9',
+    mode: 'stroke',
+  },
+  tv: {
+    id: 'tv',
+    aliases: ['📺', 'tv', 'screen'],
+    path: 'M4 7h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z M17 2l-5 5-5-5',
+    mode: 'stroke',
+  },
+  volume_2: {
+    id: 'volume-2',
+    aliases: ['🔊', 'volume', 'volume_2', 'volume-2', 'sound_on'],
+    path: 'M11 5L6 9H2v6h4l5 4V5z M15.54 8.46a5 5 0 0 1 0 7.07 M19.07 4.93a10 10 0 0 1 0 14.14',
+    mode: 'stroke',
+  },
+  volume_x: {
+    id: 'volume-x',
+    aliases: ['🔇', 'volume_x', 'volume-x', 'sound_off', 'mute'],
+    path: 'M11 5L6 9H2v6h4l5 4V5z M22 9l-6 6 M16 9l6 6',
+    mode: 'stroke',
+  },
+  bot: {
+    id: 'bot',
+    aliases: ['🤖', 'bot', 'robot', 'ai'],
+    path: 'M4 8h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z M12 2v4 M8 2h8 M9 13h.01 M15 13h.01',
+    mode: 'stroke',
+  },
+  maximize_2: {
+    id: 'maximize-2',
+    aliases: ['⛶', 'maximize', 'maximize_2', 'maximize-2', 'fullscreen'],
+    path: 'M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7',
+    mode: 'stroke',
+  },
+  minimize_2: {
+    id: 'minimize-2',
+    aliases: ['minimize', 'minimize_2', 'minimize-2'],
+    path: 'M4 14h6v6 M20 10h-6V4 M14 10l7-7 M3 21l7-7',
+    mode: 'stroke',
+  },
+  eye: {
+    id: 'eye',
+    aliases: ['👁', 'eye', 'colorblind', 'vision'],
+    path: 'M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+    mode: 'stroke',
+  },
+  gamepad_2: {
+    id: 'gamepad-2',
+    aliases: ['🕹️', 'gamepad', 'gamepad_2', 'gamepad-2', 'controls'],
+    path: 'M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z M6 12h4 M8 10v4 M15 13h.01 M18 11h.01',
+    mode: 'stroke',
+  },
+  arrow_left_right: {
+    id: 'arrow-left-right',
+    aliases: ['⇄', 'arrow_left_right', 'arrow-left-right', 'swap'],
+    path: 'M8 3 4 7l4 4 M4 7h16 M16 21l4-4-4-4 M20 17H4',
+    mode: 'stroke',
+  },
+  globe: {
+    id: 'globe',
+    aliases: ['🌍', 'globe', 'lang', 'language'],
+    path: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20 M2 12h20',
+    mode: 'stroke',
+  },
+  settings: {
+    id: 'settings',
+    aliases: ['⚙', 'settings', 'gear', 'config'],
+    path: 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+    mode: 'stroke',
+  },
+  download: {
+    id: 'download',
+    aliases: ['↓', 'download', 'install'],
+    path: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3',
+    mode: 'stroke',
+  },
 };
 
 // Anahtar ve takma adlardan (alias) hızlı erişim haritası

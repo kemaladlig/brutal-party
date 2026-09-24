@@ -3,6 +3,7 @@ import { getLang, setLang, onLangChange, t } from '../i18n.js';
 import { toggleAudio, getIsMuted } from '../audio.js';
 import { showInstallToast } from './toast.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange } from './fullscreen.js';
+import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 
 export function initMainMenu({ onGameSelect }) {
   // ── 1. Navbar: Quick Language Switcher ──
@@ -30,7 +31,7 @@ export function initMainMenu({ onGameSelect }) {
   function updateSoundUI() {
     const muted = getIsMuted();
     if (navSoundIcon) {
-      navSoundIcon.textContent = muted ? '🔇' : '🔊';
+      navSoundIcon.innerHTML = getTabletopIconSvg(muted ? 'volume-x' : 'volume-2', { size: 15 });
     }
     if (btnMenuSound) {
       btnMenuSound.setAttribute('aria-pressed', String(!muted));
@@ -52,7 +53,7 @@ export function initMainMenu({ onGameSelect }) {
   function updateFullscreenUI(active) {
     const isFs = typeof active === 'boolean' ? active : isFullscreen();
     if (navFullscreenIcon) {
-      navFullscreenIcon.textContent = isFs ? '🗗' : '⛶';
+      navFullscreenIcon.innerHTML = getTabletopIconSvg(isFs ? 'minimize-2' : 'maximize-2', { size: 15 });
     }
     if (navFullscreenLabel) {
       navFullscreenLabel.textContent = isFs ? t('menu.exitFullscreen') : t('menu.fullscreen');

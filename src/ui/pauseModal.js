@@ -12,6 +12,7 @@ import {
   setVirtualControlsSetting,
   shouldShowVirtualControls,
 } from './tokens.js';
+import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 
 const pauseModal = document.getElementById('pause-modal');
 const pauseGameTitle = document.getElementById('pause-game-title');
@@ -46,6 +47,17 @@ function setSwitch(el, on) {
   const badge = el.querySelector('.toggle-state-badge');
   if (badge) {
     badge.textContent = on ? t('pause.on') : t('pause.off');
+  }
+  if (el === btnToggleSound) {
+    const iconSpan = el.querySelector('.toggle-icon');
+    if (iconSpan) {
+      iconSpan.innerHTML = getTabletopIconSvg(on ? 'volume-2' : 'volume-x', { size: 16 });
+    }
+  } else if (el === btnToggleFullscreen) {
+    const iconSpan = el.querySelector('.toggle-icon');
+    if (iconSpan) {
+      iconSpan.innerHTML = getTabletopIconSvg(on ? 'minimize-2' : 'maximize-2', { size: 16 });
+    }
   }
 }
 
