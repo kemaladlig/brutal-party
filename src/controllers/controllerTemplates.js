@@ -1,5 +1,5 @@
 // Declarative Gamepad Controller Templates
-// Provides standardized archetypes (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, DPAD_BOOST)
+// Provides standardized archetypes (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, STEER_BOOST)
 // allowing games and agents to declare controls via high-level schemas rather than writing imperative DOM code.
 
 import { escapeHtml } from '../net.js';
@@ -28,8 +28,6 @@ export function mountDeclarativeController(gamepad, container, schema) {
       return mountTwoButtonSteer(gamepad, container, schema);
     case 'SLIDER_1D':
       return mountSlider1D(gamepad, container, schema);
-    case 'DPAD_BOOST':
-      return mountDpadBoost(gamepad, container, schema);
     case 'STEER_BOOST':
       return mountSteerBoost(gamepad, container, schema);
     default:
@@ -532,117 +530,24 @@ function mountSlider1D(gamepad, container, schema) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. DPAD_BOOST Archetype (SNAKE)
-// ---------------------------------------------------------------------------
-function mountDpadBoost(gamepad, container, schema) {
-  container.innerHTML = `
-    <div class="snake-controller-view">
-      <div class="snake-dpad-half">
-        <div class="brutal-dpad" id="snake-dpad">
-          <button class="dpad-btn dpad-up" id="btn-snake-up" type="button">▲</button>
-          <div class="dpad-row-mid">
-            <button class="dpad-btn dpad-left" id="btn-snake-left" type="button">◀</button>
-            <div class="dpad-core"></div>
-            <button class="dpad-btn dpad-right" id="btn-snake-right" type="button">▶</button>
-          </div>
-          <button class="dpad-btn dpad-down" id="btn-snake-down" type="button">▼</button>
-        </div>
-      </div>
-      <div class="action-half">
-        <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" style="background-color: ${schema.boostColor || '#2F6A4F'}">
-          <span class="dash-btn-label">${escapeHtml(schema.boostLabel || t('pad.boost'))}</span>
-          <span class="dash-btn-sub">${escapeHtml(schema.boostSub || t('pad.hold'))}</span>
-        </button>
-      </div>
-    </div>
-  `;
-
-  const btnUp = document.getElementById('btn-snake-up');
-  const btnDown = document.getElementById('btn-snake-down');
-  const btnLeft = document.getElementById('btn-snake-left');
-  const btnRight = document.getElementById('btn-snake-right');
-  const btnBoost = document.getElementById('btn-snake-boost');
-
-  const sendDir = (angle, dx, dy, btn) => {
-    gamepad.network.sendInput({ action: schema.dirAction || 'SNAKE_DIR', angle, dx, dy });
-    gamepad.vibrate(15);
-    [btnUp, btnDown, btnLeft, btnRight].forEach((b) => b?.classList.remove('active'));
-    btn?.classList.add('active');
-  };
-
-  const bindDir = (btn, angle, dx, dy) => {
-    if (!btn) return;
-    const act = (e) => {
-      e?.preventDefault();
-      sendDir(angle, dx, dy, btn);
-    };
-    btn.addEventListener('touchstart', act, { passive: false });
-    btn.addEventListener('mousedown', act);
-  };
-
-  bindDir(btnUp, -Math.PI / 2, 0, -1);
-  bindDir(btnDown, Math.PI / 2, 0, 1);
-  bindDir(btnLeft, Math.PI, -1, 0);
-  bindDir(btnRight, 0, 1, 0);
-
-  let boosting = false;
-  const startBoost = (e) => {
-    e?.preventDefault();
-    if (boosting) return;
-    boosting = true;
-    btnBoost?.classList.add('active');
-    gamepad.network.sendInput({ action: schema.boostStartAction || 'SNAKE_BOOST' });
-    gamepad.vibrate(20);
-  };
-  const stopBoost = (e) => {
-    e?.preventDefault();
-    if (!boosting) return;
-    boosting = false;
-    btnBoost?.classList.remove('active');
-    gamepad.network.sendInput({ action: schema.boostEndAction || 'SNAKE_BOOST_RELEASE' });
-  };
-
-  const snakeSignal = gamepad._mountAbort?.signal;
-  btnBoost?.addEventListener('touchstart', startBoost, { passive: false });
-  btnBoost?.addEventListener('touchend', stopBoost, { passive: false });
-  btnBoost?.addEventListener('touchcancel', stopBoost, { passive: false });
-  window.addEventListener('touchend', stopBoost, { passive: true, signal: snakeSignal });
-  window.addEventListener('touchcancel', stopBoost, { passive: true, signal: snakeSignal });
-  btnBoost?.addEventListener('mousedown', startBoost);
-  btnBoost?.addEventListener('mouseup', stopBoost);
-  btnBoost?.addEventListener('mouseleave', stopBoost);
-
-  return {
-    handleSync() {},
-    teardown() {
-      if (boosting) {
-        try {
-          gamepad.network.sendInput({ action: schema.boostEndAction || 'SNAKE_BOOST_RELEASE' });
-        } catch {}
-      }
-    }
-  };
-}
-
-// ---------------------------------------------------------------------------
-// 6. STEER_BOOST Archetype (SNAKE v2 - Ultra ergonomic Left/Right Steering + Boost)
+// 5. STEER_BOOST Archetype (SNAKE — Left/Right Steering + Boost, CSS-driven)
 // ---------------------------------------------------------------------------
 function mountSteerBoost(gamepad, container, schema) {
   const steerZoneId = `steer-zone-${Date.now()}`;
   container.innerHTML = `
     <div class="snake-controller-view">
-      <div class="snake-steer-half" id="${steerZoneId}" style="display: flex; gap: 8px; flex: 1.2; height: 100%;">
-        <button class="curve-steer-btn" id="btn-snake-left" type="button" style="flex: 1; height: 100%; border-radius: 12px; font-size: clamp(20px, 4.5vw, 28px); font-weight: 900; background-color: #262626; border: 3px solid #404040; color: #FFF;">
+      <div class="snake-steer-zone" id="${steerZoneId}">
+        <button class="snake-steer-btn" id="btn-snake-left" type="button">
           ${escapeHtml(schema.leftLabel || t('pad.steerLeft'))}
         </button>
-        <button class="curve-steer-btn right-btn" id="btn-snake-right" type="button" style="flex: 1; height: 100%; border-radius: 12px; font-size: clamp(20px, 4.5vw, 28px); font-weight: 900; background-color: #262626; border: 3px solid #404040; color: #FFF;">
+        <button class="snake-steer-btn" id="btn-snake-right" type="button">
           ${escapeHtml(schema.rightLabel || t('pad.steerRight'))}
         </button>
       </div>
-      <div class="action-half" style="flex: 0.9; height: 100%;">
-        <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" style="width: 100%; height: 100%; background-color: ${schema.boostColor || '#2F6A4F'}; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
-          <span class="dash-btn-label" style="font-size: clamp(20px, 5vw, 28px); font-weight: 900;">${escapeHtml(schema.boostLabel || '⚡ HIZLAN')}</span>
-          <span class="dash-btn-sub" style="font-size: clamp(12px, 2.5vw, 15px); opacity: 0.85;">${escapeHtml(schema.boostSub || 'BASILI TUT')}</span>
+      <div class="snake-boost-zone">
+        <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" style="background-color: ${schema.boostColor || '#2F6A4F'}">
+          <span class="dash-btn-label">${escapeHtml(schema.boostLabel || '⚡ HIZLAN')}</span>
+          <span class="dash-btn-sub">${escapeHtml(schema.boostSub || 'BASILI TUT')}</span>
         </button>
       </div>
     </div>
@@ -669,8 +574,6 @@ function mountSteerBoost(gamepad, container, schema) {
 
     btnLeft?.classList.toggle('active', desiredDir === -1);
     btnRight?.classList.toggle('active', desiredDir === 1);
-    if (btnLeft) btnLeft.style.borderColor = desiredDir === -1 ? '#22C55E' : '#404040';
-    if (btnRight) btnRight.style.borderColor = desiredDir === 1 ? '#22C55E' : '#404040';
 
     if (desiredDir !== currentActiveDir) {
       currentActiveDir = desiredDir;

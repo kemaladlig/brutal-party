@@ -1,0 +1,282 @@
+/* Discrete In-game HUD: 3-Dots Button */
+#in-game-hud {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top, 14px));
+  right: max(14px, env(safe-area-inset-right, 14px));
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#in-game-hud.hidden {
+  display: none !important;
+}
+
+.btn-quick-tv-lobby {
+  height: 44px;
+  padding: 0 14px;
+  background-color: #ffd700;
+  color: #1a1a1a;
+  border: 3px solid #1a1a1a;
+  box-shadow: 3px 3px 0px #1a1a1a;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.btn-quick-tv-lobby:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+  background-color: #e6c200;
+}
+
+.btn-quick-tv-lobby.hidden {
+  display: none !important;
+}
+
+#btn-open-options {
+  width: 44px;
+  height: 44px;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  border: 3px solid #1a1a1a;
+  box-shadow: 3px 3px 0px #1a1a1a;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 900;
+  font-size: 24px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+#btn-open-options:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+  background-color: #e2ded4;
+}
+
+.btn-quick-fullscreen {
+  width: 44px;
+  height: 44px;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  border: 3px solid #1a1a1a;
+  box-shadow: 3px 3px 0px #1a1a1a;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 900;
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.08s ease;
+}
+
+.btn-quick-fullscreen:hover {
+  background-color: #faf7f2;
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px #1a1a1a;
+}
+
+.btn-quick-fullscreen:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+  background-color: #e2ded4;
+}
+
+.btn-quick-fullscreen.active {
+  background-color: #1a1a1a;
+  color: #ffffff;
+  border-color: #1a1a1a;
+  box-shadow: 3px 3px 0px #d84727;
+}
+
+/* In-Game Command Sheet: right slide-over (TV/PC), bottom sheet (touch).
+   Same brutalist language, modern SaaS pattern — no centered modal pop. */
+#pause-modal {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background-color: rgba(28, 28, 26, 0.6);
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  z-index: 150;
+  backdrop-filter: blur(3px);
+}
+
+#settings-modal {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background-color: rgba(28, 28, 26, 0.6);
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  z-index: 160;
+  backdrop-filter: blur(3px);
+}
+
+@media (pointer: coarse) {
+  #pause-modal,
+  #settings-modal,
+  #join-room-modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+  #pause-modal .pause-sheet,
+  #settings-modal .pause-sheet,
+  #join-room-modal .join-room-card {
+    width: 100%;
+    max-width: none;
+    border-radius: 18px 18px 0 0;
+    border-bottom: none;
+    border-right: none;
+    border-left: 4px solid #1a1a1a;
+    max-height: 88dvh;
+    overflow-y: auto;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+    animation-name: sheet-in-bottom;
+  }
+}
+
+#pause-modal.hidden {
+  display: none !important;
+}
+
+#settings-modal.hidden {
+  display: none !important;
+}
+
+.pause-sheet {
+  width: min(360px, 92vw);
+  height: 100%;
+  background-color: #f4f4f0;
+  border-left: 4px solid #1a1a1a;
+  box-shadow: -8px 0 0 rgba(26, 26, 26, 0.35);
+  display: flex;
+  flex-direction: column;
+  animation: sheet-in-right 0.22s ease;
+}
+
+@keyframes sheet-in-right {
+  from { transform: translateX(48px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes sheet-in-bottom {
+  from { transform: translateY(48px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.sheet-handle {
+  display: none;
+  width: 44px;
+  height: 5px;
+  border-radius: 3px;
+  background: #c8c3ba;
+  margin: 10px auto 0;
+}
+
+@media (pointer: coarse) {
+  .sheet-handle { display: block; }
+}
+
+.pause-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 16px 12px;
+  border-bottom: 3px solid #1a1a1a;
+}
+
+.pause-sheet-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sheet-close {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+  font-weight: 900;
+  background: #ffffff;
+  color: #1a1a1a;
+  border: 3px solid #1a1a1a;
+  box-shadow: 3px 3px 0 #1a1a1a;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.sheet-close:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 #1a1a1a;
+}
+
+.pause-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 14px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sheet-section-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  color: #777268;
+}
+
+.sheet-section-title.danger {
+  color: #d84727;
+}
+
+.sheet-row-actions {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.sheet-row-actions .pause-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 6px;
+  font-size: 12px;
+}

@@ -1,7 +1,7 @@
 # AGENTS.md — AI Agent Çalışma Kuralları
 
 Bu dosya **AI agent'lar ve geliştiriciler** içindir: mimari sözleşmeler, yasaklar, sayısal bütçeler, iş akışları.
-Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar defteri, açık işler) **`docs/PROJECT_MAP.md`**'dedir — çalışmaya başlamadan önce **ikisini de oku**.
+Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar defteri, açık işler) **`docs/PROJECT_MAP.md`**'dedir — mimari, protokol, motor veya sözleşme değişikliklerinde ilgili bölümüne mutlaka başvurulur; küçük ve izole düzeltmelerde haritanın tamamını yüklemek yerine hedefe odaklanılır.
 
 ---
 
@@ -21,7 +21,7 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 
 ## 3. Engine Registry — tek kayıt noktası
 
-- `src/core/engineRegistry.js` → `GAME_ORDER = ['PONG','TANKS','CURVE','BOMB','HEIST','ARCHER','CROWN']`.
+- `src/core/engineRegistry.js` → `GAME_ORDER` (13 oyun: PONG…NINJA — güncel liste dosyadadır, buraya kopyalanmaz).
 - Yeni oyun = **1 satır** `registerEngine('MOD', { game, reset, onEnter/onResume, start, packet })`. `main.js`'e `else if (mode === ...)` zinciri **eklemek yasaktır**.
 - Entry sözleşmesi: `game` (BaseMiniGame türevi) · `reset()` · `onEnter/onResume(now)` (fizik sıçramasını önler) · `start()` (sayaç sonrası) · `packet()` (host state'e oyuna özel alanlar).
 - Motor sözleşmesi: `resetMatch/reset()`, `update(now)`, `render()`, `resize(w,h)`, `handleRemoteInput(slotIndex, data)`, `startNewMatch()`.
@@ -32,6 +32,14 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
   - **Masa-ortası Dokunmatik:** Tablet/telefon masa-ortası modu için 4 köşe dinamik yüzen sanal joystick ve aksiyon butonları.
   - **Kontrol Kılavuzu:** `renderControlGuide(ctx, arena, ...)` çağrısı.
 - **LOBBY tap kuralı:** Motor sahasındaki koltuk dokunuşu önce `this.onLobbySeatTap(index)` hook'una sorar (host bot ekle/çıkar için kullanır). Hook yoksa ve `isHosting` ise `cycleSlotType` çalışır; host değilse hiçbir şey yapılmaz. Motor içine ağ/relay kodu yazılmaz.
+- **Ortak `src/core/` yardımcıları (refactor Faz 1-7, tek kaynak):** Motorlar aşağıdakileri kopyalamaz/yeniden yazmaz, `import` eder:
+  - `inputMaps.js` — klavye slot haritaları: `getSlotKeys`, `keyboardVectorFrom`, `readSlotKeys`, `isSlotActionEvent`, `slotForActionCode`, `buildCodeToSlotMap` (standart 4x harita + `SECOND_ACTION_KEYS`).
+  - `touchFlow.js` — dokunmatik akış: `getQuadrant`, `roundOverSkipGuard` (BaseGame `handleRoundOverSkip(timerField)`; PONG `roundOverTimer` geçirir), `lobbyCenterStartTap`, `lobbyQuadrantTap`, `matchOverRestartTap` (istisna: tanks `getCornerZone`, PONG `getPlayerZoneAt`).
+  - `physics2d.js` — fizik/çarpışma: `clampToArena`, `resolveAABB`, `pointBlocked`, `updateMovers`, `distToSegmentSquared`.
+  - `pickupSystem.js` — power-up akışı: `spawnPickup`, `collectPickups`, `tickPickupTimers` + `EFFECTS` kayıt defteri.
+  - `arenaKit.js` — ortak görsel + `buildLayout(name, arena)` düzen presets (`pillars`, `columns4`, `cross`, `crossfire`, `scatter`, `bunker`, `courtyard`, `split`) + `drawObstacle`/`drawPickup`. Motor kendi `buildMap()`'inde yalnız oyuna özgü ek katmanları/meta'yı tutar; ortak geometri preset adıyla çağrılır.
+  - `playerEntity.js` — oyuncu varlığı: `createPlayer`, `tickEffectTimers`, `advancePlayer` (kademeli çıkarım — bomb/heist entegre; PONG/tanks/curve/snake/zone/collapse kendi gövdesinde kalır).
+  - `avatarInGame.js` — oyun içi avatar: `drawGameAvatar`, `normalizeExpression`.
 
 ## 4. Slot Modeli — tek koltuk gerçeği
 
@@ -59,16 +67,19 @@ Modal açıkken canvas tap'leri motora düşmez; staging'de düşer (bot ekleme/
 
 - Neo-brutalist dil: Space Grotesk + JetBrains Mono, kalın sınırlar, sert kutu gölgeleri, yüksek kontrast.
 - Modaller `src/ui/` altındadır (`hostLobby`, `joinModal`, `pauseModal`, `toast`); `main.js` orkestrasyonu yapar, modal DOM'u kurmaz.
-- Kumanda tarafı: `CONTROLLER_META` tablosu + `mount[Oyun]Controller`; PONG hariç tüm oyunlarda isimli skor şeridi (`score-strip`).
+- Kumanda tarafı: `CARTRIDGES[MOD].schema` deklaratif tanımı (`src/controllers/gamepadSchemas.js`); PONG hariç tüm oyunlarda isimli skor şeridi (`score-strip`).
 - Kumanda ergonomisi kararı: **dikeyde alt-orta kuşak** (`safe-area + 12vh`, 96px taban / 170px tavan), **yatayda köşeler** (sol-alt joystick, sağ-alt aksiyon). Yeni kumanda bu düzene uyar.
 - Mobil: `portrait` + `landscape` desteklenir, `overflow-x` yasak, dokunmatiklerde `touch-action` zorunlu.
+- Motion: `src/ui/motion.js` (`prefersReducedMotion`, `motionScale`) + tokenlar (`src/ui/tokens.js`) tek kaynaktır; yeni UI bu iki dosyadan sızar, lokal stil tanımlamaz. Temel UI hissi global kurala uyar (kısa fade/press, kuru pop-in yok).
 
 ## 8. Yasaklar
 
-- `main.js` / `gamepad.js` içine moda özel `if/else` zinciri ekleme — registry + `CONTROLLER_META` kullan.
+- `main.js` / `gamepad.js` içine moda özel `if/else` zinciri veya imperatif mount fonksiyonu ekleme — `src/controllers/gamepadSchemas.js` + `CARTRIDGES[MOD].schema` kullan.
+- Motora `src/core/` ortak yardımcı mantığını kopyalama / yeniden yazma (inputMaps, touchFlow, physics2d, pickupSystem, arenaKit/buildLayout, playerEntity, avatarInGame) — tek kaynak `src/core/`'dur.
 - State'i iki yerde tutma (TV listesi ↔ relay tablosu çakışırsa relay kazanır).
 - Kumandaya oyun simülasyonu, motora ağ kodu koyma.
-- `*.md` dosyası oluşturma (bu dosya + `docs/PROJECT_MAP.md` yeterlidir).
+- Çok gerekmedikçe yeni `*.md` dosyası oluşturma. Mevcut `AGENTS.md` + `docs/PROJECT_MAP.md` yeterlidir; yapı/protokol değişince ikisi de güncellenir. Yeni döküman şartsa kullanıcıya sor.
+- **Doğal ve hedefe yönelik okuma:** Belirli bir sembol veya fonksiyon aranırken önce `grep_search` ile hedefe odaklanılır; ancak mimari akışı, dosya yapısını veya stilleri doğru anlamak gerektiğinde tam dosya veya geniş blok okumaktan çekinilmez. Yapay satır sınırlaması veya okuma yasağı yoktur; gereksiz devasa dosyalar (bundle, lockfile, dev loglar) bağlama dökülmez.
 
 ## 9. Yeni Oyun Ekleme Checklist'i
 
@@ -80,11 +91,11 @@ Motor sözleşmesi (madde 3) +:
   - [ ] **Kontrol Rehberi:** `renderControlGuide` çağrısı
 - [ ] `src/ai/[oyun]AI.js` (bot karar motoru)
 - [ ] `GAME_ORDER` + 1 satır `registerEngine` (`src/core/engineRegistry.js` & `src/main.js`)
-- [ ] `gamepad.js` → `mount[Oyun]Controller` + `CONTROLLER_META` satırı
+- [ ] `src/controllers/gamepadSchemas.js` → `GAMEPAD_SCHEMAS[MOD]` deklaratif şeması
 - [ ] `index.html` → bento kartı (`id="btn-select-[mod]"`, küçük harf) + TV lobi çipi + kumanda önizlemesi
 - [ ] Madde 10'daki formülle `public/assets/games/[oyun].jpg` (1:1, optimize)
 - [ ] `docs/PROJECT_MAP.md` motor tablosu ve dosya listesi güncellemesi
-- [ ] `npm run build` temiz + kalıntı taraması (`else if (mode ===` dönmemeli)
+- [ ] `npm run check` ve `npm run build` temiz + kalıntı taraması (`else if (mode ===` dönmemeli)
 
 ## 10. Oyun Görseli Üretim Formülü
 
@@ -99,6 +110,7 @@ Kurallar: metin/logo/filigran/yüz yok; 1:1 (512/1024px, sıkıştırılmış JP
 
 ## 11. Doğrulama
 
+- `npm run check` (`tsc --noEmit`) hatasız geçmeli.
 - `npm run build` hatasız geçmeli.
 - Davranış değişikliğinde 3 prova: (a) hazır→lobi dönüşü bayrakları, (b) koltuk takasında TV+kumanda isimleri, (c) bot ekle/çıkar görünürlüğü.
 - Commit mesajı kısa ve Türkçe/İngilizce karışık mevcut stile uygun; push yalnızca kullanıcı isterse.

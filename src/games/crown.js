@@ -17,14 +17,17 @@ import {
   playItemPickup,
   playTeleport,
 } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderTopPill, renderCornerScores, renderArenaWatermarkTimer } from '../ui/hud.js';
+import { renderTopPill, renderEntityHUD, renderArenaWatermarkTimer, renderAdaptiveScoreboard } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
-import { drawPickup } from '../core/arenaKit.js';
+import { clampToArena, resolveAABB, pointBlocked } from '../core/physics2d.js';
+import { createPlayer } from '../core/playerEntity.js';
+import { drawGameAvatar } from '../core/avatarInGame.js';
 import { updateCrownBotAI } from '../ai/crownAI.js';
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { keyboardVectorFrom } from '../core/inputMaps.js';
+import { spawnPickup } from '../core/pickupSystem.js';
+import { drawPickup } from '../core/arenaKit.js';
 
 export const CROWN_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CROWN_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -89,50 +92,32 @@ export class CrownGame extends BaseMiniGame {
 
     this.particles = [];
     this.floatingTexts = [];
-
-    // UI Buttons
-    this.uiButtons = [];
-    this.tackleButtons = [];
-
-    // 4 Corner Floating Virtual Joysticks (P1: BL, P2: TL, P3: TR, P4: BR)
-    this.joysticks = [
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-    ];
-
-    // Keyboard Controls
-    this.keys = {};
     this.initKeyboard();
+  }
+
+  getTabletopSchema() {
+    return {
+      joystick: true,
+      actions: [
+        {
+          id: 'tackle',
+          icon: '💥',
+          label: 'TACKLE',
+          cooldownField: 'tackleCooldown',
+          maxCooldown: 2.0,
+        },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (!isDown || actionId !== 'tackle') return;
+    this.triggerTackle(slotIndex);
   }
 
   initKeyboard() {
     this.bindStandardKeyboard((slot) => {
       this.triggerTackle(slot);
-    });
-
-    // P1 mouse click fallback for solo PC testing
-    this.canvas.addEventListener('mousedown', (e) => {
-      if (this.state === 'PLAYING') {
-        const rect = this.canvas.getBoundingClientRect();
-        const clickX = ((e.clientX - rect.left) / rect.width) * this.canvas.width;
-        const clickY = ((e.clientY - rect.top) / rect.height) * this.canvas.height;
-        for (const tBtn of this.tackleButtons) {
-          if (
-            clickX >= tBtn.x - tBtn.w / 2 &&
-            clickX <= tBtn.x + tBtn.w / 2 &&
-            clickY >= tBtn.y - tBtn.h / 2 &&
-            clickY <= tBtn.y + tBtn.h / 2
-          ) {
-            this.triggerTackle(tBtn.playerIndex);
-            return;
-          }
-        }
-        if (this.players[0]?.slotType === 'human' && this.players[0]?.isJoined) {
-          this.triggerTackle(0);
-        }
-      }
     });
   }
 
@@ -162,6 +147,7 @@ export class CrownGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(16, Math.floor(width * 0.04));
     const marginY = height > width
@@ -204,16 +190,6 @@ export class CrownGame extends BaseMiniGame {
       for (const ink of this.inkPuddles) this.remapPoint(ink, oldArena, this.arena);
       this.particles = [];
     }
-
-    // Setup Tackle Buttons for Tabletop Mobile
-    const btnSize = Math.max(52, Math.min(74, Math.round(size * 0.14)));
-    const pad = 12;
-    this.tackleButtons = [
-      { playerIndex: 0, x: this.arena.left + pad + btnSize / 2, y: this.arena.bottom - pad - btnSize / 2, w: btnSize, h: btnSize },
-      { playerIndex: 1, x: this.arena.left + pad + btnSize / 2, y: this.arena.top + pad + btnSize / 2, w: btnSize, h: btnSize },
-      { playerIndex: 2, x: this.arena.right - pad - btnSize / 2, y: this.arena.top + pad + btnSize / 2, w: btnSize, h: btnSize },
-      { playerIndex: 3, x: this.arena.right - pad - btnSize / 2, y: this.arena.bottom - pad - btnSize / 2, w: btnSize, h: btnSize },
-    ];
   }
 
   buildMap() {
@@ -458,23 +434,14 @@ export class CrownGame extends BaseMiniGame {
 
     this.players = spawns.map((s, i) => {
       const existing = this.players[i];
-      const custom = getSlotCustomization(i);
-      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
-      const isGod = this.slotTypes[i] === 'bot_god';
-      const persona = isBot ? getBotPersona(i, isGod) : null;
-      return {
-        index: i,
-        x: s.x,
-        y: s.y,
-        vx: 0,
-        vy: 0,
+      return createPlayer(i, s, {
+        existingName: existing?.name,
+        defaultNames: CROWN_NAMES,
+        defaultColors: CROWN_COLORS,
         radius: r,
-        color: isBot ? persona.color : (custom.color || CROWN_COLORS[i]),
-        name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
+        speed: 250,
         isJoined: this.isSlotJoined(i),
-        isAlive: true,
         slotType: this.slotTypes[i],
-        facingAngle: 0,
         hasCrown: false,
         crownHoldTime: 0,
         tackleCooldown: 0,
@@ -488,7 +455,7 @@ export class CrownGame extends BaseMiniGame {
         slipAngle: 0,
         inputX: 0,
         inputY: 0,
-      };
+      });
     });
 
     if (this.state === 'LOBBY' || this.crown.carrierIndex === null) {
@@ -693,19 +660,11 @@ export class CrownGame extends BaseMiniGame {
 
   // Rastgele pickup (bomba moduyla aynı: TURBO / TELEPORT / SLIP, 8-12 sn'de bir, max 2)
   spawnRandomPickup() {
-    const { left, top, width, height } = this.arena;
-    const types = ['TURBO', 'TELEPORT', 'SLIP'];
-    const type = types[Math.floor(Math.random() * types.length)];
-    const px = left + width * 0.15 + Math.random() * (width * 0.7);
-    const py = top + height * 0.15 + Math.random() * (height * 0.7);
-
-    for (const pil of this.pillars) {
-      if (px >= pil.x - 20 && px <= pil.x + pil.w + 20 && py >= pil.y - 20 && py <= pil.y + pil.h + 20) {
-        return;
-      }
-    }
-
-    this.pickups.push({ x: px, y: py, type, radius: 15, animTime: 0 });
+    spawnPickup(this, {
+      types: ['TURBO', 'TELEPORT', 'SLIP'],
+      max: 2,
+      obstacles: this.pillars,
+    });
   }
 
   update(now) {
@@ -921,27 +880,9 @@ export class CrownGame extends BaseMiniGame {
           inY = Math.sin(joy.angle) * joy.force;
         }
 
-        if (p.index === 0) {
-          if (this.keys['KeyA'] || this.keys['a']) inX -= 1;
-          if (this.keys['KeyD'] || this.keys['d']) inX += 1;
-          if (this.keys['KeyW'] || this.keys['w']) inY -= 1;
-          if (this.keys['KeyS'] || this.keys['s']) inY += 1;
-        } else if (p.index === 1) {
-          if (this.keys['ArrowLeft']) inX -= 1;
-          if (this.keys['ArrowRight']) inX += 1;
-          if (this.keys['ArrowUp']) inY -= 1;
-          if (this.keys['ArrowDown']) inY += 1;
-        } else if (p.index === 2) {
-          if (this.keys['KeyJ'] || this.keys['j']) inX -= 1;
-          if (this.keys['KeyL'] || this.keys['l']) inX += 1;
-          if (this.keys['KeyI'] || this.keys['i']) inY -= 1;
-          if (this.keys['KeyK'] || this.keys['k']) inY += 1;
-        } else if (p.index === 3) {
-          if (this.keys['KeyF'] || this.keys['f']) inX -= 1;
-          if (this.keys['KeyH'] || this.keys['h']) inX += 1;
-          if (this.keys['KeyT'] || this.keys['t']) inY -= 1;
-          if (this.keys['KeyG'] || this.keys['g']) inY += 1;
-        }
+        const kb = keyboardVectorFrom(this.keys, p.index);
+        inX += kb.x;
+        inY += kb.y;
       } else {
         updateCrownBotAI(this, p, dt);
         inX = p.inputX;
@@ -1405,13 +1346,14 @@ export class CrownGame extends BaseMiniGame {
     }
 
     // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları & Sütunların Üzerinde Net Taç Süresi
-    if (this.state === 'PLAYING') {
-      renderCornerScores(ctx, {
+    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
+      renderAdaptiveScoreboard(ctx, {
         arena: this.arena,
-        entries: this.players.map((p, i) =>
-          p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}★` } : null
-        ),
+        players: this.players,
+        scores: this.scores,
         entities: [...this.players.filter((p) => p.isJoined), this.crown],
+        isHosting: !!this.hideLobbyStartButton,
+        state: this.state,
       });
 
       // Saha ortasında sütun ve engellerin üzerinde her zaman net görünen taç süresi filigranı
@@ -1471,9 +1413,9 @@ export class CrownGame extends BaseMiniGame {
       }
     }
 
-    // 11. Render Touch Virtual Joysticks & Tackle Buttons
+    // 11. Masa-ortası sanal kontroller (joystick + TACKLE butonu, BaseGame tek kaynak)
     if (this.state === 'PLAYING') {
-      this.renderTouchControls(ctx);
+      this.renderControls(ctx, { players: this.players });
     }
 
     // 12. Render Floating Texts
@@ -1490,24 +1432,59 @@ export class CrownGame extends BaseMiniGame {
       ctx.restore();
     }
 
-    // 13. Render HUD & Control Guide
-    this.renderHUD(ctx);
-
-    // 14. Render Lobby Overlay if LOBBY
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, 'TACI KAP • 15 SN TUT • 2 RAUND ALAN KAZANIR', [
+    this.renderHUD(ctx, {
+      guideTitle: 'TACI KAP • 15 SN TUT • 2 RAUND ALAN KAZANIR',
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      this.renderLobby(ctx);
-    }
+      ],
+      colors: CROWN_COLORS,
+      playerNames: CROWN_NAMES,
+      accent: '#D84727',
+      roundBannerTitle: this.roundWinner ? `${this.roundWinner.name} RAUNDU KAZANDI!` : t('crown.round'),
+      roundBannerColor: this.roundWinner?.color || '#D99B26',
+      roundBannerSub: t('crown.round'),
+      matchOverHeadline: t('crown.champ') || 'ŞAMPİYON',
+      matchOverRows: this.matchWinner
+        ? this.players
+            .filter((p) => p.isJoined)
+            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` }))
+        : [],
+      onRestart: () => this.startNewMatch(),
+      customControls: (c) => {
+        const { cx, cy, width, height } = this.arena;
+        const mapBtnW = Math.min(460, width * 0.8);
+        const mapBtnH = 38;
+        const mapBtnX = cx - mapBtnW / 2;
+        const mapBtnY = cy - height * 0.14;
 
-    // 15. Render Round / Match Over Overlay
-    if (this.state === 'ROUND_OVER' || this.state === 'MATCH_OVER') {
-      this.renderGameOver(ctx);
-    }
+        c.save();
+        c.fillStyle = '#1A1A1A';
+        c.fillRect(mapBtnX + 3, mapBtnY + 3, mapBtnW, mapBtnH);
+        c.fillStyle = '#FFFFFF';
+        c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+        c.strokeStyle = '#1C1C1A';
+        c.lineWidth = 2.5;
+        c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+
+        c.fillStyle = '#1A1A1A';
+        c.font = '800 12px "JetBrains Mono", monospace';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(`🗺️ ${CROWN_MAP_PRESETS[this.selectedMapIndex].name} ▾`, cx, mapBtnY + mapBtnH / 2);
+        c.restore();
+
+        this.uiButtons.push({
+          x: mapBtnX,
+          y: mapBtnY,
+          w: mapBtnW,
+          h: mapBtnH,
+          onClick: () => this.cycleMap(),
+        });
+      },
+    });
 
     ctx.restore();
   }
@@ -1863,47 +1840,27 @@ export class CrownGame extends BaseMiniGame {
     else if (p.isTackling) currentExp = 'angry';
     else if (p.hasCrown) currentExp = 'excited';
 
-    drawBrutalAvatar(ctx, x, y, r, {
-      color: color,
-      slotIndex: p.index,
+      drawGameAvatar(ctx, x, y, r, p, {
       facingAngle: facingAngle,
-      label: `P${p.index + 1}`,
       expression: currentExp,
-      accessory: p.hasCrown ? 'crown' : undefined,
-      showPointer: true,
+        gameAccessory: p.hasCrown ? 'crown' : undefined,
       borderColor: p.isTackling ? '#FFFFFF' : '#1A1A1A',
       borderWidth: p.isTackling ? 4.5 : 3,
     });
 
-    // Tackle readiness / cooldown ring indicator (krem zeminde ve nesnelerin üstünde her zaman net görünür)
+    // Tackle readiness / cooldown ring indicator (Merkezi renderEntityHUD)
     if (p.isAlive) {
-      if (p.tackleCooldown > 0) {
-        const cdRatio = 1.0 - Math.max(0, Math.min(1, p.tackleCooldown / 2.0));
-        ctx.save();
-        // Zemin Koyu Halka
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.arc(x, y, r + 5, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Dolum Arkı
-        ctx.strokeStyle = '#D99B26';
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.arc(x, y, r + 5, -Math.PI / 2, -Math.PI / 2 + cdRatio * Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      } else if (p.stumbleTimer <= 0 && p.slipTimer <= 0) {
-        ctx.save();
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 3]);
-        ctx.beginPath();
-        ctx.arc(x, y, r + 5, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
+      const cdRatio = p.tackleCooldown > 0
+        ? 1.0 - Math.max(0, Math.min(1, p.tackleCooldown / 2.0))
+        : 1.0;
+      renderEntityHUD(ctx, {
+        x,
+        y,
+        radius: r,
+        color: '#D99B26',
+        cooldownProgress: p.tackleCooldown > 0 ? cdRatio : null,
+        stun: p.stumbleTimer > 0,
+      });
     }
 
     if (p.hasCrown) {
@@ -1942,202 +1899,12 @@ export class CrownGame extends BaseMiniGame {
     ctx.restore();
   }
 
-  renderTouchControls(ctx) {
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      const p = this.players[q];
-      if (p && p.isJoined && p.slotType === 'human' && joy.active) {
-        ctx.save();
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
-        ctx.strokeStyle = p.color;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(joy.originX, joy.originY, 46, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        ctx.arc(joy.currX, joy.currY, 20, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-
-    for (const btn of this.tackleButtons) {
-      const p = this.players[btn.playerIndex];
-      if (!p || !p.isJoined || p.slotType !== 'human') continue;
-
-      ctx.save();
-      ctx.globalAlpha = 0.65;
-      const isReady = p.tackleCooldown <= 0;
-      ctx.fillStyle = isReady ? p.color : '#A5A096';
-      ctx.fillRect(btn.x - btn.w / 2, btn.y - btn.h / 2, btn.w, btn.h);
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(btn.x - btn.w / 2, btn.y - btn.h / 2, btn.w, btn.h);
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 12px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      if (isReady) {
-        ctx.fillText('💥 OMUZ', btn.x, btn.y - 6);
-        ctx.font = '800 10px "JetBrains Mono", monospace';
-        ctx.fillText('HAZIR', btn.x, btn.y + 8);
-      } else {
-        ctx.fillText('BEKLE', btn.x, btn.y - 6);
-        ctx.font = '800 10px "JetBrains Mono", monospace';
-        ctx.fillText(`${p.tackleCooldown.toFixed(1)}s`, btn.x, btn.y + 8);
-      }
-      ctx.restore();
-    }
-  }
-
-  renderHUD(ctx) {
-    // Merkezi otoriter filigran sayaç devrede; üst pill zamanlayıcı kaldırıldı
-  }
-
-  renderLobby(ctx) {
-    const { cx, cy, left, right, top, bottom, width, height } = this.arena;
-    this.uiButtons = [];
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(250, 247, 242, 0.78)';
-    ctx.fillRect(left, top, width, height);
-
-    ctx.fillStyle = '#1A1A1A';
-    ctx.font = '900 32px "Space Grotesk", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('👑 BRUTAL CROWN', cx, cy - height * 0.28);
-
-    ctx.fillStyle = '#75726B';
-    ctx.font = '700 13px "Space Grotesk", sans-serif';
-    ctx.fillText(t('crown.intro'), cx, cy - height * 0.28 + 28);
-
-    const mapBtnW = Math.min(460, width * 0.8);
-    const mapBtnH = 38;
-    const mapBtnX = cx - mapBtnW / 2;
-    const mapBtnY = cy - height * 0.14;
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5;
-    ctx.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-
-    this.renderStandardLobby(ctx, {
-      arena: this.arena,
-      colors: CROWN_COLORS,
-      playerNames: CROWN_NAMES,
-      accent: '#D84727',
-      onStart: () => this.startNewMatch(),
-      centerYOffset: 46,
-      customControls: (c) => {
-        c.save();
-        c.fillStyle = '#1A1A1A';
-        c.fillRect(mapBtnX + 3, mapBtnY + 3, mapBtnW, mapBtnH);
-        c.fillStyle = '#FFFFFF';
-        c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-        c.strokeStyle = '#1C1C1A';
-        c.lineWidth = 2.5;
-        c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-
-        c.fillStyle = '#1A1A1A';
-        c.font = '800 12px "JetBrains Mono", monospace';
-        c.textAlign = 'center';
-        c.textBaseline = 'middle';
-        c.fillText(`🗺️ ${CROWN_MAP_PRESETS[this.selectedMapIndex].name} ▾`, cx, mapBtnY + mapBtnH / 2);
-        c.restore();
-
-        this.uiButtons.push({
-          x: mapBtnX,
-          y: mapBtnY,
-          w: mapBtnW,
-          h: mapBtnH,
-          onClick: () => this.cycleMap(),
-        });
-      },
-    });
-
-    ctx.restore();
-  }
-
-  renderGameOver(ctx) {
-    const { cx, cy, width } = this.arena;
-    // Lobi butonları finalde ölü olmalı: önce temizle.
-    this.uiButtons = [];
-    ctx.save();
-    const boxW = Math.min(width * 0.8, 440);
-    ctx.fillStyle = 'rgba(250, 247, 242, 0.94)';
-    ctx.fillRect(cx - boxW / 2, cy - 80, boxW, 160);
-    ctx.strokeStyle = '#D99B26';
-    ctx.lineWidth = 3.5;
-    ctx.strokeRect(cx - boxW / 2, cy - 80, boxW, 160);
-
-    const isMatch = this.state === 'MATCH_OVER';
-    const winner = isMatch ? this.matchWinner : this.roundWinner;
-
-    ctx.fillStyle = '#1A1A1A';
-    ctx.font = '900 28px "Space Grotesk", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(isMatch ? t('crown.champ') : t('crown.round'), cx, cy - 24, boxW - 20);
-
-    if (winner) {
-      ctx.fillStyle = winner.color;
-      ctx.font = '800 20px "JetBrains Mono", monospace';
-      ctx.fillText(`${winner.name} KAZANDI!`, cx, cy + 18, boxW - 20);
-    }
-    ctx.restore();
-
-    // Maç sonu (raund değil): yeni maç butonu. Raund sonu sayaçla ilerler.
-    if (isMatch) {
-      const btnW = 190;
-      const btnH = 46;
-      const btnX = cx - btnW / 2;
-      const btnY = cy + 80 + 14;
-
-      ctx.save();
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(btnX, btnY, btnW, btnH);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '800 16px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(t('canvas.playAgain'), cx, btnY + btnH / 2);
-      ctx.restore();
-
-      this.uiButtons.push({
-        x: btnX,
-        y: btnY,
-        w: btnW,
-        h: btnH,
-        onClick: () => this.startNewMatch(),
-      });
-    }
-  }
-
-  getCornerQuadrant(point) {
-    const { cx, cy } = this.arena;
-    if (point.x < cx && point.y >= cy) return 0;
-    if (point.x < cx && point.y < cy) return 1;
-    if (point.x >= cx && point.y < cy) return 2;
-    return 3;
-  }
-
   onTouchStart(touch) {
-    if (this.handleUiTap(touch)) return;
-
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
-      this.roundTransitionTimer = 0;
-      return;
+    if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
+      if (this.handleUiTap(touch)) return;
     }
+
+    if (this.handleRoundOverSkip()) return;
 
     if (this.state === 'LOBBY') {
       const q = this.getCornerQuadrant(touch);
@@ -2146,33 +1913,8 @@ export class CrownGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING') {
-      for (const tBtn of this.tackleButtons) {
-        if (
-          touch.x >= tBtn.x - tBtn.w / 2 &&
-          touch.x <= tBtn.x + tBtn.w / 2 &&
-          touch.y >= tBtn.y - tBtn.h / 2 &&
-          touch.y <= tBtn.y + tBtn.h / 2
-        ) {
-          this.triggerTackle(tBtn.playerIndex);
-          return;
-        }
-      }
-
-      this.handleStandardJoystickTouchStart(touch, (q) => this.triggerTackle(q));
+      this.handleTabletopTouchStart(touch);
     }
-  }
-
-  onTouchMove(touch) {
-    if (this.state !== 'PLAYING') return;
-    this.handleStandardJoystickTouchMove(touch);
-  }
-
-  onTouchEnd(touch) {
-    this.handleStandardJoystickTouchEnd(touch);
-  }
-
-  onTouchesReset() {
-    this.resetStandardJoysticks();
   }
 
   handleRemoteInput(slotIndex, data) {

@@ -1,0 +1,62 @@
+/* Tasarım Token'ları — src/ui/tokens.js ile aynı değerler (tek sözlük, iki taraf). */
+:root {
+  --ink: #1a1a1a;
+  --paper: #f4f4f0;
+  --paper-warm: #f4f0ea;
+  --card: #faf7f2;
+  --muted: #6b675f;
+  --faint: #6e6a62;
+  --line: #1c1c1a;
+  --gold: #d99b26;
+  --danger: #d84727;
+  --p1: #d84727;
+  --p2: #1d5d8a;
+  --p3: #d99b26;
+  --p4: #2f6a4f;
+  --bot-tag: #ffde59;
+  --bot-god: #ffd700;
+  --font-grotesk: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Klavye odağı her zaman görünür (TV menü + kumanda): kalın altın halka */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #f4f4f0;
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  touch-action: none;
+  position: fixed;
+  inset: 0;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  background-color: #f4f4f0;
+  overflow: hidden;
+}

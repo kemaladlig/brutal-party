@@ -14,32 +14,35 @@ import {
   playPanicHeartbeat,
   playStumble,
 } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton } from '../controlGuide.js';
 import { t } from '../i18n.js';
 import {
   renderTopPill,
-  renderCornerScores,
-  renderRoundBanner,
-  renderMatchOver,
+  renderEntityHUD,
   renderArenaWatermarkTimer,
-  cleanWinnerName,
+  renderAdaptiveScoreboard,
 } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
-import { drawPickup } from '../core/arenaKit.js';
-import { resolveSlotName } from '../core/slotManager.js';
+import { drawPickup, buildLayout } from '../core/arenaKit.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { drawGameAvatar } from '../core/avatarInGame.js';
+import { keyboardVectorFrom } from '../core/inputMaps.js';
+import { clampToArena, resolveAABB } from '../core/physics2d.js';
+import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
+import { createPlayer, tickEffectTimers, advancePlayer } from '../core/playerEntity.js';
 
 export const BOMB_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const BOMB_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
+// Depar bekleme süresi (sn) — triggerDash, entity HUD ve masa-ortası butonu aynı kaynaktan okur
+const BOMB_DASH_COOLDOWN = 2.2;
+
 export const MAP_PRESETS = [
-  { id: 'pillars', name: '01 // 4 SİPER KOLONU' },
+  { id: 'columns4', name: '01 // 4 SİPER KOLONU' },
   { id: 'bunker', name: '02 // MERKEZ SIĞINAK' },
-  { id: 'cross', name: '03 // HAÇ & KORİDORLAR' },
+  { id: 'crossfire', name: '03 // HAÇ & KORİDORLAR' },
   { id: 'courtyard', name: '04 // AVLU & DÖNER SİPER' },
   { id: 'split', name: '05 // İKİLİ BLOK BARİKAT' },
 ];
@@ -94,7 +97,6 @@ export class BombGame extends BaseMiniGame {
 
     // UI Buttons
     this.uiButtons = [];
-    this.dashButtons = [];
 
     // 4 Corner Floating Virtual Joysticks (P1: BL, P2: TL, P3: TR, P4: BR)
     this.joysticks = [
@@ -107,6 +109,30 @@ export class BombGame extends BaseMiniGame {
     // Keyboard Controls
     this.keys = {};
     this.initKeyboard();
+  }
+
+  getTabletopSchema() {
+    return {
+      joystick: true,
+      actions: [
+        {
+          id: 'dash',
+          icon: '⚡',
+          label: 'DEPAR',
+          color: '#FFDE59',
+          cooldownField: 'dashCooldown',
+          cooldownMaxField: 'dashMaxCooldown',
+          maxCooldown: BOMB_DASH_COOLDOWN,
+        },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (!isDown) return;
+    if (actionId === 'dash') {
+      this.triggerDash(slotIndex);
+    }
   }
 
   initKeyboard() {
@@ -146,6 +172,7 @@ export class BombGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width
@@ -184,67 +211,9 @@ export class BombGame extends BaseMiniGame {
   }
 
   buildMapPillars() {
-    const { cx, cy, size } = this.arena;
-    if (size <= 0) return;
-
-    this.pillars = [];
-
-    if (this.selectedMapIndex === 0) {
-      // --- MAP 0: 4 SİPER KOLONU (Klasik 4 Köşe Kolonu) ---
-      const pSize = Math.round(size * 0.125);
-      const offset = Math.round(size * 0.22);
-      this.pillars = [
-        { x: cx - offset - pSize / 2, y: cy - offset - pSize / 2, w: pSize, h: pSize }, // Top-Left
-        { x: cx + offset - pSize / 2, y: cy - offset - pSize / 2, w: pSize, h: pSize }, // Top-Right
-        { x: cx - offset - pSize / 2, y: cy + offset - pSize / 2, w: pSize, h: pSize }, // Bottom-Left
-        { x: cx + offset - pSize / 2, y: cy + offset - pSize / 2, w: pSize, h: pSize }, // Bottom-Right
-      ];
-    } else if (this.selectedMapIndex === 1) {
-      // --- MAP 1: MERKEZ SIĞINAK (Bunker with 4 open doorways, widened) ---
-      const bSize = Math.round(size * 0.115);
-      const bOffset = Math.round(size * 0.165);
-      // 4 bunker corner posts + 2 edge barricades
-      this.pillars = [
-        { x: cx - bOffset - bSize / 2, y: cy - bOffset - bSize / 2, w: bSize, h: bSize },
-        { x: cx + bOffset - bSize / 2, y: cy - bOffset - bSize / 2, w: bSize, h: bSize },
-        { x: cx - bOffset - bSize / 2, y: cy + bOffset - bSize / 2, w: bSize, h: bSize },
-        { x: cx + bOffset - bSize / 2, y: cy + bOffset - bSize / 2, w: bSize, h: bSize },
-        // Outer flank covers
-        { x: cx - size * 0.38, y: cy - size * 0.05, w: size * 0.08, h: size * 0.09 },
-        { x: cx + size * 0.30, y: cy - size * 0.05, w: size * 0.08, h: size * 0.09 },
-      ];
-    } else if (this.selectedMapIndex === 2) {
-      // --- MAP 2: HAÇ & LABİRENT (Crossfire Corridors, widened) ---
-      const thick = Math.round(size * 0.07);
-      const len = Math.round(size * 0.2);
-      const gap = Math.round(size * 0.19);
-      this.pillars = [
-        // North & South vertical wings
-        { x: cx - thick / 2, y: cy - gap - len, w: thick, h: len },
-        { x: cx - thick / 2, y: cy + gap, w: thick, h: len },
-        // West & East horizontal wings
-        { x: cx - gap - len, y: cy - thick / 2, w: len, h: thick },
-        { x: cx + gap, y: cy - thick / 2, w: len, h: thick },
-      ];
-    } else if (this.selectedMapIndex === 3) {
-      // --- MAP 3: AVLU & DÖNER SİPER (Courtyard, widened corners) ---
-      const bW = Math.round(size * 0.24);
-      const bH = Math.round(size * 0.07);
-      this.pillars = [
-        { x: cx - bW / 2, y: cy - size * 0.23 - bH / 2, w: bW, h: bH },
-        { x: cx - bW / 2, y: cy + size * 0.23 - bH / 2, w: bW, h: bH },
-        { x: cx - size * 0.23 - bH / 2, y: cy - bW / 2, w: bH, h: bW },
-        { x: cx + size * 0.23 - bH / 2, y: cy - bW / 2, w: bH, h: bW },
-      ];
-    } else if (this.selectedMapIndex === 4) {
-      // --- MAP 4: İKİLİ BLOK BARİKAT (Split Blocks, widened lanes) ---
-      const blkW = Math.round(size * 0.14);
-      const blkH = Math.round(size * 0.32);
-      this.pillars = [
-        { x: cx - size * 0.22 - blkW / 2, y: cy - blkH / 2, w: blkW, h: blkH },
-        { x: cx + size * 0.22 - blkW / 2, y: cy - blkH / 2, w: blkW, h: blkH },
-      ];
-    }
+    const preset = MAP_PRESETS[this.selectedMapIndex];
+    const layoutName = preset ? preset.id : 'pillars';
+    this.pillars = buildLayout(layoutName, this.arena);
   }
 
   initPlayers() {
@@ -261,38 +230,15 @@ export class BombGame extends BaseMiniGame {
 
     this.players = spawns.map((s, i) => {
       const existing = this.players[i];
-      const custom = getSlotCustomization(i);
-      const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
-      return {
-        index: i,
-        // Raunt başı TV isimlerini silme (CROWN deseni): kumanda ismi korunur,
-        // syncSlotsToEngine bir sonraki turda zaten yazar
-        name: resolveSlotName(i, this.slotTypes[i], existing?.name),
-        color: isBot ? '#8E8E93' : (custom.color || BOMB_COLORS[i]),
-        x: s.x,
-        y: s.y,
-        vx: 0,
-        vy: 0,
+      return createPlayer(i, s, {
+        existingName: existing?.name,
+        defaultNames: BOMB_NAMES,
+        defaultColors: BOMB_COLORS,
         radius: r,
-        facingAngle: 0,
         speed: 175,
-        isAlive: true,
         isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i],
-        turboTimer: 0,
-        slipTimer: 0,
-        slipAngle: 0,
-        invulnTimer: 0,
         stepCycle: 0,
-        // Dash / Hamle
-        dashCooldown: 0,
-        dashTimer: 0,
-        isDashing: false,
-        // Stumble Shock Delay & Escaper Immunity
-        stumbleTimer: 0,
-        immunityTimer: 0,
-        escapeBoostTimer: 0,
-        // Anti-Stuck & Navigation Watchdog
         lastX: s.x,
         lastY: s.y,
         stuckAccumulator: 0,
@@ -301,7 +247,7 @@ export class BombGame extends BaseMiniGame {
         aiMoveX: 0,
         aiMoveY: 0,
         aiForce: 0,
-      };
+      });
     });
   }
 
@@ -382,7 +328,8 @@ export class BombGame extends BaseMiniGame {
     const p = this.players[playerIndex];
     if (!p || !p.isAlive || p.dashCooldown > 0 || p.slipTimer > 0) return;
 
-    p.dashCooldown = 2.2;
+    p.dashCooldown = BOMB_DASH_COOLDOWN;
+    p.dashMaxCooldown = BOMB_DASH_COOLDOWN;
     p.dashTimer = 0.22;
     p.isDashing = true;
     this.trauma = Math.min(1.0, this.trauma + 0.15);
@@ -522,32 +469,10 @@ export class BombGame extends BaseMiniGame {
   }
 
   spawnPickup() {
-    const types = ['TURBO', 'TELEPORT', 'SLIP'];
-    const type = types[Math.floor(Math.random() * types.length)];
-
-    const { left, top, size } = this.arena;
-    const margin = size * 0.15;
-    const px = left + margin + Math.random() * (size - margin * 2);
-    const py = top + margin + Math.random() * (size - margin * 2);
-
-    // Make sure it doesn't spawn inside a pillar
-    for (const pil of this.pillars) {
-      if (
-        px >= pil.x - 20 &&
-        px <= pil.x + pil.w + 20 &&
-        py >= pil.y - 20 &&
-        py <= pil.y + pil.h + 20
-      ) {
-        return;
-      }
-    }
-
-    this.pickups.push({
-      x: px,
-      y: py,
-      type: type,
-      radius: 15,
-      animTime: 0,
+    spawnPickup(this, {
+      types: ['TURBO', 'TELEPORT', 'SLIP'],
+      max: 2,
+      obstacles: this.pillars,
     });
   }
 
@@ -561,14 +486,12 @@ export class BombGame extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
-    // 1. UI Buttons tap handling
-    if (this.handleUiTap(touch)) return;
-
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
-      this.roundTransitionTimer = 0;
-      return;
+    // 1. UI Buttons tap handling (yalnızca Lobi ve Maç Sonu ekranlarında)
+    if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
+      if (this.handleUiTap(touch)) return;
     }
+
+    if (this.handleRoundOverSkip()) return;
 
     // 1.5. Generous Lobby Join fallback (tap anywhere in quadrant)
     if (this.state === 'LOBBY') {
@@ -577,26 +500,15 @@ export class BombGame extends BaseMiniGame {
       return;
     }
 
-    // 2. Dash button tap handling
+    // 2. Tabletop butonları + joystick (tek merkezden, BaseGame)
     if (this.state === 'PLAYING') {
-      for (const dBtn of this.dashButtons) {
-        if (
-          touch.x >= dBtn.x - dBtn.w / 2 - 12 &&
-          touch.x <= dBtn.x + dBtn.w / 2 + 12 &&
-          touch.y >= dBtn.y - dBtn.h / 2 - 12 &&
-          touch.y <= dBtn.y + dBtn.h / 2 + 12
-        ) {
-          this.triggerDash(dBtn.playerIndex);
-          return;
-        }
-      }
-      this.handleStandardJoystickTouchStart(touch, (q) => this.triggerDash(q));
+      this.handleTabletopTouchStart(touch);
     }
   }
 
   onTouchMove(touch) {
     if (this.state !== 'PLAYING') return;
-    this.handleStandardJoystickTouchMove(touch);
+    this.handleTabletopTouchMove(touch);
   }
 
   handleRemoteInput(slotIndex, data) {
@@ -608,11 +520,11 @@ export class BombGame extends BaseMiniGame {
   }
 
   onTouchEnd(touch) {
-    this.handleStandardJoystickTouchEnd(touch);
+    this.handleTabletopTouchEnd(touch);
   }
 
   onTouchesReset() {
-    this.resetStandardJoysticks();
+    this.resetTabletopTouches();
   }
 
   // --- SMART BOT AI (Delegated to src/ai/bombAI.js) ---
@@ -623,57 +535,8 @@ export class BombGame extends BaseMiniGame {
   // --- COLLISION RESOLUTION ---
 
   resolveCollisions(player) {
-    const { left, right, top, bottom } = this.arena;
-    const r = player.radius;
-
-    // Arena outer walls
-    if (player.x - r < left) {
-      player.x = left + r;
-      player.vx = 0;
-    }
-    if (player.x + r > right) {
-      player.x = right - r;
-      player.vx = 0;
-    }
-    if (player.y - r < top) {
-      player.y = top + r;
-      player.vy = 0;
-    }
-    if (player.y + r > bottom) {
-      player.y = bottom - r;
-      player.vy = 0;
-    }
-
-    // Symmetrical Pillars (AABB vs Circle)
-    for (const pil of this.pillars) {
-      const closestX = Math.max(pil.x, Math.min(player.x, pil.x + pil.w));
-      const closestY = Math.max(pil.y, Math.min(player.y, pil.y + pil.h));
-
-      const dx = player.x - closestX;
-      const dy = player.y - closestY;
-      const distSq = dx * dx + dy * dy;
-
-      if (distSq < r * r) {
-        const dist = Math.sqrt(distSq);
-        if (dist > 0.001) {
-          const nx = dx / dist;
-          const ny = dy / dist;
-          const overlap = r - dist;
-          player.x += nx * overlap;
-          player.y += ny * overlap;
-
-          // Slide along pillar surface
-          const dot = player.vx * nx + player.vy * ny;
-          if (dot < 0) {
-            player.vx -= dot * nx;
-            player.vy -= dot * ny;
-          }
-        } else {
-          // Inside pillar center emergency ejection
-          player.x += r;
-        }
-      }
-    }
+    clampToArena(player, player.radius, this.arena, { zeroVelocity: true });
+    resolveAABB(player, this.pillars, player.radius);
   }
 
   update(now) {
@@ -749,17 +612,14 @@ export class BombGame extends BaseMiniGame {
       return;
     }
 
-    // Spawning Pickups
+    // Spawning Pickups & Timers
     this.pickupSpawnTimer -= dt;
     if (this.pickupSpawnTimer <= 0 && this.pickups.length < 2) {
       this.spawnPickup();
       this.pickupSpawnTimer = 8.0 + Math.random() * 4.0;
     }
 
-    // Pickups animation
-    for (const pickup of this.pickups) {
-      pickup.animTime += dt;
-    }
+    tickPickupTimers(this, dt);
 
     // Update Ink Puddles
     for (let i = this.inkPuddles.length - 1; i >= 0; i--) {
@@ -814,27 +674,9 @@ export class BombGame extends BaseMiniGame {
         }
 
         // Keyboard Fallback
-        if (player.index === 0) {
-          if (this.keys['KeyA'] || this.keys['a']) inputX -= 1;
-          if (this.keys['KeyD'] || this.keys['d']) inputX += 1;
-          if (this.keys['KeyW'] || this.keys['w']) inputY -= 1;
-          if (this.keys['KeyS'] || this.keys['s']) inputY += 1;
-        } else if (player.index === 1) {
-          if (this.keys['ArrowLeft']) inputX -= 1;
-          if (this.keys['ArrowRight']) inputX += 1;
-          if (this.keys['ArrowUp']) inputY -= 1;
-          if (this.keys['ArrowDown']) inputY += 1;
-        } else if (player.index === 2) {
-          if (this.keys['KeyJ'] || this.keys['j']) inputX -= 1;
-          if (this.keys['KeyL'] || this.keys['l']) inputX += 1;
-          if (this.keys['KeyI'] || this.keys['i']) inputY -= 1;
-          if (this.keys['KeyK'] || this.keys['k']) inputY += 1;
-        } else if (player.index === 3) {
-          if (this.keys['KeyF'] || this.keys['f']) inputX -= 1;
-          if (this.keys['KeyH'] || this.keys['h']) inputX += 1;
-          if (this.keys['KeyT'] || this.keys['t']) inputY -= 1;
-          if (this.keys['KeyG'] || this.keys['g']) inputY += 1;
-        }
+        const kb = keyboardVectorFrom(this.keys, player.index);
+        inputX += kb.x;
+        inputY += kb.y;
       } else {
         // Smart Bot AI (Whiskers, Waypoints & Wall Tangent Slide)
         this.updateBotAI(player, dt);
@@ -909,48 +751,7 @@ export class BombGame extends BaseMiniGame {
       }
 
       // Pickups interaction
-      for (let i = this.pickups.length - 1; i >= 0; i--) {
-        const item = this.pickups[i];
-        const distItem = Math.hypot(player.x - item.x, player.y - item.y);
-        if (distItem < player.radius + item.radius) {
-          playItemPickup();
-
-          if (item.type === 'TURBO') {
-            player.turboTimer = 3.5;
-          } else if (item.type === 'TELEPORT') {
-            const carrier = this.players[this.bombCarrierIndex];
-            const { left, right, top, bottom, size } = this.arena;
-            const pad = size * 0.16;
-            const corners = [
-              { x: left + pad, y: top + pad },
-              { x: right - pad, y: top + pad },
-              { x: left + pad, y: bottom - pad },
-              { x: right - pad, y: bottom - pad },
-            ];
-            let bestCorner = corners[0];
-            let maxDist = -1;
-            for (const c of corners) {
-              const d = Math.hypot(c.x - carrier.x, c.y - carrier.y);
-              if (d > maxDist) {
-                maxDist = d;
-                bestCorner = c;
-              }
-            }
-            player.x = bestCorner.x;
-            player.y = bestCorner.y;
-            playTeleport();
-          } else if (item.type === 'SLIP') {
-            this.inkPuddles.push({
-              x: player.x,
-              y: player.y,
-              radius: 22,
-              duration: 10.0,
-            });
-          }
-
-          this.pickups.splice(i, 1);
-        }
-      }
+      collectPickups(this, player);
     }
 
     // Carrier vs Opponents Collision & Bomb Transfer!
@@ -1012,9 +813,7 @@ export class BombGame extends BaseMiniGame {
     this.renderPickups(ctx);
     this.renderPlayers(ctx);
     this.renderParticles(ctx);
-    this.renderVirtualJoysticks(ctx);
-    this.renderDashButtons(ctx);
-    this.renderTopHUD(ctx);
+    this.renderControls(ctx);
 
     // Panic Phase Red Border Vignette (Last 4 Seconds)
     if (this.state === 'PLAYING' && this.bombTimer <= 4.0) {
@@ -1029,21 +828,58 @@ export class BombGame extends BaseMiniGame {
       ctx.fillRect(right, top - edge, edge, height + edge * 2);
     }
 
-    // Render UI Overlays
-    this.uiButtons = [];
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.bomb'), [
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.bomb'),
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      this.renderLobbyUI(ctx);
-    } else if (this.state === 'ROUND_OVER') {
-      this.renderRoundOverUI(ctx);
-    } else if (this.state === 'MATCH_OVER') {
-      this.renderGameOverUI(ctx);
-    }
+      ],
+      colors: BOMB_COLORS,
+      playerNames: BOMB_NAMES,
+      accent: '#D84727',
+      roundBannerTitle: this.roundWinner ? `+1 SET: ${this.roundWinner.name}!` : null,
+      roundBannerColor: this.roundWinner?.color,
+      roundBannerSub: this.roundWinner ? `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}` : '',
+      matchOverHeadline: t('game.champWon'),
+      matchOverRows: this.matchWinner
+        ? this.players
+            .filter((p) => p.isJoined)
+            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` }))
+        : [],
+      onRestart: () => this.resetCurrentGame(),
+      customControls: (c) => {
+        const { arena } = this;
+        const mapBtnW = Math.min(220, arena.size * 0.52);
+        const mapBtnH = 36;
+        const mapBtnX = arena.cx - mapBtnW / 2;
+        const mapBtnY = arena.cy - 72;
+        c.save();
+        c.fillStyle = '#1A1A1A';
+        c.fillRect(mapBtnX + 3, mapBtnY + 3, mapBtnW, mapBtnH);
+        c.fillStyle = '#FFFFFF';
+        c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+        c.strokeStyle = '#1C1C1A';
+        c.lineWidth = 2.5;
+        c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+
+        c.fillStyle = '#1C1C1A';
+        c.font = '800 12px "JetBrains Mono", monospace';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(`🗺️ ${MAP_PRESETS[this.selectedMapIndex].name} ▾`, arena.cx, mapBtnY + mapBtnH / 2);
+        c.restore();
+
+        this.uiButtons.push({
+          x: mapBtnX,
+          y: mapBtnY,
+          w: mapBtnW,
+          h: mapBtnH,
+          onClick: () => this.cycleMap(),
+        });
+      },
+    });
 
     ctx.restore();
   }
@@ -1158,13 +994,14 @@ export class BombGame extends BaseMiniGame {
     }
 
     // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları & Sütunların Üzerinde Net Geri Sayım
-    if (this.state === 'PLAYING') {
-      renderCornerScores(ctx, {
+    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
+      renderAdaptiveScoreboard(ctx, {
         arena: this.arena,
-        entries: this.players.map((p, i) =>
-          p.isJoined ? { color: p.color, text: `${this.scores[i] || 0}` } : null
-        ),
+        players: this.players,
+        scores: this.scores,
         entities: this.players.filter((p) => p.isJoined),
+        isHosting: !!this.hideLobbyStartButton,
+        state: this.state,
       });
 
       // Saha ortasında sütunların üstünde net, yüksek görünürlüklü bomba geri sayımı
@@ -1202,9 +1039,7 @@ export class BombGame extends BaseMiniGame {
     }
   }
 
-  renderTopHUD(ctx) {
-    // Merkezi otoriter geri sayım sayacı kullanıldığından üst hap zamanlayıcı kaldırıldı
-  }
+
 
   renderPickups(ctx) {
     for (const item of this.pickups) drawPickup(ctx, item);
@@ -1239,18 +1074,28 @@ export class BombGame extends BaseMiniGame {
           ctx.fillRect(sx - 3, sy - 3, 6, 6);
         }
 
-        // Stun floor ring
-        ctx.strokeStyle = '#FFDE59';
-        ctx.lineWidth = 3.5;
+        // Stun floor ring (çift-stroke: koyu taban + sarı üst)
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 5.5;
         ctx.setLineDash([5, 5]);
         ctx.beginPath();
         ctx.arc(0, 0, player.radius + 6, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.strokeStyle = '#FFDE59';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, player.radius + 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
-        // Stun text badge
+        // Stun text badge (koyu konturlu)
         ctx.fillStyle = '#FFDE59';
         ctx.font = '900 10px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+        ctx.lineWidth = 3;
+        ctx.strokeText('SERSEM!', 0, -player.radius - 26);
         ctx.fillText('SERSEM!', 0, -player.radius - 26);
         ctx.restore();
       }
@@ -1291,35 +1136,25 @@ export class BombGame extends BaseMiniGame {
       else if (player.dashTimer > 0) currentExp = 'angry';
       else if (player.turboTimer > 0) currentExp = 'wink';
 
-      drawBrutalAvatar(ctx, 0, 0, player.radius, {
-        color: player.color,
-        slotIndex: player.index,
+      drawGameAvatar(ctx, 0, 0, player.radius, player, {
         facingAngle: player.facingAngle,
         expression: currentExp,
-        showPointer: true,
         borderColor: player.dashTimer > 0 ? '#FFFFFF' : '#1C1C1A',
         borderWidth: player.dashTimer > 0 ? 4.5 : 3,
       });
 
-      // Depar Cooldown Göstergesi (Zemin ve engellerin üstünde her zaman net görünür)
-      if (player.dashCooldown > 0) {
-        const cdProg = 1.0 - Math.max(0, Math.min(1, player.dashCooldown / player.dashMaxCooldown));
-        ctx.save();
-        // Zemin Koyu Halka
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.arc(0, 0, player.radius + 5, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Dolum Arkı
-        ctx.strokeStyle = '#FFDE59';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(0, 0, player.radius + 5, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
+      // Merkezi Başüstü HUD (Dash cooldown ring & stun)
+      const cdProg = player.dashCooldown > 0
+        ? 1.0 - Math.max(0, Math.min(1, player.dashCooldown / player.dashMaxCooldown))
+        : 1.0;
+      renderEntityHUD(ctx, {
+        x: 0,
+        y: 0,
+        radius: player.radius,
+        color: '#FFDE59',
+        cooldownProgress: player.dashCooldown > 0 ? cdProg : null,
+        stun: player.stumbleTimer > 0,
+      });
 
       // --- Ticking Bomb Visuals for Carrier ---
       if (isCarrier) {
@@ -1362,209 +1197,5 @@ export class BombGame extends BaseMiniGame {
       ctx.fillRect(part.x - part.size / 2, part.y - part.size / 2, part.size, part.size);
       ctx.restore();
     }
-  }
-
-  renderVirtualJoysticks(ctx) {
-    if (this.state !== 'PLAYING') return;
-
-    const { left, right, top, bottom, width, height } = this.arena;
-    const anchors = [
-      { x: left + width * 0.14, y: bottom - height * 0.14 },
-      { x: left + width * 0.14, y: top + height * 0.14 },
-      { x: right - width * 0.14, y: top + height * 0.14 },
-      { x: right - width * 0.14, y: bottom - height * 0.14 },
-    ];
-
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      const player = this.players[q];
-      if (!player.isJoined || player.slotType !== 'human') continue;
-
-      if (!joy.active) {
-        ctx.save();
-        ctx.translate(anchors[q].x, anchors[q].y);
-        if (q === 1 || q === 2) ctx.rotate(Math.PI);
-        ctx.globalAlpha = 0.45;
-        ctx.strokeStyle = player.color;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.arc(0, 0, 36, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = player.color;
-        ctx.font = '800 11px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(t('game.drag', player.name.slice(0, 3)), 0, 0);
-        ctx.restore();
-        continue;
-      }
-
-      ctx.save();
-      ctx.globalAlpha = 0.55;
-      // Base Ring
-      ctx.strokeStyle = 'rgba(28, 28, 26, 0.4)';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.arc(joy.originX, joy.originY, 48, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Thumbstick Knob
-      ctx.setLineDash([]);
-      ctx.fillStyle = player.color;
-      ctx.beginPath();
-      ctx.arc(joy.currX, joy.currY, 20, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-
-  renderDashButtons(ctx) {
-    if (this.state !== 'PLAYING') return;
-
-    this.dashButtons = [];
-    const { canvas, arena } = this;
-    const btnW = 82;
-    const btnH = 36;
-
-    // Check vertical margin outside arena
-    const bottomSpace = canvas.height - arena.bottom;
-    const topSpace = arena.top;
-
-    const bottomY = bottomSpace >= 42 ? arena.bottom + 26 : arena.bottom - 22;
-    const topY = topSpace >= 42 ? arena.top - 26 : arena.top + 22;
-
-    const positions = [
-      { x: arena.left + arena.size * 0.35, y: bottomY },
-      { x: arena.left + arena.size * 0.35, y: topY },
-      { x: arena.right - arena.size * 0.16, y: topY },
-      { x: arena.right - arena.size * 0.16, y: bottomY },
-    ];
-
-    for (let i = 0; i < 4; i++) {
-      const p = this.players[i];
-      if (!p.isJoined || !p.isAlive || p.slotType !== 'human') continue;
-
-      const pos = positions[i];
-      const isReady = p.dashCooldown <= 0;
-      const isDashing = p.dashTimer > 0;
-
-      ctx.save();
-      ctx.globalAlpha = 0.65;
-      ctx.translate(pos.x, pos.y);
-      if (i === 1 || i === 2) {
-        ctx.rotate(Math.PI);
-      }
-
-      // Drop Shadow
-      ctx.fillStyle = '#1C1C1A';
-      ctx.fillRect(-btnW / 2 + 3, -btnH / 2 + 3, btnW, btnH);
-
-      // Face
-      ctx.fillStyle = isDashing ? '#FFFFFF' : isReady ? '#FFDE59' : '#D5D0C7';
-      ctx.fillRect(-btnW / 2, -btnH / 2, btnW, btnH);
-
-      ctx.strokeStyle = isDashing ? '#FFDE59' : '#1C1C1A';
-      ctx.lineWidth = isDashing ? 3.5 : 2.5;
-      ctx.strokeRect(-btnW / 2, -btnH / 2, btnW, btnH);
-
-      ctx.fillStyle = '#1C1C1A';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      if (isDashing) {
-        ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText('⚡ DEPAR!', 0, 0);
-      } else if (isReady) {
-        ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText('⚡ ATIL', 0, 0);
-      } else {
-        const remaining = Math.max(0.1, p.dashCooldown);
-        ctx.font = '800 11px "JetBrains Mono", monospace';
-        ctx.fillText(`⏳ ${remaining.toFixed(1)}s`, 0, 0);
-      }
-      ctx.restore();
-
-      this.dashButtons.push({
-        x: pos.x,
-        y: pos.y,
-        w: btnW,
-        h: btnH,
-        playerIndex: i,
-      });
-    }
-  }
-
-  renderLobbyUI(ctx) {
-    const { arena } = this;
-    const mapBtnW = Math.min(220, arena.size * 0.52);
-    const mapBtnH = 36;
-    const mapBtnX = arena.cx - mapBtnW / 2;
-    const mapBtnY = arena.cy - 72;
-
-    this.renderStandardLobby(ctx, {
-      arena,
-      colors: BOMB_COLORS,
-      playerNames: BOMB_NAMES,
-      accent: '#D84727',
-      onStart: () => this.startNewMatch(),
-      customControls: (c) => {
-        c.save();
-        c.fillStyle = '#1A1A1A';
-        c.fillRect(mapBtnX + 3, mapBtnY + 3, mapBtnW, mapBtnH);
-        c.fillStyle = '#FFFFFF';
-        c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-        c.strokeStyle = '#1C1C1A';
-        c.lineWidth = 2.5;
-        c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
-
-        c.fillStyle = '#1C1C1A';
-        c.font = '800 12px "JetBrains Mono", monospace';
-        c.textAlign = 'center';
-        c.textBaseline = 'middle';
-        c.fillText(`🗺️ ${MAP_PRESETS[this.selectedMapIndex].name} ▾`, arena.cx, mapBtnY + mapBtnH / 2);
-        c.restore();
-
-        this.uiButtons.push({
-          x: mapBtnX,
-          y: mapBtnY,
-          w: mapBtnW,
-          h: mapBtnH,
-          onClick: () => this.cycleMap(),
-        });
-      },
-    });
-  }
-
-  renderRoundOverUI(ctx) {
-    if (!this.roundWinner) return;
-    const cleanWinner = cleanWinnerName(this.roundWinner.name);
-    renderRoundBanner(ctx, {
-      arena: this.arena,
-      title: `+1 SET: ${cleanWinner || this.roundWinner.name}!`,
-      titleColor: this.roundWinner.color,
-      sub: `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}`,
-    });
-  }
-
-  renderGameOverUI(ctx) {
-    renderMatchOver(ctx, {
-      arena: this.arena,
-      uiButtons: this.uiButtons,
-      headline: t('game.champWon'),
-      winnerName: this.matchWinner ? this.matchWinner.name : '',
-      winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
-      rows: this.matchWinner
-        ? this.players
-            .filter((p) => p.isJoined)
-            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` }))
-        : [],
-      onRestart: () => this.resetCurrentGame(),
-    });
   }
 }

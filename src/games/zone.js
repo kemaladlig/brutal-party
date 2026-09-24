@@ -3,7 +3,7 @@
 // capture. Enemy steps on your trail -> you shatter back to base size + 2s stun
 // (no elimination, party flow preserved). 90s rounds, first to 40% takes the
 // round early, first to 2 rounds is the champion.
-import { getSlotCustomization, ensureLocalSeatColor, getLocalSeatColors, getBotPersona } from '../core/customizationManager.js';
+import { getSlotCustomization, ensureLocalSeatColor, getBotPersona } from '../core/customizationManager.js';
 import {
   playStart,
   playJoin,
@@ -14,19 +14,16 @@ import {
   playStumble,
   playPowerUp,
 } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
 import {
   renderTopPill,
-  renderCornerScores,
   renderSpatialBadge,
-  renderRoundBanner,
-  renderMatchOver,
   renderArenaWatermarkTimer,
 } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateZoneBotAI } from '../ai/zoneAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { keyboardVectorFrom, slotForActionCode } from '../core/inputMaps.js';
 
 export const ZONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ZONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -129,40 +126,33 @@ export class ZoneGame extends BaseMiniGame {
     this.territoryLayer.width = ZONE_TUNING.GRID;
     this.territoryLayer.height = ZONE_TUNING.GRID;
 
-    this.uiButtons = [];
-
-    // 4 köşe yüzen sanal joystick (HEIST/CROWN deseni)
-    this.joysticks = [
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-      { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
-    ];
-
-    this.keys = {};
     this.initKeyboard();
   }
 
   initKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      this.keys[e.key] = true;
-      if (e.key) this.keys[e.key.toLowerCase()] = true;
-      this.keys[e.code] = true;
+    this.bindStandardKeyboard((slot) => {
+      this.triggerDash(slot);
     });
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.key] = false;
-      if (e.key) this.keys[e.key.toLowerCase()] = false;
-      this.keys[e.code] = false;
-    });
-    // Depar kısayolları (BOMB eşlemesi): P1 Space, P2 Enter, P3 O, P4 B
-    window.addEventListener('keydown', (e) => {
-      if (e.repeat || !this.isLocalInputActive) return;
-      if (this.state !== 'PLAYING') return;
-      if (e.code === 'Space') this.triggerDash(0);
-      else if (e.code === 'Enter') this.triggerDash(1);
-      else if (e.code === 'KeyO') this.triggerDash(2);
-      else if (e.code === 'KeyB') this.triggerDash(3);
-    });
+  }
+
+  getTabletopSchema() {
+    return {
+      joystick: true,
+      actions: [
+        {
+          id: 'dash',
+          icon: '⚡',
+          label: 'DEPAR',
+          cooldownField: 'dashCooldown',
+          maxCooldown: ZONE_TUNING.DASH_CD,
+        },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (!isDown || actionId !== 'dash') return;
+    this.triggerDash(slotIndex);
   }
 
   cycleSlotType(index) {
@@ -194,9 +184,27 @@ export class ZoneGame extends BaseMiniGame {
   }
 
   posToCell(x, y) {
+    if (!this.field || !this.cell) return -1;
     const G = ZONE_TUNING.GRID;
-    const cx = Math.floor((x - this.field.x) / this.cell);
-    const cy = Math.floor((y - this.field.y) / this.cell);
+    const wallPad = (this.players?.[0]?.radius || 14) + 2;
+    let cx;
+    if (x <= this.field.x + wallPad) {
+      cx = 0;
+    } else if (x >= this.field.x + this.field.s - wallPad) {
+      cx = G - 1;
+    } else {
+      cx = Math.floor((x - this.field.x) / this.cell);
+    }
+
+    let cy;
+    if (y <= this.field.y + wallPad) {
+      cy = 0;
+    } else if (y >= this.field.y + this.field.s - wallPad) {
+      cy = G - 1;
+    } else {
+      cy = Math.floor((y - this.field.y) / this.cell);
+    }
+
     if (cx < 0 || cy < 0 || cx >= G || cy >= G) return -1;
     return cy * G + cx;
   }
@@ -220,10 +228,10 @@ export class ZoneGame extends BaseMiniGame {
     const G = ZONE_TUNING.GRID;
     const B = ZONE_TUNING.BASE;
     const c = this.baseCorner?.[index] ?? index;
-    if (c === 0) return { x0: 1, y0: G - B - 1, x1: B, y1: G - 2 };
-    if (c === 1) return { x0: 1, y0: 1, x1: B, y1: B };
-    if (c === 2) return { x0: G - B - 1, y0: 1, x1: G - 2, y1: B };
-    return { x0: G - B - 1, y0: G - B - 1, x1: G - 2, y1: G - 2 };
+    if (c === 0) return { x0: 0, y0: G - B, x1: B - 1, y1: G - 1 };
+    if (c === 1) return { x0: 0, y0: 0, x1: B - 1, y1: B - 1 };
+    if (c === 2) return { x0: G - B, y0: 0, x1: G - 1, y1: B - 1 };
+    return { x0: G - B, y0: G - B, x1: G - 1, y1: G - 1 };
   }
 
   // Tur başı köşe kurası: katılanlar 4 köşeye rastgele dağıtılır.
@@ -325,6 +333,7 @@ export class ZoneGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const marginX = Math.max(8, Math.floor(width * 0.025));
     const marginY = height > width
       ? Math.max(48, Math.floor(height * 0.12))
@@ -956,13 +965,11 @@ export class ZoneGame extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
-    if (this.handleUiTap(touch)) return;
-
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
-      this.roundTransitionTimer = 0;
-      return;
+    if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
+      if (this.handleUiTap(touch)) return;
     }
+
+    if (this.handleRoundOverSkip()) return;
 
     if (this.state === 'LOBBY') {
       const q = this.getCornerQuadrant(touch);
@@ -976,95 +983,20 @@ export class ZoneGame extends BaseMiniGame {
       return;
     }
     if (this.state === 'PLAYING') {
-      const q = this.getCornerQuadrant(touch);
-      const joy = this.joysticks[q];
-      const p = this.players[q];
-      if (p && p.isJoined && p.slotType === 'human' && !joy.active) {
-        joy.id = touch.id;
-        joy.originX = touch.x; joy.originY = touch.y;
-        joy.currX = touch.x; joy.currY = touch.y;
-        joy.active = true; joy.angle = 0; joy.force = 0;
-      }
-    }
-  }
-
-  onTouchMove(touch) {
-    if (this.state !== 'PLAYING') return;
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      if (joy.active && joy.id === touch.id) {
-        const dx = touch.x - joy.originX;
-        const dy = touch.y - joy.originY;
-        const dist = Math.hypot(dx, dy);
-        const maxRadius = 48;
-        joy.angle = Math.atan2(dy, dx);
-        joy.force = Math.min(1.0, dist / maxRadius);
-        if (dist > maxRadius) {
-          joy.currX = joy.originX + Math.cos(joy.angle) * maxRadius;
-          joy.currY = joy.originY + Math.sin(joy.angle) * maxRadius;
-        } else {
-          joy.currX = touch.x; joy.currY = touch.y;
-        }
-        break;
-      }
-    }
-  }
-
-  onTouchEnd(touch) {
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      if (joy.active && joy.id === touch.id) {
-        joy.active = false; joy.id = -1; joy.force = 0;
-      }
-    }
-  }
-
-  onTouchesReset() {
-    for (const joy of this.joysticks) {
-      joy.active = false; joy.id = -1; joy.force = 0;
+      this.handleTabletopTouchStart(touch);
     }
   }
 
   handleRemoteInput(slotIndex, data) {
-    const joy = this.joysticks[slotIndex];
-    if (!joy) return;
-    const player = this.players?.[slotIndex];
-    if (data.action === 'JOYSTICK_MOVE') {
-      if (player && (!player.isJoined || player.slotType !== 'human')) return;
-      joy.active = data.force > 0.05;
-      joy.angle = data.angle || 0;
-      joy.force = data.force || 0;
-    } else if (data.action === 'DASH') {
-      if (player && (!player.isJoined || player.slotType !== 'human')) return;
-      this.triggerDash(slotIndex);
-    }
+    this.handleStandardRemoteJoystick(slotIndex, data, (slot, d) => {
+      if (d.action === 'DASH') {
+        this.triggerDash(slot);
+      }
+    });
   }
 
   keyboardVector(index) {
-    const k = this.keys;
-    let x = 0; let y = 0;
-    if (index === 0) {
-      if (k['KeyA'] || k['a']) x -= 1;
-      if (k['KeyD'] || k['d']) x += 1;
-      if (k['KeyW'] || k['w']) y -= 1;
-      if (k['KeyS'] || k['s']) y += 1;
-    } else if (index === 1) {
-      if (k['ArrowLeft']) x -= 1;
-      if (k['ArrowRight']) x += 1;
-      if (k['ArrowUp']) y -= 1;
-      if (k['ArrowDown']) y += 1;
-    } else if (index === 2) {
-      if (k['KeyJ'] || k['j']) x -= 1;
-      if (k['KeyL'] || k['l']) x += 1;
-      if (k['KeyI'] || k['i']) y -= 1;
-      if (k['KeyK'] || k['k']) y += 1;
-    } else if (index === 3) {
-      if (k['KeyF'] || k['f']) x -= 1;
-      if (k['KeyH'] || k['h']) x += 1;
-      if (k['KeyT'] || k['t']) y -= 1;
-      if (k['KeyG'] || k['g']) y += 1;
-    }
-    return { x, y };
+    return keyboardVectorFrom(this.keys, index);
   }
 
   update(now) {
@@ -1255,16 +1187,19 @@ export class ZoneGame extends BaseMiniGame {
       if (owner === p.index + 1) {
         if (p.trail.length > 0) this.closeTrail(p.index);
       } else {
-        const t = this.trailOwner[cellIdx];
-        if (t >= 0 && t !== p.index) {
+        const trailOwnerId = this.trailOwner[cellIdx];
+        if (trailOwnerId >= 0 && trailOwnerId !== p.index) {
           // Düşman izine bastın: iz sahibi base boyuna döner + donar.
           // Spawn koruması varken kesme işlemez (üstünden geçilir).
-          if (this.spawnProtect <= 0) this.shatterPlayer(t, p.index);
-        } else if (t === p.index) {
-          // Kendi izine bastın: öldün — base boyuna dön + don
-          // (shatterPlayer katilsiz çağrısı 'KENDİNİ KESTİN!' akışını çalıştırır)
-          this.shatterPlayer(p.index, null);
-          continue;
+          if (this.spawnProtect <= 0) this.shatterPlayer(trailOwnerId, p.index);
+        } else if (trailOwnerId === p.index) {
+          // Kendi izine bastın: sadece önceki eski ize basılırsa öl (son 3 hücre hemen arkandadır, dönüş yaparken intihar olmasın)
+          const recentIndex = p.trail.lastIndexOf(cellIdx);
+          const isImmediateTail = recentIndex >= 0 && (p.trail.length - 1 - recentIndex) <= 3;
+          if (!isImmediateTail) {
+            this.shatterPlayer(p.index, null);
+            continue;
+          }
         }
         if (p.trail.length >= ZONE_TUNING.TRAIL_CAP) {
           this.wipeTrail(p.index);
@@ -1277,12 +1212,14 @@ export class ZoneGame extends BaseMiniGame {
           p.trailStartX = p.px;
           p.trailStartY = p.py;
         }
-        // Yüksek risk uyarısı (16 hücreye ulaştığında bir kez uyar)
-        if (p.trail.length === ZONE_TUNING.TRAIL_RISK_WARN) {
-          this.addFloatingText(p.x, p.y - 20, t('zone.risk'), '#D84727');
+        if (p.trail[p.trail.length - 1] !== cellIdx) {
+          // Yüksek risk uyarısı (16 hücreye ulaştığında bir kez uyar)
+          if (p.trail.length === ZONE_TUNING.TRAIL_RISK_WARN) {
+            this.addFloatingText(p.x, p.y - 20, t('zone.risk'), '#D84727');
+          }
+          p.trail.push(cellIdx);
+          this.trailOwner[cellIdx] = p.index;
         }
-        p.trail.push(cellIdx);
-        this.trailOwner[cellIdx] = p.index;
       }
     }
 
@@ -1354,43 +1291,32 @@ export class ZoneGame extends BaseMiniGame {
 
     this.renderField(ctx);
 
-    if (this.state === 'PLAYING') this.renderTopHUD(ctx);
-
     this.renderPlayers(ctx);
     this.renderFx(ctx);
-    this.renderJoystickHints(ctx);
+    this.renderControls(ctx);
 
-    this.uiButtons = [];
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.zone'), [
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.zone'),
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      this.renderLobbyUI(ctx);
-    } else if (this.state === 'ROUND_OVER') {
-      renderRoundBanner(ctx, {
-        arena: this.arena,
-        title: this.roundWinner ? t('zone.took', this.roundWinner.name) : t('game.draw'),
-        titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A',
-        sub: this.roundWinner
-          ? t('zone.roundSub', this.pct[this.roundWinner.index], this.kills[this.roundWinner.index], this.tieBreak ? t('zone.lastMove') : '')
-          : '',
-      });
-    } else if (this.state === 'MATCH_OVER') {
-      renderMatchOver(ctx, {
-        arena: this.arena,
-        uiButtons: this.uiButtons,
-        headline: t('zone.champ'),
-        winnerName: this.matchWinner ? this.matchWinner.name : '',
-        winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
-        rows: this.players
-          .filter((p) => p.isJoined)
-          .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★ • %${this.pct[p.index]} • ${this.kills[p.index]}✂` })),
-        onRestart: () => this.startNewMatch(),
-      });
-    }
+      ],
+      colors: ZONE_COLORS,
+      accent: '#2F6A4F',
+      roundBannerTitle: this.roundWinner ? t('zone.took', this.roundWinner.name) : t('game.draw'),
+      roundBannerColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A',
+      roundBannerSub: this.roundWinner
+        ? t('zone.roundSub', this.pct[this.roundWinner.index], this.kills[this.roundWinner.index], this.tieBreak ? t('zone.lastMove') : '')
+        : '',
+      matchOverHeadline: t('zone.champ'),
+      matchOverRows: this.players
+        .filter((p) => p.isJoined)
+        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★ • %${this.pct[p.index]} • ${this.kills[p.index]}✂` })),
+      onSeatChange: (i) => this.syncLobbySeat(i),
+      onRestart: () => this.startNewMatch(),
+    });
 
     ctx.restore();
   }
@@ -1556,24 +1482,6 @@ export class ZoneGame extends BaseMiniGame {
     ctx.strokeRect(x, y, s, s);
   }
 
-  renderTopHUD(ctx) {
-    const remain = Math.max(0, this.roundTimer);
-    const leader = this.leaderIndex >= 0 ? this.players[this.leaderIndex] : null;
-    const isUrgent = remain <= 10.0 || (leader && this.pct[leader.index] >= 35);
-    const text = leader && leader.isJoined
-      ? `⏱ ${Math.ceil(remain)}s • ${leader.name} %${this.pct[leader.index]}`
-      : `⏱ ${Math.ceil(remain)}s`;
-    renderTopPill(ctx, { arena: this.arena, text, urgent: isUrgent });
-    renderCornerScores(ctx, {
-      arena: this.arena,
-      entries: this.players.map((p) =>
-        p.isJoined
-          ? { color: p.color, text: `%${this.pct[p.index]}${this.scores[p.index] > 0 ? `★${this.scores[p.index]}` : ''}` }
-          : null
-      ),
-      entities: this.players.filter((p) => p.isJoined),
-    });
-  }
 
   renderPlayers(ctx) {
     if (this.state === 'LOBBY') return;
@@ -1658,15 +1566,6 @@ export class ZoneGame extends BaseMiniGame {
           bg: '#48CAE4',
           scale: 0.9,
         });
-      } else if (p.trail.length >= ZONE_TUNING.TRAIL_HAZARD) {
-        renderSpatialBadge(ctx, {
-          x: 0,
-          y: p.radius + 33,
-          text: t('game.danger'),
-          icon: '⚡',
-          urgent: true,
-          scale: 0.9,
-        });
       }
 
       ctx.restore();
@@ -1695,107 +1594,18 @@ export class ZoneGame extends BaseMiniGame {
     for (const ft of this.floatingTexts) {
       ctx.save();
       ctx.globalAlpha = Math.max(0, ft.life / ft.maxLife);
-      ctx.fillStyle = ft.color;
       ctx.font = '900 13px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+      ctx.lineWidth = 3.5;
+      ctx.strokeText(ft.text, ft.x, ft.y);
+      ctx.fillStyle = ft.color;
       ctx.fillText(ft.text, ft.x, ft.y);
       ctx.restore();
     }
   }
 
-  renderJoystickHints(ctx) {
-    if (this.state !== 'PLAYING') return;
-    const { left, right, top, bottom, width, height } = this.arena;
-    const anchors = [
-      { x: left + width * 0.14, y: bottom - height * 0.14 },
-      { x: left + width * 0.14, y: top + height * 0.14 },
-      { x: right - width * 0.14, y: top + height * 0.14 },
-      { x: right - width * 0.14, y: bottom - height * 0.14 },
-    ];
-    for (let q = 0; q < 4; q++) {
-      const joy = this.joysticks[q];
-      const p = this.players[q];
-      if (!p || !p.isJoined || p.slotType !== 'human') continue;
-      if (!joy.active) {
-        ctx.save();
-        ctx.translate(anchors[q].x, anchors[q].y);
-        if (q === 1 || q === 2) ctx.rotate(Math.PI);
-        ctx.globalAlpha = 0.45;
-        ctx.strokeStyle = p.color;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.arc(0, 0, 34, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = p.color;
-        ctx.font = '800 11px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(t('game.drag', p.name.slice(0, 3)), 0, 0);
-        ctx.restore();
-        continue;
-      }
-      ctx.save();
-      ctx.strokeStyle = 'rgba(28,28,26,0.4)';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.arc(joy.originX, joy.originY, 48, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(joy.currX, joy.currY, 20, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
 
-  renderLobbyUI(ctx) {
-    const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-    const seatRects = getStandardSeatRects(this.arena);
-    const localMode = !this.hideLobbyStartButton;
-    const localColors = localMode ? getLocalSeatColors() : null;
-    for (let i = 0; i < 4; i++) {
-      const rect = seatRects[i];
-      const isTop = i === 1 || i === 2;
-      renderLobbySeatCard(ctx, {
-        x: rect.x, y: rect.y, w: rect.w, h: rect.h,
-        slotIndex: i, slotType: this.slotTypes[i],
-        playerName: this.players[i] ? this.players[i].name : '',
-        playerColor: ZONE_COLORS[i],
-        rotation: isTop ? Math.PI : 0,
-        seatColor: localMode ? (localColors[i] || ZONE_COLORS[i]) : null,
-        showColorDot: localMode,
-      });
-      // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
-      if (localMode) {
-        const dot = getSeatColorDotRect(rect);
-        this.uiButtons.push({
-          x: dot.x, y: dot.y, w: dot.w, h: dot.h,
-          onClick: () => this.cycleLocalSeat(i),
-        });
-      }
-      this.uiButtons.push({
-        x: rect.x, y: rect.y, w: rect.w, h: rect.h,
-        onClick: () => {
-          this.cycleSlotType(i);
-          this.syncLobbySeat(i);
-        },
-      });
-    }
-    renderLobbyStartButton(ctx, {
-      arena: this.arena,
-      uiButtons: this.uiButtons,
-      joinedCount,
-      accent: '#2F6A4F',
-      onStart: () => this.startNewMatch(),
-      hidden: !!this.hideLobbyStartButton,
-    });
-  }
 }

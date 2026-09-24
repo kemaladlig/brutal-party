@@ -23,6 +23,17 @@ export const UI_COLORS = {
   botGod: '#FFD700',
   // Durum zeminleri
   disabled: '#E5E0D6',
+  // Yüksek kontrastlı dış hat ve semantik HUD token'ları
+  outlineContrast: 'rgba(250, 247, 242, 0.92)',
+  ammoEmpty: '#26262B',
+  ammoFrame: '#141416',
+  ammoReloading: '#FACC15',
+  shield: '#0EA5E9',
+  shieldBg: 'rgba(14, 165, 233, 0.18)',
+  turbo: '#FFDE59',
+  daze: '#9C988F',
+  cooldownTrack: 'rgba(26, 26, 26, 0.28)',
+  cooldownTrackLight: 'rgba(250, 247, 242, 0.40)',
 };
 
 export const UI_FONTS = {
@@ -61,20 +72,103 @@ export function uiFont(role, scale = 1.0) {
   return `${weight} ${scaledPx}px ${UI_FONTS[family]}`;
 }
 
-// Ekran / Arena boyutuna göre dinamik ölçek çarpanı (Mobil: 1.0, Tablet: ~1.3, TV / Monitör: 1.6 - 2.2)
-export function getUiScale(arena) {
-  if (!arena) {
-    const w = typeof window !== 'undefined' ? window.innerWidth : 800;
-    const h = typeof window !== 'undefined' ? window.innerHeight : 600;
-    const minD = Math.min(w, h);
-    return Math.max(1.0, Math.min(2.4, minD / 520));
+// ---------------------------------------------------------------------------
+// Ekran Profili ve Dinamik Ölçekleme (Mobile, Tabletop/Tablet, Desktop/TV)
+// ---------------------------------------------------------------------------
+
+export function getDisplayProfile(dimA, dimB = null, forceTouch = null) {
+  let w, h;
+  if (dimA && typeof dimA === 'object') {
+    w = dimA.width || dimA.w || (typeof window !== 'undefined' ? window.innerWidth : 800);
+    h = dimA.height || dimA.h || (typeof window !== 'undefined' ? window.innerHeight : 600);
+  } else {
+    w = typeof dimA === 'number' ? dimA : (typeof window !== 'undefined' ? window.innerWidth : 800);
+    h = typeof dimB === 'number' ? dimB : (typeof window !== 'undefined' ? window.innerHeight : 600);
   }
-  const minDim = Math.min(arena.width || 800, arena.height || 600);
-  return Math.max(1.0, Math.min(2.4, minDim / 520));
+
+  const minDim = Math.min(w, h);
+  const maxDim = Math.max(w, h);
+  const isTouch = forceTouch !== null
+    ? !!forceTouch
+    : (typeof window !== 'undefined' && ('ontouchstart' in window || (navigator.maxTouchPoints > 0)));
+
+  let type = 'DESKTOP_TV';
+  let baseUnit = 1.0;
+  let entityScale = 1.0;
+  let safePadding = 16;
+
+  if (minDim < 540) {
+    // Akıllı telefon / kompakt ekran
+    type = 'MOBILE';
+    baseUnit = Math.max(0.72, Math.min(1.0, minDim / 480));
+    entityScale = 0.85; // Küçük ekranda oyuncuların alanı boğmasını önler
+    safePadding = Math.round(10 * baseUnit);
+  } else if (minDim <= 900 && isTouch) {
+    // Tablet / iPad masa-ortası
+    type = 'TABLETOP';
+    baseUnit = Math.max(1.0, Math.min(1.4, minDim / 600));
+    entityScale = 1.0;
+    safePadding = Math.round(16 * baseUnit);
+  } else {
+    // Masaüstü Monitör veya TV
+    type = 'DESKTOP_TV';
+    baseUnit = Math.max(1.0, Math.min(2.2, minDim / 520));
+    entityScale = Math.min(1.25, 1.0 + (baseUnit - 1.0) * 0.25);
+    safePadding = Math.round(20 * baseUnit);
+  }
+
+  return {
+    type,        // 'MOBILE' | 'TABLETOP' | 'DESKTOP_TV'
+    isTouch,
+    baseUnit,    // UI tipografi & badge ölçek katsayısı
+    entityScale, // Saha içi varlıklar için ölçek katsayısı
+    safePadding, // HUD güvenli kenar boşluğu
+    minDim,
+    maxDim,
+  };
+}
+
+// Geriye dönük uyumluluk: mevcut motorlar getUiScale(arena) çağırır.
+export function getUiScale(arena) {
+  return getDisplayProfile(arena).baseUnit;
 }
 
 export function isLargeDisplay(arena) {
   return getUiScale(arena) >= 1.35;
+}
+
+// ---------------------------------------------------------------------------
+// Sanal Dokunmatik Kontroller Tercih Yöneticisi (Virtual Controls State)
+// ---------------------------------------------------------------------------
+
+export const STORAGE_KEY_VIRTUAL_CONTROLS = 'bp_virtual_controls'; // 'auto' | 'on' | 'off'
+
+export function getVirtualControlsSetting() {
+  try {
+    const val = localStorage.getItem(STORAGE_KEY_VIRTUAL_CONTROLS);
+    if (val === 'on' || val === 'off' || val === 'auto') return val;
+  } catch (_) {}
+  return 'auto';
+}
+
+export function setVirtualControlsSetting(val) {
+  if (val !== 'on' && val !== 'off' && val !== 'auto') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_VIRTUAL_CONTROLS, val);
+  } catch (_) {}
+}
+
+export function shouldShowVirtualControls({ isHosting = false, isTouchDevice = null } = {}) {
+  // TV_CONSOLE / ONLINE Host modunda TV ekranı seyircidir; sanal kontroller ASLA TV'de gösterilmez.
+  if (isHosting) return false;
+
+  const setting = getVirtualControlsSetting();
+  if (setting === 'on') return true;
+  if (setting === 'off') return false;
+
+  // 'auto': Dokunmatik özellikli cihazlarda açık, salt fare/klavyede kapalı
+  if (isTouchDevice !== null) return !!isTouchDevice;
+  return typeof window !== 'undefined' && ('ontouchstart' in window || (navigator.maxTouchPoints > 0));
 }
 
 // Standart ölçüler (CSS pikseli)

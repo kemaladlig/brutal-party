@@ -1,27 +1,22 @@
 // BRUTAL CURVE (Game 03): 2-4 Player Local Party Curve Fever with Gaps, Power-Ups & Bot AI
-import { getSlotCustomization, getLocalSeatColors, getBotPersona } from '../core/customizationManager.js';
+import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGap, playItemPickup } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderCornerScores, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup } from '../core/arenaKit.js';
 import { resolveSlotName } from '../core/slotManager.js';
 import { updateCurveBotAI } from '../ai/curveAI.js';
+import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
+import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { distToSegmentSquared } from '../core/physics2d.js';
+import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CURVE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
-// Lokal klavye eşleşmesi: [sol, sağ] — P1 AD, P2 Oklar, P3 JL, P4 FH
-const CURVE_KEY_SLOTS_PAIRS = [
-  ['KeyA', 'KeyD'],
-  ['ArrowLeft', 'ArrowRight'],
-  ['KeyJ', 'KeyL'],
-  ['KeyF', 'KeyH'],
-];
-const CURVE_KEY_SLOTS = {};
-CURVE_KEY_SLOTS_PAIRS.forEach((pair, i) => pair.forEach((c) => (CURVE_KEY_SLOTS[c] = i)));
+// keyup ters haritası: sadece sol/sağ tuşlar (eklemeli steer)
+const CURVE_KEY_SLOTS = buildCodeToSlotMap(['l', 'r']);
 
 // İz sorgu ızgarası: uzun rauntlarda O(n) tarama yerine yakın hücreler.
 // Oyun kuralı değişmez — sadece aday kümesi daralır.
@@ -102,14 +97,15 @@ export class CurveGame extends BaseMiniGame {
 
   // -1 sol, +1 sağ, 0 düz (ikisi birden/basılmıyorsa düz)
   keyboardSteer(index) {
-    const pair = CURVE_KEY_SLOTS_PAIRS[index];
-    if (!pair) return 0;
-    const l = this.keys[pair[0]] ? -1 : 0;
-    const r = this.keys[pair[1]] ? 1 : 0;
+    const map = getSlotKeys(index);
+    if (!map) return 0;
+    const l = this.keys[map.l] ? -1 : 0;
+    const r = this.keys[map.r] ? 1 : 0;
     return l + r;
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width
@@ -287,17 +283,6 @@ export class CurveGame extends BaseMiniGame {
     });
   }
 
-  getCornerZone(pos) {
-    const { cx, cy } = this.arena;
-    const isLeft = pos.x < cx;
-    const isTop = pos.y < cy;
-
-    if (isLeft && !isTop) return 0; // P1 Bottom-Left
-    if (isLeft && isTop) return 1;  // P2 Top-Left
-    if (!isLeft && isTop) return 2; // P3 Top-Right
-    return 3;                       // P4 Bottom-Right
-  }
-
   getCornerButtonZones(cornerIndex) {
     const { left, right, top, bottom, size } = this.arena;
     const btnW = Math.max(140, Math.min(240, size * 0.44));
@@ -338,34 +323,21 @@ export class CurveGame extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
-    const { cx, cy } = this.arena;
-    const distToCenter = Math.hypot(touch.x - cx, touch.y - cy);
-
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
-      this.roundTransitionTimer = 0;
-      return;
-    }
+    if (this.handleRoundOverSkip()) return;
 
     // 1. Center Start Button (Lobby)
     if (this.state === 'LOBBY') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 65) {
-        const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-        if (joinedCount >= 2) {
-          this.startNewMatch();
-        }
-        return;
-      }
+      if (lobbyCenterStartTap(this, touch)) return;
 
-      const corner = this.getCornerZone(touch);
-      if (corner === -1) return;
-
-      this.cycleSlotType(corner);
-      if (this.players[corner]) {
-        this.players[corner].isJoined = this.isSlotJoined(corner);
-        this.players[corner].slotType = this.slotTypes[corner];
-      }
+      lobbyQuadrantTap(this, touch, {
+        onSeatChange: (corner) => {
+          if (this.players[corner]) {
+            this.players[corner].isJoined = this.isSlotJoined(corner);
+            this.players[corner].slotType = this.slotTypes[corner];
+          }
+        },
+      });
       playJoin();
       return;
     }
@@ -373,17 +345,13 @@ export class CurveGame extends BaseMiniGame {
     // 2. Center Restart Button (Match Over)
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 75) {
-        this.resetMatch();
-        playJoin();
-      }
+      matchOverRestartTap(this, touch, { onRestart: () => { this.resetMatch(); playJoin(); } });
       return;
     }
 
     // 3. Gameplay: Generous quadrant steering controls
     if (this.state === 'PLAYING') {
-      const corner = this.getCornerZone(touch);
-      if (corner === -1) return;
+      const corner = getQuadrant(this.arena, touch.x, touch.y);
       const player = this.players[corner];
       if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
         const action = this.determineSteerAction(corner, touch);
@@ -435,21 +403,11 @@ export class CurveGame extends BaseMiniGame {
   }
 
   spawnPickup() {
-    const { left, top, right, bottom } = this.arena;
-    const types = ['SCISSORS', 'GHOST', 'TURBO', 'INVERT', 'SHRINK', 'FREEZE', 'BOMB', 'THICK'];
-    const type = types[Math.floor(Math.random() * types.length)];
-    const size = 24;
-
-    const px = left + 45 + Math.random() * (right - left - 90);
-    const py = top + 45 + Math.random() * (bottom - top - 90);
-
-    this.pickups.push({
-      x: px,
-      y: py,
-      size,
-      type,
+    spawnPickup(this, {
+      types: ['SCISSORS', 'GHOST', 'TURBO', 'INVERT', 'SHRINK', 'FREEZE', 'BOMB', 'THICK'],
+      max: 3,
+      size: 24,
       life: 14.0,
-      phase: Math.random() * Math.PI * 2,
     });
   }
 
@@ -478,7 +436,7 @@ export class CurveGame extends BaseMiniGame {
     let removed = false;
     for (let i = this.segments.length - 1; i >= 0; i--) {
       const s = this.segments[i];
-      const distSq = this.distToSegmentSquared(x, y, s.x1, s.y1, s.x2, s.y2);
+      const distSq = distToSegmentSquared(x, y, s.x1, s.y1, s.x2, s.y2);
       if (distSq < radiusSq) {
         this.segments.splice(i, 1);
         removed = true;
@@ -529,20 +487,13 @@ export class CurveGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING') {
-      // Pickups timer
+      // Pickups timer & update
       this.pickupSpawnTimer -= dt;
       if (this.pickupSpawnTimer <= 0 && this.pickups.length < 3) {
         this.spawnPickup();
         this.pickupSpawnTimer = 6.5 + Math.random() * 3.5;
       }
-
-      // Update pickups
-      for (let i = this.pickups.length - 1; i >= 0; i--) {
-        this.pickups[i].life -= dt;
-        if (this.pickups[i].life <= 0) {
-          this.pickups.splice(i, 1);
-        }
-      }
+      tickPickupTimers(this, dt);
 
       // Update Players
       for (const player of this.players) {
@@ -622,14 +573,10 @@ export class CurveGame extends BaseMiniGame {
         }
 
         // Check Pickup Collision
-        for (let pIdx = this.pickups.length - 1; pIdx >= 0; pIdx--) {
-          const item = this.pickups[pIdx];
-          if (Math.hypot(player.x - item.x, player.y - item.y) < item.size * 0.8 + 6) {
-            this.applyPickup(player, item);
-            this.pickups.splice(pIdx, 1);
-            break;
-          }
-        }
+        collectPickups(this, player, {
+          radiusOf: (p) => (p.shrinkTimer > 0 ? 2.0 : 3.0) + 6,
+          onCollect: (g, p, item) => this.applyPickup(p, item),
+        });
 
         // Check Collision with Arena Walls & Trails
         if (this.checkCollision(player)) {
@@ -811,19 +758,13 @@ export class CurveGame extends BaseMiniGame {
 
       if (px < minX || px > maxX || py < minY || py > maxY) return false;
 
-      const distSq = game.distToSegmentSquared(px, py, seg.x1, seg.y1, seg.x2, seg.y2);
+      const distSq = distToSegmentSquared(px, py, seg.x1, seg.y1, seg.x2, seg.y2);
       return distSq <= hitR;
     });
   }
 
   distToSegmentSquared(px, py, vx, vy, wx, wy) {
-    const l2 = (wx - vx) * (wx - vx) + (wy - vy) * (wy - vy);
-    if (l2 === 0) return (px - vx) * (px - vx) + (py - vy) * (py - vy);
-    let t = ((px - vx) * (wx - vx) + (py - vy) * (wy - vy)) / l2;
-    t = Math.max(0, Math.min(1, t));
-    const projX = vx + t * (wx - vx);
-    const projY = vy + t * (wy - vy);
-    return (px - projX) * (px - projX) + (py - projY) * (py - projY);
+    return distToSegmentSquared(px, py, vx, vy, wx, wy);
   }
 
   eliminatePlayer(player) {
@@ -897,17 +838,6 @@ export class CurveGame extends BaseMiniGame {
     ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(left, top, width, height);
 
-    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları (Proximity Ghosting)
-    if (this.state === 'PLAYING') {
-      renderCornerScores(ctx, {
-        arena: this.arena,
-        entries: this.players.map((p) =>
-          p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}` } : null
-        ),
-        entities: this.players.filter((p) => p.isJoined && p.isAlive),
-      });
-    }
-
     ctx.strokeStyle = '#E2DDD4';
     ctx.lineWidth = 1.5;
     const gridStep = size / 6;
@@ -973,10 +903,14 @@ export class CurveGame extends BaseMiniGame {
       for (const ft of this.floatingTexts) {
         ctx.save();
         ctx.globalAlpha = Math.max(0, ft.life / ft.maxLife);
-        ctx.fillStyle = ft.color;
         ctx.font = '900 12px "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+        ctx.lineWidth = 3.5;
+        ctx.strokeText(ft.text, ft.x, ft.y);
+        ctx.fillStyle = ft.color;
         ctx.fillText(ft.text, ft.x, ft.y);
         ctx.restore();
       }
@@ -1070,25 +1004,34 @@ export class CurveGame extends BaseMiniGame {
       this.renderSpawnBeacons(ctx);
     }
 
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.curve'), [
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.curve'),
+      guideEntries: [
         'P1 [A/D]',
         'P2 [←/→]',
         'P3 [J/L]',
         'P4 [F/H]',
-      ]);
-      this.renderLobbyUI(ctx);
-    } else if (this.state === 'ROUND_OVER') {
-      this.renderRoundBanner(ctx);
-    } else if (this.state === 'MATCH_OVER') {
-      this.renderMatchOverUI(ctx);
-    }
+      ],
+      colors: this.players.map((p) => p.color),
+      accent: '#D84727',
+      matchOverHeadline: t('curve.champ'),
+      matchOverRows: this.players
+        .filter((player) => player.isJoined)
+        .map((player) => ({ color: player.color, text: `${player.name}: ${this.scores[player.index] || 0}★` })),
+      onSeatChange: (i) => {
+        if (this.players[i]) {
+          this.players[i].isJoined = this.isSlotJoined(i);
+          this.players[i].slotType = this.slotTypes[i];
+        }
+        playJoin();
+      },
+    });
 
     ctx.restore();
   }
 
   renderCornerControls(ctx) {
-    const seatRects = this.state === 'LOBBY' ? getStandardSeatRects(this.arena) : null;
+    if (this.state === 'LOBBY') return;
 
     for (let i = 0; i < 4; i++) {
       const player = this.players[i];
@@ -1096,53 +1039,14 @@ export class CurveGame extends BaseMiniGame {
       const isJoined = this.isSlotJoined(i);
       const isTop = i === 1 || i === 2;
 
-      // LOBBY: standart kare koltuk (tüm oyunlarla aynı ölçü) + uiButtons tap
-      if (this.state === 'LOBBY') {
-        const rect = seatRects[i];
-        const localMode = !this.hideLobbyStartButton;
-        const localColors = localMode ? getLocalSeatColors() : null;
-        renderLobbySeatCard(ctx, {
-          x: rect.x,
-          y: rect.y,
-          w: rect.w,
-          h: rect.h,
-          slotIndex: i,
-          slotType: player.slotType,
-          playerName: player.name || '',
-          playerColor: player.color,
-          rotation: isTop ? Math.PI : 0,
-          seatColor: localMode ? (localColors[i] || player.color) : null,
-          showColorDot: localMode,
-        });
-        // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
-        if (localMode) {
-          const dot = getSeatColorDotRect(rect);
-          this.uiButtons.push({
-            x: dot.x, y: dot.y, w: dot.w, h: dot.h,
-            onClick: () => this.cycleLocalSeat(i),
-          });
-        }
-        this.uiButtons.push({
-          x: rect.x,
-          y: rect.y,
-          w: rect.w,
-          h: rect.h,
-          onClick: () => {
-            this.cycleSlotType(i);
-            if (this.players[i]) {
-              this.players[i].isJoined = this.isSlotJoined(i);
-              this.players[i].slotType = this.slotTypes[i];
-            }
-            playJoin();
-          },
-        });
-        continue;
-      }
-
       ctx.save();
-      // Rotate 180° for Top players so buttons and text face that player
       const cx = zones.box.x + zones.box.w / 2;
       const cy = zones.box.y + zones.box.h / 2;
+      // Proximity Ghosting: Karakter köşeye yaklaşınca kontroller şeffaflaşır (alpha: 0.25)
+      const isNear = this.checkEntityProximity(cx, cy, 90);
+      if (isNear) ctx.globalAlpha = 0.25;
+
+      // Rotate 180° for Top players so buttons and text face that player
       ctx.translate(cx, cy);
       if (isTop) {
         ctx.rotate(Math.PI);
@@ -1162,7 +1066,7 @@ export class CurveGame extends BaseMiniGame {
         ctx.fillText(player.name, 0, -halfH - 4);
 
         const leftActive = touching.action === 'left';
-        ctx.fillStyle = leftActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
+        ctx.fillStyle = leftActive ? `${player.color}CC` : 'rgba(26, 26, 26, 0.12)';
         ctx.fillRect(-halfW, -halfH, halfW, zones.box.h);
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.lineWidth = 2;
@@ -1175,7 +1079,7 @@ export class CurveGame extends BaseMiniGame {
         ctx.fillText('◄ SOL', -halfW / 2, 0);
 
         const rightActive = touching.action === 'right';
-        ctx.fillStyle = rightActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
+        ctx.fillStyle = rightActive ? `${player.color}CC` : 'rgba(26, 26, 26, 0.12)';
         ctx.fillRect(0, -halfH, halfW, zones.box.h);
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.strokeRect(0, -halfH, halfW, zones.box.h);
@@ -1234,38 +1138,4 @@ export class CurveGame extends BaseMiniGame {
     });
   }
 
-  renderLobbyUI(ctx) {
-    const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-    renderLobbyStartButton(ctx, {
-      arena: this.arena,
-      uiButtons: this.uiButtons,
-      joinedCount,
-      accent: '#D84727',
-      onStart: () => this.startNewMatch(),
-      hidden: !!this.hideLobbyStartButton,
-    });
-  }
-
-  renderRoundBanner(ctx) {
-    const cleanWinner = this.roundWinner ? cleanWinnerName(this.roundWinner.name) : '';
-    renderRoundBanner(ctx, {
-      arena: this.arena,
-      title: cleanWinner ? `${cleanWinner} KAZANDI!` : 'BERABERE!',
-      titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A',
-    });
-  }
-
-  renderMatchOverUI(ctx) {
-    renderMatchOver(ctx, {
-      arena: this.arena,
-      uiButtons: this.uiButtons,
-      headline: t('curve.champ'),
-      winnerName: this.matchWinner ? this.matchWinner.name : '',
-      winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
-      rows: this.players
-        .filter((player) => player.isJoined)
-        .map((player) => ({ color: player.color, text: `${player.name}: ${this.scores[player.index] || 0}★` })),
-      onRestart: () => this.startNewMatch(),
-    });
-  }
 }

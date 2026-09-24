@@ -2,12 +2,13 @@
 import { Paddle, PLAYER_CONFIGS } from './paddle.js';
 import { Ball } from './ball.js';
 import { playJoin, playStart, playPowerUp } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
+import { getLocalSeatColors } from '../core/customizationManager.js';
+import { renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { getLocalSeatColors, ensureLocalSeatColor } from '../core/customizationManager.js';
-import { renderCornerScores, renderSpatialBadge, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
+import { renderSpatialBadge } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
 
 export class Game extends BaseMiniGame {
   constructor(canvas) {
@@ -60,7 +61,6 @@ export class Game extends BaseMiniGame {
     // PC klavye durumu (P1 WASD, P2 oklar, P3 IJKL, P4 TFGH)
     this.keys = {};
     this.initKeyboard();
-    this.matchScores = [0, 0, 0, 0];
 
     // Tournament Set Championship
     this.targetSets = 3;
@@ -84,7 +84,6 @@ export class Game extends BaseMiniGame {
     this.rallyStallT = 0;
     this.lastRallySeen = 0;
     this.setScores = [0, 0, 0, 0];
-    this.matchScores = [0, 0, 0, 0];
     this.paddles.forEach((p) => {
       p.reset(p.isJoined);
       p.updateLayout(this.arena);
@@ -128,11 +127,9 @@ export class Game extends BaseMiniGame {
         e.preventDefault();
       }
       this.keys[e.code] = true;
-      // Aksiyon tuşları: 🌀 falso (basımda bir kez)
-      if (e.code === 'Space') this.triggerSpin(0);
-      else if (e.code === 'Enter') this.triggerSpin(1);
-      else if (e.code === 'KeyO') this.triggerSpin(2);
-      else if (e.code === 'KeyB') this.triggerSpin(3);
+      // Aksiyon tuşları: 🌀 falso (basımda bir kez) — Space/Enter/O/B
+      const spinSlot = slotForActionCode(e.code);
+      if (spinSlot !== -1) this.triggerSpin(spinSlot);
     });
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
@@ -160,12 +157,12 @@ export class Game extends BaseMiniGame {
     const minDim = Math.min(this.arena.width, this.arena.height);
     const speed = minDim * 1.5;
     const K = this.keys;
-    const dirs = [
-      (K.KeyA ? -1 : 0) + (K.KeyD ? 1 : 0),
-      (K.ArrowLeft ? -1 : 0) + (K.ArrowRight ? 1 : 0),
-      (K.KeyI ? -1 : 0) + (K.KeyK ? 1 : 0),
-      (K.KeyT ? -1 : 0) + (K.KeyG ? 1 : 0),
-    ];
+    // Yatay kaleler l/r, dikey kaleler u/d okur (eksen kısıtı korunur)
+    const dirs = [0, 1, 2, 3].map((i) => {
+      const m = getSlotKeys(i);
+      if (i < 2) return (K[m.l] ? -1 : 0) + (K[m.r] ? 1 : 0);
+      return (K[m.u] ? -1 : 0) + (K[m.d] ? 1 : 0);
+    });
     this.paddles.forEach((p, i) => {
       if (!p.isJoined || p.isEliminated || p.isBot) return;
       const d = dirs[i];
@@ -223,11 +220,7 @@ export class Game extends BaseMiniGame {
     const handled = this.handleUiTap(touch);
     if (handled) return;
 
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundOverTimer > 0) {
-      this.roundOverTimer = 0;
-      return;
-    }
+    if (this.handleRoundOverSkip('roundOverTimer')) return;
 
     // 2. Generous Lobby Join: Touching anywhere in a player's region toggles their join status!
     if (this.state === 'LOBBY') {
@@ -303,6 +296,7 @@ export class Game extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const isPortrait = height > width;
     const marginX = Math.max(12, Math.floor(width * 0.04));
@@ -579,38 +573,43 @@ export class Game extends BaseMiniGame {
       this.ball.draw(ctx);
     }
 
-    // Standart köşe skorları (Proximity Ghosting ile: top veya raket yaklaşınca saydamlaşır)
-    if (this.state !== 'LOBBY') {
-      const activeEntities = [this.ball];
-      this.paddles.forEach((p) => {
-        if (p.isJoined && !p.isEliminated) {
-          activeEntities.push({ x: p.coord, y: p.fixedPerpendicular, radius: 24 });
-        }
-      });
-      renderCornerScores(ctx, {
-        arena: this.arena,
-        entries: this.paddles.map((p, i) =>
-          p.isJoined && !p.isEliminated
-            ? { color: p.color, text: `${this.setScores[i] || 0}` }
-            : null
-        ),
-        entities: activeEntities,
-      });
-    }
+    const activeEntities = [this.ball];
+    this.paddles.forEach((p) => {
+      if (p.isJoined && !p.isEliminated) {
+        activeEntities.push({ x: p.coord, y: p.fixedPerpendicular, radius: 24 });
+      }
+    });
 
-    // Render UI Overlays
-    this.uiButtons = [];
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.pong'), [
+    this.renderControls(ctx, { players: this.paddles, extraEntities: [this.ball] });
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.pong'),
+      guideEntries: [
         'P1 [W/S]',
         'P2 [↑/↓]',
         'P3 [I/K]',
         'P4 [T/G]',
-      ]);
-      this.renderLobbyUI(ctx);
-    } else if (this.state === 'MATCH_OVER') {
-      this.renderGameOverUI(ctx);
-    }
+      ],
+      showScoreboard: this.state !== 'LOBBY',
+      targetScore: this.targetSets,
+      scoreboardEntities: activeEntities,
+      colors: this.paddles.map((p) => p.color),
+      accent: '#D84727',
+      matchOverHeadline: t('game.champWon') || 'ŞAMPİYON',
+      matchOverRows: (this.winner || this.matchWinner)
+        ? this.paddles
+            .filter((p) => p.isJoined)
+            .map((p) => ({ color: p.color, text: `${p.name}: ${this.setScores[p.index] || 0} SET` }))
+        : [],
+      onRestart: () => {
+        this.state = 'LOBBY';
+        this.setScores = [0, 0, 0, 0];
+        this.winner = null;
+        this.roundWinner = null;
+        this.matchWinner = null;
+        this.paddles.forEach((p) => p.reset(p.isJoined));
+      },
+      customLobby: (c) => this.renderLobbyUI(c),
+    });
 
     ctx.restore();
   }
@@ -1045,25 +1044,5 @@ export class Game extends BaseMiniGame {
     });
   }
 
-  renderGameOverUI(ctx) {
-    renderMatchOver(ctx, {
-      arena: this.arena,
-      uiButtons: this.uiButtons,
-      headline: t('game.champWon'),
-      winnerName: this.winner ? this.winner.name : '',
-      winnerColor: this.winner ? this.winner.color : '#1A1A1A',
-      rows: this.winner
-        ? this.paddles
-            .filter((p) => p.isJoined)
-            .map((p) => ({ color: p.color, text: `${p.name}: ${this.setScores[p.index] || 0} SET` }))
-        : [],
-      onRestart: () => {
-        this.state = 'LOBBY';
-        this.setScores = [0, 0, 0, 0];
-        this.winner = null;
-        this.roundWinner = null;
-        this.paddles.forEach((p) => p.reset(p.isJoined));
-      },
-    });
-  }
+
 }

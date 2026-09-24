@@ -1,0 +1,759 @@
+/* === PAUSE & SETTINGS SHEETS === */
+/* Quick Toggles 2x2 Grid */
+.pause-quick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.quick-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  background-color: #ffffff;
+  border: 2px solid #1a1a1a;
+  box-shadow: 2px 2px 0px #1a1a1a;
+  cursor: pointer;
+  touch-action: manipulation;
+  text-align: left;
+  transition: transform 0.05s ease, background-color 0.1s ease, box-shadow 0.05s ease;
+  min-height: 42px;
+  box-sizing: border-box;
+}
+
+.quick-toggle-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+}
+
+.quick-toggle-btn .toggle-icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.quick-toggle-btn .toggle-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.quick-toggle-btn .toggle-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11.5px;
+  font-weight: 900;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-toggle-btn .toggle-state-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  font-weight: 900;
+  padding: 1px 4px;
+  background-color: #e2ded4;
+  color: #55514a;
+  border: 1px solid #1a1a1a;
+  align-self: flex-start;
+  line-height: 1.1;
+  letter-spacing: 0.4px;
+}
+
+.quick-toggle-btn.on {
+  background-color: #f2fbf4;
+}
+
+.quick-toggle-btn.on .toggle-state-badge {
+  background-color: #25d366;
+  color: #ffffff;
+  border-color: #1a1a1a;
+}
+
+.pause-btn.danger-btn,
+.pause-btn.danger {
+  background-color: #fff2ef;
+  color: #d84727;
+  border-color: #d84727;
+  box-shadow: 2.5px 2.5px 0px #d84727;
+  font-weight: 900;
+}
+
+.pause-btn.danger-btn:active,
+.pause-btn.danger:active {
+  transform: translate(1.5px, 1.5px);
+  box-shadow: 1px 1px 0px #d84727;
+}
+
+.pause-btn.reset-btn {
+  background-color: #ffffff;
+  color: #1a1a1a;
+}
+
+.sheet-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sheet-row-2 .pause-btn {
+  font-size: 12.5px;
+  padding: 10px 8px;
+}
+
+/* SaaS switch row: label left, iOS-style switch right */
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 2.5px solid #1a1a1a;
+  box-shadow: 3px 3px 0 #1a1a1a;
+  cursor: pointer;
+  touch-action: manipulation;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #1a1a1a;
+}
+
+.switch-row:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 #1a1a1a;
+}
+
+.switch-track {
+  flex-shrink: 0;
+  width: 46px;
+  height: 26px;
+  border: 2.5px solid #1a1a1a;
+  background: #e2ded4;
+  position: relative;
+  transition: background 0.12s ease;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 18px;
+  height: 18px;
+  background: #ffffff;
+  border: 2px solid #1a1a1a;
+  transition: left 0.12s ease;
+}
+
+.switch-row.on .switch-track {
+  background: #2f6a4f;
+}
+
+.switch-row.on .switch-thumb {
+  left: 21px;
+}
+
+/* Settings sheet styles */
+
+/* Language segmented control inside a switch row */
+.switch-row.static {
+  cursor: default;
+}
+
+.switch-row.static:active {
+  transform: none;
+  box-shadow: 3px 3px 0 #1a1a1a;
+}
+
+.lang-segment {
+  display: flex;
+  border: 2.5px solid #1a1a1a;
+  background: #e2ded4;
+  flex-shrink: 0;
+}
+
+.lang-seg-btn {
+  padding: 6px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 900;
+  background: transparent;
+  color: #1a1a1a;
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  min-height: 44px;
+}
+
+.lang-seg-btn.selected {
+  background: #1a1a1a;
+  color: #ffffff;
+}
+
+/* About info rows */
+.info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 2.5px solid #1a1a1a;
+  box-shadow: 3px 3px 0 #1a1a1a;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #1a1a1a;
+}
+
+.pause-seats-box {
+  background: #ffffff;
+  border: 2.5px solid #1a1a1a;
+  box-shadow: 3px 3px 0px #1a1a1a;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pause-seats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.pause-seats-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 900;
+  color: #1a1a1a;
+}
+
+.pause-rotate-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  font-weight: 800;
+  background: #1a1a1a;
+  color: #ffffff;
+  border: 1.5px solid #1a1a1a;
+  padding: 3px 8px;
+  min-height: 28px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.08s ease;
+}
+
+.pause-rotate-btn:active {
+  transform: scale(0.95);
+  background: #333333;
+}
+
+.pause-seats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.pause-seat-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #faf7f2;
+  border: 2px solid #1a1a1a;
+  box-shadow: 2px 2px 0px #1a1a1a;
+  cursor: pointer;
+  touch-action: manipulation;
+  text-align: left;
+  transition: transform 0.08s ease, background 0.08s ease, border-color 0.08s ease;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pause-seat-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+}
+
+.pause-seat-btn.selected-for-swap {
+  background: #fff0d4;
+  border-color: #d99b26;
+  box-shadow: 2px 2px 0px #d99b26;
+  outline: 2px solid #d99b26;
+}
+
+.pause-seat-color-badge {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid #1a1a1a;
+  flex-shrink: 0;
+}
+
+.pause-seat-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pause-seat-slot-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  font-weight: 900;
+  color: #777268;
+}
+
+.pause-seat-player-name {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pause-seats-hint {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: #777268;
+  text-align: center;
+}
+
+.pause-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #1a1a1a;
+  background-color: #e2ded4;
+  border: 2px solid #1a1a1a;
+  padding: 2px 6px;
+  align-self: flex-start;
+}
+
+.pause-title {
+  font-size: 22px;
+  font-weight: 900;
+  color: #1a1a1a;
+  letter-spacing: -0.5px;
+}
+
+.pause-btn {
+  width: 100%;
+  padding: 12px 14px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  border: 3px solid #1a1a1a;
+  box-shadow: 3px 3px 0px #1a1a1a;
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  touch-action: manipulation;
+}
+
+.pause-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1a1a1a;
+}
+
+.pause-btn.primary {
+  background-color: #1a1a1a;
+  color: #ffffff;
+}
+
+.pause-btn.danger {
+  background-color: #e2ded4;
+  color: #d84727;
+}
+
+.pause-btn.lobby-btn {
+  background-color: #ffd700;
+  color: #1a1a1a;
+}
+
+.pause-btn.hidden {
+  display: none !important;
+}
+
+
+/* === AVATAR CUSTOMIZER WORKSHOP & POPOVERS === */
+/* Left Preview Box */
+.customize-preview-box {
+  background-color: #F4F4F0;
+  border-right: 3.5px solid #1A1A1A;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 680px) {
+  .customize-preview-box {
+    border-right: none;
+    border-bottom: 3.5px solid #1A1A1A;
+    padding: 12px;
+  }
+}
+
+.preview-stage {
+  width: 190px;
+  height: 190px;
+  background-color: #FAF7F2;
+  border: 3px solid #1A1A1A;
+  box-shadow: 4px 4px 0px #1A1A1A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+}
+
+.preview-stage:active {
+  cursor: grabbing;
+}
+
+#customize-preview-canvas {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.preview-tip {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #75726B;
+  text-align: center;
+}
+
+.btn-reset-customize {
+  padding: 8px 14px;
+  background-color: #FAF7F2;
+  border: 2px solid #1A1A1A;
+  box-shadow: 2px 2px 0px #1A1A1A;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  color: #1A1A1A;
+  cursor: pointer;
+  transition: transform 0.05s ease, box-shadow 0.05s ease;
+}
+
+.btn-reset-customize:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0px 0px 0px #1A1A1A;
+}
+
+/* Right Options Scroll */
+.customize-options-scroll {
+  padding: 18px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.custom-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.custom-section.hidden {
+  display: none;
+}
+
+/* Sekme çubuğu (Avatar Atölyesi) */
+.customize-tabs {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.customize-tab {
+  flex: 1;
+  padding: 10px 6px;
+  background-color: #FAF7F2;
+  border: 2.5px solid #1A1A1A;
+  box-shadow: 3px 3px 0px #1A1A1A;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #1A1A1A;
+  cursor: pointer;
+  transition: transform 0.05s ease, box-shadow 0.05s ease, background-color 0.1s ease;
+  white-space: nowrap;
+}
+
+.customize-tab:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1A1A1A;
+}
+
+.customize-tab.active {
+  background-color: #FFDE59;
+  box-shadow: 1px 1px 0px #1A1A1A;
+  transform: translate(2px, 2px);
+}
+
+.custom-section-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #1A1A1A;
+}
+
+.palette-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.color-swatch-btn {
+  width: 42px;
+  height: 42px;
+  border: 3px solid #1A1A1A;
+  box-shadow: 3px 3px 0px #1A1A1A;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.05s ease, box-shadow 0.05s ease;
+}
+
+.color-swatch-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1A1A1A;
+}
+
+.color-swatch-btn.selected {
+  outline: 3px solid #FFDE59;
+  transform: scale(1.08);
+}
+
+.swatch-check {
+  color: #FFFFFF;
+  font-weight: 900;
+  font-size: 16px;
+  text-shadow: 1px 1px 2px #000;
+}
+
+.chips-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+  gap: 8px;
+}
+
+.custom-chip-btn {
+  padding: 8px 10px;
+  background-color: #FAF7F2;
+  border: 2.5px solid #1A1A1A;
+  box-shadow: 3px 3px 0px #1A1A1A;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: transform 0.05s ease, box-shadow 0.05s ease, background-color 0.1s ease;
+}
+
+.custom-chip-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1A1A1A;
+}
+
+.custom-chip-btn.selected {
+  background-color: #FFDE59;
+  box-shadow: 3px 3px 0px #1A1A1A;
+  transform: translate(-1px, -1px);
+}
+
+.chip-icon {
+  font-size: 20px;
+}
+
+.chip-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  color: #1A1A1A;
+  text-align: center;
+}
+
+/* Footer */
+.customize-footer {
+  padding: 14px 20px;
+  background-color: #F4F0EA;
+  border-top: 3.5px solid #1A1A1A;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-save-customize {
+  padding: 12px 24px;
+  background-color: #2F6A4F;
+  color: #FFFFFF;
+  border: 3px solid #1A1A1A;
+  box-shadow: 4px 4px 0px #1A1A1A;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: transform 0.05s ease, box-shadow 0.05s ease;
+}
+
+.btn-save-customize:active {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0px #1A1A1A;
+}
+
+/* Main Menu & Lobby Customize Trigger Buttons */
+.btn-hero-customize {
+  padding: 10px 16px;
+  background-color: #FFDE59;
+  color: #1A1A1A;
+  border: 3px solid #1A1A1A;
+  box-shadow: 4px 4px 0px #1A1A1A;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.05s ease, box-shadow 0.05s ease;
+}
+
+.btn-hero-customize:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px #1A1A1A;
+}
+
+.slot-color-btn {
+  padding: 4px 8px;
+  background-color: #FAF7F2;
+  border: 2px solid #1A1A1A;
+  box-shadow: 2px 2px 0px #1A1A1A;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  color: #1A1A1A;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slot-color-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #1A1A1A;
+}
+
+/* Renk çakışması: aynı display rengine sahip koltuklar */
+.host-player-slot.color-clash {
+  border-color: #D84727;
+  box-shadow: 3px 3px 0px #D84727;
+}
+
+.slot-clash-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 900;
+  color: #FFFFFF;
+  background-color: #D84727;
+  border: 2px solid #1A1A1A;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+/* Hızlı renk paleti popover (host lobisi) */
+.slot-palette-pop {
+  position: absolute;
+  z-index: 120;
+  width: 208px;
+  background-color: #FAF7F2;
+  border: 3px solid #1A1A1A;
+  box-shadow: 4px 4px 0px #1A1A1A;
+  padding: 10px;
+}
+
+.slot-palette-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 900;
+  color: #1A1A1A;
+  margin-bottom: 8px;
+}
+
+.slot-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.slot-palette-swatch {
+  width: 30px;
+  height: 30px;
+  border: 2.5px solid #1A1A1A;
+  cursor: pointer;
+  padding: 0;
+}
+
+.slot-palette-swatch:active {
+  transform: scale(0.92);
+}
+
+.slot-palette-dice {
+  width: 100%;
+  padding: 8px 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 900;
+  color: #1A1A1A;
+  background-color: #FFDE59;
+  border: 2.5px solid #1A1A1A;
+  box-shadow: 2px 2px 0px #1A1A1A;
+  cursor: pointer;
+}
+
+.slot-palette-dice:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #1A1A1A;
+}
+
+/* Sert engel: kilitli başlat butonları */
+#btn-host-launch-game.blocked,
+#btn-staging-launch.blocked {
+  background-color: #D84727;
+  color: #FFFFFF;
+}
+
+#staging-ready-pill.clash {
+  background-color: #D84727;
+  color: #FFFFFF;
+}
+
+/* ==========================================================================
+   NEO-BRUTALIST PREMIUM STATE TRANSITIONS & ANIMATIONS
+   ========================================================================== */

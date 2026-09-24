@@ -7,6 +7,7 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { UI_COLORS, UI_FONTS, uiFont, getUiScale } from '../ui/tokens.js';
 import { renderUniversalScoreboard, renderRoundBanner, renderMatchOver, renderTopPill, renderFloatingTexts } from '../ui/hud.js';
 import { renderControlGuide } from '../controlGuide.js';
+import { drawObstacle, drawPickup } from '../core/arenaKit.js';
 import { t } from '../i18n.js';
 import { RaceAI } from '../ai/raceAI.js';
 
@@ -816,23 +817,7 @@ export class RaceGame extends BaseMiniGame {
 
     // Nitro Boost Pads
     this.nitroPads.forEach((pad) => {
-      ctx.save();
-      ctx.translate(pad.x, pad.y);
-      ctx.rotate(pad.angle);
-      ctx.fillStyle = '#FFDE59';
-      ctx.fillRect(-pad.w / 2, -pad.h / 2, pad.w, pad.h);
-      ctx.strokeStyle = UI_COLORS.ink;
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(-pad.w / 2, -pad.h / 2, pad.w, pad.h);
-
-      ctx.fillStyle = UI_COLORS.ink;
-      ctx.beginPath();
-      ctx.moveTo(8, 0);
-      ctx.lineTo(-6, -6);
-      ctx.lineTo(-6, 6);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
+      drawPickup(ctx, { x: pad.x, y: pad.y, type: 'FAST', animTime: performance.now() * 0.001 }, { size: pad.w, glyph: '⚡' });
     });
 
     // Obstacle Spinners
@@ -841,15 +826,11 @@ export class RaceGame extends BaseMiniGame {
       ctx.translate(sp.x, sp.y);
       ctx.rotate(sp.angle);
 
-      ctx.fillStyle = '#D84727';
-      ctx.fillRect(-sp.length / 2, -8, sp.length, 16);
-      ctx.strokeStyle = UI_COLORS.ink;
-      ctx.lineWidth = 3;
-      ctx.strokeRect(-sp.length / 2, -8, sp.length, 16);
+      drawObstacle(ctx, { x: -sp.length / 2, y: -8, w: sp.length, h: 16 }, { variant: 'stone' });
 
       ctx.fillStyle = UI_COLORS.ink;
       ctx.beginPath();
-      ctx.arc(0, 0, 10, 0, Math.PI * 2);
+      ctx.arc(0, 0, 8, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     });

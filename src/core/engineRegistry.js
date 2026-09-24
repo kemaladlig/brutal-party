@@ -11,11 +11,11 @@ import { t } from '../i18n.js';
 
 export const GAME_ORDER = [
   'PONG',
+  'ARCHER',
   'TANKS',
   'CURVE',
   'BOMB',
   'HEIST',
-  'ARCHER',
   'CROWN',
   'ZONE',
   'SNAKE',
@@ -46,6 +46,7 @@ export const CARTRIDGES = {
           const chgIdx = game.paddles.findIndex((p) => p.spinCharge > 0);
           return {
             scores: game.setScores,
+            lives: game.paddles.map((p) => Math.max(0, p.lives || 0)),
             rally: game.ball?.rallyCount || 0,
             spn: Math.abs(game.ball?.spin || 0) > 8 ? 1 : 0,
             chgIdx,
@@ -279,13 +280,12 @@ export const CARTRIDGES = {
           hp: game.players.map((p) => p.hp || 0),
           timeLeft: Math.ceil(game.matchTimer || 0),
           cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 4.0) * 100)),
-          cdFire: game.players.map((p, i) => {
-            let active = 0;
-            for (const lz of game.lasers || []) if (lz.owner === i) active++;
-            if (active >= 2) return 100;
-            const div = p.fastTimer > 0 ? 0.9 * 0.45 : 0.9;
-            return Math.ceil((Math.max(0, p.cooldown || 0) / div) * 100);
+          cdFire: game.players.map((p) => {
+            if ((p.ammo ?? 2) > 0) return 0;
+            const reloadMax = p.fastTimer > 0 ? 0.45 : 0.9;
+            return Math.ceil((Math.max(0, p.reloadTimer || 0) / reloadMax) * 100);
           }),
+          ammo: game.players.map((p) => (p.ammo !== undefined ? p.ammo : 2)),
         }),
       };
     },

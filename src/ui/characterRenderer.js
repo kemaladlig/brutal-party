@@ -878,26 +878,8 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {
 
   ctx.restore(); // Başlık dönme sonu
 
-  // 7. Yazısız koltuk kimliği: koltuk numarası kadar pip noktası (P1=●, P4=●●●●).
-  // Saha içi yazı YASAKTIR — kimlik renk + pip + koltuk/köşe pozisyonudur.
-  // `label` parametresi artık çizilmez (ölü parametre, motorlardan temizlenecek).
-  if (slotIdx !== null && !isBot && options.showPips !== false) {
-    const n = Math.max(1, Math.min(4, slotIdx + 1));
-    const pr = Math.max(1.6, r * 0.10);
-    const gap = pr * 2.7;
-    const totalW = (n - 1) * gap;
-    const py = r + pr + 3;
-    for (let k = 0; k < n; k++) {
-      const px = -totalW / 2 + k * gap;
-      ctx.beginPath();
-      ctx.arc(px, py, pr, 0, Math.PI * 2);
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fill();
-      ctx.lineWidth = 1.2;
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-      ctx.stroke();
-    }
-  }
+  // 7. Koltuk kimliği: her oyuncunun kendi ana rengi (Kırmızı, Mavi, Sarı, Yeşil)
+  // ve aksesuar/yüz ifadesi ile sağlanır. Karakter altındaki pip noktaları kaldırılmıştır.
 
   ctx.restore();
 }

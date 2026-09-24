@@ -1,33 +1,30 @@
 // BRUTAL LASER v2: 2-4 oyunculu hareketli lazer-tag — koş, sekme önizlemesiyle
 // nişan al, ateş et. 3 can + dash i-frame + respawn + 90sn kill yarışı + pickup.
 // Tek çubuk: joystick yönü hem hareket hem nişan verir (it=koş+nişan, bırak=dur).
-
+import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGunshot, playDashWhoosh, playItemPickup, playStumble } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { getLocalSeatColors, getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
-import { renderTopPill, renderCornerScores, renderMatchOver, renderArenaWatermarkTimer } from '../ui/hud.js';
+import { renderEntityHUD, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup } from '../core/arenaKit.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { clampToArena, resolveAABB, updateMovers } from '../core/physics2d.js';
+import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 
 export const LASER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const LASER_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
-// Lokal klavye: Hareket + Ateş + Dash
-// (P1 WASD+Space, P2 Oklar+Enter, P3 IJKL+O, P4 TFGH+B sözleşmesi korunur; dash eklenir)
-const LASER_KEY_SLOTS = [
-  { u: 'KeyW', d: 'KeyS', l: 'KeyA', r: 'KeyD', fire: 'Space', dash: 'ShiftLeft' },
-  { u: 'ArrowUp', d: 'ArrowDown', l: 'ArrowLeft', r: 'ArrowRight', fire: 'Enter', dash: 'ShiftRight' },
-  { u: 'KeyI', d: 'KeyK', l: 'KeyJ', r: 'KeyL', fire: 'KeyO', dash: 'KeyU' },
-  { u: 'KeyT', d: 'KeyG', l: 'KeyF', r: 'KeyH', fire: 'KeyB', dash: 'KeyR' },
-];
-
 export const LASER_TUNING = {
   SPEED: 220,          // koşu hızı (px/s)
-  FIRE_CD: 0.9,        // ateş bekleme (sn)
-  MAX_ACTIVE: 2,       // oyuncu başına havada max lazer
+  AIM_SPEED_MULT: 0.50,// nişan alma / tetiğe basılı tutarken hız çarpanı (%50 yavaşlama, Archer stili)
+  MAX_AMMO: 2,         // şarjör kapasitesi (mermi sayısı)
+  RELOAD_TIME: 0.9,    // tek mermi dolum süresi (sn)
+  SHOT_INTERVAL: 0.22, // ardışık iki atış arası tetik beklemesi (sn)
+  FIRE_CD: 0.9,        // genel bekleme referansı
+  MAX_ACTIVE: 3,       // oyuncu başına havada max seken lazer güvenlik tavanı
   LASER_SPEED: 620,    // lazer hızı (px/s)
   FAST_MULT: 1.45,     // ⚡ pickup hız çarpanı
   FAST_TIME: 8.0,      // ⚡ süresi (sn)
@@ -43,7 +40,6 @@ export const LASER_TUNING = {
   MATCH_TIME: 90,      // maç süresi (sn)
   TARGET_KILLS: 10,    // erken zafer kill sayısı
   PICKUP_EVERY: 10.0,  // pickup aralığı (sn)
-  DOUBLE_TAP_MS: 280,  // lokal çift-dokunuş dash penceresi
 };
 
 export const LASER_MAPS = [
@@ -78,14 +74,32 @@ export class LaserGame extends BaseMiniGame {
     this.pickupFlip = false;
     this.lastTime = performance.now();
 
-    // Lokal dokunmatik: köşe başına yüzen joystick (hareket+nişan)
-    this.touches = [
-      { active: false, ox: 0, oy: 0, id: -1 },
-      { active: false, ox: 0, oy: 0, id: -1 },
-      { active: false, ox: 0, oy: 0, id: -1 },
-      { active: false, ox: 0, oy: 0, id: -1 },
-    ];
     this.initKeyboard();
+  }
+
+  getTabletopSchema() {
+    return {
+      joystick: true,
+      actions: [
+        // Basılı tut = nişan (yavaşla), bırak = ateş; şarj barı isAiming'den gelir
+        { id: 'fire', icon: '🎯', label: 'NİŞAN/ATEŞ', holdToCharge: true },
+        { id: 'dash', icon: '⚡', label: 'DASH', cooldownField: 'dashCooldown', maxCooldown: LASER_TUNING.DASH_CD },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    const player = this.players[slotIndex];
+    if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
+    if (actionId === 'fire') {
+      if (isDown) {
+        this.beginAim(player);
+      } else {
+        this.releaseAim(player);
+      }
+    } else if (actionId === 'dash' && isDown) {
+      this.triggerDash(slotIndex);
+    }
   }
 
   initKeyboard() {
@@ -99,14 +113,12 @@ export class LaserGame extends BaseMiniGame {
   }
 
   keyboardInput(index) {
-    const map = LASER_KEY_SLOTS[index];
-    if (!map) return { dx: 0, dy: 0, fire: false, dash: false };
-    const dx = (this.keys[map.r] ? 1 : 0) - (this.keys[map.l] ? 1 : 0);
-    const dy = (this.keys[map.d] ? 1 : 0) - (this.keys[map.u] ? 1 : 0);
-    return { dx, dy, fire: !!this.keys[map.fire], dash: !!this.keys[map.dash] };
+    const base = readSlotKeys(this.keys, index);
+    return { dx: base.dx, dy: base.dy, fire: base.action, dash: !!this.keys[getSecondActionKey('dash', index)] };
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
@@ -300,12 +312,13 @@ export class LaserGame extends BaseMiniGame {
         x: s.x, y: s.y, angle: s.angle, targetAngle: s.angle,
         steerX: 0, steerY: 0, kbx: 0, kby: 0,
         hp: LASER_TUNING.MAX_HP, cooldown: 0,
+        ammo: LASER_TUNING.MAX_AMMO, reloadTimer: 0, shotCooldown: 0, isAiming: false,
         dashTimer: 0, dashCooldown: 0,
         invulnTimer: 0, respawnTimer: 0, fastTimer: 0, tripleTimer: 0,
         shield: false, wasReady: true,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         botCheckTimer: Math.random(), botStrafeDir: Math.random() < 0.5 ? 1 : -1,
-        botRetarget: 0, keyFireLatch: false, keyDashLatch: false, keyHeld: false, lastTapTime: 0,
+        botRetarget: 0, keyFireLatch: false, keyDashLatch: false,
       };
     });
   }
@@ -363,7 +376,11 @@ export class LaserGame extends BaseMiniGame {
       p.steerX = 0; p.steerY = 0; p.kbx = 0; p.kby = 0;
       p.hp = LASER_TUNING.MAX_HP;
       p.isAlive = p.isJoined;
-      p.cooldown = 0.5;
+      p.cooldown = 0;
+      p.ammo = LASER_TUNING.MAX_AMMO;
+      p.reloadTimer = 0;
+      p.shotCooldown = 0.3;
+      p.isAiming = false;
       p.dashTimer = 0; p.dashCooldown = 0;
       p.invulnTimer = p.isJoined ? LASER_TUNING.SPAWN_PROTECT : 0;
       p.respawnTimer = 0; p.fastTimer = 0; p.tripleTimer = 0;
@@ -398,15 +415,38 @@ export class LaserGame extends BaseMiniGame {
     });
   }
 
+  beginAim(player) {
+    if (this.state !== 'PLAYING') return;
+    if (!player || !player.isJoined || !player.isAlive || player.respawnTimer > 0) return;
+    player.isAiming = true;
+  }
+
+  releaseAim(player) {
+    if (!player) return;
+    player.isAiming = false;
+    this.fireLaser(player);
+  }
+
   fireLaser(player) {
     // Uzak/yakın tüm tetikleyiciler için kapı: PLAYING + canlı + katılmış
     if (this.state !== 'PLAYING') return;
     if (!player || !player.isJoined || !player.isAlive) return;
-    if (player.cooldown > 0 || player.respawnTimer > 0) return;
+    if (player.respawnTimer > 0) return;
+    if (player.shotCooldown > 0) return;
+    if ((player.ammo ?? 2) <= 0) return;
+
     let active = 0;
     for (const lz of this.lasers) if (lz.owner === player.index) active++;
     if (active >= LASER_TUNING.MAX_ACTIVE) return;
-    player.cooldown = player.fastTimer > 0 ? LASER_TUNING.FIRE_CD * 0.45 : LASER_TUNING.FIRE_CD;
+
+    player.ammo = Math.max(0, (player.ammo ?? 2) - 1);
+    player.shotCooldown = LASER_TUNING.SHOT_INTERVAL;
+    const reloadDuration = player.fastTimer > 0 ? LASER_TUNING.RELOAD_TIME * 0.5 : LASER_TUNING.RELOAD_TIME;
+    if (player.reloadTimer <= 0) {
+      player.reloadTimer = reloadDuration;
+    }
+    player.cooldown = player.reloadTimer;
+
     playGunshot();
     const spd = LASER_TUNING.LASER_SPEED * (player.fastTimer > 0 ? LASER_TUNING.FAST_MULT : 1);
     
@@ -504,151 +544,62 @@ export class LaserGame extends BaseMiniGame {
   }
 
   spawnPickup() {
-    if (this.pickups.length >= 2) return;
-    const { cx, cy, size } = this.arena;
-    const types = ['HEAL', 'FAST', 'SHIELD', 'TRIPLE'];
-    const type = types[Math.floor(Math.random() * types.length)];
-    const a = Math.random() * Math.PI * 2;
-    const r = size * 0.18 * Math.random();
-    this.pickups.push({
-      x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r,
-      type, radius: 15, animTime: Math.random() * 10,
+    spawnPickup(this, {
+      types: ['HEAL', 'FAST', 'SHIELD', 'TRIPLE'],
+      max: 2,
+      obstacles: this.obstacles,
     });
   }
 
-  getCornerZone(pos) {
-    const { cx, cy } = this.arena;
-    const isLeft = pos.x < cx;
-    const isTop = pos.y < cy;
-    if (isLeft && !isTop) return 0;
-    if (isLeft && isTop) return 1;
-    if (!isLeft && isTop) return 2;
-    return 3;
-  }
-
   onTouchStart(touch) {
-    const { cx, cy } = this.arena;
-    const distToCenter = Math.hypot(touch.x - cx, touch.y - cy);
-
     if (this.state === 'LOBBY') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 65) {
-        const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-        if (joinedCount >= 2) this.startNewMatch();
-        return;
-      }
-      const corner = this.getCornerZone(touch);
-      this.cycleSlotType(corner);
-      if (this.players[corner]) {
-        this.players[corner].isJoined = this.isSlotJoined(corner);
-        this.players[corner].slotType = this.slotTypes[corner];
-      }
+      if (lobbyCenterStartTap(this, touch)) return;
+      lobbyQuadrantTap(this, touch, {
+        onSeatChange: (corner) => {
+          if (this.players[corner]) {
+            this.players[corner].isJoined = this.isSlotJoined(corner);
+            this.players[corner].slotType = this.slotTypes[corner];
+          }
+        },
+      });
       playJoin();
       return;
     }
 
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 75) {
-        this.resetMatch();
-        playJoin();
-      }
+      matchOverRestartTap(this, touch, { onRestart: () => { this.resetMatch(); playJoin(); } });
       return;
     }
 
     if (this.state === 'PLAYING') {
       if (this.handleUiTap(touch)) return;
-      const corner = this.getCornerZone(touch);
-      const player = this.players[corner];
-      if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
-      const t = this.touches[corner];
-      // İkinci parmak aynı kadran = ateş
-      if (t.active && t.id !== -1) {
-        this.fireLaser(player);
-        return;
-      }
-      // Çift dokunuş = dash (BOMB deseni)
-      const now = performance.now();
-      if (now - player.lastTapTime < LASER_TUNING.DOUBLE_TAP_MS) {
-        this.triggerDash(corner);
-      }
-      player.lastTapTime = now;
-      t.active = true;
-      t.id = touch.id;
-      t.ox = touch.x;
-      t.oy = touch.y;
+      this.handleTabletopTouchStart(touch);
     }
   }
 
   onTouchMove(touch) {
     if (this.state !== 'PLAYING') return;
-    for (let i = 0; i < 4; i++) {
-      const t = this.touches[i];
-      if (t.active && t.id === touch.id) {
-        const player = this.players[i];
-        if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
-          const dx = touch.x - t.ox;
-          const dy = touch.y - t.oy;
-          const dist = Math.hypot(dx, dy);
-          if (dist > 10) {
-            player.steerX = dx / dist;
-            player.steerY = dy / dist;
-            player.targetAngle = Math.atan2(dy, dx);
-          }
-        }
-        break;
-      }
-    }
+    this.handleTabletopTouchMove(touch);
   }
 
   onTouchEnd(touch) {
-    for (let i = 0; i < 4; i++) {
-      const t = this.touches[i];
-      if (t.id === touch.id) {
-        t.active = false;
-        t.id = -1;
-        const player = this.players[i];
-        if (player && player.slotType === 'human') {
-          player.steerX = 0;
-          player.steerY = 0;
-        }
-      }
-    }
+    this.handleTabletopTouchEnd(touch);
   }
 
   onTouchesReset() {
-    this.touches = [
-      { active: false, ox: 0, oy: 0, id: -1 },
-      { active: false, ox: 0, oy: 0, id: -1 },
-      { active: false, ox: 0, oy: 0, id: -1 },
-      { active: false, ox: 0, oy: 0, id: -1 },
-    ];
+    this.resetTabletopTouches();
+    this.players.forEach((p) => {
+      p.steerX = 0;
+      p.steerY = 0;
+      p.isAiming = false;
+    });
   }
 
   collideObstacles(p, r) {
     const all = this.movingWalls.length ? [...this.obstacles, ...this.movingWalls] : this.obstacles;
-    for (const obs of all) {
-      const nx = Math.max(obs.x, Math.min(p.x, obs.x + obs.w));
-      const ny = Math.max(obs.y, Math.min(p.y, obs.y + obs.h));
-      let dx = p.x - nx;
-      let dy = p.y - ny;
-      let d = Math.hypot(dx, dy);
-      if (d < r) {
-        if (d < 0.001) {
-          // Merkez içeride: en sığ yüzden dışarı it
-          const l = p.x - obs.x, rr = obs.x + obs.w - p.x;
-          const t = p.y - obs.y, b = obs.y + obs.h - p.y;
-          const m = Math.min(l, rr, t, b);
-          if (m === l) p.x = obs.x - r;
-          else if (m === rr) p.x = obs.x + obs.w + r;
-          else if (m === t) p.y = obs.y - r;
-          else p.y = obs.y + obs.h + r;
-        } else {
-          p.x = nx + (dx / d) * r;
-          p.y = ny + (dy / d) * r;
-        }
-      }
-    }
+    resolveAABB(p, all, r);
   }
 
   update(now) {
@@ -662,24 +613,7 @@ export class LaserGame extends BaseMiniGame {
     if (this.state !== 'PLAYING') return;
 
     // Hareketli duvarlar (ping-pong, yavaş & tahmin edilebilir)
-    for (const mw of this.movingWalls) {
-      mw.x += mw.vx * dt;
-      mw.y += mw.vy * dt;
-      if (mw.vx > 0 && mw.x >= mw.maxX) {
-        mw.x = mw.maxX;
-        mw.vx *= -1;
-      } else if (mw.vx < 0 && mw.x <= mw.minX) {
-        mw.x = mw.minX;
-        mw.vx *= -1;
-      }
-      if (mw.vy > 0 && mw.y >= mw.maxY) {
-        mw.y = mw.maxY;
-        mw.vy *= -1;
-      } else if (mw.vy < 0 && mw.y <= mw.minY) {
-        mw.y = mw.minY;
-        mw.vy *= -1;
-      }
-    }
+    updateMovers(this.movingWalls, dt, 'pingpong');
 
     // Maç saati + pickup
     this.matchTimer -= dt;
@@ -693,24 +627,47 @@ export class LaserGame extends BaseMiniGame {
       this.pickupTimer = LASER_TUNING.PICKUP_EVERY;
       this.spawnPickup();
     }
-    for (const pk of this.pickups) pk.animTime += dt;
+    tickPickupTimers(this, dt);
 
     // 1. Oyuncular
     for (const player of this.players) {
       if (!player.isJoined) continue;
 
-      const prevCd = player.cooldown;
-      if (player.cooldown > 0) player.cooldown -= dt;
+      if (player.shotCooldown > 0) player.shotCooldown -= dt;
       if (player.dashCooldown > 0) player.dashCooldown -= dt;
       if (player.dashTimer > 0) player.dashTimer -= dt;
       if (player.invulnTimer > 0) player.invulnTimer -= dt;
       if (player.fastTimer > 0) player.fastTimer -= dt;
       if (player.tripleTimer > 0) player.tripleTimer -= dt;
 
+      // Mermi (ammo) dolum döngüsü
+      const maxAmmo = LASER_TUNING.MAX_AMMO || 2;
+      const reloadDuration = player.fastTimer > 0 ? LASER_TUNING.RELOAD_TIME * 0.5 : LASER_TUNING.RELOAD_TIME;
+      if ((player.ammo ?? maxAmmo) < maxAmmo) {
+        player.reloadTimer = (player.reloadTimer ?? reloadDuration) - dt;
+        if (player.reloadTimer <= 0) {
+          player.ammo = Math.min(maxAmmo, (player.ammo ?? 0) + 1);
+          this.spawnSparks(
+            player.x + Math.cos(player.angle) * 18,
+            player.y + Math.sin(player.angle) * 18,
+            player.color,
+            6
+          );
+          if (player.ammo < maxAmmo) {
+            player.reloadTimer = reloadDuration;
+          } else {
+            player.reloadTimer = 0;
+          }
+        }
+      } else {
+        player.reloadTimer = 0;
+      }
+      player.cooldown = player.reloadTimer;
+
       // Cooldown bittiğinde görsel mermi hazır flaşı
       let activeLasers = 0;
       for (const lz of this.lasers) if (lz.owner === player.index) activeLasers++;
-      const isReadyNow = player.cooldown <= 0 && activeLasers < LASER_TUNING.MAX_ACTIVE;
+      const isReadyNow = (player.ammo > 0) && (player.shotCooldown <= 0) && (activeLasers < LASER_TUNING.MAX_ACTIVE);
       if (isReadyNow && !player.wasReady) {
         this.spawnSparks(
           player.x + Math.cos(player.angle) * 18,
@@ -734,7 +691,11 @@ export class LaserGame extends BaseMiniGame {
           player.hp = LASER_TUNING.MAX_HP;
           player.isAlive = true;
           player.invulnTimer = LASER_TUNING.SPAWN_PROTECT;
-          player.cooldown = 0.5;
+          player.ammo = LASER_TUNING.MAX_AMMO;
+          player.reloadTimer = 0;
+          player.shotCooldown = 0.3;
+          player.isAiming = false;
+          player.cooldown = 0;
           player.shield = false;
           player.fastTimer = 0;
           player.tripleTimer = 0;
@@ -747,26 +708,34 @@ export class LaserGame extends BaseMiniGame {
         updateLaserBotAI(this, player, dt);
       } else {
         const ki = this.keyboardInput(player.index);
-        if (ki.dx !== 0 || ki.dy !== 0) {
-          // Klavye sahiplenir (dokunmatik/uzak girdiyi ezerken basılı tutar)
+        const joy = this.joysticks[player.index];
+        if (joy && joy.active && joy.force > 0.08) {
+          player.steerX = Math.cos(joy.angle) * joy.force;
+          player.steerY = Math.sin(joy.angle) * joy.force;
+          player.targetAngle = joy.angle;
+        } else if (ki.dx !== 0 || ki.dy !== 0) {
           const mag = Math.hypot(ki.dx, ki.dy) || 1;
           player.steerX = ki.dx / mag;
           player.steerY = ki.dy / mag;
           player.targetAngle = Math.atan2(ki.dy, ki.dx);
-          player.keyHeld = true;
-        } else if (player.keyHeld) {
+        } else if (!player.remoteActive) {
           // Klavye bırakıldı: sadece kendi yazdığını siler (uzak/dokunmatik korunur)
-          player.keyHeld = false;
-          if (!this.touches[player.index].active) {
-            player.steerX = 0;
-            player.steerY = 0;
-          }
+          player.steerX = 0;
+          player.steerY = 0;
         }
-        if (ki.fire && !player.keyFireLatch) {
-          this.fireLaser(player);
-          player.keyFireLatch = true;
-        } else if (!ki.fire) {
+
+        // Nişan: klavye geçiş-temelli (latch) — uzak oyuncunun isAiming'ini
+        // yerel tuş yokken boş frame'de tetiklemez; masa-ortası butonu basılıysa korur
+        if (ki.fire) {
+          if (!player.keyFireLatch) {
+            this.beginAim(player);
+            player.keyFireLatch = true;
+          }
+        } else if (player.keyFireLatch) {
           player.keyFireLatch = false;
+          if (!this.tabletopActionState[player.index]?.fire) {
+            this.releaseAim(player);
+          }
         }
         if (ki.dash && !player.keyDashLatch) {
           this.triggerDash(player.index);
@@ -780,8 +749,9 @@ export class LaserGame extends BaseMiniGame {
       const diff = normalizeAngle(player.targetAngle - player.angle);
       player.angle += diff * Math.min(1.0, dt * 15);
 
-      // Hareket: depar 2.2x, i-frame dash süresince
+      // Hareket: nişan alırken %50 yavaşlama (Archer stili), depar 2.2x, i-frame dash süresince
       let spd = LASER_TUNING.SPEED;
+      if (player.isAiming) spd *= (LASER_TUNING.AIM_SPEED_MULT || 0.50);
       if (player.dashTimer > 0) spd *= LASER_TUNING.DASH_MULT;
       const mag = Math.hypot(player.steerX, player.steerY);
       if (mag > 0.05) {
@@ -794,33 +764,28 @@ export class LaserGame extends BaseMiniGame {
       player.x += player.kbx * dt;
       player.y += player.kby * dt;
 
-      const r = 14;
-      player.x = Math.max(this.arena.left + r, Math.min(this.arena.right - r, player.x));
-      player.y = Math.max(this.arena.top + r, Math.min(this.arena.bottom - r, player.y));
-      this.collideObstacles(player, r);
+      clampToArena(player, 14, this.arena);
+      this.collideObstacles(player, 14);
 
       // Pickup yeme
-      for (let i = this.pickups.length - 1; i >= 0; i--) {
-        const pk = this.pickups[i];
-        if (Math.hypot(player.x - pk.x, player.y - pk.y) < 28) {
+      collectPickups(this, player, {
+        radiusOf: () => 14,
+        onCollect: (g, p, pk) => {
           if (pk.type === 'HEAL') {
-            player.hp = Math.min(LASER_TUNING.MAX_HP + 1, player.hp + 1);
-            this.spawnFloatingText(player.x, player.y - 20, '❤ +1 CAN', '#2F6A4F');
+            p.hp = Math.min(LASER_TUNING.MAX_HP + 1, p.hp + 1);
+            this.spawnFloatingText(p.x, p.y - 20, '❤ +1 CAN', '#2F6A4F');
           } else if (pk.type === 'FAST') {
-            player.fastTimer = LASER_TUNING.FAST_TIME;
-            this.spawnFloatingText(player.x, player.y - 20, t('laser.rapid'), '#FFDE59');
+            p.fastTimer = LASER_TUNING.FAST_TIME;
+            this.spawnFloatingText(p.x, p.y - 20, t('laser.rapid'), '#FFDE59');
           } else if (pk.type === 'SHIELD') {
-            player.shield = true;
-            this.spawnFloatingText(player.x, player.y - 20, t('laser.shield'), '#0EA5E9');
+            p.shield = true;
+            this.spawnFloatingText(p.x, p.y - 20, t('laser.shield'), '#0EA5E9');
           } else if (pk.type === 'TRIPLE') {
-            player.tripleTimer = LASER_TUNING.TRIPLE_TIME;
-            this.spawnFloatingText(player.x, player.y - 20, t('laser.triple'), '#F97316');
+            p.tripleTimer = LASER_TUNING.TRIPLE_TIME;
+            this.spawnFloatingText(p.x, p.y - 20, t('laser.triple'), '#F97316');
           }
-          this.pickups.splice(i, 1);
-          playItemPickup();
-          break;
-        }
-      }
+        },
+      });
     }
 
     // 2. Lazer fiziği (hıza oranlı alt-adım: mermi köşelerden geçmez)
@@ -922,6 +887,10 @@ export class LaserGame extends BaseMiniGame {
       if (Number.isFinite(data.angle) && (data.force || 0) > 0.05) {
         player.targetAngle = normalizeAngle(data.angle);
       }
+    } else if (data.action === 'LASER_AIM') {
+      this.beginAim(player);
+    } else if (data.action === 'LASER_FIRE' || data.action === 'LASER_FIRE_RELEASE') {
+      this.releaseAim(player);
     } else if (data.action === 'TANK_FIRE') {
       this.fireLaser(player);
     } else if (data.action === 'DASH') {
@@ -1103,11 +1072,6 @@ export class LaserGame extends BaseMiniGame {
         ringProgress: Math.max(0, remain / 90),
       });
 
-      renderCornerScores(ctx, {
-        arena: this.arena,
-        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index] || 0}` } : null),
-        entities: this.players.filter((p) => p.isJoined && p.isAlive),
-      });
     }
 
     // Pickup'lar (Canlı İkon Rozetleri)
@@ -1122,24 +1086,43 @@ export class LaserGame extends BaseMiniGame {
         if (!player.isJoined || !player.isAlive) continue;
         let active = 0;
         for (const lz of this.lasers) if (lz.owner === player.index) active++;
-        const isReady = player.cooldown <= 0 && active < LASER_TUNING.MAX_ACTIVE;
+        const isReady = (player.ammo > 0) && (player.shotCooldown <= 0) && (active < LASER_TUNING.MAX_ACTIVE);
 
         const pts = this.traceAim(player);
         ctx.strokeStyle = player.color;
-        ctx.globalAlpha = isReady ? 0.55 : 0.18;
-        ctx.lineWidth = isReady ? 2.5 : 1.5;
-        ctx.setLineDash(isReady ? [6, 4] : [2, 6]);
+        if (player.isAiming) {
+          ctx.globalAlpha = 0.95;
+          ctx.lineWidth = 3.5;
+          ctx.setLineDash([8, 4]);
+        } else {
+          ctx.globalAlpha = isReady ? 0.55 : 0.3;
+          ctx.lineWidth = isReady ? 2.2 : 1.6;
+          ctx.setLineDash(isReady ? [6, 4] : [2, 6]);
+        }
         ctx.beginPath();
         ctx.moveTo(pts[0].x, pts[0].y);
         for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Sekme noktalarında parlama
-        if (isReady && pts.length > 2) {
+        // Sekme noktalarında parlama ve nişan ucu reticle
+        if (pts.length > 1) {
           ctx.fillStyle = player.color;
           for (let i = 1; i < pts.length - 1; i++) {
-            ctx.beginPath(); ctx.arc(pts[i].x, pts[i].y, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(pts[i].x, pts[i].y, player.isAiming ? 4.5 : 3, 0, Math.PI * 2); ctx.fill();
+          }
+          if (player.isAiming) {
+            const endPt = pts[pts.length - 1];
+            ctx.strokeStyle = '#1A1A1A';
+            ctx.lineWidth = 3.5;
+            ctx.beginPath();
+            ctx.arc(endPt.x, endPt.y, 5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(endPt.x, endPt.y, 5, 0, Math.PI * 2);
+            ctx.stroke();
           }
         }
       }
@@ -1164,6 +1147,9 @@ export class LaserGame extends BaseMiniGame {
 
       ctx.fillStyle = '#FFF';
       ctx.beginPath(); ctx.arc(laser.x, laser.y, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
     }
 
     // Oyuncular
@@ -1176,7 +1162,7 @@ export class LaserGame extends BaseMiniGame {
 
       let activeLasers = 0;
       for (const lz of this.lasers) if (lz.owner === player.index) activeLasers++;
-      const isFireReady = player.cooldown <= 0 && activeLasers < LASER_TUNING.MAX_ACTIVE;
+      const isFireReady = (player.ammo > 0) && (player.shotCooldown <= 0) && (activeLasers < LASER_TUNING.MAX_ACTIVE);
 
       ctx.save();
       ctx.translate(player.x, player.y);
@@ -1195,12 +1181,16 @@ export class LaserGame extends BaseMiniGame {
         ctx.restore();
       }
 
-      // Dash hazır halkası (hazırsa beyaz parlar, cooldown'daysa dolum yayı çizer)
-      ctx.lineWidth = 3;
+      // Dash hazır halkası (hazırsa çift stroke: koyu taban + beyaz üst — açık zeminde de görünür)
       if (player.dashCooldown <= 0) {
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
         ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
       } else {
+        ctx.lineWidth = 3;
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.25)';
         ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
         const cdProg = 1 - Math.max(0, player.dashCooldown / LASER_TUNING.DASH_CD);
@@ -1246,76 +1236,27 @@ export class LaserGame extends BaseMiniGame {
 
       ctx.restore();
 
-      // --- MERMİ & CAN GÖSTERGELERİ (Host Ekranı Görsel İpuçları) ---
-      // 1. HP Pip'leri (y - 25)
-      const totalHp = Math.max(player.hp, LASER_TUNING.MAX_HP);
-      const pw = 8;
-      const startX = player.x - (totalHp * (pw + 2)) / 2;
-      for (let h = 0; h < totalHp; h++) {
-        ctx.fillStyle = h < player.hp ? player.color : '#D5D0C7';
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(startX + h * (pw + 2) + pw / 2, player.y - 25, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      }
+      // --- MERMİ, CAN & YETENEK GÖSTERGELERİ (Merkezi renderEntityHUD) ---
+      const maxAmmo = LASER_TUNING.MAX_AMMO || 2;
+      const reloadDuration = player.fastTimer > 0 ? LASER_TUNING.RELOAD_TIME * 0.5 : LASER_TUNING.RELOAD_TIME;
+      const reloadFrac = player.reloadTimer > 0
+        ? Math.max(0, Math.min(1, 1 - (player.reloadTimer / reloadDuration)))
+        : 1.0;
+      const bulletColor = player.tripleTimer > 0 ? '#FB923C' : (player.fastTimer > 0 ? '#FACC15' : player.color);
 
-      // 2. MERMİ / LAZER HAZIR GÖSTERGESİ (y - 38)
-      // Neo-brutalist yüksek kontrastlı kapsül yuvası (krem zeminde ASLA kaybolmaz)
-      const ammoBoxW = 38;
-      const ammoBoxH = 11;
-      const ammoBoxX = player.x - ammoBoxW / 2;
-      const ammoBoxY = player.y - 38;
-
-      ctx.save();
-      // Koyu koruyucu çerçeve
-      ctx.fillStyle = '#141416';
-      ctx.fillRect(ammoBoxX, ammoBoxY, ammoBoxW, ammoBoxH);
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(ammoBoxX, ammoBoxY, ammoBoxW, ammoBoxH);
-
-      const bulletW = 14;
-      const bulletH = 7;
-      const bulletGap = 4;
-      const bulletStartX = ammoBoxX + (ammoBoxW - (2 * bulletW + bulletGap)) / 2;
-      const bulletY = ammoBoxY + (ammoBoxH - bulletH) / 2;
-
-      for (let a = 0; a < 2; a++) {
-        const bx = bulletStartX + a * (bulletW + bulletGap);
-        const isSlotAvailable = (2 - activeLasers) > a;
-        const isSlotCharged = isSlotAvailable && (a === 0 ? player.cooldown <= 0 : true);
-
-        // Fişek yuvası arka planı
-        ctx.fillStyle = '#26262B';
-        ctx.fillRect(bx, bulletY, bulletW, bulletH);
-
-        if (isSlotCharged) {
-          // Dolu fişek: Canlı oyuncu rengi veya güçlendirici rengi + parlak beyaz çekirdek
-          const bulletColor = player.tripleTimer > 0 ? '#FB923C' : (player.fastTimer > 0 ? '#FACC15' : player.color);
-          ctx.fillStyle = bulletColor;
-          ctx.fillRect(bx, bulletY, bulletW, bulletH);
-          // Fişek ucu parıltısı
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(bx + bulletW - 4, bulletY + 1.5, 3, bulletH - 3);
-          ctx.strokeStyle = '#000000';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(bx, bulletY, bulletW, bulletH);
-        } else if (a === 0 && player.cooldown > 0 && isSlotAvailable) {
-          // Şarj dolum animasyonu (soldan sağa akıcı dolum)
-          const cdMax = player.fastTimer > 0 ? LASER_TUNING.FIRE_CD * 0.45 : LASER_TUNING.FIRE_CD;
-          const fillFrac = Math.max(0, Math.min(1, 1 - (player.cooldown / cdMax)));
-          ctx.fillStyle = '#38BDF8';
-          ctx.fillRect(bx, bulletY, bulletW * fillFrac, bulletH);
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(bx, bulletY, bulletW, bulletH);
-        } else {
-          // Havada/boş mermi yuvası (faint outline)
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(bx, bulletY, bulletW, bulletH);
-        }
-      }
-      ctx.restore();
+      renderEntityHUD(ctx, {
+        x: player.x,
+        y: player.y,
+        radius: 16,
+        color: bulletColor,
+        arena: this.arena,
+        hp: player.hp,
+        maxHp: LASER_TUNING.MAX_HP,
+        ammo: player.ammo,
+        maxAmmo: maxAmmo,
+        reloadProgress: reloadFrac,
+        cooldownProgress: 1 - Math.max(0, player.dashCooldown / LASER_TUNING.DASH_CD),
+      });
     }
 
     // Parçacıklar (lazer kıvılcımları)
@@ -1332,108 +1273,78 @@ export class LaserGame extends BaseMiniGame {
     // Uçuşan metinler (+1 KILL ★)
     for (const ft of this.floatingTexts) {
       ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, ft.alpha));
+      ctx.globalAlpha = Math.max(0, ft.alpha);
       ctx.font = 'bold 16px monospace';
-      ctx.fillStyle = ft.color;
       ctx.textAlign = 'center';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+      ctx.lineWidth = 3.5;
+      ctx.strokeText(ft.text, ft.x, ft.y);
+      ctx.fillStyle = ft.color;
       ctx.fillText(ft.text, ft.x, ft.y);
       ctx.restore();
     }
 
-    this.uiButtons = [];
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.laser'), [
+    if (this.state === 'PLAYING') {
+      this.renderControls(ctx, { extraEntities: this.lasers });
+    }
+
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.laser'),
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      const seatRects = getStandardSeatRects(this.arena);
-      const localMode = !this.hideLobbyStartButton;
-      const localColors = localMode ? getLocalSeatColors() : null;
-      for (let i = 0; i < 4; i++) {
-        const rect = seatRects[i];
-        const isTop = i === 1 || i === 2;
-        renderLobbySeatCard(ctx, {
-          x: rect.x,
-          y: rect.y,
-          w: rect.w,
-          h: rect.h,
-          slotIndex: i,
-          slotType: this.players[i]?.slotType || this.slotTypes[i],
-          playerName: this.players[i]?.name || '',
-          playerColor: LASER_COLORS[i],
-          rotation: isTop ? Math.PI : 0,
-          seatColor: localMode ? (localColors[i] || LASER_COLORS[i]) : null,
-          showColorDot: localMode,
-        });
-        // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
-        if (localMode) {
-          const dot = getSeatColorDotRect(rect);
-          this.uiButtons.push({
-            x: dot.x, y: dot.y, w: dot.w, h: dot.h,
-            onClick: () => this.cycleLocalSeat(i),
-          });
+      ],
+      colors: LASER_COLORS,
+      accent: '#D84727',
+      matchOverHeadline: this.matchWinner ? t('laser.champ') : t('game.draw'),
+      matchOverRows: this.players
+        .filter((p) => p.isJoined)
+        .sort((a, b) => (this.scores[b.index] || 0) - (this.scores[a.index] || 0))
+        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` })),
+      onRestart: () => this.startNewMatch(),
+      onSeatChange: (i) => {
+        if (this.players[i]) {
+          this.players[i].isJoined = this.isSlotJoined(i);
+          this.players[i].slotType = this.slotTypes[i];
         }
+        playJoin();
+      },
+      customControls: (c) => {
+        // Harita seçici (start butonunun altında küçük buton)
+        const mapName = LASER_MAPS[this.selectedMapIndex]?.name || '';
+        const mw = 210; const mh = 34;
+        const mx = this.arena.cx - mw / 2;
+        const my = this.arena.cy + 78;
+        c.save();
+        c.fillStyle = '#FFFFFF';
+        c.strokeStyle = '#1A1A1A';
+        c.lineWidth = 3;
+        c.fillRect(mx, my, mw, mh);
+        c.strokeRect(mx, my, mw, mh);
+        c.fillStyle = '#1A1A1A';
+        c.font = 'bold 13px sans-serif';
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillText(`🗺 ${mapName}`, this.arena.cx, my + mh / 2);
+        c.restore();
         this.uiButtons.push({
-          x: rect.x, y: rect.y, w: rect.w, h: rect.h,
+          x: mx, y: my, w: mw, h: mh,
           onClick: () => {
-            this.cycleSlotType(i);
-            if (this.players[i]) {
-              this.players[i].isJoined = this.isSlotJoined(i);
-              this.players[i].slotType = this.slotTypes[i];
-            }
+            this.selectedMapIndex = (this.selectedMapIndex + 1) % LASER_MAPS.length;
+            this.buildMap();
+            const s = this.spawnPoint.bind(this);
+            this.players.forEach((p, i) => {
+              const sp = s(i);
+              p.x = sp.x; p.y = sp.y;
+              p.angle = sp.angle; p.targetAngle = sp.angle;
+            });
             playJoin();
           },
         });
-      }
-      const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-      renderLobbyStartButton(ctx, { arena: this.arena, uiButtons: this.uiButtons, joinedCount, accent: '#D84727', onStart: () => this.startNewMatch(), hidden: !!this.hideLobbyStartButton });
-      // Harita seçici (start butonunun altında küçük buton)
-      const mapName = LASER_MAPS[this.selectedMapIndex]?.name || '';
-      const mw = 210; const mh = 34;
-      const mx = this.arena.cx - mw / 2;
-      const my = this.arena.cy + 78;
-      ctx.save();
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 3;
-      ctx.fillRect(mx, my, mw, mh);
-      ctx.strokeRect(mx, my, mw, mh);
-      ctx.fillStyle = '#1A1A1A';
-      ctx.font = 'bold 13px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(`🗺 ${mapName}`, this.arena.cx, my + mh / 2);
-      ctx.restore();
-      this.uiButtons.push({
-        x: mx, y: my, w: mw, h: mh,
-        onClick: () => {
-          this.selectedMapIndex = (this.selectedMapIndex + 1) % LASER_MAPS.length;
-          this.buildMap();
-          const s = this.spawnPoint.bind(this);
-          this.players.forEach((p, i) => {
-            const sp = s(i);
-            p.x = sp.x; p.y = sp.y;
-            p.angle = sp.angle; p.targetAngle = sp.angle;
-          });
-          playJoin();
-        },
-      });
-    } else if (this.state === 'MATCH_OVER') {
-      const rows = this.players
-        .filter((p) => p.isJoined)
-        .sort((a, b) => (this.scores[b.index] || 0) - (this.scores[a.index] || 0))
-        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` }));
-      renderMatchOver(ctx, {
-        arena: this.arena,
-        uiButtons: this.uiButtons,
-        headline: this.matchWinner ? t('laser.champ') : t('game.draw'),
-        winnerName: this.matchWinner ? this.matchWinner.name : '',
-        winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
-        rows,
-        onRestart: () => this.startNewMatch(),
-      });
-    }
+      },
+    });
     ctx.restore();
   }
 }

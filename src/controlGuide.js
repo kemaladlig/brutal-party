@@ -296,13 +296,15 @@ export function getStandardSeatSize(arena) {
 }
 
 // 4 köşe kare koltuk rect'i: [P1 sol-alt, P2 sol-üst, P3 sağ-üst, P4 sağ-alt]
-export function getStandardSeatRects(arena, inset = LOBBY_SEAT_INSET) {
-  const s = getStandardSeatSize(arena);
+// dockRect verilirse (viewport), kartlar ekran kenarlarına kenetlenir (responsive docking).
+export function getStandardSeatRects(arena, inset = LOBBY_SEAT_INSET, dockRect = null) {
+  const bounds = dockRect || arena;
+  const s = getStandardSeatSize(arena || bounds);
   return [
-    { x: arena.left + inset, y: arena.bottom - s - inset, w: s, h: s },
-    { x: arena.left + inset, y: arena.top + inset, w: s, h: s },
-    { x: arena.right - s - inset, y: arena.top + inset, w: s, h: s },
-    { x: arena.right - s - inset, y: arena.bottom - s - inset, w: s, h: s },
+    { x: bounds.left + inset, y: bounds.bottom - s - inset, w: s, h: s },
+    { x: bounds.left + inset, y: bounds.top + inset, w: s, h: s },
+    { x: bounds.right - s - inset, y: bounds.top + inset, w: s, h: s },
+    { x: bounds.right - s - inset, y: bounds.bottom - s - inset, w: s, h: s },
   ];
 }
 

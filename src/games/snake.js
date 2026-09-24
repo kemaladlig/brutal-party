@@ -1,30 +1,21 @@
 // BRUTAL SNAKE: 2-4 oyunculu yılan — yemle büyü, duvara/kuyruğa/engellere çarpma, taktiksel boost.
 // Uzayan kuyruk ızgarada sorgulanır (uzun oyunda O(n) tarama yok).
 // Çoklu rastgele harita varyasyonları, boost enerji mekaniği ve canlı meyve türleri.
-
+import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
-import { renderControlGuide, renderLobbySeatCard, getStandardSeatRects, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { getLocalSeatColors, getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
-import { renderCornerScores, renderRoundBanner, renderMatchOver } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateSnakeBotAI } from '../ai/snakeAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
+import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { distToSegmentSquared } from '../core/physics2d.js';
 
 export const SNAKE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const SNAKE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
-// Lokal klavye: 4 yön + boost — P1 WASD+Space, P2 Oklar+Enter, P3 IJKL+O, P4 TFGH+B
-const SNAKE_KEY_MAPS = [
-  { u: 'KeyW', d: 'KeyS', l: 'KeyA', r: 'KeyD', boost: 'Space' },
-  { u: 'ArrowUp', d: 'ArrowDown', l: 'ArrowLeft', r: 'ArrowRight', boost: 'Enter' },
-  { u: 'KeyI', d: 'KeyK', l: 'KeyJ', r: 'KeyL', boost: 'KeyO' },
-  { u: 'KeyT', d: 'KeyG', l: 'KeyF', r: 'KeyH', boost: 'KeyB' },
-];
-const SNAKE_KEY_SLOTS = {};
-SNAKE_KEY_MAPS.forEach((map, i) => {
-  Object.values(map).forEach((code) => { SNAKE_KEY_SLOTS[code] = i; });
-});
+// keyup ters haritası (tuş code → slot); harita inputMaps STANDARD'dan türetilir
+const SNAKE_KEY_SLOTS = buildCodeToSlotMap();
 
 // Kuyruk boyu tavanı: uzayan oyunda ızgara-rebuild sınırlı kalır
 const SNAKE_MAX_LEN = 320;
@@ -132,13 +123,13 @@ export class SnakeGame extends BaseMiniGame {
   }
 
   keyboardInput(index) {
-    const map = SNAKE_KEY_MAPS[index];
+    const map = getSlotKeys(index);
     if (!map) return { steer: 0, boost: false, targetAngle: null };
     const up = !!this.keys[map.u];
     const down = !!this.keys[map.d];
     const left = !!this.keys[map.l];
     const right = !!this.keys[map.r];
-    const boostKey = !!this.keys[map.boost];
+    const boostKey = !!this.keys[map.action];
 
     const l = left ? -1 : 0;
     const r = right ? 1 : 0;
@@ -157,6 +148,7 @@ export class SnakeGame extends BaseMiniGame {
   }
 
   resize(width, height) {
+    this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
@@ -355,16 +347,6 @@ export class SnakeGame extends BaseMiniGame {
     return false;
   }
 
-  getCornerZone(pos) {
-    const { cx, cy } = this.arena;
-    const isLeft = pos.x < cx;
-    const isTop = pos.y < cy;
-    if (isLeft && !isTop) return 0;
-    if (isLeft && isTop) return 1;
-    if (!isLeft && isTop) return 2;
-    return 3;
-  }
-
   getCornerButtonZones(cornerIndex) {
     const { left, right, top, bottom, size } = this.arena;
     const btnW = Math.max(160, Math.min(250, size * 0.42));
@@ -407,43 +389,31 @@ export class SnakeGame extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
-    const { cx, cy } = this.arena;
-    const distToCenter = Math.hypot(touch.x - cx, touch.y - cy);
-
-    // Round Over Skip Tap
-    if (this.state === 'ROUND_OVER' && this.roundTransitionTimer > 0) {
-      this.roundTransitionTimer = 0;
-      return;
-    }
+    if (this.handleRoundOverSkip()) return;
 
     if (this.state === 'LOBBY') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 65) {
-        const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-        if (joinedCount >= 2) this.startNewMatch();
-        return;
-      }
-      const corner = this.getCornerZone(touch);
-      this.cycleSlotType(corner);
-      if (this.players[corner]) {
-        this.players[corner].isJoined = this.isSlotJoined(corner);
-        this.players[corner].slotType = this.slotTypes[corner];
-      }
+      if (lobbyCenterStartTap(this, touch)) return;
+      lobbyQuadrantTap(this, touch, {
+        onSeatChange: (corner) => {
+          if (this.players[corner]) {
+            this.players[corner].isJoined = this.isSlotJoined(corner);
+            this.players[corner].slotType = this.slotTypes[corner];
+          }
+        },
+      });
       playJoin();
       return;
     }
 
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      if (distToCenter < 75) {
-        this.resetMatch();
-        playJoin();
-      }
+      matchOverRestartTap(this, touch, { onRestart: () => { this.resetMatch(); playJoin(); } });
       return;
     }
 
     if (this.state === 'PLAYING') {
-      const corner = this.getCornerZone(touch);
+      const corner = getQuadrant(this.arena, touch.x, touch.y);
       const player = this.players[corner];
       if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
 
@@ -690,7 +660,7 @@ export class SnakeGame extends BaseMiniGame {
     return this.forEachSegmentNear(player.x, player.y, 12, (seg) => {
       if (seg.owner === player.index && now - seg.createdAt < 220) return false;
 
-      const distSq = this.distToSegmentSquared(player.x, player.y, seg.x1, seg.y1, seg.x2, seg.y2);
+      const distSq = distToSegmentSquared(player.x, player.y, seg.x1, seg.y1, seg.x2, seg.y2);
       return distSq <= (r + 3) * (r + 3);
     });
   }
@@ -838,19 +808,6 @@ export class SnakeGame extends BaseMiniGame {
     }
     ctx.stroke();
 
-    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      const activeEntities = [];
-      this.players.forEach((p) => {
-        if (p.isJoined && p.isAlive && p.body && p.body.length > 0) {
-          activeEntities.push({ x: p.body[0].x, y: p.body[0].y, radius: 18 });
-        }
-      });
-      renderCornerScores(ctx, {
-        arena: this.arena,
-        entries: this.players.map((p) => p.isJoined ? { color: p.color, text: `${this.scores[p.index]}★` } : null),
-        entities: activeEntities,
-      });
-    }
 
     // 1. ENGEL DUVARLARI
     for (const w of this.walls) {
@@ -1033,69 +990,28 @@ export class SnakeGame extends BaseMiniGame {
       ctx.restore();
     }
 
-    if (this.state === 'LOBBY') {
-      renderControlGuide(ctx, this.arena, t('guide.snake'), [
+    this.renderHUD(ctx, {
+      guideTitle: t('guide.snake'),
+      guideEntries: [
         'P1 [WASD/SPACE]',
         'P2 [OKLAR/ENTER]',
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
-      ]);
-      const seatRects = getStandardSeatRects(this.arena);
-      const localMode = !this.hideLobbyStartButton;
-      const localColors = localMode ? getLocalSeatColors() : null;
-      for (let i = 0; i < 4; i++) {
-        const rect = seatRects[i];
-        const isTop = i === 1 || i === 2;
-        renderLobbySeatCard(ctx, {
-          x: rect.x,
-          y: rect.y,
-          w: rect.w,
-          h: rect.h,
-          slotIndex: i,
-          slotType: this.players[i]?.slotType || this.slotTypes[i],
-          playerName: this.players[i]?.name || '',
-          playerColor: SNAKE_COLORS[i],
-          rotation: isTop ? Math.PI : 0,
-          seatColor: localMode ? (localColors[i] || SNAKE_COLORS[i]) : null,
-          showColorDot: localMode,
-        });
-        // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
-        if (localMode) {
-          const dot = getSeatColorDotRect(rect);
-          this.uiButtons.push({
-            x: dot.x, y: dot.y, w: dot.w, h: dot.h,
-            onClick: () => this.cycleLocalSeat(i),
-          });
+      ],
+      colors: SNAKE_COLORS,
+      accent: '#2F6A4F',
+      matchOverHeadline: t('snake.champ'),
+      matchOverRows: this.players
+        .filter((p) => p.isJoined)
+        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` })),
+      onSeatChange: (i) => {
+        if (this.players[i]) {
+          this.players[i].isJoined = this.isSlotJoined(i);
+          this.players[i].slotType = this.slotTypes[i];
         }
-        this.uiButtons.push({
-          x: rect.x, y: rect.y, w: rect.w, h: rect.h,
-          onClick: () => {
-            this.cycleSlotType(i);
-            if (this.players[i]) {
-              this.players[i].isJoined = this.isSlotJoined(i);
-              this.players[i].slotType = this.slotTypes[i];
-            }
-            playJoin();
-          },
-        });
-      }
-      const joinedCount = this.slotTypes.filter((s) => s !== 'empty').length;
-      renderLobbyStartButton(ctx, { arena: this.arena, uiButtons: this.uiButtons, joinedCount, accent: '#2F6A4F', onStart: () => this.startNewMatch(), hidden: !!this.hideLobbyStartButton });
-    } else if (this.state === 'ROUND_OVER') {
-      renderRoundBanner(ctx, { arena: this.arena, title: this.roundWinner ? `${this.roundWinner.name} KAZANDI!` : 'BERABERE!', titleColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A' });
-    } else if (this.state === 'MATCH_OVER') {
-      renderMatchOver(ctx, {
-        arena: this.arena,
-        uiButtons: this.uiButtons,
-        headline: t('snake.champ'),
-        winnerName: this.matchWinner ? this.matchWinner.name : '',
-        winnerColor: this.matchWinner ? this.matchWinner.color : '#1A1A1A',
-        rows: this.players
-          .filter((p) => p.isJoined)
-          .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` })),
-        onRestart: () => this.startNewMatch(),
-      });
-    }
+        playJoin();
+      },
+    });
 
     ctx.restore();
   }
@@ -1114,6 +1030,10 @@ export class SnakeGame extends BaseMiniGame {
       ctx.save();
       const cx = zones.box.x + zones.box.w / 2;
       const cy = zones.box.y + zones.box.h / 2;
+      // Proximity Ghosting: Karakter köşeye yaklaşınca kontroller şeffaflaşır (alpha: 0.25)
+      const isNear = this.checkEntityProximity(cx, cy, 90);
+      if (isNear) ctx.globalAlpha = 0.25;
+
       ctx.translate(cx, cy);
       if (isTop) {
         ctx.rotate(Math.PI);
@@ -1142,7 +1062,7 @@ export class SnakeGame extends BaseMiniGame {
 
         // 1. SOL DÖNÜŞ BUTONU
         const leftActive = touching.action === 'left' || (kb.steer < 0);
-        ctx.fillStyle = leftActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
+        ctx.fillStyle = leftActive ? `${player.color}CC` : 'rgba(26, 26, 26, 0.12)';
         ctx.fillRect(-halfW, -halfH, wSteer, zones.box.h);
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.lineWidth = 2;
@@ -1156,7 +1076,7 @@ export class SnakeGame extends BaseMiniGame {
 
         // 2. ⚡ BOOST (HIZLANMA) BUTONU
         const boostActive = isBoosting || touching.action === 'boost' || kb.boost;
-        ctx.fillStyle = boostActive ? (player.boostLocked ? 'rgba(216, 71, 39, 0.75)' : 'rgba(255, 222, 89, 0.85)') : 'rgba(255, 255, 255, 0.45)';
+        ctx.fillStyle = boostActive ? (player.boostLocked ? 'rgba(216, 71, 39, 0.75)' : 'rgba(255, 222, 89, 0.85)') : 'rgba(26, 26, 26, 0.12)';
         ctx.fillRect(-halfW + wSteer, -halfH, wBoost, zones.box.h);
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.strokeRect(-halfW + wSteer, -halfH, wBoost, zones.box.h);
@@ -1172,7 +1092,7 @@ export class SnakeGame extends BaseMiniGame {
 
         // 3. SAĞ DÖNÜŞ BUTONU
         const rightActive = touching.action === 'right' || (kb.steer > 0);
-        ctx.fillStyle = rightActive ? `${player.color}CC` : 'rgba(255, 255, 255, 0.45)';
+        ctx.fillStyle = rightActive ? `${player.color}CC` : 'rgba(26, 26, 26, 0.12)';
         ctx.fillRect(-halfW + wSteer + wBoost, -halfH, wSteer, zones.box.h);
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
         ctx.strokeRect(-halfW + wSteer + wBoost, -halfH, wSteer, zones.box.h);
