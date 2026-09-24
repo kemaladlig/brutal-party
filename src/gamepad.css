@@ -671,6 +671,23 @@
   opacity: 1;
 }
 
+/* Telefon/tablet: saha her zaman okunur kalsın. */
+@media (any-pointer: coarse), (hover: none) {
+  .gamepad-control-overlay .snake-controller-view {
+    opacity: 1;
+  }
+
+  .gamepad-control-overlay .steer-rocker-btn,
+  .gamepad-control-overlay .snake-boost-btn {
+    opacity: 0.22;
+  }
+
+  .gamepad-control-overlay .steer-rocker-btn.active,
+  .gamepad-control-overlay .snake-boost-btn.active {
+    opacity: 0.4;
+  }
+}
+
 /* Landscape Mode Header Adjustment */
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .gamepad-header {

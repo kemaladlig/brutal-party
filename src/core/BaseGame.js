@@ -795,6 +795,14 @@ export class BaseMiniGame {
     ];
   }
 
+  getControlAlpha(value, active = false, near = false) {
+    const isTouchDevice = typeof window !== 'undefined'
+      && ('ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0);
+    if (!isTouchDevice) return value;
+    if (near) return Math.min(value, 0.12);
+    return Math.min(value, active ? 0.4 : 0.22);
+  }
+
   renderControls(ctx, { players = this.getEntitiesList(), extraEntities = [] } = {}) {
     if (this.state !== 'PLAYING' && this.state !== 'ROUND_PAUSE') return;
     if (!shouldShowVirtualControls({ isHosting: !!this.suppressVirtualControls, force: !!this.forceVirtualControls })) {
@@ -833,7 +841,7 @@ export class BaseMiniGame {
 
         ctx.translate(chipCx, chipCy);
         if (corner.rotation) ctx.rotate(corner.rotation);
-        ctx.globalAlpha = isNear ? 0.20 : 0.85;
+        ctx.globalAlpha = this.getControlAlpha(isNear ? 0.20 : 0.85, false, isNear);
 
         // Çip gölgesi ve gövdesi
         ctx.fillStyle = '#141416';
@@ -868,7 +876,7 @@ export class BaseMiniGame {
           const active = isPressed || kbActive;
 
           ctx.save();
-          ctx.globalAlpha = isNear ? 0.20 : (active ? 0.98 : 0.75);
+          ctx.globalAlpha = this.getControlAlpha(isNear ? 0.20 : (active ? 0.98 : 0.75), active, isNear);
           ctx.translate(sBtn.cx, sBtn.cy);
           if (sBtn.rotation) ctx.rotate(sBtn.rotation);
 
@@ -919,7 +927,7 @@ export class BaseMiniGame {
                          this.checkEntityProximity(joy.originX, joy.originY, baseR * 2.2, extraEntities);
 
           ctx.save();
-          ctx.globalAlpha = isNear ? 0.20 : 0.95;
+          ctx.globalAlpha = this.getControlAlpha(isNear ? 0.20 : 0.95, true, isNear);
 
           // Dış kontrast halka
           ctx.strokeStyle = UI_COLORS.outlineContrast || 'rgba(250, 247, 242, 0.9)';
@@ -952,7 +960,7 @@ export class BaseMiniGame {
           ctx.save();
           ctx.translate(corner.x, corner.y);
           if (corner.rotation) ctx.rotate(corner.rotation);
-          ctx.globalAlpha = isNear ? 0.15 : 0.40;
+          ctx.globalAlpha = this.getControlAlpha(isNear ? 0.15 : 0.40, false, isNear);
 
           ctx.strokeStyle = playerColor;
           ctx.lineWidth = Math.max(2, Math.round(2.5 * profile.baseUnit));
@@ -1018,7 +1026,7 @@ export class BaseMiniGame {
           this._cooldownTracker[pulseKey] = cooldown;
 
           ctx.save();
-          ctx.globalAlpha = isNear ? 0.20 : (isPressed ? 0.95 : 0.70);
+          ctx.globalAlpha = this.getControlAlpha(isNear ? 0.20 : (isPressed ? 0.95 : 0.70), isPressed, isNear);
           ctx.translate(btn.cx, btn.cy);
           if (btn.rotation) ctx.rotate(btn.rotation);
 
