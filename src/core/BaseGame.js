@@ -50,6 +50,7 @@ export class BaseMiniGame {
     // ONLINE host telefonu P1'i kendisi oynar; TV_CONSOLE host'u seyirci
     // ekranıdır. Render/input katmanı bu iki rolü ortak kodla ayırır.
     this.suppressVirtualControls = false;
+    this.forceVirtualControls = false;
     this.localControlSlot = null;
 
     // Klavye çapraz-konuşma kilidi: main.setGameMode yalnızca aktif motoru
@@ -387,7 +388,7 @@ export class BaseMiniGame {
     const players = this.getEntitiesList();
 
     // 1. Masa-ortası Dokunmatik Kontrolleri (Steer ve Action butonları)
-    if (shouldShowVirtualControls({ isHosting: !!this.suppressVirtualControls })) {
+    if (shouldShowVirtualControls({ isHosting: !!this.suppressVirtualControls, force: !!this.forceVirtualControls })) {
       const corners = this.getTabletopControlCorners();
       for (let i = 0; i < 4; i++) {
         if (this.localControlSlot !== null && i !== this.localControlSlot) continue;
@@ -796,7 +797,7 @@ export class BaseMiniGame {
 
   renderControls(ctx, { players = this.getEntitiesList(), extraEntities = [] } = {}) {
     if (this.state !== 'PLAYING' && this.state !== 'ROUND_PAUSE') return;
-    if (!shouldShowVirtualControls({ isHosting: !!this.suppressVirtualControls })) {
+    if (!shouldShowVirtualControls({ isHosting: !!this.suppressVirtualControls, force: !!this.forceVirtualControls })) {
       return;
     }
 

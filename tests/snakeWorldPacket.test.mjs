@@ -77,6 +77,7 @@ test('world frame validation rejects oversized malformed trails', () => {
     arena: [0, 0, 100, 100],
     walls: [],
     foods: [],
+    particles: [],
     players: [{
       slot: 0,
       x: 1,

@@ -76,6 +76,8 @@ export class GamepadManager {
     this._activeController = null;
     this._worldView = null;
     this._worldViewToken = 0;
+    this._worldViewEnabled = false;
+    this._pendingWorldFrame = null;
   }
 
   // Güvenli ve merkezi Haptic Geri Bildirim
@@ -183,6 +185,7 @@ export class GamepadManager {
   // Koltuk değiştirme ön kapısı (lobi ızgarası + refresh tek kaynaktan;
   // sunucu/host son kapılar yerinde durur)
   canSwitchSlot(targetSlot) {
+    if (this.network.reservedHostSlot === targetSlot) return false;
     if (this.countdownActive) return false;
     if (targetSlot === this.playerIndex) return false;
     if (this.slots?.[targetSlot]?.kind === 'bot') return false;
@@ -201,8 +204,28 @@ export class GamepadManager {
 
   _destroyWorldView() {
     this._worldViewToken += 1;
+    this._worldViewEnabled = false;
+    this._pendingWorldFrame = null;
     this._worldView?.destroy();
     this._worldView = null;
+  }
+
+  _renderWorldPlaceholder(canvas) {
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const width = Math.max(1, canvas.clientWidth || canvas.parentElement?.clientWidth || 1);
+    const height = Math.max(1, canvas.clientHeight || canvas.parentElement?.clientHeight || 1);
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#F4F4F0';
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = '#1A1A1A';
+    ctx.font = '900 18px "Space Grotesk", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t('pad.waiting'), width / 2, height / 2);
   }
 
   async _mountWorldView(canvas, descriptor) {
@@ -211,10 +234,18 @@ export class GamepadManager {
       const module = await descriptor.load();
       if (token !== this._worldViewToken || !canvas?.isConnected) return;
       const renderer = module.createSnakeWorldViewRenderer?.();
-      if (!renderer) return;
+      if (!renderer) {
+        this._renderWorldPlaceholder(canvas);
+        return;
+      }
       this._worldView = new GamepadWorldView(canvas, renderer, { slots: this.slots });
+      if (this._pendingWorldFrame) {
+        this._worldView.accept(this._pendingWorldFrame);
+        this._pendingWorldFrame = null;
+      }
     } catch (err) {
       console.warn('[GamepadManager] World view yüklenemedi:', err);
+      this._renderWorldPlaceholder(canvas);
     }
   }
 
@@ -560,6 +591,7 @@ export class GamepadManager {
       const meta = CONTROLLER_META[mode] || {};
       const hasWorldView = !!meta.worldView && this.network.supportsWorldFrames === true;
       if (hasWorldView) {
+        this._worldViewEnabled = true;
         workspace.innerHTML = `
           <div class="gamepad-game-stage has-world-view">
             <canvas class="gamepad-world-canvas" id="gamepad-world-canvas" role="img" aria-label="Oyun alanı"></canvas>
@@ -590,8 +622,9 @@ export class GamepadManager {
     const isMine = idx === this.playerIndex;
     const slotData = this.slots ? this.slots[idx] : null;
     const seatColors = [0, 1, 2, 3].map((i) => this.slots?.[i]?.color || fallbackColors[i]);
+    const isReserved = !isMine && this.network.reservedHostSlot === idx;
     const isBot = !isMine && slotData?.kind === 'bot';
-    const isOccupied = !isMine && !isBot && slotData !== null && !!slotData.name;
+    const isOccupied = !isMine && !isBot && !isReserved && slotData !== null && !!slotData.name;
     const occupantName = isMine ? this.playerName : (isOccupied || isBot ? slotData.name : '');
 
     let statusText = '';
@@ -600,6 +633,9 @@ export class GamepadManager {
     if (isMine) {
       btnClass += ' active is-mine';
       statusText = t('pad.you');
+    } else if (isReserved) {
+      btnClass += ' is-reserved';
+      statusText = 'P1 HOST';
     } else if (isBot) {
       btnClass += ' is-bot';
       statusText = '🤖 BOT';
@@ -612,7 +648,7 @@ export class GamepadManager {
     }
 
     return `
-      <button class="${btnClass}" data-seat="${idx}" type="button"${isBot ? ' disabled' : ''}>
+      <button class="${btnClass}" data-seat="${idx}" type="button"${isBot || isReserved ? ' disabled' : ''}>
         <span class="seat-num" style="color: ${seatColors[idx]}">${idx + 1}</span>
         <span class="seat-status">${escapeHtml(statusText)}</span>
       </button>
@@ -936,7 +972,12 @@ export class GamepadManager {
   }
 
   handleWorldFrame(frame) {
-    this._worldView?.accept(frame);
+    if (!this._worldViewEnabled) return;
+    if (this._worldView) {
+      this._worldView.accept(frame);
+    } else {
+      this._pendingWorldFrame = frame;
+    }
   }
 
   // Handle live state sync broadcasts from Host

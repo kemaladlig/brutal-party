@@ -667,6 +667,13 @@ function refreshHostSlotCards() {
   document.getElementById('host-slot-hint')?.classList.toggle('hidden', !isBotEkleEnabled());
 }
 
+function setLocalReadyFlags(isReady) {
+  for (let i = 0; i < 4; i++) {
+    const entry = hostPlayerSlots[i];
+    if (entry) updateHostSlot(i, true, entry.name, isReady, entry.kind);
+  }
+}
+
 function returnHostToLobby() {
   exitStagingToLobby();
   if (!activeNet().isHosting) {
@@ -680,6 +687,7 @@ function returnHostToLobby() {
   for (let i = 0; i < 4; i++) delete lastRemoteInputAt[i];
   setGameMode('MENU');
   activeNet().returnToLobby();
+  setLocalReadyFlags(false);
   // Lobiye dönüşte botlar temizlenir — koltuklar insanlara kalır
   for (let i = 0; i < 4; i++) {
     if (hostPlayerSlots[i]?.kind === 'bot') {
@@ -848,6 +856,10 @@ async function enterStaging(mode) {
 // BAŞLAT #2: 3-2-1 → oyun (koltuklar kilitli)
 function runCountdown() {
   if (!stagingMode || countdownTimer) return;
+  if (activeNet().isHosting && hostPlayerSlots.filter(Boolean).length < 2) {
+    showInstallToast(t('lobby.waiting'));
+    return;
+  }
   // Staging sırasında avatar değişimi çakışma doğurmuş olabilir → sayaç kapısı
   if (activeNet().isHosting && getColorClashIndices().length > 0) {
     showInstallToast(t('toast.clashCountdown'));
@@ -871,6 +883,7 @@ function runCountdown() {
       seatsLocked = false;
       hideStagingBar();
       stagingMode = null;
+      setLocalReadyFlags(false);
       activeNet().startGame(mode);
       startEngineNow(mode);
     }
@@ -946,6 +959,7 @@ function setSeatTapHook() {
     entry.game.onLobbySeatTap = fn;
     entry.game.hideLobbyStartButton = hosting;
     entry.game.suppressVirtualControls = hosting && !onlinePhoneHost;
+    entry.game.forceVirtualControls = onlinePhoneHost;
     entry.game.localControlSlot = onlinePhoneHost ? 0 : null;
   });
 }
@@ -1446,8 +1460,8 @@ function loop(timestamp) {
     try {
       if (!isPaused && consecutiveEngineErrors < 5) {
         loopEntry.game.update(timestamp);
-        broadcastWorldStateIfNeeded(timestamp);
       }
+      broadcastWorldStateIfNeeded(timestamp);
       loopEntry.game.render();
       consecutiveEngineErrors = 0;
     } catch (err) {

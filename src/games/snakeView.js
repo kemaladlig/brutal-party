@@ -9,65 +9,56 @@ const MAX_TRAIL_POINTS = 48;
 const round1 = (value) => Math.round(Number(value) * 10) / 10;
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
 
-function pushUnique(points, x, y, maxPoints) {
-  if (points.length >= maxPoints) return;
-  const last = points[points.length - 1];
-  if (last && Math.hypot(last[0] - x, last[1] - y) < 0.5) return;
-  points.push([round1(x), round1(y)]);
-}
-
-/**
- * Converts the simulation's frame-rate-dependent segment list into a compact,
- * distance-sampled polyline from tail to head.
- */
 export function sampleSnakeTrail(segments, headX, headY, spacing = TRAIL_SPACING, maxPoints = MAX_TRAIL_POINTS) {
   const safeSegments = Array.isArray(segments) ? segments : [];
-  const points = [];
+  const cap = Math.max(2, Math.floor(maxPoints));
   if (!safeSegments.length || !finite(headX) || !finite(headY)) {
-    if (finite(headX) && finite(headY)) points.push([round1(headX), round1(headY)]);
-    return points;
+    return finite(headX) && finite(headY) ? [[round1(headX), round1(headY)]] : [];
   }
 
-  const first = safeSegments[0];
-  let currentX = finite(first?.x1) ? first.x1 : headX;
-  let currentY = finite(first?.y1) ? first.y1 : headY;
-  pushUnique(points, currentX, currentY, maxPoints - 1);
-
-  let travelled = 0;
-  let nextSample = Math.max(2, spacing);
+  const path = [];
+  let totalLength = 0;
+  let previousX = finite(safeSegments[0]?.x1) ? safeSegments[0].x1 : headX;
+  let previousY = finite(safeSegments[0]?.y1) ? safeSegments[0].y1 : headY;
+  path.push({ x: previousX, y: previousY, start: 0, length: 0 });
 
   for (const segment of safeSegments) {
-    const x1 = finite(segment?.x1) ? segment.x1 : currentX;
-    const y1 = finite(segment?.y1) ? segment.y1 : currentY;
+    const x1 = finite(segment?.x1) ? segment.x1 : previousX;
+    const y1 = finite(segment?.y1) ? segment.y1 : previousY;
     const x2 = finite(segment?.x2) ? segment.x2 : x1;
     const y2 = finite(segment?.y2) ? segment.y2 : y1;
     const length = Math.hypot(x2 - x1, y2 - y1);
-    if (length <= 0.01) {
-      currentX = x2;
-      currentY = y2;
-      continue;
+    if (length > 0.01) {
+      path.push({ x: x2, y: y2, start: totalLength, length });
+      totalLength += length;
     }
-
-    while (nextSample <= travelled + length && points.length < maxPoints - 1) {
-      const ratio = (nextSample - travelled) / length;
-      pushUnique(points, x1 + (x2 - x1) * ratio, y1 + (y2 - y1) * ratio, maxPoints - 1);
-      nextSample += spacing;
-    }
-
-    travelled += length;
-    currentX = x2;
-    currentY = y2;
+    previousX = x2;
+    previousY = y2;
   }
 
-  pushUnique(points, headX, headY, maxPoints);
+  if (totalLength <= 0.01) return [[round1(headX), round1(headY)]];
 
-  if (points.length <= maxPoints) return points;
-  const sampled = [];
-  const step = (points.length - 1) / (maxPoints - 1);
-  for (let i = 0; i < maxPoints; i++) {
-    sampled.push(points[Math.round(i * step)]);
+  const sampleCount = Math.min(cap, Math.max(2, Math.ceil(totalLength / Math.max(2, spacing)) + 1));
+  const step = totalLength / (sampleCount - 1);
+  const points = [];
+  let pathIndex = 1;
+
+  for (let i = 0; i < sampleCount; i += 1) {
+    const distance = i === sampleCount - 1 ? totalLength : i * step;
+    while (pathIndex < path.length - 1 && path[pathIndex].start < distance) pathIndex += 1;
+    const current = path[pathIndex];
+    const previous = path[pathIndex - 1] || current;
+    const localDistance = Math.max(0, Math.min(current.length, distance - previous.start));
+    const ratio = current.length > 0 ? localDistance / current.length : 0;
+    points.push([
+      round1(previous.x + (current.x - previous.x) * ratio),
+      round1(previous.y + (current.y - previous.y) * ratio),
+    ]);
   }
-  return sampled;
+
+  points[0] = [round1(path[0].x), round1(path[0].y)];
+  points[points.length - 1] = [round1(headX), round1(headY)];
+  return points;
 }
 
 function winnerSlot(value) {
@@ -81,6 +72,7 @@ export function createSnakeWorldPacket(game) {
   const walls = Array.isArray(game.walls) ? game.walls : [];
   const foods = Array.isArray(game.foods) ? game.foods : [];
   const players = Array.isArray(game.players) ? game.players : [];
+  const particles = Array.isArray(game.particles) ? game.particles : [];
 
   return {
     version: 1,
@@ -118,6 +110,13 @@ export function createSnakeWorldPacket(game) {
       locked: !!player.boostLocked,
       trail: sampleSnakeTrail(player.segments, player.x, player.y),
     })),
+    particles: particles.slice(0, 64).map((particle) => ({
+      x: round1(particle.x || 0),
+      y: round1(particle.y || 0),
+      radius: round1(particle.radius || 1),
+      alpha: Math.max(0, Math.min(1, Number(particle.alpha) || 0)),
+      color: typeof particle.color === 'string' ? particle.color : '#1A1A1A',
+    })),
     scores: (game.scores || [0, 0, 0, 0]).map((score) => Number(score) || 0),
     roundWinner: winnerSlot(game.roundWinner),
     matchWinner: winnerSlot(game.matchWinner),
@@ -134,6 +133,15 @@ export function isValidSnakeWorldFrame(frame) {
   if (!Array.isArray(frame.foods) || frame.foods.length > 32) return false;
   if (!frame.foods.every((food) => Array.isArray(food) && food.length >= 3 && finite(food[0]) && finite(food[1]) && finite(food[3]))) return false;
   if (!Array.isArray(frame.players) || frame.players.length > 4) return false;
+  if (!Array.isArray(frame.particles) || frame.particles.length > 64) return false;
+  if (!frame.particles.every((particle) => (
+    particle
+    && finite(particle.x)
+    && finite(particle.y)
+    && finite(particle.radius)
+    && finite(particle.alpha)
+    && typeof particle.color === 'string'
+  ))) return false;
   return frame.players.every((player) => (
     player
     && Number.isInteger(player.slot)
@@ -311,6 +319,7 @@ export function drawSnakePlayers(ctx, players, now = 0) {
 
     drawBrutalAvatar(ctx, player.x, player.y, headRadius, {
       color: player.color || '#D84727',
+      avatar: player.avatar || null,
       slotIndex: player.slot ?? player.index ?? 0,
       facingAngle: player.angle,
       label: `P${(player.slot ?? player.index ?? 0) + 1}`,

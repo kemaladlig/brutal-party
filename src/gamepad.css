@@ -569,6 +569,12 @@
   background-color: #fffde6;
 }
 
+.lobby-seat-btn.is-reserved {
+  opacity: 0.72;
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
 .score-chip.is-empty {
   opacity: 0.35;
 }

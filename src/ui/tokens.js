@@ -158,8 +158,9 @@ export function setVirtualControlsSetting(val) {
   } catch (_) {}
 }
 
-export function shouldShowVirtualControls({ isHosting = false, isTouchDevice = null } = {}) {
-  // TV_CONSOLE / ONLINE Host modunda TV ekranı seyircidir; sanal kontroller ASLA TV'de gösterilmez.
+export function shouldShowVirtualControls({ isHosting = false, isTouchDevice = null, force = false } = {}) {
+  // ONLINE P1 host telefonunda kontroller zorunludur; TV_CONSOLE host'u seyirci ekranıdır.
+  if (force) return true;
   if (isHosting) return false;
 
   const setting = getVirtualControlsSetting();

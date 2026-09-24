@@ -52,6 +52,7 @@ export class SupabaseRelay {
 
     // ONLINE cihazlarda uzaktan oyun sahası yalnız P2P world kanalından gelir.
     this.supportsWorldFrames = true;
+    this.reservedHostSlot = 0;
 
     // Ping tracking
     this.pingInterval = null;
@@ -71,6 +72,7 @@ export class SupabaseRelay {
     this._webrtcRetryTimer = null;
     this._webrtcConnectTimer = null;
     this._webrtcRetryDelay = 1000;
+    this._webrtcGeneration = 0;
   }
 
   get isHosting() {
@@ -101,7 +103,6 @@ export class SupabaseRelay {
 
   _resetReadyFlags() {
     this.ready = [false, false, false, false];
-    if (this.players[0]?.isHost) this.ready[0] = true;
   }
 
   /**
@@ -546,6 +547,7 @@ export class SupabaseRelay {
     if (this.role !== 'HOST') return;
     if (gameMode) this.gameMode = gameMode;
     this._resetReadyFlags();
+    if (this.players[0]?.isHost) this.ready[0] = true;
     const payload = { action: 'STAGING_STARTED', gameMode: this.gameMode };
     this._sendHostPayload(payload);
     this.broadcastSlots();
@@ -906,6 +908,7 @@ export class SupabaseRelay {
 
   _initControllerWebRTC() {
     if (!this.hostId) return;
+    const generation = ++this._webrtcGeneration;
     if (this.webrtcManager) {
       this.webrtcManager.destroy();
     }
@@ -921,9 +924,11 @@ export class SupabaseRelay {
         });
       },
       onMessage: (peerId, data) => {
+        if (generation !== this._webrtcGeneration || peerId !== this.hostId) return;
         this._controllerHandleMessage(data);
       },
       onStatusChange: (peerId, status, channel) => {
+        if (generation !== this._webrtcGeneration || peerId !== this.hostId) return;
         if (channel === 'control') {
           this._webRtcAvailable = (status === 'connected');
           if (status === 'connected') {
@@ -933,7 +938,9 @@ export class SupabaseRelay {
             this._scheduleWebRtcRetry();
           }
         } else if (status === 'disconnected') {
-          this._scheduleWebRtcRetry();
+          if (!this.webrtcManager?.hasActiveConnection(this.hostId, 'control')) {
+            this._scheduleWebRtcRetry();
+          }
         }
         console.log(`[SupabaseRelay] Controller WebRTC ${channel}: ${status}`);
       },
@@ -1126,6 +1133,7 @@ export class SupabaseRelay {
     }
     this._seenHosts = null;
 
+    this._webrtcGeneration += 1;
     if (this.webrtcManager) {
       this.webrtcManager.destroy();
       this.webrtcManager = null;

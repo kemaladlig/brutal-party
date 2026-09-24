@@ -217,6 +217,17 @@ export class WebRTCManager {
   _cleanupPeer(peerId) {
     const peer = this.peers.get(peerId);
     if (!peer) return;
+    for (const channel of [peer.control, peer.world]) {
+      if (!channel) continue;
+      channel.onopen = null;
+      channel.onclose = null;
+      channel.onmessage = null;
+    }
+    if (peer.pc) {
+      peer.pc.onicecandidate = null;
+      peer.pc.onconnectionstatechange = null;
+      peer.pc.ondatachannel = null;
+    }
     try { peer.control?.close(); } catch {}
     try { peer.world?.close(); } catch {}
     try { peer.pc?.close(); } catch {}

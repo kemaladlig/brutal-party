@@ -3,6 +3,7 @@
 import {
   drawSnakeArena,
   drawSnakeFoods,
+  drawSnakeParticles,
   drawSnakePlayers,
   isValidSnakeWorldFrame,
 } from '../games/snakeView.js';
@@ -63,10 +64,12 @@ export function createSnakeWorldViewRenderer() {
         avatar: slots?.[player.slot]?.avatar || null,
         boostEnergy: player.energy,
       }));
+      const particles = (frame.particles || []).map((particle) => ({ ...particle }));
 
       drawSnakeArena(ctx, arena, walls);
       drawSnakeFoods(ctx, foods, now);
       drawSnakePlayers(ctx, players, now);
+      drawSnakeParticles(ctx, particles);
       ctx.restore();
 
       if (frame.gameState === 'ROUND_OVER') {
