@@ -438,6 +438,7 @@ export const TR = {
   'menu.localCardDesc': 'Tek Cihaz • Masa-ortası / PC',
   'menu.localQuickPlay': 'HEMEN OYNA',
   'menu.localBrowseGames': '13 OYUN →',
+  'menu.localPickTitle': 'HIZLI OYNA',
   'menu.localTopPick': 'HIZLI:',
   // ── Game cards ──
   'card.tag': '2-4 OYUNCU',

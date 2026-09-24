@@ -438,6 +438,7 @@ export const EN = {
   'menu.localCardDesc': 'Single Device • Tabletop / PC',
   'menu.localQuickPlay': 'QUICK PLAY',
   'menu.localBrowseGames': '13 GAMES →',
+  'menu.localPickTitle': 'QUICK PLAY',
   'menu.localTopPick': 'QUICK:',
   // ── Game cards ──
   'card.tag': '2-4 PLAYERS',

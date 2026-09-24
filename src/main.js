@@ -1043,7 +1043,6 @@ function closeGamePicker() {
 }
 
 btnHeroCreateRoom?.addEventListener('click', () => openHostLobby('PONG'));
-addTapListener(document.getElementById('btn-hero-quick-local'), () => handleGameCardClick('PONG'));
 addTapListener(document.getElementById('btn-hero-browse-games'), openGamePicker);
 addTapListener(btnCloseGamePicker, closeGamePicker);
 
@@ -1057,12 +1056,68 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-document.querySelectorAll('.hero-pick-chip').forEach((chip) => {
-  addTapListener(chip, () => {
-    const game = chip.getAttribute('data-quick-game');
+// Local 2-Card Showcase Slide Controls & Quick Play Tap
+const carouselTrack = document.getElementById('local-carousel-track');
+const carouselViewport = document.getElementById('local-carousel-viewport');
+const btnCarouselPrev = document.getElementById('btn-carousel-prev');
+const btnCarouselNext = document.getElementById('btn-carousel-next');
+const pageIndicator = document.getElementById('local-carousel-page-num');
+
+let currentSlideIndex = 0;
+const totalSlides = 7;
+
+function updateCarouselSlide(newIndex) {
+  currentSlideIndex = (newIndex + totalSlides) % totalSlides;
+  if (carouselTrack) {
+    carouselTrack.style.transform = `translateX(-${currentSlideIndex * 100}%)`;
+  }
+  if (pageIndicator) {
+    pageIndicator.textContent = `${currentSlideIndex + 1} / ${totalSlides}`;
+  }
+}
+
+if (btnCarouselPrev && btnCarouselNext) {
+  addTapListener(btnCarouselPrev, () => updateCarouselSlide(currentSlideIndex - 1));
+  addTapListener(btnCarouselNext, () => updateCarouselSlide(currentSlideIndex + 1));
+}
+
+// Touch swipe support on carousel
+if (carouselViewport) {
+  let touchStartX = 0;
+  let touchStartY = 0;
+  carouselViewport.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+
+  carouselViewport.addEventListener('touchend', (e) => {
+    if (e.changedTouches.length === 1) {
+      const diffX = e.changedTouches[0].clientX - touchStartX;
+      const diffY = e.changedTouches[0].clientY - touchStartY;
+      if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
+        if (diffX < 0) {
+          updateCarouselSlide(currentSlideIndex + 1);
+        } else {
+          updateCarouselSlide(currentSlideIndex - 1);
+        }
+      }
+    }
+  }, { passive: true });
+}
+
+document.querySelectorAll('.local-showcase-card[data-game]').forEach((card) => {
+  addTapListener(card, () => {
+    const game = card.getAttribute('data-game');
     if (game) handleGameCardClick(game);
   });
 });
+
+const btnHeroShowcaseAll = document.getElementById('btn-hero-showcase-all');
+if (btnHeroShowcaseAll) {
+  addTapListener(btnHeroShowcaseAll, openGamePicker);
+}
 addTapListener(document.getElementById('btn-menu-customize'), () => openCustomizeModal());
 initMenuAvatarCard();
 

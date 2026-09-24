@@ -854,36 +854,307 @@
   box-shadow: 2px 2px 0px #1a1a1a;
 }
 
-.local-play-cta {
+/* Local 2-Card Showcase Slide System (Visual-First, Square 1:1, Balanced) */
+.local-carousel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  width: 100%;
+}
+
+.local-carousel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.local-carousel-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.local-carousel-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  color: #2f6a4f;
+  text-transform: uppercase;
+}
+
+.local-carousel-page {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 800;
+  color: #555555;
+  background-color: #eef2ed;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  line-height: 1.2;
+}
+
+.local-carousel-ctrls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.carousel-arrow-duo {
+  display: flex;
+  align-items: center;
+  border: 2px solid #1a1a1a;
+  border-radius: 4px;
+  background-color: #ffffff;
+  box-shadow: 2px 2px 0px #1a1a1a;
+  overflow: hidden;
+}
+
+.carousel-arrow-btn {
+  width: 26px;
+  height: 24px;
+  border: none;
+  background-color: transparent;
+  color: #1a1a1a;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  outline: none;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.carousel-arrow-btn:first-child {
+  border-right: 1.5px solid #1a1a1a;
+}
+
+.carousel-arrow-btn:hover {
+  background-color: #eef7f2;
+  color: #2f6a4f;
+}
+
+.carousel-arrow-btn:active {
+  background-color: #dfeee5;
+}
+
+.carousel-browse-all-btn {
+  height: 26px;
+  padding: 0 9px;
+  border: 2px solid #1a1a1a;
+  border-radius: 4px;
   background-color: #2f6a4f;
   color: #ffffff;
+  box-shadow: 2px 2px 0px #1a1a1a;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  outline: none;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.08s ease;
 }
 
-.local-play-cta:hover {
+.carousel-browse-all-btn:hover {
   background-color: #24523d;
   transform: translate(-1px, -1px);
-  box-shadow: 5px 5px 0px #1a1a1a;
+  box-shadow: 3px 3px 0px #1a1a1a;
 }
 
-.local-play-cta:active {
-  transform: translate(2px, 2px);
-  box-shadow: 2px 2px 0px #1a1a1a;
+.carousel-browse-all-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #1a1a1a;
 }
 
-.local-browse-cta {
+/* Viewport & Sliding Track (Zero clipping, full shadow clearance) */
+.local-carousel-viewport {
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  border: none;
+  outline: none;
+  padding: 4px 6px 8px 4px;
+  margin: -4px -6px -8px -4px;
+  box-sizing: border-box;
+}
+
+.local-carousel-pages-track {
+  display: flex;
+  width: 100%;
+  border: none;
+  outline: none;
+  transition: transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.05);
+  will-change: transform;
+}
+
+.carousel-slide-page {
+  flex: 0 0 100%;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  box-sizing: border-box;
+}
+
+/* 2-per-view Showcase Cards - Balanced layout with 1:1 Square Image + Info */
+.local-showcase-card {
+  outline: none;
+  border: 2.5px solid #1a1a1a;
+  border-radius: 6px;
   background-color: #ffffff;
+  box-shadow: 3px 3px 0px #1a1a1a;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  height: 94px;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: manipulation;
+  padding: 0;
+  text-align: left;
+  box-sizing: border-box;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+}
+
+.local-showcase-card:hover {
+  transform: translate(-1.5px, -1.5px);
+  box-shadow: 4.5px 4.5px 0px #1a1a1a, 4.5px 4.5px 0px #2f6a4f;
+  background-color: #fbfdfc;
+}
+
+.local-showcase-card:active {
+  transform: translate(1.5px, 1.5px);
+  box-shadow: 1.5px 1.5px 0px #1a1a1a;
+}
+
+/* 1:1 Square 3D Image Area - Preserves native isometric render perfectly */
+.showcase-card-media {
+  width: 90px;
+  min-width: 90px;
+  height: 90px;
+  background-color: #f4f4f0;
+  border-right: 2px solid #1a1a1a;
+  border-bottom: none;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.showcase-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.25s ease;
+}
+
+.local-showcase-card:hover .showcase-card-img {
+  transform: scale(1.08);
+}
+
+/* Info Column */
+.showcase-card-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 7px 9px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.showcase-card-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13.5px;
+  font-weight: 900;
   color: #1a1a1a;
+  letter-spacing: -0.2px;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.local-browse-cta:hover {
-  background-color: #f4faf6;
-  transform: translate(-1px, -1px);
-  box-shadow: 5px 5px 0px #1a1a1a;
+.showcase-card-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: #666666;
+  letter-spacing: 0.2px;
+  line-height: 1;
 }
 
-.local-browse-cta:active {
-  transform: translate(2px, 2px);
+.showcase-card-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  font-weight: 900;
+  background-color: #2f6a4f;
+  color: #ffffff;
+  padding: 2.5px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.3px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  transition: background-color 0.1s ease;
+}
+
+.local-showcase-card:hover .showcase-card-badge {
+  background-color: #1b4332;
+}
+
+/* 13-game special showcase tile */
+.showcase-all-media {
+  background: linear-gradient(135deg, #eef7f2 0%, #dfeee5 100%);
+  width: 90px;
+  min-width: 90px;
+  height: 90px;
+  border-right: 2px solid #1a1a1a;
+  border-bottom: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.showcase-all-preview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  width: 68px;
+  height: 68px;
+  padding: 3px;
+  background: #ffffff;
+  border: 2px solid #1a1a1a;
+  border-radius: 4px;
   box-shadow: 2px 2px 0px #1a1a1a;
+  box-sizing: border-box;
+}
+
+.showcase-all-preview-grid img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 2px;
 }
 
 .hero-secondary-cta {

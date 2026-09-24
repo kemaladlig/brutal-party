@@ -600,14 +600,198 @@
                     <span class="hero-mode-pill local-pill-accent">TEK CİHAZ</span>
                   </div>
 
-                  <div class="hero-master-actions local-actions-flow">
-                    <div class="bento-action-duo">
-                      <button class="hero-master-cta local-play-cta" id="btn-hero-quick-local" type="button" data-i18n="menu.localQuickPlay">
-                        HEMEN OYNA
-                      </button>
-                      <button class="hero-master-cta local-browse-cta" id="btn-hero-browse-games" type="button" data-i18n="menu.localBrowseGames">
-                        13 OYUN →
-                      </button>
+                  <div class="local-carousel-section">
+                    <div class="local-carousel-header">
+                      <div class="local-carousel-title-wrap">
+                        <span class="local-carousel-title" data-i18n="menu.localPickTitle">HIZLI OYNA</span>
+                        <span class="local-carousel-page" id="local-carousel-page-num">1 / 7</span>
+                      </div>
+                      <div class="local-carousel-ctrls">
+                        <div class="carousel-arrow-duo">
+                          <button class="carousel-arrow-btn" id="btn-carousel-prev" type="button" aria-label="Önceki">‹</button>
+                          <button class="carousel-arrow-btn" id="btn-carousel-next" type="button" aria-label="Sonraki">›</button>
+                        </div>
+                        <button class="carousel-browse-all-btn" id="btn-hero-browse-games" type="button" data-i18n="menu.localBrowseGames">
+                          13 OYUN →
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="local-carousel-viewport" id="local-carousel-viewport">
+                      <div class="local-carousel-pages-track" id="local-carousel-track">
+                        <!-- Slide 1: PONG + TANKS -->
+                        <div class="carousel-slide-page">
+                          <button class="local-showcase-card" type="button" data-game="PONG">
+                            <div class="showcase-card-media">
+                              <img src="/assets/games/pong.jpg" alt="PONG" class="showcase-card-img" loading="eager" />
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">PONG</span>
+                              <span class="showcase-card-tag">2-4 OYUNCU</span>
+                              <span class="showcase-card-badge">OYNA →</span>
+                            </div>
+                          </button>
+                          <button class="local-showcase-card" type="button" data-game="TANKS">
+                            <div class="showcase-card-media">
+                              <img src="/assets/games/tanks.jpg" alt="TANKS" class="showcase-card-img" loading="eager" />
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">TANKS</span>
+                              <span class="showcase-card-tag">2-4 OYUNCU</span>
+                              <span class="showcase-card-badge">OYNA →</span>
+                            </div>
+                          </button>
+                        </div>
+
+                        <!-- Slide 2: BOMB + CURVE -->
+                        <div class="carousel-slide-page">
+                          <button class="local-showcase-card" type="button" data-game="BOMB">
+                            <div class="showcase-card-media">
+                              <img src="/assets/games/bomb.jpg" alt="BOMB" class="showcase-card-img" loading="lazy" />
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">BOMB</span>
+                              <span class="showcase-card-tag">2-4 OYUNCU</span>
+                              <span class="showcase-card-badge">OYNA →</span>
+                            </div>
+                          </button>
+                          <button class="local-showcase-card" type="button" data-game="CURVE">
+                            <div class="showcase-card-media">
+                              <img src="/assets/games/curve.jpg" alt="CURVE" class="showcase-card-img" loading="lazy" />
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">CURVE</span>
+                              <span class="showcase-card-tag">2-4 OYUNCU</span>
+                              <span class="showcase-card-badge">OYNA →</span>
+                            </div>
+                          </button>
+                        </div>
+
+                        <!-- Slide 3: ARCHER + HEIST -->
+                        <div class="carousel-slide-page">
+                          <button class="local-showcase-card" type="button" data-game="ARCHER">
+                            <div class="showcase-card-media">
+                              <img src="/assets/games/archer.jpg" alt="ARCHER" class="showcase-card-img" loading="lazy" />
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">ARCHER</span>
+                              <span class="showcase-card-tag">2-4 OYUNCU</span>
+                              <span class="showcase-card-badge">OYNA →</span>
+                            </div>
+                          </button>
+                          <button class="local-showcase-card" type="button" data-game="HEIST">
+                            <div class="showcase-card-media">
+                              <img src="/assets/games/heist.jpg" alt="HEIST" class="showcase-card-img" loading="lazy" />
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">HEIST</span>
+                              <span class="showcase-card-tag">2-4 OYUNCU</span>
+                              <span class="showcase-card-badge">OYNA →</span>
+                            </div>
+                          </button>
+                        </div>
+
+                        <!-- Slide 4: CROWN + ZONE -->
+                        <div class="carousel-slide-page">
+                          <button class="local-showcase-card" type="button" data-game="CROWN">
+                            <div class="showcase-card-media">
+                              <img src="/assets/games/crown.jpg" alt="CROWN" class="showcase-card-img" loading="lazy" />
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">CROWN</span>
+                              <span class="showcase-card-tag">2-4 OYUNCU</span>
+                              <span class="showcase-card-badge">OYNA →</span>
+                            </div>
+                          </button>
+                          <button class="local-showcase-card" type="button" data-game="ZONE">
+                            <div class="showcase-card-media">
+                              <img src="/assets/games/zone.jpg" alt="ZONE" class="showcase-card-img" loading="lazy" />
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">ZONE</span>
+                              <span class="showcase-card-tag">2-4 OYUNCU</span>
+                              <span class="showcase-card-badge">OYNA →</span>
+                            </div>
+                          </button>
+                        </div>
+
+                        <!-- Slide 5: SNAKE + LASER -->
+                        <div class="carousel-slide-page">
+                          <button class="local-showcase-card" type="button" data-game="SNAKE">
+                            <div class="showcase-card-media">
+                              <img src="/assets/games/snake.jpg" alt="SNAKE" class="showcase-card-img" loading="lazy" />
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">SNAKE</span>
+                              <span class="showcase-card-tag">2-4 OYUNCU</span>
+                              <span class="showcase-card-badge">OYNA →</span>
+                            </div>
+                          </button>
+                          <button class="local-showcase-card" type="button" data-game="LASER">
+                            <div class="showcase-card-media">
+                              <img src="/assets/games/laser.jpg" alt="LASER" class="showcase-card-img" loading="lazy" />
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">LASER</span>
+                              <span class="showcase-card-tag">2-4 OYUNCU</span>
+                              <span class="showcase-card-badge">OYNA →</span>
+                            </div>
+                          </button>
+                        </div>
+
+                        <!-- Slide 6: CLONE + COLLAPSE -->
+                        <div class="carousel-slide-page">
+                          <button class="local-showcase-card" type="button" data-game="CLONE">
+                            <div class="showcase-card-media">
+                              <img src="/assets/games/clone.jpg" alt="CLONE" class="showcase-card-img" loading="lazy" />
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">CLONE</span>
+                              <span class="showcase-card-tag">2-4 OYUNCU</span>
+                              <span class="showcase-card-badge">OYNA →</span>
+                            </div>
+                          </button>
+                          <button class="local-showcase-card" type="button" data-game="COLLAPSE">
+                            <div class="showcase-card-media">
+                              <img src="/assets/games/collapse.jpg" alt="COLLAPSE" class="showcase-card-img" loading="lazy" />
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">COLLAPSE</span>
+                              <span class="showcase-card-tag">2-4 OYUNCU</span>
+                              <span class="showcase-card-badge">OYNA →</span>
+                            </div>
+                          </button>
+                        </div>
+
+                        <!-- Slide 7: NINJA + TÜM 13 OYUN -->
+                        <div class="carousel-slide-page">
+                          <button class="local-showcase-card" type="button" data-game="NINJA">
+                            <div class="showcase-card-media">
+                              <img src="/assets/games/ninja.jpg" alt="NINJA" class="showcase-card-img" loading="lazy" />
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">NINJA</span>
+                              <span class="showcase-card-tag">2-4 OYUNCU</span>
+                              <span class="showcase-card-badge">OYNA →</span>
+                            </div>
+                          </button>
+                          <button class="local-showcase-card showcase-all-tile" type="button" id="btn-hero-showcase-all">
+                            <div class="showcase-card-media showcase-all-media">
+                              <div class="showcase-all-preview-grid">
+                                <img src="/assets/games/pong.jpg" alt="PONG" />
+                                <img src="/assets/games/tanks.jpg" alt="TANKS" />
+                                <img src="/assets/games/bomb.jpg" alt="BOMB" />
+                                <img src="/assets/games/curve.jpg" alt="CURVE" />
+                              </div>
+                            </div>
+                            <div class="showcase-card-info">
+                              <span class="showcase-card-title">TÜM LİSTE</span>
+                              <span class="showcase-card-tag">13 OYUN</span>
+                              <span class="showcase-card-badge">GÖZ AT →</span>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
