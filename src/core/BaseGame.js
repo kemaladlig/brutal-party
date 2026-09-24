@@ -47,6 +47,11 @@ export class BaseMiniGame {
     // kalır ve klasik cycleSlotType davranışı çalışır.
     this.onLobbySeatTap = null;
 
+    // ONLINE host telefonu P1'i kendisi oynar; TV_CONSOLE host'u seyirci
+    // ekranıdır. Render/input katmanı bu iki rolü ortak kodla ayırır.
+    this.suppressVirtualControls = false;
+    this.localControlSlot = null;
+
     // Klavye çapraz-konuşma kilidi: main.setGameMode yalnızca aktif motoru
     // açar (E27). Pasif motorda kalan PLAYING + Space gibi ortak tuşlar
     // yanlış oyunda dash/ateş/tap üretmesin diye keydown guard'ları buna bakar.
@@ -382,9 +387,10 @@ export class BaseMiniGame {
     const players = this.getEntitiesList();
 
     // 1. Masa-ortası Dokunmatik Kontrolleri (Steer ve Action butonları)
-    if (shouldShowVirtualControls({ isHosting: !!this.hideLobbyStartButton })) {
+    if (shouldShowVirtualControls({ isHosting: !!this.suppressVirtualControls })) {
       const corners = this.getTabletopControlCorners();
       for (let i = 0; i < 4; i++) {
+        if (this.localControlSlot !== null && i !== this.localControlSlot) continue;
         const p = players?.[i];
         if (!p || !p.isJoined || p.isAlive === false || p.slotType !== 'human') continue;
         const corner = corners[i];
@@ -790,7 +796,7 @@ export class BaseMiniGame {
 
   renderControls(ctx, { players = this.getEntitiesList(), extraEntities = [] } = {}) {
     if (this.state !== 'PLAYING' && this.state !== 'ROUND_PAUSE') return;
-    if (!shouldShowVirtualControls({ isHosting: !!this.hideLobbyStartButton })) {
+    if (!shouldShowVirtualControls({ isHosting: !!this.suppressVirtualControls })) {
       return;
     }
 
@@ -801,6 +807,7 @@ export class BaseMiniGame {
     const schema = this.getTabletopSchema();
 
     for (let i = 0; i < 4; i++) {
+      if (this.localControlSlot !== null && i !== this.localControlSlot) continue;
       const p = players?.[i];
       if (!p || !p.isJoined || p.isAlive === false || p.slotType !== 'human') {
         continue;

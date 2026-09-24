@@ -241,6 +241,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.snake',
     color: '#22C55E',
     schema: GAMEPAD_SCHEMAS.SNAKE,
+    worldView: {
+      load: () => import('../ui/snakeWorldView.js'),
+    },
     load: () => import('../games/snake.js').then((m) => m.SnakeGame),
     createEngine: (game) => {
       return {
@@ -249,6 +252,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
@@ -475,5 +479,6 @@ export function getControllerMeta(mode) {
     tacticalHint: t(cart.tacticalHintKey || ''),
     tacticalHintKey: cart.tacticalHintKey,
     schema: cart.schema,
+    worldView: cart.worldView || null,
   };
 }

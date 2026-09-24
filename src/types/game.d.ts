@@ -36,6 +36,7 @@ export interface EngineContract {
   onResume?: (now: number) => void;
   start: () => void;
   packet: () => EnginePacket;
+  worldPacket?: () => EnginePacket;
 }
 
 export interface Cartridge {
@@ -46,6 +47,7 @@ export interface Cartridge {
   tacticalHintKey: string;
   color: string;
   schema?: unknown;
+  worldView?: { load: () => Promise<unknown> };
   load: () => Promise<unknown>;
   createEngine: (gameInstance: unknown) => EngineContract;
 }

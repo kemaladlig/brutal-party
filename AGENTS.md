@@ -8,13 +8,13 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 ## 1. Yığın & Platform Modları
 
 - Vanilla HTML5 + CSS3 + ES Modules, HTML5 Canvas, Vite build, PWA (`public/manifest.webmanifest`, `sw.js`).
-- Üç platform modu: `LOCAL` (tek cihaz, ağ yok) · `TV_CONSOLE` (TV host + telefon kumandalar, lokal WebSocket) · `ONLINE` (uzak oyuncular, Supabase Broadcast).
+- Üç platform modu: `LOCAL` (tek cihaz, ağ yok) · `TV_CONSOLE` (TV host + telefon kumandalar, lokal WebSocket) · `ONLINE` (bir oyuncunun telefonu P1 host; 1-3 uzak telefon Supabase keşfi + WebRTC oyun akışı).
 - Ağ seçici: `src/net.js` — TV_CONSOLE → `src/network.js` (PartyNetwork/WS), ONLINE → `src/supabaseRelay.js`. LOCAL'de ağ kullanılmaz.
 - Supabase kimlik bilgileri **build'e gömülür**: `.env` → `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (**publishable key** `sb_publishable_...` formatı), `VITE_PUBLIC_URL`. Anahtarları asla koda gömme, asla commit'le.
 
 ## 2. Yetki Modeli (değiştirilemez)
 
-- **TV host tek yetkilidir (authoritative).** Simülasyon sadece host'ta çalışır.
+- **Host cihaz tek yetkilidir (authoritative).** TV_CONSOLE'da TV host, ONLINE'da P1 oyuncusunun telefonu. Simülasyon sadece bu cihazda çalışır.
 - Kumandalar **sadece input** gönderir: joystick `(x, y)` veya buton eylemleri. Kumandada oyun mantığı yürütülmez.
 - Motorlar uzak girdiyi yalnızca `handleRemoteInput(slotIndex, data)` üzerinden alır.
 - Host, oyun durumunu kumandalara yayınlar (madde 5'teki bütçeyle).
@@ -22,8 +22,8 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 ## 3. Engine Registry — tek kayıt noktası
 
 - `src/core/engineRegistry.js` → `GAME_ORDER` (14 oyun: PONG…RACE — güncel liste dosyadadır, buraya kopyalanmaz).
-- Yeni oyun = `engineRegistry.js` içinde `GAME_ORDER` kaydı + tek `CARTRIDGES.MOD` bloğu (`load/createEngine/reset/onEnter/onResume/start/packet`). `main.js` veya `gamepad.js` içine `else if (mode === ...)` zinciri **eklemek yasaktır**.
-- Entry sözleşmesi: `game` (BaseMiniGame türevi) · `reset()` · `onEnter/onResume(now)` (fizik sıçramasını önler) · `start()` (sayaç sonrası) · `packet()` (host state'e oyuna özel alanlar).
+- Yeni oyun = `engineRegistry.js` içinde `GAME_ORDER` kaydı + tek `CARTRIDGES.MOD` bloğu (`load/createEngine/reset/onEnter/onResume/start/packet`; görüntüleme destekleyen oyunlarda ayrıca `worldPacket/worldView`). `main.js` veya `gamepad.js` içine `else if (mode === ...)` zinciri **eklemek yasaktır**.
+- Entry sözleşmesi: `game` (BaseMiniGame türevi) · `reset()` · `onEnter/onResume(now)` (fizik sıçramasını önler) · `start()` (sayaç sonrası) · `packet()` (8 Hz host HUD/state) · opsiyonel `worldPacket()` + `CARTRIDGES[MOD].worldView` (30 Hz P2P görüntüleme; şu an SNAKE).
 - Motor sözleşmesi: `resetMatch/reset()`, `startNewMatch()`, `startNewRound()`, `update(now)`, `render()`, `resize(w,h)`, `handleRemoteInput(slotIndex, data)`.
 - **Lokal (Tek Cihaz / PC & Masa-ortası) Sözleşmesi:**
   - Her motor sadece TV+telefon modunda değil, tek cihazda (`LOCAL`) da tam oynanabilir olmalıdır.
@@ -46,7 +46,7 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 ## 4. Slot Modeli — tek koltuk gerçeği
 
 - TV tarafı: `hostPlayerSlots[i] = { name, isReady, kind }`, `kind ∈ 'human' | 'bot'`.
-- Relay tarafı (Supabase `players[]`, WS `room.players[]`) koltukların kaynağıdır; TV listesi, motor slotları ve telefon ızgarası **hep snapshot'tan** beslenir.
+- ONLINE host cihazı da oyuncudur ve P1'e rezerve edilir; kalan en fazla 3 uzak telefon P2-P4 olur. Relay tarafı (Supabase `players[]`, WS `room.players[]`) koltukların kaynağıdır; host listesi, motor slotları ve telefon ızgarası hep snapshot'tan beslenir.
 - `SLOTS_UPDATE` parity kuralı: WS ve Supabase **aynı payload şeklini** yayınlar (`slotIndex, name, color, kind, isReady`). Birine eklenen alan diğerine de eklenir.
 - İsimler `toUpperCase()`, en fazla 12 karakter.
 - Bot koltuğu ne hedef ne kaynak olur: `SWITCH_SLOT` hedefi olamaz, ghost-reconnect botu yiyemez, hayalet geri kazanım botları atlar, sayaçta koltuk işlemleri kilitlidir (`seatsLocked`).
@@ -56,7 +56,8 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 
 ## 5. Ağ Bütçesi (sayılar değişmeden korunur)
 
-- Host broadcast **8 Hz (125 ms)** + JSON dirty-check; skor/taşıyıcı/sinyal gibi kritik olaylar **anında** gönderilir (hızlı yol).
+- Host HUD/state broadcast **8 Hz (125 ms)** + JSON dirty-check; skor/taşıyıcı/sinyal gibi kritik olaylar **anında** gönderilir (hızlı yol).
+- ONLINE görüntüleme pilotu SNAKE için ayrı unreliable WebRTC `world` kanalından **30 Hz tam snapshot** gönderir. Bu paketler Supabase'e düşmez; `control` kanalı reliable/ordered kalır.
 - Kumanda input throttle **50 ms** + ölübant (`JOYSTICK/MOVE/PADDLE/CURVE`); `DASH/TACKLE/ateş` throttle dışıdır.
 - Ping **15 sn**, kopma watchdog **30 sn**.
 
@@ -69,7 +70,7 @@ Modal açıkken canvas tap'leri motora düşmez; staging'de düşer (bot ekleme/
 
 - Neo-brutalist dil: Space Grotesk + JetBrains Mono, kalın sınırlar, sert kutu gölgeleri, yüksek kontrast.
 - Modaller `src/ui/` altındadır (`hostLobby`, `joinModal`, `pauseModal`, `toast`); `main.js` orkestrasyonu yapar, modal DOM'u kurmaz.
-- Kumanda tarafı: `CARTRIDGES[MOD].schema` deklaratif tanımı (`src/controllers/gamepadSchemas.js`); PONG hariç tüm oyunlarda isimli skor şeridi (`score-strip`).
+- Kumanda tarafı: `CARTRIDGES[MOD].schema` deklaratif tanımı (`src/controllers/gamepadSchemas.js`); PONG hariç tüm oyunlarda isimli skor şeridi (`score-strip`). `worldView` tanımlı modlarda canvas altta, kontroller üstte overlay olur; client motor/fizik çalıştırmaz.
 - Kumanda ergonomisi kararı: **dikeyde alt-orta kuşak** (`safe-area + 12vh`, 96px taban / 170px tavan), **yatayda köşeler** (sol-alt joystick, sağ-alt aksiyon). Yeni kumanda bu düzene uyar.
 - Mobil: `portrait` + `landscape` desteklenir, `overflow-x` yasak, dokunmatiklerde `touch-action` zorunlu.
 - Motion: `src/ui/motion.js` (`prefersReducedMotion`, `motionScale`) + tokenlar (`src/ui/tokens.js`) tek kaynaktır; yeni UI bu iki dosyadan sızar, lokal stil tanımlamaz. Temel UI hissi global kurala uyar (kısa fade/press, kuru pop-in yok).

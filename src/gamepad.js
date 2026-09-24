@@ -13,6 +13,7 @@ import { getAvatarProfile } from './core/customizationManager.js';
 import { drawBrutalAvatar } from './ui/characterRenderer.js';
 import { openCustomizeModal } from './ui/customizeModal.js';
 import { getTabletopIconSvg } from './core/tabletopIcons.js';
+import { GamepadWorldView } from './ui/gamepadWorldView.js';
 
 // Kumanda kayıt tablosu: tek kaynaktan (engineRegistry) beslenir
 const CONTROLLER_META = new Proxy({}, {
@@ -73,6 +74,8 @@ export class GamepadManager {
     this._wakeLock = null;
     this._browserLocksBound = false;
     this._activeController = null;
+    this._worldView = null;
+    this._worldViewToken = 0;
   }
 
   // Güvenli ve merkezi Haptic Geri Bildirim
@@ -196,9 +199,29 @@ export class GamepadManager {
     return el;
   }
 
+  _destroyWorldView() {
+    this._worldViewToken += 1;
+    this._worldView?.destroy();
+    this._worldView = null;
+  }
+
+  async _mountWorldView(canvas, descriptor) {
+    const token = ++this._worldViewToken;
+    try {
+      const module = await descriptor.load();
+      if (token !== this._worldViewToken || !canvas?.isConnected) return;
+      const renderer = module.createSnakeWorldViewRenderer?.();
+      if (!renderer) return;
+      this._worldView = new GamepadWorldView(canvas, renderer, { slots: this.slots });
+    } catch (err) {
+      console.warn('[GamepadManager] World view yüklenemedi:', err);
+    }
+  }
+
   // Mevcut mount'un window listener'larını sök, joystick takılı kalmasın diye
   // nötr paket gönder (zone innerHTML ile sökülmeden ÖNCE çağrılmalı)
   _teardownMount() {
+    this._destroyWorldView();
     if (this._activeController?.teardown) {
       try { this._activeController.teardown(); } catch {}
       this._activeController = null;
@@ -313,6 +336,7 @@ export class GamepadManager {
 
   hide() {
     this.releaseWakeLock();
+    this._teardownMount();
     this.overlay.classList.add('hidden');
     this.overlay.innerHTML = '';
     this.overlay.className = 'hidden';
@@ -414,6 +438,7 @@ export class GamepadManager {
   updateSlots(slots) {
     const prev = this.slots;
     this.slots = slots || [null, null, null, null];
+    this._worldView?.setSlots(this.slots);
     // Kim geldi/gitti telefonlarda da görünsün (ilk tablo sessiz; bot ve isim değişimi sessiz)
     if (prev) {
       for (let i = 0; i < 4; i++) {
@@ -533,9 +558,20 @@ export class GamepadManager {
       this.mountLobbyController(workspace);
     } else {
       const meta = CONTROLLER_META[mode] || {};
-      workspace.innerHTML = `
-        <div class="gamepad-game-mount" id="gamepad-game-mount"></div>
-      `;
+      const hasWorldView = !!meta.worldView && this.network.supportsWorldFrames === true;
+      if (hasWorldView) {
+        workspace.innerHTML = `
+          <div class="gamepad-game-stage has-world-view">
+            <canvas class="gamepad-world-canvas" id="gamepad-world-canvas" role="img" aria-label="Oyun alanı"></canvas>
+            <div class="gamepad-control-overlay" id="gamepad-game-mount"></div>
+          </div>
+        `;
+        this._mountWorldView(document.getElementById('gamepad-world-canvas'), meta.worldView);
+      } else {
+        workspace.innerHTML = `
+          <div class="gamepad-game-mount" id="gamepad-game-mount"></div>
+        `;
+      }
       const mountTarget = document.getElementById('gamepad-game-mount') || workspace;
       if (meta.schema) {
         this._activeController = mountDeclarativeController(this, mountTarget, meta.schema);
@@ -897,6 +933,10 @@ export class GamepadManager {
     });
 
     return rawForce >= 0.98;
+  }
+
+  handleWorldFrame(frame) {
+    this._worldView?.accept(frame);
   }
 
   // Handle live state sync broadcasts from Host

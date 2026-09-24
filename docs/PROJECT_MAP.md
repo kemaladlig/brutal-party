@@ -9,19 +9,23 @@ Son doğrulama: Refactoring & Modülerleştirme sonrası (Eylül 2026).
 
 ```
 index.html                  Ana menü (bento kartlar), TV lobi modali, kumanda overlay iskeleti
-src/main.js                 Ana orkestratör: mod/oda akışı, host slot listesi, staging+sayaç,
-                            8Hz broadcaster, engine registry başlatıcı, render döngüsü
+src/main.js                 Ana orkestratör: mod/oda akışı, ONLINE P1 host slotu, staging+sayaç,
+                            8Hz HUD/state + 30Hz P2P world broadcaster, render döngüsü
 src/net.js                  Ağ seçici (LOCAL / TV_CONSOLE→WS / ONLINE→Supabase) + PUBLIC_URL, env bayrakları
 src/network.js              PartyNetwork: lokal WebSocket istemcisi (host + kumanda rolleri)
-src/supabaseRelay.js        Supabase Broadcast relay: player_msg / host_msg kanalları, slot tablosu
-src/gamepad.js              Telefon kumandası: CONTROLLER_META, koltuk ızgarası,
-                            skor şeridi, ready yönetimi, dokunmatik girdiler
+src/supabaseRelay.js        ONLINE host/player tabloları, Supabase keşfi/signaling/fallback,
+                            reliable control + unreliable world DataChannel yönlendirmesi
+src/webrtcManager.js        Star P2C manager: peer Map, SDP/ICE kuyruğu, control/world kanalları
+src/gamepad.js              Telefon kumandası: full-screen world canvas + overlay kontroller,
+                            koltuk ızgarası, skor şeridi, ready yönetimi, dokunmatik girdiler
 src/controllers/
   controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, STEER_BOOST) + PONG canlı skorbord/falso senkronu
   gamepadSchemas.js         14 oyun için deklaratif kumanda konfigürasyonları, canlı senkronizasyon hook'ları (BOMB/CROWN/HEIST uyarıları) + merkezi `def` referansı
   controlDefs.js            Merkezi kontrol sözleşmesi: sol (joystick/steer/slider/pedal) + sağ (max 2 aksiyon) + landscape-first politikası + nötr paket haritası; telefon + tabletop parite kaynağı
   controllerStatus.js       Üst durum şeridi metinleri (14 oyun, tek kayıt) — gamepad handleStateSync zincirsiz çağırır
-src/gamepad.css             Kumanda stilleri (neo-brutalist mobil ergonomi)
+src/gamepad.css             Kumanda stilleri (neo-brutalist mobil ergonomi + canvas/control katmanları)
+src/ui/gamepadWorldView.js  Generic client world-frame canvas: DPR, son kare, seq/stale yönetimi
+src/ui/snakeWorldView.js    Client-only Snake world renderer; simülasyon/fizik çalıştırmaz
 src/style.css               Modüler stil orkestratörü (@import src/styles/*)
 src/styles/                 Modüler CSS katmanı (tokens, base, hud, modals, menu, lobby, animations)
 src/controlGuide.js         Oyun-içi kontrol yardımcısı overlay'i
@@ -128,6 +132,7 @@ src/games/ (Oyun Motorları - BaseMiniGame türevleri):
    crown.js                  Brutal Crown motoru (altın taç, omuz atma, pinball bumper'lar, taç süresi)
     zone.js                   Brutal Zone motoru (64x64 grid bölge kapma, iz kesme→base-reset+2sn stun, %40/90sn)
     snake.js                  Brutal Snake motoru (yemle büyü, kuyruk/çarpışma, hold-boost)
+     snakeView.js             Ortak Snake snapshot serializer + host/client çizim yardımcıları
     laser.js                  Brutal Laser motoru (hareketli lazer-tag, 3 can, dash i-frame)
     clone.js                  Brutal Clone motoru (2 gecikmeli kopya, gerçek/sahte vuruş)
     collapse.js               Brutal Collapse motoru (13x13 çöken ızgara, zıplama, itişme)
@@ -141,7 +146,8 @@ server/
   vitePluginWs.js           Vite geliştirme sunucusuna entegre WebSocket plugin'i
 
 public/                     PWA (manifest.webmanifest, sw.js, ikonlar) + public/assets/games/*.jpg
-tests/                      Node test runner: Race saf progress/tuning + Vite-SSR lifecycle regresyonları
+tests/                      Node test runner: network protocol, WebRTC kanal/ICE regresyonları,
+                            Snake world snapshot ve Race saf progress/tuning regresyonları
 ```
 
 ---
@@ -158,7 +164,7 @@ tests/                      Node test runner: Race saf progress/tuning + Vite-SS
 | ARCHER | Brutal Archery | `src/games/archer.js` | `src/ai/archerAI.js` | `JOYSTICK_ACTION` (hold-charge schema) | Serbest hareket + basılı yay germe (nişan salınımı) + bırakınca ok; yakın vuruş 2p / uzak 1p; 60sn raund, 2 raund alan şampiyon; **raund başına rastgele 3 harita (PILLARS/CROSS/SCATTER+hareketli duvar)**; power-up: TURBO/TELEPORT/SLIP + MULTI/QUICKDRAW/SHIELD; mesafe ölçekli stun (yakın 0.12sn → uzak 0.8sn, spam kilitlenmesin) |
 | CROWN | Brutal Crown | `src/games/crown.js` | `src/ai/crownAI.js` | `mountCrownController` | Altın taç krallığı (15s tutan kazanır), omuz atarak taç düşürme, pinball tamponları |
 | ZONE | Brutal Zone | `src/games/zone.js` | `src/ai/zoneAI.js` | `mountZoneController` | Grid bölge kapma (iz kesme→base-reset+2sn stun, ölüm yok; duvar cezasız); 90sn + %40 erken zafer, 2 raund alan şampiyon; kumanda joystick + ⚡depar (2.2x/0.22sn/4sn) |
-| SNAKE | Brutal Snake | `src/games/snake.js` | `src/ai/snakeAI.js` | `mountSnakeController` | Yemle büyü (max 300), kuyruk/çarpışma eleme, hold-boost; bot ızgara-raycast + yem kovalama; kumanda joystick + basılı boost |
+| SNAKE | Brutal Snake | `src/games/snake.js` | `src/ai/snakeAI.js` | `mountSnakeController` | Yemle büyü (max 300), kuyruk/çarpışma eleme, hold-boost; **30 Hz P2P world-view pilotu**: mesafe örnekli tam snapshot, telefon canvası + overlay kontrol |
 | LASER | Brutal Laser | `src/games/laser.js` | `src/ai/laserAI.js` | `mountLaserController` | Hareketli lazer-tag: tek çubuk koş+nişan, 3 can + 2sn respawn, dash i-frame (2.2x/0.22sn/4sn), 2-sekmelik nişan önizlemesi, 90sn/10 kill yarışı, ❤/⚡ pickup, 3 harita preset; bot strafe+dodge+pickup; kumanda joystick + ATEŞ + DASH |
 | CLONE | Brutal Clone | `src/games/clone.js` | `src/ai/cloneAI.js` | `mountCloneController` | 2 gecikmeli kopya (0.6/1.2sn), gerçek-vuruş skor + sahte-vuruş 2.5sn slow; bot devriye + menzil omuzu (blöf yer); kumanda joystick + OMUZ (`TACKLE` yeniden kullanımı, %cd göstergeli) |
 | COLLAPSE | Brutal Collapse | `src/games/collapse.js` | `src/ai/collapseAI.js` | `mountCollapseController` | 13x13 çöken ızgara (0.8sn uyarı), zıplama 0.45sn/1.8s cooldown + itişme; bot güvenli-hücre + tehlike zıplaması; kumanda joystick + ZIPLA (`DASH` yeniden kullanımı, %cd göstergeli) |
@@ -169,13 +175,19 @@ tests/                      Node test runner: Race saf progress/tuning + Vite-SS
 
 ## 3. Ağ & İletişim Protokolü
 
-Sistem iki relay kullanabilir:
-1. **Lokal Ağ / Geliştirme:** `src/network.js` (PartyNetwork WebSocket üzerinden)
-2. **Canlı / İnternet:** `src/supabaseRelay.js` (Supabase Realtime Broadcast: `player_msg` ve `host_msg`)
+Sistem iki transport kullanır:
+1. **Lokal Ağ / Geliştirme:** `src/network.js` (PartyNetwork WebSocket)
+2. **Canlı / İnternet:** `src/supabaseRelay.js` (Supabase Broadcast oda keşfi/lobi/signaling + WebRTC)
 
-ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını kullanır. WebRTC bağlantısı olan oyuncuya doğrudan DataChannel, olmayan oyuncuya hedefli Supabase Broadcast fallback gönderilir; karma bağlantıda oyuncu bazlı yönlendirme zorunludur. Controller, host ilanı geç geldiğinde katılım isteğini yeniler; WebRTC adayları remote description sonrasına kuyruğa alınır.
+ONLINE host artık TV değil, kendisi P1 olan oyuncu telefonudur; P1 rezerve, uzak oyuncular P2-P4 olur. Supabase `players[]` tek koltuk kaynağıdır. TV_CONSOLE bu değişiklikten etkilenmez.
 
-### Kumanda → TV Host (`player_msg`):
+Her WebRTC peer'ında iki DataChannel bulunur:
+- `control`: `ordered:true`; giriş, hazır, koltuk ve 8 Hz HUD/state. WebRTC yoksa hedefli Supabase fallback kullanılır.
+- `world`: `ordered:false, maxRetransmits:0`; yalnız host→client tam dünya snapshot'ı. SNAKE pilotu 30 Hz gönderir, Supabase'e düşmez ve client `seq` ile eski/geç kareyi yok sayar.
+
+ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını kullanır. Host yalnız katılmış peer'lardan signal kabul eder; controller kilitlediği hostId dışındaki signal'ı reddeder. ICE adayları remote description sonrasına kuyruğa alınır.
+
+### Uzak Telefon → Host (`player_msg`):
 * `INPUT`: Joystick yönü `(x, y)` veya buton basımları (`FIRE`, `DASH`, `TACKLE`). 50ms throttle ile sınırlandırılmıştır; aksiyon butonları throttlesızdır.
 * `INPUT` tüneli `AVATAR_UPDATE`: kumanda kendi karakterini bildirir (`{color, expression, accessory, pattern}`; host sanitize eder, 1sn rate-limit).
 * `JOIN_ROOM` / `JOIN`: 3 haneli oda kodu + oyuncu adı + `avatar` ile odaya katılma isteği. Avatarsız eski istemciye host boş rastgele renk + varsayılan yüz atar; alınmış renkle gelenin rengi boşa çekilir (yüz korunur).
@@ -184,8 +196,9 @@ ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını 
 * `SET_NAME`: İsim güncellemesi (büyük harf, maks 12 karakter).
 * `REACTION` / `PING`: Emoji tepkisi / gecikme ölçümü.
 
-### TV Host → Kumanda (`host_msg`):
-* `HOST_STATE_SYNC` / `GAME_STATE`: 8Hz periyodik oyun durumu yayını (dirty-check ile değişmediyse göndermez).
+### Host → Uzak Telefon (`host_msg`):
+* `HOST_STATE_SYNC` / `GAME_STATE`: 8 Hz periyodik HUD/kumanda durumu (dirty-check ile değişmediyse göndermez).
+* `WORLD_FRAME`: SNAKE pilotunda yalnız P2P `world` kanalından 30 Hz tam snapshot; full-frame olduğu için kayıp paket sonraki kareyi bozmaz.
 * `SLOTS_UPDATE`: 4 koltuğun güncel durumu (`slotIndex, name, color, kind, isReady` + insanlarda `avatar`). Hem WS hem Supabase'de birebir aynı şemadır.
 * `SLOT_CHANGED`: koltuk no + display rengi. Renk oyuncuyla taşınır (takas/döndürmede koltuğa sabitlenmez).
 * `SET_SLOT_COLOR` (host-only): host lobi hızlı palet/🎲 display-renk override'ı (profil değişmez).
@@ -198,7 +211,7 @@ ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını 
 
 ## 4. Slot Modeli Kuralları
 
-* TV tarafında: `hostPlayerSlots[i] = { name, isReady, kind, avatar, displayColor }`, `kind ∈ 'human' | 'bot'`.
+* Host cihaz tarafında: `hostPlayerSlots[i] = { name, isReady, kind, avatar, displayColor }`, `kind ∈ 'human' | 'bot'`. ONLINE host P1'dir.
 * Relay tarafı (`supabaseRelay.players[]` veya `room.players[]`) tek doğru gerçektir (Single Source of Truth).
 * **Sert renk engeli:** İki insan koltuğu aynı display rengine sahipse `SAHAYA GEÇ` + sayaç kilitlenir (lobide `⚠️ AYNI RENK` + 🎲 hızlı atama). LOCAL muaf (koltuklar boş → küme boş).
 * **Bot Kuralları:**
@@ -211,8 +224,8 @@ ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını 
 
 ## 5. Mimari Karar Defteri (Architectural Decisions)
 
-1. **TV Host Tek Yetkilidir (Authoritative):**
-   * Tüm fizik hesaplamaları, çarpışmalar, puanlar ve bot yapay zekaları TV Host üzerinde çalışır. Kumandalar sadece girdi yollar.
+1. **Host Cihaz Tek Yetkilidir (Authoritative):**
+   * ONLINE host P1 runs the simulation; TV_CONSOLE host remains the dedicated local host. Remote phones only send input.
 2. **Engine Registry Prensibi:**
    * `main.js` içinde `if (mode === 'PONG') ... else if` zincirleri yasaktır. Tüm oyunlar `engineRegistry.js` üzerinden `registerEngine` ile kaydedilir ve polimorfik olarak çağrılır.
 3. **BaseMiniGame Ortak Tabanı:**

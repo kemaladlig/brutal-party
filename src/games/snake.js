@@ -6,7 +6,13 @@ import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js'
 import { t } from '../i18n.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateSnakeBotAI } from '../ai/snakeAI.js';
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import {
+  createSnakeWorldPacket,
+  drawSnakeArena,
+  drawSnakeFoods,
+  drawSnakeParticles,
+  drawSnakePlayers,
+} from './snakeView.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { distToSegmentSquared } from '../core/physics2d.js';
@@ -84,6 +90,8 @@ export class SnakeGame extends BaseMiniGame {
     this.particles = [];
     this.walls = [];
     this.mapIndex = 0;
+    this.roundId = 0;
+    this._worldSeq = 0;
 
     // İz sorgu ızgarası (hücre → segment referansları) + sorgu damgası
     this.segGrid = new Map();
@@ -208,6 +216,7 @@ export class SnakeGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.roundId = 0;
     this.foods = [];
     this.segGrid = new Map();
     this.segGridDirty = false;
@@ -237,6 +246,7 @@ export class SnakeGame extends BaseMiniGame {
       return;
     }
     this.state = 'PLAYING';
+    this.roundId += 1;
     this.foods = [];
     this.roundWinner = null;
     this.roundTransitionTimer = 0;
@@ -248,6 +258,10 @@ export class SnakeGame extends BaseMiniGame {
     this.initPlayers();
     this.players.forEach((p) => { p.isAlive = p.isJoined; });
     for (let i = 0; i < 4; i++) this.spawnFood();
+  }
+
+  createWorldPacket() {
+    return createSnakeWorldPacket(this);
   }
 
   spawnFood(x, y, forceType = null) {
@@ -728,204 +742,14 @@ export class SnakeGame extends BaseMiniGame {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     this.applyScreenShake(ctx);
 
-    const { left, top, width, height } = this.arena;
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(left, top, width, height);
+    drawSnakeArena(ctx, this.arena, this.walls);
 
-    // Saha Zemin Izgarası (Sade neo-brutalist doku)
-    ctx.strokeStyle = '#EBE7DF';
-    ctx.lineWidth = 1;
-    const step = 36;
-    ctx.beginPath();
-    for (let x = left + step; x < left + width; x += step) {
-      ctx.moveTo(x, top); ctx.lineTo(x, top + height);
-    }
-    for (let y = top + step; y < top + height; y += step) {
-      ctx.moveTo(left, y); ctx.lineTo(left + width, y);
-    }
-    ctx.stroke();
-
-
-    // 1. ENGEL DUVARLARI
-    for (const w of this.walls) {
-      // 3D Gölge
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(w.x + 4, w.y + 4, w.w, w.h);
-      // Ana Blok
-      ctx.fillStyle = '#E8E4DA';
-      ctx.fillRect(w.x, w.y, w.w, w.h);
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(w.x, w.y, w.w, w.h);
-
-      // Çapraz Uyarı Çizgileri
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(w.x, w.y, w.w, w.h);
-      ctx.clip();
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.12)';
-      ctx.lineWidth = 4;
-      for (let ox = -w.h; ox < w.w + w.h; ox += 14) {
-        ctx.beginPath();
-        ctx.moveTo(w.x + ox, w.y);
-        ctx.lineTo(w.x + ox + w.h, w.y + w.h);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-
-    // Saha Sınır Çizgisi
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(left, top, width, height);
-
-    // 2. KÖŞE BUTONLARI (Merkezi BaseGame Masa-ortası Kontrolleri)
+    // masa-ortası kontrolleri sahnenin üstünde, varlıkların altında kalır.
     this.uiButtons = [];
     this.renderControls(ctx, { extraEntities: this.foods });
-
-    // 3. YEMLER (Butonların ve sahanın üstünde parlar)
-    for (const f of this.foods) {
-      const pulse = 1 + Math.sin(now / 220 + f.pulse) * 0.08;
-      const r = (f.size / 2) * pulse;
-
-      // Zemin gölgesi
-      ctx.fillStyle = 'rgba(26, 26, 26, 0.25)';
-      ctx.beginPath();
-      ctx.arc(f.x + 2, f.y + 2, r, 0, Math.PI * 2);
-      ctx.fill();
-
-      if (f.type === 'GOLDEN_STAR') {
-        // Altın Yıldız Meyvesi
-        ctx.fillStyle = '#FFDE59';
-        ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 2.5; ctx.stroke();
-        // Merkez parıltı
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '900 11px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('★', f.x, f.y);
-      } else if (f.type === 'TURBO_BERRY') {
-        // Turbo Berry (Enerji)
-        ctx.fillStyle = '#A259FF';
-        ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 2.5; ctx.stroke();
-        ctx.fillStyle = '#FFDE59';
-        ctx.font = '900 10px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('⚡', f.x, f.y);
-      } else {
-        // Standart Elma
-        ctx.fillStyle = '#D84727';
-        ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 2; ctx.stroke();
-        // Parlak nokta
-        ctx.fillStyle = '#FFF';
-        ctx.beginPath(); ctx.arc(f.x - r * 0.35, f.y - r * 0.35, r * 0.28, 0, Math.PI * 2); ctx.fill();
-        // Sap
-        ctx.strokeStyle = '#2F6A4F'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(f.x, f.y - r); ctx.lineTo(f.x + 2, f.y - r - 3); ctx.stroke();
-      }
-    }
-
-    // 4. YILANLAR (Her zaman en üstte, kalın dış hat ve net gözler)
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    for (const player of this.players) {
-      if (!player.isJoined || !player.isAlive) continue;
-
-      // Gövde Dış Hat (Siyah kontrast kenar)
-      ctx.lineWidth = 14;
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.beginPath();
-      if (player.segments.length > 0) {
-        ctx.moveTo(player.segments[0].x1, player.segments[0].y1);
-        for (const seg of player.segments) ctx.lineTo(seg.x2, seg.y2);
-      }
-      ctx.stroke();
-
-      // Gövde İçi (Oyuncu Rengi)
-      ctx.lineWidth = 9;
-      ctx.strokeStyle = player.color;
-      ctx.beginPath();
-      if (player.segments.length > 0) {
-        ctx.moveTo(player.segments[0].x1, player.segments[0].y1);
-        for (const seg of player.segments) ctx.lineTo(seg.x2, seg.y2);
-      }
-      ctx.stroke();
-
-      // Kafa (+ Boost Efekti)
-      const headR = player.isBoost ? 10 : 8.5;
-
-      // Boost Aura
-      if (player.isBoost) {
-        ctx.fillStyle = '#FFDE59';
-        ctx.beginPath(); ctx.arc(player.x, player.y, headR + 4, 0, Math.PI * 2); ctx.fill();
-      }
-
-      // Çatallı Yılan Dili (Flicking tongue)
-      if (player.tongueTimer < 0.4) {
-        const tongueLen = 9;
-        const tx = player.x + Math.cos(player.angle) * (headR + tongueLen);
-        const ty = player.y + Math.sin(player.angle) * (headR + tongueLen);
-        ctx.strokeStyle = '#D84727';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(player.x + Math.cos(player.angle) * headR, player.y + Math.sin(player.angle) * headR);
-        ctx.lineTo(tx, ty);
-        ctx.stroke();
-      }
-
-      let exp = 'normal';
-      if (player.isBoosting) exp = 'excited';
-      else if (player.boostLocked) exp = 'panic';
-
-      drawBrutalAvatar(ctx, player.x, player.y, headR, {
-        color: player.color,
-        slotIndex: player.index,
-        facingAngle: player.angle,
-        label: `P${player.index + 1}`,
-        expression: exp,
-        showPointer: true,
-        borderColor: '#1A1A1A',
-        borderWidth: 2.5,
-        shadowOffset: 2,
-      });
-
-      // Baş Üstü Mini Boost Enerji Arkı (Zemin üzerinde her zaman net ve okunaklı)
-      if (player.boostEnergy < 98) {
-        ctx.save();
-        const arcR = headR + 6;
-        // Zemin Koyu Ray
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, arcR, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Dolum Arkı
-        ctx.strokeStyle = player.boostLocked ? '#D84727' : '#FFDE59';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        const startA = -Math.PI / 2;
-        const endA = startA + (Math.PI * 2 * (player.boostEnergy / 100));
-        ctx.arc(player.x, player.y, arcR, startA, endA);
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-
-    // 5. PARÇACIKLAR
-    for (const p of this.particles) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+    drawSnakeFoods(ctx, this.foods, now);
+    drawSnakePlayers(ctx, this.players, now);
+    drawSnakeParticles(ctx, this.particles);
 
     this.renderHUD(ctx, {
       guideTitle: t('guide.snake'),

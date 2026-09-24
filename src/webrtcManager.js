@@ -1,6 +1,8 @@
 // src/webrtcManager.js
 
 const MAX_BUFFERED_AMOUNT = 64 * 1024;
+const CONTROL_CHANNEL = 'control';
+const WORLD_CHANNEL = 'world';
 
 const ICE_SERVERS = {
   iceServers: [
@@ -12,25 +14,27 @@ const ICE_SERVERS = {
 export class WebRTCManager {
   constructor({ isHost, onMessage, onStatusChange, sendSignal }) {
     this.isHost = isHost;
-    this.onMessage = onMessage; // (peerId, data) => void
-    this.onStatusChange = onStatusChange; // (peerId, status) => void
+    this.onMessage = onMessage; // (peerId, data, channel) => void
+    this.onStatusChange = onStatusChange; // (peerId, status, channel) => void
     this.sendSignal = sendSignal; // (targetId, signalData) => void
 
-    // Host için: controllerId -> { pc, dc }
-    // Controller için: hostId -> { pc, dc }
+    // Host için: controllerId -> { pc, control, world, pendingCandidates }
+    // Controller için: hostId -> aynı kayıt yapısı
     this.peers = new Map();
+    this.orphanCandidates = new Map();
   }
 
-  // --- CONTROLLER Tarafı: Host'a WebRTC bağlantısı başlatır ---
   async connectToHost(hostId) {
     if (!hostId) return;
     this._cleanupPeer(hostId);
 
     const pc = new RTCPeerConnection(ICE_SERVERS);
-    const dc = pc.createDataChannel('gameData', { ordered: true });
+    const control = pc.createDataChannel(CONTROL_CHANNEL, { ordered: true });
+    const world = pc.createDataChannel(WORLD_CHANNEL, { ordered: false, maxRetransmits: 0 });
 
-    this.peers.set(hostId, { pc, dc, pendingCandidates: [] });
-    this._setupDataChannel(hostId, dc);
+    this.peers.set(hostId, { pc, control, world, pendingCandidates: [] });
+    this._setupDataChannel(hostId, control);
+    this._setupDataChannel(hostId, world);
     this._setupPeerConnection(hostId, pc);
 
     try {
@@ -42,21 +46,27 @@ export class WebRTCManager {
     }
   }
 
-  // --- Ortak: Supabase üzerinden gelen sinyalleri işler ---
   async handleSignal(senderId, signal) {
     if (!signal || !senderId) return;
 
     if (signal.type === 'offer') {
-      // HOST Tarafı: Controller'dan offer geldi
       let peer = this.peers.get(senderId);
+      const orphaned = this.orphanCandidates.get(senderId) || [];
+      if (peer && ['failed', 'disconnected', 'closed'].includes(peer.pc.connectionState)) {
+        this._cleanupPeer(senderId);
+        peer = null;
+      }
       if (!peer) {
         const pc = new RTCPeerConnection(ICE_SERVERS);
-        peer = { pc, dc: null, pendingCandidates: [] };
+        peer = { pc, control: null, world: null, pendingCandidates: [...orphaned] };
+        this.orphanCandidates.delete(senderId);
         this.peers.set(senderId, peer);
 
         pc.ondatachannel = (event) => {
-          peer.dc = event.channel;
-          this._setupDataChannel(senderId, event.channel);
+          const channel = event.channel;
+          if (channel.label === WORLD_CHANNEL) peer.world = channel;
+          else peer.control = channel;
+          this._setupDataChannel(senderId, channel);
         };
 
         this._setupPeerConnection(senderId, pc);
@@ -71,11 +81,9 @@ export class WebRTCManager {
       } catch (err) {
         console.warn('[WebRTC] Offer işlenemedi / Answer oluşturulamadı:', err);
       }
-
     } else if (signal.type === 'answer') {
-      // CONTROLLER Tarafı: Host'tan cevap geldi
       const peer = this.peers.get(senderId);
-      if (peer && peer.pc) {
+      if (peer?.pc) {
         try {
           await peer.pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
           await this._flushPendingCandidates(senderId, peer);
@@ -83,11 +91,16 @@ export class WebRTCManager {
           console.warn('[WebRTC] RemoteDescription (answer) ayarlanamadı:', err);
         }
       }
-
     } else if (signal.type === 'candidate') {
-      // ICE Candidate (Ağ rotası) geldi
       const peer = this.peers.get(senderId);
-      if (peer && peer.pc && signal.candidate) {
+      const peerUnavailable = !peer || ['failed', 'disconnected', 'closed'].includes(peer.pc?.connectionState);
+      if (signal.candidate && peerUnavailable) {
+        const pending = this.orphanCandidates.get(senderId) || [];
+        if (pending.length < 64) pending.push(signal.candidate);
+        this.orphanCandidates.set(senderId, pending);
+        return;
+      }
+      if (peer?.pc && signal.candidate) {
         if (peer.pc.remoteDescription) {
           try {
             await peer.pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
@@ -95,7 +108,6 @@ export class WebRTCManager {
             console.warn('[WebRTC] ICE adayı eklenemedi:', err);
           }
         } else {
-          // Sinyal sırası korunmasa bile adayı remote description sonrasına sakla.
           peer.pendingCandidates = peer.pendingCandidates || [];
           peer.pendingCandidates.push(signal.candidate);
         }
@@ -115,53 +127,55 @@ export class WebRTCManager {
     }
   }
 
-  // --- Veri Gönderim Metodları ---
-  sendTo(peerId, data) {
+  sendTo(peerId, data, channelName = CONTROL_CHANNEL) {
     const peer = this.peers.get(peerId);
+    const channel = peer?.[channelName];
     if (
-      peer
-      && peer.dc
-      && peer.dc.readyState === 'open'
-      && (peer.dc.bufferedAmount || 0) <= MAX_BUFFERED_AMOUNT
+      channel
+      && channel.readyState === 'open'
+      && (channel.bufferedAmount || 0) <= MAX_BUFFERED_AMOUNT
     ) {
       try {
-        peer.dc.send(typeof data === 'string' ? data : JSON.stringify(data));
+        channel.send(typeof data === 'string' ? data : JSON.stringify(data));
         return true;
       } catch (err) {
-        console.warn(`[WebRTC] ${peerId} gönderimi başarısız:`, err);
+        console.warn(`[WebRTC] ${peerId}/${channelName} gönderimi başarısız:`, err);
       }
     }
     return false;
   }
 
-  broadcast(data) {
+  broadcast(data, channelName = CONTROL_CHANNEL) {
     let sentCount = 0;
     const payload = typeof data === 'string' ? data : JSON.stringify(data);
     for (const peerId of this.peers.keys()) {
-      if (this.sendTo(peerId, payload)) sentCount++;
+      if (this.sendTo(peerId, payload, channelName)) sentCount += 1;
     }
     return sentCount > 0;
   }
 
-  getOpenPeerIds() {
+  getOpenPeerIds(channelName = CONTROL_CHANNEL) {
     return [...this.peers.entries()]
-      .filter(([, peer]) => peer.dc?.readyState === 'open')
+      .filter(([, peer]) => peer[channelName]?.readyState === 'open')
       .map(([peerId]) => peerId);
   }
 
-  hasActiveConnection(peerId) {
+  hasActiveConnection(peerId, channelName = CONTROL_CHANNEL) {
     const peer = this.peers.get(peerId);
-    return !!(peer && peer.dc && peer.dc.readyState === 'open');
+    return !!(peer?.[channelName]?.readyState === 'open');
   }
 
-  hasAnyConnection() {
-    for (const [_, peer] of this.peers.entries()) {
-      if (peer.dc && peer.dc.readyState === 'open') return true;
+  hasAnyConnection(channelName = CONTROL_CHANNEL) {
+    for (const peer of this.peers.values()) {
+      if (peer[channelName]?.readyState === 'open') return true;
     }
     return false;
   }
 
-  // --- İç Yapılandırıcılar ---
+  closePeer(peerId) {
+    this._cleanupPeer(peerId);
+  }
+
   _setupPeerConnection(peerId, pc) {
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -170,41 +184,44 @@ export class WebRTCManager {
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        this.onStatusChange?.(peerId, 'disconnected');
+      if (pc.connectionState === 'failed') {
+        this.onStatusChange?.(peerId, 'disconnected', CONTROL_CHANNEL);
         this._cleanupPeer(peerId);
+      } else if (pc.connectionState === 'disconnected') {
+        this.onStatusChange?.(peerId, 'disconnected', CONTROL_CHANNEL);
       }
     };
   }
 
-  _setupDataChannel(peerId, dc) {
-    dc.onopen = () => {
-      console.log(`%c[WebRTC] DataChannel BAĞLANDI! (Peer: ${peerId})`, 'color: #10B981; font-weight: bold;');
-      this.onStatusChange?.(peerId, 'connected');
+  _setupDataChannel(peerId, channel) {
+    channel.onopen = () => {
+      console.log(`%c[WebRTC] ${channel.label} BAĞLANDI! (Peer: ${peerId})`, 'color: #10B981; font-weight: bold;');
+      this.onStatusChange?.(peerId, 'connected', channel.label);
     };
 
-    dc.onclose = () => {
-      console.log(`[WebRTC] DataChannel kapandı (Peer: ${peerId})`);
-      this.onStatusChange?.(peerId, 'disconnected');
+    channel.onclose = () => {
+      console.log(`[WebRTC] ${channel.label} kapandı (Peer: ${peerId})`);
+      this.onStatusChange?.(peerId, 'disconnected', channel.label);
     };
 
-    dc.onmessage = (event) => {
+    channel.onmessage = (event) => {
       try {
         const parsed = JSON.parse(event.data);
-        this.onMessage?.(peerId, parsed);
+        this.onMessage?.(peerId, parsed, channel.label);
       } catch {
-        this.onMessage?.(peerId, event.data);
+        this.onMessage?.(peerId, event.data, channel.label);
       }
     };
   }
 
   _cleanupPeer(peerId) {
     const peer = this.peers.get(peerId);
-    if (peer) {
-      try { peer.dc?.close(); } catch {}
-      try { peer.pc?.close(); } catch {}
-      this.peers.delete(peerId);
-    }
+    if (!peer) return;
+    try { peer.control?.close(); } catch {}
+    try { peer.world?.close(); } catch {}
+    try { peer.pc?.close(); } catch {}
+    this.peers.delete(peerId);
+    this.orphanCandidates.delete(peerId);
   }
 
   destroy() {
@@ -212,5 +229,8 @@ export class WebRTCManager {
       this._cleanupPeer(peerId);
     }
     this.peers.clear();
+    this.orphanCandidates.clear();
   }
 }
+
+export { CONTROL_CHANNEL, WORLD_CHANNEL };

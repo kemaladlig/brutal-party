@@ -614,6 +614,57 @@
   box-sizing: border-box;
 }
 
+/* ONLINE client: full-frame world canvas + DOM controls on top. */
+.gamepad-game-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #f4f4f0;
+}
+
+.gamepad-world-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  touch-action: none;
+}
+
+.gamepad-control-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.gamepad-control-overlay .snake-controller-view {
+  pointer-events: none;
+  opacity: 0.78;
+  transition: opacity 0.15s ease;
+}
+
+.gamepad-control-overlay .snake-steer-zone,
+.gamepad-control-overlay .snake-boost-zone {
+  pointer-events: auto;
+}
+
+.gamepad-control-overlay .steer-rocker-btn,
+.gamepad-control-overlay .snake-boost-btn {
+  opacity: 0.82;
+  transition: opacity 0.15s ease, transform 0.06s ease;
+}
+
+.gamepad-control-overlay .steer-rocker-btn.active,
+.gamepad-control-overlay .snake-boost-btn.active {
+  opacity: 1;
+}
+
 /* Landscape Mode Header Adjustment */
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .gamepad-header {
@@ -1172,6 +1223,13 @@
     justify-content: center;
     gap: 20px;
     padding: 16px;
+  }
+
+  .gamepad-control-overlay .snake-controller-view {
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 16px max(16px, env(safe-area-inset-bottom, 16px));
   }
 }
 

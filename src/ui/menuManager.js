@@ -5,7 +5,7 @@ import { showInstallToast } from './toast.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange } from './fullscreen.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 
-export function initMainMenu({ onGameSelect }) {
+export function initMainMenu({ onGameSelect, isOnline = false }) {
   // ── 1. Navbar: Quick Language Switcher ──
   const btnMenuLang = document.getElementById('btn-menu-lang');
   const navLangLabel = document.getElementById('nav-lang-label');
@@ -89,6 +89,32 @@ export function initMainMenu({ onGameSelect }) {
   updateNetworkPill(navigator.onLine);
   window.addEventListener('online', () => updateNetworkPill(true));
   window.addEventListener('offline', () => updateNetworkPill(false));
+
+  function applyConnectionModeCopy() {
+    const subtitle = document.querySelector('.menu-subtitle');
+    const card = document.querySelector('.tv-mode-card');
+    const title = card?.querySelector('.bento-tile-title');
+    const desc = card?.querySelector('.bento-tile-sub');
+    const pill = card?.querySelector('.hero-mode-pill');
+    const hostButton = document.getElementById('btn-hero-create-room');
+
+    card?.classList.toggle('online-phone-host', !!isOnline);
+    if (isOnline) {
+      if (subtitle) subtitle.textContent = t('menu.onlineSubtitle');
+      if (title) title.textContent = t('menu.onlineCardTitle');
+      if (desc) desc.textContent = t('menu.onlineCardDesc');
+      if (pill) pill.textContent = 'P1 HOST';
+      if (hostButton) hostButton.textContent = t('menu.onlineHostBtn');
+    } else {
+      if (subtitle) subtitle.textContent = t('menu.subtitle');
+      if (title) title.textContent = t('menu.tvCardTitle');
+      if (desc) desc.textContent = t('menu.tvCardDesc');
+      if (pill) pill.textContent = 'TV HOST';
+      if (hostButton) hostButton.textContent = t('menu.tvHostBtn');
+    }
+  }
+  applyConnectionModeCopy();
+  onLangChange(applyConnectionModeCopy);
 
   // ── 4. Search & Filter Toolbar ──
   const searchInput = document.getElementById('menu-game-search');

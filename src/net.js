@@ -1,4 +1,4 @@
-// Mod bazlı network seçici: TV_CONSOLE → lokal WebSocket, ONLINE → Supabase Broadcast.
+// Mod bazlı network seçici: TV_CONSOLE → lokal WebSocket, ONLINE → Supabase signaling + WebRTC.
 // LOCAL modda network kullanılmaz (tek cihaz).
 
 import { partyNetwork } from './network.js';

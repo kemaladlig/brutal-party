@@ -23,6 +23,7 @@ import {
   storePlayerName,
   cleanPlayerName,
   ensureStoredNick,
+  supabaseRelay,
 } from './net.js';
 
 import { initToastAndInstall, showInstallToast, showConnectionBanner, hideConnectionBanner } from './ui/toast.js';
@@ -270,9 +271,12 @@ function addTapListener(el, callback) {
   });
 }
 
-// TV Host Room Creation
+// Host Room Creation (TV_CONSOLE TV host / ONLINE P1 phone host)
 async function openHostLobby(gameMode = 'PONG') {
   setCurrentHostGameMode(gameMode);
+  let hostAvatar = null;
+  try { hostAvatar = getAvatarProfile(); } catch { hostAvatar = null; }
+  const hostIdentity = { name: ensureStoredNick(), avatar: hostAvatar };
   try {
     await activeNet().hostRoom(gameMode, {
       onRoomCreated: (roomCode) => {
@@ -281,7 +285,24 @@ async function openHostLobby(gameMode = 'PONG') {
         startHostPingBadge(() => activeNet().ping, platformMode);
         setSeatTapHook();
         // LOCAL koltuk renkleri relay odasına sızmasın (gelen avatarlar yazar)
-        for (let i = 0; i < 4; i++) clearSlotAvatar(i);
+        for (let i = 0; i < 4; i++) {
+          clearSlotAvatar(i);
+          updateHostSlot(i, false);
+        }
+        // ONLINE odada host cihaz aynı zamanda P1 oyuncusudur.
+        const onlineHostPlayer = platformMode === 'ONLINE' ? activeNet().players?.[0] : null;
+        if (onlineHostPlayer) {
+          setSlotAvatar(0, onlineHostPlayer.avatar);
+          updateHostSlot(
+            0,
+            true,
+            onlineHostPlayer.name,
+            true,
+            'human',
+            onlineHostPlayer.avatar,
+            onlineHostPlayer.color
+          );
+        }
         refreshHostSlotCards();
       },
       onPlayerJoined: (msg) => {
@@ -419,6 +440,7 @@ async function openHostLobby(gameMode = 'PONG') {
           // Koltuk gaspı kapısı: aralık dışı, bot hedef/kaynak reddedilir
           // (istemcideki guard atlatılsa bile host son sözü söyler)
           if (!Number.isInteger(t) || t < 0 || t > 3) return;
+          if (activeNet().players?.[t]?.isHost) return;
           if (hostPlayerSlots[t]?.kind === 'bot') return;
           if (hostPlayerSlots[slotIndex]?.kind === 'bot') return;
           activeNet().swapSlots(slotIndex, t);
@@ -438,7 +460,7 @@ async function openHostLobby(gameMode = 'PONG') {
       onPlayerReaction: (slotIndex, emoji) => {
         showInstallToast(`P${slotIndex + 1}: ${emoji}`);
       },
-    });
+    }, hostIdentity);
   } catch (err) {
     console.error('[Host] Oda açılamadı:', err);
     if (activeNet() === supabaseRelay) {
@@ -545,6 +567,9 @@ async function executeJoin(rawCode, rawName) {
         }
         gamepadManager.handleStateSync(data);
       },
+      onWorldFrame: (frame) => {
+        gamepadManager.handleWorldFrame(frame);
+      },
       onError: (err) => {
         routeConnectionMessage(err);
       },
@@ -583,6 +608,7 @@ function handleSeatSwap(slotA, slotB) {
 }
 
 function handleRotateSeats() {
+  if (activeNet().isHosting && activeNet().players?.some((player) => player?.isHost)) return;
   // Skor permütasyonu (relay'deki [2,3,1,0] ile aynı sonuç)
   const rotateScoresLocally = () => {
     const engine = getActiveGameEngine();
@@ -807,7 +833,8 @@ async function enterStaging(mode) {
   // aksi halde eski turun bayrağı yeni turun sayacına sızar)
   for (let i = 0; i < 4; i++) {
     const e = hostPlayerSlots[i];
-    if (e) updateHostSlot(i, true, e.name, false, e.kind);
+    const isReady = platformMode === 'ONLINE' && i === 0;
+    if (e) updateHostSlot(i, true, e.name, isReady, e.kind);
   }
   refreshStagingBar();
   // Saha açılırken koltuklar bir kez daha yazılır (kurucu varsayılan botları ezilir)
@@ -913,10 +940,13 @@ function removeBotSlot(index) {
 // (DOM staging çubuğu → sayaç) yürür, çift başlat düğmesi kalmaz.
 function setSeatTapHook() {
   const hosting = activeNet().isHosting;
+  const onlinePhoneHost = hosting && platformMode === 'ONLINE';
   const fn = hosting ? handleLobbySeatTap : null;
   forEachEngine((mode, entry) => {
     entry.game.onLobbySeatTap = fn;
     entry.game.hideLobbyStartButton = hosting;
+    entry.game.suppressVirtualControls = hosting && !onlinePhoneHost;
+    entry.game.localControlSlot = onlinePhoneHost ? 0 : null;
   });
 }
 
@@ -1163,6 +1193,7 @@ initHeroMediaDropzones();
 
 // SaaS Main Menu Setup: Navbar controls, Quick Lang/Sound, Search & Bento Grid Filters
 initMainMenu({
+  isOnline: platformMode === 'ONLINE',
   onGameSelect: (mode) => {
     closeGamePicker();
     handleGameCardClick(mode);
@@ -1260,7 +1291,10 @@ if (isPublicOrigin() && !HAS_SUPABASE_CONFIG) {
 let lastBroadcastTime = 0;
 let lastBroadcastJson = '';
 let lastBroadcastPacket = null;
+let lastWorldBroadcastTime = 0;
 let lastCountdownT = 0;
+
+const WORLD_FRAME_INTERVAL_MS = 1000 / 30;
 
 // Sığ paket karşılaştırma: stringify maliyetine girmeden kirlenme tespiti.
 // Davranış aynı (değişiklikte anında + 125ms taban), sadece sakin karelerde
@@ -1316,6 +1350,21 @@ function broadcastGameStateIfNeeded(now) {
   lastBroadcastJson = json;
   lastBroadcastPacket = packet;
   activeNet().broadcastHostState(packet);
+}
+
+function broadcastWorldStateIfNeeded(now) {
+  const net = activeNet();
+  if (!net.isHosting || typeof net.broadcastWorldFrame !== 'function') return;
+  if (currentMode === 'MENU' || now - lastWorldBroadcastTime < WORLD_FRAME_INTERVAL_MS) return;
+
+  const entry = getEngine(currentMode);
+  if (!entry || typeof entry.worldPacket !== 'function') return;
+  if (entry.game.state === 'LOBBY') return;
+
+  const frame = entry.worldPacket();
+  if (!frame) return;
+  lastWorldBroadcastTime = now;
+  net.broadcastWorldFrame(frame);
 }
 
 // Duraklatma göstergesi: donmuş karenin üstünde canvas-içi rozet
@@ -1397,6 +1446,7 @@ function loop(timestamp) {
     try {
       if (!isPaused && consecutiveEngineErrors < 5) {
         loopEntry.game.update(timestamp);
+        broadcastWorldStateIfNeeded(timestamp);
       }
       loopEntry.game.render();
       consecutiveEngineErrors = 0;

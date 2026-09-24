@@ -71,6 +71,10 @@
 
 **Hedef:** TV Console (Yerel WebSocket) ve Online (Supabase Relay) modlarında 8 Hz bütçesinde sıfır desync, kusursuz kopma/yeniden bağlanma yönetimi.
 
+- [x] **Online Phone-to-Phone Pilot (SNAKE):**
+  - ONLINE host cihazı P1 oyuncusudur; P2-P4 doğrudan WebRTC peer'larıdır.
+  - `control` reliable, `world` unreliable/30 Hz tam snapshot; client yalnız son kareyi çizer.
+  - Supabase oda keşfi/signaling ve 8 Hz continuity fallback için kalır.
 - [ ] **Paket Boyutu & Serileştirme Optimizasyonu:**
   - `packet()` çıktılarının sıkılaştırılması; yalnızca değişen alanların dirty-check ile iletilmesi.
   - Skor, taşıyıcı ve mermi gibi anlık olayların hızlı yol (fast-path) ile anında gönderilmesi.
