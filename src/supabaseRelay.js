@@ -51,8 +51,9 @@ export class SupabaseRelay {
     this.callbacks = {};
 
     // ONLINE cihazlarda uzaktan oyun sahası yalnız P2P world kanalından gelir.
-    this.supportsWorldFrames = true;
-    this.reservedHostSlot = 0;
+    // TV_CONSOLE host odasında bu özellik kapalıdır; telefonlar sadece kumandadır.
+    this.supportsWorldFrames = false;
+    this.reservedHostSlot = null;
 
     // Ping tracking
     this.pingInterval = null;
@@ -80,6 +81,15 @@ export class SupabaseRelay {
   }
 
   _installHostPlayer(identity = {}) {
+    this.hostId = this.myId;
+    const asPlayer = identity.asPlayer !== false;
+    if (!asPlayer) {
+      // TV ekranı oyuncu değildir; ilk telefon P1 olabilir.
+      this.players[0] = null;
+      this.ready[0] = false;
+      return;
+    }
+
     let avatar = null;
     try {
       avatar = sanitizeAvatar(identity.avatar || getAvatarProfile(), { keepColor: true });
@@ -97,7 +107,6 @@ export class SupabaseRelay {
       lastSeen: performance.now(),
       isHost: true,
     };
-    this.hostId = this.myId;
     this.ready[0] = true;
   }
 
@@ -164,6 +173,8 @@ export class SupabaseRelay {
     this.callbacks = { ...this.callbacks, ...callbacks };
     this.players = [null, null, null, null];
     this.ready = [false, false, false, false];
+    this.supportsWorldFrames = hostIdentity.worldView !== false;
+    this.reservedHostSlot = hostIdentity.asPlayer === false ? null : 0;
     this._installHostPlayer(hostIdentity);
 
     // Generate room code
@@ -368,6 +379,7 @@ export class SupabaseRelay {
           color: player.color,
           avatar: player.avatar,
           slots: this.getSlots(),
+          worldView: this.supportsWorldFrames,
         });
 
         if (this.callbacks.onPlayerJoined) {
@@ -496,7 +508,7 @@ export class SupabaseRelay {
   // 30 Hz world frames are disposable full snapshots. They never fall back to
   // Supabase and never share the reliable control channel.
   broadcastWorldFrame(frame) {
-    if (this.role !== 'HOST' || !frame) return;
+    if (this.role !== 'HOST' || !this.supportsWorldFrames || !frame) return;
     this.webrtcManager?.broadcast?.(
       { action: 'WORLD_FRAME', hostId: this.myId, ...frame },
       'world'
@@ -763,6 +775,9 @@ export class SupabaseRelay {
         this._joinedOnce = true;
         this._joinAttempts = 0;
         this._reconnectTries = 0;
+        const hasWorldView = msg.worldView !== false;
+        this.supportsWorldFrames = hasWorldView;
+        this.reservedHostSlot = hasWorldView ? 0 : null;
         this.playerIndex = msg.slotIndex;
         this.playerName = msg.name;
         this.color = msg.color;
@@ -1161,6 +1176,8 @@ export class SupabaseRelay {
     this.roomCode = null;
     this.hostId = null;
     this.playerIndex = null;
+    this.supportsWorldFrames = false;
+    this.reservedHostSlot = null;
     this.players = [null, null, null, null];
     this.ready = [false, false, false, false];
   }

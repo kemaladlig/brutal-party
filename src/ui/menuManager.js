@@ -5,7 +5,7 @@ import { showInstallToast } from './toast.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange } from './fullscreen.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 
-export function initMainMenu({ onGameSelect, isOnline = false }) {
+export function initMainMenu({ onGameSelect, isOnline = false, getPlatformMode = () => (isOnline ? 'ONLINE' : 'TV_CONSOLE') }) {
   // ── 1. Navbar: Quick Language Switcher ──
   const btnMenuLang = document.getElementById('btn-menu-lang');
   const navLangLabel = document.getElementById('nav-lang-label');
@@ -90,31 +90,24 @@ export function initMainMenu({ onGameSelect, isOnline = false }) {
   window.addEventListener('online', () => updateNetworkPill(true));
   window.addEventListener('offline', () => updateNetworkPill(false));
 
-  function applyConnectionModeCopy() {
+  function applyPlatformModeSelection() {
+    const currentMode = typeof getPlatformMode === 'function'
+      ? getPlatformMode()
+      : (isOnline ? 'ONLINE' : 'TV_CONSOLE');
     const subtitle = document.querySelector('.menu-subtitle');
-    const card = document.querySelector('.tv-mode-card');
-    const title = card?.querySelector('.bento-tile-title');
-    const desc = card?.querySelector('.bento-tile-sub');
-    const pill = card?.querySelector('.hero-mode-pill');
-    const hostButton = document.getElementById('btn-hero-create-room');
-
-    card?.classList.toggle('online-phone-host', !!isOnline);
-    if (isOnline) {
-      if (subtitle) subtitle.textContent = t('menu.onlineSubtitle');
-      if (title) title.textContent = t('menu.onlineCardTitle');
-      if (desc) desc.textContent = t('menu.onlineCardDesc');
-      if (pill) pill.textContent = 'P1 HOST';
-      if (hostButton) hostButton.textContent = t('menu.onlineHostBtn');
-    } else {
-      if (subtitle) subtitle.textContent = t('menu.subtitle');
-      if (title) title.textContent = t('menu.tvCardTitle');
-      if (desc) desc.textContent = t('menu.tvCardDesc');
-      if (pill) pill.textContent = 'TV HOST';
-      if (hostButton) hostButton.textContent = t('menu.tvHostBtn');
+    if (subtitle) {
+      subtitle.textContent = currentMode === 'ONLINE'
+        ? t('menu.onlineSubtitle')
+        : (currentMode === 'LOCAL' ? t('menu.localCardDesc') : t('menu.subtitle'));
     }
+    document.querySelectorAll('[data-platform-mode]').forEach((card) => {
+      card.classList.toggle('is-mode-active', card.dataset.platformMode === currentMode);
+    });
   }
-  applyConnectionModeCopy();
-  onLangChange(applyConnectionModeCopy);
+
+  applyPlatformModeSelection();
+  window.addEventListener('brutal_platform_mode_changed', applyPlatformModeSelection);
+  onLangChange(applyPlatformModeSelection);
 
   // ── 4. Search & Filter Toolbar ──
   const searchInput = document.getElementById('menu-game-search');

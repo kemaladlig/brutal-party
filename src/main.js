@@ -64,11 +64,16 @@ const btnQuickFullscreen = document.getElementById('btn-quick-fullscreen');
 const quickFullscreenIcon = document.getElementById('quick-fullscreen-icon');
 const btnOpenOptions = document.getElementById('btn-open-options');
 const btnHeroCreateRoom = document.getElementById('btn-hero-create-room');
+const btnOnlineCreateRoom = document.getElementById('btn-online-create-room');
 
 // Platform / Match Mode: 'LOCAL' | 'TV_CONSOLE' | 'ONLINE'
 let platformMode = isPublicOrigin() && HAS_SUPABASE_CONFIG ? 'ONLINE' : 'TV_CONSOLE';
 export function updatePlatformMode(newMode) {
+  if (!['LOCAL', 'TV_CONSOLE', 'ONLINE'].includes(newMode) || newMode === platformMode) return;
   platformMode = newMode;
+  // Mod değişiminde eski ağ singleton'ı temizlenir; yeni mod kendi ağını seçer.
+  disconnectInactiveNetwork(platformMode);
+  window.dispatchEvent(new CustomEvent('brutal_platform_mode_changed', { detail: { mode: platformMode } }));
 }
 
 export function activeNet() {
@@ -276,7 +281,15 @@ async function openHostLobby(gameMode = 'PONG') {
   setCurrentHostGameMode(gameMode);
   let hostAvatar = null;
   try { hostAvatar = getAvatarProfile(); } catch { hostAvatar = null; }
-  const hostIdentity = { name: ensureStoredNick(), avatar: hostAvatar };
+  const hostIsPlayer = platformMode === 'ONLINE';
+  const hostIdentity = {
+    name: ensureStoredNick(),
+    avatar: hostAvatar,
+    // ONLINE: telefon host P1 olur ve her oyuncu world görür.
+    // TV_CONSOLE: TV ekranı oyuncusuz host kalır; telefonlar kumandadır.
+    asPlayer: hostIsPlayer,
+    worldView: hostIsPlayer,
+  };
   try {
     await activeNet().hostRoom(gameMode, {
       onRoomCreated: (roomCode) => {
@@ -497,7 +510,8 @@ function routeConnectionMessage(err) {
   }
 }
 
-async function executeJoin(rawCode, rawName) {
+async function executeJoin(rawCode, rawName, requestedMode = null) {
+  if (requestedMode) updatePlatformMode(requestedMode);
   const code = (rawCode || '').trim().toUpperCase();
   const name = (rawName || '').trim().toUpperCase() || ensureStoredNick();
 
@@ -518,6 +532,15 @@ async function executeJoin(rawCode, rawName) {
     try { joinAvatar = getAvatarProfile(); } catch { joinAvatar = null; }
     await net.joinRoom(code, name, {
       onJoinedSuccess: (msg) => {
+        // Supabase host, modu worldView bayrağıyla birlikte duyurur.
+        // TV_CONSOLE'da telefon ekranı sadece kumanda olur ve P1 rezerve edilmez.
+        if (typeof msg.worldView === 'boolean') {
+          net.supportsWorldFrames = msg.worldView;
+          net.reservedHostSlot = msg.worldView ? 0 : null;
+        } else if (net === partyNetwork) {
+          net.supportsWorldFrames = false;
+          net.reservedHostSlot = null;
+        }
         menuOverlay?.classList.add('hidden');
         gamepadManager.init(msg, 'LOBBY');
         hideConnectionBanner();
@@ -731,6 +754,8 @@ function handleGameCardClick(mode) {
   if (activeNet().isHosting) {
     openHostLobby(mode);
   } else {
+    // Oyun katalogu/teknik masa-ortası kartı her zaman LOCAL akışıdır.
+    updatePlatformMode('LOCAL');
     setGameMode(mode);
   }
 }
@@ -1084,7 +1109,14 @@ function closeGamePicker() {
   gamePickerModal?.classList.add('hidden');
 }
 
-btnHeroCreateRoom?.addEventListener('click', () => openHostLobby('PONG'));
+btnHeroCreateRoom?.addEventListener('click', () => {
+  updatePlatformMode('TV_CONSOLE');
+  openHostLobby('PONG');
+});
+btnOnlineCreateRoom?.addEventListener('click', () => {
+  updatePlatformMode('ONLINE');
+  openHostLobby('PONG');
+});
 addTapListener(document.getElementById('btn-hero-browse-games'), openGamePicker);
 addTapListener(btnCloseGamePicker, closeGamePicker);
 
@@ -1208,6 +1240,7 @@ initHeroMediaDropzones();
 // SaaS Main Menu Setup: Navbar controls, Quick Lang/Sound, Search & Bento Grid Filters
 initMainMenu({
   isOnline: platformMode === 'ONLINE',
+  getPlatformMode: () => platformMode,
   onGameSelect: (mode) => {
     closeGamePicker();
     handleGameCardClick(mode);
@@ -1252,11 +1285,15 @@ addTapListener(btnOpenOptions, () => {
 const urlParams = new URLSearchParams(window.location.search);
 const autoJoinCode = urlParams.get('join');
 if (autoJoinCode) {
-  if (isPublicOrigin()) {
-    updatePlatformMode('ONLINE');
-  }
-  openJoinModal(autoJoinCode);
-  executeJoin(autoJoinCode, ensureStoredNick());
+  const requestedJoinMode = urlParams.get('mode');
+  const autoJoinMode = requestedJoinMode === 'tv' || requestedJoinMode === 'TV_CONSOLE'
+    ? 'TV_CONSOLE'
+    : (requestedJoinMode === 'online' || requestedJoinMode === 'ONLINE' || isPublicOrigin()
+      ? 'ONLINE'
+      : 'TV_CONSOLE');
+  updatePlatformMode(autoJoinMode);
+  openJoinModal(autoJoinCode, autoJoinMode);
+  executeJoin(autoJoinCode, ensureStoredNick(), autoJoinMode);
 }
 
 // Best-effort goodbye beacon on page hide

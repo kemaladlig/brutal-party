@@ -179,11 +179,11 @@ Sistem iki transport kullanır:
 1. **Lokal Ağ / Geliştirme:** `src/network.js` (PartyNetwork WebSocket)
 2. **Canlı / İnternet:** `src/supabaseRelay.js` (Supabase Broadcast oda keşfi/lobi/signaling + WebRTC)
 
-ONLINE host artık TV değil, kendisi P1 olan oyuncu telefonudur; P1 rezerve, uzak oyuncular P2-P4 olur. Supabase `players[]` tek koltuk kaynağıdır. TV_CONSOLE bu değişiklikten etkilenmez.
+ONLINE host artık TV değil, kendisi P1 olan oyuncu telefonudur; P1 rezerve, uzak oyuncular P2-P4 olur. TV_CONSOLE host cihazı oyuncu değildir; aynı odadaki ilk telefon P1 olabilir. Supabase `players[]` tek koltuk kaynağıdır.
 
 Her WebRTC peer'ında iki DataChannel bulunur:
 - `control`: `ordered:true`; giriş, hazır, koltuk ve 8 Hz HUD/state. WebRTC yoksa hedefli Supabase fallback kullanılır.
-- `world`: `ordered:false, maxRetransmits:0`; yalnız host→client tam dünya snapshot'ı. SNAKE pilotu 30 Hz gönderir, Supabase'e düşmez ve client `seq` ile eski/geç kareyi yok sayar.
+- `world`: `ordered:false, maxRetransmits:0`; yalnız ONLINE host→client tam dünya snapshot'ı. TV_CONSOLE odasında bu kanal kapalıdır. SNAKE pilotu ONLINE'da 30 Hz gönderir, Supabase'e düşmez ve client `seq` ile eski/geç kareyi yok sayar.
 
 ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını kullanır. Host yalnız katılmış peer'lardan signal kabul eder; controller kilitlediği hostId dışındaki signal'ı reddeder. ICE adayları remote description sonrasına kuyruğa alınır.
 
@@ -200,6 +200,7 @@ ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını 
 * `HOST_STATE_SYNC` / `GAME_STATE`: 8 Hz periyodik HUD/kumanda durumu (dirty-check ile değişmediyse göndermez).
 * `WORLD_FRAME`: SNAKE pilotunda yalnız P2P `world` kanalından 30 Hz tam snapshot; full-frame olduğu için kayıp paket sonraki kareyi bozmaz.
 * `SLOTS_UPDATE`: 4 koltuğun güncel durumu (`slotIndex, name, color, kind, isReady` + insanlarda `avatar`). Hem WS hem Supabase'de birebir aynı şemadır.
+* `JOIN_SUCCESS`: Supabase ayrıca `worldView` bayrağı taşır; ONLINE odada true, TV_CONSOLE odasında false. Bu bayrak kumandada world canvasını ve P1 rezervasyonunu belirler.
 * `SLOT_CHANGED`: koltuk no + display rengi. Renk oyuncuyla taşınır (takas/döndürmede koltuğa sabitlenmez).
 * `SET_SLOT_COLOR` (host-only): host lobi hızlı palet/🎲 display-renk override'ı (profil değişmez).
 * `SLOT_CHANGED`: Oyuncuya atanan yeni slot indeksi ve rengi.
@@ -211,7 +212,7 @@ ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını 
 
 ## 4. Slot Modeli Kuralları
 
-* Host cihaz tarafında: `hostPlayerSlots[i] = { name, isReady, kind, avatar, displayColor }`, `kind ∈ 'human' | 'bot'`. ONLINE host P1'dir.
+* Host cihaz tarafında: `hostPlayerSlots[i] = { name, isReady, kind, avatar, displayColor }`, `kind ∈ 'human' | 'bot'`. ONLINE host P1'dir; TV_CONSOLE host cihazı koltuklarda yer almaz ve ilk telefon P1 olur.
 * Relay tarafı (`supabaseRelay.players[]` veya `room.players[]`) tek doğru gerçektir (Single Source of Truth).
 * **Sert renk engeli:** İki insan koltuğu aynı display rengine sahipse `SAHAYA GEÇ` + sayaç kilitlenir (lobide `⚠️ AYNI RENK` + 🎲 hızlı atama). LOCAL muaf (koltuklar boş → küme boş).
 * **Bot Kuralları:**
@@ -225,7 +226,7 @@ ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını 
 ## 5. Mimari Karar Defteri (Architectural Decisions)
 
 1. **Host Cihaz Tek Yetkilidir (Authoritative):**
-   * ONLINE host P1 runs the simulation; TV_CONSOLE host remains the dedicated local host. Remote phones only send input.
+   * ONLINE host P1 runs the simulation; TV_CONSOLE host remains the dedicated local host. Remote phones only send input. ONLINE/TV_CONSOLE mode is explicit on the home cards and is preserved in invite links (`mode=online|tv`).
 2. **Engine Registry Prensibi:**
    * `main.js` içinde `if (mode === 'PONG') ... else if` zincirleri yasaktır. Tüm oyunlar `engineRegistry.js` üzerinden `registerEngine` ile kaydedilir ve polimorfik olarak çağrılır.
 3. **BaseMiniGame Ortak Tabanı:**
@@ -282,7 +283,7 @@ ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını 
    * Bundle: `vendor-supabase` + `vendor-qr` ayrı chunk (önbellek/paralel); lobi çiplerine `loading=lazy`.
    * Ses: paylaşımlı noise tamponu (`getNoiseBuffer`) — ateş başı üretim yok.
    * Kumanda: `_el` önbelleği + diff'li yazım (şerit/skor/ralli/durum aynıysa DOM'a dokunulmaz).
-   * SW v11: oyun görselleri precache + 60 kayıt sınırı + `?join=` navigation fallback + yeni-sürüm toast'ı.
+   * SW v11: oyun görselleri precache + 60 kayıt sınırı + `?join=&mode=online|tv` navigation fallback + yeni-sürüm toast'ı.
    * Not: `npm run build` çıktısı tamamlanıp süreç canlı kaldığında kabuk zaman aşımına düşebilir (WS eklentisi) — çıktıdaki `✓ built` esastır.
 15. **Faz E — UX, a11y, bakım (tarama raporu):**
    * Metin/sınıf: pause başlığına CROWN, kumanda/çip alt'ları oyun adı, rozet sınıfı CSS ile eşleşti, `motionScale` `addTrauma`'ya bağlandı.

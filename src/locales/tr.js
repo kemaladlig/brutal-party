@@ -407,6 +407,7 @@ export const TR = {
   'menu.onlineCardTitle': 'ONLINE PARTİ',
   'menu.onlineCardDesc': 'Farklı Şehirler • Telefonda Gör + Oyna',
   'menu.onlineHostBtn': 'ODA KUR (P1)',
+  'menu.onlineJoinBtn': 'ONLINE KATIL →',
   'menu.joinBadge': '🎮 OYUNCULAR',
   'menu.joinTag': 'KUMANDA',
   'menu.joinTitle': 'KODU GİR VE OYNA',

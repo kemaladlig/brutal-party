@@ -41,13 +41,14 @@ export function setCurrentHostGameMode(mode) {
 }
 
 export function getEffectiveJoinUrl(code, platformMode) {
+  const modeParam = platformMode === 'TV_CONSOLE' ? 'tv' : 'online';
   if (platformMode === 'ONLINE' || isPublicOrigin()) {
     const base = PUBLIC_URL.replace(/\/$/, '');
-    return `${base}/?join=${code}`;
+    return `${base}/?join=${encodeURIComponent(code)}&mode=${modeParam}`;
   }
   const port = window.location.port || '3000';
   const host = detectedLanIp || window.location.hostname;
-  return `http://${host}:${port}/?join=${code}`;
+  return `http://${host}:${port}/?join=${encodeURIComponent(code)}&mode=${modeParam}`;
 }
 
 export function startHostPingBadge(getPing, platformMode) {

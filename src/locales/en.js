@@ -407,6 +407,7 @@ export const EN = {
   'menu.onlineCardTitle': 'ONLINE PARTY',
   'menu.onlineCardDesc': 'Different Cities • View + Play on Phone',
   'menu.onlineHostBtn': 'CREATE ROOM (P1)',
+  'menu.onlineJoinBtn': 'JOIN ONLINE →',
   'menu.joinBadge': '🎮 PLAYERS',
   'menu.joinTag': 'CONTROLLER',
   'menu.joinTitle': 'ENTER CODE & PLAY',

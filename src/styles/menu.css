@@ -382,6 +382,42 @@
   transform: translate3d(-2px, -2px, 0);
 }
 
+.master-hero-card.is-mode-active {
+  box-shadow: 6px 6px 0px #1a1a1a, 8px 8px 0px currentColor;
+}
+
+/* 0. Online Phone Party Card (wide, remote-play first) */
+.master-hero-card.online-mode-card {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  padding: 0;
+  overflow: hidden;
+  background-color: #fff7f1;
+  border-top: 6px solid #d84727;
+}
+
+.master-hero-card.online-mode-card:hover {
+  box-shadow: 6px 6px 0px #1a1a1a, 10px 10px 0px #d84727;
+}
+
+.master-hero-card.online-mode-card .online-media-box {
+  min-height: 280px;
+  height: 100%;
+  aspect-ratio: auto;
+  max-height: none;
+  border-right: 3.5px solid #1a1a1a;
+  border-bottom: 0;
+}
+
+.master-hero-card.online-mode-card .online-content-box {
+  min-width: 0;
+}
+
+.master-hero-card.online-mode-card .hero-mode-pill {
+  background-color: #d84727;
+}
+
 /* 1. TV Party Mode Card (Left Top - Seamless Full Bleed Cover) */
 .master-hero-card.tv-mode-card {
   grid-column: 1 / 2;
@@ -441,7 +477,8 @@
 
 /* Integrated Card Content Padding and Spacing */
 .tv-content-box,
-.local-content-box {
+.local-content-box,
+.online-content-box {
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -504,7 +541,8 @@
 
 /* Actions Flow */
 .tv-actions-flow,
-.local-actions-flow {
+.local-actions-flow,
+.online-actions-flow {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -653,10 +691,23 @@
     grid-template-columns: 1fr;
     gap: 16px;
   }
+  .master-hero-card.online-mode-card,
   .master-hero-card.tv-mode-card,
   .master-hero-card.local-mode-card,
   .master-hero-card.customize-strip-layout {
     grid-column: 1 / -1;
+  }
+  .master-hero-card.online-mode-card {
+    display: flex;
+    flex-direction: column;
+  }
+  .master-hero-card.online-mode-card .online-media-box {
+    min-height: 190px;
+    height: auto;
+    max-height: 260px;
+    aspect-ratio: 16 / 7;
+    border-right: 0;
+    border-bottom: 3.5px solid #1a1a1a;
   }
   .master-hero-card.customize-strip-layout {
     grid-template-columns: auto 1fr;
@@ -850,6 +901,21 @@
 }
 
 .tv-host-cta:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px #1a1a1a;
+}
+
+.online-host-cta {
+  background-color: #d84727;
+}
+
+.online-host-cta:hover {
+  background-color: #b9361c;
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0px #1a1a1a;
+}
+
+.online-host-cta:active {
   transform: translate(2px, 2px);
   box-shadow: 2px 2px 0px #1a1a1a;
 }

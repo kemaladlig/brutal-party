@@ -15,8 +15,13 @@ const btnPasteRoomCode = document.getElementById('btn-paste-room-code');
 const heroInputCode = document.getElementById('hero-input-code');
 const btnHeroJoin = document.getElementById('btn-hero-join');
 const btnHeroPaste = document.getElementById('btn-hero-paste');
+const onlineHeroInputCode = document.getElementById('online-input-code');
+const btnOnlineHeroJoin = document.getElementById('btn-online-join');
 const btnClearRoomCode = document.getElementById('btn-clear-room-code');
 const btnClearHeroCode = document.getElementById('btn-clear-hero-code');
+const btnClearOnlineHeroCode = document.getElementById('btn-clear-online-code');
+
+let joinModalMode = null;
 
 // × temizleme: değer varken görünür, basınca auto-join tetiklemez
 function bindClearButton(btn, input) {
@@ -34,8 +39,10 @@ function bindClearButton(btn, input) {
 }
 bindClearButton(btnClearRoomCode, inputRoomCode);
 bindClearButton(btnClearHeroCode, heroInputCode);
+bindClearButton(btnClearOnlineHeroCode, onlineHeroInputCode);
 
-export function openJoinModal(prefilledCode = '') {
+export function openJoinModal(prefilledCode = '', mode = null) {
+  joinModalMode = mode;
   if (inputRoomCode) {
     inputRoomCode.value = prefilledCode.toUpperCase();
   }
@@ -93,7 +100,7 @@ export function initJoinModal({ onExecuteJoin }) {
       return;
     }
     closeJoinModal();
-    onExecuteJoin(code, ensureStoredNick());
+    onExecuteJoin(code, ensureStoredNick(), joinModalMode);
   });
 
   inputRoomCode?.addEventListener('input', (e) => {
@@ -101,36 +108,37 @@ export function initJoinModal({ onExecuteJoin }) {
     e.target.value = code;
     if (code.length === 3) {
       closeJoinModal();
-      onExecuteJoin(code, ensureStoredNick());
+      onExecuteJoin(code, ensureStoredNick(), joinModalMode);
     }
   });
 
-  // Hero Quick Join
-  btnHeroJoin?.addEventListener('click', () => {
-    const code = heroInputCode?.value?.trim().toUpperCase();
+  // Hero Quick Join — TV ve ONLINE kartları aynı yardımcıyı paylaşır.
+  const joinFromHeroInput = (input, mode) => {
+    const code = input?.value?.trim().toUpperCase();
     if (!code || code.length < 3) {
-      openJoinModal(code);
+      openJoinModal(code, mode);
       return;
     }
-    onExecuteJoin(code, ensureStoredNick());
-  });
+    onExecuteJoin(code, ensureStoredNick(), mode);
+  };
 
-  heroInputCode?.addEventListener('input', (e) => {
-    const code = (e.target.value || '').trim().toUpperCase();
-    e.target.value = code;
-    if (code.length === 3) {
-      onExecuteJoin(code, ensureStoredNick());
-    }
-  });
-
-  heroInputCode?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      const code = heroInputCode?.value?.trim().toUpperCase();
-      if (code && code.length === 3) {
-        onExecuteJoin(code, ensureStoredNick());
+  const bindHeroInput = (input, button, mode) => {
+    button?.addEventListener('click', () => joinFromHeroInput(input, mode));
+    input?.addEventListener('input', (e) => {
+      const code = (e.target.value || '').trim().toUpperCase();
+      e.target.value = code;
+      if (code.length === 3) onExecuteJoin(code, ensureStoredNick(), mode);
+    });
+    input?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const code = input?.value?.trim().toUpperCase();
+        if (code && code.length === 3) onExecuteJoin(code, ensureStoredNick(), mode);
       }
-    }
-  });
+    });
+  };
+
+  bindHeroInput(heroInputCode, btnHeroJoin, 'TV_CONSOLE');
+  bindHeroInput(onlineHeroInputCode, btnOnlineHeroJoin, 'ONLINE');
 
   btnHeroPaste?.addEventListener('click', async () => {
     try {
@@ -140,7 +148,7 @@ export function initJoinModal({ onExecuteJoin }) {
         const code = (match ? match[1] : text.slice(0, 3)).toUpperCase();
         heroInputCode.value = code;
         if (code.length === 3) {
-          onExecuteJoin(code, ensureStoredNick());
+          onExecuteJoin(code, ensureStoredNick(), 'TV_CONSOLE');
         }
       }
     } catch (err) {
