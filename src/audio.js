@@ -697,3 +697,56 @@ export function playFakeoutCrow() {
   osc.start(now);
   osc.stop(now + 0.19);
 }
+
+// ── UI Micro-Interactions: Tactile Menu Audio (Procedural & Zero Latency) ──
+
+/**
+ * Kart üzerine gelindiğinde veya tab değiştiğinde çalan ultra hafif mekanik tık
+ */
+export function playMenuTick() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(950, now);
+  osc.frequency.exponentialRampToValueAtTime(380, now + 0.025);
+
+  gain.gain.setValueAtTime(0.06, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.028);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.03);
+}
+
+/**
+ * Karakter tıklandığında / zıpladığında çalan neşeli arcade boing/pop sesi
+ */
+export function playMenuPop() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(280, now);
+  osc.frequency.exponentialRampToValueAtTime(680, now + 0.09);
+
+  gain.gain.setValueAtTime(0.2, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.12);
+}
+

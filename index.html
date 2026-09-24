@@ -457,58 +457,70 @@
 
       <!-- HTML Brutalist Menu Overlay -->
       <div id="menu-overlay">
-        <div class="menu-container">
-          <!-- SaaS Top Navigation Bar -->
-          <header class="menu-navbar">
-            <div class="navbar-left">
-              <div class="brand-badge">⚡ BRUTAL PARTY // 4P</div>
-              <span class="navbar-status-pill online" id="navbar-platform-pill">● ONLINE</span>
-              <span class="navbar-meta-pill" data-i18n="menu.meta">13 OYUN • 2-4 KİŞİ</span>
-            </div>
-            <div class="navbar-right">
-              <!-- Fullscreen Mode Toggle -->
-              <button id="btn-menu-fullscreen" class="nav-btn nav-fullscreen-btn" type="button" aria-label="Tam Ekran" title="Tam Ekran Modunu Aç/Kapat">
-                <span id="nav-fullscreen-icon" class="nav-btn-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-maximize-2"><path d="M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7"/></svg>
-                </span>
-                <span id="nav-fullscreen-label" class="nav-btn-label" data-i18n="menu.fullscreen">Tam Ekran</span>
-              </button>
-              <!-- Quick 1-click Language Switcher -->
-              <button id="btn-menu-lang" class="nav-btn nav-lang-btn" type="button" aria-label="Dil / Language" title="Dil Değiştir / Switch Language">
-                <span class="nav-btn-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-globe"><path d="M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20 M2 12h20"/></svg>
-                </span>
-                <span id="nav-lang-label" class="nav-btn-label">TR</span>
-              </button>
-              <!-- Quick Audio Mute/Unmute -->
-              <button id="btn-menu-sound" class="nav-btn nav-sound-btn" type="button" aria-label="Ses" title="Sesi Aç/Kapat">
-                <span id="nav-sound-icon" class="nav-btn-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-volume-2"><path d="M11 5L6 9H2v6h4l5 4V5z M15.54 8.46a5 5 0 0 1 0 7.07 M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-                </span>
-                <span class="nav-btn-label" data-i18n="menu.sound">Ses</span>
-              </button>
-              <!-- Settings Button -->
-              <button id="btn-open-settings" class="nav-btn nav-settings-btn" type="button" aria-label="Ayarlar" title="Ayarlar">
-                <span class="nav-btn-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></svg>
-                </span>
-                <span class="nav-btn-label" data-i18n="menu.settings">Ayarlar</span>
-              </button>
-              <!-- Install App Button (hidden until available or prompted) -->
-              <button id="btn-install-app" class="nav-btn nav-install-btn hidden" type="button" aria-label="Oyunu ana ekrana yükle" title="Oyunu ana ekrana yükle">
-                <span class="nav-btn-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3"/></svg>
-                </span>
-                <span class="nav-btn-label" data-i18n="menu.install">Yükle</span>
-              </button>
-            </div>
-          </header>
+        <!-- Production-Grade Ambient Background Grid & Floating Neo-Brutalist Micro-Shapes -->
+        <div class="menu-bg-ambient" aria-hidden="true">
+          <div class="bg-grid-matrix"></div>
+          <div class="bg-vignette-radial"></div>
+          <div class="bg-floating-shapes">
+            <span class="bg-shape shape-cross s1">✚</span>
+            <span class="bg-shape shape-star s2">✦</span>
+            <span class="bg-shape shape-square s3">■</span>
+            <span class="bg-shape shape-target s4">⊕</span>
+            <span class="bg-shape shape-cross s5">✚</span>
+            <span class="bg-shape shape-asterisk s6">✱</span>
+            <span class="bg-shape shape-diamond s7">◆</span>
+            <span class="bg-shape shape-triangle s8">▲</span>
+          </div>
+        </div>
 
-          <!-- Header Banner -->
+        <div class="menu-container">
+          <!-- Header Banner with Integrated Controls -->
           <div class="menu-header">
-            <div class="menu-title-block">
-              <h1 class="menu-title">BRUTAL PARTY</h1>
-              <p class="menu-subtitle" data-i18n="menu.subtitle">TELEFONLAR KUMANDA • EKRAN ARENA</p>
+            <div class="menu-top-header">
+              <div class="menu-title-block">
+                <div class="menu-title-row">
+                  <h1 class="menu-title">BRUTAL PARTY</h1>
+                  <span class="navbar-status-pill online" id="navbar-platform-pill">● ONLINE</span>
+                </div>
+                <p class="menu-subtitle" data-i18n="menu.subtitle">TELEFONLAR KUMANDA • EKRAN ARENA</p>
+              </div>
+              <div class="navbar-right">
+                <!-- Fullscreen Mode Toggle -->
+                <button id="btn-menu-fullscreen" class="nav-btn nav-fullscreen-btn" type="button" aria-label="Tam Ekran" title="Tam Ekran Modunu Aç/Kapat">
+                  <span id="nav-fullscreen-icon" class="nav-btn-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-maximize-2"><path d="M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7"/></svg>
+                  </span>
+                  <span id="nav-fullscreen-label" class="nav-btn-label" data-i18n="menu.fullscreen">Tam Ekran</span>
+                </button>
+                <!-- Quick 1-click Language Switcher -->
+                <button id="btn-menu-lang" class="nav-btn nav-lang-btn" type="button" aria-label="Dil / Language" title="Dil Değiştir / Switch Language">
+                  <span class="nav-btn-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-globe"><path d="M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20 M2 12h20"/></svg>
+                  </span>
+                  <span id="nav-lang-label" class="nav-btn-label">TR</span>
+                </button>
+                <!-- Quick Audio Mute/Unmute -->
+                <button id="btn-menu-sound" class="nav-btn nav-sound-btn" type="button" aria-label="Ses" title="Sesi Aç/Kapat">
+                  <span id="nav-sound-icon" class="nav-btn-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-volume-2"><path d="M11 5L6 9H2v6h4l5 4V5z M15.54 8.46a5 5 0 0 1 0 7.07 M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                  </span>
+                  <span class="nav-btn-label" data-i18n="menu.sound">Ses</span>
+                </button>
+                <!-- Settings Button -->
+                <button id="btn-open-settings" class="nav-btn nav-settings-btn" type="button" aria-label="Ayarlar" title="Ayarlar">
+                  <span class="nav-btn-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></svg>
+                  </span>
+                  <span class="nav-btn-label" data-i18n="menu.settings">Ayarlar</span>
+                </button>
+                <!-- Install App Button (hidden until available or prompted) -->
+                <button id="btn-install-app" class="nav-btn nav-install-btn hidden" type="button" aria-label="Oyunu ana ekrana yükle" title="Oyunu ana ekrana yükle">
+                  <span class="nav-btn-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3"/></svg>
+                  </span>
+                  <span class="nav-btn-label" data-i18n="menu.install">Yükle</span>
+                </button>
+              </div>
             </div>
 
             <!-- Hero Action Cards: Controller Join, TV Host & Character Customizer -->
@@ -518,6 +530,7 @@
                 <div class="hero-card-header">
                   <span class="hero-card-badge" data-i18n="menu.joinBadge">🎮 OYUNCULAR</span>
                   <span class="hero-card-tag" data-i18n="menu.joinTag">KUMANDA</span>
+                  <span class="hero-card-tech">CH // 01</span>
                 </div>
                 <h2 class="hero-card-title" data-i18n="menu.joinTitle">KODU GİR VE OYNA</h2>
                 <p class="hero-card-desc" data-i18n="menu.joinDesc">TV veya tabletteki 3 haneli oda kodunu yaz, anında katıl:</p>
@@ -553,14 +566,10 @@
                 <div class="hero-card-header">
                   <span class="hero-card-badge tv-badge" data-i18n="menu.hostBadge">📺 SALON EKRANI</span>
                   <span class="hero-card-tag">TV / TABLET</span>
+                  <span class="hero-card-tech">SYS // HOST</span>
                 </div>
                 <h2 class="hero-card-title" data-i18n="menu.hostTitle">BU CİHAZI EKRAN YAP</h2>
-                <p class="hero-card-desc" data-i18n="menu.hostDesc">Salondaki TV'de veya tablette oyun odası aç, herkes telefonunu bağlasın:</p>
-                <div class="hero-host-features">
-                  <span class="host-feat-pill" data-i18n="menu.hostFeat1">📱 Sıfır Kurulum</span>
-                  <span class="host-feat-pill" data-i18n="menu.hostFeat2">⚡ Anında QR & Kod</span>
-                  <span class="host-feat-pill" data-i18n="menu.hostFeat3">🎉 13 Parti Oyunu</span>
-                </div>
+                <p class="hero-card-desc" data-i18n="menu.hostDesc">Salondaki TV veya tablette oda aç, telefonları kumanda yap:</p>
                 <button class="hero-host-btn" id="btn-hero-create-room" type="button" data-i18n="menu.hostCta">
                   🏠 ODA KUR →
                 </button>
@@ -571,10 +580,16 @@
                 <div class="hero-card-header">
                   <span class="hero-card-badge custom-badge" data-i18n="menu.avatarBadge">🎭 ATÖLYE</span>
                   <span class="hero-card-tag" data-i18n="menu.avatarTag">AVATAR & KOSTÜM</span>
+                  <span class="hero-card-tech">MOD // 360°</span>
                 </div>
                 <div class="customize-card-body">
-                  <div class="menu-avatar-stage">
+                  <div class="menu-avatar-stage" id="menu-avatar-stage" title="Karaktere dokun (Zıplat!)">
                     <canvas id="menu-avatar-canvas" width="192" height="192" class="menu-avatar-canvas"></canvas>
+                    <span class="stage-reticle stage-reticle-tl" aria-hidden="true"></span>
+                    <span class="stage-reticle stage-reticle-tr" aria-hidden="true"></span>
+                    <span class="stage-reticle stage-reticle-bl" aria-hidden="true"></span>
+                    <span class="stage-reticle stage-reticle-br" aria-hidden="true"></span>
+                    <span class="stage-live-badge"><span class="stage-live-dot"></span>DOKUN</span>
                   </div>
                   <div class="menu-avatar-info">
                     <div class="menu-avatar-header-row">
@@ -587,6 +602,7 @@
                     <div class="menu-name-row" id="menu-name-view-row">
                       <div class="menu-avatar-name" id="menu-avatar-name">OYUNCU</div>
                     </div>
+                    <div class="menu-avatar-equipped-pills" id="menu-avatar-equipped"></div>
                     <div class="menu-name-input-row hidden" id="menu-name-input-row">
                       <input type="text" class="menu-name-input" id="input-menu-name" maxlength="12" data-i18n-ph="menu.nickPh" placeholder="NICK'İN" autocapitalize="characters" autocomplete="off" spellcheck="false" />
                       <button class="menu-name-save-btn" id="btn-save-menu-name" type="button">✓</button>
@@ -598,6 +614,7 @@
                 </button>
               </div>
             </div>
+
 
             <!-- Section Divider & Category Filters -->
             <div class="menu-section-header">

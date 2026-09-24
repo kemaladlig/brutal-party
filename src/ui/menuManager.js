@@ -1,6 +1,6 @@
 // SaaS Main Menu Manager: Navbar controls, Quick Lang/Sound, Search & Bento Grid Filters
 import { getLang, setLang, onLangChange, t } from '../i18n.js';
-import { toggleAudio, getIsMuted } from '../audio.js';
+import { toggleAudio, getIsMuted, playMenuTick } from '../audio.js';
 import { showInstallToast } from './toast.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange } from './fullscreen.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
@@ -190,6 +190,7 @@ export function initMainMenu({ onGameSelect }) {
   categoryTabs?.addEventListener('click', (e) => {
     const chip = e.target.closest('.category-filter-chip');
     if (!chip) return;
+    playMenuTick();
     activeCategory = chip.dataset.filter || 'all';
     categoryTabs.querySelectorAll('.category-filter-chip').forEach((c) => {
       const isActive = c === chip;
@@ -198,6 +199,14 @@ export function initMainMenu({ onGameSelect }) {
     });
     applyFilters();
   });
+
+  // Tactile hover audio on bento game cards
+  gameGrid?.addEventListener('mouseenter', (e) => {
+    const target = e.target;
+    if (target && target.closest && target.closest('.game-card-btn')) {
+      playMenuTick();
+    }
+  }, { capture: true, passive: true });
 
   // Re-run filter on language change (updates localized text and counts)
   onLangChange((newLang) => {

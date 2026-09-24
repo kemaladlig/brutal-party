@@ -19,6 +19,7 @@ import { safeGet, safeSet } from '../core/safeStorage.js';
 import { drawBrutalAvatar } from './characterRenderer.js';
 import { showInstallToast } from './toast.js';
 import { getStoredPlayerName, storePlayerName, cleanPlayerName, generateNick } from '../net.js';
+import { playMenuPop, playMenuTick } from '../audio.js';
 
 let currentCustom = null;
 let animFrameId = null;
@@ -378,16 +379,29 @@ function startPreviewLoop() {
 
 // ── Ana Menü Karakter Kartı Canlı Önizleme & Orkestrasyonu ──
 let menuAnimFrameId = null;
-let menuAvatarAngle = 0;
+let currentAvatarAngle = 0;
 let menuBlinkTimer = 0;
 let isMenuBlinking = false;
 
+// Fizik ve mikro-etkileşim durumları (sıfır GC, GPU dostu)
+let pointerTargetAngle = 0;
+let hasActivePointer = false;
+let lastPointerTime = 0;
+
+let jumpY = 0;
+let jumpVy = 0;
+let squashX = 1;
+let squashY = 1;
+let excitedTimer = 0;
+const sparks = [];
+
 export function initMenuAvatarCard() {
   const cardEl = document.getElementById('menu-customize-card');
+  const stageEl = document.getElementById('menu-avatar-stage');
   const canvasEl = document.getElementById('menu-avatar-canvas');
   if (!canvasEl) return;
 
-  // Karttaki kullanıcı adı (kayıtlı isim; menü her açıldığında tazelenir)
+  // Karttaki kullanıcı adı ve kuşanılan eşyalar (menü her açıldığında ve özelleştirme bitince tazelenir)
   const updateCardName = () => {
     const nameEl = document.getElementById('menu-avatar-name');
     if (nameEl) {
@@ -396,6 +410,23 @@ export function initMenuAvatarCard() {
       } catch {
         nameEl.textContent = 'OYUNCU';
       }
+    }
+
+    const equippedEl = document.getElementById('menu-avatar-equipped');
+    if (equippedEl) {
+      const prof = getAvatarProfile();
+      const expr = expressionName(prof?.expression || 'FOCUS', 'Odaklı');
+      const acc = prof?.accessory && prof.accessory !== 'NONE' ? accessoryName(prof.accessory, '') : null;
+      const pat = prof?.pattern && prof.pattern !== 'SOLID' ? patternName(prof.pattern, '') : null;
+
+      let chips = `<span class="equipped-chip expr-chip">👀 ${expr}</span>`;
+      if (acc) {
+        chips += `<span class="equipped-chip acc-chip">✨ ${acc}</span>`;
+      }
+      if (pat) {
+        chips += `<span class="equipped-chip pat-chip">🏁 ${pat}</span>`;
+      }
+      equippedEl.innerHTML = chips;
     }
   };
   updateCardName();
@@ -459,61 +490,227 @@ export function initMenuAvatarCard() {
     else if (e.key === 'Escape') closeNameEdit();
   });
 
-  // Tıklama ile modal açılışı (kart sade vitrin: canlı önizleme + başlık)
-  cardEl?.addEventListener('click', (e) => {
-    if (inputRow && !inputRow.classList.contains('hidden')) {
-      closeNameEdit();
-      return;
+  // Karakteri zıplatma & kıvılcım saçma tetikleyicisi (oyuncu dokununca canlı tepki)
+  const triggerAvatarBoing = () => {
+    jumpVy = -240;
+    squashX = 0.88;
+    squashY = 1.15;
+    excitedTimer = 0.8;
+    playMenuPop();
+
+    // 8-12 adet neşeli neo-brutalist kıvılcım parçacığı
+    const prof = getAvatarProfile();
+    const cx = canvasEl.width / 2;
+    const cy = canvasEl.height / 2;
+    for (let i = 0; i < 10; i++) {
+      const ang = (Math.PI * 2 * i) / 10 + (Math.random() - 0.5) * 0.4;
+      const spd = 65 + Math.random() * 95;
+      sparks.push({
+        x: cx,
+        y: cy - 10,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd - 45,
+        color: i % 2 === 0 ? (prof?.color || '#D84727') : '#FFD700',
+        size: 3 + Math.random() * 3.5,
+        shape: i % 3 === 0 ? 'star' : (i % 3 === 1 ? 'cross' : 'square'),
+        life: 1.0,
+        decay: 1.6 + Math.random() * 0.8,
+      });
     }
-    openCustomizeModal();
+  };
+
+  // Sahneye dokunulduğunda doğrudan zıplat ve tatmin edici geri bildirim ver
+  stageEl?.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    triggerAvatarBoing();
   });
 
-  // 60 FPS Canlı Menü Önizleme Döngüsü
+  // Kart gövdesine dokunulduğunda açık isim düzenlemesi varsa kapat
+  cardEl?.addEventListener('click', (e) => {
+    // Tıklanan eleman butonlar veya input değilse ve isim düzenleme açıksa kapat
+    const target = e.target;
+    if (target && target.closest && (target.closest('.hero-custom-btn') || target.closest('.menu-name-input-row') || target.closest('.menu-name-icon-btn'))) {
+      return;
+    }
+    if (inputRow && !inputRow.classList.contains('hidden')) {
+      closeNameEdit();
+    }
+  });
+
+
+  // İmleç / Dokunmatik Takibi (Karakter ekrandaki kullanıcıyı merakla izler)
+  const handlePointerTrack = (clientX, clientY) => {
+    const rect = canvasEl.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    pointerTargetAngle = Math.atan2(clientY - cy, clientX - cx);
+    hasActivePointer = true;
+    lastPointerTime = performance.now();
+  };
+
+  window.addEventListener('pointermove', (e) => {
+    handlePointerTrack(e.clientX, e.clientY);
+  }, { passive: true });
+
+  // 60-120 FPS Canlı Menü Önizleme & Fizik Döngüsü
   const ctx = canvasEl.getContext('2d');
   let lastTime = performance.now();
   let cachedProfile = getAvatarProfile();
 
   window.addEventListener('brutal_customization_changed', (e) => {
     cachedProfile = e.detail?.customization || getAvatarProfile();
+    updateCardName();
   });
 
   const menuLoop = (now) => {
-    const dt = Math.min(0.08, (now - lastTime) / 1000);
+    const dt = Math.min(0.06, (now - lastTime) / 1000);
     lastTime = now;
 
-    // Göz kırpma
+    // Göz kırpma döngüsü
     menuBlinkTimer += dt;
-    if (menuBlinkTimer > 3.0) {
+    if (menuBlinkTimer > 2.8) {
       isMenuBlinking = true;
-      if (menuBlinkTimer > 3.25) {
+      if (menuBlinkTimer > 3.05) {
         isMenuBlinking = false;
         menuBlinkTimer = 0;
       }
     }
 
-    // Yavaş salınım
-    menuAvatarAngle += dt * 0.35;
+    if (excitedTimer > 0) {
+      excitedTimer -= dt;
+    }
+
+    // İmleç hareketsizliği kontrolü (>2.2 sn ise doğal etrafa bakınma modu)
+    if (hasActivePointer && now - lastPointerTime > 2200) {
+      hasActivePointer = false;
+    }
+
+    // Hedef bakış açısı: imleç varsa oraya bak, yoksa hafif canlı etrafa bakınma
+    let desiredAngle;
+    if (hasActivePointer) {
+      desiredAngle = pointerTargetAngle;
+    } else {
+      // Doğal etrafa bakınma: yumuşak sinüs salınımı
+      desiredAngle = Math.sin(now * 0.0014) * 0.42;
+    }
+
+    // En kısa açısal interpolasyon (wrap-around destekli)
+    let angleDiff = desiredAngle - currentAvatarAngle;
+    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+    currentAvatarAngle += angleDiff * Math.min(1, dt * 7.5);
+
+    // Dikey Zıplama Fiziği (Boing & Yerçekimi)
+    if (jumpY < 0 || jumpVy !== 0) {
+      jumpVy += 820 * dt; // Yerçekimi
+      jumpY += jumpVy * dt;
+      if (jumpY >= 0) {
+        jumpY = 0;
+        jumpVy = 0;
+        // Yere inme ezilmesi (landing squash)
+        squashX = 1.18;
+        squashY = 0.82;
+      } else {
+        // Havadayken uzama (air stretch)
+        squashX = 0.94;
+        squashY = 1.08;
+      }
+    } else {
+      // Squash'ın normale dönmesi
+      squashX += (1 - squashX) * Math.min(1, dt * 10);
+      squashY += (1 - squashY) * Math.min(1, dt * 10);
+    }
 
     // Canvas temizleme
     ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
 
     const cx = canvasEl.width / 2;
     const cy = canvasEl.height / 2;
-    const bounce = Math.sin(now * 0.0035) * 3;
 
-    const custom = cachedProfile;
-    drawBrutalAvatar(ctx, cx, cy + bounce, 52, {
+    // Organik nefes alma ritmi
+    const breath = Math.sin(now * 0.0035);
+    const breatheBounce = breath * 2.2;
+    const avatarY = cy + jumpY + breatheBounce;
+
+    // 1. Zemin İzometrik Kaide / Gölge Diski (Karakteri sahneye oturtur)
+    const shadowScale = Math.max(0.4, 1 + jumpY / 130);
+    ctx.save();
+    ctx.fillStyle = 'rgba(26, 26, 26, 0.16)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 54, 42 * shadowScale, 13 * shadowScale, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Kaide hedef halkası (reticle ring)
+    ctx.strokeStyle = 'rgba(26, 26, 26, 0.18)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 54, 48, 15, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // 2. Avatar Çizimi (Squash & Stretch orantılı)
+    const custom = cachedProfile || getAvatarProfile();
+    const finalExpression = excitedTimer > 0 ? 'WINK' : custom.expression;
+    const combinedScale = ((squashX + squashY) / 2) * (1 + breath * 0.02);
+
+    drawBrutalAvatar(ctx, cx, avatarY, 52, {
       color: custom.color,
-      expression: custom.expression,
+      expression: finalExpression,
       accessory: custom.accessory,
       pattern: custom.pattern,
-      facingAngle: menuAvatarAngle,
+      facingAngle: currentAvatarAngle,
       isBlinking: isMenuBlinking,
+      scale: combinedScale,
       showPips: false,
       showPointer: false,
       borderWidth: 4,
       shadowOffset: 5,
     });
+
+    // 3. Kıvılcım / Yıldız Parçacıkları (Boing efekti)
+    if (sparks.length > 0) {
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const p = sparks[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 220 * dt; // Parçacık yerçekimi
+        p.life -= p.decay * dt;
+
+        if (p.life <= 0) {
+          sparks.splice(i, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillStyle = p.color;
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 1;
+
+        if (p.shape === 'star') {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        } else if (p.shape === 'cross') {
+          const s = p.size;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(p.x - s, p.y);
+          ctx.lineTo(p.x + s, p.y);
+          ctx.moveTo(p.x, p.y - s);
+          ctx.lineTo(p.x, p.y + s);
+          ctx.stroke();
+        } else {
+          ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+          ctx.strokeRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+        }
+        ctx.restore();
+      }
+    }
 
     const menuOverlay = document.getElementById('menu-overlay');
     if (menuOverlay && !menuOverlay.classList.contains('hidden')) {
@@ -544,11 +741,12 @@ export function initMenuAvatarCard() {
   }
 
   // Dil değişiminde açık customize modalının ızgaraları anında yenilenir
-  // (statik başlıklar global applyI18nToDOM ile gelir).
   onLangChange(() => {
+    updateCardName();
     const modalEl = document.getElementById('customize-modal');
     if (modalEl && !modalEl.classList.contains('hidden') && currentCustom) {
       renderSelectionGrids();
     }
   });
 }
+
