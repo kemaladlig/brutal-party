@@ -209,6 +209,19 @@ Her WebRTC peer'ında iki DataChannel bulunur:
 
 ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını kullanır. Host yalnız katılmış peer'lardan signal kabul eder; controller kilitlediği hostId dışındaki signal'ı reddeder. ICE adayları remote description sonrasına kuyruğa alınır.
 
+### Uçtan uca: iki telefon nasıl bağlanır (ONLINE)
+
+1. **Oda kurma** — P1 telefonu 3 haneli kod üretir (100–999) ve odayı Supabase Broadcast üzerinden açar. Bu aşamada henüz WebRTC yoktur.
+2. **Keşif** — Diğer telefon ana sayfadaki **ONLINE PARTY kartından** (ayrı kod alanı) kodu girer. `join-room-modal` ONLINE modunda "oyuncu" metniyle açılır; TV kartı ise "kumanda" metniyle. Aynı modal, iki farklı rol.
+3. **Katılım** — Supabase `players[]` tablosu tek koltuk kaynağıdır; host, katılan peer'ı `JOIN_SUCCESS` ile onaylar. Bu bayrak aynı zamanda `worldView: true` taşır (telefonda world canvası açılır, P1 host'a rezerve kalır).
+4. **Signaling** — Host WebRTC `offer` üretir, client `answer` + ICE adayları gönderir. ICE, remote description'dan önce gelen adaylar kuyruğa alınarak sonradan işlenir. İki `RTCDataChannel` kurulur.
+5. **Oyun trafiği** — Bundan sonra Supabase devre dışıdır; tüm oyun verisi doğrudan host→client gider. `control` (güvenilir) girdi + 8 Hz HUD taşır, `world` (atılabilir) 30 Hz tam snapshot taşır.
+6. **Oyun döngüsü** — Uzak telefon **yalnız girdi gönderir** (joystick + aksiyon). Motor/fizik/AI host'ta çalışır; sonuç 30 Hz `WORLD_FRAME` olarak yayınlanır, telefon ekranında çizilir ve kontrol overlay'i üstüne bindirilir.
+
+Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için düzeltme gerekmez (sonraki kare gelir). Kritik olaylar (skor, raund/maç sonu, slot değişimi) `control` kanalından anında gider. `seq` alanı ile geç gelen kareler yok sayılır. 15 sn ping / 30 sn watchdog ile kopan peer tespit edilir.
+
+> Not: TV_CONSOLE modunda telefon **kumandadır** (TV sahadır) ve `world` kanalı kullanılmaz. ONLINE modunda telefon hem kumanda hem oyuncudur; aynı cihazda dünya + overlay birlikte çalışır.
+
 ### Uzak Telefon → Host (`player_msg`):
 * `INPUT`: Joystick yönü `(x, y)` veya buton basımları (`FIRE`, `DASH`, `TACKLE`). 50ms throttle ile sınırlandırılmıştır; aksiyon butonları throttlesızdır.
 * `INPUT` tüneli `AVATAR_UPDATE`: kumanda kendi karakterini bildirir (`{color, expression, accessory, pattern}`; host sanitize eder, 1sn rate-limit).

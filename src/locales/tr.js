@@ -128,6 +128,16 @@ export const TR = {
   'join.hint': 'İsmi menüdeki karakter kartından değiştirebilirsin.',
   'join.submit': 'KUMANDAYI BAĞLA →',
   'join.cancel': 'İPTAL',
+  // Modal metinleri platform moduna göre değişir: TV_CONSOLE'de telefon kumandadır,
+  // ONLINE'da ise oyuncudur (P2-P4). Tek sabit metin ikisini de yanlış anlatıyordu.
+  'join.badgeController': '📱 TELEFON KUMANDASI',
+  'join.submitController': 'KUMANDAYI BAĞLA →',
+  'join.asYouController': 'KUMANDA OLARAK KATILIYORSUN',
+  'join.hintController': 'TV ekranı sahadır; sen kumandayısın.',
+  'join.badgePlayer': 'ONLINE OYUNCU',
+  'join.submitPlayer': "ONLINE'A KATIL →",
+  'join.asYouPlayer': 'OYUNCU OLARAK KATILIYORSUN',
+  'join.hintPlayer': 'Telefonunda görüp oynayacaksın.',
   // ── Host lobby ──
   'host.copied': '✓ Bağlantı panoya kopyalandı!',
   'host.link': 'Bağlantı: {0}',

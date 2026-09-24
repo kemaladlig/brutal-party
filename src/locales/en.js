@@ -128,6 +128,16 @@ export const EN = {
   'join.hint': 'Change it from the menu character card.',
   'join.submit': 'CONNECT CONTROLLER →',
   'join.cancel': 'CANCEL',
+  // Modal copy varies by platform mode: in TV_CONSOLE the phone is a controller,
+  // in ONLINE it is a player (P2-P4). One fixed string mislabelled both.
+  'join.badgeController': '📱 PHONE CONTROLLER',
+  'join.submitController': 'CONNECT CONTROLLER →',
+  'join.asYouController': 'JOINING AS CONTROLLER',
+  'join.hintController': 'The TV is the arena; you are the controller.',
+  'join.badgePlayer': 'ONLINE PLAYER',
+  'join.submitPlayer': 'JOIN AS PLAYER →',
+  'join.asYouPlayer': 'JOINING AS A PLAYER',
+  'join.hintPlayer': 'You will view and play right on this phone.',
   // ── Host lobby ──
   'host.copied': '✓ Link copied to clipboard!',
   'host.link': 'Link: {0}',

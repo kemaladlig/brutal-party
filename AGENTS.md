@@ -23,7 +23,7 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 
 - `src/core/engineRegistry.js` → `GAME_ORDER` (14 oyun: PONG…RACE — güncel liste dosyadadır, buraya kopyalanmaz).
 - Yeni oyun = `engineRegistry.js` içinde `GAME_ORDER` kaydı + tek `CARTRIDGES.MOD` bloğu (`load/createEngine/reset/onEnter/onResume/start/packet`; görüntüleme destekleyen oyunlarda ayrıca `worldPacket/worldView`). `main.js` veya `gamepad.js` içine `else if (mode === ...)` zinciri **eklemek yasaktır**.
-- Entry sözleşmesi: `game` (BaseMiniGame türevi) · `reset()` · `onEnter/onResume(now)` (fizik sıçramasını önler) · `start()` (sayaç sonrası) · `packet()` (8 Hz host HUD/state) · opsiyonel `worldPacket()` + `CARTRIDGES[MOD].worldView` (30 Hz P2P görüntüleme; şu an SNAKE).
+- Entry sözleşmesi: `game` (BaseMiniGame türevi) · `reset()` · `onEnter/onResume(now)` (fizik sıçramasını önler) · `start()` (sayaç sonrası) · `packet()` (8 Hz host HUD/state) · opsiyonel `worldPacket()` + `CARTRIDGES[MOD].worldView` (30 Hz P2P görüntüleme; SNAKE, ARCHER, BOMB, HEIST, TANKS, CLONE, NINJA, LASER, ZONE, COLLAPSE, CURVE — 11 oyun). Yeni world-view oyunu eklemek için: `src/games/[oyun]View.js` + `src/ui/[oyun]WorldView.js` + registry'de `worldView.load`/`worldPacket`; çekirdek `src/games/worldCore.js`'ten gelir.
 - Motor sözleşmesi: `resetMatch/reset()`, `startNewMatch()`, `startNewRound()`, `update(now)`, `render()`, `resize(w,h)`, `handleRemoteInput(slotIndex, data)`.
 - **Lokal (Tek Cihaz / PC & Masa-ortası) Sözleşmesi:**
   - Her motor sadece TV+telefon modunda değil, tek cihazda (`LOCAL`) da tam oynanabilir olmalıdır.

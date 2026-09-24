@@ -3,7 +3,7 @@
 // İsim düzenleme noktası ana menüdeki karakter kartıdır.
 import { ensureStoredNick } from '../net.js';
 import { showInstallToast } from './toast.js';
-import { t } from '../i18n.js';
+import { t, onLangChange } from '../i18n.js';
 
 const joinRoomModal = document.getElementById('join-room-modal');
 const inputRoomCode = document.getElementById('input-room-code');
@@ -21,7 +21,33 @@ const btnClearRoomCode = document.getElementById('btn-clear-room-code');
 const btnClearHeroCode = document.getElementById('btn-clear-hero-code');
 const btnClearOnlineHeroCode = document.getElementById('btn-clear-online-code');
 
+// Modal metinleri platform moduna göre değişir: TV_CONSOLE'de telefon kumandadır
+// (TV sahadır), ONLINE'da ise oyuncudur (P2-P4, telefonda görüp oynar).
+// applyI18nToDOM sabit data-i18n metinlerini geri yazdığı için bu override
+// hem modal açılışında hem de dil değişiminden sonra yeniden uygulanır.
+const joinBadge = joinRoomModal?.querySelector('.join-badge');
+const joinTitle = joinRoomModal?.querySelector('.join-title');
+const joinCodeLabel = joinRoomModal?.querySelector('.join-label');
+const joinAsYou = joinRoomModal?.querySelector('.join-as-badge span[data-i18n="join.asYou"]');
+const joinHint = joinRoomModal?.querySelector('.join-as-hint');
+
 let joinModalMode = null;
+
+function applyJoinModeCopy(mode) {
+  const suffix = mode === 'ONLINE' ? 'Player' : 'Controller';
+  if (joinBadge) joinBadge.textContent = t(`join.badge${suffix}`);
+  if (joinTitle) joinTitle.textContent = t('join.title');
+  if (joinCodeLabel) joinCodeLabel.textContent = t('join.codeLabel');
+  if (joinAsYou) joinAsYou.textContent = t(`join.asYou${suffix}`);
+  if (joinHint) joinHint.textContent = t(`join.hint${suffix}`);
+  if (btnSubmitJoin) btnSubmitJoin.textContent = t(`join.submit${suffix}`);
+}
+
+onLangChange(() => {
+  if (joinRoomModal && !joinRoomModal.classList.contains('hidden')) {
+    applyJoinModeCopy(joinModalMode);
+  }
+});
 
 // × temizleme: değer varken görünür, basınca auto-join tetiklemez
 function bindClearButton(btn, input) {
@@ -43,6 +69,7 @@ bindClearButton(btnClearOnlineHeroCode, onlineHeroInputCode);
 
 export function openJoinModal(prefilledCode = '', mode = null) {
   joinModalMode = mode;
+  applyJoinModeCopy(mode);
   if (inputRoomCode) {
     inputRoomCode.value = prefilledCode.toUpperCase();
   }
