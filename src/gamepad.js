@@ -12,6 +12,7 @@ import { t, onLangChange } from './i18n.js';
 import { getAvatarProfile } from './core/customizationManager.js';
 import { drawBrutalAvatar } from './ui/characterRenderer.js';
 import { openCustomizeModal } from './ui/customizeModal.js';
+import { getTabletopIconSvg } from './core/tabletopIcons.js';
 
 // Kumanda kayıt tablosu: tek kaynaktan (engineRegistry) beslenir
 const CONTROLLER_META = new Proxy({}, {
@@ -331,8 +332,8 @@ export class GamepadManager {
         </div>
         <div class="header-right-group">
           <span class="gamepad-room-info">#${this.network.roomCode || '---'}</span>
-          <button class="emoji-reaction-btn" id="btn-toggle-emoji" type="button" data-i18n-aria="pad.reactTitle" title="Tepki Gönder">💬</button>
-          <button class="btn-fullscreen-toggle" id="btn-fullscreen-toggle" type="button" title="Tam Ekran">⛶</button>
+          <button class="emoji-reaction-btn" id="btn-toggle-emoji" type="button" data-i18n-aria="pad.reactTitle" title="Tepki Gönder">${getTabletopIconSvg('message_square', { size: 18, color: '#141414', strokeWidth: 2.3 })}</button>
+          <button class="btn-fullscreen-toggle" id="btn-fullscreen-toggle" type="button" title="Tam Ekran">${getTabletopIconSvg('maximize_2', { size: 16, color: '#141414', strokeWidth: 2.3 })}</button>
           <button class="btn-leave-gamepad" id="btn-leave-gamepad" type="button">${t('pad.leave')}</button>
         </div>
       </div>

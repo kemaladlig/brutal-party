@@ -1071,10 +1071,22 @@
 }
 
 .steer-icon {
-  font-size: clamp(26px, 6vw, 34px);
-  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
   pointer-events: none;
+}
+
+.steer-icon svg,
+.btn-action-icon svg,
+.pedal-icon svg,
+.fire-icon svg,
+.btn-fullscreen-toggle svg,
+.emoji-reaction-btn svg {
+  display: block;
+  pointer-events: none;
+  flex-shrink: 0;
 }
 
 /* 03 // CURVE CONTROLLER */

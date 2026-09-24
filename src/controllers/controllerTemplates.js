@@ -4,6 +4,7 @@
 
 import { escapeHtml } from '../net.js';
 import { t } from '../i18n.js';
+import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 
 /**
  * Mounts a declarative controller onto the given container.
@@ -59,10 +60,10 @@ function mountJoystickAction(gamepad, container, schema) {
           const flex = act.flex ? `flex: ${act.flex};` : '';
           const minHeight = act.minHeight ? `min-height: ${act.minHeight};` : '';
           const customClass = act.className || '';
-          const icon = act.icon || (act.action === 'DASH' ? '⚡' : '💥');
+          const icon = act.icon || (act.action === 'DASH' ? 'zap' : 'flame');
           return `
             <button class="action-dash-btn ${customClass}" data-action-index="${i}" type="button" style="${bg} ${border} ${flex} ${minHeight}">
-              <span class="btn-action-icon">${icon}</span>
+              <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
             </button>
           `;
         }).join('')}
@@ -71,10 +72,10 @@ function mountJoystickAction(gamepad, container, schema) {
   } else if (actions.length === 1) {
     const act = actions[0];
     const bg = act.color ? `background-color: ${act.color};` : `background-color: ${gamepad.playerColor};`;
-    const icon = act.icon || (act.action === 'DASH' ? '⚡' : '💥');
+    const icon = act.icon || (act.action === 'DASH' ? 'zap' : 'flame');
     actionHtml = `
       <button class="action-dash-btn ${act.className || ''}" data-action-index="0" type="button" style="${bg}">
-        <span class="btn-action-icon">${icon}</span>
+        <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
       </button>
     `;
   }
@@ -180,12 +181,12 @@ function mountArcadeDrive(gamepad, container, schema) {
     <div class="tanks-arcade-view">
       <div class="tank-drive-zone">
         <button class="tank-drive-pedal" id="btn-tank-drive" type="button" style="border-color: ${gamepad.playerColor}">
-          <span class="pedal-icon">${escapeHtml(schema.pedalIcon || '🚀')}</span>
+          <span class="pedal-icon">${getTabletopIconSvg(schema.pedalIcon || 'rocket', { size: 44, color: '#141414', strokeWidth: 2.4 })}</span>
         </button>
       </div>
       <div class="tanks-fire-zone">
         <button class="tank-fire-btn" id="btn-tank-fire" type="button" style="background: ${gamepad.playerColor};">
-          <span class="fire-icon">${escapeHtml(schema.fireIcon || '💥')}</span>
+          <span class="fire-icon">${getTabletopIconSvg(schema.fireIcon || 'bomb', { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
         </button>
         <div class="tank-ammo-hud" id="tank-ammo-hud">
           <div class="cartridge-pip loaded"></div>
@@ -278,19 +279,19 @@ function mountTwoButtonSteer(gamepad, container, schema) {
     <div class="curve-controller-view" id="curve-controller-view">
       <div class="steer-rocker-cluster curve-cluster left" id="curve-steer-left">
         <button class="steer-rocker-btn left" id="btn-curve-left" data-steer="-1" type="button" aria-label="Sola">
-          <span class="steer-icon">◀</span>
+          <span class="steer-icon">${getTabletopIconSvg('arrow_left', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
         </button>
         <button class="steer-rocker-btn right" id="btn-curve-left-r" data-steer="1" type="button" aria-label="Sağa">
-          <span class="steer-icon">▶</span>
+          <span class="steer-icon">${getTabletopIconSvg('arrow_right', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
         </button>
       </div>
 
       <div class="steer-rocker-cluster curve-cluster right" id="curve-steer-right">
         <button class="steer-rocker-btn left" id="btn-curve-right-l" data-steer="-1" type="button" aria-label="Sola">
-          <span class="steer-icon">◀</span>
+          <span class="steer-icon">${getTabletopIconSvg('arrow_left', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
         </button>
         <button class="steer-rocker-btn right" id="btn-curve-right" data-steer="1" type="button" aria-label="Sağa">
-          <span class="steer-icon">▶</span>
+          <span class="steer-icon">${getTabletopIconSvg('arrow_right', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
         </button>
       </div>
     </div>
@@ -461,7 +462,7 @@ function mountSlider1D(gamepad, container, schema) {
           </button>
         </div>
         <button class="action-spin-btn" id="btn-pong-spin" type="button" style="background-color: ${gamepad.playerColor};">
-          <span class="btn-action-icon">🌀</span>
+          <span class="btn-action-icon">${getTabletopIconSvg('rotate_cw', { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
         </button>
       </div>
     </div>
@@ -576,16 +577,16 @@ function mountSteerBoost(gamepad, container, schema) {
       <div class="snake-steer-zone">
         <div class="steer-rocker-cluster" id="${steerZoneId}">
           <button class="steer-rocker-btn left" id="btn-snake-left" data-steer="-1" type="button" aria-label="Sola">
-            <span class="steer-icon">◀</span>
+            <span class="steer-icon">${getTabletopIconSvg('arrow_left', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
           </button>
           <button class="steer-rocker-btn right" id="btn-snake-right" data-steer="1" type="button" aria-label="Sağa">
-            <span class="steer-icon">▶</span>
+            <span class="steer-icon">${getTabletopIconSvg('arrow_right', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
           </button>
         </div>
       </div>
       <div class="snake-boost-zone">
         <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" style="background-color: ${schema.boostColor || gamepad.playerColor}">
-          <span class="btn-action-icon">${schema.boostIcon || '⚡'}</span>
+          <span class="btn-action-icon">${getTabletopIconSvg(schema.boostIcon || 'zap', { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
         </button>
       </div>
     </div>

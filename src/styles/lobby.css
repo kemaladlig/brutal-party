@@ -85,7 +85,7 @@
 
 .tv-host-body {
   display: grid;
-  grid-template-columns: 280px 250px minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 280px) minmax(0, 250px) minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
 }
@@ -93,7 +93,7 @@
 /* 920-1140 bandı: sağ kolon ezilmesin, 2+1 dizilim */
 @media (max-width: 1140px) and (min-width: 921px) {
   .tv-host-body {
-    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
   }
   .host-game-selector {
     grid-column: 1 / -1;
@@ -270,6 +270,7 @@
   border: 2.5px solid #c8c3ba;
   box-shadow: 3px 3px 0px #c8c3ba;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  min-width: 0;
 }
 
 .host-player-slot.connected {
@@ -376,6 +377,8 @@
   background-color: #e8e4db;
   color: #55514a;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .slot-status-tag.ready {
@@ -415,7 +418,7 @@
 
 .selector-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 10px;
 }
 
@@ -466,6 +469,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
 }
 
 .chip-thumb-img {

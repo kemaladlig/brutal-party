@@ -40,6 +40,7 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
   - `arenaKit.js` — ortak görsel + `buildLayout(name, arena)` düzen presets (`pillars`, `columns4`, `cross`, `crossfire`, `scatter`, `bunker`, `courtyard`, `split`) + `drawObstacle`/`drawPickup`. Motor kendi `buildMap()`'inde yalnız oyuna özgü ek katmanları/meta'yı tutar; ortak geometri preset adıyla çağrılır.
   - `playerEntity.js` — oyuncu varlığı: `createPlayer`, `tickEffectTimers`, `advancePlayer` (kademeli çıkarım — bomb/heist entegre; PONG/tanks/curve/snake/zone/collapse kendi gövdesinde kalır).
   - `avatarInGame.js` — oyun içi avatar: `drawGameAvatar`, `normalizeExpression`.
+  - `tabletopIcons.js` — Lucide vektör ikon kütüphanesi: OS emojileri yerine Canvas 2D için `drawTabletopIcon`, DOM/kumanda butonları için `getTabletopIconSvg`. İkonlarda ham OS emojisi yazılmaz, buradan çağrılır.
 
 ## 4. Slot Modeli — tek koltuk gerçeği
 
@@ -71,11 +72,13 @@ Modal açıkken canvas tap'leri motora düşmez; staging'de düşer (bot ekleme/
 - Kumanda ergonomisi kararı: **dikeyde alt-orta kuşak** (`safe-area + 12vh`, 96px taban / 170px tavan), **yatayda köşeler** (sol-alt joystick, sağ-alt aksiyon). Yeni kumanda bu düzene uyar.
 - Mobil: `portrait` + `landscape` desteklenir, `overflow-x` yasak, dokunmatiklerde `touch-action` zorunlu.
 - Motion: `src/ui/motion.js` (`prefersReducedMotion`, `motionScale`) + tokenlar (`src/ui/tokens.js`) tek kaynaktır; yeni UI bu iki dosyadan sızar, lokal stil tanımlamaz. Temel UI hissi global kurala uyar (kısa fade/press, kuru pop-in yok).
+- İkonografi: Butonlarda ve UI'da ham OS emojileri yerine tek kaynak `src/core/tabletopIcons.js` (`getTabletopIconSvg` / `drawTabletopIcon`) kullanılır. Kumanda aksiyon tuşlarında metin başlığı olmaz; ortalanmış, büyük ve net Lucide SVG ikonu yer alır.
 
 ## 8. Yasaklar
 
 - `main.js` / `gamepad.js` içine moda özel `if/else` zinciri veya imperatif mount fonksiyonu ekleme — `src/controllers/gamepadSchemas.js` + `CARTRIDGES[MOD].schema` kullan.
-- Motora `src/core/` ortak yardımcı mantığını kopyalama / yeniden yazma (inputMaps, touchFlow, physics2d, pickupSystem, arenaKit/buildLayout, playerEntity, avatarInGame) — tek kaynak `src/core/`'dur.
+- Motora `src/core/` ortak yardımcı mantığını kopyalama / yeniden yazma (inputMaps, touchFlow, physics2d, pickupSystem, arenaKit/buildLayout, playerEntity, avatarInGame, tabletopIcons) — tek kaynak `src/core/`'dur.
+- Kumanda veya canvas UI'a ham OS emojisi yazma — `src/core/tabletopIcons.js` kullan.
 - State'i iki yerde tutma (TV listesi ↔ relay tablosu çakışırsa relay kazanır).
 - Kumandaya oyun simülasyonu, motora ağ kodu koyma.
 - Çok gerekmedikçe yeni `*.md` dosyası oluşturma. Mevcut `AGENTS.md` + `docs/PROJECT_MAP.md` yeterlidir; yapı/protokol değişince ikisi de güncellenir. Yeni döküman şartsa kullanıcıya sor.
