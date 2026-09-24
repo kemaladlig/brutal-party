@@ -72,6 +72,12 @@ const STATUS_BUILDERS = {
     if (dead) return t('pad.dead', data.scores.join('-'));
     return `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.ninjaAlive', aliveCount)}`;
   },
+  RACE: (i, data) => {
+    const time = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
+    const lap = Array.isArray(data.laps) ? (data.laps[i] || 0) : 0;
+    const targetLap = data.targetLaps || 3;
+    return t('pad.raceStatus', data.scores.join('-'), lap, targetLap, time);
+  },
 };
 
 export function getControllerStatus(mode, playerIndex, data) {

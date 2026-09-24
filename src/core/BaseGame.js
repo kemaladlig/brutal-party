@@ -1190,7 +1190,7 @@ export class BaseMiniGame {
   }
 
   // Varsayılan uzak girdi: JOYSTICK_MOVE vektöre, discrete aksiyonlar
-  // applySlotInput'a düşer. 13 motorun tamamı bunu override eder.
+  // applySlotInput'a düşer. 14 motorun tamamı bunu override eder.
   handleRemoteInput(slotIndex, data = {}) {
     if (!data || typeof data.action !== 'string') return;
     if (data.action === 'JOYSTICK_MOVE') {

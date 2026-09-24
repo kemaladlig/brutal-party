@@ -104,6 +104,7 @@
 .bento-card:nth-child(11) { animation-delay: 440ms; }
 .bento-card:nth-child(12) { animation-delay: 480ms; }
 .bento-card:nth-child(13) { animation-delay: 520ms; }
+.bento-card:nth-child(14) { animation-delay: 560ms; }
 
 @keyframes brutal-bento-pop {
   0% {
@@ -133,6 +134,8 @@
 .lobby-game-chip:nth-child(10) { animation-delay: 300ms; }
 .lobby-game-chip:nth-child(11) { animation-delay: 330ms; }
 .lobby-game-chip:nth-child(12) { animation-delay: 360ms; }
+.lobby-game-chip:nth-child(13) { animation-delay: 390ms; }
+.lobby-game-chip:nth-child(14) { animation-delay: 420ms; }
 
 @keyframes brutal-chip-pop {
   0% {
