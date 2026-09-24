@@ -29,6 +29,7 @@ import { drawPickup, buildLayout } from '../core/arenaKit.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { createPlayer, tickEffectTimers, advancePlayer } from '../core/playerEntity.js';
@@ -475,15 +476,6 @@ export class BombGame extends BaseMiniGame {
     });
   }
 
-  getCornerQuadrant(point) {
-    const { cx, cy } = this.arena;
-
-    if (point.x < cx && point.y >= cy) return 0; // Bottom-Left (P1)
-    if (point.x < cx && point.y < cy) return 1;  // Top-Left (P2)
-    if (point.x >= cx && point.y < cy) return 2; // Top-Right (P3)
-    return 3; // Bottom-Right (P4)
-  }
-
   onTouchStart(touch) {
     // 1. UI Buttons tap handling (yalnızca Lobi ve Maç Sonu ekranlarında)
     if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
@@ -494,8 +486,8 @@ export class BombGame extends BaseMiniGame {
 
     // 1.5. Generous Lobby Join fallback (tap anywhere in quadrant)
     if (this.state === 'LOBBY') {
-      const q = this.getCornerQuadrant(touch);
-      this.cycleSlotType(q);
+      if (lobbyCenterStartTap(this, touch)) return;
+      lobbyQuadrantTap(this, touch);
       return;
     }
 

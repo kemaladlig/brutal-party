@@ -23,6 +23,7 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateHeistBotAI } from '../ai/heistAI.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
 import { createPlayer } from '../core/playerEntity.js';
 
@@ -434,8 +435,8 @@ export class HeistGame extends BaseMiniGame {
 
     // 1.5. Generous Lobby Join fallback (tap anywhere in quadrant)
     if (this.state === 'LOBBY') {
-      const q = this.getCornerQuadrant(touch);
-      this.cycleSlotType(q);
+      if (lobbyCenterStartTap(this, touch)) return;
+      lobbyQuadrantTap(this, touch);
       return;
     }
 

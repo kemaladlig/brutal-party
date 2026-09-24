@@ -586,6 +586,10 @@ export class TanksGame extends BaseMiniGame {
     this.startRound();
   }
 
+  startNewRound() {
+    this.startRound();
+  }
+
   startRound() {
     this.pickRandomMap();
     const mapDef = MAP_LAYOUTS[this.currentMapIndex];

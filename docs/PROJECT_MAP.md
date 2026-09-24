@@ -64,9 +64,10 @@ src/core/
                             roundOverSkipGuard (timerField varsayılan roundTransitionTimer;
                             PONG roundOverTimer geçirir), lobbyCenterStartTap (r=65, min 2),
                             lobbyQuadrantTap (+onSeatChange), matchOverRestartTap (r=75) —
-                            motorlar quadrant/skip kopyası tutmaz (Faz 2 refactor, Eylül 2026);
+                            13 motorun lobi tap'leri tek merkezden (zone/heist dahil, Faz 2 kapanış);
                             İSTİSNA: tanks getCornerZone (merkez -1, PLAYING'de gerekli),
-                            PONG getPlayerZoneAt (paddle bölgeleri), bomb/zone MATCH_OVER→LOBBY.
+                            PONG getPlayerZoneAt (paddle bölgeleri), zone MATCH_OVER radius:Infinity
+                            (her dokunuş restart — davranış paritesi), bomb/zone MATCH_OVER→LOBBY.
                             Faz 2c (Eylül 2026): 12 motor lobi kartı renderStandardLobby'ye
                             geçti (archer/bomb/clone/collapse/crown/curve/heist/laser/ninja/
                             snake/tanks/zone); only PONG hand-rolled kaldı (rotate kart + bölge)

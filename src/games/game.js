@@ -2,10 +2,10 @@
 import { Paddle, PLAYER_CONFIGS } from './paddle.js';
 import { Ball } from './ball.js';
 import { playJoin, playStart, playPowerUp } from '../audio.js';
-import { getLocalSeatColors } from '../core/customizationManager.js';
+import { getLocalSeatColors, ensureLocalSeatColor } from '../core/customizationManager.js';
 import { renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
-import { renderSpatialBadge } from '../ui/hud.js';
+import { renderSpatialBadge, renderRoundBanner } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
@@ -97,6 +97,10 @@ export class Game extends BaseMiniGame {
   }
 
   restartRound() {
+    this.startNewRound();
+  }
+
+  startNewRound() {
     const joined = this.paddles.filter((p) => p.isJoined);
     if (joined.length < 2) {
       this.state = 'LOBBY';
@@ -549,14 +553,37 @@ export class Game extends BaseMiniGame {
     b.spawnShockwave(b.x, b.y, '#D99B26');
   }
 
-  handleRemoteInput(slotIndex, data) {
+  // Faz 2 Dual-Input Bridge (referans implementasyon): uzak + lokal girdi
+  // tek applySlotInput'ta birleşir. Sürekli sürüş frame poll ile okunur
+  // (applyControls/resolveSlotMoveDir); bu köprü discrete + enjeksiyon yoludur.
+  applySlotInput(slotIndex, input = {}) {
     const paddle = this.paddles[slotIndex];
     if (!paddle || !paddle.isJoined || paddle.isEliminated) return;
-    if (data.action === 'PADDLE_MOVE' && typeof data.position === 'number' && Number.isFinite(data.position)) {
-      const pos = Math.max(0, Math.min(1, data.position));
-      paddle.setTarget(paddle.minCoord + (paddle.maxCoord - paddle.minCoord) * pos);
-    } else if (data.action === 'SPIN') {
+    if (input.action === 'SPIN' || input.spin) {
       this.triggerSpin(slotIndex);
+      return;
+    }
+    if (typeof input.position === 'number' && Number.isFinite(input.position)) {
+      const pos = Math.max(0, Math.min(1, input.position));
+      paddle.setTarget(paddle.minCoord + (paddle.maxCoord - paddle.minCoord) * pos);
+      return;
+    }
+    if (typeof input.dir === 'number' && input.dir !== 0) {
+      const minDim = Math.min(this.arena.width, this.arena.height);
+      paddle.setTarget(paddle.targetCoord + Math.sign(input.dir) * minDim * 1.5 * (input.dt || 0.016));
+    }
+  }
+
+  handleLocalInput(slotIndex, data = {}) {
+    this.applySlotInput(slotIndex, data);
+  }
+
+  handleRemoteInput(slotIndex, data) {
+    if (!data) return;
+    if (data.action === 'PADDLE_MOVE') {
+      this.applySlotInput(slotIndex, { position: data.position });
+    } else if (data.action === 'SPIN') {
+      this.applySlotInput(slotIndex, { action: 'SPIN' });
     }
   }
 

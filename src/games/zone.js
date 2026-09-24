@@ -24,6 +24,7 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateZoneBotAI } from '../ai/zoneAI.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { keyboardVectorFrom, slotForActionCode } from '../core/inputMaps.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 
 export const ZONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ZONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -955,14 +956,6 @@ export class ZoneGame extends BaseMiniGame {
     return current + Math.sign(d) * maxStep;
   }
 
-  getCornerQuadrant(point) {
-    const { cx, cy } = this.arena;
-    if (point.x < cx && point.y >= cy) return 0;
-    if (point.x < cx && point.y < cy) return 1;
-    if (point.x >= cx && point.y < cy) return 2;
-    return 3;
-  }
-
   onTouchStart(touch) {
     if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
@@ -971,14 +964,12 @@ export class ZoneGame extends BaseMiniGame {
     if (this.handleRoundOverSkip()) return;
 
     if (this.state === 'LOBBY') {
-      const q = this.getCornerQuadrant(touch);
-      this.cycleSlotType(q);
-      this.syncLobbySeat(q);
+      if (lobbyCenterStartTap(this, touch)) return;
+      lobbyQuadrantTap(this, touch, { onSeatChange: (q) => this.syncLobbySeat(q) });
       return;
     }
     if (this.state === 'MATCH_OVER') {
-      this.resetMatch();
-      playJoin();
+      matchOverRestartTap(this, touch, { radius: Infinity, onRestart: () => { this.resetMatch(); playJoin(); } });
       return;
     }
     if (this.state === 'PLAYING') {

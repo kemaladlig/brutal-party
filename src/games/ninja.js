@@ -214,6 +214,10 @@ export class NinjaGame extends BaseMiniGame {
     this.startRound();
   }
 
+  startNewRound() {
+    this.startRound();
+  }
+
   startRound() {
     const joined = this.players.filter((p) => p.isJoined);
     if (joined.length < 2) {

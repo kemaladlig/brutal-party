@@ -54,16 +54,16 @@
 
 **Hedef:** 13 oyun motorunun istisnasız aynı yaşam döngüsü ve giriş API'sini tüketmesi; kod tekrarının sıfırlanması.
 
-- [ ] **Ortak Motor Yaşam Döngüsü:**
-  - `resetMatch()`, `startNewRound()`, `update(dt)`, `renderWorld(ctx)`, `renderHUD(ctx)`, `resize(w,h)`.
-- [ ] **Giriş Köprüsü (Dual-Input Bridge):**
-  - `handleRemoteInput(slotIndex, data)` (Telefon kumandasından gelen ağ verisi).
-  - `handleLocalInput(slotIndex, data)` (Lokal klavye WASD/Oklar/IJKL/TFGH ve masa-ortası dokunmatik).
-  - Her motor bu iki kanalı tek bir `applySlotInput(slotIndex, action/vector)` mantığında birleştirir.
-- [ ] **Ortak Yardımcıların Tam Entegrasyonu (`src/core/`):**
-  - `inputMaps.js`: 4 slot klavye haritalarının eksiksiz kullanımı.
-  - `touchFlow.js`: Lobi koltuk seçimleri, bot ekleme/çıkarma tap'lerinin tek merkezden yönetimi.
-  - `pickupSystem.js`: Kopyalanmış power-up rutinlerinin yerine ortak spawn/collect yapısının kullanılması.
+- [x] **Ortak Motor Yaşam Döngüsü:**
+  - `resetMatch()`, `startNewMatch()` (registry tek isim, 13/13), `startNewRound()` (13/13 alias), `update(now)`, `render()` (içi: world + `renderControls` + `renderHUD`), `resize(w,h)`.
+- [x] **Giriş Köprüsü (Dual-Input Bridge):**
+  - `handleRemoteInput(slotIndex, data)` (13/13 override).
+  - `handleLocalInput(slotIndex, data)` + `applySlotInput(slotIndex, input)` (BaseGame varsayılan; PONG referans implementasyon).
+  - Sürekli hareket poll ile okunur (`getPlayerMovementVector` / motor `applyControls`); köprü discrete aksiyon + vektör enjeksiyonunu tekleştirir.
+- [x] **Ortak Yardımcıların Tam Entegrasyonu (`src/core/`):**
+  - `inputMaps.js`: 13/13 (klavye haritaları).
+  - `touchFlow.js`: 13/13 lobi tap'leri tek merkezden (istisnalar belgeli: PONG `getPlayerZoneAt` bölge, tanks `getCornerZone`).
+  - `pickupSystem.js`: bomb/archer/laser/curve entegre; kalan motor kopyaları açık iş (detay `docs/PROJECT_MAP.md` §17).
 
 ---
 
@@ -112,6 +112,6 @@
 
 1. **Kamera Kararı:** Kamera (zoom & pan) sistemi tamamen kaldırıldı ve branch temizlendi. Tüm 13 oyunda klasik **1:1 sabit arena görünümü** korunmaktadır.
 2. **Geliştirme Sırası:** Öncelik temel teknik mimaride:
-   * **Sıradaki İş:** `FAZ 1: Evrensel Ayrık HUD & Dokunmatik Katmanı`
+   * **Sıradaki İş:** `FAZ 3: Ağ & State Senkronizasyonu Sağlamlaştırma` (Faz 1 + Faz 2 kapandı)
    * Ardından: Faz 2 (Giriş & Motor Sözleşmesi) -> Faz 3 (Ağ) -> Faz 4 (FX & Ses) -> Faz 5 (Game Feel).
 3. **Yeni Oturuma Başlarken:** Yeni agent doğrudan bu dosyayı okuyup `FAZ 1` kapsamındaki iş paketini (`renderHUD`, `renderControls`, masa-ortası dokunmatik kontrollerin ayrıştırılması) uygulamaya koymalıdır. Her etapta `npm run check` ve `npm run build` doğrulaması zorunludur.

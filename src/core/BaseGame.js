@@ -1137,6 +1137,55 @@ export class BaseMiniGame {
   }
 
   // ---------------------------------------------------------------------------
+  // Dual-Input Bridge (Faz 2): uzak + lokal girdi tek applySlotInput'ta birleşir.
+  // input = { vector: {x, y} } (sürekli) | { action: 'ID', isDown } (discrete)
+  //         | { steer: -1|0|1 } (direksiyon) | motora özel alanlar (position…).
+  // Sürekli hareket poll ile okunur (getPlayerMovementVector / motor içi);
+  // bu köprü discrete aksiyonları ve harici vektör enjeksiyonunu tekleştirir.
+  // ---------------------------------------------------------------------------
+
+  applySlotInput(slotIndex, input = {}) {
+    if (!input) return;
+    if (input.vector) {
+      const joy = this.joysticks?.[slotIndex];
+      if (joy) {
+        const vx = Number(input.vector.x) || 0;
+        const vy = Number(input.vector.y) || 0;
+        const mag = Math.hypot(vx, vy);
+        joy.active = mag > 0.05;
+        joy.angle = Math.atan2(vy, vx);
+        joy.force = Math.max(0, Math.min(1, mag));
+      }
+    }
+    if (typeof input.steer === 'number') {
+      this.handleSlotSteer(slotIndex, input.steer);
+    }
+    if (typeof input.action === 'string') {
+      this.handleSlotAction(slotIndex, input.action, input.isDown !== false);
+    }
+  }
+
+  // Lokal klavye/dokunmatik discrete girdileri için giriş noktası.
+  handleLocalInput(slotIndex, data = {}) {
+    this.applySlotInput(slotIndex, data);
+  }
+
+  // Varsayılan uzak girdi: JOYSTICK_MOVE vektöre, discrete aksiyonlar
+  // applySlotInput'a düşer. 13 motorun tamamı bunu override eder.
+  handleRemoteInput(slotIndex, data = {}) {
+    if (!data || typeof data.action !== 'string') return;
+    if (data.action === 'JOYSTICK_MOVE') {
+      const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : 0;
+      const angle = Number.isFinite(data.angle) ? data.angle : 0;
+      this.applySlotInput(slotIndex, {
+        vector: { x: Math.cos(angle) * force, y: Math.sin(angle) * force },
+      });
+      return;
+    }
+    this.applySlotInput(slotIndex, { action: data.action, isDown: true });
+  }
+
+  // ---------------------------------------------------------------------------
   // Interactive UI & Canvas Lobby Rendering
   // ---------------------------------------------------------------------------
 

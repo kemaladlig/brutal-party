@@ -37,7 +37,7 @@ export const CARTRIDGES = {
     createEngine: (game) => {
       return {
         game,
-        reset: () => game.resetCurrentGame(),
+        reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; game.accumulator = 0; },
         onResume: (now) => { game.lastTime = now; game.accumulator = 0; },
         start: () => game.startNewMatch(),
@@ -71,7 +71,7 @@ export const CARTRIDGES = {
         reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
-        start: () => game.startRound(),
+        start: () => game.startNewMatch(),
         packet: () => ({
           scores: game.scores,
           ammo: game.tanks.map((t) => {
@@ -98,7 +98,7 @@ export const CARTRIDGES = {
         reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
-        start: () => game.startRound(),
+        start: () => game.startNewMatch(),
         packet: () => ({ scores: game.scores, alive: game.players.map((p) => p.isAlive ?? p.alive) }),
       };
     },
@@ -118,7 +118,7 @@ export const CARTRIDGES = {
         reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewRound(),
+        start: () => game.startNewMatch(),
         packet: () => ({
           scores: game.scores,
           carrier: game.bombCarrierIndex,
@@ -143,7 +143,7 @@ export const CARTRIDGES = {
         reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewRound(),
+        start: () => game.startNewMatch(),
         packet: () => ({
           scores: game.scores,
           timeLeft: Math.ceil(game.roundTimer || 0),
@@ -169,7 +169,7 @@ export const CARTRIDGES = {
         reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
-        start: () => game.startRound(),
+        start: () => game.startNewMatch(),
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
@@ -195,7 +195,7 @@ export const CARTRIDGES = {
         reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewRound(),
+        start: () => game.startNewMatch(),
         packet: () => ({
           scores: game.scores,
           king: game.crown.carrierIndex,
@@ -220,7 +220,7 @@ export const CARTRIDGES = {
         reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewRound(),
+        start: () => game.startNewMatch(),
         packet: () => ({
           scores: game.scores,
           pct: game.pct.map((p) => Math.round(p)),
@@ -247,7 +247,7 @@ export const CARTRIDGES = {
         reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
-        start: () => game.startRound(),
+        start: () => game.startNewMatch(),
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
@@ -272,7 +272,7 @@ export const CARTRIDGES = {
         reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
-        start: () => game.startRound(),
+        start: () => game.startNewMatch(),
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
@@ -304,7 +304,7 @@ export const CARTRIDGES = {
         reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
-        start: () => game.startRound(),
+        start: () => game.startNewMatch(),
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
@@ -328,7 +328,7 @@ export const CARTRIDGES = {
         reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
-        start: () => game.startRound(),
+        start: () => game.startNewMatch(),
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
@@ -352,7 +352,7 @@ export const CARTRIDGES = {
         reset: () => game.resetMatch(),
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
-        start: () => game.startRound(),
+        start: () => game.startNewMatch(),
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),

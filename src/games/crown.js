@@ -26,6 +26,7 @@ import { createPlayer } from '../core/playerEntity.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { updateCrownBotAI } from '../ai/crownAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { spawnPickup } from '../core/pickupSystem.js';
 import { drawPickup } from '../core/arenaKit.js';
 
@@ -1906,8 +1907,8 @@ export class CrownGame extends BaseMiniGame {
     if (this.handleRoundOverSkip()) return;
 
     if (this.state === 'LOBBY') {
-      const q = this.getCornerQuadrant(touch);
-      this.cycleSlotType(q);
+      if (lobbyCenterStartTap(this, touch)) return;
+      lobbyQuadrantTap(this, touch);
       return;
     }
 

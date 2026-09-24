@@ -217,6 +217,10 @@ export class CurveGame extends BaseMiniGame {
     this.startRound();
   }
 
+  startNewRound() {
+    this.startRound();
+  }
+
   startRound() {
     this.state = 'PLAYING';
     this.segments = [];
