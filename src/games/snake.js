@@ -90,15 +90,6 @@ export class SnakeGame extends BaseMiniGame {
     this.segGridDirty = false;
     this._segQueryStamp = 0;
 
-    // Köşe dokunmatik: corner -> { id, action } + parmak boost'u
-    this.cornerTouches = [
-      { id: -1, action: null },
-      { id: -1, action: null },
-      { id: -1, action: null },
-      { id: -1, action: null },
-    ];
-    this.touchBoost = [false, false, false, false];
-
     this.keys = {};
     this.initKeyboard();
   }
@@ -115,10 +106,10 @@ export class SnakeGame extends BaseMiniGame {
       const player = this.players[slot];
       if (!player || player.slotType !== 'human') return;
       const ki = this.keyboardInput(slot);
-      if (this.cornerTouches[slot]?.id === -1 && ki.steer === 0) {
+      if ((this.tabletopSteerState?.[slot] || 0) === 0 && ki.steer === 0) {
         player.steer = 0;
       }
-      player.isBoost = ki.boost || this.touchBoost[slot];
+      player.isBoost = ki.boost || !!this.tabletopActionState?.[slot]?.boost;
     });
   }
 
@@ -204,7 +195,7 @@ export class SnakeGame extends BaseMiniGame {
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || SNAKE_COLORS[i]),
         x: s.x, y: s.y, angle: s.angle, targetAngle: null, speed: 140, turnSpeed: 3.4,
-        steer: 0, isBoost: false, boostEnergy: 100, boostLocked: false,
+        steer: 0, isBoost: false, boostEnergy: 100, boostMaxEnergy: 100, boostLocked: false,
         isAlive: true, isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i], segments: [], currentLen: 0, targetLen: 65,
         botCheckTimer: 0, tongueTimer: Math.random() * 2,
@@ -260,6 +251,7 @@ export class SnakeGame extends BaseMiniGame {
       // Yemin duvarların veya köşe kontrollerin tam üstüne düşmesini engelle
       let attempts = 0;
       let valid = false;
+      const corners = this.getTabletopControlCorners();
       while (!valid && attempts < 25) {
         attempts++;
         x = this.arena.left + 35 + Math.random() * (this.arena.width - 70);
@@ -275,8 +267,8 @@ export class SnakeGame extends BaseMiniGame {
         }
         // Köşe buton kutularından kaçınma
         for (let i = 0; i < 4; i++) {
-          const zone = this.getCornerButtonZones(i);
-          if (x >= zone.box.x - 10 && x <= zone.box.x + zone.box.w + 10 &&
+          const zone = corners[i];
+          if (zone?.box && x >= zone.box.x - 10 && x <= zone.box.x + zone.box.w + 10 &&
               y >= zone.box.y - 10 && y <= zone.box.y + zone.box.h + 10) {
             valid = false;
             break;
@@ -347,55 +339,39 @@ export class SnakeGame extends BaseMiniGame {
     return false;
   }
 
-  getCornerButtonZones(cornerIndex) {
-    const { left, right, top, bottom, size } = this.arena;
-    const btnW = Math.max(170, Math.min(260, size * 0.44));
-    const btnH = Math.max(48, Math.min(62, size * 0.14));
-
-    let bx = left + 8;
-    let by = bottom - btnH - 8;
-
-    if (cornerIndex === 1) {
-      bx = left + 8;
-      by = top + 8;
-    } else if (cornerIndex === 2) {
-      bx = right - btnW - 8;
-      by = top + 8;
-    } else if (cornerIndex === 3) {
-      bx = right - btnW - 8;
-      by = bottom - btnH - 8;
-    }
-
-    const gap = 4;
-    const availableW = btnW - gap * 2;
-    const wSteer = Math.floor(availableW * 0.35);
-    const wBoost = availableW - wSteer * 2;
-
-    const leftX = bx;
-    const rightX = bx + wSteer + gap;
-    const boostX = bx + (wSteer * 2) + (gap * 2);
-
+  getTabletopSchema() {
     return {
-      leftBtn: { x: leftX, y: by, w: wSteer, h: btnH },
-      rightBtn: { x: rightX, y: by, w: wSteer, h: btnH },
-      boostBtn: { x: boostX, y: by, w: wBoost, h: btnH },
-      box: { x: bx, y: by, w: btnW, h: btnH },
-      gap,
-      wSteer,
-      wBoost,
+      steer: true,
+      leftLabel: '◀',
+      rightLabel: '▶',
+      actions: [
+        {
+          id: 'boost',
+          icon: '🚀',
+          keyHint: 'SPACE',
+          holdToCharge: true,
+          chargeField: 'boostEnergy',
+          maxChargeField: 'boostMaxEnergy',
+        },
+      ],
     };
   }
 
-  determineTouchAction(cornerIndex, touch) {
-    const zone = this.getCornerButtonZones(cornerIndex);
-    const isTop = cornerIndex === 1 || cornerIndex === 2;
-    // Masa-ortası modunda üst oyuncular 180° ters oturduğu için X yönü terslenir
-    const relX = isTop ? (zone.box.x + zone.box.w - touch.x) : (touch.x - zone.box.x);
-    const frac = relX / zone.box.w;
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (actionId === 'boost') {
+      const player = this.players[slotIndex];
+      if (player && player.slotType === 'human') {
+        player.isBoost = isDown;
+      }
+    }
+  }
 
-    if (frac < 0.35) return 'left';
-    if (frac <= 0.70) return 'right';
-    return 'boost';
+  onSlotSteer(slotIndex, dir) {
+    const player = this.players[slotIndex];
+    if (player && player.slotType === 'human') {
+      player.steer = dir;
+      if (dir !== 0) player.targetAngle = null;
+    }
   }
 
   onTouchStart(touch) {
@@ -423,79 +399,22 @@ export class SnakeGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING') {
-      const corner = getQuadrant(this.arena, touch.x, touch.y);
-      const player = this.players[corner];
-      if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
-
-      if (this.cornerTouches[corner].id !== -1) {
-        this.touchBoost[corner] = true;
-        player.isBoost = true;
-        return;
-      }
-
-      const action = this.determineTouchAction(corner, touch);
-      this.cornerTouches[corner] = { id: touch.id, action };
-
-      if (action === 'left') {
-        player.steer = -1;
-        player.isBoost = this.touchBoost[corner] || this.keyboardInput(corner).boost;
-      } else if (action === 'right') {
-        player.steer = 1;
-        player.isBoost = this.touchBoost[corner] || this.keyboardInput(corner).boost;
-      } else if (action === 'boost') {
-        player.steer = 0;
-        player.isBoost = true;
-      }
+      if (this.handleUiTap(touch)) return;
+      this.handleTabletopTouchStart(touch);
     }
   }
 
   onTouchMove(touch) {
     if (this.state !== 'PLAYING') return;
-    for (let i = 0; i < 4; i++) {
-      if (this.cornerTouches[i] && this.cornerTouches[i].id === touch.id) {
-        const action = this.determineTouchAction(i, touch);
-        this.cornerTouches[i].action = action;
-        const player = this.players[i];
-        if (player && player.isAlive && player.slotType === 'human') {
-          if (action === 'left') {
-            player.steer = -1;
-            player.isBoost = this.touchBoost[i] || this.keyboardInput(i).boost;
-          } else if (action === 'right') {
-            player.steer = 1;
-            player.isBoost = this.touchBoost[i] || this.keyboardInput(i).boost;
-          } else if (action === 'boost') {
-            player.steer = 0;
-            player.isBoost = true;
-          }
-        }
-        break;
-      }
-    }
+    this.handleTabletopTouchMove(touch);
   }
 
   onTouchEnd(touch) {
-    for (let i = 0; i < 4; i++) {
-      if (this.cornerTouches[i] && this.cornerTouches[i].id === touch.id) {
-        this.cornerTouches[i] = { id: -1, action: null };
-        this.touchBoost[i] = false;
-        const player = this.players[i];
-        if (player && player.slotType === 'human') {
-          player.steer = 0;
-          player.isBoost = this.keyboardInput(i).boost;
-        }
-        break;
-      }
-    }
+    this.handleTabletopTouchEnd(touch);
   }
 
   onTouchesReset() {
-    this.cornerTouches = [
-      { id: -1, action: null },
-      { id: -1, action: null },
-      { id: -1, action: null },
-      { id: -1, action: null },
-    ];
-    this.touchBoost = [false, false, false, false];
+    this.resetTabletopTouches();
     this.players.forEach((p) => { p.steer = 0; p.isBoost = false; });
   }
 
@@ -529,16 +448,20 @@ export class SnakeGame extends BaseMiniGame {
         updateSnakeBotAI(this, player, dt);
       } else {
         const ki = this.keyboardInput(player.index);
+        const steerTouch = this.tabletopSteerState?.[player.index] || 0;
         if (ki.targetAngle !== null) {
           player.targetAngle = ki.targetAngle;
           player.steer = 0;
         } else if (ki.steer !== 0) {
           player.steer = ki.steer;
           player.targetAngle = null;
-        } else if (!player.remoteSteerActive && this.cornerTouches[player.index]?.id === -1) {
+        } else if (steerTouch !== 0) {
+          player.steer = steerTouch;
+          player.targetAngle = null;
+        } else if (!player.remoteSteerActive) {
           player.steer = 0;
         }
-        player.isBoost = ki.boost || this.touchBoost[player.index] || !!player.remoteBoostActive;
+        player.isBoost = ki.boost || !!this.tabletopActionState?.[player.index]?.boost || !!player.remoteBoostActive;
       }
 
       // ⚡ BOOST ENERJİSİ / STAMİNA MEKANİĞİ
@@ -852,9 +775,9 @@ export class SnakeGame extends BaseMiniGame {
     ctx.lineWidth = 6;
     ctx.strokeRect(left, top, width, height);
 
-    // 2. KÖŞE BUTONLARI (Alt katmanda yarı saydam neo-brutalist panel olarak çizilir)
+    // 2. KÖŞE BUTONLARI (Merkezi BaseGame Masa-ortası Kontrolleri)
     this.uiButtons = [];
-    this.renderCornerControls(ctx);
+    this.renderControls(ctx, { extraEntities: this.foods });
 
     // 3. YEMLER (Butonların ve sahanın üstünde parlar)
     for (const f of this.foods) {
@@ -1025,167 +948,5 @@ export class SnakeGame extends BaseMiniGame {
 
     ctx.restore();
   }
-
-  renderCornerControls(ctx) {
-    if (this.state !== 'PLAYING') return;
-
-    const KEY_HINTS = ['WASD/SPACE', 'OKLAR/ENTER', 'IJKL/O', 'TFGH/B'];
-
-    for (let i = 0; i < 4; i++) {
-      const player = this.players[i];
-      const zones = this.getCornerButtonZones(i);
-      const isJoined = this.isSlotJoined(i);
-      const isTop = i === 1 || i === 2;
-
-      ctx.save();
-      const cx = zones.box.x + zones.box.w / 2;
-      const cy = zones.box.y + zones.box.h / 2;
-      // Proximity Ghosting: Karakter köşeye yaklaşınca kontroller şeffaflaşır (alpha: 0.25)
-      const isNear = this.checkEntityProximity(cx, cy, 90);
-      if (isNear) ctx.globalAlpha = 0.25;
-
-      ctx.translate(cx, cy);
-      if (isTop) {
-        ctx.rotate(Math.PI);
-      }
-
-      const halfW = zones.box.w / 2;
-      const halfH = zones.box.h / 2;
-      const { wSteer, wBoost, gap } = zones;
-
-      if (isJoined && player.slotType === 'human' && player.isAlive) {
-        const touching = this.cornerTouches[i] || { id: -1, action: null };
-        const isBoosting = player.isBoost;
-        const kb = this.keyboardInput(i);
-
-        // 0. OYUNCU İSİM VE KLAVYE ÇİPİ (Üst bilgi etiketi)
-        const chipText = `${player.name} [${KEY_HINTS[i]}]`;
-        ctx.font = '900 10.5px "JetBrains Mono", monospace';
-        const textMetrics = ctx.measureText(chipText);
-        const chipW = Math.max(86, textMetrics.width + 24);
-        const chipH = 18;
-        const chipY = -halfH - chipH - 6;
-
-        // Çip gölgesi ve gövdesi
-        ctx.fillStyle = '#141416';
-        ctx.fillRect(-chipW / 2 + 2, chipY + 2, chipW, chipH);
-        ctx.fillStyle = '#FAF7F2';
-        ctx.fillRect(-chipW / 2, chipY, chipW, chipH);
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(-chipW / 2, chipY, chipW, chipH);
-
-        // Oyuncu renk noktası
-        ctx.fillStyle = player.color;
-        ctx.beginPath();
-        ctx.arc(-chipW / 2 + 8, chipY + chipH / 2, 3.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // Çip metni
-        ctx.fillStyle = '#1A1A1A';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(chipText, -chipW / 2 + 15, chipY + chipH / 2 + 0.5);
-
-        // 1. SOL DÖNÜŞ BUTONU [SOL]
-        const leftX = -halfW;
-        const leftActive = touching.action === 'left' || (kb.steer < 0);
-        const leftOffset = leftActive ? 2 : 0;
-        const leftShadow = leftActive ? 1 : 3;
-
-        // Gölge
-        ctx.fillStyle = '#141416';
-        ctx.fillRect(leftX + leftShadow, -halfH + leftShadow, wSteer, zones.box.h);
-        // Gövde
-        ctx.fillStyle = leftActive ? `${player.color}28` : '#FAF7F2';
-        ctx.fillRect(leftX + leftOffset, -halfH + leftOffset, wSteer, zones.box.h);
-        // Kenarlık
-        ctx.strokeStyle = leftActive ? player.color : '#1A1A1A';
-        ctx.lineWidth = leftActive ? 2.5 : 2;
-        ctx.strokeRect(leftX + leftOffset, -halfH + leftOffset, wSteer, zones.box.h);
-        // Metin
-        ctx.fillStyle = leftActive ? player.color : '#1A1A1A';
-        ctx.font = '900 12.5px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('◄ SOL', leftX + leftOffset + wSteer / 2, leftOffset);
-
-        // 2. SAĞ DÖNÜŞ BUTONU [SAĞ]
-        const rightX = -halfW + wSteer + gap;
-        const rightActive = touching.action === 'right' || (kb.steer > 0);
-        const rightOffset = rightActive ? 2 : 0;
-        const rightShadow = rightActive ? 1 : 3;
-
-        // Gölge
-        ctx.fillStyle = '#141416';
-        ctx.fillRect(rightX + rightShadow, -halfH + rightShadow, wSteer, zones.box.h);
-        // Gövde
-        ctx.fillStyle = rightActive ? `${player.color}28` : '#FAF7F2';
-        ctx.fillRect(rightX + rightOffset, -halfH + rightOffset, wSteer, zones.box.h);
-        // Kenarlık
-        ctx.strokeStyle = rightActive ? player.color : '#1A1A1A';
-        ctx.lineWidth = rightActive ? 2.5 : 2;
-        ctx.strokeRect(rightX + rightOffset, -halfH + rightOffset, wSteer, zones.box.h);
-        // Metin
-        ctx.fillStyle = rightActive ? player.color : '#1A1A1A';
-        ctx.font = '900 12.5px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(t('snake.right'), rightX + rightOffset + wSteer / 2, rightOffset);
-
-        // 3. ⚡ BOOST (HIZLANMA) BUTONU [HIZ]
-        const boostX = -halfW + (wSteer * 2) + (gap * 2);
-        const boostActive = isBoosting || touching.action === 'boost' || kb.boost;
-        const boostOffset = boostActive ? 2 : 0;
-        const boostShadow = boostActive ? 1 : 3;
-        const isLocked = player.boostLocked;
-
-        // Gölge
-        ctx.fillStyle = '#141416';
-        ctx.fillRect(boostX + boostShadow, -halfH + boostShadow, wBoost, zones.box.h);
-        // Gövde (Hazırsa krem, kilitliyse gri/koyu ton)
-        ctx.fillStyle = isLocked ? '#2A2A2E' : (boostActive ? '#FFF6D1' : '#FAF7F2');
-        ctx.fillRect(boostX + boostOffset, -halfH + boostOffset, wBoost, zones.box.h);
-
-        // Enerji Doluluk Çizgisi (Alttan yukarı dinamik dolum)
-        const energyRatio = Math.max(0, Math.min(1, (player.boostEnergy || 0) / 100));
-        const energyH = Math.round((zones.box.h - 4) * energyRatio);
-        if (energyH > 0) {
-          ctx.fillStyle = isLocked ? 'rgba(216, 71, 39, 0.45)' : 'rgba(255, 222, 89, 0.65)';
-          ctx.fillRect(boostX + boostOffset + 2, halfH + boostOffset - 2 - energyH, wBoost - 4, energyH);
-        }
-
-        // Kenarlık
-        ctx.strokeStyle = isLocked ? '#D84727' : (boostActive ? '#D99B26' : '#1A1A1A');
-        ctx.lineWidth = boostActive || isLocked ? 2.5 : 2;
-        ctx.strokeRect(boostX + boostOffset, -halfH + boostOffset, wBoost, zones.box.h);
-
-        // Buton Metni
-        ctx.fillStyle = isLocked ? '#FF6B4A' : '#1A1A1A';
-        ctx.font = '900 12px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(isLocked ? t('snake.lock') : t('snake.boost'), boostX + boostOffset + wBoost / 2, boostOffset);
-
-      } else if (this.state === 'PLAYING' && isJoined) {
-        // BOT Koltuğu
-        ctx.globalAlpha = 0.42;
-        ctx.strokeStyle = player.color;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 4]);
-        ctx.strokeRect(-halfW, -halfH, zones.box.w, zones.box.h);
-        ctx.setLineDash([]);
-        ctx.fillStyle = player.color;
-        ctx.font = '800 11px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${player.name} [BOT]`, 0, 0);
-      }
-
-      ctx.restore();
-    }
-  }
 }
+

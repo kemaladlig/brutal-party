@@ -90,7 +90,6 @@ export class HeistGame extends BaseMiniGame {
         {
           id: 'tackle',
           icon: '💥',
-          label: 'OMUZ',
           cooldownField: 'tackleCooldown',
           maxCooldown: HEIST_TUNING.TACKLE_COOLDOWN,
         },

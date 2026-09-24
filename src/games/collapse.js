@@ -177,7 +177,6 @@ export class CollapseGame extends BaseMiniGame {
         {
           id: 'jump',
           icon: '🦘',
-          label: 'ZIPLA',
           cooldownField: 'jumpCooldown',
           maxCooldown: COLLAPSE_JUMP_COOLDOWN,
         },

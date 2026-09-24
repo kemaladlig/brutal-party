@@ -56,14 +56,6 @@ export class CurveGame extends BaseMiniGame {
     this.pickups = [];
     this.pickupSpawnTimer = 8.0;
 
-    // Touch identifier mapping for corners: corner -> { id, action: 'left' | 'right' }
-    this.cornerTouches = [
-      { id: -1, action: null },
-      { id: -1, action: null },
-      { id: -1, action: null },
-      { id: -1, action: null },
-    ];
-
     // Trail spatial grid (hücre → segment indeksleri) + sorgu damgası
     this.segGrid = new Map();
     this.segGridDirty = false;
@@ -87,7 +79,7 @@ export class CurveGame extends BaseMiniGame {
       // (dokunmatik basılıyken klavye bırakması dokunuşu ezmesin)
       const slot = CURVE_KEY_SLOTS[e.code];
       if (slot === undefined) return;
-      if (this.cornerTouches[slot]?.id !== -1) return;
+      if ((this.tabletopSteerState?.[slot] || 0) !== 0) return;
       const player = this.players[slot];
       if (player && player.slotType === 'human' && this.keyboardSteer(slot) === 0) {
         player.steer = 0;
@@ -208,12 +200,7 @@ export class CurveGame extends BaseMiniGame {
     this.particles = [];
     this.pickups = [];
     this.floatingTexts = [];
-    this.cornerTouches = [
-      { id: -1, action: null },
-      { id: -1, action: null },
-      { id: -1, action: null },
-      { id: -1, action: null },
-    ];
+    this.onTouchesReset();
     this.trauma = 0;
     this.spawnIntroTimer = 0;
     this.lastTime = performance.now();
@@ -283,42 +270,20 @@ export class CurveGame extends BaseMiniGame {
     });
   }
 
-  getCornerButtonZones(cornerIndex) {
-    const { left, right, top, bottom, size } = this.arena;
-    const btnW = Math.max(140, Math.min(240, size * 0.44));
-    const btnH = Math.max(56, Math.min(76, size * 0.16));
-    const halfW = btnW / 2;
-
-    let bx = left;
-    let by = bottom - btnH;
-
-    if (cornerIndex === 1) {
-      bx = left;
-      by = top;
-    } else if (cornerIndex === 2) {
-      bx = right - btnW;
-      by = top;
-    } else if (cornerIndex === 3) {
-      bx = right - btnW;
-      by = bottom - btnH;
-    }
-
+  getTabletopSchema() {
     return {
-      leftBtn: { x: bx, y: by, w: halfW, h: btnH },
-      rightBtn: { x: bx + halfW, y: by, w: halfW, h: btnH },
-      box: { x: bx, y: by, w: btnW, h: btnH },
+      steer: true,
+      leftLabel: '◀',
+      rightLabel: '▶',
+      actions: [],
     };
   }
 
-  determineSteerAction(cornerIndex, touch) {
-    const zone = this.getCornerButtonZones(cornerIndex);
-    const isTop = cornerIndex === 1 || cornerIndex === 2;
-    const midX = zone.box.x + zone.box.w / 2;
-    // For top players looking down at the screen, their left is towards +X
-    if (isTop) {
-      return touch.x >= midX ? 'left' : 'right';
-    } else {
-      return touch.x < midX ? 'left' : 'right';
+  onSlotSteer(slotIndex, dir) {
+    const player = this.players[slotIndex];
+    if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
+      const steerDir = (player.confusedTimer > 0) ? -dir : dir;
+      player.steer = steerDir;
     }
   }
 
@@ -349,56 +314,24 @@ export class CurveGame extends BaseMiniGame {
       return;
     }
 
-    // 3. Gameplay: Generous quadrant steering controls
+    // 3. Gameplay: Tabletop steering controls
     if (this.state === 'PLAYING') {
-      const corner = getQuadrant(this.arena, touch.x, touch.y);
-      const player = this.players[corner];
-      if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
-        const action = this.determineSteerAction(corner, touch);
-        this.cornerTouches[corner] = { id: touch.id, action };
-        const steerDir = action === 'left' ? -1 : 1;
-        player.steer = player.confusedTimer > 0 ? -steerDir : steerDir;
-      }
+      if (this.handleUiTap(touch)) return;
+      this.handleTabletopTouchStart(touch);
     }
   }
 
   onTouchMove(touch) {
     if (this.state !== 'PLAYING') return;
-
-    for (let i = 0; i < 4; i++) {
-      if (this.cornerTouches[i] && this.cornerTouches[i].id === touch.id) {
-        const player = this.players[i];
-        if (player && player.isAlive && player.slotType === 'human') {
-          const action = this.determineSteerAction(i, touch);
-          this.cornerTouches[i].action = action;
-          const steerDir = action === 'left' ? -1 : 1;
-          player.steer = player.confusedTimer > 0 ? -steerDir : steerDir;
-        }
-        break;
-      }
-    }
+    this.handleTabletopTouchMove(touch);
   }
 
   onTouchEnd(touch) {
-    for (let i = 0; i < 4; i++) {
-      if (this.cornerTouches[i] && this.cornerTouches[i].id === touch.id) {
-        this.cornerTouches[i] = { id: -1, action: null };
-        const player = this.players[i];
-        if (player && player.slotType === 'human') {
-          player.steer = 0;
-        }
-        break;
-      }
-    }
+    this.handleTabletopTouchEnd(touch);
   }
 
   onTouchesReset() {
-    this.cornerTouches = [
-      { id: -1, action: null },
-      { id: -1, action: null },
-      { id: -1, action: null },
-      { id: -1, action: null },
-    ];
+    this.resetTabletopTouches();
     this.players.forEach((p) => (p.steer = 0));
   }
 
@@ -532,8 +465,11 @@ export class CurveGame extends BaseMiniGame {
         // tuş basılıyken yazar, bırakınca keyup sıfırlar)
         if (player.slotType === 'human') {
           const ks = this.keyboardSteer(player.index);
+          const touchSteer = this.tabletopSteerState?.[player.index] || 0;
           if (ks !== 0) {
             player.steer = player.confusedTimer > 0 ? -ks : ks;
+          } else if (touchSteer !== 0) {
+            player.steer = player.confusedTimer > 0 ? -touchSteer : touchSteer;
           }
         }
 
@@ -998,7 +934,7 @@ export class CurveGame extends BaseMiniGame {
     }
 
     this.uiButtons = [];
-    this.renderCornerControls(ctx);
+    this.renderControls(ctx, { extraEntities: this.pickups });
 
     if (this.state === 'PLAYING' && this.spawnIntroTimer > 0) {
       this.renderSpawnBeacons(ctx);
@@ -1028,80 +964,6 @@ export class CurveGame extends BaseMiniGame {
     });
 
     ctx.restore();
-  }
-
-  renderCornerControls(ctx) {
-    if (this.state === 'LOBBY') return;
-
-    for (let i = 0; i < 4; i++) {
-      const player = this.players[i];
-      const zones = this.getCornerButtonZones(i);
-      const isJoined = this.isSlotJoined(i);
-      const isTop = i === 1 || i === 2;
-
-      ctx.save();
-      const cx = zones.box.x + zones.box.w / 2;
-      const cy = zones.box.y + zones.box.h / 2;
-      // Proximity Ghosting: Karakter köşeye yaklaşınca kontroller şeffaflaşır (alpha: 0.25)
-      const isNear = this.checkEntityProximity(cx, cy, 90);
-      if (isNear) ctx.globalAlpha = 0.25;
-
-      // Rotate 180° for Top players so buttons and text face that player
-      ctx.translate(cx, cy);
-      if (isTop) {
-        ctx.rotate(Math.PI);
-      }
-
-      const halfW = zones.box.w / 2;
-      const halfH = zones.box.h / 2;
-
-      if (isJoined && player.slotType === 'human' && player.isAlive) {
-        const touching = this.cornerTouches[i] || { id: -1, action: null };
-
-        // Player Name Header
-        ctx.fillStyle = player.color;
-        ctx.font = '900 12px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(player.name, 0, -halfH - 4);
-
-        const leftActive = touching.action === 'left';
-        ctx.fillStyle = leftActive ? `${player.color}CC` : 'rgba(26, 26, 26, 0.12)';
-        ctx.fillRect(-halfW, -halfH, halfW, zones.box.h);
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-halfW, -halfH, halfW, zones.box.h);
-
-        ctx.fillStyle = leftActive ? '#FFFFFF' : '#1A1A1A';
-        ctx.font = '900 14px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('◄ SOL', -halfW / 2, 0);
-
-        const rightActive = touching.action === 'right';
-        ctx.fillStyle = rightActive ? `${player.color}CC` : 'rgba(26, 26, 26, 0.12)';
-        ctx.fillRect(0, -halfH, halfW, zones.box.h);
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
-        ctx.strokeRect(0, -halfH, halfW, zones.box.h);
-
-        ctx.fillStyle = rightActive ? '#FFFFFF' : '#1A1A1A';
-        ctx.fillText(t('curve.right'), halfW / 2, 0);
-
-      } else if (this.state === 'PLAYING' && isJoined) {
-        ctx.globalAlpha = 0.42;
-        ctx.strokeStyle = player.color;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 4]);
-        ctx.strokeRect(-halfW, -halfH, zones.box.w, zones.box.h);
-        ctx.setLineDash([]);
-        ctx.fillStyle = player.color;
-        ctx.font = '800 11px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${player.name} [BOT]`, 0, 0);
-      }
-      ctx.restore();
-    }
   }
 
   renderSpawnBeacons(ctx) {

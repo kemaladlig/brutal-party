@@ -102,7 +102,6 @@ export class CrownGame extends BaseMiniGame {
         {
           id: 'tackle',
           icon: '💥',
-          label: 'TACKLE',
           cooldownField: 'tackleCooldown',
           maxCooldown: 2.0,
         },

@@ -9,6 +9,7 @@ import { renderSpatialBadge } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
+import { lobbyCenterStartTap, matchOverRestartTap } from '../core/touchFlow.js';
 
 export class Game extends BaseMiniGame {
   constructor(canvas) {
@@ -52,12 +53,8 @@ export class Game extends BaseMiniGame {
     // Interactive UI Rectangles
     this.uiButtons = [];
 
-    // Assigned touch identifier for each player (0: Bottom, 1: Top, 2: Left, 3: Right)
-    this.playerTouchIds = [-1, -1, -1, -1];
-    // 🌀 Falso skill: oyuncu başına bekleme + çift-dokun takibi
+    // 🌀 Falso skill: oyuncu başına bekleme
     this.spinCooldowns = [0, 0, 0, 0];
-    this.lastTapIdx = -1;
-    this.lastTapTime = 0;
     // PC klavye durumu (P1 WASD, P2 oklar, P3 IJKL, P4 TFGH)
     this.keys = {};
     this.initKeyboard();
@@ -78,7 +75,7 @@ export class Game extends BaseMiniGame {
     this.trauma = 0;
     this.accumulator = 0;
     this.lastTime = performance.now();
-    this.playerTouchIds = [-1, -1, -1, -1];
+    this.resetTabletopTouches();
     this.spinCooldowns = [0, 0, 0, 0];
     this.stallTimer = 0;
     this.rallyStallT = 0;
@@ -151,23 +148,65 @@ export class Game extends BaseMiniGame {
     return true;
   }
 
-  // Lokal klavye: her slot kendi ekseninde sürer (bot/ölü/katılmamış etkilenmez)
-  applyKeyboardControls(dt) {
+  getTabletopSchema() {
+    return {
+      steer: true,
+      leftLabel: '◀',
+      rightLabel: '▶',
+      actions: [
+        {
+          id: 'spin',
+          icon: '🌀',
+          cooldownField: 'spinCooldown',
+          maxCooldown: 20,
+        },
+      ],
+    };
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (!isDown || actionId !== 'spin') return;
+    this.triggerSpin(slotIndex);
+  }
+
+  // Lokal kontroller: klavye veya tabletop direksiyon butonları ile sürüş
+  applyControls(dt) {
     if (this.state !== 'PLAYING') return;
     const minDim = Math.min(this.arena.width, this.arena.height);
     const speed = minDim * 1.5;
-    const K = this.keys;
-    // Yatay kaleler l/r, dikey kaleler u/d okur (eksen kısıtı korunur)
-    const dirs = [0, 1, 2, 3].map((i) => {
-      const m = getSlotKeys(i);
-      if (i < 2) return (K[m.l] ? -1 : 0) + (K[m.r] ? 1 : 0);
-      return (K[m.u] ? -1 : 0) + (K[m.d] ? 1 : 0);
-    });
     this.paddles.forEach((p, i) => {
       if (!p.isJoined || p.isEliminated || p.isBot) return;
-      const d = dirs[i];
+      const d = this.resolveSlotMoveDir(i);
       if (d) p.setTarget(p.targetCoord + d * speed * dt);
     });
+  }
+
+  resolveSlotMoveDir(i) {
+    const touchSteer = this.tabletopSteerState?.[i] || 0;
+    const m = getSlotKeys(i);
+    const K = this.keys;
+    let kbDir = 0;
+    if (i < 2) {
+      kbDir = (K[m.l] ? -1 : 0) + (K[m.r] ? 1 : 0);
+    } else {
+      kbDir = (K[m.u] ? -1 : 0) + (K[m.d] ? 1 : 0);
+    }
+
+    // Touch steer tabletop ergonomisi (oturulan kenara göre yerel yön)
+    let touchWorldDir = 0;
+    if (touchSteer !== 0) {
+      if (i === 0) touchWorldDir = touchSteer;       // P1 (Alt): Sol = -X, Sağ = +X
+      else if (i === 1) touchWorldDir = -touchSteer;  // P2 (Üst, 180° ters): Sol = +X, Sağ = -X
+      else if (i === 2) touchWorldDir = touchSteer;   // P3 (Sol): Sol = -Y, Sağ = +Y
+      else if (i === 3) touchWorldDir = -touchSteer;  // P4 (Sağ, ters): Sol = +Y, Sağ = -Y
+    }
+
+    if (touchWorldDir !== 0) return touchWorldDir;
+    return kbDir;
+  }
+
+  applyKeyboardControls(dt) {
+    this.applyControls(dt);
   }
 
   getGoalBounds(side) {
@@ -216,68 +255,48 @@ export class Game extends BaseMiniGame {
   }
 
   onTouchStart(touch) {
-    // 1. UI interactions (Center BAŞLAT / Restart buttons)
-    const handled = this.handleUiTap(touch);
-    if (handled) return;
-
     if (this.handleRoundOverSkip('roundOverTimer')) return;
 
-    // 2. Generous Lobby Join: Touching anywhere in a player's region toggles their join status!
+    // 1. Lobi Etkileşimi
     if (this.state === 'LOBBY') {
+      if (this.handleUiTap(touch)) return;
+      if (lobbyCenterStartTap(this, touch)) return;
       const playerIndex = this.getPlayerZoneAt(touch);
       if (playerIndex !== -1) {
         this.togglePlayerJoin(playerIndex);
         return;
       }
+      return;
     }
 
-    // 3. In Gameplay: lock touch.id to player zone (+ çift-dokun = 🌀)
-    if (this.state === 'PLAYING') {
-      const playerIndex = this.getPlayerZoneAt(touch);
-      if (playerIndex !== -1 && this.isPlayerActive(playerIndex)) {
-        const now = performance.now();
-        if (playerIndex === this.lastTapIdx && now - this.lastTapTime < 320) {
-          this.triggerSpin(playerIndex);
-        }
-        this.lastTapIdx = playerIndex;
-        this.lastTapTime = now;
-        this.playerTouchIds[playerIndex] = touch.id;
-        this.updatePaddlePosition(playerIndex, touch);
-      }
+    // 2. Maç Sonu Yeniden Başlatma
+    if (this.state === 'MATCH_OVER') {
+      if (this.handleUiTap(touch)) return;
+      matchOverRestartTap(this, touch, { onRestart: () => { this.resetMatch(); playJoin(); } });
+      return;
+    }
+
+    // 3. Oyun İçi: Masa-Ortası Dokunmatik Kontrolleri
+    if (this.state === 'PLAYING' || this.state === 'ROUND_PAUSE') {
+      if (this.handleUiTap(touch)) return;
+      this.handleTabletopTouchStart(touch);
     }
   }
 
   onTouchMove(touch) {
-    if (this.state !== 'PLAYING') return;
-    for (let p = 0; p < 4; p++) {
-      if (this.playerTouchIds[p] === touch.id) {
-        this.updatePaddlePosition(p, touch);
-        break;
-      }
+    if (this.state === 'PLAYING' || this.state === 'ROUND_PAUSE') {
+      this.handleTabletopTouchMove(touch);
     }
   }
 
   onTouchEnd(touch) {
-    for (let p = 0; p < 4; p++) {
-      if (this.playerTouchIds[p] === touch.id) {
-        this.playerTouchIds[p] = -1;
-        break;
-      }
+    if (this.state === 'PLAYING' || this.state === 'ROUND_PAUSE') {
+      this.handleTabletopTouchEnd(touch);
     }
   }
 
   onTouchesReset() {
-    this.playerTouchIds = [-1, -1, -1, -1];
-  }
-
-  updatePaddlePosition(playerIndex, pos) {
-    const paddle = this.paddles[playerIndex];
-    if (!paddle) return;
-    if (paddle.axis === 'horizontal') {
-      paddle.setTarget(pos.x);
-    } else {
-      paddle.setTarget(pos.y);
-    }
+    this.resetTabletopTouches();
   }
 
   isPlayerActive(index) {
@@ -466,7 +485,7 @@ export class Game extends BaseMiniGame {
   }
 
   fixedUpdate(dt) {
-    this.applyKeyboardControls(dt);
+    this.applyControls(dt);
     for (const paddle of this.paddles) {
       paddle.update(dt);
     }
@@ -549,9 +568,6 @@ export class Game extends BaseMiniGame {
     ctx.fillStyle = '#F4F0EA';
     ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
-    // Render player touch zone indicators (outside arena)
-    this.renderTouchZones(ctx);
-
     // Screen Shake (Trauma)
     if (this.trauma > 0) {
       const shakeIntensity = this.trauma * this.trauma * 14;
@@ -611,33 +627,6 @@ export class Game extends BaseMiniGame {
       customLobby: (c) => this.renderLobbyUI(c),
     });
 
-    ctx.restore();
-  }
-
-  renderTouchZones(ctx) {
-    const { left, top, right, bottom, width: aW, height: aH } = this.arena;
-    const isPortrait = aH > aW;
-    const hasSidePlayers = (this.paddles[2] && this.paddles[2].isJoined) ||
-                           (this.paddles[3] && this.paddles[3].isJoined);
-    const labels = ['P1', 'P2', 'P3', 'P4'];
-
-    ctx.save();
-    for (const paddle of this.paddles) {
-      if (!paddle.isJoined || paddle.isEliminated) continue;
-      if (isPortrait && !hasSidePlayers && paddle.index > 1) continue;
-      ctx.globalAlpha = 0.08;
-      ctx.fillStyle = paddle.color;
-
-      if (paddle.side === 'bottom') {
-        ctx.fillRect(left, bottom, aW, window.innerHeight - bottom);
-      } else if (paddle.side === 'top') {
-        ctx.fillRect(left, 0, aW, top);
-      } else if (paddle.side === 'left') {
-        ctx.fillRect(0, top, left, aH);
-      } else if (paddle.side === 'right') {
-        ctx.fillRect(right, top, window.innerWidth - right, aH);
-      }
-    }
     ctx.restore();
   }
 

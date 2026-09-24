@@ -55,14 +55,12 @@ export class NinjaGame extends BaseMiniGame {
         {
           id: 'action',
           icon: '🗡️',
-          label: 'ATIL',
           cooldownField: 'strikeCooldown',
           maxCooldown: NINJA_STRIKE_COOLDOWN,
         },
         {
           id: 'smoke',
           icon: '💨',
-          label: 'SİS',
           color: '#6366F1',
           cooldownField: 'smokeCooldown',
           maxCooldown: NINJA_SMOKE_COOLDOWN,

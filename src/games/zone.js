@@ -142,7 +142,6 @@ export class ZoneGame extends BaseMiniGame {
         {
           id: 'dash',
           icon: '⚡',
-          label: 'DEPAR',
           cooldownField: 'dashCooldown',
           maxCooldown: ZONE_TUNING.DASH_CD,
         },

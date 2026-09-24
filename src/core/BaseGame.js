@@ -11,6 +11,9 @@ import { getQuadrant, roundOverSkipGuard } from './touchFlow.js';
 import { UI_COLORS, getDisplayProfile, shouldShowVirtualControls } from '../ui/tokens.js';
 import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { t } from '../i18n.js';
+import { drawTabletopIcon } from './tabletopIcons.js';
+
+const STEER_KEY_HINTS = ['A/D', '←/→', 'J/L', 'F/H'];
 
 export class BaseMiniGame {
   constructor(canvas) {
@@ -59,6 +62,10 @@ export class BaseMiniGame {
       { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
       { id: -1, originX: 0, originY: 0, currX: 0, currY: 0, active: false, angle: 0, force: 0 },
     ];
+
+    // Tabletop Steer (SOL / SAĞ) State tracking
+    this.tabletopSteerTouches = new Map();
+    this.tabletopSteerState = [0, 0, 0, 0];
 
     // Tabletop Multi-Touch Action State tracking
     this.tabletopActionTouches = new Map();
@@ -341,6 +348,14 @@ export class BaseMiniGame {
     };
   }
 
+  handleSlotSteer(slotIndex, dir) {
+    if (typeof this.onSlotSteer === 'function') {
+      this.onSlotSteer(slotIndex, dir);
+    } else if (this.players?.[slotIndex]) {
+      this.players[slotIndex].steer = dir;
+    }
+  }
+
   handleSlotAction(slotIndex, actionId, isDown) {
     if (typeof this.onSlotAction === 'function') {
       this.onSlotAction(slotIndex, actionId, isDown);
@@ -352,40 +367,84 @@ export class BaseMiniGame {
     const schema = this.getTabletopSchema();
     const players = this.getEntitiesList();
 
-    // 1. Action butonlarına dokunuldu mu kontrol et
-    // (butonlar çizilmiyorsa girdi de yakalamaz — görünüm ve girdi eşzamanlı)
+    // 1. Masa-ortası Dokunmatik Kontrolleri (Steer ve Action butonları)
     if (shouldShowVirtualControls({ isHosting: !!this.hideLobbyStartButton })) {
       const corners = this.getTabletopControlCorners();
       for (let i = 0; i < 4; i++) {
         const p = players?.[i];
         if (!p || !p.isJoined || p.isAlive === false || p.slotType !== 'human') continue;
         const corner = corners[i];
-        if (!corner.actionButtons) continue;
-        for (const btn of corner.actionButtons) {
-          if (
-            touch.x >= btn.x &&
-            touch.x <= btn.x + btn.w &&
-            touch.y >= btn.y &&
-            touch.y <= btn.y + btn.h
-          ) {
-            this.tabletopActionTouches.set(touch.id, { slotIndex: i, actionId: btn.id });
-            if (!this.tabletopActionState[i]) this.tabletopActionState[i] = {};
-            this.tabletopActionState[i][btn.id] = true;
-            this.handleSlotAction(i, btn.id, true);
-            return true;
+
+        // A. Steer Butonları (SOL / SAĞ)
+        if (schema.steer && corner.steerButtons) {
+          for (const sBtn of corner.steerButtons) {
+            if (
+              touch.x >= sBtn.x &&
+              touch.x <= sBtn.x + sBtn.w &&
+              touch.y >= sBtn.y &&
+              touch.y <= sBtn.y + sBtn.h
+            ) {
+              this.tabletopSteerTouches.set(touch.id, { slotIndex: i, dir: sBtn.dir });
+              this.tabletopSteerState[i] = sBtn.dir;
+              this.handleSlotSteer(i, sBtn.dir);
+              return true;
+            }
+          }
+        }
+
+        // B. Action Butonları
+        if (corner.actionButtons) {
+          for (const btn of corner.actionButtons) {
+            if (
+              touch.x >= btn.x &&
+              touch.x <= btn.x + btn.w &&
+              touch.y >= btn.y &&
+              touch.y <= btn.y + btn.h
+            ) {
+              this.tabletopActionTouches.set(touch.id, { slotIndex: i, actionId: btn.id });
+              if (!this.tabletopActionState[i]) this.tabletopActionState[i] = {};
+              this.tabletopActionState[i][btn.id] = true;
+              this.handleSlotAction(i, btn.id, true);
+              return true;
+            }
           }
         }
       }
     }
 
-    // 2. Joystick dokunması
-    if (schema.joystick !== false) {
+    // 2. Joystick dokunması (steer modunda joystick kapalıdır)
+    if (schema.joystick !== false && !schema.steer) {
       return this.handleStandardJoystickTouchStart(touch);
     }
     return false;
   }
 
   handleTabletopTouchMove(touch) {
+    if (this.tabletopSteerTouches.has(touch.id)) {
+      const info = this.tabletopSteerTouches.get(touch.id);
+      const corners = this.getTabletopControlCorners();
+      const corner = corners[info.slotIndex];
+      if (corner && corner.steerButtons) {
+        let newDir = 0;
+        for (const sBtn of corner.steerButtons) {
+          if (
+            touch.x >= sBtn.x &&
+            touch.x <= sBtn.x + sBtn.w &&
+            touch.y >= sBtn.y &&
+            touch.y <= sBtn.y + sBtn.h
+          ) {
+            newDir = sBtn.dir;
+            break;
+          }
+        }
+        if (info.dir !== newDir) {
+          info.dir = newDir;
+          this.tabletopSteerState[info.slotIndex] = newDir;
+          this.handleSlotSteer(info.slotIndex, newDir);
+        }
+      }
+      return true;
+    }
     if (this.tabletopActionTouches.has(touch.id)) {
       return true;
     }
@@ -393,6 +452,20 @@ export class BaseMiniGame {
   }
 
   handleTabletopTouchEnd(touch) {
+    if (this.tabletopSteerTouches.has(touch.id)) {
+      const info = this.tabletopSteerTouches.get(touch.id);
+      this.tabletopSteerTouches.delete(touch.id);
+      let remainingDir = 0;
+      for (const other of this.tabletopSteerTouches.values()) {
+        if (other.slotIndex === info.slotIndex) {
+          remainingDir = other.dir;
+          break;
+        }
+      }
+      this.tabletopSteerState[info.slotIndex] = remainingDir;
+      this.handleSlotSteer(info.slotIndex, remainingDir);
+      return true;
+    }
     if (this.tabletopActionTouches.has(touch.id)) {
       const info = this.tabletopActionTouches.get(touch.id);
       this.tabletopActionTouches.delete(touch.id);
@@ -406,6 +479,12 @@ export class BaseMiniGame {
   }
 
   resetTabletopTouches() {
+    for (const info of this.tabletopSteerTouches.values()) {
+      this.handleSlotSteer(info.slotIndex, 0);
+    }
+    this.tabletopSteerTouches.clear();
+    this.tabletopSteerState = [0, 0, 0, 0];
+
     for (const [touchId, info] of this.tabletopActionTouches.entries()) {
       if (this.tabletopActionState[info.slotIndex]) {
         this.tabletopActionState[info.slotIndex][info.actionId] = false;
@@ -474,13 +553,114 @@ export class BaseMiniGame {
     const profile = getDisplayProfile(this.arena || { width: w, height: h });
     const padX = Math.max(16, Math.round(26 * profile.baseUnit));
     const padY = Math.max(16, Math.round(26 * profile.baseUnit));
+
+    const schema = this.getTabletopSchema();
+    const actions = schema?.actions || [];
+
+    if (schema.steer) {
+      const steerBtnW = Math.max(72, Math.round(72 * profile.baseUnit));
+      const steerBtnH = Math.max(46, Math.round(50 * profile.baseUnit));
+      const steerGap = Math.max(6, Math.round(8 * profile.baseUnit));
+      const actBtnW = Math.max(54, Math.round(56 * profile.baseUnit));
+      const actGap = Math.max(8, Math.round(10 * profile.baseUnit));
+
+      const totalSteerW = steerBtnW * 2 + steerGap;
+      const totalClusterW = totalSteerW + (actions.length > 0 ? (actGap + actions.length * actBtnW + (actions.length - 1) * actGap) : 0);
+
+      return [0, 1, 2, 3].map((cornerIndex) => {
+        const isTop = cornerIndex === 1 || cornerIndex === 2;
+        const isRight = cornerIndex === 2 || cornerIndex === 3;
+        const rotation = isTop ? Math.PI : 0;
+
+        const boxX = isRight ? (w - padX - totalClusterW) : padX;
+        const boxY = isTop ? padY : (h - padY - steerBtnH);
+
+        // Steer Butonları (SOL ve SAĞ)
+        // Alt oyuncular (P1, P4, rotation 0): SOL buton solda, SAĞ buton sağda.
+        // Üst oyuncular (P2, P3, rotation Math.PI): 180° ters yüz oturan oyuncunun sol eli
+        // ekranın +X yönüne baktığından SOL butonu ekranın sağına eşlenir.
+        let leftX, rightX;
+        if (!isTop) {
+          leftX = boxX;
+          rightX = boxX + steerBtnW + steerGap;
+        } else {
+          leftX = boxX + totalClusterW - steerBtnW;
+          rightX = boxX + totalClusterW - (steerBtnW * 2 + steerGap);
+        }
+
+        const leftBtn = {
+          id: 'steer_left',
+          dir: -1,
+          label: schema.leftLabel || '◀',
+          keyHint: STEER_KEY_HINTS[cornerIndex]?.split('/')[0] || 'A',
+          x: leftX,
+          y: boxY,
+          w: steerBtnW,
+          h: steerBtnH,
+          cx: leftX + steerBtnW / 2,
+          cy: boxY + steerBtnH / 2,
+          rotation,
+        };
+
+        const rightBtn = {
+          id: 'steer_right',
+          dir: 1,
+          label: schema.rightLabel || '▶',
+          keyHint: STEER_KEY_HINTS[cornerIndex]?.split('/')[1] || 'D',
+          x: rightX,
+          y: boxY,
+          w: steerBtnW,
+          h: steerBtnH,
+          cx: rightX + steerBtnW / 2,
+          cy: boxY + steerBtnH / 2,
+          rotation,
+        };
+
+        // Action Butonları (Snake Boost vb.)
+        const actionButtons = [];
+        for (let idx = 0; idx < actions.length; idx++) {
+          const act = actions[idx];
+          let bx;
+          if (!isTop) {
+            bx = boxX + totalSteerW + actGap + idx * (actBtnW + actGap);
+          } else {
+            bx = boxX + idx * (actBtnW + actGap);
+          }
+          actionButtons.push({
+            id: act.id,
+            x: bx,
+            y: boxY,
+            w: actBtnW,
+            h: steerBtnH,
+            cx: bx + actBtnW / 2,
+            cy: boxY + steerBtnH / 2,
+            rotation,
+            schema: act,
+          });
+        }
+
+        return {
+          index: cornerIndex,
+          rotation,
+          isSteer: true,
+          box: {
+            x: boxX,
+            y: boxY,
+            w: totalClusterW,
+            h: steerBtnH,
+            cx: boxX + totalClusterW / 2,
+            cy: boxY + steerBtnH / 2,
+          },
+          steerButtons: [leftBtn, rightBtn],
+          actionButtons,
+        };
+      });
+    }
+
     const baseR = Math.round(44 * profile.baseUnit);
     const btnW = Math.round(56 * profile.baseUnit);
     const btnH = Math.round(50 * profile.baseUnit);
     const gap = Math.round(14 * profile.baseUnit);
-
-    const schema = this.getTabletopSchema();
-    const actions = schema?.actions || [];
 
     // Helper to generate action button rects for a given corner
     const makeActionButtons = (cornerIndex, joyX, joyY, rotation) => {
@@ -528,6 +708,14 @@ export class BaseMiniGame {
         y: joyP1Y,
         baseR,
         rotation: 0,
+        box: {
+          x: joyP1X - baseR,
+          y: joyP1Y - baseR,
+          w: baseR * 2 + (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
+          h: baseR * 2,
+          cx: joyP1X,
+          cy: joyP1Y,
+        },
         actionButtons: makeActionButtons(0, joyP1X, joyP1Y, 0),
       },
       {
@@ -536,6 +724,14 @@ export class BaseMiniGame {
         y: joyP2Y,
         baseR,
         rotation: Math.PI,
+        box: {
+          x: joyP2X - baseR,
+          y: joyP2Y - baseR,
+          w: baseR * 2 + (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
+          h: baseR * 2,
+          cx: joyP2X,
+          cy: joyP2Y,
+        },
         actionButtons: makeActionButtons(1, joyP2X, joyP2Y, Math.PI),
       },
       {
@@ -544,6 +740,14 @@ export class BaseMiniGame {
         y: joyP3Y,
         baseR,
         rotation: Math.PI,
+        box: {
+          x: joyP3X - baseR - (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
+          y: joyP3Y - baseR,
+          w: baseR * 2 + (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
+          h: baseR * 2,
+          cx: joyP3X,
+          cy: joyP3Y,
+        },
         actionButtons: makeActionButtons(2, joyP3X, joyP3Y, Math.PI),
       },
       {
@@ -552,6 +756,14 @@ export class BaseMiniGame {
         y: joyP4Y,
         baseR,
         rotation: 0,
+        box: {
+          x: joyP4X - baseR - (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
+          y: joyP4Y - baseR,
+          w: baseR * 2 + (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
+          h: baseR * 2,
+          cx: joyP4X,
+          cy: joyP4Y,
+        },
         actionButtons: makeActionButtons(3, joyP4X, joyP4Y, 0),
       },
     ];
@@ -577,8 +789,103 @@ export class BaseMiniGame {
       const corner = corners[i];
       const playerColor = p.color || UI_COLORS.primary || '#D84727';
 
-      // 1. JOYSTICK ÇİZİMİ
-      if (schema.joystick !== false) {
+      // 1. DİREKSİYON (SOL / SAĞ) BUTONLARI ÇİZİMİ
+      if (schema.steer && corner.steerButtons) {
+        const isNear = this.checkEntityProximity(corner.box.cx, corner.box.cy, corner.box.w * 0.7, extraEntities);
+
+        // A. OYUNCU İSİM VE KLAVYE ÇİPİ (Üst Bilgi Rozeti)
+        const chipText = `${p.name || resolveSlotName(i)} [${STEER_KEY_HINTS[i]}]`;
+        ctx.save();
+        ctx.font = '900 11px "JetBrains Mono", monospace';
+        const textMetrics = ctx.measureText(chipText);
+        const chipW = Math.max(80, textMetrics.width + 20);
+        const chipH = 18;
+        const isTop = corner.rotation !== 0;
+        const chipCx = corner.box.cx;
+        const chipCy = isTop ? (corner.box.y + corner.box.h + chipH / 2 + 5) : (corner.box.y - chipH / 2 - 5);
+
+        ctx.translate(chipCx, chipCy);
+        if (corner.rotation) ctx.rotate(corner.rotation);
+        ctx.globalAlpha = isNear ? 0.20 : 0.85;
+
+        // Çip gölgesi ve gövdesi
+        ctx.fillStyle = '#141416';
+        ctx.fillRect(-chipW / 2 + 2, -chipH / 2 + 2, chipW, chipH);
+        ctx.fillStyle = '#FAF7F2';
+        ctx.fillRect(-chipW / 2, -chipH / 2, chipW, chipH);
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-chipW / 2, -chipH / 2, chipW, chipH);
+
+        // Slot renk noktası
+        ctx.fillStyle = playerColor;
+        ctx.beginPath();
+        ctx.arc(-chipW / 2 + 8, 0, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Çip metni
+        ctx.fillStyle = '#1A1A1A';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(chipText, -chipW / 2 + 15, 0.5);
+        ctx.restore();
+
+        // B. DİREKSİYON BUTONLARI (SOL & SAĞ)
+        for (const sBtn of corner.steerButtons) {
+          const isPressed = this.tabletopSteerState[i] === sBtn.dir;
+          const kb = keyboardVectorFrom(this.keys, i);
+          const kbActive = (sBtn.dir < 0 && kb.x < 0) || (sBtn.dir > 0 && kb.x > 0);
+          const active = isPressed || kbActive;
+
+          ctx.save();
+          ctx.globalAlpha = isNear ? 0.20 : (active ? 0.98 : 0.75);
+          ctx.translate(sBtn.cx, sBtn.cy);
+          if (sBtn.rotation) ctx.rotate(sBtn.rotation);
+
+          const halfW = sBtn.w / 2;
+          const halfH = sBtn.h / 2;
+          const shadow = active ? 1 : 3;
+          const offset = active ? 2 : 0;
+
+          // Sert Brutalist Gölge
+          ctx.fillStyle = '#141416';
+          ctx.fillRect(-halfW + shadow, -halfH + shadow, sBtn.w, sBtn.h);
+
+          // Buton Gövdesi
+          ctx.fillStyle = active ? `${playerColor}33` : '#FAF7F2';
+          ctx.fillRect(-halfW + offset, -halfH + offset, sBtn.w, sBtn.h);
+
+          // Kenarlık
+          ctx.strokeStyle = active ? playerColor : '#1A1A1A';
+          ctx.lineWidth = active ? 2.5 : 2;
+          ctx.strokeRect(-halfW + offset, -halfH + offset, sBtn.w, sBtn.h);
+
+          // Vektör Direksiyon İkonu (◀ / ▶)
+          const steerIconColor = active ? playerColor : '#1A1A1A';
+          drawTabletopIcon(ctx, sBtn.label || sBtn.id, offset, offset + 1, 24, {
+            color: steerIconColor,
+            accentColor: playerColor,
+          });
+
+          // Klavye İpucu Rozeti ([A], [D] vb.)
+          if (sBtn.keyHint) {
+            ctx.fillStyle = 'rgba(20, 20, 22, 0.85)';
+            const badgeW = Math.max(16, sBtn.keyHint.length * 6 + 6);
+            ctx.fillRect(-halfW + offset + 2, -halfH + offset + 2, badgeW, 10);
+            ctx.font = '900 7.5px monospace';
+            ctx.fillStyle = '#FFFFFF';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(sBtn.keyHint, -halfW + offset + 2 + badgeW / 2, -halfH + offset + 7);
+          }
+
+          ctx.restore();
+        }
+      } else if (schema.joystick !== false) {
+        // 2. STANDART JOYSTICK ÇİZİMİ
         const joy = this.joysticks[i];
         if (joy.active) {
           const isNear = this.checkEntityProximity(joy.currX, joy.currY, baseR * 2.2, extraEntities) ||
@@ -673,6 +980,16 @@ export class BaseMiniGame {
             }
           }
 
+          // Cooldown hazır olma (Ready pulse) takibi
+          this._cooldownTracker = this._cooldownTracker || {};
+          this._readyPulseTracker = this._readyPulseTracker || {};
+          const pulseKey = `${i}_${btn.id}`;
+          const prevCooldown = this._cooldownTracker[pulseKey] ?? 0;
+          if (prevCooldown > 0 && cooldown <= 0 && isReady) {
+            this._readyPulseTracker[pulseKey] = performance.now();
+          }
+          this._cooldownTracker[pulseKey] = cooldown;
+
           ctx.save();
           ctx.globalAlpha = isNear ? 0.20 : (isPressed ? 0.95 : 0.70);
           ctx.translate(btn.cx, btn.cy);
@@ -709,20 +1026,36 @@ export class BaseMiniGame {
           ctx.lineWidth = isReady ? 2.5 : 1.5;
           ctx.strokeRect(-halfW + offset, -halfH + offset, btn.w, btn.h);
 
-          // İkon
-          ctx.font = 'bold 16px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(act.icon || '★', offset, -halfH + offset + btn.h * 0.38);
+          // Yetenek Doldu "Ready!" Vurgusu (Tactile shockwave ring)
+          const pulseStart = this._readyPulseTracker[pulseKey] || 0;
+          const pulseAge = performance.now() - pulseStart;
+          if (pulseAge < 400) {
+            const pNorm = pulseAge / 400;
+            const expand = Math.round(pNorm * 9);
+            ctx.save();
+            ctx.strokeStyle = playerColor;
+            ctx.lineWidth = Math.max(1.5, 3.5 * (1 - pNorm));
+            ctx.globalAlpha = (1 - pNorm) * 0.9;
+            ctx.strokeRect(-halfW + offset - expand, -halfH + offset - expand, btn.w + expand * 2, btn.h + expand * 2);
+            ctx.restore();
+          }
 
-          // Etiket veya Cooldown Süresi
-          ctx.font = '900 10px "JetBrains Mono", monospace';
-          if (isReady) {
-            ctx.fillStyle = '#141416';
-            ctx.fillText(act.label || '', offset, -halfH + offset + btn.h * 0.76);
-          } else {
+          // Vektör Arcade İkon Çizimi (Brutalist net geometri, dinamik renk)
+          const iconColor = isReady ? (isPressed ? playerColor : '#141416') : 'rgba(250, 247, 242, 0.40)';
+          const iconY = cooldown > 0 ? (offset - 4) : (offset + 1);
+          const iconKey = act.id === 'action' ? (act.icon || act.id) : (act.id || act.icon);
+          drawTabletopIcon(ctx, iconKey, offset, iconY, 24, {
+            color: iconColor,
+            isReady,
+            accentColor: playerColor,
+          });
+
+          if (!isReady && cooldown > 0) {
+            ctx.font = '900 11px "JetBrains Mono", monospace';
             ctx.fillStyle = '#F59E0B';
-            ctx.fillText(`${cooldown.toFixed(1)}s`, offset, -halfH + offset + btn.h * 0.76);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`${cooldown.toFixed(1)}s`, offset, halfH + offset - 8);
           }
 
           // Klavye İpucu Rozeti (slot başına doğru tuş; statik keyHint önceliklidir)

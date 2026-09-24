@@ -311,7 +311,6 @@ export class TanksGame extends BaseMiniGame {
         {
           id: 'fire',
           icon: '💣',
-          label: 'ATEŞ',
           cooldownField: 'reloadTimer',
           cooldownMaxField: 'reloadCooldown',
           readyField: 'chamber',

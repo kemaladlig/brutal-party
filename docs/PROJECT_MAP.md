@@ -37,13 +37,19 @@ src/core/
                             renderControls [tabletop sanal joystickler & proximity ghosting],
                             renderStandardScoreboard, renderStandardRoundBanner, renderStandardMatchOver;
                             Evrensel Masa-ortası Katmanı (Eylül 2026): getTabletopSchema (deklaratif
-                            buton şeması — joystick + actions[]: icon/label/cooldownField/maxCooldown/
-                            cooldownMaxField/readyField/holdToCharge/keyHint), getTabletopControlCorners
-                            (koşe başına joystick + buton kutuları), handleTabletopTouchStart/Move/End
-                            (buton geometrisi tek merkezden eşlenir, handleSlotAction(slot,id,isDown)
-                            sinyali), resetTabletopTouches. Motorlar özel buton çizimi geometrisi
-                            tutmaz — yalnız şema bildirir; renderControls cooldown maskesi/charge
-                            barı/proximity ghosting/slot-başı klavye rozeti çizer)
+                            buton şeması — joystick veya steer:true [◀ / ▶ direksiyon butonları] + actions[]:
+                            icon/cooldownField/maxCooldown/cooldownMaxField/readyField/holdToCharge/keyHint;
+                            sıfır metin kirliliği: butonlar büyük ortalanmış 22px ikonlarla çalışır, yazı okunmaz),
+                            getTabletopControlCorners (köşe başına joystick/steer + buton kutuları),
+                            handleTabletopTouchStart/Move/End (dokunma geometrisi tek merkezden eşlenir,
+                            handleSlotAction(slot,id,isDown) ve onSlotSteer(slot,dir) sinyali),
+                            resetTabletopTouches. Motorlar özel buton çizimi geometrisi tutmaz —
+                            yalnız şema bildirir (Snake, Curve ve Pong dahil 13 oyunun tamamı merkezi katmana bağlı);
+                            renderControls cooldown maskesi/charge barı/proximity ghosting/slot-başı klavye rozeti çizer)
+  tabletopIcons.js          Masa-ortası Vektör İkon Kütüphanesi: OS emojileri yerine saf Canvas 2D
+                            brutalist geometri (◀/▶ direksiyon, ⚡ şimşek, 🚀 roket, 💣 bomba, 🎯 nişan,
+                            💥 omuz/vuruş, 🌀 falso, 🗡️ kılıç, 💨 sis, 🦘 zıplama, 🏹 yay-ok);
+                            dinamik renk fill & hazır olma pulse desteği (Eylül 2026).
   engineRegistry.js         GAME_ORDER, CARTRIDGES (13 oyun kartuşu + metadatalar), initAllCartridges, getControllerMeta, registerEngine/getEngine/forEachEngine
   slotManager.js            Koltuk yönetimi: hostPlayerSlots (+avatar/displayColor), updateHostSlot,
                             syncSlotsToEngine, swapEngineSlots, getColorClashIndices (sert renk engeli)

@@ -50,6 +50,10 @@ export class Paddle {
     this.spinCharge = 0;
   }
 
+  get spinCooldown() {
+    return this.game?.spinCooldowns?.[this.index] || 0;
+  }
+
   cycleSlotType() {
     if (this.slotType === 'empty') {
       this.slotType = 'human';

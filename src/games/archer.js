@@ -329,7 +329,7 @@ export class ArcherGame extends BaseMiniGame {
       joystick: true,
       actions: [
         // keyHint verilmedi: rozet slot başına doğru aksiyon tuşunu gösterir (SPACE/ENTER/O/B)
-        { id: 'action', icon: '🏹', label: 'YAY GER', holdToCharge: true, chargeField: 'charge' },
+        { id: 'action', icon: '🏹', holdToCharge: true, chargeField: 'charge' },
       ],
     };
   }

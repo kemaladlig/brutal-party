@@ -82,8 +82,8 @@ export class LaserGame extends BaseMiniGame {
       joystick: true,
       actions: [
         // Basılı tut = nişan (yavaşla), bırak = ateş; şarj barı isAiming'den gelir
-        { id: 'fire', icon: '🎯', label: 'NİŞAN/ATEŞ', holdToCharge: true },
-        { id: 'dash', icon: '⚡', label: 'DASH', cooldownField: 'dashCooldown', maxCooldown: LASER_TUNING.DASH_CD },
+        { id: 'fire', icon: '🎯', holdToCharge: true },
+        { id: 'dash', icon: '⚡', cooldownField: 'dashCooldown', maxCooldown: LASER_TUNING.DASH_CD },
       ],
     };
   }

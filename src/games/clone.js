@@ -44,7 +44,6 @@ export class CloneGame extends BaseMiniGame {
         {
           id: 'tackle',
           icon: '💥',
-          label: 'İNFAZ',
           cooldownField: 'dashCooldown',
           maxCooldown: CLONE_DASH_COOLDOWN,
         },

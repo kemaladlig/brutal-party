@@ -118,7 +118,6 @@ export class BombGame extends BaseMiniGame {
         {
           id: 'dash',
           icon: '⚡',
-          label: 'DEPAR',
           color: '#FFDE59',
           cooldownField: 'dashCooldown',
           cooldownMaxField: 'dashMaxCooldown',
