@@ -6,9 +6,17 @@ import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js'
 import { t } from '../i18n.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCollapseBotAI } from '../ai/collapseAI.js';
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { readSlotKeys } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import {
+  createCollapseWorldPacket,
+  drawCollapseFalling,
+  drawCollapseGrid,
+  drawCollapseWaves,
+  drawCollapsePickups,
+  drawCollapsePlayers,
+} from './collapseView.js';
+import { drawCircleParticles } from './worldCore.js';
 
 export const COLLAPSE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const COLLAPSE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -190,6 +198,10 @@ export class CollapseGame extends BaseMiniGame {
     if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
       this.attemptJump(player);
     }
+  }
+
+  createWorldPacket() {
+    return createCollapseWorldPacket(this);
   }
 
   initKeyboard() {
@@ -779,179 +791,36 @@ export class CollapseGame extends BaseMiniGame {
     }
 
     // 2. DÜŞEN 3D BLOKLAR (Uçurumda aşağı düşenler — dönerek düşer)
-    for (const ft of this.fallingTiles) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, ft.alpha);
-      ctx.translate(ft.x, ft.y);
-      ctx.rotate(ft.rot || 0);
-      ctx.scale(ft.scale, ft.scale);
-      // Renk varyasyonu: turuncu-kırmızı tonları
-      const rc = ft.colorVariant || '#D99B26';
-      ctx.fillStyle = rc;
-      ctx.fillRect(-ft.size / 2, -ft.size / 2, ft.size, ft.size);
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(-ft.size / 2, -ft.size / 2, ft.size, ft.size);
-      ctx.restore();
-    }
+    drawCollapseFalling(ctx, this.fallingTiles);
 
-    // 3. 3D IZGARA ZEMİNİ (Derinlikli Bloklar)
-    const padding = 1.5;
-    const bevel = 4;
-    const nowMs = performance.now();
-
+    // 3. 3D IZGARA ZEMİNİ (Derinlikli Bloklar) — ortak collapseView draw'ı
+    const gridStates = new Array(this.gridROWS * this.gridCOLS);
+    const gridWarn = [];
     for (let r = 0; r < this.gridROWS; r++) {
       for (let c = 0; c < this.gridCOLS; c++) {
         const tile = this.grid[r][c];
-        if (tile.state === 2) continue;
-
-        const tx = this.offsetX + c * this.cellSize;
-        const ty = this.offsetY + r * this.cellSize;
-        const tw = this.cellSize - padding * 2;
-        const th = this.cellSize - padding * 2;
-
-        let wobbleX = 0, wobbleY = 0, scaleAdd = 0;
-        if (tile.state === 1) {
-          wobbleX = (Math.random() - 0.5) * 5;
-          wobbleY = (Math.random() - 0.5) * 5;
-          // Pulse: skalede hafif büyüme-küçülme (ratio ile orantılı)
-          const ratio = Math.max(0, Math.min(1, tile.timer / 0.85));
-          scaleAdd = Math.sin(nowMs / 80 + r + c) * 0.045 * ratio;
-        }
-
-        const bx = tx + padding + wobbleX;
-        const by = ty + padding + wobbleY;
-        const scl = 1 + scaleAdd;
-        const ox = bx + tw / 2;
-        const oy = by + th / 2;
-
-        // 3D Taban Gölgesi
-        ctx.save();
-        ctx.translate(ox, oy);
-        ctx.scale(scl, scl);
-        ctx.fillStyle = '#0B0B0B';
-        ctx.fillRect(-tw / 2, -th / 2 + bevel, tw, th);
-
-        if (tile.state === 0) {
-          // Sağlam zemin — hafif renk varyasyonu (her karo biraz farklı ton)
-          const toneShift = ((r * 7 + c * 13) % 18) - 9; // -9 to +9
-          const baseL = 248 + toneShift;
-          ctx.fillStyle = `rgb(${baseL}, ${baseL - 3}, ${baseL - 8})`;
-          ctx.fillRect(-tw / 2, -th / 2, tw, th);
-          ctx.strokeStyle = '#2B2B2B';
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(-tw / 2, -th / 2, tw, th);
-        } else {
-          // Uyarı / Çöken Zemin: Sarıdan kızıl kırmızıya smooth gradient geçişi
-          const ratio = Math.max(0, Math.min(1, tile.timer / 0.85));
-          // ratio=1 → sarı (#FF9A00), ratio=0 → kırmızı (#FF1A0A)
-          const rr = 255;
-          const gg = Math.floor(154 * ratio + 26 * (1 - ratio));
-          const bb = Math.floor(0);
-          ctx.fillStyle = `rgb(${rr}, ${gg}, ${bb})`;
-          ctx.fillRect(-tw / 2, -th / 2, tw, th);
-          // Üst parlak şerit (ısı vurgusu)
-          ctx.fillStyle = `rgba(255, ${Math.floor(220 * ratio + 100)}, 60, 0.55)`;
-          ctx.fillRect(-tw / 2, -th / 2, tw, th * 0.35);
-          ctx.strokeStyle = ratio > 0.5 ? '#C84A00' : '#991200';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(-tw / 2, -th / 2, tw, th);
-        }
-        ctx.restore();
+        const state = tile && (tile.state === 1 || tile.state === 2) ? tile.state : 0;
+        const idx = r * this.gridCOLS + c;
+        gridStates[idx] = state;
+        if (state === 1) gridWarn.push([idx, tile.timer]);
       }
     }
+    drawCollapseGrid(ctx, this.arena, this.cellSize, gridStates, gridWarn, {
+      withFx: this.state === 'PLAYING',
+      now,
+    });
 
     // 4. ŞOK DALGALARI
-    for (const sw of this.shockwaves) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, sw.alpha);
-      ctx.strokeStyle = sw.color;
-      ctx.lineWidth = 3.5;
-      ctx.beginPath();
-      ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
+    drawCollapseWaves(ctx, this.shockwaves);
 
     // 5. GÜÇLENDİRMELER (Pickups)
-    for (const pu of this.pickups) {
-      const pulse = 1 + Math.sin(now / 200 + pu.pulse) * 0.12;
-      const r = 13 * pulse;
-
-      ctx.save();
-      ctx.translate(pu.x, pu.y);
-
-      // Zemin Halka Işığı
-      ctx.strokeStyle = pu.type === 'SUPER_JUMP' ? '#FFDE59' : (pu.type === 'REPAIR_TILES' ? '#2F6A4F' : '#1D5D8A');
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(0, 0, r + 4, 0, Math.PI * 2); ctx.stroke();
-
-      ctx.fillStyle = '#FAF7F2';
-      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 2; ctx.stroke();
-
-      ctx.font = '900 13px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const icon = pu.type === 'SUPER_JUMP' ? '🦘' : (pu.type === 'REPAIR_TILES' ? '🔨' : '💨');
-      ctx.fillText(icon, 0, 0);
-
-      ctx.restore();
-    }
+    drawCollapsePickups(ctx, this.pickups, now);
 
     // 6. OYUNCULAR (Havada yükselme, gölge derinliği ve şok halkası)
-    for (const player of this.players) {
-      if (!player.isJoined || !player.isAlive) continue;
-
-      const isJumping = player.jumpTimer > 0;
-      const jumpProgress = isJumping ? (player.jumpTimer / 0.45) : 0;
-      const jumpHeight = isJumping ? Math.sin(jumpProgress * Math.PI) * 16 : 0;
-      const scale = 1.0 + (jumpHeight / 16) * 0.45;
-
-      ctx.save();
-      // Zemin Gölgesi
-      ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.beginPath();
-      ctx.arc(player.x, player.y + 4, Math.max(4, 9 - jumpHeight * 0.3), 0, Math.PI * 2);
-      ctx.fill();
-
-      // Oyuncu Gövdesi (Zıplama yüksekliği kadar yukarı çizilir)
-      ctx.translate(player.x, player.y - jumpHeight);
-      ctx.scale(scale, scale);
-
-      // Süper Zıplama Aurası (çift-stroke: koyu taban + sarı üst)
-      if (player.superJumpTimer > 0) {
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 4.5;
-        ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.stroke();
-        ctx.strokeStyle = '#FFDE59';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.stroke();
-      }
-
-      drawBrutalAvatar(ctx, 0, 0, 9.5, {
-        color: player.color,
-        slotIndex: player.index,
-        label: `P${player.index + 1}`,
-        expression: isJumping ? 'excited' : (player.superJumpTimer > 0 ? 'wink' : 'normal'),
-        showPointer: false,
-        borderWidth: 2.5,
-        shadowOffset: 2,
-      });
-
-      ctx.restore();
-    }
+    drawCollapsePlayers(ctx, this.players);
 
     // 7. PARÇACIKLAR
-    for (const p of this.particles) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+    drawCircleParticles(ctx, this.particles);
 
     if (this.state === 'PLAYING') {
       this.renderControls(ctx);

@@ -65,6 +65,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.tanks',
     color: '#3B82F6',
     schema: GAMEPAD_SCHEMAS.TANKS,
+    worldView: {
+      load: () => import('../ui/tanksWorldView.js'),
+    },
     load: () => import('../games/tanks.js').then((m) => m.TanksGame),
     createEngine: (game) => {
       return {
@@ -73,6 +76,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => ({
           scores: game.scores,
           ammo: game.tanks.map((t) => {
@@ -92,6 +96,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.curve',
     color: '#10B981',
     schema: GAMEPAD_SCHEMAS.CURVE,
+    worldView: {
+      load: () => import('../ui/curveWorldView.js'),
+    },
     load: () => import('../games/curve.js').then((m) => m.CurveGame),
     createEngine: (game) => {
       return {
@@ -100,6 +107,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => ({ scores: game.scores, alive: game.players.map((p) => p.isAlive ?? p.alive) }),
       };
     },
@@ -112,6 +120,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.bomb',
     color: '#EF4444',
     schema: GAMEPAD_SCHEMAS.BOMB,
+    worldView: {
+      load: () => import('../ui/bombWorldView.js'),
+    },
     load: () => import('../games/bomb.js').then((m) => m.BombGame),
     createEngine: (game) => {
       return {
@@ -120,6 +131,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => ({
           scores: game.scores,
           carrier: game.bombCarrierIndex,
@@ -137,6 +149,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.heist',
     color: '#F59E0B',
     schema: GAMEPAD_SCHEMAS.HEIST,
+    worldView: {
+      load: () => import('../ui/heistWorldView.js'),
+    },
     load: () => import('../games/heist.js').then((m) => m.HeistGame),
     createEngine: (game) => {
       return {
@@ -145,6 +160,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => ({
           scores: game.scores,
           timeLeft: Math.ceil(game.roundTimer || 0),
@@ -163,6 +179,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.archer',
     color: '#8B5CF6',
     schema: GAMEPAD_SCHEMAS.ARCHER,
+    worldView: {
+      load: () => import('../ui/archerWorldView.js'),
+    },
     load: () => import('../games/archer.js').then((m) => m.ArcherGame),
     createEngine: (game) => {
       return {
@@ -171,6 +190,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
@@ -214,6 +234,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.zone',
     color: '#06B6D4',
     schema: GAMEPAD_SCHEMAS.ZONE,
+    worldView: {
+      load: () => import('../ui/zoneWorldView.js'),
+    },
     load: () => import('../games/zone.js').then((m) => m.ZoneGame),
     createEngine: (game) => {
       return {
@@ -222,6 +245,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => ({
           scores: game.scores,
           pct: game.pct.map((p) => Math.round(p)),
@@ -270,6 +294,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.laser',
     color: '#EC4899',
     schema: GAMEPAD_SCHEMAS.LASER,
+    worldView: {
+      load: () => import('../ui/laserWorldView.js'),
+    },
     load: () => import('../games/laser.js').then((m) => m.LaserGame),
     createEngine: (game) => {
       return {
@@ -278,6 +305,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
@@ -302,6 +330,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.clone',
     color: '#6366F1',
     schema: GAMEPAD_SCHEMAS.CLONE,
+    worldView: {
+      load: () => import('../ui/cloneWorldView.js'),
+    },
     load: () => import('../games/clone.js').then((m) => m.CloneGame),
     createEngine: (game) => {
       return {
@@ -310,6 +341,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
@@ -326,6 +358,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.collapse',
     color: '#64748B',
     schema: GAMEPAD_SCHEMAS.COLLAPSE,
+    worldView: {
+      load: () => import('../ui/collapseWorldView.js'),
+    },
     load: () => import('../games/collapse.js').then((m) => m.CollapseGame),
     createEngine: (game) => {
       return {
@@ -334,6 +369,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
@@ -350,6 +386,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.ninja',
     color: '#1E293B',
     schema: GAMEPAD_SCHEMAS.NINJA,
+    worldView: {
+      load: () => import('../ui/ninjaWorldView.js'),
+    },
     load: () => import('../games/ninja.js').then((m) => m.NinjaGame),
     createEngine: (game) => {
       return {
@@ -358,6 +397,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),

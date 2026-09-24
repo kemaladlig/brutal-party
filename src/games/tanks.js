@@ -2,15 +2,23 @@
 import { getSlotCustomization, ensureLocalSeatColor, getBotPersona } from '../core/customizationManager.js';
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
 import { t } from '../i18n.js';
-import { renderTopPill, renderEntityHUD } from '../ui/hud.js';
+import { renderTopPill } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
-import { drawPickup } from '../core/arenaKit.js';
 import { resolveSlotName } from '../core/slotManager.js';
 import { updateTankBotAI as runTankBotAI } from '../ai/tankAI.js';
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { lobbyCenterStartTap } from '../core/touchFlow.js';
+import {
+  createTanksWorldPacket,
+  getTankAmmoVisual,
+  drawTanksArena,
+  drawTanksBullets,
+  drawTanksTracers,
+  drawTanksCrates,
+  drawTanksTanks,
+} from './tanksView.js';
+import { drawSquareParticles } from './worldCore.js';
 
 export const TANK_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const TANK_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -246,6 +254,14 @@ export class TanksGame extends BaseMiniGame {
   // bırakma = dur + ateş (dokunmatik BIRAK ile aynı). Kumanda girdisiyle
   // aynı alana yazar (last-writer-wins); kbDriving bayrağı klavyenin
   // bıraktığı latch'i, uzaktaki sürüşü ezmeden temizler.
+  createWorldPacket() {
+    return createTanksWorldPacket(this);
+  }
+
+  ammoVisual(tank) {
+    return getTankAmmoVisual(tank);
+  }
+
   initKeyboard() {
     // Hareket/set ve ateş tuşları inputMaps STANDARD'tan türetilir (kopya yok)
     const MOVE_KEYS = [0, 1, 2, 3].map((i) => {
@@ -1076,136 +1092,33 @@ export class TanksGame extends BaseMiniGame {
       ctx.translate((Math.random() - 0.5) * intensity, (Math.random() - 0.5) * intensity);
     }
 
-    const { left, top, width, height, size, right, bottom, cx, cy } = this.arena;
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(left, top, width, height);
-
-    // Taktik Zemin Izgarası & Brutalist Çapraz Merkez İşaretleri
-    ctx.strokeStyle = '#E5E0D6';
-    ctx.lineWidth = 1.5;
-    const gridStep = size / 6;
-    for (let x = left + gridStep; x < right; x += gridStep) {
-      ctx.beginPath();
-      ctx.moveTo(x, top);
-      ctx.lineTo(x, bottom);
-      ctx.stroke();
-    }
-    for (let y = top + gridStep; y < bottom; y += gridStep) {
-      ctx.beginPath();
-      ctx.moveTo(left, y);
-      ctx.lineTo(right, y);
-      ctx.stroke();
-    }
-
-    // Merkez hedef taktik halkası
-    ctx.strokeStyle = '#DDD7CC';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, size * 0.15, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // 4 Köşe Takviye Braketleri (L-plates)
-    const bLen = Math.max(16, Math.round(size * 0.05));
-    ctx.strokeStyle = '#2B2B28';
-    ctx.lineWidth = 3;
-    const cornerPlates = [
-      [[left, top + bLen], [left, top], [left + bLen, top]],
-      [[right - bLen, top], [right, top], [right, top + bLen]],
-      [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
-      [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
-    ];
-    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.lineTo(x3, y3);
-      ctx.stroke();
-    }
-
-    // Taktik Döküm Duvar ve Engel Blokları (Sert Gölge + Üst Işık Piti + Köşe Perçinleri)
-    for (const obs of this.obstacles) {
-      // 1. Sert Zemin Döküm Gölgesi
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(obs.x + 4, obs.y + 4, obs.w, obs.h);
-
-      // 2. Beton / Zırh Gövde
-      ctx.fillStyle = '#2B2B28';
-      ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-
-      // 3. Kalın Dış Çerçeve
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
-
-      // 4. Üst/Sol Metalik Işık Çizgisi
-      ctx.strokeStyle = '#5E5E58';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(obs.x + 2, obs.y + obs.h - 2);
-      ctx.lineTo(obs.x + 2, obs.y + 2);
-      ctx.lineTo(obs.x + obs.w - 2, obs.y + 2);
-      ctx.stroke();
-
-      // 5. İç Havalandırma / Taktik Yarık Deseni (Yeterince genişse)
-      if (obs.w >= 28 && obs.h >= 28) {
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 2;
-        const pad = 6;
-        ctx.strokeRect(obs.x + pad, obs.y + pad, obs.w - pad * 2, obs.h - pad * 2);
-        // Merkez Perçin Noktası
-        ctx.fillStyle = '#D99B26';
-        ctx.beginPath();
-        ctx.arc(obs.x + obs.w / 2, obs.y + obs.h / 2, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // Dış Sınır & Döküm Çelik Gölge
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(right, top + 6, 6, height);
-    ctx.fillRect(left + 6, bottom, width, 6);
-
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(left, top, width, height);
+    // Arena sahnesi ortak tanksView draw'larından gelir (host↔client aynı).
+    drawTanksArena(ctx, this.arena, this.obstacles);
 
     this.uiButtons = [];
 
-    for (const b of this.bullets) {
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fill();
+    drawTanksBullets(ctx, this.bullets, TANK_COLORS);
+    drawSquareParticles(ctx, this.particles);
+    drawTanksTracers(ctx, this.shotTracers);
+    drawTanksCrates(ctx, this.crates);
 
-      // Merminin kime ait olduğunu gösteren iç çekirdek noktası
-      const ownerColor = TANK_COLORS[b.owner];
-      if (ownerColor) {
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.radius * 0.55, 0, Math.PI * 2);
-        ctx.fillStyle = ownerColor;
-        ctx.fill();
-      }
-    }
-
-    for (const p of this.particles) {
-      const alpha = p.life / p.maxLife;
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = alpha;
-      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
-      ctx.globalAlpha = 1.0;
-    }
-
-    this.renderShotTracers(ctx);
-
-    // Render Tactical Supply Crates (Canlı İkon Rozetleri)
-    for (const crate of this.crates) {
-      drawPickup(ctx, crate, { size: crate.size || 24 });
-    }
-
-    for (const tank of this.tanks) {
-      if (!tank.isJoined) continue;
-      this.drawTank(ctx, tank);
-    }
+    const sceneTanks = this.tanks.map((tk) => ({
+      ...tk,
+      slot: tk.index,
+      driving: tk.isDriving === true,
+      muzzle: tk.muzzleFlashTimer || 0,
+      bot: tk.slotType === 'bot_normal' || tk.slotType === 'bot_god',
+      god: tk.slotType === 'bot_god',
+      shield: tk.hasShield === true,
+      eshield: tk.shield === true,
+      stun: (tk.stunTimer || 0) > 0,
+      chamber: Math.max(0, Number(tk.chamber ?? tk.maxBullets ?? 2) || 0),
+      maxAmmo: Math.max(1, Number(tk.maxBullets) || 2),
+      reload: tk.reloadTimer || 0,
+      reloadCd: tk.reloadCooldown || 1.1,
+      triple: tk.hasTripleShot === true,
+    }));
+    drawTanksTanks(ctx, sceneTanks, { arena: this.arena, withFx: this.state === 'PLAYING' });
 
     if (this.state === 'PLAYING' && this.spawnIntroTimer > 0) {
       this.renderSpawnBeacons(ctx);
@@ -1297,127 +1210,6 @@ export class TanksGame extends BaseMiniGame {
     });
   }
 
-  drawTank(ctx, tank) {
-    if (!tank.isAlive) return;
-
-    ctx.save();
-    ctx.translate(tank.x, tank.y);
-    ctx.rotate(tank.angle);
-
-    const s = tank.size;
-
-    // Tread lines
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(-s / 2 - 3, -s / 2, 5, s);
-    ctx.fillRect(s / 2 - 2, -s / 2, 5, s);
-
-    // Tank Body
-    ctx.fillStyle = tank.color;
-    ctx.fillRect(-s / 2 + 2, -s / 2 + 2, s - 4, s - 4);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5;
-    ctx.strokeRect(-s / 2 + 2, -s / 2 + 2, s - 4, s - 4);
-
-    // Turret Barrel (pointing along +X)
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(0, -3.5, s * 0.78, 7);
-
-    // Turret Center Dome / Commander Cupola (Avatar Hatch)
-    ctx.save();
-    const isBot = tank.slotType === 'bot_normal' || tank.slotType === 'bot_god';
-    const isGod = tank.slotType === 'bot_god';
-    drawBrutalAvatar(ctx, 0, 0, s * 0.32, {
-      color: tank.color,
-      slotIndex: tank.index,
-      slotType: tank.slotType,
-      isBot: isBot,
-      isGodBot: isGod,
-      facingAngle: 0,
-      expression: tank.isDriving ? 'FOCUS' : 'normal',
-      showPointer: false,
-      borderWidth: 1.8,
-      shadowOffset: 1,
-    });
-    ctx.restore();
-
-    ctx.restore();
-
-    if (tank.muzzleFlashTimer > 0) {
-      ctx.save();
-      ctx.translate(tank.x, tank.y);
-      ctx.rotate(tank.angle);
-      ctx.globalAlpha = tank.muzzleFlashTimer / 0.12;
-      ctx.fillStyle = '#FFDE59';
-      ctx.beginPath();
-      ctx.moveTo(tank.size * 0.72, 0);
-      ctx.lineTo(tank.size * 0.38, -tank.size * 0.2);
-      ctx.lineTo(tank.size * 0.38, tank.size * 0.2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // Protective Shield Ring
-    if (tank.hasShield) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(tank.x, tank.y, tank.size * 0.92, 0, Math.PI * 2);
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([4, 4]);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // Draw Ammo Dots
-    this.drawTankAmmo(ctx, tank);
-  }
-
-  renderShotTracers(ctx) {
-    for (const tracer of this.shotTracers) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, tracer.life / 0.12);
-      ctx.strokeStyle = tracer.color;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(tracer.x1, tracer.y1);
-      ctx.lineTo(tracer.x2, tracer.y2);
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-
-  // Mermi görseli kuralı (3 yüzeyde aynı): her yuva hep çizilir.
-  // dolu = tam renk, dolan = gri zemin + renkli ilerleme, boş = içi boş çerçeve. Yazı yok.
-  // Şarjör sayacı: ateşlenen yuva soldan dolar, ikinci mermi de animasyonla gelir.
-  ammoVisual(tank) {
-    const max = tank.maxBullets || 2;
-    const chamber = Math.max(0, Math.min(max, tank.chamber ?? max));
-    const isReloading = tank.reloadTimer > 0 && chamber < max;
-    const loadIdx = isReloading ? chamber : -1;
-    const progress = loadIdx >= 0
-      ? Math.max(0, Math.min(1, 1 - tank.reloadTimer / (tank.reloadCooldown || 1.1)))
-      : 0;
-    return { available: chamber, isReloading, loadIdx, progress, readyCount: chamber };
-  }
-
-  drawTankAmmo(ctx, tank) {
-    const v = this.ammoVisual(tank);
-    const pipColor = tank.hasTripleShot ? '#FFDE59' : tank.color;
-
-    renderEntityHUD(ctx, {
-      x: tank.x,
-      y: tank.y,
-      radius: tank.size || 20,
-      color: pipColor,
-      arena: this.arena,
-      ammo: v.readyCount,
-      maxAmmo: tank.maxBullets || 2,
-      reloadProgress: v.progress,
-      shield: !!tank.shield,
-      stun: !!tank.stunTimer,
-    });
-  }
 
 
 }

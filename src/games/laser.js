@@ -4,15 +4,23 @@
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGunshot, playDashWhoosh, playItemPickup, playStumble } from '../audio.js';
 import { t } from '../i18n.js';
-import { renderEntityHUD, renderArenaWatermarkTimer } from '../ui/hud.js';
+import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
-import { drawPickup } from '../core/arenaKit.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, updateMovers } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
+import {
+  createLaserWorldPacket,
+  mapLaserPlayers,
+  drawLaserArena,
+  drawLaserPickups,
+  drawLaserAims,
+  drawLaserShots,
+  drawLaserPlayers,
+} from './laserView.js';
+import { drawCircleParticles, drawAlphaTexts } from './worldCore.js';
 
 export const LASER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const LASER_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -100,6 +108,10 @@ export class LaserGame extends BaseMiniGame {
     } else if (actionId === 'dash' && isDown) {
       this.triggerDash(slotIndex);
     }
+  }
+
+  createWorldPacket() {
+    return createLaserWorldPacket(this, LASER_TUNING);
   }
 
   initKeyboard() {
@@ -960,109 +972,12 @@ export class LaserGame extends BaseMiniGame {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     this.applyScreenShake(ctx);
 
-    const { left, top, width, height } = this.arena;
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(left, top, width, height);
-
-    // Floor Markings Grid & Tactile Corner Brackets
-    ctx.strokeStyle = '#E8E2D8';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(left + width * 0.12, top + height * 0.12, width * 0.76, height * 0.76);
-
-    const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
-    ctx.strokeStyle = '#2B2B28';
-    ctx.lineWidth = 3;
-    const cornerPlates = [
-      [[left, top + bLen], [left, top], [left + bLen, top]],
-      [[left + width - bLen, top], [left + width, top], [left + width, top + bLen]],
-      [[left, top + height - bLen], [left, top + height], [left + bLen, top + height]],
-      [[left + width - bLen, top + height], [left + width, top + height], [left + width, top + height - bLen]],
-    ];
-    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.lineTo(x3, y3);
-      ctx.stroke();
-    }
-
-    // Sabit Döküm Duvar ve Barikat Engelleri (Tactile Cast Obstacles)
-    for (const obs of this.obstacles) {
-      // 1. Zemin Sert Gölge
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(obs.x + 4, obs.y + 4, obs.w, obs.h);
-
-      // 2. Barikat Gövdesi
-      ctx.fillStyle = '#262624';
-      ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-
-      // 3. Kalın Dış Çerçeve
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
-
-      // 4. Üst/Sol Metalik Pah Çizgisi
-      ctx.strokeStyle = '#5A5A52';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(obs.x + 2, obs.y + obs.h - 2);
-      ctx.lineTo(obs.x + 2, obs.y + 2);
-      ctx.lineTo(obs.x + obs.w - 2, obs.y + 2);
-      ctx.stroke();
-
-      // 5. İç Taktik Barikat Çaprazı (Yeterli boyut varsa)
-      if (obs.w >= 28 && obs.h >= 28) {
-        ctx.strokeStyle = '#3A3A34';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(obs.x + 6, obs.y + 6);
-        ctx.lineTo(obs.x + obs.w - 6, obs.y + obs.h - 6);
-        ctx.moveTo(obs.x + obs.w - 6, obs.y + 6);
-        ctx.lineTo(obs.x + 6, obs.y + obs.h - 6);
-        ctx.stroke();
-      }
-    }
-
-    // Hareketli duvarlar (ray çizgisi + neo-brutalist sarı/gri desenli sürgülü gövde)
-    for (const mw of this.movingWalls) {
-      ctx.save();
-      // Ray / hareket ekseni izi
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.22)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      if (mw.axis === 'y') {
-        const midX = mw.x + mw.w / 2;
-        ctx.moveTo(midX, mw.minY);
-        ctx.lineTo(midX, mw.maxY + mw.h);
-      } else {
-        const midY = mw.y + mw.h / 2;
-        ctx.moveTo(mw.minX, midY);
-        ctx.lineTo(mw.maxX + mw.w, midY);
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Duvar gövdesi
-      ctx.fillStyle = '#262626';
-      ctx.fillRect(mw.x, mw.y, mw.w, mw.h);
-      ctx.strokeStyle = '#111111';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(mw.x, mw.y, mw.w, mw.h);
-
-      // Merkez uyarı şeridi (sarı neo-brutalist aksan)
-      ctx.fillStyle = '#EAB308';
-      if (mw.axis === 'y') {
-        ctx.fillRect(mw.x + 2, mw.y + mw.h * 0.3, mw.w - 4, mw.h * 0.4);
-      } else {
-        ctx.fillRect(mw.x + mw.w * 0.3, mw.y + 2, mw.w * 0.4, mw.h - 4);
-      }
-      ctx.restore();
-    }
-
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(left, top, width, height);
+    // Arena sahnesi ortak laserView draw'larından gelir (host↔client aynı).
+    const withFx = this.state === 'PLAYING';
+    const scenePlayers = mapLaserPlayers(
+      this.players, this.lasers, LASER_TUNING, (p) => this.traceAim(p), withFx,
+    );
+    drawLaserArena(ctx, this.arena, this.obstacles, this.movingWalls);
 
     // Duvar ve engellerin üzerinde her zaman net görünen sayaç & köşe skorları
     if (this.state === 'PLAYING') {
@@ -1079,215 +994,22 @@ export class LaserGame extends BaseMiniGame {
     }
 
     // Pickup'lar (Canlı İkon Rozetleri)
-    for (const pk of this.pickups) {
-      drawPickup(ctx, pk, { size: 30 });
-    }
+    drawLaserPickups(ctx, this.pickups);
 
     // Nişan önizlemeleri (canlı oyuncular, 2 sekme)
-    if (this.state === 'PLAYING') {
-      ctx.save();
-      for (const player of this.players) {
-        if (!player.isJoined || !player.isAlive) continue;
-        let active = 0;
-        for (const lz of this.lasers) if (lz.owner === player.index) active++;
-        const isReady = (player.ammo > 0) && (player.shotCooldown <= 0) && (active < LASER_TUNING.MAX_ACTIVE);
-
-        const pts = this.traceAim(player);
-        ctx.strokeStyle = player.color;
-        if (player.isAiming) {
-          ctx.globalAlpha = 0.95;
-          ctx.lineWidth = 3.5;
-          ctx.setLineDash([8, 4]);
-        } else {
-          ctx.globalAlpha = isReady ? 0.55 : 0.3;
-          ctx.lineWidth = isReady ? 2.2 : 1.6;
-          ctx.setLineDash(isReady ? [6, 4] : [2, 6]);
-        }
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Sekme noktalarında parlama ve nişan ucu reticle
-        if (pts.length > 1) {
-          ctx.fillStyle = player.color;
-          for (let i = 1; i < pts.length - 1; i++) {
-            ctx.beginPath(); ctx.arc(pts[i].x, pts[i].y, player.isAiming ? 4.5 : 3, 0, Math.PI * 2); ctx.fill();
-          }
-          if (player.isAiming) {
-            const endPt = pts[pts.length - 1];
-            ctx.strokeStyle = '#1A1A1A';
-            ctx.lineWidth = 3.5;
-            ctx.beginPath();
-            ctx.arc(endPt.x, endPt.y, 5, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.arc(endPt.x, endPt.y, 5, 0, Math.PI * 2);
-            ctx.stroke();
-          }
-        }
-      }
-      ctx.restore();
-    }
+    if (withFx) drawLaserAims(ctx, scenePlayers);
 
     // Lazerler
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    for (const laser of this.lasers) {
-      ctx.lineWidth = 5;
-      ctx.strokeStyle = laser.color;
-      ctx.beginPath();
-      if (laser.history.length > 0) {
-        ctx.moveTo(laser.history[0].x, laser.history[0].y);
-        for (let i = 1; i < laser.history.length; i++) {
-          ctx.lineTo(laser.history[i].x, laser.history[i].y);
-        }
-      }
-      ctx.lineTo(laser.x, laser.y);
-      ctx.stroke();
-
-      ctx.fillStyle = '#FFF';
-      ctx.beginPath(); ctx.arc(laser.x, laser.y, 3, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
+    drawLaserShots(ctx, this.lasers);
 
     // Oyuncular
-    const blink = Math.floor(performance.now() / 120) % 2 === 0;
-    const nowTime = performance.now() / 1000;
-    for (const player of this.players) {
-      if (!player.isJoined || !player.isAlive) continue;
-      // Vuruş dokunulmazlığında göz kırp
-      if (player.invulnTimer > 0 && player.respawnTimer <= 0 && blink) continue;
-
-      let activeLasers = 0;
-      for (const lz of this.lasers) if (lz.owner === player.index) activeLasers++;
-      const isFireReady = (player.ammo > 0) && (player.shotCooldown <= 0) && (activeLasers < LASER_TUNING.MAX_ACTIVE);
-
-      ctx.save();
-      ctx.translate(player.x, player.y);
-
-      // 🛡️ Kalkan balonu
-      if (player.shield) {
-        ctx.save();
-        ctx.strokeStyle = '#0EA5E9';
-        ctx.lineWidth = 2.5;
-        ctx.fillStyle = 'rgba(14, 165, 233, 0.18)';
-        ctx.beginPath(); ctx.arc(0, 0, 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        // Dönen kalkan uydusu
-        const sAng = nowTime * 3;
-        ctx.fillStyle = '#38BDF8';
-        ctx.beginPath(); ctx.arc(Math.cos(sAng) * 24, Math.sin(sAng) * 24, 3.5, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      }
-
-      // Dash hazır halkası (hazırsa çift stroke: koyu taban + beyaz üst — açık zeminde de görünür)
-      if (player.dashCooldown <= 0) {
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 5;
-        ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
-      } else {
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.25)';
-        ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
-        const cdProg = 1 - Math.max(0, player.dashCooldown / LASER_TUNING.DASH_CD);
-        ctx.strokeStyle = player.color;
-        ctx.beginPath(); ctx.arc(0, 0, 19, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2); ctx.stroke();
-      }
-
-      // Namlu: Hazırsa parlak beyaz/sarı/turuncu, cooldown'da koyu gri
-      let barrelColor = '#FFFFFF';
-      if (player.tripleTimer > 0) barrelColor = '#F97316';
-      else if (player.fastTimer > 0) barrelColor = '#FFDE59';
-      else if (!isFireReady) barrelColor = '#525252';
-
-      ctx.save();
-      ctx.rotate(player.angle);
-      ctx.fillStyle = barrelColor;
-      ctx.fillRect(8, -4, 14, 8);
-      ctx.lineWidth = 2; ctx.strokeStyle = '#1A1A1A';
-      ctx.strokeRect(8, -4, 14, 8);
-
-      // Namlu ucu hazır şarj diyotu
-      if (isFireReady) {
-        ctx.fillStyle = player.tripleTimer > 0 ? '#F97316' : (player.fastTimer > 0 ? '#FFDE59' : '#00F0FF');
-        ctx.beginPath(); ctx.arc(22, 0, 3, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.restore();
-
-      let currentExp = 'normal';
-      if (player.invulnTimer > 0) currentExp = 'dizzy';
-      else if (player.tripleTimer > 0 || player.fastTimer > 0) currentExp = 'excited';
-      else if (player.hp === 1) currentExp = 'panic';
-
-      drawBrutalAvatar(ctx, 0, 0, 14, {
-        color: player.color,
-        slotIndex: player.index,
-        facingAngle: player.angle,
-        label: `P${player.index + 1}`,
-        expression: currentExp,
-        showPointer: false,
-        borderWidth: 3,
-        shadowOffset: 2,
-      });
-
-      ctx.restore();
-
-      // --- MERMİ, CAN & YETENEK GÖSTERGELERİ (Merkezi renderEntityHUD) ---
-      const maxAmmo = LASER_TUNING.MAX_AMMO || 2;
-      const reloadDuration = player.fastTimer > 0 ? LASER_TUNING.RELOAD_TIME * 0.5 : LASER_TUNING.RELOAD_TIME;
-      const reloadFrac = player.reloadTimer > 0
-        ? Math.max(0, Math.min(1, 1 - (player.reloadTimer / reloadDuration)))
-        : 1.0;
-      const bulletColor = player.tripleTimer > 0 ? '#FB923C' : (player.fastTimer > 0 ? '#FACC15' : player.color);
-
-      renderEntityHUD(ctx, {
-        x: player.x,
-        y: player.y,
-        radius: 16,
-        color: bulletColor,
-        arena: this.arena,
-        hp: player.hp,
-        maxHp: LASER_TUNING.MAX_HP,
-        ammo: player.ammo,
-        maxAmmo: maxAmmo,
-        reloadProgress: reloadFrac,
-        cooldownProgress: 1 - Math.max(0, player.dashCooldown / LASER_TUNING.DASH_CD),
-      });
-    }
+    drawLaserPlayers(ctx, scenePlayers, { arena: this.arena, withFx });
 
     // Parçacıklar (lazer kıvılcımları)
-    for (const p of this.particles) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+    drawCircleParticles(ctx, this.particles);
 
     // Uçuşan metinler (+1 KILL ★)
-    for (const ft of this.floatingTexts) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, ft.alpha);
-      ctx.font = 'bold 16px monospace';
-      ctx.textAlign = 'center';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
-      ctx.lineWidth = 3.5;
-      ctx.strokeText(ft.text, ft.x, ft.y);
-      ctx.fillStyle = ft.color;
-      ctx.fillText(ft.text, ft.x, ft.y);
-      ctx.restore();
-    }
+    drawAlphaTexts(ctx, this.floatingTexts, { size: 16, outline: true });
 
     if (this.state === 'PLAYING') {
       this.renderControls(ctx, { extraEntities: this.lasers });

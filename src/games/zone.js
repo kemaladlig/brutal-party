@@ -22,21 +22,29 @@ import {
 } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateZoneBotAI } from '../ai/zoneAI.js';
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { keyboardVectorFrom, slotForActionCode } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import {
+  createZoneWorldPacket,
+  packZoneGridRle,
+  drawZoneField,
+  drawZonePlayers,
+  drawZoneWaves,
+} from './zoneView.js';
+import { drawSquareParticles, drawAlphaTexts } from './worldCore.js';
 
 export const ZONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ZONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 // Relic tipleri: Arena içinde nötr/orta alanda beliren taktiksel güç kristalleri
+// (glyph/icon tek kaynak tabletopIcons registry anahtarıdır — tel üstünde ham emoji yok)
 export const ZONE_RELIC_DEFS = {
   FLASH: {
     id: 'FLASH',
     name: 'FLASH CORE',
     badge: '⚡',
-    icon: '⚡',
-    glyph: '⚡',
+    icon: 'zap',
+    glyph: 'zap',
     title: 'HIZ KORU',
     color: '#FFD122',
     glowColor: 'rgba(255, 209, 34, 0.45)',
@@ -46,8 +54,8 @@ export const ZONE_RELIC_DEFS = {
     id: 'SEISMIC',
     name: 'SEISMIC PULSE',
     badge: '💥',
-    icon: '💥',
-    glyph: '💥',
+    icon: 'flame',
+    glyph: 'flame',
     title: 'SİSMİK DARBE',
     color: '#FF473A',
     glowColor: 'rgba(255, 71, 58, 0.45)',
@@ -128,6 +136,10 @@ export class ZoneGame extends BaseMiniGame {
     this.territoryLayer.height = ZONE_TUNING.GRID;
 
     this.initKeyboard();
+  }
+
+  createWorldPacket() {
+    return createZoneWorldPacket(this);
   }
 
   initKeyboard() {
@@ -1266,6 +1278,48 @@ export class ZoneGame extends BaseMiniGame {
       tctx.fillRect(i % G, (i / G) | 0, 1, 1);
     }
     this.territoryDirty = false;
+    this.gridVersion = (Number(this.gridVersion) || 0) + 1;
+    return this.territoryLayer;
+  }
+
+  /** Host sahne çizimi: bölge + relic + izler ortak zoneView draw'larından (client ile aynı kaynak). */
+  renderField(ctx) {
+    const nowSec = performance.now() / 1000;
+    const scenePlayers = this.players.map((p) => ({
+      ...p,
+      slot: p.index,
+      angle: p.heading,
+      dashProg: p.dashCooldown > 0
+        ? 1 - Math.max(0, Math.min(1, p.dashCooldown / ZONE_TUNING.DASH_CD)) : null,
+      pct: this.pct[p.index] || 0,
+    }));
+    drawZoneField(
+      ctx,
+      [this.field.x, this.field.y, this.field.s],
+      this.cell,
+      this.grid,
+      ZONE_COLORS,
+      scenePlayers,
+      this.relics,
+      nowSec,
+      this.territoryDirty ? this.repaintTerritory() : this.territoryLayer,
+      1,
+    );
+
+    if (this.state === 'PLAYING') {
+      const remain = Math.max(0, this.roundTimer);
+      const leader = this.leaderIndex >= 0 ? this.players[this.leaderIndex] : null;
+      const isUrgent = remain <= 10.0 || (leader && this.pct[leader.index] >= 35);
+      renderArenaWatermarkTimer(ctx, {
+        arena: this.arena,
+        text: `${Math.ceil(remain)}s`,
+        subText: '',
+        urgent: isUrgent,
+        color: isUrgent ? '#D84727' : (leader ? leader.color : null),
+        alpha: isUrgent ? 0.70 : 0.46,
+        ringProgress: Math.max(0, remain / 90),
+      });
+    }
   }
 
   render() {
@@ -1280,9 +1334,7 @@ export class ZoneGame extends BaseMiniGame {
     ctx.fillRect(left, top, width, height);
 
     this.renderField(ctx);
-
-    this.renderPlayers(ctx);
-    this.renderFx(ctx);
+    this.renderZoneScene(ctx);
     this.renderControls(ctx);
 
     this.renderHUD(ctx, {
@@ -1311,291 +1363,22 @@ export class ZoneGame extends BaseMiniGame {
     ctx.restore();
   }
 
-  renderField(ctx) {
-    const { x, y, s } = this.field;
-    if (this.territoryDirty) this.repaintTerritory();
-
-    // Zemin + bölge katmanı
-    ctx.fillStyle = '#EFEAE0';
-    ctx.fillRect(x, y, s, s);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(this.territoryLayer, x, y, s, s);
-    ctx.imageSmoothingEnabled = true;
-
-    // Hücre ızgarası (8'de bir, silik)
-    ctx.strokeStyle = 'rgba(26,26,26,0.08)';
-    ctx.lineWidth = 1;
-    const step = s / 8;
-    ctx.beginPath();
-    for (let i = 1; i < 8; i++) {
-      ctx.moveTo(x + i * step, y);
-      ctx.lineTo(x + i * step, y + s);
-      ctx.moveTo(x, y + i * step);
-      ctx.lineTo(x + s, y + i * step);
+  /** Host sahne çizimi: dalga/oyuncu/partikül/metin katmanları ortak zoneView/worldCore draw'larından. */
+  renderZoneScene(ctx) {
+    const withFx = this.state === 'PLAYING';
+    const scenePlayers = this.players.map((p) => ({
+      ...p,
+      slot: p.index,
+      angle: p.heading,
+      dashProg: p.dashCooldown > 0
+        ? 1 - Math.max(0, Math.min(1, p.dashCooldown / ZONE_TUNING.DASH_CD)) : null,
+      pct: this.pct[p.index] || 0,
+    }));
+    drawZoneWaves(ctx, this.captureWaves, this.cell);
+    if (this.state !== 'LOBBY') {
+      drawZonePlayers(ctx, scenePlayers, { cell: this.cell, leaderIndex: this.leaderIndex, withFx });
     }
-    ctx.stroke();
-
-    // 4 Köşe Takviye Braketleri (L-plates) ve İç Sınır Çizgisi
-    const bLen = Math.max(16, Math.round(s * 0.05));
-    ctx.strokeStyle = '#2B2B28';
-    ctx.lineWidth = 3;
-    const cornerPlates = [
-      [[x, y + bLen], [x, y], [x + bLen, y]],
-      [[x + s - bLen, y], [x + s, y], [x + s, y + bLen]],
-      [[x, y + s - bLen], [x, y + s], [x + bLen, y + s]],
-      [[x + s - bLen, y + s], [x + s, y + s], [x + s, y + s - bLen]],
-    ];
-    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.lineTo(x3, y3);
-      ctx.stroke();
-    }
-
-    // Saha ortasında net, yüksek görünürlüklü süre sayacı
-    if (this.state === 'PLAYING') {
-      const remain = Math.max(0, this.roundTimer);
-      const leader = this.leaderIndex >= 0 ? this.players[this.leaderIndex] : null;
-      const isUrgent = remain <= 10.0 || (leader && this.pct[leader.index] >= 35);
-      renderArenaWatermarkTimer(ctx, {
-        arena: this.arena,
-        text: `${Math.ceil(remain)}s`,
-        subText: '',
-        urgent: isUrgent,
-        color: isUrgent ? '#D84727' : (leader ? leader.color : null),
-        alpha: isUrgent ? 0.70 : 0.46,
-        ringProgress: Math.max(0, remain / 90),
-      });
-    }
-
-    // Güç Kristalleri (Relics) Çizimi
-    const nowSec = performance.now() / 1000;
-    for (const rel of this.relics) {
-      const def = ZONE_RELIC_DEFS[rel.type];
-      const bob = Math.sin(nowSec * 4 + rel.bobPhase) * 4;
-      const rx = rel.x;
-      const ry = rel.y + bob;
-      const rSize = (this.cell * 1.6) * rel.scale;
-
-      ctx.save();
-      ctx.translate(rx, ry);
-
-      // Zemin gölgesi
-      ctx.fillStyle = 'rgba(0,0,0,0.18)';
-      ctx.beginPath();
-      ctx.ellipse(0, 10 - bob * 0.5, rSize * 0.7, rSize * 0.35, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Nabız Işıltısı / Halo
-      const pulse = 0.5 + 0.5 * Math.sin(nowSec * 6 + rel.bobPhase);
-      ctx.strokeStyle = def.color;
-      ctx.globalAlpha = 0.4 + 0.3 * pulse;
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(-rSize * 0.65, -rSize * 0.65, rSize * 1.3, rSize * 1.3);
-
-      // Kristal Gövde (Neo-Brutalist 45° elmas)
-      ctx.globalAlpha = 1.0;
-      ctx.fillStyle = def.color;
-      ctx.beginPath();
-      ctx.moveTo(0, -rSize);
-      ctx.lineTo(rSize, 0);
-      ctx.lineTo(0, rSize);
-      ctx.lineTo(-rSize, 0);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-
-      // İç İkon / Glif
-      ctx.fillStyle = '#1C1C1A';
-      ctx.font = '14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(def?.glyph || def?.icon || '⭐', 0, 1);
-
-      ctx.restore();
-    }
-
-    // Açık izler: dinamik risk renklendirmesi ve yüksek tehlike şeritleri
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    for (const p of this.players) {
-      if (!p.isJoined || p.trail.length === 0) continue;
-      const trailLen = p.trail.length;
-      const isRiskWarn = trailLen >= ZONE_TUNING.TRAIL_RISK_WARN;
-      const isHazard = trailLen >= ZONE_TUNING.TRAIL_HAZARD;
-
-      ctx.save();
-      // Yüksek risk uyarısında neon kırmızı parlama katmanı
-      if (isRiskWarn) {
-        ctx.strokeStyle = isHazard ? '#D84727' : p.color;
-        ctx.lineWidth = this.cell * (isHazard ? ZONE_TUNING.TRAIL_GLOW_MULT + 0.2 : ZONE_TUNING.TRAIL_GLOW_MULT);
-        ctx.globalAlpha = isHazard ? (0.6 + 0.4 * Math.sin(nowSec * 16)) : 0.4;
-        ctx.beginPath();
-        ctx.moveTo(p.trailStartX, p.trailStartY);
-        for (const ci of p.trail) {
-          const c = this.cellCenter(ci);
-          ctx.lineTo(c.x, c.y);
-        }
-        ctx.lineTo(p.x, p.y);
-        ctx.stroke();
-      }
-
-      // Ana iz çizgisi
-      ctx.globalAlpha = 1.0;
-      ctx.strokeStyle = p.color;
-      ctx.lineWidth = this.cell * ZONE_TUNING.TRAIL_W_MULT;
-      if (isHazard) {
-        // Kritik seviyede animasyonlu tehlike şeridi (moving dash pattern)
-        ctx.setLineDash([8, 6]);
-        ctx.lineDashOffset = -(nowSec * 32) % 14;
-      }
-      ctx.beginPath();
-      ctx.moveTo(p.trailStartX, p.trailStartY);
-      for (const ci of p.trail) {
-        const c = this.cellCenter(ci);
-        ctx.lineTo(c.x, c.y);
-      }
-      ctx.lineTo(p.x, p.y);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // Dış çerçeve + sert gölge
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(x + s, y + 6, 6, s);
-    ctx.fillRect(x + 6, y + s, s, 6);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 5;
-    ctx.strokeRect(x, y, s, s);
+    drawSquareParticles(ctx, this.particles);
+    drawAlphaTexts(ctx, this.floatingTexts, { size: 13, outline: true });
   }
-
-
-  renderPlayers(ctx) {
-    if (this.state === 'LOBBY') return;
-    for (const p of this.players) {
-      if (!p.isJoined) continue;
-      // Donma yanıltması: 0.15sn aralıklarla yanıp söner
-      if (p.stunTimer > 0 && Math.floor(p.blinkTimer / 0.15) % 2 === 0) continue;
-
-      ctx.save();
-      ctx.translate(p.x, p.y);
-
-      // Home Turf Aura (Kendi alanında parıldayan halka)
-      if (p.onHomeTurf && p.stunTimer <= 0) {
-        ctx.strokeStyle = p.color;
-        ctx.globalAlpha = 0.45;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(0, 0, p.radius + 3.5, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.globalAlpha = 1.0;
-      }
-
-      // Lider tacı
-      if (this.state === 'PLAYING' && p.index === this.leaderIndex && this.pct[p.index] > 0) {
-        ctx.font = '16px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('👑', 0, -p.radius - 26);
-      }
-
-      let currentExp = 'normal';
-      if (p.stunTimer > 0) currentExp = 'dizzy';
-      else if (p.trail.length >= ZONE_TUNING.TRAIL_HAZARD) currentExp = 'panic';
-      else if (p.relicTimer > 0) currentExp = 'excited';
-
-      drawBrutalAvatar(ctx, 0, 0, p.radius, {
-        color: p.color,
-        slotIndex: p.index,
-        facingAngle: p.heading,
-        label: `P${p.index + 1}`,
-        expression: currentExp,
-        showPointer: true,
-        borderColor: p.stunTimer > 0 ? '#48CAE4' : '#1C1C1A',
-        borderWidth: 3,
-      });
-
-      // Depar (Dash) Cooldown Göstergesi (Bölge ve şekillerin üstünde her zaman net görünür)
-      if (p.dashCooldown > 0) {
-        const cdProg = 1.0 - Math.max(0, Math.min(1, p.dashCooldown / ZONE_TUNING.DASH_CD));
-        ctx.save();
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.arc(0, 0, p.radius + 5, 0, Math.PI * 2);
-        ctx.stroke();
-
-        ctx.strokeStyle = '#FFDE59';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(0, 0, p.radius + 5, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // İsim + canlı % plakası
-      const label = `P${p.index + 1} • %${this.pct[p.index]}`;
-      ctx.font = '900 11px "Space Grotesk", sans-serif';
-      const tw = ctx.measureText(label).width + 12;
-      ctx.fillStyle = '#1C1C1A';
-      ctx.fillRect(-tw / 2, p.radius + 6, tw, 18);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, 0, p.radius + 15);
-
-      if (p.stunTimer > 0) {
-        renderSpatialBadge(ctx, {
-          x: 0,
-          y: p.radius + 33,
-          text: 'DONDU',
-          icon: '❄️',
-          color: '#1C1C1A',
-          bg: '#48CAE4',
-          scale: 0.9,
-        });
-      }
-
-      ctx.restore();
-    }
-  }
-
-  renderFx(ctx) {
-    // Wavefront Capture Şok Dalgaları
-    for (const cw of this.captureWaves) {
-      ctx.save();
-      ctx.strokeStyle = cw.color;
-      ctx.globalAlpha = cw.alpha;
-      ctx.lineWidth = Math.max(2, this.cell * 0.45 * cw.alpha);
-      ctx.beginPath();
-      ctx.arc(cw.x, cw.y, cw.radius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
-    for (const pt of this.particles) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
-      ctx.fillStyle = pt.color;
-      ctx.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
-      ctx.restore();
-    }
-    for (const ft of this.floatingTexts) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, ft.life / ft.maxLife);
-      ctx.font = '900 13px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
-      ctx.lineWidth = 3.5;
-      ctx.strokeText(ft.text, ft.x, ft.y);
-      ctx.fillStyle = ft.color;
-      ctx.fillText(ft.text, ft.x, ft.y);
-      ctx.restore();
-    }
-  }
-
-
 }

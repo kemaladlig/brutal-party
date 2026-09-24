@@ -5,19 +5,30 @@ import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js'
 import { t } from '../i18n.js';
 import { renderFloatingTexts } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
-import { drawObstacle } from '../core/arenaKit.js';
 import { updateNinjaBotAI } from '../ai/ninjaAI.js';
-import { drawGameAvatar } from '../core/avatarInGame.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
+import {
+  NINJA_RADIUS,
+  createNinjaWorldPacket,
+  drawNinjaArena,
+  drawNinjaFrame,
+  drawNinjaSteps,
+  drawNinjaDecals,
+  drawNinjaLanterns,
+  drawNinjaGhosts,
+  drawNinjaPlayers,
+  drawNinjaSlashes,
+  drawNinjaImpacts,
+  drawNinjaFx,
+} from './ninjaView.js';
 
 export const NINJA_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const NINJA_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 const NINJA_STRIKE_COOLDOWN = 1.3;
 const NINJA_SMOKE_COOLDOWN = 5.0;
-const NINJA_RADIUS = 18;
 
 export const NINJA_TUNING = {
   STRIKE_COOLDOWN: NINJA_STRIKE_COOLDOWN,
@@ -78,6 +89,10 @@ export class NinjaGame extends BaseMiniGame {
     } else if (actionId === 'smoke') {
       this.attemptSmoke(player);
     }
+  }
+
+  createWorldPacket() {
+    return createNinjaWorldPacket(this);
   }
 
   initKeyboard() {
@@ -833,376 +848,34 @@ export class NinjaGame extends BaseMiniGame {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     this.applyScreenShake(ctx);
 
-    const { left, top, width, height } = this.arena;
-    ctx.fillStyle = '#E8E5DF';
-    ctx.fillRect(left, top, width, height);
+    // Arena sahnesi ortak ninjaView draw'larından gelir (host↔client aynı).
+    const withFx = this.state === 'PLAYING';
+    drawNinjaArena(ctx, this.arena);
+    drawNinjaSteps(ctx, this.footsteps);
 
-    // Ayak izleri
-    for (const f of this.footsteps) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, f.alpha));
-      ctx.fillStyle = '#9C988F';
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, 4.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+    drawNinjaDecals(ctx, this.cutDecals);
+    drawNinjaLanterns(ctx, this.lanterns, now);
+    drawNinjaFrame(ctx, this.arena, this.obstacles);
 
-    // Zemin Kesik Hatları (Ground Slash Fissure - Baştan uca çekilen / küçülen pürüzsüz enerji jileti)
-    for (const cd of this.cutDecals) {
-      const prog = Math.min(1.0, cd.life / cd.maxLife);
-      // Uç noktası hızla öne fırlar (0.07 saniyede tam boya ulaşır)
-      const headProg = Math.min(1.0, cd.life / 0.07);
-      const headDist = (1 - Math.pow(1 - headProg, 2.5)) * cd.length;
-      // Başlangıç noktası (kuyruk) arkadan öne doğru çekilerek küçülür (baştan uca toplanma)
-      const tailProg = Math.max(0, Math.min(1.0, Math.pow(prog, 1.25)));
-      const tailDist = tailProg * cd.length;
+    drawNinjaGhosts(ctx, this.afterimages);
 
-      if (tailDist >= headDist - 1) continue;
+    // Oyuncular (görünmezlik: yerel girişte tüm insanlara hayalet, client'ta yalnız selfSlot)
+    const ghostSlots = this.isLocalInputActive
+      ? this.players.filter((p) => p.slotType === 'human').map((p) => p.index)
+      : [];
+    drawNinjaPlayers(ctx, this.players.map((p) => ({
+      ...p,
+      slot: p.index,
+      strike: (p.strikeTimer || 0) > 0,
+      strikeProg: (p.strikeCooldown || 0) > 0
+        ? 1 - Math.min(1, p.strikeCooldown / NINJA_TUNING.STRIKE_COOLDOWN) : null,
+      smokeProg: (p.smokeCooldown || 0) > 0
+        ? 1 - Math.min(1, p.smokeCooldown / NINJA_TUNING.SMOKE_COOLDOWN) : null,
+    })), { ghostSlots, withFx });
 
-      const segLen = headDist - tailDist;
-      const midDist = (tailDist + headDist) * 0.5;
-      const fadeAlpha = 1.0 - Math.pow(prog, 1.8);
-      const halfWidth = (cd.maxWidth * 0.5) * (1 - prog * 0.4) * Math.min(1.0, segLen / 30);
-
-      ctx.save();
-      ctx.translate(cd.x, cd.y);
-      ctx.rotate(cd.angle);
-
-      // 1. Dış Enerji Parıltısı (Soft blade aura glow)
-      ctx.globalAlpha = fadeAlpha * 0.35;
-      ctx.fillStyle = cd.color;
-      ctx.beginPath();
-      ctx.moveTo(tailDist, 0);
-      ctx.lineTo(midDist, -halfWidth * 2.4);
-      ctx.lineTo(headDist, 0);
-      ctx.lineTo(midDist, halfWidth * 2.4);
-      ctx.closePath();
-      ctx.fill();
-
-      // 2. Ana Katana Kesik Gövdesi (Tapered Energy Blade Polygon - Keskin elmas/iğne geometrisi)
-      ctx.globalAlpha = fadeAlpha * 0.9;
-      const bladeGrad = ctx.createLinearGradient(tailDist, 0, headDist, 0);
-      bladeGrad.addColorStop(0, cd.color);
-      bladeGrad.addColorStop(0.5, '#FFFFFF');
-      bladeGrad.addColorStop(1, cd.color);
-      ctx.fillStyle = bladeGrad;
-
-      ctx.beginPath();
-      ctx.moveTo(tailDist, 0);
-      ctx.lineTo(midDist, -halfWidth);
-      ctx.lineTo(headDist, 0);
-      ctx.lineTo(midDist, halfWidth);
-      ctx.closePath();
-      ctx.fill();
-
-      // 3. Parlak Beyaz Jilet Çekirdeği (Ultra-sharp Neon Laser Core)
-      ctx.globalAlpha = fadeAlpha;
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = Math.max(1.0, halfWidth * 0.7);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(tailDist + 2, 0);
-      ctx.lineTo(headDist - 1, 0);
-      ctx.stroke();
-
-      // 4. Uç Parıltı Yıldızı (Leading Glint)
-      if (prog < 0.6) {
-        ctx.fillStyle = '#FFFFFF';
-        ctx.beginPath();
-        ctx.arc(headDist, 0, Math.max(1.5, 3.5 * (1 - prog)), 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.restore();
-    }
-
-    // Fenerler ve Aydınlatma Alanı
-    for (const lantern of this.lanterns) {
-      if (!lantern.active) {
-        ctx.save();
-        ctx.fillStyle = '#2A2A2A';
-        ctx.fillRect(lantern.x - 9, lantern.y - 9, 18, 18);
-        ctx.strokeStyle = '#555555';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(lantern.x - 9, lantern.y - 9, 18, 18);
-
-        const emberPulse = (Math.sin(now / 160) + 1) * 0.5;
-        ctx.fillStyle = `rgba(230, 57, 70, ${0.4 + emberPulse * 0.5})`;
-        ctx.beginPath();
-        ctx.arc(lantern.x, lantern.y, 3.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-        continue;
-      }
-
-      ctx.save();
-      const grad = ctx.createRadialGradient(lantern.x, lantern.y, 10, lantern.x, lantern.y, lantern.radius);
-      grad.addColorStop(0, 'rgba(255, 215, 0, 0.28)');
-      grad.addColorStop(0.7, 'rgba(255, 215, 0, 0.12)');
-      grad.addColorStop(1, 'rgba(255, 215, 0, 0.0)');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(lantern.x, lantern.y, lantern.radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = 'rgba(217, 155, 38, 0.35)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 4]);
-      ctx.stroke();
-
-      // Fener kaidesi (🏮)
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(lantern.x - 11, lantern.y - 11, 22, 22);
-      ctx.fillStyle = '#FFD700';
-      ctx.beginPath();
-      ctx.arc(lantern.x, lantern.y, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // Tapınak Siper Blokları
-    for (const obs of this.obstacles) drawObstacle(ctx, obs, { variant: 'dark' });
-
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(left, top, width, height);
-
-    // Gölge Klon İzleri (Afterimages)
-    for (const img of this.afterimages) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, img.alpha * 0.7));
-      ctx.translate(img.x, img.y);
-      ctx.rotate(img.angle);
-
-      // Koyu siluet ninja
-      ctx.fillStyle = '#1A1A1A';
-      ctx.beginPath();
-      ctx.arc(0, 0, NINJA_RADIUS, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = img.color;
-      ctx.lineWidth = 2.0;
-      ctx.stroke();
-
-      // Klon parlama göz çizgisi
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(NINJA_RADIUS * 0.2, -3, 6, 2);
-      ctx.fillRect(NINJA_RADIUS * 0.2, 1, 6, 2);
-
-      ctx.restore();
-    }
-
-    // Oyuncular (Görünmezlik alphası ile)
-    for (const player of this.players) {
-      if (!player.isJoined || !player.isAlive) continue;
-
-      if (player.alpha <= 0.02) {
-        if (player.slotType === 'human' && this.isLocalInputActive) {
-          ctx.save();
-          ctx.globalAlpha = 0.35;
-          ctx.strokeStyle = player.color;
-          ctx.lineWidth = 2;
-          ctx.setLineDash([3, 4]);
-          ctx.beginPath();
-          ctx.arc(player.x, player.y, NINJA_RADIUS + 2, 0, Math.PI * 2);
-          ctx.stroke();
-
-          // Kendi ninjasının merkez göz odağı
-          ctx.fillStyle = player.color;
-          ctx.beginPath();
-          ctx.arc(player.x, player.y, 3, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-        }
-        continue;
-      }
-
-      ctx.save();
-      ctx.globalAlpha = player.alpha;
-      ctx.translate(player.x, player.y);
-      ctx.rotate(player.angle);
-
-      drawGameAvatar(ctx, 0, 0, NINJA_RADIUS, player, {
-        facingAngle: 0,
-        expression: player.strikeTimer > 0 ? 'angry' : 'normal',
-        borderColor: '#1A1A1A',
-        borderWidth: 2.5,
-      });
-
-      // Saldırı (Katana Slash) ve Duman Bombası Cooldown Göstergeleri (Sahada her zaman net görünür)
-      if (player.isAlive) {
-        // 1. Katana Slash Cooldown Arkı
-        if (player.strikeCooldown > 0) {
-          const maxCd = NINJA_TUNING.STRIKE_COOLDOWN;
-          const prog = 1.0 - Math.max(0, Math.min(1, player.strikeCooldown / maxCd));
-          ctx.save();
-          // Arka plan koyu ray
-          ctx.strokeStyle = 'rgba(20, 20, 22, 0.4)';
-          ctx.lineWidth = 3.5;
-          ctx.beginPath();
-          ctx.arc(0, 0, NINJA_RADIUS + 4, 0, Math.PI * 2);
-          ctx.stroke();
-          // Dolum arkı
-          ctx.strokeStyle = '#F59E0B';
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.arc(0, 0, NINJA_RADIUS + 4, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
-          ctx.stroke();
-          ctx.restore();
-        }
-        // 2. Duman Bombası Cooldown Arkı (Eğer beklemedeyse dış halka)
-        if (player.smokeCooldown > 0) {
-          const maxCd = NINJA_TUNING.SMOKE_COOLDOWN;
-          const prog = 1.0 - Math.max(0, Math.min(1, player.smokeCooldown / maxCd));
-          ctx.save();
-          ctx.strokeStyle = 'rgba(100, 100, 110, 0.3)';
-          ctx.lineWidth = 2.5;
-          ctx.beginPath();
-          ctx.arc(0, 0, NINJA_RADIUS + 8, 0, Math.PI * 2);
-          ctx.stroke();
-
-          ctx.strokeStyle = '#A855F7';
-          ctx.lineWidth = 2.5;
-          ctx.beginPath();
-          ctx.arc(0, 0, NINJA_RADIUS + 8, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
-          ctx.stroke();
-          ctx.restore();
-        }
-      }
-
-      ctx.restore();
-    }
-
-    // =========================================================================
-    // GELİŞMİŞ BOYUTSAL DALGA DALGA KESİK ANİMASYONU (Dimensional Slash Waves)
-    // =========================================================================
-    for (const sw of this.slashWaves) {
-      const prog = Math.min(1.0, sw.life / sw.maxLife);
-      const fadeAlpha = Math.max(0, 1.0 - Math.pow(prog, 1.6));
-
-      ctx.save();
-      ctx.translate(sw.x, sw.y);
-      ctx.rotate(sw.angle);
-
-      // Her alt-dalga sırayla ve gecikmeli olarak öne doğru patlar
-      for (let w = 0; w < sw.waves.length; w++) {
-        const wave = sw.waves[w];
-        if (sw.life < wave.delay) continue;
-
-        const waveAge = sw.life - wave.delay;
-        const waveProg = Math.min(1.0, waveAge / (sw.maxLife - wave.delay));
-        const waveDist = (1 - Math.pow(1 - waveProg, 2.8)) * (sw.maxDist + w * 12);
-        const waveRadius = sw.outerRadius * wave.scale * (0.8 + waveProg * 0.4);
-        const innerRadius = sw.innerRadius * wave.scale;
-        const arcSpread = sw.arcSpan * (1.1 - waveProg * 0.25);
-        const startAng = -arcSpread / 2;
-        const endAng = arcSpread / 2;
-        const currentAlpha = fadeAlpha * (1.0 - waveProg * 0.45);
-
-        ctx.save();
-        ctx.translate(waveDist, 0);
-
-        // 1. Rüzgar / Enerji Yayılım Koni Dalgası (Translucent Sonic Wind Cone)
-        ctx.globalAlpha = currentAlpha * 0.22;
-        ctx.fillStyle = wave.aura;
-        ctx.beginPath();
-        ctx.arc(0, 0, waveRadius + 8, startAng * 1.15, endAng * 1.15, false);
-        ctx.arc(0, 0, Math.max(4, innerRadius - 6), endAng * 1.15, startAng * 1.15, true);
-        ctx.closePath();
-        ctx.fill();
-
-        // 2. Hilal Şeklinde Keskin Bıçak Gövdesi (Crescent Blade Body)
-        ctx.globalAlpha = currentAlpha * 0.95;
-        const crescentGrad = ctx.createLinearGradient(0, -waveRadius, 0, waveRadius);
-        crescentGrad.addColorStop(0, wave.aura);
-        crescentGrad.addColorStop(0.5, '#FFFFFF');
-        crescentGrad.addColorStop(1, wave.aura);
-        ctx.fillStyle = crescentGrad;
-
-        ctx.beginPath();
-        ctx.arc(0, 0, waveRadius, startAng, endAng, false);
-        ctx.arc(0, 0, innerRadius, endAng, startAng, true);
-        ctx.closePath();
-        ctx.fill();
-
-        // 3. Neo-brutalist Koyu Dış Sınır
-        ctx.strokeStyle = '#141416';
-        ctx.lineWidth = wave.width + 1.5;
-        ctx.stroke();
-
-        // 4. Parlak Jilet Kenarı (Razor-Sharp Blade Edge)
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = wave.width;
-        ctx.beginPath();
-        ctx.arc(0, 0, waveRadius - 1, startAng, endAng, false);
-        ctx.stroke();
-
-        // 5. İki Uçtaki Katana Parıltı Yıldızları (Tip Sparkle Glints)
-        const tip1X = Math.cos(startAng) * waveRadius;
-        const tip1Y = Math.sin(startAng) * waveRadius;
-        const tip2X = Math.cos(endAng) * waveRadius;
-        const tip2Y = Math.sin(endAng) * waveRadius;
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.beginPath(); ctx.arc(tip1X, tip1Y, 4, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(tip2X, tip2Y, 4, 0, Math.PI * 2); ctx.fill();
-
-        ctx.strokeStyle = '#141416';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(tip1X, tip1Y, 4, 0, Math.PI * 2); ctx.stroke();
-        ctx.beginPath(); ctx.arc(tip2X, tip2Y, 4, 0, Math.PI * 2); ctx.stroke();
-
-        ctx.restore();
-      }
-
-      ctx.restore();
-    }
-
-    // İsabet Kesik Patlamaları (Impact Cuts)
-    for (const ic of this.impactCuts) {
-      const p = ic.life / ic.maxLife;
-      const alpha = 1.0 - p;
-      const span = (1 - Math.pow(1 - p, 2)) * 36;
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, alpha);
-      ctx.translate(ic.x, ic.y);
-      ctx.rotate(ic.angle);
-
-      // Çapraz X Kesiği
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 3.5;
-      ctx.beginPath();
-      ctx.moveTo(-span, -span * 0.6); ctx.lineTo(span, span * 0.6);
-      ctx.moveTo(-span * 0.6, span); ctx.lineTo(span * 0.6, -span);
-      ctx.stroke();
-
-      ctx.strokeStyle = ic.color;
-      ctx.lineWidth = 2.0;
-      ctx.beginPath();
-      ctx.moveTo(-span, -span * 0.6); ctx.lineTo(span, span * 0.6);
-      ctx.moveTo(-span * 0.6, span); ctx.lineTo(span * 0.6, -span);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // Parçacıklar (Duman / Kıvılcım / Şok Halkası)
-    for (const p of this.particles) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
-      if (p.type === 'shockRing') {
-        ctx.strokeStyle = p.color;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.restore();
-    }
+    drawNinjaSlashes(ctx, this.slashWaves);
+    drawNinjaImpacts(ctx, this.impactCuts);
+    drawNinjaFx(ctx, this.particles);
 
     // Havaya süzülen metin bildirimleri (+1★, KILIÇ ATIL, vb.)
     renderFloatingTexts(ctx, this.floatingTexts, 0.016);

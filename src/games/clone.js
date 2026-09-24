@@ -6,10 +6,18 @@ import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js'
 import { t } from '../i18n.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCloneBotAI } from '../ai/cloneAI.js';
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { readSlotKeys } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
+import {
+  createCloneWorldPacket,
+  drawCloneArena,
+  drawCloneStations,
+  drawCloneWalls,
+  drawCloneCharacter,
+  drawCloneTexts,
+} from './cloneView.js';
+import { drawCircleParticles } from './worldCore.js';
 
 export const CLONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CLONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -691,53 +699,8 @@ export class CloneGame extends BaseMiniGame {
     }
   }
 
-  drawCharacter(ctx, x, y, angle, color, isDashing, isSlowed, taskProgress = 0) {
-    ctx.save();
-    ctx.translate(x, y);
-
-    // Yavaşlık / sersemlik titremesi & dönen yıldızlar
-    if (isSlowed) {
-      ctx.translate((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3);
-      ctx.fillStyle = '#E63946';
-      ctx.font = 'bold 11px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('💫 CEZA', 0, -22);
-    }
-
-    // Görev yaparken dolum barı / rün halkası (görev eşiği 1.5sn)
-    if (taskProgress > 0) {
-      ctx.beginPath();
-      ctx.arc(0, 0, CLONE_RADIUS + 7, -Math.PI / 2, -Math.PI / 2 + (taskProgress / 1.5) * Math.PI * 2);
-      ctx.strokeStyle = '#2F6A4F';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-
-    // Atılma halesi
-    if (isDashing) {
-      ctx.beginPath();
-      ctx.arc(0, 0, CLONE_RADIUS + 8, 0, Math.PI * 2);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.globalAlpha = 0.6;
-      ctx.fill();
-      ctx.globalAlpha = 1.0;
-    }
-
-    let exp = 'normal';
-    if (isSlowed) exp = 'dizzy';
-    else if (isDashing) exp = 'angry';
-    else if (taskProgress > 0) exp = 'wink';
-
-    drawBrutalAvatar(ctx, 0, 0, CLONE_RADIUS, {
-      color: color,
-      facingAngle: angle,
-      expression: exp,
-      showPointer: true,
-      borderColor: '#1A1A1A',
-      borderWidth: 2.5,
-    });
-
-    ctx.restore();
+  createWorldPacket() {
+    return createCloneWorldPacket(this);
   }
 
   render() {
@@ -747,122 +710,37 @@ export class CloneGame extends BaseMiniGame {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     this.applyScreenShake(ctx);
 
-    const { left, top, width, height } = this.arena;
+    // Arena sahnesi ortak cloneView draw'larından gelir (host↔client aynı).
+    const withFx = this.state === 'PLAYING';
+    drawCloneArena(ctx, this.arena);
+    drawCloneStations(ctx, this.taskPoints.map((tp) => ({
+      x: tp.x, y: tp.y, radius: tp.radius || 40,
+      color: tp.color || '#888888', icon: tp.icon, name: tp.name,
+    })));
+    drawCloneWalls(ctx, this.walls);
 
-    // Tapınak Taş Zemini
-    ctx.fillStyle = '#E8E5DF';
-    ctx.fillRect(left, top, width, height);
-
-    // Taş zemin karoları
-    ctx.strokeStyle = '#D5D1C7';
-    ctx.lineWidth = 1.5;
-    const step = this.arena.size / 9;
-    for (let x = left + step; x < this.arena.right; x += step) {
-      ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, this.arena.bottom); ctx.stroke();
-    }
-    for (let y = top + step; y < this.arena.bottom; y += step) {
-      ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(this.arena.right, y); ctx.stroke();
-    }
-
-    // 4 Görev İstasyonu (Rün çemberleri & semboller)
-    for (const t of this.taskPoints) {
-      ctx.save();
-      // Dış rün çemberi
-      ctx.beginPath();
-      ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
-      ctx.fillStyle = `${t.color}22`;
-      ctx.fill();
-      ctx.strokeStyle = t.color;
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([6, 6]);
-      ctx.stroke();
-
-      // İç simge ve zemin
-      ctx.setLineDash([]);
-      ctx.beginPath();
-      ctx.arc(t.x, t.y, 16, 0, Math.PI * 2);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      ctx.font = '16px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(t.icon, t.x, t.y);
-
-      // İstasyon etiketi
-      ctx.font = 'bold 11px monospace';
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillText(t.name, t.x, t.y + t.radius + 14);
-      ctx.restore();
-    }
-
-    // Harita Duvarları ve Sütunları
-    for (const w of this.walls) {
-      // Duvar gölgesi
-      ctx.fillStyle = '#101010';
-      ctx.fillRect(w.x + 3, w.y + 3, w.w, w.h);
-
-      // Duvar ana gövdesi
-      ctx.fillStyle = '#2A2A2A';
-      ctx.fillRect(w.x, w.y, w.w, w.h);
-
-      // Duvar üst vurgusu
-      ctx.strokeStyle = '#484848';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(w.x, w.y, w.w, w.h);
-    }
-
-    // Dış arena çerçevesi
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(left, top, width, height);
-
-
-    // NPC Klonları çiz (tamamen oyuncularla aynı model)
     for (const c of this.npcClones) {
       if (!c.active) continue;
-      this.drawCharacter(ctx, c.x, c.y, c.angle, c.color, false, false, c.state === 'TASK' ? (1 - c.taskWaitTimer / 4) * 2 : 0);
+      drawCloneCharacter(ctx, c.x, c.y, c.angle, c.color, {
+        task: c.state === 'TASK' ? (1 - c.taskWaitTimer / 4) * 2 : 0,
+        withFx,
+      });
     }
 
-    // Gerçek Oyuncuları çiz
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
-      this.drawCharacter(
-        ctx,
-        player.x,
-        player.y,
-        player.angle,
-        player.color,
-        player.dashTimer > 0,
-        player.slowTimer > 0,
-        player.taskTimer
-      );
+      drawCloneCharacter(ctx, player.x, player.y, player.angle, player.color, {
+        dashing: player.dashTimer > 0,
+        slowed: player.slowTimer > 0,
+        task: player.taskTimer,
+        withFx,
+      });
     }
 
-    // Parçacıklar
-    for (const p of this.particles) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // Uçuşan metinler
-    for (const ft of this.floatingTexts) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, ft.alpha));
-      ctx.font = 'bold 15px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = ft.color;
-      ctx.fillText(ft.text, ft.x, ft.y);
-      ctx.restore();
-    }
+    drawCircleParticles(ctx, this.particles);
+    drawCloneTexts(ctx, this.floatingTexts.map((ft) => ({
+      x: ft.x, y: ft.y, text: ft.text, alpha: ft.alpha, color: ft.color,
+    })));
 
     // Geri sayım filigranı (son 15 saniye)
     if (this.state === 'PLAYING' && this.roundTime <= 15) {

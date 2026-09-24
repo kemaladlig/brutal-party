@@ -14,18 +14,26 @@ import {
 } from '../audio.js';
 import { t } from '../i18n.js';
 import {
-  renderTopPill,
   renderArenaWatermarkTimer,
 } from '../ui/hud.js';
 import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateHeistBotAI } from '../ai/heistAI.js';
-import { drawGameAvatar } from '../core/avatarInGame.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
 import { createPlayer } from '../core/playerEntity.js';
+import {
+  createHeistWorldPacket,
+  drawHeistArena,
+  drawHeistVaults,
+  drawHeistLoot,
+  drawHeistPiggy,
+  drawHeistPlayers,
+  drawHeistTexts,
+} from './heistView.js';
+import { drawSquareParticles } from './worldCore.js';
 
 export const HEIST_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const HEIST_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -107,6 +115,10 @@ export class HeistGame extends BaseMiniGame {
     this.bindStandardKeyboard((slot) => {
       this.triggerTackle(slot);
     });
+  }
+
+  createWorldPacket() {
+    return createHeistWorldPacket(this);
   }
 
   cycleSlotType(index) {
@@ -997,16 +1009,49 @@ export class HeistGame extends BaseMiniGame {
       ctx.translate(offsetX, offsetY);
     }
 
-    this.renderArena(ctx);
+    // Arena sahnesi ortak heistView draw'larından gelir (host↔client aynı).
+    drawHeistArena(ctx, this.arena, this.pillars);
     if (this.state !== 'LOBBY') {
-      this.renderVaults(ctx);
-      this.renderLoot(ctx);
-      this.renderPiggyBank(ctx);
-      this.renderPlayers(ctx);
+      const scenePlayers = this.players.map((p) => ({
+        ...p,
+        slot: p.index,
+        stumble: p.stumbleTimer,
+        tackling: p.isTackling === true,
+        carried: p.carriedGold || 0,
+        vault: p.vaultGold || 0,
+        cd: p.tackleCooldown || 0,
+        angle: p.facingAngle || 0,
+      }));
+      drawHeistVaults(ctx, this.vaults, scenePlayers);
+      drawHeistLoot(ctx, this.lootItems);
+      drawHeistPiggy(ctx, this.piggyBank ? {
+        x: this.piggyBank.x,
+        y: this.piggyBank.y,
+        radius: this.piggyBank.radius,
+        hp: this.piggyBank.hp,
+        maxHp: this.piggyBank.maxHp,
+        anim: this.piggyBank.animTime || 0,
+      } : null);
+      drawHeistPlayers(ctx, scenePlayers, { withFx: this.state === 'PLAYING' });
     }
-    this.renderParticles(ctx);
-    this.renderFloatingTexts(ctx);
+    drawSquareParticles(ctx, this.particles);
+    drawHeistTexts(ctx, this.floatingTexts);
     this.renderControls(ctx);
+
+    // Host HUD: süre sayacı (world-view client'ı kendi HUD'unu kullanır)
+    if (this.state === 'PLAYING') {
+      const remain = Math.max(0, this.roundTimer);
+      const isUrgent = remain <= 10.0;
+      renderArenaWatermarkTimer(ctx, {
+        arena: this.arena,
+        text: `${Math.ceil(remain)}s`,
+        subText: '',
+        urgent: isUrgent,
+        color: isUrgent ? '#D84727' : '#D99B26',
+        alpha: isUrgent ? 0.70 : 0.46,
+        ringProgress: Math.max(0, remain / 90),
+      });
+    }
 
     // Gold Rush border vignette
     if (this.state === 'PLAYING' && this.goldRushActive) {
@@ -1053,529 +1098,4 @@ export class HeistGame extends BaseMiniGame {
 
 
 
-  renderArena(ctx) {
-    const { left, top, right, bottom, width, height, size, cx, cy } = this.arena;
-
-    // Arena Floor
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(left, top, width, height);
-
-    // Floor Markings Grid
-    ctx.strokeStyle = '#E8E2D8';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(left + width * 0.12, top + height * 0.12, width * 0.76, height * 0.76);
-
-    // Central Treasure Pit circle
-    ctx.strokeStyle = '#D99B26';
-    ctx.lineWidth = 2.5;
-    ctx.setLineDash([6, 6]);
-    ctx.beginPath();
-    ctx.arc(cx, cy, size * 0.22, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // 4 Köşe Takviye Braketleri (L-plates)
-    const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
-    ctx.strokeStyle = '#2B2B28';
-    ctx.lineWidth = 3;
-    const cornerPlates = [
-      [[left, top + bLen], [left, top], [left + bLen, top]],
-      [[right - bLen, top], [right, top], [right, top + bLen]],
-      [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
-      [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
-    ];
-    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.lineTo(x3, y3);
-      ctx.stroke();
-    }
-
-    // Outer Border & Cast Iron Drop Shadow
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(right, top + 6, 6, height);
-    ctx.fillRect(left + 6, bottom, width, 6);
-
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(left, top, width, height);
-
-    // Obstacle Pillars (Kasa Mahzeni Döküm Taş Sütunları)
-    for (const pil of this.pillars) {
-      // 1. Zemin Döküm Sert Gölgesi
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(pil.x + 4, pil.y + 4, pil.w, pil.h);
-
-      // 2. Taş Sütun Gövdesi
-      ctx.fillStyle = '#2B2B28';
-      ctx.fillRect(pil.x, pil.y, pil.w, pil.h);
-
-      // 3. Kalın Dış Sınır Çerçevesi
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(pil.x, pil.y, pil.w, pil.h);
-
-      // 4. Üst / Sol Metalik Işık Çizgisi
-      ctx.strokeStyle = '#6E6E66';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(pil.x + 2, pil.y + pil.h - 2);
-      ctx.lineTo(pil.x + 2, pil.y + 2);
-      ctx.lineTo(pil.x + pil.w - 2, pil.y + 2);
-      ctx.stroke();
-
-      // 5. İç Çelik Güçlendirme & Pirinç Perçin
-      if (pil.w >= 28 && pil.h >= 28) {
-        ctx.strokeStyle = '#3E3E38';
-        ctx.lineWidth = 1.5;
-        const pad = 6;
-        ctx.strokeRect(pil.x + pad, pil.y + pad, pil.w - pad * 2, pil.h - pad * 2);
-
-        // Pirinç/Altın Mahzen Plaka Noktası
-        ctx.fillStyle = '#D99B26';
-        ctx.beginPath();
-        ctx.arc(pil.x + pil.w / 2, pil.y + pil.h / 2, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // Sütunların üzerinde her zaman net, yüksek görünürlüklü süre sayacı
-    if (this.state === 'PLAYING') {
-      const remain = Math.max(0, this.roundTimer);
-      const isUrgent = remain <= 10.0;
-      renderArenaWatermarkTimer(ctx, {
-        arena: this.arena,
-        text: `${Math.ceil(remain)}s`,
-        subText: '',
-        urgent: isUrgent,
-        color: isUrgent ? '#D84727' : '#D99B26',
-        alpha: isUrgent ? 0.70 : 0.46,
-        ringProgress: Math.max(0, remain / 90),
-      });
-    }
-  }
-
-  renderVaults(ctx) {
-    for (const v of this.vaults) {
-      const p = this.players[v.playerIndex];
-      if (!p.isJoined) continue;
-
-      const isTop = v.playerIndex === 1 || v.playerIndex === 2;
-
-      ctx.save();
-      // Vault Floor
-      ctx.fillStyle = 'rgba(217, 155, 38, 0.12)';
-      ctx.fillRect(v.x, v.y, v.w, v.h);
-
-      ctx.strokeStyle = p.color;
-      ctx.lineWidth = 3;
-      ctx.strokeRect(v.x, v.y, v.w, v.h);
-
-      // Inner vault content with 180° rotation for Top players
-      ctx.save();
-      ctx.translate(v.x + v.w / 2, v.y + v.h / 2);
-      if (isTop) {
-        ctx.rotate(Math.PI);
-      }
-
-      // Vault Badge: sadece isim (genel ★ skoru köşe skorlarında okunur)
-      const badgeW = v.w - 8;
-      const badgeH = 28;
-      ctx.fillStyle = '#1C1C1A';
-      ctx.fillRect(-badgeW / 2, -v.h / 2 + 4, badgeW, badgeH);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 14px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`${p.name}`, 0, -v.h / 2 + 18);
-
-      // Biriken altın yığını: piramit dizili, ışıklı külçeler (yer varsa)
-      if (v.h >= 80) {
-        // Kasa doldukça iç ışıma güçlenir
-        if (p.vaultGold >= 6) {
-          ctx.globalAlpha = Math.min(0.3, 0.1 + p.vaultGold * 0.012);
-          ctx.fillStyle = '#FFDE59';
-          ctx.fillRect(-v.w / 2 + 4, -v.h / 2 + 26, v.w - 8, v.h - 34);
-          ctx.globalAlpha = 1;
-        }
-        const rows = [6, 5, 4];
-        const iw = (v.w - 24) / 6;
-        const ih = 11;
-        let drawn = 0;
-        const target = Math.min(15, p.vaultGold);
-        for (let r = 0; r < rows.length && drawn < target; r++) {
-          const count = Math.min(rows[r], target - drawn);
-          const rowW = count * iw;
-          for (let c = 0; c < count; c++) {
-            const ix = -rowW / 2 + c * iw;
-            const iy = v.h / 2 - 8 - ih - r * (ih + 3);
-            // Yamuk külçe gövdesi
-            ctx.fillStyle = '#FFDE59';
-            ctx.beginPath();
-            ctx.moveTo(ix + 1, iy + ih);
-            ctx.lineTo(ix + 3, iy);
-            ctx.lineTo(ix + iw - 3, iy);
-            ctx.lineTo(ix + iw - 1, iy + ih);
-            ctx.closePath();
-            ctx.fill();
-            ctx.strokeStyle = '#1C1C1A';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-            // Üst parlama çizgisi
-            ctx.strokeStyle = '#FFF6C9';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(ix + 4, iy + 3);
-            ctx.lineTo(ix + iw - 4, iy + 3);
-            ctx.stroke();
-            drawn++;
-          }
-        }
-      }
-
-      // Kocaman kasa sayısı (kasa boyuna göre)
-      const numSize = Math.max(18, Math.min(34, Math.floor(v.w * 0.27)));
-      ctx.fillStyle = '#1C1C1A';
-      ctx.font = `900 ${numSize}px "Space Grotesk", sans-serif`;
-      ctx.fillText(`${p.vaultGold}`, 0, v.h >= 80 ? -6 : 8);
-
-      ctx.restore();
-      ctx.restore();
-    }
-  }
-
-  renderLoot(ctx) {
-    for (const item of this.lootItems) {
-      ctx.save();
-      ctx.translate(item.x, item.y);
-
-      // Shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
-      ctx.beginPath();
-      ctx.arc(2, 2, item.radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      if (item.type === 'COIN') {
-        // Gold Coin with star icon
-        ctx.fillStyle = '#FFDE59';
-        ctx.beginPath();
-        ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#1C1C1A';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        ctx.fillStyle = '#1C1C1A';
-        ctx.font = '900 11px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('★', 0, 0);
-      } else if (item.type === 'DIAMOND') {
-        // Royal Diamond
-        ctx.fillStyle = '#48CAE4';
-        ctx.beginPath();
-        ctx.moveTo(0, -item.radius);
-        ctx.lineTo(item.radius, 0);
-        ctx.lineTo(0, item.radius);
-        ctx.lineTo(-item.radius, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = '#1C1C1A';
-        ctx.lineWidth = 2.2;
-        ctx.stroke();
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('💎', 0, 1);
-      } else if (item.type === 'CROWN') {
-        // Heavy Gold Bar with Crown icon
-        ctx.fillStyle = '#D99B26';
-        ctx.fillRect(-12, -8, 24, 16);
-        ctx.strokeStyle = '#1C1C1A';
-        ctx.lineWidth = 2.5;
-        ctx.strokeRect(-12, -8, 24, 16);
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('👑', 0, 1);
-      }
-
-      ctx.restore();
-    }
-  }
-
-  renderPiggyBank(ctx) {
-    if (!this.piggyBank) return;
-    const pig = this.piggyBank;
-
-    ctx.save();
-    ctx.translate(pig.x, pig.y);
-
-    // Bouncing squash
-    const squash = 1 + Math.sin(pig.animTime * 8) * 0.08;
-    ctx.scale(squash, 1 / squash);
-
-    // Drop shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-    ctx.beginPath();
-    ctx.arc(3, 4, pig.radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Golden Body
-    ctx.fillStyle = '#FFDE59';
-    ctx.beginPath();
-    ctx.arc(0, 0, pig.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.stroke();
-
-    // Piggy Snout
-    ctx.fillStyle = '#D99B26';
-    ctx.beginPath();
-    ctx.arc(0, 2, 8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Coin slot on back
-    ctx.fillStyle = '#1C1C1A';
-    ctx.fillRect(-6, -14, 12, 3);
-
-    // Ears
-    ctx.beginPath();
-    ctx.moveTo(-14, -14);
-    ctx.lineTo(-6, -20);
-    ctx.lineTo(-4, -10);
-    ctx.closePath();
-    ctx.fillStyle = '#FFDE59';
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(14, -14);
-    ctx.lineTo(6, -20);
-    ctx.lineTo(4, -10);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.restore();
-
-    // Health Pips above Piggy
-    ctx.save();
-    const pipW = 10;
-    const pipH = 5;
-    const startPipX = pig.x - (pig.maxHp * (pipW + 3)) / 2;
-    const pipY = pig.y - pig.radius - 12;
-
-    for (let h = 0; h < pig.maxHp; h++) {
-      ctx.fillStyle = h < pig.hp ? '#2D6A4F' : '#E63946';
-      ctx.fillRect(startPipX + h * (pipW + 3), pipY, pipW, pipH);
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(startPipX + h * (pipW + 3), pipY, pipW, pipH);
-    }
-    ctx.restore();
-  }
-
-  renderPlayers(ctx) {
-    // Find richest player on the board
-    let maxCarried = 2;
-    let richestIndex = -1;
-    for (const p of this.players) {
-      if (p.isJoined && p.isAlive && p.carriedGold > maxCarried) {
-        maxCarried = p.carriedGold;
-        richestIndex = p.index;
-      }
-    }
-
-    for (const player of this.players) {
-      if (!player.isJoined || !player.isAlive) continue;
-
-      ctx.save();
-      const px = Number.isFinite(player.x) ? player.x : this.arena.cx;
-      const py = Number.isFinite(player.y) ? player.y : this.arena.cy;
-      ctx.translate(px, py);
-
-      // Stumble Shake
-      if (player.stumbleTimer > 0) {
-        ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
-      }
-
-      // Richest Target Beacon
-      if (player.index === richestIndex) {
-        const pulse = Math.sin(performance.now() * 0.01) * 3;
-        ctx.strokeStyle = '#FFDE59';
-        ctx.lineWidth = 2.5;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.arc(0, 0, player.radius + 10 + pulse, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Crown
-        ctx.font = '16px "Space Grotesk", sans-serif';
-        ctx.fillText('👑', 0, -player.radius - 32);
-      }
-
-      // Tackle Burst Aura
-      if (player.isTackling) {
-        ctx.strokeStyle = '#FFDE59';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.arc(0, 0, player.radius + 6, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      // 1. Forward Tactical Light Beam (Flashlight Cone)
-      ctx.save();
-      ctx.rotate(player.facingAngle);
-      const coneGrad = ctx.createRadialGradient(0, 0, player.radius, 0, 0, player.radius + 36);
-      coneGrad.addColorStop(0, `${player.color}88`);
-      coneGrad.addColorStop(1, `${player.color}00`);
-      ctx.fillStyle = coneGrad;
-      ctx.beginPath();
-      ctx.moveTo(player.radius * 0.8, 0);
-      ctx.arc(0, 0, player.radius + 36, -0.42, 0.42);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-
-      let currentExp = 'normal';
-      if (player.stumbleTimer > 0) currentExp = 'dizzy';
-      else if (player.isTackling) currentExp = 'angry';
-      else if (player.carriedGold >= 5) currentExp = 'excited';
-      else if (player.carriedGold > 0) currentExp = 'wink';
-
-      drawGameAvatar(ctx, 0, 0, player.radius, player, {
-        facingAngle: player.facingAngle,
-        expression: currentExp,
-        borderColor: player.isTackling ? '#FFDE59' : '#1C1C1A',
-        borderWidth: player.isTackling ? 4.5 : 3,
-      });
-
-      // Omuz Darbesi Cooldown Göstergesi (Zemin ve altınların üstünde her zaman net görünür)
-      if (player.tackleCooldown > 0) {
-        const maxCd = HEIST_TUNING.TACKLE_COOLDOWN;
-        const cdProg = 1.0 - Math.max(0, Math.min(1, player.tackleCooldown / maxCd));
-        ctx.save();
-        // Zemin Koyu Halka
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.arc(0, 0, player.radius + 5, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Dolum Arkı
-        ctx.strokeStyle = '#FFDE59';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(0, 0, player.radius + 5, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // Taşınan ganimet: miktara göre büyüyen yığın (yük = gösteriş)
-      if (player.carriedGold > 0) {
-        const bagY = -player.radius - 12;
-        const isRichest = player.index === richestIndex;
-        const gold = player.carriedGold;
-        // Kademe: 1-4 sade, 5-9 altın çerçeve + ışıma, 10+ dev külçe + taç
-        const tier = gold >= 10 ? 2 : gold >= 5 ? 1 : 0;
-        const coins = Math.min(8, gold);
-        const coinR = tier === 2 ? 8.5 : 7.5;
-        const step = coinR * 1.25;
-        // Işıma (yük büyüdükçe güçlenir)
-        if (tier >= 1) {
-          ctx.globalAlpha = tier === 2 ? 0.35 : 0.22;
-          ctx.fillStyle = '#FFDE59';
-          ctx.beginPath();
-          ctx.arc(0, bagY - 20, player.radius + 16 + tier * 6, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-        // Sikke kulesi (plakanın üstünde birikir)
-        for (let c = 0; c < coins; c++) {
-          const cy = bagY - 12 - c * step;
-          ctx.fillStyle = '#FFDE59';
-          ctx.beginPath();
-          ctx.arc(0, cy, coinR, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = '#1C1C1A';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          // Parıltı çizgisi
-          ctx.strokeStyle = '#FFF6C9';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.arc(0, cy, coinR * 0.55, -Math.PI * 0.7, -Math.PI * 0.2);
-          ctx.stroke();
-        }
-        // Dev yük tacı (Geometrik taç bandı)
-        if (tier === 2) {
-          const cy = bagY - 12 - coins * step - 6;
-          ctx.fillStyle = '#FFDE59';
-          ctx.strokeStyle = '#1C1C1A';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.moveTo(-10, cy + 6);
-          ctx.lineTo(-10, cy);
-          ctx.lineTo(-5, cy + 3);
-          ctx.lineTo(0, cy - 2);
-          ctx.lineTo(5, cy + 3);
-          ctx.lineTo(10, cy);
-          ctx.lineTo(10, cy + 6);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-        }
-        // Sayaç plaka
-        ctx.fillStyle = '#1C1C1A';
-        ctx.fillRect(-32, bagY - 9, 64, 22);
-        ctx.strokeStyle = tier >= 1 || isRichest ? '#FFDE59' : '#FFFFFF';
-        ctx.lineWidth = tier >= 1 || isRichest ? 3 : 2;
-        ctx.strokeRect(-32, bagY - 9, 64, 22);
-
-        ctx.fillStyle = tier >= 1 || isRichest ? '#FFDE59' : '#FFFFFF';
-        ctx.font = '900 13px "JetBrains Mono", monospace';
-        ctx.fillText(`${gold} G`, 0, bagY + 2);
-      }
-
-      ctx.restore();
-    }
-  }
-
-  renderParticles(ctx) {
-    for (const part of this.particles) {
-      ctx.save();
-      const alpha = Math.max(0, part.life / part.maxLife);
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = part.color;
-      ctx.fillRect(part.x - part.size / 2, part.y - part.size / 2, part.size, part.size);
-      ctx.restore();
-    }
-  }
-
-  renderFloatingTexts(ctx) {
-    for (const ft of this.floatingTexts) {
-      ctx.save();
-      const alpha = Math.max(0, ft.life / ft.maxLife);
-      ctx.globalAlpha = alpha;
-      ctx.font = '900 13px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
-      ctx.lineWidth = 3.5;
-      ctx.strokeText(ft.text, ft.x, ft.y);
-      ctx.fillStyle = ft.color;
-      ctx.fillText(ft.text, ft.x, ft.y);
-      ctx.restore();
-    }
-  }
 }

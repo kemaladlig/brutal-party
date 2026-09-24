@@ -11,6 +11,7 @@ import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { distToSegmentSquared } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
+import { createCurveWorldPacket } from './curveView.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CURVE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -64,6 +65,10 @@ export class CurveGame extends BaseMiniGame {
     // Keyboard Controls (P1 AD, P2 Oklar, P3 JL, P4 FH — sol tuş = sol butonla aynı yön)
     this.keys = {};
     this.initKeyboard();
+  }
+
+  createWorldPacket() {
+    return createCurveWorldPacket(this);
   }
 
   initKeyboard() {
@@ -833,7 +838,8 @@ export class CurveGame extends BaseMiniGame {
       ctx.stroke();
     }
 
-    // Pickups (Canlı İkon Rozetleri)
+    // Pickups (Canlı İkon Rozetleri) — host tam çözünürlükte çizer; telefonlar
+    // curveView sıkıştırılmış iki katmanlı (near + field maskesi) draw'ını kullanır.
     for (const item of this.pickups) {
       drawPickup(ctx, item, { size: item.size || 24 });
     }

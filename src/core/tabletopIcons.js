@@ -124,6 +124,17 @@ const LUCIDE_REGISTRY = {
     path: 'M6 3h12l4 6-10 12L2 9l4-6z M11 3l-3 6 4 12 4-12-3-6 M2 9h20',
     mode: 'stroke',
   },
+  hammer: {
+    id: 'hammer',
+    aliases: ['🔨', 'hammer', 'repair'],
+    path: 'M15 12l-8.5 8.5a2.12 2.12 0 1 1-3-3L12 9 M18 15l4-4 M21.5 11.5l-1.91-1.91A2 2 0 0 1 19 8.17V7l-2.26-2.26a6 6 0 0 0-4.2-1.76L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.17a2 2 0 0 1 1.42.59L18.5 14.5',
+    mode: 'stroke',
+  },
+  crown: {    id: 'crown',
+    aliases: ['👑', 'crown', 'king'],
+    path: 'M11.56 3.27a.5.5 0 0 1 .88 0l2.95 5.6a1 1 0 0 0 1.52.29l4.27-3.66a.5.5 0 0 1 .8.52l-2.83 10.25a1 1 0 0 1-.96.73H5.81a1 1 0 0 1-.96-.73L2.02 6.02a.5.5 0 0 1 .8-.52l4.27 3.66a1 1 0 0 0 1.52-.29z M5 21h14',
+    mode: 'both',
+  },
   landmark: {
     id: 'landmark',
     aliases: ['🏛️', 'statue', 'altar', 'fountain', '⛲', '🗿'],

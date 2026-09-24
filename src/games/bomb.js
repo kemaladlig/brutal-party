@@ -15,24 +15,26 @@ import {
   playStumble,
 } from '../audio.js';
 import { t } from '../i18n.js';
-import {
-  renderTopPill,
-  renderEntityHUD,
-  renderArenaWatermarkTimer,
-  renderAdaptiveScoreboard,
-} from '../ui/hud.js';
+import { renderArenaWatermarkTimer, renderAdaptiveScoreboard } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
-import { drawPickup, buildLayout } from '../core/arenaKit.js';
+import { buildLayout } from '../core/arenaKit.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
-import { drawGameAvatar } from '../core/avatarInGame.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { createPlayer, tickEffectTimers, advancePlayer } from '../core/playerEntity.js';
+import {
+  createBombWorldPacket,
+  drawBombArena,
+  drawBombInk,
+  drawBombPickups,
+  drawBombPlayers,
+  drawBombParticles,
+} from './bombView.js';
 
 export const BOMB_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const BOMB_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -139,6 +141,10 @@ export class BombGame extends BaseMiniGame {
     this.bindStandardKeyboard((slot) => {
       this.triggerDash(slot);
     });
+  }
+
+  createWorldPacket() {
+    return createBombWorldPacket(this);
   }
 
   cycleSlotType(index) {
@@ -799,12 +805,56 @@ export class BombGame extends BaseMiniGame {
       ctx.translate(offsetX, offsetY);
     }
 
-    this.renderArena(ctx);
-    this.renderInkPuddles(ctx);
-    this.renderPickups(ctx);
-    this.renderPlayers(ctx);
-    this.renderParticles(ctx);
+    // Arena sahnesi ortak bombView draw'larından gelir (host↔client aynı).
+    const carrierP = this.players[this.bombCarrierIndex];
+    drawBombArena(ctx, this.arena, this.pillars, {
+      carrier: carrierP && carrierP.isAlive
+        ? { x: carrierP.x, y: carrierP.y, radius: carrierP.radius, alive: true }
+        : null,
+      bombTimer: this.bombTimer,
+      bombMaxTime: this.bombMaxTime,
+    });
+    drawBombInk(ctx, this.inkPuddles);
+    drawBombPickups(ctx, this.pickups);
+    drawBombPlayers(ctx, this.players.map((p) => ({
+      ...p,
+      carrier: p.index === this.bombCarrierIndex,
+      stumble: p.stumbleTimer, immunity: p.immunityTimer,
+      dash: p.dashTimer, turbo: p.turboTimer,
+      slip: p.slipTimer, slipAngle: p.slipAngle,
+      cd: p.dashCooldown, cdMax: p.dashMaxCooldown,
+      angle: p.facingAngle,
+    })), {
+      bombTimer: this.bombTimer,
+      bombMaxTime: this.bombMaxTime,
+      withFx: this.state === 'PLAYING',
+    });
+    drawBombParticles(ctx, this.particles);
     this.renderControls(ctx);
+
+    // Host HUD: Skorbord + bomba geri sayımı (world-view client'ı kendi HUD'unu kullanır)
+    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
+      renderAdaptiveScoreboard(ctx, {
+        arena: this.arena,
+        players: this.players,
+        scores: this.scores,
+        entities: this.players.filter((p) => p.isJoined),
+        isHosting: !!this.hideLobbyStartButton,
+        state: this.state,
+      });
+      const remain = Math.max(0, this.bombTimer);
+      const isPanic = remain <= 4.0;
+      const carrierP2 = this.bombCarrierIndex !== null ? this.players[this.bombCarrierIndex] : null;
+      renderArenaWatermarkTimer(ctx, {
+        arena: this.arena,
+        text: `${remain.toFixed(1)}s`,
+        subText: '',
+        urgent: isPanic,
+        color: isPanic ? '#D84727' : (carrierP2 ? carrierP2.color : null),
+        alpha: isPanic ? 0.72 : 0.50,
+        ringProgress: Math.max(0, remain / this.bombMaxTime),
+      });
+    }
 
     // Panic Phase Red Border Vignette (Last 4 Seconds)
     if (this.state === 'PLAYING' && this.bombTimer <= 4.0) {
@@ -875,318 +925,4 @@ export class BombGame extends BaseMiniGame {
     ctx.restore();
   }
 
-  renderArena(ctx) {
-    const { left, top, right, bottom, width, height, size, cx, cy } = this.arena;
-
-    // Arena Floor
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(left, top, width, height);
-
-    // Arena Floor Grid & Tactile Corner Brackets
-    ctx.strokeStyle = '#E2DCD2';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(left + width * 0.15, top + height * 0.15, width * 0.7, height * 0.7);
-
-    // 4 Köşe Ağır L-Braketleri
-    const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
-    ctx.strokeStyle = '#2B2B28';
-    ctx.lineWidth = 3;
-    const cornerPlates = [
-      [[left, top + bLen], [left, top], [left + bLen, top]],
-      [[right - bLen, top], [right, top], [right, top + bLen]],
-      [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
-      [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
-    ];
-    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.lineTo(x3, y3);
-      ctx.stroke();
-    }
-
-    // Arena Outer Heavy Cast Iron Border & Drop Shadow
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(right, top + 6, 6, height);
-    ctx.fillRect(left + 6, bottom, width, 6);
-
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(left, top, width, height);
-
-    // Pillars / Obstacles (Bomba Arenası Döküm Takviyeli Sütunları)
-    for (const pil of this.pillars) {
-      // Solid Shadow
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fillRect(pil.x + 5, pil.y + 5, pil.w, pil.h);
-
-      // Pillar Face
-      ctx.fillStyle = '#2B2B28';
-      ctx.fillRect(pil.x, pil.y, pil.w, pil.h);
-
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(pil.x, pil.y, pil.w, pil.h);
-
-      // Üst/Sol Metalik Işık Çizgisi
-      ctx.strokeStyle = '#6E6E66';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(pil.x + 2, pil.y + pil.h - 2);
-      ctx.lineTo(pil.x + 2, pil.y + 2);
-      ctx.lineTo(pil.x + pil.w - 2, pil.y + 2);
-      ctx.stroke();
-
-      // Cross Rivet pattern
-      ctx.strokeStyle = '#42423E';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(pil.x + 4, pil.y + 4);
-      ctx.lineTo(pil.x + pil.w - 4, pil.y + pil.h - 4);
-      ctx.moveTo(pil.x + pil.w - 4, pil.y + 4);
-      ctx.lineTo(pil.x + 4, pil.y + pil.h - 4);
-      ctx.stroke();
-
-      // Merkez Pirinç Perçin
-      ctx.fillStyle = '#D99B26';
-      ctx.beginPath();
-      ctx.arc(pil.x + pil.w / 2, pil.y + pil.h / 2, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Dynamic Floor Hazard Ring Under Bomb Carrier
-    const carrier = this.players[this.bombCarrierIndex];
-    if (carrier && carrier.isAlive && this.state === 'PLAYING') {
-      ctx.save();
-      const urgency = 1 - Math.max(0, this.bombTimer / this.bombMaxTime);
-      const ringRadius = carrier.radius + 18 + Math.sin(performance.now() * 0.01) * 4;
-
-      ctx.strokeStyle = urgency > 0.6 ? '#D84727' : '#D99B26';
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([6, 6]);
-      ctx.beginPath();
-      ctx.arc(carrier.x, carrier.y, ringRadius, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Floor warning crosshair
-      const chLen = 8;
-      ctx.setLineDash([]);
-      ctx.beginPath();
-      ctx.moveTo(carrier.x - ringRadius - chLen, carrier.y);
-      ctx.lineTo(carrier.x - ringRadius + 2, carrier.y);
-      ctx.moveTo(carrier.x + ringRadius - 2, carrier.y);
-      ctx.lineTo(carrier.x + ringRadius + chLen, carrier.y);
-      ctx.moveTo(carrier.x, carrier.y - ringRadius - chLen);
-      ctx.lineTo(carrier.x, carrier.y - ringRadius + 2);
-      ctx.moveTo(carrier.x, carrier.y + ringRadius - 2);
-      ctx.lineTo(carrier.x, carrier.y + ringRadius + chLen);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // 4 Köşede Standart Yüksek Görünürlüklü Oyuncu Skorları & Sütunların Üzerinde Net Geri Sayım
-    if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      renderAdaptiveScoreboard(ctx, {
-        arena: this.arena,
-        players: this.players,
-        scores: this.scores,
-        entities: this.players.filter((p) => p.isJoined),
-        isHosting: !!this.hideLobbyStartButton,
-        state: this.state,
-      });
-
-      // Saha ortasında sütunların üstünde net, yüksek görünürlüklü bomba geri sayımı
-      const remain = Math.max(0, this.bombTimer);
-      const isPanic = remain <= 4.0;
-      const carrierP = this.bombCarrierIndex !== null ? this.players[this.bombCarrierIndex] : null;
-      renderArenaWatermarkTimer(ctx, {
-        arena: this.arena,
-        text: `${remain.toFixed(1)}s`,
-        subText: '',
-        urgent: isPanic,
-        color: isPanic ? '#D84727' : (carrierP ? carrierP.color : null),
-        alpha: isPanic ? 0.72 : 0.50,
-        ringProgress: Math.max(0, remain / this.bombMaxTime),
-      });
-    }
-  }
-
-  renderInkPuddles(ctx) {
-    for (const puddle of this.inkPuddles) {
-      ctx.save();
-      ctx.fillStyle = '#1A1A1A';
-      ctx.beginPath();
-      ctx.arc(puddle.x, puddle.y, puddle.radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Splatter blobs
-      ctx.fillStyle = '#333330';
-      ctx.beginPath();
-      ctx.arc(puddle.x - 6, puddle.y - 4, puddle.radius * 0.4, 0, Math.PI * 2);
-      ctx.arc(puddle.x + 8, puddle.y + 5, puddle.radius * 0.35, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.restore();
-    }
-  }
-
-
-
-  renderPickups(ctx) {
-    for (const item of this.pickups) drawPickup(ctx, item);
-  }
-
-  renderPlayers(ctx) {
-    for (const player of this.players) {
-      if (!player.isJoined || !player.isAlive) continue;
-
-      const isCarrier = player.index === this.bombCarrierIndex;
-      ctx.save();
-      ctx.translate(player.x, player.y);
-
-      // Slipping rotation
-      if (player.slipTimer > 0) {
-        ctx.rotate(player.slipAngle);
-      }
-
-      // Receiver Stumble Jitter & Dizzy Indicator (0.85s heavy stun)
-      if (player.stumbleTimer > 0) {
-        ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
-
-        // Orbiting Dizzy Sparks & Daze Ring (Geometrik kıvılcımlar, emojisiz)
-        ctx.save();
-        const dazeAngle = performance.now() * 0.008;
-        const starR = player.radius + 14;
-        ctx.fillStyle = '#FFDE59';
-        for (let s = 0; s < 3; s++) {
-          const a = dazeAngle + (s * Math.PI * 2) / 3;
-          const sx = Math.cos(a) * starR;
-          const sy = Math.sin(a) * (starR * 0.4) - player.radius - 10;
-          ctx.fillRect(sx - 3, sy - 3, 6, 6);
-        }
-
-        // Stun floor ring (çift-stroke: koyu taban + sarı üst)
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 5.5;
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.arc(0, 0, player.radius + 6, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.strokeStyle = '#FFDE59';
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.arc(0, 0, player.radius + 6, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Stun text badge (koyu konturlu)
-        ctx.fillStyle = '#FFDE59';
-        ctx.font = '900 10px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
-        ctx.lineWidth = 3;
-        ctx.strokeText('SERSEM!', 0, -player.radius - 26);
-        ctx.fillText('SERSEM!', 0, -player.radius - 26);
-        ctx.restore();
-      }
-
-      // Escaper Immunity Shield Ring (cannot be given bomb back)
-      if (player.immunityTimer > 0) {
-        ctx.save();
-        ctx.strokeStyle = '#2D6A4F';
-        ctx.lineWidth = 2.5;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.arc(0, 0, player.radius + 7, 0, Math.PI * 2);
-        ctx.stroke();
-
-        ctx.fillStyle = '#2D6A4F';
-        ctx.font = '900 10px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(t('bomb.safe'), 0, -player.radius - 12);
-        ctx.restore();
-      }
-
-      // Danger Pulse Ring around Bomb Carrier
-      if (isCarrier) {
-        const urgency = 1 - Math.max(0, this.bombTimer / this.bombMaxTime);
-        const pulseSpeed = 1 + urgency * 4;
-        const pulseR =
-          player.radius + 8 + Math.sin(performance.now() * 0.015 * pulseSpeed) * 4;
-        ctx.strokeStyle = urgency > 0.7 ? '#FFDE59' : '#D84727';
-        ctx.lineWidth = urgency > 0.7 ? 4 : 3;
-        ctx.beginPath();
-        ctx.arc(0, 0, pulseR, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      let currentExp = 'normal';
-      if (isCarrier) currentExp = 'panic';
-      else if (player.stumbleTimer > 0) currentExp = 'dizzy';
-      else if (player.dashTimer > 0) currentExp = 'angry';
-      else if (player.turboTimer > 0) currentExp = 'wink';
-
-      drawGameAvatar(ctx, 0, 0, player.radius, player, {
-        facingAngle: player.facingAngle,
-        expression: currentExp,
-        borderColor: player.dashTimer > 0 ? '#FFFFFF' : '#1C1C1A',
-        borderWidth: player.dashTimer > 0 ? 4.5 : 3,
-      });
-
-      // Merkezi Başüstü HUD (Dash cooldown ring & stun)
-      const cdProg = player.dashCooldown > 0
-        ? 1.0 - Math.max(0, Math.min(1, player.dashCooldown / player.dashMaxCooldown))
-        : 1.0;
-      renderEntityHUD(ctx, {
-        x: 0,
-        y: 0,
-        radius: player.radius,
-        color: '#FFDE59',
-        cooldownProgress: player.dashCooldown > 0 ? cdProg : null,
-        stun: player.stumbleTimer > 0,
-      });
-
-      // --- Ticking Bomb Visuals for Carrier ---
-      if (isCarrier) {
-        const bombY = -player.radius - 18;
-
-        // Bomb sphere
-        ctx.fillStyle = '#1C1C1A';
-        ctx.beginPath();
-        ctx.arc(0, bombY, 11, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#FAF7F2';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-
-        // Burning Fuse
-        ctx.strokeStyle = '#D84727';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(0, bombY - 10);
-        ctx.quadraticCurveTo(6, bombY - 16, 4, bombY - 20);
-        ctx.stroke();
-
-        // Spark at tip of fuse
-        ctx.fillStyle = Math.random() > 0.5 ? '#FFDE59' : '#D84727';
-        ctx.beginPath();
-        ctx.arc(4, bombY - 20, 3.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.restore();
-    }
-  }
-
-  renderParticles(ctx) {
-    for (const part of this.particles) {
-      ctx.save();
-      const alpha = Math.max(0, part.life / part.maxLife);
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = part.color;
-      ctx.fillRect(part.x - part.size / 2, part.y - part.size / 2, part.size, part.size);
-      ctx.restore();
-    }
-  }
 }

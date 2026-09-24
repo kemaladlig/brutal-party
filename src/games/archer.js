@@ -8,12 +8,19 @@ import { t } from '../i18n.js';
 import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateArcherBotAI } from '../ai/archerAI.js';
-import { drawGameAvatar } from '../core/avatarInGame.js';
-import { drawObstacle, drawPickup, buildLayout } from '../core/arenaKit.js';
+import { buildLayout } from '../core/arenaKit.js';
 import { readSlotKeys } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { pointBlocked, updateMovers, clampToArena, resolveAABB } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
+import {
+  createArcherWorldPacket,
+  drawArcherArena,
+  drawArcherPickups,
+  drawArcherArrows,
+  drawArcherPlayers,
+  drawArcherParticles,
+} from './archerView.js';
 
 export const ARCHER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ARCHER_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -59,6 +66,10 @@ export class ArcherGame extends BaseMiniGame {
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
     });
+  }
+
+  createWorldPacket() {
+    return createArcherWorldPacket(this);
   }
 
   keyboardInput(index) {
@@ -636,19 +647,9 @@ export class ArcherGame extends BaseMiniGame {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     this.applyScreenShake(ctx);
 
-    const { left, top, width, height } = this.arena;
-    ctx.fillStyle = '#E8E5DF';
-    ctx.fillRect(left, top, width, height);
-
-    // Siper blokları (ortak arenaKit)
-    for (const obs of this.obstacles) drawObstacle(ctx, obs, { variant: 'stone' });
-
-    // Power-up rozetleri (ortak arenaKit)
-    for (const pk of this.pickups) drawPickup(ctx, pk);
-
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(left, top, width, height);
+    // Arenanın scene kısmı ortak archerView draw'larından gelir (host↔client aynı).
+    drawArcherArena(ctx, this.arena, this.obstacles);
+    drawArcherPickups(ctx, this.pickups);
 
     // Engellerin üzerinde her zaman net, yüksek görünürlüklü süre sayacı
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
@@ -664,118 +665,13 @@ export class ArcherGame extends BaseMiniGame {
     }
 
     // Oklar
-    for (const a of this.arrows) {
-      const ang = Math.atan2(a.vy, a.vx);
-      ctx.save();
-      ctx.translate(a.x, a.y);
-      ctx.rotate(ang);
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(-14, 0);
-      ctx.lineTo(10, 0);
-      ctx.stroke();
-      ctx.fillStyle = a.color;
-      ctx.beginPath();
-      ctx.moveTo(16, 0);
-      ctx.lineTo(6, -5);
-      ctx.lineTo(6, 5);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
+    drawArcherArrows(ctx, this.arrows);
 
     // Oyuncular
-    for (const player of this.players) {
-      if (!player.isJoined || !player.isAlive) continue;
-
-      ctx.save();
-      ctx.translate(player.x, player.y);
-      ctx.rotate(player.angle);
-
-      // Nişan çizgisi (yay gerilirken)
-      if (player.charging && this.state === 'PLAYING') {
-        const aim = Math.sin(player.swayPhase) * (0.03 + 0.12 * (1 - player.charge));
-        ctx.save();
-        ctx.rotate(aim);
-        ctx.strokeStyle = player.charge >= 1 ? '#8B5CF6' : 'rgba(26,26,26,0.35)';
-        ctx.lineWidth = player.charge >= 1 ? 3 : 2;
-        ctx.setLineDash([8, 6]);
-        ctx.beginPath();
-        ctx.moveTo(ARCHER_RADIUS + 8, 0);
-        ctx.lineTo(ARCHER_RADIUS + 60 + player.charge * 90, 0);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // Yay (gerilme halkası)
-      if (this.state === 'PLAYING') {
-        ctx.save();
-        ctx.strokeStyle = player.charging ? '#8B5CF6' : 'rgba(26,26,26,0.45)';
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.arc(0, 0, ARCHER_RADIUS + 6, -1.1, 1.1);
-        ctx.stroke();
-        if (player.charging) {
-          ctx.fillStyle = '#8B5CF6';
-          ctx.beginPath();
-          ctx.arc(ARCHER_RADIUS + 6, 0, 3 + player.charge * 3, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        // KALKAN halkası
-        if (player.shield > 0) {
-          ctx.strokeStyle = '#06B6D4';
-          ctx.lineWidth = 3;
-          ctx.setLineDash([6, 5]);
-          ctx.beginPath();
-          ctx.arc(0, 0, ARCHER_RADIUS + 11, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.setLineDash([]);
-        }
-        ctx.restore();
-      }
-
-      drawGameAvatar(ctx, 0, 0, ARCHER_RADIUS, player, {
-        color: player.stun > 0 ? '#9C988F' : player.color,
-        facingAngle: 0, // already translated and rotated to player.angle
-        label: `P${player.index + 1}`,
-        expression: player.charging ? 'angry' : (player.stun > 0 ? 'dizzy' : 'normal'),
-        showPointer: true,
-        borderColor: '#1A1A1A',
-        borderWidth: 2.5,
-      });
-
-      // Ok Dolum / Yeniden Yükleme ve Sersemleme Cooldown Arkı (Zemin ve okların üstünde her zaman görünür)
-      if (player.reloadCooldown > 0) {
-        const cdProg = 1.0 - Math.max(0, Math.min(1, player.reloadCooldown / 0.8));
-        ctx.save();
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.arc(0, 0, ARCHER_RADIUS + 5, 0, Math.PI * 2);
-        ctx.stroke();
-
-        ctx.strokeStyle = '#8B5CF6';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(0, 0, ARCHER_RADIUS + 5, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      ctx.restore();
-    }
+    drawArcherPlayers(ctx, this.players, { showFx: this.state === 'PLAYING' });
 
     // Parçacıklar
-    for (const p of this.particles) {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+    drawArcherParticles(ctx, this.particles);
 
     this.renderControls(ctx, { extraEntities: this.arrows });
     this.renderHUD(ctx, {

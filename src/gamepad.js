@@ -233,12 +233,12 @@ export class GamepadManager {
     try {
       const module = await descriptor.load();
       if (token !== this._worldViewToken || !canvas?.isConnected) return;
-      const renderer = module.createSnakeWorldViewRenderer?.();
+      const renderer = module.createWorldViewRenderer?.() ?? module.createSnakeWorldViewRenderer?.();
       if (!renderer) {
         this._renderWorldPlaceholder(canvas);
         return;
       }
-      this._worldView = new GamepadWorldView(canvas, renderer, { slots: this.slots });
+      this._worldView = new GamepadWorldView(canvas, renderer, { slots: this.slots, selfSlot: this.playerIndex ?? -1 });
       if (this._pendingWorldFrame) {
         this._worldView.accept(this._pendingWorldFrame);
         this._pendingWorldFrame = null;
@@ -325,6 +325,7 @@ export class GamepadManager {
 
   init(playerInfo, gameMode = 'LOBBY') {
     this.playerIndex = playerInfo.slotIndex ?? 0;
+    if (this._worldView) this._worldView.setSelfSlot(this.playerIndex);
     this.playerName = (playerInfo.name || `OYUNCU ${this.playerIndex + 1}`).toUpperCase();
     this.playerColor = playerInfo.color || UI_COLORS.players[this.playerIndex] || '#D84727';
     try {
