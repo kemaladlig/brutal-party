@@ -42,7 +42,7 @@ import { initJoinModal, openJoinModal } from './ui/joinModal.js';
 import { initSettingsModal, openSettingsModal } from './ui/settingsModal.js';
 import { initMainMenu } from './ui/menuManager.js';
 import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
-import { tryFullscreen, isFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
+import { isFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
 import {
   initHostLobby,
   showHostLobbyModal,
@@ -476,7 +476,6 @@ function routeConnectionMessage(err) {
 }
 
 async function executeJoin(rawCode, rawName) {
-  tryFullscreen();
   const code = (rawCode || '').trim().toUpperCase();
   const name = (rawName || '').trim().toUpperCase() || ensureStoredNick();
 
@@ -783,7 +782,6 @@ function cancelCountdown() {
 }
 
 function startEngineNow(mode) {
-  tryFullscreen();
   // Maç başı reset motorun oyuncu renklerini yeniden kurar; host display
   // renkleri (override dahil) hemen ardından tekrar yazılır.
   const engine = getEngine(mode);

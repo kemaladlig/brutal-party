@@ -2,7 +2,6 @@ import { UI_COLORS, UI_SIZES, uiFont } from './ui/tokens.js';
 import { drawBrutalAvatar } from './ui/characterRenderer.js';
 import { getBotPersona } from './core/customizationManager.js';
 import { t } from './i18n.js';
-import { tryFullscreen } from './ui/fullscreen.js';
 
 const GUIDE_COLORS = UI_COLORS.players;
 
@@ -350,7 +349,6 @@ export function renderLobbyStartButton(ctx, {
       w: btnW,
       h: btnH,
       onClick: () => {
-        tryFullscreen();
         if (typeof onStart === 'function') onStart();
       },
     });
