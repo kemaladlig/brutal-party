@@ -266,9 +266,6 @@ export class GamepadManager {
     this.overlay.classList.toggle('is-lobby', !playing);
     this.overlay.classList.toggle('is-portrait', portrait);
     this.overlay.classList.toggle('is-landscape', !portrait);
-    const gate = document.getElementById('rotate-gate');
-    if (!gate) return;
-    gate.classList.toggle('hidden', !(playing && portrait));
   }
 
   init(playerInfo, gameMode = 'LOBBY') {
@@ -323,25 +320,21 @@ export class GamepadManager {
   renderShell() {
     const seatPositions = ['P1', 'P2', 'P3', 'P4'];
     const seatLabel = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
+    const initialGameTag = CONTROLLER_META[this.gameMode]?.hudTag || (this.gameMode === 'LOBBY' ? t('pad.lobbyTag') : this.gameMode);
 
     this.overlay.innerHTML = `
       <div class="gamepad-header">
-        <div class="player-badge-pod">
-          <div class="player-indicator-dot" id="header-player-dot" style="background-color: ${this.playerColor}"></div>
+        <div class="header-left-group">
+          <span class="player-slot-chip" id="header-seat-tag" style="background-color: ${this.playerColor}">${seatLabel}</span>
           <span class="player-name-label" id="header-player-name">${this.playerName}</span>
-          <span class="player-seat-tag" id="header-seat-tag">${seatLabel}</span>
+          <span class="header-game-chip" id="header-game-tag">${initialGameTag}</span>
         </div>
-        <div class="gamepad-room-info">#${this.network.roomCode || '---'}</div>
-        <div class="gamepad-header-actions">
-          <button class="btn-fullscreen-toggle" id="btn-toggle-fullscreen" type="button" data-i18n-aria="pad.fullscreenTitle" title="Tam Ekran Modu">⛶</button>
-          <button class="emoji-reaction-btn" id="btn-toggle-emoji" type="button" data-i18n-aria="pad.reactTitle" title="Tepki Gönder">🔥</button>
+        <div class="header-right-group">
+          <span class="gamepad-room-info">#${this.network.roomCode || '---'}</span>
+          <button class="emoji-reaction-btn" id="btn-toggle-emoji" type="button" data-i18n-aria="pad.reactTitle" title="Tepki Gönder">💬</button>
+          <button class="btn-fullscreen-toggle" id="btn-fullscreen-toggle" type="button" title="Tam Ekran">⛶</button>
           <button class="btn-leave-gamepad" id="btn-leave-gamepad" type="button">${t('pad.leave')}</button>
         </div>
-      </div>
-
-      <div class="gamepad-sub-hud" id="gamepad-sub-hud">
-        <span class="hud-game-tag" id="hud-game-tag">${t('pad.lobbyTag')}</span>
-        <span class="hud-live-status" id="hud-live-status">${t('pad.waiting')}</span>
       </div>
 
       <div class="score-strip hidden" id="score-strip"></div>
@@ -364,17 +357,9 @@ export class GamepadManager {
       window.location.href = window.location.pathname;
     });
 
-    const fsBtn = document.getElementById('btn-toggle-fullscreen');
-    fsBtn?.addEventListener('click', () => {
+    document.getElementById('btn-fullscreen-toggle')?.addEventListener('click', () => {
       this.toggleFullscreen();
     });
-
-    const updateFsIcon = () => {
-      if (fsBtn) {
-        fsBtn.textContent = document.fullscreenElement ? '✕' : '⛶';
-      }
-    };
-    document.addEventListener('fullscreenchange', updateFsIcon);
 
     const emojiModal = document.getElementById('emoji-wheel-modal');
     document.getElementById('btn-toggle-emoji')?.addEventListener('click', () => {
@@ -409,14 +394,15 @@ export class GamepadManager {
     // Reset manual invert so new seat's auto-direction is applied
     this._pongInvertManualSet = false;
 
-    const dot = document.getElementById('header-player-dot');
     const label = document.getElementById('header-player-name');
     const seatTag = document.getElementById('header-seat-tag');
     const seatPositions = ['P1', 'P2', 'P3', 'P4'];
 
-    if (dot) dot.style.backgroundColor = this.playerColor;
     if (label) label.textContent = this.playerName;
-    if (seatTag) seatTag.textContent = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
+    if (seatTag) {
+      seatTag.textContent = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
+      seatTag.style.backgroundColor = this.playerColor;
+    }
 
     // Sayaç sırasında workspace'i bozma (sayaç ekranı korunur)
     if (this.countdownActive) return;
@@ -536,9 +522,9 @@ export class GamepadManager {
 
     workspace.innerHTML = '';
 
-    const modeTag = document.getElementById('hud-game-tag');
+    const modeTag = document.getElementById('header-game-tag');
     if (modeTag) {
-      modeTag.textContent = CONTROLLER_META[mode]?.hudTag || mode;
+      modeTag.textContent = CONTROLLER_META[mode]?.hudTag || (mode === 'LOBBY' ? t('pad.lobbyTag') : mode);
     }
 
     if (mode === 'LOBBY') {
@@ -547,26 +533,8 @@ export class GamepadManager {
     } else {
       const meta = CONTROLLER_META[mode] || {};
       workspace.innerHTML = `
-        <div class="gamepad-tactical-card" id="gamepad-tactical-card">
-          <div class="tactical-header-row">
-            <span class="tactical-game-pill">${meta.hudTag || mode}</span>
-            <button class="btn-orientation-hint" id="btn-orientation-hint" type="button" data-i18n-aria="pad.orientTitle" title="Konsol hissi için yatay çevir / tam ekran">
-              <span class="hint-icon">🎮</span>
-              <span class="hint-label">${t('pad.orient')}</span>
-            </button>
-          </div>
-          <div class="tactical-role-text" id="tactical-role-text">${meta.tacticalHint || ''}</div>
-        </div>
         <div class="gamepad-game-mount" id="gamepad-game-mount"></div>
-        <div class="rotate-gate hidden" id="rotate-gate">
-          <div class="rotate-phone"><span class="rotate-phone-body">📱</span></div>
-          <div class="rotate-title">${t('pad.rotateTitle')}</div>
-          <div class="rotate-sub">${t('pad.rotateSub')}</div>
-        </div>
       `;
-      document.getElementById('btn-orientation-hint')?.addEventListener('click', () => {
-        this.toggleFullscreen();
-      });
       const mountTarget = document.getElementById('gamepad-game-mount') || workspace;
       if (meta.schema) {
         this._activeController = mountDeclarativeController(this, mountTarget, meta.schema);
@@ -662,14 +630,36 @@ export class GamepadManager {
     }
   }
 
-  // --- 00: LOBBY CONTROLLER (Seat Selector, Name Edit, Game Preview, Ready Toggle, Leave Room) ---
+  // --- 00: LOBBY CONTROLLER (Seat Selector, Profile Card, Game Preview, Ready Toggle, Leave Room) ---
   mountLobbyController(container) {
     const selectedTitle = CONTROLLER_META[this.selectedHostGame]?.lobbyTitle || '🏓 BRUTAL PONG';
 
     container.innerHTML = `
       <div class="lobby-controller-view">
+        <!-- 1. Unified Player Profile Card -->
+        <div class="lobby-profile-card">
+          <canvas class="lobby-character-preview" id="lobby-character-preview" width="52" height="52"></canvas>
+          <div class="lobby-profile-info">
+            <div class="lobby-profile-row">
+              <span class="player-slot-chip" id="lobby-slot-tag" style="background-color: ${this.playerColor}">P${this.playerIndex + 1}</span>
+              <span class="lobby-profile-name" id="lobby-name-display">${this.playerName}</span>
+            </div>
+            <span class="lobby-profile-hint">${t('pad.charHint')}</span>
+          </div>
+          <button class="lobby-profile-edit-btn" id="btn-edit-character" type="button">✏️ ${t('pad.customize')}</button>
+        </div>
+
+        <!-- 2. Selected Game Preview Pill -->
+        <div class="lobby-game-chip-bar">
+          <img src="/assets/games/${(this.selectedHostGame || 'PONG').toLowerCase()}.jpg" class="lobby-game-thumb-preview" alt="${escapeHtml(selectedTitle)}" onerror="this.style.display='none'" />
+          <div class="lobby-game-chip-info">
+            <span class="lobby-game-label">${t('pad.game')}</span>
+            <span class="lobby-game-title" id="lobby-selected-game-text">${selectedTitle}</span>
+          </div>
+        </div>
+
+        <!-- 3. Seat Picker (sadece staging'de) -->
         ${this.stagingOpen ? `
-        <!-- Interactive Seat Selector (sadece staging'de: saha açıkken) -->
         <div class="lobby-seats-card">
           <div class="lobby-seat-badge">${t('pad.seatPick')}</div>
           <div class="lobby-seats-grid">
@@ -677,48 +667,20 @@ export class GamepadManager {
           </div>
         </div>
         ` : `
-        <!-- Bekleme (staging öncesi saha kapalı: koltuk seçimi yok) -->
         <div class="lobby-wait-card">
           <div class="lobby-wait-badge">${t('pad.arenaPrep')}</div>
           <div class="lobby-wait-text">${t('pad.arenaPrepText')}</div>
         </div>
         `}
 
-        <!-- Name Edit Section -->
-        <div class="lobby-name-section">
-          <div class="lobby-name-label">${t('pad.yourName')}</div>
-          <div class="lobby-name-row">
-            <div class="lobby-name-display" id="lobby-name-display">${this.playerName}</div>
-            <button class="lobby-name-edit-btn" id="btn-edit-name" type="button">${t('pad.change')}</button>
-          </div>
-          <div class="lobby-name-input-row hidden" id="lobby-name-input-row">
-            <input type="text" class="lobby-name-input" id="input-lobby-name" maxlength="12"
-              placeholder="${t('pad.namePh')}" value="${this.playerName}" autocapitalize="characters" />
-            <button class="lobby-name-save-btn" id="btn-save-name" type="button">${t('pad.save')}</button>
-          </div>
-        </div>
-
-        <!-- Character Section: cihaz-başı tek profil -->
-        <div class="lobby-character-section">
-          <div class="lobby-name-label">${t('pad.yourChar')}</div>
-          <div class="lobby-character-row">
-            <canvas class="lobby-character-preview" id="lobby-character-preview" width="80" height="80"></canvas>
-            <button class="lobby-character-edit-btn" id="btn-edit-character" type="button">${t('pad.customize')}</button>
-          </div>
-          <div class="lobby-character-hint">${t('pad.charHint')}</div>
-        </div>
-
-        <div class="lobby-game-preview-card">
-          <img src="/assets/games/${(this.selectedHostGame || 'PONG').toLowerCase()}.jpg" class="lobby-game-thumb-preview" alt="${escapeHtml(CONTROLLER_META[this.selectedHostGame]?.lobbyTitle || 'Oyun')}" onerror="this.style.display='none'" />
-          <div class="lobby-game-text">${t('pad.game')} <b id="lobby-selected-game-text">${selectedTitle}</b></div>
-        </div>
-
+        <!-- 4. Hero Ready Button -->
         ${this.stagingOpen ? `
         <button class="btn-ready-toggle ${this.isReady ? 'ready' : ''}" id="btn-lobby-ready" type="button">
-          ${t('pad.ready')}
+          ${this.isReady ? '✓ ' + t('pad.ready') : '▶ ' + t('pad.ready')}
         </button>
         ` : ''}
 
+        <!-- 5. Leave button -->
         <button class="btn-leave-lobby-direct" id="btn-leave-lobby-direct" type="button">
           ${t('pad.leaveRoom')}
         </button>
@@ -735,42 +697,14 @@ export class GamepadManager {
       });
     });
 
-    // Name edit toggle
-    const editBtn = document.getElementById('btn-edit-name');
-    const nameDisplay = document.getElementById('lobby-name-display');
-    const nameInputRow = document.getElementById('lobby-name-input-row');
-    const nameInput = document.getElementById('input-lobby-name');
-    const saveBtn = document.getElementById('btn-save-name');
-
-    editBtn?.addEventListener('click', () => {
-      nameInputRow?.classList.remove('hidden');
-      editBtn.classList.add('hidden');
-      nameInput?.focus();
-      nameInput?.select();
+    // Leave room direct button
+    document.getElementById('btn-leave-lobby-direct')?.addEventListener('click', () => {
+      this.network.disconnect();
+      this.hide();
+      window.location.href = window.location.pathname;
     });
 
-    const saveName = () => {
-      const newName = (nameInput?.value || '').trim().toUpperCase().slice(0, 12) || this.playerName;
-      this.playerName = newName;
-      if (nameDisplay) nameDisplay.textContent = newName;
-      nameInputRow?.classList.add('hidden');
-      editBtn?.classList.remove('hidden');
-      const headerLabel = document.getElementById('header-player-name');
-      if (headerLabel) {
-        headerLabel.textContent = newName;
-      }
-      this.network.sendInput({ action: 'SET_NAME', name: newName });
-      this.network.notePlayerName?.(newName);
-      storePlayerName(newName);
-      this.vibrate(15);
-    };
-
-    saveBtn?.addEventListener('click', saveName);
-    nameInput?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') saveName();
-    });
-
-    // Karakter önizleme + özelleştirme (gerçek değişiklik host'a AVATAR_UPDATE ile gider)
+    // Karakter önizleme + özelleştirme (isim dahil tek modal)
     this.drawLobbyCharacterPreview();
     document.getElementById('btn-edit-character')?.addEventListener('click', () => {
       let before = '';
@@ -780,11 +714,15 @@ export class GamepadManager {
       } catch {}
       openCustomizeModal((profile) => {
         if (!profile) return;
-        if (JSON.stringify(profile) === before) return; // bakıp kapattı, trafik yok
+        if (JSON.stringify(profile) === before) return;
         this.avatar = { ...profile };
         this.playerColor = profile.color || this.playerColor;
         const dot = document.getElementById('header-player-dot');
         if (dot) dot.style.backgroundColor = this.playerColor;
+        const seatTag = document.getElementById('header-seat-tag');
+        if (seatTag) seatTag.style.backgroundColor = this.playerColor;
+        const lobbySlotTag = document.getElementById('lobby-slot-tag');
+        if (lobbySlotTag) lobbySlotTag.style.backgroundColor = this.playerColor;
         this.drawLobbyCharacterPreview();
         try {
           this.network.sendAvatarUpdate?.(this.avatar);
@@ -933,11 +871,11 @@ export class GamepadManager {
   }
 
   updateJoy(clientX, clientY, cx, cy, maxR, knobEl, onInput) {
-    const dx = clientX - cx;
-    const dy = clientY - cy;
-    const dist = Math.hypot(dx, dy);
+    const rawDx = clientX - cx;
+    const rawDy = clientY - cy;
+    const dist = Math.hypot(rawDx, rawDy);
     const clampedDist = Math.min(maxR, dist);
-    const angle = Math.atan2(dy, dx);
+    const angle = Math.atan2(rawDy, rawDx);
 
     const knobX = Math.cos(angle) * clampedDist;
     const knobY = Math.sin(angle) * clampedDist;
@@ -946,11 +884,13 @@ export class GamepadManager {
     const rawForce = clampedDist / maxR;
     // 8% deadband to eliminate resting thumb jitter
     const deadzone = 0.08;
-    const force = rawForce < deadzone ? 0 : (rawForce - deadzone) / (1 - deadzone);
+    const force = rawForce < deadzone ? 0 : Math.max(0, Math.min(1, (rawForce - deadzone) / (1 - deadzone)));
+    const dx = Math.max(-1, Math.min(1, Math.cos(angle) * force));
+    const dy = Math.max(-1, Math.min(1, Math.sin(angle) * force));
 
     onInput({
-      dx: Math.cos(angle) * force,
-      dy: Math.sin(angle) * force,
+      dx,
+      dy,
       angle,
       force,
     });

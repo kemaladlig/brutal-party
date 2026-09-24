@@ -18,12 +18,13 @@ function isValidInputData(data) {
   switch (data.action) {
     case 'JOYSTICK_MOVE':
       return finiteNum(data.dx) && finiteNum(data.dy)
-        && Math.abs(data.dx) <= 1 && Math.abs(data.dy) <= 1
+        && Math.abs(data.dx) <= 1.05 && Math.abs(data.dy) <= 1.05
         && finiteNum(data.angle) && finiteNum(data.force)
-        && data.force >= 0 && data.force <= 1;
+        && data.force >= 0 && data.force <= 1.05;
     case 'PADDLE_MOVE':
-      return finiteNum(data.position) && data.position >= 0 && data.position <= 1;
+      return finiteNum(data.position) && data.position >= -0.05 && data.position <= 1.05;
     case 'CURVE_STEER':
+    case 'SNAKE_STEER':
       return data.dir === -1 || data.dir === 0 || data.dir === 1;
     case 'TANK_DRIVE':
       return typeof data.driving === 'boolean';
@@ -35,7 +36,14 @@ function isValidInputData(data) {
     case 'SNAKE_BOOST_RELEASE':
     case 'ARCHER_CHARGE':
     case 'ARCHER_CHARGE_END':
+    case 'LASER_AIM':
+    case 'LASER_FIRE':
+    case 'NINJA_SMOKE':
       return true;
+    case 'SWITCH_SLOT':
+      return typeof data.targetSlot === 'number' && Number.isInteger(data.targetSlot) && data.targetSlot >= 0 && data.targetSlot <= 3;
+    case 'SET_NAME':
+      return typeof data.name === 'string' && data.name.trim().length > 0;
     case 'AVATAR_UPDATE':
       // Derin temizlik host'ta (sanitizeAvatar) yapılır; burada şekil kapısı
       return data.avatar && typeof data.avatar === 'object';
@@ -47,9 +55,10 @@ function isValidInputData(data) {
 // Discrete aksiyon hız limiti (slot başına, ms): sel/flicker koruması.
 // Sürekli akış (JOYSTICK/PADDLE) kendi ~30Hz kısmasına tabidir.
 const DISCRETE_MIN_GAP = {
-  TANK_FIRE: 100, DASH: 100, TACKLE: 100, CURVE_STEER: 30, TANK_DRIVE: 30,
+  TANK_FIRE: 100, DASH: 100, TACKLE: 100, CURVE_STEER: 30, SNAKE_STEER: 30, TANK_DRIVE: 30,
   SPIN: 500, SNAKE_BOOST: 30, SNAKE_BOOST_RELEASE: 30,
-  ARCHER_CHARGE: 30, ARCHER_CHARGE_END: 30, SWITCH_SLOT: 500, SET_NAME: 1000,
+  ARCHER_CHARGE: 30, ARCHER_CHARGE_END: 30, LASER_AIM: 30, LASER_FIRE: 100, NINJA_SMOKE: 100,
+  SWITCH_SLOT: 500, SET_NAME: 1000,
   READY: 300, REACTION: 1000, AVATAR_UPDATE: 1000,
 };
 

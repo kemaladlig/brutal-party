@@ -49,21 +49,20 @@ function mountJoystickAction(gamepad, container, schema) {
   let actionHtml = '';
   if (isMultiAction) {
     const isStacked = schema.layout === 'stack';
-    const clusterClass = isStacked ? '' : 'laser-actions-cluster';
-    const clusterStyle = isStacked ? 'display: flex; flex-direction: column; gap: 10px; justify-content: center; height: 100%;' : '';
+    const clusterClass = isStacked ? 'action-cluster-stack' : 'action-cluster-grid';
 
     actionHtml = `
-      <div class="${clusterClass}" style="${clusterStyle}">
+      <div class="${clusterClass}">
         ${actions.map((act, i) => {
-          const bg = act.color ? `background-color: ${act.color};` : '';
+          const bg = act.color ? `background-color: ${act.color};` : `background-color: ${gamepad.playerColor};`;
           const border = act.border ? `border-color: ${act.border};` : '';
           const flex = act.flex ? `flex: ${act.flex};` : '';
           const minHeight = act.minHeight ? `min-height: ${act.minHeight};` : '';
           const customClass = act.className || '';
+          const icon = act.icon || (act.action === 'DASH' ? '⚡' : '💥');
           return `
             <button class="action-dash-btn ${customClass}" data-action-index="${i}" type="button" style="${bg} ${border} ${flex} ${minHeight}">
-              <span class="dash-btn-label">${escapeHtml(act.label || t('pad.action'))}</span>
-              <span class="dash-btn-sub">${escapeHtml(act.sub || t('pad.tap'))}</span>
+              <span class="btn-action-icon">${icon}</span>
             </button>
           `;
         }).join('')}
@@ -71,11 +70,11 @@ function mountJoystickAction(gamepad, container, schema) {
     `;
   } else if (actions.length === 1) {
     const act = actions[0];
-    const bg = act.color ? `background-color: ${act.color};` : '';
+    const bg = act.color ? `background-color: ${act.color};` : `background-color: ${gamepad.playerColor};`;
+    const icon = act.icon || (act.action === 'DASH' ? '⚡' : '💥');
     actionHtml = `
       <button class="action-dash-btn ${act.className || ''}" data-action-index="0" type="button" style="${bg}">
-        <span class="dash-btn-label">${escapeHtml(act.label || 'EYLEM')}</span>
-        <span class="dash-btn-sub">${escapeHtml(act.sub || 'DOKUN')}</span>
+        <span class="btn-action-icon">${icon}</span>
       </button>
     `;
   }
@@ -83,8 +82,8 @@ function mountJoystickAction(gamepad, container, schema) {
   container.innerHTML = `
     <div class="joystick-action-view">
       <div class="joystick-half" id="${joyZoneId}">
-        <div class="phone-joy-base">
-          <div class="phone-joy-knob" id="${joyKnobId}" style="background-color: ${gamepad.playerColor}"></div>
+        <div class="phone-joy-base" style="border-color: ${gamepad.playerColor};">
+          <div class="phone-joy-knob" id="${joyKnobId}" style="background-color: ${gamepad.playerColor};"></div>
         </div>
       </div>
       <div class="action-half">
@@ -182,14 +181,11 @@ function mountArcadeDrive(gamepad, container, schema) {
       <div class="tank-drive-zone">
         <button class="tank-drive-pedal" id="btn-tank-drive" type="button" style="border-color: ${gamepad.playerColor}">
           <span class="pedal-icon">${escapeHtml(schema.pedalIcon || '🚀')}</span>
-          <span class="pedal-title">${escapeHtml(schema.pedalTitle || t('pad.drive'))}</span>
-          <span class="pedal-sub">${escapeHtml(schema.pedalSub || t('pad.pedalSub'))}</span>
         </button>
       </div>
       <div class="tanks-fire-zone">
-        <button class="tank-fire-btn" id="btn-tank-fire" type="button">
+        <button class="tank-fire-btn" id="btn-tank-fire" type="button" style="background: ${gamepad.playerColor};">
           <span class="fire-icon">${escapeHtml(schema.fireIcon || '💥')}</span>
-          <span class="fire-title">${escapeHtml(schema.fireTitle || t('pad.fire'))}</span>
         </button>
         <div class="tank-ammo-hud" id="tank-ammo-hud">
           <div class="cartridge-pip loaded"></div>
@@ -280,14 +276,31 @@ function mountArcadeDrive(gamepad, container, schema) {
 function mountTwoButtonSteer(gamepad, container, schema) {
   container.innerHTML = `
     <div class="curve-controller-view" id="curve-controller-view">
-      <button class="curve-steer-btn" id="btn-curve-left" type="button">${escapeHtml(schema.leftLabel || t('pad.steerLeft'))}</button>
-      <button class="curve-steer-btn right-btn" id="btn-curve-right" type="button">${escapeHtml(schema.rightLabel || t('pad.steerRight'))}</button>
+      <div class="steer-rocker-cluster curve-cluster left" id="curve-steer-left">
+        <button class="steer-rocker-btn left" id="btn-curve-left" data-steer="-1" type="button" aria-label="Sola">
+          <span class="steer-icon">◀</span>
+        </button>
+        <button class="steer-rocker-btn right" id="btn-curve-left-r" data-steer="1" type="button" aria-label="Sağa">
+          <span class="steer-icon">▶</span>
+        </button>
+      </div>
+
+      <div class="steer-rocker-cluster curve-cluster right" id="curve-steer-right">
+        <button class="steer-rocker-btn left" id="btn-curve-right-l" data-steer="-1" type="button" aria-label="Sola">
+          <span class="steer-icon">◀</span>
+        </button>
+        <button class="steer-rocker-btn right" id="btn-curve-right" data-steer="1" type="button" aria-label="Sağa">
+          <span class="steer-icon">▶</span>
+        </button>
+      </div>
     </div>
   `;
 
   const view = document.getElementById('curve-controller-view');
   const btnLeft = document.getElementById('btn-curve-left');
   const btnRight = document.getElementById('btn-curve-right');
+  const btnLeftR = document.getElementById('btn-curve-left-r');
+  const btnRightL = document.getElementById('btn-curve-right-l');
 
   const activeTouches = new Map();
   let mouseDir = 0;
@@ -297,32 +310,48 @@ function mountTwoButtonSteer(gamepad, container, schema) {
     let desiredDir = 0;
     if (activeTouches.size > 0) {
       for (const dir of activeTouches.values()) {
-        desiredDir = dir;
+        if (dir !== 0) desiredDir = dir;
       }
     } else if (mouseDir !== 0) {
       desiredDir = mouseDir;
     }
 
     btnLeft?.classList.toggle('active', desiredDir === -1);
+    btnRightL?.classList.toggle('active', desiredDir === -1);
     btnRight?.classList.toggle('active', desiredDir === 1);
+    btnLeftR?.classList.toggle('active', desiredDir === 1);
 
     if (desiredDir !== currentActiveDir) {
       currentActiveDir = desiredDir;
       gamepad.network.sendInput({ action: schema.steerAction || 'CURVE_STEER', dir: currentActiveDir });
+      if (currentActiveDir !== 0) gamepad.vibrate(15);
     }
   };
 
-  const getDirForPoint = (clientX) => {
-    const rect = view ? view.getBoundingClientRect() : null;
-    if (!rect) return 0;
-    return clientX < rect.left + rect.width / 2 ? -1 : 1;
+  const getDirForPoint = (clientX, clientY) => {
+    const el = document.elementFromPoint(clientX, clientY);
+    const steerBtn = el?.closest('[data-steer]');
+    if (steerBtn) {
+      return parseInt(steerBtn.dataset.steer, 10);
+    }
+    const leftCluster = document.getElementById('curve-steer-left');
+    const rightCluster = document.getElementById('curve-steer-right');
+    const lRect = leftCluster?.getBoundingClientRect();
+    const rRect = rightCluster?.getBoundingClientRect();
+    if (lRect && clientX >= lRect.left && clientX <= lRect.right) {
+      return clientX < lRect.left + lRect.width / 2 ? -1 : 1;
+    }
+    if (rRect && clientX >= rRect.left && clientX <= rRect.right) {
+      return clientX < rRect.left + rRect.width / 2 ? -1 : 1;
+    }
+    return clientX < window.innerWidth / 2 ? -1 : 1;
   };
 
   const onTouchStart = (e) => {
     e.preventDefault();
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i];
-      activeTouches.set(t.identifier, getDirForPoint(t.clientX));
+      activeTouches.set(t.identifier, getDirForPoint(t.clientX, t.clientY));
     }
     syncSteer();
   };
@@ -332,7 +361,7 @@ function mountTwoButtonSteer(gamepad, container, schema) {
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i];
       if (activeTouches.has(t.identifier)) {
-        activeTouches.set(t.identifier, getDirForPoint(t.clientX));
+        activeTouches.set(t.identifier, getDirForPoint(t.clientX, t.clientY));
       }
     }
     syncSteer();
@@ -364,7 +393,9 @@ function mountTwoButtonSteer(gamepad, container, schema) {
   window.addEventListener('touchcancel', onTouchCancel, { passive: true, signal: curveSignal });
 
   btnLeft?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = -1; syncSteer(); });
+  btnRightL?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = -1; syncSteer(); });
   btnRight?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = 1; syncSteer(); });
+  btnLeftR?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = 1; syncSteer(); });
   const onMouseUp = () => {
     if (mouseDir !== 0) {
       mouseDir = 0;
@@ -429,9 +460,8 @@ function mountSlider1D(gamepad, container, schema) {
             ${gamepad.isPongInverted !== baseInvert ? t('pad.autoDir') : t('pad.flipDir')}
           </button>
         </div>
-        <button class="action-spin-btn" id="btn-pong-spin" type="button">
-          <span class="dash-btn-label">🌀 FALSO</span>
-          <span class="dash-btn-sub">${t('pad.tap')}</span>
+        <button class="action-spin-btn" id="btn-pong-spin" type="button" style="background-color: ${gamepad.playerColor};">
+          <span class="btn-action-icon">🌀</span>
         </button>
       </div>
     </div>
@@ -543,18 +573,19 @@ function mountSteerBoost(gamepad, container, schema) {
   const steerZoneId = `steer-zone-${Date.now()}`;
   container.innerHTML = `
     <div class="snake-controller-view">
-      <div class="snake-steer-zone" id="${steerZoneId}">
-        <button class="snake-steer-btn" id="btn-snake-left" type="button">
-          ${escapeHtml(schema.leftLabel || t('pad.steerLeft'))}
-        </button>
-        <button class="snake-steer-btn" id="btn-snake-right" type="button">
-          ${escapeHtml(schema.rightLabel || t('pad.steerRight'))}
-        </button>
+      <div class="snake-steer-zone">
+        <div class="steer-rocker-cluster" id="${steerZoneId}">
+          <button class="steer-rocker-btn left" id="btn-snake-left" data-steer="-1" type="button" aria-label="Sola">
+            <span class="steer-icon">◀</span>
+          </button>
+          <button class="steer-rocker-btn right" id="btn-snake-right" data-steer="1" type="button" aria-label="Sağa">
+            <span class="steer-icon">▶</span>
+          </button>
+        </div>
       </div>
       <div class="snake-boost-zone">
-        <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" style="background-color: ${schema.boostColor || '#2F6A4F'}">
-          <span class="dash-btn-label">${escapeHtml(schema.boostLabel || '⚡ HIZLAN')}</span>
-          <span class="dash-btn-sub">${escapeHtml(schema.boostSub || 'BASILI TUT')}</span>
+        <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" style="background-color: ${schema.boostColor || gamepad.playerColor}">
+          <span class="btn-action-icon">${schema.boostIcon || '⚡'}</span>
         </button>
       </div>
     </div>
@@ -573,7 +604,7 @@ function mountSteerBoost(gamepad, container, schema) {
     let desiredDir = 0;
     if (activeTouches.size > 0) {
       for (const dir of activeTouches.values()) {
-        desiredDir = dir;
+        if (dir !== 0) desiredDir = dir;
       }
     } else if (mouseDir !== 0) {
       desiredDir = mouseDir;
@@ -589,7 +620,10 @@ function mountSteerBoost(gamepad, container, schema) {
     }
   };
 
-  const getDirForPoint = (clientX) => {
+  const getDirForPoint = (clientX, clientY) => {
+    const el = document.elementFromPoint(clientX, clientY);
+    const steerBtn = el?.closest('[data-steer]');
+    if (steerBtn) return parseInt(steerBtn.dataset.steer, 10);
     const rect = steerView ? steerView.getBoundingClientRect() : null;
     if (!rect) return 0;
     return clientX < rect.left + rect.width / 2 ? -1 : 1;
@@ -599,7 +633,7 @@ function mountSteerBoost(gamepad, container, schema) {
     e.preventDefault();
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i];
-      activeTouches.set(t.identifier, getDirForPoint(t.clientX));
+      activeTouches.set(t.identifier, getDirForPoint(t.clientX, t.clientY));
     }
     syncSteer();
   };
@@ -609,7 +643,7 @@ function mountSteerBoost(gamepad, container, schema) {
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i];
       if (activeTouches.has(t.identifier)) {
-        activeTouches.set(t.identifier, getDirForPoint(t.clientX));
+        activeTouches.set(t.identifier, getDirForPoint(t.clientX, t.clientY));
       }
     }
     syncSteer();
@@ -679,10 +713,10 @@ function mountSteerBoost(gamepad, container, schema) {
       const locked = Array.isArray(data?.lock) ? !!data.lock[gamepad.playerIndex] : false;
       const dead = Array.isArray(data?.alive) ? data.alive[gamepad.playerIndex] === false : false;
       btnBoost.style.opacity = locked || dead ? 0.55 : 1;
-      const sub = btnBoost.querySelector('.dash-btn-sub');
-      if (sub) {
-        const txt = dead ? t('pad.deadShort') : locked ? t('pad.lockedFire') : t('pad.nrg', nrg);
-        if (sub.textContent !== txt) sub.textContent = txt;
+      const nrgText = document.getElementById('snake-nrg-text');
+      if (nrgText) {
+        const txt = dead ? t('pad.deadShort') : locked ? t('pad.lockedFire') : `${Math.round(nrg)}% NRG`;
+        if (nrgText.textContent !== txt) nrgText.textContent = txt;
       }
     },
     teardown() {
