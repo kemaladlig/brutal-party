@@ -104,6 +104,7 @@ export function renderPauseSeats(onSwapCallback) {
             <span class="pause-seat-slot-label">${slotLabels[idx]}</span>
             <span class="pause-seat-player-name">${name}</span>
           </div>
+          ${isSelected ? `<span class="pause-swap-indicator">${t('pause.selected') || 'SEÇİLDİ'}</span>` : ''}
         </button>
       `;
     })
@@ -153,13 +154,19 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
     NINJA: 'BRUTAL NINJA',
   };
   if (pauseGameTitle) {
-    pauseGameTitle.textContent = `${titles[currentMode] || currentMode} // ${t('pause.badge')}`;
+    pauseGameTitle.textContent = `${titles[currentMode] || currentMode}`;
   }
   if (btnTvLobby) {
     btnTvLobby.classList.toggle('hidden', !isHosting);
   }
   if (btnExitToMenu) {
-    btnExitToMenu.textContent = isHosting ? `🚪 ${t('pause.exit')}` : t('pause.exit');
+    const textEl = btnExitToMenu.querySelector('.btn-text');
+    const exitText = t('pause.exit');
+    if (textEl) {
+      textEl.textContent = exitText;
+    } else {
+      btnExitToMenu.textContent = isHosting ? `🚪 ${exitText}` : exitText;
+    }
   }
   refreshPauseSwitches();
   pauseSelectedSlot = null;
@@ -247,13 +254,22 @@ export function initPauseModal({
   // Çıkış çift-bas onay (host odası kapanacağı için; misafir tek basışta çıkar)
   let exitArmedTimer = null;
   btnExitToMenu?.addEventListener('click', () => {
+    const textEl = btnExitToMenu.querySelector('.btn-text');
     if (getIsHosting?.() && !btnExitToMenu.dataset.armed) {
       btnExitToMenu.dataset.armed = '1';
-      const origLabel = btnExitToMenu.textContent;
-      btnExitToMenu.textContent = t('pause.exitArmed');
+      const origLabel = textEl ? textEl.textContent : btnExitToMenu.textContent;
+      if (textEl) {
+        textEl.textContent = t('pause.exitArmed');
+      } else {
+        btnExitToMenu.textContent = t('pause.exitArmed');
+      }
       exitArmedTimer = window.setTimeout(() => {
         delete btnExitToMenu.dataset.armed;
-        btnExitToMenu.textContent = origLabel;
+        if (textEl) {
+          textEl.textContent = origLabel;
+        } else {
+          btnExitToMenu.textContent = origLabel;
+        }
       }, 3000);
       return;
     }

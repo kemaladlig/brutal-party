@@ -1,77 +1,146 @@
 /* === PAUSE & SETTINGS SHEETS === */
-/* Quick Toggles 2x2 Grid */
+/* Pause Status Badge with Live Amber Pulse Dot */
+.pause-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #141416;
+  background-color: #fcedcb;
+  border: 2px solid #141416;
+  box-shadow: 2px 2px 0 #141416;
+  padding: 3px 8px;
+  align-self: flex-start;
+  text-transform: uppercase;
+}
+
+.pause-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #d99b26;
+  border: 1px solid #141416;
+  display: inline-block;
+  animation: pause-amber-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pause-amber-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.75); opacity: 0.45; }
+}
+
+.pause-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 21px;
+  font-weight: 900;
+  color: #141416;
+  letter-spacing: -0.6px;
+  line-height: 1.15;
+}
+
+/* Quick Toggles Grid (Modern Neo-Brutalist Micro-Cards) */
 .pause-quick-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: 8px;
 }
 
 .quick-toggle-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 9px;
+  gap: 9px;
+  padding: 8px 10px;
   background-color: #ffffff;
-  border: 2px solid #1a1a1a;
-  box-shadow: 2px 2px 0px #1a1a1a;
+  border: 2.5px solid #141416;
+  box-shadow: 3px 3px 0px #141416;
   cursor: pointer;
   touch-action: manipulation;
   text-align: left;
-  transition: transform 0.05s ease, background-color 0.1s ease, box-shadow 0.05s ease;
-  min-height: 42px;
+  transition: transform 0.08s ease, background-color 0.12s ease, box-shadow 0.08s ease, border-color 0.12s ease;
+  min-height: 48px;
   box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+}
+
+.quick-toggle-btn:hover {
+  background-color: #faf7f2;
 }
 
 .quick-toggle-btn:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0px #1a1a1a;
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #141416;
+}
+
+.quick-toggle-btn .toggle-icon-wrap {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  background: #f4f4f0;
+  border: 1.5px solid #141416;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background-color 0.12s ease, transform 0.1s ease;
 }
 
 .quick-toggle-btn .toggle-icon {
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1;
-  flex-shrink: 0;
 }
 
 .quick-toggle-btn .toggle-meta {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
   flex: 1;
 }
 
 .quick-toggle-btn .toggle-title {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 11.5px;
-  font-weight: 900;
-  color: #1a1a1a;
+  font-size: 12px;
+  font-weight: 800;
+  color: #141416;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: -0.2px;
 }
 
 .quick-toggle-btn .toggle-state-badge {
   font-family: 'JetBrains Mono', monospace;
   font-size: 8.5px;
   font-weight: 900;
-  padding: 1px 4px;
-  background-color: #e2ded4;
-  color: #55514a;
-  border: 1px solid #1a1a1a;
+  padding: 1.5px 5px;
+  background-color: #ebe7df;
+  color: #635f56;
+  border: 1px solid #141416;
+  border-radius: 2px;
   align-self: flex-start;
   line-height: 1.1;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.5px;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .quick-toggle-btn.on {
   background-color: #f2fbf4;
+  border-color: #141416;
+}
+
+.quick-toggle-btn.on .toggle-icon-wrap {
+  background-color: #d1f4da;
+  transform: scale(1.04);
 }
 
 .quick-toggle-btn.on .toggle-state-badge {
-  background-color: #25d366;
+  background-color: #2f6a4f;
   color: #ffffff;
-  border-color: #1a1a1a;
+  border-color: #141416;
 }
 
 .pause-btn.danger-btn,
@@ -79,19 +148,21 @@
   background-color: #fff2ef;
   color: #d84727;
   border-color: #d84727;
-  box-shadow: 2.5px 2.5px 0px #d84727;
+  box-shadow: 3px 3px 0px #d84727;
   font-weight: 900;
 }
 
 .pause-btn.danger-btn:active,
 .pause-btn.danger:active {
-  transform: translate(1.5px, 1.5px);
+  transform: translate(2px, 2px);
   box-shadow: 1px 1px 0px #d84727;
 }
 
 .pause-btn.reset-btn {
   background-color: #ffffff;
-  color: #1a1a1a;
+  color: #141416;
+  border-color: #141416;
+  box-shadow: 3px 3px 0px #141416;
 }
 
 .sheet-row-2 {
@@ -236,63 +307,87 @@
 }
 
 .pause-rotate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px;
-  font-weight: 800;
-  background: #1a1a1a;
-  color: #ffffff;
-  border: 1.5px solid #1a1a1a;
-  padding: 3px 8px;
-  min-height: 28px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  background-color: #ffffff;
+  color: #141416;
+  border: 2px solid #141416;
+  box-shadow: 2px 2px 0 #141416;
   cursor: pointer;
   touch-action: manipulation;
-  transition: transform 0.08s ease;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.1s ease;
+}
+
+.pause-rotate-btn:hover {
+  background-color: #fcedcb;
 }
 
 .pause-rotate-btn:active {
-  transform: scale(0.95);
-  background: #333333;
+  transform: translate(1.5px, 1.5px);
+  box-shadow: 0.5px 0.5px 0 #141416;
+}
+
+.pause-rotate-btn .rotate-icon {
+  font-size: 11px;
 }
 
 .pause-seats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: 8px;
 }
 
 .pause-seat-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  background: #faf7f2;
-  border: 2px solid #1a1a1a;
-  box-shadow: 2px 2px 0px #1a1a1a;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 2.5px solid #141416;
+  border-left: 5px solid var(--seat-color, #141416);
+  box-shadow: 3px 3px 0px #141416;
   cursor: pointer;
   touch-action: manipulation;
   text-align: left;
-  transition: transform 0.08s ease, background 0.08s ease, border-color 0.08s ease;
+  transition: transform 0.08s ease, background 0.08s ease, border-color 0.08s ease, box-shadow 0.08s ease;
   min-width: 0;
   overflow: hidden;
+  position: relative;
+}
+
+.pause-seat-btn:hover {
+  background: #faf7f2;
 }
 
 .pause-seat-btn:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0px #1a1a1a;
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #141416;
 }
 
 .pause-seat-btn.selected-for-swap {
-  background: #fff0d4;
+  background: #fff8e7;
   border-color: #d99b26;
-  box-shadow: 2px 2px 0px #d99b26;
+  box-shadow: 3px 3px 0px #d99b26;
   outline: 2px solid #d99b26;
+  animation: swap-selected-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes swap-selected-pulse {
+  from { outline-color: #d99b26; }
+  to { outline-color: #141416; }
 }
 
 .pause-seat-color-badge {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  border: 1.5px solid #1a1a1a;
+  border: 1.5px solid #141416;
   flex-shrink: 0;
 }
 
@@ -300,6 +395,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1;
   overflow: hidden;
 }
 
@@ -308,86 +404,141 @@
   font-size: 8.5px;
   font-weight: 900;
   color: #777268;
+  letter-spacing: 0.4px;
 }
 
 .pause-seat-player-name {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
-  color: #1a1a1a;
+  color: #141416;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.pause-swap-indicator {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  font-weight: 900;
+  background: #d99b26;
+  color: #ffffff;
+  padding: 1px 4px;
+  border: 1px solid #141416;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
 .pause-seats-hint {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: #777268;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 2px;
 }
 
-.pause-badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  color: #1a1a1a;
-  background-color: #e2ded4;
-  border: 2px solid #1a1a1a;
-  padding: 2px 6px;
-  align-self: flex-start;
+.pause-seats-hint .hint-bullet {
+  font-size: 12px;
 }
 
-.pause-title {
-  font-size: 22px;
-  font-weight: 900;
-  color: #1a1a1a;
-  letter-spacing: -0.5px;
-}
-
+/* Pause Buttons: Hero Resume + Row Actions */
 .pause-btn {
   width: 100%;
   padding: 12px 14px;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 14.5px;
+  font-weight: 900;
   letter-spacing: 0.5px;
   background-color: #ffffff;
-  color: #1a1a1a;
-  border: 3px solid #1a1a1a;
-  box-shadow: 3px 3px 0px #1a1a1a;
+  color: #141416;
+  border: 2.5px solid #141416;
+  box-shadow: 3px 3px 0px #141416;
   cursor: pointer;
   text-align: center;
-  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.1s ease;
   touch-action: manipulation;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .pause-btn:active {
   transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0px #1a1a1a;
+  box-shadow: 1px 1px 0px #141416;
 }
 
 .pause-btn.primary {
-  background-color: #1a1a1a;
-  color: #ffffff;
+  background-color: #141416;
+  color: #faf7f2;
+  border-color: #141416;
+  box-shadow: 4px 4px 0px #141416;
+}
+
+.pause-btn.hero-resume-btn {
+  padding: 14px 18px;
+  font-size: 16px;
+  background-color: #141416;
+  color: #faf7f2;
+  border: 3px solid #141416;
+  box-shadow: 4px 4px 0px #d99b26;
+  position: relative;
+  justify-content: center;
+}
+
+.pause-btn.hero-resume-btn:hover {
+  background-color: #222226;
+}
+
+.pause-btn.hero-resume-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px #d99b26;
+}
+
+.pause-btn.hero-resume-btn .btn-symbol {
+  font-size: 15px;
+  color: #d99b26;
+}
+
+.pause-btn.hero-resume-btn .btn-hint-badge {
+  position: absolute;
+  right: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 800;
+  background: #333338;
+  color: #d99b26;
+  border: 1px solid #55555c;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+@media (pointer: coarse) {
+  .pause-btn.hero-resume-btn .btn-hint-badge { display: none; }
 }
 
 .pause-btn.danger {
-  background-color: #e2ded4;
+  background-color: #fff2ef;
   color: #d84727;
+  border-color: #d84727;
+  box-shadow: 3px 3px 0 #d84727;
 }
 
 .pause-btn.lobby-btn {
   background-color: #ffd700;
-  color: #1a1a1a;
+  color: #141416;
+  border-color: #141416;
+  box-shadow: 3px 3px 0 #141416;
 }
 
 .pause-btn.hidden {
   display: none !important;
 }
-
 
 /* === AVATAR CUSTOMIZER WORKSHOP & POPOVERS === */
 /* Left Preview Box */

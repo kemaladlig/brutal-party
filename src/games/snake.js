@@ -349,43 +349,53 @@ export class SnakeGame extends BaseMiniGame {
 
   getCornerButtonZones(cornerIndex) {
     const { left, right, top, bottom, size } = this.arena;
-    const btnW = Math.max(160, Math.min(250, size * 0.42));
-    const btnH = Math.max(50, Math.min(68, size * 0.15));
+    const btnW = Math.max(170, Math.min(260, size * 0.44));
+    const btnH = Math.max(48, Math.min(62, size * 0.14));
 
-    let bx = left + 6;
-    let by = bottom - btnH - 6;
+    let bx = left + 8;
+    let by = bottom - btnH - 8;
 
     if (cornerIndex === 1) {
-      bx = left + 6;
-      by = top + 6;
+      bx = left + 8;
+      by = top + 8;
     } else if (cornerIndex === 2) {
-      bx = right - btnW - 6;
-      by = top + 6;
+      bx = right - btnW - 8;
+      by = top + 8;
     } else if (cornerIndex === 3) {
-      bx = right - btnW - 6;
-      by = bottom - btnH - 6;
+      bx = right - btnW - 8;
+      by = bottom - btnH - 8;
     }
 
-    const wSteer = btnW * 0.38;
-    const wBoost = btnW * 0.24;
+    const gap = 4;
+    const availableW = btnW - gap * 2;
+    const wSteer = Math.floor(availableW * 0.35);
+    const wBoost = availableW - wSteer * 2;
+
+    const leftX = bx;
+    const rightX = bx + wSteer + gap;
+    const boostX = bx + (wSteer * 2) + (gap * 2);
 
     return {
-      leftBtn: { x: bx, y: by, w: wSteer, h: btnH },
-      boostBtn: { x: bx + wSteer, y: by, w: wBoost, h: btnH },
-      rightBtn: { x: bx + wSteer + wBoost, y: by, w: wSteer, h: btnH },
+      leftBtn: { x: leftX, y: by, w: wSteer, h: btnH },
+      rightBtn: { x: rightX, y: by, w: wSteer, h: btnH },
+      boostBtn: { x: boostX, y: by, w: wBoost, h: btnH },
       box: { x: bx, y: by, w: btnW, h: btnH },
+      gap,
+      wSteer,
+      wBoost,
     };
   }
 
   determineTouchAction(cornerIndex, touch) {
     const zone = this.getCornerButtonZones(cornerIndex);
     const isTop = cornerIndex === 1 || cornerIndex === 2;
+    // Masa-ortası modunda üst oyuncular 180° ters oturduğu için X yönü terslenir
     const relX = isTop ? (zone.box.x + zone.box.w - touch.x) : (touch.x - zone.box.x);
     const frac = relX / zone.box.w;
 
-    if (frac < 0.38) return 'left';
-    if (frac <= 0.62) return 'boost';
-    return 'right';
+    if (frac < 0.35) return 'left';
+    if (frac <= 0.70) return 'right';
+    return 'boost';
   }
 
   onTouchStart(touch) {
@@ -1019,7 +1029,7 @@ export class SnakeGame extends BaseMiniGame {
   renderCornerControls(ctx) {
     if (this.state !== 'PLAYING') return;
 
-    const KEY_HINTS = ['WASD / SPACE', 'OKLAR / ENTER', 'IJKL / O', 'TFGH / B'];
+    const KEY_HINTS = ['WASD/SPACE', 'OKLAR/ENTER', 'IJKL/O', 'TFGH/B'];
 
     for (let i = 0; i < 4; i++) {
       const player = this.players[i];
@@ -1041,65 +1051,124 @@ export class SnakeGame extends BaseMiniGame {
 
       const halfW = zones.box.w / 2;
       const halfH = zones.box.h / 2;
-      const wSteer = zones.box.w * 0.38;
-      const wBoost = zones.box.w * 0.24;
+      const { wSteer, wBoost, gap } = zones;
 
       if (isJoined && player.slotType === 'human' && player.isAlive) {
         const touching = this.cornerTouches[i] || { id: -1, action: null };
         const isBoosting = player.isBoost;
         const kb = this.keyboardInput(i);
 
-        // Arka Plan Hafif Saydam Kart Paneli (Oyun sahasını tıkamaz)
-        ctx.fillStyle = 'rgba(250, 247, 242, 0.45)';
-        ctx.fillRect(-halfW - 2, -halfH - 18, zones.box.w + 4, zones.box.h + 24);
+        // 0. OYUNCU İSİM VE KLAVYE ÇİPİ (Üst bilgi etiketi)
+        const chipText = `${player.name} [${KEY_HINTS[i]}]`;
+        ctx.font = '900 10.5px "JetBrains Mono", monospace';
+        const textMetrics = ctx.measureText(chipText);
+        const chipW = Math.max(86, textMetrics.width + 24);
+        const chipH = 18;
+        const chipY = -halfH - chipH - 6;
 
-        // Oyuncu İsim ve Klavye İpucu Başlığı
+        // Çip gölgesi ve gövdesi
+        ctx.fillStyle = '#141416';
+        ctx.fillRect(-chipW / 2 + 2, chipY + 2, chipW, chipH);
+        ctx.fillStyle = '#FAF7F2';
+        ctx.fillRect(-chipW / 2, chipY, chipW, chipH);
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-chipW / 2, chipY, chipW, chipH);
+
+        // Oyuncu renk noktası
         ctx.fillStyle = player.color;
-        ctx.font = '900 12px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(`${player.name} [${KEY_HINTS[i]}]`, 0, -halfH - 4);
+        ctx.beginPath();
+        ctx.arc(-chipW / 2 + 8, chipY + chipH / 2, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 1;
+        ctx.stroke();
 
-        // 1. SOL DÖNÜŞ BUTONU
+        // Çip metni
+        ctx.fillStyle = '#1A1A1A';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(chipText, -chipW / 2 + 15, chipY + chipH / 2 + 0.5);
+
+        // 1. SOL DÖNÜŞ BUTONU [SOL]
+        const leftX = -halfW;
         const leftActive = touching.action === 'left' || (kb.steer < 0);
-        ctx.fillStyle = leftActive ? `${player.color}CC` : 'rgba(26, 26, 26, 0.12)';
-        ctx.fillRect(-halfW, -halfH, wSteer, zones.box.h);
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-halfW, -halfH, wSteer, zones.box.h);
+        const leftOffset = leftActive ? 2 : 0;
+        const leftShadow = leftActive ? 1 : 3;
 
-        ctx.fillStyle = leftActive ? '#FFFFFF' : '#1A1A1A';
-        ctx.font = '900 13px "Space Grotesk", sans-serif';
+        // Gölge
+        ctx.fillStyle = '#141416';
+        ctx.fillRect(leftX + leftShadow, -halfH + leftShadow, wSteer, zones.box.h);
+        // Gövde
+        ctx.fillStyle = leftActive ? `${player.color}28` : '#FAF7F2';
+        ctx.fillRect(leftX + leftOffset, -halfH + leftOffset, wSteer, zones.box.h);
+        // Kenarlık
+        ctx.strokeStyle = leftActive ? player.color : '#1A1A1A';
+        ctx.lineWidth = leftActive ? 2.5 : 2;
+        ctx.strokeRect(leftX + leftOffset, -halfH + leftOffset, wSteer, zones.box.h);
+        // Metin
+        ctx.fillStyle = leftActive ? player.color : '#1A1A1A';
+        ctx.font = '900 12.5px "Space Grotesk", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('◄ SOL', -halfW + wSteer / 2, 0);
+        ctx.fillText('◄ SOL', leftX + leftOffset + wSteer / 2, leftOffset);
 
-        // 2. ⚡ BOOST (HIZLANMA) BUTONU
-        const boostActive = isBoosting || touching.action === 'boost' || kb.boost;
-        ctx.fillStyle = boostActive ? (player.boostLocked ? 'rgba(216, 71, 39, 0.75)' : 'rgba(255, 222, 89, 0.85)') : 'rgba(26, 26, 26, 0.12)';
-        ctx.fillRect(-halfW + wSteer, -halfH, wBoost, zones.box.h);
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
-        ctx.strokeRect(-halfW + wSteer, -halfH, wBoost, zones.box.h);
-
-        // Enerji Doluluk Çizgisi
-        const energyHeight = (player.boostEnergy / 100) * (zones.box.h - 4);
-        ctx.fillStyle = player.boostLocked ? 'rgba(216, 71, 39, 0.35)' : 'rgba(255, 222, 89, 0.45)';
-        ctx.fillRect(-halfW + wSteer + 2, halfH - 2 - energyHeight, wBoost - 4, energyHeight);
-
-        ctx.fillStyle = '#1A1A1A';
-        ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText(player.boostLocked ? t('snake.lock') : t('snake.boost'), -halfW + wSteer + wBoost / 2, 0);
-
-        // 3. SAĞ DÖNÜŞ BUTONU
+        // 2. SAĞ DÖNÜŞ BUTONU [SAĞ]
+        const rightX = -halfW + wSteer + gap;
         const rightActive = touching.action === 'right' || (kb.steer > 0);
-        ctx.fillStyle = rightActive ? `${player.color}CC` : 'rgba(26, 26, 26, 0.12)';
-        ctx.fillRect(-halfW + wSteer + wBoost, -halfH, wSteer, zones.box.h);
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.65)';
-        ctx.strokeRect(-halfW + wSteer + wBoost, -halfH, wSteer, zones.box.h);
+        const rightOffset = rightActive ? 2 : 0;
+        const rightShadow = rightActive ? 1 : 3;
 
-        ctx.fillStyle = rightActive ? '#FFFFFF' : '#1A1A1A';
-        ctx.font = '900 13px "Space Grotesk", sans-serif';
-        ctx.fillText(t('snake.right'), -halfW + wSteer + wBoost + wSteer / 2, 0);
+        // Gölge
+        ctx.fillStyle = '#141416';
+        ctx.fillRect(rightX + rightShadow, -halfH + rightShadow, wSteer, zones.box.h);
+        // Gövde
+        ctx.fillStyle = rightActive ? `${player.color}28` : '#FAF7F2';
+        ctx.fillRect(rightX + rightOffset, -halfH + rightOffset, wSteer, zones.box.h);
+        // Kenarlık
+        ctx.strokeStyle = rightActive ? player.color : '#1A1A1A';
+        ctx.lineWidth = rightActive ? 2.5 : 2;
+        ctx.strokeRect(rightX + rightOffset, -halfH + rightOffset, wSteer, zones.box.h);
+        // Metin
+        ctx.fillStyle = rightActive ? player.color : '#1A1A1A';
+        ctx.font = '900 12.5px "Space Grotesk", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(t('snake.right'), rightX + rightOffset + wSteer / 2, rightOffset);
+
+        // 3. ⚡ BOOST (HIZLANMA) BUTONU [HIZ]
+        const boostX = -halfW + (wSteer * 2) + (gap * 2);
+        const boostActive = isBoosting || touching.action === 'boost' || kb.boost;
+        const boostOffset = boostActive ? 2 : 0;
+        const boostShadow = boostActive ? 1 : 3;
+        const isLocked = player.boostLocked;
+
+        // Gölge
+        ctx.fillStyle = '#141416';
+        ctx.fillRect(boostX + boostShadow, -halfH + boostShadow, wBoost, zones.box.h);
+        // Gövde (Hazırsa krem, kilitliyse gri/koyu ton)
+        ctx.fillStyle = isLocked ? '#2A2A2E' : (boostActive ? '#FFF6D1' : '#FAF7F2');
+        ctx.fillRect(boostX + boostOffset, -halfH + boostOffset, wBoost, zones.box.h);
+
+        // Enerji Doluluk Çizgisi (Alttan yukarı dinamik dolum)
+        const energyRatio = Math.max(0, Math.min(1, (player.boostEnergy || 0) / 100));
+        const energyH = Math.round((zones.box.h - 4) * energyRatio);
+        if (energyH > 0) {
+          ctx.fillStyle = isLocked ? 'rgba(216, 71, 39, 0.45)' : 'rgba(255, 222, 89, 0.65)';
+          ctx.fillRect(boostX + boostOffset + 2, halfH + boostOffset - 2 - energyH, wBoost - 4, energyH);
+        }
+
+        // Kenarlık
+        ctx.strokeStyle = isLocked ? '#D84727' : (boostActive ? '#D99B26' : '#1A1A1A');
+        ctx.lineWidth = boostActive || isLocked ? 2.5 : 2;
+        ctx.strokeRect(boostX + boostOffset, -halfH + boostOffset, wBoost, zones.box.h);
+
+        // Buton Metni
+        ctx.fillStyle = isLocked ? '#FF6B4A' : '#1A1A1A';
+        ctx.font = '900 12px "Space Grotesk", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isLocked ? t('snake.lock') : t('snake.boost'), boostX + boostOffset + wBoost / 2, boostOffset);
 
       } else if (this.state === 'PLAYING' && isJoined) {
         // BOT Koltuğu

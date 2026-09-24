@@ -310,67 +310,97 @@
       <div id="pause-modal" class="hidden">
         <div class="pause-sheet" role="dialog" aria-modal="true" aria-labelledby="pause-game-title">
           <div class="sheet-handle" aria-hidden="true"></div>
+          
           <div class="pause-sheet-head">
             <div class="pause-sheet-titles">
-              <div class="pause-badge" data-i18n="pause.badge">OYUN DURAKLATILDI</div>
+              <div class="pause-badge">
+                <span class="pause-pulse-dot" aria-hidden="true"></span>
+                <span data-i18n="pause.badge">OYUN DURAKLATILDI</span>
+              </div>
               <h2 id="pause-game-title" class="pause-title">BRUTAL PONG</h2>
             </div>
-            <button id="btn-pause-close" class="sheet-close" type="button" aria-label="Kapat">✕</button>
+            <button id="btn-pause-close" class="sheet-close" type="button" aria-label="Kapat" title="Kapat (ESC)">
+              <span class="close-icon">✕</span>
+              <span class="btn-esc-hint">ESC</span>
+            </button>
           </div>
 
           <div class="pause-sheet-body">
             <!-- 1. Primary Action Block: DEVAM ET + SIFIRLA / LOBİ / ANA MENÜ (Zero-Scroll Instant Access) -->
             <section class="sheet-section pause-main-actions">
-              <button id="btn-resume-game" class="pause-btn primary" type="button" data-i18n="pause.resume">
-                ▶ DEVAM ET
+              <button id="btn-resume-game" class="pause-btn primary hero-resume-btn" type="button" data-i18n="pause.resume">
+                <span class="btn-symbol">▶</span>
+                <span class="btn-text" data-i18n="pause.resume">DEVAM ET</span>
+                <span class="btn-hint-badge">ESC</span>
               </button>
+              
               <div class="sheet-row-actions">
                 <button id="btn-reset-match" class="pause-btn reset-btn" type="button" data-i18n="pause.reset">
-                  ↺ MAÇI SIFIRLA
+                  <span class="btn-symbol">↺</span>
+                  <span class="btn-text" data-i18n="pause.reset">MAÇI SIFIRLA</span>
                 </button>
                 <button id="btn-tv-lobby" class="pause-btn lobby-btn hidden" type="button" data-i18n="pause.lobby">
-                  📺 LOBİYE DÖN
+                  <span class="btn-symbol">📺</span>
+                  <span class="btn-text" data-i18n="pause.lobby">TV LOBİSİ</span>
                 </button>
                 <button id="btn-exit-to-menu" class="pause-btn danger-btn" type="button" data-i18n="pause.exit">
-                  ⌂ ANA MENÜ
+                  <span class="btn-symbol">🚪</span>
+                  <span class="btn-text" data-i18n="pause.exit">ANA MENÜ</span>
                 </button>
               </div>
             </section>
 
-            <!-- 2. Quick Toggles Grid (Ses, Botlar, Tam Ekran, Renk Körü) -->
+            <!-- 2. Quick Toggles Grid (Ses, Botlar, Tam Ekran, Renk Körü, Sanal Kontrol) -->
             <section class="sheet-section pause-quick-section">
-              <div class="sheet-section-title" data-i18n="pause.sectionDisplay">HIZLI AYARLAR</div>
+              <div class="sheet-section-header">
+                <span class="sheet-section-title" data-i18n="pause.sectionDisplay">HIZLI AYARLAR</span>
+                <span class="sheet-section-sub">ANLIK TERCİHLER</span>
+              </div>
               <div class="pause-quick-grid">
                 <button id="btn-toggle-sound" class="quick-toggle-btn on" type="button" role="switch" aria-checked="true">
-                  <span class="toggle-icon">🔊</span>
+                  <div class="toggle-icon-wrap">
+                    <span class="toggle-icon">🔊</span>
+                  </div>
                   <div class="toggle-meta">
                     <span class="toggle-title" data-i18n="pause.sound">Ses</span>
                     <span class="toggle-state-badge">AÇIK</span>
                   </div>
                 </button>
+
                 <button id="btn-toggle-bots" class="quick-toggle-btn" type="button" role="switch" aria-checked="false">
-                  <span class="toggle-icon">🤖</span>
+                  <div class="toggle-icon-wrap">
+                    <span class="toggle-icon">🤖</span>
+                  </div>
                   <div class="toggle-meta">
                     <span class="toggle-title" data-i18n="pause.bots">Botlar</span>
                     <span class="toggle-state-badge">KAPALI</span>
                   </div>
                 </button>
+
                 <button id="btn-toggle-fullscreen" class="quick-toggle-btn" type="button" role="switch" aria-checked="false">
-                  <span class="toggle-icon">⛶</span>
+                  <div class="toggle-icon-wrap">
+                    <span class="toggle-icon">⛶</span>
+                  </div>
                   <div class="toggle-meta">
                     <span class="toggle-title" data-i18n="pause.fullscreen">Tam Ekran</span>
                     <span class="toggle-state-badge">KAPALI</span>
                   </div>
                 </button>
+
                 <button id="btn-toggle-colorblind" class="quick-toggle-btn" type="button" role="switch" aria-checked="false">
-                  <span class="toggle-icon">👁</span>
+                  <div class="toggle-icon-wrap">
+                    <span class="toggle-icon">👁</span>
+                  </div>
                   <div class="toggle-meta">
                     <span class="toggle-title" data-i18n="pause.colorblind">Renk Körü</span>
                     <span class="toggle-state-badge">KAPALI</span>
                   </div>
                 </button>
+
                 <button id="btn-toggle-touch-controls" class="quick-toggle-btn" type="button" role="switch" aria-checked="false">
-                  <span class="toggle-icon">🕹️</span>
+                  <div class="toggle-icon-wrap">
+                    <span class="toggle-icon">🕹️</span>
+                  </div>
                   <div class="toggle-meta">
                     <span class="toggle-title" data-i18n="pause.virtualControls">Sanal Kontrol</span>
                     <span class="toggle-state-badge">OTO</span>
@@ -379,16 +409,21 @@
               </div>
             </section>
 
-            <!-- 3. In-Game Seat Swap Panel (Compact) -->
+            <!-- 3. In-Game Seat Swap Panel (Roster / Seat Switcher) -->
             <section class="sheet-section pause-seats-section">
               <div class="pause-seats-header">
-                <span class="sheet-section-title" data-i18n="pause.sectionSeats">💺 KOLTUKLAR</span>
+                <div class="pause-seats-title-wrap">
+                  <span class="sheet-section-title" data-i18n="pause.sectionSeats">💺 KOLTUKLAR & TAKAS</span>
+                </div>
                 <button id="btn-pause-rotate-seats" class="pause-rotate-btn" type="button" data-i18n="pause.rotate">
-                  🔄 90° DÖNDÜR
+                  <span class="rotate-icon">🔄</span> 90° ÇEVİR
                 </button>
               </div>
               <div class="pause-seats-grid" id="pause-seats-grid"></div>
-              <div class="pause-seats-hint" data-i18n="pause.seatsHint">İki koltuğa dokunarak yerlerini anında takas edebilirsiniz.</div>
+              <div class="pause-seats-hint">
+                <span class="hint-bullet">💡</span>
+                <span data-i18n="pause.seatsHint">İki koltuğa dokunarak yerlerini anında takas edebilirsiniz.</span>
+              </div>
             </section>
           </div>
         </div>
