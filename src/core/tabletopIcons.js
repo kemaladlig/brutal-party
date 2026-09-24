@@ -1,423 +1,263 @@
-// Tabletop Vector Icons: Neo-Brutalist Arcade Iconography
-// OS-bağımsız, jilet gibi net Canvas 2D vektör silüetleri.
-// Emojilerin işletim sistemine göre değişen renkli/çizgi film görünümü yerine
-// oyunun brutalist görsel diline %100 uyan saf geometri ve dinamik durum renkleri.
+// Tabletop Vector Icons: Lucide Neo-Brutalist Arcade Iconography
+// OS-bağımsız, jilet gibi keskin, endüstri standardı Lucide Icons SVG / Path2D vektörleri.
+// Emojilerin işletim sistemine göre (iOS / Android / Windows) değişen görünümü yerine
+// %100 deterministik, sıfır ağ yükü ve donanım hızlandırmalı Canvas 2D / HTML SVG çizimi.
 
 /**
- * Belirtilen ikonu verilen Canvas context'inde (x, y) merkezli olarak çizer.
+ * Lucide İkon Tanımları (24x24 Standart Grid)
+ * @type {Record<string, { id: string, aliases: string[], path: string, mode?: 'stroke' | 'fill' | 'both', strokeWidth?: number }>}
+ */
+const LUCIDE_REGISTRY = {
+  zap: {
+    id: 'zap',
+    aliases: ['⚡', 'dash', 'lightning'],
+    path: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+    mode: 'both',
+  },
+  rocket: {
+    id: 'rocket',
+    aliases: ['🚀', 'boost', 'rocket'],
+    path: 'M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0 M12 9V4s3.03.55 4 2c1.08 1.62 0 5 0 5',
+    mode: 'stroke',
+  },
+  bomb: {
+    id: 'bomb',
+    aliases: ['💣', 'fire', 'bomb'],
+    path: 'M20 13a9 9 0 1 1-18 0 9 9 0 0 1 18 0z M14.35 4.65l1.95-1.95a2.41 2.41 0 0 1 3.4 0l1.6 1.6a2.4 2.4 0 0 1 0 3.4l-1.95 1.95 M22 2l-1.5 1.5',
+    mode: 'stroke',
+  },
+  crosshair: {
+    id: 'crosshair',
+    aliases: ['🎯', 'target', 'aim'],
+    path: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z M22 12h-4 M6 12H2 M12 6V2 M12 22v-4',
+    mode: 'stroke',
+  },
+  flame: {
+    id: 'flame',
+    aliases: ['💥', 'tackle', 'burst', 'impact'],
+    path: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z',
+    mode: 'both',
+  },
+  rotate_cw: {
+    id: 'rotate-cw',
+    aliases: ['🌀', 'spin', 'vortex', 'rotate_cw', 'rotate-cw'],
+    path: 'M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8 M21 3v5h-5',
+    mode: 'stroke',
+  },
+  sword: {
+    id: 'sword',
+    aliases: ['🗡️', 'action', 'strike', 'sword'],
+    path: 'M14.5 17.5L3 6V3h3l11.5 11.5z M13 19l6-6 M16 20l4-4 M19 21l2-2',
+    mode: 'stroke',
+  },
+  wind: {
+    id: 'wind',
+    aliases: ['💨', 'smoke', 'wind'],
+    path: 'M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2 M9.6 4.6A2 2 0 1 1 11 8H2 M12.6 19.4A2 2 0 1 0 14 16H2',
+    mode: 'stroke',
+  },
+  chevrons_up: {
+    id: 'chevrons-up',
+    aliases: ['🦘', 'jump', 'spring', 'chevrons_up', 'chevrons-up'],
+    path: 'M17 11l-5-5-5 5 M17 18l-5-5-5 5',
+    mode: 'stroke',
+  },
+  arrow_left: {
+    id: 'arrow-left',
+    aliases: ['◀', 'steer_left', 'arrow_left', 'arrow-left', 'chevron_left', 'chevron-left'],
+    path: 'M12 19l-7-7 7-7 M19 12H5',
+    mode: 'stroke',
+    strokeWidth: 2.6,
+  },
+  arrow_right: {
+    id: 'arrow-right',
+    aliases: ['▶', 'steer_right', 'arrow_right', 'arrow-right', 'chevron_right', 'chevron-right'],
+    path: 'M12 5l7 7-7 7 M5 12h14',
+    mode: 'stroke',
+    strokeWidth: 2.6,
+  },
+  target: {
+    id: 'target',
+    aliases: ['🏹', 'bow', 'arrow', 'bullseye'],
+    path: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z M18 12a6 6 0 1 1-12 0 6 6 0 0 1 12 0z M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0z',
+    mode: 'stroke',
+  },
+  snowflake: {
+    id: 'snowflake',
+    aliases: ['❄️', 'freeze', 'ice', 'snowflake'],
+    path: 'M2 12h20 M12 2v20 M20 16l-4-4 4-4 M4 8l4 4-4 4 M16 4l-4 4-4-4 M8 20l4-4 4 4',
+    mode: 'stroke',
+  },
+  swords: {
+    id: 'swords',
+    aliases: ['⚔️', 'melee', 'swords'],
+    path: 'M14.5 17.5L3 6V3h3l11.5 11.5 M13 19l6-6 M16 20l4-4 M19 21l2-2 M9.5 17.5L21 6V3h-3L6.5 14.5 M11 19l-6-6 M8 20l-4-4 M5 21l-2-2',
+    mode: 'stroke',
+  },
+  shield: {
+    id: 'shield',
+    aliases: ['🛡️', 'shield', 'protect'],
+    path: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+    mode: 'stroke',
+  },
+  sparkles: {
+    id: 'sparkles',
+    aliases: ['✨', 'sparkles', 'star'],
+    path: 'M12 3l-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z M5 3v4 M3 5h4 M19 17v4 M17 19h4',
+    mode: 'stroke',
+  },
+  flask_conical: {
+    id: 'flask-conical',
+    aliases: ['🧪', 'alchemy', 'flask'],
+    path: 'M10 2v7.31 M14 9.3V2 M8.5 2h7 M14 9.3a6.5 6.5 0 1 1-4 0 M5.5 16h13',
+    mode: 'stroke',
+  },
+  scroll: {
+    id: 'scroll',
+    aliases: ['📜', 'library', 'scroll'],
+    path: 'M19 17V5a2 2 0 0 0-2-2H4 M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1 M15 5H9 M15 9H9 M15 13h-4',
+    mode: 'stroke',
+  },
+  gem: {
+    id: 'gem',
+    aliases: ['💎', 'treasury', 'gem'],
+    path: 'M6 3h12l4 6-10 12L2 9l4-6z M11 3l-3 6 4 12 4-12-3-6 M2 9h20',
+    mode: 'stroke',
+  },
+  landmark: {
+    id: 'landmark',
+    aliases: ['🏛️', 'statue', 'altar', 'fountain', '⛲', '🗿'],
+    path: 'M3 22h18 M6 18v-7 M10 18v-7 M14 18v-7 M18 18v-7 M12 2l8 5H4z',
+    mode: 'stroke',
+  },
+};
+
+// Anahtar ve takma adlardan (alias) hızlı erişim haritası
+const ICON_LOOKUP = new Map();
+for (const def of Object.values(LUCIDE_REGISTRY)) {
+  ICON_LOOKUP.set(def.id.toLowerCase(), def);
+  for (const alias of def.aliases) {
+    ICON_LOOKUP.set(alias.trim().toLowerCase(), def);
+  }
+}
+
+// 60-120 FPS için donanım hızlandırmalı Path2D nesne önbelleği
+const PATH2D_CACHE = new Map();
+
+function getCachedPath2D(d) {
+  if (typeof Path2D === 'undefined') return null;
+  let p = PATH2D_CACHE.get(d);
+  if (!p) {
+    p = new Path2D(d);
+    PATH2D_CACHE.set(d, p);
+  }
+  return p;
+}
+
+/**
+ * Belirtilen ikonun Lucide koleksiyonunda bulunup bulunmadığını kontrol eder.
+ * @param {string} iconKey
+ * @returns {boolean}
+ */
+export function hasTabletopIcon(iconKey) {
+  if (!iconKey) return false;
+  return ICON_LOOKUP.has(String(iconKey).trim().toLowerCase());
+}
+
+/**
+ * Belirtilen ikonu Canvas 2D üzerinde (cx, cy) merkezli Lucide standardıyla çizer.
  * @param {CanvasRenderingContext2D} ctx
  * @param {string} iconKey - Emojisi ('⚡', '💣', '🚀', '🌀'...) veya ID'si ('dash', 'fire'...)
  * @param {number} cx - Merkez X
  * @param {number} cy - Merkez Y
  * @param {number} size - İkon kutu boyutu (varsayılan 24px)
- * @param {Object} options - Renk ve durum seçenekleri
+ * @param {Object} [options] - Renk ve durum seçenekleri
  */
 export function drawTabletopIcon(ctx, iconKey, cx, cy, size = 24, options = {}) {
   const {
     color = '#141416',
     isReady = true,
     accentColor = '#F59E0B',
+    strokeWidth = null,
   } = options;
 
-  const s = size / 24;
-  ctx.save();
-  ctx.fillStyle = color;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(1.5, Math.round(2 * s));
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
+  const key = String(iconKey || '').trim().toLowerCase();
+  const def = ICON_LOOKUP.get(key);
 
-  const key = String(iconKey || '').trim();
+  // Tanımlı Lucide ikonu varsa yüksek kaliteli vektör çizimi
+  if (def) {
+    const path2d = getCachedPath2D(def.path);
+    if (path2d) {
+      const s = size / 24;
+      const baseWidth = def.strokeWidth || 2.2;
+      const computedStroke = strokeWidth != null ? strokeWidth : Math.max(1.8, Math.round(baseWidth * s));
 
-  switch (key) {
-    // -------------------------------------------------------------------------
-    // 1. DİREKSİYON (SOL & SAĞ)
-    // -------------------------------------------------------------------------
-    case '◀':
-    case 'steer_left': {
-      ctx.beginPath();
-      ctx.moveTo(cx + 6 * s, cy - 9 * s);
-      ctx.lineTo(cx - 7 * s, cy);
-      ctx.lineTo(cx + 6 * s, cy + 9 * s);
-      ctx.lineTo(cx + 2 * s, cy);
-      ctx.closePath();
-      ctx.fill();
-      break;
-    }
-
-    case '▶':
-    case 'steer_right': {
-      ctx.beginPath();
-      ctx.moveTo(cx - 6 * s, cy - 9 * s);
-      ctx.lineTo(cx + 7 * s, cy);
-      ctx.lineTo(cx - 6 * s, cy + 9 * s);
-      ctx.lineTo(cx - 2 * s, cy);
-      ctx.closePath();
-      ctx.fill();
-      break;
-    }
-
-    // -------------------------------------------------------------------------
-    // 2. DEPAR / ŞİMŞEK (⚡ - Zone, Bomb, Laser)
-    // -------------------------------------------------------------------------
-    case '⚡':
-    case 'dash':
-    case 'lightning': {
-      ctx.beginPath();
-      ctx.moveTo(cx + 2 * s, cy - 10.5 * s);
-      ctx.lineTo(cx - 6.5 * s, cy + 0.5 * s);
-      ctx.lineTo(cx - 0.5 * s, cy + 0.5 * s);
-      ctx.lineTo(cx - 2.5 * s, cy + 10.5 * s);
-      ctx.lineTo(cx + 6.5 * s, cy - 0.5 * s);
-      ctx.lineTo(cx + 0.5 * s, cy - 0.5 * s);
-      ctx.closePath();
-      ctx.fill();
-      break;
-    }
-
-    // -------------------------------------------------------------------------
-    // 3. HIZLANMA / ROKET (🚀 - Snake Boost)
-    // -------------------------------------------------------------------------
-    case '🚀':
-    case 'boost':
-    case 'rocket': {
-      // Roket gövdesi
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - 11 * s);
-      ctx.bezierCurveTo(cx + 5 * s, cy - 7 * s, cx + 5 * s, cy + 3 * s, cx + 3.5 * s, cy + 6 * s);
-      ctx.lineTo(cx - 3.5 * s, cy + 6 * s);
-      ctx.bezierCurveTo(cx - 5 * s, cy + 3 * s, cx - 5 * s, cy - 7 * s, cx, cy - 11 * s);
-      ctx.closePath();
-      ctx.fill();
-
-      // Sol ve sağ kanatçıklar
-      ctx.beginPath();
-      ctx.moveTo(cx - 3.5 * s, cy + 3 * s);
-      ctx.lineTo(cx - 8.5 * s, cy + 8 * s);
-      ctx.lineTo(cx - 3.5 * s, cy + 6.5 * s);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.moveTo(cx + 3.5 * s, cy + 3 * s);
-      ctx.lineTo(cx + 8.5 * s, cy + 8 * s);
-      ctx.lineTo(cx + 3.5 * s, cy + 6.5 * s);
-      ctx.closePath();
-      ctx.fill();
-
-      // Roket lombozu (penceresi)
       ctx.save();
-      ctx.fillStyle = '#FAF7F2';
-      ctx.beginPath();
-      ctx.arc(cx, cy - 2 * s, 2.2 * s, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      ctx.translate(cx, cy);
+      ctx.scale(s, s);
+      ctx.translate(-12, -12); // 24x24 grid merkezleme
 
-      // Egzoz alevi
-      ctx.save();
-      ctx.fillStyle = accentColor;
-      ctx.beginPath();
-      ctx.moveTo(cx - 2.5 * s, cy + 6.5 * s);
-      ctx.lineTo(cx, cy + 11 * s);
-      ctx.lineTo(cx + 2.5 * s, cy + 6.5 * s);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-      break;
-    }
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = computedStroke / s;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
 
-    // -------------------------------------------------------------------------
-    // 4. ATEŞ / BOMBA (💣 - Tanks)
-    // -------------------------------------------------------------------------
-    case '💣':
-    case 'fire':
-    case 'bomb': {
-      // Bomba küresi
-      ctx.beginPath();
-      ctx.arc(cx - 1 * s, cy + 2 * s, 7.5 * s, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Bomba parıltısı (derinlik vurgusu)
-      ctx.save();
-      ctx.fillStyle = '#FAF7F2';
-      ctx.beginPath();
-      ctx.arc(cx - 3.5 * s, cy - 0.5 * s, 1.8 * s, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      // Fitil kapağı
-      ctx.fillRect(cx + 2.5 * s, cy - 6 * s, 3.5 * s, 2.5 * s);
-
-      // Kıvrık fitil
-      ctx.beginPath();
-      ctx.moveTo(cx + 4.2 * s, cy - 6 * s);
-      ctx.quadraticCurveTo(cx + 5 * s, cy - 9.5 * s, cx + 8 * s, cy - 8.5 * s);
-      ctx.stroke();
-
-      // Yanan kıvılcım (Accent)
-      ctx.save();
-      ctx.fillStyle = accentColor;
-      ctx.beginPath();
-      ctx.arc(cx + 8 * s, cy - 8.5 * s, 2.5 * s, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-      break;
-    }
-
-    // -------------------------------------------------------------------------
-    // 5. NİŞAN / CROSSHAIR (🎯 - Laser)
-    // -------------------------------------------------------------------------
-    case '🎯':
-    case 'target':
-    case 'aim': {
-      // Dış halka
-      ctx.beginPath();
-      ctx.arc(cx, cy, 8 * s, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Merkez nokta
-      ctx.beginPath();
-      ctx.arc(cx, cy, 2.5 * s, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 4 Yön Artı Çizgileri
-      ctx.beginPath();
-      ctx.moveTo(cx - 10.5 * s, cy);
-      ctx.lineTo(cx - 5.5 * s, cy);
-      ctx.moveTo(cx + 5.5 * s, cy);
-      ctx.lineTo(cx + 10.5 * s, cy);
-      ctx.moveTo(cx, cy - 10.5 * s);
-      ctx.lineTo(cx, cy - 5.5 * s);
-      ctx.moveTo(cx, cy + 5.5 * s);
-      ctx.lineTo(cx, cy + 10.5 * s);
-      ctx.stroke();
-      break;
-    }
-
-    // -------------------------------------------------------------------------
-    // 6. OMUZ / VURUŞ / İMFAZ (💥 - Heist, Crown, Clone)
-    // -------------------------------------------------------------------------
-    case '💥':
-    case 'tackle':
-    case 'burst':
-    case 'impact': {
-      // 10 köşeli agresif patlama yıldızı
-      const spikes = 10;
-      const outerR = 10.5 * s;
-      const innerR = 4.8 * s;
-      ctx.beginPath();
-      for (let i = 0; i < spikes * 2; i++) {
-        const r = i % 2 === 0 ? outerR : innerR;
-        const angle = (i * Math.PI) / spikes - Math.PI / 2;
-        const px = cx + Math.cos(angle) * r;
-        const py = cy + Math.sin(angle) * r;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
+      const mode = def.mode || 'stroke';
+      if (mode === 'both') {
+        ctx.fill(path2d);
+        ctx.stroke(path2d);
+      } else if (mode === 'fill') {
+        ctx.fill(path2d);
+      } else {
+        ctx.stroke(path2d);
       }
-      ctx.closePath();
-      ctx.fill();
-
-      // İç patlama çekirdeği
-      ctx.save();
-      ctx.fillStyle = '#FAF7F2';
-      ctx.beginPath();
-      ctx.arc(cx, cy, 2.5 * s, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-      break;
-    }
-
-    // -------------------------------------------------------------------------
-    // 7. FALSO / SPİRAL (🌀 - Pong Spin)
-    // -------------------------------------------------------------------------
-    case '🌀':
-    case 'spin':
-    case 'vortex': {
-      // Çift yönlü aerodinamik fırdöndü / falso girdabı
-      ctx.beginPath();
-      ctx.arc(cx, cy, 8 * s, 0.2 * Math.PI, 1.1 * Math.PI);
-      ctx.stroke();
-
-      // Ok ucu 1
-      ctx.beginPath();
-      ctx.moveTo(cx - 7 * s, cy - 2 * s);
-      ctx.lineTo(cx - 5.5 * s, cy + 6 * s);
-      ctx.lineTo(cx - 1.5 * s, cy + 3.5 * s);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(cx, cy, 8 * s, 1.2 * Math.PI, 2.1 * Math.PI);
-      ctx.stroke();
-
-      // Ok ucu 2
-      ctx.beginPath();
-      ctx.moveTo(cx + 7 * s, cy + 2 * s);
-      ctx.lineTo(cx + 5.5 * s, cy - 6 * s);
-      ctx.lineTo(cx + 1.5 * s, cy - 3.5 * s);
-      ctx.closePath();
-      ctx.fill();
-
-      // Çekirdek
-      ctx.beginPath();
-      ctx.arc(cx, cy, 2.5 * s, 0, Math.PI * 2);
-      ctx.fill();
-      break;
-    }
-
-    // -------------------------------------------------------------------------
-    // 8. KILIÇ / ATILMA (🗡️ - Ninja Strike)
-    // -------------------------------------------------------------------------
-    case '🗡️':
-    case 'action':
-    case 'strike':
-    case 'sword': {
-      // Çapraz Japon katanası
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(-Math.PI / 4);
-
-      // Namlu (Blade)
-      ctx.beginPath();
-      ctx.moveTo(-1.8 * s, -11 * s);
-      ctx.lineTo(1.8 * s, -11 * s);
-      ctx.lineTo(1.8 * s, 2 * s);
-      ctx.lineTo(-1.8 * s, 2 * s);
-      ctx.closePath();
-      ctx.fill();
-
-      // Uç sivrisi
-      ctx.beginPath();
-      ctx.moveTo(-1.8 * s, -11 * s);
-      ctx.lineTo(0, -14 * s);
-      ctx.lineTo(1.8 * s, -11 * s);
-      ctx.closePath();
-      ctx.fill();
-
-      // Kılıç Kalkanı (Tsuba)
-      ctx.fillRect(-5 * s, 2 * s, 10 * s, 2.5 * s);
-
-      // Kabza (Hilt)
-      ctx.fillRect(-1.5 * s, 4.5 * s, 3 * s, 7 * s);
-
-      // Topuz (Pommel)
-      ctx.beginPath();
-      ctx.arc(0, 11.5 * s, 2 * s, 0, Math.PI * 2);
-      ctx.fill();
 
       ctx.restore();
-      break;
-    }
-
-    // -------------------------------------------------------------------------
-    // 9. SİS BOMBASI / DUMAN (💨 - Ninja Smoke)
-    // -------------------------------------------------------------------------
-    case '💨':
-    case 'smoke': {
-      // 3 loblu kabarık sis bulutu
-      ctx.beginPath();
-      ctx.arc(cx - 2 * s, cy + 1 * s, 6 * s, 0, Math.PI * 2);
-      ctx.arc(cx + 4 * s, cy + 2 * s, 4.5 * s, 0, Math.PI * 2);
-      ctx.arc(cx + 1 * s, cy - 4 * s, 5 * s, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Hız çizgileri (soldan sağa akış)
-      ctx.beginPath();
-      ctx.moveTo(cx - 10 * s, cy - 2 * s);
-      ctx.lineTo(cx - 5 * s, cy - 2 * s);
-      ctx.moveTo(cx - 11 * s, cy + 3 * s);
-      ctx.lineTo(cx - 7 * s, cy + 3 * s);
-      ctx.stroke();
-      break;
-    }
-
-    // -------------------------------------------------------------------------
-    // 10. ZIPLAMA / YAY (🦘 - Collapse Jump)
-    // -------------------------------------------------------------------------
-    case '🦘':
-    case 'jump':
-    case 'spring': {
-      // Yukarı doğru fırlama oku
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - 11 * s);
-      ctx.lineTo(cx + 7 * s, cy - 4 * s);
-      ctx.lineTo(cx + 3 * s, cy - 4 * s);
-      ctx.lineTo(cx + 3 * s, cy + 2 * s);
-      ctx.lineTo(cx - 3 * s, cy + 2 * s);
-      ctx.lineTo(cx - 3 * s, cy - 4 * s);
-      ctx.lineTo(cx - 7 * s, cy - 4 * s);
-      ctx.closePath();
-      ctx.fill();
-
-      // Sıkışmış zıplama yayı (taban)
-      ctx.beginPath();
-      ctx.moveTo(cx - 5 * s, cy + 4.5 * s);
-      ctx.lineTo(cx + 5 * s, cy + 4.5 * s);
-      ctx.moveTo(cx - 6 * s, cy + 8 * s);
-      ctx.lineTo(cx + 6 * s, cy + 8 * s);
-      ctx.moveTo(cx - 7 * s, cy + 11.5 * s);
-      ctx.lineTo(cx + 7 * s, cy + 11.5 * s);
-      ctx.stroke();
-      break;
-    }
-
-    // -------------------------------------------------------------------------
-    // 11. YAY VE OK (🏹 - Archer Bow)
-    // -------------------------------------------------------------------------
-    case '🏹':
-    case 'bow':
-    case 'arrow': {
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(-Math.PI / 4);
-
-      // Yay yayı (C eğrisi)
-      ctx.beginPath();
-      ctx.arc(0, 0, 9.5 * s, 0.75 * Math.PI, 1.25 * Math.PI);
-      ctx.stroke();
-
-      // Kiriş (düz ip)
-      const chordY1 = -9.5 * s * Math.SQRT1_2;
-      const chordX1 = -9.5 * s * Math.SQRT1_2;
-      const chordY2 = 9.5 * s * Math.SQRT1_2;
-      const chordX2 = -9.5 * s * Math.SQRT1_2;
-      ctx.lineWidth = Math.max(1, 1.2 * s);
-      ctx.beginPath();
-      ctx.moveTo(chordX1, chordY1);
-      ctx.lineTo(-2 * s, 0); // çekilmiş kiriş
-      ctx.lineTo(chordX2, chordY2);
-      ctx.stroke();
-
-      // Ok gövdesi ve sivri uç
-      ctx.lineWidth = Math.max(1.5, 2 * s);
-      ctx.beginPath();
-      ctx.moveTo(-2 * s, 0);
-      ctx.lineTo(11 * s, 0);
-      ctx.stroke();
-
-      // Ok ucu
-      ctx.beginPath();
-      ctx.moveTo(11 * s, 0);
-      ctx.lineTo(6.5 * s, -3.5 * s);
-      ctx.lineTo(6.5 * s, 3.5 * s);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.restore();
-      break;
-    }
-
-    // -------------------------------------------------------------------------
-    // VARSAYILAN: Unicode Fallback
-    // -------------------------------------------------------------------------
-    default: {
-      ctx.font = `bold ${Math.round(20 * s)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(key, cx, cy + 1);
-      break;
+      return;
     }
   }
 
+  // Fallback: Unicode karakteri olarak çiz
+  const s = size / 24;
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.font = `bold ${Math.round(20 * s)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(iconKey || ''), cx, cy + 1);
   ctx.restore();
+}
+
+/**
+ * DOM ve kumanda şablonları (HTML) için birebir aynı Lucide SVG markup'ını üretir.
+ * @param {string} iconKey
+ * @param {Object} [options]
+ * @returns {string} SVG HTML string
+ */
+export function getTabletopIconSvg(iconKey, options = {}) {
+  const {
+    size = 24,
+    color = 'currentColor',
+    strokeWidth = null,
+    className = 'lucide-icon',
+  } = options;
+
+  const key = String(iconKey || '').trim().toLowerCase();
+  const def = ICON_LOOKUP.get(key);
+
+  if (!def) {
+    return `<span class="${className}">${iconKey || ''}</span>`;
+  }
+
+  const baseWidth = def.strokeWidth || 2.2;
+  const sw = strokeWidth != null ? strokeWidth : baseWidth;
+  const mode = def.mode || 'stroke';
+
+  const fillAttr = (mode === 'fill' || mode === 'both') ? color : 'none';
+  const strokeAttr = (mode === 'fill') ? 'none' : color;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fillAttr}" stroke="${strokeAttr}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" class="${className} lucide-${def.id}">
+    <path d="${def.path}" />
+  </svg>`.trim();
 }
