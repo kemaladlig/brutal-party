@@ -28,6 +28,7 @@ export const TR = {
   'pause.slotLeft': 'SOL',
   'pause.slotRight': 'SAĞ',
   'pause.empty': 'BOŞ',
+  'pause.selected': 'SEÇİLDİ',
   // ── Settings ──
   'settings.title': 'AYARLAR',
   'settings.close': 'Kapat',
@@ -53,8 +54,8 @@ export const TR = {
   'toast.cbOff': '👁 Klasik palete dönüldü.',
   'toast.soundOn': '🔊 Ses AÇIK.',
   'toast.soundOff': '🔇 Ses KAPALI.',
-  'toast.fullscreenEnter': '⛶ Tam ekran moduna geçildi.',
-  'toast.fullscreenExit': '🗗 Normal ekrana dönüldü.',
+  'toast.fullscreenEnter': 'Tam ekran moduna geçildi.',
+  'toast.fullscreenExit': 'Normal ekrana dönüldü.',
   // ── Toasts (app) ──
   'toast.loading': '⏳ {0} YÜKLENİYOR…',
   'toast.loadFail': '❌ OYUN YÜKLENEMEDİ — tekrar deneyin.',

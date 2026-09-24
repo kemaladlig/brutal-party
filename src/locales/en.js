@@ -28,6 +28,7 @@ export const EN = {
   'pause.slotLeft': 'LEFT',
   'pause.slotRight': 'RIGHT',
   'pause.empty': 'EMPTY',
+  'pause.selected': 'SELECTED',
   // ── Settings ──
   'settings.title': 'SETTINGS',
   'settings.close': 'Close',
@@ -53,8 +54,8 @@ export const EN = {
   'toast.cbOff': '👁 Back to classic palette.',
   'toast.soundOn': '🔊 Sound ON.',
   'toast.soundOff': '🔇 Sound OFF.',
-  'toast.fullscreenEnter': '⛶ Fullscreen enabled.',
-  'toast.fullscreenExit': '🗗 Fullscreen exited.',
+  'toast.fullscreenEnter': 'Fullscreen enabled.',
+  'toast.fullscreenExit': 'Fullscreen exited.',
   // ── Toasts (app) ──
   'toast.loading': '⏳ LOADING {0}…',
   'toast.loadFail': '❌ GAME FAILED TO LOAD — try again.',

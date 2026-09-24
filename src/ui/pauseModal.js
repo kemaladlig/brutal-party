@@ -2,6 +2,7 @@
 // Same public API as the old pause modal: initPauseModal, openPauseModal,
 // closePauseModal, renderPauseSeats, getIsPaused, setIsPaused — main.js untouched.
 import { hostPlayerSlots, isBotEkleEnabled, setBotEkleEnabled } from '../core/slotManager.js';
+import { CARTRIDGES } from '../core/engineRegistry.js';
 import { isColorblindEnabled, setColorblindEnabled } from '../core/customizationManager.js';
 import { showInstallToast } from './toast.js';
 import { toggleAudio, getIsMuted } from '../audio.js';
@@ -151,22 +152,8 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
   lastSwapCallback = (typeof onSwapCallback === 'function') ? onSwapCallback : null;
   pauseModal?.classList.remove('hidden');
 
-  const titles = {
-    PONG: 'BRUTAL PONG',
-    TANKS: 'MICRO-TANKS',
-    CURVE: 'BRUTAL CURVE',
-    BOMB: 'BRUTAL BOMB',
-    HEIST: 'BRUTAL HEIST',
-    ARCHER: 'BRUTAL ARCHERY',
-    CROWN: 'BRUTAL CROWN',
-    SNAKE: 'BRUTAL SNAKE',
-    LASER: 'BRUTAL LASER',
-    CLONE: 'BRUTAL CLONE',
-    COLLAPSE: 'BRUTAL COLLAPSE',
-    NINJA: 'BRUTAL NINJA',
-  };
   if (pauseGameTitle) {
-    pauseGameTitle.textContent = `${titles[currentMode] || currentMode}`;
+    pauseGameTitle.textContent = CARTRIDGES[currentMode]?.title || currentMode;
   }
   if (btnTvLobby) {
     btnTvLobby.classList.toggle('hidden', !isHosting);

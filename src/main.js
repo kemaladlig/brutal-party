@@ -44,6 +44,7 @@ import { initSettingsModal, openSettingsModal } from './ui/settingsModal.js';
 import { initMainMenu } from './ui/menuManager.js';
 import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
+import { getTabletopIconSvg } from './core/tabletopIcons.js';
 import {
   initHostLobby,
   showHostLobbyModal,
@@ -1263,9 +1264,16 @@ addTapListener(btnQuickTvLobby, returnHostToLobby);
 
 function updateQuickFullscreen(active) {
   const isFs = typeof active === 'boolean' ? active : isFullscreen();
-  if (quickFullscreenIcon) quickFullscreenIcon.textContent = isFs ? '🗗' : '⛶';
+  const label = isFs ? t('menu.exitFullscreen') : t('menu.fullscreen');
+  if (quickFullscreenIcon) {
+    quickFullscreenIcon.innerHTML = getTabletopIconSvg(
+      isFs ? 'minimize-2' : 'maximize-2',
+      { size: 19 },
+    );
+  }
   btnQuickFullscreen?.classList.toggle('active', isFs);
-  btnQuickFullscreen?.setAttribute('title', isFs ? t('menu.exitFullscreen') : t('menu.fullscreen'));
+  btnQuickFullscreen?.setAttribute('title', label);
+  btnQuickFullscreen?.setAttribute('aria-label', label);
   btnQuickFullscreen?.setAttribute('aria-pressed', String(isFs));
 }
 updateQuickFullscreen();

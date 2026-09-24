@@ -111,6 +111,18 @@
   box-shadow: 3px 3px 0px #d84727;
 }
 
+.fs-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.fs-icon svg {
+  display: block;
+}
+
 /* In-Game Command Sheet: right slide-over (TV/PC), bottom sheet (touch).
    Same brutalist language, modern SaaS pattern — no centered modal pop. */
 #pause-modal {
