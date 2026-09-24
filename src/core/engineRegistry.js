@@ -23,6 +23,7 @@ export const GAME_ORDER = [
   'CLONE',
   'COLLAPSE',
   'NINJA',
+  'RACE',
 ];
 
 export const CARTRIDGES = {
@@ -362,6 +363,35 @@ export const CARTRIDGES = {
       };
     },
   },
+
+  RACE: {
+    id: 'RACE',
+    title: 'BRUTAL RACE',
+    lobbyTitle: 'BRUTAL RACE',
+    hudTag: 'RACE',
+    tacticalHintKey: 'hint.race',
+    color: '#D99B26',
+    schema: GAMEPAD_SCHEMAS.RACE,
+    load: () => import('../games/race.js').then((m) => m.RaceGame),
+    createEngine: (game) => {
+      return {
+        game,
+        reset: () => game.resetMatch(),
+        onEnter: (now) => { game.lastTime = now; },
+        onResume: (now) => { game.lastTime = now; },
+        start: () => game.startNewMatch(),
+        packet: () => ({
+          scores: game.scores,
+          timeLeft: Math.ceil(game.roundTimer || 0),
+          laps: game.players.map((player) => player.laps || 0),
+          progress: game.players.map((player) => Math.round(game.getProgressFraction(player) * 100)),
+          targetLaps: game.targetLaps,
+          leader: game.getLeaderIndex(),
+          cd: game.players.map((player) => Math.ceil((Math.max(0, player.dashCooldown || 0) / 2.8) * 100)),
+        }),
+      };
+    },
+  },
 };
 
 const registry = {};
@@ -441,7 +471,7 @@ export function getControllerMeta(mode) {
   if (!cart) return null;
   return {
     hudTag: cart.hudTag,
-    lobbyTitle: `${cart.hudTag.split(' ')[0]} ${cart.title}`,
+    lobbyTitle: cart.lobbyTitle || `${cart.hudTag.split(' ')[0]} ${cart.title}`,
     tacticalHint: t(cart.tacticalHintKey || ''),
     tacticalHintKey: cart.tacticalHintKey,
     schema: cart.schema,

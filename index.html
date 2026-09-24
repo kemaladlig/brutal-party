@@ -264,6 +264,15 @@
                     <span class="chip-name">BRUTAL NINJA</span>
                   </div>
                 </button>
+                <button class="lobby-game-chip" data-game="RACE" type="button">
+                  <div class="chip-media-box">
+                    <img src="/assets/games/race.jpg" alt="Brutal Race" class="chip-thumb-img" loading="eager" decoding="async" />
+                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                  </div>
+                  <div class="chip-meta">
+                    <span class="chip-name">BRUTAL RACE</span>
+                  </div>
+                </button>
               </div>
               <div class="tv-host-actions">
                 <button class="tv-start-btn" id="btn-host-launch-game" type="button" data-i18n="host.launchSel">▶ SEÇİLEN OYUNU BAŞLAT</button>
@@ -612,7 +621,7 @@
                           <button class="carousel-arrow-btn" id="btn-carousel-next" type="button" aria-label="Sonraki">›</button>
                         </div>
                         <button class="carousel-browse-all-btn" id="btn-hero-browse-games" type="button" data-i18n="menu.localBrowseGames">
-                          13 OYUN →
+                          14 OYUN →
                         </button>
                       </div>
                     </div>
@@ -763,7 +772,7 @@
                           </button>
                         </div>
 
-                        <!-- Slide 7: NINJA + TÜM 13 OYUN -->
+                        <!-- Slide 7: NINJA + TÜM 14 OYUN -->
                         <div class="carousel-slide-page">
                           <button class="local-showcase-card" type="button" data-game="NINJA">
                             <div class="showcase-card-media">
@@ -786,7 +795,7 @@
                             </div>
                             <div class="showcase-card-info">
                               <span class="showcase-card-title">TÜM LİSTE</span>
-                              <span class="showcase-card-tag">13 OYUN</span>
+                              <span class="showcase-card-tag">14 OYUN</span>
                               <span class="showcase-card-badge">GÖZ AT →</span>
                             </div>
                           </button>
@@ -840,22 +849,22 @@
       </div>
     </div>
 
-    <!-- 13-Games Picker Modal (Clean overlay for browsing all games) -->
+    <!-- 14-Games Picker Modal (Clean overlay for browsing all games) -->
     <div id="game-picker-modal" class="game-picker-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="picker-modal-title">
       <div class="game-picker-container">
         <div class="picker-modal-head">
           <div class="picker-head-left">
             <span class="picker-badge">KATALOG</span>
-            <h2 id="picker-modal-title" class="picker-modal-title">OYUN SEÇ (13 OYUN)</h2>
+            <h2 id="picker-modal-title" class="picker-modal-title">OYUN SEÇ (14 OYUN)</h2>
           </div>
           <button id="btn-close-game-picker" class="picker-close-btn" type="button" aria-label="Kapat">✕</button>
         </div>
 
         <div class="menu-filter-toolbar picker-toolbar">
           <div class="menu-category-tabs" id="menu-category-tabs" role="tablist" aria-label="Oyun Kategorileri">
-            <button class="category-filter-chip active" data-filter="all" type="button" role="tab" aria-selected="true" data-i18n="menu.chipAll">TÜMÜ (13)</button>
+            <button class="category-filter-chip active" data-filter="all" type="button" role="tab" aria-selected="true" data-i18n="menu.chipAll">TÜMÜ (14)</button>
             <button class="category-filter-chip" data-filter="fight" type="button" role="tab" aria-selected="false" data-i18n="menu.chipFight">⚔️ DÖVÜŞ (5)</button>
-            <button class="category-filter-chip" data-filter="speed" type="button" role="tab" aria-selected="false" data-i18n="menu.chipSpeed">⚡ HIZ (3)</button>
+            <button class="category-filter-chip" data-filter="speed" type="button" role="tab" aria-selected="false" data-i18n="menu.chipSpeed">⚡ HIZ (4)</button>
             <button class="category-filter-chip" data-filter="strategy" type="button" role="tab" aria-selected="false" data-i18n="menu.chipStrategy">🧠 TAKTİK (5)</button>
           </div>
           <div class="menu-filter-right">
@@ -873,7 +882,7 @@
               <button id="btn-clear-search-input" class="search-clear-btn hidden" type="button" aria-label="Aramayı temizle">×</button>
             </div>
             <div class="menu-games-count-wrap">
-              <span id="menu-games-count" class="games-count-pill">13 OYUN</span>
+              <span id="menu-games-count" class="games-count-pill">14 OYUN</span>
             </div>
           </div>
         </div>
@@ -1104,6 +1113,23 @@
             </div>
             <div class="bento-bottom">
               <span class="card-highlight" data-i18n="card.hl.ninja">GÖLGE AVI</span>
+              <span class="card-action" data-i18n="card.play">OYNA →</span>
+            </div>
+          </button>
+
+          <!-- 14: RACE -->
+          <button class="game-card-btn bento-card card-race" id="btn-select-race" data-category="speed" type="button">
+            <div class="bento-media-box">
+              <img src="/assets/games/race.jpg" alt="BRUTAL RACE" class="bento-thumb-img" loading="eager" />
+              <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
+            </div>
+            <div class="card-center">
+              <div class="card-number">14</div>
+              <div class="card-title">BRUTAL RACE</div>
+              <div class="card-desc" data-i18n="card.desc.race">Checkpointleri sırayla kap, nitroyu kullan ve 3 turu tamamla!</div>
+            </div>
+            <div class="bento-bottom">
+              <span class="card-highlight" data-i18n="card.hl.race">PARKOUR YARIŞ</span>
               <span class="card-action" data-i18n="card.play">OYNA →</span>
             </div>
           </button>

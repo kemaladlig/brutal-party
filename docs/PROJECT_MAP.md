@@ -18,9 +18,9 @@ src/gamepad.js              Telefon kumandası: CONTROLLER_META, koltuk ızgaras
                             skor şeridi, ready yönetimi, dokunmatik girdiler
 src/controllers/
   controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, STEER_BOOST) + PONG canlı skorbord/falso senkronu
-  gamepadSchemas.js         13 oyun için deklaratif kumanda konfigürasyonları, canlı senkronizasyon hook'ları (BOMB/CROWN/HEIST uyarıları) + merkezi `def` referansı
+  gamepadSchemas.js         14 oyun için deklaratif kumanda konfigürasyonları, canlı senkronizasyon hook'ları (BOMB/CROWN/HEIST uyarıları) + merkezi `def` referansı
   controlDefs.js            Merkezi kontrol sözleşmesi: sol (joystick/steer/slider/pedal) + sağ (max 2 aksiyon) + landscape-first politikası + nötr paket haritası; telefon + tabletop parite kaynağı
-  controllerStatus.js       Üst durum şeridi metinleri (13 oyun, tek kayıt) — gamepad handleStateSync zincirsiz çağırır
+  controllerStatus.js       Üst durum şeridi metinleri (14 oyun, tek kayıt) — gamepad handleStateSync zincirsiz çağırır
 src/gamepad.css             Kumanda stilleri (neo-brutalist mobil ergonomi)
 src/style.css               Modüler stil orkestratörü (@import src/styles/*)
 src/styles/                 Modüler CSS katmanı (tokens, base, hud, modals, menu, lobby, animations)
@@ -46,12 +46,12 @@ src/core/
                             handleTabletopTouchStart/Move/End (dokunma geometrisi tek merkezden eşlenir,
                             handleSlotAction(slot,id,isDown) ve onSlotSteer(slot,dir) sinyali),
                             resetTabletopTouches. Motorlar özel buton çizimi geometrisi tutmaz —
-                            yalnız şema bildirir (Snake, Curve ve Pong dahil 13 oyunun tamamı merkezi katmana bağlı);
+                            yalnız şema bildirir (Snake, Curve ve Pong dahil 14 oyunun tamamı merkezi katmana bağlı);
                             renderControls cooldown maskesi/charge barı/proximity ghosting/slot-başı klavye rozeti çizer)
   tabletopIcons.js          Masa-ortası & Mobil Kumanda Lucide Vektör İkon Kütüphanesi: OS emojileri yerine Canvas 2D
                             için drawTabletopIcon, Gamepad DOM SVG butonları için getTabletopIconSvg (zap, rocket, bomb,
                             crosshair, flame, rotate-cw, arrow-left/right, maximize-2, message-square vb.); 0 dependency (Eylül 2026).
-  engineRegistry.js         GAME_ORDER, CARTRIDGES (13 oyun kartuşu + metadatalar), initAllCartridges, getControllerMeta, registerEngine/getEngine/forEachEngine
+  engineRegistry.js         GAME_ORDER, CARTRIDGES (14 oyun kartuşu + metadatalar), ensureEngine/preloadEngine, getControllerMeta, registerEngine/getEngine/forEachEngine
   slotManager.js            Koltuk yönetimi: hostPlayerSlots (+avatar/displayColor), updateHostSlot,
                             syncSlotsToEngine, swapEngineSlots, getColorClashIndices (sert renk engeli)
   safeStorage.js            localStorage sarmalayıcı (JSON parse/try-catch tek nokta)
@@ -65,7 +65,7 @@ src/core/
                             roundOverSkipGuard (timerField varsayılan roundTransitionTimer;
                             PONG roundOverTimer geçirir), lobbyCenterStartTap (r=65, min 2),
                             lobbyQuadrantTap (+onSeatChange), matchOverRestartTap (r=75) —
-                            13 motorun lobi tap'leri tek merkezden (zone/heist dahil, Faz 2 kapanış);
+                            14 motorun lobi tap'leri tek merkezden (zone/heist/race dahil, Faz 2 kapanış);
                             İSTİSNA: tanks getCornerZone (merkez -1, PLAYING'de gerekli),
                             PONG getPlayerZoneAt (paddle bölgeleri), zone MATCH_OVER radius:Infinity
                             (her dokunuş restart — davranış paritesi), bomb/zone MATCH_OVER→LOBBY.
@@ -115,6 +115,7 @@ src/ai/
     cloneAI.js                Brutal Clone bot zekâsı: devriye + menzil omuz tehdidi
     collapseAI.js             Brutal Collapse bot zekâsı: güvenli hücre + tehlike zıplaması
     ninjaAI.js                Brutal Ninja bot zekâsı: pusu/saklanma + kısa menzil av
+     raceAI.js                 Brutal Race bot zekâsı: checkpoint, nitro, draft, oil/spinner avoidance
 
 src/games/ (Oyun Motorları - BaseMiniGame türevleri):
   game.js                   Brutal Pong motoru (+ src/games/ball.js, src/games/paddle.js)
@@ -130,6 +131,8 @@ src/games/ (Oyun Motorları - BaseMiniGame türevleri):
     clone.js                  Brutal Clone motoru (2 gecikmeli kopya, gerçek/sahte vuruş)
     collapse.js               Brutal Collapse motoru (13x13 çöken ızgara, zıplama, itişme)
     ninja.js                  Brutal Ninja motoru (görünmezleşme, kılıç cooldown, siper kutuları)
+    race.js                   Brutal Race motoru (3 checkpoint, 3 tur, dash/jump, nitro, drafting, EMP)
+    raceLogic.js              Race tuning + saf continuous checkpoint progress (DOM-free test yüzeyi)
 
 server/
   index.js                  Lokal WebSocket bağımsız sunucu başlatıcı
@@ -137,6 +140,7 @@ server/
   vitePluginWs.js           Vite geliştirme sunucusuna entegre WebSocket plugin'i
 
 public/                     PWA (manifest.webmanifest, sw.js, ikonlar) + public/assets/games/*.jpg
+tests/                      Node test runner: Race saf progress/tuning + Vite-SSR lifecycle regresyonları
 ```
 
 ---
@@ -158,6 +162,7 @@ public/                     PWA (manifest.webmanifest, sw.js, ikonlar) + public/
 | CLONE | Brutal Clone | `src/games/clone.js` | `src/ai/cloneAI.js` | `mountCloneController` | 2 gecikmeli kopya (0.6/1.2sn), gerçek-vuruş skor + sahte-vuruş 2.5sn slow; bot devriye + menzil omuzu (blöf yer); kumanda joystick + OMUZ (`TACKLE` yeniden kullanımı, %cd göstergeli) |
 | COLLAPSE | Brutal Collapse | `src/games/collapse.js` | `src/ai/collapseAI.js` | `mountCollapseController` | 13x13 çöken ızgara (0.8sn uyarı), zıplama 0.45sn/1.8s cooldown + itişme; bot güvenli-hücre + tehlike zıplaması; kumanda joystick + ZIPLA (`DASH` yeniden kullanımı, %cd göstergeli) |
 | NINJA | Brutal Ninja | `src/games/ninja.js` | `src/ai/ninjaAI.js` | `mountNinjaController` | Durunca görünmezleşme (0.3sn/0.05 iz), kılıç atılması 0.2sn/1.5s cooldown + siper kutuları; bot MOVE/HIDE pusu + 90px av; kumanda joystick + KILIÇ (`DASH` yeniden kullanımı, %cd göstergeli) |
+| RACE | Brutal Race | `src/games/race.js` | `src/ai/raceAI.js` | `JOYSTICK_ACTION` | 3 sıralı checkpoint + 3 tur; CIRCUIT/ZIGZAG/SPIRAL; dt-bağımsız drag, jump/dash, nitro, drafting, rotating spinner + trailing EMP; 90sn, 2 round win match; continuous progress + explicit tie/simultaneous-finish handling |
 
 ---
 
@@ -278,7 +283,7 @@ Sistem iki relay kullanabilir:
     * Saha içi yazı yasaktır: kimlik = display rengi + pip (koltuk no kadar nokta) + köşe/koltuk pozisyonu. `renderTextLabel` kapısı kaldırıldı.
     * Ağ bütçesi korunur: avatar ~40B, JOIN/slot yayınlarında taşınır; 8Hz dirty-check + discrete 1sn kısma geçerlidir.
     * LOCAL (tek cihaz): yüz cihaz profilinden, renk koltuk başınadır (`brutalparty.local.seatColors`, kalıcı). Lobi kartındaki renk noktasına dokununca sıradaki boş renge geçilir; yeni insan koltuğuna otomatik boş renk atanır. Nokta butonu tap dispatch'te karttan önce gelir (ilk eşleşme kazanır).
-17. **Ortak arena/fizik/power-up kiti (`src/core/`, refactor Faz 3-7):** Motorlar tekrar eden mantığı kopyalamaz, `src/core/`'dan `import` eder: `physics2d.js` (clampToArena / resolveAABB / pointBlocked / updateMovers / distToSegmentSquared), `pickupSystem.js` (spawnPickup / collectPickups / tickPickupTimers + EFFECTS), `playerEntity.js` (createPlayer / tickEffectTimers / advancePlayer), `avatarInGame.js` (drawGameAvatar / normalizeExpression). `arenaKit.js` `drawObstacle` + `PICKUP_META`/`drawPickup` **ve** `buildLayout(name, arena)` düzen presets servis eder (`pillars`, `columns4`, `cross`, `crossfire`, `scatter`, `bunker`, `courtyard`, `split`). Motor kendi `buildMap()`'i yalnız oyuna özgü ek katmanları/meta'yı tutar (crown conveyor/bumper/movingHazards gibi); ortak düzen geometrisi preset adıyla çağrılır (archer `pillars/cross/scatter`, bomb `columns4/bunker/crossfire/courtyard/split`). **Açık iş:** tanks/laser/snake/curve/clone/collapse `drawObstacle`/`drawPickup` görsel kitine taşınacak; ninja/collapse/snake/clone/tanks/zone/crown pickup spawn/collect kopyaları `pickupSystem`'e bağlanacak (metadata `PICKUP_META`'da hazır).
+17. **Ortak arena/fizik/power-up kiti (`src/core/`, refactor Faz 3-7):** Motorlar tekrar eden mantığı kopyalamaz, `src/core/`'dan `import` eder: `physics2d.js` (clampToArena / resolveAABB / pointBlocked / updateMovers / distToSegmentSquared / normalizeAngle), `pickupSystem.js` (spawnPickup / collectPickups / tickPickupTimers + EFFECTS), `playerEntity.js` (createPlayer / tickEffectTimers / advancePlayer), `avatarInGame.js` (drawGameAvatar / normalizeExpression). `arenaKit.js` `drawObstacle` + `PICKUP_META`/`drawPickup` **ve** `buildLayout(name, arena)` düzen presets servis eder (`pillars`, `columns4`, `cross`, `crossfire`, `scatter`, `bunker`, `courtyard`, `split`). Motor kendi `buildMap()`'i yalnız oyuna özgü ek katmanları/meta'yı tutar (crown conveyor/bumper/movingHazards gibi); ortak düzen geometrisi preset adıyla çağrılır (archer `pillars/cross/scatter`, bomb `columns4/bunker/crossfire/courtyard/split`). **Açık iş:** tanks/laser/snake/curve/clone/collapse `drawObstacle`/`drawPickup` görsel kitine taşınacak; ninja/collapse/snake/clone/tanks/zone/crown pickup spawn/collect kopyaları `pickupSystem`'e bağlanacak (metadata `PICKUP_META`'da hazır).
 18. **İkonografi ve Görsel Dil Standardı (Lucide Neo-Brutalist):**
     * Hem masa-ortası canvas (Tabletop 2D) hem de mobil kumanda (Gamepad DOM) butonlarında işletim sistemi emojileri (⚡, 🚀, 💬, ⛶ vb.) doğrudan kullanılmaz.
     * Tek kaynak `src/core/tabletopIcons.js` modülüdür (Canvas için `drawTabletopIcon`, HTML/DOM için `getTabletopIconSvg`).
@@ -288,21 +293,18 @@ Sistem iki relay kullanabilir:
 
 ## 6. Yeni Oyun Ekleme Adımları (Hızlı Rehber)
 
-Yeni bir oyun ekleneceğinde aşağıdaki dosyalar güncellenir:
-1. `src/games/[oyun].js`: `BaseMiniGame`'den türetilmiş oyun motoru:
-   * Motor sözleşmesi: `resetMatch()`, `startNewRound()`, `update()`, `render()`, `resize()`, `handleRemoteInput()`.
-   * Lokal Lobi: Canvas üzerinde 4 köşe slot kartı (`uiButtons` -> `cycleSlotType`) ve merkez `▶ MAÇI BAŞLAT` (`startNewMatch`).
-   * Lokal Kontroller: 4 slot klavye eşlemesi (WASD, Oklar, IJKL, TFGH) + 4 köşe dokunmatik joystick (`TouchManager`).
-   * Kontrol Rehberi: `renderControlGuide` çağrısı.
-2. `src/ai/[oyun]AI.js`: Bot karar mekanizması.
-3. `src/core/engineRegistry.js`: `GAME_ORDER` dizisine ekleme.
-4. `src/core/slotManager.js`: `syncSlotsToEngine` ve `swapEngineSlots` içine mod desteği.
-5. `src/main.js`: `registerEngine` kaydı (tek satır).
-6. `src/gamepad.js`: `mount[Oyun]Controller` fonksiyonu ve `CONTROLLER_META` tablosuna satır ekleme.
-7. `index.html`: Bento menü kartı (`#btn-select-[mod]`), TV lobi çipi (`data-game="[MOD]"`).
-8. `src/style.css`: `.card-[mod]` üst kenarlık vurgu rengi.
-9. `public/assets/games/[oyun].jpg`: Madde 10 formülüyle 1:1 neo-brutalist izometrik görsel.
-10. `npm run build`: 0 hata doğrulaması.
+Yeni bir oyun ekleneceğinde aşağıdaki kayıtlar güncellenir:
+1. `src/games/[oyun].js`: `BaseMiniGame` türevli motor; `resetMatch/reset`, `startNewMatch`, `startNewRound`, `update`, `render`, `resize`, `handleRemoteInput` sözleşmesi. Lokal lobi, 4 standart klavye, `getTabletopSchema`, `handleSlotAction`, `onTouchStart/Move/End` ve `renderControlGuide` zorunludur.
+2. `src/ai/[oyun]AI.js` + gerekiyorsa saf/DOM-free `[oyun]Logic.js`: bot kararları ve test edilebilir oyun matematiği.
+3. `src/core/engineRegistry.js`: `GAME_ORDER` + tek `CARTRIDGES[MOD]` kaydı (`load/createEngine/reset/onEnter/onResume/start/packet`). `main.js`/`gamepad.js` moda özel zincir eklenmez.
+4. `src/core/slotManager.js`: `applySlotDataToEntity`, `clearRemoteSlot`, `swapEngineSlots` desteği.
+5. `src/controllers/controlDefs.js`, `gamepadSchemas.js`, `controllerStatus.js`: telefon + tabletop parite, ikon/cooldown ve canlı durum kaydı.
+6. `index.html`: Bento kartı (`#btn-select-[mod]`) ve TV lobi çipi (`data-game="[MOD]"`).
+7. `src/styles/menu.css` + `animations.css`: kart vurgusu ve 14. giriş gecikmesi.
+8. `public/sw.js`: yeni görseli precache'e ekle ve cache sürümünü artır.
+9. `public/assets/games/[oyun].jpg`: 1:1 neo-brutalist görsel.
+10. `docs/PROJECT_MAP.md` + `AGENTS.md`: motor/AI/dosya/kontrol kayıtları.
+11. `npm test`, `npm run check`, `npm run build`: regresyon, statik kontrol ve production build yeşil olmadan tamamlanmaz.
 
 ---
 

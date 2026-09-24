@@ -25,6 +25,7 @@ export const CONTROL_DEFS = {
   CLONE: { left: 'joystick', right: ['tackle'] },
   COLLAPSE: { left: 'joystick', right: ['jump'] },
   NINJA: { left: 'joystick', right: ['strike', 'smoke'] },
+  RACE: { left: 'joystick', right: ['dash'] },
 };
 
 // Oyun her zaman yatay oynanır; lobi portrait kalabilir.
@@ -53,6 +54,7 @@ const TABLETOP_LEFT = {
   CLONE: 'joystick',
   COLLAPSE: 'joystick',
   NINJA: 'joystick',
+  RACE: 'joystick',
 };
 
 export function getTabletopLayout(mode) {

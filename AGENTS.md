@@ -21,10 +21,10 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 
 ## 3. Engine Registry — tek kayıt noktası
 
-- `src/core/engineRegistry.js` → `GAME_ORDER` (13 oyun: PONG…NINJA — güncel liste dosyadadır, buraya kopyalanmaz).
-- Yeni oyun = **1 satır** `registerEngine('MOD', { game, reset, onEnter/onResume, start, packet })`. `main.js`'e `else if (mode === ...)` zinciri **eklemek yasaktır**.
+- `src/core/engineRegistry.js` → `GAME_ORDER` (14 oyun: PONG…RACE — güncel liste dosyadadır, buraya kopyalanmaz).
+- Yeni oyun = `engineRegistry.js` içinde `GAME_ORDER` kaydı + tek `CARTRIDGES.MOD` bloğu (`load/createEngine/reset/onEnter/onResume/start/packet`). `main.js` veya `gamepad.js` içine `else if (mode === ...)` zinciri **eklemek yasaktır**.
 - Entry sözleşmesi: `game` (BaseMiniGame türevi) · `reset()` · `onEnter/onResume(now)` (fizik sıçramasını önler) · `start()` (sayaç sonrası) · `packet()` (host state'e oyuna özel alanlar).
-- Motor sözleşmesi: `resetMatch/reset()`, `update(now)`, `render()`, `resize(w,h)`, `handleRemoteInput(slotIndex, data)`, `startNewMatch()`.
+- Motor sözleşmesi: `resetMatch/reset()`, `startNewMatch()`, `startNewRound()`, `update(now)`, `render()`, `resize(w,h)`, `handleRemoteInput(slotIndex, data)`.
 - **Lokal (Tek Cihaz / PC & Masa-ortası) Sözleşmesi:**
   - Her motor sadece TV+telefon modunda değil, tek cihazda (`LOCAL`) da tam oynanabilir olmalıdır.
   - **LOBBY UI & Başlatma:** Motor LOBBY durumundayken canvas üzerinde `uiButtons` ile 4 köşe koltuk kartlarını (`cycleSlotType(i)`) ve merkezde `▶ MAÇI BAŞLAT` butonunu (`startNewMatch()`) çizmelidir. `onTouchStart` içinde `uiButtons` tap dispatch zorunludur.
@@ -35,10 +35,10 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 - **Ortak `src/core/` yardımcıları (refactor Faz 1-7, tek kaynak):** Motorlar aşağıdakileri kopyalamaz/yeniden yazmaz, `import` eder:
   - `inputMaps.js` — klavye slot haritaları: `getSlotKeys`, `keyboardVectorFrom`, `readSlotKeys`, `isSlotActionEvent`, `slotForActionCode`, `buildCodeToSlotMap` (standart 4x harita + `SECOND_ACTION_KEYS`).
   - `touchFlow.js` — dokunmatik akış: `getQuadrant`, `roundOverSkipGuard` (BaseGame `handleRoundOverSkip(timerField)`; PONG `roundOverTimer` geçirir), `lobbyCenterStartTap`, `lobbyQuadrantTap`, `matchOverRestartTap` (istisna: tanks `getCornerZone`, PONG `getPlayerZoneAt`).
-  - `physics2d.js` — fizik/çarpışma: `clampToArena`, `resolveAABB`, `pointBlocked`, `updateMovers`, `distToSegmentSquared`.
+  - `physics2d.js` — fizik/çarpışma: `clampToArena`, `resolveAABB`, `pointBlocked`, `updateMovers`, `distToSegmentSquared`, `normalizeAngle`.
   - `pickupSystem.js` — power-up akışı: `spawnPickup`, `collectPickups`, `tickPickupTimers` + `EFFECTS` kayıt defteri.
   - `arenaKit.js` — ortak görsel + `buildLayout(name, arena)` düzen presets (`pillars`, `columns4`, `cross`, `crossfire`, `scatter`, `bunker`, `courtyard`, `split`) + `drawObstacle`/`drawPickup`. Motor kendi `buildMap()`'inde yalnız oyuna özgü ek katmanları/meta'yı tutar; ortak geometri preset adıyla çağrılır.
-  - `playerEntity.js` — oyuncu varlığı: `createPlayer`, `tickEffectTimers`, `advancePlayer` (kademeli çıkarım — bomb/heist entegre; PONG/tanks/curve/snake/zone/collapse kendi gövdesinde kalır).
+  - `playerEntity.js` — oyuncu varlığı: `createPlayer`, `tickEffectTimers`, `advancePlayer` (kademeli çıkarım — bomb/heist/race entegre; PONG/tanks/curve/snake/zone/collapse kendi gövdesinde kalır).
   - `avatarInGame.js` — oyun içi avatar: `drawGameAvatar`, `normalizeExpression`.
   - `tabletopIcons.js` — Lucide vektör ikon kütüphanesi: OS emojileri yerine Canvas 2D için `drawTabletopIcon`, DOM/kumanda butonları için `getTabletopIconSvg`. İkonlarda ham OS emojisi yazılmaz, buradan çağrılır.
 

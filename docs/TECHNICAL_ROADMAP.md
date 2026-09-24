@@ -10,7 +10,7 @@
 
 *Karar (Eylül 2026):*
 1. **Kamera sistemi tamamen kaldırıldı.** Dinamik zoom ve pan katmanı iptal edilerek klasik 1:1 sabit arena görünümüne dönüldü.
-2. **Sabit Tam-Arena Görüşü:** Tüm 13 oyun modunda tüm oyuncular, duvarlar ve nesneler %100 ekranda kalır.
+2. **Sabit Tam-Arena Görüşü:** Tüm 14 oyun modunda tüm oyuncular, duvarlar ve nesneler %100 ekranda kalır.
 3. **Ekran Titremesi (Trauma/Screen Shake):** Patlama ve çarpışmalarda `addTrauma` ile tuval içi hafif sarsıntı korunur.
 4. **Öncelik:** Temel altyapı (Ayrık HUD, motor sözleşmesi, ağ ve kontroller) tamamlanana kadar kamera konusu gündeme alınmayacaktır.
 
@@ -22,7 +22,7 @@
 [Faz 1: Evrensel Ayrık HUD & Dokunmatik Katmanı]
        │
        ▼
-[Faz 2: 13 Motor Sözleşmesi & Giriş Standardizasyonu]
+[Faz 2: 14 Motor Sözleşmesi & Giriş Standardizasyonu]
        │
        ▼
 [Faz 3: Ağ & State Senkronizasyonu Sağlamlaştırma]
@@ -31,7 +31,7 @@
 [Faz 4: Paylaşımlı FX, Parçacık Havuzu & Ses/Haptik]
        │
        ▼
-[Faz 5: Game Feel & Juiciness (13 Moda Yayılım)]
+[Faz 5: Game Feel & Juiciness (14 Moda Yayılım)]
 ```
 
 ---
@@ -41,7 +41,7 @@
 **Hedef:** Dokunmatik kontrolleri, lobi slot kartlarını ve skor tabelalarını oyun arenasının fiziksel koordinatlarından tamamen ayırmak; her cihazda (PC, Tablet, TV, Telefon) net ve çakışmasız kılmak.
 
 - [x] **Ayrık UI Katmanı (Discrete UI Layer):**
-  - Motorların canvas içine çizdiği lobi köşeleri (`uiButtons`) ile oyun içi kontrollerin BaseGame üzerinden standart `renderHUD(ctx)` ve `renderControls(ctx)` katmanlarına taşınması (13 motorun tamamı taşındı).
+  - Motorların canvas içine çizdiği lobi köşeleri (`uiButtons`) ile oyun içi kontrollerin BaseGame üzerinden standart `renderHUD(ctx)` ve `renderControls(ctx)` katmanlarına taşınması (14 motorun tamamı taşındı).
 - [x] **Masa-ortası 4 Köşe Dokunmatik Kontroller (Tabletop Virtual Controls):**
   - 4 köşe dinamik yüzen joystick ve aksiyon butonlarının ekran kenarlarına (`safe-area`) ergonomik sabitlenmesi.
   - Proximity Ghosting: Karakter kontrollerin altına yaklaştığında butonların yumuşakça şeffaflaşması (alpha: 0.22 - 0.25).
@@ -50,19 +50,19 @@
 
 ---
 
-### FAZ 2: 13 Motor Sözleşmesi & Giriş Standardizasyonu (Engine Contract Unification)
+### FAZ 2: 14 Motor Sözleşmesi & Giriş Standardizasyonu (Engine Contract Unification)
 
-**Hedef:** 13 oyun motorunun istisnasız aynı yaşam döngüsü ve giriş API'sini tüketmesi; kod tekrarının sıfırlanması.
+**Hedef:** 14 oyun motorunun istisnasız aynı yaşam döngüsü ve giriş API'sini tüketmesi; kod tekrarının sıfırlanması.
 
 - [x] **Ortak Motor Yaşam Döngüsü:**
-  - `resetMatch()`, `startNewMatch()` (registry tek isim, 13/13), `startNewRound()` (13/13 alias), `update(now)`, `render()` (içi: world + `renderControls` + `renderHUD`), `resize(w,h)`.
+  - `resetMatch()`, `startNewMatch()` (registry tek isim, 14/14), `startNewRound()` (14/14 alias), `update(now)`, `render()` (içi: world + `renderControls` + `renderHUD`), `resize(w,h)`.
 - [x] **Giriş Köprüsü (Dual-Input Bridge):**
-  - `handleRemoteInput(slotIndex, data)` (13/13 override).
+  - `handleRemoteInput(slotIndex, data)` (14/14 override).
   - `handleLocalInput(slotIndex, data)` + `applySlotInput(slotIndex, input)` (BaseGame varsayılan; PONG referans implementasyon).
   - Sürekli hareket poll ile okunur (`getPlayerMovementVector` / motor `applyControls`); köprü discrete aksiyon + vektör enjeksiyonunu tekleştirir.
 - [x] **Ortak Yardımcıların Tam Entegrasyonu (`src/core/`):**
-  - `inputMaps.js`: 13/13 (klavye haritaları).
-  - `touchFlow.js`: 13/13 lobi tap'leri tek merkezden (istisnalar belgeli: PONG `getPlayerZoneAt` bölge, tanks `getCornerZone`).
+  - `inputMaps.js`: 14/14 (klavye haritaları).
+  - `touchFlow.js`: 14/14 lobi tap'leri tek merkezden (istisnalar belgeli: PONG `getPlayerZoneAt` bölge, tanks `getCornerZone`).
   - `pickupSystem.js`: bomb/archer/laser/curve entegre; kalan motor kopyaları açık iş (detay `docs/PROJECT_MAP.md` §17).
 
 ---
@@ -97,7 +97,7 @@
 
 ---
 
-### FAZ 5: Game Feel & Juiciness (13 Moda Yayılım)
+### FAZ 5: Game Feel & Juiciness (14 Moda Yayılım)
 
 *Teknik taban hazırlandıktan sonra oyunlara sırayla eklenecek cila katmanı.*
 
@@ -110,7 +110,7 @@
 
 ## 2. Karar Özeti & Yeni Ajan Talimatı (Agent Onboarding)
 
-1. **Kamera Kararı:** Kamera (zoom & pan) sistemi tamamen kaldırıldı ve branch temizlendi. Tüm 13 oyunda klasik **1:1 sabit arena görünümü** korunmaktadır.
+1. **Kamera Kararı:** Kamera (zoom & pan) sistemi tamamen kaldırıldı ve branch temizlendi. Tüm 14 oyunda klasik **1:1 sabit arena görünümü** korunmaktadır.
 2. **Geliştirme Sırası:** Öncelik temel teknik mimaride:
    * **Sıradaki İş:** `FAZ 3: Ağ & State Senkronizasyonu Sağlamlaştırma` (Faz 1 + Faz 2 kapandı)
    * Ardından: Faz 2 (Giriş & Motor Sözleşmesi) -> Faz 3 (Ağ) -> Faz 4 (FX & Ses) -> Faz 5 (Game Feel).

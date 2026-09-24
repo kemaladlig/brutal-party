@@ -62,7 +62,7 @@ function mountJoystickAction(gamepad, container, schema) {
           const customClass = act.className || '';
           const icon = act.icon || (act.action === 'DASH' ? 'zap' : 'flame');
           return `
-            <button class="action-dash-btn ${customClass}" data-action-index="${i}" type="button" style="${bg} ${border} ${flex} ${minHeight}">
+            <button class="action-dash-btn ${customClass}" data-action-index="${i}" type="button" aria-label="${escapeHtml(act.label || t('pad.action'))}" style="${bg} ${border} ${flex} ${minHeight}">
               <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
             </button>
           `;
@@ -74,7 +74,7 @@ function mountJoystickAction(gamepad, container, schema) {
     const bg = act.color ? `background-color: ${act.color};` : `background-color: ${gamepad.playerColor};`;
     const icon = act.icon || (act.action === 'DASH' ? 'zap' : 'flame');
     actionHtml = `
-      <button class="action-dash-btn ${act.className || ''}" data-action-index="0" type="button" style="${bg}">
+      <button class="action-dash-btn ${act.className || ''}" data-action-index="0" type="button" aria-label="${escapeHtml(act.label || t('pad.action'))}" style="${bg}">
         <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
       </button>
     `;

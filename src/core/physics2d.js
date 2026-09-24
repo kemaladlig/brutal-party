@@ -147,3 +147,15 @@ export function distToSegmentSquared(px, py, ax, ay, bx, by) {
   t = Math.max(0, Math.min(1, t));
   return (px - (ax + t * (bx - ax))) ** 2 + (py - (ay + t * (by - ay))) ** 2;
 }
+
+/**
+ * Wraps an angle to [-PI, PI] without frame-dependent branch drift.
+ * @param {number} angle
+ * @returns {number}
+ */
+export function normalizeAngle(angle) {
+  let normalized = angle;
+  while (normalized > Math.PI) normalized -= Math.PI * 2;
+  while (normalized < -Math.PI) normalized += Math.PI * 2;
+  return normalized;
+}

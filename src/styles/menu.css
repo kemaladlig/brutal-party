@@ -2186,6 +2186,7 @@
 .card-clone { --card-accent: #6a4c93; border-top: 8px solid var(--card-accent); }
 .card-collapse { --card-accent: #78716c; border-top: 8px solid var(--card-accent); }
 .card-ninja { --card-accent: #d84727; border-top: 8px solid #1a1a1a; }
+.card-race { --card-accent: #d99b26; border-top: 8px solid var(--card-accent); }
 
 
 .bento-media-box {
