@@ -67,7 +67,7 @@ export class RoomManager {
     return code;
   }
 
-  createRoom(hostWs, gameMode = 'PONG') {
+  createRoom(hostWs, gameMode = 'PONG', hostIdentity = {}) {
     const code = this.generateRoomCode();
     const room = {
       code,
@@ -85,7 +85,124 @@ export class RoomManager {
     hostWs.roomCode = code;
     hostWs.isHost = true;
 
+    // ONLINE host (veya ileride seçilebilir TV host) baştan P1 olabilir.
+    // TV_CONSOLE varsayılanı asPlayer:false gönderir; lobi düğmesiyle
+    // aynı host socket'i P1'e sonradan ekleriz.
+    if (hostIdentity?.asPlayer === true) {
+      this._installHostPlayer(room, hostWs, hostIdentity);
+    }
+
     return room;
+  }
+
+  _installHostPlayer(room, hostWs, identity = {}) {
+    if (!room || !hostWs?.isHost) return { success: false, error: 'HOST YOK' };
+    const existing = room.players[0];
+    if (existing && !existing.isHost) {
+      return { success: false, error: 'P1 DOLU' };
+    }
+
+    const takenColors = room.players
+      .filter((p) => p && !p.isBot && !p.isHost)
+      .map((p) => p.color)
+      .filter(Boolean);
+    let avatar = null;
+    if (identity.avatar && typeof identity.avatar === 'object') {
+      try { avatar = sanitizeAvatar(identity.avatar, { keepColor: true }); } catch { avatar = null; }
+    }
+    if (!avatar) avatar = sanitizeAvatar({ color: pickFreeColor(takenColors) }, { keepColor: true });
+    if (takenColors.map((c) => String(c).toUpperCase()).includes(avatar.color.toUpperCase())) {
+      avatar = { ...avatar, color: pickFreeColor(takenColors) };
+    }
+
+    const baseName = cleanSlotName(identity.name || 'HOST');
+    const takenByOther = (name) => room.players.some(
+      (p, i) => p && !p.isBot && !p.isHost && p.name === name
+    );
+    let finalName = baseName;
+    if (takenByOther(finalName)) {
+      for (let n = 2; n <= 9; n++) {
+        const candidate = `${baseName.slice(0, 10)}·${n}`;
+        if (!takenByOther(candidate)) { finalName = candidate; break; }
+      }
+    }
+
+    const player = {
+      slotIndex: 0,
+      name: finalName,
+      clientId: identity.clientId || null,
+      color: avatar.color,
+      avatar,
+      ws: hostWs,
+      isHost: true,
+      joinedAt: Date.now(),
+      ping: 0,
+    };
+    room.players[0] = player;
+    room.ready[0] = true;
+    hostWs.slotIndex = 0;
+    return { success: true, player };
+  }
+
+  _removeHostPlayer(room) {
+    if (!room) return { success: false, error: 'ODA YOK' };
+    const player = room.players[0];
+    if (!player?.isHost) return { success: false, error: 'HOST OYUNCU DEĞİL' };
+    room.players[0] = null;
+    room.ready[0] = false;
+    if (room.hostWs) room.hostWs.slotIndex = undefined;
+    return { success: true, player };
+  }
+
+  getReservedHostSlot(room) {
+    const index = room?.players?.findIndex((p) => p?.isHost);
+    return index >= 0 ? index : null;
+  }
+
+  _resetReadyWithHost(room) {
+    room.ready = [false, false, false, false];
+    const hostSlot = this.getReservedHostSlot(room);
+    if (hostSlot !== null) room.ready[hostSlot] = true;
+  }
+
+  getHostPlayerState(room) {
+    const slotIndex = this.getReservedHostSlot(room);
+    if (slotIndex === null) return { active: false, slotIndex: null, player: null };
+    const player = room.players[slotIndex];
+    return {
+      active: true,
+      slotIndex,
+      player: {
+        slotIndex,
+        name: player.name,
+        color: player.color,
+        avatar: player.avatar,
+        isHost: true,
+      },
+      isReady: !!room.ready[slotIndex],
+    };
+  }
+
+  handleSetHostPlayer(hostWs, active, identity = {}) {
+    if (!hostWs || !hostWs.isHost) return { success: false, error: 'HOST YOK' };
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return { success: false, error: 'ODA YOK' };
+
+    let result;
+    if (active) {
+      result = this._installHostPlayer(room, hostWs, identity);
+    } else {
+      result = this._removeHostPlayer(room);
+    }
+    if (!result.success) return result;
+
+    const state = this.getHostPlayerState(room);
+    this.sendToHost(room, {
+      type: 'HOST_PLAYER_STATE',
+      ...state,
+    });
+    this.broadcastSlots(room);
+    return { success: true, ...state };
   }
 
   getRoom(code) {
@@ -106,7 +223,7 @@ export class RoomManager {
     let slotIndex = -1;
     if (clientId) {
       for (let i = 0; i < 4; i++) {
-        if (room.players[i] && !room.players[i].isBot && room.players[i].clientId === clientId) {
+        if (room.players[i] && !room.players[i].isBot && !room.players[i].isHost && room.players[i].clientId === clientId) {
           slotIndex = i;
           break;
         }
@@ -127,7 +244,7 @@ export class RoomManager {
     if (slotIndex === -1) {
       for (let i = 0; i < 4; i++) {
         const p = room.players[i];
-        if (p && !p.isBot && (!p.ws || p.ws.readyState !== 1)) {
+        if (p && !p.isBot && !p.isHost && (!p.ws || p.ws.readyState !== 1)) {
           slotIndex = i;
           break;
         }
@@ -141,7 +258,7 @@ export class RoomManager {
     // 4. İsim tekilleştir (reclaim edilen kendi slotu hariç)
     let finalName = baseName;
     const takenByOther = (name) => room.players.some(
-      (p, i) => p && !p.isBot && i !== slotIndex && p.name === name
+      (p, i) => p && !p.isBot && !p.isHost && i !== slotIndex && p.name === name
     );
     if (takenByOther(finalName)) {
       for (let n = 2; n <= 9; n++) {
@@ -153,9 +270,9 @@ export class RoomManager {
     // Avatar çözümleme: reclaim'de mevcut korunur, yeni katılımda istemciden
     // gelir; yoksa/geçersizse boş rastgele renk + varsayılan yüz.
     const takenColors = room.players
-      .filter((p, i) => p && !p.isBot && i !== slotIndex)
+      .filter((p, i) => p && !p.isBot && !p.isHost && i !== slotIndex)
       .map((p) => p.color);
-    const isReclaim = !!(room.players[slotIndex] && !room.players[slotIndex].isBot);
+    const isReclaim = !!(room.players[slotIndex] && !room.players[slotIndex].isBot && !room.players[slotIndex].isHost);
     let cleanAvatar = null;
     if (avatar && typeof avatar === 'object') {
       try { cleanAvatar = sanitizeAvatar(avatar, { keepColor: true }); } catch { cleanAvatar = null; }
@@ -215,6 +332,8 @@ export class RoomManager {
   handlePlayerInput(clientWs, inputData) {
     const room = this.getRoom(clientWs.roomCode);
     if (!room || !room.hostWs) return;
+    // TV host local authority üzerinden oynar; input paketi göndermez.
+    if (clientWs.isHost) return;
     if (!isValidNetworkInput(inputData)) return;
 
     const now = Date.now();
@@ -264,9 +383,10 @@ export class RoomManager {
       room.gameMode = payload.gameMode;
     }
 
-    // Broadcast state to all connected controller phones
+    // Broadcast state to all connected controller phones (host seat dahil değil)
     const json = JSON.stringify(payload);
     for (const p of room.players) {
+      if (p?.isHost) continue;
       this._sendToPlayer(p, json);
     }
   }
@@ -339,7 +459,7 @@ export class RoomManager {
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     room.state = 'STAGING';
-    room.ready = [false, false, false, false];
+    this._resetReadyWithHost(room);
     if (gameMode) room.gameMode = gameMode;
     this.broadcastToPlayers(room, {
       type: 'STAGING_STARTED',
@@ -365,7 +485,7 @@ export class RoomManager {
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     room.state = 'LOBBY';
-    room.ready = [false, false, false, false];
+    this._resetReadyWithHost(room);
     this.broadcastToPlayers(room, {
       type: 'RETURNED_TO_LOBBY',
       gameMode: room.gameMode,
@@ -378,8 +498,9 @@ export class RoomManager {
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     if (slotA < 0 || slotA > 3 || slotB < 0 || slotB > 3 || slotA === slotB) return;
-    // Bot koltuğu ne hedef ne kaynak olur
-    if (room.players[slotA]?.isBot || room.players[slotB]?.isBot) return;
+    // Bot ve host koltukları ne hedef ne kaynak olur
+    if (room.players[slotA]?.isBot || room.players[slotB]?.isBot
+      || room.players[slotA]?.isHost || room.players[slotB]?.isHost) return;
 
     const playerColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
     const pA = room.players[slotA];
@@ -423,8 +544,8 @@ export class RoomManager {
     if (!room) return;
     const order = [2, 3, 1, 0];
     const old = [room.players[0], room.players[1], room.players[2], room.players[3]];
-    // Bot koltuğu takasa girmez — biri bot ise rotate iptal (kısmi dönüşüm yok)
-    if (old.some((p) => p?.isBot)) return;
+    // Bot veya host koltuğu takasa girmez — kısmi dönüşüm yapılmaz.
+    if (old.some((p) => p?.isBot || p?.isHost)) return;
     for (let i = 0; i < 4; i++) {
       const p = old[order[i]];
       room.players[i] = p || null;
@@ -453,6 +574,7 @@ export class RoomManager {
         color: p.color,
         isReady: !!room.ready[idx],
         kind: p.isBot ? (p.kind || 'bot') : 'human',
+        isHost: !!p.isHost,
       };
       if (!p.isBot && p.avatar) entry.avatar = p.avatar;
       return entry;
@@ -484,6 +606,7 @@ export class RoomManager {
     this.broadcastToPlayers(room, {
       type: 'SLOTS_UPDATE',
       slots: this.getSlots(room),
+      reservedHostSlot: this.getReservedHostSlot(room),
     });
   }
 
@@ -546,6 +669,8 @@ export class RoomManager {
   broadcastToPlayers(room, payload) {
     const json = JSON.stringify(payload);
     for (const p of room.players) {
+      // Host kendi authority/WebSocket'ini kumanda gibi görmemeli.
+      if (p?.isHost) continue;
       this._sendToPlayer(p, json);
     }
   }
@@ -560,7 +685,7 @@ export class RoomManager {
     if (ws.isHost) {
       // Host closed/left -> notify all players and tear down room
       for (const p of room.players) {
-        if (p && p.ws && p.ws.readyState === 1) {
+        if (p && !p.isHost && p.ws && p.ws.readyState === 1) {
           p.ws.send(JSON.stringify({ type: 'HOST_DISCONNECTED', message: 'TV Host odadan ayrıldı.' }));
         }
       }

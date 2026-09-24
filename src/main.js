@@ -54,6 +54,7 @@ import {
   getEffectiveJoinUrl,
   getCurrentHostGameMode,
   setCurrentHostGameMode,
+  setHostPlayerButtonState,
 } from './ui/hostLobby.js';
 
 // DOM Elements
@@ -74,6 +75,8 @@ export function updatePlatformMode(newMode) {
   platformMode = newMode;
   // Mod değişiminde eski ağ singleton'ı temizlenir; yeni mod kendi ağını seçer.
   disconnectInactiveNetwork(platformMode);
+  connectionWasDown = false;
+  hideConnectionBanner();
   window.dispatchEvent(new CustomEvent('brutal_platform_mode_changed', { detail: { mode: platformMode } }));
 }
 
@@ -84,6 +87,11 @@ export function activeNet() {
 // State Machine: 'MENU' + GAME_ORDER ('PONG' | 'TANKS' | 'CURVE' | 'BOMB' | 'HEIST' | 'ARCHER')
 let currentMode = 'MENU';
 let lastTransitionTime = 0;
+
+// ONLINE host P1 olarak açılır. TV_CONSOLE host ise bu state'i lobi butonuyla
+// açıp kapatır; network authority yine host cihazda kalır.
+let hostPlayerActive = false;
+let hostPlayerSlot = null;
 
 export function markTransition() {
   lastTransitionTime = performance.now();
@@ -280,6 +288,9 @@ function addTapListener(el, callback) {
 // Host Room Creation (TV_CONSOLE TV host / ONLINE P1 phone host)
 async function openHostLobby(gameMode = 'PONG') {
   setCurrentHostGameMode(gameMode);
+  hostPlayerActive = platformMode === 'ONLINE';
+  hostPlayerSlot = hostPlayerActive ? 0 : null;
+  setHostPlayerButtonState(hostPlayerActive, platformMode);
   let hostAvatar = null;
   try { hostAvatar = getAvatarProfile(); } catch { hostAvatar = null; }
   const hostIsPlayer = platformMode === 'ONLINE';
@@ -287,12 +298,18 @@ async function openHostLobby(gameMode = 'PONG') {
     name: ensureStoredNick(),
     avatar: hostAvatar,
     // ONLINE: telefon host P1 olur ve her oyuncu world görür.
-    // TV_CONSOLE: TV ekranı oyuncusuz host kalır; telefonlar kumandadır.
+    // TV_CONSOLE: TV ekranı varsayılan olarak oyuncusuz host kalır;
+    // lobi içindeki düğme ile aynı cihazı P1'e dahil edebilir.
     asPlayer: hostIsPlayer,
     worldView: hostIsPlayer,
   };
   try {
     await activeNet().hostRoom(gameMode, {
+      onConnectionRestored: () => markConnectionRestored(),
+      onHostPlayerState: (state) => {
+        applyHostPlayerState(state);
+        if (state?.error) showInstallToast(t('toast.hostPlayerJoinFail'));
+      },
       onRoomCreated: (roomCode) => {
         const joinUrl = getEffectiveJoinUrl(roomCode, platformMode);
         showHostLobbyModal(roomCode, joinUrl);
@@ -303,19 +320,21 @@ async function openHostLobby(gameMode = 'PONG') {
           clearSlotAvatar(i);
           updateHostSlot(i, false);
         }
-        // ONLINE odada host cihaz aynı zamanda P1 oyuncusudur.
-        const onlineHostPlayer = platformMode === 'ONLINE' ? activeNet().players?.[0] : null;
+        // ONLINE odada host cihaz aynı zamanda P1 oyuncusudur. TV_CONSOLE
+        // host'un kendi P1'i ancak lobi düğmesiyle aktifleşir.
+        const hostState = platformMode === 'ONLINE'
+          ? activeNet().getHostPlayerState?.()
+          : null;
+        const onlineHostPlayer = hostState?.player || activeNet().players?.[0] || null;
         if (onlineHostPlayer) {
-          setSlotAvatar(0, onlineHostPlayer.avatar);
-          updateHostSlot(
-            0,
-            true,
-            onlineHostPlayer.name,
-            true,
-            'human',
-            onlineHostPlayer.avatar,
-            onlineHostPlayer.color
-          );
+          applyHostPlayerState({
+            active: true,
+            slotIndex: hostState?.slotIndex ?? onlineHostPlayer.slotIndex ?? 0,
+            player: onlineHostPlayer,
+            isReady: hostState?.isReady !== false,
+          });
+        } else {
+          applyHostPlayerState({ active: false });
         }
         refreshHostSlotCards();
       },
@@ -455,6 +474,7 @@ async function openHostLobby(gameMode = 'PONG') {
           // (istemcideki guard atlatılsa bile host son sözü söyler)
           if (!Number.isInteger(t) || t < 0 || t > 3) return;
           if (activeNet().players?.[t]?.isHost) return;
+          if (activeNet().reservedHostSlot === t) return;
           if (hostPlayerSlots[t]?.kind === 'bot') return;
           if (hostPlayerSlots[slotIndex]?.kind === 'bot') return;
           activeNet().swapSlots(slotIndex, t);
@@ -491,6 +511,86 @@ async function openHostLobby(gameMode = 'PONG') {
   }
 }
 
+function getHostPlayerIdentity() {
+  let avatar = null;
+  try { avatar = getAvatarProfile(); } catch { avatar = null; }
+  return {
+    name: ensureStoredNick(),
+    avatar,
+  };
+}
+
+function applyHostPlayerState(state = {}) {
+  const previousSlot = hostPlayerSlot;
+  const active = state.active === true || state.player?.isHost === true;
+  const slot = active
+    ? (Number.isInteger(state.slotIndex) ? state.slotIndex : (state.player?.slotIndex ?? 0))
+    : null;
+
+  hostPlayerActive = active;
+  hostPlayerSlot = slot;
+  setHostPlayerButtonState(active, platformMode);
+
+  if (active && slot !== null) {
+    const player = state.player || getHostPlayerIdentity();
+    setSlotAvatar(slot, player.avatar || null);
+    updateHostSlot(
+      slot,
+      true,
+      player.name || ensureStoredNick(),
+      state.isReady !== false,
+      'human',
+      player.avatar || null,
+      player.color || player.avatar?.color,
+      true
+    );
+  } else if (previousSlot !== null) {
+    clearSlotAvatar(previousSlot);
+    updateHostSlot(previousSlot, false);
+  }
+
+  setSeatTapHook();
+  const engine = getActiveGameEngine();
+  if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
+  refreshHostSlotCards();
+  renderPauseSeats(handleSeatSwap);
+}
+
+function toggleHostPlayer() {
+  if (platformMode !== 'TV_CONSOLE' || !activeNet().isHosting) return false;
+  if (hostPlayerActive) {
+    const result = activeNet().setHostPlayerActive?.(false);
+    if (result === false) {
+      showInstallToast(t('toast.hostPlayerLeaveFail'));
+      return false;
+    }
+    applyHostPlayerState({ active: false });
+    showInstallToast(t('toast.hostPlayerLeft'));
+    return true;
+  }
+
+  // TV_CONSOLE lobi modelinde host P1'e oturur. P1 doluysa host'un
+  // kumandayı/oyuncuyu düşürmeden katılması engellenir.
+  if (hostPlayerSlots[0]) {
+    showInstallToast(t('toast.hostPlayerSeatTaken'));
+    return false;
+  }
+  const identity = getHostPlayerIdentity();
+  const result = activeNet().setHostPlayerActive?.(true, identity);
+  if (result === false) {
+    showInstallToast(t('toast.hostPlayerJoinFail'));
+    return false;
+  }
+  applyHostPlayerState({
+    active: true,
+    slotIndex: 0,
+    player: { ...identity, color: identity.avatar?.color, isHost: true },
+    isReady: true,
+  });
+  showInstallToast(t('toast.hostPlayerJoined'));
+  return true;
+}
+
 // Controller Join Room Execution
 // Bağlantı vs uygulama hatası yönlendirici: reconnect/kopuş mesajları kalıcı
 // banda, diğer hatalar (oda bulunamadı, kod çakışması vb.) kaybolan toast'a.
@@ -508,6 +608,19 @@ function routeConnectionMessage(err) {
     showConnectionBanner('offline', msg);
   } else {
     showInstallToast(`❌ ${msg}`);
+  }
+}
+
+// Bağlantı başarısı lobi ve oyun akışlarının ikisinde de geçerlidir. Eski
+// yaklaşım yalnızca GAME_STATE'e bakıyordu; lobide kalan "yeniden
+// bağlanıyor" bandının kalmasının ana nedeni buydu.
+function markConnectionRestored(message = t('net.reconnected'), forceOnline = false) {
+  const wasDown = connectionWasDown;
+  connectionWasDown = false;
+  if (wasDown || forceOnline) {
+    showConnectionBanner('online', message);
+  } else {
+    hideConnectionBanner();
   }
 }
 
@@ -532,9 +645,11 @@ async function executeJoin(rawCode, rawName, requestedMode = null) {
     let joinAvatar = null;
     try { joinAvatar = getAvatarProfile(); } catch { joinAvatar = null; }
     await net.joinRoom(code, name, {
+      onConnectionRestored: () => markConnectionRestored(),
       onJoinedSuccess: (msg) => {
         // Supabase host, modu worldView bayrağıyla birlikte duyurur.
-        // TV_CONSOLE'da telefon ekranı sadece kumanda olur ve P1 rezerve edilmez.
+        // TV_CONSOLE'da telefon ekranı sadece kumanda olur; host P1'e
+        // katılırsa reservedHostSlot snapshot'tan ayrıca gelir.
         if (typeof msg.worldView === 'boolean') {
           net.supportsWorldFrames = msg.worldView;
           net.reservedHostSlot = msg.worldView ? 0 : null;
@@ -542,9 +657,11 @@ async function executeJoin(rawCode, rawName, requestedMode = null) {
           net.supportsWorldFrames = false;
           net.reservedHostSlot = null;
         }
+        if (Object.prototype.hasOwnProperty.call(msg, 'reservedHostSlot')) {
+          net.reservedHostSlot = Number.isInteger(msg.reservedHostSlot) ? msg.reservedHostSlot : null;
+        }
         menuOverlay?.classList.add('hidden');
         gamepadManager.init(msg, 'LOBBY');
-        hideConnectionBanner();
         showInstallToast(t('toast.joined', msg.roomCode));
       },
       onGameModeChanged: (newMode) => {
@@ -581,14 +698,14 @@ async function executeJoin(rawCode, rawName, requestedMode = null) {
         gamepadManager.updateSlot(slotIndex, color);
         showInstallToast(t('toast.slotChanged', slotIndex + 1));
       },
-      onSlotsUpdate: (slots) => {
-        gamepadManager.updateSlots(slots);
+      onSlotsUpdate: (slots, reservedHostSlot) => {
+        if (reservedHostSlot !== undefined) {
+          net.reservedHostSlot = Number.isInteger(reservedHostSlot) ? reservedHostSlot : null;
+        }
+        gamepadManager.updateSlots(slots, net.reservedHostSlot);
       },
       onGameState: (data) => {
-        if (connectionWasDown) {
-          connectionWasDown = false;
-          showConnectionBanner('online', t('net.reconnected'));
-        }
+        if (connectionWasDown) markConnectionRestored();
         gamepadManager.handleStateSync(data);
       },
       onWorldFrame: (frame) => {
@@ -598,6 +715,7 @@ async function executeJoin(rawCode, rawName, requestedMode = null) {
         routeConnectionMessage(err);
       },
       onHostDisconnected: (msg) => {
+        connectionWasDown = true;
         showConnectionBanner('offline', String(msg || t('net.hostLost')));
         gamepadManager.hide();
         menuOverlay?.classList.remove('hidden');
@@ -621,6 +739,11 @@ async function executeJoin(rawCode, rawName, requestedMode = null) {
 }
 
 function handleSeatSwap(slotA, slotB) {
+  if (activeNet().isHosting && hostPlayerActive
+    && (slotA === hostPlayerSlot || slotB === hostPlayerSlot)) {
+    showInstallToast(t('toast.hostSeatLocked'));
+    return false;
+  }
   activeNet().swapSlots(slotA, slotB);
   if (!activeNet().isHosting) {
     const temp = hostPlayerSlots[slotA];
@@ -629,10 +752,14 @@ function handleSeatSwap(slotA, slotB) {
     const engine = getActiveGameEngine();
     if (engine) swapEngineSlots(engine, currentMode, activeNet().isHosting, slotA, slotB);
   }
+  return true;
 }
 
 function handleRotateSeats() {
-  if (activeNet().isHosting && activeNet().players?.some((player) => player?.isHost)) return;
+  if (activeNet().isHosting && (
+    activeNet().players?.some((player) => player?.isHost)
+    || hostPlayerActive
+  )) return;
   // Skor permütasyonu (relay'deki [2,3,1,0] ile aynı sonuç)
   const rotateScoresLocally = () => {
     const engine = getActiveGameEngine();
@@ -712,6 +839,10 @@ function returnHostToLobby() {
   setGameMode('MENU');
   activeNet().returnToLobby();
   setLocalReadyFlags(false);
+  // TV host P1 olarak katıldıysa lobiye dönüşte de otomatik hazır kalır.
+  if (hostPlayerActive && hostPlayerSlot !== null && hostPlayerSlots[hostPlayerSlot]) {
+    updateHostSlot(hostPlayerSlot, true, hostPlayerSlots[hostPlayerSlot].name, true, 'human');
+  }
   // Lobiye dönüşte botlar temizlenir — koltuklar insanlara kalır
   for (let i = 0; i < 4; i++) {
     if (hostPlayerSlots[i]?.kind === 'bot') {
@@ -742,6 +873,9 @@ function handleExitToMenu() {
       clearSlotAvatar(i);
       updateHostSlot(i, false);
     }
+    applyHostPlayerState({ active: false });
+    hideConnectionBanner();
+    connectionWasDown = false;
     activeNet().disconnect();
     setSeatTapHook();
     setGameMode('MENU');
@@ -867,7 +1001,8 @@ async function enterStaging(mode) {
   // aksi halde eski turun bayrağı yeni turun sayacına sızar)
   for (let i = 0; i < 4; i++) {
     const e = hostPlayerSlots[i];
-    const isReady = platformMode === 'ONLINE' && i === 0;
+    const isReady = (platformMode === 'ONLINE' && i === 0)
+      || (platformMode === 'TV_CONSOLE' && hostPlayerActive && i === hostPlayerSlot);
     if (e) updateHostSlot(i, true, e.name, isReady, e.kind);
   }
   refreshStagingBar();
@@ -979,14 +1114,19 @@ function removeBotSlot(index) {
 // (DOM staging çubuğu → sayaç) yürür, çift başlat düğmesi kalmaz.
 function setSeatTapHook() {
   const hosting = activeNet().isHosting;
-  const onlinePhoneHost = hosting && platformMode === 'ONLINE';
+  const localHostPlayer = hosting && hostPlayerActive && hostPlayerSlot !== null;
+  const onlinePhoneHost = hosting && platformMode === 'ONLINE' && hostPlayerActive;
+  const touchDevice = typeof window !== 'undefined'
+    && ('ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0);
   const fn = hosting ? handleLobbySeatTap : null;
   forEachEngine((mode, entry) => {
     entry.game.onLobbySeatTap = fn;
     entry.game.hideLobbyStartButton = hosting;
-    entry.game.suppressVirtualControls = hosting && !onlinePhoneHost;
-    entry.game.forceVirtualControls = onlinePhoneHost;
-    entry.game.localControlSlot = onlinePhoneHost ? 0 : null;
+    // TV host oyuncuya katılmadıkça ekran salt arena; katılınca P1
+    // klavye/dokunmatik kontrolü aynı authority motorunda çalışır.
+    entry.game.suppressVirtualControls = hosting && !localHostPlayer;
+    entry.game.forceVirtualControls = localHostPlayer && (onlinePhoneHost || touchDevice);
+    entry.game.localControlSlot = localHostPlayer ? hostPlayerSlot : null;
   });
 }
 
@@ -1000,7 +1140,7 @@ window.addEventListener('offline', () => {
   showConnectionBanner('offline', t('net.offline'));
 });
 window.addEventListener('online', () => {
-  showConnectionBanner('online', t('net.onlineBack'));
+  markConnectionRestored(t('net.onlineBack'), true);
 });
 initJoinModal({ onExecuteJoin: executeJoin });
 initSettingsModal();
@@ -1008,6 +1148,7 @@ applyI18nToDOM();
 // Dil değişiminde TV lobi kartları anında yeniden çizilir (BOŞ/HAZIR etiketleri).
 onLangChange(() => {
   try { refreshAllHostSlots(); } catch {}
+  setHostPlayerButtonState(hostPlayerActive, platformMode);
 });
 document.getElementById('btn-open-settings')?.addEventListener('click', openSettingsModal);
 initHostLobby({
@@ -1016,12 +1157,16 @@ initHostLobby({
   onStageGame: (mode) => {
     enterStaging(mode);
   },
+  onToggleHostPlayer: () => toggleHostPlayer(),
   onCloseLobby: () => {
     exitStagingToLobby();
     for (let i = 0; i < 4; i++) {
       clearSlotAvatar(i);
       updateHostSlot(i, false);
     }
+    applyHostPlayerState({ active: false });
+    hideConnectionBanner();
+    connectionWasDown = false;
     activeNet().disconnect();
     setSeatTapHook();
     setGameMode('MENU');
@@ -1118,7 +1263,6 @@ btnOnlineCreateRoom?.addEventListener('click', () => {
   updatePlatformMode('ONLINE');
   openHostLobby('PONG');
 });
-addTapListener(document.getElementById('btn-hero-browse-games'), openGamePicker);
 addTapListener(btnCloseGamePicker, closeGamePicker);
 
 gamePickerModal?.addEventListener('click', (e) => {
@@ -1248,6 +1392,9 @@ initMainMenu({
   },
 });
 
+// Bind after the menu reorders its mode cards; keep the browse action on the final node.
+addTapListener(document.getElementById('btn-hero-browse-games'), openGamePicker);
+
 for (const mode of GAME_ORDER) {
   addTapListener(document.getElementById(`btn-select-${mode.toLowerCase()}`), () => {
     closeGamePicker();
@@ -1309,6 +1456,8 @@ function sendGoodbyeBeacon() {
   try {
     activeNet().disconnect();
   } catch {}
+  connectionWasDown = false;
+  hideConnectionBanner();
 }
 window.addEventListener('pagehide', sendGoodbyeBeacon);
 window.addEventListener('beforeunload', sendGoodbyeBeacon);

@@ -45,7 +45,16 @@ export function setBotEkleEnabled(on) {
   safeSet(BOT_SETTING_KEY, on ? '1' : '0');
 }
 
-export function updateHostSlot(slotIndex, isConnected, name = '', isReady = false, kind = 'human', avatar = undefined, displayColor = undefined) {
+export function updateHostSlot(
+  slotIndex,
+  isConnected,
+  name = '',
+  isReady = false,
+  kind = 'human',
+  avatar = undefined,
+  displayColor = undefined,
+  isHost = undefined,
+) {
   const slotEl = document.getElementById(`slot-p${slotIndex + 1}`);
   const readyTag = document.getElementById(`ready-tag-p${slotIndex + 1}`);
   if (!slotEl) return;
@@ -110,6 +119,7 @@ export function updateHostSlot(slotIndex, isConnected, name = '', isReady = fals
     const prevEntry = hostPlayerSlots[slotIndex];
     hostPlayerSlots[slotIndex] = {
       name, isReady, kind,
+      isHost: isHost !== undefined ? !!isHost : !!prevEntry?.isHost,
       avatar: avatar !== undefined ? avatar : (prevEntry?.avatar || null),
       displayColor: displayColor !== undefined ? displayColor : (prevEntry?.displayColor || null),
     };

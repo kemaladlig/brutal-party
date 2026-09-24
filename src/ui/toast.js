@@ -35,7 +35,7 @@ export function showInstallToast(message) {
 // 'offline' (kırmızı, kalıcı). Bağlantı dışı hatalar bu banda değil,
 // showInstallToast'a gider (yönlendirme main.js tarafındadır).
 export function showConnectionBanner(state, message) {
-  if (!connectionBanner) return;
+  if (!connectionBanner || !['online', 'reconnecting', 'offline'].includes(state)) return;
   connectionBanner.textContent = message || '';
   connectionBanner.dataset.state = state;
   connectionBanner.classList.add('visible');
@@ -50,6 +50,7 @@ export function showConnectionBanner(state, message) {
 export function hideConnectionBanner() {
   if (!connectionBanner) return;
   window.clearTimeout(showConnectionBanner.timer);
+  showConnectionBanner.timer = null;
   connectionBanner.classList.remove('visible');
 }
 

@@ -159,7 +159,8 @@ export function setVirtualControlsSetting(val) {
 }
 
 export function shouldShowVirtualControls({ isHosting = false, isTouchDevice = null, force = false } = {}) {
-  // ONLINE P1 host telefonunda kontroller zorunludur; TV_CONSOLE host'u seyirci ekranıdır.
+  // ONLINE P1 host telefonunda kontroller zorunludur; TV_CONSOLE host
+  // seyirci ekranıyken kontroller kapanır, local P1'e katılınca açılır.
   if (force) return true;
   if (isHosting) return false;
 

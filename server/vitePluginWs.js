@@ -75,6 +75,7 @@ export function vitePluginWs() {
 // Kumanda rolleri (JOIN_ROOM/INPUT/REACTION/PLAYER_READY/PING) bu kümede yok:
 // onlar isHost=false ile serbestçe geçer.
 const HOST_ONLY_MSG = new Set([
+  'SET_HOST_PLAYER',
   'HOST_STATE_SYNC',
   'SET_GAME_MODE',
   'START_GAME',
@@ -95,12 +96,15 @@ export function handleMessage(ws, msg, roomManager) {
   if (HOST_ONLY_MSG.has(msg.type) && !ws.isHost) return;
   switch (msg.type) {
     case 'HOST_CREATE_ROOM': {
-      const room = roomManager.createRoom(ws, msg.gameMode || 'PONG');
+      const room = roomManager.createRoom(ws, msg.gameMode || 'PONG', msg.hostIdentity || {});
+      const hostState = roomManager.getHostPlayerState(room);
       ws.send(
         JSON.stringify({
           type: 'ROOM_CREATED',
           roomCode: room.code,
           gameMode: room.gameMode,
+          hostPlayer: hostState.player,
+          reservedHostSlot: hostState.slotIndex,
         })
       );
       break;
@@ -119,6 +123,7 @@ export function handleMessage(ws, msg, roomManager) {
             color: result.color,
             avatar: result.avatar,
             slots: roomManager.getSlots(roomManager.getRoom(result.roomCode)),
+            reservedHostSlot: roomManager.getReservedHostSlot(roomManager.getRoom(result.roomCode)),
           })
         );
       } else {
@@ -159,6 +164,23 @@ export function handleMessage(ws, msg, roomManager) {
 
     case 'START_GAME': {
       roomManager.handleStartGame(ws, msg.gameMode);
+      break;
+    }
+
+    case 'SET_HOST_PLAYER': {
+      const result = roomManager.handleSetHostPlayer(ws, !!msg.active, {
+        name: msg.name,
+        avatar: msg.avatar,
+      });
+      if (!result.success) {
+        ws.send(JSON.stringify({
+          type: 'HOST_PLAYER_STATE',
+          active: false,
+          slotIndex: null,
+          player: null,
+          error: result.error,
+        }));
+      }
       break;
     }
 

@@ -13,6 +13,10 @@ export class PartyNetwork {
     this.playerName = null;
     this.color = null;
     this.ping = 0;
+    this.players = [null, null, null, null];
+    this.reservedHostSlot = null;
+    this.hostPlayerActive = false;
+    this.hostPlayerSlot = null;
     this.pingInterval = null;
     // AGENTS §5 bütçesiyle simetrik kopma gözetimi (Supabase 15s/30s ile aynı):
     // ping 4s'de atılır (lobi rozeti), watchdog 30s sessizlikte koparır.
@@ -27,6 +31,8 @@ export class PartyNetwork {
     // Event Callbacks
     this.callbacks = {
       onRoomCreated: null,
+      onConnectionRestored: null,
+      onHostPlayerState: null,
       onPlayerJoined: null,
       onPlayerLeft: null,
       onPlayerInput: null,
@@ -90,8 +96,23 @@ export class PartyNetwork {
     switch (msg.type) {
       case 'ROOM_CREATED':
         this.roomCode = msg.roomCode;
+        if (msg.reservedHostSlot !== undefined) {
+          this.reservedHostSlot = Number.isInteger(msg.reservedHostSlot) ? msg.reservedHostSlot : null;
+          this.hostPlayerActive = this.reservedHostSlot !== null;
+          this.hostPlayerSlot = this.reservedHostSlot;
+        }
+        if (msg.hostPlayer) {
+          this.hostPlayerActive = !!msg.hostPlayer.isHost;
+          this.hostPlayerSlot = Number.isInteger(msg.hostPlayer.slotIndex)
+            ? msg.hostPlayer.slotIndex
+            : null;
+          if (this.hostPlayerSlot !== null) {
+            this.players[this.hostPlayerSlot] = { ...msg.hostPlayer, isHost: true };
+          }
+        }
+        if (this.callbacks.onConnectionRestored) this.callbacks.onConnectionRestored();
         if (this.callbacks.onRoomCreated) {
-          this.callbacks.onRoomCreated(msg.roomCode, msg.gameMode);
+          this.callbacks.onRoomCreated(msg.roomCode, msg.gameMode, msg);
         }
         break;
 
@@ -124,8 +145,16 @@ export class PartyNetwork {
         this.playerIndex = msg.slotIndex;
         this.playerName = msg.name;
         this.color = msg.color;
+        if (msg.reservedHostSlot !== undefined) {
+          this.reservedHostSlot = Number.isInteger(msg.reservedHostSlot) ? msg.reservedHostSlot : null;
+        }
         this._reconnectTries = 0;
+        if (this._reconnectTimer) {
+          clearTimeout(this._reconnectTimer);
+          this._reconnectTimer = null;
+        }
         this._lastHostMsgAt = performance.now();
+        if (this.callbacks.onConnectionRestored) this.callbacks.onConnectionRestored();
         if (this.callbacks.onJoinedSuccess) {
           this.callbacks.onJoinedSuccess(msg);
         }
@@ -147,6 +176,25 @@ export class PartyNetwork {
       case 'HOST_DISCONNECTED':
         if (this.callbacks.onHostDisconnected) {
           this.callbacks.onHostDisconnected(msg.message);
+        }
+        break;
+
+      case 'HOST_PLAYER_STATE':
+        this.hostPlayerActive = !!msg.active;
+        this.hostPlayerSlot = msg.active && Number.isInteger(msg.slotIndex) ? msg.slotIndex : null;
+        this.reservedHostSlot = this.hostPlayerSlot;
+        if (this.hostPlayerSlot !== null && msg.player) {
+          this.players[this.hostPlayerSlot] = { ...msg.player, isHost: true };
+        } else if (!msg.active) {
+          this.players = [null, null, null, null];
+        }
+        if (this.callbacks.onHostPlayerState) {
+          this.callbacks.onHostPlayerState({
+            active: this.hostPlayerActive,
+            slotIndex: this.hostPlayerSlot,
+            player: this.hostPlayerSlot !== null ? this.players[this.hostPlayerSlot] : null,
+            error: msg.error,
+          });
         }
         break;
 
@@ -172,8 +220,11 @@ export class PartyNetwork {
 
       case 'SLOTS_UPDATE':
         this._lastHostMsgAt = performance.now();
+        if (msg.reservedHostSlot !== undefined) {
+          this.reservedHostSlot = Number.isInteger(msg.reservedHostSlot) ? msg.reservedHostSlot : null;
+        }
         if (this.callbacks.onSlotsUpdate) {
-          this.callbacks.onSlotsUpdate(msg.slots);
+          this.callbacks.onSlotsUpdate(msg.slots, this.reservedHostSlot);
         }
         break;
 
@@ -229,14 +280,23 @@ export class PartyNetwork {
   }
 
   // --- Host API ---
-  async hostRoom(gameMode = 'PONG', callbacks = {}) {
+  async hostRoom(gameMode = 'PONG', callbacks = {}, hostIdentity = {}) {
     this.role = 'HOST';
     this.callbacks = { ...this.callbacks, ...callbacks };
+    this.hostPlayerActive = hostIdentity.asPlayer === true;
+    this.hostPlayerSlot = this.hostPlayerActive ? 0 : null;
+    this.reservedHostSlot = this.hostPlayerSlot;
+    this.players = [null, null, null, null];
 
     await this.connect(() => {
       this.send({
         type: 'HOST_CREATE_ROOM',
         gameMode,
+        hostIdentity: {
+          name: hostIdentity.name,
+          avatar: hostIdentity.avatar,
+          asPlayer: this.hostPlayerActive,
+        },
       });
     });
   }
@@ -249,10 +309,41 @@ export class PartyNetwork {
     });
   }
 
+  getHostPlayerState() {
+    if (!this.hostPlayerActive || this.hostPlayerSlot === null) {
+      return { active: false, slotIndex: null, player: null };
+    }
+    return {
+      active: true,
+      slotIndex: this.hostPlayerSlot,
+      player: this.players[this.hostPlayerSlot] || {
+        slotIndex: this.hostPlayerSlot,
+        name: 'HOST',
+        isHost: true,
+      },
+      isReady: true,
+    };
+  }
+
+  setHostPlayerActive(active, identity = {}) {
+    if (this.role !== 'HOST') return false;
+    this.send({
+      type: 'SET_HOST_PLAYER',
+      active: !!active,
+      name: identity.name,
+      avatar: identity.avatar,
+    });
+    return true;
+  }
+
   // --- Controller API ---
   async joinRoom(roomCode, playerName, callbacks = {}, avatar = null) {
     this.role = 'CONTROLLER';
     this.callbacks = { ...this.callbacks, ...callbacks };
+    this.hostPlayerActive = false;
+    this.hostPlayerSlot = null;
+    this.reservedHostSlot = null;
+    this.players = [null, null, null, null];
     this._manualClose = false;
     this._reconnectTries = 0;
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
@@ -500,6 +591,10 @@ export class PartyNetwork {
     this.role = null;
     this.roomCode = null;
     this.playerIndex = null;
+    this.players = [null, null, null, null];
+    this.reservedHostSlot = null;
+    this.hostPlayerActive = false;
+    this.hostPlayerSlot = null;
   }
 }
 

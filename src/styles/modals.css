@@ -380,6 +380,17 @@
   background: #faf7f2;
 }
 
+.pause-seat-btn:disabled,
+.pause-seat-btn.is-host-seat {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.pause-seat-btn:disabled:hover,
+.pause-seat-btn.is-host-seat:hover {
+  background: #ffffff;
+}
+
 .pause-seat-btn:active {
   transform: translate(2px, 2px);
   box-shadow: 1px 1px 0px #141416;

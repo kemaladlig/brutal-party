@@ -467,9 +467,13 @@ export class GamepadManager {
     this.renderGameController(this.gameMode);
   }
 
-  updateSlots(slots) {
+  updateSlots(slots, reservedHostSlot = this.network.reservedHostSlot) {
     const prev = this.slots;
     this.slots = slots || [null, null, null, null];
+    const hostIndex = this.slots.findIndex((slot) => slot?.isHost);
+    this.network.reservedHostSlot = Number.isInteger(reservedHostSlot)
+      ? reservedHostSlot
+      : (hostIndex >= 0 ? hostIndex : null);
     this._worldView?.setSlots(this.slots);
     // Kim geldi/gitti telefonlarda da görünsün (ilk tablo sessiz; bot ve isim değişimi sessiz)
     if (prev) {

@@ -13,6 +13,12 @@
   --p2: #1d5d8a;
   --p3: #d99b26;
   --p4: #2f6a4f;
+  --mode-local: #2f6a4f;
+  --mode-tv: #1d5d8a;
+  --mode-online: #d84727;
+  --mode-profile: #7928ca;
+  --shadow-hard: 6px 6px 0 var(--ink);
+  --radius-brutal: 10px;
   --bot-tag: #ffde59;
   --bot-god: #ffd700;
   --font-grotesk: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;

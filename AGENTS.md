@@ -8,7 +8,7 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 ## 1. Yığın & Platform Modları
 
 - Vanilla HTML5 + CSS3 + ES Modules, HTML5 Canvas, Vite build, PWA (`public/manifest.webmanifest`, `sw.js`).
-- Üç platform modu: `LOCAL` (tek cihaz, ağ yok) · `TV_CONSOLE` (TV host + telefon kumandalar, lokal WebSocket) · `ONLINE` (bir oyuncunun telefonu P1 host; 1-3 uzak telefon Supabase keşfi + WebRTC oyun akışı).
+- Üç platform modu: `LOCAL` (tek cihaz, ağ yok) · `TV_CONSOLE` (TV host + telefon kumandalar; host isteğe bağlı local P1, lokal WebSocket) · `ONLINE` (bir oyuncunun telefonu P1 host; 1-3 uzak telefon Supabase keşfi + WebRTC oyun akışı).
 - Ağ seçici: `src/net.js` — TV_CONSOLE → `src/network.js` (PartyNetwork/WS), ONLINE → `src/supabaseRelay.js`. LOCAL'de ağ kullanılmaz.
 - Supabase kimlik bilgileri **build'e gömülür**: `.env` → `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (**publishable key** `sb_publishable_...` formatı), `VITE_PUBLIC_URL`. Anahtarları asla koda gömme, asla commit'le.
 
@@ -45,9 +45,9 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 
 ## 4. Slot Modeli — tek koltuk gerçeği
 
-- TV tarafı: `hostPlayerSlots[i] = { name, isReady, kind }`, `kind ∈ 'human' | 'bot'`.
+- TV tarafı: `hostPlayerSlots[i] = { name, isReady, kind }`, `kind ∈ 'human' | 'bot'`. TV_CONSOLE host varsayılan olarak koltuklarda yer almaz; lobi düğmesiyle aynı cihazı P1 local oyuncusuna dönüştürebilir.
 - ONLINE host cihazı da oyuncudur ve P1'e rezerve edilir; kalan en fazla 3 uzak telefon P2-P4 olur. Relay tarafı (Supabase `players[]`, WS `room.players[]`) koltukların kaynağıdır; host listesi, motor slotları ve telefon ızgarası hep snapshot'tan beslenir.
-- `SLOTS_UPDATE` parity kuralı: WS ve Supabase **aynı payload şeklini** yayınlar (`slotIndex, name, color, kind, isReady`). Birine eklenen alan diğerine de eklenir.
+- `SLOTS_UPDATE` parity kuralı: WS ve Supabase **aynı payload şeklini** yayınlar (`slotIndex, name, color, kind, isReady, isHost`; snapshot ayrıca `reservedHostSlot` taşır). Birine eklenen alan diğerine de eklenir.
 - İsimler `toUpperCase()`, en fazla 12 karakter.
 - Bot koltuğu ne hedef ne kaynak olur: `SWITCH_SLOT` hedefi olamaz, ghost-reconnect botu yiyemez, hayalet geri kazanım botları atlar, sayaçta koltuk işlemleri kilitlidir (`seatsLocked`).
 - Bot ekleme **varsayılan kapalıdır** (`isBotEkleEnabled()` → localStorage); pause menüsündeki `🤖 BOT EKLEME` düğmesiyle açılır. Kapalıyken bot butonları/ipucu çizilmez, saha tap'i bot eklemez — normal akışta sadece oyuncu eklenir/çıkarılır.

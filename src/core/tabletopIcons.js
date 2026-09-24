@@ -215,6 +215,18 @@ const LUCIDE_REGISTRY = {
     path: 'M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z M6 12h4 M8 10v4 M15 13h.01 M18 11h.01',
     mode: 'stroke',
   },
+  pencil: {
+    id: 'pencil',
+    aliases: ['✏️', 'pencil', 'edit', 'edit_3', 'edit-3'],
+    path: 'M12 20h9 M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z',
+    mode: 'stroke',
+  },
+  dice: {
+    id: 'dice-5',
+    aliases: ['🎲', 'dice', 'dice_5', 'dice-5', 'random'],
+    path: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z M8 8h.01 M16 8h.01 M12 12h.01 M8 16h.01 M16 16h.01',
+    mode: 'stroke',
+  },
   arrow_left_right: {
     id: 'arrow-left-right',
     aliases: ['⇄', 'arrow_left_right', 'arrow-left-right', 'swap'],

@@ -47,8 +47,9 @@ export class BaseMiniGame {
     // kalır ve klasik cycleSlotType davranışı çalışır.
     this.onLobbySeatTap = null;
 
-    // ONLINE host telefonu P1'i kendisi oynar; TV_CONSOLE host'u seyirci
-    // ekranıdır. Render/input katmanı bu iki rolü ortak kodla ayırır.
+    // ONLINE host telefonu P1'i kendisi oynar; TV_CONSOLE host varsayılan
+    // olarak seyirci ekranıdır, ancak lobi düğmesiyle local P1 oyuncusuna
+    // dönüşebilir. Render/input katmanı bu iki rolü ortak kodla ayırır.
     this.suppressVirtualControls = false;
     this.forceVirtualControls = false;
     this.localControlSlot = null;

@@ -107,11 +107,12 @@ export function renderPauseSeats(onSwapCallback) {
     .map((idx) => {
       const slot = hostPlayerSlots[idx];
       const name = slot?.name || t('pause.empty');
+      const isHost = !!slot?.isHost;
       const isSelected = pauseSelectedSlot === idx;
       // Display rengi: host override → oyuncu avatarı → kanonik koltuk rengi
       const seatColor = slot?.displayColor || slot?.avatar?.color || fallbackColors[idx];
       return `
-        <button type="button" class="pause-seat-btn ${isSelected ? 'selected-for-swap' : ''}" data-slot="${idx}" style="--seat-color: ${seatColor}">
+        <button type="button" class="pause-seat-btn ${isSelected ? 'selected-for-swap' : ''}${isHost ? ' is-host-seat' : ''}" data-slot="${idx}" style="--seat-color: ${seatColor}"${isHost ? ' disabled aria-disabled="true"' : ''}>
           <div class="pause-seat-color-badge" style="background: ${seatColor}"></div>
           <div class="pause-seat-info">
             <span class="pause-seat-slot-label">${slotLabels[idx]}</span>
@@ -125,6 +126,7 @@ export function renderPauseSeats(onSwapCallback) {
 
   grid.querySelectorAll('.pause-seat-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
+      if (btn.disabled) return;
       const slotIdx = parseInt(btn.dataset.slot, 10);
       if (pauseSelectedSlot === null) {
         pauseSelectedSlot = slotIdx;
@@ -136,11 +138,13 @@ export function renderPauseSeats(onSwapCallback) {
         const slotA = pauseSelectedSlot;
         const slotB = slotIdx;
         pauseSelectedSlot = null;
-        if (typeof onSwapCallback === 'function') {
-          onSwapCallback(slotA, slotB);
-        }
+        const didSwap = typeof onSwapCallback === 'function'
+          ? onSwapCallback(slotA, slotB)
+          : true;
         renderPauseSeats(onSwapCallback);
-        showInstallToast(t('toast.swapped', slotA + 1, slotB + 1));
+        if (didSwap !== false) {
+          showInstallToast(t('toast.swapped', slotA + 1, slotB + 1));
+        }
       }
     });
   });

@@ -10,6 +10,7 @@ const hostRoomCode = document.getElementById('host-room-code');
 const hostJoinUrl = document.getElementById('host-join-url');
 const qrCanvas = document.getElementById('qr-canvas');
 const btnHostLaunchGame = document.getElementById('btn-host-launch-game');
+const btnHostTogglePlayer = document.getElementById('btn-host-toggle-player');
 const btnHostClose = document.getElementById('btn-host-close');
 const btnHostCopyLink = document.getElementById('btn-host-copy-link');
 const btnHostWhatsappShare = document.getElementById('btn-host-whatsapp-share');
@@ -38,6 +39,16 @@ export function setCurrentHostGameMode(mode) {
   if (btnHostLaunchGame) {
     btnHostLaunchGame.textContent = t('host.stage');
   }
+}
+
+export function setHostPlayerButtonState(active, platformMode) {
+  if (!btnHostTogglePlayer) return;
+  const isTvHost = platformMode === 'TV_CONSOLE';
+  btnHostTogglePlayer.classList.toggle('hidden', !isTvHost);
+  btnHostTogglePlayer.classList.toggle('active', !!active);
+  btnHostTogglePlayer.disabled = !isTvHost;
+  btnHostTogglePlayer.setAttribute('aria-pressed', String(!!active));
+  btnHostTogglePlayer.textContent = t(active ? 'host.leavePlayer' : 'host.joinPlayer');
 }
 
 export function getEffectiveJoinUrl(code, platformMode) {
@@ -98,6 +109,7 @@ export function initHostLobby({
   getActiveNet,
   getPlatformMode,
   onStageGame,
+  onToggleHostPlayer,
   onCloseLobby,
   onSwapSlots,
   onToggleBotSlot,
@@ -210,6 +222,12 @@ export function initHostLobby({
         onToggleBotSlot(idx);
       }
     });
+  });
+
+  btnHostTogglePlayer?.addEventListener('click', () => {
+    if (typeof onToggleHostPlayer === 'function') {
+      onToggleHostPlayer();
+    }
   });
 
   // BAŞLAT #1: sahayı aç (staging). Oyun başlamaz; koltuk seçimi başlar.

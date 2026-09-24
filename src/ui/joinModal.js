@@ -49,11 +49,12 @@ onLangChange(() => {
   }
 });
 
-// × temizleme: değer varken görünür, basınca auto-join tetiklemez
+// × temizleme: değer varken görünür, basınca auto-join tetiklemez.
 function bindClearButton(btn, input) {
   if (!btn || !input) return;
   const refresh = () => btn.classList.toggle('hidden', !(input.value && input.value.length > 0));
   input.addEventListener('input', refresh);
+  input.addEventListener('change', refresh);
   btn.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();

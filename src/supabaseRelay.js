@@ -40,6 +40,8 @@ export class SupabaseRelay {
     this.players = [null, null, null, null]; // { id, name, color, slotIndex }
     this.ready = [false, false, false, false];
     this.gameMode = 'PONG';
+    this.hostPlayerActive = false;
+    this.hostPlayerSlot = null;
 
     // --- CONTROLLER state ---
     this.playerIndex = null;
@@ -51,7 +53,8 @@ export class SupabaseRelay {
     this.callbacks = {};
 
     // ONLINE cihazlarda uzaktan oyun sahası yalnız P2P world kanalından gelir.
-    // TV_CONSOLE host odasında bu özellik kapalıdır; telefonlar sadece kumandadır.
+    // TV_CONSOLE host odasında world kapalıdır; host isteğe bağlı local P1
+    // oyuncusuna katılsa da telefonlar kumanda olarak kalır.
     this.supportsWorldFrames = false;
     this.reservedHostSlot = null;
 
@@ -80,14 +83,33 @@ export class SupabaseRelay {
     return this.role === 'HOST';
   }
 
+  _hostPlayerIndex() {
+    return this.players.findIndex((p) => p?.isHost);
+  }
+
+  _removeHostPlayer() {
+    const slot = this._hostPlayerIndex();
+    if (slot < 0) return { success: false, error: 'HOST OYUNCU DEĞİL' };
+    this.players[slot] = null;
+    this.ready[slot] = false;
+    this.hostPlayerActive = false;
+    this.hostPlayerSlot = null;
+    this.reservedHostSlot = null;
+    return { success: true, slotIndex: slot };
+  }
+
   _installHostPlayer(identity = {}) {
     this.hostId = this.myId;
     const asPlayer = identity.asPlayer !== false;
     if (!asPlayer) {
-      // TV ekranı oyuncu değildir; ilk telefon P1 olabilir.
-      this.players[0] = null;
-      this.ready[0] = false;
-      return;
+      this._removeHostPlayer();
+      return { success: true, active: false, slotIndex: null, player: null };
+    }
+
+    let slotIndex = this._hostPlayerIndex();
+    if (slotIndex < 0) {
+      if (this.players[0]) return { success: false, error: 'P1 DOLU' };
+      slotIndex = 0;
     }
 
     let avatar = null;
@@ -97,17 +119,22 @@ export class SupabaseRelay {
       avatar = sanitizeAvatar({ color: pickFreeColor([]) }, { keepColor: true });
     }
     const name = cleanPlayerName(identity.name || 'HOST');
-    this.players[0] = {
+    const player = {
       id: this.myId,
       clientId: getClientId(),
       name,
       color: avatar.color,
       avatar,
-      slotIndex: 0,
+      slotIndex,
       lastSeen: performance.now(),
       isHost: true,
     };
-    this.ready[0] = true;
+    this.players[slotIndex] = player;
+    this.ready[slotIndex] = true;
+    this.hostPlayerActive = true;
+    this.hostPlayerSlot = slotIndex;
+    this.reservedHostSlot = slotIndex;
+    return { success: true, active: true, slotIndex, player };
   }
 
   _resetReadyFlags() {
@@ -147,7 +174,7 @@ export class SupabaseRelay {
     }
 
     for (const player of this.players) {
-      if (!player || player.isBot || openPeerIds.has(player.id)) continue;
+      if (!player || player.isBot || player.isHost || openPeerIds.has(player.id)) continue;
       this._broadcast('host_msg', { ...payload, targetId: player.id });
     }
   }
@@ -174,8 +201,10 @@ export class SupabaseRelay {
     this.players = [null, null, null, null];
     this.ready = [false, false, false, false];
     this.supportsWorldFrames = hostIdentity.worldView !== false;
-    this.reservedHostSlot = hostIdentity.asPlayer === false ? null : 0;
     this._installHostPlayer(hostIdentity);
+    this.hostPlayerActive = hostIdentity.asPlayer !== false;
+    this.hostPlayerSlot = this.hostPlayerActive ? 0 : null;
+    this.reservedHostSlot = this.hostPlayerSlot;
 
     // Generate room code
     this.roomCode = this._generateRoomCode();
@@ -225,8 +254,12 @@ export class SupabaseRelay {
             clearTimeout(failTimer);
             console.log(`[SupabaseRelay] HOST subscribed to ${channelName}`);
             this._startHostAnnounce();
+            if (this.callbacks.onConnectionRestored) this.callbacks.onConnectionRestored();
             if (this.callbacks.onRoomCreated) {
-              this.callbacks.onRoomCreated(this.roomCode, this.gameMode);
+              this.callbacks.onRoomCreated(this.roomCode, this.gameMode, {
+                hostPlayer: this.getHostPlayerState()?.player || null,
+                reservedHostSlot: this.reservedHostSlot,
+              });
             }
             resolve();
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
@@ -322,7 +355,7 @@ export class SupabaseRelay {
         }
 
         const takenByOther = (name) => this.players.some(
-          (p, i) => p && !p.isBot && i !== slotIndex && p.name === name
+          (p, i) => p && !p.isBot && !p.isHost && i !== slotIndex && p.name === name
         );
         let finalName = baseName;
         if (takenByOther(finalName)) {
@@ -335,9 +368,9 @@ export class SupabaseRelay {
         // Cihaz-başı karakter: renk oyuncuyla gelir; yoksa boş rastgele renk.
         // Reclaim'de mevcut avatar korunur.
         const takenColors = this.players
-          .filter((p, i) => p && !p.isBot && i !== slotIndex)
+          .filter((p, i) => p && !p.isBot && !p.isHost && i !== slotIndex)
           .map((p) => p.color);
-        const isReclaim = !!(this.players[slotIndex] && !this.players[slotIndex].isBot);
+        const isReclaim = !!(this.players[slotIndex] && !this.players[slotIndex].isBot && !this.players[slotIndex].isHost);
         let cleanAvatar = null;
         if (msg.avatar && typeof msg.avatar === 'object') {
           try { cleanAvatar = sanitizeAvatar(msg.avatar, { keepColor: true }); } catch { cleanAvatar = null; }
@@ -379,6 +412,7 @@ export class SupabaseRelay {
           color: player.color,
           avatar: player.avatar,
           slots: this.getSlots(),
+          reservedHostSlot: this._hostPlayerIndex() >= 0 ? this._hostPlayerIndex() : null,
           worldView: this.supportsWorldFrames,
         });
 
@@ -426,7 +460,7 @@ export class SupabaseRelay {
 
       case 'LEAVE': {
         const slot = this._findSlotByPlayerId(msg.senderId);
-        if (slot === -1) return;
+        if (slot === -1 || this.players[slot]?.isHost) return;
         const leftPlayer = this.players[slot];
         if (leftPlayer && !leftPlayer.isHost) {
           this.webrtcManager?.closePeer?.(leftPlayer.id);
@@ -466,7 +500,14 @@ export class SupabaseRelay {
   getSlots() {
     return this.players.map((p, idx) => {
       if (!p) return null;
-      const entry = { slotIndex: idx, name: p.name, color: p.color, isReady: !!this.ready[idx], kind: p.isBot ? 'bot' : 'human' };
+      const entry = {
+        slotIndex: idx,
+        name: p.name,
+        color: p.color,
+        isReady: !!this.ready[idx],
+        kind: p.isBot ? 'bot' : 'human',
+        isHost: !!p.isHost,
+      };
       if (!p.isBot && p.avatar) entry.avatar = p.avatar;
       return entry;
     });
@@ -488,7 +529,11 @@ export class SupabaseRelay {
 
   broadcastSlots() {
     if (this.role !== 'HOST') return;
-    const payload = { action: 'SLOTS_UPDATE', slots: this.getSlots() };
+    const payload = {
+      action: 'SLOTS_UPDATE',
+      slots: this.getSlots(),
+      reservedHostSlot: this._hostPlayerIndex() >= 0 ? this._hostPlayerIndex() : null,
+    };
     this._sendHostPayload(payload);
   }
 
@@ -513,6 +558,30 @@ export class SupabaseRelay {
       { action: 'WORLD_FRAME', hostId: this.myId, ...frame },
       'world'
     );
+  }
+
+  getHostPlayerState() {
+    const slotIndex = this._hostPlayerIndex();
+    if (slotIndex < 0) return { active: false, slotIndex: null, player: null };
+    return {
+      active: true,
+      slotIndex,
+      player: { ...this.players[slotIndex], isHost: true },
+      isReady: !!this.ready[slotIndex],
+    };
+  }
+
+  setHostPlayerActive(active, identity = {}) {
+    if (this.role !== 'HOST') return false;
+    const result = active
+      ? this._installHostPlayer({ ...identity, asPlayer: true })
+      : this._removeHostPlayer();
+    if (!result.success) return false;
+
+    const state = this.getHostPlayerState();
+    if (this.callbacks.onHostPlayerState) this.callbacks.onHostPlayerState(state);
+    this.broadcastSlots();
+    return true;
   }
 
   setHostGameMode(gameMode) {
@@ -559,7 +628,8 @@ export class SupabaseRelay {
     if (this.role !== 'HOST') return;
     if (gameMode) this.gameMode = gameMode;
     this._resetReadyFlags();
-    if (this.players[0]?.isHost) this.ready[0] = true;
+    const hostSlot = this._hostPlayerIndex();
+    if (hostSlot >= 0) this.ready[hostSlot] = true;
     const payload = { action: 'STAGING_STARTED', gameMode: this.gameMode };
     this._sendHostPayload(payload);
     this.broadcastSlots();
@@ -574,6 +644,8 @@ export class SupabaseRelay {
   returnToLobby() {
     if (this.role !== 'HOST') return;
     this._resetReadyFlags();
+    const hostSlot = this._hostPlayerIndex();
+    if (hostSlot >= 0) this.ready[hostSlot] = true;
     const payload = { action: 'RETURNED_TO_LOBBY', gameMode: this.gameMode };
     this._sendHostPayload(payload);
     this.broadcastSlots();
@@ -775,9 +847,15 @@ export class SupabaseRelay {
         this._joinedOnce = true;
         this._joinAttempts = 0;
         this._reconnectTries = 0;
+        if (this._reconnectTimer) {
+          clearTimeout(this._reconnectTimer);
+          this._reconnectTimer = null;
+        }
         const hasWorldView = msg.worldView !== false;
         this.supportsWorldFrames = hasWorldView;
-        this.reservedHostSlot = hasWorldView ? 0 : null;
+        this.reservedHostSlot = Object.prototype.hasOwnProperty.call(msg, 'reservedHostSlot')
+          ? (Number.isInteger(msg.reservedHostSlot) ? msg.reservedHostSlot : null)
+          : (hasWorldView ? 0 : null);
         this.playerIndex = msg.slotIndex;
         this.playerName = msg.name;
         this.color = msg.color;
@@ -790,6 +868,7 @@ export class SupabaseRelay {
         // Odaya katılım başarılı olunca Host'a WebRTC DataChannel el sıkışması başlat
         this._initControllerWebRTC();
 
+        if (this.callbacks.onConnectionRestored) this.callbacks.onConnectionRestored();
         if (this.callbacks.onJoinedSuccess) {
           this.callbacks.onJoinedSuccess(msg);
         }
@@ -863,8 +942,11 @@ export class SupabaseRelay {
       }
 
       case 'SLOTS_UPDATE': {
+        if (Object.prototype.hasOwnProperty.call(msg, 'reservedHostSlot')) {
+          this.reservedHostSlot = Number.isInteger(msg.reservedHostSlot) ? msg.reservedHostSlot : null;
+        }
         if (this.callbacks.onSlotsUpdate) {
-          this.callbacks.onSlotsUpdate(msg.slots);
+          this.callbacks.onSlotsUpdate(msg.slots, this.reservedHostSlot);
         }
         break;
       }
@@ -1178,6 +1260,8 @@ export class SupabaseRelay {
     this.playerIndex = null;
     this.supportsWorldFrames = false;
     this.reservedHostSlot = null;
+    this.hostPlayerActive = false;
+    this.hostPlayerSlot = null;
     this.players = [null, null, null, null];
     this.ready = [false, false, false, false];
   }

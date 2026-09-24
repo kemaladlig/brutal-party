@@ -201,7 +201,7 @@ Sistem iki transport kullanır:
 1. **Lokal Ağ / Geliştirme:** `src/network.js` (PartyNetwork WebSocket)
 2. **Canlı / İnternet:** `src/supabaseRelay.js` (Supabase Broadcast oda keşfi/lobi/signaling + WebRTC)
 
-ONLINE host artık TV değil, kendisi P1 olan oyuncu telefonudur; P1 rezerve, uzak oyuncular P2-P4 olur. TV_CONSOLE host cihazı oyuncu değildir; aynı odadaki ilk telefon P1 olabilir. Supabase `players[]` tek koltuk kaynağıdır.
+ONLINE host artık TV değil, kendisi P1 olan oyuncu telefonudur; P1 rezerve, uzak oyuncular P2-P4 olur. TV_CONSOLE host cihazı varsayılan olarak oyuncu değildir; host lobi düğmesiyle aynı cihazı isteğe bağlı P1 oyuncusuna dönüştürebilir. Supabase `players[]` / lokal `room.players[]` tek koltuk kaynağıdır.
 
 Her WebRTC peer'ında iki DataChannel bulunur:
 - `control`: `ordered:true`; giriş, hazır, koltuk ve 8 Hz HUD/state. WebRTC yoksa hedefli Supabase fallback kullanılır.
@@ -234,10 +234,11 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
 ### Host → Uzak Telefon (`host_msg`):
 * `HOST_STATE_SYNC` / `GAME_STATE`: 8 Hz periyodik HUD/kumanda durumu (dirty-check ile değişmediyse göndermez).
 * `WORLD_FRAME`: world-view oyunlarında (SNAKE, ARCHER, BOMB, HEIST, TANKS, CLONE, NINJA, LASER, ZONE, COLLAPSE, CURVE) yalnız P2P `world` kanalından 30 Hz tam snapshot; full-frame olduğu için kayıp paket sonraki kareyi bozmaz. Büyük grid/trail oyunlarında (ZONE 4096 hücre, CURVE 24.000 segment) snapshot RLE / iki katmanlı sıkıştırma ile tavan altına indirilir; çarpışma host'ta tam çözünürlükte kalır.
-* `SLOTS_UPDATE`: 4 koltuğun güncel durumu (`slotIndex, name, color, kind, isReady` + insanlarda `avatar`). Hem WS hem Supabase'de birebir aynı şemadır.
-* `JOIN_SUCCESS`: Supabase ayrıca `worldView` bayrağı taşır; ONLINE odada true, TV_CONSOLE odasında false. Bu bayrak kumandada world canvasını ve P1 rezervasyonunu belirler.
+* `SLOTS_UPDATE`: 4 koltuğun güncel durumu (`slotIndex, name, color, kind, isReady, isHost` + insanlarda `avatar`) ve `reservedHostSlot`. Hem WS hem Supabase'de birebir aynı şemadır.
+* `JOIN_SUCCESS`: Supabase ayrıca `worldView` ve `reservedHostSlot` bayraklarını taşır; ONLINE odada worldView true, TV_CONSOLE odasında false. TV host isteğe bağlı P1'e katılırsa reservedHostSlot 0 olur.
 * `SLOT_CHANGED`: koltuk no + display rengi. Renk oyuncuyla taşınır (takas/döndürmede koltuğa sabitlenmez).
 * `SET_SLOT_COLOR` (host-only): host lobi hızlı palet/🎲 display-renk override'ı (profil değişmez).
+* `SET_HOST_PLAYER` (host-only): TV_CONSOLE host'un aynı authority cihazını isteğe bağlı P1 local oyuncusuna eklemesi/çıkarması.
 * `SLOT_CHANGED`: Oyuncuya atanan yeni slot indeksi ve rengi.
 * `SLOTS_SWAPPED`: Host tarafından iki koltuk takas edildiğinde kumandaları bilgilendirir.
 * `STAGING_STARTED` / `COUNTDOWN` / `GAME_STARTED`: Lobi akış geçişleri.
@@ -247,8 +248,8 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
 
 ## 4. Slot Modeli Kuralları
 
-* Host cihaz tarafında: `hostPlayerSlots[i] = { name, isReady, kind, avatar, displayColor }`, `kind ∈ 'human' | 'bot'`. ONLINE host P1'dir; TV_CONSOLE host cihazı koltuklarda yer almaz ve ilk telefon P1 olur.
-* Relay tarafı (`supabaseRelay.players[]` veya `room.players[]`) tek doğru gerçektir (Single Source of Truth).
+* Host cihaz tarafında: `hostPlayerSlots[i] = { name, isReady, kind, avatar, displayColor }`, `kind ∈ 'human' | 'bot'`. ONLINE host P1'dir; TV_CONSOLE host varsayılan olarak koltuklarda yer almaz, lobi düğmesiyle açtığında P1'e local oyuncu olarak eklenir.
+* Relay tarafı (`supabaseRelay.players[]` veya `room.players[]`) tek doğru gerçektir (Single Source of Truth). TV host P1'e katılırsa aynı host socket'i hem authority hem local player olarak işaretlenir; host kapanınca oda kapanır.
 * **Sert renk engeli:** İki insan koltuğu aynı display rengine sahipse `SAHAYA GEÇ` + sayaç kilitlenir (lobide `⚠️ AYNI RENK` + 🎲 hızlı atama). LOCAL muaf (koltuklar boş → küme boş).
 * **Bot Kuralları:**
   * Bot koltukları ne hedef ne kaynak olabilir; `SWITCH_SLOT` ile botun üstüne oturulamaz.
@@ -261,7 +262,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
 ## 5. Mimari Karar Defteri (Architectural Decisions)
 
 1. **Host Cihaz Tek Yetkilidir (Authoritative):**
-   * ONLINE host P1 runs the simulation; TV_CONSOLE host remains the dedicated local host. Remote phones only send input. ONLINE/TV_CONSOLE mode is explicit on the home cards and is preserved in invite links (`mode=online|tv`).
+   * ONLINE host P1 runs the simulation; TV_CONSOLE host is the authoritative local display and can optionally occupy local P1 from the lobby. Remote phones only send input. ONLINE/TV_CONSOLE mode is explicit on the home cards and is preserved in invite links (`mode=online|tv`).
 2. **Engine Registry Prensibi:**
    * `main.js` içinde `if (mode === 'PONG') ... else if` zincirleri yasaktır. Tüm oyunlar `engineRegistry.js` üzerinden `registerEngine` ile kaydedilir ve polimorfik olarak çağrılır.
 3. **BaseMiniGame Ortak Tabanı:**
