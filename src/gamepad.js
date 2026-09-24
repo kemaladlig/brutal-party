@@ -279,7 +279,7 @@ export class GamepadManager {
       this.avatar = playerInfo.avatar || null;
     }
     this.slots = playerInfo.slots || [null, null, null, null];
-    this.selectedHostGame = gameMode === 'LOBBY' ? 'PONG' : gameMode;
+    this.selectedHostGame = gameMode === 'LOBBY' ? (playerInfo.gameMode || 'PONG') : gameMode;
     this.gameMode = gameMode || 'LOBBY';
     this.isReady = false;
     this.stagingOpen = false;

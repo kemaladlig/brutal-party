@@ -1,5 +1,7 @@
 // src/webrtcManager.js
 
+const MAX_BUFFERED_AMOUNT = 64 * 1024;
+
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -27,7 +29,7 @@ export class WebRTCManager {
     const pc = new RTCPeerConnection(ICE_SERVERS);
     const dc = pc.createDataChannel('gameData', { ordered: true });
 
-    this.peers.set(hostId, { pc, dc });
+    this.peers.set(hostId, { pc, dc, pendingCandidates: [] });
     this._setupDataChannel(hostId, dc);
     this._setupPeerConnection(hostId, pc);
 
@@ -49,7 +51,7 @@ export class WebRTCManager {
       let peer = this.peers.get(senderId);
       if (!peer) {
         const pc = new RTCPeerConnection(ICE_SERVERS);
-        peer = { pc, dc: null };
+        peer = { pc, dc: null, pendingCandidates: [] };
         this.peers.set(senderId, peer);
 
         pc.ondatachannel = (event) => {
@@ -62,6 +64,7 @@ export class WebRTCManager {
 
       try {
         await peer.pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        await this._flushPendingCandidates(senderId, peer);
         const answer = await peer.pc.createAnswer();
         await peer.pc.setLocalDescription(answer);
         this.sendSignal(senderId, { type: 'answer', sdp: answer });
@@ -75,6 +78,7 @@ export class WebRTCManager {
       if (peer && peer.pc) {
         try {
           await peer.pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          await this._flushPendingCandidates(senderId, peer);
         } catch (err) {
           console.warn('[WebRTC] RemoteDescription (answer) ayarlanamadı:', err);
         }
@@ -84,11 +88,29 @@ export class WebRTCManager {
       // ICE Candidate (Ağ rotası) geldi
       const peer = this.peers.get(senderId);
       if (peer && peer.pc && signal.candidate) {
-        try {
-          await peer.pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
-        } catch (err) {
-          console.warn('[WebRTC] ICE adayı eklenemedi:', err);
+        if (peer.pc.remoteDescription) {
+          try {
+            await peer.pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          } catch (err) {
+            console.warn('[WebRTC] ICE adayı eklenemedi:', err);
+          }
+        } else {
+          // Sinyal sırası korunmasa bile adayı remote description sonrasına sakla.
+          peer.pendingCandidates = peer.pendingCandidates || [];
+          peer.pendingCandidates.push(signal.candidate);
         }
+      }
+    }
+  }
+
+  async _flushPendingCandidates(peerId, peer) {
+    if (!peer?.pc || !peer.pendingCandidates?.length) return;
+    const candidates = peer.pendingCandidates.splice(0);
+    for (const candidate of candidates) {
+      try {
+        await peer.pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.warn(`[WebRTC] ${peerId} bekleyen ICE adayı eklenemedi:`, err);
       }
     }
   }
@@ -96,9 +118,18 @@ export class WebRTCManager {
   // --- Veri Gönderim Metodları ---
   sendTo(peerId, data) {
     const peer = this.peers.get(peerId);
-    if (peer && peer.dc && peer.dc.readyState === 'open') {
-      peer.dc.send(typeof data === 'string' ? data : JSON.stringify(data));
-      return true;
+    if (
+      peer
+      && peer.dc
+      && peer.dc.readyState === 'open'
+      && (peer.dc.bufferedAmount || 0) <= MAX_BUFFERED_AMOUNT
+    ) {
+      try {
+        peer.dc.send(typeof data === 'string' ? data : JSON.stringify(data));
+        return true;
+      } catch (err) {
+        console.warn(`[WebRTC] ${peerId} gönderimi başarısız:`, err);
+      }
     }
     return false;
   }
@@ -106,13 +137,16 @@ export class WebRTCManager {
   broadcast(data) {
     let sentCount = 0;
     const payload = typeof data === 'string' ? data : JSON.stringify(data);
-    for (const [_, peer] of this.peers.entries()) {
-      if (peer.dc && peer.dc.readyState === 'open') {
-        peer.dc.send(payload);
-        sentCount++;
-      }
+    for (const peerId of this.peers.keys()) {
+      if (this.sendTo(peerId, payload)) sentCount++;
     }
     return sentCount > 0;
+  }
+
+  getOpenPeerIds() {
+    return [...this.peers.entries()]
+      .filter(([, peer]) => peer.dc?.readyState === 'open')
+      .map(([peerId]) => peerId);
   }
 
   hasActiveConnection(peerId) {

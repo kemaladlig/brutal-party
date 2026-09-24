@@ -55,6 +55,7 @@ src/core/
   slotManager.js            Koltuk yönetimi: hostPlayerSlots (+avatar/displayColor), updateHostSlot,
                             syncSlotsToEngine, swapEngineSlots, getColorClashIndices (sert renk engeli)
   safeStorage.js            localStorage sarmalayıcı (JSON parse/try-catch tek nokta)
+  networkProtocol.js        Ortak ONLINE/TV_CONSOLE input doğrulama sözleşmesi
   inputMaps.js              Tek klavye slot haritası: STANDARD_KEY_SLOTS (P1 WASD+Space…P4 TFGH+B),
                             SECOND_ACTION_KEYS (ninja smoke/laser dash), getSlotKeys, keyboardVectorFrom,
                             readSlotKeys, isSlotActionEvent, slotForActionCode, buildCodeToSlotMap,
@@ -171,6 +172,8 @@ tests/                      Node test runner: Race saf progress/tuning + Vite-SS
 Sistem iki relay kullanabilir:
 1. **Lokal Ağ / Geliştirme:** `src/network.js` (PartyNetwork WebSocket üzerinden)
 2. **Canlı / İnternet:** `src/supabaseRelay.js` (Supabase Realtime Broadcast: `player_msg` ve `host_msg`)
+
+ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını kullanır. WebRTC bağlantısı olan oyuncuya doğrudan DataChannel, olmayan oyuncuya hedefli Supabase Broadcast fallback gönderilir; karma bağlantıda oyuncu bazlı yönlendirme zorunludur. Controller, host ilanı geç geldiğinde katılım isteğini yeniler; WebRTC adayları remote description sonrasına kuyruğa alınır.
 
 ### Kumanda → TV Host (`player_msg`):
 * `INPUT`: Joystick yönü `(x, y)` veya buton basımları (`FIRE`, `DASH`, `TACKLE`). 50ms throttle ile sınırlandırılmıştır; aksiyon butonları throttlesızdır.
