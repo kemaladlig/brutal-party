@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { PUBLIC_URL, isPublicOrigin } from '../net.js';
 import { showInstallToast } from './toast.js';
 import { getActivePalettes, paletteName } from '../core/customizationManager.js';
+import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { t } from '../i18n.js';
 
 const tvHostModal = document.getElementById('tv-host-modal');
@@ -14,6 +15,23 @@ const btnHostTogglePlayer = document.getElementById('btn-host-toggle-player');
 const btnHostClose = document.getElementById('btn-host-close');
 const btnHostCopyLink = document.getElementById('btn-host-copy-link');
 const btnHostWhatsappShare = document.getElementById('btn-host-whatsapp-share');
+
+function setButtonLabel(button, key) {
+  const label = button?.querySelector('[data-i18n]');
+  if (label) label.textContent = t(key);
+  else if (button) button.textContent = t(key);
+}
+
+function renderLobbyIcons(root = document) {
+  root.querySelectorAll('[data-lobby-icon]').forEach((slot) => {
+    const icon = slot.dataset.lobbyIcon;
+    if (!icon) return;
+    slot.innerHTML = getTabletopIconSvg(icon, { size: 18, strokeWidth: 2.3 });
+  });
+  root.querySelectorAll('.chip-selected-icon').forEach((slot) => {
+    slot.innerHTML = getTabletopIconSvg('check', { size: 12, strokeWidth: 3 });
+  });
+}
 
 let currentHostGameMode = 'PONG';
 let hostPingTimer = null;
@@ -34,11 +52,11 @@ export function getCurrentHostGameMode() {
 export function setCurrentHostGameMode(mode) {
   currentHostGameMode = mode;
   document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
-    chip.classList.toggle('active', chip.dataset.game === mode);
+    const active = chip.dataset.game === mode;
+    chip.classList.toggle('active', active);
+    chip.setAttribute('aria-pressed', String(active));
   });
-  if (btnHostLaunchGame) {
-    btnHostLaunchGame.textContent = t('host.stage');
-  }
+  setButtonLabel(btnHostLaunchGame, 'host.stage');
 }
 
 export function setHostPlayerButtonState(active, platformMode) {
@@ -48,7 +66,7 @@ export function setHostPlayerButtonState(active, platformMode) {
   btnHostTogglePlayer.classList.toggle('active', !!active);
   btnHostTogglePlayer.disabled = !isTvHost;
   btnHostTogglePlayer.setAttribute('aria-pressed', String(!!active));
-  btnHostTogglePlayer.textContent = t(active ? 'host.leavePlayer' : 'host.joinPlayer');
+  setButtonLabel(btnHostTogglePlayer, active ? 'host.leavePlayer' : 'host.joinPlayer');
 }
 
 export function getEffectiveJoinUrl(code, platformMode) {
@@ -65,12 +83,20 @@ export function getEffectiveJoinUrl(code, platformMode) {
 export function startHostPingBadge(getPing, platformMode) {
   stopHostPingBadge();
   const badge = document.querySelector('.tv-host-badge');
-  if (!badge) return;
+  const badgeText = badge?.querySelector('.host-badge-text');
+  const modeIcon = badge?.querySelector('[data-lobby-icon]');
+  if (!badge || !badgeText) return;
+  const isOnline = platformMode === 'ONLINE';
+  tvHostModal?.classList.toggle('is-online-room', isOnline);
+  if (modeIcon) {
+    modeIcon.dataset.lobbyIcon = isOnline ? 'globe' : 'tv';
+    modeIcon.innerHTML = getTabletopIconSvg(isOnline ? 'globe' : 'tv', { size: 15, strokeWidth: 2.3 });
+  }
   const tick = () => {
     // Dil anlık çözülür: dil değişimi 2sn içinde rozete yansır.
-    const baseText = platformMode === 'ONLINE' ? t('host.onlineLobby') : t('host.tvLobby');
+    const baseText = isOnline ? t('host.onlineLobby') : t('host.tvLobby');
     const ping = getPing?.() || 0;
-    badge.textContent = (platformMode === 'ONLINE' || isPublicOrigin()) && ping > 0
+    badgeText.textContent = (isOnline || isPublicOrigin()) && ping > 0
       ? `${baseText} • ${ping}ms`
       : baseText;
   };
@@ -98,10 +124,13 @@ export function showHostLobbyModal(code, joinUrl) {
     });
   }
   tvHostModal?.classList.remove('hidden');
+  tvHostModal?.setAttribute('aria-hidden', 'false');
+  window.requestAnimationFrame(() => btnHostLaunchGame?.focus({ preventScroll: true }));
 }
 
 export function hideHostLobbyModal() {
   tvHostModal?.classList.add('hidden');
+  tvHostModal?.setAttribute('aria-hidden', 'true');
   stopHostPingBadge();
 }
 
@@ -116,20 +145,20 @@ export function initHostLobby({
   onSetSlotColor,
   onRandomizeSlotColor,
 }) {
+  renderLobbyIcons(tvHostModal || document);
+
   // Game selector chips in Host Lobby
   document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
+    const active = chip.dataset.game === currentHostGameMode;
+    chip.classList.toggle('active', active);
+    chip.setAttribute('aria-pressed', String(active));
     chip.addEventListener('click', () => {
-      document.querySelectorAll('.lobby-game-chip').forEach((c) => c.classList.remove('active'));
-      chip.classList.add('active');
-      currentHostGameMode = chip.dataset.game;
+      setCurrentHostGameMode(chip.dataset.game);
       getActiveNet().setHostGameMode?.(currentHostGameMode);
-      if (btnHostLaunchGame) {
-        btnHostLaunchGame.textContent = t('host.stage');
-      }
     });
   });
 
-  // Koltuk hızlı renk düğmeleri: mini palet popover + 🎲 boş rastgele renk.
+  // Koltuk hızlı renk düğmeleri: mini palet popover + boş rastgele renk.
   // (Yüz/aksesuar her oyuncunun kendi cihazındadır; host sadece display rengini yönetir.)
   const closePalette = () => {
     document.getElementById('slot-palette-pop')?.remove();
@@ -144,10 +173,13 @@ export function initHostLobby({
       <div class="slot-palette-title">${t('host.seatColor', idx + 1)}</div>
       <div class="slot-palette-grid">
         ${getActivePalettes().map((p) => `
-          <button class="slot-palette-swatch" data-hex="${p.hex}" style="background-color: ${p.hex}" title="${paletteName(p)}" type="button"></button>
+          <button class="slot-palette-swatch" data-hex="${p.hex}" style="background-color: ${p.hex}" title="${paletteName(p)}" aria-label="${paletteName(p)}" type="button"></button>
         `).join('')}
       </div>
-      <button class="slot-palette-dice" type="button">${t('host.diceFree')}</button>
+      <button class="slot-palette-dice" type="button">
+        <span>${getTabletopIconSvg('dice', { size: 16, strokeWidth: 2.3 })}</span>
+        <span>${t('host.diceFree')}</span>
+      </button>
     `;
     document.body.appendChild(pop);
     const r = anchorBtn.getBoundingClientRect();
@@ -193,7 +225,7 @@ export function initHostLobby({
   const paintLaunchGuard = (clashCount) => {
     if (!launchBtn) return;
     launchBtn.classList.toggle('blocked', clashCount > 0);
-    launchBtn.textContent = clashCount > 0 ? t('stage.split') : t('host.stage');
+    setButtonLabel(launchBtn, clashCount > 0 ? 'stage.split' : 'host.stage');
   };
   window.addEventListener('brutal_color_clash', (e) => {
     paintLaunchGuard(e.detail?.clash?.length || 0);
@@ -243,16 +275,16 @@ export function initHostLobby({
   btnHostClose?.addEventListener('click', () => {
     if (!btnHostClose.dataset.armed) {
       btnHostClose.dataset.armed = '1';
-      btnHostClose.textContent = t('pause.exitArmed');
+      setButtonLabel(btnHostClose, 'pause.exitArmed');
       closeArmedTimer = window.setTimeout(() => {
         delete btnHostClose.dataset.armed;
-        btnHostClose.textContent = t('host.close');
+        setButtonLabel(btnHostClose, 'host.close');
       }, 3000);
       return;
     }
     window.clearTimeout(closeArmedTimer);
     delete btnHostClose.dataset.armed;
-    btnHostClose.textContent = t('host.close');
+    setButtonLabel(btnHostClose, 'host.close');
     hideHostLobbyModal();
     if (typeof onCloseLobby === 'function') {
       onCloseLobby();

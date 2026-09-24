@@ -151,7 +151,9 @@ export function updateHostSlot(
     const botsOn = isBotEkleEnabled();
     if (botBtn) {
       if (botsOn && isAnyBot) {
-        botBtn.textContent = '✕';
+        const label = botBtn.querySelector('.slot-bot-label');
+        if (label) label.textContent = t('host.removeBot');
+        else botBtn.textContent = '✕';
         botBtn.classList.remove('hidden');
       } else {
         botBtn.classList.add('hidden');
@@ -168,7 +170,9 @@ export function updateHostSlot(
     // Boş koltukta +BOT butonu (sadece ayar açıksa)
     if (botBtn) {
       if (isBotEkleEnabled()) {
-        botBtn.textContent = '+ BOT';
+        const label = botBtn.querySelector('.slot-bot-label');
+        if (label) label.textContent = t('host.addBot');
+        else botBtn.textContent = t('host.addBot');
         botBtn.classList.remove('hidden');
       } else {
         botBtn.classList.add('hidden');

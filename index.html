@@ -59,44 +59,77 @@
         <div class="countdown-overlay-sub">MAÇ BAŞLIYOR</div>
       </div>
 
-      <!-- TV Host Lobby Modal (QR Code & Connected Controllers & Game Switcher) -->
-      <div id="tv-host-modal" class="hidden">
+      <!-- TV/Online Host Lobby Modal (QR Code & Connected Controllers & Game Switcher) -->
+      <div
+        id="tv-host-modal"
+        class="hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-hidden="true"
+        aria-labelledby="tv-host-title"
+        aria-describedby="tv-host-subtitle"
+      >
         <div class="tv-host-card">
-          <div class="tv-host-header">
+          <header class="tv-host-header">
             <div class="tv-host-header-left">
-              <div class="tv-host-badge">📺 TV HOST PARTİ LOBİSİ</div>
-              <h2 class="tv-host-title"><span data-i18n="host.room">ODA:</span> #<span id="host-room-code">---</span></h2>
+              <div class="tv-host-badge">
+                <span class="host-badge-icon" data-lobby-icon="tv" aria-hidden="true"></span>
+                <span class="host-badge-text">TV HOST PARTİ LOBİSİ</span>
+              </div>
+              <h2 class="tv-host-title" id="tv-host-title">
+                <span data-i18n="host.room">ODA</span>
+                <strong>#<span id="host-room-code">---</span></strong>
+              </h2>
+              <p class="tv-host-subtitle" id="tv-host-subtitle" data-i18n="host.lobbyHint">Arkadaşlarını bağla, oyunu seç ve sahayı aç.</p>
             </div>
             <div class="tv-host-header-right">
-              <div class="lobby-status-pill" id="lobby-ready-counter">0 BAĞLANDI</div>
+              <div class="lobby-status-pill" id="lobby-ready-counter" aria-live="polite">0 BAĞLANDI</div>
             </div>
-          </div>
+          </header>
 
           <div class="tv-host-body">
-            <!-- Left: tek BAĞLAN kartı (QR + kod + link + WhatsApp) -->
-            <div class="host-connect-channels">
-              <div class="host-connect-card">
-                <canvas id="qr-canvas"></canvas>
-                <div class="host-connect-right">
-                  <div class="channel-code-row">
-                    <div class="channel-big-code">#<span id="host-channel-code">---</span></div>
-                    <button class="code-copy-btn" id="btn-host-copy-code" data-i18n-aria="host.copyCode" title="Kodu kopyala" type="button">⧉</button>
+            <aside class="host-room-rail" data-i18n-aria="host.roomTools" aria-label="Oda bağlantısı ve oyuncular">
+              <section class="host-connect-card" aria-labelledby="host-connect-title">
+                <div class="host-panel-heading">
+                  <span class="host-panel-icon" data-lobby-icon="gamepad_2" aria-hidden="true"></span>
+                  <div>
+                    <h3 class="host-panel-title" id="host-connect-title" data-i18n="host.connectTitle">OYUNCULARI BAĞLA</h3>
+                    <p class="host-panel-hint" data-i18n="host.connectHint">Kodu tara veya davet bağlantısını paylaş.</p>
                   </div>
-                  <button class="host-link-box" id="btn-host-copy-link" type="button" data-i18n-aria="host.copyLink" title="Dokun: linki kopyala">
-                    <span class="host-link-text" id="host-join-url">http://...</span>
-                    <span class="host-link-copy">⧉</span>
-                  </button>
-                  <button class="host-share-btn whatsapp" id="btn-host-whatsapp-share" type="button" data-i18n="host.invite">
-                    💬 WHATSAPP İLE DAVET ET
-                  </button>
                 </div>
-              </div>
-            </div>
+                <div class="host-connect-content">
+                  <div class="host-qr-frame">
+                    <canvas id="qr-canvas" role="img" data-i18n-aria="host.qrLabel" aria-label="Odaya katılma QR kodu"></canvas>
+                    <span data-i18n="host.scan">TARA</span>
+                  </div>
+                  <div class="host-connect-right">
+                    <span class="host-field-label" data-i18n="host.roomCodeLabel">ODA KODU</span>
+                    <div class="channel-code-row">
+                      <div class="channel-big-code">#<span id="host-channel-code">---</span></div>
+                      <button class="code-copy-btn" id="btn-host-copy-code" data-i18n-aria="host.copyCode" title="Kodu kopyala" type="button">
+                        <span data-lobby-icon="copy" aria-hidden="true"></span>
+                      </button>
+                    </div>
+                    <button class="host-link-box" id="btn-host-copy-link" type="button" data-i18n-aria="host.copyLink" title="Dokun: linki kopyala">
+                      <span class="host-link-text" id="host-join-url">http://...</span>
+                      <span class="host-link-copy" data-lobby-icon="copy" aria-hidden="true"></span>
+                    </button>
+                    <button class="host-share-btn whatsapp" id="btn-host-whatsapp-share" type="button">
+                      <span data-lobby-icon="message_square" aria-hidden="true"></span>
+                      <span data-i18n="host.invite">WHATSAPP İLE DAVET ET</span>
+                    </button>
+                  </div>
+                </div>
+              </section>
 
-            <!-- Center: 4 Player Slots with Positions & Ready Status -->
-            <div class="host-players-list">
-              <div class="host-slot-header" data-i18n="host.players">👥 OYUNCULAR (2-4 KİŞİ)</div>
-              <div class="host-slot-hint" id="host-slot-hint" data-i18n="host.slotHint">Sırayı değiştirmek için ↕ kullanın.</div>
+              <section class="host-players-panel" aria-labelledby="host-players-title">
+                <div class="host-slot-header">
+                  <span class="host-panel-icon" data-lobby-icon="gamepad_2" aria-hidden="true"></span>
+                  <span id="host-players-title" data-i18n="host.players">OYUNCULAR</span>
+                  <span class="host-player-limit" data-i18n="host.playerLimit">2–4</span>
+                </div>
+                <div class="host-slot-hint" id="host-slot-hint" data-i18n="host.slotHint">Sırayı değiştirmek için kaydır.</div>
+                <div class="host-players-list">
               <div class="host-player-slot" id="slot-p1" data-slot="0">
                 <canvas class="slot-avatar-preview" id="slot-canvas-p1" width="34" height="34"></canvas>
                 <div class="slot-info">
@@ -104,9 +137,11 @@
                   <div class="slot-name">BOŞ</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p1">BEKLİYOR</div>
-                <button class="slot-color-btn" data-slot="0" data-i18n-aria="host.slotColor" title="Koltuk rengini değiştir" type="button">🎨</button>
-                <button class="slot-bot-btn hidden" data-slot="0" data-i18n-aria="host.botToggle" title="Bot ekle/kaldır" type="button">+ BOT</button>
-                <button class="slot-swap-btn" data-slot="0" data-i18n-aria="host.swapDown" title="Aşağı Kaydır" type="button">↕</button>
+                <div class="slot-card-actions">
+                  <button class="slot-color-btn" data-slot="0" data-i18n-aria="host.slotColor" title="Koltuk rengini değiştir" type="button"><span data-lobby-icon="pencil" aria-hidden="true"></span></button>
+                  <button class="slot-bot-btn hidden" data-slot="0" data-i18n-aria="host.botToggle" title="Bot ekle/kaldır" type="button"><span data-lobby-icon="bot" aria-hidden="true"></span><span class="slot-bot-label">+ BOT</span></button>
+                  <button class="slot-swap-btn" data-slot="0" data-i18n-aria="host.swapDown" title="Aşağı Kaydır" type="button"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span></button>
+                </div>
               </div>
               <div class="host-player-slot" id="slot-p2" data-slot="1">
                 <canvas class="slot-avatar-preview" id="slot-canvas-p2" width="34" height="34"></canvas>
@@ -115,9 +150,11 @@
                   <div class="slot-name">BOŞ</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p2">BEKLİYOR</div>
-                <button class="slot-color-btn" data-slot="1" data-i18n-aria="host.slotColor" title="Koltuk rengini değiştir" type="button">🎨</button>
-                <button class="slot-bot-btn hidden" data-slot="1" data-i18n-aria="host.botToggle" title="Bot ekle/kaldır" type="button">+ BOT</button>
-                <button class="slot-swap-btn" data-slot="1" data-i18n-aria="host.swapDown" title="Aşağı Kaydır" type="button">↕</button>
+                <div class="slot-card-actions">
+                  <button class="slot-color-btn" data-slot="1" data-i18n-aria="host.slotColor" title="Koltuk rengini değiştir" type="button"><span data-lobby-icon="pencil" aria-hidden="true"></span></button>
+                  <button class="slot-bot-btn hidden" data-slot="1" data-i18n-aria="host.botToggle" title="Bot ekle/kaldır" type="button"><span data-lobby-icon="bot" aria-hidden="true"></span><span class="slot-bot-label">+ BOT</span></button>
+                  <button class="slot-swap-btn" data-slot="1" data-i18n-aria="host.swapDown" title="Aşağı Kaydır" type="button"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span></button>
+                </div>
               </div>
               <div class="host-player-slot" id="slot-p3" data-slot="2">
                 <canvas class="slot-avatar-preview" id="slot-canvas-p3" width="34" height="34"></canvas>
@@ -126,9 +163,11 @@
                   <div class="slot-name">BOŞ</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p3">BEKLİYOR</div>
-                <button class="slot-color-btn" data-slot="2" data-i18n-aria="host.slotColor" title="Koltuk rengini değiştir" type="button">🎨</button>
-                <button class="slot-bot-btn hidden" data-slot="2" data-i18n-aria="host.botToggle" title="Bot ekle/kaldır" type="button">+ BOT</button>
-                <button class="slot-swap-btn" data-slot="2" data-i18n-aria="host.swapDown" title="Aşağı Kaydır" type="button">↕</button>
+                <div class="slot-card-actions">
+                  <button class="slot-color-btn" data-slot="2" data-i18n-aria="host.slotColor" title="Koltuk rengini değiştir" type="button"><span data-lobby-icon="pencil" aria-hidden="true"></span></button>
+                  <button class="slot-bot-btn hidden" data-slot="2" data-i18n-aria="host.botToggle" title="Bot ekle/kaldır" type="button"><span data-lobby-icon="bot" aria-hidden="true"></span><span class="slot-bot-label">+ BOT</span></button>
+                  <button class="slot-swap-btn" data-slot="2" data-i18n-aria="host.swapDown" title="Aşağı Kaydır" type="button"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span></button>
+                </div>
               </div>
               <div class="host-player-slot" id="slot-p4" data-slot="3">
                 <canvas class="slot-avatar-preview" id="slot-canvas-p4" width="34" height="34"></canvas>
@@ -137,20 +176,31 @@
                   <div class="slot-name">BOŞ</div>
                 </div>
                 <div class="slot-status-tag" id="ready-tag-p4">BEKLİYOR</div>
-                <button class="slot-color-btn" data-slot="3" data-i18n-aria="host.slotColor" title="Koltuk rengini değiştir" type="button">🎨</button>
-                <button class="slot-bot-btn hidden" data-slot="3" data-i18n-aria="host.botToggle" title="Bot ekle/kaldır" type="button">+ BOT</button>
-                <button class="slot-swap-btn" data-slot="3" data-i18n-aria="host.swapDown" title="Aşağı Kaydır" type="button">↕</button>
+                <div class="slot-card-actions">
+                  <button class="slot-color-btn" data-slot="3" data-i18n-aria="host.slotColor" title="Koltuk rengini değiştir" type="button"><span data-lobby-icon="pencil" aria-hidden="true"></span></button>
+                  <button class="slot-bot-btn hidden" data-slot="3" data-i18n-aria="host.botToggle" title="Bot ekle/kaldır" type="button"><span data-lobby-icon="bot" aria-hidden="true"></span><span class="slot-bot-label">+ BOT</span></button>
+                  <button class="slot-swap-btn" data-slot="3" data-i18n-aria="host.swapDown" title="Aşağı Kaydır" type="button"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span></button>
+                </div>
               </div>
-            </div>
+                </div>
+              </section>
+            </aside>
 
             <!-- Right: Game Selector Grid -->
-            <div class="host-game-selector">
-              <div class="selector-header" data-i18n="host.pickGame">🎯 OYNAYACAĞINIZ OYUNU SEÇİN</div>
+            <section class="host-game-selector" aria-labelledby="host-game-title">
+              <div class="host-panel-heading selector-heading">
+                <span class="host-panel-icon" data-lobby-icon="target" aria-hidden="true"></span>
+                <div>
+                  <h3 class="host-panel-title" id="host-game-title" data-i18n="host.pickGame">OYUN SEÇ</h3>
+                  <p class="host-panel-hint" data-i18n="host.pickGameHint">Bir oyun seç, sonra sahayı aç.</p>
+                </div>
+                <span class="host-game-count" data-i18n="host.gamesCount">14 OYUN</span>
+              </div>
               <div class="selector-grid">
                 <button class="lobby-game-chip active" data-game="PONG" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/pong.jpg" alt="Brutal Pong" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL PONG</span>
@@ -159,7 +209,7 @@
                 <button class="lobby-game-chip" data-game="ARCHER" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/archer.jpg" alt="Brutal Archery" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL ARCHERY</span>
@@ -168,7 +218,7 @@
                 <button class="lobby-game-chip" data-game="TANKS" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/tanks.jpg" alt="Micro Tanks" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">MICRO-TANKS</span>
@@ -177,7 +227,7 @@
                 <button class="lobby-game-chip" data-game="CURVE" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/curve.jpg" alt="Brutal Curve" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL CURVE</span>
@@ -186,7 +236,7 @@
                 <button class="lobby-game-chip" data-game="BOMB" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/bomb.jpg" alt="Brutal Bomb" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL BOMB</span>
@@ -195,7 +245,7 @@
                 <button class="lobby-game-chip" data-game="HEIST" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/heist.jpg" alt="Brutal Heist" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL HEIST</span>
@@ -204,7 +254,7 @@
                 <button class="lobby-game-chip" data-game="CROWN" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/crown.jpg" alt="Brutal Crown" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL CROWN</span>
@@ -213,7 +263,7 @@
                 <button class="lobby-game-chip" data-game="ZONE" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/zone.jpg" alt="Zone" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL ZONE</span>
@@ -222,7 +272,7 @@
                 <button class="lobby-game-chip" data-game="SNAKE" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/snake.jpg" alt="Snake" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL SNAKE</span>
@@ -231,7 +281,7 @@
                 <button class="lobby-game-chip" data-game="LASER" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/laser.jpg" alt="Laser" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL LASER</span>
@@ -240,7 +290,7 @@
                 <button class="lobby-game-chip" data-game="CLONE" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/clone.jpg" alt="Clone" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL CLONE</span>
@@ -249,7 +299,7 @@
                 <button class="lobby-game-chip" data-game="COLLAPSE" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/collapse.jpg" alt="Collapse" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL COLLAPSE</span>
@@ -258,7 +308,7 @@
                 <button class="lobby-game-chip" data-game="NINJA" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/ninja.jpg" alt="Ninja" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL NINJA</span>
@@ -267,20 +317,30 @@
                 <button class="lobby-game-chip" data-game="RACE" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/race.jpg" alt="Brutal Race" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge" data-i18n="host.selected">✓ SEÇİLDİ</span>
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL RACE</span>
                   </div>
                 </button>
               </div>
-              <div class="tv-host-actions">
-                <button class="tv-host-player-btn" id="btn-host-toggle-player" type="button" aria-pressed="false" data-i18n="host.joinPlayer">BEN DE OYNAYACAĞIM →</button>
-                <button class="tv-start-btn" id="btn-host-launch-game" type="button" data-i18n="host.launchSel">▶ SEÇİLEN OYUNU BAŞLAT</button>
-                <button class="tv-close-btn" id="btn-host-close" type="button" data-i18n="host.close">⌂ LOBİYİ KAPAT</button>
-              </div>
-            </div>
+            </section>
           </div>
+
+          <footer class="tv-host-actions" data-i18n-aria="host.actions" aria-label="Lobi eylemleri">
+            <button class="tv-start-btn" id="btn-host-launch-game" type="button">
+              <span data-lobby-icon="play" aria-hidden="true"></span>
+              <span data-i18n="host.stage">SAHAYA GEÇ</span>
+            </button>
+            <button class="tv-host-player-btn" id="btn-host-toggle-player" type="button" aria-pressed="false">
+              <span data-lobby-icon="gamepad_2" aria-hidden="true"></span>
+              <span data-i18n="host.joinPlayer">BEN DE OYNAYACAĞIM</span>
+            </button>
+            <button class="tv-close-btn" id="btn-host-close" type="button">
+              <span data-lobby-icon="close" aria-hidden="true"></span>
+              <span data-i18n="host.close">LOBİYİ KAPAT</span>
+            </button>
+          </footer>
         </div>
       </div>
 
