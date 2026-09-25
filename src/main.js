@@ -1221,6 +1221,9 @@ window.addEventListener('online', () => {
   markConnectionRestored(t('net.onlineBack'), true);
 });
 initJoinModal({ onExecuteJoin: executeJoin });
+document.getElementById('btn-hero-quick-join')?.addEventListener('click', () => {
+  openJoinModal('', 'TV_CONSOLE');
+});
 initSettingsModal({ onControlsChanged: applyControlSurfacePreference });
 applyI18nToDOM();
 // Dil değişiminde TV lobi kartları anında yeniden çizilir (BOŞ/HAZIR etiketleri).
@@ -1362,17 +1365,19 @@ const btnCarouselNext = document.getElementById('btn-carousel-next');
 const pageIndicator = document.getElementById('local-carousel-page-num');
 
 let currentSlideIndex = 0;
-const totalSlides = 7;
+const getTotalSlides = () => (carouselTrack?.children?.length ? carouselTrack.children.length : 8);
 
 function updateCarouselSlide(newIndex) {
-  currentSlideIndex = (newIndex + totalSlides) % totalSlides;
+  const slidesCount = getTotalSlides();
+  currentSlideIndex = (newIndex + slidesCount) % slidesCount;
   if (carouselTrack) {
     carouselTrack.style.transform = `translateX(-${currentSlideIndex * 100}%)`;
   }
   if (pageIndicator) {
-    pageIndicator.textContent = `${currentSlideIndex + 1} / ${totalSlides}`;
+    pageIndicator.textContent = `${currentSlideIndex + 1} / ${slidesCount}`;
   }
 }
+updateCarouselSlide(0);
 
 if (btnCarouselPrev && btnCarouselNext) {
   addTapListener(btnCarouselPrev, () => updateCarouselSlide(currentSlideIndex - 1));

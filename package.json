@@ -10,6 +10,7 @@
     "dev:share": "node scripts/share.mjs",
     "build": "vite build",
     "check": "tsc --noEmit",
+    "lint": "tsc --noEmit",
     "test": "node --test tests/raceLogic.test.mjs tests/raceEngine.test.mjs tests/networkProtocol.test.mjs tests/roomManagerHostPlayer.test.mjs tests/firstBatchGameEngine.test.mjs tests/secondBatchGameEngine.test.mjs tests/fourthBatchGameEngine.test.mjs tests/snakeWorldPacket.test.mjs tests/archerWorldPacket.test.mjs tests/bombWorldPacket.test.mjs tests/heistWorldPacket.test.mjs tests/tanksWorldPacket.test.mjs tests/cloneWorldPacket.test.mjs tests/ninjaWorldPacket.test.mjs tests/laserWorldPacket.test.mjs tests/collapseWorldPacket.test.mjs tests/zoneWorldPacket.test.mjs tests/curveWorldPacket.test.mjs tests/hordeEngine.test.mjs tests/hordeWorldPacket.test.mjs tests/webrtcManager.test.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "build:android": "npm run build && npx cap sync android && cd android && gradlew.bat assembleDebug",
