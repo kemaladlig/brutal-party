@@ -198,6 +198,7 @@
   justify-content: space-between;
   gap: 10px;
   width: 100%;
+  min-width: 0;
   padding: 10px 12px;
   background: #ffffff;
   border: 2.5px solid #1a1a1a;
@@ -251,6 +252,11 @@
   cursor: default;
 }
 
+.switch-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .switch-row.static:active {
   transform: none;
   box-shadow: 3px 3px 0 #1a1a1a;
@@ -290,6 +296,7 @@
 
 .settings-range-wrap input[type="range"] {
   width: 120px;
+  min-height: 44px;
   accent-color: #d84727;
   touch-action: manipulation;
 }
@@ -300,6 +307,34 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   font-weight: 900;
+}
+
+@media (max-width: 480px) {
+  #settings-modal .switch-row.static {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #settings-modal .settings-range-wrap,
+  #settings-modal .lang-segment {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #settings-modal .settings-range-wrap input[type="range"] {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  #settings-modal .lang-seg-btn {
+    min-width: 0;
+    flex: 1 1 0;
+    padding-inline: 6px;
+    font-size: 11px;
+    line-height: 1.1;
+    white-space: normal;
+  }
 }
 
 /* About info rows */
@@ -590,6 +625,8 @@
 /* === AVATAR CUSTOMIZER WORKSHOP & POPOVERS === */
 /* Left Preview Box */
 .customize-preview-box {
+  min-width: 0;
+  min-height: 0;
   background-color: #F4F4F0;
   border-right: 3.5px solid #1A1A1A;
   display: flex;
@@ -640,6 +677,7 @@
 }
 
 .btn-reset-customize {
+  min-height: 44px;
   padding: 8px 14px;
   background-color: #FAF7F2;
   border: 2px solid #1A1A1A;
@@ -659,12 +697,17 @@
 
 /* Right Options Scroll */
 .customize-options-scroll {
+  min-width: 0;
+  min-height: 0;
   padding: 18px 20px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
   box-sizing: border-box;
+  touch-action: manipulation;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .custom-section {
@@ -685,6 +728,8 @@
 }
 
 .customize-tab {
+  min-width: 0;
+  min-height: 44px;
   flex: 1;
   padding: 10px 6px;
   background-color: #FAF7F2;
@@ -726,8 +771,8 @@
 }
 
 .color-swatch-btn {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border: 3px solid #1A1A1A;
   box-shadow: 3px 3px 0px #1A1A1A;
   cursor: pointer;
@@ -761,6 +806,8 @@
 }
 
 .custom-chip-btn {
+  min-width: 0;
+  min-height: 64px;
   padding: 8px 10px;
   background-color: #FAF7F2;
   border: 2.5px solid #1A1A1A;
@@ -799,7 +846,8 @@
 
 /* Footer */
 .customize-footer {
-  padding: 14px 20px;
+  flex: 0 0 auto;
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
   background-color: #F4F0EA;
   border-top: 3.5px solid #1A1A1A;
   display: flex;
@@ -807,6 +855,7 @@
 }
 
 .btn-save-customize {
+  min-height: 48px;
   padding: 12px 24px;
   background-color: #2F6A4F;
   color: #FFFFFF;

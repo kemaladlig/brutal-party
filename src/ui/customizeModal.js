@@ -1,5 +1,5 @@
 // Brutal Party — Karakter Özelleştirme Modali (Character Customization UI)
-// Cihaz-başı TEK profil: sekmeler yok, kullanıcı kendini bir kere belirler.
+// Cihaz-başı TEK profil: renk/yüz/aksesuar/desen sekmeleriyle belirlenir.
 // Hem Ana Menüden, hem TV lobisinden, hem telefon kumandasından açılır.
 import {
   getActivePalettes,
@@ -44,6 +44,7 @@ function setActiveTab(tabId) {
   activeTab = tabId;
   try { safeSet(TAB_KEY, tabId); } catch {}
   applyTabVisibility();
+  requestAnimationFrame(resetCustomizeScroll);
 }
 
 function applyTabVisibility() {
@@ -53,6 +54,13 @@ function applyTabVisibility() {
   document.querySelectorAll('.custom-section[data-section]').forEach((sec) => {
     sec.classList.toggle('hidden', sec.dataset.section !== activeTab);
   });
+}
+
+function resetCustomizeScroll() {
+  const body = document.querySelector('.customize-body');
+  const options = document.querySelector('.customize-options-scroll');
+  if (body) body.scrollTop = 0;
+  if (options) options.scrollTop = 0;
 }
 
 export function openCustomizeModal(onSave) {
@@ -69,6 +77,7 @@ export function openCustomizeModal(onSave) {
   loadActiveTab();
   applyTabVisibility();
   renderSelectionGrids();
+  requestAnimationFrame(resetCustomizeScroll);
   startPreviewLoop();
 }
 
@@ -91,11 +100,11 @@ function createModalDOM() {
   const modalHtml = `
     <div id="customize-modal" class="customize-modal hidden">
       <div class="customize-backdrop" id="customize-backdrop"></div>
-      <div class="customize-card">
+      <div class="customize-card" role="dialog" aria-modal="true" aria-labelledby="customize-title">
         <div class="customize-header">
           <div class="customize-header-left">
             <span class="customize-badge" data-i18n="custom.badge">${t('custom.badge')}</span>
-            <h2 class="customize-title" data-i18n="custom.title">${t('custom.title')}</h2>
+            <h2 class="customize-title" id="customize-title" data-i18n="custom.title">${t('custom.title')}</h2>
           </div>
           <button class="customize-close-btn" id="btn-close-customize" type="button" aria-label="${t('pause.close')}">✕</button>
         </div>

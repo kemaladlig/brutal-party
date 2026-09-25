@@ -189,6 +189,14 @@
 }
 
 /* 9. Respect Reduced Motion Accessibility Option */
+@media (max-width: 960px), (pointer: coarse) {
+  #customize-modal:not(.hidden) .customize-card,
+  #join-room-modal:not(.hidden) .join-room-card {
+    animation-name: sheet-in-bottom;
+  }
+}
+
+/* 9. Respect Reduced Motion Accessibility Option */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

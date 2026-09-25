@@ -54,7 +54,7 @@ body {
   overflow: hidden;
   background-color: #f4f4f0;
   font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-  touch-action: none;
+  touch-action: manipulation;
   position: fixed;
   inset: 0;
 }

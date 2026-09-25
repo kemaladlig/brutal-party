@@ -138,6 +138,8 @@
   z-index: 150;
   backdrop-filter: blur(8px) saturate(120%);
   -webkit-backdrop-filter: blur(8px) saturate(120%);
+  touch-action: manipulation;
+  overscroll-behavior: contain;
   transition: opacity 0.18s ease;
 }
 
@@ -154,30 +156,37 @@
   z-index: 160;
   backdrop-filter: blur(8px) saturate(120%);
   -webkit-backdrop-filter: blur(8px) saturate(120%);
+  touch-action: manipulation;
+  overscroll-behavior: contain;
 }
 
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 960px) {
   #pause-modal,
-  #settings-modal,
-  #join-room-modal {
+  #settings-modal {
     align-items: flex-end;
     padding: 0;
   }
+
   #pause-modal .pause-sheet,
-  #settings-modal .pause-sheet,
-  #join-room-modal .join-room-card {
+  #settings-modal .pause-sheet {
     width: 100%;
     max-width: none;
+    height: auto;
+    max-height: 92dvh;
+    border: 4px solid #141416;
+    border-bottom: 0;
     border-radius: 20px 20px 0 0;
-    border-bottom: none;
-    border-right: none;
-    border-left: 4px solid #141416;
-    border-top: 4px solid #141416;
-    max-height: 90dvh;
-    overflow-y: auto;
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+    padding: 0;
+    overflow: hidden;
     animation-name: sheet-in-bottom;
     box-shadow: 0 -8px 0 rgba(20, 20, 22, 0.45);
+  }
+
+  #pause-modal .pause-sheet-body > *,
+  #settings-modal .pause-sheet-body > * {
+    width: 100%;
+    max-width: 560px;
+    margin-inline: auto;
   }
 }
 
@@ -192,11 +201,13 @@
 .pause-sheet {
   width: min(400px, 94vw);
   height: 100%;
+  min-height: 0;
   background-color: #f4f4f0;
   border-left: 4px solid #141416;
   box-shadow: -12px 0 0 rgba(20, 20, 22, 0.4);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   animation: sheet-in-right 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
 }
@@ -221,7 +232,7 @@
   opacity: 0.3;
 }
 
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 960px) {
   .sheet-handle { display: block; }
 }
 
@@ -290,18 +301,29 @@
   line-height: 1.1;
 }
 
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 960px) {
   .sheet-close .btn-esc-hint { display: none; }
-  .sheet-close { width: 38px; padding: 0; justify-content: center; }
+  .sheet-close {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-content: center;
+  }
 }
 
 .pause-sheet-body {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px 18px calc(env(safe-area-inset-bottom, 0px) + 16px);
   display: flex;
   flex-direction: column;
   gap: 16px;
+  touch-action: manipulation;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sheet-section {

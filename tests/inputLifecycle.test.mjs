@@ -22,6 +22,11 @@ test('local input source arbitrates keyboard and touch', () => {
   assert.equal(source, null);
 });
 
+test('tabletop aim can coexist with the keyboard movement source', () => {
+  const result = claimInputSource('keyboard', 'touch', { allowAlongside: true });
+  assert.deepEqual(result, { accepted: true, current: 'keyboard' });
+});
+
 test('release only clears the owning source', () => {
   assert.equal(releaseInputSource('keyboard', 'touch'), 'keyboard');
   assert.equal(releaseInputSource('keyboard', 'keyboard'), null);

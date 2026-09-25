@@ -89,12 +89,12 @@ function mountJoystickAction(gamepad, container, schema) {
 
   container.innerHTML = `
     <div class="joystick-action-view">
-      <div class="joystick-half" id="${joyZoneId}">
+      <div class="joystick-half" data-controller-layout-target="left" id="${joyZoneId}">
         <div class="phone-joy-base" style="border-color: ${gamepad.playerColor};">
           <div class="phone-joy-knob" id="${joyKnobId}" style="background-color: ${gamepad.playerColor};"></div>
         </div>
       </div>
-      <div class="action-half">
+      <div class="action-half" data-controller-layout-target="right">
         ${actionHtml}
       </div>
     </div>
@@ -120,14 +120,14 @@ function mountJoystickAction(gamepad, container, schema) {
       // No cooldown — charge state is host-authoritative (ARCHER bow).
       const sendDown = (e) => {
         e?.preventDefault?.();
-        gamepad.network.sendInput({ action: act.action, ...(act.payload || {}) });
+        gamepad.sendInput({ action: act.action, ...(act.payload || {}) });
         gamepad.vibrate(vibratePattern);
         activeHolds.add(act);
         btn.classList.add('holding');
       };
       const sendUp = (e) => {
         e?.preventDefault?.();
-        gamepad.network.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) });
+        gamepad.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) });
         activeHolds.delete(act);
         btn.classList.remove('holding');
       };
@@ -149,7 +149,7 @@ function mountJoystickAction(gamepad, container, schema) {
       btn,
       secs,
       readyLabel,
-      () => gamepad.network.sendInput({ action: act.action, ...(act.payload || {}) }),
+      () => gamepad.sendInput({ action: act.action, ...(act.payload || {}) }),
       vibratePattern
     );
 
@@ -179,7 +179,7 @@ function mountJoystickAction(gamepad, container, schema) {
       for (const act of activeHolds) {
         if (act.releaseAction) {
           try {
-            gamepad.network.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) });
+            gamepad.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) });
           } catch {}
         }
       }
@@ -218,17 +218,17 @@ function mountTwinStickAction(gamepad, container, schema) {
   const moveLabel = t('pad.guideJoystick');
   const aimLabel = t('pad.guideAim');
   const actionZoneHtml = actions.length > 0
-    ? `<div class="twin-action-zone">${actionHtml}</div>`
+    ? `<div class="twin-action-zone" data-controller-layout-target="right">${actionHtml}</div>`
     : '';
   container.innerHTML = `
     <div class="twin-stick-action-view">
-      <div class="twin-stick-half twin-move-half" id="${moveZoneId}" aria-label="${escapeHtml(moveLabel)}">
+      <div class="twin-stick-half twin-move-half" data-controller-layout-target="left" id="${moveZoneId}" aria-label="${escapeHtml(moveLabel)}">
         <div class="phone-joy-base" style="border-color: ${gamepad.playerColor};">
           <div class="phone-joy-knob" id="${moveKnobId}" style="background-color: ${gamepad.playerColor};"></div>
         </div>
         <span class="twin-stick-label">${escapeHtml(moveLabel)}</span>
       </div>
-      <div class="twin-stick-half twin-aim-half" id="${aimZoneId}" aria-label="${escapeHtml(aimLabel)}">
+      <div class="twin-stick-half twin-aim-half" data-controller-layout-target="right" id="${aimZoneId}" aria-label="${escapeHtml(aimLabel)}">
         <div class="phone-joy-base" style="border-color: ${gamepad.playerColor};">
           <div class="phone-joy-knob" id="${aimKnobId}" style="background-color: ${gamepad.playerColor};"></div>
         </div>
@@ -276,14 +276,14 @@ function mountTwinStickAction(gamepad, container, schema) {
     if (act.hold && act.releaseAction) {
       const sendDown = (e) => {
         e?.preventDefault?.();
-        gamepad.network.sendInput({ action: act.action, ...(act.payload || {}) });
+        gamepad.sendInput({ action: act.action, ...(act.payload || {}) });
         gamepad.vibrate(vibratePattern);
         activeHolds.add(act);
         btn.classList.add('holding');
       };
       const sendUp = (e) => {
         e?.preventDefault?.();
-        gamepad.network.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) });
+        gamepad.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) });
         activeHolds.delete(act);
         btn.classList.remove('holding');
       };
@@ -301,7 +301,7 @@ function mountTwinStickAction(gamepad, container, schema) {
       btn,
       act.cooldown ?? 2.0,
       getGuideActionLabel(act),
-      () => gamepad.network.sendInput({ action: act.action, ...(act.payload || {}) }),
+      () => gamepad.sendInput({ action: act.action, ...(act.payload || {}) }),
       vibratePattern,
     );
     btn.addEventListener('touchstart', handler, { passive: false });
@@ -324,7 +324,7 @@ function mountTwinStickAction(gamepad, container, schema) {
       aimController?.destroy();
       for (const act of activeHolds) {
         if (act.releaseAction) {
-          try { gamepad.network.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) }); } catch {}
+          try { gamepad.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) }); } catch {}
         }
       }
       activeHolds.clear();
@@ -341,12 +341,12 @@ function mountArcadeDrive(gamepad, container, schema) {
   const fireLabel = t(schema.fireLabelKey || 'pad.fireGun');
   container.innerHTML = `
     <div class="tanks-arcade-view">
-      <div class="tank-drive-zone">
+      <div class="tank-drive-zone" data-controller-layout-target="left">
         <button class="tank-drive-pedal" id="btn-tank-drive" type="button" aria-label="${escapeHtml(pedalLabel)}" title="${escapeHtml(pedalLabel)}" style="border-color: ${gamepad.playerColor}">
           <span class="pedal-icon">${getTabletopIconSvg(schema.pedalIcon || 'rocket', { size: 44, color: '#141414', strokeWidth: 2.4 })}</span>
         </button>
       </div>
-      <div class="tanks-fire-zone">
+      <div class="tanks-fire-zone" data-controller-layout-target="right">
         <button class="tank-fire-btn" id="btn-tank-fire" type="button" aria-label="${escapeHtml(fireLabel)}" title="${escapeHtml(fireLabel)}" style="background: ${gamepad.playerColor};">
           <span class="fire-icon">${getTabletopIconSvg(schema.fireIcon || 'bomb', { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
         </button>
@@ -366,7 +366,7 @@ function mountArcadeDrive(gamepad, container, schema) {
     if (isDriving) return;
     isDriving = true;
     driveBtn?.classList.add('active');
-    gamepad.network.sendInput({ action: schema.driveAction || 'TANK_DRIVE', driving: true });
+    gamepad.sendInput({ action: schema.driveAction || 'TANK_DRIVE', driving: true });
     gamepad.vibrate(20);
   };
 
@@ -375,7 +375,7 @@ function mountArcadeDrive(gamepad, container, schema) {
     if (!isDriving) return;
     isDriving = false;
     driveBtn?.classList.remove('active');
-    gamepad.network.sendInput({ action: schema.driveAction || 'TANK_DRIVE', driving: false });
+    gamepad.sendInput({ action: schema.driveAction || 'TANK_DRIVE', driving: false });
   };
 
   const tanksSignal = gamepad._mountAbort?.signal;
@@ -397,7 +397,7 @@ function mountArcadeDrive(gamepad, container, schema) {
     const debounceMs = schema.fireDebounceMs ?? 450;
     if (now - lastFireTime < debounceMs) return;
     lastFireTime = now;
-    gamepad.network.sendInput({ action: schema.fireAction || 'TANK_FIRE' });
+    gamepad.sendInput({ action: schema.fireAction || 'TANK_FIRE' });
     gamepad.vibrate(30);
   };
 
@@ -426,7 +426,7 @@ function mountArcadeDrive(gamepad, container, schema) {
     teardown() {
       if (isDriving) {
         try {
-          gamepad.network.sendInput({ action: schema.driveAction || 'TANK_DRIVE', driving: false });
+          gamepad.sendInput({ action: schema.driveAction || 'TANK_DRIVE', driving: false });
         } catch {}
       }
     }
@@ -441,7 +441,7 @@ function mountTwoButtonSteer(gamepad, container, schema) {
   const steerRightLabel = t('pad.steerRight');
   container.innerHTML = `
     <div class="curve-controller-view" id="curve-controller-view">
-      <div class="steer-rocker-cluster curve-cluster left" id="curve-steer-left">
+      <div class="steer-rocker-cluster curve-cluster left" data-controller-layout-target="left" id="curve-steer-left">
         <button class="steer-rocker-btn left" id="btn-curve-left" data-steer="-1" type="button" aria-label="${escapeHtml(steerLeftLabel)}">
           <span class="steer-icon">${getTabletopIconSvg('arrow_left', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
         </button>
@@ -450,7 +450,7 @@ function mountTwoButtonSteer(gamepad, container, schema) {
         </button>
       </div>
 
-      <div class="steer-rocker-cluster curve-cluster right" id="curve-steer-right">
+      <div class="steer-rocker-cluster curve-cluster right" data-controller-layout-target="right" id="curve-steer-right">
         <button class="steer-rocker-btn left" id="btn-curve-right-l" data-steer="-1" type="button" aria-label="${escapeHtml(steerLeftLabel)}">
           <span class="steer-icon">${getTabletopIconSvg('arrow_left', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
         </button>
@@ -488,7 +488,7 @@ function mountTwoButtonSteer(gamepad, container, schema) {
 
     if (desiredDir !== currentActiveDir) {
       currentActiveDir = desiredDir;
-      gamepad.network.sendInput({ action: schema.steerAction || 'CURVE_STEER', dir: currentActiveDir });
+      gamepad.sendInput({ action: schema.steerAction || 'CURVE_STEER', dir: currentActiveDir });
       if (currentActiveDir !== 0) gamepad.vibrate(15);
     }
   };
@@ -574,7 +574,7 @@ function mountTwoButtonSteer(gamepad, container, schema) {
     teardown() {
       if (currentActiveDir !== 0) {
         try {
-          gamepad.network.sendInput({ action: schema.steerAction || 'CURVE_STEER', dir: 0 });
+          gamepad.sendInput({ action: schema.steerAction || 'CURVE_STEER', dir: 0 });
         } catch {}
       }
     }
@@ -623,7 +623,7 @@ function mountSlider1D(gamepad, container, schema) {
       </div>
       <div class="pong-position-badge" style="border-color: ${gamepad.playerColor}">${t('pad.tvPlace', posLabel)}</div>
       <div class="pong-bottom-zone">
-        <div class="pong-track-wrap">
+        <div class="pong-track-wrap" data-controller-layout-target="left">
           <div class="pong-instruction" id="pong-direction-hint">${directionHint()}</div>
           <div class="pong-horizontal-track" id="pong-track" role="slider" aria-label="${escapeHtml(directionHint())}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(gamepad.pongPosition * 100)}" tabindex="0">
             <div class="pong-track-thumb horizontal" id="pong-thumb" style="${verticalAxis ? 'top' : 'left'}: ${gamepad.pongPosition * 100}%; background-color: ${gamepad.playerColor}">
@@ -634,7 +634,7 @@ function mountSlider1D(gamepad, container, schema) {
             ${gamepad.isPongInverted !== baseInvert ? t('pad.autoDir') : t('pad.flipDir')}
           </button>
         </div>
-        <button class="action-spin-btn" id="btn-pong-spin" type="button" aria-label="${escapeHtml(t('pad.spinShort'))}" title="${escapeHtml(t('pad.spinShort'))}" style="background-color: ${gamepad.playerColor};">
+        <button class="action-spin-btn" data-controller-layout-target="right" id="btn-pong-spin" type="button" aria-label="${escapeHtml(t('pad.spinShort'))}" title="${escapeHtml(t('pad.spinShort'))}" style="background-color: ${gamepad.playerColor};">
           <span class="btn-action-icon">${getTabletopIconSvg('rotate_cw', { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
         </button>
       </div>
@@ -652,7 +652,7 @@ function mountSlider1D(gamepad, container, schema) {
     spinBtn,
     schema.spinCooldown ?? 20.0,
     t('pad.spinShort'),
-    () => gamepad.network.sendInput({ action: 'SPIN' }),
+    () => gamepad.sendInput({ action: 'SPIN' }),
     [30, 40, 30]
   );
   spinBtn?.addEventListener('click', spinAction);
@@ -756,7 +756,7 @@ function mountSteerBoost(gamepad, container, schema) {
   const steerZoneId = `steer-zone-${Date.now()}`;
   container.innerHTML = `
     <div class="snake-controller-view">
-      <div class="snake-steer-zone">
+      <div class="snake-steer-zone" data-controller-layout-target="left">
         <div class="steer-rocker-cluster" id="${steerZoneId}">
           <button class="steer-rocker-btn left" id="btn-snake-left" data-steer="-1" type="button" aria-label="${escapeHtml(steerLeftLabel)}">
             <span class="steer-icon">${getTabletopIconSvg('arrow_left', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
@@ -766,7 +766,7 @@ function mountSteerBoost(gamepad, container, schema) {
           </button>
         </div>
       </div>
-      <div class="snake-boost-zone">
+      <div class="snake-boost-zone" data-controller-layout-target="right">
         <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" aria-label="${escapeHtml(t('pad.boost'))}" title="${escapeHtml(t('pad.boost'))}" style="background-color: ${schema.boostColor || gamepad.playerColor}">
           <span class="btn-action-icon">${getTabletopIconSvg(schema.boostIcon || 'zap', { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
         </button>
@@ -798,7 +798,7 @@ function mountSteerBoost(gamepad, container, schema) {
 
     if (desiredDir !== currentActiveDir) {
       currentActiveDir = desiredDir;
-      gamepad.network.sendInput({ action: schema.steerAction || 'SNAKE_STEER', dir: currentActiveDir });
+      gamepad.sendInput({ action: schema.steerAction || 'SNAKE_STEER', dir: currentActiveDir });
       if (currentActiveDir !== 0) gamepad.vibrate(15);
     }
   };
@@ -867,7 +867,7 @@ function mountSteerBoost(gamepad, container, schema) {
     boosting = true;
     btnBoost?.classList.add('active');
     if (btnBoost) btnBoost.style.filter = 'brightness(1.3)';
-    gamepad.network.sendInput({ action: schema.boostStartAction || 'SNAKE_BOOST' });
+    gamepad.sendInput({ action: schema.boostStartAction || 'SNAKE_BOOST' });
     gamepad.vibrate(20);
   };
 
@@ -877,7 +877,7 @@ function mountSteerBoost(gamepad, container, schema) {
     boosting = false;
     btnBoost?.classList.remove('active');
     if (btnBoost) btnBoost.style.filter = '';
-    gamepad.network.sendInput({ action: schema.boostEndAction || 'SNAKE_BOOST_RELEASE' });
+    gamepad.sendInput({ action: schema.boostEndAction || 'SNAKE_BOOST_RELEASE' });
   };
 
   btnBoost?.addEventListener('touchstart', startBoost, { passive: false });
@@ -905,12 +905,12 @@ function mountSteerBoost(gamepad, container, schema) {
     teardown() {
       if (currentActiveDir !== 0) {
         try {
-          gamepad.network.sendInput({ action: schema.steerAction || 'SNAKE_STEER', dir: 0 });
+          gamepad.sendInput({ action: schema.steerAction || 'SNAKE_STEER', dir: 0 });
         } catch {}
       }
       if (boosting) {
         try {
-          gamepad.network.sendInput({ action: schema.boostEndAction || 'SNAKE_BOOST_RELEASE' });
+          gamepad.sendInput({ action: schema.boostEndAction || 'SNAKE_BOOST_RELEASE' });
         } catch {}
       }
     }

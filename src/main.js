@@ -1425,6 +1425,7 @@ initPauseModal({
     showInstallToast(enabled ? t('toast.botsOn') : t('toast.botsOff'));
   },
   onControlsToggled: applyControlSurfacePreference,
+  onControllerLayout: openControllerLayoutFromPause,
 });
 
 // Menu Card Tap Listeners (buton id kuralı: btn-select-<lowercase mode>)
@@ -1616,11 +1617,28 @@ onFullscreenChange(updateQuickFullscreen);
 onLangChange(() => updateQuickFullscreen());
 addTapListener(btnQuickFullscreen, () => toggleFullscreen());
 
+function openControllerLayoutFromPause() {
+  const preferLocal = platformMode === 'LOCAL' || isLocalHost;
+  if (preferLocal) {
+    syncLocalMobileControls();
+    if (localGamepadManager.openControllerLayoutEditor()) return;
+  }
+  if (gamepadManager.openControllerLayoutEditor()) return;
+  showInstallToast(t('controllerLayout.unavailable'));
+}
+
 addTapListener(btnOpenOptions, () => {
+  const engine = getActiveGameEngine();
+  const localLayoutAvailable = (platformMode === 'LOCAL' || isLocalHost)
+    && getEffectiveLocalSurface(engine) === CONTROL_SURFACE.MOBILE
+    && getLocalControlSlot(engine) >= 0;
+  const remoteLayoutAvailable = !gamepadOverlay.classList.contains('hidden')
+    && gamepadManager.gameMode !== 'LOBBY';
   openPauseModal({
     currentMode,
     isHosting: activeNet().isHosting,
     onSwapCallback: handleSeatSwap,
+    controllerLayoutAvailable: localLayoutAvailable || remoteLayoutAvailable,
   });
 });
 

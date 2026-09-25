@@ -2,9 +2,24 @@
 // pass through this module so storage failures and migrations stay in one place.
 
 import { safeGet, safeSet } from './safeStorage.js';
+import {
+  DEFAULT_CONTROLLER_LAYOUT,
+  normalizeControllerLayout,
+} from './controllerLayout.js';
 
-export const PREFERENCES_VERSION = 1;
-export const PREFERENCES_STORAGE_KEY = 'brutalparty.preferences.v1';
+export {
+  CONTROLLER_LAYOUT_VERSION,
+  CONTROLLER_SIZE_MAX,
+  CONTROLLER_SIZE_MIN,
+  DEFAULT_CONTROLLER_LAYOUT,
+  normalizeControllerLayout,
+} from './controllerLayout.js';
+
+export const PREFERENCES_VERSION = 2;
+export const PREFERENCES_STORAGE_KEY = 'brutalparty.preferences.v2';
+export const LEGACY_PREFERENCES_STORAGE_KEYS = Object.freeze([
+  'brutalparty.preferences.v1',
+]);
 
 export const DEFAULT_PREFERENCES = Object.freeze({
   version: PREFERENCES_VERSION,
@@ -13,6 +28,7 @@ export const DEFAULT_PREFERENCES = Object.freeze({
   hapticsEnabled: true,
   pongInvert: 'auto',
   pongSensitivity: 1,
+  controllerLayout: DEFAULT_CONTROLLER_LAYOUT,
 });
 
 const listeners = new Set();
@@ -45,6 +61,7 @@ export function normalizePreferences(value = {}) {
     pongSensitivity: Number.isFinite(sensitivity)
       ? Math.round(clamp(sensitivity, 0.5, 1.5) * 100) / 100
       : DEFAULT_PREFERENCES.pongSensitivity,
+    controllerLayout: normalizeControllerLayout(source.controllerLayout),
   };
 }
 
@@ -57,31 +74,49 @@ function readLegacyControlSurface() {
   return null;
 }
 
+function parseStoredPreferences(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function readStoredPreferences() {
+  const current = parseStoredPreferences(safeGet(PREFERENCES_STORAGE_KEY));
+  if (current) return current;
+
+  for (const key of LEGACY_PREFERENCES_STORAGE_KEYS) {
+    const legacy = parseStoredPreferences(safeGet(key));
+    if (legacy) return legacy;
+  }
+
+  const legacySurface = readLegacyControlSurface();
+  return legacySurface ? { controlSurface: legacySurface } : {};
+}
+
 function loadPreferences() {
   if (cachedPreferences) return cachedPreferences;
 
-  let parsed = null;
-  try {
-    parsed = JSON.parse(safeGet(PREFERENCES_STORAGE_KEY) || 'null');
-  } catch {
-    parsed = null;
-  }
-
-  if (!parsed || parsed.version !== PREFERENCES_VERSION) {
-    const legacySurface = readLegacyControlSurface();
-    parsed = legacySurface ? { controlSurface: legacySurface } : {};
-  }
-
-  cachedPreferences = normalizePreferences(parsed);
+  // v1 and older records are normalized in place, preserving all known fields.
+  // Unknown/invalid records are also normalized rather than discarded.
+  cachedPreferences = normalizePreferences(readStoredPreferences());
   safeSet(PREFERENCES_STORAGE_KEY, JSON.stringify(cachedPreferences));
   return cachedPreferences;
 }
 
 export function getPreferences() {
-  return { ...loadPreferences() };
+  const current = loadPreferences();
+  return {
+    ...current,
+    controllerLayout: normalizeControllerLayout(current.controllerLayout),
+  };
 }
 
 export function getPreference(key) {
+  if (key === 'controllerLayout') return normalizeControllerLayout(loadPreferences().controllerLayout);
   return loadPreferences()[key];
 }
 
@@ -91,9 +126,20 @@ export function setPreference(key, value) {
   cachedPreferences = next;
   safeSet(PREFERENCES_STORAGE_KEY, JSON.stringify(next));
   for (const listener of listeners) {
-    try { listener(next); } catch {}
+    try { listener({ ...next, controllerLayout: normalizeControllerLayout(next.controllerLayout) }); } catch {}
   }
-  return { ...next };
+  return {
+    ...next,
+    controllerLayout: normalizeControllerLayout(next.controllerLayout),
+  };
+}
+
+export function getControllerLayout() {
+  return getPreference('controllerLayout');
+}
+
+export function setControllerLayout(value) {
+  return setPreference('controllerLayout', normalizeControllerLayout(value));
 }
 
 export function subscribePreferences(listener) {

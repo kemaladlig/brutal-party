@@ -259,8 +259,11 @@ export class BaseMiniGame {
   // Local Keyboard Input (4 Slots: WASD, Arrows, IJKL, TFGH)
   // ---------------------------------------------------------------------------
 
-  claimInputSource(source) {
-    const result = arbitrateInputSource(this.inputSource, source);
+  claimInputSource(source, options = {}) {
+    const allowAlongside = source === 'touch'
+      && !!options.point
+      && this.isTabletopAimPoint(options.point);
+    const result = arbitrateInputSource(this.inputSource, source, { allowAlongside });
     this.inputSource = result.current;
     return result.accepted;
   }
@@ -574,6 +577,26 @@ export class BaseMiniGame {
     return true;
   }
 
+  isTabletopAimPoint(touch) {
+    if (!touch || !['PLAYING', 'ROUND_PAUSE'].includes(this.state)) return false;
+    const schema = this.getTabletopSchema();
+    if (!schema?.aim || !shouldShowVirtualControls({
+      isHosting: !!this.suppressVirtualControls,
+      force: !!this.forceVirtualControls,
+    })) return false;
+    const players = this.getEntitiesList();
+    const corners = this.getTabletopControlCorners();
+    for (let i = 0; i < 4; i++) {
+      if (this.localControlSlot !== null && i !== this.localControlSlot) continue;
+      const player = players?.[i];
+      if (!player || !player.isJoined || player.isAlive === false || player.slotType !== 'human') continue;
+      const box = corners[i]?.aimBox;
+      if (box && touch.x >= box.x && touch.x <= box.x + box.w
+        && touch.y >= box.y && touch.y <= box.y + box.h) return true;
+    }
+    return false;
+  }
+
   getTabletopAimVector(aimBox, x, y) {
     if (!aimBox) return { dx: 0, dy: 0, angle: 0, force: 0 };
     const dx = x - aimBox.cx;
@@ -605,7 +628,7 @@ export class BaseMiniGame {
 
   handleTabletopTouchStart(touch) {
     if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state)) return false;
-    if (!this.claimInputSource('touch')) return false;
+    if (!this.claimInputSource('touch', { point: touch })) return false;
     const schema = this.getTabletopSchema();
     const players = this.getEntitiesList();
 

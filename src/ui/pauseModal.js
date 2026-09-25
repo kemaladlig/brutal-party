@@ -26,6 +26,7 @@ const btnToggleFullscreen = document.getElementById('btn-toggle-fullscreen');
 const btnToggleBots = document.getElementById('btn-toggle-bots');
 const btnToggleColorblind = document.getElementById('btn-toggle-colorblind');
 const btnToggleTouchControls = document.getElementById('btn-toggle-touch-controls');
+const btnControllerLayout = document.getElementById('btn-controller-layout');
 const btnExitToMenu = document.getElementById('btn-exit-to-menu');
 const btnPauseRotateSeats = document.getElementById('btn-pause-rotate-seats');
 
@@ -71,12 +72,21 @@ function setControlsSwitch(el) {
   if (badge) badge.textContent = mobile ? t('pause.on') : t('pause.off');
 }
 
+function refreshControllerLayoutButton() {
+  if (!btnControllerLayout) return;
+  const icon = btnControllerLayout.querySelector('[data-controller-layout-icon]');
+  if (icon) icon.innerHTML = getTabletopIconSvg('settings', { size: 16 });
+  btnControllerLayout.setAttribute('aria-label', t('controllerLayout.open'));
+  btnControllerLayout.setAttribute('title', t('controllerLayout.open'));
+}
+
 export function refreshPauseSwitches() {
   setSwitch(btnToggleSound, !getIsMuted());
   setSwitch(btnToggleFullscreen, isFullscreen());
   setSwitch(btnToggleBots, isBotEkleEnabled());
   setSwitch(btnToggleColorblind, isColorblindEnabled());
   setControlsSwitch(btnToggleTouchControls);
+  refreshControllerLayoutButton();
 }
 
 export function renderPauseSeats(onSwapCallback) {
@@ -138,11 +148,12 @@ export function renderPauseSeats(onSwapCallback) {
   });
 }
 
-export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
+export function openPauseModal({ currentMode, isHosting, onSwapCallback, controllerLayoutAvailable = true }) {
   if (currentMode === 'MENU') return;
   isPaused = true;
   lastSwapCallback = (typeof onSwapCallback === 'function') ? onSwapCallback : null;
   pauseModal?.classList.remove('hidden');
+  btnControllerLayout?.classList.toggle('hidden', !controllerLayoutAvailable);
 
   if (pauseGameTitle) {
     pauseGameTitle.textContent = CARTRIDGES[currentMode]?.title || currentMode;
@@ -183,6 +194,7 @@ export function initPauseModal({
   onTvLobby,
   onBotsToggled,
   onControlsToggled,
+  onControllerLayout,
 }) {
   btnResumeGame?.addEventListener('click', () => {
     closePauseModal(onResume);
@@ -240,6 +252,11 @@ export function initPauseModal({
     if (typeof onControlsToggled === 'function') {
       onControlsToggled(next);
     }
+  });
+
+  btnControllerLayout?.addEventListener('click', () => {
+    closePauseModal();
+    if (typeof onControllerLayout === 'function') onControllerLayout();
   });
 
   // Çıkış çift-bas onay (host odası kapanacağı için; misafir tek basışta çıkar)

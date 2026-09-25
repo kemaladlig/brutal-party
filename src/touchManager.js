@@ -114,7 +114,8 @@ export class TouchManager {
       startTime: performance.now(),
     };
     if (checkScoreboardPeekTap(touchData)) return;
-    if (this.activeHandler?.claimInputSource && !this.activeHandler.claimInputSource('touch')) return;
+    if (this.activeHandler?.claimInputSource
+      && !this.activeHandler.claimInputSource('touch', { point: touchData })) return;
     try { this.canvas.setPointerCapture?.(e.pointerId); } catch {}
     this.activeTouches.set(e.pointerId, touchData);
     this.addRipple(pos.x, pos.y);
@@ -170,7 +171,8 @@ export class TouchManager {
       if (checkScoreboardPeekTap(touchData)) {
         continue;
       }
-      if (this.activeHandler?.claimInputSource && !this.activeHandler.claimInputSource('touch')) {
+      if (this.activeHandler?.claimInputSource
+        && !this.activeHandler.claimInputSource('touch', { point: touchData })) {
         continue;
       }
 
@@ -242,7 +244,8 @@ export class TouchManager {
       return;
     }
 
-    if (this.activeHandler?.claimInputSource && !this.activeHandler.claimInputSource('touch')) {
+    if (this.activeHandler?.claimInputSource
+      && !this.activeHandler.claimInputSource('touch', { point: touchData })) {
       this.isMouseDown = false;
       return;
     }

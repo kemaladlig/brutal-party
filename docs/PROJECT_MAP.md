@@ -19,7 +19,7 @@ src/webrtcManager.js        Star P2C manager: peer Map, SDP/ICE kuyruğu, contro
 src/gamepad.js              Telefon kumandası: full-screen world canvas + overlay kontroller,
                             koltuk ızgarası, skor şeridi, ready yönetimi, dokunmatik girdiler
 src/controllers/
-  controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, STEER_BOOST) + PONG canlı skorbord/falso senkronu
+  controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, STEER_BOOST) + PONG canlı skorbord/falso senkronu; semantic layout target'ları
   gamepadInputAdapter.js   Transport'tan bağımsız 50ms analog throttle + dead-zone sınırı
   physicalGamepadAdapter.js Browser Gamepad API polling; touch/keyboard/pointer öncelikli ikincil kaynak
   gamepadShell.js         GamepadManager'dan ayrılmış stabil shell/presenter markup'ı
@@ -78,9 +78,10 @@ src/core/
   slotManager.js            Koltuk yönetimi: hostPlayerSlots (+avatar/displayColor), updateHostSlot,
                             syncSlotsToEngine, swapEngineSlots, getColorClashIndices (sert renk engeli)
   safeStorage.js            localStorage sarmalayıcı (JSON parse/try-catch tek nokta)
-  preferences.js            Versiyonlu cihaz tercihleri: controlSurface/audio/haptics/PONG ayarları + legacy migration
+  preferences.js            Versiyonlu cihaz tercihleri: controlSurface/audio/haptics/PONG + global controller layout + v1→v2 migration
+  controllerLayout.js       Saf cihaz-geneli kontrol yerleşimi: normalize, safe-frame fit, merkez koruması, minimum 44px, sol/sağ taşıma çözümü
   haptics.js                Tek haptik preference gate; tüm engine/controller vibration çağrıları buradan
-  inputSource.js            Saf keyboard/touch/pointer arbitration; aktif kaynak kilidi
+  inputSource.js            Saf keyboard/touch/pointer arbitration; hareket/aim kanalı coexistence bypass'ı
   controlDescriptor.js      phone/tabletop/network normalize kontrol sözleşmesi + parity doğrulaması
   inputIntent.js            Transport action → canonical engine intent projeksiyonu
   aimInput.js               Oyuncu başına canonical aim state: held/active/vector/sequence,
@@ -137,6 +138,7 @@ src/ui/
   toast.js                  PWA yükleme bildirimleri (showInstallToast, setupPwaInstallPrompt)
   menuManager.js            TV ana menü orkestrasyonu (bento kart, ayar/ses kısayolları)
   settingsModal.js          Ayarlar modalı (ses, haptik, kontrol yüzeyi auto/mobile/tabletop, PONG yönü/hassasiyet)
+  controllerLayoutEditor.js Cihaz-geneli kumanda düzen editörü: live preview, boyut, sol/sağ sürükleme, save/reset; remote + LOCAL ortak
   fullscreen.js             Tam ekran istek/yönetim (TV + kumanda)
 
 src/ai/
@@ -399,13 +401,20 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
  22. **Ergonomi ve dayanıklılık (Phase 4):**
      * Yatay kumanda yüzeyi safe-area + alt kontrol kuşağına taşınır; portrait oyunda görünür rotate gate aktif olur, lobby portrait kalır.
      * Canvas ve dinamik joystick Pointer Events + pointer capture kullanır; eski touch/mouse yolu fallback olarak korunur. Touch hedefleri en az 44px tutulur.
-     * `src/core/inputSource.js` keyboard/touch/pointer kaynak çakışmasını kilitler; visibility, blur, resize, orientation, pause ve mod değişimlerinde nötr input uygulanır.
+     * `src/core/inputSource.js` keyboard/touch/pointer kaynak çakışmasını kilitler; visibility, blur, resize, orientation, pause ve mod değişimlerinde nötr input uygulanır. Tabletop aim bu kilidi kanal bazlı bypass kullanır: WASD movement + touch aim aynı anda çalışabilir.
  23. **Bakım ve kontrol sözleşmesi (Phase 5):**
       * `src/core/controlDescriptor.js` phone/tabletop/network yüzeylerini aynı structural contract'a normalize eder; 15 oyunluk parity testi transport action, left intent ve action ID'lerini kilitler.
       * `src/core/inputIntent.js` transport packet'lerini değiştirmeden canonical `intent` alanı ekler; motorlar canonical intent'i okur, eski `action` alanı fallback olarak korunur.
       * ARCHER/HORDE/LASER `TWIN_STICK_ACTION` ile solda hareket, sağda `AIM_MOVE` + `AIM_PRESS`/`AIM_RELEASE` attack lifecycle'ı kullanır; ayrı Fire/Charge butonu yoktur. `src/core/aimInput.js` oyuncu başına held/active/vector/sequence state'ini ve stale/out-of-order guard'ını tutar; nötr dokunuş ateş üretmez, merkeze dönüş iptal sayılmaz, explicit touchcancel/build reset durdurur. ARCHER/LASER bırakışta ateşler, HORDE basılıyken ateş edip bırakışta durur; NINJA bu değişiklikten dışarıdadır.
       * `src/core/inputRouter.js` local/network adapter'larını aktif authoritative engine'e taşır; `GamepadManager` ve `BaseGame` yeni transport dalları taşımaz.
       * Yeni fiziksel gamepad API bu canonical intent sınırına ikincil adapter olarak bağlanacak; fiziksel cihaz varsayılan giriş yüzeyi olmayacak.
+
+  24. **Cihaz-geneli kontrol yerleşimi (2026):**
+       * `src/core/preferences.js` v2 kaydı `controllerLayout` profilini taşır; v1 preference kaydı ve eski control-surface değerleri merge edilerek korunur. `safeStorage.js` yazılamıyorsa profil yalnız session.memory'de yaşar.
+       * `src/core/controllerLayout.js` saf geometri motorudur: normalized sol/sağ `{x,y}`, %80–130 istek ölçeği, safe-area/header/HUD/alt kuşak çerçevesi, merkez oyun alanı koruması, 44px minimum ve overlap-free responsive fit uygular.
+       * `src/controllers/controllerTemplates.js` semantic `data-controller-layout-target="left|right"` işaretler; hedeflerin görsel ve hit-zone DOM parçası birlikte taşınır. Oyun moduna özel layout `if/else` zinciri yoktur.
+       * `src/ui/controllerLayoutEditor.js` remote phone ve LOCAL mobile yüzeylerde aynı canlı önizleme/size/drag/save/reset deneyimini sunar. Editör açıkken `GamepadManager` nötr input gönderir ve tüm input transport'unu bloklar; görsel hedeflerin hit-zone'ları editor arkasında kalmaz.
+       * Mobil controller shell yalnız ikon toolbar'ı ve skor şeridini korur; oyuncu/oda/HUD/kontrol rehberi metinleri üst bantları doldurmaz. Lobi yüzeyi ortak noktalı beyaz zemini kullanır; düzen düğmesi hem lobi profil kartında hem pause sheet'te bulunur.
 
 ---
 

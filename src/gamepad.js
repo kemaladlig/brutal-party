@@ -20,6 +20,17 @@ import { openCustomizeModal } from './ui/customizeModal.js';
 import { getTabletopIconSvg } from './core/tabletopIcons.js';
 import { GamepadWorldView } from './ui/gamepadWorldView.js';
 import { renderLocalGamepadShell, renderRemoteGamepadShell } from './ui/gamepadShell.js';
+import { openControllerLayoutEditor } from './ui/controllerLayoutEditor.js';
+import {
+  getControllerLayout,
+  setControllerLayout,
+  subscribePreferences,
+} from './core/preferences.js';
+import {
+  normalizeControllerLayout,
+  resolveControllerLayout,
+  CONTROLLER_MIN_TOUCH_TARGET,
+} from './core/controllerLayout.js';
 
 // Kumanda kayıt tablosu: tek kaynaktan (engineRegistry) beslenir
 const CONTROLLER_META = new Proxy({}, {
@@ -32,21 +43,23 @@ export class GamepadManager {
   constructor(overlayEl, network, { localMode = false } = {}) {
     this.overlay = overlayEl;
     this.network = network;
-    this.inputAdapter = new GamepadInputAdapter((data) => this.network.sendInput(data));
+    this.inputAdapter = new GamepadInputAdapter((data) => this.sendInput(data));
     this._aimSequence = 0;
     this._lastLocalInputAt = 0;
     this._windowFocused = true;
+    this._inputBlocked = false;
     this.physicalGamepad = new PhysicalGamepadAdapter({
       send: (data) => {
         if (data?.action === 'AIM_MOVE' || data?.action === 'AIM_PRESS' || data?.action === 'AIM_RELEASE') {
           this._sendAimInput(data);
         } else {
-          this.network.sendInput(data);
+          this.sendInput(data);
         }
       },
       getMode: () => this.gameMode,
       getDescriptor: () => getControlDescriptor(this.gameMode, CONTROLLER_META[this.gameMode]?.schema),
-      isBlocked: () => !this._windowFocused
+      isBlocked: () => this._inputBlocked
+        || !this._windowFocused
         || document.hidden
         || this.overlay.classList.contains('hidden')
         || performance.now() - this._lastLocalInputAt < 750,
@@ -101,11 +114,303 @@ export class GamepadManager {
     this._worldViewEnabled = false;
     this._pendingWorldFrame = null;
     this._guideMode = null;
+    this._activeLayoutRoot = null;
+    this._layoutSafeProbe = null;
+    this._layoutPreview = null;
+    this._layoutEditor = null;
+    this._layoutFrame = 0;
+    this._layoutResizeObserver = null;
+    this._unsubscribePreferences = subscribePreferences(() => {
+      this._scheduleControllerLayout();
+    });
   }
 
   // Güvenli ve merkezi Haptic Geri Bildirim
   vibrate(pattern) {
     triggerHaptic(pattern);
+  }
+
+  sendInput(data, { force = false } = {}) {
+    if (this._inputBlocked && !force) return false;
+    this.network.sendInput(data);
+    return true;
+  }
+
+  setInputBlocked(blocked) {
+    const next = !!blocked;
+    if (next === this._inputBlocked) return;
+    // Release before arming the gate so the authoritative engine does not
+    // retain a held stick/button while the editor is being manipulated.
+    this._sendNeutralForMode();
+    this._inputBlocked = next;
+    if (!next) this._sendNeutralForMode();
+  }
+
+  getControllerLayout() {
+    return getControllerLayout();
+  }
+
+  previewControllerLayout(value) {
+    const layout = normalizeControllerLayout(value);
+    this._layoutPreview = layout;
+    return this._applyControllerLayout(layout) || this._getFallbackControllerLayoutMetrics(layout);
+  }
+
+  saveControllerLayout(value) {
+    this._layoutPreview = null;
+    return setControllerLayout(value);
+  }
+
+  getControllerLayoutMetrics(value = this.getControllerLayout()) {
+    return this._resolveControllerLayout(value) || this._getFallbackControllerLayoutMetrics(value);
+  }
+
+  _setActiveLayoutRoot(root) {
+    this._activeLayoutRoot = root || null;
+    if (this._layoutResizeObserver) {
+      this._layoutResizeObserver.disconnect();
+      this._layoutResizeObserver = null;
+    }
+    if (root && typeof ResizeObserver !== 'undefined') {
+      this._layoutResizeObserver = new ResizeObserver(() => this._scheduleControllerLayout());
+      this._layoutResizeObserver.observe(root);
+    }
+  }
+
+  _readLayoutSafeInsets() {
+    let probe = this._layoutSafeProbe;
+    if (!probe?.isConnected) {
+      probe = document.createElement('div');
+      probe.className = 'controller-layout-safe-probe';
+      probe.setAttribute('aria-hidden', 'true');
+      this.overlay.appendChild(probe);
+      this._layoutSafeProbe = probe;
+    }
+    try {
+      const style = getComputedStyle(probe);
+      return {
+        top: Number.parseFloat(style.paddingTop) || 0,
+        right: Number.parseFloat(style.paddingRight) || 0,
+        bottom: Number.parseFloat(style.paddingBottom) || 0,
+        left: Number.parseFloat(style.paddingLeft) || 0,
+      };
+    } catch {
+      return { top: 0, right: 0, bottom: 0, left: 0 };
+    }
+  }
+
+  _measureControllerLayout() {
+    const root = this._activeLayoutRoot;
+    if (!root?.isConnected) return null;
+    const rootRect = root.getBoundingClientRect();
+    if (rootRect.width <= 0 || rootRect.height <= 0) return null;
+
+    const targets = [...root.querySelectorAll('[data-controller-layout-target]')];
+    if (targets.length === 0) return null;
+
+    root.classList.add('controller-layout-measuring');
+
+    // Measure the unflexed baseline. The current transform is represented by
+    // CSS variables, so resetting those variables is enough to restore it.
+    for (const target of targets) {
+      target.style.setProperty('--controller-layout-dx', '0px');
+      target.style.setProperty('--controller-layout-dy', '0px');
+      target.style.setProperty('--controller-layout-scale', '1');
+    }
+
+    const bySide = { left: [], right: [] };
+    for (const target of targets) {
+      const side = target.dataset.controllerLayoutTarget;
+      if (!bySide[side]) continue;
+      const rect = target.getBoundingClientRect();
+      bySide[side].push({
+        left: rect.left - rootRect.left,
+        top: rect.top - rootRect.top,
+        right: rect.right - rootRect.left,
+        bottom: rect.bottom - rootRect.top,
+        width: rect.width,
+        height: rect.height,
+      });
+    }
+
+    const union = (rects) => {
+      if (rects.length === 0) return null;
+      const left = Math.min(...rects.map((rect) => rect.left));
+      const top = Math.min(...rects.map((rect) => rect.top));
+      const right = Math.max(...rects.map((rect) => rect.right));
+      const bottom = Math.max(...rects.map((rect) => rect.bottom));
+      return { left, top, right, bottom, width: right - left, height: bottom - top };
+    };
+
+    const insets = this._readLayoutSafeInsets();
+    const frame = {
+      left: Math.max(0, insets.left),
+      top: Math.max(0, insets.top),
+      right: Math.max(0, rootRect.width - insets.right),
+      bottom: Math.max(0, rootRect.height - insets.bottom),
+    };
+
+    // LOCAL has a transparent canvas behind the DOM controls, so its HUD and
+    // guide are real obstacles. Remote roots already start below these bands;
+    // the intersection check keeps the same adapter valid in both surfaces.
+    const obstacles = this.overlay.querySelectorAll(
+      '.gamepad-header, .mobile-gamepad-toolbar, .gamepad-hud, .gamepad-control-guide:not([hidden]), .score-strip:not(.hidden)',
+    );
+    for (const obstacle of obstacles) {
+      const rect = obstacle.getBoundingClientRect();
+      const relativeTop = rect.top - rootRect.top;
+      const relativeBottom = rect.bottom - rootRect.top;
+      if (relativeBottom <= 0 || relativeTop >= rootRect.height) continue;
+      if (relativeTop < Math.min(180, rootRect.height * 0.4)) {
+        frame.top = Math.max(frame.top, relativeBottom);
+      }
+    }
+
+    const landscape = window.innerWidth >= window.innerHeight;
+    if (landscape) {
+      // Keep the established lower control belt clear of the world view.
+      frame.bottom = Math.min(frame.bottom, rootRect.height * 0.88);
+    }
+    frame.right = Math.max(frame.left, frame.right);
+    frame.bottom = Math.max(frame.top, frame.bottom);
+    root.classList.remove('controller-layout-measuring');
+
+    return {
+      root,
+      rootRect: {
+        left: rootRect.left,
+        top: rootRect.top,
+        width: rootRect.width,
+        height: rootRect.height,
+      },
+      targets,
+      groups: { left: union(bySide.left), right: union(bySide.right) },
+      frame,
+    };
+  }
+
+  _resolveControllerLayout(value) {
+    const measured = this._measureControllerLayout();
+    if (!measured) return null;
+    const resolved = resolveControllerLayout(normalizeControllerLayout(value), {
+      viewport: { width: measured.rootRect.width, height: measured.rootRect.height },
+      safeFrame: measured.frame,
+      groups: measured.groups,
+      minTouchTarget: CONTROLLER_MIN_TOUCH_TARGET,
+    });
+    return {
+      ...resolved,
+      targets: measured.targets,
+      rootRect: measured.rootRect,
+      safeFrameAbsolute: {
+        left: measured.rootRect.left + resolved.frame.left,
+        top: measured.rootRect.top + resolved.frame.top,
+        width: resolved.frame.width,
+        height: resolved.frame.height,
+        right: measured.rootRect.left + resolved.frame.right,
+        bottom: measured.rootRect.top + resolved.frame.bottom,
+      },
+    };
+  }
+
+  _getFallbackControllerLayoutMetrics(value) {
+    const overlayRect = this.overlay.getBoundingClientRect();
+    const width = Math.max(1, overlayRect.width);
+    const height = Math.max(1, overlayRect.height);
+    const insets = this._readLayoutSafeInsets();
+    const toolbar = this.overlay.querySelector('.gamepad-header, .mobile-gamepad-toolbar');
+    const toolbarRect = toolbar?.getBoundingClientRect();
+    const top = Math.min(
+      height * 0.8,
+      Math.max(insets.top, toolbarRect ? Math.max(0, toolbarRect.bottom - overlayRect.top) : 0),
+    );
+    const bottomInset = Math.max(insets.bottom, window.innerWidth >= window.innerHeight ? height * 0.12 : 0);
+    const frame = {
+      left: Math.min(insets.left, width * 0.25),
+      top,
+      right: Math.max(width - insets.right, width * 0.75),
+      bottom: Math.max(top, height - bottomInset),
+    };
+    const profile = normalizeControllerLayout(value);
+    const center = frame.left + frame.width / 2;
+    const centerGap = Math.max(24, Math.min(120, frame.width * 0.16));
+    const pointFor = (point) => ({
+      centerX: frame.left + point.x * frame.width,
+      centerY: frame.top + point.y * frame.height,
+      dx: 0,
+      dy: 0,
+      scale: profile.size,
+      width: 96,
+      height: 96,
+    });
+    return {
+      profile,
+      scale: profile.size,
+      frame,
+      center,
+      centerGap,
+      sides: {
+        left: pointFor(profile.left),
+        right: pointFor(profile.right),
+      },
+      rootRect: {
+        left: overlayRect.left,
+        top: overlayRect.top,
+        width,
+        height,
+      },
+      safeFrameAbsolute: {
+        left: overlayRect.left + frame.left,
+        top: overlayRect.top + frame.top,
+        right: overlayRect.left + frame.right,
+        bottom: overlayRect.top + frame.bottom,
+        width: frame.width,
+        height: frame.height,
+      },
+      previewOnly: true,
+    };
+  }
+
+  _applyControllerLayout(value) {
+    const metrics = this._resolveControllerLayout(value);
+    if (!metrics) return null;
+    for (const target of metrics.targets) {
+      const side = target.dataset.controllerLayoutTarget;
+      const result = metrics.sides[side];
+      if (!result) continue;
+      target.style.setProperty('--controller-layout-dx', `${result.dx}px`);
+      target.style.setProperty('--controller-layout-dy', `${result.dy}px`);
+      target.style.setProperty('--controller-layout-scale', String(result.scale));
+    }
+    return metrics;
+  }
+
+  _scheduleControllerLayout() {
+    if (this._layoutFrame || !this._activeLayoutRoot) return;
+    const schedule = typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+      ? window.requestAnimationFrame.bind(window)
+      : (callback) => setTimeout(callback, 0);
+    this._layoutFrame = schedule(() => {
+      this._layoutFrame = 0;
+      this._applyControllerLayout(this._layoutPreview || this.getControllerLayout());
+    });
+  }
+
+  _bindLayoutEditorButton() {
+    this.overlay.querySelectorAll('[data-controller-layout-open]').forEach((button) => {
+      button.addEventListener('click', () => {
+        this.openControllerLayoutEditor();
+      });
+    });
+  }
+
+  openControllerLayoutEditor() {
+    if (this.overlay.classList.contains('hidden')) return false;
+    if (!this._layoutEditor) {
+      this._layoutEditor = openControllerLayoutEditor(this);
+    }
+    this._layoutEditor.open();
+    return true;
   }
 
   // Screen Wake Lock API — kumanda açıkken telefon ekranının kararmasını / kapanmasını önler
@@ -143,13 +448,12 @@ export class GamepadManager {
     return this._aimSequence;
   }
 
-  _sendAimInput(data) {
+  _sendAimInput(data, { force = false } = {}) {
     if (!data || typeof data.action !== 'string') return false;
     if (data.action === 'AIM_PRESS') this.inputAdapter.resetAction?.('AIM_MOVE');
     const packet = { ...data };
     if (!Number.isInteger(packet.seq)) packet.seq = this._nextAimSequence();
-    this.network.sendInput(packet);
-    return true;
+    return this.sendInput(packet, { force });
   }
 
   _sendAnalog(data, opts) {
@@ -276,6 +580,7 @@ export class GamepadManager {
   // nötr paket gönder (zone innerHTML ile sökülmeden ÖNCE çağrılmalı)
   _teardownMount() {
     this._destroyWorldView();
+    this._setActiveLayoutRoot(null);
     if (this._activeController?.teardown) {
       try { this._activeController.teardown(); } catch {}
       this._activeController = null;
@@ -292,9 +597,9 @@ export class GamepadManager {
     try {
       for (const neutral of getNeutralInputs(this.gameMode)) {
         if (neutral.action === 'AIM_MOVE' || neutral.action === 'AIM_RELEASE') {
-          this._sendAimInput(neutral);
+          this._sendAimInput(neutral, { force: true });
         } else {
-          this.network.sendInput(neutral);
+          this.sendInput(neutral, { force: true });
         }
       }
     } catch {}
@@ -318,9 +623,13 @@ export class GamepadManager {
       if (!this.overlay.classList.contains('hidden')) this._sendNeutralForMode();
     };
     window.addEventListener('blur', neutralizeTransientInput);
-    window.addEventListener('orientationchange', neutralizeTransientInput);
+    window.addEventListener('orientationchange', () => {
+      neutralizeTransientInput();
+      setTimeout(() => this._scheduleControllerLayout(), 160);
+    });
     window.addEventListener('resize', () => {
       if (this.gameMode !== 'LOBBY') neutralizeTransientInput();
+      this._scheduleControllerLayout();
     });
   }
 
@@ -413,6 +722,7 @@ export class GamepadManager {
     this._bindBrowserLocks();
     this._bindVisibilityNeutral();
     this._bindOrientationGate();
+    this._bindLayoutEditorButton();
     this.renderGameController(gameMode);
     this.requestWakeLock();
   }
@@ -461,6 +771,8 @@ export class GamepadManager {
   }
 
   hide() {
+    if (this._layoutEditor?.isOpen) this._layoutEditor.close({ save: false });
+    else this.setInputBlocked(false);
     if (this.localMode) this._sendNeutralForMode();
     this.physicalGamepad.stop();
     this.releaseWakeLock();
@@ -481,6 +793,7 @@ export class GamepadManager {
       playerName: this.playerName,
       gameTag: initialGameTag,
       roomCode: this.network.roomCode,
+      showLayoutEditor: true,
     });
 
     this._mountOrientationGate();
@@ -511,6 +824,8 @@ export class GamepadManager {
         this.vibrate(20);
       });
     });
+
+    this._bindLayoutEditorButton();
   }
 
   toggleFullscreen() {
@@ -716,6 +1031,7 @@ export class GamepadManager {
     if (mode === 'LOBBY') {
       document.getElementById('score-strip')?.classList.add('hidden');
       this.mountLobbyController(workspace);
+      this._bindLayoutEditorButton();
     } else {
       const meta = CONTROLLER_META[mode] || {};
       const hasWorldView = !!meta.worldView && this.network.supportsWorldFrames === true;
@@ -739,9 +1055,12 @@ export class GamepadManager {
       } else {
         console.warn(`[GamepadManager] No controller schema defined for mode: ${mode}`);
       }
+      this._setActiveLayoutRoot(mountTarget);
     }
     this.renderControlGuide(mode);
     this._updateOrientationGate();
+    this._applyControllerLayout(this._layoutPreview || this.getControllerLayout());
+    this._layoutEditor?.refresh?.();
   }
 
   // Koltuk kartı: kocaman numara + koltuk rengi + isim/BOŞ.
@@ -793,7 +1112,7 @@ export class GamepadManager {
       btn.addEventListener('click', () => {
         const targetSlot = parseInt(btn.dataset.seat, 10);
         if (!this.canSwitchSlot(targetSlot)) return;
-        this.network.sendInput({ action: 'SWITCH_SLOT', targetSlot });
+        this.sendInput({ action: 'SWITCH_SLOT', targetSlot });
         this.vibrate(30);
       });
     });
@@ -850,6 +1169,7 @@ export class GamepadManager {
             <span class="lobby-profile-hint">${t('pad.charHint')}</span>
           </div>
           <button class="lobby-profile-edit-btn" id="btn-edit-character" type="button">✏️ ${t('pad.customize')}</button>
+        <button class="lobby-layout-btn" data-controller-layout-open type="button" data-i18n-aria="controllerLayout.open" aria-label="${escapeHtml(t('controllerLayout.open'))}" title="${escapeHtml(t('controllerLayout.open'))}">${getTabletopIconSvg('settings', { size: 16, color: '#141414', strokeWidth: 2.3 })}<span>${escapeHtml(t('controllerLayout.lobbyShort'))}</span></button>
         </div>
 
         <!-- 2. Selected Game Preview Pill -->
@@ -895,7 +1215,7 @@ export class GamepadManager {
       btn.addEventListener('click', () => {
         const targetSlot = parseInt(btn.dataset.seat, 10);
         if (!this.canSwitchSlot(targetSlot)) return;
-        this.network.sendInput({ action: 'SWITCH_SLOT', targetSlot });
+        this.sendInput({ action: 'SWITCH_SLOT', targetSlot });
         this.vibrate(30);
       });
     });
