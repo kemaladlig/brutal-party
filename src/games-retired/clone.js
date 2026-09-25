@@ -243,6 +243,7 @@ export class CloneGame extends BaseMiniGame {
 
   initNpcClones() {
     this.npcClones = [];
+    this.nextCloneId = 1;
     const joined = this.players.filter((p) => p.isJoined);
     if (!joined.length) return;
 
@@ -253,6 +254,7 @@ export class CloneGame extends BaseMiniGame {
         const angle = Math.random() * Math.PI * 2;
         const dist = 30 + Math.random() * 80;
         this.npcClones.push({
+          id: this.nextCloneId++,
           ownerIndex: p.index,
           color: p.color,
           x: this.arena.cx + Math.cos(angle) * dist,

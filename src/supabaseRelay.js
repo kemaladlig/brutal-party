@@ -551,11 +551,13 @@ export class SupabaseRelay {
   }
 
   // 30 Hz world frames are disposable full snapshots. They never fall back to
-  // Supabase and never share the reliable control channel.
+  // Supabase and never share the reliable control channel. `sentAt` lets the
+  // client presenter align the host's monotonic send cadence.
   broadcastWorldFrame(frame) {
     if (this.role !== 'HOST' || !this.supportsWorldFrames || !frame) return;
+    const sentAt = performance.now();
     this.webrtcManager?.broadcast?.(
-      { action: 'WORLD_FRAME', hostId: this.myId, ...frame },
+      { action: 'WORLD_FRAME', ...frame, hostId: this.myId, sentAt },
       'world'
     );
   }

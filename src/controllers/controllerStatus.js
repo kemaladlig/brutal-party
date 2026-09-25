@@ -110,9 +110,19 @@ const STATUS_BUILDERS = {
     }
     const roundWave = t('horde.roundWave', data.round || 1, data.wave || 1);
     const hp = Array.isArray(data.hp) ? Math.max(0, data.hp[i] ?? 0) : 0;
-    if (data.portal) return t('pad.hordePortal', data.scores.join('-'), roundWave, hp);
+    const weaponId = Array.isArray(data.weapons) ? (data.weapons[i] || 'SIDEARM') : 'SIDEARM';
+    const weapon = t(`horde.weapon.${weaponId}`);
+    const ammo = Array.isArray(data.ammo) ? data.ammo[i] : -1;
+    const magazine = Array.isArray(data.magazines) ? data.magazines[i] : ammo;
+    const reloading = Array.isArray(data.reloading) && data.reloading[i] === true;
+    let ammoText = '∞';
+    if (ammo >= 0) ammoText = reloading ? t('horde.reload') : `${ammo}/${magazine}`;
+    if (data.phase === 'armory') {
+      return t('pad.hordeArmory', data.scores.join('-'), data.nextRound || data.round || 1, weapon, Math.ceil(data.roundBreakTime || 0));
+    }
+    if (data.portal) return t('pad.hordePortal', data.scores.join('-'), roundWave, hp, `${weapon} ${ammoText}`);
     const enemies = Array.isArray(data.enemiesLeft) ? data.enemiesLeft[0] : (data.enemiesLeft || 0);
-    return t('pad.hordeStatus', data.scores.join('-'), roundWave, enemies, hp);
+    return t('pad.hordeStatus', data.scores.join('-'), roundWave, enemies, hp, `${weapon} ${ammoText}`);
   },
   RACE: (i, data) => {
     const time = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';

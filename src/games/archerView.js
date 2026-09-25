@@ -69,12 +69,13 @@ export function createArcherWorldPacket(game) {
       multi: Math.max(0, Number(p.multiShots) || 0),
       slip: round1(p.slipTimer || 0),
     })),
-    arrows: arrows.map((a) => [
+    arrows: arrows.map((a, index) => [
       round1(a.x),
       round1(a.y),
       round1(a.vx),
       round1(a.vy),
       typeof a.color === 'string' ? a.color : FALLBACK,
+      Number.isInteger(a.id) ? a.id : index + 1,
     ]),
     particles: particles.slice(0, 64).map((pt) => ({
       x: round1(pt.x),
@@ -105,7 +106,9 @@ export function isValidArcherWorldFrame(frame) {
   if (!Array.isArray(frame.pickups) || frame.pickups.length > 12) return false;
   if (!frame.pickups.every((pk) => Array.isArray(pk) && pk.length >= 3 && finite(pk[0]) && finite(pk[1]) && finite(pk[3]) && finite(pk[4]))) return false;
   if (!Array.isArray(frame.arrows) || frame.arrows.length > 64) return false;
-  if (!frame.arrows.every((a) => Array.isArray(a) && a.length >= 5 && finite(a[0]) && finite(a[1]) && finite(a[2]) && finite(a[3]) && typeof a[4] === 'string')) return false;
+  if (!frame.arrows.every((a) => Array.isArray(a)
+    && (a.length === 5 || (a.length === 6 && Number.isInteger(a[5]) && a[5] >= 0))
+    && finite(a[0]) && finite(a[1]) && finite(a[2]) && finite(a[3]) && typeof a[4] === 'string')) return false;
   if (!Array.isArray(frame.players) || frame.players.length > 4) return false;
   if (!Array.isArray(frame.particles) || frame.particles.length > 64) return false;
   if (!frame.particles.every((pt) => pt && finite(pt.x) && finite(pt.y) && finite(pt.radius) && finite(pt.alpha) && typeof pt.color === 'string')) return false;

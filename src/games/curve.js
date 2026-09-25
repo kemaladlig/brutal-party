@@ -60,6 +60,7 @@ export class CurveGame extends BaseMiniGame {
     // Players, Trail Segments, Particles & Pickups
     this.players = [];
     this.segments = [];
+    this.nextSegmentId = 1;
     this.particles = [];
     this.pickups = [];
     this.pickupSpawnTimer = 8.0;
@@ -214,6 +215,7 @@ export class CurveGame extends BaseMiniGame {
     this.roundId = 0;
     this.roundTimer = 0;
     this.segments = [];
+    this.nextSegmentId = 1;
     this.segGrid = new Map();
     this.segGridDirty = false;
     this.particles = [];
@@ -245,6 +247,7 @@ export class CurveGame extends BaseMiniGame {
   startRound() {
     this.state = 'PLAYING';
     this.segments = [];
+    this.nextSegmentId = 1;
     this.segGrid = new Map();
     this.segGridDirty = false;
     this.particles = [];
@@ -531,6 +534,7 @@ export class CurveGame extends BaseMiniGame {
 
         // Record Trail Segment (ızgaraya işlenir; emniyet supabı taşanı budar)
         const newSeg = {
+          id: this.nextSegmentId++,
           x1: player.prevX,
           y1: player.prevY,
           x2: player.x,

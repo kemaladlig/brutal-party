@@ -122,6 +122,12 @@ test('remote joystick, held fire and dash share the current input contract', () 
   assert.equal(player.remoteFireHeld, false);
   assert.equal(player.isAiming, false);
 
+  game.state = 'ROUND_PAUSE';
+  game.handleRemoteInput(0, { action: 'JOYSTICK_MOVE', dx: 0.5, dy: 0, angle: 0, force: 0.5 });
+  game.handleRemoteInput(0, { action: 'HORDE_FIRE' });
+  assert.equal(player.steerX, 0.5);
+  assert.equal(player.remoteFireHeld, false);
+
   game.state = 'LOBBY';
   game.handleRemoteInput(0, { action: 'HORDE_FIRE' });
   assert.equal(player.remoteFireHeld, false);
@@ -142,8 +148,104 @@ test('pickups apply heal, shield, speed and triple-shot effects', () => {
   assert.ok(player.tripleTimer > 0);
 });
 
+test('weapon fire, reload and melee use distinct host-authoritative rules', () => {
+  const game = setup();
+  const player = game.players[0];
+  game.obstacles = [];
+  game.enemies = [];
+  player.weaponId = 'RIFLE';
+  player.magazine = 5;
+  player.ammo = 5;
+  player.attackCooldown = 0;
+  const rifleTarget = game.createEnemy('tank', false, 1, false);
+  rifleTarget.spawnDelay = 0;
+  rifleTarget.x = player.x + 55;
+  rifleTarget.y = player.y;
+  game.enemies.push(rifleTarget);
+  player.angle = 0;
+  game.firePlayer(player);
+  assert.equal(game.projectiles.length, 1);
+  assert.equal(game.projectiles[0].damage, 3);
+  assert.equal(player.ammo, 4);
+
+  player.ammo = 0;
+  player.attackCooldown = 0;
+  game.projectiles = [];
+  game.firePlayer(player);
+  assert.equal(game.projectiles.length, 0);
+  assert.ok(player.reloadTimer > 0);
+
+  player.reloadTimer = 0;
+  player.weaponId = 'BLADE';
+  player.magazine = Infinity;
+  player.attackCooldown = 0;
+  const bladeTarget = game.createEnemy('chaser', false, 1, false);
+  bladeTarget.spawnDelay = 0;
+  bladeTarget.x = player.x + 42;
+  bladeTarget.y = player.y;
+  const beforeHp = bladeTarget.hp;
+  game.enemies.push(bladeTarget);
+  game.fireBlade(player, { damage: 4, fireInterval: 0.48, range: 78, arc: 1.45, knockback: 150 });
+  assert.ok(bladeTarget.hp < beforeHp);
+  assert.ok(player.weaponSwingTimer > 0);
+});
+
+test('armory upgrades alter survivability and reload behavior', () => {
+  const game = setup();
+  const player = game.players[0];
+  player.maxHp = 5;
+  player.hp = 3;
+  game.applyLoadoutUpgrade(player, 'ARMOR');
+  game.applyLoadoutUpgrade(player, 'QUICK_RELOAD');
+  assert.equal(player.maxHp, 6);
+  assert.equal(player.hp, 4);
+  assert.equal(player.upgrades.QUICK_RELOAD, 1);
+  player.weaponId = 'RIFLE';
+  player.reloadTimer = 0;
+  game.startReload(player);
+  assert.ok(player.reloadTimer < 1.55);
+});
+
+test('map cover blocks projectiles and bosses summon pressure adds', () => {
+  const coverGame = setup();
+  coverGame.obstacles = [{ x: 300, y: 180, w: 60, h: 240 }];
+  const target = coverGame.createEnemy('tank', false, 1, false);
+  target.spawnDelay = 0;
+  target.x = 390;
+  target.y = 300;
+  coverGame.enemies = [target];
+  coverGame.projectiles = [{
+    id: 1,
+    owner: 0,
+    isEnemy: false,
+    x: 200,
+    y: 300,
+    vx: 2000,
+    vy: 0,
+    radius: 6,
+    damage: 3,
+    life: 1,
+    color: '#D84727',
+  }];
+  coverGame.updateProjectiles(0.08);
+  assert.equal(coverGame.projectiles.length, 0);
+  assert.equal(target.hp, target.maxHp);
+
+  const bossGame = setup();
+  bossGame.round = 3;
+  bossGame.wave = 3;
+  bossGame.startWave();
+  const boss = bossGame.enemies.find((enemy) => enemy.type === 'chaser');
+  boss.hp = Math.ceil(boss.maxHp * 0.5);
+  const before = bossGame.enemies.length;
+  bossGame.maybeSummonBossAdds(boss);
+  assert.equal(bossGame.enemies.length, before + 2);
+  assert.ok(bossGame.enemies.slice(-2).every((enemy) => enemy.spawnDelay > 0));
+});
+
 test('a living player can revive a teammate and all-dead ends the match', () => {
   const reviveGame = setup();
+  reviveGame.wave = 3;
   reviveGame.enemies = [];
   const downed = reviveGame.players[0];
   const rescuer = reviveGame.players[1];
@@ -170,32 +272,78 @@ test('a living player can revive a teammate and all-dead ends the match', () => 
   assert.equal(lossGame.matchResult, 'loss');
 });
 
-test('portal completion advances waves and wins after the final boss wave', () => {
-  const advanceGame = setup();
-  advanceGame.enemies = [];
-  advanceGame.players[0].x = advanceGame.arena.cx;
-  advanceGame.players[0].y = advanceGame.arena.cy;
-  advanceGame.players[1].x = advanceGame.arena.cx;
-  advanceGame.players[1].y = advanceGame.arena.cy;
-  advanceGame.players.forEach((player) => { player.invulnTimer = 999; });
-  step(advanceGame, 3.2);
-  assert.equal(advanceGame.state, 'PLAYING');
-  assert.equal(advanceGame.wave, 2);
-  assert.ok(advanceGame.enemies.length > 0);
+test('portals appear only after round-three waves and open a new-map armory', () => {
+  const game = setup();
+  game.enemies = [];
+  step(game, 2.5);
+  assert.equal(game.wave, 2);
+  assert.equal(game.portal, null);
 
-  const winGame = setup();
-  winGame.round = 3;
-  winGame.wave = 3;
-  winGame.startWave();
-  assert.equal(winGame.isBossWave, true);
-  assert.deepEqual(new Set(winGame.enemies.map((enemy) => enemy.type)), new Set(['chaser', 'shooter', 'tank', 'healer']));
-  winGame.enemies = [];
-  winGame.players.forEach((player) => {
-    player.x = winGame.arena.cx;
-    player.y = winGame.arena.cy;
-    player.invulnTimer = 999;
-  });
-  step(winGame, 3.2);
-  assert.equal(winGame.state, 'MATCH_OVER');
-  assert.equal(winGame.matchResult, 'win');
+  game.enemies = [];
+  step(game, 2.5);
+  assert.equal(game.wave, 3);
+  assert.equal(game.portal, null);
+  assert.ok(game.enemies.length > 0);
+
+  game.round = 1;
+  game.wave = 3;
+  game.enemies = [];
+  step(game, 0.05);
+  assert.ok(game.portal);
+  assert.ok(game.portal.side >= 0 && game.portal.side <= 3);
+  const onEdge = game.portal.side === 0 ? game.portal.y < game.arena.cy
+    : game.portal.side === 1 ? game.portal.x > game.arena.cx
+      : game.portal.side === 2 ? game.portal.y > game.arena.cy
+        : game.portal.x < game.arena.cx;
+  assert.equal(onEdge, true);
+
+  for (const player of game.players.slice(0, 2)) {
+    player.x = game.portal.x;
+    player.y = game.portal.y;
+  }
+  step(game, 3.2);
+  assert.equal(game.state, 'ROUND_PAUSE');
+  assert.equal(game.nextRound, 2);
+  assert.equal(game.mapTheme, 'reactor');
+  assert.equal(game.createWorldPacket().theme, 'reactor');
+  assert.equal(game.loadoutCrates.length, 4);
+  assert.ok(game.players.slice(0, 2).every((player) => player.isAlive));
+});
+
+test('armory choices persist into the next round and final boss ends without a portal', () => {
+  const game = setup();
+  game.round = 1;
+  game.wave = 3;
+  game.enemies = [];
+  step(game, 0.05);
+  for (const player of game.players.slice(0, 2)) {
+    player.x = game.portal.x;
+    player.y = game.portal.y;
+  }
+  step(game, 3.2);
+
+  const rifle = game.loadoutCrates.find((crate) => crate.kind === 'weapon' && crate.weaponId === 'RIFLE') || game.loadoutCrates.find((crate) => crate.kind === 'weapon');
+  game.players[0].x = rifle.x;
+  game.players[0].y = rifle.y;
+  step(game, 0.1);
+  assert.ok(game.players[0].weaponId);
+  assert.notEqual(game.players[0].weaponId, 'SIDEARM');
+
+  game.roundBreakTimer = 0;
+  step(game, 0.1);
+  assert.equal(game.state, 'PLAYING');
+  assert.equal(game.round, 2);
+  assert.equal(game.wave, 1);
+  assert.equal(game.players[0].weaponId, rifle.weaponId);
+
+  game.round = 3;
+  game.wave = 3;
+  game.startWave();
+  assert.equal(game.isBossWave, true);
+  assert.deepEqual(new Set(game.enemies.map((enemy) => enemy.type)), new Set(['chaser', 'shooter', 'tank', 'healer']));
+  game.enemies = [];
+  step(game, 0.1);
+  assert.equal(game.state, 'MATCH_OVER');
+  assert.equal(game.matchResult, 'win');
+  assert.equal(game.portal, null);
 });

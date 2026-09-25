@@ -59,7 +59,8 @@ export function createCloneWorldPacket(game) {
       clones: (Array.isArray(game.npcClones) ? game.npcClones : [])
         .filter((c) => c.active !== false)
         .slice(0, 12)
-        .map((c) => ({
+        .map((c, index) => ({
+          id: Number.isInteger(c.id) ? c.id : (c.ownerIndex ?? 0) * 100 + index,
           owner: c.ownerIndex,
           x: round1(c.x),
           y: round1(c.y),
@@ -93,7 +94,8 @@ function isValidCloneExtra(frame) {
   if (!Array.isArray(frame.walls) || frame.walls.length > 24) return false;
   if (!frame.walls.every((r) => Array.isArray(r) && r.length === 4 && r.every(finite))) return false;
   if (!Array.isArray(frame.clones) || frame.clones.length > 12) return false;
-  if (!frame.clones.every((c) => c && Number.isInteger(c.owner) && c.owner >= 0 && c.owner <= 3
+  if (!frame.clones.every((c) => c && (c.id === undefined || (Number.isInteger(c.id) && c.id >= 0))
+    && Number.isInteger(c.owner) && c.owner >= 0 && c.owner <= 3
     && finite(c.x) && finite(c.y) && finite(c.angle) && finite(c.task)
     && typeof c.color === 'string')) return false;
   if (!Array.isArray(frame.texts) || frame.texts.length > 8) return false;

@@ -44,6 +44,7 @@ export class ArcherGame extends BaseMiniGame {
     this.roundsToWin = 2;
     this.players = [];
     this.arrows = [];
+    this.nextArrowId = 1;
     this.obstacles = [];
     this.particles = [];
     this.roundTime = ARCHER_ROUND_TIME;
@@ -168,6 +169,7 @@ export class ArcherGame extends BaseMiniGame {
     this.tieRounds = 0;
     this.roundTransitionTimer = 0;
     this.arrows = [];
+    this.nextArrowId = 1;
     this.particles = [];
     this.pickups = [];
     this.mapIndex = 0;
@@ -207,6 +209,7 @@ export class ArcherGame extends BaseMiniGame {
     this.roundTime = ARCHER_ROUND_TIME;
     this.roundTimer = ARCHER_ROUND_TIME;
     this.arrows = [];
+    this.nextArrowId = 1;
     this.particles = [];
     this.pickups = [];
     this.pickupTimer = 8.0;
@@ -276,6 +279,7 @@ export class ArcherGame extends BaseMiniGame {
       const spread = shots === 1 ? 0 : (s - 1) * 0.16;
       const ang = aim + spread;
       this.arrows.push({
+        id: this.nextArrowId++,
         x: player.x + Math.cos(ang) * (ARCHER_RADIUS + 6),
         y: player.y + Math.sin(ang) * (ARCHER_RADIUS + 6),
         vx: Math.cos(ang) * speed,

@@ -29,8 +29,11 @@ function makeGame() {
     state: 'PLAYING',
     roundId: 2,
     round: 2,
+    nextRound: 2,
     wave: 3,
     waveTimer: 41.5,
+    waveBreakTimer: 0,
+    roundBreakTimer: 0,
     waveTimedOut: false,
     isBossWave: false,
     matchResult: null,
@@ -47,6 +50,13 @@ function makeGame() {
       isJoined: index < 2,
       isAlive: index !== 1,
       hp: index === 1 ? 0 : 4,
+      maxHp: 5,
+      weaponId: index === 0 ? 'RIFLE' : 'SIDEARM',
+      magazine: index === 0 ? 5 : 12,
+      ammo: index === 0 ? 3 : 8,
+      reloadTimer: 0,
+      weaponSwingTimer: 0,
+      upgrades: {},
       dashCooldown: index * 0.5,
       dashTimer: 0,
       invulnTimer: index === 0 ? 0.2 : 0,
@@ -60,8 +70,8 @@ function makeGame() {
       pattern: 'SOLID',
     })),
     enemies: [
-      { id: 1, x: 500, y: 300, radius: 18, angle: 1, hp: 3, maxHp: 3, type: 'chaser', isBoss: false, hitTimer: 0 },
-      { id: 2, x: 600, y: 360, radius: 28, angle: 0, hp: 20, maxHp: 32, type: 'shooter', isBoss: true, hitTimer: 0.1 },
+      { id: 1, x: 500, y: 300, radius: 18, angle: 1, hp: 3, maxHp: 3, type: 'chaser', isBoss: false, elite: false, hitTimer: 0, spawnDelay: 0, attackTimer: 1, lungeTimer: 0 },
+      { id: 2, x: 600, y: 360, radius: 28, angle: 0, hp: 20, maxHp: 32, type: 'shooter', isBoss: true, elite: false, hitTimer: 0.1, spawnDelay: 0, attackTimer: 0.2, lungeTimer: 0 },
     ],
     projectiles: Array.from({ length: 70 }, (_, index) => ({
       id: index + 1,
@@ -73,9 +83,14 @@ function makeGame() {
       isEnemy: index % 2 === 0,
       color: index % 2 === 0 ? '#E63946' : '#D84727',
     })),
-    tombs: [{ x: 260, y: 340, ownerIndex: 1, timer: 1.5 }],
-    portal: { x: 400, y: 300, radius: 44, timer: 1.2 },
+    tombs: [{ x: 260, y: 340, ownerIndex: 1, timer: 1.5, reviveDuration: 3 }],
+    portal: { x: 400, y: 62, radius: 44, timer: 1.2, side: 0 },
+    obstacles: [{ x: 340, y: 180, w: 80, h: 40 }],
     pickups: [{ x: 500, y: 220, type: 'TRIPLE', animTime: 1.3, size: 30 }],
+    loadoutCrates: [
+      { id: 1, x: 350, y: 420, kind: 'weapon', weaponId: 'RIFLE', upgradeId: null, color: '#38BDF8', claimedBy: null },
+      { id: 2, x: 450, y: 420, kind: 'upgrade', weaponId: null, upgradeId: 'ARMOR', color: '#0891B2', claimedBy: 1 },
+    ],
     particles: [],
     floatingTexts: [{ x: 300, y: 200, text: '+3', alpha: 0.8, color: '#D84727' }],
   };
@@ -93,7 +108,11 @@ test('horde world packet is complete, monotonic and capped', () => {
     maxHp: 3,
     type: 'chaser',
     isBoss: false,
+    elite: index % 4 === 0,
     hitTimer: 0,
+    spawnDelay: 0,
+    attackTimer: 1,
+    lungeTimer: 0,
   }))];
   const first = createHordeWorldPacket(game);
   const second = createHordeWorldPacket(game);
@@ -104,8 +123,11 @@ test('horde world packet is complete, monotonic and capped', () => {
   assert.equal(first.bullets.length, HORDE_VIEW_LIMITS.bullets);
   assert.equal(first.enemies[1].boss, true);
   assert.equal(first.players[0].shield, true);
+  assert.equal(first.players[0].weapon, 'RIFLE');
   assert.deepEqual(first.tombs[0], [260, 340, 1, 0.5]);
-  assert.equal(first.portal.length, 4);
+  assert.equal(first.portal.length, 5);
+  assert.deepEqual(first.obstacles[0], [340, 180, 80, 40]);
+  assert.equal(first.loadoutCrates.length, 2);
   assert.ok(JSON.stringify(first).length < 24_000);
   assert.ok(isValidHordeWorldFrame({ action: 'WORLD_FRAME', ...first }));
 });
@@ -116,6 +138,9 @@ test('horde world validation rejects malformed entities and hostile counts', () 
   assert.equal(isValidHordeWorldFrame({ ...frame, mode: 'LASER' }), false);
   assert.equal(isValidHordeWorldFrame({ ...frame, enemies: [{ ...frame.enemies[0], hp: 1.5 }] }), false);
   assert.equal(isValidHordeWorldFrame({ ...frame, bullets: [[0, 0, 0]] }), false);
+  assert.equal(isValidHordeWorldFrame({ ...frame, obstacles: [[0, 0, 0]] }), false);
+  assert.equal(isValidHordeWorldFrame({ ...frame, loadoutCrates: [{ ...frame.loadoutCrates[0], weaponId: 'ROCKET' }] }), false);
+  assert.equal(isValidHordeWorldFrame({ ...frame, phase: 'STAGING' }), false);
   assert.equal(isValidHordeWorldFrame({ ...frame, round: 0 }), false);
   assert.equal(isValidHordeWorldFrame({ ...frame, matchResult: 'draw' }), false);
 });
@@ -135,6 +160,9 @@ test('client scene reconstruction keeps identity and render-only data separate',
   assert.equal(scene.enemies.length, 2);
   assert.equal(scene.bullets.length, HORDE_VIEW_LIMITS.bullets);
   assert.equal(scene.portal.progress, 0.4);
+  assert.equal(scene.portal.side, 0);
+  assert.equal(scene.obstacles.length, 1);
+  assert.equal(scene.loadoutCrates[0].weaponId, 'RIFLE');
   assert.equal(scene.pickups[0].type, 'TRIPLE');
   assert.equal(scene.texts[0].text, '+3');
 });

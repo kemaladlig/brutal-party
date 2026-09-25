@@ -1,6 +1,7 @@
 // BRUTAL HORDE bot AI: portal önceliği, güvenli revive, hedef seçimi ve doğru ateş zamanlaması.
 
 import { normalizeAngle } from '../core/physics2d.js';
+import { getPlayerWeapon } from '../games/hordeConfig.js';
 
 function distanceSq(ax, ay, bx, by) {
   const dx = ax - bx;
@@ -63,7 +64,9 @@ export function updateHordeBotAI(game, bot, dt) {
   const target = nearestEnemy(game, bot);
   const targetDistance = target ? Math.hypot(target.x - bot.x, target.y - bot.y) : Infinity;
 
-  if (target && targetDistance < 92 && bot.dashCooldown <= 0 && bot.dashTimer <= 0) {
+  const weapon = getPlayerWeapon(bot);
+  const dodgeDistance = weapon.kind === 'melee' ? 58 : 92;
+  if (target && targetDistance < dodgeDistance && bot.dashCooldown <= 0 && bot.dashTimer <= 0) {
     game.triggerDash(bot.index);
   }
 
@@ -107,22 +110,23 @@ export function updateHordeBotAI(game, bot, dt) {
   let mx;
   let my;
 
-  const ranged = target.type === 'shooter' || target.type === 'healer';
-  if (ranged && distance < 185) {
-    mx = -nx;
-    my = -ny;
-  } else if (ranged && distance > 290) {
+  const rangedWeapon = weapon.kind === 'gun';
+  const desiredRange = weapon.kind === 'melee' ? 58 : weapon.id === 'SHOTGUN' ? 125 : weapon.id === 'SMG' ? 185 : 245;
+  if (rangedWeapon && distance < desiredRange * 0.72) {
+    mx = -nx * 0.7 - ny * 0.45 * bot.botStrafeDir;
+    my = -ny * 0.7 + nx * 0.45 * bot.botStrafeDir;
+  } else if (rangedWeapon && distance > desiredRange * 1.2) {
     mx = nx;
     my = ny;
-  } else if (!ranged && distance > 235) {
+  } else if (!rangedWeapon && distance > desiredRange) {
     mx = nx;
     my = ny;
-  } else if (!ranged && distance < 105) {
-    mx = -nx * 0.45 - ny * 0.8 * bot.botStrafeDir;
-    my = -ny * 0.45 + nx * 0.8 * bot.botStrafeDir;
+  } else if (!rangedWeapon && distance < desiredRange * 0.55) {
+    mx = -nx * 0.3 - ny * 0.9 * bot.botStrafeDir;
+    my = -ny * 0.3 + nx * 0.9 * bot.botStrafeDir;
   } else {
-    mx = nx * 0.32 - ny * 0.9 * bot.botStrafeDir;
-    my = ny * 0.32 + nx * 0.9 * bot.botStrafeDir;
+    mx = nx * 0.25 - ny * 0.9 * bot.botStrafeDir;
+    my = ny * 0.25 + nx * 0.9 * bot.botStrafeDir;
   }
 
   const magnitude = Math.hypot(mx, my) || 1;

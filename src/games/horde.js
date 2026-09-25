@@ -1,16 +1,36 @@
 // BRUTAL HORDE — 1-4 oyunculu takım hayatta-kalma oyunu.
 // Host authority: fizik, AI, wave ve terminal durumlar yalnız bu motorda ilerler.
 
-import { playDashWhoosh, playExplosion, playJoin, playShoot, playStart, playStumble } from '../audio.js';
+import { playDashWhoosh, playExplosion, playJoin, playPaddleHit, playShoot, playStart, playStumble } from '../audio.js';
 import { t } from '../i18n.js';
 import { getBotPersona, getSlotCustomization } from '../core/customizationManager.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { buildLayout } from '../core/arenaKit.js';
 import { getSecondActionKey, readSlotKeys } from '../core/inputMaps.js';
-import { clampToArena, getProjectileSubsteps, normalizeAngle, segmentCircleIntersection } from '../core/physics2d.js';
+import {
+  clampToArena,
+  getProjectileSubsteps,
+  normalizeAngle,
+  pointBlocked,
+  resolveAABB,
+  segmentAabbIntersection,
+  segmentCircleIntersection,
+} from '../core/physics2d.js';
 import { createPlayer, tickEffectTimers } from '../core/playerEntity.js';
 import { collectPickups, spawnPickup, tickPickupTimers } from '../core/pickupSystem.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { updateHordeBotAI } from '../ai/hordeAI.js';
+import {
+  HORDE_ARMORY_WEAPONS,
+  HORDE_UPGRADES,
+  HORDE_UPGRADE_IDS,
+  getDashCooldown,
+  getHordeMap,
+  getPickupMagnet,
+  getPlayerWeapon,
+  getReloadTime,
+  getReviveDuration,
+} from './hordeConfig.js';
 import {
   HORDE_VIEW_LIMITS,
   createHordeWorldPacket,
@@ -29,10 +49,6 @@ export const HORDE_TUNING = Object.freeze({
   PLAYER_RADIUS: 16,
   MOVE_SPEED: 190,
   FAST_MULT: 1.42,
-  FIRE_INTERVAL: 0.28,
-  SHOT_SPEED: 520,
-  SHOT_DAMAGE: 1,
-  SHOT_LIFE: 1.35,
   ENEMY_SHOT_SPEED: 270,
   DASH_TIME: 0.24,
   DASH_SPEED_MULT: 2.65,
@@ -44,6 +60,9 @@ export const HORDE_TUNING = Object.freeze({
   PORTAL_TIME: 3,
   PORTAL_RADIUS: 44,
   WAVE_LIMIT: 90,
+  WAVE_BREAK_TIME: 2.4,
+  ROUND_BREAK_TIME: 15,
+  LOADOUT_RADIUS: 34,
   PICKUP_EVERY: 10,
   PICKUP_MAX: 3,
   MAX_ENEMIES: HORDE_VIEW_LIMITS.enemies,
@@ -58,10 +77,10 @@ const ENEMY_BASE = Object.freeze({
 });
 
 const BOSS_BASE = Object.freeze({
-  chaser: { hp: 45, radius: 32, speed: 104, damage: 2, attackEvery: 0.8 },
-  shooter: { hp: 32, radius: 28, speed: 76, damage: 2, attackEvery: 1.15 },
-  tank: { hp: 70, radius: 39, speed: 40, damage: 3, attackEvery: 1.45 },
-  healer: { hp: 40, radius: 31, speed: 66, damage: 1, attackEvery: 2.6 },
+  chaser: { hp: 42, radius: 32, speed: 104, damage: 2, attackEvery: 0.8 },
+  shooter: { hp: 30, radius: 28, speed: 76, damage: 2, attackEvery: 1.15 },
+  tank: { hp: 62, radius: 39, speed: 40, damage: 3, attackEvery: 1.45 },
+  healer: { hp: 36, radius: 31, speed: 66, damage: 1, attackEvery: 2.6 },
 });
 
 function isBot(player) {
@@ -85,6 +104,8 @@ export class HordeGame extends BaseMiniGame {
     this.projectiles = [];
     this.pickups = [];
     this.tombs = [];
+    this.obstacles = [];
+    this.loadoutCrates = [];
     this.particles = [];
     this.floatingTexts = [];
     this.portal = null;
@@ -93,6 +114,10 @@ export class HordeGame extends BaseMiniGame {
     this.wave = 1;
     this.roundId = 0;
     this.waveTimer = HORDE_TUNING.WAVE_LIMIT;
+    this.waveBreakTimer = 0;
+    this.roundBreakTimer = 0;
+    this.nextRound = 1;
+    this.mapTheme = getHordeMap(1).id;
     this.waveTimedOut = false;
     this.isBossWave = false;
     this.pickupTimer = HORDE_TUNING.PICKUP_EVERY;
@@ -103,6 +128,7 @@ export class HordeGame extends BaseMiniGame {
     this.lastTime = performance.now();
     this._nextEnemyId = 1;
     this._nextProjectileId = 1;
+    this._nextLoadoutId = 1;
 
     this.initPlayers();
     this.bindStandardKeyboard();
@@ -146,7 +172,15 @@ export class HordeGame extends BaseMiniGame {
       });
       player.name = existing?.name || (bot ? persona.name : `P${index + 1}`);
       player.color = bot ? persona.color : (existing?.color || custom.color || HORDE_COLORS[index]);
-      player.hp = HORDE_TUNING.MAX_HP;
+      player.maxHp = HORDE_TUNING.MAX_HP;
+      player.hp = player.maxHp;
+      player.weaponId = 'SIDEARM';
+      player.magazine = getPlayerWeapon(player).magazine;
+      player.ammo = player.magazine;
+      player.reloadTimer = 0;
+      player.weaponSwingTimer = 0;
+      player.upgrades = {};
+      player.loadoutChoiceCrateId = null;
       player.steerX = 0;
       player.steerY = 0;
       player.targetAngle = spawn.angle;
@@ -177,6 +211,7 @@ export class HordeGame extends BaseMiniGame {
   resize(width, height) {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
+    const oldObstacles = (this.obstacles || []).map((obstacle) => ({ ...obstacle }));
     const marginX = Math.max(16, Math.floor(width * 0.04));
     const marginY = height > width ? Math.max(54, Math.floor(height * 0.12)) : Math.max(34, Math.floor(height * 0.07));
     const arenaWidth = Math.max(120, width - marginX * 2);
@@ -192,6 +227,16 @@ export class HordeGame extends BaseMiniGame {
       top: marginY,
       bottom: marginY + arenaHeight,
     };
+    this.buildMap();
+
+    if (oldArena.width > 0 && oldObstacles.length === this.obstacles.length) {
+      this.obstacles = this.obstacles.map((obstacle, index) => {
+        const old = oldObstacles[index];
+        const mapped = { x: obstacle.x, y: obstacle.y, w: obstacle.w, h: obstacle.h };
+        this.remapPoint(mapped, oldArena, this.arena);
+        return mapped;
+      });
+    }
 
     if (this.state === 'LOBBY' || this.players.length === 0) {
       this.initPlayers();
@@ -201,10 +246,12 @@ export class HordeGame extends BaseMiniGame {
     for (const player of this.players) {
       this.remapPoint(player, oldArena, this.arena);
       clampToArena(player, player.radius, this.arena);
+      resolveAABB(player, this.obstacles, player.radius);
     }
     for (const enemy of this.enemies) {
       this.remapPoint(enemy, oldArena, this.arena);
       clampToArena(enemy, enemy.radius, this.arena);
+      resolveAABB(enemy, this.obstacles, enemy.radius);
     }
     for (const projectile of this.projectiles) {
       this.remapPoint(projectile, oldArena, this.arena);
@@ -214,6 +261,7 @@ export class HordeGame extends BaseMiniGame {
       this.remapPoint(pickup, oldArena, this.arena);
       clampToArena(pickup, pickup.radius || 15, this.arena);
     }
+    for (const crate of this.loadoutCrates) this.remapPoint(crate, oldArena, this.arena);
     for (const tomb of this.tombs) {
       this.remapPoint(tomb, oldArena, this.arena);
     }
@@ -224,6 +272,12 @@ export class HordeGame extends BaseMiniGame {
     }
   }
 
+  buildMap(round = this.round) {
+    const map = getHordeMap(round);
+    this.mapTheme = map.id;
+    this.obstacles = this.arena.size > 0 ? buildLayout(map.layout, this.arena) : [];
+  }
+
   resetMatch() {
     this.state = 'LOBBY';
     this.scores = [0, 0, 0, 0];
@@ -231,6 +285,10 @@ export class HordeGame extends BaseMiniGame {
     this.wave = 1;
     this.roundId = 0;
     this.waveTimer = HORDE_TUNING.WAVE_LIMIT;
+    this.waveBreakTimer = 0;
+    this.roundBreakTimer = 0;
+    this.nextRound = 1;
+    this.mapTheme = getHordeMap(1).id;
     this.waveTimedOut = false;
     this.isBossWave = false;
     this.pickupTimer = HORDE_TUNING.PICKUP_EVERY;
@@ -242,11 +300,14 @@ export class HordeGame extends BaseMiniGame {
     this.projectiles = [];
     this.pickups = [];
     this.tombs = [];
+    this.buildMap(1);
+    this.loadoutCrates = [];
     this.particles = [];
     this.floatingTexts = [];
     this.portal = null;
     this._nextEnemyId = 1;
     this._nextProjectileId = 1;
+    this._nextLoadoutId = 1;
     this.onTouchesReset();
     this.initPlayers();
     this.lastTime = performance.now();
@@ -271,6 +332,11 @@ export class HordeGame extends BaseMiniGame {
     this.roundWinner = null;
     this.matchDraw = false;
     this.tombs = [];
+    this.loadoutCrates = [];
+    this.nextRound = 1;
+    this.waveBreakTimer = 0;
+    this.roundBreakTimer = 0;
+    this.buildMap(1);
     this.onTouchesReset();
     this.resetPlayersForMatch();
     this.startNewRound();
@@ -292,6 +358,10 @@ export class HordeGame extends BaseMiniGame {
     this.pickups = [];
     this.portal = null;
     this.waveTimer = HORDE_TUNING.WAVE_LIMIT;
+    this.waveBreakTimer = 0;
+    this.roundBreakTimer = 0;
+    this.nextRound = this.round;
+    this.mapTheme = getHordeMap(this.round).id;
     this.waveTimedOut = false;
     this.pickupTimer = HORDE_TUNING.PICKUP_EVERY;
     this.isBossWave = this.round === HORDE_TUNING.ROUNDS && this.wave === HORDE_TUNING.WAVES_PER_ROUND;
@@ -308,7 +378,15 @@ export class HordeGame extends BaseMiniGame {
       player.steerX = 0;
       player.steerY = 0;
       player.isAlive = player.isJoined;
-      player.hp = HORDE_TUNING.MAX_HP;
+      player.maxHp = HORDE_TUNING.MAX_HP;
+      player.hp = player.maxHp;
+      player.weaponId = 'SIDEARM';
+      player.magazine = getPlayerWeapon(player).magazine;
+      player.ammo = player.magazine;
+      player.reloadTimer = 0;
+      player.weaponSwingTimer = 0;
+      player.upgrades = {};
+      player.loadoutChoiceCrateId = null;
       player.invulnTimer = player.isJoined ? HORDE_TUNING.SPAWN_PROTECT : 0;
       player.spawnProt = 0;
       player.dashCooldown = 0;
@@ -338,51 +416,69 @@ export class HordeGame extends BaseMiniGame {
   spawnWave() {
     const playerCount = Math.max(1, this.players.filter((player) => player.isJoined).length);
     if (this.isBossWave) {
-      for (const type of ['chaser', 'shooter', 'tank', 'healer']) {
-        const enemy = this.createEnemy(type, true, playerCount);
+      ['chaser', 'shooter', 'tank', 'healer'].forEach((type, index) => {
+        const enemy = this.createEnemy(type, true, playerCount, false);
         const point = this.randomEdgePoint(enemy.radius + 8);
         enemy.x = point.x;
         enemy.y = point.y;
+        enemy.spawnDelay = 0.45 + index * 0.16;
         this.enemies.push(enemy);
-      }
+      });
       return;
     }
 
     const rawCount = (this.wave + this.round * 2) * playerCount;
     const count = Math.min(HORDE_TUNING.MAX_ENEMIES, rawCount);
+    const tankChance = this.round === 1 ? [0.04, 0.10, 0.20][this.wave - 1] : [0.18, 0.26, 0.32][this.wave - 1];
+    const shooterChance = 0.26 + this.round * 0.025;
+    const healerChance = this.round === 3 && this.wave >= 2 ? 0.08 : 0;
+    const eliteChance = [0.02, 0.06, 0.12, 0.16, 0.22, 0.28, 0.32, 0.38, 0.44][(this.round - 1) * 3 + this.wave - 1];
     for (let i = 0; i < count; i++) {
       const roll = Math.random();
-      const type = roll < 0.3 ? 'shooter' : roll < 0.52 ? 'tank' : 'chaser';
-      const enemy = this.createEnemy(type, false, playerCount);
+      let type = 'chaser';
+      if (roll < healerChance) type = 'healer';
+      else if (roll < healerChance + tankChance) type = 'tank';
+      else if (roll < healerChance + tankChance + shooterChance) type = 'shooter';
+      const elite = Math.random() < eliteChance;
+      const enemy = this.createEnemy(type, false, playerCount, elite);
       const point = this.randomEdgePoint(enemy.radius + 8);
       enemy.x = point.x;
       enemy.y = point.y;
+      enemy.spawnDelay = 0.35 + (i % 5) * 0.14 + Math.random() * 0.18;
       this.enemies.push(enemy);
     }
   }
 
-  createEnemy(type, boss, playerCount) {
+  createEnemy(type, boss, playerCount, elite = false) {
     const base = boss ? BOSS_BASE[type] : ENEMY_BASE[type];
     const hpScale = boss ? 1 + Math.max(0, playerCount - 1) * 0.18 : 1 + Math.max(0, playerCount - 1) * 0.12;
-    const hp = Math.max(1, Math.round(base.hp * hpScale));
+    const eliteHp = elite ? 1.75 : 1;
+    const hp = Math.max(1, Math.round(base.hp * hpScale * eliteHp));
     return {
       id: this._nextEnemyId++,
       type,
       isBoss: boss,
+      elite,
       x: this.arena.cx,
       y: this.arena.cy,
       vx: 0,
       vy: 0,
-      radius: base.radius,
-      speed: base.speed,
+      radius: base.radius * (elite ? 1.12 : 1),
+      speed: base.speed * (elite ? 1.08 : 1),
       hp,
       maxHp: hp,
-      damage: base.damage,
-      attackEvery: base.attackEvery,
+      damage: base.damage + (elite && base.damage > 0 ? 1 : 0),
+      attackEvery: base.attackEvery * (elite ? 0.9 : 1),
       attackTimer: 0.45 + Math.random() * base.attackEvery,
-      healTimer: boss && type === 'healer' ? 1.5 : Infinity,
+      healTimer: type === 'healer' ? (boss ? 1.5 : 4.5) : Infinity,
       angle: 0,
       hitTimer: 0,
+      spawnDelay: boss ? 0.5 : 0.4,
+      lungeTimer: 0,
+      lungeCooldown: 0.8 + Math.random() * 1.4,
+      avoidDir: Math.random() < 0.5 ? -1 : 1,
+      summonThresholds: boss ? [0.55, 0.3] : [],
+      summonIndex: 0,
     };
   }
 
@@ -398,9 +494,9 @@ export class HordeGame extends BaseMiniGame {
     else if (side === 2) point = { x: minX + Math.random() * (maxX - minX), y: maxY };
     else point = { x: minX, y: minY + Math.random() * (maxY - minY) };
 
-    for (let attempt = 0; attempt < 6; attempt++) {
+    for (let attempt = 0; attempt < 10; attempt++) {
       const tooClose = this.players.some((player) => player.isJoined && distanceSq(player.x, player.y, point.x, point.y) < 150 * 150);
-      if (!tooClose) break;
+      if (!tooClose && !pointBlocked(point.x, point.y, this.obstacles, margin * 0.65)) break;
       point.x = this.arena.left + margin + Math.random() * Math.max(1, this.arena.width - margin * 2);
       point.y = this.arena.top + margin + Math.random() * Math.max(1, this.arena.height - margin * 2);
     }
@@ -416,6 +512,11 @@ export class HordeGame extends BaseMiniGame {
     const dt = Math.max(0, Math.min((timestamp - this.lastTime) / 1000, 0.08));
     this.lastTime = timestamp;
     this.updateTrauma(dt);
+
+    if (this.state === 'ROUND_PAUSE') {
+      this.updateRoundBreak(dt);
+      return;
+    }
     if (this.state !== 'PLAYING') return;
 
     let alivePlayers = this.alivePlayers;
@@ -438,42 +539,14 @@ export class HordeGame extends BaseMiniGame {
       spawnPickup(this, {
         types: ['HEAL', 'SHIELD', 'FAST', 'TRIPLE'],
         max: HORDE_TUNING.PICKUP_MAX,
+        obstacles: this.obstacles,
         size: 30,
         pad: 24,
       });
     }
     tickPickupTimers(this, dt);
 
-    for (const player of this.players) {
-      if (!player.isJoined) continue;
-      tickEffectTimers(player, dt);
-      if (player.attackCooldown > 0) player.attackCooldown = Math.max(0, player.attackCooldown - dt);
-      if (!player.isAlive) {
-        player.steerX = 0;
-        player.steerY = 0;
-        player.isAiming = false;
-        continue;
-      }
-
-      if (isBot(player)) updateHordeBotAI(this, player, dt);
-      else this.updateHumanInput(player, dt);
-
-      const angleDiff = normalizeAngle((player.targetAngle || 0) - player.angle);
-      player.angle += angleDiff * Math.min(1, dt * 16);
-      if (player.isAiming && player.attackCooldown <= 0) this.firePlayer(player);
-
-      const speed = HORDE_TUNING.MOVE_SPEED
-        * (player.fastTimer > 0 ? HORDE_TUNING.FAST_MULT : 1)
-        * (player.dashTimer > 0 ? HORDE_TUNING.DASH_SPEED_MULT : 1);
-      player.x += player.steerX * speed * dt;
-      player.y += player.steerY * speed * dt;
-      clampToArena(player, player.radius, this.arena);
-
-      collectPickups(this, player, {
-        radiusOf: () => player.radius,
-        onCollect: (game, collector, pickup) => this.applyPickup(collector, pickup),
-      });
-    }
+    for (const player of this.players) this.updatePlayer(player, dt, true);
 
     alivePlayers = this.alivePlayers;
     if (alivePlayers.length === 0) {
@@ -491,7 +564,65 @@ export class HordeGame extends BaseMiniGame {
     this.updateEffects(dt);
   }
 
-  updateHumanInput(player, dt) {
+  updatePlayer(player, dt, allowFire) {
+    if (!player?.isJoined) return;
+    tickEffectTimers(player, dt);
+    this.updatePlayerWeapon(player, dt);
+    if (player.attackCooldown > 0) player.attackCooldown = Math.max(0, player.attackCooldown - dt);
+    if (!player.isAlive) {
+      player.steerX = 0;
+      player.steerY = 0;
+      player.isAiming = false;
+      return;
+    }
+
+    if (isBot(player)) updateHordeBotAI(this, player, dt);
+    else this.updateHumanInput(player, dt, allowFire);
+
+    const angleDiff = normalizeAngle((player.targetAngle || 0) - player.angle);
+    player.angle += angleDiff * Math.min(1, dt * 16);
+    if (allowFire && player.isAiming && player.attackCooldown <= 0) this.firePlayer(player);
+
+    const speed = HORDE_TUNING.MOVE_SPEED
+      * (player.fastTimer > 0 ? HORDE_TUNING.FAST_MULT : 1)
+      * (player.dashTimer > 0 ? HORDE_TUNING.DASH_SPEED_MULT : 1);
+    player.x += player.steerX * speed * dt;
+    player.y += player.steerY * speed * dt;
+    clampToArena(player, player.radius, this.arena);
+    resolveAABB(player, this.obstacles, player.radius);
+
+    const magnet = getPickupMagnet(player);
+    collectPickups(this, player, {
+      radiusOf: () => player.radius * magnet,
+      onCollect: (game, collector, pickup) => this.applyPickup(collector, pickup),
+    });
+    if (this.state === 'ROUND_PAUSE') this.tryClaimLoadout(player);
+  }
+
+  updateRoundBreak(dt) {
+    if (this.alivePlayers.length === 0) {
+      this.endMatch(false, 'all-dead');
+      return;
+    }
+    this.roundBreakTimer = Math.max(0, this.roundBreakTimer - dt);
+    this.roundBreakElapsed = (Number(this.roundBreakElapsed) || 0) + dt;
+    for (const player of this.players) {
+      if (isBot(player) && player.isAlive && player.loadoutChoiceCrateId === null && this.roundBreakElapsed > 0.35) {
+        this.chooseBotLoadout(player);
+      }
+      this.updatePlayer(player, dt, false);
+    }
+    this.updateEffects(dt);
+    const everyoneChose = this.players
+      .filter((player) => player.isJoined && player.isAlive)
+      .every((player) => player.loadoutChoiceCrateId !== null);
+    if (this.roundBreakTimer <= 0 || (everyoneChose && this.roundBreakElapsed >= 2.2)) {
+      this.finalizeLoadoutChoices();
+      this.startNextRound();
+    }
+  }
+
+  updateHumanInput(player, dt, allowFire = true) {
     const movement = this.getPlayerMovementVector(player.index);
     const magnitude = Math.hypot(movement.x, movement.y);
     if (magnitude > 0.05) {
@@ -504,7 +635,7 @@ export class HordeGame extends BaseMiniGame {
     }
 
     const keyboard = readSlotKeys(this.keys, player.index);
-    player.isAiming = player.remoteFireHeld || player.localFireHeld || keyboard.action;
+    player.isAiming = allowFire && (player.remoteFireHeld || player.localFireHeld || keyboard.action);
     const dashKey = getSecondActionKey('dash', player.index);
     const dashPressed = !!dashKey && !!this.keys[dashKey];
     if (dashPressed && !player.keyDashLatch) {
@@ -517,9 +648,9 @@ export class HordeGame extends BaseMiniGame {
 
   triggerDash(index) {
     const player = this.players[index];
-    if (this.state !== 'PLAYING' || !player?.isJoined || !player.isAlive || player.dashCooldown > 0) return false;
+    if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state) || !player?.isJoined || !player.isAlive || player.dashCooldown > 0) return false;
     if (Math.hypot(player.steerX, player.steerY) <= 0.1) return false;
-    player.dashCooldown = HORDE_TUNING.DASH_CD;
+    player.dashCooldown = getDashCooldown(player, HORDE_TUNING.DASH_CD);
     player.dashTimer = HORDE_TUNING.DASH_TIME;
     player.isDashing = true;
     playDashWhoosh();
@@ -530,20 +661,47 @@ export class HordeGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player?.isJoined || !player.isAlive) return;
     if (actionId === 'fire') {
-      player.localFireHeld = isDown;
-      player.isAiming = isDown;
+      player.localFireHeld = isDown && this.state === 'PLAYING';
+      player.isAiming = player.localFireHeld;
     } else if (actionId === 'dash' && isDown) {
       this.triggerDash(slotIndex);
     }
   }
 
+  updatePlayerWeapon(player, dt) {
+    if (player.weaponSwingTimer > 0) player.weaponSwingTimer = Math.max(0, player.weaponSwingTimer - dt);
+    if (player.reloadTimer <= 0) return;
+    player.reloadTimer = Math.max(0, player.reloadTimer - dt);
+    if (player.reloadTimer === 0) {
+      const weapon = getPlayerWeapon(player);
+      player.ammo = Number.isFinite(weapon.magazine) ? weapon.magazine : -1;
+    }
+  }
+
+  startReload(player) {
+    const weapon = getPlayerWeapon(player);
+    if (!Number.isFinite(weapon.magazine) || player.reloadTimer > 0) return;
+    player.reloadTimer = Math.max(0.08, getReloadTime(player));
+  }
+
   firePlayer(player) {
-    if (this.state !== 'PLAYING' || !player?.isAlive || player.attackCooldown > 0) return;
-    const angles = player.tripleTimer > 0
-      ? [player.angle - 0.24, player.angle, player.angle + 0.24]
-      : [player.angle];
-    const speed = HORDE_TUNING.SHOT_SPEED * (player.fastTimer > 0 ? HORDE_TUNING.FAST_MULT : 1);
-    for (const angle of angles) {
+    if (this.state !== 'PLAYING' || !player?.isAlive || player.attackCooldown > 0 || player.reloadTimer > 0) return;
+    const weapon = getPlayerWeapon(player);
+    if (weapon.kind === 'melee') {
+      this.fireBlade(player, weapon);
+      return;
+    }
+    if (player.ammo <= 0) {
+      this.startReload(player);
+      return;
+    }
+
+    let pellets = weapon.pellets;
+    if (player.tripleTimer > 0) pellets += 2;
+    const speed = weapon.projectileSpeed * (player.fastTimer > 0 ? 1.12 : 1);
+    for (let i = 0; i < pellets; i++) {
+      const spread = pellets === 1 ? 0 : (i / (pellets - 1) - 0.5) * weapon.spread * 2;
+      const angle = player.angle + spread + (Math.random() - 0.5) * weapon.spread * 0.35;
       this.addProjectile({
         owner: player.index,
         isEnemy: false,
@@ -551,30 +709,55 @@ export class HordeGame extends BaseMiniGame {
         y: player.y + Math.sin(angle) * 20,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        radius: player.tripleTimer > 0 ? 5 : 7,
-        damage: HORDE_TUNING.SHOT_DAMAGE,
-        life: HORDE_TUNING.SHOT_LIFE,
-        color: player.color,
+        radius: weapon.id === 'RIFLE' ? 5 : weapon.id === 'SHOTGUN' ? 4 : 6,
+        damage: weapon.damage,
+        life: weapon.range / speed,
+        color: weapon.color,
+        knockback: weapon.knockback,
+        pierce: weapon.pierce,
       });
     }
-    player.attackCooldown = player.tripleTimer > 0
-      ? HORDE_TUNING.FIRE_INTERVAL * 1.15
-      : HORDE_TUNING.FIRE_INTERVAL;
+    player.ammo -= 1;
+    player.attackCooldown = weapon.fireInterval * (player.fastTimer > 0 ? 0.88 : 1);
     playShoot();
+    if (player.ammo <= 0) this.startReload(player);
+  }
+
+  fireBlade(player, weapon) {
+    player.weaponSwingTimer = 0.2;
+    player.attackCooldown = weapon.fireInterval;
+    let hitAny = false;
+    for (const enemy of this.enemies) {
+      if (enemy.spawnDelay > 0) continue;
+      const dx = enemy.x - player.x;
+      const dy = enemy.y - player.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance > weapon.range + enemy.radius) continue;
+      const angle = Math.atan2(dy, dx);
+      if (Math.abs(normalizeAngle(angle - player.angle)) > weapon.arc * 0.5) continue;
+      if (this.hasBlockedShot(player.x, player.y, enemy.x, enemy.y)) continue;
+      this.damageEnemy(enemy, weapon.damage, player.index, weapon.knockback, dx, dy, distance);
+      hitAny = true;
+    }
+    if (hitAny) this.addTrauma(0.2);
+    playPaddleHit(0.75);
+  }
+
+  hasBlockedShot(x1, y1, x2, y2) {
+    return this.obstacles.some((obstacle) => segmentAabbIntersection(x1, y1, x2, y2, obstacle, 1));
   }
 
   addProjectile(projectile) {
     if (this.projectiles.length >= HORDE_TUNING.MAX_PROJECTILES) this.projectiles.shift();
     this.projectiles.push({
       id: this._nextProjectileId++,
-      life: HORDE_TUNING.SHOT_LIFE,
       ...projectile,
     });
   }
 
   applyPickup(player, pickup) {
     if (pickup.type === 'HEAL') {
-      player.hp = Math.min(HORDE_TUNING.MAX_HP, player.hp + 1);
+      player.hp = Math.min(player.maxHp, player.hp + 1);
       this.spawnFloatingText(player.x, player.y - 22, t('horde.heal'), '#2D6A4F');
     } else if (pickup.type === 'SHIELD') {
       player.shield = true;
@@ -588,11 +771,135 @@ export class HordeGame extends BaseMiniGame {
     }
   }
 
+  generateLoadoutCrates() {
+    const pool = [...HORDE_ARMORY_WEAPONS];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const weaponIds = pool.slice(0, 3);
+    const upgradeId = HORDE_UPGRADE_IDS[Math.floor(Math.random() * HORDE_UPGRADE_IDS.length)];
+    const positions = [
+      { x: -0.24, y: -0.17 },
+      { x: 0.24, y: -0.17 },
+      { x: -0.24, y: 0.17 },
+      { x: 0.24, y: 0.17 },
+    ];
+    this.loadoutCrates = [];
+    weaponIds.forEach((weaponId, index) => {
+      const weapon = getPlayerWeapon({ weaponId });
+      this.loadoutCrates.push({
+        id: this._nextLoadoutId++,
+        kind: 'weapon',
+        weaponId,
+        upgradeId: null,
+        color: weapon.color,
+        claimedBy: null,
+        ...this.loadoutPosition(positions[index]),
+      });
+    });
+    const upgrade = HORDE_UPGRADES[upgradeId];
+    this.loadoutCrates.push({
+      id: this._nextLoadoutId++,
+      kind: 'upgrade',
+      weaponId: null,
+      upgradeId,
+      color: upgrade.color,
+      claimedBy: null,
+      ...this.loadoutPosition(positions[3]),
+    });
+  }
+
+  loadoutPosition(offset) {
+    const size = Math.max(120, this.arena.size || 640);
+    const candidates = [
+      { x: this.arena.cx + offset.x * size, y: this.arena.cy + offset.y * size },
+      ...Array.from({ length: 8 }, (_, index) => {
+        const angle = index * Math.PI / 4;
+        return {
+          x: this.arena.cx + Math.cos(angle) * size * 0.27,
+          y: this.arena.cy + Math.sin(angle) * size * 0.27,
+        };
+      }),
+      { x: this.arena.cx, y: this.arena.cy },
+    ];
+    const point = candidates.find((candidate) => !pointBlocked(candidate.x, candidate.y, this.obstacles, 48)) || candidates[candidates.length - 1];
+    return { x: point.x, y: point.y, radius: HORDE_TUNING.LOADOUT_RADIUS };
+  }
+
+  tryClaimLoadout(player) {
+    if (!player?.isAlive || player.loadoutChoiceCrateId !== null) return;
+    for (const crate of this.loadoutCrates) {
+      if (crate.claimedBy !== null) continue;
+      if (distanceSq(player.x, player.y, crate.x, crate.y) > (HORDE_TUNING.LOADOUT_RADIUS + player.radius) ** 2) continue;
+      crate.claimedBy = player.index;
+      player.loadoutChoiceCrateId = crate.id;
+      if (crate.kind === 'weapon') {
+        player.weaponId = crate.weaponId;
+        player.magazine = getPlayerWeapon(player).magazine;
+      player.ammo = player.magazine;
+        player.reloadTimer = 0;
+        this.spawnFloatingText(player.x, player.y - 24, t(`horde.weapon.${crate.weaponId}`), crate.color);
+      } else {
+        this.applyLoadoutUpgrade(player, crate.upgradeId);
+      }
+      return;
+    }
+  }
+
+  applyLoadoutUpgrade(player, upgradeId) {
+    player.upgrades[upgradeId] = (player.upgrades[upgradeId] || 0) + 1;
+    if (upgradeId === 'ARMOR') {
+      player.maxHp += 1;
+      player.hp += 1;
+    }
+    const meta = HORDE_UPGRADES[upgradeId];
+    this.spawnFloatingText(player.x, player.y - 24, t(`horde.upgrade.${upgradeId}`), meta?.color || '#7C3AED');
+  }
+
+  chooseBotLoadout(bot) {
+    const available = this.loadoutCrates.filter((crate) => crate.claimedBy === null);
+    if (available.length === 0) return;
+    const wantsUpgrade = bot.hp / Math.max(1, bot.maxHp) < 0.55;
+    const crate = available.find((entry) => wantsUpgrade && entry.kind === 'upgrade') || available[0];
+    crate.claimedBy = bot.index;
+    bot.loadoutChoiceCrateId = crate.id;
+    if (crate.kind === 'weapon') {
+      bot.weaponId = crate.weaponId;
+      bot.magazine = getPlayerWeapon(bot).magazine;
+      bot.ammo = bot.magazine;
+      bot.reloadTimer = 0;
+    } else {
+      this.applyLoadoutUpgrade(bot, crate.upgradeId);
+    }
+  }
+
+  finalizeLoadoutChoices() {
+    for (const player of this.players) {
+      if (!player.isJoined || !player.isAlive || player.loadoutChoiceCrateId !== null) continue;
+      const weaponCrate = this.loadoutCrates.find((crate) => crate.kind === 'weapon' && crate.claimedBy === null);
+      if (!weaponCrate) continue;
+      weaponCrate.claimedBy = player.index;
+      player.loadoutChoiceCrateId = weaponCrate.id;
+      player.weaponId = weaponCrate.weaponId;
+      player.magazine = getPlayerWeapon(player).magazine;
+      player.ammo = player.magazine;
+      player.reloadTimer = 0;
+    }
+  }
+
   updateEnemies(dt, alivePlayers) {
     for (const enemy of this.enemies) {
+      if (enemy.spawnDelay > 0) {
+        enemy.spawnDelay = Math.max(0, enemy.spawnDelay - dt);
+        continue;
+      }
       enemy.hitTimer = Math.max(0, enemy.hitTimer - dt);
       enemy.attackTimer -= dt;
       enemy.healTimer -= dt;
+      enemy.lungeTimer = Math.max(0, enemy.lungeTimer - dt);
+      enemy.lungeCooldown = Math.max(0, enemy.lungeCooldown - dt);
+      this.maybeSummonBossAdds(enemy);
       let target = null;
       let minDistanceSq = Infinity;
       for (const player of alivePlayers) {
@@ -614,8 +921,24 @@ export class HordeGame extends BaseMiniGame {
       if (enemy.type === 'shooter' && distance < 165) moveMultiplier = -0.8;
       else if (enemy.type === 'shooter' && distance <= 270) moveMultiplier = 0;
       else if (enemy.type === 'healer' && distance < 245) moveMultiplier = -0.65;
-      enemy.x += nx * enemy.speed * moveMultiplier * dt;
-      enemy.y += ny * enemy.speed * moveMultiplier * dt;
+      if (enemy.elite && enemy.type === 'chaser' && enemy.lungeCooldown <= 0 && distance > 100 && distance < 280) {
+        enemy.lungeTimer = 0.42;
+        enemy.lungeCooldown = 2.8;
+      }
+      const moveSpeed = enemy.speed * (enemy.lungeTimer > 0 ? 2.2 : 1);
+      const blockedAhead = pointBlocked(
+        enemy.x + nx * (enemy.radius + 28),
+        enemy.y + ny * (enemy.radius + 28),
+        this.obstacles,
+        enemy.radius,
+      );
+      const strafe = blockedAhead ? enemy.avoidDir * 0.95 : 0;
+      if (blockedAhead && Math.random() < dt * 0.8) enemy.avoidDir *= -1;
+      let moveX = nx * moveMultiplier - ny * strafe;
+      let moveY = ny * moveMultiplier + nx * strafe;
+      const moveLength = Math.hypot(moveX, moveY) || 1;
+      enemy.x += (moveX / moveLength) * moveSpeed * dt;
+      enemy.y += (moveY / moveLength) * moveSpeed * dt;
 
       if (enemy.type === 'healer' && enemy.healTimer <= 0) {
         enemy.healTimer = enemy.isBoss ? 3 : 5;
@@ -628,10 +951,15 @@ export class HordeGame extends BaseMiniGame {
 
       if (enemy.attackTimer <= 0) {
         if (enemy.type === 'shooter' && distance < 350) {
-          this.fireEnemyProjectile(enemy, enemy.angle, enemy.damage, '#E63946');
+          if (enemy.elite) {
+            for (const offset of [-0.16, 0, 0.16]) this.fireEnemyProjectile(enemy, enemy.angle + offset, enemy.damage, '#E63946');
+          } else {
+            this.fireEnemyProjectile(enemy, enemy.angle, enemy.damage, '#E63946');
+          }
           enemy.attackTimer = enemy.attackEvery;
         } else if (enemy.type === 'healer' && distance < 380) {
-          for (let i = 0; i < 6; i++) this.fireEnemyProjectile(enemy, enemy.angle + i * Math.PI / 3, 1, '#16A34A');
+          const shots = enemy.isBoss ? 6 : 5;
+          for (let i = 0; i < shots; i++) this.fireEnemyProjectile(enemy, enemy.angle + i * Math.PI * 2 / shots, 1, '#16A34A');
           enemy.attackTimer = enemy.attackEvery;
         } else if ((enemy.type === 'chaser' || enemy.type === 'tank') && distance < enemy.radius + target.radius + 6) {
           this.damagePlayer(target, enemy.damage);
@@ -640,8 +968,52 @@ export class HordeGame extends BaseMiniGame {
         }
       }
       clampToArena(enemy, enemy.radius, this.arena);
+      resolveAABB(enemy, this.obstacles, enemy.radius);
     }
     this.separateEnemies();
+    this.separatePlayersFromEnemies();
+  }
+
+  separatePlayersFromEnemies() {
+    for (const player of this.alivePlayers) {
+      for (const enemy of this.enemies) {
+        if (enemy.spawnDelay > 0) continue;
+        const dx = player.x - enemy.x;
+        const dy = player.y - enemy.y;
+        const minimum = player.radius + enemy.radius;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= minimum * minimum) continue;
+        const distance = Math.sqrt(d2) || 0.001;
+        const overlap = minimum - distance;
+        const nx = dx / distance;
+        const ny = dy / distance;
+        player.x += nx * overlap * 0.35;
+        player.y += ny * overlap * 0.35;
+        enemy.x -= nx * overlap * 0.65;
+        enemy.y -= ny * overlap * 0.65;
+        clampToArena(player, player.radius, this.arena);
+        clampToArena(enemy, enemy.radius, this.arena);
+        resolveAABB(player, this.obstacles, player.radius);
+        resolveAABB(enemy, this.obstacles, enemy.radius);
+      }
+    }
+  }
+
+  maybeSummonBossAdds(boss) {
+    if (!boss?.isBoss) return;
+    const ratio = boss.hp / boss.maxHp;
+    const threshold = boss.summonThresholds[boss.summonIndex];
+    if (threshold === undefined || ratio > threshold) return;
+    boss.summonIndex += 1;
+    for (let i = 0; i < 2 && this.enemies.length < HORDE_TUNING.MAX_ENEMIES; i++) {
+      const add = this.createEnemy(i === 0 ? 'shooter' : 'chaser', false, 1, true);
+      const point = this.randomEdgePoint(add.radius + 8);
+      add.x = point.x;
+      add.y = point.y;
+      add.spawnDelay = 0.35 + i * 0.2;
+      this.enemies.push(add);
+    }
+    this.spawnFloatingText(boss.x, boss.y - boss.radius, t('horde.bossSummon'), '#FACC15');
   }
 
   fireEnemyProjectile(enemy, angle, damage, color) {
@@ -662,8 +1034,10 @@ export class HordeGame extends BaseMiniGame {
   separateEnemies() {
     for (let i = 0; i < this.enemies.length; i++) {
       const a = this.enemies[i];
+      if (a.spawnDelay > 0) continue;
       for (let j = i + 1; j < this.enemies.length; j++) {
         const b = this.enemies[j];
+        if (b.spawnDelay > 0) continue;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const minimum = a.radius + b.radius;
@@ -679,6 +1053,8 @@ export class HordeGame extends BaseMiniGame {
         b.y += ny * overlap;
         clampToArena(a, a.radius, this.arena);
         clampToArena(b, b.radius, this.arena);
+        resolveAABB(a, this.obstacles, a.radius);
+        resolveAABB(b, this.obstacles, b.radius);
       }
     }
   }
@@ -687,28 +1063,55 @@ export class HordeGame extends BaseMiniGame {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const projectile = this.projectiles[i];
       const steps = getProjectileSubsteps(Math.hypot(projectile.vx, projectile.vy) * dt, 8);
-      let hit = false;
-      for (let step = 0; step < steps && !hit; step++) {
+      let consumed = false;
+      for (let step = 0; step < steps && !consumed; step++) {
         const subDt = dt / steps;
         const fromX = projectile.x;
         const fromY = projectile.y;
         projectile.x += projectile.vx * subDt;
         projectile.y += projectile.vy * subDt;
 
+        let obstacleHit = null;
+        for (const obstacle of this.obstacles) {
+          const intersection = segmentAabbIntersection(fromX, fromY, projectile.x, projectile.y, obstacle, projectile.radius);
+          if (intersection) {
+            obstacleHit = intersection;
+            break;
+          }
+        }
+        if (obstacleHit) {
+          projectile.x = obstacleHit.x;
+          projectile.y = obstacleHit.y;
+          this.spawnParticles(projectile.x, projectile.y, projectile.color || '#1A1A1A', 4);
+          consumed = true;
+          break;
+        }
+
         if (projectile.isEnemy) {
           for (const player of this.alivePlayers) {
             if (player.invulnTimer > 0 || player.spawnProt > 0 || player.dashTimer > 0) continue;
             if (segmentCircleIntersection(fromX, fromY, projectile.x, projectile.y, player.x, player.y, player.radius + projectile.radius)) {
               this.damagePlayer(player, projectile.damage);
-              hit = true;
+              consumed = true;
               break;
             }
           }
         } else {
           for (const enemy of this.enemies) {
-            if (segmentCircleIntersection(fromX, fromY, projectile.x, projectile.y, enemy.x, enemy.y, enemy.radius + projectile.radius)) {
-              this.damageEnemy(enemy, projectile.damage, projectile.owner);
-              hit = true;
+            if (enemy.spawnDelay > 0) continue;
+            if (!segmentCircleIntersection(fromX, fromY, projectile.x, projectile.y, enemy.x, enemy.y, enemy.radius + projectile.radius)) continue;
+            this.damageEnemy(
+              enemy,
+              projectile.damage,
+              projectile.owner,
+              projectile.knockback || 0,
+              projectile.vx,
+              projectile.vy,
+              Math.hypot(projectile.vx, projectile.vy) || 1,
+            );
+            if ((Number(projectile.pierce) || 0) > 0) projectile.pierce -= 1;
+            else {
+              consumed = true;
               break;
             }
           }
@@ -718,7 +1121,7 @@ export class HordeGame extends BaseMiniGame {
 
       projectile.life -= dt;
       if (
-        hit || projectile.life <= 0 || projectile.x < this.arena.left || projectile.x > this.arena.right
+        consumed || projectile.life <= 0 || projectile.x < this.arena.left || projectile.x > this.arena.right
         || projectile.y < this.arena.top || projectile.y > this.arena.bottom
       ) {
         this.projectiles.splice(i, 1);
@@ -727,18 +1130,26 @@ export class HordeGame extends BaseMiniGame {
     }
   }
 
-  damageEnemy(enemy, damage, ownerIndex) {
+  damageEnemy(enemy, damage, ownerIndex, knockback = 0, dirX = 0, dirY = 0, projectileSpeed = 1) {
     if (!enemy || enemy.hp <= 0) return;
     enemy.hp -= damage;
     enemy.hitTimer = 0.1;
+    if (knockback > 0) {
+      const magnitude = Math.max(1, projectileSpeed) || 1;
+      enemy.x += (dirX / magnitude) * knockback;
+      enemy.y += (dirY / magnitude) * knockback;
+      clampToArena(enemy, enemy.radius, this.arena);
+      resolveAABB(enemy, this.obstacles, enemy.radius);
+    }
     if (enemy.hp > 0) return;
     const index = this.enemies.indexOf(enemy);
     if (index >= 0) this.enemies.splice(index, 1);
     const owner = this.players[ownerIndex];
-    if (owner) this.scores[owner.index] += enemy.isBoss ? 3 : 1;
-    this.spawnParticles(enemy.x, enemy.y, enemy.isBoss ? '#FACC15' : '#E63946', enemy.isBoss ? 22 : 9);
-    this.spawnFloatingText(enemy.x, enemy.y - enemy.radius, enemy.isBoss ? `+${enemy.isBoss ? 3 : 1}` : `+1`, owner?.color || '#D84727');
-    this.addTrauma(enemy.isBoss ? 0.55 : 0.16);
+    const points = enemy.isBoss ? 3 : enemy.elite ? 2 : 1;
+    if (owner) this.scores[owner.index] += points;
+    this.spawnParticles(enemy.x, enemy.y, enemy.isBoss || enemy.elite ? '#FACC15' : '#E63946', enemy.isBoss ? 22 : enemy.elite ? 14 : 9);
+    this.spawnFloatingText(enemy.x, enemy.y - enemy.radius, `+${points}`, owner?.color || '#D84727');
+    this.addTrauma(enemy.isBoss ? 0.55 : enemy.elite ? 0.25 : 0.16);
     playExplosion();
   }
 
@@ -761,7 +1172,13 @@ export class HordeGame extends BaseMiniGame {
       player.isAiming = false;
       player.steerX = 0;
       player.steerY = 0;
-      this.tombs.push({ x: player.x, y: player.y, ownerIndex: player.index, timer: 0 });
+      this.tombs.push({
+        x: player.x,
+        y: player.y,
+        ownerIndex: player.index,
+        timer: 0,
+        reviveDuration: getReviveDuration(player, HORDE_TUNING.REVIVE_TIME),
+      });
       this.spawnFloatingText(player.x, player.y - 24, t('horde.down'), '#DC2626');
       if (this.alivePlayers.length === 0) this.endMatch(false, 'all-dead');
     }
@@ -774,12 +1191,12 @@ export class HordeGame extends BaseMiniGame {
       const reviving = alivePlayers.some((player) => distanceSq(player.x, player.y, tomb.x, tomb.y) <= HORDE_TUNING.REVIVE_RADIUS ** 2);
       if (reviving) tomb.timer += dt;
       else tomb.timer = Math.max(0, tomb.timer - dt * 1.5);
-      if (tomb.timer < HORDE_TUNING.REVIVE_TIME) continue;
+      if (tomb.timer < (tomb.reviveDuration || HORDE_TUNING.REVIVE_TIME)) continue;
 
       const player = this.players[tomb.ownerIndex];
       if (player) {
         player.isAlive = true;
-        player.hp = HORDE_TUNING.MAX_HP;
+        player.hp = player.maxHp;
         player.x = tomb.x;
         player.y = tomb.y;
         player.invulnTimer = HORDE_TUNING.SPAWN_PROTECT;
@@ -793,13 +1210,22 @@ export class HordeGame extends BaseMiniGame {
   }
 
   updatePortal(dt, alivePlayers) {
-    if (this.enemies.length === 0 && !this.portal) {
-      this.portal = {
-        x: this.arena.cx,
-        y: this.arena.cy,
-        radius: HORDE_TUNING.PORTAL_RADIUS,
-        timer: 0,
-      };
+    if (this.enemies.length === 0) {
+      if (this.round === HORDE_TUNING.ROUNDS && this.wave === HORDE_TUNING.WAVES_PER_ROUND) {
+        this.endMatch(true, 'campaign-complete');
+        return;
+      }
+      if (this.wave === HORDE_TUNING.WAVES_PER_ROUND) {
+        if (!this.portal) this.portal = this.createExtractionGate();
+      } else if (this.waveBreakTimer <= 0) {
+        this.waveBreakTimer = HORDE_TUNING.WAVE_BREAK_TIME;
+      }
+    }
+
+    if (this.waveBreakTimer > 0) {
+      this.waveBreakTimer = Math.max(0, this.waveBreakTimer - dt);
+      if (this.waveBreakTimer === 0) this.advanceWave();
+      return;
     }
     if (!this.portal || alivePlayers.length === 0) return;
 
@@ -809,18 +1235,89 @@ export class HordeGame extends BaseMiniGame {
     }
     if (inside === alivePlayers.length) this.portal.timer += dt;
     else this.portal.timer = Math.max(0, this.portal.timer - dt * 1.5);
-    if (this.portal.timer < HORDE_TUNING.PORTAL_TIME) return;
+    if (this.portal.timer >= HORDE_TUNING.PORTAL_TIME) this.enterRoundBreak();
+  }
 
-    this.portal = null;
-    if (this.round === HORDE_TUNING.ROUNDS && this.wave === HORDE_TUNING.WAVES_PER_ROUND) {
+  createExtractionGate() {
+    const side = Math.floor(Math.random() * 4);
+    const margin = HORDE_TUNING.PORTAL_RADIUS + 8;
+    const point = [
+      { x: this.arena.cx, y: this.arena.top + margin },
+      { x: this.arena.right - margin, y: this.arena.cy },
+      { x: this.arena.cx, y: this.arena.bottom - margin },
+      { x: this.arena.left + margin, y: this.arena.cy },
+    ][side];
+    return { ...point, side, radius: HORDE_TUNING.PORTAL_RADIUS, timer: 0 };
+  }
+
+  advanceWave() {
+    if (this.wave >= HORDE_TUNING.WAVES_PER_ROUND) return;
+    this.wave += 1;
+    this.startWave();
+    spawnPickup(this, {
+      types: ['HEAL', 'SHIELD'],
+      max: 1,
+      obstacles: this.obstacles,
+      size: 30,
+      pad: 28,
+    });
+  }
+
+  enterRoundBreak() {
+    if (this.round >= HORDE_TUNING.ROUNDS) {
       this.endMatch(true, 'campaign-complete');
       return;
     }
-    this.wave++;
-    if (this.wave > HORDE_TUNING.WAVES_PER_ROUND) {
-      this.wave = 1;
-      this.round++;
-      this.roundId += 1;
+    this.portal = null;
+    this.nextRound = this.round + 1;
+    this.state = 'ROUND_PAUSE';
+    this.roundBreakTimer = HORDE_TUNING.ROUND_BREAK_TIME;
+    this.roundBreakElapsed = 0;
+    this.enemies = [];
+    this.projectiles = [];
+    this.pickups = [];
+    this.tombs = [];
+    this.buildMap(this.nextRound);
+    this.onTouchesReset();
+    for (const player of this.players) {
+      if (!player.isJoined) continue;
+      const spawn = this.spawnPoint(player.index);
+      const wasDown = !player.isAlive;
+      player.x = spawn.x;
+      player.y = spawn.y;
+      player.angle = spawn.angle;
+      player.targetAngle = spawn.angle;
+      player.isAlive = true;
+      player.hp = wasDown ? 1 : Math.max(1, player.hp);
+      player.invulnTimer = 0;
+      player.spawnProt = 0;
+      player.steerX = 0;
+      player.steerY = 0;
+      player.isAiming = false;
+      player.remoteFireHeld = false;
+      player.localFireHeld = false;
+      player.attackCooldown = 0;
+      player.reloadTimer = 0;
+      player.magazine = getPlayerWeapon(player).magazine;
+      player.ammo = player.magazine;
+      player.loadoutChoiceCrateId = null;
+    }
+    this.generateLoadoutCrates();
+    this.spawnFloatingText(this.arena.cx, this.arena.cy - 60, t('horde.armory'), '#7C3AED');
+  }
+
+  startNextRound() {
+    this.round = this.nextRound;
+    this.wave = 1;
+    this.nextRound = this.round;
+    this.roundId += 1;
+    this.state = 'PLAYING';
+    this.roundBreakTimer = 0;
+    this.roundBreakElapsed = 0;
+    this.loadoutCrates = [];
+    for (const player of this.players) {
+      player.loadoutChoiceCrateId = null;
+      player.invulnTimer = player.isJoined ? HORDE_TUNING.SPAWN_PROTECT : 0;
     }
     this.startWave();
   }
@@ -841,6 +1338,9 @@ export class HordeGame extends BaseMiniGame {
     this.matchDraw = false;
     this.matchResolutionReason = reason;
     this.portal = null;
+    this.waveBreakTimer = 0;
+    this.roundBreakTimer = 0;
+    this.loadoutCrates = [];
     for (const player of this.players) {
       player.isAiming = false;
       player.localFireHeld = false;
@@ -896,7 +1396,7 @@ export class HordeGame extends BaseMiniGame {
 
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
-    if (this.state !== 'PLAYING' || !player?.isJoined || !player.isAlive || !data) return;
+    if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state) || !player?.isJoined || !player.isAlive || !data) return;
     if (data.action === 'JOYSTICK_MOVE') {
       const dx = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
       const dy = Number.isFinite(data.dy) ? Math.max(-1, Math.min(1, data.dy)) : 0;
@@ -911,7 +1411,7 @@ export class HordeGame extends BaseMiniGame {
         joy.angle = Number.isFinite(data.angle) ? data.angle : Math.atan2(dy, dx);
         joy.force = force;
       }
-    } else if (data.action === 'HORDE_FIRE') {
+    } else if (data.action === 'HORDE_FIRE' && this.state === 'PLAYING') {
       player.remoteFireHeld = true;
       player.isAiming = true;
     } else if (data.action === 'HORDE_FIRE_RELEASE') {
@@ -948,14 +1448,14 @@ export class HordeGame extends BaseMiniGame {
       matchOverRestartTap(this, touch, { onRestart: () => this.startNewMatch() });
       return;
     }
-    if (this.state === 'PLAYING') {
+    if (['PLAYING', 'ROUND_PAUSE'].includes(this.state)) {
       if (this.handleUiTap(touch)) return;
       this.handleTabletopTouchStart(touch);
     }
   }
 
   onTouchMove(touch) {
-    if (this.state === 'PLAYING') this.handleTabletopTouchMove(touch);
+    if (['PLAYING', 'ROUND_PAUSE'].includes(this.state)) this.handleTabletopTouchMove(touch);
   }
 
   onTouchEnd(touch) {

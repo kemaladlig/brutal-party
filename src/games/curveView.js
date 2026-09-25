@@ -4,7 +4,7 @@
 //
 // Trail ölçeği: host `this.segments` 24.000'e kadar büyüyebilir (SEG_MAX); 30 Hz JSON
 // bunu taşıyamaz. Bu yüzden iki katmanlı sıkıştırma kullanılır:
-//   1) `near` — oyuncu başına son N segment (kuantize x1,y1,x2,y2 + 3 bit flag), telefon
+//   1) `near` — oyuncu başına son N segment (kuantize x1,y1,x2,y2 + 3 bit flag + stable id/reveal), telefon
 //      ekranında gerçekten görülebilen mesafedir ve tam çizilir.
 //   2) `field` — eski tüm izlerin 24x24 hücrelik 2-bit sahiplik maskesi (hex kodlanmış).
 //      Uzak izler kaba bir çizgi olarak temsil edilir; çarpışma host'ta tam çözünürlükte
@@ -26,6 +26,11 @@ export const CURVE_FIELD_TILES = 24;   // field maskesi 24x24
 export const CURVE_NEAR_PER_PLAYER = 220; // oyuncu başına gönderilen yakın segment tavanı
 export const CURVE_TOTAL_NEAR_CAP = 900;  // frame başına toplam tavan
 export const CURVE_GAP_MASK_TILES = CURVE_FIELD_TILES;
+export const CURVE_SEGMENT_REVEAL_MS = 1000 / 30;
+
+const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+const round2 = (value) => Math.round(Number(value) * 100) / 100;
+const lerp = (a, b, t) => a + (b - a) * t;
 
 // --- Field maskesi (2 bit/sahip) ---
 export function packCurveFieldMask(segments, field) {
@@ -105,23 +110,27 @@ export function unpackCurveGapMask(hex) {
 export function createCurveWorldPacket(game) {
   if (!game) return null;
   const segments = Array.isArray(game.segments) ? game.segments : [];
+  const now = performance.now();
   const perPlayer = new Map();
   for (let i = segments.length - 1; i >= 0; i--) {
     const seg = segments[i];
     const owner = seg.owner;
     if (!Number.isInteger(owner)) continue;
     const list = perPlayer.get(owner) || [];
-    if (list.length < CURVE_NEAR_PER_PLAYER) list.push(seg);
+    if (list.length < CURVE_NEAR_PER_PLAYER) list.push({ seg, index: i });
     perPlayer.set(owner, list);
   }
   const near = [];
   for (const [owner, list] of perPlayer) {
-    for (const seg of list) {
+    for (const { seg, index } of list) {
       if (near.length >= CURVE_TOTAL_NEAR_CAP) break;
+      const age = Number.isFinite(seg.createdAt) ? now - seg.createdAt : CURVE_SEGMENT_REVEAL_MS;
       near.push([
         owner,
         round1(seg.x1), round1(seg.y1), round1(seg.x2), round1(seg.y2),
         (seg.isGap ? 1 : 0) | (seg.shrink ? 2 : 0) | (seg.thick ? 4 : 0),
+        Number.isInteger(seg.id) ? seg.id : owner * 100000 + index,
+        round2(clamp01(age / CURVE_SEGMENT_REVEAL_MS)),
       ]);
     }
   }
@@ -177,7 +186,8 @@ function isValidCurvePlayer(p) {
 
 function isValidCurveExtra(frame) {
   if (!Array.isArray(frame.near) || frame.near.length > CURVE_TOTAL_NEAR_CAP) return false;
-  if (!frame.near.every((s) => Array.isArray(s) && s.length === 6
+  if (!frame.near.every((s) => Array.isArray(s)
+    && (s.length === 6 || (s.length === 8 && Number.isInteger(s[6]) && s[6] >= 0 && finite(s[7]) && s[7] >= 0 && s[7] <= 1))
     && Number.isInteger(s[0]) && s[0] >= 0 && s[0] <= 3
     && finite(s[1]) && finite(s[2]) && finite(s[3]) && finite(s[4])
     && Number.isInteger(s[5]) && s[5] >= 0 && s[5] <= 7)) return false;
@@ -238,11 +248,14 @@ export function drawCurveNearSegments(ctx, near, colors) {
   for (const s of near) {
     const flags = s[5];
     if (flags & 1) continue; // gap: görsel olarak yok
+    const reveal = s.length >= 8 ? clamp01(s[7]) : 1;
+    const endX = lerp(s[1], s[3], reveal);
+    const endY = lerp(s[2], s[4], reveal);
     ctx.lineWidth = (flags & 4) ? 8.5 : ((flags & 2) ? 2.2 : 4);
     ctx.strokeStyle = colors[s[0]] || '#1A1A1A';
     ctx.beginPath();
     ctx.moveTo(s[1], s[2]);
-    ctx.lineTo(s[3], s[4]);
+    ctx.lineTo(endX, endY);
     ctx.stroke();
   }
   ctx.restore();

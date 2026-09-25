@@ -70,6 +70,7 @@ export class LaserGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.players = [];
     this.lasers = [];
+    this.nextLaserId = 1;
     this.obstacles = [];
     this.movingWalls = [];
     this.pickups = [];
@@ -319,6 +320,10 @@ export class LaserGame extends BaseMiniGame {
         }
       );
     }
+
+    this.movingWalls.forEach((wall, index) => {
+      wall.id = index + 1;
+    });
   }
 
   spawnPoint(i) {
@@ -370,6 +375,7 @@ export class LaserGame extends BaseMiniGame {
     this.matchTimer = LASER_TUNING.MATCH_TIME;
     this.pickupTimer = LASER_TUNING.PICKUP_EVERY;
     this.lasers = [];
+    this.nextLaserId = 1;
     this.pickups = [];
     this.particles = [];
     this.floatingTexts = [];
@@ -410,6 +416,7 @@ export class LaserGame extends BaseMiniGame {
     this.roundResolutionReason = null;
     this.roundId += 1;
     this.lasers = [];
+    this.nextLaserId = 1;
     this.pickups = [];
     this.particles = [];
     this.floatingTexts = [];
@@ -504,6 +511,7 @@ export class LaserGame extends BaseMiniGame {
     const angles = player.tripleTimer > 0 ? [player.angle - 0.28, player.angle, player.angle + 0.28] : [player.angle];
     for (const ang of angles) {
       this.lasers.push({
+        id: this.nextLaserId++,
         x: player.x + Math.cos(ang) * 20,
         y: player.y + Math.sin(ang) * 20,
         vx: Math.cos(ang) * spd,

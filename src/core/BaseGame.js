@@ -391,7 +391,7 @@ export class BaseMiniGame {
   }
 
   handleTabletopTouchStart(touch) {
-    if (this.state !== 'PLAYING') return false;
+    if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state)) return false;
     const schema = this.getTabletopSchema();
     const players = this.getEntitiesList();
 

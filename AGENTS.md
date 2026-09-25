@@ -59,7 +59,8 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 ## 5. Ağ Bütçesi (sayılar değişmeden korunur)
 
 - Host HUD/state broadcast **8 Hz (125 ms)** + JSON dirty-check; skor/taşıyıcı/sinyal gibi kritik olaylar **anında** gönderilir (hızlı yol).
-- ONLINE görüntüleme pilotu SNAKE için ayrı unreliable WebRTC `world` kanalından **30 Hz tam snapshot** gönderir. Bu paketler Supabase'e düşmez; `control` kanalı reliable/ordered kalır.
+- ONLINE world-view oyunları için ayrı unreliable WebRTC `world` kanalından **30 Hz tam snapshot** gönderilir. Bu paketler Supabase'e düşmez; `control` kanalı reliable/ordered kalır.
+- World-frame transport 30 Hz'de kalır; client `GamepadWorldView` snapshot'ları jitter buffer'da tutup native `requestAnimationFrame` ile 60 Hz+ sunum yapar. Interpolate edilen projectile/NPC/moving-wall entity'leri stable id taşır; `sentAt` yalnız source clock/diagnostic metadata'dır. Interpolasyon duvar içi extrapolation yapmaz, round/state/host sınırında snap olur.
 - Kumanda input throttle **50 ms** + ölübant (`JOYSTICK/MOVE/PADDLE/CURVE`); `DASH/TACKLE/ateş` throttle dışıdır.
 - Ping **15 sn**, kopma watchdog **30 sn**.
 

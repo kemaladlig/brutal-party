@@ -80,7 +80,8 @@ export function createLaserWorldPacket(game, tuning = {}) {
       matchDraw: game.matchDraw === true,
       timeLeft: round1(game.matchTimer || 0),
       obstacles: packRectList(game.obstacles, 16),
-      walls: (Array.isArray(game.movingWalls) ? game.movingWalls : []).slice(0, 4).map((mw) => ({
+      walls: (Array.isArray(game.movingWalls) ? game.movingWalls : []).slice(0, 4).map((mw, index) => ({
+        id: Number.isInteger(mw.id) ? mw.id : index + 1,
         x: round1(mw.x), y: round1(mw.y),
         w: round1(mw.w), h: round1(mw.h),
         axis: mw.axis === 'y' ? 'y' : 'x',
@@ -90,7 +91,8 @@ export function createLaserWorldPacket(game, tuning = {}) {
       pickups: (Array.isArray(game.pickups) ? game.pickups : []).slice(0, 8).map((pk) => [
         round1(pk.x), round1(pk.y), pk.type || 'SHIELD', round1(pk.animTime || 0), round1(pk.size || 30),
       ]),
-      lasers: (Array.isArray(game.lasers) ? game.lasers : []).slice(0, 12).map((lz) => ({
+      lasers: (Array.isArray(game.lasers) ? game.lasers : []).slice(0, 12).map((lz, index) => ({
+        id: Number.isInteger(lz.id) ? lz.id : index + 1,
         x: round1(lz.x), y: round1(lz.y),
         color: typeof lz.color === 'string' ? lz.color : '#D84727',
         trail: (Array.isArray(lz.history) ? lz.history : []).slice(-12).map((h) => [round1(h.x), round1(h.y)]),
@@ -123,14 +125,16 @@ function isValidLaserExtra(frame) {
   if (!Array.isArray(frame.obstacles) || frame.obstacles.length > 16) return false;
   if (!frame.obstacles.every((r) => Array.isArray(r) && r.length === 4 && r.every(finite))) return false;
   if (!Array.isArray(frame.walls) || frame.walls.length > 4) return false;
-  if (!frame.walls.every((w) => w && finite(w.x) && finite(w.y) && finite(w.w) && finite(w.h)
+  if (!frame.walls.every((w) => w && (w.id === undefined || (Number.isInteger(w.id) && w.id >= 0))
+    && finite(w.x) && finite(w.y) && finite(w.w) && finite(w.h)
     && (w.axis === 'x' || w.axis === 'y')
     && finite(w.minX) && finite(w.maxX) && finite(w.minY) && finite(w.maxY))) return false;
   if (!Array.isArray(frame.pickups) || frame.pickups.length > 8) return false;
   if (!frame.pickups.every((pk) => Array.isArray(pk) && pk.length === 5
     && finite(pk[0]) && finite(pk[1]) && typeof pk[2] === 'string' && finite(pk[3]) && finite(pk[4]))) return false;
   if (!Array.isArray(frame.lasers) || frame.lasers.length > 12) return false;
-  if (!frame.lasers.every((lz) => lz && finite(lz.x) && finite(lz.y) && typeof lz.color === 'string'
+  if (!frame.lasers.every((lz) => lz && (lz.id === undefined || (Number.isInteger(lz.id) && lz.id >= 0))
+    && finite(lz.x) && finite(lz.y) && typeof lz.color === 'string'
     && Array.isArray(lz.trail) && lz.trail.length <= 12
     && lz.trail.every((h) => Array.isArray(h) && h.length === 2 && finite(h[0]) && finite(h[1])))) return false;
   if (!Array.isArray(frame.texts) || frame.texts.length > 8) return false;

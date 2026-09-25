@@ -459,13 +459,25 @@ export const CARTRIDGES = {
           scores: game.scores,
           alive: game.players.map((player) => player.isAlive),
           hp: game.players.map((player) => Math.max(0, player.hp || 0)),
+          phase: game.state === 'ROUND_PAUSE' ? 'armory' : game.state,
           round: game.round,
+          nextRound: game.nextRound,
           wave: game.wave,
           enemiesLeft: game.enemies.length,
           portal: !!game.portal,
           waveTime: Math.max(0, Math.ceil(game.waveTimer || 0)),
-          cd: game.players.map((player) => Math.ceil((Math.max(0, player.dashCooldown || 0) / 4.0) * 100)),
-          cdFire: game.players.map((player) => Math.ceil((Math.max(0, player.attackCooldown || 0) / 0.28) * 100)),
+          roundBreakTime: Math.max(0, Math.ceil(game.roundBreakTimer || 0)),
+          weapons: game.players.map((player) => player.weaponId || 'SIDEARM'),
+          ammo: game.players.map((player) => (Number.isFinite(player.ammo) ? player.ammo : -1)),
+          magazines: game.players.map((player) => Number.isFinite(player.magazine) ? player.magazine : -1),
+          reloading: game.players.map((player) => (Number(player.reloadTimer) || 0) > 0),
+          cd: game.players.map((player) => {
+            const maxCooldown = 4 * Math.pow(0.8, Number(player.upgrades?.SERVO) || 0);
+            return Math.min(100, Math.ceil((Math.max(0, player.dashCooldown || 0) / maxCooldown) * 100));
+          }),
+          cdFire: game.players.map((player) => game.state === 'ROUND_PAUSE'
+            ? 100
+            : Math.min(100, Math.ceil((Math.max(0, player.attackCooldown || 0) + (Number(player.reloadTimer) || 0)) * 100))),
         }),
       };
     },
