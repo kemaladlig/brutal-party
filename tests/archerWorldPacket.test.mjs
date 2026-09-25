@@ -31,7 +31,7 @@ function makeGame() {
       multiShots: 2,
       slipTimer: 0,
     }],
-    arrows: [{ x: 410, y: 300, vx: 300, vy: 0, color: '#D84727' }],
+    arrows: [{ id: 7, x: 410, y: 300, vx: 300, vy: 0, color: '#D84727' }],
     particles: [{ x: 100, y: 100, radius: 3, alpha: 0.8, color: '#FFFFFF' }],
     scores: [2, 1, 0, 0],
     roundWinner: null,
@@ -59,6 +59,7 @@ test('archer world packet is compact, complete and monotonic', () => {
   assert.equal(first.players[0].quickdraw, 3.2);
   assert.equal(first.players[0].multi, 2);
   assert.equal(first.arrows[0][2], 300);
+  assert.equal(first.arrows[0][5], 7);
   assert.equal(first.scores[0], 2);
 
   assert.ok(isValidArcherWorldFrame({ action: 'WORLD_FRAME', ...first }));

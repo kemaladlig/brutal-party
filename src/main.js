@@ -52,6 +52,8 @@ import { initMainMenu } from './ui/menuManager.js';
 import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
 import { getTabletopIconSvg } from './core/tabletopIcons.js';
+import { getControlDescriptor } from './core/controlDescriptor.js';
+import { InputIntentRouter } from './core/inputRouter.js';
 import {
   initHostLobby,
   showHostLobbyModal,
@@ -127,10 +129,21 @@ const localGamepadManager = new GamepadManager(localMobileOverlay, {
     const engine = getActiveGameEngine();
     if (engine && typeof engine.handleRemoteInput === 'function') {
       const slot = getLocalControlSlot(engine);
-      if (slot >= 0) engine.handleRemoteInput(slot, data);
+      if (slot >= 0) inputRouter.dispatch(slot, data, 'local');
     }
   },
 }, { localMode: true });
+
+const inputRouter = new InputIntentRouter({
+  getDescriptor: () => getControlDescriptor(currentMode, getControllerMeta(currentMode)?.schema),
+  getEngine: getActiveGameEngine,
+});
+
+function neutralizeTransientInput() {
+  touchManager.resetTouches();
+  gamepadManager.neutralizeInput();
+  localGamepadManager.neutralizeInput();
+}
 
 // High-DPI & Responsive 1:1 Canvas Resizing
 function resizeCanvas() {
@@ -152,9 +165,19 @@ function resizeCanvas() {
   forEachEngine((mode, entry) => entry.game.resize(width, height));
 }
 
-window.addEventListener('resize', resizeCanvas);
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  if (currentMode !== 'MENU') neutralizeTransientInput();
+});
 window.addEventListener('orientationchange', () => {
+  neutralizeTransientInput();
   setTimeout(resizeCanvas, 150);
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) neutralizeTransientInput();
+});
+window.addEventListener('blur', () => {
+  if (currentMode !== 'MENU') neutralizeTransientInput();
 });
 
 // State Management
@@ -326,6 +349,7 @@ async function openHostLobby(gameMode = 'PONG') {
     // TV_CONSOLE: TV ekranı varsayılan olarak oyuncusuz host kalır;
     // lobi içindeki düğme ile aynı cihazı P1'e dahil edebilir.
     asPlayer: hostIsPlayer,
+    slotIndex: hostIsPlayer ? 0 : null,
     worldView: hostIsPlayer,
   };
   try {
@@ -513,7 +537,7 @@ async function openHostLobby(gameMode = 'PONG') {
         }
         const engine = getActiveGameEngine();
         if (engine && typeof engine.handleRemoteInput === 'function') {
-          engine.handleRemoteInput(slotIndex, data);
+          inputRouter.dispatch(slotIndex, data, 'network');
         }
       },
       onPlayerReaction: (slotIndex, emoji) => {
@@ -594,21 +618,22 @@ function toggleHostPlayer() {
     return true;
   }
 
-  // TV_CONSOLE lobi modelinde host P1'e oturur. P1 doluysa host'un
-  // kumandayı/oyuncuyu düşürmeden katılması engellenir.
-  if (hostPlayerSlots[0]) {
-    showInstallToast(t('toast.hostPlayerSeatTaken'));
+  // TV_CONSOLE host joins the first empty seat. Once seated, the existing
+  // slot-swap controls remain available; no second seat-picker is required.
+  const availableSlot = hostPlayerSlots.findIndex((entry) => !entry);
+  if (availableSlot < 0) {
+    showInstallToast(t('toast.hostPlayerNoEmptySeat'));
     return false;
   }
   const identity = getHostPlayerIdentity();
-  const result = activeNet().setHostPlayerActive?.(true, identity);
+  const result = activeNet().setHostPlayerActive?.(true, { ...identity, slotIndex: availableSlot });
   if (result === false) {
     showInstallToast(t('toast.hostPlayerJoinFail'));
     return false;
   }
   applyHostPlayerState({
     active: true,
-    slotIndex: 0,
+    slotIndex: availableSlot,
     player: { ...identity, color: identity.avatar?.color, isHost: true },
     isReady: true,
   });
@@ -764,12 +789,15 @@ async function executeJoin(rawCode, rawName, requestedMode = null) {
 }
 
 function handleSeatSwap(slotA, slotB) {
-  if (activeNet().isHosting && hostPlayerActive
-    && (slotA === hostPlayerSlot || slotB === hostPlayerSlot)) {
-    showInstallToast(t('toast.hostSeatLocked'));
-    return false;
-  }
+  const swapsHostSeat = activeNet().isHosting
+    && hostPlayerActive
+    && (slotA === hostPlayerSlot || slotB === hostPlayerSlot);
   activeNet().swapSlots(slotA, slotB);
+  if (swapsHostSeat) {
+    hostPlayerSlot = slotA === hostPlayerSlot ? slotB : slotA;
+    activeNet().hostPlayerSlot = hostPlayerSlot;
+    activeNet().reservedHostSlot = hostPlayerSlot;
+  }
   if (!activeNet().isHosting) {
     const temp = hostPlayerSlots[slotA];
     hostPlayerSlots[slotA] = hostPlayerSlots[slotB];
@@ -1143,8 +1171,7 @@ function setSeatTapHook() {
   const localHostPlayer = hosting && hostPlayerActive && hostPlayerSlot !== null;
   const touchDevice = isTouchDevice();
   const localMobileSurface = platformMode === 'LOCAL'
-    && touchDevice
-    && getControlSurface() === CONTROL_SURFACE.MOBILE;
+    && getEffectiveLocalSurface() === CONTROL_SURFACE.MOBILE;
   const fn = hosting ? handleLobbySeatTap : null;
   forEachEngine((mode, entry) => {
     entry.game.onLobbySeatTap = fn;
@@ -1154,13 +1181,27 @@ function setSeatTapHook() {
     entry.game.suppressVirtualControls = hosting
       ? hosting && !localHostPlayer
       : localMobileSurface;
-    entry.game.forceVirtualControls = hosting && localHostPlayer && touchDevice;
+    entry.game.forceVirtualControls = hosting && localHostPlayer
+      && (touchDevice || getEffectiveLocalSurface() === CONTROL_SURFACE.TABLETOP);
     entry.game.localControlSlot = localHostPlayer ? hostPlayerSlot : null;
   });
 }
 
 let localMobileControlsActive = false;
 let lastLocalControlSyncAt = 0;
+
+function getLocalHumanCount(engine = getActiveGameEngine()) {
+  const entities = typeof engine?.getEntitiesList === 'function'
+    ? engine.getEntitiesList()
+    : (engine?.players || engine?.tanks || engine?.paddles || []);
+  return entities.filter((entity) => entity?.isJoined && entity?.slotType === 'human').length;
+}
+
+function getEffectiveLocalSurface(engine = getActiveGameEngine()) {
+  return getLocalHumanCount(engine) > 1
+    ? CONTROL_SURFACE.TABLETOP
+    : getControlSurface();
+}
 
 function getLocalControlSlot(engine = getActiveGameEngine()) {
   const entities = typeof engine?.getEntitiesList === 'function'
@@ -1173,8 +1214,7 @@ function syncLocalMobileControls(now = performance.now()) {
   const engine = getActiveGameEngine();
   const localSlot = getLocalControlSlot(engine);
   const shouldShow = platformMode === 'LOCAL'
-    && isTouchDevice()
-    && getControlSurface() === CONTROL_SURFACE.MOBILE
+    && getEffectiveLocalSurface(engine) === CONTROL_SURFACE.MOBILE
     && currentMode !== 'MENU'
     && engine?.state === 'PLAYING'
     && localSlot >= 0
@@ -1208,6 +1248,17 @@ function applyControlSurfacePreference() {
   syncLocalMobileControls();
 }
 
+function applyDevicePreferenceChange(key) {
+  if (key !== 'pongInvert' && key !== 'pongSensitivity') return;
+  if (currentMode !== 'PONG') return;
+  gamepadManager._pongInvertManualSet = false;
+  localGamepadManager._pongInvertManualSet = false;
+  if (gamepadManager.gameMode === 'PONG') gamepadManager.renderGameController('PONG');
+  if (localMobileControlsActive && localGamepadManager.gameMode === 'PONG') {
+    localGamepadManager.renderGameController('PONG');
+  }
+}
+
 // Initialise UI Submodules
 ensureStoredNick();
 initToastAndInstall();
@@ -1221,7 +1272,10 @@ window.addEventListener('online', () => {
   markConnectionRestored(t('net.onlineBack'), true);
 });
 initJoinModal({ onExecuteJoin: executeJoin });
-initSettingsModal({ onControlsChanged: applyControlSurfacePreference });
+initSettingsModal({
+  onControlsChanged: applyControlSurfacePreference,
+  onPreferencesChanged: applyDevicePreferenceChange,
+});
 applyI18nToDOM();
 // Dil değişiminde TV lobi kartları anında yeniden çizilir (BOŞ/HAZIR etiketleri).
 onLangChange(() => {

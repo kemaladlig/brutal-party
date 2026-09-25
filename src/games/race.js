@@ -17,6 +17,7 @@ import { clampToArena, distToSegmentSquared, normalizeAngle } from '../core/phys
 import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
 import { createPlayer } from '../core/playerEntity.js';
 import { getKeyLabel } from '../core/inputMaps.js';
+import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import {
   lobbyCenterStartTap,
   lobbyQuadrantTap,
@@ -34,6 +35,7 @@ import {
 import { t } from '../i18n.js';
 import { RaceAI } from '../ai/raceAI.js';
 import { RACE_TUNING, getRaceProgress } from './raceLogic.js';
+import { createRaceWorldPacket } from './raceView.js';
 
 export const TRACK_PRESETS = ['CIRCUIT', 'ZIGZAG', 'SPIRAL'];
 
@@ -90,7 +92,7 @@ export class RaceGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
-      joystick: true,
+      ...this.getCentralTabletopLayout('RACE'),
       actions: [{
         id: 'dash',
         icon: 'zap',
@@ -480,13 +482,17 @@ export class RaceGame extends BaseMiniGame {
     });
   }
 
+  createWorldPacket() {
+    return createRaceWorldPacket(this);
+  }
+
   handleRemoteInput(slotIndex, data) {
     if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex > 3 || !data) return;
-    if (data.action === 'DASH') {
+    if (matchesInputAction(data, 'dash', 'DASH')) {
       this.triggerDash(slotIndex);
       return;
     }
-    if (data.action !== 'JOYSTICK_MOVE') return;
+    if (!isInputIntent(data, 'move') && data.action !== 'JOYSTICK_MOVE') return;
 
     if (this.state !== 'PLAYING') {
       this.handleStandardRemoteJoystick(slotIndex, { ...data, force: 0 });

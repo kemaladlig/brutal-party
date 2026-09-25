@@ -24,7 +24,7 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 - `src/core/engineRegistry.js` → `GAME_ORDER` (15 oyun: PONG…RACE — güncel liste dosyadadır, buraya kopyalanmaz).
 - Retired ama oynanabilir cartridge motorları `src/games-retired/` altında yaşar; registry kaydı, ID, controller, world-view ve ağ protokolü korunur. `GAME_ORDER` aktif oyunları önce, retired oyunları sonra sıralar.
 - Yeni oyun = `engineRegistry.js` içinde `GAME_ORDER` kaydı + tek `CARTRIDGES.MOD` bloğu (`load/createEngine/reset/onEnter/onResume/start/packet`; görüntüleme destekleyen oyunlarda ayrıca `worldPacket/worldView`). `main.js` veya `gamepad.js` içine `else if (mode === ...)` zinciri **eklemek yasaktır**.
-- Entry sözleşmesi: `game` (BaseMiniGame türevi) · `reset()` · `onEnter/onResume(now)` (fizik sıçramasını önler) · `start()` (sayaç sonrası) · `packet()` (8 Hz host HUD/state) · opsiyonel `worldPacket()` + `CARTRIDGES[MOD].worldView` (30 Hz P2P görüntüleme; SNAKE, ARCHER, BOMB, HEIST, TANKS, CLONE, NINJA, LASER, ZONE, COLLAPSE, CURVE, HORDE — 12 oyun). Yeni world-view oyunu eklemek için: `src/games/[oyun]View.js` + `src/ui/[oyun]WorldView.js` + registry'de `worldView.load`/`worldPacket`; çekirdek `src/games/worldCore.js`'ten gelir.
+- Entry sözleşmesi: `game` (BaseMiniGame türevi) · `reset()` · `onEnter/onResume(now)` (fizik sıçramasını önler) · `start()` (sayaç sonrası) · `packet()` (8 Hz host HUD/state) · opsiyonel `worldPacket()` + `CARTRIDGES[MOD].worldView` (30 Hz P2P görüntüleme; PONG, ARCHER, TANKS, CURVE, BOMB, HEIST, ZONE, SNAKE, LASER, COLLAPSE, NINJA, HORDE, RACE, CROWN — 15 oyun). Yeni world-view oyunu eklemek için: `src/games/[oyun]View.js` + `src/ui/[oyun]WorldView.js` + registry'de `worldView.load`/`worldPacket`; çekirdek `src/games/worldCore.js`'ten gelir.
 - Motor sözleşmesi: `resetMatch/reset()`, `startNewMatch()`, `startNewRound()`, `update(now)`, `render()`, `resize(w,h)`, `handleRemoteInput(slotIndex, data)`.
 - **Lokal (Tek Cihaz / PC & Masa-ortası) Sözleşmesi:**
   - Her motor sadece TV+telefon modunda değil, tek cihazda (`LOCAL`) da tam oynanabilir olmalıdır.
@@ -44,6 +44,15 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
   - `playerEntity.js` — oyuncu varlığı: `createPlayer`, `tickEffectTimers`, `advancePlayer` (kademeli çıkarım — bomb/heist/race entegre; PONG/tanks/curve/snake/zone/collapse kendi gövdesinde kalır).
   - `avatarInGame.js` — oyun içi avatar: `drawGameAvatar`, `normalizeExpression`.
   - `tabletopIcons.js` — Lucide vektör ikon kütüphanesi: OS emojileri yerine Canvas 2D için `drawTabletopIcon`, DOM/kumanda butonları için `getTabletopIconSvg`. İkonlarda ham OS emojisi yazılmaz, buradan çağrılır.
+  - `preferences.js` — versioned cihaz tercihleri ve legacy control-surface migration; ses/haptik/PONG ayarlarının tek kaynağı.
+  - `haptics.js` — tüm engine/controller vibration çağrılarının ortak preference gate'i.
+  - `inputSource.js` — keyboard/touch/pointer input source arbitration; aktif cihaz başına tek kaynak kilidi.
+  - `controlDescriptor.js` — phone/tabletop/network için normalize kontrol sözleşmesi ve parity doğrulaması.
+  - `inputIntent.js` — transport input packet'lerini canonical engine intent alanına projekte eder; mevcut `action` alanı geriye uyumlu kalır.
+  - `inputRouter.js` — normalize edilmiş local/network input'u aktif authoritative engine'e taşır; transport adapter'ları engine/mode lookup bilmez.
+  - `gamepadInputAdapter.js` — transport'tan bağımsız 50ms analog throttle, dead-zone ve nötr analog state; fiziksel gamepad ikincil kaynak için temel sınır.
+  - `physicalGamepadAdapter.js` — Browser Gamepad API polling adapter'ı; touch/keyboard/pointer öncelikli, host engine'e yalnızca aynı transport packet'lerini gönderir.
+  - `gamepadShell.js` — GamepadManager'dan ayrılmış stabil kumanda shell/presenter markup'ı.
 
 ## 4. Slot Modeli — tek koltuk gerçeği
 
@@ -59,7 +68,8 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 ## 5. Ağ Bütçesi (sayılar değişmeden korunur)
 
 - Host HUD/state broadcast **8 Hz (125 ms)** + JSON dirty-check; skor/taşıyıcı/sinyal gibi kritik olaylar **anında** gönderilir (hızlı yol).
-- ONLINE görüntüleme pilotu SNAKE için ayrı unreliable WebRTC `world` kanalından **30 Hz tam snapshot** gönderir. Bu paketler Supabase'e düşmez; `control` kanalı reliable/ordered kalır.
+- ONLINE world-view oyunları için ayrı unreliable WebRTC `world` kanalından **30 Hz tam snapshot** gönderilir. Bu paketler Supabase'e düşmez; `control` kanalı reliable/ordered kalır.
+- World-frame transport 30 Hz'de kalır; client `GamepadWorldView` snapshot'ları jitter buffer'da tutup native `requestAnimationFrame` ile 60 Hz+ sunum yapar. Interpolate edilen projectile/NPC/moving-wall entity'leri stable id taşır; `sentAt` yalnız source clock/diagnostic metadata'dır. Interpolasyon duvar içi extrapolation yapmaz, round/state/host sınırında snap olur.
 - Kumanda input throttle **50 ms** + ölübant (`JOYSTICK/MOVE/PADDLE/CURVE`); `DASH/TACKLE/ateş` throttle dışıdır.
 - Ping **15 sn**, kopma watchdog **30 sn**.
 

@@ -8,6 +8,7 @@ import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
+import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, updateMovers } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
@@ -70,6 +71,7 @@ export class LaserGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.players = [];
     this.lasers = [];
+    this.nextLaserId = 1;
     this.obstacles = [];
     this.movingWalls = [];
     this.pickups = [];
@@ -90,7 +92,7 @@ export class LaserGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
-      joystick: true,
+      ...this.getCentralTabletopLayout('LASER'),
       actions: [
         // Basılı tut = nişan (yavaşla), bırak = ateş; şarj barı isAiming'den gelir
         { id: 'fire', icon: '🎯', holdToCharge: true },
@@ -319,6 +321,10 @@ export class LaserGame extends BaseMiniGame {
         }
       );
     }
+
+    this.movingWalls.forEach((wall, index) => {
+      wall.id = index + 1;
+    });
   }
 
   spawnPoint(i) {
@@ -370,6 +376,7 @@ export class LaserGame extends BaseMiniGame {
     this.matchTimer = LASER_TUNING.MATCH_TIME;
     this.pickupTimer = LASER_TUNING.PICKUP_EVERY;
     this.lasers = [];
+    this.nextLaserId = 1;
     this.pickups = [];
     this.particles = [];
     this.floatingTexts = [];
@@ -410,6 +417,7 @@ export class LaserGame extends BaseMiniGame {
     this.roundResolutionReason = null;
     this.roundId += 1;
     this.lasers = [];
+    this.nextLaserId = 1;
     this.pickups = [];
     this.particles = [];
     this.floatingTexts = [];
@@ -504,6 +512,7 @@ export class LaserGame extends BaseMiniGame {
     const angles = player.tripleTimer > 0 ? [player.angle - 0.28, player.angle, player.angle + 0.28] : [player.angle];
     for (const ang of angles) {
       this.lasers.push({
+        id: this.nextLaserId++,
         x: player.x + Math.cos(ang) * 20,
         y: player.y + Math.sin(ang) * 20,
         vx: Math.cos(ang) * spd,
@@ -932,7 +941,7 @@ export class LaserGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
 
-    if (data.action === 'JOYSTICK_MOVE') {
+    if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
       // Tek çubuk = koş + nişan (itince döner, bırakınca son nişanı korur)
       if (player.slotType !== 'human') return;
       player.steerX = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
@@ -940,13 +949,13 @@ export class LaserGame extends BaseMiniGame {
       if (Number.isFinite(data.angle) && (data.force || 0) > 0.05) {
         player.targetAngle = normalizeAngle(data.angle);
       }
-    } else if (data.action === 'LASER_AIM') {
+    } else if (matchesInputAction(data, 'fire', 'LASER_AIM', 'press')) {
       this.beginAim(player);
-    } else if (data.action === 'LASER_FIRE' || data.action === 'LASER_FIRE_RELEASE') {
+    } else if (matchesInputAction(data, 'fire', 'LASER_FIRE', 'release') || data.action === 'LASER_FIRE_RELEASE') {
       this.releaseAim(player);
-    } else if (data.action === 'TANK_FIRE') {
+    } else if (matchesInputAction(data, 'fire', 'TANK_FIRE')) {
       this.fireLaser(player);
-    } else if (data.action === 'DASH') {
+    } else if (matchesInputAction(data, 'dash', 'DASH')) {
       this.triggerDash(slotIndex);
     }
   }

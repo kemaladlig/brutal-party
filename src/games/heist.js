@@ -13,6 +13,7 @@ import {
   playPiggyBreak,
 } from '../audio.js';
 import { t } from '../i18n.js';
+import { matchesInputAction } from '../core/inputIntent.js';
 import {
   renderArenaWatermarkTimer,
 } from '../ui/hud.js';
@@ -101,7 +102,7 @@ export class HeistGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
-      joystick: true,
+      ...this.getCentralTabletopLayout('HEIST'),
       actions: [
         {
           id: 'tackle',
@@ -524,7 +525,7 @@ export class HeistGame extends BaseMiniGame {
 
   handleRemoteInput(slotIndex, data) {
     this.handleStandardRemoteJoystick(slotIndex, data, (slot, d) => {
-      if (d.action === 'TACKLE') {
+      if (matchesInputAction(d, 'tackle', 'TACKLE')) {
         this.triggerTackle(slot);
       }
     });

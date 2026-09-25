@@ -5,6 +5,8 @@
 import { escapeHtml } from '../net.js';
 import { t } from '../i18n.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
+import { getGuideActionLabel } from './controllerGuide.js';
+import { getPreference, setPreference } from '../core/preferences.js';
 
 /**
  * Mounts a declarative controller onto the given container.
@@ -61,8 +63,9 @@ function mountJoystickAction(gamepad, container, schema) {
           const minHeight = act.minHeight ? `min-height: ${act.minHeight};` : '';
           const customClass = act.className || '';
           const icon = act.icon || (act.action === 'DASH' ? 'zap' : 'flame');
+          const actionLabel = getGuideActionLabel(act);
           return `
-            <button class="action-dash-btn ${customClass}" data-action-index="${i}" type="button" aria-label="${escapeHtml(act.label || t('pad.action'))}" style="${bg} ${border} ${flex} ${minHeight}">
+            <button class="action-dash-btn ${customClass}" data-action-index="${i}" type="button" aria-label="${escapeHtml(actionLabel)}" title="${escapeHtml(actionLabel)}" style="${bg} ${border} ${flex} ${minHeight}">
               <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
             </button>
           `;
@@ -73,8 +76,9 @@ function mountJoystickAction(gamepad, container, schema) {
     const act = actions[0];
     const bg = act.color ? `background-color: ${act.color};` : `background-color: ${gamepad.playerColor};`;
     const icon = act.icon || (act.action === 'DASH' ? 'zap' : 'flame');
+    const actionLabel = getGuideActionLabel(act);
     actionHtml = `
-      <button class="action-dash-btn ${act.className || ''}" data-action-index="0" type="button" aria-label="${escapeHtml(act.label || t('pad.action'))}" style="${bg}">
+      <button class="action-dash-btn ${act.className || ''}" data-action-index="0" type="button" aria-label="${escapeHtml(actionLabel)}" title="${escapeHtml(actionLabel)}" style="${bg}">
         <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
       </button>
     `;
@@ -136,7 +140,7 @@ function mountJoystickAction(gamepad, container, schema) {
     }
 
     const secs = act.cooldown ?? 2.0;
-    const readyLabel = act.label || t('pad.action');
+    const readyLabel = getGuideActionLabel(act);
 
     const handler = gamepad.cooledAction(
       btn,
@@ -188,15 +192,17 @@ function mountJoystickAction(gamepad, container, schema) {
 // 2. ARCADE_DRIVE Archetype (TANKS)
 // ---------------------------------------------------------------------------
 function mountArcadeDrive(gamepad, container, schema) {
+  const pedalLabel = t(schema.pedalLabelKey || 'pad.drive');
+  const fireLabel = t(schema.fireLabelKey || 'pad.fireGun');
   container.innerHTML = `
     <div class="tanks-arcade-view">
       <div class="tank-drive-zone">
-        <button class="tank-drive-pedal" id="btn-tank-drive" type="button" style="border-color: ${gamepad.playerColor}">
+        <button class="tank-drive-pedal" id="btn-tank-drive" type="button" aria-label="${escapeHtml(pedalLabel)}" title="${escapeHtml(pedalLabel)}" style="border-color: ${gamepad.playerColor}">
           <span class="pedal-icon">${getTabletopIconSvg(schema.pedalIcon || 'rocket', { size: 44, color: '#141414', strokeWidth: 2.4 })}</span>
         </button>
       </div>
       <div class="tanks-fire-zone">
-        <button class="tank-fire-btn" id="btn-tank-fire" type="button" style="background: ${gamepad.playerColor};">
+        <button class="tank-fire-btn" id="btn-tank-fire" type="button" aria-label="${escapeHtml(fireLabel)}" title="${escapeHtml(fireLabel)}" style="background: ${gamepad.playerColor};">
           <span class="fire-icon">${getTabletopIconSvg(schema.fireIcon || 'bomb', { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
         </button>
         <div class="tank-ammo-hud" id="tank-ammo-hud">
@@ -286,22 +292,24 @@ function mountArcadeDrive(gamepad, container, schema) {
 // 3. TWO_BUTTON_STEER Archetype (CURVE)
 // ---------------------------------------------------------------------------
 function mountTwoButtonSteer(gamepad, container, schema) {
+  const steerLeftLabel = t('pad.steerLeft');
+  const steerRightLabel = t('pad.steerRight');
   container.innerHTML = `
     <div class="curve-controller-view" id="curve-controller-view">
       <div class="steer-rocker-cluster curve-cluster left" id="curve-steer-left">
-        <button class="steer-rocker-btn left" id="btn-curve-left" data-steer="-1" type="button" aria-label="Sola">
+        <button class="steer-rocker-btn left" id="btn-curve-left" data-steer="-1" type="button" aria-label="${escapeHtml(steerLeftLabel)}">
           <span class="steer-icon">${getTabletopIconSvg('arrow_left', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
         </button>
-        <button class="steer-rocker-btn right" id="btn-curve-left-r" data-steer="1" type="button" aria-label="Sağa">
+        <button class="steer-rocker-btn right" id="btn-curve-left-r" data-steer="1" type="button" aria-label="${escapeHtml(steerRightLabel)}">
           <span class="steer-icon">${getTabletopIconSvg('arrow_right', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
         </button>
       </div>
 
       <div class="steer-rocker-cluster curve-cluster right" id="curve-steer-right">
-        <button class="steer-rocker-btn left" id="btn-curve-right-l" data-steer="-1" type="button" aria-label="Sola">
+        <button class="steer-rocker-btn left" id="btn-curve-right-l" data-steer="-1" type="button" aria-label="${escapeHtml(steerLeftLabel)}">
           <span class="steer-icon">${getTabletopIconSvg('arrow_left', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
         </button>
-        <button class="steer-rocker-btn right" id="btn-curve-right" data-steer="1" type="button" aria-label="Sağa">
+        <button class="steer-rocker-btn right" id="btn-curve-right" data-steer="1" type="button" aria-label="${escapeHtml(steerRightLabel)}">
           <span class="steer-icon">${getTabletopIconSvg('arrow_right', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
         </button>
       </div>
@@ -436,9 +444,15 @@ function mountSlider1D(gamepad, container, schema) {
   const posLabel = seatNames[gamepad.playerIndex] || `P${gamepad.playerIndex + 1}`;
   const baseInvert = gamepad.playerIndex === 1 || gamepad.playerIndex === 3;
   const verticalAxis = gamepad.playerIndex === 2 || gamepad.playerIndex === 3;
+  const sensitivity = getPreference('pongSensitivity');
 
   if (!gamepad._pongInvertManualSet) {
-    gamepad.isPongInverted = baseInvert;
+    const invertPreference = getPreference('pongInvert');
+    gamepad.isPongInverted = invertPreference === 'on'
+      ? true
+      : invertPreference === 'off'
+        ? false
+        : baseInvert;
   }
 
   const tvTargets = [t('pad.dirRight'), t('pad.dirLeft'), t('pad.dirDown'), t('pad.dirUp')];
@@ -466,16 +480,16 @@ function mountSlider1D(gamepad, container, schema) {
       <div class="pong-bottom-zone">
         <div class="pong-track-wrap">
           <div class="pong-instruction" id="pong-direction-hint">${directionHint()}</div>
-          <div class="pong-horizontal-track" id="pong-track">
+          <div class="pong-horizontal-track" id="pong-track" role="slider" aria-label="${escapeHtml(directionHint())}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(gamepad.pongPosition * 100)}" tabindex="0">
             <div class="pong-track-thumb horizontal" id="pong-thumb" style="${verticalAxis ? 'top' : 'left'}: ${gamepad.pongPosition * 100}%; background-color: ${gamepad.playerColor}">
               PADDLE
             </div>
           </div>
-          <button class="pong-invert-btn ${gamepad.isPongInverted !== baseInvert ? 'inverted' : ''}" id="btn-invert-axis" type="button">
+          <button class="pong-invert-btn ${gamepad.isPongInverted !== baseInvert ? 'inverted' : ''}" id="btn-invert-axis" type="button" title="${escapeHtml(gamepad.isPongInverted !== baseInvert ? t('pad.autoDir') : t('pad.flipDir'))}">
             ${gamepad.isPongInverted !== baseInvert ? t('pad.autoDir') : t('pad.flipDir')}
           </button>
         </div>
-        <button class="action-spin-btn" id="btn-pong-spin" type="button" style="background-color: ${gamepad.playerColor};">
+        <button class="action-spin-btn" id="btn-pong-spin" type="button" aria-label="${escapeHtml(t('pad.spinShort'))}" title="${escapeHtml(t('pad.spinShort'))}" style="background-color: ${gamepad.playerColor};">
           <span class="btn-action-icon">${getTabletopIconSvg('rotate_cw', { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
         </button>
       </div>
@@ -501,6 +515,7 @@ function mountSlider1D(gamepad, container, schema) {
   invertBtn?.addEventListener('click', () => {
     gamepad.isPongInverted = !gamepad.isPongInverted;
     gamepad._pongInvertManualSet = true;
+    setPreference('pongInvert', gamepad.isPongInverted ? 'on' : 'off');
     const isManuallyFlipped = gamepad.isPongInverted !== baseInvert;
     invertBtn.classList.toggle('inverted', isManuallyFlipped);
     invertBtn.textContent = isManuallyFlipped ? t('pad.autoDir') : t('pad.flipDir');
@@ -514,13 +529,15 @@ function mountSlider1D(gamepad, container, schema) {
       ? Math.max(0, Math.min(rect.height, clientY - rect.top)) / Math.max(1, rect.height)
       : Math.max(0, Math.min(rect.width, clientX - rect.left)) / Math.max(1, rect.width);
     const clampedNorm = Math.max(0, Math.min(1, (rawNorm - 0.10) / 0.80));
-    const position = gamepad.isPongInverted ? 1.0 - clampedNorm : clampedNorm;
+    const adjustedNorm = Math.max(0, Math.min(1, 0.5 + (clampedNorm - 0.5) * sensitivity));
+    const position = gamepad.isPongInverted ? 1.0 - adjustedNorm : adjustedNorm;
     gamepad.pongPosition = position;
 
     if (thumb) {
-      if (verticalAxis) thumb.style.top = `${clampedNorm * 100}%`;
-      else thumb.style.left = `${clampedNorm * 100}%`;
+      if (verticalAxis) thumb.style.top = `${adjustedNorm * 100}%`;
+      else thumb.style.left = `${adjustedNorm * 100}%`;
     }
+    track?.setAttribute('aria-valuenow', String(Math.round(adjustedNorm * 100)));
     gamepad._sendAnalog({ action: 'PADDLE_MOVE', position });
   };
 
@@ -589,21 +606,23 @@ function mountSlider1D(gamepad, container, schema) {
 // 5. STEER_BOOST Archetype (SNAKE — Left/Right Steering + Boost, CSS-driven)
 // ---------------------------------------------------------------------------
 function mountSteerBoost(gamepad, container, schema) {
+  const steerLeftLabel = t('pad.steerLeft');
+  const steerRightLabel = t('pad.steerRight');
   const steerZoneId = `steer-zone-${Date.now()}`;
   container.innerHTML = `
     <div class="snake-controller-view">
       <div class="snake-steer-zone">
         <div class="steer-rocker-cluster" id="${steerZoneId}">
-          <button class="steer-rocker-btn left" id="btn-snake-left" data-steer="-1" type="button" aria-label="Sola">
+          <button class="steer-rocker-btn left" id="btn-snake-left" data-steer="-1" type="button" aria-label="${escapeHtml(steerLeftLabel)}">
             <span class="steer-icon">${getTabletopIconSvg('arrow_left', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
           </button>
-          <button class="steer-rocker-btn right" id="btn-snake-right" data-steer="1" type="button" aria-label="Sağa">
+          <button class="steer-rocker-btn right" id="btn-snake-right" data-steer="1" type="button" aria-label="${escapeHtml(steerRightLabel)}">
             <span class="steer-icon">${getTabletopIconSvg('arrow_right', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
           </button>
         </div>
       </div>
       <div class="snake-boost-zone">
-        <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" style="background-color: ${schema.boostColor || gamepad.playerColor}">
+        <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" aria-label="${escapeHtml(t('pad.boost'))}" title="${escapeHtml(t('pad.boost'))}" style="background-color: ${schema.boostColor || gamepad.playerColor}">
           <span class="btn-action-icon">${getTabletopIconSvg(schema.boostIcon || 'zap', { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
         </button>
       </div>

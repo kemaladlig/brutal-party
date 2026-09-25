@@ -18,6 +18,7 @@ import {
   playTeleport,
 } from '../audio.js';
 import { t } from '../i18n.js';
+import { matchesInputAction } from '../core/inputIntent.js';
 import { renderTopPill, renderEntityHUD, renderArenaWatermarkTimer, renderAdaptiveScoreboard } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -30,6 +31,7 @@ import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { spawnPickup } from '../core/pickupSystem.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
 import { drawPickup } from '../core/arenaKit.js';
+import { createCrownWorldPacket } from '../games/crownView.js';
 
 export const CROWN_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CROWN_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -108,7 +110,7 @@ export class CrownGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
-      joystick: true,
+      ...this.getCentralTabletopLayout('CROWN'),
       actions: [
         {
           id: 'tackle',
@@ -2004,9 +2006,13 @@ export class CrownGame extends BaseMiniGame {
     }
   }
 
+  createWorldPacket() {
+    return createCrownWorldPacket(this);
+  }
+
   handleRemoteInput(slotIndex, data) {
     this.handleStandardRemoteJoystick(slotIndex, data, (slot, d) => {
-      if (d.action === 'TACKLE') {
+      if (matchesInputAction(d, 'tackle', 'TACKLE')) {
         this.triggerTackle(slot);
       }
     });

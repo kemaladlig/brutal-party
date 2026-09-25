@@ -17,6 +17,7 @@ export class TouchManager {
     this.logicalWidth = 0;
     this.logicalHeight = 0;
     this.dpr = 1;
+    this.pointerMode = typeof window !== 'undefined' && 'PointerEvent' in window;
 
     // Visual touch feedback ripples
     this.ripples = [];
@@ -42,6 +43,11 @@ export class TouchManager {
   }
 
   reset() {
+    if (this.pointerMode && this.canvas?.releasePointerCapture) {
+      for (const pointerId of this.activeTouches.keys()) {
+        try { this.canvas.releasePointerCapture(pointerId); } catch {}
+      }
+    }
     this.activeTouches.clear();
     this.isMouseDown = false;
     if (this.activeHandler && typeof this.activeHandler.onTouchesReset === 'function') {
@@ -74,7 +80,16 @@ export class TouchManager {
   initListeners() {
     const opts = { passive: false };
 
-    // Touch Events
+    if (this.pointerMode) {
+      this.canvas.addEventListener('pointerdown', (e) => this.handlePointerStart(e), opts);
+      this.canvas.addEventListener('pointermove', (e) => this.handlePointerMove(e), opts);
+      this.canvas.addEventListener('pointerup', (e) => this.handlePointerEnd(e), opts);
+      this.canvas.addEventListener('pointercancel', (e) => this.handlePointerEnd(e), opts);
+      this.canvas.addEventListener('lostpointercapture', (e) => this.handlePointerEnd(e), opts);
+      return;
+    }
+
+    // Touch Events fallback
     this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e), opts);
     this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e), opts);
     this.canvas.addEventListener('touchend', (e) => this.handleTouchEnd(e), opts);
@@ -84,6 +99,55 @@ export class TouchManager {
     this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
     window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
     window.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+  }
+
+  handlePointerStart(e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    const pos = this.getCanvasCoords(e.clientX, e.clientY);
+    const touchData = {
+      id: e.pointerId,
+      x: pos.x,
+      y: pos.y,
+      startX: pos.x,
+      startY: pos.y,
+      startTime: performance.now(),
+    };
+    if (checkScoreboardPeekTap(touchData)) return;
+    if (this.activeHandler?.claimInputSource && !this.activeHandler.claimInputSource('touch')) return;
+    try { this.canvas.setPointerCapture?.(e.pointerId); } catch {}
+    this.activeTouches.set(e.pointerId, touchData);
+    this.addRipple(pos.x, pos.y);
+    if (this.activeHandler && typeof this.activeHandler.onTouchStart === 'function') {
+      this.activeHandler.onTouchStart(touchData);
+    }
+  }
+
+  handlePointerMove(e) {
+    const touchData = this.activeTouches.get(e.pointerId);
+    if (!touchData) return;
+    e.preventDefault();
+    const pos = this.getCanvasCoords(e.clientX, e.clientY);
+    touchData.x = pos.x;
+    touchData.y = pos.y;
+    if (this.activeHandler && typeof this.activeHandler.onTouchMove === 'function') {
+      this.activeHandler.onTouchMove(touchData);
+    }
+  }
+
+  handlePointerEnd(e) {
+    const touchData = this.activeTouches.get(e.pointerId);
+    if (!touchData) return;
+    e.preventDefault?.();
+    const pos = this.getCanvasCoords(e.clientX, e.clientY);
+    touchData.x = pos.x;
+    touchData.y = pos.y;
+    this.activeTouches.delete(e.pointerId);
+    if (this.activeTouches.size === 0) this.activeHandler?.releaseInputSource?.('touch');
+    try { this.canvas.releasePointerCapture?.(e.pointerId); } catch {}
+    if (this.activeHandler && typeof this.activeHandler.onTouchEnd === 'function') {
+      this.activeHandler.onTouchEnd(touchData);
+    }
   }
 
   handleTouchStart(e) {
@@ -104,6 +168,9 @@ export class TouchManager {
       };
 
       if (checkScoreboardPeekTap(touchData)) {
+        continue;
+      }
+      if (this.activeHandler?.claimInputSource && !this.activeHandler.claimInputSource('touch')) {
         continue;
       }
 
@@ -155,6 +222,7 @@ export class TouchManager {
         this.activeTouches.delete(t.identifier);
       }
     }
+    if (this.activeTouches.size === 0) this.activeHandler?.releaseInputSource?.('touch');
   }
 
   handleMouseDown(e) {
@@ -174,6 +242,10 @@ export class TouchManager {
       return;
     }
 
+    if (this.activeHandler?.claimInputSource && !this.activeHandler.claimInputSource('touch')) {
+      this.isMouseDown = false;
+      return;
+    }
     this.activeTouches.set(this.mouseId, touchData);
     this.addRipple(pos.x, pos.y);
 
@@ -207,6 +279,7 @@ export class TouchManager {
         this.activeHandler.onTouchEnd(touchData);
       }
       this.activeTouches.delete(this.mouseId);
+      this.activeHandler?.releaseInputSource?.('touch');
     }
   }
 

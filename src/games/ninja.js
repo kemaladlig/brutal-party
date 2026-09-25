@@ -7,6 +7,7 @@ import { renderFloatingTexts } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateNinjaBotAI } from '../ai/ninjaAI.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
+import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
@@ -66,10 +67,10 @@ export class NinjaGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
-      joystick: true,
+      ...this.getCentralTabletopLayout('NINJA'),
       actions: [
         {
-          id: 'action',
+          id: 'strike',
           icon: '🗡️',
           cooldownField: 'strikeCooldown',
           maxCooldown: NINJA_STRIKE_COOLDOWN,
@@ -89,7 +90,7 @@ export class NinjaGame extends BaseMiniGame {
     if (!isDown) return;
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
-    if (actionId === 'action') {
+    if (actionId === 'strike') {
       this.attemptStrike(player);
     } else if (actionId === 'smoke') {
       this.attemptSmoke(player);
@@ -882,7 +883,7 @@ export class NinjaGame extends BaseMiniGame {
       return;
     }
 
-    if (data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
+    if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
       const force = Number.isFinite(data.force) ? data.force : Math.hypot(data.dx || 0, data.dy || 0);
       if (force > 0.05) {
         player.steerX = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
@@ -898,9 +899,9 @@ export class NinjaGame extends BaseMiniGame {
         player.steerY = 0;
         player.remoteActive = false;
       }
-    } else if (data.action === 'DASH' || data.action === 'STRIKE') {
+    } else if (matchesInputAction(data, 'strike', 'DASH') || data.action === 'STRIKE') {
       this.attemptStrike(player);
-    } else if (data.action === 'NINJA_SMOKE') {
+    } else if (matchesInputAction(data, 'smoke', 'NINJA_SMOKE')) {
       this.attemptSmoke(player);
     }
   }

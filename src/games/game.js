@@ -8,8 +8,11 @@ import { t } from '../i18n.js';
 import { renderSpatialBadge, renderRoundBanner } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { createPongWorldPacket } from './pongView.js';
 import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
+import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { vibrate } from '../core/haptics.js';
 
 const PONG_ROUND_LIMIT = 120;
 
@@ -71,6 +74,7 @@ export class Game extends BaseMiniGame {
     this.setScores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.roundOverTimer = 0;
+    this.roundId = 0;
   }
 
   resetCurrentGame() {
@@ -94,6 +98,7 @@ export class Game extends BaseMiniGame {
     this.stallY = null;
     this.rallyStallT = 0;
     this.lastRallySeen = 0;
+    this.roundId = 0;
     this.setScores = [0, 0, 0, 0];
     this.paddles.forEach((p) => {
       p.reset(p.isJoined);
@@ -123,6 +128,7 @@ export class Game extends BaseMiniGame {
       return;
     }
     this.state = 'ROUND_PAUSE';
+    this.roundId += 1;
     this.roundPauseTimer = 0.9;
     this.winner = null;
     this.roundWinner = null;
@@ -168,13 +174,13 @@ export class Game extends BaseMiniGame {
     p.spinCharge = 6.0;
     this.spinCooldowns[index] = 20;
     playPowerUp();
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([25, 35]);
+    if (typeof navigator !== 'undefined' && navigator.vibrate) vibrate([25, 35]);
     return true;
   }
 
   getTabletopSchema() {
     return {
-      steer: true,
+      ...this.getCentralTabletopLayout('PONG'),
       leftLabel: '◀',
       rightLabel: '▶',
       actions: [
@@ -401,6 +407,7 @@ export class Game extends BaseMiniGame {
     if (joined.length < 2) return;
 
     this.state = 'ROUND_PAUSE';
+    this.roundId += 1;
     this.roundPauseTimer = 1.4;
     this.winner = null;
     this.roundWinner = null;
@@ -676,11 +683,15 @@ export class Game extends BaseMiniGame {
 
   handleRemoteInput(slotIndex, data) {
     if (!data) return;
-    if (data.action === 'PADDLE_MOVE') {
+    if (isInputIntent(data, 'position') || data.action === 'PADDLE_MOVE') {
       this.applySlotInput(slotIndex, { position: data.position });
-    } else if (data.action === 'SPIN') {
+    } else if (matchesInputAction(data, 'spin', 'SPIN')) {
       this.applySlotInput(slotIndex, { action: 'SPIN' });
     }
+  }
+
+  createWorldPacket() {
+    return createPongWorldPacket(this);
   }
 
   render() {

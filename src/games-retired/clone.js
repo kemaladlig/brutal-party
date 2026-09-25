@@ -7,6 +7,7 @@ import { t } from '../i18n.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCloneBotAI } from '../ai/cloneAI.js';
 import { readSlotKeys } from '../core/inputMaps.js';
+import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
@@ -54,7 +55,7 @@ export class CloneGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
-      joystick: true,
+      ...this.getCentralTabletopLayout('CLONE'),
       actions: [
         {
           id: 'tackle',
@@ -243,6 +244,7 @@ export class CloneGame extends BaseMiniGame {
 
   initNpcClones() {
     this.npcClones = [];
+    this.nextCloneId = 1;
     const joined = this.players.filter((p) => p.isJoined);
     if (!joined.length) return;
 
@@ -253,6 +255,7 @@ export class CloneGame extends BaseMiniGame {
         const angle = Math.random() * Math.PI * 2;
         const dist = 30 + Math.random() * 80;
         this.npcClones.push({
+          id: this.nextCloneId++,
           ownerIndex: p.index,
           color: p.color,
           x: this.arena.cx + Math.cos(angle) * dist,
@@ -751,7 +754,7 @@ export class CloneGame extends BaseMiniGame {
       return;
     }
 
-    if (data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
+    if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
       const force = Number.isFinite(data.force) ? data.force : Math.hypot(data.dx || 0, data.dy || 0);
       if (force > 0.05) {
         player.steerX = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
@@ -767,7 +770,7 @@ export class CloneGame extends BaseMiniGame {
         player.steerY = 0;
         player.remoteActive = false;
       }
-    } else if (data.action === 'TACKLE' || data.action === 'DASH') {
+    } else if (matchesInputAction(data, 'tackle', 'TACKLE') || data.action === 'DASH') {
       this.attemptTackle(player);
     }
   }

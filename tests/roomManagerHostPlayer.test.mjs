@@ -12,25 +12,24 @@ function fakeSocket() {
   };
 }
 
-test('TV host can optionally occupy P1 and releases it again', () => {
+test('TV host can join the first empty seat and move after joining', () => {
   const manager = new RoomManager();
   const host = fakeSocket();
   const room = manager.createRoom(host, 'PONG', { asPlayer: false, name: 'HOST' });
-
-  assert.equal(manager.getReservedHostSlot(room), null);
-  const joined = manager.handleSetHostPlayer(host, true, { name: 'HOST' });
-  assert.equal(joined.success, true);
-  assert.equal(manager.getReservedHostSlot(room), 0);
-  assert.equal(manager.getSlots(room)[0].isHost, true);
-  assert.equal(manager.getSlots(room)[0].isReady, true);
-
   const phone = fakeSocket();
   const phoneJoin = manager.joinRoom(room.code, phone, 'PHONE', 'phone-1', { color: '#1D5D8A' });
   assert.equal(phoneJoin.success, true);
-  assert.equal(phoneJoin.slotIndex, 1);
+  assert.equal(phoneJoin.slotIndex, 0);
 
-  manager.handleSwapSlots(host, 0, 1);
-  assert.equal(manager.getReservedHostSlot(room), 0, 'host seat must not be swappable');
+  assert.equal(manager.getReservedHostSlot(room), null);
+  const joined = manager.handleSetHostPlayer(host, true, { name: 'HOST', slotIndex: 1 });
+  assert.equal(joined.success, true);
+  assert.equal(manager.getReservedHostSlot(room), 1);
+  assert.equal(manager.getSlots(room)[1].isHost, true);
+  assert.equal(manager.getSlots(room)[1].isReady, true);
+
+  manager.handleSwapSlots(host, 1, 2);
+  assert.equal(manager.getReservedHostSlot(room), 2, 'host seat remains swappable after joining');
 
   const left = manager.handleSetHostPlayer(host, false);
   assert.equal(left.success, true);

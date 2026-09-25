@@ -9,6 +9,7 @@ import { resolveSlotName } from '../core/slotManager.js';
 import { getProjectileSubsteps } from '../core/physics2d.js';
 import { updateTankBotAI as runTankBotAI } from '../ai/tankAI.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
+import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap } from '../core/touchFlow.js';
 import {
   createTanksWorldPacket,
@@ -20,6 +21,7 @@ import {
   drawTanksTanks,
 } from './tanksView.js';
 import { drawSquareParticles } from './worldCore.js';
+import { vibrate } from '../core/haptics.js';
 
 export const TANK_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const TANK_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -342,8 +344,8 @@ export class TanksGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
+      ...this.getCentralTabletopLayout('TANKS'),
       // Sürüüş köşe-tut mantığıyla çalışır; ped yalnızca görsel rehberdir
-      joystick: true,
       actions: [
         {
           id: 'fire',
@@ -760,7 +762,7 @@ export class TanksGame extends BaseMiniGame {
     this.addTrauma(0.08);
 
     if (tank.slotType === 'human' && typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate(22);
+      vibrate(22);
     }
 
     this.shotTracers.push({
@@ -777,7 +779,7 @@ export class TanksGame extends BaseMiniGame {
     const tank = this.tanks[slotIndex];
     if (!tank || !tank.isJoined || !tank.isAlive) return;
 
-    if (data.action === 'TANK_DRIVE') {
+    if (isInputIntent(data, 'drive') || data.action === 'TANK_DRIVE') {
       if (this.spawnIntroTimer > 0 || this.state !== 'PLAYING') {
         tank.isDriving = false;
         if (this.driveOwner[slotIndex] === 'remote') this.driveOwner[slotIndex] = null;
@@ -789,7 +791,7 @@ export class TanksGame extends BaseMiniGame {
       } else if (this.driveOwner[slotIndex] === 'remote') {
         this.driveOwner[slotIndex] = null;
       }
-    } else if (data.action === 'TANK_FIRE') {
+    } else if (matchesInputAction(data, 'fire', 'TANK_FIRE')) {
       this.attemptFire(tank);
     }
   }
@@ -1170,7 +1172,7 @@ export class TanksGame extends BaseMiniGame {
             this.destroyTank(tank);
 
             if (tank.slotType === 'human' && typeof navigator !== 'undefined' && navigator.vibrate) {
-              navigator.vibrate([40, 50, 80]);
+              vibrate([40, 50, 80]);
             }
             continue bulletLoop;
           }

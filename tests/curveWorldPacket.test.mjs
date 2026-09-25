@@ -76,6 +76,9 @@ test('curve world packet caps near segments and carries flags', () => {
   assert.ok(second.seq > first.seq);
 
   assert.ok(first.near.length > 0);
+  assert.equal(first.near[0].length, 8);
+  assert.ok(Number.isInteger(first.near[0][6]));
+  assert.equal(first.near[0][7], 1);
   assert.ok(first.near.length <= CURVE_TOTAL_NEAR_CAP);
   assert.equal(first.field.length, (CURVE_FIELD_TILES * CURVE_FIELD_TILES) / 2);
   assert.equal(first.gaps.length, (CURVE_GAP_MASK_TILES * CURVE_GAP_MASK_TILES) / 4);
