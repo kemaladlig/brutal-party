@@ -66,6 +66,7 @@ export function checkRicochetShot(game, tank, enemies) {
   }
 
   if (!hitPoint || !normal) return false;
+  if (!hasLineOfSight(game, tank.x, tank.y, hitPoint.x, hitPoint.y)) return false;
 
   const dot = dirX * normal.x + dirY * normal.y;
   const rx = dirX - 2 * dot * normal.x;

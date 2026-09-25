@@ -8,7 +8,8 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCloneBotAI } from '../ai/cloneAI.js';
 import { readSlotKeys } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
-import { clampToArena, resolveAABB } from '../core/physics2d.js';
+import { clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
+import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
 import {
   createCloneWorldPacket,
   drawCloneArena,
@@ -24,6 +25,8 @@ export const CLONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 const CLONE_DASH_COOLDOWN = 1.6;
 const CLONE_RADIUS = 15;
+const CLONE_ROUND_TIME = 60;
+const CLONE_MAX_TIED_ROUNDS = 2;
 
 export class CloneGame extends BaseMiniGame {
   constructor(canvas) {
@@ -38,7 +41,11 @@ export class CloneGame extends BaseMiniGame {
     this.npcClones = [];
     this.particles = [];
     this.floatingTexts = [];
-    this.roundTime = 60;
+    this.roundTime = CLONE_ROUND_TIME;
+    this.roundId = 0;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.tiedRounds = 0;
     this.keys = {};
     this.roundTransitionTimer = 0;
 
@@ -84,6 +91,8 @@ export class CloneGame extends BaseMiniGame {
   resize(width, height) {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
+    const activeTasks = this.taskPoints.map((task) => ({ ...task }));
+    const activeClones = this.npcClones.map((clone) => ({ ...clone, targetTaskId: clone.targetTask?.id || null }));
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
     const arenaW = width - marginX * 2;
@@ -100,8 +109,27 @@ export class CloneGame extends BaseMiniGame {
     if (this.state === 'LOBBY' || !this.players.length) {
       this.initPlayers();
     } else {
-      for (const p of this.players) this.remapPoint(p, oldArena, this.arena);
-      for (const c of this.npcClones) this.remapPoint(c, oldArena, this.arena);
+      if (activeTasks.length > 0) {
+        this.taskPoints = activeTasks.map((task) => {
+          const mapped = { ...task };
+          this.remapPoint(mapped, oldArena, this.arena);
+          return mapped;
+        });
+        this.npcClones = activeClones.map((clone) => {
+          const mapped = { ...clone, targetTaskId: clone.targetTaskId };
+          this.remapPoint(mapped, oldArena, this.arena);
+          mapped.targetTask = this.taskPoints.find((task) => task.id === clone.targetTaskId) || this.taskPoints[0];
+          delete mapped.targetTaskId;
+          return mapped;
+        });
+      }
+      for (const p of this.players) {
+        p.aiMemory = null;
+        this.remapPoint(p, oldArena, this.arena);
+        clampToArena(p, CLONE_RADIUS, this.arena);
+        this.resolveWallCollision(p, CLONE_RADIUS);
+      }
+      for (const c of this.npcClones) this.resolveWallCollision(c, CLONE_RADIUS);
     }
   }
 
@@ -247,6 +275,11 @@ export class CloneGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.tiedRounds = 0;
+    this.roundTime = CLONE_ROUND_TIME;
     this.roundTransitionTimer = 0;
     this.particles = [];
     this.floatingTexts = [];
@@ -261,6 +294,9 @@ export class CloneGame extends BaseMiniGame {
   startNewMatch() {
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.tiedRounds = 0;
     this.startRound();
   }
 
@@ -276,8 +312,12 @@ export class CloneGame extends BaseMiniGame {
     }
     this.state = 'PLAYING';
     this.roundWinner = null;
+    this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId += 1;
     this.roundTransitionTimer = 0;
-    this.roundTime = 60;
+    this.roundTime = CLONE_ROUND_TIME;
     this.particles = [];
     this.floatingTexts = [];
     this.onTouchesReset();
@@ -304,9 +344,41 @@ export class CloneGame extends BaseMiniGame {
       player.steerY = 0;
       player.taskTimer = 0;
       player.currentTaskId = null;
+      player.aiMemory = null;
     });
 
     this.initNpcClones();
+  }
+
+  finishRound(winner, reason = 'elimination', awardPoint = false) {
+    if (this.state !== 'PLAYING') return;
+    if (winner) {
+      this.roundWinner = winner;
+      this.roundResolutionReason = reason;
+      this.tiedRounds = 0;
+      this.matchDraw = false;
+      if (awardPoint) this.scores[winner.index] += 1;
+      if (this.scores[winner.index] >= this.targetScore) this.matchWinner = winner;
+      this.state = 'ROUND_OVER';
+      this.roundTransitionTimer = 2.5;
+      return;
+    }
+
+    this.roundWinner = null;
+    this.roundResolutionReason = reason;
+    this.tiedRounds += 1;
+    if (!this.players.some((p) => p.isJoined) || this.tiedRounds >= CLONE_MAX_TIED_ROUNDS) {
+      beginDrawRound(this, reason, 1.6);
+      return;
+    }
+    this.state = 'ROUND_OVER';
+    this.roundTransitionTimer = 2.5;
+  }
+
+  resolveTimeout() {
+    const alive = this.players.filter((p) => p.isJoined && p.isAlive);
+    if (alive.length === 1) this.finishRound(alive[0], 'timeout', true);
+    else this.finishRound(null, 'timeout');
   }
 
   attemptTackle(player) {
@@ -319,14 +391,18 @@ export class CloneGame extends BaseMiniGame {
     }
   }
 
-  checkTackleHit(attacker) {
+  checkTackleHit(attacker, fromX = attacker.x, fromY = attacker.y) {
     const hitRadius = 34;
+    const blockedByWall = (x1, y1, x2, y2) => this.walls.some((wall) => (
+      segmentAabbIntersection(x1, y1, x2, y2, wall)
+    ));
 
     // 1. Önce diğer canlı gerçek oyunculara bak
     for (const victim of this.players) {
       if (!victim.isJoined || !victim.isAlive || victim.index === attacker.index) continue;
 
-      if (Math.hypot(attacker.x - victim.x, attacker.y - victim.y) < hitRadius) {
+      const hit = segmentCircleIntersection(fromX, fromY, attacker.x, attacker.y, victim.x, victim.y, hitRadius);
+      if (hit && !blockedByWall(fromX, fromY, hit.x, hit.y)) {
         victim.isAlive = false;
         attacker.dashTimer = 0;
         this.scores[attacker.index] += 2;
@@ -335,9 +411,6 @@ export class CloneGame extends BaseMiniGame {
         this.spawnBurst(victim.x, victim.y, victim.color);
         this.spawnFloatingText(victim.x, victim.y - 18, t('clone.real'), '#2F6A4F');
 
-        if (this.scores[attacker.index] >= this.targetScore) {
-          this.matchWinner = attacker;
-        }
         this.checkAlive();
         return;
       }
@@ -347,7 +420,8 @@ export class CloneGame extends BaseMiniGame {
     for (const clone of this.npcClones) {
       if (!clone.active) continue;
 
-      if (Math.hypot(attacker.x - clone.x, attacker.y - clone.y) < hitRadius) {
+      const hit = segmentCircleIntersection(fromX, fromY, attacker.x, attacker.y, clone.x, clone.y, hitRadius);
+      if (hit && !blockedByWall(fromX, fromY, hit.x, hit.y)) {
         clone.active = false;
         attacker.dashTimer = 0;
         attacker.slowTimer = 2.5; // Ceza!
@@ -412,7 +486,7 @@ export class CloneGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = Math.min((now - this.lastTime) / 1000, 0.08);
+    const dt = Math.max(0, Math.min((now - this.lastTime) / 1000, 0.08));
     this.lastTime = now;
 
     if (this.trauma > 0) {
@@ -422,7 +496,8 @@ export class CloneGame extends BaseMiniGame {
     if (this.state === 'ROUND_OVER') {
       this.roundTransitionTimer -= dt;
       if (this.roundTransitionTimer <= 0) {
-        this.matchWinner ? this.state = 'MATCH_OVER' : this.startRound();
+        if (hasMatchResult(this)) this.state = 'MATCH_OVER';
+        else this.startRound();
       }
       return;
     }
@@ -469,13 +544,16 @@ export class CloneGame extends BaseMiniGame {
       if (player.dashTimer > 0) currentSpeed = 460;
       else if (player.slowTimer > 0) currentSpeed = 55;
 
+      const prevX = player.x;
+      const prevY = player.y;
       if (player.dashTimer <= 0) {
         player.x += player.steerX * currentSpeed * dt;
         player.y += player.steerY * currentSpeed * dt;
       } else {
         player.x += Math.cos(player.angle) * currentSpeed * dt;
         player.y += Math.sin(player.angle) * currentSpeed * dt;
-        this.checkTackleHit(player);
+        this.checkTackleHit(player, prevX, prevY);
+        if (this.state !== 'PLAYING') return;
       }
 
       // Duvar çarpışması (AABB slide)
@@ -502,7 +580,6 @@ export class CloneGame extends BaseMiniGame {
               const compText = t.completions >= 2 ? ` (${t.completions}x ✓)` : '';
               this.spawnFloatingText(player.x, player.y - 20, `${t.icon} ${t.name} +1★${compText}`, '#2F6A4F');
               if (this.scores[player.index] >= this.targetScore) {
-                this.matchWinner = player;
                 this.handleRoundEnd(player);
                 return;
               }
@@ -612,10 +689,9 @@ export class CloneGame extends BaseMiniGame {
       if (ft.alpha <= 0) this.floatingTexts.splice(i, 1);
     }
 
-    this.roundTime -= dt;
+    this.roundTime = Math.max(0, this.roundTime - dt);
     if (this.roundTime <= 0) {
-      const alivePlayers = this.players.filter((p) => p.isJoined && p.isAlive);
-      this.handleRoundEnd(alivePlayers.length === 1 ? alivePlayers[0] : null);
+      this.resolveTimeout();
       return;
     }
 
@@ -668,6 +744,12 @@ export class CloneGame extends BaseMiniGame {
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
+    if (this.state !== 'PLAYING') {
+      player.steerX = 0;
+      player.steerY = 0;
+      player.remoteActive = false;
+      return;
+    }
 
     if (data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
       const force = Number.isFinite(data.force) ? data.force : Math.hypot(data.dx || 0, data.dy || 0);
@@ -691,12 +773,7 @@ export class CloneGame extends BaseMiniGame {
   }
 
   handleRoundEnd(winner) {
-    this.state = 'ROUND_OVER';
-    this.roundWinner = winner;
-    this.roundTransitionTimer = 2.5;
-    if (winner && this.scores[winner.index] >= this.targetScore) {
-      this.matchWinner = winner;
-    }
+    this.finishRound(winner, 'elimination', false);
   }
 
   createWorldPacket() {

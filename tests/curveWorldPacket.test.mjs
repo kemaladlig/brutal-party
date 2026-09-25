@@ -5,7 +5,10 @@ import {
   isValidCurveWorldFrame,
   packCurveFieldMask,
   unpackCurveFieldMask,
+  packCurveGapMask,
+  unpackCurveGapMask,
   CURVE_FIELD_TILES,
+  CURVE_GAP_MASK_TILES,
   CURVE_TOTAL_NEAR_CAP,
 } from '../src/games/curveView.js';
 
@@ -58,6 +61,9 @@ test('curve field mask round-trips owner bits', () => {
   assert.equal(at(10, 10), 1);     // owner 0 → 1
   assert.equal(at(120, 120), 3);   // owner 2 → 3
   assert.equal(at(200, 200), 0);   // isGap segmentleri hiçbir hücreyi kirletmez
+
+  const gapMask = unpackCurveGapMask(packCurveGapMask(segments, field));
+  assert.equal(gapMask[Math.floor(200 / cell) * CURVE_GAP_MASK_TILES + Math.floor(200 / cell)], 1);
 });
 
 test('curve world packet caps near segments and carries flags', () => {
@@ -72,6 +78,7 @@ test('curve world packet caps near segments and carries flags', () => {
   assert.ok(first.near.length > 0);
   assert.ok(first.near.length <= CURVE_TOTAL_NEAR_CAP);
   assert.equal(first.field.length, (CURVE_FIELD_TILES * CURVE_FIELD_TILES) / 2);
+  assert.equal(first.gaps.length, (CURVE_GAP_MASK_TILES * CURVE_GAP_MASK_TILES) / 4);
 
   // Oyuncu başına en fazla son 220 segment gönderilir
   const perOwner = new Map();
@@ -81,6 +88,7 @@ test('curve world packet caps near segments and carries flags', () => {
   const p = first.players[0];
   assert.equal(p.thick, true);
   assert.equal(p.gap, false);
+  assert.equal(p.confused, false);
   assert.equal(p.gapTimer, 1);
   assert.equal(first.pickups[0].type, 'TURBO');
   assert.equal(first.texts[0].alpha, 0.5);
@@ -95,6 +103,7 @@ test('curve world frame validation rejects malformed input', () => {
 
   assert.equal(isValidCurveWorldFrame(frame), true);
   assert.equal(isValidCurveWorldFrame({ ...frame, field: 'zz' }), false);
+  assert.equal(isValidCurveWorldFrame({ ...frame, gaps: 'zz' }), false);
   assert.equal(isValidCurveWorldFrame({ ...frame, field: frame.field.slice(0, -1) }), false);
   assert.equal(isValidCurveWorldFrame({ ...frame, near: [[0, 1, 2, 3, 4, 99]] }), false);
   assert.equal(isValidCurveWorldFrame({ ...frame, near: [[9, 1, 2, 3, 4, 0]] }), false);

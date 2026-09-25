@@ -27,6 +27,7 @@ import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { createPlayer, tickEffectTimers, advancePlayer } from '../core/playerEntity.js';
+import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
 import {
   createBombWorldPacket,
   drawBombArena,
@@ -41,6 +42,7 @@ export const BOMB_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 // Depar bekleme süresi (sn) — triggerDash, entity HUD ve masa-ortası butonu aynı kaynaktan okur
 const BOMB_DASH_COOLDOWN = 2.2;
+const BOMB_ROUND_LIMIT = 90;
 
 export const MAP_PRESETS = [
   { id: 'columns4', name: '01 // 4 SİPER KOLONU' },
@@ -77,6 +79,11 @@ export class BombGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.roundTimer = 0;
+    this.roundLimit = BOMB_ROUND_LIMIT;
     this.roundTransitionTimer = 0;
 
     // Entities & Mechanics
@@ -208,11 +215,19 @@ export class BombGame extends BaseMiniGame {
     }
     for (const p of this.players) {
       this.remapPoint(p, oldArena, this.arena);
+      clampToArena(p, p.radius, this.arena, { zeroVelocity: true });
+      resolveAABB(p, this.pillars, p.radius);
       p.vx = 0; p.vy = 0;
       p.lastX = p.x; p.lastY = p.y;
     }
-    for (const item of this.pickups) this.remapPoint(item, oldArena, this.arena);
-    for (const ink of this.inkPuddles) this.remapPoint(ink, oldArena, this.arena);
+    for (const item of this.pickups) {
+      this.remapPoint(item, oldArena, this.arena);
+      clampToArena(item, item.radius || item.size || 15, this.arena);
+    }
+    for (const ink of this.inkPuddles) {
+      this.remapPoint(ink, oldArena, this.arena);
+      clampToArena(ink, ink.radius || 22, this.arena);
+    }
     this.particles = [];
   }
 
@@ -262,6 +277,10 @@ export class BombGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.roundTimer = 0;
     this.bombCarrierIndex = -1;
     this.pickups = [];
     this.inkPuddles = [];
@@ -289,6 +308,8 @@ export class BombGame extends BaseMiniGame {
   startNewMatch() {
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
     this.startNewRound();
   }
 
@@ -308,6 +329,10 @@ export class BombGame extends BaseMiniGame {
 
     this.state = 'PLAYING';
     this.roundWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId += 1;
+    this.roundTimer = 0;
     this.roundTransitionTimer = 0;
     this.pickups = [];
     this.inkPuddles = [];
@@ -332,7 +357,7 @@ export class BombGame extends BaseMiniGame {
     // Lobi/maç-sonunda kumandadan depar tetiklenemez (uzak girdi kapısı)
     if (this.state !== 'PLAYING') return;
     const p = this.players[playerIndex];
-    if (!p || !p.isAlive || p.dashCooldown > 0 || p.slipTimer > 0) return;
+    if (!p || !p.isAlive || p.dashCooldown > 0 || p.slipTimer > 0 || p.stumbleTimer > 0) return;
 
     p.dashCooldown = BOMB_DASH_COOLDOWN;
     p.dashMaxCooldown = BOMB_DASH_COOLDOWN;
@@ -467,9 +492,11 @@ export class BombGame extends BaseMiniGame {
         return true;
       }
     } else {
-      this.roundWinner = null;
+      beginDrawRound(this, 'no-survivor', 2.4);
+      return true;
     }
     this.state = 'ROUND_OVER';
+    this.matchDraw = false;
     this.roundTransitionTimer = 2.4;
     return true;
   }
@@ -549,12 +576,22 @@ export class BombGame extends BaseMiniGame {
     if (this.state === 'ROUND_OVER') {
       this.roundTransitionTimer -= dt;
       if (this.roundTransitionTimer <= 0) {
-        this.startNewRound();
+        if (hasMatchResult(this)) {
+          this.state = 'MATCH_OVER';
+        } else {
+          this.startNewRound();
+        }
       }
       return;
     }
 
     if (this.state !== 'PLAYING') return;
+
+    this.roundTimer += dt;
+    if (roundTimedOut(this.roundTimer, this.roundLimit)) {
+      beginDrawRound(this, 'timeout', 1.6);
+      return;
+    }
 
     // Taşıyıcı ayrıldıysa/öldüyse bomba canlı birine geçer; kimse kalmadıysa bitir
     const activeCarrier = this.players[this.bombCarrierIndex];
@@ -883,7 +920,7 @@ export class BombGame extends BaseMiniGame {
       roundBannerTitle: this.roundWinner ? `+1 SET: ${this.roundWinner.name}!` : null,
       roundBannerColor: this.roundWinner?.color,
       roundBannerSub: this.roundWinner ? `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}` : '',
-      matchOverHeadline: t('game.champWon'),
+      matchOverHeadline: this.matchDraw ? t('game.draw') : t('game.champWon'),
       matchOverRows: this.matchWinner
         ? this.players
             .filter((p) => p.isJoined)

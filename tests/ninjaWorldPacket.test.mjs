@@ -67,6 +67,8 @@ test('ninja world packet is declarative, complete and monotonic', () => {
   assert.equal(p.strike, true);
   assert.ok(p.strikeProg > 0 && p.strikeProg < 1);
   assert.equal(p.smokeProg, null);
+  assert.equal(first.matchDraw, false);
+  assert.equal(first.timeLeft, 0);
 
   assert.ok(isValidNinjaWorldFrame({ action: 'WORLD_FRAME', ...first }));
   assert.equal(isValidNinjaWorldFrame({ action: 'WORLD_FRAME', ...first, version: 2 }), false);
@@ -80,5 +82,6 @@ test('ninja world frame validation rejects malformed input', () => {
   assert.equal(isValidNinjaWorldFrame({ ...frame, slashes: [{ ...frame.slashes[0], waves: [1, 2, 3, 4, 5] }] }), false);
   assert.equal(isValidNinjaWorldFrame({ ...frame, fx: [{ ...frame.fx[0], ring: 1 }] }), false);
   assert.equal(isValidNinjaWorldFrame({ ...frame, players: [{ ...frame.players[0], alpha: NaN }] }), false);
+  assert.equal(isValidNinjaWorldFrame({ ...frame, matchDraw: 0 }), false);
   assert.equal(isValidNinjaWorldFrame({ ...frame, mode: 'CLONE' }), false);
 });

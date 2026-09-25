@@ -17,11 +17,15 @@ import {
   drawCollapsePlayers,
 } from './collapseView.js';
 import { drawCircleParticles } from './worldCore.js';
+import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
+import { tickPickupTimers } from '../core/pickupSystem.js';
 
 export const COLLAPSE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const COLLAPSE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 const COLLAPSE_JUMP_COOLDOWN = 1.6;
+const COLLAPSE_ROUND_TIME = 60;
+const COLLAPSE_MAX_TIED_ROUNDS = 2;
 
 // 5 Farklı Rastgele Harita Tasarımı
 export const COLLAPSE_MAPS = [
@@ -173,6 +177,11 @@ export class CollapseGame extends BaseMiniGame {
     this.pickupSpawnTimer = 3.0;
 
     this.keys = {};
+    this.roundId = 0;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.tiedRounds = 0;
+    this.roundTime = COLLAPSE_ROUND_TIME;
     this.roundTransitionTimer = 0;
 
     this.initKeyboard();
@@ -245,7 +254,24 @@ export class CollapseGame extends BaseMiniGame {
       this.initPlayers();
       this.buildGrid();
     } else {
-      for (const p of this.players) this.remapPoint(p, oldArena, this.arena);
+      const gridLeft = this.offsetX + this.cellSize * 0.5;
+      const gridRight = this.offsetX + this.gridCOLS * this.cellSize - this.cellSize * 0.5;
+      const gridTop = this.offsetY + this.cellSize * 0.5;
+      const gridBottom = this.offsetY + this.gridROWS * this.cellSize - this.cellSize * 0.5;
+      for (const p of this.players) {
+        this.remapPoint(p, oldArena, this.arena);
+        p.x = Math.max(gridLeft, Math.min(gridRight, p.x));
+        p.y = Math.max(gridTop, Math.min(gridBottom, p.y));
+        p.vx = 0;
+        p.vy = 0;
+      }
+      for (const pickup of this.pickups) {
+        this.remapPoint(pickup, oldArena, this.arena);
+        pickup.x = Math.max(gridLeft, Math.min(gridRight, pickup.x));
+        pickup.y = Math.max(gridTop, Math.min(gridBottom, pickup.y));
+      }
+      for (const tile of this.fallingTiles) this.remapPoint(tile, oldArena, this.arena);
+      for (const wave of this.shockwaves) this.remapPoint(wave, oldArena, this.arena);
     }
   }
 
@@ -296,8 +322,14 @@ export class CollapseGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.tiedRounds = 0;
+    this.roundTime = COLLAPSE_ROUND_TIME;
     this.roundTransitionTimer = 0;
     this.pickups = [];
+    this.particles = [];
     this.fallingTiles = [];
     this.shockwaves = [];
     this.pickRandomMap();
@@ -312,6 +344,9 @@ export class CollapseGame extends BaseMiniGame {
   startNewMatch() {
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.tiedRounds = 0;
     this.startRound();
   }
 
@@ -327,6 +362,11 @@ export class CollapseGame extends BaseMiniGame {
     }
     this.state = 'PLAYING';
     this.roundWinner = null;
+    this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId += 1;
+    this.roundTime = COLLAPSE_ROUND_TIME;
     this.roundTransitionTimer = 0;
     this.pickups = [];
     this.fallingTiles = [];
@@ -368,6 +408,37 @@ export class CollapseGame extends BaseMiniGame {
         }
       }
     });
+  }
+
+  finishRound(winner, reason = 'elimination', awardPoint = false) {
+    if (this.state !== 'PLAYING') return;
+    if (winner) {
+      this.roundWinner = winner;
+      this.roundResolutionReason = reason;
+      this.tiedRounds = 0;
+      this.matchDraw = false;
+      if (awardPoint) this.scores[winner.index] += 1;
+      if (this.scores[winner.index] >= this.targetScore) this.matchWinner = winner;
+      this.state = 'ROUND_OVER';
+      this.roundTransitionTimer = 2.5;
+      return;
+    }
+
+    this.roundWinner = null;
+    this.roundResolutionReason = reason;
+    this.tiedRounds += 1;
+    if (!this.players.some((p) => p.isJoined) || this.tiedRounds >= COLLAPSE_MAX_TIED_ROUNDS) {
+      beginDrawRound(this, reason, 1.6);
+      return;
+    }
+    this.state = 'ROUND_OVER';
+    this.roundTransitionTimer = 2.5;
+  }
+
+  resolveTimeout() {
+    const alive = this.players.filter((p) => p.isJoined && p.isAlive);
+    if (alive.length === 1) this.finishRound(alive[0], 'timeout', true);
+    else this.finishRound(null, 'timeout');
   }
 
   attemptJump(player) {
@@ -489,7 +560,7 @@ export class CollapseGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = Math.min((now - this.lastTime) / 1000, 0.08);
+    const dt = Math.max(0, Math.min((now - this.lastTime) / 1000, 0.08));
     this.lastTime = now;
 
     if (this.trauma > 0) {
@@ -499,12 +570,19 @@ export class CollapseGame extends BaseMiniGame {
     if (this.state === 'ROUND_OVER') {
       this.roundTransitionTimer -= dt;
       if (this.roundTransitionTimer <= 0) {
-        this.matchWinner ? this.state = 'MATCH_OVER' : this.startRound();
+        if (hasMatchResult(this)) this.state = 'MATCH_OVER';
+        else this.startRound();
       }
       return;
     }
 
     if (this.state !== 'PLAYING') return;
+
+    this.roundTime = Math.max(0, this.roundTime - dt);
+    if (this.roundTime <= 0) {
+      this.resolveTimeout();
+      return;
+    }
 
     // Güçlendirme periyodu
     this.pickupSpawnTimer -= dt;
@@ -512,6 +590,7 @@ export class CollapseGame extends BaseMiniGame {
       this.spawnPickup();
       this.pickupSpawnTimer = 6.0 + Math.random() * 4.0;
     }
+    tickPickupTimers(this, dt);
 
     // Izgara zamanlayıcıları: uyarı süresi dolan kare 3D boşluğa düşer
     for (let r = 0; r < this.gridROWS; r++) {
@@ -601,20 +680,33 @@ export class CollapseGame extends BaseMiniGame {
         }
       }
 
+      const fromX = player.x;
+      const fromY = player.y;
       const spd = player.jumpTimer > 0 ? player.speed * 1.85 : player.speed;
       player.x += player.steerX * spd * dt;
       player.y += player.steerY * spd * dt;
 
-      // Zemin etkileşimi (sadece yerdeyken)
+      // Zemin etkileşimi (sadece yerdeyken); hızlı karelerde aradaki boşluğu atlamaz.
       if (player.jumpTimer <= 0) {
+        const distance = Math.hypot(player.x - fromX, player.y - fromY);
+        const steps = Math.max(1, Math.ceil(distance / Math.max(1, this.cellSize * 0.45)));
+        let fell = false;
+        for (let step = 1; step <= steps; step++) {
+          const ratio = step / steps;
+          const sampleX = fromX + (player.x - fromX) * ratio;
+          const sampleY = fromY + (player.y - fromY) * ratio;
+          const cx = Math.floor((sampleX - this.offsetX) / this.cellSize);
+          const cy = Math.floor((sampleY - this.offsetY) / this.cellSize);
+          if (cx < 0 || cx >= this.gridCOLS || cy < 0 || cy >= this.gridROWS || this.grid[cy][cx].state === 2) {
+            this.eliminatePlayer(player);
+            fell = true;
+            break;
+          }
+        }
+        if (fell) continue;
+
         const cx = Math.floor((player.x - this.offsetX) / this.cellSize);
         const cy = Math.floor((player.y - this.offsetY) / this.cellSize);
-
-        if (cx < 0 || cx >= this.gridCOLS || cy < 0 || cy >= this.gridROWS || this.grid[cy][cx].state === 2) {
-          this.eliminatePlayer(player);
-          continue;
-        }
-
         if (this.grid[cy][cx].state === 0) {
           this.grid[cy][cx].state = 1;
           this.grid[cy][cx].timer = 0.85;
@@ -732,6 +824,12 @@ export class CollapseGame extends BaseMiniGame {
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
+    if (this.state !== 'PLAYING') {
+      player.steerX = 0;
+      player.steerY = 0;
+      player.remoteActive = false;
+      return;
+    }
 
     if (data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
       const force = Number.isFinite(data.force) ? data.force : Math.hypot(data.dx || 0, data.dy || 0);
@@ -758,15 +856,7 @@ export class CollapseGame extends BaseMiniGame {
   }
 
   handleRoundEnd(winner) {
-    this.state = 'ROUND_OVER';
-    this.roundWinner = winner;
-    this.roundTransitionTimer = 2.5;
-    if (winner) {
-      this.scores[winner.index]++;
-      if (this.scores[winner.index] >= this.targetScore) {
-        this.matchWinner = winner;
-      }
-    }
+    this.finishRound(winner, 'elimination', true);
   }
 
   render() {

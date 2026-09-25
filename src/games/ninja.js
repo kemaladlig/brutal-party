@@ -8,7 +8,8 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateNinjaBotAI } from '../ai/ninjaAI.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
-import { clampToArena, resolveAABB } from '../core/physics2d.js';
+import { clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
+import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
 import {
   NINJA_RADIUS,
   createNinjaWorldPacket,
@@ -52,7 +53,11 @@ export class NinjaGame extends BaseMiniGame {
     this.cutDecals = [];
     this.impactCuts = [];
     this.floatingTexts = [];
-    this.roundTime = 40;
+    this.roundTime = 45;
+    this.roundId = 0;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.tiedRounds = 0;
     this.keys = {};
     this.roundTransitionTimer = 0;
 
@@ -113,6 +118,7 @@ export class NinjaGame extends BaseMiniGame {
   resize(width, height) {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
+    const activeLanterns = this.lanterns.map((lantern) => ({ ...lantern }));
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
     const arenaW = width - marginX * 2;
@@ -130,7 +136,21 @@ export class NinjaGame extends BaseMiniGame {
       this.initPlayers();
       return;
     }
-    for (const p of this.players) this.remapPoint(p, oldArena, this.arena);
+    if (activeLanterns.length > 0) {
+      this.lanterns = activeLanterns.map((lantern) => {
+        const mapped = { ...lantern };
+        this.remapPoint(mapped, oldArena, this.arena);
+        clampToArena(mapped, mapped.radius || 8, this.arena);
+        return mapped;
+      });
+    }
+    for (const p of this.players) {
+      p.botTargetX = this.arena.cx;
+      p.botTargetY = this.arena.cy;
+      this.remapPoint(p, oldArena, this.arena);
+      clampToArena(p, NINJA_RADIUS, this.arena);
+      resolveAABB(p, this.obstacles, NINJA_RADIUS);
+    }
   }
 
   buildMap() {
@@ -207,6 +227,11 @@ export class NinjaGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.tiedRounds = 0;
+    this.roundTime = 45;
     this.roundTransitionTimer = 0;
     this.particles = [];
     this.slashWaves = [];
@@ -226,6 +251,9 @@ export class NinjaGame extends BaseMiniGame {
   startNewMatch() {
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.tiedRounds = 0;
     this.startRound();
   }
 
@@ -241,6 +269,10 @@ export class NinjaGame extends BaseMiniGame {
     }
     this.state = 'PLAYING';
     this.roundWinner = null;
+    this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId += 1;
     this.roundTransitionTimer = 0;
     this.roundTime = 45;
     this.particles = [];
@@ -286,8 +318,39 @@ export class NinjaGame extends BaseMiniGame {
     });
   }
 
+  finishRound(winner, reason = 'elimination', awardPoint = false) {
+    if (this.state !== 'PLAYING') return;
+    if (winner) {
+      this.roundWinner = winner;
+      this.roundResolutionReason = reason;
+      this.tiedRounds = 0;
+      this.matchDraw = false;
+      if (awardPoint) this.scores[winner.index] += 1;
+      if (this.scores[winner.index] >= this.targetScore) this.matchWinner = winner;
+      this.state = 'ROUND_OVER';
+      this.roundTransitionTimer = 2.5;
+      return;
+    }
+
+    this.roundWinner = null;
+    this.roundResolutionReason = reason;
+    this.tiedRounds += 1;
+    if (!this.players.some((p) => p.isJoined) || this.tiedRounds >= 2) {
+      beginDrawRound(this, reason, 1.6);
+      return;
+    }
+    this.state = 'ROUND_OVER';
+    this.roundTransitionTimer = 2.5;
+  }
+
+  resolveTimeout() {
+    const alive = this.players.filter((p) => p.isJoined && p.isAlive);
+    if (alive.length === 1) this.finishRound(alive[0], 'timeout', true);
+    else this.finishRound(null, 'timeout');
+  }
+
   attemptStrike(player) {
-    if (this.state !== 'PLAYING' || !player.isAlive) return;
+    if (this.state !== 'PLAYING' || !player.isJoined || !player.isAlive) return;
     if (player.strikeCooldown <= 0) {
       player.strikeTimer = 0.28;
       player.strikeCooldown = NINJA_STRIKE_COOLDOWN;
@@ -499,7 +562,7 @@ export class NinjaGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = Math.min((now - this.lastTime) / 1000, 0.08);
+    const dt = Math.max(0, Math.min((now - this.lastTime) / 1000, 0.08));
     this.lastTime = now;
 
     if (this.trauma > 0) {
@@ -565,7 +628,8 @@ export class NinjaGame extends BaseMiniGame {
     if (this.state === 'ROUND_OVER') {
       this.roundTransitionTimer -= dt;
       if (this.roundTransitionTimer <= 0) {
-        this.matchWinner ? this.state = 'MATCH_OVER' : this.startRound();
+        if (hasMatchResult(this)) this.state = 'MATCH_OVER';
+        else this.startRound();
       }
       return;
     }
@@ -628,10 +692,9 @@ export class NinjaGame extends BaseMiniGame {
       }
     }
 
-    this.roundTime -= dt;
+    this.roundTime = Math.max(0, this.roundTime - dt);
     if (this.roundTime <= 0) {
-      const alivePlayers = this.players.filter((p) => p.isJoined && p.isAlive);
-      this.handleRoundEnd(alivePlayers.length === 1 ? alivePlayers[0] : null);
+      this.resolveTimeout();
       return;
     }
 
@@ -719,6 +782,10 @@ export class NinjaGame extends BaseMiniGame {
         }
       }
 
+      const prevX = player.x;
+      const prevY = player.y;
+      player.prevX = prevX;
+      player.prevY = prevY;
       const spd = player.strikeTimer > 0 ? 780 : player.speed;
 
       if (player.strikeTimer <= 0) {
@@ -730,10 +797,10 @@ export class NinjaGame extends BaseMiniGame {
       }
 
       clampToArena(player, NINJA_RADIUS, this.arena);
-      const prevX = player.x;
-      const prevY = player.y;
+      const postX = player.x;
+      const postY = player.y;
       resolveAABB(player, this.obstacles, NINJA_RADIUS);
-      if (player.strikeTimer > 0 && (player.x !== prevX || player.y !== prevY)) {
+      if (player.strikeTimer > 0 && (player.x !== postX || player.y !== postY)) {
         player.strikeTimer = 0;
       }
     }
@@ -745,7 +812,9 @@ export class NinjaGame extends BaseMiniGame {
       for (const victim of this.players) {
         if (!victim.isJoined || !victim.isAlive || victim.index === attacker.index) continue;
 
-        if (Math.hypot(attacker.x - victim.x, attacker.y - victim.y) < 48) {
+        const hit = segmentCircleIntersection(attacker.prevX ?? attacker.x, attacker.prevY ?? attacker.y, attacker.x, attacker.y, victim.x, victim.y, 48);
+        const blocked = hit && this.obstacles.some((obs) => segmentAabbIntersection(attacker.prevX ?? attacker.x, attacker.prevY ?? attacker.y, hit.x, hit.y, obs));
+        if (hit && !blocked) {
           victim.isAlive = false;
           attacker.strikeTimer = 0;
           this.scores[attacker.index]++;
@@ -806,6 +875,12 @@ export class NinjaGame extends BaseMiniGame {
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
+    if (this.state !== 'PLAYING') {
+      player.steerX = 0;
+      player.steerY = 0;
+      player.remoteActive = false;
+      return;
+    }
 
     if (data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
       const force = Number.isFinite(data.force) ? data.force : Math.hypot(data.dx || 0, data.dy || 0);
@@ -831,12 +906,7 @@ export class NinjaGame extends BaseMiniGame {
   }
 
   handleRoundEnd(winner) {
-    this.state = 'ROUND_OVER';
-    this.roundWinner = winner;
-    this.roundTransitionTimer = 2.5;
-    if (winner && this.scores[winner.index] >= this.targetScore) {
-      this.matchWinner = winner;
-    }
+    this.finishRound(winner, 'elimination', false);
   }
 
   render() {

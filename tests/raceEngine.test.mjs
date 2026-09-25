@@ -115,6 +115,19 @@ test('non-playing remote joystick packets are neutralized', () => {
   assert.equal(game.joysticks[0].force, 0);
 });
 
+test('repeated tied rounds end as an explicit match draw', () => {
+  const game = createGame();
+  game.endRound(null, 'timeout');
+  assert.equal(game.tiedRounds, 1);
+  game.startNewRound();
+  game.endRound(null, 'timeout');
+  assert.equal(game.matchDraw, true);
+  assert.equal(game.state, 'ROUND_OVER');
+  game.roundTransitionTimer = 0;
+  game.update(performance.now() + 16);
+  assert.equal(game.state, 'MATCH_OVER');
+});
+
 test('match-over rendering does not accumulate restart buttons', () => {
   const game = createGame();
   game.state = 'MATCH_OVER';

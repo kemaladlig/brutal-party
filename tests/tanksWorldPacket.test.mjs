@@ -39,6 +39,8 @@ function makeGame() {
     scores: [1, 0, 0, 0],
     roundWinner: null,
     matchWinner: null,
+    suddenDeath: false,
+    suddenDeathRadius: 0,
   };
 }
 
@@ -52,9 +54,13 @@ test('tanks world packet is declarative, complete and monotonic', () => {
   assert.ok(second.seq > first.seq);
 
   assert.deepEqual(first.obstacles[0], [300, 120, 40, 200]);
-  assert.deepEqual(first.bullets[0], [420, 300, 4.5, 0]);
+  assert.deepEqual(first.bullets[0], [420, 300, 4.5, 0, 0, 0, 1]);
   assert.equal(first.tracers[0].life, 0.1);
   assert.deepEqual(first.crates[0], [200, 220, 22, 'SHIELD']);
+  assert.equal(first.suddenDeath.active, false);
+  assert.equal(first.suddenDeath.radius, 0);
+  assert.equal(first.intro.active, false);
+  assert.equal(first.intro.time, 0);
   const tk = first.players[0];
   assert.equal(tk.driving, true);
   assert.equal(tk.chamber, 1);
@@ -65,6 +71,16 @@ test('tanks world packet is declarative, complete and monotonic', () => {
   assert.equal(isValidTanksWorldFrame({ action: 'WORLD_FRAME', ...first, version: 2 }), false);
 });
 
+test('tanks world packet keeps a full legal triple-shot burst', () => {
+  const game = makeGame();
+  game.bullets = Array.from({ length: 16 }, (_, i) => ({
+    x: 100 + i, y: 100, radius: 4.5, owner: i % 4,
+  }));
+  const frame = createTanksWorldPacket(game);
+  assert.equal(frame.bullets.length, 16);
+  assert.equal(isValidTanksWorldFrame({ action: 'WORLD_FRAME', ...frame }), true);
+});
+
 test('tanks world frame validation rejects malformed input', () => {
   const game = makeGame();
   const frame = { action: 'WORLD_FRAME', ...createTanksWorldPacket(game) };
@@ -73,6 +89,7 @@ test('tanks world frame validation rejects malformed input', () => {
   assert.equal(isValidTanksWorldFrame({ ...frame, bullets: [[0, 0, 4, 9]] }), false);
   assert.equal(isValidTanksWorldFrame({ ...frame, tracers: [{ x1: 0, y1: 0, x2: 1, y2: 1 }] }), false);
   assert.equal(isValidTanksWorldFrame({ ...frame, players: [{ ...frame.players[0], chamber: 1.5 }] }), false);
+  assert.equal(isValidTanksWorldFrame({ ...frame, suddenDeath: { ...frame.suddenDeath, radius: -1 } }), false);
   assert.equal(isValidTanksWorldFrame({ ...frame, mode: 'HEIST' }), false);
 });
 

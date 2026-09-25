@@ -4,6 +4,7 @@
 
 import {
   unpackCurveFieldMask,
+  unpackCurveGapMask,
   drawCurveFieldMask,
   drawCurveNearSegments,
   drawCurveHeads,
@@ -86,7 +87,7 @@ export function createWorldViewRenderer() {
         const colors = players.map((p) => p.color);
 
         drawCurveGrid(ctx, arena);
-        drawCurveFieldMask(ctx, { x: left, y: top, s: arena.size }, unpackCurveFieldMask(frame.field), colors);
+        drawCurveFieldMask(ctx, { x: left, y: top, s: arena.size }, unpackCurveFieldMask(frame.field), colors, unpackCurveGapMask(frame.gaps));
         drawCurveNearSegments(ctx, frame.near || [], colors);
         drawCurvePickups(ctx, frame.pickups || []);
         drawAlphaTexts(ctx, frame.texts || [], { size: 12, outline: true });
@@ -100,7 +101,7 @@ export function createWorldViewRenderer() {
         drawWorldBanner(ctx, width, height, t('game.roundOver'), winner || '');
       } else if (frame.gameState === 'MATCH_OVER') {
         const winner = slots?.[frame.matchWinner]?.name;
-        drawWorldBanner(ctx, width, height, t('game.champWon'), winner || '');
+        drawWorldBanner(ctx, width, height, frame.matchDraw ? t('game.draw') : t('game.champWon'), winner || '');
       }
     },
 

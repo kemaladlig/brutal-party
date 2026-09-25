@@ -80,7 +80,9 @@ export function updatePongBotAI(game, paddle, dt) {
     // 🤖 NORMAL BOT: Human-like latency, soft tracking, occasional misses
     paddle.botErrorTimer -= dt;
     if (paddle.botErrorTimer <= 0) {
-      paddle.botErrorOffset = (Math.random() - 0.5) * 32;
+      const arenaRef = Math.min(game.arena.width || 400, game.arena.height || 400);
+      const errorRange = Math.max(8, Math.min(36, arenaRef * 0.06));
+      paddle.botErrorOffset = (Math.random() - 0.5) * errorRange;
       paddle.botErrorTimer = 0.4 + Math.random() * 0.3;
     }
 

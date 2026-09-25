@@ -11,7 +11,7 @@ import { updateArcherBotAI } from '../ai/archerAI.js';
 import { buildLayout } from '../core/arenaKit.js';
 import { readSlotKeys } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
-import { pointBlocked, updateMovers, clampToArena, resolveAABB } from '../core/physics2d.js';
+import { pointBlocked, updateMovers, clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import {
   createArcherWorldPacket,
@@ -48,6 +48,10 @@ export class ArcherGame extends BaseMiniGame {
     this.particles = [];
     this.roundTime = ARCHER_ROUND_TIME;
     this.roundTimer = ARCHER_ROUND_TIME;
+    this.roundId = 0;
+    this.roundHits = [0, 0, 0, 0];
+    this.tieRounds = 0;
+    this.matchDraw = false;
     this.pickups = [];
     this.pickupTimer = 8.0;
     this.mapIndex = 0;
@@ -84,6 +88,9 @@ export class ArcherGame extends BaseMiniGame {
     const arenaW = width - marginX * 2;
     const arenaH = height - marginY * 2;
 
+    const previousObstacles = Array.isArray(this.obstacles) ? this.obstacles : [];
+    const previousPhases = previousObstacles.map((obs) => obs?.mover?.phase);
+
     this.arena = {
       cx: width / 2, cy: height / 2, width: arenaW, height: arenaH,
       size: Math.min(arenaW, arenaH), left: marginX, right: marginX + arenaW,
@@ -91,6 +98,11 @@ export class ArcherGame extends BaseMiniGame {
     };
 
     this.buildMap();
+    if (this.state !== 'LOBBY' && previousObstacles.length === this.obstacles.length) {
+      this.obstacles.forEach((obs, index) => {
+        if (obs.mover && Number.isFinite(previousPhases[index])) obs.mover.phase = previousPhases[index];
+      });
+    }
 
     // Maç ortası resize ışınlamaz: geometri yenilenir, oyuncular orantılı taşınır
     if (this.state === 'LOBBY' || !this.players.length) {
@@ -150,6 +162,10 @@ export class ArcherGame extends BaseMiniGame {
     this.roundWins = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundId = 0;
+    this.roundHits = [0, 0, 0, 0];
+    this.tieRounds = 0;
     this.roundTransitionTimer = 0;
     this.arrows = [];
     this.particles = [];
@@ -168,6 +184,8 @@ export class ArcherGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWins = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.tieRounds = 0;
     this.startRound();
   }
 
@@ -184,6 +202,8 @@ export class ArcherGame extends BaseMiniGame {
     this.state = 'PLAYING';
     this.roundWinner = null;
     this.roundTransitionTimer = 0;
+    this.roundId += 1;
+    this.roundHits = [0, 0, 0, 0];
     this.roundTime = ARCHER_ROUND_TIME;
     this.roundTimer = ARCHER_ROUND_TIME;
     this.arrows = [];
@@ -410,7 +430,7 @@ export class ArcherGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = Math.min((now - this.lastTime) / 1000, 0.08);
+    const dt = Math.max(0, Math.min((now - this.lastTime) / 1000, 0.08));
     this.lastTime = now;
 
     if (this.trauma > 0) {
@@ -514,38 +534,58 @@ export class ArcherGame extends BaseMiniGame {
       resolveAABB(player, this.obstacles, ARCHER_RADIUS);
     }
 
-    // Oklar
+    // Oklar: swept segment collision prevents endpoint tunneling on slow frames.
     for (let ai = this.arrows.length - 1; ai >= 0; ai--) {
       const a = this.arrows[ai];
       const step = Math.hypot(a.vx, a.vy) * dt;
-      a.x += a.vx * dt;
-      a.y += a.vy * dt;
-      a.dist += step;
+      const startX = a.x;
+      const startY = a.y;
+      const endX = startX + a.vx * dt;
+      const endY = startY + a.vy * dt;
       a.life -= dt;
 
       let dead = a.life <= 0;
-      dead = dead || a.x < this.arena.left || a.x > this.arena.right || a.y < this.arena.top || a.y > this.arena.bottom;
-      if (!dead && this.pointBlocked(a.x, a.y)) {
-        this.spawnHitBurst(a.x, a.y, '#9C988F', false);
-        dead = true;
+      let hit = null;
+
+      if (!dead && step > 0) {
+        for (const obstacle of this.obstacles) {
+          const candidate = segmentAabbIntersection(startX, startY, endX, endY, obstacle, 3);
+          if (candidate && (!hit || candidate.t < hit.t)) {
+            hit = { type: 'obstacle', ...candidate };
+          }
+        }
+        for (const victim of this.players) {
+          if (!victim.isJoined || !victim.isAlive || victim.index === a.owner || victim.spawnProt > 0) continue;
+          const candidate = segmentCircleIntersection(
+            startX, startY, endX, endY,
+            victim.x, victim.y, ARCHER_RADIUS + 6,
+          );
+          if (candidate && (!hit || candidate.t < hit.t)) {
+            hit = { type: 'player', victim, ...candidate };
+          }
+        }
       }
 
-      if (!dead) {
-        for (const victim of this.players) {
-          if (!victim.isJoined || !victim.isAlive || victim.index === a.owner) continue;
-          if (victim.spawnProt > 0) continue;
-          if (Math.hypot(a.x - victim.x, a.y - victim.y) < ARCHER_RADIUS + 6) {
-            // KALKAN bir ok emer: skor/stun yok
-            if (victim.shield > 0) {
-              victim.shield -= 1;
-              this.spawnHitBurst(victim.x, victim.y, '#06B6D4', true);
-              playExplosion();
-              dead = true;
-              break;
-            }
+      if (hit) {
+        a.x = hit.x;
+        a.y = hit.y;
+        a.dist += step * hit.t;
+        if (hit.type === 'obstacle') {
+          this.spawnHitBurst(a.x, a.y, '#9C988F', false);
+          dead = true;
+        } else {
+          const victim = hit.victim;
+          // KALKAN bir ok emer: skor/stun yok
+          if (victim.shield > 0) {
+            victim.shield -= 1;
+            this.spawnHitBurst(victim.x, victim.y, '#06B6D4', true);
+            playExplosion();
+            dead = true;
+          } else {
             const close = a.dist < ARCHER_CLOSE_DIST;
             const pts = close ? 2 : 1;
             this.scores[a.owner] += pts;
+            this.roundHits[a.owner] = (this.roundHits[a.owner] || 0) + 1;
             // Yakın mesafede stun çok kısa (spam kilitlenmesin), uzakta tam stun
             const stunDur = a.dist < 110 ? 0.12 : (close ? 0.3 : 0.8);
             victim.stun = Math.max(victim.stun, stunDur);
@@ -560,11 +600,17 @@ export class ArcherGame extends BaseMiniGame {
             this.addTrauma(close ? 0.45 : 0.25);
             playExplosion();
             dead = true;
-            break;
           }
         }
+      } else if (!dead) {
+        a.x = endX;
+        a.y = endY;
+        a.dist += step;
       }
 
+      if (!dead && (a.x < this.arena.left || a.x > this.arena.right || a.y < this.arena.top || a.y > this.arena.bottom)) {
+        dead = true;
+      }
       if (dead) this.arrows.splice(ai, 1);
     }
 
@@ -615,7 +661,8 @@ export class ArcherGame extends BaseMiniGame {
   }
 
   handleRoundEnd(_winner) {
-    // 60sn sonu: en çok puanlı raundu alır; beraberlikte raund kimseye yazılmaz
+    // 60sn sonu: en çok puanlı raundu alır. Eşitlikte önce isabet sayısı,
+    // sonra ikinci beraberlik maçı BERABERE sonlanır; sonsuz döngü oluşmaz.
     let best = -1;
     let winners = [];
     this.players.forEach((p, i) => {
@@ -627,15 +674,32 @@ export class ArcherGame extends BaseMiniGame {
         winners.push(p);
       }
     });
-    const roundWinner = winners.length === 1 ? winners[0] : null;
+
+    let roundWinner = winners.length === 1 ? winners[0] : null;
+    if (!roundWinner && winners.length > 1) {
+      const bestHits = Math.max(...winners.map((p) => this.roundHits[p.index] || 0));
+      const hitWinners = winners.filter((p) => (this.roundHits[p.index] || 0) === bestHits);
+      if (hitWinners.length === 1) roundWinner = hitWinners[0];
+    }
+
     this.state = 'ROUND_OVER';
     this.roundWinner = roundWinner;
     this.roundTransitionTimer = 2.5;
+
     if (roundWinner) {
+      this.tieRounds = 0;
       this.roundWins[roundWinner.index]++;
       if (this.roundWins[roundWinner.index] >= this.roundsToWin) {
         this.matchWinner = roundWinner;
       }
+      return;
+    }
+
+    this.tieRounds += 1;
+    if (this.tieRounds >= 2) {
+      this.matchWinner = null;
+      this.matchDraw = true;
+      this.state = 'MATCH_OVER';
     }
   }
 

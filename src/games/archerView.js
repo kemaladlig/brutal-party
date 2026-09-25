@@ -5,6 +5,7 @@
 
 import { drawObstacle, drawPickup } from '../core/arenaKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { drawTabletopIcon } from '../core/tabletopIcons.js';
 
 const ARCHER_RADIUS = 18;
 const FALLBACK = '#D84727';
@@ -61,6 +62,11 @@ export function createArcherWorldPacket(game) {
       shield: Number(p.shield) || 0,
       stun: round1(p.stun || 0),
       reload: round1(p.reloadCooldown || 0),
+      spawnProt: round1(p.spawnProt || 0),
+      turbo: round1(p.turboTimer || 0),
+      quickdraw: round1(p.quickdrawTimer || 0),
+      multi: Math.max(0, Number(p.multiShots) || 0),
+      slip: round1(p.slipTimer || 0),
     })),
     arrows: arrows.map((a) => [
       round1(a.x),
@@ -86,7 +92,13 @@ export function createArcherWorldPacket(game) {
 export function isValidArcherWorldFrame(frame) {
   if (!frame || frame.action !== 'WORLD_FRAME' || frame.version !== 1 || frame.mode !== 'ARCHER') return false;
   if (!Number.isInteger(frame.seq) || frame.seq < 0) return false;
+  if (!Number.isInteger(frame.roundId) || frame.roundId < 0) return false;
+  if (!['LOBBY', 'PLAYING', 'ROUND_PAUSE', 'ROUND_OVER', 'MATCH_OVER', 'OVERTIME'].includes(frame.gameState)) return false;
   if (!Array.isArray(frame.arena) || frame.arena.length !== 4 || !frame.arena.every(finite)) return false;
+  if (frame.arena[2] <= frame.arena[0] || frame.arena[3] <= frame.arena[1]) return false;
+  if (!Array.isArray(frame.scores) || frame.scores.length > 4 || !frame.scores.every((score) => finite(score) && score >= 0)) return false;
+  if (frame.roundWinner !== null && (!Number.isInteger(frame.roundWinner) || frame.roundWinner < 0 || frame.roundWinner > 3)) return false;
+  if (frame.matchWinner !== null && (!Number.isInteger(frame.matchWinner) || frame.matchWinner < 0 || frame.matchWinner > 3)) return false;
   if (!Array.isArray(frame.obstacles) || frame.obstacles.length > 16) return false;
   if (!frame.obstacles.every((o) => Array.isArray(o) && o.length === 4 && o.every(finite))) return false;
   if (!Array.isArray(frame.pickups) || frame.pickups.length > 12) return false;
@@ -98,9 +110,12 @@ export function isValidArcherWorldFrame(frame) {
   if (!frame.particles.every((pt) => pt && finite(pt.x) && finite(pt.y) && finite(pt.radius) && finite(pt.alpha) && typeof pt.color === 'string')) return false;
   return frame.players.every((p) => (
     p
+    && typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
     && Number.isInteger(p.slot) && p.slot >= 0 && p.slot <= 3
     && finite(p.x) && finite(p.y) && finite(p.angle)
     && finite(p.charge) && finite(p.swayPhase) && finite(p.stun) && finite(p.reload)
+    && finite(p.spawnProt) && finite(p.turbo) && finite(p.quickdraw)
+    && Number.isInteger(p.multi) && p.multi >= 0 && finite(p.slip)
   ));
 }
 
@@ -188,6 +203,15 @@ export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
         ctx.stroke();
         ctx.setLineDash([]);
       }
+      if ((player.spawnProt || 0) > 0) {
+        ctx.strokeStyle = '#8B5CF6';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([3, 4]);
+        ctx.beginPath();
+        ctx.arc(0, 0, ARCHER_RADIUS + 15, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
       ctx.restore();
     }
 
@@ -200,6 +224,20 @@ export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
       showPointer: true,
       borderColor: '#1A1A1A',
       borderWidth: 2.5,
+    });
+
+    const activeEffects = [
+      ['zap', player.turbo ?? player.turboTimer],
+      ['rotate-cw', player.quickdraw ?? player.quickdrawTimer],
+      ['target', player.multi ?? player.multiShots],
+      ['wind', player.slip ?? player.slipTimer],
+    ].filter(([, value]) => Number(value) > 0);
+    activeEffects.forEach(([icon, value], index) => {
+      drawTabletopIcon(ctx, icon, (index - (activeEffects.length - 1) / 2) * 16, -ARCHER_RADIUS - 20, 12, {
+        color: index % 2 === 0 ? '#D99B26' : '#8B5CF6',
+        accentColor: '#D99B26',
+        strokeWidth: 2,
+      });
     });
 
     const reload = Number(player.reload) || Number(player.reloadCooldown) || 0;

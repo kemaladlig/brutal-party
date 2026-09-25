@@ -28,10 +28,15 @@ import { updateCrownBotAI } from '../ai/crownAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { spawnPickup } from '../core/pickupSystem.js';
+import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
 import { drawPickup } from '../core/arenaKit.js';
 
 export const CROWN_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CROWN_NAMES = ['P1', 'P2', 'P3', 'P4'];
+export const CROWN_TUNING = {
+  ROUND_TIME: 45,
+  MAX_TIED_ROUNDS: 2,
+};
 
 export const CROWN_MAP_PRESETS = [
   { id: 'citadel_patrol', name: '01 // 🏰 SARAY AVCILARI (SİPERLER, PİSTONLAR & MANTARLAR)' },
@@ -76,6 +81,11 @@ export class CrownGame extends BaseMiniGame {
     // Tournament Scoring
     this.targetScore = 2; // First to 2 rounds wins the match
     this.scores = [0, 0, 0, 0];
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.tiedRounds = 0;
+    this.roundTimer = CROWN_TUNING.ROUND_TIME;
     this.targetCrownTime = 15.0; // 15 seconds holding the crown to win a round
 
     // Entities
@@ -157,6 +167,13 @@ export class CrownGame extends BaseMiniGame {
     const arenaH = height - marginY * 2;
     const size = Math.min(arenaW, arenaH);
 
+    const activeMapState = {
+      pickups: this.pickups.map((item) => ({ ...item })),
+      bananaPeels: this.bananaPeels.map((item) => ({ ...item })),
+      inkPuddles: this.inkPuddles.map((item) => ({ ...item })),
+      hazardPhases: this.movingHazards.map((item) => item.pos),
+    };
+
     this.arena = {
       cx: width / 2,
       cy: height / 2,
@@ -175,8 +192,19 @@ export class CrownGame extends BaseMiniGame {
     if (this.state === 'LOBBY' || !this.players.length) {
       this.initPlayers();
     } else {
+      this.pickups = activeMapState.pickups;
+      this.bananaPeels = activeMapState.bananaPeels;
+      this.inkPuddles = activeMapState.inkPuddles;
+      this.movingHazards.forEach((hazard, i) => {
+        if (Number.isFinite(activeMapState.hazardPhases[i])) hazard.pos = activeMapState.hazardPhases[i];
+        const progress = Math.sin(hazard.pos) * 0.5 + 0.5;
+        if (hazard.axis === 'x') hazard.x = hazard.minPos + progress * (hazard.maxPos - hazard.minPos);
+        else hazard.y = hazard.minPos + progress * (hazard.maxPos - hazard.minPos);
+      });
+
       for (const p of this.players) {
         this.remapPoint(p, oldArena, this.arena);
+        clampToArena(p, p.radius, this.arena, { zeroVelocity: true });
         p.vx = 0; p.vy = 0;
       }
       if (this.crown && this.crown.carrierIndex !== null && this.crown.carrierIndex !== undefined) {
@@ -184,10 +212,17 @@ export class CrownGame extends BaseMiniGame {
         if (carrier) { this.crown.x = carrier.x; this.crown.y = carrier.y; }
       } else if (this.crown) {
         this.remapPoint(this.crown, oldArena, this.arena);
+        clampToArena(this.crown, this.crown.radius, this.arena, { zeroVelocity: true });
         this.crown.vx = 0; this.crown.vy = 0;
       }
-      for (const item of this.pickups) this.remapPoint(item, oldArena, this.arena);
-      for (const ink of this.inkPuddles) this.remapPoint(ink, oldArena, this.arena);
+      for (const item of this.pickups) {
+        this.remapPoint(item, oldArena, this.arena);
+        clampToArena(item, item.radius || 15, this.arena);
+      }
+      for (const ink of this.inkPuddles) {
+        this.remapPoint(ink, oldArena, this.arena);
+        clampToArena(ink, ink.radius || 22, this.arena);
+      }
       this.particles = [];
     }
   }
@@ -473,6 +508,11 @@ export class CrownGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.tiedRounds = 0;
+    this.roundTimer = CROWN_TUNING.ROUND_TIME;
     this.particles = [];
     this.floatingTexts = [];
     this.trauma = 0;
@@ -498,6 +538,9 @@ export class CrownGame extends BaseMiniGame {
   startNewMatch() {
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.tiedRounds = 0;
     this.startNewRound();
   }
 
@@ -510,6 +553,11 @@ export class CrownGame extends BaseMiniGame {
 
     this.state = 'PLAYING';
     this.roundWinner = null;
+    this.roundTransitionTimer = 0;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId += 1;
+    this.roundTimer = CROWN_TUNING.ROUND_TIME;
     this.particles = [];
     this.floatingTexts = [];
     this.pickupTimer = 4.0;
@@ -537,6 +585,57 @@ export class CrownGame extends BaseMiniGame {
     this.crown.pickupCooldown = 0.5;
 
     playStart();
+  }
+
+  resolveCrownTimeout() {
+    let winner = null;
+    let best = -1;
+    let tied = false;
+    for (const p of this.players) {
+      if (!p.isJoined) continue;
+      const value = p.crownHoldTime || 0;
+      if (value > best) {
+        best = value;
+        winner = p;
+        tied = false;
+      } else if (value === best) {
+        tied = true;
+      }
+    }
+    if (!winner || best <= 0 || tied) {
+      this.finishTiedRound('timeout');
+      return;
+    }
+    this.awardCrownWinner(winner);
+  }
+
+  awardCrownWinner(winner) {
+    this.roundWinner = winner;
+    this.tiedRounds = 0;
+    this.matchDraw = false;
+    this.scores[winner.index]++;
+    if (this.scores[winner.index] >= this.targetScore) {
+      this.state = 'MATCH_OVER';
+      this.matchWinner = winner;
+      return;
+    }
+    this.state = 'ROUND_OVER';
+    this.roundTransitionTimer = 2.8;
+  }
+
+  finishTiedRound(reason = 'timeout') {
+    if (!this.players.some((p) => p.isJoined)) {
+      beginDrawRound(this, reason, 1.6);
+      return;
+    }
+    this.roundWinner = null;
+    this.tiedRounds += 1;
+    if (this.tiedRounds >= CROWN_TUNING.MAX_TIED_ROUNDS) {
+      beginDrawRound(this, reason, 1.6);
+      return;
+    }
+    this.state = 'ROUND_OVER';
+    this.roundTransitionTimer = 2.8;
   }
 
   triggerTackle(playerIndex) {
@@ -668,18 +767,28 @@ export class CrownGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = Math.min(0.064, (now - this.lastTime) / 1000);
+    const dt = Math.max(0, Math.min(0.064, (now - this.lastTime) / 1000));
     this.lastTime = now;
 
     if (this.state === 'ROUND_OVER') {
       this.roundTransitionTimer -= dt;
       if (this.roundTransitionTimer <= 0) {
-        this.startNewRound();
+        if (hasMatchResult(this)) {
+          this.state = 'MATCH_OVER';
+        } else {
+          this.startNewRound();
+        }
       }
       return;
     }
 
     if (this.state !== 'PLAYING') return;
+
+    this.roundTimer -= dt;
+    if (this.roundTimer <= 0 || roundTimedOut(this.roundTimer, CROWN_TUNING.ROUND_TIME)) {
+      this.resolveCrownTimeout();
+      return;
+    }
 
     // Tek katılımcı kalınca taç süresi beklenmez — kalan raundu alır
     {
@@ -687,20 +796,10 @@ export class CrownGame extends BaseMiniGame {
       if (joined.length <= 1) {
         if (joined.length === 1) {
           const survivor = joined[0];
-          this.roundWinner = survivor;
-          this.scores[survivor.index]++;
-          playCashRegister();
-          this.addFloatingText(this.arena.cx, this.arena.cy, `👑 ${survivor.name} RAUNDU KAZANDI!`, survivor.color);
-          if (this.scores[survivor.index] >= this.targetScore) {
-            this.state = 'MATCH_OVER';
-            this.matchWinner = survivor;
-            return;
-          }
+          this.awardCrownWinner(survivor);
         } else {
-          this.roundWinner = null;
+          this.finishTiedRound('no-players');
         }
-        this.state = 'ROUND_OVER';
-        this.roundTransitionTimer = 2.8;
         return;
       }
     }
@@ -765,21 +864,11 @@ export class CrownGame extends BaseMiniGame {
         }
 
         if (king.crownHoldTime >= this.targetCrownTime) {
-          this.roundWinner = king;
-          this.scores[king.index]++;
           playPiggyBreak();
           playCashRegister();
           this.addFloatingText(cx, cy, `👑 ${king.name} RAUNDU KAZANDI!`, king.color);
-
-          if (this.scores[king.index] >= this.targetScore) {
-            this.state = 'MATCH_OVER';
-            this.matchWinner = king;
-            return;
-          } else {
-            this.state = 'ROUND_OVER';
-            this.roundTransitionTimer = 2.8;
-            return;
-          }
+          this.awardCrownWinner(king);
+          return;
         }
       } else {
         this.crown.carrierIndex = null;
@@ -1113,6 +1202,7 @@ export class CrownGame extends BaseMiniGame {
         if (dCrown < pr + this.crown.radius) {
           this.crown.carrierIndex = p.index;
           p.hasCrown = true;
+          p.crownHoldTime = 0;
           playCashRegister();
           this.addFloatingText(p.x, p.y - 30, '👑 KRAL OLDU!', p.color);
 
@@ -1176,6 +1266,7 @@ export class CrownGame extends BaseMiniGame {
 
               if (target.hasCrown) {
                 target.hasCrown = false;
+                 target.crownHoldTime = 0;
                 this.crown.carrierIndex = null;
                 // 1s sersem ve yerden alma kilidi
                 this.crown.pickupCooldown = 1.0;
@@ -1231,6 +1322,7 @@ export class CrownGame extends BaseMiniGame {
               const crowned = p1.hasCrown ? p1 : (p2.hasCrown ? p2 : null);
               if (crowned) {
                 crowned.hasCrown = false;
+               crowned.crownHoldTime = 0;
                 this.crown.carrierIndex = null;
                 this.crown.pickupCooldown = 1.0;
                 crowned.stumbleTimer = Math.max(crowned.stumbleTimer, 1.0);
@@ -1446,12 +1538,10 @@ export class CrownGame extends BaseMiniGame {
       roundBannerTitle: this.roundWinner ? `${this.roundWinner.name} RAUNDU KAZANDI!` : t('crown.round'),
       roundBannerColor: this.roundWinner?.color || '#D99B26',
       roundBannerSub: t('crown.round'),
-      matchOverHeadline: t('crown.champ') || 'ŞAMPİYON',
-      matchOverRows: this.matchWinner
-        ? this.players
-            .filter((p) => p.isJoined)
-            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` }))
-        : [],
+      matchOverHeadline: this.matchDraw ? t('game.draw') : (t('crown.champ') || 'ŞAMPİYON'),
+      matchOverRows: this.players
+        .filter((p) => p.isJoined)
+        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` })),
       onRestart: () => this.startNewMatch(),
       customControls: (c) => {
         const { cx, cy, width, height } = this.arena;

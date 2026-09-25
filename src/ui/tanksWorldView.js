@@ -31,7 +31,7 @@ export function createWorldViewRenderer() {
       ctx.fillStyle = '#F4F0EA';
       ctx.fillRect(0, 0, width, height);
       fitWorld(ctx, width, height, frame.arena, () => {
-        drawTanksArena(ctx, arena, frame.obstacles.map(([x, y, w, h]) => ({ x, y, w, h })));
+        drawTanksArena(ctx, arena, frame.obstacles.map(([x, y, w, h]) => ({ x, y, w, h })), frame.suddenDeath);
         const ownerColors = frame.players.map((p) => slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || TANK_FALLBACK[p.slot]);
         drawTanksBullets(ctx, frame.bullets.map(([x, y, radius, owner]) => ({ x, y, radius, owner })), ownerColors);
         drawTanksTracers(ctx, frame.tracers || []);
@@ -44,6 +44,15 @@ export function createWorldViewRenderer() {
         }));
         drawTanksTanks(ctx, tanks, { arena, withFx: frame.gameState === 'PLAYING' });
         drawSquareParticles(ctx, frame.particles || []);
+        if (frame.intro?.active) {
+           ctx.save();
+           ctx.textAlign = 'center';
+           ctx.textBaseline = 'middle';
+           ctx.fillStyle = '#1A1A1A';
+           ctx.font = '900 34px "Space Grotesk", sans-serif';
+           ctx.fillText(String(Math.max(1, Math.ceil(frame.intro.time))), arena.cx, arena.cy);
+           ctx.restore();
+         }
       });
       ctx.restore();
 

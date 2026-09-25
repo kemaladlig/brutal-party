@@ -36,7 +36,8 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
   - `networkProtocol.js` — ONLINE/TV_CONSOLE ortak input doğrulama sözleşmesi
   - `inputMaps.js` — klavye slot haritaları: `getSlotKeys`, `keyboardVectorFrom`, `readSlotKeys`, `isSlotActionEvent`, `slotForActionCode`, `buildCodeToSlotMap` (standart 4x harita + `SECOND_ACTION_KEYS`).
   - `touchFlow.js` — dokunmatik akış: `getQuadrant`, `roundOverSkipGuard` (BaseGame `handleRoundOverSkip(timerField)`; PONG `roundOverTimer` geçirir), `lobbyCenterStartTap`, `lobbyQuadrantTap`, `matchOverRestartTap` (istisna: tanks `getCornerZone`, PONG `getPlayerZoneAt`).
-  - `physics2d.js` — fizik/çarpışma: `clampToArena`, `resolveAABB`, `pointBlocked`, `updateMovers`, `distToSegmentSquared`, `normalizeAngle`.
+  - `physics2d.js` — fizik/çarpışma: `clampToArena`, `resolveAABB`, `pointBlocked`, `updateMovers`, `distToSegmentSquared`, `segmentCircleIntersection`, `segmentAabbIntersection`, `getProjectileSubsteps`, `normalizeAngle`.
+  - `roundLifecycle.js` — ortak raunt/maç terminal kuralı: timeout, all-survivor draw ve MATCH_OVER geçişleri.
   - `pickupSystem.js` — power-up akışı: `spawnPickup`, `collectPickups`, `tickPickupTimers` + `EFFECTS` kayıt defteri.
   - `arenaKit.js` — ortak görsel + `buildLayout(name, arena)` düzen presets (`pillars`, `columns4`, `cross`, `crossfire`, `scatter`, `bunker`, `courtyard`, `split`) + `drawObstacle`/`drawPickup`. Motor kendi `buildMap()`'inde yalnız oyuna özgü ek katmanları/meta'yı tutar; ortak geometri preset adıyla çağrılır.
   - `playerEntity.js` — oyuncu varlığı: `createPlayer`, `tickEffectTimers`, `advancePlayer` (kademeli çıkarım — bomb/heist/race entegre; PONG/tanks/curve/snake/zone/collapse kendi gövdesinde kalır).

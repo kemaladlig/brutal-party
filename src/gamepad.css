@@ -966,6 +966,31 @@
   transform: translateX(-50%);
 }
 
+.pong-controller-view.vertical .pong-bottom-zone {
+  align-items: flex-end;
+}
+
+.pong-controller-view.vertical .pong-track-wrap {
+  flex: 0 0 84px;
+  max-width: 84px;
+}
+
+.pong-controller-view.vertical .pong-horizontal-track {
+  width: 84px;
+  max-width: 84px;
+  height: 180px;
+}
+
+.pong-controller-view.vertical .pong-track-thumb.horizontal {
+  top: 0;
+  bottom: auto;
+  left: 6px;
+  right: 6px;
+  width: auto;
+  height: 60px;
+  transform: translateY(-50%);
+}
+
 .pong-invert-btn {
   font-family: 'Space Grotesk', sans-serif;
   font-size: 11px;

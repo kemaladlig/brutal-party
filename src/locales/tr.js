@@ -589,6 +589,8 @@ export const TR = {
   'pad.joinedGame': '▶ Oyuna bağlanıldı: {0}',
   'pad.tvPlace': '📺 TV YERİ: {0}',
   'pad.dragRight': "SAĞA SÜRÜKLE → TV'DE {0}",
+  'pad.dragDown': "AŞAĞI SÜRÜKLE → TV'DE {0}",
+  'pad.dragUp': "YUKARI SÜRÜKLE → TV'DE {0}",
   'pad.dirRight': 'SAĞA',
   'pad.dirLeft': 'SOLA',
   'pad.dirDown': 'AŞAĞI',

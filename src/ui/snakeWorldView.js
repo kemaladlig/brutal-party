@@ -46,7 +46,7 @@ export function createSnakeWorldViewRenderer() {
         drawWorldBanner(ctx, width, height, t('game.roundOver'), winner || '');
       } else if (frame.gameState === 'MATCH_OVER') {
         const winner = slots?.[frame.matchWinner]?.name;
-        drawWorldBanner(ctx, width, height, t('snake.champ'), winner || '');
+        drawWorldBanner(ctx, width, height, frame.matchDraw ? t('game.draw') : t('snake.champ'), winner || '');
       }
     },
 

@@ -57,6 +57,7 @@ test('clone world packet is declarative, complete and monotonic', () => {
   assert.equal(first.particles[0].life, 0.7);
   assert.equal(first.texts[0].alpha, 0.9);
   assert.equal(first.roundTime, 42.5);
+  assert.equal(first.matchDraw, false);
 
   assert.ok(isValidCloneWorldFrame({ action: 'WORLD_FRAME', ...first }));
   assert.equal(isValidCloneWorldFrame({ action: 'WORLD_FRAME', ...first, version: 2 }), false);
@@ -70,5 +71,6 @@ test('clone world frame validation rejects malformed input', () => {
   assert.equal(isValidCloneWorldFrame({ ...frame, clones: [{ ...frame.clones[0], owner: 9 }] }), false);
   assert.equal(isValidCloneWorldFrame({ ...frame, stations: [{ ...frame.stations[0], icon: 5 }] }), false);
   assert.equal(isValidCloneWorldFrame({ ...frame, players: [{ ...frame.players[0], dash: 1 }] }), false);
+  assert.equal(isValidCloneWorldFrame({ ...frame, matchDraw: 1 }), false);
   assert.equal(isValidCloneWorldFrame({ ...frame, mode: 'TANKS' }), false);
 });

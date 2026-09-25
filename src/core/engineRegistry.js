@@ -48,6 +48,7 @@ export const CARTRIDGES = {
             scores: game.setScores,
             lives: game.paddles.map((p) => Math.max(0, p.lives || 0)),
             rally: game.ball?.rallyCount || 0,
+            timeLeft: Math.max(0, Math.ceil((game.roundLimit || 120) - (game.roundPlayTimer || 0))),
             spn: Math.abs(game.ball?.spin || 0) > 8 ? 1 : 0,
             chgIdx,
             chgT: chgIdx >= 0 ? Math.round(game.paddles[chgIdx].spinCharge * 10) / 10 : 0,
@@ -84,6 +85,9 @@ export const CARTRIDGES = {
             return { n: v.readyCount, load: Math.round(v.progress * 20) / 20 };
           }),
           alive: game.tanks.map((t) => t.isAlive),
+          timeLeft: Math.max(0, Math.ceil((game.roundLimit || 90) - (game.roundTimer || 0))),
+          suddenDeath: game.suddenDeath ? 1 : 0,
+          introTime: Math.max(0, Math.ceil(game.spawnIntroTimer || 0)),
         }),
       };
     },
@@ -108,7 +112,12 @@ export const CARTRIDGES = {
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
         worldPacket: () => game.createWorldPacket(),
-        packet: () => ({ scores: game.scores, alive: game.players.map((p) => p.isAlive ?? p.alive) }),
+        packet: () => ({
+          scores: game.scores,
+          alive: game.players.map((p) => p.isAlive ?? p.alive),
+          timeLeft: Math.max(0, Math.ceil((game.roundLimit || 120) - (game.roundTimer || 0))),
+          matchDraw: game.matchDraw === true,
+        }),
       };
     },
   },
@@ -136,6 +145,8 @@ export const CARTRIDGES = {
           scores: game.scores,
           carrier: game.bombCarrierIndex,
           bombTime: Math.ceil(game.bombTimer || 0),
+          timeLeft: Math.max(0, Math.ceil((game.roundLimit || 90) - (game.roundTimer || 0))),
+          matchDraw: game.matchDraw === true,
           cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown || 0) / 2.2) * 100)),
         }),
       };
@@ -166,6 +177,7 @@ export const CARTRIDGES = {
           timeLeft: Math.ceil(game.roundTimer || 0),
           carried: game.players.map((p) => p.carriedGold || 0),
           vault: game.players.map((p) => p.vaultGold || 0),
+          matchDraw: game.matchDraw === true,
           cd: game.players.map((p) => Math.ceil((Math.max(0, p.tackleCooldown || 0) / 3.5) * 100)),
         }),
       };
@@ -220,6 +232,8 @@ export const CARTRIDGES = {
         packet: () => ({
           scores: game.scores,
           king: game.crown.carrierIndex,
+          matchDraw: game.matchDraw === true,
+          timeLeft: Math.max(0, Math.ceil(game.roundTimer || 0)),
           crownTimes: game.players.map((p) => Math.round(p.crownHoldTime * 10) / 10),
           cd: game.players.map((p) => Math.ceil((Math.max(0, p.tackleCooldown || 0) / 2.0) * 100)),
         }),
@@ -252,6 +266,7 @@ export const CARTRIDGES = {
           kills: game.kills,
           timeLeft: Math.ceil(game.roundTimer || 0),
           leader: game.leaderIndex,
+          matchDraw: game.matchDraw === true,
           cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown || 0) / 4.0) * 100)),
         }),
       };
@@ -282,6 +297,8 @@ export const CARTRIDGES = {
           alive: game.players.map((p) => p.isAlive),
           nrg: game.players.map((p) => Math.round(p.boostEnergy ?? 100)),
           lock: game.players.map((p) => (p.boostLocked ? 1 : 0)),
+          timeLeft: Math.max(0, Math.ceil((game.roundLimit || 120) - (game.roundTimer || 0))),
+          matchDraw: game.matchDraw === true,
         }),
       };
     },
@@ -310,6 +327,7 @@ export const CARTRIDGES = {
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
           hp: game.players.map((p) => p.hp || 0),
+          matchDraw: game.matchDraw === true,
           timeLeft: Math.ceil(game.matchTimer || 0),
           cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 4.0) * 100)),
           cdFire: game.players.map((p) => {
@@ -345,6 +363,8 @@ export const CARTRIDGES = {
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
+          timeLeft: Math.max(0, Math.ceil(game.roundTime || 0)),
+          matchDraw: game.matchDraw === true,
           cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 1.6) * 100)),
         }),
       };
@@ -373,6 +393,8 @@ export const CARTRIDGES = {
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
+          timeLeft: Math.max(0, Math.ceil(game.roundTime || 0)),
+          matchDraw: game.matchDraw === true,
           cd: game.players.map((p) => Math.ceil((Math.max(0, p.jumpCooldown) / 1.6) * 100)),
         }),
       };
@@ -401,6 +423,8 @@ export const CARTRIDGES = {
         packet: () => ({
           scores: game.scores,
           alive: game.players.map((p) => p.isAlive),
+          timeLeft: Math.max(0, Math.ceil(game.roundTime || 0)),
+          matchDraw: game.matchDraw === true,
           cd: game.players.map((p) => Math.ceil((Math.max(0, p.strikeCooldown) / 1.3) * 100)),
           cd2: game.players.map((p) => Math.ceil((Math.max(0, p.smokeCooldown || 0) / 5.0) * 100)),
         }),
@@ -427,6 +451,8 @@ export const CARTRIDGES = {
         packet: () => ({
           scores: game.scores,
           timeLeft: Math.ceil(game.roundTimer || 0),
+          matchDraw: game.matchDraw === true,
+          roundId: game.roundId || 0,
           laps: game.players.map((player) => player.laps || 0),
           progress: game.players.map((player) => Math.round(game.getProgressFraction(player) * 100)),
           targetLaps: game.targetLaps,

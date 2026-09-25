@@ -43,6 +43,8 @@ export function createNinjaWorldPacket(game) {
         ? round2(1 - Math.min(1, p.smokeCooldown / 5.0)) : null,
     }),
     extras: {
+      matchDraw: game.matchDraw === true,
+      timeLeft: round1(game.roundTime || 0),
       obstacles: packRectList(game.obstacles, 16),
       lanterns: (Array.isArray(game.lanterns) ? game.lanterns : []).slice(0, 6).map((l) => ({
         x: round1(l.x), y: round1(l.y),
@@ -103,13 +105,15 @@ export function createNinjaWorldPacket(game) {
 }
 
 function isValidNinjaPlayer(p) {
-  return finite(p.angle) && finite(p.alpha)
+  return typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
+    && finite(p.angle) && finite(p.alpha) && p.alpha >= 0 && p.alpha <= 1
     && typeof p.strike === 'boolean'
-    && (p.strikeProg === null || finite(p.strikeProg))
-    && (p.smokeProg === null || finite(p.smokeProg));
+    && (p.strikeProg === null || (finite(p.strikeProg) && p.strikeProg >= 0 && p.strikeProg <= 1))
+    && (p.smokeProg === null || (finite(p.smokeProg) && p.smokeProg >= 0 && p.smokeProg <= 1));
 }
 
 function isValidNinjaExtra(frame) {
+  if (typeof frame.matchDraw !== 'boolean' || !finite(frame.timeLeft) || frame.timeLeft < 0) return false;
   if (!Array.isArray(frame.obstacles) || frame.obstacles.length > 16) return false;
   if (!frame.obstacles.every((r) => Array.isArray(r) && r.length === 4 && r.every(finite))) return false;
   if (!Array.isArray(frame.lanterns) || frame.lanterns.length > 6) return false;

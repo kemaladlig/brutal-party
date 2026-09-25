@@ -45,8 +45,10 @@ export function createTanksWorldPacket(game) {
     }),
     extras: {
       obstacles: packRectList(game.obstacles, 24),
-      bullets: (Array.isArray(game.bullets) ? game.bullets : []).slice(0, 12).map((b) => [
+      bullets: (Array.isArray(game.bullets) ? game.bullets : []).slice(0, 24).map((b, index) => [
         round1(b.x), round1(b.y), round1(b.radius || 4.5), b.owner,
+        round1(b.vx || 0), round1(b.vy || 0),
+        Number.isInteger(b.id) ? b.id : index + 1,
       ]),
       tracers: (Array.isArray(game.shotTracers) ? game.shotTracers : []).slice(0, 16).map((tr) => ({
         x1: round1(tr.x1),
@@ -59,12 +61,23 @@ export function createTanksWorldPacket(game) {
       crates: (Array.isArray(game.crates) ? game.crates : []).slice(0, 8).map((c) => [
         round1(c.x), round1(c.y), round1(c.size || 22), c.type || 'SHIELD',
       ]),
+      suddenDeath: {
+        active: game.suddenDeath === true,
+        x: round1(game.arena?.cx || 0),
+        y: round1(game.arena?.cy || 0),
+        radius: round1(game.suddenDeathRadius || 0),
+      },
+      intro: {
+        active: (game.spawnIntroTimer || 0) > 0,
+        time: round1(game.spawnIntroTimer || 0),
+      },
     },
   });
 }
 
 function isValidTanksPlayer(p) {
-  return finite(p.angle) && finite(p.size)
+  return typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
+    && finite(p.angle) && finite(p.size)
     && typeof p.driving === 'boolean' && finite(p.muzzle)
     && typeof p.bot === 'boolean' && typeof p.god === 'boolean'
     && typeof p.shield === 'boolean' && typeof p.eshield === 'boolean' && typeof p.stun === 'boolean'
@@ -75,16 +88,28 @@ function isValidTanksPlayer(p) {
 function isValidTanksExtra(frame) {
   if (!Array.isArray(frame.obstacles) || frame.obstacles.length > 24) return false;
   if (!frame.obstacles.every((r) => Array.isArray(r) && r.length === 4 && r.every(finite))) return false;
-  if (!Array.isArray(frame.bullets) || frame.bullets.length > 12) return false;
-  if (!frame.bullets.every((b) => Array.isArray(b) && b.length === 4
-    && finite(b[0]) && finite(b[1]) && finite(b[2])
-    && Number.isInteger(b[3]) && b[3] >= 0 && b[3] <= 3)) return false;
+  if (!Array.isArray(frame.bullets) || frame.bullets.length > 24) return false;
+  if (!frame.bullets.every((b) => {
+    if (!Array.isArray(b) || (b.length !== 4 && b.length !== 7)) return false;
+    if (!finite(b[0]) || !finite(b[1]) || !finite(b[2])) return false;
+    if (!Number.isInteger(b[3]) || b[3] < 0 || b[3] > 3) return false;
+    return b.length === 4 || (finite(b[4]) && finite(b[5]) && Number.isInteger(b[6]) && b[6] >= 0);
+  })) return false;
   if (!Array.isArray(frame.tracers) || frame.tracers.length > 16) return false;
   if (!frame.tracers.every((tr) => tr && finite(tr.x1) && finite(tr.y1)
     && finite(tr.x2) && finite(tr.y2) && finite(tr.life) && typeof tr.color === 'string')) return false;
   if (!Array.isArray(frame.crates) || frame.crates.length > 8) return false;
   if (!frame.crates.every((c) => Array.isArray(c) && c.length === 4
     && finite(c[0]) && finite(c[1]) && finite(c[2]) && typeof c[3] === 'string')) return false;
+  // v1 frames from pre-Batch 1 clients may omit the new optional overlays.
+  if (frame.suddenDeath !== undefined) {
+    const sd = frame.suddenDeath;
+    if (!sd || typeof sd.active !== 'boolean' || !finite(sd.x) || !finite(sd.y) || !finite(sd.radius) || sd.radius < 0) return false;
+  }
+  if (frame.intro !== undefined) {
+    const intro = frame.intro;
+    if (!intro || typeof intro.active !== 'boolean' || !finite(intro.time) || intro.time < 0) return false;
+  }
   return true;
 }
 
@@ -97,7 +122,7 @@ export function isValidTanksWorldFrame(frame) {
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
-export function drawTanksArena(ctx, arena, obstacles) {
+export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null) {
   const { left, top, right, bottom, width, height, size, cx, cy } = arena;
 
   ctx.fillStyle = '#FAF7F2';
@@ -124,6 +149,22 @@ export function drawTanksArena(ctx, arena, obstacles) {
   ctx.beginPath();
   ctx.arc(cx, cy, size * 0.15, 0, Math.PI * 2);
   ctx.stroke();
+
+  if (suddenDeath?.active && suddenDeath.radius > 0) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(216, 71, 39, 0.12)';
+    ctx.beginPath();
+    ctx.rect(left, top, width, height);
+    ctx.arc(suddenDeath.x, suddenDeath.y, suddenDeath.radius, 0, Math.PI * 2, true);
+    ctx.fill('evenodd');
+    ctx.strokeStyle = '#D84727';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.arc(suddenDeath.x, suddenDeath.y, suddenDeath.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   const bLen = Math.max(16, Math.round(size * 0.05));
   ctx.strokeStyle = '#2B2B28';

@@ -91,7 +91,13 @@ function isValidPackedParticle(pt) {
 export function isValidWorldBase(frame, mode, { checkPlayer = null, checkExtra = null, maxPlayers = 4, maxParticles = 64 } = {}) {
   if (!frame || frame.action !== 'WORLD_FRAME' || frame.version !== 1 || frame.mode !== mode) return false;
   if (!Number.isInteger(frame.seq) || frame.seq < 0) return false;
+  if (!Number.isInteger(frame.roundId) || frame.roundId < 0) return false;
+  if (!['LOBBY', 'PLAYING', 'ROUND_PAUSE', 'ROUND_OVER', 'MATCH_OVER', 'OVERTIME'].includes(frame.gameState)) return false;
   if (!Array.isArray(frame.arena) || frame.arena.length !== 4 || !frame.arena.every(finite)) return false;
+  if (frame.arena[2] <= frame.arena[0] || frame.arena[3] <= frame.arena[1]) return false;
+  if (!Array.isArray(frame.scores) || frame.scores.length > 4 || !frame.scores.every((score) => finite(score) && score >= 0)) return false;
+  if (frame.roundWinner !== null && (!Number.isInteger(frame.roundWinner) || frame.roundWinner < 0 || frame.roundWinner > 3)) return false;
+  if (frame.matchWinner !== null && (!Number.isInteger(frame.matchWinner) || frame.matchWinner < 0 || frame.matchWinner > 3)) return false;
   if (!Array.isArray(frame.players) || frame.players.length > maxPlayers) return false;
   if (!frame.players.every(isValidWorldPlayer)) return false;
   if (checkPlayer && !frame.players.every(checkPlayer)) return false;

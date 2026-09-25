@@ -6,6 +6,7 @@ import { renderTopPill } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { resolveSlotName } from '../core/slotManager.js';
+import { getProjectileSubsteps } from '../core/physics2d.js';
 import { updateTankBotAI as runTankBotAI } from '../ai/tankAI.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { lobbyCenterStartTap } from '../core/touchFlow.js';
@@ -22,6 +23,11 @@ import { drawSquareParticles } from './worldCore.js';
 
 export const TANK_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const TANK_NAMES = ['P1', 'P2', 'P3', 'P4'];
+
+const TANK_SUDDEN_DEATH_AT = 35;
+const TANK_ROUND_LIMIT = 90;
+const TANK_SUDDEN_DEATH_MIN_RADIUS = 0.22;
+const TANK_SUDDEN_DEATH_GRACE = 1.15;
 
 // 8 Handcrafted Brutalist Labyrinth Layouts with custom tactical spawns
 export const MAP_LAYOUTS = [
@@ -194,6 +200,7 @@ export class TanksGame extends BaseMiniGame {
     // Tanks & Projectiles
     this.tanks = [];
     this.bullets = [];
+    this.nextBulletId = 1;
     this.particles = [];
     this.shotTracers = [];
 
@@ -202,6 +209,12 @@ export class TanksGame extends BaseMiniGame {
     this.targetScore = 3;
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundId = 0;
+    this.roundLimit = TANK_ROUND_LIMIT;
+    this.suddenDeath = false;
+    this.suddenDeathElapsed = 0;
+    this.suddenDeathRadius = 0;
     this.roundTransitionTimer = 0;
     this.spawnIntroTimer = 0;
 
@@ -230,13 +243,20 @@ export class TanksGame extends BaseMiniGame {
     this.state = 'LOBBY';
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.matchDraw = false;
     this.roundWinner = null;
+    this.roundId = 0;
+    this.suddenDeath = false;
+    this.suddenDeathElapsed = 0;
+    this.suddenDeathRadius = 0;
     this.bullets = [];
+    this.nextBulletId = 1;
     this.particles = [];
     this.crates = [];
     this.shotTracers = [];
     this.cornerTouchIds = [-1, -1, -1, -1];
     this.cornerTouchOrigins = [null, null, null, null];
+    this.driveOwner = [null, null, null, null];
     this.trauma = 0;
     this.roundTimer = 0;
     this.roundTransitionTimer = 0;
@@ -285,6 +305,7 @@ export class TanksGame extends BaseMiniGame {
         e.preventDefault();
         const tank = isHumanAlive(slot);
         if (tank) {
+          if (this.spawnIntroTimer > 0) return;
           this.driveOwner[slot] = 'kb';
           tank.isDriving = true;
         }
@@ -464,6 +485,7 @@ export class TanksGame extends BaseMiniGame {
         botPatrolTimer: 0,
         botWantsDrive: false,
         turboTimer: 0,
+        suddenDeathExposure: 0,
         hasTripleShot: false,
         hasShield: false,
       };
@@ -554,6 +576,7 @@ export class TanksGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING') {
+      if (this.spawnIntroTimer > 0) return;
       // Masa-ortası ATEŞ butonları önce (varsa); köşe-tut sürüşü ardından
       if (this.handleTabletopTouchStart(touch)) return;
       const corner = this.getCornerZone(touch);
@@ -599,6 +622,7 @@ export class TanksGame extends BaseMiniGame {
   startNewMatch() {
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.matchDraw = false;
     this.startRound();
   }
 
@@ -607,19 +631,32 @@ export class TanksGame extends BaseMiniGame {
   }
 
   startRound() {
+    const joined = this.tanks.filter((tank) => tank.isJoined);
+    if (joined.length < 2) {
+      this.state = 'LOBBY';
+      return;
+    }
+
     this.pickRandomMap();
     const mapDef = MAP_LAYOUTS[this.currentMapIndex];
     const { left, top, width: aW, height: aH } = this.arena;
 
     this.state = 'PLAYING';
     this.bullets = [];
+    this.nextBulletId = 1;
     this.particles = [];
     this.shotTracers = [];
     this.crates = [];
     this.crateSpawnTimer = 6.0;
     this.roundTimer = 0;
+    this.roundId += 1;
+    this.suddenDeath = false;
+    this.suddenDeathElapsed = 0;
+    this.suddenDeathRadius = 0;
     this.roundWinner = null;
+    this.matchDraw = false;
     this.spawnIntroTimer = 2.0;
+    this.onTouchesReset();
     playStart();
 
     this.tanks.forEach((tank, i) => {
@@ -645,15 +682,30 @@ export class TanksGame extends BaseMiniGame {
       tank.muzzleFlashTimer = 0;
       tank.botPatrolTimer = 0;
       tank.botWantsDrive = false;
+      tank.botThinkT = 0;
+      tank.botWaypoint = null;
+      tank.botAimHold = 0;
+      tank.botLastShot = 0;
+      tank.botClock = 0;
+      tank._aiSteered = false;
       tank.turboTimer = 0;
+      tank.suddenDeathExposure = 0;
       tank.hasTripleShot = false;
       tank.hasShield = false;
     });
   }
 
+  canTankAct(tank) {
+    return !!tank
+      && this.state === 'PLAYING'
+      && this.spawnIntroTimer <= 0
+      && tank.isJoined
+      && tank.isAlive;
+  }
+
   attemptFire(tank) {
-    // Lobi/maç-sonunda kumandadan ateş tetiklenemez (uzak girdi kapısı)
-    if (this.state !== 'PLAYING') return;
+    // Lobi/maç-sonunda ve spawn intro sırasında kumandadan ateş tetiklenemez.
+    if (!this.canTankAct(tank)) return;
     // Şarjör mantığı: dolu yuva varsa ateşlenir (peş peşe 2 el mümkün).
     // Dolum sayacı sadece boş yuvayı doldurur, hazır mermiyi kilitlemez.
     if ((tank.chamber ?? tank.maxBullets) <= 0) {
@@ -684,6 +736,7 @@ export class TanksGame extends BaseMiniGame {
           bounces: 0,
           maxBounces: 2,
           owner: tank.index,
+          id: this.nextBulletId++,
           radius: 4.5,
         });
       }
@@ -698,6 +751,7 @@ export class TanksGame extends BaseMiniGame {
         bounces: 0,
         maxBounces: 2,
         owner: tank.index,
+        id: this.nextBulletId++,
         radius: 4.5,
       });
     }
@@ -724,6 +778,11 @@ export class TanksGame extends BaseMiniGame {
     if (!tank || !tank.isJoined || !tank.isAlive) return;
 
     if (data.action === 'TANK_DRIVE') {
+      if (this.spawnIntroTimer > 0 || this.state !== 'PLAYING') {
+        tank.isDriving = false;
+        if (this.driveOwner[slotIndex] === 'remote') this.driveOwner[slotIndex] = null;
+        return;
+      }
       tank.isDriving = !!data.driving;
       if (data.driving) {
         this.driveOwner[slotIndex] = 'remote';
@@ -736,7 +795,7 @@ export class TanksGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = Math.min((now - this.lastTime) / 1000, 0.1);
+    const dt = Math.max(0, Math.min((now - this.lastTime) / 1000, 0.1));
     this.lastTime = now;
 
     if (this.trauma > 0) {
@@ -750,7 +809,7 @@ export class TanksGame extends BaseMiniGame {
     if (this.state === 'ROUND_OVER') {
       this.roundTransitionTimer -= dt;
       if (this.roundTransitionTimer <= 0) {
-        if (this.matchWinner) {
+        if (this.matchWinner || this.matchDraw) {
           this.state = 'MATCH_OVER';
         } else {
           this.startRound();
@@ -760,6 +819,14 @@ export class TanksGame extends BaseMiniGame {
 
     if (this.state === 'PLAYING') {
       this.roundTimer += dt;
+      if (!this.suddenDeath && this.roundTimer >= TANK_SUDDEN_DEATH_AT) {
+        this.suddenDeath = true;
+        this.suddenDeathElapsed = 0;
+        this.suddenDeathRadius = Math.min(this.arena.width, this.arena.height) * 0.72;
+        this.addTrauma(0.16);
+        playPowerUp();
+      }
+      if (this.suddenDeath) this.updateSuddenDeath(dt);
       this.crateSpawnTimer -= dt;
       if (this.crateSpawnTimer <= 0 && this.crates.length < 2) {
         this.spawnCrate();
@@ -821,15 +888,16 @@ export class TanksGame extends BaseMiniGame {
         }
 
         // Run AI logic for Bot tanks
-        if (tank.slotType !== 'human' && this.state === 'PLAYING') {
+        const canAct = this.state === 'PLAYING' && this.spawnIntroTimer <= 0;
+        if (tank.slotType !== 'human' && canAct) {
           this.updateTankBotAI(tank, dt);
         }
 
-        if (this.state === 'PLAYING' && tank.slotType === 'human' && !tank.isDriving) {
+        if (canAct && tank.slotType === 'human' && !tank.isDriving) {
           tank.angle += tank.rotationSpeed * tank.spinDirection * dt;
         }
 
-        if (tank.isDriving && this.state === 'PLAYING') {
+        if (tank.isDriving && canAct) {
           this.moveTankWithCollision(tank, dt);
         } else if (tank.slotType !== 'human' && !tank._aiSteered) {
           // AI bu kare aktif direksiyon yapmadıysa boşta yavaşça dön (lobi/ruh hali)
@@ -838,6 +906,7 @@ export class TanksGame extends BaseMiniGame {
         tank._aiSteered = false;
       }
 
+      this.separateTanks();
       this.updateBullets(dt);
       this.updateParticles(dt);
       for (let i = this.shotTracers.length - 1; i >= 0; i--) {
@@ -847,11 +916,60 @@ export class TanksGame extends BaseMiniGame {
 
       if (this.state === 'PLAYING') {
         const aliveTanks = this.tanks.filter((t) => t.isJoined && t.isAlive);
-        if (aliveTanks.length <= 1) {
+        if (this.roundTimer >= this.roundLimit) {
+          if (aliveTanks.length === 1) {
+            this.handleRoundEnd(aliveTanks[0]);
+          } else {
+            this.finishAsDraw();
+          }
+        } else if (aliveTanks.length <= 1) {
           this.handleRoundEnd(aliveTanks.length === 1 ? aliveTanks[0] : null);
         }
       }
     }
+  }
+
+  updateSuddenDeath(dt) {
+    const minDim = Math.min(this.arena.width || 0, this.arena.height || 0);
+    if (minDim <= 0) return;
+    this.suddenDeathElapsed += dt;
+    const progress = Math.max(0, Math.min(1,
+      this.suddenDeathElapsed / Math.max(1, this.roundLimit - TANK_SUDDEN_DEATH_AT),
+    ));
+    const maxRadius = minDim * 0.72;
+    const minRadius = minDim * TANK_SUDDEN_DEATH_MIN_RADIUS;
+    this.suddenDeathRadius = maxRadius + (minRadius - maxRadius) * progress;
+
+    for (const tank of this.tanks) {
+      if (!tank.isJoined || !tank.isAlive) continue;
+      const outside = Math.hypot(tank.x - this.arena.cx, tank.y - this.arena.cy) > this.suddenDeathRadius;
+      tank.suddenDeathExposure = outside
+        ? (tank.suddenDeathExposure || 0) + dt
+        : 0;
+      if (tank.suddenDeathExposure >= TANK_SUDDEN_DEATH_GRACE) {
+        this.destroyTank(tank);
+      }
+    }
+  }
+
+  destroyTank(tank) {
+    if (!tank || !tank.isAlive) return;
+    tank.isAlive = false;
+    tank.isDriving = false;
+    this.driveOwner[tank.index] = null;
+    this.spawnTankExplosion(tank.x, tank.y, tank.color);
+    playExplosion();
+    this.addTrauma(0.4);
+  }
+
+  finishAsDraw() {
+    this.state = 'ROUND_OVER';
+    this.roundWinner = null;
+    this.matchWinner = null;
+    this.matchDraw = true;
+    this.suddenDeath = false;
+    this.suddenDeathRadius = 0;
+    this.roundTransitionTimer = 1.8;
   }
 
   updateTankBotAI(tank, dt) {
@@ -869,6 +987,37 @@ export class TanksGame extends BaseMiniGame {
       size: 3,
       color: '#99948A',
     });
+  }
+
+  separateTanks() {
+    for (let i = 0; i < this.tanks.length; i++) {
+      const a = this.tanks[i];
+      if (!a.isJoined || !a.isAlive) continue;
+      for (let j = i + 1; j < this.tanks.length; j++) {
+        const b = this.tanks[j];
+        if (!b.isJoined || !b.isAlive) continue;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const distance = Math.hypot(dx, dy);
+        const minDistance = (a.size + b.size) * 0.5;
+        if (distance >= minDistance) continue;
+        const nx = distance > 0.001 ? dx / distance : (i % 2 === 0 ? 1 : -1);
+        const ny = distance > 0.001 ? dy / distance : 0;
+        const push = (minDistance - distance) * 0.5;
+        const aX = a.x - nx * push;
+        const aY = a.y - ny * push;
+        const bX = b.x + nx * push;
+        const bY = b.y + ny * push;
+        if (!this.checkTankCollision(aX, aY, a.size * 0.5)) {
+          a.x = aX;
+          a.y = aY;
+        }
+        if (!this.checkTankCollision(bX, bY, b.size * 0.5)) {
+          b.x = bX;
+          b.y = bY;
+        }
+      }
+    }
   }
 
   moveTankWithCollision(tank, dt) {
@@ -927,95 +1076,104 @@ export class TanksGame extends BaseMiniGame {
   }
 
   updateBullets(dt) {
+    bulletLoop:
     for (let i = this.bullets.length - 1; i >= 0; i--) {
       const b = this.bullets[i];
-      const nextX = b.x + b.vx * dt;
-      const nextY = b.y + b.vy * dt;
-      let bounced = false;
-
-      if (nextX - b.radius <= this.arena.left) {
-        b.vx = Math.abs(b.vx);
-        b.x = this.arena.left + b.radius + 1;
-        bounced = true;
-      } else if (nextX + b.radius >= this.arena.right) {
-        b.vx = -Math.abs(b.vx);
-        b.x = this.arena.right - b.radius - 1;
-        bounced = true;
+      if (![b.x, b.y, b.vx, b.vy, b.radius].every(Number.isFinite)) {
+        this.bullets.splice(i, 1);
+        continue;
       }
 
-      if (nextY - b.radius <= this.arena.top) {
-        b.vy = Math.abs(b.vy);
-        b.y = this.arena.top + b.radius + 1;
-        bounced = true;
-      } else if (nextY + b.radius >= this.arena.bottom) {
-        b.vy = -Math.abs(b.vy);
-        b.y = this.arena.bottom - b.radius - 1;
-        bounced = true;
-      }
+      const distance = Math.hypot(b.vx, b.vy) * dt;
+      const substeps = getProjectileSubsteps(distance, 8);
+      const subDt = dt / substeps;
 
-      for (const obs of this.obstacles) {
-        if (
-          nextX + b.radius > obs.x &&
-          nextX - b.radius < obs.x + obs.w &&
-          nextY + b.radius > obs.y &&
-          nextY - b.radius < obs.y + obs.h
-        ) {
-          const prevLeftDist = Math.abs(b.x - obs.x);
-          const prevRightDist = Math.abs(b.x - (obs.x + obs.w));
-          const prevTopDist = Math.abs(b.y - obs.y);
-          const prevBottomDist = Math.abs(b.y - (obs.y + obs.h));
-          const minH = Math.min(prevLeftDist, prevRightDist);
-          const minV = Math.min(prevTopDist, prevBottomDist);
+      for (let step = 0; step < substeps; step++) {
+        const nextX = b.x + b.vx * subDt;
+        const nextY = b.y + b.vy * subDt;
+        let bounced = false;
 
-          if (minH < minV) {
-            b.vx = -b.vx;
-          } else {
-            b.vy = -b.vy;
-          }
+        if (nextX - b.radius <= this.arena.left) {
+          b.vx = Math.abs(b.vx);
+          b.x = this.arena.left + b.radius + 1;
           bounced = true;
-          break;
+        } else if (nextX + b.radius >= this.arena.right) {
+          b.vx = -Math.abs(b.vx);
+          b.x = this.arena.right - b.radius - 1;
+          bounced = true;
         }
-      }
 
-      if (bounced) {
-        b.bounces++;
-        playRicochet();
-        this.spawnRicochetSparks(b.x, b.y);
-
-        if (b.bounces > b.maxBounces) {
-          this.bullets.splice(i, 1);
-          continue;
+        if (nextY - b.radius <= this.arena.top) {
+          b.vy = Math.abs(b.vy);
+          b.y = this.arena.top + b.radius + 1;
+          bounced = true;
+        } else if (nextY + b.radius >= this.arena.bottom) {
+          b.vy = -Math.abs(b.vy);
+          b.y = this.arena.bottom - b.radius - 1;
+          bounced = true;
         }
-      } else {
-        b.x = nextX;
-        b.y = nextY;
-      }
 
-      for (const tank of this.tanks) {
-        if (!tank.isAlive || !tank.isJoined) continue;
-        // Kendi attığı mermiden hasar almaz (öz-hasar koruması)
-        if (b.owner === tank.index) continue;
+        for (const obs of this.obstacles) {
+          if (
+            nextX + b.radius > obs.x &&
+            nextX - b.radius < obs.x + obs.w &&
+            nextY + b.radius > obs.y &&
+            nextY - b.radius < obs.y + obs.h
+          ) {
+            const prevLeftDist = Math.abs(b.x - obs.x);
+            const prevRightDist = Math.abs(b.x - (obs.x + obs.w));
+            const prevTopDist = Math.abs(b.y - obs.y);
+            const prevBottomDist = Math.abs(b.y - (obs.y + obs.h));
+            const minH = Math.min(prevLeftDist, prevRightDist);
+            const minV = Math.min(prevTopDist, prevBottomDist);
 
-        if (Math.hypot(b.x - tank.x, b.y - tank.y) < tank.size * 0.65) {
-          if (tank.hasShield) {
-            tank.hasShield = false;
-            this.bullets.splice(i, 1);
-            this.spawnRicochetSparks(tank.x, tank.y);
-            playRicochet();
-            this.addTrauma(0.2);
+            if (minH < minV) {
+              b.vx = -b.vx;
+            } else {
+              b.vy = -b.vy;
+            }
+            bounced = true;
             break;
           }
+        }
 
-          tank.isAlive = false;
-          this.bullets.splice(i, 1);
-          this.spawnTankExplosion(tank.x, tank.y, tank.color);
-          playExplosion();
-          this.addTrauma(0.4);
+        if (bounced) {
+          b.bounces++;
+          playRicochet();
+          this.spawnRicochetSparks(b.x, b.y);
 
-          if (tank.slotType === 'human' && typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate([40, 50, 80]);
+          if (b.bounces > b.maxBounces) {
+            this.bullets.splice(i, 1);
+            continue bulletLoop;
           }
-          break;
+        } else {
+          b.x = nextX;
+          b.y = nextY;
+        }
+
+        for (const tank of this.tanks) {
+          if (!tank.isAlive || !tank.isJoined) continue;
+          // Kendi attığı mermiden hasar almaz (öz-hasar koruması)
+          if (b.owner === tank.index) continue;
+
+          if (Math.hypot(b.x - tank.x, b.y - tank.y) < tank.size * 0.65) {
+            if (tank.hasShield) {
+              tank.hasShield = false;
+              this.bullets.splice(i, 1);
+              this.spawnRicochetSparks(tank.x, tank.y);
+              playRicochet();
+              this.addTrauma(0.2);
+              continue bulletLoop;
+            }
+
+            this.bullets.splice(i, 1);
+            this.destroyTank(tank);
+
+            if (tank.slotType === 'human' && typeof navigator !== 'undefined' && navigator.vibrate) {
+              navigator.vibrate([40, 50, 80]);
+            }
+            continue bulletLoop;
+          }
         }
       }
     }
@@ -1068,15 +1226,19 @@ export class TanksGame extends BaseMiniGame {
   }
 
   handleRoundEnd(winnerTank) {
+    if (!winnerTank) {
+      this.finishAsDraw();
+      return;
+    }
+
     this.state = 'ROUND_OVER';
     this.roundWinner = winnerTank;
+    this.suddenDeath = false;
+    this.suddenDeathRadius = 0;
     this.roundTransitionTimer = 1.8;
-
-    if (winnerTank) {
-      this.scores[winnerTank.index]++;
-      if (this.scores[winnerTank.index] >= this.targetScore) {
-        this.matchWinner = winnerTank;
-      }
+    this.scores[winnerTank.index]++;
+    if (this.scores[winnerTank.index] >= this.targetScore) {
+      this.matchWinner = winnerTank;
     }
   }
 
@@ -1093,7 +1255,12 @@ export class TanksGame extends BaseMiniGame {
     }
 
     // Arena sahnesi ortak tanksView draw'larından gelir (host↔client aynı).
-    drawTanksArena(ctx, this.arena, this.obstacles);
+    drawTanksArena(ctx, this.arena, this.obstacles, {
+      active: this.suddenDeath,
+      x: this.arena.cx,
+      y: this.arena.cy,
+      radius: this.suddenDeathRadius,
+    });
 
     this.uiButtons = [];
 

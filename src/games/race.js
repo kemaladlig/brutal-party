@@ -14,6 +14,7 @@ import { renderControlGuide } from '../controlGuide.js';
 import { drawObstacle } from '../core/arenaKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { clampToArena, distToSegmentSquared, normalizeAngle } from '../core/physics2d.js';
+import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
 import { createPlayer } from '../core/playerEntity.js';
 import { getKeyLabel } from '../core/inputMaps.js';
 import {
@@ -56,6 +57,10 @@ export class RaceGame extends BaseMiniGame {
     this.roundTransitionTimer = 0;
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.tiedRounds = 0;
     this.floatingTexts = [];
     this.currentPreset = TRACK_PRESETS[0];
     this.roundIndex = 0;
@@ -225,6 +230,10 @@ export class RaceGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.tiedRounds = 0;
     this.roundTimer = RACE_TUNING.roundTime;
     this.roundTransitionTimer = 0;
     this.currentPreset = TRACK_PRESETS[0];
@@ -286,6 +295,9 @@ export class RaceGame extends BaseMiniGame {
     }
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.tiedRounds = 0;
     this.roundIndex = 0;
     this.applyTrackPreset(TRACK_PRESETS[0]);
     this.startNewRound();
@@ -307,6 +319,10 @@ export class RaceGame extends BaseMiniGame {
     this.roundTimer = RACE_TUNING.roundTime;
     this.roundTransitionTimer = 0;
     this.roundWinner = null;
+    this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId += 1;
     this.uiButtons = [];
     this.floatingTexts = [];
     this.resetRacers();
@@ -489,7 +505,10 @@ export class RaceGame extends BaseMiniGame {
     this.tickFloatingTexts(dt);
     if (this.state === 'ROUND_OVER') {
       this.roundTransitionTimer = Math.max(0, this.roundTransitionTimer - dt);
-      if (this.roundTransitionTimer <= 0) this.startNewRound();
+      if (this.roundTransitionTimer <= 0) {
+        if (hasMatchResult(this)) this.state = 'MATCH_OVER';
+        else this.startNewRound();
+      }
       return;
     }
     if (this.state !== 'PLAYING') return;
@@ -779,27 +798,38 @@ export class RaceGame extends BaseMiniGame {
           this.addTrauma(0.1);
           playWallHit();
         }
+        clampToArena(first, first.radius || RACE_TUNING.playerRadius, this.arena);
+        clampToArena(second, second.radius || RACE_TUNING.playerRadius, this.arena);
       }
     }
   }
 
   finishOnTime() {
     const leaders = this.getLeaderCandidates();
-    this.endRound(leaders.length === 1 ? leaders[0] : null);
+    this.endRound(leaders.length === 1 ? leaders[0] : null, 'timeout');
   }
 
-  endRound(winner) {
+  endRound(winner, reason = 'finish') {
     if (this.state !== 'PLAYING') return;
-    this.roundWinner = winner;
+    this.roundWinner = winner || null;
+    this.roundResolutionReason = reason;
     this.uiButtons = [];
 
     if (winner) {
+      this.tiedRounds = 0;
+      this.matchDraw = false;
       this.scores[winner.index] += 1;
       this.addTrauma(0.5);
       playItemPickup();
       if (this.scores[winner.index] >= this.targetScore) {
         this.matchWinner = winner;
         this.state = 'MATCH_OVER';
+        return;
+      }
+    } else {
+      this.tiedRounds += 1;
+      if (!this.players.some((p) => p.isJoined) || this.tiedRounds >= 2) {
+        beginDrawRound(this, reason, 1.6);
         return;
       }
     }
@@ -1091,7 +1121,7 @@ export class RaceGame extends BaseMiniGame {
       renderMatchOver(ctx, {
         arena,
         uiButtons: this.uiButtons,
-        headline: t('game.champWon'),
+        headline: this.matchDraw ? t('game.draw') : t('game.champWon'),
         winnerName: this.matchWinner?.name || '',
         winnerColor: this.matchWinner?.color || UI_COLORS.ink,
         rows,
@@ -1119,8 +1149,18 @@ export class RaceGame extends BaseMiniGame {
     if (this.state === 'LOBBY' || this.players.length === 0) {
       this.resetRacers();
     } else {
-      this.players.forEach((player) => this.remapPoint(player, oldArena, this.arena));
-      this.empPulses.forEach((pulse) => this.remapPoint(pulse, oldArena, this.arena));
+      const oldSize = Math.min(oldArena.width || 0, oldArena.height || 0);
+      const newSize = Math.min(this.arena.width || 0, this.arena.height || 0);
+      const pulseScale = oldSize > 0 ? newSize / oldSize : 1;
+      this.players.forEach((player) => {
+        this.remapPoint(player, oldArena, this.arena);
+        clampToArena(player, player.radius || RACE_TUNING.playerRadius, this.arena, { zeroVelocity: true });
+      });
+      this.empPulses.forEach((pulse) => {
+        this.remapPoint(pulse, oldArena, this.arena);
+        pulse.radius *= pulseScale;
+        clampToArena(pulse, 0, this.arena);
+      });
       this.floatingTexts.forEach((item) => this.remapPoint(item, oldArena, this.arena));
     }
     this.onTouchesReset();

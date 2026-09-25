@@ -24,6 +24,7 @@ import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
 import { createPlayer } from '../core/playerEntity.js';
+import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
 import {
   createHeistWorldPacket,
   drawHeistArena,
@@ -40,6 +41,8 @@ export const HEIST_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 export const HEIST_TUNING = {
   TACKLE_COOLDOWN: 3.5,
+  ROUND_TIME: 45,
+  MAX_TIED_ROUNDS: 2,
 };
 
 export class HeistGame extends BaseMiniGame {
@@ -69,6 +72,10 @@ export class HeistGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.tiedRounds = 0;
     this.roundTransitionTimer = 0;
 
     // Timing
@@ -197,12 +204,18 @@ export class HeistGame extends BaseMiniGame {
     }
     for (const p of this.players) {
       this.remapPoint(p, oldArena, this.arena);
+      clampToArena(p, p.radius, this.arena, { zeroVelocity: true });
+      resolveAABB(p, this.pillars, p.radius);
       p.vx = 0; p.vy = 0;
       p.lastX = p.x; p.lastY = p.y;
     }
-    for (const item of this.lootItems) this.remapPoint(item, oldArena, this.arena);
+    for (const item of this.lootItems) {
+      this.remapPoint(item, oldArena, this.arena);
+      clampToArena(item, item.radius || 9, this.arena);
+    }
     if (this.piggyBank) {
       this.remapPoint(this.piggyBank, oldArena, this.arena);
+      clampToArena(this.piggyBank, this.piggyBank.radius || 24, this.arena, { zeroVelocity: true });
       this.piggyBank.vx = 0; this.piggyBank.vy = 0;
     }
     this.particles = [];
@@ -260,7 +273,11 @@ export class HeistGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
-    this.roundTimer = 45.0;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.tiedRounds = 0;
+    this.roundTimer = HEIST_TUNING.ROUND_TIME;
     this.goldRushActive = false;
     this.lootItems = [];
     this.particles = [];
@@ -289,6 +306,9 @@ export class HeistGame extends BaseMiniGame {
     this.uiButtons = [];
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.tiedRounds = 0;
     this.startNewRound();
   }
 
@@ -301,9 +321,12 @@ export class HeistGame extends BaseMiniGame {
     }
 
     this.state = 'PLAYING';
-    this.roundTimer = 45.0;
+    this.roundTimer = HEIST_TUNING.ROUND_TIME;
     this.goldRushActive = false;
     this.roundWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId += 1;
     this.roundTied = false;
     this.roundTransitionTimer = 0;
     this.lootItems = [];
@@ -335,11 +358,29 @@ export class HeistGame extends BaseMiniGame {
   // Kasa liderine set verir (hedefe ulaşırsa maç biter)
   awardVaultWinner(winner) {
     this.roundTied = false;
+    this.tiedRounds = 0;
+    this.matchDraw = false;
     this.roundWinner = winner;
     this.scores[winner.index]++;
     if (this.scores[winner.index] >= this.targetScore) {
       this.state = 'MATCH_OVER';
       this.matchWinner = winner;
+      return;
+    }
+    this.state = 'ROUND_OVER';
+    this.roundTransitionTimer = 2.8;
+  }
+
+  finishTiedRound(reason = 'tie') {
+    if (!this.players.some((p) => p.isJoined)) {
+      beginDrawRound(this, reason, 1.6);
+      return;
+    }
+    this.roundTied = true;
+    this.roundWinner = null;
+    this.tiedRounds += 1;
+    if (this.tiedRounds >= HEIST_TUNING.MAX_TIED_ROUNDS) {
+      beginDrawRound(this, reason, 1.6);
       return;
     }
     this.state = 'ROUND_OVER';
@@ -378,6 +419,11 @@ export class HeistGame extends BaseMiniGame {
       px = cx + Math.cos(angle) * d;
       py = cy + Math.sin(angle) * d;
     }
+
+    const lootPoint = { x: px, y: py };
+    clampToArena(lootPoint, type === 'CROWN' ? 14 : type === 'DIAMOND' ? 12 : 9, this.arena);
+    px = lootPoint.x;
+    py = lootPoint.y;
 
     const value = type === 'CROWN' ? 5 : type === 'DIAMOND' ? 3 : 1;
     const weight = type === 'CROWN' ? 3 : type === 'DIAMOND' ? 2 : 1;
@@ -499,7 +545,11 @@ export class HeistGame extends BaseMiniGame {
     if (this.state === 'ROUND_OVER') {
       this.roundTransitionTimer -= dt;
       if (this.roundTransitionTimer <= 0) {
-        this.startNewRound();
+        if (hasMatchResult(this)) {
+          this.state = 'MATCH_OVER';
+        } else {
+          this.startNewRound();
+        }
       }
       return;
     }
@@ -549,16 +599,13 @@ export class HeistGame extends BaseMiniGame {
         if (joined.length === 1) {
           this.awardVaultWinner(joined[0]);
         } else {
-          this.roundTied = false;
-          this.roundWinner = null;
-          this.state = 'ROUND_OVER';
-          this.roundTransitionTimer = 2.8;
+          this.finishTiedRound('no-players');
         }
         return;
       }
     }
 
-    if (this.roundTimer <= 0) {
+    if (this.roundTimer <= 0 || roundTimedOut(this.roundTimer, HEIST_TUNING.ROUND_TIME)) {
       // Round Complete: tek lider + en az 1 banko gerekir; eşitlikte/boş
       // rauntta skor yazılmaz (önce düşük indeks hep kazanıyordu)
       let highestGold = -1;
@@ -581,7 +628,8 @@ export class HeistGame extends BaseMiniGame {
         this.awardVaultWinner(winner);
         return;
       } else {
-        this.roundWinner = null;
+        this.finishTiedRound('timeout');
+        return;
       }
       this.state = 'ROUND_OVER';
       this.roundTransitionTimer = 2.8;
@@ -1049,7 +1097,7 @@ export class HeistGame extends BaseMiniGame {
         urgent: isUrgent,
         color: isUrgent ? '#D84727' : '#D99B26',
         alpha: isUrgent ? 0.70 : 0.46,
-        ringProgress: Math.max(0, remain / 90),
+        ringProgress: Math.max(0, remain / HEIST_TUNING.ROUND_TIME),
       });
     }
 
@@ -1084,12 +1132,10 @@ export class HeistGame extends BaseMiniGame {
       roundBannerSub: this.roundWinner
         ? `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}`
         : (this.roundTied ? 'SKOR YAZILMADI' : ''),
-      matchOverHeadline: t('heist.champ'),
-      matchOverRows: this.matchWinner
-        ? this.players
-            .filter((p) => p.isJoined)
-            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}` }))
-        : [],
+      matchOverHeadline: this.matchDraw ? t('game.draw') : t('heist.champ'),
+      matchOverRows: this.players
+        .filter((p) => p.isJoined)
+        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}` })),
       onRestart: () => this.resetCurrentGame(),
     });
 

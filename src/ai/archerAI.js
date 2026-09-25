@@ -1,6 +1,14 @@
 // Brutal Archery bot zekâsı: mesafe tutma + yay germe zamanlaması + kaçınma.
 // Yalnızca game.arena / game.players / game.beginCharge / game.looseArrow kullanır.
 
+import { segmentAabbIntersection } from '../core/physics2d.js';
+
+function hasShotLane(game, bot, target) {
+  return !(game.obstacles || []).some((obstacle) => (
+    segmentAabbIntersection(bot.x, bot.y, target.x, target.y, obstacle, 0) !== null
+  ));
+}
+
 const ARCHER_IDEAL_DIST = 240;
 const ARCHER_MAX_ENGAGE = 480;
 
@@ -65,9 +73,10 @@ export function updateArcherBotAI(game, bot, dt) {
   const aimAt = Math.atan2(dy, dx);
   const angDiff = Math.abs(((aimAt - bot.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
 
+  const laneClear = hasShotLane(game, bot, target);
   if (!bot.charging) {
     // Kabaca nişanlı + menzilde + soğuma bitmişse yayı ger
-    if (bot.shotCooldown <= 0 && targetDist < ARCHER_MAX_ENGAGE && angDiff < 0.35) {
+    if (laneClear && bot.shotCooldown <= 0 && targetDist < ARCHER_MAX_ENGAGE && angDiff < 0.35) {
       bot.angle = aimAt;
       game.beginCharge(bot);
     }
@@ -75,10 +84,10 @@ export function updateArcherBotAI(game, bot, dt) {
     // Gererken hedefi takip et
     bot.angle = aimAt;
     // Tam gerişte sal, veya dip dibeyken erken sal
-    if (bot.charge >= 0.9 || (targetDist < 130 && bot.charge > 0.3)) {
+    if (laneClear && (bot.charge >= 0.9 || (targetDist < 130 && bot.charge > 0.3))) {
       game.looseArrow(bot);
-    } else if (targetDist > ARCHER_MAX_ENGAGE * 1.3) {
-      // Hedef kaçtıysa gergiyi iptal et
+    } else if (!laneClear || targetDist > ARCHER_MAX_ENGAGE * 1.3) {
+      // Hedef kaçtıysa veya engel araya girdiyse gergiyi iptal et
       bot.charging = false;
       bot.charge = 0;
     }

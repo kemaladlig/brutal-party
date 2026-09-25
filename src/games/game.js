@@ -11,6 +11,8 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, matchOverRestartTap } from '../core/touchFlow.js';
 
+const PONG_ROUND_LIMIT = 120;
+
 export class Game extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
@@ -49,6 +51,10 @@ export class Game extends BaseMiniGame {
     // State Timers
     this.roundPauseTimer = 0;
     this.winner = null;
+    this.roundResolutionReason = null;
+    this.roundPlayTimer = 0;
+    this.stallRecoveryCursor = 0;
+    this.stallRecoveryCount = 0;
 
     // Interactive UI Rectangles
     this.uiButtons = [];
@@ -61,6 +67,7 @@ export class Game extends BaseMiniGame {
 
     // Tournament Set Championship
     this.targetSets = 3;
+    this.roundLimit = PONG_ROUND_LIMIT;
     this.setScores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.roundOverTimer = 0;
@@ -74,10 +81,17 @@ export class Game extends BaseMiniGame {
     this.roundPauseTimer = 0;
     this.trauma = 0;
     this.accumulator = 0;
+    this.winner = null;
+    this.roundResolutionReason = null;
+    this.roundPlayTimer = 0;
+    this.stallRecoveryCursor = 0;
+    this.stallRecoveryCount = 0;
     this.lastTime = performance.now();
     this.resetTabletopTouches();
     this.spinCooldowns = [0, 0, 0, 0];
     this.stallTimer = 0;
+    this.stallX = null;
+    this.stallY = null;
     this.rallyStallT = 0;
     this.lastRallySeen = 0;
     this.setScores = [0, 0, 0, 0];
@@ -104,12 +118,18 @@ export class Game extends BaseMiniGame {
     const joined = this.paddles.filter((p) => p.isJoined);
     if (joined.length < 2) {
       this.state = 'LOBBY';
+      this.roundWinner = null;
+      this.roundResolutionReason = null;
       return;
     }
     this.state = 'ROUND_PAUSE';
     this.roundPauseTimer = 0.9;
     this.winner = null;
     this.roundWinner = null;
+    this.roundResolutionReason = null;
+    this.roundPlayTimer = 0;
+    this.stallRecoveryCursor = 0;
+    this.stallRecoveryCount = 0;
     this.paddles.forEach((p) => {
       p.reset(p.isJoined);
       p.updateLayout(this.arena);
@@ -384,6 +404,10 @@ export class Game extends BaseMiniGame {
     this.roundPauseTimer = 1.4;
     this.winner = null;
     this.roundWinner = null;
+    this.roundResolutionReason = null;
+    this.roundPlayTimer = 0;
+    this.stallRecoveryCursor = 0;
+    this.stallRecoveryCount = 0;
     this.roundOverTimer = 0;
     this.setScores = [0, 0, 0, 0];
 
@@ -399,6 +423,8 @@ export class Game extends BaseMiniGame {
     if (this.ball) this.ball.spin = 0;
     this.spinCooldowns = [0, 0, 0, 0];
     this.stallTimer = 0;
+    this.stallX = null;
+    this.stallY = null;
     this.rallyStallT = 0;
     this.lastRallySeen = 0;
 
@@ -409,37 +435,78 @@ export class Game extends BaseMiniGame {
     this.ball.reset(this.arena.cx, this.arena.cy);
   }
 
+  resolveRound(winnerIndex = null, reason = 'goal') {
+    const remaining = this.paddles.filter((p) => p.isJoined && !p.isEliminated);
+    let resolvedWinner = Number.isInteger(winnerIndex)
+      ? this.paddles[winnerIndex]
+      : null;
+
+    if (resolvedWinner && (!resolvedWinner.isJoined || resolvedWinner.isEliminated)) {
+      resolvedWinner = null;
+    }
+    if (!resolvedWinner && remaining.length === 1) {
+      resolvedWinner = remaining[0];
+    }
+
+    this.roundResolutionReason = reason;
+    this.roundWinner = resolvedWinner || null;
+
+    if (resolvedWinner) {
+      this.setScores[resolvedWinner.index] = (this.setScores[resolvedWinner.index] || 0) + 1;
+      if (this.setScores[resolvedWinner.index] >= this.targetSets) {
+        this.state = 'MATCH_OVER';
+        this.winner = resolvedWinner;
+        return;
+      }
+    }
+
+    this.state = 'ROUND_OVER';
+    this.roundOverTimer = 2.0;
+  }
+
+  finishAsDraw() {
+    this.state = 'MATCH_OVER';
+    this.winner = null;
+    this.roundWinner = null;
+    this.roundResolutionReason = 'timeout';
+    this.roundOverTimer = 0;
+  }
+
+  abortMatch() {
+    this.state = 'LOBBY';
+    this.winner = null;
+    this.roundWinner = null;
+    this.roundResolutionReason = 'abort';
+    this.roundOverTimer = 0;
+    this.setScores = [0, 0, 0, 0];
+    this.paddles.forEach((p) => p.reset(false));
+    this.ball.reset(this.arena.cx, this.arena.cy);
+  }
+
   onPlayerScoredOn(playerIndex) {
     // Gol her şeyi sıfırlar: falso eğriliği + kurulu şarjlar temizlenir
     if (this.ball) this.ball.spin = 0;
     this.paddles.forEach((p) => { p.spinCharge = 0; });
     const remaining = this.paddles.filter((p) => p.isJoined && !p.isEliminated);
 
-    if (remaining.length <= 1) {
-      if (remaining.length === 1) {
-        const setWinner = remaining[0];
-        this.roundWinner = setWinner;
-        this.setScores[setWinner.index] = (this.setScores[setWinner.index] || 0) + 1;
-
-        if (this.setScores[setWinner.index] >= this.targetSets) {
-          this.state = 'MATCH_OVER';
-          this.winner = setWinner;
-          return;
-        }
-      } else {
-        this.roundWinner = null;
-      }
-      this.state = 'ROUND_OVER';
-      this.roundOverTimer = 2.0;
-    } else {
-      // Gol sonrası kısa duraklama (uzun ölü top "donma" gibi hissettiriyor)
-      this.state = 'ROUND_PAUSE';
-      this.roundPauseTimer = 0.9;
-      this.ball.x = this.arena.cx;
-      this.ball.y = this.arena.cy;
-      this.ball.vx = 0;
-      this.ball.vy = 0;
+    if (remaining.length === 0) {
+      this.abortMatch();
+      return;
     }
+
+    if (remaining.length === 1) {
+      this.resolveRound(remaining[0].index, playerIndex >= 0 ? 'goal' : 'last-standing');
+      return;
+    }
+
+    // Gol sonrası kısa duraklama (uzun ölü top "donma" gibi hissettiriyor)
+    this.state = 'ROUND_PAUSE';
+    this.roundPauseTimer = 0.9;
+    this.roundResolutionReason = null;
+    this.ball.x = this.arena.cx;
+    this.ball.y = this.arena.cy;
+    this.ball.vx = 0;
+    this.ball.vy = 0;
   }
 
   update(now) {
@@ -469,10 +536,15 @@ export class Game extends BaseMiniGame {
         this.restartRound();
       }
     } else if (this.state === 'PLAYING') {
+      this.roundPlayTimer += frameTime;
+      if (this.roundPlayTimer >= this.roundLimit) {
+        this.finishAsDraw();
+        return;
+      }
       // Tek aktif kalınca raunt hemen biter (gol beklenmez — ayrılma da bitirir)
       const active = this.paddles.filter((p) => p.isJoined && !p.isEliminated);
       if (active.length < 1) {
-        this.state = 'LOBBY';
+        this.abortMatch();
         return;
       }
       if (active.length === 1) {
@@ -501,7 +573,7 @@ export class Game extends BaseMiniGame {
   }
 
   // Takılma-kırıcı: top 2.5 sn'de 4px bile oynamadıysa VEYA ralli 6 sn'dir
-  // ilerlemiyorsa (disk çevresi oyalanması) rastgele aktif kaleye şut çeker.
+  // ilerlemiyorsa (disk çevresi oyalanması) deterministik nötr servis verir.
   // Fizik tuzaklarının (disk/cep/köşe) son sigortasıdır.
   breakStall(dt) {
     const b = this.ball;
@@ -534,23 +606,27 @@ export class Game extends BaseMiniGame {
 
     const targets = this.paddles.filter((p) => p.isJoined && !p.isEliminated);
     if (!targets.length) return;
-    const goal = targets[Math.floor(Math.random() * targets.length)];
-    const bounds = this.arena.getGoalBounds(goal.side);
-    const gx = goal.axis === 'horizontal'
-      ? (bounds.goalMin + bounds.goalMax) / 2
-      : goal.side === 'left' ? this.arena.left : this.arena.right;
-    const gy = goal.axis === 'horizontal'
-      ? (goal.side === 'top' ? this.arena.top : this.arena.bottom)
-      : (bounds.goalMin + bounds.goalMax) / 2;
-    const dx = gx - b.x;
-    const dy = gy - b.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const sp = b.currentMinSpeed * 1.2;
-    b.vx = (dx / len) * sp;
-    b.vy = (dy / len) * sp;
-    b.x += (dx / len) * 4;
-    b.y += (dy / len) * 4;
+
+    // Deterministic neutral serve: cycle the lane instead of selecting a goal
+    // at random. The ball is re-centered and sent across the court, preserving
+    // skill as the deciding factor after the recovery.
+    const target = targets[this.stallRecoveryCursor % targets.length];
+    this.stallRecoveryCursor = (this.stallRecoveryCursor + 1) % targets.length;
+    const toCenter = Math.atan2(this.arena.cy - b.y, this.arena.cx - b.x);
+    const laneSign = (target.index + this.stallRecoveryCount) % 2 === 0 ? 1 : -1;
+    const angle = toCenter + laneSign * Math.PI * 0.5;
+    b.currentMinSpeed = Math.max(b.baseMinSpeed, b.currentMinSpeed * 0.92);
+    const speed = b.currentMinSpeed;
+    b.x = this.arena.cx;
+    b.y = this.arena.cy;
+    b.vx = Math.cos(angle) * speed;
+    b.vy = Math.sin(angle) * speed;
+    b.consecutiveWallBounces = 0;
+    b.lastHitPaddle = -1;
+    b.paddleHitCooldown = 0.08;
+    this.stallRecoveryCount += 1;
     b.spawnShockwave(b.x, b.y, '#D99B26');
+    this.addTrauma(0.06);
   }
 
   // Faz 2 Dual-Input Bridge (referans implementasyon): uzak + lokal girdi
@@ -638,11 +714,9 @@ export class Game extends BaseMiniGame {
       colors: this.paddles.map((p) => p.color),
       accent: '#D84727',
       matchOverHeadline: t('game.champWon') || 'ŞAMPİYON',
-      matchOverRows: (this.winner || this.matchWinner)
-        ? this.paddles
-            .filter((p) => p.isJoined)
-            .map((p) => ({ color: p.color, text: `${p.name}: ${this.setScores[p.index] || 0} SET` }))
-        : [],
+      matchOverRows: this.paddles
+         .filter((p) => p.isJoined)
+         .map((p) => ({ color: p.color, text: `${p.name}: ${this.setScores[p.index] || 0} SET` })),
       onRestart: () => {
         this.state = 'LOBBY';
         this.setScores = [0, 0, 0, 0];

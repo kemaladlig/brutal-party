@@ -79,6 +79,7 @@ export function createZoneWorldPacket(game) {
       rle: packZoneGridRle(game.grid),
       // Bölge katmanı sadece repaint edildiğinde artar (client 4096 hücreyi her karede değil, versiyon değişince yeniden kurar)
       gridV: Number(game.gridVersion) || 0,
+      matchDraw: game.matchDraw === true,
       leader: Number.isInteger(game.leaderIndex) ? game.leaderIndex : -1,
       relics: (Array.isArray(game.relics) ? game.relics : []).slice(0, 2).map((rel) => ({
         x: round1(rel.x), y: round1(rel.y),
@@ -104,10 +105,11 @@ export function createZoneWorldPacket(game) {
 }
 
 function isValidZonePlayer(p) {
-  return finite(p.angle) && finite(p.radius)
+  return typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
+    && finite(p.angle) && finite(p.radius) && p.radius > 0
     && typeof p.home === 'boolean' && finite(p.stun) && finite(p.blink)
-    && (p.dashProg === null || finite(p.dashProg))
-    && typeof p.relic === 'boolean' && Number.isInteger(p.pct)
+    && (p.dashProg === null || (finite(p.dashProg) && p.dashProg >= 0 && p.dashProg <= 1))
+    && typeof p.relic === 'boolean' && Number.isInteger(p.pct) && p.pct >= 0 && p.pct <= 100
     && Array.isArray(p.trail) && p.trail.length <= 64
     && p.trail.every((ci) => Number.isInteger(ci) && ci >= 0 && ci < ZONE_GRID * ZONE_GRID)
     && Array.isArray(p.trailStart) && p.trailStart.length === 2
@@ -116,10 +118,14 @@ function isValidZonePlayer(p) {
 
 function isValidZoneExtra(frame) {
   if (!Array.isArray(frame.field) || frame.field.length !== 3 || !frame.field.every(finite)) return false;
+  if (frame.field[2] <= 0) return false;
   if (!finite(frame.cell) || frame.cell <= 0) return false;
+  if (Math.abs(frame.field[2] - frame.cell * ZONE_GRID) > 2.0) return false;
   if (!Array.isArray(frame.rle) || frame.rle.length === 0 || frame.rle.length % 2 !== 0) return false;
   if (frame.rle.length > 4096 * 2) return false;
+  if (frame.rle.reduce((sum, value, index) => index % 2 === 0 ? sum + value : sum, 0) !== ZONE_GRID * ZONE_GRID) return false;
   if (!Number.isInteger(frame.gridV) || frame.gridV < 0) return false;
+  if (typeof frame.matchDraw !== 'boolean') return false;
   if (!frame.rle.every((v, i) => (i % 2 === 0
     ? Number.isInteger(v) && v > 0 && v <= 4096
     : Number.isInteger(v) && v >= 0 && v <= 4))) return false;

@@ -46,6 +46,7 @@ export function createCloneWorldPacket(game) {
     }),
     extras: {
       roundTime: round1(game.roundTime || 0),
+      matchDraw: game.matchDraw === true,
       stations: (Array.isArray(game.taskPoints) ? game.taskPoints : []).slice(0, 4).map((tp) => ({
         x: round1(tp.x),
         y: round1(tp.y),
@@ -78,12 +79,14 @@ export function createCloneWorldPacket(game) {
 }
 
 function isValidClonePlayer(p) {
-  return finite(p.angle)
-    && typeof p.dash === 'boolean' && typeof p.slow === 'boolean' && finite(p.task);
+  return typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
+    && finite(p.angle)
+    && typeof p.dash === 'boolean' && typeof p.slow === 'boolean'
+    && finite(p.task) && p.task >= 0 && p.task <= 1.5;
 }
 
 function isValidCloneExtra(frame) {
-  if (!finite(frame.roundTime)) return false;
+  if (!finite(frame.roundTime) || frame.roundTime < 0 || typeof frame.matchDraw !== 'boolean') return false;
   if (!Array.isArray(frame.stations) || frame.stations.length > 4) return false;
   if (!frame.stations.every((s) => s && finite(s.x) && finite(s.y) && finite(s.radius)
     && typeof s.color === 'string' && typeof s.icon === 'string' && typeof s.name === 'string')) return false;

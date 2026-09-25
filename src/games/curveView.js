@@ -24,6 +24,7 @@ const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 export const CURVE_FIELD_TILES = 24;   // field maskesi 24x24
 export const CURVE_NEAR_PER_PLAYER = 220; // oyuncu başına gönderilen yakın segment tavanı
 export const CURVE_TOTAL_NEAR_CAP = 900;  // frame başına toplam tavan
+export const CURVE_GAP_MASK_TILES = CURVE_FIELD_TILES;
 
 // --- Field maskesi (2 bit/sahip) ---
 export function packCurveFieldMask(segments, field) {
@@ -64,6 +65,41 @@ export function unpackCurveFieldMask(hex) {
   return bits;
 }
 
+export function packCurveGapMask(segments, field) {
+  const T = CURVE_GAP_MASK_TILES;
+  const tw = (field.s || 1) / T;
+  const bits = new Uint8Array(T * T);
+  for (const seg of segments) {
+    if (!seg.isGap) continue;
+    const minCX = Math.max(0, Math.min(T - 1, Math.floor((Math.min(seg.x1, seg.x2) - field.x) / tw)));
+    const maxCX = Math.max(0, Math.min(T - 1, Math.floor((Math.max(seg.x1, seg.x2) - field.x) / tw)));
+    const minCY = Math.max(0, Math.min(T - 1, Math.floor((Math.min(seg.y1, seg.y2) - field.y) / tw)));
+    const maxCY = Math.max(0, Math.min(T - 1, Math.floor((Math.max(seg.y1, seg.y2) - field.y) / tw)));
+    for (let cy = minCY; cy <= maxCY; cy++) {
+      for (let cx = minCX; cx <= maxCX; cx++) bits[cy * T + cx] = 1;
+    }
+  }
+  let hex = '';
+  for (let i = 0; i < bits.length; i += 4) {
+    const value = (bits[i] & 1) | ((bits[i + 1] & 1) << 1) | ((bits[i + 2] & 1) << 2) | ((bits[i + 3] & 1) << 3);
+    hex += value.toString(16);
+  }
+  return hex;
+}
+
+export function unpackCurveGapMask(hex) {
+  const T = CURVE_GAP_MASK_TILES;
+  const bits = new Uint8Array(T * T);
+  for (let i = 0; i < bits.length; i += 4) {
+    const value = parseInt(hex.slice(i / 4, i / 4 + 1), 16) || 0;
+    bits[i] = value & 1;
+    bits[i + 1] = (value >> 1) & 1;
+    bits[i + 2] = (value >> 2) & 1;
+    bits[i + 3] = (value >> 3) & 1;
+  }
+  return bits;
+}
+
 // --- Snapshot serializer ---
 export function createCurveWorldPacket(game) {
   if (!game) return null;
@@ -88,6 +124,11 @@ export function createCurveWorldPacket(game) {
       ]);
     }
   }
+  const field = game.field || {
+    x: game.arena?.left || 0,
+    y: game.arena?.top || 0,
+    s: game.arena?.size || game.arena?.width || 0,
+  };
   return createWorldSnapshot(game, {
     mode: 'CURVE',
     mapPlayer: (p) => ({
@@ -102,12 +143,16 @@ export function createCurveWorldPacket(game) {
       ghost: (p.ghostTimer || 0) > 0,
       freeze: (p.freezeTimer || 0) > 0,
       turbo: (p.turboTimer || 0) > 0,
+      confused: (p.confusedTimer || 0) > 0,
+      confusedTimer: round1(p.confusedTimer || 0),
       gap: p.isGap === true,
       gapTimer: round1(p.gapTimer || 0),
     }),
     extras: {
       near,
-      field: packCurveFieldMask(segments, game.field || game.arena || { x: 0, y: 0, s: 0 }),
+      field: packCurveFieldMask(segments, field),
+      gaps: packCurveGapMask(segments, field),
+      matchDraw: game.matchDraw === true,
       pickups: (Array.isArray(game.pickups) ? game.pickups : []).slice(0, 3).map((item) => ({
         x: round1(item.x), y: round1(item.y),
         size: round1(item.size || 24),
@@ -125,8 +170,8 @@ export function createCurveWorldPacket(game) {
 
 function isValidCurvePlayer(p) {
   return finite(p.angle)
-    && ['shrink', 'thick', 'ghost', 'freeze', 'turbo', 'gap'].every((k) => typeof p[k] === 'boolean')
-    && finite(p.gapTimer);
+    && ['shrink', 'thick', 'ghost', 'freeze', 'turbo', 'confused', 'gap'].every((k) => typeof p[k] === 'boolean')
+    && finite(p.confusedTimer) && finite(p.gapTimer);
 }
 
 function isValidCurveExtra(frame) {
@@ -138,6 +183,9 @@ function isValidCurveExtra(frame) {
   const expectedHexLen = (CURVE_FIELD_TILES * CURVE_FIELD_TILES) / 2;
   if (typeof frame.field !== 'string' || frame.field.length !== expectedHexLen) return false;
   if (!/^[0-9a-f]+$/.test(frame.field)) return false;
+  if (typeof frame.gaps !== 'string' || frame.gaps.length !== (CURVE_GAP_MASK_TILES * CURVE_GAP_MASK_TILES) / 4) return false;
+  if (!/^[0-9a-f]+$/.test(frame.gaps)) return false;
+  if (typeof frame.matchDraw !== 'boolean') return false;
   if (!Array.isArray(frame.pickups) || frame.pickups.length > 3) return false;
   if (!frame.pickups.every((p) => p && finite(p.x) && finite(p.y) && finite(p.size) && typeof p.type === 'string')) return false;
   if (!Array.isArray(frame.texts) || frame.texts.length > 6) return false;
@@ -154,7 +202,7 @@ export function isValidCurveWorldFrame(frame) {
 }
 
 // --- Ortak çizim yardımcıları (client dünya sahnesi) ---
-export function drawCurveFieldMask(ctx, fieldRect, mask, colors) {
+export function drawCurveFieldMask(ctx, fieldRect, mask, colors, gapMask = null) {
   const T = CURVE_FIELD_TILES;
   const tw = (fieldRect.s || 0) / T;
   if (tw <= 0) return;
@@ -164,7 +212,9 @@ export function drawCurveFieldMask(ctx, fieldRect, mask, colors) {
   ctx.globalAlpha = 0.55;
   for (let cy = 0; cy < T; cy++) {
     for (let cx = 0; cx < T; cx++) {
-      const owner = mask[cy * T + cx];
+      const index = cy * T + cx;
+      if (gapMask?.[index]) continue;
+      const owner = mask[index];
       if (owner === 0) continue;
       const color = colors[owner - 1];
       if (!color) continue;
@@ -220,6 +270,14 @@ export function drawCurveHeads(ctx, players) {
       ctx.setLineDash([3, 3]);
       ctx.strokeStyle = '#70E000';
       ctx.lineWidth = 1.8;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if (p.confused) {
+      ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 7, 0, Math.PI * 2);
+      ctx.setLineDash([1, 3]);
+      ctx.strokeStyle = '#FF473A';
+      ctx.lineWidth = 2;
       ctx.stroke();
       ctx.setLineDash([]);
     }

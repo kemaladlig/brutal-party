@@ -149,6 +149,110 @@ export function distToSegmentSquared(px, py, ax, ay, bx, by) {
 }
 
 /**
+ * Finds the first point where a segment intersects a circle.
+ * The returned t is normalized to [0, 1] along the segment.
+ */
+export function segmentCircleIntersection(x1, y1, x2, y2, cx, cy, radius) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const fx = x1 - cx;
+  const fy = y1 - cy;
+  const radiusSq = Math.max(0, radius) ** 2;
+  const c = fx * fx + fy * fy - radiusSq;
+
+  if (c <= 0) return { t: 0, x: x1, y: y1 };
+
+  const a = dx * dx + dy * dy;
+  if (a <= Number.EPSILON) return null;
+
+  const b = 2 * (fx * dx + fy * dy);
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) return null;
+
+  const root = Math.sqrt(discriminant);
+  const t1 = (-b - root) / (2 * a);
+  const t2 = (-b + root) / (2 * a);
+  const t = t1 >= 0 ? t1 : t2;
+  if (t < 0 || t > 1) return null;
+  return { t, x: x1 + dx * t, y: y1 + dy * t };
+}
+
+/**
+ * Finds the first point where a segment intersects an axis-aligned rectangle.
+ * `pad` expands the rectangle for projectile-radius checks. The returned
+ * normal points out of the rectangle at the entry face.
+ */
+export function segmentAabbIntersection(x1, y1, x2, y2, rect, pad = 0) {
+  if (!rect) return null;
+  const minX = rect.x - pad;
+  const minY = rect.y - pad;
+  const maxX = rect.x + rect.w + pad;
+  const maxY = rect.y + rect.h + pad;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  let tEnter = 0;
+  let tExit = 1;
+  let nx = 0;
+  let ny = 0;
+
+  const testAxis = (start, delta, min, max, axis) => {
+    if (Math.abs(delta) <= Number.EPSILON) {
+      return start >= min && start <= max;
+    }
+    let near = (min - start) / delta;
+    let far = (max - start) / delta;
+    let nearNormal = delta > 0 ? -1 : 1;
+    if (near > far) {
+      [near, far] = [far, near];
+    }
+    if (near > tEnter) {
+      tEnter = near;
+      nx = axis === 'x' ? nearNormal : 0;
+      ny = axis === 'y' ? nearNormal : 0;
+    }
+    tExit = Math.min(tExit, far);
+    return tEnter <= tExit;
+  };
+
+  if (!testAxis(x1, dx, minX, maxX, 'x')) return null;
+  if (!testAxis(y1, dy, minY, maxY, 'y')) return null;
+
+  if (tEnter <= 0) {
+    // The segment starts inside the expanded rectangle. Use the face the
+    // segment exits through so ricochet normals remain stable.
+    const candidates = [];
+    if (dx > Number.EPSILON) candidates.push({ t: (maxX - x1) / dx, nx: 1, ny: 0 });
+    if (dx < -Number.EPSILON) candidates.push({ t: (minX - x1) / dx, nx: -1, ny: 0 });
+    if (dy > Number.EPSILON) candidates.push({ t: (maxY - y1) / dy, nx: 0, ny: 1 });
+    if (dy < -Number.EPSILON) candidates.push({ t: (minY - y1) / dy, nx: 0, ny: -1 });
+    const exit = candidates.sort((a, b) => a.t - b.t)[0];
+    if (exit) {
+      nx = exit.nx;
+      ny = exit.ny;
+    }
+    return { t: 0, x: x1, y: y1, nx, ny };
+  }
+
+  return {
+    t: tEnter,
+    x: x1 + dx * tEnter,
+    y: y1 + dy * tEnter,
+    nx,
+    ny,
+  };
+}
+
+/**
+ * Returns a safe number of substeps for a projectile moving `distance` pixels.
+ * Keeping the step below the smallest collision diameter avoids endpoint-only
+ * misses without changing the host-authoritative simulation contract.
+ */
+export function getProjectileSubsteps(distance, maxStep = 8) {
+  if (!Number.isFinite(distance) || distance <= 0) return 1;
+  return Math.max(1, Math.ceil(distance / Math.max(1, maxStep)));
+}
+
+/**
  * Wraps an angle to [-PI, PI] without frame-dependent branch drift.
  * @param {number} angle
  * @returns {number}

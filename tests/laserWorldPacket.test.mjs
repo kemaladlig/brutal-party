@@ -71,6 +71,8 @@ test('laser world packet is declarative, complete and monotonic', () => {
   assert.equal(p.ready, true);
   assert.deepEqual(p.aim[1], [450, 300]);
   assert.equal(first.texts[0].text, '+1 KILL');
+  assert.equal(first.matchDraw, false);
+  assert.equal(first.timeLeft, 0);
 
   assert.ok(isValidLaserWorldFrame({ action: 'WORLD_FRAME', ...first }));
   assert.equal(isValidLaserWorldFrame({ action: 'WORLD_FRAME', ...first, version: 2 }), false);
@@ -84,6 +86,7 @@ test('laser world frame validation rejects malformed input', () => {
   assert.equal(isValidLaserWorldFrame({ ...frame, walls: [{ ...frame.walls[0], axis: 'z' }] }), false);
   assert.equal(isValidLaserWorldFrame({ ...frame, lasers: [{ ...frame.lasers[0], trail: [[0]] }] }), false);
   assert.equal(isValidLaserWorldFrame({ ...frame, players: [{ ...frame.players[0], hp: 1.5 }] }), false);
+  assert.equal(isValidLaserWorldFrame({ ...frame, matchDraw: 'yes' }), false);
   assert.equal(isValidLaserWorldFrame({ ...frame, mode: 'NINJA' }), false);
 });
 

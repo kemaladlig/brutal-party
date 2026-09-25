@@ -78,6 +78,9 @@ export class LaserGame extends BaseMiniGame {
     this.keys = {};
     this.selectedMapIndex = 0;
     this.matchTimer = LASER_TUNING.MATCH_TIME;
+    this.roundId = 0;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
     this.pickupTimer = LASER_TUNING.PICKUP_EVERY;
     this.pickupFlip = false;
     this.lastTime = performance.now();
@@ -132,6 +135,7 @@ export class LaserGame extends BaseMiniGame {
   resize(width, height) {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
+    const activeMovingWalls = this.movingWalls.map((wall) => ({ ...wall }));
     const marginX = Math.max(12, Math.floor(width * 0.04));
     const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
     const arenaW = width - marginX * 2;
@@ -145,13 +149,33 @@ export class LaserGame extends BaseMiniGame {
 
     this.buildMap();
 
+    if (this.state !== 'LOBBY' && this.players.length > 0 && activeMovingWalls.length > 0) {
+      this.movingWalls = this.movingWalls.map((wall, index) => {
+        const old = activeMovingWalls[index];
+        if (!old) return wall;
+        const mapped = { ...old };
+        this.remapPoint(mapped, oldArena, this.arena);
+        return { ...wall, x: mapped.x, y: mapped.y, vx: old.vx, vy: old.vy };
+      });
+    }
+
     if (this.state === 'LOBBY' || !this.players.length) {
       this.initPlayers();
       return;
     }
-    for (const p of this.players) this.remapPoint(p, oldArena, this.arena);
-    for (const lz of this.lasers) this.remapPoint(lz, oldArena, this.arena);
-    for (const pk of this.pickups) this.remapPoint(pk, oldArena, this.arena);
+    for (const p of this.players) {
+      this.remapPoint(p, oldArena, this.arena);
+      clampToArena(p, 14, this.arena, { zeroVelocity: true });
+      this.collideObstacles(p, 14);
+    }
+    for (const lz of this.lasers) {
+      this.remapPoint(lz, oldArena, this.arena);
+      clampToArena(lz, 2, this.arena);
+    }
+    for (const pk of this.pickups) {
+      this.remapPoint(pk, oldArena, this.arena);
+      clampToArena(pk, pk.radius || pk.size || 15, this.arena);
+    }
   }
 
   buildMap() {
@@ -340,6 +364,9 @@ export class LaserGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
     this.roundWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
     this.matchTimer = LASER_TUNING.MATCH_TIME;
     this.pickupTimer = LASER_TUNING.PICKUP_EVERY;
     this.lasers = [];
@@ -359,6 +386,9 @@ export class LaserGame extends BaseMiniGame {
   startNewMatch() {
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.roundWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
     this.startRound();
   }
 
@@ -375,6 +405,10 @@ export class LaserGame extends BaseMiniGame {
     this.state = 'PLAYING';
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.roundWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId += 1;
     this.lasers = [];
     this.pickups = [];
     this.particles = [];
@@ -526,7 +560,7 @@ export class LaserGame extends BaseMiniGame {
       this.spawnSparks(victim.x, victim.y, victim.color, 24);
       this.spawnFloatingText(victim.x, victim.y - 20, '+1 KILL ★', '#2F6A4F');
       const owner = this.players[laser.owner];
-      if (owner && owner.isJoined) {
+      if (owner && owner.isJoined && owner.isAlive) {
         this.scores[owner.index]++;
         if (this.scores[owner.index] >= LASER_TUNING.TARGET_KILLS) {
           this.endMatch(owner);
@@ -541,9 +575,12 @@ export class LaserGame extends BaseMiniGame {
     }
   }
 
-  endMatch(winnerOrNull) {
+  endMatch(winnerOrNull, reason = winnerOrNull ? 'target-kills' : 'draw') {
+    if (this.state === 'MATCH_OVER') return;
     this.state = 'MATCH_OVER';
-    this.matchWinner = winnerOrNull;
+    this.matchWinner = winnerOrNull || null;
+    this.matchDraw = !winnerOrNull;
+    this.roundResolutionReason = reason;
   }
 
   finishOnTime() {
@@ -556,7 +593,7 @@ export class LaserGame extends BaseMiniGame {
         tied = true;
       }
     }
-    this.endMatch(tied ? null : this.players[best] || null);
+    this.endMatch(tied ? null : this.players[best] || null, tied ? 'timeout-tie' : 'timeout');
   }
 
   spawnPickup() {
@@ -619,7 +656,7 @@ export class LaserGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = Math.min((now - this.lastTime) / 1000, 0.08);
+    const dt = Math.max(0, Math.min((now - this.lastTime) / 1000, 0.08));
     this.lastTime = now;
 
     if (this.trauma > 0) {

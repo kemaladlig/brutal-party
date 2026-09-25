@@ -589,6 +589,8 @@ export const EN = {
   'pad.joinedGame': '▶ Connected to game: {0}',
   'pad.tvPlace': '📺 TV SPOT: {0}',
   'pad.dragRight': 'DRAG RIGHT → ON TV: {0}',
+  'pad.dragDown': 'DRAG DOWN → ON TV: {0}',
+  'pad.dragUp': 'DRAG UP → ON TV: {0}',
   'pad.dirRight': 'RIGHT',
   'pad.dirLeft': 'LEFT',
   'pad.dirDown': 'DOWN',

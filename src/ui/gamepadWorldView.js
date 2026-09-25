@@ -94,6 +94,32 @@ function blendArrows(prevArrows, currArrows, t) {
   return ok ? out : currArrows;
 }
 
+function blendBullets(prevBullets, currBullets, t) {
+  if (!Array.isArray(currBullets)) return currBullets;
+  if (!Array.isArray(prevBullets) || !prevBullets.length) return currBullets;
+  const prevById = new Map();
+  prevBullets.forEach((bullet, index) => {
+    if (!Array.isArray(bullet)) return;
+    const id = Number.isInteger(bullet[6]) ? bullet[6] : index;
+    prevById.set(id, bullet);
+  });
+  return currBullets.map((bullet, index) => {
+    if (!Array.isArray(bullet)) return bullet;
+    const id = Number.isInteger(bullet[6]) ? bullet[6] : index;
+    const previous = prevById.get(id);
+    if (!previous) return bullet;
+    const x = finiteNum(bullet[0]);
+    const y = finiteNum(bullet[1]);
+    const px = finiteNum(previous[0]);
+    const py = finiteNum(previous[1]);
+    if (x === null || y === null || px === null || py === null) return bullet;
+    const blended = [...bullet];
+    blended[0] = lerp(px, x, t);
+    blended[1] = lerp(py, y, t);
+    return blended;
+  });
+}
+
 // Prev/curr arası lineer blend. Discrete alanlar (alive, skor, state)
 // curr'dan gelir; yalnız sürekli pozisyonlar (oyuncu x/y/angle/trail,
 // ok x/y) yumuşatılır. Raunt/state/mode/host değişince snap (curr).
@@ -116,6 +142,9 @@ export function blendWorldFrames(prev, curr, t) {
   }
   if (Array.isArray(prev.arrows) && Array.isArray(curr.arrows)) {
     out.arrows = blendArrows(prev.arrows, curr.arrows, alpha);
+  }
+  if (Array.isArray(prev.bullets) && Array.isArray(curr.bullets)) {
+    out.bullets = blendBullets(prev.bullets, curr.bullets, alpha);
   }
   return out;
 }

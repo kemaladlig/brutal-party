@@ -25,6 +25,11 @@ function makeGame() {
       shield: 1,
       stun: 0,
       reloadCooldown: 0.4,
+      spawnProt: 0.8,
+      turboTimer: 2.4,
+      quickdrawTimer: 3.2,
+      multiShots: 2,
+      slipTimer: 0,
     }],
     arrows: [{ x: 410, y: 300, vx: 300, vy: 0, color: '#D84727' }],
     particles: [{ x: 100, y: 100, radius: 3, alpha: 0.8, color: '#FFFFFF' }],
@@ -49,6 +54,10 @@ test('archer world packet is compact, complete and monotonic', () => {
   assert.equal(first.players[0].charge, 0.7);
   assert.equal(first.players[0].charging, true);
   assert.equal(first.players[0].shield, 1);
+  assert.equal(first.players[0].spawnProt, 0.8);
+  assert.equal(first.players[0].turbo, 2.4);
+  assert.equal(first.players[0].quickdraw, 3.2);
+  assert.equal(first.players[0].multi, 2);
   assert.equal(first.arrows[0][2], 300);
   assert.equal(first.scores[0], 2);
 
@@ -63,5 +72,7 @@ test('archer world frame validation rejects malformed input', () => {
   assert.equal(isValidArcherWorldFrame(frame), true);
   assert.equal(isValidArcherWorldFrame({ ...frame, arena: [0, 0, NaN, 100] }), false);
   assert.equal(isValidArcherWorldFrame({ ...frame, players: [{ ...frame.players[0], slot: 9 }] }), false);
+  assert.equal(isValidArcherWorldFrame({ ...frame, scores: [NaN, 0, 0, 0] }), false);
+  assert.equal(isValidArcherWorldFrame({ ...frame, gameState: 'UNKNOWN' }), false);
   assert.equal(isValidArcherWorldFrame({ ...frame, mode: 'SNAKE' }), false);
 });

@@ -76,6 +76,8 @@ export function createLaserWorldPacket(game, tuning = {}) {
     mode: 'LASER',
     mapPlayer: (p) => mapLaserPlayers([p], game.lasers, tuning, (pl) => game.traceAim(pl), withAim)[0],
     extras: {
+      matchDraw: game.matchDraw === true,
+      timeLeft: round1(game.matchTimer || 0),
       obstacles: packRectList(game.obstacles, 16),
       walls: (Array.isArray(game.movingWalls) ? game.movingWalls : []).slice(0, 4).map((mw) => ({
         x: round1(mw.x), y: round1(mw.y),
@@ -103,9 +105,11 @@ export function createLaserWorldPacket(game, tuning = {}) {
 }
 
 function isValidLaserPlayer(p) {
-  return finite(p.angle) && Number.isInteger(p.hp) && Number.isInteger(p.hpMax)
-    && Number.isInteger(p.ammo) && Number.isInteger(p.ammoMax)
-    && finite(p.reload) && finite(p.dash)
+  return typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
+    && finite(p.angle) && Number.isInteger(p.hp) && p.hp >= 0 && Number.isInteger(p.hpMax)
+    && Number.isInteger(p.ammo) && p.ammo >= 0 && Number.isInteger(p.ammoMax)
+    && finite(p.reload) && p.reload >= 0 && p.reload <= 1
+    && finite(p.dash) && p.dash >= 0 && p.dash <= 1
     && typeof p.shield === 'boolean' && typeof p.triple === 'boolean'
     && typeof p.fast === 'boolean' && typeof p.invuln === 'boolean' && typeof p.respawning === 'boolean'
     && typeof p.aiming === 'boolean' && typeof p.ready === 'boolean'
@@ -114,6 +118,7 @@ function isValidLaserPlayer(p) {
 }
 
 function isValidLaserExtra(frame) {
+  if (typeof frame.matchDraw !== 'boolean' || !finite(frame.timeLeft) || frame.timeLeft < 0) return false;
   if (!Array.isArray(frame.obstacles) || frame.obstacles.length > 16) return false;
   if (!frame.obstacles.every((r) => Array.isArray(r) && r.length === 4 && r.every(finite))) return false;
   if (!Array.isArray(frame.walls) || frame.walls.length > 4) return false;

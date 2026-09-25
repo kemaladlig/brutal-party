@@ -15,7 +15,8 @@ import {
 } from './snakeView.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
-import { distToSegmentSquared } from '../core/physics2d.js';
+import { distToSegmentSquared, getProjectileSubsteps, clampToArena } from '../core/physics2d.js';
+import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
 
 export const SNAKE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const SNAKE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -25,6 +26,8 @@ const SNAKE_KEY_SLOTS = buildCodeToSlotMap();
 
 // Kuyruk boyu tavanı: uzayan oyunda ızgara-rebuild sınırlı kalır
 const SNAKE_MAX_LEN = 320;
+const SNAKE_MAX_FOODS = 32;
+const SNAKE_ROUND_LIMIT = 120;
 const SEG_GRID_CELL = 48;
 
 // Harita Varyasyonları (Her maç/raunt otomatik rastgele seçilir)
@@ -91,6 +94,10 @@ export class SnakeGame extends BaseMiniGame {
     this.walls = [];
     this.mapIndex = 0;
     this.roundId = 0;
+    this.roundTimer = 0;
+    this.roundLimit = SNAKE_ROUND_LIMIT;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
     this._worldSeq = 0;
 
     // İz sorgu ızgarası (hücre → segment referansları) + sorgu damgası
@@ -168,6 +175,7 @@ export class SnakeGame extends BaseMiniGame {
     }
     for (const p of this.players) {
       this.remapPoint(p, oldArena, this.arena);
+      clampToArena(p, 5, this.arena, { zeroVelocity: true });
     }
     for (const p of this.players) {
       for (const seg of p.segments) {
@@ -175,11 +183,16 @@ export class SnakeGame extends BaseMiniGame {
         const b = { x: seg.x2, y: seg.y2 };
         this.remapPoint(a, oldArena, this.arena);
         this.remapPoint(b, oldArena, this.arena);
+        clampToArena(a, 0, this.arena);
+        clampToArena(b, 0, this.arena);
         seg.x1 = a.x; seg.y1 = a.y; seg.x2 = b.x; seg.y2 = b.y;
       }
     }
     this.segGridDirty = true;
-    for (const f of this.foods) this.remapPoint(f, oldArena, this.arena);
+    for (const f of this.foods) {
+      this.remapPoint(f, oldArena, this.arena);
+      clampToArena(f, f.size || 13, this.arena);
+    }
   }
 
   initPlayers() {
@@ -216,7 +229,10 @@ export class SnakeGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
     this.roundId = 0;
+    this.roundTimer = 0;
     this.foods = [];
     this.segGrid = new Map();
     this.segGridDirty = false;
@@ -232,6 +248,8 @@ export class SnakeGame extends BaseMiniGame {
   startNewMatch() {
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
     this.startRound();
   }
 
@@ -247,6 +265,9 @@ export class SnakeGame extends BaseMiniGame {
     }
     this.state = 'PLAYING';
     this.roundId += 1;
+    this.roundTimer = 0;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
     this.foods = [];
     this.roundWinner = null;
     this.roundTransitionTimer = 0;
@@ -265,6 +286,7 @@ export class SnakeGame extends BaseMiniGame {
   }
 
   spawnFood(x, y, forceType = null) {
+    if (this.foods.length >= SNAKE_MAX_FOODS) return null;
     if (x === undefined || y === undefined) {
       // Yemin duvarların veya köşe kontrollerin tam üstüne düşmesini engelle
       let attempts = 0;
@@ -437,7 +459,7 @@ export class SnakeGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = Math.min((now - this.lastTime) / 1000, 0.08);
+    const dt = Math.max(0, Math.min((now - this.lastTime) / 1000, 0.08));
     this.lastTime = now;
 
     if (this.trauma > 0) {
@@ -447,12 +469,22 @@ export class SnakeGame extends BaseMiniGame {
     if (this.state === 'ROUND_OVER') {
       this.roundTransitionTimer -= dt;
       if (this.roundTransitionTimer <= 0) {
-        this.matchWinner ? this.state = 'MATCH_OVER' : this.startRound();
+        if (hasMatchResult(this)) {
+          this.state = 'MATCH_OVER';
+        } else {
+          this.startRound();
+        }
       }
       return;
     }
 
     if (this.state !== 'PLAYING') return;
+
+    this.roundTimer += dt;
+    if (roundTimedOut(this.roundTimer, this.roundLimit)) {
+      beginDrawRound(this, 'timeout', 1.6);
+      return;
+    }
 
     this.segGridDirty = true;
 
@@ -527,15 +559,31 @@ export class SnakeGame extends BaseMiniGame {
       const moveSpeed = player.isBoost ? player.speed * 1.65 : player.speed;
       const prevX = player.x;
       const prevY = player.y;
+      const targetX = prevX + Math.cos(player.angle) * moveSpeed * dt;
+      const targetY = prevY + Math.sin(player.angle) * moveSpeed * dt;
+      const distMoved = Math.hypot(targetX - prevX, targetY - prevY);
+      const substeps = getProjectileSubsteps(distMoved, 4);
+      let hit = false;
 
-      player.x += Math.cos(player.angle) * moveSpeed * dt;
-      player.y += Math.sin(player.angle) * moveSpeed * dt;
+      for (let step = 1; step <= substeps; step++) {
+        const ratio = step / substeps;
+        player.x = prevX + (targetX - prevX) * ratio;
+        player.y = prevY + (targetY - prevY) * ratio;
+        if (this.checkCollision(player, now)) {
+          hit = true;
+          break;
+        }
+      }
 
-      const distMoved = Math.hypot(player.x - prevX, player.y - prevY);
+      if (!hit) {
+        player.x = targetX;
+        player.y = targetY;
+      }
 
-      const newSeg = { x1: prevX, y1: prevY, x2: player.x, y2: player.y, owner: player.index, dist: distMoved, createdAt: now, _qstamp: 0 };
+      const moved = Math.hypot(player.x - prevX, player.y - prevY);
+      const newSeg = { x1: prevX, y1: prevY, x2: player.x, y2: player.y, owner: player.index, dist: moved, createdAt: now, _qstamp: 0 };
       player.segments.push(newSeg);
-      player.currentLen += distMoved;
+      player.currentLen += moved;
 
       if (player.targetLen > SNAKE_MAX_LEN) player.targetLen = SNAKE_MAX_LEN;
       while (player.currentLen > player.targetLen && player.segments.length > 0) {
@@ -550,7 +598,6 @@ export class SnakeGame extends BaseMiniGame {
           if (f.type === 'GOLDEN_STAR') {
             player.targetLen += 70;
             player.foodCount = (player.foodCount || 0) + 3;
-            this.scores[player.index] = (this.scores[player.index] || 0) + 1; // +1 ekstra yıldız puanı!
             this.spawnSparkles(f.x, f.y, '#FFDE59', 16);
           } else if (f.type === 'TURBO_BERRY') {
             player.targetLen += 40;
@@ -572,7 +619,7 @@ export class SnakeGame extends BaseMiniGame {
         }
       }
 
-      if (this.checkCollision(player, now)) {
+      if (hit) {
         this.eliminatePlayer(player);
       }
     }
@@ -721,15 +768,18 @@ export class SnakeGame extends BaseMiniGame {
   }
 
   handleRoundEnd(winner) {
+    if (!winner) {
+      beginDrawRound(this, 'no-survivor', 2.5);
+      return;
+    }
     this.state = 'ROUND_OVER';
     this.roundWinner = winner;
-    if (winner) {
-      this.scores[winner.index]++;
-      if (this.scores[winner.index] >= this.targetScore) {
-        this.state = 'MATCH_OVER';
-        this.matchWinner = winner;
-        return;
-      }
+    this.matchDraw = false;
+    this.scores[winner.index]++;
+    if (this.scores[winner.index] >= this.targetScore) {
+      this.state = 'MATCH_OVER';
+      this.matchWinner = winner;
+      return;
     }
     this.roundTransitionTimer = 2.5;
   }
@@ -761,7 +811,7 @@ export class SnakeGame extends BaseMiniGame {
       ],
       colors: SNAKE_COLORS,
       accent: '#2F6A4F',
-      matchOverHeadline: t('snake.champ'),
+      matchOverHeadline: this.matchDraw ? t('game.draw') : t('snake.champ'),
       matchOverRows: this.players
         .filter((p) => p.isJoined)
         .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` })),

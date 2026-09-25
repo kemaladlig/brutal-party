@@ -58,6 +58,8 @@ test('collapse world packet carries the full 13x13 grid', () => {
   assert.equal(first.pickups[0].type, 'REPAIR_TILES');
   assert.ok(first.players[0].jump > 0);
   assert.equal(first.players[0].super, true);
+  assert.equal(first.matchDraw, false);
+  assert.equal(first.timeLeft, 0);
 
   assert.ok(isValidCollapseWorldFrame({ action: 'WORLD_FRAME', ...first }));
   assert.equal(isValidCollapseWorldFrame({ action: 'WORLD_FRAME', ...first, version: 2 }), false);
@@ -72,5 +74,6 @@ test('collapse world frame validation rejects malformed grids', () => {
   assert.equal(isValidCollapseWorldFrame({ ...frame, grid: frame.grid.map((s, i) => (i === 0 ? 3 : s)) }), false);
   assert.equal(isValidCollapseWorldFrame({ ...frame, warn: [[999, 0.2]] }), false);
   assert.equal(isValidCollapseWorldFrame({ ...frame, cell: 0 }), false);
+  assert.equal(isValidCollapseWorldFrame({ ...frame, matchDraw: null }), false);
   assert.equal(isValidCollapseWorldFrame({ ...frame, mode: 'ZONE' }), false);
 });

@@ -9,8 +9,9 @@ import { resolveSlotName } from '../core/slotManager.js';
 import { updateCurveBotAI } from '../ai/curveAI.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
-import { distToSegmentSquared } from '../core/physics2d.js';
+import { distToSegmentSquared, clampToArena } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
+import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
 import { createCurveWorldPacket } from './curveView.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -23,6 +24,7 @@ const CURVE_KEY_SLOTS = buildCodeToSlotMap(['l', 'r']);
 // Oyun kuralı değişmez — sadece aday kümesi daralır.
 const SEG_GRID_CELL = 48;
 const SEG_MAX = 24000;
+const CURVE_ROUND_LIMIT = 120;
 
 export class CurveGame extends BaseMiniGame {
   constructor(canvas) {
@@ -47,6 +49,11 @@ export class CurveGame extends BaseMiniGame {
     this.targetScore = 5;
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.roundTimer = 0;
+    this.roundLimit = CURVE_ROUND_LIMIT;
     this.roundTransitionTimer = 0;
     this.spawnIntroTimer = 0;
 
@@ -130,6 +137,7 @@ export class CurveGame extends BaseMiniGame {
     }
     for (const p of this.players) {
       this.remapPoint(p, oldArena, this.arena);
+      clampToArena(p, 5, this.arena, { zeroVelocity: true });
       p.prevX = p.x;
       p.prevY = p.y;
     }
@@ -139,6 +147,8 @@ export class CurveGame extends BaseMiniGame {
       const b = { x: seg.x2, y: seg.y2 };
       this.remapPoint(a, oldArena, this.arena);
       this.remapPoint(b, oldArena, this.arena);
+      clampToArena(a, 0, this.arena);
+      clampToArena(b, 0, this.arena);
       seg.x1 = a.x; seg.y1 = a.y; seg.x2 = b.x; seg.y2 = b.y;
     }
     this.segGridDirty = true;
@@ -199,6 +209,10 @@ export class CurveGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.roundTimer = 0;
     this.segments = [];
     this.segGrid = new Map();
     this.segGridDirty = false;
@@ -219,6 +233,8 @@ export class CurveGame extends BaseMiniGame {
   startNewMatch() {
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
     this.startRound();
   }
 
@@ -236,6 +252,10 @@ export class CurveGame extends BaseMiniGame {
     this.floatingTexts = [];
     this.pickupSpawnTimer = 5.5;
     this.roundWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId += 1;
+    this.roundTimer = 0;
     this.spawnIntroTimer = 1.8;
     playStart();
 
@@ -288,11 +308,12 @@ export class CurveGame extends BaseMiniGame {
     };
   }
 
+  // steer HER ZAMAN ham niyettir; INVERT burada uygulanmaz (update'te tek noktada uygulanır).
   onSlotSteer(slotIndex, dir) {
     const player = this.players[slotIndex];
+    if (this.state !== 'PLAYING' || this.spawnIntroTimer > 0) return;
     if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
-      const steerDir = (player.confusedTimer > 0) ? -dir : dir;
-      player.steer = steerDir;
+      player.steer = dir;
     }
   }
 
@@ -420,7 +441,7 @@ export class CurveGame extends BaseMiniGame {
     if (this.state === 'ROUND_OVER') {
       this.roundTransitionTimer -= dt;
       if (this.roundTransitionTimer <= 0) {
-        if (this.matchWinner) {
+        if (hasMatchResult(this)) {
           this.state = 'MATCH_OVER';
         } else {
           this.startRound();
@@ -429,6 +450,12 @@ export class CurveGame extends BaseMiniGame {
     }
 
     if (this.state === 'PLAYING') {
+      this.roundTimer += dt;
+      if (roundTimedOut(this.roundTimer, this.roundLimit)) {
+        beginDrawRound(this, 'timeout', 1.6);
+        return;
+      }
+
       // Pickups timer & update
       this.pickupSpawnTimer -= dt;
       if (this.pickupSpawnTimer <= 0 && this.pickups.length < 3) {
@@ -440,6 +467,10 @@ export class CurveGame extends BaseMiniGame {
       // Update Players
       for (const player of this.players) {
         if (!player.isJoined || !player.isAlive) continue;
+        if (this.spawnIntroTimer > 0) {
+          player.steer = 0;
+          continue;
+        }
 
         // Timers
         if (player.ghostTimer > 0) player.ghostTimer = Math.max(0, player.ghostTimer - dt);
@@ -476,15 +507,17 @@ export class CurveGame extends BaseMiniGame {
           const ks = this.keyboardSteer(player.index);
           const touchSteer = this.tabletopSteerState?.[player.index] || 0;
           if (ks !== 0) {
-            player.steer = player.confusedTimer > 0 ? -ks : ks;
+            player.steer = ks;
           } else if (touchSteer !== 0) {
-            player.steer = player.confusedTimer > 0 ? -touchSteer : touchSteer;
+            player.steer = touchSteer;
           }
         }
 
-        // Steer & Movement
-        const currentTurn = player.turnSpeed * (player.confusedTimer > 0 ? -1 : 1);
-        player.angle += player.steer * currentTurn * dt;
+        // Steer & Movement — INVERT TEK noktada burada uygulanır, yalnızca insan koltuklarına.
+        // Botlar ayna gibi sürülmez (raycast kaçınmasını duvara çevirirdi); curveAI
+        // karar kalitesini düşürür. FREEZE gibi hız etkileri her koltukta aynıdır.
+        const confused = player.confusedTimer > 0 && player.slotType === 'human';
+        player.angle += player.steer * player.turnSpeed * (confused ? -1 : 1) * dt;
 
         let speedMult = 1.0;
         if (player.turboTimer > 0) speedMult *= 1.5;
@@ -677,6 +710,7 @@ export class CurveGame extends BaseMiniGame {
       return true;
     }
 
+    // Gap yalnızca iz çarpışmalarını geçici olarak kapatır; arena sınırı her zaman geçerlidir.
     if (player.isGap) return false;
 
     // 2. Line Segment Collision (ızgara adayları — kural aynı)
@@ -748,6 +782,7 @@ export class CurveGame extends BaseMiniGame {
 
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
+    if (this.state !== 'PLAYING' || this.spawnIntroTimer > 0) return;
     if (!player || !player.isJoined || !player.isAlive) return;
     if (data.action === 'CURVE_STEER') {
       const dir = data.dir | 0;
@@ -756,8 +791,13 @@ export class CurveGame extends BaseMiniGame {
   }
 
   handleRoundEnd(winner) {
+    if (!winner) {
+      beginDrawRound(this, 'no-survivor', 2.2);
+      return;
+    }
     this.state = 'ROUND_OVER';
     this.roundWinner = winner;
+    this.matchDraw = false;
     this.roundTransitionTimer = 2.2;
   }
 
@@ -909,6 +949,16 @@ export class CurveGame extends BaseMiniGame {
         ctx.setLineDash([]);
       }
 
+      if (player.confusedTimer > 0) {
+        ctx.strokeStyle = '#FF473A';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([1, 3]);
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, headRadius + 7, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
       // Gap Warning Halo (0.4s before gap opens)
       if (player.gapTimer <= 0.4 && !player.isGap) {
         ctx.beginPath();
@@ -960,7 +1010,7 @@ export class CurveGame extends BaseMiniGame {
       ],
       colors: this.players.map((p) => p.color),
       accent: '#D84727',
-      matchOverHeadline: t('curve.champ'),
+      matchOverHeadline: this.matchDraw ? t('game.draw') : t('curve.champ'),
       matchOverRows: this.players
         .filter((player) => player.isJoined)
         .map((player) => ({ color: player.color, text: `${player.name}: ${this.scores[player.index] || 0}★` })),

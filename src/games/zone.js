@@ -32,6 +32,7 @@ import {
   drawZoneWaves,
 } from './zoneView.js';
 import { drawSquareParticles, drawAlphaTexts } from './worldCore.js';
+import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
 
 export const ZONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ZONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -87,6 +88,7 @@ export const ZONE_TUNING = {
   RELIC_SPAWN_INIT: 4.5, // İlk relic çıkış süresi (sn)
   RELIC_SPAWN_CD: 8.5,   // Relic çıkış periyodu (sn)
   MAX_RELICS: 2,         // Sahada aynı anda en fazla relic sayısı
+  MAX_TIED_ROUNDS: 2,     // üst üste beraberlikte maç draw sınırı
 };
 
 export class ZoneGame extends BaseMiniGame {
@@ -104,6 +106,10 @@ export class ZoneGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.tiedRounds = 0;
     this.roundTransitionTimer = 0;
 
     this.roundTimer = ZONE_TUNING.ROUND_TIME;
@@ -423,6 +429,10 @@ export class ZoneGame extends BaseMiniGame {
     this.kills = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId = 0;
+    this.tiedRounds = 0;
     this.roundTimer = ZONE_TUNING.ROUND_TIME;
     this.leaderIndex = -1;
     this.lastCaptureBy = -1;
@@ -451,6 +461,9 @@ export class ZoneGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.kills = [0, 0, 0, 0];
     this.matchWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.tiedRounds = 0;
     this.startNewRound();
   }
 
@@ -463,6 +476,9 @@ export class ZoneGame extends BaseMiniGame {
     this.state = 'PLAYING';
     this.roundTimer = ZONE_TUNING.ROUND_TIME;
     this.roundWinner = null;
+    this.matchDraw = false;
+    this.roundResolutionReason = null;
+    this.roundId += 1;
     this.roundTransitionTimer = 0;
     // Her tur köşeler yeniden çekilir — doğum bölgeleri rastgele
     this.drawBaseCorners(joined);
@@ -656,7 +672,7 @@ export class ZoneGame extends BaseMiniGame {
       if (cx > 0 && dist[cur - 1] === -1) { dist[cur - 1] = nd; queue.push(cur - 1); }
       if (cx < G - 1 && dist[cur + 1] === -1) { dist[cur + 1] = nd; queue.push(cur + 1); }
       if (cy > 0 && dist[cur - G] === -1) { dist[cur - G] = nd; queue.push(cur - G); }
-      if (cy < G - 1 && dist[cur + 1] === -1) { dist[cur + G] = nd; queue.push(cur + G); }
+      if (cy < G - 1 && dist[cur + G] === -1) { dist[cur + G] = nd; queue.push(cur + G); }
     }
 
     const br = this.baseRect(victimIndex);
@@ -922,17 +938,36 @@ export class ZoneGame extends BaseMiniGame {
     }
   }
 
+  finishTiedRound(reason = 'tie') {
+    if (!this.players.some((p) => p.isJoined)) {
+      beginDrawRound(this, reason, 1.6);
+      return;
+    }
+    this.roundWinner = null;
+    this.tiedRounds += 1;
+    if (this.tiedRounds >= ZONE_TUNING.MAX_TIED_ROUNDS) {
+      beginDrawRound(this, reason, 1.6);
+      return;
+    }
+    this.state = 'ROUND_OVER';
+    this.roundTransitionTimer = 2.8;
+  }
+
   finishRound(winner) {
     if (this.state !== 'PLAYING') return;
+    if (!winner) {
+      this.finishTiedRound('no-winner');
+      return;
+    }
     this.roundWinner = winner;
-    if (winner) {
-      this.scores[winner.index]++;
-      playCashRegister();
-      if (this.scores[winner.index] >= this.targetScore) {
-        this.state = 'MATCH_OVER';
-        this.matchWinner = winner;
-        return;
-      }
+    this.tiedRounds = 0;
+    this.matchDraw = false;
+    this.scores[winner.index]++;
+    playCashRegister();
+    if (this.scores[winner.index] >= this.targetScore) {
+      this.state = 'MATCH_OVER';
+      this.matchWinner = winner;
+      return;
     }
     this.state = 'ROUND_OVER';
     this.roundTransitionTimer = 2.8;
@@ -1001,6 +1036,34 @@ export class ZoneGame extends BaseMiniGame {
     return keyboardVectorFrom(this.keys, index);
   }
 
+  checkTrailCrossing(player, fromX, fromY, toX, toY) {
+    const distance = Math.hypot(toX - fromX, toY - fromY);
+    const steps = Math.max(1, Math.ceil(distance / Math.max(1, this.cell * 0.45)));
+    for (let step = 1; step <= steps; step++) {
+      const ratio = step / steps;
+      const cellIdx = this.posToCell(
+        fromX + (toX - fromX) * ratio,
+        fromY + (toY - fromY) * ratio,
+      );
+      if (cellIdx < 0 || cellIdx === player.lastCell) continue;
+      const owner = this.trailOwner[cellIdx];
+      if (owner >= 0 && owner !== player.index) {
+        if (this.spawnProtect <= 0) {
+          this.shatterPlayer(owner, player.index);
+          return true;
+        }
+      } else if (owner === player.index) {
+        const recentIndex = player.trail.lastIndexOf(cellIdx);
+        const isImmediateTail = recentIndex >= 0 && (player.trail.length - 1 - recentIndex) <= 3;
+        if (!isImmediateTail) {
+          this.shatterPlayer(player.index, null);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   update(now) {
     const dt = Math.min((now - this.lastTime) / 1000, 0.05);
     this.lastTime = now;
@@ -1008,7 +1071,13 @@ export class ZoneGame extends BaseMiniGame {
 
     if (this.state === 'ROUND_OVER') {
       this.roundTransitionTimer -= dt;
-      if (this.roundTransitionTimer <= 0) this.startNewRound();
+      if (this.roundTransitionTimer <= 0) {
+        if (hasMatchResult(this)) {
+          this.state = 'MATCH_OVER';
+        } else {
+          this.startNewRound();
+        }
+      }
       this.updateFx(dt);
       return;
     }
@@ -1045,7 +1114,7 @@ export class ZoneGame extends BaseMiniGame {
       }
     }
 
-    if (this.roundTimer <= 0) {
+    if (this.roundTimer <= 0 || roundTimedOut(this.roundTimer, ZONE_TUNING.ROUND_TIME)) {
       this.roundTimer = 0;
       // Beraberlikte son capture'ı yapan alır (tieBreak bayrağı banner'a yansır)
       let best = null;
@@ -1062,10 +1131,14 @@ export class ZoneGame extends BaseMiniGame {
           tied.push(p);
         }
       }
-      if (tied.length > 1 && this.lastCaptureBy >= 0
-          && tied.some((p) => p.index === this.lastCaptureBy)) {
-        best = this.players[this.lastCaptureBy];
-        this.tieBreak = true;
+      if (tied.length > 1) {
+        if (this.lastCaptureBy >= 0 && tied.some((p) => p.index === this.lastCaptureBy)) {
+          best = this.players[this.lastCaptureBy];
+          this.tieBreak = true;
+        } else {
+          best = null;
+          this.tieBreak = false;
+        }
       }
       this.finishRound(best);
       return;
@@ -1179,6 +1252,8 @@ export class ZoneGame extends BaseMiniGame {
         p.lastCell = this.posToCell(p.x, p.y);
         continue;
       }
+
+      if (this.checkTrailCrossing(p, p.px, p.py, p.x, p.y)) continue;
 
       const cellIdx = this.posToCell(p.x, p.y);
       if (cellIdx < 0) continue;

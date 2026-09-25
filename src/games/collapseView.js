@@ -52,6 +52,8 @@ export function createCollapseWorldPacket(game) {
     }),
     extras: {
       cell: round1(game.cellSize || 0),
+      matchDraw: game.matchDraw === true,
+      timeLeft: round1(game.roundTime || 0),
       grid: states,
       warn: warn.slice(0, 169),
       falling: (Array.isArray(game.fallingTiles) ? game.fallingTiles : []).slice(0, 12).map((ft) => ({
@@ -78,11 +80,14 @@ export function createCollapseWorldPacket(game) {
 }
 
 function isValidCollapsePlayer(p) {
-  return finite(p.jump) && typeof p.super === 'boolean';
+  return typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
+    && finite(p.jump) && p.jump >= 0 && p.jump <= 1
+    && typeof p.super === 'boolean';
 }
 
 function isValidCollapseExtra(frame) {
   if (!finite(frame.cell) || frame.cell <= 0) return false;
+  if (typeof frame.matchDraw !== 'boolean' || !finite(frame.timeLeft) || frame.timeLeft < 0) return false;
   if (!Array.isArray(frame.grid) || frame.grid.length !== COLLAPSE_COLS * COLLAPSE_ROWS) return false;
   if (!frame.grid.every((s) => s === 0 || s === 1 || s === 2)) return false;
   if (!Array.isArray(frame.warn) || frame.warn.length > 169) return false;

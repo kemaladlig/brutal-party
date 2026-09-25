@@ -424,6 +424,7 @@ function mountSlider1D(gamepad, container, schema) {
   const seatNames = ['P1', 'P2', 'P3', 'P4'];
   const posLabel = seatNames[gamepad.playerIndex] || `P${gamepad.playerIndex + 1}`;
   const baseInvert = gamepad.playerIndex === 1 || gamepad.playerIndex === 3;
+  const verticalAxis = gamepad.playerIndex === 2 || gamepad.playerIndex === 3;
 
   if (!gamepad._pongInvertManualSet) {
     gamepad.isPongInverted = baseInvert;
@@ -440,10 +441,12 @@ function mountSlider1D(gamepad, container, schema) {
     flip[t('pad.dirUp')] = t('pad.dirDown');
     return flip[base] || base;
   };
-  const directionHint = () => t('pad.dragRight', tvDir());
+  const directionHint = () => verticalAxis
+    ? t(gamepad.playerIndex === 2 ? 'pad.dragDown' : 'pad.dragUp', tvDir())
+    : t('pad.dragRight', tvDir());
 
   container.innerHTML = `
-    <div class="pong-controller-view horizontal">
+    <div class="pong-controller-view ${verticalAxis ? 'vertical' : 'horizontal'}">
       <div class="pong-live-scoreboard" id="pong-live-scoreboard">
         <div class="pong-score-pips" id="pong-score-display">${t('pad.scoreJoin', '0 - 0')}</div>
         <div class="pong-rally-badge" id="pong-rally-display">${t('pad.rally', 0)}</div>
@@ -453,7 +456,7 @@ function mountSlider1D(gamepad, container, schema) {
         <div class="pong-track-wrap">
           <div class="pong-instruction" id="pong-direction-hint">${directionHint()}</div>
           <div class="pong-horizontal-track" id="pong-track">
-            <div class="pong-track-thumb horizontal" id="pong-thumb" style="left: ${gamepad.pongPosition * 100}%; background-color: ${gamepad.playerColor}">
+            <div class="pong-track-thumb horizontal" id="pong-thumb" style="${verticalAxis ? 'top' : 'left'}: ${gamepad.pongPosition * 100}%; background-color: ${gamepad.playerColor}">
               PADDLE
             </div>
           </div>
@@ -494,32 +497,36 @@ function mountSlider1D(gamepad, container, schema) {
   });
 
   const mountSignal = gamepad._mountAbort?.signal;
-  const updateSliderX = (clientX) => {
+  const updateSliderPosition = (clientX, clientY) => {
     const rect = track.getBoundingClientRect();
-    const relativeX = Math.max(0, Math.min(rect.width, clientX - rect.left));
-    const rawNorm = relativeX / rect.width;
+    const rawNorm = verticalAxis
+      ? Math.max(0, Math.min(rect.height, clientY - rect.top)) / Math.max(1, rect.height)
+      : Math.max(0, Math.min(rect.width, clientX - rect.left)) / Math.max(1, rect.width);
     const clampedNorm = Math.max(0, Math.min(1, (rawNorm - 0.10) / 0.80));
     const position = gamepad.isPongInverted ? 1.0 - clampedNorm : clampedNorm;
     gamepad.pongPosition = position;
 
-    if (thumb) thumb.style.left = `${clampedNorm * 100}%`;
+    if (thumb) {
+      if (verticalAxis) thumb.style.top = `${clampedNorm * 100}%`;
+      else thumb.style.left = `${clampedNorm * 100}%`;
+    }
     gamepad._sendAnalog({ action: 'PADDLE_MOVE', position });
   };
 
   track?.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    if (e.touches[0]) updateSliderX(e.touches[0].clientX);
+    if (e.touches[0]) updateSliderPosition(e.touches[0].clientX, e.touches[0].clientY);
   }, { passive: false });
 
   track?.addEventListener('touchmove', (e) => {
     e.preventDefault();
-    if (e.touches[0]) updateSliderX(e.touches[0].clientX);
+    if (e.touches[0]) updateSliderPosition(e.touches[0].clientX, e.touches[0].clientY);
   }, { passive: false });
   track?.addEventListener('touchend', (e) => { e.preventDefault(); }, { passive: false });
   track?.addEventListener('touchcancel', (e) => { e.preventDefault(); }, { passive: false });
 
-  track?.addEventListener('mousedown', (e) => { isTrackingMouse = true; updateSliderX(e.clientX); });
-  window.addEventListener('mousemove', (e) => { if (isTrackingMouse) updateSliderX(e.clientX); }, { signal: mountSignal });
+  track?.addEventListener('mousedown', (e) => { isTrackingMouse = true; updateSliderPosition(e.clientX, e.clientY); });
+  window.addEventListener('mousemove', (e) => { if (isTrackingMouse) updateSliderPosition(e.clientX, e.clientY); }, { signal: mountSignal });
   window.addEventListener('mouseup', () => { isTrackingMouse = false; }, { signal: mountSignal });
 
   return {

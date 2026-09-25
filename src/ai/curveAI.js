@@ -51,8 +51,8 @@ const TIER = {
   bot_normal: {
     think: 0.09, maxDist: 120, rays: [0.35, 0.75], safety: 70,
     commitTurn: 0.30, commitStraight: 0.20, centerTol: 0.35,
-    centerRange: 0.42, mistake: 0.08, gapThread: false, deadEndCheck: false,
-    pickupRange: 0, pickupTol: 0.15,
+    centerRange: 0.42, mistake: 0.08, gapThread: false,
+    pickupRange: 0, pickupTol: 0.15, deadEndCheck: true,
   },
   bot_god: {
     think: 0.03, maxDist: 200, rays: [0.28, 0.60, 0.92], safety: 100,
@@ -63,7 +63,12 @@ const TIER = {
 };
 
 export function updateCurveBotAI(game, bot, dt) {
-  const P = TIER[bot.slotType] || TIER.bot_normal;
+  const TIER_PARAMS = TIER[bot.slotType] || TIER.bot_normal;
+  // INVERT bot steer'ını aynalamaz — raycast'inin doğrultusunu duvara çevirirdi.
+  // Bunun yerine karar kalitesi düşer: daha sık yanlış taraf, delik dikme yok.
+  const P = bot.confusedTimer > 0
+    ? { ...TIER_PARAMS, mistake: Math.max(TIER_PARAMS.mistake, 0.35), gapThread: false, deadEndCheck: false }
+    : TIER_PARAMS;
 
   if (bot.botTurnCommitment > 0) {
     bot.botTurnCommitment -= dt;

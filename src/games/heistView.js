@@ -37,6 +37,7 @@ export function createHeistWorldPacket(game) {
     extras: {
       roundTimer: round1(game.roundTimer || 0),
       goldRush: game.goldRushActive === true,
+      matchDraw: game.matchDraw === true,
       pillars: packRectList(game.pillars, 8),
       vaults: (Array.isArray(game.vaults) ? game.vaults : []).slice(0, 4).map((v) => [
         round1(v.x), round1(v.y), round1(v.w), round1(v.h), v.playerIndex,
@@ -65,13 +66,14 @@ export function createHeistWorldPacket(game) {
 }
 
 function isValidHeistPlayer(p) {
-  return finite(p.angle) && finite(p.radius)
+  return typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
+    && finite(p.angle) && finite(p.radius)
     && finite(p.stumble) && typeof p.tackling === 'boolean'
     && Number.isInteger(p.carried) && Number.isInteger(p.vault) && finite(p.cd);
 }
 
 function isValidHeistExtra(frame) {
-  if (!finite(frame.roundTimer) || typeof frame.goldRush !== 'boolean') return false;
+  if (!finite(frame.roundTimer) || typeof frame.goldRush !== 'boolean' || typeof frame.matchDraw !== 'boolean') return false;
   if (!Array.isArray(frame.pillars) || frame.pillars.length > 8) return false;
   if (!frame.pillars.every((r) => Array.isArray(r) && r.length === 4 && r.every(finite))) return false;
   if (!Array.isArray(frame.vaults) || frame.vaults.length > 4) return false;

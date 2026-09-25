@@ -76,6 +76,7 @@ export function createBombWorldPacket(game) {
       color: typeof pt.color === 'string' ? pt.color : '#1A1A1A',
     })),
     scores: (game.scores || [0, 0, 0, 0]).map((s) => Number(s) || 0),
+    matchDraw: game.matchDraw === true,
     roundWinner: winnerSlot(game.roundWinner),
     matchWinner: winnerSlot(game.matchWinner),
   };
@@ -85,8 +86,15 @@ export function createBombWorldPacket(game) {
 export function isValidBombWorldFrame(frame) {
   if (!frame || frame.action !== 'WORLD_FRAME' || frame.version !== 1 || frame.mode !== 'BOMB') return false;
   if (!Number.isInteger(frame.seq) || frame.seq < 0) return false;
+  if (!Number.isInteger(frame.roundId) || frame.roundId < 0) return false;
+  if (!['LOBBY', 'PLAYING', 'ROUND_PAUSE', 'ROUND_OVER', 'MATCH_OVER', 'OVERTIME'].includes(frame.gameState)) return false;
   if (!Number.isInteger(frame.carrier) || frame.carrier < -1 || frame.carrier > 3) return false;
   if (!Array.isArray(frame.arena) || frame.arena.length !== 4 || !frame.arena.every(finite)) return false;
+  if (frame.arena[2] <= frame.arena[0] || frame.arena[3] <= frame.arena[1]) return false;
+  if (!Array.isArray(frame.scores) || frame.scores.length > 4 || !frame.scores.every((score) => finite(score) && score >= 0)) return false;
+  if (frame.roundWinner !== null && (!Number.isInteger(frame.roundWinner) || frame.roundWinner < 0 || frame.roundWinner > 3)) return false;
+  if (frame.matchWinner !== null && (!Number.isInteger(frame.matchWinner) || frame.matchWinner < 0 || frame.matchWinner > 3)) return false;
+  if (typeof frame.matchDraw !== 'boolean') return false;
   if (!Array.isArray(frame.pillars) || frame.pillars.length > 16) return false;
   if (!frame.pillars.every((p) => Array.isArray(p) && p.length === 4 && p.every(finite))) return false;
   if (!Array.isArray(frame.pickups) || frame.pickups.length > 12) return false;
@@ -98,6 +106,7 @@ export function isValidBombWorldFrame(frame) {
   if (!frame.particles.every((pt) => pt && finite(pt.x) && finite(pt.y) && finite(pt.size) && finite(pt.life) && finite(pt.maxLife) && typeof pt.color === 'string')) return false;
   return frame.players.every((p) => (
     p
+    && typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
     && Number.isInteger(p.slot) && p.slot >= 0 && p.slot <= 3
     && finite(p.x) && finite(p.y) && finite(p.angle) && finite(p.radius)
     && finite(p.stumble) && finite(p.immunity) && finite(p.dash) && finite(p.turbo)

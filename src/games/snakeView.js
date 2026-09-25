@@ -118,6 +118,7 @@ export function createSnakeWorldPacket(game) {
       color: typeof particle.color === 'string' ? particle.color : '#1A1A1A',
     })),
     scores: (game.scores || [0, 0, 0, 0]).map((score) => Number(score) || 0),
+    matchDraw: game.matchDraw === true,
     roundWinner: winnerSlot(game.roundWinner),
     matchWinner: winnerSlot(game.matchWinner),
   };
@@ -126,12 +127,22 @@ export function createSnakeWorldPacket(game) {
 export function isValidSnakeWorldFrame(frame) {
   if (!frame || frame.action !== 'WORLD_FRAME' || frame.version !== 1 || frame.mode !== 'SNAKE') return false;
   if (!Number.isInteger(frame.seq) || frame.seq < 0) return false;
+  if (!Number.isInteger(frame.roundId) || frame.roundId < 0) return false;
+  if (!['LOBBY', 'PLAYING', 'ROUND_PAUSE', 'ROUND_OVER', 'MATCH_OVER', 'OVERTIME'].includes(frame.gameState)) return false;
   if (!Array.isArray(frame.arena) || frame.arena.length !== 4) return false;
   if (!frame.arena.every(finite)) return false;
+  if (frame.arena[2] <= frame.arena[0] || frame.arena[3] <= frame.arena[1]) return false;
+  if (!Array.isArray(frame.scores) || frame.scores.length > 4 || !frame.scores.every((score) => finite(score) && score >= 0)) return false;
+  if (frame.roundWinner !== null && (!Number.isInteger(frame.roundWinner) || frame.roundWinner < 0 || frame.roundWinner > 3)) return false;
+  if (frame.matchWinner !== null && (!Number.isInteger(frame.matchWinner) || frame.matchWinner < 0 || frame.matchWinner > 3)) return false;
+  if (typeof frame.matchDraw !== 'boolean') return false;
   if (!Array.isArray(frame.walls) || frame.walls.length > 16) return false;
   if (!frame.walls.every((wall) => Array.isArray(wall) && wall.length === 4 && wall.every(finite))) return false;
   if (!Array.isArray(frame.foods) || frame.foods.length > 32) return false;
-  if (!frame.foods.every((food) => Array.isArray(food) && food.length >= 3 && finite(food[0]) && finite(food[1]) && finite(food[3]))) return false;
+  if (!frame.foods.every((food) => Array.isArray(food) && food.length >= 4
+    && finite(food[0]) && finite(food[1])
+    && ['APPLE', 'GOLDEN_STAR', 'TURBO_BERRY'].includes(food[2])
+    && finite(food[3]) && food[3] > 0)) return false;
   if (!Array.isArray(frame.players) || frame.players.length > 4) return false;
   if (!Array.isArray(frame.particles) || frame.particles.length > 64) return false;
   if (!frame.particles.every((particle) => (
@@ -144,12 +155,16 @@ export function isValidSnakeWorldFrame(frame) {
   ))) return false;
   return frame.players.every((player) => (
     player
+    && typeof player.joined === 'boolean' && typeof player.alive === 'boolean'
     && Number.isInteger(player.slot)
     && player.slot >= 0
     && player.slot <= 3
     && finite(player.x)
     && finite(player.y)
     && finite(player.angle)
+    && typeof player.boost === 'boolean'
+    && finite(player.energy) && player.energy >= 0 && player.energy <= 100
+    && typeof player.locked === 'boolean'
     && Array.isArray(player.trail)
     && player.trail.length <= MAX_TRAIL_POINTS
     && player.trail.every((point) => Array.isArray(point) && point.length >= 2 && finite(point[0]) && finite(point[1]))

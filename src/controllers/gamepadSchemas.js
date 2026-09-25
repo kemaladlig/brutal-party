@@ -114,6 +114,8 @@ export const GAMEPAD_SCHEMAS = {
         flex: 1.2,
         minHeight: '80px',
         vibrate: [25, 40],
+        syncHostCooldown: true,
+        hostCdField: 'cd',
       },
     ],
   },
