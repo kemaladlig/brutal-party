@@ -97,6 +97,7 @@ function distanceSq(ax, ay, bx, by) {
 export class HordeGame extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
+    this.controlMode = 'HORDE';
     this.arena = { cx: 0, cy: 0, size: 0, width: 0, height: 0, left: 0, right: 0, top: 0, bottom: 0 };
     this.slotTypes = ['human', 'empty', 'empty', 'empty'];
     this.minPlayersToStart = 1;
@@ -140,7 +141,6 @@ export class HordeGame extends BaseMiniGame {
       ...this.getCentralTabletopLayout('HORDE'),
       joystick: true,
       actions: [
-        { id: 'fire', icon: 'crosshair', hold: true },
         { id: 'dash', icon: 'zap', cooldownField: 'dashCooldown', maxCooldown: HORDE_TUNING.DASH_CD },
       ],
     };
@@ -187,9 +187,8 @@ export class HordeGame extends BaseMiniGame {
       player.targetAngle = spawn.angle;
       player.angle = spawn.angle;
       player.isAiming = false;
-      player.remoteFireHeld = false;
-      player.localFireHeld = false;
       player.keyDashLatch = false;
+      player.keyFireLatch = false;
       player.botCheckTimer = Math.random() * 0.2;
       player.botRetarget = Math.random() * 0.5;
       player.botStrafeDir = Math.random() < 0.5 ? -1 : 1;
@@ -398,9 +397,8 @@ export class HordeGame extends BaseMiniGame {
       player.shield = false;
       player.attackCooldown = 0.15;
       player.isAiming = false;
-      player.remoteFireHeld = false;
-      player.localFireHeld = false;
       player.keyDashLatch = false;
+      player.keyFireLatch = false;
     }
   }
 
@@ -580,8 +578,14 @@ export class HordeGame extends BaseMiniGame {
     if (isBot(player)) updateHordeBotAI(this, player, dt);
     else this.updateHumanInput(player, dt, allowFire);
 
+    const aim = this.getAimVector(player.index);
+    const aimState = this.getAimState(player.index);
     const angleDiff = normalizeAngle((player.targetAngle || 0) - player.angle);
-    player.angle += angleDiff * Math.min(1, dt * 16);
+    if (player.isAiming && aimState?.active) {
+      player.angle += angleDiff * Math.min(1, dt * 32);
+    } else {
+      player.angle += angleDiff * Math.min(1, dt * 16);
+    }
     if (allowFire && player.isAiming && player.attackCooldown <= 0) this.firePlayer(player);
 
     const speed = HORDE_TUNING.MOVE_SPEED
@@ -633,15 +637,41 @@ export class HordeGame extends BaseMiniGame {
       player.steerX = 0;
       player.steerY = 0;
     }
+    const aimState = this.getAimState(player.index);
     const aim = this.getAimVector(player.index);
-    if (aim.force > 0.05) {
+    if (aimState?.active) {
       player.targetAngle = aim.angle;
     } else if (magnitude > 0.05) {
       player.targetAngle = Math.atan2(movement.y, movement.x);
     }
 
     const keyboard = readSlotKeys(this.keys, player.index);
-    player.isAiming = allowFire && (player.remoteFireHeld || player.localFireHeld || keyboard.action);
+    if (keyboard.action) {
+      if (!player.keyFireLatch) {
+        const angle = player.targetAngle ?? player.angle;
+        this.handleSlotAimStart(player.index, {
+          dx: Math.cos(angle),
+          dy: Math.sin(angle),
+          angle,
+          force: 1,
+        }, { source: 'keyboard' });
+        player.keyFireLatch = true;
+      }
+    } else if (player.keyFireLatch) {
+      player.keyFireLatch = false;
+      const angle = player.targetAngle ?? player.angle;
+      this.handleSlotAimEnd(player.index, {
+        dx: Math.cos(angle),
+        dy: Math.sin(angle),
+        angle,
+        force: 1,
+      }, { source: 'keyboard', cancelled: false });
+    }
+    const currentAimState = this.getAimState(player.index);
+    if (currentAimState?.active) player.targetAngle = currentAimState.vector.angle;
+    const aimHeld = currentAimState?.held === true;
+    const aimFiring = this.isHoldToFireAim() && aimHeld && currentAimState.active;
+    player.isAiming = allowFire && aimFiring;
     const dashKey = getSecondActionKey('dash', player.index);
     const dashPressed = !!dashKey && !!this.keys[dashKey];
     if (dashPressed && !player.keyDashLatch) {
@@ -667,11 +697,25 @@ export class HordeGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player?.isJoined || !player.isAlive) return;
     if (actionId === 'fire') {
-      player.localFireHeld = isDown && this.state === 'PLAYING';
-      player.isAiming = player.localFireHeld;
+      const angle = player.angle;
+      const input = {
+        dx: Math.cos(angle),
+        dy: Math.sin(angle),
+        angle,
+        force: 1,
+      };
+      if (isDown) this.handleSlotAimStart(slotIndex, input, { source: 'touch' });
+      else this.handleSlotAimEnd(slotIndex, input, { source: 'touch', cancelled: false });
     } else if (actionId === 'dash' && isDown) {
       this.triggerDash(slotIndex);
     }
+  }
+
+  onSlotAimHold(slotIndex, isDown) {
+    const player = this.players[slotIndex];
+    if (!player?.isJoined || !player.isAlive) return;
+    const aimState = this.getAimState(slotIndex);
+    player.isAiming = isDown && this.state === 'PLAYING' && this.isHoldToFireAim() && aimState?.active === true;
   }
 
   updatePlayerWeapon(player, dt) {
@@ -1175,6 +1219,7 @@ export class HordeGame extends BaseMiniGame {
     if (player.hp <= 0) {
       player.hp = 0;
       player.isAlive = false;
+      this.clearAimInput(player.index, null, true);
       player.isAiming = false;
       player.steerX = 0;
       player.steerY = 0;
@@ -1300,8 +1345,6 @@ export class HordeGame extends BaseMiniGame {
       player.steerX = 0;
       player.steerY = 0;
       player.isAiming = false;
-      player.remoteFireHeld = false;
-      player.localFireHeld = false;
       player.attackCooldown = 0;
       player.reloadTimer = 0;
       player.magazine = getPlayerWeapon(player).magazine;
@@ -1349,8 +1392,6 @@ export class HordeGame extends BaseMiniGame {
     this.loadoutCrates = [];
     for (const player of this.players) {
       player.isAiming = false;
-      player.localFireHeld = false;
-      player.remoteFireHeld = false;
       player.steerX = 0;
       player.steerY = 0;
     }
@@ -1402,9 +1443,19 @@ export class HordeGame extends BaseMiniGame {
 
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
-    if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state) || !player?.isJoined || !player.isAlive || !data) return;
+    if (!player?.isJoined || !data) return;
+    const isAimRelease = data.action === 'AIM_RELEASE' || data.intent?.phase === 'release';
+    if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state) && !isAimRelease) return;
+    if (!player.isAlive && !isAimRelease) return;
+    const isAimPacket = data.action === 'AIM_PRESS'
+      || data.action === 'AIM_MOVE'
+      || data.intent?.type === 'aim'
+      || data.intent?.id === 'aim';
+    if (this.state !== 'PLAYING' && isAimPacket && !isAimRelease) return;
+    if (this.applyAimLifecycleInput(slotIndex, data)) return;
+    if (!player.isAlive) return;
     if (isInputIntent(data, 'aim') || data.action === 'AIM_MOVE') {
-      this.handleSlotAim(slotIndex, data);
+      this.handleSlotAim(slotIndex, data, { source: data.intent?.source || 'network' });
       return;
     }
     if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
@@ -1414,19 +1465,33 @@ export class HordeGame extends BaseMiniGame {
       player.remoteMoveActive = force > 0.05;
       player.steerX = dx;
       player.steerY = dy;
-      if (player.remoteMoveActive && Number.isFinite(data.angle)) player.targetAngle = normalizeAngle(data.angle);
+      // Aim aktifken bakış yönü sağ çubuğundur: move paketi targetAngle
+      // yazmaz, updateHumanInput aim önceliğiyle çözer. Aim yoksa move yönü geçerli.
+      if (player.remoteMoveActive && Number.isFinite(data.angle) && !this.getAimState(slotIndex)?.active) {
+        player.targetAngle = normalizeAngle(data.angle);
+      }
       const joy = this.joysticks[slotIndex];
       if (joy) {
         joy.active = player.remoteMoveActive;
         joy.angle = Number.isFinite(data.angle) ? data.angle : Math.atan2(dy, dx);
         joy.force = force;
       }
-    } else if (matchesInputAction(data, 'fire', 'HORDE_FIRE', 'press') && this.state === 'PLAYING') {
-      player.remoteFireHeld = true;
-      player.isAiming = true;
-    } else if (matchesInputAction(data, 'fire', 'HORDE_FIRE_RELEASE', 'release')) {
-      player.remoteFireHeld = false;
-      player.isAiming = false;
+    } else if ((matchesInputAction(data, 'fire', 'HORDE_FIRE', 'press') || data.action === 'HORDE_FIRE') && this.state === 'PLAYING') {
+      const angle = player.angle;
+      this.handleSlotAimStart(slotIndex, {
+        dx: Math.cos(angle),
+        dy: Math.sin(angle),
+        angle,
+        force: 1,
+      }, { source: data.intent?.source || 'network' });
+    } else if (matchesInputAction(data, 'fire', 'HORDE_FIRE_RELEASE', 'release') || data.action === 'HORDE_FIRE_RELEASE') {
+      const angle = player.angle;
+      this.handleSlotAimEnd(slotIndex, {
+        dx: Math.cos(angle),
+        dy: Math.sin(angle),
+        angle,
+        force: 1,
+      }, { source: data.intent?.source || 'network', cancelled: false });
     } else if (matchesInputAction(data, 'dash', 'DASH')) {
       this.triggerDash(slotIndex);
     }
@@ -1478,7 +1543,8 @@ export class HordeGame extends BaseMiniGame {
       player.steerX = 0;
       player.steerY = 0;
       player.isAiming = false;
-      player.localFireHeld = false;
+      player.keyDashLatch = false;
+      player.keyFireLatch = false;
     }
   }
 

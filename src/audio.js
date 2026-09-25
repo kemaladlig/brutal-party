@@ -727,7 +727,6 @@ export function playMenuTick() {
   osc.start(now);
   osc.stop(now + 0.03);
 }
-
 /**
  * Karakter tıklandığında / zıpladığında çalan neşeli arcade boing/pop sesi
  */
@@ -752,4 +751,5 @@ export function playMenuPop() {
   osc.start(now);
   osc.stop(now + 0.12);
 }
+
 

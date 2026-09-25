@@ -23,4 +23,17 @@ test('guide action labels are resolved from intent ids, not icon text', () => {
   assert.ok(getGuideActionLabel({ id: 'dash' }).length > 0);
   assert.ok(getGuideActionLabel({ id: 'smoke' }).length > 0);
   assert.equal(getGuideActionLabel({ id: 'unknown', label: 'CUSTOM' }), 'CUSTOM');
+  assert.deepEqual(getControllerGuide('ARCHER', GAMEPAD_SCHEMAS.ARCHER).actions, []);
+  assert.deepEqual(
+    getControllerGuide('HORDE', GAMEPAD_SCHEMAS.HORDE).actions.map((action) => action.id),
+    ['dash'],
+  );
+  assert.deepEqual(
+    getControllerGuide('LASER', GAMEPAD_SCHEMAS.LASER).actions.map((action) => action.id),
+    ['dash'],
+  );
+  assert.deepEqual(
+    getControllerGuide('NINJA', GAMEPAD_SCHEMAS.NINJA).actions.map((action) => action.id),
+    ['strike', 'smoke'],
+  );
 });

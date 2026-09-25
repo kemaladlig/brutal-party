@@ -69,6 +69,7 @@ export class PhysicalGamepadAdapter {
       mode: null,
       vectorActive: false,
       aimActive: false,
+      aimVector: { dx: 0, dy: 0, angle: 0, force: 0 },
       blocked: false,
       padAvailable: false,
     };
@@ -89,6 +90,7 @@ export class PhysicalGamepadAdapter {
     this.running = false;
     if (this.handle !== null) this.cancel(this.handle);
     this.handle = null;
+    this.releaseAim(true);
     this.releasePrimary();
     this.sendNeutral();
     this.padIndex = null;
@@ -160,6 +162,18 @@ export class PhysicalGamepadAdapter {
     this.previous.actionId = null;
   }
 
+  releaseAim(cancelled = true) {
+    if (this.previous.aimActive) {
+      this.emitAction('AIM_RELEASE', {
+        ...this.previous.aimVector,
+        aimHeld: false,
+        ...(cancelled ? { cancelled: true } : {}),
+      });
+    }
+    this.previous.aimActive = false;
+    this.previous.aimVector = { dx: 0, dy: 0, angle: 0, force: 0 };
+  }
+
   updatePrimary(pad, descriptor) {
     const phoneActions = descriptor?.phone?.actions || [];
     for (let index = 0; index < phoneActions.length; index += 1) {
@@ -215,10 +229,23 @@ export class PhysicalGamepadAdapter {
       this.previous.vectorActive = vector.force > 0;
       if (descriptor.phone?.aim) {
         const aim = this.readAimAxis(pad);
-        if (aim.force > 0 || this.previous.aimActive) {
-          this.analog.sendAnalog({ action: 'AIM_MOVE', ...aim });
+        const aimActive = aim.force > 0;
+        if (aimActive || this.previous.aimActive) {
+          this.analog.sendAnalog({
+            action: 'AIM_MOVE',
+            ...aim,
+            aimHeld: aimActive || this.previous.aimActive,
+          });
         }
-        this.previous.aimActive = aim.force > 0;
+        if (aimActive) {
+          this.previous.aimVector = { ...aim };
+          if (!this.previous.aimActive) this.emitAction('AIM_PRESS', { ...aim, aimHeld: true });
+        } else if (this.previous.aimActive) {
+          this.releaseAim(false);
+        }
+        this.previous.aimActive = aimActive;
+      } else {
+        this.releaseAim(true);
       }
     }
     this.updatePrimary(pad, descriptor);
@@ -229,6 +256,7 @@ export class PhysicalGamepadAdapter {
     const mode = this.getMode();
     const descriptor = this.getDescriptor();
     if (this.previous.mode !== mode) {
+      this.releaseAim(true);
       this.releasePrimary();
       this.previous.mode = mode;
       this.previous.dir = 0;
@@ -238,8 +266,8 @@ export class PhysicalGamepadAdapter {
     }
     if (!descriptor || mode === 'LOBBY' || this.isBlocked()) {
       if (!this.previous.blocked) {
+        this.releaseAim(true);
         this.releasePrimary();
-        if (this.previous.aimActive) this.sendAimNeutral();
         this.sendNeutral();
       }
       this.previous.blocked = true;
@@ -255,8 +283,8 @@ export class PhysicalGamepadAdapter {
     const found = this.findPad();
     if (!found) {
       if (this.previous.padAvailable) {
+        this.releaseAim(true);
         this.releasePrimary();
-        if (this.previous.aimActive) this.sendAimNeutral();
         this.sendNeutral();
       }
       this.previous.padAvailable = false;

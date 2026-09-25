@@ -195,6 +195,35 @@ test('PONG has explicit last-standing and abort resolution', () => {
   assert.deepEqual(game.setScores, [0, 0, 0, 0]);
 });
 
+test('ARCHER aim stick charges and release fires without a charge action', () => {
+  const game = configureArcher();
+  game.startNewMatch();
+  const player = game.players[0];
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1 });
+  assert.equal(player.charging, true);
+  player.charge = 0.5;
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1 });
+  assert.equal(player.charging, false);
+  assert.equal(game.arrows.length, 1);
+
+  player.shotCooldown = 0;
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1 });
+  player.charge = 0.5;
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 0, cancelled: true });
+  assert.equal(player.charging, false);
+  assert.equal(game.arrows.length, 1);
+});
+
+test('ARCHER neutral quick tap does not fire or fake a shot', () => {
+  const game = configureArcher();
+  game.startNewMatch();
+  const player = game.players[0];
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 0, dy: 0, angle: 0, force: 0 });
+  player.charge = 0.5;
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 0, dy: 0, angle: 0, force: 0 });
+  assert.equal(game.arrows.length, 0);
+});
+
 test('ARCHER round ids advance and repeated ties end as a draw', () => {
   const game = configureArcher();
   game.startNewMatch();

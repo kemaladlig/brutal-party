@@ -3,13 +3,16 @@
 // Telefon kumandası (`gamepadSchemas.js`) ve masa-ortası canvas
 // (`BaseGame.getTabletopSchema()`) aynı yapıyı tarif eder:
 //   sol: 'joystick' | 'steer' | 'slider' | 'pedal'
-//   sağ: en fazla 2 discrete aksiyon
+//   sağ: en fazla 2 ikincil discrete aksiyon
+//   aim: sağ analog eksen; bas/bırak lifecycle'ı attack semantiği taşır
 //
 // Etiket/renk/cooldown gibi sunum detayları burada tutulmaz —
 // onlar `gamepadSchemas.js` (i18n) ve motor şemalarındadır.
 // Bu dosya yalnız yapısal sözleşmeyi + yön politikasını verir.
 
 export const MAX_TABLETOP_ACTIONS = 2;
+export const AIM_RELEASE_TO_FIRE = 'RELEASE_TO_FIRE';
+export const AIM_HOLD_TO_FIRE = 'HOLD_TO_FIRE';
 
 export const CONTROL_DEFS = {
   PONG: { left: 'slider', right: ['spin'] },
@@ -17,15 +20,15 @@ export const CONTROL_DEFS = {
   CURVE: { left: 'steer', right: [] },
   BOMB: { left: 'joystick', right: ['dash'] },
   HEIST: { left: 'joystick', right: ['tackle'] },
-  ARCHER: { left: 'joystick', aim: true, right: ['charge'] },
+  ARCHER: { left: 'joystick', aim: true, aimMode: AIM_RELEASE_TO_FIRE, right: [] },
   CROWN: { left: 'joystick', right: ['tackle'] },
   ZONE: { left: 'joystick', right: ['dash'] },
   SNAKE: { left: 'steer', right: ['boost'] },
-  LASER: { left: 'joystick', aim: true, right: ['fire', 'dash'] },
+  LASER: { left: 'joystick', aim: true, aimMode: AIM_RELEASE_TO_FIRE, right: ['dash'] },
   CLONE: { left: 'joystick', right: ['tackle'] },
   COLLAPSE: { left: 'joystick', right: ['jump'] },
   NINJA: { left: 'joystick', right: ['strike', 'smoke'] },
-  HORDE: { left: 'joystick', aim: true, right: ['fire', 'dash'] },
+  HORDE: { left: 'joystick', aim: true, aimMode: AIM_HOLD_TO_FIRE, right: ['dash'] },
   RACE: { left: 'joystick', right: ['dash'] },
 };
 
@@ -64,9 +67,19 @@ export function getTabletopLayout(mode) {
   if (!def) return null;
   const left = TABLETOP_LEFT[mode] || 'joystick';
   if (left === 'steer') {
-    return { steer: true, aim: !!def.aim, actions: def.right.map((id) => ({ id })) };
+    return {
+      steer: true,
+      aim: !!def.aim,
+      aimMode: def.aimMode || null,
+      actions: def.right.map((id) => ({ id })),
+    };
   }
-  return { joystick: true, aim: !!def.aim, actions: def.right.map((id) => ({ id })) };
+  return {
+    joystick: true,
+    aim: !!def.aim,
+    aimMode: def.aimMode || null,
+    actions: def.right.map((id) => ({ id })),
+  };
 }
 
 export function validateControlDef(mode, schema) {
@@ -92,7 +105,10 @@ export function getNeutralInputs(mode) {
     ? { ...NEUTRAL_INPUTS[mode] }
     : (getControlDef(mode) ? { action: 'JOYSTICK_MOVE', dx: 0, dy: 0, angle: 0, force: 0 } : null);
   const packets = primary ? [primary] : [];
-  if (getControlDef(mode)?.aim) packets.push({ action: 'AIM_MOVE', dx: 0, dy: 0, angle: 0, force: 0 });
+  if (getControlDef(mode)?.aim) {
+    packets.push({ action: 'AIM_MOVE', dx: 0, dy: 0, angle: 0, force: 0, aimHeld: false });
+    packets.push({ action: 'AIM_RELEASE', dx: 0, dy: 0, angle: 0, force: 0, aimHeld: false, cancelled: true });
+  }
   return packets;
 }
 

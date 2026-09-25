@@ -7,6 +7,7 @@ import { t } from '../i18n.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { getGuideActionLabel } from './controllerGuide.js';
 import { getPreference, setPreference } from '../core/preferences.js';
+import { TwinStickAimController } from './aimController.js';
 
 /**
  * Mounts a declarative controller onto the given container.
@@ -214,29 +215,55 @@ function mountTwinStickAction(gamepad, container, schema) {
       </div>`
     : '';
 
+  const moveLabel = t('pad.guideJoystick');
+  const aimLabel = t('pad.guideAim');
+  const actionZoneHtml = actions.length > 0
+    ? `<div class="twin-action-zone">${actionHtml}</div>`
+    : '';
   container.innerHTML = `
     <div class="twin-stick-action-view">
-      <div class="twin-stick-half twin-move-half" id="${moveZoneId}" aria-label="Hareket joystick">
+      <div class="twin-stick-half twin-move-half" id="${moveZoneId}" aria-label="${escapeHtml(moveLabel)}">
         <div class="phone-joy-base" style="border-color: ${gamepad.playerColor};">
           <div class="phone-joy-knob" id="${moveKnobId}" style="background-color: ${gamepad.playerColor};"></div>
         </div>
-        <span class="twin-stick-label">HAREKET</span>
+        <span class="twin-stick-label">${escapeHtml(moveLabel)}</span>
       </div>
-      <div class="twin-stick-half twin-aim-half" id="${aimZoneId}" aria-label="Nişan joystick">
+      <div class="twin-stick-half twin-aim-half" id="${aimZoneId}" aria-label="${escapeHtml(aimLabel)}">
         <div class="phone-joy-base" style="border-color: ${gamepad.playerColor};">
           <div class="phone-joy-knob" id="${aimKnobId}" style="background-color: ${gamepad.playerColor};"></div>
         </div>
-        <span class="twin-stick-label">NİŞAN</span>
+        <span class="twin-stick-label">${escapeHtml(aimLabel)}</span>
       </div>
-      <div class="twin-action-zone">${actionHtml}</div>
+      ${actionZoneHtml}
     </div>
   `;
 
   gamepad.bindJoystick(moveZoneId, moveKnobId, (input) => {
     gamepad._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
   });
-  gamepad.bindJoystick(aimZoneId, aimKnobId, (input) => {
-    gamepad._sendAnalog({ action: 'AIM_MOVE', ...input });
+  const aimZoneEl = container.querySelector(`#${aimZoneId}`);
+  const aimKnobEl = container.querySelector(`#${aimKnobId}`);
+  const aimBaseEl = aimZoneEl?.querySelector('.phone-joy-base');
+
+  const aimController = new TwinStickAimController({
+    zoneEl: aimZoneEl,
+    knobEl: aimKnobEl,
+    baseEl: aimBaseEl,
+    signal: gamepad._mountAbort?.signal,
+    vibrate: (pattern) => gamepad.vibrate(pattern),
+    onPress(input) {
+      gamepad._sendAimInput({ action: 'AIM_PRESS', ...input });
+    },
+    onMove(input, opts) {
+      gamepad._sendAnalog({ action: 'AIM_MOVE', ...input }, opts);
+    },
+    onRelease(input, { cancelled = false } = {}) {
+      gamepad._sendAimInput({
+        action: 'AIM_RELEASE',
+        ...input,
+        ...(cancelled ? { cancelled: true } : {}),
+      });
+    },
   });
 
   const buttonEls = [];
@@ -294,6 +321,7 @@ function mountTwinStickAction(gamepad, container, schema) {
       if (typeof schema.onSync === 'function') schema.onSync(gamepad, data, { buttonEls });
     },
     teardown() {
+      aimController?.destroy();
       for (const act of activeHolds) {
         if (act.releaseAction) {
           try { gamepad.network.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) }); } catch {}

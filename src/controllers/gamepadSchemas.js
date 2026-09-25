@@ -102,22 +102,7 @@ export const GAMEPAD_SCHEMAS = {
   ARCHER: {
     type: 'TWIN_STICK_ACTION',
     def: CONTROL_DEFS.ARCHER,
-    actions: [
-      {
-        id: 'charge',
-        action: 'ARCHER_CHARGE',
-        releaseAction: 'ARCHER_CHARGE_END',
-        hold: true,
-        icon: '🏹',
-        label: t('pad.archerCharge'),
-        color: '#8B5CF6',
-        flex: 1.2,
-        minHeight: '80px',
-        vibrate: [25, 40],
-        syncHostCooldown: true,
-        hostCdField: 'cd',
-      },
-    ],
+    actions: [],
   },
 
   CROWN: {
@@ -186,22 +171,10 @@ export const GAMEPAD_SCHEMAS = {
     def: CONTROL_DEFS.LASER,
     actions: [
       {
-        id: 'fire',
-        action: 'LASER_AIM',
-        releaseAction: 'LASER_FIRE',
-        hold: true,
-        icon: '🎯',
-        label: t('pad.fireGun'),
-        className: 'laser-btn-fire',
-        vibrate: [25, 40],
-        syncHostCooldown: true,
-        hostCdField: 'cdFire',
-      },
-      {
         id: 'dash',
         action: 'DASH',
-        icon: '⚡',
-        label: 'DASH',
+        icon: 'zap',
+        label: t('pad.dash'),
         className: 'laser-btn-dash',
         cooldown: 4.0,
         vibrate: [25, 35],
@@ -282,18 +255,6 @@ export const GAMEPAD_SCHEMAS = {
     type: 'TWIN_STICK_ACTION',
     def: CONTROL_DEFS.HORDE,
     actions: [
-      {
-        id: 'fire',
-        action: 'HORDE_FIRE',
-        releaseAction: 'HORDE_FIRE_RELEASE',
-        hold: true,
-        icon: 'crosshair',
-        label: t('pad.hordeFire'),
-        color: '#7C3AED',
-        flex: 1.2,
-        minHeight: '80px',
-        vibrate: [18, 28],
-      },
       {
         id: 'dash',
         action: 'DASH',

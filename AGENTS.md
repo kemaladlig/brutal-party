@@ -49,7 +49,8 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
   - `inputSource.js` — keyboard/touch/pointer input source arbitration; aktif cihaz başına tek kaynak kilidi.
   - `controlDescriptor.js` — phone/tabletop/network için normalize kontrol sözleşmesi ve parity doğrulaması.
   - `inputIntent.js` — transport input packet'lerini canonical engine intent alanına projekte eder; mevcut `action` alanı geriye uyumlu kalır.
-  - `AIM_MOVE` — yalnız ARCHER/HORDE/LASER için bağımsız sağ analog nişan ekseni; 50 ms throttle ve host-authoritative uygulanır.
+  - `aimInput.js` — ARCHER/HORDE/LASER için oyuncu başına canonical held/active/vector/sequence state'i; stale/out-of-order guard ve explicit release/cancel semantiğini tek yerde tutar.
+  - `AIM_MOVE` / `AIM_PRESS` / `AIM_RELEASE` — yalnız ARCHER/HORDE/LASER için sağ analog eksen ve attack lifecycle'ı; analog 50 ms throttle, bas/bırak discrete ve host-authoritative uygulanır. Sağ joystick basılıyken attack durumundadır; ARCHER/LASER bırakışta ateşler, HORDE bırakışta ateşi bırakır. Nötr dokunuş ateş üretmez.
   - `inputRouter.js` — normalize edilmiş local/network input'u aktif authoritative engine'e taşır; transport adapter'ları engine/mode lookup bilmez.
   - `gamepadInputAdapter.js` — transport'tan bağımsız 50ms analog throttle, dead-zone ve nötr analog state; fiziksel gamepad ikincil kaynak için temel sınır.
   - `physicalGamepadAdapter.js` — Browser Gamepad API polling adapter'ı; touch/keyboard/pointer öncelikli, host engine'e yalnızca aynı transport packet'lerini gönderir.
@@ -71,7 +72,7 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
 - Host HUD/state broadcast **8 Hz (125 ms)** + JSON dirty-check; skor/taşıyıcı/sinyal gibi kritik olaylar **anında** gönderilir (hızlı yol).
 - ONLINE world-view oyunları için ayrı unreliable WebRTC `world` kanalından **30 Hz tam snapshot** gönderilir. Bu paketler Supabase'e düşmez; `control` kanalı reliable/ordered kalır.
 - World-frame transport 30 Hz'de kalır; client `GamepadWorldView` snapshot'ları jitter buffer'da tutup native `requestAnimationFrame` ile 60 Hz+ sunum yapar. Interpolate edilen projectile/NPC/moving-wall entity'leri stable id taşır; `sentAt` yalnız source clock/diagnostic metadata'dır. Interpolasyon duvar içi extrapolation yapmaz, round/state/host sınırında snap olur.
-- Kumanda input throttle **50 ms** + ölübant (`JOYSTICK/MOVE/PADDLE/CURVE`); `DASH/TACKLE/ateş` throttle dışıdır.
+- Kumanda input throttle **50 ms** + ölübant (`JOYSTICK/MOVE/AIM/PADDLE/CURVE`); `AIM_PRESS/AIM_RELEASE`, `DASH/TACKLE/ateş` throttle dışıdır. Aktif sağ aim joystick'u stale-input süpürücüsüne karşı 250 ms keepalive taşır.
 - Ping **15 sn**, kopma watchdog **30 sn**.
 
 ## 6. Oda Akışı

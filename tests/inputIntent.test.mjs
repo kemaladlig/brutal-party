@@ -57,16 +57,20 @@ test('input router keeps adapter and engine lookup outside the manager', () => {
   assert.equal(received[1].data.intent.source, 'network');
 });
 
-test('release actions preserve their canonical intent id', () => {
+test('aim lifecycle actions preserve their canonical aim intent', () => {
   const descriptor = getControlDescriptor('HORDE', GAMEPAD_SCHEMAS.HORDE);
-  const normalized = normalizeInputIntent(
-    { action: 'HORDE_FIRE_RELEASE' },
+  const press = normalizeInputIntent(
+    { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1, aimHeld: true, seq: 7 },
     descriptor,
   );
-  assert.deepEqual(getInputIntent(normalized), {
-    type: 'action',
-    id: 'fire',
-    phase: 'release',
-    source: 'network',
+  const release = normalizeInputIntent(
+    { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1, aimHeld: false, seq: 8 },
+    descriptor,
+  );
+  assert.deepEqual(getInputIntent(press), {
+    type: 'action', id: 'aim', phase: 'press', seq: 7, source: 'network',
+  });
+  assert.deepEqual(getInputIntent(release), {
+    type: 'action', id: 'aim', phase: 'release', seq: 8, source: 'network',
   });
 });

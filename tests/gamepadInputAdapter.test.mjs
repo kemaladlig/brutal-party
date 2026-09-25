@@ -21,6 +21,24 @@ test('gamepad input adapter preserves 50ms throttle and dead-zone policy', () =>
   assert.equal(sent.length, 4);
 });
 
+test('gamepad input adapter gives move and aim independent 50ms budgets', () => {
+  let now = 0;
+  const sent = [];
+  const adapter = new GamepadInputAdapter((data) => sent.push(data), { now: () => now });
+
+  now = 100;
+  assert.equal(adapter.sendAnalog({ action: 'JOYSTICK_MOVE', dx: 0.5, dy: 0, force: 0.5 }), true);
+  now = 120;
+  assert.equal(adapter.sendAnalog({ action: 'AIM_MOVE', dx: 0.5, dy: 0, force: 0.5, aimHeld: true }), true);
+  now = 130;
+  assert.equal(adapter.sendAnalog({ action: 'AIM_MOVE', dx: -0.5, dy: 0, force: 0.5, aimHeld: true }), false);
+  now = 151;
+  assert.equal(adapter.sendAnalog({ action: 'JOYSTICK_MOVE', dx: -0.5, dy: 0, force: 0.5 }), true);
+  now = 201;
+  assert.equal(adapter.sendAnalog({ action: 'AIM_MOVE', dx: 0.5, dy: 0, force: 0.5, aimHeld: true }), true);
+  assert.equal(sent.length, 4);
+});
+
 test('gamepad input adapter dead-zones paddle position without throttling zero release', () => {
   let now = 0;
   const sent = [];

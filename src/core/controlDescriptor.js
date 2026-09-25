@@ -83,7 +83,7 @@ function networkActions(mode, def, schema) {
   if (mode === 'SNAKE') add('steer', ['SNAKE_STEER']);
   if (mode === 'PONG') add('slider', ['PADDLE_MOVE']);
   if (def.left === 'joystick') add('move', ['JOYSTICK_MOVE']);
-  if (def.aim) add('aim', ['AIM_MOVE']);
+  if (def.aim) add('aim', ['AIM_MOVE', 'AIM_PRESS', 'AIM_RELEASE']);
   return actions;
 }
 
@@ -108,6 +108,7 @@ export function getControlDescriptor(mode, schema) {
   const phone = {
     left: def.left,
     aim: !!def.aim,
+    aimMode: def.aimMode || null,
     actions: phoneActions(def, schema),
   };
   const tabletop = getTabletopLayout(mode);
@@ -115,6 +116,7 @@ export function getControlDescriptor(mode, schema) {
   const network = {
     left: def.left,
     aim: !!def.aim,
+    aimMode: def.aimMode || null,
     leftIntent: NETWORK_LEFT_INTENTS[def.left] || 'move',
     actions: networkActions(mode, def, schema),
   };
@@ -136,6 +138,10 @@ export function assertControlDescriptorParity(mode, schema) {
   const tabletopIds = descriptor.tabletop.actions.map((action) => action.id);
   if (!!descriptor.phone.aim !== !!descriptor.tabletop.aim) {
     return { ok: false, reason: 'phone-tabletop-aim-mismatch' };
+  }
+  if (descriptor.phone.aimMode !== descriptor.tabletop.aimMode
+    || descriptor.phone.aimMode !== descriptor.network.aimMode) {
+    return { ok: false, reason: 'aim-policy-mismatch' };
   }
   if (!equivalentLeftTypes(descriptor.phone.left, descriptor.tabletop.left)) {
     return { ok: false, reason: 'phone-tabletop-left-mismatch' };

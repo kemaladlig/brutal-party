@@ -33,10 +33,17 @@ export class GamepadManager {
     this.overlay = overlayEl;
     this.network = network;
     this.inputAdapter = new GamepadInputAdapter((data) => this.network.sendInput(data));
+    this._aimSequence = 0;
     this._lastLocalInputAt = 0;
     this._windowFocused = true;
     this.physicalGamepad = new PhysicalGamepadAdapter({
-      send: (data) => this.network.sendInput(data),
+      send: (data) => {
+        if (data?.action === 'AIM_MOVE' || data?.action === 'AIM_PRESS' || data?.action === 'AIM_RELEASE') {
+          this._sendAimInput(data);
+        } else {
+          this.network.sendInput(data);
+        }
+      },
       getMode: () => this.gameMode,
       getDescriptor: () => getControlDescriptor(this.gameMode, CONTROLLER_META[this.gameMode]?.schema),
       isBlocked: () => !this._windowFocused
@@ -131,8 +138,26 @@ export class GamepadManager {
 
   // Sürekli analog akış için tek gönderim noktası: 50ms throttle + ölübant.
   // Sıfır paketleri (bırakma/durma) ve discrete aksiyonlar ASLA throttle edilmez.
-  _sendAnalog(data) {
-    return this.inputAdapter.sendAnalog(data);
+  _nextAimSequence() {
+    this._aimSequence = (this._aimSequence + 1) >>> 0;
+    return this._aimSequence;
+  }
+
+  _sendAimInput(data) {
+    if (!data || typeof data.action !== 'string') return false;
+    if (data.action === 'AIM_PRESS') this.inputAdapter.resetAction?.('AIM_MOVE');
+    const packet = { ...data };
+    if (!Number.isInteger(packet.seq)) packet.seq = this._nextAimSequence();
+    this.network.sendInput(packet);
+    return true;
+  }
+
+  _sendAnalog(data, opts) {
+    if (!data) return false;
+    const packet = data.action === 'AIM_MOVE' && !Number.isInteger(data.seq)
+      ? { ...data, seq: this._nextAimSequence() }
+      : data;
+    return this.inputAdapter.sendAnalog(packet, opts);
   }
 
   // Ortak aksiyon-buton soğutması (BOMB/HEIST/CROWN aynı desen):
@@ -265,7 +290,13 @@ export class GamepadManager {
   // Nötr paket sol kontrole göre merkezden gelir (controlDefs.getNeutralInput).
   _sendNeutralForMode() {
     try {
-      for (const neutral of getNeutralInputs(this.gameMode)) this.network.sendInput(neutral);
+      for (const neutral of getNeutralInputs(this.gameMode)) {
+        if (neutral.action === 'AIM_MOVE' || neutral.action === 'AIM_RELEASE') {
+          this._sendAimInput(neutral);
+        } else {
+          this.network.sendInput(neutral);
+        }
+      }
     } catch {}
   }
 
@@ -934,12 +965,17 @@ export class GamepadManager {
   }
 
   // Floating Dynamic Joystick Helper (Center-on-touch, no fixed center)
-  bindJoystick(zoneId, knobId, onInput) {
+  bindJoystick(zoneId, knobId, onInput, { onPress, onRelease } = {}) {
     const zone = document.getElementById(zoneId);
     const knob = document.getElementById(knobId);
     if (!zone || !knob) return;
     const baseEl = knob.parentElement;
 
+    let lastInput = { dx: 0, dy: 0, angle: 0, force: 0 };
+    const emitInput = (input) => {
+      lastInput = { ...input };
+      onInput(input);
+    };
     let activeTouchId = null;
     let activePointerId = null;
     let isMouseDown = false;
@@ -964,11 +1000,12 @@ export class GamepadManager {
         baseEl.style.top = `${relY}px`;
       }
       this.vibrate(10);
-      this.updateJoy(clientX, clientY, originX, originY, maxRadius, knob, onInput);
+      this.updateJoy(clientX, clientY, originX, originY, maxRadius, knob, emitInput);
+      onPress?.({ ...lastInput });
     };
 
     const moveAt = (clientX, clientY) => {
-      const reachedMax = this.updateJoy(clientX, clientY, originX, originY, maxRadius, knob, onInput);
+      const reachedMax = this.updateJoy(clientX, clientY, originX, originY, maxRadius, knob, emitInput);
       if (reachedMax && !hitEdge) {
         hitEdge = true;
         this.vibrate(8);
@@ -977,7 +1014,8 @@ export class GamepadManager {
       }
     };
 
-    const endJoy = () => {
+    const endJoy = (cancelled = false) => {
+      const finalInput = { ...lastInput };
       activeTouchId = null;
       activePointerId = null;
       isMouseDown = false;
@@ -988,41 +1026,37 @@ export class GamepadManager {
         baseEl.style.left = '';
         baseEl.style.top = '';
       }
-      onInput({ dx: 0, dy: 0, angle: 0, force: 0 });
+      if (onRelease) {
+        // Optional release callback is used by legacy hold controls; ordinary
+        // movement joysticks send a zero vector below.
+        onRelease(finalInput, { cancelled });
+      } else {
+        // Move joystick: zero packet needed to stop movement.
+        emitInput({ dx: 0, dy: 0, angle: 0, force: 0 });
+      }
     };
 
     const joySignal = this._mountAbort?.signal;
-    if (pointerMode) {
-      zone.addEventListener('pointerdown', (e) => {
-        if (activePointerId !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
-        e.preventDefault();
-        activePointerId = e.pointerId;
-        try { zone.setPointerCapture?.(e.pointerId); } catch {}
-        startAt(e.clientX, e.clientY);
-      }, { passive: false });
-      zone.addEventListener('pointermove', (e) => {
-        if (e.pointerId !== activePointerId) return;
-        e.preventDefault();
-        moveAt(e.clientX, e.clientY);
-      }, { passive: false });
-      const endPointer = (e) => {
-        if (e.pointerId !== activePointerId) return;
-        try { zone.releasePointerCapture?.(e.pointerId); } catch {}
-        endJoy();
-      };
-      zone.addEventListener('pointerup', endPointer, { passive: true });
-      zone.addEventListener('pointercancel', endPointer, { passive: true });
-      zone.addEventListener('lostpointercapture', endPointer, { passive: true });
-    } else {
+    const hasTouch = typeof window !== 'undefined' && ('ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0));
+
+    if (hasTouch) {
+      // Touch-first: Mobil tarayıcılarda (iOS Safari, Android Chrome) dokunmatik takibini
+      // Touch Events API ile doğrudan ve kesintisiz yürütür. Pointer capture düşmesi
+      // veya sahte lostpointercapture kopmaları tamamen engellenir.
       zone.addEventListener('touchstart', (e) => {
-        if (activeTouchId !== null) return;
-        e.preventDefault();
         const touch = e.changedTouches[0];
+        if (!touch) return;
+        e.preventDefault();
+        // Önceki dokunuş kapatılmadan yeni basış geldiyse güvenle devret
+        if (activeTouchId !== null) {
+          endJoy(false);
+        }
         activeTouchId = touch.identifier;
         startAt(touch.clientX, touch.clientY);
       }, { passive: false });
 
-      zone.addEventListener('touchmove', (e) => {
+      window.addEventListener('touchmove', (e) => {
+        if (activeTouchId === null) return;
         for (let i = 0; i < e.changedTouches.length; i++) {
           const touch = e.changedTouches[i];
           if (touch.identifier === activeTouchId) {
@@ -1031,40 +1065,45 @@ export class GamepadManager {
             break;
           }
         }
-      }, { passive: false });
+      }, { passive: false, signal: joySignal });
 
-      zone.addEventListener('touchend', (e) => {
-        for (let i = 0; i < e.changedTouches.length; i++) {
-          if (e.changedTouches[i].identifier === activeTouchId) { endJoy(); break; }
-        }
-      }, { passive: true });
-      zone.addEventListener('touchcancel', (e) => {
-        for (let i = 0; i < e.changedTouches.length; i++) {
-          if (e.changedTouches[i].identifier === activeTouchId) { endJoy(); break; }
-        }
-      }, { passive: true });
-
-      // Zone dışı bırakma / çağrı kesmesi güvenlik ağı (TANKS/CURVE deseni)
-      const onWindowTouchEnd = (e) => {
+      const onTouchEnd = (e, cancelled = false) => {
         if (activeTouchId === null) return;
+        let matched = false;
         for (let i = 0; i < e.changedTouches.length; i++) {
-          if (e.changedTouches[i].identifier === activeTouchId) { endJoy(); break; }
+          if (e.changedTouches[i].identifier === activeTouchId) {
+            matched = true;
+            break;
+          }
+        }
+        if (matched || (e.touches && e.touches.length === 0)) {
+          endJoy(cancelled);
         }
       };
-      window.addEventListener('touchend', onWindowTouchEnd, { passive: true, signal: joySignal });
-      window.addEventListener('touchcancel', onWindowTouchEnd, { passive: true, signal: joySignal });
-
-      // Mouse fallback for desktop testing
-      zone.addEventListener('mousedown', (e) => {
-        isMouseDown = true;
+      window.addEventListener('touchend', (e) => onTouchEnd(e, false), { passive: true, signal: joySignal });
+      window.addEventListener('touchcancel', (e) => onTouchEnd(e, true), { passive: true, signal: joySignal });
+    } else {
+      // Desktop / Mouse fallback (PC testleri için)
+      zone.addEventListener('pointerdown', (e) => {
+        if (activePointerId !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        e.preventDefault();
+        activePointerId = e.pointerId;
         startAt(e.clientX, e.clientY);
-      });
-      window.addEventListener('mousemove', (e) => {
-        if (isMouseDown) moveAt(e.clientX, e.clientY);
-      }, { signal: joySignal });
-      window.addEventListener('mouseup', () => {
-        if (isMouseDown) endJoy();
-      }, { signal: joySignal });
+      }, { passive: false });
+
+      window.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== activePointerId) return;
+        e.preventDefault();
+        moveAt(e.clientX, e.clientY);
+      }, { passive: false, signal: joySignal });
+
+      const onPointerEnd = (e, cancelled = false) => {
+        if (e.pointerId !== activePointerId) return;
+        activePointerId = null;
+        endJoy(cancelled);
+      };
+      window.addEventListener('pointerup', (e) => onPointerEnd(e, false), { passive: true, signal: joySignal });
+      window.addEventListener('pointercancel', (e) => onPointerEnd(e, true), { passive: true, signal: joySignal });
     }
   }
 
@@ -1077,7 +1116,7 @@ export class GamepadManager {
 
     const knobX = Math.cos(angle) * clampedDist;
     const knobY = Math.sin(angle) * clampedDist;
-    knobEl.style.transform = `translate(${knobX}px, ${knobY}px)`;
+    knobEl.style.transform = `translate(${knobX}px, ${knobY}px) rotate(${angle + Math.PI / 2}rad)`;
 
     const rawForce = clampedDist / maxR;
     // 8% deadband to eliminate resting thumb jitter

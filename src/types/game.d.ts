@@ -16,8 +16,13 @@ export interface RemoteInputData {
   action?: string;
   x?: number;
   y?: number;
+  dx?: number;
+  dy?: number;
   angle?: number;
   force?: number;
+  aimHeld?: boolean;
+  cancelled?: boolean;
+  seq?: number;
   btnA?: boolean;
   btnB?: boolean;
   position?: number;

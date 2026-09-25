@@ -36,6 +36,24 @@ test('TV host can join the first empty seat and move after joining', () => {
   assert.equal(manager.getReservedHostSlot(room), null);
 });
 
+test('room input throttle keeps left and right analog streams independent', () => {
+  const manager = new RoomManager();
+  const host = fakeSocket();
+  const room = manager.createRoom(host, 'HORDE', { asPlayer: false, name: 'HOST' });
+  const phone = fakeSocket();
+  manager.joinRoom(room.code, phone, 'PHONE', 'phone-aim', { color: '#1D5D8A' });
+
+  manager.handlePlayerInput(phone, {
+    action: 'JOYSTICK_MOVE', dx: 0.5, dy: 0, angle: 0, force: 0.5,
+  });
+  manager.handlePlayerInput(phone, {
+    action: 'AIM_MOVE', dx: 1, dy: 0, angle: 0, force: 1, aimHeld: true, seq: 1,
+  });
+
+  const forwarded = host.messages.filter((message) => message.type === 'PLAYER_INPUT');
+  assert.deepEqual(forwarded.map((message) => message.data.action), ['JOYSTICK_MOVE', 'AIM_MOVE']);
+});
+
 test('online-style host identity starts in P1 when requested', () => {
   const manager = new RoomManager();
   const host = fakeSocket();

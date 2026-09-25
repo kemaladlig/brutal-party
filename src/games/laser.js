@@ -1,8 +1,7 @@
-// BRUTAL LASER v2: 2-4 oyunculu hareketli lazer-tag — koş, sekme önizlemesiyle
-// nişan al, ateş et. 3 can + dash i-frame + respawn + 90sn kill yarışı + pickup.
-// Tek çubuk: joystick yönü hem hareket hem nişan verir (it=koş+nişan, bırak=dur).
+// BRUTAL LASER v2: 2-4 oyunculu hareketli lazer-tag — koş, sağ çubukla nişan al,
+// bırakınca ateş et. 3 can + dash i-frame + respawn + 90sn kill yarışı + pickup.
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
-import { playExplosion, playStart, playJoin, playGunshot, playDashWhoosh, playItemPickup, playStumble } from '../audio.js';
+import { playExplosion, playStart, playJoin, playGunshot, playDashWhoosh, playItemPickup, playStumble, playDryFire } from '../audio.js';
 import { t } from '../i18n.js';
 import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -66,6 +65,7 @@ function normalizeAngle(a) {
 export class LaserGame extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
+    this.controlMode = 'LASER';
     this.arena = { cx: 0, cy: 0, size: 0, left: 0, right: 0, top: 0, bottom: 0 };
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty'];
     this.scores = [0, 0, 0, 0];
@@ -94,9 +94,7 @@ export class LaserGame extends BaseMiniGame {
     return {
       ...this.getCentralTabletopLayout('LASER'),
       actions: [
-        // Basılı tut = nişan (yavaşla), bırak = ateş; şarj barı isAiming'den gelir
-        { id: 'fire', icon: '🎯', holdToCharge: true },
-        { id: 'dash', icon: '⚡', cooldownField: 'dashCooldown', maxCooldown: LASER_TUNING.DASH_CD },
+        { id: 'dash', icon: 'zap', cooldownField: 'dashCooldown', maxCooldown: LASER_TUNING.DASH_CD },
       ],
     };
   }
@@ -105,14 +103,35 @@ export class LaserGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
     if (actionId === 'fire') {
-      if (isDown) {
-        this.beginAim(player);
-      } else {
-        this.releaseAim(player);
-      }
+      const angle = player.angle;
+      const input = {
+        dx: Math.cos(angle),
+        dy: Math.sin(angle),
+        angle,
+        force: 1,
+      };
+      if (isDown) this.handleSlotAimStart(slotIndex, input, { source: 'touch' });
+      else this.handleSlotAimEnd(slotIndex, input, { source: 'touch', cancelled: false });
     } else if (actionId === 'dash' && isDown) {
       this.triggerDash(slotIndex);
     }
+  }
+
+  onSlotAimHold(slotIndex, isDown, {
+    cancelled = false,
+    hasDirection = false,
+    angle = null,
+  } = {}) {
+    const player = this.players[slotIndex];
+    if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
+    if (isDown) {
+      player.isAiming = this.getAimState(slotIndex)?.active === true;
+      return;
+    }
+    player.isAiming = false;
+    if (!this.isReleaseToFireAim() || cancelled || !hasDirection) return;
+    if (Number.isFinite(angle)) player.targetAngle = angle;
+    this.fireLaser(player);
   }
 
   createWorldPacket() {
@@ -352,7 +371,7 @@ export class LaserGame extends BaseMiniGame {
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || LASER_COLORS[i]),
         x: s.x, y: s.y, angle: s.angle, targetAngle: s.angle,
-        steerX: 0, steerY: 0, kbx: 0, kby: 0,
+        steerX: 0, steerY: 0, kbx: 0, kby: 0, remoteActive: false,
         hp: LASER_TUNING.MAX_HP, cooldown: 0,
         ammo: LASER_TUNING.MAX_AMMO, reloadTimer: 0, shotCooldown: 0, isAiming: false,
         dashTimer: 0, dashCooldown: 0,
@@ -432,6 +451,7 @@ export class LaserGame extends BaseMiniGame {
       p.x = s.x; p.y = s.y;
       p.angle = s.angle; p.targetAngle = s.angle;
       p.steerX = 0; p.steerY = 0; p.kbx = 0; p.kby = 0;
+      p.remoteActive = false;
       p.hp = LASER_TUNING.MAX_HP;
       p.isAlive = p.isJoined;
       p.cooldown = 0;
@@ -473,25 +493,20 @@ export class LaserGame extends BaseMiniGame {
     });
   }
 
-  beginAim(player) {
-    if (this.state !== 'PLAYING') return;
-    if (!player || !player.isJoined || !player.isAlive || player.respawnTimer > 0) return;
-    player.isAiming = true;
-  }
-
-  releaseAim(player) {
-    if (!player) return;
-    player.isAiming = false;
-    this.fireLaser(player);
-  }
-
   fireLaser(player) {
     // Uzak/yakın tüm tetikleyiciler için kapı: PLAYING + canlı + katılmış
     if (this.state !== 'PLAYING') return;
     if (!player || !player.isJoined || !player.isAlive) return;
     if (player.respawnTimer > 0) return;
     if (player.shotCooldown > 0) return;
-    if ((player.ammo ?? 2) <= 0) return;
+    if ((player.ammo ?? 2) <= 0) {
+      playDryFire();
+      if (!player.lastDryFireAt || performance.now() - player.lastDryFireAt > 600) {
+        player.lastDryFireAt = performance.now();
+        this.spawnFloatingText(player.x, player.y - 20, 'DOLUYOR...', '#E53E3E');
+      }
+      return;
+    }
 
     let active = 0;
     for (const lz of this.lasers) if (lz.owner === player.index) active++;
@@ -506,6 +521,7 @@ export class LaserGame extends BaseMiniGame {
     player.cooldown = player.reloadTimer;
 
     playGunshot();
+    if (Number.isFinite(player.targetAngle)) player.angle = player.targetAngle;
     const spd = LASER_TUNING.LASER_SPEED * (player.fastTimer > 0 ? LASER_TUNING.FAST_MULT : 1);
     
     // Triple Laser modu aktifse: 3 yöne ateş (-16°, 0°, +16°)
@@ -656,6 +672,8 @@ export class LaserGame extends BaseMiniGame {
       p.steerX = 0;
       p.steerY = 0;
       p.isAiming = false;
+      p.keyFireLatch = false;
+      p.keyDashLatch = false;
     });
   }
 
@@ -784,7 +802,7 @@ export class LaserGame extends BaseMiniGame {
           player.steerY = 0;
         }
         const aim = this.getAimVector(player.index);
-        if (aim.force > 0.05) {
+        if (this.getAimState(player.index)?.active) {
           player.targetAngle = aim.angle;
         } else if (joy && joy.active && joy.force > 0.08) {
           player.targetAngle = joy.angle;
@@ -792,19 +810,31 @@ export class LaserGame extends BaseMiniGame {
           player.targetAngle = Math.atan2(ki.dy, ki.dx);
         }
 
-        // Nişan: klavye geçiş-temelli (latch) — uzak oyuncunun isAiming'ini
-        // yerel tuş yokken boş frame'de tetiklemez; masa-ortası butonu basılıysa korur
+        // Klavye de aynı aim lifecycle'ını kullanır; hareket yönü attack
+        // açısı olarak canonical state'e yazılır.
         if (ki.fire) {
           if (!player.keyFireLatch) {
-            this.beginAim(player);
+            const angle = player.angle;
+            this.handleSlotAimStart(player.index, {
+              dx: Math.cos(angle),
+              dy: Math.sin(angle),
+              angle,
+              force: 1,
+            }, { source: 'keyboard' });
             player.keyFireLatch = true;
           }
         } else if (player.keyFireLatch) {
           player.keyFireLatch = false;
-          if (!this.tabletopActionState[player.index]?.fire) {
-            this.releaseAim(player);
-          }
+          const angle = player.angle;
+          this.handleSlotAimEnd(player.index, {
+            dx: Math.cos(angle),
+            dy: Math.sin(angle),
+            angle,
+            force: 1,
+          }, { source: 'keyboard', cancelled: false });
         }
+        const aimState = this.getAimState(player.index);
+        player.isAiming = aimState?.active === true;
         if (ki.dash && !player.keyDashLatch) {
           this.triggerDash(player.index);
           player.keyDashLatch = true;
@@ -813,9 +843,14 @@ export class LaserGame extends BaseMiniGame {
         }
       }
 
-      // Nişan yumuşatma
+      // Nişan yumuşatma: Nişan alırken yüksek hızlı akıcı interpolasyon (20Hz paket atlamasını 60/120fps'e yayar)
+      const aim = this.getAimVector(player.index);
       const diff = normalizeAngle(player.targetAngle - player.angle);
-      player.angle += diff * Math.min(1.0, dt * 15);
+      if (player.isAiming || this.getAimState(player.index)?.active) {
+        player.angle += diff * Math.min(1.0, dt * 32);
+      } else {
+        player.angle += diff * Math.min(1.0, dt * 15);
+      }
 
       // Hareket: nişan alırken %50 yavaşlama (Archer stili), depar 2.2x, i-frame dash süresince
       let spd = LASER_TUNING.SPEED;
@@ -945,24 +980,71 @@ export class LaserGame extends BaseMiniGame {
 
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
-    if (!player || !player.isJoined || !player.isAlive) return;
+    if (!player || !player.isJoined || !data) return;
+    const isAimRelease = data.action === 'AIM_RELEASE' || data.intent?.phase === 'release';
+    const isAimPacket = data.action === 'AIM_PRESS'
+      || data.action === 'AIM_MOVE'
+      || data.intent?.type === 'aim'
+      || data.intent?.id === 'aim';
+    if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state) && !isAimRelease) return;
+    if (this.state !== 'PLAYING' && isAimPacket && !isAimRelease) return;
+    if (!player.isAlive && !isAimRelease) return;
 
+    if (this.applyAimLifecycleInput(slotIndex, data)) return;
+    if (!player.isAlive) return;
     if (isInputIntent(data, 'aim') || data.action === 'AIM_MOVE') {
-      this.handleSlotAim(slotIndex, data);
+      this.handleSlotAim(slotIndex, data, { source: data.intent?.source || 'network' });
       return;
     }
     if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
-      // Tek çubuk = koş + nişan (itince döner, bırakınca son nişanı korur)
+      // Twin-stick: sol çubuk yalnız koşar. Aim aktifken bakış yönü sağ
+      // çubuğundur, move paketi targetAngle ezmemeli.
       if (player.slotType !== 'human') return;
-      player.steerX = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
-      player.steerY = Number.isFinite(data.dy) ? Math.max(-1, Math.min(1, data.dy)) : 0;
-      if (Number.isFinite(data.angle) && (data.force || 0) > 0.05) {
-        player.targetAngle = normalizeAngle(data.angle);
+      const dx = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
+      const dy = Number.isFinite(data.dy) ? Math.max(-1, Math.min(1, data.dy)) : 0;
+      const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : Math.hypot(dx, dy);
+      if (force > 0.05) {
+        player.steerX = dx;
+        player.steerY = dy;
+        player.remoteActive = true;
+        const aimActive = this.getAimState(slotIndex)?.active === true;
+        if (!aimActive && Number.isFinite(data.angle)) {
+          player.targetAngle = normalizeAngle(data.angle);
+        }
+        const joy = this.joysticks[slotIndex];
+        if (joy) {
+          joy.active = true;
+          joy.angle = Number.isFinite(data.angle) ? data.angle : Math.atan2(dy, dx);
+          joy.force = force;
+        }
+      } else {
+        player.steerX = 0;
+        player.steerY = 0;
+        player.remoteActive = false;
+        const joy = this.joysticks[slotIndex];
+        if (joy) {
+          joy.active = false;
+          joy.force = 0;
+        }
       }
-    } else if (matchesInputAction(data, 'fire', 'LASER_AIM', 'press')) {
-      this.beginAim(player);
-    } else if (matchesInputAction(data, 'fire', 'LASER_FIRE', 'release') || data.action === 'LASER_FIRE_RELEASE') {
-      this.releaseAim(player);
+    } else if (matchesInputAction(data, 'fire', 'LASER_AIM', 'press') || data.action === 'LASER_AIM') {
+      const angle = player.angle;
+      this.handleSlotAimStart(slotIndex, {
+        dx: Math.cos(angle),
+        dy: Math.sin(angle),
+        angle,
+        force: 1,
+      }, { source: data.intent?.source || 'network' });
+    } else if (matchesInputAction(data, 'fire', 'LASER_FIRE', 'release')
+      || data.action === 'LASER_FIRE'
+      || data.action === 'LASER_FIRE_RELEASE') {
+      const angle = player.targetAngle ?? player.angle;
+      this.handleSlotAimEnd(slotIndex, {
+        dx: Math.cos(angle),
+        dy: Math.sin(angle),
+        angle,
+        force: 1,
+      }, { source: data.intent?.source || 'network', cancelled: false });
     } else if (matchesInputAction(data, 'fire', 'TANK_FIRE')) {
       this.fireLaser(player);
     } else if (matchesInputAction(data, 'dash', 'DASH')) {

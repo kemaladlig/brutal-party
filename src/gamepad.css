@@ -1463,15 +1463,15 @@
   margin-bottom: 0;
 }
 
-/* Twin-stick MOBA surface (ARCHER, LASER, HORDE) */
+/* Twin-stick MOBA surface (ARCHER, LASER, HORDE) — aim her zaman en köşede */
 .twin-stick-action-view {
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 10px;
-  padding: 0 max(18px, env(safe-area-inset-right, 18px)) max(12px, env(safe-area-inset-bottom, 12px)) max(18px, env(safe-area-inset-left, 18px));
+  gap: 8px;
+  padding: 0 max(8px, env(safe-area-inset-right, 8px)) max(12px, env(safe-area-inset-bottom, 12px)) max(8px, env(safe-area-inset-left, 8px));
   box-sizing: border-box;
 }
 
@@ -1482,14 +1482,39 @@
   min-height: 96px;
   position: relative;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-right: 1px dashed rgba(255, 255, 255, 0.14);
+  align-items: flex-end;
   touch-action: none;
 }
 
+.twin-move-half {
+  order: 1;
+  justify-content: flex-start;
+  padding-left: 4px;
+  padding-bottom: 6px;
+  border-right: 1px dashed rgba(255, 255, 255, 0.14);
+}
+
 .twin-aim-half {
+  order: 3;
+  justify-content: flex-end;
+  padding-right: 4px;
+  padding-bottom: 6px;
   border-right: 0;
+}
+
+.twin-aim-half .phone-joy-knob::after {
+  content: '';
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 9px solid #141414;
+  opacity: 0.9;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.4));
 }
 
 .twin-stick-label {
@@ -1506,13 +1531,15 @@
 }
 
 .twin-action-zone {
+  order: 2;
   flex: 0 0 clamp(112px, 24vw, 190px);
   min-width: 0;
   height: min(170px, 34vh);
   min-height: 96px;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
+  padding-bottom: 6px;
   touch-action: none;
 }
 
@@ -1529,8 +1556,10 @@
 @media (orientation: portrait), (max-aspect-ratio: 1/1) {
   .twin-stick-action-view {
     flex-wrap: wrap;
-    align-content: center;
+    align-content: flex-end;
+    align-items: flex-end;
     gap: 6px;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 14px));
   }
 
   .twin-stick-half {
@@ -1538,7 +1567,16 @@
     height: min(150px, 28vh);
   }
 
+  .twin-move-half {
+    order: 1;
+  }
+
+  .twin-aim-half {
+    order: 2;
+  }
+
   .twin-action-zone {
+    order: 3;
     flex: 1 1 100%;
     height: auto;
     min-height: 72px;
@@ -1561,13 +1599,13 @@
   box-sizing: border-box;
 }
 
-/* Portrait Ergonomics: Center-zone joystick and action buttons */
+/* Portrait Ergonomics: joystick sol-alt, action sağ-alt köşeye yakın */
 @media (orientation: portrait), (max-aspect-ratio: 1/1) {
   .joystick-action-view {
     flex-direction: row;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
-    padding: 0 16px max(16px, env(safe-area-inset-bottom, 16px));
+    padding: 0 8px max(14px, env(safe-area-inset-bottom, 14px));
   }
 
   .joystick-half {
@@ -1576,16 +1614,20 @@
     position: relative;
     border-right: 2px dashed rgba(255, 255, 255, 0.12);
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-end;
+    justify-content: flex-start;
+    padding-left: 4px;
+    padding-bottom: 6px;
   }
 
   .action-half {
     flex: 1;
     height: 100%;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding-right: 4px;
+    padding-bottom: 6px;
   }
 }
 
@@ -1593,9 +1635,9 @@
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .joystick-action-view {
     flex-direction: row;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
-    padding: 0 max(28px, env(safe-area-inset-left, 28px)) max(12px, env(safe-area-inset-bottom, 12px)) max(28px, env(safe-area-inset-right, 28px));
+    padding: 0 max(10px, env(safe-area-inset-left, 10px)) max(12px, env(safe-area-inset-bottom, 12px)) max(10px, env(safe-area-inset-right, 10px));
   }
 
   .joystick-half {
@@ -1604,16 +1646,20 @@
     position: relative;
     border-right: 1px dashed rgba(255, 255, 255, 0.08);
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: flex-start;
+    padding-left: 4px;
+    padding-bottom: 6px;
   }
 
   .action-half {
     flex: 1;
     height: 100%;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: flex-end;
+    padding-right: 4px;
+    padding-bottom: 6px;
   }
 }
 
@@ -1839,6 +1885,17 @@
   display: none;
 }
 
+.phone-joy-base.aim-held:not(.aim-active) {
+  border-color: rgba(20, 20, 20, 0.65);
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
+.phone-joy-base.aim-active {
+  border-style: solid;
+  border-color: #141414;
+  box-shadow: 0 0 0 3px rgba(255, 222, 89, 0.55), 4px 5px 0px #000000;
+}
+
 .phone-joy-knob {
   width: 52px;
   height: 52px;
@@ -1925,6 +1982,7 @@
    indicator while the field remains visible above them. */
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .joystick-action-view,
+  .twin-stick-action-view,
   .tanks-arcade-view,
   .curve-controller-view,
   .snake-controller-view {

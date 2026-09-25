@@ -20,6 +20,7 @@ const DISCRETE_MIN_GAP = {
   SPIN: 500, SNAKE_BOOST: 30, SNAKE_BOOST_RELEASE: 30,
   ARCHER_CHARGE: 30, ARCHER_CHARGE_END: 30, LASER_AIM: 30, LASER_FIRE: 100,
   HORDE_FIRE: 30, HORDE_FIRE_RELEASE: 30, NINJA_SMOKE: 100,
+  AIM_PRESS: 30, AIM_RELEASE: 30,
   SWITCH_SLOT: 500, SET_NAME: 1000,
   READY: 300, REACTION: 1000, AVATAR_UPDATE: 1000,
 };
@@ -309,6 +310,9 @@ export class RoomManager {
     };
 
     room.players[slotIndex] = player;
+    for (const key of Object.keys(room._lastInputAt || {})) {
+      if (key.includes(`_${slotIndex}_`)) delete room._lastInputAt[key];
+    }
 
     // Attach metadata to client socket
     clientWs.roomCode = room.code;
@@ -337,7 +341,7 @@ export class RoomManager {
     };
   }
 
-  // Kumanda seli koruması: sürekli analog akış slot başına ~30Hz'e kısılır
+  // Kumanda seli koruması: her analog aksiyon slot başına ~30Hz'e kısılır
   // (AGENTS §5'in 50ms throttle'ı kumanda tarafında; burası ikinci sigortadır).
   // Bozuk paket düşer, discrete aksiyonlar hıza bağlanır (spam/flicker kapanır).
   handlePlayerInput(clientWs, inputData) {
@@ -352,11 +356,17 @@ export class RoomManager {
     const isContinuous = action === 'JOYSTICK_MOVE' || action === 'AIM_MOVE' || action === 'PADDLE_MOVE';
     const isStopSignal = inputData.force === 0 || inputData.dir === 0
       || (action === 'TANK_DRIVE' && inputData.driving === false);
+    if (action === 'AIM_PRESS' || action === 'AIM_RELEASE') {
+      if (room._lastInputAt) delete room._lastInputAt[`in_${clientWs.slotIndex}_AIM_MOVE`];
+    }
     if (isContinuous && !isStopSignal) {
-      const key = `in_${clientWs.slotIndex}`;
+      const key = `in_${clientWs.slotIndex}_${action}`;
       if (room._lastInputAt?.[key] && now - room._lastInputAt[key] < 33) return;
       (room._lastInputAt ||= {})[key] = now;
     } else {
+      if (isContinuous && room._lastInputAt) {
+        delete room._lastInputAt[`in_${clientWs.slotIndex}_${action}`];
+      }
       const gap = DISCRETE_MIN_GAP[action] || 0;
       if (gap > 0) {
         const key = `d_${clientWs.slotIndex}_${action}`;

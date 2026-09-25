@@ -42,16 +42,20 @@ test('physical gamepad adapter emits canonical transport actions without becomin
   connectedPad.buttons[0] = { pressed: false, value: 0 };
   connectedPad.axes = [0, 0, 0.5, 0];
   adapter.poll();
-  assert.equal(sent.at(-1).action, 'AIM_MOVE');
+  assert.equal(sent.at(-2).action, 'AIM_MOVE');
+  assert.equal(sent.at(-1).action, 'AIM_PRESS');
+  assert.equal(Math.abs(sent.at(-1).angle), 0);
 
+  now = 250;
   mode = 'HORDE';
   connectedPad.axes = [0, 0, 0, 0];
   connectedPad.buttons[0] = { pressed: true, value: 1 };
   adapter.poll();
-  assert.equal(sent.at(-1).action, 'HORDE_FIRE');
+  assert.equal(sent.some((packet) => packet.action === 'AIM_RELEASE' && Math.abs(packet.angle) === 0), true);
+  assert.equal(sent.at(-1).action, 'DASH');
   connectedPad.buttons[0] = { pressed: false, value: 0 };
   adapter.poll();
-  assert.equal(sent.at(-1).action, 'HORDE_FIRE_RELEASE');
+  assert.equal(sent.some((packet) => packet.action === 'HORDE_FIRE' || packet.action === 'HORDE_FIRE_RELEASE'), false);
   adapter.stop();
 });
 

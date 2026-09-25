@@ -317,9 +317,93 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
 // Kopan/kapanan kumandanın latch'li girdisini nötrle — koltuk, isim, skor,
 // bot bayrakları AYNEN korunur (koltuğu tut politikası). Host bot ekle/çıkar,
 // sayaç kilidi, ready-reset kurallarına dokunmaz.
+// Aim basılıyken hareketsiz durmak ateşi kesmemeli.
+export function clearRemoteMove(engine, currentMode, slotIndex) {
+  if (!engine || slotIndex < 0 || slotIndex > 3) return;
+  try {
+    if (currentMode === 'TANKS') {
+      const tank = engine.tanks?.[slotIndex];
+      if (tank) tank.isDriving = false;
+    } else if (currentMode === 'CURVE') {
+      const player = engine.players?.[slotIndex];
+      if (player) player.steer = 0;
+    } else if (currentMode === 'SNAKE') {
+      const player = engine.players?.[slotIndex];
+      if (player) {
+        player.steer = 0;
+        player.isBoost = false;
+      }
+    } else if (currentMode === 'ARCHER') {
+      const player = engine.players?.[slotIndex];
+      if (player) {
+        player.steerX = 0;
+        player.steerY = 0;
+        player.remoteActive = false;
+      }
+    } else if (currentMode === 'CLONE' || currentMode === 'COLLAPSE' || currentMode === 'NINJA' || currentMode === 'LASER') {
+      const player = engine.players?.[slotIndex];
+      if (player) {
+        player.steerX = 0;
+        player.steerY = 0;
+        player.remoteActive = false;
+      }
+      const joy = engine.joysticks?.[slotIndex];
+      if (joy) {
+        joy.active = false;
+        joy.force = 0;
+        if ('id' in joy) joy.id = -1;
+      }
+    } else if (currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'CROWN' || currentMode === 'ZONE' || currentMode === 'HORDE' || currentMode === 'RACE') {
+      const joy = engine.joysticks?.[slotIndex];
+      if (joy) {
+        joy.active = false;
+        joy.force = 0;
+        if ('id' in joy) joy.id = -1;
+      }
+      if (currentMode === 'HORDE') {
+        const player = engine.players?.[slotIndex];
+        if (player) {
+          player.remoteMoveActive = false;
+          player.steerX = 0;
+          player.steerY = 0;
+        }
+      }
+    }
+  } catch {}
+}
+
+// Aim tarafı stale düştüğünde: nişan/ateş bırakılır, hareket korunur.
+// Yürürken aim keepalive gecikse bile koşu takılmaz.
+export function clearRemoteAim(engine, currentMode, slotIndex) {
+  if (!engine || slotIndex < 0 || slotIndex > 3) return;
+  try {
+    if (['ARCHER', 'HORDE', 'LASER'].includes(currentMode) && typeof engine.clearAimInput === 'function') {
+      engine.clearAimInput(slotIndex, 'network', true);
+      return;
+    }
+    if (currentMode === 'ARCHER') {
+      const player = engine.players?.[slotIndex];
+      if (player) {
+        player.charging = false;
+        player.charge = 0;
+      }
+    } else if (currentMode === 'LASER') {
+      const player = engine.players?.[slotIndex];
+      if (player) player.isAiming = false;
+    } else if (currentMode === 'HORDE') {
+      const player = engine.players?.[slotIndex];
+      if (player) player.isAiming = false;
+    }
+  } catch {}
+}
+
 export function clearRemoteSlot(engine, currentMode, slotIndex) {
   if (!engine || slotIndex < 0 || slotIndex > 3) return;
   try {
+    if (['ARCHER', 'HORDE', 'LASER'].includes(currentMode)) {
+      if (typeof engine.resetAimInput === 'function') engine.resetAimInput(slotIndex);
+      else if (typeof engine.clearAimInput === 'function') engine.clearAimInput(slotIndex, 'network', true);
+    }
     if (currentMode === 'TANKS') {
       const tank = engine.tanks?.[slotIndex];
       if (tank) tank.isDriving = false;
@@ -333,12 +417,29 @@ export function clearRemoteSlot(engine, currentMode, slotIndex) {
         player.steer = 0;
         player.isBoost = false;
       }
-    } else if (currentMode === 'CLONE' || currentMode === 'COLLAPSE' || currentMode === 'NINJA' || currentMode === 'LASER') {
-      // Takılı yön sıfırlanır (atılma/zıplama/kılıç/ateş anlık olaydır, latch tutmaz)
+    } else if (currentMode === 'ARCHER') {
       const player = engine.players?.[slotIndex];
       if (player) {
         player.steerX = 0;
         player.steerY = 0;
+        player.remoteActive = false;
+        player.charging = false;
+        player.charge = 0;
+      }
+    } else if (currentMode === 'CLONE' || currentMode === 'COLLAPSE' || currentMode === 'NINJA' || currentMode === 'LASER') {
+      // Takılı yön sıfırlanır; LASER'ın aim latch'i dekopte bağlantıda kapatılır.
+      const player = engine.players?.[slotIndex];
+      if (player) {
+        player.steerX = 0;
+        player.steerY = 0;
+        player.remoteActive = false;
+        if (currentMode === 'LASER') player.isAiming = false;
+      }
+      const joy = engine.joysticks?.[slotIndex];
+      if (joy) {
+        joy.active = false;
+        joy.force = 0;
+        if ('id' in joy) joy.id = -1;
       }
     } else if (currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'CROWN' || currentMode === 'ZONE' || currentMode === 'HORDE' || currentMode === 'RACE') {
       const joy = engine.joysticks?.[slotIndex];
@@ -351,7 +452,6 @@ export function clearRemoteSlot(engine, currentMode, slotIndex) {
         const player = engine.players?.[slotIndex];
         if (player) {
           player.remoteMoveActive = false;
-          player.remoteFireHeld = false;
           player.steerX = 0;
           player.steerY = 0;
           player.isAiming = false;

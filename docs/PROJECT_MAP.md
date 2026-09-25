@@ -83,7 +83,9 @@ src/core/
   inputSource.js            Saf keyboard/touch/pointer arbitration; aktif kaynak kilidi
   controlDescriptor.js      phone/tabletop/network normalize kontrol sözleşmesi + parity doğrulaması
   inputIntent.js            Transport action → canonical engine intent projeksiyonu
-  AIM_MOVE                  ARCHER/HORDE/LASER bağımsız sağ analog nişan ekseni
+  aimInput.js               Oyuncu başına canonical aim state: held/active/vector/sequence,
+                            stale/out-of-order guard ve release policy verisi
+  AIM_MOVE/PRESS/RELEASE    ARCHER/HORDE/LASER sağ analog + bas/bırak attack lifecycle'ı
   inputRouter.js            Local/network input → aktif authoritative engine yönlendirmesi
   networkProtocol.js        Ortak ONLINE/TV_CONSOLE input doğrulama sözleşmesi
   worldInterpolation.js     Snapshot tabanlı sunum interpolasyonu: stable-id blend, delayed buffer, no-extrapolation
@@ -209,15 +211,15 @@ tests/                      Node test runner: network protocol, WebRTC kanal/ICE
 | CURVE | Brutal Curve | `src/games/curve.js` | `src/ai/curveAI.js` | `mountCurveController` | Sol/sağ keskin dönüş yarıları; 120sn terminal draw, intro input gate, 24x24 owner + gap maskesi; **30 Hz P2P world-view** |
 | BOMB | Brutal Bomb | `src/games/bomb.js` | `src/ai/bombAI.js` | `mountBombController` | Sanal joystick + depar; 90sn terminal draw, zero-survivor resolution, resize clamp, **30 Hz P2P world-view** |
 | HEIST | Brutal Heist | `src/games/heist.js` | `src/ai/heistAI.js` | `mountHeistController` | Sanal joystick + omuz atma; 45sn raunt, bounded tie draw, loot/resize clamp; **30 Hz P2P world-view** |
-| ARCHER | Brutal Archery | `src/games/archer.js` | `src/ai/archerAI.js` | `JOYSTICK_ACTION` (hold-charge schema) | Serbest hareket + basılı yay germe (nişan salınımı) + bırakınca ok; yakın vuruş 2p / uzak 1p; 60sn raund, 2 raund alan şampiyon; **raund başına rastgele 3 harita (PILLARS/CROSS/SCATTER+hareketli duvar)**; power-up: TURBO/TELEPORT/SLIP + MULTI/QUICKDRAW/SHIELD; mesafe ölçekli stun (yakın 0.12sn → uzak 0.8sn, spam kilitlenmesin); hit-count tiebreak + bounded draw; swept arrows; spawn/power-up state; **30 Hz P2P world-view** (telefon canvası + overlay kontrol) |
+| ARCHER | Brutal Archery | `src/games/archer.js` | `src/ai/archerAI.js` | `TWIN_STICK_ACTION` (sol koşu + sağ aim/release) | Serbest hareket + sağ çubukta basılı yay germe (nişan salınımı) + bırakınca ok; yakın vuruş 2p / uzak 1p; 60sn raund, 2 raund alan şampiyon; **raund başına rastgele 3 harita (PILLARS/CROSS/SCATTER+hareketli duvar)**; power-up: TURBO/TELEPORT/SLIP + MULTI/QUICKDRAW/SHIELD; mesafe ölçekli stun (yakın 0.12sn → uzak 0.8sn, spam kilitlenmesin); hit-count tiebreak + bounded draw; swept arrows; spawn/power-up state; **30 Hz P2P world-view** (telefon canvası + overlay kontrol) |
 | CROWN | Brutal Crown | `src/games-retired/crown.js` | `src/ai/crownAI.js` | `mountCrownController` | **RETIRED ama oynanabilir; UI listesinde sonlarda.** 15s taç tutma + 45s round clock, bounded tie draw, hold-time reset, resize state preservation; pinball hazards; **30 Hz P2P world-view** (`crownView.js` + `crownWorldView.js`) |
 | ZONE | Brutal Zone | `src/games/zone.js` | `src/ai/zoneAI.js` | `mountZoneController` | Grid territory capture; 90sn + %40 early win, bounded tie draw, swept trail cuts, BFS bounty fix, exact RLE validation; **30 Hz P2P world-view** |
 | SNAKE | Brutal Snake | `src/games/snake.js` | `src/ai/snakeAI.js` | `mountSnakeController` | Yemle büyü (max 320), swept collision, 120sn terminal draw, hold-boost; **30 Hz P2P world-view**: mesafe örnekli tam snapshot |
-| LASER | Brutal Laser | `src/games/laser.js` | `src/ai/laserAI.js` | `mountLaserController` | Hareketli lazer-tag: tek çubuk koş+nişan, 3 can + 2sn respawn, dash i-frame (2.2x/0.22sn/4sn), 2-sekmelik nişan önizlemesi, 90sn/10 kill yarışı, timeout draw + round/session ID, owner-lazer guard, resize clamp; **30 Hz P2P world-view** |
+| LASER | Brutal Laser | `src/games/laser.js` | `src/ai/laserAI.js` | `mountLaserController` | Hareketli lazer-tag: sol koşu + sağ twin-stick aim, bırakışta ateş; 3 can + 2sn respawn, dash i-frame (2.2x/0.22sn/4sn), 2-sekmelik nişan önizlemesi, 90sn/10 kill yarışı, timeout draw + round/session ID, owner-lazer guard, resize clamp; **30 Hz P2P world-view** |
 | CLONE | Brutal Clone | `src/games-retired/clone.js` | `src/ai/cloneAI.js` | `mountCloneController` | **RETIRED ama oynanabilir; UI listesinde sonlarda.** 2 gecikmeli kopya, gerçek-vuruş skor + sahte-vuruş 2.5sn slow; 60sn timeout, bounded draw, swept tackle + wall occlusion, resize state preservation; **30 Hz P2P world-view** |
 | COLLAPSE | Brutal Collapse | `src/games/collapse.js` | `src/ai/collapseAI.js` | `mountCollapseController` | 13x13 çöken ızgara, 60sn terminal clock, bounded draw, swept hole collision, pickup expiry, resize state remap; **30 Hz P2P world-view** |
 | NINJA | Brutal Ninja | `src/games/ninja.js` | `src/ai/ninjaAI.js` | `mountNinjaController` | Görünmezlik, 45sn timeout, bounded draw, swept strike + wall occlusion, lantern resize preservation; **30 Hz P2P world-view** (self ghost) |
-| HORDE | Brutal Horde | `src/games/horde.js` | `src/ai/hordeAI.js` | `JOYSTICK_ACTION` (hold-fire + dash) | 1-4 oyunculu takım savunması; 3 tur × 3 dalga, yalnız 1-3/2-3 sonrası edge extraction, tur arası 3 silah + 1 upgrade armory, FOUNDRY/REACTOR/CORE mapaları, 5 tabanca/SMG/SAKMA/UZUN MENZİLLİ/ŞOK BİÇAK, elite + boss-add wave progression, obstacle-safe swept combat; **30 Hz P2P world-view** |
+| HORDE | Brutal Horde | `src/games/horde.js` | `src/ai/hordeAI.js` | `TWIN_STICK_ACTION` (sol koşu + sağ hold-fire + dash) | 1-4 oyunculu takım savunması; 3 tur × 3 dalga, yalnız 1-3/2-3 sonrası edge extraction, tur arası 3 silah + 1 upgrade armory, FOUNDRY/REACTOR/CORE mapaları, 5 tabanca/SMG/SAKMA/UZUN MENZİLLİ/ŞOK BİÇAK, elite + boss-add wave progression, obstacle-safe swept combat; **30 Hz P2P world-view** |
 | RACE | Brutal Race | `src/games/race.js` | `src/ai/raceAI.js` | `JOYSTICK_ACTION` | 3 checkpoint + 3 tur; CIRCUIT/ZIGZAG/SPIRAL; 90sn, round IDs, bounded timeout tie draw, resize clamp/EMP scaling; continuous progress + explicit simultaneous-finish handling; **30 Hz P2P world-view** (`raceView.js` + `raceWorldView.js`) |
 
 ---
@@ -315,7 +317,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
    * Oyuncu paleti tektir: `UI_COLORS.players` (DUEL kanonik palete bağlandı, TV↔kumanda eşleşir).
    * Tematik istisnalar: DUEL skor şeridi/sinyal dili + CROWN final kutusu (ölçüleri standart, kutu dili oyuna özel).
 9. **Girdi Sertleştirme (TV_CONSOLE öncelikli, bütçeler sabit):**
-   * Kumanda analog akışı taşıma-bağımsız tek noktada kısılır (`gamepad.js:_sendAnalog` — 50ms + ölübant PONG 0.003 / joystick Δ 0.02); sıfır/discrete paketler bypass. Sunucu ikinci sigortadır (slot başına ~30Hz + 64KB `bufferedAmount` atlama).
+   * Kumanda analog akışı taşıma-bağımsız tek noktada kısılır (`gamepad.js:_sendAnalog` — 50ms + ölübant PONG 0.003 / joystick Δ 0.02); `JOYSTICK_MOVE` ve `AIM_MOVE` ayrı bütçelerdedir, böylece sağ aim sol hareketi starve olmaz. `AIM_PRESS`/`AIM_RELEASE` discrete bypass'tır; aim paketleri `seq` taşır, host eski/out-of-order paketi uygulamaz. Aktif sağ joystick 200ms keepalive ile host stale-input temizleyicisine bağlı kalmaz. Sunucu/Supabase relay ikinci sigortadır (slot+aksiyon başına ~30Hz + 64KB `bufferedAmount` atlama).
    * Kopan kumanda "nötrlenir + koltuğu tutar": `slotManager:clearRemoteSlot` (joy/isDriving/steer sıfırlar; isim/skor/kind korunur) — `onPlayerLeft`, sayaç başı, lobiye dönüş ve 1.5s analog-sessizlik süpürücüsünde çağrılır.
    * WS kopma gözetimi Supabase ile simetriktir (30s watchdog + üstel geri çekilmeli auto-rejoin, maks 5); BOMB/HEIST/CROWN `handleRemoteInput` ölü-slot guard'ı TANKS/CURVE/PONG ile aynıdır.
 10. **Kontrol Eşleşmesi (kumanda↔motor + lokal klavye):**
@@ -398,7 +400,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
  23. **Bakım ve kontrol sözleşmesi (Phase 5):**
       * `src/core/controlDescriptor.js` phone/tabletop/network yüzeylerini aynı structural contract'a normalize eder; 15 oyunluk parity testi transport action, left intent ve action ID'lerini kilitler.
       * `src/core/inputIntent.js` transport packet'lerini değiştirmeden canonical `intent` alanı ekler; motorlar canonical intent'i okur, eski `action` alanı fallback olarak korunur.
-      * ARCHER/HORDE/LASER `TWIN_STICK_ACTION` + `AIM_MOVE` ile solda hareket, sağda bağımsız nişan kullanır; NINJA bu değişiklikten dışarıdadır.
+      * ARCHER/HORDE/LASER `TWIN_STICK_ACTION` ile solda hareket, sağda `AIM_MOVE` + `AIM_PRESS`/`AIM_RELEASE` attack lifecycle'ı kullanır; ayrı Fire/Charge butonu yoktur. `src/core/aimInput.js` oyuncu başına held/active/vector/sequence state'ini ve stale/out-of-order guard'ını tutar; nötr dokunuş ateş üretmez, merkeze dönüş iptal sayılmaz, explicit touchcancel/build reset durdurur. ARCHER/LASER bırakışta ateşler, HORDE basılıyken ateş edip bırakışta durur; NINJA bu değişiklikten dışarıdadır.
       * `src/core/inputRouter.js` local/network adapter'larını aktif authoritative engine'e taşır; `GamepadManager` ve `BaseGame` yeni transport dalları taşımaz.
       * Yeni fiziksel gamepad API bu canonical intent sınırına ikincil adapter olarak bağlanacak; fiziksel cihaz varsayılan giriş yüzeyi olmayacak.
 

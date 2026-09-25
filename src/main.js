@@ -33,10 +33,11 @@ import {
   uiFont,
   CONTROL_SURFACE,
   getControlSurface,
+  getControlSurfacePreference,
   isTouchDevice,
 } from './ui/tokens.js';
 import { openCustomizeModal, initMenuAvatarCard } from './ui/customizeModal.js';
-import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, isBotEkleEnabled, getColorClashIndices, refreshAllHostSlots } from './core/slotManager.js';
+import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, clearRemoteMove, clearRemoteAim, isBotEkleEnabled, getColorClashIndices, refreshAllHostSlots } from './core/slotManager.js';
 import { getAvatarProfile, sanitizeAvatar, pickFreeColor, setSlotAvatar, clearSlotAvatar, loadLocalSeatColors, ensureLocalSeatColorsForTypes, getLocalSeatColors } from './core/customizationManager.js';
 import {
   initPauseModal,
@@ -423,6 +424,8 @@ async function openHostLobby(gameMode = 'HORDE') {
         const engineLeft = getActiveGameEngine();
         if (engineLeft) clearRemoteSlot(engineLeft, currentMode, msg.slotIndex);
         delete lastRemoteInputAt[msg.slotIndex];
+        delete lastMoveAt[msg.slotIndex];
+        delete lastAimAt[msg.slotIndex];
         delete lastAvatarAt[msg.slotIndex];
         clearSlotAvatar(msg.slotIndex);
         updateHostSlot(msg.slotIndex, false);
@@ -530,9 +533,24 @@ async function openHostLobby(gameMode = 'HORDE') {
           return;
         }
         if (typeof slotIndex !== 'number' || slotIndex < 0 || slotIndex > 3) return;
-        // Analog sessizlik süpürücüsü için son-girdi damgası (sürekli akış takibi)
-        if (data.action === 'JOYSTICK_MOVE' || data.action === 'AIM_MOVE' || data.action === 'PADDLE_MOVE'
-          || data.action === 'TANK_DRIVE' || data.action === 'CURVE_STEER' || data.action === 'SNAKE_STEER') {
+        // Analog sessizlik süpürücüsü için son-girdi damgası (sürekli akış takibi).
+        // Move ve aim ayrı damgalanır: hareketsiz durmak ateşi, aim bırakmak
+        // koşuyu öldürmemeli.
+        if (data.action === 'JOYSTICK_MOVE' || data.action === 'PADDLE_MOVE' || data.action === 'TANK_DRIVE'
+          || data.action === 'CURVE_STEER' || data.action === 'SNAKE_STEER') {
+          lastRemoteInputAt[slotIndex] = performance.now();
+          lastMoveAt[slotIndex] = performance.now();
+        } else if (data.action === 'AIM_MOVE' || data.action === 'AIM_PRESS') {
+          lastRemoteInputAt[slotIndex] = performance.now();
+          // Aktif basılı tutma (aimHeld), ilk basış veya hareketli aim damgayı günceller.
+          // Yalnızca serbest bırakılmış nötr paketler damgayı yeniden diriltemez.
+          if (data.action === 'AIM_PRESS' || data.aimHeld || (Number(data.force) > 0)) {
+            lastAimAt[slotIndex] = performance.now();
+          }
+        } else if (data.action === 'AIM_RELEASE') {
+          // Release arrival is not an acknowledgement: a reordered packet may
+          // be rejected by AimInputState. Keep the timestamp so stale cleanup
+          // still closes a genuinely held stick.
           lastRemoteInputAt[slotIndex] = performance.now();
         }
         const engine = getActiveGameEngine();
@@ -888,7 +906,7 @@ function returnHostToLobby() {
   // Lobiye dönüşte latch'ler nötrlenir (maç-sonu hayaleti lobiye/staging'e sızmasın)
   const engineLobby = getActiveGameEngine();
   if (engineLobby) clearAllRemoteSlots(engineLobby, currentMode);
-  for (let i = 0; i < 4; i++) delete lastRemoteInputAt[i];
+  for (let i = 0; i < 4; i++) { delete lastRemoteInputAt[i]; delete lastMoveAt[i]; delete lastAimAt[i]; }
   setGameMode('MENU');
   activeNet().returnToLobby();
   setLocalReadyFlags(false);
@@ -955,7 +973,10 @@ let countdownTimer = null;
 
 // Uzak-girdi canlılık damgaları: analog sessizlik süpürücüsü için.
 // Koltuk politikası değişmez — sadece latch nötrlenir, koltuk dolu kalır.
+// Move ve aim ayrı izlenir; biri stale olunca yalnız o taraf temizlenir.
 const lastRemoteInputAt = {};
+const lastMoveAt = {};
+const lastAimAt = {};
 // Kumanda avatar-güncelleme kısması (slot başına 1sn sel koruması)
 const lastAvatarAt = {};
 const STALE_ANALOG_MS = 1500;
@@ -966,9 +987,28 @@ setInterval(() => {
   if (!engine) return;
   const now = performance.now();
   for (let i = 0; i < 4; i++) {
-    const last = lastRemoteInputAt[i];
-    if (last === undefined) continue;
-    if (now - last >= STALE_ANALOG_MS) {
+    const lastMove = lastMoveAt[i];
+    const lastAim = lastAimAt[i];
+    const lastAny = lastRemoteInputAt[i];
+    if (lastMove === undefined && lastAim === undefined && lastAny === undefined) continue;
+    const moveStale = lastMove !== undefined && now - lastMove >= STALE_ANALOG_MS;
+    const aimStale = lastAim !== undefined && now - lastAim >= STALE_ANALOG_MS;
+    const anyStale = lastAny !== undefined && now - lastAny >= STALE_ANALOG_MS
+      && lastMove === undefined && lastAim === undefined;
+    if (moveStale && aimStale) {
+      clearRemoteSlot(engine, currentMode, i);
+      delete lastMoveAt[i];
+      delete lastAimAt[i];
+      delete lastRemoteInputAt[i];
+    } else if (moveStale) {
+      clearRemoteMove(engine, currentMode, i);
+      delete lastMoveAt[i];
+      if (lastAim === undefined) delete lastRemoteInputAt[i];
+    } else if (aimStale) {
+      clearRemoteAim(engine, currentMode, i);
+      delete lastAimAt[i];
+      if (lastMove === undefined) delete lastRemoteInputAt[i];
+    } else if (anyStale) {
       clearRemoteSlot(engine, currentMode, i);
       delete lastRemoteInputAt[i];
     }
@@ -1084,7 +1124,7 @@ function runCountdown() {
   // Sayaç başında yarım kalmış latch taşınmasın (önceki turun hayaleti)
   const enginePre = getActiveGameEngine();
   if (enginePre) clearAllRemoteSlots(enginePre, mode);
-  for (let i = 0; i < 4; i++) delete lastRemoteInputAt[i];
+  for (let i = 0; i < 4; i++) { delete lastRemoteInputAt[i]; delete lastMoveAt[i]; delete lastAimAt[i]; }
   seatsLocked = true;
   let t = 3;
   const tick = () => {
@@ -1198,12 +1238,18 @@ function getLocalHumanCount(engine = getActiveGameEngine()) {
 }
 
 function getEffectiveLocalSurface(engine = getActiveGameEngine()) {
+  const pref = getControlSurfacePreference();
+  // Kullanıcı açıkça MOBILE veya TABLETOP seçtiyse tercihi korunur
+  if (pref === CONTROL_SURFACE.MOBILE || pref === CONTROL_SURFACE.TABLETOP) {
+    return pref;
+  }
   return getLocalHumanCount(engine) > 1
     ? CONTROL_SURFACE.TABLETOP
     : getControlSurface();
 }
 
 function getLocalControlSlot(engine = getActiveGameEngine()) {
+  if (hostPlayerActive && hostPlayerSlot !== null) return hostPlayerSlot;
   const entities = typeof engine?.getEntitiesList === 'function'
     ? engine.getEntitiesList()
     : (engine?.players || engine?.tanks || engine?.paddles || []);
@@ -1213,7 +1259,9 @@ function getLocalControlSlot(engine = getActiveGameEngine()) {
 function syncLocalMobileControls(now = performance.now()) {
   const engine = getActiveGameEngine();
   const localSlot = getLocalControlSlot(engine);
-  const shouldShow = platformMode === 'LOCAL'
+  const hosting = activeNet().isHosting;
+  const isLocalHost = hosting && hostPlayerActive && hostPlayerSlot !== null;
+  const shouldShow = (platformMode === 'LOCAL' || isLocalHost)
     && getEffectiveLocalSurface(engine) === CONTROL_SURFACE.MOBILE
     && currentMode !== 'MENU'
     && engine?.state === 'PLAYING'

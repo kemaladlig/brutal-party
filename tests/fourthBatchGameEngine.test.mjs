@@ -70,6 +70,16 @@ function setup(Game) {
   return game;
 }
 
+test('LASER neutral quick tap does not fire', () => {
+  const game = setup(LaserGame);
+  const player = game.players[0];
+  player.shotCooldown = 0;
+  player.ammo = 2;
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 0, dy: 0, angle: 0, force: 0 });
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 0, dy: 0, angle: 0, force: 0 });
+  assert.equal(game.lasers.length, 0);
+});
+
 test('LASER timeout is an explicit draw and world packet carries it', () => {
   const game = setup(LaserGame);
   game.matchTimer = 0;
@@ -77,6 +87,24 @@ test('LASER timeout is an explicit draw and world packet carries it', () => {
   assert.equal(game.state, 'MATCH_OVER');
   assert.equal(game.matchDraw, true);
   assert.equal(game.createWorldPacket().matchDraw, true);
+});
+
+test('LASER aim stick releases into fire and cancellation does not shoot', () => {
+  const game = setup(LaserGame);
+  const player = game.players[0];
+  player.shotCooldown = 0;
+  player.ammo = 2;
+
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1 });
+  assert.equal(player.isAiming, true);
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1 });
+  assert.equal(player.isAiming, false);
+  assert.equal(game.lasers.length, 1);
+
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1 });
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 0, dy: 0, angle: 0, force: 0, cancelled: true });
+  assert.equal(player.isAiming, false);
+  assert.equal(game.lasers.length, 1);
 });
 
 test('CLONE timeout awards a survivor and advances round identity', () => {

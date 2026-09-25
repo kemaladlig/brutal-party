@@ -2,6 +2,10 @@
 // Keep validation here so ONLINE and TV_CONSOLE cannot drift apart.
 
 const finiteNum = (value) => typeof value === 'number' && Number.isFinite(value);
+const validAimMeta = (data) => (
+  (data.aimHeld === undefined || typeof data.aimHeld === 'boolean')
+  && (data.seq === undefined || (Number.isInteger(data.seq) && data.seq >= 0))
+);
 
 /**
  * Validate an input packet before it reaches an authoritative host.
@@ -13,11 +17,33 @@ export function isValidNetworkInput(data) {
 
   switch (data.action) {
     case 'JOYSTICK_MOVE':
-    case 'AIM_MOVE':
       return finiteNum(data.dx) && finiteNum(data.dy)
         && Math.abs(data.dx) <= 1.05 && Math.abs(data.dy) <= 1.05
         && finiteNum(data.angle) && finiteNum(data.force)
         && data.force >= 0 && data.force <= 1.05;
+
+    case 'AIM_MOVE':
+      return finiteNum(data.dx) && finiteNum(data.dy)
+        && Math.abs(data.dx) <= 1.05 && Math.abs(data.dy) <= 1.05
+        && finiteNum(data.angle) && finiteNum(data.force)
+        && data.force >= 0 && data.force <= 1.05
+        && validAimMeta(data);
+
+    case 'AIM_PRESS':
+      return finiteNum(data.dx) && finiteNum(data.dy)
+        && Math.abs(data.dx) <= 1.05 && Math.abs(data.dy) <= 1.05
+        && finiteNum(data.angle) && finiteNum(data.force)
+        && data.force >= 0 && data.force <= 1.05
+        && (data.cancelled === undefined || typeof data.cancelled === 'boolean')
+        && validAimMeta(data);
+
+    case 'AIM_RELEASE':
+      return finiteNum(data.dx) && finiteNum(data.dy)
+        && Math.abs(data.dx) <= 1.05 && Math.abs(data.dy) <= 1.05
+        && finiteNum(data.angle) && finiteNum(data.force)
+        && data.force >= 0 && data.force <= 1.05
+        && (data.cancelled === undefined || typeof data.cancelled === 'boolean')
+        && validAimMeta(data);
 
     case 'PADDLE_MOVE':
       return finiteNum(data.position) && data.position >= -0.05 && data.position <= 1.05;

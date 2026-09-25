@@ -14,6 +14,7 @@ function actionIntent(descriptor, action) {
 export function normalizeInputIntent(data, descriptor = null, source = 'network') {
   if (!data || typeof data.action !== 'string') return data;
 
+  const seq = Number.isInteger(data.seq) && data.seq >= 0 ? data.seq : null;
   let intent;
   switch (data.action) {
     case 'AIM_MOVE':
@@ -24,7 +25,15 @@ export function normalizeInputIntent(data, descriptor = null, source = 'network'
         dy: Number(data.dy) || 0,
         angle: Number(data.angle) || 0,
         force: Number(data.force) || 0,
+        held: data.aimHeld === true,
+        ...(seq === null ? {} : { seq }),
       };
+      break;
+    case 'AIM_PRESS':
+      intent = { type: 'action', id: 'aim', phase: 'press', ...(seq === null ? {} : { seq }) };
+      break;
+    case 'AIM_RELEASE':
+      intent = { type: 'action', id: 'aim', phase: 'release', ...(seq === null ? {} : { seq }) };
       break;
     case 'JOYSTICK_MOVE':
     case 'MOVE':
@@ -61,8 +70,8 @@ export function normalizeInputIntent(data, descriptor = null, source = 'network'
     default:
       intent = actionIntent(descriptor, data.action) || {
         type: 'action',
-        id: data.action.toLowerCase(),
-        phase: 'press',
+        id: data.action.toLowerCase().replace(/_release|_end|_press/g, ''),
+        phase: /RELEASE|END/.test(data.action) ? 'release' : 'press',
       };
       break;
   }

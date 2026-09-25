@@ -77,7 +77,8 @@ test('horde is registered once with world-view and declared controls', () => {
   assert.equal(GAME_ORDER.filter((mode) => mode === 'HORDE').length, 1);
   assert.ok(GAME_ORDER.indexOf('HORDE') < GAME_ORDER.indexOf('RACE'));
   assert.equal(CARTRIDGES.HORDE.worldView ? true : false, true);
-  assert.equal(CARTRIDGES.HORDE.schema.def.right.join(','), 'fire,dash');
+  assert.equal(CARTRIDGES.HORDE.schema.def.right.join(','), 'dash');
+  assert.deepEqual(CARTRIDGES.HORDE.schema.actions.map((action) => action.id), ['dash']);
   assert.equal(typeof CARTRIDGES.HORDE.createEngine, 'function');
 });
 
@@ -112,25 +113,44 @@ test('remote joystick, held fire and dash share the current input contract', () 
   assert.equal(player.steerX, 0.8);
   assert.equal(player.targetAngle, 0);
 
-  game.handleRemoteInput(0, { action: 'HORDE_FIRE' });
-  assert.equal(player.remoteFireHeld, true);
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1 });
+  assert.equal(game.getAimState(0).held, true);
   assert.equal(player.isAiming, true);
   game.handleRemoteInput(0, { action: 'DASH' });
   assert.equal(player.dashCooldown, 4);
 
-  game.handleRemoteInput(0, { action: 'HORDE_FIRE_RELEASE' });
-  assert.equal(player.remoteFireHeld, false);
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1 });
+  assert.equal(game.getAimState(0).held, false);
   assert.equal(player.isAiming, false);
 
   game.state = 'ROUND_PAUSE';
   game.handleRemoteInput(0, { action: 'JOYSTICK_MOVE', dx: 0.5, dy: 0, angle: 0, force: 0.5 });
-  game.handleRemoteInput(0, { action: 'HORDE_FIRE' });
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1 });
   assert.equal(player.steerX, 0.5);
-  assert.equal(player.remoteFireHeld, false);
+  assert.equal(game.getAimState(0).held, false);
 
   game.state = 'LOBBY';
-  game.handleRemoteInput(0, { action: 'HORDE_FIRE' });
-  assert.equal(player.remoteFireHeld, false);
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1 });
+  assert.equal(game.getAimState(0).held, false);
+});
+
+test('neutral Horde aim does not fire until a real direction is held', () => {
+  const game = setup();
+  const player = game.players[0];
+  game.enemies = [];
+  player.attackCooldown = 0;
+  player.ammo = 5;
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 0, dy: 0, angle: 0, force: 0 });
+  game.update(1016);
+  assert.equal(game.projectiles.length, 0);
+
+  game.handleRemoteInput(0, { action: 'AIM_MOVE', dx: 1, dy: 0, angle: 0, force: 1, aimHeld: true });
+  game.update(1032);
+  assert.equal(player.ammo, 4);
+  const afterReleaseAmmo = player.ammo;
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1 });
+  game.update(1048);
+  assert.equal(player.ammo, afterReleaseAmmo);
 });
 
 test('pickups apply heal, shield, speed and triple-shot effects', () => {

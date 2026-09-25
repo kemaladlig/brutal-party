@@ -38,6 +38,7 @@ const ARCHER_PICKUP_TYPES = ['TURBO', 'TELEPORT', 'SLIP', 'MULTI', 'QUICKDRAW', 
 export class ArcherGame extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
+    this.controlMode = 'ARCHER';
     this.arena = { cx: 0, cy: 0, size: 0, left: 0, right: 0, top: 0, bottom: 0 };
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty'];
     this.scores = [0, 0, 0, 0];
@@ -367,10 +368,7 @@ export class ArcherGame extends BaseMiniGame {
   getTabletopSchema() {
     return {
       ...this.getCentralTabletopLayout('ARCHER'),
-      actions: [
-        // keyHint verilmedi: rozet slot başına doğru aksiyon tuşunu gösterir (SPACE/ENTER/O/B)
-        { id: 'charge', icon: '🏹', holdToCharge: true, chargeField: 'charge' },
-      ],
+      actions: [],
     };
   }
 
@@ -378,12 +376,36 @@ export class ArcherGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
     if (actionId === 'charge') {
-      if (isDown) {
-        this.beginCharge(player);
-      } else {
-        this.looseArrow(player);
-      }
+      const angle = player.angle;
+      const input = {
+        dx: Math.cos(angle),
+        dy: Math.sin(angle),
+        angle,
+        force: 1,
+      };
+      if (isDown) this.handleSlotAimStart(slotIndex, input, { source: 'touch' });
+      else this.handleSlotAimEnd(slotIndex, input, { source: 'touch', cancelled: false });
     }
+  }
+
+  onSlotAimHold(slotIndex, isDown, {
+    cancelled = false,
+    hasDirection = false,
+    angle = null,
+  } = {}) {
+    const player = this.players[slotIndex];
+    if (!player || !player.isJoined || !player.isAlive) return;
+    if (isDown) {
+      this.beginCharge(player);
+      return;
+    }
+    if (!this.isReleaseToFireAim() || cancelled || !hasDirection) {
+      player.charging = false;
+      player.charge = 0;
+      return;
+    }
+    if (Number.isFinite(angle)) player.angle = angle;
+    this.looseArrow(player);
   }
 
   onTouchStart(touch) {
@@ -427,7 +449,13 @@ export class ArcherGame extends BaseMiniGame {
 
   onTouchesReset() {
     this.resetTabletopTouches();
-    this.players.forEach((p) => { p.steerX = 0; p.steerY = 0; p.charging = false; p.charge = 0; });
+    this.players.forEach((p) => {
+      p.steerX = 0;
+      p.steerY = 0;
+      p.charging = false;
+      p.charge = 0;
+      p.keyActionLatch = false;
+    });
   }
 
   pointBlocked(x, y) {
@@ -497,7 +525,7 @@ export class ArcherGame extends BaseMiniGame {
           player.steerY = 0;
         }
         const aim = this.getAimVector(player.index);
-        if (aim.force > 0.05) {
+        if (this.getAimState(player.index)?.active) {
           player.angle = aim.angle;
         } else if (joy && joy.active && joy.force > 0.08) {
           player.angle = joy.angle;
@@ -505,18 +533,28 @@ export class ArcherGame extends BaseMiniGame {
           player.angle = Math.atan2(ki.dy, ki.dx);
         }
 
-        // Yay: klavye geçiş-temelli (latch) — uzak oyuncunun charging'ini yerel
-        // tuş yokken boş frame'de iptal etmez; masa-ortası butonu basılıysa korur
+        // Klavye de aynı aim lifecycle'ını kullanır; movement yönü attack
+        // açısı olarak canonical state'e yazılır.
         if (ki.action) {
           if (!player.keyActionLatch) {
-            this.beginCharge(player);
+            const angle = player.angle;
+            this.handleSlotAimStart(player.index, {
+              dx: Math.cos(angle),
+              dy: Math.sin(angle),
+              angle,
+              force: 1,
+            }, { source: 'keyboard' });
             player.keyActionLatch = true;
           }
         } else if (player.keyActionLatch) {
           player.keyActionLatch = false;
-          if (!this.tabletopActionState[player.index]?.action) {
-            this.looseArrow(player);
-          }
+          const angle = player.angle;
+          this.handleSlotAimEnd(player.index, {
+            dx: Math.cos(angle),
+            dy: Math.sin(angle),
+            angle,
+            force: 1,
+          }, { source: 'keyboard', cancelled: false });
         }
       }
 
@@ -646,10 +684,20 @@ export class ArcherGame extends BaseMiniGame {
 
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
-    if (!player || !player.isJoined || !player.isAlive) return;
+    if (!player || !player.isJoined || !data) return;
+    const isAimRelease = data.action === 'AIM_RELEASE' || data.intent?.phase === 'release';
+    const isAimPacket = data.action === 'AIM_PRESS'
+      || data.action === 'AIM_MOVE'
+      || data.intent?.type === 'aim'
+      || data.intent?.id === 'aim';
+    if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state) && !isAimRelease) return;
+    if (this.state !== 'PLAYING' && isAimPacket && !isAimRelease) return;
+    if (!player.isAlive && !isAimRelease) return;
 
+    if (this.applyAimLifecycleInput(slotIndex, data)) return;
+    if (!player.isAlive) return;
     if (isInputIntent(data, 'aim') || data.action === 'AIM_MOVE') {
-      this.handleSlotAim(slotIndex, data);
+      this.handleSlotAim(slotIndex, data, { source: data.intent?.source || 'network' });
       return;
     }
     if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
@@ -657,10 +705,14 @@ export class ArcherGame extends BaseMiniGame {
       if (force > 0.05) {
         player.steerX = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
         player.steerY = Number.isFinite(data.dy) ? Math.max(-1, Math.min(1, data.dy)) : 0;
-        if (Number.isFinite(data.angle)) {
-          player.angle = data.angle;
-        } else if (player.steerX !== 0 || player.steerY !== 0) {
-          player.angle = Math.atan2(player.steerY, player.steerX);
+        // Aim aktifken bakış sağ çubuktadır, move paketi açı ezmemeli.
+        const aimActive = this.getAimState(slotIndex)?.active === true;
+        if (!aimActive) {
+          if (Number.isFinite(data.angle)) {
+            player.angle = data.angle;
+          } else if (player.steerX !== 0 || player.steerY !== 0) {
+            player.angle = Math.atan2(player.steerY, player.steerX);
+          }
         }
         player.remoteActive = true;
       } else {
@@ -668,10 +720,22 @@ export class ArcherGame extends BaseMiniGame {
         player.steerY = 0;
         player.remoteActive = false;
       }
-    } else if (matchesInputAction(data, 'charge', 'ARCHER_CHARGE', 'press')) {
-      this.beginCharge(player);
-    } else if (matchesInputAction(data, 'charge', 'ARCHER_CHARGE_END', 'release')) {
-      this.looseArrow(player);
+    } else if (matchesInputAction(data, 'charge', 'ARCHER_CHARGE', 'press') || data.action === 'ARCHER_CHARGE') {
+      const angle = player.angle;
+      this.handleSlotAimStart(slotIndex, {
+        dx: Math.cos(angle),
+        dy: Math.sin(angle),
+        angle,
+        force: 1,
+      }, { source: data.intent?.source || 'network' });
+    } else if (matchesInputAction(data, 'charge', 'ARCHER_CHARGE_END', 'release') || data.action === 'ARCHER_CHARGE_END') {
+      const angle = player.angle;
+      this.handleSlotAimEnd(slotIndex, {
+        dx: Math.cos(angle),
+        dy: Math.sin(angle),
+        angle,
+        force: 1,
+      }, { source: data.intent?.source || 'network', cancelled: false });
     }
   }
 

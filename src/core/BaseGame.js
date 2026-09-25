@@ -12,13 +12,20 @@ import { UI_COLORS, getDisplayProfile, shouldShowVirtualControls, isTouchDevice 
 import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { t } from '../i18n.js';
 import { drawTabletopIcon } from './tabletopIcons.js';
-import { getTabletopLayout, validateControlDef } from '../controllers/controlDefs.js';
+import {
+  AIM_HOLD_TO_FIRE,
+  AIM_RELEASE_TO_FIRE,
+  getControlDef,
+  getTabletopLayout,
+  validateControlDef,
+} from '../controllers/controlDefs.js';
 import {
   claimInputSource as arbitrateInputSource,
   releaseInputSource as arbitrateInputRelease,
 } from './inputSource.js';
-import { isInputIntent } from './inputIntent.js';
+import { isInputIntent, matchesInputAction } from './inputIntent.js';
 import { assertControlDescriptorParity } from './controlDescriptor.js';
+import { AimInputState, getAimAction } from './aimInput.js';
 
 const STEER_KEY_HINTS = ['A/D', '←/→', 'J/L', 'F/H'];
 
@@ -106,6 +113,7 @@ export class BaseMiniGame {
     // Optional secondary analog aim input (MOBA twin-stick games).
     this.tabletopAimTouches = new Map();
     this.tabletopAimState = [null, null, null, null];
+    this.aimStates = [0, 1, 2, 3].map(() => new AimInputState());
     this.aimVectors = [0, 1, 2, 3].map(() => ({ dx: 0, dy: 0, angle: 0, force: 0 }));
 
     // Responsive Viewport (Ayrık HUD & Dokunmatik için ekran sınırları)
@@ -434,7 +442,8 @@ export class BaseMiniGame {
       const actualLeft = schema.steer ? 'steer' : schema.joystick ? 'joystick' : null;
       if (actualIds.join('|') !== expectedIds.join('|')
         || actualLeft !== result.descriptor.tabletop.left
-        || !!schema.aim !== !!result.descriptor.tabletop.aim) {
+        || !!schema.aim !== !!result.descriptor.tabletop.aim
+        || schema.aimMode !== result.descriptor.tabletop.aimMode) {
         console.warn(`[controlDescriptor] ${mode}: engine tabletop schema differs from registry`);
         return false;
       }
@@ -442,25 +451,127 @@ export class BaseMiniGame {
     } catch { return true; }
   }
 
+  _syncAimState(slotIndex) {
+    const state = this.aimStates?.[slotIndex];
+    if (!state) return;
+    const vector = { ...state.vector };
+    this.aimVectors[slotIndex] = vector;
+    this.tabletopAimState[slotIndex] = state.snapshot();
+  }
+
+  getAimState(slotIndex) {
+    return this.aimStates?.[slotIndex] || null;
+  }
+
+  getAimMode() {
+    return getControlDef(this.controlMode)?.aimMode || null;
+  }
+
+  isReleaseToFireAim() {
+    return this.getAimMode() === AIM_RELEASE_TO_FIRE;
+  }
+
+  isHoldToFireAim() {
+    return this.getAimMode() === AIM_HOLD_TO_FIRE;
+  }
+
   setAimVector(slotIndex, input = {}) {
-    const force = Number.isFinite(input.force) ? Math.max(0, Math.min(1, input.force)) : 0;
-    const dx = Number.isFinite(input.dx) ? Math.max(-1, Math.min(1, input.dx)) : 0;
-    const dy = Number.isFinite(input.dy) ? Math.max(-1, Math.min(1, input.dy)) : 0;
-    const hasAimDirection = force > 0.05 && Number.isFinite(input.angle);
-    const angle = hasAimDirection
-      ? input.angle
-      : (force > 0.05 ? Math.atan2(dy, dx) : this.aimVectors[slotIndex]?.angle || 0);
-    this.aimVectors[slotIndex] = { dx, dy, angle, force };
-    this.tabletopAimState[slotIndex] = this.aimVectors[slotIndex];
+    const state = this.getAimState(slotIndex);
+    if (!state) return null;
+    state.setVector(input);
+    this._syncAimState(slotIndex);
+    if (typeof this.onSlotAim === 'function') this.onSlotAim(slotIndex, input);
+    return state.snapshot();
   }
 
   getAimVector(slotIndex) {
-    return this.aimVectors[slotIndex] || { dx: 0, dy: 0, angle: 0, force: 0 };
+    const vector = this.aimStates?.[slotIndex]?.vector;
+    return vector ? { ...vector } : { dx: 0, dy: 0, angle: 0, force: 0 };
   }
 
-  handleSlotAim(slotIndex, input = {}) {
-    this.setAimVector(slotIndex, input);
+  handleSlotAim(slotIndex, input = {}, options = {}) {
+    const state = this.getAimState(slotIndex);
+    if (!state) return null;
+    const source = options.source || input.intent?.source || 'touch';
+    const event = state.move(source, input, input);
+    this._syncAimState(slotIndex);
+    if (event.accepted && event.type === 'press') {
+      this.onSlotAimHold?.(slotIndex, true, { ...event, source });
+    }
     if (typeof this.onSlotAim === 'function') this.onSlotAim(slotIndex, input);
+    return event;
+  }
+
+  handleSlotAimStart(slotIndex, input = {}, options = {}) {
+    const state = this.getAimState(slotIndex);
+    if (!state) return null;
+    const source = options.source || input.intent?.source || 'touch';
+    const event = state.press(source, input, input);
+    this._syncAimState(slotIndex);
+    if (event.accepted && !event.previousHeld) {
+      this.onSlotAimHold?.(slotIndex, true, { ...event, source });
+    }
+    if (typeof this.onSlotAim === 'function') this.onSlotAim(slotIndex, input);
+    return event;
+  }
+
+  handleSlotAimEnd(slotIndex, input = {}, options = {}) {
+    const state = this.getAimState(slotIndex);
+    if (!state) return null;
+    const source = options.source || input.intent?.source || 'touch';
+    const event = state.release(source, input, {
+      ...input,
+      cancelled: options.cancelled === true,
+    });
+    this._syncAimState(slotIndex);
+    if (event.accepted && event.previousHeld) {
+      this.onSlotAimHold?.(slotIndex, false, { ...event, source });
+    }
+    if (typeof this.onSlotAim === 'function') this.onSlotAim(slotIndex, input);
+    return event;
+  }
+
+  clearAimInput(slotIndex, source = null, cancelled = true) {
+    const state = this.getAimState(slotIndex);
+    if (!state) return [];
+    const events = state.clear(source, cancelled);
+    this._syncAimState(slotIndex);
+    for (const event of events) {
+      this.onSlotAimHold?.(slotIndex, false, { ...event, source: event.source });
+    }
+    return events;
+  }
+
+  resetAimInput(slotIndex) {
+    const state = this.getAimState(slotIndex);
+    if (!state) return;
+    const events = state.clear(null, true);
+    for (const event of events) {
+      this.onSlotAimHold?.(slotIndex, false, { ...event, source: event.source });
+    }
+    state.reset();
+    this._syncAimState(slotIndex);
+  }
+
+  resetAimInputs() {
+    for (let i = 0; i < this.aimStates.length; i++) this.resetAimInput(i);
+  }
+
+  applyAimLifecycleInput(slotIndex, data, onPress, onRelease) {
+    const action = getAimAction(data);
+    if (action !== 'AIM_PRESS' && action !== 'AIM_RELEASE') return false;
+    const source = data.intent?.source || 'network';
+    const event = action === 'AIM_PRESS'
+      ? this.handleSlotAimStart(slotIndex, data, { source })
+      : this.handleSlotAimEnd(slotIndex, data, {
+        source,
+        cancelled: data.cancelled === true,
+      });
+    if (event?.accepted && typeof this.onSlotAimHold !== 'function') {
+      if (action === 'AIM_PRESS' && !event.previousHeld) onPress?.(slotIndex, data, event);
+      if (action === 'AIM_RELEASE' && event.previousHeld) onRelease?.(slotIndex, event);
+    }
+    return true;
   }
 
   getTabletopAimVector(aimBox, x, y) {
@@ -512,8 +623,8 @@ export class BaseMiniGame {
           if (touch.x >= aimBox.x && touch.x <= aimBox.x + aimBox.w
             && touch.y >= aimBox.y && touch.y <= aimBox.y + aimBox.h) {
             const vector = this.getTabletopAimVector(aimBox, touch.x, touch.y);
-            this.tabletopAimTouches.set(touch.id, { slotIndex: i });
-            this.handleSlotAim(i, vector);
+            this.tabletopAimTouches.set(touch.id, { slotIndex: i, vector });
+            this.handleSlotAimStart(i, vector, { source: 'touch' });
             return true;
           }
         }
@@ -567,7 +678,9 @@ export class BaseMiniGame {
       const info = this.tabletopAimTouches.get(touch.id);
       const corner = this.getTabletopControlCorners()[info.slotIndex];
       if (corner?.aimBox) {
-        this.handleSlotAim(info.slotIndex, this.getTabletopAimVector(corner.aimBox, touch.x, touch.y));
+        const vector = this.getTabletopAimVector(corner.aimBox, touch.x, touch.y);
+        info.vector = vector;
+        this.handleSlotAim(info.slotIndex, vector, { source: 'touch' });
       }
       return true;
     }
@@ -615,7 +728,10 @@ export class BaseMiniGame {
     if (this.tabletopAimTouches.has(touch.id)) {
       const info = this.tabletopAimTouches.get(touch.id);
       this.tabletopAimTouches.delete(touch.id);
-      this.handleSlotAim(info.slotIndex, { force: 0, angle: this.getAimVector(info.slotIndex).angle });
+      this.handleSlotAimEnd(info.slotIndex, info.vector || {}, {
+        source: 'touch',
+        cancelled: false,
+      });
       this._releaseTouchSourceIfIdle();
       return true;
     }
@@ -663,10 +779,14 @@ export class BaseMiniGame {
     this.tabletopActionTouches.clear();
     this.tabletopActionState = [{}, {}, {}, {}];
     for (const info of this.tabletopAimTouches.values()) {
-      this.handleSlotAim(info.slotIndex, { force: 0, angle: this.getAimVector(info.slotIndex).angle });
+      this.handleSlotAimEnd(info.slotIndex, info.vector || {}, {
+        source: 'touch',
+        cancelled: true,
+      });
     }
     this.tabletopAimTouches.clear();
     this.tabletopAimState = [null, null, null, null];
+    this.resetAimInputs();
     this.resetStandardJoysticks();
   }
 
@@ -1388,8 +1508,17 @@ export class BaseMiniGame {
         joy.force = Math.max(0, Math.min(1, mag));
       }
     }
+    const aimSource = input.intent?.source || 'local';
+    if (matchesInputAction(input, 'aim', 'AIM_PRESS', 'press')) {
+      this.handleSlotAimStart(slotIndex, input.aim || input, { source: aimSource });
+    } else if (matchesInputAction(input, 'aim', 'AIM_RELEASE', 'release')) {
+      this.handleSlotAimEnd(slotIndex, input.aim || input, {
+        source: aimSource,
+        cancelled: input.cancelled === true,
+      });
+    }
     if (input.aim || input.action === 'AIM_MOVE') {
-      this.handleSlotAim(slotIndex, input.aim || input);
+      this.handleSlotAim(slotIndex, input.aim || input, { source: aimSource });
     }
     if (typeof input.steer === 'number') {
       this.handleSlotSteer(slotIndex, input.steer);
@@ -1409,8 +1538,9 @@ export class BaseMiniGame {
   // applySlotInput'a düşer. 15 motorun tamamı bunu override eder.
   handleRemoteInput(slotIndex, data = {}) {
     if (!data || typeof data.action !== 'string') return;
+    if (this.applyAimLifecycleInput(slotIndex, data)) return;
     if (isInputIntent(data, 'aim') || data.action === 'AIM_MOVE') {
-      this.handleSlotAim(slotIndex, data);
+      this.handleSlotAim(slotIndex, data, { source: data.intent?.source || 'network' });
       return;
     }
     if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
