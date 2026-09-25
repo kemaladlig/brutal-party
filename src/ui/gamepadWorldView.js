@@ -7,10 +7,12 @@ import {
   canBlendWorldFrames,
   selectBufferedWorldFrame,
 } from '../core/worldInterpolation.js';
+import { renderWorldConnecting } from './worldViewKit.js';
 
 export { blendWorldFrames };
 
 const STALE_AFTER_MS = 1500;
+const CONNECTING_AFTER_MS = 1500;
 const DEFAULT_INTERVAL_MS = 1000 / 30;
 const MIN_INTERVAL_MS = 25;
 const MAX_INTERVAL_MS = 250;
@@ -52,6 +54,7 @@ export class GamepadWorldView {
     this.hostId = null;
     this.lastSeq = -1;
     this.lastFrameAt = 0;
+    this.mountedAt = performance.now();
     this.isStale = false;
     this.renderDurations = [];
     this.rafId = 0;
@@ -263,7 +266,11 @@ export class GamepadWorldView {
     this.ctx.setTransform(this.dpr || 1, 0, 0, this.dpr || 1, 0, 0);
 
     if (!this.frame) {
-      this.renderer.renderPlaceholder?.(this.ctx, this.logicalWidth, this.logicalHeight);
+      if (now - this.mountedAt >= CONNECTING_AFTER_MS) {
+        renderWorldConnecting(this.ctx, this.logicalWidth, this.logicalHeight);
+      } else {
+        this.renderer.renderPlaceholder?.(this.ctx, this.logicalWidth, this.logicalHeight);
+      }
       return;
     }
 
@@ -274,7 +281,11 @@ export class GamepadWorldView {
 
     const sample = this._sampleAt(now);
     if (!sample) {
-      this.renderer.renderPlaceholder?.(this.ctx, this.logicalWidth, this.logicalHeight);
+      if (now - this.mountedAt >= CONNECTING_AFTER_MS) {
+        renderWorldConnecting(this.ctx, this.logicalWidth, this.logicalHeight);
+      } else {
+        this.renderer.renderPlaceholder?.(this.ctx, this.logicalWidth, this.logicalHeight);
+      }
       return;
     }
 

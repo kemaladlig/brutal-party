@@ -14,6 +14,7 @@ import {
   drawSnakePlayers,
 } from './snakeView.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
+import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { distToSegmentSquared, getProjectileSubsteps, clampToArena } from '../core/physics2d.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
@@ -381,7 +382,7 @@ export class SnakeGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
-      steer: true,
+      ...this.getCentralTabletopLayout('SNAKE'),
       leftLabel: '◀',
       rightLabel: '▶',
       actions: [
@@ -738,7 +739,7 @@ export class SnakeGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
 
-    if (data.action === 'SNAKE_DIR') {
+    if (isInputIntent(data, 'direction') || data.action === 'SNAKE_DIR') {
       if (Number.isFinite(data.angle)) {
         player.targetAngle = data.angle;
       } else if (Number.isFinite(data.dx) && Number.isFinite(data.dy) && (data.dx !== 0 || data.dy !== 0)) {
@@ -746,11 +747,11 @@ export class SnakeGame extends BaseMiniGame {
       }
       player.steer = 0;
       player.remoteSteerActive = false;
-    } else if (data.action === 'SNAKE_STEER' || data.action === 'CURVE_STEER') {
+    } else if (isInputIntent(data, 'steer') || data.action === 'SNAKE_STEER' || data.action === 'CURVE_STEER') {
       player.steer = Number.isFinite(data.dir) ? data.dir : 0;
       player.remoteSteerActive = (player.steer !== 0);
       if (player.steer !== 0) player.targetAngle = null;
-    } else if (data.action === 'JOYSTICK_MOVE') {
+    } else if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
       const dx = data.dx || 0;
       const dy = data.dy || 0;
       if (Math.hypot(dx, dy) > 0.3) {
@@ -758,10 +759,10 @@ export class SnakeGame extends BaseMiniGame {
         player.steer = 0;
         player.remoteSteerActive = false;
       }
-    } else if (data.action === 'SNAKE_BOOST') {
+    } else if (matchesInputAction(data, 'boost', 'SNAKE_BOOST', 'press')) {
       player.isBoost = true;
       player.remoteBoostActive = true;
-    } else if (data.action === 'SNAKE_BOOST_RELEASE') {
+    } else if (matchesInputAction(data, 'boost', 'SNAKE_BOOST_RELEASE', 'release')) {
       player.isBoost = false;
       player.remoteBoostActive = false;
     }

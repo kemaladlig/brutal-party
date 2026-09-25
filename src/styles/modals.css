@@ -281,6 +281,27 @@
   color: #ffffff;
 }
 
+.settings-range-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 170px;
+}
+
+.settings-range-wrap input[type="range"] {
+  width: 120px;
+  accent-color: #d84727;
+  touch-action: manipulation;
+}
+
+.settings-range-wrap output {
+  min-width: 38px;
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 /* About info rows */
 .info-row {
   display: flex;

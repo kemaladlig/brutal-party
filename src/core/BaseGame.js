@@ -13,6 +13,12 @@ import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, cleanWinn
 import { t } from '../i18n.js';
 import { drawTabletopIcon } from './tabletopIcons.js';
 import { getTabletopLayout, validateControlDef } from '../controllers/controlDefs.js';
+import {
+  claimInputSource as arbitrateInputSource,
+  releaseInputSource as arbitrateInputRelease,
+} from './inputSource.js';
+import { isInputIntent } from './inputIntent.js';
+import { assertControlDescriptorParity } from './controlDescriptor.js';
 
 const STEER_KEY_HINTS = ['A/D', '←/→', 'J/L', 'F/H'];
 
@@ -62,6 +68,24 @@ export class BaseMiniGame {
     // Shared Local Keyboard Input State
     this.keys = {};
     this._keyboardBound = false;
+    this.inputSource = null;
+    this._inputSourceKeyboardGuard = (e) => {
+      if (!this.isLocalInputActive) return;
+      const isControlKey = e.code === 'Space'
+        || e.key === ' '
+        || e.code === 'Enter'
+        || e.code === 'NumpadEnter'
+        || e.code.startsWith('Arrow')
+        || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyI', 'KeyJ', 'KeyK', 'KeyL', 'KeyT', 'KeyF', 'KeyG', 'KeyH', 'KeyB', 'KeyO'].includes(e.code);
+      if (!isControlKey) return;
+      if (this.inputSource === 'touch') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
+      this.inputSource = 'keyboard';
+    };
+    window.addEventListener('keydown', this._inputSourceKeyboardGuard, true);
 
     // 4 Corner Floating Virtual Joysticks (P1: BL, P2: TL, P3: TR, P4: BR)
     this.joysticks = [
@@ -222,12 +246,31 @@ export class BaseMiniGame {
   // Local Keyboard Input (4 Slots: WASD, Arrows, IJKL, TFGH)
   // ---------------------------------------------------------------------------
 
+  claimInputSource(source) {
+    const result = arbitrateInputSource(this.inputSource, source);
+    this.inputSource = result.current;
+    return result.accepted;
+  }
+
+  releaseInputSource(source = null) {
+    this.inputSource = arbitrateInputRelease(this.inputSource, source);
+  }
+
+  resetInputSource() {
+    this.inputSource = null;
+  }
+
   bindStandardKeyboard(onPlayerAction = null) {
     if (this._keyboardBound) return;
     this._keyboardBound = true;
 
     window.addEventListener('keydown', (e) => {
       if (!this.isLocalInputActive) return;
+      const isControlKey = e.code === 'Space'
+        || e.key === ' '
+        || e.code.startsWith('Arrow')
+        || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyI', 'KeyJ', 'KeyK', 'KeyL', 'KeyT', 'KeyF', 'KeyG', 'KeyH', 'KeyB'].includes(e.code);
+      if (isControlKey && !this.claimInputSource('keyboard')) return;
 
       // Blur any focused DOM element (like bento menu buttons) to avoid accidental click invocation via Space
       if (document.activeElement && document.activeElement !== document.body && document.activeElement !== this.canvas) {
@@ -264,7 +307,7 @@ export class BaseMiniGame {
   }
 
   getPlayerKeyboardVector(slotIndex) {
-    if (!this.isLocalInputActive) return { x: 0, y: 0 };
+    if (!this.isLocalInputActive || (this.inputSource && this.inputSource !== 'keyboard')) return { x: 0, y: 0 };
     return keyboardVectorFrom(this.keys, slotIndex);
   }
 
@@ -283,6 +326,7 @@ export class BaseMiniGame {
   }
 
   handleStandardJoystickTouchStart(touch, onDoubleTapAction = null) {
+    if (!this.claimInputSource('touch')) return false;
     const q = this.getCornerQuadrant(touch);
     const joy = this.joysticks[q];
     const p = this.players?.[q];
@@ -338,6 +382,7 @@ export class BaseMiniGame {
         joy.active = false;
         joy.id = -1;
         joy.force = 0;
+        if (!this.joysticks.some((candidate) => candidate.active)) this.releaseInputSource('touch');
         return true;
       }
     }
@@ -350,6 +395,7 @@ export class BaseMiniGame {
       joy.id = -1;
       joy.force = 0;
     }
+    this.releaseInputSource('touch');
   }
 
   // ---------------------------------------------------------------------------
@@ -372,7 +418,20 @@ export class BaseMiniGame {
 
   assertTabletopParity(mode) {
     try {
-      return validateControlDef(mode, this.getTabletopSchema());
+      const schema = this.getTabletopSchema();
+      const result = assertControlDescriptorParity(mode, schema);
+      if (!result.ok) {
+        console.warn(`[controlDescriptor] ${mode}: ${result.reason}`);
+        return false;
+      }
+      const actualIds = (schema.actions || []).map((action) => action.id);
+      const expectedIds = result.descriptor.tabletop.actions.map((action) => action.id);
+      const actualLeft = schema.steer ? 'steer' : schema.joystick ? 'joystick' : null;
+      if (actualIds.join('|') !== expectedIds.join('|') || actualLeft !== result.descriptor.tabletop.left) {
+        console.warn(`[controlDescriptor] ${mode}: engine tabletop schema differs from registry`);
+        return false;
+      }
+      return validateControlDef(mode, schema);
     } catch { return true; }
   }
 
@@ -392,6 +451,7 @@ export class BaseMiniGame {
 
   handleTabletopTouchStart(touch) {
     if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state)) return false;
+    if (!this.claimInputSource('touch')) return false;
     const schema = this.getTabletopSchema();
     const players = this.getEntitiesList();
 
@@ -480,6 +540,14 @@ export class BaseMiniGame {
     return this.handleStandardJoystickTouchMove(touch);
   }
 
+  _releaseTouchSourceIfIdle() {
+    if (this.tabletopSteerTouches.size === 0
+      && this.tabletopActionTouches.size === 0
+      && !this.joysticks.some((joy) => joy.active)) {
+      this.releaseInputSource('touch');
+    }
+  }
+
   handleTabletopTouchEnd(touch) {
     if (this.tabletopSteerTouches.has(touch.id)) {
       const info = this.tabletopSteerTouches.get(touch.id);
@@ -493,6 +561,7 @@ export class BaseMiniGame {
       }
       this.tabletopSteerState[info.slotIndex] = remainingDir;
       this.handleSlotSteer(info.slotIndex, remainingDir);
+      this._releaseTouchSourceIfIdle();
       return true;
     }
     if (this.tabletopActionTouches.has(touch.id)) {
@@ -502,6 +571,7 @@ export class BaseMiniGame {
         this.tabletopActionState[info.slotIndex][info.actionId] = false;
       }
       this.handleSlotAction(info.slotIndex, info.actionId, false);
+      this._releaseTouchSourceIfIdle();
       return true;
     }
     return this.handleStandardJoystickTouchEnd(touch);
@@ -1166,7 +1236,7 @@ export class BaseMiniGame {
     if (!joy) return;
     const player = this.players?.[slotIndex];
 
-    if (data.action === 'JOYSTICK_MOVE') {
+    if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
       if (player && (!player.isJoined || !player.isAlive)) return;
       const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : 0;
       joy.active = force > 0.05;
@@ -1208,6 +1278,7 @@ export class BaseMiniGame {
 
   // Lokal klavye/dokunmatik discrete girdileri için giriş noktası.
   handleLocalInput(slotIndex, data = {}) {
+    if (!this.claimInputSource('touch')) return;
     this.applySlotInput(slotIndex, data);
   }
 
@@ -1215,7 +1286,7 @@ export class BaseMiniGame {
   // applySlotInput'a düşer. 15 motorun tamamı bunu override eder.
   handleRemoteInput(slotIndex, data = {}) {
     if (!data || typeof data.action !== 'string') return;
-    if (data.action === 'JOYSTICK_MOVE') {
+    if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
       const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : 0;
       const angle = Number.isFinite(data.angle) ? data.angle : 0;
       this.applySlotInput(slotIndex, {

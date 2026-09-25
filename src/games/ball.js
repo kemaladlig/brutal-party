@@ -1,5 +1,6 @@
 // Ball physics with progressive speed escalation, smash mechanics, sonic booms & overdrive hazards
 import { playPaddleHit, playWallHit, playGoal, playShoot, playSonicBoom, playPowerUp } from '../audio.js';
+import { vibrate } from '../core/haptics.js';
 
 export class Ball {
   constructor(game) {
@@ -405,7 +406,7 @@ export class Ball {
       this.game.addTrauma(0.22);
       playPowerUp();
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate([30, 40, 30]);
+        vibrate([30, 40, 30]);
       }
     }
 
@@ -415,13 +416,13 @@ export class Ball {
       playShoot();
       this.game.addTrauma(0.24);
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate([25, 40]);
+        vibrate([25, 40]);
       }
     } else {
       playPaddleHit(pitchIntensity);
       this.game.addTrauma(0.12 + Math.min(0.18, this.rallyCount * 0.015));
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(18);
+        vibrate(18);
       }
     }
   }
@@ -584,7 +585,7 @@ export class Ball {
     playGoal();
 
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate([40, 50, 70]);
+      vibrate([40, 50, 70]);
     }
 
     this.game.addTrauma(0.38);

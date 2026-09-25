@@ -98,9 +98,17 @@ export class RoomManager {
 
   _installHostPlayer(room, hostWs, identity = {}) {
     if (!room || !hostWs?.isHost) return { success: false, error: 'HOST YOK' };
-    const existing = room.players[0];
+    const requestedSlot = Number.isInteger(identity.slotIndex) ? identity.slotIndex : 0;
+    if (requestedSlot < 0 || requestedSlot > 3) {
+      return { success: false, error: 'KOLTUK GEÇERSİZ' };
+    }
+    const existingHostSlot = this.getReservedHostSlot(room);
+    if (existingHostSlot !== null && existingHostSlot !== requestedSlot) {
+      this._removeHostPlayer(room);
+    }
+    const existing = room.players[requestedSlot];
     if (existing && !existing.isHost) {
-      return { success: false, error: 'P1 DOLU' };
+      return { success: false, error: `P${requestedSlot + 1} DOLU` };
     }
 
     const takenColors = room.players
@@ -129,7 +137,7 @@ export class RoomManager {
     }
 
     const player = {
-      slotIndex: 0,
+      slotIndex: requestedSlot,
       name: finalName,
       clientId: identity.clientId || null,
       color: avatar.color,
@@ -139,18 +147,20 @@ export class RoomManager {
       joinedAt: Date.now(),
       ping: 0,
     };
-    room.players[0] = player;
-    room.ready[0] = true;
-    hostWs.slotIndex = 0;
+    room.players[requestedSlot] = player;
+    room.ready[requestedSlot] = true;
+    hostWs.slotIndex = requestedSlot;
     return { success: true, player };
   }
 
   _removeHostPlayer(room) {
     if (!room) return { success: false, error: 'ODA YOK' };
-    const player = room.players[0];
+    const slotIndex = this.getReservedHostSlot(room);
+    if (slotIndex === null) return { success: false, error: 'HOST OYUNCU DEĞİL' };
+    const player = room.players[slotIndex];
     if (!player?.isHost) return { success: false, error: 'HOST OYUNCU DEĞİL' };
-    room.players[0] = null;
-    room.ready[0] = false;
+    room.players[slotIndex] = null;
+    room.ready[slotIndex] = false;
     if (room.hostWs) room.hostWs.slotIndex = undefined;
     return { success: true, player };
   }
@@ -499,9 +509,9 @@ export class RoomManager {
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
     if (slotA < 0 || slotA > 3 || slotB < 0 || slotB > 3 || slotA === slotB) return;
-    // Bot ve host koltukları ne hedef ne kaynak olur
-    if (room.players[slotA]?.isBot || room.players[slotB]?.isBot
-      || room.players[slotA]?.isHost || room.players[slotB]?.isHost) return;
+    // Bot koltukları ne hedef ne kaynak olur. Host oyuncusu oturduktan sonra
+    // mevcut koltuk takasıyla yer değiştirebilir.
+    if (room.players[slotA]?.isBot || room.players[slotB]?.isBot) return;
 
     const playerColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
     const pA = room.players[slotA];

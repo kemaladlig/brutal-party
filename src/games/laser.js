@@ -8,6 +8,7 @@ import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
+import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, updateMovers } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
@@ -91,7 +92,7 @@ export class LaserGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
-      joystick: true,
+      ...this.getCentralTabletopLayout('LASER'),
       actions: [
         // Basılı tut = nişan (yavaşla), bırak = ateş; şarj barı isAiming'den gelir
         { id: 'fire', icon: '🎯', holdToCharge: true },
@@ -940,7 +941,7 @@ export class LaserGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
 
-    if (data.action === 'JOYSTICK_MOVE') {
+    if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
       // Tek çubuk = koş + nişan (itince döner, bırakınca son nişanı korur)
       if (player.slotType !== 'human') return;
       player.steerX = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
@@ -948,13 +949,13 @@ export class LaserGame extends BaseMiniGame {
       if (Number.isFinite(data.angle) && (data.force || 0) > 0.05) {
         player.targetAngle = normalizeAngle(data.angle);
       }
-    } else if (data.action === 'LASER_AIM') {
+    } else if (matchesInputAction(data, 'fire', 'LASER_AIM', 'press')) {
       this.beginAim(player);
-    } else if (data.action === 'LASER_FIRE' || data.action === 'LASER_FIRE_RELEASE') {
+    } else if (matchesInputAction(data, 'fire', 'LASER_FIRE', 'release') || data.action === 'LASER_FIRE_RELEASE') {
       this.releaseAim(player);
-    } else if (data.action === 'TANK_FIRE') {
+    } else if (matchesInputAction(data, 'fire', 'TANK_FIRE')) {
       this.fireLaser(player);
-    } else if (data.action === 'DASH') {
+    } else if (matchesInputAction(data, 'dash', 'DASH')) {
       this.triggerDash(slotIndex);
     }
   }

@@ -171,6 +171,7 @@ export function handleMessage(ws, msg, roomManager) {
       const result = roomManager.handleSetHostPlayer(ws, !!msg.active, {
         name: msg.name,
         avatar: msg.avatar,
+        slotIndex: msg.slotIndex,
       });
       if (!result.success) {
         ws.send(JSON.stringify({

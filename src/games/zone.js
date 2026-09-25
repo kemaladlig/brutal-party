@@ -15,6 +15,7 @@ import {
   playPowerUp,
 } from '../audio.js';
 import { t } from '../i18n.js';
+import { matchesInputAction } from '../core/inputIntent.js';
 import {
   renderTopPill,
   renderSpatialBadge,
@@ -33,6 +34,7 @@ import {
 } from './zoneView.js';
 import { drawSquareParticles, drawAlphaTexts } from './worldCore.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
+import { vibrate } from '../core/haptics.js';
 
 export const ZONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ZONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -156,7 +158,7 @@ export class ZoneGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
-      joystick: true,
+      ...this.getCentralTabletopLayout('ZONE'),
       actions: [
         {
           id: 'dash',
@@ -772,7 +774,7 @@ export class ZoneGame extends BaseMiniGame {
     this.burst(v.x, v.y, v.color, 24);
     this.addTrauma(0.55);
     playExplosion();
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([40, 50, 70]);
+    if (typeof navigator !== 'undefined' && navigator.vibrate) vibrate([40, 50, 70]);
   }
 
   // Kafa kafaya çarpışma: Her iki oyuncu da üsse geri ışınlanır, izleri silinir
@@ -858,7 +860,7 @@ export class ZoneGame extends BaseMiniGame {
     penalizeAndReset(i);
     penalizeAndReset(j);
     this.recomputePct();
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([40, 50, 70]);
+    if (typeof navigator !== 'undefined' && navigator.vibrate) vibrate([40, 50, 70]);
   }
 
   // İz kapanışı: iz hücreleri + çevrili kalan nötr/düşman hücreler kapanana geçer.
@@ -1026,7 +1028,7 @@ export class ZoneGame extends BaseMiniGame {
 
   handleRemoteInput(slotIndex, data) {
     this.handleStandardRemoteJoystick(slotIndex, data, (slot, d) => {
-      if (d.action === 'DASH') {
+      if (matchesInputAction(d, 'dash', 'DASH')) {
         this.triggerDash(slot);
       }
     });

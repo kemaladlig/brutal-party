@@ -106,10 +106,17 @@ export class SupabaseRelay {
       return { success: true, active: false, slotIndex: null, player: null };
     }
 
-    let slotIndex = this._hostPlayerIndex();
-    if (slotIndex < 0) {
-      if (this.players[0]) return { success: false, error: 'P1 DOLU' };
-      slotIndex = 0;
+    const requestedSlot = Number.isInteger(identity.slotIndex) ? identity.slotIndex : 0;
+    if (requestedSlot < 0 || requestedSlot > 3) {
+      return { success: false, error: 'KOLTUK GEÇERSİZ' };
+    }
+    const existingHostSlot = this._hostPlayerIndex();
+    if (existingHostSlot >= 0 && existingHostSlot !== requestedSlot) {
+      this._removeHostPlayer();
+    }
+    let slotIndex = requestedSlot;
+    if (this.players[slotIndex]) {
+      return { success: false, error: `P${slotIndex + 1} DOLU` };
     }
 
     let avatar = null;
@@ -203,7 +210,7 @@ export class SupabaseRelay {
     this.supportsWorldFrames = hostIdentity.worldView !== false;
     this._installHostPlayer(hostIdentity);
     this.hostPlayerActive = hostIdentity.asPlayer !== false;
-    this.hostPlayerSlot = this.hostPlayerActive ? 0 : null;
+    this.hostPlayerSlot = this._hostPlayerIndex() >= 0 ? this._hostPlayerIndex() : null;
     this.reservedHostSlot = this.hostPlayerSlot;
 
     // Generate room code
@@ -657,12 +664,18 @@ export class SupabaseRelay {
     if (this.role !== 'HOST') return;
     if (slotA < 0 || slotA > 3 || slotB < 0 || slotB > 3 || slotA === slotB) return;
     if (this.players[slotA]?.isBot || this.players[slotB]?.isBot) return;
-    if (this.players[slotA]?.isHost || this.players[slotB]?.isHost) return;
 
     const pA = this.players[slotA];
     const pB = this.players[slotB];
     this.players[slotA] = pB;
     this.players[slotB] = pA;
+    if (pA?.isHost) {
+      this.hostPlayerSlot = slotB;
+      this.reservedHostSlot = slotB;
+    } else if (pB?.isHost) {
+      this.hostPlayerSlot = slotA;
+      this.reservedHostSlot = slotA;
+    }
 
     const readyA = this.ready[slotA];
     this.ready[slotA] = this.ready[slotB];

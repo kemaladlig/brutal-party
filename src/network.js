@@ -284,7 +284,9 @@ export class PartyNetwork {
     this.role = 'HOST';
     this.callbacks = { ...this.callbacks, ...callbacks };
     this.hostPlayerActive = hostIdentity.asPlayer === true;
-    this.hostPlayerSlot = this.hostPlayerActive ? 0 : null;
+    this.hostPlayerSlot = this.hostPlayerActive
+      ? (Number.isInteger(hostIdentity.slotIndex) ? hostIdentity.slotIndex : 0)
+      : null;
     this.reservedHostSlot = this.hostPlayerSlot;
     this.players = [null, null, null, null];
 
@@ -296,6 +298,7 @@ export class PartyNetwork {
           name: hostIdentity.name,
           avatar: hostIdentity.avatar,
           asPlayer: this.hostPlayerActive,
+          slotIndex: this.hostPlayerSlot,
         },
       });
     });
@@ -332,6 +335,7 @@ export class PartyNetwork {
       active: !!active,
       name: identity.name,
       avatar: identity.avatar,
+      slotIndex: Number.isInteger(identity.slotIndex) ? identity.slotIndex : null,
     });
     return true;
   }

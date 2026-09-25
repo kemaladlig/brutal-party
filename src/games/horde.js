@@ -7,6 +7,7 @@ import { getBotPersona, getSlotCustomization } from '../core/customizationManage
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { buildLayout } from '../core/arenaKit.js';
 import { getSecondActionKey, readSlotKeys } from '../core/inputMaps.js';
+import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import {
   clampToArena,
   getProjectileSubsteps,
@@ -1397,7 +1398,7 @@ export class HordeGame extends BaseMiniGame {
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
     if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state) || !player?.isJoined || !player.isAlive || !data) return;
-    if (data.action === 'JOYSTICK_MOVE') {
+    if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
       const dx = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
       const dy = Number.isFinite(data.dy) ? Math.max(-1, Math.min(1, data.dy)) : 0;
       const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : Math.hypot(dx, dy);
@@ -1411,13 +1412,13 @@ export class HordeGame extends BaseMiniGame {
         joy.angle = Number.isFinite(data.angle) ? data.angle : Math.atan2(dy, dx);
         joy.force = force;
       }
-    } else if (data.action === 'HORDE_FIRE' && this.state === 'PLAYING') {
+    } else if (matchesInputAction(data, 'fire', 'HORDE_FIRE', 'press') && this.state === 'PLAYING') {
       player.remoteFireHeld = true;
       player.isAiming = true;
-    } else if (data.action === 'HORDE_FIRE_RELEASE') {
+    } else if (matchesInputAction(data, 'fire', 'HORDE_FIRE_RELEASE', 'release')) {
       player.remoteFireHeld = false;
       player.isAiming = false;
-    } else if (data.action === 'DASH') {
+    } else if (matchesInputAction(data, 'dash', 'DASH')) {
       this.triggerDash(slotIndex);
     }
   }

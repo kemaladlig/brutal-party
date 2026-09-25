@@ -59,6 +59,21 @@ export function renderWorldPlaceholder(ctx, width, height, fill = '#F4F4F0') {
   ctx.restore();
 }
 
+export function renderWorldConnecting(ctx, width, height, fill = '#F4F4F0') {
+  ctx.save();
+  ctx.fillStyle = fill;
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#1A1A1A';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '900 18px "Space Grotesk", sans-serif';
+  ctx.fillText(t('net.worldConnecting'), width / 2, height / 2 - 10);
+  ctx.fillStyle = '#575750';
+  ctx.font = '800 12px "JetBrains Mono", monospace';
+  ctx.fillText(t('net.worldConnectingHint'), width / 2, height / 2 + 16);
+  ctx.restore();
+}
+
 export function renderWorldStale(ctx, width, height) {
   ctx.save();
   ctx.fillStyle = 'rgba(20, 20, 20, 0.72)';

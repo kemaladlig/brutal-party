@@ -5,15 +5,21 @@ import { storePlayerName, escapeHtml } from './net.js';
 import { showInstallToast } from './ui/toast.js';
 import { UI_COLORS } from './ui/tokens.js';
 import { mountDeclarativeController } from './controllers/controllerTemplates.js';
+import { GamepadInputAdapter } from './controllers/gamepadInputAdapter.js';
 import { getNeutralInput } from './controllers/controlDefs.js';
 import { getControllerStatus } from './controllers/controllerStatus.js';
+import { getControllerGuide } from './controllers/controllerGuide.js';
 import { getControllerMeta } from './core/engineRegistry.js';
+import { getControlDescriptor } from './core/controlDescriptor.js';
+import { PhysicalGamepadAdapter } from './controllers/physicalGamepadAdapter.js';
 import { t, onLangChange } from './i18n.js';
 import { getAvatarProfile } from './core/customizationManager.js';
+import { vibrate as triggerHaptic } from './core/haptics.js';
 import { drawBrutalAvatar } from './ui/characterRenderer.js';
 import { openCustomizeModal } from './ui/customizeModal.js';
 import { getTabletopIconSvg } from './core/tabletopIcons.js';
 import { GamepadWorldView } from './ui/gamepadWorldView.js';
+import { renderLocalGamepadShell, renderRemoteGamepadShell } from './ui/gamepadShell.js';
 
 // Kumanda kayıt tablosu: tek kaynaktan (engineRegistry) beslenir
 const CONTROLLER_META = new Proxy({}, {
@@ -26,6 +32,18 @@ export class GamepadManager {
   constructor(overlayEl, network, { localMode = false } = {}) {
     this.overlay = overlayEl;
     this.network = network;
+    this.inputAdapter = new GamepadInputAdapter((data) => this.network.sendInput(data));
+    this._lastLocalInputAt = 0;
+    this._windowFocused = true;
+    this.physicalGamepad = new PhysicalGamepadAdapter({
+      send: (data) => this.network.sendInput(data),
+      getMode: () => this.gameMode,
+      getDescriptor: () => getControlDescriptor(this.gameMode, CONTROLLER_META[this.gameMode]?.schema),
+      isBlocked: () => !this._windowFocused
+        || document.hidden
+        || this.overlay.classList.contains('hidden')
+        || performance.now() - this._lastLocalInputAt < 750,
+    });
     this.localMode = localMode;
     this._workspaceOverride = null;
     this.gameMode = 'LOBBY';
@@ -61,11 +79,6 @@ export class GamepadManager {
     this.countdownActive = false;
     this._countdownT = null;
 
-    // Taşıma-bağımsız analog throttle (AGENTS §5: 50ms + ölübant — WS ve
-    // Supabase yollarını birlikte kapsar, çift throttle jitter'ı olmaz)
-    this._lastAnalogSent = 0;
-    this._lastPaddlePos = null;
-    this._lastJoySent = { dx: 0, dy: 0 };
     // Mount başına window listener temizliği (re-mount sızıntısı → yinelenen gönderim)
     this._mountAbort = null;
     // 8Hz DOM churn kalkanı: eleman önbelleği + diff'li yazım
@@ -80,15 +93,12 @@ export class GamepadManager {
     this._worldViewToken = 0;
     this._worldViewEnabled = false;
     this._pendingWorldFrame = null;
+    this._guideMode = null;
   }
 
   // Güvenli ve merkezi Haptic Geri Bildirim
   vibrate(pattern) {
-    try {
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        navigator.vibrate(pattern);
-      }
-    } catch {}
+    triggerHaptic(pattern);
   }
 
   // Screen Wake Lock API — kumanda açıkken telefon ekranının kararmasını / kapanmasını önler
@@ -105,6 +115,11 @@ export class GamepadManager {
     }
   }
 
+  neutralizeInput() {
+    this._lastLocalInputAt = performance.now();
+    this._sendNeutralForMode();
+  }
+
   releaseWakeLock() {
     if (this._wakeLock) {
       try {
@@ -117,26 +132,7 @@ export class GamepadManager {
   // Sürekli analog akış için tek gönderim noktası: 50ms throttle + ölübant.
   // Sıfır paketleri (bırakma/durma) ve discrete aksiyonlar ASLA throttle edilmez.
   _sendAnalog(data) {
-    const now = performance.now();
-    const isZero = data.action === 'JOYSTICK_MOVE'
-      ? (data.force === 0)
-      : (data.action === 'PADDLE_MOVE' && false);
-    if (!isZero) {
-      if (now - this._lastAnalogSent < 50) return;
-      if (data.action === 'PADDLE_MOVE' && typeof data.position === 'number') {
-        if (this._lastPaddlePos !== null && Math.abs(data.position - this._lastPaddlePos) < 0.003) return;
-        this._lastPaddlePos = data.position;
-      } else if (data.action === 'JOYSTICK_MOVE') {
-        const dx = data.dx || 0;
-        const dy = data.dy || 0;
-        if (Math.hypot(dx - this._lastJoySent.dx, dy - this._lastJoySent.dy) < 0.02) return;
-        this._lastJoySent = { dx, dy };
-      }
-    } else {
-      this._lastJoySent = { dx: 0, dy: 0 };
-    }
-    this._lastAnalogSent = now;
-    this.network.sendInput(data);
+    return this.inputAdapter.sendAnalog(data);
   }
 
   // Ortak aksiyon-buton soğutması (BOMB/HEIST/CROWN aynı desen):
@@ -288,6 +284,14 @@ export class GamepadManager {
       this._sendNeutralForMode();
       this.releaseWakeLock();
     });
+    const neutralizeTransientInput = () => {
+      if (!this.overlay.classList.contains('hidden')) this._sendNeutralForMode();
+    };
+    window.addEventListener('blur', neutralizeTransientInput);
+    window.addEventListener('orientationchange', neutralizeTransientInput);
+    window.addEventListener('resize', () => {
+      if (this.gameMode !== 'LOBBY') neutralizeTransientInput();
+    });
   }
 
   _bindBrowserLocks() {
@@ -302,6 +306,32 @@ export class GamepadManager {
     this.overlay.addEventListener('gesturestart', prevent);
     this.overlay.addEventListener('gesturechange', prevent);
     this.overlay.addEventListener('gestureend', prevent);
+    const markLocalInput = () => {
+      this._lastLocalInputAt = performance.now();
+    };
+    this.overlay.addEventListener('pointerdown', markLocalInput, { passive: true });
+    this.overlay.addEventListener('touchstart', markLocalInput, { passive: true });
+    window.addEventListener('keydown', markLocalInput, { passive: true });
+    window.addEventListener('blur', () => { this._windowFocused = false; });
+    window.addEventListener('focus', () => { this._windowFocused = true; });
+  }
+
+  _mountOrientationGate() {
+    if (document.getElementById('rotate-gate')) return;
+    const gate = document.createElement('div');
+    gate.id = 'rotate-gate';
+    gate.className = 'rotate-gate';
+    gate.setAttribute('role', 'alert');
+    gate.setAttribute('aria-live', 'assertive');
+    gate.hidden = true;
+    gate.innerHTML = `
+      <div class="rotate-phone" aria-hidden="true">${getTabletopIconSvg('rotate_cw', { size: 34, color: '#ffd700', strokeWidth: 2.6 })}</div>
+      <div class="rotate-copy">
+        <div class="rotate-title">${escapeHtml(t('pad.rotateTitle'))}</div>
+        <div class="rotate-sub">${escapeHtml(t('pad.rotateSub'))}</div>
+      </div>
+    `;
+    this.overlay.appendChild(gate);
   }
 
   // Landscape-first geçidi: oyun portrait ise animasyonlu döndür uyarısı basılır.
@@ -323,6 +353,8 @@ export class GamepadManager {
     this.overlay.classList.toggle('is-lobby', !playing);
     this.overlay.classList.toggle('is-portrait', portrait);
     this.overlay.classList.toggle('is-landscape', !portrait);
+    const gate = this._el('rotate-gate');
+    if (gate) gate.hidden = !(playing && portrait);
   }
 
   initLocal(playerInfo = {}, gameMode = 'PONG') {
@@ -344,8 +376,9 @@ export class GamepadManager {
     this.countdownActive = false;
     this._pongInvertManualSet = false;
     this._worldViewEnabled = false;
-    this.overlay.innerHTML = '<div class="local-mobile-workspace" id="local-mobile-workspace"></div>';
+    this.overlay.innerHTML = renderLocalGamepadShell(this.selectedHostGame);
     this._workspaceOverride = document.getElementById('local-mobile-workspace');
+    this._mountOrientationGate();
     this.overlay.classList.remove('hidden');
     this._bindBrowserLocks();
     this._bindVisibilityNeutral();
@@ -390,8 +423,8 @@ export class GamepadManager {
           this.renderShell();
           this.renderGameController('LOBBY');
         } else {
-          const hintEl = document.getElementById('tactical-role-text');
-          if (hintEl) hintEl.textContent = CONTROLLER_META[this.gameMode]?.tacticalHint || '';
+          this._guideMode = null;
+          this.renderControlGuide(this.gameMode);
         }
       });
     }
@@ -399,6 +432,7 @@ export class GamepadManager {
 
   hide() {
     if (this.localMode) this._sendNeutralForMode();
+    this.physicalGamepad.stop();
     this.releaseWakeLock();
     this._teardownMount();
     this.overlay.classList.add('hidden');
@@ -411,34 +445,16 @@ export class GamepadManager {
     const seatLabel = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
     const initialGameTag = CONTROLLER_META[this.gameMode]?.hudTag || (this.gameMode === 'LOBBY' ? t('pad.lobbyTag') : this.gameMode);
 
-    this.overlay.innerHTML = `
-      <div class="gamepad-header">
-        <div class="header-left-group">
-          <span class="player-slot-chip" id="header-seat-tag" style="background-color: ${this.playerColor}">${seatLabel}</span>
-          <span class="player-name-label" id="header-player-name">${this.playerName}</span>
-          <span class="header-game-chip" id="header-game-tag">${initialGameTag}</span>
-        </div>
-        <div class="header-right-group">
-          <span class="gamepad-room-info">#${this.network.roomCode || '---'}</span>
-          <button class="emoji-reaction-btn" id="btn-toggle-emoji" type="button" data-i18n-aria="pad.reactTitle" title="Tepki Gönder">${getTabletopIconSvg('message_square', { size: 18, color: '#141414', strokeWidth: 2.3 })}</button>
-          <button class="btn-fullscreen-toggle" id="btn-fullscreen-toggle" type="button" title="Tam Ekran">${getTabletopIconSvg('maximize_2', { size: 16, color: '#141414', strokeWidth: 2.3 })}</button>
-          <button class="btn-leave-gamepad" id="btn-leave-gamepad" type="button">${t('pad.leave')}</button>
-        </div>
-      </div>
+    this.overlay.innerHTML = renderRemoteGamepadShell({
+      seatLabel,
+      playerColor: this.playerColor,
+      playerName: this.playerName,
+      gameTag: initialGameTag,
+      roomCode: this.network.roomCode,
+    });
 
-      <div class="score-strip hidden" id="score-strip"></div>
-
-      <div class="gamepad-workspace" id="gamepad-workspace"></div>
-
-      <!-- Quick Emoji Reaction Bar -->
-      <div class="emoji-wheel-modal hidden" id="emoji-wheel-modal">
-        <button class="emoji-wheel-item" data-emoji="🔥">🔥</button>
-        <button class="emoji-wheel-item" data-emoji="💀">💀</button>
-        <button class="emoji-wheel-item" data-emoji="😂">😂</button>
-        <button class="emoji-wheel-item" data-emoji="🏆">🏆</button>
-        <button class="emoji-wheel-item" data-emoji="😱">😱</button>
-      </div>
-    `;
+    this._mountOrientationGate();
+    this._updateOrientationGate();
 
     document.getElementById('btn-leave-gamepad')?.addEventListener('click', () => {
       this.network.disconnect();
@@ -600,10 +616,54 @@ export class GamepadManager {
     this._countdownT = null;
   }
 
+  renderControlGuide(mode) {
+    const guideMode = mode === 'LOBBY' ? this.selectedHostGame : mode;
+    const meta = CONTROLLER_META[guideMode] || null;
+    const guideEl = this._el('gamepad-control-guide');
+    const roleEl = this._el('tactical-role-text');
+    const guide = getControllerGuide(guideMode, meta?.schema);
+    const modeChanged = this._guideMode !== guideMode;
+    this._guideMode = guideMode;
+
+    if (roleEl) {
+      const hint = meta?.tacticalHint || '';
+      if (hint && (modeChanged || !roleEl.textContent)) {
+        roleEl.textContent = hint;
+        roleEl.style.color = '';
+      }
+    }
+
+    if (!guide || !guideEl) {
+      guideEl?.setAttribute('hidden', '');
+      return;
+    }
+
+    const actionHtml = guide.actions.length
+      ? guide.actions.map((action) => `<span class="guide-action">${escapeHtml(action.label)}</span>`).join('<span class="guide-separator">•</span>')
+      : '';
+    guideEl.innerHTML = `
+      <span class="guide-title">${escapeHtml(t('pad.guideTitle'))}</span>
+      <span class="guide-left">${escapeHtml(guide.left.label)}</span>
+      <span class="guide-hint">${escapeHtml(guide.hint)}</span>
+      ${actionHtml}
+    `;
+    guideEl.removeAttribute('hidden');
+  }
+
+  _startPhysicalGamepad() {
+    if (this.gameMode === 'LOBBY') {
+      this.physicalGamepad.stop();
+      return;
+    }
+    this.physicalGamepad.start();
+  }
+
   renderGameController(mode) {
     // Eski mount sökülmeden önce: takılı joystick/sürüş varsa host'a nötr paket
     // (zone innerHTML ile gidince endJoy hiç çalışmıyordu → hayalet girdi)
     this._sendNeutralForMode();
+    this.physicalGamepad.stop();
+    this.inputAdapter.reset();
     this._teardownMount();
     this._mountAbort = new AbortController();
     this._elCache.clear();
@@ -611,12 +671,13 @@ export class GamepadManager {
     this._lastStatusStr = '';
     this._cloneCdBtn = null;
     this.gameMode = mode;
+    this._startPhysicalGamepad();
     const workspace = this._workspaceOverride || document.getElementById('gamepad-workspace');
     if (!workspace) return;
 
     workspace.innerHTML = '';
 
-    const modeTag = document.getElementById('header-game-tag');
+    const modeTag = document.getElementById('hud-game-tag');
     if (modeTag) {
       modeTag.textContent = CONTROLLER_META[mode]?.hudTag || (mode === 'LOBBY' ? t('pad.lobbyTag') : mode);
     }
@@ -648,6 +709,7 @@ export class GamepadManager {
         console.warn(`[GamepadManager] No controller schema defined for mode: ${mode}`);
       }
     }
+    this.renderControlGuide(mode);
     this._updateOrientationGate();
   }
 
@@ -879,7 +941,9 @@ export class GamepadManager {
     const baseEl = knob.parentElement;
 
     let activeTouchId = null;
+    let activePointerId = null;
     let isMouseDown = false;
+    const pointerMode = typeof window !== 'undefined' && 'PointerEvent' in window;
     let originX = 0;
     let originY = 0;
     let maxRadius = 46;
@@ -915,6 +979,7 @@ export class GamepadManager {
 
     const endJoy = () => {
       activeTouchId = null;
+      activePointerId = null;
       isMouseDown = false;
       hitEdge = false;
       knob.style.transform = 'translate(0px, 0px)';
@@ -926,58 +991,81 @@ export class GamepadManager {
       onInput({ dx: 0, dy: 0, angle: 0, force: 0 });
     };
 
-    zone.addEventListener('touchstart', (e) => {
-      if (activeTouchId !== null) return;
-      e.preventDefault();
-      const touch = e.changedTouches[0];
-      activeTouchId = touch.identifier;
-      startAt(touch.clientX, touch.clientY);
-    }, { passive: false });
-
-    zone.addEventListener('touchmove', (e) => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const touch = e.changedTouches[i];
-        if (touch.identifier === activeTouchId) {
-          e.preventDefault();
-          moveAt(touch.clientX, touch.clientY);
-          break;
-        }
-      }
-    }, { passive: false });
-
-    zone.addEventListener('touchend', (e) => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === activeTouchId) { endJoy(); break; }
-      }
-    }, { passive: true });
-    zone.addEventListener('touchcancel', (e) => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === activeTouchId) { endJoy(); break; }
-      }
-    }, { passive: true });
-
-    // Zone dışı bırakma / çağrı kesmesi güvenlik ağı (TANKS/CURVE deseni)
     const joySignal = this._mountAbort?.signal;
-    const onWindowTouchEnd = (e) => {
-      if (activeTouchId === null) return;
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === activeTouchId) { endJoy(); break; }
-      }
-    };
-    window.addEventListener('touchend', onWindowTouchEnd, { passive: true, signal: joySignal });
-    window.addEventListener('touchcancel', onWindowTouchEnd, { passive: true, signal: joySignal });
+    if (pointerMode) {
+      zone.addEventListener('pointerdown', (e) => {
+        if (activePointerId !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        e.preventDefault();
+        activePointerId = e.pointerId;
+        try { zone.setPointerCapture?.(e.pointerId); } catch {}
+        startAt(e.clientX, e.clientY);
+      }, { passive: false });
+      zone.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== activePointerId) return;
+        e.preventDefault();
+        moveAt(e.clientX, e.clientY);
+      }, { passive: false });
+      const endPointer = (e) => {
+        if (e.pointerId !== activePointerId) return;
+        try { zone.releasePointerCapture?.(e.pointerId); } catch {}
+        endJoy();
+      };
+      zone.addEventListener('pointerup', endPointer, { passive: true });
+      zone.addEventListener('pointercancel', endPointer, { passive: true });
+      zone.addEventListener('lostpointercapture', endPointer, { passive: true });
+    } else {
+      zone.addEventListener('touchstart', (e) => {
+        if (activeTouchId !== null) return;
+        e.preventDefault();
+        const touch = e.changedTouches[0];
+        activeTouchId = touch.identifier;
+        startAt(touch.clientX, touch.clientY);
+      }, { passive: false });
 
-    // Mouse fallback for desktop testing
-    zone.addEventListener('mousedown', (e) => {
-      isMouseDown = true;
-      startAt(e.clientX, e.clientY);
-    });
-    window.addEventListener('mousemove', (e) => {
-      if (isMouseDown) moveAt(e.clientX, e.clientY);
-    }, { signal: joySignal });
-    window.addEventListener('mouseup', () => {
-      if (isMouseDown) endJoy();
-    }, { signal: joySignal });
+      zone.addEventListener('touchmove', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const touch = e.changedTouches[i];
+          if (touch.identifier === activeTouchId) {
+            e.preventDefault();
+            moveAt(touch.clientX, touch.clientY);
+            break;
+          }
+        }
+      }, { passive: false });
+
+      zone.addEventListener('touchend', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === activeTouchId) { endJoy(); break; }
+        }
+      }, { passive: true });
+      zone.addEventListener('touchcancel', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === activeTouchId) { endJoy(); break; }
+        }
+      }, { passive: true });
+
+      // Zone dışı bırakma / çağrı kesmesi güvenlik ağı (TANKS/CURVE deseni)
+      const onWindowTouchEnd = (e) => {
+        if (activeTouchId === null) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === activeTouchId) { endJoy(); break; }
+        }
+      };
+      window.addEventListener('touchend', onWindowTouchEnd, { passive: true, signal: joySignal });
+      window.addEventListener('touchcancel', onWindowTouchEnd, { passive: true, signal: joySignal });
+
+      // Mouse fallback for desktop testing
+      zone.addEventListener('mousedown', (e) => {
+        isMouseDown = true;
+        startAt(e.clientX, e.clientY);
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (isMouseDown) moveAt(e.clientX, e.clientY);
+      }, { signal: joySignal });
+      window.addEventListener('mouseup', () => {
+        if (isMouseDown) endJoy();
+      }, { signal: joySignal });
+    }
   }
 
   updateJoy(clientX, clientY, cx, cy, maxR, knobEl, onInput) {
@@ -1056,7 +1144,9 @@ export class GamepadManager {
     const liveStatus = this._el('hud-live-status');
 
     if (modeTag && data.gameMode) {
-      const tag = CONTROLLER_META[data.gameMode]?.hudTag || data.gameMode;
+      const tag = data.gameMode === 'LOBBY'
+        ? t('pad.lobbyTag')
+        : (CONTROLLER_META[data.gameMode]?.hudTag || data.gameMode);
       if (modeTag.textContent !== tag) modeTag.textContent = tag;
     }
 
@@ -1068,11 +1158,14 @@ export class GamepadManager {
     // Üst durum şeridi: metin tek kaynaktan (controllerStatus registry).
     // PONG skorbord/falso, TANKS cephane, BOMB/CROWN/HEIST uyarıları şablonların
     // handleSync/onSync'inde yaşar — burada oyun-özel dal tutulmaz.
-    if (liveStatus && data.scores) {
-      const statusStr = getControllerStatus(data.gameMode, this.playerIndex, data);
-      if (statusStr && statusStr !== this._lastStatusStr) {
+    if (liveStatus) {
+      const statusStr = data.scores
+        ? getControllerStatus(data.gameMode, this.playerIndex, data)
+        : '';
+      if (statusStr !== this._lastStatusStr) {
         this._lastStatusStr = statusStr;
         liveStatus.textContent = statusStr;
+        liveStatus.title = statusStr;
       }
     }
   }

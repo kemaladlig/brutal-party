@@ -1,3 +1,5 @@
+import { getPreference, setPreference } from '../core/preferences.js';
+
 // Tasarım Token'ları — TV canvas + DOM + kumanda için tek renk/tipografi/ölçü sözlüğü.
 // Yeni HUD öğesi yazan önce buraya bakar; hardcoded renk/font/ölçü yasaktır.
 // Değerler mevcut oyundan alındı (görsel değişiklik yok, sadece merkezileşme).
@@ -142,6 +144,7 @@ export function isLargeDisplay(arena) {
 // ---------------------------------------------------------------------------
 
 export const CONTROL_SURFACE = Object.freeze({
+  AUTO: 'auto',
   MOBILE: 'mobile',
   TABLETOP: 'tabletop',
 });
@@ -155,35 +158,49 @@ export function isTouchDevice() {
     || (typeof navigator !== 'undefined' && (navigator.maxTouchPoints || 0) > 0);
 }
 
-export function getControlSurface() {
-  try {
-    const value = localStorage.getItem(STORAGE_KEY_CONTROL_SURFACE);
-    if (value === CONTROL_SURFACE.MOBILE || value === CONTROL_SURFACE.TABLETOP) {
-      return value;
-    }
+export function getControlSurfacePreference() {
+  return getPreference('controlSurface');
+}
 
-    // Eski AÇIK/KAPALI tercihi ilk açılışta yeni yüzey seçimine taşır.
-    const legacy = localStorage.getItem(STORAGE_KEY_VIRTUAL_CONTROLS);
-    if (legacy === 'off') return CONTROL_SURFACE.TABLETOP;
-  } catch (_) {}
-  return CONTROL_SURFACE.MOBILE;
+export function resolveControlSurface(
+  preference = getControlSurfacePreference(),
+  { touchDevice = null, width = null, height = null } = {},
+) {
+  if (preference === CONTROL_SURFACE.MOBILE || preference === CONTROL_SURFACE.TABLETOP) {
+    return preference;
+  }
+  if (preference !== CONTROL_SURFACE.AUTO) return CONTROL_SURFACE.TABLETOP;
+
+  const touch = touchDevice === null ? isTouchDevice() : !!touchDevice;
+  if (!touch) return CONTROL_SURFACE.TABLETOP;
+  const profile = getDisplayProfile(
+    width ?? (typeof window !== 'undefined' ? window.innerWidth : 800),
+    height ?? (typeof window !== 'undefined' ? window.innerHeight : 600),
+    true,
+  );
+  return profile.type === 'MOBILE' ? CONTROL_SURFACE.MOBILE : CONTROL_SURFACE.TABLETOP;
+}
+
+export function getControlSurface() {
+  return resolveControlSurface();
 }
 
 export function setControlSurface(value) {
-  if (value !== CONTROL_SURFACE.MOBILE && value !== CONTROL_SURFACE.TABLETOP) return;
-  try {
-    localStorage.setItem(STORAGE_KEY_CONTROL_SURFACE, value);
-    localStorage.removeItem(STORAGE_KEY_VIRTUAL_CONTROLS);
-  } catch (_) {}
+  if (value !== CONTROL_SURFACE.AUTO
+    && value !== CONTROL_SURFACE.MOBILE
+    && value !== CONTROL_SURFACE.TABLETOP) return;
+  setPreference('controlSurface', value);
 }
 
 // Eski çağıranlar için uyum katmanı; yeni tek kaynak control surface'tır.
 export function getVirtualControlsSetting() {
+  const preference = getControlSurfacePreference();
+  if (preference === CONTROL_SURFACE.AUTO) return 'auto';
   return getControlSurface() === CONTROL_SURFACE.MOBILE ? 'on' : 'off';
 }
 
 export function setVirtualControlsSetting(value) {
-  if (value === 'auto' || value === 'on') setControlSurface(CONTROL_SURFACE.MOBILE);
+  if (value === 'auto' || value === 'on') setControlSurface(CONTROL_SURFACE.AUTO);
   else if (value === 'off') setControlSurface(CONTROL_SURFACE.TABLETOP);
 }
 
@@ -199,8 +216,11 @@ export function shouldShowVirtualControls({
 
   // Mobil yüzey LOCAL'da DOM kumandasıyla karşılanır; canvas masa-ortası
   // katmanı yalnız tabletop tercihinde görünür.
-  const selectedSurface = surface || getControlSurface();
+  const selectedSurface = resolveControlSurface(surface || getControlSurfacePreference());
   if (selectedSurface === CONTROL_SURFACE.MOBILE) return false;
+  // Explicit tabletop (and desktop AUTO) is a real playable surface, not a
+  // touch-only hint. This keeps the four canvas corner controls available on PC.
+  if (selectedSurface === CONTROL_SURFACE.TABLETOP) return true;
 
   const touch = touchDevice === null ? isTouchDevice() : touchDevice;
   return !!touch;

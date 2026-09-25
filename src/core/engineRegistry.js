@@ -35,6 +35,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.pong',
     color: '#D84727',
     schema: GAMEPAD_SCHEMAS.PONG,
+    worldView: {
+      load: () => import('../ui/pongWorldView.js'),
+    },
     load: () => import('../games/game.js').then((m) => m.Game),
     createEngine: (game) => {
       return {
@@ -43,6 +46,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; game.accumulator = 0; },
         onResume: (now) => { game.lastTime = now; game.accumulator = 0; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => {
           const chgIdx = game.paddles.findIndex((p) => p.spinCharge > 0);
           return {
@@ -223,6 +227,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.crown',
     color: '#EAB308',
     schema: GAMEPAD_SCHEMAS.CROWN,
+    worldView: {
+      load: () => import('../ui/crownWorldView.js'),
+    },
     load: () => import('../games-retired/crown.js').then((m) => m.CrownGame),
     createEngine: (game) => {
       return {
@@ -231,6 +238,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => ({
           scores: game.scores,
           king: game.crown.carrierIndex,
@@ -491,6 +499,9 @@ export const CARTRIDGES = {
     tacticalHintKey: 'hint.race',
     color: '#D99B26',
     schema: GAMEPAD_SCHEMAS.RACE,
+    worldView: {
+      load: () => import('../ui/raceWorldView.js'),
+    },
     load: () => import('../games/race.js').then((m) => m.RaceGame),
     createEngine: (game) => {
       return {
@@ -499,6 +510,7 @@ export const CARTRIDGES = {
         onEnter: (now) => { game.lastTime = now; },
         onResume: (now) => { game.lastTime = now; },
         start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
         packet: () => ({
           scores: game.scores,
           timeLeft: Math.ceil(game.roundTimer || 0),

@@ -1,6 +1,8 @@
 // Web Audio API procedural brutalist audio synthesizer
+import { getPreference, setPreference } from './core/preferences.js';
+
 let audioCtx = null;
-let isAudioMuted = false;
+let isAudioMuted = getPreference('audioMuted');
 
 // Paylaşımlı noise tamponu: her ateşte buffer üretmek yerine bir kez üretilir,
 // üst üste binen atışlar aynı tamponu farklı fazdan okur (jank kapanır)
@@ -20,6 +22,7 @@ function getNoiseBuffer(ctx, seconds = 0.15) {
 
 export function toggleAudio() {
   isAudioMuted = !isAudioMuted;
+  setPreference('audioMuted', isAudioMuted);
   return isAudioMuted;
 }
 

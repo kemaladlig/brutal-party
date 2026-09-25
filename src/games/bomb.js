@@ -15,6 +15,7 @@ import {
   playStumble,
 } from '../audio.js';
 import { t } from '../i18n.js';
+import { matchesInputAction } from '../core/inputIntent.js';
 import { renderArenaWatermarkTimer, renderAdaptiveScoreboard } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { pulse } from '../ui/motion.js';
@@ -123,7 +124,7 @@ export class BombGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
-      joystick: true,
+      ...this.getCentralTabletopLayout('BOMB'),
       actions: [
         {
           id: 'dash',
@@ -534,7 +535,7 @@ export class BombGame extends BaseMiniGame {
 
   handleRemoteInput(slotIndex, data) {
     this.handleStandardRemoteJoystick(slotIndex, data, (slot, d) => {
-      if (d.action === 'DASH') {
+      if (matchesInputAction(d, 'dash', 'DASH')) {
         this.triggerDash(slot);
       }
     });

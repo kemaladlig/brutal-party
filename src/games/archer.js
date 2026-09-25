@@ -10,6 +10,7 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateArcherBotAI } from '../ai/archerAI.js';
 import { buildLayout } from '../core/arenaKit.js';
 import { readSlotKeys } from '../core/inputMaps.js';
+import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { pointBlocked, updateMovers, clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
@@ -365,10 +366,10 @@ export class ArcherGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
-      joystick: true,
+      ...this.getCentralTabletopLayout('ARCHER'),
       actions: [
         // keyHint verilmedi: rozet slot başına doğru aksiyon tuşunu gösterir (SPACE/ENTER/O/B)
-        { id: 'action', icon: '🏹', holdToCharge: true, chargeField: 'charge' },
+        { id: 'charge', icon: '🏹', holdToCharge: true, chargeField: 'charge' },
       ],
     };
   }
@@ -376,7 +377,7 @@ export class ArcherGame extends BaseMiniGame {
   handleSlotAction(slotIndex, actionId, isDown) {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
-    if (actionId === 'action') {
+    if (actionId === 'charge') {
       if (isDown) {
         this.beginCharge(player);
       } else {
@@ -641,7 +642,7 @@ export class ArcherGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
 
-    if (data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
+    if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
       const force = Number.isFinite(data.force) ? data.force : Math.hypot(data.dx || 0, data.dy || 0);
       if (force > 0.05) {
         player.steerX = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
@@ -657,9 +658,9 @@ export class ArcherGame extends BaseMiniGame {
         player.steerY = 0;
         player.remoteActive = false;
       }
-    } else if (data.action === 'ARCHER_CHARGE') {
+    } else if (matchesInputAction(data, 'charge', 'ARCHER_CHARGE', 'press')) {
       this.beginCharge(player);
-    } else if (data.action === 'ARCHER_CHARGE_END') {
+    } else if (matchesInputAction(data, 'charge', 'ARCHER_CHARGE_END', 'release')) {
       this.looseArrow(player);
     }
   }

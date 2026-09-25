@@ -7,6 +7,7 @@ import { t } from '../i18n.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateCollapseBotAI } from '../ai/collapseAI.js';
 import { readSlotKeys } from '../core/inputMaps.js';
+import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import {
   createCollapseWorldPacket,
@@ -189,7 +190,7 @@ export class CollapseGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
-      joystick: true,
+      ...this.getCentralTabletopLayout('COLLAPSE'),
       actions: [
         {
           id: 'jump',
@@ -831,7 +832,7 @@ export class CollapseGame extends BaseMiniGame {
       return;
     }
 
-    if (data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
+    if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
       const force = Number.isFinite(data.force) ? data.force : Math.hypot(data.dx || 0, data.dy || 0);
       if (force > 0.08) {
         if (Number.isFinite(data.angle)) {
@@ -850,7 +851,7 @@ export class CollapseGame extends BaseMiniGame {
         player.steerY = 0;
         player.remoteActive = false;
       }
-    } else if (data.action === 'DASH' || data.action === 'JUMP') {
+    } else if (matchesInputAction(data, 'jump', 'DASH') || data.action === 'JUMP') {
       this.attemptJump(player);
     }
   }

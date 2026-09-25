@@ -8,11 +8,13 @@ import { drawPickup } from '../core/arenaKit.js';
 import { resolveSlotName } from '../core/slotManager.js';
 import { updateCurveBotAI } from '../ai/curveAI.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
+import { isInputIntent } from '../core/inputIntent.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { distToSegmentSquared, clampToArena } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
 import { createCurveWorldPacket } from './curveView.js';
+import { vibrate } from '../core/haptics.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CURVE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -304,7 +306,7 @@ export class CurveGame extends BaseMiniGame {
 
   getTabletopSchema() {
     return {
-      steer: true,
+      ...this.getCentralTabletopLayout('CURVE'),
       leftLabel: '◀',
       rightLabel: '▶',
       actions: [],
@@ -771,7 +773,7 @@ export class CurveGame extends BaseMiniGame {
     }
 
     if (player.slotType === 'human' && typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate([40, 50, 70]);
+      vibrate([40, 50, 70]);
     }
 
     this.players.forEach((p) => {
@@ -788,7 +790,7 @@ export class CurveGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (this.state !== 'PLAYING' || this.spawnIntroTimer > 0) return;
     if (!player || !player.isJoined || !player.isAlive) return;
-    if (data.action === 'CURVE_STEER') {
+    if (isInputIntent(data, 'steer') || data.action === 'CURVE_STEER') {
       const dir = data.dir | 0;
       player.steer = Math.max(-1, Math.min(1, dir));
     }
