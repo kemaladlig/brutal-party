@@ -11,3 +11,4 @@ BRUTAL-PARTY.apk
 .env.local
 .env.*.local
 .kilo
+.qoder/
