@@ -25,6 +25,7 @@ export const CONTROL_DEFS = {
   CLONE: { left: 'joystick', right: ['tackle'] },
   COLLAPSE: { left: 'joystick', right: ['jump'] },
   NINJA: { left: 'joystick', right: ['strike', 'smoke'] },
+  HORDE: { left: 'joystick', right: ['fire', 'dash'] },
   RACE: { left: 'joystick', right: ['dash'] },
 };
 
@@ -54,6 +55,7 @@ const TABLETOP_LEFT = {
   CLONE: 'joystick',
   COLLAPSE: 'joystick',
   NINJA: 'joystick',
+  HORDE: 'joystick',
   RACE: 'joystick',
 };
 

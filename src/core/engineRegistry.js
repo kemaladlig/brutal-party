@@ -21,6 +21,7 @@ export const GAME_ORDER = [
   'LASER',
   'COLLAPSE',
   'NINJA',
+  'HORDE',
   'RACE',
   'CLONE',
   'CROWN',
@@ -429,6 +430,42 @@ export const CARTRIDGES = {
           matchDraw: game.matchDraw === true,
           cd: game.players.map((p) => Math.ceil((Math.max(0, p.strikeCooldown) / 1.3) * 100)),
           cd2: game.players.map((p) => Math.ceil((Math.max(0, p.smokeCooldown || 0) / 5.0) * 100)),
+        }),
+      };
+    },
+  },
+
+  HORDE: {
+    id: 'HORDE',
+    title: 'BRUTAL HORDE',
+    lobbyTitle: 'BRUTAL HORDE',
+    hudTag: 'HORDE',
+    tacticalHintKey: 'hint.horde',
+    color: '#7C3AED',
+    schema: GAMEPAD_SCHEMAS.HORDE,
+    worldView: {
+      load: () => import('../ui/hordeWorldView.js'),
+    },
+    load: () => import('../games/horde.js').then((m) => m.HordeGame),
+    createEngine: (game) => {
+      return {
+        game,
+        reset: () => game.resetMatch(),
+        onEnter: (now) => { game.lastTime = now; },
+        onResume: (now) => { game.lastTime = now; },
+        start: () => game.startNewMatch(),
+        worldPacket: () => game.createWorldPacket(),
+        packet: () => ({
+          scores: game.scores,
+          alive: game.players.map((player) => player.isAlive),
+          hp: game.players.map((player) => Math.max(0, player.hp || 0)),
+          round: game.round,
+          wave: game.wave,
+          enemiesLeft: game.enemies.length,
+          portal: !!game.portal,
+          waveTime: Math.max(0, Math.ceil(game.waveTimer || 0)),
+          cd: game.players.map((player) => Math.ceil((Math.max(0, player.dashCooldown || 0) / 4.0) * 100)),
+          cdFire: game.players.map((player) => Math.ceil((Math.max(0, player.attackCooldown || 0) / 0.28) * 100)),
         }),
       };
     },

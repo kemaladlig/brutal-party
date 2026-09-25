@@ -10,7 +10,7 @@
 
 *Karar (Eylül 2026):*
 1. **Kamera sistemi tamamen kaldırıldı.** Dinamik zoom ve pan katmanı iptal edilerek klasik 1:1 sabit arena görünümüne dönüldü.
-2. **Sabit Tam-Arena Görüşü:** Tüm 14 oyun modunda tüm oyuncular, duvarlar ve nesneler %100 ekranda kalır.
+2. **Sabit Tam-Arena Görüşü:** Tüm 15 oyun modunda tüm oyuncular, duvarlar ve nesneler %100 ekranda kalır.
 3. **Ekran Titremesi (Trauma/Screen Shake):** Patlama ve çarpışmalarda `addTrauma` ile tuval içi hafif sarsıntı korunur.
 4. **Öncelik:** Temel altyapı (Ayrık HUD, motor sözleşmesi, ağ ve kontroller) tamamlanana kadar kamera konusu gündeme alınmayacaktır.
 
@@ -50,19 +50,19 @@
 
 ---
 
-### FAZ 2: 14 Motor Sözleşmesi & Giriş Standardizasyonu (Engine Contract Unification)
+### FAZ 2: 15 Motor Sözleşmesi & Giriş Standardizasyonu (Engine Contract Unification)
 
-**Hedef:** 14 oyun motorunun istisnasız aynı yaşam döngüsü ve giriş API'sini tüketmesi; kod tekrarının sıfırlanması.
+**Hedef:** 15 oyun motorunun istisnasız aynı yaşam döngüsü ve giriş API'sini tüketmesi; kod tekrarının sıfırlanması.
 
 - [x] **Ortak Motor Yaşam Döngüsü:**
-  - `resetMatch()`, `startNewMatch()` (registry tek isim, 14/14), `startNewRound()` (14/14 alias), `update(now)`, `render()` (içi: world + `renderControls` + `renderHUD`), `resize(w,h)`.
+  - `resetMatch()`, `startNewMatch()` (registry tek isim, 15/15), `startNewRound()` (15/15 alias), `update(now)`, `render()` (içi: world + `renderControls` + `renderHUD`), `resize(w,h)`.
 - [x] **Giriş Köprüsü (Dual-Input Bridge):**
-  - `handleRemoteInput(slotIndex, data)` (14/14 override).
+  - `handleRemoteInput(slotIndex, data)` (15/15 override).
   - `handleLocalInput(slotIndex, data)` + `applySlotInput(slotIndex, input)` (BaseGame varsayılan; PONG referans implementasyon).
   - Sürekli hareket poll ile okunur (`getPlayerMovementVector` / motor `applyControls`); köprü discrete aksiyon + vektör enjeksiyonunu tekleştirir.
 - [x] **Ortak Yardımcıların Tam Entegrasyonu (`src/core/`):**
-  - `inputMaps.js`: 14/14 (klavye haritaları).
-  - `touchFlow.js`: 14/14 lobi tap'leri tek merkezden (istisnalar belgeli: PONG `getPlayerZoneAt` bölge, tanks `getCornerZone`).
+  - `inputMaps.js`: 15/15 (klavye haritaları).
+  - `touchFlow.js`: 15/15 lobi tap'leri tek merkezden (istisnalar belgeli: PONG `getPlayerZoneAt` bölge, tanks `getCornerZone`).
   - `pickupSystem.js`: bomb/archer/laser/curve entegre; kalan motor kopyaları açık iş (detay `docs/PROJECT_MAP.md` §17).
 
 ---
@@ -114,7 +114,7 @@
 
 ## 2. Karar Özeti & Yeni Ajan Talimatı (Agent Onboarding)
 
-1. **Kamera Kararı:** Kamera (zoom & pan) sistemi tamamen kaldırıldı ve branch temizlendi. Tüm 14 oyunda klasik **1:1 sabit arena görünümü** korunmaktadır.
+1. **Kamera Kararı:** Kamera (zoom & pan) sistemi tamamen kaldırıldı ve branch temizlendi. Tüm 15 oyunda klasik **1:1 sabit arena görünümü** korunmaktadır.
 2. **Geliştirme Sırası:** Öncelik temel teknik mimaride:
    * **Sıradaki İş:** `FAZ 3: Ağ & State Senkronizasyonu Sağlamlaştırma` (Faz 1 + Faz 2 kapandı)
    * Ardından: Faz 2 (Giriş & Motor Sözleşmesi) -> Faz 3 (Ağ) -> Faz 4 (FX & Ses) -> Faz 5 (Game Feel).

@@ -194,7 +194,7 @@
                   <h3 class="host-panel-title" id="host-game-title" data-i18n="host.pickGame">OYUN SEÇ</h3>
                   <p class="host-panel-hint" data-i18n="host.pickGameHint">Bir oyun seç, sonra sahayı aç.</p>
                 </div>
-                <span class="host-game-count" data-i18n="host.gamesCount">14 OYUN</span>
+                <span class="host-game-count" data-i18n="host.gamesCount">15 OYUN</span>
               </div>
               <div class="selector-grid">
                 <button class="lobby-game-chip active" data-game="PONG" type="button">
@@ -312,6 +312,15 @@
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL NINJA</span>
+                  </div>
+                </button>
+                <button class="lobby-game-chip" data-game="HORDE" type="button">
+                  <div class="chip-media-box">
+                    <img src="/assets/games/horde.jpg" alt="Brutal Horde" class="chip-thumb-img" loading="eager" decoding="async" />
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
+                  </div>
+                  <div class="chip-meta">
+                    <span class="chip-name">BRUTAL HORDE</span>
                   </div>
                 </button>
                 <button class="lobby-game-chip" data-game="RACE" type="button">
@@ -591,7 +600,7 @@
             <div class="menu-intro">
               <div class="menu-intro-copy">
                 <span class="menu-intro-kicker" data-i18n="menu.heroKicker">PARTİ ARENASI</span>
-                <p class="menu-hero-statement" data-i18n="menu.heroStatement">4 OYUNCU. 14 OYUN. TEK PARTİ.</p>
+                <p class="menu-hero-statement" data-i18n="menu.heroStatement">4 OYUNCU. 15 OYUN. TEK PARTİ.</p>
                 <p class="menu-hero-copy" data-i18n="menu.heroCopy">Modu seç, oyunu aç, arkadaşlarını çağır. İnternet, kurulum ve hesap yok.</p>
               </div>
               <div class="menu-hero-stats">
@@ -756,7 +765,7 @@
                           <button class="carousel-arrow-btn" id="btn-carousel-next" type="button" aria-label="Sonraki">›</button>
                         </div>
                         <button class="carousel-browse-all-btn" id="btn-hero-browse-games" type="button" data-i18n="menu.localBrowseGames">
-                          14 OYUN →
+                          15 OYUN →
                         </button>
                       </div>
                     </div>
@@ -907,7 +916,7 @@
                           </button>
                         </div>
 
-                        <!-- Slide 7: NINJA + TÜM 14 OYUN -->
+                        <!-- Slide 7: NINJA + TÜM 15 OYUN -->
                         <div class="carousel-slide-page">
                           <button class="local-showcase-card" type="button" data-game="NINJA">
                             <div class="showcase-card-media">
@@ -930,7 +939,7 @@
                             </div>
                             <div class="showcase-card-info">
                               <span class="showcase-card-title">TÜM LİSTE</span>
-                              <span class="showcase-card-tag">14 OYUN</span>
+                              <span class="showcase-card-tag">15 OYUN</span>
                               <span class="showcase-card-badge">GÖZ AT →</span>
                             </div>
                           </button>
@@ -977,7 +986,7 @@
 
             <div class="menu-footer">
               <div class="footer-note">
-                <span data-i18n="menu.footerGames">14 OYUN</span>
+                <span data-i18n="menu.footerGames">15 OYUN</span>
                 <span class="footer-dot" aria-hidden="true"></span>
                 <span data-i18n="menu.footerPlayers">2–4 OYUNCU</span>
                 <span class="footer-dot" aria-hidden="true"></span>
@@ -995,7 +1004,7 @@
         <div class="picker-modal-head">
           <div class="picker-head-left">
             <span class="picker-badge">KATALOG</span>
-            <h2 id="picker-modal-title" class="picker-modal-title">OYUN SEÇ (14 OYUN)</h2>
+            <h2 id="picker-modal-title" class="picker-modal-title">OYUN SEÇ (15 OYUN)</h2>
           </div>
           <button id="btn-close-game-picker" class="picker-close-btn" type="button" aria-label="Kapat">✕</button>
         </div>
@@ -1022,7 +1031,7 @@
               <button id="btn-clear-search-input" class="search-clear-btn hidden" type="button" aria-label="Aramayı temizle">×</button>
             </div>
             <div class="menu-games-count-wrap">
-              <span id="menu-games-count" class="games-count-pill">14 OYUN</span>
+              <span id="menu-games-count" class="games-count-pill">15 OYUN</span>
             </div>
           </div>
         </div>
@@ -1259,14 +1268,31 @@
             </div>
           </button>
 
-          <!-- 14: RACE -->
+          <!-- 14: HORDE -->
+          <button class="game-card-btn bento-card card-horde" id="btn-select-horde" data-category="fight" type="button">
+            <div class="bento-media-box">
+              <img src="/assets/games/horde.jpg" alt="BRUTAL HORDE" class="bento-thumb-img" loading="eager" />
+              <span class="card-tag" data-i18n="card.tagCoop">1-4 OYUNCU</span>
+            </div>
+            <div class="card-center">
+              <div class="card-number">14</div>
+              <div class="card-title">BRUTAL HORDE</div>
+              <div class="card-desc" data-i18n="card.desc.horde">Dalga dalga sürüleri durdurun, takımınızı diriltin ve portaldan kaçın!</div>
+            </div>
+            <div class="bento-bottom">
+              <span class="card-highlight" data-i18n="card.hl.horde">TAKIM SAVUNMASI</span>
+              <span class="card-action" data-i18n="card.play">OYNA →</span>
+            </div>
+          </button>
+
+          <!-- 15: RACE -->
           <button class="game-card-btn bento-card card-race" id="btn-select-race" data-category="speed" type="button">
             <div class="bento-media-box">
               <img src="/assets/games/race.jpg" alt="BRUTAL RACE" class="bento-thumb-img" loading="eager" />
               <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
             </div>
             <div class="card-center">
-              <div class="card-number">14</div>
+              <div class="card-number">15</div>
               <div class="card-title">BRUTAL RACE</div>
               <div class="card-desc" data-i18n="card.desc.race">Checkpointleri sırayla kap, nitroyu kullan ve 3 turu tamamla!</div>
             </div>

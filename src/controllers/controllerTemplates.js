@@ -38,7 +38,7 @@ export function mountDeclarativeController(gamepad, container, schema) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. JOYSTICK_ACTION Archetype (BOMB, HEIST, CROWN, ZONE, CLONE, COLLAPSE, LASER, NINJA)
+// 1. JOYSTICK_ACTION Archetype (BOMB, HEIST, CROWN, ZONE, CLONE, COLLAPSE, LASER, NINJA, HORDE)
 // ---------------------------------------------------------------------------
 function mountJoystickAction(gamepad, container, schema) {
   const joyZoneId = `joy-zone-${Date.now()}`;
@@ -100,6 +100,7 @@ function mountJoystickAction(gamepad, container, schema) {
 
   // Bind Action Buttons
   const buttonEls = [];
+  const activeHolds = new Set();
   actions.forEach((act, i) => {
     const btn = container.querySelector(`[data-action-index="${i}"]`);
     if (!btn) return;
@@ -114,11 +115,13 @@ function mountJoystickAction(gamepad, container, schema) {
         e?.preventDefault?.();
         gamepad.network.sendInput({ action: act.action, ...(act.payload || {}) });
         gamepad.vibrate(vibratePattern);
+        activeHolds.add(act);
         btn.classList.add('holding');
       };
       const sendUp = (e) => {
         e?.preventDefault?.();
         gamepad.network.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) });
+        activeHolds.delete(act);
         btn.classList.remove('holding');
       };
       btn.addEventListener('touchstart', sendDown, { passive: false });
@@ -166,6 +169,14 @@ function mountJoystickAction(gamepad, container, schema) {
       }
     },
     teardown() {
+      for (const act of activeHolds) {
+        if (act.releaseAction) {
+          try {
+            gamepad.network.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) });
+          } catch {}
+        }
+      }
+      activeHolds.clear();
       if (typeof schema.onTeardown === 'function') {
         schema.onTeardown(gamepad);
       }

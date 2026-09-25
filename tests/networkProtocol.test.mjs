@@ -19,6 +19,8 @@ test('accepts controller actions used by every online game schema', () => {
     { action: 'ARCHER_CHARGE_END' },
     { action: 'LASER_AIM' },
     { action: 'LASER_FIRE' },
+    { action: 'HORDE_FIRE' },
+    { action: 'HORDE_FIRE_RELEASE' },
     { action: 'NINJA_SMOKE' },
     { action: 'SWITCH_SLOT', targetSlot: 2 },
     { action: 'SET_NAME', name: 'PLAYER' },

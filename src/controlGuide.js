@@ -317,6 +317,7 @@ export function renderLobbyStartButton(ctx, {
   accent = '#D84727',
   textColor = '#FFFFFF',
   onStart,
+  minJoined = 2,
   centerYOffset = 0,
   hidden = false,
 }) {
@@ -325,7 +326,7 @@ export function renderLobbyStartButton(ctx, {
   const btnH = UI_SIZES.startH;
   const btnX = arena.cx - btnW / 2;
   const btnY = arena.cy - btnH / 2 + centerYOffset;
-  const ready = joinedCount >= 2;
+  const ready = joinedCount >= minJoined;
 
   ctx.save();
   ctx.fillStyle = UI_COLORS.ink;

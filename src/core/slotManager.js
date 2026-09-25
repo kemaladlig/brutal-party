@@ -259,7 +259,7 @@ function applySlotDataToEntity(engine, currentMode, i, slotType, slotName, slotC
     currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'ARCHER' ||
     currentMode === 'CROWN' || currentMode === 'ZONE' || currentMode === 'SNAKE' ||
     currentMode === 'LASER' || currentMode === 'CLONE' || currentMode === 'COLLAPSE' ||
-    currentMode === 'NINJA' || currentMode === 'RACE'
+    currentMode === 'NINJA' || currentMode === 'HORDE' || currentMode === 'RACE'
   ) {
     if (engine.slotTypes) engine.slotTypes[i] = slotType;
     const player = engine.players?.[i];
@@ -340,12 +340,22 @@ export function clearRemoteSlot(engine, currentMode, slotIndex) {
         player.steerX = 0;
         player.steerY = 0;
       }
-    } else if (currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'CROWN' || currentMode === 'ZONE' || currentMode === 'RACE') {
+    } else if (currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'CROWN' || currentMode === 'ZONE' || currentMode === 'HORDE' || currentMode === 'RACE') {
       const joy = engine.joysticks?.[slotIndex];
       if (joy) {
         joy.active = false;
         joy.force = 0;
         if ('id' in joy) joy.id = -1;
+      }
+      if (currentMode === 'HORDE') {
+        const player = engine.players?.[slotIndex];
+        if (player) {
+          player.remoteMoveActive = false;
+          player.remoteFireHeld = false;
+          player.steerX = 0;
+          player.steerY = 0;
+          player.isAiming = false;
+        }
       }
     }
     // PONG mutlak pozisyondur (sürüklenmez) — nötr gerekmez.
@@ -377,7 +387,7 @@ export function swapEngineSlots(engine, currentMode, isHosting, slotA, slotB) {
         pB.slotType = tempType;
       }
     }
-  } else if (['TANKS', 'CURVE', 'BOMB', 'HEIST', 'ARCHER', 'CROWN', 'ZONE', 'SNAKE', 'LASER', 'CLONE', 'COLLAPSE', 'NINJA', 'RACE'].includes(currentMode)) {
+  } else if (['TANKS', 'CURVE', 'BOMB', 'HEIST', 'ARCHER', 'CROWN', 'ZONE', 'SNAKE', 'LASER', 'CLONE', 'COLLAPSE', 'NINJA', 'HORDE', 'RACE'].includes(currentMode)) {
     if (Array.isArray(engine.scores)) {
       const temp = engine.scores[slotA];
       engine.scores[slotA] = engine.scores[slotB];

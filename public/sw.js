@@ -1,4 +1,4 @@
-const CACHE_NAME = 'brutal-party-v14';
+const CACHE_NAME = 'brutal-party-v15';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -18,6 +18,7 @@ const ASSETS_TO_CACHE = [
   '/assets/games/clone.jpg',
   '/assets/games/collapse.jpg',
   '/assets/games/ninja.jpg',
+  '/assets/games/horde.jpg',
   '/assets/games/race.jpg',
 ];
 

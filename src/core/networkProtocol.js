@@ -43,6 +43,8 @@ export function isValidNetworkInput(data) {
     case 'LASER_AIM':
     case 'LASER_FIRE':
     case 'LASER_FIRE_RELEASE':
+    case 'HORDE_FIRE':
+    case 'HORDE_FIRE_RELEASE':
     case 'NINJA_SMOKE':
       return true;
 

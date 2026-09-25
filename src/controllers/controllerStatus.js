@@ -104,6 +104,16 @@ const STATUS_BUILDERS = {
     const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
     return `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.ninjaAlive', aliveCount)}${time}${draw}`;
   },
+  HORDE: (i, data) => {
+    if (Array.isArray(data.alive) && data.alive[i] === false) {
+      return `${t('pad.dead', data.scores.join('-'))} • ${t('horde.roundWave', data.round || 1, data.wave || 1)}`;
+    }
+    const roundWave = t('horde.roundWave', data.round || 1, data.wave || 1);
+    const hp = Array.isArray(data.hp) ? Math.max(0, data.hp[i] ?? 0) : 0;
+    if (data.portal) return t('pad.hordePortal', data.scores.join('-'), roundWave, hp);
+    const enemies = Array.isArray(data.enemiesLeft) ? data.enemiesLeft[0] : (data.enemiesLeft || 0);
+    return t('pad.hordeStatus', data.scores.join('-'), roundWave, enemies, hp);
+  },
   RACE: (i, data) => {
     const time = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
     const lap = Array.isArray(data.laps) ? (data.laps[i] || 0) : 0;

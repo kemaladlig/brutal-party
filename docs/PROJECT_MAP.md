@@ -20,9 +20,9 @@ src/gamepad.js              Telefon kumandası: full-screen world canvas + overl
                             koltuk ızgarası, skor şeridi, ready yönetimi, dokunmatik girdiler
 src/controllers/
   controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, STEER_BOOST) + PONG canlı skorbord/falso senkronu
-  gamepadSchemas.js         14 oyun için deklaratif kumanda konfigürasyonları, canlı senkronizasyon hook'ları (BOMB/CROWN/HEIST uyarıları) + merkezi `def` referansı
+  gamepadSchemas.js         15 oyun için deklaratif kumanda konfigürasyonları, canlı senkronizasyon hook'ları (BOMB/CROWN/HEIST uyarıları) + merkezi `def` referansı
   controlDefs.js            Merkezi kontrol sözleşmesi: sol (joystick/steer/slider/pedal) + sağ (max 2 aksiyon) + landscape-first politikası + nötr paket haritası; telefon + tabletop parite kaynağı
-  controllerStatus.js       Üst durum şeridi metinleri (14 oyun, tek kayıt) — gamepad handleStateSync zincirsiz çağırır
+  controllerStatus.js       Üst durum şeridi metinleri (15 oyun, tek kayıt) — gamepad handleStateSync zincirsiz çağırır
 src/gamepad.css             Kumanda stilleri (neo-brutalist mobil ergonomi + canvas/control katmanları)
 src/ui/gamepadWorldView.js  Generic client world-frame canvas: DPR, son kare, seq/stale yönetimi
 src/ui/worldViewKit.js      World-view kromu (banner/placeholder/stale + fitWorld) — tüm renderer'lar tek kaynaktan
@@ -37,6 +37,7 @@ src/ui/laserWorldView.js    Client-only Laser world renderer; simülasyon/fizik 
 src/ui/zoneWorldView.js     Client-only Zone world renderer; RLE grid → offscreen katman
 src/ui/collapseWorldView.js Client-only Collapse world renderer; 13x13 grid
 src/ui/curveWorldView.js    Client-only Curve world renderer; iki katmanlı trail (near + field maskesi)
+src/ui/hordeWorldView.js    Client-only Horde world renderer; capped enemy/projectile snapshot'ları
 src/style.css               Modüler stil orkestratörü (@import src/styles/*)
 src/styles/                 Modüler CSS katmanı (tokens, base, hud, modals, menu, lobby, animations)
 src/controlGuide.js         Oyun-içi kontrol yardımcısı overlay'i
@@ -61,12 +62,12 @@ src/core/
                             handleTabletopTouchStart/Move/End (dokunma geometrisi tek merkezden eşlenir,
                             handleSlotAction(slot,id,isDown) ve onSlotSteer(slot,dir) sinyali),
                             resetTabletopTouches. Motorlar özel buton çizimi geometrisi tutmaz —
-                            yalnız şema bildirir (Snake, Curve ve Pong dahil 14 oyunun tamamı merkezi katmana bağlı);
+                            yalnız şema bildirir (Snake, Curve, Horde ve Pong dahil 15 oyunun tamamı merkezi katmana bağlı);
                             renderControls cooldown maskesi/charge barı/proximity ghosting/slot-başı klavye rozeti çizer)
   tabletopIcons.js          Masa-ortası & Mobil Kumanda Lucide Vektör İkon Kütüphanesi: OS emojileri yerine Canvas 2D
                             için drawTabletopIcon, Gamepad DOM SVG butonları için getTabletopIconSvg (zap, rocket, bomb,
                             crosshair, flame, rotate-cw, arrow-left/right, maximize-2, message-square vb.); 0 dependency (Eylül 2026).
-  engineRegistry.js         GAME_ORDER (aktif önce, retired sonra), CARTRIDGES (14 oyun kartuşu + lifecycle/controller metadataları), ensureEngine/preloadEngine, getControllerMeta, registerEngine/getEngine/forEachEngine
+  engineRegistry.js         GAME_ORDER (aktif önce, retired sonra), CARTRIDGES (15 oyun kartuşu + lifecycle/controller metadataları), ensureEngine/preloadEngine, getControllerMeta, registerEngine/getEngine/forEachEngine
   slotManager.js            Koltuk yönetimi: hostPlayerSlots (+avatar/displayColor), updateHostSlot,
                             syncSlotsToEngine, swapEngineSlots, getColorClashIndices (sert renk engeli)
   safeStorage.js            localStorage sarmalayıcı (JSON parse/try-catch tek nokta)
@@ -81,7 +82,7 @@ src/core/
                             roundOverSkipGuard (timerField varsayılan roundTransitionTimer;
                             PONG roundOverTimer geçirir), lobbyCenterStartTap (r=65, min 2),
                             lobbyQuadrantTap (+onSeatChange), matchOverRestartTap (r=75) —
-                            14 motorun lobi tap'leri tek merkezden (zone/heist/race dahil, Faz 2 kapanış);
+                            15 motorun lobi tap'leri tek merkezden (zone/heist/race/horde dahil, Faz 2 kapanış);
                             İSTİSNA: tanks getCornerZone (merkez -1, PLAYING'de gerekli),
                             PONG getPlayerZoneAt (paddle bölgeleri), zone MATCH_OVER radius:Infinity
                             (her dokunuş restart — davranış paritesi), bomb/zone MATCH_OVER→LOBBY.
@@ -129,6 +130,7 @@ src/ai/
     archerAI.js               Brutal Archery bot zekâsı: mesafe yönetimi + yay germe zamanlaması + kaçınma
     snakeAI.js                Brutal Snake bot zekâsı: ızgara raycast + yem kovalama
     laserAI.js                Brutal Laser bot zekâsı: strafe/dodge + pickup önceliği
+     hordeAI.js                Brutal Horde bot zekâsı: portal önceliği, güvenli revive, hedef/dash kararı
     cloneAI.js                Brutal Clone bot zekâsı: devriye + menzil omuz tehdidi
     collapseAI.js             Brutal Collapse bot zekâsı: güvenli hücre + tehlike zıplaması
     ninjaAI.js                Brutal Ninja bot zekâsı: pusu/saklanma + kısa menzil av
@@ -153,6 +155,8 @@ src/games/ (Oyun Motorları - BaseMiniGame türevleri):
         worldCore.js             Generic world-view snapshot çekirdeği (createWorldSnapshot + isValidWorldBase + packers + drawSquareParticles)
     laser.js                  Brutal Laser motoru (hareketli lazer-tag, 3 can, dash i-frame)
      laserView.js             Ortak Laser snapshot serializer + host/client çizim yardımcıları (worldCore deklaratif extras)
+     horde.js                  Brutal Horde motoru (3 tur × 3 dalga, boss, portal, revive, takım hayatta-kalma)
+      hordeView.js             Ortak Horde snapshot serializer + capped enemy/projectile doğrulama ve çizim
     collapse.js               Brutal Collapse motoru (13x13 çöken ızgara, zıplama, itişme)
      collapseView.js          Ortak Collapse snapshot serializer (13x13 grid) + host/client çizim yardımcıları
     ninja.js                  Brutal Ninja motoru (görünmezleşme, kılıç cooldown, siper kutuları)
@@ -172,7 +176,7 @@ server/
 
 public/                     PWA (manifest.webmanifest, sw.js, ikonlar) + public/assets/games/*.jpg
 tests/                      Node test runner: network protocol, WebRTC kanal/ICE regresyonları,
-                            Snake world snapshot ve Race saf progress/tuning regresyonları
+                            Snake/Laser/Horde world snapshot ve Race/Horde motor regresyonları
 ```
 
 ---
@@ -194,6 +198,7 @@ tests/                      Node test runner: network protocol, WebRTC kanal/ICE
 | CLONE | Brutal Clone | `src/games-retired/clone.js` | `src/ai/cloneAI.js` | `mountCloneController` | **RETIRED ama oynanabilir; UI listesinde sonlarda.** 2 gecikmeli kopya, gerçek-vuruş skor + sahte-vuruş 2.5sn slow; 60sn timeout, bounded draw, swept tackle + wall occlusion, resize state preservation; **30 Hz P2P world-view** |
 | COLLAPSE | Brutal Collapse | `src/games/collapse.js` | `src/ai/collapseAI.js` | `mountCollapseController` | 13x13 çöken ızgara, 60sn terminal clock, bounded draw, swept hole collision, pickup expiry, resize state remap; **30 Hz P2P world-view** |
 | NINJA | Brutal Ninja | `src/games/ninja.js` | `src/ai/ninjaAI.js` | `mountNinjaController` | Görünmezlik, 45sn timeout, bounded draw, swept strike + wall occlusion, lantern resize preservation; **30 Hz P2P world-view** (self ghost) |
+| HORDE | Brutal Horde | `src/games/horde.js` | `src/ai/hordeAI.js` | `JOYSTICK_ACTION` (hold-fire + dash) | 1-4 oyunculu takım savunması; 3 tur × 3 dalga, 5 can, 3sn revive/portal, HEAL/SHIELD/FAST/TRIPLE, bounded enemy/projectile snapshot; **30 Hz P2P world-view** |
 | RACE | Brutal Race | `src/games/race.js` | `src/ai/raceAI.js` | `JOYSTICK_ACTION` | 3 checkpoint + 3 tur; CIRCUIT/ZIGZAG/SPIRAL; 90sn, round IDs, bounded timeout tie draw, resize clamp/EMP scaling; continuous progress + explicit simultaneous-finish handling |
 
 ---
@@ -208,7 +213,7 @@ ONLINE host artık TV değil, kendisi P1 olan oyuncu telefonudur; P1 rezerve, uz
 
 Her WebRTC peer'ında iki DataChannel bulunur:
 - `control`: `ordered:true`; giriş, hazır, koltuk ve 8 Hz HUD/state. WebRTC yoksa hedefli Supabase fallback kullanılır.
-- `world`: `ordered:false, maxRetransmits:0`; yalnız ONLINE host→client tam dünya snapshot'ı. TV_CONSOLE odasında bu kanal kapalıdır. World-view oyunları (SNAKE, ARCHER, BOMB, HEIST, TANKS, CLONE, NINJA, LASER, ZONE, COLLAPSE, CURVE) ONLINE'da 30 Hz gönderir, Supabase'e düşmez ve client `seq` ile eski/geç kareyi yok sayar.
+- `world`: `ordered:false, maxRetransmits:0`; yalnız ONLINE host→client tam dünya snapshot'ı. TV_CONSOLE odasında bu kanal kapalıdır. World-view oyunları (SNAKE, ARCHER, BOMB, HEIST, TANKS, CLONE, NINJA, LASER, ZONE, COLLAPSE, CURVE, HORDE) ONLINE'da 30 Hz gönderir, Supabase'e düşmez ve client `seq` ile eski/geç kareyi yok sayar.
 
 ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını kullanır. Host yalnız katılmış peer'lardan signal kabul eder; controller kilitlediği hostId dışındaki signal'ı reddeder. ICE adayları remote description sonrasına kuyruğa alınır.
 
@@ -226,7 +231,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
 > Not: TV_CONSOLE modunda telefon **kumandadır** (TV sahadır) ve `world` kanalı kullanılmaz. ONLINE modunda telefon hem kumanda hem oyuncudur; aynı cihazda dünya + overlay birlikte çalışır.
 
 ### Uzak Telefon → Host (`player_msg`):
-* `INPUT`: Joystick yönü `(x, y)` veya buton basımları (`FIRE`, `DASH`, `TACKLE`). 50ms throttle ile sınırlandırılmıştır; aksiyon butonları throttlesızdır.
+* `INPUT`: Joystick yönü `(x, y)` veya buton basımları (`FIRE`, `DASH`, `TACKLE`, HORDE `HORDE_FIRE/HORDE_FIRE_RELEASE`). 50ms throttle ile sınırlandırılmıştır; aksiyon butonları throttlesızdır.
 * `INPUT` tüneli `AVATAR_UPDATE`: kumanda kendi karakterini bildirir (`{color, expression, accessory, pattern}`; host sanitize eder, 1sn rate-limit).
 * `JOIN_ROOM` / `JOIN`: 3 haneli oda kodu + oyuncu adı + `avatar` ile odaya katılma isteği. Avatarsız eski istemciye host boş rastgele renk + varsayılan yüz atar; alınmış renkle gelenin rengi boşa çekilir (yüz korunur).
 * `SWITCH_SLOT`: Kumandadan boş bir koltuğa geçiş talebi (`targetIndex`).
@@ -236,7 +241,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
 
 ### Host → Uzak Telefon (`host_msg`):
 * `HOST_STATE_SYNC` / `GAME_STATE`: 8 Hz periyodik HUD/kumanda durumu (dirty-check ile değişmediyse göndermez).
-* `WORLD_FRAME`: world-view oyunlarında (SNAKE, ARCHER, BOMB, HEIST, TANKS, CLONE, NINJA, LASER, ZONE, COLLAPSE, CURVE) yalnız P2P `world` kanalından 30 Hz tam snapshot; full-frame olduğu için kayıp paket sonraki kareyi bozmaz. Büyük grid/trail oyunlarında (ZONE 4096 hücre, CURVE 24.000 segment) snapshot RLE / iki katmanlı sıkıştırma ile tavan altına indirilir; ARCHER/TANKS round kimliği ve tank mermi ID/hız alanlarıyla interpolation sınırını korur; çarpışma host'ta tam çözünürlükte kalır.
+* `WORLD_FRAME`: world-view oyunlarında (SNAKE, ARCHER, BOMB, HEIST, TANKS, CLONE, NINJA, LASER, ZONE, COLLAPSE, CURVE, HORDE) yalnız P2P `world` kanalından 30 Hz tam snapshot; full-frame olduğu için kayıp paket sonraki kareyi bozmaz. Büyük grid/trail oyunlarında (ZONE 4096 hücre, CURVE 24.000 segment) snapshot RLE / iki katmanlı sıkıştırma ile tavan altına indirilir; ARCHER/TANKS round kimliği ve tank mermi ID/hız alanlarıyla interpolation sınırını korur; çarpışma host'ta tam çözünürlükte kalır.
 * `SLOTS_UPDATE`: 4 koltuğun güncel durumu (`slotIndex, name, color, kind, isReady, isHost` + insanlarda `avatar`) ve `reservedHostSlot`. Hem WS hem Supabase'de birebir aynı şemadır.
 * `JOIN_SUCCESS`: Supabase ayrıca `worldView` ve `reservedHostSlot` bayraklarını taşır; ONLINE odada worldView true, TV_CONSOLE odasında false. TV host isteğe bağlı P1'e katılırsa reservedHostSlot 0 olur.
 * `SLOT_CHANGED`: koltuk no + display rengi. Renk oyuncuyla taşınır (takas/döndürmede koltuğa sabitlenmez).
@@ -345,7 +350,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
     * Hem masa-ortası canvas (Tabletop 2D) hem de mobil kumanda (Gamepad DOM) butonlarında işletim sistemi emojileri (⚡, 🚀, 💬, ⛶ vb.) doğrudan kullanılmaz.
     * Tek kaynak `src/core/tabletopIcons.js` modülüdür (Canvas için `drawTabletopIcon`, HTML/DOM için `getTabletopIconSvg`).
     * Kumanda aksiyon butonlarında metin başlığı (BOOST, DASH, DRIVE vb.) yer almaz; ortalanmış, büyük ve net Lucide SVG ikonu kullanılır.
-19. **Online world-view katmanı (SNAKE pilotu → ARCHER → BOMB → HEIST → TANKS → CLONE → NINJA → LASER → ZONE → COLLAPSE → CURVE, generic çekirdek):**
+19. **Online world-view katmanı (SNAKE pilotu → ARCHER → BOMB → HEIST → TANKS → CLONE → NINJA → LASER → ZONE → COLLAPSE → CURVE → HORDE, generic çekirdek):**
     * Cross-cutting altyapı generic'dir ve oyun başına tekrar yazılmaz: `GamepadWorldView` (src/ui/gamepadWorldView.js), 30 Hz broadcast döngüsü (main.js `broadcastWorldStateIfNeeded`), WebRTC `world` DataChannel (webrtcManager + supabaseRelay), kumanda mount kararı (gamepad.js `meta.worldView && network.supportsWorldFrames`).
     * Oyun başına yapılan iş: `src/games/[oyun]View.js` (snapshot serializer + `isValid` doğrulama + host/client ortak draw yardımcıları — client asla simülasyon/AI import etmez) + `src/ui/[oyun]WorldView.js` renderer proxy (`createWorldViewRenderer` döndürür) + `engineRegistry`'de `worldView.load` + `worldPacket`.
     * HEIST ile generic çekirdek `src/games/worldCore.js` çıkarıldı (`createWorldSnapshot` + `isValidWorldBase` + packers + `drawSquareParticles`); 4. world-view oyunundan itibaren ekleme deklaratif `extras` kaydına iner (mode + mapPlayer + extras).
@@ -353,6 +358,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
     * CLONE çekirdeği alpha-konvansiyonlu partiküllere genişletti (`packParticles` life→alpha fallback + `drawCircleParticles`); görev istasyonu ikonları id→registry anahtarı eşlemesiyle vektöre çevrildi (tel üstünde ham emoji yok).
     * LASER ile `mapLaserPlayers` tek-kaynak eşlemesi eklendi (host render + snapshot aynı fonksiyon; tuning parametreli, cycle yok) + `drawAlphaTexts` outline/size desteği aldı; nişan pol çizgileri saf `traceAim`'den snapshot'a taşınır.
     * Weird-game kaçış kapağı ZONE/COLLAPSE/CURVE ile kullanıldı: ZONE 64x64 grid'i RLE (`packZoneGridRle`) + `gridV` versiyonuyla sadece repaint edildiğinde client'ta yeniden kurulur; COLLAPSE 13x13 grid ham dizi olarak (169 hücre) taşınır; CURVE 24.000 segmentlik trail iki katmanlıdır — oyuncu başına son 220 `near` segment (3 bit flag ile) + eski izlerin 24x24 2-bit sahiplik maskesi (hex, 288 karakter). Üçünde de çarpışma host'ta tam çözünürlüktedir.
+     * HORDE ekinde frame 28 enemy + 64 projectile + 4 tomb + 4 pickup + 8 text + 48 particle ile bounded payload'da tutulur; host full-resolution swept collision çözerken client yalnız doğrulanmış snapshot'ı çizer.
     * NINJA ile `selfSlot` tesisatı eklendi (`GamepadWorldView` 7. render argümanı + `setSelfSlot`; mevcut renderer'lar etkilenmez): görünmezlik karşılıklıdır, yalnız kendi koltuğu hayalet kontur görür (`ghostSlots`). Uçuşan metinler snapshot dışıdır (`renderFloatingTexts` mutate eder — life += dt + splice — client snapshot'ı bozardı).
     * Overlay kontrol katmanı (`gamepad-game-stage`: canvas z-0 + `gamepad-control-overlay` z-2, transparan + `pointer-events` passthrough) oyuna özel değildir — standart `controlDefs` mount'u her world-view oyunu için otomatik gelir.
     * World-view kromu (banner/placeholder/stale + `fitWorld`) tek kaynak `src/ui/worldViewKit.js`'ten gelir. `_mountWorldView` generic `createWorldViewRenderer` çağırır (snake geriye uyum alias'ı korunur).
@@ -369,7 +375,7 @@ Yeni bir oyun ekleneceğinde aşağıdaki kayıtlar güncellenir:
 4. `src/core/slotManager.js`: `applySlotDataToEntity`, `clearRemoteSlot`, `swapEngineSlots` desteği.
 5. `src/controllers/controlDefs.js`, `gamepadSchemas.js`, `controllerStatus.js`: telefon + tabletop parite, ikon/cooldown ve canlı durum kaydı.
 6. `index.html`: Bento kartı (`#btn-select-[mod]`) ve TV lobi çipi (`data-game="[MOD]"`).
-7. `src/styles/menu.css` + `animations.css`: kart vurgusu ve 14. giriş gecikmesi.
+7. `src/styles/menu.css` + `animations.css`: kart vurgusu ve 15. giriş gecikmesi.
 8. `public/sw.js`: yeni görseli precache'e ekle ve cache sürümünü artır.
 9. `public/assets/games/[oyun].jpg`: 1:1 neo-brutalist görsel.
 10. `docs/PROJECT_MAP.md` + `AGENTS.md`: motor/AI/dosya/kontrol kayıtları.

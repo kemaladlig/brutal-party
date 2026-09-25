@@ -278,6 +278,38 @@ export const GAMEPAD_SCHEMAS = {
     ],
   },
 
+  HORDE: {
+    type: 'JOYSTICK_ACTION',
+    def: CONTROL_DEFS.HORDE,
+    actions: [
+      {
+        id: 'fire',
+        action: 'HORDE_FIRE',
+        releaseAction: 'HORDE_FIRE_RELEASE',
+        hold: true,
+        icon: 'crosshair',
+        label: t('pad.hordeFire'),
+        color: '#7C3AED',
+        flex: 1.2,
+        minHeight: '80px',
+        vibrate: [18, 28],
+        syncHostCooldown: true,
+        hostCdField: 'cdFire',
+      },
+      {
+        id: 'dash',
+        action: 'DASH',
+        icon: 'zap',
+        label: t('pad.dash'),
+        color: '#D84727',
+        minHeight: '64px',
+        cooldown: 4.0,
+        vibrate: [25, 35],
+        syncHostCooldown: true,
+      },
+    ],
+  },
+
   RACE: {
     type: 'JOYSTICK_ACTION',
     def: CONTROL_DEFS.RACE,
