@@ -77,6 +77,7 @@ src/core/
   engineRegistry.js         GAME_ORDER (aktif önce, retired sonra), CARTRIDGES (15 oyun kartuşu + lifecycle/controller metadataları), ensureEngine/preloadEngine, getControllerMeta, registerEngine/getEngine/forEachEngine
   slotManager.js            Koltuk yönetimi: hostPlayerSlots (+avatar/displayColor), updateHostSlot,
                             syncSlotsToEngine, swapEngineSlots, getColorClashIndices (sert renk engeli)
+  slotRules.js              Saf koltuk taşıma kuralları: hedef/kaynak, bot, host rezervasyonu ve kilit guard'ı
   safeStorage.js            localStorage sarmalayıcı (JSON parse/try-catch tek nokta)
   preferences.js            Versiyonlu cihaz tercihleri: controlSurface/audio/haptics/PONG + global controller layout + v1→v2 migration
   controllerLayout.js       Saf cihaz-geneli kontrol yerleşimi: normalize, safe-frame fit, merkez koruması, minimum 44px, sol/sağ taşıma çözümü
@@ -132,7 +133,7 @@ src/ui/
   customizeModal.js         Sekmeli (renk/yüz/aksesuar/desen) tek-profil avatar atölyesi (TV menü + host + kumanda lobi)
   characterRenderer.js      Birleşik avatar çizimi: options.avatar/kayıt defteri, yazısız pip kimliği
                             (P1=● … P4=●●●●), saha içi text-label yasaktır
-  hostLobby.js              TV bekleme lobisi modali (QR kod canvas, oda kodu, lobi oyun chip'leri, WhatsApp/link paylaşımı, ping badge)
+  hostLobby.js              TV/ONLINE bekleme lobisi modali (QR kod canvas, oda kodu, lobi oyun chip'leri, WhatsApp/link paylaşımı, ping badge, iki dokunuşlu doğrudan koltuk düzenleyici)
   joinModal.js              Kumanda katılım modali & Hero kod kutusu, panodan yapıştırma
   pauseModal.js             Oyun içi duraklatma menüsü, 4 koltuk takası, 90° saat yönü ekran döndürme, ses aç/kapa
   toast.js                  PWA yükleme bildirimleri (showInstallToast, setupPwaInstallPrompt)
@@ -247,7 +248,7 @@ ONLINE ve TV_CONSOLE aynı `src/core/networkProtocol.js` input doğrulamasını 
 
 1. **Oda kurma** — P1 telefonu 3 haneli kod üretir (100–999) ve odayı Supabase Broadcast üzerinden açar. Bu aşamada henüz WebRTC yoktur.
 2. **Keşif** — Diğer telefon ana sayfadaki **ONLINE PARTY kartından** (ayrı kod alanı) kodu girer. `join-room-modal` ONLINE modunda "oyuncu" metniyle açılır; TV kartı ise "kumanda" metniyle. Aynı modal, iki farklı rol.
-3. **Katılım** — Supabase `players[]` tablosu tek koltuk kaynağıdır; host, katılan peer'ı `JOIN_SUCCESS` ile onaylar. Bu bayrak aynı zamanda `worldView: true` taşır (telefonda world canvası açılır, P1 host'a rezerve kalır).
+3. **Katılım** — Supabase `players[]` tablosu tek koltuk kaynağıdır; host, katılan peer'ı `JOIN_SUCCESS` ile onaylar. Bu bayrak aynı zamanda `worldView: true` taşır (telefonda world canvası açılır, host koltuğu snapshot'ta rezerve olarak görünür).
 4. **Signaling** — Host WebRTC `offer` üretir, client `answer` + ICE adayları gönderir. ICE, remote description'dan önce gelen adaylar kuyruğa alınarak sonradan işlenir. İki `RTCDataChannel` kurulur.
 5. **Oyun trafiği** — Bundan sonra Supabase devre dışıdır; tüm oyun verisi doğrudan host→client gider. `control` (güvenilir) girdi + 8 Hz HUD taşır, `world` (atılabilir) 30 Hz tam snapshot taşır.
 6. **Oyun döngüsü** — Uzak telefon **yalnız girdi gönderir** (joystick + aksiyon). Motor/fizik/AI host'ta çalışır; sonuç 30 Hz `WORLD_FRAME` olarak yayınlanır, telefon 50-120 ms adaptive playout buffer ile 60 Hz+ native rAF sunum yapar ve kontrol overlay'i üstüne bindirilir.
@@ -260,7 +261,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
 * `INPUT`: Joystick yönü `(x, y)` veya buton basımları (`FIRE`, `DASH`, `TACKLE`, HORDE `HORDE_FIRE/HORDE_FIRE_RELEASE`). 50ms throttle ile sınırlandırılmıştır; aksiyon butonları throttlesızdır.
 * `INPUT` tüneli `AVATAR_UPDATE`: kumanda kendi karakterini bildirir (`{color, expression, accessory, pattern}`; host sanitize eder, 1sn rate-limit).
 * `JOIN_ROOM` / `JOIN`: 3 haneli oda kodu + oyuncu adı + `avatar` ile odaya katılma isteği. Avatarsız eski istemciye host boş rastgele renk + varsayılan yüz atar; alınmış renkle gelenin rengi boşa çekilir (yüz korunur).
-* `SWITCH_SLOT`: Kumandadan boş bir koltuğa geçiş talebi (`targetIndex`).
+* `SWITCH_SLOT`: Telefon lobi/staging ekranından seçilen hedef koltuğa geçiş talebi (`targetSlot`); boş veya başka bir insan koltuğu hedeflenebilir, host/bot kilitlidir.
 * `PLAYER_READY`: Hazır / Hazır değil durum değişimi.
 * `SET_NAME`: İsim güncellemesi (büyük harf, maks 12 karakter).
 * `REACTION` / `PING`: Emoji tepkisi / gecikme ölçümü.
@@ -282,7 +283,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
 
 ## 4. Slot Modeli Kuralları
 
-* Host cihaz tarafında: `hostPlayerSlots[i] = { name, isReady, kind, avatar, displayColor }`, `kind ∈ 'human' | 'bot'`. ONLINE host P1'dir; TV_CONSOLE host varsayılan olarak koltuklarda yer almaz, lobi düğmesiyle açtığında P1'e local oyuncu olarak eklenir.
+* Host cihaz tarafında: `hostPlayerSlots[i] = { name, isReady, kind, avatar, displayColor }`, `kind ∈ 'human' | 'bot'`. ONLINE host başlangıçta P1'dir; açık koltuk düzenleyicide host veya oyuncular başka bir insana/boş koltuğa taşınabilir. TV_CONSOLE host varsayılan olarak koltuklarda yer almaz, lobi düğmesiyle açtığında local oyuncu olarak eklenir.
 * Relay tarafı (`supabaseRelay.players[]` veya `room.players[]`) tek doğru gerçektir (Single Source of Truth). TV host P1'e katılırsa aynı host socket'i hem authority hem local player olarak işaretlenir; host kapanınca oda kapanır.
 * **Sert renk engeli:** İki insan koltuğu aynı display rengine sahipse `SAHAYA GEÇ` + sayaç kilitlenir (lobide `⚠️ AYNI RENK` + 🎲 hızlı atama). LOCAL muaf (koltuklar boş → küme boş).
 * **Bot Kuralları:**
@@ -339,7 +340,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
    * Oda kodu çakışma kalkanı: host 5sn'de `HOST_ANNOUNCE` ilan eder, kumanda JOIN'i ilan edilen `hostId`'ye kilitler (2+ host → çakışma hatası, 0 → eski-host uyumu).
    * İsim tek kaynak (`net.js:cleanPlayerName` + sunucu `cleanSlotName`): trim/upper/12 + etiket temizliği; dolu isim `·2` suffix alır; reclaim kalıcı `clientId` ile (canlı slot gasp edilemez); skor şeridi + koltuk kartı `escapeHtml`.
    * WS `joinRoom(clientId)` + ölü-soket reclaim + disconnect'te `ready=false` (sokak reclaim edildiyse dokunmaz). Kumanda JOIN + host SET_NAME aynı temizlikten geçer.
-   * Girdi denetimi: WS + Supabase şema/aralık (`isValidInputData/isValidRelayInput`), discrete rate-limit (FIRE/DASH/TACKLE 100ms, SWITCH 500ms, READY 300ms…), emoji/boyut budama; `SWITCH_SLOT` host kapısı (aralık + bot hedef/kaynak reddi); motorlarda `finite/clamp` derinliği.
+   * Girdi denetimi: WS + Supabase şema/aralık (`isValidInputData/isValidRelayInput`), discrete rate-limit (FIRE/DASH/TACKLE 100ms, SWITCH 500ms, READY 300ms…), emoji/boyut budama; `SWITCH_SLOT` host kapısı (aralık + bot hedef/kaynak reddi) ve yalnız LOBBY/STAGING fazında kabul; motorlarda `finite/clamp` derinliği.
    * Uzak tetikleyicilere `PLAYING` kapısı: TANKS `attemptFire`, BOMB `triggerDash`, HEIST `triggerTackle` (CROWN'da vardı).
 13. **Faz C — Oda akışı yarışları (tarama raporu):**
    * WS hayalet süpürücü: 10sn yoklama, >20sn sessiz + ölü soketli slotu boşa çıkarır (`ready=false` dahil); INPUT/READY/REACTION `lastSeen` tazeler; reclaim edilmiş soketin `close`'u başkasının slotunu boşaltmaz.

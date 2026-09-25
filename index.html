@@ -48,6 +48,7 @@
           <span class="staging-ready-pill" id="staging-ready-pill">0 BAĞLANDI</span>
         </div>
         <div class="staging-actions">
+          <button class="staging-seats-btn" id="btn-staging-edit-seats" type="button"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span><span data-i18n="host.editSeats">KOLTUKLARI DÜZENLE</span></button>
           <button class="staging-launch-btn" id="btn-staging-launch" type="button">▶ MAÇI BAŞLAT</button>
           <button class="staging-lobby-btn" id="btn-staging-lobby" type="button">LOBİYE DÖN</button>
         </div>
@@ -128,7 +129,7 @@
                   <span id="host-players-title" data-i18n="host.players">OYUNCULAR</span>
                   <span class="host-player-limit" data-i18n="host.playerLimit">2–4</span>
                 </div>
-                <div class="host-slot-hint" id="host-slot-hint" data-i18n="host.slotHint">Sırayı değiştirmek için kaydır.</div>
+                <div class="host-slot-hint" id="host-slot-hint" data-i18n="host.slotHint" aria-live="polite">Oyuncu kartındaki KOLTUK DEĞİŞTİR’e dokun, sonra hedef koltuğu seç.</div>
                 <div class="host-players-list">
               <div class="host-player-slot" id="slot-p1" data-slot="0">
                 <canvas class="slot-avatar-preview" id="slot-canvas-p1" width="34" height="34"></canvas>
@@ -140,7 +141,7 @@
                 <div class="slot-card-actions">
                   <button class="slot-color-btn" data-slot="0" data-i18n-aria="host.slotColor" title="Koltuk rengini değiştir" type="button"><span data-lobby-icon="pencil" aria-hidden="true"></span></button>
                   <button class="slot-bot-btn hidden" data-slot="0" data-i18n-aria="host.botToggle" title="Bot ekle/kaldır" type="button"><span data-lobby-icon="bot" aria-hidden="true"></span><span class="slot-bot-label">+ BOT</span></button>
-                  <button class="slot-swap-btn" data-slot="0" data-i18n-aria="host.swapDown" title="Aşağı Kaydır" type="button"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span></button>
+                  <button class="slot-swap-btn" data-slot="0" data-i18n-aria="host.swapDown" title="Koltuğu değiştir" type="button" aria-pressed="false"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span><span class="slot-swap-label" data-i18n="host.swapAction">KOLTUK DEĞİŞTİR</span></button>
                 </div>
               </div>
               <div class="host-player-slot" id="slot-p2" data-slot="1">
@@ -153,7 +154,7 @@
                 <div class="slot-card-actions">
                   <button class="slot-color-btn" data-slot="1" data-i18n-aria="host.slotColor" title="Koltuk rengini değiştir" type="button"><span data-lobby-icon="pencil" aria-hidden="true"></span></button>
                   <button class="slot-bot-btn hidden" data-slot="1" data-i18n-aria="host.botToggle" title="Bot ekle/kaldır" type="button"><span data-lobby-icon="bot" aria-hidden="true"></span><span class="slot-bot-label">+ BOT</span></button>
-                  <button class="slot-swap-btn" data-slot="1" data-i18n-aria="host.swapDown" title="Aşağı Kaydır" type="button"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span></button>
+                  <button class="slot-swap-btn" data-slot="1" data-i18n-aria="host.swapDown" title="Koltuğu değiştir" type="button" aria-pressed="false"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span><span class="slot-swap-label" data-i18n="host.swapAction">KOLTUK DEĞİŞTİR</span></button>
                 </div>
               </div>
               <div class="host-player-slot" id="slot-p3" data-slot="2">
@@ -166,7 +167,7 @@
                 <div class="slot-card-actions">
                   <button class="slot-color-btn" data-slot="2" data-i18n-aria="host.slotColor" title="Koltuk rengini değiştir" type="button"><span data-lobby-icon="pencil" aria-hidden="true"></span></button>
                   <button class="slot-bot-btn hidden" data-slot="2" data-i18n-aria="host.botToggle" title="Bot ekle/kaldır" type="button"><span data-lobby-icon="bot" aria-hidden="true"></span><span class="slot-bot-label">+ BOT</span></button>
-                  <button class="slot-swap-btn" data-slot="2" data-i18n-aria="host.swapDown" title="Aşağı Kaydır" type="button"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span></button>
+                  <button class="slot-swap-btn" data-slot="2" data-i18n-aria="host.swapDown" title="Koltuğu değiştir" type="button" aria-pressed="false"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span><span class="slot-swap-label" data-i18n="host.swapAction">KOLTUK DEĞİŞTİR</span></button>
                 </div>
               </div>
               <div class="host-player-slot" id="slot-p4" data-slot="3">
@@ -179,7 +180,7 @@
                 <div class="slot-card-actions">
                   <button class="slot-color-btn" data-slot="3" data-i18n-aria="host.slotColor" title="Koltuk rengini değiştir" type="button"><span data-lobby-icon="pencil" aria-hidden="true"></span></button>
                   <button class="slot-bot-btn hidden" data-slot="3" data-i18n-aria="host.botToggle" title="Bot ekle/kaldır" type="button"><span data-lobby-icon="bot" aria-hidden="true"></span><span class="slot-bot-label">+ BOT</span></button>
-                  <button class="slot-swap-btn" data-slot="3" data-i18n-aria="host.swapDown" title="Aşağı Kaydır" type="button"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span></button>
+                  <button class="slot-swap-btn" data-slot="3" data-i18n-aria="host.swapDown" title="Koltuğu değiştir" type="button" aria-pressed="false"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span><span class="slot-swap-label" data-i18n="host.swapAction">KOLTUK DEĞİŞTİR</span></button>
                 </div>
               </div>
                 </div>

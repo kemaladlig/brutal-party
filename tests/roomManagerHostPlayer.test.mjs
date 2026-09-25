@@ -63,3 +63,25 @@ test('online-style host identity starts in P1 when requested', () => {
   assert.equal(manager.getSlots(room)[0].name, 'P1 HOST');
   assert.equal(manager.getHostPlayerState(room).active, true);
 });
+
+test('remote seat changes are accepted in lobby/staging but not during countdown', () => {
+  const manager = new RoomManager();
+  const host = fakeSocket();
+  const room = manager.createRoom(host, 'PONG', { asPlayer: true, name: 'P1 HOST' });
+  const phone = fakeSocket();
+  manager.joinRoom(room.code, phone, 'PHONE', 'phone-seat', { color: '#1D5D8A' });
+
+  manager.handleStartStaging(host, 'PONG');
+  manager.handlePlayerInput(phone, { action: 'SWITCH_SLOT', targetSlot: 2 });
+  const stagedSwitches = host.messages.filter((message) => (
+    message.type === 'PLAYER_INPUT' && message.data.action === 'SWITCH_SLOT'
+  ));
+  assert.equal(stagedSwitches.length, 1);
+
+  manager.handleCountdown(host, 3);
+  const secondPhone = fakeSocket();
+  manager.joinRoom(room.code, secondPhone, 'PHONE-2', 'phone-seat-2', { color: '#D99B26' });
+  const beforeLockedSwitch = host.messages.length;
+  manager.handlePlayerInput(secondPhone, { action: 'SWITCH_SLOT', targetSlot: 3 });
+  assert.equal(host.messages.length, beforeLockedSwitch);
+});

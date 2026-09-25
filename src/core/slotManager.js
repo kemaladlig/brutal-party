@@ -195,6 +195,11 @@ export function updateHostSlot(
     }
   }
   refreshColorClashUI();
+  // Host lobi koltuk düzenleyicisi aynı slot snapshot'ını okur; yeni katılım,
+  // ayrılma veya renk güncellemesinde seçim butonlarını da anında tazele.
+  try {
+    window.dispatchEvent(new CustomEvent('brutal_host_slots_changed'));
+  } catch {}
 }
 
 // Aynı display rengine sahip insan koltuklarına ⚠️ rozeti + kart vurgusu.

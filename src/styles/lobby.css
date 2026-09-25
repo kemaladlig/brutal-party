@@ -411,7 +411,12 @@
   color: var(--muted);
   font-size: 9px;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.35;
+}
+
+.host-slot-hint.is-targeting {
+  color: var(--danger);
+  font-weight: 900;
 }
 
 .host-slot-hint.hidden {
@@ -530,10 +535,10 @@
 .slot-card-actions {
   grid-area: actions;
   min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 44px 44px;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: end;
   gap: 4px;
 }
 
@@ -561,12 +566,46 @@
 .slot-card-actions .slot-color-btn,
 .slot-card-actions .slot-swap-btn {
   width: 44px;
-  flex: 0 0 44px;
+  min-width: 0;
+  flex: none;
+}
+
+.slot-card-actions .slot-color-btn {
+  grid-column: 1;
 }
 
 .slot-card-actions .slot-bot-btn {
-  min-width: 54px;
-  flex: 1 1 54px;
+  grid-column: 2;
+  min-width: 0;
+  flex: none;
+}
+
+.slot-card-actions .slot-swap-btn {
+  grid-column: 1 / -1;
+  width: 100%;
+  gap: 5px;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.slot-swap-btn.is-selected {
+  background: #fff4c2;
+  border-color: var(--danger);
+  box-shadow: 2px 2px 0 var(--danger);
+}
+
+.slot-swap-btn.is-target:not(:disabled) {
+  border-color: var(--danger);
+  background: #fff4c2;
+}
+
+.slot-swap-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.slot-swap-btn.is-selected:disabled {
+  opacity: 1;
 }
 
 .slot-color-btn svg,
@@ -788,6 +827,67 @@
 
 .tv-start-btn.blocked {
   background: var(--danger);
+}
+
+/* Staging'den açılan kompakt koltuk editörü: aynı kartları yeniden kullanır,
+   böylece host için ikinci bir koltuk modeli oluşmaz. */
+#tv-host-modal.is-seat-editor .tv-host-body {
+  display: block;
+  padding-top: 18px;
+}
+
+#tv-host-modal.is-seat-editor .host-room-rail {
+  width: 100%;
+}
+
+#tv-host-modal.is-seat-editor .host-connect-card,
+#tv-host-modal.is-seat-editor .host-game-selector,
+#tv-host-modal.is-seat-editor .tv-host-player-btn,
+#tv-host-modal.is-seat-editor .tv-close-btn {
+  display: none;
+}
+
+#tv-host-modal.is-seat-editor .host-players-panel {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+#tv-host-modal.is-seat-editor .tv-host-actions {
+  justify-content: center;
+}
+
+#tv-host-modal.is-seat-editor .tv-start-btn {
+  flex: 0 1 360px;
+}
+
+.staging-seats-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 12px;
+  background: #ffd700;
+  color: #1a1a1a;
+  border: 3px solid #1a1a1a;
+  box-shadow: 3px 3px 0 #1a1a1a;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.staging-seats-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 #1a1a1a;
+}
+
+.staging-seats-btn svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
 }
 
 .tv-host-player-btn {
@@ -1060,7 +1160,11 @@
   .slot-card-actions .slot-color-btn,
   .slot-card-actions .slot-swap-btn {
     width: 44px;
-    flex-basis: 44px;
+    min-width: 0;
+  }
+
+  .slot-card-actions .slot-swap-btn {
+    width: 100%;
   }
 
   .selector-grid {
@@ -1110,6 +1214,26 @@
 
   #btn-host-toggle-player.hidden ~ .tv-close-btn {
     grid-column: 1 / -1;
+  }
+
+  .staging-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .staging-seats-btn {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .staging-launch-btn {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .staging-lobby-btn {
+    grid-column: 2;
+    grid-row: 2;
   }
 }
 

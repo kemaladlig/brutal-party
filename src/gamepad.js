@@ -31,6 +31,7 @@ import {
   resolveControllerLayout,
   CONTROLLER_MIN_TOUCH_TARGET,
 } from './core/controllerLayout.js';
+import { getSlotSwapError } from './core/slotRules.js';
 
 // Kumanda kayıt tablosu: tek kaynaktan (engineRegistry) beslenir
 const CONTROLLER_META = new Proxy({}, {
@@ -94,7 +95,8 @@ export class GamepadManager {
 
     // Slots occupancy state from host
     this.slots = [null, null, null, null];
-    // İki kademeli başlatma: staging açılmadan koltuk seçimi gösterilmez
+    // Koltuk seçimi lobi açılır açılmaz görünür; staging yalnızca ready
+    // aşamasını ve kilit durumunu değiştirir.
     this.stagingOpen = false;
     this.countdownActive = false;
     this._countdownT = null;
@@ -512,12 +514,14 @@ export class GamepadManager {
   // Koltuk değiştirme ön kapısı (lobi ızgarası + refresh tek kaynaktan;
   // sunucu/host son kapılar yerinde durur)
   canSwitchSlot(targetSlot) {
-    if (this.network.reservedHostSlot === targetSlot) return false;
-    if (this.countdownActive) return false;
-    if (targetSlot === this.playerIndex) return false;
-    if (this.slots?.[targetSlot]?.kind === 'bot') return false;
-    if (this.slots?.[this.playerIndex]?.kind === 'bot') return false;
-    return true;
+    return !getSlotSwapError({
+      from: this.playerIndex,
+      to: targetSlot,
+      slots: this.slots,
+      reservedHostSlot: this.network.reservedHostSlot,
+      locked: this.countdownActive,
+      remote: true,
+    }) && this.gameMode === 'LOBBY';
   }
 
   // 8Hz'de getElementById yerine önbellek (mount değişince temizlenir)
@@ -927,9 +931,9 @@ export class GamepadManager {
     strip.classList.remove('hidden');
   }
 
-  // İki kademeli başlatma: host sahayı açtı → koltuk seçimi görünür.
-  // STAGING her durumda lobi görünümünü basar: RETURNED_TO_LOBBY'yi kaçırmış
-  // (uyku/zamanlama) kumanda eski oyun ekranında ölü takılmasın diye koşulsuz render.
+  // İki kademeli başlatma: koltuk seçimi lobi açılışında hazırdır;
+  // STAGING aynı lobi görünümünü yeniler ve ready aşamasını açar. RETURNED_TO_LOBBY
+  // kaçırılsa bile kumanda eski oyun ekranında ölü takılmaz.
   enterStaging(gameMode) {
     this.stagingOpen = true;
     this.countdownActive = false;
@@ -1071,35 +1075,53 @@ export class GamepadManager {
     const isMine = idx === this.playerIndex;
     const slotData = this.slots ? this.slots[idx] : null;
     const seatColors = [0, 1, 2, 3].map((i) => this.slots?.[i]?.color || fallbackColors[i]);
-    const isReserved = !isMine && this.network.reservedHostSlot === idx;
-    const isBot = !isMine && slotData?.kind === 'bot';
+    const isReserved = !isMine && (
+      this.network.reservedHostSlot === idx || slotData?.isHost === true
+    );
+    const isBot = !isMine && (slotData?.kind === 'bot' || slotData?.kind === 'bot_god' || slotData?.isBot === true);
     const isOccupied = !isMine && !isBot && !isReserved && slotData !== null && !!slotData.name;
     const occupantName = isMine ? this.playerName : (isOccupied || isBot ? slotData.name : '');
 
     let statusText = '';
+    let actionText = '';
     let btnClass = 'lobby-seat-btn';
 
     if (isMine) {
       btnClass += ' active is-mine';
       statusText = t('pad.you');
+      actionText = t('pad.yourSeat');
     } else if (isReserved) {
       btnClass += ' is-reserved';
-      statusText = 'P1 HOST';
+      statusText = `P${idx + 1} · ${t('pad.hostSeat')}`;
+      actionText = t('pad.hostSeat');
     } else if (isBot) {
       btnClass += ' is-bot';
-      statusText = '🤖 BOT';
+      statusText = t('pad.botSeat');
+      actionText = t('pad.botSeat');
     } else if (isOccupied) {
       btnClass += ' is-occupied';
       statusText = occupantName;
+      actionText = t('pad.moveHere');
     } else {
       btnClass += ' is-empty';
       statusText = t('pad.empty');
+      actionText = t('pad.moveHere');
     }
 
+    const canTarget = !isMine && !isReserved && !isBot && !this.countdownActive;
+    const ariaLabel = isMine
+      ? t('pad.seatMine', idx + 1)
+      : isReserved
+        ? t('pad.seatReserved', idx + 1)
+        : isBot
+          ? t('pad.seatBot', idx + 1)
+          : t('pad.seatTarget', idx + 1, statusText);
+
     return `
-      <button class="${btnClass}" data-seat="${idx}" type="button"${isBot || isReserved ? ' disabled' : ''}>
+      <button class="${btnClass}" data-seat="${idx}" type="button" aria-label="${escapeHtml(ariaLabel)}"${canTarget ? '' : ' disabled'}>
         <span class="seat-num" style="color: ${seatColors[idx]}">${idx + 1}</span>
         <span class="seat-status">${escapeHtml(statusText)}</span>
+        <span class="seat-action">${escapeHtml(actionText)}</span>
       </button>
     `;
   }
@@ -1110,6 +1132,7 @@ export class GamepadManager {
     grid.innerHTML = [0, 1, 2, 3].map((idx) => this.renderSeatButtonHtml(idx)).join('');
     grid.querySelectorAll('.lobby-seat-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (btn.disabled) return;
         const targetSlot = parseInt(btn.dataset.seat, 10);
         if (!this.canSwitchSlot(targetSlot)) return;
         this.sendInput({ action: 'SWITCH_SLOT', targetSlot });
@@ -1181,20 +1204,21 @@ export class GamepadManager {
           </div>
         </div>
 
-        <!-- 3. Seat Picker (sadece staging'de) -->
-        ${this.stagingOpen ? `
+        <!-- 3. Seat Picker: lobi açılır açılmaz hedef koltuğa dokunulabilir. -->
         <div class="lobby-seats-card">
-          <div class="lobby-seat-badge">${t('pad.seatPick')}</div>
+          <div class="lobby-seat-badge">${this.stagingOpen ? t('pad.seatPick') : t('pad.seatPickEarly')}</div>
+          <div class="lobby-seat-hint" aria-live="polite">${this.stagingOpen ? t('pad.seatHint') : t('pad.seatHintEarly')}</div>
           <div class="lobby-seats-grid">
             ${[0, 1, 2, 3].map((idx) => this.renderSeatButtonHtml(idx)).join('')}
           </div>
         </div>
-        ` : `
+
+        ${!this.stagingOpen ? `
         <div class="lobby-wait-card">
           <div class="lobby-wait-badge">${t('pad.arenaPrep')}</div>
           <div class="lobby-wait-text">${t('pad.arenaPrepText')}</div>
         </div>
-        `}
+        ` : ''}
 
         <!-- 4. Hero Ready Button -->
         ${this.stagingOpen ? `
@@ -1213,6 +1237,7 @@ export class GamepadManager {
     // Seat switch click handlers
     container.querySelectorAll('.lobby-seat-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (btn.disabled) return;
         const targetSlot = parseInt(btn.dataset.seat, 10);
         if (!this.canSwitchSlot(targetSlot)) return;
         this.sendInput({ action: 'SWITCH_SLOT', targetSlot });

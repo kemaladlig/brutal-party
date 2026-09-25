@@ -353,6 +353,9 @@ export class RoomManager {
 
     const now = Date.now();
     const action = inputData.action;
+    // Koltuklar yalnız lobi/staging aşamasında değişebilir. Oyun sırasında
+    // uzaktan SWITCH_SLOT gelse bile authoritative oyuncu tablosu değişmez.
+    if (action === 'SWITCH_SLOT' && room.state !== 'LOBBY' && room.state !== 'STAGING') return;
     const isContinuous = action === 'JOYSTICK_MOVE' || action === 'AIM_MOVE' || action === 'PADDLE_MOVE';
     const isStopSignal = inputData.force === 0 || inputData.dir === 0
       || (action === 'TANK_DRIVE' && inputData.driving === false);
@@ -494,6 +497,7 @@ export class RoomManager {
     if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
+    room.state = 'COUNTDOWN';
     this.broadcastToPlayers(room, {
       type: 'COUNTDOWN',
       t,
@@ -517,7 +521,7 @@ export class RoomManager {
   handleSwapSlots(hostWs, slotA, slotB) {
     if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
-    if (!room) return;
+    if (!room || room.state === 'COUNTDOWN') return;
     if (slotA < 0 || slotA > 3 || slotB < 0 || slotB > 3 || slotA === slotB) return;
     // Bot koltukları ne hedef ne kaynak olur. Host oyuncusu oturduktan sonra
     // mevcut koltuk takasıyla yer değiştirebilir.
@@ -562,7 +566,7 @@ export class RoomManager {
   handleRotateSeats(hostWs) {
     if (!hostWs || !hostWs.isHost) return;
     const room = this.getRoom(hostWs.roomCode);
-    if (!room) return;
+    if (!room || room.state === 'COUNTDOWN') return;
     const order = [2, 3, 1, 0];
     const old = [room.players[0], room.players[1], room.players[2], room.players[3]];
     // Bot veya host koltuğu takasa girmez — kısmi dönüşüm yapılmaz.

@@ -40,6 +40,7 @@ export class SupabaseRelay {
     this.players = [null, null, null, null]; // { id, name, color, slotIndex }
     this.ready = [false, false, false, false];
     this.gameMode = 'PONG';
+    this.roomState = 'LOBBY';
     this.hostPlayerActive = false;
     this.hostPlayerSlot = null;
 
@@ -206,6 +207,7 @@ export class SupabaseRelay {
     assertSupabaseConfig();
     this.role = 'HOST';
     this.gameMode = gameMode;
+    this.roomState = 'LOBBY';
     this.callbacks = { ...this.callbacks, ...callbacks };
     this.players = [null, null, null, null];
     this.ready = [false, false, false, false];
@@ -435,6 +437,9 @@ export class SupabaseRelay {
       }
 
       case 'INPUT': {
+        if (msg.data?.action === 'SWITCH_SLOT'
+          && this.roomState !== 'LOBBY'
+          && this.roomState !== 'STAGING') return;
         const slot = this._findSlotByPlayerId(msg.senderId);
         if (slot === -1) return;
         if (!isValidNetworkInput(msg.data)) return;
@@ -604,6 +609,7 @@ export class SupabaseRelay {
 
   startGame(gameMode) {
     if (this.role !== 'HOST') return;
+    this.roomState = 'PLAYING';
     if (gameMode) this.gameMode = gameMode;
     this.ready = [false, false, false, false];
     const payload = { action: 'GAME_STARTED', gameMode: this.gameMode };
@@ -637,6 +643,7 @@ export class SupabaseRelay {
 
   startStaging(gameMode) {
     if (this.role !== 'HOST') return;
+    this.roomState = 'STAGING';
     if (gameMode) this.gameMode = gameMode;
     this._resetReadyFlags();
     const hostSlot = this._hostPlayerIndex();
@@ -648,12 +655,14 @@ export class SupabaseRelay {
 
   broadcastCountdown(t) {
     if (this.role !== 'HOST') return;
+    this.roomState = 'COUNTDOWN';
     const payload = { action: 'COUNTDOWN', t, gameMode: this.gameMode };
     this._sendHostPayload(payload);
   }
 
   returnToLobby() {
     if (this.role !== 'HOST') return;
+    this.roomState = 'LOBBY';
     this._resetReadyFlags();
     const hostSlot = this._hostPlayerIndex();
     if (hostSlot >= 0) this.ready[hostSlot] = true;
@@ -663,7 +672,7 @@ export class SupabaseRelay {
   }
 
   swapSlots(slotA, slotB) {
-    if (this.role !== 'HOST') return;
+    if (this.role !== 'HOST' || this.roomState === 'COUNTDOWN') return;
     if (slotA < 0 || slotA > 3 || slotB < 0 || slotB > 3 || slotA === slotB) return;
     if (this.players[slotA]?.isBot || this.players[slotB]?.isBot) return;
 
@@ -702,7 +711,7 @@ export class SupabaseRelay {
   }
 
   rotateSeats() {
-    if (this.role !== 'HOST') return;
+    if (this.role !== 'HOST' || this.roomState === 'COUNTDOWN') return;
     if (this.players.some((player) => player?.isHost)) return;
     const order = Array(2, 3, 1, 0);
     const old = this.players.slice(0, 4);
@@ -1292,6 +1301,7 @@ export class SupabaseRelay {
     }
 
     this.role = null;
+    this.roomState = 'LOBBY';
     this.roomCode = null;
     this.hostId = null;
     this.playerIndex = null;

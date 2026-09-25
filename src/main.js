@@ -53,6 +53,7 @@ import { initMainMenu } from './ui/menuManager.js';
 import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
 import { getTabletopIconSvg } from './core/tabletopIcons.js';
+import { getSlotSwapError } from './core/slotRules.js';
 import { getControlDescriptor } from './core/controlDescriptor.js';
 import { InputIntentRouter } from './core/inputRouter.js';
 import {
@@ -65,6 +66,7 @@ import {
   getCurrentHostGameMode,
   setCurrentHostGameMode,
   setHostPlayerButtonState,
+  openHostSeatEditor,
 } from './ui/hostLobby.js';
 
 // DOM Elements
@@ -98,10 +100,12 @@ export function activeNet() {
 let currentMode = 'MENU';
 let lastTransitionTime = 0;
 
-// ONLINE host P1 olarak açılır. TV_CONSOLE host ise bu state'i lobi butonuyla
-// açıp kapatır; network authority yine host cihazda kalır.
+// ONLINE host P1 olarak açılır; koltuk düzenleyici ile sonradan taşınabilir.
+// TV_CONSOLE host ise bu state'i lobi butonuyla açıp kapatır; network
+// authority yine host cihazda kalır.
 let hostPlayerActive = false;
 let hostPlayerSlot = null;
+let pendingHostSeatBeforeSwap = null;
 
 export function markTransition() {
   lastTransitionTime = performance.now();
@@ -336,6 +340,7 @@ function addTapListener(el, callback) {
 
 // Host Room Creation (TV_CONSOLE TV host / ONLINE P1 phone host)
 async function openHostLobby(gameMode = 'HORDE') {
+  pendingHostSeatBeforeSwap = null;
   setCurrentHostGameMode(gameMode);
   hostPlayerActive = platformMode === 'ONLINE';
   hostPlayerSlot = hostPlayerActive ? 0 : null;
@@ -346,7 +351,7 @@ async function openHostLobby(gameMode = 'HORDE') {
   const hostIdentity = {
     name: ensureStoredNick(),
     avatar: hostAvatar,
-    // ONLINE: telefon host P1 olur ve her oyuncu world görür.
+    // ONLINE: telefon host başlangıçta P1 olur ve her oyuncu world görür.
     // TV_CONSOLE: TV ekranı varsayılan olarak oyuncusuz host kalır;
     // lobi içindeki düğme ile aynı cihazı P1'e dahil edebilir.
     asPlayer: hostIsPlayer,
@@ -465,6 +470,8 @@ async function openHostLobby(gameMode = 'HORDE') {
         const temp = hostPlayerSlots[slotA];
         hostPlayerSlots[slotA] = hostPlayerSlots[slotB];
         hostPlayerSlots[slotB] = temp;
+        syncHostSeatAfterSwap(slotA, slotB);
+        setSeatTapHook();
         // Avatar kayıt defteri koltuk-bazlıdır: takas sonrası iki koltuğu yeniden yaz
         setSlotAvatar(slotA, hostPlayerSlots[slotA]?.avatar || null);
         setSlotAvatar(slotB, hostPlayerSlots[slotB]?.avatar || null);
@@ -520,16 +527,27 @@ async function openHostLobby(gameMode = 'HORDE') {
           return;
         }
         if (data.action === 'SWITCH_SLOT' && typeof data.targetSlot === 'number') {
-          if (seatsLocked) return; // sayaç sırasında koltuklar kilitli
-          const t = data.targetSlot;
-          // Koltuk gaspı kapısı: aralık dışı, bot hedef/kaynak reddedilir
-          // (istemcideki guard atlatılsa bile host son sözü söyler)
-          if (!Number.isInteger(t) || t < 0 || t > 3) return;
-          if (activeNet().players?.[t]?.isHost) return;
-          if (activeNet().reservedHostSlot === t) return;
-          if (hostPlayerSlots[t]?.kind === 'bot') return;
-          if (hostPlayerSlots[slotIndex]?.kind === 'bot') return;
-          activeNet().swapSlots(slotIndex, t);
+          const target = data.targetSlot;
+          const locked = seatsLocked || (currentMode !== 'MENU' && !stagingMode);
+          const swapError = getSlotSwapError({
+            from: slotIndex,
+            to: target,
+            slots: hostPlayerSlots,
+            reservedHostSlot: activeNet().reservedHostSlot,
+            locked,
+            remote: true,
+          });
+          if (swapError) return;
+          const hostSeatBefore = getCurrentHostSeat();
+          const hostIsMoving = hostPlayerActive
+            && (slotIndex === hostSeatBefore || target === hostSeatBefore);
+          pendingHostSeatBeforeSwap = hostIsMoving ? hostSeatBefore : null;
+          activeNet().swapSlots(slotIndex, target);
+          if (hostIsMoving && pendingHostSeatBeforeSwap !== null) {
+            hostPlayerSlot = slotIndex === hostSeatBefore ? target : slotIndex;
+            if ('hostPlayerSlot' in activeNet()) activeNet().hostPlayerSlot = hostPlayerSlot;
+            if ('reservedHostSlot' in activeNet()) activeNet().reservedHostSlot = hostPlayerSlot;
+          }
           return;
         }
         if (typeof slotIndex !== 'number' || slotIndex < 0 || slotIndex > 3) return;
@@ -590,6 +608,7 @@ function getHostPlayerIdentity() {
 function applyHostPlayerState(state = {}) {
   const previousSlot = hostPlayerSlot;
   const active = state.active === true || state.player?.isHost === true;
+  if (!active) pendingHostSeatBeforeSwap = null;
   const slot = active
     ? (Number.isInteger(state.slotIndex) ? state.slotIndex : (state.player?.slotIndex ?? 0))
     : null;
@@ -612,6 +631,7 @@ function applyHostPlayerState(state = {}) {
       true
     );
   } else if (previousSlot !== null) {
+    pendingHostSeatBeforeSwap = null;
     clearSlotAvatar(previousSlot);
     updateHostSlot(previousSlot, false);
   }
@@ -806,16 +826,84 @@ async function executeJoin(rawCode, rawName, requestedMode = null) {
   }
 }
 
+function getCurrentHostSeat() {
+  const state = activeNet().getHostPlayerState?.();
+  if (state?.active && Number.isInteger(state.slotIndex)) return state.slotIndex;
+  return hostPlayerSlot;
+}
+
+function syncHostSeatFromNetwork() {
+  const net = activeNet();
+  if (!net.isHosting) return;
+  const state = net.getHostPlayerState?.();
+  if (state?.active && Number.isInteger(state.slotIndex)) {
+    hostPlayerActive = true;
+    hostPlayerSlot = state.slotIndex;
+    if ('hostPlayerSlot' in net) net.hostPlayerSlot = state.slotIndex;
+    if ('reservedHostSlot' in net) net.reservedHostSlot = state.slotIndex;
+    return;
+  }
+  if (hostPlayerActive && Number.isInteger(hostPlayerSlot)) {
+    if ('hostPlayerSlot' in net) net.hostPlayerSlot = hostPlayerSlot;
+    if ('reservedHostSlot' in net) net.reservedHostSlot = hostPlayerSlot;
+  }
+}
+
+function syncHostSeatAfterSwap(slotA, slotB) {
+  const net = activeNet();
+  if (!net.isHosting || !hostPlayerActive || pendingHostSeatBeforeSwap === null) {
+    pendingHostSeatBeforeSwap = null;
+    syncHostSeatFromNetwork();
+    return;
+  }
+
+  const previous = pendingHostSeatBeforeSwap;
+  pendingHostSeatBeforeSwap = null;
+  if (previous !== slotA && previous !== slotB) {
+    syncHostSeatFromNetwork();
+    return;
+  }
+
+  hostPlayerSlot = previous === slotA ? slotB : slotA;
+  if ('hostPlayerSlot' in net) net.hostPlayerSlot = hostPlayerSlot;
+  if ('reservedHostSlot' in net) net.reservedHostSlot = hostPlayerSlot;
+  syncHostSeatFromNetwork();
+}
+
 function handleSeatSwap(slotA, slotB) {
-  const swapsHostSeat = activeNet().isHosting
-    && hostPlayerActive
-    && (slotA === hostPlayerSlot || slotB === hostPlayerSlot);
+  const net = activeNet();
+  if (!Number.isInteger(slotA) || !Number.isInteger(slotB) || slotA < 0 || slotA > 3 || slotB < 0 || slotB > 3 || slotA === slotB) {
+    return false;
+  }
+  // LOCAL pause seat swap engine üzerindeki gerçek slotları taşır; host
+  // panelindeki bot/host kuralları yalnız networked snapshot'a uygulanır.
+  const error = net.isHosting
+    ? getSlotSwapError({
+      from: slotA,
+      to: slotB,
+      slots: hostPlayerSlots,
+      locked: seatsLocked,
+      remote: false,
+    })
+    : null;
+  if (error) {
+    if (error === 'locked') showInstallToast(t('toast.countdownLock'));
+    else if (error === 'bot') showInstallToast(t('toast.botSeatLocked'));
+    return false;
+  }
+
+  const hostSeatBefore = getCurrentHostSeat();
+  const swapsHostSeat = hostPlayerActive
+    && (slotA === hostSeatBefore || slotB === hostSeatBefore);
+  pendingHostSeatBeforeSwap = swapsHostSeat ? hostSeatBefore : null;
   activeNet().swapSlots(slotA, slotB);
   if (swapsHostSeat) {
-    hostPlayerSlot = slotA === hostPlayerSlot ? slotB : slotA;
-    activeNet().hostPlayerSlot = hostPlayerSlot;
-    activeNet().reservedHostSlot = hostPlayerSlot;
+    hostPlayerSlot = slotA === hostSeatBefore ? slotB : slotA;
+    if ('hostPlayerSlot' in net) net.hostPlayerSlot = hostPlayerSlot;
+    if ('reservedHostSlot' in net) net.reservedHostSlot = hostPlayerSlot;
   }
+  syncHostSeatFromNetwork();
+  setSeatTapHook();
   if (!activeNet().isHosting) {
     const temp = hostPlayerSlots[slotA];
     hostPlayerSlots[slotA] = hostPlayerSlots[slotB];
@@ -827,6 +915,10 @@ function handleSeatSwap(slotA, slotB) {
 }
 
 function handleRotateSeats() {
+  if (seatsLocked) {
+    showInstallToast(t('toast.countdownLock'));
+    return;
+  }
   if (activeNet().isHosting && (
     activeNet().players?.some((player) => player?.isHost)
     || hostPlayerActive
@@ -885,8 +977,8 @@ function refreshHostSlotCards() {
     if (e) updateHostSlot(i, true, e.name, e.isReady, e.kind);
     else updateHostSlot(i, false);
   }
-  // Bot ipucu sadece ayar açıksa görünür
-  document.getElementById('host-slot-hint')?.classList.toggle('hidden', !isBotEkleEnabled());
+  // Host lobi kartları aynı zamanda koltuk seçici state'ini besler;
+  // updateHostSlot her kart güncellemesinde ilgili custom event'i yayınlar.
 }
 
 function setLocalReadyFlags(isReady) {
@@ -897,6 +989,7 @@ function setLocalReadyFlags(isReady) {
 }
 
 function returnHostToLobby() {
+  pendingHostSeatBeforeSwap = null;
   exitStagingToLobby();
   if (!activeNet().isHosting) {
     setGameMode('MENU');
@@ -936,6 +1029,7 @@ function returnHostToLobby() {
 }
 
 function handleExitToMenu() {
+  pendingHostSeatBeforeSwap = null;
   if (activeNet().isHosting) {
     closePauseModal();
     exitStagingToLobby();
@@ -1095,8 +1189,9 @@ async function enterStaging(mode) {
   // aksi halde eski turun bayrağı yeni turun sayacına sızar)
   for (let i = 0; i < 4; i++) {
     const e = hostPlayerSlots[i];
-    const isReady = (platformMode === 'ONLINE' && i === 0)
-      || (platformMode === 'TV_CONSOLE' && hostPlayerActive && i === hostPlayerSlot);
+    const currentHostSeat = getCurrentHostSeat();
+    const isReady = (platformMode === 'ONLINE' && hostPlayerActive && i === currentHostSeat)
+      || (platformMode === 'TV_CONSOLE' && hostPlayerActive && i === currentHostSeat);
     if (e) updateHostSlot(i, true, e.name, isReady, e.kind);
   }
   refreshStagingBar();
@@ -1126,6 +1221,7 @@ function runCountdown() {
   if (enginePre) clearAllRemoteSlots(enginePre, mode);
   for (let i = 0; i < 4; i++) { delete lastRemoteInputAt[i]; delete lastMoveAt[i]; delete lastAimAt[i]; }
   seatsLocked = true;
+  window.dispatchEvent(new CustomEvent('brutal_host_slots_changed'));
   let t = 3;
   const tick = () => {
     if (t > 0) {
@@ -1248,6 +1344,10 @@ function getEffectiveLocalSurface(engine = getActiveGameEngine()) {
     : getControlSurface();
 }
 
+function isLocalHostPlayer() {
+  return activeNet().isHosting && hostPlayerActive && hostPlayerSlot !== null;
+}
+
 function getLocalControlSlot(engine = getActiveGameEngine()) {
   if (hostPlayerActive && hostPlayerSlot !== null) return hostPlayerSlot;
   const entities = typeof engine?.getEntitiesList === 'function'
@@ -1259,8 +1359,7 @@ function getLocalControlSlot(engine = getActiveGameEngine()) {
 function syncLocalMobileControls(now = performance.now()) {
   const engine = getActiveGameEngine();
   const localSlot = getLocalControlSlot(engine);
-  const hosting = activeNet().isHosting;
-  const isLocalHost = hosting && hostPlayerActive && hostPlayerSlot !== null;
+  const isLocalHost = isLocalHostPlayer();
   const shouldShow = (platformMode === 'LOCAL' || isLocalHost)
     && getEffectiveLocalSurface(engine) === CONTROL_SURFACE.MOBILE
     && currentMode !== 'MENU'
@@ -1268,7 +1367,11 @@ function syncLocalMobileControls(now = performance.now()) {
     && localSlot >= 0
     && !getIsPaused();
 
-  if (shouldShow && (!localMobileControlsActive || localGamepadManager.gameMode !== currentMode)) {
+  if (shouldShow && (
+    !localMobileControlsActive
+    || localGamepadManager.gameMode !== currentMode
+    || localGamepadManager.playerIndex !== localSlot
+  )) {
     const localColors = getLocalSeatColors();
     localGamepadManager.initLocal({
       slotIndex: localSlot,
@@ -1354,9 +1457,9 @@ initHostLobby({
     setSeatTapHook();
     setGameMode('MENU');
   },
-  onSwapSlots: (slotA, slotB) => {
-    activeNet().swapSlots(slotA, slotB);
-  },
+  onSwapSlots: (slotA, slotB) => handleSeatSwap(slotA, slotB),
+  getSlot: (slotIndex) => hostPlayerSlots[slotIndex],
+  isSeatSwapLocked: () => seatsLocked,
   onToggleBotSlot: (slotIndex) => {
     handleLobbySeatTap(slotIndex);
   },
@@ -1394,6 +1497,9 @@ initHostLobby({
 });
 
 // Staging bar (BAŞLAT #2 + lobiye dönüş)
+document.getElementById('btn-staging-edit-seats')?.addEventListener('click', () => {
+  openHostSeatEditor();
+});
 document.getElementById('btn-staging-launch')?.addEventListener('click', () => {
   runCountdown();
 });
@@ -1618,7 +1724,7 @@ onLangChange(() => updateQuickFullscreen());
 addTapListener(btnQuickFullscreen, () => toggleFullscreen());
 
 function openControllerLayoutFromPause() {
-  const preferLocal = platformMode === 'LOCAL' || isLocalHost;
+  const preferLocal = platformMode === 'LOCAL' || isLocalHostPlayer();
   if (preferLocal) {
     syncLocalMobileControls();
     if (localGamepadManager.openControllerLayoutEditor()) return;
@@ -1629,7 +1735,7 @@ function openControllerLayoutFromPause() {
 
 addTapListener(btnOpenOptions, () => {
   const engine = getActiveGameEngine();
-  const localLayoutAvailable = (platformMode === 'LOCAL' || isLocalHost)
+  const localLayoutAvailable = (platformMode === 'LOCAL' || isLocalHostPlayer())
     && getEffectiveLocalSurface(engine) === CONTROL_SURFACE.MOBILE
     && getLocalControlSlot(engine) >= 0;
   const remoteLayoutAvailable = !gamepadOverlay.classList.contains('hidden')

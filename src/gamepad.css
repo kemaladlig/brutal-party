@@ -695,6 +695,16 @@
   align-self: flex-start;
 }
 
+.lobby-seat-hint {
+  margin: -2px 0 2px;
+  color: #75726b;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+}
+
 .lobby-seats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -765,6 +775,43 @@
 
 .lobby-seat-btn.active .seat-status {
   color: #141414;
+}
+
+.lobby-seat-btn .seat-action {
+  margin-top: 2px;
+  color: #8a5d00;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.lobby-seat-btn.is-occupied,
+.lobby-seat-btn.is-empty {
+  border-color: #d84727;
+}
+
+.lobby-seat-btn.is-occupied:not(:disabled):hover,
+.lobby-seat-btn.is-empty:not(:disabled):hover {
+  background-color: #fff4c2;
+}
+
+.lobby-seat-btn:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.lobby-seat-btn.is-mine:disabled,
+.lobby-seat-btn.is-reserved:disabled,
+.lobby-seat-btn.is-bot:disabled {
+  opacity: 0.82;
+}
+
+.lobby-seat-btn.is-reserved .seat-action,
+.lobby-seat-btn.is-bot .seat-action {
+  color: #75726b;
 }
 
 /* 4. Ready Hero Button */
@@ -1112,6 +1159,15 @@
   }
 }
 
+/* ONLINE world-view controls are an overlay: the world canvas remains the
+   visible surface and only the actual control targets receive input. */
+.gamepad-control-overlay .pong-controller-view,
+.gamepad-control-overlay .tanks-arcade-view,
+#local-mobile-controls .tanks-arcade-view {
+  background: transparent;
+  pointer-events: none;
+}
+
 /* ONLINE client: full-frame world canvas + DOM controls on top. */
 .gamepad-game-stage {
   position: relative;
@@ -1149,6 +1205,9 @@
 .gamepad-control-overlay .tank-drive-zone,
 .gamepad-control-overlay .tanks-fire-zone,
 .gamepad-control-overlay .curve-controller-view .steer-rocker-cluster,
+.gamepad-control-overlay .pong-horizontal-track,
+.gamepad-control-overlay .pong-invert-btn,
+.gamepad-control-overlay .action-spin-btn,
 #local-mobile-controls .joystick-half,
 #local-mobile-controls .twin-stick-half,
 #local-mobile-controls .twin-action-zone,
@@ -1295,10 +1354,15 @@
     padding: 12px 16px max(12px, env(safe-area-inset-bottom, 0px));
   }
 
-  .lobby-seats-card,
+  .lobby-seats-card {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    max-width: none;
+  }
+
   .lobby-wait-card {
     grid-column: 1;
-    grid-row: 1 / -1;
+    grid-row: 3;
     max-width: none;
   }
 
@@ -1477,67 +1541,61 @@
   border-color: #d99b26;
 }
 
-/* 02 // TANKS ARCADE CONTROLLER */
+/* 02 // TANKS ARCADE CONTROLLER
+   Keep the drive target compact: full-height zones hide the world view. */
 .tanks-arcade-view {
+  --tank-drive-width: clamp(136px, 24vw, 220px);
+  --tank-fire-width: clamp(132px, 36vw, 160px);
+  --tank-control-height: clamp(96px, 24vh, 144px);
   width: 100%;
   height: 100%;
   display: flex;
-  padding: 12px;
-  gap: 14px;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 12px max(16px, env(safe-area-inset-right, 16px)) max(16px, env(safe-area-inset-bottom, 16px)) max(16px, env(safe-area-inset-left, 16px));
+  gap: clamp(12px, 3vw, 24px);
   box-sizing: border-box;
+  background: transparent;
+}
+
+.tank-drive-zone,
+.tanks-fire-zone {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 44px;
+  display: flex;
+}
+
+.tank-drive-zone {
+  width: var(--tank-drive-width);
+  justify-content: flex-start;
+}
+
+.tanks-fire-zone {
+  width: var(--tank-fire-width);
+  flex-direction: column;
   align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 @media (orientation: portrait), (max-aspect-ratio: 1/1) {
   .tanks-arcade-view {
-    max-height: 420px;
-    margin: auto 0;
-    padding: 10px 14px max(16px, env(safe-area-inset-bottom, 16px));
-  }
-  .tank-drive-zone {
-    flex: 1.2;
-    height: 100%;
-    display: flex;
-  }
-  .tanks-fire-zone {
-    flex: 1;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
+    --tank-control-height: clamp(96px, 22vh, 128px);
+    padding: 10px max(14px, env(safe-area-inset-right, 14px)) max(16px, env(safe-area-inset-bottom, 16px)) max(14px, env(safe-area-inset-left, 14px));
   }
 }
 
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .tanks-arcade-view {
-    padding: 6px max(28px, env(safe-area-inset-left, 28px)) max(10px, env(safe-area-inset-bottom, 10px)) max(28px, env(safe-area-inset-right, 28px));
-    gap: 20px;
-  }
-  .tank-drive-zone {
-    flex: 1;
-    height: 100%;
-    display: flex;
-    justify-content: flex-start;
-  }
-  .tank-drive-pedal {
-    max-width: 320px;
-  }
-  .tanks-fire-zone {
-    flex: 1;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    justify-content: center;
-    gap: 12px;
+    --tank-control-height: clamp(96px, 22vh, 136px);
+    padding: 8px max(24px, env(safe-area-inset-right, 24px)) max(14px, env(safe-area-inset-bottom, 14px)) max(24px, env(safe-area-inset-left, 24px));
   }
 }
 
 .tank-drive-pedal {
   width: 100%;
-  height: 100%;
+  height: var(--tank-control-height);
   background: linear-gradient(180deg, #2a2826 0%, #171514 100%);
   border: 3.5px solid #141414;
   border-radius: 14px;
@@ -1586,7 +1644,7 @@
 }
 
 .tank-fire-btn {
-  width: clamp(115px, 36vw, 150px);
+  width: 100%;
   height: clamp(84px, 15vh, 108px);
   border-radius: 20px;
   background: #e05232;
@@ -1605,7 +1663,7 @@
 
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .tank-fire-btn {
-    width: clamp(120px, 22vw, 160px);
+    width: 100%;
     height: clamp(74px, 22vh, 96px);
   }
 }

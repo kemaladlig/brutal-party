@@ -4,7 +4,8 @@ import { PUBLIC_URL, isPublicOrigin } from '../net.js';
 import { showInstallToast } from './toast.js';
 import { getActivePalettes, paletteName } from '../core/customizationManager.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
-import { t } from '../i18n.js';
+import { getSlotSwapError, isBotSlot } from '../core/slotRules.js';
+import { t, onLangChange } from '../i18n.js';
 
 const tvHostModal = document.getElementById('tv-host-modal');
 const hostRoomCode = document.getElementById('host-room-code');
@@ -36,6 +37,77 @@ function renderLobbyIcons(root = document) {
 let currentHostGameMode = 'HORDE';
 let hostPingTimer = null;
 let detectedLanIp = null;
+let seatSwapSource = null;
+let seatEditorOpen = false;
+let currentRoomCode = '';
+let currentJoinUrl = '';
+let getSlotState = () => null;
+let isSeatSwapLocked = () => false;
+
+function paintSeatSwapUi() {
+  const buttons = document.querySelectorAll('.slot-swap-btn');
+  const hint = document.getElementById('host-slot-hint');
+  const subtitle = document.getElementById('tv-host-subtitle');
+  const launchBtn = btnHostLaunchGame;
+  if (seatEditorOpen || !launchBtn?.classList.contains('blocked')) {
+    setButtonLabel(launchBtn, seatEditorOpen ? 'host.closeEditor' : 'host.stage');
+  }
+  const launchIcon = launchBtn?.querySelector('[data-lobby-icon]');
+  if (launchIcon) {
+    const icon = seatEditorOpen ? 'close' : 'play';
+    launchIcon.dataset.lobbyIcon = icon;
+    launchIcon.innerHTML = getTabletopIconSvg(icon, { size: 18, strokeWidth: 2.3 });
+  }
+  if (subtitle) subtitle.textContent = t(seatEditorOpen ? 'host.seatEditorHint' : 'host.lobbyHint');
+  const locked = !!isSeatSwapLocked();
+  if (locked && seatSwapSource !== null) seatSwapSource = null;
+  if (seatSwapSource !== null) {
+    const source = getSlotState(seatSwapSource);
+    if (!source || isBotSlot(source)) seatSwapSource = null;
+  }
+
+  buttons.forEach((btn) => {
+    const idx = parseInt(btn.dataset.slot, 10);
+    const slot = getSlotState(idx);
+    const selected = seatSwapSource === idx;
+    const disabled = locked || isBotSlot(slot) || (seatSwapSource === null && !slot);
+    btn.disabled = disabled;
+    btn.classList.toggle('is-selected', selected);
+    btn.classList.toggle('is-target', seatSwapSource !== null && !selected && !disabled);
+    btn.setAttribute('aria-pressed', String(selected));
+    const label = btn.querySelector('.slot-swap-label');
+    const isTarget = seatSwapSource !== null && !selected && !disabled;
+    if (label) label.textContent = selected
+      ? t('host.swapSelected')
+      : isTarget
+        ? t('host.swapTargetAction')
+        : t('host.swapAction');
+    if (selected) {
+      btn.setAttribute('aria-label', t('host.swapSource', idx + 1));
+    } else if (disabled) {
+      btn.setAttribute('aria-label', t('host.swapUnavailable', idx + 1));
+    } else {
+      btn.setAttribute('aria-label', t('host.swapTarget', idx + 1));
+    }
+  });
+
+  if (hint) {
+    hint.classList.remove('hidden');
+    hint.textContent = seatSwapSource === null
+      ? t('host.slotHint')
+      : t('host.slotTargetHint', seatSwapSource + 1);
+    hint.classList.toggle('is-targeting', seatSwapSource !== null);
+  }
+}
+
+function resetSeatSwapSelection() {
+  seatSwapSource = null;
+  paintSeatSwapUi();
+}
+
+function getSeatSnapshot() {
+  return [0, 1, 2, 3].map((idx) => getSlotState(idx));
+}
 
 // Fetch LAN IP for offline WiFi/LAN party mode
 fetch('/api/lan-ip')
@@ -56,7 +128,7 @@ export function setCurrentHostGameMode(mode) {
     chip.classList.toggle('active', active);
     chip.setAttribute('aria-pressed', String(active));
   });
-  setButtonLabel(btnHostLaunchGame, 'host.stage');
+  setButtonLabel(btnHostLaunchGame, seatEditorOpen ? 'host.closeEditor' : 'host.stage');
 }
 
 export function setHostPlayerButtonState(active, platformMode) {
@@ -111,24 +183,48 @@ export function stopHostPingBadge() {
   }
 }
 
-export function showHostLobbyModal(code, joinUrl) {
-  if (hostRoomCode) hostRoomCode.textContent = code;
+export function showHostLobbyModal(code, joinUrl, { seatEditor = false } = {}) {
+  currentRoomCode = code || currentRoomCode;
+  currentJoinUrl = joinUrl || currentJoinUrl;
+  if (!seatEditor) seatSwapSource = null;
+  seatEditorOpen = !!seatEditor;
+  if (hostRoomCode) hostRoomCode.textContent = currentRoomCode;
   const channelCode = document.getElementById('host-channel-code');
-  if (channelCode) channelCode.textContent = code;
-  if (hostJoinUrl) hostJoinUrl.textContent = joinUrl.replace(/^https?:\/\//, '');
-  if (qrCanvas) {
-    QRCode.toCanvas(qrCanvas, joinUrl, {
+  if (channelCode) channelCode.textContent = currentRoomCode;
+  if (hostJoinUrl) hostJoinUrl.textContent = currentJoinUrl.replace(/^https?:\/\//, '');
+  if (qrCanvas && !seatEditor) {
+    QRCode.toCanvas(qrCanvas, currentJoinUrl, {
       width: 140,
       margin: 1,
       color: { dark: '#1A1A1A', light: '#FFFFFF' },
     });
   }
+  tvHostModal?.classList.toggle('is-seat-editor', seatEditorOpen);
   tvHostModal?.classList.remove('hidden');
   tvHostModal?.setAttribute('aria-hidden', 'false');
-  window.requestAnimationFrame(() => btnHostLaunchGame?.focus({ preventScroll: true }));
+  paintSeatSwapUi();
+  window.requestAnimationFrame(() => {
+    const target = seatEditorOpen
+      ? document.querySelector('.slot-swap-btn:not(:disabled)')
+      : btnHostLaunchGame;
+    target?.focus({ preventScroll: true });
+  });
+}
+
+export function openHostSeatEditor() {
+  if (!currentRoomCode && !hostRoomCode?.textContent) return false;
+  showHostLobbyModal(
+    currentRoomCode || hostRoomCode?.textContent?.trim() || '',
+    currentJoinUrl || hostJoinUrl?.textContent?.trim() || '',
+    { seatEditor: true },
+  );
+  return true;
 }
 
 export function hideHostLobbyModal() {
+  seatEditorOpen = false;
+  resetSeatSwapSelection();
+  tvHostModal?.classList.remove('is-seat-editor');
   tvHostModal?.classList.add('hidden');
   tvHostModal?.setAttribute('aria-hidden', 'true');
   stopHostPingBadge();
@@ -144,8 +240,17 @@ export function initHostLobby({
   onToggleBotSlot,
   onSetSlotColor,
   onRandomizeSlotColor,
+  getSlot,
+  isSeatSwapLocked: isSeatSwapLockedCallback,
 }) {
-  renderLobbyIcons(tvHostModal || document);
+  getSlotState = typeof getSlot === 'function' ? getSlot : getSlotState;
+  isSeatSwapLocked = typeof isSeatSwapLockedCallback === 'function'
+    ? isSeatSwapLockedCallback
+    : isSeatSwapLocked;
+  renderLobbyIcons(document);
+  paintSeatSwapUi();
+  window.addEventListener('brutal_host_slots_changed', paintSeatSwapUi);
+  onLangChange(paintSeatSwapUi);
 
   // Game selector chips in Host Lobby
   document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
@@ -224,6 +329,11 @@ export function initHostLobby({
   const launchBtn = document.getElementById('btn-host-launch-game');
   const paintLaunchGuard = (clashCount) => {
     if (!launchBtn) return;
+    if (seatEditorOpen) {
+      launchBtn.classList.remove('blocked');
+      setButtonLabel(launchBtn, 'host.closeEditor');
+      return;
+    }
     launchBtn.classList.toggle('blocked', clashCount > 0);
     setButtonLabel(launchBtn, clashCount > 0 ? 'stage.split' : 'host.stage');
   };
@@ -231,15 +341,53 @@ export function initHostLobby({
     paintLaunchGuard(e.detail?.clash?.length || 0);
   });
 
-  // Slot swap buttons in Host Lobby
+  // Koltuk taşıma: önce oyuncunun kartı, sonra hedef koltuk seçilir.
+  // Eski komşu koltukla döndürme modeli mobilde hangi oyuncunun taşındığını
+  // görünmez kılıyordu; hedef artık açıkça seçiliyor.
   document.querySelectorAll('.slot-swap-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const slotA = parseInt(btn.dataset.slot, 10);
-      const slotB = (slotA + 1) % 4;
-      if (typeof onSwapSlots === 'function') {
-        onSwapSlots(slotA, slotB);
+      const slot = parseInt(btn.dataset.slot, 10);
+      if (Number.isNaN(slot)) return;
+      if (isSeatSwapLocked()) {
+        showInstallToast(t('toast.countdownLock'));
+        return;
       }
+
+      const source = getSlotState(slot);
+      if (!source || isBotSlot(source)) return;
+
+      if (seatSwapSource === null) {
+        seatSwapSource = slot;
+        paintSeatSwapUi();
+        return;
+      }
+      if (seatSwapSource === slot) {
+        resetSeatSwapSelection();
+        return;
+      }
+
+      const from = seatSwapSource;
+      const error = getSlotSwapError({
+        from,
+        to: slot,
+        slots: getSeatSnapshot(),
+        locked: false,
+        remote: false,
+      });
+      if (error) {
+        showInstallToast(error === 'bot' ? t('toast.botSeatLocked') : t('toast.swapBlocked'));
+        paintSeatSwapUi();
+        return;
+      }
+
+      const didSwap = typeof onSwapSlots === 'function' ? onSwapSlots(from, slot) : true;
+      if (didSwap === false) {
+        showInstallToast(t('toast.swapBlocked'));
+        paintSeatSwapUi();
+        return;
+      }
+      resetSeatSwapSelection();
     });
   });
 
@@ -264,6 +412,10 @@ export function initHostLobby({
 
   // BAŞLAT #1: sahayı aç (staging). Oyun başlamaz; koltuk seçimi başlar.
   btnHostLaunchGame?.addEventListener('click', () => {
+    if (seatEditorOpen) {
+      hideHostLobbyModal();
+      return;
+    }
     hideHostLobbyModal();
     if (typeof onStageGame === 'function') {
       onStageGame(currentHostGameMode);
