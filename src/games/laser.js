@@ -2,6 +2,8 @@
 // bırakınca ateş et. 3 can + dash i-frame + respawn + 90sn kill yarışı + pickup.
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGunshot, playDashWhoosh, playItemPickup, playStumble, playDryFire } from '../audio.js';
+import { notifyFireBlocked, notifyFireShot } from '../core/fireFeedbackEffects.js';
+import { resetFireFeedback, updateFireFeedback } from '../core/fireFeedback.js';
 import { t } from '../i18n.js';
 import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -373,7 +375,8 @@ export class LaserGame extends BaseMiniGame {
         x: s.x, y: s.y, angle: s.angle, targetAngle: s.angle,
         steerX: 0, steerY: 0, kbx: 0, kby: 0, remoteActive: false,
         hp: LASER_TUNING.MAX_HP, cooldown: 0,
-        ammo: LASER_TUNING.MAX_AMMO, reloadTimer: 0, shotCooldown: 0, isAiming: false,
+        ammo: LASER_TUNING.MAX_AMMO, reloadTimer: 0, shotCooldown: 0,
+        fireCooldownMax: LASER_TUNING.SHOT_INTERVAL, isAiming: false,
         dashTimer: 0, dashCooldown: 0,
         invulnTimer: 0, respawnTimer: 0, fastTimer: 0, tripleTimer: 0,
         shield: false, wasReady: true,
@@ -457,6 +460,8 @@ export class LaserGame extends BaseMiniGame {
       p.cooldown = 0;
       p.ammo = LASER_TUNING.MAX_AMMO;
       p.reloadTimer = 0;
+      p.fireCooldownMax = LASER_TUNING.SHOT_INTERVAL;
+      resetFireFeedback(p);
       p.shotCooldown = 0.3;
       p.isAiming = false;
       p.dashTimer = 0; p.dashCooldown = 0;
@@ -498,7 +503,10 @@ export class LaserGame extends BaseMiniGame {
     if (this.state !== 'PLAYING') return;
     if (!player || !player.isJoined || !player.isAlive) return;
     if (player.respawnTimer > 0) return;
-    if (player.shotCooldown > 0) return;
+    if (player.shotCooldown > 0) {
+      notifyFireBlocked(player);
+      return;
+    }
     if ((player.ammo ?? 2) <= 0) {
       playDryFire();
       if (!player.lastDryFireAt || performance.now() - player.lastDryFireAt > 600) {
@@ -514,6 +522,7 @@ export class LaserGame extends BaseMiniGame {
 
     player.ammo = Math.max(0, (player.ammo ?? 2) - 1);
     player.shotCooldown = LASER_TUNING.SHOT_INTERVAL;
+    notifyFireShot(player);
     const reloadDuration = player.fastTimer > 0 ? LASER_TUNING.RELOAD_TIME * 0.5 : LASER_TUNING.RELOAD_TIME;
     if (player.reloadTimer <= 0) {
       player.reloadTimer = reloadDuration;
@@ -713,7 +722,10 @@ export class LaserGame extends BaseMiniGame {
     for (const player of this.players) {
       if (!player.isJoined) continue;
 
-      if (player.shotCooldown > 0) player.shotCooldown -= dt;
+      if (player.shotCooldown > 0) {
+        player.shotCooldown = Math.max(0, player.shotCooldown - dt);
+      }
+      updateFireFeedback(player);
       if (player.dashCooldown > 0) player.dashCooldown -= dt;
       if (player.dashTimer > 0) player.dashTimer -= dt;
       if (player.invulnTimer > 0) player.invulnTimer -= dt;
@@ -773,6 +785,8 @@ export class LaserGame extends BaseMiniGame {
           player.invulnTimer = LASER_TUNING.SPAWN_PROTECT;
           player.ammo = LASER_TUNING.MAX_AMMO;
           player.reloadTimer = 0;
+          player.fireCooldownMax = LASER_TUNING.SHOT_INTERVAL;
+          resetFireFeedback(player);
           player.shotCooldown = 0.3;
           player.isAiming = false;
           player.cooldown = 0;

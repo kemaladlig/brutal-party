@@ -214,6 +214,22 @@ test('ARCHER aim stick charges and release fires without a charge action', () =>
   assert.equal(game.arrows.length, 1);
 });
 
+test('ARCHER blocked shot gives one cooldown feedback episode and a ready pulse', () => {
+  const game = configureArcher();
+  game.startNewMatch();
+  const player = game.players[0];
+  player.shotCooldown = 0.8;
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1 });
+  assert.equal(player.fireFeedback.kind, 'blocked');
+  const serial = player.fireFeedback.serial;
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1 });
+  assert.equal(player.fireFeedback.serial, serial);
+
+  player.shotCooldown = 0;
+  game.update(1016);
+  assert.equal(player.fireFeedback.kind, 'ready');
+});
+
 test('ARCHER neutral quick tap does not fire or fake a shot', () => {
   const game = configureArcher();
   game.startNewMatch();

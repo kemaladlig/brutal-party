@@ -6,6 +6,8 @@
 import { drawObstacle, drawPickup } from '../core/arenaKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
+import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
+import { renderFireCooldown } from '../ui/hud.js';
 import { isWorldEntityVisible } from './worldCore.js';
 
 const ARCHER_RADIUS = 18;
@@ -62,7 +64,9 @@ export function createArcherWorldPacket(game) {
       swayPhase: round1(p.swayPhase || 0),
       shield: Number(p.shield) || 0,
       stun: round1(p.stun || 0),
-      reload: round1(p.reloadCooldown || 0),
+      reload: round1(p.shotCooldown ?? p.reloadCooldown ?? 0),
+      fireCooldown: round1(getFireCooldownProgress(p, p.fireCooldownMax || 0.8)),
+      fireFeedback: getFireFeedbackSnapshot(p),
       spawnProt: round1(p.spawnProt || 0),
       turbo: round1(p.turboTimer || 0),
       quickdraw: round1(p.quickdrawTimer || 0),
@@ -118,6 +122,8 @@ export function isValidArcherWorldFrame(frame) {
     && Number.isInteger(p.slot) && p.slot >= 0 && p.slot <= 3
     && finite(p.x) && finite(p.y) && finite(p.angle)
     && finite(p.charge) && finite(p.swayPhase) && finite(p.stun) && finite(p.reload)
+    && finite(p.fireCooldown) && p.fireCooldown >= 0 && p.fireCooldown <= 1
+    && isValidFireFeedbackSnapshot(p.fireFeedback)
     && finite(p.spawnProt) && finite(p.turbo) && finite(p.quickdraw)
     && Number.isInteger(p.multi) && p.multi >= 0 && finite(p.slip)
   ));
@@ -244,24 +250,20 @@ export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
       });
     });
 
-    const reload = Number(player.reload) || Number(player.reloadCooldown) || 0;
-    if (reload > 0) {
-      const cdProg = 1.0 - Math.max(0, Math.min(1, reload / 0.8));
-      ctx.save();
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-      ctx.lineWidth = 3.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, ARCHER_RADIUS + 5, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = '#8B5CF6';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(0, 0, ARCHER_RADIUS + 5, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
-
     ctx.restore();
+
+    const progress = Number.isFinite(player.fireCooldown)
+      ? player.fireCooldown
+      : getFireCooldownProgress(player, player.fireCooldownMax || 0.8);
+    const feedback = getFireFeedbackForRender(player);
+    renderFireCooldown(ctx, {
+      x: player.x,
+      y: player.y,
+      radius: ARCHER_RADIUS,
+      progress,
+      feedback,
+      color: '#8B5CF6',
+    });
   }
 }
 

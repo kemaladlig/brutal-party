@@ -5,6 +5,8 @@ import { drawObstacle, drawPickup } from '../core/arenaKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { segmentAabbIntersection } from '../core/physics2d.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
+import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
+import { renderFireCooldown } from '../ui/hud.js';
 import { t } from '../i18n.js';
 import {
   HORDE_UPGRADES,
@@ -46,6 +48,7 @@ export function mapHordePlayer(player, tuning = {}) {
   const magazine = Number.isFinite(weapon.magazine) ? weapon.magazine : -1;
   const ammo = Number.isFinite(weapon.magazine) ? Math.max(0, Math.round(player.ammo ?? weapon.magazine)) : -1;
   const reloadDuration = Math.max(0.01, getReloadTime(player));
+  const fireInterval = Math.max(0.01, weapon.fireInterval * (player.fastTimer > 0 ? 0.88 : 1));
   return {
     slot: player.index,
     joined: player.isJoined !== false,
@@ -58,6 +61,8 @@ export function mapHordePlayer(player, tuning = {}) {
     hpMax: maxHp,
     dash: round1(1 - clamp01((Number(player.dashCooldown) || 0) / dashCd)),
     dashing: (Number(player.dashTimer) || 0) > 0,
+    fireCooldown: round1(getFireCooldownProgress(player, fireInterval)),
+    fireFeedback: getFireFeedbackSnapshot(player),
     invuln: (Number(player.invulnTimer) || 0) > 0 || (Number(player.spawnProt) || 0) > 0,
     shield: player.shield === true,
     fast: (Number(player.fastTimer) || 0) > 0,
@@ -239,6 +244,8 @@ function isValidHordePlayer(player) {
     && Number.isInteger(player.hp) && player.hp >= 0
     && Number.isInteger(player.hpMax) && player.hpMax > 0
     && finite(player.dash) && player.dash >= 0 && player.dash <= 1
+    && finite(player.fireCooldown) && player.fireCooldown >= 0 && player.fireCooldown <= 1
+    && isValidFireFeedbackSnapshot(player.fireFeedback)
     && typeof player.dashing === 'boolean'
     && typeof player.invuln === 'boolean'
     && typeof player.shield === 'boolean'
@@ -686,6 +693,15 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
       showPointer: false,
     });
     ctx.restore();
+
+    renderFireCooldown(ctx, {
+      x: player.x,
+      y: player.y,
+      radius: 15,
+      progress: player.fireCooldown,
+      feedback: getFireFeedbackForRender(player),
+      color: player.weaponColor,
+    });
 
     const pipW = 5;
     const pipGap = 3;

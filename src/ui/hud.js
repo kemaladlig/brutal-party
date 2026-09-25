@@ -677,6 +677,62 @@ export function renderAdaptiveScoreboard(ctx, {
 // ---------------------------------------------------------------------------
 // Merkezi Varlık HUD (Entity Overhead Status System)
 // ---------------------------------------------------------------------------
+export function renderFireCooldown(ctx, {
+  x,
+  y,
+  radius = 16,
+  progress = null,
+  feedback = null,
+  color = UI_COLORS.gold,
+}) {
+  const normalized = Number.isFinite(progress) ? Math.max(0, Math.min(1, progress)) : 1;
+  const ttl = feedback && Number.isFinite(feedback.ttl)
+    ? Math.max(0, Math.min(1, feedback.ttl))
+    : 0;
+  const hasProgress = Number.isFinite(progress) && normalized < 0.999;
+  if (!hasProgress && ttl <= 0) return;
+
+  const ringR = radius + 10;
+  ctx.save();
+  if (hasProgress) {
+    ctx.strokeStyle = UI_COLORS.cooldownTrack;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, ringR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = color || UI_COLORS.gold;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(x, y, ringR, -Math.PI / 2, -Math.PI / 2 + normalized * Math.PI * 2);
+    ctx.stroke();
+  }
+
+  if (ttl > 0 && feedback?.kind === 'blocked') {
+    ctx.globalAlpha = 0.35 + ttl * 0.65;
+    ctx.strokeStyle = UI_COLORS.danger;
+    ctx.lineWidth = 4 + ttl * 2;
+    ctx.beginPath();
+    ctx.arc(x, y, ringR + 2, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (ttl > 0 && feedback?.kind === 'ready') {
+    ctx.globalAlpha = 0.45 + ttl * 0.55;
+    ctx.strokeStyle = UI_COLORS.gold;
+    ctx.lineWidth = 3 + ttl * 3;
+    ctx.beginPath();
+    ctx.arc(x, y, ringR + 2, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (ttl > 0 && feedback?.kind === 'shot') {
+    ctx.globalAlpha = ttl * 0.8;
+    ctx.strokeStyle = color || UI_COLORS.white;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, ringR + 1, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // Tüm oyun motorlarında (Tanks, Laser, Bomb, Crown vb.) oyuncunun/tankın üstünde
 // veya etrafında cephane, can, yetenek dolum arkı, kalkan ve sersemleme gösterir.
 // - Kenar Koruma (Edge Clamping): Karakter arena tavanına yaklaştığında göstergeler

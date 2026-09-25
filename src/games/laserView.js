@@ -6,7 +6,8 @@
 
 import { drawPickup } from '../core/arenaKit.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
-import { renderEntityHUD } from '../ui/hud.js';
+import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
+import { renderEntityHUD, renderFireCooldown } from '../ui/hud.js';
 import {
   round1,
   packRectList,
@@ -34,6 +35,7 @@ export function mapLaserPlayers(players, lasers, tuning = {}, aimOf = null, with
     maxHp: tuning.maxHp ?? 3,
     reloadTime: tuning.reloadTime ?? 0.9,
     dashCd: tuning.dashCd ?? 4,
+    shotInterval: tuning.shotInterval ?? 0.22,
   };
   return (Array.isArray(players) ? players : []).map((p) => {
     let active = 0;
@@ -55,6 +57,8 @@ export function mapLaserPlayers(players, lasers, tuning = {}, aimOf = null, with
       reload: round2((p.reloadTimer || 0) > 0
         ? Math.max(0, Math.min(1, 1 - (p.reloadTimer || 0) / reloadDuration)) : 1),
       dash: round2(1 - Math.max(0, (p.dashCooldown || 0) / t.dashCd)),
+      fireCooldown: round2(getFireCooldownProgress(p, p.fireCooldownMax || t.shotInterval)),
+      fireFeedback: getFireFeedbackSnapshot(p),
       shield: p.shield === true,
       triple: (p.tripleTimer || 0) > 0,
       fast: (p.fastTimer || 0) > 0,
@@ -113,6 +117,8 @@ function isValidLaserPlayer(p) {
     && Number.isInteger(p.ammo) && p.ammo >= 0 && Number.isInteger(p.ammoMax)
     && finite(p.reload) && p.reload >= 0 && p.reload <= 1
     && finite(p.dash) && p.dash >= 0 && p.dash <= 1
+    && finite(p.fireCooldown) && p.fireCooldown >= 0 && p.fireCooldown <= 1
+    && isValidFireFeedbackSnapshot(p.fireFeedback)
     && typeof p.shield === 'boolean' && typeof p.triple === 'boolean'
     && typeof p.fast === 'boolean' && typeof p.invuln === 'boolean' && typeof p.respawning === 'boolean'
     && typeof p.aiming === 'boolean' && typeof p.ready === 'boolean'
@@ -401,6 +407,14 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
       maxAmmo: player.ammoMax,
       reloadProgress: player.reload,
       cooldownProgress: player.dash,
+    });
+    renderFireCooldown(ctx, {
+      x: player.x,
+      y: player.y,
+      radius: 16,
+      progress: player.fireCooldown,
+      feedback: getFireFeedbackForRender(player),
+      color: bulletColor,
     });
   }
 }

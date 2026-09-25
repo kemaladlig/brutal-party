@@ -50,6 +50,7 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
   - `controlDescriptor.js` — phone/tabletop/network için normalize kontrol sözleşmesi ve parity doğrulaması.
   - `inputIntent.js` — transport input packet'lerini canonical engine intent alanına projekte eder; mevcut `action` alanı geriye uyumlu kalır.
   - `aimInput.js` — ARCHER/HORDE/LASER için oyuncu başına canonical held/active/vector/sequence state'i; stale/out-of-order guard ve explicit release/cancel semantiğini tek yerde tutar.
+  - `fireFeedback.js` / `fireFeedbackEffects.js` — ARCHER/HORDE/LASER için cooldown progress, blocked/ready/shot feedback state'i; blocked sesi/haptic'i yalnız cooldown episode başına bir kez çalar.
   - `AIM_MOVE` / `AIM_PRESS` / `AIM_RELEASE` — yalnız ARCHER/HORDE/LASER için sağ analog eksen ve attack lifecycle'ı; analog 50 ms throttle, bas/bırak discrete ve host-authoritative uygulanır. Sağ joystick basılıyken attack durumundadır; ARCHER/LASER bırakışta ateşler, HORDE bırakışta ateşi bırakır. Nötr dokunuş ateş üretmez.
   - `inputRouter.js` — normalize edilmiş local/network input'u aktif authoritative engine'e taşır; transport adapter'ları engine/mode lookup bilmez.
   - `gamepadInputAdapter.js` — transport'tan bağımsız 50ms analog throttle, dead-zone ve nötr analog state; fiziksel gamepad ikincil kaynak için temel sınır.

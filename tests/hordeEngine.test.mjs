@@ -153,6 +153,23 @@ test('neutral Horde aim does not fire until a real direction is held', () => {
   assert.equal(player.ammo, afterReleaseAmmo);
 });
 
+test('Horde blocked hold reports one cooldown episode without spam', () => {
+  const game = setup();
+  const player = game.players[0];
+  player.attackCooldown = 0.5;
+  game.handleRemoteInput(0, { action: 'AIM_MOVE', dx: 1, dy: 0, angle: 0, force: 1, aimHeld: true });
+  game.update(1016);
+  assert.equal(player.fireFeedback.kind, 'blocked');
+  const serial = player.fireFeedback.serial;
+  game.update(1032);
+  assert.equal(player.fireFeedback.serial, serial);
+
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1 });
+  player.attackCooldown = 0;
+  game.update(1048);
+  assert.equal(player.fireFeedback.kind, 'ready');
+});
+
 test('pickups apply heal, shield, speed and triple-shot effects', () => {
   const game = setup();
   const player = game.players[0];

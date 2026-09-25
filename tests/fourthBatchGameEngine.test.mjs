@@ -80,6 +80,24 @@ test('LASER neutral quick tap does not fire', () => {
   assert.equal(game.lasers.length, 0);
 });
 
+test('LASER blocked shot gives one cooldown feedback episode and a ready pulse', () => {
+  const game = setup(LaserGame);
+  const player = game.players[0];
+  player.shotCooldown = 0.22;
+  player.ammo = 2;
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1 });
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1 });
+  assert.equal(player.fireFeedback.kind, 'blocked');
+  const serial = player.fireFeedback.serial;
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1 });
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1 });
+  assert.equal(player.fireFeedback.serial, serial);
+
+  player.shotCooldown = 0;
+  game.update(1016);
+  assert.equal(player.fireFeedback.kind, 'ready');
+});
+
 test('LASER timeout is an explicit draw and world packet carries it', () => {
   const game = setup(LaserGame);
   game.matchTimer = 0;

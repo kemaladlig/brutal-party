@@ -85,6 +85,9 @@ src/core/
   inputIntent.js            Transport action → canonical engine intent projeksiyonu
   aimInput.js               Oyuncu başına canonical aim state: held/active/vector/sequence,
                             stale/out-of-order guard ve release policy verisi
+  fireFeedback.js           ARCHER/HORDE/LASER cooldown progress + blocked/ready/shot state
+  fireFeedbackEffects.js    blockedSes/haptic efektlerini episode başına bir kez uygular
+
   AIM_MOVE/PRESS/RELEASE    ARCHER/HORDE/LASER sağ analog + bas/bırak attack lifecycle'ı
   inputRouter.js            Local/network input → aktif authoritative engine yönlendirmesi
   networkProtocol.js        Ortak ONLINE/TV_CONSOLE input doğrulama sözleşmesi
@@ -262,7 +265,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
 
 ### Host → Uzak Telefon (`host_msg`):
 * `HOST_STATE_SYNC` / `GAME_STATE`: 8 Hz periyodik HUD/kumanda durumu (dirty-check ile değişmediyse göndermez).
-* `WORLD_FRAME`: world-view oyunlarında (PONG, SNAKE, ARCHER, BOMB, HEIST, TANKS, CLONE, NINJA, LASER, ZONE, COLLAPSE, CURVE, HORDE, RACE, CROWN) yalnız P2P `world` kanalından 30 Hz tam snapshot; full-frame olduğu için kayıp paket sonraki kareyi bozmaz. Transport envelope host `sentAt` damgası taşır; client `GamepadWorldView` bunları 3-8 frame jitter buffer'da tutup native 60 Hz+ rAF ile sunar, interpolate edilen sürekli alanları stable-id ile eşleştirir, round/state/host sınırında snap yapar ve extrapolation yapmaz. Büyük grid/trail oyunlarında (ZONE 4096 hücre, CURVE 24.000 segment) snapshot RLE / iki katmanlı sıkıştırma ile tavan altına indirilir; çarpışma host'ta tam çözünürlükte kalır.
+* `WORLD_FRAME`: world-view oyunlarında (PONG, SNAKE, ARCHER, BOMB, HEIST, TANKS, CLONE, NINJA, LASER, ZONE, COLLAPSE, CURVE, HORDE, RACE, CROWN) yalnız P2P `world` kanalından 30 Hz tam snapshot; full-frame olduğu için kayıp paket sonraki kareyi bozmaz. Transport envelope host `sentAt` damgası taşır; client `GamepadWorldView` bunları 3-8 frame jitter buffer'da tutup native 60 Hz+ rAF ile sunar, interpolate edilen sürekli alanları stable-id ile eşleştirir, round/state/host sınırında snap yapar ve extrapolation yapmaz. ARCHER/LASER/HORDE player snapshot'ları normalized `fireCooldown` ve `fireFeedback` taşır. Büyük grid/trail oyunlarında (ZONE 4096 hücre, CURVE 24.000 segment) snapshot RLE / iki katmanlı sıkıştırma ile tavan altına indirilir; çarpışma host'ta tam çözünürlükte kalır.
 * `SLOTS_UPDATE`: 4 koltuğun güncel durumu (`slotIndex, name, color, kind, isReady, isHost` + insanlarda `avatar`) ve `reservedHostSlot`. Hem WS hem Supabase'de birebir aynı şemadır.
 * `JOIN_SUCCESS`: Supabase ayrıca `worldView` ve `reservedHostSlot` bayraklarını taşır; ONLINE odada worldView true, TV_CONSOLE odasında false. TV host isteğe bağlı P1'e katılırsa reservedHostSlot 0 olur.
 * `SLOT_CHANGED`: koltuk no + display rengi. Renk oyuncuyla taşınır (takas/döndürmede koltuğa sabitlenmez).

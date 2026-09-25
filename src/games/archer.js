@@ -4,6 +4,8 @@
 // raundu alır; 2 raund alan şampiyon.
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playItemPickup, playTeleport, playDashWhoosh, playPowerUp } from '../audio.js';
+import { notifyFireBlocked, notifyFireShot } from '../core/fireFeedbackEffects.js';
+import { resetFireFeedback, updateFireFeedback } from '../core/fireFeedback.js';
 import { t } from '../i18n.js';
 import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -150,7 +152,7 @@ export class ArcherGame extends BaseMiniGame {
         x: s.x, y: s.y, angle: 0,
         speed: ARCHER_SPEED, steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
-        charging: false, charge: 0, shotCooldown: 0,
+        charging: false, charge: 0, shotCooldown: 0, fireCooldownMax: ARCHER_SHOT_COOLDOWN,
         swayPhase: Math.random() * Math.PI * 2,
         stun: 0, spawnProt: 0,
         turboTimer: 0, quickdrawTimer: 0, multiShots: 0, shield: 0, slipTimer: 0,
@@ -238,6 +240,8 @@ export class ArcherGame extends BaseMiniGame {
       player.charging = false;
       player.charge = 0;
       player.shotCooldown = 0;
+      player.fireCooldownMax = ARCHER_SHOT_COOLDOWN;
+      resetFireFeedback(player);
       player.stun = 0;
       player.spawnProt = 1.0;
       player.turboTimer = 0;
@@ -252,7 +256,11 @@ export class ArcherGame extends BaseMiniGame {
   beginCharge(player) {
     if (this.state !== 'PLAYING') return;
     if (!player.isJoined || !player.isAlive) return;
-    if (player.stun > 0 || player.shotCooldown > 0) return;
+    if (player.shotCooldown > 0) {
+      notifyFireBlocked(player);
+      return;
+    }
+    if (player.stun > 0) return;
     player.charging = true;
   }
 
@@ -268,10 +276,16 @@ export class ArcherGame extends BaseMiniGame {
       player.charge = 0;
       return;
     }
+    if (player.shotCooldown > 0) {
+      player.charge = 0;
+      notifyFireBlocked(player);
+      return;
+    }
     const charge = player.charge;
     player.charge = 0;
     if (charge < 0.08) return;
     player.shotCooldown = ARCHER_SHOT_COOLDOWN;
+    notifyFireShot(player);
 
     const aim = this.aimAngle(player);
     const speed = 300 + 420 * charge;
@@ -500,7 +514,10 @@ export class ArcherGame extends BaseMiniGame {
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
 
-      if (player.shotCooldown > 0) player.shotCooldown -= dt;
+      if (player.shotCooldown > 0) {
+        player.shotCooldown = Math.max(0, player.shotCooldown - dt);
+      }
+      updateFireFeedback(player);
       if (player.stun > 0) player.stun -= dt;
       if (player.spawnProt > 0) player.spawnProt -= dt;
       if (player.turboTimer > 0) player.turboTimer -= dt;

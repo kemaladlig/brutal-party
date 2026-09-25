@@ -2,6 +2,8 @@
 // Host authority: fizik, AI, wave ve terminal durumlar yalnız bu motorda ilerler.
 
 import { playDashWhoosh, playExplosion, playJoin, playPaddleHit, playShoot, playStart, playStumble } from '../audio.js';
+import { notifyFireBlocked, notifyFireShot } from '../core/fireFeedbackEffects.js';
+import { resetFireFeedback, updateFireFeedback } from '../core/fireFeedback.js';
 import { t } from '../i18n.js';
 import { getBotPersona, getSlotCustomization } from '../core/customizationManager.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
@@ -396,6 +398,7 @@ export class HordeGame extends BaseMiniGame {
       player.tripleTimer = 0;
       player.shield = false;
       player.attackCooldown = 0.15;
+      resetFireFeedback(player);
       player.isAiming = false;
       player.keyDashLatch = false;
       player.keyFireLatch = false;
@@ -567,7 +570,10 @@ export class HordeGame extends BaseMiniGame {
     if (!player?.isJoined) return;
     tickEffectTimers(player, dt);
     this.updatePlayerWeapon(player, dt);
-    if (player.attackCooldown > 0) player.attackCooldown = Math.max(0, player.attackCooldown - dt);
+    if (player.attackCooldown > 0) {
+      player.attackCooldown = Math.max(0, player.attackCooldown - dt);
+    }
+    updateFireFeedback(player);
     if (!player.isAlive) {
       player.steerX = 0;
       player.steerY = 0;
@@ -585,6 +591,9 @@ export class HordeGame extends BaseMiniGame {
       player.angle += angleDiff * Math.min(1, dt * 32);
     } else {
       player.angle += angleDiff * Math.min(1, dt * 16);
+    }
+    if (allowFire && player.slotType === 'human' && player.isAiming && player.attackCooldown > 0) {
+      notifyFireBlocked(player);
     }
     if (allowFire && player.isAiming && player.attackCooldown <= 0) this.firePlayer(player);
 
@@ -735,7 +744,12 @@ export class HordeGame extends BaseMiniGame {
   }
 
   firePlayer(player) {
-    if (this.state !== 'PLAYING' || !player?.isAlive || player.attackCooldown > 0 || player.reloadTimer > 0) return;
+    if (this.state !== 'PLAYING' || !player?.isAlive) return;
+    if (player.attackCooldown > 0) {
+      notifyFireBlocked(player);
+      return;
+    }
+    if (player.reloadTimer > 0) return;
     const weapon = getPlayerWeapon(player);
     if (weapon.kind === 'melee') {
       this.fireBlade(player, weapon);
@@ -769,6 +783,7 @@ export class HordeGame extends BaseMiniGame {
     }
     player.ammo -= 1;
     player.attackCooldown = weapon.fireInterval * (player.fastTimer > 0 ? 0.88 : 1);
+    notifyFireShot(player);
     playShoot();
     if (player.ammo <= 0) this.startReload(player);
   }
@@ -776,6 +791,7 @@ export class HordeGame extends BaseMiniGame {
   fireBlade(player, weapon) {
     player.weaponSwingTimer = 0.2;
     player.attackCooldown = weapon.fireInterval;
+    notifyFireShot(player);
     let hitAny = false;
     for (const enemy of this.enemies) {
       if (enemy.spawnDelay > 0) continue;
@@ -1347,6 +1363,7 @@ export class HordeGame extends BaseMiniGame {
       player.isAiming = false;
       player.attackCooldown = 0;
       player.reloadTimer = 0;
+      resetFireFeedback(player);
       player.magazine = getPlayerWeapon(player).magazine;
       player.ammo = player.magazine;
       player.loadoutChoiceCrateId = null;
