@@ -560,6 +560,7 @@ export const TR = {
   'card.desc.ninja': 'Dur ve görünmez ol, kılıçla tek vuruşta avla!',
   'card.hl.ninja': 'GÖLGE AVI',
   'card.tagCoop': '1-4 OYUNCU',
+  'card.featured': '★ ÖNE ÇIKAN',
   'card.desc.horde': 'Dalga dalga sürüleri durdurun, takımınızı diriltin ve portaldan kaçın!',
   'card.hl.horde': 'TAKIM SAVUNMASI',
   'card.desc.race': 'Checkpointleri sırayla kap, nitroyu kullan ve 3 turu tamamla!',

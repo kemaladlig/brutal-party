@@ -197,7 +197,16 @@
                 <span class="host-game-count" data-i18n="host.gamesCount">15 OYUN</span>
               </div>
               <div class="selector-grid">
-                <button class="lobby-game-chip active" data-game="PONG" type="button">
+                <button class="lobby-game-chip active" data-game="HORDE" type="button">
+                  <div class="chip-media-box">
+                    <img src="/assets/games/horde.jpg" alt="Brutal Horde" class="chip-thumb-img" loading="eager" decoding="async" />
+                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
+                  </div>
+                  <div class="chip-meta">
+                    <span class="chip-name">BRUTAL HORDE</span>
+                  </div>
+                </button>
+                <button class="lobby-game-chip" data-game="PONG" type="button">
                   <div class="chip-media-box">
                     <img src="/assets/games/pong.jpg" alt="Brutal Pong" class="chip-thumb-img" loading="eager" decoding="async" />
                     <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
@@ -312,15 +321,6 @@
                   </div>
                   <div class="chip-meta">
                     <span class="chip-name">BRUTAL NINJA</span>
-                  </div>
-                </button>
-                <button class="lobby-game-chip" data-game="HORDE" type="button">
-                  <div class="chip-media-box">
-                    <img src="/assets/games/horde.jpg" alt="Brutal Horde" class="chip-thumb-img" loading="eager" decoding="async" />
-                    <span class="chip-active-badge"><span class="chip-selected-icon" aria-hidden="true"></span><span data-i18n="host.selected">SEÇİLDİ</span></span>
-                  </div>
-                  <div class="chip-meta">
-                    <span class="chip-name">BRUTAL HORDE</span>
                   </div>
                 </button>
                 <button class="lobby-game-chip" data-game="RACE" type="button">
@@ -860,14 +860,32 @@
 
               <!-- 15 Game Cards Grid -->
               <div class="menu-games bento-grid" id="menu-games-grid">
-                <!-- 01: PONG -->
+                <!-- 01: HORDE -->
+                <button class="game-card-btn bento-card card-horde" id="btn-select-horde" data-category="fight" type="button">
+                  <div class="bento-media-box">
+                    <img src="/assets/games/horde.jpg" alt="BRUTAL HORDE" class="bento-thumb-img" loading="eager" />
+                    <span class="card-featured-badge" data-i18n="card.featured">★ ÖNE ÇIKAN</span>
+                    <span class="card-tag" data-i18n="card.tagCoop">1-4 OYUNCU</span>
+                  </div>
+                  <div class="card-center">
+                    <div class="card-number">01</div>
+                    <div class="card-title">BRUTAL HORDE</div>
+                    <div class="card-desc" data-i18n="card.desc.horde">Dalga dalga sürüleri durdurun, takımınızı diriltin ve portaldan kaçın!</div>
+                  </div>
+                  <div class="bento-bottom">
+                    <span class="card-highlight" data-i18n="card.hl.horde">TAKIM SAVUNMASI</span>
+                    <span class="card-action" data-i18n="card.play">OYNA →</span>
+                  </div>
+                </button>
+
+                <!-- 02: PONG -->
                 <button class="game-card-btn bento-card card-pong" id="btn-select-pong" data-category="speed" type="button">
                   <div class="bento-media-box">
                     <img src="/assets/games/pong.jpg" alt="BRUTAL PONG" class="bento-thumb-img" loading="eager" />
                     <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
                   </div>
                   <div class="card-center">
-                    <div class="card-number">01</div>
+                    <div class="card-number">02</div>
                     <div class="card-title">BRUTAL PONG</div>
                     <div class="card-desc" data-i18n="card.desc.pong">4 kaleli arena, falso atışları ve hızlanan ralli</div>
                   </div>
@@ -877,14 +895,14 @@
                   </div>
                 </button>
 
-                <!-- 02: ARCHER -->
+                <!-- 03: ARCHER -->
                 <button class="game-card-btn bento-card card-archery" id="btn-select-archer" data-category="aim" type="button">
                   <div class="bento-media-box">
                     <img src="/assets/games/archer.jpg" alt="BRUTAL ARCHERY" class="bento-thumb-img" loading="eager" />
                     <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
                   </div>
                   <div class="card-center">
-                    <div class="card-number">02</div>
+                    <div class="card-number">03</div>
                     <div class="card-title">BRUTAL ARCHERY</div>
                     <div class="card-desc" data-i18n="card.desc.archer">Yayını ger, nişan al ve rakibi vur</div>
                   </div>
@@ -894,14 +912,14 @@
                   </div>
                 </button>
 
-                <!-- 03: TANKS -->
+                <!-- 04: TANKS -->
                 <button class="game-card-btn bento-card card-tanks" id="btn-select-tanks" data-category="fight" type="button">
                   <div class="bento-media-box">
                     <img src="/assets/games/tanks.jpg" alt="MICRO-TANKS" class="bento-thumb-img" loading="eager" />
                     <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
                   </div>
                   <div class="card-center">
-                    <div class="card-number">03</div>
+                    <div class="card-number">04</div>
                     <div class="card-title">MICRO-TANKS</div>
                     <div class="card-desc" data-i18n="card.desc.tanks">Seken mermiler, 2'li fişek ve labirent arenası</div>
                   </div>
@@ -911,14 +929,14 @@
                   </div>
                 </button>
 
-                <!-- 04: CURVE -->
+                <!-- 05: CURVE -->
                 <button class="game-card-btn bento-card card-curve" id="btn-select-curve" data-category="strategy" type="button">
                   <div class="bento-media-box">
                     <img src="/assets/games/curve.jpg" alt="BRUTAL CURVE" class="bento-thumb-img" loading="eager" />
                     <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
                   </div>
                   <div class="card-center">
-                    <div class="card-number">04</div>
+                    <div class="card-number">05</div>
                     <div class="card-title">BRUTAL CURVE</div>
                     <div class="card-desc" data-i18n="card.desc.curve">Rakipleri sıkıştır, deliklerden geç ve hayatta kal</div>
                   </div>
@@ -928,14 +946,14 @@
                   </div>
                 </button>
 
-                <!-- 05: BOMB -->
+                <!-- 06: BOMB -->
                 <button class="game-card-btn bento-card card-bomb" id="btn-select-bomb" data-category="fight" type="button">
                   <div class="bento-media-box">
                     <img src="/assets/games/bomb.jpg" alt="BRUTAL BOMB" class="bento-thumb-img" loading="eager" />
                     <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
                   </div>
                   <div class="card-center">
-                    <div class="card-number">05</div>
+                    <div class="card-number">06</div>
                     <div class="card-title">BRUTAL BOMB</div>
                     <div class="card-desc" data-i18n="card.desc.bomb">Bombayı rakibe fırlat, depar at ve patlamadan kaç</div>
                   </div>
@@ -945,14 +963,14 @@
                   </div>
                 </button>
 
-                <!-- 06: HEIST -->
+                <!-- 07: HEIST -->
                 <button class="game-card-btn bento-card card-heist" id="btn-select-heist" data-category="fight" type="button">
                   <div class="bento-media-box">
                     <img src="/assets/games/heist.jpg" alt="BRUTAL HEIST" class="bento-thumb-img" loading="eager" />
                     <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
                   </div>
                   <div class="card-center">
-                    <div class="card-number">06</div>
+                    <div class="card-number">07</div>
                     <div class="card-title">BRUTAL HEIST</div>
                     <div class="card-desc" data-i18n="card.desc.heist">Altınları topla, kasana taşı ve rakiplere omuz at</div>
                   </div>
@@ -962,7 +980,7 @@
                   </div>
                 </button>
 
-                <!-- 07: CROWN -->
+                <!-- 08: CROWN -->
                 <button class="game-card-btn bento-card card-crown" id="btn-select-crown" data-category="fight" data-retired="true" type="button">
                   <div class="bento-media-box">
                     <img src="/assets/games/crown.jpg" alt="BRUTAL CROWN" class="bento-thumb-img" loading="eager" />
@@ -970,7 +988,7 @@
                     <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
                   </div>
                   <div class="card-center">
-                    <div class="card-number">07</div>
+                    <div class="card-number">08</div>
                     <div class="card-title">BRUTAL CROWN</div>
                     <div class="card-desc" data-i18n="card.desc.crown">Tacı kap, omuz atarak rakipleri püskürt ve krallığını koru!</div>
                   </div>
@@ -980,14 +998,14 @@
                   </div>
                 </button>
 
-                <!-- 08: ZONE -->
+                <!-- 09: ZONE -->
                 <button class="game-card-btn bento-card card-zone" id="btn-select-zone" data-category="strategy" type="button">
                   <div class="bento-media-box">
                     <img src="/assets/games/zone.jpg" alt="BRUTAL ZONE" class="bento-thumb-img" loading="eager" />
                     <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
                   </div>
                   <div class="card-center">
-                    <div class="card-number">08</div>
+                    <div class="card-number">09</div>
                     <div class="card-title">BRUTAL ZONE</div>
                     <div class="card-desc" data-i18n="card.desc.zone">Bölgeni büyüt, izini koru, rakip kuyrukları kes!</div>
                   </div>
@@ -997,14 +1015,14 @@
                   </div>
                 </button>
 
-                <!-- 09: SNAKE -->
+                <!-- 10: SNAKE -->
                 <button class="game-card-btn bento-card card-snake" id="btn-select-snake" data-category="strategy" type="button">
                   <div class="bento-media-box">
                     <img src="/assets/games/snake.jpg" alt="BRUTAL SNAKE" class="bento-thumb-img" loading="eager" />
                     <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
                   </div>
                   <div class="card-center">
-                    <div class="card-number">09</div>
+                    <div class="card-number">10</div>
                     <div class="card-title">BRUTAL SNAKE</div>
                     <div class="card-desc" data-i18n="card.desc.snake">Yemle büyü, kuyruklara dikkat, boost ile avlan!</div>
                   </div>
@@ -1014,14 +1032,14 @@
                   </div>
                 </button>
 
-                <!-- 10: LASER -->
+                <!-- 11: LASER -->
                 <button class="game-card-btn bento-card card-laser" id="btn-select-laser" data-category="speed" type="button">
                   <div class="bento-media-box">
                     <img src="/assets/games/laser.jpg" alt="BRUTAL LASER" class="bento-thumb-img" loading="eager" />
                     <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
                   </div>
                   <div class="card-center">
-                    <div class="card-number">10</div>
+                    <div class="card-number">11</div>
                     <div class="card-title">BRUTAL LASER</div>
                     <div class="card-desc" data-i18n="card.desc.laser">Nişan al, sektirerek vur, son kalan ol!</div>
                   </div>
@@ -1031,7 +1049,7 @@
                   </div>
                 </button>
 
-                <!-- 11: CLONE -->
+                <!-- 12: CLONE -->
                 <button class="game-card-btn bento-card card-clone" id="btn-select-clone" data-category="strategy" data-retired="true" type="button">
                   <div class="bento-media-box">
                     <img src="/assets/games/clone.jpg" alt="BRUTAL CLONE" class="bento-thumb-img" loading="eager" />
@@ -1039,7 +1057,7 @@
                     <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
                   </div>
                   <div class="card-center">
-                    <div class="card-number">11</div>
+                    <div class="card-number">12</div>
                     <div class="card-title">BRUTAL CLONE</div>
                     <div class="card-desc" data-i18n="card.desc.clone">Kopyalarınla gez, gerçeğini gizle, omuz at!</div>
                   </div>
@@ -1049,14 +1067,14 @@
                   </div>
                 </button>
 
-                <!-- 12: COLLAPSE -->
+                <!-- 13: COLLAPSE -->
                 <button class="game-card-btn bento-card card-collapse" id="btn-select-collapse" data-category="strategy" type="button">
                   <div class="bento-media-box">
                     <img src="/assets/games/collapse.jpg" alt="BRUTAL COLLAPSE" class="bento-thumb-img" loading="eager" />
                     <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
                   </div>
                   <div class="card-center">
-                    <div class="card-number">12</div>
+                    <div class="card-number">13</div>
                     <div class="card-title">BRUTAL COLLAPSE</div>
                     <div class="card-desc" data-i18n="card.desc.collapse">Zemin çöküyor, zıpla ve sona kal!</div>
                   </div>
@@ -1066,36 +1084,19 @@
                   </div>
                 </button>
 
-                <!-- 13: NINJA -->
+                <!-- 14: NINJA -->
                 <button class="game-card-btn bento-card card-ninja" id="btn-select-ninja" data-category="fight" type="button">
                   <div class="bento-media-box">
                     <img src="/assets/games/ninja.jpg" alt="BRUTAL NINJA" class="bento-thumb-img" loading="eager" />
                     <span class="card-tag" data-i18n="card.tag">2-4 OYUNCU</span>
                   </div>
                   <div class="card-center">
-                    <div class="card-number">13</div>
+                    <div class="card-number">14</div>
                     <div class="card-title">BRUTAL NINJA</div>
                     <div class="card-desc" data-i18n="card.desc.ninja">Dur ve görünmez ol, kılıçla tek vuruşta avla!</div>
                   </div>
                   <div class="bento-bottom">
                     <span class="card-highlight" data-i18n="card.hl.ninja">GÖLGE AVI</span>
-                    <span class="card-action" data-i18n="card.play">OYNA →</span>
-                  </div>
-                </button>
-
-                <!-- 14: HORDE -->
-                <button class="game-card-btn bento-card card-horde" id="btn-select-horde" data-category="fight" type="button">
-                  <div class="bento-media-box">
-                    <img src="/assets/games/horde.jpg" alt="BRUTAL HORDE" class="bento-thumb-img" loading="eager" />
-                    <span class="card-tag" data-i18n="card.tagCoop">1-4 OYUNCU</span>
-                  </div>
-                  <div class="card-center">
-                    <div class="card-number">14</div>
-                    <div class="card-title">BRUTAL HORDE</div>
-                    <div class="card-desc" data-i18n="card.desc.horde">Dalga dalga sürüleri durdurun, takımınızı diriltin ve portaldan kaçın!</div>
-                  </div>
-                  <div class="bento-bottom">
-                    <span class="card-highlight" data-i18n="card.hl.horde">TAKIM SAVUNMASI</span>
                     <span class="card-action" data-i18n="card.play">OYNA →</span>
                   </div>
                 </button>

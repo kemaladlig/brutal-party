@@ -311,7 +311,7 @@ function addTapListener(el, callback) {
 }
 
 // Host Room Creation (TV_CONSOLE TV host / ONLINE P1 phone host)
-async function openHostLobby(gameMode = 'PONG') {
+async function openHostLobby(gameMode = 'HORDE') {
   setCurrentHostGameMode(gameMode);
   hostPlayerActive = platformMode === 'ONLINE';
   hostPlayerSlot = hostPlayerActive ? 0 : null;
@@ -1339,11 +1339,11 @@ function closeGamePicker() {
 
 btnHeroCreateRoom?.addEventListener('click', () => {
   updatePlatformMode('TV_CONSOLE');
-  openHostLobby('PONG');
+  openHostLobby('HORDE');
 });
 btnOnlineCreateRoom?.addEventListener('click', () => {
   updatePlatformMode('ONLINE');
-  openHostLobby('PONG');
+  openHostLobby('HORDE');
 });
 addTapListener(btnCloseGamePicker, closeGamePicker);
 

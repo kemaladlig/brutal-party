@@ -560,6 +560,7 @@ export const EN = {
   'card.desc.ninja': 'Stand still to vanish, strike once with the blade!',
   'card.hl.ninja': 'SHADOW HUNT',
   'card.tagCoop': '1-4 PLAYERS',
+  'card.featured': '★ FEATURED',
   'card.desc.horde': 'Stop wave after wave, revive your team and escape through the portal!',
   'card.hl.horde': 'CO-OP SURVIVAL',
   'card.desc.race': 'Clear checkpoints in order, use nitro and finish three laps!',
