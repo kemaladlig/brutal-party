@@ -2,7 +2,7 @@
 // It never becomes authoritative: it only emits the same transport packets as
 // the phone controller, and the host router/engine remains authoritative.
 
-import { getNeutralInput } from './controlDefs.js';
+import { getNeutralInputs } from './controlDefs.js';
 import { GamepadInputAdapter } from './gamepadInputAdapter.js';
 
 const DEFAULT_DEADZONE = 0.18;
@@ -65,8 +65,10 @@ export class PhysicalGamepadAdapter {
       position: 0.5,
       primaryDown: false,
       actionId: null,
+      activeActions: [],
       mode: null,
       vectorActive: false,
+      aimActive: false,
       blocked: false,
       padAvailable: false,
     };
@@ -95,8 +97,7 @@ export class PhysicalGamepadAdapter {
   }
 
   sendNeutral() {
-    const neutral = getNeutralInput(this.getMode());
-    if (neutral) this.send(neutral);
+    for (const neutral of getNeutralInputs(this.getMode())) this.send(neutral);
   }
 
   findPad() {
@@ -129,30 +130,59 @@ export class PhysicalGamepadAdapter {
     };
   }
 
+  readAimAxis(pad) {
+    const rawX = axisValue(pad?.axes?.[2]);
+    const rawY = axisValue(pad?.axes?.[3]);
+    const magnitude = Math.hypot(rawX, rawY);
+    if (magnitude < this.deadzone) return { dx: 0, dy: 0, angle: 0, force: 0 };
+    const force = Math.min(1, (magnitude - this.deadzone) / (1 - this.deadzone));
+    return {
+      dx: clamp((rawX / magnitude) * force),
+      dy: clamp((-rawY / magnitude) * force),
+      angle: Math.atan2(-rawY, rawX),
+      force,
+    };
+  }
+
   emitAction(action, payload = {}) {
     if (action) this.send({ action, ...payload });
   }
 
   releasePrimary() {
-    const action = this.previous.actionId;
-    if (!action) return;
-    const releaseAction = action.releaseAction
-      || (action.transportActions?.length > 1 ? action.transportActions.at(-1) : null);
-    this.emitAction(releaseAction);
+    for (const active of this.previous.activeActions) {
+      const action = active.action;
+      const releaseAction = action.releaseAction
+        || (action.transportActions?.length > 1 ? action.transportActions.at(-1) : null);
+      this.emitAction(releaseAction);
+    }
+    this.previous.activeActions = [];
     this.previous.primaryDown = false;
     this.previous.actionId = null;
   }
 
   updatePrimary(pad, descriptor) {
-    const down = buttonValue(pad, 0) > 0.5;
-    const action = descriptor?.network?.actions?.find((candidate) => candidate.id === descriptor.phone.actions[0]?.id);
-    if (!action) return;
-    if (down && !this.previous.primaryDown) {
-      this.emitAction(action.transportActions?.[0]);
-      this.previous.primaryDown = true;
-      this.previous.actionId = action;
-    } else if (!down && this.previous.primaryDown) {
-      this.releasePrimary();
+    const phoneActions = descriptor?.phone?.actions || [];
+    for (let index = 0; index < phoneActions.length; index += 1) {
+      const action = descriptor.network?.actions?.find((candidate) => candidate.id === phoneActions[index].id);
+      if (!action) continue;
+      const down = buttonValue(pad, index) > 0.5;
+      const activeIndex = this.previous.activeActions.findIndex((entry) => entry.index === index);
+      if (down && activeIndex < 0) {
+        this.emitAction(action.transportActions?.[0]);
+        this.previous.activeActions.push({ index, action });
+        this.previous.primaryDown = true;
+        this.previous.actionId = action;
+      } else if (!down && activeIndex >= 0) {
+        const [active] = this.previous.activeActions.splice(activeIndex, 1);
+        const releaseAction = active.action.transportActions?.length > 1
+          ? (active.action.releaseAction || active.action.transportActions.at(-1))
+          : null;
+        this.emitAction(releaseAction);
+        if (this.previous.activeActions.length === 0) {
+          this.previous.primaryDown = false;
+          this.previous.actionId = null;
+        }
+      }
     }
   }
 
@@ -183,6 +213,13 @@ export class PhysicalGamepadAdapter {
         this.analog.sendAnalog({ action: 'JOYSTICK_MOVE', ...vector });
       }
       this.previous.vectorActive = vector.force > 0;
+      if (descriptor.phone?.aim) {
+        const aim = this.readAimAxis(pad);
+        if (aim.force > 0 || this.previous.aimActive) {
+          this.analog.sendAnalog({ action: 'AIM_MOVE', ...aim });
+        }
+        this.previous.aimActive = aim.force > 0;
+      }
     }
     this.updatePrimary(pad, descriptor);
   }
@@ -197,10 +234,12 @@ export class PhysicalGamepadAdapter {
       this.previous.dir = 0;
       this.previous.driving = false;
       this.previous.vectorActive = false;
+      this.previous.aimActive = false;
     }
     if (!descriptor || mode === 'LOBBY' || this.isBlocked()) {
       if (!this.previous.blocked) {
         this.releasePrimary();
+        if (this.previous.aimActive) this.sendAimNeutral();
         this.sendNeutral();
       }
       this.previous.blocked = true;
@@ -208,6 +247,7 @@ export class PhysicalGamepadAdapter {
       this.previous.dir = 0;
       this.previous.driving = false;
       this.previous.vectorActive = false;
+      this.previous.aimActive = false;
       this.analog.reset();
       return true;
     }
@@ -216,11 +256,13 @@ export class PhysicalGamepadAdapter {
     if (!found) {
       if (this.previous.padAvailable) {
         this.releasePrimary();
+        if (this.previous.aimActive) this.sendAimNeutral();
         this.sendNeutral();
       }
       this.previous.padAvailable = false;
       this.previous.blocked = false;
       this.previous.vectorActive = false;
+      this.previous.aimActive = false;
       this.analog.reset();
       return true;
     }

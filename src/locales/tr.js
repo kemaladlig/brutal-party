@@ -669,6 +669,7 @@ export const TR = {
   'pad.tap': 'DOKUN',
   'pad.action': 'EYLEM',
   'pad.guideTitle': 'KONTROL',
+  'pad.guideAim': 'NİŞAN',
   'pad.guideJoystick': 'JOYSTICK',
   'pad.guideSteer': 'YÖN',
   'pad.guideSlider': 'SLIDER',

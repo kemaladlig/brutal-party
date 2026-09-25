@@ -17,15 +17,15 @@ export const CONTROL_DEFS = {
   CURVE: { left: 'steer', right: [] },
   BOMB: { left: 'joystick', right: ['dash'] },
   HEIST: { left: 'joystick', right: ['tackle'] },
-  ARCHER: { left: 'joystick', right: ['charge'] },
+  ARCHER: { left: 'joystick', aim: true, right: ['charge'] },
   CROWN: { left: 'joystick', right: ['tackle'] },
   ZONE: { left: 'joystick', right: ['dash'] },
   SNAKE: { left: 'steer', right: ['boost'] },
-  LASER: { left: 'joystick', right: ['fire', 'dash'] },
+  LASER: { left: 'joystick', aim: true, right: ['fire', 'dash'] },
   CLONE: { left: 'joystick', right: ['tackle'] },
   COLLAPSE: { left: 'joystick', right: ['jump'] },
   NINJA: { left: 'joystick', right: ['strike', 'smoke'] },
-  HORDE: { left: 'joystick', right: ['fire', 'dash'] },
+  HORDE: { left: 'joystick', aim: true, right: ['fire', 'dash'] },
   RACE: { left: 'joystick', right: ['dash'] },
 };
 
@@ -63,8 +63,10 @@ export function getTabletopLayout(mode) {
   const def = getControlDef(mode);
   if (!def) return null;
   const left = TABLETOP_LEFT[mode] || 'joystick';
-  if (left === 'steer') return { steer: true, actions: def.right.map((id) => ({ id })) };
-  return { joystick: true, actions: def.right.map((id) => ({ id })) };
+  if (left === 'steer') {
+    return { steer: true, aim: !!def.aim, actions: def.right.map((id) => ({ id })) };
+  }
+  return { joystick: true, aim: !!def.aim, actions: def.right.map((id) => ({ id })) };
 }
 
 export function validateControlDef(mode, schema) {
@@ -84,9 +86,16 @@ const NEUTRAL_INPUTS = {
   SNAKE: { action: 'SNAKE_STEER', dir: 0 },
 };
 
+export function getNeutralInputs(mode) {
+  if (mode === 'PONG') return [];
+  const primary = NEUTRAL_INPUTS[mode]
+    ? { ...NEUTRAL_INPUTS[mode] }
+    : (getControlDef(mode) ? { action: 'JOYSTICK_MOVE', dx: 0, dy: 0, angle: 0, force: 0 } : null);
+  const packets = primary ? [primary] : [];
+  if (getControlDef(mode)?.aim) packets.push({ action: 'AIM_MOVE', dx: 0, dy: 0, angle: 0, force: 0 });
+  return packets;
+}
+
 export function getNeutralInput(mode) {
-  if (mode === 'PONG') return null;
-  if (NEUTRAL_INPUTS[mode]) return { ...NEUTRAL_INPUTS[mode] };
-  if (getControlDef(mode)) return { action: 'JOYSTICK_MOVE', dx: 0, dy: 0, angle: 0, force: 0 };
-  return null;
+  return getNeutralInputs(mode)[0] || null;
 }

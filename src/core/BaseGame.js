@@ -103,6 +103,11 @@ export class BaseMiniGame {
     this.tabletopActionTouches = new Map();
     this.tabletopActionState = [{}, {}, {}, {}];
 
+    // Optional secondary analog aim input (MOBA twin-stick games).
+    this.tabletopAimTouches = new Map();
+    this.tabletopAimState = [null, null, null, null];
+    this.aimVectors = [0, 1, 2, 3].map(() => ({ dx: 0, dy: 0, angle: 0, force: 0 }));
+
     // Responsive Viewport (Ayrık HUD & Dokunmatik için ekran sınırları)
     const initW = typeof window !== 'undefined' ? window.innerWidth : 800;
     const initH = typeof window !== 'undefined' ? window.innerHeight : 600;
@@ -427,12 +432,50 @@ export class BaseMiniGame {
       const actualIds = (schema.actions || []).map((action) => action.id);
       const expectedIds = result.descriptor.tabletop.actions.map((action) => action.id);
       const actualLeft = schema.steer ? 'steer' : schema.joystick ? 'joystick' : null;
-      if (actualIds.join('|') !== expectedIds.join('|') || actualLeft !== result.descriptor.tabletop.left) {
+      if (actualIds.join('|') !== expectedIds.join('|')
+        || actualLeft !== result.descriptor.tabletop.left
+        || !!schema.aim !== !!result.descriptor.tabletop.aim) {
         console.warn(`[controlDescriptor] ${mode}: engine tabletop schema differs from registry`);
         return false;
       }
       return validateControlDef(mode, schema);
     } catch { return true; }
+  }
+
+  setAimVector(slotIndex, input = {}) {
+    const force = Number.isFinite(input.force) ? Math.max(0, Math.min(1, input.force)) : 0;
+    const dx = Number.isFinite(input.dx) ? Math.max(-1, Math.min(1, input.dx)) : 0;
+    const dy = Number.isFinite(input.dy) ? Math.max(-1, Math.min(1, input.dy)) : 0;
+    const hasAimDirection = force > 0.05 && Number.isFinite(input.angle);
+    const angle = hasAimDirection
+      ? input.angle
+      : (force > 0.05 ? Math.atan2(dy, dx) : this.aimVectors[slotIndex]?.angle || 0);
+    this.aimVectors[slotIndex] = { dx, dy, angle, force };
+    this.tabletopAimState[slotIndex] = this.aimVectors[slotIndex];
+  }
+
+  getAimVector(slotIndex) {
+    return this.aimVectors[slotIndex] || { dx: 0, dy: 0, angle: 0, force: 0 };
+  }
+
+  handleSlotAim(slotIndex, input = {}) {
+    this.setAimVector(slotIndex, input);
+    if (typeof this.onSlotAim === 'function') this.onSlotAim(slotIndex, input);
+  }
+
+  getTabletopAimVector(aimBox, x, y) {
+    if (!aimBox) return { dx: 0, dy: 0, angle: 0, force: 0 };
+    const dx = x - aimBox.cx;
+    const dy = y - aimBox.cy;
+    const distance = Math.hypot(dx, dy);
+    const radius = Math.max(1, aimBox.r || aimBox.w / 2);
+    const force = distance < radius * 0.08 ? 0 : Math.min(1, distance / radius);
+    return {
+      dx: distance > 0 ? (dx / distance) * force : 0,
+      dy: distance > 0 ? (dy / distance) * force : 0,
+      angle: distance > 0 ? Math.atan2(dy, dx) : 0,
+      force,
+    };
   }
 
   handleSlotSteer(slotIndex, dir) {
@@ -463,6 +506,17 @@ export class BaseMiniGame {
         const p = players?.[i];
         if (!p || !p.isJoined || p.isAlive === false || p.slotType !== 'human') continue;
         const corner = corners[i];
+
+        if (schema.aim && corner.aimBox) {
+          const aimBox = corner.aimBox;
+          if (touch.x >= aimBox.x && touch.x <= aimBox.x + aimBox.w
+            && touch.y >= aimBox.y && touch.y <= aimBox.y + aimBox.h) {
+            const vector = this.getTabletopAimVector(aimBox, touch.x, touch.y);
+            this.tabletopAimTouches.set(touch.id, { slotIndex: i });
+            this.handleSlotAim(i, vector);
+            return true;
+          }
+        }
 
         // A. Steer Butonları (SOL / SAĞ)
         if (schema.steer && corner.steerButtons) {
@@ -509,6 +563,14 @@ export class BaseMiniGame {
   }
 
   handleTabletopTouchMove(touch) {
+    if (this.tabletopAimTouches.has(touch.id)) {
+      const info = this.tabletopAimTouches.get(touch.id);
+      const corner = this.getTabletopControlCorners()[info.slotIndex];
+      if (corner?.aimBox) {
+        this.handleSlotAim(info.slotIndex, this.getTabletopAimVector(corner.aimBox, touch.x, touch.y));
+      }
+      return true;
+    }
     if (this.tabletopSteerTouches.has(touch.id)) {
       const info = this.tabletopSteerTouches.get(touch.id);
       const corners = this.getTabletopControlCorners();
@@ -543,12 +605,20 @@ export class BaseMiniGame {
   _releaseTouchSourceIfIdle() {
     if (this.tabletopSteerTouches.size === 0
       && this.tabletopActionTouches.size === 0
+      && this.tabletopAimTouches.size === 0
       && !this.joysticks.some((joy) => joy.active)) {
       this.releaseInputSource('touch');
     }
   }
 
   handleTabletopTouchEnd(touch) {
+    if (this.tabletopAimTouches.has(touch.id)) {
+      const info = this.tabletopAimTouches.get(touch.id);
+      this.tabletopAimTouches.delete(touch.id);
+      this.handleSlotAim(info.slotIndex, { force: 0, angle: this.getAimVector(info.slotIndex).angle });
+      this._releaseTouchSourceIfIdle();
+      return true;
+    }
     if (this.tabletopSteerTouches.has(touch.id)) {
       const info = this.tabletopSteerTouches.get(touch.id);
       this.tabletopSteerTouches.delete(touch.id);
@@ -592,6 +662,11 @@ export class BaseMiniGame {
     }
     this.tabletopActionTouches.clear();
     this.tabletopActionState = [{}, {}, {}, {}];
+    for (const info of this.tabletopAimTouches.values()) {
+      this.handleSlotAim(info.slotIndex, { force: 0, angle: this.getAimVector(info.slotIndex).angle });
+    }
+    this.tabletopAimTouches.clear();
+    this.tabletopAimState = [null, null, null, null];
     this.resetStandardJoysticks();
   }
 
@@ -765,6 +840,8 @@ export class BaseMiniGame {
     const btnW = Math.round(56 * profile.baseUnit);
     const btnH = Math.round(50 * profile.baseUnit);
     const gap = Math.round(14 * profile.baseUnit);
+    const aimR = Math.round(36 * profile.baseUnit);
+    const aimGap = Math.round(12 * profile.baseUnit);
 
     // Helper to generate action button rects for a given corner
     const makeActionButtons = (cornerIndex, joyX, joyY, rotation) => {
@@ -772,13 +849,14 @@ export class BaseMiniGame {
       for (let idx = 0; idx < actions.length; idx++) {
         const act = actions[idx];
         let bx, by;
+        const actionOffset = baseR + gap + (schema.aim ? aimR * 2 + aimGap : 0);
         if (cornerIndex === 0 || cornerIndex === 1) {
-          // Sol taraf oyuncuları: Butonlar joystick'in SAĞINDA
-          bx = joyX + baseR + gap + idx * (btnW + gap);
+          // Sol taraf oyuncuları: Butonlar joystick/aim'in SAĞINDA
+          bx = joyX + actionOffset + idx * (btnW + gap);
           by = joyY - btnH / 2;
         } else {
-          // Sağ taraf oyuncuları: Butonlar joystick'in SOLUNDA
-          bx = joyX - baseR - gap - btnW - idx * (btnW + gap);
+          // Sağ taraf oyuncuları: Butonlar joystick/aim'in SOLUNDA
+          bx = joyX - actionOffset - btnW - idx * (btnW + gap);
           by = joyY - btnH / 2;
         }
         btns.push({
@@ -804,6 +882,14 @@ export class BaseMiniGame {
     const joyP3Y = padY + baseR;
     const joyP4X = w - padX - baseR;
     const joyP4Y = h - padY - baseR;
+    const aimBoxFor = (cornerIndex, joyX, joyY) => {
+      if (!schema.aim) return null;
+      const cx = cornerIndex === 0 || cornerIndex === 1
+        ? joyX + baseR + aimGap + aimR
+        : joyX - baseR - aimGap - aimR;
+      return { x: cx - aimR, y: joyY - aimR, w: aimR * 2, h: aimR * 2, cx, cy: joyY, r: aimR };
+    };
+    const aimExtraW = schema.aim ? aimR * 2 + aimGap : 0;
 
     return [
       {
@@ -815,12 +901,13 @@ export class BaseMiniGame {
         box: {
           x: joyP1X - baseR,
           y: joyP1Y - baseR,
-          w: baseR * 2 + (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
+          w: baseR * 2 + aimExtraW + (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
           h: baseR * 2,
           cx: joyP1X,
           cy: joyP1Y,
         },
         actionButtons: makeActionButtons(0, joyP1X, joyP1Y, 0),
+        aimBox: aimBoxFor(0, joyP1X, joyP1Y),
       },
       {
         index: 1,
@@ -831,12 +918,13 @@ export class BaseMiniGame {
         box: {
           x: joyP2X - baseR,
           y: joyP2Y - baseR,
-          w: baseR * 2 + (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
+          w: baseR * 2 + aimExtraW + (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
           h: baseR * 2,
           cx: joyP2X,
           cy: joyP2Y,
         },
         actionButtons: makeActionButtons(1, joyP2X, joyP2Y, Math.PI),
+        aimBox: aimBoxFor(1, joyP2X, joyP2Y),
       },
       {
         index: 2,
@@ -845,14 +933,15 @@ export class BaseMiniGame {
         baseR,
         rotation: Math.PI,
         box: {
-          x: joyP3X - baseR - (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
+          x: joyP3X - baseR - aimExtraW - (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
           y: joyP3Y - baseR,
-          w: baseR * 2 + (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
+          w: baseR * 2 + aimExtraW + (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
           h: baseR * 2,
           cx: joyP3X,
           cy: joyP3Y,
         },
         actionButtons: makeActionButtons(2, joyP3X, joyP3Y, Math.PI),
+        aimBox: aimBoxFor(2, joyP3X, joyP3Y),
       },
       {
         index: 3,
@@ -861,14 +950,15 @@ export class BaseMiniGame {
         baseR,
         rotation: 0,
         box: {
-          x: joyP4X - baseR - (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
+          x: joyP4X - baseR - aimExtraW - (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
           y: joyP4Y - baseR,
-          w: baseR * 2 + (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
+          w: baseR * 2 + aimExtraW + (actions.length > 0 ? (gap + actions.length * (btnW + gap)) : 0),
           h: baseR * 2,
           cx: joyP4X,
           cy: joyP4Y,
         },
         actionButtons: makeActionButtons(3, joyP4X, joyP4Y, 0),
+        aimBox: aimBoxFor(3, joyP4X, joyP4Y),
       },
     ];
   }
@@ -1052,6 +1142,36 @@ export class BaseMiniGame {
           ctx.fillText(`P${i + 1}`, 0, 0);
           ctx.restore();
         }
+      }
+
+      if (schema.aim && corner.aimBox) {
+        const aim = this.getAimVector(i);
+        const aimR = corner.aimBox.r || corner.aimBox.w / 2;
+        const isAimNear = this.checkEntityProximity(corner.aimBox.cx, corner.aimBox.cy, aimR * 2.2, extraEntities);
+        ctx.save();
+        ctx.globalAlpha = this.getControlAlpha(isAimNear ? 0.15 : (aim.force > 0.05 ? 0.95 : 0.42), aim.force > 0.05, isAimNear);
+        ctx.strokeStyle = playerColor;
+        ctx.lineWidth = Math.max(2, Math.round(2.5 * profile.baseUnit));
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(corner.aimBox.cx, corner.aimBox.cy, aimR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        const knobDistance = aimR * 0.58 * aim.force;
+        ctx.fillStyle = playerColor;
+        ctx.beginPath();
+        ctx.arc(
+          corner.aimBox.cx + Math.cos(aim.angle || 0) * knobDistance,
+          corner.aimBox.cy + Math.sin(aim.angle || 0) * knobDistance,
+          Math.max(8, knobR * 0.72),
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+        ctx.strokeStyle = UI_COLORS.ink || '#1A1A1A';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
       }
 
       // 2. STANDART AKSİYON BUTONLARI ÇİZİMİ
@@ -1268,6 +1388,9 @@ export class BaseMiniGame {
         joy.force = Math.max(0, Math.min(1, mag));
       }
     }
+    if (input.aim || input.action === 'AIM_MOVE') {
+      this.handleSlotAim(slotIndex, input.aim || input);
+    }
     if (typeof input.steer === 'number') {
       this.handleSlotSteer(slotIndex, input.steer);
     }
@@ -1286,6 +1409,10 @@ export class BaseMiniGame {
   // applySlotInput'a düşer. 15 motorun tamamı bunu override eder.
   handleRemoteInput(slotIndex, data = {}) {
     if (!data || typeof data.action !== 'string') return;
+    if (isInputIntent(data, 'aim') || data.action === 'AIM_MOVE') {
+      this.handleSlotAim(slotIndex, data);
+      return;
+    }
     if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
       const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : 0;
       const angle = Number.isFinite(data.angle) ? data.angle : 0;

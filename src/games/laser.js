@@ -774,16 +774,22 @@ export class LaserGame extends BaseMiniGame {
         if (joy && joy.active && joy.force > 0.08) {
           player.steerX = Math.cos(joy.angle) * joy.force;
           player.steerY = Math.sin(joy.angle) * joy.force;
-          player.targetAngle = joy.angle;
         } else if (ki.dx !== 0 || ki.dy !== 0) {
           const mag = Math.hypot(ki.dx, ki.dy) || 1;
           player.steerX = ki.dx / mag;
           player.steerY = ki.dy / mag;
-          player.targetAngle = Math.atan2(ki.dy, ki.dx);
         } else if (!player.remoteActive) {
           // Klavye bırakıldı: sadece kendi yazdığını siler (uzak/dokunmatik korunur)
           player.steerX = 0;
           player.steerY = 0;
+        }
+        const aim = this.getAimVector(player.index);
+        if (aim.force > 0.05) {
+          player.targetAngle = aim.angle;
+        } else if (joy && joy.active && joy.force > 0.08) {
+          player.targetAngle = joy.angle;
+        } else if (ki.dx !== 0 || ki.dy !== 0) {
+          player.targetAngle = Math.atan2(ki.dy, ki.dx);
         }
 
         // Nişan: klavye geçiş-temelli (latch) — uzak oyuncunun isAiming'ini
@@ -941,6 +947,10 @@ export class LaserGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
 
+    if (isInputIntent(data, 'aim') || data.action === 'AIM_MOVE') {
+      this.handleSlotAim(slotIndex, data);
+      return;
+    }
     if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
       // Tek çubuk = koş + nişan (itince döner, bırakınca son nişanı korur)
       if (player.slotType !== 'human') return;

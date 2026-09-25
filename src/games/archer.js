@@ -488,15 +488,21 @@ export class ArcherGame extends BaseMiniGame {
         if (joy && joy.active && joy.force > 0.08) {
           player.steerX = Math.cos(joy.angle) * joy.force;
           player.steerY = Math.sin(joy.angle) * joy.force;
-          player.angle = joy.angle;
         } else if (ki.dx !== 0 || ki.dy !== 0) {
           const mag = Math.hypot(ki.dx, ki.dy) || 1;
           player.steerX = ki.dx / mag;
           player.steerY = ki.dy / mag;
-          player.angle = Math.atan2(ki.dy, ki.dx);
         } else if (!player.remoteActive) {
           player.steerX = 0;
           player.steerY = 0;
+        }
+        const aim = this.getAimVector(player.index);
+        if (aim.force > 0.05) {
+          player.angle = aim.angle;
+        } else if (joy && joy.active && joy.force > 0.08) {
+          player.angle = joy.angle;
+        } else if (ki.dx !== 0 || ki.dy !== 0) {
+          player.angle = Math.atan2(ki.dy, ki.dx);
         }
 
         // Yay: klavye geçiş-temelli (latch) — uzak oyuncunun charging'ini yerel
@@ -642,6 +648,10 @@ export class ArcherGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
 
+    if (isInputIntent(data, 'aim') || data.action === 'AIM_MOVE') {
+      this.handleSlotAim(slotIndex, data);
+      return;
+    }
     if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE' || data.action === 'MOVE') {
       const force = Number.isFinite(data.force) ? data.force : Math.hypot(data.dx || 0, data.dy || 0);
       if (force > 0.05) {

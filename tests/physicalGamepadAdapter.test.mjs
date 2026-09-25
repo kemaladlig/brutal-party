@@ -15,6 +15,7 @@ function pad(overrides = {}) {
 
 test('physical gamepad adapter emits canonical transport actions without becoming authoritative', () => {
   let mode = 'RACE';
+  let now = 100;
   const connectedPad = pad({ axes: [0.6, 0, 0, 0] });
   const sent = [];
   const adapter = new PhysicalGamepadAdapter({
@@ -22,7 +23,7 @@ test('physical gamepad adapter emits canonical transport actions without becomin
     getMode: () => mode,
     getDescriptor: () => getControlDescriptor(mode, GAMEPAD_SCHEMAS[mode]),
     getGamepads: () => [connectedPad],
-    now: () => 100,
+    now: () => now,
     schedule: () => 1,
     cancel: () => {},
   });
@@ -35,6 +36,13 @@ test('physical gamepad adapter emits canonical transport actions without becomin
   connectedPad.buttons[0] = { pressed: true, value: 1 };
   adapter.poll();
   assert.equal(sent.at(-1).action, 'DASH');
+
+  now = 200;
+  mode = 'ARCHER';
+  connectedPad.buttons[0] = { pressed: false, value: 0 };
+  connectedPad.axes = [0, 0, 0.5, 0];
+  adapter.poll();
+  assert.equal(sent.at(-1).action, 'AIM_MOVE');
 
   mode = 'HORDE';
   connectedPad.axes = [0, 0, 0, 0];

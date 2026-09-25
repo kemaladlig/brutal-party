@@ -801,11 +801,15 @@
 
 /* Keep the world canvas pass-through, but re-enable the real controller zones. */
 .gamepad-control-overlay .joystick-half,
+.gamepad-control-overlay .twin-stick-half,
+.gamepad-control-overlay .twin-action-zone,
 .gamepad-control-overlay .action-half,
 .gamepad-control-overlay .tank-drive-zone,
 .gamepad-control-overlay .tanks-fire-zone,
 .gamepad-control-overlay .curve-controller-view .steer-rocker-cluster,
 #local-mobile-controls .joystick-half,
+#local-mobile-controls .twin-stick-half,
+#local-mobile-controls .twin-action-zone,
 #local-mobile-controls .action-half,
 #local-mobile-controls .tank-drive-zone,
 #local-mobile-controls .tanks-fire-zone,
@@ -1457,6 +1461,94 @@
   line-height: 1;
   pointer-events: none;
   margin-bottom: 0;
+}
+
+/* Twin-stick MOBA surface (ARCHER, LASER, HORDE) */
+.twin-stick-action-view {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 max(18px, env(safe-area-inset-right, 18px)) max(12px, env(safe-area-inset-bottom, 12px)) max(18px, env(safe-area-inset-left, 18px));
+  box-sizing: border-box;
+}
+
+.twin-stick-half {
+  flex: 1 1 0;
+  min-width: 0;
+  height: min(170px, 34vh);
+  min-height: 96px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px dashed rgba(255, 255, 255, 0.14);
+  touch-action: none;
+}
+
+.twin-aim-half {
+  border-right: 0;
+}
+
+.twin-stick-label {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: 800 9px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  opacity: 0.75;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.twin-action-zone {
+  flex: 0 0 clamp(112px, 24vw, 190px);
+  min-width: 0;
+  height: min(170px, 34vh);
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.twin-action-cluster {
+  height: auto;
+  max-height: 170px;
+}
+
+.twin-action-cluster .action-dash-btn {
+  width: clamp(100px, 21vw, 150px);
+  height: clamp(58px, 12vh, 82px);
+}
+
+@media (orientation: portrait), (max-aspect-ratio: 1/1) {
+  .twin-stick-action-view {
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 6px;
+  }
+
+  .twin-stick-half {
+    flex: 1 1 42%;
+    height: min(150px, 28vh);
+  }
+
+  .twin-action-zone {
+    flex: 1 1 100%;
+    height: auto;
+    min-height: 72px;
+    padding-top: 2px;
+  }
+
+  .twin-action-cluster {
+    flex-direction: row;
+    height: auto;
+  }
 }
 
 /* 04 & 05 // BOMB & HEIST CONTROLLER */

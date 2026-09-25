@@ -24,6 +24,7 @@ test('every game projects its phone actions to stable engine intents', () => {
 
 test('continuous controls normalize without losing transport fields', () => {
   const cases = [
+    ['ARCHER', { action: 'AIM_MOVE', dx: 0, dy: 1, angle: Math.PI / 2, force: 1 }, 'aim'],
     ['PONG', { action: 'PADDLE_MOVE', position: 0.42 }, 'position'],
     ['TANKS', { action: 'TANK_DRIVE', driving: true }, 'drive'],
     ['CURVE', { action: 'CURVE_STEER', dir: -1 }, 'steer'],

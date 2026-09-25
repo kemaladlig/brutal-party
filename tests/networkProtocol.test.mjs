@@ -5,6 +5,7 @@ import { isValidNetworkInput } from '../src/core/networkProtocol.js';
 test('accepts controller actions used by every online game schema', () => {
   const packets = [
     { action: 'JOYSTICK_MOVE', dx: 0, dy: 0, angle: 0, force: 0 },
+    { action: 'AIM_MOVE', dx: 0, dy: 0, angle: 0, force: 0 },
     { action: 'PADDLE_MOVE', position: 0.5 },
     { action: 'CURVE_STEER', dir: -1 },
     { action: 'SNAKE_STEER', dir: 1 },

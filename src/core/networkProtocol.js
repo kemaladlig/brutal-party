@@ -13,6 +13,7 @@ export function isValidNetworkInput(data) {
 
   switch (data.action) {
     case 'JOYSTICK_MOVE':
+    case 'AIM_MOVE':
       return finiteNum(data.dx) && finiteNum(data.dy)
         && Math.abs(data.dx) <= 1.05 && Math.abs(data.dy) <= 1.05
         && finiteNum(data.angle) && finiteNum(data.force)

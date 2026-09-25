@@ -49,6 +49,7 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
   - `inputSource.js` — keyboard/touch/pointer input source arbitration; aktif cihaz başına tek kaynak kilidi.
   - `controlDescriptor.js` — phone/tabletop/network için normalize kontrol sözleşmesi ve parity doğrulaması.
   - `inputIntent.js` — transport input packet'lerini canonical engine intent alanına projekte eder; mevcut `action` alanı geriye uyumlu kalır.
+  - `AIM_MOVE` — yalnız ARCHER/HORDE/LASER için bağımsız sağ analog nişan ekseni; 50 ms throttle ve host-authoritative uygulanır.
   - `inputRouter.js` — normalize edilmiş local/network input'u aktif authoritative engine'e taşır; transport adapter'ları engine/mode lookup bilmez.
   - `gamepadInputAdapter.js` — transport'tan bağımsız 50ms analog throttle, dead-zone ve nötr analog state; fiziksel gamepad ikincil kaynak için temel sınır.
   - `physicalGamepadAdapter.js` — Browser Gamepad API polling adapter'ı; touch/keyboard/pointer öncelikli, host engine'e yalnızca aynı transport packet'lerini gönderir.

@@ -6,7 +6,7 @@ import { showInstallToast } from './ui/toast.js';
 import { UI_COLORS } from './ui/tokens.js';
 import { mountDeclarativeController } from './controllers/controllerTemplates.js';
 import { GamepadInputAdapter } from './controllers/gamepadInputAdapter.js';
-import { getNeutralInput } from './controllers/controlDefs.js';
+import { getNeutralInputs } from './controllers/controlDefs.js';
 import { getControllerStatus } from './controllers/controllerStatus.js';
 import { getControllerGuide } from './controllers/controllerGuide.js';
 import { getControllerMeta } from './core/engineRegistry.js';
@@ -265,8 +265,7 @@ export class GamepadManager {
   // Nötr paket sol kontrole göre merkezden gelir (controlDefs.getNeutralInput).
   _sendNeutralForMode() {
     try {
-      const neutral = getNeutralInput(this.gameMode);
-      if (neutral) this.network.sendInput(neutral);
+      for (const neutral of getNeutralInputs(this.gameMode)) this.network.sendInput(neutral);
     } catch {}
   }
 
@@ -644,6 +643,7 @@ export class GamepadManager {
     guideEl.innerHTML = `
       <span class="guide-title">${escapeHtml(t('pad.guideTitle'))}</span>
       <span class="guide-left">${escapeHtml(guide.left.label)}</span>
+      ${guide.aim ? `<span class="guide-aim">${escapeHtml(t('pad.guideAim'))}</span>` : ''}
       <span class="guide-hint">${escapeHtml(guide.hint)}</span>
       ${actionHtml}
     `;

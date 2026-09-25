@@ -349,7 +349,7 @@ export class RoomManager {
 
     const now = Date.now();
     const action = inputData.action;
-    const isContinuous = action === 'JOYSTICK_MOVE' || action === 'PADDLE_MOVE';
+    const isContinuous = action === 'JOYSTICK_MOVE' || action === 'AIM_MOVE' || action === 'PADDLE_MOVE';
     const isStopSignal = inputData.force === 0 || inputData.dir === 0
       || (action === 'TANK_DRIVE' && inputData.driving === false);
     if (isContinuous && !isStopSignal) {

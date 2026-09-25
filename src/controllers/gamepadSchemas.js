@@ -100,7 +100,7 @@ export const GAMEPAD_SCHEMAS = {
   },
 
   ARCHER: {
-    type: 'JOYSTICK_ACTION',
+    type: 'TWIN_STICK_ACTION',
     def: CONTROL_DEFS.ARCHER,
     actions: [
       {
@@ -182,7 +182,7 @@ export const GAMEPAD_SCHEMAS = {
   },
 
   LASER: {
-    type: 'JOYSTICK_ACTION',
+    type: 'TWIN_STICK_ACTION',
     def: CONTROL_DEFS.LASER,
     actions: [
       {
@@ -279,7 +279,7 @@ export const GAMEPAD_SCHEMAS = {
   },
 
   HORDE: {
-    type: 'JOYSTICK_ACTION',
+    type: 'TWIN_STICK_ACTION',
     def: CONTROL_DEFS.HORDE,
     actions: [
       {

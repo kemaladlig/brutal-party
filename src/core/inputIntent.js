@@ -16,6 +16,16 @@ export function normalizeInputIntent(data, descriptor = null, source = 'network'
 
   let intent;
   switch (data.action) {
+    case 'AIM_MOVE':
+      intent = {
+        type: 'aim',
+        control: 'joystick',
+        dx: Number(data.dx) || 0,
+        dy: Number(data.dy) || 0,
+        angle: Number(data.angle) || 0,
+        force: Number(data.force) || 0,
+      };
+      break;
     case 'JOYSTICK_MOVE':
     case 'MOVE':
       intent = {

@@ -83,6 +83,7 @@ src/core/
   inputSource.js            Saf keyboard/touch/pointer arbitration; aktif kaynak kilidi
   controlDescriptor.js      phone/tabletop/network normalize kontrol sözleşmesi + parity doğrulaması
   inputIntent.js            Transport action → canonical engine intent projeksiyonu
+  AIM_MOVE                  ARCHER/HORDE/LASER bağımsız sağ analog nişan ekseni
   inputRouter.js            Local/network input → aktif authoritative engine yönlendirmesi
   networkProtocol.js        Ortak ONLINE/TV_CONSOLE input doğrulama sözleşmesi
   worldInterpolation.js     Snapshot tabanlı sunum interpolasyonu: stable-id blend, delayed buffer, no-extrapolation
@@ -397,6 +398,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
  23. **Bakım ve kontrol sözleşmesi (Phase 5):**
       * `src/core/controlDescriptor.js` phone/tabletop/network yüzeylerini aynı structural contract'a normalize eder; 15 oyunluk parity testi transport action, left intent ve action ID'lerini kilitler.
       * `src/core/inputIntent.js` transport packet'lerini değiştirmeden canonical `intent` alanı ekler; motorlar canonical intent'i okur, eski `action` alanı fallback olarak korunur.
+      * ARCHER/HORDE/LASER `TWIN_STICK_ACTION` + `AIM_MOVE` ile solda hareket, sağda bağımsız nişan kullanır; NINJA bu değişiklikten dışarıdadır.
       * `src/core/inputRouter.js` local/network adapter'larını aktif authoritative engine'e taşır; `GamepadManager` ve `BaseGame` yeni transport dalları taşımaz.
       * Yeni fiziksel gamepad API bu canonical intent sınırına ikincil adapter olarak bağlanacak; fiziksel cihaz varsayılan giriş yüzeyi olmayacak.
 

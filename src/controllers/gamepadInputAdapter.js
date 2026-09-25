@@ -17,7 +17,7 @@ export class GamepadInputAdapter {
   sendAnalog(data) {
     if (!data || typeof data.action !== 'string') return false;
     const timestamp = this.now();
-    const isZero = data.action === 'JOYSTICK_MOVE'
+    const isZero = (data.action === 'JOYSTICK_MOVE' || data.action === 'AIM_MOVE')
       ? data.force === 0
       : false;
 

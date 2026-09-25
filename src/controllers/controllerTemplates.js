@@ -25,6 +25,8 @@ export function mountDeclarativeController(gamepad, container, schema) {
   switch (schema.type) {
     case 'JOYSTICK_ACTION':
       return mountJoystickAction(gamepad, container, schema);
+    case 'TWIN_STICK_ACTION':
+      return mountTwinStickAction(gamepad, container, schema);
     case 'ARCADE_DRIVE':
       return mountArcadeDrive(gamepad, container, schema);
     case 'TWO_BUTTON_STEER':
@@ -185,6 +187,121 @@ function mountJoystickAction(gamepad, container, schema) {
         schema.onTeardown(gamepad);
       }
     }
+  };
+}
+
+function mountTwinStickAction(gamepad, container, schema) {
+  const stamp = Date.now();
+  const moveZoneId = `twin-move-zone-${stamp}`;
+  const moveKnobId = `twin-move-knob-${stamp}`;
+  const aimZoneId = `twin-aim-zone-${stamp}`;
+  const aimKnobId = `twin-aim-knob-${stamp}`;
+  const actions = schema.actions || [];
+
+  const actionHtml = actions.length > 0
+    ? `<div class="action-cluster-stack twin-action-cluster">
+        ${actions.map((act, i) => {
+          const bg = act.color ? `background-color: ${act.color};` : `background-color: ${gamepad.playerColor};`;
+          const border = act.border ? `border-color: ${act.border};` : '';
+          const flex = act.flex ? `flex: ${act.flex};` : '';
+          const minHeight = act.minHeight ? `min-height: ${act.minHeight};` : '';
+          const icon = act.icon || (act.action === 'DASH' ? 'zap' : 'flame');
+          const label = getGuideActionLabel(act);
+          return `<button class="action-dash-btn ${act.className || ''}" data-action-index="${i}" type="button" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" style="${bg} ${border} ${flex} ${minHeight}">
+            <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: 34, color: '#ffffff', strokeWidth: 2.4 })}</span>
+          </button>`;
+        }).join('')}
+      </div>`
+    : '';
+
+  container.innerHTML = `
+    <div class="twin-stick-action-view">
+      <div class="twin-stick-half twin-move-half" id="${moveZoneId}" aria-label="Hareket joystick">
+        <div class="phone-joy-base" style="border-color: ${gamepad.playerColor};">
+          <div class="phone-joy-knob" id="${moveKnobId}" style="background-color: ${gamepad.playerColor};"></div>
+        </div>
+        <span class="twin-stick-label">HAREKET</span>
+      </div>
+      <div class="twin-stick-half twin-aim-half" id="${aimZoneId}" aria-label="Nişan joystick">
+        <div class="phone-joy-base" style="border-color: ${gamepad.playerColor};">
+          <div class="phone-joy-knob" id="${aimKnobId}" style="background-color: ${gamepad.playerColor};"></div>
+        </div>
+        <span class="twin-stick-label">NİŞAN</span>
+      </div>
+      <div class="twin-action-zone">${actionHtml}</div>
+    </div>
+  `;
+
+  gamepad.bindJoystick(moveZoneId, moveKnobId, (input) => {
+    gamepad._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
+  });
+  gamepad.bindJoystick(aimZoneId, aimKnobId, (input) => {
+    gamepad._sendAnalog({ action: 'AIM_MOVE', ...input });
+  });
+
+  const buttonEls = [];
+  const activeHolds = new Set();
+  actions.forEach((act, i) => {
+    const btn = container.querySelector(`[data-action-index="${i}"]`);
+    if (!btn) return;
+    buttonEls.push({ config: act, el: btn });
+    const vibratePattern = act.vibrate ?? [25, 35];
+    if (act.hold && act.releaseAction) {
+      const sendDown = (e) => {
+        e?.preventDefault?.();
+        gamepad.network.sendInput({ action: act.action, ...(act.payload || {}) });
+        gamepad.vibrate(vibratePattern);
+        activeHolds.add(act);
+        btn.classList.add('holding');
+      };
+      const sendUp = (e) => {
+        e?.preventDefault?.();
+        gamepad.network.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) });
+        activeHolds.delete(act);
+        btn.classList.remove('holding');
+      };
+      btn.addEventListener('touchstart', sendDown, { passive: false });
+      btn.addEventListener('touchend', sendUp, { passive: false });
+      btn.addEventListener('touchcancel', sendUp, { passive: false });
+      btn.addEventListener('mousedown', sendDown);
+      btn.addEventListener('mouseup', sendUp);
+      btn.addEventListener('mouseleave', () => {
+        if (btn.classList.contains('holding')) sendUp();
+      });
+      return;
+    }
+    const handler = gamepad.cooledAction(
+      btn,
+      act.cooldown ?? 2.0,
+      getGuideActionLabel(act),
+      () => gamepad.network.sendInput({ action: act.action, ...(act.payload || {}) }),
+      vibratePattern,
+    );
+    btn.addEventListener('touchstart', handler, { passive: false });
+    btn.addEventListener('mousedown', handler);
+  });
+
+  return {
+    handleSync(data) {
+      buttonEls.forEach(({ config, el }) => {
+        if (config.syncHostCooldown && el.isConnected) {
+          const field = config.hostCdField || 'cd';
+          const arr = Array.isArray(data[field]) ? data[field] : null;
+          const cdPct = arr ? arr[gamepad.playerIndex] || 0 : 0;
+          el.style.opacity = cdPct > 0 ? 0.55 : 1;
+        }
+      });
+      if (typeof schema.onSync === 'function') schema.onSync(gamepad, data, { buttonEls });
+    },
+    teardown() {
+      for (const act of activeHolds) {
+        if (act.releaseAction) {
+          try { gamepad.network.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) }); } catch {}
+        }
+      }
+      activeHolds.clear();
+      if (typeof schema.onTeardown === 'function') schema.onTeardown(gamepad);
+    },
   };
 }
 

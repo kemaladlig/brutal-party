@@ -77,6 +77,7 @@ export function getControllerGuide(mode, schema) {
   return {
     mode,
     left,
+    aim: descriptor.phone.aim,
     actions,
     hint,
   };

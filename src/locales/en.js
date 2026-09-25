@@ -669,6 +669,7 @@ export const EN = {
   'pad.tap': 'TAP',
   'pad.action': 'ACTION',
   'pad.guideTitle': 'CONTROLS',
+  'pad.guideAim': 'AIM',
   'pad.guideJoystick': 'JOYSTICK',
   'pad.guideSteer': 'STEER',
   'pad.guideSlider': 'SLIDER',

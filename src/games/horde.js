@@ -629,10 +629,15 @@ export class HordeGame extends BaseMiniGame {
     if (magnitude > 0.05) {
       player.steerX = movement.x;
       player.steerY = movement.y;
-      player.targetAngle = Math.atan2(movement.y, movement.x);
     } else {
       player.steerX = 0;
       player.steerY = 0;
+    }
+    const aim = this.getAimVector(player.index);
+    if (aim.force > 0.05) {
+      player.targetAngle = aim.angle;
+    } else if (magnitude > 0.05) {
+      player.targetAngle = Math.atan2(movement.y, movement.x);
     }
 
     const keyboard = readSlotKeys(this.keys, player.index);
@@ -1398,6 +1403,10 @@ export class HordeGame extends BaseMiniGame {
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
     if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state) || !player?.isJoined || !player.isAlive || !data) return;
+    if (isInputIntent(data, 'aim') || data.action === 'AIM_MOVE') {
+      this.handleSlotAim(slotIndex, data);
+      return;
+    }
     if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
       const dx = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
       const dy = Number.isFinite(data.dy) ? Math.max(-1, Math.min(1, data.dy)) : 0;

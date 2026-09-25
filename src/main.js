@@ -531,7 +531,7 @@ async function openHostLobby(gameMode = 'PONG') {
         }
         if (typeof slotIndex !== 'number' || slotIndex < 0 || slotIndex > 3) return;
         // Analog sessizlik süpürücüsü için son-girdi damgası (sürekli akış takibi)
-        if (data.action === 'JOYSTICK_MOVE' || data.action === 'PADDLE_MOVE'
+        if (data.action === 'JOYSTICK_MOVE' || data.action === 'AIM_MOVE' || data.action === 'PADDLE_MOVE'
           || data.action === 'TANK_DRIVE' || data.action === 'CURVE_STEER' || data.action === 'SNAKE_STEER') {
           lastRemoteInputAt[slotIndex] = performance.now();
         }

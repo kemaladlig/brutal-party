@@ -6,7 +6,7 @@ import {
   assertControlDescriptorParity,
   getControlDescriptor,
 } from '../src/core/controlDescriptor.js';
-import { getNeutralInput } from '../src/controllers/controlDefs.js';
+import { getNeutralInput, getNeutralInputs } from '../src/controllers/controlDefs.js';
 import { keyboardVectorFrom, readSlotKeys } from '../src/core/inputMaps.js';
 
 test('all registered games have phone/tabletop/network descriptor parity', () => {
@@ -24,7 +24,10 @@ test('all registered games have phone/tabletop/network descriptor parity', () =>
     assert.ok(['slider', 'steer', 'pedal', 'joystick'].includes(descriptor.phone.left));
     assert.ok(['steer', 'joystick'].includes(descriptor.tabletop.left));
     assert.ok(descriptor.network.leftIntent);
+    assert.equal(descriptor.phone.aim, ['ARCHER', 'HORDE', 'LASER'].includes(mode));
+    assert.equal(descriptor.tabletop.aim, descriptor.phone.aim);
     const networkIds = new Set(descriptor.network.actions.map((action) => action.id));
+    if (descriptor.phone.aim) assert.ok(networkIds.has('aim'));
     for (const action of descriptor.phone.actions) assert.ok(networkIds.has(action.id));
     assert.equal(descriptor.keyboard.length, 4);
     const p1Keys = Object.fromEntries(Object.entries(descriptor.keyboard[0]).map(([key, code]) => [code, true]));
@@ -49,5 +52,8 @@ test('descriptor exposes a neutral input for every control-bearing game', () => 
     const neutral = getNeutralInput(mode);
     if (mode === 'PONG') assert.equal(neutral, null);
     else assert.ok(neutral && typeof neutral.action === 'string');
+    if (['ARCHER', 'HORDE', 'LASER'].includes(mode)) {
+      assert.equal(getNeutralInputs(mode).some((packet) => packet.action === 'AIM_MOVE'), true);
+    }
   }
 });

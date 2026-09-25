@@ -12,6 +12,7 @@ test('control guide projects every registered schema without per-game HTML', () 
     assert.ok(guide, `${mode} has a guide`);
     assert.equal(guide.left.type, CONTROL_DEFS[mode].left);
     assert.ok(guide.left.label.length > 0);
+    assert.equal(guide.aim, ['ARCHER', 'HORDE', 'LASER'].includes(mode));
     assert.ok(guide.hint.length > 0);
     assert.ok(Array.isArray(guide.actions));
     for (const action of guide.actions) assert.ok(action.label.length > 0);
