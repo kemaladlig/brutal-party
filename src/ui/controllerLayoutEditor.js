@@ -9,7 +9,7 @@ import { getDefaultControllerLayout, normalizeControllerLayout } from '../core/c
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-function renderPanel() {
+function renderPanel(draft) {
   const size = Math.round(draft.size * 100);
   return `
     <section class="controller-layout-editor-panel" role="dialog" aria-modal="true" aria-labelledby="controller-layout-editor-title">
@@ -101,7 +101,7 @@ export function openControllerLayoutEditor(manager) {
       <div class="controller-layout-playfield" aria-hidden="true"></div>
       <button class="controller-layout-handle" data-controller-layout-handle="left" type="button" aria-label="${escapeHtml(t('controllerLayout.left'))}" title="${escapeHtml(t('controllerLayout.left'))}">${escapeHtml(t('controllerLayout.leftShort'))}</button>
       <button class="controller-layout-handle" data-controller-layout-handle="right" type="button" aria-label="${escapeHtml(t('controllerLayout.right'))}" title="${escapeHtml(t('controllerLayout.right'))}">${escapeHtml(t('controllerLayout.rightShort'))}</button>
-      ${renderPanel()}
+      ${renderPanel(draft)}
     `;
     root.querySelector('[data-controller-layout-size]')?.addEventListener('input', (event) => {
       draft.size = clamp(Number(event.currentTarget.value) / 100, 0.8, 1.3);
