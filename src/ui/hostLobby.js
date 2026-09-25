@@ -33,7 +33,7 @@ function renderLobbyIcons(root = document) {
   });
 }
 
-let currentHostGameMode = 'PONG';
+let currentHostGameMode = 'HORDE';
 let hostPingTimer = null;
 let detectedLanIp = null;
 

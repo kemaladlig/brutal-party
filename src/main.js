@@ -334,7 +334,7 @@ function addTapListener(el, callback) {
 }
 
 // Host Room Creation (TV_CONSOLE TV host / ONLINE P1 phone host)
-async function openHostLobby(gameMode = 'PONG') {
+async function openHostLobby(gameMode = 'HORDE') {
   setCurrentHostGameMode(gameMode);
   hostPlayerActive = platformMode === 'ONLINE';
   hostPlayerSlot = hostPlayerActive ? 0 : null;
@@ -1272,6 +1272,9 @@ window.addEventListener('online', () => {
   markConnectionRestored(t('net.onlineBack'), true);
 });
 initJoinModal({ onExecuteJoin: executeJoin });
+document.getElementById('btn-hero-quick-join')?.addEventListener('click', () => {
+  openJoinModal('', 'TV_CONSOLE');
+});
 initSettingsModal({
   onControlsChanged: applyControlSurfacePreference,
   onPreferencesChanged: applyDevicePreferenceChange,
@@ -1390,11 +1393,11 @@ function closeGamePicker() {
 
 btnHeroCreateRoom?.addEventListener('click', () => {
   updatePlatformMode('TV_CONSOLE');
-  openHostLobby('PONG');
+  openHostLobby('HORDE');
 });
 btnOnlineCreateRoom?.addEventListener('click', () => {
   updatePlatformMode('ONLINE');
-  openHostLobby('PONG');
+  openHostLobby('HORDE');
 });
 addTapListener(btnCloseGamePicker, closeGamePicker);
 
@@ -1416,17 +1419,19 @@ const btnCarouselNext = document.getElementById('btn-carousel-next');
 const pageIndicator = document.getElementById('local-carousel-page-num');
 
 let currentSlideIndex = 0;
-const totalSlides = 7;
+const getTotalSlides = () => (carouselTrack?.children?.length ? carouselTrack.children.length : 8);
 
 function updateCarouselSlide(newIndex) {
-  currentSlideIndex = (newIndex + totalSlides) % totalSlides;
+  const slidesCount = getTotalSlides();
+  currentSlideIndex = (newIndex + slidesCount) % slidesCount;
   if (carouselTrack) {
     carouselTrack.style.transform = `translateX(-${currentSlideIndex * 100}%)`;
   }
   if (pageIndicator) {
-    pageIndicator.textContent = `${currentSlideIndex + 1} / ${totalSlides}`;
+    pageIndicator.textContent = `${currentSlideIndex + 1} / ${slidesCount}`;
   }
 }
+updateCarouselSlide(0);
 
 if (btnCarouselPrev && btnCarouselNext) {
   addTapListener(btnCarouselPrev, () => updateCarouselSlide(currentSlideIndex - 1));

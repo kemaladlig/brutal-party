@@ -10,6 +10,7 @@ import { GAMEPAD_SCHEMAS } from '../controllers/gamepadSchemas.js';
 import { t } from '../i18n.js';
 
 export const GAME_ORDER = [
+  'HORDE',
   'PONG',
   'ARCHER',
   'TANKS',
@@ -21,7 +22,6 @@ export const GAME_ORDER = [
   'LASER',
   'COLLAPSE',
   'NINJA',
-  'HORDE',
   'RACE',
   'CLONE',
   'CROWN',

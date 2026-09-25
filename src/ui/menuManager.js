@@ -18,12 +18,6 @@ export function initMainMenu({
   if (menuEditIcon) menuEditIcon.innerHTML = getTabletopIconSvg('pencil', { size: 15 });
   if (menuRerollIcon) menuRerollIcon.innerHTML = getTabletopIconSvg('dice', { size: 15 });
 
-  const modeGrid = document.querySelector('.hero-bento-layout');
-  ['.local-mode-card', '.tv-mode-card', '.online-mode-card', '#menu-customize-card'].forEach((selector) => {
-    const card = modeGrid?.querySelector(selector);
-    if (card) modeGrid.append(card);
-  });
-
   // ── 1. Navbar: Quick Language Switcher ──
   const btnMenuLang = document.getElementById('btn-menu-lang');
   const navLangLabel = document.getElementById('nav-lang-label');
