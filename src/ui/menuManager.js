@@ -5,7 +5,13 @@ import { showInstallToast } from './toast.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange } from './fullscreen.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 
-export function initMainMenu({ onGameSelect, isOnline = false, getPlatformMode = () => (isOnline ? 'ONLINE' : 'TV_CONSOLE') }) {
+export function initMainMenu({
+  onGameSelect,
+  isOnline = false,
+  getPlatformMode = () => (isOnline ? 'ONLINE' : 'TV_CONSOLE'),
+  gameOrder = [],
+  retiredGameIds = [],
+}) {
   const menuEditIcon = document.getElementById('menu-edit-icon');
   const menuRerollIcon = document.getElementById('menu-reroll-icon');
 
@@ -129,6 +135,30 @@ export function initMainMenu({ onGameSelect, isOnline = false, getPlatformMode =
   const countPill = document.getElementById('menu-games-count');
   const noResultsCard = document.getElementById('menu-no-results');
   const gameGrid = document.getElementById('menu-games-grid');
+  const retiredModeSet = new Set(retiredGameIds);
+
+  // GAME_ORDER is the canonical picker order. CSS `order` changes visual
+  // placement without moving live DOM nodes, which preserves card structure.
+  if (gameGrid && Array.isArray(gameOrder) && gameOrder.length > 0) {
+    gameOrder.forEach((mode, index) => {
+      const card = document.getElementById(`btn-select-${String(mode).toLowerCase()}`);
+      if (!card) return;
+      card.dataset.retired = String(retiredModeSet.has(mode));
+      card.style.order = String(index);
+      const number = card.querySelector('.card-number');
+      if (number) number.textContent = String(index + 1).padStart(2, '0');
+    });
+  }
+
+  // Host-lobby picker follows the same canonical order as GAME_ORDER.
+  const hostGameChips = Array.from(document.querySelectorAll('.selector-grid .lobby-game-chip'));
+  const orderIndex = new Map(gameOrder.map((mode, index) => [mode, index]));
+  const fallbackIndex = gameOrder.length;
+  hostGameChips.forEach((chip) => {
+    chip.dataset.retired = String(retiredModeSet.has(chip.dataset.game));
+    chip.style.order = String(orderIndex.get(chip.dataset.game) ?? fallbackIndex);
+  });
+
   const allCards = gameGrid ? Array.from(gameGrid.querySelectorAll('.game-card-btn')) : [];
 
   let activeCategory = 'all';

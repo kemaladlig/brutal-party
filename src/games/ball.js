@@ -12,11 +12,13 @@ export class Ball {
     this.vx = 0;
     this.vy = 0;
 
-    // Progressive Speed Scaling - dynamically scaled to arena
+    // Progressive Speed Scaling - arena-relative so large screens keep real headroom
     this.baseMinSpeed = 420;
-    this.baseMaxSpeed = 1100;
+    this.startSpeed = 546;
+    this.speedCap = 840;
+    this.baseMaxSpeed = 840;
     this.currentMinSpeed = 420;
-    this.currentMaxSpeed = 1100;
+    this.currentMaxSpeed = 840;
     this.dragFactor = 0.9996;
     this.spinInfluence = 0.48;
 
@@ -43,16 +45,18 @@ export class Ball {
 
   scaleToArena(arena) {
     const shortSide = Math.min(arena.width, arena.height) || 400;
-    const longSide  = Math.max(arena.width, arena.height) || 600;
 
     // Ball radius scales with the shorter dimension (~1.8-2.0%)
     this.radius = Math.max(9, Math.min(16, Math.round(shortSide * 0.019)));
 
-    // Speed anchored to the shorter dimension for consistent feel on any layout
+    // Hız profili yalnız kısa kenara bağlıdır: uzun ekranlarda servis hızı
+    // yanlışlıkla tavanı geçmez, rally gerçekten hızlanacak headroom bulur.
     this.baseMinSpeed = shortSide * 0.70;
-    this.baseMaxSpeed = longSide  * 1.30;
+    this.startSpeed = this.baseMinSpeed * 1.30;
+    this.speedCap = shortSide * 1.50;
+    this.baseMaxSpeed = this.speedCap;
     this.currentMinSpeed = this.baseMinSpeed;
-    this.currentMaxSpeed = this.baseMaxSpeed;
+    this.currentMaxSpeed = this.speedCap;
   }
 
   spawnShockwave(x, y, color = '#1A1A1A') {
@@ -80,7 +84,7 @@ export class Ball {
     // Reset progressive rally escalations
     this.rallyCount = 0;
     this.currentMinSpeed = this.baseMinSpeed;
-    this.currentMaxSpeed = this.baseMaxSpeed;
+    this.currentMaxSpeed = this.speedCap;
     this.isSmash = false;
     this.lastHitPlayer = -1;
     this.spin = 0;
@@ -101,8 +105,9 @@ export class Ball {
       angle = base + (Math.random() - 0.5) * 0.12;
     }
 
-    // Başlangıç hızı tabanın %30 üstü (servis temposuz kalmasın; tavan mantığı korunur)
-    const startSpeed = this.currentMinSpeed * 1.3;
+    // Servis hızı tavanın bilinçli biçimde altında kalır; ilk vuruştan itibaren
+    // hızlanma alanı bulunur (büyük ekranlarda eski 840 px/s tavanı ezmiyor).
+    const startSpeed = Math.min(this.startSpeed, this.speedCap * 0.8);
     this.vx = Math.cos(angle) * startSpeed;
     this.vy = Math.sin(angle) * startSpeed;
   }
@@ -294,22 +299,29 @@ export class Ball {
     const isSmashStrike = Math.abs(paddle.velocity) > smashThreshold;
     this.isSmash = isSmashStrike;
 
-    // Tepe hız tavanı: kesin tavan (840 px/s) ve baseMaxSpeed'in 1.15 katı ile sınırlandırılır
-    const speedCap = Math.min(840, this.baseMaxSpeed * 1.15);
-    let incomingSpeed = Math.hypot(this.vx, this.vy) || this.baseMinSpeed;
+    // Hız rampası tek ve arena-relative bir profille ilerler. Önceki sabit
+    // 840 px/s tavanı büyük ekranlarda ilk vuruşta hız düşürüyordu.
+    const speedCap = Math.max(this.startSpeed, this.speedCap);
+    const incomingSpeed = Math.hypot(this.vx, this.vy) || this.startSpeed;
+    const rampProgress = 1 - Math.exp(-this.rallyCount / 5.5);
+    let targetSpeed = this.startSpeed + (speedCap - this.startSpeed) * rampProgress;
 
-    // Doygunluk eğrisi: Hız tavana yaklaştıkça vuruş başına kazanılan ek hız yumuşar
-    const headroom = Math.max(0, speedCap - incomingSpeed);
-    const boostStep = (isSmashStrike ? 0.22 : 0.08) * headroom;
-    let targetSpeed = Math.min(speedCap, Math.max(this.baseMinSpeed, incomingSpeed + boostStep));
+    // Vuruş asla gereksiz yere yavaşlatmaz; güçlü vuruş kalan headroom'u
+    // daha agresif tüketir.
+    targetSpeed = Math.max(targetSpeed, incomingSpeed);
+    if (isSmashStrike) {
+      targetSpeed += Math.max(0, speedCap - targetSpeed) * 0.18;
+    }
+    targetSpeed = Math.max(this.startSpeed, Math.min(speedCap, targetSpeed));
 
-    this.currentMinSpeed = Math.min(speedCap * 0.9, this.baseMinSpeed + Math.min(250, this.rallyCount * 12));
+    this.currentMinSpeed = Math.min(speedCap * 0.9, targetSpeed * 0.96);
     this.currentMaxSpeed = speedCap;
 
-    if (targetSpeed > this.baseMaxSpeed * 0.95 || isSmashStrike) {
+    const overdriveStart = this.startSpeed + (speedCap - this.startSpeed) * 0.55;
+    if (targetSpeed > overdriveStart || isSmashStrike) {
       this.spawnShockwave(this.x, this.y, isSmashStrike ? '#D84727' : '#1A1A1A');
     }
-    if (targetSpeed > this.baseMaxSpeed * 1.1) {
+    if (targetSpeed > speedCap * 0.92) {
       playSonicBoom();
     }
 

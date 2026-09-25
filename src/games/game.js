@@ -431,8 +431,32 @@ export class Game extends BaseMiniGame {
     playStart();
   }
 
+  setBallServeVelocity(target, speed, angleOffset = 0) {
+    if (!target) return false;
+    const outwardAngle = {
+      bottom: Math.PI / 2,
+      top: -Math.PI / 2,
+      left: Math.PI,
+      right: 0,
+    }[target.side];
+    if (!Number.isFinite(outwardAngle) || !Number.isFinite(speed) || speed <= 0) return false;
+
+    const angle = outwardAngle + angleOffset;
+    this.ball.vx = Math.cos(angle) * speed;
+    this.ball.vy = Math.sin(angle) * speed;
+    return true;
+  }
+
   launchBall() {
     this.ball.reset(this.arena.cx, this.arena.cy);
+    const targets = this.paddles.filter((p) => p.isJoined && !p.isEliminated);
+    if (!targets.length) return;
+    const target = targets[Math.floor(Math.random() * targets.length)];
+    this.setBallServeVelocity(
+      target,
+      Math.min(this.ball.startSpeed, this.ball.speedCap * 0.8),
+      (Math.random() * 2 - 1) * 0.32,
+    );
   }
 
   resolveRound(winnerIndex = null, reason = 'goal') {
@@ -607,20 +631,16 @@ export class Game extends BaseMiniGame {
     const targets = this.paddles.filter((p) => p.isJoined && !p.isEliminated);
     if (!targets.length) return;
 
-    // Deterministic neutral serve: cycle the lane instead of selecting a goal
-    // at random. The ball is re-centered and sent across the court, preserving
-    // skill as the deciding factor after the recovery.
+    // Deterministic recovery: sırayla aktif bir raket tarafına doğru servis et.
+    // Böylece top merkezden doğrudan oyuna girer, boş duvar sekmesi yapmaz.
     const target = targets[this.stallRecoveryCursor % targets.length];
     this.stallRecoveryCursor = (this.stallRecoveryCursor + 1) % targets.length;
-    const toCenter = Math.atan2(this.arena.cy - b.y, this.arena.cx - b.x);
-    const laneSign = (target.index + this.stallRecoveryCount) % 2 === 0 ? 1 : -1;
-    const angle = toCenter + laneSign * Math.PI * 0.5;
     b.currentMinSpeed = Math.max(b.baseMinSpeed, b.currentMinSpeed * 0.92);
     const speed = b.currentMinSpeed;
     b.x = this.arena.cx;
     b.y = this.arena.cy;
-    b.vx = Math.cos(angle) * speed;
-    b.vy = Math.sin(angle) * speed;
+    const spreadSign = this.stallRecoveryCount % 2 === 0 ? 1 : -1;
+    this.setBallServeVelocity(target, speed, spreadSign * 0.18);
     b.consecutiveWallBounces = 0;
     b.lastHitPaddle = -1;
     b.paddleHitCooldown = 0.08;

@@ -18,7 +18,7 @@ import {
   drawCloneCharacter,
   drawCloneTexts,
 } from './cloneView.js';
-import { drawCircleParticles } from './worldCore.js';
+import { drawCircleParticles } from '../games/worldCore.js';
 
 export const CLONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CLONE_NAMES = ['P1', 'P2', 'P3', 'P4'];

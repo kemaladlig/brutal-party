@@ -12,7 +12,7 @@ import {
   createWorldSnapshot,
   isValidWorldBase,
   drawAlphaTexts,
-} from './worldCore.js';
+} from '../games/worldCore.js';
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 

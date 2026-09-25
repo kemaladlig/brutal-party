@@ -141,6 +141,44 @@ test('PONG stall recovery returns to a neutral lane', () => {
   assert.equal(game.stallRecoveryCount, 1);
 });
 
+test('PONG speed rises on every hit across TV-sized viewports', () => {
+  for (const [width, height] of [[800, 600], [1920, 1080], [3840, 2160]]) {
+    const game = configurePong();
+    game.resize(width, height);
+    game.ball.reset(game.arena.cx, game.arena.cy);
+
+    let speed = Math.hypot(game.ball.vx, game.ball.vy);
+    assert.ok(speed > 0, `${width}x${height} serve should move`);
+    assert.ok(speed < game.ball.speedCap * 0.9, `${width}x${height} serve needs acceleration headroom`);
+
+    const paddle = game.paddles[0];
+    for (let hit = 0; hit < 6; hit++) {
+      game.ball.x = paddle.coord;
+      game.ball.y = paddle.fixedPerpendicular - game.ball.radius - 4;
+      game.ball.vx = 0;
+      game.ball.vy = speed;
+      game.ball.resolvePaddleCollision(paddle);
+
+      const nextSpeed = Math.hypot(game.ball.vx, game.ball.vy);
+      assert.ok(nextSpeed > speed, `${width}x${height} hit ${hit + 1} should accelerate`);
+      speed = nextSpeed;
+    }
+
+    assert.ok(speed > Math.hypot(game.ball.startSpeed, 0) * 1.25);
+  }
+});
+
+test('PONG opening serve heads toward an active paddle', () => {
+  const game = configurePong();
+  game.launchBall();
+
+  assert.ok(Math.hypot(game.ball.vx, game.ball.vy) > 0);
+  assert.ok(
+    Math.abs(game.ball.vy) > Math.abs(game.ball.vx) * 2,
+    'two-player serve should not start with a lateral wall bounce',
+  );
+});
+
 test('PONG has explicit last-standing and abort resolution', () => {
   const game = configurePong();
   game.paddles[0].isEliminated = true;

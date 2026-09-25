@@ -483,6 +483,7 @@ export const TR = {
   'menu.noResults': 'Aramanızla eşleşen oyun bulunamadı.',
   'menu.clearSearch': 'Filtreyi Temizle',
   'menu.gamesFound': '{0} OYUN',
+  'menu.retired': 'RETİRE',
   'menu.sound': 'Ses',
   'menu.fullscreen': 'Tam Ekran',
   'menu.exitFullscreen': 'Küçült',

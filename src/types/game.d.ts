@@ -42,6 +42,7 @@ export interface EngineContract {
 export interface Cartridge {
   id: string;
   title: string;
+  retired?: boolean;
   lobbyTitle?: string;
   hudTag: string;
   tacticalHintKey: string;

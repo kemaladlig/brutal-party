@@ -8,7 +8,7 @@ import {
   drawCloneCharacter,
   drawCloneTexts,
   isValidCloneWorldFrame,
-} from '../games/cloneView.js';
+} from '../games-retired/cloneView.js';
 import { drawCircleParticles } from '../games/worldCore.js';
 import { fitWorld, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { UI_COLORS } from './tokens.js';

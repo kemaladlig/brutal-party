@@ -2571,6 +2571,22 @@
   transform: scale(1.08) translateZ(0);
 }
 
+.card-retired-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  box-shadow: 2px 2px 0 var(--ink);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: var(--paper);
+  background: var(--ink);
+  border: 1.5px solid var(--paper);
+  padding: 2px 7px;
+}
+
 .bento-media-box .card-tag {
   position: absolute;
   top: 8px;

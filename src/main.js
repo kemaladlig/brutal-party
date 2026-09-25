@@ -2,6 +2,7 @@
 import { TouchManager } from './touchManager.js';
 import {
   GAME_ORDER,
+  RETIRED_GAME_IDS,
   initEngineRegistry,
   ensureEngine,
   preloadEngine,
@@ -1464,6 +1465,8 @@ initHeroMediaDropzones();
 initMainMenu({
   isOnline: platformMode === 'ONLINE',
   getPlatformMode: () => platformMode,
+  gameOrder: GAME_ORDER,
+  retiredGameIds: RETIRED_GAME_IDS,
   onGameSelect: (mode) => {
     closeGamePicker();
     handleGameCardClick(mode);

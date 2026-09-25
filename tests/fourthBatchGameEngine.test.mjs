@@ -51,7 +51,7 @@ before(async () => {
     optimizeDeps: { noDiscovery: true },
   });
   ({ LaserGame } = await server.ssrLoadModule('/src/games/laser.js'));
-  ({ CloneGame } = await server.ssrLoadModule('/src/games/clone.js'));
+  ({ CloneGame } = await server.ssrLoadModule('/src/games-retired/clone.js'));
   ({ CollapseGame } = await server.ssrLoadModule('/src/games/collapse.js'));
   ({ NinjaGame } = await server.ssrLoadModule('/src/games/ninja.js'));
 });

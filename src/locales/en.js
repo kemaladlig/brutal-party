@@ -483,6 +483,7 @@ export const EN = {
   'menu.noResults': 'No games match your search.',
   'menu.clearSearch': 'Clear Filter',
   'menu.gamesFound': '{0} GAMES',
+  'menu.retired': 'RETIRED',
   'menu.sound': 'Sound',
   'menu.fullscreen': 'Fullscreen',
   'menu.exitFullscreen': 'Exit Fullscreen',

@@ -16,14 +16,14 @@ export const GAME_ORDER = [
   'CURVE',
   'BOMB',
   'HEIST',
-  'CROWN',
   'ZONE',
   'SNAKE',
   'LASER',
-  'CLONE',
   'COLLAPSE',
   'NINJA',
   'RACE',
+  'CLONE',
+  'CROWN',
 ];
 
 export const CARTRIDGES = {
@@ -217,11 +217,12 @@ export const CARTRIDGES = {
   CROWN: {
     id: 'CROWN',
     title: 'BRUTAL CROWN',
+    retired: true,
     hudTag: '👑 CROWN',
     tacticalHintKey: 'hint.crown',
     color: '#EAB308',
     schema: GAMEPAD_SCHEMAS.CROWN,
-    load: () => import('../games/crown.js').then((m) => m.CrownGame),
+    load: () => import('../games-retired/crown.js').then((m) => m.CrownGame),
     createEngine: (game) => {
       return {
         game,
@@ -344,6 +345,7 @@ export const CARTRIDGES = {
   CLONE: {
     id: 'CLONE',
     title: 'BRUTAL CLONE',
+    retired: true,
     hudTag: '👥 CLONE',
     tacticalHintKey: 'hint.clone',
     color: '#6366F1',
@@ -351,7 +353,7 @@ export const CARTRIDGES = {
     worldView: {
       load: () => import('../ui/cloneWorldView.js'),
     },
-    load: () => import('../games/clone.js').then((m) => m.CloneGame),
+    load: () => import('../games-retired/clone.js').then((m) => m.CloneGame),
     createEngine: (game) => {
       return {
         game,
@@ -463,6 +465,10 @@ export const CARTRIDGES = {
     },
   },
 };
+
+export const RETIRED_GAME_IDS = Object.freeze(
+  GAME_ORDER.filter((id) => CARTRIDGES[id]?.retired === true),
+);
 
 const registry = {};
 const loadingPromises = {};
