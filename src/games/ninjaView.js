@@ -15,6 +15,7 @@ import {
   packRectList,
   createWorldSnapshot,
   isValidWorldBase,
+  isWorldEntityVisible,
 } from './worldCore.js';
 
 export const NINJA_RADIUS = 18;
@@ -320,7 +321,7 @@ function drawNinjaSelfGhost(ctx, player) {
 export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true } = {}) {
   const ghosts = new Set(Array.isArray(ghostSlots) ? ghostSlots : []);
   for (const player of players) {
-    if (player.joined === false || player.alive === false) continue;
+    if (!isWorldEntityVisible(player)) continue;
 
     if ((player.alpha ?? 1) <= 0.02) {
       if (ghosts.has(player.slot ?? player.index)) drawNinjaSelfGhost(ctx, player);

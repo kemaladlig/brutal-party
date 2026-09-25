@@ -128,6 +128,26 @@ export class BaseMiniGame {
     return this.slotTypes.filter((s) => s !== 'empty').length;
   }
 
+  syncSlotEntity(index, newColor = null) {
+    const slotType = this.slotTypes[index];
+    const isBot = slotType === 'bot_normal' || slotType === 'bot_god';
+    const persona = isBot ? getBotPersona(index, slotType === 'bot_god') : null;
+    const color = newColor || persona?.color || null;
+    const ent = this.players?.[index] || this.tanks?.[index] || this.paddles?.[index];
+    if (ent) {
+      ent.name = resolveSlotName(index, slotType);
+      ent.slotType = slotType;
+      ent.isJoined = slotType !== 'empty';
+      if (color) ent.color = color;
+    }
+    // LOCAL: yeni insan koltuğuna boş renk ata (hook dönmediyse lokaldir)
+    if (slotType === 'human' && !this.hideLobbyStartButton) {
+      this.applyLocalSeatColor(index, ensureLocalSeatColor(index));
+    } else if (color) {
+      this.applyLocalSeatColor(index, color);
+    }
+  }
+
   cycleSlotType(index) {
     if (this.requestLobbySeatTap(index)) return;
     let newColor = null;
@@ -144,20 +164,7 @@ export class BaseMiniGame {
     } else {
       this.slotTypes[index] = 'empty';
     }
-    const newName = resolveSlotName(index, this.slotTypes[index]);
-    const ent = this.players?.[index] || this.tanks?.[index] || this.paddles?.[index];
-    if (ent) {
-      ent.name = newName;
-      ent.slotType = this.slotTypes[index];
-      ent.isJoined = this.slotTypes[index] !== 'empty';
-      if (newColor) ent.color = newColor;
-    }
-    // LOCAL: yeni insan koltuğuna boş renk ata (hook dönmediyse lokaldir)
-    if (this.slotTypes[index] === 'human' && !this.hideLobbyStartButton) {
-      this.applyLocalSeatColor(index, ensureLocalSeatColor(index));
-    } else if (newColor) {
-      this.applyLocalSeatColor(index, newColor);
-    }
+    this.syncSlotEntity(index, newColor);
   }
 
   // Canlı motor varlığına LOCAL koltuk rengini yaz (players/tanks/paddles).

@@ -11,6 +11,7 @@ import {
   packRectList,
   createWorldSnapshot,
   isValidWorldBase,
+  isWorldEntityVisible,
 } from './worldCore.js';
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -175,7 +176,7 @@ export function drawHeistVaults(ctx, vaults, players) {
   const bySlot = new Map((players || []).map((p) => [p.slot ?? p.index, p]));
   for (const v of vaults) {
     const p = bySlot.get(v.playerIndex);
-    if (!p || p.joined === false) continue;
+    if (!isWorldEntityVisible(p)) continue;
 
     const isTop = v.playerIndex === 1 || v.playerIndex === 2;
 
@@ -372,14 +373,14 @@ export function drawHeistPlayers(ctx, players, { withFx = true } = {}) {
   let richestIndex = -1;
   let maxCarried = 2;
   for (const p of players) {
-    if (p.joined !== false && p.alive !== false && (p.carried || 0) > maxCarried) {
+    if (isWorldEntityVisible(p) && (p.carried || 0) > maxCarried) {
       maxCarried = p.carried;
       richestIndex = p.slot ?? p.index;
     }
   }
 
   for (const player of players) {
-    if (player.joined === false || player.alive === false) continue;
+    if (!isWorldEntityVisible(player)) continue;
     const radius = player.radius || 14;
     const px = Number.isFinite(player.x) ? player.x : 0;
     const py = Number.isFinite(player.y) ? player.y : 0;

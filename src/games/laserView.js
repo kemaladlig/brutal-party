@@ -12,6 +12,7 @@ import {
   packRectList,
   createWorldSnapshot,
   isValidWorldBase,
+  isWorldEntityVisible,
 } from './worldCore.js';
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -247,7 +248,7 @@ export function drawLaserPickups(ctx, pickups) {
 export function drawLaserAims(ctx, players) {
   ctx.save();
   for (const player of players) {
-    if (player.joined === false || player.alive === false) continue;
+    if (!isWorldEntityVisible(player)) continue;
     const pts = player.aim || [];
     if (pts.length === 0) continue;
     ctx.strokeStyle = player.color;
@@ -313,7 +314,7 @@ export function drawLaserShots(ctx, lasers) {
 export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } = {}) {
   const blink = Math.floor(performance.now() / 120) % 2 === 0;
   for (const player of players) {
-    if (player.joined === false || player.alive === false) continue;
+    if (!isWorldEntityVisible(player)) continue;
     if (withFx && player.invuln && !player.respawning && blink) continue;
 
     ctx.save();

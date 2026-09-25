@@ -12,6 +12,7 @@ import {
   packRectList,
   createWorldSnapshot,
   isValidWorldBase,
+  isWorldEntityVisible,
 } from './worldCore.js';
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -273,7 +274,7 @@ export function getTankAmmoVisual(tank) {
 
 export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true } = {}) {
   for (const tank of tanks) {
-    if (tank.joined === false || tank.alive === false) continue;
+    if (!isWorldEntityVisible(tank)) continue;
     const s = tank.size || 20;
 
     ctx.save();

@@ -15,6 +15,7 @@ import {
   round1,
   createWorldSnapshot,
   isValidWorldBase,
+  isWorldEntityVisible,
   drawSquareParticles,
   drawAlphaTexts,
 } from './worldCore.js';
@@ -249,7 +250,7 @@ export function drawCurveNearSegments(ctx, near, colors) {
 
 export function drawCurveHeads(ctx, players) {
   for (const p of players) {
-    if (p.joined === false || p.alive === false) continue;
+    if (!isWorldEntityVisible(p)) continue;
     ctx.save();
     const headRadius = p.shrink ? 3.2 : 5;
 

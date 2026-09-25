@@ -11,6 +11,7 @@ import {
   round1,
   createWorldSnapshot,
   isValidWorldBase,
+  isWorldEntityVisible,
 } from './worldCore.js';
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -270,7 +271,7 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   for (const p of players) {
-    if (p.joined === false || (p.trail?.length || 0) === 0) continue;
+    if (!isWorldEntityVisible(p) || (p.trail?.length || 0) === 0) continue;
     const trailLen = p.trail.length;
     const isRiskWarn = trailLen >= 15;
     const isHazard = trailLen >= 22;
@@ -320,7 +321,7 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
 
 export function drawZonePlayers(ctx, players, { cell = 0, leaderIndex = -1, withFx = true } = {}) {
   for (const p of players) {
-    if (p.joined === false) continue;
+    if (!isWorldEntityVisible(p)) continue;
     if (withFx && p.stun > 0 && Math.floor(p.blink / 0.15) % 2 === 0) continue;
 
     ctx.save();

@@ -36,6 +36,7 @@ let HeistGame;
 let CrownGame;
 let ZoneGame;
 let getSlotKeys;
+let isWorldEntityVisible;
 
 before(async () => {
   globalThis.window = {
@@ -70,6 +71,7 @@ before(async () => {
   ({ CrownGame } = await server.ssrLoadModule('/src/games/crown.js'));
   ({ ZoneGame } = await server.ssrLoadModule('/src/games/zone.js'));
   ({ getSlotKeys } = await server.ssrLoadModule('/src/core/inputMaps.js'));
+  ({ isWorldEntityVisible } = await server.ssrLoadModule('/src/games/worldCore.js'));
 });
 
 after(async () => {
@@ -172,6 +174,40 @@ function turnOf(game, slot, dir, { confused = false, via = 'steer' } = {}) {
 }
 
 const INPUT_PATHS = ['steer', 'keyboard', 'remote'];
+
+test('world visibility accepts host and snapshot player shapes', () => {
+  assert.equal(isWorldEntityVisible({ isJoined: true, isAlive: true }), true);
+  assert.equal(isWorldEntityVisible({ isJoined: false, isAlive: true }), false);
+  assert.equal(isWorldEntityVisible({ isJoined: true, isAlive: false }), false);
+  assert.equal(isWorldEntityVisible({ joined: true, alive: true }), true);
+  assert.equal(isWorldEntityVisible({ joined: false, alive: true }), false);
+  assert.equal(isWorldEntityVisible({ joined: true, alive: false }), false);
+});
+
+test('BOMB/HEIST/CROWN lobby cycles synchronize player entities', () => {
+  for (const Game of [BombGame, HeistGame, CrownGame]) {
+    const game = new Game(canvas);
+    game.resize(800, 600);
+    const slot = 2;
+    assert.equal(game.slotTypes[slot], 'empty');
+
+    game.cycleSlotType(slot);
+    assert.equal(game.players[slot].slotType, 'human');
+    assert.equal(game.players[slot].isJoined, true);
+
+    game.cycleSlotType(slot);
+    assert.equal(game.players[slot].slotType, 'bot_normal');
+    assert.equal(game.players[slot].isJoined, true);
+
+    game.cycleSlotType(slot);
+    assert.equal(game.players[slot].slotType, 'bot_god');
+    assert.equal(game.players[slot].isJoined, true);
+
+    game.cycleSlotType(slot);
+    assert.equal(game.players[slot].slotType, 'empty');
+    assert.equal(game.players[slot].isJoined, false);
+  }
+});
 
 test('CURVE: steer alan her girdi yolu ham niyeti yazar', () => {
   const game = configureCurve();

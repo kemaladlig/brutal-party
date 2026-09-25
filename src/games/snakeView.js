@@ -2,6 +2,7 @@
 // The authoritative game uses the same drawing helpers as remote phone clients.
 
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { isWorldEntityVisible } from './worldCore.js';
 
 const TRAIL_SPACING = 10;
 const MAX_TRAIL_POINTS = 48;
@@ -296,7 +297,7 @@ export function drawSnakePlayers(ctx, players, now = 0) {
   ctx.lineJoin = 'round';
 
   for (const player of players) {
-    if (player.isJoined === false || player.joined === false || player.isAlive === false || player.alive === false) continue;
+    if (!isWorldEntityVisible(player)) continue;
 
     ctx.lineWidth = 14;
     ctx.strokeStyle = '#1A1A1A';

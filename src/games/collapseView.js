@@ -10,6 +10,7 @@ import {
   round1,
   createWorldSnapshot,
   isValidWorldBase,
+  isWorldEntityVisible,
 } from './worldCore.js';
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -236,7 +237,7 @@ export function drawCollapsePickups(ctx, pickups, now = 0) {
 
 export function drawCollapsePlayers(ctx, players) {
   for (const player of players) {
-    if (player.joined === false || player.alive === false) continue;
+    if (!isWorldEntityVisible(player)) continue;
 
     const jumpProgress = clamp01(player.jump || 0);
     const isJumping = jumpProgress > 0;

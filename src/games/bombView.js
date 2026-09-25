@@ -6,6 +6,7 @@ import { drawPickup } from '../core/arenaKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { renderEntityHUD } from '../ui/hud.js';
 import { t } from '../i18n.js';
+import { isWorldEntityVisible } from './worldCore.js';
 
 const round1 = (v) => Math.round(Number(v) * 10) / 10;
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -228,7 +229,7 @@ export function drawBombPickups(ctx, pickups) {
 
 export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15, withFx = true } = {}) {
   for (const player of players) {
-    if (player.joined === false || player.alive === false) continue;
+    if (!isWorldEntityVisible(player)) continue;
     const radius = player.radius || 14;
     ctx.save();
     ctx.translate(player.x, player.y);

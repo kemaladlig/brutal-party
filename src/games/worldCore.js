@@ -6,6 +6,17 @@
 export const round1 = (v) => Math.round(Number(v) * 10) / 10;
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 
+/**
+ * Host ve world-view aynı çizim fonksiyonlarını paylaşır.
+ * Host varlıkları isJoined/isAlive, world snapshot ise joined/alive kullanır.
+ */
+export function isWorldEntityVisible(entity) {
+  if (!entity) return false;
+  const joined = entity.joined ?? entity.isJoined ?? (entity.slotType ? entity.slotType !== 'empty' : true);
+  const alive = entity.alive ?? entity.isAlive ?? true;
+  return joined !== false && alive !== false;
+}
+
 export function nextWorldSeq(game) {
   game._worldSeq = (Number(game._worldSeq) || 0) + 1;
   return game._worldSeq;

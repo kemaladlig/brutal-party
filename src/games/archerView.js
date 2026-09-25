@@ -6,6 +6,7 @@
 import { drawObstacle, drawPickup } from '../core/arenaKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
+import { isWorldEntityVisible } from './worldCore.js';
 
 const ARCHER_RADIUS = 18;
 const FALLBACK = '#D84727';
@@ -161,7 +162,7 @@ export function drawArcherArrows(ctx, arrows) {
 
 export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
   for (const player of players) {
-    if (player.joined === false || player.alive === false) continue;
+    if (!isWorldEntityVisible(player)) continue;
     const slotIndex = (player.slot ?? player.index) ?? 0;
     ctx.save();
     ctx.translate(player.x, player.y);
