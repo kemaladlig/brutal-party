@@ -424,6 +424,10 @@ export function initMenuAvatarCard(root = document) {
     if (target && target.closest && (target.closest('.hero-custom-btn') || target.closest('.menu-name-input-row') || target.closest('.menu-name-icon-btn'))) {
       return;
     }
+    // `inputRow` modül-değişkeni app-shell refactor'ünde silinmişti ama bu
+    // handler onu okumaya devam ediyordu: kartın boş bölgesine her tık
+    // `ReferenceError` fırlatıp kapatmayı engelliyordu. Canlı sorgu.
+    const inputRow = root.querySelector('#menu-name-input-row');
     if (inputRow && !inputRow.classList.contains('hidden')) {
       closeNameEdit();
     }

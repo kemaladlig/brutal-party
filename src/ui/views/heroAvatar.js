@@ -132,9 +132,14 @@ export function mountHeroAvatar(canvas, { onPoke = null } = {}) {
     gazeAt(e.clientX, e.clientY);
   };
   const onPointerMove = (e) => gazeAt(e.clientX, e.clientY);
-  const onClick = () => {
-    // TV/kumanda/klavye yolu: odaklı sahnede Enter/OK → `el.click()`.
-    // Dokunma/fare zaten `pointerdown`'da tepki üretti; çiftlemeyi yut.
+  // TV/kumanda/klavye yolu: focusRouter `el.click()`'i `[data-focus]` TAŞIYAN
+  // öğeye (sahne div'i) vurur — olay çocuk canvas'a İNMEZ. Klick dinleyicisi
+  // bu yüzden odak host'unda; canvas'taki pointerdown'la çift tepki 250 ms
+  // penceresiyle önlendiği gibi, rozetteki (isim/pencil/dice) tıklamalar da
+  // zıplatma üretmez.
+  const focusHost = canvas.parentElement || canvas;
+  const onClick = (e) => {
+    if (e.target instanceof Element && e.target.closest('.scene-badge')) return;
     if (performance.now() - lastPokeAt < POKE_CLICK_DEDUPE_MS) return;
     const rect = canvas.getBoundingClientRect();
     if (!rect.width) return;
@@ -144,7 +149,7 @@ export function mountHeroAvatar(canvas, { onPoke = null } = {}) {
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointerenter', onPointerEnter, { passive: true });
   canvas.addEventListener('pointermove', onPointerMove, { passive: true });
-  canvas.addEventListener('click', onClick);
+  focusHost.addEventListener('click', onClick);
 
   start();
 
@@ -157,7 +162,7 @@ export function mountHeroAvatar(canvas, { onPoke = null } = {}) {
     canvas.removeEventListener('pointerdown', onPointerDown);
     canvas.removeEventListener('pointerenter', onPointerEnter);
     canvas.removeEventListener('pointermove', onPointerMove);
-    canvas.removeEventListener('click', onClick);
+    focusHost.removeEventListener('click', onClick);
     window.removeEventListener('brutal_customization_changed', onChanged);
   };
 }
