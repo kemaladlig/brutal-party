@@ -148,7 +148,7 @@ export function createCurveWorldPacket(game) {
       x: round1(p.x || 0),
       y: round1(p.y || 0),
       // Gövde yarıçapı host'ta ölçeklenir ve paketle taşınır.
-      radius: round1(p.radius || 0) || undefined,
+      radius: round1(p.radius || 6),
       angle: round1(p.angle || 0),
       shrink: (p.shrinkTimer || 0) > 0,
       thick: (p.thickTimer || 0) > 0,
@@ -246,7 +246,7 @@ export function drawCurveFieldMask(ctx, fieldRect, mask, colors, gapMask = null)
   ctx.restore();
 }
 
-export function drawCurveNearSegments(ctx, near, colors) {
+export function drawCurveNearSegments(ctx, near, colors, unit = 1) {
   ctx.save();
   ctx.lineCap = 'round';
   for (const s of near) {
@@ -255,7 +255,7 @@ export function drawCurveNearSegments(ctx, near, colors) {
     const reveal = s.length >= 8 ? clamp01(s[7]) : 1;
     const endX = lerp(s[1], s[3], reveal);
     const endY = lerp(s[2], s[4], reveal);
-    ctx.lineWidth = (flags & 4) ? 8.5 : ((flags & 2) ? 2.2 : 4);
+    ctx.lineWidth = Math.max(1, ((flags & 4) ? 8.5 : ((flags & 2) ? 2.2 : 4)) * unit);
     ctx.strokeStyle = colors[s[0]] || '#1A1A1A';
     ctx.beginPath();
     ctx.moveTo(s[1], s[2]);
@@ -270,42 +270,43 @@ export function drawCurveHeads(ctx, players) {
     if (!isWorldEntityVisible(p)) continue;
     ctx.save();
     // Yarıçap host'ta ölçeklenip paketle gelir; bu view ortak kullanıldığı
-    // için yeniden ölçeklenmez. Tasarım referansı 5px.
-    const headRadius = p.shrink ? (p.radius || 5) * 0.64 : (p.radius || 5);
+    // için yeniden ölçeklenmez. Tasarım referansı 6px.
+    const headRadius = p.shrink ? (p.radius || 6) * 0.64 : (p.radius || 6);
+    const u = headRadius / 6;
 
     if (p.freeze) {
       ctx.strokeStyle = '#00B4D8';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([2, 2]);
-      ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 6, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 2 * u;
+      ctx.setLineDash([2 * u, 2 * u]);
+      ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 6 * u, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
     }
     if (p.thick) {
       ctx.strokeStyle = '#D99B26';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 4.5, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 2.5 * u;
+      ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 4.5 * u, 0, Math.PI * 2); ctx.stroke();
     }
     if (p.ghost) {
-      ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 5, 0, Math.PI * 2);
-      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 5 * u, 0, Math.PI * 2);
+      ctx.setLineDash([3 * u, 3 * u]);
       ctx.strokeStyle = '#70E000';
-      ctx.lineWidth = 1.8;
+      ctx.lineWidth = 1.8 * u;
       ctx.stroke();
       ctx.setLineDash([]);
     }
     if (p.confused) {
-      ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 7, 0, Math.PI * 2);
-      ctx.setLineDash([1, 3]);
+      ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 7 * u, 0, Math.PI * 2);
+      ctx.setLineDash([1 * u, 3 * u]);
       ctx.strokeStyle = '#FF473A';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * u;
       ctx.stroke();
       ctx.setLineDash([]);
     }
     if (p.gapTimer <= 0.4 && !p.gap) {
-      ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 4, 0, Math.PI * 2);
+      ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 4 * u, 0, Math.PI * 2);
       ctx.strokeStyle = '#D84727';
-      ctx.lineWidth = 1.8;
-      ctx.setLineDash([2, 2]);
+      ctx.lineWidth = 1.8 * u;
+      ctx.setLineDash([2 * u, 2 * u]);
       ctx.stroke();
       ctx.setLineDash([]);
     }
@@ -314,7 +315,7 @@ export function drawCurveHeads(ctx, players) {
     ctx.fillStyle = p.color;
     ctx.fill();
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * u;
     ctx.stroke();
 
     ctx.beginPath();

@@ -50,7 +50,7 @@ export function createBombWorldPacket(game) {
       round1(pk.animTime || 0),
       round1(pk.radius || pk.size || 15),
     ]),
-    ink: inkPuddles.map((p) => [round1(p.x), round1(p.y), round1(p.radius || 22)]),
+    ink: inkPuddles.map((ink) => [round1(ink.x), round1(ink.y), round1(ink.radius || 22)]),
     players: players.map((p) => ({
       slot: p.index,
       joined: p.isJoined !== false,
@@ -58,7 +58,7 @@ export function createBombWorldPacket(game) {
       x: round1(p.x || 0),
       y: round1(p.y || 0),
       angle: round1(p.facingAngle || 0),
-      radius: round1(p.radius || 14),
+      radius: round1(p.radius),
       stumble: round1(p.stumbleTimer || 0),
       immunity: round1(p.immunityTimer || 0),
       dash: round1(p.dashTimer || 0),
@@ -118,17 +118,18 @@ export function isValidBombWorldFrame(frame) {
 // --- Ortak çizim yardımcıları (host + client) ---
 export function drawBombArena(ctx, arena, pillars, { carrier = null, bombTimer = 15, bombMaxTime = 15 } = {}) {
   const { left, top, right, bottom, width, height } = arena;
+  const u = arena?.unit ?? 1;
 
   ctx.fillStyle = '#FAF7F2';
   ctx.fillRect(left, top, width, height);
 
   ctx.strokeStyle = '#E2DCD2';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.5 * u;
   ctx.strokeRect(left + width * 0.15, top + height * 0.15, width * 0.7, height * 0.7);
 
   const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
   ctx.strokeStyle = '#2B2B28';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3 * u;
   const cornerPlates = [
     [[left, top + bLen], [left, top], [left + bLen, top]],
     [[right - bLen, top], [right, top], [right, top + bLen]],
@@ -147,7 +148,7 @@ export function drawBombArena(ctx, arena, pillars, { carrier = null, bombTimer =
   ctx.fillRect(right, top + 6, 6, height);
   ctx.fillRect(left + 6, bottom, width, 6);
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 4 * u;
   ctx.strokeRect(left, top, width, height);
 
   for (const pil of pillars) {
@@ -156,17 +157,17 @@ export function drawBombArena(ctx, arena, pillars, { carrier = null, bombTimer =
     ctx.fillStyle = '#2B2B28';
     ctx.fillRect(pil.x, pil.y, pil.w, pil.h);
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * u;
     ctx.strokeRect(pil.x, pil.y, pil.w, pil.h);
     ctx.strokeStyle = '#6E6E66';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.5 * u;
     ctx.beginPath();
     ctx.moveTo(pil.x + 2, pil.y + pil.h - 2);
     ctx.lineTo(pil.x + 2, pil.y + 2);
     ctx.lineTo(pil.x + pil.w - 2, pil.y + 2);
     ctx.stroke();
     ctx.strokeStyle = '#42423E';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.5 * u;
     ctx.beginPath();
     ctx.moveTo(pil.x + 4, pil.y + 4);
     ctx.lineTo(pil.x + pil.w - 4, pil.y + pil.h - 4);
@@ -184,7 +185,7 @@ export function drawBombArena(ctx, arena, pillars, { carrier = null, bombTimer =
     const urgency = 1 - Math.max(0, bombTimer / Math.max(1, bombMaxTime));
     const ringRadius = carrier.radius + 18 + Math.sin(performance.now() * 0.01) * 4;
     ctx.strokeStyle = urgency > 0.6 ? '#D84727' : '#D99B26';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.5 * u;
     ctx.setLineDash([6, 6]);
     ctx.beginPath();
     ctx.arc(carrier.x, carrier.y, ringRadius, 0, Math.PI * 2);
@@ -230,7 +231,7 @@ export function drawBombPickups(ctx, pickups) {
 export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15, withFx = true, now = 0 } = {}) {
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
-    const radius = player.radius || 14;
+    const radius = player.radius || 36;
     // Efekt kromu yarıçapla ölçeklenir. Sabit px'ler telefonda (yarıçap
     // ~15px) halkaları gövdenin 1.4-1.8 katına, durum yazısını gövde
     // çapının %69'una ve metni 2.8 gövde yüksekliği kadar uzağa itiyordu.
@@ -343,10 +344,10 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
       ctx.arc(0, bombY, 11, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#FAF7F2';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.5 * u;
       ctx.stroke();
       ctx.strokeStyle = '#D84727';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2.5 * u;
       ctx.beginPath();
       ctx.moveTo(0, bombY - 10);
       ctx.quadraticCurveTo(6, bombY - 16, 4, bombY - 20);

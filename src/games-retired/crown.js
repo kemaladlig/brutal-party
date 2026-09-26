@@ -190,6 +190,7 @@ export class CrownGame extends BaseMiniGame {
 
       for (const p of this.players) {
         this.remapPoint(p, oldArena, this.arena);
+        p.radius = fieldRadius(this.arena, 43, 0);
         clampToArena(p, p.radius, this.arena, { zeroVelocity: true });
         p.vx = 0; p.vy = 0;
       }
@@ -446,7 +447,7 @@ export class CrownGame extends BaseMiniGame {
     const { cx, cy, width, height } = this.arena;
     const spawnOffX = width * 0.38;
     const spawnOffY = height * 0.36;
-    const r = Math.max(16, Math.round(Math.min(width, height) * 0.045));
+    const r = fieldRadius(this.arena, 43, 0);
 
     // 4 Corner Spawns: BL (P1), TL (P2), TR (P3), BR (P4)
     const spawns = [
@@ -1357,14 +1358,15 @@ export class CrownGame extends BaseMiniGame {
     ctx.fillRect(left, top, aW, aH);
 
     // Subtle Arena Grid & Tactile Corner Brackets
+    const u = this.arena.unit || 1;
     ctx.strokeStyle = '#E5DFD5';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1, 1.5 * u);
     ctx.strokeRect(left + aW * 0.12, top + aH * 0.12, aW * 0.76, aH * 0.76);
 
     // 4 Köşe Takviye Braketleri (L-plates)
     const bLen = Math.max(16, Math.round(Math.min(aW, aH) * 0.05));
     ctx.strokeStyle = '#2B2B28';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(1, 3 * u);
     const cornerPlates = [
       [[left, top + bLen], [left, top], [left + bLen, top]],
       [[right - bLen, top], [right, top], [right, top + bLen]],
@@ -1385,7 +1387,7 @@ export class CrownGame extends BaseMiniGame {
     ctx.fillRect(left + 6, bottom, aW, 6);
 
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = Math.max(1, 4 * u);
     ctx.strokeRect(left, top, aW, aH);
 
     // 0. Render Speed Boost Pads
@@ -1545,7 +1547,7 @@ export class CrownGame extends BaseMiniGame {
         c.fillStyle = '#FFFFFF';
         c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
         c.strokeStyle = '#1C1C1A';
-        c.lineWidth = 2.5;
+        c.lineWidth = Math.max(1.5, 2.5 * (this.arena?.unit ?? 1));
         c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
 
         c.fillStyle = '#1A1A1A';
@@ -1575,10 +1577,11 @@ export class CrownGame extends BaseMiniGame {
     ctx.fillRect(sp.x + 3, sp.y + 3, sp.w, sp.h);
 
     // Pad body
+    const u = this.arena.unit || 1;
     ctx.fillStyle = '#262624';
     ctx.fillRect(sp.x, sp.y, sp.w, sp.h);
     ctx.strokeStyle = '#D99B26';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = Math.max(1, 2.5 * u);
     ctx.strokeRect(sp.x, sp.y, sp.w, sp.h);
 
     // Animated chevrons
@@ -1602,12 +1605,13 @@ export class CrownGame extends BaseMiniGame {
     ctx.fill();
 
     // Outer rim
+    const u = this.arena.unit || 1;
     ctx.fillStyle = b.pulse > 0.1 ? '#FFFFFF' : '#D84727';
     ctx.beginPath();
     ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(1, 3 * u);
     ctx.stroke();
 
     // Inner spring dome
@@ -1616,7 +1620,7 @@ export class CrownGame extends BaseMiniGame {
     ctx.arc(b.x, b.y, r * 0.62, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * u);
     ctx.stroke();
 
     // Star icon
@@ -1646,10 +1650,11 @@ export class CrownGame extends BaseMiniGame {
       ctx.fillRect(c.x + 3, c.y + 3, c.w, c.h);
 
       // Belt bed
+      const u = this.arena.unit || 1;
       ctx.fillStyle = '#262624';
       ctx.fillRect(c.x, c.y, c.w, c.h);
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = Math.max(1, 2.5 * u);
       ctx.strokeRect(c.x, c.y, c.w, c.h);
 
       // Animated chevron arrows
@@ -1686,8 +1691,9 @@ export class CrownGame extends BaseMiniGame {
 
   renderMovingHazardTrack(ctx, h) {
     ctx.save();
+    const u = this.arena.unit || 1;
     ctx.strokeStyle = '#E0DAD0';
-    ctx.lineWidth = 6;
+    ctx.lineWidth = Math.max(1, 6 * u);
     ctx.beginPath();
     if (h.axis === 'x') {
       ctx.moveTo(h.minPos, h.y);
@@ -1700,7 +1706,7 @@ export class CrownGame extends BaseMiniGame {
 
     // Center groove slot
     ctx.strokeStyle = '#8A857C';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * u);
     ctx.setLineDash([6, 6]);
     ctx.stroke();
     ctx.restore();
@@ -1719,12 +1725,13 @@ export class CrownGame extends BaseMiniGame {
     ctx.fillRect(pil.x, pil.y, pil.w, pil.h);
 
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 3;
+    const u = this.arena.unit || 1;
+    ctx.lineWidth = Math.max(1, 3 * u);
     ctx.strokeRect(pil.x, pil.y, pil.w, pil.h);
 
     // Üst/Sol Metalik Pah Çizgisi
     ctx.strokeStyle = '#6E6E66';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1, 1.5 * u);
     ctx.beginPath();
     ctx.moveTo(pil.x + 2, pil.y + pil.h - 2);
     ctx.lineTo(pil.x + 2, pil.y + 2);
@@ -1732,7 +1739,7 @@ export class CrownGame extends BaseMiniGame {
     ctx.stroke();
 
     ctx.strokeStyle = '#4A4A45';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1, 1.5 * u);
     ctx.beginPath();
     ctx.moveTo(pil.x + 4, pil.y + 4);
     ctx.lineTo(pil.x + pil.w - 4, pil.y + pil.h - 4);
@@ -1763,7 +1770,8 @@ export class CrownGame extends BaseMiniGame {
     ctx.arc(h.x, h.y, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 3.5;
+    const u = this.arena.unit || 1;
+    ctx.lineWidth = Math.max(1, 3.5 * u);
     ctx.stroke();
 
     ctx.fillStyle = '#1A1A1A';
@@ -1820,7 +1828,8 @@ export class CrownGame extends BaseMiniGame {
     if (isLoose) {
       const pulseR = 26 + Math.sin(this.crown.floatAnim) * 4;
       ctx.strokeStyle = 'rgba(217, 155, 38, 0.45)';
-      ctx.lineWidth = 2.5;
+      const u = this.arena.unit || 1;
+      ctx.lineWidth = Math.max(1, 2.5 * u);
       ctx.beginPath();
       ctx.arc(0, 0, pulseR, 0, Math.PI * 2);
       ctx.stroke();
@@ -1833,7 +1842,8 @@ export class CrownGame extends BaseMiniGame {
 
     ctx.fillStyle = '#F59E0B';
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5;
+    const u = this.arena.unit || 1;
+    ctx.lineWidth = Math.max(1, 2.5 * u);
 
     ctx.beginPath();
     ctx.moveTo(-16, 6);
@@ -1892,7 +1902,8 @@ export class CrownGame extends BaseMiniGame {
       }
 
       ctx.strokeStyle = '#D99B26';
-      ctx.lineWidth = 3;
+      const u = this.arena.unit || 1;
+      ctx.lineWidth = Math.max(1, 3 * u);
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
       ctx.arc(x, y, r + 7, 0, Math.PI * 2);
@@ -1910,7 +1921,8 @@ export class CrownGame extends BaseMiniGame {
       ctx.arc(x, y, r * 1.55, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#D99B26';
-      ctx.lineWidth = 2.5;
+      const u = this.arena.unit || 1;
+      ctx.lineWidth = Math.max(1, 2.5 * u);
       ctx.stroke();
     }
 
@@ -1947,13 +1959,14 @@ export class CrownGame extends BaseMiniGame {
       const remain = Math.max(0, this.targetCrownTime - p.crownHoldTime);
       const urgent = remain <= 5.0;
       // Zemin halka (koyu) + ilerleme (altın, son 5 sn kırmızı) + kocaman geri sayım
+      const u = this.arena.unit || 1;
       ctx.strokeStyle = 'rgba(26, 26, 26, 0.4)';
-      ctx.lineWidth = 8;
+      ctx.lineWidth = Math.max(1, 8 * u);
       ctx.beginPath();
       ctx.arc(x, y, r + 9, 0, Math.PI * 2);
       ctx.stroke();
       ctx.strokeStyle = urgent ? '#D84727' : '#D99B26';
-      ctx.lineWidth = 8;
+      ctx.lineWidth = Math.max(1, 8 * u);
       ctx.beginPath();
       ctx.arc(x, y, r + 9, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
       ctx.stroke();

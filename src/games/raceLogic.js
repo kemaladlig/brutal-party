@@ -5,7 +5,7 @@ export const RACE_TUNING = Object.freeze({
   targetScore: 2,
   roundTime: 90,
   roundTransition: 2.5,
-  playerRadius: 16,
+  playerRadius: 19,
   // 190 → 215 (+%13). "RACE hala yavaş" geri bildirimi. Önceki turda dekorları
   // küçülttüğümü sandım; oysa araç hızı hiç değişmemişti — yavaşlık dekor
   // boyutundan değil, tempo değerinden geliyormuş. `propPx` dekoru, bu gövde

@@ -50,7 +50,7 @@ export const HORDE_TUNING = Object.freeze({
   ROUNDS: 3,
   WAVES_PER_ROUND: 3,
   MAX_HP: 5,
-  PLAYER_RADIUS: 14,
+  PLAYER_RADIUS: 15,
   // Gövde tabanı YOK. Önce burada `PLAYER_R_MIN: 0.024` / `ENEMY_R_MIN: 0.022`
   // vardı ve bunlar TASARIM PAYININ ÜSTÜNDE olduğu için MASAÜSTÜNDE de
   // devreye giriyordu: oyuncu +%43, chaser +%31, shooter +%50, tank +%0

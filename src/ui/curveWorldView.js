@@ -20,12 +20,13 @@ const CURVE_FALLBACK = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 
 function drawCurveGrid(ctx, arena) {
   const { left, top, right, bottom, width, height, size } = arena;
+  const u = arena?.unit ?? (size ? size / 952 : 1);
 
   ctx.fillStyle = '#FAF7F2';
   ctx.fillRect(left, top, width, height);
 
   ctx.strokeStyle = '#E2DDD4';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = Math.max(1, 1.5 * u);
   const gridStep = size / 6;
   for (let x = left + gridStep; x < right; x += gridStep) {
     ctx.beginPath();
@@ -42,7 +43,7 @@ function drawCurveGrid(ctx, arena) {
 
   const bLen = Math.max(16, Math.round(size * 0.05));
   ctx.strokeStyle = '#2B2B28';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = Math.max(1.5, 3 * u);
   const cornerPlates = [
     [[left, top + bLen], [left, top], [left + bLen, top]],
     [[right - bLen, top], [right, top], [right, top + bLen]],
@@ -61,7 +62,7 @@ function drawCurveGrid(ctx, arena) {
   ctx.fillRect(right, top + 6, 6, height);
   ctx.fillRect(left + 6, bottom, width, 6);
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 6;
+  ctx.lineWidth = Math.max(2, 6 * u);
   ctx.strokeRect(left, top, width, height);
 }
 
@@ -88,7 +89,7 @@ export function createWorldViewRenderer() {
 
         drawCurveGrid(ctx, arena);
         drawCurveFieldMask(ctx, { x: left, y: top, s: arena.size }, unpackCurveFieldMask(frame.field), colors, unpackCurveGapMask(frame.gaps));
-        drawCurveNearSegments(ctx, frame.near || [], colors);
+        drawCurveNearSegments(ctx, frame.near || [], colors, arena?.unit || 1);
         drawCurvePickups(ctx, frame.pickups || []);
         drawAlphaTexts(ctx, frame.texts || [], { size: 12, outline: true });
         drawSquareParticles(ctx, frame.particles || []);

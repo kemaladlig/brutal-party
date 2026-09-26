@@ -4,7 +4,7 @@
 // Not: görev istasyonu ikonları tabletopIcons vektörleridir (snapshot'ta registry anahtarı taşınır,
 // ham emoji tel üstüne çıkmaz); geri sayım filigranı host HUD'udur.
 
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import {
   round1,
@@ -40,6 +40,7 @@ export function createCloneWorldPacket(game) {
       x: round1(p.x || 0),
       y: round1(p.y || 0),
       angle: round1(p.angle || 0),
+      radius: round1(p.radius || 15),
       dash: (p.dashTimer || 0) > 0,
       slow: (p.slowTimer || 0) > 0,
       task: round1(p.taskTimer || 0),
@@ -115,12 +116,13 @@ export function isValidCloneWorldFrame(frame) {
 // --- Ortak çizim yardımcıları (host + client) ---
 export function drawCloneArena(ctx, arena) {
   const { left, top, right, bottom, width, height, size } = arena;
+  const u = arena?.unit ?? (size ? size / 952 : 1);
 
   ctx.fillStyle = '#E8E5DF';
   ctx.fillRect(left, top, width, height);
 
   ctx.strokeStyle = '#D5D1C7';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = Math.max(1, 1.5 * u);
   const step = size / 9;
   for (let x = left + step; x < right; x += step) {
     ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
@@ -130,19 +132,20 @@ export function drawCloneArena(ctx, arena) {
   }
 
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 6;
+  ctx.lineWidth = Math.max(2, 6 * u);
   ctx.strokeRect(left, top, width, height);
 }
 
 export function drawCloneStations(ctx, stations) {
   for (const t of stations || []) {
+    const su = (t.radius || 40) / 40;
     ctx.save();
     ctx.beginPath();
     ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
     ctx.fillStyle = `${t.color}22`;
     ctx.fill();
     ctx.strokeStyle = t.color;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = Math.max(1, 2.5 * su);
     ctx.setLineDash([6, 6]);
     ctx.stroke();
 
@@ -152,7 +155,7 @@ export function drawCloneStations(ctx, stations) {
     ctx.fillStyle = '#FFFFFF';
     ctx.fill();
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * su);
     ctx.stroke();
 
     drawTabletopIcon(ctx, t.icon, t.x, t.y, 20, { color: '#1A1A1A' });
@@ -168,17 +171,19 @@ export function drawCloneStations(ctx, stations) {
 
 export function drawCloneWalls(ctx, walls) {
   for (const w of walls || []) {
+    const wu = Math.min(w.w, w.h) / 20;
     ctx.fillStyle = '#101010';
     ctx.fillRect(w.x + 3, w.y + 3, w.w, w.h);
     ctx.fillStyle = '#2A2A2A';
     ctx.fillRect(w.x, w.y, w.w, w.h);
     ctx.strokeStyle = '#484848';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * wu);
     ctx.strokeRect(w.x, w.y, w.w, w.h);
   }
 }
 
 export function drawCloneCharacter(ctx, x, y, angle, color, { dashing = false, slowed = false, task = 0, withFx = true } = {}) {
+  const cu = CLONE_RADIUS / 15;
   ctx.save();
   ctx.translate(x, y);
 
@@ -195,7 +200,7 @@ export function drawCloneCharacter(ctx, x, y, angle, color, { dashing = false, s
     ctx.beginPath();
     ctx.arc(0, 0, CLONE_RADIUS + 7, -Math.PI / 2, -Math.PI / 2 + (task / 1.5) * Math.PI * 2);
     ctx.strokeStyle = '#2F6A4F';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(1.5, 3 * cu);
     ctx.stroke();
   }
 
@@ -213,13 +218,13 @@ export function drawCloneCharacter(ctx, x, y, angle, color, { dashing = false, s
   else if (dashing) exp = 'angry';
   else if (task > 0) exp = 'wink';
 
-  drawBrutalAvatar(ctx, 0, 0, CLONE_RADIUS, {
+  drawGameAvatar(ctx, 0, 0, CLONE_RADIUS, { color, angle, expression: exp }, {
     color,
     facingAngle: angle,
     expression: exp,
     showPointer: true,
     borderColor: '#1A1A1A',
-    borderWidth: 2.5,
+    borderWidth: Math.max(1.5, 2.5 * cu),
   });
 
   ctx.restore();

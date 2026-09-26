@@ -13,7 +13,7 @@ import {
 } from '../core/customizationManager.js';
 import { t, onLangChange } from '../i18n.js';
 import { safeGet, safeSet } from '../core/safeStorage.js';
-import { syncStageCanvas, drawAvatarStage, observeStageCanvas, beginStageFrame } from './avatarStage.js';
+import { syncStageCanvas, drawAvatarStage, observeStageCanvas, beginStageFrame, spawnBoingSparks, stepSparks, drawSparks } from './avatarStage.js';
 import { showInstallToast } from './toast.js';
 import { getStoredPlayerName, storePlayerName, cleanPlayerName, generateNick } from '../net.js';
 import { playMenuPop, playMenuTick } from '../audio.js';
@@ -451,25 +451,10 @@ export function initMenuAvatarCard() {
     excitedTimer = 0.8;
     playMenuPop();
 
-    // 8-12 adet neşeli neo-brutalist kıvılcım parçacığı
+    // 8-12 adet neşeli neo-brutalist kıvılcım parçacığı (`avatarStage.js`).
+    // Not: `-0.23r` doğuş kayması spawn fonksiyonunun içinde; burada çiğ merkez verilir.
     const prof = getAvatarProfile();
-    const cx = stage.w / 2;
-    const cy = stage.h / 2;
-    for (let i = 0; i < 10; i++) {
-      const ang = (Math.PI * 2 * i) / 10 + (Math.random() - 0.5) * 0.4;
-      const spd = 1.5 + Math.random() * 2.2;
-      sparks.push({
-        x: cx,
-        y: cy - r * 0.23,
-        vx: Math.cos(ang) * spd,
-        vy: Math.sin(ang) * spd - 1.0,
-        color: i % 2 === 0 ? (prof?.color || '#D84727') : '#FFD700',
-        size: 0.07 + Math.random() * 0.08,
-        shape: i % 3 === 0 ? 'star' : (i % 3 === 1 ? 'cross' : 'square'),
-        life: 1.0,
-        decay: 1.6 + Math.random() * 0.8,
-      });
-    }
+    sparks.push(...spawnBoingSparks(stage.w / 2, stage.h / 2, r, prof?.color || '#D84727'));
   };
 
   // Sahneye dokunulduğunda doğrudan zıplat ve tatmin edici geri bildirim ver
@@ -623,48 +608,9 @@ export function initMenuAvatarCard() {
       scale: combinedScale,
     }, avatarY - r * 0.05, shadowScale);
 
-    // Kıvılcım / Yıldız Parçacıkları (Boing efekti) — ölçüler yarıçapa oranlı
-    if (sparks.length > 0) {
-      for (let i = sparks.length - 1; i >= 0; i--) {
-        const p = sparks[i];
-        p.x += p.vx * r * dt;
-        p.y += p.vy * r * dt;
-        p.vy += 5 * dt; // Parçacık yerçekimi (r/s²)
-        p.life -= p.decay * dt;
-
-        if (p.life <= 0) {
-          sparks.splice(i, 1);
-          continue;
-        }
-
-        ctx.save();
-        ctx.globalAlpha = Math.max(0, p.life);
-        ctx.fillStyle = p.color;
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = Math.max(1, r * 0.023);
-
-        if (p.shape === 'star') {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size * r, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-        } else if (p.shape === 'cross') {
-          const s = p.size * r;
-          ctx.lineWidth = Math.max(1.5, r * 0.045);
-          ctx.beginPath();
-          ctx.moveTo(p.x - s, p.y);
-          ctx.lineTo(p.x + s, p.y);
-          ctx.moveTo(p.x, p.y - s);
-          ctx.lineTo(p.x, p.y + s);
-          ctx.stroke();
-        } else {
-          const s = p.size * r;
-          ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
-          ctx.strokeRect(p.x - s / 2, p.y - s / 2, s, s);
-        }
-        ctx.restore();
-      }
-    }
+    // Kıvılcım / Yıldız Parçacıkları (Boing efekti) — `avatarStage.js` tek kaynak.
+    stepSparks(sparks, r, dt);
+    drawSparks(ctx, r, sparks);
 
     // Kare kutusu: çizimden sızan klip/dönüşüm kare sonunda düşer.
     ctx.restore();

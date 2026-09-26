@@ -20,7 +20,7 @@ function drawAbyss(ctx, width, height) {
   ctx.fillStyle = '#141414';
   ctx.fillRect(0, 0, width, height);
   ctx.strokeStyle = '#1F1F1F';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = Math.max(1, 1 * (Math.min(width, height) / 952));
   const step = 40;
   for (let x = 0; x < width; x += step) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();

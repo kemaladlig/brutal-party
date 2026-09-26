@@ -234,8 +234,9 @@ export class Paddle {
     ctx.fillStyle = this.color;
     ctx.fillRect(bounds.left, bounds.top, w, h);
 
+    const u = arena?.unit ?? (arena?.size ? arena.size / 952 : 1);
     ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(1.5, 3 * u);
     ctx.strokeRect(bounds.left, bounds.top, w, h);
 
     // If bot, draw bot indicator badge inside paddle
@@ -277,7 +278,7 @@ export class Paddle {
       ctx.save();
       ctx.globalAlpha = 0.8;
       ctx.strokeStyle = '#D99B26';
-      ctx.lineWidth = 4;
+      ctx.lineWidth = Math.max(2, 4 * u);
       ctx.strokeRect(bounds.left - 4, bounds.top - 4, w + 8, h + 8);
       ctx.globalAlpha = 1;
 
@@ -297,10 +298,11 @@ export class Paddle {
   }
 
   drawFullClosedWall(ctx, arena) {
-    const wallThick = 20;
+    const u = arena?.unit ?? (arena?.size ? arena.size / 952 : 1);
+    const wallThick = Math.max(12, 20 * u);
     ctx.fillStyle = '#938F86';
     ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(1.5, 3 * u);
 
     let x = 0, y = 0, w = 0, h = 0;
     if (this.side === 'bottom') {
@@ -331,7 +333,7 @@ export class Paddle {
     // Warning hatch stripes
     ctx.save();
     ctx.strokeStyle = '#6E6B64';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * u);
     const longDim = Math.max(arena.width || arena.size, arena.height || arena.size);
     const step = 18;
     for (let i = -50; i < longDim + 50; i += step) {

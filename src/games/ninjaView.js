@@ -37,7 +37,7 @@ export function createNinjaWorldPacket(game) {
       y: round1(p.y || 0),
       // Yarıçap host'ta sahayla birlikte ölçeklenir ve paketle taşınır; client
       // aynı view'i kullandığı için yeniden ölçeklemez.
-      radius: round1(p.radius || 0) || undefined,
+      radius: round1(p.radius || 18),
       angle: round1(p.angle || 0),
       alpha: round2(p.alpha ?? 1),
       strike: (p.strikeTimer || 0) > 0,
@@ -165,7 +165,7 @@ export function drawNinjaFrame(ctx, arena, obstacles) {
   const { left, top, width, height } = arena;
   for (const obs of obstacles) drawObstacle(ctx, obs, { variant: 'dark' });
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 6;
+  ctx.lineWidth = Math.max(2, 6 * (arena?.unit ?? 1));
   ctx.strokeRect(left, top, width, height);
 }
 
@@ -246,12 +246,13 @@ export function drawNinjaDecals(ctx, decals) {
 
 export function drawNinjaLanterns(ctx, lanterns, now = 0) {
   for (const lantern of lanterns || []) {
+    const lu = (lantern.radius || 60) / 60;
     if (!lantern.active) {
       ctx.save();
       ctx.fillStyle = '#2A2A2A';
       ctx.fillRect(lantern.x - 9, lantern.y - 9, 18, 18);
       ctx.strokeStyle = '#555555';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = Math.max(1, 1.5 * lu);
       ctx.strokeRect(lantern.x - 9, lantern.y - 9, 18, 18);
       const emberPulse = (Math.sin(now / 160) + 1) * 0.5;
       ctx.fillStyle = `rgba(230, 57, 70, ${0.4 + emberPulse * 0.5})`;
@@ -273,7 +274,7 @@ export function drawNinjaLanterns(ctx, lanterns, now = 0) {
     ctx.fill();
 
     ctx.strokeStyle = 'rgba(217, 155, 38, 0.35)';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1, 1.5 * lu);
     ctx.setLineDash([4, 4]);
     ctx.stroke();
 
@@ -292,6 +293,7 @@ export function drawNinjaGhosts(ctx, ghosts) {
     // Host ve kumanda client'ı bu view'i ORTAK kullanır; yarıçap host'ta
     // ölçeklenip paketle gelir, burada ikinci kez ölçeklenmez.
     const R = img.radius || NINJA_RADIUS;
+    const u = R / NINJA_RADIUS;
     ctx.save();
     ctx.globalAlpha = clamp01((img.alpha || 0) * 0.7);
     ctx.translate(img.x, img.y);
@@ -301,7 +303,7 @@ export function drawNinjaGhosts(ctx, ghosts) {
     ctx.arc(0, 0, R, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = img.color;
-    ctx.lineWidth = 2.0;
+    ctx.lineWidth = Math.max(1, 2.0 * u);
     ctx.stroke();
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(R * 0.2, -3, 6, 2);
@@ -312,17 +314,18 @@ export function drawNinjaGhosts(ctx, ghosts) {
 
 function drawNinjaSelfGhost(ctx, player) {
   const R = player.radius || NINJA_RADIUS;
+  const u = R / NINJA_RADIUS;
   ctx.save();
   ctx.globalAlpha = 0.35;
   ctx.strokeStyle = player.color;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = Math.max(1, 2 * u);
   ctx.setLineDash([3, 4]);
   ctx.beginPath();
-  ctx.arc(player.x, player.y, R + 2, 0, Math.PI * 2);
+  ctx.arc(player.x, player.y, R + 2 * u, 0, Math.PI * 2);
   ctx.stroke();
   ctx.fillStyle = player.color;
   ctx.beginPath();
-  ctx.arc(player.x, player.y, 3, 0, Math.PI * 2);
+  ctx.arc(player.x, player.y, 3 * u, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
@@ -342,12 +345,13 @@ export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true,
     ctx.translate(player.x, player.y);
     ctx.rotate(player.angle || 0);
     const R = player.radius || NINJA_RADIUS;
+    const u = R / NINJA_RADIUS;
 
     drawGameAvatar(ctx, 0, 0, R, player, {
       facingAngle: 0,
       expression: player.strike ? 'angry' : 'normal',
       borderColor: '#1A1A1A',
-      borderWidth: 2.5,
+      borderWidth: Math.max(1.5, 2.5 * u),
       // Dönüş view seviyesinde (`ctx.rotate(player.angle)`) yapıldığı için
       // avatarın yerel yüzü sabit; bakış da yerel uzayda kalmalı, yoksa
       // dönen çerçeveyle birlikte iki kez dönerdi. Ninja'da gövde yönü zaten
@@ -358,28 +362,28 @@ export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true,
     if (player.strikeProg !== null && player.strikeProg !== undefined) {
       ctx.save();
       ctx.strokeStyle = 'rgba(20, 20, 22, 0.4)';
-      ctx.lineWidth = 3.5;
+      ctx.lineWidth = Math.max(1.5, 3.5 * u);
       ctx.beginPath();
-      ctx.arc(0, 0, R + 4, 0, Math.PI * 2);
+      ctx.arc(0, 0, R + 4 * u, 0, Math.PI * 2);
       ctx.stroke();
       ctx.strokeStyle = '#F59E0B';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = Math.max(1.5, 3 * u);
       ctx.beginPath();
-      ctx.arc(0, 0, R + 4, -Math.PI / 2, -Math.PI / 2 + clamp01(player.strikeProg) * Math.PI * 2);
+      ctx.arc(0, 0, R + 4 * u, -Math.PI / 2, -Math.PI / 2 + clamp01(player.strikeProg) * Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
     if (player.smokeProg !== null && player.smokeProg !== undefined) {
       ctx.save();
       ctx.strokeStyle = 'rgba(100, 100, 110, 0.3)';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = Math.max(1, 2.5 * u);
       ctx.beginPath();
-      ctx.arc(0, 0, R + 8, 0, Math.PI * 2);
+      ctx.arc(0, 0, R + 8 * u, 0, Math.PI * 2);
       ctx.stroke();
       ctx.strokeStyle = '#A855F7';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = Math.max(1, 2.5 * u);
       ctx.beginPath();
-      ctx.arc(0, 0, R + 8, -Math.PI / 2, -Math.PI / 2 + clamp01(player.smokeProg) * Math.PI * 2);
+      ctx.arc(0, 0, R + 8 * u, -Math.PI / 2, -Math.PI / 2 + clamp01(player.smokeProg) * Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -452,7 +456,7 @@ export function drawNinjaSlashes(ctx, slashes) {
       ctx.beginPath(); ctx.arc(tip1X, tip1Y, 4, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(tip2X, tip2Y, 4, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#141416';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = Math.max(1, 1.5 * (wave.scale ?? 1));
       ctx.beginPath(); ctx.arc(tip1X, tip1Y, 4, 0, Math.PI * 2); ctx.stroke();
       ctx.beginPath(); ctx.arc(tip2X, tip2Y, 4, 0, Math.PI * 2); ctx.stroke();
 
@@ -469,18 +473,19 @@ export function drawNinjaImpacts(ctx, impacts) {
     const p = (ic.life || 0) / maxLife;
     const alpha = 1.0 - p;
     const span = (1 - Math.pow(1 - p, 2)) * 36;
+    const u = span / 36;
     ctx.save();
     ctx.globalAlpha = Math.max(0, alpha);
     ctx.translate(ic.x, ic.y);
     ctx.rotate(ic.angle);
     ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 3.5;
+    ctx.lineWidth = Math.max(1.5, 3.5 * u);
     ctx.beginPath();
     ctx.moveTo(-span, -span * 0.6); ctx.lineTo(span, span * 0.6);
     ctx.moveTo(-span * 0.6, span); ctx.lineTo(span * 0.6, -span);
     ctx.stroke();
     ctx.strokeStyle = ic.color;
-    ctx.lineWidth = 2.0;
+    ctx.lineWidth = Math.max(1, 2.0 * u);
     ctx.beginPath();
     ctx.moveTo(-span, -span * 0.6); ctx.lineTo(span, span * 0.6);
     ctx.moveTo(-span * 0.6, span); ctx.lineTo(span * 0.6, -span);
@@ -490,19 +495,19 @@ export function drawNinjaImpacts(ctx, impacts) {
 }
 
 export function drawNinjaFx(ctx, fx) {
-  for (const p of fx || []) {
+  for (const pt of fx || []) {
     ctx.save();
-    ctx.globalAlpha = clamp01(p.alpha ?? 0.8);
-    if (p.ring) {
-      ctx.strokeStyle = p.color;
-      ctx.lineWidth = 2.5;
+    ctx.globalAlpha = clamp01(pt.alpha ?? 0.8);
+    if (pt.ring) {
+      ctx.strokeStyle = pt.color;
+      ctx.lineWidth = Math.max(1, 2.5 * ((pt.radius || 4) / 4));
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2);
       ctx.stroke();
     } else {
-      ctx.fillStyle = p.color;
+      ctx.fillStyle = pt.color;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();

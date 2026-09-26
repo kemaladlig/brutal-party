@@ -174,7 +174,7 @@ export class CurveGame extends BaseMiniGame {
         // sabitken telefonda saha kısa kenarının %1.29'u, masaüstünde %0.53'ü
         // (2.5x fark). Motor ölçekler, view `player.radius` okur, world packet
         // taşır (ARCHER/NINJA/LASER ile aynı desen).
-        radius: fieldRadius(this.arena, 5, 0.006),
+        radius: fieldRadius(this.arena, 6, 0.006),
         speed: fieldSpeed(this.arena, 160),
         turnSpeed: 2.85,
         steer: 0, // -1 (left), 0 (none), +1 (right)
@@ -820,7 +820,8 @@ export class CurveGame extends BaseMiniGame {
     ctx.fillRect(left, top, width, height);
 
     ctx.strokeStyle = '#E2DDD4';
-    ctx.lineWidth = 1.5;
+    const u = this.arena.unit || (this.arena.size / 952);
+    ctx.lineWidth = Math.max(1, 1.5 * u);
     const gridStep = size / 6;
     for (let x = left + gridStep; x < right; x += gridStep) {
       ctx.beginPath();
@@ -838,7 +839,7 @@ export class CurveGame extends BaseMiniGame {
     // 4 Köşe Takviye Braketleri (L-plates)
     const bLen = Math.max(16, Math.round(size * 0.05));
     ctx.strokeStyle = '#2B2B28';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(1, 3 * u);
     const cornerPlates = [
       [[left, top + bLen], [left, top], [left + bLen, top]],
       [[right - bLen, top], [right, top], [right, top + bLen]],
@@ -859,14 +860,14 @@ export class CurveGame extends BaseMiniGame {
     ctx.fillRect(left + 6, bottom, width, 6);
 
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 6;
+    ctx.lineWidth = Math.max(2, Math.round(6 * u));
     ctx.strokeRect(left, top, width, height);
 
     // Trail Segments (Dinamik kalınlık: Mini 2px, Normal 4px, Kalın Duvar 8px)
     ctx.lineCap = 'round';
     for (const seg of this.segments) {
       if (seg.isGap) continue;
-      ctx.lineWidth = seg.thick ? 8.5 : (seg.shrink ? 2.2 : 4);
+      ctx.lineWidth = Math.max(1, (seg.thick ? 8.5 : (seg.shrink ? 2.2 : 4)) * u);
       ctx.strokeStyle = seg.color;
       ctx.beginPath();
       ctx.moveTo(seg.x1, seg.y1);
@@ -890,7 +891,7 @@ export class CurveGame extends BaseMiniGame {
         ctx.textBaseline = 'middle';
         ctx.lineJoin = 'round';
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = Math.max(1, 3.5 * u);
         ctx.strokeText(ft.text, ft.x, ft.y);
         ctx.fillStyle = ft.color;
         ctx.fillText(ft.text, ft.x, ft.y);
@@ -917,7 +918,7 @@ export class CurveGame extends BaseMiniGame {
       // Dondurma aurası
       if (player.freezeTimer > 0) {
         ctx.strokeStyle = '#00B4D8';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = Math.max(1, 2 * u);
         ctx.setLineDash([2, 2]);
         ctx.beginPath();
         ctx.arc(player.x, player.y, headRadius + 6, 0, Math.PI * 2);
@@ -928,7 +929,7 @@ export class CurveGame extends BaseMiniGame {
       // Barikat kalkanı aurası
       if (player.thickTimer > 0) {
         ctx.strokeStyle = '#D99B26';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = Math.max(1, 2.5 * u);
         ctx.beginPath();
         ctx.arc(player.x, player.y, headRadius + 4.5, 0, Math.PI * 2);
         ctx.stroke();
@@ -940,14 +941,14 @@ export class CurveGame extends BaseMiniGame {
         ctx.arc(player.x, player.y, headRadius + 5, 0, Math.PI * 2);
         ctx.setLineDash([3, 3]);
         ctx.strokeStyle = '#70E000';
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = Math.max(1, 1.8 * u);
         ctx.stroke();
         ctx.setLineDash([]);
       }
 
       if (player.confusedTimer > 0) {
         ctx.strokeStyle = '#FF473A';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = Math.max(1, 2 * u);
         ctx.setLineDash([1, 3]);
         ctx.beginPath();
         ctx.arc(player.x, player.y, headRadius + 7, 0, Math.PI * 2);
@@ -960,7 +961,7 @@ export class CurveGame extends BaseMiniGame {
         ctx.beginPath();
         ctx.arc(player.x, player.y, headRadius + 4, 0, Math.PI * 2);
         ctx.strokeStyle = '#D84727';
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = Math.max(1, 1.8 * u);
         ctx.setLineDash([2, 2]);
         ctx.stroke();
         ctx.setLineDash([]);
@@ -972,7 +973,7 @@ export class CurveGame extends BaseMiniGame {
       ctx.fillStyle = player.color;
       ctx.fill();
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = Math.max(1, 2 * u);
       ctx.stroke();
 
       // Göz/Yön Noktası
@@ -1033,7 +1034,7 @@ export class CurveGame extends BaseMiniGame {
       ctx.beginPath();
       ctx.arc(p.x, p.y, ringR, 0, Math.PI * 2);
       ctx.strokeStyle = p.color;
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = Math.max(1, 2.5 * (this.arena.unit || 1));
       ctx.globalAlpha = Math.min(1.0, progress * 1.5);
       ctx.stroke();
 
@@ -1044,7 +1045,7 @@ export class CurveGame extends BaseMiniGame {
       ctx.fillStyle = p.color;
       ctx.fillRect(p.x - tagW / 2, p.y - 32, tagW, tagH);
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = Math.max(1, 1.5 * (this.arena.unit || 1));
       ctx.strokeRect(p.x - tagW / 2, p.y - 32, tagW, tagH);
 
       ctx.fillStyle = '#FFFFFF';

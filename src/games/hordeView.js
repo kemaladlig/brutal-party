@@ -56,6 +56,7 @@ export function mapHordePlayer(player, tuning = {}) {
     alive: player.isAlive !== false,
     x: round1(player.x || 0),
     y: round1(player.y || 0),
+    radius: round1(player.radius || 15),
     angle: round1(player.angle || 0),
     color: typeof player.color === 'string' ? player.color : '#D84727',
     hp: Math.max(0, Math.round(Number(player.hp) || 0)),
@@ -389,23 +390,24 @@ export function hordeSceneFromFrame(frame) {
 
 function drawSpawnGate(ctx, arena, side, color) {
   const { left, top, right, bottom, cx, cy } = arena;
+  const u = arena?.unit ?? (arena?.size ? arena.size / 952 : 1);
   const points = [
-    { x: cx, y: top + 5, rotation: 0 },
-    { x: right - 5, y: cy, rotation: Math.PI / 2 },
-    { x: cx, y: bottom - 5, rotation: Math.PI },
-    { x: left + 5, y: cy, rotation: -Math.PI / 2 },
+    { x: cx, y: top + 5 * u, rotation: 0 },
+    { x: right - 5 * u, y: cy, rotation: Math.PI / 2 },
+    { x: cx, y: bottom - 5 * u, rotation: Math.PI },
+    { x: left + 5 * u, y: cy, rotation: -Math.PI / 2 },
   ][side];
   ctx.save();
   ctx.translate(points.x, points.y);
   ctx.rotate(points.rotation);
   ctx.globalAlpha = 0.45;
   ctx.strokeStyle = color;
-  ctx.lineWidth = 5;
+  ctx.lineWidth = Math.max(1.5, 5 * u);
   for (let i = -1; i <= 1; i++) {
     ctx.beginPath();
-    ctx.moveTo(i * 13 - 7, 13);
-    ctx.lineTo(i * 13, 4);
-    ctx.lineTo(i * 13 + 7, 13);
+    ctx.moveTo((i * 13 - 7) * u, 13 * u);
+    ctx.lineTo(i * 13 * u, 4 * u);
+    ctx.lineTo((i * 13 + 7) * u, 13 * u);
     ctx.stroke();
   }
   ctx.restore();
@@ -414,12 +416,13 @@ function drawSpawnGate(ctx, arena, side, color) {
 export function drawHordeArena(ctx, arena, themeId = 'foundry', now = 0) {
   const theme = MAP_IDS.has(themeId) ? getHordeMap({ round: themeId === 'foundry' ? 1 : themeId === 'reactor' ? 2 : 3 }) : getHordeMap(1);
   const { left, top, right, bottom, width, height } = arena;
+  const u = arena?.unit ?? (arena?.size ? arena.size / 952 : 1);
   ctx.save();
   ctx.fillStyle = theme.floor;
   ctx.fillRect(left, top, width, height);
 
   ctx.strokeStyle = theme.grid;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = Math.max(1, 1 * u);
   const cell = Math.max(34, Math.round(Math.min(width, height) / 11));
   for (let x = left + cell; x < right; x += cell) {
     ctx.beginPath();
@@ -436,14 +439,14 @@ export function drawHordeArena(ctx, arena, themeId = 'foundry', now = 0) {
 
   const inset = Math.min(width, height) * 0.055;
   ctx.strokeStyle = 'rgba(26, 26, 26, 0.14)';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = Math.max(1.5, 3 * u);
   ctx.strokeRect(left + inset, top + inset, width - inset * 2, height - inset * 2);
 
   ctx.save();
   ctx.translate(arena.cx, arena.cy);
   ctx.strokeStyle = theme.accent;
   ctx.globalAlpha = 0.12;
-  ctx.lineWidth = 4;
+  ctx.lineWidth = Math.max(1.5, 4 * u);
   if (theme.motif === 'foundry') {
     const r = Math.min(width, height) * 0.21;
     ctx.beginPath();
@@ -475,13 +478,14 @@ export function drawHordeArena(ctx, arena, themeId = 'foundry', now = 0) {
   for (let side = 0; side < 4; side++) drawSpawnGate(ctx, arena, side, theme.accent);
 
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 7;
+  ctx.lineWidth = Math.max(2, 7 * u);
   ctx.strokeRect(left, top, width, height);
   ctx.restore();
 }
 
 function drawExtractionGate(ctx, portal, now) {
   const rotations = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+  const pu = (portal.r || 30) / 30;
   ctx.save();
   ctx.translate(portal.x, portal.y);
   ctx.rotate(rotations[portal.side] || 0);
@@ -491,10 +495,10 @@ function drawExtractionGate(ctx, portal, now) {
   ctx.fillRect(-portal.r, -portal.r * 0.62, portal.r * 2, portal.r * 1.24);
   ctx.globalAlpha = 1;
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 7;
+  ctx.lineWidth = Math.max(2, 7 * pu);
   ctx.strokeRect(-portal.r, -portal.r * 0.62, portal.r * 2, portal.r * 1.24);
   ctx.strokeStyle = '#FACC15';
-  ctx.lineWidth = 7;
+  ctx.lineWidth = Math.max(2, 7 * pu);
   ctx.beginPath();
   ctx.moveTo(-portal.r * 0.75, portal.r * 0.42);
   ctx.lineTo(portal.r * 0.75, portal.r * 0.42);
@@ -510,12 +514,13 @@ function drawExtractionGate(ctx, portal, now) {
 }
 
 function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
+  const eu = (enemy.r || 14) / 14;
   if (enemy.spawning) {
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
     ctx.globalAlpha = 0.18 + enemy.spawnProgress * 0.35;
     ctx.strokeStyle = enemy.elite ? '#FACC15' : '#E63946';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = Math.max(1.5, 4 * eu);
     ctx.setLineDash([7, 6]);
     ctx.beginPath();
     ctx.arc(0, 0, enemy.r + 10, 0, Math.PI * 2);
@@ -523,7 +528,7 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
     ctx.setLineDash([]);
     ctx.rotate(-now / 500);
     ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(1, 3 * eu);
     for (let i = 0; i < 4; i++) {
       const a = i * Math.PI / 2;
       ctx.beginPath();
@@ -541,7 +546,7 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
     ctx.rotate(enemy.angle || 0);
     ctx.globalAlpha = 0.22 + Math.sin(now / 60) * 0.08;
     ctx.strokeStyle = enemy.type === 'healer' ? '#16A34A' : '#F97316';
-    ctx.lineWidth = enemy.type === 'healer' ? 5 : 3;
+    ctx.lineWidth = Math.max(1.5, (enemy.type === 'healer' ? 5 : 3) * eu);
     if (enemy.type === 'healer') {
       ctx.beginPath();
       ctx.arc(0, 0, 48 + Math.sin(now / 80) * 5, 0, Math.PI * 2);
@@ -582,7 +587,7 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
         : '#E63946';
   ctx.fillStyle = enemy.hit && withFx ? '#FFFFFF' : fill;
   ctx.strokeStyle = enemy.boss || enemy.elite ? '#FACC15' : '#1A1A1A';
-  ctx.lineWidth = enemy.boss ? 5 : 3;
+  ctx.lineWidth = Math.max(1.5, (enemy.boss ? 5 : 3) * eu);
   ctx.beginPath();
   if (enemy.type === 'tank') {
     ctx.rect(-enemy.r, -enemy.r, enemy.r * 2, enemy.r * 2);
@@ -599,12 +604,12 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
   ctx.stroke();
   if (enemy.elite && !enemy.boss) {
     ctx.strokeStyle = '#FFF7A3';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * eu);
     ctx.stroke();
   }
   if (enemy.lunging) {
     ctx.strokeStyle = '#FACC15';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = Math.max(1.5, 4 * eu);
     ctx.beginPath();
     ctx.moveTo(-enemy.r - 10, 0);
     ctx.lineTo(-enemy.r, 0);
@@ -642,7 +647,7 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
 const WEAPON_REACH = 0.7;
 
 function drawPlayerWeapon(ctx, player) {
-  const u = (player.radius || 14) / 16;
+  const u = (player.radius || 15) / 16;
   const k = u * WEAPON_REACH;
   ctx.save();
   ctx.rotate(player.angle || 0);
@@ -694,7 +699,7 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
     // telefonda çarpışma yarıçapı 8.9px'e düşerken gövde 15px'te kalıyordu,
     // yani çizilen oyuncu sahanın %1.7 katı büyüktü. "Biz büyüğüz" hissinin
     // ölçülebilir kaynağı buydu — yarıçap sabitleri doğruydu, çizim değil.
-    const R = player.radius || 14;
+    const R = player.radius || 15;
     const u = R / 16;
 
     ctx.save();
@@ -821,10 +826,11 @@ function drawLoadoutCrate(ctx, crate, now) {
   ctx.globalAlpha = claimed ? 0.32 : 1;
   ctx.fillStyle = '#1A1A1A';
   ctx.fillRect(-24, -24, 52, 52);
+  const cu = 1;
   ctx.fillStyle = '#FAF7F2';
   ctx.fillRect(-27, -27, 50, 50);
   ctx.strokeStyle = crate.color;
-  ctx.lineWidth = 5;
+  ctx.lineWidth = Math.max(2, 5 * cu);
   ctx.strokeRect(-27, -27, 50, 50);
   ctx.fillStyle = crate.color;
   ctx.fillRect(-22, -22, 40, 8);
@@ -834,12 +840,12 @@ function drawLoadoutCrate(ctx, crate, now) {
     drawTabletopIcon(ctx, meta?.icon || 'sparkles', -2, 1, 28, { color: crate.color, accentColor: crate.color });
   } else if (crate.weaponId === 'BLADE') {
     ctx.strokeStyle = crate.color;
-    ctx.lineWidth = 7;
+    ctx.lineWidth = Math.max(2, 7 * cu);
     ctx.beginPath();
     ctx.moveTo(-14, 14); ctx.lineTo(15, -15);
     ctx.stroke();
     ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * cu);
     ctx.stroke();
   } else {
     const rifle = crate.weaponId === 'RIFLE';
@@ -847,7 +853,7 @@ function drawLoadoutCrate(ctx, crate, now) {
     ctx.fillStyle = crate.color;
     ctx.fillRect(-16, -4, rifle ? 38 : shotgun ? 31 : 25, shotgun ? 10 : 8);
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(1, 3 * cu);
     ctx.strokeRect(-16, -4, rifle ? 38 : shotgun ? 31 : 25, shotgun ? 10 : 8);
   }
 
@@ -880,23 +886,24 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
   for (const crate of scene.loadoutCrates || []) drawLoadoutCrate(ctx, crate, now);
   for (const pickup of scene.pickups || []) drawPickup(ctx, pickup, { size: pickup.size });
 
+  const u = arena?.unit ?? (arena?.size ? arena.size / 952 : 1);
   for (const tomb of scene.tombs || []) {
     ctx.save();
     ctx.translate(tomb.x, tomb.y);
     ctx.fillStyle = '#1A1A1A';
     ctx.beginPath();
-    ctx.arc(0, 0, 15, 0, Math.PI * 2);
+    ctx.arc(0, 0, 15 * u, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(1, 3 * u);
     ctx.beginPath();
-    ctx.moveTo(-6, 0); ctx.lineTo(6, 0);
-    ctx.moveTo(0, -6); ctx.lineTo(0, 6);
+    ctx.moveTo(-6 * u, 0); ctx.lineTo(6 * u, 0);
+    ctx.moveTo(0, -6 * u); ctx.lineTo(0, 6 * u);
     ctx.stroke();
     ctx.strokeStyle = '#2ECC71';
-    ctx.lineWidth = 5;
+    ctx.lineWidth = Math.max(1.5, 5 * u);
     ctx.beginPath();
-    ctx.arc(0, 0, 21, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp01(tomb.progress));
+    ctx.arc(0, 0, 21 * u, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp01(tomb.progress));
     ctx.stroke();
     ctx.restore();
   }
@@ -942,8 +949,7 @@ export function drawHordeStatus(ctx, arena, scene) {
   // bant oynanış alanının üstünü kesiyordu; sola yaslanıp daraltılıyor.
   // `window` yoksa (SSR, world-view packet testleri bu view'ı render eder)
   // kompakt sayılmaz — çizim kodu varlığa bağımlı olmamalı.
-  const compact = typeof window !== 'undefined'
-    && isCompactLandscape(window.innerWidth, window.innerHeight);
+  const compact = !!(arena?.profile?.compactLandscape ?? isCompactLandscape(arena));
   // Chip ölçeği saha kısa kenarına bağlıdır: mutlak 44/58px yükseklik
   // telefonda saha yüksekliğinin %11'i idi, %4.7'ye indi.
   const u = (arena.size || 952) / 952;

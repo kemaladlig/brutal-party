@@ -770,14 +770,15 @@ export class Game extends BaseMiniGame {
     ctx.fillRect(left + 5, bottom, aW + 5, 5);
 
     // Subtle Court Markings & Grid Geometry
+    const u = this.arena?.unit ?? (minDim / 952);
     const inset = Math.max(12, Math.round(minDim * 0.045));
     ctx.strokeStyle = '#EBE5DA';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1, 1.5 * u);
     ctx.strokeRect(left + inset, top + inset, aW - inset * 2, aH - inset * 2);
 
     // Saha Zemin Izgarası
     ctx.strokeStyle = '#F0EAE0';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = Math.max(1, 1 * u);
     const gridStep = aW / 6;
     for (let x = left + gridStep; x < right; x += gridStep) {
       ctx.beginPath();
@@ -801,7 +802,7 @@ export class Game extends BaseMiniGame {
       [right - inset, bottom - inset],
     ];
     ctx.strokeStyle = '#D5CFC4';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1, 1.5 * u);
     ctx.beginPath();
     for (const [sx, sy] of chSpots) {
       ctx.moveTo(sx - chLen, sy);
@@ -814,7 +815,7 @@ export class Game extends BaseMiniGame {
     // 4 Köşe Takviye Braketleri (L-plates)
     const bLen = Math.max(16, Math.round(minDim * 0.05));
     ctx.strokeStyle = '#2B2B28';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(1.5, 3 * u);
     const cornerPlates = [
       [[left, top + bLen], [left, top], [left + bLen, top]],
       [[right - bLen, top], [right, top], [right, top + bLen]],
@@ -831,13 +832,13 @@ export class Game extends BaseMiniGame {
 
     // Center Court Markings (Dual Concentric Rings)
     ctx.strokeStyle = '#E2DDD2';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * u);
     ctx.beginPath();
     ctx.arc(cx, cy, Math.max(1, minDim * 0.22), 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.strokeStyle = '#D0CAC0';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * u);
     ctx.beginPath();
     ctx.arc(cx, cy, Math.max(1, minDim * 0.14), 0, Math.PI * 2);
     ctx.stroke();
@@ -854,8 +855,8 @@ export class Game extends BaseMiniGame {
         ctx.beginPath();
         ctx.arc(cx, cy, warnR, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(216, 71, 39, ${0.45 + pulse * 0.5})`;
-        ctx.lineWidth = 3;
-        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = Math.max(1.5, 3 * u);
+        ctx.setLineDash([5 * u, 5 * u]);
         ctx.stroke();
         ctx.restore();
       } else if (this.ball.rallyCount >= 10) {
@@ -866,7 +867,7 @@ export class Game extends BaseMiniGame {
         ctx.arc(cx, cy, hazardR, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#D84727';
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = Math.max(1.5, 3.5 * u);
         ctx.stroke();
         // Inner core accent
         ctx.fillStyle = '#D84727';
@@ -929,12 +930,13 @@ export class Game extends BaseMiniGame {
 
     // Outer Arena Border Stroke
     ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 5;
+    ctx.lineWidth = Math.max(2, 5 * u);
     ctx.strokeRect(left, top, aW, aH);
   }
 
   renderCornerBumpers(ctx) {
     const { left, right, top, bottom, width: aW, height: aH } = this.arena;
+    const u = this.arena?.unit ?? (Math.min(aW, aH) / 952);
     const { goalMin: hGoalMin, goalMax: hGoalMax } = this.getGoalBounds('bottom');
     const { goalMin: vGoalMin, goalMax: vGoalMax } = this.getGoalBounds('left');
     const bLenH = hGoalMin - left;
@@ -980,7 +982,7 @@ export class Game extends BaseMiniGame {
 
       // Sekme Yüzü (Kalın Neo-Brutalist Kenar)
       ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 4;
+      ctx.lineWidth = Math.max(2, 4 * u);
       ctx.beginPath();
       ctx.moveTo(c.hypotenuse[0][0], c.hypotenuse[0][1]);
       ctx.lineTo(c.hypotenuse[1][0], c.hypotenuse[1][1]);
@@ -989,7 +991,7 @@ export class Game extends BaseMiniGame {
       // Endüstriyel Pirinç/Çelik Vida Perçini
       ctx.fillStyle = '#D99B26';
       ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = Math.max(1, 1.5 * u);
       ctx.beginPath();
       ctx.arc(c.rivet[0], c.rivet[1], Math.max(3, thick * 0.22), 0, Math.PI * 2);
       ctx.fill();
@@ -1001,12 +1003,12 @@ export class Game extends BaseMiniGame {
       ctx.fillStyle = '#5A564F';
       ctx.fillRect(x, y, w, h);
       ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = Math.max(1.5, 3 * u);
       ctx.strokeRect(x, y, w, h);
 
       // Üst Işık Çizgisi (3D Dokunma Hissi)
       ctx.strokeStyle = '#7D786F';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = Math.max(1, 1.5 * u);
       ctx.beginPath();
       if (isHoriz) {
         ctx.moveTo(x + 2, y + 3);
@@ -1038,10 +1040,11 @@ export class Game extends BaseMiniGame {
   }
 
   renderGoalLines(ctx) {
+    const u = this.arena?.unit ?? (Math.min(this.arena.width, this.arena.height) / 952);
     ctx.save();
     ctx.strokeStyle = '#B3ADA2';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
+    ctx.lineWidth = Math.max(1, 2 * u);
+    ctx.setLineDash([5 * u, 5 * u]);
 
     for (const p of this.paddles) {
       if (!p.isJoined || p.isEliminated) continue;

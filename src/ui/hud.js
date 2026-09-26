@@ -33,7 +33,7 @@ export function renderTopPill(ctx, {
 }) {
   const scale = getUiScale(arena);
 
-  if (persistent && isCompactLandscape(window.innerWidth, window.innerHeight)) {
+  if (persistent && (arena?.profile?.compactLandscape ?? isCompactLandscape(arena))) {
     const fontPx = Math.max(10, Math.round(13 * scale));
     ctx.save();
     ctx.globalAlpha = Math.min(alpha, 0.62);
@@ -508,7 +508,7 @@ export function renderArenaRailTally(ctx, { arena, players = [], scores = [0, 0,
   // yatayda HUD köşeye gider, üst-orta band değil. Sol üst seçilir çünkü sağ
   // üst köşe DOM chrome'una (üç nokta / tam ekran) ve çentik tarafına ayrılı;
   // sahanın sol kenarı zaten safe-area ile temizlenmiş.
-  const corner = isCompactLandscape(window.innerWidth, window.innerHeight);
+  const corner = arena?.profile?.compactLandscape ?? isCompactLandscape(arena);
   const pad = Math.round(4 * scale);
   const startX = corner ? arena.left + pad : arena.cx - totalW / 2;
   const barY = corner

@@ -20,7 +20,7 @@ import {
 import { drawCircleParticles } from './worldCore.js';
 import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
 import { tickPickupTimers } from '../core/pickupSystem.js';
-import { computePlayfield, fieldSpeed } from '../core/playfield.js';
+import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
 
 export const COLLAPSE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const COLLAPSE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -28,6 +28,7 @@ export const COLLAPSE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 const COLLAPSE_JUMP_COOLDOWN = 1.6;
 const COLLAPSE_ROUND_TIME = 60;
 const COLLAPSE_MAX_TIED_ROUNDS = 2;
+const COLLAPSE_RADIUS = 18;
 
 // 5 Farklı Rastgele Harita Tasarımı
 export const COLLAPSE_MAPS = [
@@ -254,6 +255,8 @@ export class CollapseGame extends BaseMiniGame {
       const gridBottom = this.offsetY + this.gridROWS * this.cellSize - this.cellSize * 0.5;
       for (const p of this.players) {
         this.remapPoint(p, oldArena, this.arena);
+        p.radius = fieldRadius(this.arena, COLLAPSE_RADIUS);
+        p.speed = fieldSpeed(this.arena, 125);
         p.x = Math.max(gridLeft, Math.min(gridRight, p.x));
         p.y = Math.max(gridTop, Math.min(gridBottom, p.y));
         p.vx = 0;
@@ -302,6 +305,7 @@ export class CollapseGame extends BaseMiniGame {
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || COLLAPSE_COLORS[i]),
         x: s.x, y: s.y, angle: 0,
+        radius: fieldRadius(this.arena, COLLAPSE_RADIUS),
         speed: fieldSpeed(this.arena, 125), steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         jumpTimer: 0, jumpCooldown: 0, wasJumping: false,
@@ -867,7 +871,8 @@ export class CollapseGame extends BaseMiniGame {
 
     // Boşluk derinlik ızgarası (CSS px — ctx zaten dpr ile ölçekli)
     ctx.strokeStyle = '#1F1F1F';
-    ctx.lineWidth = 1;
+    const u = this.arena.unit || 1;
+    ctx.lineWidth = Math.max(1, 1 * u);
     const abyssStep = 40;
     for (let x = 0; x < viewW; x += abyssStep) {
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, viewH); ctx.stroke();

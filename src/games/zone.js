@@ -34,7 +34,7 @@ import {
 } from './zoneView.js';
 import { drawSquareParticles, drawAlphaTexts } from './worldCore.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
-import { computePlayfield, fieldRadius } from '../core/playfield.js';
+import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { vibrate } from '../core/haptics.js';
 
 export const ZONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -85,8 +85,8 @@ export const ZONE_TUNING = {
   DASH_TIME: 0.22,   // depar süresi (sn)
   DASH_CD: 4.0,      // depar bekleme (sn)
   AVATAR_R_MULT: 1.15, // karakter yarıçapı = hücre * bu (iri görünüm, grid'e dokunmaz)
-  // Taban yarıçapı GÖRELİ: eskiden mutlak 8px idi ve küçük saha varlığı
-  // şişiriyordu (telefonda hücre zaten küçülünce taban baskın oluyordu).
+  PLAYER_RADIUS: 18,   // tasarım referans yarıçapı (px)
+  MOVE_SPEED: 156,     // tasarım referans hareket hızı (px/s)
   AVATAR_R_MIN: 0.018,
   TRAIL_W_MULT: 0.95,  // açık iz çizgi kalınlığı = hücre * bu
   TRAIL_GLOW_MULT: 1.05, // risk uyarısı dış parlama = hücre * bu (hazard'da +0.2)
@@ -369,6 +369,8 @@ export class ZoneGame extends BaseMiniGame {
     // Mevcut maç varsa konumu yeni alana taşı (bölge sahipliği korunur)
     for (const p of this.players) {
       if (!p) continue;
+      p.radius = fieldRadius(this.arena, ZONE_TUNING.PLAYER_RADIUS, 0);
+      p.speed = fieldSpeed(this.arena, ZONE_TUNING.MOVE_SPEED);
       const rr = (p.radius || 6) + 1;
       p.x = Math.min(Math.max(p.x, this.field.x + rr), this.field.x + this.field.s - rr);
       p.y = Math.min(Math.max(p.y, this.field.y + rr), this.field.y + this.field.s - rr);
@@ -395,7 +397,8 @@ export class ZoneGame extends BaseMiniGame {
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || ZONE_COLORS[i]),
         x: bcx, y: bcy, heading: outward,
-        radius: fieldRadius(this.arena, this.cell * ZONE_TUNING.AVATAR_R_MULT, ZONE_TUNING.AVATAR_R_MIN),
+        radius: fieldRadius(this.arena, ZONE_TUNING.PLAYER_RADIUS, 0),
+        speed: fieldSpeed(this.arena, ZONE_TUNING.MOVE_SPEED),
         isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         trail: [], lastCell: -1,
         // İz-başlangıç anchor'ı: base'den çıkılan tam piksel nokta (render

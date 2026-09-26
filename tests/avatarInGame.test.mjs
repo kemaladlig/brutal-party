@@ -242,3 +242,56 @@ test('the look angle moves the eyes without turning the body', () => {
   const faceAngle = Number(rotates(left).at(-1).slice(7, -1));
   assert.ok(Math.abs(faceAngle) <= 0.23, `gaze shift ${faceAngle} exceeds the 0.22 rad clamp`);
 });
+
+test('all views where body is avatar call drawGameAvatar (TANKS is sole commander figure exception)', async () => {
+  const fs = await import('node:fs');
+  const viewFiles = [
+    'src/games/archerView.js',
+    'src/games/bombView.js',
+    'src/games/collapseView.js',
+    'src/games/heistView.js',
+    'src/games/hordeView.js',
+    'src/games/laserView.js',
+    'src/games/ninjaView.js',
+    'src/games/snakeView.js',
+    'src/games/zoneView.js',
+    'src/games-retired/cloneView.js',
+    'src/games-retired/crown.js',
+  ];
+  for (const f of viewFiles) {
+    const content = fs.readFileSync(f, 'utf8');
+    assert.ok(
+      content.includes('drawGameAvatar'),
+      `${f} must call drawGameAvatar for in-game play face contract`,
+    );
+    assert.ok(
+      !content.includes('drawBrutalAvatar('),
+      `${f} should not bypass contract by calling drawBrutalAvatar directly`,
+    );
+  }
+
+  // TANKS exception: commander figure on top of tank chassis
+  const tanksContent = fs.readFileSync('src/games/tanksView.js', 'utf8');
+  assert.ok(
+    tanksContent.includes('drawBrutalAvatar'),
+    'tanksView.js maintains commander figure exception on top of chassis',
+  );
+  assert.ok(
+    tanksContent.includes('İSTİSNA (Adım 3.5)'),
+    'tanksView.js must document the commander figure exception',
+  );
+});
+
+test('negative: contract scanner flags a view that bypasses drawGameAvatar', () => {
+  const mockViewContent = `
+    import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+    export function drawZonePlayers(ctx, players) {
+      drawBrutalAvatar(ctx, 0, 0, p.radius, {});
+    }
+  `;
+  const usesGameAvatar = mockViewContent.includes('drawGameAvatar');
+  const callsBrutalDirectly = mockViewContent.includes('drawBrutalAvatar(');
+  const isValid = usesGameAvatar && !callsBrutalDirectly;
+  assert.equal(isValid, false, 'view that calls drawBrutalAvatar directly must be rejected');
+});
+

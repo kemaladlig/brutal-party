@@ -5,7 +5,7 @@
 // yüzlerce [len, owner] çifti; client `territoryLayer` offscreen kanvasını RLE'den yeniden kurar.
 // Relic ikonları tek kaynak tabletopIcons registry anahtarıdır (snapshot'ta ikon değil tür gider).
 
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import {
   round1,
@@ -63,7 +63,7 @@ export function createZoneWorldPacket(game) {
       x: round1(p.x || 0),
       y: round1(p.y || 0),
       angle: round1(p.heading || 0),
-      radius: round1(p.radius || 10),
+      radius: round1(p.radius || 18),
       home: p.onHomeTurf === true,
       stun: round2(p.stunTimer || 0),
       blink: round2(p.blinkTimer || 0),
@@ -200,7 +200,8 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
   ctx.imageSmoothingEnabled = true;
 
   ctx.strokeStyle = 'rgba(26,26,26,0.08)';
-  ctx.lineWidth = 1;
+  const u = s / 952;
+  ctx.lineWidth = 1 * u;
   const step = s / 8;
   ctx.beginPath();
   for (let i = 1; i < 8; i++) {
@@ -213,7 +214,7 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
 
   const bLen = Math.max(16, Math.round(s * 0.05));
   ctx.strokeStyle = '#2B2B28';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3 * u;
   const cornerPlates = [
     [[x, y + bLen], [x, y], [x + bLen, y]],
     [[x + s - bLen, y], [x + s, y], [x + s, y + bLen]],
@@ -246,7 +247,7 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
     const pulse = 0.5 + 0.5 * Math.sin(nowSec * 6 + rel.phase);
     ctx.strokeStyle = color;
     ctx.globalAlpha = 0.4 + 0.3 * pulse;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.5 * u;
     ctx.strokeRect(-rSize * 0.65, -rSize * 0.65, rSize * 1.3, rSize * 1.3);
 
     ctx.globalAlpha = 1.0;
@@ -259,7 +260,7 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.5 * u;
     ctx.stroke();
 
     drawTabletopIcon(ctx, rel.type === 'FLASH' ? 'zap' : 'flame', 0, 1, Math.max(12, rSize * 0.8), { color: '#1C1C1A' });
@@ -315,7 +316,7 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
   ctx.fillRect(x + s, y + 6, 6, s);
   ctx.fillRect(x + 6, y + s, s, 6);
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 5;
+  ctx.lineWidth = 5 * (s / 952);
   ctx.strokeRect(x, y, s, s);
 }
 
@@ -324,15 +325,16 @@ export function drawZonePlayers(ctx, players, { cell = 0, leaderIndex = -1, with
     if (!isWorldEntityVisible(p)) continue;
     if (withFx && p.stun > 0 && Math.floor(p.blink / 0.15) % 2 === 0) continue;
 
+    const u = (p.radius || 18) / 18;
     ctx.save();
     ctx.translate(p.x, p.y);
 
     if (withFx && p.home && p.stun <= 0) {
       ctx.strokeStyle = p.color;
       ctx.globalAlpha = 0.45;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * u;
       ctx.beginPath();
-      ctx.arc(0, 0, p.radius + 3.5, 0, Math.PI * 2);
+      ctx.arc(0, 0, p.radius + 3.5 * u, 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = 1.0;
     }
@@ -346,7 +348,7 @@ export function drawZonePlayers(ctx, players, { cell = 0, leaderIndex = -1, with
     else if ((p.trail?.length || 0) >= 22) currentExp = 'panic';
     else if (p.relic) currentExp = 'excited';
 
-    drawBrutalAvatar(ctx, 0, 0, p.radius, {
+    drawGameAvatar(ctx, 0, 0, p.radius, p, {
       color: p.color,
       slotIndex: p.slot ?? p.index,
       facingAngle: p.angle,
@@ -354,20 +356,20 @@ export function drawZonePlayers(ctx, players, { cell = 0, leaderIndex = -1, with
       expression: currentExp,
       showPointer: true,
       borderColor: p.stun > 0 ? '#48CAE4' : '#1C1C1A',
-      borderWidth: 3,
+      borderWidth: 3 * u,
     });
 
     if (p.dashProg !== null && p.dashProg !== undefined) {
       ctx.save();
       ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-      ctx.lineWidth = 3.5;
+      ctx.lineWidth = 3.5 * u;
       ctx.beginPath();
-      ctx.arc(0, 0, p.radius + 5, 0, Math.PI * 2);
+      ctx.arc(0, 0, p.radius + 5 * u, 0, Math.PI * 2);
       ctx.stroke();
       ctx.strokeStyle = '#FFDE59';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 3 * u;
       ctx.beginPath();
-      ctx.arc(0, 0, p.radius + 5, -Math.PI / 2, -Math.PI / 2 + clamp01(p.dashProg) * Math.PI * 2);
+      ctx.arc(0, 0, p.radius + 5 * u, -Math.PI / 2, -Math.PI / 2 + clamp01(p.dashProg) * Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }

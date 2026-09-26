@@ -126,8 +126,10 @@ src/core/
   playerEntity.js           Ortak oyuncu varlığı yönetimi: createPlayer (varlık üretimi), tickEffectTimers, advancePlayer —
                             bomb, heist entegre (Faz 6 refactor, Eylül 2026)
   avatarInGame.js           Ortak oyun içi avatar çizimi: drawGameAvatar, normalizeExpression, blinkState —
-                            archer, ninja, bomb, heist, horde, crown entegre (Faz 7 refactor, Eylül 2026).
+                            archer, ninja, bomb, heist, horde, crown, collapse, clone, laser, snake, zone entegre (tanks komutan istisnası).
                             Saha içi avatar daima faceMode:'play' (ERIŞUAR/DESEN YOK) — madde 18.
+  qualityGate.js            Cihaz bağımsızlık kalite kapısı sözleşmesi: 7 kapı (I1-I7: ölçek, hız, geçiş, view sadakati, geometri, hareket ipuçları, okunabilirlik) + 4 rapor (I8-I11: oran sapması, gövde/saha, chrome payı, tepki süresi) + TUNING_ANCHOR (tablet 16:10 1180×820) + evaluateGame (Eylül 2026)
+  qualityAuditors.js        I4, I5, I6 kapıları için saf denetleyici ve tarayıcı fonksiyonları (auditViewFidelityInContent, auditMotionCuesInContent, auditUnscaledGeometryInContent) + fail-closed kontrol (Eylül 2026)
 
 src/ui/
   canvasUI.js               Tüm motorlar için ortak Canvas UI bileşenleri (renderLobbySeatCard,
@@ -473,6 +475,11 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
        * `src/ui/controllerLayoutEditor.js` remote phone ve LOCAL mobile yüzeylerde aynı canlı önizleme/size/drag/save/reset deneyimini sunar. Editör açıkken `GamepadManager` nötr input gönderir ve tüm input transport'unu bloklar; görsel hedeflerin hit-zone'ları editor arkasında kalmaz.
        * Mobil controller shell yalnız ikon toolbar'ı ve skor şeridini korur; oyuncu/oda/HUD/kontrol rehberi metinleri üst bantları doldurmaz. Lobi yüzeyi ortak noktalı beyaz zemini kullanır; düzen düğmesi hem lobi profil kartında hem pause sheet'te bulunur.
 
+  26. **Cihaz bağımsızlığı ve otomatik kalite kapısı (`npm run health` - 2026):**
+       * `src/core/qualityGate.js` tek kaynak kalite sözleşmesidir: Anchor viewport Tablet landscape (`1180x820`), 4 otoriter test modu (`TV_CONSOLE_HOST`, `LOCAL_TABLETOP`, `LOCAL_SINGLE`, `REMOTE_WORLD_VIEW`), 7 değişmezlik kapısı (I1: Scale, I2: Speed, I3: Geometry, I4: World View Parity, I5: Motion Cues, I6: Avatar Contract, I7: Readability) ve 4 ayar raporu (I8: Crossing Time, I9: Crowd Density, I10: Dynamic Range, I11: Interaction Budget).
+       * `scripts/health.mjs` CLI aracı Vite SSR üzerinden 15 oyunun tamamını otomatik simüle edip doğrular (`npm run health`). 16. oyun bu kapıdan 0 ihlalle geçmeden eklenemez.
+       * Kusur düzeltmeleri: B5 tekil profil (`arena.profile`), B7 varlık yarıçap standardizasyonu (`COLLAPSE`, `SNAKE`, `CLONE` body radius/size), B6 world-packet yarıçap paritesi, B11 `ctx.lineWidth * this.arena.unit` ölçeklemesi ve `faceMode: 'play'` oyun içi avatar sözleşmesi tamamlandı. 15/15 oyun 0 kusurla kapıdan geçer.
+
 ---
 
 ## 6. Yeni Oyun Ekleme Adımları (Hızlı Rehber)
@@ -488,7 +495,7 @@ Yeni bir oyun ekleneceğinde aşağıdaki kayıtlar güncellenir:
 8. `public/sw.js`: yeni görseli precache'e ekle ve cache sürümünü artır.
 9. `public/assets/games/[oyun].jpg`: 1:1 neo-brutalist görsel.
 10. `docs/PROJECT_MAP.md` + `AGENTS.md`: motor/AI/dosya/kontrol kayıtları.
-11. `npm test`, `npm run check`, `npm run build`: regresyon, statik kontrol ve production build yeşil olmadan tamamlanmaz.
+11. `npm test`, `npm run check`, `npm run build`, `npm run health`: regresyon, statik kontrol, production build ve 15 oyunluk kalite kapısı yeşil olmadan tamamlanmaz.
 
 ---
 

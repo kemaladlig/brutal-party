@@ -181,6 +181,8 @@ export class LaserGame extends BaseMiniGame {
     }
     for (const p of this.players) {
       this.remapPoint(p, oldArena, this.arena);
+      p.radius = fieldRadius(this.arena, 19, 0.02);
+      p.speed = fieldSpeed(this.arena, LASER_TUNING.SPEED);
       clampToArena(p, p.radius * 0.74, this.arena, { zeroVelocity: true });
       this.collideObstacles(p, p.radius * 0.74);
     }
@@ -371,6 +373,7 @@ export class LaserGame extends BaseMiniGame {
         // (masaüstü %2.0 / %1.5). Motor ölçekler, view `player.radius`
         // okur, world packet taşır (ARCHER/NINJA ile aynı desen).
         radius: fieldRadius(this.arena, 19, 0.02),
+        speed: fieldSpeed(this.arena, LASER_TUNING.SPEED),
         steerX: 0, steerY: 0, kbx: 0, kby: 0, remoteActive: false,
         hp: LASER_TUNING.MAX_HP, cooldown: 0,
         ammo: LASER_TUNING.MAX_AMMO, reloadTimer: 0, shotCooldown: 0,
@@ -1197,7 +1200,7 @@ export class LaserGame extends BaseMiniGame {
         c.save();
         c.fillStyle = '#FFFFFF';
         c.strokeStyle = '#1A1A1A';
-        c.lineWidth = 3;
+        c.lineWidth = Math.max(1.5, 3 * (this.arena?.unit ?? 1));
         c.fillRect(mx, my, mw, mh);
         c.strokeRect(mx, my, mw, mh);
         c.fillStyle = '#1A1A1A';

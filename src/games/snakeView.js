@@ -1,7 +1,7 @@
 // Shared Snake world snapshot + rendering boundary.
 // The authoritative game uses the same drawing helpers as remote phone clients.
 
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { drawGameAvatar } from '../core/avatarInGame.js';
 import { isWorldEntityVisible } from './worldCore.js';
 
 const TRAIL_SPACING = 10;
@@ -106,6 +106,7 @@ export function createSnakeWorldPacket(game) {
       x: round1(player.x || 0),
       y: round1(player.y || 0),
       angle: round1(player.angle || 0),
+      radius: round1(player.radius || 15),
       boost: !!player.isBoost,
       energy: Math.round(player.boostEnergy ?? 100),
       locked: !!player.boostLocked,
@@ -174,12 +175,13 @@ export function isValidSnakeWorldFrame(frame) {
 
 export function drawSnakeArena(ctx, arena, walls) {
   const { left, top, width, height } = arena;
+  const u = arena?.unit ?? 1;
   ctx.fillStyle = '#FAF7F2';
   ctx.fillRect(left, top, width, height);
 
   ctx.strokeStyle = '#EBE7DF';
-  ctx.lineWidth = 1;
-  const step = 36;
+  ctx.lineWidth = 1 * u;
+  const step = 36 * u;
   ctx.beginPath();
   for (let x = left + step; x < left + width; x += step) {
     ctx.moveTo(x, top);
@@ -197,7 +199,7 @@ export function drawSnakeArena(ctx, arena, walls) {
     ctx.fillStyle = '#E8E4DA';
     ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * u;
     ctx.strokeRect(wall.x, wall.y, wall.w, wall.h);
 
     ctx.save();
@@ -205,7 +207,7 @@ export function drawSnakeArena(ctx, arena, walls) {
     ctx.rect(wall.x, wall.y, wall.w, wall.h);
     ctx.clip();
     ctx.strokeStyle = 'rgba(26, 26, 26, 0.12)';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 4 * u;
     for (let ox = -wall.h; ox < wall.w + wall.h; ox += 14) {
       ctx.beginPath();
       ctx.moveTo(wall.x + ox, wall.y);
@@ -216,7 +218,7 @@ export function drawSnakeArena(ctx, arena, walls) {
   }
 
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 6;
+  ctx.lineWidth = 6 * u;
   ctx.strokeRect(left, top, width, height);
 }
 
@@ -224,6 +226,7 @@ export function drawSnakeFoods(ctx, foods, now = 0) {
   for (const food of foods) {
     const pulse = 1 + Math.sin(now / 220 + (food.pulse || 0)) * 0.08;
     const radius = ((food.size || 13) / 2) * pulse;
+    const u = radius / 6.5;
     ctx.fillStyle = 'rgba(26, 26, 26, 0.25)';
     ctx.beginPath();
     ctx.arc(food.x + 2, food.y + 2, radius, 0, Math.PI * 2);
@@ -235,7 +238,7 @@ export function drawSnakeFoods(ctx, foods, now = 0) {
       ctx.arc(food.x, food.y, radius, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2.5 * u;
       ctx.stroke();
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '900 11px sans-serif';
@@ -248,7 +251,7 @@ export function drawSnakeFoods(ctx, foods, now = 0) {
       ctx.arc(food.x, food.y, radius, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2.5 * u;
       ctx.stroke();
       ctx.fillStyle = '#FFDE59';
       ctx.font = '900 10px sans-serif';
@@ -261,14 +264,14 @@ export function drawSnakeFoods(ctx, foods, now = 0) {
       ctx.arc(food.x, food.y, radius, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * u;
       ctx.stroke();
       ctx.fillStyle = '#FFF';
       ctx.beginPath();
       ctx.arc(food.x - radius * 0.35, food.y - radius * 0.35, radius * 0.28, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#2F6A4F';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * u;
       ctx.beginPath();
       ctx.moveTo(food.x, food.y - radius);
       ctx.lineTo(food.x + 2, food.y - radius - 3);
@@ -299,30 +302,32 @@ export function drawSnakePlayers(ctx, players, now = 0) {
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
 
-    ctx.lineWidth = 14;
+    const headRadius = player.radius || 15;
+    const u = headRadius / 15;
+
+    ctx.lineWidth = 14 * u;
     ctx.strokeStyle = '#1A1A1A';
     traceSnakePath(ctx, player);
     ctx.stroke();
 
-    ctx.lineWidth = 9;
+    ctx.lineWidth = 9 * u;
     ctx.strokeStyle = player.color || '#D84727';
     traceSnakePath(ctx, player);
     ctx.stroke();
 
-    const headRadius = player.isBoost || player.boost ? 10 : 8.5;
     if (player.isBoost || player.boost) {
       ctx.fillStyle = '#FFDE59';
       ctx.beginPath();
-      ctx.arc(player.x, player.y, headRadius + 4, 0, Math.PI * 2);
+      ctx.arc(player.x, player.y, headRadius + 4 * u, 0, Math.PI * 2);
       ctx.fill();
     }
 
     if (finite(player.tongueTimer) && player.tongueTimer < 0.4) {
-      const tongueLength = 9;
+      const tongueLength = 9 * u;
       const tongueX = player.x + Math.cos(player.angle) * (headRadius + tongueLength);
       const tongueY = player.y + Math.sin(player.angle) * (headRadius + tongueLength);
       ctx.strokeStyle = '#D84727';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * u;
       ctx.beginPath();
       ctx.moveTo(player.x + Math.cos(player.angle) * headRadius, player.y + Math.sin(player.angle) * headRadius);
       ctx.lineTo(tongueX, tongueY);
@@ -333,7 +338,7 @@ export function drawSnakePlayers(ctx, players, now = 0) {
       ? 'excited'
       : (player.boostLocked || player.locked ? 'panic' : 'normal');
 
-    drawBrutalAvatar(ctx, player.x, player.y, headRadius, {
+    drawGameAvatar(ctx, player.x, player.y, headRadius, player, {
       color: player.color || '#D84727',
       avatar: player.avatar || null,
       slotIndex: player.slot ?? player.index ?? 0,
@@ -342,21 +347,21 @@ export function drawSnakePlayers(ctx, players, now = 0) {
       expression,
       showPointer: true,
       borderColor: '#1A1A1A',
-      borderWidth: 2.5,
+      borderWidth: 2.5 * u,
       shadowOffset: 2,
     });
 
     const energy = player.boostEnergy ?? player.energy ?? 100;
     if (energy < 98) {
-      const arcRadius = headRadius + 6;
+      const arcRadius = headRadius + 6 * u;
       ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-      ctx.lineWidth = 3.5;
+      ctx.lineWidth = 3.5 * u;
       ctx.beginPath();
       ctx.arc(player.x, player.y, arcRadius, 0, Math.PI * 2);
       ctx.stroke();
 
       ctx.strokeStyle = (player.boostLocked || player.locked) ? '#D84727' : '#FFDE59';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 3 * u;
       ctx.beginPath();
       ctx.arc(player.x, player.y, arcRadius, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * (energy / 100)));
       ctx.stroke();

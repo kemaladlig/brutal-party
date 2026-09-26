@@ -77,7 +77,7 @@ if (params.get('probe') === 'zoom') {
   frame.style.cssText = `width:760px;height:2600px;border:0;transform:scale(${num('z', 2.2)});transform-origin:top left`;
   out.appendChild(frame);
   document.title = 'probe zoom';
-} else if (['extent', 'face', 'card'].includes(params.get('probe'))) {
+} else if (['extent', 'face', 'card', 'sparks'].includes(params.get('probe'))) {
   const R = num('r', 16);
   const size = Math.ceil(R * 8);
   const results = [];
@@ -222,6 +222,120 @@ if (params.get('probe') === 'zoom') {
     });
     strip.appendChild(row);
     out.appendChild(strip);
+  }
+
+  // `sparks` probu: dokunma patlamasının merkezi avatar merkezinde mi?
+  // Gerçek kod yolu (`spawnBoingSparks` + `stepSparks` + `drawSparks`) tohumlu
+  // rastgelelikle çalıştırılır, t=0.30sn'ye ilerletilir; sonra avatar diski
+  // (1.18r) ve zemin gölgesi dışındaki piksellerin ağırlık merkezi, doğuş
+  // merkeziyle karşılaştırılır. Kullanım: ?probe=sparks
+  if (params.get('probe') === 'sparks') {
+    const { syncStageCanvas, drawAvatarStage, spawnBoingSparks, stepSparks, drawSparks } =
+      await import('../../src/ui/avatarStage.js');
+    // Deterministik LCG — aynı tohum, aynı patlama; göz kararı karşılaştırma stabil olur.
+    let seed = 1234567;
+    const rand = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+
+    const c = document.createElement('canvas');
+    const CSS = 320;
+    c.style.width = `${CSS}px`;
+    c.style.height = `${CSS}px`;
+    c.style.background = '#F4F4F0';
+    out.appendChild(c);
+    const stage = syncStageCanvas(c);
+    const { ctx, w, h, r } = stage;
+    const dpr = c.width / w;
+    const cx = w / 2;
+    const cy = h / 2;
+
+    drawAvatarStage(ctx, w, h, r, { color: '#2F6A4F', expression: 'FOCUS', facingAngle: 0.4 });
+    const sparks = spawnBoingSparks(cx, cy, r, '#2F6A4F', rand);
+    for (let t = 0; t < 0.3; t += 1 / 60) stepSparks(sparks, r, 1 / 60);
+    const tBefore = ctx.getTransform();
+    drawSparks(ctx, r, sparks);
+    const tAfter = ctx.getTransform();
+    const fmtT = (m) => [m.a, m.b, m.c, m.d, m.e, m.f].map((v) => +v.toFixed(3)).join(',');
+    const sparkDump = sparks.map((p) => ({
+      x: +p.x.toFixed(1),
+      y: +p.y.toFixed(1),
+      life: +p.life.toFixed(2),
+      gold: p.color === '#FFD700',
+    }));
+
+    // Ölçüm: AYRI ŞEFFAF KATMANDA yalnız kıvılcımlar çizilir — altın
+    // pikseller gövde yeşiliyle karışmadan sayılır. (Ana canvas'ta yarı
+    // saydam altın, yeşil gövde üstünde zeytin rengine (151,160,40) döner ve
+    // renk filtresi ıskalardı; bu yüzden katman şart.)
+    const oc = document.createElement('canvas');
+    oc.width = c.width;
+    oc.height = c.height;
+    const og = oc.getContext('2d');
+    og.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawSparks(og, r, sparks);
+    const img = og.getImageData(0, 0, oc.width, oc.height).data;
+    const sx = cx * dpr;
+    const sy = (cy - r * 0.23) * dpr; // doğuş merkezi
+    let n = 0, sumX = 0, sumY = 0, left = 0, right = 0, alphaN = 0;
+    const pxAt = (px, py) => {
+      const xi = Math.max(0, Math.min(c.width - 1, Math.round(px)));
+      const yi = Math.max(0, Math.min(c.height - 1, Math.round(py)));
+      const o = (yi * c.width + xi) * 4;
+      return [img[o], img[o + 1], img[o + 2], img[o + 3]].join(',');
+    };
+    for (let y = 0; y < oc.height; y += 1) {
+      for (let x = 0; x < oc.width; x += 1) {
+        const o = (y * oc.width + x) * 4;
+        if (img[o + 3] >= 8) alphaN += 1;
+        if (img[o + 3] < 8) continue;
+        const R8 = img[o];
+        const G8 = img[o + 1];
+        const B8 = img[o + 2];
+        if (!(R8 > 200 && G8 > 170 && B8 < 120)) continue; // yalnız altın kıvılcım
+        n += 1;
+        sumX += x;
+        sumY += y;
+        if (x < sx) left += 1; else right += 1;
+      }
+    }
+    const report = {
+      probeBuild: 7, // prob kodu değişince artır: bayat sayfa çalışıyorsa anlaşılsın
+      devicePixelRatio: window.devicePixelRatio || 1,
+      alphaPixels: alphaN,
+      // Kıvılcım #9'un hesaplanan konumundaki gerçek piksel (ölçek dpr=1 varsayar).
+      sampleAtSpark9: pxAt(sparks[9].x * dpr, sparks[9].y * dpr),
+      sampleAtCenter: pxAt(sx, sy),
+      canvasBitmap: [c.width, c.height],
+      stageWH: [w, h],
+      transformBeforeSparks: fmtT(tBefore),
+      transformAfterSparks: fmtT(tAfter),
+      sparkDump,
+      sparkPixels: n,
+      centroidDxCss: +(((sumX / Math.max(1, n)) - sx) / dpr).toFixed(2),
+      centroidDyCss: +(((sumY / Math.max(1, n)) - sy) / dpr).toFixed(2),
+      leftPixels: left,
+      rightPixels: right,
+      radiusCss: r,
+    };
+    // Referans artısı: tam doğuş merkezine kırmızı işaret + koordinat
+    // çerçevesi (çerçeve canvas kenarına oturmuyorsa transform bozuktur).
+    ctx.save();
+    ctx.strokeStyle = '#FF0000';
+    ctx.lineWidth = Math.max(1, 2 / dpr);
+    ctx.strokeRect(1, 1, w - 2, h - 2);
+    const m = r * 0.35;
+    ctx.beginPath();
+    ctx.moveTo(cx - m, cy - r * 0.23);
+    ctx.lineTo(cx + m, cy - r * 0.23);
+    ctx.moveTo(cx, cy - r * 0.23 - m);
+    ctx.lineTo(cx, cy - r * 0.23 + m);
+    ctx.stroke();
+    ctx.restore();
+
+    const pre = document.createElement('pre');
+    pre.style.padding = '12px';
+    pre.textContent = JSON.stringify(report, null, 1);
+    out.appendChild(pre);
+    document.title = 'probe sparks';
   }
 } else {
 

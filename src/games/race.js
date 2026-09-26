@@ -926,7 +926,8 @@ export class RaceGame extends BaseMiniGame {
     ctx.fillStyle = UI_COLORS.turbo;
     ctx.fillRect(-pad.w / 2, -pad.h / 2, pad.w, pad.h);
     ctx.strokeStyle = UI_COLORS.ink;
-    ctx.lineWidth = 2.5;
+    const u = this.arena.unit || 1;
+    ctx.lineWidth = Math.max(1, 2.5 * u);
     ctx.strokeRect(-pad.w / 2, -pad.h / 2, pad.w, pad.h);
     drawTabletopIcon(ctx, 'zap', 0, 0, Math.min(pad.w, pad.h) * 0.62, {
       color: UI_COLORS.ink,
@@ -950,8 +951,9 @@ export class RaceGame extends BaseMiniGame {
 
     if (player.isDrafting) {
       ctx.save();
+      const u = this.arena.unit || 1;
       ctx.strokeStyle = '#38BDF8';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = Math.max(1, 2 * u);
       ctx.beginPath();
       ctx.moveTo(player.x, player.y + jumpOffsetY);
       ctx.lineTo(
@@ -973,8 +975,9 @@ export class RaceGame extends BaseMiniGame {
       ctx.fillRect(-28, -8, 14, 16);
     }
     if (player.empDisruptedTimer > 0) {
+      const u = this.arena.unit || 1;
       ctx.strokeStyle = '#0EA5E9';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = Math.max(1, 3 * u);
       ctx.beginPath();
       ctx.arc(0, 0, 20, 0, Math.PI * 2);
       ctx.stroke();
@@ -989,7 +992,8 @@ export class RaceGame extends BaseMiniGame {
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = UI_COLORS.ink;
-    ctx.lineWidth = 2.5;
+    const u = this.arena.unit || 1;
+    ctx.lineWidth = Math.max(1, 2.5 * u);
     ctx.stroke();
     ctx.restore();
 
@@ -1002,7 +1006,8 @@ export class RaceGame extends BaseMiniGame {
       ctx.fillStyle = UI_COLORS.card;
       ctx.fill();
       ctx.strokeStyle = UI_COLORS.ink;
-      ctx.lineWidth = 1;
+      const u = this.arena.unit || 1;
+      ctx.lineWidth = Math.max(1, 1 * u);
       ctx.stroke();
     }
 
@@ -1056,14 +1061,15 @@ export class RaceGame extends BaseMiniGame {
     }
 
     const arena = this.arena;
+    const u = arena.unit || 1;
     ctx.fillStyle = UI_COLORS.paperWarm;
     ctx.fillRect(arena.left, arena.top, arena.width, arena.height);
     ctx.strokeStyle = UI_COLORS.ink;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = Math.max(1, 4 * u);
     ctx.strokeRect(arena.left, arena.top, arena.width, arena.height);
 
     ctx.strokeStyle = 'rgba(26, 26, 26, 0.06)';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = Math.max(1, 1 * u);
     for (let x = arena.left; x < arena.right; x += 40) {
       ctx.beginPath();
       ctx.moveTo(x, arena.top);
@@ -1080,7 +1086,7 @@ export class RaceGame extends BaseMiniGame {
     for (const pulse of this.empPulses) {
       ctx.save();
       ctx.strokeStyle = '#0EA5E9';
-      ctx.lineWidth = 4;
+      ctx.lineWidth = Math.max(1, 4 * u);
       ctx.beginPath();
       ctx.arc(pulse.x, pulse.y, pulse.radius, 0, Math.PI * 2);
       ctx.stroke();
@@ -1094,7 +1100,7 @@ export class RaceGame extends BaseMiniGame {
       ctx.arc(slick.x, slick.y, slick.radius, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = UI_COLORS.turbo;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = Math.max(1, 2 * u);
       ctx.stroke();
       ctx.restore();
     }
@@ -1121,7 +1127,7 @@ export class RaceGame extends BaseMiniGame {
       ctx.fill();
       ctx.globalAlpha = 0.85;
       ctx.strokeStyle = checkpoint.color;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = Math.max(1, 3 * u);
       ctx.setLineDash([6, 4]);
       ctx.stroke();
       ctx.setLineDash([]);

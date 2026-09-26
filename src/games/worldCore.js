@@ -129,7 +129,7 @@ export function drawAlphaTexts(ctx, texts, { size = 15, outline = false } = {}) 
     if (outline) {
       ctx.lineJoin = 'round';
       ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
-      ctx.lineWidth = 3.5;
+      ctx.lineWidth = 3.5 * (size / 15);
       ctx.strokeText(ft.text, ft.x, ft.y);
     }
     ctx.fillStyle = ft.color || '#1A1A1A';

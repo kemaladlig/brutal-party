@@ -62,6 +62,7 @@ export class Ball {
     this.baseMaxSpeed = this.speedCap;
     this.currentMinSpeed = this.baseMinSpeed;
     this.currentMaxSpeed = this.speedCap;
+    this.speed = this.startSpeed;
   }
 
   spawnShockwave(x, y, color = '#1A1A1A') {
@@ -633,7 +634,7 @@ export class Ball {
     ctx.fill();
 
     ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = Math.max(1.5, 2.5 * (baseRadius / 11));
     ctx.stroke();
 
     // Inner highlight if smash

@@ -10,7 +10,7 @@ import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnaps
 import { renderFireCooldown } from '../ui/hud.js';
 import { isWorldEntityVisible } from './worldCore.js';
 
-const ARCHER_RADIUS = 18;
+const ARCHER_RADIUS = 28;
 const FALLBACK = '#D84727';
 
 const round1 = (v) => Math.round(Number(v) * 10) / 10;
@@ -60,7 +60,7 @@ export function createArcherWorldPacket(game) {
       y: round1(p.y || 0),
       // Yarıçap host'ta hesaplanır (sahayla ölçeklenir) ve paketle taşınır;
       // client aynı view çizimini kullandığı için yeniden ölçeklemez.
-      radius: round1(p.radius || 0) || undefined,
+      radius: round1(p.radius || ARCHER_RADIUS),
       angle: round1(p.angle || 0),
       charging: !!p.charging,
       charge: round1(p.charge || 0),
@@ -137,11 +137,12 @@ export function isValidArcherWorldFrame(frame) {
 // --- Ortak çizim yardımcıları (host + client aynı fonksiyonu çağırır) ---
 export function drawArcherArena(ctx, arena, obstacles) {
   const { left, top, width, height } = arena;
+  const u = arena?.unit ?? 1;
   ctx.fillStyle = '#E8E5DF';
   ctx.fillRect(left, top, width, height);
   for (const obs of obstacles) drawObstacle(ctx, obs, { variant: 'stone' });
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 6;
+  ctx.lineWidth = 6 * u;
   ctx.strokeRect(left, top, width, height);
 }
 
@@ -151,14 +152,15 @@ export function drawArcherPickups(ctx, pickups) {
   }
 }
 
-export function drawArcherArrows(ctx, arrows) {
+export function drawArcherArrows(ctx, arrows, arena = null) {
+  const u = arena?.unit ?? 1;
   for (const a of arrows) {
     const ang = Math.atan2(a.vy || 0, a.vx || 0);
     ctx.save();
     ctx.translate(a.x, a.y);
     ctx.rotate(ang);
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 4 * u;
     ctx.beginPath();
     ctx.moveTo(-14, 0);
     ctx.lineTo(10, 0);
@@ -182,7 +184,7 @@ function archerAimSway(player) {
   return Math.sin(player.swayPhase || 0) * (0.03 + 0.12 * (1 - (player.charge || 0)));
 }
 
-export function drawArcherPlayers(ctx, players, { showFx = false, now = 0 } = {}) {
+export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena = null } = {}) {
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
     const slotIndex = (player.slot ?? player.index) ?? 0;
@@ -191,6 +193,7 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0 } = {}
     // ikinci kez ölçeklenmemeli. `fitWorld` zaten dünya uzayını client
     // canvas'ına sığdırır. Fallback yalnız eski paketler içindir.
     const R = player.radius || ARCHER_RADIUS;
+    const u = arena?.unit ?? (R / ARCHER_RADIUS);
     ctx.save();
     ctx.translate(player.x, player.y);
     ctx.rotate(player.angle || 0);
@@ -199,7 +202,7 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0 } = {}
       ctx.save();
       ctx.rotate(archerAimSway(player));
       ctx.strokeStyle = player.charge >= 1 ? '#8B5CF6' : 'rgba(26,26,26,0.35)';
-      ctx.lineWidth = player.charge >= 1 ? 3 : 2;
+      ctx.lineWidth = (player.charge >= 1 ? 3 : 2) * u;
       ctx.setLineDash([8, 6]);
       ctx.beginPath();
       ctx.moveTo(R + 8, 0);
@@ -211,7 +214,7 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0 } = {}
     if (showFx) {
       ctx.save();
       ctx.strokeStyle = player.charging ? '#8B5CF6' : 'rgba(26,26,26,0.45)';
-      ctx.lineWidth = 3.5;
+      ctx.lineWidth = 3.5 * u;
       ctx.beginPath();
       ctx.arc(0, 0, R + 6, -1.1, 1.1);
       ctx.stroke();
@@ -223,7 +226,7 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0 } = {}
       }
       if ((player.shield || 0) > 0) {
         ctx.strokeStyle = '#06B6D4';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 3 * u;
         ctx.setLineDash([6, 5]);
         ctx.beginPath();
         ctx.arc(0, 0, R + 11, 0, Math.PI * 2);
@@ -232,7 +235,7 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0 } = {}
       }
       if ((player.spawnProt || 0) > 0) {
         ctx.strokeStyle = '#8B5CF6';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2.5 * u;
         ctx.setLineDash([3, 4]);
         ctx.beginPath();
         ctx.arc(0, 0, R + 15, 0, Math.PI * 2);
@@ -250,7 +253,7 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0 } = {}
       expression: player.charging ? 'angry' : (stun ? 'dizzy' : 'normal'),
       showPointer: true,
       borderColor: '#1A1A1A',
-      borderWidth: 2.5,
+      borderWidth: 2.5 * u,
       // Dönüş view seviyesinde yapıldığı için avatarın yerel yüzü sabit;
       // bakış da YEREL uzayda verilir (gövde dönüşüne eklenir, üstüne binmez).
       lookAngle: player.charge > 0 ? archerAimSway(player) : undefined,

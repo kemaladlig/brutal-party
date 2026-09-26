@@ -30,7 +30,8 @@ export function createTanksWorldPacket(game) {
       x: round1(tk.x || 0),
       y: round1(tk.y || 0),
       angle: round1(tk.angle || 0),
-      size: round1(tk.size || 20),
+      size: round1(tk.size || 26),
+      radius: round1(tk.size || 26),
       driving: tk.isDriving === true,
       muzzle: round1(tk.muzzleFlashTimer || 0),
       bot: tk.slotType === 'bot_normal' || tk.slotType === 'bot_god',
@@ -125,12 +126,13 @@ export function isValidTanksWorldFrame(frame) {
 // --- Ortak çizim yardımcıları (host + client) ---
 export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null) {
   const { left, top, right, bottom, width, height, size, cx, cy } = arena;
+  const u = arena?.unit ?? 1;
 
   ctx.fillStyle = '#FAF7F2';
   ctx.fillRect(left, top, width, height);
 
   ctx.strokeStyle = '#E5E0D6';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.5 * u;
   const gridStep = size / 6;
   for (let x = left + gridStep; x < right; x += gridStep) {
     ctx.beginPath();
@@ -146,7 +148,7 @@ export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null) {
   }
 
   ctx.strokeStyle = '#DDD7CC';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 * u;
   ctx.beginPath();
   ctx.arc(cx, cy, size * 0.15, 0, Math.PI * 2);
   ctx.stroke();
@@ -159,7 +161,7 @@ export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null) {
     ctx.arc(suddenDeath.x, suddenDeath.y, suddenDeath.radius, 0, Math.PI * 2, true);
     ctx.fill('evenodd');
     ctx.strokeStyle = '#D84727';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * u;
     ctx.setLineDash([8, 6]);
     ctx.beginPath();
     ctx.arc(suddenDeath.x, suddenDeath.y, suddenDeath.radius, 0, Math.PI * 2);
@@ -169,7 +171,7 @@ export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null) {
 
   const bLen = Math.max(16, Math.round(size * 0.05));
   ctx.strokeStyle = '#2B2B28';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3 * u;
   const cornerPlates = [
     [[left, top + bLen], [left, top], [left + bLen, top]],
     [[right - bLen, top], [right, top], [right, top + bLen]],
@@ -190,10 +192,10 @@ export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null) {
     ctx.fillStyle = '#2B2B28';
     ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.5 * u;
     ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
     ctx.strokeStyle = '#5E5E58';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.5 * u;
     ctx.beginPath();
     ctx.moveTo(obs.x + 2, obs.y + obs.h - 2);
     ctx.lineTo(obs.x + 2, obs.y + 2);
@@ -201,7 +203,7 @@ export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null) {
     ctx.stroke();
     if (obs.w >= 28 && obs.h >= 28) {
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * u;
       const pad = 6;
       ctx.strokeRect(obs.x + pad, obs.y + pad, obs.w - pad * 2, obs.h - pad * 2);
       ctx.fillStyle = '#D99B26';
@@ -215,7 +217,7 @@ export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null) {
   ctx.fillRect(right, top + 6, 6, height);
   ctx.fillRect(left + 6, bottom, width, 6);
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 6;
+  ctx.lineWidth = 6 * u;
   ctx.strokeRect(left, top, width, height);
 }
 
@@ -235,12 +237,13 @@ export function drawTanksBullets(ctx, bullets, ownerColors) {
   }
 }
 
-export function drawTanksTracers(ctx, tracers) {
+export function drawTanksTracers(ctx, tracers, arena = null) {
+  const u = arena?.unit ?? 1;
   for (const tracer of tracers || []) {
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, (tracer.life || 0) / 0.12));
     ctx.strokeStyle = tracer.color || '#1A1A1A';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * u;
     ctx.beginPath();
     ctx.moveTo(tracer.x1, tracer.y1);
     ctx.lineTo(tracer.x2, tracer.y2);
@@ -276,6 +279,7 @@ export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true } = {})
   for (const tank of tanks) {
     if (!isWorldEntityVisible(tank)) continue;
     const s = tank.size || 20;
+    const u = arena?.unit ?? (s / 40);
 
     ctx.save();
     ctx.translate(tank.x, tank.y);
@@ -288,13 +292,16 @@ export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true } = {})
     ctx.fillStyle = tank.color;
     ctx.fillRect(-s / 2 + 2, -s / 2 + 2, s - 4, s - 4);
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.5 * u;
     ctx.strokeRect(-s / 2 + 2, -s / 2 + 2, s - 4, s - 4);
 
     ctx.fillStyle = '#1A1A1A';
     ctx.fillRect(0, -3.5, s * 0.78, 7);
 
     ctx.save();
+    // İSTİSNA (Adım 3.5): TANKS'ta avatar tankın kendisi DEĞİL, şasi üzerine
+    // yerleşen mini komutan figürüdür (s*0.32). Bu figürde disk hacmi/büyük gözler
+    // yerine şasi üstü rozet ölçeğinde brutal avatar çizilir.
     drawBrutalAvatar(ctx, 0, 0, s * 0.32, {
       color: tank.color,
       slotIndex: tank.slot ?? tank.index,
@@ -304,7 +311,7 @@ export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true } = {})
       facingAngle: 0,
       expression: tank.driving ? 'FOCUS' : 'normal',
       showPointer: false,
-      borderWidth: 1.8,
+      borderWidth: 1.8 * u,
       shadowOffset: 1,
     });
     ctx.restore();
@@ -331,7 +338,7 @@ export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true } = {})
       ctx.beginPath();
       ctx.arc(tank.x, tank.y, s * 0.92, 0, Math.PI * 2);
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2.5 * u;
       ctx.setLineDash([4, 4]);
       ctx.stroke();
       ctx.restore();

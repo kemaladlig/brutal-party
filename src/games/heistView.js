@@ -28,7 +28,7 @@ export function createHeistWorldPacket(game) {
       x: round1(p.x || 0),
       y: round1(p.y || 0),
       angle: round1(p.facingAngle || 0),
-      radius: round1(p.radius || 14),
+      radius: round1(p.radius),
       stumble: round1(p.stumbleTimer || 0),
       tackling: p.isTackling === true,
       carried: Number(p.carriedGold) || 0,
@@ -104,17 +104,18 @@ export function isValidHeistWorldFrame(frame) {
 // --- Ortak çizim yardımcıları (host + client) ---
 export function drawHeistArena(ctx, arena, pillars) {
   const { left, top, right, bottom, width, height, size, cx, cy } = arena;
+  const u = arena?.unit ?? (size ? size / 952 : 1);
 
   ctx.fillStyle = '#FAF7F2';
   ctx.fillRect(left, top, width, height);
 
   ctx.strokeStyle = '#E8E2D8';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = Math.max(1, 1.5 * u);
   ctx.strokeRect(left + width * 0.12, top + height * 0.12, width * 0.76, height * 0.76);
 
   ctx.strokeStyle = '#D99B26';
-  ctx.lineWidth = 2.5;
-  ctx.setLineDash([6, 6]);
+  ctx.lineWidth = Math.max(1.5, 2.5 * u);
+  ctx.setLineDash([6 * u, 6 * u]);
   ctx.beginPath();
   ctx.arc(cx, cy, size * 0.22, 0, Math.PI * 2);
   ctx.stroke();
@@ -122,7 +123,7 @@ export function drawHeistArena(ctx, arena, pillars) {
 
   const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
   ctx.strokeStyle = '#2B2B28';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = Math.max(1.5, 3 * u);
   const cornerPlates = [
     [[left, top + bLen], [left, top], [left + bLen, top]],
     [[right - bLen, top], [right, top], [right, top + bLen]],
@@ -141,7 +142,7 @@ export function drawHeistArena(ctx, arena, pillars) {
   ctx.fillRect(right, top + 6, 6, height);
   ctx.fillRect(left + 6, bottom, width, 6);
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 4;
+  ctx.lineWidth = Math.max(2, 4 * u);
   ctx.strokeRect(left, top, width, height);
 
   for (const pil of pillars) {
@@ -150,10 +151,10 @@ export function drawHeistArena(ctx, arena, pillars) {
     ctx.fillStyle = '#2B2B28';
     ctx.fillRect(pil.x, pil.y, pil.w, pil.h);
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = Math.max(1.5, 2.5 * u);
     ctx.strokeRect(pil.x, pil.y, pil.w, pil.h);
     ctx.strokeStyle = '#6E6E66';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1, 1.5 * u);
     ctx.beginPath();
     ctx.moveTo(pil.x + 2, pil.y + pil.h - 2);
     ctx.lineTo(pil.x + 2, pil.y + 2);
@@ -161,12 +162,12 @@ export function drawHeistArena(ctx, arena, pillars) {
     ctx.stroke();
     if (pil.w >= 28 && pil.h >= 28) {
       ctx.strokeStyle = '#3E3E38';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = Math.max(1, 1.5 * u);
       const pad = 6;
       ctx.strokeRect(pil.x + pad, pil.y + pad, pil.w - pad * 2, pil.h - pad * 2);
       ctx.fillStyle = '#D99B26';
       ctx.beginPath();
-      ctx.arc(pil.x + pil.w / 2, pil.y + pil.h / 2, 2.5, 0, Math.PI * 2);
+      ctx.arc(pil.x + pil.w / 2, pil.y + pil.h / 2, 2.5 * u, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -179,12 +180,13 @@ export function drawHeistVaults(ctx, vaults, players) {
     if (!isWorldEntityVisible(p)) continue;
 
     const isTop = v.playerIndex === 1 || v.playerIndex === 2;
+    const vu = (v.w || 80) / 80;
 
     ctx.save();
     ctx.fillStyle = 'rgba(217, 155, 38, 0.12)';
     ctx.fillRect(v.x, v.y, v.w, v.h);
     ctx.strokeStyle = p.color || '#D99B26';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(1.5, 3 * vu);
     ctx.strokeRect(v.x, v.y, v.w, v.h);
 
     ctx.save();
@@ -229,10 +231,10 @@ export function drawHeistVaults(ctx, vaults, players) {
           ctx.closePath();
           ctx.fill();
           ctx.strokeStyle = '#1C1C1A';
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = Math.max(1, 1.5 * vu);
           ctx.stroke();
           ctx.strokeStyle = '#FFF6C9';
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = Math.max(1, 1.5 * vu);
           ctx.beginPath();
           ctx.moveTo(ix + 4, iy + 3);
           ctx.lineTo(ix + iw - 4, iy + 3);
@@ -257,6 +259,7 @@ export function drawHeistLoot(ctx, loot) {
     ctx.save();
     ctx.translate(item.x, item.y);
     const r = item.radius || 10;
+    const lu = r / 10;
 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
     ctx.beginPath();
@@ -273,14 +276,14 @@ export function drawHeistLoot(ctx, loot) {
       ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 2.2;
+      ctx.lineWidth = Math.max(1, 2.2 * lu);
       ctx.stroke();
       drawTabletopIcon(ctx, 'gem', 0, 1, Math.max(12, r * 1.1), { color: '#FFFFFF' });
     } else if (item.type === 'CROWN') {
       ctx.fillStyle = '#D99B26';
       ctx.fillRect(-12, -8, 24, 16);
       ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = Math.max(1, 2.5 * lu);
       ctx.strokeRect(-12, -8, 24, 16);
       drawTabletopIcon(ctx, 'crown', 0, 1, 16, { color: '#FFFFFF' });
     } else {
@@ -289,7 +292,7 @@ export function drawHeistLoot(ctx, loot) {
       ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = Math.max(1, 2 * lu);
       ctx.stroke();
       ctx.fillStyle = '#1C1C1A';
       ctx.font = '900 11px sans-serif';
@@ -321,7 +324,7 @@ export function drawHeistPiggy(ctx, piggy) {
   ctx.beginPath();
   ctx.arc(0, 0, pig.radius, 0, Math.PI * 2);
   ctx.fill();
-  ctx.lineWidth = 3;
+  ctx.lineWidth = Math.max(1.5, 3 * ((pig.radius || 18) / 18));
   ctx.strokeStyle = '#1C1C1A';
   ctx.stroke();
 
@@ -363,7 +366,7 @@ export function drawHeistPiggy(ctx, piggy) {
     ctx.fillStyle = h < (pig.hp || 0) ? '#2D6A4F' : '#E63946';
     ctx.fillRect(startPipX + h * (pipW + 3), pipY, pipW, pipH);
     ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1, 1.5 * ((pig.radius || 18) / 18));
     ctx.strokeRect(startPipX + h * (pipW + 3), pipY, pipW, pipH);
   }
   ctx.restore();
@@ -381,7 +384,7 @@ export function drawHeistPlayers(ctx, players, { withFx = true, now = 0 } = {}) 
 
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
-    const radius = player.radius || 14;
+    const radius = player.radius || 36;
     const px = Number.isFinite(player.x) ? player.x : 0;
     const py = Number.isFinite(player.y) ? player.y : 0;
 
@@ -392,35 +395,36 @@ export function drawHeistPlayers(ctx, players, { withFx = true, now = 0 } = {}) 
       ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
     }
 
+    const u = radius / 36;
     if (withFx && (player.slot ?? player.index) === richestIndex) {
       const pulse = Math.sin(performance.now() * 0.01) * 3;
       ctx.strokeStyle = '#FFDE59';
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = Math.max(1.5, 2.5 * u);
+      ctx.setLineDash([4 * u, 4 * u]);
       ctx.beginPath();
-      ctx.arc(0, 0, radius + 10 + pulse, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius + 10 * u + pulse, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
-      drawTabletopIcon(ctx, 'crown', 0, -radius - 32, 22, { color: '#FFDE59' });
+      drawTabletopIcon(ctx, 'crown', 0, -radius - 32 * u, 22 * u, { color: '#FFDE59' });
     }
 
     if (withFx && player.tackling) {
       ctx.strokeStyle = '#FFDE59';
-      ctx.lineWidth = 4;
+      ctx.lineWidth = Math.max(2, 4 * u);
       ctx.beginPath();
-      ctx.arc(0, 0, radius + 6, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius + 6 * u, 0, Math.PI * 2);
       ctx.stroke();
     }
 
     ctx.save();
     ctx.rotate(player.angle || 0);
-    const coneGrad = ctx.createRadialGradient(0, 0, radius, 0, 0, radius + 36);
+    const coneGrad = ctx.createRadialGradient(0, 0, radius, 0, 0, radius + 36 * u);
     coneGrad.addColorStop(0, `${player.color || '#D99B26'}88`);
     coneGrad.addColorStop(1, `${player.color || '#D99B26'}00`);
     ctx.fillStyle = coneGrad;
     ctx.beginPath();
     ctx.moveTo(radius * 0.8, 0);
-    ctx.arc(0, 0, radius + 36, -0.42, 0.42);
+    ctx.arc(0, 0, radius + 36 * u, -0.42, 0.42);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
@@ -435,7 +439,7 @@ export function drawHeistPlayers(ctx, players, { withFx = true, now = 0 } = {}) 
       facingAngle: player.angle || 0,
       expression: currentExp,
       borderColor: player.tackling ? '#FFDE59' : '#1C1C1A',
-      borderWidth: player.tackling ? 4.5 : 3,
+      borderWidth: Math.max(1.5, (player.tackling ? 4.5 : 3) * u),
       // Kaçarken gözler koşu yönüne bakar; tackle'da gövde yönü zaten hedefe
       // döndüğü için bakış gövdeyle birlikte döner.
       lookAngle: (player.vx || player.vy) && !player.tackling
@@ -448,14 +452,14 @@ export function drawHeistPlayers(ctx, players, { withFx = true, now = 0 } = {}) 
       const cdProg = 1.0 - Math.max(0, Math.min(1, player.cd / 3.5));
       ctx.save();
       ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-      ctx.lineWidth = 3.5;
+      ctx.lineWidth = Math.max(1.5, 3.5 * u);
       ctx.beginPath();
-      ctx.arc(0, 0, radius + 5, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius + 5 * u, 0, Math.PI * 2);
       ctx.stroke();
       ctx.strokeStyle = '#FFDE59';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = Math.max(1.5, 3 * u);
       ctx.beginPath();
-      ctx.arc(0, 0, radius + 5, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
+      ctx.arc(0, 0, radius + 5 * u, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -483,10 +487,10 @@ export function drawHeistPlayers(ctx, players, { withFx = true, now = 0 } = {}) 
         ctx.arc(0, cy, coinR, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#1C1C1A';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = Math.max(1, 2 * (coinR / 7.5));
         ctx.stroke();
         ctx.strokeStyle = '#FFF6C9';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = Math.max(1, 1.5 * (coinR / 7.5));
         ctx.beginPath();
         ctx.arc(0, cy, coinR * 0.55, -Math.PI * 0.7, -Math.PI * 0.2);
         ctx.stroke();
@@ -495,7 +499,7 @@ export function drawHeistPlayers(ctx, players, { withFx = true, now = 0 } = {}) 
         const cy = bagY - 12 - coins * step - 6;
         ctx.fillStyle = '#FFDE59';
         ctx.strokeStyle = '#1C1C1A';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = Math.max(1, 1.5 * (coinR / 7.5));
         ctx.beginPath();
         ctx.moveTo(-10, cy + 6);
         ctx.lineTo(-10, cy);
@@ -511,7 +515,7 @@ export function drawHeistPlayers(ctx, players, { withFx = true, now = 0 } = {}) 
       ctx.fillStyle = '#1C1C1A';
       ctx.fillRect(-32, bagY - 9, 64, 22);
       ctx.strokeStyle = tier >= 1 || isRichest ? '#FFDE59' : '#FFFFFF';
-      ctx.lineWidth = tier >= 1 || isRichest ? 3 : 2;
+      ctx.lineWidth = Math.max(1.5, (tier >= 1 || isRichest ? 3 : 2) * u);
       ctx.strokeRect(-32, bagY - 9, 64, 22);
       ctx.fillStyle = tier >= 1 || isRichest ? '#FFDE59' : '#FFFFFF';
       ctx.font = '900 13px "JetBrains Mono", monospace';
@@ -534,7 +538,7 @@ export function drawHeistTexts(ctx, texts) {
     ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
-    ctx.lineWidth = 3.5;
+    ctx.lineWidth = Math.max(1.5, 3.5 * 1);
     ctx.strokeText(ft.text, ft.x, ft.y);
     ctx.fillStyle = ft.color || '#1C1C1A';
     ctx.fillText(ft.text, ft.x, ft.y);

@@ -553,5 +553,13 @@ function playFaceShading(ctx, r) {
     drawEye(eyeSpreadY);
   }
 
+  ctx.restore(); // Yüz dönme sonu
+
+  // Dış save (translate) iadesi: bu `restore` olmadan çağıran karede
+  // `translate(cx, cy)` SIZAR ve aynı karede sonra çizilen her şey
+  // (menü kartındaki dokunma patlaması gibi) merkezin sağ-altına kayar.
+  // Ölçülen vaka: `?probe=sparks` patlama ağırlık merkezini
+  // (+56.6, +150.7)px (kutunun yarısı kadar) kaymış buldu; transform
+  // dökümü `1,0,0,1,160,160` gösteriyordu.
   ctx.restore();
 }

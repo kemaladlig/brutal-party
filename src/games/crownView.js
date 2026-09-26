@@ -45,7 +45,7 @@ export function createCrownWorldPacket(game) {
       alive: player.isAlive !== false,
       x: round1(player.x || 0),
       y: round1(player.y || 0),
-      radius: round1(player.radius || 18),
+      radius: round1(player.radius || 43),
       hasCrown: player.hasCrown === true,
       crownHoldTime: round1(player.crownHoldTime || 0),
       turbo: (Number(player.turboTimer) || 0) > 0,
@@ -125,31 +125,34 @@ export function isValidCrownWorldFrame(frame) {
   });
 }
 
-function drawRect(ctx, rect, fill) {
+function drawRect(ctx, rect, fill, arena = null) {
   const [x, y, width, height] = rect;
+  const u = arena?.unit ?? 1;
   ctx.fillStyle = fill; ctx.fillRect(x, y, width, height);
-  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 2.5; ctx.strokeRect(x, y, width, height);
+  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 2.5 * u; ctx.strokeRect(x, y, width, height);
 }
 
 function drawCircle(ctx, circle, fill) {
   const [x, y, radius] = circle;
+  const u = (radius || 20) / 20;
   ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(x, y, Math.max(1, radius), 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 2.5 * u; ctx.stroke();
 }
 
 function drawCrownArena(ctx, frame, arena) {
   const { left, top, right, bottom } = arena;
   const width = right - left;
   const height = bottom - top;
+  const u = arena?.unit ?? 1;
   ctx.fillStyle = '#FAF7F2'; ctx.fillRect(left, top, width, height);
-  ctx.strokeStyle = 'rgba(26, 26, 26, 0.07)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(26, 26, 26, 0.07)'; ctx.lineWidth = 1 * u;
   const step = Math.max(32, Math.min(50, Math.min(width, height) / 8));
   for (let x = left; x < right; x += step) { ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke(); }
   for (let y = top; y < bottom; y += step) { ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke(); }
-  for (const rect of frame.pillars || []) drawRect(ctx, rect, '#2B2B28');
-  for (const rect of frame.conveyors || []) drawRect(ctx, rect, '#3B82F6');
-  for (const rect of frame.speedPads || []) drawRect(ctx, rect, UI_COLORS.turbo);
-  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 5; ctx.strokeRect(left, top, width, height);
+  for (const rect of frame.pillars || []) drawRect(ctx, rect, '#2B2B28', arena);
+  for (const rect of frame.conveyors || []) drawRect(ctx, rect, '#3B82F6', arena);
+  for (const rect of frame.speedPads || []) drawRect(ctx, rect, UI_COLORS.turbo, arena);
+  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 5 * u; ctx.strokeRect(left, top, width, height);
 }
 
 function drawCrown(ctx, crown, players) {
@@ -157,23 +160,25 @@ function drawCrown(ctx, crown, players) {
   if (crown.carrier === null) drawCircle(ctx, [crown.x, crown.y, crown.radius], '#FFD700');
   const carrier = players?.find((player) => player.slot === crown.carrier);
   if (!carrier) return;
-  ctx.save(); ctx.fillStyle = '#FFD700'; ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 2;
+  const u = (carrier.radius || 20) / 20;
+  ctx.save(); ctx.fillStyle = '#FFD700'; ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 2 * u;
   ctx.beginPath();
-  ctx.moveTo(carrier.x, carrier.y - carrier.radius - 6);
-  ctx.lineTo(carrier.x - 10, carrier.y - carrier.radius - 20);
-  ctx.lineTo(carrier.x - 3, carrier.y - carrier.radius - 15);
-  ctx.lineTo(carrier.x, carrier.y - carrier.radius - 24);
-  ctx.lineTo(carrier.x + 3, carrier.y - carrier.radius - 15);
-  ctx.lineTo(carrier.x + 10, carrier.y - carrier.radius - 20);
+  ctx.moveTo(carrier.x, carrier.y - carrier.radius - 6 * u);
+  ctx.lineTo(carrier.x - 10 * u, carrier.y - carrier.radius - 20 * u);
+  ctx.lineTo(carrier.x - 3 * u, carrier.y - carrier.radius - 15 * u);
+  ctx.lineTo(carrier.x, carrier.y - carrier.radius - 24 * u);
+  ctx.lineTo(carrier.x + 3 * u, carrier.y - carrier.radius - 15 * u);
+  ctx.lineTo(carrier.x + 10 * u, carrier.y - carrier.radius - 20 * u);
   ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
 }
 
 function drawPlayer(ctx, player, color) {
   if (!player.joined || !player.alive) return;
+  const u = (player.radius || 20) / 20;
   drawCircle(ctx, [player.x, player.y, player.radius], color);
   if (player.turbo) {
-    ctx.strokeStyle = UI_COLORS.turbo; ctx.lineWidth = 3; ctx.beginPath();
-    ctx.arc(player.x, player.y, player.radius + 5, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = UI_COLORS.turbo; ctx.lineWidth = 3 * u; ctx.beginPath();
+    ctx.arc(player.x, player.y, player.radius + 5 * u, 0, Math.PI * 2); ctx.stroke();
   }
 }
 

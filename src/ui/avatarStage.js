@@ -81,6 +81,79 @@ export function syncStageCanvas(canvas) {
 }
 
 /**
+ * Dokunma patlaması (boing kıvılcımları): üret + ilerlet + çiz.
+ * Üçü de burada — menü kartı döngüsü ile `?probe=sparks` aynı kodu kullanır,
+ * böylece probda ölçülen merkez, sahnede çizilen merkezdir.
+ *
+ * Birimler: konumlar CSS px, hızlar r/s, yerçekimi r/s². Konum integrali
+ * hıza yarıçapı BİR kez uygular (`p.x += p.vx * r * dt`); ivme hızı doğrudan
+ * artırır (`p.vy += G * dt`). İkisini de `* r` ile çarpmak birim hatası olur,
+ * patlama kutudan taşardı.
+ */
+const SPARK_GRAVITY = 5; // r/s²
+
+export function spawnBoingSparks(cx, cy, r, colorHex, rand = Math.random) {
+  const out = [];
+  for (let i = 0; i < 10; i++) {
+    const ang = (Math.PI * 2 * i) / 10 + (rand() - 0.5) * 0.4;
+    const spd = 1.5 + rand() * 2.2;
+    out.push({
+      x: cx,
+      y: cy - r * 0.23,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd - 1.0,
+      color: i % 2 === 0 ? colorHex : '#FFD700',
+      size: 0.07 + rand() * 0.08,
+      shape: i % 3 === 0 ? 'star' : (i % 3 === 1 ? 'cross' : 'square'),
+      life: 1.0,
+      decay: 1.6 + rand() * 0.8,
+    });
+  }
+  return out;
+}
+
+export function stepSparks(sparks, r, dt) {
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const p = sparks[i];
+    p.x += p.vx * r * dt;
+    p.y += p.vy * r * dt;
+    p.vy += SPARK_GRAVITY * dt;
+    p.life -= p.decay * dt;
+    if (p.life <= 0) sparks.splice(i, 1);
+  }
+}
+
+export function drawSparks(ctx, r, sparks) {
+  for (const p of sparks) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = Math.max(1, r * 0.023);
+
+    if (p.shape === 'star') {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    } else if (p.shape === 'cross') {
+      const s = p.size * r;
+      ctx.lineWidth = Math.max(1.5, r * 0.045);
+      ctx.beginPath();
+      ctx.moveTo(p.x - s, p.y);
+      ctx.lineTo(p.x + s, p.y);
+      ctx.moveTo(p.x, p.y - s);
+      ctx.lineTo(p.x, p.y + s);
+      ctx.stroke();
+    } else {
+      const s = p.size * r;
+      ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+      ctx.strokeRect(p.x - s / 2, p.y - s / 2, s, s);
+    }
+    ctx.restore();
+  }
+}
+/**
  * Sahne çizimi: zemin gölge diski + kaide halkası + gövde.
  * Tüm değerler yarıçapa oranlıdır (ölçülen taban oranları: gölge 1.09r / 0.82r /
  * 0.25r, kaide halkası 0.95r, çerçeve 0.08r, zemin gölgesi 0.09r).

@@ -111,12 +111,21 @@ function isCompactViewport(width, height) {
 }
 
 /**
- * UI yerleşimi için de aynı cihaz sınıflandırması: kompakt yatay = telefon
- * yan durmuş. Play-state chrome (sürekli görünen bar/şerit) burada bastırılır;
- * bilgi tek butonun açtığı yan menüye taşınır. Bkz. `renderControlGuide`.
+ * UI yerleşimi ve alan payı kararları:
+ * arena verilirse `arena.profile.compactLandscape` (alan-uzayı kararı).
+ * genişlik/yükseklik verilirse geriye uyumlu cihaz sınıfı sorgusu.
  */
-export function isCompactLandscape(width, height) {
-  return isCompactViewport(width, height);
+export function isCompactLandscape(arenaOrWidth, height) {
+  if (arenaOrWidth && typeof arenaOrWidth === 'object') {
+    if (arenaOrWidth.profile?.compactLandscape !== undefined) {
+      return arenaOrWidth.profile.compactLandscape;
+    }
+    const w = arenaOrWidth.width || 0;
+    const h = arenaOrWidth.height || 0;
+    const s = arenaOrWidth.size || Math.min(w, h);
+    return w > h && (s / FIELD_DESIGN.shortSide) < 0.50;
+  }
+  return isCompactViewport(arenaOrWidth, height);
 }
 
 const ZERO_INSETS = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
@@ -206,6 +215,16 @@ export function computePlayfield(width, height, preset = DEFAULT_PRESET) {
   const fieldWidth = Math.max(minSpan, width - insets.left - insets.right);
   const fieldHeight = Math.max(minSpan, height - insets.top - insets.bottom);
   const size = Math.min(fieldWidth, fieldHeight);
+  const unit = Math.max(
+    FIELD_DESIGN.minUnit,
+    Math.min(FIELD_DESIGN.maxUnit, size / FIELD_DESIGN.shortSide),
+  );
+  const profile = Object.freeze({
+    shortSide: size,
+    unit,
+    designShort: FIELD_DESIGN.shortSide,
+    compactLandscape: width > height && (size / FIELD_DESIGN.shortSide) < 0.50,
+  });
 
   return {
     left: insets.left,
@@ -218,11 +237,9 @@ export function computePlayfield(width, height, preset = DEFAULT_PRESET) {
     cy: insets.top + fieldHeight / 2,
     size,
     aspect: fieldWidth / fieldHeight,
-    unit: Math.max(
-      FIELD_DESIGN.minUnit,
-      Math.min(FIELD_DESIGN.maxUnit, size / FIELD_DESIGN.shortSide),
-    ),
+    unit,
     insets,
+    profile,
   };
 }
 

@@ -4,7 +4,7 @@
 // Not: 13x13 grid ham taşınır (169 durum + uyarı sayaçları); pickup ikonları
 // tabletopIcons vektörleridir (SUPER_JUMP→chevrons_up, REPAIR_TILES→hammer, BLAST_WAVE→wind).
 
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import {
   round1,
@@ -48,6 +48,7 @@ export function createCollapseWorldPacket(game) {
       alive: p.isAlive !== false,
       x: round1(p.x || 0),
       y: round1(p.y || 0),
+      radius: round1(p.radius || 18),
       jump: round2((p.jumpTimer || 0) > 0 ? (p.jumpTimer || 0) / 0.45 : 0),
       super: (p.superJumpTimer || 0) > 0,
     }),
@@ -125,7 +126,7 @@ export function drawCollapseFalling(ctx, falling) {
     ctx.fillStyle = ft.color || '#D99B26';
     ctx.fillRect(-ft.size / 2, -ft.size / 2, ft.size, ft.size);
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * (ft.size / 20));
     ctx.strokeRect(-ft.size / 2, -ft.size / 2, ft.size, ft.size);
     ctx.restore();
   }
@@ -176,13 +177,14 @@ export function drawCollapseGrid(ctx, arena, cell, states, warn, { withFx = true
       ctx.fillStyle = '#0B0B0B';
       ctx.fillRect(-tw / 2, -th / 2 + bevel, tw, th);
 
+      const u = arena?.unit ?? (cellSize ? cellSize / 40 : 1);
       if (state === 0) {
         const toneShift = ((r * 7 + c * 13) % 18) - 9;
         const baseL = 248 + toneShift;
         ctx.fillStyle = `rgb(${baseL}, ${baseL - 3}, ${baseL - 8})`;
         ctx.fillRect(-tw / 2, -th / 2, tw, th);
         ctx.strokeStyle = '#2B2B2B';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = Math.max(1, 1.5 * u);
         ctx.strokeRect(-tw / 2, -th / 2, tw, th);
       } else {
         const rr = 255;
@@ -192,7 +194,7 @@ export function drawCollapseGrid(ctx, arena, cell, states, warn, { withFx = true
         ctx.fillStyle = `rgba(255, ${Math.floor(220 * ratio + 100)}, 60, 0.55)`;
         ctx.fillRect(-tw / 2, -th / 2, tw, th * 0.35);
         ctx.strokeStyle = ratio > 0.5 ? '#C84A00' : '#991200';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = Math.max(1, 2 * u);
         ctx.strokeRect(-tw / 2, -th / 2, tw, th);
       }
       ctx.restore();
@@ -205,7 +207,7 @@ export function drawCollapseWaves(ctx, waves) {
     ctx.save();
     ctx.globalAlpha = clamp01(sw.alpha ?? 1);
     ctx.strokeStyle = sw.color || '#FFFFFF';
-    ctx.lineWidth = 3.5;
+    ctx.lineWidth = Math.max(1.5, 3.5 * ((sw.radius || 20) / 20));
     ctx.beginPath();
     ctx.arc(sw.x, sw.y, sw.radius || 0, 0, Math.PI * 2);
     ctx.stroke();
@@ -217,17 +219,18 @@ export function drawCollapsePickups(ctx, pickups, now = 0) {
   for (const pu of pickups || []) {
     const pulse = 1 + Math.sin(now / 200 + (pu.pulse || 0)) * 0.12;
     const r = 13 * pulse;
+    const u = r / 13;
 
     ctx.save();
     ctx.translate(pu.x, pu.y);
 
     ctx.strokeStyle = pu.type === 'SUPER_JUMP' ? '#FFDE59' : (pu.type === 'REPAIR_TILES' ? '#2F6A4F' : '#1D5D8A');
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = Math.max(1, 2.5 * u);
     ctx.beginPath(); ctx.arc(0, 0, r + 4, 0, Math.PI * 2); ctx.stroke();
 
     ctx.fillStyle = '#FAF7F2';
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = Math.max(1, 2 * u); ctx.stroke();
 
     drawTabletopIcon(ctx, PICKUP_ICONS[pu.type] || 'wind', 0, 0, 18, { color: '#1A1A1A' });
 
@@ -253,23 +256,26 @@ export function drawCollapsePlayers(ctx, players) {
     ctx.translate(player.x, player.y - jumpHeight);
     ctx.scale(scale, scale);
 
+    const radius = player.radius || 18;
+    const u = radius / 18;
+
     if (player.super) {
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 4.5;
-      ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = Math.max(1.5, 4.5 * u);
+      ctx.beginPath(); ctx.arc(0, 0, radius * 0.72, 0, Math.PI * 2); ctx.stroke();
       ctx.strokeStyle = '#FFDE59';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = Math.max(1, 2.5 * u);
+      ctx.beginPath(); ctx.arc(0, 0, radius * 0.72, 0, Math.PI * 2); ctx.stroke();
     }
 
-    drawBrutalAvatar(ctx, 0, 0, 9.5, {
+    drawGameAvatar(ctx, 0, 0, radius, player, {
       color: player.color,
       slotIndex: player.slot ?? player.index,
       label: `P${(player.slot ?? player.index ?? 0) + 1}`,
       expression: isJumping ? 'excited' : (player.super ? 'wink' : 'normal'),
       showPointer: false,
-      borderWidth: 2.5,
-      shadowOffset: 2,
+      borderWidth: Math.max(1.5, 2.5 * u),
+      shadowOffset: Math.max(1, 2 * u),
     });
 
     ctx.restore();

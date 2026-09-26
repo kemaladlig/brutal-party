@@ -18,7 +18,7 @@ import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { distToSegmentSquared, getProjectileSubsteps, clampToArena } from '../core/physics2d.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
-import { computePlayfield, fieldSpeed } from '../core/playfield.js';
+import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
 
 export const SNAKE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const SNAKE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -26,6 +26,7 @@ export const SNAKE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 // keyup ters haritası (tuş code → slot); harita inputMaps STANDARD'dan türetilir
 const SNAKE_KEY_SLOTS = buildCodeToSlotMap();
 
+const SNAKE_HEAD_RADIUS = 15;
 // Kuyruk boyu tavanı: uzayan oyunda ızgara-rebuild sınırlı kalır
 const SNAKE_MAX_LEN = 320;
 const SNAKE_MAX_FOODS = 32;
@@ -169,7 +170,9 @@ export class SnakeGame extends BaseMiniGame {
     }
     for (const p of this.players) {
       this.remapPoint(p, oldArena, this.arena);
-      clampToArena(p, 5, this.arena, { zeroVelocity: true });
+      p.radius = fieldRadius(this.arena, SNAKE_HEAD_RADIUS);
+      p.speed = fieldSpeed(this.arena, 140);
+      clampToArena(p, p.radius || 5, this.arena, { zeroVelocity: true });
     }
     for (const p of this.players) {
       for (const seg of p.segments) {
@@ -209,7 +212,9 @@ export class SnakeGame extends BaseMiniGame {
         index: i,
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || SNAKE_COLORS[i]),
-        x: s.x, y: s.y, angle: s.angle, targetAngle: null, speed: fieldSpeed(this.arena, 140), turnSpeed: 3.4,
+        x: s.x, y: s.y, angle: s.angle, targetAngle: null,
+        radius: fieldRadius(this.arena, SNAKE_HEAD_RADIUS),
+        speed: fieldSpeed(this.arena, 140), turnSpeed: 3.4,
         steer: 0, isBoost: false, boostEnergy: 100, boostMaxEnergy: 100, boostLocked: false,
         isAlive: true, isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i], segments: [], currentLen: 0, targetLen: 65,

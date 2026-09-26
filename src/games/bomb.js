@@ -937,7 +937,7 @@ export class BombGame extends BaseMiniGame {
         c.fillStyle = '#FFFFFF';
         c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
         c.strokeStyle = '#1C1C1A';
-        c.lineWidth = 2.5;
+        c.lineWidth = Math.max(1.5, 2.5 * (arena?.unit ?? 1));
         c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
 
         c.fillStyle = '#1C1C1A';

@@ -120,8 +120,10 @@ export class CloneGame extends BaseMiniGame {
       for (const p of this.players) {
         p.aiMemory = null;
         this.remapPoint(p, oldArena, this.arena);
-        clampToArena(p, CLONE_RADIUS, this.arena);
-        this.resolveWallCollision(p, CLONE_RADIUS);
+        p.radius = fieldRadius(this.arena, CLONE_RADIUS);
+        p.speed = fieldSpeed(this.arena, 135);
+        clampToArena(p, p.radius || CLONE_RADIUS, this.arena);
+        this.resolveWallCollision(p, p.radius || CLONE_RADIUS);
       }
       for (const c of this.npcClones) this.resolveWallCollision(c, CLONE_RADIUS);
     }
@@ -223,6 +225,7 @@ export class CloneGame extends BaseMiniGame {
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || CLONE_COLORS[i]),
         x: s.x, y: s.y, angle: s.angle,
+        radius: fieldRadius(this.arena, CLONE_RADIUS),
         speed: fieldSpeed(this.arena, 135), steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         dashTimer: 0, dashCooldown: 0, slowTimer: 0,

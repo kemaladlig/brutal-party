@@ -5,7 +5,7 @@
 // taşınır (client raycast çalıştırmaz); sayaç filigranı host HUD'udur.
 
 import { drawPickup } from '../core/arenaKit.js';
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { drawGameAvatar } from '../core/avatarInGame.js';
 import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
 import { renderEntityHUD, renderFireCooldown } from '../ui/hud.js';
 import {
@@ -49,7 +49,7 @@ export function mapLaserPlayers(players, lasers, tuning = {}, aimOf = null, with
       x: round1(p.x || 0),
       y: round1(p.y || 0),
       // Gövde yarıçapı host'ta ölçeklenir ve paketle taşınır.
-      radius: round1(p.radius || 0) || undefined,
+      radius: round1(p.radius || 19),
       angle: round1(p.angle || 0),
       color: p.color,
       hp: Number(p.hp) || 0,
@@ -164,17 +164,18 @@ export function isValidLaserWorldFrame(frame) {
 // --- Ortak çizim yardımcıları (host + client) ---
 export function drawLaserArena(ctx, arena, obstacles, walls) {
   const { left, top, right, bottom, width, height } = arena;
+  const u = arena?.unit ?? (width ? width / 952 : 1);
 
   ctx.fillStyle = '#FAF7F2';
   ctx.fillRect(left, top, width, height);
 
   ctx.strokeStyle = '#E8E2D8';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = Math.max(1, 1.5 * u);
   ctx.strokeRect(left + width * 0.12, top + height * 0.12, width * 0.76, height * 0.76);
 
   const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
   ctx.strokeStyle = '#2B2B28';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = Math.max(1.5, 3 * u);
   const cornerPlates = [
     [[left, top + bLen], [left, top], [left + bLen, top]],
     [[right - bLen, top], [right, top], [right, top + bLen]],
@@ -195,10 +196,10 @@ export function drawLaserArena(ctx, arena, obstacles, walls) {
     ctx.fillStyle = '#262624';
     ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = Math.max(1.5, 2.5 * u);
     ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
     ctx.strokeStyle = '#5A5A52';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1, 1.5 * u);
     ctx.beginPath();
     ctx.moveTo(obs.x + 2, obs.y + obs.h - 2);
     ctx.lineTo(obs.x + 2, obs.y + 2);
@@ -206,7 +207,7 @@ export function drawLaserArena(ctx, arena, obstacles, walls) {
     ctx.stroke();
     if (obs.w >= 28 && obs.h >= 28) {
       ctx.strokeStyle = '#3A3A34';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = Math.max(1, 1.5 * u);
       ctx.beginPath();
       ctx.moveTo(obs.x + 6, obs.y + 6);
       ctx.lineTo(obs.x + obs.w - 6, obs.y + obs.h - 6);
@@ -219,7 +220,7 @@ export function drawLaserArena(ctx, arena, obstacles, walls) {
   for (const mw of walls) {
     ctx.save();
     ctx.strokeStyle = 'rgba(26, 26, 26, 0.22)';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * u);
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
     if (mw.axis === 'y') {
@@ -236,7 +237,7 @@ export function drawLaserArena(ctx, arena, obstacles, walls) {
     ctx.fillStyle = '#262626';
     ctx.fillRect(mw.x, mw.y, mw.w, mw.h);
     ctx.strokeStyle = '#111111';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * u);
     ctx.strokeRect(mw.x, mw.y, mw.w, mw.h);
     ctx.fillStyle = '#EAB308';
     if (mw.axis === 'y') {
@@ -248,7 +249,7 @@ export function drawLaserArena(ctx, arena, obstacles, walls) {
   }
 
   ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 6;
+  ctx.lineWidth = Math.max(2, 6 * u);
   ctx.strokeRect(left, top, width, height);
 }
 
@@ -265,14 +266,15 @@ export function drawLaserAims(ctx, players) {
     if (!isWorldEntityVisible(player)) continue;
     const pts = player.aim || [];
     if (pts.length === 0) continue;
+    const u = (player.radius || 19) / 19;
     ctx.strokeStyle = player.color;
     if (player.aiming) {
       ctx.globalAlpha = 0.95;
-      ctx.lineWidth = 3.5;
+      ctx.lineWidth = Math.max(1.5, 3.5 * u);
       ctx.setLineDash([8, 4]);
     } else {
       ctx.globalAlpha = player.ready ? 0.55 : 0.3;
-      ctx.lineWidth = player.ready ? 2.2 : 1.6;
+      ctx.lineWidth = Math.max(1, (player.ready ? 2.2 : 1.6) * u);
       ctx.setLineDash(player.ready ? [6, 4] : [2, 6]);
     }
     ctx.beginPath();
@@ -283,19 +285,19 @@ export function drawLaserAims(ctx, players) {
     if (pts.length > 1) {
       ctx.fillStyle = player.color;
       for (let i = 1; i < pts.length - 1; i++) {
-        ctx.beginPath(); ctx.arc(pts[i][0], pts[i][1], player.aiming ? 4.5 : 3, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(pts[i][0], pts[i][1], player.aiming ? 4.5 * u : 3 * u, 0, Math.PI * 2); ctx.fill();
       }
       if (player.aiming) {
         const endPt = pts[pts.length - 1];
         ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = Math.max(1.5, 3.5 * u);
         ctx.beginPath();
-        ctx.arc(endPt[0], endPt[1], 5, 0, Math.PI * 2);
+        ctx.arc(endPt[0], endPt[1], 5 * u, 0, Math.PI * 2);
         ctx.stroke();
         ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = Math.max(1, 1.5 * u);
         ctx.beginPath();
-        ctx.arc(endPt[0], endPt[1], 5, 0, Math.PI * 2);
+        ctx.arc(endPt[0], endPt[1], 5 * u, 0, Math.PI * 2);
         ctx.stroke();
       }
     }
@@ -307,7 +309,7 @@ export function drawLaserShots(ctx, lasers) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   for (const laser of lasers || []) {
-    ctx.lineWidth = 5;
+    ctx.lineWidth = Math.max(2, 5 * (laser.radius ? laser.radius / 3 : 1));
     ctx.strokeStyle = laser.color;
     ctx.beginPath();
     const trail = laser.trail || [];
@@ -320,7 +322,7 @@ export function drawLaserShots(ctx, lasers) {
     ctx.fillStyle = '#FFF';
     ctx.beginPath(); ctx.arc(laser.x, laser.y, 3, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1, 1.5 * (laser.radius ? laser.radius / 3 : 1));
     ctx.stroke();
   }
 }
@@ -392,7 +394,7 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
     else if (player.triple || player.fast) currentExp = 'excited';
     else if (player.hp === 1) currentExp = 'panic';
 
-    drawBrutalAvatar(ctx, 0, 0, R * 0.74, {
+    drawGameAvatar(ctx, 0, 0, R * 0.74, player, {
       color: player.color,
       slotIndex: player.slot ?? player.index,
       facingAngle: player.angle || 0,

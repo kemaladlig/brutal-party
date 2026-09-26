@@ -408,6 +408,9 @@ export class TanksGame extends BaseMiniGame {
     }
     for (const tank of this.tanks) {
       this.remapPoint(tank, oldArena, this.arena);
+      tank.size = fieldRadius(this.arena, 26, 0);
+      tank.driveSpeed = fieldSpeed(this.arena, 175);
+      tank.speed = tank.driveSpeed;
     }
     for (const b of this.bullets) this.remapPoint(b, oldArena, this.arena);
     for (const c of this.crates) this.remapPoint(c, oldArena, this.arena);
@@ -462,6 +465,7 @@ export class TanksGame extends BaseMiniGame {
         rotationSpeed: 2.8,
         spinDirection: i % 2 === 0 ? 1 : -1,
         driveSpeed: fieldSpeed(this.arena, 175),
+        speed: fieldSpeed(this.arena, 175),
         isDriving: false,
         isAlive: true,
         isJoined: isJoined,
@@ -1329,10 +1333,11 @@ export class TanksGame extends BaseMiniGame {
       if (!tank.isJoined || !tank.isAlive) return;
 
       const cornerCenter = this.getCornerCenter(tank.index);
+      const u = this.arena.unit || 1;
 
       ctx.save();
       ctx.strokeStyle = tank.color;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = Math.max(1, 2 * u);
       ctx.globalAlpha = Math.min(1.0, progress * 1.5);
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
@@ -1342,7 +1347,7 @@ export class TanksGame extends BaseMiniGame {
 
       const ringRadius = tank.size * 0.9 + (1 - progress) * 26;
       ctx.setLineDash([]);
-      ctx.lineWidth = 3;
+      ctx.lineWidth = Math.max(1, 3 * u);
       ctx.beginPath();
       ctx.arc(tank.x, tank.y, ringRadius, 0, Math.PI * 2);
       ctx.stroke();
@@ -1358,7 +1363,7 @@ export class TanksGame extends BaseMiniGame {
       ctx.fillStyle = tank.color;
       ctx.fillRect(tagX, tagY, tagW, tagH);
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = Math.max(1, 2.5 * u);
       ctx.strokeRect(tagX, tagY, tagW, tagH);
 
       ctx.fillStyle = '#FFFFFF';

@@ -290,7 +290,7 @@ for (const [mode, , , preset] of ENGINES) {
 // ARCHER ve NINJA bu listeye girdi, sonra motor+view+packet üçlüsüyle
 // çevrildi ve listeden çıkarıldı — `no engine is silently missing` testi
 // bunu zorlar.
-const NO_BODY_RADIUS = new Set(['SNAKE', 'COLLAPSE', 'CLONE', 'PONG']);
+const NO_BODY_RADIUS = new Set(['PONG']);
 
 test('scale report covers every engine that exposes a body radius', () => {
   // Diagnostic surface: prints the actual per-engine ratios so a regression is

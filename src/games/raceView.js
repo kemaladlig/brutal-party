@@ -52,7 +52,7 @@ export function createRaceWorldPacket(game) {
       x: round1(player.x || 0),
       y: round1(player.y || 0),
       angle: round1(player.angle || 0),
-      radius: round1(player.radius || 16),
+      radius: round1(player.radius || 19),
       jumpZ: round1(player.jumpZ || 0),
       nextCheckpoint: Math.max(0, Number(player.nextCheckpoint) || 0),
       laps: Math.max(0, Number(player.laps) || 0),
@@ -146,86 +146,93 @@ function drawTrackBase(ctx, arena) {
   const { left, top, right, bottom } = arena;
   const width = Math.max(1, right - left);
   const height = Math.max(1, bottom - top);
+  const u = arena?.unit ?? 1;
   ctx.fillStyle = '#FAF7F2'; ctx.fillRect(left, top, width, height);
-  ctx.strokeStyle = 'rgba(26, 26, 26, 0.06)'; ctx.lineWidth = 1;
-  for (let x = left; x < right; x += 40) { ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke(); }
-  for (let y = top; y < bottom; y += 40) { ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke(); }
-  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 4; ctx.strokeRect(left, top, width, height);
+  ctx.strokeStyle = 'rgba(26, 26, 26, 0.06)'; ctx.lineWidth = 1 * u;
+  for (let x = left; x < right; x += 40 * u) { ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke(); }
+  for (let y = top; y < bottom; y += 40 * u) { ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke(); }
+  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 4 * u; ctx.strokeRect(left, top, width, height);
 }
 
 function drawOilSlicks(ctx, oilSlicks) {
   for (const [x, y, radius] of oilSlicks || []) {
+    const u = radius / 30;
     ctx.save(); ctx.fillStyle = 'rgba(26, 26, 26, 0.75)';
     ctx.beginPath(); ctx.arc(x, y, Math.max(1, radius), 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = UI_COLORS.turbo; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+    ctx.strokeStyle = UI_COLORS.turbo; ctx.lineWidth = 2 * u; ctx.stroke(); ctx.restore();
   }
 }
 
 function drawNitroPad(ctx, pad, now) {
   const [x, y, width, height, angle] = pad;
   const pulse = 1 + Math.sin(now * 0.006) * 0.04;
+  const u = Math.min(width, height) / 28;
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.scale(pulse, pulse);
-  ctx.fillStyle = UI_COLORS.ink; ctx.fillRect(-width / 2 + 4, -height / 2 + 4, width, height);
+  ctx.fillStyle = UI_COLORS.ink; ctx.fillRect(-width / 2 + 4 * u, -height / 2 + 4 * u, width, height);
   ctx.fillStyle = UI_COLORS.turbo; ctx.fillRect(-width / 2, -height / 2, width, height);
-  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 2.5; ctx.strokeRect(-width / 2, -height / 2, width, height);
-  drawTabletopIcon(ctx, 'zap', 0, 0, Math.min(width, height) * 0.62, { color: UI_COLORS.ink, strokeWidth: 2.4 });
+  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 2.5 * u; ctx.strokeRect(-width / 2, -height / 2, width, height);
+  drawTabletopIcon(ctx, 'zap', 0, 0, Math.min(width, height) * 0.62, { color: UI_COLORS.ink, strokeWidth: 2.4 * u });
   ctx.restore();
 }
 
 function drawSpinner(ctx, spinner) {
+  const u = (spinner.length || 110) / 110;
   ctx.save(); ctx.translate(spinner.x, spinner.y); ctx.rotate(spinner.angle);
-  ctx.fillStyle = UI_COLORS.ink; ctx.fillRect(-spinner.length / 2 + 3, -5, spinner.length, 16);
-  ctx.fillStyle = '#575750'; ctx.fillRect(-spinner.length / 2, -8, spinner.length, 16);
-  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 2.5; ctx.strokeRect(-spinner.length / 2, -8, spinner.length, 16);
-  ctx.fillStyle = UI_COLORS.ink; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.fillStyle = UI_COLORS.ink; ctx.fillRect(-spinner.length / 2 + 3 * u, -5 * u, spinner.length, 16 * u);
+  ctx.fillStyle = '#575750'; ctx.fillRect(-spinner.length / 2, -8 * u, spinner.length, 16 * u);
+  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 2.5 * u; ctx.strokeRect(-spinner.length / 2, -8 * u, spinner.length, 16 * u);
+  ctx.fillStyle = UI_COLORS.ink; ctx.beginPath(); ctx.arc(0, 0, 8 * u, 0, Math.PI * 2); ctx.fill(); ctx.restore();
 }
 
 function drawCheckpoint(ctx, checkpoint) {
+  const u = (checkpoint.radius || 65) / 65;
   ctx.save(); ctx.fillStyle = checkpoint.color; ctx.globalAlpha = 0.25;
   ctx.beginPath(); ctx.arc(checkpoint.x, checkpoint.y, checkpoint.radius, 0, Math.PI * 2); ctx.fill();
-  ctx.globalAlpha = 0.85; ctx.strokeStyle = checkpoint.color; ctx.lineWidth = 3; ctx.setLineDash([6, 4]); ctx.stroke();
-  ctx.setLineDash([]); ctx.fillStyle = UI_COLORS.ink; ctx.font = '900 16px "JetBrains Mono", monospace';
+  ctx.globalAlpha = 0.85; ctx.strokeStyle = checkpoint.color; ctx.lineWidth = 3 * u; ctx.setLineDash([6 * u, 4 * u]); ctx.stroke();
+  ctx.setLineDash([]); ctx.fillStyle = UI_COLORS.ink; ctx.font = `900 ${Math.round(16 * u)}px "JetBrains Mono", monospace`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(checkpoint.name, checkpoint.x, checkpoint.y); ctx.restore();
 }
 
 function drawEmpPulses(ctx, pulses) {
   for (const pulse of pulses || []) {
-    ctx.save(); ctx.strokeStyle = '#0EA5E9'; ctx.lineWidth = 4;
+    const u = Math.max(0.1, pulse.radius) / 130;
+    ctx.save(); ctx.strokeStyle = '#0EA5E9'; ctx.lineWidth = 4 * u;
     ctx.beginPath(); ctx.arc(pulse.x, pulse.y, Math.max(0.1, pulse.radius), 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
 }
 
 function drawPlayer(ctx, player, color, checkpoints) {
-  const jumpOffsetY = -(player.jumpZ || 0) * 0.8;
+  const u = (player.radius || 19) / 19;
+  const jumpOffsetY = -(player.jumpZ || 0) * 0.8 * u;
   const shadowScale = Math.max(0.68, 1 - (player.jumpZ || 0) * 0.018);
   ctx.save(); ctx.translate(player.x, player.y); ctx.scale(shadowScale, shadowScale);
   ctx.fillStyle = player.jumpZ > 1 ? 'rgba(26, 26, 26, 0.25)' : 'rgba(26, 26, 26, 0.16)';
-  ctx.beginPath(); ctx.ellipse(0, 0, 15, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.beginPath(); ctx.ellipse(0, 0, 15 * u, 8 * u, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
 
   if (player.drafting) {
-    ctx.save(); ctx.strokeStyle = '#38BDF8'; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.save(); ctx.strokeStyle = '#38BDF8'; ctx.lineWidth = 2 * u; ctx.beginPath();
     ctx.moveTo(player.x, player.y + jumpOffsetY);
-    ctx.lineTo(player.x - Math.cos(player.angle) * 35, player.y + jumpOffsetY - Math.sin(player.angle) * 35);
+    ctx.lineTo(player.x - Math.cos(player.angle) * 35 * u, player.y + jumpOffsetY - Math.sin(player.angle) * 35 * u);
     ctx.stroke(); ctx.restore();
   }
   const jumpScale = 1 + Math.min(0.38, (player.jumpZ || 0) * 0.035);
   ctx.save(); ctx.translate(player.x, player.y + jumpOffsetY); ctx.scale(jumpScale, jumpScale); ctx.rotate(player.angle);
-  if (player.dashing || player.boosting) { ctx.fillStyle = UI_COLORS.turbo; ctx.fillRect(-28, -8, 14, 16); }
-  if (player.disrupted) { ctx.strokeStyle = '#0EA5E9'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI * 2); ctx.stroke(); }
-  ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-12, -10); ctx.lineTo(-8, 0); ctx.lineTo(-12, 10); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 2.5; ctx.stroke(); ctx.restore();
+  if (player.dashing || player.boosting) { ctx.fillStyle = UI_COLORS.turbo; ctx.fillRect(-28 * u, -8 * u, 14 * u, 16 * u); }
+  if (player.disrupted) { ctx.strokeStyle = '#0EA5E9'; ctx.lineWidth = 3 * u; ctx.beginPath(); ctx.arc(0, 0, 20 * u, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(16 * u, 0); ctx.lineTo(-12 * u, -10 * u); ctx.lineTo(-8 * u, 0); ctx.lineTo(-12 * u, 10 * u); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 2.5 * u; ctx.stroke(); ctx.restore();
 
   const target = checkpoints?.[player.nextCheckpoint];
   if (target) {
     const arrowAngle = Math.atan2(target.y - player.y, target.x - player.x);
-    ctx.save(); ctx.translate(player.x + Math.cos(arrowAngle) * 26, player.y + Math.sin(arrowAngle) * 26 + jumpOffsetY); ctx.rotate(arrowAngle);
-    ctx.fillStyle = target.color; ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-4, -4); ctx.lineTo(-4, 4); ctx.closePath(); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(player.x + Math.cos(arrowAngle) * 26 * u, player.y + Math.sin(arrowAngle) * 26 * u + jumpOffsetY); ctx.rotate(arrowAngle);
+    ctx.fillStyle = target.color; ctx.beginPath(); ctx.moveTo(6 * u, 0); ctx.lineTo(-4 * u, -4 * u); ctx.lineTo(-4 * u, 4 * u); ctx.closePath(); ctx.fill(); ctx.restore();
   }
   const pipCount = player.slot + 1;
-  const startX = player.x - ((pipCount - 1) * 5) / 2;
+  const startX = player.x - ((pipCount - 1) * 5 * u) / 2;
   for (let index = 0; index < pipCount; index += 1) {
-    ctx.beginPath(); ctx.arc(startX + index * 5, player.y + jumpOffsetY, 2.2, 0, Math.PI * 2);
-    ctx.fillStyle = UI_COLORS.card; ctx.fill(); ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.arc(startX + index * 5 * u, player.y + jumpOffsetY, 2.2 * u, 0, Math.PI * 2);
+    ctx.fillStyle = UI_COLORS.card; ctx.fill(); ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 1 * u; ctx.stroke();
   }
 }
 
