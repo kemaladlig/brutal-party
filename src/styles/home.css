@@ -29,6 +29,35 @@
   height: var(--hero-size);
 }
 
+/* ── Karakter etkileşimi: dokunma ipucu + TV odak ipucu ── */
+
+/* "Karaktere dokun (Zıplat!)" — rozetin altında tek satır mono; ilk dokunuşta
+   `.hidden` ile kalkar. Dar/çok kısa düzenlerde yer yok: hiç gösterilmez. */
+.home-boing-hint {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 36px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Kumanda/klavye odağı: karakterin kendisi hedef — hafif büyüme "seçili"
+   hissi verir; Enter/OK aynı zıplama tepkisini tetikler (heroAvatar.js). */
+.home-hero.is-focused .home-hero-canvas {
+  transform: scale(1.025);
+}
+
+@media (max-height: 470px), (max-width: 620px) {
+  .home-boing-hint { display: none; }
+}
+
 /* ── Sağ alt: ODA KUR + OYNA çifti ────────────────────────────────────────
    İki ana eylem tek bir satırda: ikincil (teal) solda, ana eylem (altın)
    sağda. Daha önce ayrı köşelerdeydiler ve sahne ikiye bölünüyordu. */

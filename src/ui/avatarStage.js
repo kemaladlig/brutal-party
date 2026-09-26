@@ -154,6 +154,35 @@ export function drawSparks(ctx, r, sparks) {
   }
 }
 /**
+ * Zemin gölge gradyanı — kare başına `createRadialGradient` tahsisi yerine
+ * `characterRenderer.js`'teki `playFaceShading` deseni: WeakMap(ctx) →
+ * yarıçap 0.25px'e kuantalanmış harita. Gradyan ORİJİN etrafında üretilir;
+ * çizim `translate(cx, groundY) + scale(shadowScale)` ile taşınır, böylece
+ * ölçek değişimi gradyanı da taşır ve cache tek boyutta kalır.
+ */
+const GROUND_SHADOW_CACHE = new WeakMap();
+const SHADOW_GLOW_REF = 64;
+
+function groundShadowGradient(ctx, r) {
+  let byR = GROUND_SHADOW_CACHE.get(ctx);
+  if (!byR) {
+    byR = new Map();
+    GROUND_SHADOW_CACHE.set(ctx, byR);
+  }
+  const key = Math.round(r * 4) / 4;
+  let gradient = byR.get(key);
+  if (!gradient) {
+    if (byR.size > SHADOW_GLOW_REF) byR.delete(byR.keys().next().value);
+    gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(0.1, key * 0.95));
+    gradient.addColorStop(0, 'rgba(12, 8, 34, 0.34)');
+    gradient.addColorStop(0.62, 'rgba(12, 8, 34, 0.16)');
+    gradient.addColorStop(1, 'rgba(12, 8, 34, 0)');
+    byR.set(key, gradient);
+  }
+  return gradient;
+}
+
+/**
  * Sahne çizimi: zemin gölge diski + kaide halkası + gövde.
  * Tüm değerler yarıçapa oranlıdır (ölçülen taban oranları: gölge 1.09r / 0.82r /
  * 0.25r, kaide halkası 0.95r, çerçeve 0.08r, zemin gölgesi 0.09r).
@@ -164,31 +193,34 @@ export function drawSparks(ctx, r, sparks) {
  * @param {Object} avatarOpts - drawBrutalAvatar seçenekleri (renk/ifade/açı)
  * @param {number} [yOffset] - Dikey kayma (zıplama/nefes)
  * @param {number} [shadowScale] - Zemin gölgesinin zıplamaya göre ölçeklenmesi
+ * @param {number} [ringPulse] - 0..1 dokunma/heyecan halkası parıltısı
  */
-export function drawAvatarStage(ctx, w, h, r, avatarOpts, yOffset = 0, shadowScale = 1) {
+export function drawAvatarStage(ctx, w, h, r, avatarOpts, yOffset = 0, shadowScale = 1, ringPulse = 0) {
   const cx = w / 2;
   const cy = h / 2;
 
   // Zemin gölge diski: karakteri sahneye oturtur, zıplamada uzaklaşır/küçülür.
   // Yumuşak geçişli elips: sert disk kenarları gövdeyi "yırtıyormuş" gibi
-  // okunduğu için radyal gradanele çözüldü.
+  // okunduğu için radyal gradyanla çözüldü; gradyan cache'li, ölçek transform'la.
   ctx.save();
   const groundY = cy + r * 1.02;
-  const soft = ctx.createRadialGradient(cx, groundY, 0, cx, groundY, r * 0.95 * shadowScale);
-  soft.addColorStop(0, 'rgba(12, 8, 34, 0.34)');
-  soft.addColorStop(0.62, 'rgba(12, 8, 34, 0.16)');
-  soft.addColorStop(1, 'rgba(12, 8, 34, 0)');
-  ctx.fillStyle = soft;
+  ctx.save();
+  ctx.translate(cx, groundY);
+  ctx.scale(shadowScale, shadowScale);
+  ctx.fillStyle = groundShadowGradient(ctx, r);
   ctx.beginPath();
-  ctx.ellipse(cx, groundY, r * 0.95 * shadowScale, r * 0.3 * shadowScale, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, r * 0.95, r * 0.3, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
 
-  // Kaide hedef halkası
-  ctx.strokeStyle = 'rgba(255, 248, 234, 0.28)';
-  ctx.lineWidth = Math.max(1, r * 0.03);
+  // Kaide hedef halkası — `ringPulse` yalnız alınlığı/kalınlığı modüle eder;
+  // 0'da bugünkü statik çizimle pik pik aynıdır.
+  const pulse = Math.max(0, Math.min(1, ringPulse));
+  ctx.strokeStyle = `rgba(255, 248, 234, ${(0.28 + pulse * 0.5).toFixed(3)})`;
+  ctx.lineWidth = Math.max(1, r * 0.03 * (1 + pulse * 0.6));
   ctx.setLineDash([r * 0.07, r * 0.07]);
   ctx.beginPath();
-  ctx.ellipse(cx, groundY, r * 0.95, r * 0.3, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, groundY, r * 0.95 * (1 + 0.05 * pulse), r * 0.3 * (1 + 0.05 * pulse), 0, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.restore();

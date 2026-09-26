@@ -65,7 +65,11 @@ registerView('home', {
 
     // ── Merkez: karakter + düzenlenebilir isim ──
     // `is-staged`: karakter arena diskinin üst kenarına oturur (bkz. scene.css).
+    // `data-focus`: TV/klavye gezinmesinde karakter bir hedeftir — Enter/OK
+    // `el.click()` ile aynı zıplama tepkisini tetikler (focusRouter).
     const stage = el('div', 'scene-hero home-hero is-staged');
+    stage.dataset.focus = 'hero';
+    stage.tabIndex = -1;
     const canvas = document.createElement('canvas');
     canvas.className = 'scene-hero-canvas home-hero-canvas';
     stage.append(canvas);
@@ -85,6 +89,10 @@ registerView('home', {
     const badge = el('div', 'scene-badge home-identity');
     badge.append(nameField.el);
     stage.append(badge);
+    // "Dokun" ipucu: rozetin altında tek satır; sahneye ilk dokunuşta kalkar.
+    // Kalıcı tercih YAZILMAZ — görünüm her açılışta yeniden kurulur.
+    const hint = el('div', 'home-boing-hint');
+    stage.append(hint);
     view.append(stage);
 
     // ── Sağ alt: ODA KUR + OYNA, yan yana ──
@@ -144,13 +152,16 @@ registerView('home', {
       set(playBtn, 'shell.playNow', 'shell.play.pick');
       set(joinBtn, 'shell.side.join');
       set(installBtn, 'menu.install');
+      hint.textContent = t('menu.boing');
       view.querySelector('.home-facts').textContent = t('shell.home.facts');
       // Uygulama zaten yüklüyse (standalone) simge hiç gösterilmez.
       updateInstallButtonVisibility();
     }
     applyTexts();
 
-    const dispose = mountHeroAvatar(canvas);
+    const dispose = mountHeroAvatar(canvas, {
+      onPoke: () => hint.classList.add('hidden'),
+    });
     // Görünüm her açılışta yeniden kurulduğu için abonelik mutlaka iptal
     // edilir; aksi halde dil değişiminde ölü görünümler de güncellenir.
     const offLang = onLangChange(() => { applyTexts(); nameField.refresh(); });

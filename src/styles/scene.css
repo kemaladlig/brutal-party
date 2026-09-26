@@ -211,6 +211,11 @@
 .scene-hero-canvas {
   display: block;
   filter: drop-shadow(0 22px 28px var(--scene-shadow));
+  /* `.scene-hero` saydam bir kaptır (pointer-events:none); karakterin KENDİSİ
+     dokunulabilirdir: zıplama tepkisi canvas'ı vurur (bkz. heroAvatar.js). */
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
 .scene-badge {
