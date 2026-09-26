@@ -1,0 +1,123 @@
+// Brutal Party — Profil Kartı / Avatar Atölyesi sahne tuvali
+//
+// İki canvas (ana menü kartı + atölye önizlemesi) aynı kurallıdır:
+//   - bitmap, CSS kutusundan ve DPR'den türetilir (sabit 192/220 px değil)
+//   - gövde yarıçapı ve saha geometrisi bitmap'in KISA KENARINA oranlıdır
+//
+// Neden oranlı: yarıçap bitmap'e sabitlenmişken CSS kutusu breakpoint'lerde
+// 148 → 104 → 68px'e küçülüyordu. Ölçülen sonuç: gövde kutunun %46'sını
+// kaplıyor, geri kalanı boş alan — kart "kırık" okunuyordu. Kutuya göre
+// türetilen yarıçap her breakpoint'te aynı oranı tutar ve net (DPR) çizilir.
+import { drawBrutalAvatar } from './characterRenderer.js';
+
+/** Gövde çapı, kutunun kısa kenarının bu oranı kadar olsun. */
+const BODY_RATIO = 0.74;
+
+/**
+ * Canvas'ın CSS kutusu değiştiğinde (görünür/gizlenme, breakpoint, yazı
+ * yüklenmesi) ölçümü tazeler.
+ *
+ * Neden `window.resize` yetmez: menü gizliyken `getBoundingClientRect()` 0 döner
+ * ve bitmap 1x1'e düşer; menü açıldığında `resize` olayı çalılmadığı için
+ * ölçüm bir daha yapılmaz ve avatar görünmez olur. `ResizeObserver` kutu 0'dan
+ * gerçeğe geçtiğinde de tetiklenir.
+ * @param {HTMLCanvasElement} canvas
+ * @param {() => void} onResize
+ * @returns {() => void} Observer'ı bırakan fonksiyon
+ */
+export function observeStageCanvas(canvas, onResize) {
+  if (typeof ResizeObserver === 'undefined') {
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }
+  const ro = new ResizeObserver(() => onResize());
+  ro.observe(canvas);
+  return () => ro.disconnect();
+}
+
+/**
+ * Kare temizliği: `clearRect` YALNIZ aktif klip bölgesini siler. Çizim
+ * kodundan kaçan bir `clip()` (veya dönüşüm) sonraki tüm kareleri birbirine
+ * kilitler ve eski kareler kalıcı olarak üst üste biner — gözlenen belirti:
+ * yuvarlak değil, DİKDÖRTGEN tabanlı dolgu + köşede ikinci bir disk, kare
+ * yenilendikçe katlanarak büyüyen artık. Kutu `save()`/`restore()` ile
+ * sarmalanınca sızan klip ve dönüşüm kare sonunda zorla düşer; `clearRect`
+ * de tam bitmap'i temizler.
+ * @param {HTMLCanvasElement} canvas
+ * @returns {CanvasRenderingContext2D}
+ */
+export function beginStageFrame(canvas) {
+  const ctx = canvas.getContext('2d');
+  ctx.save();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  return ctx;
+}
+
+/**
+ * Canvas'ı CSS kutusuna göre eşitler ve ölçüleri döndürür.
+ * @param {HTMLCanvasElement} canvas
+ * @returns {{ ctx: CanvasRenderingContext2D, w: number, h: number, r: number }}
+ */
+export function syncStageCanvas(canvas) {
+  const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.max(1, Math.round(rect.width || canvas.clientWidth || 1));
+  const h = Math.max(1, Math.round(rect.height || canvas.clientHeight || 1));
+  const bw = Math.round(w * dpr);
+  const bh = Math.round(h * dpr);
+  // `width` ataması bitmap'i sıfırlar; sadece gerçekten değiştiyse yaz.
+  if (canvas.width !== bw || canvas.height !== bh) {
+    canvas.width = bw;
+    canvas.height = bh;
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return {
+    ctx,
+    w,
+    h,
+    r: Math.max(6, Math.round((Math.min(w, h) * BODY_RATIO) / 2)),
+  };
+}
+
+/**
+ * Sahne çizimi: zemin gölge diski + kaide halkası + gövde.
+ * Tüm değerler yarıçapa oranlıdır (ölçülen taban oranları: gölge 1.09r / 0.82r /
+ * 0.25r, kaide halkası 0.95r, çerçeve 0.08r, zemin gölgesi 0.09r).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} w
+ * @param {number} h
+ * @param {number} r
+ * @param {Object} avatarOpts - drawBrutalAvatar seçenekleri (renk/ifade/açı)
+ * @param {number} [yOffset] - Dikey kayma (zıplama/nefes)
+ * @param {number} [shadowScale] - Zemin gölgesinin zıplamaya göre ölçeklenmesi
+ */
+export function drawAvatarStage(ctx, w, h, r, avatarOpts, yOffset = 0, shadowScale = 1) {
+  const cx = w / 2;
+  const cy = h / 2;
+
+  // Zemin gölge diski: karakteri sahneye oturtur, zıplamada uzaklaşır/küçülür.
+  ctx.save();
+  ctx.fillStyle = 'rgba(26, 26, 26, 0.16)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + r * 1.09, r * 0.82 * shadowScale, r * 0.25 * shadowScale, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Kaide hedef halkası
+  ctx.strokeStyle = 'rgba(26, 26, 26, 0.15)';
+  ctx.lineWidth = Math.max(1, r * 0.034);
+  ctx.setLineDash([r * 0.07, r * 0.07]);
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + r * 1.09, r * 0.95, r * 0.3, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  drawBrutalAvatar(ctx, cx, cy + yOffset, r, {
+    showPips: false,
+    showPointer: false,
+    borderWidth: Math.max(2, r * 0.08),
+    shadowOffset: Math.max(1.5, r * 0.09),
+    ...avatarOpts,
+  });
+}

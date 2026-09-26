@@ -13,7 +13,7 @@ import {
 } from '../core/customizationManager.js';
 import { t, onLangChange } from '../i18n.js';
 import { safeGet, safeSet } from '../core/safeStorage.js';
-import { drawBrutalAvatar } from './characterRenderer.js';
+import { syncStageCanvas, drawAvatarStage, observeStageCanvas, beginStageFrame } from './avatarStage.js';
 import { showInstallToast } from './toast.js';
 import { getStoredPlayerName, storePlayerName, cleanPlayerName, generateNick } from '../net.js';
 import { playMenuPop, playMenuTick } from '../audio.js';
@@ -274,7 +274,12 @@ function startPreviewLoop() {
 
   const canvas = document.getElementById('customize-preview-canvas');
   if (!canvas) return;
-  const ctx = canvas.getContext('2d');
+
+  // Ölçü yalnız kutu değiştiğinde tazelenir; her karede `getBoundingClientRect`
+  // çağırmak layout zorlar. `ResizeObserver` modal açılıp kapandığında da
+  // tetiklenir (gizliyken ölçü 0 gelir — bkz. `observeStageCanvas`).
+  let stage = syncStageCanvas(canvas);
+  observeStageCanvas(canvas, () => { stage = syncStageCanvas(canvas); });
 
   let lastTime = performance.now();
 
@@ -295,28 +300,22 @@ function startPreviewLoop() {
     // Yavaş otomatik salınım
     previewAngle += dt * 0.45;
 
-    // Temizle
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
-    const bounce = Math.sin(now * 0.004) * 4;
+    const { w, h, r } = stage;
+    const ctx = beginStageFrame(canvas);
 
     // Avatar Çizimi (yazısız önizleme)
     if (currentCustom) {
-      drawBrutalAvatar(ctx, cx, cy + bounce, 50, {
+      drawAvatarStage(ctx, w, h, r, {
         color: currentCustom.color,
         expression: currentCustom.expression,
         facingAngle: previewAngle,
         isBlinking: isPreviewBlinking,
-        showPips: false,
-        showPointer: false,
-        borderWidth: 4,
-        shadowOffset: 5,
-      });
+      }, Math.sin(now * 0.004) * r * 0.08);
     }
 
     const modalEl = document.getElementById('customize-modal');
+    // Kare kutusu: çizimden sızan klip/dönüşüm kare sonunda düşer.
+    ctx.restore();
     if (modalEl && !modalEl.classList.contains('hidden')) {
       animFrameId = requestAnimationFrame(loop);
     }
@@ -335,6 +334,20 @@ let isMenuBlinking = false;
 let pointerTargetAngle = 0;
 let hasActivePointer = false;
 let lastPointerTime = 0;
+
+// Zıplama fiziği — hepsi yarıçap cinsinden (r/s, r/s²), böylece 68px'lik
+// telefon kutusuyla 320px'lik masaüstü kutusu aynı hissi verir.
+//
+// Ölçülen eski değerler: itki 5.45 r/s, yerçekimi 18.6 r/s² → tepe 0.80r,
+// uçuş 0.59 sn. Kısa kutu yuvarlaklığını zorlamadan bitiyordu, tepede
+// "fırlatıldı" hissi veriyordu. Yeni: itki 2.4 r/s, yerçekimi 6.0 r/s² →
+// tepe ≈ 0.48r, uçuş ≈ 0.80 sn: ağır, yapışkan, sevimli bir "boing".
+const JUMP_IMPULSE = 2.4;      // dokunma tepesi (r/s)
+const JUMP_IMPULSE_IDLE = 1.9; // periyodik mini zıplama (r/s)
+const JUMP_GRAVITY = 6.0;      // r/s²
+// Zemin gölgesi ne kadar sıçrama yüksekliği? Tepe 0.48r'ye düştüğü için daha
+// kısa referans: gölge tepede 0.73 ölçeğine iner (eskiden de 0.73 idi).
+const SHADOW_DEPTH_REF = 1.8;
 
 let jumpY = 0;
 let jumpVy = 0;
@@ -430,8 +443,11 @@ export function initMenuAvatarCard() {
   });
 
   // Karakteri zıplatma & kıvılcım saçma tetikleyicisi (oyuncu dokununca canlı tepki)
+  // İtki, hız ve parçacık ölçüleri yarıçapa oranlıdır (bkz. `avatarStage.js`):
+  // kutular 68–148px arası değiştiği için sabit px her boyutta farklı hissettirir.
   const triggerAvatarBoing = () => {
-    jumpVy = -240;
+    const r = stage.r;
+    jumpVy = -JUMP_IMPULSE * r;
     squashX = 0.88;
     squashY = 1.15;
     excitedTimer = 0.8;
@@ -439,18 +455,18 @@ export function initMenuAvatarCard() {
 
     // 8-12 adet neşeli neo-brutalist kıvılcım parçacığı
     const prof = getAvatarProfile();
-    const cx = canvasEl.width / 2;
-    const cy = canvasEl.height / 2;
+    const cx = stage.w / 2;
+    const cy = stage.h / 2;
     for (let i = 0; i < 10; i++) {
       const ang = (Math.PI * 2 * i) / 10 + (Math.random() - 0.5) * 0.4;
-      const spd = 65 + Math.random() * 95;
+      const spd = 1.5 + Math.random() * 2.2;
       sparks.push({
         x: cx,
-        y: cy - 10,
+        y: cy - r * 0.23,
         vx: Math.cos(ang) * spd,
-        vy: Math.sin(ang) * spd - 45,
+        vy: Math.sin(ang) * spd - 1.0,
         color: i % 2 === 0 ? (prof?.color || '#D84727') : '#FFD700',
-        size: 3 + Math.random() * 3.5,
+        size: 0.07 + Math.random() * 0.08,
         shape: i % 3 === 0 ? 'star' : (i % 3 === 1 ? 'cross' : 'square'),
         life: 1.0,
         decay: 1.6 + Math.random() * 0.8,
@@ -500,7 +516,11 @@ export function initMenuAvatarCard() {
   }, { passive: true });
 
   // 60-120 FPS Canlı Menü Önizleme & Fizik Döngüsü
-  const ctx = canvasEl.getContext('2d');
+  // Ölçü yalnız kutu değiştiğinde tazelenir: menü gizliyken `initMenuAvatarCard`
+  // çalışıyor ve 0×0 ölçüyor; `ResizeObserver` menü açıldığında yeniden ölçer
+  // (bkz. `observeStageCanvas`).
+  let stage = syncStageCanvas(canvasEl);
+  observeStageCanvas(canvasEl, () => { stage = syncStageCanvas(canvasEl); });
   let lastTime = performance.now();
   let cachedProfile = getAvatarProfile();
 
@@ -533,7 +553,7 @@ export function initMenuAvatarCard() {
     idleHopTimer += dt;
     if (idleHopTimer > 4.8 && jumpY === 0 && jumpVy === 0) {
       idleHopTimer = 0;
-      jumpVy = -190;
+      jumpVy = -JUMP_IMPULSE_IDLE * stage.r;
       squashX = 0.94;
       squashY = 1.06;
       excitedTimer = 0.6;
@@ -559,80 +579,59 @@ export function initMenuAvatarCard() {
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
     currentAvatarAngle += angleDiff * Math.min(1, dt * 7.5);
 
-    // Dikey Zıplama Fiziği (Boing & Yerçekimi)
+    // Canvas temizleme + ölçü (bkz. `syncStageCanvas` / `beginStageCanvas`)
+    const { w, h, r } = stage;
+    const ctx = beginStageFrame(canvasEl);
+
+    const cx = w / 2;
+    const cy = h / 2;
+
+    // Zıplama fiziği yarıçapa oranlıdır (sabitler yukarıda): eski px tabanlı
+    // değerler kutu küçülünce karakteri kutudan taşıyordu.
     if (jumpY < 0 || jumpVy !== 0) {
-      jumpVy += 820 * dt; // Yerçekimi
-      jumpY += jumpVy * dt;
+      jumpVy += JUMP_GRAVITY * r * dt;
+      jumpY += jumpVy * r * dt;
       if (jumpY >= 0) {
         jumpY = 0;
         jumpVy = 0;
-        // Yere inme ezilmesi (landing squash)
         squashX = 1.18;
         squashY = 0.82;
       } else {
-        // Havadayken uzama (air stretch)
         squashX = 0.94;
         squashY = 1.08;
       }
     } else {
-      // Squash'ın normale dönmesi
       squashX += (1 - squashX) * Math.min(1, dt * 10);
       squashY += (1 - squashY) * Math.min(1, dt * 10);
     }
 
-    // Canvas temizleme
-    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-
-    const cx = canvasEl.width / 2;
-    const cy = canvasEl.height / 2;
-
     // Organik nefes alma ritmi
     const breath = Math.sin(now * 0.0035);
-    const breatheBounce = breath * 2.2;
-    const avatarY = cy + jumpY + breatheBounce;
+    const avatarY = jumpY + breath * r * 0.05;
 
-    // 1. Zemin İzometrik Kaide / Gölge Diski (Karakteri sahneye oturtur)
-    const shadowScale = Math.max(0.4, 1 + jumpY / 130);
-    ctx.save();
-    ctx.fillStyle = 'rgba(26, 26, 26, 0.16)';
-    ctx.beginPath();
-    ctx.ellipse(cx, cy + 48, 36 * shadowScale, 11 * shadowScale, 0, 0, Math.PI * 2);
-    ctx.fill();
+    // Zemin gölgesi zıpladıkça uzaklaşır ve küçülür
+    const shadowScale = Math.max(0.4, 1 + jumpY / (SHADOW_DEPTH_REF * r));
 
-    // Kaide hedef halkası (reticle ring)
-    ctx.strokeStyle = 'rgba(26, 26, 26, 0.15)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([3, 3]);
-    ctx.beginPath();
-    ctx.ellipse(cx, cy + 48, 42, 13, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
-
-    // 2. Avatar Çizimi (Squash & Stretch orantılı)
+    // Avatar (squash & stretch orantılı)
     const custom = cachedProfile || getAvatarProfile();
     const finalExpression = excitedTimer > 0 ? 'WINK' : custom.expression;
     const combinedScale = ((squashX + squashY) / 2) * (1 + breath * 0.02);
 
-    drawBrutalAvatar(ctx, cx, avatarY - 2, 44, {
+    drawAvatarStage(ctx, w, h, r, {
       color: custom.color,
       expression: finalExpression,
       facingAngle: currentAvatarAngle,
       isBlinking: isMenuBlinking,
       scale: combinedScale,
-      showPips: false,
-      showPointer: false,
-      borderWidth: 3.5,
-      shadowOffset: 4,
-    });
+    }, avatarY - r * 0.05, shadowScale);
 
-    // 3. Kıvılcım / Yıldız Parçacıkları (Boing efekti)
+    // Kıvılcım / Yıldız Parçacıkları (Boing efekti) — ölçüler yarıçapa oranlı
     if (sparks.length > 0) {
       for (let i = sparks.length - 1; i >= 0; i--) {
         const p = sparks[i];
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-        p.vy += 220 * dt; // Parçacık yerçekimi
+        p.x += p.vx * r * dt;
+        p.y += p.vy * r * dt;
+        p.vy += 5 * r * dt; // Parçacık yerçekimi
         p.life -= p.decay * dt;
 
         if (p.life <= 0) {
@@ -644,16 +643,16 @@ export function initMenuAvatarCard() {
         ctx.globalAlpha = Math.max(0, p.life);
         ctx.fillStyle = p.color;
         ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = Math.max(1, r * 0.023);
 
         if (p.shape === 'star') {
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, p.size * r, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
         } else if (p.shape === 'cross') {
-          const s = p.size;
-          ctx.lineWidth = 2;
+          const s = p.size * r;
+          ctx.lineWidth = Math.max(1.5, r * 0.045);
           ctx.beginPath();
           ctx.moveTo(p.x - s, p.y);
           ctx.lineTo(p.x + s, p.y);
@@ -661,12 +660,16 @@ export function initMenuAvatarCard() {
           ctx.lineTo(p.x, p.y + s);
           ctx.stroke();
         } else {
-          ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
-          ctx.strokeRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+          const s = p.size * r;
+          ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+          ctx.strokeRect(p.x - s / 2, p.y - s / 2, s, s);
         }
         ctx.restore();
       }
     }
+
+    // Kare kutusu: çizimden sızan klip/dönüşüm kare sonunda düşer.
+    ctx.restore();
 
     const menuOverlay = document.getElementById('menu-overlay');
     if (menuOverlay && !menuOverlay.classList.contains('hidden')) {

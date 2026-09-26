@@ -66,7 +66,18 @@ function pinViewport(w, h) {
 // (faceMode 'play') dekor katmanı taşımıyor ama gözler büyütüldü ve disk içi
 // hacim eklendi; "göz büyümesi silueti taşırdı mı" sorusunun sayısal cevabı
 // buradan gelir. Kullanım: ?probe=extent&r=16
-if (params.get('probe') === 'extent' || params.get('probe') === 'face') {
+if (params.get('probe') === 'zoom') {
+  // Gerçek sayfayı iframe içinde 2.2x büyüt: 104px'lik profil kartı kutusu
+  // piksel düzeyinde incelenebilir olur. Aynı origin (aynı port) olduğu için
+  // iframe erişilebilir.
+  const frame = document.createElement('iframe');
+  frame.src = '/?probe-zoom=1';
+  frame.width = '760';
+  frame.height = '2600';
+  frame.style.cssText = `width:760px;height:2600px;border:0;transform:scale(${num('z', 2.2)});transform-origin:top left`;
+  out.appendChild(frame);
+  document.title = 'probe zoom';
+} else if (['extent', 'face', 'card'].includes(params.get('probe'))) {
   const R = num('r', 16);
   const size = Math.ceil(R * 8);
   const results = [];
@@ -142,6 +153,40 @@ if (params.get('probe') === 'extent' || params.get('probe') === 'face') {
   pre.textContent = JSON.stringify(results, null, 1);
   out.appendChild(pre);
   document.title = 'probe extent';
+
+  // `card` probu: profil kartı / atölye sahnesinin GERÇEK kod yolu
+  // (`syncStageCanvas` + `drawAvatarStage`) — kutu boyutu verilip 1:1 çizilir.
+  // Amaç: çizim kodunu CSS'ten ayırmak. Not: eski sabit yarıçaplı kart, bitmap'i
+  // 192px tutup CSS kutusuna 98px'e küçültüyordu; gövde kutunun %46'sını
+  // kaplıyor, karakter küçük ve boşluklu görünüyordu.
+  if (params.get('probe') === 'card') {
+    const { syncStageCanvas, drawAvatarStage } = await import('../../src/ui/avatarStage.js');
+    // Aynı çizim, üç farklı bitmap/CSS oranı: 1:1, 2:1 (büyük bitmap küçük
+    // kutuya sığdırılır — kartın ESKİ hali), 1:2 (küçük bitmap büyük kutuya
+    // büyütülür). Oran 1:1'de temiz, diğerlerinde bozulma varsa suç
+    // çizimde değil bitmap ölçeklemesindedir.
+    const ratios = [[1, 1], [220, 90], [90, 180]];
+    for (const [bitmap, css] of ratios) {
+      const c = document.createElement('canvas');
+      c.width = bitmap;
+      c.height = bitmap;
+      c.style.width = `${css}px`;
+      c.style.height = `${css}px`;
+      c.style.background = '#F4F4F0';
+      c.style.border = '2px solid #D84727';
+      out.appendChild(c);
+      const g = c.getContext('2d');
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, bitmap, bitmap);
+      drawAvatarStage(g, bitmap, bitmap, Math.round(bitmap * 0.37), {
+        color: '#2F6A4F', expression: num('e', 'HEART'), facingAngle: num('a', 0.4),
+      });
+      const cap = document.createElement('div');
+      cap.style.cssText = 'padding:4px 12px;font:12px ui-monospace,monospace';
+      cap.textContent = `bitmap ${bitmap}px → CSS ${css}px (ölçek ${(css / bitmap).toFixed(2)}x)`;
+      out.appendChild(cap);
+    }
+  }
 
   // `face` probu: göz/kırpma/nişan şeridi — r=6/10/16/28'de okunabilirlik.
   if (params.get('probe') === 'face') {
