@@ -338,15 +338,14 @@ let lastPointerTime = 0;
 // Zıplama fiziği — hepsi yarıçap cinsinden (r/s, r/s²), böylece 68px'lik
 // telefon kutusuyla 320px'lik masaüstü kutusu aynı hissi verir.
 //
-// Ölçülen eski değerler: itki 5.45 r/s, yerçekimi 18.6 r/s² → tepe 0.80r,
-// uçuş 0.59 sn. Kısa kutu yuvarlaklığını zorlamadan bitiyordu, tepede
-// "fırlatıldı" hissi veriyordu. Yeni: itki 2.4 r/s, yerçekimi 6.0 r/s² →
-// tepe ≈ 0.48r, uçuş ≈ 0.80 sn: ağır, yapışkan, sevimli bir "boing".
-const JUMP_IMPULSE = 2.4;      // dokunma tepesi (r/s)
-const JUMP_IMPULSE_IDLE = 1.9; // periyodik mini zıplama (r/s)
-const JUMP_GRAVITY = 6.0;      // r/s²
-// Zemin gölgesi ne kadar sıçrama yüksekliği? Tepe 0.48r'ye düştüğü için daha
-// kısa referans: gölge tepede 0.73 ölçeğine iner (eskiden de 0.73 idi).
+// Eski değerler (itki 2.4 r/s, yerçekimi 6.0 r/s² → tepe 0.48r, uçuş 0.80 sn)
+// hâlâ hızlı ve yüksek hissettiriyordu. Yeni: itki 1.2 r/s, yerçekimi
+// 2.4 r/s² → tepe ≈ 0.30r, uçuş ≈ 1.00 sn: yavaş, alçak, yumuşak bir "boing".
+const JUMP_IMPULSE = 1.2;      // dokunma tepesi (r/s)
+const JUMP_IMPULSE_IDLE = 1.0; // periyodik mini zıplama (r/s)
+const JUMP_GRAVITY = 2.4;      // r/s²
+// Zemin gölgesi ne kadar sıçrama yüksekliği? Tepe 0.30r olduğu için daha
+// kısa referans: gölge tepede 0.83 ölçeğine iner.
 const SHADOW_DEPTH_REF = 1.8;
 
 let jumpY = 0;
