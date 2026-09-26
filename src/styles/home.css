@@ -13,6 +13,23 @@
    (`is-staged` + `--scene-stage-y`, `scene.css`). Daha önce `top: 50%` idi ve
    isim rozeti karakterle diskin arasında havada asılı kalıyordu. */
 
+/* ── Arka plan: stüdyo zemini (public/background.webp) ──
+   Görselin kendi gradyanı, turuncu platformu ve pembe ufuğu var; CSS sahne
+   katmanları (backdrop/spotlight/arena diski) home'da kapanır — iki zemin
+   üst üste binmez. `--scene-stage-y` platformun ÜST kenarına (görselde
+   ~%73.5; cover kırpmasıyla 900×460'ta ~%75.5) çekilir: karakterin ayağı
+   diskin tepesine basar. Vinyet kalır — kenar derinliği görseli taşar. */
+.home-scene {
+  --scene-stage-y: 75%;
+  background: url('/background.webp') 50% 50% / cover no-repeat var(--scene-bottom);
+}
+
+.home-scene .scene-backdrop,
+.home-scene .scene-spotlight,
+.home-scene .scene-floor {
+  display: none;
+}
+
 .home-hero {
   --hero-size: min(46vh, 440px);
   /* Avatarın zemin halkası canvas'ın alt kenarından ~%15 yukarıda çizilir

@@ -125,6 +125,7 @@ export const CARTRIDGES = {
           alive: game.players.map((p) => p.isAlive ?? p.alive),
           timeLeft: Math.max(0, Math.ceil((game.roundLimit || 120) - (game.roundTimer || 0))),
           matchDraw: game.matchDraw === true,
+          cd: game.players.map((p) => Math.ceil((Math.max(0, p.boostCooldown || 0) / 4.0) * 100)),
         }),
       };
     },

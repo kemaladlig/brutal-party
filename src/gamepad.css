@@ -1039,15 +1039,55 @@
   position: absolute;
   inset: 0;
   z-index: 260;
-  display: block;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   pointer-events: auto;
   touch-action: none;
-  background: var(--dim-18);
+  background: var(--paper);
+  background-image: radial-gradient(var(--ink) 1px, transparent 1px);
+  background-size: 28px 28px;
   color: var(--n-900);
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+}
+
+.controller-layout-stage {
+  position: relative;
+  flex: 1;
+  min-height: 220px;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.controller-layout-safe {
+  position: absolute;
+  border: 2px solid var(--edge-strong);
+  border-radius: 14px;
+  background: var(--sheen-08);
+  pointer-events: none;
+}
+
+.controller-layout-midline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  border-left: 2px dotted var(--dim-35);
+  pointer-events: none;
+}
+
+.controller-layout-center-gap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed var(--dim-35);
+  border-right: 2px dashed var(--dim-35);
+  background: var(--glow-gold-soft);
+  pointer-events: none;
 }
 
 .controller-layout-playfield {
@@ -1059,6 +1099,45 @@
   border-right: 2px dashed var(--dim-35);
   background: var(--glow-gold-soft);
   pointer-events: none;
+}
+
+.controller-layout-ghost {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--n-900);
+  border-radius: 18px;
+  background: var(--tint-paper-50);
+  color: var(--n-700);
+  font: 900 10px/1 'JetBrains Mono', monospace;
+  letter-spacing: 1px;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.controller-layout-ghost.is-left {
+  border-color: var(--p1);
+}
+
+.controller-layout-ghost.is-right {
+  border-color: var(--p2);
+}
+
+.controller-layout-mode-badge {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border: 1.5px solid var(--edge-strong);
+  border-radius: 999px;
+  background: var(--n-900);
+  color: var(--paper);
+  font: 900 11px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.6px;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .controller-layout-handle {
@@ -1091,13 +1170,14 @@
 }
 
 .controller-layout-editor-panel {
-  position: absolute;
-  left: 50%;
-  bottom: max(12px, var(--controller-safe-bottom, 0px));
-  width: min(calc(100% - 24px), 460px);
-  max-height: calc(100% - 24px);
+  position: relative;
+  left: auto;
+  bottom: auto;
+  width: auto;
+  max-height: 52%;
   overflow: auto;
-  transform: translateX(-50%);
+  transform: none;
+  margin: 0 12px calc(12px + var(--controller-safe-bottom, 0px));
   padding: 14px;
   box-sizing: border-box;
   border: 1.5px solid var(--edge-strong);
@@ -1163,9 +1243,16 @@
 .controller-layout-size {
   width: 100%;
   min-height: 44px;
-  margin: 4px 0 12px;
+  margin: 4px 0 8px;
   accent-color: var(--p1);
   cursor: pointer;
+}
+
+.controller-layout-pos {
+  margin: 0 0 12px;
+  font: 800 11px/1.4 'JetBrains Mono', monospace;
+  color: var(--n-700);
+  text-align: center;
 }
 
 .controller-layout-editor-actions {
@@ -1267,7 +1354,8 @@
 .gamepad-control-overlay .action-half,
 .gamepad-control-overlay .tank-drive-zone,
 .gamepad-control-overlay .tanks-fire-zone,
-.gamepad-control-overlay .curve-controller-view .steer-rocker-cluster,
+.gamepad-control-overlay .steer-zone,
+.gamepad-control-overlay .steer-action-zone,
 .gamepad-control-overlay .pong-horizontal-track,
 .gamepad-control-overlay .pong-invert-btn,
 .gamepad-control-overlay .action-spin-btn,
@@ -1277,50 +1365,44 @@
 #local-mobile-controls .action-half,
 #local-mobile-controls .tank-drive-zone,
 #local-mobile-controls .tanks-fire-zone,
-#local-mobile-controls .curve-controller-view .steer-rocker-cluster,
+#local-mobile-controls .steer-zone,
+#local-mobile-controls .steer-action-zone,
 #local-mobile-controls .pong-horizontal-track,
 #local-mobile-controls .pong-invert-btn,
-#local-mobile-controls .action-spin-btn,
-#local-mobile-controls .snake-steer-zone,
-#local-mobile-controls .snake-boost-zone {
+#local-mobile-controls .action-spin-btn {
   pointer-events: auto;
 }
 
-.gamepad-control-overlay .snake-controller-view {
+.gamepad-control-overlay .steer-action-view {
   pointer-events: none;
   opacity: 0.78;
   transition: opacity 0.15s ease;
 }
 
-.gamepad-control-overlay .snake-steer-zone,
-.gamepad-control-overlay .snake-boost-zone {
-  pointer-events: auto;
-}
-
 .gamepad-control-overlay .steer-rocker-btn,
-.gamepad-control-overlay .snake-boost-btn {
+.gamepad-control-overlay .steer-action-btn {
   opacity: 0.82;
   transition: opacity 0.15s ease, transform 0.06s ease;
 }
 
 .gamepad-control-overlay .steer-rocker-btn.active,
-.gamepad-control-overlay .snake-boost-btn.active {
+.gamepad-control-overlay .steer-action-btn.active {
   opacity: 1;
 }
 
 /* Telefon/tablet: saha her zaman okunur kalsın. */
 @media (any-pointer: coarse), (hover: none) {
-  .gamepad-control-overlay .snake-controller-view {
+  .gamepad-control-overlay .steer-action-view {
     opacity: 1;
   }
 
   .gamepad-control-overlay .steer-rocker-btn,
-  .gamepad-control-overlay .snake-boost-btn {
+  .gamepad-control-overlay .steer-action-btn {
     opacity: 0.22;
   }
 
   .gamepad-control-overlay .steer-rocker-btn.active,
-  .gamepad-control-overlay .snake-boost-btn.active {
+  .gamepad-control-overlay .steer-action-btn.active {
     opacity: 0.4;
   }
 }
@@ -1829,65 +1911,55 @@
   flex-shrink: 0;
 }
 
-/* 03 // CURVE CONTROLLER */
-.curve-controller-view {
+/* 03 // STEER_ACTION YÜZEYİ (CURVE, SNAKE) — sol yön rocker'ı + sağ aksiyon */
+.steer-action-view {
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   padding: 0 max(24px, env(safe-area-inset-left, 24px)) max(14px, env(safe-area-inset-bottom, 14px)) max(24px, env(safe-area-inset-right, 24px));
   box-sizing: border-box;
 }
 
-@media (orientation: portrait), (max-aspect-ratio: 1/1) {
-  .curve-controller-view {
-    flex-direction: column;
-    justify-content: center;
-    gap: 24px;
-    padding: 16px;
-  }
-}
-
-/* 09 // SNAKE ARCADE CONTROLLER (STEER_BOOST) */
-.snake-controller-view {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 max(24px, env(safe-area-inset-left, 24px)) max(14px, env(safe-area-inset-bottom, 14px)) max(24px, env(safe-area-inset-right, 24px));
-  box-sizing: border-box;
-}
-
-.snake-steer-zone {
+.steer-zone {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   flex-shrink: 0;
+  touch-action: none;
 }
 
-.snake-boost-zone {
+.steer-action-zone {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   flex-shrink: 0;
-}@media (orientation: portrait), (max-aspect-ratio: 1/1) {
-  .snake-controller-view {
+  gap: 12px;
+}
+
+.steer-action-btn {
+  width: clamp(74px, 17vw, 96px);
+  height: clamp(74px, 17vw, 96px);
+  flex-shrink: 0;
+}
+
+@media (orientation: portrait), (max-aspect-ratio: 1/1) {
+  .steer-action-view {
     flex-direction: column-reverse;
     justify-content: center;
     gap: 20px;
     padding: 16px;
   }
 
-  .gamepad-control-overlay .snake-controller-view {
+  .gamepad-control-overlay .steer-action-view {
     flex-direction: row;
     justify-content: space-between;
     gap: 12px;
     padding: 0 16px max(16px, env(safe-area-inset-bottom, 16px));
   }
 }
-
 /* Action button icons across all controllers */
 .btn-action-icon {
   font-size: clamp(34px, 8vw, 44px);
@@ -2446,8 +2518,7 @@
   .joystick-action-view,
   .twin-stick-action-view,
   .tanks-arcade-view,
-  .curve-controller-view,
-  .snake-controller-view {
+  .steer-action-view {
     align-items: flex-end;
     padding-bottom: max(12px, env(safe-area-inset-bottom, 12px), 12vh);
   }
@@ -2475,8 +2546,7 @@
   .joystick-action-view::after,
   .twin-stick-action-view::after,
   .tanks-arcade-view::after,
-  .curve-controller-view::after,
-  .snake-controller-view::after,
+  .steer-action-view::after,
   .pong-controller-view::after {
     content: '';
     position: absolute;

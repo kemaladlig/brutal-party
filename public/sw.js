@@ -1,8 +1,9 @@
-const CACHE_NAME = 'brutal-party-v16';
+const CACHE_NAME = 'brutal-party-v17';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
+  '/background.webp',
   '/icon-192.png',
   '/icon-512.png',
   '/assets/games/pong.jpg',

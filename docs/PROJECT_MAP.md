@@ -22,7 +22,7 @@ src/gamepad.js              Telefon kumandası: full-screen world canvas + overl
                             koltuk ızgarası, skor şeridi, ready yönetimi, dokunmatik girdiler;
                             Faz 2 play chrome: radyal cooldown (--cd), kill-feed, LOCAL tam ekran sonuç, dokunma sesleri
 src/controllers/
-  controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, STEER_BOOST) + PONG canlı skorbord/falso senkronu; semantic layout target'ları
+  controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, TWIN_STICK_ACTION, ARCADE_DRIVE, STEER_ACTION, SLIDER_1D) + PONG canlı skorbord/falso senkronu; semantic layout target'ları
   gamepadInputAdapter.js   Transport'tan bağımsız 50ms analog throttle + dead-zone sınırı
   physicalGamepadAdapter.js Browser Gamepad API polling; touch/keyboard/pointer öncelikli ikincil kaynak
   gamepadShell.js         GamepadManager'dan ayrılmış stabil shell/presenter markup'ı; Faz 2: üst HUD şeridi + kill-feed + sonuç overlay kabı
@@ -139,6 +139,12 @@ src/core/
                             collectPickups, tickPickupTimers — bomb, archer, laser, curve entegre (Faz 4 refactor, Eylül 2026)
   arenaKit.js               Ortak arena görsel kiti: buildLayout (düzen builder) + drawObstacle (neo-brutalist blok) +
                             PICKUP_META/drawPickup (power-up rozetleri, tek kayıt) — (Faz 5 refactor, Eylül 2026)
+  fieldKit.js               Ortak SAHA ZEMİNİ kiti: FIELD_THEMES (tema paleti + motif/köşe dili) + FIELD_MOTIFS,
+                            hashFieldSeed (deterministik dekor seed'i), paintFieldLayer (zemin gradyanı + ızgara +
+                            çerçeve + motif + seeded dekor + vignette + duvar bandı + yama), drawField (offscreen
+                            bake + cache + blit), releaseFieldLayers. Statik katman bir kez pişirilir, frame başına
+                            tek drawImage — ağa ALAN EKLEMEZ (seed = hash(mode, roundId), ikisi de pakette zaten var).
+                            Entegre: BOMB, PONG (host+client), HORDE (3 harita teması buradan)
   playerEntity.js           Ortak oyuncu varlığı yönetimi: createPlayer (varlık üretimi), tickEffectTimers, advancePlayer —
                             bomb, heist entegre (Faz 6 refactor, Eylül 2026)
   avatarInGame.js           Ortak oyun içi avatar çizimi: drawGameAvatar, normalizeExpression, blinkState —
@@ -304,8 +310,8 @@ tests/                      Node test runner: network protocol, WebRTC kanal/ICE
 |-----|---------|---------------|------------------|---------------|-----|
 | PONG | Brutal Pong | `src/games/game.js` | Paddle içinde | `mountPongController` | Kendi saha skor tabelası var; score-strip yok; kale %62 kenar-oranlı + 45° pah (ince dikiş) + anti-lock + klavye + ❄️ dondurma skili + deterministik stall-kırıcı + 120sn hard round limit; **30 Hz P2P world-view** (`pongView.js` + `pongWorldView.js`) |
 | TANKS | Micro-Tanks | `src/games/tanks.js` | `src/ai/tankAI.js` | `mountTanksController` | Gaz pedalı + ateş, kartuş HUD; max 2 chamber + triple pickup burst, 0.55s reload; 2sn spawn gate; 35sn shrinking sudden-death + 90sn hard limit; projectile substeps + stable IDs; **30 Hz P2P world-view** (telefon canvası + overlay kontrol) |
-| CURVE | Brutal Curve | `src/games/curve.js` | `src/ai/curveAI.js` | `mountCurveController` | Sol/sağ keskin dönüş yarıları; 120sn terminal draw, intro input gate, 24x24 owner + gap maskesi; **30 Hz P2P world-view** |
-| BOMB | Brutal Bomb | `src/games/bomb.js` | `src/ai/bombAI.js` | `mountBombController` | Sanal joystick + depar; 90sn terminal draw, zero-survivor resolution, resize clamp, **30 Hz P2P world-view** |
+| CURVE | Brutal Curve | `src/games/curve.js` | `src/ai/curveAI.js` | `mountCurveController` | Sol/sağ keskin dönüş yarıları + **HIZLAN (NITRO)** aksiyonu (1.4sn ×1.45 hız, dönüş ×0.82, 4sn cooldown); 120sn terminal draw, intro input gate, 24x24 owner + gap maskesi; **30 Hz P2P world-view** |
+| BOMB | Brutal Bomb | `src/games/bomb.js` | `src/ai/bombAI.js` | `mountBombController` | Sanal joystick + depar; patlamada `blast` katmanı (saha flaşı + iki şok halkası + çekirdek parlama + is yüzüğü, 0.6sn); 90sn terminal draw, zero-survivor resolution, resize clamp, **30 Hz P2P world-view** |
 | HEIST | Brutal Heist | `src/games/heist.js` | `src/ai/heistAI.js` | `mountHeistController` | Sanal joystick + omuz atma; 45sn raunt, bounded tie draw, loot/resize clamp; **30 Hz P2P world-view** |
 | ARCHER | Brutal Archery | `src/games/archer.js` | `src/ai/archerAI.js` | `TWIN_STICK_ACTION` (sol koşu + sağ aim/release) | Serbest hareket + sağ çubukta basılı yay germe (nişan salınımı) + bırakınca ok; yakın vuruş 2p / uzak 1p; 60sn raund, 2 raund alan şampiyon; **raund başına rastgele 3 harita (PILLARS/CROSS/SCATTER+hareketli duvar)**; power-up: TURBO/TELEPORT/SLIP + MULTI/QUICKDRAW/SHIELD; mesafe ölçekli stun (yakın 0.12sn → uzak 0.8sn, spam kilitlenmesin); hit-count tiebreak + bounded draw; swept arrows; spawn/power-up state; **30 Hz P2P world-view** (telefon canvası + overlay kontrol) |
 | CROWN | Brutal Crown | `src/games-retired/crown.js` | `src/ai/crownAI.js` | `mountCrownController` | **RETIRED ama oynanabilir; UI listesinde sonlarda.** 15s taç tutma + 45s round clock, bounded tie draw, hold-time reset, resize state preservation; pinball hazards; **30 Hz P2P world-view** (`crownView.js` + `crownWorldView.js`) |
@@ -419,7 +425,8 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
    * WS kopma gözetimi Supabase ile simetriktir (30s watchdog + üstel geri çekilmeli auto-rejoin, maks 5); BOMB/HEIST/CROWN `handleRemoteInput` ölü-slot guard'ı TANKS/CURVE/PONG ile aynıdır.
 10. **Kontrol Eşleşmesi (kumanda↔motor + lokal klavye):**
    * 7/7 telefon kumandası motora doğru konuşur. HEIST `gemCarrier` alanı motorda hiç yoktu → rozet söküldü (kumanda skor+süre şeridi, pakette `timeLeft` durur). BOMB `carrier:-1` artık `BOMBA BOŞTA` gösterir (`P0` etiketi kapandı).
-   * Klavyesi olmayan motor kalmadı: TANKS (bas=TUT/sür, bırak=dur+ateş + `driveOwner` sahipliği — bırakma başka kaynağın sürüşü ezmez) ve CURVE (eklemeli `keyboardSteer`, dokunmatik basılıyken klavye bırakması ezmez) BOMB desenini izler. DUEL klavyeye `Enter/O/B` eklendi (P2/P3/P4).
+   * Klavyesi olmayan motor kalmadı: TANKS (bas=TUT/sür, bırak=dur+ateş + `driveOwner` sahipliği — bırakma başka kaynağın sürüşü ezmez) ve CURVE (eklemeli `keyboardSteer`, dokunmatik basılıyken klavye bırakması ezmez) BOMB desenini izler. CURVE'da slot aksiyon tuşu (`Space/Enter/O/B`) sağdaki HIZLAN butonuyla aynı kapıya girer. DUEL klavyeye `Enter/O/B` eklendi (P2/P3/P4).
+   * **Basılı yön keepalive (CURVE + SNAKE):** yön paketi yalnız değişince gönderildiği için host'un 1.5s analog-sessizlik süpürücüsü basılı yönü sıfırlıyordu ("yön tutmuyor"). `STEER_KEEPALIVE_MS = 250` ile basılı yön tekrarlanır (telefon `controllerTemplates` + fiziksel kumanda `physicalGamepadAdapter`); aim'in `aimHeld` keepalive'iyle aynı gerekçe.
    * Kontrol yüzeyi tercihi: `bp_control_surface` (`mobile` varsayılan / `tabletop`) LOCAL'da tek oyunculu mobil kumanda ile aynı cihazda çok oyunculu masa-ortası canvas katmanını seçer. Dokunmatik olmayan cihazlarda görsel yüzey açılmaz; klavye authority girişini korur. TV/ONLINE authority-local dokunmatik köprüsü bu ayardan bağımsız çalışır.
    * PONG dokunmatik `isPlayerActive` artık botu dışlar (klavyeyle aynı kapı). Ölü dallar silindi: `TANK_MOVE`, CROWN `JOYSTICK/MOVE/DASH` aliasları.
 11. **Faz A — Çökme + kritik mantık (tarama raporu):**
@@ -533,6 +540,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
     * Overlay kontrol katmanı (`gamepad-game-stage`: canvas z-0 + `gamepad-control-overlay` z-2, transparan + `pointer-events` passthrough) oyuna özel değildir — standart `controlDefs` mount'u her world-view oyunu için otomatik gelir.
     * World-view kromu (banner/placeholder/connecting/stale + `fitWorld`) tek kaynak `src/ui/worldViewKit.js`'ten gelir. `GamepadWorldView` ilk kare gelene kadar kısa süre waiting, 1.5 sn sonra açık “world bağlantısı bekleniyor” durumu gösterir. `_mountWorldView` generic `createWorldViewRenderer` çağırır (snake geriye uyum alias'ı korunur).
     * PONG, RACE ve CROWN de aynı generic world-view sözleşmesine alındı: `pongView.js`/`raceView.js`/`crownView.js` snapshot + validator, `pongWorldView.js`/`raceWorldView.js`/`crownWorldView.js` client renderer. PONG'da TV_CONSOLE kontrol-only görünüm korunur; ONLINE world-view aynı telefonda saha + overlay olarak açılır. CROWN retired olsa da aynı protocol/view katmanını korur.
+    * BOMB patlaması paket alanı olarak taşınır: `blast: {x, y, t, max} | null` (`worldCore.packBlast` + `isValidBlast`). Aynı anda tek patlama olduğu için dizi değil tek nesne — 30 Hz world bütçesine 4 sayı, 8 Hz HUD paketi dokunulmadan. Çizim `worldCore.drawBlast` tek kaynaktan (host + client): saha flaşı → beyaz çekirdek → iki şok halkası → is yüzüğü.
  21. **Kumanda görünürlüğü ve kontrol rehberi:**
      * `src/controllers/controllerGuide.js` `CONTROL_DEFS` + `GAMEPAD_SCHEMAS` kaynaklarından 15 oyun için ortak left/action/hint projeksiyonu üretir; oyun-başına HTML kopyası yoktur.
      * `gamepad.js` shell'i `hud-game-tag`, `hud-live-status`, `tactical-role-text` ve `gamepad-control-guide` alanlarını mount eder; status 8 Hz state sync'ten, taktik rol şema `onSync` hook'larından beslenir.
@@ -608,6 +616,16 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
         * **Lobi üst rayı yeniden sıralandı:** solda oda kodu pili + hemen sağında DAVET (tek "oda kimliği" adası), sağda durum pili + köşede ✕. Kahramanın sol üstündeki havada duran ikon-kare ızgara düğmesi kalktı; yerine sahne altı meta satırında `n / 15` sayacı + metinli `⊞ TÜM OYUNLAR` pili geldi (metin, düğmenin ne yaptığını kendi anlatır).
         * **OYUNLAR baştan yazıldı (`gamesView.js` + `games.css`):** eski yatay raf + sol-alt DEV yazı + sağ-alt OYNA düzeni yerine lobinin kardeş dili — solda kategori çipleri + kapsüllenmiş kapak ızgarası (`.game-card`, seçili altın halkalı, ARŞİV rozeti), sağ kolonda seçili oyunun kahramanı ve tek `▶ OYNA`. Kart seçer, CTA başlatır.
         * **KARAKTER lobi diline çekildi:** çerçeveli kart kutusu kalktı; solda arena diskinde canlı avatar, sağda ikonlu başlık + cam yüzeyli RENK/İFADE bölümleri (bölüm başlıkları `host-slot-header` ritmi: ikon + etiket) + çerçevesiz dipnot ipuçları.
+
+   34. **Saha zemini ve çevre görseli — `src/core/fieldKit.js` (2026-09):**
+        * **Problem:** saha "düz krem dolgu + birkaç çizgi" idi (PONG ~20, BOMB ~15, HORDE ~40 path/frame) ve bu statik iş her frame yeniden raster ediliyordu. World-view client'ları 60 Hz interpolasyonla bunu telefonun üzerinde ödüyordu.
+        * **Çözüm:** statik saha katmanı (zemin gradyanı → ızgara → iç çerçeve → motif → seeded dekor → köşe işaretleri → vignette → duvar iç gölgesi + kontur → yama) `FIELD_THEMES` paletiyle bir kez offscreen canvas'a **pişirilir**, frame başına tek `drawImage` (GPU blit) yapılır. Geçersizleştirme anahtarı `mode|theme|seed|arena kutusu|ölçek|variant`; LRU en fazla 2 katman, taşanın backing store'u sıfırlanır. Backstore ölçeği = `ctx.getTransform().a` (DPR × world-view `fitWorld` ölçeği), 2x ve ~2.4M px tavanıyla sınırlı.
+        * **Ağ bütçesi BOZULMAZ:** modül hiçbir paket alanı eklemez. Dekor `hashFieldSeed(mode, roundId)`'den türer; `mode` ve `roundId` 30 Hz world packet'inde zaten vardır, host ile client aynı dekoru ağ olmadan üretir. `isValid*WorldFrame` doğrulayıcıları ve world-packet testleri dokunulmadı; `tests/fieldKit.test.mjs` pilot oyunların (BOMB/PONG/HORDE) paket anahtar listesini kilitler.
+        * **Determinizm:** katmanda `Math.random()`/`Date.now()`/`performance.now()` yasaktır (kaynak taramasıyla test edilir) — rastgelelik yalnız seed'li PRNG'den gelir. `marks` (oyuna özgü statik işaretler) modül seviyesinde sabit fonksiyon olmalıdır; veriye bağlı katman `variant` ile anahtarlanır (PONG kapı boşlukları).
+        * **Ölçek:** tüm ölçüler `arena.unit` / `fieldPx` / `fieldRadius` türevlidir (I5 kapısı ve `pxConstants` testi yeşil). Izgara hücresi `max(30*unit, kısaKenar/13)`, dekor sayısı alanla artar ve `unit < 0.5`'te azalır — küçük saha daha seyrek, TV'de daha yoğun.
+        * **Entegre olanlar:** BOMB, PONG (host `game.js` **ve** client — ikisi de `drawPongArena` çağırır, eski host kopyası silindi; kapı boşlukları artık duvarı gerçekten keser) ve HORDE (`hordeConfig.HORDE_MAPS` üç temayı `FIELD_THEMES`'ten yayar; spawn kapıları `marks` ile katmana girdi, ~40 stroke → 1 blit).
+        * **DOM'suz ortam** (test/SSR) `document` yoksa doğrudan çizime düşer — görsel aynı, maliyet eskisi kadardır; `fieldLayerStats` bake/blit/fallback sayacı test ve performans ölçümü içindir.
+        * **Açık iş:** kalan 12 oyunun (`archerView`, `heistView`, `laserView`, `ninjaView`, `snakeView`, `tanksView`, `cloneView`, `collapseView`, `curveView`, `raceView`, `crownView`, `zoneView`) kendi zemin çizimleri `drawField`'e taşınacak. ZONE istisnadır: `territoryLayer` host-only'dir, çevre olarak kullanılamaz, saha katmanının altında kalır.
 
 ---
 

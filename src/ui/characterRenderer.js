@@ -41,16 +41,19 @@ function playFaceShading(ctx, r) {
   const cached = byRadius.get(key);
   if (cached) return cached;
 
-  // Sol üst ışık — topun kenarı, dairenin dışına taşmaz.
-  const rim = ctx.createRadialGradient(-r * 0.3, -r * 0.34, 0, 0, 0, r * 1.05);
-  rim.addColorStop(0, 'rgba(255, 255, 255, 0.26)');
-  rim.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  // Sağ alt gölge — hacmin karşı tarafı.
-  const shade = ctx.createRadialGradient(r * 0.34, r * 0.38, 0, 0, 0, r * 1.05);
-  shade.addColorStop(0, 'rgba(0, 0, 0, 0.14)');
-  shade.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  // 1. Sağ-alt yumuşak küre gölgesi (gövdeye kütle ve derinlik katar)
+  const shade = ctx.createRadialGradient(r * 0.30, r * 0.35, r * 0.1, 0, 0, r * 1.05);
+  shade.addColorStop(0, 'rgba(12, 6, 26, 0.32)');
+  shade.addColorStop(0.6, 'rgba(12, 6, 26, 0.12)');
+  shade.addColorStop(1, 'rgba(12, 6, 26, 0)');
 
-  const entry = { rim, shade };
+  // 2. Sol-üst çok hafif ortam aydınlığı (beyaz leke yapmaz, sadece renk tonunu yumuşatır)
+  const diffuse = ctx.createRadialGradient(-r * 0.28, -r * 0.32, 0, 0, 0, r * 1.05);
+  diffuse.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
+  diffuse.addColorStop(0.5, 'rgba(255, 255, 255, 0.04)');
+  diffuse.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+  const entry = { diffuse, shade };
   byRadius.set(key, entry);
   return entry;
 }
@@ -138,15 +141,14 @@ function playFaceShading(ctx, r) {
   ctx.fillStyle = color;
   ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
 
-  // Hacim: sol üst ışık + sağ alt gölge. Oyun içi kip (`play`) ve menü sahnesi
-  // (`volume`) bunu ister; ikisi de clip'in İÇİNDE bittiği için siluet
-  // değişmez — düz renkli sticker yerine top gibi okur.
-  // `isMicro`'da iki `fillRect` görünmez bir maliyet olurdu, atlanır.
+  // Hacim: 2.5D küresel katmanlar (gölge + aydınlanma + speküler parıltı + rim)
+  // Oyun içi kip (`play`) ve menü sahnesi (`volume`) bunu ister;
+  // ikisi de clip'in İÇİNDE bittiği için siluet değişmez — düz sticker yerine 3D top gibi okur.
   if ((isPlayFace || options.volume) && !isMicro) {
-    const { rim, shade } = playFaceShading(ctx, r);
-    ctx.fillStyle = rim;
-    ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
+    const { diffuse, shade } = playFaceShading(ctx, r);
     ctx.fillStyle = shade;
+    ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
+    ctx.fillStyle = diffuse;
     ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
   }
 
@@ -474,6 +476,12 @@ function playFaceShading(ctx, r) {
   } else if (expression === 'GRIN') {
     // Geniş sırıtış: standart gözler + dişli ağız
     const drawEye = (ey) => {
+      // 2.5D Göz derinlik gölgesi
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX + 1.2, ey + 1.6, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
       ctx.arc(eyeOffsetX, ey, eyeR, 0, Math.PI * 2);
@@ -486,44 +494,78 @@ function playFaceShading(ctx, r) {
         ctx.beginPath();
         ctx.arc(eyeOffsetX + 2.5, ey, eyeR * 0.48, 0, Math.PI * 2);
         ctx.fill();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 3.5, ey - 1.5, eyeR * 0.16, 0, Math.PI * 2);
+        ctx.fill();
       }
     };
     drawEye(-eyeSpreadY);
     drawEye(eyeSpreadY);
-    // Sırıtış — gözler x≤0.60r'de biter; ağız 0.58r'de başlar (gözlerin hemen
-    // önünde), ±y'e açılır, +x'e 0.68r'ye kadar şişer; dişler üst dudakta.
-    const mx = r * 0.58;
-    const mw = r * 0.2;
-    const mh = r * 0.17;
-    ctx.fillStyle = '#1A1A1A';
-    ctx.beginPath();
-    ctx.moveTo(mx, -mh);
-    ctx.quadraticCurveTo(mx + mw, 0, mx, mh);
-    ctx.quadraticCurveTo(mx + mw * 0.5, 0, mx, -mh);
-    ctx.closePath();
-    ctx.fill();
-    // Dişler (ağız yolu kırpmasıyla taşma yok)
+    // Sırıtış (GRIN) — iki gözün önünde simetrik, geniş ve net dişli sırıtış.
+    // Gözler x≈0.60r'de biter; ağız 0.50r..0.54r'den başlayıp 0.78r'ye kadar açılır.
+    // Dişler Y ekseni boyunca simetrik dağıtılır; tek tarafa sıkışma/eksiklik giderildi.
+    const mx = r * (isPlayFace ? 0.54 : 0.50);
+    const mw = r * 0.26;
+    const mh = r * 0.25;
+
+    // Ağız yolu (iç kavis ve dış kavis)
+    const traceMouth = () => {
+      ctx.beginPath();
+      ctx.moveTo(mx, -mh);
+      ctx.quadraticCurveTo(mx + mw, 0, mx, mh);
+      ctx.quadraticCurveTo(mx + mw * 0.32, 0, mx, -mh);
+      ctx.closePath();
+    };
+
+    // 2.5D Ağız derinlik gölgesi
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
     ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(mx, -mh);
-    ctx.quadraticCurveTo(mx + mw, 0, mx, mh);
-    ctx.quadraticCurveTo(mx + mw * 0.5, 0, mx, -mh);
-    ctx.closePath();
-    ctx.clip();
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(mx - r * 0.02, -mh - 1, mw + r * 0.04, r * 0.12);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1.1;
-    ctx.beginPath();
-    ctx.moveTo(mx + mw * 0.35, -mh - 1);
-    ctx.lineTo(mx + mw * 0.35, -mh + r * 0.12);
-    ctx.moveTo(mx + mw * 0.65, -mh - 1);
-    ctx.lineTo(mx + mw * 0.65, -mh + r * 0.12);
-    ctx.stroke();
+    ctx.translate(1.2, 1.6);
+    traceMouth();
+    ctx.fill();
     ctx.restore();
+
+    // Beyaz diş dolgusu
+    ctx.fillStyle = '#FFFFFF';
+    traceMouth();
+    ctx.fill();
+
+    // Diş ayırıcı çizgiler (sadece ağız içinde kalsın)
+    ctx.save();
+    traceMouth();
+    ctx.clip();
+
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = Math.max(1.2, r * 0.03);
+
+    // Diş aralıkları (Y ekseni boyunca 4 diş)
+    ctx.beginPath();
+    for (const ty of [-mh * 0.46, 0, mh * 0.46]) {
+      ctx.moveTo(mx, ty);
+      ctx.lineTo(mx + mw * 1.1, ty);
+    }
+    // Üst / alt diş ayrım çizgisi (orta kavis)
+    ctx.moveTo(mx, -mh);
+    ctx.quadraticCurveTo(mx + mw * 0.65, 0, mx, mh);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // Dış ağız konturu (kalın brutalist sınır)
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = Math.max(1.5, r * 0.04);
+    traceMouth();
+    ctx.stroke();
   } else {
     // FOCUS / Standart çift göz
     const drawEye = (ey) => {
+      // 2.5D Göz derinlik gölgesi
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX + 1.2, ey + 1.6, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
       ctx.arc(eyeOffsetX, ey, eyeR, 0, Math.PI * 2);

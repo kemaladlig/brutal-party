@@ -7,6 +7,7 @@ import {
   drawPongShockwaves,
   isValidPongWorldFrame,
 } from '../games/pongView.js';
+import { hashFieldSeed } from '../core/fieldKit.js';
 import { fitWorld, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { t } from '../i18n.js';
 
@@ -37,7 +38,7 @@ export function createWorldViewRenderer() {
       ctx.fillStyle = '#F4F0EA';
       ctx.fillRect(0, 0, width, height);
       fitWorld(ctx, width, height, frame.arena, () => {
-        drawPongArena(ctx, arena, frame.goals);
+        drawPongArena(ctx, arena, frame.goals, { seed: hashFieldSeed('PONG', frame.roundId) });
         drawPongShockwaves(ctx, frame.ball?.shockwaves);
         drawPongPaddles(ctx, frame.players, arena, colors);
         drawPongBall(ctx, frame.ball);

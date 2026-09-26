@@ -6,6 +6,7 @@ import {
   isValidWorldBase,
   round1,
 } from './worldCore.js';
+import { drawField } from '../core/fieldKit.js';
 
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -130,6 +131,51 @@ export function isValidPongWorldFrame(frame) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Kapı boşlukları — host ve client aynı saha dilini paylaşsın diye burada.
+// ---------------------------------------------------------------------------
+
+/**
+ * Dört kapının saha kenarındaki açıklıklarını, duvarın kesileceği dikdörtgen
+ * listeye çevirir. Saha katmanı bunları YAMA olarak pişirir: önce zemin rengi
+ * yeniden basılır, sonra içeri doğru hafif gölge eklenir — düz leke yerine
+ * "çukur kapı" okunur.
+ *
+ * @param {object} arena - { left, top, right, bottom }
+ * @param {object|null} goals - { top|bottom|left|right: [min, max] }
+ * @returns {Array<{x:number,y:number,w:number,h:number}>}
+ */
+export function pongGoalPatches(arena, goals) {
+  if (!goals) return [];
+  const { left, top, right, bottom } = arena;
+  const width = Math.max(1, right - left);
+  const height = Math.max(1, bottom - top);
+  const minDim = Math.min(width, height);
+  const u = arena?.unit ?? (minDim / 952);
+  const thickness = Math.max(2, 5 * u);
+  const patches = [];
+
+  for (const side of ['bottom', 'top', 'left', 'right']) {
+    const span = goals[side];
+    if (!Array.isArray(span) || span.length !== 2) continue;
+    const [from, to] = span;
+    if (!finite(from) || !finite(to) || to <= from) continue;
+    if (side === 'bottom') patches.push({ x: from, y: bottom - thickness, w: to - from, h: thickness });
+    if (side === 'top') patches.push({ x: from, y: top, w: to - from, h: thickness });
+    if (side === 'left') patches.push({ x: left, y: from, w: thickness, h: to - from });
+    if (side === 'right') patches.push({ x: right - thickness, y: from, w: thickness, h: to - from });
+  }
+  return patches;
+}
+
+/** Kapı aralıkları değişirse katman yeniden pişirilsin diye cache varyantı. */
+export function pongGoalVariant(goals) {
+  if (!goals) return 'nog';
+  return ['top', 'bottom', 'left', 'right']
+    .map((side) => (Array.isArray(goals[side]) ? `${side[0]}${Math.round(goals[side][0])}-${Math.round(goals[side][1])}` : ''))
+    .join(',');
+}
+
 function paddleBounds(paddle) {
   const halfLength = (paddle.length || 0) / 2;
   const halfThickness = (paddle.thickness || 0) / 2;
@@ -139,54 +185,16 @@ function paddleBounds(paddle) {
   return { x: paddle.x - halfThickness, y: paddle.y - halfLength, w: paddle.thickness, h: paddle.length };
 }
 
-export function drawPongArena(ctx, arena, goals = null) {
-  const { left, top, right, bottom } = arena;
-  const width = Math.max(1, right - left);
-  const height = Math.max(1, bottom - top);
-  const minDim = Math.min(width, height);
-  const cx = (left + right) / 2;
-  const cy = (top + bottom) / 2;
-
-  ctx.fillStyle = '#FAF7F2';
-  ctx.fillRect(left, top, width, height);
-  const u = arena?.unit ?? (minDim / 952);
-  const inset = Math.max(12, Math.round(minDim * 0.045));
-  ctx.strokeStyle = '#EBE5DA';
-  ctx.lineWidth = 1.5 * u;
-  ctx.strokeRect(left + inset, top + inset, width - inset * 2, height - inset * 2);
-
-  ctx.strokeStyle = '#F0EAE0';
-  ctx.lineWidth = 1 * u;
-  const gridStepX = width / 6;
-  const gridStepY = height / 6;
-  for (let x = left + gridStepX; x < right; x += gridStepX) {
-    ctx.beginPath(); ctx.moveTo(x, top + inset); ctx.lineTo(x, bottom - inset); ctx.stroke();
-  }
-  for (let y = top + gridStepY; y < bottom; y += gridStepY) {
-    ctx.beginPath(); ctx.moveTo(left + inset, y); ctx.lineTo(right - inset, y); ctx.stroke();
-  }
-  ctx.strokeStyle = '#E2DDD2'; ctx.lineWidth = 2 * u;
-  ctx.beginPath(); ctx.arc(cx, cy, Math.max(1, minDim * 0.22), 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = '#D0CAC0';
-  ctx.beginPath(); ctx.arc(cx, cy, Math.max(1, minDim * 0.14), 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 5 * u;
-  ctx.strokeRect(left, top, width, height);
-
-  if (goals) {
-    ctx.fillStyle = '#FAF7F2';
-    const thickness = 5 * u;
-    const drawGap = (side, span) => {
-      if (!Array.isArray(span) || span.length !== 2) return;
-      if (side === 'bottom') ctx.fillRect(span[0], bottom - thickness, span[1] - span[0], thickness);
-      if (side === 'top') ctx.fillRect(span[0], top, span[1] - span[0], thickness);
-      if (side === 'left') ctx.fillRect(left, span[0], thickness, span[1] - span[0]);
-      if (side === 'right') ctx.fillRect(right - thickness, span[0], thickness, span[1] - span[0]);
-    };
-    drawGap('bottom', goals.bottom);
-    drawGap('top', goals.top);
-    drawGap('left', goals.left);
-    drawGap('right', goals.right);
-  }
+export function drawPongArena(ctx, arena, goals = null, { seed } = {}) {
+  // Statik saha katmanı `fieldKit` tarafından pişirilir: zemin gradyanı, ızgara,
+  // iç çerçeve, iki merkez halkası, köşe plakaları + nişanlar, dekor, duvar.
+  // Kapı boşlukları `pongGoalPatches` ile yama olarak katmanın İÇİne girer.
+  drawField(ctx, arena, {
+    mode: 'PONG',
+    seed,
+    patches: pongGoalPatches(arena, goals),
+    variant: pongGoalVariant(goals),
+  });
 }
 
 export function drawPongPaddles(ctx, paddles, arena, colors = []) {

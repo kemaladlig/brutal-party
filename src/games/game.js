@@ -8,7 +8,8 @@ import { t } from '../i18n.js';
 import { renderSpatialBadge, renderRoundBanner } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
-import { createPongWorldPacket } from './pongView.js';
+import { createPongWorldPacket, drawPongArena } from './pongView.js';
+import { hashFieldSeed } from '../core/fieldKit.js';
 import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, matchOverRestartTap } from '../core/touchFlow.js';
@@ -252,6 +253,20 @@ export class Game extends BaseMiniGame {
       goalMax: center + goalSpan / 2,
       goalSpan,
     };
+  }
+
+  /**
+   * Dört kapının `[min, max]` aralıkları — packet'teki `goals` ile BİREBİR aynı
+   * şekil. Saha katmanı bu aralıkları duvardaki açıklık olarak kullanır, yani
+   * host ve client aynı yama setini çizer.
+   */
+  getGoalSpans() {
+    const spans = {};
+    for (const side of ['top', 'bottom', 'left', 'right']) {
+      const bounds = this.getGoalBounds(side);
+      spans[side] = [bounds.goalMin, bounds.goalMax];
+    }
+    return spans;
   }
 
   // Köşe pahı bacağı (fizik + dikiş çizgisi aynı değerden beslenir).
@@ -757,91 +772,17 @@ export class Game extends BaseMiniGame {
   }
 
   renderArena(ctx) {
-    const { left, top, right, bottom, width: aW, height: aH, cx, cy } = this.arena;
-    const minDim = Math.min(aW, aH);
-
-    // Court Floor
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(left, top, aW, aH);
-
-    // Tactile Drop Shadow for Arena Depth
-    ctx.fillStyle = '#1C1C1A';
-    ctx.fillRect(right, top + 5, 5, aH);
-    ctx.fillRect(left + 5, bottom, aW + 5, 5);
-
-    // Subtle Court Markings & Grid Geometry
+    const { cx, cy } = this.arena;
+    const minDim = Math.min(this.arena.width, this.arena.height);
     const u = this.arena?.unit ?? (minDim / 952);
-    const inset = Math.max(12, Math.round(minDim * 0.045));
-    ctx.strokeStyle = '#EBE5DA';
-    ctx.lineWidth = Math.max(1, 1.5 * u);
-    ctx.strokeRect(left + inset, top + inset, aW - inset * 2, aH - inset * 2);
 
-    // Saha Zemin Izgarası
-    ctx.strokeStyle = '#F0EAE0';
-    ctx.lineWidth = Math.max(1, 1 * u);
-    const gridStep = aW / 6;
-    for (let x = left + gridStep; x < right; x += gridStep) {
-      ctx.beginPath();
-      ctx.moveTo(x, top + inset);
-      ctx.lineTo(x, bottom - inset);
-      ctx.stroke();
-    }
-    for (let y = top + gridStep; y < bottom; y += gridStep) {
-      ctx.beginPath();
-      ctx.moveTo(left + inset, y);
-      ctx.lineTo(right - inset, y);
-      ctx.stroke();
-    }
-
-    // Inner Corner Accent Crosshairs
-    const chLen = Math.max(6, Math.round(minDim * 0.02));
-    const chSpots = [
-      [left + inset, top + inset],
-      [right - inset, top + inset],
-      [left + inset, bottom - inset],
-      [right - inset, bottom - inset],
-    ];
-    ctx.strokeStyle = '#D5CFC4';
-    ctx.lineWidth = Math.max(1, 1.5 * u);
-    ctx.beginPath();
-    for (const [sx, sy] of chSpots) {
-      ctx.moveTo(sx - chLen, sy);
-      ctx.lineTo(sx + chLen, sy);
-      ctx.moveTo(sx, sy - chLen);
-      ctx.lineTo(sx, sy + chLen);
-    }
-    ctx.stroke();
-
-    // 4 Köşe Takviye Braketleri (L-plates)
-    const bLen = Math.max(16, Math.round(minDim * 0.05));
-    ctx.strokeStyle = '#2B2B28';
-    ctx.lineWidth = Math.max(1.5, 3 * u);
-    const cornerPlates = [
-      [[left, top + bLen], [left, top], [left + bLen, top]],
-      [[right - bLen, top], [right, top], [right, top + bLen]],
-      [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
-      [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
-    ];
-    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.lineTo(x3, y3);
-      ctx.stroke();
-    }
-
-    // Center Court Markings (Dual Concentric Rings)
-    ctx.strokeStyle = '#E2DDD2';
-    ctx.lineWidth = Math.max(1, 2 * u);
-    ctx.beginPath();
-    ctx.arc(cx, cy, Math.max(1, minDim * 0.22), 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeStyle = '#D0CAC0';
-    ctx.lineWidth = Math.max(1, 2 * u);
-    ctx.beginPath();
-    ctx.arc(cx, cy, Math.max(1, minDim * 0.14), 0, Math.PI * 2);
-    ctx.stroke();
+    // Statik saha katmanı: zemin gradyanı, ızgara, iç çerçeve, merkez halkaları,
+    // köşe plakaları + nişanlar, dekor, duvar. `fieldKit` bir kez offscreen'a
+    // pişirip blit eder; client da aynı fonksiyonu çağırır (tek saha dili).
+    // Kapı boşlukları yama olarak katmanın içine pişirilir.
+    drawPongArena(ctx, this.arena, this.getGoalSpans(), {
+      seed: hashFieldSeed('PONG', this.roundId),
+    });
 
     if (this.state === 'PLAYING' || this.state === 'ROUND_PAUSE') {
       const currentSpeed = Math.round(Math.hypot(this.ball.vx, this.ball.vy));
@@ -927,11 +868,8 @@ export class Game extends BaseMiniGame {
 
     // Render Dashed Goal Lines across open goal mouths
     this.renderGoalLines(ctx);
-
-    // Outer Arena Border Stroke
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = Math.max(2, 5 * u);
-    ctx.strokeRect(left, top, aW, aH);
+    // Sahanın dış konturu `fieldKit` tarafından çizilir (kapı boşluklarında
+    // kesilmiş olarak); burada ikinci bir kontur çizilmez.
   }
 
   renderCornerBumpers(ctx) {

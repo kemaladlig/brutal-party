@@ -45,10 +45,6 @@ function actionDescriptors(schema) {
     return [{ id: 'spin', label: tIcon('pad.spinShort') }];
   }
 
-  if (schema?.type === 'STEER_BOOST') {
-    return [{ id: 'boost', label: tIcon('pad.boost') }];
-  }
-
   return (Array.isArray(schema?.actions) ? schema.actions : []).map((action) => ({
     id: action.id || action.action || 'action',
     label: actionLabel(action),

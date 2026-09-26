@@ -1,5 +1,9 @@
 // BRUTAL HORDE — saf oyun tuning sözleşmeleri.
-// DOM/Canvas bağımlılığı yoktur; motor, testler ve istatistikler aynı değerleri okur.
+// DOM/Canvas bağımlılığı yoktur; motor, tester ve istatistikler aynı değerleri okur.
+//
+// `fieldKit` yalnız tema PALETİ verisidir (saf nesne, çizim yok) ve `core/`
+// yönünde bağımlılık kurar; bu yüzden import güvenlidir.
+import { FIELD_THEMES } from '../core/fieldKit.js';
 
 export const HORDE_WEAPONS = Object.freeze({
   SIDEARM: Object.freeze({
@@ -93,33 +97,27 @@ export const HORDE_UPGRADES = Object.freeze({
 
 export const HORDE_UPGRADE_IDS = Object.freeze(Object.keys(HORDE_UPGRADES));
 
+// Harita görseli `fieldKit.FIELD_THEMES` içinde yaşar (saha paletinin tek
+// kaynağı); buradaki kayıt yalnız oyun verisini (yerleşim, ad, vurgu) taşır ve
+// temayı yayıtarak `theme.floor/grid/accent/motif` okumalarını korur.
 export const HORDE_MAPS = Object.freeze([
   Object.freeze({
     id: 'foundry',
     layout: 'pillars',
     nameKey: 'horde.map.foundry',
-    floor: '#F1EEE7',
-    grid: 'rgba(26, 26, 26, 0.075)',
-    accent: '#D84727',
-    motif: 'foundry',
+    ...FIELD_THEMES.foundry,
   }),
   Object.freeze({
     id: 'reactor',
     layout: 'crossfire',
     nameKey: 'horde.map.reactor',
-    floor: '#E9F1F3',
-    grid: 'rgba(14, 116, 144, 0.10)',
-    accent: '#0891B2',
-    motif: 'reactor',
+    ...FIELD_THEMES.reactor,
   }),
   Object.freeze({
     id: 'core',
     layout: 'courtyard',
     nameKey: 'horde.map.core',
-    floor: '#EEEAF5',
-    grid: 'rgba(91, 33, 182, 0.10)',
-    accent: '#7C3AED',
-    motif: 'core',
+    ...FIELD_THEMES.core,
   }),
 ]);
 

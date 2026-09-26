@@ -2,6 +2,7 @@
 // Client bu dosyadan yalnız salt-okunur draw + validation kullanır; simülasyon/AI import etmez.
 
 import { drawObstacle, drawPickup } from '../core/arenaKit.js';
+import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { segmentAabbIntersection } from '../core/physics2d.js';
 import { isCompactLandscape } from '../core/playfield.js';
@@ -413,74 +414,30 @@ function drawSpawnGate(ctx, arena, side, color) {
   ctx.restore();
 }
 
-export function drawHordeArena(ctx, arena, themeId = 'foundry', now = 0) {
-  const theme = MAP_IDS.has(themeId) ? getHordeMap({ round: themeId === 'foundry' ? 1 : themeId === 'reactor' ? 2 : 3 }) : getHordeMap(1);
-  const { left, top, right, bottom, width, height } = arena;
-  const u = arena?.unit ?? (arena?.size ? arena.size / 952 : 1);
-  ctx.save();
-  ctx.fillStyle = theme.floor;
-  ctx.fillRect(left, top, width, height);
-
-  ctx.strokeStyle = theme.grid;
-  ctx.lineWidth = Math.max(1, 1 * u);
-  const cell = Math.max(34, Math.round(Math.min(width, height) / 11));
-  for (let x = left + cell; x < right; x += cell) {
-    ctx.beginPath();
-    ctx.moveTo(x, top);
-    ctx.lineTo(x, bottom);
-    ctx.stroke();
+/**
+ * Dört doğuş kapısı statiktir, bu yüzden saha katmanının İÇİNE pişirilir:
+ * `marks` imzası arena-içi (0,0)..(w,h) koordinatlarını kullanır.
+ */
+function hordeFieldMarks(ctx, box, palette) {
+  const { width, height, unit, cx, cy } = box;
+  for (let side = 0; side < 4; side++) {
+    drawSpawnGate(ctx, { left: 0, top: 0, right: width, bottom: height, cx, cy, unit }, side, palette.accent);
   }
-  for (let y = top + cell; y < bottom; y += cell) {
-    ctx.beginPath();
-    ctx.moveTo(left, y);
-    ctx.lineTo(right, y);
-    ctx.stroke();
-  }
+}
 
-  const inset = Math.min(width, height) * 0.055;
-  ctx.strokeStyle = 'rgba(26, 26, 26, 0.14)';
-  ctx.lineWidth = Math.max(1.5, 3 * u);
-  ctx.strokeRect(left + inset, top + inset, width - inset * 2, height - inset * 2);
-
-  ctx.save();
-  ctx.translate(arena.cx, arena.cy);
-  ctx.strokeStyle = theme.accent;
-  ctx.globalAlpha = 0.12;
-  ctx.lineWidth = Math.max(1.5, 4 * u);
-  if (theme.motif === 'foundry') {
-    const r = Math.min(width, height) * 0.21;
-    ctx.beginPath();
-    ctx.moveTo(0, -r); ctx.lineTo(r, 0); ctx.lineTo(0, r); ctx.lineTo(-r, 0); ctx.closePath();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.55, 0); ctx.lineTo(r * 0.55, 0);
-    ctx.moveTo(0, -r * 0.55); ctx.lineTo(0, r * 0.55);
-    ctx.stroke();
-  } else if (theme.motif === 'reactor') {
-    for (let i = 0; i < 3; i++) {
-      const r = Math.min(width, height) * (0.10 + i * 0.065);
-      ctx.strokeRect(-r, -r, r * 2, r * 2);
-    }
-  } else {
-    const r = Math.min(width, height) * 0.19;
-    ctx.beginPath();
-    for (let i = 0; i < 6; i++) {
-      const a = i * Math.PI / 3 - Math.PI / 6;
-      const x = Math.cos(a) * r;
-      const y = Math.sin(a) * r;
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  for (let side = 0; side < 4; side++) drawSpawnGate(ctx, arena, side, theme.accent);
-
-  ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = Math.max(2, 7 * u);
-  ctx.strokeRect(left, top, width, height);
-  ctx.restore();
+export function drawHordeArena(ctx, arena, themeId = 'foundry') {
+  // Zemin + ızgara + motif + spawn kapıları + duvar: `fieldKit` statik katmanı.
+  // Palet `hordeConfig.HORDE_MAPS` → `fieldKit.FIELD_THEMES` zinciriyle gelir;
+  // bilinmeyen tema kimliği eski davranış gibi `foundry`'a düşer.
+  const theme = MAP_IDS.has(themeId) ? themeId : 'foundry';
+  drawField(ctx, arena, {
+    mode: 'HORDE',
+    theme,
+    // Harita değiştikçe dekor değişir (round yerine tema kimliği seed'lenir:
+    // aynı haritada üç dalga üst üste aynı saha görünür).
+    seed: hashFieldSeed('HORDE', theme),
+    marks: hordeFieldMarks,
+  });
 }
 
 function drawExtractionGate(ctx, portal, now) {
@@ -876,7 +833,7 @@ function drawLoadoutCrate(ctx, crate, now) {
 }
 
 export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof performance !== 'undefined' ? performance.now() : 0 } = {}) {
-  drawHordeArena(ctx, arena, scene.theme, now);
+  drawHordeArena(ctx, arena, scene.theme);
 
   for (const obstacle of scene.obstacles || []) {
     drawObstacle(ctx, obstacle, { variant: scene.theme === 'reactor' ? 'dark' : scene.theme === 'core' ? 'stone' : 'crate' });

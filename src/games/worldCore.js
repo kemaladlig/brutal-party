@@ -57,6 +57,101 @@ export function winnerIndex(v) {
   return v && Number.isInteger(v.index) ? v.index : null;
 }
 
+// ---------------------------------------------------------------------------
+// Patlama katmanı (BOMB) — tek olay, 4 sayı
+// ---------------------------------------------------------------------------
+
+/**
+ * Patlama anını paketler: `{ x, y, t, max } | null`. Aynı anda yalnız bir
+ * patlama olur (BOMB tek taşıyıcılı), bu yüzden dizi değil tek nesne — 30 Hz
+ * world bütçesine 4 sayı ekler, HUD paketi (8 Hz) dokunulmadan kalır.
+ */
+export function packBlast(blast) {
+  if (!blast) return null;
+  return {
+    x: round1(blast.x || 0),
+    y: round1(blast.y || 0),
+    t: round1(blast.t || 0),
+    max: round1(blast.max || 1),
+  };
+}
+
+export function isValidBlast(blast) {
+  if (blast === null) return true;
+  return !!blast
+    && finite(blast.x) && finite(blast.y)
+    && finite(blast.t) && finite(blast.max) && blast.max > 0
+    && blast.t >= 0 && blast.t <= blast.max;
+}
+
+/**
+ * Patlamanın tüm görsel katmanı: saha flaşı → beyaz çekirdek → iki şok halkası
+ * → is yüzüğü. Saf draw (host ve world-view client aynı çizer), `t` geçen süre.
+ */
+export function drawBlast(ctx, blast, arena) {
+  if (!blast || !finite(blast.t)) return;
+  const u = Number(arena?.unit) > 0 ? arena.unit : 1;
+  const max = Math.max(0.001, Number(blast.max) || 1);
+  const p = Math.max(0, Math.min(1, (Number(blast.t) || 0) / max));
+  const { x, y } = blast;
+
+  ctx.save();
+
+  // 1) Saha flaşı — ilk %20'de saha kremi kızarır (okunabilirlik korunur).
+  const flash = Math.max(0, 1 - p / 0.2);
+  if (flash > 0 && arena) {
+    ctx.globalAlpha = flash * 0.55;
+    ctx.fillStyle = '#FFD9C0';
+    ctx.fillRect(arena.left, arena.top, arena.width, arena.height);
+    ctx.globalAlpha = 1;
+  }
+
+  // 2) İçten çevreye: koyu is yüzüğü (patlama ömrü boyunca solar).
+  const scorch = Math.max(0, 1 - p * 0.75);
+  ctx.globalAlpha = 0.30 * scorch;
+  ctx.fillStyle = '#1A1A1A';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 30 * u, 24 * u, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // 3) Şok halkaları: biri koyu ve geniş, biri kırmızı ve gecikmeli.
+  const rings = [
+    { from: 0.0, to: 0.72, r0: 10, r1: 96, w: 7, color: '#1A1A1A' },
+    { from: 0.12, to: 1.0, r0: 6, r1: 62, w: 5, color: '#D84727' },
+  ];
+  for (const ring of rings) {
+    const local = (p - ring.from) / (ring.to - ring.from);
+    if (local <= 0 || local >= 1) continue;
+    const eased = 1 - Math.pow(1 - local, 2.2);
+    const r = (ring.r0 + (ring.r1 - ring.r0) * eased) * u;
+    ctx.globalAlpha = (1 - local) * 0.85;
+    ctx.strokeStyle = ring.color;
+    ctx.lineWidth = Math.max(1, ring.w * u * (1 - local * 0.5));
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // 4) Çekirdek parlama — ilk %25'te beyaz kıvılcım.
+  const core = Math.max(0, 1 - p / 0.25);
+  if (core > 0) {
+    ctx.globalAlpha = core;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(x, y, (10 + 26 * core) * u, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = core * 0.5;
+    ctx.fillStyle = '#FFD122';
+    ctx.beginPath();
+    ctx.arc(x, y, (20 + 40 * core) * u, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 /**
  * Deklaratif snapshot: oyun yalnız `mode` + oyuncu eşlemesi + oyuna özgü `extras` verir.
  * @param {object} game - yetkili host motoru

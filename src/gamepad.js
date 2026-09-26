@@ -173,7 +173,16 @@ export class GamepadManager {
 
   saveControllerLayout(value) {
     this._layoutPreview = null;
-    return setControllerLayout(value);
+    const saved = setControllerLayout(value);
+    this._scheduleControllerLayout();
+    return saved;
+  }
+
+  clearControllerLayoutPreview() {
+    if (!this._layoutPreview) return this.getControllerLayout();
+    this._layoutPreview = null;
+    this._scheduleControllerLayout();
+    return this.getControllerLayout();
   }
 
   getControllerLayoutMetrics(value = this.getControllerLayout()) {

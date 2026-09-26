@@ -73,3 +73,16 @@ test('bomb world frame validation rejects malformed input', () => {
   assert.equal(isValidBombWorldFrame({ ...frame, carrier: 7 }), false);
   assert.equal(isValidBombWorldFrame({ ...frame, mode: 'SNAKE' }), false);
 });
+
+test('bomb blast travels as a single nullable 4-number event', () => {
+  const idle = createBombWorldPacket(makeGame());
+  assert.equal(idle.blast, null);
+  assert.equal(isValidBombWorldFrame({ action: 'WORLD_FRAME', ...idle }), true);
+
+  const frame = createBombWorldPacket({ ...makeGame(), blast: { x: 400, y: 300, t: 0.24, max: 0.6 } });
+  assert.deepEqual(frame.blast, { x: 400, y: 300, t: 0.2, max: 0.6 });
+  assert.equal(isValidBombWorldFrame({ action: 'WORLD_FRAME', ...frame }), true);
+  assert.equal(isValidBombWorldFrame({ action: 'WORLD_FRAME', ...frame, blast: { x: 1, y: 2, t: 3, max: 0.6 } }), false);
+  assert.equal(isValidBombWorldFrame({ action: 'WORLD_FRAME', ...frame, blast: { x: 1, y: 2, t: 0.1, max: 0 } }), false);
+  assert.equal(isValidBombWorldFrame({ action: 'WORLD_FRAME', ...frame, blast: { x: NaN, y: 2, t: 0.1, max: 0.6 } }), false);
+});

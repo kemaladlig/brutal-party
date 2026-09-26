@@ -23,6 +23,7 @@ import { pulse } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { buildLayout } from '../core/arenaKit.js';
+import { hashFieldSeed } from '../core/fieldKit.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
@@ -34,6 +35,7 @@ import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLife
 import {
   createBombWorldPacket,
   drawBombArena,
+  drawBombBlast,
   drawBombInk,
   drawBombPickups,
   drawBombPlayers,
@@ -106,6 +108,8 @@ export class BombGame extends BaseMiniGame {
     this.pickupSpawnTimer = 6.0;
     this.inkPuddles = [];
     this.particles = [];
+    // Aktif patlama katmanı (null = patlama yok). Pakete `blast` olarak gider.
+    this.blast = null;
 
     // Screen Shake (Trauma)
     this.trauma = 0;
@@ -283,6 +287,7 @@ export class BombGame extends BaseMiniGame {
     this.pickups = [];
     this.inkPuddles = [];
     this.particles = [];
+    this.blast = null;
     this.trauma = 0;
     this.lastTime = performance.now();
     for (let i = 0; i < 4; i++) {
@@ -335,6 +340,7 @@ export class BombGame extends BaseMiniGame {
     this.pickups = [];
     this.inkPuddles = [];
     this.particles = [];
+    this.blast = null;
 
     // Respawn players at corner positions
     this.initPlayers();
@@ -446,19 +452,37 @@ export class BombGame extends BaseMiniGame {
     this.trauma = 1.0;
     playExplosion();
 
-    // Explosion shockwave and smoke debris
-    for (let i = 0; i < 40; i++) {
+    // Patlama katmanı: is yüzüğü + şok halkaları + çekirdek parlama
+    // (worldCore.drawBlast). Aynı çizim telefon world-view'da da görünür.
+    this.blast = { x: carrier.x, y: carrier.y, t: 0, max: 0.6 };
+
+    // Kor + is parçacıkları: kısa ömürlü kırık parça + yavaş sönen duman
+    for (let i = 0; i < 34; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const spd = 60 + Math.random() * 280;
+      const spd = 90 + Math.random() * 320;
       this.particles.push({
         x: carrier.x,
         y: carrier.y,
         vx: Math.cos(angle) * spd,
         vy: Math.sin(angle) * spd,
-        life: 0.7 + Math.random() * 0.4,
-        maxLife: 1.0,
+        life: 0.55 + Math.random() * 0.5,
+        maxLife: 1.05,
         color: i % 2 === 0 ? '#1A1A1A' : '#D84727',
         size: 4 + Math.random() * 7,
+      });
+    }
+    for (let i = 0; i < 10; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const spd = 20 + Math.random() * 60;
+      this.particles.push({
+        x: carrier.x,
+        y: carrier.y,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd,
+        life: 0.9 + Math.random() * 0.5,
+        maxLife: 1.4,
+        color: '#6B6560',
+        size: 6 + Math.random() * 9,
       });
     }
 
@@ -673,6 +697,12 @@ export class BombGame extends BaseMiniGame {
       }
     }
 
+    // Patlama katmanı ömrü (0.6 sn): şok halkaları + çekirdek parlama
+    if (this.blast) {
+      this.blast.t += dt;
+      if (this.blast.t >= this.blast.max) this.blast = null;
+    }
+
     // Update Players
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
@@ -848,6 +878,9 @@ export class BombGame extends BaseMiniGame {
         : null,
       bombTimer: this.bombTimer,
       bombMaxTime: this.bombMaxTime,
+      // Dekor raunt başına değişsin; seed `(BOMB, roundId)`'den deterministik
+      // türer, yani client paket almadan aynı saha dekorunu üretir.
+      seed: hashFieldSeed('BOMB', this.roundId),
     });
     drawBombInk(ctx, this.inkPuddles);
     drawBombPickups(ctx, this.pickups);
@@ -865,6 +898,7 @@ export class BombGame extends BaseMiniGame {
       withFx: this.state === 'PLAYING',
       now: this.lastTime,
     });
+    drawBombBlast(ctx, this.blast, this.arena);
     drawBombParticles(ctx, this.particles);
     this.renderControls(ctx);
 

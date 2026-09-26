@@ -1855,7 +1855,7 @@ function renderEngineCrashOverlay(ctx, error) {
   ctx.fillRect(0, 0, w, h);
 
   const cardW = Math.min(480, w * 0.9);
-  const cardH = 140;
+  const cardH = 172;
   const cx = w / 2;
   const cy = h / 2;
 
@@ -1869,13 +1869,23 @@ function renderEngineCrashOverlay(ctx, error) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = '900 16px "Space Grotesk", sans-serif';
-  ctx.fillText(t('crash.title'), cx, cy - 25);
+  ctx.fillText(t('crash.title'), cx, cy - 44);
 
   ctx.font = '800 12px "JetBrains Mono", monospace';
-  ctx.fillText(String(error?.message || t('crash.default')).slice(0, 50), cx, cy + 5);
+  ctx.fillText(String(error?.message || t('crash.default')).slice(0, 50), cx, cy - 14);
+
+  // TODO(teşhis): HEIST motor hatasının kök satırı. Kullanıcı bu satırı
+  // okuduktan sonra kalıcı düzeltme yapılacak ve burası kaldırılacak.
+  const frame = String(error?.stack || '')
+    .split('\n')
+    .slice(1)
+    .map((line) => line.trim())
+    .find((line) => line.startsWith('at '));
+  ctx.font = '700 10px "JetBrains Mono", monospace';
+  ctx.fillText(frame ? frame.replace(/^at\s+/, '').slice(0, 62) : t('crash.default'), cx, cy + 8);
 
   ctx.font = '900 13px "Space Grotesk", sans-serif';
-  ctx.fillText(t('crash.action'), cx, cy + 38);
+  ctx.fillText(t('crash.action'), cx, cy + 48);
   ctx.restore();
 }
 

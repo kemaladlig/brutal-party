@@ -3,10 +3,11 @@
 // client simülasyon/AI import etmez, yalnız salt-okunur draw + snapshot/validator alır.
 
 import { drawPickup, drawObstacle } from '../core/arenaKit.js';
+import { drawField } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { packBlast, isValidBlast, drawBlast, isWorldEntityVisible } from './worldCore.js';
 import { renderEntityHUD } from '../ui/hud.js';
 import { t } from '../i18n.js';
-import { isWorldEntityVisible } from './worldCore.js';
 
 const round1 = (v) => Math.round(Number(v) * 10) / 10;
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -51,6 +52,7 @@ export function createBombWorldPacket(game) {
       round1(pk.radius || pk.size || 15),
     ]),
     ink: inkPuddles.map((ink) => [round1(ink.x), round1(ink.y), round1(ink.radius || 22)]),
+    blast: packBlast(game.blast),
     players: players.map((p) => ({
       slot: p.index,
       joined: p.isJoined !== false,
@@ -102,6 +104,7 @@ export function isValidBombWorldFrame(frame) {
   if (!frame.pickups.every((pk) => Array.isArray(pk) && pk.length >= 3 && finite(pk[0]) && finite(pk[1]) && finite(pk[3]) && finite(pk[4]))) return false;
   if (!Array.isArray(frame.ink) || frame.ink.length > 20) return false;
   if (!frame.ink.every((p) => Array.isArray(p) && p.length === 3 && finite(p[0]) && finite(p[1]) && finite(p[2]))) return false;
+  if (!isValidBlast(frame.blast ?? null)) return false;
   if (!Array.isArray(frame.players) || frame.players.length > 4) return false;
   if (!Array.isArray(frame.particles) || frame.particles.length > 64) return false;
   if (!frame.particles.every((pt) => pt && finite(pt.x) && finite(pt.y) && finite(pt.size) && finite(pt.life) && finite(pt.maxLife) && typeof pt.color === 'string')) return false;
@@ -116,40 +119,14 @@ export function isValidBombWorldFrame(frame) {
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
-export function drawBombArena(ctx, arena, pillars, { carrier = null, bombTimer = 15, bombMaxTime = 15 } = {}) {
-  const { left, top, right, bottom, width, height } = arena;
+export function drawBombArena(ctx, arena, pillars, { carrier = null, bombTimer = 15, bombMaxTime = 15, seed } = {}) {
+  // Statik saha katmanı (zemin gradyanı + ızgara + merkez halkaları + köşe
+  // plakaları + dekor + duvar) `fieldKit` tarafından bir kez pişirilip blit
+  // edilir; paket alanı eklenmez, seed `(BOMB, roundId)`'den türer.
+  drawField(ctx, arena, { mode: 'BOMB', seed });
+
+  // Taşıyıcı halkası canlı olduğu için statik katmanın DIŞINDA kalır.
   const u = arena?.unit ?? 1;
-
-  ctx.fillStyle = '#FAF7F2';
-  ctx.fillRect(left, top, width, height);
-
-  ctx.strokeStyle = '#E2DCD2';
-  ctx.lineWidth = 1.5 * u;
-  ctx.strokeRect(left + width * 0.15, top + height * 0.15, width * 0.7, height * 0.7);
-
-  const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
-  ctx.strokeStyle = '#2B2B28';
-  ctx.lineWidth = 3 * u;
-  const cornerPlates = [
-    [[left, top + bLen], [left, top], [left + bLen, top]],
-    [[right - bLen, top], [right, top], [right, top + bLen]],
-    [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
-    [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
-  ];
-  for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.lineTo(x3, y3);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = '#1A1A1A';
-  ctx.fillRect(right, top + 6, 6, height);
-  ctx.fillRect(left + 6, bottom, width, 6);
-  ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 4 * u;
-  ctx.strokeRect(left, top, width, height);
 
   for (const pil of pillars) {
     drawObstacle(ctx, pil, { variant: 'crate' });
@@ -179,6 +156,11 @@ export function drawBombArena(ctx, arena, pillars, { carrier = null, bombTimer =
     ctx.stroke();
     ctx.restore();
   }
+}
+
+// Patlama katmanı host↔client ortak çizimi (worldCore'da yaşar).
+export function drawBombBlast(ctx, blast, arena) {
+  drawBlast(ctx, blast, arena);
 }
 
 export function drawBombInk(ctx, puddles) {

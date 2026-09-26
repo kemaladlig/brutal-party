@@ -1,5 +1,5 @@
 // Declarative Gamepad Controller Templates
-// Provides standardized archetypes (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, STEER_BOOST)
+// Provides standardized archetypes (JOYSTICK_ACTION, TWIN_STICK_ACTION, ARCADE_DRIVE, STEER_ACTION, SLIDER_1D)
 // allowing games and agents to declare controls via high-level schemas rather than writing imperative DOM code.
 
 import { escapeHtml } from '../net.js';
@@ -30,12 +30,10 @@ export function mountDeclarativeController(gamepad, container, schema) {
       return mountTwinStickAction(gamepad, container, schema);
     case 'ARCADE_DRIVE':
       return mountArcadeDrive(gamepad, container, schema);
-    case 'TWO_BUTTON_STEER':
-      return mountTwoButtonSteer(gamepad, container, schema);
+    case 'STEER_ACTION':
+      return mountSteerAction(gamepad, container, schema);
     case 'SLIDER_1D':
       return mountSlider1D(gamepad, container, schema);
-    case 'STEER_BOOST':
-      return mountSteerBoost(gamepad, container, schema);
     default:
       console.warn(`[declarativeGamepad] Unknown controller schema type: ${schema.type}`);
       return null;
@@ -439,42 +437,68 @@ function mountArcadeDrive(gamepad, container, schema) {
 }
 
 // ---------------------------------------------------------------------------
-// 3. TWO_BUTTON_STEER Archetype (CURVE)
+// 3. STEER_ACTION Archetype (CURVE, SNAKE)
+// Tek yön rocker'ı (sol) + deklaratif aksiyon kümesi (sağ). Basılı tutulan yön
+// 250 ms'de bir keepalive ile tekrarlanır: host'taki analog sessizlik süpürücüsü
+// (main.js STALE_ANALOG_MS = 1500) basılı yönü 1.5 sn'de sıfırlıyor, kumanda
+// "yön tutmuyor" gibi davranıyordu.
 // ---------------------------------------------------------------------------
-function mountTwoButtonSteer(gamepad, container, schema) {
+const STEER_KEEPALIVE_MS = 250;
+
+function steerActionButtonHtml(act, index, playerColor, iconSize) {
+  const bg = act.color ? `background-color: ${act.color};` : `background-color: ${playerColor};`;
+  const icon = act.icon || (act.action === 'DASH' ? 'zap' : 'flame');
+  const label = getGuideActionLabel(act);
+  return `
+    <button class="action-dash-btn steer-action-btn ${act.className || ''}" data-action-index="${index}" type="button"
+      aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" style="${bg}">
+      <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: iconSize, color: '#ffffff', strokeWidth: 2.4 })}</span>
+    </button>
+  `;
+}
+
+function mountSteerAction(gamepad, container, schema) {
   const steerLeftLabel = t('pad.steerLeft');
   const steerRightLabel = t('pad.steerRight');
-  container.innerHTML = `
-    <div class="curve-controller-view" id="curve-controller-view">
-      <div class="steer-rocker-cluster curve-cluster left" data-controller-layout-target="left" id="curve-steer-left">
-        <button class="steer-rocker-btn left" id="btn-curve-left" data-steer="-1" type="button" aria-label="${escapeHtml(steerLeftLabel)}">
-          <span class="steer-icon">${getTabletopIconSvg('arrow_left', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
-        </button>
-        <button class="steer-rocker-btn right" id="btn-curve-left-r" data-steer="1" type="button" aria-label="${escapeHtml(steerRightLabel)}">
-          <span class="steer-icon">${getTabletopIconSvg('arrow_right', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
-        </button>
-      </div>
+  const stamp = Date.now();
+  const steerZoneId = `steer-zone-${stamp}`;
+  const rockerId = `steer-rocker-${stamp}`;
+  const actions = schema.actions || [];
+  const actionHtml = actions.length > 0
+    ? `<div class="steer-action-zone" data-controller-layout-target="right">${actions
+      .map((act, i) => steerActionButtonHtml(act, i, gamepad.playerColor, 38))
+      .join('')}</div>`
+    : '';
 
-      <div class="steer-rocker-cluster curve-cluster right" data-controller-layout-target="right" id="curve-steer-right">
-        <button class="steer-rocker-btn left" id="btn-curve-right-l" data-steer="-1" type="button" aria-label="${escapeHtml(steerLeftLabel)}">
-          <span class="steer-icon">${getTabletopIconSvg('arrow_left', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
-        </button>
-        <button class="steer-rocker-btn right" id="btn-curve-right" data-steer="1" type="button" aria-label="${escapeHtml(steerRightLabel)}">
-          <span class="steer-icon">${getTabletopIconSvg('arrow_right', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
-        </button>
+  container.innerHTML = `
+    <div class="steer-action-view">
+      <div class="steer-zone" data-controller-layout-target="left" id="${steerZoneId}">
+        <div class="steer-rocker-cluster" id="${rockerId}">
+          <button class="steer-rocker-btn left" data-steer="-1" type="button" aria-label="${escapeHtml(steerLeftLabel)}">
+            <span class="steer-icon">${getTabletopIconSvg('arrow_left', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
+          </button>
+          <button class="steer-rocker-btn right" data-steer="1" type="button" aria-label="${escapeHtml(steerRightLabel)}">
+            <span class="steer-icon">${getTabletopIconSvg('arrow_right', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
+          </button>
+        </div>
       </div>
+      ${actionHtml}
     </div>
   `;
 
-  const view = document.getElementById('curve-controller-view');
-  const btnLeft = document.getElementById('btn-curve-left');
-  const btnRight = document.getElementById('btn-curve-right');
-  const btnLeftR = document.getElementById('btn-curve-left-r');
-  const btnRightL = document.getElementById('btn-curve-right-l');
+  const steerZone = container.querySelector(`#${steerZoneId}`);
+  const rocker = container.querySelector(`#${rockerId}`);
+  const btnLeft = rocker?.querySelector('[data-steer="-1"]');
+  const btnRight = rocker?.querySelector('[data-steer="1"]');
 
   const activeTouches = new Map();
   let mouseDir = 0;
   let currentActiveDir = 0;
+
+  const sendSteer = (dir) => gamepad.sendInput({
+    action: schema.steerAction || 'CURVE_STEER',
+    dir,
+  });
 
   const syncSteer = () => {
     let desiredDir = 0;
@@ -487,13 +511,11 @@ function mountTwoButtonSteer(gamepad, container, schema) {
     }
 
     btnLeft?.classList.toggle('active', desiredDir === -1);
-    btnRightL?.classList.toggle('active', desiredDir === -1);
     btnRight?.classList.toggle('active', desiredDir === 1);
-    btnLeftR?.classList.toggle('active', desiredDir === 1);
 
     if (desiredDir !== currentActiveDir) {
       currentActiveDir = desiredDir;
-      gamepad.sendInput({ action: schema.steerAction || 'CURVE_STEER', dir: currentActiveDir });
+      sendSteer(currentActiveDir);
       if (currentActiveDir !== 0) gamepad.vibrate(15);
     }
   };
@@ -501,20 +523,10 @@ function mountTwoButtonSteer(gamepad, container, schema) {
   const getDirForPoint = (clientX, clientY) => {
     const el = document.elementFromPoint(clientX, clientY);
     const steerBtn = el?.closest('[data-steer]');
-    if (steerBtn) {
-      return parseInt(steerBtn.dataset.steer, 10);
-    }
-    const leftCluster = document.getElementById('curve-steer-left');
-    const rightCluster = document.getElementById('curve-steer-right');
-    const lRect = leftCluster?.getBoundingClientRect();
-    const rRect = rightCluster?.getBoundingClientRect();
-    if (lRect && clientX >= lRect.left && clientX <= lRect.right) {
-      return clientX < lRect.left + lRect.width / 2 ? -1 : 1;
-    }
-    if (rRect && clientX >= rRect.left && clientX <= rRect.right) {
-      return clientX < rRect.left + rRect.width / 2 ? -1 : 1;
-    }
-    return clientX < window.innerWidth / 2 ? -1 : 1;
+    if (steerBtn) return parseInt(steerBtn.dataset.steer, 10);
+    const rect = (steerZone || rocker)?.getBoundingClientRect();
+    if (!rect) return 0;
+    return clientX < rect.left + rect.width / 2 ? -1 : 1;
   };
 
   const onTouchStart = (e) => {
@@ -540,50 +552,107 @@ function mountTwoButtonSteer(gamepad, container, schema) {
 
   const onTouchEnd = (e) => {
     for (let i = 0; i < e.changedTouches.length; i++) {
-      const t = e.changedTouches[i];
-      activeTouches.delete(t.identifier);
+      activeTouches.delete(e.changedTouches[i].identifier);
     }
     syncSteer();
   };
 
-  const onTouchCancel = (e) => {
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const t = e.changedTouches[i];
-      activeTouches.delete(t.identifier);
-    }
-    syncSteer();
-  };
+  // Dokunma yalnız rocker bölgesinde: aksiyon düğmesine basan parmak yön
+  // üretmez (eskiden tüm ekran dinleniyordu, sağdaki iki rocker da yönü çakıştırıyordu).
+  steerZone?.addEventListener('touchstart', onTouchStart, { passive: false });
+  steerZone?.addEventListener('touchmove', onTouchMove, { passive: false });
+  steerZone?.addEventListener('touchend', onTouchEnd, { passive: true });
+  steerZone?.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
-  view?.addEventListener('touchstart', onTouchStart, { passive: false });
-  view?.addEventListener('touchmove', onTouchMove, { passive: false });
-  view?.addEventListener('touchend', onTouchEnd, { passive: true });
-  view?.addEventListener('touchcancel', onTouchCancel, { passive: true });
-
-  const curveSignal = gamepad._mountAbort?.signal;
-  window.addEventListener('touchend', onTouchEnd, { passive: true, signal: curveSignal });
-  window.addEventListener('touchcancel', onTouchCancel, { passive: true, signal: curveSignal });
+  const mountSignal = gamepad._mountAbort?.signal;
+  window.addEventListener('touchend', onTouchEnd, { passive: true, signal: mountSignal });
+  window.addEventListener('touchcancel', onTouchEnd, { passive: true, signal: mountSignal });
 
   btnLeft?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = -1; syncSteer(); });
-  btnRightL?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = -1; syncSteer(); });
   btnRight?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = 1; syncSteer(); });
-  btnLeftR?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = 1; syncSteer(); });
   const onMouseUp = () => {
     if (mouseDir !== 0) {
       mouseDir = 0;
       syncSteer();
     }
   };
-  window.addEventListener('mouseup', onMouseUp, { signal: curveSignal });
+  window.addEventListener('mouseup', onMouseUp, { signal: mountSignal });
+
+  // Basılı yön keepalive'i (host'un stale sweeper'ı yönü sıfırlamasın).
+  const keepalive = setInterval(() => {
+    const held = activeTouches.size > 0 || mouseDir !== 0;
+    if (held && currentActiveDir !== 0) sendSteer(currentActiveDir);
+  }, STEER_KEEPALIVE_MS);
+
+  // Aksiyon düğmeleri: hold varsa bas-bırak lifecycle, yoksa cooldown'lu tap.
+  const buttonEls = [];
+  const activeHolds = new Set();
+  actions.forEach((act, i) => {
+    const btn = container.querySelector(`[data-action-index="${i}"]`);
+    if (!btn) return;
+    buttonEls.push({ config: act, el: btn });
+    const vibratePattern = act.vibrate ?? [25, 35];
+
+    if (act.hold && act.releaseAction) {
+      const sendDown = (e) => {
+        e?.preventDefault?.();
+        gamepad.sendInput({ action: act.action, ...(act.payload || {}) });
+        gamepad.vibrate(vibratePattern);
+        gamepad.playTick();
+        activeHolds.add(act);
+        btn.classList.add('holding');
+      };
+      const sendUp = (e) => {
+        e?.preventDefault?.();
+        gamepad.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) });
+        activeHolds.delete(act);
+        btn.classList.remove('holding');
+      };
+      btn.addEventListener('touchstart', sendDown, { passive: false });
+      btn.addEventListener('touchend', sendUp, { passive: false });
+      btn.addEventListener('touchcancel', sendUp, { passive: false });
+      btn.addEventListener('mousedown', sendDown);
+      btn.addEventListener('mouseup', sendUp);
+      btn.addEventListener('mouseleave', () => {
+        if (btn.classList.contains('holding')) sendUp();
+      });
+      return;
+    }
+
+    const handler = gamepad.cooledAction(
+      btn,
+      act.cooldown ?? 2.0,
+      getGuideActionLabel(act),
+      () => gamepad.sendInput({ action: act.action, ...(act.payload || {}) }),
+      vibratePattern,
+    );
+    btn.addEventListener('touchstart', handler, { passive: false });
+    btn.addEventListener('mousedown', handler);
+  });
 
   return {
-    handleSync() {},
+    handleSync(data) {
+      buttonEls.forEach(({ config, el }) => {
+        if (config.syncHostCooldown && el.isConnected) {
+          const arr = Array.isArray(data.cd) ? data.cd : null;
+          el.style.opacity = arr && (arr[gamepad.playerIndex] || 0) > 0 ? 0.55 : 1;
+        }
+      });
+      if (typeof schema.onSync === 'function') schema.onSync(gamepad, data, { buttonEls });
+    },
     teardown() {
+      clearInterval(keepalive);
       if (currentActiveDir !== 0) {
-        try {
-          gamepad.sendInput({ action: schema.steerAction || 'CURVE_STEER', dir: 0 });
-        } catch {}
+        try { sendSteer(0); } catch {}
       }
-    }
+      for (const act of activeHolds) {
+        if (act.releaseAction) {
+          try { gamepad.sendInput({ action: act.releaseAction, ...(act.releasePayload || {}) }); } catch {}
+        }
+      }
+      activeHolds.clear();
+      if (typeof schema.onTeardown === 'function') schema.onTeardown(gamepad);
+    },
   };
 }
 
@@ -749,177 +818,5 @@ function mountSlider1D(gamepad, container, schema) {
       }
     },
     teardown() {}
-  };
-}
-
-// ---------------------------------------------------------------------------
-// 5. STEER_BOOST Archetype (SNAKE — Left/Right Steering + Boost, CSS-driven)
-// ---------------------------------------------------------------------------
-function mountSteerBoost(gamepad, container, schema) {
-  const steerLeftLabel = t('pad.steerLeft');
-  const steerRightLabel = t('pad.steerRight');
-  const steerZoneId = `steer-zone-${Date.now()}`;
-  container.innerHTML = `
-    <div class="snake-controller-view">
-      <div class="snake-steer-zone" data-controller-layout-target="left">
-        <div class="steer-rocker-cluster" id="${steerZoneId}">
-          <button class="steer-rocker-btn left" id="btn-snake-left" data-steer="-1" type="button" aria-label="${escapeHtml(steerLeftLabel)}">
-            <span class="steer-icon">${getTabletopIconSvg('arrow_left', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
-          </button>
-          <button class="steer-rocker-btn right" id="btn-snake-right" data-steer="1" type="button" aria-label="${escapeHtml(steerRightLabel)}">
-            <span class="steer-icon">${getTabletopIconSvg('arrow_right', { size: 28, color: 'currentColor', strokeWidth: 2.8 })}</span>
-          </button>
-        </div>
-      </div>
-      <div class="snake-boost-zone" data-controller-layout-target="right">
-        <button class="action-dash-btn snake-boost-btn" id="btn-snake-boost" type="button" aria-label="${escapeHtml(t('pad.boost'))}" title="${escapeHtml(t('pad.boost'))}" style="background-color: ${schema.boostColor || gamepad.playerColor}">
-          <span class="btn-action-icon">${getTabletopIconSvg(schema.boostIcon || 'zap', { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
-        </button>
-      </div>
-    </div>
-  `;
-
-  const steerView = document.getElementById(steerZoneId);
-  const btnLeft = document.getElementById('btn-snake-left');
-  const btnRight = document.getElementById('btn-snake-right');
-  const btnBoost = document.getElementById('btn-snake-boost');
-
-  const activeTouches = new Map();
-  let mouseDir = 0;
-  let currentActiveDir = 0;
-
-  const syncSteer = () => {
-    let desiredDir = 0;
-    if (activeTouches.size > 0) {
-      for (const dir of activeTouches.values()) {
-        if (dir !== 0) desiredDir = dir;
-      }
-    } else if (mouseDir !== 0) {
-      desiredDir = mouseDir;
-    }
-
-    btnLeft?.classList.toggle('active', desiredDir === -1);
-    btnRight?.classList.toggle('active', desiredDir === 1);
-
-    if (desiredDir !== currentActiveDir) {
-      currentActiveDir = desiredDir;
-      gamepad.sendInput({ action: schema.steerAction || 'SNAKE_STEER', dir: currentActiveDir });
-      if (currentActiveDir !== 0) gamepad.vibrate(15);
-    }
-  };
-
-  const getDirForPoint = (clientX, clientY) => {
-    const el = document.elementFromPoint(clientX, clientY);
-    const steerBtn = el?.closest('[data-steer]');
-    if (steerBtn) return parseInt(steerBtn.dataset.steer, 10);
-    const rect = steerView ? steerView.getBoundingClientRect() : null;
-    if (!rect) return 0;
-    return clientX < rect.left + rect.width / 2 ? -1 : 1;
-  };
-
-  const onTouchStart = (e) => {
-    e.preventDefault();
-    gamepad.playTick();
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const t = e.changedTouches[i];
-      activeTouches.set(t.identifier, getDirForPoint(t.clientX, t.clientY));
-    }
-    syncSteer();
-  };
-
-  const onTouchMove = (e) => {
-    e.preventDefault();
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const t = e.changedTouches[i];
-      if (activeTouches.has(t.identifier)) {
-        activeTouches.set(t.identifier, getDirForPoint(t.clientX, t.clientY));
-      }
-    }
-    syncSteer();
-  };
-
-  const onTouchEnd = (e) => {
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const t = e.changedTouches[i];
-      activeTouches.delete(t.identifier);
-    }
-    syncSteer();
-  };
-
-  steerView?.addEventListener('touchstart', onTouchStart, { passive: false });
-  steerView?.addEventListener('touchmove', onTouchMove, { passive: false });
-  steerView?.addEventListener('touchend', onTouchEnd, { passive: true });
-  steerView?.addEventListener('touchcancel', onTouchEnd, { passive: true });
-
-  const mountSignal = gamepad._mountAbort?.signal;
-  window.addEventListener('touchend', onTouchEnd, { passive: true, signal: mountSignal });
-  window.addEventListener('touchcancel', onTouchEnd, { passive: true, signal: mountSignal });
-
-  btnLeft?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = -1; syncSteer(); });
-  btnRight?.addEventListener('mousedown', (e) => { e.preventDefault(); mouseDir = 1; syncSteer(); });
-  const onMouseUp = () => {
-    if (mouseDir !== 0) {
-      mouseDir = 0;
-      syncSteer();
-    }
-  };
-  window.addEventListener('mouseup', onMouseUp, { signal: mountSignal });
-
-  // Boost Button
-  let boosting = false;
-  const startBoost = (e) => {
-    e?.preventDefault();
-    if (boosting) return;
-    boosting = true;
-    btnBoost?.classList.add('active');
-    if (btnBoost) btnBoost.style.filter = 'brightness(1.3)';
-    gamepad.sendInput({ action: schema.boostStartAction || 'SNAKE_BOOST' });
-    gamepad.vibrate(20);
-    gamepad.playTick();
-  };
-
-  const stopBoost = (e) => {
-    e?.preventDefault();
-    if (!boosting) return;
-    boosting = false;
-    btnBoost?.classList.remove('active');
-    if (btnBoost) btnBoost.style.filter = '';
-    gamepad.sendInput({ action: schema.boostEndAction || 'SNAKE_BOOST_RELEASE' });
-  };
-
-  btnBoost?.addEventListener('touchstart', startBoost, { passive: false });
-  btnBoost?.addEventListener('touchend', stopBoost, { passive: false });
-  btnBoost?.addEventListener('touchcancel', stopBoost, { passive: false });
-  window.addEventListener('touchend', stopBoost, { passive: true, signal: mountSignal });
-  window.addEventListener('touchcancel', stopBoost, { passive: true, signal: mountSignal });
-  btnBoost?.addEventListener('mousedown', startBoost);
-  btnBoost?.addEventListener('mouseup', stopBoost);
-  btnBoost?.addEventListener('mouseleave', stopBoost);
-
-  return {
-    handleSync(data) {
-      if (!btnBoost || !btnBoost.isConnected) return;
-      const nrg = Array.isArray(data?.nrg) ? (data.nrg[gamepad.playerIndex] ?? 100) : 100;
-      const locked = Array.isArray(data?.lock) ? !!data.lock[gamepad.playerIndex] : false;
-      const dead = Array.isArray(data?.alive) ? data.alive[gamepad.playerIndex] === false : false;
-      btnBoost.style.opacity = locked || dead ? 0.55 : 1;
-      const nrgText = document.getElementById('snake-nrg-text');
-      if (nrgText) {
-        const txt = dead ? t('pad.deadShort') : locked ? t('pad.lockedFire') : `${Math.round(nrg)}% NRG`;
-        if (nrgText.textContent !== txt) nrgText.textContent = txt;
-      }
-    },
-    teardown() {
-      if (currentActiveDir !== 0) {
-        try {
-          gamepad.sendInput({ action: schema.steerAction || 'SNAKE_STEER', dir: 0 });
-        } catch {}
-      }
-      if (boosting) {
-        try {
-          gamepad.sendInput({ action: schema.boostEndAction || 'SNAKE_BOOST_RELEASE' });
-        } catch {}
-      }
-    }
   };
 }

@@ -59,6 +59,7 @@ export function isValidNetworkInput(data) {
     case 'TANK_DRIVE':
       return typeof data.driving === 'boolean';
 
+    case 'CURVE_BOOST':
     case 'TANK_FIRE':
     case 'DASH':
     case 'TACKLE':

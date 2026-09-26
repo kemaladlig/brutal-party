@@ -13,6 +13,16 @@ export const DEFAULT_CONTROLLER_LAYOUT = Object.freeze({
   right: Object.freeze({ x: 0.84, y: 0.86 }),
 });
 
+// Blank-screen editor contract: each side owns a fixed half so the example
+// stage matches the real mount. Values saved outside these bounds get
+// clamped by the game resolver at render time (surprise), so the editor
+// constrains drafts here and snaps to a coarse grid for determinism.
+export const CONTROLLER_POSITION_BOUNDS = Object.freeze({
+  left: Object.freeze({ xMin: 0.04, xMax: 0.46, yMin: 0.2, yMax: 0.94 }),
+  right: Object.freeze({ xMin: 0.54, xMax: 0.96, yMin: 0.2, yMax: 0.94 }),
+});
+export const CONTROLLER_POSITION_SNAP = 0.02;
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -188,4 +198,29 @@ export function resolveControllerLayout(value, {
 
 export function getDefaultControllerLayout() {
   return normalizeControllerLayout(DEFAULT_CONTROLLER_LAYOUT);
+}
+
+export function constrainControllerPoint(side, point) {
+  const bounds = CONTROLLER_POSITION_BOUNDS[side] || null;
+  const fallback = DEFAULT_CONTROLLER_LAYOUT[side] || { x: 0.5, y: 0.5 };
+  const source = point && typeof point === 'object' ? point : {};
+  const rawX = Number(source.x);
+  const rawY = Number(source.y);
+  const x = Number.isFinite(rawX) ? rawX : fallback.x;
+  const y = Number.isFinite(rawY) ? rawY : fallback.y;
+  if (!bounds) return { x, y };
+  const snap = (v) => Math.round(v / CONTROLLER_POSITION_SNAP) * CONTROLLER_POSITION_SNAP;
+  return {
+    x: Math.round(clamp(snap(x), bounds.xMin, bounds.xMax) * 100) / 100,
+    y: Math.round(clamp(snap(y), bounds.yMin, bounds.yMax) * 100) / 100,
+  };
+}
+
+export function constrainControllerLayout(value = {}) {
+  const normalized = normalizeControllerLayout(value);
+  return {
+    ...normalized,
+    left: constrainControllerPoint('left', normalized.left),
+    right: constrainControllerPoint('right', normalized.right),
+  };
 }

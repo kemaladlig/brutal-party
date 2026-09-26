@@ -60,6 +60,29 @@ test('aim stick owns attack and only secondary actions remain on the right', () 
   assert.deepEqual(CONTROL_DEFS.NINJA.right, ['strike', 'smoke']);
 });
 
+test('steer games own their right-side action end to end', () => {
+  // CURVE/SNAKE tek arketipte yaşar: sol rocker + sağ aksiyon.
+  assert.equal(GAMEPAD_SCHEMAS.CURVE.type, 'STEER_ACTION');
+  assert.equal(GAMEPAD_SCHEMAS.SNAKE.type, 'STEER_ACTION');
+  assert.deepEqual(CONTROL_DEFS.CURVE.right, ['boost']);
+  assert.deepEqual(GAMEPAD_SCHEMAS.CURVE.actions.map((action) => action.id), ['boost']);
+  assert.equal(GAMEPAD_SCHEMAS.CURVE.steerAction, 'CURVE_STEER');
+  assert.equal(GAMEPAD_SCHEMAS.CURVE.actions[0].action, 'CURVE_BOOST');
+  assert.equal(GAMEPAD_SCHEMAS.CURVE.actions[0].syncHostCooldown, true);
+
+  // Bas-bırak (SNAKE) ve tek dokunuş (CURVE) aynı buton yolunu kullanır.
+  assert.equal(GAMEPAD_SCHEMAS.SNAKE.actions[0].hold, true);
+  assert.equal(GAMEPAD_SCHEMAS.SNAKE.actions[0].releaseAction, 'SNAKE_BOOST_RELEASE');
+  assert.equal(GAMEPAD_SCHEMAS.CURVE.actions[0].hold, undefined);
+
+  const curve = getControlDescriptor('CURVE', GAMEPAD_SCHEMAS.CURVE);
+  assert.deepEqual(curve.phone.actions.map((a) => a.id), ['boost']);
+  assert.deepEqual(curve.tabletop.actions.map((a) => a.id), ['boost']);
+  const networkIds = new Set(curve.network.actions.map((a) => a.id));
+  assert.equal(networkIds.has('boost'), true);
+  assert.equal(networkIds.has('steer'), true);
+});
+
 test('every cartridge exposes the same controller metadata used by the matrix', () => {
   for (const mode of GAME_ORDER) {
     const cartridge = CARTRIDGES[mode];

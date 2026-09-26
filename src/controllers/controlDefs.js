@@ -17,7 +17,7 @@ export const AIM_HOLD_TO_FIRE = 'HOLD_TO_FIRE';
 export const CONTROL_DEFS = {
   PONG: { left: 'slider', right: ['spin'] },
   TANKS: { left: 'pedal', right: ['fire'] },
-  CURVE: { left: 'steer', right: [] },
+  CURVE: { left: 'steer', right: ['boost'] },
   BOMB: { left: 'joystick', right: ['dash'] },
   HEIST: { left: 'joystick', right: ['tackle'] },
   ARCHER: { left: 'joystick', aim: true, aimMode: AIM_RELEASE_TO_FIRE, right: [] },

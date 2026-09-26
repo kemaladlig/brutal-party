@@ -379,8 +379,74 @@ test('SNAKE separates food score, sweeps wall collision, and resolves zero survi
   assert.equal(game.matchDraw, true);
 });
 
-test('HEIST terminates an empty match and advances round ids', () => {
-  const game = configureHeist();
+test('CURVE HIZLAN accelerates, widens the turn and then cools down', () => {
+  const game = configureCurve();
+  const player = game.players[0];
+  const baseSpeed = player.speed;
+
+  // Kapılar: masa-ortası butonu, klavye aksiyon tuşu ve uzaktan kumanda aynı yola çıkar.
+  game.triggerBoost(0);
+  assert.equal(player.nitroTimer > 0, true);
+  assert.ok(player.boostCooldown > 0);
+
+  // Aynı karede ikinci deneme cooldown'a takılır.
+  const before = player.nitroTimer;
+  game.triggerBoost(0);
+  assert.equal(player.nitroTimer, before);
+
+  // Nitro aktifken yol hızlanır, dönüş genişler.
+  const straight = { ...player, angle: 0, steer: 0, turboTimer: 0, freezeTimer: 0, confusedTimer: 0, isGap: true, gapTimer: 99, gapDuration: 0, ghostTimer: 0, shrinkTimer: 0, thickTimer: 0, botCheckTimer: 0, botSteer: 0, botTurnCommitment: 0 };
+  const nitroPlayer = { ...straight, nitroTimer: 1 };
+  const plainPlayer = { ...straight, nitroTimer: 0 };
+  const measure = (p, frames) => {
+    p.x = 100;
+    p.y = 100;
+    p.angle = 0;
+    p.steer = 0;
+    for (let f = 0; f < frames; f += 1) {
+      p.angle += p.steer * p.turnSpeed * (p.nitroTimer > 0 ? 0.82 : 1) * 0.016;
+      p.x += Math.cos(p.angle) * p.speed * (p.nitroTimer > 0 ? 1.45 : 1) * 0.016;
+    }
+    return p;
+  };
+  const fast = measure(nitroPlayer, 4);
+  const plain = measure(plainPlayer, 4);
+  assert.ok(fast.x - 100 > plain.x - 100, 'nitro hızı artırmalı');
+  assert.equal(nitroPlayer.steer, 0);
+  assert.ok(baseSpeed > 0);
+
+  // Zamanlayıcılar işler, nitro biter ve cooldown dolar. Oyuncular iz çarpışmasıyla
+  // elenirse raunt erken biter ve timer'lar donar; test yalnız timer'ları ölçtiği
+  // için her karede kadroyu ayakta tutar.
+  game.lastTime = 1000;
+  game.update(1016);
+  assert.ok(player.boostCooldown < 4 && player.boostCooldown > 3.9);
+  for (let f = 0; f < 120; f += 1) {
+    game.players.forEach((p) => { p.isAlive = true; });
+    game.state = 'PLAYING';
+    game.update(game.lastTime + 16);
+  }
+  assert.equal(player.nitroTimer, 0);
+  assert.ok(player.boostCooldown > 0 && player.boostCooldown < 4);
+});
+
+test('CURVE nitro reaches the engine through every input path', () => {
+  const game = configureCurve();
+  game.handleRemoteInput(1, { action: 'CURVE_BOOST' });
+  assert.ok(game.players[1].nitroTimer > 0);
+
+  game.players[2].boostCooldown = 0;
+  game.handleSlotAction(2, 'boost', true);
+  assert.ok(game.players[2].nitroTimer > 0);
+
+  // Lobi/maç dışı ve cooldown durumunda tetikleme yapmaz.
+  game.players[3].boostCooldown = 0;
+  game.state = 'LOBBY';
+  game.handleSlotAction(3, 'boost', true);
+  assert.equal(game.players[3].nitroTimer, 0);
+});
+
+test('HEIST terminates an empty match and advances round ids', () => {  const game = configureHeist();
   assert.equal(game.roundId, 1);
   game.players.forEach((p) => { p.isJoined = false; });
   game.state = 'PLAYING';

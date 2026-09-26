@@ -6,6 +6,9 @@ import { getNeutralInputs } from './controlDefs.js';
 import { GamepadInputAdapter } from './gamepadInputAdapter.js';
 
 const DEFAULT_DEADZONE = 0.18;
+// Host'un analog sessizlik süpürücüsü 1500 ms sonra basılı yönü sıfırlar; tutulan
+// yön bu aralıkta tekrarlanmalı (telefon kumandası `controllerTemplates.js` ile aynı).
+const STEER_KEEPALIVE_MS = 250;
 
 function clamp(value, min = -1, max = 1) {
   return Math.max(min, Math.min(max, value));
@@ -61,6 +64,7 @@ export class PhysicalGamepadAdapter {
   emptyState() {
     return {
       dir: 0,
+      dirSentAt: 0,
       driving: false,
       position: 0.5,
       primaryDown: false,
@@ -204,10 +208,19 @@ export class PhysicalGamepadAdapter {
     const left = descriptor?.phone?.left;
     if (left === 'steer') {
       const dir = this.readDirection(pad);
+      const action = this.getMode() === 'SNAKE' ? 'SNAKE_STEER' : 'CURVE_STEER';
       if (dir !== this.previous.dir) {
-        const action = left === 'steer' && this.getMode() === 'SNAKE' ? 'SNAKE_STEER' : 'CURVE_STEER';
         this.emitAction(action, { dir });
         this.previous.dir = dir;
+        this.previous.dirSentAt = 0;
+      } else if (dir !== 0) {
+        // Basılı yön keepalive'i: host'un analog sessizlik süpürücüsü (1500 ms)
+        // basılı yönü sıfırlıyor, fiziksel kumandada da aynı beliri oluyordu.
+        const now = performance.now();
+        if (now - (this.previous.dirSentAt || 0) >= STEER_KEEPALIVE_MS) {
+          this.emitAction(action, { dir });
+          this.previous.dirSentAt = now;
+        }
       }
     } else if (left === 'pedal') {
       const driving = buttonValue(pad, 6) > 0.5;
@@ -260,6 +273,7 @@ export class PhysicalGamepadAdapter {
       this.releasePrimary();
       this.previous.mode = mode;
       this.previous.dir = 0;
+      this.previous.dirSentAt = 0;
       this.previous.driving = false;
       this.previous.vectorActive = false;
       this.previous.aimActive = false;
@@ -273,6 +287,7 @@ export class PhysicalGamepadAdapter {
       this.previous.blocked = true;
       this.previous.padAvailable = false;
       this.previous.dir = 0;
+      this.previous.dirSentAt = 0;
       this.previous.driving = false;
       this.previous.vectorActive = false;
       this.previous.aimActive = false;

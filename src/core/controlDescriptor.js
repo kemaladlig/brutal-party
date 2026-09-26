@@ -35,12 +35,6 @@ function actionConfig(schema, id) {
   if (schema?.type === 'SLIDER_1D' && id === 'spin') {
     return { id, transportActions: ['SPIN'] };
   }
-  if (schema?.type === 'STEER_BOOST' && id === 'boost') {
-    return {
-      id,
-      transportActions: ['SNAKE_BOOST', 'SNAKE_BOOST_RELEASE'],
-    };
-  }
   return (Array.isArray(schema?.actions) ? schema.actions : [])
     .find((action) => action.id === id)
     ? {
@@ -78,7 +72,6 @@ function networkActions(mode, def, schema) {
     add('fire', ['TANK_FIRE']);
   }
   if (schema?.type === 'SLIDER_1D') add('spin', ['SPIN']);
-  if (schema?.type === 'STEER_BOOST') add('boost', ['SNAKE_BOOST', 'SNAKE_BOOST_RELEASE']);
   if (mode === 'CURVE') add('steer', ['CURVE_STEER']);
   if (mode === 'SNAKE') add('steer', ['SNAKE_STEER']);
   if (mode === 'PONG') add('slider', ['PADDLE_MOVE']);

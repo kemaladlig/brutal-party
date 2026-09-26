@@ -24,10 +24,22 @@ export const GAMEPAD_SCHEMAS = {
   },
 
   CURVE: {
-    type: 'TWO_BUTTON_STEER',
+    type: 'STEER_ACTION',
     def: CONTROL_DEFS.CURVE,
+    steerAction: 'CURVE_STEER',
     leftLabel: t('pad.steerLeft'),
     rightLabel: t('pad.steerRight'),
+    actions: [
+      {
+        id: 'boost',
+        action: 'CURVE_BOOST',
+        icon: 'zap',
+        label: t('pad.boost'),
+        cooldown: 4.0,
+        vibrate: [25, 35],
+        syncHostCooldown: true,
+      },
+    ],
   },
 
   BOMB: {
@@ -154,16 +166,36 @@ export const GAMEPAD_SCHEMAS = {
   },
 
   SNAKE: {
-    type: 'STEER_BOOST',
+    type: 'STEER_ACTION',
     def: CONTROL_DEFS.SNAKE,
+    steerAction: 'SNAKE_STEER',
     leftLabel: '◀',
     rightLabel: '▶',
-    boostIcon: '⚡',
-    boostLabel: t('pad.boost'),
-    boostColor: '#2F6A4F',
-    steerAction: 'SNAKE_STEER',
-    boostStartAction: 'SNAKE_BOOST',
-    boostEndAction: 'SNAKE_BOOST_RELEASE',
+    actions: [
+      {
+        id: 'boost',
+        action: 'SNAKE_BOOST',
+        releaseAction: 'SNAKE_BOOST_RELEASE',
+        hold: true,
+        icon: 'zap',
+        label: t('pad.boost'),
+        color: '#2F6A4F',
+      },
+    ],
+    // Enerji/hazır durumu buton opaklığına ve kumanda üstü etikete yansır
+    // (arketip oyun-özgü sunumu bilmez; buradan bildirilir).
+    onSync(gamepad, data, { buttonEls }) {
+      const btn = buttonEls[0]?.el;
+      const nrg = Array.isArray(data?.nrg) ? (data.nrg[gamepad.playerIndex] ?? 100) : 100;
+      const locked = Array.isArray(data?.lock) ? !!data.lock[gamepad.playerIndex] : false;
+      const dead = Array.isArray(data?.alive) ? data.alive[gamepad.playerIndex] === false : false;
+      if (btn) btn.style.opacity = locked || dead ? 0.55 : 1;
+      const nrgText = document.getElementById('snake-nrg-text');
+      if (nrgText) {
+        const txt = dead ? t('pad.deadShort') : locked ? t('pad.lockedFire') : `${Math.round(nrg)}% NRG`;
+        if (nrgText.textContent !== txt) nrgText.textContent = txt;
+      }
+    },
   },
 
   LASER: {

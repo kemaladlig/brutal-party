@@ -1,13 +1,13 @@
 // BRUTAL CURVE (Game 03): 2-4 Player Local Party Curve Fever with Gaps, Power-Ups & Bot AI
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
-import { playExplosion, playStart, playJoin, playGap, playItemPickup } from '../audio.js';
+import { playExplosion, playStart, playJoin, playGap, playItemPickup, playDashWhoosh } from '../audio.js';
 import { t } from '../i18n.js';
 import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup } from '../core/arenaKit.js';
 import { resolveSlotName } from '../core/slotManager.js';
 import { updateCurveBotAI } from '../ai/curveAI.js';
-import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
+import { getSlotKeys, buildCodeToSlotMap, isSlotActionEvent } from '../core/inputMaps.js';
 import { isInputIntent } from '../core/inputIntent.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { distToSegmentSquared, clampToArena } from '../core/physics2d.js';
@@ -22,12 +22,23 @@ export const CURVE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 // keyup ters haritası: sadece sol/sağ tuşlar (eklemeli steer)
 const CURVE_KEY_SLOTS = buildCodeToSlotMap(['l', 'r']);
+// Slot aksiyon tuşu → koltuk (P1 Space, P2 Enter, P3 O, P4 B): HIZLAN.
+const SLOT_INDEX_BY_ACTION_CODE = buildCodeToSlotMap(['action']);
 
 // İz sorgu ızgarası: uzun rauntlarda O(n) tarama yerine yakın hücreler.
 // Oyun kuralı değişmez — sadece aday kümesi daralır.
 const SEG_GRID_CELL = 48;
 const SEG_MAX = 24000;
 const CURVE_ROUND_LIMIT = 120;
+
+// HIZLAN (NITRO): kumanda/masa-ortası/klavye tek dokunuşla açılan hız patlaması.
+// Hız artarken dönüş yarıçapı genişler — hız kazancı karşılığında tepki payı düşer.
+const CURVE_TUNING = {
+  NITRO_DURATION: 1.4,
+  NITRO_COOLDOWN: 4.0,
+  NITRO_SPEED_MULT: 1.45,
+  NITRO_TURN_MULT: 0.82,
+};
 
 export class CurveGame extends BaseMiniGame {
   constructor(canvas) {
@@ -84,6 +95,10 @@ export class CurveGame extends BaseMiniGame {
 
   initKeyboard() {
     window.addEventListener('keydown', (e) => {
+      if (this.isLocalInputActive && isSlotActionEvent(e, SLOT_INDEX_BY_ACTION_CODE[e.code])) {
+        this.triggerBoost(SLOT_INDEX_BY_ACTION_CODE[e.code]);
+        return;
+      }
       if (!this.isLocalInputActive) return;
       this.keys[e.code] = true;
       this.keys[e.key] = true;
@@ -186,6 +201,8 @@ export class CurveGame extends BaseMiniGame {
         isGap: false,
         ghostTimer: 0,
         turboTimer: 0,
+        nitroTimer: 0,
+        boostCooldown: 0,
         confusedTimer: 0,
         shrinkTimer: 0,
         thickTimer: 0,
@@ -299,7 +316,14 @@ export class CurveGame extends BaseMiniGame {
       ...this.getCentralTabletopLayout('CURVE'),
       leftLabel: '◀',
       rightLabel: '▶',
-      actions: [],
+      actions: [
+        {
+          id: 'boost',
+          icon: 'zap',
+          cooldownField: 'boostCooldown',
+          maxCooldown: CURVE_TUNING.NITRO_COOLDOWN,
+        },
+      ],
     };
   }
 
@@ -310,6 +334,38 @@ export class CurveGame extends BaseMiniGame {
     if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
       player.steer = dir;
     }
+  }
+
+  triggerBoost(playerIndex) {
+    if (this.state !== 'PLAYING' || this.spawnIntroTimer > 0) return;
+    const player = this.players[playerIndex];
+    if (!player || !player.isJoined || !player.isAlive) return;
+    if (player.boostCooldown > 0) return;
+
+    player.boostCooldown = CURVE_TUNING.NITRO_COOLDOWN;
+    player.nitroTimer = CURVE_TUNING.NITRO_DURATION;
+    playDashWhoosh();
+    this.addTrauma(0.12);
+    this.spawnFloatingText(player.x, player.y - 16, t('curve.nitro'), player.color);
+    for (let i = 0; i < 10; i++) {
+      const angle = player.angle + Math.PI + (Math.random() - 0.5) * 0.9;
+      const speed = 60 + Math.random() * 110;
+      this.particles.push({
+        x: player.x,
+        y: player.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0.35,
+        maxLife: 0.35,
+        size: 3 + Math.random() * 3,
+        color: i % 2 === 0 ? '#FFD122' : player.color,
+      });
+    }
+  }
+
+  // Masa-ortası köşe butonu + klavye aksiyon tuşu aynı kapıdan geçer.
+  handleSlotAction(slotIndex, actionId, isDown) {
+    if (isDown && actionId === 'boost') this.triggerBoost(slotIndex);
   }
 
   onTouchStart(touch) {
@@ -470,6 +526,8 @@ export class CurveGame extends BaseMiniGame {
         // Timers
         if (player.ghostTimer > 0) player.ghostTimer = Math.max(0, player.ghostTimer - dt);
         if (player.turboTimer > 0) player.turboTimer = Math.max(0, player.turboTimer - dt);
+        if (player.nitroTimer > 0) player.nitroTimer = Math.max(0, player.nitroTimer - dt);
+        if (player.boostCooldown > 0) player.boostCooldown = Math.max(0, player.boostCooldown - dt);
         if (player.confusedTimer > 0) player.confusedTimer = Math.max(0, player.confusedTimer - dt);
         if (player.shrinkTimer > 0) player.shrinkTimer = Math.max(0, player.shrinkTimer - dt);
         if (player.thickTimer > 0) player.thickTimer = Math.max(0, player.thickTimer - dt);
@@ -511,12 +569,17 @@ export class CurveGame extends BaseMiniGame {
         // Steer & Movement — INVERT TEK noktada burada uygulanır, yalnızca insan koltuklarına.
         // Botlar ayna gibi sürülmez (raycast kaçınmasını duvara çevirirdi); curveAI
         // karar kalitesini düşürür. FREEZE gibi hız etkileri her koltukta aynıdır.
-        const confused = player.confusedTimer > 0 && player.slotType === 'human';
-        player.angle += player.steer * player.turnSpeed * (confused ? -1 : 1) * dt;
-
         let speedMult = 1.0;
+        let turnMult = 1.0;
+        if (player.nitroTimer > 0) {
+          speedMult *= CURVE_TUNING.NITRO_SPEED_MULT;
+          turnMult *= CURVE_TUNING.NITRO_TURN_MULT;
+        }
         if (player.turboTimer > 0) speedMult *= 1.5;
         if (player.freezeTimer > 0) speedMult *= 0.55;
+
+        const confused = player.confusedTimer > 0 && player.slotType === 'human';
+        player.angle += player.steer * player.turnSpeed * turnMult * (confused ? -1 : 1) * dt;
 
         const currentSpeed = player.speed * speedMult;
         player.prevX = player.x;
@@ -780,6 +843,10 @@ export class CurveGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (this.state !== 'PLAYING' || this.spawnIntroTimer > 0) return;
     if (!player || !player.isJoined || !player.isAlive) return;
+    if (isInputIntent(data, 'action', 'boost') || data.action === 'CURVE_BOOST') {
+      this.triggerBoost(slotIndex);
+      return;
+    }
     if (isInputIntent(data, 'steer') || data.action === 'CURVE_STEER') {
       const dir = data.dir | 0;
       player.steer = Math.max(-1, Math.min(1, dir));
