@@ -1,5 +1,6 @@
 // PWA Install Prompt & Toast Notification Manager
 import { t } from '../i18n.js';
+import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 
 const installToast = document.getElementById('install-toast');
 const connectionBanner = document.getElementById('connection-banner');
@@ -23,9 +24,16 @@ export function updateInstallButtonVisibility() {
   });
 }
 
-export function showInstallToast(message) {
+export function showInstallToast(message, iconKey = null) {
   if (!installToast) return;
-  installToast.textContent = message;
+  installToast.textContent = '';
+  if (iconKey) {
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'toast-icon';
+    iconSpan.innerHTML = getTabletopIconSvg(iconKey, { size: 16 });
+    installToast.append(iconSpan);
+  }
+  installToast.append(document.createTextNode(message));
   installToast.classList.add('visible');
   window.clearTimeout(showInstallToast.timer);
   showInstallToast.timer = window.setTimeout(() => {

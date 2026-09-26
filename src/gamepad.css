@@ -102,46 +102,93 @@
   background: transparent;
 }
 
-/* Controller Single Minimalist Header Bar */
+/* Controller header — yüzen ikon çipleri (üst bar kaldırıldı; kullanıcı kararı).
+   Bar yer kaplamaz; aksiyonlar sağ üstte app-shell yüzen gezinmesi gibi durur. */
 .gamepad-header {
-  height: 52px;
-  background-color: var(--white);
-  border-bottom: 3px solid var(--n-900);
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top, 10px));
+  right: max(10px, env(safe-area-inset-right, 10px));
+  left: auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 max(16px, env(safe-area-inset-left, 16px)) 0 max(16px, env(safe-area-inset-right, 16px));
+  justify-content: flex-end;
+  padding: 0;
   flex-shrink: 0;
-  width: 100%;
   box-sizing: border-box;
-  z-index: 10;
-  box-shadow: 0 2px 0px rgba(0, 0, 0, 0.05);
-}.player-slot-chip {
+  z-index: 65;
+  pointer-events: none;
+}
+
+.gamepad-header .header-right-group,
+.mobile-gamepad-toolbar {
+  pointer-events: auto;
+}
+
+.gamepad-header-compact {
+  justify-content: flex-end;
+}
+
+.gamepad-header-compact .header-right-group {
+  margin-left: auto;
+}
+
+.player-slot-chip {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   font-weight: 900;
   color: var(--white);
-  padding: 2px 7px;
-  border-radius: 4px;
-  border: 2px solid var(--n-900);
-  box-shadow: 2px 2px 0px #000000;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--edge-strong);
+  box-shadow: var(--shadow-soft);
   white-space: nowrap;
   flex-shrink: 0;
-}.header-right-group {
+}
+
+.header-right-group {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
 }
 
-.gamepad-header-compact {
-  justify-content: flex-end;
-  padding-left: max(8px, env(safe-area-inset-left, 8px));
-  padding-right: max(8px, env(safe-area-inset-right, 8px));
+/* Ortak yüzen ikon çipi — emoji/ayar/tam ekran/çıkış aynı geometri */
+.emoji-reaction-btn,
+.btn-fullscreen-toggle,
+.btn-controller-layout,
+.btn-leave-gamepad {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--edge-strong);
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.06s ease, box-shadow 0.06s ease, background-color 0.06s ease;
 }
 
-.gamepad-header-compact .header-right-group {
-  margin-left: auto;
+.emoji-reaction-btn,
+.btn-fullscreen-toggle,
+.btn-leave-gamepad {
+  background: var(--sheen-90);
+  color: var(--ink);
+}
+
+.btn-controller-layout {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.emoji-reaction-btn:active,
+.btn-fullscreen-toggle:active,
+.btn-controller-layout:active,
+.btn-leave-gamepad:active {
+  transform: scale(0.92);
+  box-shadow: var(--shadow-edge);
 }
 
 .btn-leave-icon {
@@ -155,120 +202,62 @@
 
 .mobile-gamepad-toolbar {
   position: absolute;
-  top: max(8px, env(safe-area-inset-top, 8px));
-  right: max(8px, env(safe-area-inset-right, 8px));
+  top: max(10px, env(safe-area-inset-top, 10px));
+  right: max(10px, env(safe-area-inset-right, 10px));
   z-index: 35;
   display: flex;
   align-items: center;
   gap: 8px;
   pointer-events: auto;
-}.emoji-reaction-btn {
-  background: transparent;
-  border: none;
+}.emoji-reaction-btn,
+.btn-fullscreen-toggle,
+.btn-controller-layout,
+.btn-leave-gamepad {
+  cursor: pointer;
+}
+
+.emoji-reaction-btn {
   font-size: 20px;
-  cursor: pointer;
-  padding: 0 4px;
   line-height: 1;
-  min-height: 44px;
-  min-width: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.05s ease;
-}
-
-.emoji-reaction-btn:active {
-  transform: scale(1.15);
-}
-
-.btn-fullscreen-toggle {
-  background-color: var(--white);
-  color: var(--n-900);
-  border: 1.5px solid var(--n-900);
-  box-shadow: 1.5px 1.5px 0px #000000;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 900;
-  cursor: pointer;
-  padding: 2px 7px;
-  min-height: 44px;
-  min-width: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.05s ease, box-shadow 0.05s ease;
-}
-
-.btn-fullscreen-toggle:active {
-  transform: translate(1px, 1px);
-  box-shadow: 0.5px 0.5px 0px #000000;
-}
-
-.btn-controller-layout {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1.5px solid var(--n-900);
-  border-radius: 4px;
-  background: var(--yellow);
-  color: var(--n-900);
-  box-shadow: 2px 2px 0px #000000;
-  cursor: pointer;
-  pointer-events: auto;
-  transition: transform 0.05s ease, box-shadow 0.05s ease, background-color 0.05s ease;
-}
-
-.btn-controller-layout:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0px #000000;
 }
 
 .btn-controller-layout[hidden] {
   display: none !important;
 }
 
-.btn-leave-gamepad {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 11px;
-  font-weight: 900;
-  background-color: var(--danger);
-  color: var(--white);
-  border: 2px solid var(--n-900);
-  box-shadow: 2px 2px 0px #000000;
-  padding: 4px 10px;
-  min-height: 44px;
-  min-width: 44px;
-  cursor: pointer;
-  white-space: nowrap;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
-  transition: transform 0.05s ease, box-shadow 0.05s ease;
-}
-
-.btn-leave-gamepad:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0px #000000;
-}
-
 /* Compact status + control guide band. It is informational only; control
-   zones remain the only interactive surfaces below it. */
+   zones remain the only interactive surfaces below it.
+   Faz 2: sahnenin üstünde yüzen, yarı saydam güvenli şerit. Varsayılan kapalı,
+   oyun açılınca `.reveal` sınıfıyla yükselir (gamepad.js). */
 .gamepad-hud {
-  min-height: 30px;
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top, 8px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  min-height: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px max(12px, env(safe-area-inset-left, 12px));
-  background: var(--ink);
-  color: var(--white);
-  border-bottom: 2px solid var(--n-900);
+  gap: 10px;
+  padding: 7px 14px;
+  background: var(--grad-card);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
   box-sizing: border-box;
-  flex-shrink: 0;
   overflow: hidden;
+  opacity: 0;
+  translate: 0 -8px;
+  pointer-events: none;
+  transition: opacity 0.2s ease, translate 0.2s ease;
+  max-width: calc(100vw - 24px);
+  white-space: nowrap;
+}
+
+.gamepad-hud.reveal {
+  opacity: 1;
+  translate: 0 0;
 }
 
 .hud-live-status,
@@ -278,18 +267,54 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1.2;
 }
 
 .hud-live-status {
-  color: var(--white);
+  color: var(--ink);
 }
 
 .tactical-role-text {
-  color: var(--yellow);
+  color: var(--gold-deep);
   margin-left: auto;
+}
+
+#hud-game-tag {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--on-accent, var(--gold-deep));
+  background: var(--n-100);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  flex-shrink: 0;
+}
+
+@media (orientation: landscape) and (min-aspect-ratio: 1/1) {
+  .gamepad-hud {
+    top: max(10px, env(safe-area-inset-top, 10px));
+    padding: 6px 12px;
+  }
+
+  .hud-live-status,
+  .tactical-role-text {
+    font-size: 10px;
+  }
+}
+
+/* Uzak kumanda: üst bar yok — skor şeridi yüzen çiplerle aynı üst kuşakta
+   (çipler sağda, şerit ortada), HUD pill'i onun altına iner. */
+#gamepad-overlay .gamepad-hud {
+  top: calc(max(10px, env(safe-area-inset-top, 10px)) + 56px);
+}
+
+/* LOCAL'de üstünde ince toolbar olabilir; pill onunla çakışmaz (orta-boş). */
+#local-mobile-controls .gamepad-hud {
+  top: max(10px, env(safe-area-inset-top, 10px));
 }
 
 .gamepad-control-guide {
@@ -297,9 +322,12 @@
   align-items: center;
   gap: 6px;
   min-height: 30px;
-  padding: 5px max(12px, env(safe-area-inset-left, 12px));
-  background: var(--n-050);
-  border-bottom: 2px solid var(--n-900);
+  padding: 5px 12px;
+  margin: 0 auto;
+  background: var(--grad-card);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-float);
   box-sizing: border-box;
   flex-shrink: 0;
   overflow: hidden;
@@ -308,7 +336,7 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   font-weight: 800;
-  color: var(--n-900);
+  color: var(--ink);
 }
 
 .gamepad-control-guide[hidden] {
@@ -324,10 +352,11 @@
 
 .guide-left,
 .guide-action {
-  padding: 2px 5px;
-  background: var(--white);
-  border: 1.5px solid var(--n-900);
-  box-shadow: 1.5px 1.5px 0 var(--n-900);
+  padding: 2px 7px;
+  background: var(--surface);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
   flex-shrink: 0;
 }
 
@@ -346,16 +375,10 @@
 }
 
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
-  .gamepad-hud,
   .gamepad-control-guide {
     min-height: 26px;
     padding-top: 3px;
     padding-bottom: 3px;
-  }
-
-  .hud-live-status,
-  .tactical-role-text,
-  .gamepad-control-guide {
     font-size: 9px;
   }
 }
@@ -450,28 +473,40 @@
 }
 
 /* 1. Unified Player Profile Card */
+/* Karakter kartı: kimlik satırı (avatar + isim) üstte, aksiyon butonları
+   tam genişlik kendi satırlarında. Butonlar isim/ipucu ile aynı satıra
+   sıkışıp üst üste binmesin diye grid'de ayrı satırlarda durur. */
 .lobby-profile-card {
   width: 100%;
   max-width: 420px;
-  background-color: var(--white);
-  border: 2.5px solid var(--n-900);
-  box-shadow: 3px 3px 0px #000000;
-  padding: 8px 12px;
-  display: flex;
+  background: var(--grad-card);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-float);
+  padding: 12px 16px;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
+  column-gap: 14px;
+  row-gap: 8px;
   box-sizing: border-box;
 }
 
 .lobby-character-preview {
-  width: 48px;
-  height: 48px;
+  grid-column: 1;
+  grid-row: 1;
+  width: 64px;
+  height: 64px;
   flex-shrink: 0;
   background-color: var(--paper);
-  border: 2px solid var(--n-900);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-btn);
+  box-shadow: var(--shadow-soft);
 }
 
 .lobby-profile-info {
+  grid-column: 2;
+  grid-row: 1;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -490,94 +525,90 @@
 
 .lobby-profile-name {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 900;
   color: var(--n-900);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 140px;
+  max-width: 180px;
 }
 
 .lobby-profile-hint {
   font-family: 'JetBrains Mono', monospace;
   font-size: 9.5px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--n-600);
   white-space: nowrap;
 }
 
 .lobby-profile-edit-btn {
-  min-width: 44px;
-  min-height: 44px;
-  padding: 6px 12px;
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   font-family: 'Space Grotesk', sans-serif;
   font-size: 11px;
   font-weight: 800;
   background-color: var(--yellow);
   color: var(--n-900);
-  border: 1.5px solid var(--n-900);
-  box-shadow: 2px 2px 0px #000000;
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
   cursor: pointer;
   touch-action: manipulation;
   white-space: nowrap;
-  transition: transform 0.05s ease, background-color 0.05s ease;
+  box-sizing: border-box;
+  transition: transform 0.05s ease, box-shadow 0.05s ease, background-color 0.05s ease;
 }
 
 .lobby-profile-edit-btn:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0px #000000;
-}
-
-@media (max-width: 480px) {
-  .lobby-profile-card {
-    display: grid;
-    grid-template-columns: 48px minmax(0, 1fr);
-    align-items: center;
-  }
-
-  .lobby-profile-edit-btn {
-    grid-column: 2;
-    justify-self: start;
-  }
-
-  .lobby-layout-btn {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
+  transform: scale(0.96);
+  box-shadow: var(--shadow-edge);
 }
 
 .lobby-layout-btn {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  width: 100%;
   min-width: 44px;
-  height: 44px;
-  min-height: 44px;
+  height: 40px;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 0 9px;
+  gap: 7px;
+  padding: 0 12px;
   font: 900 10px/1 'JetBrains Mono', monospace;
-  border: 1.5px solid var(--n-900);
-  border-radius: 4px;
-  background: var(--yellow);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
   color: var(--n-900);
-  box-shadow: 2px 2px 0px #000000;
+  box-shadow: var(--shadow-soft);
   cursor: pointer;
   touch-action: manipulation;
+  box-sizing: border-box;
 }
 
 .lobby-layout-btn:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0px #000000;
+  transform: scale(0.96);
+  box-shadow: var(--shadow-edge);
 }
 
 /* 2. Selected Game Preview Pill */
 .lobby-game-chip-bar {
   width: 100%;
   max-width: 420px;
-  background-color: var(--white);
-  border: 2px dashed var(--n-900);
-  padding: 6px 12px;
+  background: var(--grad-card);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-btn);
+  box-shadow: var(--shadow-soft);
+  padding: 10px 14px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -587,9 +618,9 @@
 .lobby-game-thumb-preview {
   width: 40px;
   height: 40px;
-  border-radius: 4px;
-  border: 1.5px solid var(--n-900);
-  box-shadow: 2px 2px 0px #000000;
+  border-radius: var(--radius-btn);
+  border: 1.5px solid var(--edge-strong);
+  box-shadow: var(--shadow-soft);
   object-fit: cover;
   flex-shrink: 0;
   background-color: var(--paper);
@@ -607,14 +638,14 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px;
   font-weight: 800;
-  color: var(--gold);
+  color: var(--gold-deep);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .lobby-game-title {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 900;
   color: var(--n-900);
 }
@@ -623,13 +654,14 @@
 .lobby-seats-card {
   width: 100%;
   max-width: 420px;
-  background-color: var(--white);
-  border: 2.5px solid var(--n-900);
-  padding: 10px 12px;
+  background: var(--grad-card);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-float);
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  box-shadow: 3px 3px 0px #000000;
+  gap: 10px;
   box-sizing: border-box;
 }
 
@@ -640,13 +672,14 @@
   color: var(--gold-deep);
   background-color: var(--yellow-soft);
   border: 1px solid var(--gold);
-  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
   align-self: flex-start;
 }
 
 .lobby-seat-hint {
   margin: -2px 0 2px;
-  color: var(--muted);
+  color: var(--n-600);
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px;
   font-weight: 700;
@@ -667,10 +700,12 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  padding: 8px 4px;
-  background-color: var(--white);
-  border: 2px solid var(--n-900);
+  gap: 3px;
+  padding: 10px 6px;
+  background-color: var(--surface);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-btn);
+  box-shadow: var(--shadow-soft);
   color: var(--n-900);
   cursor: pointer;
   text-align: center;
@@ -678,8 +713,7 @@
   box-sizing: border-box;
   min-width: 0;
   overflow: hidden;
-  border-radius: 6px;
-  transition: border-color 0.1s ease, transform 0.08s ease;
+  transition: border-color 0.1s ease, transform 0.08s ease, box-shadow 0.08s ease;
 }
 
 .lobby-seat-btn:active {
@@ -689,18 +723,18 @@
 .lobby-seat-btn.active {
   border-color: var(--p1);
   background-color: var(--yellow-soft);
-  box-shadow: 0 0 12px var(--glow-danger);
+  box-shadow: 0 0 14px var(--glow-danger);
 }
 
 .lobby-seat-btn.is-empty {
-  border-color: var(--muted);
-  border-style: dashed;
+  border-color: var(--n-400);
+  border-style: solid;
   background-color: var(--n-050);
 }
 
 .lobby-seat-btn.is-bot {
-  border-color: var(--n-700);
-  border-style: dashed;
+  border-color: var(--n-400);
+  border-style: solid;
   opacity: 0.6;
 }
 
@@ -715,7 +749,7 @@
   font-family: 'Space Grotesk', sans-serif;
   font-size: 10px;
   font-weight: 800;
-  color: var(--muted);
+  color: var(--n-600);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -737,8 +771,7 @@
   white-space: nowrap;
 }
 
-.lobby-seat-btn.is-occupied,
-.lobby-seat-btn.is-empty {
+.lobby-seat-btn.is-occupied {
   border-color: var(--p1);
 }
 
@@ -767,38 +800,38 @@
 .btn-ready-toggle {
   width: 100%;
   max-width: 420px;
-  padding: 14px 20px;
+  padding: 16px 24px;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 900;
-  background-color: var(--yellow);
-  color: var(--n-900);
-  border: 3px solid var(--n-900);
-  box-shadow: 4px 4px 0px #000000;
+  background: var(--grad-accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: var(--radius-btn);
+  box-shadow: var(--shadow-pop);
   cursor: pointer;
   touch-action: manipulation;
-  border-radius: 12px;
-  transition: transform 0.08s ease, background-color 0.08s ease;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
 }
 
 .btn-ready-toggle:active {
-  transform: translate(2px, 2px);
-  box-shadow: 2px 2px 0px #000000;
+  transform: translateY(2px);
+  box-shadow: var(--shadow-edge);
 }
 
 .btn-ready-toggle.ready {
-  background-color: var(--success);
-  color: #000000;
-  border-color: var(--n-900);
-  box-shadow: 0 0 20px var(--glow-success), 4px 4px 0px #000000;
+  background: var(--success);
+  color: var(--white);
+  box-shadow: var(--shadow-pop), 0 0 20px var(--glow-success);
 }
 
 .btn-leave-lobby-direct {
   width: 100%;
   max-width: 420px;
-  padding: 8px 12px;
-  background: transparent;
-  border: 1.5px dashed var(--n-900);
+  padding: 12px 14px;
+  background: var(--danger-soft);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-btn);
   color: var(--danger);
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
@@ -806,19 +839,21 @@
   cursor: pointer;
   touch-action: manipulation;
   box-sizing: border-box;
+  transition: transform 0.06s ease, background-color 0.06s ease;
 }
 
 .btn-leave-lobby-direct:active {
+  transform: scale(0.97);
   background-color: var(--glow-danger-soft);
 }
 
-/* İsimli skor şeridi (tüm oyun modları) */
+/* İsimli skor şeridi (tüm oyun modları) — yüzen yumuşak hap satırı */
 .score-strip {
   width: 100%;
   max-width: 440px;
   display: flex;
   gap: 6px;
-  padding: 4px 10px 0;
+  padding: 6px 10px 0;
   box-sizing: border-box;
   margin: 0 auto;
 }
@@ -833,22 +868,22 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  background-color: var(--white);
-  border: 2px solid var(--n-900);
-  box-shadow: 2px 2px 0px #000000;
-  padding: 3px 6px;
-  border-radius: 4px;
+  background: var(--grad-card);
+  border: 1.5px solid var(--edge-strong);
+  box-shadow: var(--shadow-soft);
+  padding: 4px 8px;
+  border-radius: var(--radius-pill);
   box-sizing: border-box;
 }
 
 .score-chip.is-mine {
-  border-width: 2.5px;
-  background-color: var(--yellow-soft);
+  border-width: 2px;
+  background: var(--yellow-soft);
 }
 
 .lobby-seat-btn.is-reserved {
   opacity: 0.72;
-  border-style: dashed;
+  border-style: solid;
   cursor: not-allowed;
 }
 
@@ -861,7 +896,7 @@
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
-  border: 1.5px solid var(--n-900);
+  border: 1.5px solid var(--edge-strong);
 }
 
 .score-name {
@@ -959,7 +994,7 @@
   border-radius: 50%;
   background: var(--yellow);
   color: var(--n-900);
-  box-shadow: 3px 4px 0px #000000;
+  box-shadow: var(--shadow-soft);
   font: 900 10px/1 'JetBrains Mono', monospace;
   cursor: grab;
   pointer-events: auto;
@@ -973,7 +1008,7 @@
   cursor: grabbing;
   transform: translate(-50%, -50%) scale(1.08);
   background: var(--bot-tag);
-  box-shadow: 1px 2px 0px #000000;
+  box-shadow: var(--shadow-edge);
 }
 
 .controller-layout-editor-panel {
@@ -986,10 +1021,10 @@
   transform: translateX(-50%);
   padding: 14px;
   box-sizing: border-box;
-  border: 3px solid var(--n-900);
-  border-radius: 8px;
-  background: var(--white);
-  box-shadow: 5px 6px 0px #000000;
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-card);
+  background: var(--grad-card);
+  box-shadow: var(--shadow-float);
   pointer-events: auto;
   touch-action: manipulation;
   z-index: 4;
@@ -1019,9 +1054,9 @@
   height: 44px;
   min-width: 44px;
   min-height: 44px;
-  border: 2px solid var(--n-900);
-  border-radius: 4px;
-  background: var(--n-050);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: 50%;
+  background: var(--surface-2);
   color: var(--n-900);
   font: 900 25px/1 'Space Grotesk', sans-serif;
   cursor: pointer;
@@ -1063,26 +1098,26 @@
 .controller-layout-action {
   min-height: 44px;
   padding: 6px 8px;
-  border: 2px solid var(--n-900);
-  border-radius: 4px;
-  box-shadow: 2px 2px 0px #000000;
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-btn);
+  box-shadow: var(--shadow-soft);
   font: 900 11px/1.1 'Space Grotesk', sans-serif;
   cursor: pointer;
   transition: transform 0.05s ease, box-shadow 0.05s ease;
 }
 
 .controller-layout-action:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0px #000000;
+  transform: scale(0.96);
+  box-shadow: var(--shadow-edge);
 }
 
 .controller-layout-action.primary {
-  background: var(--yellow);
-  color: var(--n-900);
+  background: var(--grad-accent);
+  color: var(--on-accent);
 }
 
 .controller-layout-action.secondary {
-  background: var(--n-050);
+  background: var(--surface);
   color: var(--n-900);
 }
 
@@ -1211,16 +1246,11 @@
   }
 }
 
-/* Landscape Mode Header Adjustment */
+/* Landscape Mode — header çipleri sabit boyutta kalır (bar yok) */
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .gamepad-header {
-    height: 44px;
-    padding: 0 12px;
-  }
-  .btn-leave-gamepad,
-  .emoji-reaction-btn {
-    min-height: 44px;
-  min-width: 44px;
+    top: max(12px, env(safe-area-inset-top, 12px));
+    right: max(12px, env(safe-area-inset-right, 12px));
   }
 }
 
@@ -1228,9 +1258,11 @@
 .lobby-wait-card {
   width: 100%;
   max-width: 340px;
-  background-color: var(--white);
-  border: 2px dashed var(--gold);
-  padding: 14px;
+  background: var(--grad-card);
+  border: 1.5px dashed var(--gold);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1272,7 +1304,7 @@
   font-weight: 800;
   font-size: 13px;
   letter-spacing: 1.5px;
-  color: var(--gold);
+  color: var(--gold-deep);
 }
 
 .countdown-number {
@@ -1280,8 +1312,8 @@
   font-weight: 900;
   font-size: 110px;
   line-height: 1;
-  color: var(--white);
-  text-shadow: 6px 6px 0px #000000;
+  color: var(--ink);
+  text-shadow: 0 10px 24px var(--dim-35);
 }
 
 .countdown-sub {
@@ -1289,29 +1321,34 @@
   font-weight: 700;
   font-size: 12px;
   letter-spacing: 1px;
-  color: var(--white);
+  color: var(--n-600);
+  padding: 4px 12px;
+  background: var(--sheen-60);
+  border-radius: var(--radius-pill);
 }
 
-/* Yatay mod: lobi iki kolon (sol koltuklar, sağ isim+hazır) — kaydırmasız sığsın */
+/* Yatay mod: lobi iki kolon (sol koltuklar, sağ isim+hazır) — kaydırmasız sığsın.
+   Header chipler (44px + safe-area) kartların üstüne binmesin diye üstte
+   ayrılmış pay bırakılır. */
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .lobby-controller-view {
     display: grid;
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
     align-content: center;
     align-items: start;
-    gap: 10px;
-    padding: 12px 16px max(12px, env(safe-area-inset-bottom, 0px));
+    gap: 8px;
+    padding: max(64px, calc(env(safe-area-inset-top, 0px) + 56px)) 16px max(12px, env(safe-area-inset-bottom, 0px));
   }
 
   .lobby-seats-card {
     grid-column: 1;
-    grid-row: 1 / span 2;
+    grid-row: 1;
     max-width: none;
   }
 
   .lobby-wait-card {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 2;
     max-width: none;
   }
 
@@ -1386,9 +1423,10 @@
   align-items: center;
   gap: 12px;
   background-color: var(--n-900);
-  border: 2px solid var(--n-900);
+  border: 2px solid var(--n-700);
   padding: 6px 14px;
-  box-shadow: 3px 3px 0px #000000;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-float);
 }
 
 .pong-score-pips {
@@ -1415,10 +1453,10 @@
   height: 84px;
   background-color: var(--n-900);
   border: 4px solid var(--n-700);
-  box-shadow: inset 0 0 24px rgba(0,0,0,0.9), 3px 3px 0px #000000;
+  box-shadow: var(--shadow-press), var(--shadow-soft);
   position: relative;
   touch-action: none;
-  border-radius: 10px;
+  border-radius: 12px;
   margin: 0 auto;
 }
 
@@ -1429,7 +1467,7 @@
   width: 60px;
   border: 3.5px solid var(--white);
   border-radius: 8px;
-  box-shadow: 0 0 20px var(--sheen-60), 2px 2px 0px #000000;
+  box-shadow: 0 0 20px var(--sheen-60), var(--shadow-soft);
   pointer-events: none;
   display: flex;
   align-items: center;
@@ -1476,13 +1514,14 @@
   padding: 4px 10px;
   min-height: 44px;
   cursor: pointer;
-  box-shadow: 2px 2px 0px #000000;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
   transition: transform 0.05s ease, border-color 0.05s ease;
 }
 
 .pong-invert-btn:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0px #000000;
+  transform: scale(0.96);
+  box-shadow: var(--shadow-edge);
 }
 
 .pong-invert-btn.inverted {
@@ -1548,7 +1587,7 @@
   background: linear-gradient(180deg, var(--n-900) 0%, var(--n-900) 100%);
   border: 3.5px solid var(--n-900);
   border-radius: 14px;
-  box-shadow: 4px 5px 0px #000000;
+  box-shadow: var(--btn-lift);
   background-color: var(--white);
   color: var(--n-900);
   display: flex;
@@ -1587,9 +1626,9 @@
 .tank-drive-pedal.active,
 .tank-drive-pedal:active {
   transform: translate(2px, 3px) !important;
-  box-shadow: 1px 1px 0px #000000 !important;
+  box-shadow: var(--shadow-edge) !important;
   background-color: var(--success) !important;
-  color: #000000 !important;
+  color: var(--white) !important;
 }
 
 .tank-fire-btn {
@@ -1598,7 +1637,7 @@
   border-radius: 20px;
   background: var(--danger);
   border: 3.5px solid var(--n-900);
-  box-shadow: 4px 5px 0px #000000;
+  box-shadow: var(--btn-lift);
   color: var(--white);
   cursor: pointer;
   touch-action: manipulation;
@@ -1624,7 +1663,7 @@
 
 .tank-fire-btn:active {
   transform: translate(2px, 3px) scale(0.97) !important;
-  box-shadow: 1px 1px 0px #000000 !important;
+  box-shadow: var(--shadow-edge) !important;
   filter: brightness(1.25) !important;
 }
 
@@ -1644,7 +1683,7 @@
 .cartridge-pip.loaded {
   background-color: var(--gold);
   border-color: var(--white);
-  box-shadow: 0 0 10px var(--gold), 2px 2px 0px #000000;
+  box-shadow: 0 0 10px var(--gold), var(--shadow-edge);
 }
 
 /* --------------------------------------------------------------------------
@@ -1657,7 +1696,7 @@
   height: clamp(74px, 18vh, 96px);
   background-color: var(--white);
   border: 3.5px solid var(--n-900);
-  box-shadow: 4px 5px 0px #000000;
+  box-shadow: var(--btn-lift);
   border-radius: 18px;
   position: relative;
   overflow: hidden;
@@ -1839,8 +1878,11 @@
   transform: translateX(-50%);
   font: 800 9px/1 'JetBrains Mono', monospace;
   letter-spacing: 0.5px;
-  color: var(--white);
-  opacity: 0.75;
+  color: var(--ink);
+  background: var(--sheen-35);
+  border-radius: var(--radius-pill);
+  padding: 2px 6px;
+  opacity: 0.85;
   pointer-events: none;
   white-space: nowrap;
 }
@@ -1976,13 +2018,17 @@
     padding-right: 4px;
     padding-bottom: 6px;
   }
-}.action-dash-btn {
-  width: clamp(115px, 36vw, 150px);
-  height: clamp(84px, 15vh, 108px);
-  border-radius: 20px;
+}/* Faz 2 — yuvarlak glossy aksiyon butonları + aktif squash
+   Geometri (boyut/yer) controllerLayout + controlDefs sözleşmesinden gelir;
+   burada yalnız sunum yenilenir. */
+.action-dash-btn {
+  width: clamp(112px, 30vw, 136px);
+  height: clamp(112px, 30vw, 136px);
+  border-radius: 50%;
   background-color: var(--gold);
-  border: 3.5px solid var(--n-900);
-  box-shadow: 4px 5px 0px #000000;
+  border: 2.5px solid var(--btn-border-soft);
+  background-image: var(--btn-gloss);
+  box-shadow: var(--btn-lift);
   color: var(--white);
   font-family: 'Space Grotesk', sans-serif;
   cursor: pointer;
@@ -1994,7 +2040,7 @@
   text-align: center;
   user-select: none;
   -webkit-user-select: none;
-  transition: transform 0.06s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.06s ease, filter 0.06s ease;
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.12s ease, filter 0.12s ease;
   position: relative;
   overflow: hidden;
   box-sizing: border-box;
@@ -2002,19 +2048,20 @@
 
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .action-dash-btn {
-    width: clamp(120px, 22vw, 160px);
-    height: clamp(74px, 22vh, 96px);
+    width: clamp(120px, 22vw, 148px);
+    height: clamp(120px, 22vw, 148px);
   }
 }
 
 /* PONG falso butonu: dash diliyle aynı */
 .action-spin-btn {
-  width: clamp(115px, 36vw, 150px);
-  height: clamp(84px, 15vh, 108px);
-  border-radius: 20px;
+  width: clamp(112px, 30vw, 136px);
+  height: clamp(112px, 30vw, 136px);
+  border-radius: 50%;
   background-color: var(--p2);
-  border: 3.5px solid var(--n-900);
-  box-shadow: 4px 5px 0px #000000;
+  border: 2.5px solid var(--btn-border-soft);
+  background-image: var(--btn-gloss);
+  box-shadow: var(--btn-lift);
   color: var(--white);
   font-family: 'Space Grotesk', sans-serif;
   cursor: pointer;
@@ -2027,62 +2074,107 @@
   user-select: none;
   -webkit-user-select: none;
   box-sizing: border-box;
-  transition: transform 0.06s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.06s ease;
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.12s ease, filter 0.12s ease;
+  position: relative;
+  overflow: hidden;
 }
 
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .action-spin-btn {
-    width: clamp(120px, 22vw, 160px);
-    height: clamp(74px, 22vh, 96px);
+    width: clamp(120px, 22vw, 148px);
+    height: clamp(120px, 22vw, 148px);
   }
 }
 
-.action-spin-btn:active:not(.cooling) {
-  transform: translate(2px, 3px) scale(0.97) !important;
-  box-shadow: 1px 1px 0px #000000 !important;
-  filter: brightness(1.2) !important;
+/* Radyal cooldown dolgusu — `--cd` (kalan kısım 0..1) JS'ten setProperty ile
+   atanır. Artık kalan dilim koyu, recharging kısmı butonu gösterir. */
+.action-dash-btn::after,
+.action-spin-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease;
 }
 
-.action-spin-btn.cooling {
-  background-color: var(--n-900) !important;
-  border-color: var(--n-700) !important;
-  color: var(--n-400) !important;
-  box-shadow: none !important;
-  cursor: not-allowed;
-  opacity: 0.85;
+.action-dash-btn.cooling::after,
+.action-spin-btn.cooling::after {
+  opacity: 1;
+  background: conic-gradient(
+    from 0deg,
+    var(--cd-scrim) 0deg,
+    var(--cd-scrim) calc(var(--cd, 0) * 360deg),
+    transparent calc(var(--cd, 0) * 360deg)
+  );
 }
 
-.action-dash-btn:active:not(.cooling) {
-  transform: translate(2px, 3px) scale(0.97) !important;
-  box-shadow: 1px 1px 0px #000000, inset 0 0 16px rgba(0, 0, 0, 0.6) !important;
-  filter: brightness(1.2) !important;
-}
-
-.action-dash-btn.cooling {
-  background-color: var(--n-900) !important;
-  border-color: var(--n-700) !important;
-  color: var(--n-400) !important;
-  box-shadow: none !important;
-  cursor: not-allowed;
-  opacity: 0.85;
-}
-
-.dash-btn-label {
-  display: block;
-  font-size: 16px;
+/* Cooldown sayı rozeti (JS paneli doldurur) */
+.action-dash-btn .cd-num,
+.action-spin-btn .cd-num {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Space Grotesk', sans-serif;
   font-weight: 900;
-  letter-spacing: -0.2px;
-  line-height: 1.1;
-  text-transform: uppercase;
+  font-size: clamp(20px, 6vw, 26px);
+  line-height: 1;
+  color: var(--cd-num);
+  text-shadow: 0 2px 6px var(--dim-35);
+  letter-spacing: 0.5px;
+  pointer-events: none;
+  z-index: 2;
 }
 
-.dash-btn-sub {
-  display: block;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  font-weight: 800;
-  opacity: 0.88;
-  margin-top: 2px;
+.action-dash-btn.cooling .cd-num,
+.action-spin-btn.cooling .cd-num {
+  display: flex;
+}
+
+.action-dash-btn.cooling .btn-action-icon,
+.action-spin-btn.cooling .btn-action-icon {
+  opacity: 0.4;
+  transform: scale(0.86);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+/* Ince gloss halkası — her iki buton ailesi */
+.action-dash-btn::before,
+.action-spin-btn::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: inherit;
+  border: 1.5px solid var(--sheen-25);
+  pointer-events: none;
+}
+
+.action-dash-btn:active:not(.cooling),
+.action-spin-btn:active:not(.cooling) {
+  transform: translate3d(0, 3px, 0) scale(0.94) !important;
+  box-shadow: var(--btn-lift-active) !important;
+  filter: brightness(1.08) !important;
+}
+
+.action-dash-btn.cooling,
+.action-spin-btn.cooling {
+  cursor: not-allowed;
+  pointer-events: none;
+  box-shadow: none;
+}
+
+/* Hazır titreşimi: cooldown dolduğunda kısa bir yeniden doğuş (Faz 2) */
+.action-dash-btn.ready-flash,
+.action-spin-btn.ready-flash {
+  animation: cd-ready-pop 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes cd-ready-pop {
+  0% { transform: scale(0.9); filter: brightness(1.25); }
+  100% { transform: scale(1); filter: brightness(1); }
 }
 
 /* Multi-action clusters (LASER, NINJA) */
@@ -2115,34 +2207,41 @@
 .action-cluster-grid .action-dash-btn {
   width: clamp(105px, 32vw, 140px);
   height: clamp(62px, 11vh, 80px);
-  border-radius: 16px;
-  border-width: 3px;
+  border-radius: var(--radius-pill);
+  border-width: 2.5px;
 }
 
-/* Virtual Floating Dynamic Joystick on Phone */
+/* Virtual Floating Dynamic Joystick on Phone
+   Faz 2: görünür, thumb boyutlu, yumuşak halkalı Brawl dili. Geometri aynıdır
+   (controllerLayout.js ölçüleri + bindJoystick); yalnız sunum değişti. */
 .phone-joy-base {
-  width: clamp(110px, 28vw, 130px);
-  height: clamp(110px, 28vw, 130px);
+  width: clamp(116px, 28vw, 136px);
+  height: clamp(116px, 28vw, 136px);
   border-radius: 50%;
-  border: 2.5px dashed var(--dim-35);
-  background-color: var(--sheen-65);
-  box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.06);
+  border: 2.5px solid var(--joy-ring);
+  background:
+    radial-gradient(circle at 50% 34%, var(--joy-drum-active) 0%, var(--joy-drum) 52%, var(--dim-18) 135%);
+  box-shadow:
+    inset 0 1px 0 var(--sheen-35),
+    inset 0 -10px 18px var(--dim-18),
+    var(--joy-lift);
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
   box-sizing: border-box;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .phone-joy-base::after {
   content: '';
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--dim-25);
+  box-shadow: 0 0 0 2px var(--sheen-25);
   pointer-events: none;
 }
 
@@ -2152,10 +2251,13 @@
   margin: 0 !important;
   transition: none !important;
   border-style: solid;
-  border-width: 3.5px;
-  border-color: var(--n-900);
-  background-color: var(--sheen-95);
-  box-shadow: 4px 5px 0px #000000;
+  border-width: 2.5px;
+  border-color: var(--joy-ring-strong);
+  background:
+    radial-gradient(circle at 50% 30%, var(--joy-drum-active) 0%, var(--sheen-25) 52%, var(--dim-18) 138%);
+  box-shadow:
+    inset 0 1px 0 var(--sheen-35),
+    var(--joy-lift);
   opacity: 1 !important;
   z-index: 15;
 }
@@ -2165,23 +2267,25 @@
 }
 
 .phone-joy-base.aim-held:not(.aim-active) {
-  border-color: var(--dim-65);
-  background-color: var(--sheen-90);
+  border-color: var(--joy-ring-strong);
+  background:
+    radial-gradient(circle at 50% 30%, var(--joy-drum-active) 0%, var(--sheen-25) 52%, var(--dim-18) 138%);
 }
 
 .phone-joy-base.aim-active {
   border-style: solid;
-  border-color: var(--n-900);
-  box-shadow: 0 0 0 3px var(--glow-gold), 4px 5px 0px #000000;
+  border-color: var(--joy-ring-strong);
+  box-shadow: var(--joy-ring-glow), var(--joy-lift);
 }
 
 .phone-joy-knob {
-  width: 52px;
-  height: 52px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
-  border: 3.5px solid var(--n-900);
-  background-color: var(--yellow);
-  box-shadow: 2px 3px 0px #000000;
+  border: 2.5px solid var(--n-700);
+  background-image:
+    radial-gradient(circle at 32% 26%, var(--joy-knob-gloss) 0%, var(--sheen-08) 48%, var(--dim-25) 142%);
+  box-shadow: inset 0 -6px 10px var(--dim-18), var(--joy-lift);
   position: absolute;
   pointer-events: none;
   will-change: transform;
@@ -2191,9 +2295,9 @@
 .phone-joy-knob::before {
   content: '';
   position: absolute;
-  inset: 6px;
+  inset: 7px;
   border-radius: 50%;
-  border: 2px solid var(--dim-30);
+  border: 1.5px solid var(--sheen-35);
   pointer-events: none;
 }
 
@@ -2212,14 +2316,14 @@
   position: absolute;
   bottom: 12px;
   right: 12px;
-  background-color: var(--white);
-  border: 3px solid var(--n-900);
-  border-radius: 8px;
+  background: var(--grad-card);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-card);
   padding: 8px;
   display: flex;
   gap: 8px;
   z-index: 250;
-  box-shadow: 4px 5px 0px #000000;
+  box-shadow: var(--shadow-float);
 }
 
 .emoji-wheel-modal.hidden {
@@ -2317,7 +2421,7 @@
   justify-content: center;
   border: 3px solid var(--yellow);
   background: var(--ink);
-  box-shadow: 4px 4px 0px #000000;
+  box-shadow: var(--shadow-pop);
 }
 
 .rotate-phone svg {
@@ -2350,5 +2454,275 @@
 @media (prefers-reduced-motion: reduce) {
   .rotate-phone svg {
     animation: none !important;
+  }
+}
+
+/* ======================================================================
+   FAZ 2 — PLAY CHROME (kumanda yüzeyi)
+   Görünür thumb joystick, yuvarlak glossy butonlar, radyal cooldown,
+   kill-feed, tam ekran sonuç + konfeti. Yeni kontrol geometrisi yoktur:
+   ölçüler controllerLayout.js, sözleşme controlDefs.js.
+   ====================================================================== */
+
+/* Ortak kontrol butonlarına (tank ateş, sürüş pedali) parlama katmanı */
+.tank-fire-btn,
+.tank-drive-pedal {
+  background-image: var(--btn-gloss);
+}
+
+.tank-fire-btn {
+  border-radius: var(--radius-card);
+}
+
+/* —— Üst sağ kill-feed (Faz 2.2) —— */
+.gamepad-killfeed {
+  position: absolute;
+  top: max(54px, calc(env(safe-area-inset-top, 0px) + 54px));
+  right: max(12px, env(safe-area-inset-right, 12px));
+  z-index: 65;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.gamepad-killfeed:empty {
+  display: none;
+}
+
+.killfeed-toast {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  background: var(--grad-card);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-float);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink);
+  white-space: nowrap;
+  animation: killfeed-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+@keyframes killfeed-in {
+  0% { transform: translateX(14px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+.killfeed-toast .kf-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: inset 0 -2px 3px var(--dim-18);
+  flex-shrink: 0;
+}
+
+/* —— Tam ekran sonuç (Faz 2.4) —— */
+.gamepad-result {
+  position: absolute;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: max(20px, env(safe-area-inset-top, 20px)) max(16px, env(safe-area-inset-right, 16px)) max(20px, env(safe-area-inset-bottom, 20px)) max(16px, env(safe-area-inset-left, 16px));
+  background: var(--result-bg);
+  color: var(--result-ink);
+  text-align: center;
+  opacity: 0;
+  translate: 0 14px;
+  pointer-events: none;
+  transition: opacity 0.28s ease, translate 0.28s ease;
+}
+
+.gamepad-result.reveal {
+  opacity: 1;
+  translate: 0 0;
+  pointer-events: auto;
+}
+
+.result-headline {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 900;
+  font-size: clamp(28px, 8vw, 44px);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--result-mvp);
+  text-shadow: 0 4px 0 var(--dim-35);
+}
+
+.result-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--result-muted);
+  text-transform: uppercase;
+}
+
+.result-mvp {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 900;
+  font-size: clamp(22px, 6vw, 32px);
+  color: var(--result-ink);
+}
+
+.result-mvp .result-mvp-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px var(--dim-25);
+  flex-shrink: 0;
+}
+
+.result-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(320px, 86vw);
+}
+
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--result-card);
+  border: 1.5px solid var(--result-card-edge);
+  border-radius: var(--radius-card);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--result-ink);
+}
+
+.result-row .result-row-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.result-row .result-row-name {
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.result-row .result-row-score {
+  color: var(--result-mvp);
+}
+
+.result-actions {
+  display: flex;
+  gap: 12px;
+  width: min(320px, 86vw);
+}
+
+.result-btn {
+  flex: 1;
+  min-height: 56px;
+  border: none;
+  border-radius: var(--radius-btn);
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 0.4px;
+  color: var(--result-btn-ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.12s ease, box-shadow 0.12s ease;
+}
+
+.result-btn-replay {
+  background: var(--result-btn-replay);
+  box-shadow: 0 6px 0 var(--dim-25), var(--btn-lift);
+}
+
+.result-btn-lobby {
+  background: var(--result-btn-lobby);
+  box-shadow: 0 6px 0 var(--dim-25), var(--btn-lift);
+}
+
+.result-btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 var(--dim-25), var(--btn-lift);
+  filter: brightness(1.05);
+}
+
+/* —— Konfeti (motionScale=1 ise JS üretir; azaltılmış harekette kapatılır) —— */
+.confetti-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -24px;
+  width: 10px;
+  height: 14px;
+  border-radius: 2px;
+  will-change: transform;
+  animation: confetti-fall var(--confetti-t, 2.4s) linear var(--confetti-d, 0s) forwards;
+  opacity: 0.95;
+}
+
+.confetti-piece.c0 { background: var(--confetti-1); }
+.confetti-piece.c1 { background: var(--confetti-2); }
+.confetti-piece.c2 { background: var(--confetti-3); }
+.confetti-piece.c3 { background: var(--confetti-4); }
+.confetti-piece.c4 { background: var(--confetti-5); }
+
+@keyframes confetti-fall {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; }
+  8% { opacity: 0.95; }
+  100% { transform: translate3d(var(--confetti-x, 0px), 110vh, 0) rotate(var(--confetti-r, 540deg)); opacity: 0.75; }
+}
+
+/* Azaltılmış hareket: cila animasyonları durağan duruma iner (motionScale kuralı) */
+@media (prefers-reduced-motion: reduce) {
+  .gamepad-hud,
+  .gamepad-result {
+    transition: none;
+    translate: none;
+  }
+
+  .gamepad-result.reveal,
+  .gamepad-hud.reveal {
+    opacity: 1;
+  }
+
+  .killfeed-toast,
+  .action-dash-btn.ready-flash,
+  .action-spin-btn.ready-flash {
+    animation: none !important;
+  }
+
+  .confetti-burst {
+    display: none;
+  }
+
+  .action-dash-btn,
+  .action-spin-btn,
+  .tank-fire-btn,
+  .tank-drive-pedal {
+    transition-duration: 0.01ms;
   }
 }

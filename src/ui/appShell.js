@@ -460,6 +460,12 @@ function iconButton({ id, label, icon, onClick, pressed = false }) {
   return btn;
 }
 
+// Abonelikler rebuild'den AYRIDIR: `mountNavActions` her dil değişiminde yeniden
+// çalışır; `onLangChange`/`onFullscreenChange` kayıtları burada olsaydı her
+// çağrı yeni listener eklerdi. `Set.forEach` eklenen girdileri de gezdiği için
+// bu, `setLang` içinde SONSUZ döngüye girip sekmeyi kilitliyordu.
+let navActionsBound = false;
+
 function mountNavActions() {
   const host = shellEl?.querySelector('#shell-nav-actions');
   if (!host) return;
@@ -498,9 +504,14 @@ function mountNavActions() {
   });
 
   host.append(soundBtn, langBtn, fsBtn, settingsBtn);
+  if (navActionsBound) return;
+  navActionsBound = true;
+  // Canlı düğüme bakılır: eski rebuild'in kopuk `fsBtn` kapanışı güncellenmez.
   onFullscreenChange((active) => {
-    fsBtn.innerHTML = getTabletopIconSvg(active ? 'minimize_2' : 'maximize_2', { size: 18 });
-    fsBtn.setAttribute('aria-pressed', String(active));
+    const live = shellEl?.querySelector('#shell-fullscreen');
+    if (!live) return;
+    live.innerHTML = getTabletopIconSvg(active ? 'minimize_2' : 'maximize_2', { size: 18 });
+    live.setAttribute('aria-pressed', String(active));
   });
   onLangChange(() => mountNavActions());
 }

@@ -1,6 +1,6 @@
 # MOBILE_SHELL_PLAN — Yatay App Shell + Görsel Rebrand
 
-Durum: **Faz 0 + Faz 1 + koyu kimlik rebrand'i bitti** · Faz 2 (play chrome) ve Faz 3 (yaşam döngüsü) başlanmadı · Başlangıç: Eylül 2026
+Durum: **Faz 0 + Faz 1 + koyu kimlik rebrand'i bitti** · Faz 2 (play chrome + sonuç ekranı) **tamamlandı** (LOCAL sonuç ekranı LOCAL paket üzerinden; uzak kumanda world-view banner'ını korur) · Faz 3 (yaşam döngüsü) **tamamlandı** (maç başı tam ekran + yön kilidi, dönüşte relock, host wake lock) · **Kumanda yüzeyi restyle** (kullanıcı kararı): üst bar → yüzen ikon çipleri, lobi/skor/sayaç/rehber `--radius-*`/`--shadow-*`/`--grad-card` ile yumuşatıldı, kontrol etiketleri kontrast-artırıldı · Başlangıç: Eylül 2026
 Mimari/protokol değişiklikleri bittikçe `docs/PROJECT_MAP.md` güncellenir; bu dosya yol haritası ve **tasarım anlayışı** kaydıdır.
 
 Referans: Wild Rift (yatay sabit menü, shell + ekranlar) ve Brawl Stars (görsel dil: yumuşak, yuvarlak, doygun).
@@ -124,11 +124,11 @@ Not: `--shadow-hard` DNA olarak korundu (sadece 6px→4px). Yumuşak gölgeler `
 
 ## Faz 2 — Play chrome + sonuç ekranı
 
-- [ ] 2.1 Overlay polish: görünür thumb boyutlu joystick + yumuşak halka (sol-alt erişim yayı), yuvarlak glossy aksiyon butonları, radyal cooldown dolgusu, aktif squash. Ölçüler `controllerLayout.js`'ten, sözleşme `controlDefs.js`'ten — **yeni kontrol geometrisi yazılmaz**.
-- [ ] 2.2 Üst HUD güvenli şeritte: skor/süre, takım güç barları, kill-feed toast'ları sağ üstte.
-- [ ] 2.3 Her dokunuş/butonda haptik + ses, `haptics.js` gate'inden.
-- [ ] 2.4 Sonuç = tam ekran: MVP banner, skor tablosu, büyük `TEKRAR OYNA` + `LOBİYE DÖN`, konfeti. `motionScale` bağlı.
-- [ ] 2.5 Pause sheet: safe-area ve tema yeni palete bağlanır.
+- [x] 2.1 Overlay polish: görünür thumb boyutlu joystick + yumuşak halka (sol-alt erişim yayı), yuvarlak glossy aksiyon butonları, radyal cooldown dolgusu, aktif squash. Ölçüler `controllerLayout.js`'ten, sözleşme `controlDefs.js`'ten — **yeni kontrol geometrisi yazılmaz**.
+- [x] 2.2 Üst HUD güvenli şeritte: skor/süre, takım güç barları, kill-feed toast'ları sağ üstte.
+- [x] 2.3 Her dokunuş/butonda haptik + ses, `haptics.js` gate'inden.
+- [x] 2.4 Sonuç = tam ekran: MVP banner, skor tablosu, büyük `TEKRAR OYNA` + `LOBİYE DÖN`, konfeti. `motionScale` bağlı.
+- [x] 2.5 Pause sheet: safe-area ve tema yeni palete bağlanır.
 
 ---
 

@@ -3,6 +3,7 @@ import { drawBrutalAvatar } from './ui/characterRenderer.js';
 import { getBotPersona } from './core/customizationManager.js';
 import { isCompactLandscape } from './core/playfield.js';
 import { t } from './i18n.js';
+import { stripHtml } from './controllers/controllerGuide.js';
 
 const GUIDE_COLORS = UI_COLORS.players;
 
@@ -28,7 +29,7 @@ export function renderControlGuide(ctx, arena, title, entries, { duringPlay = fa
   const panelY = 6;
   const panelWidth = Math.min(arena.width, viewportWidth - 24);
   const panelX = (viewportWidth - panelWidth) / 2;
-  const text = entries.join('   •   ');
+  const text = entries.map((e) => stripHtml(e)).join('   •   ');
 
   if (panelHeight <= 14) return;
 

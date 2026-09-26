@@ -2,7 +2,11 @@
 // descriptor from CONTROL_DEFS + the declarative gamepad schema.
 
 import { getControlDescriptor } from '../core/controlDescriptor.js';
-import { t } from '../i18n.js';
+import { t, tIcon } from '../i18n.js';
+
+// Canvas fillText SVG çizemez: tIcon çıktısını canvas'a veren tüketiciler
+// (controlGuide.renderControlGuide) HTML'i bu yardımcıyla söker.
+export const stripHtml = (s) => String(s).replace(/<[^>]*>/g, '');
 
 const LEFT_LABEL_KEYS = {
   slider: 'pad.guideSlider',
@@ -25,24 +29,24 @@ const ACTION_LABEL_KEYS = {
 
 function actionLabel(action) {
   const key = action?.labelKey || ACTION_LABEL_KEYS[action?.id];
-  if (key) return t(key);
-  return action?.label || t('pad.action');
+  if (key) return tIcon(key);
+  return action?.label || tIcon('pad.action');
 }
 
 function actionDescriptors(schema) {
   if (schema?.type === 'ARCADE_DRIVE') {
     return [
-      { id: 'drive', label: t(schema.pedalLabelKey || 'pad.drive') },
-      { id: 'fire', label: t(schema.fireLabelKey || 'pad.fireGun') },
+      { id: 'drive', label: tIcon(schema.pedalLabelKey || 'pad.drive') },
+      { id: 'fire', label: tIcon(schema.fireLabelKey || 'pad.fireGun') },
     ];
   }
 
   if (schema?.type === 'SLIDER_1D') {
-    return [{ id: 'spin', label: t('pad.spinShort') }];
+    return [{ id: 'spin', label: tIcon('pad.spinShort') }];
   }
 
   if (schema?.type === 'STEER_BOOST') {
-    return [{ id: 'boost', label: t('pad.boost') }];
+    return [{ id: 'boost', label: tIcon('pad.boost') }];
   }
 
   return (Array.isArray(schema?.actions) ? schema.actions : []).map((action) => ({
@@ -54,7 +58,7 @@ function actionDescriptors(schema) {
 function leftDescriptor(type) {
   return {
     type,
-    label: t(LEFT_LABEL_KEYS[type] || 'pad.guideJoystick'),
+    label: tIcon(LEFT_LABEL_KEYS[type] || 'pad.guideJoystick'),
   };
 }
 
@@ -69,10 +73,10 @@ export function getControllerGuide(mode, schema) {
   const left = leftDescriptor(descriptor.phone.left);
   const actions = actionDescriptors(schema);
   const hint = descriptor.phone.left === 'steer'
-    ? `${t('pad.steerLeft')} / ${t('pad.steerRight')}`
+    ? `${tIcon('pad.steerLeft')} / ${tIcon('pad.steerRight')}`
     : descriptor.phone.left === 'pedal'
-      ? t('pad.pedalSub')
-      : t(LEFT_LABEL_KEYS[descriptor.phone.left] || 'pad.guideJoystick');
+      ? tIcon('pad.pedalSub')
+      : tIcon(LEFT_LABEL_KEYS[descriptor.phone.left] || 'pad.guideJoystick');
 
   return {
     mode,

@@ -3,7 +3,7 @@
 // allowing games and agents to declare controls via high-level schemas rather than writing imperative DOM code.
 
 import { escapeHtml } from '../net.js';
-import { t } from '../i18n.js';
+import { t, tIcon } from '../i18n.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { getGuideActionLabel } from './controllerGuide.js';
 import { getPreference, setPreference } from '../core/preferences.js';
@@ -122,6 +122,7 @@ function mountJoystickAction(gamepad, container, schema) {
         e?.preventDefault?.();
         gamepad.sendInput({ action: act.action, ...(act.payload || {}) });
         gamepad.vibrate(vibratePattern);
+        gamepad.playTick();
         activeHolds.add(act);
         btn.classList.add('holding');
       };
@@ -253,6 +254,7 @@ function mountTwinStickAction(gamepad, container, schema) {
     vibrate: (pattern) => gamepad.vibrate(pattern),
     onPress(input) {
       gamepad._sendAimInput({ action: 'AIM_PRESS', ...input });
+      gamepad.playTick();
     },
     onMove(input, opts) {
       gamepad._sendAnalog({ action: 'AIM_MOVE', ...input }, opts);
@@ -278,6 +280,7 @@ function mountTwinStickAction(gamepad, container, schema) {
         e?.preventDefault?.();
         gamepad.sendInput({ action: act.action, ...(act.payload || {}) });
         gamepad.vibrate(vibratePattern);
+        gamepad.playTick();
         activeHolds.add(act);
         btn.classList.add('holding');
       };
@@ -368,6 +371,7 @@ function mountArcadeDrive(gamepad, container, schema) {
     driveBtn?.classList.add('active');
     gamepad.sendInput({ action: schema.driveAction || 'TANK_DRIVE', driving: true });
     gamepad.vibrate(20);
+    gamepad.playTick();
   };
 
   const stopDrive = (e) => {
@@ -399,6 +403,7 @@ function mountArcadeDrive(gamepad, container, schema) {
     lastFireTime = now;
     gamepad.sendInput({ action: schema.fireAction || 'TANK_FIRE' });
     gamepad.vibrate(30);
+    gamepad.playTick();
   };
 
   fireBtn?.addEventListener('touchstart', fireAction, { passive: false });
@@ -514,6 +519,7 @@ function mountTwoButtonSteer(gamepad, container, schema) {
 
   const onTouchStart = (e) => {
     e.preventDefault();
+    gamepad.playTick();
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i];
       activeTouches.set(t.identifier, getDirForPoint(t.clientX, t.clientY));
@@ -612,14 +618,14 @@ function mountSlider1D(gamepad, container, schema) {
     return flip[base] || base;
   };
   const directionHint = () => verticalAxis
-    ? t(gamepad.playerIndex === 2 ? 'pad.dragDown' : 'pad.dragUp', tvDir())
-    : t('pad.dragRight', tvDir());
+    ? tIcon(gamepad.playerIndex === 2 ? 'pad.dragDown' : 'pad.dragUp', tvDir())
+    : tIcon('pad.dragRight', tvDir());
 
   container.innerHTML = `
     <div class="pong-controller-view ${verticalAxis ? 'vertical' : 'horizontal'}">
       <div class="pong-live-scoreboard" id="pong-live-scoreboard">
         <div class="pong-score-pips" id="pong-score-display">${t('pad.scoreJoin', '0 - 0')}</div>
-        <div class="pong-rally-badge" id="pong-rally-display">${t('pad.rally', 0)}</div>
+        <div class="pong-rally-badge" id="pong-rally-display">${tIcon('pad.rally', 0)}</div>
       </div>
       <div class="pong-position-badge" style="border-color: ${gamepad.playerColor}">${t('pad.tvPlace', posLabel)}</div>
       <div class="pong-bottom-zone">
@@ -630,8 +636,8 @@ function mountSlider1D(gamepad, container, schema) {
               PADDLE
             </div>
           </div>
-          <button class="pong-invert-btn ${gamepad.isPongInverted !== baseInvert ? 'inverted' : ''}" id="btn-invert-axis" type="button" title="${escapeHtml(gamepad.isPongInverted !== baseInvert ? t('pad.autoDir') : t('pad.flipDir'))}">
-            ${gamepad.isPongInverted !== baseInvert ? t('pad.autoDir') : t('pad.flipDir')}
+          <button class="pong-invert-btn ${gamepad.isPongInverted !== baseInvert ? 'inverted' : ''}" id="btn-invert-axis" type="button" title="${gamepad.isPongInverted !== baseInvert ? t('pad.autoDir') : t('pad.flipDir')}">
+            ${gamepad.isPongInverted !== baseInvert ? tIcon('pad.autoDir') : tIcon('pad.flipDir')}
           </button>
         </div>
         <button class="action-spin-btn" data-controller-layout-target="right" id="btn-pong-spin" type="button" aria-label="${escapeHtml(t('pad.spinShort'))}" title="${escapeHtml(t('pad.spinShort'))}" style="background-color: ${gamepad.playerColor};">
@@ -663,7 +669,7 @@ function mountSlider1D(gamepad, container, schema) {
     setPreference('pongInvert', gamepad.isPongInverted ? 'on' : 'off');
     const isManuallyFlipped = gamepad.isPongInverted !== baseInvert;
     invertBtn.classList.toggle('inverted', isManuallyFlipped);
-    invertBtn.textContent = isManuallyFlipped ? t('pad.autoDir') : t('pad.flipDir');
+    invertBtn.innerHTML = isManuallyFlipped ? tIcon('pad.autoDir') : tIcon('pad.flipDir');
     if (hintEl) hintEl.textContent = directionHint();
   });
 
@@ -708,38 +714,37 @@ function mountSlider1D(gamepad, container, schema) {
         const scoreDisp = document.getElementById('pong-score-display');
         const rallyDisp = document.getElementById('pong-rally-display');
         if (scoreDisp && data.scores) {
-          // İsimler varsa kimin skoru olduğu görünür: "AHMET 2❤3 • MEHMET 1❤2"
+          // İsimler varsa kimin skoru olduğu görünür: "AHMET 2 [heart]3 • MEHMET 1[heart]2"
           // (set skoru + kalan can; boş koltukta can gösterilmez)
           const lives = Array.isArray(data.lives) ? data.lives : null;
           const scoreTxt = Array.isArray(data.names)
             ? data.scores.slice(0, 4).map((s, i) => {
               const nm = data.names[i] || `P${i + 1}`;
-              const heart = lives && data.names[i] ? `❤${lives[i] ?? 0}` : '';
+              const heart = lives && data.names[i] ? `${getTabletopIconSvg('heart', { size: 11 })}${lives[i] ?? 0}` : '';
               return `${nm} ${s}${heart}`;
             }).join(' • ')
             : t('pad.scoreJoin', data.scores.slice(0, 4).join(' - '));
-          if (scoreDisp.textContent !== scoreTxt) scoreDisp.textContent = scoreTxt;
+          if (scoreDisp.innerHTML !== scoreTxt) scoreDisp.innerHTML = scoreTxt;
         }
         if (rallyDisp && data.rally !== undefined) {
-          const rallyTxt = t('pad.rally', data.rally);
-          if (rallyDisp.textContent !== rallyTxt) rallyDisp.textContent = rallyTxt;
+          const rallyTxt = tIcon('pad.rally', data.rally);
+          if (rallyDisp.innerHTML !== rallyTxt) rallyDisp.innerHTML = rallyTxt;
         }
         const sBtn = document.getElementById('btn-pong-spin');
         if (sBtn) {
-          const label = sBtn.querySelector('.dash-btn-label');
-          const sub = sBtn.querySelector('.dash-btn-sub');
+          // Faz 2.1: host yetkili cooldown radyal dolguya (--cd + .cd-num) boyanır.
           const cd = Array.isArray(data.cd) ? (data.cd[gamepad.playerIndex] || 0) : 0;
           const isCharged = data.chgIdx === gamepad.playerIndex;
-          const txt = cd > 0 && !isCharged ? `⏳ ${cd}sn` : (isCharged ? `🌀 ${(data.chgT || 0).toFixed(1)}sn` : '🌀 FALSO');
-          if (label && label.textContent !== txt) label.textContent = txt;
-          if (sub) {
-            const subTxt = isCharged ? t('pad.charged') : (cd > 0 ? t('pad.filling') : t('pad.tap'));
-            if (sub.textContent !== subTxt) sub.textContent = subTxt;
+          const recharging = cd > 0 && !isCharged;
+          if (recharging) {
+            gamepad.setButtonCooldown(sBtn, cd, schema.spinCooldown ?? 20);
+          } else if (sBtn.classList.contains('cooling')) {
+            gamepad.resetButtonCooldown(sBtn, { flash: false });
           }
         }
         if (rallyDisp && data.spn) {
-          const spn = t('pad.spinning');
-          if (rallyDisp.textContent !== spn) rallyDisp.textContent = spn;
+          const spn = tIcon('pad.spinning');
+          if (rallyDisp.innerHTML !== spn) rallyDisp.innerHTML = spn;
         }
       }
     },
@@ -814,6 +819,7 @@ function mountSteerBoost(gamepad, container, schema) {
 
   const onTouchStart = (e) => {
     e.preventDefault();
+    gamepad.playTick();
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i];
       activeTouches.set(t.identifier, getDirForPoint(t.clientX, t.clientY));
@@ -869,6 +875,7 @@ function mountSteerBoost(gamepad, container, schema) {
     if (btnBoost) btnBoost.style.filter = 'brightness(1.3)';
     gamepad.sendInput({ action: schema.boostStartAction || 'SNAKE_BOOST' });
     gamepad.vibrate(20);
+    gamepad.playTick();
   };
 
   const stopBoost = (e) => {

@@ -217,6 +217,50 @@
   --bot-tag: #ffde59;
   --font-grotesk: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+
+  /* ======================================================================
+     FAZ 2 — PLAY CHROME + SONUÇ EKRANI
+     Yalnızcream saha kapsamındaki kumanda yüzeyinde tüketilir; uygulama
+     yüzeyi etkilenmez. Yeni kumanda öğesi önce buraya eklenir.
+     ====================================================================== */
+
+  /* Görünür joystick: dinlenme diski, yumuşak halka, parlak tutamaç */
+  --joy-ring: rgba(255, 255, 255, 0.6);
+  --joy-ring-strong: rgba(255, 255, 255, 0.9);
+  --joy-drum: rgba(255, 255, 255, 0.16);
+  --joy-drum-active: rgba(255, 255, 255, 0.36);
+  --joy-lift: 0 10px 22px rgba(43, 32, 24, 0.2), 0 2px 6px rgba(43, 32, 24, 0.14);
+  --joy-knob-gloss: rgba(255, 255, 255, 0.5);
+  --joy-ring-glow: 0 0 0 3px rgba(255, 176, 32, 0.4), 0 0 22px rgba(255, 176, 32, 0.42);
+
+  /* Yuvarlak glossy aksiyon butonu + aktif squash */
+  --btn-gloss: radial-gradient(circle at 32% 24%, var(--sheen-35) 0%, var(--sheen-08) 48%, var(--dim-18) 138%);
+  --btn-gloss-invert: radial-gradient(circle at 32% 24%, var(--sheen-60) 0%, var(--sheen-12) 48%, var(--dim-25) 140%);
+  --btn-lift: 0 8px 18px rgba(43, 32, 24, 0.22), 0 3px 8px rgba(43, 32, 24, 0.16);
+  --btn-lift-active: 0 2px 0 rgba(43, 32, 24, 0.22), 0 5px 12px rgba(43, 32, 24, 0.2);
+  --btn-border-soft: rgba(43, 32, 24, 0.9);
+
+  /* Radyal cooldown dolgusu */
+  --cd-scrim: rgba(43, 32, 24, 0.6);
+  --cd-num: #fff8ea;
+
+  /* Sonuç ekranı */
+  --result-bg: linear-gradient(180deg, #2b2018 0%, #160f0a 100%);
+  --result-ink: #fff8ea;
+  --result-muted: #cfc0ad;
+  --result-mvp: #ffd27a;
+  --result-card: rgba(255, 255, 255, 0.07);
+  --result-card-edge: rgba(255, 248, 234, 0.18);
+  --result-btn-replay: linear-gradient(180deg, #ffb020 0%, #ff7a0a 100%);
+  --result-btn-lobby: linear-gradient(180deg, #3abd74 0%, #1f8f4a 100%);
+  --result-btn-ink: #241c15;
+
+  /* Konfeti renkleri (oyuncu kimlikleri + altın) */
+  --confetti-1: #f0483c;
+  --confetti-2: #2b7fc4;
+  --confetti-3: #ffcc00;
+  --confetti-4: #35b36a;
+  --confetti-5: #ffb020;
 }
 
 /* ======================================================================

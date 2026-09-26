@@ -107,7 +107,7 @@ function createModalDOM() {
             <span class="customize-badge" data-i18n="custom.badge">${t('custom.badge')}</span>
             <h2 class="customize-title" id="customize-title" data-i18n="custom.title">${t('custom.title')}</h2>
           </div>
-          <button class="customize-close-btn" id="btn-close-customize" type="button" aria-label="${t('pause.close')}">✕</button>
+          <button class="customize-close-btn" id="btn-close-customize" type="button" aria-label="${t('pause.close')}">${getTabletopIconSvg('close', { size: 18 })}</button>
         </div>
 
         <div class="customize-body">
@@ -236,7 +236,7 @@ function renderSelectionGrids() {
       const isSelected = currentCustom.color.toLowerCase() === p.hex.toLowerCase();
       return `
         <button class="color-swatch-btn ${isSelected ? 'selected' : ''}" data-hex="${p.hex}" style="background-color: ${p.hex}" title="${paletteName(p)}" type="button">
-          ${isSelected ? '<span class="swatch-check">✓</span>' : ''}
+          ${isSelected ? `<span class="swatch-check">${getTabletopIconSvg('check', { size: 13, strokeWidth: 3 })}</span>` : ''}
         </button>
       `;
     }).join('');

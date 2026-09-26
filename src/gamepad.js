@@ -4,6 +4,8 @@
 import { storePlayerName, escapeHtml } from './net.js';
 import { showInstallToast } from './ui/toast.js';
 import { UI_COLORS } from './ui/tokens.js';
+import { motionScale } from './ui/motion.js';
+import { playMenuTick, playMenuPop } from './audio.js';
 import { mountDeclarativeController } from './controllers/controllerTemplates.js';
 import { GamepadInputAdapter } from './controllers/gamepadInputAdapter.js';
 import { getNeutralInputs } from './controllers/controlDefs.js';
@@ -12,7 +14,7 @@ import { getControllerGuide } from './controllers/controllerGuide.js';
 import { getControllerMeta } from './core/engineRegistry.js';
 import { getControlDescriptor } from './core/controlDescriptor.js';
 import { PhysicalGamepadAdapter } from './controllers/physicalGamepadAdapter.js';
-import { t, onLangChange } from './i18n.js';
+import { t, tIcon, onLangChange } from './i18n.js';
 import { getAvatarProfile } from './core/customizationManager.js';
 import { vibrate as triggerHaptic } from './core/haptics.js';
 import { drawBrutalAvatar } from './ui/characterRenderer.js';
@@ -122,6 +124,8 @@ export class GamepadManager {
     this._layoutEditor = null;
     this._layoutFrame = 0;
     this._layoutResizeObserver = null;
+    this._lastScores = null;
+    this._resultActive = false;
     this._unsubscribePreferences = subscribePreferences(() => {
       this._scheduleControllerLayout();
     });
@@ -130,6 +134,15 @@ export class GamepadManager {
   // Güvenli ve merkezi Haptic Geri Bildirim
   vibrate(pattern) {
     triggerHaptic(pattern);
+  }
+
+  // Faz 2.3 — dokunma ses yansımaları (audio.js mute gate'inden geçer).
+  playTick() {
+    playMenuTick();
+  }
+
+  playPop() {
+    playMenuPop();
   }
 
   sendInput(data, { force = false } = {}) {
@@ -469,6 +482,7 @@ export class GamepadManager {
   // Ortak aksiyon-buton soğutması (BOMB/HEIST/CROWN aynı desen):
   // bas → onFire() + buton kilitlenir, süre dolunca eski haline döner.
   // Sayaç mount sökümünde temizlenir (CdTimer sızıntısı kapandı).
+  // Faz 2.1: metin yerine radyal cooldown (--cd conic) + merkez saniye rozeti.
   cooledAction(btn, secs, readyLabel, onFire, vibratePattern) {
     const state = { cooling: false, timer: null };
     const signal = this._mountAbort?.signal;
@@ -485,14 +499,10 @@ export class GamepadManager {
       state.cooling = true;
       try { onFire(); } catch {}
       this.vibrate(vibratePattern);
+      playMenuTick();
       if (!btn || !btn.isConnected) return;
-      btn.classList.add('cooling');
       let remaining = secs;
-      const paint = (label, sub) => {
-        if (!btn.isConnected) return;
-        btn.innerHTML = `<span class="dash-btn-label">${label}</span><span class="dash-btn-sub">${sub}</span>`;
-      };
-      paint(`⏳ ${remaining.toFixed(1)}s`, t('pad.filling'));
+      this.setButtonCooldown(btn, remaining, secs);
       if (state.timer) clearInterval(state.timer);
       state.timer = setInterval(() => {
         remaining -= 0.1;
@@ -501,14 +511,46 @@ export class GamepadManager {
           state.timer = null;
           state.cooling = false;
           if (!btn.isConnected) return;
-          btn.classList.remove('cooling');
-          paint(readyLabel, t('pad.readyEx'));
+          this.resetButtonCooldown(btn, { flash: true });
           this.vibrate(15);
+          playMenuPop();
         } else {
-          paint(`⏳ ${remaining.toFixed(1)}s`, t('pad.filling'));
+          this.setButtonCooldown(btn, remaining, secs);
         }
       }, 100);
     };
+  }
+
+  // Radyal cooldown dolgusu — `--cd` (kalan kesir 0..1) conic'e, `.cd-num`
+  // merkeze kalan saniyeyi yazar. Yalnız sunum: kontrol geometrisi değişmez.
+  setButtonCooldown(btn, remainingSecs, maxSecs) {
+    if (!btn || !btn.isConnected) return;
+    const frac = maxSecs > 0 ? Math.max(0, Math.min(1, remainingSecs / maxSecs)) : 0;
+    btn.style.setProperty('--cd', String(frac));
+    btn.classList.add('cooling');
+    let num = btn.querySelector('.cd-num');
+    if (!num) {
+      num = document.createElement('span');
+      num.className = 'cd-num';
+      num.setAttribute('aria-hidden', 'true');
+      btn.appendChild(num);
+    }
+    const whole = Math.ceil(remainingSecs);
+    const next = String(whole > 0 ? whole : '');
+    if (num.textContent !== next) num.textContent = next;
+  }
+
+  resetButtonCooldown(btn, { flash = true } = {}) {
+    if (!btn || !btn.isConnected) return;
+    btn.classList.remove('cooling');
+    btn.style.removeProperty('--cd');
+    const num = btn.querySelector('.cd-num');
+    if (num) num.remove();
+    if (flash) {
+      btn.classList.remove('ready-flash');
+      void btn.offsetWidth;
+      btn.classList.add('ready-flash');
+    }
   }
 
   // Koltuk değiştirme ön kapısı (lobi ızgarası + refresh tek kaynaktan;
@@ -775,12 +817,15 @@ export class GamepadManager {
   }
 
   hide() {
+    this._closeGamepadMenu?.();
     if (this._layoutEditor?.isOpen) this._layoutEditor.close({ save: false });
     else this.setInputBlocked(false);
     if (this.localMode) this._sendNeutralForMode();
     this.physicalGamepad.stop();
     this.releaseWakeLock();
     this._teardownMount();
+    this._resultActive = false;
+    this._lastScores = null;
     this.overlay.classList.add('hidden');
     this.overlay.innerHTML = '';
     this._workspaceOverride = null;
@@ -803,18 +848,47 @@ export class GamepadManager {
     this._mountOrientationGate();
     this._updateOrientationGate();
 
+    // ── Açılır menü (sağ üst ⋮) — oyun sırasında yanlışlıkla basılmasın ──
+    const menuBtn = document.getElementById('btn-gamepad-menu');
+    const menuPanel = document.getElementById('gamepad-menu-panel');
+    const closeMenu = () => {
+      menuPanel?.classList.add('hidden');
+      document.removeEventListener('pointerdown', onOutsideMenu, true);
+    };
+    const onOutsideMenu = (e) => {
+      if (!menuPanel?.classList.contains('hidden') && !e.target.closest('#gamepad-menu')) {
+        closeMenu();
+      }
+    };
+    menuBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const willOpen = menuPanel?.classList.contains('hidden');
+      menuPanel?.classList.toggle('hidden', !willOpen);
+      if (willOpen) {
+        document.addEventListener('pointerdown', onOutsideMenu, true);
+        this.vibrate(10);
+        playMenuTick();
+      } else {
+        document.removeEventListener('pointerdown', onOutsideMenu, true);
+      }
+    });
+    this._closeGamepadMenu = closeMenu;
+
     document.getElementById('btn-leave-gamepad')?.addEventListener('click', () => {
+      closeMenu();
       this.network.disconnect();
       this.hide();
       window.location.href = window.location.pathname;
     });
 
     document.getElementById('btn-fullscreen-toggle')?.addEventListener('click', () => {
+      closeMenu();
       this.toggleFullscreen();
     });
 
     const emojiModal = document.getElementById('emoji-wheel-modal');
     document.getElementById('btn-toggle-emoji')?.addEventListener('click', () => {
+      closeMenu();
       this.isEmojiOpen = !this.isEmojiOpen;
       emojiModal?.classList.toggle('hidden', !this.isEmojiOpen);
     });
@@ -826,6 +900,7 @@ export class GamepadManager {
         this.isEmojiOpen = false;
         emojiModal?.classList.add('hidden');
         this.vibrate(20);
+        playMenuPop();
       });
     });
 
@@ -878,9 +953,9 @@ export class GamepadManager {
         const oldName = prev[i]?.kind === 'bot' ? null : prev[i]?.name || null;
         const newName = this.slots[i]?.kind === 'bot' ? null : this.slots[i]?.name || null;
         if (!oldName && newName && newName !== this.playerName) {
-          showInstallToast(t('pad.joined', newName));
+          showInstallToast(t('pad.joined', newName), 'gamepad_2');
         } else if (oldName && !newName && oldName !== this.playerName) {
-          showInstallToast(t('pad.left', oldName));
+          showInstallToast(t('pad.left', oldName), 'door_closed');
         }
       }
     }
@@ -950,7 +1025,7 @@ export class GamepadManager {
     if (!workspace) return;
     workspace.innerHTML = `
       <div class="countdown-view">
-        <div class="countdown-badge">${t('pad.countBadge')}</div>
+        <div class="countdown-badge">${tIcon('pad.countBadge')}</div>
         <div class="countdown-number">${t > 0 ? t : t('pad.go')}</div>
         <div class="countdown-sub">${t('pad.countSub')}</div>
       </div>
@@ -1019,6 +1094,8 @@ export class GamepadManager {
     this._elCache.clear();
     this._lastStripJson = '';
     this._lastStatusStr = '';
+    this._lastScores = null;
+    this._resultActive = false;
     this._cloneCdBtn = null;
     this.gameMode = mode;
     this._startPhysicalGamepad();
@@ -1137,6 +1214,7 @@ export class GamepadManager {
         if (!this.canSwitchSlot(targetSlot)) return;
         this.sendInput({ action: 'SWITCH_SLOT', targetSlot });
         this.vibrate(30);
+        playMenuTick();
       });
     });
   }
@@ -1189,7 +1267,7 @@ export class GamepadManager {
             </div>
             <span class="lobby-profile-hint">${t('pad.charHint')}</span>
           </div>
-          <button class="lobby-profile-edit-btn" id="btn-edit-character" type="button">${getTabletopIconSvg('pencil', { size: 15, color: '#141416', strokeWidth: 2.3 })}<span>${t('pad.customize')}</span></button>
+          <button class="lobby-profile-edit-btn" id="btn-edit-character" type="button">${getTabletopIconSvg('pencil', { size: 15, color: '#141416', strokeWidth: 2.3 })}<span>${tIcon('pad.customize')}</span></button>
         <button class="lobby-layout-btn" data-controller-layout-open type="button" data-i18n-aria="controllerLayout.open" aria-label="${escapeHtml(t('controllerLayout.open'))}" title="${escapeHtml(t('controllerLayout.open'))}">${getTabletopIconSvg('settings', { size: 16, color: '#141414', strokeWidth: 2.3 })}<span>${escapeHtml(t('controllerLayout.lobbyShort'))}</span></button>
         </div>
 
@@ -1204,7 +1282,7 @@ export class GamepadManager {
 
         <!-- 3. Seat Picker: lobi açılır açılmaz hedef koltuğa dokunulabilir. -->
         <div class="lobby-seats-card">
-          <div class="lobby-seat-badge">${this.stagingOpen ? t('pad.seatPick') : t('pad.seatPickEarly')}</div>
+          <div class="lobby-seat-badge">${this.stagingOpen ? tIcon('pad.seatPick') : tIcon('pad.seatPickEarly')}</div>
           <div class="lobby-seat-hint" aria-live="polite">${this.stagingOpen ? t('pad.seatHint') : t('pad.seatHintEarly')}</div>
           <div class="lobby-seats-grid">
             ${[0, 1, 2, 3].map((idx) => this.renderSeatButtonHtml(idx)).join('')}
@@ -1227,7 +1305,7 @@ export class GamepadManager {
 
         <!-- 5. Leave button -->
         <button class="btn-leave-lobby-direct" id="btn-leave-lobby-direct" type="button">
-          ${t('pad.leaveRoom')}
+          ${tIcon('pad.leaveRoom')}
         </button>
       </div>
     `;
@@ -1240,6 +1318,7 @@ export class GamepadManager {
         if (!this.canSwitchSlot(targetSlot)) return;
         this.sendInput({ action: 'SWITCH_SLOT', targetSlot });
         this.vibrate(30);
+        playMenuTick();
       });
     });
 
@@ -1273,8 +1352,9 @@ export class GamepadManager {
         try {
           this.network.sendAvatarUpdate?.(this.avatar);
         } catch {}
-        showInstallToast(t('pad.avatarShared'));
+        showInstallToast(t('pad.avatarShared'), 'check');
         this.vibrate(15);
+        playMenuTick();
       });
     });
 
@@ -1285,6 +1365,7 @@ export class GamepadManager {
       readyBtn.classList.toggle('ready', this.isReady);
       this.network.setReady(this.isReady);
       this.vibrate(this.isReady ? [20, 30] : 15);
+      playMenuTick();
     });
 
     // Leave room (çift-bas onay)
@@ -1296,7 +1377,7 @@ export class GamepadManager {
         leaveBtn.textContent = t('pad.leaveArmed');
         leaveArmedTimer = window.setTimeout(() => {
           delete leaveBtn.dataset.armed;
-          leaveBtn.textContent = t('pad.leaveRoom');
+          leaveBtn.innerHTML = tIcon('pad.leaveRoom');
         }, 3000);
         return;
       }
@@ -1343,6 +1424,7 @@ export class GamepadManager {
         baseEl.style.top = `${relY}px`;
       }
       this.vibrate(10);
+      playMenuTick();
       this.updateJoy(clientX, clientY, originX, originY, maxRadius, knob, emitInput);
       onPress?.({ ...lastInput });
     };
@@ -1487,6 +1569,145 @@ export class GamepadManager {
     }
   }
 
+  // Faz 2.2 — kill-feed: skor artışını sağ üstte toast olarak bildirir.
+  // Client tarafı türetme (protokol değiştirmez): 8Hz scores farkından çıkar.
+  _pushKillFeedFromScores(data) {
+    if (this.gameMode === 'LOBBY' || this._resultActive) return;
+    const scores = Array.isArray(data.scores) ? data.scores : null;
+    if (!scores) return;
+    const prev = this._lastScores;
+    this._lastScores = scores.slice();
+    if (!prev) return;
+    const names = Array.isArray(data.names) ? data.names : [];
+    const colors = Array.isArray(data.colors) ? data.colors : [];
+    for (let i = 0; i < 4; i++) {
+      const gained = (Number(scores[i]) || 0) - (Number(prev[i]) || 0);
+      if (gained > 0) {
+        this._pushKillFeed({
+          name: names[i] || this.slots[i]?.name || `P${i + 1}`,
+          color: colors[i] || this.slots[i]?.color || UI_COLORS.players[i] || '#6e6357',
+          gained,
+        });
+      }
+    }
+  }
+
+  _pushKillFeed(entry) {
+    const feed = this._el('gamepad-killfeed');
+    if (!feed) return;
+    if (feed.childElementCount >= 4) feed.firstElementChild?.remove();
+    const toast = document.createElement('div');
+    toast.className = 'killfeed-toast';
+    toast.innerHTML = `<span class="kf-swatch" style="background-color: ${entry.color}"></span><span>${escapeHtml(entry.name)} +${entry.gained}</span>`;
+    feed.appendChild(toast);
+    playMenuTick();
+    window.setTimeout(() => {
+      if (toast.isConnected) toast.remove();
+    }, 2400);
+  }
+
+  // Faz 2.4 — tam ekran sonuç. LOCAL'de authoritative state sinyaliyle açılır;
+  // uzak kumanda world-view banner'ını korur (host yetkisi).
+  _syncMatchResult(data) {
+    const el = this._el('gamepad-result');
+    if (!el) return;
+    if (this.localMode && data.state === 'MATCH_OVER') {
+      this._showMatchResult(data);
+    } else if (this._resultActive) {
+      this._hideMatchResult();
+    }
+  }
+
+  _showMatchResult(data) {
+    if (this._resultActive) return;
+    this._resultActive = true;
+    this._sendNeutralForMode();
+    const el = this._el('gamepad-result');
+    if (!el) return;
+    const names = Array.isArray(data.names) ? data.names : [];
+    const colors = Array.isArray(data.colors) ? data.colors : [];
+    const scores = (Array.isArray(data.scores) ? data.scores : [0, 0, 0, 0]).map((s) => Number(s) || 0);
+    const winner = data.winner && Number.isInteger(data.winner.index) ? data.winner : null;
+    const mvpIdx = winner ? winner.index : scores.reduce((best, s, i) => (s > (scores[best] ?? -1) ? i : best), 0);
+    const mvpName = winner ? (winner.name || names[mvpIdx] || `P${mvpIdx + 1}`) : (names[mvpIdx] || `P${mvpIdx + 1}`);
+    const mvpColor = winner ? (winner.color || colors[mvpIdx] || UI_COLORS.players[mvpIdx] || '#ffb020') : (colors[mvpIdx] || UI_COLORS.players[mvpIdx] || '#ffb020');
+    const rows = scores
+      .map((score, i) => ({
+        i,
+        score,
+        name: names[i] || this.slots[i]?.name || `P${i + 1}`,
+        color: colors[i] || this.slots[i]?.color || UI_COLORS.players[i] || '#6e6357',
+      }))
+      .sort((a, b) => b.score - a.score || a.i - b.i);
+
+    el.innerHTML = `
+      <div class="confetti-burst" aria-hidden="true"></div>
+      <div class="result-headline">${t('pad.resultTitle')}</div>
+      <div class="result-sub">${t('pad.resultSub')}</div>
+      <div class="result-mvp">
+        <span class="result-mvp-dot" style="background-color: ${mvpColor}"></span>
+        <span>${escapeHtml(mvpName)}</span>
+      </div>
+      <div class="result-table">
+        ${rows.map((r, rank) => `
+          <div class="result-row">
+            <span class="result-row-dot" style="background-color: ${r.color}"></span>
+            <span class="result-row-name">${rank + 1}. ${escapeHtml(r.name)}</span>
+            <span class="result-row-score">${r.score}</span>
+          </div>`).join('')}
+      </div>
+      <div class="result-actions">
+        <button class="result-btn result-btn-replay" id="btn-result-replay" type="button">${getTabletopIconSvg('rotate_cw', { size: 20, color: '#241c15', strokeWidth: 2.6 })} ${t('pad.replay')}</button>
+        <button class="result-btn result-btn-lobby" id="btn-result-lobby" type="button">${getTabletopIconSvg('log_out', { size: 20, color: '#241c15', strokeWidth: 2.6 })} ${t('pad.toLobby')}</button>
+      </div>
+    `;
+
+    el.querySelectorAll('button').forEach((b) => {
+      b.addEventListener('pointerdown', (e) => e.stopPropagation());
+    });
+    el.querySelector('#btn-result-replay')?.addEventListener('click', () => this._onResultAction('replay'));
+    el.querySelector('#btn-result-lobby')?.addEventListener('click', () => this._onResultAction('lobby'));
+    this._spawnConfetti(el.querySelector('.confetti-burst'));
+
+    requestAnimationFrame(() => {
+      el.classList.add('reveal');
+      el.setAttribute('aria-hidden', 'false');
+    });
+    playMenuPop();
+  }
+
+  _hideMatchResult() {
+    this._resultActive = false;
+    const el = this._el('gamepad-result');
+    if (!el) return;
+    el.classList.remove('reveal');
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = '';
+  }
+
+  _onResultAction(action) {
+    playMenuPop();
+    if (typeof this.onLocalResultAction === 'function') {
+      this.onLocalResultAction(action);
+    }
+  }
+
+  _spawnConfetti(root) {
+    if (!root || motionScale() === 0) return;
+    const palette = ['c0', 'c1', 'c2', 'c3', 'c4'];
+    const count = 44;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      p.className = `confetti-piece ${palette[i % palette.length]}`;
+      p.style.setProperty('--confetti-x', `${Math.round(Math.random() * 220 - 110)}px`);
+      p.style.setProperty('--confetti-t', `${(2.1 + Math.random() * 1.6).toFixed(2)}s`);
+      p.style.setProperty('--confetti-d', `${(Math.random() * 1.1).toFixed(2)}s`);
+      p.style.setProperty('--confetti-r', `${Math.round(360 + Math.random() * 540)}deg`);
+      p.style.left = `${Math.max(2, Math.min(96, (i / count) * 100 + (Math.random() * 14 - 7)))}%`;
+      root.appendChild(p);
+    }
+  }
+
   // Handle live state sync broadcasts from Host
   handleStateSync(data) {
     if (!data) return;
@@ -1499,7 +1720,7 @@ export class GamepadManager {
       this.exitStaging();
       this.resetReady();
       this.renderGameController(data.gameMode);
-      showInstallToast(t('pad.joinedGame', data.gameMode));
+      showInstallToast(t('pad.joinedGame', data.gameMode), 'play');
     } else if (phase === 'STAGING' && data.gameMode
         && (!this.stagingOpen || this.gameMode !== 'LOBBY')) {
       this.enterStaging(data.gameMode);
@@ -1546,9 +1767,24 @@ export class GamepadManager {
         : '';
       if (statusStr !== this._lastStatusStr) {
         this._lastStatusStr = statusStr;
-        liveStatus.textContent = statusStr;
-        liveStatus.title = statusStr;
+        liveStatus.innerHTML = statusStr;
+        liveStatus.title = statusStr.replace(/<[^>]*>/g, '');
       }
     }
+
+    // Faz 2.2: üst HUD şeridi yalnız oyun oynanırken görünür (lobi/sayaç/sonuç
+    // kapalı). Uzak pakette `state` yoksa GAME fazı oynama kabul edilir.
+    const hud = this._el('gamepad-hud');
+    if (hud) {
+      const quiet = ['LOBBY', 'STAGING', 'COUNTDOWN', 'MATCH_OVER'];
+      const inPlay = phase === 'GAME' && (!data.state || !quiet.includes(data.state));
+      hud.classList.toggle('reveal', inPlay);
+    }
+
+    // Faz 2.4: LOCAL authoritative state sinyaliyle sonuç ekranı açılır/kapanır.
+    this._syncMatchResult(data);
+
+    // Faz 2.2: skor artışlarını sağ üst kill-feed toast'larına çevir.
+    this._pushKillFeedFromScores(data);
   }
 }

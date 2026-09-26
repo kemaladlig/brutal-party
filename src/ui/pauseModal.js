@@ -231,7 +231,7 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback, control
     if (textEl) {
       textEl.textContent = exitText;
     } else {
-      btnExitToMenu.textContent = isHosting ? `🚪 ${exitText}` : exitText;
+      btnExitToMenu.textContent = isHosting ? `${getTabletopIconSvg('log_out', { size: 14 })} ${exitText}` : exitText;
     }
   }
   refreshPauseSwitches();

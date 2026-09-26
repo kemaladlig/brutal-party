@@ -3,7 +3,13 @@
 // çağrı `getControllerStatus(mode, playerIndex, data)` ile registry'den yapılır.
 // Davranış birebir korunur (t() anahtarları ve formatlar aynı).
 
-import { t } from '../i18n.js';
+import { t, tIcon } from '../i18n.js';
+import { getTabletopIconSvg } from '../core/tabletopIcons.js';
+
+const ICON = {
+  timer: getTabletopIconSvg('timer', { size: 12 }),
+  heart: getTabletopIconSvg('heart', { size: 12 }),
+};
 
 function deadOrScore(playerIndex, data) {
   const dead = Array.isArray(data.alive) ? data.alive[playerIndex] === false : false;
@@ -12,7 +18,7 @@ function deadOrScore(playerIndex, data) {
 
 const STATUS_BUILDERS = {
   PONG: (i, data) => {
-    const time = Number.isFinite(data.timeLeft) ? ` • ⏱ ${Math.ceil(data.timeLeft)}s` : '';
+    const time = Number.isFinite(data.timeLeft) ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
     return `${t('pad.rallyLive', data.rally || 0, data.scores.slice(0, 4).join('-'))}${time}`;
   },
   ARCHER: (i, data) => {
@@ -20,23 +26,23 @@ const STATUS_BUILDERS = {
     const charge = Math.round(Math.max(0, Math.min(100, Number(data.chg?.[i]) || 0)));
     const cooldown = Math.max(0, Math.ceil(Number(data.cd?.[i]) || 0));
     const cooldownText = cooldown > 0 ? ` • ${cooldown}s` : '';
-    return `${t('pad.scoreJoin', data.scores.slice(0, 4).join('-'))} • ⏱ ${Math.ceil(time)}s • ${t('pad.archerCharge')} ${charge}%${cooldownText}`;
+    return `${t('pad.scoreJoin', data.scores.slice(0, 4).join('-'))} • ${ICON.timer} ${Math.ceil(time)}s • ${tIcon('pad.archerCharge')} ${charge}%${cooldownText}`;
   },
   TANKS: (i, data) => {
     const base = deadOrScore(i, data);
-    const time = Number.isFinite(data.timeLeft) ? ` • ⏱ ${Math.ceil(data.timeLeft)}s` : '';
-    const sudden = data.suddenDeath ? ` • ${t('tanks.sudden')}` : '';
+    const time = Number.isFinite(data.timeLeft) ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
+    const sudden = data.suddenDeath ? ` • ${tIcon('tanks.sudden')}` : '';
     const intro = Number(data.introTime) > 0 ? ` • START ${Math.ceil(data.introTime)}s` : '';
     return `${base}${time}${sudden}${intro}`;
   },
   CURVE: (i, data) => {
-    const time = Number.isFinite(data.timeLeft) ? ` • ⏱ ${Math.ceil(data.timeLeft)}s` : '';
+    const time = Number.isFinite(data.timeLeft) ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
     return `${deadOrScore(i, data)}${time}`;
   },
   BOMB: (i, data) => {
     const timeStr = data.bombTime !== undefined ? `${data.bombTime}s` : '';
     const roundTime = data.timeLeft !== undefined ? ` • ROUND ${data.timeLeft}s` : '';
-    if (data.carrier === i) return `${t('pad.bombYou', timeStr)}${roundTime}`;
+    if (data.carrier === i) return `${tIcon('pad.bombYou', timeStr)}${roundTime}`;
     if (data.carrier === -1 || data.carrier === null || data.carrier === undefined) return `${t('pad.bombFree', timeStr)}${roundTime}`;
     return `${t('pad.bombAt', data.carrier + 1, timeStr)}${roundTime}`;
   },
@@ -51,8 +57,8 @@ const STATUS_BUILDERS = {
     const isKing = data.king === i;
     const myTime = data.crownTimes ? (data.crownTimes[i] || 0).toFixed(1) : '0.0';
     const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    const time = Number.isFinite(data.timeLeft) ? ` • ⏱ ${Math.ceil(data.timeLeft)}s` : '';
-    if (isKing) return `${t('pad.kingYou', myTime)}${draw}${time}`;
+    const time = Number.isFinite(data.timeLeft) ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
+    if (isKing) return `${tIcon('pad.kingYou', myTime)}${draw}${time}`;
     if (data.king !== null && data.king !== undefined) return `${t('pad.kingAt', data.king + 1, myTime)}${draw}${time}`;
     return `${t('pad.crownFree', myTime)}${draw}${time}`;
   },
@@ -62,8 +68,8 @@ const STATUS_BUILDERS = {
     const leadPct = Array.isArray(data.pct) && data.leader >= 0 ? (data.pct[data.leader] ?? 0) : 0;
     const leadName = Array.isArray(data.names) && data.leader >= 0 ? (data.names[data.leader] || `P${data.leader + 1}`) : '';
     const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    if (data.leader === i) return `${t('pad.zoneLead', myPct, timeStr)}${draw}`;
-    return `${t('pad.zoneChase', timeStr, myPct, leadName, leadPct)}${draw}`;
+    if (data.leader === i) return `${tIcon('pad.zoneLead', myPct, timeStr)}${draw}`;
+    return `${tIcon('pad.zoneChase', timeStr, myPct, leadName, leadPct)}${draw}`;
   },
   SNAKE: (i, data) => {
     const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
@@ -71,38 +77,38 @@ const STATUS_BUILDERS = {
     if (dead) return t('pad.dead', data.scores.join('-'));
     const nrg = Array.isArray(data.nrg) ? (data.nrg[i] ?? 100) : 100;
     const locked = Array.isArray(data.lock) ? !!data.lock[i] : false;
-    const time = Number.isFinite(data.timeLeft) ? ` • ⏱ ${Math.ceil(data.timeLeft)}s` : '';
-    return `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.nrg', nrg)}${locked ? ` ${t('pad.locked')}` : ''} • ${t('pad.snakeAlive', aliveCount)}${time}`;
+    const time = Number.isFinite(data.timeLeft) ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
+    return `${t('pad.scoreJoin', data.scores.join('-'))} • ${tIcon('pad.nrg', nrg)}${locked ? ` ${t('pad.locked')}` : ''} • ${tIcon('pad.snakeAlive', aliveCount)}${time}`;
   },
   LASER: (i, data) => {
     const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
     const myHp = Array.isArray(data.hp) ? (data.hp[i] ?? 0) : 0;
     const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    return `${t('pad.scoreJoin', data.scores.join('-'))} • ❤${myHp} • ⏱ ${timeStr}${draw}`;
+    return `${tIcon('pad.scoreJoin', data.scores.join('-'))} • ${ICON.heart}${myHp} • ${ICON.timer} ${timeStr}${draw}`;
   },
   CLONE: (i, data) => {
     const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
     const dead = Array.isArray(data.alive) ? data.alive[i] === false : false;
     if (dead) return t('pad.dead', data.scores.join('-'));
-    const time = data.timeLeft !== undefined ? ` • ⏱ ${Math.ceil(data.timeLeft)}s` : '';
+    const time = data.timeLeft !== undefined ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
     const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    return `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.cloneAlive', aliveCount)}${time}${draw}`;
+    return `${t('pad.scoreJoin', data.scores.join('-'))} • ${tIcon('pad.cloneAlive', aliveCount)}${time}${draw}`;
   },
   COLLAPSE: (i, data) => {
     const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
     const dead = Array.isArray(data.alive) ? data.alive[i] === false : false;
     if (dead) return t('pad.dead', data.scores.join('-'));
-    const time = data.timeLeft !== undefined ? ` • ⏱ ${Math.ceil(data.timeLeft)}s` : '';
+    const time = data.timeLeft !== undefined ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
     const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    return `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.collapseAlive', aliveCount)}${time}${draw}`;
+    return `${t('pad.scoreJoin', data.scores.join('-'))} • ${tIcon('pad.collapseAlive', aliveCount)}${time}${draw}`;
   },
   NINJA: (i, data) => {
     const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
     const dead = Array.isArray(data.alive) ? data.alive[i] === false : false;
     if (dead) return t('pad.dead', data.scores.join('-'));
-    const time = data.timeLeft !== undefined ? ` • ⏱ ${Math.ceil(data.timeLeft)}s` : '';
+    const time = data.timeLeft !== undefined ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
     const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    return `${t('pad.scoreJoin', data.scores.join('-'))} • ${t('pad.ninjaAlive', aliveCount)}${time}${draw}`;
+    return `${t('pad.scoreJoin', data.scores.join('-'))} • ${tIcon('pad.ninjaAlive', aliveCount)}${time}${draw}`;
   },
   HORDE: (i, data) => {
     if (Array.isArray(data.alive) && data.alive[i] === false) {

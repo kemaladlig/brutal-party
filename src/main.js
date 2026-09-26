@@ -62,7 +62,7 @@ import './ui/views/lobbyView.js';
 import './ui/views/gamesView.js';
 import './ui/views/profileView.js';
 import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
-import { isFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
+import { isFullscreen, requestFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
 import { getTabletopIconSvg } from './core/tabletopIcons.js';
 import { getSlotSwapError } from './core/slotRules.js';
 import { getControlDescriptor } from './core/controlDescriptor.js';
@@ -149,6 +149,16 @@ const localGamepadManager = new GamepadManager(localMobileOverlay, {
   },
 }, { localMode: true });
 
+// Faz 2.4: LOCAL sonuç ekranı butonları yetkili host eylemlerine bağlanır.
+// Uzak kumanda bu bağı kullanmaz (host yetkisi dokunulmaz).
+localGamepadManager.onLocalResultAction = (action) => {
+  if (action === 'replay') {
+    try { getEngine(currentMode)?.start?.(); } catch {}
+  } else if (action === 'lobby') {
+    try { getEngine(currentMode)?.reset?.(); } catch {}
+  }
+};
+
 const inputRouter = new InputIntentRouter({
   getDescriptor: () => getControlDescriptor(currentMode, getControllerMeta(currentMode)?.schema),
   getEngine: getActiveGameEngine,
@@ -189,7 +199,17 @@ window.addEventListener('orientationchange', () => {
   setTimeout(resizeCanvas, 150);
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) neutralizeTransientInput();
+  if (document.hidden) {
+    neutralizeTransientInput();
+    return;
+  }
+  // Faz 3: dönüşte yön kilidi yenilenir; maç otomatik tam ekranla başladıysa
+  // geri istenir (Sekmeye/uygulamaya geçiş fullscreen veya kilidi düşürebilir).
+  if (currentMode !== 'MENU') {
+    lockLandscape();
+    if (matchFullscreenActive && !isFullscreen()) requestFullscreen();
+    requestHostWakeLock();
+  }
 });
 window.addEventListener('blur', () => {
   if (currentMode !== 'MENU') neutralizeTransientInput();
@@ -215,6 +235,9 @@ export async function setGameMode(mode) {
     currentMode = mode;
     localGamepadManager.hide();
     localMobileControlsActive = false;
+    // Faz 3: menüye dönüşte otomatik tam ekran hedefi ve host ekran kilidi bırakılır.
+    matchFullscreenActive = false;
+    releaseHostWakeLock();
     // Klavye sahipliği: yalnızca aktif motor dinler, diğerlerinin basılı tuş
     // haritası temizlenir (mod değişiminde takılı tuş kalmasın)
     forEachEngine((engineMode, entry) => {
@@ -1187,6 +1210,43 @@ function startEngineNow(mode) {
   syncLocalMobileControls();
 }
 
+// Faz 3 — yaşam döngüsü.
+// Maç başı tam ekran + yön kilidi; sekmeden/uygulamadan dönüşte ikisi de
+// yenilenir; masaüstü TV yalnız yön kilidi alır (tam ekranı manuel açar).
+let matchFullscreenActive = false;
+
+let hostWakeLock = null;
+async function requestHostWakeLock() {
+  if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
+  if (hostWakeLock) return;
+  try {
+    hostWakeLock = await navigator.wakeLock.request('screen');
+    hostWakeLock.addEventListener('release', () => {
+      hostWakeLock = null;
+    });
+  } catch {
+    hostWakeLock = null;
+  }
+}
+
+function releaseHostWakeLock() {
+  if (!hostWakeLock) return;
+  try { hostWakeLock.release(); } catch {}
+  hostWakeLock = null;
+}
+
+// BAŞLAT dokunuşu (kullanıcı hareketi) içinden çağrılır: yön kilidi istenir ve
+// dokunmatik cihazda otomatik tam ekrana geçilir. Host telefon hem oyun hem
+// kumanda olduğu için ekran açık tutulur (kapalı kumanda yüzeyi varsayılanı).
+function requestMatchChrome() {
+  lockLandscape();
+  if (isTouchDevice()) {
+    matchFullscreenActive = true;
+    if (!isFullscreen()) requestFullscreen();
+  }
+  requestHostWakeLock();
+}
+
 // BAŞLAT #1: sahayı aç — motor LOBBY'de arena gösterir, koltuk seçimi başlar
 async function enterStaging(mode) {
   // Sert renk engeli: aynı display rengine sahip iki insan koltuğu varken
@@ -1236,6 +1296,9 @@ function runCountdown() {
   if (enginePre) clearAllRemoteSlots(enginePre, mode);
   for (let i = 0; i < 4; i++) { delete lastRemoteInputAt[i]; delete lastMoveAt[i]; delete lastAimAt[i]; }
   seatsLocked = true;
+  // Faz 3: sayaç BAŞLAT dokunuşunun kullanıcı hareketi penceresinden tam ekran
+  // + yön kilidi + ekran açık tutma istenir.
+  requestMatchChrome();
   window.dispatchEvent(new CustomEvent('brutal_host_slots_changed'));
   let t = 3;
   const tick = () => {
@@ -1375,10 +1438,12 @@ function syncLocalMobileControls(now = performance.now()) {
   const engine = getActiveGameEngine();
   const localSlot = getLocalControlSlot(engine);
   const isLocalHost = isLocalHostPlayer();
+  // Faz 2.4: MATCH_OVER'da yüzey açık kalır (sonuç ekranı state paketini alır).
+  const activeState = engine?.state === 'PLAYING' || engine?.state === 'MATCH_OVER';
   const shouldShow = (platformMode === 'LOCAL' || isLocalHost)
     && getEffectiveLocalSurface(engine) === CONTROL_SURFACE.MOBILE
     && currentMode !== 'MENU'
-    && engine?.state === 'PLAYING'
+    && activeState
     && localSlot >= 0
     && !getIsPaused();
 
@@ -1405,6 +1470,20 @@ function syncLocalMobileControls(now = performance.now()) {
   const entry = getEngine(currentMode);
   if (!entry || typeof entry.packet !== 'function') return;
   const packet = { ...entry.packet(), gameMode: currentMode, phase: 'GAME' };
+  // Faz 2.4: LOCAL sonuç ekranı için state + skor tablosu verisi. Bu paket
+  // yalnız local kumandaya gider; uzak 8Hz protokolü değiştirilmez.
+  const game = entry.game;
+  if (game) {
+    packet.state = game.state;
+    if (Array.isArray(game.players)) {
+      packet.names = game.players.map((p) => p?.name || '');
+      packet.colors = game.players.map((p) => p?.color || '');
+    }
+    const mw = game.matchWinner;
+    packet.winner = (mw && Number.isInteger(mw.index))
+      ? { index: mw.index, name: mw.name || '', color: mw.color || '' }
+      : null;
+  }
   localGamepadManager.handleStateSync(packet);
   lastLocalControlSyncAt = now;
 }

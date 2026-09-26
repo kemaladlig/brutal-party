@@ -9,7 +9,7 @@
 #settings-modal,
 #join-room-modal,
 #customize-modal {
-  background: var(--scrim);
+  background: var(--scrim-strong);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
 }
@@ -30,6 +30,10 @@
   background: var(--grad-card);
   box-shadow: var(--shadow-float);
   overflow: hidden;
+  /* Geniş panel (sağ kenar) açıkken çentikli telefonlarda içerik
+     safe-area'ya girmez (Faz 2.5). */
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
 }
 
 /* Dokunmatikte alt sayfa, geniş ekranda sağ panel (aynı bileşen). */

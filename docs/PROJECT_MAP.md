@@ -10,24 +10,27 @@ Son doğrulama: Refactoring & Modülerleştirme sonrası (Eylül 2026).
 ```
 index.html                  Ana menü (bento kartlar), TV lobi modali, kumanda overlay iskeleti
 src/main.js                 Ana orkestratör: mod/oda akışı, ONLINE P1 host slotu, staging+sayaç,
-                            8Hz HUD/state + 30Hz P2P world broadcaster, render döngüsü
+                            8Hz HUD/state + 30Hz P2P world broadcaster, render döngüsü;
+                            LOCAL sonuç ekranı için state/names/colors/winner paketi + onLocalResultAction köprüsü (Faz 2.4);
+                            Faz 3 yaşam döngüsü: maç başı tam ekran + yön kilidi, visibility dönüşünde relock, host wake lock
 src/net.js                  Ağ seçici (LOCAL / TV_CONSOLE→WS / ONLINE→Supabase) + PUBLIC_URL, env bayrakları
 src/network.js              PartyNetwork: lokal WebSocket istemcisi (host + kumanda rolleri)
 src/supabaseRelay.js        ONLINE host/player tabloları, Supabase keşfi/signaling/fallback,
                             reliable control + unreliable world DataChannel yönlendirmesi
 src/webrtcManager.js        Star P2C manager: peer Map, SDP/ICE kuyruğu, control/world kanalları
 src/gamepad.js              Telefon kumandası: full-screen world canvas + overlay kontroller,
-                            koltuk ızgarası, skor şeridi, ready yönetimi, dokunmatik girdiler
+                            koltuk ızgarası, skor şeridi, ready yönetimi, dokunmatik girdiler;
+                            Faz 2 play chrome: radyal cooldown (--cd), kill-feed, LOCAL tam ekran sonuç, dokunma sesleri
 src/controllers/
   controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, ARCADE_DRIVE, TWO_BUTTON_STEER, SLIDER_1D, STEER_BOOST) + PONG canlı skorbord/falso senkronu; semantic layout target'ları
   gamepadInputAdapter.js   Transport'tan bağımsız 50ms analog throttle + dead-zone sınırı
   physicalGamepadAdapter.js Browser Gamepad API polling; touch/keyboard/pointer öncelikli ikincil kaynak
-  gamepadShell.js         GamepadManager'dan ayrılmış stabil shell/presenter markup'ı
+  gamepadShell.js         GamepadManager'dan ayrılmış stabil shell/presenter markup'ı; Faz 2: üst HUD şeridi + kill-feed + sonuç overlay kabı
   gamepadSchemas.js         15 oyun için deklaratif kumanda konfigürasyonları, canlı senkronizasyon hook'ları (BOMB/CROWN/HEIST uyarıları) + merkezi `def` referansı
   controlDefs.js            Merkezi kontrol sözleşmesi: sol (joystick/steer/slider/pedal) + sağ (max 2 aksiyon) + landscape-first politikası + nötr paket haritası; telefon + tabletop parite kaynağı
   controllerStatus.js       Üst durum şeridi metinleri (15 oyun, tek kayıt) — gamepad handleStateSync zincirsiz çağırır
   controllerGuide.js        CONTROL_DEFS + gamepad schema'dan türetilen görünür/semantik kontrol rehberi
-src/gamepad.css             Kumanda stilleri (neo-brutalist mobil ergonomi + canvas/control katmanları)
+src/gamepad.css             Kumanda stilleri (mobil ergonomi + canvas/control katmanları; üst bar kaldırıldı → yüzen çipler, lobi/skor/sayaç token'larla yeni sisteme)
 src/ui/gamepadWorldView.js  Generic client world-frame canvas: DPR, 3-8 snapshot jitter buffer, 60 Hz rAF sunum, seq/stale yönetimi
 src/ui/worldViewKit.js      World-view kromu (banner/placeholder/stale + fitWorld) — tüm renderer'lar tek kaynaktan
 src/ui/snakeWorldView.js    Client-only Snake world renderer; simülasyon/fizik çalıştırmaz
