@@ -185,7 +185,7 @@ const LUCIDE_REGISTRY = {
   },
   landmark: {
     id: 'landmark',
-    aliases: ['🏛️', 'statue', 'altar', 'fountain', '⛲', '🗿'],
+    aliases: ['🏛️', '🏟', 'stadium', 'statue', 'altar', 'fountain', '⛲', '🗿'],
     path: 'M3 22h18 M6 18v-7 M10 18v-7 M14 18v-7 M18 18v-7 M12 2l8 5H4z',
     mode: 'stroke',
   },
@@ -446,6 +446,36 @@ const LUCIDE_REGISTRY = {
     id: 'coins',
     aliases: ['💰', '🪙', 'coins', 'money'],
     path: 'M8 14a6 6 0 1 0 0-12 6 6 0 0 0 0 12z M18.09 10.37A6 6 0 1 1 10.34 18 M7 6h1v4 M16.71 13.88l.7.71-2.82 2.82',
+    mode: 'stroke',
+  },
+  scissors: {
+    id: 'scissors',
+    aliases: ['✂️', 'scissors', 'cut', 'snip'],
+    path: 'M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M20 4 8.12 15.88 M14.47 14.48 20 20 M8.12 8.12 12 12',
+    mode: 'stroke',
+  },
+  ghost: {
+    id: 'ghost',
+    aliases: ['👻', 'ghost', 'spook'],
+    path: 'M9 10h.01 M15 10h.01 M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z',
+    mode: 'stroke',
+  },
+  search: {
+    id: 'search',
+    aliases: ['🔍', 'search', 'shrink', 'zoom', 'magnifier'],
+    path: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35',
+    mode: 'stroke',
+  },
+  brick: {
+    id: 'brick',
+    aliases: ['🧱', 'brick', 'bricks', 'wall', 'thick'],
+    path: 'M3 3h18v18H3z M3 9h18 M3 15h18 M9 3v6 M15 3v6 M6 9v6 M18 9v6 M12 15v6',
+    mode: 'stroke',
+  },
+  banana: {
+    id: 'banana',
+    aliases: ['🍌', 'banana', 'slip', 'peel'],
+    path: 'M4 13c3.5-2 8-2 11.5 1.5 M5 17c4-3 9.5-3 14 1 M8 21c3-4 7-5 12-2 M3 9a14.5 14.5 0 0 1 18 0',
     mode: 'stroke',
   },
 };

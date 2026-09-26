@@ -136,6 +136,16 @@ export function getSeatColorDotRect(seatRect) {
   };
 }
 
+function pathRoundRect(ctx, x, y, w, h, r) {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+  }
+}
+
 export function renderLobbySeatCard(ctx, {
   x,
   y,
@@ -153,6 +163,7 @@ export function renderLobbySeatCard(ctx, {
   const isBot = slotType === 'bot_normal' || slotType === 'bot_god';
   const isBotGod = slotType === 'bot_god';
   const isEmpty = !isHuman && !isBot;
+  const r = Math.min(16, w * 0.16);
 
   ctx.save();
   ctx.translate(x + w / 2, y + h / 2);
@@ -167,13 +178,19 @@ export function renderLobbySeatCard(ctx, {
 
   if (isEmpty) {
     // 1. BOŞ KOLTUK
+    ctx.fillStyle = 'rgba(20, 16, 31, 0.12)';
+    pathRoundRect(ctx, -halfW, -halfH + 3, w, h, r);
+    ctx.fill();
+
     ctx.fillStyle = UI_COLORS.card;
-    ctx.fillRect(-halfW, -halfH, w, h);
+    pathRoundRect(ctx, -halfW, -halfH, w, h, r);
+    ctx.fill();
 
     ctx.strokeStyle = UI_COLORS.faint;
     ctx.lineWidth = 2;
     ctx.setLineDash([5, 4]);
-    ctx.strokeRect(-halfW, -halfH, w, h);
+    pathRoundRect(ctx, -halfW, -halfH, w, h, r);
+    ctx.stroke();
     ctx.setLineDash([]);
 
     // Koltuk rozeti (P1..P4 sembolü)
@@ -191,18 +208,22 @@ export function renderLobbySeatCard(ctx, {
   } else if (isHuman) {
     // 2. OYUNCU (HUMAN)
     const effectiveColor = seatColor || playerColor;
-    // Solid 4px Shadow
-    ctx.fillStyle = UI_COLORS.ink;
-    ctx.fillRect(-halfW + 4, -halfH + 4, w, h);
+    
+    // Tactile Soft Shadow
+    ctx.fillStyle = 'rgba(20, 16, 31, 0.28)';
+    pathRoundRect(ctx, -halfW, -halfH + 4, w, h, r);
+    ctx.fill();
 
     // Card Face: Krem
     ctx.fillStyle = UI_COLORS.card;
-    ctx.fillRect(-halfW, -halfH, w, h);
+    pathRoundRect(ctx, -halfW, -halfH, w, h, r);
+    ctx.fill();
 
     // Bold Color Border
     ctx.strokeStyle = effectiveColor;
     ctx.lineWidth = 3.5;
-    ctx.strokeRect(-halfW, -halfH, w, h);
+    pathRoundRect(ctx, -halfW, -halfH, w, h, r);
+    ctx.stroke();
 
     const avatarR = Math.min(24, Math.round(Math.min(w, h) * 0.26));
     const avatarY = playerName ? -halfH + avatarR + 10 : 0;
@@ -235,18 +256,21 @@ export function renderLobbySeatCard(ctx, {
     // 3. BOT (ÖZGÜN BOT PERSONA & KARAKTER KİMLİĞİ)
     const persona = getBotPersona(slotIndex, isBotGod);
 
-    // Solid Shadow
-    ctx.fillStyle = UI_COLORS.ink;
-    ctx.fillRect(-halfW + 4, -halfH + 4, w, h);
+    // Tactile Soft Shadow
+    ctx.fillStyle = 'rgba(20, 16, 31, 0.32)';
+    pathRoundRect(ctx, -halfW, -halfH + 4, w, h, r);
+    ctx.fill();
 
     // Dark Charcoal Face
     ctx.fillStyle = UI_COLORS.botFace;
-    ctx.fillRect(-halfW, -halfH, w, h);
+    pathRoundRect(ctx, -halfW, -halfH, w, h, r);
+    ctx.fill();
 
     // High Contrast Border
     ctx.strokeStyle = persona.color;
     ctx.lineWidth = isBotGod ? 3.5 : 2.5;
-    ctx.strokeRect(-halfW, -halfH, w, h);
+    pathRoundRect(ctx, -halfW, -halfH, w, h, r);
+    ctx.stroke();
 
     const avatarR = Math.min(24, Math.round(Math.min(w, h) * 0.26));
     const avatarY = -halfH + avatarR + 10;
@@ -342,19 +366,48 @@ export function renderLobbyStartButton(ctx, {
   const btnY = arena.cy - btnH / 2 + centerYOffset;
   const ready = joinedCount >= minJoined;
 
+  const r = 16;
+  const shadowY = 4;
+  const bottomRim = ready ? 5 : 3;
+
   ctx.save();
-  ctx.fillStyle = UI_COLORS.ink;
-  ctx.fillRect(btnX + 5, btnY + 5, btnW, btnH);
+  // 1. Soft Shadow
+  ctx.fillStyle = 'rgba(10, 8, 24, 0.35)';
+  pathRoundRect(ctx, btnX, btnY + shadowY, btnW, btnH, r);
+  ctx.fill();
+
+  // 2. Base 3D Bottom Lip
+  ctx.fillStyle = ready ? (accent === '#D84727' ? '#A8321B' : '#B46605') : '#3D3430';
+  pathRoundRect(ctx, btnX, btnY, btnW, btnH, r);
+  ctx.fill();
+
+  // 3. Main Face (Raised)
   ctx.fillStyle = ready ? accent : UI_COLORS.disabled;
-  ctx.fillRect(btnX, btnY, btnW, btnH);
-  ctx.strokeStyle = UI_COLORS.line;
-  ctx.lineWidth = 3;
-  ctx.strokeRect(btnX, btnY, btnW, btnH);
+  pathRoundRect(ctx, btnX, btnY, btnW, btnH - bottomRim, [r, r, Math.max(2, r * 0.4), Math.max(2, r * 0.4)]);
+  ctx.fill();
+
+  // 4. Subtle Top Bevel Highlight (when ready)
+  if (ready) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(btnX + r, btnY + 1.5);
+    ctx.lineTo(btnX + btnW - r, btnY + 1.5);
+    ctx.stroke();
+  }
+
+  // 5. Border
+  ctx.strokeStyle = ready ? (accent === '#D84727' ? '#7A2210' : '#8A4A00') : UI_COLORS.line;
+  ctx.lineWidth = 2.5;
+  pathRoundRect(ctx, btnX, btnY, btnW, btnH, r);
+  ctx.stroke();
+
+  // 6. Text
   ctx.fillStyle = ready ? textColor : UI_COLORS.muted;
   ctx.font = ready ? uiFont('button') : uiFont('body');
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(ready ? t('pause.resume') : t('canvas.need2'), arena.cx, btnY + btnH / 2);
+  ctx.fillText(ready ? t('pause.resume') : t('canvas.need2'), arena.cx, btnY + (btnH - bottomRim) / 2);
   ctx.restore();
 
   if (ready) {

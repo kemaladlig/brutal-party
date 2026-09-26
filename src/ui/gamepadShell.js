@@ -7,6 +7,11 @@ import { t } from '../i18n.js';
 
 function renderLayoutButton() {
   const label = t('controllerLayout.open');
+  return `<button class="btn-controller-layout" data-controller-layout-open type="button" data-i18n-aria="controllerLayout.open" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${getTabletopIconSvg('settings', { size: 17, color: '#141414', strokeWidth: 2.3 })}</button>`;
+}
+
+function renderMenuLayoutItem() {
+  const label = t('controllerLayout.open');
   return `<button class="gamepad-menu-item" data-controller-layout-open type="button" data-i18n-aria="controllerLayout.open" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${getTabletopIconSvg('settings', { size: 16, color: '#141414', strokeWidth: 2.3 })}<span>${escapeHtml(label)}</span></button>`;
 }
 
@@ -22,7 +27,7 @@ function renderMenuPanel({ showLayoutEditor = true }) {
   return `
     <div class="gamepad-menu-panel hidden" id="gamepad-menu-panel">
       <button class="gamepad-menu-item" id="btn-toggle-emoji" type="button" data-i18n-aria="pad.reactTitle" aria-label="${escapeHtml(reactLabel)}" title="${escapeHtml(reactLabel)}">${getTabletopIconSvg('message_square', { size: 16, color: '#141414', strokeWidth: 2.3 })}<span>${escapeHtml(reactLabel)}</span></button>
-      ${showLayoutEditor ? renderLayoutButton() : ''}
+      ${showLayoutEditor ? renderMenuLayoutItem() : ''}
       <button class="gamepad-menu-item" id="btn-fullscreen-toggle" type="button" aria-label="${escapeHtml(fullscreenLabel)}" title="${escapeHtml(fullscreenLabel)}">${getTabletopIconSvg('maximize_2', { size: 16, color: '#141414', strokeWidth: 2.3 })}<span>${escapeHtml(fullscreenLabel)}</span></button>
       <button class="gamepad-menu-item is-danger" id="btn-leave-gamepad" type="button" aria-label="${escapeHtml(leaveLabel)}" title="${escapeHtml(leaveLabel)}">${getTabletopIconSvg('log_out', { size: 16, color: '#141414', strokeWidth: 2.3 })}<span>${escapeHtml(leaveLabel)}</span></button>
     </div>

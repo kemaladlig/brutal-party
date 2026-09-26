@@ -29,6 +29,16 @@ import { AimInputState, getAimAction } from './aimInput.js';
 
 const STEER_KEY_HINTS = ['A/D', '←/→', 'J/L', 'F/H'];
 
+function pathRoundRect(ctx, x, y, w, h, r) {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+  }
+}
+
 export class BaseMiniGame {
   constructor(canvas) {
     this.canvas = canvas;
@@ -1153,13 +1163,17 @@ export class BaseMiniGame {
         ctx.globalAlpha = this.getControlAlpha(isNear ? 0.20 : 0.85, false, isNear);
 
         // Çip gölgesi ve gövdesi
-        ctx.fillStyle = '#141416';
-        ctx.fillRect(-chipW / 2 + 2, -chipH / 2 + 2, chipW, chipH);
-        ctx.fillStyle = '#FAF7F2';
-        ctx.fillRect(-chipW / 2, -chipH / 2, chipW, chipH);
-        ctx.strokeStyle = '#1A1A1A';
+        const chipR = chipH / 2;
+        ctx.fillStyle = 'rgba(20, 16, 31, 0.18)';
+        pathRoundRect(ctx, -chipW / 2, -chipH / 2 + 2, chipW, chipH, chipR);
+        ctx.fill();
+        ctx.fillStyle = UI_COLORS.card || '#FAF7F2';
+        pathRoundRect(ctx, -chipW / 2, -chipH / 2, chipW, chipH, chipR);
+        ctx.fill();
+        ctx.strokeStyle = UI_COLORS.faint || '#8C8175';
         ctx.lineWidth = 1.5;
-        ctx.strokeRect(-chipW / 2, -chipH / 2, chipW, chipH);
+        pathRoundRect(ctx, -chipW / 2, -chipH / 2, chipW, chipH, chipR);
+        ctx.stroke();
 
         // Slot renk noktası
         ctx.fillStyle = playerColor;
@@ -1191,21 +1205,25 @@ export class BaseMiniGame {
 
           const halfW = sBtn.w / 2;
           const halfH = sBtn.h / 2;
+          const sR = Math.min(14, sBtn.h * 0.28);
           const shadow = active ? 1 : 3;
           const offset = active ? 2 : 0;
 
-          // Sert Brutalist Gölge
-          ctx.fillStyle = '#141416';
-          ctx.fillRect(-halfW + shadow, -halfH + shadow, sBtn.w, sBtn.h);
+          // Tactile Soft Shadow
+          ctx.fillStyle = 'rgba(20, 16, 31, 0.28)';
+          pathRoundRect(ctx, -halfW, -halfH + shadow, sBtn.w, sBtn.h, sR);
+          ctx.fill();
 
           // Buton Gövdesi
           ctx.fillStyle = active ? `${playerColor}33` : '#FAF7F2';
-          ctx.fillRect(-halfW + offset, -halfH + offset, sBtn.w, sBtn.h);
+          pathRoundRect(ctx, -halfW + offset, -halfH + offset, sBtn.w, sBtn.h, sR);
+          ctx.fill();
 
           // Kenarlık
-          ctx.strokeStyle = active ? playerColor : '#1A1A1A';
+          ctx.strokeStyle = active ? playerColor : '#2B2018';
           ctx.lineWidth = active ? 2.5 : 2;
-          ctx.strokeRect(-halfW + offset, -halfH + offset, sBtn.w, sBtn.h);
+          pathRoundRect(ctx, -halfW + offset, -halfH + offset, sBtn.w, sBtn.h, sR);
+          ctx.stroke();
 
           // Vektör Direksiyon İkonu (◀ / ▶)
           const steerIconColor = active ? playerColor : '#1A1A1A';
@@ -1371,34 +1389,46 @@ export class BaseMiniGame {
 
           const halfW = btn.w / 2;
           const halfH = btn.h / 2;
+          const bR = Math.min(14, btn.w * 0.28);
           const shadow = isPressed ? 1 : 3;
           const offset = isPressed ? 2 : 0;
 
-          // Sert Brutalist Gölge
-          ctx.fillStyle = '#141416';
-          ctx.fillRect(-halfW + shadow, -halfH + shadow, btn.w, btn.h);
+          // Tactile Soft Shadow
+          ctx.fillStyle = 'rgba(20, 16, 31, 0.28)';
+          pathRoundRect(ctx, -halfW, -halfH + shadow, btn.w, btn.h, bR);
+          ctx.fill();
 
           // Buton Gövdesi
           ctx.fillStyle = isReady ? (isPressed ? '#E0DFDC' : '#FAF7F2') : '#2A2A2E';
-          ctx.fillRect(-halfW + offset, -halfH + offset, btn.w, btn.h);
+          pathRoundRect(ctx, -halfW + offset, -halfH + offset, btn.w, btn.h, bR);
+          ctx.fill();
 
           // Cooldown Dolum Maskesi (Aşağıdan yukarıya kararır)
           if (!isReady && maxCooldown > 0) {
             const frac = Math.max(0, Math.min(1, cooldown / maxCooldown));
+            ctx.save();
+            pathRoundRect(ctx, -halfW + offset, -halfH + offset, btn.w, btn.h, bR);
+            ctx.clip();
             ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
             ctx.fillRect(-halfW + offset, halfH + offset - btn.h * frac, btn.w, btn.h * frac);
+            ctx.restore();
           }
 
           // Charge Barı (Sarı altın yay gerilme dolumu)
           if (chargeRatio > 0) {
+            ctx.save();
+            pathRoundRect(ctx, -halfW + offset, -halfH + offset, btn.w, btn.h, bR);
+            ctx.clip();
             ctx.fillStyle = 'rgba(255, 222, 89, 0.55)';
             ctx.fillRect(-halfW + offset, halfH + offset - btn.h * chargeRatio, btn.w, btn.h * chargeRatio);
+            ctx.restore();
           }
 
           // Kenarlık
           ctx.strokeStyle = isReady ? playerColor : '#555555';
           ctx.lineWidth = isReady ? 2.5 : 1.5;
-          ctx.strokeRect(-halfW + offset, -halfH + offset, btn.w, btn.h);
+          pathRoundRect(ctx, -halfW + offset, -halfH + offset, btn.w, btn.h, bR);
+          ctx.stroke();
 
           // Yetenek Doldu "Ready!" Vurgusu (Tactile shockwave ring)
           const pulseStart = this._readyPulseTracker[pulseKey] || 0;
@@ -1410,7 +1440,8 @@ export class BaseMiniGame {
             ctx.strokeStyle = playerColor;
             ctx.lineWidth = Math.max(1.5, 3.5 * (1 - pNorm));
             ctx.globalAlpha = (1 - pNorm) * 0.9;
-            ctx.strokeRect(-halfW + offset - expand, -halfH + offset - expand, btn.w + expand * 2, btn.h + expand * 2);
+            pathRoundRect(ctx, -halfW + offset - expand, -halfH + offset - expand, btn.w + expand * 2, btn.h + expand * 2, bR + expand);
+            ctx.stroke();
             ctx.restore();
           }
 

@@ -140,16 +140,20 @@ Maç başında fullscreen + `lock('landscape')`, resume'da relock, wake lock, iO
 
 ## Faz 4 — Asset'ler
 
-- [ ] 4.1 15 oyun ikonu yeni dilde. AGENTS.md §10 formülüne göre prompt listesi, görseli kullanıcı üretir. Önce `public/assets/games/` temizliği: `horde-1.jpg`, `race-1.jpg`, `horde.bak.jpg`, `race.bak.jpg` (~3.5 MB) dead weight.
-- [ ] 4.2 PWA ikonları: `scripts/generate-icons.mjs` sharp+SVG; SVG yeni dile göre güncellenir. Not: `@google/genai` bağımlılığı **kullanılmıyor** — istenirse 4.1'i bir script'e yazabiliriz, anahtar `.env`'den okunur (commit edilmez).
-- [ ] 4.3 Avatar hacim: `characterRenderer.js` + `avatarInGame.js`'e yumuşak üst ışık + alt gölge. Siluet ve yazısız kimlik kuralı korunur.
-- [ ] 4.4 Font: gövde Space Grotesk kalır, başlık için yuvarlak display face (opsiyonel, PWA'da cache'lenir).
+- [x] 4.1 **Görsel Asset Yönetimi & Dizin Temizliği:** `public/assets/games/` dizinindeki eski/yedek dosyalar temizlendi (yalnızca 15 aktif oyun kapağı tutuluyor). Görseller harici script'lerle değil, doğrudan AI `generate_image` aracı ile üretilir.
+- [x] 4.2 **Avatar Hacim & Işık:** `characterRenderer.js` + `avatarInGame.js` disk içi dinamik hacim (`playFaceShading`: sol-üst yumuşak ışık + sağ-alt yumuşak gölge) ve zemin gölgesi ile derinlik kazandırıldı. Tam yuvarlak siluet ve kimlik kuralları korundu.
+- [ ] 4.3 **15 Oyun Kapak Görseli:** Yeni konsol teması ve neo-brutalist Brawl Stars estetiğine göre AI `generate_image` aracıyla ihtiyaç duyuldukça yenilenir.
 
 ---
 
-## Faz 5 (opsiyonel) — Canvas içi sanat
+## Faz 5 — Canvas içi sanat (Oyun İçi Görsel Yenileme)
 
-`arenaKit.drawObstacle`, `drawPickup`, `avatarInGame`, 15 `*View.js` renderer'ı yumuşak gölgeli Brawl diline. Oyun başına artı, ayrı iş, kapsam dışı bırakıldı.
+- [x] **5.1 Vektör İkonografi (`tabletopIcons.js`):** Eksik Lucide SVG ikonları (`scissors`, `ghost`, `search`, `brick`, `banana`, `landmark`/stadium) eklendi; canvas ve DOM UI'dan ham OS emojileri tamamen temizlendi.
+- [x] **5.2 Dokunsal Engeller (`arenaKit.drawObstacle`):** Yuvarlatılmış köşeler (`pathRoundRect`), 3B basık alt kenar/derinlik, üst bevel ışık parıltısı ve yumuşak zemin gölgesi uygulandı (`crate`, `stone`, `dark` varyantları). Tüm `*View.js` motorlarındaki sert 90° kutu çizimleri ortak fonksiyona bağlandı.
+- [x] **5.3 Canlı Power-up Rozetleri (`arenaKit.drawPickup`):** Canlı renkli dairesel rozetler, hafif puls aura (glow), yumuşak zemin gölgesi, üst parlaklık ve net Lucide vektör ikonları ile yenilendi.
+- [x] **5.4 Masa-ortası ve Yerel Kontroller (`BaseGame.js`):** Dokunsal yuvarlak direksiyon butonları (`◀ / ▶`), slot rozetleri ve yumuşak gölgeli yuvarlak aksiyon butonları (`roundRect` clip, şarj ve hazır aurası).
+- [x] **5.5 HUD, Skor Tabloları ve Banner'lar (`hud.js` & `worldViewKit.js`):** Yuvarlak top-pill'ler, Lucide taç ikonlu ve pill kartlı evrensel skor tahtası, yumuşak gölgeli maç sonu/raunt kartları ve dokunsal butonlar.
+- [x] **5.6 Başlatma ve İkon Yuvaları (`main.js` & `iconSlots.js`):** DOM HUD (`#in-game-hud`, `#staging-bar`) `hydrateIconSlots` ile otomatik SVG'ye dönüştürüldü; menü arka planı koyu konsol rengine (`UI_COLORS.bg`) bağlandı.
 
 ---
 

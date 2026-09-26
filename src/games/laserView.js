@@ -4,7 +4,7 @@
 // Not: nişan önizleme çizgileri host'un saf `traceAim` raycast'inden snapshot'a
 // taşınır (client raycast çalıştırmaz); sayaç filigranı host HUD'udur.
 
-import { drawPickup } from '../core/arenaKit.js';
+import { drawPickup, drawObstacle } from '../core/arenaKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
 import { renderEntityHUD, renderFireCooldown } from '../ui/hud.js';
@@ -191,30 +191,7 @@ export function drawLaserArena(ctx, arena, obstacles, walls) {
   }
 
   for (const obs of obstacles) {
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(obs.x + 4, obs.y + 4, obs.w, obs.h);
-    ctx.fillStyle = '#262624';
-    ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = Math.max(1.5, 2.5 * u);
-    ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
-    ctx.strokeStyle = '#5A5A52';
-    ctx.lineWidth = Math.max(1, 1.5 * u);
-    ctx.beginPath();
-    ctx.moveTo(obs.x + 2, obs.y + obs.h - 2);
-    ctx.lineTo(obs.x + 2, obs.y + 2);
-    ctx.lineTo(obs.x + obs.w - 2, obs.y + 2);
-    ctx.stroke();
-    if (obs.w >= 28 && obs.h >= 28) {
-      ctx.strokeStyle = '#3A3A34';
-      ctx.lineWidth = Math.max(1, 1.5 * u);
-      ctx.beginPath();
-      ctx.moveTo(obs.x + 6, obs.y + 6);
-      ctx.lineTo(obs.x + obs.w - 6, obs.y + obs.h - 6);
-      ctx.moveTo(obs.x + obs.w - 6, obs.y + 6);
-      ctx.lineTo(obs.x + 6, obs.y + obs.h - 6);
-      ctx.stroke();
-    }
+    drawObstacle(ctx, obs, { variant: 'stone' });
   }
 
   for (const mw of walls) {
@@ -234,16 +211,12 @@ export function drawLaserArena(ctx, arena, obstacles, walls) {
     }
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = '#262626';
-    ctx.fillRect(mw.x, mw.y, mw.w, mw.h);
-    ctx.strokeStyle = '#111111';
-    ctx.lineWidth = Math.max(1, 2 * u);
-    ctx.strokeRect(mw.x, mw.y, mw.w, mw.h);
+    drawObstacle(ctx, mw, { variant: 'dark' });
     ctx.fillStyle = '#EAB308';
     if (mw.axis === 'y') {
-      ctx.fillRect(mw.x + 2, mw.y + mw.h * 0.3, mw.w - 4, mw.h * 0.4);
+      ctx.fillRect(mw.x + 3, mw.y + mw.h * 0.35, mw.w - 6, mw.h * 0.3);
     } else {
-      ctx.fillRect(mw.x + mw.w * 0.3, mw.y + 2, mw.w * 0.4, mw.h - 4);
+      ctx.fillRect(mw.x + mw.w * 0.35, mw.y + 3, mw.w * 0.3, mw.h - 6);
     }
     ctx.restore();
   }

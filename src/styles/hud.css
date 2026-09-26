@@ -19,6 +19,7 @@
   background-color: var(--yellow);
   color: var(--ink);
   border: 3px solid var(--edge);
+  border-radius: var(--radius-btn);
   box-shadow: 3px 3px 0 var(--edge-strong);
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 800;
@@ -27,6 +28,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -50,6 +52,7 @@
   background-color: var(--panel);
   color: var(--ink);
   border: 3px solid var(--edge);
+  border-radius: var(--radius-btn);
   box-shadow: 3px 3px 0 var(--edge-strong);
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 900;
@@ -77,6 +80,7 @@
   background-color: var(--panel);
   color: var(--ink);
   border: 3px solid var(--edge);
+  border-radius: var(--radius-btn);
   box-shadow: 3px 3px 0 var(--edge-strong);
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 900;

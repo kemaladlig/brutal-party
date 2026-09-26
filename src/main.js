@@ -45,6 +45,7 @@ import {
 } from './ui/pauseModal.js';
 import { initJoinModal, openJoinModal } from './ui/joinModal.js';
 import { initSettingsModal, openSettingsModal } from './ui/settingsModal.js';
+import { hydrateIconSlots } from './ui/iconSlots.js';
 import {
   mountAppShell,
   openView,
@@ -1914,7 +1915,7 @@ function loop(timestamp) {
     }
   } else if (currentMode === 'MENU') {
     ctx2d.save();
-    ctx2d.fillStyle = '#F4F4F0';
+    ctx2d.fillStyle = UI_COLORS.bg || '#14101F';
     ctx2d.fillRect(0, 0, window.innerWidth, window.innerHeight);
     ctx2d.restore();
   }
@@ -1933,6 +1934,8 @@ function loop(timestamp) {
 // Initial Setup
 resizeCanvas();
 setShellPlatformMode(platformMode);
+hydrateIconSlots(document);
+hydrateIconSlots(document, 'lobbyIcon', { size: 18, strokeWidth: 2.3 });
 mountAppShell({
   platformMode,
   actions: {

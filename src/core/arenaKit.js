@@ -1,37 +1,38 @@
 // Ortak arena görsel kiti — engeller, layout oluşturma ve power-up rozetleri tek yerden.
 // Motorlar buildLayout(name, arena) çağırabilir; ÇİZİM (drawObstacle, drawPickup) buradan gelir.
+import { drawTabletopIcon, hasTabletopIcon } from './tabletopIcons.js';
 
 export const PICKUP_META = {
-  TURBO:       { label: 'TRB', glyph: '⚡', color: '#FFDE59', ink: '#1C1C1A' },
-  FAST:        { label: 'HIZ', glyph: '⚡', color: '#FFDE59', ink: '#1C1C1A' },
-  SPEED:       { label: 'HIZ', glyph: '⚡', color: '#FFDE59', ink: '#1C1C1A' },
-  TELEPORT:    { label: 'TEL', glyph: '🌀', color: '#48CAE4', ink: '#1C1C1A' },
-  SLIP:        { label: 'KAY', glyph: '🍌', color: '#FCD34D', ink: '#1C1C1A' },
-  MULTI:       { label: '3OK', glyph: '🎯', color: '#8B5CF6', ink: '#FFFFFF' },
-  QUICKDRAW:   { label: 'ÇEK', glyph: '🏹', color: '#F97316', ink: '#1C1C1A' },
-  SHIELD:      { label: 'KLK', glyph: '🛡️', color: '#06B6D4', ink: '#1C1C1A' },
-  TRIPLE:      { label: '3×',  glyph: '💥', color: '#E63946', ink: '#FFFFFF' },
-  SCISSORS:    { label: 'KES', glyph: '✂️', color: '#D99B26', ink: '#1C1C1A' },
-  GHOST:       { label: 'HAY', glyph: '👻', color: '#94A3B8', ink: '#1C1C1A' },
-  INVERT:      { label: 'TERS',glyph: '🔃', color: '#A78BFA', ink: '#1C1C1A' },
-  SHRINK:      { label: 'KÜÇ', glyph: '🔍', color: '#38BDF8', ink: '#1C1C1A' },
-  FREEZE:      { label: 'BUZ', glyph: '❄️', color: '#BAE6FD', ink: '#1C1C1A' },
-  BOMB:        { label: 'PAT', glyph: '💣', color: '#EF4444', ink: '#FFFFFF' },
-  THICK:       { label: 'KAL', glyph: '🧱', color: '#A8A29E', ink: '#1C1C1A' },
-  WALL:        { label: 'DUV', glyph: '🧱', color: '#E59866', ink: '#1C1C1A' },
-  SLOW:        { label: 'YAV', glyph: '🐢', color: '#3B82F6', ink: '#FFFFFF' },
-  GOLDEN_STAR: { label: '★',   glyph: '⭐', color: '#FFD700', ink: '#1C1C1A' },
-  TURBO_BERRY: { label: 'HIZ', glyph: '🍓', color: '#F43F5E', ink: '#FFFFFF' },
-  FLASH:       { label: 'HIZ', glyph: '⚡', color: '#FFD122', ink: '#1C1C1A' },
-  SEISMIC:     { label: 'DAR', glyph: '💥', color: '#FF473A', ink: '#FFFFFF' },
-  SUPER_JUMP:  { label: 'ZIP', glyph: '🦘', color: '#FFDE59', ink: '#1C1C1A' },
-  REPAIR_TILES:{ label: 'TAM', glyph: '🔨', color: '#2F6A4F', ink: '#FFFFFF' },
+  TURBO:        { label: 'TRB', icon: 'zap', glyph: '⚡', color: '#FFB020', ink: '#241C15' },
+  FAST:         { label: 'HIZ', icon: 'zap', glyph: '⚡', color: '#FFB020', ink: '#241C15' },
+  SPEED:        { label: 'HIZ', icon: 'zap', glyph: '⚡', color: '#FFB020', ink: '#241C15' },
+  TELEPORT:     { label: 'TEL', icon: 'rotate-cw', glyph: '🌀', color: '#2BA6E8', ink: '#081D2E' },
+  SLIP:         { label: 'KAY', icon: 'banana', glyph: '🍌', color: '#FFD24A', ink: '#2E2203' },
+  MULTI:        { label: '3OK', icon: 'crosshair', glyph: '🎯', color: '#9B5DE5', ink: '#FFFFFF' },
+  QUICKDRAW:    { label: 'ÇEK', icon: 'target', glyph: '🏹', color: '#FF8C1A', ink: '#2A1400' },
+  SHIELD:       { label: 'KLK', icon: 'shield', glyph: '🛡️', color: '#0EA5E9', ink: '#06283D' },
+  TRIPLE:       { label: '3×',  icon: 'flame', glyph: '💥', color: '#E63946', ink: '#FFFFFF' },
+  SCISSORS:     { label: 'KES', icon: 'scissors', glyph: '✂️', color: '#F59E0B', ink: '#291800' },
+  GHOST:        { label: 'HAY', icon: 'ghost', glyph: '👻', color: '#94A3B8', ink: '#0F172A' },
+  INVERT:       { label: 'TERS',icon: 'rotate-ccw', glyph: '🔃', color: '#A78BFA', ink: '#241442' },
+  SHRINK:       { label: 'KÜÇ', icon: 'search', glyph: '🔍', color: '#38BDF8', ink: '#082F49' },
+  FREEZE:       { label: 'BUZ', icon: 'snowflake', glyph: '❄️', color: '#38BDF8', ink: '#082F49' },
+  BOMB:         { label: 'PAT', icon: 'bomb', glyph: '💣', color: '#EF4444', ink: '#FFFFFF' },
+  THICK:        { label: 'KAL', icon: 'brick', glyph: '🧱', color: '#A8A29E', ink: '#1C1917' },
+  WALL:         { label: 'DUV', icon: 'brick', glyph: '🧱', color: '#F97316', ink: '#2A1400' },
+  SLOW:         { label: 'YAV', icon: 'hourglass', glyph: '⏳', color: '#3B82F6', ink: '#FFFFFF' },
+  GOLDEN_STAR:  { label: '★',   icon: 'star', glyph: '⭐', color: '#FFD700', ink: '#2A1E00' },
+  TURBO_BERRY:  { label: 'HIZ', icon: 'sparkles', glyph: '✨', color: '#F43F5E', ink: '#FFFFFF' },
+  FLASH:        { label: 'HIZ', icon: 'zap', glyph: '⚡', color: '#FFD122', ink: '#241C15' },
+  SEISMIC:      { label: 'DAR', icon: 'flame', glyph: '💥', color: '#FF473A', ink: '#FFFFFF' },
+  SUPER_JUMP:   { label: 'ZIP', icon: 'chevrons-up', glyph: '🦘', color: '#FFB020', ink: '#241C15' },
+  REPAIR_TILES: { label: 'TAM', icon: 'hammer', glyph: '🔨', color: '#35B36A', ink: '#FFFFFF' },
 };
 
 const OBSTACLE_STYLES = {
-  stone: { fill: '#4A4440', bevel: 'rgba(255,255,255,0.22)', inner: '#2A2624' },
-  dark:  { fill: '#1A1A1A', bevel: 'rgba(255,255,255,0.18)', inner: '#3A3A3A' },
-  crate: { fill: '#8A6A3B', bevel: 'rgba(255,255,255,0.28)', inner: '#5C4526' },
+  stone: { top: '#5A524C', fill: '#433D39', bevel: 'rgba(255,255,255,0.22)', edge: '#23201D', shadow: 'rgba(20, 16, 31, 0.32)' },
+  dark:  { top: '#302A3D', fill: '#221D2E', bevel: 'rgba(255,255,255,0.18)', edge: '#130F1A', shadow: 'rgba(10, 8, 20, 0.42)' },
+  crate: { top: '#9A7745', fill: '#7A5B32', bevel: 'rgba(255,255,255,0.24)', edge: '#4C351B', shadow: 'rgba(20, 16, 31, 0.32)' },
 };
 
 // ---------------------------------------------------------------------------
@@ -357,90 +358,127 @@ function buildSquareLayout(name, arena, minPassage) {
   ];
 }
 
-// Neo-brutalist engel bloğu: sert gölge, düz dolgu, kalın kenar, iç bevel, perçinler.
-//
-// Krom ÖLÇEKLİDİR: 3px çerçeve / 5px gölge / 8px perçin iç boşluğu sabit
-// yazılınca 41px'lik bir mobil bloğun silueti tamamen kroma ile yiyordu
-// (telefonda blok, masaüstündeki 152px bloğun yarısı kadardı). `u` bloğun
-// KENDİ boyutundan türetilir, yani sahadan ve cihazdan bağımsızdır: her
-// boyutta aynı görsel oran.
+function pathRoundRect(ctx, x, y, w, h, r) {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+  }
+}
+
+// Tactile Brawl Stars tarzı engel bloğu: yuvarlak köşeler, 3B basık alt kenar, üst bevel ışığı ve yumuşak zemin gölgesi.
 export function drawObstacle(ctx, obs, opts = {}) {
   const style = OBSTACLE_STYLES[opts.variant || 'stone'] || OBSTACLE_STYLES.stone;
   const { x, y, w, h } = obs;
-  // 48px referans: bu boyuttaki blokta krom tam olarak eski değerlere denk gelir.
   const u = Math.max(0.42, Math.min(1.5, Math.min(w, h) / 48));
-  const shadow = 5 * u;
-  const border = 3 * u;
-  const bevelInset = 6 * u;
-  const bevelWidth = 2 * u;
-  const rivetInset = 8 * u;
-  const rivetR = 3 * u;
+  const r = Math.max(3, Math.min(10 * u, Math.min(w, h) * 0.22));
+  const border = Math.max(1.5, 2.2 * u);
+  const bottomRim = Math.max(2, 3.5 * u);
+  const shadowY = 3.5 * u;
 
   ctx.save();
 
-  ctx.fillStyle = '#1A1A1A';
-  ctx.fillRect(x + shadow, y + shadow, w, h);
+  // 1. Yumuşak Zemin Gölgesi (sert siyah kutu yerine)
+  ctx.fillStyle = style.shadow || 'rgba(20, 16, 31, 0.32)';
+  pathRoundRect(ctx, x, y + shadowY, w, h, r);
+  ctx.fill();
 
+  // 2. Alt Gövde / 3B Basık Kenar
   ctx.fillStyle = style.fill;
-  ctx.fillRect(x, y, w, h);
+  pathRoundRect(ctx, x, y, w, h, r);
+  ctx.fill();
 
-  ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = border;
-  ctx.strokeRect(x + border / 2, y + border / 2, w - border, h - border);
+  // 3. Üst Yüzey (Açık Ton Işık Yüzü)
+  if (h > bottomRim * 2) {
+    ctx.fillStyle = style.top;
+    pathRoundRect(ctx, x, y, w, h - bottomRim, [r, r, Math.max(1, r * 0.4), Math.max(1, r * 0.4)]);
+    ctx.fill();
 
-  // Bevel ve perçinler ancak blok onları taşıyacak kadar büyükse çizilir.
-  if (w > bevelInset * 2 + bevelWidth * 2 && h > bevelInset * 2 + bevelWidth * 2) {
+    // Üst Bevel İnce Işıltısı
     ctx.strokeStyle = style.bevel;
-    ctx.lineWidth = bevelWidth;
-    ctx.strokeRect(x + bevelInset, y + bevelInset, w - bevelInset * 2, h - bevelInset * 2);
+    ctx.lineWidth = Math.max(1, 1.4 * u);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y + 1.2 * u);
+    ctx.lineTo(x + w - r, y + 1.2 * u);
+    ctx.stroke();
   }
 
-  if (w > rivetInset * 2 + rivetR * 2 && h > rivetInset * 2 + rivetR * 2) {
-    ctx.fillStyle = style.inner;
-    for (const [rx, ry] of [
-      [x + rivetInset, y + rivetInset],
-      [x + w - rivetInset, y + rivetInset],
-      [x + rivetInset, y + h - rivetInset],
-      [x + w - rivetInset, y + h - rivetInset],
-    ]) {
-      ctx.beginPath();
-      ctx.arc(rx, ry, rivetR, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
+  // 4. Dış Kontur
+  ctx.strokeStyle = style.edge;
+  ctx.lineWidth = border;
+  pathRoundRect(ctx, x, y, w, h, r);
+  ctx.stroke();
+
   ctx.restore();
 }
 
-// Ortak power-up rozeti: pulse + sert gölge + canlı ikon rozeti.
+// Ortak power-up rozeti: hafif puls aura + yumuşak gölge + canlı dairesel rozet + vektör ikon.
 export function drawPickup(ctx, pk, opts = {}) {
-  const meta = PICKUP_META[pk.type] || { label: '★', glyph: '⭐', color: '#FFDE59', ink: '#1C1C1A' };
+  const meta = PICKUP_META[pk.type] || { label: '★', icon: 'star', glyph: '⭐', color: '#FFD700', ink: '#241C15' };
   const color = opts.color || meta.color;
   const glyph = opts.glyph || meta.glyph || '⭐';
+  const iconKey = meta.icon || glyph;
   const half = (opts.size || (pk.radius ? pk.radius * 2 : 28)) / 2;
+  const u = Math.max(0.6, half / 14);
 
   ctx.save();
   const pulse = 1 + Math.sin((pk.animTime || 0) * 6) * 0.08;
   ctx.translate(pk.x, pk.y);
   ctx.scale(pulse, pulse);
 
-  // Sert Brutalist Gölge
-  ctx.fillStyle = '#1C1C1A';
-  ctx.fillRect(-half + 3, -half + 3, half * 2, half * 2);
-
-  // Canlı Renkli Gövde
+  // 1. Hafif Dış Puls Aurası (glow)
+  ctx.beginPath();
+  ctx.arc(0, 0, half + 3.5 * u, 0, Math.PI * 2);
   ctx.fillStyle = color;
-  ctx.fillRect(-half, -half, half * 2, half * 2);
+  ctx.globalAlpha = 0.22;
+  ctx.fill();
+  ctx.globalAlpha = 1.0;
 
-  // Kalın Çerçeve
-  ctx.strokeStyle = '#1C1C1A';
-  ctx.lineWidth = 2.5;
-  ctx.strokeRect(-half, -half, half * 2, half * 2);
+  // 2. Yumuşak Zemin Gölgesi
+  ctx.beginPath();
+  ctx.arc(0, 2.5 * u, half, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(20, 16, 31, 0.35)';
+  ctx.fill();
 
-  // İç İkon / Glif
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = `${Math.max(13, Math.round(half * 1.22))}px sans-serif`;
-  ctx.fillText(glyph, 0, 1);
+  // 3. Canlı Renkli Gövde
+  ctx.beginPath();
+  ctx.arc(0, 0, half, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // 4. Üst Parlaklık / Işık Yayı (Gloss)
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(0, 0, half, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.beginPath();
+  ctx.arc(-half * 0.2, -half * 0.3, half * 0.85, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.30)';
+  ctx.fill();
+  ctx.restore();
+
+  // 5. Tactile Dış Çerçeve
+  ctx.beginPath();
+  ctx.arc(0, 0, half, 0, Math.PI * 2);
+  ctx.strokeStyle = meta.ink || '#241C15';
+  ctx.lineWidth = Math.max(1.8, 2.2 * u);
+  ctx.stroke();
+
+  // 6. İç Vektör İkonu (Lucide standart) veya fallback glif
+  if (hasTabletopIcon(iconKey)) {
+    drawTabletopIcon(ctx, iconKey, 0, 0, Math.round(half * 1.3), {
+      color: meta.ink || '#241C15',
+      strokeWidth: 2.4,
+    });
+  } else {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = meta.ink || '#241C15';
+    ctx.font = `900 ${Math.max(13, Math.round(half * 1.2))}px sans-serif`;
+    ctx.fillText(glyph, 0, 1);
+  }
 
   ctx.restore();
 }

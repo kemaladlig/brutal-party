@@ -34,6 +34,7 @@
   background: var(--yellow);
   color: var(--ink);
   border: 3px solid var(--edge);
+  border-radius: var(--radius-btn);
   box-shadow: 3px 3px 0 var(--edge-strong);
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
@@ -292,6 +293,7 @@
   gap: 8px;
   background-color: var(--panel);
   border: 3px solid var(--edge);
+  border-radius: var(--radius-card);
   box-shadow: 4px 4px 0 var(--edge-strong);
   padding: 8px 12px;
   box-sizing: border-box;
@@ -303,6 +305,9 @@
   font-size: 11px;
   letter-spacing: 0.8px;
   color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .staging-ready-pill {
@@ -312,6 +317,7 @@
   letter-spacing: 0.5px;
   background-color: var(--ink);
   color: var(--yellow);
+  border-radius: var(--radius-pill);
   padding: 4px 10px;
   white-space: nowrap;
 }
@@ -328,11 +334,16 @@
   background-color: var(--p1);
   color: var(--white);
   border: 3px solid var(--edge);
+  border-radius: var(--radius-btn);
   box-shadow: 4px 4px 0 var(--edge-strong);
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 900;
   font-size: 16px;
   letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   cursor: pointer;
   touch-action: manipulation;
   transition: transform 0.08s ease, box-shadow 0.08s ease;
@@ -348,6 +359,7 @@
   background-color: var(--panel);
   color: var(--ink);
   border: 3px solid var(--edge);
+  border-radius: var(--radius-btn);
   box-shadow: 4px 4px 0 var(--edge-strong);
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 800;

@@ -2,7 +2,7 @@
 // Yetkili host, uzak telefon client'larıyla aynı çizim yardımcılarını kullanır;
 // client simülasyon/AI import etmez, yalnız salt-okunur draw + snapshot/validator alır.
 
-import { drawPickup } from '../core/arenaKit.js';
+import { drawPickup, drawObstacle } from '../core/arenaKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { renderEntityHUD } from '../ui/hud.js';
 import { t } from '../i18n.js';
@@ -152,32 +152,7 @@ export function drawBombArena(ctx, arena, pillars, { carrier = null, bombTimer =
   ctx.strokeRect(left, top, width, height);
 
   for (const pil of pillars) {
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(pil.x + 5, pil.y + 5, pil.w, pil.h);
-    ctx.fillStyle = '#2B2B28';
-    ctx.fillRect(pil.x, pil.y, pil.w, pil.h);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 3 * u;
-    ctx.strokeRect(pil.x, pil.y, pil.w, pil.h);
-    ctx.strokeStyle = '#6E6E66';
-    ctx.lineWidth = 1.5 * u;
-    ctx.beginPath();
-    ctx.moveTo(pil.x + 2, pil.y + pil.h - 2);
-    ctx.lineTo(pil.x + 2, pil.y + 2);
-    ctx.lineTo(pil.x + pil.w - 2, pil.y + 2);
-    ctx.stroke();
-    ctx.strokeStyle = '#42423E';
-    ctx.lineWidth = 1.5 * u;
-    ctx.beginPath();
-    ctx.moveTo(pil.x + 4, pil.y + 4);
-    ctx.lineTo(pil.x + pil.w - 4, pil.y + pil.h - 4);
-    ctx.moveTo(pil.x + pil.w - 4, pil.y + 4);
-    ctx.lineTo(pil.x + 4, pil.y + pil.h - 4);
-    ctx.stroke();
-    ctx.fillStyle = '#D99B26';
-    ctx.beginPath();
-    ctx.arc(pil.x + pil.w / 2, pil.y + pil.h / 2, 2.5, 0, Math.PI * 2);
-    ctx.fill();
+    drawObstacle(ctx, pil, { variant: 'crate' });
   }
 
   if (carrier && carrier.alive !== false && Number.isFinite(carrier.x)) {

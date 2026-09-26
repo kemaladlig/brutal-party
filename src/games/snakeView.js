@@ -3,6 +3,8 @@
 
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { isWorldEntityVisible } from './worldCore.js';
+import { drawObstacle } from '../core/arenaKit.js';
+import { drawTabletopIcon } from '../core/tabletopIcons.js';
 
 const TRAIL_SPACING = 10;
 const MAX_TRAIL_POINTS = 48;
@@ -194,27 +196,7 @@ export function drawSnakeArena(ctx, arena, walls) {
   ctx.stroke();
 
   for (const wall of walls) {
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(wall.x + 4, wall.y + 4, wall.w, wall.h);
-    ctx.fillStyle = '#E8E4DA';
-    ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 3 * u;
-    ctx.strokeRect(wall.x, wall.y, wall.w, wall.h);
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(wall.x, wall.y, wall.w, wall.h);
-    ctx.clip();
-    ctx.strokeStyle = 'rgba(26, 26, 26, 0.12)';
-    ctx.lineWidth = 4 * u;
-    for (let ox = -wall.h; ox < wall.w + wall.h; ox += 14) {
-      ctx.beginPath();
-      ctx.moveTo(wall.x + ox, wall.y);
-      ctx.lineTo(wall.x + ox + wall.h, wall.y + wall.h);
-      ctx.stroke();
-    }
-    ctx.restore();
+    drawObstacle(ctx, wall, { variant: 'stone' });
   }
 
   ctx.strokeStyle = '#1A1A1A';
@@ -240,11 +222,7 @@ export function drawSnakeFoods(ctx, foods, now = 0) {
       ctx.strokeStyle = '#1A1A1A';
       ctx.lineWidth = 2.5 * u;
       ctx.stroke();
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 11px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('★', food.x, food.y);
+      drawTabletopIcon(ctx, 'star', food.x, food.y, radius * 1.3, { color: '#1A1A1A' });
     } else if (food.type === 'TURBO_BERRY') {
       ctx.fillStyle = '#A259FF';
       ctx.beginPath();
@@ -253,11 +231,7 @@ export function drawSnakeFoods(ctx, foods, now = 0) {
       ctx.strokeStyle = '#1A1A1A';
       ctx.lineWidth = 2.5 * u;
       ctx.stroke();
-      ctx.fillStyle = '#FFDE59';
-      ctx.font = '900 10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('⚡', food.x, food.y);
+      drawTabletopIcon(ctx, 'zap', food.x, food.y, radius * 1.3, { color: '#FFDE59' });
     } else {
       ctx.fillStyle = '#D84727';
       ctx.beginPath();

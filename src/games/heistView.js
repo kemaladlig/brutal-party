@@ -6,6 +6,7 @@
 
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
+import { drawObstacle } from '../core/arenaKit.js';
 import {
   round1,
   packRectList,
@@ -146,30 +147,7 @@ export function drawHeistArena(ctx, arena, pillars) {
   ctx.strokeRect(left, top, width, height);
 
   for (const pil of pillars) {
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(pil.x + 4, pil.y + 4, pil.w, pil.h);
-    ctx.fillStyle = '#2B2B28';
-    ctx.fillRect(pil.x, pil.y, pil.w, pil.h);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = Math.max(1.5, 2.5 * u);
-    ctx.strokeRect(pil.x, pil.y, pil.w, pil.h);
-    ctx.strokeStyle = '#6E6E66';
-    ctx.lineWidth = Math.max(1, 1.5 * u);
-    ctx.beginPath();
-    ctx.moveTo(pil.x + 2, pil.y + pil.h - 2);
-    ctx.lineTo(pil.x + 2, pil.y + 2);
-    ctx.lineTo(pil.x + pil.w - 2, pil.y + 2);
-    ctx.stroke();
-    if (pil.w >= 28 && pil.h >= 28) {
-      ctx.strokeStyle = '#3E3E38';
-      ctx.lineWidth = Math.max(1, 1.5 * u);
-      const pad = 6;
-      ctx.strokeRect(pil.x + pad, pil.y + pad, pil.w - pad * 2, pil.h - pad * 2);
-      ctx.fillStyle = '#D99B26';
-      ctx.beginPath();
-      ctx.arc(pil.x + pil.w / 2, pil.y + pil.h / 2, 2.5 * u, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    drawObstacle(ctx, pil, { variant: 'crate' });
   }
 }
 
@@ -294,11 +272,7 @@ export function drawHeistLoot(ctx, loot) {
       ctx.strokeStyle = '#1C1C1A';
       ctx.lineWidth = Math.max(1, 2 * lu);
       ctx.stroke();
-      ctx.fillStyle = '#1C1C1A';
-      ctx.font = '900 11px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('★', 0, 0);
+      drawTabletopIcon(ctx, 'star', 0, 0, Math.max(10, r * 1.3), { color: '#1C1C1A' });
     }
 
     ctx.restore();

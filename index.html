@@ -41,25 +41,28 @@
       <!-- data-theme="field": bu kaplama krem saha üstüne oturur, açık tema
            kapsamına girer (bkz. tokens.css `[data-theme='field']`). -->
       <div id="in-game-hud" class="hidden" data-theme="field">
-        <button id="btn-quick-tv-lobby" class="btn-quick-tv-lobby hidden" type="button">📺 LOBİYE DÖN</button>
+        <button id="btn-quick-tv-lobby" class="btn-quick-tv-lobby hidden" type="button">
+          <span data-icon="tv" aria-hidden="true"></span>
+          <span data-i18n="host.backToLobby">LOBİYE DÖN</span>
+        </button>
         <button id="btn-quick-fullscreen" class="btn-quick-fullscreen" type="button" aria-label="Tam Ekran" title="Tam Ekran Aç/Kapat">
-          <span id="quick-fullscreen-icon" class="fs-icon" aria-hidden="true"></span>
+          <span id="quick-fullscreen-icon" class="fs-icon" data-icon="maximize_2" aria-hidden="true"></span>
         </button>
         <button id="btn-open-options" type="button" aria-label="Seçenekler ve Menü">
-          <span class="dots-icon">⋮</span>
+          <span data-icon="more_vertical" aria-hidden="true"></span>
         </button>
       </div>
 
       <!-- Host Staging Bar (saha açıkken: sayaç öncesi son kontrol) -->
       <div id="staging-bar" class="hidden" data-theme="field">
         <div class="staging-info">
-          <span class="staging-badge">🏟 SAHA AÇIK — KOLTUKLAR YERLEŞİYOR</span>
+          <span class="staging-badge"><span data-icon="landmark" aria-hidden="true"></span> SAHA AÇIK — KOLTUKLAR YERLEŞİYOR</span>
           <span class="staging-ready-pill" id="staging-ready-pill">0 BAĞLANDI</span>
         </div>
         <div class="staging-actions">
           <button class="staging-seats-btn" id="btn-staging-edit-seats" type="button"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span><span data-i18n="host.editSeats">KOLTUKLARI DÜZENLE</span></button>
-          <button class="staging-launch-btn" id="btn-staging-launch" type="button">▶ MAÇI BAŞLAT</button>
-          <button class="staging-lobby-btn" id="btn-staging-lobby" type="button">LOBİYE DÖN</button>
+          <button class="staging-launch-btn" id="btn-staging-launch" type="button"><span data-icon="play" aria-hidden="true"></span> <span data-i18n="host.launchGame">MAÇI BAŞLAT</span></button>
+          <button class="staging-lobby-btn" id="btn-staging-lobby" type="button" data-i18n="host.backToLobby">LOBİYE DÖN</button>
         </div>
       </div>
 

@@ -7,6 +7,7 @@ import { resetFireFeedback, updateFireFeedback } from '../core/fireFeedback.js';
 import { t } from '../i18n.js';
 import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
@@ -1197,16 +1198,38 @@ export class LaserGame extends BaseMiniGame {
         const mw = 210; const mh = 34;
         const mx = this.arena.cx - mw / 2;
         const my = this.arena.cy + 78;
+        const r = Math.min(10, mh * 0.28);
         c.save();
+        c.fillStyle = 'rgba(20, 16, 31, 0.22)';
+        if (c.roundRect) {
+          c.beginPath();
+          c.roundRect(mx, my + 3, mw, mh, r);
+          c.fill();
+        } else {
+          c.fillRect(mx, my + 3, mw, mh);
+        }
         c.fillStyle = '#FFFFFF';
+        if (c.roundRect) {
+          c.beginPath();
+          c.roundRect(mx, my, mw, mh, r);
+          c.fill();
+        } else {
+          c.fillRect(mx, my, mw, mh);
+        }
         c.strokeStyle = '#1A1A1A';
         c.lineWidth = Math.max(1.5, 3 * (this.arena?.unit ?? 1));
-        c.fillRect(mx, my, mw, mh);
-        c.strokeRect(mx, my, mw, mh);
+        if (c.roundRect) {
+          c.beginPath();
+          c.roundRect(mx, my, mw, mh, r);
+          c.stroke();
+        } else {
+          c.strokeRect(mx, my, mw, mh);
+        }
+        drawTabletopIcon(c, 'landmark', mx + 20, my + mh / 2, 16, { color: '#1A1A1A' });
         c.fillStyle = '#1A1A1A';
-        c.font = 'bold 13px sans-serif';
+        c.font = '800 12px "JetBrains Mono", monospace';
         c.textAlign = 'center'; c.textBaseline = 'middle';
-        c.fillText(`🗺 ${mapName}`, this.arena.cx, my + mh / 2);
+        c.fillText(`${mapName} ▾`, this.arena.cx + 8, my + mh / 2);
         c.restore();
         this.uiButtons.push({
           x: mx, y: my, w: mw, h: mh,

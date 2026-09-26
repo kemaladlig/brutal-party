@@ -11,6 +11,16 @@ import { t } from '../i18n.js';
 import { hasTabletopIcon, drawTabletopIcon } from '../core/tabletopIcons.js';
 import { isCompactLandscape } from '../core/playfield.js';
 
+function pathRoundRect(ctx, x, y, w, h, r) {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+  }
+}
+
 // Standart üst hap: arena üstünde ortalı.
 // Ekran boyutuna (TV / monitör vs telefon) göre orantılı büyür, metin uzunluğuna göre genişler.
 // text: '💣 4.2s' gibi durum metni, urgent: kırmızı zemin.
@@ -68,19 +78,23 @@ export function renderTopPill(ctx, {
   const pillX = arena.cx - pillW / 2;
   const pillY = arena.top + Math.round(10 * scale);
   const shadow = Math.max(2, Math.round(3 * Math.min(1.6, scale)));
+  const pillR = pillH / 2;
 
-  // Sert Neo-brutalist gölge
-  ctx.fillStyle = UI_COLORS.ink;
-  ctx.fillRect(pillX + shadow, pillY + shadow, pillW, pillH);
+  // Tactile Soft Shadow
+  ctx.fillStyle = 'rgba(10, 8, 24, 0.35)';
+  pathRoundRect(ctx, pillX, pillY + shadow, pillW, pillH, pillR);
+  ctx.fill();
 
   // Gövde
   ctx.fillStyle = urgent ? UI_COLORS.danger : UI_COLORS.line;
-  ctx.fillRect(pillX, pillY, pillW, pillH);
+  pathRoundRect(ctx, pillX, pillY, pillW, pillH, pillR);
+  ctx.fill();
 
   // Kenar
-  ctx.strokeStyle = UI_COLORS.ink;
-  ctx.lineWidth = Math.max(2.5, Math.round(2.5 * Math.min(1.5, scale)));
-  ctx.strokeRect(pillX, pillY, pillW, pillH);
+  ctx.strokeStyle = urgent ? '#FF6B6B' : 'rgba(255, 255, 255, 0.22)';
+  ctx.lineWidth = Math.max(1.5, Math.round(2 * Math.min(1.5, scale)));
+  pathRoundRect(ctx, pillX, pillY, pillW, pillH, pillR);
+  ctx.stroke();
 
   // Metin
   ctx.fillStyle = UI_COLORS.white;
@@ -526,16 +540,19 @@ export function renderArenaRailTally(ctx, { arena, players = [], scores = [0, 0,
     const y = barY;
 
     // Mini koyu zemin kapsülü
-    ctx.fillStyle = 'rgba(20, 20, 18, 0.85)';
-    ctx.fillRect(x, y, itemW, barH);
+    const chipR = barH / 2;
+    ctx.fillStyle = 'rgba(20, 16, 31, 0.88)';
+    pathRoundRect(ctx, x, y, itemW, barH, chipR);
+    ctx.fill();
     ctx.strokeStyle = p.color || UI_COLORS.players[origIdx];
-    ctx.lineWidth = 1.2;
-    ctx.strokeRect(x, y, itemW, barH);
+    ctx.lineWidth = 1.4;
+    pathRoundRect(ctx, x, y, itemW, barH, chipR);
+    ctx.stroke();
 
     // Renk noktası
     ctx.fillStyle = p.color || UI_COLORS.players[origIdx];
     ctx.beginPath();
-    ctx.arc(x + 5.5 * scale, y + barH / 2, 2.5 * scale, 0, Math.PI * 2);
+    ctx.arc(x + 6 * scale, y + barH / 2, 2.5 * scale, 0, Math.PI * 2);
     ctx.fill();
 
     // Skor sayısı (küçük ekranda okunur boy)
@@ -554,16 +571,18 @@ export function renderArenaRailTally(ctx, { arena, players = [], scores = [0, 0,
 
   lastPeekButtonRect = { x: peekX, y: peekY, w: peekW, h: peekH };
 
-  ctx.fillStyle = 'rgba(24, 24, 22, 0.65)';
-  ctx.fillRect(peekX, peekY, peekW, peekH);
+  const peekR = Math.round(6 * scale);
+  ctx.fillStyle = 'rgba(24, 20, 42, 0.72)';
+  pathRoundRect(ctx, peekX, peekY, peekW, peekH, peekR);
+  ctx.fill();
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(peekX, peekY, peekW, peekH);
+  ctx.lineWidth = 1.2;
+  pathRoundRect(ctx, peekX, peekY, peekW, peekH, peekR);
+  ctx.stroke();
 
-  ctx.font = `${Math.round(11 * scale)}px sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('🏆', peekX + peekW / 2, peekY + peekH / 2);
+  drawTabletopIcon(ctx, 'crown', peekX + peekW / 2, peekY + peekH / 2, Math.round(14 * scale), {
+    color: UI_COLORS.gold,
+  });
 
   if (uiButtons && Array.isArray(uiButtons)) {
     uiButtons.push({
@@ -1043,14 +1062,21 @@ export function renderRoundBanner(ctx, { arena, title, titleColor, sub = '' }) {
   const boxY = arena.cy - boxH / 2;
   const shadow = Math.max(3, Math.round(5 * Math.min(1.4, scale)));
 
+  const boxR = Math.min(18, boxH * 0.22);
+
   ctx.save();
-  ctx.fillStyle = UI_COLORS.ink;
-  ctx.fillRect(boxX + shadow, boxY + shadow, boxW, boxH);
+  ctx.fillStyle = 'rgba(10, 8, 24, 0.38)';
+  pathRoundRect(ctx, boxX, boxY + shadow, boxW, boxH, boxR);
+  ctx.fill();
+
   ctx.fillStyle = UI_COLORS.card;
-  ctx.fillRect(boxX, boxY, boxW, boxH);
+  pathRoundRect(ctx, boxX, boxY, boxW, boxH, boxR);
+  ctx.fill();
+
   ctx.strokeStyle = UI_COLORS.ink;
-  ctx.lineWidth = Math.max(3, Math.round(3.5 * Math.min(1.3, scale)));
-  ctx.strokeRect(boxX, boxY, boxW, boxH);
+  ctx.lineWidth = Math.max(2.5, Math.round(3 * Math.min(1.3, scale)));
+  pathRoundRect(ctx, boxX, boxY, boxW, boxH, boxR);
+  ctx.stroke();
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -1081,15 +1107,21 @@ export function renderMatchOver(ctx, {
   const boxX = arena.cx - boxW / 2;
   const boxY = arena.cy - boxH / 2;
   const shadow = Math.max(4, Math.round(6 * Math.min(1.4, scale)));
+  const boxR = Math.min(22, boxW * 0.08);
 
   ctx.save();
-  ctx.fillStyle = UI_COLORS.ink;
-  ctx.fillRect(boxX + shadow, boxY + shadow, boxW, boxH);
+  ctx.fillStyle = 'rgba(10, 8, 24, 0.45)';
+  pathRoundRect(ctx, boxX, boxY + shadow, boxW, boxH, boxR);
+  ctx.fill();
+
   ctx.fillStyle = UI_COLORS.card;
-  ctx.fillRect(boxX, boxY, boxW, boxH);
+  pathRoundRect(ctx, boxX, boxY, boxW, boxH, boxR);
+  ctx.fill();
+
   ctx.strokeStyle = UI_COLORS.ink;
-  ctx.lineWidth = Math.max(3.5, Math.round(4 * Math.min(1.3, scale)));
-  ctx.strokeRect(boxX, boxY, boxW, boxH);
+  ctx.lineWidth = Math.max(2.5, Math.round(3 * Math.min(1.3, scale)));
+  pathRoundRect(ctx, boxX, boxY, boxW, boxH, boxR);
+  ctx.stroke();
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -1113,9 +1145,21 @@ export function renderMatchOver(ctx, {
   const btnH = Math.round(UI_SIZES.finalBtnH * Math.min(1.3, scale));
   const btnX = arena.cx - btnW / 2;
   const btnY = boxY + boxH - btnH - Math.round(18 * scale);
+  const btnR = Math.round(12 * Math.min(1.3, scale));
+
+  ctx.fillStyle = 'rgba(10, 8, 24, 0.3)';
+  pathRoundRect(ctx, btnX, btnY + 3, btnW, btnH, btnR);
+  ctx.fill();
 
   ctx.fillStyle = UI_COLORS.ink;
-  ctx.fillRect(btnX, btnY, btnW, btnH);
+  pathRoundRect(ctx, btnX, btnY, btnW, btnH, btnR);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+  ctx.lineWidth = 1.5;
+  pathRoundRect(ctx, btnX, btnY, btnW, btnH, btnR);
+  ctx.stroke();
+
   ctx.fillStyle = UI_COLORS.white;
   ctx.font = uiFont('buttonSmall', Math.min(1.3, scale));
   ctx.fillText(t('canvas.playAgain'), arena.cx, btnY + btnH / 2);

@@ -4,7 +4,7 @@
 // Not: spawn beacon'ları (2 sn'lik giriş efekti) ile sudden-death hapı host HUD'udur,
 // world snapshot'ına girmez — client tankları belirdiği anda görür.
 
-import { drawPickup } from '../core/arenaKit.js';
+import { drawPickup, drawObstacle } from '../core/arenaKit.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { renderEntityHUD } from '../ui/hud.js';
 import {
@@ -187,30 +187,7 @@ export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null) {
   }
 
   for (const obs of obstacles) {
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(obs.x + 4, obs.y + 4, obs.w, obs.h);
-    ctx.fillStyle = '#2B2B28';
-    ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5 * u;
-    ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
-    ctx.strokeStyle = '#5E5E58';
-    ctx.lineWidth = 1.5 * u;
-    ctx.beginPath();
-    ctx.moveTo(obs.x + 2, obs.y + obs.h - 2);
-    ctx.lineTo(obs.x + 2, obs.y + 2);
-    ctx.lineTo(obs.x + obs.w - 2, obs.y + 2);
-    ctx.stroke();
-    if (obs.w >= 28 && obs.h >= 28) {
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2 * u;
-      const pad = 6;
-      ctx.strokeRect(obs.x + pad, obs.y + pad, obs.w - pad * 2, obs.h - pad * 2);
-      ctx.fillStyle = '#D99B26';
-      ctx.beginPath();
-      ctx.arc(obs.x + obs.w / 2, obs.y + obs.h / 2, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    drawObstacle(ctx, obs, { variant: 'stone' });
   }
 
   ctx.fillStyle = '#1A1A1A';

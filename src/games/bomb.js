@@ -21,6 +21,7 @@ import { getUiScale } from '../ui/tokens.js';
 import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { buildLayout } from '../core/arenaKit.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
@@ -931,20 +932,40 @@ export class BombGame extends BaseMiniGame {
         const mapBtnH = 36;
         const mapBtnX = arena.cx - mapBtnW / 2;
         const mapBtnY = arena.cy - 72;
+        const r = Math.min(10, mapBtnH * 0.28);
         c.save();
-        c.fillStyle = '#1A1A1A';
-        c.fillRect(mapBtnX + 3, mapBtnY + 3, mapBtnW, mapBtnH);
+        c.fillStyle = 'rgba(20, 16, 31, 0.22)';
+        if (c.roundRect) {
+          c.beginPath();
+          c.roundRect(mapBtnX, mapBtnY + 3, mapBtnW, mapBtnH, r);
+          c.fill();
+        } else {
+          c.fillRect(mapBtnX, mapBtnY + 3, mapBtnW, mapBtnH);
+        }
         c.fillStyle = '#FFFFFF';
-        c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+        if (c.roundRect) {
+          c.beginPath();
+          c.roundRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH, r);
+          c.fill();
+        } else {
+          c.fillRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+        }
         c.strokeStyle = '#1C1C1A';
         c.lineWidth = Math.max(1.5, 2.5 * (arena?.unit ?? 1));
-        c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+        if (c.roundRect) {
+          c.beginPath();
+          c.roundRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH, r);
+          c.stroke();
+        } else {
+          c.strokeRect(mapBtnX, mapBtnY, mapBtnW, mapBtnH);
+        }
 
+        drawTabletopIcon(c, 'landmark', mapBtnX + 22, mapBtnY + mapBtnH / 2, 16, { color: '#1C1C1A' });
         c.fillStyle = '#1C1C1A';
         c.font = '800 12px "JetBrains Mono", monospace';
         c.textAlign = 'center';
         c.textBaseline = 'middle';
-        c.fillText(`🗺️ ${MAP_PRESETS[this.selectedMapIndex].name} ▾`, arena.cx, mapBtnY + mapBtnH / 2);
+        c.fillText(`${MAP_PRESETS[this.selectedMapIndex].name} ▾`, arena.cx + 8, mapBtnY + mapBtnH / 2);
         c.restore();
 
         this.uiButtons.push({

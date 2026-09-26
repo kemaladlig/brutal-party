@@ -152,11 +152,8 @@
   flex-shrink: 0;
 }
 
-/* Ortak yüzen ikon çipi — emoji/ayar/tam ekran/çıkış aynı geometri */
-.emoji-reaction-btn,
-.btn-fullscreen-toggle,
-.btn-controller-layout,
-.btn-leave-gamepad {
+/* Yüzen ikon çipi — LOCAL toolbar'daki ayar butonu (uzak shell'de menü öğesi) */
+.btn-controller-layout {
   width: 44px;
   min-width: 44px;
   height: 44px;
@@ -167,37 +164,119 @@
   justify-content: center;
   border-radius: 50%;
   border: 1.5px solid var(--edge-strong);
+  background: var(--surface);
+  color: var(--ink);
   box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  touch-action: manipulation;
   transition: transform 0.06s ease, box-shadow 0.06s ease, background-color 0.06s ease;
 }
 
-.emoji-reaction-btn,
-.btn-fullscreen-toggle,
-.btn-leave-gamepad {
-  background: var(--sheen-90);
-  color: var(--ink);
-}
-
-.btn-controller-layout {
-  background: var(--surface);
-  color: var(--ink);
-}
-
-.emoji-reaction-btn:active,
-.btn-fullscreen-toggle:active,
-.btn-controller-layout:active,
-.btn-leave-gamepad:active {
+.btn-controller-layout:active {
   transform: scale(0.92);
   box-shadow: var(--shadow-edge);
 }
 
-.btn-leave-icon {
+.btn-controller-layout[hidden] {
+  display: none !important;
+}
+
+/* ── Sağ üst açılır menü — 4 çip tek menüde toplandı; oyun sırasında
+   yanlışlıkla basılırsa bile doğrudan aksiyon almaz. */
+.gamepad-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.gamepad-menu-btn {
   width: 44px;
   min-width: 44px;
+  height: 44px;
+  min-height: 44px;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--edge-strong);
+  background: var(--sheen-90);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.06s ease, box-shadow 0.06s ease, background-color 0.06s ease;
+}
+
+.gamepad-menu-btn:active {
+  transform: scale(0.92);
+  box-shadow: var(--shadow-edge);
+}
+
+.gamepad-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  background: var(--grad-card);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-float);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-sizing: border-box;
+  z-index: 70;
+  animation: menu-pop 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes menu-pop {
+  0% { transform: translateY(-6px) scale(0.96); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.gamepad-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: var(--ink);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-sizing: border-box;
+  white-space: nowrap;
+  transition: background-color 0.06s ease, transform 0.06s ease;
+}
+
+.gamepad-menu-item:hover {
+  background-color: var(--sheen-60);
+}
+
+.gamepad-menu-item:active {
+  transform: scale(0.97);
+  background-color: var(--sheen-60);
+}
+
+.gamepad-menu-item.is-danger {
+  color: var(--danger);
+}
+
+.gamepad-menu-item.is-danger:hover {
+  background-color: var(--danger-soft);
+}
+
+.gamepad-menu-item[hidden] {
+  display: none !important;
 }
 
 .mobile-gamepad-toolbar {

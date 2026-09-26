@@ -22,19 +22,37 @@ export function fitWorld(ctx, width, height, arena, draw) {
   ctx.restore();
 }
 
+function pathRoundRect(ctx, x, y, w, h, r) {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+  }
+}
+
 export function drawWorldBanner(ctx, width, height, title, subtitle = '') {
   const boxWidth = Math.min(width - 32, 420);
   const boxHeight = subtitle ? 92 : 64;
   const x = (width - boxWidth) / 2;
   const y = (height - boxHeight) / 2;
+  const boxR = 16;
+
   ctx.save();
-  ctx.fillStyle = 'rgba(20, 20, 20, 0.78)';
-  ctx.fillRect(x + 5, y + 5, boxWidth, boxHeight);
+  ctx.fillStyle = 'rgba(10, 8, 24, 0.42)';
+  pathRoundRect(ctx, x, y + 4, boxWidth, boxHeight, boxR);
+  ctx.fill();
+
   ctx.fillStyle = '#D84727';
-  ctx.fillRect(x, y, boxWidth, boxHeight);
-  ctx.strokeStyle = '#FFFFFF';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(x, y, boxWidth, boxHeight);
+  pathRoundRect(ctx, x, y, boxWidth, boxHeight, boxR);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+  ctx.lineWidth = 2.5;
+  pathRoundRect(ctx, x, y, boxWidth, boxHeight, boxR);
+  ctx.stroke();
+
   ctx.fillStyle = '#FFFFFF';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -47,11 +65,11 @@ export function drawWorldBanner(ctx, width, height, title, subtitle = '') {
   ctx.restore();
 }
 
-export function renderWorldPlaceholder(ctx, width, height, fill = '#F4F4F0') {
+export function renderWorldPlaceholder(ctx, width, height, fill = '#14101F') {
   ctx.save();
   ctx.fillStyle = fill;
   ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = '#1A1A1A';
+  ctx.fillStyle = fill === '#14101F' ? '#F6F1E8' : '#1A1A1A';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = '900 18px "Space Grotesk", sans-serif';
@@ -59,25 +77,42 @@ export function renderWorldPlaceholder(ctx, width, height, fill = '#F4F4F0') {
   ctx.restore();
 }
 
-export function renderWorldConnecting(ctx, width, height, fill = '#F4F4F0') {
+export function renderWorldConnecting(ctx, width, height, fill = '#14101F') {
   ctx.save();
   ctx.fillStyle = fill;
   ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = '#1A1A1A';
+  ctx.fillStyle = fill === '#14101F' ? '#F6F1E8' : '#1A1A1A';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = '900 18px "Space Grotesk", sans-serif';
   ctx.fillText(t('net.worldConnecting'), width / 2, height / 2 - 10);
-  ctx.fillStyle = '#575750';
+  ctx.fillStyle = fill === '#14101F' ? '#B3A9C6' : '#575750';
   ctx.font = '800 12px "JetBrains Mono", monospace';
   ctx.fillText(t('net.worldConnectingHint'), width / 2, height / 2 + 16);
   ctx.restore();
 }
 
 export function renderWorldStale(ctx, width, height) {
+  const boxW = Math.min(width - 32, 440);
+  const boxH = 56;
+  const x = (width - boxW) / 2;
+  const y = (height - boxH) / 2;
+  const r = 14;
+
   ctx.save();
-  ctx.fillStyle = 'rgba(20, 20, 20, 0.72)';
-  ctx.fillRect(0, height / 2 - 34, width, 68);
+  ctx.fillStyle = 'rgba(10, 8, 24, 0.45)';
+  pathRoundRect(ctx, x, y + 3, boxW, boxH, r);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(26, 20, 42, 0.88)';
+  pathRoundRect(ctx, x, y, boxW, boxH, r);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+  ctx.lineWidth = 1.5;
+  pathRoundRect(ctx, x, y, boxW, boxH, r);
+  ctx.stroke();
+
   ctx.fillStyle = '#FFFFFF';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
