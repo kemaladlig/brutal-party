@@ -14,7 +14,9 @@ import {
 import { openOverlay, closeOverlay } from './overlayHost.js';
 import { t, onLangChange } from '../i18n.js';
 import { safeGet, safeSet } from '../core/safeStorage.js';
-import { syncStageCanvas, drawAvatarStage, observeStageCanvas, beginStageFrame, spawnBoingSparks, stepSparks, drawSparks } from './avatarStage.js';
+import { syncStageCanvas, drawAvatarStage, observeStageCanvas, beginStageFrame, drawSparks } from './avatarStage.js';
+import { createAvatarLife } from './avatarLife.js';
+import { prefersReducedMotion } from './motion.js';
 import { showInstallToast } from './toast.js';
 import { getStoredPlayerName, storePlayerName, cleanPlayerName, generateNick } from '../net.js';
 import { playMenuPop, playMenuTick } from '../audio.js';
@@ -329,34 +331,12 @@ function startPreviewLoop() {
 }
 
 // ── Ana Menü Karakter Kartı Canlı Önizleme & Orkestrasyonu ──
+// Kartın yaşamı (zıplama/bakış/ifade/kıvılcım) `avatarLife.js` makinesinin
+// `modal` preset'idir — ana menü kahramanıyla birebir aynı fizik, sayılar
+// preset'te yaşar; burada kopyalanmaz.
 let menuAnimFrameId = null;
-let currentAvatarAngle = 0;
-let menuBlinkTimer = 0;
-let isMenuBlinking = false;
-
-// Fizik ve mikro-etkileşim durumları (sıfır GC, GPU dostu)
-let pointerTargetAngle = 0;
-let hasActivePointer = false;
-let lastPointerTime = 0;
-
-// Zıplama fiziği — hepsi yarıçap cinsinden (r/s, r/s²), böylece 68px'lik
-// telefon kutusuyla 320px'lik masaüstü kutusu aynı hissi verir.
-//
-// Ara ayar: itki 1.8 r/s, yerçekimi 4.2 r/s² → tepe ≈ 0.39r, uçuş ≈ 0.86 sn.
-// 1.2/2.4 fazla sönük, 2.4/6.0 fazla fırlatmalıydı; bu değer ikisinin ortası.
-const JUMP_IMPULSE = 1.8;      // dokunma tepesi (r/s)
-const JUMP_IMPULSE_IDLE = 1.5; // periyodik mini zıplama (r/s)
-const JUMP_GRAVITY = 4.2;      // r/s²
-// Zemin gölgesi ne kadar sıçrama yüksekliği? Tepe 0.39r olduğu için
-// gölge tepede 0.79 ölçeğine iner.
-const SHADOW_DEPTH_REF = 1.8;
-
-let jumpY = 0;
-let jumpVy = 0;
-let squashX = 1;
-let squashY = 1;
-let excitedTimer = 0;
-const sparks = [];
+// Pencere-imleci aboneliği her görünüm inşasında yenisiyle DEĞİŞTİRİLİR.
+let detachCardGaze = null;
 
 /**
  * Profil kartını bağlar. Tüm sorgular `root` içinde yapılır: kart markup'ı
@@ -369,6 +349,9 @@ export function initMenuAvatarCard(root = document) {
   const stageEl = root.querySelector('#menu-avatar-stage');
   const canvasEl = root.querySelector('#menu-avatar-canvas');
   if (!canvasEl) return;
+
+  // Kartın yaşam makinesi — heroAvatar ile aynı fabrika, `modal` preset'i.
+  const life = createAvatarLife({ preset: 'modal', reducedMotion: prefersReducedMotion });
 
   // Karttaki kullanıcı adı ve kuşanılan eşyalar (menü her açıldığında ve özelleştirme bitince tazelenir)
   const updateCardName = () => {
@@ -402,34 +385,33 @@ export function initMenuAvatarCard(root = document) {
     viewRow?.classList.remove('hidden');
   };
 
-  // Karakteri zıplatma & kıvılcım saçma tetikleyicisi (oyuncu dokununca canlı tepki)
+  // Karakteri zıplatma & kıvılcım saçma tepkisi — fizik `avatarLife.js`'te.
   // İtki, hız ve parçacık ölçüleri yarıçapa oranlıdır (bkz. `avatarStage.js`):
   // kutular 68–148px arası değiştiği için sabit px her boyutta farklı hissettirir.
-  const triggerAvatarBoing = () => {
-    const r = stage.r;
-    jumpVy = -JUMP_IMPULSE * r;
-    squashX = 0.88;
-    squashY = 1.15;
-    excitedTimer = 0.8;
+  const boingAt = (clientX, clientY) => {
+    const rect = canvasEl.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const custom = cachedProfile || getAvatarProfile();
+    life.poke({
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+      centerX: rect.width / 2,
+      centerY: rect.height / 2,
+      radius: stage.r,
+      color: custom?.color,
+    });
     playMenuPop();
-
-    // 8-12 adet neşeli neo-brutalist kıvılcım parçacığı (`avatarStage.js`).
-    // Not: `-0.23r` doğuş kayması spawn fonksiyonunun içinde; burada çiğ merkez verilir.
-    const prof = getAvatarProfile();
-    sparks.push(...spawnBoingSparks(stage.w / 2, stage.h / 2, r, prof?.color || '#D84727'));
   };
 
   // Sahneye dokunulduğunda doğrudan zıplat ve tatmin edici geri bildirim ver
   stageEl?.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
-    triggerAvatarBoing();
+    boingAt(e.clientX, e.clientY);
   });
 
   // Sahne üzerine gelindiğinde meraklı ve neşeli tepki ver (dokunma daveti animasyonu)
   stageEl?.addEventListener('pointerenter', () => {
-    excitedTimer = 0.8;
-    squashX = 0.92;
-    squashY = 1.08;
+    life.hover();
   });
 
   // Kart gövdesine dokunulduğunda açık isim düzenlemesi varsa kapat
@@ -445,20 +427,21 @@ export function initMenuAvatarCard(root = document) {
   });
 
 
-  // İmleç / Dokunmatik Takibi (Karakter ekrandaki kullanıcıyı merakla izler)
-  const handlePointerTrack = (clientX, clientY) => {
+  // İmleç / Dokunmatik Takibi (Karakter ekrandaki kullanıcıyı merakla izler) —
+  // bakış hedefi ve hareketsizlik TTL'si yaşam makinesinin içinde (`gazeHold`).
+  // Kart her görünüm inşasında yeniden bağlanır: önceki pencere aboneliği
+  // kaldırılmaz her ölü kart imleci beslemeye devam ederdi — gerçek sızıntı.
+  const onWindowPointer = (e) => {
     const rect = canvasEl.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    pointerTargetAngle = Math.atan2(clientY - cy, clientX - cx);
-    hasActivePointer = true;
-    lastPointerTime = performance.now();
+    life.gaze(Math.atan2(
+      e.clientY - (rect.top + rect.height / 2),
+      e.clientX - (rect.left + rect.width / 2),
+    ));
   };
-
-  window.addEventListener('pointermove', (e) => {
-    handlePointerTrack(e.clientX, e.clientY);
-  }, { passive: true });
+  detachCardGaze?.();
+  window.addEventListener('pointermove', onWindowPointer, { passive: true });
+  detachCardGaze = () => window.removeEventListener('pointermove', onWindowPointer);
 
   // 60-120 FPS Canlı Menü Önizleme & Fizik Döngüsü
   // Ölçü yalnız kutu değiştiğinde tazelenir: menü gizliyken `initMenuAvatarCard`
@@ -474,105 +457,31 @@ export function initMenuAvatarCard(root = document) {
     updateCardName();
   });
 
-  let idleHopTimer = 0;
-
   const menuLoop = (now) => {
     const dt = Math.min(0.06, (now - lastTime) / 1000);
     lastTime = now;
 
-    // Göz kırpma döngüsü
-    menuBlinkTimer += dt;
-    if (menuBlinkTimer > 2.8) {
-      isMenuBlinking = true;
-      if (menuBlinkTimer > 3.05) {
-        isMenuBlinking = false;
-        menuBlinkTimer = 0;
-      }
-    }
-
-    if (excitedTimer > 0) {
-      excitedTimer -= dt;
-    }
-
-    // Periyodik neşeli mini zıplama ve göz kırpma (kullanıcıya canlı ve dokunulabilir olduğunu hissettirir)
-    idleHopTimer += dt;
-    if (idleHopTimer > 4.8 && jumpY === 0 && jumpVy === 0) {
-      idleHopTimer = 0;
-      jumpVy = -JUMP_IMPULSE_IDLE * stage.r;
-      squashX = 0.94;
-      squashY = 1.06;
-      excitedTimer = 0.6;
-    }
-
-    // İmleç hareketsizliği kontrolü (>2.2 sn ise doğal etrafa bakınma modu)
-    if (hasActivePointer && now - lastPointerTime > 2200) {
-      hasActivePointer = false;
-    }
-
-    // Hedef bakış açısı: imleç varsa oraya bak, yoksa hafif canlı etrafa bakınma
-    let desiredAngle;
-    if (hasActivePointer) {
-      desiredAngle = pointerTargetAngle;
-    } else {
-      // Doğal etrafa bakınma: yumuşak sinüs salınımı
-      desiredAngle = Math.sin(now * 0.0014) * 0.42;
-    }
-
-    // En kısa açısal interpolasyon (wrap-around destekli)
-    let angleDiff = desiredAngle - currentAvatarAngle;
-    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-    currentAvatarAngle += angleDiff * Math.min(1, dt * 7.5);
+    // Yaşam makinesi: göz kırpma, periyodik mini hop, bakış (imleç/salınım),
+    // zıplama fiziği, nefes, ifade coşkusu, halka parıltısı ve kıvılcım
+    // ilerletme — hepsi `avatarLife.js`'te. Siluet daima tam yuvarlak:
+    // makine yalnız konum + yeknesak ölçek üretir.
+    const custom = cachedProfile || getAvatarProfile();
+    const { w, h, r } = stage;
+    const out = life.step(now, dt, r, { expression: custom.expression });
 
     // Canvas temizleme + ölçü (bkz. `syncStageCanvas` / `beginStageCanvas`)
-    const { w, h, r } = stage;
     const ctx = beginStageFrame(canvasEl);
-
-    const cx = w / 2;
-    const cy = h / 2;
-
-    // Zıplama fiziği yarıçapa oranlıdır (sabitler yukarıda): eski px tabanlı
-    // değerler kutu küçülünce karakteri kutudan taşıyordu.
-    if (jumpY < 0 || jumpVy !== 0) {
-      jumpVy += JUMP_GRAVITY * r * dt;
-      jumpY += jumpVy * dt;
-      if (jumpY >= 0) {
-        jumpY = 0;
-        jumpVy = 0;
-        squashX = 1.18;
-        squashY = 0.82;
-      } else {
-        squashX = 0.94;
-        squashY = 1.08;
-      }
-    } else {
-      squashX += (1 - squashX) * Math.min(1, dt * 10);
-      squashY += (1 - squashY) * Math.min(1, dt * 10);
-    }
-
-    // Organik nefes alma ritmi
-    const breath = Math.sin(now * 0.0035);
-    const avatarY = jumpY + breath * r * 0.05;
-
-    // Zemin gölgesi zıpladıkça uzaklaşır ve küçülür
-    const shadowScale = Math.max(0.4, 1 + jumpY / (SHADOW_DEPTH_REF * r));
-
-    // Avatar (squash & stretch orantılı)
-    const custom = cachedProfile || getAvatarProfile();
-    const finalExpression = excitedTimer > 0 ? 'WINK' : custom.expression;
-    const combinedScale = ((squashX + squashY) / 2) * (1 + breath * 0.02);
 
     drawAvatarStage(ctx, w, h, r, {
       color: custom.color,
-      expression: finalExpression,
-      facingAngle: currentAvatarAngle,
-      isBlinking: isMenuBlinking,
-      scale: combinedScale,
-    }, avatarY - r * 0.05, shadowScale);
+      expression: out.expression,
+      facingAngle: out.facingAngle,
+      isBlinking: out.isBlinking,
+      scale: out.scale,
+    }, out.yOffset, out.shadowScale, out.ringPulse);
 
     // Kıvılcım / Yıldız Parçacıkları (Boing efekti) — `avatarStage.js` tek kaynak.
-    stepSparks(sparks, r, dt);
-    drawSparks(ctx, r, sparks);
+    drawSparks(ctx, r, life.sparks);
 
     // Kare kutusu: çizimden sızan klip/dönüşüm kare sonunda düşer.
     ctx.restore();
