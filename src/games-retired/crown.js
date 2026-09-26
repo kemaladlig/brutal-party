@@ -30,6 +30,7 @@ import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { spawnPickup } from '../core/pickupSystem.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
+import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
 import { drawPickup } from '../core/arenaKit.js';
 import { createCrownWorldPacket } from '../games/crownView.js';
 
@@ -97,6 +98,9 @@ export class CrownGame extends BaseMiniGame {
       y: 0,
       vx: 0,
       vy: 0,
+      // Tasarım yarıçapı. ÖLÇEK `resize()` içinde uygulanır: constructor'daki
+      // `this.arena` el yapımı ve `unit` alanı YOK, burada `fieldRadius`
+      // çağırmak NaN üretiyordu (ölçülen: taç yere düşünce toplanmıyordu).
       radius: 20,
       carrierIndex: null,
       pickupCooldown: 0,
@@ -158,13 +162,6 @@ export class CrownGame extends BaseMiniGame {
   resize(width, height) {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
-    const marginX = Math.max(16, Math.floor(width * 0.04));
-    const marginY = height > width
-      ? Math.max(48, Math.floor(height * 0.12))
-      : Math.max(34, Math.floor(height * 0.065));
-    const arenaW = width - marginX * 2;
-    const arenaH = height - marginY * 2;
-    const size = Math.min(arenaW, arenaH);
 
     const activeMapState = {
       pickups: this.pickups.map((item) => ({ ...item })),
@@ -173,17 +170,7 @@ export class CrownGame extends BaseMiniGame {
       hazardPhases: this.movingHazards.map((item) => item.pos),
     };
 
-    this.arena = {
-      cx: width / 2,
-      cy: height / 2,
-      width: arenaW,
-      height: arenaH,
-      size: size,
-      left: marginX,
-      right: width - marginX,
-      top: marginY,
-      bottom: height - marginY,
-    };
+    this.arena = computePlayfield(width, height, 'crown');
 
     this.buildMap();
     // Maç ortası resize raundu sıfırlamasın (harita geometrisi yenilenir,
@@ -206,6 +193,9 @@ export class CrownGame extends BaseMiniGame {
         clampToArena(p, p.radius, this.arena, { zeroVelocity: true });
         p.vx = 0; p.vy = 0;
       }
+      // Taç tek bir dünya nesnesi: yarıçapı saha ile birlikte yeniden türetilir
+      // (constructor'daki arena `unit` içermediği için orada ölçeklenemez).
+      if (this.crown) this.crown.radius = fieldRadius(this.arena, 20, 0);
       if (this.crown && this.crown.carrierIndex !== null && this.crown.carrierIndex !== undefined) {
         const carrier = this.players[this.crown.carrierIndex];
         if (carrier) { this.crown.x = carrier.x; this.crown.y = carrier.y; }
@@ -283,13 +273,13 @@ export class CrownGame extends BaseMiniGame {
 
       // 2 Bouncy Pinball Bumpers in center horizontal corridor
       this.bumpers = [
-        { x: cx - width * 0.12, y: cy, radius: 25, pulse: 0 },
-        { x: cx + width * 0.12, y: cy, radius: 25, pulse: 0 },
+        { x: cx - width * 0.12, y: cy, radius: fieldRadius(this.arena, 25, 0), pulse: 0 },
+        { x: cx + width * 0.12, y: cy, radius: fieldRadius(this.arena, 25, 0), pulse: 0 },
       ];
 
       this.bananaPeels = [
-        { x: cx, y: cy - height * 0.13, radius: 14 },
-        { x: cx, y: cy + height * 0.13, radius: 14 },
+        { x: cx, y: cy - height * 0.13, radius: fieldRadius(this.arena, 14, 0) },
+        { x: cx, y: cy + height * 0.13, radius: fieldRadius(this.arena, 14, 0) },
       ];
     } else if (this.selectedMapIndex === 1) {
       // --- MAP 1: 🌀 KONVEYÖR HIZ YOLU (Akan Bantlar & Hız Pedleri) ---
@@ -298,8 +288,8 @@ export class CrownGame extends BaseMiniGame {
 
       // Top conveyor flings East (▶), Bottom conveyor flings West (◀)
       this.conveyors = [
-        { x: cx - cW / 2, y: cy - height * 0.24 - cH / 2, w: cW, h: cH, dirX: 1, dirY: 0, speed: 180, animOffset: 0 },
-        { x: cx - cW / 2, y: cy + height * 0.24 - cH / 2, w: cW, h: cH, dirX: -1, dirY: 0, speed: 180, animOffset: 0 },
+        { x: cx - cW / 2, y: cy - height * 0.24 - cH / 2, w: cW, h: cH, dirX: 1, dirY: 0, speed: fieldSpeed(this.arena, 180), animOffset: 0 },
+        { x: cx - cW / 2, y: cy + height * 0.24 - cH / 2, w: cW, h: cH, dirX: -1, dirY: 0, speed: fieldSpeed(this.arena, 180), animOffset: 0 },
       ];
 
       // 2 Central Flank Block Pillars
@@ -320,14 +310,14 @@ export class CrownGame extends BaseMiniGame {
 
       // 2 Bouncy Bumpers at outer flank bottlenecks
       this.bumpers = [
-        { x: cx - width * 0.38, y: cy, radius: 24, pulse: 0 },
-        { x: cx + width * 0.38, y: cy, radius: 24, pulse: 0 },
+        { x: cx - width * 0.38, y: cy, radius: fieldRadius(this.arena, 24, 0), pulse: 0 },
+        { x: cx + width * 0.38, y: cy, radius: fieldRadius(this.arena, 24, 0), pulse: 0 },
       ];
 
       this.bananaPeels = [
-        { x: cx + width * 0.31, y: cy - height * 0.24, radius: 14 },
-        { x: cx - width * 0.31, y: cy + height * 0.24, radius: 14 },
-        { x: cx, y: cy, radius: 14 },
+        { x: cx + width * 0.31, y: cy - height * 0.24, radius: fieldRadius(this.arena, 14, 0) },
+        { x: cx - width * 0.31, y: cy + height * 0.24, radius: fieldRadius(this.arena, 14, 0) },
+        { x: cx, y: cy, radius: fieldRadius(this.arena, 14, 0) },
       ];
     } else if (this.selectedMapIndex === 2) {
       // --- MAP 2: 🍌 MUZ VE DİKEN LABİRENTİ (Koridorlar & 4 Yaylı Mantar) ---
@@ -343,10 +333,10 @@ export class CrownGame extends BaseMiniGame {
 
       // 4 Bouncy Pinball Bumpers in diamond formation
       this.bumpers = [
-        { x: cx, y: cy - height * 0.20, radius: 24, pulse: 0 },
-        { x: cx, y: cy + height * 0.20, radius: 24, pulse: 0 },
-        { x: cx - width * 0.10, y: cy, radius: 24, pulse: 0 },
-        { x: cx + width * 0.10, y: cy, radius: 24, pulse: 0 },
+        { x: cx, y: cy - height * 0.20, radius: fieldRadius(this.arena, 24, 0), pulse: 0 },
+        { x: cx, y: cy + height * 0.20, radius: fieldRadius(this.arena, 24, 0), pulse: 0 },
+        { x: cx - width * 0.10, y: cy, radius: fieldRadius(this.arena, 24, 0), pulse: 0 },
+        { x: cx + width * 0.10, y: cy, radius: fieldRadius(this.arena, 24, 0), pulse: 0 },
       ];
 
       // 1 Center Vertically Moving Piston
@@ -355,7 +345,7 @@ export class CrownGame extends BaseMiniGame {
           axis: 'y',
           x: cx,
           y: cy,
-          radius: 26,
+          radius: fieldRadius(this.arena, 26, 0),
           minPos: cy - height * 0.28,
           maxPos: cy + height * 0.28,
           pos: 0,
@@ -365,12 +355,12 @@ export class CrownGame extends BaseMiniGame {
       ];
 
       this.bananaPeels = [
-        { x: cx - width * 0.32, y: cy - height * 0.18, radius: 14 },
-        { x: cx + width * 0.32, y: cy - height * 0.18, radius: 14 },
-        { x: cx - width * 0.32, y: cy + height * 0.18, radius: 14 },
-        { x: cx + width * 0.32, y: cy + height * 0.18, radius: 14 },
-        { x: cx, y: cy - height * 0.33, radius: 14 },
-        { x: cx, y: cy + height * 0.33, radius: 14 },
+        { x: cx - width * 0.32, y: cy - height * 0.18, radius: fieldRadius(this.arena, 14, 0) },
+        { x: cx + width * 0.32, y: cy - height * 0.18, radius: fieldRadius(this.arena, 14, 0) },
+        { x: cx - width * 0.32, y: cy + height * 0.18, radius: fieldRadius(this.arena, 14, 0) },
+        { x: cx + width * 0.32, y: cy + height * 0.18, radius: fieldRadius(this.arena, 14, 0) },
+        { x: cx, y: cy - height * 0.33, radius: fieldRadius(this.arena, 14, 0) },
+        { x: cx, y: cy + height * 0.33, radius: fieldRadius(this.arena, 14, 0) },
       ];
     } else if (this.selectedMapIndex === 3) {
       // --- MAP 3: ⚡ MERKEZ KALE (4 Kapılı Sığınak & Kanat Pistonları) ---
@@ -390,7 +380,7 @@ export class CrownGame extends BaseMiniGame {
           axis: 'y',
           x: cx - width * 0.36,
           y: cy,
-          radius: 26,
+          radius: fieldRadius(this.arena, 26, 0),
           minPos: cy - height * 0.25,
           maxPos: cy + height * 0.25,
           pos: 0,
@@ -401,7 +391,7 @@ export class CrownGame extends BaseMiniGame {
           axis: 'y',
           x: cx + width * 0.36,
           y: cy,
-          radius: 26,
+          radius: fieldRadius(this.arena, 26, 0),
           minPos: cy - height * 0.25,
           maxPos: cy + height * 0.25,
           pos: Math.PI,
@@ -412,13 +402,13 @@ export class CrownGame extends BaseMiniGame {
 
       // 2 Bouncy Bumpers guarding north & south bunker doorways
       this.bumpers = [
-        { x: cx, y: cy - height * 0.27, radius: 24, pulse: 0 },
-        { x: cx, y: cy + height * 0.27, radius: 24, pulse: 0 },
+        { x: cx, y: cy - height * 0.27, radius: fieldRadius(this.arena, 24, 0), pulse: 0 },
+        { x: cx, y: cy + height * 0.27, radius: fieldRadius(this.arena, 24, 0), pulse: 0 },
       ];
 
       this.bananaPeels = [
-        { x: cx - width * 0.05, y: cy, radius: 14 },
-        { x: cx + width * 0.05, y: cy, radius: 14 },
+        { x: cx - width * 0.05, y: cy, radius: fieldRadius(this.arena, 14, 0) },
+        { x: cx + width * 0.05, y: cy, radius: fieldRadius(this.arena, 14, 0) },
       ];
     } else if (this.selectedMapIndex === 4) {
       // --- MAP 4: 💥 KAOS FIRLATICI (6 Yaylı Mantar & 4 Çapraz Bant) ---
@@ -427,27 +417,27 @@ export class CrownGame extends BaseMiniGame {
 
       // 4 Cross-directional conveyor belts in the 4 quadrants
       this.conveyors = [
-        { x: cx - width * 0.28 - cW / 2, y: cy - height * 0.22 - cH / 2, w: cW, h: cH, dirX: 0, dirY: -1, speed: 170, animOffset: 0 },
-        { x: cx + width * 0.28 - cW / 2, y: cy - height * 0.22 - cH / 2, w: cW, h: cH, dirX: 1, dirY: 0, speed: 170, animOffset: 0 },
-        { x: cx - width * 0.28 - cW / 2, y: cy + height * 0.22 - cH / 2, w: cW, h: cH, dirX: -1, dirY: 0, speed: 170, animOffset: 0 },
-        { x: cx + width * 0.28 - cW / 2, y: cy + height * 0.22 - cH / 2, w: cW, h: cH, dirX: 0, dirY: 1, speed: 170, animOffset: 0 },
+        { x: cx - width * 0.28 - cW / 2, y: cy - height * 0.22 - cH / 2, w: cW, h: cH, dirX: 0, dirY: -1, speed: fieldSpeed(this.arena, 170), animOffset: 0 },
+        { x: cx + width * 0.28 - cW / 2, y: cy - height * 0.22 - cH / 2, w: cW, h: cH, dirX: 1, dirY: 0, speed: fieldSpeed(this.arena, 170), animOffset: 0 },
+        { x: cx - width * 0.28 - cW / 2, y: cy + height * 0.22 - cH / 2, w: cW, h: cH, dirX: -1, dirY: 0, speed: fieldSpeed(this.arena, 170), animOffset: 0 },
+        { x: cx + width * 0.28 - cW / 2, y: cy + height * 0.22 - cH / 2, w: cW, h: cH, dirX: 0, dirY: 1, speed: fieldSpeed(this.arena, 170), animOffset: 0 },
       ];
 
       // 6 Bouncy Pinball Bumpers
       this.bumpers = [
-        { x: cx - width * 0.12, y: cy, radius: 26, pulse: 0 },
-        { x: cx + width * 0.12, y: cy, radius: 26, pulse: 0 },
-        { x: cx, y: cy - height * 0.30, radius: 24, pulse: 0 },
-        { x: cx, y: cy + height * 0.30, radius: 24, pulse: 0 },
-        { x: cx - width * 0.36, y: cy, radius: 24, pulse: 0 },
-        { x: cx + width * 0.36, y: cy, radius: 24, pulse: 0 },
+        { x: cx - width * 0.12, y: cy, radius: fieldRadius(this.arena, 26, 0), pulse: 0 },
+        { x: cx + width * 0.12, y: cy, radius: fieldRadius(this.arena, 26, 0), pulse: 0 },
+        { x: cx, y: cy - height * 0.30, radius: fieldRadius(this.arena, 24, 0), pulse: 0 },
+        { x: cx, y: cy + height * 0.30, radius: fieldRadius(this.arena, 24, 0), pulse: 0 },
+        { x: cx - width * 0.36, y: cy, radius: fieldRadius(this.arena, 24, 0), pulse: 0 },
+        { x: cx + width * 0.36, y: cy, radius: fieldRadius(this.arena, 24, 0), pulse: 0 },
       ];
 
       this.bananaPeels = [
-        { x: cx, y: cy - height * 0.14, radius: 14 },
-        { x: cx, y: cy + height * 0.14, radius: 14 },
-        { x: cx - width * 0.20, y: cy, radius: 14 },
-        { x: cx + width * 0.20, y: cy, radius: 14 },
+        { x: cx, y: cy - height * 0.14, radius: fieldRadius(this.arena, 14, 0) },
+        { x: cx, y: cy + height * 0.14, radius: fieldRadius(this.arena, 14, 0) },
+        { x: cx - width * 0.20, y: cy, radius: fieldRadius(this.arena, 14, 0) },
+        { x: cx + width * 0.20, y: cy, radius: fieldRadius(this.arena, 14, 0) },
       ];
     }
   }
@@ -473,7 +463,7 @@ export class CrownGame extends BaseMiniGame {
         defaultNames: CROWN_NAMES,
         defaultColors: CROWN_COLORS,
         radius: r,
-        speed: 250,
+        speed: fieldSpeed(this.arena, 250),
         isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i],
         hasCrown: false,
@@ -655,7 +645,7 @@ export class CrownGame extends BaseMiniGame {
       dirY = player.vy / vLen;
     }
 
-    const tackleSpeed = 480;
+    const tackleSpeed = fieldSpeed(this.arena, 480);
     player.tackleVx = dirX * tackleSpeed;
     player.tackleVy = dirY * tackleSpeed;
     player.vx = player.tackleVx;
@@ -977,9 +967,9 @@ export class CrownGame extends BaseMiniGame {
         inY = p.inputY;
       }
 
-      // Heavy crown handicap: 165 px/s vs 250 px/s
-      let speed = p.hasCrown ? 165 : 250;
-      if (p.turboTimer > 0) speed = 340;
+      // Heavy crown handicap: 165 px/s vs 250 px/s (tasarım px/s)
+      let speed = fieldSpeed(this.arena, p.hasCrown ? 165 : 250);
+      if (p.turboTimer > 0) speed = fieldSpeed(this.arena, 340);
       if (p.inSlow) speed *= 0.55; // bariyer yavaşlatma alanı
 
       const inLen = Math.hypot(inX, inY);
@@ -1177,7 +1167,7 @@ export class CrownGame extends BaseMiniGame {
             playTeleport();
             this.addFloatingText(p.x, p.y - 25, t('crown.escape'), '#48CAE4');
           } else if (pk.type === 'SLIP') {
-            this.inkPuddles.push({ x: p.x, y: p.y, radius: 22, duration: 10.0 });
+            this.inkPuddles.push({ x: p.x, y: p.y, radius: fieldRadius(this.arena, 22, 0), duration: 10.0 });
             this.addFloatingText(p.x, p.y - 25, '🍌 TUZAK!', '#FFDE59');
           }
           this.pickups.splice(i, 1);

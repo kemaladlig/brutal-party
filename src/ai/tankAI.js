@@ -1,4 +1,5 @@
 // Micro-Tanks: Bot AI with Shell Avoidance, Direct Line-of-Sight, Ricochet Calculation & Patrol
+import { fieldPx, fieldSpeed } from '../core/playfield.js';
 
 export function normalizeAngle(angle) {
   let a = angle;
@@ -106,7 +107,11 @@ const BULLET_SPEED = 440;
 
 function estimateVelocity(game, t) {
   if (!t.isDriving) return { x: 0, y: 0 };
-  const spd = t.turboTimer > 0 ? 285 : (game.roundTimer > 35 ? 220 : t.driveSpeed || 175);
+  // `t.driveSpeed` motor tarafında ZATEN `fieldSpeed` ile ölçeklenmiş —
+  // tekrar sarmalamak çift ölçeklerdi. Buradaki sabitler ölçeklenmemişti.
+  const spd = t.turboTimer > 0
+    ? fieldSpeed(game.arena, 285)
+    : (game.roundTimer > 35 ? fieldSpeed(game.arena, 220) : (t.driveSpeed || fieldSpeed(game.arena, 175)));
   return { x: Math.cos(t.angle) * spd, y: Math.sin(t.angle) * spd };
 }
 
@@ -153,7 +158,10 @@ export function updateTankBotAI(game, tank, dt) {
     const dx = tank.x - b.x;
     const dy = tank.y - b.y;
     const dist = Math.hypot(dx, dy);
-    if (dist > P.dodgeRadius) continue;
+    // Kaçış yarıçapı saha ile ölçeklenir: sabit 80/130px telefonda saha
+    // kısa kenarının %21/%34'üydü (masaüstü %8.4/%13.7) — bot telefonda
+    // neredeyse her mermiyi "yaklaşan tehdit" sanıp kaçıyordu.
+    if (dist > fieldPx(game.arena, P.dodgeRadius)) continue;
     const bSpd = Math.hypot(b.vx, b.vy) || 1;
     const dot = (dx * b.vx + dy * b.vy) / (dist * bSpd);
     if (dot < P.dodgeDot) continue;
@@ -184,7 +192,10 @@ export function updateTankBotAI(game, tank, dt) {
     let ay = target.y;
     if (P.lead) {
       const dist = Math.hypot(ax - tank.x, ay - tank.y);
-      const flight = dist / BULLET_SPEED;
+      // Mermi uçuş süresi: gerçek mermi hızı motor tarafından sahayla
+      // birlikte ölçeklenir, öngörü de aynı ölçekte olmalı yoksa bot
+      // telefonla masaüstünde farklı nişan alır.
+      const flight = dist / fieldSpeed(game.arena, BULLET_SPEED);
       const ev = estimateVelocity(game, target);
       ax += ev.x * flight;
       ay += ev.y * flight;

@@ -2405,6 +2405,29 @@
   .pong-controller-view {
     padding-bottom: max(16px, env(safe-area-inset-bottom, 16px), 10vh);
   }
+
+  /* Stage 2 control-deck scrim: on a phone the field is now full-bleed
+     (playfield compact landscape), so the corner controls sit directly on
+     gameplay. A restrained bottom band keeps the buttons legible without
+     eating the centre of the field, which stays clear by design. */
+  .joystick-action-view::after,
+  .twin-stick-action-view::after,
+  .tanks-arcade-view::after,
+  .curve-controller-view::after,
+  .snake-controller-view::after,
+  .pong-controller-view::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 38vh;
+    pointer-events: none;
+    background: linear-gradient(
+      to top,
+      rgba(28, 28, 26, 0.30) 0%,
+      rgba(28, 28, 26, 0.12) 45%,
+      rgba(28, 28, 26, 0) 100%
+    );
+  }
 }
 
 .rotate-phone {

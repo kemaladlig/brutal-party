@@ -231,13 +231,20 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
     const radius = player.radius || 14;
+    // Efekt kromu yarıçapla ölçeklenir. Sabit px'ler telefonda (yarıçap
+    // ~15px) halkaları gövdenin 1.4-1.8 katına, durum yazısını gövde
+    // çapının %69'una ve metni 2.8 gövde yüksekliği kadar uzağa itiyordu.
+    // `u`, masaüstü referans yarıçapı 36px'e göre normalize ölçektir: u=1
+    // olduğunda değerler bugünküyle aynıdır.
+    const u = radius / 36;
+    const uMin = (v) => Math.max(1, v * u);
     ctx.save();
     ctx.translate(player.x, player.y);
 
     if (withFx && player.slip > 0) ctx.rotate(player.slipAngle);
 
     if (withFx && player.stumble > 0) {
-      ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
+      ctx.translate((Math.random() - 0.5) * 6 * u, (Math.random() - 0.5) * 6 * u);
       ctx.save();
       const dazeAngle = performance.now() * 0.008;
       const starR = radius + 14;
@@ -249,40 +256,40 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
         ctx.fillRect(sx - 3, sy - 3, 6, 6);
       }
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 5.5;
-      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = uMin(5.5);
+      ctx.setLineDash([5 * u, 5 * u]);
       ctx.beginPath();
-      ctx.arc(0, 0, radius + 6, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius + 6 * u, 0, Math.PI * 2);
       ctx.stroke();
       ctx.strokeStyle = '#FFDE59';
-      ctx.lineWidth = 3.5;
+      ctx.lineWidth = uMin(3.5);
       ctx.beginPath();
-      ctx.arc(0, 0, radius + 6, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius + 6 * u, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = '#FFDE59';
-      ctx.font = '900 10px "JetBrains Mono", monospace';
+      ctx.font = `900 ${uMin(10)}px "JetBrains Mono", monospace`;
       ctx.textAlign = 'center';
       ctx.lineJoin = 'round';
       ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
-      ctx.lineWidth = 3;
-      ctx.strokeText('SERSEM!', 0, -radius - 26);
-      ctx.fillText('SERSEM!', 0, -radius - 26);
+      ctx.lineWidth = uMin(3);
+      ctx.strokeText('SERSEM!', 0, -radius - 26 * u);
+      ctx.fillText('SERSEM!', 0, -radius - 26 * u);
       ctx.restore();
     }
 
     if (withFx && player.immunity > 0) {
       ctx.save();
       ctx.strokeStyle = '#2D6A4F';
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = uMin(2.5);
+      ctx.setLineDash([4 * u, 4 * u]);
       ctx.beginPath();
-      ctx.arc(0, 0, radius + 7, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius + 7 * u, 0, Math.PI * 2);
       ctx.stroke();
       ctx.fillStyle = '#2D6A4F';
-      ctx.font = '900 10px "Space Grotesk", sans-serif';
+      ctx.font = `900 ${uMin(10)}px "Space Grotesk", sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText(t('bomb.safe'), 0, -radius - 12);
+      ctx.fillText(t('bomb.safe'), 0, -radius - 12 * u);
       ctx.restore();
     }
 
@@ -290,9 +297,9 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
     if (withFx && isCarrier) {
       const urgency = 1 - Math.max(0, bombTimer / Math.max(1, bombMaxTime));
       const pulseSpeed = 1 + urgency * 4;
-      const pulseR = radius + 8 + Math.sin(performance.now() * 0.015 * pulseSpeed) * 4;
+      const pulseR = radius + 8 * u + Math.sin(performance.now() * 0.015 * pulseSpeed) * 4 * u;
       ctx.strokeStyle = urgency > 0.7 ? '#FFDE59' : '#D84727';
-      ctx.lineWidth = urgency > 0.7 ? 4 : 3;
+      ctx.lineWidth = uMin(urgency > 0.7 ? 4 : 3);
       ctx.beginPath();
       ctx.arc(0, 0, pulseR, 0, Math.PI * 2);
       ctx.stroke();
@@ -308,7 +315,7 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
       facingAngle: player.angle,
       expression: currentExp,
       borderColor: player.dash > 0 ? '#FFFFFF' : '#1C1C1A',
-      borderWidth: player.dash > 0 ? 4.5 : 3,
+      borderWidth: uMin(player.dash > 0 ? 4.5 : 3),
     });
 
     if (withFx) {

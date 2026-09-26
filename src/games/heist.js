@@ -24,6 +24,7 @@ import { updateHeistBotAI } from '../ai/heistAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
+import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { createPlayer } from '../core/playerEntity.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
 import {
@@ -151,27 +152,10 @@ export class HeistGame extends BaseMiniGame {
   resize(width, height) {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
-    const marginX = Math.max(12, Math.floor(width * 0.04));
-    const marginY = height > width
-      ? Math.max(48, Math.floor(height * 0.12))
-      : Math.max(32, Math.floor(height * 0.06));
-    const arenaW = width - marginX * 2;
-    const arenaH = height - marginY * 2;
-    const size = Math.min(arenaW, arenaH);
 
-    this.arena = {
-      cx: width / 2,
-      cy: height / 2,
-      width: arenaW,
-      height: arenaH,
-      size: size,
-      left: marginX,
-      right: width - marginX,
-      top: marginY,
-      bottom: height - marginY,
-    };
+    this.arena = computePlayfield(width, height, 'standard');
 
-    const { left, right, top, bottom, cx, cy } = this.arena;
+    const { left, right, top, bottom, cx, cy, size } = this.arena;
 
     // 4 Corner Vault Zones (merkeze yakın: köşeden %8 içerde, %20 boy)
     const vW = Math.round(size * 0.20);
@@ -223,7 +207,7 @@ export class HeistGame extends BaseMiniGame {
   initPlayers() {
     const { cx, cy, size } = this.arena;
     const spawnDist = Math.round(size * 0.42);
-    const r = Math.max(14, Math.round(size * 0.038));
+    const r = fieldRadius(this.arena, 36, 0.028);
 
     const spawns = [
       { x: cx - spawnDist * 0.707, y: cy + spawnDist * 0.707, angle: -Math.PI * 0.25 }, // P1: Bottom-Left
@@ -239,10 +223,10 @@ export class HeistGame extends BaseMiniGame {
         defaultNames: HEIST_NAMES,
         defaultColors: HEIST_COLORS,
         radius: r,
-        speed: 190,
+        speed: fieldSpeed(this.arena, 190),
         isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i],
-        baseSpeed: 190,
+        baseSpeed: fieldSpeed(this.arena, 190),
         vaultGold: 0,
         carriedGold: 0,
         carriedItems: 0,
@@ -387,13 +371,13 @@ export class HeistGame extends BaseMiniGame {
 
   spawnPiggyBank() {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 120;
+    const speed = fieldSpeed(this.arena, 120);
     this.piggyBank = {
       x: this.arena.cx,
       y: this.arena.cy,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
-      radius: 24,
+      radius: fieldRadius(this.arena, 24, 0.026),
       hp: 3,
       maxHp: 3,
       hitTimer: 0,
@@ -705,7 +689,7 @@ export class HeistGame extends BaseMiniGame {
       const weight = Number.isFinite(player.carriedWeight) ? player.carriedWeight : 0;
       let currentSpeed = Math.max(108, base - weight * 13);
       if (player.tackleTimer > 0) {
-        currentSpeed = 340; // Tackle surge speed!
+        currentSpeed = fieldSpeed(this.arena, 340); // Tackle surge speed!
       }
       if (player.stumbleTimer > 0) {
         currentSpeed *= 0.18; // Stun stumble!
@@ -1040,13 +1024,13 @@ export class HeistGame extends BaseMiniGame {
   // --- RENDERING PIPELINE ---
 
   render() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
     ctx.save();
     this.uiButtons = [];
 
     // Background paper
     ctx.fillStyle = '#F4F0EA';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
 
     if (this.trauma > 0) {
       const shakeIntensity = this.trauma * this.trauma * 14;

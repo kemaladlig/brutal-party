@@ -46,6 +46,14 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
 
   const expression = normalizeExpression(opts.expression || player.expression);
 
+  // Avatar kromu yarıçapla ölçeklenir. Sabit 3px çerçeve, masaüstündeki 36px
+  // bir avatarın yarıçapının %8'i iken telefondaki 12px avatarın %25'idir —
+  // yani küçük ekranda varlığın silueti kromla yiyordu, "iri ve bulanık"
+  // hissi tam olarak buradan geliyordu. `radius * 0.12` her boyutta aynı görsel
+  // oranı verir; taban, çok küçük avatarın çerçevesiz kaybolmaması için.
+  const borderWidth = opts.borderWidth
+    ?? Math.max(1.2, Number(radius) * 0.12);
+
   drawBrutalAvatar(ctx, x, y, radius, {
     color: opts.color || player.color,
     slotIndex: player.index !== undefined ? player.index : 0,
@@ -53,9 +61,12 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
     label: opts.label !== undefined ? opts.label : defaultLabel,
     expression: expression,
     accessory: opts.gameAccessory || opts.accessory || (isBot ? 'BOT' : undefined),
+    // Silüeti gövde dışına taşıran aksesuarı (halo, kanat) bastır. Ölçülen
+    // etki yarıçap 16'da 36x45 -> 36x37; çarpışma yarıçapı değişmez.
+    compactSilhouette: opts.compactSilhouette === true,
     pattern: opts.pattern,
     showPointer: opts.showPointer !== undefined ? opts.showPointer : true,
     borderColor: opts.borderColor || '#1C1C1A',
-    borderWidth: opts.borderWidth || 3,
+    borderWidth,
   });
 }

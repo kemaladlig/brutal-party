@@ -4,6 +4,7 @@
 import { drawObstacle, drawPickup } from '../core/arenaKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { segmentAabbIntersection } from '../core/physics2d.js';
+import { isCompactLandscape } from '../core/playfield.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
 import { renderFireCooldown } from '../ui/hud.js';
@@ -558,6 +559,13 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
     ctx.restore();
   }
 
+  // Can çubuğu ölçeği: `enemy.r`'ye göreli. Mutlak taban (eski `Math.max(20, ...)`
+  // ve 10px boşluk) telefonda düşman 9px'e küçülürken çubuğu 20px'te
+  // tutuyordu — yani NPC "küçük" algısının bir kısmı çizimden geliyordu.
+  const barW = Math.max(enemy.r * 1.5, enemy.r * 0.9);
+  const barH = Math.max(2, enemy.r * 0.3);
+  const barGap = Math.max(3, enemy.r * 0.55);
+
   ctx.save();
   ctx.translate(enemy.x, enemy.y);
   ctx.rotate(enemy.angle || 0);
@@ -602,53 +610,72 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
   ctx.fillRect(enemy.r * 0.45, -3, enemy.r * 0.55, 6);
   ctx.restore();
 
-  const barW = Math.max(20, enemy.r * 1.5);
   const ratio = clamp01(enemy.hp / enemy.maxHp);
   ctx.save();
   ctx.fillStyle = '#1A1A1A';
-  ctx.fillRect(enemy.x - barW / 2, enemy.y - enemy.r - 10, barW, 5);
+  ctx.fillRect(enemy.x - barW / 2, enemy.y - enemy.r - barGap, barW, barH);
   ctx.fillStyle = enemy.boss || enemy.elite ? '#FACC15' : '#E63946';
-  ctx.fillRect(enemy.x - barW / 2, enemy.y - enemy.r - 10, barW * ratio, 5);
+  ctx.fillRect(enemy.x - barW / 2, enemy.y - enemy.r - barGap, barW * ratio, barH);
   ctx.restore();
 }
 
+/**
+ * Oyuncu silahı — gövde yarıçapına ORANTILI çizilir.
+ *
+ * İki ayrı ölçek var ve ikisi de gerekli:
+ *   `u` — mutlak px'i gövde yarıçapına bağlar (cihaz tutarlılığı).
+ *   `REACH` — silahın gövde yarıçapına GÖRE erişimini kısar (görsel denge).
+ *
+ * Neden ikisi: `u` tek başına yetmiyordu. Tüm geometri 16px gövdeye göre
+ * yazılmıştı, yani silah ucu zaten **2 gövde yarıçapı** ötede bitiyordu
+ * (13+19=32px). Ölçekleme bu oranı koruyor, yani oyuncunun çizilen
+ * yayılımı gövdeden bağımsız olarak 2 kat kalıyordu — "oyuncu büyük"
+ * algısının halo bastırıldıktan sonra kalan kaynağı buydu.
+ *
+ * `REACH` yalnız UZUNLUĞU kısaltır, kalınlığı değil: silah hâlâ okunur ve
+ * yön hâlâ belli, ama gövdeyi 2 katına çıkarmıyor. Değer keyfine açıktır.
+ */
+const WEAPON_REACH = 0.7;
+
 function drawPlayerWeapon(ctx, player) {
+  const u = (player.radius || 14) / 16;
+  const k = u * WEAPON_REACH;
   ctx.save();
   ctx.rotate(player.angle || 0);
   if (player.weaponKind === 'melee') {
     if (player.swing) {
       ctx.strokeStyle = player.weaponColor;
-      ctx.lineWidth = 8;
+      ctx.lineWidth = 8 * u;
       ctx.beginPath();
-      ctx.arc(10, 0, 54, -0.8, 0.8);
+      ctx.arc(10 * k, 0, 54 * k, -0.8, 0.8);
       ctx.stroke();
       ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2.5 * u;
       ctx.stroke();
     }
     ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 5 * u;
     ctx.beginPath();
-    ctx.moveTo(12, 0);
-    ctx.lineTo(38, 0);
+    ctx.moveTo(12 * k, 0);
+    ctx.lineTo(38 * k, 0);
     ctx.stroke();
   } else {
     if (player.aiming) {
       ctx.strokeStyle = player.weaponColor;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 3 * u;
       ctx.beginPath();
-      ctx.moveTo(22, 0);
-      ctx.lineTo(54, 0);
+      ctx.moveTo(22 * k, 0);
+      ctx.lineTo(54 * k, 0);
       ctx.stroke();
     }
     const barrel = player.weaponBarrel;
-    const length = barrel === 'rifle' ? 34 : barrel === 'shotgun' ? 28 : barrel === 'smg' ? 24 : 19;
-    const thickness = barrel === 'shotgun' ? 10 : barrel === 'rifle' ? 6 : 8;
+    const length = (barrel === 'rifle' ? 34 : barrel === 'shotgun' ? 28 : barrel === 'smg' ? 24 : 19) * k;
+    const thickness = (barrel === 'shotgun' ? 10 : barrel === 'rifle' ? 6 : 8) * u;
     ctx.fillStyle = player.weaponColor;
-    ctx.fillRect(13, -thickness / 2, length, thickness);
+    ctx.fillRect(13 * k, -thickness / 2, length, thickness);
     ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(13, -thickness / 2, length, thickness);
+    ctx.lineWidth = 2 * u;
+    ctx.strokeRect(13 * k, -thickness / 2, length, thickness);
   }
   ctx.restore();
 }
@@ -659,6 +686,13 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
     if (!player.joined || !player.alive) continue;
     if (withFx && player.invuln && blink) continue;
 
+    // Oyuncu gövdesi ve çevresi `player.radius`'e bağlıdır. Sabit 15px idi:
+    // telefonda çarpışma yarıçapı 8.9px'e düşerken gövde 15px'te kalıyordu,
+    // yani çizilen oyuncu sahanın %1.7 katı büyüktü. "Biz büyüğüz" hissinin
+    // ölçülebilir kaynağı buydu — yarıçap sabitleri doğruydu, çizim değil.
+    const R = player.radius || 14;
+    const u = R / 16;
+
     ctx.save();
     ctx.translate(player.x, player.y);
     if (player.dashing) {
@@ -666,22 +700,22 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
       ctx.globalAlpha = 0.35;
       ctx.fillStyle = player.color;
       ctx.beginPath();
-      ctx.arc(-18, 0, 14, 0, Math.PI * 2);
+      ctx.arc(-18 * u, 0, 14 * u, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
     if (player.shield) {
       ctx.strokeStyle = '#06B6D4';
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 4 * u;
       ctx.fillStyle = 'rgba(6, 182, 212, 0.18)';
       ctx.beginPath();
-      ctx.arc(0, 0, 22, 0, Math.PI * 2);
+      ctx.arc(0, 0, 22 * u, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
 
     drawPlayerWeapon(ctx, player);
-    drawGameAvatar(ctx, 0, 0, 15, {
+    drawGameAvatar(ctx, 0, 0, R, {
       ...player,
       index: player.slot,
       facingAngle: player.angle,
@@ -691,40 +725,53 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
       expression: player.hp <= 1 ? 'PANIC' : player.fast || player.triple ? 'EXCITED' : player.expression,
       label: '',
       showPointer: false,
+      // HALO ve kanatlar gövdeyi aşıyordu (ölçülen 36x45 -> 36x37). Horde
+      // kalabalık bir saha: oyuncu "birim" olarak okunmalı, dekor değil.
+      compactSilhouette: true,
     });
     ctx.restore();
+
+    // Oyuncu çevresindeki HUD da gövde yarıçapına bağlıdır. Mutlak px'ler
+    // tasarım boyutunda doğruydu ama telefonda şişiyordu: cooldown halkası 15px
+    // sabit (gövde 5.7px), can pips'leri 27px YUKARIDA (4.7× gövde yarıçapı),
+    // cephane çubuğu 32×24px (5.6×). Üçü birden oyuncunun çizilen yayılımını
+    // gövdenin ~3.2 katına çıkarıyordu — düşman can çubuğundaki aynı hatanın
+    // oyuncu tarafındaki hali. `u` tasarım yarıçapına (14) oran olduğu için
+    // masaüstü tasarım BİREBİR korunur, sadece küçük sahada küçülür.
+    const hu = R / 14;
 
     renderFireCooldown(ctx, {
       x: player.x,
       y: player.y,
-      radius: 15,
+      radius: 15 * hu,
       progress: player.fireCooldown,
       feedback: getFireFeedbackForRender(player),
       color: player.weaponColor,
     });
 
-    const pipW = 5;
-    const pipGap = 3;
+    const pipW = 5 * hu;
+    const pipGap = 3 * hu;
     const totalW = player.hpMax * pipW + (player.hpMax - 1) * pipGap;
     const startX = player.x - totalW / 2;
     for (let i = 0; i < player.hpMax; i++) {
       ctx.fillStyle = i < player.hp ? player.color : 'rgba(26, 26, 26, 0.22)';
-      ctx.fillRect(startX + i * (pipW + pipGap), player.y - 27, pipW, 4);
+      ctx.fillRect(startX + i * (pipW + pipGap), player.y - 27 * hu, pipW, 4 * hu);
     }
 
     if (player.weaponKind === 'gun') {
-      const barW = 32;
+      const barW = 32 * hu;
       const x = player.x - barW / 2;
-      const y = player.y + 24;
+      const y = player.y + 24 * hu;
+      const barH = 4 * hu;
       ctx.fillStyle = 'rgba(26, 26, 26, 0.35)';
-      ctx.fillRect(x, y, barW, 4);
+      ctx.fillRect(x, y, barW, barH);
       if (player.reloading) {
         ctx.fillStyle = '#FACC15';
-        ctx.fillRect(x, y, barW * clamp01(player.reload), 4);
+        ctx.fillRect(x, y, barW * clamp01(player.reload), barH);
       } else {
         const ratio = player.magazine > 0 ? clamp01(player.ammo / player.magazine) : 0;
         ctx.fillStyle = player.weaponColor;
-        ctx.fillRect(x, y, barW * ratio, 4);
+        ctx.fillRect(x, y, barW * ratio, barH);
       }
     }
   }
@@ -855,27 +902,54 @@ export function drawHordeStatus(ctx, arena, scene) {
       : scene.waveBreakTime > 0
         ? t('horde.nextWave', Math.ceil(scene.waveBreakTime))
         : '';
-  const w = Math.min(arena.width * 0.72, 430);
-  const h = sub ? 58 : 44;
-  const x = arena.cx - w / 2;
-  const y = arena.top + 14;
+  // Yerleşim: masaüstü/tablette üst-ortada banner (geniş ekranda yer ucuz).
+  // Kompakt yatayda (telefon) saha üst payı ~3px olduğu için ortada bir opak
+  // bant oynanış alanının üstünü kesiyordu; sola yaslanıp daraltılıyor.
+  // `window` yoksa (SSR, world-view packet testleri bu view'ı render eder)
+  // kompakt sayılmaz — çizim kodu varlığa bağımlı olmamalı.
+  const compact = typeof window !== 'undefined'
+    && isCompactLandscape(window.innerWidth, window.innerHeight);
+  // Chip ölçeği saha kısa kenarına bağlıdır: mutlak 44/58px yükseklik
+  // telefonda saha yüksekliğinin %11'i idi, %4.7'ye indi.
+  const u = (arena.size || 952) / 952;
+  const labelFont = `900 ${Math.max(9, Math.round(14 * u))}px "Space Grotesk", sans-serif`;
+  const subFont = `800 ${Math.max(7, Math.round(11 * u))}px "JetBrains Mono", monospace`;
 
+  // Kutu İÇERİĞİNE GÖRE genişler. Sabit taban genişlik metni taşırıyordu:
+  // telefonda kutu 122px, metin ~150px — metin kutudan taşıp sol duvarın
+  // üstünde kesiliyordu. Ölçüm tabanı aşarsa kutu büyür, saha genişliğini
+  // aşarsa kırpılır.
   ctx.save();
+  ctx.font = labelFont;
+  const labelW = ctx.measureText(label).width;
+  ctx.font = subFont;
+  const subW = sub ? ctx.measureText(sub).width : 0;
+  const padX = 16 * u;
+  const baseW = Math.min(arena.width * (compact ? 0.42 : 0.72), (compact ? 300 : 430) * u);
+  const w = Math.max(baseW, Math.min(arena.width - 16 * u, Math.max(labelW, subW) + padX));
+  const h = (sub ? 58 : 44) * u;
+  const x = compact ? arena.left + 8 * u : arena.cx - w / 2;
+  const y = arena.top + 8 * u;
+
   ctx.fillStyle = '#1A1A1A';
-  ctx.fillRect(x + 4, y + 4, w, h);
+  ctx.fillRect(x + 4 * u, y + 4 * u, w, h);
   ctx.fillStyle = inArmory ? '#7C3AED' : scene.portal ? '#7C3AED' : scene.isBossWave ? '#B91C1C' : '#1A1A1A';
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = '#FFFFFF';
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 2.5 * u;
   ctx.strokeRect(x, y, w, h);
   ctx.fillStyle = '#FFFFFF';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '900 14px "Space Grotesk", sans-serif';
-  ctx.fillText(label, arena.cx, y + (sub ? 19 : h / 2));
+  // Metin KUTUNUN kendi merkezine hizalanır, sahanın değil. Kompakt yatayda kutu
+  // sola yaslanır ama metin `arena.cx`'e göre kalırsa kutudan taşıp sol duvarın
+  // üstüne biner (ölçülen görsel kusur).
+  const textCx = x + w / 2;
+  ctx.font = labelFont;
+  ctx.fillText(label, textCx, y + (sub ? 19 * u : h / 2));
   if (sub) {
-    ctx.font = '800 11px "JetBrains Mono", monospace';
-    ctx.fillText(sub, arena.cx, y + 41);
+    ctx.font = subFont;
+    ctx.fillText(sub, textCx, y + 41 * u);
   }
   ctx.restore();
 }

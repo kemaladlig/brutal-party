@@ -34,6 +34,7 @@ import {
 } from './zoneView.js';
 import { drawSquareParticles, drawAlphaTexts } from './worldCore.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
+import { computePlayfield, fieldRadius } from '../core/playfield.js';
 import { vibrate } from '../core/haptics.js';
 
 export const ZONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -84,7 +85,9 @@ export const ZONE_TUNING = {
   DASH_TIME: 0.22,   // depar süresi (sn)
   DASH_CD: 4.0,      // depar bekleme (sn)
   AVATAR_R_MULT: 1.15, // karakter yarıçapı = hücre * bu (iri görünüm, grid'e dokunmaz)
-  AVATAR_R_MIN: 8,     // küçük ekranda taban yarıçap (px)
+  // Taban yarıçapı GÖRELİ: eskiden mutlak 8px idi ve küçük saha varlığı
+  // şişiriyordu (telefonda hücre zaten küçülünce taban baskın oluyordu).
+  AVATAR_R_MIN: 0.018,
   TRAIL_W_MULT: 0.95,  // açık iz çizgi kalınlığı = hücre * bu
   TRAIL_GLOW_MULT: 1.05, // risk uyarısı dış parlama = hücre * bu (hazard'da +0.2)
   RELIC_SPAWN_INIT: 4.5, // İlk relic çıkış süresi (sn)
@@ -354,17 +357,9 @@ export class ZoneGame extends BaseMiniGame {
 
   resize(width, height) {
     this.updateViewport(width, height);
-    const marginX = Math.max(8, Math.floor(width * 0.025));
-    const marginY = height > width
-      ? Math.max(48, Math.floor(height * 0.12))
-      : Math.max(24, Math.floor(height * 0.045));
-    const arenaW = width - marginX * 2;
-    const arenaH = height - marginY * 2;
-    this.arena = {
-      cx: width / 2, cy: height / 2, width: arenaW, height: arenaH,
-      size: Math.min(arenaW, arenaH),
-      left: marginX, right: width - marginX, top: marginY, bottom: height - marginY,
-    };
+
+    this.arena = computePlayfield(width, height, 'dense');
+    const { width: arenaW, height: arenaH } = this.arena;
 
     // Kare capture alanı arena ortasında
     const s = Math.max(64, Math.min(arenaW, arenaH) - 4);
@@ -400,7 +395,7 @@ export class ZoneGame extends BaseMiniGame {
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || ZONE_COLORS[i]),
         x: bcx, y: bcy, heading: outward,
-        radius: Math.max(ZONE_TUNING.AVATAR_R_MIN, this.cell * ZONE_TUNING.AVATAR_R_MULT),
+        radius: fieldRadius(this.arena, this.cell * ZONE_TUNING.AVATAR_R_MULT, ZONE_TUNING.AVATAR_R_MIN),
         isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         trail: [], lastCell: -1,
         // İz-başlangıç anchor'ı: base'den çıkılan tam piksel nokta (render
@@ -1400,10 +1395,10 @@ export class ZoneGame extends BaseMiniGame {
   }
 
   render() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
     ctx.save();
     ctx.fillStyle = '#F4F4F0';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
     this.applyScreenShake(ctx, 14);
 
     const { left, top, width, height } = this.arena;

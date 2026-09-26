@@ -1,14 +1,29 @@
 import { UI_COLORS, UI_SIZES, uiFont } from './ui/tokens.js';
 import { drawBrutalAvatar } from './ui/characterRenderer.js';
 import { getBotPersona } from './core/customizationManager.js';
+import { isCompactLandscape } from './core/playfield.js';
 import { t } from './i18n.js';
 
 const GUIDE_COLORS = UI_COLORS.players;
 
-export function renderControlGuide(ctx, arena, title, entries) {
+/**
+ * Kontrol rehberi şeridi.
+ *
+ * `duringPlay: true` çağıran motorlar (RACE) bunu oyun sırasında da çizer.
+ * Telefon yatayda oynarken saha kısa olduğu için sürekli bir üst şerit
+ * pahalıdır: Stage 2 sonrası saha üst payı ~3px'e indiği için şerit (~28px)
+ * sahanın %7'sini kalıcı olarak kapatıyordu. Piyasa standardı (landscape mobil
+ * oyunlar) oynarken chrome göstermemek, yardımı tek butonun açtığı menüye
+ * taşımaktır — bu yüzden kompakt yatayda `duringPlay` şeridi çizilmez.
+ *
+ * LOBBY'de şerit korunur: sahne baskısı yoktur ve yeni oyuncuya kontrol
+ * öğretir.
+ */
+export function renderControlGuide(ctx, arena, title, entries, { duringPlay = false } = {}) {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const isPortrait = arena.height > arena.width;
+  if (duringPlay && !isPortrait && isCompactLandscape(viewportWidth, viewportHeight)) return;
   const panelHeight = isPortrait ? Math.max(54, arena.top - 8) : Math.max(28, Math.min(38, arena.top - 6));
   const panelY = 6;
   const panelWidth = Math.min(arena.width, viewportWidth - 24);

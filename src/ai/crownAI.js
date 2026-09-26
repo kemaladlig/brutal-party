@@ -1,3 +1,5 @@
+import { fieldPx } from '../core/playfield.js';
+
 // Brutal Crown: Bot AI — KING / LOOSE / HUNT state machine.
 // Kademe: NORMAL yarışçı-adil (panikler, hata yapar), GOD neredeyse yenilmez
 // (kaçış rotası seçer, önünü keser, rakibi tacından eder).
@@ -60,8 +62,12 @@ function decideCrownTarget(game, bot, P) {
           minEnemyDist = d;
           closestEnemy = other;
         }
-        if (d < P.threatRadius && d > 0.1) {
-          const weight = (P.threatRadius - d) / P.threatRadius;
+        // Tehdit yarıçapı saha ile ölçeklenir: sabit 280/320px bir telefon
+        // yatayında saha GENİŞLİĞİNİN %35-40'ıydı, yani "uzaktaki oyuncu
+        // bile tehdittir" — bot telefonla masaüstünde farklı oynuyordu.
+        const threatRadius = fieldPx(game.arena, P.threatRadius);
+        if (d < threatRadius && d > 0.1) {
+          const weight = (threatRadius - d) / threatRadius;
           threatVectorX -= (dx / d) * weight;
           threatVectorY -= (dy / d) * weight;
         }
@@ -74,7 +80,7 @@ function decideCrownTarget(game, bot, P) {
     }
 
     const distToCenter = Math.hypot(cx - bot.x, cy - bot.y);
-    const centerWeight = distToCenter > P.centerFar ? 0.35 : 0.1;
+    const centerWeight = distToCenter > fieldPx(game.arena, P.centerFar) ? 0.35 : 0.1;
 
     let escapeX = threatVectorX + (cx - bot.x) / (distToCenter + 1) * centerWeight;
     let escapeY = threatVectorY + (cy - bot.y) / (distToCenter + 1) * centerWeight;

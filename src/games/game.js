@@ -13,6 +13,7 @@ import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { vibrate } from '../core/haptics.js';
+import { computePlayfield, fieldRadius } from '../core/playfield.js';
 
 const PONG_ROUND_LIMIT = 120;
 
@@ -348,25 +349,13 @@ export class Game extends BaseMiniGame {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const isPortrait = height > width;
-    const marginX = Math.max(12, Math.floor(width * 0.04));
-    const marginY = isPortrait
-      ? Math.max(48, Math.floor(height * 0.12))
-      : Math.max(32, Math.floor(height * 0.06));
-    const arenaW = width - marginX * 2;
-    const arenaH = height - marginY * 2;
 
-    this.arena.cx = width / 2;
-    this.arena.cy = height / 2;
-    this.arena.width = arenaW;
-    this.arena.height = arenaH;
-    this.arena.size = Math.min(arenaW, arenaH);
-    this.arena.left = marginX;
-    this.arena.right = marginX + arenaW;
-    this.arena.top = marginY;
-    this.arena.bottom = marginY + arenaH;
-
-    // Bumper ratio – portrait has taller walls so opening must be proportionally wider
-    this.arena.bumperRatio = isPortrait ? 0.09 : 0.10;
+    this.arena = {
+      ...computePlayfield(width, height, 'standard'),
+      // Bumper ratio – portrait has taller walls so opening must be proportionally wider
+      bumperRatio: isPortrait ? 0.09 : 0.10,
+      getGoalBounds: (side) => this.getGoalBounds(side),
+    };
 
     // Update paddle bounds to fit new goal mouth
     this.paddles.forEach((paddle) => paddle.updateLayout(this.arena));
@@ -724,9 +713,14 @@ export class Game extends BaseMiniGame {
     }
 
     const activeEntities = [this.ball];
+    // Paddle proksi yarıçapı: hayalet-solma (proximity ghosting) hesabı için
+    // sentetik varlık, oynanışta kullanılmıyor — ama görsel ağırlığı
+    // temsil ettiği için saha ile ölçeklenmeli. Mutlak 24px telefonda topun
+    // (ölçekli) 2 katından geniş bir "yakınlık" alanı yaratıyordu.
+    const proxyR = fieldRadius(this.arena, 24, 0);
     this.paddles.forEach((p) => {
       if (p.isJoined && !p.isEliminated) {
-        activeEntities.push({ x: p.coord, y: p.fixedPerpendicular, radius: 24 });
+        activeEntities.push({ x: p.coord, y: p.fixedPerpendicular, radius: proxyR });
       }
     });
 

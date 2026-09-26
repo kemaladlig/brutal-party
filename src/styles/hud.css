@@ -361,6 +361,73 @@
   color: #d84727;
 }
 
+/* Controls reference: the play-time top bar's content, now behind the single
+   menu button. Dense two-column list — it must never become a scroll trap. */
+.pause-controls-section[hidden] {
+  display: none;
+}
+
+.pause-controls-body {
+  display: block;
+}
+
+.pause-controls-section .sheet-section-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pc-touch-icon {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+
+.pause-controls-keyboard {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
+}
+
+.pause-controls-keyboard li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pc-slot {
+  flex: 0 0 auto;
+  min-width: 30px;
+  padding: 2px 5px;
+  background: #1c1c1a;
+  color: #f4f4f0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.pc-keys {
+  min-width: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 800;
+  color: #55514a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 520px) {
+  .pause-controls-keyboard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .sheet-row-actions {
   display: flex;
   gap: 8px;

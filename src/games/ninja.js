@@ -11,6 +11,7 @@ import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
+import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import {
   NINJA_RADIUS,
   createNinjaWorldPacket,
@@ -120,16 +121,8 @@ export class NinjaGame extends BaseMiniGame {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const activeLanterns = this.lanterns.map((lantern) => ({ ...lantern }));
-    const marginX = Math.max(12, Math.floor(width * 0.04));
-    const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
-    const arenaW = width - marginX * 2;
-    const arenaH = height - marginY * 2;
 
-    this.arena = {
-      cx: width / 2, cy: height / 2, width: arenaW, height: arenaH,
-      size: Math.min(arenaW, arenaH), left: marginX, right: marginX + arenaW,
-      top: marginY, bottom: marginY + arenaH,
-    };
+    this.arena = computePlayfield(width, height, 'standard');
 
     this.buildMap();
 
@@ -149,8 +142,8 @@ export class NinjaGame extends BaseMiniGame {
       p.botTargetX = this.arena.cx;
       p.botTargetY = this.arena.cy;
       this.remapPoint(p, oldArena, this.arena);
-      clampToArena(p, NINJA_RADIUS, this.arena);
-      resolveAABB(p, this.obstacles, NINJA_RADIUS);
+      clampToArena(p, p.radius, this.arena);
+      resolveAABB(p, this.obstacles, p.radius);
     }
   }
 
@@ -169,7 +162,7 @@ export class NinjaGame extends BaseMiniGame {
       { x: cx - bw * 0.35, y: cy - bw * 0.35, w: bw * 0.7, h: bw * 0.7 }
     );
 
-    const lanternSpeed = Math.max(55, size * 0.12);
+    const lanternSpeed = fieldSpeed(this.arena, 114);
     const startAngles = [Math.PI * 0.22, Math.PI * 0.78, Math.PI * 1.45];
     const startPositions = [
       { x: cx - size * 0.22, y: cy - size * 0.18 },
@@ -211,7 +204,10 @@ export class NinjaGame extends BaseMiniGame {
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || NINJA_COLORS[i]),
         x: s.x, y: s.y, angle: 0,
-        speed: 145, steerX: 0, steerY: 0,
+        // Yarıçap sabit DEĞİLDİR: motor sahayla birlikte ölçekler, view
+        // `player.radius` okur, world packet taşır (ARCHER ile aynı desen).
+        radius: fieldRadius(this.arena, NINJA_RADIUS, 0),
+        speed: fieldSpeed(this.arena, 145), steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         alpha: 1.0, hideTimer: 0, inLight: false,
         strikeTimer: 0, strikeCooldown: 0,
@@ -646,7 +642,7 @@ export class NinjaGame extends BaseMiniGame {
           lantern.x = this.arena.cx;
           lantern.y = this.arena.cy;
           const ang = Math.random() * Math.PI * 2;
-          const spd = Math.max(55, this.arena.size * 0.12);
+          const spd = fieldSpeed(this.arena, 114);
           lantern.vx = Math.cos(ang) * spd;
           lantern.vy = Math.sin(ang) * spd;
         }
@@ -787,7 +783,7 @@ export class NinjaGame extends BaseMiniGame {
       const prevY = player.y;
       player.prevX = prevX;
       player.prevY = prevY;
-      const spd = player.strikeTimer > 0 ? 780 : player.speed;
+      const spd = player.strikeTimer > 0 ? fieldSpeed(this.arena, 780) : player.speed;
 
       if (player.strikeTimer <= 0) {
         player.x += player.steerX * spd * dt;
@@ -797,10 +793,10 @@ export class NinjaGame extends BaseMiniGame {
         player.y += Math.sin(player.angle) * spd * dt;
       }
 
-      clampToArena(player, NINJA_RADIUS, this.arena);
+      clampToArena(player, player.radius, this.arena);
       const postX = player.x;
       const postY = player.y;
-      resolveAABB(player, this.obstacles, NINJA_RADIUS);
+      resolveAABB(player, this.obstacles, player.radius);
       if (player.strikeTimer > 0 && (player.x !== postX || player.y !== postY)) {
         player.strikeTimer = 0;
       }
@@ -911,12 +907,12 @@ export class NinjaGame extends BaseMiniGame {
   }
 
   render() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
     const now = performance.now();
     ctx.save();
 
     ctx.fillStyle = '#D6D3CD';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
     this.applyScreenShake(ctx);
 
     // Arena sahnesi ortak ninjaView draw'larından gelir (host↔client aynı).

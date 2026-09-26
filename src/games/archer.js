@@ -16,6 +16,7 @@ import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { pointBlocked, updateMovers, clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
+import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import {
   createArcherWorldPacket,
   drawArcherArena,
@@ -28,7 +29,20 @@ import {
 export const ARCHER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ARCHER_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
-const ARCHER_RADIUS = 18;
+// Tasarım yarıçapı (1920x1080 referansı). ÇALIŞMA ZAMANI yarıçapı sabit
+// DEĞİLDİR: her oyuncu `fieldRadius(this.arena, ...)` ile kendi `radius`
+// alanını taşır. Aşağıdaki her kullanım o alandan okur. Sabit kalsaydı
+// telefonda saha yüksekliğinin %4.65'ini, masaüstünde %1.89'unu kaplıyordu
+// (2.5x şişik).
+//
+// 18 → 22: ARCHER'ın gövde/saha oranı (%1.89) tüm motorlar arasında EN KÜÇÜKÜ
+//ydi (BOMB %3.78, CROWN %4.47, TANKS %3.20) — masaüstünde karakter diğer
+// oyunlara göre belirgin şekilde küçük duruyordu. 22px → %2.31, araya girer.
+const ARCHER_RADIUS = 22;
+// Taban yok: `minUnit` (0.30) alan çöktüğünde alt sınırı veriyor. Burada bir
+// taban daha önce 0.02 idi ve tasarım payının ÜSTÜNDE olduğu için masaüstünde
+// de +%6 şişiriyordu.
+// Tasarım px/s; `fieldSpeed` ile sahayla birlikte ölçeklenir.
 const ARCHER_SPEED = 150;
 const ARCHER_CHARGE_TIME = 1.0;
 const ARCHER_SHOT_COOLDOWN = 0.8;
@@ -88,19 +102,11 @@ export class ArcherGame extends BaseMiniGame {
   resize(width, height) {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
-    const marginX = Math.max(12, Math.floor(width * 0.04));
-    const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
-    const arenaW = width - marginX * 2;
-    const arenaH = height - marginY * 2;
 
     const previousObstacles = Array.isArray(this.obstacles) ? this.obstacles : [];
     const previousPhases = previousObstacles.map((obs) => obs?.mover?.phase);
 
-    this.arena = {
-      cx: width / 2, cy: height / 2, width: arenaW, height: arenaH,
-      size: Math.min(arenaW, arenaH), left: marginX, right: marginX + arenaW,
-      top: marginY, bottom: marginY + arenaH,
-    };
+    this.arena = computePlayfield(width, height, 'standard');
 
     this.buildMap();
     if (this.state !== 'LOBBY' && previousObstacles.length === this.obstacles.length) {
@@ -122,7 +128,13 @@ export class ArcherGame extends BaseMiniGame {
     this.mapTime = 0;
     const presetNames = ['pillars', 'cross', 'scatter'];
     const name = presetNames[this.mapIndex] || 'pillars';
-    this.obstacles = buildLayout(name, this.arena);
+    // Geçiş tabanı oyuncunun kendi çapından türer: iki engel arasındaki en dar
+    // cep karakterin çapından geniş olmalı, yoksa o boşluk dekoratif görünür
+    // ama oyuncu içine giremez. Preset'ler `size`'dan türeyen sabitlerle
+    // çalıştığı için oyuncu 22px'e çıkınca `cross`'in dikey geçişi kapanmıştı.
+    this.obstacles = buildLayout(name, this.arena, {
+      minPassage: fieldRadius(this.arena, ARCHER_RADIUS, 0) * 2.4,
+    });
   }
 
   updateMovers(dt) {
@@ -150,7 +162,8 @@ export class ArcherGame extends BaseMiniGame {
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || ARCHER_COLORS[i]),
         x: s.x, y: s.y, angle: 0,
-        speed: ARCHER_SPEED, steerX: 0, steerY: 0,
+        radius: fieldRadius(this.arena, ARCHER_RADIUS, 0),
+        speed: fieldSpeed(this.arena, ARCHER_SPEED), steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         charging: false, charge: 0, shotCooldown: 0, fireCooldownMax: ARCHER_SHOT_COOLDOWN,
         swayPhase: Math.random() * Math.PI * 2,
@@ -288,7 +301,7 @@ export class ArcherGame extends BaseMiniGame {
     notifyFireShot(player);
 
     const aim = this.aimAngle(player);
-    const speed = 300 + 420 * charge;
+    const speed = fieldSpeed(this.arena, 300 + 420 * charge);
     const shots = player.multiShots > 0 ? 3 : 1;
     if (player.multiShots > 0) player.multiShots -= 1;
     for (let s = 0; s < shots; s++) {
@@ -296,8 +309,8 @@ export class ArcherGame extends BaseMiniGame {
       const ang = aim + spread;
       this.arrows.push({
         id: this.nextArrowId++,
-        x: player.x + Math.cos(ang) * (ARCHER_RADIUS + 6),
-        y: player.y + Math.sin(ang) * (ARCHER_RADIUS + 6),
+        x: player.x + Math.cos(ang) * (player.radius + 6),
+        y: player.y + Math.sin(ang) * (player.radius + 6),
         vx: Math.cos(ang) * speed,
         vy: Math.sin(ang) * speed,
         owner: player.index,
@@ -596,8 +609,8 @@ export class ArcherGame extends BaseMiniGame {
         player.y += player.steerY * moveSpd * dt;
       }
 
-      clampToArena(player, ARCHER_RADIUS, this.arena);
-      resolveAABB(player, this.obstacles, ARCHER_RADIUS);
+      clampToArena(player, player.radius, this.arena);
+      resolveAABB(player, this.obstacles, player.radius);
     }
 
     // Oklar: swept segment collision prevents endpoint tunneling on slow frames.
@@ -624,7 +637,7 @@ export class ArcherGame extends BaseMiniGame {
           if (!victim.isJoined || !victim.isAlive || victim.index === a.owner || victim.spawnProt > 0) continue;
           const candidate = segmentCircleIntersection(
             startX, startY, endX, endY,
-            victim.x, victim.y, ARCHER_RADIUS + 6,
+            victim.x, victim.y, victim.radius + 6,
           );
           if (candidate && (!hit || candidate.t < hit.t)) {
             hit = { type: 'player', victim, ...candidate };
@@ -660,8 +673,8 @@ export class ArcherGame extends BaseMiniGame {
             const kx = victim.x - a.x;
             const ky = victim.y - a.y;
             const kd = Math.hypot(kx, ky) || 1;
-            victim.x = Math.max(this.arena.left + ARCHER_RADIUS, Math.min(this.arena.right - ARCHER_RADIUS, victim.x + (kx / kd) * 26));
-            victim.y = Math.max(this.arena.top + ARCHER_RADIUS, Math.min(this.arena.bottom - ARCHER_RADIUS, victim.y + (ky / kd) * 26));
+            victim.x = Math.max(this.arena.left + victim.radius, Math.min(this.arena.right - victim.radius, victim.x + (kx / kd) * 26));
+            victim.y = Math.max(this.arena.top + victim.radius, Math.min(this.arena.bottom - victim.radius, victim.y + (ky / kd) * 26));
             this.spawnHitBurst(victim.x, victim.y, victim.color, close);
             this.addTrauma(close ? 0.45 : 0.25);
             playExplosion();
@@ -684,7 +697,7 @@ export class ArcherGame extends BaseMiniGame {
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
       collectPickups(this, player, {
-        radiusOf: () => ARCHER_RADIUS,
+        radiusOf: () => player.radius,
         onCollect: (g, p, pk) => this.applyPickup(p, pk),
       });
     }
@@ -800,11 +813,11 @@ export class ArcherGame extends BaseMiniGame {
   }
 
   render() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
     ctx.save();
 
     ctx.fillStyle = '#D6D3CD';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
     this.applyScreenShake(ctx);
 
     // Arenanın scene kısmı ortak archerView draw'larından gelir (host↔client aynı).

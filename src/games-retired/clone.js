@@ -11,6 +11,7 @@ import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
+import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
 import {
   createCloneWorldPacket,
   drawCloneArena,
@@ -94,16 +95,8 @@ export class CloneGame extends BaseMiniGame {
     const oldArena = { ...this.arena };
     const activeTasks = this.taskPoints.map((task) => ({ ...task }));
     const activeClones = this.npcClones.map((clone) => ({ ...clone, targetTaskId: clone.targetTask?.id || null }));
-    const marginX = Math.max(12, Math.floor(width * 0.04));
-    const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
-    const arenaW = width - marginX * 2;
-    const arenaH = height - marginY * 2;
 
-    this.arena = {
-      cx: width / 2, cy: height / 2, width: arenaW, height: arenaH,
-      size: Math.min(arenaW, arenaH), left: marginX, right: marginX + arenaW,
-      top: marginY, bottom: marginY + arenaH,
-    };
+    this.arena = computePlayfield(width, height, 'standard');
 
     this.buildMap();
 
@@ -182,12 +175,12 @@ export class CloneGame extends BaseMiniGame {
     // 6 aday görev noktası: 4 köşe oda + 2 avlu merkez noktası
     const avluOffset = Math.min(width, height) * 0.22;
     const allCandidates = [
-      { id: 'alchemy',  name: 'SİMYA KAZANI',   icon: '🧪', color: '#8A2BE2', x: left  + roomW * 0.45, y: top    + roomH * 0.45, radius: 40 },
-      { id: 'library',  name: 'KÜTÜPHANE',       icon: '📜', color: '#D99B26', x: right - roomW * 0.45, y: top    + roomH * 0.45, radius: 40 },
-      { id: 'treasury', name: 'HAZİNE SANDIĞI',  icon: '💎', color: '#1D5D8A', x: left  + roomW * 0.45, y: bottom - roomH * 0.45, radius: 40 },
-      { id: 'altar',    name: 'KUTSAL SUNAK',     icon: '⚔️', color: '#D84727', x: right - roomW * 0.45, y: bottom - roomH * 0.45, radius: 40 },
-      { id: 'fountain', name: 'ÇEŞME',            icon: '⛲', color: '#2F6A4F', x: cx, y: cy - avluOffset, radius: 38 },
-      { id: 'statue',   name: 'HEYKEL',           icon: '🗿', color: '#888888', x: cx, y: cy + avluOffset, radius: 38 },
+      { id: 'alchemy',  name: 'SİMYA KAZANI',   icon: '🧪', color: '#8A2BE2', x: left  + roomW * 0.45, y: top    + roomH * 0.45, radius: fieldRadius(this.arena, 40, 0) },
+      { id: 'library',  name: 'KÜTÜPHANE',       icon: '📜', color: '#D99B26', x: right - roomW * 0.45, y: top    + roomH * 0.45, radius: fieldRadius(this.arena, 40, 0) },
+      { id: 'treasury', name: 'HAZİNE SANDIĞI',  icon: '💎', color: '#1D5D8A', x: left  + roomW * 0.45, y: bottom - roomH * 0.45, radius: fieldRadius(this.arena, 40, 0) },
+      { id: 'altar',    name: 'KUTSAL SUNAK',     icon: '⚔️', color: '#D84727', x: right - roomW * 0.45, y: bottom - roomH * 0.45, radius: fieldRadius(this.arena, 40, 0) },
+      { id: 'fountain', name: 'ÇEŞME',            icon: '⛲', color: '#2F6A4F', x: cx, y: cy - avluOffset, radius: fieldRadius(this.arena, 38, 0) },
+      { id: 'statue',   name: 'HEYKEL',           icon: '🗿', color: '#888888', x: cx, y: cy + avluOffset, radius: fieldRadius(this.arena, 38, 0) },
     ];
 
     // Her raunt rastgele 3 tanesi seçilir (Fisher-Yates shuffle, ilk 3 al)
@@ -230,7 +223,7 @@ export class CloneGame extends BaseMiniGame {
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || CLONE_COLORS[i]),
         x: s.x, y: s.y, angle: s.angle,
-        speed: 135, steerX: 0, steerY: 0,
+        speed: fieldSpeed(this.arena, 135), steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         dashTimer: 0, dashCooldown: 0, slowTimer: 0,
         taskTimer: 0, currentTaskId: null,
@@ -261,7 +254,7 @@ export class CloneGame extends BaseMiniGame {
           x: this.arena.cx + Math.cos(angle) * dist,
           y: this.arena.cy + Math.sin(angle) * dist,
           angle: Math.random() * Math.PI * 2,
-          speed: 80 + Math.random() * 25,
+          speed: fieldSpeed(this.arena, 80) + Math.random() * fieldSpeed(this.arena, 25),
           steerX: 0,
           steerY: 0,
           state: 'WALK',
@@ -784,10 +777,10 @@ export class CloneGame extends BaseMiniGame {
   }
 
   render() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
     ctx.save();
     ctx.fillStyle = '#151515';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
     this.applyScreenShake(ctx);
 
     // Arena sahnesi ortak cloneView draw'larından gelir (host↔client aynı).

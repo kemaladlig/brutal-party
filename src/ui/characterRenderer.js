@@ -4,15 +4,23 @@
 import { getSlotAvatar, getAvatarProfile, getBotPersona } from '../core/customizationManager.js';
 
 /**
+ * Silüeti gövde dışına taşıran aksesuarlar — `compactSilhouette` ile bastırılır.
+ *
+ * Ölçülen etki (`render-harness.html?probe=extent&r=16`, çizilen bbox):
+ *   gövde 36x37 · HALO 36x45 (+%22 dikey) · WINGS 49x40 (+%36 yatay)
+ *   BOLT / CROWN / NINJA_COWL gövde sınırları içinde → listede değil
+ *   RIBBON / STRIPE pattern'leri bbox'u değiştirmiyor → pattern değil
+ */
+export const SILHOUETTE_OVERFLOW = new Set(['HALO', 'WINGS']);
+
+/**
  * Tek tip Neo-Brutalist Avatar Çizer
  * @param {CanvasRenderingContext2D} ctx 
  * @param {number} x - Merkez X
  * @param {number} y - Merkez Y
  * @param {number} radius - Avatar yarıçapı
  * @param {Object} options - Özelleştirme ve durum bayrakları
- */
-export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {
-  const slotIdx = typeof options.slotIndex === 'number' ? options.slotIndex : null;
+ */export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotIdx = typeof options.slotIndex === 'number' ? options.slotIndex : null;
   const isBot = options.isBot || options.slotType === 'bot_normal' || options.slotType === 'bot_god';
   const isGod = options.isGodBot || options.slotType === 'bot_god';
 
@@ -46,7 +54,17 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {
   // r >= 5 (Collapse, Snake, Tanks vb.): Şapka, gözlük, boynuz, bandana, taç ve desenler orantılı çizilir
   const isMicro = radius < 5;
   const pattern = isMicro ? 'SOLID' : patternRaw;
-  const accessory = isMicro ? 'NONE' : accessoryRaw;
+  // Aksesuarı gövde dışına taşımayanlara dokunulmaz. `compactSilhouette`
+  // (HORDE) yalnız silüeti şişirenleri bastırır.
+  //
+  // Ölçülen etki (`render-harness.html?probe=extent&r=16`, çizilen bbox):
+  // gövde 36x37 · HALO 36x45 (+%22 dikey) · WINGS 49x40 (+%36 yatay).
+  // BOLT / CROWN / NINJA_COWL gövde sınırları içinde → listede değil.
+  // RIBBON / STRIPE pattern'leri bbox'u hiç değiştirmiyor → şişkinlik
+  // pattern'de değil, aksesuarda.
+  const accessory = isMicro || (options.compactSilhouette && SILHOUETTE_OVERFLOW.has(accessoryRaw))
+    ? 'NONE'
+    : accessoryRaw;
 
   const {
     facingAngle = 0,

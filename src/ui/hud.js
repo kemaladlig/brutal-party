@@ -8,13 +8,52 @@ import {
   shouldShowVirtualControls,
 } from './tokens.js';
 import { t } from '../i18n.js';
+import { isCompactLandscape } from '../core/playfield.js';
 
 // Standart üst hap: arena üstünde ortalı.
 // Ekran boyutuna (TV / monitör vs telefon) göre orantılı büyür, metin uzunluğuna göre genişler.
 // text: '💣 4.2s' gibi durum metni, urgent: kırmızı zemin.
 // alpha: oyun alanı çakışmasında hapı soldurmak için (varsayılan 0.78 yarı saydam).
-export function renderTopPill(ctx, { arena, text, urgent = false, alpha = 0.78, customW = null }) {
+/**
+ * Üstte ortada bilgi çubuğu.
+ *
+ * `persistent: true` — oyun boyunca sürekli görünen play-state chrome. Kompakt
+ * yatayda (telefon) opak kutu Saha üst payının ~3px olduğu yere oturuyor ve
+ * oynanış alanının üstünü kesiyordu (ölçülen ~30px örtüşme). Bilgi çıplak metne
+ * düşürülür: kutu/gölge/çerçeve yok, alfa düşük, sola yaslı. Böylece hem
+ * "sürekli görünen bar olmasın" kuralı tutulur hem de tur sayacı gibi veri
+ * kaybolmaz. `renderControlGuide`'in `duringPlay` davranışıyla aynı mantık.
+ *
+ * `persistent` verilmezse (varsayılan) çubuk her boyutta çizilir — geçici
+ * alarmlar (TANKS sudden death) kompakt yatayda da görünmeli.
+ */
+export function renderTopPill(ctx, {
+  arena, text, urgent = false, alpha = 0.78, customW = null, persistent = false,
+}) {
   const scale = getUiScale(arena);
+
+  if (persistent && isCompactLandscape(window.innerWidth, window.innerHeight)) {
+    const fontPx = Math.max(10, Math.round(13 * scale));
+    ctx.save();
+    ctx.globalAlpha = Math.min(alpha, 0.62);
+    ctx.font = `900 ${fontPx}px ${UI_FONTS.mono}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    // Zeminde okunur: 1px kaydırılmış koyu kopya, sonra metin. Kutu yok.
+    //
+    // Konum ÜST-ORTA: köşeler `renderCornerScores`'un dört rozetine ait
+    // (ölçüldü: 10 viewport'ta kartlar birbirine ve saha dışına taşmıyor).
+    // Sola yaslamak P2 çipiyle çakışıyordu — kapatılan çubuğun yerine
+    // yeni bir çakışma bırakmak olurdu.
+    const y = arena.top + Math.max(2, Math.round(3 * scale));
+    ctx.fillStyle = UI_COLORS.ink;
+    ctx.fillText(text, arena.cx + 1, y + 1);
+    ctx.fillStyle = urgent ? UI_COLORS.danger : UI_COLORS.white;
+    ctx.fillText(text, arena.cx, y);
+    ctx.restore();
+    return;
+  }
+
   const fontSize = Math.round(15 * scale);
 
   ctx.save();
@@ -67,8 +106,10 @@ export function renderArenaWatermarkTimer(ctx, {
   const scale = getUiScale(arena);
   const minDim = Math.min(arena.width, arena.height);
 
-  // Büyük ekranda (TV/monitör) 72px - 140px, telefonda 38px - 54px
-  const mainFontSize = Math.max(38, Math.min(Math.round(120 * (scale / 1.55)), Math.floor(minDim * 0.18)));
+  // Sayacın okunur olması yeterli; ilerlemeyi zaten halka taşıyor. Eski
+  // tavan (minDim'in %18'i, masaüstünde ~142px) saha yüksekliğinin %15.6'sını
+  // kaplıyordu — kalıcı bir sayaç için gereğinden büyük. Yeni tavan %9.5.
+  const mainFontSize = Math.max(30, Math.min(Math.round(78 * (scale / 1.55)), Math.floor(minDim * 0.095)));
   const subFontSize = Math.max(11, Math.min(Math.round(16 * scale), Math.floor(minDim * 0.032)));
 
   const cx = arena.cx;
@@ -86,7 +127,7 @@ export function renderArenaWatermarkTimer(ctx, {
 
   // İlerleme halkası: 12 yönünden (üst) başlar, kalan süreyi temsil ederek saat yönünde azalarak biter
   if (typeof ringProgress === 'number' && Number.isFinite(ringProgress)) {
-    const ringR = Math.max(minDim * 0.14, mainFontSize * 0.85);
+    const ringR = Math.max(minDim * 0.10, mainFontSize * 0.85);
     const clamped = Math.max(0, Math.min(1.0, ringProgress));
 
     // Arka plan sabit ray halkası (kontrastlı dış çizgi + iç ray)
@@ -426,9 +467,20 @@ export function renderArenaRailTally(ctx, { arena, players = [], scores = [0, 0,
   const itemW = Math.round(42 * scale);
   const gap = Math.round(5 * scale);
   const totalW = count * itemW + (count - 1) * gap;
-  const startX = arena.cx - totalW / 2;
   const barH = Math.round(17 * scale);
-  const barY = arena.top - barH / 2; // Tam üst duvar sınır çizgisinin ortasına oturur (oyun alanını işgal etmez)
+
+  // Yerleşim: masaüstü/tablet'te üst duvar çizgisinin ortası (alanı işgal
+  // etmez). Telefon yatayda saha üst payı ~3px olduğu için oraya oturtmak
+  // EKRAN DIŞINA taşıyor ya da alanın içine düşüyor. Piyasa standardı:
+  // yatayda HUD köşeye gider, üst-orta band değil. Sol üst seçilir çünkü sağ
+  // üst köşe DOM chrome'una (üç nokta / tam ekran) ve çentik tarafına ayrılı;
+  // sahanın sol kenarı zaten safe-area ile temizlenmiş.
+  const corner = isCompactLandscape(window.innerWidth, window.innerHeight);
+  const pad = Math.round(4 * scale);
+  const startX = corner ? arena.left + pad : arena.cx - totalW / 2;
+  const barY = corner
+    ? arena.top + pad
+    : Math.max(Math.round(2 * scale), arena.top - barH / 2);
 
   ctx.save();
   ctx.globalAlpha = 0.88;

@@ -96,26 +96,26 @@ export function getDisplayProfile(dimA, dimB = null, forceTouch = null) {
 
   let type = 'DESKTOP_TV';
   let baseUnit = 1.0;
-  let entityScale = 1.0;
   let safePadding = 16;
 
+  // Saha içi varlık ölçeği BURADA yaşamaz: tek otorite `playfield.unit`
+  // (src/core/playfield.js). Eskiden buradaki `entityScale` vardı ama hiçbir
+  // motor okumuyordu; küçük ekranda oyuncu/harita ölçezi bu yüzden elle
+  // `Math.max(mutlak px, ...)` tabanlarına dağılmış haldeydi.
   if (minDim < 540) {
     // Akıllı telefon / kompakt ekran
     type = 'MOBILE';
     baseUnit = Math.max(0.72, Math.min(1.0, minDim / 480));
-    entityScale = 0.85; // Küçük ekranda oyuncuların alanı boğmasını önler
     safePadding = Math.round(10 * baseUnit);
   } else if (minDim <= 900 && isTouch) {
     // Tablet / iPad masa-ortası
     type = 'TABLETOP';
     baseUnit = Math.max(1.0, Math.min(1.4, minDim / 600));
-    entityScale = 1.0;
     safePadding = Math.round(16 * baseUnit);
   } else {
     // Masaüstü Monitör veya TV
     type = 'DESKTOP_TV';
     baseUnit = Math.max(1.0, Math.min(2.2, minDim / 520));
-    entityScale = Math.min(1.25, 1.0 + (baseUnit - 1.0) * 0.25);
     safePadding = Math.round(20 * baseUnit);
   }
 
@@ -123,7 +123,6 @@ export function getDisplayProfile(dimA, dimB = null, forceTouch = null) {
     type,        // 'MOBILE' | 'TABLETOP' | 'DESKTOP_TV'
     isTouch,
     baseUnit,    // UI tipografi & badge ölçek katsayısı
-    entityScale, // Saha içi varlıklar için ölçek katsayısı
     safePadding, // HUD güvenli kenar boşluğu
     minDim,
     maxDim,
@@ -156,6 +155,68 @@ export function isTouchDevice() {
   if (typeof window === 'undefined') return false;
   return 'ontouchstart' in window
     || (typeof navigator !== 'undefined' && (navigator.maxTouchPoints || 0) > 0);
+}
+
+// ---------------------------------------------------------------------------
+// Güvenli alan (notch / home indicator)
+// ---------------------------------------------------------------------------
+// Canvas JS `env(safe-area-inset-*)` değerlerini doğrudan okuyamaz; sabit
+// konumlu, görünmez bir probe üzerinden CSS custom property olarak okunur.
+// Değerler döndürmeyle değiştiği için cache viewport boyutuna bağlanır.
+
+const ZERO_INSETS = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
+
+let safeAreaProbe = null;
+let safeAreaCache = null;
+let safeAreaCacheKey = '';
+
+function readProbeInsets() {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return null;
+  // SSR, test harness'ları ve bazı webview'larda getComputedStyle yok.
+  if (typeof window.getComputedStyle !== 'function') return null;
+  if (!safeAreaProbe) {
+    const probe = document.createElement('div');
+    probe.setAttribute('aria-hidden', 'true');
+    probe.style.cssText = [
+      'position:fixed', 'top:0', 'left:0', 'width:0', 'height:0',
+      'visibility:hidden', 'pointer-events:none', 'z-index:-1',
+      '--bp-safe-top:env(safe-area-inset-top,0px)',
+      '--bp-safe-right:env(safe-area-inset-right,0px)',
+      '--bp-safe-bottom:env(safe-area-inset-bottom,0px)',
+      '--bp-safe-left:env(safe-area-inset-left,0px)',
+    ].join(';');
+    (document.body || document.documentElement).appendChild(probe);
+    safeAreaProbe = probe;
+  }
+  const style = window.getComputedStyle(safeAreaProbe);
+  const px = (name) => {
+    const value = Number.parseFloat(style.getPropertyValue(name));
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  };
+  return {
+    top: px('--bp-safe-top'),
+    right: px('--bp-safe-right'),
+    bottom: px('--bp-safe-bottom'),
+    left: px('--bp-safe-left'),
+  };
+}
+
+/**
+ * Cihazın güvenli alanı (px). Çentikli cihazlarda yatayda notch 47-59px,
+ * dikeyde home indicator ~21px yer kaplar. Masaüstü/SSR'de hepsi 0.
+ */
+export function getSafeAreaInsets() {
+  if (typeof document === 'undefined' || typeof window === 'undefined'
+    || typeof window.getComputedStyle !== 'function') {
+    return ZERO_INSETS;
+  }
+  // Döndürmede güvenli alan değişir; boyut değiştiyse yeniden oku.
+  const key = `${window.innerWidth}x${window.innerHeight}`;
+  if (safeAreaCache && safeAreaCacheKey === key) return safeAreaCache;
+  const insets = readProbeInsets();
+  safeAreaCacheKey = key;
+  safeAreaCache = insets || ZERO_INSETS;
+  return safeAreaCache;
 }
 
 export function getControlSurfacePreference() {

@@ -13,6 +13,7 @@ import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, updateMovers } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
+import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import {
   createLaserWorldPacket,
   mapLaserPlayers,
@@ -159,16 +160,8 @@ export class LaserGame extends BaseMiniGame {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const activeMovingWalls = this.movingWalls.map((wall) => ({ ...wall }));
-    const marginX = Math.max(12, Math.floor(width * 0.04));
-    const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
-    const arenaW = width - marginX * 2;
-    const arenaH = height - marginY * 2;
 
-    this.arena = {
-      cx: width / 2, cy: height / 2, width: arenaW, height: arenaH,
-      size: Math.min(arenaW, arenaH), left: marginX, right: marginX + arenaW,
-      top: marginY, bottom: marginY + arenaH,
-    };
+    this.arena = computePlayfield(width, height, 'standard');
 
     this.buildMap();
 
@@ -188,8 +181,8 @@ export class LaserGame extends BaseMiniGame {
     }
     for (const p of this.players) {
       this.remapPoint(p, oldArena, this.arena);
-      clampToArena(p, 14, this.arena, { zeroVelocity: true });
-      this.collideObstacles(p, 14);
+      clampToArena(p, p.radius * 0.74, this.arena, { zeroVelocity: true });
+      this.collideObstacles(p, p.radius * 0.74);
     }
     for (const lz of this.lasers) {
       this.remapPoint(lz, oldArena, this.arena);
@@ -373,6 +366,11 @@ export class LaserGame extends BaseMiniGame {
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || LASER_COLORS[i]),
         x: s.x, y: s.y, angle: s.angle, targetAngle: s.angle,
+        // Gövde sabit değil: view'daki 19px halkalar ve 14px çarpışma
+        // yarıçapı telefonda saha yüksekliğinin %4.9'u / %3.6'sıydı
+        // (masaüstü %2.0 / %1.5). Motor ölçekler, view `player.radius`
+        // okur, world packet taşır (ARCHER/NINJA ile aynı desen).
+        radius: fieldRadius(this.arena, 19, 0.02),
         steerX: 0, steerY: 0, kbx: 0, kby: 0, remoteActive: false,
         hp: LASER_TUNING.MAX_HP, cooldown: 0,
         ammo: LASER_TUNING.MAX_AMMO, reloadTimer: 0, shotCooldown: 0,
@@ -531,7 +529,7 @@ export class LaserGame extends BaseMiniGame {
 
     playGunshot();
     if (Number.isFinite(player.targetAngle)) player.angle = player.targetAngle;
-    const spd = LASER_TUNING.LASER_SPEED * (player.fastTimer > 0 ? LASER_TUNING.FAST_MULT : 1);
+    const spd = fieldSpeed(this.arena, LASER_TUNING.LASER_SPEED * (player.fastTimer > 0 ? LASER_TUNING.FAST_MULT : 1));
     
     // Triple Laser modu aktifse: 3 yöne ateş (-16°, 0°, +16°)
     const angles = player.tripleTimer > 0 ? [player.angle - 0.28, player.angle, player.angle + 0.28] : [player.angle];
@@ -867,7 +865,7 @@ export class LaserGame extends BaseMiniGame {
       }
 
       // Hareket: nişan alırken %50 yavaşlama (Archer stili), depar 2.2x, i-frame dash süresince
-      let spd = LASER_TUNING.SPEED;
+      let spd = fieldSpeed(this.arena, LASER_TUNING.SPEED);
       if (player.isAiming) spd *= (LASER_TUNING.AIM_SPEED_MULT || 0.50);
       if (player.dashTimer > 0) spd *= LASER_TUNING.DASH_MULT;
       const mag = Math.hypot(player.steerX, player.steerY);
@@ -881,8 +879,8 @@ export class LaserGame extends BaseMiniGame {
       player.x += player.kbx * dt;
       player.y += player.kby * dt;
 
-      clampToArena(player, 14, this.arena);
-      this.collideObstacles(player, 14);
+      clampToArena(player, player.radius * 0.74, this.arena);
+      this.collideObstacles(player, player.radius * 0.74);
 
       // Pickup yeme
       collectPickups(this, player, {
@@ -1118,10 +1116,10 @@ export class LaserGame extends BaseMiniGame {
   }
 
   render() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
     ctx.save();
     ctx.fillStyle = '#F4F4F0';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
     this.applyScreenShake(ctx);
 
     // Arena sahnesi ortak laserView draw'larından gelir (host↔client aynı).

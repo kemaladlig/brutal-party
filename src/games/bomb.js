@@ -26,6 +26,7 @@ import { updateBombBotAI } from '../ai/bombAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB } from '../core/physics2d.js';
+import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { createPlayer, tickEffectTimers, advancePlayer } from '../core/playerEntity.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
@@ -44,6 +45,9 @@ export const BOMB_NAMES = ['P1', 'P2', 'P3', 'P4'];
 // Depar bekleme süresi (sn) — triggerDash, entity HUD ve masa-ortası butonu aynı kaynaktan okur
 const BOMB_DASH_COOLDOWN = 2.2;
 const BOMB_ROUND_LIMIT = 90;
+// Gövde yarıçapı (1920x1080 referansı). `fieldRadius` tabanı GÖRELİ: mutlak px
+// tabanı küçük sahada varlığı şişiriyordu. Alt sınır zaten `minUnit` verir.
+const BOMB_RADIUS = 36;
 
 export const MAP_PRESETS = [
   { id: 'columns4', name: '01 // 4 SİPER KOLONU' },
@@ -185,25 +189,8 @@ export class BombGame extends BaseMiniGame {
   resize(width, height) {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
-    const marginX = Math.max(12, Math.floor(width * 0.04));
-    const marginY = height > width
-      ? Math.max(48, Math.floor(height * 0.12))
-      : Math.max(32, Math.floor(height * 0.06));
-    const arenaW = width - marginX * 2;
-    const arenaH = height - marginY * 2;
-    const size = Math.min(arenaW, arenaH);
 
-    this.arena = {
-      cx: width / 2,
-      cy: height / 2,
-      width: arenaW,
-      height: arenaH,
-      size: size,
-      left: marginX,
-      right: width - marginX,
-      top: marginY,
-      bottom: height - marginY,
-    };
+    this.arena = computePlayfield(width, height, 'standard');
 
     this.buildMapPillars();
     // Maç ortası resize raundu sıfırlamasın
@@ -232,13 +219,21 @@ export class BombGame extends BaseMiniGame {
   buildMapPillars() {
     const preset = MAP_PRESETS[this.selectedMapIndex];
     const layoutName = preset ? preset.id : 'pillars';
-    this.pillars = buildLayout(layoutName, this.arena);
+    // Geçiş tabanı oyuncu çapından türer (gövde için kullanılan tasarım
+    // yarıçapı). BOMB'un gövdesi en büyüğü (36px) olduğu için en geniş geçişi
+    // de o talep eder: sabit taban saha küçüldüğünde koridorları geçilemez
+    // bırakıyordu.
+    this.pillars = buildLayout(layoutName, this.arena, {
+      minPassage: fieldRadius(this.arena, BOMB_RADIUS, 0.028) * 2.4,
+    });
   }
 
   initPlayers() {
     const { cx, cy, size } = this.arena;
     const spawnDist = Math.round(size * 0.36);
-    const r = Math.max(14, Math.round(size * 0.038));
+    // Tasarım px (1920x1080 referansı). fieldRadius tabanı GÖRELİ: mutlak px
+    // tabanı küçük sahada varlığı şişiriyordu.
+    const r = fieldRadius(this.arena, BOMB_RADIUS, 0.028);
 
     const spawns = [
       { x: cx - spawnDist * 0.707, y: cy + spawnDist * 0.707 }, // P1: Bottom-Left
@@ -254,7 +249,11 @@ export class BombGame extends BaseMiniGame {
         defaultNames: BOMB_NAMES,
         defaultColors: BOMB_COLORS,
         radius: r,
-        speed: 175,
+        // Gövde ve HIZ birlikte ölçeklenir: saha küçülürken gövde de
+        // küçülür, hız de küçülür, böylece sahanı geçiş süresi sabit kalır
+        // (masaüstünde 952/175 = 5.4sn, telefonda 387/71 = 5.4sn). Hız
+        // ölçeklenmezse oyun küçük ekranda ağırlaşırdı.
+        speed: fieldSpeed(this.arena, 175),
         isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i],
         stepCycle: 0,
@@ -728,7 +727,7 @@ export class BombGame extends BaseMiniGame {
         currentSpeed *= 1.35; // Escaper burst sprint!
       }
       if (player.dashTimer > 0) {
-        currentSpeed = 360; // Supersonic dash speed!
+        currentSpeed = fieldSpeed(this.arena, 360); // Supersonic dash speed!
       }
       if (player.stumbleTimer > 0) {
         currentSpeed *= 0.15; // Receiver stumble delay: heavily slowed down for 0.6s!
@@ -825,12 +824,12 @@ export class BombGame extends BaseMiniGame {
   // --- RENDERING PIPELINE ---
 
   render() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
     ctx.save();
 
     // Background paper
     ctx.fillStyle = '#F4F0EA';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
 
     // Screen Shake (Trauma)
     if (this.trauma > 0) {

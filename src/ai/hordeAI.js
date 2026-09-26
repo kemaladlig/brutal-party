@@ -1,6 +1,7 @@
 // BRUTAL HORDE bot AI: portal önceliği, güvenli revive, hedef seçimi ve doğru ateş zamanlaması.
 
 import { normalizeAngle } from '../core/physics2d.js';
+import { fieldPx } from '../core/playfield.js';
 import { getPlayerWeapon } from '../games/hordeConfig.js';
 
 function distanceSq(ax, ay, bx, by) {
@@ -65,7 +66,9 @@ export function updateHordeBotAI(game, bot, dt) {
   const targetDistance = target ? Math.hypot(target.x - bot.x, target.y - bot.y) : Infinity;
 
   const weapon = getPlayerWeapon(bot);
-  const dodgeDistance = weapon.kind === 'melee' ? 58 : 92;
+  // Kaçış mesafesi saha ile ölçeklenir: sabit px telefonda sahanın %24'ü,
+  // masaüstünde %9.7'si oluyordu — bot telefonda çok daha erken kaçıyordu.
+  const dodgeDistance = fieldPx(game.arena, weapon.kind === 'melee' ? 58 : 92);
   if (target && targetDistance < dodgeDistance && bot.dashCooldown <= 0 && bot.dashTimer <= 0) {
     game.triggerDash(bot.index);
   }

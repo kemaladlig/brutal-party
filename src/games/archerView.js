@@ -58,6 +58,9 @@ export function createArcherWorldPacket(game) {
       alive: p.isAlive !== false,
       x: round1(p.x || 0),
       y: round1(p.y || 0),
+      // Yarıçap host'ta hesaplanır (sahayla ölçeklenir) ve paketle taşınır;
+      // client aynı view çizimini kullandığı için yeniden ölçeklemez.
+      radius: round1(p.radius || 0) || undefined,
       angle: round1(p.angle || 0),
       charging: !!p.charging,
       charge: round1(p.charge || 0),
@@ -121,6 +124,8 @@ export function isValidArcherWorldFrame(frame) {
     && typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
     && Number.isInteger(p.slot) && p.slot >= 0 && p.slot <= 3
     && finite(p.x) && finite(p.y) && finite(p.angle)
+    // radius opsiyoneldir (eski host paketleri) ama varsa pozitif olmalı.
+    && (p.radius === undefined || (finite(p.radius) && p.radius > 0))
     && finite(p.charge) && finite(p.swayPhase) && finite(p.stun) && finite(p.reload)
     && finite(p.fireCooldown) && p.fireCooldown >= 0 && p.fireCooldown <= 1
     && isValidFireFeedbackSnapshot(p.fireFeedback)
@@ -173,6 +178,11 @@ export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
     const slotIndex = (player.slot ?? player.index) ?? 0;
+    // Yarıçap host tarafında hesaplanır ve world packet ile gelir; bu view
+    // host VE kumanda client'ı tarafından ORTAK kullanıldığı için burada
+    // ikinci kez ölçeklenmemeli. `fitWorld` zaten dünya uzayını client
+    // canvas'ına sığdırır. Fallback yalnız eski paketler içindir.
+    const R = player.radius || ARCHER_RADIUS;
     ctx.save();
     ctx.translate(player.x, player.y);
     ctx.rotate(player.angle || 0);
@@ -185,8 +195,8 @@ export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
       ctx.lineWidth = player.charge >= 1 ? 3 : 2;
       ctx.setLineDash([8, 6]);
       ctx.beginPath();
-      ctx.moveTo(ARCHER_RADIUS + 8, 0);
-      ctx.lineTo(ARCHER_RADIUS + 60 + (player.charge || 0) * 90, 0);
+      ctx.moveTo(R + 8, 0);
+      ctx.lineTo(R + 60 + (player.charge || 0) * 90, 0);
       ctx.stroke();
       ctx.restore();
     }
@@ -196,12 +206,12 @@ export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
       ctx.strokeStyle = player.charging ? '#8B5CF6' : 'rgba(26,26,26,0.45)';
       ctx.lineWidth = 3.5;
       ctx.beginPath();
-      ctx.arc(0, 0, ARCHER_RADIUS + 6, -1.1, 1.1);
+      ctx.arc(0, 0, R + 6, -1.1, 1.1);
       ctx.stroke();
       if (player.charging) {
         ctx.fillStyle = '#8B5CF6';
         ctx.beginPath();
-        ctx.arc(ARCHER_RADIUS + 6, 0, 3 + (player.charge || 0) * 3, 0, Math.PI * 2);
+        ctx.arc(R + 6, 0, 3 + (player.charge || 0) * 3, 0, Math.PI * 2);
         ctx.fill();
       }
       if ((player.shield || 0) > 0) {
@@ -209,7 +219,7 @@ export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
         ctx.lineWidth = 3;
         ctx.setLineDash([6, 5]);
         ctx.beginPath();
-        ctx.arc(0, 0, ARCHER_RADIUS + 11, 0, Math.PI * 2);
+        ctx.arc(0, 0, R + 11, 0, Math.PI * 2);
         ctx.stroke();
         ctx.setLineDash([]);
       }
@@ -218,7 +228,7 @@ export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
         ctx.lineWidth = 2.5;
         ctx.setLineDash([3, 4]);
         ctx.beginPath();
-        ctx.arc(0, 0, ARCHER_RADIUS + 15, 0, Math.PI * 2);
+        ctx.arc(0, 0, R + 15, 0, Math.PI * 2);
         ctx.stroke();
         ctx.setLineDash([]);
       }
@@ -226,7 +236,7 @@ export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
     }
 
     const stun = (player.stun || 0) > 0;
-    drawGameAvatar(ctx, 0, 0, ARCHER_RADIUS, player, {
+    drawGameAvatar(ctx, 0, 0, R, player, {
       color: stun ? '#9C988F' : (player.color || FALLBACK),
       facingAngle: 0,
       label: `P${slotIndex + 1}`,
@@ -243,7 +253,7 @@ export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
       ['wind', player.slip ?? player.slipTimer],
     ].filter(([, value]) => Number(value) > 0);
     activeEffects.forEach(([icon, value], index) => {
-      drawTabletopIcon(ctx, icon, (index - (activeEffects.length - 1) / 2) * 16, -ARCHER_RADIUS - 20, 12, {
+      drawTabletopIcon(ctx, icon, (index - (activeEffects.length - 1) / 2) * 16, -R - 20, 12, {
         color: index % 2 === 0 ? '#D99B26' : '#8B5CF6',
         accentColor: '#D99B26',
         strokeWidth: 2,
@@ -259,7 +269,7 @@ export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
     renderFireCooldown(ctx, {
       x: player.x,
       y: player.y,
-      radius: ARCHER_RADIUS,
+      radius: R,
       progress,
       feedback,
       color: '#8B5CF6',

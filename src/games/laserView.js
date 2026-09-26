@@ -48,6 +48,8 @@ export function mapLaserPlayers(players, lasers, tuning = {}, aimOf = null, with
       alive: p.isAlive !== false,
       x: round1(p.x || 0),
       y: round1(p.y || 0),
+      // Gövde yarıçapı host'ta ölçeklenir ve paketle taşınır.
+      radius: round1(p.radius || 0) || undefined,
       angle: round1(p.angle || 0),
       color: p.color,
       hp: Number(p.hp) || 0,
@@ -123,6 +125,8 @@ function isValidLaserPlayer(p) {
     && typeof p.fast === 'boolean' && typeof p.invuln === 'boolean' && typeof p.respawning === 'boolean'
     && typeof p.aiming === 'boolean' && typeof p.ready === 'boolean'
     && Array.isArray(p.aim) && p.aim.length <= 8
+    // radius opsiyoneldir (eski host paketleri) ama varsa pozitif olmalı.
+    && (p.radius === undefined || (finite(p.radius) && p.radius > 0))
     && p.aim.every((pt) => Array.isArray(pt) && pt.length === 2 && finite(pt[0]) && finite(pt[1]));
 }
 
@@ -327,36 +331,43 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
     if (!isWorldEntityVisible(player)) continue;
     if (withFx && player.invuln && !player.respawning && blink) continue;
 
+    // Gövde yarıçapı host'ta ölçeklenir ve paketle gelir; bu view host VE
+    // kumanda client'ı tarafından ortak kullanıldığı için yeniden ölçeklenmez.
+    // Tasarım referansı 19px: R=19'da değerler bugünküyle aynıdır.
+    const R = player.radius || 19;
+    const u = R / 19;
+    const uMin = (v) => Math.max(1, v * u);
+
     ctx.save();
     ctx.translate(player.x, player.y);
 
     if (player.shield) {
       ctx.save();
       ctx.strokeStyle = '#0EA5E9';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = uMin(2.5);
       ctx.fillStyle = 'rgba(14, 165, 233, 0.18)';
-      ctx.beginPath(); ctx.arc(0, 0, 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, R + 5 * u, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       if (withFx) {
         const sAng = (performance.now() / 1000) * 3;
         ctx.fillStyle = '#38BDF8';
-        ctx.beginPath(); ctx.arc(Math.cos(sAng) * 24, Math.sin(sAng) * 24, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(Math.cos(sAng) * (R + 5 * u), Math.sin(sAng) * (R + 5 * u), uMin(3.5), 0, Math.PI * 2); ctx.fill();
       }
       ctx.restore();
     }
 
     if (player.dash >= 1) {
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 5;
-      ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = uMin(5);
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
       ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = uMin(2.5);
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
     } else {
-      ctx.lineWidth = 3;
+      ctx.lineWidth = uMin(3);
       ctx.strokeStyle = 'rgba(26, 26, 26, 0.25)';
-      ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
       ctx.strokeStyle = player.color;
-      ctx.beginPath(); ctx.arc(0, 0, 19, -Math.PI / 2, -Math.PI / 2 + clamp01(player.dash) * Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, R, -Math.PI / 2, -Math.PI / 2 + clamp01(player.dash) * Math.PI * 2); ctx.stroke();
     }
 
     let barrelColor = '#FFFFFF';
@@ -367,12 +378,12 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
     ctx.save();
     ctx.rotate(player.angle || 0);
     ctx.fillStyle = barrelColor;
-    ctx.fillRect(8, -4, 14, 8);
-    ctx.lineWidth = 2; ctx.strokeStyle = '#1A1A1A';
-    ctx.strokeRect(8, -4, 14, 8);
+    ctx.fillRect(8 * u, -4 * u, 14 * u, 8 * u);
+    ctx.lineWidth = uMin(2); ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeRect(8 * u, -4 * u, 14 * u, 8 * u);
     if (player.ready) {
       ctx.fillStyle = player.triple ? '#F97316' : (player.fast ? '#FFDE59' : '#00F0FF');
-      ctx.beginPath(); ctx.arc(22, 0, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(22 * u, 0, 3 * u, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
 
@@ -381,15 +392,15 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
     else if (player.triple || player.fast) currentExp = 'excited';
     else if (player.hp === 1) currentExp = 'panic';
 
-    drawBrutalAvatar(ctx, 0, 0, 14, {
+    drawBrutalAvatar(ctx, 0, 0, R * 0.74, {
       color: player.color,
       slotIndex: player.slot ?? player.index,
       facingAngle: player.angle || 0,
       label: `P${(player.slot ?? player.index ?? 0) + 1}`,
       expression: currentExp,
       showPointer: false,
-      borderWidth: 3,
-      shadowOffset: 2,
+      borderWidth: uMin(3),
+      shadowOffset: 2 * u,
     });
 
     ctx.restore();
@@ -398,7 +409,7 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
     renderEntityHUD(ctx, {
       x: player.x,
       y: player.y,
-      radius: 16,
+      radius: R,
       color: bulletColor,
       arena,
       hp: player.hp,
@@ -411,7 +422,7 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
     renderFireCooldown(ctx, {
       x: player.x,
       y: player.y,
-      radius: 16,
+      radius: R,
       progress: player.fireCooldown,
       feedback: getFireFeedbackForRender(player),
       color: bulletColor,

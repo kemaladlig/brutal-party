@@ -18,6 +18,7 @@ import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { distToSegmentSquared, getProjectileSubsteps, clampToArena } from '../core/physics2d.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
+import { computePlayfield, fieldSpeed } from '../core/playfield.js';
 
 export const SNAKE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const SNAKE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -157,16 +158,8 @@ export class SnakeGame extends BaseMiniGame {
   resize(width, height) {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
-    const marginX = Math.max(12, Math.floor(width * 0.04));
-    const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
-    const arenaW = width - marginX * 2;
-    const arenaH = height - marginY * 2;
 
-    this.arena = {
-      cx: width / 2, cy: height / 2, width: arenaW, height: arenaH,
-      size: Math.min(arenaW, arenaH), left: marginX, right: marginX + arenaW,
-      top: marginY, bottom: marginY + arenaH,
-    };
+    this.arena = computePlayfield(width, height, 'standard');
 
     this.buildMapWalls();
 
@@ -216,7 +209,7 @@ export class SnakeGame extends BaseMiniGame {
         index: i,
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || SNAKE_COLORS[i]),
-        x: s.x, y: s.y, angle: s.angle, targetAngle: null, speed: 140, turnSpeed: 3.4,
+        x: s.x, y: s.y, angle: s.angle, targetAngle: null, speed: fieldSpeed(this.arena, 140), turnSpeed: 3.4,
         steer: 0, isBoost: false, boostEnergy: 100, boostMaxEnergy: 100, boostLocked: false,
         isAlive: true, isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i], segments: [], currentLen: 0, targetLen: 65,
@@ -786,11 +779,11 @@ export class SnakeGame extends BaseMiniGame {
   }
 
   render() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
     const now = performance.now();
     ctx.save();
     ctx.fillStyle = '#F4F4F0';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
     this.applyScreenShake(ctx);
 
     drawSnakeArena(ctx, this.arena, this.walls);

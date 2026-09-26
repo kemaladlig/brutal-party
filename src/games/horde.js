@@ -19,6 +19,7 @@ import {
   segmentAabbIntersection,
   segmentCircleIntersection,
 } from '../core/physics2d.js';
+import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { createPlayer, tickEffectTimers } from '../core/playerEntity.js';
 import { collectPickups, spawnPickup, tickPickupTimers } from '../core/pickupSystem.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
@@ -49,7 +50,13 @@ export const HORDE_TUNING = Object.freeze({
   ROUNDS: 3,
   WAVES_PER_ROUND: 3,
   MAX_HP: 5,
-  PLAYER_RADIUS: 16,
+  PLAYER_RADIUS: 14,
+  // Gövde tabanı YOK. Önce burada `PLAYER_R_MIN: 0.024` / `ENEMY_R_MIN: 0.022`
+  // vardı ve bunlar TASARIM PAYININ ÜSTÜNDE olduğu için MASAÜSTÜNDE de
+  // devreye giriyordu: oyuncu +%43, chaser +%31, shooter +%50, tank +%0
+  // şişiyordu. Sonuç: oyuncu görsel olarak büyük, NPC'ler birbirine
+  // yaklaşıp boyut çeşitliliğini yitiriyordu. Tabanları kaldırdık; alan
+  // çöktüğünde `playfield.FIELD_DESIGN.minUnit` (0.30) zaten alt sınırı verir.
   MOVE_SPEED: 190,
   FAST_MULT: 1.42,
   ENEMY_SHOT_SPEED: 270,
@@ -72,18 +79,30 @@ export const HORDE_TUNING = Object.freeze({
   MAX_PROJECTILES: 96,
 });
 
+// Gövde yarıçapları. Oyuncu 14, düşmanlar 19-30: aralık açıldı çünkü ölçülen
+// şikâyet "biz büyüğüz" idi. 1. dalga / 1. turda `healerChance`/`tankChance`/
+// `shooterChance` sıfır olduğu için sahadaki TEK düşman tipi chaser'dır —
+// yani ilk izlenimi `ENEMY_BASE.chaser` belirliyor.
+//
+// Değişim iki turda oldu: 14/16/18/21 -> 17/20/22/26 (1.22x) -> 19/23/25/30.
+// Oyuncu bu turda 16 -> 14 küçüldü. `BOSS_BASE` aynı oranı koruyor
+// (chaser 39/20=1.95 -> 45/23=1.96, tank 48/26=1.85 -> 55/30=1.83).
+//
+// Düşman büyüdükçe `minPassage` tabanı da yükseliyor (tank 30 -> masaüstünde
+// 71px) ve halka biraz daha çok eleniyor: 8 preset × 4 cihazda toplam blok
+// 258 -> 253 (%2), harita seyreklemiyor.
 const ENEMY_BASE = Object.freeze({
-  chaser: { hp: 3, radius: 16, speed: 112, damage: 1, attackEvery: 0.95 },
-  shooter: { hp: 2, radius: 14, speed: 78, damage: 1, attackEvery: 1.55 },
-  tank: { hp: 8, radius: 21, speed: 44, damage: 2, attackEvery: 1.8 },
-  healer: { hp: 5, radius: 18, speed: 68, damage: 0, attackEvery: 3.2 },
+  chaser: { hp: 3, radius: 23, speed: 112, damage: 1, attackEvery: 0.95 },
+  shooter: { hp: 2, radius: 19, speed: 78, damage: 1, attackEvery: 1.55 },
+  tank: { hp: 8, radius: 30, speed: 44, damage: 2, attackEvery: 1.8 },
+  healer: { hp: 5, radius: 25, speed: 68, damage: 0, attackEvery: 3.2 },
 });
 
 const BOSS_BASE = Object.freeze({
-  chaser: { hp: 42, radius: 32, speed: 104, damage: 2, attackEvery: 0.8 },
-  shooter: { hp: 30, radius: 28, speed: 76, damage: 2, attackEvery: 1.15 },
-  tank: { hp: 62, radius: 39, speed: 40, damage: 3, attackEvery: 1.45 },
-  healer: { hp: 36, radius: 31, speed: 66, damage: 1, attackEvery: 2.6 },
+  chaser: { hp: 42, radius: 45, speed: 104, damage: 2, attackEvery: 0.8 },
+  shooter: { hp: 30, radius: 39, speed: 76, damage: 2, attackEvery: 1.15 },
+  tank: { hp: 62, radius: 55, speed: 40, damage: 3, attackEvery: 1.45 },
+  healer: { hp: 36, radius: 44, speed: 66, damage: 1, attackEvery: 2.6 },
 });
 
 function isBot(player) {
@@ -161,9 +180,9 @@ export class HordeGame extends BaseMiniGame {
       const persona = bot ? getBotPersona(index, slotType === 'bot_god') : null;
       const spawn = this.spawnPoint(index);
       const player = createPlayer(index, spawn, {
-        radius: HORDE_TUNING.PLAYER_RADIUS,
-        speed: HORDE_TUNING.MOVE_SPEED,
-        baseSpeed: HORDE_TUNING.MOVE_SPEED,
+        radius: fieldRadius(this.arena, HORDE_TUNING.PLAYER_RADIUS, 0),
+        speed: fieldSpeed(this.arena, HORDE_TUNING.MOVE_SPEED),
+        baseSpeed: fieldSpeed(this.arena, HORDE_TUNING.MOVE_SPEED),
         isJoined: slotType !== 'empty',
         isAlive: slotType !== 'empty',
         slotType,
@@ -214,21 +233,9 @@ export class HordeGame extends BaseMiniGame {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const oldObstacles = (this.obstacles || []).map((obstacle) => ({ ...obstacle }));
-    const marginX = Math.max(16, Math.floor(width * 0.04));
-    const marginY = height > width ? Math.max(54, Math.floor(height * 0.12)) : Math.max(34, Math.floor(height * 0.07));
-    const arenaWidth = Math.max(120, width - marginX * 2);
-    const arenaHeight = Math.max(120, height - marginY * 2);
-    this.arena = {
-      cx: width / 2,
-      cy: height / 2,
-      width: arenaWidth,
-      height: arenaHeight,
-      size: Math.min(arenaWidth, arenaHeight),
-      left: marginX,
-      right: marginX + arenaWidth,
-      top: marginY,
-      bottom: marginY + arenaHeight,
-    };
+
+    this.arena = computePlayfield(width, height, 'roomy');
+
     this.buildMap();
 
     if (oldArena.width > 0 && oldObstacles.length === this.obstacles.length) {
@@ -277,7 +284,15 @@ export class HordeGame extends BaseMiniGame {
   buildMap(round = this.round) {
     const map = getHordeMap(round);
     this.mapTheme = map.id;
-    this.obstacles = this.arena.size > 0 ? buildLayout(map.layout, this.arena) : [];
+    // Geçiş tabanı oyuncu çapından türer: en dar cep karakterin çapından geniş
+    // olmalı. HORDE'da en büyük düşman (tank, 21px) oyuncudan (16px) büyük
+    // olduğu için geçiş en büyük düşman çapından türetilir — değilse düşmanlar
+    // boşluğa sıkışır.
+    this.obstacles = this.arena.size > 0
+      ? buildLayout(map.layout, this.arena, {
+        minPassage: fieldRadius(this.arena, ENEMY_BASE.tank.radius, 0) * 2.4,
+      })
+      : [];
   }
 
   resetMatch() {
@@ -465,8 +480,8 @@ export class HordeGame extends BaseMiniGame {
       y: this.arena.cy,
       vx: 0,
       vy: 0,
-      radius: base.radius * (elite ? 1.12 : 1),
-      speed: base.speed * (elite ? 1.08 : 1),
+      radius: fieldRadius(this.arena, base.radius * (elite ? 1.12 : 1), 0),
+      speed: fieldSpeed(this.arena, base.speed * (elite ? 1.08 : 1)),
       hp,
       maxHp: hp,
       damage: base.damage + (elite && base.damage > 0 ? 1 : 0),
@@ -1566,10 +1581,10 @@ export class HordeGame extends BaseMiniGame {
   }
 
   render() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
     ctx.save();
     ctx.fillStyle = '#F4F4F0';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
     this.applyScreenShake(ctx);
 
     const scene = mapHordeScene(this, HORDE_TUNING);

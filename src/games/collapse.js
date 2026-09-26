@@ -20,6 +20,7 @@ import {
 import { drawCircleParticles } from './worldCore.js';
 import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
 import { tickPickupTimers } from '../core/pickupSystem.js';
+import { computePlayfield, fieldSpeed } from '../core/playfield.js';
 
 export const COLLAPSE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const COLLAPSE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -236,16 +237,8 @@ export class CollapseGame extends BaseMiniGame {
   resize(width, height) {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
-    const marginX = Math.max(12, Math.floor(width * 0.04));
-    const marginY = height > width ? Math.max(48, Math.floor(height * 0.12)) : Math.max(32, Math.floor(height * 0.06));
-    const arenaW = width - marginX * 2;
-    const arenaH = height - marginY * 2;
 
-    this.arena = {
-      cx: width / 2, cy: height / 2, width: arenaW, height: arenaH,
-      size: Math.min(arenaW, arenaH), left: marginX, right: marginX + arenaW,
-      top: marginY, bottom: marginY + arenaH,
-    };
+    this.arena = computePlayfield(width, height, 'standard');
 
     this.cellSize = this.arena.size / this.gridCOLS;
     this.offsetX = this.arena.cx - (this.gridCOLS * this.cellSize) / 2;
@@ -309,7 +302,7 @@ export class CollapseGame extends BaseMiniGame {
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || COLLAPSE_COLORS[i]),
         x: s.x, y: s.y, angle: 0,
-        speed: 125, steerX: 0, steerY: 0,
+        speed: fieldSpeed(this.arena, 125), steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         jumpTimer: 0, jumpCooldown: 0, wasJumping: false,
         superJumpTimer: 0,
@@ -861,24 +854,26 @@ export class CollapseGame extends BaseMiniGame {
   }
 
   render() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
+    const viewW = this.viewport.width;
+    const viewH = this.viewport.height;
     const now = performance.now();
     ctx.save();
 
     // 1. KARANLIK UÇURUM ARKA PLANI
     ctx.fillStyle = '#141414';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, viewW, viewH);
     this.applyScreenShake(ctx);
 
-    // Boşluk derinlik ızgarası
+    // Boşluk derinlik ızgarası (CSS px — ctx zaten dpr ile ölçekli)
     ctx.strokeStyle = '#1F1F1F';
     ctx.lineWidth = 1;
     const abyssStep = 40;
-    for (let x = 0; x < canvas.width; x += abyssStep) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+    for (let x = 0; x < viewW; x += abyssStep) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, viewH); ctx.stroke();
     }
-    for (let y = 0; y < canvas.height; y += abyssStep) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    for (let y = 0; y < viewH; y += abyssStep) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(viewW, y); ctx.stroke();
     }
 
     // 2. DÜŞEN 3D BLOKLAR (Uçurumda aşağı düşenler — dönerek düşer)

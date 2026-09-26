@@ -332,7 +332,7 @@ export class BaseMiniGame {
   // ---------------------------------------------------------------------------
 
   getCornerQuadrant(point) {
-    const arena = this.arena ?? { cx: this.canvas.width / 2, cy: this.canvas.height / 2 };
+    const arena = this.arena ?? this.viewport;
     return getQuadrant(arena, point.x, point.y);
   }
 

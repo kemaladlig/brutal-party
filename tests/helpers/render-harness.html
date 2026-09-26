@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>Render harness</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    margin: 0; background: #E8E6DF; color: #1A1A1A;
+    font: 12px/1.4 ui-monospace, monospace;
+  }
+  .row { padding: 10px 12px 0; }
+  .row h2 { margin: 0 0 6px; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+  canvas { display: block; background: #F4F4F0; box-shadow: 0 2px 0 rgba(0,0,0,.25); }
+  .meta { padding: 2px 12px; opacity: .65; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script type="module">
+// Görsel doğrulama harness'ı — geliştirme aracı, build'e girmez.
+//
+// Motoru herhangi bir boyutta GERÇEK bir canvas'a çizer. Amaç: `innerWidth`/
+// `innerHeight` viewport'a bağlı olduğu için telefon yatay (844x390) bileşimini
+// tarayıcı penceresi ayarlanmadan görebilmek. Bu yüzden `isCompactLandscape`
+// ve `getDisplayProfile` yönlendirmeleri burada ölçülere bağlanır.
+//
+// Kullanım: /tests/helpers/render-harness.html?game=ARCHER&w=844&h=390&t=2500
+//         &cells=1     -> aynı oyunu 3 boyutta yan yana çiz
+//         &notch=47    -> güvenli alan kenar boşluğu simülasyonu (px)
+//         &match=0     -> 1: lobi yerine oynanış (default), 0: lobi
+
+const params = new URLSearchParams(location.search);
+const num = (key, fallback) => (params.has(key) ? Number(params.get(key)) : fallback);
+const NOTCH = num('notch', 0);
+
+// Görünürlük: `isCompactLandscape` ve profil seçimi bunları okur. Probe
+// dalları da aynı yardımcıya ihtiyaç duyar, bu yüzden dalın ÖNÜNDE durur
+// (else bloğu çalışmadığında blok içi fonksiyon erişilemez).
+function pinViewport(w, h) {
+  for (const [k, v] of [['innerWidth', w], ['innerHeight', h]]) {
+    Object.defineProperty(window, k, { value: w === undefined ? 0 : v, configurable: true, writable: true });
+  }
+  if (NOTCH > 0 && window.getComputedStyle) {
+    const real = window.getComputedStyle.bind(window);
+    window.getComputedStyle = (el, pseudo) => {
+      const s = real(el, pseudo);
+      if (s && typeof s.getPropertyValue === 'function') {
+        const raw = s.getPropertyValue.bind(s);
+        s.getPropertyValue = (name) => {
+          // env(safe-area-inset-*) tarayıcıda hep 0 döner; testte ölçülemezse
+          // güvenli alan hiç doğrulanamaz. Notch'u yatayda simüle et.
+          if (name === 'padding-top' || name === 'padding-bottom') {
+            return `${NOTCH}px`;
+          }
+          return raw(name);
+        };
+      }
+      return s;
+    };
+  }
+}
+
+// --- probe: tek varlığın ÇİZİLEN yayılımını ölç ------------------------------
+// Çarpışma yarıçapı ile çizilen boyut AYNI şey değil. Avatar aksesuar/pattern
+// katmanları yarıçapın çok ötesine taşabiliyor; "oyuncu büyük görünüyor"
+// şikâyetini çözebilmek için sayı yerine piksel ölçüyoruz.
+// Kullanım: ?probe=extent&r=16
+if (params.get('probe') === 'extent') {
+  const R = num('r', 16);
+  const size = Math.ceil(R * 8);
+  const results = [];
+
+  const measure = async (label, draw) => {
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    const g = c.getContext('2d');
+    g.translate(size / 2, size / 2);
+    draw(g);
+    const d = g.getImageData(0, 0, size, size).data;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        if (d[(y * size + x) * 4 + 3] === 0) continue;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+    results.push({
+      label,
+      radiusArg: R,
+      drawnWidth: maxX - minX + 1,
+      drawnHeight: maxY - minY + 1,
+      ratioToDiameter: +(((maxX - minX + 1) / (R * 2))).toFixed(2),
+    });
+  };
+
+  const { drawGameAvatar } = await import('../../src/core/avatarInGame.js');
+  for (const pattern of ['SOLID', 'RIBBON', 'STRIPE']) {
+    await measure(`avatar/pattern=${pattern}`, (g) => {
+      drawGameAvatar(g, 0, 0, R, {
+        index: 0, name: 'P1', color: '#D84727', expression: 'FOCUS',
+      }, { pattern, label: '', showPointer: false });
+    });
+  }
+  for (const accessory of ['NONE', 'HALO', 'BOLT', 'CROWN', 'WINGS', 'NINJA_COWL']) {
+    await measure(`avatar/accessory=${accessory}`, (g) => {
+      drawGameAvatar(g, 0, 0, R, {
+        index: 0, name: 'P1', color: '#D84727', expression: 'FOCUS',
+      }, { pattern: 'SOLID', accessory, label: '', showPointer: false });
+    });
+  }
+  // Oyun içi gerçek varsayılan: cihaz profilinden gelen aksesuar.
+  await measure('avatar/default(profile)', (g) => {
+    drawGameAvatar(g, 0, 0, R, {
+      index: 0, name: 'P1', color: '#D84727', expression: 'FOCUS',
+    }, { label: '', showPointer: false });
+  });
+  await measure('avatar/default+compact', (g) => {
+    drawGameAvatar(g, 0, 0, R, {
+      index: 0, name: 'P1', color: '#D84727', expression: 'FOCUS',
+    }, { label: '', showPointer: false, compactSilhouette: true });
+  });
+  await measure('hordeEnemy/chaser', (g) => {
+    g.fillStyle = '#E63946';
+    g.beginPath();
+    g.arc(0, 0, R, 0, Math.PI * 2);
+    g.fill();
+  });
+
+  const pre = document.createElement('pre');
+  pre.style.padding = '12px';
+  pre.textContent = JSON.stringify(results, null, 1);
+  out.appendChild(pre);
+  document.title = 'probe extent';
+} else {
+
+const GAME = (params.get('game') || 'ARCHER').toUpperCase();
+const TIME_MS = num('t', 2500);
+const CELLS = num('cells', 1);
+// Hücreyi görüntüye sığdır: 1920px'lik masaüstü hücresi 1440px'lik panelde
+// kırpılıyordu, karşılaştırma yapılamıyordu. `fit` = panel genişliği / en geniş hücre.
+const FIT = num('fit', 0);
+const START_MATCH = num('match', 1);
+const SEATS = num('seats', 2);
+
+const SIZES = CELLS > 1
+  ? [[1920, 1080], [852, 393], [1180, 820]]
+  : [[num('w', 852), num('h', 393)]];
+
+
+const { CARTRIDGES } = await import('../../src/core/engineRegistry.js');
+const cartridge = CARTRIDGES[GAME];
+if (!cartridge) throw new Error(`unknown game: ${GAME}`);
+const GameClass = await cartridge.load();
+
+const out = document.getElementById('out');
+const reports = [];
+
+for (const [w, h] of SIZES) {
+  pinViewport(w, h);
+
+  const canvas = document.createElement('canvas');
+  const dpr = 1;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const game = new GameClass({ width: canvas.width, height: canvas.height, getContext: () => ctx });
+  game.resize(w, h);
+  game.slotTypes = Array.from({ length: 4 }, (_, i) => (
+    i < SEATS ? 'human' : (i === SEATS && START_MATCH ? 'bot' : 'empty')
+  ));
+  // Koltuk başlatıcısı oyuna göre adlandırılmış: `initPlayers` (PONG, ARCHER,
+  // HORDE, …) ya da `initTanks` (TANKS). Tek isim varsaymak bir oyunu
+  // render-harness'ında sessizce düşürüyordu.
+  const init = typeof game.initPlayers === 'function'
+    ? game.initPlayers
+    : (typeof game.initTanks === 'function' ? game.initTanks : null);
+  if (init) init.call(game);
+  if (START_MATCH) game.startNewMatch();
+  game.lastTime = 1000;
+
+  // Sabit adımla ilerlet: `update(now)` deterministik olsun.
+  const stepMs = 16;
+  for (let t = 0; t < TIME_MS; t += stepMs) game.update(1000 + t + stepMs);
+  game.render();
+
+  const wrap = document.createElement('div');
+  wrap.className = 'row';
+  const head = document.createElement('h2');
+  head.textContent = `${GAME} — ${w}x${h} (dpr ${dpr})`;
+  wrap.appendChild(head);
+  if (FIT > 0 && FIT < 1) {
+    // Görüntüye sığdır ama çizim dokunulmadan kalır: canvas'ın CSS boyutu
+    // değişir, `width`/`height` backing store'u ve `resize()` girdisi değil.
+    const frame = document.createElement('div');
+    frame.style.width = `${w * FIT}px`;
+    frame.style.height = `${h * FIT}px`;
+    frame.style.overflow = 'hidden';
+    canvas.style.transformOrigin = 'top left';
+    canvas.style.transform = `scale(${FIT})`;
+    frame.appendChild(canvas);
+    wrap.appendChild(frame);
+  } else {
+    wrap.appendChild(canvas);
+  }
+  out.appendChild(wrap);
+
+  const a = game.arena || {};
+  const body = game.players?.[0]?.radius ?? null;
+  reports.push({
+    game: GAME,
+    size: `${w}x${h}`,
+    arena: a.width && a.height ? `${Math.round(a.width)}x${Math.round(a.height)}` : null,
+    shortSide: a.size != null ? +a.size.toFixed(1) : null,
+    insets: a.top != null ? +(a.top).toFixed(1) : null,
+    playerRadius: body != null ? +body.toFixed(2) : null,
+    bodyPct: a.size && body ? +((body * 2 / a.size) * 100).toFixed(2) : null,
+    obstacles: game.obstacles?.length ?? game.pillars?.length ?? null,
+  });
+}
+
+const meta = document.createElement('div');
+meta.className = 'meta';
+meta.textContent = JSON.stringify(reports);
+out.appendChild(meta);
+document.title = `harness ${GAME}`;
+}
+</script>
+</body>
+</html>

@@ -15,6 +15,7 @@ import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSys
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
 import { createCurveWorldPacket } from './curveView.js';
 import { vibrate } from '../core/haptics.js';
+import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CURVE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -114,24 +115,8 @@ export class CurveGame extends BaseMiniGame {
   resize(width, height) {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
-    const marginX = Math.max(12, Math.floor(width * 0.04));
-    const marginY = height > width
-      ? Math.max(48, Math.floor(height * 0.12))
-      : Math.max(32, Math.floor(height * 0.06));
-    const arenaW = width - marginX * 2;
-    const arenaH = height - marginY * 2;
 
-    this.arena = {
-      cx: width / 2,
-      cy: height / 2,
-      width: arenaW,
-      height: arenaH,
-      size: Math.min(arenaW, arenaH),
-      left: marginX,
-      right: marginX + arenaW,
-      top: marginY,
-      bottom: marginY + arenaH,
-    };
+    this.arena = computePlayfield(width, height, 'standard');
 
     // Maç ortası resize izleri/oyuncuları sıfırlamasın
     if (this.state === 'LOBBY' || !this.players.length) {
@@ -140,7 +125,7 @@ export class CurveGame extends BaseMiniGame {
     }
     for (const p of this.players) {
       this.remapPoint(p, oldArena, this.arena);
-      clampToArena(p, 5, this.arena, { zeroVelocity: true });
+      clampToArena(p, p.radius, this.arena, { zeroVelocity: true });
       p.prevX = p.x;
       p.prevY = p.y;
     }
@@ -185,7 +170,12 @@ export class CurveGame extends BaseMiniGame {
         prevX: s.x,
         prevY: s.y,
         angle: s.angle,
-        speed: 160,
+        // Gövde yarıçapı ve hız sahayla birlikte ölçeklenir: `headRadius 5`
+        // sabitken telefonda saha kısa kenarının %1.29'u, masaüstünde %0.53'ü
+        // (2.5x fark). Motor ölçekler, view `player.radius` okur, world packet
+        // taşır (ARCHER/NINJA/LASER ile aynı desen).
+        radius: fieldRadius(this.arena, 5, 0.006),
+        speed: fieldSpeed(this.arena, 160),
         turnSpeed: 2.85,
         steer: 0, // -1 (left), 0 (none), +1 (right)
         isAlive: true,
@@ -812,12 +802,12 @@ export class CurveGame extends BaseMiniGame {
   }
 
   render() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
     ctx.save();
 
     // Background paper
     ctx.fillStyle = '#F4F4F0';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
 
     if (this.trauma > 0 && !prefersReducedMotion()) {
       const shake = this.trauma * this.trauma * 16;
@@ -922,7 +912,7 @@ export class CurveGame extends BaseMiniGame {
       if (!player.isJoined || !player.isAlive) continue;
 
       ctx.save();
-      const headRadius = player.shrinkTimer > 0 ? 3.2 : 5;
+      const headRadius = player.shrinkTimer > 0 ? player.radius * 0.64 : player.radius;
 
       // Dondurma aurası
       if (player.freezeTimer > 0) {

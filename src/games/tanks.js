@@ -7,6 +7,7 @@ import { prefersReducedMotion } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { resolveSlotName } from '../core/slotManager.js';
 import { getProjectileSubsteps } from '../core/physics2d.js';
+import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { updateTankBotAI as runTankBotAI } from '../ai/tankAI.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
@@ -395,22 +396,8 @@ export class TanksGame extends BaseMiniGame {
   resize(width, height) {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
-    const marginX = Math.max(12, Math.floor(width * 0.04));
-    const marginY = Math.max(32, Math.floor(height * 0.06));
-    const arenaW = width - marginX * 2;
-    const arenaH = height - marginY * 2;
 
-    this.arena = {
-      cx: width / 2,
-      cy: height / 2,
-      width: arenaW,
-      height: arenaH,
-      size: Math.min(arenaW, arenaH),
-      left: marginX,
-      right: marginX + arenaW,
-      top: marginY,
-      bottom: marginY + arenaH,
-    };
+    this.arena = computePlayfield(width, height, 'flat');
 
     this.loadMap(this.currentMapIndex);
     // Maç ortası resize raundu sıfırlamasın: geometri yenilenir, canlı
@@ -474,12 +461,14 @@ export class TanksGame extends BaseMiniGame {
         angle: spawn.angle,
         rotationSpeed: 2.8,
         spinDirection: i % 2 === 0 ? 1 : -1,
-        driveSpeed: 175,
+        driveSpeed: fieldSpeed(this.arena, 175),
         isDriving: false,
         isAlive: true,
         isJoined: isJoined,
         slotType: this.slotTypes[i],
-        size: 26,
+        // Taban gövde: mutlak 26px telefonda saha yüksekliğinin %6.7'si,
+        // masaüstünde %2.7'si idi. Artık göreli taban.
+        size: fieldRadius(this.arena, 26, 0),
         reloadCooldown: 0.55,
         reloadTimer: 0,
         muzzleFlashTimer: 0,
@@ -722,7 +711,7 @@ export class TanksGame extends BaseMiniGame {
     tank.muzzleFlashTimer = 0.12;
 
     const barrelLen = tank.size * 0.82;
-    const speed = 440;
+    const speed = fieldSpeed(this.arena, 440);
 
     if (tank.hasTripleShot) {
       tank.hasTripleShot = false;
@@ -739,7 +728,10 @@ export class TanksGame extends BaseMiniGame {
           maxBounces: 2,
           owner: tank.index,
           id: this.nextBulletId++,
-          radius: 4.5,
+          // Mermi yarıçapı saha ile ölçeklenir. Mutlak 4.5px telefonda
+          // saha kısa kenarının %1.16'sı, masaüstünde %0.47'siydi — 2.5x
+          // şişme. Mermi gözle zor seçildiği için fark edilmiyordu.
+          radius: fieldRadius(this.arena, 4.5, 0),
         });
       }
     } else {
@@ -754,7 +746,7 @@ export class TanksGame extends BaseMiniGame {
         maxBounces: 2,
         owner: tank.index,
         id: this.nextBulletId++,
-        radius: 4.5,
+        radius: fieldRadius(this.arena, 4.5, 0),
       });
     }
 
@@ -1245,11 +1237,11 @@ export class TanksGame extends BaseMiniGame {
   }
 
   render() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
     ctx.save();
 
     ctx.fillStyle = '#F4F4F0';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
 
     if (this.trauma > 0 && !prefersReducedMotion()) {
       const intensity = this.trauma * this.trauma * 16;
@@ -1312,7 +1304,7 @@ export class TanksGame extends BaseMiniGame {
       accent: '#D84727',
       scoreboardEntities: [
         ...this.tanks.filter((t) => t.isJoined && t.isAlive).map((t) => ({ x: t.x, y: t.y, radius: t.size || 20 })),
-        ...this.bullets.map((b) => ({ x: b.x, y: b.y, radius: 10 })),
+        ...this.bullets.map((b) => ({ x: b.x, y: b.y, radius: fieldRadius(this.arena, 10, 0) })),
       ],
       matchOverHeadline: t('tanks.champ'),
       matchOverRows: this.tanks

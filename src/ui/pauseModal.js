@@ -2,7 +2,7 @@
 // Same public API as the old pause modal: initPauseModal, openPauseModal,
 // closePauseModal, renderPauseSeats, getIsPaused, setIsPaused — main.js untouched.
 import { hostPlayerSlots, isBotEkleEnabled, setBotEkleEnabled } from '../core/slotManager.js';
-import { CARTRIDGES } from '../core/engineRegistry.js';
+import { CARTRIDGES, getControllerMeta } from '../core/engineRegistry.js';
 import { isColorblindEnabled, setColorblindEnabled } from '../core/customizationManager.js';
 import { showInstallToast } from './toast.js';
 import { toggleAudio, getIsMuted } from '../audio.js';
@@ -14,9 +14,14 @@ import {
   setControlSurface,
 } from './tokens.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
+import { getControllerGuide } from '../controllers/controllerGuide.js';
+import { getSlotKeys, KEY_LABELS } from '../core/inputMaps.js';
 
 const pauseModal = document.getElementById('pause-modal');
 const pauseGameTitle = document.getElementById('pause-game-title');
+const pauseControlsSection = document.getElementById('pause-controls-section');
+const pauseControlsBody = document.getElementById('pause-controls-body');
+const pauseControlsTouch = document.getElementById('pause-controls-touch');
 const btnPauseClose = document.getElementById('btn-pause-close');
 const btnResumeGame = document.getElementById('btn-resume-game');
 const btnResetMatch = document.getElementById('btn-reset-match');
@@ -40,6 +45,62 @@ export function getIsPaused() {
 
 export function setIsPaused(val) {
   isPaused = val;
+}
+
+// ---------------------------------------------------------------------------
+// Kontrol referansı (tek butonun menüsü)
+// ---------------------------------------------------------------------------
+// Oynarken üstte sürekli duran kontrol şeridi kaldırıldı: telefon yatayda saha
+// kısa olduğu için şerit sahanın ~%7'sini kapatıyordu. Aynı bilgi artık tek
+// butonun açtığı bu menüde yaşıyor. Metin kopyalanmaz — `CONTROL_DEFS` +
+// `getControllerGuide` + `getSlotKeys` tek kaynaklarından türetilir.
+
+function keyboardSlotLabel(index) {
+  const keys = getSlotKeys(index);
+  if (!keys) return '';
+  const axis = [keys.l, keys.u, keys.r, keys.d].filter(Boolean).length;
+  const dir = axis === 4 ? `${keys.l}/${keys.u}/${keys.r}/${keys.d}` : '';
+  const action = KEY_LABELS.action?.[index] || keys.action || '';
+  return dir ? `${dir} + ${action}` : action;
+}
+
+export function renderPauseControls(mode) {
+  if (!pauseControlsSection || !pauseControlsBody) return;
+  const meta = getControllerMeta(mode);
+  const schema = meta?.schema;
+  const guide = getControllerGuide(mode, schema);
+  if (!guide) {
+    pauseControlsSection.hidden = true;
+    return;
+  }
+  pauseControlsSection.hidden = false;
+
+  // Dokunmatik taraf: kontroller gibi SADECE ikon (ham OS emojisi yasak —
+  // bkz. AGENTS.md §8). controllerTemplates ile aynı ikon kaynağı kullanılır.
+  const schemaActions = Array.isArray(schema?.actions) ? schema.actions : [];
+  const actionIcons = schemaActions.map((a) => getTabletopIconSvg(
+    a.icon || (a.action === 'DASH' ? 'zap' : 'flame'),
+    { size: 18, color: '#141414', strokeWidth: 2.2 },
+  ));
+  if (pauseControlsTouch) {
+    pauseControlsTouch.innerHTML = [
+      `<span class="pc-touch-icon">${getTabletopIconSvg('gamepad_2', { size: 16, color: '#55514a', strokeWidth: 2.2 })}</span>`,
+      ...actionIcons,
+    ].join('');
+  }
+
+  // Klavye tarafı: tuş yazısı metin olarak (ikon değil) — tuş kapağı metindir.
+  const keyboardSlots = [0, 1, 2, 3]
+    .map((i) => `<li><span class="pc-slot">P${i + 1}</span><span class="pc-keys">${keyboardSlotLabel(i)}</span></li>`)
+    .join('');
+
+  const aimRow = guide.aim
+    ? `<li><span class="pc-slot">${t('pause.aimShort')}</span><span class="pc-keys">${t('pause.aimHint')}</span></li>`
+    : '';
+
+  pauseControlsBody.innerHTML = `
+    <ul class="pause-controls-keyboard">${keyboardSlots}${aimRow}</ul>
+  `;
 }
 
 function setSwitch(el, on) {
@@ -173,6 +234,7 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback, control
   refreshPauseSwitches();
   pauseSelectedSlot = null;
   renderPauseSeats(lastSwapCallback);
+  renderPauseControls(currentMode);
 }
 
 export function closePauseModal(onCloseCallback) {

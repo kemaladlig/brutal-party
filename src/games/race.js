@@ -14,6 +14,7 @@ import { renderControlGuide } from '../controlGuide.js';
 import { drawObstacle } from '../core/arenaKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { clampToArena, distToSegmentSquared, normalizeAngle } from '../core/physics2d.js';
+import { computePlayfield, fieldPx, fieldSpeed } from '../core/playfield.js';
 import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
 import { createPlayer } from '../core/playerEntity.js';
 import { getKeyLabel } from '../core/inputMaps.js';
@@ -116,9 +117,9 @@ export class RaceGame extends BaseMiniGame {
         existingName: existing?.name,
         defaultNames: RACE_NAMES,
         defaultColors: UI_COLORS.players,
-        radius: RACE_TUNING.playerRadius,
-        speed: RACE_TUNING.baseSpeed,
-        baseSpeed: RACE_TUNING.baseSpeed,
+        radius: this.px(RACE_TUNING.playerRadius),
+        speed: this.spd(RACE_TUNING.baseSpeed),
+        baseSpeed: this.spd(RACE_TUNING.baseSpeed),
         isJoined: this.isSlotJoined(index),
         isAlive: this.isSlotJoined(index),
         slotType: this.slotTypes[index],
@@ -128,6 +129,7 @@ export class RaceGame extends BaseMiniGame {
         vz: 0,
         isJumping: false,
         nitroBoostTimer: 0,
+        nitroPadLocked: false,
         draftingTimer: 0,
         isDrafting: false,
         empDisruptedTimer: 0,
@@ -139,27 +141,26 @@ export class RaceGame extends BaseMiniGame {
     });
   }
 
-  buildArena() {
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-    const margin = Math.min(width, height) * 0.08;
-    const left = margin;
-    const top = margin + 30;
-    const right = width - margin;
-    const bottom = height - margin - 20;
-    const arenaWidth = right - left;
-    const arenaHeight = bottom - top;
+  // RACE_TUNING hem ZAMAN hem UZAM içeriyor. Zaman değerleri (roundTime,
+  // dashCooldown, jumpDuration, empDuration) ÖLÇEKLENMEZ — süre cihazdan
+  // bağımsızdır. px / px/s olanlar ise sahayla birlikte ölçeklenir, yoksa
+  // telefonda araç sahanın %5'ini kaplar ve saha geçiş süresi değişir.
+  // Yanlışlıkla bir zaman değerini ölçeklemek oyunu bozduğu için iki okuyucu
+  // ayrıldı.
+  px(value) {
+    return fieldPx(this.arena, value);
+  }
 
-    this.arena = {
-      left,
-      top,
-      right,
-      bottom,
-      width: arenaWidth,
-      height: arenaHeight,
-      cx: left + arenaWidth / 2,
-      cy: top + arenaHeight / 2,
-    };
+  spd(value) {
+    return fieldSpeed(this.arena, value);
+  }
+
+  // Arena geometry comes from the shared playfield (CSS px). RACE must never
+  // read or write canvas.width/height: those are the DPR backing store, owned
+  // by main.js — reading them yields device px and writing them wipes the
+  // ctx.scale(dpr, dpr) transform, which pins the whole engine to 1x.
+  buildArena(width, height) {
+    this.arena = computePlayfield(width, height, 'racing');
 
     this.applyTrackPreset(this.currentPreset);
   }
@@ -168,6 +169,16 @@ export class RaceGame extends BaseMiniGame {
     this.currentPreset = TRACK_PRESETS.includes(presetName) ? presetName : TRACK_PRESETS[0];
     const arena = this.arena;
     const checkpointRadius = Math.min(arena.width, arena.height) * 0.1;
+    // Parkur dekorları da saha ile birlikte ölçeklenir. Konumlar ve checkpoint
+    // yarıçapı zaten oranlıydı; yağ lekeleri, nitro pad'leri ve spinner
+    // uzunlukları MUTLAK px'te kalmıştı. Ölçülen şişme (telefon/masaüstü):
+    //   yağ lekesi 30px  %3.2 -> %7.8   (2.4x)
+    //   nitro pad 42x28  %4.4 -> %7.4   (1.7x)
+    //   spinner 110px    %11.6 -> %28.4 (2.4x)  <- en belirgin olan
+    // Araç zaten ölçekli olduğu için tutarsızlık "prop'lar büyük" olarak
+    // değil "bir şeyler ters" olarak okunuyordu; kullanıcı RACE ölçeğini iyi
+    // bulduğu için hata gözden kaçmış.
+    const px = (v) => this.px(v);
 
     if (this.currentPreset === 'ZIGZAG') {
       this.checkpoints = [
@@ -176,16 +187,16 @@ export class RaceGame extends BaseMiniGame {
         { id: 2, name: 'CP 3', x: arena.left + arena.width * 0.85, y: arena.top + arena.height * 0.85, radius: checkpointRadius, color: '#22C55E' },
       ];
       this.oilSlicks = [
-        { x: arena.left + arena.width * 0.5, y: arena.top + arena.height * 0.35, radius: 30 },
-        { x: arena.left + arena.width * 0.5, y: arena.top + arena.height * 0.65, radius: 30 },
+        { x: arena.left + arena.width * 0.5, y: arena.top + arena.height * 0.35, radius: px(30) },
+        { x: arena.left + arena.width * 0.5, y: arena.top + arena.height * 0.65, radius: px(30) },
       ];
       this.nitroPads = [
-        { x: arena.left + arena.width * 0.2, y: arena.top + arena.height * 0.2, w: 42, h: 28, angle: 0 },
-        { x: arena.left + arena.width * 0.8, y: arena.top + arena.height * 0.6, w: 42, h: 28, angle: Math.PI / 2 },
+        { x: arena.left + arena.width * 0.2, y: arena.top + arena.height * 0.2, w: px(42), h: px(28), angle: 0 },
+        { x: arena.left + arena.width * 0.8, y: arena.top + arena.height * 0.6, w: px(42), h: px(28), angle: Math.PI / 2 },
       ];
       this.obstacleSpinners = [
-        { x: arena.left + arena.width * 0.35, y: arena.top + arena.height * 0.35, length: 110, angle: 0, rotSpeed: 1.5 },
-        { x: arena.left + arena.width * 0.65, y: arena.top + arena.height * 0.65, length: 110, angle: Math.PI / 4, rotSpeed: -1.5 },
+        { x: arena.left + arena.width * 0.35, y: arena.top + arena.height * 0.35, length: px(110), angle: 0, rotSpeed: 1.5 },
+        { x: arena.left + arena.width * 0.65, y: arena.top + arena.height * 0.65, length: px(110), angle: Math.PI / 4, rotSpeed: -1.5 },
       ];
       return;
     }
@@ -197,14 +208,14 @@ export class RaceGame extends BaseMiniGame {
         { id: 2, name: 'CP 3', x: arena.left + arena.width * 0.15, y: arena.top + arena.height * 0.75, radius: checkpointRadius, color: '#22C55E' },
       ];
       this.oilSlicks = [
-        { x: arena.left + arena.width * 0.3, y: arena.top + arena.height * 0.45, radius: 28 },
-        { x: arena.left + arena.width * 0.7, y: arena.top + arena.height * 0.45, radius: 28 },
+        { x: arena.left + arena.width * 0.3, y: arena.top + arena.height * 0.45, radius: px(28) },
+        { x: arena.left + arena.width * 0.7, y: arena.top + arena.height * 0.45, radius: px(28) },
       ];
       this.nitroPads = [
-        { x: arena.left + arena.width * 0.5, y: arena.top + arena.height * 0.85, w: 45, h: 28, angle: Math.PI },
+        { x: arena.left + arena.width * 0.5, y: arena.top + arena.height * 0.85, w: px(45), h: px(28), angle: Math.PI },
       ];
       this.obstacleSpinners = [
-        { x: arena.left + arena.width * 0.5, y: arena.top + arena.height * 0.5, length: 140, angle: 0, rotSpeed: 2 },
+        { x: arena.left + arena.width * 0.5, y: arena.top + arena.height * 0.5, length: px(140), angle: 0, rotSpeed: 2 },
       ];
       return;
     }
@@ -215,15 +226,15 @@ export class RaceGame extends BaseMiniGame {
       { id: 2, name: 'CP 3', x: arena.left + arena.width * 0.25, y: arena.top + arena.height * 0.75, radius: checkpointRadius, color: '#22C55E' },
     ];
     this.oilSlicks = [
-      { x: arena.left + arena.width * 0.55, y: arena.top + arena.height * 0.3, radius: 26 },
-      { x: arena.left + arena.width * 0.55, y: arena.top + arena.height * 0.7, radius: 26 },
+      { x: arena.left + arena.width * 0.55, y: arena.top + arena.height * 0.3, radius: px(26) },
+      { x: arena.left + arena.width * 0.55, y: arena.top + arena.height * 0.7, radius: px(26) },
     ];
     this.nitroPads = [
-      { x: arena.left + arena.width * 0.8, y: arena.top + arena.height * 0.2, w: 40, h: 28, angle: -Math.PI / 4 },
-      { x: arena.left + arena.width * 0.45, y: arena.top + arena.height * 0.85, w: 40, h: 28, angle: Math.PI },
+      { x: arena.left + arena.width * 0.8, y: arena.top + arena.height * 0.2, w: px(40), h: px(28), angle: -Math.PI / 4 },
+      { x: arena.left + arena.width * 0.45, y: arena.top + arena.height * 0.85, w: px(40), h: px(28), angle: Math.PI },
     ];
     this.obstacleSpinners = [
-      { x: arena.left + arena.width * 0.5, y: arena.top + arena.height * 0.5, length: 110, angle: 0, rotSpeed: 1.2 },
+      { x: arena.left + arena.width * 0.5, y: arena.top + arena.height * 0.5, length: px(110), angle: 0, rotSpeed: 1.2 },
     ];
   }
 
@@ -243,7 +254,10 @@ export class RaceGame extends BaseMiniGame {
     this.floatingTexts = [];
     this.empPulses = [];
     this.uiButtons = [];
-    this.buildArena();
+    this.buildArena(
+      typeof window !== 'undefined' ? window.innerWidth : 800,
+      typeof window !== 'undefined' ? window.innerHeight : 600,
+    );
     this.initPlayers();
     this.resetRacers();
     this.ai.reset();
@@ -260,13 +274,15 @@ export class RaceGame extends BaseMiniGame {
     const startY = arena.top + arena.height * 0.75;
 
     this.players.forEach((player, index) => {
-      player.x = startX - (index % 2) * 32;
-      player.y = startY + (index - 1.5) * 28;
+      // Başlangıç ızgarası da orantılı: 32/28px mutlak kalsaydı telefonda
+      // dört araç saha yüksekliğinin %15'ini kaplardı ve birbirine binerdi.
+      player.x = startX - (index % 2) * this.px(32);
+      player.y = startY + (index - 1.5) * this.px(28);
       player.vx = 0;
       player.vy = 0;
       player.speed = 0;
       player.angle = -Math.PI / 2;
-      player.radius = RACE_TUNING.playerRadius;
+      player.radius = this.px(RACE_TUNING.playerRadius);
       player.laps = 0;
       player.nextCheckpoint = 0;
       player.dashCooldown = 0;
@@ -277,6 +293,7 @@ export class RaceGame extends BaseMiniGame {
       player.isJumping = false;
       player.skidTimer = 0;
       player.nitroBoostTimer = 0;
+      player.nitroPadLocked = false;
       player.draftingTimer = 0;
       player.isDrafting = false;
       player.empDisruptedTimer = 0;
@@ -378,7 +395,7 @@ export class RaceGame extends BaseMiniGame {
     player.dashTimer = RACE_TUNING.dashDuration;
     player.isJumping = true;
     player.jumpZ = Math.max(0, player.jumpZ);
-    player.vz = Math.max(player.vz, RACE_TUNING.jumpVelocity);
+    player.vz = Math.max(player.vz, this.spd(RACE_TUNING.jumpVelocity));
     this.addTrauma(0.2);
     playDashWhoosh();
 
@@ -387,8 +404,8 @@ export class RaceGame extends BaseMiniGame {
       this.empPulses.push({
         x: player.x,
         y: player.y,
-        radius: 10,
-        maxRadius: RACE_TUNING.empMaxRadius,
+        radius: this.px(10),
+        maxRadius: this.px(RACE_TUNING.empMaxRadius),
         owner: player.index,
       });
       this.spawnFloatingText(player.x, player.y - 22, t('race.empDash'), '#0EA5E9', {
@@ -526,13 +543,13 @@ export class RaceGame extends BaseMiniGame {
 
     for (let index = this.empPulses.length - 1; index >= 0; index--) {
       const pulse = this.empPulses[index];
-      pulse.radius += RACE_TUNING.empSpeed * dt;
+      pulse.radius += this.px(RACE_TUNING.empSpeed) * dt;
 
       for (const target of this.players) {
         if (!target.isJoined || target.index === pulse.owner) continue;
         const distance = Math.hypot(target.x - pulse.x, target.y - pulse.y);
         const insideRing = distance <= pulse.radius && distance >= pulse.radius - 30;
-        if (insideRing && target.empDisruptedTimer <= 0 && target.jumpZ < RACE_TUNING.jumpClearance) {
+        if (insideRing && target.empDisruptedTimer <= 0 && target.jumpZ < this.px(RACE_TUNING.jumpClearance)) {
           target.empDisruptedTimer = RACE_TUNING.empDuration;
           this.addTrauma(0.2);
           this.spawnFloatingText(target.x, target.y - 18, t('race.empHit'), '#0EA5E9', {
@@ -564,7 +581,7 @@ export class RaceGame extends BaseMiniGame {
 
       if (player.isJumping || player.jumpZ > 0) {
         player.jumpZ += player.vz * dt;
-        player.vz -= RACE_TUNING.jumpGravity * dt;
+        player.vz -= this.spd(RACE_TUNING.jumpGravity) * dt;
         if (player.jumpZ <= 0) {
           player.jumpZ = 0;
           player.vz = 0;
@@ -595,18 +612,18 @@ export class RaceGame extends BaseMiniGame {
         moveVec = this.ai.getBotMovement(index);
       }
 
-      let maxSpeed = RACE_TUNING.baseSpeed;
-      let acceleration = RACE_TUNING.baseAcceleration;
+      let maxSpeed = this.spd(RACE_TUNING.baseSpeed);
+      let acceleration = this.spd(RACE_TUNING.baseAcceleration);
       let dragRate = 3.7;
       if (player.isDashing || player.nitroBoostTimer > 0) {
-        maxSpeed = RACE_TUNING.dashSpeed;
-        acceleration = RACE_TUNING.dashAcceleration;
+        maxSpeed = this.spd(RACE_TUNING.dashSpeed);
+        acceleration = this.spd(RACE_TUNING.dashAcceleration);
       }
       if (player.isDrafting && player.draftingTimer > 0.4) {
         maxSpeed *= 1.25;
         acceleration *= 1.3;
       }
-      if (player.skidTimer > 0 && player.jumpZ < RACE_TUNING.jumpClearance) {
+      if (player.skidTimer > 0 && player.jumpZ < this.px(RACE_TUNING.jumpClearance)) {
         maxSpeed *= 0.6;
         acceleration *= 0.4;
         dragRate = 1.2;
@@ -660,7 +677,7 @@ export class RaceGame extends BaseMiniGame {
         }
       }
 
-      if (player.jumpZ < RACE_TUNING.jumpClearance) {
+      if (player.jumpZ < this.px(RACE_TUNING.jumpClearance)) {
         for (const slick of this.oilSlicks) {
           const distance = Math.hypot(player.x - slick.x, player.y - slick.y);
           if (distance < slick.radius + player.radius && player.skidTimer <= 0) {
@@ -674,8 +691,8 @@ export class RaceGame extends BaseMiniGame {
         }
       }
 
+      let padUnderfoot = false;
       for (const pad of this.nitroPads) {
-        if (player.nitroBoostTimer > 0) continue;
         const dx = player.x - pad.x;
         const dy = player.y - pad.y;
         const cos = Math.cos(pad.angle);
@@ -686,9 +703,21 @@ export class RaceGame extends BaseMiniGame {
           && Math.abs(localY) <= pad.h / 2 + player.radius;
         if (!inside) continue;
 
+        padUnderfoot = true;
+        if (player.nitroBoostTimer > 0 || player.nitroPadLocked) continue;
+
+        const boostSpeed = this.spd(RACE_TUNING.dashSpeed);
+        const speed = Math.hypot(player.vx, player.vy);
+        if (speed < boostSpeed) {
+          // Boost along the racer's own heading — the pad's fixed angle may
+          // oppose the racing line depending on approach direction.
+          const dirX = speed > 1 ? player.vx / speed : Math.cos(player.angle);
+          const dirY = speed > 1 ? player.vy / speed : Math.sin(player.angle);
+          player.vx = dirX * boostSpeed;
+          player.vy = dirY * boostSpeed;
+        }
         player.nitroBoostTimer = RACE_TUNING.nitroDuration;
-        player.vx = Math.cos(pad.angle) * RACE_TUNING.dashSpeed;
-        player.vy = Math.sin(pad.angle) * RACE_TUNING.dashSpeed;
+        player.nitroPadLocked = true;
         this.addTrauma(0.2);
         this.spawnFloatingText(player.x, player.y - 15, t('race.nitro'), UI_COLORS.ink, {
           bg: UI_COLORS.turbo,
@@ -696,8 +725,11 @@ export class RaceGame extends BaseMiniGame {
         });
         playItemPickup();
       }
+      // Re-arm only after the racer fully leaves every pad box, so a
+      // wall-bounce back onto the same pad can't relaunch them in a loop.
+      if (!padUnderfoot) player.nitroPadLocked = false;
 
-      if (player.jumpZ < RACE_TUNING.jumpClearance) {
+      if (player.jumpZ < this.px(RACE_TUNING.jumpClearance)) {
         for (const spinner of this.obstacleSpinners) {
           const halfLength = spinner.length / 2;
           const endAx = spinner.x - Math.cos(spinner.angle) * halfLength;
@@ -771,7 +803,7 @@ export class RaceGame extends BaseMiniGame {
   }
 
   resolvePlayerCollisions() {
-    const minimumDistance = RACE_TUNING.playerRadius * 2;
+    const minimumDistance = this.px(RACE_TUNING.playerRadius) * 2;
     for (let firstIndex = 0; firstIndex < this.players.length; firstIndex++) {
       for (let secondIndex = firstIndex + 1; secondIndex < this.players.length; secondIndex++) {
         const first = this.players[firstIndex];
@@ -804,8 +836,8 @@ export class RaceGame extends BaseMiniGame {
           this.addTrauma(0.1);
           playWallHit();
         }
-        clampToArena(first, first.radius || RACE_TUNING.playerRadius, this.arena);
-        clampToArena(second, second.radius || RACE_TUNING.playerRadius, this.arena);
+        clampToArena(first, first.radius || this.px(RACE_TUNING.playerRadius), this.arena);
+        clampToArena(second, second.radius || this.px(RACE_TUNING.playerRadius), this.arena);
       }
     }
   }
@@ -957,8 +989,8 @@ export class RaceGame extends BaseMiniGame {
 
   render() {
     const ctx = this.ctx;
-    const width = this.canvas.width;
-    const height = this.canvas.height;
+    const width = this.viewport.width;
+    const height = this.viewport.height;
 
     ctx.save();
     ctx.clearRect(0, 0, width, height);
@@ -1068,6 +1100,10 @@ export class RaceGame extends BaseMiniGame {
         text: t('race.hud', this.getTrackName(), Math.ceil(this.roundTimer)),
         urgent: this.roundTimer <= 15,
         customW: 210,
+        // Tur sayacı oyun boyunca görünür: kalıcı play-state chrome. Kompakt
+        // yatayda opak çubuk sahanın üst payına (3px) oturup oynanış alanını
+        // kapatıyordu; çubuk yerine çıplak metne düşer.
+        persistent: true,
       });
     }
 
@@ -1096,6 +1132,8 @@ export class RaceGame extends BaseMiniGame {
     });
 
     if (this.state === 'PLAYING') {
+      // Telefon yatayda bu şerit sahanın üstünü kalıcı kapatıyordu; bilgi
+      // tek butonun açtığı menüde. Masaüstü/tablete değişiklik yok.
       renderControlGuide(ctx, arena, t('guide.race'), [
         t(
           'guide.raceKeys',
@@ -1104,7 +1142,7 @@ export class RaceGame extends BaseMiniGame {
           getKeyLabel('action', 2),
           getKeyLabel('action', 3),
         ),
-      ]);
+      ], { duringPlay: true });
     }
 
     if (this.state === 'ROUND_OVER') {
@@ -1145,9 +1183,7 @@ export class RaceGame extends BaseMiniGame {
     this.updateViewport(width, height);
     const oldArena = { ...this.arena };
     const oldSpinnerAngles = this.obstacleSpinners.map((spinner) => spinner.angle);
-    this.canvas.width = width;
-    this.canvas.height = height;
-    this.buildArena();
+    this.buildArena(width, height);
     this.obstacleSpinners.forEach((spinner, index) => {
       if (typeof oldSpinnerAngles[index] === 'number') spinner.angle = oldSpinnerAngles[index];
     });
@@ -1160,7 +1196,7 @@ export class RaceGame extends BaseMiniGame {
       const pulseScale = oldSize > 0 ? newSize / oldSize : 1;
       this.players.forEach((player) => {
         this.remapPoint(player, oldArena, this.arena);
-        clampToArena(player, player.radius || RACE_TUNING.playerRadius, this.arena, { zeroVelocity: true });
+        clampToArena(player, player.radius || this.px(RACE_TUNING.playerRadius), this.arena, { zeroVelocity: true });
       });
       this.empPulses.forEach((pulse) => {
         this.remapPoint(pulse, oldArena, this.arena);

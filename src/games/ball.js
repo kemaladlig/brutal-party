@@ -1,6 +1,7 @@
 // Ball physics with progressive speed escalation, smash mechanics, sonic booms & overdrive hazards
 import { playPaddleHit, playWallHit, playGoal, playShoot, playSonicBoom, playPowerUp } from '../audio.js';
 import { vibrate } from '../core/haptics.js';
+import { fieldRadius } from '../core/playfield.js';
 
 export class Ball {
   constructor(game) {
@@ -47,8 +48,11 @@ export class Ball {
   scaleToArena(arena) {
     const shortSide = Math.min(arena.width, arena.height) || 400;
 
-    // Ball radius scales with the shorter dimension (~1.8-2.0%)
-    this.radius = Math.max(9, Math.min(16, Math.round(shortSide * 0.019)));
+    // Top yarıçapı saha kısa kenarıyla orantılıdır. ESKİTEN `max(9, min(16,…))`
+    // çift keneidi orantıyı bozuyordu: masaüstünde %1.68, telefonda %2.33
+    // (1.39x şişik) — mutlak px keneidi küçük saha varlığı büyütüyordu.
+    // Taban orantılıdır (saha kısa kenarının oranı).
+    this.radius = fieldRadius(arena, 16, 0.015);
 
     // Hız profili yalnız kısa kenara bağlıdır: uzun ekranlarda servis hızı
     // yanlışlıkla tavanı geçmez, rally gerçekten hızlanacak headroom bulur.

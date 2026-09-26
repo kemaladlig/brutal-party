@@ -147,6 +147,8 @@ export function createCurveWorldPacket(game) {
       alive: p.isAlive !== false,
       x: round1(p.x || 0),
       y: round1(p.y || 0),
+      // Gövde yarıçapı host'ta ölçeklenir ve paketle taşınır.
+      radius: round1(p.radius || 0) || undefined,
       angle: round1(p.angle || 0),
       shrink: (p.shrinkTimer || 0) > 0,
       thick: (p.thickTimer || 0) > 0,
@@ -181,7 +183,9 @@ export function createCurveWorldPacket(game) {
 function isValidCurvePlayer(p) {
   return finite(p.angle)
     && ['shrink', 'thick', 'ghost', 'freeze', 'turbo', 'confused', 'gap'].every((k) => typeof p[k] === 'boolean')
-    && finite(p.confusedTimer) && finite(p.gapTimer);
+    && finite(p.confusedTimer) && finite(p.gapTimer)
+    // radius opsiyoneldir (eski host paketleri) ama varsa pozitif olmalı.
+    && (p.radius === undefined || (finite(p.radius) && p.radius > 0));
 }
 
 function isValidCurveExtra(frame) {
@@ -265,7 +269,9 @@ export function drawCurveHeads(ctx, players) {
   for (const p of players) {
     if (!isWorldEntityVisible(p)) continue;
     ctx.save();
-    const headRadius = p.shrink ? 3.2 : 5;
+    // Yarıçap host'ta ölçeklenip paketle gelir; bu view ortak kullanıldığı
+    // için yeniden ölçeklenmez. Tasarım referansı 5px.
+    const headRadius = p.shrink ? (p.radius || 5) * 0.64 : (p.radius || 5);
 
     if (p.freeze) {
       ctx.strokeStyle = '#00B4D8';

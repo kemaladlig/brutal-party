@@ -35,6 +35,9 @@ export function createNinjaWorldPacket(game) {
       alive: p.isAlive !== false,
       x: round1(p.x || 0),
       y: round1(p.y || 0),
+      // Yarıçap host'ta sahayla birlikte ölçeklenir ve paketle taşınır; client
+      // aynı view'i kullandığı için yeniden ölçeklemez.
+      radius: round1(p.radius || 0) || undefined,
       angle: round1(p.angle || 0),
       alpha: round2(p.alpha ?? 1),
       strike: (p.strikeTimer || 0) > 0,
@@ -110,7 +113,9 @@ function isValidNinjaPlayer(p) {
     && finite(p.angle) && finite(p.alpha) && p.alpha >= 0 && p.alpha <= 1
     && typeof p.strike === 'boolean'
     && (p.strikeProg === null || (finite(p.strikeProg) && p.strikeProg >= 0 && p.strikeProg <= 1))
-    && (p.smokeProg === null || (finite(p.smokeProg) && p.smokeProg >= 0 && p.smokeProg <= 1));
+    && (p.smokeProg === null || (finite(p.smokeProg) && p.smokeProg >= 0 && p.smokeProg <= 1))
+    // radius opsiyoneldir (eski host paketleri) ama varsa pozitif olmalı.
+    && (p.radius === undefined || (finite(p.radius) && p.radius > 0));
 }
 
 function isValidNinjaExtra(frame) {
@@ -284,32 +289,36 @@ export function drawNinjaLanterns(ctx, lanterns, now = 0) {
 
 export function drawNinjaGhosts(ctx, ghosts) {
   for (const img of ghosts || []) {
+    // Host ve kumanda client'ı bu view'i ORTAK kullanır; yarıçap host'ta
+    // ölçeklenip paketle gelir, burada ikinci kez ölçeklenmez.
+    const R = img.radius || NINJA_RADIUS;
     ctx.save();
     ctx.globalAlpha = clamp01((img.alpha || 0) * 0.7);
     ctx.translate(img.x, img.y);
     ctx.rotate(img.angle);
     ctx.fillStyle = '#1A1A1A';
     ctx.beginPath();
-    ctx.arc(0, 0, NINJA_RADIUS, 0, Math.PI * 2);
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = img.color;
     ctx.lineWidth = 2.0;
     ctx.stroke();
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(NINJA_RADIUS * 0.2, -3, 6, 2);
-    ctx.fillRect(NINJA_RADIUS * 0.2, 1, 6, 2);
+    ctx.fillRect(R * 0.2, -3, 6, 2);
+    ctx.fillRect(R * 0.2, 1, 6, 2);
     ctx.restore();
   }
 }
 
 function drawNinjaSelfGhost(ctx, player) {
+  const R = player.radius || NINJA_RADIUS;
   ctx.save();
   ctx.globalAlpha = 0.35;
   ctx.strokeStyle = player.color;
   ctx.lineWidth = 2;
   ctx.setLineDash([3, 4]);
   ctx.beginPath();
-  ctx.arc(player.x, player.y, NINJA_RADIUS + 2, 0, Math.PI * 2);
+  ctx.arc(player.x, player.y, R + 2, 0, Math.PI * 2);
   ctx.stroke();
   ctx.fillStyle = player.color;
   ctx.beginPath();
@@ -332,8 +341,9 @@ export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true 
     ctx.globalAlpha = clamp01(player.alpha ?? 1);
     ctx.translate(player.x, player.y);
     ctx.rotate(player.angle || 0);
+    const R = player.radius || NINJA_RADIUS;
 
-    drawGameAvatar(ctx, 0, 0, NINJA_RADIUS, player, {
+    drawGameAvatar(ctx, 0, 0, R, player, {
       facingAngle: 0,
       expression: player.strike ? 'angry' : 'normal',
       borderColor: '#1A1A1A',
@@ -345,12 +355,12 @@ export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true 
       ctx.strokeStyle = 'rgba(20, 20, 22, 0.4)';
       ctx.lineWidth = 3.5;
       ctx.beginPath();
-      ctx.arc(0, 0, NINJA_RADIUS + 4, 0, Math.PI * 2);
+      ctx.arc(0, 0, R + 4, 0, Math.PI * 2);
       ctx.stroke();
       ctx.strokeStyle = '#F59E0B';
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(0, 0, NINJA_RADIUS + 4, -Math.PI / 2, -Math.PI / 2 + clamp01(player.strikeProg) * Math.PI * 2);
+      ctx.arc(0, 0, R + 4, -Math.PI / 2, -Math.PI / 2 + clamp01(player.strikeProg) * Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -359,12 +369,12 @@ export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true 
       ctx.strokeStyle = 'rgba(100, 100, 110, 0.3)';
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(0, 0, NINJA_RADIUS + 8, 0, Math.PI * 2);
+      ctx.arc(0, 0, R + 8, 0, Math.PI * 2);
       ctx.stroke();
       ctx.strokeStyle = '#A855F7';
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(0, 0, NINJA_RADIUS + 8, -Math.PI / 2, -Math.PI / 2 + clamp01(player.smokeProg) * Math.PI * 2);
+      ctx.arc(0, 0, R + 8, -Math.PI / 2, -Math.PI / 2 + clamp01(player.smokeProg) * Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }

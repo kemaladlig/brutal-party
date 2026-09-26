@@ -12,3 +12,6 @@ BRUTAL-PARTY.apk
 .env.*.local
 .kilo
 .qoder/
+
+# opencode tarayici araci ekran goruntuleri (dogrulama artiklari, kaynak degil)
+.openchamber/
