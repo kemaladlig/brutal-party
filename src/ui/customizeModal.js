@@ -589,7 +589,7 @@ export function initMenuAvatarCard() {
     // değerler kutu küçülünce karakteri kutudan taşıyordu.
     if (jumpY < 0 || jumpVy !== 0) {
       jumpVy += JUMP_GRAVITY * r * dt;
-      jumpY += jumpVy * r * dt;
+      jumpY += jumpVy * dt;
       if (jumpY >= 0) {
         jumpY = 0;
         jumpVy = 0;
@@ -630,7 +630,7 @@ export function initMenuAvatarCard() {
         const p = sparks[i];
         p.x += p.vx * r * dt;
         p.y += p.vy * r * dt;
-        p.vy += 5 * r * dt; // Parçacık yerçekimi
+        p.vy += 5 * dt; // Parçacık yerçekimi (r/s²)
         p.life -= p.decay * dt;
 
         if (p.life <= 0) {
