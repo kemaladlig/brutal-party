@@ -367,10 +367,13 @@ export function initMenuAvatarCard(root = document) {
     const equippedEl = root.querySelector('#menu-avatar-equipped');
     if (equippedEl) {
       const prof = getAvatarProfile();
-      const expr = expressionName(prof?.expression || 'FOCUS', 'Odaklı');
+      const exprId = prof?.expression || 'FOCUS';
+      const exprDef = AVATAR_EXPRESSIONS.find((e) => e.id === exprId);
+      const expr = expressionName(exprId, 'Odaklı');
       // Karakterin tek özellikleri renk ve yüz: "kuşanılan" tek çip yüz ifadesi.
-      // İkon `tabletopIcons`'tan gelir (AGENTS.md §7: ham OS emojisi yasak).
-      equippedEl.innerHTML = `<span class="equipped-chip expr-chip">${getTabletopIconSvg('eye', { size: 13 })}<span>${expr}</span></span>`;
+      // İkon `tabletopIcons`'tan gelir ve İFADENİN KENDİ ikonudur (AGENTS.md §7:
+      // ham OS emojisi yasak; tüm çipleri 'eye' çizmek de aynı hata).
+      equippedEl.innerHTML = `<span class="equipped-chip expr-chip">${getTabletopIconSvg(exprDef?.icon || 'eye', { size: 13 })}<span>${expr}</span></span>`;
     }
   };
   updateCardName();

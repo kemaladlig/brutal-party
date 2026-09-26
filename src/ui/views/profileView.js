@@ -57,7 +57,9 @@ function buildExpressionGrid(onPick) {
     chip.type = 'button';
     chip.dataset.id = exp.id;
     chip.setAttribute('aria-label', expressionName(exp.id, exp.name));
-    chip.innerHTML = `<span class="profile-expression-face">${getTabletopIconSvg('eye', { size: 15, strokeWidth: 2.2 })}</span><span>${expressionName(exp.id, exp.name)}</span>`;
+    // Çip ikonu ifadenin KENDİ vektörüdür (`AVATAR_EXPRESSIONS[].icon`) —
+    // hepsini 'eye' çizmek 12 yüzü aynı gösteriyordu.
+    chip.innerHTML = `<span class="profile-expression-face">${getTabletopIconSvg(exp.icon || 'eye', { size: 15, strokeWidth: 2.2 })}</span><span>${expressionName(exp.id, exp.name)}</span>`;
     chip.addEventListener('click', () => onPick(exp.id));
     grid.append(chip);
   }

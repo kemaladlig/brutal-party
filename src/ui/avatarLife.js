@@ -191,7 +191,7 @@ export function createAvatarLife({ preset = 'home', reducedMotion = () => false 
    * @param {{ x: number, y: number, centerX: number, centerY: number, radius: number, color?: string }} p
    * @param {number} [now]
    */
-  function poke(p, now = performance.now()) {
+  function poke(p) {
     const r = Math.max(1, p.radius);
     if (!reducedMotion()) {
       jumpVy = -cfg.jumpImpulse * r;
