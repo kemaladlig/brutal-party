@@ -4,14 +4,57 @@
 import { getSlotAvatar, getAvatarProfile, getBotPersona } from '../core/customizationManager.js';
 
 /**
- * Silüeti gövde dışına taşıran aksesuarlar — `compactSilhouette` ile bastırılır.
+ * `faceMode: 'play'` — OYUN İÇİ yüz kipi.
  *
- * Ölçülen etki (`render-harness.html?probe=extent&r=16`, çizilen bbox):
- *   gövde 36x37 · HALO 36x45 (+%22 dikey) · WINGS 49x40 (+%36 yatay)
- *   BOLT / CROWN / NINJA_COWL gövde sınırları içinde → listede değil
- *   RIBBON / STRIPE pattern'leri bbox'u değiştirmiyor → pattern değil
+ * Sahadaki karakter dekor değil, birimdir: renk + yüz + kalın çerçeve. Bu
+ * kipte aksesuar (taç/halo/kanat/şapka) ve desen (ribbon/stripe/checker)
+ * BASTIRILIR — ölçülen çizilen bbox gövde 36x37'de kalır, yarıçap ve çarpışma
+ * tutar. Karşılığında yüz büyür ve disk İÇİNDE hacim kazanır; hiçbir katman
+ * daire sınırını geçmez, yani "yuvarlaklık" tek ölçü kaldığı için korunur.
+ *
+ * Kişilik (taç, kanat, desen, şapka) lobi / kişiselleştirme / kumanda
+ * önizlemesinde yaşamaya devam eder: `drawBrutalAvatar`'ın doğrudan çağıranları
+ * varsayılan `full` kipte kalır, sadece oyun içi yol (`drawGameAvatar`,
+ * src/core/avatarInGame.js) `play` ister.
+ *
+ * Canlılık (göz kırpma, bakış kayması) view/oyun tarafında hesaplanıp
+ * `blinkProgress` / `lookAngle` ile buraya beslenir; bu modül sadece çizer.
  */
-export const SILHOUETTE_OVERFLOW = new Set(['HALO', 'WINGS']);
+const PLAY_FACE = 'play';
+
+/**
+ * Disk içi hacim gradient'leri — ctx'e bağlı oldukları için
+ * `ctx -> yarıçap -> gradient` şeklinde saklanır. Karede yeni gradient
+ * ÜRETİLMEZ, sadece hazır olan `fillRect` basılır (frame başına allocation
+ * yok, iki `fillRect` maliyeti ihmal edilebilir).
+ */
+const PLAY_FACE_SHADING = new WeakMap();
+
+function playFaceShading(ctx, r) {
+  let byRadius = PLAY_FACE_SHADING.get(ctx);
+  if (!byRadius) {
+    byRadius = new Map();
+    PLAY_FACE_SHADING.set(ctx, byRadius);
+  }
+  // Yarıçapı 0.25px'e yuvarla: yuvarlanmamış `r` her karede yeni kayıt
+  // üretirdi ve cache sonsuz büyürdü.
+  const key = Math.round(r * 4) / 4;
+  const cached = byRadius.get(key);
+  if (cached) return cached;
+
+  // Sol üst ışık — topun kenarı, dairenin dışına taşmaz.
+  const rim = ctx.createRadialGradient(-r * 0.3, -r * 0.34, 0, 0, 0, r * 1.05);
+  rim.addColorStop(0, 'rgba(255, 255, 255, 0.26)');
+  rim.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  // Sağ alt gölge — hacmin karşı tarafı.
+  const shade = ctx.createRadialGradient(r * 0.34, r * 0.38, 0, 0, 0, r * 1.05);
+  shade.addColorStop(0, 'rgba(0, 0, 0, 0.14)');
+  shade.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+  const entry = { rim, shade };
+  byRadius.set(key, entry);
+  return entry;
+}
 
 /**
  * Tek tip Neo-Brutalist Avatar Çizer
@@ -51,20 +94,13 @@ export const SILHOUETTE_OVERFLOW = new Set(['HALO', 'WINGS']);
 
   // LOD (Level of Detail) Kuralı:
   // r < 5 (Aşırı küçük): Detaylar sadeleştirilir
-  // r >= 5 (Collapse, Snake, Tanks vb.): Şapka, gözlük, boynuz, bandana, taç ve desenler orantılı çizilir
+  // r >= 5 (Collapse, Snake, Tanks vb.): Gözler orantılı çizilir
   const isMicro = radius < 5;
-  const pattern = isMicro ? 'SOLID' : patternRaw;
-  // Aksesuarı gövde dışına taşımayanlara dokunulmaz. `compactSilhouette`
-  // (HORDE) yalnız silüeti şişirenleri bastırır.
-  //
-  // Ölçülen etki (`render-harness.html?probe=extent&r=16`, çizilen bbox):
-  // gövde 36x37 · HALO 36x45 (+%22 dikey) · WINGS 49x40 (+%36 yatay).
-  // BOLT / CROWN / NINJA_COWL gövde sınırları içinde → listede değil.
-  // RIBBON / STRIPE pattern'leri bbox'u hiç değiştirmiyor → şişkinlik
-  // pattern'de değil, aksesuarda.
-  const accessory = isMicro || (options.compactSilhouette && SILHOUETTE_OVERFLOW.has(accessoryRaw))
-    ? 'NONE'
-    : accessoryRaw;
+  // Oyun içi kip dekor katmanlarını tamamen kapatır ve gözleri büyütür; menü
+  // kipi (`full`) her şeyi olduğu gibi çizer.
+  const isPlayFace = options.faceMode === PLAY_FACE;
+  const pattern = isMicro || isPlayFace ? 'SOLID' : patternRaw;
+  const accessory = isMicro || isPlayFace ? 'NONE' : accessoryRaw;
 
   const {
     facingAngle = 0,
@@ -79,6 +115,7 @@ export const SILHOUETTE_OVERFLOW = new Set(['HALO', 'WINGS']);
     borderWidth = 3,
     shadowOffset = 3,
     blinkProgress = 0, // 0 = açık, 1 = tam kapalı
+    lookAngle = null, // gözlerin baktığı yön (mutlak radyan); null = yön okunur
   } = options;
 
   if (radius <= 0) return;
@@ -131,6 +168,17 @@ export const SILHOUETTE_OVERFLOW = new Set(['HALO', 'WINGS']);
   // Taban rengi
   ctx.fillStyle = color;
   ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
+
+  // Oyun içi hacim: sol üst ışık + sağ alt gölge. İkisi de clip'in İÇİNDE
+  // bittiği için siluet değişmez; düz renkli sticker yerine top gibi okur.
+  // `isMicro`'da iki `fillRect` görünmez bir maliyet olurdu, atlanır.
+  if (isPlayFace && !isMicro) {
+    const { rim, shade } = playFaceShading(ctx, r);
+    ctx.fillStyle = rim;
+    ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
+    ctx.fillStyle = shade;
+    ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
+  }
 
   // Gövde Deseni
   if (pattern === 'STRIPE') {
@@ -270,12 +318,28 @@ export const SILHOUETTE_OVERFLOW = new Set(['HALO', 'WINGS']);
   }
 
   // 5. Yüz İfadesi & Gözler (Baktığı yöne göre dinamik döner)
-  ctx.save();
-  ctx.rotate(facingAngle);
+  //
+  // `lookAngle` verildiğinde göz grubu gövde yönünden ayrı olarak kayar: gövde
+  // `facingAngle`'de kalırken gözler baktıkları yöne döner (HEIST'te tackle
+  // yönü koşu yönünden farklıdır, ARCHER'da nişan yönü yürüme yönü değildir).
+  // Kayma 0.22 rad ile sınırlı — tam yön dönmesi "gövde yanlış bakıyor" gibi
+  // okunuyordu ve 0.22 üstü yön okuma çizgisiyle çelişiyordu. `lookAngle`
+  // yoksa gözler gövdeyle birlikte döner (eski davranış).
+  let glance = 0;
+  if (isPlayFace && Number.isFinite(lookAngle)) {
+    const delta = ((lookAngle - facingAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    glance = Math.max(-0.22, Math.min(0.22, delta * 0.45));
+  }
 
-  const eyeOffsetX = r * 0.36;
-  const eyeSpreadY = r * 0.32;
-  const eyeR = Math.max(3, r * 0.24);
+  ctx.save();
+  ctx.rotate(facingAngle + glance);
+
+  // Oyun içi gözler menü avatarından büyük: saha 4-8px yarıçapta okunduğu
+  // için 0.24r gözler kaybolup düz renkli bir daire dönüyordu. 0.30r'de
+  // göz kenarı 0.34²+0.30² → 0.75r içinde kalır, daire sınırı aşılmaz.
+  const eyeOffsetX = r * (isPlayFace ? 0.34 : 0.36);
+  const eyeSpreadY = r * (isPlayFace ? 0.30 : 0.32);
+  const eyeR = Math.max(3, r * (isPlayFace ? 0.30 : 0.24));
   const isEyeClosed = isBlinking || blinkProgress > 0.5;
 
   if (expression === 'CYCLOPS') {

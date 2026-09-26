@@ -1062,7 +1062,7 @@ export class HeistGame extends BaseMiniGame {
         maxHp: this.piggyBank.maxHp,
         anim: this.piggyBank.animTime || 0,
       } : null);
-      drawHeistPlayers(ctx, scenePlayers, { withFx: this.state === 'PLAYING' });
+      drawHeistPlayers(ctx, scenePlayers, { withFx: this.state === 'PLAYING', now: this.lastTime });
     }
     drawSquareParticles(ctx, this.particles);
     drawHeistTexts(ctx, this.floatingTexts);

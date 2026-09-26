@@ -862,6 +862,7 @@ export class BombGame extends BaseMiniGame {
       bombTimer: this.bombTimer,
       bombMaxTime: this.bombMaxTime,
       withFx: this.state === 'PLAYING',
+      now: this.lastTime,
     });
     drawBombParticles(ctx, this.particles);
     this.renderControls(ctx);

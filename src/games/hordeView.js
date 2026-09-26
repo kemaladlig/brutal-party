@@ -6,8 +6,8 @@ import { drawGameAvatar } from '../core/avatarInGame.js';
 import { segmentAabbIntersection } from '../core/physics2d.js';
 import { isCompactLandscape } from '../core/playfield.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
-import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
-import { renderFireCooldown } from '../ui/hud.js';
+import { getFireCooldownProgress, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
+import { renderSpatialBadge } from '../ui/hud.js';
 import { t } from '../i18n.js';
 import {
   HORDE_UPGRADES,
@@ -79,8 +79,12 @@ export function mapHordePlayer(player, tuning = {}) {
     reload: round1(1 - clamp01((Number(player.reloadTimer) || 0) / reloadDuration)),
     swing: (Number(player.weaponSwingTimer) || 0) > 0,
     expression: typeof player.expression === 'string' ? player.expression : 'FOCUS',
-    accessory: typeof player.accessory === 'string' ? player.accessory : 'NONE',
-    pattern: typeof player.pattern === 'string' ? player.pattern : 'SOLID',
+    // Gözlerin baktığı yön: `targetAngle` motor zaten nişan/koşu yönü olarak
+    // tutuyor. Sadece nişan/koşu yönü anlamlı olduğunda paketlenir; eski
+    // paketlerde `undefined` → gözler gövde yönünde kalır.
+    lookAngle: Number.isFinite(player.targetAngle)
+      ? round1(player.targetAngle)
+      : undefined,
   };
 }
 
@@ -725,9 +729,11 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
       expression: player.hp <= 1 ? 'PANIC' : player.fast || player.triple ? 'EXCITED' : player.expression,
       label: '',
       showPointer: false,
-      // HALO ve kanatlar gövdeyi aşıyordu (ölçülen 36x45 -> 36x37). Horde
-      // kalabalık bir saha: oyuncu "birim" olarak okunmalı, dekor değil.
-      compactSilhouette: true,
+      // Horde kalabalık saha: gözler `targetAngle`'e bakar (nişan alırken hedefe,
+      // boşta koşarken gittiği yöne) — kalabalıkta "kimin nereye baktığı" tek
+      // bakışta okunur. Gövde `angle`'da kalır, bakış gövdeden bağımsızdır.
+      lookAngle: player.lookAngle,
+      now,
     });
     ctx.restore();
 
@@ -740,14 +746,12 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
     // masaüstü tasarım BİREBİR korunur, sadece küçük sahada küçülür.
     const hu = R / 14;
 
-    renderFireCooldown(ctx, {
-      x: player.x,
-      y: player.y,
-      radius: 15 * hu,
-      progress: player.fireCooldown,
-      feedback: getFireFeedbackForRender(player),
-      color: player.weaponColor,
-    });
+    // Yuvarlak cooldown halkası KALDIRILDI. Kullanıcı geri bildirimi: "mermi
+    // sıkarken karakterin etrafında yuvarlak olmasın, tepesinde azalan bar
+    // olabilir". Halka ne olduğunu söylemiyordu; aşağıdaki şarjör barı hem
+    // cephane hem bekleme durumunu tek bakışta okutuyor ve gövdeyi kapatmıyor.
+    // `renderFireCooldown` yalnız oyun içi kalır; ARCHER/LASER kendi halkasını
+    // kullanmaya devam ediyor.
 
     const pipW = 5 * hu;
     const pipGap = 3 * hu;
@@ -759,20 +763,51 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
     }
 
     if (player.weaponKind === 'gun') {
+      // Şarjör göstergesi TEPEDE, can pip'larının ÜSTÜNDE. Eskisi gövdenin
+      // altındaydı ve yuvarlak cooldown halkasıyla birlikte "ne olduğu belirsiz
+      // iki çubuk" bırakıyordu. Dikey yığın (gövde yukarıdan aşağı):
+      //   rozet (yalnız cephane bittiyse) → şarjör barı → can pip'ları
       const barW = 32 * hu;
       const x = player.x - barW / 2;
-      const y = player.y + 24 * hu;
-      const barH = 4 * hu;
-      ctx.fillStyle = 'rgba(26, 26, 26, 0.35)';
+      const y = player.y - 36 * hu;
+      const barH = 5 * hu;
+      const ratio = player.magazine > 0 ? clamp01(player.ammo / player.magazine) : 0;
+      const reloading = player.reloadTimer > 0;
+
+      ctx.fillStyle = 'rgba(26, 26, 26, 0.45)';
       ctx.fillRect(x, y, barW, barH);
-      if (player.reloading) {
-        ctx.fillStyle = '#FACC15';
-        ctx.fillRect(x, y, barW * clamp01(player.reload), barH);
-      } else {
-        const ratio = player.magazine > 0 ? clamp01(player.ammo / player.magazine) : 0;
-        ctx.fillStyle = player.weaponColor;
-        ctx.fillRect(x, y, barW * ratio, barH);
+      // Dolduran kısım: doluyken silah rengi, doldurma sırasında altın.
+      // Azalan çubuk = şarjör azalıyor; dolan çubuk = yeniden dolduruluyor.
+      ctx.fillStyle = reloading ? '#FACC15' : (player.weaponColor || '#D99B26');
+      ctx.fillRect(x, y, barW * (reloading ? clamp01(player.reload) : ratio), barH);
+      // Son mermilerde uyarı: iki mermiden az kalınca kenarlık kırmızıya döner.
+      if (!reloading && player.magazine > 0 && player.ammo > 0 && player.ammo <= 2) {
+        ctx.strokeStyle = '#E63946';
+        ctx.lineWidth = Math.max(1, 1.5 * hu);
+        ctx.strokeRect(x - 0.5, y - 0.5, barW + 1, barH + 1);
       }
+    }
+
+    // Cephanesizken yalnız döngü ikonu — metin yok.
+    //
+    // Ölçülen iki hata: (1) "CEPHANE BİTTİ" yazısı sahanın üstünü boşa
+    // kaplıyordu, ikon zaten anlamı taşıyor. (2) Sarı ikon (#FACC15) açık
+    // krem gövde üstünde (#FAF7F2) — kontrast YOK, ikon görünmüyordu. Artık
+    // koyu zemin + sarı ikon: ters çevirmekten başka yol yok, çünkü sarı
+    // açık zeminde her zaman kaybolur.
+    const dry = player.weaponKind === 'gun'
+      && (player.reloadTimer > 0 || (player.magazine > 0 && player.ammo <= 0));
+    if (dry) {
+      renderSpatialBadge(ctx, {
+        x: player.x,
+        y: player.y - 46 * hu,
+        icon: 'reload',
+        text: '',
+        bg: '#1A1A1A',
+        borderColor: '#FACC15',
+        color: '#FACC15',
+        scale: Math.max(0.9, hu * 1.25),
+      });
     }
   }
 }

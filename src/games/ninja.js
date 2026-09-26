@@ -938,7 +938,7 @@ export class NinjaGame extends BaseMiniGame {
         ? 1 - Math.min(1, p.strikeCooldown / NINJA_TUNING.STRIKE_COOLDOWN) : null,
       smokeProg: (p.smokeCooldown || 0) > 0
         ? 1 - Math.min(1, p.smokeCooldown / NINJA_TUNING.SMOKE_COOLDOWN) : null,
-    })), { ghostSlots, withFx });
+    })), { ghostSlots, withFx, now: this.lastTime });
 
     drawNinjaSlashes(ctx, this.slashWaves);
     drawNinjaImpacts(ctx, this.impactCuts);

@@ -62,11 +62,11 @@ function pinViewport(w, h) {
 }
 
 // --- probe: tek varlığın ÇİZİLEN yayılımını ölç ------------------------------
-// Çarpışma yarıçapı ile çizilen boyut AYNI şey değil. Avatar aksesuar/pattern
-// katmanları yarıçapın çok ötesine taşabiliyor; "oyuncu büyük görünüyor"
-// şikâyetini çözebilmek için sayı yerine piksel ölçüyoruz.
-// Kullanım: ?probe=extent&r=16
-if (params.get('probe') === 'extent') {
+// Çarpışma yarıçapı ile çizilen boyut AYNI şey değil. Oyun içi avatar
+// (faceMode 'play') dekor katmanı taşımıyor ama gözler büyütüldü ve disk içi
+// hacim eklendi; "göz büyümesi silueti taşırdı mı" sorusunun sayısal cevabı
+// buradan gelir. Kullanım: ?probe=extent&r=16
+if (params.get('probe') === 'extent' || params.get('probe') === 'face') {
   const R = num('r', 16);
   const size = Math.ceil(R * 8);
   const results = [];
@@ -99,30 +99,30 @@ if (params.get('probe') === 'extent') {
   };
 
   const { drawGameAvatar } = await import('../../src/core/avatarInGame.js');
-  for (const pattern of ['SOLID', 'RIBBON', 'STRIPE']) {
-    await measure(`avatar/pattern=${pattern}`, (g) => {
-      drawGameAvatar(g, 0, 0, R, {
-        index: 0, name: 'P1', color: '#D84727', expression: 'FOCUS',
-      }, { pattern, label: '', showPointer: false });
-    });
-  }
-  for (const accessory of ['NONE', 'HALO', 'BOLT', 'CROWN', 'WINGS', 'NINJA_COWL']) {
-    await measure(`avatar/accessory=${accessory}`, (g) => {
-      drawGameAvatar(g, 0, 0, R, {
-        index: 0, name: 'P1', color: '#D84727', expression: 'FOCUS',
-      }, { pattern: 'SOLID', accessory, label: '', showPointer: false });
-    });
-  }
-  // Oyun içi gerçek varsayılan: cihaz profilinden gelen aksesuar.
-  await measure('avatar/default(profile)', (g) => {
-    drawGameAvatar(g, 0, 0, R, {
-      index: 0, name: 'P1', color: '#D84727', expression: 'FOCUS',
-    }, { label: '', showPointer: false });
+  const { drawBrutalAvatar } = await import('../../src/ui/characterRenderer.js');
+  const avatar = (extra = {}) => ({
+    index: 0, name: 'P1', color: '#D84727', expression: 'FOCUS', ...extra,
   });
-  await measure('avatar/default+compact', (g) => {
-    drawGameAvatar(g, 0, 0, R, {
-      index: 0, name: 'P1', color: '#D84727', expression: 'FOCUS',
-    }, { label: '', showPointer: false, compactSilhouette: true });
+  const noise = { label: '', showPointer: false };
+
+  // Oyun içi yüz: her ifade + bakış açısı. Hepsi aynı gövde sınırında kalmalı.
+  for (const expression of ['FOCUS', 'ANGRY', 'WINK', 'DERP', 'CYCLOPS', 'HEART', 'GRIN', 'SHADES']) {
+    await measure(`play/${expression}`, (g) => {
+      drawGameAvatar(g, 0, 0, R, avatar({ expression }), { ...noise, expression });
+    });
+  }
+  await measure('play/look+PI/2', (g) => {
+    drawGameAvatar(g, 0, 0, R, avatar(), { ...noise, lookAngle: Math.PI / 2 });
+  });
+  await measure('play/blink', (g) => {
+    drawGameAvatar(g, 0, 0, R, avatar(), { ...noise, isBlinking: true });
+  });
+  // Menü yüzü: dekor burada yaşıyor, gövde sınırını aşabilir (bilinçli).
+  await measure('menu/crown+ribbon', (g) => {
+    drawBrutalAvatar(g, 0, 0, R, {
+      color: '#D84727', slotIndex: 0, expression: 'FOCUS',
+      accessory: 'MINI_CROWN', pattern: 'RIBBON', ...noise,
+    });
   });
   await measure('hordeEnemy/chaser', (g) => {
     g.fillStyle = '#E63946';
@@ -136,6 +136,42 @@ if (params.get('probe') === 'extent') {
   pre.textContent = JSON.stringify(results, null, 1);
   out.appendChild(pre);
   document.title = 'probe extent';
+
+  // `face` probu: göz/kırpma/nişan şeridi — r=6/10/16/28'de okunabilirlik.
+  if (params.get('probe') === 'face') {
+    const { blinkState } = await import('../../src/core/avatarInGame.js');
+    const strip = document.createElement('div');
+    strip.style.padding = '12px';
+    const row = document.createElement('canvas');
+    const radii = [6, 10, 16, 28];
+    row.width = radii.length * 160;
+    row.height = 220;
+    const g = row.getContext('2d');
+    g.fillStyle = '#F4F4F0';
+    g.fillRect(0, 0, row.width, row.height);
+    const now = num('t', 0);
+    const stripCases = [
+      { label: 'focus', opts: {} },
+      { label: 'blink', opts: { isBlinking: blinkState(now + 40, 0) === 1 } },
+      { label: 'look', opts: { lookAngle: Math.PI / 2 } },
+      { label: 'angry', opts: { expression: 'ANGRY' } },
+    ];
+    radii.forEach((rad, i) => {
+      const cx = 80 + i * 160;
+      stripCases.forEach((testCase, j) => {
+        g.save();
+        g.translate(cx, 60 + j * 40);
+        drawGameAvatar(g, 0, 0, rad, avatar(), { ...noise, ...testCase.opts });
+        g.restore();
+        g.fillStyle = '#1A1A1A';
+        g.font = '10px ui-monospace, monospace';
+        g.textAlign = 'center';
+        g.fillText(`r=${rad} ${testCase.label}`, cx, 215);
+      });
+    });
+    strip.appendChild(row);
+    out.appendChild(strip);
+  }
 } else {
 
 const GAME = (params.get('game') || 'ARCHER').toUpperCase();
@@ -188,6 +224,14 @@ for (const [w, h] of SIZES) {
   // Sabit adımla ilerlet: `update(now)` deterministik olsun.
   const stepMs = 16;
   for (let t = 0; t < TIME_MS; t += stepMs) game.update(1000 + t + stepMs);
+  // `dry=1` oyuncuları cephanesiz bırakır: HORDE'un "OUT OF AMMO" rozetini
+  // görebilmek için. Oyuncu girdi olmadan hiç ateş etmediği için bu durum
+  // harness'te doğal olarak oluşmuyor.
+  if (num('dry', 0) === 1) {
+    for (const p of game.players || []) {
+      if (Number.isFinite(p.magazine) && p.magazine > 0) p.ammo = 0;
+    }
+  }
   game.render();
 
   const wrap = document.createElement('div');

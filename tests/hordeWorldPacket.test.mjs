@@ -66,8 +66,7 @@ function makeGame() {
       tripleTimer: 0,
       isAiming: index === 0,
       expression: 'FOCUS',
-      accessory: 'NONE',
-      pattern: 'SOLID',
+      targetAngle: 0.7,
     })),
     enemies: [
       { id: 1, x: 500, y: 300, radius: 18, angle: 1, hp: 3, maxHp: 3, type: 'chaser', isBoss: false, elite: false, hitTimer: 0, spawnDelay: 0, attackTimer: 1, lungeTimer: 0 },
@@ -124,6 +123,11 @@ test('horde world packet is complete, monotonic and capped', () => {
   assert.equal(first.enemies[1].boss, true);
   assert.equal(first.players[0].shield, true);
   assert.equal(first.players[0].weapon, 'RIFLE');
+  // Gözlerin baktığı yön (nişan/koşu) paketlenir; dekor alanları (accessory/
+  // pattern) paketlenmez — saha içi avatar onları çizmiyor.
+  assert.equal(first.players[0].lookAngle, 0.7);
+  assert.ok(!('accessory' in first.players[0]));
+  assert.ok(!('pattern' in first.players[0]));
   assert.deepEqual(first.tombs[0], [260, 340, 1, 0.5]);
   assert.equal(first.portal.length, 5);
   assert.deepEqual(first.obstacles[0], [340, 180, 80, 40]);

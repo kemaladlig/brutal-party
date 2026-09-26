@@ -34,8 +34,6 @@ export function createWorldViewRenderer() {
         ...player,
         color: slots?.[player.slot]?.color || slots?.[player.slot]?.displayColor || UI_COLORS.players?.[player.slot] || HORDE_FALLBACK[player.slot],
         expression: slots?.[player.slot]?.avatar?.expression || player.expression,
-        accessory: slots?.[player.slot]?.avatar?.accessory || player.accessory,
-        pattern: slots?.[player.slot]?.avatar?.pattern || player.pattern,
       }));
 
       ctx.save();

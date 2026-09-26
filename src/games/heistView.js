@@ -369,7 +369,7 @@ export function drawHeistPiggy(ctx, piggy) {
   ctx.restore();
 }
 
-export function drawHeistPlayers(ctx, players, { withFx = true } = {}) {
+export function drawHeistPlayers(ctx, players, { withFx = true, now = 0 } = {}) {
   let richestIndex = -1;
   let maxCarried = 2;
   for (const p of players) {
@@ -436,6 +436,12 @@ export function drawHeistPlayers(ctx, players, { withFx = true } = {}) {
       expression: currentExp,
       borderColor: player.tackling ? '#FFDE59' : '#1C1C1A',
       borderWidth: player.tackling ? 4.5 : 3,
+      // Kaçarken gözler koşu yönüne bakar; tackle'da gövde yönü zaten hedefe
+      // döndüğü için bakış gövdeyle birlikte döner.
+      lookAngle: (player.vx || player.vy) && !player.tackling
+        ? Math.atan2(player.vy || 0, player.vx || 0)
+        : undefined,
+      now,
     });
 
     if (withFx && player.cd > 0) {

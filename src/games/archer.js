@@ -35,15 +35,18 @@ export const ARCHER_NAMES = ['P1', 'P2', 'P3', 'P4'];
 // telefonda saha yüksekliğinin %4.65'ini, masaüstünde %1.89'unu kaplıyordu
 // (2.5x şişik).
 //
-// 18 → 22: ARCHER'ın gövde/saha oranı (%1.89) tüm motorlar arasında EN KÜÇÜKÜ
-//ydi (BOMB %3.78, CROWN %4.47, TANKS %3.20) — masaüstünde karakter diğer
-// oyunlara göre belirgin şekilde küçük duruyordu. 22px → %2.31, araya girer.
-const ARCHER_RADIUS = 22;
+// 18 → 22 → 25 → 28: ARCHER'ın gövde/saha oranı (%1.89) tüm motorlar arasında
+// EN KÜÇÜKÜydü (BOMB %3.78, CROWN %4.47, TANKS %3.20). İki turda da "biraz
+// daha büyüt" geldi: 28px → **%2.94**, artık TANKS'ın (%2.73) üstünde.
+// `minPassage` bundan türediği için koridor genişliği de doğru kalır.
+const ARCHER_RADIUS = 28;
 // Taban yok: `minUnit` (0.30) alan çöktüğünde alt sınırı veriyor. Burada bir
 // taban daha önce 0.02 idi ve tasarım payının ÜSTÜNDE olduğu için masaüstünde
 // de +%6 şişiriyordu.
 // Tasarım px/s; `fieldSpeed` ile sahayla birlikte ölçeklenir.
-const ARCHER_SPEED = 150;
+// 150 → 172 → 198: "haritada biraz yavaş kaldılar", sonra "çok az daha arttır".
+// Saha geçiş süresi cihazdan bağımsız kalsın diye `unit` ile ölçekleniyor.
+const ARCHER_SPEED = 198;
 const ARCHER_CHARGE_TIME = 1.0;
 const ARCHER_SHOT_COOLDOWN = 0.8;
 const ARCHER_ROUND_TIME = 60;
@@ -841,7 +844,7 @@ export class ArcherGame extends BaseMiniGame {
     drawArcherArrows(ctx, this.arrows);
 
     // Oyuncular
-    drawArcherPlayers(ctx, this.players, { showFx: this.state === 'PLAYING' });
+    drawArcherPlayers(ctx, this.players, { showFx: this.state === 'PLAYING', now: this.lastTime });
 
     // Parçacıklar
     drawArcherParticles(ctx, this.particles);

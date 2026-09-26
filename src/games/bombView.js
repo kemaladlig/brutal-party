@@ -227,7 +227,7 @@ export function drawBombPickups(ctx, pickups) {
   }
 }
 
-export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15, withFx = true } = {}) {
+export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15, withFx = true, now = 0 } = {}) {
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
     const radius = player.radius || 14;
@@ -316,6 +316,10 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
       expression: currentExp,
       borderColor: player.dash > 0 ? '#FFFFFF' : '#1C1C1A',
       borderWidth: uMin(player.dash > 0 ? 4.5 : 3),
+      // Bomba taşıyıcısı kaçarken gözleri kaçış yönüne bakar: gövde `angle`
+      // ile döner, bakış `vx/vy`'den türetilir.
+      lookAngle: (player.vx || player.vy) ? Math.atan2(player.vy || 0, player.vx || 0) : undefined,
+      now,
     });
 
     if (withFx) {

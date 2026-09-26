@@ -6,10 +6,15 @@ export const RACE_TUNING = Object.freeze({
   roundTime: 90,
   roundTransition: 2.5,
   playerRadius: 16,
-  baseSpeed: 190,
-  baseAcceleration: 420,
-  dashSpeed: 330,
-  dashAcceleration: 850,
+  // 190 → 215 (+%13). "RACE hala yavaş" geri bildirimi. Önceki turda dekorları
+  // küçülttüğümü sandım; oysa araç hızı hiç değişmemişti — yavaşlık dekor
+  // boyutundan değil, tempo değerinden geliyormuş. `propPx` dekoru, bu gövde
+  // temposunu; ikisi ayrı ayarlar. İvme de hızla birlikte ölçeklendi ki
+  // hızlansa da tepki süresi aynı kalsın.
+  baseSpeed: 215,
+  baseAcceleration: 470,
+  dashSpeed: 365,
+  dashAcceleration: 920,
   dashDuration: 0.38,
   dashCooldown: 2.8,
   jumpVelocity: 30,

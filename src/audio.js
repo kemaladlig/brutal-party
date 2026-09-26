@@ -224,6 +224,16 @@ export function playExplosion() {
   osc.stop(now + 0.36);
 }
 
+// Kuru tetik: "klik" değil, yumuşak bir "tok".
+//
+// Ölçülen geri bildirim: square dalga 220→150Hz + ani 0.12 gain "çok uyuz"
+// bulundu. Kuru tetik zaten bir bilgi sinyalidir, dikkat çekmemesi gerekir —
+// kulağa batmamalı. Üç değişiklik:
+//   1. `square` → `sine`: harmonikleri yok, tiz cız yerine yuvarlak gövde.
+//   2. 220→150 Hz yerine 150→90 Hz: tizlik yerine ağırlık.
+//   3. 0.12 anı gain yerine 5ms YUMUŞAK açılış: klik-pop ("crack") yok.
+// Aynı zamanda `attack`'ünü de veriyoruz ki transient duyulabilsin ama
+// acımasın; 0.001'e exponential decay 55ms'de bitiyor.
 export function playDryFire() {
   const ctx = getAudioContext();
   if (!ctx) return;
@@ -232,18 +242,19 @@ export function playDryFire() {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
 
-  osc.type = 'square';
-  osc.frequency.setValueAtTime(220, now);
-  osc.frequency.setValueAtTime(150, now + 0.02);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(150, now);
+  osc.frequency.exponentialRampToValueAtTime(90, now + 0.05);
 
-  gain.gain.setValueAtTime(0.12, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.055, now + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
 
   osc.connect(gain);
   gain.connect(ctx.destination);
 
   osc.start(now);
-  osc.stop(now + 0.035);
+  osc.stop(now + 0.06);
 }
 
 export function playFireBlocked() {

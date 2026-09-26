@@ -327,7 +327,7 @@ function drawNinjaSelfGhost(ctx, player) {
   ctx.restore();
 }
 
-export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true } = {}) {
+export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true, now = 0 } = {}) {
   const ghosts = new Set(Array.isArray(ghostSlots) ? ghostSlots : []);
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
@@ -348,6 +348,11 @@ export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true 
       expression: player.strike ? 'angry' : 'normal',
       borderColor: '#1A1A1A',
       borderWidth: 2.5,
+      // Dönüş view seviyesinde (`ctx.rotate(player.angle)`) yapıldığı için
+      // avatarın yerel yüzü sabit; bakış da yerel uzayda kalmalı, yoksa
+      // dönen çerçeveyle birlikte iki kez dönerdi. Ninja'da gövde yönü zaten
+      // hedefe döndüğü için ayrı bakış hedefi yok.
+      now,
     });
 
     if (player.strikeProg !== null && player.strikeProg !== undefined) {

@@ -8,6 +8,7 @@ import {
   shouldShowVirtualControls,
 } from './tokens.js';
 import { t } from '../i18n.js';
+import { hasTabletopIcon, drawTabletopIcon } from '../core/tabletopIcons.js';
 import { isCompactLandscape } from '../core/playfield.js';
 
 // Standart üst hap: arena üstünde ortalı.
@@ -229,17 +230,33 @@ export function renderSpatialBadge(ctx, {
   alpha = 1.0,
   scale = 1.0,
 }) {
-  if (!text) return;
   const s = Math.max(0.85, Math.min(1.5, scale));
-  const fullText = icon ? `${icon} ${text}` : text;
+  // `icon` bir ikon ANAHTARIDIR (örn. 'reload') ve `tabletopIcons`'tan
+  // VEKTÖREL çizilir. OS emojisi kullanılmaz — platforma göre değişir ve
+  // deterministik değildir. Anahtar bilinmiyorsa eski davranış (metne yapıştır)
+  // korunur, yani önceki çağıranlar bozulmaz.
+  //
+  // `text` boş olabilir: yalnız ikonlu rozet kare bir çipe sığar. Kullanıcı
+  // "yazıyı kaldır, sadece ikon kalsın" dedi — metin hem gürültü hem de
+  // sahanın üstünü gereksiz kaplıyordu.
+  const iconKey = typeof icon === 'string' && hasTabletopIcon(icon) ? icon : null;
+  if (!text && !iconKey) return;
+  const iconSize = Math.round(13 * s);
+  const iconGap = Math.round(4 * s);
+  const iconOnly = iconKey && !text;
+  const fullText = iconOnly ? '' : (iconKey ? text : (icon ? `${icon} ${text}` : text));
 
   ctx.save();
   ctx.font = `900 ${Math.round(12 * s)}px ${UI_FONTS.mono}`;
-  const textW = (ctx.measureText ? ctx.measureText(fullText)?.width : 0) || 60;
-  const padX = Math.round(10 * s);
+  // İkon-only modda varsayılan 60px genişlik yalnız metin için; kutu yalnız
+  // ikonu saracak şekilde ölçülür.
+  const textW = iconOnly ? 0 : ((ctx.measureText ? ctx.measureText(fullText)?.width : 0) || 60);
+  const padX = Math.round(iconOnly ? 6 * s : 10 * s);
   const padY = Math.round(5 * s);
-  const boxW = Math.round(textW + padX * 2);
-  const boxH = Math.round(22 * s);
+  const boxW = Math.round(
+    iconOnly ? iconSize + padX * 2 : textW + padX * 2 + (iconKey ? iconSize + iconGap : 0),
+  );
+  const boxH = Math.round((iconOnly ? 20 : 22) * s);
   const boxX = Math.round(x - boxW / 2);
   const boxY = Math.round(y - boxH / 2);
   const shadow = Math.max(2, Math.round(2.5 * s));
@@ -263,7 +280,23 @@ export function renderSpatialBadge(ctx, {
   ctx.fillStyle = color || (urgent ? UI_COLORS.white : UI_COLORS.ink);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(fullText, x, y + 0.5);
+  if (iconOnly) {
+    drawTabletopIcon(ctx, iconKey, x, y + 0.5, iconSize, {
+      color: color || UI_COLORS.gold,
+    });
+  } else if (iconKey) {
+    // İkon solda, metin onun sağında — ikisi de kutu içinde ortalanır.
+    const groupW = iconSize + iconGap + textW;
+    const leftX = x - groupW / 2;
+    ctx.textAlign = 'left';
+    ctx.fillText(fullText, leftX + iconSize + iconGap, y + 0.5);
+    ctx.textAlign = 'center';
+    drawTabletopIcon(ctx, iconKey, leftX + iconSize / 2, y + 0.5, iconSize, {
+      color: color || (urgent ? UI_COLORS.white : UI_COLORS.ink),
+    });
+  } else {
+    ctx.fillText(fullText, x, y + 0.5);
+  }
 
   ctx.restore();
 }

@@ -47,6 +47,18 @@ const TRACK_NAME_KEYS = {
   SPIRAL: 'race.trackSpiral',
 };
 
+// Parkur dekorunun küçülme tabanı. 0 = tam ölçek (eski mutlak px kadar küçülür),
+// 1 = hiç küçülmez.
+//
+// TUNE geçmişi: 0.73 denendi → kullanıcı "propların büyümesi gerekiyordu,
+// ilk hali güzeldi" dedi. İlk denemede iki hata birden yapılmıştı: (1) 0.73
+// MUTLAK px'e göre çok ağır bir kesintiydi, (2) asıl "yavaşlık" dekor
+// boyutundan gelmiyordu — araç hızı hiç değişmemişti, sadece nitro pad'ler
+// küçülünce üstlerine binme oranı düşmüştü.
+// Şimdi: **0.90** (telefonda eski boyutun %90'ı — "biraz küçülsün" dediği gibi)
+// ve araç hızı ayrıca %12 arttı. Bkz. `propPx`, `RACE_TUNING.baseSpeed`.
+const PROP_FLOOR = 0.9;
+
 export { normalizeAngle };
 
 export class RaceGame extends BaseMiniGame {
@@ -151,6 +163,26 @@ export class RaceGame extends BaseMiniGame {
     return fieldPx(this.arena, value);
   }
 
+  /**
+   * Parkur dekoru için KISILMIŞ ölçek.
+   *
+   * `px()` tam ölçek (`value * unit`); telefon birim katsayısı ~0.41 olduğu
+   * için dekor orada 2.4x küçülüyordu. Kullanıcı "küçülmüş ve çok yavaşlamış,
+   * eski hali daha iyi, minimal bir küçültme yeter" dedi.
+   *
+   * Mekanizma: nitro pad'ler küçülünce üstlerine binme oranı düşüyor, yani
+   * oyuncu daha az boost alıyor ve "yavaşladı" hissi çıkıyor. Kullanıcının
+   * istediği de tam olarak bu: dekor biraz küçülsün, oynanış temposu geri gelsin.
+   *
+   * `PROP_FLOOR` telefonda 0.73 oranında tutar (mutlak px'in %73'ü — yani eski
+   * görünüme yakın), masaüstünde tam boy verir. GÖVDEDE bu katsayı KULLANILMAZ:
+   * gövde şişmesi tam da düzelttiğimiz hata.
+   */
+  propPx(value) {
+    const damped = PROP_FLOOR + (1 - PROP_FLOOR) * (this.arena.unit || 1);
+    return value * damped;
+  }
+
   spd(value) {
     return fieldSpeed(this.arena, value);
   }
@@ -178,7 +210,12 @@ export class RaceGame extends BaseMiniGame {
     // Araç zaten ölçekli olduğu için tutarsızlık "prop'lar büyük" olarak
     // değil "bir şeyler ters" olarak okunuyordu; kullanıcı RACE ölçeğini iyi
     // bulduğu için hata gözden kaçmış.
-    const px = (v) => this.px(v);
+    //
+    // Sonra kullanıcı "küçülmüş ve çok yavaşlamış, eski hali daha iyi, minimal
+    // bir küçültme yeter" dedi: tam ölçek (`px`) telefonu 2.4x küçülttü, üstüne
+    // nitro pad küçüldüğü için boost'a binme oranı düşüp oyun "yavaşladı".
+    // Dekor için `propPx` (kısılmış ölçek) kullanılıyor.
+    const px = (v) => this.propPx(v);
 
     if (this.currentPreset === 'ZIGZAG') {
       this.checkpoints = [
@@ -276,6 +313,8 @@ export class RaceGame extends BaseMiniGame {
     this.players.forEach((player, index) => {
       // Başlangıç ızgarası da orantılı: 32/28px mutlak kalsaydı telefonda
       // dört araç saha yüksekliğinin %15'ini kaplardı ve birbirine binerdi.
+      // `px` (tam ölçek) kullanıldı: ızgara bir konum düzenidir, dekor değil —
+      // araçlar dekorla birlikte küçülünce yan yana durmaları doğru.
       player.x = startX - (index % 2) * this.px(32);
       player.y = startY + (index - 1.5) * this.px(28);
       player.vx = 0;

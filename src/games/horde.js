@@ -1,7 +1,7 @@
 // BRUTAL HORDE — 1-4 oyunculu takım hayatta-kalma oyunu.
 // Host authority: fizik, AI, wave ve terminal durumlar yalnız bu motorda ilerler.
 
-import { playDashWhoosh, playExplosion, playJoin, playPaddleHit, playShoot, playStart, playStumble } from '../audio.js';
+import { playDashWhoosh, playDryFire, playExplosion, playJoin, playPaddleHit, playShoot, playStart, playStumble } from '../audio.js';
 import { notifyFireBlocked, notifyFireShot } from '../core/fireFeedbackEffects.js';
 import { resetFireFeedback, updateFireFeedback } from '../core/fireFeedback.js';
 import { t } from '../i18n.js';
@@ -57,7 +57,7 @@ export const HORDE_TUNING = Object.freeze({
   // şişiyordu. Sonuç: oyuncu görsel olarak büyük, NPC'ler birbirine
   // yaklaşıp boyut çeşitliliğini yitiriyordu. Tabanları kaldırdık; alan
   // çöktüğünde `playfield.FIELD_DESIGN.minUnit` (0.30) zaten alt sınırı verir.
-  MOVE_SPEED: 190,
+  MOVE_SPEED: 171,
   FAST_MULT: 1.42,
   ENEMY_SHOT_SPEED: 270,
   DASH_TIME: 0.24,
@@ -91,23 +91,39 @@ export const HORDE_TUNING = Object.freeze({
 // Düşman büyüdükçe `minPassage` tabanı da yükseliyor (tank 30 -> masaüstünde
 // 71px) ve halka biraz daha çok eleniyor: 8 preset × 4 cihazda toplam blok
 // 258 -> 253 (%2), harita seyreklemiyor.
+// Düşman gövdeleri 14/16/18/21 → 17/20/22/26 → **19/23/25/30** (1.36x toplam).
+// Son tur: "düşmanları birazcık daha büyüt" — 1.09x daha. Oyuncu 14'te kalıyor,
+// yani oyuncu/chaser 0.61: oyuncu artık her düşmandan küçük, kahraman hissi
+// korunuyor ama düşmanlar siluette okunuyor.
+//
+// Hızlar: kullanıcı "herkes çok hızlı hareket ediyor" dedi, "çok az düşür"
+// istedi → 0.90x (112→101, 78→70, 44→40, 68→61). Oyuncu `MOVE_SPEED` de aynı
+// katsayıyla indirildi: sadece düşmanları yavaşlatmak oyuncuyu yalnızlaştırırdı.
+// Son turda gövde büyürken hızlara dokunulmadı — büyük gövde + aynı hız
+// göreli olarak daha da hızlı hissettirir, ama kullanıcı açıkça hız
+// şikâyeti belirtmedi.
 const ENEMY_BASE = Object.freeze({
-  chaser: { hp: 3, radius: 23, speed: 112, damage: 1, attackEvery: 0.95 },
-  shooter: { hp: 2, radius: 19, speed: 78, damage: 1, attackEvery: 1.55 },
-  tank: { hp: 8, radius: 30, speed: 44, damage: 2, attackEvery: 1.8 },
-  healer: { hp: 5, radius: 25, speed: 68, damage: 0, attackEvery: 3.2 },
+  chaser: { hp: 3, radius: 25, speed: 101, damage: 1, attackEvery: 0.95 },
+  shooter: { hp: 2, radius: 21, speed: 70, damage: 1, attackEvery: 1.55 },
+  tank: { hp: 8, radius: 33, speed: 40, damage: 2, attackEvery: 1.8 },
+  healer: { hp: 5, radius: 28, speed: 61, damage: 0, attackEvery: 3.2 },
 });
 
+// Boss'lar tabanla aynı oranı korur (chaser 45/23=1.96, tank 55/26=2.12 →
+// yeni tabanla 49/25=1.96, 64/33=1.94). `minPassage` en büyük gövdeden
+// türediği için tank 33 -> geçiş tabanı da yükselir; `arenaLayout.test.mjs`
+// bunu BODY_RADIUS.HORDE üzerinden doğruluyor.
 const BOSS_BASE = Object.freeze({
-  chaser: { hp: 42, radius: 45, speed: 104, damage: 2, attackEvery: 0.8 },
-  shooter: { hp: 30, radius: 39, speed: 76, damage: 2, attackEvery: 1.15 },
-  tank: { hp: 62, radius: 55, speed: 40, damage: 3, attackEvery: 1.45 },
-  healer: { hp: 36, radius: 44, speed: 66, damage: 1, attackEvery: 2.6 },
+  chaser: { hp: 42, radius: 49, speed: 104, damage: 2, attackEvery: 0.8 },
+  shooter: { hp: 30, radius: 42, speed: 76, damage: 2, attackEvery: 1.15 },
+  tank: { hp: 62, radius: 64, speed: 40, damage: 3, attackEvery: 1.45 },
+  healer: { hp: 36, radius: 47, speed: 66, damage: 1, attackEvery: 2.6 },
 });
 
 function isBot(player) {
   return player?.slotType === 'bot_normal' || player?.slotType === 'bot_god';
 }
+
 
 function distanceSq(ax, ay, bx, by) {
   const dx = ax - bx;
@@ -188,8 +204,6 @@ export class HordeGame extends BaseMiniGame {
         slotType,
         existingName: existing?.name || (bot ? persona.name : `P${index + 1}`),
         expression: existing?.expression || custom.expression,
-        accessory: existing?.accessory || (bot ? persona.accessory : custom.accessory),
-        pattern: existing?.pattern || (bot ? persona.pattern : custom.pattern),
         avatar: existing?.avatar || custom,
       });
       player.name = existing?.name || (bot ? persona.name : `P${index + 1}`);
@@ -764,13 +778,24 @@ export class HordeGame extends BaseMiniGame {
       notifyFireBlocked(player);
       return;
     }
-    if (player.reloadTimer > 0) return;
+    // Cephane bittiğinde iki SESSİZ yol vardı: yeniden doldurma sürerken
+    // (`reloadTimer > 0`) ve şarjör boşken. Oyuncu ateş edemediğini
+    // duyamıyordu — ölçülen geri bildirim eksikliği. `playDryFire` kuru tetik
+    // sesi, `notifyFireBlocked` ise mevcut blocked görselini tetikler.
+    // İkisi birlikte: ses "neden", rozet "ne yapıyorum" der.
+    if (player.reloadTimer > 0) {
+      playDryFire();
+      notifyFireBlocked(player);
+      return;
+    }
     const weapon = getPlayerWeapon(player);
     if (weapon.kind === 'melee') {
       this.fireBlade(player, weapon);
       return;
     }
     if (player.ammo <= 0) {
+      playDryFire();
+      notifyFireBlocked(player);
       this.startReload(player);
       return;
     }
@@ -1588,7 +1613,7 @@ export class HordeGame extends BaseMiniGame {
     this.applyScreenShake(ctx);
 
     const scene = mapHordeScene(this, HORDE_TUNING);
-    drawHordeWorld(ctx, this.arena, scene, { withFx: this.state === 'PLAYING' });
+    drawHordeWorld(ctx, this.arena, scene, { withFx: this.state === 'PLAYING', now: this.lastTime });
     drawHordeParticles(ctx, this.particles);
     drawHordeStatus(ctx, this.arena, scene);
 

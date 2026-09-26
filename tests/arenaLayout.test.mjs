@@ -14,8 +14,14 @@ const DESKTOP = [1920, 1080];
 const SQUARE = [900, 900];
 
 // Tasarım yarıçapı (1920x1080 referansı) — motorların `fieldRadius` tabanı.
+//
+// DEĞERLER MOTORLARDAN BİREBİR ALINIR, elle kopyalanmaz. `minPassage` motorun
+// EN BÜYÜK gövdesinden türediği için tabloda da en büyük gövde yazmalı
+// (HORDE'de oyuncu 14 değil, tank 30). Motor değiştiğinde bu tablo eskir ve
+// test sessizce yanlış şeyi ölçmeye devam eder — o yüzden aşağıdaki
+// `design radii mirror the engines` testi bunu kilitliyor.
 const BODY_RADIUS = {
-  ARCHER: 22, HORDE: 21, BOMB: 36, HEIST: 36, TANKS: 26, LASER: 19, NINJA: 18,
+  ARCHER: 28, HORDE: 33, BOMB: 36, HEIST: 36, TANKS: 26, LASER: 19, NINJA: 18,
 };
 
 // Baseline = pre-change square placement: a synthetic aspect of 1 forces
@@ -257,6 +263,38 @@ test('the densify ring adds blocks but never drops below the passage floor', () 
       );
     }
   }
+});
+
+test('the design radius table mirrors the engines', async () => {
+  // `BODY_RADIUS` yukarıda elle yazıldı ve bir kez zaten bayatladı: ARCHER 22'ye
+  // çıkarken tabloda 22 kalmıştı, test eski değeri doğrulamaya devam ediyordu.
+  // Böyle bir kopya sessizdir — bu yüzden kaynaktan okunup karşılaştırılıyor.
+  const read = async (file, re) => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL(file, import.meta.url), 'utf8');
+    const m = src.match(re);
+    assert.ok(m, `could not read ${re} from ${file}`);
+    return Number(m[1]);
+  };
+
+  assert.equal(
+    await read('../src/games/archer.js', /ARCHER_RADIUS = (\d+(?:\.\d+)?)/),
+    BODY_RADIUS.ARCHER,
+    'ARCHER_RADIUS changed — update BODY_RADIUS in this file',
+  );
+
+  const hordeSrc = (await import('node:fs')).readFileSync(
+    new URL('../src/games/horde.js', import.meta.url), 'utf8',
+  );
+  const block = hordeSrc.match(/const ENEMY_BASE = Object\.freeze\(\{([\s\S]*?)\}\);/);
+  assert.ok(block, 'ENEMY_BASE table not found in horde.js');
+  const radii = [...block[1].matchAll(/radius: (\d+(?:\.\d+)?)/g)].map((m) => Number(m[1]));
+  assert.ok(radii.length > 0, 'ENEMY_BASE has no radius entries');
+  assert.equal(
+    Math.max(...radii),
+    BODY_RADIUS.HORDE,
+    'the largest HORDE body changed — BODY_RADIUS must track the tank, not the player',
+  );
 });
 
 test('an empty field yields no obstacles', () => {

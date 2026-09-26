@@ -43,7 +43,7 @@ Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar d
   - `pickupSystem.js` — power-up akışı: `spawnPickup`, `collectPickups`, `tickPickupTimers` + `EFFECTS` kayıt defteri.
   - `arenaKit.js` — ortak görsel + `buildLayout(name, arena)` düzen presets (`pillars`, `columns4`, `cross`, `crossfire`, `scatter`, `bunker`, `courtyard`, `split`) + `drawObstacle`/`drawPickup`. Motor kendi `buildMap()`'inde yalnız oyuna özgü ek katmanları/meta'yı tutar; ortak geometri preset adıyla çağrılır.
   - `playerEntity.js` — oyuncu varlığı: `createPlayer`, `tickEffectTimers`, `advancePlayer` (kademeli çıkarım — bomb/heist/race entegre; PONG/tanks/curve/snake/zone/collapse kendi gövdesinde kalır).
-  - `avatarInGame.js` — oyun içi avatar: `drawGameAvatar`, `normalizeExpression`.
+  - `avatarInGame.js` — oyun içi avatar: `drawGameAvatar`, `normalizeExpression`, `blinkState`. Saha içi avatar **her zaman** `faceMode: 'play'` ile çizilir: renk + büyük göz + disk içi hacim + göz kırpma/bakış; **erişuar ve gövde deseni taşımaz** (menü/lobi/kumanda önizlemesi `drawBrutalAvatar`'ın `full` kipinde kalır).
   - `tabletopIcons.js` — Lucide vektör ikon kütüphanesi: OS emojileri yerine Canvas 2D için `drawTabletopIcon`, DOM/kumanda butonları için `getTabletopIconSvg`. İkonlarda ham OS emojisi yazılmaz, buradan çağrılır.
   - `preferences.js` — versioned cihaz tercihleri ve legacy control-surface migration; ses/haptik/PONG ayarlarının tek kaynağı.
   - `haptics.js` — tüm engine/controller vibration çağrılarının ortak preference gate'i.

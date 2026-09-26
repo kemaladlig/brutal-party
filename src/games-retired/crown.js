@@ -1920,12 +1920,12 @@ export class CrownGame extends BaseMiniGame {
     else if (p.hasCrown) currentExp = 'excited';
 
       drawGameAvatar(ctx, x, y, r, p, {
-      facingAngle: facingAngle,
-      expression: currentExp,
-        gameAccessory: p.hasCrown ? 'crown' : undefined,
-      borderColor: p.isTackling ? '#FFFFFF' : '#1A1A1A',
-      borderWidth: p.isTackling ? 4.5 : 3,
-    });
+        facingAngle: facingAngle,
+        expression: currentExp,
+        borderColor: p.isTackling ? '#FFFFFF' : '#1A1A1A',
+        borderWidth: p.isTackling ? 4.5 : 3,
+        now: this.lastTime,
+      });
 
     // Tackle readiness / cooldown ring indicator (Merkezi renderEntityHUD)
     if (p.isAlive) {

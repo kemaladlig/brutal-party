@@ -174,7 +174,15 @@ export function drawArcherArrows(ctx, arrows) {
   }
 }
 
-export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
+/**
+ * Nişan sallanması — çizilen nişan çizgisi ile gözlerin baktığı yön aynı
+ * değeri kullanmalı, yoksa "gözler başka yere bakıyor" ayrışması çıkıyor.
+ */
+function archerAimSway(player) {
+  return Math.sin(player.swayPhase || 0) * (0.03 + 0.12 * (1 - (player.charge || 0)));
+}
+
+export function drawArcherPlayers(ctx, players, { showFx = false, now = 0 } = {}) {
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
     const slotIndex = (player.slot ?? player.index) ?? 0;
@@ -188,9 +196,8 @@ export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
     ctx.rotate(player.angle || 0);
 
     if (showFx && player.charging) {
-      const aim = Math.sin(player.swayPhase || 0) * (0.03 + 0.12 * (1 - (player.charge || 0)));
       ctx.save();
-      ctx.rotate(aim);
+      ctx.rotate(archerAimSway(player));
       ctx.strokeStyle = player.charge >= 1 ? '#8B5CF6' : 'rgba(26,26,26,0.35)';
       ctx.lineWidth = player.charge >= 1 ? 3 : 2;
       ctx.setLineDash([8, 6]);
@@ -244,6 +251,10 @@ export function drawArcherPlayers(ctx, players, { showFx = false } = {}) {
       showPointer: true,
       borderColor: '#1A1A1A',
       borderWidth: 2.5,
+      // Dönüş view seviyesinde yapıldığı için avatarın yerel yüzü sabit;
+      // bakış da YEREL uzayda verilir (gövde dönüşüne eklenir, üstüne binmez).
+      lookAngle: player.charge > 0 ? archerAimSway(player) : undefined,
+      now,
     });
 
     const activeEffects = [
