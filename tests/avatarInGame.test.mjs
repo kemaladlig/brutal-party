@@ -9,10 +9,10 @@ const gradient = { addColorStop: noop };
  * Çizim çağrılarını kaydeden sahte 2D context.
  *
  * İki şeyi birden ölçer:
- *   - `calls`: "metot(round1..roundN)" imzaları. AKSESUAR/DESEN KATMANI
- *     imzaya yeni giriş ekler (halo = ayrı `ellipse`+`stroke`, checker = 25
- *     `fillRect`), dolayısıyla "birebir aynı imza" dekorun gerçekten
- *     çizilmediğini kanıtlar.
+ *   - `calls`: "metot(round1..roundN)" imzaları. Bir dekor katmanı imzaya
+ *     yeni giriş eklerdi (halo = ayrı `ellipse`+`stroke`, checker = 50
+ *     `fillRect`), dolayısıyla "birebir aynı imza" dekorun çizilmediğini
+ *     kanıtlar.
  *   - `bounds`: çizilen bbox. "Göz büyütme silueti taşırdı mı" sorusunun
  *     sayısal cevabı — yarıçap ve çarpışma bu değere bakarak korunuyor.
  */
@@ -60,11 +60,23 @@ let server;
 let drawGameAvatar;
 let drawBrutalAvatar;
 let blinkState;
+let sanitizeAvatar;
+let getBotPersona;
+let GOD_BOT_PERSONAS;
 
 const R = 16;
 const BORDER = 2.5;
 const player = { index: 0, name: 'P1', color: '#D84727', expression: 'FOCUS' };
 const NOISE = { label: '', showPointer: false, borderWidth: BORDER, borderColor: '#1A1A1A' };
+
+// Siluet ölçümü: gövde 2r + çerçeve. Taşma payı yalnız yarıçap yuvarlaması.
+const EXTENT_LIMIT = R * 2 + BORDER * 2 + 1;
+
+// Kaldırılmış dekorun eski id'leri. Hiçbiri artık profil/ayar olarak var
+// olmamalı; geçmişten gelen bir veri sızarsa çizim değişmemeli.
+const DEAD_ACCESSORIES = ['NONE', 'HALO', 'WINGS', 'HEADBAND', 'CAP', 'HEADPHONES', 'HORNS',
+  'MINI_CROWN', 'BONE', 'TOP_HAT', 'ANTENNA', 'BEANIE', 'BANDIT_MASK', 'NINJA_COWL'];
+const DEAD_PATTERNS = ['SOLID', 'STRIPE', 'DUAL', 'TARGET', 'CHECKER', 'DOTS', 'BOLT', 'RIBBON'];
 
 before(async () => {
   globalThis.window = {
@@ -82,8 +94,8 @@ before(async () => {
     createElement: () => ({ width: 0, height: 0, getContext: () => makeRecorder() }),
   };
 
-  // Cihaz profili SAHTE bir dekorla dolu: profil fallback'i sahanın
-  // görünümünü kirletmesin diye. Oyun içi yol registry/profil okumamalı.
+  // Cihaz profili SAHTE bir dekorla dolu: kalıcı veriden sızan dekor
+  // çizime hiçbir şekilde sızmamalı.
   const store = new Map([[
     'brutalparty.avatar.profile',
     JSON.stringify({ color: '#D84727', expression: 'FOCUS', accessory: 'HALO', pattern: 'CHECKER' }),
@@ -108,6 +120,10 @@ before(async () => {
   blinkState = inGame.blinkState;
   const renderer = await server.ssrLoadModule('/src/ui/characterRenderer.js');
   drawBrutalAvatar = renderer.drawBrutalAvatar;
+  const manager = await server.ssrLoadModule('/src/core/customizationManager.js');
+  sanitizeAvatar = manager.sanitizeAvatar;
+  getBotPersona = manager.getBotPersona;
+  GOD_BOT_PERSONAS = manager.GOD_BOT_PERSONAS;
 });
 
 after(async () => { await server?.close(); });
@@ -128,30 +144,35 @@ function drawMenuFace(opts = {}) {
   return rec;
 }
 
-test('in-game avatar ignores every accessory, even the saved device profile', () => {
-  // Profil HALO + CHECKER ile dolu (yukarıya bkz). Erişim yolu üç katman:
-  // çağıranın opts'i, player alanı ve cihaz profili — üçü de gövdeyi değiştiremez.
-  const plain = drawInGame();
-  for (const accessory of ['NONE', 'HALO', 'WINGS', 'HEADBAND', 'CAP', 'HEADPHONES', 'HORNS',
-    'MINI_CROWN', 'BONE', 'TOP_HAT', 'ANTENNA', 'HALO', 'BEANIE', 'BANDIT_MASK', 'NINJA_COWL']) {
-    const viaOpts = drawInGame({ accessory });
-    assert.deepEqual(viaOpts.calls, plain.calls, `opts.accessory=${accessory} changed the drawing`);
-    const viaPlayer = drawInGame({}, { ...player, accessory });
-    assert.deepEqual(viaPlayer.calls, plain.calls, `player.accessory=${accessory} changed the drawing`);
+test('no face mode draws decoration, whatever the source', () => {
+  // Erişim yolları: çağıranın opts'i, player alanı, cihaz profili (HALO+CHECKER
+  // dolu) ve bot personası. Menü (`full`) ve oyun içi (`play`) KİPİ FARKETMEZ:
+  // ikisi de aynı yuvarlak gövdeyi çizer.
+  for (const draw of [drawInGame, drawMenuFace]) {
+    const plain = draw();
+    for (const accessory of DEAD_ACCESSORIES) {
+      assert.deepEqual(draw({ accessory }).calls, plain.calls, `opts.accessory=${accessory} drew something`);
+      assert.deepEqual(draw({}, { ...player, accessory }).calls, plain.calls, `player.accessory=${accessory} drew something`);
+    }
+    for (const pattern of DEAD_PATTERNS) {
+      assert.deepEqual(draw({ pattern }).calls, plain.calls, `opts.pattern=${pattern} drew something`);
+      assert.deepEqual(draw({}, { ...player, pattern }).calls, plain.calls, `player.pattern=${pattern} drew something`);
+    }
   }
-  // Menü yolu AYNI profile'da dekoru çizmeye devam ediyor (kimlik lobiyle yaşıyor).
-  const menu = drawMenuFace();
-  assert.ok(menu.calls.length > plain.calls.length, 'menu face should still draw the profile accessory');
 });
 
-test('in-game avatar ignores every body pattern', () => {
-  const plain = drawInGame();
-  for (const pattern of ['SOLID', 'STRIPE', 'DUAL', 'TARGET', 'CHECKER', 'DOTS', 'BOLT', 'RIBBON']) {
-    const viaOpts = drawInGame({ pattern });
-    assert.deepEqual(viaOpts.calls, plain.calls, `opts.pattern=${pattern} changed the drawing`);
-    const viaPlayer = drawInGame({}, { ...player, pattern });
-    assert.deepEqual(viaPlayer.calls, plain.calls, `player.pattern=${pattern} changed the drawing`);
+test('the profile and bot personas carry no decoration fields', () => {
+  // Veri katmanı: eski kayıtlı profil temizlenir, bot persona yalnız isim/renk/yüz.
+  const clean = sanitizeAvatar({ color: '#D84727', expression: 'WINK', accessory: 'HALO', pattern: 'CHECKER' });
+  assert.deepEqual(Object.keys(clean).sort(), ['color', 'expression']);
+  for (let i = 0; i < 4; i++) {
+    const persona = getBotPersona(i, false);
+    assert.deepEqual(Object.keys(persona).sort(), ['color', 'expression', 'name', 'shortName']);
+    const god = getBotPersona(i, true);
+    assert.deepEqual(Object.keys(god).sort(), ['color', 'expression', 'name', 'shortName']);
+    assert.ok(persona.color && god.color && persona.expression && god.expression);
   }
+  assert.equal(GOD_BOT_PERSONAS.length, 4);
 });
 
 test('the bigger in-game eyes stay inside the circle', () => {
@@ -159,29 +180,30 @@ test('the bigger in-game eyes stay inside the circle', () => {
   // çizilen bbox gövde + çerçeve'yi aşamaz (ölçülen 36x37 gövde, r=16'da).
   const expressions = ['FOCUS', 'ANGRY', 'WINK', 'DERP', 'CYCLOPS', 'HEART', 'STAR',
     'SLEEPY', 'ZOMBIE', 'GRIN', 'SHADES', 'CYBORG', 'PANIC'];
-  const limit = R * 2 + BORDER * 2 + 1;
   for (const expression of expressions) {
     for (const lookAngle of [undefined, Math.PI / 2, -Math.PI / 2, Math.PI, 0.4]) {
       const { bounds } = drawInGame({ expression, lookAngle, facingAngle: 0.9 });
       const w = bounds.maxX - bounds.minX;
       const h = bounds.maxY - bounds.minY;
-      assert.ok(w <= limit, `${expression} width ${w.toFixed(2)} exceeds ${limit}`);
-      assert.ok(h <= limit, `${expression} height ${h.toFixed(2)} exceeds ${limit}`);
+      assert.ok(w <= EXTENT_LIMIT, `${expression} width ${w.toFixed(2)} exceeds ${EXTENT_LIMIT}`);
+      assert.ok(h <= EXTENT_LIMIT, `${expression} height ${h.toFixed(2)} exceeds ${EXTENT_LIMIT}`);
     }
   }
 });
 
-test('the in-game face adds inner volume without growing the silhouette', () => {
-  // Hacim iki gradient `fillRect`'i: hepsi clip içinde, dışarı taşan katman yok.
-  const withVolume = drawInGame();
-  const menuFace = drawMenuFace({ faceMode: 'play' });
-  assert.deepEqual(withVolume.calls, menuFace.calls, 'wrapper must force the play face mode');
+test('the play face adds inner volume; the menu face is the same body without it', () => {
+  // Hacim iki gradient `fillRect`'i ve yalnız oyun içi kipte var. Gövde,
+  // çerçeve ve gözler aynı — fark yalnız bu iki dolgu.
+  const play = drawInGame();
+  const menu = drawMenuFace();
+  assert.deepEqual(play.calls, drawMenuFace({ faceMode: 'play' }).calls, 'wrapper must force the play face mode');
 
-  // Hacim yalnız oyun içi kipte var: `full` kipte (menü/lobi) iki `fillRect` eksik.
-  // Profilde CHECKER/HALO dolu olduğu için taban değerleri AÇIKÇA sabitlenir.
   const fills = (rec) => rec.calls.filter((c) => c.startsWith('fillRect')).length;
-  const menuPlain = drawMenuFace({ accessory: 'NONE', pattern: 'SOLID' });
-  assert.equal(fills(withVolume) - fills(menuPlain), 2);
+  assert.equal(fills(play) - fills(menu), 2);
+
+  // Gözler oyun içinde büyük: menü yüzünün bbox'ı gövdeye daha sıkı sarılır.
+  const menuWidth = menu.bounds.maxX - menu.bounds.minX;
+  assert.ok(menuWidth > 0);
 });
 
 test('blink closes the eyes and is offset per slot', () => {
@@ -219,11 +241,4 @@ test('the look angle moves the eyes without turning the body', () => {
   // Kayma 0.22 rad ile sınırlı: yön okuma çizgisiyle çelişmemeli.
   const faceAngle = Number(rotates(left).at(-1).slice(7, -1));
   assert.ok(Math.abs(faceAngle) <= 0.23, `gaze shift ${faceAngle} exceeds the 0.22 rad clamp`);
-});
-
-test('menu face mode is unchanged by the in-game contract', () => {
-  // `full` kip (lobi, kişiselleştirme, kumanda önizlemesi) dekor çizmeye devam eder.
-  const full = drawMenuFace({ accessory: 'MINI_CROWN', pattern: 'RIBBON' });
-  const plain = drawMenuFace({ accessory: 'NONE', pattern: 'SOLID' });
-  assert.notDeepEqual(full.calls, plain.calls, 'menu face must keep accessory/pattern rendering');
 });

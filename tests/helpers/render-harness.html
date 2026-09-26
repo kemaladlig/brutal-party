@@ -117,8 +117,14 @@ if (params.get('probe') === 'extent' || params.get('probe') === 'face') {
   await measure('play/blink', (g) => {
     drawGameAvatar(g, 0, 0, R, avatar(), { ...noise, isBlinking: true });
   });
-  // Menü yüzü: dekor burada yaşıyor, gövde sınırını aşabilir (bilinçli).
-  await measure('menu/crown+ribbon', (g) => {
+  // Menü yüzü: aynı yuvarlak gövde, hacim yok. Eski dekor id'leri verilse de
+  // (kalıcı profilden sızabilir) ÇİZİLMEZLER — iki satır birebir aynı ölçülmeli.
+  await measure('menu/plain', (g) => {
+    drawBrutalAvatar(g, 0, 0, R, {
+      color: '#D84727', slotIndex: 0, expression: 'FOCUS', ...noise,
+    });
+  });
+  await measure('menu/legacy-ids(ignored)', (g) => {
     drawBrutalAvatar(g, 0, 0, R, {
       color: '#D84727', slotIndex: 0, expression: 'FOCUS',
       accessory: 'MINI_CROWN', pattern: 'RIBBON', ...noise,

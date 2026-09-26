@@ -256,8 +256,6 @@ export function renderLobbySeatCard(ctx, {
       isGodBot: isBotGod,
       color: persona.color,
       expression: persona.expression,
-      accessory: persona.accessory,
-      pattern: persona.pattern,
       showPointer: false,
       borderWidth: 2,
       shadowOffset: 2,

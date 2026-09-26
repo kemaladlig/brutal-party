@@ -1,18 +1,15 @@
 // Brutal Party — Karakter Özelleştirme Modali (Character Customization UI)
-// Cihaz-başı TEK profil: renk/yüz/aksesuar/desen sekmeleriyle belirlenir.
+// Cihaz-başı TEK profil: renk + yüz ifadesi. Erişuar ve gövde deseni YOK
+// (sahada da, menüde de; siluet daima tam yuvarlak).
 // Hem Ana Menüden, hem TV lobisinden, hem telefon kumandasından açılır.
 import {
   getActivePalettes,
   AVATAR_EXPRESSIONS,
-  AVATAR_ACCESSORIES,
-  AVATAR_PATTERNS,
   getAvatarProfile,
   saveAvatarProfile,
   resetAvatarProfile,
   paletteName,
   expressionName,
-  accessoryName,
-  patternName,
 } from '../core/customizationManager.js';
 import { t, onLangChange } from '../i18n.js';
 import { safeGet, safeSet } from '../core/safeStorage.js';
@@ -28,7 +25,7 @@ let previewAngle = 0;
 let previewBlinkTimer = 0;
 let isPreviewBlinking = false;
 const TAB_KEY = 'brutalparty.avatar.tab';
-const TAB_IDS = ['color', 'face', 'acc', 'pattern'];
+const TAB_IDS = ['color', 'face'];
 let activeTab = 'color';
 
 function loadActiveTab() {
@@ -126,8 +123,6 @@ function createModalDOM() {
             <div class="customize-tabs" role="tablist">
               <button class="customize-tab active" data-tab="color" type="button" data-i18n="custom.tabColor">${t('custom.tabColor')}</button>
               <button class="customize-tab" data-tab="face" type="button" data-i18n="custom.tabFace">${t('custom.tabFace')}</button>
-              <button class="customize-tab" data-tab="acc" type="button" data-i18n="custom.tabAcc">${t('custom.tabAcc')}</button>
-              <button class="customize-tab" data-tab="pattern" type="button" data-i18n="custom.tabPattern">${t('custom.tabPattern')}</button>
             </div>
 
             <!-- 1. Renk Seçimi -->
@@ -138,16 +133,6 @@ function createModalDOM() {
             <!-- 2. Yüz İfadesi -->
             <div class="custom-section hidden" data-section="face">
               <div class="chips-grid" id="grid-expressions"></div>
-            </div>
-
-            <!-- 3. Başlık & Aksesuar -->
-            <div class="custom-section hidden" data-section="acc">
-              <div class="chips-grid" id="grid-accessories"></div>
-            </div>
-
-            <!-- 4. Gövde Deseni -->
-            <div class="custom-section hidden" data-section="pattern">
-              <div class="chips-grid" id="grid-patterns"></div>
             </div>
           </div>
         </div>
@@ -282,50 +267,6 @@ function renderSelectionGrids() {
       renderSelectionGrids();
     };
   }
-
-  // 3. Aksesuarlar
-  const accGrid = document.getElementById('grid-accessories');
-  if (accGrid) {
-    accGrid.innerHTML = AVATAR_ACCESSORIES.map((acc) => {
-      const isSelected = currentCustom.accessory === acc.id;
-      return `
-        <button class="custom-chip-btn ${isSelected ? 'selected' : ''}" data-id="${acc.id}" type="button">
-          <span class="chip-icon">${acc.icon}</span>
-          <span class="chip-title">${accessoryName(acc.id, acc.name)}</span>
-        </button>
-      `;
-    }).join('');
-
-    accGrid.onclick = (e) => {
-      const btn = e.target.closest('.custom-chip-btn');
-      if (!btn) return;
-      currentCustom.accessory = btn.dataset.id;
-      saveAvatarProfile(currentCustom);
-      renderSelectionGrids();
-    };
-  }
-
-  // 4. Desenler
-  const patGrid = document.getElementById('grid-patterns');
-  if (patGrid) {
-    patGrid.innerHTML = AVATAR_PATTERNS.map((pat) => {
-      const isSelected = currentCustom.pattern === pat.id;
-      return `
-        <button class="custom-chip-btn ${isSelected ? 'selected' : ''}" data-id="${pat.id}" type="button">
-          <span class="chip-icon">${pat.icon}</span>
-          <span class="chip-title">${patternName(pat.id, pat.name)}</span>
-        </button>
-      `;
-    }).join('');
-
-    patGrid.onclick = (e) => {
-      const btn = e.target.closest('.custom-chip-btn');
-      if (!btn) return;
-      currentCustom.pattern = btn.dataset.id;
-      saveAvatarProfile(currentCustom);
-      renderSelectionGrids();
-    };
-  }
 }
 
 function startPreviewLoop() {
@@ -366,8 +307,6 @@ function startPreviewLoop() {
       drawBrutalAvatar(ctx, cx, cy + bounce, 50, {
         color: currentCustom.color,
         expression: currentCustom.expression,
-        accessory: currentCustom.accessory,
-        pattern: currentCustom.pattern,
         facingAngle: previewAngle,
         isBlinking: isPreviewBlinking,
         showPips: false,
@@ -425,17 +364,8 @@ export function initMenuAvatarCard() {
     if (equippedEl) {
       const prof = getAvatarProfile();
       const expr = expressionName(prof?.expression || 'FOCUS', 'Odaklı');
-      const acc = prof?.accessory && prof.accessory !== 'NONE' ? accessoryName(prof.accessory, '') : null;
-      const pat = prof?.pattern && prof.pattern !== 'SOLID' ? patternName(prof.pattern, '') : null;
-
-      let chips = `<span class="equipped-chip expr-chip">👀 ${expr}</span>`;
-      if (acc) {
-        chips += `<span class="equipped-chip acc-chip">✨ ${acc}</span>`;
-      }
-      if (pat) {
-        chips += `<span class="equipped-chip pat-chip">🏁 ${pat}</span>`;
-      }
-      equippedEl.innerHTML = chips;
+      // Karakterin tek özellikleri renk ve yüz: "kuşanılan" tek çip yüz ifadesi.
+      equippedEl.innerHTML = `<span class="equipped-chip expr-chip">👀 ${expr}</span>`;
     }
   };
   updateCardName();
@@ -687,8 +617,6 @@ export function initMenuAvatarCard() {
     drawBrutalAvatar(ctx, cx, avatarY - 2, 44, {
       color: custom.color,
       expression: finalExpression,
-      accessory: custom.accessory,
-      pattern: custom.pattern,
       facingAngle: currentAvatarAngle,
       isBlinking: isMenuBlinking,
       scale: combinedScale,

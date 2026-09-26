@@ -4,18 +4,17 @@
 import { getSlotAvatar, getAvatarProfile, getBotPersona } from '../core/customizationManager.js';
 
 /**
- * `faceMode: 'play'` — OYUN İÇİ yüz kipi.
+ * KARAKTER = DÜZ RENK + YÜZ. Erişuar ve gövde deseni YOK.
  *
- * Sahadaki karakter dekor değil, birimdir: renk + yüz + kalın çerçeve. Bu
- * kipte aksesuar (taç/halo/kanat/şapka) ve desen (ribbon/stripe/checker)
- * BASTIRILIR — ölçülen çizilen bbox gövde 36x37'de kalır, yarıçap ve çarpışma
- * tutar. Karşılığında yüz büyür ve disk İÇİNDE hacim kazanır; hiçbir katman
- * daire sınırını geçmez, yani "yuvarlaklık" tek ölçü kaldığı için korunur.
+ * Siluet her yerde tam yuvarlak: ölçülen çizilen bbox gövdeyle sınırlı
+ * (36x37 @ r=16), yarıçap ve çarpışma aynı değeri paylaşıyor. Karakterin tek
+ * iki özelliği rengi (10 palet + renk körü paleti) ve yüz ifadesi (12 ifade);
+ * botlar da aynı sözleşme için yalnız isim/renk/yüz taşır.
  *
- * Kişilik (taç, kanat, desen, şapka) lobi / kişiselleştirme / kumanda
- * önizlemesinde yaşamaya devam eder: `drawBrutalAvatar`'ın doğrudan çağıranları
- * varsayılan `full` kipte kalır, sadece oyun içi yol (`drawGameAvatar`,
- * src/core/avatarInGame.js) `play` ister.
+ * `faceMode: 'play'` — OYUN İÇİ yüz kipi: gözler büyür (0.24r → 0.30r) ve
+ * disk içinde hacim (ışık/gölge) eklenir. Menü/lobi/kumanda önizlemesi
+ * varsayılan `full` kipte kalır: aynı yüz, hacim yok. Oyun içi yol
+ * (`drawGameAvatar`, src/core/avatarInGame.js) her zaman `play` ister.
  *
  * Canlılık (göz kırpma, bakış kayması) view/oyun tarafında hesaplanıp
  * `blinkProgress` / `lookAngle` ile buraya beslenir; bu modül sadece çizer.
@@ -81,8 +80,6 @@ function playFaceShading(ctx, r) {
 
   const color = options.color || (isBot ? botPersona?.color : null) || avatarOpt?.color || profileFallback?.color || '#D84727';
   const expressionRaw = options.expression || (isBot ? botPersona?.expression : null) || avatarOpt?.expression || profileFallback?.expression || 'FOCUS';
-  const accessoryRaw = options.accessory !== undefined ? options.accessory : ((isBot ? botPersona?.accessory : null) || avatarOpt?.accessory || profileFallback?.accessory || 'NONE');
-  const patternRaw = options.pattern || (isBot ? botPersona?.pattern : null) || avatarOpt?.pattern || profileFallback?.pattern || 'SOLID';
 
   // İfade normalizasyonu (küçük harf / durum eşleştirmeleri)
   let expression = expressionRaw;
@@ -93,14 +90,12 @@ function playFaceShading(ctx, r) {
   else if (expression === 'robot') expression = 'CYBORG';
 
   // LOD (Level of Detail) Kuralı:
-  // r < 5 (Aşırı küçük): Detaylar sadeleştirilir
+  // r < 5 (Aşırı küçük): Detaylar sadeleştirilir (göz çizimi hariç her şey düz)
   // r >= 5 (Collapse, Snake, Tanks vb.): Gözler orantılı çizilir
   const isMicro = radius < 5;
-  // Oyun içi kip dekor katmanlarını tamamen kapatır ve gözleri büyütür; menü
-  // kipi (`full`) her şeyi olduğu gibi çizer.
+  // Oyun içi kip gözleri büyütür ve hacim ekler; menü kipi (`full`) yalnız
+  // göz çizer. İkisi de dekor taşımaz — dekor artık yok.
   const isPlayFace = options.faceMode === PLAY_FACE;
-  const pattern = isMicro || isPlayFace ? 'SOLID' : patternRaw;
-  const accessory = isMicro || isPlayFace ? 'NONE' : accessoryRaw;
 
   const {
     facingAngle = 0,
@@ -133,33 +128,7 @@ function playFaceShading(ctx, r) {
   ctx.arc(shadowOffset, shadowOffset + 1, r, 0, Math.PI * 2);
   ctx.fill();
 
-  // 1b. Arka katman aksesuarları (gövdenin arkasında çizilir)
-  if (accessory === 'WINGS') {
-    ctx.save();
-    ctx.rotate(facingAngle);
-    const drawWing = (sy) => {
-      ctx.fillStyle = '#FAF7F2';
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.2, sy * r * 0.35);
-      ctx.quadraticCurveTo(-r * 1.5, sy * (r + 16), -r * 1.8, sy * r * 0.2);
-      ctx.quadraticCurveTo(-r * 1.1, sy * r * 0.55, -r * 0.3, sy * r * 0.1);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      // Tüy detayı
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.5, sy * r * 0.3);
-      ctx.quadraticCurveTo(-r * 1.2, sy * r * 0.5, -r * 1.45, sy * r * 0.15);
-      ctx.stroke();
-    };
-    drawWing(-1);
-    drawWing(1);
-    ctx.restore();
-  }
-
-  // 2. Ana Gövde & Desen (Clipping Mask ile desen sınır taşmasını engeller)
+  // 1b. Gövde (clip: hacim katmanı daire sınırını geçemesin)
   ctx.save();
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
@@ -180,126 +149,16 @@ function playFaceShading(ctx, r) {
     ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
   }
 
-  // Gövde Deseni
-  if (pattern === 'STRIPE') {
-    ctx.save();
-    ctx.rotate(facingAngle);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(-r, -r * 0.28, r * 2, r * 0.56);
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(-r, -r * 0.08, r * 2, r * 0.16);
-    ctx.restore();
-  } else if (pattern === 'DUAL') {
-    ctx.save();
-    ctx.rotate(facingAngle + Math.PI / 2);
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
-    ctx.fillRect(0, -r - 2, r + 2, r * 2 + 4);
-    ctx.restore();
-  } else if (pattern === 'TARGET') {
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-    ctx.lineWidth = Math.max(2, r * 0.18);
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.55, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-  } else if (pattern === 'CHECKER') {
-    // Satranç daması: iki sıra kare, gövde merkezine hizalı
-    const cell = Math.max(4, r * 0.42);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    for (let cyi = -2; cyi <= 2; cyi++) {
-      for (let cxi = -2; cxi <= 2; cxi++) {
-        if ((cxi + cyi) % 2 === 0) {
-          ctx.fillRect(cxi * cell - cell / 2, cyi * cell - cell / 2, cell, cell);
-        }
-      }
-    }
-    ctx.fillStyle = 'rgba(26, 26, 26, 0.35)';
-    for (let cyi = -2; cyi <= 2; cyi++) {
-      for (let cxi = -2; cxi <= 2; cxi++) {
-        if ((cxi + cyi) % 2 !== 0) {
-          ctx.fillRect(cxi * cell - cell / 2, cyi * cell - cell / 2, cell, cell);
-        }
-      }
-    }
-  } else if (pattern === 'DOTS') {
-    const dr = Math.max(1.8, r * 0.14);
-    const gap = dr * 3.2;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-    ctx.strokeStyle = 'rgba(26, 26, 26, 0.4)';
-    ctx.lineWidth = 1;
-    for (let row = -3; row <= 3; row++) {
-      for (let col = -3; col <= 3; col++) {
-        const px = col * gap + (row % 2 ? gap / 2 : 0);
-        const py = row * gap * 0.9;
-        ctx.beginPath();
-        ctx.arc(px, py, dr, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-    }
-  } else if (pattern === 'BOLT') {
-    // Enerjik yıldırım: gövde boyunca sarı şimşek
-    ctx.save();
-    ctx.rotate(facingAngle);
-    ctx.fillStyle = '#FFDE59';
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(r * 0.15, -r * 0.95);
-    ctx.lineTo(-r * 0.45, r * 0.05);
-    ctx.lineTo(-r * 0.05, r * 0.05);
-    ctx.lineTo(-r * 0.3, r * 0.95);
-    ctx.lineTo(r * 0.5, -r * 0.15);
-    ctx.lineTo(r * 0.05, -r * 0.15);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-  } else if (pattern === 'RIBBON') {
-    // Çapraz festen şerit (iki bant, kesişim ortası)
-    ctx.save();
-    ctx.rotate(facingAngle + Math.PI / 4);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1.4;
-    ctx.fillRect(-r * 1.4, -r * 0.2, r * 2.8, r * 0.4);
-    ctx.strokeRect(-r * 1.4, -r * 0.2, r * 2.8, r * 0.4);
-    ctx.restore();
-    ctx.save();
-    ctx.rotate(facingAngle - Math.PI / 4);
-    ctx.fillStyle = 'rgba(26, 26, 26, 0.55)';
-    ctx.fillRect(-r * 1.4, -r * 0.14, r * 2.8, r * 0.28);
-    ctx.restore();
-  }
-
-  // Ninja kukuleta gövde kaplaması
-  if (accessory === 'NINJA_COWL') {
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
-    ctx.save();
-    ctx.rotate(facingAngle);
-    ctx.fillStyle = color;
-    ctx.fillRect(-r * 0.2, -r * 0.9, r * 0.4, r * 1.8);
-    // Yüz açığı
-    ctx.fillStyle = '#FAF7F2';
-    ctx.beginPath();
-    ctx.ellipse(r * 0.35, 0, r * 0.45, r * 0.55, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-
   ctx.restore(); // Clipping sonu
 
-  // 3. Gövde Dış Çerçevesi (Neo-brutalist kalın kontur)
+  // 2. Gövde Dış Çerçevesi (Neo-brutalist kalın kontur)
   ctx.strokeStyle = isTackling ? '#FFDE59' : borderColor;
   ctx.lineWidth = isTackling ? borderWidth * 1.5 : borderWidth;
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.stroke();
 
-  // 4. İsteğe Bağlı Yön Oku (Directional Pointer)
+  // 3. İsteğe Bağlı Yön Oku (Directional Pointer)
   if (showPointer) {
     ctx.save();
     ctx.rotate(facingAngle);
@@ -693,275 +552,6 @@ function playFaceShading(ctx, r) {
     drawEye(-eyeSpreadY);
     drawEye(eyeSpreadY);
   }
-
-  // Haydut göz maskesi
-  if (accessory === 'BANDIT_MASK') {
-    ctx.fillStyle = '#1A1A1A';
-    ctx.beginPath();
-    ctx.ellipse(eyeOffsetX, 0, eyeR * 1.5, eyeSpreadY * 1.8, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#FAF7F2';
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-
-    // Maske içi göz delikleri
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath();
-    ctx.arc(eyeOffsetX, -eyeSpreadY, eyeR * 0.8, 0, Math.PI * 2);
-    ctx.arc(eyeOffsetX, eyeSpreadY, eyeR * 0.8, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#1A1A1A';
-    ctx.beginPath();
-    ctx.arc(eyeOffsetX + 2, -eyeSpreadY, eyeR * 0.45, 0, Math.PI * 2);
-    ctx.arc(eyeOffsetX + 2, eyeSpreadY, eyeR * 0.45, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.restore(); // Yüz dönme sonu
-
-  // 6. Başlık & Aksesuarlar (Dönme açısına göre ayarlanır)
-  ctx.save();
-  ctx.rotate(facingAngle);
-
-  if (accessory === 'HEADBAND') {
-    // Alın bandanası & Arka kuyruk
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(-r * 0.1, -r * 0.95, r * 0.35, r * 1.9);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1.8;
-    ctx.strokeRect(-r * 0.1, -r * 0.95, r * 0.35, r * 1.9);
-
-    // Arka kurdele kuyrukları
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(-r - 8, -4, 9, 3.5);
-    ctx.fillRect(-r - 6, 2, 7, 3.5);
-    ctx.strokeRect(-r - 8, -4, 9, 3.5);
-    ctx.strokeRect(-r - 6, 2, 7, 3.5);
-  } else if (accessory === 'CAP') {
-    // Geriye takılmış spor şapkası
-    ctx.fillStyle = '#1A1A1A';
-    ctx.beginPath();
-    ctx.arc(-r * 0.3, 0, r * 0.75, Math.PI * 0.5, Math.PI * 1.5);
-    ctx.closePath();
-    ctx.fill();
-
-    // Şapka siperliği (arkaya doğru)
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(-r - 8, -r * 0.25, 10, r * 0.5);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-r - 8, -r * 0.25, 10, r * 0.5);
-  } else if (accessory === 'HEADPHONES') {
-    // DJ Kulaklığı (üst kemer ve yan hoparlör pedleri)
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = Math.max(3, r * 0.2);
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 1.05, -Math.PI * 0.45, Math.PI * 0.45);
-    ctx.stroke();
-
-    // Yan kulaklık pedleri
-    const padW = r * 0.35;
-    const padH = r * 0.55;
-    ctx.fillStyle = '#FFDE59';
-    ctx.fillRect(-padW / 2, -r - padH * 0.4, padW, padH);
-    ctx.fillRect(-padW / 2, r - padH * 0.6, padW, padH);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-padW / 2, -r - padH * 0.4, padW, padH);
-    ctx.strokeRect(-padW / 2, r - padH * 0.6, padW, padH);
-  } else if (accessory === 'HORNS') {
-    // Viking / Şeytan Boynuzları
-    const drawHorn = (sy) => {
-      ctx.fillStyle = '#FFDE59';
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.2, sy * r * 0.85);
-      ctx.quadraticCurveTo(-r * 0.7, sy * (r + 14), -r * 0.1, sy * (r + 12));
-      ctx.quadraticCurveTo(-r * 0.3, sy * (r + 4), 0, sy * r * 0.75);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    };
-    drawHorn(-1);
-    drawHorn(1);
-  } else if (accessory === 'MINI_CROWN') {
-    // Altın taç: başın üstüne oturur (bant -0.86r..-0.64r, gözler -0.56r'de
-    // biter — çakışma yok), uçlar yalnız 0.16r taşar; genişlik baş siluetine uygun.
-    ctx.save();
-    ctx.translate(-r * 0.05, 0);
-    const cw = r * 0.78;
-    const bandTop = -r * 0.86;
-    const bandH = r * 0.22;
-    const midTop = -r * 1.16;
-    const sideTop = -r * 1.0;
-    ctx.fillStyle = '#FFD700';
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.moveTo(-cw, bandTop);
-    ctx.lineTo(-cw * 0.78, sideTop);
-    ctx.lineTo(-cw * 0.38, bandTop + r * 0.05);
-    ctx.lineTo(0, midTop);
-    ctx.lineTo(cw * 0.38, bandTop + r * 0.05);
-    ctx.lineTo(cw * 0.78, sideTop);
-    ctx.lineTo(cw, bandTop);
-    ctx.lineTo(cw, bandTop + bandH);
-    ctx.lineTo(-cw, bandTop + bandH);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    // Işık parlaması (orta dişten bandaya)
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.lineWidth = 1.4;
-    ctx.beginPath();
-    ctx.moveTo(-cw * 0.7, bandTop + 2.5);
-    ctx.lineTo(0, midTop + 3);
-    ctx.lineTo(cw * 0.7, bandTop + 2.5);
-    ctx.stroke();
-    // Alt bant vurgusu
-    ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(-cw + 2, bandTop + bandH - 2);
-    ctx.lineTo(cw - 2, bandTop + bandH - 2);
-    ctx.stroke();
-    // Taşlar
-    const jewel = (jx, col) => {
-      ctx.fillStyle = col;
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 1.3;
-      ctx.beginPath();
-      ctx.arc(jx, bandTop + bandH * 0.5, Math.max(1.8, bandH * 0.34), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      // Parıltı
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-      ctx.beginPath();
-      ctx.arc(jx - 0.8, bandTop + bandH * 0.5 - 1, Math.max(0.7, bandH * 0.1), 0, Math.PI * 2);
-      ctx.fill();
-    };
-    jewel(0, '#FF0055');
-    jewel(-cw * 0.52, '#0984E3');
-    jewel(cw * 0.52, '#0984E3');
-    ctx.restore();
-  } else if (accessory === 'BONE') {
-    // Korsan kafa kemiği: başın tepesine oturur (-0.95r), gözleri geçmez
-    ctx.save();
-    ctx.translate(-r * 0.15, -r * 0.95);
-    ctx.rotate(-0.35);
-    ctx.fillStyle = '#FAF7F2';
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1.6;
-    const bw = r * 1.1;
-    const bh = r * 0.28;
-    ctx.beginPath();
-    ctx.rect(-bw / 2, -bh / 2, bw, bh);
-    ctx.fill();
-    ctx.stroke();
-    // Kemik uçları (ikişer top)
-    const boneEnd = (sx) => {
-      ctx.beginPath();
-      ctx.arc(sx * bw / 2, -bh * 0.45, bh * 0.55, 0, Math.PI * 2);
-      ctx.arc(sx * bw / 2, bh * 0.45, bh * 0.55, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    };
-    boneEnd(-1);
-    boneEnd(1);
-    ctx.restore();
-  } else if (accessory === 'TOP_HAT') {
-    // Silindir şapka: siper gözlerin (üst göz tepe -0.56r) üstünde kalır,
-    // külâh -1.50r'ye kadar (önizlemelere sığar)
-    ctx.save();
-    ctx.translate(-r * 0.1, 0);
-    // Siper
-    ctx.fillStyle = '#1A1A1A';
-    ctx.beginPath();
-    ctx.ellipse(0, -r * 0.78, r * 0.92, r * 0.26, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#FAF7F2';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    // Külâh
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(-r * 0.5, -r * 1.5, r, r * 0.8);
-    ctx.strokeStyle = '#FAF7F2';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(-r * 0.5, -r * 1.5, r, r * 0.8);
-    // Kırmızı şerit (külâh tabanı, siperin hemen üstünde)
-    ctx.fillStyle = '#D84727';
-    ctx.fillRect(-r * 0.5, -r * 0.98, r, r * 0.16);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1.2;
-    ctx.strokeRect(-r * 0.5, -r * 0.98, r, r * 0.16);
-    ctx.restore();
-  } else if (accessory === 'ANTENNA') {
-    // Uzaylı anten: taban başa gömülür, top ~-1.40r'de biter
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = Math.max(2, r * 0.12);
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.08, -r * 0.6);
-    ctx.quadraticCurveTo(r * 0.3, -r * 1.1, r * 0.52, -r * 1.16);
-    ctx.stroke();
-    ctx.fillStyle = '#00F0FF';
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.arc(r * 0.56, -r * 1.22, Math.max(3.5, r * 0.18), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    // Parıltı
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.beginPath();
-    ctx.arc(r * 0.61, -r * 1.27, Math.max(1.2, r * 0.06), 0, Math.PI * 2);
-    ctx.fill();
-  } else if (accessory === 'HALO') {
-    // Altın hale: baş kenarının (-1.0r) hemen üstünde yüzer (~-1.54r tepe)
-    ctx.strokeStyle = '#FFD700';
-    ctx.lineWidth = Math.max(3, r * 0.16);
-    ctx.beginPath();
-    ctx.ellipse(-r * 0.05, -r * 1.26, r * 0.65, r * 0.2, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.ellipse(-r * 0.05, -r * 1.26, r * 0.65, r * 0.2, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    // İç parlaklık
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
-    ctx.lineWidth = 1.4;
-    ctx.beginPath();
-    ctx.ellipse(-r * 0.05, -r * 1.26, r * 0.5, r * 0.12, 0, Math.PI * 1.05, Math.PI * 1.75);
-    ctx.stroke();
-  } else if (accessory === 'BEANIE') {
-    // Bere: başın üstünde yatay kubbe (göz üstü -0.60r'de biter) + kıvrım
-    // bandı aşağı iner, dikey şerit yok; ponpon tepede.
-    ctx.fillStyle = '#1D5D8A';
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.arc(-r * 0.1, -r * 0.76, r * 0.72, Math.PI, Math.PI * 2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    // Fileto kıvrımı (kubbenin alt kenarı, gözlerin üstünde)
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(-r * 0.88, -r * 0.76, r * 1.56, r * 0.16);
-    ctx.strokeRect(-r * 0.88, -r * 0.76, r * 1.56, r * 0.16);
-    // Ponpon (kubbe tepesi -1.48r → merkez -1.40r, tepe ~-1.55r)
-    ctx.fillStyle = '#FAF7F2';
-    ctx.beginPath();
-    ctx.arc(-r * 0.1, -r * 1.4, Math.max(3, r * 0.15), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  ctx.restore(); // Başlık dönme sonu
-
-  // 7. Koltuk kimliği: her oyuncunun kendi ana rengi (Kırmızı, Mavi, Sarı, Yeşil)
-  // ve aksesuar/yüz ifadesi ile sağlanır. Karakter altındaki pip noktaları kaldırılmıştır.
 
   ctx.restore();
 }

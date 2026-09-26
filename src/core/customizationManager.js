@@ -20,18 +20,6 @@ export function expressionName(id, fallback) {
 export function expressionDesc(id, fallback) {
   return tx(`expr.${id}.desc`, fallback ?? '');
 }
-export function accessoryName(id, fallback) {
-  return tx(`acc.${id}`, fallback ?? id);
-}
-export function accessoryDesc(id, fallback) {
-  return tx(`acc.${id}.desc`, fallback ?? '');
-}
-export function patternName(id, fallback) {
-  return tx(`pat.${id}`, fallback ?? id);
-}
-export function patternDesc(id, fallback) {
-  return tx(`pat.${id}.desc`, fallback ?? '');
-}
 
 export const AVATAR_PALETTES = [
   { id: 'red', name: 'KIRMIZI', hex: '#D84727', border: '#1A1A1A' },
@@ -94,68 +82,38 @@ export const AVATAR_EXPRESSIONS = [
   { id: 'GRIN', name: 'Sırıtış', icon: '😁', desc: 'Kötü niyetli geniş sırıtış' },
 ];
 
-export const AVATAR_ACCESSORIES = [
-  { id: 'NONE', name: 'Sade', icon: '⚪', desc: 'Aksesuar yok' },
-  { id: 'HEADBAND', name: 'Bandana', icon: '🥋', desc: 'Savaşçı saç bandı' },
-  { id: 'CAP', name: 'Şapka', icon: '🧢', desc: 'Geriye takılı sokak şapkası' },
-  { id: 'HEADPHONES', name: 'Kulaklık', icon: '🎧', desc: 'DJ stüdyo kulaklığı' },
-  { id: 'HORNS', name: 'Boynuz', icon: '😈', desc: 'Viking / Şeytan boynuzları' },
-  { id: 'MINI_CROWN', name: 'Mini Taç', icon: '👑', desc: 'Altın asil taç' },
-  { id: 'NINJA_COWL', name: 'Ninja', icon: '🥷', desc: 'Karanlık kukuleta' },
-  { id: 'BANDIT_MASK', name: 'Maske', icon: '🎭', desc: 'Haydut göz maskesi' },
-  { id: 'BONE', name: 'Kemik', icon: '💀', desc: 'Korsan kafa kemiği' },
-  { id: 'WINGS', name: 'Kanatlar', icon: '👼', desc: 'Arka melek kanatları' },
-  { id: 'TOP_HAT', name: 'Silindir Şapka', icon: '🎩', desc: 'Asil siyah silindir' },
-  { id: 'ANTENNA', name: 'Anten', icon: '📡', desc: 'Uzaylı antenli kafa' },
-  { id: 'HALO', name: 'Hale', icon: '😇', desc: 'Baş üstü altın hale' },
-  { id: 'BEANIE', name: 'Bere', icon: '🧢', desc: 'Sıcak kış bere' },
-];
-
-export const AVATAR_PATTERNS = [
-  { id: 'SOLID', name: 'Düz', icon: '⬛', desc: 'Saf neo dolgu' },
-  { id: 'STRIPE', name: 'Çizgili', icon: '🏁', desc: 'Sportif yarış çizgisi' },
-  { id: 'DUAL', name: 'Çift Ton', icon: '🌗', desc: 'İki renkli bölünmüş gövde' },
-  { id: 'TARGET', name: 'Hedef', icon: '🎯', desc: 'İç içe halka deseni' },
-  { id: 'CHECKER', name: 'Damalı', icon: '♟️', desc: 'Satranç daması dokusu' },
-  { id: 'DOTS', name: 'Benekli', icon: '⚪', desc: 'Neo polka noktaları' },
-  { id: 'BOLT', name: 'Şimşek', icon: '⚡', desc: 'Enerjik yıldırım çizgisi' },
-  { id: 'RIBBON', name: 'Kurdele', icon: '🎀', desc: 'Çapraz festen şerit' },
-];
+// AKSUAR ve GÖVDE DESENİ YOK. Karakterin tek iki özelliği RENGİ ve YÜZÜ.
+// Siluet daima tam yuvarlak; sahnede okunabilirlik çarpışma yarıçapıyla
+// örtüşüyor (ölçülen: gövde 36x37 @ r=16). Daha önce seçilebilen 14 aksesuar
+// (taç/halo/kanat/şapka…) ve 8 desen hem gövdeyi taşırıyor hem de sahada
+// okunmuyordu; ikisi de çizim motorundan, profilden ve ağ paketinden kaldırıldı.
 
 // ── Özgün Bot Karakter Kimlikleri (Bot Personas & Visual Distinction) ──
-// Her bot slotu ve zorluk seviyesi için özgün isim, renk, yüz, aksesuar ve gövde deseni
+// Her bot slotu ve zorluk seviyesi için özgün isim, renk ve yüz
 export const BOT_PERSONAS = [
   {
     name: 'VOLT [BOT]',
     shortName: 'VOLT',
     color: '#00B894', // Mint / Siber Yeşil
     expression: 'CYBORG',
-    accessory: 'ANTENNA',
-    pattern: 'BOLT',
   },
   {
     name: 'BYTE [BOT]',
     shortName: 'BYTE',
     color: '#D99B26', // Altın Sarı
     expression: 'FOCUS',
-    accessory: 'HEADPHONES',
-    pattern: 'STRIPE',
   },
   {
     name: 'MECHA [BOT]',
     shortName: 'MECHA',
     color: '#E84393', // Punk Pembe
     expression: 'GRIN',
-    accessory: 'HORNS',
-    pattern: 'TARGET',
   },
   {
     name: 'NEXUS [BOT]',
     shortName: 'NEXUS',
     color: '#1D5D8A', // Kobalt Mavi
     expression: 'CYCLOPS',
-    accessory: 'CAP',
-    pattern: 'CHECKER',
   },
 ];
 
@@ -165,32 +123,24 @@ export const GOD_BOT_PERSONAS = [
     shortName: '⚡ ZEUS',
     color: '#D84727', // Kızıl Kırmızı
     expression: 'ANGRY',
-    accessory: 'MINI_CROWN',
-    pattern: 'BOLT',
   },
   {
     name: '⚡ TITAN [GOD]',
     shortName: '⚡ TITAN',
     color: '#FF5722', // Alev Turuncu
     expression: 'SHADES',
-    accessory: 'HORNS',
-    pattern: 'STRIPE',
   },
   {
     name: '⚡ ARES [GOD]',
     shortName: '⚡ ARES',
     color: '#7928CA', // Siber Mor
     expression: 'ANGRY',
-    accessory: 'NINJA_COWL',
-    pattern: 'TARGET',
   },
   {
     name: '⚡ OMEGA [GOD]',
     shortName: '⚡ OMEGA',
     color: '#2D3436', // Karbon Siyah
     expression: 'CYBORG',
-    accessory: 'HALO',
-    pattern: 'DUAL',
   },
 ];
 
@@ -206,26 +156,19 @@ const PALETTE_HEX = new Set([
   ...COLORBLIND_PALETTES.map((p) => p.hex.toUpperCase()),
 ]);
 const EXPRESSION_IDS = new Set(AVATAR_EXPRESSIONS.map((e) => e.id));
-const ACCESSORY_IDS = new Set(AVATAR_ACCESSORIES.map((a) => a.id));
-const PATTERN_IDS = new Set(AVATAR_PATTERNS.map((p) => p.id));
 
 // ── Tek profil kalıcılığı ──
 const PROFILE_KEY = 'brutalparty.avatar.profile';
 const LEGACY_PREFIX = 'brutalparty.avatar.slot_';
 
 function defaultFace() {
-  return { expression: 'FOCUS', accessory: 'NONE', pattern: 'SOLID' };
+  return { expression: 'FOCUS' };
 }
 
-// Rastgele karakter zarı: renk dışı tüm yüz öğelerini listelerden seçer.
+// Rastgele karakter zarı: yüz ifadesini listeden seçer.
 // (reset butonu + ilk kurulum fallback'i kullanır; kayıtlı profillere dokunmaz.)
 function randomFace() {
-  const pick = (arr) => arr[(Math.random() * arr.length) | 0].id;
-  return {
-    expression: pick(AVATAR_EXPRESSIONS),
-    accessory: pick(AVATAR_ACCESSORIES),
-    pattern: pick(AVATAR_PATTERNS),
-  };
+  return { expression: AVATAR_EXPRESSIONS[(Math.random() * AVATAR_EXPRESSIONS.length) | 0].id };
 }
 
 export function randomAvatarColor(excludeHexes = []) {
@@ -306,9 +249,9 @@ export function sanitizeAvatar(input, opts = {}) {
       ? opts.fallbackColor
       : randomAvatarColor());
   const expression = EXPRESSION_IDS.has(src.expression) ? src.expression : 'FOCUS';
-  const accessory = ACCESSORY_IDS.has(src.accessory) ? src.accessory : 'NONE';
-  const pattern = PATTERN_IDS.has(src.pattern) ? src.pattern : 'SOLID';
-  return { color, expression, accessory, pattern };
+  // Eski profiller `accessory`/`pattern` taşıyordu; sanitize bunları düşürür,
+  // yani kalıcı veri silinmeden karakter yeni sözleşmeye uyar.
+  return { color, expression };
 }
 
 export function isPaletteHex(hex) {

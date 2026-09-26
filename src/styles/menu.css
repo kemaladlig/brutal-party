@@ -1334,10 +1334,9 @@
   gap: 6px;
 }
 
+/* Karakterin tek özelliği çifti renk + yüz: tek "kuşanılan" çip yüz ifadesi. */
 .equipped-chip,
-.expr-chip,
-.acc-chip,
-.pat-chip {
+.expr-chip {
   padding: 3.5px 8px;
   border: 1.5px solid var(--ink);
   border-radius: 5px;
@@ -1351,8 +1350,6 @@
 }
 
 .expr-chip { background: #e6f9ec; }
-.acc-chip { background: #fffbe6; }
-.pat-chip { background: #f5edff; }
 
 .menu-name-input-row {
   width: 100%;
