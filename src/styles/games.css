@@ -1,325 +1,274 @@
-/* Oyun arenası — ana menüdeki OYNA eyleminin açtığı SAHNE.
-   Oda ekranıyla aynı dünya: arka plan `scene.css`'ten, eylem düğmesi
-   `.scene-btn` ailesinden. Burada yalnız rafta, odak bilgisinde ve OYNA
-   düğmesinin KONUMU vardır.
-
-   Önceki düzen "web sayfası" gibi okunuyordu: koyu kart ızgarası + sağda
-   ayrı bir önizleme paneli. Panel kaldırıldı; odaktaki oyunun adı ve taktik
-   ipucu sahnenin sol altında DEV YAZI olarak durur. */
+/* OYUNLAR galerisi — gezinme hedefi, lobinin kardeş dili (bkz. gamesView.js).
+   Sol: MERKEZİ sekme şeridi (`tabStrip.js`) + SAYFALI kapak ızgarası. Izgara
+   kaydırılmaz: her sayfa 4×2 hücre olarak alana BİREBİR oturur (yarım kesik
+   satır yok — kullanıcı kararı). Sağ: seçili oyunun kahramanı + tek altın CTA. */
 
 .games-scene { padding: 0; }
 
-/* ── Oyun rafı ──────────────────────────────────────────────────────────
-   15 oyun tam sayıya bölünen ızgaraya konur: genişte 5×3, ortada 4, dar'da 2.
-   (Rafta `auto-fill` kullanmak 7+7+1 gibi tek kartlı son satır üretiyordu.)
-
-   Geometri `top` + SABİT `height` ile verilir. `top`+`bottom`+`max-height`
-   üçlüsü kullanılamaz: max-height uygulanırken kutu `bottom` çizgisine
-   yapışıp YUKARIYA taşıyordu (track -50px'e kayıyordu). */
-
-.games-track {
+.games-body {
   position: absolute;
-  left: max(20px, env(safe-area-inset-left));
-  right: max(20px, env(safe-area-inset-right));
-  top: 76px;
-  /* Yükseklik SABİT değil, ekrandan türetilir: üstte topbar, altta odak
-     bilgisi + çip + OYNA var. `top`+`bottom`+`max-height` üçlüsü
-     kullanılamaz (max-height uygulanırken kutu `bottom` çizgisine yapışıp
-     yukarı taşıyordu), bu yüzden tek `top` + `height: calc()`. */
-  height: min(600px, calc(100% - 76px - 200px));
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  grid-auto-rows: minmax(0, 1fr);
-  /* Filtreyle satır sayısı düşünce (örn. 6 oyun → 2 satır) `1fr` satırları
-     tüm yüksekliği doldurup kartları şişiriyor; `align-content: center`
-     bloğu ortalar. */
-  align-content: center;
-  gap: 12px;
+  inset: 0;
   z-index: 1;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  overscroll-behavior-x: contain;
-  padding: 4px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  gap: clamp(10px, 1.8vw, 22px);
+  /* Solda dikey ortalanmış yüzen gezinme (56px) içeriğe binmesin. */
+  padding: clamp(10px, 2vh, 18px) max(16px, env(safe-area-inset-right))
+    max(14px, env(safe-area-inset-bottom)) calc(74px + env(safe-area-inset-left));
 }
 
-.games-track::-webkit-scrollbar { display: none; }
+/* ── Sol: sekmeler + sayfalı ızgara ─────────────────────────────────────── */
 
-/* [hidden] UA `display:none` kuralını grid taşması ezmesin. */
-.game-tile[hidden] { display: none; }
-
-/* ── Oyun kartı: kapak + ad, koyu çerçeve YOK ──────────────────────────
-   Krem kapak görseli sahnenin canlı zemini üzerinde kendiliğinden öne
-   çıkar; ağır bir kart çerçevesi onu geriye çekiyordu. */
-
-.game-tile {
-  position: relative;
+.games-main {
   display: flex;
   flex-direction: column;
+  gap: clamp(8px, 1.4vh, 14px);
   min-width: 0;
   min-height: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  text-align: start;
-  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1), filter 200ms ease;
 }
 
-.game-tile:hover { transform: translateY(-5px); }
-
-.game-tile.is-focused {
-  transform: translateY(-9px) scale(1.05);
-  z-index: 3;
+.games-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.game-tile.is-focused .game-tile-art {
-  box-shadow: 0 0 0 3px var(--accent), 0 16px 30px var(--scene-btn-shadow);
+.games-head .tab-strip { flex: 1 1 auto; }
+
+/* Sayfa okları + sayacı: sekme şeridinin sağ ucu (yalnız 8+ oyunda görünür). */
+.games-pager {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.game-tile:active { transform: translateY(-2px) scale(0.99); }
+.games-pager[hidden] { display: none; }
 
-/* Medya kutusu: `<img>` MUTLAK konumlandırılır. Aksi halde 1:1 kaynak
-   görselin doğal yüksekliği (1024px+) kutuya geri beslenir ve kart, satır
-   yüksekliğini aşıp komşusuyla üst üste biner (portre'de görüldü). */
-.game-tile-art {
-  position: relative;
-  display: block;
-  flex: 1 1 0;
+.games-page-label {
+  font: 900 10px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  color: var(--hud-muted);
+  white-space: nowrap;
+}
+
+.games-page-btn { padding: 0 10px; }
+.games-page-btn:disabled { opacity: 0.35; cursor: default; }
+.games-page-btn:disabled:active { transform: none; }
+
+/* Izgara TAŞMAZ: 4×2 sabit hücreler alanı birebir doldurur. Kartlar
+   hücreye uzar (en-boy oranı dayatılmaz; kapak `object-fit: cover` kırparsa
+   da krema zemin sayesinde iz bırakmaz). */
+.games-grid {
+  flex: 1 1 auto;
   min-height: 0;
-  border-radius: 18px;
-  overflow: hidden;
-  background: var(--art-board);
-  box-shadow: 0 8px 18px var(--scene-btn-shadow);
-  transition: box-shadow 200ms ease;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: clamp(8px, 1.1vw, 14px);
 }
 
-.game-tile-img {
+/* ── Kapak kartı ────────────────────────────────────────────────────────── */
+
+.game-card {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 2px solid var(--hud-line);
+  border-radius: 18px;
+  background: var(--hud-surface);
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.game-card[hidden] { display: none; }
+
+.game-card img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+  display: block;
+  transition: transform 240ms ease, filter 200ms ease;
+}
+
+.game-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-float); }
+.game-card:active { transform: scale(0.96); }
+
+.game-card.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-float);
+}
+
+.game-card.is-focused { outline: 3px solid var(--accent-2); outline-offset: 2px; }
+
+.game-card-index {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  padding: 3px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--scene-btn-ghost);
+  color: var(--hud-ink);
+  font: 900 8.5px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.game-card-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px 9px 7px;
+  background: linear-gradient(180deg, transparent 0%, var(--scene-shadow) 72%);
+  color: var(--hud-ink);
+  font: 900 10.5px/1.1 var(--font-grotesk);
+  letter-spacing: 0.05em;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px var(--scene-shadow);
+}
+
+.game-card-retired {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  padding: 3px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--scene-btn-ghost);
+  border: 1px solid var(--hud-line);
+  color: var(--hud-muted);
+  font: 900 7.5px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.game-card.is-retired img { filter: saturate(0.55); }
+
+/* ── Sağ kolon: kahraman + tek CTA ──────────────────────────────────────── */
+
+.games-side {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 1.4vh, 12px);
+}
+
+.games-hero-cover {
+  height: clamp(104px, 26vh, 230px);
+  max-width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 22px;
+  border: 2px solid var(--hud-line);
+  box-shadow: 0 18px 40px var(--scene-shadow);
   display: block;
 }
 
-.game-tile-index {
-  position: absolute;
-  left: 6px;
-  top: 6px;
-  min-width: 20px;
-  padding: 2px 5px;
-  border-radius: var(--radius-pill);
-  background: var(--scene-btn-ghost);
-  color: var(--hud-ink);
-  font: 900 9px/1.2 var(--font-mono);
+.games-hero-cover.is-in { animation: gamesHeroIn 240ms cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+
+@keyframes gamesHeroIn {
+  from { opacity: 0; transform: translateX(14px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+.games-hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
   text-align: center;
 }
 
-.game-tile-retired {
-  position: absolute;
-  right: 6px;
-  top: 6px;
-  padding: 2px 6px;
+.games-hero-cat {
+  padding: 4px 10px;
   border-radius: var(--radius-pill);
-  background: var(--bot-tag);
-  color: var(--on-accent);
-  font: 900 8px/1.2 var(--font-mono);
+  background: var(--sheen-12);
+  border: 1.5px solid var(--scene-btn-ghost-line);
+  color: var(--hud-muted);
+  font: 900 8.5px/1 var(--font-mono);
+  letter-spacing: 0.12em;
 }
 
-.game-tile-name {
-  flex: 0 0 auto;
-  padding: 7px 4px 0;
-  font: 900 10.5px/1.2 var(--font-grotesk);
-  letter-spacing: 0.02em;
+.games-hero-cat[hidden] { display: none; }
+
+.games-hero-name {
+  font: 900 clamp(18px, 3.6vh, 34px)/1.05 var(--font-grotesk);
+  letter-spacing: 0.01em;
   color: var(--hud-ink);
-  text-align: center;
-  text-shadow: 0 2px 6px var(--scene-btn-shadow);
-  white-space: nowrap;
+  text-shadow: 0 3px 14px var(--scene-shadow);
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.game-tile.is-retired { opacity: 0.82; }
-.game-tile.is-retired .game-tile-name { text-decoration: line-through; }
-
-/* ── Sol alt: odaktaki oyun (dev yazı) ───────────────────────────────── */
-
-.games-focus {
-  position: absolute;
-  left: max(28px, env(safe-area-inset-left));
-  bottom: max(96px, calc(env(safe-area-inset-bottom) + 96px));
-  max-width: min(38vw, 420px);
-  z-index: 2;
-  pointer-events: none;
-}
-
-.games-focus-title {
-  font: 900 clamp(26px, 4.4vh, 42px)/1.02 var(--font-grotesk);
-  letter-spacing: -0.01em;
-  color: var(--hud-ink);
-  text-shadow: 0 3px 12px var(--scene-btn-shadow);
-}
-
-.games-focus-hint {
-  margin-top: 4px;
-  font: 700 12px/1.4 var(--font-grotesk);
-  color: var(--hud-muted);
-  text-shadow: 0 2px 6px var(--scene-btn-shadow);
-}
-
-/* Kategori rozeti: adın yanında, tek satır. `data-category` registry'den
-   gelir; renk `--mode-*` ailesinin kendi tonları yerine vurgu rengini kullanır
-   (karakter ve sahne zaten yoğun). */
-.games-focus::before {
-  content: '';
-  position: absolute;
-  left: -14px;
-  top: 6px;
-  bottom: 6px;
-  width: 5px;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-}
-
-.games-focus[data-retired='true']::before { background: var(--faint); }
-
-/* ── Alt orta: kategori filtresi ─────────────────────────────────────── */
-
-.games-chips {
-  position: absolute;
-  left: 50%;
-  bottom: max(20px, env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  z-index: 2;
-  max-width: calc(100vw - 40px);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-/* Oyun sayısı çip şeridinin başında: ekranın üstünde ikinci bir başlık
-   satırı açmıyor (üst şerit zaten ekran adını yazıyor). */
-.games-count {
-  flex: 0 0 auto;
-  padding: 0 10px;
-  font: 900 10px/1 var(--font-mono);
-  letter-spacing: 0.12em;
-  color: var(--hud-muted);
   white-space: nowrap;
+  max-width: 100%;
 }
 
-.games-chips::-webkit-scrollbar { display: none; }
-
-.games-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-  min-height: 32px;
-  padding: 0 12px;
-  border: 2px solid var(--scene-btn-ghost-line);
-  border-radius: var(--radius-pill);
-  background: var(--scene-btn-ghost);
-  color: var(--hud-ink);
-  font: 900 10px/1 var(--font-grotesk);
-  letter-spacing: 0.07em;
-  cursor: pointer;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition: background 150ms ease, color 150ms ease, transform 150ms ease;
+.games-hero-hint {
+  font: 800 clamp(9.5px, 1.5vh, 12px)/1.3 var(--font-grotesk);
+  color: var(--hud-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
-
-.games-chip > span { display: inline-flex; align-items: center; gap: 5px; }
-.games-chip em { font: inherit; font-style: normal; }
-.games-chip svg { flex: 0 0 auto; }
-
-.games-chip i {
-  font: 900 9px/1 var(--font-mono);
-  font-style: normal;
-  padding: 2px 5px;
-  border-radius: var(--radius-pill);
-  background: var(--sheen-15);
-}
-
-.games-chip.is-active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-
-.games-chip.is-active i { background: var(--sheen-25); }
-.games-chip.is-focused { box-shadow: 0 0 0 3px var(--accent-2); }
-.games-chip:active { transform: translateY(2px); }
-
-/* ── Sağ alt: OYNA ───────────────────────────────────────────────────── */
 
 .games-play {
-  position: absolute;
-  right: max(28px, env(safe-area-inset-right));
-  bottom: max(20px, env(safe-area-inset-bottom));
-  padding: 14px 26px 16px;
-  gap: 14px;
-  z-index: 3;
+  flex: 0 0 auto;
+  width: min(100%, 280px);
+  margin-top: clamp(4px, 1.4vh, 12px);
+  justify-content: center;
+  padding: 12px 22px 14px;
+  gap: 12px;
 }
 
-.games-play .scene-btn-icon { width: 46px; height: 46px; border-radius: 16px; }
-.games-play .scene-btn-label { font-size: clamp(19px, 2.4vh, 23px); letter-spacing: 0.05em; }
+.games-play .scene-btn-icon { width: 40px; height: 40px; border-radius: 14px; }
+.games-play .scene-btn-label { font-size: clamp(16px, 2.2vh, 21px); letter-spacing: 0.05em; }
 
-/* ── Kısa ekran (telefon yatay) ──────────────────────────────────────── */
+/* ── Yığılma (dikey / çok dar): kahraman alta, yatay şeride dönüşür ────── */
 
-@media (max-height: 470px) {
-  .games-track { top: 56px; height: min(320px, calc(100% - 56px - 116px)); gap: 9px; }
-  .game-tile-art { border-radius: 14px; }
-  .game-tile-name { font-size: 9px; padding-top: 5px; }
-  .games-focus { left: max(16px, env(safe-area-inset-left)); bottom: max(66px, calc(env(safe-area-inset-bottom) + 66px)); max-width: 46vw; }
-  .games-focus-title { font-size: clamp(19px, 5.6vh, 28px); }
-  .games-focus-hint { font-size: 10px; }
-  .games-chips { bottom: max(12px, env(safe-area-inset-bottom)); }
-  .games-chip { min-height: 28px; font-size: 9px; padding: 0 10px; }
-  .games-count { font-size: 9px; }
-  .games-play { right: max(16px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); padding: 10px 18px 12px; border-radius: 18px; }
-  .games-play .scene-btn-icon { width: 34px; height: 34px; border-radius: 12px; }
-  .games-play .scene-btn-label { font-size: 15px; }
+@media (orientation: portrait), (max-width: 700px) {
+  .games-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .games-side {
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .games-hero-cover { height: clamp(68px, 12vh, 100px); border-radius: 16px; flex: 0 0 auto; }
+  .games-hero-copy { text-align: start; align-items: flex-start; flex: 1 1 auto; min-width: 0; }
+  .games-hero-hint { display: none; }
+  .games-play { width: auto; margin: 0 0 0 auto; padding: 10px 16px 12px; }
+  .games-play .scene-btn-icon { width: 32px; height: 32px; border-radius: 11px; }
+  .games-play .scene-btn-label { font-size: 14px; }
 }
 
-/* Orta genişlik: 4 sütun (15 oyun → 4+4+4+3, son satır eksik kutu görünmez). */
-@media (min-width: 621px) and (max-width: 1099px) {
-  .games-track { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* Kısa yatay telefon: 4×2 hücreler korunur, süsler sadeleşir. */
+@media (max-height: 430px) {
+  .games-hero-cover { height: clamp(96px, 30vh, 150px); border-radius: 18px; }
+  .games-hero-hint { display: none; }
+  .game-card { border-radius: 14px; }
 }
 
-/* Dar + uzun (dikey telefon — rotate gate arkasında): 3 sütun. Beş satırı
-   ekrana zorlamak yerine raf KENDİ İÇİNDE dikey kayar (katalog davranışı):
-   sıkıştırılmış satırlarda kapak kırpılıyordu. */
-@media (max-width: 620px) {
-  .games-track {
-    left: max(10px, env(safe-area-inset-left));
-    right: max(10px, env(safe-area-inset-right));
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-rows: auto;
-    align-content: start;
-    top: 58px;
-    height: 620px;
-    gap: 8px;
-    overflow-y: auto;
-  }
-  /* Kart yüksekliği AÇIKÇA yazılır: grid satır yüksekliği yerine kart
-     kendi yüksekliğini belirler, kapak görseli onu şişiremez. */
-  .game-tile { height: 150px; }
-  .game-tile-name { font-size: 9px; }
-  .games-focus {
-    left: max(14px, env(safe-area-inset-left));
-    right: max(14px, env(safe-area-inset-right));
-    bottom: max(84px, calc(env(safe-area-inset-bottom) + 84px));
-    max-width: none;
-  }
-  .games-focus-title { font-size: 22px; }
-  .games-focus-hint { font-size: 10.5px; }
-  .games-play {
-    left: max(12px, env(safe-area-inset-left));
-    right: max(12px, env(safe-area-inset-right));
-    justify-content: center;
-  }
+@media (prefers-reduced-motion: reduce) {
+  .games-hero-cover.is-in { animation: none; }
+  .games-scene :is(.game-card, .games-hero-cover) { transition: none; }
 }

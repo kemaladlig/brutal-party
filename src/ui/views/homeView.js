@@ -48,8 +48,8 @@ function sceneButton({ id, icon, label, sub, weight, at = '', onClick, focus = '
 
 registerView('home', {
   title: 'BRUTAL PARTY',
-  // Üst şeritteki kalıcı gezinmenin ilk hedefi. `chrome: 'cinema'` üst
-  // şeriti saydamlaştırır: sahne görselinin üstüne biner.
+  // Gezinmenin ilk hedefi (kök). `chrome: 'cinema'` saydam krom: sahne
+  // görselinin üstüne biner.
   rail: { icon: 'home', label: 'ANASAYFA', order: 0 },
   chrome: 'cinema',
   build(ctx) {

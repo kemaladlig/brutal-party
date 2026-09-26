@@ -30,7 +30,7 @@ const LUCIDE_REGISTRY = {
   },
   home: {
     id: 'house',
-    aliases: ['🏠', 'house', 'start', 'root'],
+    aliases: ['🏠', 'house', 'home', 'start', 'root'],
     path: 'M3 10.5 12 3l9 7.5 M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5',
   },
   zap: {
@@ -304,11 +304,96 @@ const LUCIDE_REGISTRY = {
     path: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
     mode: 'stroke',
   },
+  // Avatar ifadeleri (customizationManager.AVATAR_EXPRESSIONS tek kaynağı)
+  sunglasses: {
+    id: 'sunglasses',
+    aliases: ['🕶️', 'shades', 'sunglasses'],
+    path: 'M2 10h2l2-4h4l2 4h4l2-4h4l2 4h2 M3 10v3a3 3 0 0 0 3 3h2a3 3 0 0 0 3-3v-3 M15 10v3a3 3 0 0 0 3 3h2a3 3 0 0 0 3-3v-3',
+    mode: 'stroke',
+  },
+  angry: {
+    id: 'angry',
+    aliases: ['😠', 'angry', 'frown'],
+    path: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z M7.5 8 10 9.5 M16.5 8 14 9.5 M16 16s-1.5-2-4-2-4 2-4-2',
+    mode: 'stroke',
+  },
+  wink: {
+    id: 'wink',
+    aliases: ['😉', 'wink'],
+    path: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z M8 14s1.5 2 4 2 4-2 4-2 M9 9h.01 M14 9h3',
+    mode: 'stroke',
+  },
+  circle_dot: {
+    id: 'circle-dot',
+    aliases: ['👁️', 'cyclops', 'circle_dot', 'circle-dot', 'monoeye'],
+    path: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z M12 12h.01',
+    mode: 'stroke',
+    strokeWidth: 3,
+  },
+  laugh: {
+    id: 'laugh',
+    aliases: ['🤪', 'derp', 'crazy', 'laugh'],
+    path: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z M9 9h.01 M15 9h.01 M8 13a4 4 0 0 0 8 0z',
+    mode: 'both',
+  },
+  heart: {
+    id: 'heart',
+    aliases: ['😍', 'heart', 'love'],
+    path: 'M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z',
+    mode: 'stroke',
+  },
+  star: {
+    id: 'star',
+    aliases: ['🤩', 'star', 'excited'],
+    path: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
+    mode: 'stroke',
+  },
+  moon: {
+    id: 'moon',
+    aliases: ['😴', 'sleepy', 'moon', 'sleep'],
+    path: 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z',
+    mode: 'stroke',
+  },
+  skull: {
+    id: 'skull',
+    aliases: ['🧟', 'zombie', 'skull', 'undead'],
+    path: 'M12 2a8 8 0 0 0-8 8c0 2.9 1.56 5.22 4 6.45V19a3 3 0 0 0 3 3h2a3 3 0 0 0 3-3v-2.55c2.44-1.23 4-3.55 4-6.45a8 8 0 0 0-8-8z M9 12h.01 M15 12h.01',
+    mode: 'stroke',
+  },
+  smile: {
+    id: 'smile',
+    aliases: ['😁', 'grin', 'smile'],
+    path: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z M8 14s1.5 2 4 2 4-2 4-2 M9 9h.01 M15 9h.01',
+    mode: 'stroke',
+  },
+  // Oyun / HUD karşılıkları
+  ping_pong: {
+    id: 'ping-pong',
+    aliases: ['🏓', 'pong', 'ping_pong', 'ping-pong', 'racket'],
+    path: 'M9 9a4 4 0 1 0 4 4 M12 12l7.5 7.5 M19 19l1.5-1.5',
+    mode: 'stroke',
+  },
+  more_vertical: {
+    id: 'more-vertical',
+    aliases: ['⋮', 'more', 'more_vertical', 'more-vertical', 'kebab'],
+    path: 'M12 5h.01 M12 12h.01 M12 19h.01',
+    mode: 'stroke',
+    strokeWidth: 3,
+  },
+  alert_circle: {
+    id: 'alert-circle',
+    aliases: ['❌', 'error', 'alert_circle', 'alert-circle'],
+    path: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z M12 8v4 M12 16h.01',
+    mode: 'stroke',
+  },
 };
 
-// Anahtar ve takma adlardan (alias) hızlı erişim haritası
+// Anahtar ve takma adlardan (alias) hızlı erişim haritası.
+// Kayıt ANAHTARI da kaydedilir: `home → id: 'house'` gibi key/id uyuşmazlıklarında
+// çağrının sessizce fallback metne düşmesi (ray ikonunun görünmemesi) buradan kapatıldı.
 const ICON_LOOKUP = new Map();
-for (const def of Object.values(LUCIDE_REGISTRY)) {
+for (const [key, def] of Object.entries(LUCIDE_REGISTRY)) {
+  ICON_LOOKUP.set(key.toLowerCase(), def);
   ICON_LOOKUP.set(def.id.toLowerCase(), def);
   for (const alias of def.aliases) {
     ICON_LOOKUP.set(alias.trim().toLowerCase(), def);

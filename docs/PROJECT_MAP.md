@@ -148,10 +148,11 @@ src/ui/
   appShell.js               Uygulama kabuğunun TEK sahibi: view yığını (push/pop), donanım geri tuşu,
                             Escape, rotate gate (`updateRotateGate`/`lockLandscape`), yatay view geçişi,
                             girdi sahipliği + `setShellInputSuspender`, `keepAlive` görünümler,
-                            `chrome:'cinema'` (sahne ekranlarında üst şerit overlay),
-                            `shell:focuschange` olayı. Üst barda **kalıcı gezinme**
-                            (`ANASAYFA / OYUN / KARAKTER`, `rail.order` sıralı; geri düğmesi
-                            yok — karar 32), `goHome()`, `revealView(id)` (zaten
+                            `chrome:'cinema'` (sahne tam kaplama) / `chrome:'none'` (gezinme + köşe gizli),
+                            `shell:focuschange` olayı. ÜST ŞERİT ve BANT YOK — kalıcı gezinme solda ÜÇ
+                            YÜZEN BUTON, dikey ortada (`ANASAYFA / OYUNLAR / KARAKTER`, `rail.order` sıralı;
+                            marka (ikon + BRUTAL PARTY yazısı) sol üstte, sistem simgeleri sağ üst köşede tek satır, rozet yok; geri düğmesi
+                            yok — karar 32 + 33), `goHome()`, `revealView(id)` (zaten
                             açıksa dokunmaz — lobi her güncellendiğinde bunu çağırır) ve
                             `closeView(id)`.
   overlayHost.js             Açık diyalogların TEK sahibi: openOverlay/closeOverlay, odak tuzağı, Escape,
@@ -167,7 +168,13 @@ src/ui/
                              `rail.order: 0` (kalıcı gezinmenin ilk girdisi), `chrome: cinema`.
   roomView.js               Oda kurma SAHNESİ: aynı arena, karakter SOL KÖŞEDE daha küçük,
                             sağda `TV` / `ONLINE` dev seçenekleri (`--mode-*` kimlik rengi).
-                            Yerel oynama burada DEĞİL — ana menüdeki `OYNA` → oyun arenası.
+                            Yerel oynama burada DEĞİL — ana menüdeki `OYNA` → OYUNLAR.
+  gamesView.js              OYUNLAR galerisi (kalıcı gezinme hedefi, `rail.order: 1`, lobinin kardeş dili):
+                            solda MERKEZİ sekme şeridi (`tabStrip.js`) + SAYFALI kapak ızgarası
+                            (`.games-grid` 4×2 = 8 kapak/sayfa, kaydırma YOK, sayfa okları;
+                            `.game-card` seçili altın halkalı), sağ kolonda seçili oyunun
+                            kahramanı (kapak + ad + ipucu) ve tek `▶ OYNA` CTA'sı.
+                            Kart SEÇER, CTA başlatır. `rail: null` değil — kalıcı hedef.
   lobbyView.js              Host odası EKRANI (artık modal değil). `#tv-host-modal` içindeki
                              `.tv-host-card`'ı DEVRALIR ve boş kalan modal kabuğunu `remove()`
                              eder (yerinde `position: fixed` scrim + `backdrop-filter` olarak
@@ -175,18 +182,26 @@ src/ui/
                              Durum sınıfları (`is-online-room`, `is-seat-editor`) KART üzerinde
                              yaşar (`hostLobby.js` + `lobby.css` `.lobby-card.is-*`).
                              MOBİL İLK: 15 oyun İZGARA değil, **karusel** (tek kapak + ad + ipucu +
-                             iki adım düğmesi); bölüm anahtarı ve kaydırma yok. İki sütun × iki
-                             satır: üstte ODA + KOLTUKLAR, altta geniş OYUN bandı. `rail: null`,
+                             iki adım düğmesi); bölüm anahtarı ve kaydırma yok. Üst ray: SOLDA oda
+                             kodu pili + hemen sağında DAVET, SAĞDA durum pili + köşede ✕ (tek
+                             dokunuşla çıkış). Kahraman altı meta satırı: `n / 15` sayacı + metinli
+                             `⊞ TÜM OYUNLAR` pili (kapak da aynı sheet'i açar). İki sütun: solda
+                             kahraman, sağda OYUNCULAR çipleri + altın CTA. `rail: null`,
                              `backToRoot: true` (geri = odayı bırak, ana menüye dön).
   profileView.js            KARAKTER ekranı — ikinci bir modal açan "tanıtım kartı" DEĞİL, tam bir
-                             DÜZENLEYİCİ: canlı avatar (`initMenuAvatarCard`), ortak isim alanı
-                             (`playerNameField`), ekranda renk paleti + yüz ifadesi + `ZARLA`
-                             (`.profile-editor`). Kaynak `customizationManager`. `rail.order: 2`.
+                            DÜZENLEYİCİ ve lobi diliyle sahnedir (çerçeveli kart kutusu yok): solda
+                            arena diskinde canlı avatar (`initMenuAvatarCard`), sağda ikonlu başlık
+                            + isim alanı (`playerNameField`) + MERKEZİ sekme şeridi (`tabStrip.js`)
+                            ile tek panel görünen RENK/İFADE editörü (seçili = altın halka) + `ZARLA`.
+                            Kaynak `customizationManager`. `rail.order: 2`.
   heroAvatar.js             Ana menü merkezindeki canlı karakter (idle bob, blink, görünürlük kapılı rAF)
   playerNameField.js        Ortak isim alanı bileşeni (görünür isim + kalem + zar, inline düzenleme);
                             ana menü rozeti ve KARAKTER ekranı aynısını kullanır
   iconSlots.js              DOM ikon yuvaları: `[data-icon]` / `[data-lobby-icon]` → Lucide SVG doldurma
                             (statik markup ikonu elle yazmaz; ham OS emojisi yasık)
+  tabStrip.js               MERKEZİ sekme şeridi bileşeni (`createTabStrip`): OYUNLAR kategorileri +
+                            KARAKTER RENK/İFADE aynı bileşeni kullanır; stil `scene.css` `.tab-strip`.
+                            İkinci bir sekme uygulaması açmak yasaktır.
   canvasUI.js               Tüm motorlar için ortak Canvas UI bileşenleri (renderLobbySeatCard,
                             renderLobbyStartButton, renderStandardLobbySeats, renderMatchOver,
                             renderRoundBanner, renderControlGuide, renderCornerScores,
@@ -567,7 +582,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
        * `.scene-btn` üç ağırlık taşır, **tek geometri**: `is-gold` (ana eylem, altın yığın + basık 3B kenar), `is-teal` (ikincil eylem, turkuaz — ana menüde `ODA KUR`), `is-ghost` (üçüncü eylem, saydam — `KODLA`). Önceki hâlde ana menüde üç ayrı yüzey dili vardı (yeşil/mavi/kırmızı dolgulu mod butonları + cam yan butonlar + altın dev buton) ve birlikte "tek ürün" gibi okunmuyordu.
        * **Karar akışı:** ana menü YÖN vermez, ekran YÖN verir. `ODA KUR` → oda sahnesi (TV / ONLINE) → lobi ekranı. Yerel oynama oda ekranında değildir: `OYNA` → oyun arenası → oyun. Aynı işi iki yol göstermemek için `AYNI CİHAZ` seçeneği kaldırıldı.
        * Oda sahnesi bir form/liste değildir: karakter sol köşede küçük, iki seçenek ekranda oyun başlığı gibi (`TV`, `ONLINE`). `lobbyView` de aynı gerekçeyle görünür: host lobisi artık modal değil, shell ekranıdır (`keepAlive` + idempotent `build` ile `index.html`'deki düğüm devralınır).
-       * `appShell` üst barı **kalıcı gezinme** taşır: `ANASAYFA / OYUN / KARAKTER` (bkz. karar 32). `revealView(id)` / `closeView(id)` lobi gibi "dışarıdan açılan" ekranlar için tek giriş noktasıdır (zaten açık olan ekrana dokunmaz).
+       * `appShell` üst barı değil solda ÜÇ YÜZEN BUTON **kalıcı gezinme** olarak taşır: `ANASAYFA / OYUNLAR / KARAKTER` (bkz. karar 32 + 33). `revealView(id)` / `closeView(id)` lobi gibi "dışarıdan açılan" ekranlar için tek giriş noktasıdır (zaten açık olan ekrana dokunmaz).
        * `heroAvatar` döngüsü `IntersectionObserver` KULLANMAZ: `build()` anında düğüm DOM'a eklenmediği için ilk `isIntersecting` geçişi kaçıyor ve sahne hiç çizilmeden kalıyordu. Tek mekanizma: her karede `getClientRects()` kontrolü + `ResizeObserver` geri çağrısında ölçüm tazeleme **ve** döngüyü yeniden başlatma. `customizeModal.initMenuAvatarCard` da aynı tuzağa düşmüştü.
   31. **Ölü kod temizliği (2026):**
        * `.bento-card` (15 kural, `animations.css`), eski D-pad ailesi (`brutal-dpad`, `dpad-*`, `snake-dpad-half`), eski pause/customize parçaları (`sheet-row-2`, `pause-seats-box/-title`, `custom-section-title`, `btn-hero-customize`, `profile-chip`, `.profile-name`) ve ölü kumanda parçaları (`header-left-group`, `header-game-chip`, `player-name-label`, `gamepad-room-info`, `snake-center-hud`, `snake-nrg-pill/-dot/-label`, `joy-slot-indicator`, `lobby-game-preview-card`, `dash-btn-slot-tag`) silindi — toplam 37 kural.
@@ -582,6 +597,14 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
         * **Ayarlar iki sütunlu** (`settings-cols`): GENEL | OYUN & KONTROL + HAKKINDA. Geniş ekranda 880px ve ortalanmış; dar ekranda tek sütun. Kaplama `align-items: center` + içerik kadar yükseklik (önceden `stretch` idi ve ayarlar her ekranda tam boy oluyordu).
         * **Karakter sahneye oturdu.** Disk (`--scene-stage-y`) ve kahraman (`.scene-hero.is-staged` + `--hero-ground-gap`) tek değişkenden türer; daha önce bağımsız `top: 50%` / `bottom: -14%` hesapları denk gelmiyordu.
         * Tasarım ölçütleri ve doğrulama yöntemi (hedef boyut = yatay telefon, `?devlobby` kancası, `browser.capture` rAF yarışı) `docs/MOBILE_SHELL_PLAN.md` → "Tasarım anlayışı" bölümünde.
+   33. **Kabuk revizyonu — üst şerit kalktı, OYUNLAR/KARAKTER lobi diliyle yenilendi (2026-09):**
+        * **Üst şerit (`#shell-topbar`) ve dikey BANT yüzeyi kalktı.** Kalıcı gezinme ekranın SOLUNDA, dikey ORTALANMIŞ üç YÜZEN HUD butonudur (`#shell-rail`, zemin/kenarlık bandı YOK): `ANASAYFA / OYUNLAR / KARAKTER` ikon + mini etiket (kamelyon yüzüğü, `max-height:460px`'te yalnız ikon + title). Marka (`#shell-home`: ikon + `BRUTAL PARTY` yazısı, `PARTY` aksan renginde, `goHome()`) SOL ÜSTTE tek başına yüzer; ses/dil/tam ekran/ayarlar simgeleri (`#shell-nav-actions`) sağ ÜST köşede TEK YATAY SATIRDA yüzer (`.shell-corner`); platform rozeti (`#shell-platform-pill`) kaldırıldı. Ekran adı bandı yok — sahneler kendi başlıklarını taşır. `OYUN` etiketi `OYUNLAR` oldu. Gerekçe (kullanıcı kararı): tam yükseklik opak ray "bar" gibi okundu ve yasaklandı; yalnız üç yüzük sahnenin üstünde yüzmeli.
+        * **İkon görünmeme hatasının kök nedeni (`tabletopIcons.js`):** `ICON_LOOKUP` yalnız Lucide `id` + alias kaydediyordu; `home` anahtarının id'si `house` olduğundan `getTabletopIconSvg('home')` sessizce fallback `<span>` metnine düşüyordu ve ray'daki aktif düğmede metin de gizlendiği için ikon hiç görünmüyordu. Kayıt ANAHTARI da lookup'a yazılır (key/id uyuşmazlığı sınıfı kapandı).
+        * **MERKEZİ sekme sistemi (`src/ui/tabStrip.js`):** OYUNLAR kategori filtresi ve KARAKTER RENK/İFADE editörü AYNI bileşeni kullanır (stil `scene.css` `.tab-strip`). OYUNLAR'da ızgara artık SAYFALI: 4×2 = sayfa başına 8 kapak, alanı birebir doldurur, kaydırma/kesik satır YOK (kullanıcı raporu: "kartlar üst üste binmiş"); KARAKTER'de iki sütunlu editör tek panelli sekmeye indi (sığmıyordu) ve ipucu listesi kaldırıldı. Gerekçe: "hepsi tek seferde gözükmek zorunda değil — tablı yap; merkezi sistem olsun, ikisi de kullansın".
+        * **`chrome` semantiği sadeleşti:** `cinema` yalnız "sahne tam kaplama (padding yok)"; `none` (lobi) `#shell-rail`, `#shell-home` ve `.shell-corner`ı da gizler. `.shell-topbar*`/`.shell-brand-text`/`.shell-title`/`.shell-eyebrow`/`.shell-nav` CSS'i silindi. Yüzen gezinme solda yer kapladığı için `games-body` ve `profile-media` sol dolgusu buton payını (≈70px) bırakır.
+        * **Lobi üst rayı yeniden sıralandı:** solda oda kodu pili + hemen sağında DAVET (tek "oda kimliği" adası), sağda durum pili + köşede ✕. Kahramanın sol üstündeki havada duran ikon-kare ızgara düğmesi kalktı; yerine sahne altı meta satırında `n / 15` sayacı + metinli `⊞ TÜM OYUNLAR` pili geldi (metin, düğmenin ne yaptığını kendi anlatır).
+        * **OYUNLAR baştan yazıldı (`gamesView.js` + `games.css`):** eski yatay raf + sol-alt DEV yazı + sağ-alt OYNA düzeni yerine lobinin kardeş dili — solda kategori çipleri + kapsüllenmiş kapak ızgarası (`.game-card`, seçili altın halkalı, ARŞİV rozeti), sağ kolonda seçili oyunun kahramanı ve tek `▶ OYNA`. Kart seçer, CTA başlatır.
+        * **KARAKTER lobi diline çekildi:** çerçeveli kart kutusu kalktı; solda arena diskinde canlı avatar, sağda ikonlu başlık + cam yüzeyli RENK/İFADE bölümleri (bölüm başlıkları `host-slot-header` ritmi: ikon + etiket) + çerçevesiz dipnot ipuçları.
 
 ---
 
@@ -594,7 +617,7 @@ Yeni bir oyun ekleneceğinde aşağıdaki kayıtlar güncellenir:
 4. `src/core/slotManager.js`: `applySlotDataToEntity`, `clearRemoteSlot`, `swapEngineSlots` desteği.
 5. `src/controllers/controlDefs.js`, `gamepadSchemas.js`, `controllerStatus.js`: telefon + tabletop parite, ikon/cooldown ve canlı durum kaydı.
 6. `index.html`: TV lobi çipi (`data-game="[MOD]"`). Oyun kataloğu tek yerde: `CARTRIDGES` (bento sayfa kaldırıldı, oyun seçimi `gamesView` ızgarasından beslenir).
-7. `src/styles/shell.css` (`games-*`, `game-tile`, `game-detail-*`): oyun rafı görünümü. Kategori rengi `CARTRIDGES.category`'dan gelir; görünüm yalnız `CATEGORIES` etiketlerini tanımlar.
+7. `src/styles/games.css` (`games-*`, `game-card`): OYUNLAR galeri görünümü. Kategori rengi `CARTRIDGES.category`'dan gelir; görünüm yalnız `CATEGORIES` etiketlerini tanımlar.
 8. `public/sw.js`: yeni görseli precache'e ekle ve cache sürümünü artır.
 9. `public/assets/games/[oyun].jpg`: 1:1 kapak görseli (koyu kart içinde krem "kapak penceresi" olarak gösterilir, `--art-board`).
 10. `docs/PROJECT_MAP.md` + `AGENTS.md`: motor/AI/dosya/kontrol kayıtları.

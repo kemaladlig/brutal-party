@@ -17,16 +17,18 @@
       var(--scene-bottom) 100%);
 }
 
+/* Kart ÇERÇEVE DEĞİLDİR (lobi dili): yüzey sahnenin kendisidir, bilgi
+   sütunlarda durur. Koyu kart kutusu "web formu" gibi okunuyordu. */
 .profile-card {
   display: grid !important;
-  grid-template-columns: minmax(200px, 0.72fr) minmax(0, 1.28fr);
+  grid-template-columns: minmax(220px, 0.78fr) minmax(0, 1.22fr);
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   height: 100%;
-  border: 3px solid var(--edge);
-  border-radius: var(--radius-card);
-  background: var(--grad-card);
-  box-shadow: var(--shadow-float);
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -38,14 +40,15 @@
   /* `align-content: center` şart: aksi halde iki satır (sahne + ipucu) kartı
      ikiye bölüp ipucunu avatarın altından ekranın dibine savuruyor. */
   align-content: center;
-  gap: 4px;
-  padding: 20px;
-  border-inline-end: 3px solid var(--edge);
-  background:
-    radial-gradient(circle at 50% 34%, var(--white) 0, transparent 62%),
-    var(--profile-soft);
+  gap: 6px;
+  /* Sol üstte yüzen gezinme diske binmesin. */
+  padding: 20px 20px 20px calc(70px + env(safe-area-inset-left));
+  min-width: 0;
+  min-height: 0;
 }
 
+/* Avatar ARENA DİSKİNDE durur (lobi/ana menü sahne dili): halka plate +
+   yumuşak gölge, düz beyaz leke değil. */
 .profile-stage {
   width: min(52vh, 380px);
   height: min(52vh, 380px);
@@ -54,6 +57,8 @@
   place-items: center;
   border-radius: 50%;
   cursor: pointer;
+  background: radial-gradient(circle at 50% 42%, var(--white) 0 58%, transparent 72%);
+  box-shadow: inset 0 -18px 36px var(--sheen-08), 0 22px 48px var(--scene-shadow);
   transition: transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
@@ -69,54 +74,64 @@
 .profile-stage-hint {
   font: 800 10px/1 var(--font-mono);
   letter-spacing: 0.08em;
-  color: var(--muted);
+  color: var(--hud-muted);
   text-align: center;
 }
 
 /* ── Sağ: kimlik + eylemler ──────────────────────────────────────────── */
 
-/* İçerik DİKEY ORTAYA hizalı: altta `margin-top:auto` ile boşluğu bir
-   yere yığınca kartın içinde bir delik kalıyordu. Ortalamak boşluğu ikiye
-   böler ve kasıtlı nefes payı gibi okunur. */
+/* ── Sağ kolon: başlık başlığı + bölümler (lobi ritmi) ────────────────── */
+
 .profile-body {
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 12px;
   min-height: 0;
-  padding: 18px 20px;
+  min-width: 0;
+  padding: 18px 20px 18px 8px;
   overflow: hidden;
 }
 
-.profile-eyebrow {
-  align-self: center;
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  border: 2px solid var(--edge);
-  background: var(--profile-soft);
-  font: 900 10px/1 var(--font-mono);
-  letter-spacing: 0.08em;
+/* Başlık: ikon + rozet + DEV ad tek satırda; lobideki "OYUNCULAR" başlığının
+   kardeşi. Ortalanmış tanıtım kartı dili terk edildi. */
+.profile-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  min-width: 0;
+}
+
+.profile-heading-icon {
+  display: inline-flex;
+  place-items: center;
+  flex: 0 0 auto;
   color: var(--mode-profile);
 }
 
-.profile-heading {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  align-items: center;
-  text-align: center;
+.profile-heading-icon svg { width: 20px; height: 20px; }
+
+.profile-eyebrow {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--edge);
+  background: var(--profile-soft);
+  font: 900 9px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  color: var(--mode-profile);
 }
 
 .profile-title {
-  font: 900 clamp(20px, 3vh + 8px, 30px)/1.05 var(--font-grotesk);
-  letter-spacing: -0.02em;
-}
-
-.profile-sub {
   margin: 0;
-  font: 700 12px/1.4 var(--font-grotesk);
-  color: var(--muted);
+  font: 900 clamp(20px, 3vh + 8px, 34px)/1.05 var(--font-grotesk);
+  letter-spacing: -0.02em;
+  color: var(--hud-ink);
+  text-shadow: 0 3px 14px var(--scene-shadow);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .profile-identity {
@@ -124,13 +139,13 @@
   flex-direction: column;
   gap: 8px;
   padding: 12px 14px;
-  border: 2.5px solid var(--edge);
-  border-radius: var(--radius-btn);
-  background: var(--panel);
-  box-shadow: var(--shadow-edge);
+  border: 1.5px solid var(--scene-btn-ghost-line);
+  border-radius: var(--radius-card);
+  background: var(--scene-btn-ghost);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   max-width: 540px;
   width: 100%;
-  align-self: center;
 }
 
 /* İş + düzenleme tek bileşende (`playerNameField.js`, `prefix: 'profile-'`):
@@ -226,49 +241,54 @@
 
 .profile-name-save:active { transform: translateY(2px); box-shadow: none; }
 
-/* ── Düzenleyici: renk paleti + yüz ifadesi ────────────────────────────
-   Profil artık ikinci bir ekran açmıyor: iki seçim grubu doğrudan burada.
-   Yüzeyler `.scene-btn` ailesinin cam malzemesinden gelir (tek yüzey dili). */
+/* ── Düzenleyici: MERKEZİ sekme şeridi + tek panel ──────────────────────
+   OYUNLAR ile aynı `tabStrip.js` bileşeni; RENK ve İFADE yan yana iki sütun
+   yerine tek panel olarak sırayla görünür → ekran taşmaz. Cam yüzey lobinin
+   hayalet çipleriyle aynı malzeme (tek yüzey dili). */
 
 .profile-editor {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px 14px;
-  width: 100%;
-  max-width: 620px;
-  align-self: center;
-}
-
-.profile-block {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  padding: 10px 12px 12px;
-  border: 2px solid var(--edge);
-  border-radius: var(--radius-card);
-  background: var(--sheen-08);
+  gap: 10px;
+  width: 100%;
+  max-width: 620px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
-.profile-block-title {
-  margin: 0;
-  font: 900 9.5px/1 var(--font-mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
+/* Panel alanı: sığmazsa KENDİ İÇİNDE kayar (sayfa akışı yok — AGENTS.md §7). */
+.profile-panels {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--edge-strong) transparent;
 }
+
+.profile-panel {
+  display: none;
+  padding: 14px;
+  border: 1.5px solid var(--scene-btn-ghost-line);
+  border-radius: var(--radius-card);
+  background: var(--scene-btn-ghost);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.profile-panel.is-active { display: block; }
 
 /* Renk: tek satır yuvarlak örnekler. */
 .profile-palette {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(30px, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  gap: 7px;
 }
 
 .profile-swatch {
   aspect-ratio: 1;
-  min-height: 30px;
-  border: 2px solid var(--edge);
+  min-height: 34px;
+  border: 2px solid var(--hud-line);
   border-radius: 50%;
   background: var(--swatch);
   cursor: pointer;
@@ -288,25 +308,25 @@
 /* Yüz: ikon + ad yığını, seçili olan altın. */
 .profile-expressions {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-  gap: 5px;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 6px;
 }
 
 .profile-expression {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
-  min-height: 30px;
-  padding: 4px 8px;
-  border: 2px solid transparent;
+  min-height: 36px;
+  padding: 5px 10px;
+  border: 1.5px solid transparent;
   border-radius: var(--radius-pill);
   background: var(--sheen-08);
-  color: var(--ink);
-  font: 800 10px/1 var(--font-grotesk);
+  color: var(--hud-ink);
+  font: 800 10.5px/1 var(--font-grotesk);
   letter-spacing: 0.02em;
   cursor: pointer;
-  transition: background 150ms ease, transform 150ms ease;
+  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
 }
 
 .profile-expression > span:last-child {
@@ -323,88 +343,41 @@
 .profile-expression.is-active {
   background: var(--accent-soft);
   border-color: var(--accent);
-  color: var(--accent-ink);
+  color: var(--accent);
 }
 
 .profile-expression.is-focused { box-shadow: 0 0 0 3px var(--accent-2); }
 
 .profile-dice {
-  grid-column: 1 / -1;
+  flex: 0 0 auto;
   justify-content: center;
-  align-self: end;
+  align-self: flex-start;
   padding: 9px 16px;
   font-weight: 800;
   letter-spacing: 0.06em;
 }
 
-/* ── İpuçları ────────────────────────────────────────────────────────── */
+/* ── Rozet satırı ──────────────────────────────────────────────────────── */
 
-.profile-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  max-width: 540px;
-  align-self: center;
-}
-
-/* İfade çipleri yalnız bir ifade seçilmişken dolar; boşken başlık gibi
-   görünmesinler. */
 .profile-chips:empty { display: none; }
 
 .profile-chips:not(:empty) {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 6px;
 }
 
-.profile-tips {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  width: 100%;
-  max-width: 620px;
-  align-self: center;
-  margin: 0;
-  padding: 9px 12px;
-  border: 2px solid var(--n-200);
-  border-radius: var(--radius-btn);
-  background: var(--sheen-08);
-  text-align: start;
-}
-
-/* İpuçları yardım metni değil, ekranın bir parçası: 9px alt ölçü okunmuyordu. */
-.profile-tips li {
-  position: relative;
-  padding-inline-start: 15px;
-  font: 700 12px/1.45 var(--font-grotesk);
-  color: var(--muted);
-}
-
-.profile-tips li::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 6px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--mode-profile);
-}
-
-/* Dar/kısa ekran: düzenleyici tek sütuna iner, ipuçları gizlenir. */
+/* Kısa ekran: sahne küçülür, gezinme payı sabit kalır. */
 @media (max-width: 900px), (max-height: 560px) {
-  .profile-editor { grid-template-columns: minmax(0, 1fr); }
-  .profile-tips { display: none; }
+  .profile-body { justify-content: flex-start; }
 }
 
 @media (max-width: 620px), (max-height: 460px) {
   .profile-card { grid-template-columns: minmax(110px, 0.5fr) minmax(0, 1.5fr); }
-  .profile-media { padding: 10px; }
+  .profile-media { padding: 10px 10px 10px calc(62px + env(safe-area-inset-left)); }
   .profile-stage { width: min(30vh, 160px); height: min(30vh, 160px); }
-  .profile-stage-hint, .profile-sub { display: none; }
+  .profile-stage-hint { display: none; }
   .profile-body { padding: 12px 14px; gap: 8px; }
   .profile-title { font-size: 16px; }
   .profile-name-text { font-size: 17px; }

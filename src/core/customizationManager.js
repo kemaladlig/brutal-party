@@ -67,19 +67,21 @@ export function getActivePalettes() {
   return isColorblindEnabled() ? COLORBLIND_PALETTES : AVATAR_PALETTES;
 }
 
+// İkon alanları `tabletopIcons` anahtarlarıdır (AGENTS.md §7: DOM'da ham OS
+// emojisi yok). `drawTabletopIcon` aynı kayıtları canvas'ta da bilir.
 export const AVATAR_EXPRESSIONS = [
-  { id: 'FOCUS', name: 'Odaklı', icon: '👀', desc: 'Klasik keskin bakışlar' },
-  { id: 'SHADES', name: 'Gözlük', icon: '🕶️', desc: 'Neo-brutalist güneş gözlüğü' },
-  { id: 'ANGRY', name: 'Öfkeli', icon: '😠', desc: 'Rekabetçi çatık kaşlar' },
-  { id: 'WINK', name: 'Göz Kırp', icon: '😉', desc: 'Neşeli göz kırpma' },
-  { id: 'CYBORG', name: 'Sayborg', icon: '🤖', desc: 'Neon siber vizör' },
-  { id: 'CYCLOPS', name: 'Tepegöz', icon: '👁️', desc: 'Dev tek göz' },
-  { id: 'DERP', name: 'Çılgın', icon: '🤪', desc: 'Eğlenceli şaşkın bakış' },
-  { id: 'HEART', name: 'Aşık', icon: '😍', desc: 'Kalp şeklinde gözler' },
-  { id: 'STAR', name: 'Yıldız', icon: '🤩', desc: 'Yıldızlı heyecanlı bakış' },
-  { id: 'SLEEPY', name: 'Uykulu', icon: '😴', desc: 'Yarım kapalı uykulu gözler' },
-  { id: 'ZOMBIE', name: 'Zombi', icon: '🧟', desc: 'Donuk zombi bakışı' },
-  { id: 'GRIN', name: 'Sırıtış', icon: '😁', desc: 'Kötü niyetli geniş sırıtış' },
+  { id: 'FOCUS', name: 'Odaklı', icon: 'eye', desc: 'Klasik keskin bakışlar' },
+  { id: 'SHADES', name: 'Gözlük', icon: 'sunglasses', desc: 'Neo-brutalist güneş gözlüğü' },
+  { id: 'ANGRY', name: 'Öfkeli', icon: 'angry', desc: 'Rekabetçi çatık kaşlar' },
+  { id: 'WINK', name: 'Göz Kırp', icon: 'wink', desc: 'Neşeli göz kırpma' },
+  { id: 'CYBORG', name: 'Sayborg', icon: 'bot', desc: 'Neon siber vizör' },
+  { id: 'CYCLOPS', name: 'Tepegöz', icon: 'circle_dot', desc: 'Dev tek göz' },
+  { id: 'DERP', name: 'Çılgın', icon: 'laugh', desc: 'Eğlenceli şaşkın bakış' },
+  { id: 'HEART', name: 'Aşık', icon: 'heart', desc: 'Kalp şeklinde gözler' },
+  { id: 'STAR', name: 'Yıldız', icon: 'star', desc: 'Yıldızlı heyecanlı bakış' },
+  { id: 'SLEEPY', name: 'Uykulu', icon: 'moon', desc: 'Yarım kapalı uykulu gözler' },
+  { id: 'ZOMBIE', name: 'Zombi', icon: 'skull', desc: 'Donuk zombi bakışı' },
+  { id: 'GRIN', name: 'Sırıtış', icon: 'smile', desc: 'Kötü niyetli geniş sırıtış' },
 ];
 
 // AKSUAR ve GÖVDE DESENİ YOK. Karakterin tek iki özelliği RENGİ ve YÜZÜ.

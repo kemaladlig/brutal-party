@@ -30,8 +30,6 @@ import { setShellInputSuspender } from './overlayHost.js';
 let shellEl = null;
 let stageEl = null;
 let railEl = null;
-let titleEl = null;
-let pillEl = null;
 let gateEl = null;
 let router = null;
 
@@ -67,7 +65,6 @@ function setInputSuspended(value) {
 
 export function setShellPlatformMode(mode) {
   platformMode = mode;
-  updatePlatformPill();
 }
 
 // ---------------------------------------------------------------------------
@@ -78,14 +75,12 @@ function currentView() {
   return stack.length ? stack[stack.length - 1] : null;
 }
 
-function renderTitle(view) {
-  if (titleEl) titleEl.textContent = view?.title || '';
-  // `chrome: 'cinema'` → üst şerit saydamlaşır ve arka plan görselinin
-  // üstüne biner (Brawl/Wild Rift menü mantığı). Diğer görünümlerde
-  // opak band kalır.
+function applyViewChrome(view) {
+  // `chrome: 'cinema'` → sahne tam kaplama (padding yok); yüzen gezinme ve
+  // köşe kümesi arka plan görselinin üstünde kalır (Brawl/Wild Rift mantığı).
   shellEl?.classList.toggle('is-cinema', view?.chrome === 'cinema');
-  // `chrome: 'none'` → şerit tamamen kalkar: ekranın kendi üst rayı vardır
-  // (lobi), çift şerit hem yer yer hem de anlam olarak tekrar olurdu.
+  // `chrome: 'none'` → gezinme ve köşe kümesi tamamen kalkar: ekranın kendi
+  // üst rayı vardır (lobi), çift gezinme hem yer yer hem anlam olarak tekrar.
   shellEl?.classList.toggle('is-chromeless', view?.chrome === 'none');
 }
 
@@ -99,6 +94,8 @@ function renderRail() {
     btn.dataset.view = view.id;
     btn.dataset.focus = 'rail';
     btn.setAttribute('aria-label', view.rail.label || view.title || view.id);
+    // Kısa ekranda etiket gizlenir (ikon rayı): erişilebilir ad + ipucu.
+    btn.title = (view.rail.label || view.title || view.id).toUpperCase();
     // Etiket i18n'den gelir ve HER ZAMAN büyük harftir (`t()` çağrısı view
     // modülünde yapılır). `getTabletopIconSvg` yalnız ikon adını bilir.
     btn.innerHTML = `${getTabletopIconSvg(view.rail.icon, { size: 17 })}<span></span>`;
@@ -242,7 +239,7 @@ export function openView(id, { replace = false } = {}) {
   if (previous) retireNode(previous);
   if (!prefersReducedMotion()) node.classList.add('shell-view-enter');
 
-  renderTitle(view);
+  applyViewChrome(view);
   syncRailActive();
   router.refresh({ keep: false });
   if (view.focus !== false) router.focusFirst();
@@ -283,7 +280,7 @@ export function back() {
   try { popped.view.onExit?.({ node: popped.node, reason: 'pop' }); } catch (err) { console.error('[shell] onExit', err); }
   retireNode(popped);
   ensureNode(previous);
-  renderTitle(previous.view);
+  applyViewChrome(previous.view);
   syncRailActive();
   router.refresh({ keep: false });
   router.focusFirst();
@@ -305,7 +302,7 @@ export function resetToRoot() {
   const root = stack[0];
   if (!root) return;
   ensureNode(root);
-  renderTitle(root.view);
+  applyViewChrome(root.view);
   syncRailActive();
   router.refresh({ keep: false });
   router.focusFirst();
@@ -449,30 +446,22 @@ function startGamepadPoll() {
 // Üst şerit eylemleri
 // ---------------------------------------------------------------------------
 
-function updatePlatformPill() {
-  if (!pillEl) return;
-  const online = platformMode === 'ONLINE';
-  pillEl.textContent = online ? '● ONLINE' : (platformMode === 'TV_CONSOLE' ? '● TV HOST' : '● YEREL');
-  pillEl.classList.toggle('is-online', online);
-  pillEl.classList.toggle('is-local', !online);
-}
-
 function iconButton({ id, label, icon, onClick, pressed = false }) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.id = id;
   btn.className = 'shell-icon-btn';
-  btn.dataset.focus = 'topbar';
+  btn.dataset.focus = 'nav';
   btn.setAttribute('aria-label', label);
   btn.title = label;
-  btn.innerHTML = getTabletopIconSvg(icon, { size: 16 });
+  btn.innerHTML = getTabletopIconSvg(icon, { size: 18 });
   btn.setAttribute('aria-pressed', String(pressed));
   btn.addEventListener('click', () => { playMenuTick(); onClick(btn); });
   return btn;
 }
 
-function mountTopbarActions() {
-  const host = shellEl?.querySelector('#shell-topbar-actions');
+function mountNavActions() {
+  const host = shellEl?.querySelector('#shell-nav-actions');
   if (!host) return;
   host.textContent = '';
 
@@ -481,7 +470,7 @@ function mountTopbarActions() {
     pressed: !getIsMuted(),
     onClick: (btn) => {
       const muted = toggleAudio();
-      btn.innerHTML = getTabletopIconSvg(muted ? 'volume_x' : 'volume_2', { size: 16 });
+      btn.innerHTML = getTabletopIconSvg(muted ? 'volume_x' : 'volume_2', { size: 18 });
       btn.setAttribute('aria-pressed', String(!muted));
     },
   });
@@ -499,7 +488,7 @@ function mountTopbarActions() {
     onClick: (btn) => {
       toggleFullscreen();
       const active = isFullscreen();
-      btn.innerHTML = getTabletopIconSvg(active ? 'minimize_2' : 'maximize_2', { size: 16 });
+      btn.innerHTML = getTabletopIconSvg(active ? 'minimize_2' : 'maximize_2', { size: 18 });
       btn.setAttribute('aria-pressed', String(active));
     },
   });
@@ -510,10 +499,10 @@ function mountTopbarActions() {
 
   host.append(soundBtn, langBtn, fsBtn, settingsBtn);
   onFullscreenChange((active) => {
-    fsBtn.innerHTML = getTabletopIconSvg(active ? 'minimize_2' : 'maximize_2', { size: 16 });
+    fsBtn.innerHTML = getTabletopIconSvg(active ? 'minimize_2' : 'maximize_2', { size: 18 });
     fsBtn.setAttribute('aria-pressed', String(active));
   });
-  onLangChange(() => mountTopbarActions());
+  onLangChange(() => mountNavActions());
 }
 
 // ---------------------------------------------------------------------------
@@ -522,32 +511,27 @@ function mountTopbarActions() {
 
 function buildRailShell() {
   if (!shellEl) return;
-  // Gezinme SOLDA: marka + üç kalıcı hedef (ANASAYFA / OYUN / KARAKTER).
-  // Geri düğmesi YOK: "nereye girdiysem ana menüye dön" işi kalıcı gezinmenin
-  // ilk girdisinin işidir (kullanıcı kararı). Escape / donanım geri tuşu ve
-  // tarayıcı history'si yine `back()` çalıştırır.
+  // Üst şerit ve bant YOK (kullanıcı kararı): solda SADECE üç kalıcı hedef
+  // (ANASAYFA / OYUNLAR / KARAKTER) DİKEY ORTADA alt alta yüzer; marka (ikon
+  // + oyun adı) SOL ÜSTTE yüzer, sistem simgeleri (ses/dil/tam ekran/ayarlar)
+  // sağ üst köşede TEK SATIRDA yüzer (platform rozeti kaldırıldı).
+  // Geri düğmesi YOK: "nereye girdiysem ana menüye dön" işi gezinmenin ilk
+  // girdisinin işidir. Escape / donanım geri tuşu ve tarayıcı history'si
+  // yine `back()` çalıştırır.
   shellEl.innerHTML = `
-    <header id="shell-topbar" class="shell-topbar">
-      <button id="shell-home" class="shell-brand" type="button" data-focus="chrome" aria-label="Ana sayfa" title="Ana sayfa">
-        <img class="shell-brand-mark" src="/icon.svg" alt="" width="34" height="34" />
-        <span class="shell-brand-text">
-          <span class="shell-eyebrow">4P // PARTY ARCADE</span>
-          <span class="shell-title" id="shell-title"></span>
-        </span>
-      </button>
-      <nav id="shell-rail" class="shell-rail" aria-label="Ana menü"></nav>
-      <div class="shell-topbar-right">
-        <span id="shell-platform-pill" class="shell-pill"></span>
-        <div id="shell-topbar-actions" class="shell-topbar-actions"></div>
-      </div>
-    </header>
+    <nav id="shell-rail" class="shell-rail" aria-label="Ana menü"></nav>
     <main id="shell-stage" class="shell-stage" tabindex="-1"></main>
+    <button id="shell-home" class="shell-brand" type="button" data-focus="chrome" aria-label="Ana sayfa" title="Ana sayfa">
+      <img class="shell-brand-mark" src="/icon.svg" alt="" width="34" height="34" />
+      <span class="shell-brand-name">BRUTAL <b>PARTY</b></span>
+    </button>
+    <div class="shell-corner">
+      <div id="shell-nav-actions" class="shell-nav-actions"></div>
+    </div>
   `;
 
   stageEl = shellEl.querySelector('#shell-stage');
   railEl = shellEl.querySelector('#shell-rail');
-  titleEl = shellEl.querySelector('#shell-title');
-  pillEl = shellEl.querySelector('#shell-platform-pill');
 
   // Marka düğmesi yığını köke indirir — gezinmenin ANASAYFA girdisiyle aynı
   // iş; her ikisi de odada olduğunda odayı kapatır (lobi `onLobbyExit`).
@@ -592,8 +576,7 @@ export function mountAppShell({ actions: injectedActions = {}, platformMode: mod
 
   buildRailShell();
   renderRail();
-  mountTopbarActions();
-  updatePlatformPill();
+  mountNavActions();
 
   router = createFocusRouter({
     // Yalnız EN ÜSTTEKİ görünüm odaklanabilir: alttakiler geçiş animasyonunda

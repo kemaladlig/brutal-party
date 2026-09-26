@@ -29,7 +29,7 @@ registerView('room', {
   title: 'ODA KUR',
   // Rayde görünmez: bir eylemden açılan adım ekranı, kalıcı hedef değil.
   rail: null,
-  chrome: 'cinema',    // üst şerit sahne üstünde yüzer
+  chrome: 'cinema',    // yüzen gezinme sahne üstünde kalır
   build({ actions, openView }) {
     const view = el('div', 'scene room-scene');
     view.append(

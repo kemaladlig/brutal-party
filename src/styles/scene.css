@@ -313,3 +313,64 @@
   .home-name-input { height: 28px; font-size: 12px; }
   .home-name-save { width: 28px; height: 28px; }
 }
+
+/* ── Sekme şeridi — MERKEZİ sekme bileşeni (`src/ui/tabStrip.js`) ─────────
+   OYUNLAR kategori filtresi ve KARAKTER düzenleyicisi (RENK/İFADE) aynı
+   aileyi kullanır; ikinci bir sekme stili/davranışı yazmak yasaktır. */
+
+.tab-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab-strip::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1.5px solid var(--hud-line);
+  border-radius: var(--radius-pill);
+  background: var(--hud-surface);
+  color: var(--hud-ink);
+  font: 900 10px/1 var(--font-grotesk);
+  letter-spacing: 0.07em;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-soft);
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.tab-btn svg { flex: 0 0 auto; }
+.tab-btn span { white-space: nowrap; }
+
+.tab-btn i {
+  font: 900 9px/1 var(--font-mono);
+  font-style: normal;
+  padding: 2px 5px;
+  border-radius: var(--radius-pill);
+  background: var(--sheen-15);
+}
+
+.tab-btn[hidden] { display: none; }
+.tab-btn.is-active i { background: var(--sheen-25); }
+.tab-btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.tab-btn.is-focused { box-shadow: var(--glow-accent); }
+.tab-btn:active { transform: translateY(2px); }
+
+@media (max-height: 470px) {
+  .tab-btn { min-height: 30px; padding: 0 10px; font-size: 9px; gap: 5px; }
+}

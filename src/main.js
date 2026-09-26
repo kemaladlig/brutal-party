@@ -707,7 +707,7 @@ function routeConnectionMessage(err) {
     connectionWasDown = true;
     showConnectionBanner('offline', msg);
   } else {
-    showInstallToast(`❌ ${msg}`);
+    showInstallToast(msg);
   }
 }
 
@@ -1290,7 +1290,7 @@ function handleLobbySeatTap(index) {
 }
 
 function addBotSlot(index, kind = 'bot') {
-  const name = kind === 'bot_god' ? `⚡ GOD · ${index + 1}` : (BOT_SEAT_NAMES[index] || `BOT · ${index + 1}`);
+  const name = kind === 'bot_god' ? `GOD · ${index + 1}` : (BOT_SEAT_NAMES[index] || `BOT · ${index + 1}`);
   activeNet().setSlotBot?.(index, name, kind);
   updateHostSlot(index, true, name, false, kind);
   refreshStagingBar();

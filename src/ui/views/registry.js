@@ -11,7 +11,7 @@ let rootId = 'home';
 /**
  * @param {string} id  Görünüm kimliği (URL/geri tuşu bu id ile çalışır).
  * @param {object} view
- *   title     — üst şeritte gösterilen ekran adı.
+ *   title     — erişilebilir ad yedeği (ray butonu aria-label'ı).
  *   rail      — sol ray girdisi: { icon, label } | null (rayda görünmez).
  *   build(ctx) — DOM döndürür. ctx: { actions, t, onNavigate }
  *   onEnter / onExit — ekran görünürken / gizlenirken.

@@ -806,6 +806,8 @@
 
 .chip-icon {
   font-size: 20px;
+  display: inline-flex;
+  line-height: 0;
 }
 
 .chip-title {

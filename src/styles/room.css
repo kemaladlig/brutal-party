@@ -353,21 +353,24 @@
   min-width: 0;
   min-height: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .lobby-game-stage {
   position: relative;
   width: 100%;
-  height: 100%;
+  /* Sahne sütununun nefes alan bölümü; meta satırı (sayaç + TÜM OYUNLAR)
+     altına sabit oturur. */
+  flex: 1 1 auto;
+  min-height: 0;
   /* Kapaklar SAHNE KUTUSUNA göre ölçeklenir (cqh/cqw): geniş ekranda dev,
      dar ekranda kendiliğinden küçülür — dikey/ yatay taşma olmaz. */
   container-type: size;
   display: grid;
   grid-template-columns: 44px minmax(0, auto) minmax(0, 1fr) minmax(0, auto) 44px;
   align-items: center;
-  gap: clamp(8px, 2vw, 26px);
+  gap: clamp(4px, 1.4vw, 20px);
   touch-action: pan-y;
 }
 
@@ -389,8 +392,8 @@
 }
 
 .lobby-game-cover {
-  /* Seçili oyun SAHNENİN hâkimi: yüksekliğin ~%62'si, genişlik pay verdikçe. */
-  height: clamp(120px, min(62cqh, 36cqw), 420px);
+  /* Seçili oyun SAHNENİN hâkimi: yüksekliğin ~%66'sı, genişlik pay verdikçe. */
+  height: clamp(140px, min(66cqh, 38cqw), 520px);
   max-width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
@@ -413,7 +416,7 @@
 .lobby-scene .lobby-game-peek img {
   display: block;
   /* Komşular kahramanın ~%60'ı kalır — hiyerarşi korunur. */
-  height: clamp(60px, min(38cqh, 20cqw), 250px);
+  height: clamp(84px, min(42cqh, 19cqw), 320px);
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: 20px;
@@ -487,9 +490,19 @@
 .lobby-game-step:hover { background: var(--sheen-15); }
 .lobby-game-step:active { transform: scale(0.9); }
 
+.lobby-game-meta {
+  /* Sahne altı tek satır: sayaç + metinli ızgara düğmesi. "Tüm oyunlar"ın
+     varlığını ikon değil METİN anlatır (kullanıcı kararı). */
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-bottom: 2px;
+}
+
 .lobby-game-pos {
-  /* Kopya yığınının içinde (ad → ipucu → sayaç); havada asılı rozet yok. */
-  margin-top: 2px;
+  /* Meta satırının sol üyesi: "n / 15" sayacı. */
   padding: 5px 11px;
   border-radius: var(--radius-pill);
   background: var(--sheen-12);
@@ -499,14 +512,29 @@
   color: var(--hud-ink);
 }
 
-.lobby-game-grid {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
+.lobby-scene .lobby-game-grid {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 4px 13px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--scene-btn-ghost-line);
+  background: var(--scene-btn-ghost);
+  color: var(--hud-ink);
+  font: 900 10px/1 var(--font-grotesk);
+  letter-spacing: 0.08em;
+  line-height: 0;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: transform 140ms ease, background 160ms ease;
 }
+
+.lobby-scene .lobby-game-grid svg { width: 14px; height: 14px; }
+.lobby-scene .lobby-game-grid span { line-height: 1; }
+.lobby-scene .lobby-game-grid:hover { background: var(--sheen-15); }
+.lobby-scene .lobby-game-grid:active { transform: scale(0.94); }
 
 /* ── Sağ kolon: oyuncular + eylemler ──────────────────────────────────── */
 
@@ -1124,7 +1152,7 @@
   }
 
   .lobby-game-stage { container-type: normal; }
-  .lobby-game-cover { height: clamp(88px, 26vh, 132px); }
+  .lobby-game-cover { height: clamp(120px, 30vh, 200px); }
   .lobby-game-hint { display: none; }
   .lobby-game-name { font-size: clamp(18px, 4.4vh, 26px); }
   .lobby-scene .tv-start-btn { min-height: 50px; }
@@ -1135,14 +1163,16 @@
 @media (max-width: 780px) {
   .lobby-scene .lobby-game-peek { display: none; }
   .lobby-game-stage { grid-template-columns: 36px minmax(0, 1fr) 36px; }
-  .lobby-game-step, .lobby-game-grid { width: 36px; height: 36px; }
+  .lobby-game-step { width: 36px; height: 36px; }
 }
 
 @media (max-height: 430px) {
   .lobby-scene .tv-host-badge { display: none; }
   .lobby-scene .lobby-top { padding-top: 7px; }
-  .lobby-game-cover { height: clamp(84px, 24vh, 124px); border-radius: 20px; }
-  .lobby-game-name { font-size: clamp(17px, 4.2vh, 24px); }
+  /* Kapak/ad ölçüsüne BURADA kelepçe VARDI (124px/24px) — kahramanı temel
+     `cqh/cqw` kuralı sahne kutusuna göre kendisi küçültüyor; kelepçe onu
+     gereksiz yere eziyordu (kullanıcı raporu: "seçili oyun neden daha küçük"). */
+  .lobby-scene .lobby-game-cover { border-radius: 20px; }
   .lobby-game-hint { display: none; }
   .lobby-scene .host-players-list { grid-auto-rows: minmax(0, 1fr); gap: 6px; }
   .lobby-scene .slot-chip-main { gap: 8px; padding-inline: 10px 10px; }

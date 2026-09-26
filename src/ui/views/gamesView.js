@@ -1,16 +1,19 @@
-// Oyun arenası — ana menüdeki OYNA eyleminin açtığı SAHNE ekranı.
+// OYUNLAR — sol gezinmenin kalıcı hedefi: 15 oyunun GALERİSİ (lobinin kardeş dili).
 //
-// Oda ekranı gibi bu da bir "sayfa" değil, aynı arenanın devamı: 15 oyun
-// yatay bir rafta, seçili oyunun adı ve taktik ipucu DEV YAZI olarak sahnenin
-// sol altında, tek OYNA düğmesi sağ altta. Sağdaki "önizleme paneli" kaldırıldı
-// — oyun kartını ayrı bir kutuyla tekrar göstermek web sayfası gibi okunuyordu.
+// Sekmeler MERKEZİ `tabStrip.js` bileşeninden gelir (KARAKTER editörü de aynı
+// bileşeni kullanır). Izgara SAYFALIDIR: her sayfada ekrana sığan 8 kapak
+// (4×2 hücre, taşma yok — "hepsi tek seferde görünmek zorunda değil" kararı),
+// sayfa okları ile gezinilir. Sağ kolonda seçili oyunun kahramanı (büyük
+// kapak + ad + taktik ipucu) ve tek altın CTA `▶ OYNA`. Kart SEÇER, CTA başlatır.
 //
 // Veri kaynağı değişmedi: `CARTRIDGES` + `GAME_ORDER` (registry tek nokta).
 
 import { GAME_ORDER, CARTRIDGES, preloadEngine } from '../../core/engineRegistry.js';
 import { t, onLangChange } from '../../i18n.js';
 import { getTabletopIconSvg } from '../../core/tabletopIcons.js';
+import { createTabStrip } from '../tabStrip.js';
 import { registerView } from './registry.js';
+import { playMenuTick } from '../../audio.js';
 
 function el(tag, className, html) {
   const node = document.createElement(tag);
@@ -32,42 +35,43 @@ const CATEGORIES = [
 
 const categoryById = (id) => CATEGORIES.find((c) => c.id === id);
 
-function gameTile(mode, index) {
+// 4 sütun × 2 satır = sayfa başına 8 kapak (games.css `.games-grid` ile birebir).
+const PAGE_SIZE = 8;
+
+function gameCard(mode, index) {
   const cart = CARTRIDGES[mode];
-  const tile = el('button', 'game-tile');
-  tile.type = 'button';
-  tile.dataset.focus = 'game';
-  tile.dataset.game = mode;
-  tile.tabIndex = -1;
-  if (cart?.retired) tile.classList.add('is-retired');
+  const card = el('button', 'game-card');
+  card.type = 'button';
+  card.dataset.focus = 'game';
+  card.dataset.game = mode;
+  card.tabIndex = -1;
+  if (cart?.retired) card.classList.add('is-retired');
+  card.setAttribute('aria-label', cart?.title || mode);
 
   const img = document.createElement('img');
-  img.className = 'game-tile-img';
   img.src = ART(mode);
   img.alt = '';
-  img.loading = index < 6 ? 'eager' : 'lazy';
+  img.loading = index < 8 ? 'eager' : 'lazy';
   img.decoding = 'async';
 
-  const art = el('span', 'game-tile-art');
-  art.append(img);
-  tile.append(
-    art,
-    el('span', 'game-tile-index', String(index + 1).padStart(2, '0')),
-    el('span', 'game-tile-name', cart?.title || mode),
+  card.append(
+    img,
+    el('span', 'game-card-index', String(index + 1).padStart(2, '0')),
+    el('span', 'game-card-name', cart?.title || mode),
   );
-  if (cart?.retired) tile.append(el('span', 'game-tile-retired', 'ARŞİV'));
+  if (cart?.retired) card.append(el('span', 'game-card-retired', 'ARŞİV'));
 
   // Kart görünürken motor chunk'ı arka planda insin (mevcut menü davranışı).
-  tile.addEventListener('mouseenter', () => preloadEngine(mode), { passive: true });
-  tile.addEventListener('touchstart', () => preloadEngine(mode), { passive: true });
-  return tile;
+  card.addEventListener('mouseenter', () => preloadEngine(mode), { passive: true });
+  card.addEventListener('touchstart', () => preloadEngine(mode), { passive: true });
+  return card;
 }
 
 registerView('games', {
-  title: 'OYUN ARENASI',
-  rail: { icon: 'target', label: 'OYUN', order: 1 },
-  chrome: 'cinema',    // üst şerit sahne üstünde overlay olarak yüzer
-  build({ actions, openView, refreshFocus }) {
+  title: 'OYUNLAR',
+  rail: { icon: 'target', label: 'OYUNLAR', order: 1 },
+  chrome: 'cinema',    // sahne tam kaplama; yüzen gezinme solda dikey ortada
+  build({ actions, refreshFocus }) {
     const view = el('div', 'scene games-scene');
     view.append(
       el('div', 'scene-backdrop', ''),
@@ -76,37 +80,60 @@ registerView('games', {
       el('div', 'scene-vignette', ''),
     );
 
-    // ── Sayaç: çip şeridinin başında (üst şerit zaten ekran adını yazıyor,
-    //    ikinci bir başlık satırı çakışıyordu) ──
-    const count = el('span', 'games-count', '');
+    const body = el('div', 'games-body');
 
-    // ── Orta: yatay oyun rafı ──
-    const track = el('div', 'games-track');
-    track.dataset.hTrack = 'games';
-    track.setAttribute('role', 'list');
-    const tiles = new Map();
-    GAME_ORDER.forEach((mode, index) => {
-      const tile = gameTile(mode, index);
-      tile.setAttribute('role', 'listitem');
-      tile.addEventListener('click', () => actions.onGameSelect?.(mode));
-      tiles.set(mode, tile);
-      track.append(tile);
+    // ── Sol/ana alan: sekme şeridi + sayfalı kapak ızgarası ────────────────
+    const main = el('div', 'games-main');
+
+    const tabs = createTabStrip({
+      items: CATEGORIES.map((cat) => ({ id: cat.id, label: cat.label, icon: cat.icon })),
+      onChange: (id) => { state.category = id; state.page = 0; renderPage(); },
     });
 
-    // Track yatayda taşar: tasarlanmış sayfalama bölgesi, sayfa scroll'u değil.
-    view.addEventListener('wheel', (e) => {
-      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-      track.scrollLeft += e.deltaY;
-      e.preventDefault();
-    }, { passive: false });
+    const pageLabel = el('span', 'games-page-label', '');
+    const pagePrev = el('button', 'tab-btn games-page-btn', getTabletopIconSvg('arrow_left', { size: 14, strokeWidth: 2.4 }));
+    const pageNext = el('button', 'tab-btn games-page-btn', getTabletopIconSvg('arrow_right', { size: 14, strokeWidth: 2.4 }));
+    for (const [btn, dir] of [[pagePrev, -1], [pageNext, 1]]) {
+      btn.type = 'button';
+      btn.dataset.focus = 'tab';
+      btn.tabIndex = -1;
+      btn.addEventListener('click', () => {
+        playMenuTick();
+        state.page += dir;
+        renderPage();
+      });
+    }
+    const pager = el('div', 'games-pager');
+    pager.append(pagePrev, pageLabel, pageNext);
 
-    // ── Sol alt: odaktaki oyunun adı + ipucu (dev yazı) ──
-    const info = el('div', 'games-focus');
-    const infoTitle = el('h3', 'games-focus-title', '');
-    const infoHint = el('p', 'games-focus-hint', '');
-    info.append(infoTitle, infoHint);
+    const head = el('div', 'games-head');
+    head.append(tabs.node, pager);
 
-    // ── Sağ alt: tek OYNA ──
+    const grid = el('div', 'games-grid');
+    grid.setAttribute('role', 'list');
+    const tiles = new Map();
+    GAME_ORDER.forEach((mode, index) => {
+      const tile = gameCard(mode, index);
+      tile.setAttribute('role', 'listitem');
+      // Kart dokunuşu SEÇER; başlatma tek CTA'nın işi (tek eylem kuralı).
+      tile.addEventListener('click', () => select(mode));
+      tiles.set(mode, tile);
+      grid.append(tile);
+    });
+    main.append(head, grid);
+
+    // ── Sağ kolon: seçili oyunun kahramanı + tek OYNA ──
+    const side = el('aside', 'games-side');
+    const heroCover = document.createElement('img');
+    heroCover.className = 'games-hero-cover';
+    heroCover.alt = '';
+    heroCover.decoding = 'async';
+    const heroCat = el('span', 'games-hero-cat', '');
+    const heroName = el('h3', 'games-hero-name', '');
+    const heroHint = el('p', 'games-hero-hint', '');
+    const copy = el('div', 'games-hero-copy');
+    copy.append(heroCat, heroName, heroHint);
+
     const playBtn = el('button', 'scene-btn is-gold games-play');
     playBtn.type = 'button';
     playBtn.dataset.focus = 'play';
@@ -114,86 +141,79 @@ registerView('games', {
     playBtn.innerHTML = `
       <span class="scene-btn-icon">${getTabletopIconSvg('play', { size: 22, strokeWidth: 2.2 })}</span>
       <span class="scene-btn-copy"><span class="scene-btn-label"></span></span>`;
-    playBtn.querySelector('.scene-btn-label').textContent = t('shell.playNow');
+    side.append(heroCover, copy, playBtn);
 
-    // ── Alt orta: kategori filtresi ──
-    const chips = el('div', 'games-chips');
-    chips.setAttribute('role', 'tablist');
-    chips.append(count);
-    const chipButtons = CATEGORIES.map((cat) => {
-      const chip = el('button', 'games-chip');
-      chip.type = 'button';
-      chip.dataset.focus = 'chip';
-      chip.dataset.filter = cat.id;
-      chip.tabIndex = -1;
-      chip.setAttribute('role', 'tab');
-      const count = cat.id === 'all'
-        ? GAME_ORDER.length
-        : GAME_ORDER.filter((m) => CARTRIDGES[m]?.category === cat.id).length;
-      chip.innerHTML = `<span>${getTabletopIconSvg(cat.icon, { size: 12 })}<em>${cat.label}</em></span><i>${count}</i>`;
-      chip.setAttribute('aria-selected', String(cat.id === 'all'));
-      chip.classList.toggle('is-active', cat.id === 'all');
-      chip.addEventListener('click', () => applyCategory(cat.id));
-      chips.append(chip);
-      return chip;
-    });
+    body.append(main, side);
+    view.append(body);
 
-    function applyCategory(id) {
-      chipButtons.forEach((chip) => {
-        const on = chip.dataset.filter === id;
-        chip.classList.toggle('is-active', on);
-        chip.setAttribute('aria-selected', String(on));
-      });
-      let firstVisible = null;
-      for (const [mode, tile] of tiles) {
-        const visible = id === 'all' || CARTRIDGES[mode]?.category === id;
-        tile.hidden = !visible;
-        if (visible && !firstVisible) firstVisible = tile;
-      }
-      track.scrollLeft = 0;
-      showFocus(firstVisible);
-      // Odak listesi değişti: shell'e tazeleme sinyali.
-      refreshFocus?.();
-    }
-
-    // ── Odakla sürülen seçim (ayrı önizleme paneli YOK) ──
+    // ── Seçim + sayfalama: tek yerden boyanır ──────────────────────────────
+    const state = { category: 'all', page: 0 };
     let activeMode = null;
-    function showFocus(tile) {
-      const mode = tile?.dataset?.game;
+
+    const visibleModes = () => GAME_ORDER.filter(
+      (mode) => state.category === 'all' || CARTRIDGES[mode]?.category === state.category,
+    );
+
+    function select(mode) {
       if (!mode || mode === activeMode) return;
       activeMode = mode;
       const cart = CARTRIDGES[mode];
-      infoTitle.textContent = cart?.title || mode;
+      heroCover.src = ART(mode);
+      heroCover.classList.remove('is-in');
+      // Re-trigger: sınıfın düşmesi için bir kare refix zorunlu.
+      void heroCover.offsetWidth;
+      heroCover.classList.add('is-in');
+      heroName.textContent = cart?.title || mode;
       const cat = categoryById(cart?.category);
-      // Kategori adı bilgi bloğunun başlığının yanına küçük bir rozet olarak
-      // eklenir; ayrı bir etiket satırı görsel gürültü yaratıyordu.
-      info.dataset.category = cat?.id || 'all';
-      info.dataset.retired = cart?.retired ? 'true' : 'false';
-      infoHint.textContent = t(cart?.tacticalHintKey || '');
+      heroCat.textContent = cat ? cat.label : '';
+      heroCat.dataset.category = cat?.id || 'all';
+      heroCat.hidden = !cat || cat.id === 'all';
+      heroHint.textContent = t(cart?.tacticalHintKey || '');
+      tiles.forEach((tile, key) => tile.classList.toggle('is-active', key === mode));
       playBtn.onclick = () => actions.onGameSelect?.(mode);
       playBtn.setAttribute('aria-label', `${t('shell.playNow')} — ${cart?.title || mode}`);
       preloadEngine(mode);
     }
 
-    // Odak değişimi shell'den gelen tek olaydır (bkz. appShell onFocusChange).
-    view.addEventListener('shell:focuschange', (e) => showFocus(e.detail?.el));
-    showFocus(track.firstElementChild);
+    function renderPage() {
+      const list = visibleModes();
+      const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+      state.page = Math.min(Math.max(state.page, 0), pages - 1);
+      const start = state.page * PAGE_SIZE;
+      const shown = new Set(list.slice(start, start + PAGE_SIZE));
+      tiles.forEach((tile, mode) => { tile.hidden = !shown.has(mode); });
 
-    view.append(track, info, chips, playBtn);
+      pager.hidden = pages < 2;
+      pageLabel.textContent = `${state.page + 1} / ${pages}`;
+      pagePrev.disabled = state.page === 0;
+      pageNext.disabled = state.page >= pages - 1;
+
+      if (activeMode && !shown.has(activeMode)) select(list[start] || list[0]);
+      // Odak listesi değişti: shell'e tazeleme sinyali.
+      refreshFocus?.();
+    }
+
+    // Odak değişimi shell'den gelen tek olaydır (bkz. appShell onFocusChange).
+    view.addEventListener('shell:focuschange', (e) => {
+      const mode = e.detail?.el?.dataset?.game;
+      if (mode) select(mode);
+    });
+    select(GAME_ORDER[0]);
+    renderPage();
 
     function applyTexts() {
-      count.textContent = `${GAME_ORDER.length} OYUN`;
-      playBtn.querySelector('.scene-btn-label').textContent = t('shell.playNow');
-      chipButtons.forEach((chip, i) => {
-        const cat = CATEGORIES[i];
-        const count = cat.id === 'all'
+      CATEGORIES.forEach((cat) => {
+        const n = cat.id === 'all'
           ? GAME_ORDER.length
           : GAME_ORDER.filter((m) => CARTRIDGES[m]?.category === cat.id).length;
-        chip.innerHTML = `<span>${getTabletopIconSvg(cat.icon, { size: 12 })}<em>${cat.label}</em></span><i>${count}</i>`;
+        tabs.setCount(cat.id, n);
       });
+      playBtn.querySelector('.scene-btn-label').textContent = t('shell.playNow');
       if (activeMode) {
         const cart = CARTRIDGES[activeMode];
-        infoHint.textContent = t(cart?.tacticalHintKey || '');
+        const cat = categoryById(cart?.category);
+        heroCat.textContent = cat ? cat.label : '';
+        heroHint.textContent = t(cart?.tacticalHintKey || '');
       }
     }
     applyTexts();

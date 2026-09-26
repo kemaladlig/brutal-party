@@ -129,20 +129,24 @@ registerView('lobby', {
     const gameName = el('strong', 'lobby-game-name', '');
     const gameHint = el('span', 'lobby-game-hint', '');
     const position = el('span', 'lobby-game-pos', '');
-    // Sayaç kopya yığınında: kapağın altında ad → ipucu → "n / 15" tek
-    // ortalanmış sütun olur, köşede havada asılı kalmaz.
-    copy.append(gameName, gameHint, position);
     // Kapak + ad tek dokunuşluk hedef: ızgara sheet'i buradan açılır.
     const face = el('button', 'lobby-game-face');
     face.type = 'button';
     face.dataset.focus = 'game-face';
     face.append(cover, copy);
 
-    const gridBtn = stepButton('layout_grid', 'game-grid');
-    gridBtn.classList.add('lobby-game-grid');
+    // Meta satırı sahnenin ALTINDA: sayaç + metinli TÜM OYUNLAR pili. İkon-only
+    // köşe düğmesi "nedir bu?" diye soruyordu; metin kendi açıklamasıdır.
+    copy.append(gameName, gameHint);
+    const gridBtn = el('button', 'lobby-game-grid');
+    gridBtn.type = 'button';
+    gridBtn.dataset.focus = 'game-grid';
+    gridBtn.innerHTML = `${getTabletopIconSvg('layout_grid', { size: 14, strokeWidth: 2.4 })}<span class="lobby-grid-label"></span>`;
+    const meta = el('div', 'lobby-game-meta');
+    meta.append(position, gridBtn);
     const stage = el('div', 'lobby-game-stage');
-    stage.append(prevBtn, peekPrev, face, peekNext, nextBtn, gridBtn);
-    selector?.append(stage);
+    stage.append(prevBtn, peekPrev, face, peekNext, nextBtn);
+    selector?.append(stage, meta);
 
     // Adım düğmeleri listeyi sarar; sıralama `GAME_ORDER` (registry tek nokta).
     const step = (delta) => {
@@ -230,6 +234,7 @@ registerView('lobby', {
       prevBtn.setAttribute('aria-label', t('host.prevGame'));
       nextBtn.setAttribute('aria-label', t('host.nextGame'));
       gridBtn.setAttribute('aria-label', t('host.allGames'));
+    gridBtn.querySelector('.lobby-grid-label').textContent = t('host.allGames');
       face.setAttribute('aria-label', `${cart?.title || mode} — ${t('host.pickGameHint')}`);
       gridHead.querySelector('#lobby-grid-title').textContent = t('host.pickGame');
       gridHead.querySelector('.sheet-close').innerHTML = getTabletopIconSvg('close', { size: 16, strokeWidth: 2.6 });

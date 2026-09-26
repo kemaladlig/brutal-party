@@ -1,9 +1,9 @@
 // KARAKTER — cihazın karakteri: canlı avatar, isim, renk ve yüz ifadesi.
 //
-// Bu ekran artık bir "tanıtım kartı" değil, tam bir DÜZENLEYİCİ. `ÖZELLEŞTİR`
-// düğmesi ikinci bir ekran (modal) açıyordu; renk paleti ve yüz ifadeleri
-// doğrudan bu ekranda, uygulamanın geri kalanıyla aynı dille (sahne + cam
-// yüzey + `.scene-btn` ailesi) durur (kullanıcı kararı).
+// Bu ekran bir DÜZENLEYİCİDİR ve MERKEZİ sekme şeridini (`tabStrip.js`,
+// OYUNLAR ile aynı bileşen) kullanır: RENK ve İFADE yan yana iki sütun yerine
+// TEK PANEL olarak sırayla görünür — kısa telefon ekranına taşmadan sığar
+// (kullanıcı kararı: "sığmamış ekrana, tablı olabilir").
 //
 // Veri kaynağı değişmedi: `customizationManager.js` (renk + ifade),
 // `playerNameField.js` (isim). `initMenuAvatarCard` canlı sahneyi ve profil
@@ -13,6 +13,7 @@ import { t, onLangChange } from '../../i18n.js';
 import { getTabletopIconSvg } from '../../core/tabletopIcons.js';
 import { initMenuAvatarCard } from '../customizeModal.js';
 import { createPlayerNameField } from '../playerNameField.js';
+import { createTabStrip } from '../tabStrip.js';
 import { registerView } from './registry.js';
 import {
   getActivePalettes,
@@ -24,8 +25,6 @@ import {
   expressionName,
 } from '../../core/customizationManager.js';
 import { playMenuTick } from '../../audio.js';
-
-const TIPS = ['profile.tipColor', 'profile.tipFace', 'profile.tipNick'];
 
 function el(tag, className, html) {
   const node = document.createElement(tag);
@@ -83,27 +82,32 @@ function buildCard() {
   stage.append(canvas);
   media.append(stage, el('span', 'profile-stage-hint', t('menu.boing')));
 
-  // ── Sağ: isim + renk + yüz ──
+  // ── Sağ kolon: başlık + kimlik + sekmeli editör ──
   const body = el('div', 'profile-body');
-  body.append(el('span', 'profile-eyebrow', t('menu.avatarBadge')));
 
   const heading = el('div', 'profile-heading');
   heading.append(
+    el('span', 'profile-heading-icon', getTabletopIconSvg('gamepad_2', { size: 18, strokeWidth: 2.4 })),
+    (() => {
+      const s = el('span', 'profile-eyebrow');
+      s.textContent = t('menu.avatarBadge');
+      return s;
+    })(),
     el('h2', 'profile-title', t('menu.avatarTitle')),
-    el('p', 'profile-sub', t('menu.avatarDesc')),
   );
   body.append(heading);
 
   const identity = el('div', 'profile-identity');
 
   // İş + düzenleme tek bileşende (`playerNameField.js`): ana menü rozeti de
-  // aynısını kullanıyor, iki yerde kopya davranış yok.
+  // aynısını kullanır, iki yerde kopya davranış yok.
   const nameField = createPlayerNameField({ prefix: 'profile-' });
   const chips = el('div', 'profile-chips');
   chips.id = 'menu-avatar-equipped';
   identity.append(nameField.el, chips);
+  body.append(identity);
 
-  // ── Düzenleyici: iki bölüm, ikisi de doğrudan bu ekranda ──
+  // ── Editör: MERKEZİ sekme şeridi — tek panel görünür ──
   const editor = el('div', 'profile-editor');
 
   const applyProfile = (mutate) => {
@@ -113,36 +117,33 @@ function buildCard() {
     paintSelection(prof);
   };
 
-  // Renk
-  const colorSection = el('section', 'profile-block');
-  colorSection.append(el('h3', 'profile-block-title', t('custom.tabColor')));
-  const paletteGrid = buildPaletteGrid((hex) => {
+  const colorPanel = el('section', 'profile-panel is-active');
+  colorPanel.dataset.panel = 'color';
+  colorPanel.append(buildPaletteGrid((hex) => {
     playMenuTick();
     applyProfile((p) => { p.color = hex; });
-  });
-  colorSection.append(paletteGrid);
+  }));
 
-  // Yüz
-  const faceSection = el('section', 'profile-block');
-  faceSection.append(el('h3', 'profile-block-title', t('custom.tabFace')));
-  const expressionGrid = buildExpressionGrid((id) => {
+  const facePanel = el('section', 'profile-panel');
+  facePanel.dataset.panel = 'face';
+  facePanel.append(buildExpressionGrid((id) => {
     playMenuTick();
     applyProfile((p) => { p.expression = id; });
-  });
-  faceSection.append(expressionGrid);
+  }));
 
-  function paintSelection(prof) {
-    paletteGrid.querySelectorAll('.profile-swatch').forEach((sw) => {
-      const on = prof.color.toLowerCase() === sw.dataset.hex.toLowerCase();
-      sw.classList.toggle('is-active', on);
-      sw.setAttribute('aria-pressed', String(on));
-    });
-    expressionGrid.querySelectorAll('.profile-expression').forEach((chip) => {
-      const on = prof.expression === chip.dataset.id;
-      chip.classList.toggle('is-active', on);
-      chip.setAttribute('aria-pressed', String(on));
-    });
-  }
+  const panels = el('div', 'profile-panels');
+  panels.append(colorPanel, facePanel);
+
+  const tabs = createTabStrip({
+    items: [
+      { id: 'color', label: t('custom.tabColor'), icon: 'sparkles' },
+      { id: 'face', label: t('custom.tabFace'), icon: 'eye' },
+    ],
+    onChange: (id) => {
+      colorPanel.classList.toggle('is-active', id === 'color');
+      facePanel.classList.toggle('is-active', id === 'face');
+    },
+  });
 
   // ZARLA: rastgele renk + ifade.
   const diceBtn = el('button', 'scene-btn is-ghost profile-dice');
@@ -159,14 +160,21 @@ function buildCard() {
     paintSelection(prof);
   });
 
-  editor.append(colorSection, faceSection, diceBtn);
+  editor.append(tabs.node, panels, diceBtn);
+  body.append(editor);
 
-  // ── İpuçları ──
-  const tips = el('ul', 'profile-tips');
-  for (const key of TIPS) tips.append(el('li', '', t(key)));
-
-  body.append(identity, editor, tips);
-  card.append(media, body);
+  function paintSelection(prof) {
+    colorPanel.querySelectorAll('.profile-swatch').forEach((sw) => {
+      const on = prof.color.toLowerCase() === sw.dataset.hex.toLowerCase();
+      sw.classList.toggle('is-active', on);
+      sw.setAttribute('aria-pressed', String(on));
+    });
+    facePanel.querySelectorAll('.profile-expression').forEach((chip) => {
+      const on = prof.expression === chip.dataset.id;
+      chip.classList.toggle('is-active', on);
+      chip.setAttribute('aria-pressed', String(on));
+    });
+  }
 
   // İlk seçim boyası (view `keepAlive` olduğu için yalnız kurulumda).
   paintSelection(getAvatarProfile());
@@ -176,6 +184,9 @@ function buildCard() {
   card.addEventListener('brutal_customization_changed', (e) => {
     paintSelection(e.detail?.customization || getAvatarProfile());
   });
+
+  // Kart iskeleti en sonda birleşir: sol sahne + sağ gövde (grid sütunları).
+  card.append(media, body);
 
   return card;
 }
@@ -192,14 +203,13 @@ registerView('profile', {
     onLangChange(() => {
       view.querySelector('.profile-eyebrow').textContent = t('menu.avatarBadge');
       view.querySelector('.profile-title').textContent = t('menu.avatarTitle');
-      view.querySelector('.profile-sub').textContent = t('menu.avatarDesc');
       view.querySelector('.profile-stage-hint').textContent = t('menu.boing');
-      view.querySelectorAll('.profile-block-title')[0].textContent = t('custom.tabColor');
-      view.querySelectorAll('.profile-block-title')[1].textContent = t('custom.tabFace');
+      const colorTab = view.querySelector('.tab-btn[data-tab="color"] span');
+      const faceTab = view.querySelector('.tab-btn[data-tab="face"] span');
+      if (colorTab) colorTab.textContent = t('custom.tabColor');
+      if (faceTab) faceTab.textContent = t('custom.tabFace');
       const dice = view.querySelector('.profile-dice .scene-btn-label');
       if (dice) dice.textContent = t('custom.random');
-      const tips = view.querySelectorAll('.profile-tips li');
-      TIPS.forEach((key, i) => { if (tips[i]) tips[i].textContent = t(key); });
     });
     return view;
   },

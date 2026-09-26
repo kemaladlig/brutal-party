@@ -1175,7 +1175,7 @@ export class GamepadManager {
 
   // --- 00: LOBBY CONTROLLER (Seat Selector, Profile Card, Game Preview, Ready Toggle, Leave Room) ---
   mountLobbyController(container) {
-    const selectedTitle = CONTROLLER_META[this.selectedHostGame]?.lobbyTitle || '🏓 BRUTAL PONG';
+    const selectedTitle = CONTROLLER_META[this.selectedHostGame]?.lobbyTitle || 'BRUTAL PONG';
 
     container.innerHTML = `
       <div class="lobby-controller-view">
@@ -1189,7 +1189,7 @@ export class GamepadManager {
             </div>
             <span class="lobby-profile-hint">${t('pad.charHint')}</span>
           </div>
-          <button class="lobby-profile-edit-btn" id="btn-edit-character" type="button">✏️ ${t('pad.customize')}</button>
+          <button class="lobby-profile-edit-btn" id="btn-edit-character" type="button">${getTabletopIconSvg('pencil', { size: 15, color: '#141416', strokeWidth: 2.3 })}<span>${t('pad.customize')}</span></button>
         <button class="lobby-layout-btn" data-controller-layout-open type="button" data-i18n-aria="controllerLayout.open" aria-label="${escapeHtml(t('controllerLayout.open'))}" title="${escapeHtml(t('controllerLayout.open'))}">${getTabletopIconSvg('settings', { size: 16, color: '#141414', strokeWidth: 2.3 })}<span>${escapeHtml(t('controllerLayout.lobbyShort'))}</span></button>
         </div>
 
@@ -1221,7 +1221,7 @@ export class GamepadManager {
         <!-- 4. Hero Ready Button -->
         ${this.stagingOpen ? `
         <button class="btn-ready-toggle ${this.isReady ? 'ready' : ''}" id="btn-lobby-ready" type="button">
-          ${this.isReady ? '✓ ' + t('pad.ready') : '▶ ' + t('pad.ready')}
+          ${this.isReady ? getTabletopIconSvg('check', { size: 17, color: 'currentColor', strokeWidth: 2.8 }) : getTabletopIconSvg('play', { size: 15, color: 'currentColor', strokeWidth: 2.6 })}<span>${t('pad.ready')}</span>
         </button>
         ` : ''}
 

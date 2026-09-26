@@ -79,9 +79,6 @@
       <div id="tv-host-modal" class="hidden" aria-hidden="true">
         <div class="tv-host-card">
           <header class="lobby-top">
-            <button class="lobby-icon-btn" id="btn-host-close" type="button" data-focus="lobby" data-i18n-aria="host.close" title="Lobiyi kapat">
-              <span data-lobby-icon="close" aria-hidden="true"></span>
-            </button>
             <div class="tv-host-badge">
               <span class="host-badge-icon" data-lobby-icon="tv" aria-hidden="true"></span>
               <span class="host-badge-text">TV HOST PARTİ LOBİSİ</span>
@@ -91,11 +88,14 @@
               <strong class="lobby-room-code">#<span id="host-room-code">---</span></strong>
               <span class="lobby-room-copy" data-lobby-icon="copy" aria-hidden="true"></span>
             </button>
+            <button class="lobby-invite-btn" id="btn-lobby-invite" type="button" data-focus="lobby" data-i18n-aria="host.inviteAria">
+              <span data-lobby-icon="user_plus" aria-hidden="true"></span>
+              <span data-i18n="host.inviteShort">DAVET</span>
+            </button>
             <div class="lobby-top-right">
               <div class="lobby-status-pill" id="lobby-ready-counter" aria-live="polite">OYUNCU BEKLENİYOR</div>
-              <button class="lobby-invite-btn" id="btn-lobby-invite" type="button" data-focus="lobby" data-i18n-aria="host.inviteAria">
-                <span data-lobby-icon="user_plus" aria-hidden="true"></span>
-                <span data-i18n="host.inviteShort">DAVET</span>
+              <button class="lobby-icon-btn" id="btn-host-close" type="button" data-focus="lobby" data-i18n-aria="host.close" title="Lobiyi kapat">
+                <span data-lobby-icon="close" aria-hidden="true"></span>
               </button>
             </div>
           </header>

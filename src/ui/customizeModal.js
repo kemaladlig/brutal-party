@@ -257,7 +257,7 @@ function renderSelectionGrids() {
       const isSelected = currentCustom.expression === exp.id;
       return `
         <button class="custom-chip-btn ${isSelected ? 'selected' : ''}" data-id="${exp.id}" type="button">
-          <span class="chip-icon">${exp.icon}</span>
+          <span class="chip-icon">${getTabletopIconSvg(exp.icon, { size: 18 })}</span>
           <span class="chip-title">${expressionName(exp.id, exp.name)}</span>
         </button>
       `;
