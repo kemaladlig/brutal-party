@@ -1,0 +1,440 @@
+/* App Shell — yatay, sabit chrome'lu çerçeve.
+   Temel kural: sayfa akışı yok. Görünümler viewport'a sığar; sığmayan içerik
+   `[data-h-track]` yatay track'inde sayfalanır. Dikey scrollbar yasaktır. */
+
+#app-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--grad-surface);
+  color: var(--ink);
+  overflow: hidden;
+}
+
+#app-shell.hidden {
+  display: none !important;
+}
+
+#app-shell.is-revealed .shell-view {
+  animation: shellViewIn 220ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+@keyframes shellViewIn {
+  from { opacity: 0; transform: translate3d(28px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.shell-view.shell-view-exit {
+  animation: shellViewOut 220ms cubic-bezier(0.4, 0, 0.8, 0.3) both;
+  pointer-events: none;
+}
+
+@keyframes shellViewOut {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(-28px, 0, 0); }
+}
+
+/* ── Üst şerit (sabit chrome) ─────────────────────────────────────────── */
+
+.shell-topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: max(8px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 8px
+    max(14px, env(safe-area-inset-left));
+  background: var(--elevated);
+  border-bottom: 2px solid var(--edge);
+  box-shadow: var(--shadow-soft);
+}
+
+.shell-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  border-radius: var(--radius-btn);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+/* Geri düğmesi YOK: kalıcı gezinme (ANASAYFA / OYUN / KARAKTER) üst şeridin
+   solunda durur ve "nereye girdiysem ana menüye dön" işini kendisi görür. */
+
+.shell-brand:hover { opacity: 0.82; }
+.shell-brand:active { transform: scale(0.97); }
+
+/* Kökteyken marka düğmesi vurgulanır (aktif görünüm sinyali). */
+.shell-brand.is-active .shell-brand-mark {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.shell-brand-mark {
+  border-radius: 9px;
+  border: 2px solid var(--edge);
+  background: var(--surface);
+  flex: 0 0 auto;
+}
+
+.shell-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+  min-width: 0;
+}
+
+.shell-eyebrow {
+  font: 800 9px/1.2 var(--font-mono);
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.shell-title {
+  font: 900 17px/1.15 var(--font-grotesk);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Kalıcı gezinme markanın SAĞINDA, sola yaslı (kullanıcı kararı): üst şerit
+   "marka → gezinme ...... sağdaki simgeler" olarak okunur. Sağa itilmiş
+   (ortalanmış) hâli oyun ekranında sahneyi ikiye bölüyordu. */
+.shell-rail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--n-100);
+  border: 2px solid var(--edge);
+}
+
+.shell-rail::-webkit-scrollbar { display: none; }
+
+.shell-rail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  min-height: 34px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink);
+  font: 900 11px/1 var(--font-grotesk);
+  letter-spacing: 0.07em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.shell-rail-btn svg { flex: 0 0 auto; }
+
+.shell-rail-btn.is-active {
+  background: var(--ink);
+  color: var(--elevated);
+}
+
+/* Kök girdi (ANASAYFA) her ekrandan görünür ama yalnız kökte işaretlidir. */
+.shell-rail-btn.is-root:not(.is-active) {
+  color: var(--muted);
+}
+
+.shell-rail-btn.is-focused { box-shadow: var(--glow-accent); }
+
+.shell-rail-btn:active { transform: scale(0.96); }
+
+.shell-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+
+.shell-pill {
+  padding: 4px 9px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--edge);
+  font: 900 10px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  background: var(--n-100);
+  color: var(--ink);
+}
+
+.shell-pill.is-online { background: var(--accent-soft); color: var(--accent-ink); }
+
+.shell-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.shell-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  border: 2px solid var(--edge);
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+  box-shadow: 0 2px 0 var(--edge-strong);
+}
+
+.shell-icon-btn:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* ── Sinema kipi (ana menü): üst bar AYRI BİR OVERLAY KATMANIDIR ─────────
+   Sahne (`.shell-stage`) tüm yüksekliği kaplar; üst şerit onun ÜSTÜNDE
+   yüzer, hiçbir yer kapmaz. Konteyner `pointer-events: none`, yalnız
+   çocuklar `auto` — yani boş şerit alanına tıklamak sahneye geçer.
+   Wild Rift menüsündeki saydam HUD'ın karşılığı. */
+#app-shell.is-cinema .shell-topbar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 4;
+  background: none;
+  border-bottom: 0;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+#app-shell.is-cinema .shell-topbar > * { pointer-events: auto; }
+
+/* Koyu sahnede açık renkli HUD. */
+#app-shell.is-cinema .shell-title { color: var(--hud-ink); }
+#app-shell.is-cinema .shell-eyebrow { color: var(--hud-muted); }
+
+#app-shell.is-cinema .shell-brand-mark {
+  background: var(--hud-surface);
+  border-color: var(--hud-line);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Platform rozeti: HUD üzerinde yüzen tek kap, kenarları yumuşatılmış. */
+#app-shell.is-cinema .shell-pill {
+  background: var(--hud-surface);
+  border-color: var(--hud-line);
+  color: var(--hud-ink);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Ray: saydam zemin + ince ayraç. Dolu bir "bant" gibi okunmasın. */
+#app-shell.is-cinema .shell-rail {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 0;
+  gap: 2px;
+}
+
+#app-shell.is-cinema .shell-rail-btn {
+  color: var(--hud-ink);
+  background: transparent;
+  text-shadow: 0 1px 3px var(--scene-shadow);
+}
+
+#app-shell.is-cinema .shell-rail-btn.is-active {
+  background: var(--hud-surface);
+  color: var(--hud-ink);
+  box-shadow: var(--shadow-soft);
+  border: 2px solid var(--hud-line);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* İkon düğmeleri: her biri kendi yüzen kamelyonu. */
+#app-shell.is-cinema .shell-icon-btn {
+  background: var(--hud-surface);
+  border-color: var(--hud-line);
+  color: var(--hud-ink);
+  box-shadow: var(--shadow-soft);
+  border-radius: 50%;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+#app-shell.is-cinema .shell-icon-btn:active {
+  transform: scale(0.94);
+  box-shadow: var(--shadow-soft);
+}
+
+#app-shell.is-cinema .shell-view { padding: 0; }
+
+/* `chrome: 'none'` — üst şerit hiç çizilmez; sahne tüm yüksekliği alır. */
+#app-shell.is-chromeless .shell-topbar { display: none; }
+
+/* ── Sahne ────────────────────────────────────────────────────────────── */
+
+.shell-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.shell-view {
+  position: absolute;
+  inset: 0;
+  padding: 12px max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  overflow: hidden;
+}
+
+/* Yığında üstteki görünüm dışındakiler — `keepAlive` olsalar da — görünmez.
+   `position:absolute` yüzeyler aksi halde üst üste biner. */
+.shell-view[data-active='false'] {
+  display: none;
+}
+
+/* Odak reticle'ı — konsol hissinin ana taşıyıcısı. */
+[data-focus] {
+  outline: none;
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 180ms ease;
+}
+
+[data-focus].is-focused {
+  transform: scale(1.035);
+}
+
+.shell-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: var(--radius-btn);
+  border: 2.5px solid var(--edge);
+  background: var(--grad-card);
+  color: var(--ink);
+  font: 900 13px/1 var(--font-grotesk);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  box-shadow: var(--shadow-pop);
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+}
+
+.shell-btn-sm { min-height: 38px; padding: 0 16px; font-size: 12px; }
+
+.shell-btn-primary {
+  background: var(--grad-accent);
+  color: var(--on-accent);
+}
+
+.shell-btn:active {
+  transform: translateY(3px);
+  box-shadow: var(--shadow-press);
+}
+
+.shell-btn.is-focused {
+  box-shadow: var(--glow-accent);
+}
+
+/* ── Dikey rotate gate ────────────────────────────────────────────────── */
+
+.app-rotate-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--grad-surface);
+  color: var(--ink);
+}
+
+.app-rotate-gate.hidden { display: none !important; }
+
+.rotate-gate-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 26px 30px;
+  border-radius: var(--radius-card);
+  border: 3px solid var(--edge);
+  background: var(--grad-card);
+  box-shadow: var(--shadow-float);
+  max-width: 320px;
+}
+
+.rotate-gate-icon {
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  border: 3px solid var(--edge);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  animation: rotateGateSpin 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes rotateGateSpin {
+  0%, 60% { transform: rotate(0deg); }
+  80%, 100% { transform: rotate(-90deg); }
+}
+
+.rotate-gate-card strong {
+  font: 900 16px/1.2 var(--font-grotesk);
+  letter-spacing: 0.04em;
+}
+
+.rotate-gate-card span {
+  font: 700 12px/1.4 var(--font-grotesk);
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rotate-gate-icon { animation: none; }
+  #app-shell.is-revealed .shell-view,
+  .shell-view.shell-view-exit { animation: none; }
+  [data-focus] { transition: none; }
+}
+
+/* ── Kısa ekran (telefon yatay): yoğunluk düşer, düzen aynı kalır ──────── */
+
+@media (max-height: 460px) {
+  .shell-view { padding: 9px max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left)); }
+  .shell-title { font-size: 15px; }
+  .shell-rail-btn { padding: 5px 10px; font-size: 10px; min-height: 30px; }
+  .shell-btn { min-height: 38px; padding: 0 15px; font-size: 12px; }
+  .shell-btn-sm { min-height: 32px; }
+}
+
+/* Dar pencere: marka metni yerini gezinmeye bırakır. */
+@media (max-width: 620px) {
+  .shell-eyebrow { display: none; }
+  .shell-title { font-size: 14px; }
+  .shell-topbar { gap: 8px; }
+  .shell-pill { display: none; }
+  /* Marka yalnız logoyu bırakır: 390px'de yazı + gezinme + 4 ikon sığmıyordu. */
+  .shell-brand-text { display: none; }
+  .shell-brand { margin-inline-end: 4px; }
+  .shell-rail-btn { padding: 5px 8px; font-size: 9.5px; gap: 5px; }
+  .shell-icon-btn { width: 30px; height: 30px; border-radius: 9px; }
+  .shell-icon-btn svg { width: 14px; height: 14px; }
+}

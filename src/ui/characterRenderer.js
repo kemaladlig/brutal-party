@@ -138,10 +138,11 @@ function playFaceShading(ctx, r) {
   ctx.fillStyle = color;
   ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
 
-  // Oyun içi hacim: sol üst ışık + sağ alt gölge. İkisi de clip'in İÇİNDE
-  // bittiği için siluet değişmez; düz renkli sticker yerine top gibi okur.
+  // Hacim: sol üst ışık + sağ alt gölge. Oyun içi kip (`play`) ve menü sahnesi
+  // (`volume`) bunu ister; ikisi de clip'in İÇİNDE bittiği için siluet
+  // değişmez — düz renkli sticker yerine top gibi okur.
   // `isMicro`'da iki `fillRect` görünmez bir maliyet olurdu, atlanır.
-  if (isPlayFace && !isMicro) {
+  if ((isPlayFace || options.volume) && !isMicro) {
     const { rim, shade } = playFaceShading(ctx, r);
     ctx.fillStyle = rim;
     ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);

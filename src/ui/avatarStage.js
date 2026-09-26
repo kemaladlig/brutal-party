@@ -170,18 +170,25 @@ export function drawAvatarStage(ctx, w, h, r, avatarOpts, yOffset = 0, shadowSca
   const cy = h / 2;
 
   // Zemin gölge diski: karakteri sahneye oturtur, zıplamada uzaklaşır/küçülür.
+  // Yumuşak geçişli elips: sert disk kenarları gövdeyi "yırtıyormuş" gibi
+  // okunduğu için radyal gradanele çözüldü.
   ctx.save();
-  ctx.fillStyle = 'rgba(26, 26, 26, 0.16)';
+  const groundY = cy + r * 1.02;
+  const soft = ctx.createRadialGradient(cx, groundY, 0, cx, groundY, r * 0.95 * shadowScale);
+  soft.addColorStop(0, 'rgba(12, 8, 34, 0.34)');
+  soft.addColorStop(0.62, 'rgba(12, 8, 34, 0.16)');
+  soft.addColorStop(1, 'rgba(12, 8, 34, 0)');
+  ctx.fillStyle = soft;
   ctx.beginPath();
-  ctx.ellipse(cx, cy + r * 1.09, r * 0.82 * shadowScale, r * 0.25 * shadowScale, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, groundY, r * 0.95 * shadowScale, r * 0.3 * shadowScale, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // Kaide hedef halkası
-  ctx.strokeStyle = 'rgba(26, 26, 26, 0.15)';
-  ctx.lineWidth = Math.max(1, r * 0.034);
+  ctx.strokeStyle = 'rgba(255, 248, 234, 0.28)';
+  ctx.lineWidth = Math.max(1, r * 0.03);
   ctx.setLineDash([r * 0.07, r * 0.07]);
   ctx.beginPath();
-  ctx.ellipse(cx, cy + r * 1.09, r * 0.95, r * 0.3, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, groundY, r * 0.95, r * 0.3, 0, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.restore();
@@ -189,8 +196,13 @@ export function drawAvatarStage(ctx, w, h, r, avatarOpts, yOffset = 0, shadowSca
   drawBrutalAvatar(ctx, cx, cy + yOffset, r, {
     showPips: false,
     showPointer: false,
-    borderWidth: Math.max(2, r * 0.08),
-    shadowOffset: Math.max(1.5, r * 0.09),
+    // Menü sahnesinde karakter menünün tek öznesidir: düz sticker gibi
+    // okumasın diye hacim (sol üst ışık + sağ alt gölge) açılır. Kontur
+    // oyun içinden belirgin şekilde incedir — büyük boyda kalınlık "çizgi
+    // roman" gibi okunuyordu.
+    volume: true,
+    borderWidth: Math.max(1.5, r * 0.045),
+    shadowOffset: Math.max(1.5, r * 0.1),
     ...avatarOpts,
   });
 }

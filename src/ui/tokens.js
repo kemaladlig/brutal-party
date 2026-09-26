@@ -5,37 +5,42 @@ import { getPreference, setPreference } from '../core/preferences.js';
 // Değerler mevcut oyundan alındı (görsel değişiklik yok, sadece merkezileşme).
 
 export const UI_COLORS = {
-  ink: '#1A1A1A',
-  paper: '#F4F4F0',
-  paperWarm: '#F4F0EA',
-  card: '#FAF7F2',
+  ink: '#2B2018',
+  paper: '#FFF6E8',
+  paperWarm: '#FFE7C4',
+  card: '#FFFDF7',
   white: '#FFFFFF',
-  muted: '#75726B',
-  faint: '#99948A',
-  dim: '#8A857B',
-  line: '#1C1C1A',
-  gold: '#D99B26',
-  danger: '#D84727',
-  // Oyuncu renkleri (P1 kırmızı, P2 mavi, P3 sarı, P4 yeşil) — TV + kumanda aynı.
-  players: ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'],
+  muted: '#6E6357',
+  faint: '#8C8175',
+  dim: '#A79C90',
+  line: '#2B2018',
+  gold: '#FFB020',
+  danger: '#D93A22',
+  accent: '#FF8C1A',
+  success: '#35B36A',
+  // Oyuncu renkleri (P1 kırmızı, P2 mavi, P3 sarı, P4 yeşin) — TV + kumanda aynı.
+  players: ['#F0483C', '#2B7FC4', '#FFD24A', '#35B36A'],
   // Bot rozetleri
-  botFace: '#1F1F1D',
-  botEdge: '#E5E0D6',
+  botFace: '#2B2018',
+  botEdge: '#F2E7D4',
   botTag: '#FFDE59',
   botGod: '#FFD700',
   // Durum zeminleri
-  disabled: '#E5E0D6',
+  disabled: '#E5DCC9',
   // Yüksek kontrastlı dış hat ve semantik HUD token'ları
-  outlineContrast: 'rgba(250, 247, 242, 0.92)',
-  ammoEmpty: '#26262B',
-  ammoFrame: '#141416',
-  ammoReloading: '#FACC15',
+  outlineContrast: 'rgba(255, 253, 247, 0.92)',
+  // Katman örtüleri — CSS tarafındaki --scrim ailesiyle eşleşir.
+  scrim: 'rgba(24, 18, 13, 0.62)',
+  scrimStrong: 'rgba(24, 18, 13, 0.84)',
+  ammoEmpty: '#2B2A26',
+  ammoFrame: '#1A1815',
+  ammoReloading: '#FFB020',
   shield: '#0EA5E9',
   shieldBg: 'rgba(14, 165, 233, 0.18)',
   turbo: '#FFDE59',
-  daze: '#9C988F',
-  cooldownTrack: 'rgba(26, 26, 26, 0.28)',
-  cooldownTrackLight: 'rgba(250, 247, 242, 0.40)',
+  daze: '#A79C90',
+  cooldownTrack: 'rgba(43, 32, 24, 0.28)',
+  cooldownTrackLight: 'rgba(255, 253, 247, 0.40)',
 };
 
 export const UI_FONTS = {

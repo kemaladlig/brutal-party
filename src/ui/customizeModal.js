@@ -11,12 +11,14 @@ import {
   paletteName,
   expressionName,
 } from '../core/customizationManager.js';
+import { openOverlay, closeOverlay } from './overlayHost.js';
 import { t, onLangChange } from '../i18n.js';
 import { safeGet, safeSet } from '../core/safeStorage.js';
 import { syncStageCanvas, drawAvatarStage, observeStageCanvas, beginStageFrame, spawnBoingSparks, stepSparks, drawSparks } from './avatarStage.js';
 import { showInstallToast } from './toast.js';
 import { getStoredPlayerName, storePlayerName, cleanPlayerName, generateNick } from '../net.js';
 import { playMenuPop, playMenuTick } from '../audio.js';
+import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 
 let currentCustom = null;
 let animFrameId = null;
@@ -76,11 +78,13 @@ export function openCustomizeModal(onSave) {
   renderSelectionGrids();
   requestAnimationFrame(resetCustomizeScroll);
   startPreviewLoop();
+  openOverlay('customize', { el: modalEl, onClose: closeCustomizeModal });
 }
 
 export function closeCustomizeModal() {
   const modalEl = document.getElementById('customize-modal');
   if (modalEl) modalEl.classList.add('hidden');
+  closeOverlay('customize');
   if (animFrameId) {
     cancelAnimationFrame(animFrameId);
     animFrameId = null;
@@ -354,15 +358,21 @@ let squashY = 1;
 let excitedTimer = 0;
 const sparks = [];
 
-export function initMenuAvatarCard() {
-  const cardEl = document.getElementById('menu-customize-card');
-  const stageEl = document.getElementById('menu-avatar-stage');
-  const canvasEl = document.getElementById('menu-avatar-canvas');
+/**
+ * Profil kartını bağlar. Tüm sorgular `root` içinde yapılır: kart markup'ı
+ * app shell'in Profil görünümüne taşındı, `document` geneli arama hem kırılgan
+ * hem de başka bir görünümde aynı id'yi bulma riski taşıyordu.
+ * @param {ParentNode} root — Kartın bulunduğu kapsayıcı.
+ */
+export function initMenuAvatarCard(root = document) {
+  const cardEl = root.querySelector('#menu-customize-card');
+  const stageEl = root.querySelector('#menu-avatar-stage');
+  const canvasEl = root.querySelector('#menu-avatar-canvas');
   if (!canvasEl) return;
 
   // Karttaki kullanıcı adı ve kuşanılan eşyalar (menü her açıldığında ve özelleştirme bitince tazelenir)
   const updateCardName = () => {
-    const nameEl = document.getElementById('menu-avatar-name');
+    const nameEl = root.querySelector('#menu-avatar-name');
     if (nameEl) {
       try {
         nameEl.textContent = getStoredPlayerName() || 'OYUNCU';
@@ -371,74 +381,26 @@ export function initMenuAvatarCard() {
       }
     }
 
-    const equippedEl = document.getElementById('menu-avatar-equipped');
+    const equippedEl = root.querySelector('#menu-avatar-equipped');
     if (equippedEl) {
       const prof = getAvatarProfile();
       const expr = expressionName(prof?.expression || 'FOCUS', 'Odaklı');
       // Karakterin tek özellikleri renk ve yüz: "kuşanılan" tek çip yüz ifadesi.
-      equippedEl.innerHTML = `<span class="equipped-chip expr-chip">👀 ${expr}</span>`;
+      // İkon `tabletopIcons`'tan gelir (AGENTS.md §7: ham OS emojisi yasak).
+      equippedEl.innerHTML = `<span class="equipped-chip expr-chip">${getTabletopIconSvg('eye', { size: 13 })}<span>${expr}</span></span>`;
     }
   };
   updateCardName();
 
-  const viewRow = document.getElementById('menu-name-view-row');
-  const editBtn = document.getElementById('btn-edit-menu-name');
-  const rerollBtn = document.getElementById('btn-reroll-menu-name');
-  const inputRow = document.getElementById('menu-name-input-row');
-  const nameInput = document.getElementById('input-menu-name');
+  const viewRow = root.querySelector('#menu-name-view-row');
 
+  // İsim düzenleme artık `playerNameField.js`in işi (ana menü rozeti de aynı
+  // bileşeni kullanıyor). Burada yalnız "kart görünürlüğü değişti" anında
+  // alanı tazelemek kalır; kendi kalem/zar/input bağlantılarımızı TUTMAYIZ.
   const closeNameEdit = () => {
-    inputRow?.classList.add('hidden');
+    root.querySelector('#menu-name-input-row')?.classList.add('hidden');
     viewRow?.classList.remove('hidden');
   };
-
-  const saveMenuName = () => {
-    const raw = (nameInput?.value || '').trim();
-    const clean = raw ? cleanPlayerName(raw) : (getStoredPlayerName() || ensureStoredNick());
-    storePlayerName(clean);
-    updateCardName();
-    closeNameEdit();
-  };
-
-  inputRow?.addEventListener('click', (e) => e.stopPropagation());
-
-  editBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    try {
-      if (nameInput) nameInput.value = getStoredPlayerName() || '';
-    } catch {}
-    viewRow?.classList.add('hidden');
-    inputRow?.classList.remove('hidden');
-    nameInput?.focus();
-    nameInput?.select();
-  });
-
-  rerollBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    try {
-      const cur = getStoredPlayerName() || '';
-      const nick = generateNick(cur);
-      storePlayerName(nick);
-    } catch {}
-    updateCardName();
-    closeNameEdit();
-    showInstallToast(t('custom.nickReady'));
-  });
-
-  document.getElementById('btn-save-menu-name')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    saveMenuName();
-  });
-
-  nameInput?.addEventListener('click', (e) => e.stopPropagation());
-  nameInput?.addEventListener('input', (e) => {
-    e.target.value = (e.target.value || '').toUpperCase();
-  });
-  nameInput?.addEventListener('keydown', (e) => {
-    e.stopPropagation();
-    if (e.key === 'Enter') saveMenuName();
-    else if (e.key === 'Escape') closeNameEdit();
-  });
 
   // Karakteri zıplatma & kıvılcım saçma tetikleyicisi (oyuncu dokununca canlı tepki)
   // İtki, hız ve parçacık ölçüleri yarıçapa oranlıdır (bkz. `avatarStage.js`):
@@ -615,34 +577,40 @@ export function initMenuAvatarCard() {
     // Kare kutusu: çizimden sızan klip/dönüşüm kare sonunda düşer.
     ctx.restore();
 
-    const menuOverlay = document.getElementById('menu-overlay');
-    if (menuOverlay && !menuOverlay.classList.contains('hidden')) {
-      menuAnimFrameId = requestAnimationFrame(menuLoop);
-    } else {
+    // Görünürlük kapısı döngünün İÇİNDE: kart sahne dışındayken rAF durur.
+    // Kart artık app shell'in Profil görünümünde olduğu için `#menu-overlay`a
+    // bağlamak yanlış olurdu; kapı doğrudan kartın kendi görünürlüğünden okunur.
+    if (cardEl && !cardEl.getClientRects().length) {
       menuAnimFrameId = null;
+      return;
     }
+    menuAnimFrameId = requestAnimationFrame(menuLoop);
   };
 
-  if (!menuAnimFrameId) {
+  const isCardVisible = () => !cardEl || cardEl.getClientRects().length > 0;
+
+  const startLoop = () => {
+    if (menuAnimFrameId) return;
+    lastTime = performance.now();
     menuAnimFrameId = requestAnimationFrame(menuLoop);
+  };
+
+  // İlk kare hemen çizilir: gözlemci düğüm DOM'a EKLENMEDEN kurulduğu için
+  // ilk `isIntersecting` geçişi kaçabilir ve sahne boş kalırdı.
+  if (isCardVisible()) {
+    cachedProfile = getAvatarProfile();
+    startLoop();
   }
 
-  // Menü tekrar açıldığında döngüyü yeniden başlatmak + ismi tazelemek için observer
-  const menuOverlay = document.getElementById('menu-overlay');
-  if (menuOverlay) {
-    const observer = new MutationObserver(() => {
-      if (!menuOverlay.classList.contains('hidden')) {
-        updateCardName();
-        cachedProfile = getAvatarProfile();
-        if (!menuAnimFrameId) {
-          lastTime = performance.now();
-          menuAnimFrameId = requestAnimationFrame(menuLoop);
-        }
-      }
-    });
-    observer.observe(menuOverlay, { attributes: true, attributeFilter: ['class'] });
+  // Görünürlük geçişleri: sahneye girince başlat (döngü zaten içeride durur).
+  if (typeof IntersectionObserver === 'function' && cardEl) {
+    new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      updateCardName();
+      cachedProfile = getAvatarProfile();
+      startLoop();
+    }).observe(cardEl);
   }
-
   // Dil değişiminde açık customize modalının ızgaraları anında yenilenir
   onLangChange(() => {
     updateCardName();

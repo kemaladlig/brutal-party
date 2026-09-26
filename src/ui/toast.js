@@ -3,7 +3,12 @@ import { t } from '../i18n.js';
 
 const installToast = document.getElementById('install-toast');
 const connectionBanner = document.getElementById('connection-banner');
-const btnInstallApp = document.getElementById('btn-install-app');
+
+// Yükleme düğmesi birden çok yerde yaşar (profil kartı + ana menü simgesi)
+// ve shell tarafından sonradan üretilebilir. Bu yüzden `id` değil, TEK bir
+// davranış özniteliği (`data-install-app`) tek kaynaktır: iki düğme aynı anda
+// id taşıyamaz, ama ikisi de aynı tıklama davranışını alabilir.
+const INSTALL_SELECTOR = '[data-install-app]';
 
 let deferredInstallPrompt = null;
 
@@ -12,11 +17,10 @@ export function isStandaloneApp() {
 }
 
 export function updateInstallButtonVisibility() {
-  if (isStandaloneApp()) {
-    btnInstallApp?.classList.add('hidden');
-  } else {
-    btnInstallApp?.classList.remove('hidden');
-  }
+  const standalone = isStandaloneApp();
+  document.querySelectorAll(INSTALL_SELECTOR).forEach((btn) => {
+    btn.classList.toggle('hidden', standalone);
+  });
 }
 
 export function showInstallToast(message) {
@@ -60,11 +64,16 @@ export function initToastAndInstall() {
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
     deferredInstallPrompt = event;
-    btnInstallApp?.classList.add('available');
+    document.querySelectorAll(INSTALL_SELECTOR).forEach((btn) => btn.classList.add('available'));
     updateInstallButtonVisibility();
   });
 
-  btnInstallApp?.addEventListener('click', async () => {
+  // Düğmeler shell tarafından üretilip sonradan eklenebildiği için olay
+  // delegasyonu kullanılır (doğrudan addEventListener erken bağlansa null'da
+  // kalırdı ve buton hiç çalışmazdı).
+  document.addEventListener('click', async (e) => {
+    const btn = e.target?.closest?.(INSTALL_SELECTOR);
+    if (!btn) return;
     if (deferredInstallPrompt) {
       deferredInstallPrompt.prompt();
       const choice = await deferredInstallPrompt.userChoice;
@@ -72,7 +81,7 @@ export function initToastAndInstall() {
         showInstallToast(t('pwa.added'));
       }
       deferredInstallPrompt = null;
-      btnInstallApp.classList.remove('available');
+      btn.classList.remove('available');
       return;
     }
 
@@ -82,7 +91,7 @@ export function initToastAndInstall() {
 
   window.addEventListener('appinstalled', () => {
     deferredInstallPrompt = null;
-    btnInstallApp?.classList.add('hidden');
+    updateInstallButtonVisibility();
     showInstallToast(t('pwa.added'));
   });
 }

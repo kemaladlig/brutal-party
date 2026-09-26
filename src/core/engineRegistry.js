@@ -30,6 +30,7 @@ export const GAME_ORDER = [
 export const CARTRIDGES = {
   PONG: {
     id: 'PONG',
+    category: 'speed',
     title: 'BRUTAL PONG',
     hudTag: '🏓 PONG',
     tacticalHintKey: 'hint.pong',
@@ -66,6 +67,7 @@ export const CARTRIDGES = {
 
   TANKS: {
     id: 'TANKS',
+    category: 'fight',
     title: 'MICRO-TANKS',
     hudTag: '🛡️ TANKS',
     tacticalHintKey: 'hint.tanks',
@@ -100,6 +102,7 @@ export const CARTRIDGES = {
 
   CURVE: {
     id: 'CURVE',
+    category: 'strategy',
     title: 'BRUTAL CURVE',
     hudTag: '🐍 CURVE',
     tacticalHintKey: 'hint.curve',
@@ -129,6 +132,7 @@ export const CARTRIDGES = {
 
   BOMB: {
     id: 'BOMB',
+    category: 'fight',
     title: 'BRUTAL BOMB',
     hudTag: '💣 BOMB',
     tacticalHintKey: 'hint.bomb',
@@ -160,6 +164,7 @@ export const CARTRIDGES = {
 
   HEIST: {
     id: 'HEIST',
+    category: 'fight',
     title: 'BRUTAL HEIST',
     hudTag: '💰 HEIST',
     tacticalHintKey: 'hint.heist',
@@ -191,6 +196,7 @@ export const CARTRIDGES = {
 
   ARCHER: {
     id: 'ARCHER',
+    category: 'aim',
     title: 'BRUTAL ARCHERY',
     hudTag: '🏹 ARCHER',
     tacticalHintKey: 'hint.archer',
@@ -221,6 +227,7 @@ export const CARTRIDGES = {
 
   CROWN: {
     id: 'CROWN',
+    category: 'fight',
     title: 'BRUTAL CROWN',
     retired: true,
     hudTag: '👑 CROWN',
@@ -253,6 +260,7 @@ export const CARTRIDGES = {
 
   ZONE: {
     id: 'ZONE',
+    category: 'strategy',
     title: 'BRUTAL ZONE',
     hudTag: '🗺️ ZONE',
     tacticalHintKey: 'hint.zone',
@@ -285,6 +293,7 @@ export const CARTRIDGES = {
 
   SNAKE: {
     id: 'SNAKE',
+    category: 'strategy',
     title: 'BRUTAL SNAKE',
     hudTag: '🐍 SNAKE',
     tacticalHintKey: 'hint.snake',
@@ -316,6 +325,7 @@ export const CARTRIDGES = {
 
   LASER: {
     id: 'LASER',
+    category: 'speed',
     title: 'BRUTAL LASER',
     hudTag: '🔫 LASER',
     tacticalHintKey: 'hint.laser',
@@ -353,6 +363,7 @@ export const CARTRIDGES = {
 
   CLONE: {
     id: 'CLONE',
+    category: 'strategy',
     title: 'BRUTAL CLONE',
     retired: true,
     hudTag: '👥 CLONE',
@@ -384,6 +395,7 @@ export const CARTRIDGES = {
 
   COLLAPSE: {
     id: 'COLLAPSE',
+    category: 'strategy',
     title: 'BRUTAL COLLAPSE',
     hudTag: '🕳️ COLLAPSE',
     tacticalHintKey: 'hint.collapse',
@@ -414,6 +426,7 @@ export const CARTRIDGES = {
 
   NINJA: {
     id: 'NINJA',
+    category: 'fight',
     title: 'BRUTAL NINJA',
     hudTag: '🥷 NINJA',
     tacticalHintKey: 'hint.ninja',
@@ -445,6 +458,7 @@ export const CARTRIDGES = {
 
   HORDE: {
     id: 'HORDE',
+    category: 'fight',
     title: 'BRUTAL HORDE',
     lobbyTitle: 'BRUTAL HORDE',
     hudTag: 'HORDE',
@@ -493,6 +507,7 @@ export const CARTRIDGES = {
 
   RACE: {
     id: 'RACE',
+    category: 'speed',
     title: 'BRUTAL RACE',
     lobbyTitle: 'BRUTAL RACE',
     hudTag: 'RACE',

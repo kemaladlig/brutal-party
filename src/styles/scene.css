@@ -1,0 +1,315 @@
+/* SAHNE — ana menü ve oda ekranının ORTAK görsel dili.
+   İki ekran aynı dünyada oynadığı için aynı arka plan katmanlarını ve aynı
+   buton ailesini paylaşmalı; ayrı ayrı yazılırsa ekranlar "farklı site"
+   gibi görünür (kullanıcı raporu). Bu yüzden:
+
+     .scene + .scene-backdrop/.scene-spotlight/.scene-floor/.scene-vignette
+     .scene-btn + .scene-btn-icon/-copy/-label/-sub/-go
+     .scene-hero + .scene-hero-canvas + .scene-badge
+
+   tek yerde tanımlıdır; `home.css` ve `room.css` yalnız KONUMU yerelleştirir. */
+
+.scene {
+  /* SAHNE ÇİZGİSİ: arena diskinin ÜST kenarı, ekran yüksekliğinin yüzdesi.
+     Karakterin ayağı bu çizgiye oturur (`.scene-hero.is-staged`). Önceden
+     `.scene-floor` kendi `bottom` değeriyle konumlanıyor, karakter ise
+     `top: 50%` idi; ikisi bağımsız hesaplandığı için karakter zemine
+     birden fazla biçimde denk gelmiyordu. Tek değişken, iki tüketici. */
+  --scene-stage-y: 64%;
+  --scene-floor-h: min(46vh, 440px);
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Arka plan katmanları ────────────────────────────────────────────── */
+
+.scene-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 70% at 50% 96%, var(--scene-glow) 0%, transparent 58%),
+    linear-gradient(180deg,
+      var(--scene-top) 0%,
+      var(--scene-mid) 34%,
+      var(--scene-low) 62%,
+      var(--scene-bottom) 100%);
+}
+
+/* Karakterin altındaki arena diski. Üst kenarı `--scene-stage-y` (sahne
+   çizgisi); yüksekliği `--scene-floor-h`. */
+.scene-floor {
+  position: absolute;
+  left: 50%;
+  top: var(--scene-stage-y);
+  width: min(74vw, 900px);
+  height: var(--scene-floor-h);
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background:
+    /* Arena halkaları: diski düz bir leke olmaktan çıkarır, zemini
+       "sahne" gibi okutur. Tek katman, düşük kontrast. */
+    repeating-radial-gradient(circle at 50% 50%,
+      transparent 0 46px,
+      var(--scene-ring) 46px 48px),
+    radial-gradient(closest-side, var(--scene-spot) 0%, transparent 72%),
+    linear-gradient(180deg, var(--scene-floor) 0%, var(--scene-floor-edge) 100%);
+  opacity: 0.5;
+  filter: blur(1px);
+}
+
+.scene-spotlight {
+  position: absolute;
+  left: 50%;
+  top: 6%;
+  width: min(88vw, 1040px);
+  height: min(66vh, 620px);
+  transform: translateX(-50%);
+  background: radial-gradient(closest-side, var(--scene-glow) 0%, transparent 70%);
+  opacity: 0.34;
+  pointer-events: none;
+}
+
+.scene-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 96% at 50% 46%, transparent 52%, var(--scene-edge) 100%);
+  pointer-events: none;
+}
+
+/* ── Buton ailesi ───────────────────────────────────────────────────────
+   Üç ağırlık, tek geometri: aynı yarıçap, kenar, gölge, ikon rozeti, etiket
+   hiyerarşisi. Fark yalnız dolguda. */
+
+.scene-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 15px 9px 10px;
+  border-radius: 19px;
+  border: 2px solid var(--scene-btn-line);
+  background: var(--scene-btn-fill);
+  color: var(--scene-btn-ink);
+  text-align: start;
+  cursor: pointer;
+  box-shadow: 0 9px 20px var(--scene-btn-shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.3, 1),
+              box-shadow 180ms ease, background 200ms ease, filter 200ms ease;
+}
+
+/* Saydam orta ağırlık — ikincil eylemler. */
+.scene-btn.is-ghost {
+  --scene-btn-fill: var(--scene-btn-ghost);
+  --scene-btn-line: var(--scene-btn-ghost-line);
+  --scene-btn-ink: var(--hud-ink);
+}
+
+/* Ana eylem: altın yığın + basık alt kenar (3B düğme). */
+.scene-btn.is-gold,
+.scene-btn.is-teal {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 8px 0 var(--scene-btn-line), 0 18px 32px var(--scene-shadow);
+}
+
+.scene-btn.is-gold {
+  --scene-btn-fill: linear-gradient(180deg, var(--play-top) 0%, var(--play-mid) 55%, var(--play-bottom) 100%);
+  --scene-btn-line: var(--play-edge);
+  --scene-btn-ink: var(--play-ink);
+  --scene-btn-icon-bg: var(--sheen-25);
+}
+
+.scene-btn.is-teal {
+  --scene-btn-fill: linear-gradient(180deg, var(--scene-teal-top) 0%, var(--scene-teal-mid) 55%, var(--scene-teal-bottom) 100%);
+  --scene-btn-line: var(--scene-teal-edge);
+  --scene-btn-ink: var(--play-ink);
+  --scene-btn-icon-bg: var(--sheen-25);
+}
+
+.scene-btn:hover { filter: brightness(1.07); }
+.scene-btn:active { transform: translateY(6px) scale(0.985); }
+
+.scene-btn.is-focused {
+  box-shadow: 0 9px 20px var(--scene-btn-shadow), 0 0 0 3px var(--accent-2);
+}
+
+.scene-btn.is-gold.is-focused,
+.scene-btn.is-teal.is-focused {
+  box-shadow: 0 8px 0 var(--scene-btn-line), 0 18px 32px var(--scene-shadow),
+              0 0 0 3px var(--accent-2);
+}
+
+.scene-btn-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  background: var(--scene-btn-icon-bg);
+  line-height: 0;
+}
+
+.scene-btn-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.scene-btn-label {
+  font: 900 13px/1.1 var(--font-grotesk);
+  letter-spacing: 0.02em;
+  /* Sahne eylemleri DAİMA büyük harf; i18n sözlüğündeki "Yükle" gibi
+     cümle biçimi yazılsa bile aile içinde tutarlı görünür. */
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.scene-btn-sub {
+  font: 800 9.5px/1.15 var(--font-mono);
+  letter-spacing: 0.04em;
+  /* `currentColor` üzerinden: dolgunun kendi mürekkebi kullanılır, yani
+     altın butonda koyu, cam butonda açık okunur. */
+  opacity: 0.78;
+  color: currentColor;
+  white-space: nowrap;
+}
+
+/* ── Karakter + kimlik rozeti ────────────────────────────────────────── */
+
+.scene-hero {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* SAHNEDE DURAN KARAKTER: ayağı arena diskinin üst kenarına oturur
+   (`bottom: 100% - stage-y`). Kimlik rozeti akıştan çıkar ve canvas'ın
+   ALT KENARINDA ortalayarak ayağın üstüne biner; böylece kahramanın gerçek
+   yüksekliği = canvas yüksekliği olur ve oturma hesabı doğru çıkar. */
+.scene-hero.is-staged {
+  bottom: calc(100% - var(--scene-stage-y) - var(--hero-ground-gap, 0px));
+}
+
+.scene-hero.is-staged .scene-badge {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: -12px;
+}
+
+.scene-hero-canvas {
+  display: block;
+  filter: drop-shadow(0 22px 28px var(--scene-shadow));
+}
+
+.scene-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 5px 8px 5px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--hud-surface);
+  border: 2px solid var(--hud-line);
+  box-shadow: 0 10px 24px var(--scene-shadow);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+
+/* ── İsim alanı (ortak `playerNameField` bileşeni, `prefix: 'home-'`) ──
+   Rozet sahnenin üstünde olduğu için renkler `--hud-*` ailesinden gelir. */
+
+.home-name-field { width: 100%; }
+
+.home-name-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.home-name-text {
+  font: 900 18px/1.1 var(--font-grotesk);
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: var(--hud-ink);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-name-action {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sheen-15);
+  color: var(--hud-ink);
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.home-name-action:hover { background: var(--sheen-35); }
+.home-name-action:active { transform: scale(0.92); }
+
+.home-name-edit { display: flex; align-items: center; gap: 6px; }
+.home-name-edit.hidden { display: none !important; }
+
+.home-name-input {
+  width: clamp(120px, 24vw, 190px);
+  height: 34px;
+  padding: 0 10px;
+  border: 2px solid var(--hud-line);
+  border-radius: var(--radius-pill);
+  background: var(--sheen-12);
+  color: var(--hud-ink);
+  font: 900 14px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  outline: none;
+}
+
+.home-name-save {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--play-ink);
+  font: 900 15px/1 var(--font-grotesk);
+  cursor: pointer;
+}
+
+.home-name-save:active { transform: scale(0.92); }
+
+/* ── Kısa ekran (telefon yatay) ──────────────────────────────────────── */
+
+@media (max-height: 470px) {
+  .scene-btn { padding: 7px 12px 7px 8px; gap: 9px; border-radius: 16px; }
+  .scene-btn-icon { width: 32px; height: 32px; border-radius: 11px; }
+  .scene-btn-icon svg { width: 17px; height: 17px; }
+  .scene-btn-label { font-size: 11.5px; }
+  .scene-btn-sub { display: none; }
+  .scene-badge { padding: 4px 8px 4px 12px; border-width: 1.5px; }
+  .home-name-text { font-size: 13px; }
+  .home-name-action { width: 24px; height: 24px; }
+  .home-name-input { height: 28px; font-size: 12px; }
+  .home-name-save { width: 28px; height: 28px; }
+}

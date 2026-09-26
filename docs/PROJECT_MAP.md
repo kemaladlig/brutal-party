@@ -45,8 +45,21 @@ src/ui/zoneWorldView.js     Client-only Zone world renderer; RLE grid → offscr
 src/ui/collapseWorldView.js Client-only Collapse world renderer; 13x13 grid
 src/ui/curveWorldView.js    Client-only Curve world renderer; iki katmanlı trail (near + field maskesi)
 src/ui/hordeWorldView.js    Client-only Horde world renderer; capped enemy/projectile snapshot'ları
-src/style.css               Modüler stil orkestratörü (@import src/styles/*)
-src/styles/                 Modüler CSS katmanı (tokens, base, hud, modals, menu, lobby, animations)
+src/style.css               Modüler stil orkestratörü (@import src/styles/*).
+                            SIRA ÖNEMLİ: `tokens.css` ilk, `scene.css` → `home.css`/`room.css`/`games.css`
+                            (sahne dili sahneyi kullananlardan ÖNCE), `sheets.css` en sonda
+                            (hud/modals/lobby üstüne yazan override katmanı).
+src/styles/                 Modüler CSS katmanı: `tokens.css` (TEK renk sözlüğü + koyu temanın
+                            `[data-theme='field']` açık kapsamı + global `.hidden` + form sıfırlaması),
+                            `base.css`, `hud.css` (oyun içi DOM kaplamaları), `modals.css`, `lobby.css`
+                            (lobi ALAN parçaları; durum seçicileri `.lobby-card.is-*` ile kart üzerinde),
+                            `shell.css` (kabuk kabuğu), `scene.css` (SAHNE ORTAK
+                            DİLİ: arka plan katmanları + `.scene-btn` buton ailesi + karakter/rozet),
+                            `home.css` (yalnız ana menü KONUMU), `room.css` (oda sahnesi KONUMU +
+                            lobi GÖRÜNÜMÜ yerleşimi), `games.css` (oyun arenası SAHNESİ: 5×3 kapak
+                            rafı + dev odak yazısı + OYNA), `profile.css`, `sheets.css` (pause/settings/join
+                            ortak sheet dili), `notices.css`, `animations.css`
+                            (`menu.css` ve `menuManager.js` silindi — bento sayfa artık yok)
 src/controlGuide.js         Oyun-içi kontrol yardımcısı overlay'i
 src/touchManager.js         Dokunmatik giriş yöneticisi (TV / masa-ortası lokal mod)
 src/i18n.js                 Hafif UI metin motoru (t(), dil state, olaylar)
@@ -132,19 +145,72 @@ src/core/
   qualityAuditors.js        I4, I5, I6 kapıları için saf denetleyici ve tarayıcı fonksiyonları (auditViewFidelityInContent, auditMotionCuesInContent, auditUnscaledGeometryInContent) + fail-closed kontrol (Eylül 2026)
 
 src/ui/
+  appShell.js               Uygulama kabuğunun TEK sahibi: view yığını (push/pop), donanım geri tuşu,
+                            Escape, rotate gate (`updateRotateGate`/`lockLandscape`), yatay view geçişi,
+                            girdi sahipliği + `setShellInputSuspender`, `keepAlive` görünümler,
+                            `chrome:'cinema'` (sahne ekranlarında üst şerit overlay),
+                            `shell:focuschange` olayı. Üst barda **kalıcı gezinme**
+                            (`ANASAYFA / OYUN / KARAKTER`, `rail.order` sıralı; geri düğmesi
+                            yok — karar 32), `goHome()`, `revealView(id)` (zaten
+                            açıksa dokunmaz — lobi her güncellendiğinde bunu çağırır) ve
+                            `closeView(id)`.
+  overlayHost.js             Açık diyalogların TEK sahibi: openOverlay/closeOverlay, odak tuzağı, Escape,
+                            backdrop, `<html data-overlay>`, kabuk girdi askıya alma
+  focusRouter.js            Konsol odak gezgini: roving tabindex, 2B en-yakın komşu, `[data-h-track]`
+                            yatay kaydırma, PageUp/PageDown
+  registry.js (views/)      Görünüm kayıt defteri: registerView(id, {title, rail, chrome, build, onExit}) —
+                            tek kayıt noktası, main.js içine ekran adına özel dal yazılmaz
+  homeView.js               Ana menü: SAHNE (ortak `scene.css`). Canlı karakter + isim rozeti
+                             merkezde; SAĞ ALT eylem ÇİFTİ: `ODA KUR` (teal) + `OYNA` (altın) —
+                             ikisi yan yana, oyun arenasını `OYNA` açar. SAĞ KENAR: `KODLA`,
+                             altında `YÜKLE` (`[data-install-app]`). Hepsi `.scene-btn` ailesi.
+                             `rail.order: 0` (kalıcı gezinmenin ilk girdisi), `chrome: cinema`.
+  roomView.js               Oda kurma SAHNESİ: aynı arena, karakter SOL KÖŞEDE daha küçük,
+                            sağda `TV` / `ONLINE` dev seçenekleri (`--mode-*` kimlik rengi).
+                            Yerel oynama burada DEĞİL — ana menüdeki `OYNA` → oyun arenası.
+  lobbyView.js              Host odası EKRANI (artık modal değil). `#tv-host-modal` içindeki
+                             `.tv-host-card`'ı DEVRALIR ve boş kalan modal kabuğunu `remove()`
+                             eder (yerinde `position: fixed` scrim + `backdrop-filter` olarak
+                             ekranı bulanıklaştırıyordu). `keepAlive` + idempotent `build`.
+                             Durum sınıfları (`is-online-room`, `is-seat-editor`) KART üzerinde
+                             yaşar (`hostLobby.js` + `lobby.css` `.lobby-card.is-*`).
+                             MOBİL İLK: 15 oyun İZGARA değil, **karusel** (tek kapak + ad + ipucu +
+                             iki adım düğmesi); bölüm anahtarı ve kaydırma yok. İki sütun × iki
+                             satır: üstte ODA + KOLTUKLAR, altta geniş OYUN bandı. `rail: null`,
+                             `backToRoot: true` (geri = odayı bırak, ana menüye dön).
+  profileView.js            KARAKTER ekranı — ikinci bir modal açan "tanıtım kartı" DEĞİL, tam bir
+                             DÜZENLEYİCİ: canlı avatar (`initMenuAvatarCard`), ortak isim alanı
+                             (`playerNameField`), ekranda renk paleti + yüz ifadesi + `ZARLA`
+                             (`.profile-editor`). Kaynak `customizationManager`. `rail.order: 2`.
+  heroAvatar.js             Ana menü merkezindeki canlı karakter (idle bob, blink, görünürlük kapılı rAF)
+  playerNameField.js        Ortak isim alanı bileşeni (görünür isim + kalem + zar, inline düzenleme);
+                            ana menü rozeti ve KARAKTER ekranı aynısını kullanır
+  iconSlots.js              DOM ikon yuvaları: `[data-icon]` / `[data-lobby-icon]` → Lucide SVG doldurma
+                            (statik markup ikonu elle yazmaz; ham OS emojisi yasık)
   canvasUI.js               Tüm motorlar için ortak Canvas UI bileşenleri (renderLobbySeatCard,
                             renderLobbyStartButton, renderStandardLobbySeats, renderMatchOver,
                             renderRoundBanner, renderControlGuide, renderCornerScores,
                             renderArenaWatermarkTimer, getStandardSeatRects)
-  customizeModal.js         Sekmeli (renk/yüz/aksesuar/desen) tek-profil avatar atölyesi (TV menü + host + kumanda lobi)
-  characterRenderer.js      Birleşik avatar çizimi: options.avatar/kayıt defteri, yazısız pip kimliği
-                            (P1=● … P4=●●●●), saha içi text-label yasaktır
-  hostLobby.js              TV/ONLINE bekleme lobisi modali (QR kod canvas, oda kodu, lobi oyun chip'leri, WhatsApp/link paylaşımı, ping badge, iki dokunuşlu doğrudan koltuk düzenleyici)
+  customizeModal.js         İKİ YOLLU avatar atölyesi. `initMenuAvatarCard(root)` KARAKTER
+                            ekranının avatar sahnesini + ifade çipini bağlar (asıl yol; profil
+                            görünümü düzenleyicidir). `openCustomizeModal()` yalnız TV lobisi ve
+                            kumanda yolunda ikincil sheet olarak kullanılır — ana menüden
+                            açılmaz (bir ekran = bir iş, karar 32)
+  characterRenderer.js      Birleşik avatar çizimi: options.avatar/kayıt defteri, `options.volume`
+                            (yalnız menü sahnesi), yazısız pip kimliği (P1=● … P4=●●●●),
+                            saha içi text-label yasaktır
+  avatarStage.js            Avatar sahne çizimi (ölçüler yarıçapa orantılı): menü `volume:true`,
+                            ince kenarlık, yumuşak zemin gölgesi
+  hostLobby.js              TV/ONLINE bekleme lobisi modali (QR kod canvas, oda kodu, lobi oyun chip'leri,
+                            WhatsApp/link paylaşımı, ping badge, iki dokunuşlu doğrudan koltuk düzenleyici)
   joinModal.js              Kumanda katılım modali & Hero kod kutusu, panodan yapıştırma
-  pauseModal.js             Oyun içi duraklatma menüsü, 4 koltuk takası, 90° saat yönü ekran döndürme, ses aç/kapa
-  toast.js                  PWA yükleme bildirimleri (showInstallToast, setupPwaInstallPrompt)
-  menuManager.js            TV ana menü orkestrasyonu (bento kart, ayar/ses kısayolları)
-  settingsModal.js          Ayarlar modalı (ses, haptik, kontrol yüzeyi auto/mobile/tabletop, PONG yönü/hassasiyet)
+  pauseModal.js             Oyun içi duraklatma menüsü, 4 koltuk takası, 90° saat yönü ekran döndürme,
+                            ses aç/kapa, kontrol referansı (`getKeyCapLabel` ile insan okunur tuşlar)
+  toast.js                  PWA kurulum istemi + bağlantı bandı. Kurulum düğmesi birden çok yerde
+                             yaşar (ana menü simgesi); tek kaynak `data-install-app` özniteliğidir,
+                             `id` değil (iki düğme aynı id'yi taşıyamaz).
+  settingsModal.js          Ayarlar sheet'i (ses, haptik, kontrol yüzeyi auto/mobile/tabletop,
+                            PONG yönü/hassasiyet, dil)
   controllerLayoutEditor.js Cihaz-geneli kumanda düzen editörü: live preview, boyut, sol/sağ sürükleme, save/reset; remote + LOCAL ortak
   fullscreen.js             Tam ekran istek/yönetim (TV + kumanda)
 
@@ -480,6 +546,43 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
        * `scripts/health.mjs` CLI aracı Vite SSR üzerinden 15 oyunun tamamını otomatik simüle edip doğrular (`npm run health`). 16. oyun bu kapıdan 0 ihlalle geçmeden eklenemez.
        * Kusur düzeltmeleri: B5 tekil profil (`arena.profile`), B7 varlık yarıçap standardizasyonu (`COLLAPSE`, `SNAKE`, `CLONE` body radius/size), B6 world-packet yarıçap paritesi, B11 `ctx.lineWidth * this.arena.unit` ölçeklemesi ve `faceMode: 'play'` oyun içi avatar sözleşmesi tamamlandı. 15/15 oyun 0 kusurla kapıdan geçer.
 
+  27. **Mobil kabuk: sabit yatay çerçeve, sayfa akışı yok (2026, `docs/MOBILE_SHELL_PLAN.md`):**
+       * Kaydırılabilir bento menü sayfası **silindi** (`menuManager.js` + `menu.css` ≈ 2700 satır). Yerine tek kabuk: `appShell.js` (view yığını, donanım geri, Escape, rotate gate, yatay push/pop, girdi sahipliği), `overlayHost.js` (diyalogların tek sahibi), `focusRouter.js` (roving tabindex + 2B gezinme), `views/registry.js` (**tek kayıt noktası**: `registerView(id, …)`).
+       * Dikey `overflow-y: auto` yalnız `index.html`de kalan panelde geçerlidir; shell ekranlarında sığmayan içerik ya `[data-h-track]` yatay track'inde ya da kapsüllenmiş scroller'dadır. Uygulama geneli landscape kilitlidir, portrait dokunmatikte tam ekran rotate gate gösterir (`updateRotateGate`).
+       * Kabuk görünümleri kendi stillerini `src/styles/{home,profile}.css` + `shell.css` içinden alır; `style.css` import sırası önemlidir (`sheets.css` override katmanı olarak en sonda).
+       * `heroAvatar.js` (menü sahnesi) ve `customizeModal.initMenuAvatarCard` rAF döngüleri `IntersectionObserver` + döngü içi görünürlük kontrolüyle hem sahne dışındayken durur hem de ilk kareyi kaybetmez (düğüm DOM'a eklenmeden kurulan gözlemci ilk `isIntersecting`'i kaçırıyordu).
+  28. **Koyu uygulama kimliği + krem saha kapsamı (2026):**
+       * DOM yüzeyleri koyu; kanvas oyun içi paleti (`UI_COLORS`/`src/ui/tokens.js`) ve oyun içi çizim **yerinde kalır** (görsel kimlik saha içinde aynıdır).
+       * Nötr rampa koyu temada **ters çevrilir**: `--n-900` artık en koyu değil, en açık metin/çizgi tonudur. Böylece yüzey/mürekkep rolleri yeniden eşlenmeden tüm mevcut kurallar geçerli kalır.
+       * Üç yeni rol token'ı kanıtlanmış çelişkileri çözer: `--panel` (buton/kart yüzeyi — `--white` yalnız "doygun dolgu üstündeki yazı"dır), `--on-accent` (turuncu/altın/sarı dolgu üstündeki koyu mürekkep), `--edge`/`--edge-strong` (yüzey kenarı ve basık gölge kenarı — koyu temada `--ink` ile çizmek kartı tel kafes gibi gösteriyordu). 108 `border: … var(--ink)` ve 74 `Npx Npx 0 var(--ink)` kullanımı tek kaynağa taşındı.
+       * **Saha kapsamı:** oyun sırasında krem canvas üstüne oturan DOM kaplamaları (`#in-game-hud`, `#staging-bar`, `#countdown-overlay`, `#local-mobile-controls`) ve kumanda yüzeyi (`#gamepad-overlay`) `data-theme="field"` alır; `tokens.css` bu kapsamda yüzey/mürekkep token'larını geri eşler. Tek sözlük, iki yüzey ailesi.
+       * Global sıfırlamalar iki görünmez hata sınıfını kapatır: `button, input, select, textarea { font: inherit; color: inherit }` (tarayıcının UA `buttontext` siyahı koyu zeminde görünmez metin üretiyordu) ve tek `.hidden { display: none !important }` (her öğe kendi `#id.hidden` kuralını taşıyordu; kuralı olmayanlar görünmemeyi umuyordu).
+       * `scripts/token-lint.mjs` (`npm run check` içinde) ham `hex`/`rgb()`/`hsl()` **ve isimlendirilmiş** renk anahtar kelimelerini yasaklar, `var()` referanslarının çözülebilirliğini doğrular.
+  29. **Ortak DOM bileşenleri (2026):**
+       * `playerNameField.js` oyuncu isim alanının tek uygulamasıdır (görünür isim + kalem + zar, inline düzenleme, `net.js` kalıcı depolama tek kaynağı). Ana menü rozeti, oda sahnesi ve KARAKTER ekranı aynısını kullanır; `customizeModal` isim bağlantılarını bırakmıştır.
+       * `iconSlots.js` (`hydrateIconSlots(root, attr, defaults)`) statik markup'taki `[data-icon]` / `[data-lobby-icon]` yuvalarını Lucide SVG ile doldurur; `hostLobby.renderLobbyIcons` aynı uygulamayı kullanır. Böylece `index.html` ikonu yazmaz, yalnız yerini işaretler (AGENTS.md §7: ham OS emojisi yasak).
+       * Tuş etiketleri `inputMaps.getKeyCapLabel(code)` ile üretilir: referans metinlerinde ham `KeyboardEvent.code` (`ArrowLeft`, `KeyI`) gösterilmez; fiziksel diziliş okunduğu sırada yazılır (`W A S D + SPACE`, `↑ ← ↓ → + ENTER`).
+  30. **Sahne dili ve tek buton ailesi (2026):**
+       * Ana menü ve oda ekranı **aynı dünyadır**: `src/styles/scene.css` arka plan katmanlarını (`.scene`, `.scene-backdrop`, `.scene-spotlight`, `.scene-floor`, `.scene-vignette`), karakter/rozeti (`.scene-hero`, `.scene-badge`) ve buton ailesini (`.scene-btn`) TEK YERDE tanımlar. `home.css` ve `room.css` yalnız **konumu** yerelleştirir. Ayrı ayrı yazılan iki sayfa "farklı site" gibi görünüyordu (kullanıcı raporu) — bu yüzden ayrım bilinçli olarak sadece yerleşim düzeyinde tutulur.
+       * `.scene-btn` üç ağırlık taşır, **tek geometri**: `is-gold` (ana eylem, altın yığın + basık 3B kenar), `is-teal` (ikincil eylem, turkuaz — ana menüde `ODA KUR`), `is-ghost` (üçüncü eylem, saydam — `KODLA`). Önceki hâlde ana menüde üç ayrı yüzey dili vardı (yeşil/mavi/kırmızı dolgulu mod butonları + cam yan butonlar + altın dev buton) ve birlikte "tek ürün" gibi okunmuyordu.
+       * **Karar akışı:** ana menü YÖN vermez, ekran YÖN verir. `ODA KUR` → oda sahnesi (TV / ONLINE) → lobi ekranı. Yerel oynama oda ekranında değildir: `OYNA` → oyun arenası → oyun. Aynı işi iki yol göstermemek için `AYNI CİHAZ` seçeneği kaldırıldı.
+       * Oda sahnesi bir form/liste değildir: karakter sol köşede küçük, iki seçenek ekranda oyun başlığı gibi (`TV`, `ONLINE`). `lobbyView` de aynı gerekçeyle görünür: host lobisi artık modal değil, shell ekranıdır (`keepAlive` + idempotent `build` ile `index.html`'deki düğüm devralınır).
+       * `appShell` üst barı **kalıcı gezinme** taşır: `ANASAYFA / OYUN / KARAKTER` (bkz. karar 32). `revealView(id)` / `closeView(id)` lobi gibi "dışarıdan açılan" ekranlar için tek giriş noktasıdır (zaten açık olan ekrana dokunmaz).
+       * `heroAvatar` döngüsü `IntersectionObserver` KULLANMAZ: `build()` anında düğüm DOM'a eklenmediği için ilk `isIntersecting` geçişi kaçıyor ve sahne hiç çizilmeden kalıyordu. Tek mekanizma: her karede `getClientRects()` kontrolü + `ResizeObserver` geri çağrısında ölçüm tazeleme **ve** döngüyü yeniden başlatma. `customizeModal.initMenuAvatarCard` da aynı tuzağa düşmüştü.
+  31. **Ölü kod temizliği (2026):**
+       * `.bento-card` (15 kural, `animations.css`), eski D-pad ailesi (`brutal-dpad`, `dpad-*`, `snake-dpad-half`), eski pause/customize parçaları (`sheet-row-2`, `pause-seats-box/-title`, `custom-section-title`, `btn-hero-customize`, `profile-chip`, `.profile-name`) ve ölü kumanda parçaları (`header-left-group`, `header-game-chip`, `player-name-label`, `gamepad-room-info`, `snake-center-hud`, `snake-nrg-pill/-dot/-label`, `joy-slot-indicator`, `lobby-game-preview-card`, `dash-btn-slot-tag`) silindi — toplam 37 kural.
+       * Sözlükte kullanılmayan 13 token silindi (`--line`, `--p3`, `--bot-god`, `--gold-soft`, `--n-000`, `--n-800`, `--dim-75`, `--scene-card`, `--scrim-soft`, `--shadow-hard`, `--mode-badge-*`): 148 → 135 tanım, 0 kullanılmayan.
+       * `--mode-badge-*` kaldırıldı çünkü oda seçenekleri artık `--mode-tv` / `--mode-online` **kimlik** renklerini kullanıyor (tek kaynak: oyuncu kimliği ailesi).
+       * Ölü CSS avı elle değil, CSS'i taramayan bir betikle yapıldı (JS/HTML tarafında token olarak geçmeyen seçici = ölü); betik işi bitince silindi, projeye kalıcı araç olarak eklenmedi.
+
+   32. **Tasarım revizyonu — sahne, liste değil (2026-09):**
+        * **Geri düğmesi kaldırıldı, kalıcı gezinme geldi.** Üst şerit artık `marka → ANASAYFA / OYUN / KARAKTER` (sola yaslı, `rail.order` ile sıralı). `#shell-back` markup + CSS'i silindi; `goHome()` yığını köke indirir ve `onLobbyExit` ile açık odayı kapatır. Escape / donanım geri tuşu / tarayıcı history'si `back()` çalıştırmaya devam eder. Gerekçe: "geri" yalnız iki adımlı akışta anlamlı; uygulamada kalıcı hedefler üç tanedir ve oyuncunun geri dönmek istediği yer her zaman ana menüdür.
+        * **PROFIL bir düzenleyiciye dönüştü.** İkinci bir ekran (ÖZELLEŞTİR modalı) açmak yerine renk paleti, yüz ifadesi, isim alanı ve `ZARLA` doğrudan KARAKTER ekranında (`profileView.js` + `.profile-editor`). `openCustomize` eylemi, `main.js`'teki `openCustomizeModal` import'u ve `menu.avatarCta` i18n anahtarı ölü kod olarak silindi.
+        * **Ana menü eylemleri yeniden gruplandı.** `ODA KUR` + `OYNA` tek çift (sağ alt, ikincil solda), `KODLA` + `YÜKLE` sağ kenarda alt alta. PWA kurulum profilden çıkarılıp ana menü simgesi oldu (`[data-install-app]` tek davranış kaynağı; `id` yerine öznitelik, çünkü iki düğme aynı `id`'yi taşıyamaz).
+        * **Ayarlar iki sütunlu** (`settings-cols`): GENEL | OYUN & KONTROL + HAKKINDA. Geniş ekranda 880px ve ortalanmış; dar ekranda tek sütun. Kaplama `align-items: center` + içerik kadar yükseklik (önceden `stretch` idi ve ayarlar her ekranda tam boy oluyordu).
+        * **Karakter sahneye oturdu.** Disk (`--scene-stage-y`) ve kahraman (`.scene-hero.is-staged` + `--hero-ground-gap`) tek değişkenden türer; daha önce bağımsız `top: 50%` / `bottom: -14%` hesapları denk gelmiyordu.
+        * Tasarım ölçütleri ve doğrulama yöntemi (hedef boyut = yatay telefon, `?devlobby` kancası, `browser.capture` rAF yarışı) `docs/MOBILE_SHELL_PLAN.md` → "Tasarım anlayışı" bölümünde.
+
 ---
 
 ## 6. Yeni Oyun Ekleme Adımları (Hızlı Rehber)
@@ -490,12 +593,12 @@ Yeni bir oyun ekleneceğinde aşağıdaki kayıtlar güncellenir:
 3. `src/core/engineRegistry.js`: `GAME_ORDER` + tek `CARTRIDGES[MOD]` kaydı (`load/createEngine/reset/onEnter/onResume/start/packet`). `main.js`/`gamepad.js` moda özel zincir eklenmez.
 4. `src/core/slotManager.js`: `applySlotDataToEntity`, `clearRemoteSlot`, `swapEngineSlots` desteği.
 5. `src/controllers/controlDefs.js`, `gamepadSchemas.js`, `controllerStatus.js`: telefon + tabletop parite, ikon/cooldown ve canlı durum kaydı.
-6. `index.html`: Bento kartı (`#btn-select-[mod]`) ve TV lobi çipi (`data-game="[MOD]"`).
-7. `src/styles/menu.css` + `animations.css`: kart vurgusu ve 15. giriş gecikmesi.
+6. `index.html`: TV lobi çipi (`data-game="[MOD]"`). Oyun kataloğu tek yerde: `CARTRIDGES` (bento sayfa kaldırıldı, oyun seçimi `gamesView` ızgarasından beslenir).
+7. `src/styles/shell.css` (`games-*`, `game-tile`, `game-detail-*`): oyun rafı görünümü. Kategori rengi `CARTRIDGES.category`'dan gelir; görünüm yalnız `CATEGORIES` etiketlerini tanımlar.
 8. `public/sw.js`: yeni görseli precache'e ekle ve cache sürümünü artır.
-9. `public/assets/games/[oyun].jpg`: 1:1 neo-brutalist görsel.
+9. `public/assets/games/[oyun].jpg`: 1:1 kapak görseli (koyu kart içinde krem "kapak penceresi" olarak gösterilir, `--art-board`).
 10. `docs/PROJECT_MAP.md` + `AGENTS.md`: motor/AI/dosya/kontrol kayıtları.
-11. `npm test`, `npm run check`, `npm run build`, `npm run health`: regresyon, statik kontrol, production build ve 15 oyunluk kalite kapısı yeşil olmadan tamamlanmaz.
+11. `npm test`, `npm run check` (tsc + `scripts/token-lint.mjs`), `npm run build`, `npm run health`: regresyon, statik kontrol, production build ve 15 oyunluk kalite kapısı yeşil olmadan tamamlanmaz.
 
 ---
 

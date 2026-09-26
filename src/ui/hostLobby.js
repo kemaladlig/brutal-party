@@ -4,10 +4,21 @@ import { PUBLIC_URL, isPublicOrigin } from '../net.js';
 import { showInstallToast } from './toast.js';
 import { getActivePalettes, paletteName } from '../core/customizationManager.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
+import { hydrateIconSlots } from './iconSlots.js';
 import { getSlotSwapError, isBotSlot } from '../core/slotRules.js';
+import { revealView, closeView } from './appShell.js';
+import { openOverlay, closeOverlay, isOverlayOpen } from './overlayHost.js';
 import { t, onLangChange } from '../i18n.js';
 
-const tvHostModal = document.getElementById('tv-host-modal');
+// Lobi artık MODAL değil, shell GÖRÜNÜMÜ (`views/lobbyView.js` bu düğümü
+// devralır). Buradaki `show`/`hide` yalnız içeriği tazeler ve kabuktan ekranı
+// ister/kapatır; görünürlüğün tek sahibi artık shell'dir (AGENTS.md §7).
+//
+// Durum sınıfları (`is-online-room`, `is-seat-editor`) KARTIN üzerine yazılır,
+// kabuk düğümüne değil: kart devralınca kabuktan ayrılıyor, `#tv-host-modal.*`
+// seçicileri bir daha eşleşmiyordu (koltuk düzenleyici görünümü ölüydü).
+const tvHostModal = document.getElementById('tv-host-modal')?.querySelector('.tv-host-card')
+  || document.getElementById('tv-host-modal');
 const hostRoomCode = document.getElementById('host-room-code');
 const hostJoinUrl = document.getElementById('host-join-url');
 const qrCanvas = document.getElementById('qr-canvas');
@@ -17,6 +28,15 @@ const btnHostClose = document.getElementById('btn-host-close');
 const btnHostCopyLink = document.getElementById('btn-host-copy-link');
 const btnHostWhatsappShare = document.getElementById('btn-host-whatsapp-share');
 
+// Sheet'ler (DAVET / koltuk) kartın içinde yaşar; görünürlük + Escape + odak
+// trap tek sahibinden gider: `overlayHost.js`.
+const lobbyInviteSheet = document.getElementById('lobby-invite-sheet');
+const lobbySeatSheet = document.getElementById('lobby-seat-sheet');
+const seatSheetTitle = document.getElementById('lobby-seat-sheet-title');
+const seatSheetActions = document.getElementById('lobby-seat-sheet-actions');
+
+const SHEET_ANIM_MS = 200;
+
 function setButtonLabel(button, key) {
   const label = button?.querySelector('[data-i18n]');
   if (label) label.textContent = t(key);
@@ -24,11 +44,9 @@ function setButtonLabel(button, key) {
 }
 
 function renderLobbyIcons(root = document) {
-  root.querySelectorAll('[data-lobby-icon]').forEach((slot) => {
-    const icon = slot.dataset.lobbyIcon;
-    if (!icon) return;
-    slot.innerHTML = getTabletopIconSvg(icon, { size: 18, strokeWidth: 2.3 });
-  });
+  // Yuva doldurma tek uygulamada (`iconSlots.js`); lobi yalnız öznitelik adını
+  // ve varsayılan ölçüyü söyler.
+  hydrateIconSlots(root, 'lobbyIcon', { size: 18, strokeWidth: 2.3 });
   root.querySelectorAll('.chip-selected-icon').forEach((slot) => {
     slot.innerHTML = getTabletopIconSvg('check', { size: 12, strokeWidth: 3 });
   });
@@ -39,10 +57,44 @@ let hostPingTimer = null;
 let detectedLanIp = null;
 let seatSwapSource = null;
 let seatEditorOpen = false;
+// `hideHostLobbyModal` lobiyi yalnız GİZLER (TO ARENA, düzenleyici kapat, ✕
+// kendi oda kapanışını açıkça çağırır). `lobbyView` bu pencerede `onLobbyExit`
+// ile odayı KAPATMASIN — dispatch senkron olduğu için bayrak yeter.
+let lobbyExitSuppressed = false;
 let currentRoomCode = '';
 let currentJoinUrl = '';
 let getSlotState = () => null;
 let isSeatSwapLocked = () => false;
+let getActiveNet = () => null;
+
+// ── Sheet altyapısı ───────────────────────────────────────────────────────
+// `.lobby-sheet` kökü aynı zamanda backdrop'tur: `overlayHost` köke tıklamayı
+// kapanış sayar. Aç/kapa sınıfları CSS geçişini (fade + slide) besler.
+
+export function showLobbySheet(sheet, id, { onShow = null, onHide = null } = {}) {
+  if (!sheet || sheet.classList.contains('is-open')) return;
+  onShow?.();
+  sheet.classList.remove('hidden');
+  window.requestAnimationFrame(() => sheet.classList.add('is-open'));
+  openOverlay(id, {
+    el: sheet,
+    onClose: () => {
+      sheet.classList.remove('is-open');
+      window.setTimeout(() => {
+        sheet.classList.add('hidden');
+        onHide?.();
+      }, SHEET_ANIM_MS);
+    },
+  });
+}
+
+export function dismissLobbySheet(id) {
+  closeOverlay(id);
+}
+
+export function isLobbySheetOpen(id) {
+  return isOverlayOpen(id);
+}
 
 function paintSeatSwapUi() {
   const buttons = document.querySelectorAll('.slot-swap-btn');
@@ -89,6 +141,13 @@ function paintSeatSwapUi() {
     } else {
       btn.setAttribute('aria-label', t('host.swapTarget', idx + 1));
     }
+    // Çipin kendisi de hedef/ kaynak durumunu gösterir (buton sheet'in içinde
+    // olabilir; çip her zaman listede durur).
+    const chip = document.getElementById(`slot-p${idx + 1}`);
+    if (chip) {
+      chip.classList.toggle('is-swap-source', selected);
+      chip.classList.toggle('is-swap-target', isTarget);
+    }
   });
 
   if (hint) {
@@ -98,6 +157,7 @@ function paintSeatSwapUi() {
       : t('host.slotTargetHint', seatSwapSource + 1);
     hint.classList.toggle('is-targeting', seatSwapSource !== null);
   }
+  if (isLobbySheetOpen('lobby-seat')) paintSeatSheetTitle();
 }
 
 function resetSeatSwapSelection() {
@@ -121,14 +181,26 @@ export function getCurrentHostGameMode() {
   return currentHostGameMode;
 }
 
+/**
+ * Yalnız YEREL seçimi değiştirir (relay'a göndermez). Oda kurulmadan ÖNCE
+ * `main.js` tarafından kullanılır: ağ henüz yokken hatırlanacak mod budur.
+ */
 export function setCurrentHostGameMode(mode) {
-  currentHostGameMode = mode;
-  document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
-    const active = chip.dataset.game === mode;
-    chip.classList.toggle('active', active);
-    chip.setAttribute('aria-pressed', String(active));
-  });
-  setButtonLabel(btnHostLaunchGame, seatEditorOpen ? 'host.closeEditor' : 'host.stage');
+  if (mode) currentHostGameMode = mode;
+}
+
+/**
+ * Lobi oyun seçimini değiştirir ve gerekli tüm tarafları haberlendirir:
+ * relay (`setHostGameMode`) ve karusel (`lobby:game` olayı).
+ * Lobi 15 oyunu bir IZGARA olarak göstermez — mobilde tek kahraman kapak +
+ * adım düğmeleri yeterlidir; tam ızgara sheet'i `views/lobbyView.js`'tedir.
+ * Bu yüzden değişim tek fonksiyondan geçer; çağıran taraf yalnız niyetini söyler.
+ */
+export function setHostGameMode(mode) {
+  if (!mode || mode === currentHostGameMode) return;
+  setCurrentHostGameMode(mode);
+  getActiveNet()?.setHostGameMode?.(mode);
+  document.dispatchEvent(new CustomEvent('lobby:game', { detail: { mode } }));
 }
 
 export function setHostPlayerButtonState(active, platformMode) {
@@ -183,32 +255,89 @@ export function stopHostPingBadge() {
   }
 }
 
+// ── DAVET sheet'i ─────────────────────────────────────────────────────────
+
+function paintInviteContent() {
+  const channelCode = document.getElementById('host-channel-code');
+  if (channelCode) channelCode.textContent = currentRoomCode;
+  if (hostJoinUrl) hostJoinUrl.textContent = currentJoinUrl.replace(/^https?:\/\//, '');
+  if (qrCanvas && currentJoinUrl) {
+    QRCode.toCanvas(qrCanvas, currentJoinUrl, {
+      width: 148,
+      margin: 1,
+      color: { dark: '#1A1A1A', light: '#FFFFFF' },
+    });
+  }
+}
+
+function openInviteSheet() {
+  paintInviteContent();
+  showLobbySheet(lobbyInviteSheet, 'lobby-invite');
+}
+
+// ── Koltuk sheet'i ────────────────────────────────────────────────────────
+// Renk/bot/takas düğmeleri çipte DOĞAR (initHostLobby onlara bağlanır) ve
+// sheet açılınca AYNI DÜĞÜMLER sheet'e taşınır; kapanınca çip geri alır.
+// Kopya düğüm yok — tek kaynak, tek bağlama.
+
+let seatSheetSlot = null;
+
+function seatSheetHeadline(idx) {
+  const entry = getSlotState(idx);
+  const name = entry?.name ? ` · ${entry.name}` : '';
+  return `${t('host.seat')} 0${idx + 1}${name}`;
+}
+
+function paintSeatSheetTitle() {
+  if (seatSheetSlot === null || !seatSheetTitle) return;
+  const entry = getSlotState(seatSheetSlot);
+  seatSheetTitle.textContent = seatSheetHeadline(seatSheetSlot);
+  // Boş koltukta takas anlamsız: düğme hiç gösterilmez (sayım kilidinde
+  // dolu koltukta görünür kalır, dokununca toast neden söyler).
+  lobbySeatSheet?.classList.toggle('is-empty-seat', !entry);
+}
+
+function openSeatSheet(idx) {
+  showLobbySheet(lobbySeatSheet, 'lobby-seat', {
+    onShow: () => {
+      seatSheetSlot = idx;
+      paintSeatSheetTitle();
+      const chip = document.getElementById(`slot-p${idx + 1}`);
+      const actions = chip?.querySelector('.slot-card-actions');
+      if (actions && seatSheetActions) {
+        seatSheetActions.append(actions);
+        actions.classList.add('is-sheet-hosted');
+      }
+      paintSeatSwapUi();
+    },
+    onHide: () => {
+      const actions = seatSheetActions?.querySelector('.slot-card-actions');
+      if (actions) {
+        document.getElementById(`slot-p${seatSheetSlot + 1}`)?.append(actions);
+        actions.classList.remove('is-sheet-hosted');
+      }
+      seatSheetSlot = null;
+    },
+  });
+}
+
 export function showHostLobbyModal(code, joinUrl, { seatEditor = false } = {}) {
   currentRoomCode = code || currentRoomCode;
   currentJoinUrl = joinUrl || currentJoinUrl;
   if (!seatEditor) seatSwapSource = null;
   seatEditorOpen = !!seatEditor;
   if (hostRoomCode) hostRoomCode.textContent = currentRoomCode;
-  const channelCode = document.getElementById('host-channel-code');
-  if (channelCode) channelCode.textContent = currentRoomCode;
-  if (hostJoinUrl) hostJoinUrl.textContent = currentJoinUrl.replace(/^https?:\/\//, '');
-  if (qrCanvas && !seatEditor) {
-    QRCode.toCanvas(qrCanvas, currentJoinUrl, {
-      width: 140,
-      margin: 1,
-      color: { dark: '#1A1A1A', light: '#FFFFFF' },
-    });
-  }
+  // Sheet açıkken odaya yeni biri katılıp lobi yeniden çağrılabilir; sheet
+  // arkadaki içerikten beslendiği için burada da tazele.
+  paintInviteContent();
+  // Kapanışa bırakılmayan eski sheet durumu oda değişiminden sızmasın.
+  dismissLobbySheet('lobby-seat');
+  dismissLobbySheet('lobby-invite');
   tvHostModal?.classList.toggle('is-seat-editor', seatEditorOpen);
-  tvHostModal?.classList.remove('hidden');
-  tvHostModal?.setAttribute('aria-hidden', 'false');
   paintSeatSwapUi();
-  window.requestAnimationFrame(() => {
-    const target = seatEditorOpen
-      ? document.querySelector('.slot-swap-btn:not(:disabled)')
-      : btnHostLaunchGame;
-    target?.focus({ preventScroll: true });
-  });
+  // Görünürlük kabuğun: lobi ekranı gerekirse açılır, gerekirse yeniden
+  // tazelenir (oda hâlâ açıksa `revealView` mevcut düğümü korur).
+  revealView('lobby');
 }
 
 export function openHostSeatEditor() {
@@ -224,14 +353,33 @@ export function openHostSeatEditor() {
 export function hideHostLobbyModal() {
   seatEditorOpen = false;
   resetSeatSwapSelection();
+  dismissLobbySheet('lobby-seat');
+  dismissLobbySheet('lobby-invite');
   tvHostModal?.classList.remove('is-seat-editor');
-  tvHostModal?.classList.add('hidden');
-  tvHostModal?.setAttribute('aria-hidden', 'true');
   stopHostPingBadge();
+  // Ekranı kapatma kabuğun işi; oda açık kalmalı (`main.js` `onCloseLobby`
+  // çağrısı odayı kapatır, ekran kapanması yalnız görünürlüktür).
+  lobbyExitSuppressed = true;
+  try { closeView('lobby'); } finally { lobbyExitSuppressed = false; }
+}
+
+export function isLobbyExitSuppressed() {
+  return lobbyExitSuppressed;
+}
+
+async function copyRoomCode() {
+  const code = hostRoomCode?.textContent?.trim() || '';
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(code);
+    showInstallToast(t('host.codeCopied', code));
+  } catch {
+    showInstallToast(t('host.code', code));
+  }
 }
 
 export function initHostLobby({
-  getActiveNet,
+  getActiveNet: getActiveNetCb,
   getPlatformMode,
   onStageGame,
   onToggleHostPlayer,
@@ -247,19 +395,44 @@ export function initHostLobby({
   isSeatSwapLocked = typeof isSeatSwapLockedCallback === 'function'
     ? isSeatSwapLockedCallback
     : isSeatSwapLocked;
+  getActiveNet = typeof getActiveNetCb === 'function' ? getActiveNetCb : () => null;
   renderLobbyIcons(document);
   paintSeatSwapUi();
   window.addEventListener('brutal_host_slots_changed', paintSeatSwapUi);
   onLangChange(paintSeatSwapUi);
 
-  // Game selector chips in Host Lobby
-  document.querySelectorAll('.lobby-game-chip').forEach((chip) => {
-    const active = chip.dataset.game === currentHostGameMode;
-    chip.classList.toggle('active', active);
-    chip.setAttribute('aria-pressed', String(active));
-    chip.addEventListener('click', () => {
-      setCurrentHostGameMode(chip.dataset.game);
-      getActiveNet().setHostGameMode?.(currentHostGameMode);
+  // Sheet kabuğu: backdrop `overlayHost`'ta; buradaki X düğmeleri aynı
+  // kapanış yolundan geçer (odak/Escape tek sahibi bozulmasın).
+  document.querySelectorAll('[data-sheet-close]').forEach((btn) => {
+    btn.addEventListener('click', () => dismissLobbySheet(`lobby-${btn.dataset.sheetClose}`));
+  });
+  document.getElementById('btn-lobby-invite')?.addEventListener('click', openInviteSheet);
+  document.getElementById('btn-seat-sheet-invite')?.addEventListener('click', () => {
+    dismissLobbySheet('lobby-seat');
+    openInviteSheet();
+  });
+
+  // Koltuk çipleri: tek dokunuş sheet'i açar; takas hedefleme modunda ise
+  // çip DOĞRUDAN hedef olur (gizli takas düğmesine tıklanır — mantık tek yer).
+  document.querySelectorAll('.slot-chip-main').forEach((chipBtn) => {
+    chipBtn.addEventListener('click', () => {
+      const chip = chipBtn.closest('.host-player-slot');
+      const slot = parseInt(chip?.dataset.slot ?? '', 10);
+      if (Number.isNaN(slot)) return;
+      if (seatSwapSource !== null) {
+        if (seatSwapSource === slot) {
+          resetSeatSwapSelection();
+          return;
+        }
+        const swapBtn = chip.querySelector('.slot-swap-btn');
+        if (swapBtn?.disabled) {
+          showInstallToast(isBotSlot(getSlotState(slot)) ? t('toast.botSeatLocked') : t('toast.swapBlocked'));
+          return;
+        }
+        swapBtn?.click();
+        return;
+      }
+      openSeatSheet(slot);
     });
   });
 
@@ -341,9 +514,9 @@ export function initHostLobby({
     paintLaunchGuard(e.detail?.clash?.length || 0);
   });
 
-  // Koltuk taşıma: önce oyuncunun kartı, sonra hedef koltuk seçilir.
-  // Eski komşu koltukla döndürme modeli mobilde hangi oyuncunun taşındığını
-  // görünmez kılıyordu; hedef artık açıkça seçiliyor.
+  // Koltuk taşıma: önce oyuncunun sheet'inden KOLTUK DEĞİŞTİR seçilir, sheet
+  // kapanır ve hedef çipe dokunulur. (Eski komşu koltukla döndürme modeli
+  // mobilde hangi oyuncunun taşındığını görünmez kılıyordu.)
   document.querySelectorAll('.slot-swap-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -354,12 +527,15 @@ export function initHostLobby({
         return;
       }
 
-      const source = getSlotState(slot);
-      if (!source || isBotSlot(source)) return;
-
+      // KAYNAK seçimi insan ister; HEDEF boş olabilir (boş koltuğa taşıma)
+      // — slotRules boş hedefi geçerli sayıyor, ipucu metni de bunu söylüyor.
+      const entry = getSlotState(slot);
       if (seatSwapSource === null) {
+        if (!entry || isBotSlot(entry)) return;
         seatSwapSource = slot;
         paintSeatSwapUi();
+        // Hedef çip görünsün diye sheet kapanır; ipucu satırı hedeflemeyi söyler.
+        dismissLobbySheet('lobby-seat');
         return;
       }
       if (seatSwapSource === slot) {
@@ -391,8 +567,8 @@ export function initHostLobby({
     });
   });
 
-  // Açık bot butonu: boş koltukta "+ BOT" ekler, bot kartında "✕" kaldırır.
-  // (Eskiden kart gövdesine dokunuluyordu — ne yaptığı belli değildi.)
+  // Bot eylemi koltuk sheet'inin içinde: boş koltukta "+ BOT", bot çipinde
+  // "BOT KALDIR" (slotManager etiketi ve görünürlüğü yönetir).
   document.querySelectorAll('.slot-bot-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -422,26 +598,21 @@ export function initHostLobby({
     }
   });
 
-  // Çift-bas onay: ilk dokunuş kurar, 3sn içinde ikinci dokunuş kapatır
-  let closeArmedTimer = null;
+  // Çift-bas onay: ilk dokunuş kurar (kırmızı nabız + toast), 3sn içinde
+  // ikinci dokunuş kapatır. Etiket yazmak butonun ikonunu yediği için
+  // ikon-only düğümde durum sınıfı + toast kullanılır.
+  // ✕ tek dokunuşla çıkar: lobi ekranı kapanır, oda kapanır (kullanıcı
+  // kararı — çift onay kaldırılandı; tehlikeli onay pause panelinde kalır).
   btnHostClose?.addEventListener('click', () => {
-    if (!btnHostClose.dataset.armed) {
-      btnHostClose.dataset.armed = '1';
-      setButtonLabel(btnHostClose, 'pause.exitArmed');
-      closeArmedTimer = window.setTimeout(() => {
-        delete btnHostClose.dataset.armed;
-        setButtonLabel(btnHostClose, 'host.close');
-      }, 3000);
-      return;
-    }
-    window.clearTimeout(closeArmedTimer);
-    delete btnHostClose.dataset.armed;
-    setButtonLabel(btnHostClose, 'host.close');
     hideHostLobbyModal();
     if (typeof onCloseLobby === 'function') {
       onCloseLobby();
     }
   });
+
+  // Oda kodu kopyalama: başlıktaki pil ve sheet içindeki düğme aynı eylem.
+  document.getElementById('btn-host-copy-code')?.addEventListener('click', copyRoomCode);
+  document.getElementById('btn-invite-copy-code')?.addEventListener('click', copyRoomCode);
 
   btnHostCopyLink?.addEventListener('click', async () => {
     const code = hostRoomCode?.textContent?.trim() || '';
@@ -451,18 +622,6 @@ export function initHostLobby({
       showInstallToast(t('host.copied'));
     } catch (err) {
       showInstallToast(t('host.link', joinUrl));
-    }
-  });
-
-  // Oda kodu kopyalama (simge butonu)
-  document.getElementById('btn-host-copy-code')?.addEventListener('click', async () => {
-    const code = hostRoomCode?.textContent?.trim() || '';
-    if (!code) return;
-    try {
-      await navigator.clipboard.writeText(code);
-      showInstallToast(t('host.codeCopied', code));
-    } catch (err) {
-      showInstallToast(t('host.code', code));
     }
   });
 

@@ -22,6 +22,38 @@ export const KEY_LABELS = {
   dash: ['L-SHIFT', 'R-SHIFT', 'U', 'R'],
 };
 
+// `KeyboardEvent.code` → insan okunur tuş kapağı. Referans metinlerinde ham
+// kod ("ArrowLeft", "KeyI") görünüyordu; oyuncu tuş kapağını tanımaz, harfi
+// tanır. Bu eşleme `inputMaps`'in kendi kaynağıdır (motorlar/UI kopyalamaz).
+const KEY_CAP_LABELS = {
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  ArrowLeft: '←',
+  ArrowRight: '→',
+  ShiftLeft: 'L-SHIFT',
+  ShiftRight: 'R-SHIFT',
+  ControlLeft: 'L-CTRL',
+  ControlRight: 'R-CTRL',
+  AltLeft: 'L-ALT',
+  AltRight: 'R-ALT',
+  Numpad0: 'NUM 0',
+  Escape: 'ESC',
+  Enter: 'ENTER',
+  Space: 'SPACE',
+  Tab: 'TAB',
+  Backspace: 'BACKSPACE',
+};
+
+/** `code` → tuş kapağı etiketi (`KeyI` → `I`, `ArrowLeft` → `←`). */
+export function getKeyCapLabel(code) {
+  if (!code) return '';
+  if (KEY_CAP_LABELS[code]) return KEY_CAP_LABELS[code];
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Numpad')) return `NUM ${code.slice(6)}`;
+  return code;
+}
+
 export function getKeyLabel(kind, index) {
   const list = KEY_LABELS[kind];
   return list ? list[index] : '';

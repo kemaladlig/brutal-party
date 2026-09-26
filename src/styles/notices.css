@@ -1,0 +1,84 @@
+/* Overlay katmanı — açık diyalogların ortak yüzeyi.
+   Kayıt tek yerdedir: `src/ui/overlayHost.js` (`<html data-overlay="...">`).
+   Diyalogların kendi iç düzeni modallarda kalır; burada yalnız KATMAN, backdrop
+   blur, safe-area ve kapanış sözleşmesi var. */
+
+.is-overlay-open #app {
+  overflow: hidden;
+}
+
+/* Arkada kalan uygulama karartılır ve tıklanamaz (modal arkasına odak kaçmaz). */
+.is-overlay-open #app-shell,
+.is-overlay-open #in-game-hud {
+  filter: saturate(0.72) brightness(0.9);
+}
+
+.is-overlay-open body {
+  overscroll-behavior: none;
+}
+
+/* Diyalog kökleri: safe-area'ya oturur, backdrop tıklaması kendi elinde. */
+#pause-modal,
+#settings-modal,
+#join-room-modal,
+#customize-modal {
+  overscroll-behavior: contain;
+}
+
+/* ── Global bildirim yüzeyleri — toast + bağlantı bandı.
+   Bunlar menü sayfasından bağımsız, her modda görünebilir tek parçalık
+   bildirimlerdir; `menu.css` silindiği için buraya taşındı. */
+
+.install-toast {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  z-index: 300;
+  width: min(300px, calc(100vw - 32px));
+  padding: 11px 13px;
+  border: 3px solid var(--edge);
+  border-radius: var(--radius-card);
+  color: var(--ink);
+  background: var(--elevated);
+  box-shadow: var(--shadow-float);
+  font-family: var(--font-grotesk);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.install-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.connection-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 400;
+  padding: max(8px, env(safe-area-inset-top)) 12px 8px;
+  border-bottom: 3px solid var(--edge);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-100%);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.connection-banner.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.connection-banner[data-state='offline'] { color: var(--white); background: var(--mode-online); }
+.connection-banner[data-state='reconnecting'] { color: var(--on-accent); background: var(--gold); }
+.connection-banner[data-state='online'] { color: var(--white); background: var(--mode-local); }

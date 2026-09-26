@@ -1,5 +1,4 @@
 /* 1. Backdrop Fade-in and Blurring */
-#tv-host-modal:not(.hidden),
 #join-room-modal:not(.hidden),
 #pause-modal:not(.hidden),
 #customize-modal:not(.hidden) {
@@ -19,7 +18,7 @@
 
 /* 2. Tactile Card Pop-up with Spring Feedback */
 /* NOTE: pause sheet has its own slide-in (sheet-in-right/bottom), excluded here. */
-#tv-host-modal:not(.hidden) .tv-host-card,
+.lobby-card,
 #join-room-modal:not(.hidden) .join-room-card,
 #customize-modal:not(.hidden) .customize-card {
   animation: brutal-card-pop 320ms cubic-bezier(0.175, 0.885, 0.32, 1.18) forwards;
@@ -89,25 +88,7 @@
 /* 5. Menu Bento Grid Game Cards Stagger Pop-in */
 #menu-overlay:not(.hidden) .bento-card {
   animation: brutal-bento-pop 380ms cubic-bezier(0.175, 0.885, 0.32, 1.12) both;
-}
-
-.bento-card:nth-child(1) { animation-delay: 40ms; }
-.bento-card:nth-child(2) { animation-delay: 80ms; }
-.bento-card:nth-child(3) { animation-delay: 120ms; }
-.bento-card:nth-child(4) { animation-delay: 160ms; }
-.bento-card:nth-child(5) { animation-delay: 200ms; }
-.bento-card:nth-child(6) { animation-delay: 240ms; }
-.bento-card:nth-child(7) { animation-delay: 280ms; }
-.bento-card:nth-child(8) { animation-delay: 320ms; }
-.bento-card:nth-child(9) { animation-delay: 360ms; }
-.bento-card:nth-child(10) { animation-delay: 400ms; }
-.bento-card:nth-child(11) { animation-delay: 440ms; }
-.bento-card:nth-child(12) { animation-delay: 480ms; }
-.bento-card:nth-child(13) { animation-delay: 520ms; }
-.bento-card:nth-child(14) { animation-delay: 560ms; }
-.bento-card:nth-child(15) { animation-delay: 600ms; }
-
-@keyframes brutal-bento-pop {
+}@keyframes brutal-bento-pop {
   0% {
     transform: translateY(24px) scale(0.95);
     opacity: 0;
@@ -118,26 +99,26 @@
   }
 }
 
-/* 6. Lobby Game chips Stagger Pop-in */
-#tv-host-modal:not(.hidden) .lobby-game-chip {
+/* 6. Lobby Oyun Izgarası Stagger Pop-in (kapak ızgarası sheet'i) */
+.lobby-sheet--grid .lobby-grid-item {
   animation: brutal-chip-pop 320ms cubic-bezier(0.175, 0.885, 0.32, 1.15) both;
 }
 
-.lobby-game-chip:nth-child(1) { animation-delay: 30ms; }
-.lobby-game-chip:nth-child(2) { animation-delay: 60ms; }
-.lobby-game-chip:nth-child(3) { animation-delay: 90ms; }
-.lobby-game-chip:nth-child(4) { animation-delay: 120ms; }
-.lobby-game-chip:nth-child(5) { animation-delay: 150ms; }
-.lobby-game-chip:nth-child(6) { animation-delay: 180ms; }
-.lobby-game-chip:nth-child(7) { animation-delay: 210ms; }
-.lobby-game-chip:nth-child(8) { animation-delay: 240ms; }
-.lobby-game-chip:nth-child(9) { animation-delay: 270ms; }
-.lobby-game-chip:nth-child(10) { animation-delay: 300ms; }
-.lobby-game-chip:nth-child(11) { animation-delay: 330ms; }
-.lobby-game-chip:nth-child(12) { animation-delay: 360ms; }
-.lobby-game-chip:nth-child(13) { animation-delay: 390ms; }
-.lobby-game-chip:nth-child(14) { animation-delay: 420ms; }
-.lobby-game-chip:nth-child(15) { animation-delay: 450ms; }
+.lobby-grid-item:nth-child(1) { animation-delay: 30ms; }
+.lobby-grid-item:nth-child(2) { animation-delay: 60ms; }
+.lobby-grid-item:nth-child(3) { animation-delay: 90ms; }
+.lobby-grid-item:nth-child(4) { animation-delay: 120ms; }
+.lobby-grid-item:nth-child(5) { animation-delay: 150ms; }
+.lobby-grid-item:nth-child(6) { animation-delay: 180ms; }
+.lobby-grid-item:nth-child(7) { animation-delay: 210ms; }
+.lobby-grid-item:nth-child(8) { animation-delay: 240ms; }
+.lobby-grid-item:nth-child(9) { animation-delay: 270ms; }
+.lobby-grid-item:nth-child(10) { animation-delay: 300ms; }
+.lobby-grid-item:nth-child(11) { animation-delay: 330ms; }
+.lobby-grid-item:nth-child(12) { animation-delay: 360ms; }
+.lobby-grid-item:nth-child(13) { animation-delay: 390ms; }
+.lobby-grid-item:nth-child(14) { animation-delay: 420ms; }
+.lobby-grid-item:nth-child(15) { animation-delay: 450ms; }
 
 @keyframes brutal-chip-pop {
   0% {
@@ -151,7 +132,7 @@
 }
 
 /* 7. Lobby Player Slots Stagger Slide-in */
-#tv-host-modal:not(.hidden) .host-player-slot {
+.lobby-card .host-player-slot {
   animation: brutal-slot-slide-in 350ms cubic-bezier(0.175, 0.885, 0.32, 1.15) both;
 }
 

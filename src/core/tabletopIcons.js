@@ -8,6 +8,31 @@
  * @type {Record<string, { id: string, aliases: string[], path: string, mode?: 'stroke' | 'fill' | 'both', strokeWidth?: number }>}
  */
 const LUCIDE_REGISTRY = {
+  plus: {
+    id: 'plus',
+    aliases: ['➕', 'add', 'new', 'create'],
+    path: 'M5 12h14 M12 5v14',
+  },
+  users: {
+    id: 'users',
+    aliases: ['👥', 'people', 'players', 'group', 'party'],
+    path: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
+  },
+  user_plus: {
+    id: 'user_plus',
+    aliases: ['➕', 'invite', 'add-player'],
+    path: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M19 8v6 M22 11h-6',
+  },
+  layout_grid: {
+    id: 'layout_grid',
+    aliases: ['▦', 'grid', 'all-games'],
+    path: 'M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z',
+  },
+  home: {
+    id: 'house',
+    aliases: ['🏠', 'house', 'start', 'root'],
+    path: 'M3 10.5 12 3l9 7.5 M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5',
+  },
   zap: {
     id: 'zap',
     aliases: ['⚡', 'dash', 'lightning'],

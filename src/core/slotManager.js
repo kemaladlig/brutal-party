@@ -60,52 +60,55 @@ export function updateHostSlot(
   if (!slotEl) return;
 
   const nameEl = slotEl.querySelector('.slot-name');
-  const botBtn = slotEl.querySelector('.slot-bot-btn');
+  // Eylem düğmeleri koltuk sheet'i açıkken çipten sheet'e taşınır; sorgu
+  // belge genelinde data-slot ile yapılır (taşıma sırasında da bulunur).
+  const botBtn = document.querySelector(`.slot-bot-btn[data-slot="${slotIndex}"]`);
   const slotCanvas = document.getElementById(`slot-canvas-p${slotIndex + 1}`);
 
   if (slotCanvas) {
+    // 68px backing store: çip 44px gösterilir, TV'de keskin durması için 2x çözünürlük.
     const ctx = slotCanvas.getContext('2d');
     ctx.clearRect(0, 0, slotCanvas.width, slotCanvas.height);
     if (isConnected) {
       if (kind === 'bot_god') {
         const persona = getBotPersona(slotIndex, true);
-        drawBrutalAvatar(ctx, 17, 17, 13, {
+        drawBrutalAvatar(ctx, 34, 34, 26, {
           slotIndex,
           color: persona.color,
           expression: persona.expression,
           showPointer: false,
-          borderWidth: 2,
-          shadowOffset: 1.5,
+          borderWidth: 4,
+          shadowOffset: 3,
         });
       } else if (kind === 'bot') {
         const persona = getBotPersona(slotIndex, false);
-        drawBrutalAvatar(ctx, 17, 17, 13, {
+        drawBrutalAvatar(ctx, 34, 34, 26, {
           slotIndex,
           color: persona.color,
           expression: persona.expression,
           showPointer: false,
-          borderWidth: 2,
-          shadowOffset: 1.5,
+          borderWidth: 4,
+          shadowOffset: 3,
         });
       } else {
         const entryPrev = hostPlayerSlots[slotIndex];
-        drawBrutalAvatar(ctx, 17, 17, 13, {
+        drawBrutalAvatar(ctx, 34, 34, 26, {
           slotIndex,
           avatar: entryPrev?.avatar || undefined,
           color: entryPrev?.displayColor || entryPrev?.avatar?.color || undefined,
           showPips: false,
           showPointer: false,
-          borderWidth: 2,
-          shadowOffset: 1.5,
+          borderWidth: 4,
+          shadowOffset: 3,
         });
       }
     } else {
       // Boş yuvarlak kesikli sınır
       ctx.strokeStyle = '#C8C3BA';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 4;
+      ctx.setLineDash([6, 6]);
       ctx.beginPath();
-      ctx.arc(17, 17, 12, 0, Math.PI * 2);
+      ctx.arc(34, 34, 24, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
     }
@@ -160,7 +163,9 @@ export function updateHostSlot(
     slotEl.classList.remove('connected', 'ready', 'is-bot', 'is-bot-god');
     if (nameEl) nameEl.textContent = t('pause.empty');
     if (readyTag) {
-      readyTag.textContent = t('pause.empty');
+      // Boş koltukta durum rozeti ismi tekrarlar ("BOŞ / BOŞ") — çipte yalnız
+      // isim kalsa yeter; rozet boşta boş kalır.
+      readyTag.textContent = '';
       readyTag.classList.remove('ready');
     }
     // Boş koltukta +BOT butonu (sadece ayar açıksa)

@@ -5,6 +5,8 @@ import { isColorblindEnabled, setColorblindEnabled } from '../core/customization
 import { isPersistent } from '../core/safeStorage.js';
 import { getPreference, setPreference } from '../core/preferences.js';
 import { toggleAudio, getIsMuted } from '../audio.js';
+import { openOverlay, closeOverlay } from './overlayHost.js';
+import { hydrateIconSlots } from './iconSlots.js';
 import { showInstallToast } from './toast.js';
 import { t, getLang, setLang, onLangChange } from '../i18n.js';
 import {
@@ -76,10 +78,14 @@ export function refreshSettingsSwitches() {
 export function openSettingsModal() {
   refreshSettingsSwitches();
   settingsModal?.classList.remove('hidden');
+  // Overlay kaydı: odak trap, Escape, backdrop kilidi ve shell girdi bırakması
+  // tek yerden yönetilir (bkz. `overlayHost.js`).
+  openOverlay('settings', { el: settingsModal, onClose: closeSettingsModal });
 }
 
 export function closeSettingsModal() {
   settingsModal?.classList.add('hidden');
+  closeOverlay('settings');
 }
 
 export function isSettingsOpen() {
@@ -87,6 +93,10 @@ export function isSettingsOpen() {
 }
 
 export function initSettingsModal({ onBotsToggled, onControlsChanged, onPreferencesChanged } = {}) {
+  // Statik markup'taki ikon yuvaları bir kez doldurulur (ikon adı HTML'de,
+  // çizim `tabletopIcons`tan gelir; AGENTS.md §7).
+  hydrateIconSlots(settingsModal);
+
   btnSettingsClose?.addEventListener('click', closeSettingsModal);
 
   btnSettingsSound?.addEventListener('click', () => {

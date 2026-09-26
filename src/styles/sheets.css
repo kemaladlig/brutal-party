@@ -1,0 +1,701 @@
+/* Sheet dili — pause / settings / join ortak yüzeyi.
+   Üç modal da aynı iskeleti paylaşır (`.pause-sheet` + `.sheet-*` + `.pause-btn`).
+   Bu katman ONA yeni bir görsel dil verir: yuvarlak yüzey, pill buton, gerçek
+   switch. Kayıt/odak/Escape semantiği `src/ui/overlayHost.js`'te (CSS değil). */
+
+/* ── Kaplama ──────────────────────────────────────────────────────────── */
+
+#pause-modal,
+#settings-modal,
+#join-room-modal,
+#customize-modal {
+  background: var(--scrim);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.pause-sheet {
+  display: flex;
+  flex-direction: column;
+  /* 460px: "Tam ekran modu" / "Renk körü modu" etiketleri 2 sütunlu ızgarada
+     kırpılmadan sığsın (420px'te ellipsis düşüyordu). */
+  width: min(460px, 100vw);
+  /* İÇERİK KADAR yükseklik. Kaplama `align-items: center` ile ortalıyor
+     (bkz. hud.css); önceden `stretch` idi ve ayarlar paneli her ekranda tam
+     boy oluyor, üstte boşluk bırakıyordu. */
+  height: auto;
+  max-height: min(86dvh, 760px);
+  border: 3px solid var(--edge);
+  border-radius: var(--radius-card) 0 0 var(--radius-card);
+  background: var(--grad-card);
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+}
+
+/* Dokunmatikte alt sayfa, geniş ekranda sağ panel (aynı bileşen). */
+@media (max-width: 760px), (orientation: portrait) {
+  .pause-sheet {
+    width: 100vw;
+    max-height: 82dvh;
+    align-self: flex-end;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+}
+
+.sheet-handle {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 5px;
+  margin: 8px auto 0;
+  border-radius: var(--radius-pill);
+  background: var(--n-200);
+}
+
+@media (min-width: 761px) and (orientation: landscape) {
+  .sheet-handle { display: none; }
+}
+
+.pause-sheet-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 2.5px solid var(--edge);
+  background: var(--elevated);
+}
+
+.pause-sheet-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.pause-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--edge);
+  background: var(--accent-soft);
+  font: 900 9px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+.pause-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: sheetPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes sheetPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pause-pulse-dot { animation: none; }
+}
+
+.pause-title {
+  margin: 0;
+  font: 900 18px/1.1 var(--font-grotesk);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-close {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 2px solid var(--edge);
+  border-radius: 11px;
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 2px 0 var(--edge-strong);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.sheet-close:active { transform: translateY(2px); box-shadow: none; }
+
+.btn-esc-hint { display: none; }
+
+.pause-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ── Bölümler ─────────────────────────────────────────────────────────── */
+
+.sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sheet-section + .sheet-section {
+  padding-top: 12px;
+  border-top: 2px solid var(--n-100);
+}
+
+.sheet-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sheet-section-title {
+  font: 900 11px/1 var(--font-grotesk);
+  letter-spacing: 0.12em;
+  color: var(--ink);
+}
+
+.sheet-section-sub {
+  font: 800 9px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--faint);
+}
+
+/* ── Butonlar ─────────────────────────────────────────────────────────── */
+
+.pause-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 2.5px solid var(--edge);
+  border-radius: var(--radius-btn);
+  background: var(--panel);
+  color: var(--ink);
+  font: 900 12px/1 var(--font-grotesk);
+  letter-spacing: 0.06em;
+  text-align: start;
+  cursor: pointer;
+  box-shadow: var(--shadow-edge);
+  transition: transform 140ms ease, box-shadow 140ms ease, background 160ms ease;
+}
+
+.pause-btn:active { transform: translateY(2px); box-shadow: none; }
+
+.pause-btn .btn-symbol { display: grid; place-items: center; flex: 0 0 auto; }
+.pause-btn .btn-text { flex: 1 1 auto; min-width: 0; }
+.pause-btn .btn-hint-badge { display: none; }
+
+.pause-btn.primary {
+  background: var(--grad-accent);
+  color: var(--on-accent);
+  min-height: 52px;
+  font-size: 14px;
+  box-shadow: var(--shadow-pop);
+}
+
+.pause-btn.danger-btn { background: var(--danger-soft); color: var(--danger); }
+.pause-btn.lobby-btn { background: var(--info-soft); color: var(--accent-2); }
+.pause-btn.reset-btn { background: var(--panel); }
+
+.sheet-row-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+/* ── Ayarlar: satır + gerçek switch ───────────────────────────────────── */
+
+.switch-row,
+.quick-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 8px 12px;
+  border: 2.5px solid var(--edge);
+  border-radius: var(--radius-btn);
+  background: var(--panel);
+  color: var(--ink);
+  text-align: start;
+  cursor: pointer;
+  box-shadow: var(--shadow-edge);
+  transition: transform 140ms ease, box-shadow 140ms ease, background 160ms ease;
+}
+
+.switch-row.static,
+.quick-toggle-btn[aria-disabled='true'] { cursor: default; }
+
+.switch-row:active,
+.quick-toggle-btn:active { transform: translateY(2px); box-shadow: none; }
+
+.switch-label,
+.toggle-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 800 12px/1.3 var(--font-grotesk);
+  text-transform: none;
+}
+
+/* ── Pause hızlı ayar ızgarası ────────────────────────────────────────── */
+
+.pause-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pause-quick-grid .quick-toggle-btn {
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+}
+
+.quick-toggle-wide { grid-column: 1 / -1; }
+
+/* Eylem butonu (switch değil): ayarlar bölmesinde "Kontrolleri düzenle"
+   gibi bir alt ekran açan butonlar bununla çizilir. Karışmaması için
+   `.quick-toggle-btn`'dan ayrı bir bileşendir. */
+.quick-action-btn {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 50px;
+  padding: 9px 12px;
+  border: 2.5px solid var(--edge);
+  border-radius: var(--radius-btn);
+  background: var(--panel);
+  color: var(--ink);
+  text-align: start;
+  cursor: pointer;
+  box-shadow: var(--shadow-edge);
+  transition: transform 140ms ease, box-shadow 140ms ease, background 160ms ease;
+}
+
+.quick-action-btn:hover { background: var(--elevated); }
+
+.quick-action-btn:active { transform: translateY(2px); box-shadow: none; }
+
+.quick-action-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.quick-action-hint {
+  font: 900 9px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.quick-action-chevron {
+  flex: 0 0 auto;
+  font: 900 22px/1 var(--font-grotesk);
+  color: var(--accent-ink);
+}
+
+.toggle-icon-wrap {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 2px solid var(--edge);
+  background: var(--n-100);
+  color: var(--ink);
+}
+
+.quick-toggle-btn[aria-checked='true'] .toggle-icon-wrap {
+  background: var(--success-soft);
+  border-color: var(--success);
+  color: var(--success-deep);
+}
+
+.toggle-icon { display: grid; place-items: center; line-height: 0; }
+
+/* Başlık + durum rozeti tek satırda; rozet metni gizlenir (görsel switch). */
+/* `modals.css` bu öğeleri iki sınıflı seçicilerle tanımlar; specificity eşit
+   değil, bu yüzden burada da aynı iki sınıflı biçim kullanılır. */
+.quick-toggle-btn .toggle-meta {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.quick-toggle-btn .toggle-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 800 12px/1.3 var(--font-grotesk);
+  text-transform: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.switch-track,
+.quick-toggle-btn .toggle-state-badge {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 24px;
+  padding: 0;
+  border: 2.5px solid var(--edge);
+  border-radius: var(--radius-pill);
+  background: var(--n-100);
+  position: relative;
+  font-size: 0;
+  line-height: 0;
+  color: transparent;
+  overflow: hidden;
+  align-self: center;
+}
+
+.switch-row[aria-checked='true'] .switch-track,
+.quick-toggle-btn[aria-checked='true'] .toggle-state-badge,
+.quick-toggle-btn.on .toggle-state-badge,
+.switch-row.on .switch-track { background: var(--success); }
+
+/* Knob: track içinde soldan sağa. */
+.switch-thumb,
+.quick-toggle-btn .toggle-state-badge::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--edge);
+  background: var(--panel);
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.switch-row[aria-checked='true'] .switch-thumb,
+.quick-toggle-btn[aria-checked='true'] .toggle-state-badge::after,
+.quick-toggle-btn.on .toggle-state-badge::after { transform: translateX(20px); }
+
+.settings-range-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 2.5px solid var(--edge);
+  border-radius: var(--radius-btn);
+  background: var(--panel);
+  box-shadow: var(--shadow-edge);
+}
+
+.settings-range-wrap input[type='range'] {
+  flex: 1 1 auto;
+  accent-color: var(--accent);
+  height: 28px;
+}
+
+.settings-range-wrap output {
+  font: 900 12px/1 var(--font-mono);
+  min-width: 40px;
+  text-align: end;
+}
+
+/* ── Kontrol referansı: slot başına okunabilir satır ──────────────────── */
+
+.pause-controls-keyboard {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.pause-controls-keyboard li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 2px solid var(--n-200);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.pc-slot {
+  flex: 0 0 auto;
+  min-width: 30px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--surface);
+  font: 900 10px/1 var(--font-mono);
+  text-align: center;
+}
+
+.pc-keys {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 800 11px/1.35 var(--font-mono);
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Switch topuzu: yeşil track'in üstünde beyaz knob. */
+.switch-row[aria-checked='true'] .switch-track { background: var(--success); }
+
+/* ── Segment seçici (PONG yönü / kontrol yüzeyi / dil) ──────────────────
+   Tek aile: `.lang-segment` kapsayıcı, `.lang-seg-btn` düğmeler. */
+
+.lang-segment {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 2.5px solid var(--edge);
+  border-radius: var(--radius-btn);
+  background: var(--n-100);
+  flex: 0 0 auto;
+}
+
+.lang-seg-btn {
+  flex: 1 1 0;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: 900 11px/1 var(--font-grotesk);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.lang-seg-btn.active,
+.lang-seg-btn[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+/* ── Odaya katıl (kumanda) ──────────────────────────────────────────────
+   Aynı sheet dili (`.pause-sheet` kardeşi): sağ panel / alt sayfa, İÇERİK
+   KADAR yükseklik. Önceden 380px ortalanmış bir "form kartı" idi; telefon
+   yatayda 92dvh'e dayanıp KAYDIRMA çubuğu çıkarıyordu.
+
+   Sadeleştirme: üst etiket satırı, "3 HANELİ ODA KODU" başlığı ve "İsmi
+   menüdeki karakter kartından değiştirebilirsin" ipucu aynı şeyi üç kez
+   söylüyordu. Tek satır ipucu + büyük kod alanı + tek birincil eylem. */
+
+.join-room-card {
+  gap: 12px;
+  padding: 16px;
+  border: 3px solid var(--edge);
+  border-radius: var(--radius-card) 0 0 var(--radius-card);
+  background: var(--grad-card);
+  box-shadow: var(--shadow-float);
+  max-height: min(78dvh, 560px);
+}
+
+.join-header {
+  flex: 0 0 auto;
+  gap: 2px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--n-100);
+}
+
+.join-badge {
+  font-size: 8.5px;
+  padding: 2px 7px;
+  background: none;
+  color: var(--muted);
+  border: 1.5px solid var(--edge);
+}
+
+.join-title {
+  font: 900 20px/1.1 var(--font-grotesk);
+  letter-spacing: 0.02em;
+}
+
+.join-inputs { gap: 8px; }
+
+/* Etiket + YAPIŞTIR tek satırda; kod alanı ikisinin arasında. */
+.join-code-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.join-label { font-size: 9.5px; }
+
+.paste-code-btn {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  font-size: 9px;
+  color: var(--ink);
+  background: var(--elevated);
+  border: 2px solid var(--edge);
+  box-shadow: none;
+}
+
+.code-input-wrap { position: relative; }
+
+.brutal-input {
+  padding: 0 14px;
+  height: 58px;
+  border-radius: var(--radius-card);
+  border: 2px solid var(--edge);
+  box-shadow: none;
+  background: var(--elevated);
+  font-size: 26px;
+  letter-spacing: 0.34em;
+  text-align: center;
+}
+
+.brutal-input:focus { border-color: var(--accent); }
+
+.code-clear-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sheen-15);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* "SÜPER AJAN KUMANDA OLARAK KATILIYORSUN" — tek satır rozet. İkinci satırdaki
+   "İsmi menüde değiştir" ipucu aynı ekranda zaten görünür durumda. */
+.join-as-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-card);
+  border: 2px solid var(--n-200);
+  background: var(--sheen-08);
+  box-shadow: none;
+}
+
+.join-as-badge { font-size: 11px; }
+.join-as-hint { display: none; }
+
+.join-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.join-btn {
+  min-height: 50px;
+  border-radius: 19px;
+  border: 2px solid var(--edge);
+  font: 900 13px/1 var(--font-grotesk);
+  letter-spacing: 0.06em;
+  box-shadow: none;
+}
+
+.join-btn.primary {
+  background: linear-gradient(180deg, var(--play-top) 0%, var(--play-mid) 55%, var(--play-bottom) 100%);
+  border-color: var(--play-edge);
+  color: var(--play-ink);
+  box-shadow: 0 6px 0 var(--play-edge);
+}
+
+.join-btn.primary:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--play-edge); }
+
+#btn-cancel-join {
+  min-width: 96px;
+  background: var(--elevated);
+  color: var(--ink);
+}
+
+@media (max-width: 760px), (orientation: portrait) {
+  .join-room-card {
+    width: 100%;
+    max-width: none;
+    max-height: 80dvh;
+    border: 3px solid var(--edge);
+    border-bottom: 0;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+    padding: 14px 14px calc(env(safe-area-inset-bottom, 0px) + 14px);
+  }
+  .brutal-input { height: 52px; font-size: 23px; }
+  .join-btn { min-height: 46px; }
+}
+
+/* ── Ayarlar: iki sütun ─────────────────────────────────────────────────
+   Yatay alan bol, dikey alan kıt. Tek sütunda ayarlar 860px'e dayanıyor ve
+   sayfayı gereksiz uzattığı için "hangi ayar nerede" taraması zorlaşıyordu.
+   `settings-cols` ızgarası GENEL | OYUN+KONTROL olarak böler; dar ekranda
+   kendiliğinden tek sütuna döner. */
+
+/* Geniş ekranda ayarlar ORTAYA hizalı sağ panel (kabuk `justify-content:
+   flex-end` ile sağa yapıştırıyordu; iki sütunlu geniş bir panel için bu
+   rahatsız edici bir "boş ekran" bırakıyordu). Dar ekranda alt sayfa. */
+@media (min-width: 761px) and (orientation: landscape) {
+  #settings-modal { justify-content: center; }
+  #settings-modal .pause-sheet {
+    width: min(880px, calc(100vw - 40px));
+    border-radius: var(--radius-card);
+  }
+}
+
+.pause-sheet-body.settings-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+  align-items: start;
+}
+
+.settings-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settings-col + .settings-col {
+  padding-inline-start: 18px;
+  border-inline-start: 2px solid var(--n-100);
+}
+
+@media (max-width: 760px), (orientation: portrait) {
+  .pause-sheet-body.settings-cols { grid-template-columns: minmax(0, 1fr); }
+  .settings-col + .settings-col {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+  }
+}

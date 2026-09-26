@@ -1,11 +1,8 @@
 // Local Party Games Suite - Main Application Controller & State Machine
 import { TouchManager } from './touchManager.js';
 import {
-  GAME_ORDER,
-  RETIRED_GAME_IDS,
   initEngineRegistry,
   ensureEngine,
-  preloadEngine,
   isEngineLoaded,
   getEngine,
   getControllerMeta,
@@ -36,7 +33,6 @@ import {
   getControlSurfacePreference,
   isTouchDevice,
 } from './ui/tokens.js';
-import { openCustomizeModal, initMenuAvatarCard } from './ui/customizeModal.js';
 import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, clearRemoteMove, clearRemoteAim, isBotEkleEnabled, getColorClashIndices, refreshAllHostSlots } from './core/slotManager.js';
 import { getAvatarProfile, sanitizeAvatar, pickFreeColor, setSlotAvatar, clearSlotAvatar, loadLocalSeatColors, ensureLocalSeatColorsForTypes, getLocalSeatColors } from './core/customizationManager.js';
 import {
@@ -49,7 +45,22 @@ import {
 } from './ui/pauseModal.js';
 import { initJoinModal, openJoinModal } from './ui/joinModal.js';
 import { initSettingsModal, openSettingsModal } from './ui/settingsModal.js';
-import { initMainMenu } from './ui/menuManager.js';
+import {
+  mountAppShell,
+  openView,
+  revealAppShell,
+  hideAppShell,
+  setShellInputOwner,
+  setShellPlatformMode,
+  lockLandscape,
+  unlockOrientation,
+} from './ui/appShell.js';
+// Görünümler yan etki olarak kayıt olur (src/ui/views/registry.js tek kayıt noktası).
+import './ui/views/homeView.js';
+import './ui/views/roomView.js';
+import './ui/views/lobbyView.js';
+import './ui/views/gamesView.js';
+import './ui/views/profileView.js';
 import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
 import { getTabletopIconSvg } from './core/tabletopIcons.js';
@@ -71,14 +82,12 @@ import {
 
 // DOM Elements
 const canvas = document.getElementById('game-canvas');
-const menuOverlay = document.getElementById('menu-overlay');
+// Eski `#menu-overlay` sayfası silindi; menü yüzeyi `src/ui/appShell.js`.
 const inGameHud = document.getElementById('in-game-hud');
 const btnQuickTvLobby = document.getElementById('btn-quick-tv-lobby');
 const btnQuickFullscreen = document.getElementById('btn-quick-fullscreen');
 const quickFullscreenIcon = document.getElementById('quick-fullscreen-icon');
 const btnOpenOptions = document.getElementById('btn-open-options');
-const btnHeroCreateRoom = document.getElementById('btn-hero-create-room');
-const btnOnlineCreateRoom = document.getElementById('btn-online-create-room');
 
 // Platform / Match Mode: 'LOCAL' | 'TV_CONSOLE' | 'ONLINE'
 let platformMode = isPublicOrigin() && HAS_SUPABASE_CONFIG ? 'ONLINE' : 'TV_CONSOLE';
@@ -89,6 +98,7 @@ export function updatePlatformMode(newMode) {
   disconnectInactiveNetwork(platformMode);
   connectionWasDown = false;
   hideConnectionBanner();
+  setShellPlatformMode(newMode);
   window.dispatchEvent(new CustomEvent('brutal_platform_mode_changed', { detail: { mode: platformMode } }));
 }
 
@@ -216,7 +226,8 @@ export async function setGameMode(mode) {
       btnQuickTvLobby.classList.add('hidden');
     }
 
-    menuOverlay.classList.remove('hidden');
+    // MENU: shell görünür olur ve görünüm yığını köke döner.
+    revealAppShell();
     inGameHud.classList.add('hidden');
     touchManager.setHandler(null);
     return;
@@ -251,12 +262,13 @@ export async function setGameMode(mode) {
     btnQuickTvLobby.classList.toggle('hidden', !activeNet().isHosting);
   }
 
-  menuOverlay.classList.add('hidden');
+  hideAppShell();
   inGameHud.classList.remove('hidden');
   if (document.activeElement && typeof document.activeElement.blur === 'function') {
     try { document.activeElement.blur(); } catch {}
   }
   try { canvas.focus(); } catch {}
+  lockLandscape();
   touchManager.setHandler(entry.game);
   // LOCAL: kayıtlı koltuk renkleri reset ÖNCESİ deftere yüklenir (init renkleri
   // doğru kurulsun), reset sonrası varsayılan insan koltuklarına boş renk atanır.
@@ -748,7 +760,8 @@ async function executeJoin(rawCode, rawName, requestedMode = null) {
         if (Object.prototype.hasOwnProperty.call(msg, 'reservedHostSlot')) {
           net.reservedHostSlot = Number.isInteger(msg.reservedHostSlot) ? msg.reservedHostSlot : null;
         }
-        menuOverlay?.classList.add('hidden');
+        // Kumanda moduna geçiş: shell gizlenir, kumanda overlay'i devralır.
+        hideAppShell();
         gamepadManager.init(msg, 'LOBBY');
         showInstallToast(t('toast.joined', msg.roomCode));
       },
@@ -806,7 +819,9 @@ async function executeJoin(rawCode, rawName, requestedMode = null) {
         connectionWasDown = true;
         showConnectionBanner('offline', String(msg || t('net.hostLost')));
         gamepadManager.hide();
-        menuOverlay?.classList.remove('hidden');
+        // Host koptu: kumanda overlay'i kapanır, ana menüye dönülür.
+        hideAppShell();
+        revealAppShell();
       },
     }, joinAvatar);
   } catch (err) {
@@ -1423,9 +1438,6 @@ window.addEventListener('online', () => {
   markConnectionRestored(t('net.onlineBack'), true);
 });
 initJoinModal({ onExecuteJoin: executeJoin });
-document.getElementById('btn-hero-quick-join')?.addEventListener('click', () => {
-  openJoinModal('', 'TV_CONSOLE');
-});
 initSettingsModal({
   onControlsChanged: applyControlSurfacePreference,
   onPreferencesChanged: applyDevicePreferenceChange,
@@ -1436,7 +1448,7 @@ onLangChange(() => {
   try { refreshAllHostSlots(); } catch {}
   setHostPlayerButtonState(hostPlayerActive, platformMode);
 });
-document.getElementById('btn-open-settings')?.addEventListener('click', openSettingsModal);
+// Ayar düğmesi artık shell üst şeridinde: `mountAppShell({ actions.openSettings })`.
 initHostLobby({
   getActiveNet: () => activeNet(),
   getPlatformMode: () => platformMode,
@@ -1534,174 +1546,9 @@ initPauseModal({
   onControllerLayout: openControllerLayoutFromPause,
 });
 
-// Menu Card Tap Listeners (buton id kuralı: btn-select-<lowercase mode>)
-const gamePickerModal = document.getElementById('game-picker-modal');
-const btnCloseGamePicker = document.getElementById('btn-close-game-picker');
-
-function openGamePicker() {
-  gamePickerModal?.classList.remove('hidden');
-}
-
-function closeGamePicker() {
-  gamePickerModal?.classList.add('hidden');
-}
-
-btnHeroCreateRoom?.addEventListener('click', () => {
-  updatePlatformMode('TV_CONSOLE');
-  openHostLobby('HORDE');
-});
-btnOnlineCreateRoom?.addEventListener('click', () => {
-  updatePlatformMode('ONLINE');
-  openHostLobby('HORDE');
-});
-addTapListener(btnCloseGamePicker, closeGamePicker);
-
-gamePickerModal?.addEventListener('click', (e) => {
-  if (e.target === gamePickerModal) closeGamePicker();
-});
-
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !gamePickerModal?.classList.contains('hidden')) {
-    closeGamePicker();
-  }
-});
-
-// Local 2-Card Showcase Slide Controls & Quick Play Tap
-const carouselTrack = document.getElementById('local-carousel-track');
-const carouselViewport = document.getElementById('local-carousel-viewport');
-const btnCarouselPrev = document.getElementById('btn-carousel-prev');
-const btnCarouselNext = document.getElementById('btn-carousel-next');
-const pageIndicator = document.getElementById('local-carousel-page-num');
-
-let currentSlideIndex = 0;
-const getTotalSlides = () => (carouselTrack?.children?.length ? carouselTrack.children.length : 8);
-
-function updateCarouselSlide(newIndex) {
-  const slidesCount = getTotalSlides();
-  currentSlideIndex = (newIndex + slidesCount) % slidesCount;
-  if (carouselTrack) {
-    carouselTrack.style.transform = `translateX(-${currentSlideIndex * 100}%)`;
-  }
-  if (pageIndicator) {
-    pageIndicator.textContent = `${currentSlideIndex + 1} / ${slidesCount}`;
-  }
-}
-updateCarouselSlide(0);
-
-if (btnCarouselPrev && btnCarouselNext) {
-  addTapListener(btnCarouselPrev, () => updateCarouselSlide(currentSlideIndex - 1));
-  addTapListener(btnCarouselNext, () => updateCarouselSlide(currentSlideIndex + 1));
-}
-
-// Touch swipe support on carousel
-if (carouselViewport) {
-  let touchStartX = 0;
-  let touchStartY = 0;
-  carouselViewport.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) {
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-    }
-  }, { passive: true });
-
-  carouselViewport.addEventListener('touchend', (e) => {
-    if (e.changedTouches.length === 1) {
-      const diffX = e.changedTouches[0].clientX - touchStartX;
-      const diffY = e.changedTouches[0].clientY - touchStartY;
-      if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
-        if (diffX < 0) {
-          updateCarouselSlide(currentSlideIndex + 1);
-        } else {
-          updateCarouselSlide(currentSlideIndex - 1);
-        }
-      }
-    }
-  }, { passive: true });
-}
-
-document.querySelectorAll('.local-showcase-card[data-game]').forEach((card) => {
-  addTapListener(card, () => {
-    const game = card.getAttribute('data-game');
-    if (game) handleGameCardClick(game);
-  });
-});
-
-const btnHeroShowcaseAll = document.getElementById('btn-hero-showcase-all');
-if (btnHeroShowcaseAll) {
-  addTapListener(btnHeroShowcaseAll, openGamePicker);
-}
-addTapListener(document.getElementById('btn-menu-customize'), () => openCustomizeModal());
-initMenuAvatarCard();
-
-function initHeroMediaDropzones() {
-  const tvImg = document.querySelector('.tv-media-box img');
-  const localImg = document.querySelector('.local-media-box img');
-
-  const savedTv = localStorage.getItem('bp_tv_banner');
-  if (savedTv && tvImg) tvImg.src = savedTv;
-
-  const savedLocal = localStorage.getItem('bp_local_banner');
-  if (savedLocal && localImg) localImg.src = savedLocal;
-
-  function bindDrop(box, storageKey, targetImg) {
-    if (!box || !targetImg) return;
-    box.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      box.style.borderColor = '#1d5d8a';
-    });
-    box.addEventListener('dragleave', () => {
-      box.style.borderColor = '';
-    });
-    box.addEventListener('drop', (e) => {
-      e.preventDefault();
-      box.style.borderColor = '';
-      const file = e.dataTransfer?.files?.[0];
-      if (file && file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-          const dataUri = evt.target?.result;
-          if (typeof dataUri === 'string') {
-            targetImg.src = dataUri;
-            try { localStorage.setItem(storageKey, dataUri); } catch {}
-          }
-        };
-        reader.readAsDataURL(file);
-      }
-    });
-  }
-
-  bindDrop(document.querySelector('.tv-media-box'), 'bp_tv_banner', tvImg);
-  bindDrop(document.querySelector('.local-media-box'), 'bp_local_banner', localImg);
-}
-initHeroMediaDropzones();
-
-// SaaS Main Menu Setup: Navbar controls, Quick Lang/Sound, Search & Bento Grid Filters
-initMainMenu({
-  isOnline: platformMode === 'ONLINE',
-  getPlatformMode: () => platformMode,
-  gameOrder: GAME_ORDER,
-  retiredGameIds: RETIRED_GAME_IDS,
-  onGameSelect: (mode) => {
-    closeGamePicker();
-    handleGameCardClick(mode);
-  },
-});
-
-// Bind after the menu reorders its mode cards; keep the browse action on the final node.
-addTapListener(document.getElementById('btn-hero-browse-games'), openGamePicker);
-
-for (const mode of GAME_ORDER) {
-  addTapListener(document.getElementById(`btn-select-${mode.toLowerCase()}`), () => {
-    closeGamePicker();
-    handleGameCardClick(mode);
-  });
-  // Hover/touchstart ön-yükleme: kullanıcı karta bakarken chunk arka planda
-  // iner, dokunuş anında motor çoğunlukla hazırdır (seçim akışı değişmez).
-  const cardEl = document.getElementById(`btn-select-${mode.toLowerCase()}`);
-  cardEl?.addEventListener('mouseenter', () => preloadEngine(mode));
-  cardEl?.addEventListener('touchstart', () => preloadEngine(mode), { passive: true });
-}
-
+// Oyun seçimi artık shell'in `games` görünümünde: kartlar orada üretiliyor ve
+// `preloadEngine` tetiklemesi `gamesView.js` içinde. Eski menü sayfasının kart
+// döngüsü, picker modalı, showcase carousel'ı ve hero banner dropzone'ı silindi.
 addTapListener(btnQuickTvLobby, returnHostToLobby);
 
 function updateQuickFullscreen(active) {
@@ -2006,6 +1853,36 @@ function loop(timestamp) {
 
 // Initial Setup
 resizeCanvas();
+setShellPlatformMode(platformMode);
+mountAppShell({
+  platformMode,
+  actions: {
+    onGameSelect: (mode) => handleGameCardClick(mode),
+    // Oda ekranından gelen adım: odayı aç VE shell'i lobi ekranında göster.
+    openHostLobby: () => {
+      revealAppShell();
+      openHostLobby(getCurrentHostGameMode());
+    },
+    openJoin: (code, mode) => openJoinModal(code || '', mode || 'TV_CONSOLE'),
+    setPlatformMode: (mode) => updatePlatformMode(mode),
+    getPlatformMode: () => platformMode,
+    openSettings: () => openSettingsModal(),
+    onLobbyShown: () => refreshHostSlotCards(),
+    // Lobi ekranından ayrılırken oda da kapanır: geri düğmesi "odadan çık"
+    // demektir, "oda ekranına geri dön" değil (bkz. lobbyView `backToRoot`).
+    onLobbyExit: () => {
+      if (!activeNet().isHosting) return;
+      for (let i = 0; i < 4; i++) {
+        clearSlotAvatar(i);
+        updateHostSlot(i, false);
+      }
+      hideConnectionBanner();
+      connectionWasDown = false;
+      activeNet().disconnect();
+      setGameMode('MENU');
+    },
+  },
+});
 setGameMode('MENU');
 refreshHostSlotCards();
 requestAnimationFrame(loop);

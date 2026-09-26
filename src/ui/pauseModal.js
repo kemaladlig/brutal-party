@@ -4,6 +4,7 @@
 import { hostPlayerSlots, isBotEkleEnabled, setBotEkleEnabled } from '../core/slotManager.js';
 import { CARTRIDGES, getControllerMeta } from '../core/engineRegistry.js';
 import { isColorblindEnabled, setColorblindEnabled } from '../core/customizationManager.js';
+import { openOverlay, closeOverlay } from './overlayHost.js';
 import { showInstallToast } from './toast.js';
 import { toggleAudio, getIsMuted } from '../audio.js';
 import { t, onLangChange } from '../i18n.js';
@@ -15,7 +16,7 @@ import {
 } from './tokens.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { getControllerGuide } from '../controllers/controllerGuide.js';
-import { getSlotKeys, KEY_LABELS } from '../core/inputMaps.js';
+import { getSlotKeys, KEY_LABELS, getKeyCapLabel } from '../core/inputMaps.js';
 
 const pauseModal = document.getElementById('pause-modal');
 const pauseGameTitle = document.getElementById('pause-game-title');
@@ -58,10 +59,13 @@ export function setIsPaused(val) {
 function keyboardSlotLabel(index) {
   const keys = getSlotKeys(index);
   if (!keys) return '';
-  const axis = [keys.l, keys.u, keys.r, keys.d].filter(Boolean).length;
-  const dir = axis === 4 ? `${keys.l}/${keys.u}/${keys.r}/${keys.d}` : '';
-  const action = KEY_LABELS.action?.[index] || keys.action || '';
-  return dir ? `${dir} + ${action}` : action;
+  const cap = (code) => getKeyCapLabel(code);
+  // Yön ekseni: fiziksel dizilişin okunduğu sıra (yukarı, sol, aşağı, sağ) —
+  // harflerde W A S D, ok tuşlarında ↑ ← ↓ → olarak görünür.
+  const order = [keys.u, keys.l, keys.d, keys.r];
+  const dir = order.every(Boolean) ? order.map(cap).join(' ') : '';
+  const action = KEY_LABELS.action?.[index] || cap(keys.action);
+  return dir ? `${dir}  +  ${action}` : action;
 }
 
 export function renderPauseControls(mode) {
@@ -107,10 +111,8 @@ function setSwitch(el, on) {
   if (!el) return;
   el.classList.toggle('on', !!on);
   el.setAttribute('aria-checked', on ? 'true' : 'false');
-  const badge = el.querySelector('.toggle-state-badge');
-  if (badge) {
-    badge.textContent = on ? t('pause.on') : t('pause.off');
-  }
+  // Rozet metni artık görsel değil: switch kendi durumunu anlatıyor
+  // (bkz. `sheets.css`), metin ekran okuyucular için `aria-checked`'te.
   if (el === btnToggleSound) {
     const iconSpan = el.querySelector('.toggle-icon');
     if (iconSpan) {
@@ -214,6 +216,7 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback, control
   isPaused = true;
   lastSwapCallback = (typeof onSwapCallback === 'function') ? onSwapCallback : null;
   pauseModal?.classList.remove('hidden');
+  openOverlay('pause', { el: pauseModal, onClose: closePauseModal });
   btnControllerLayout?.classList.toggle('hidden', !controllerLayoutAvailable);
 
   if (pauseGameTitle) {
@@ -239,6 +242,7 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback, control
 
 export function closePauseModal(onCloseCallback) {
   pauseModal?.classList.add('hidden');
+  closeOverlay('pause');
   isPaused = false;
   if (typeof onCloseCallback === 'function') {
     onCloseCallback();

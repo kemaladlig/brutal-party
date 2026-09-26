@@ -1,29 +1,279 @@
 /* Tasarım Token'ları — src/ui/tokens.js ile aynı değerler (tek sözlük, iki taraf). */
 :root {
-  --ink: #1a1a1a;
-  --paper: #f4f4f0;
-  --paper-warm: #f4f0ea;
-  --card: #faf7f2;
+  /* ======================================================================
+     KOYU YÜZEY SÖZLÜĞÜ
+     Uygulamanın tamamı koyu temadadır (menü, oyun seçimi, profil, sheet'ler).
+     Oyun sırasında krem saha üzerine oturan DOM kaplamaları (staging bar,
+     sayaç, hızlı butonlar) bu değerleri KENDİ kapsamlarında geri eşler —
+     aşağıdaki `[data-theme='field']` bloğuna bak.
+     ====================================================================== */
+
+  /* ---- Yüzeyler ---- */
+  --surface: #14101f;
+  --surface-2: #1c1730;
+  --elevated: #241d3d;
+  --paper: var(--surface);
+  --paper-warm: var(--surface-2);
+  --card: var(--elevated);
+  /* Buton/kart yüzeyi. `--white` artık "doygun dolgu üstündeki yazı"dır ve
+     öyle kalır; yüzey rengi bu token'dır. */
+  --panel: #2b2348;
+
+  /* ---- Mürekkep / çizgi ---- */
+  --ink: #f6f1e8;
+  --muted: #b3a9c6;
+  --faint: #8a7fa3;
+
+  /* Yüzey kenarı. Koyu temada `--ink` ile çizmek kartı tel kafes gibi
+     gösterirdi: kenar, yüzeyden yalnız bir kademe ayrılmalı. Ağırlık
+     (2-3px) ve neo-brutalist dil aynen korunur, yalnız kontrast düşer. */
+  --edge: rgba(246, 241, 232, 0.16);
+  --edge-strong: rgba(246, 241, 232, 0.3);
+
+  /* Oyun kapaklarının kendi zemin rengi (1:1 görsellerin arka planı).
+     Koyu kart içinde kapak, krem bir pencere olarak okunur: kırpma yerine
+     tam kompozisyon görünür. */
+  --art-board: #efece4;
+
   --white: #ffffff;
-  --muted: #6b675f;
-  --faint: #6e6a62;
-  --line: #1c1c1a;
-  --gold: #d99b26;
-  --danger: #d84727;
-  --p1: #d84727;
-  --p2: #1d5d8a;
-  --p3: #d99b26;
-  --p4: #2f6a4f;
-  --mode-local: #2f6a4f;
-  --mode-tv: #1d5d8a;
-  --mode-online: #d84727;
-  --mode-profile: #7928ca;
-  --shadow-hard: 6px 6px 0 var(--ink);
-  --radius-brutal: 10px;
+
+  /* ---- Nötr rampa (çizgi, gölge, ayraç, devre dışı yüzey) ----
+     Koyu temada merdiven ters çevrilir: `--n-900` EN KOYU değil, metin ve
+     çizgi için EN AÇIK tona karşılık gelir. Böylece yüzeyler koyu olurken
+     metinler okunur kalır ve mevcut tüm kurallar geçerli olmaya devam eder
+     (token'ları yeniden eşlemeye gerek kalmaz). */
+  --n-900: #f6f1e8;
+  --n-700: #cdc4b8;
+  --n-600: #b0a7bd;
+  --n-500: #9a90a8;
+  --n-400: #837a94;
+  --n-300: #6b6480;
+  --n-200: #524c66;
+  --n-100: #3a3450;
+  --n-050: #2a2540;
+
+  /* ---- Yumuşak ton yüzeyleri (rozet/uyarı arka planı) ----
+     Koyu temada bunlar "açık pastel dolgu" değil, doygun rengin düşük opaklıkta
+     zemini olur: aynı ton, koyu yüzey üstünde okunur, birbirine girmez. */
+  --accent-soft: rgba(255, 140, 26, 0.18);
+  --success-soft: rgba(53, 179, 106, 0.2);
+  --danger-soft: rgba(217, 58, 34, 0.2);
+  --info-soft: rgba(43, 166, 232, 0.18);
+
+  /* ---- Marka rengi (yalnız WhatsApp davet butonu) ---- */
+  --brand-whatsapp: #25d366;
+
+  /* ---- Sahne (ana menü tam kaplama yüzeyi) ----
+     Ana menü artık düz bir sayfa değil, üzerinde karakterin durduğu bir
+     arena: derin lacivert gökyüzünden canlı altın zemine düşen ışık.
+     Koyu üst → aydınlık alt geçişi derinlik verir ve açık renkli HUD
+     ile yüzey bileşenleri koyu zeminde öne çıkar. */
+  --scene-top: #1a1f5c;
+  --scene-mid: #4b3aa6;
+  --scene-low: #b8459b;
+  --scene-bottom: #ffb03a;
+  --scene-glow: rgba(255, 226, 150, 0.55);
+  --scene-spot: rgba(255, 232, 168, 0.45);
+  --scene-edge: rgba(8, 10, 40, 0.55);
+  --scene-shadow: rgba(10, 8, 40, 0.5);
+  --scene-floor: #e8871f;
+  --scene-floor-edge: #a8500c;
+  /* Arena diskinin halka çizgileri (düz lekeyi "saha" gibi okutmak için). */
+  --scene-ring: rgba(120, 46, 4, 0.16);
+  --glow-accent-soft: rgba(255, 176, 58, 0.55);
+
+  /* Sahne üstünde yüzen HUD (koyu zemine karşı açık). */
+  --hud-ink: #fff8ea;
+  --hud-muted: #ffd9a8;
+  --hud-surface: rgba(28, 20, 72, 0.5);
+  --hud-line: rgba(255, 248, 234, 0.28);
+
+  /* Sahne bileşenleri: rengin kendisi dolgu olur (Brawl'ın buton dili). */
+  --scene-btn-ink: #ffffff;
+  --scene-btn-shadow: rgba(10, 8, 40, 0.45);
+
+  /* Sahne buton ailesi — ana menü VE oda ekranı aynı düğmeleri kullanır
+     (tek geometri, üç ağırlık). Bileşen rengini değil `weight` sınıfını seçer:
+     `is-ghost` saydam, `is-gold` ana eylem, `is-teal` ikincil eylem. */
+  --scene-btn-ghost: rgba(28, 20, 72, 0.5);
+  --scene-btn-ghost-line: rgba(255, 248, 234, 0.28);
+  --scene-btn-shadow: 0 9px 20px rgba(10, 8, 40, 0.45);
+  --scene-btn-icon-bg: rgba(255, 255, 255, 0.14);
+  --scene-btn-line: rgba(255, 248, 234, 0.28);
+  --scene-btn-fill: var(--scene-btn-ghost);
+  --scene-btn-ink: #fff8ea;
+  /* Lobinin alt eylem rayı: sahnenin en aydınlık yerinde (arena diski) durur,
+     saydam cam + açık metin orada okunmuyordu. Kabuk gibi koyu bir zemin
+     taşır; üstündeki metin `--ink` (açık) kalır. */
+  --lobby-rail: rgba(18, 13, 42, 0.82);
+  /* İkincil eylem: turkuaz yığın. `is-gold` ile aynı geometri, farklı kimlik
+     rengi — aile içinde kalır, ana eylemle yarışmaz. */
+  --scene-teal-top: #5ce0d0;
+  --scene-teal-mid: #1fb6ae;
+  --scene-teal-bottom: #0d8b93;
+  --scene-teal-edge: #076a72;
+
+  /* Eski sahne modu dolguları (`.home-mode`) silindi: ana menüde üç mod
+     butonu yerine tek "ODA KUR" eylemi var, seçim `room` ekranında.
+     Menü yüzeyi (kumanda/lobi) `--mode-*` kimlik ailesini kullanmaya devam eder. */
+
+  /* Mod rozeti dolguları — oda ekranındaki 52px ikon rozetleri. Düz `--mode-*`
+     renklerinden biraz daha canlı; ikon üstünde açık mürekkep okunur. */
+
+  /* OYNA butonu: altın yığın + basık alt kenar (3B düğme hissi). */
+  --play-top: #ffd24a;
+  --play-mid: #ffab1a;
+  --play-bottom: #f08a06;
+  --play-edge: #b46605;
+  --play-ink: #3a2405;
+
+  /* ---- Katman örtüleri (overlay scrim) ----
+     Modal arkasındaki karartma tek kaynaktan gelir; her diyalog kendi
+     `rgba()`'sını yazmaz (bkz. `src/ui/overlayHost.js` + `notices.css`). */
+  --scrim: rgba(8, 6, 18, 0.66);
+  --scrim-strong: rgba(8, 6, 18, 0.86);
+  --edge-dark: rgba(6, 4, 14, 0.5);
+  --outline-contrast: rgba(20, 16, 31, 0.92);
+
+  /* ---- Kumanda yüzeyi gradyan/glow'ları ----
+     `gamepad.css` içindeki sheens ve halka parlamaları; her biri kendi
+     opaklığıyla bir kademe olarak adlandırıldı. */
+  --sheen-95: rgba(255, 255, 255, 0.95);
+  --sheen-90: rgba(255, 255, 255, 0.9);
+  --sheen-85: rgba(255, 255, 255, 0.85);
+  --sheen-65: rgba(255, 255, 255, 0.65);
+  --sheen-60: rgba(255, 255, 255, 0.6);
+  --sheen-35: rgba(255, 255, 255, 0.35);
+  --sheen-25: rgba(255, 255, 255, 0.25);
+  --sheen-15: rgba(255, 255, 255, 0.15);
+  --sheen-14: rgba(255, 255, 255, 0.14);
+  --sheen-12: rgba(255, 255, 255, 0.12);
+  --sheen-08: rgba(255, 255, 255, 0.08);
+  --tint-paper-50: rgba(244, 244, 240, 0.5);
+  --tint-paper-75: rgba(228, 222, 210, 0.75);
+  --dim-94: rgba(20, 20, 20, 0.94);
+  --dim-65: rgba(20, 20, 20, 0.65);
+  --dim-35: rgba(20, 20, 20, 0.35);
+  --dim-30: rgba(20, 20, 20, 0.3);
+  --dim-25: rgba(20, 20, 20, 0.25);
+  --dim-18: rgba(20, 20, 20, 0.18);
+  --fade-30: rgba(28, 28, 26, 0.3);
+  --fade-12: rgba(28, 28, 26, 0.12);
+  --fade-00: rgba(28, 28, 26, 0);
+  --glow-danger: rgba(216, 71, 39, 0.2);
+  --glow-success: rgba(34, 197, 94, 0.4);
+  --glow-danger-soft: rgba(255, 107, 107, 0.12);
+  --glow-gold: rgba(255, 222, 89, 0.55);
+  --glow-gold-soft: rgba(255, 222, 89, 0.1);
+
+  /* ---- Vurgular ---- */
+  --accent: #ff8c1a;
+  --accent-2: #2ba6e8;
+  --accent-ink: #7a3b00;
+  /* Doygun/altın dolgu üstündeki yazı. `--ink` koyu temada açık olduğu için
+     turuncu, altın ve sarı dolguların üstünde KULLANILAMAZ; bu token o
+     yüzey ailesinin tek mürekkebidir. */
+  --on-accent: #2a1400;
+  --gold: #ffb020;
+  --gold-deep: #ffd27a;
+  --yellow: #ffcc00;
+  --yellow-soft: rgba(255, 204, 0, 0.18);
+  --profile-soft: rgba(155, 93, 229, 0.22);
+  --danger: #d93a22;
+  --success: #35b36a;
+  --success-deep: #176438;
+
+  /* ---- Oyuncu kimliği (slot rengi = oyuncu; iki taraf src/ui/tokens.js ile eşleşir) ---- */
+  --p1: #f0483c;
+  --p2: #2b7fc4;
+  --p4: #35b36a;
+
+  /* ---- Mod kimliği ---- */
+  --mode-local: #2fa855;
+  --mode-tv: #2b7fc4;
+  --mode-online: #f0483c;
+  --mode-profile: #9b5de5;
+
+  /* ---- Dikey yüzey gradyanları ---- */
+  --grad-surface: linear-gradient(180deg, #1b1630 0%, #241d3d 100%);
+  --grad-card: linear-gradient(180deg, #2b2348 0%, #221c3a 100%);
+  --grad-accent: linear-gradient(180deg, #ffa733 0%, #ff7a0a 100%);
+
+  /* ---- Gölge: sert kenar korunur (DNA), üstüne yumuşak ambient eklenir ----
+     Koyu temada "yükseltme" gölgeyle değil, üst yüzeyin tabandan açık olmasıyla
+     yapılır; gölgeler bu yüzden ince ve soğuktur. */
+  --shadow-soft: 0 2px 6px rgba(4, 2, 12, 0.4);
+  --shadow-float: 0 10px 24px rgba(4, 2, 12, 0.48), 0 2px 6px rgba(4, 2, 12, 0.32);
+  --shadow-edge: 0 2px 0 rgba(4, 2, 12, 0.45);
+  --shadow-pop: 0 4px 0 rgba(4, 2, 12, 0.4), 0 8px 18px rgba(4, 2, 12, 0.3);
+  --shadow-press: inset 0 3px 10px rgba(4, 2, 12, 0.45);
+  --glow-accent: 0 0 0 3px rgba(255, 140, 26, 0.34), 0 6px 18px rgba(255, 140, 26, 0.3);
+
+  /* ---- Yarıçap ---- */
+  --radius-card: 18px;
+  --radius-btn: 14px;
+  --radius-pill: 999px;
+
   --bot-tag: #ffde59;
-  --bot-god: #ffd700;
   --font-grotesk: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ======================================================================
+   SAHA KAPSAMI — oyun sırasındaki DOM kaplamaları
+   Sahne canvas'ta çizilir ve krem tabanlıdır. Üstüne oturan DOM
+   kaplamaları (staging bar, geri sayım, hızlı butonlar, sahaya dönüş
+   ipucu) koyu temada okunmaz olurdu: açık zemin üstünde açık yazı.
+   Bu kapsam yalnız yüzey/mürekkep token'larını geri eşler; uygulama
+   geri kalanıyla koyu kalır. Tek kaynak yine bu dosyadır — değerler
+   kopyalanmaz, token ADLARI yeniden eşlenir.
+   ====================================================================== */
+[data-theme='field'] {
+  /* Kapsam kendi mürekkebini de ilan eder: altındaki düğmeler `color: inherit`
+     ile yalnız bu değeri alabilir. */
+  color: var(--ink);
+
+  --surface: #fff6e8;
+  --surface-2: #ffe7c4;
+  --elevated: #fffdf7;
+  --paper: var(--surface);
+  --paper-warm: var(--surface-2);
+  --card: var(--elevated);
+  --panel: #ffffff;
+
+  --ink: #2b2018;
+  --muted: #6e6357;
+  --faint: #8c8175;
+  /* Krem saha üstünde kenar geleneksel olarak koyu ve belirgindir. */
+  --edge: #2b2018;
+  --edge-strong: #241c15;
+
+  --n-900: #241c15;
+  --n-700: #3d3025;
+  --n-600: #57493c;
+  --n-500: #6e6357;
+  --n-400: #8c8175;
+  --n-300: #b0a597;
+  --n-200: #cfc3b2;
+  --n-100: #e7dcc9;
+  --n-050: #f2e7d4;
+
+  --accent-soft: #ffead2;
+  --success-soft: #e6f6ec;
+  --danger-soft: #fce4e0;
+  --info-soft: #e4f2fb;
+  --yellow-soft: #fff0c4;
+  --profile-soft: #f3e8ff;
+  --gold-deep: #9a6a00;
+
+  --grad-surface: linear-gradient(180deg, #fff9ef 0%, #ffedd3 100%);
+  --grad-card: linear-gradient(180deg, #ffffff 0%, #fff3df 100%);
+
+  --shadow-soft: 0 2px 6px rgba(43, 32, 24, 0.16);
+  --shadow-float: 0 10px 24px rgba(43, 32, 24, 0.2), 0 2px 6px rgba(43, 32, 24, 0.12);
+  --shadow-edge: 0 2px 0 rgba(43, 32, 24, 0.32);
+  --shadow-pop: 0 4px 0 rgba(43, 32, 24, 0.26), 0 8px 18px rgba(43, 32, 24, 0.18);
+  --shadow-press: inset 0 3px 10px rgba(43, 32, 24, 0.3);
 }
 
 * {
@@ -45,6 +295,14 @@ input:focus-visible,
   outline-offset: 2px;
 }
 
+/* TEK görünürlük yardımcısı. `hidden` sınıfını taşıyan her öğe bunu kullanır;
+   daha önce her öğe kendi `#id.hidden { display:none }` kuralını taşıyordu ve
+   kuralı olmayanlar (`#btn-clear-room-code` gibi) GÖRÜNMEYİ UMUYDU. Tek
+   kural, tek doğruluk yolu. */
+.hidden {
+  display: none !important;
+}
+
 html,
 body {
   width: 100%;
@@ -52,11 +310,25 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background-color: #f4f4f0;
+  background-color: var(--surface);
+  color: var(--ink);
   font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
   touch-action: manipulation;
   position: fixed;
   inset: 0;
+}
+
+/* Form öğesi sıfırlaması — tarayıcının öz `color: buttontext` (siyah)
+   varsayılanı koyu temada okunmaz metin üretir. Uygulama rengi MİRAS
+   alınır: kök `--ink` koyu temada açık, `[data-theme='field']` kapsamında
+   krem saha için koyu. Böylece her düğme kendi kapsamının mürekkebini alır
+   ve hiçbir yüzeyde elle renk yazılmaz. */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
 }
 
 #app {
@@ -64,6 +336,6 @@ body {
   height: 100%;
   position: absolute;
   inset: 0;
-  background-color: #f4f4f0;
+  background-color: var(--surface);
   overflow: hidden;
 }

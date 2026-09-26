@@ -1,8 +1,23 @@
 /* Brutal Party - Modular Style Orchestrator */
 @import './styles/tokens.css';
+/* Sıra önemli: `sheets.css` yeni ortak sheet dilidir ve ESKİ modal stillerini
+   (`hud.css`/`modals.css`/`lobby.css`) geçersiz kılacak katmandır; bu yüzden
+   en sonda, `animations.css`ten hemen önce gelir. */
 @import './styles/base.css';
+@import './styles/shell.css';
+/* `scene.css` ortak sahne dili (arka plan katmanları + buton ailesi); home ve
+   room yalnız KONUM yerelleştirir. İkisi de bundan sonra gelmeli. */
+@import './styles/scene.css';
+@import './styles/home.css';
+@import './styles/room.css';
+@import './styles/games.css';
+@import './styles/profile.css';
 @import './styles/hud.css';
 @import './styles/modals.css';
-@import './styles/menu.css';
 @import './styles/lobby.css';
+@import './styles/notices.css';
+/* `room.css` oda sahnesi + lobi GÖRÜNÜMÜ yerleşimi; `lobby.css` alan içi
+   parçaların kendi kurallarını taşır, bu yüzden lobi bloğu ondan SONRA
+   gelmeli (aşağıda tekrar). */
+@import './styles/sheets.css';
 @import './styles/animations.css';

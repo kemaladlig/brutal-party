@@ -2,6 +2,8 @@
 // İsim sorulmaz: cihazın tek nick'i (ensureStoredNick) ile katılınır.
 // İsim düzenleme noktası ana menüdeki karakter kartıdır.
 import { ensureStoredNick } from '../net.js';
+import { openOverlay, closeOverlay } from './overlayHost.js';
+import { hydrateIconSlots } from './iconSlots.js';
 import { showInstallToast } from './toast.js';
 import { t, onLangChange } from '../i18n.js';
 
@@ -25,7 +27,10 @@ const btnClearOnlineHeroCode = document.getElementById('btn-clear-online-code');
 // (TV sahadır), ONLINE'da ise oyuncudur (P2-P4, telefonda görüp oynar).
 // applyI18nToDOM sabit data-i18n metinlerini geri yazdığı için bu override
 // hem modal açılışında hem de dil değişiminden sonra yeniden uygulanır.
-const joinBadge = joinRoomModal?.querySelector('.join-badge');
+//
+// Rozet bir İKON + metin yuvasıdır: yalnız metin span'ına yazılır, sonra
+// ikon yuvaları yeniden doldurulur (aksi halde `textContent` ikonu silerdi).
+const joinBadge = joinRoomModal?.querySelector('.join-badge-text');
 const joinTitle = joinRoomModal?.querySelector('.join-title');
 const joinCodeLabel = joinRoomModal?.querySelector('.join-label');
 const joinAsYou = joinRoomModal?.querySelector('.join-as-badge span[data-i18n="join.asYou"]');
@@ -41,6 +46,7 @@ function applyJoinModeCopy(mode) {
   if (joinAsYou) joinAsYou.textContent = t(`join.asYou${suffix}`);
   if (joinHint) joinHint.textContent = t(`join.hint${suffix}`);
   if (btnSubmitJoin) btnSubmitJoin.textContent = t(`join.submit${suffix}`);
+  hydrateIconSlots(joinRoomModal);
 }
 
 onLangChange(() => {
@@ -78,13 +84,18 @@ export function openJoinModal(prefilledCode = '', mode = null) {
     joinAsName.textContent = ensureStoredNick();
   }
   joinRoomModal?.classList.remove('hidden');
+  openOverlay('join', { el: joinRoomModal, onClose: closeJoinModal });
 }
 
 export function closeJoinModal() {
   joinRoomModal?.classList.add('hidden');
+  closeOverlay('join');
 }
 
 export function initJoinModal({ onExecuteJoin }) {
+  // Statik markup'taki ikon yuvaları (ikon adı HTML'de, çizim tek kaynakta).
+  hydrateIconSlots(joinRoomModal);
+
   btnPasteRoomCode?.addEventListener('click', async () => {
     try {
       const text = await navigator.clipboard.readText();
