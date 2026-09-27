@@ -693,12 +693,7 @@ export class Game extends BaseMiniGame {
     paintBackdrop(ctx, { width: window.innerWidth, height: window.innerHeight }, this.arena, { mode: 'PONG' });
 
     // Screen Shake (Trauma)
-    if (this.trauma > 0) {
-      const shakeIntensity = this.trauma * this.trauma * 14;
-      const offsetX = (Math.random() - 0.5) * 2 * shakeIntensity;
-      const offsetY = (Math.random() - 0.5) * 2 * shakeIntensity;
-      ctx.translate(offsetX, offsetY);
-    }
+    this.applyScreenShake(ctx, 14);
 
     // Render Arena with Corner Bumpers & Goal Mouths
     this.renderArena(ctx);

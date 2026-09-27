@@ -868,12 +868,7 @@ export class BombGame extends BaseMiniGame {
     paintBackdrop(ctx, this.viewport, this.arena, { mode: 'BOMB' });
 
     // Screen Shake (Trauma)
-    if (this.trauma > 0) {
-      const shakeIntensity = this.trauma * this.trauma * 16;
-      const offsetX = (Math.random() - 0.5) * 2 * shakeIntensity;
-      const offsetY = (Math.random() - 0.5) * 2 * shakeIntensity;
-      ctx.translate(offsetX, offsetY);
-    }
+    this.applyScreenShake(ctx, 16);
 
     // Arena sahnesi ortak bombView draw'larından gelir (host↔client aynı).
     const carrierP = this.players[this.bombCarrierIndex];

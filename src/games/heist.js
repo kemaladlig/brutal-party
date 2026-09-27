@@ -1054,12 +1054,7 @@ export class HeistGame extends BaseMiniGame {
     // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
     paintBackdrop(ctx, this.viewport, this.arena, { mode: 'HEIST' });
 
-    if (this.trauma > 0) {
-      const shakeIntensity = this.trauma * this.trauma * 14;
-      const offsetX = (Math.random() - 0.5) * 2 * shakeIntensity;
-      const offsetY = (Math.random() - 0.5) * 2 * shakeIntensity;
-      ctx.translate(offsetX, offsetY);
-    }
+    this.applyScreenShake(ctx, 14);
 
     // Arena sahnesi ortak heistView draw'larından gelir (host↔client aynı).
     drawHeistArena(ctx, this.arena, this.pillars, { roundId: this.roundId });

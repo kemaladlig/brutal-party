@@ -2,7 +2,7 @@
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playExplosion, playStart, playJoin, playGap, playItemPickup, playDashWhoosh } from '../audio.js';
 import { t } from '../i18n.js';
-import { prefersReducedMotion } from '../ui/motion.js';
+
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawPickup } from '../core/arenaKit.js';
 import { resolveSlotName } from '../core/slotManager.js';
@@ -876,10 +876,7 @@ export class CurveGame extends BaseMiniGame {
     ctx.fillStyle = '#F4F4F0';
     ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
 
-    if (this.trauma > 0 && !prefersReducedMotion()) {
-      const shake = this.trauma * this.trauma * 16;
-      ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
-    }
+    this.applyScreenShake(ctx, 16);
 
     const { left, top, width, height, size, right, bottom, cx, cy } = this.arena;
 

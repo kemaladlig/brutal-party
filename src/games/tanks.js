@@ -3,7 +3,6 @@ import { getSlotCustomization, getBotPersona } from '../core/customizationManage
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
 import { t } from '../i18n.js';
 import { renderTopPill } from '../ui/hud.js';
-import { prefersReducedMotion } from '../ui/motion.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { resolveSlotName } from '../core/slotManager.js';
@@ -1226,10 +1225,7 @@ export class TanksGame extends BaseMiniGame {
     // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
     paintBackdrop(ctx, this.viewport, this.arena, { mode: 'TANKS' });
 
-    if (this.trauma > 0 && !prefersReducedMotion()) {
-      const intensity = this.trauma * this.trauma * 16;
-      ctx.translate((Math.random() - 0.5) * intensity, (Math.random() - 0.5) * intensity);
-    }
+    this.applyScreenShake(ctx, 16);
 
     // Arena sahnesi ortak tanksView draw'larından gelir (host↔client aynı).
     drawTanksArena(ctx, this.arena, this.obstacles, {
