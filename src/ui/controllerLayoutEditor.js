@@ -58,7 +58,6 @@ function editorMode(manager) {
 
 function renderPanel(draft) {
   const size = Math.round(draft.size * 100);
-  const pos = (p) => `${Math.round(p.x * 100)}% · ${Math.round(p.y * 100)}%`;
   return `
     <section class="controller-layout-editor-panel" role="dialog" aria-modal="true" aria-labelledby="controller-layout-editor-title">
       <div class="controller-layout-editor-heading">
@@ -69,12 +68,16 @@ function renderPanel(draft) {
         <button class="controller-layout-close" data-controller-layout-close type="button" aria-label="${escapeHtml(t('controllerLayout.close'))}" title="${escapeHtml(t('controllerLayout.close'))}">×</button>
       </div>
       <p class="controller-layout-editor-hint">${escapeHtml(t('controllerLayout.hint'))}</p>
-      <div class="controller-layout-size-row">
-        <label for="controller-layout-size">${escapeHtml(t('controllerLayout.size'))}</label>
-        <output id="controller-layout-size-value" for="controller-layout-size">${size}%</output>
+      
+      <div class="controller-layout-size-stepper">
+        <button class="controller-layout-size-btn" data-controller-layout-size-step="-1" type="button" aria-label="Küçült">–</button>
+        <div class="controller-layout-size-display">
+          <span class="controller-layout-size-label">${escapeHtml(t('controllerLayout.size'))}</span>
+          <output id="controller-layout-size-value">${size}%</output>
+        </div>
+        <button class="controller-layout-size-btn" data-controller-layout-size-step="1" type="button" aria-label="Büyüt">+</button>
       </div>
-      <input class="controller-layout-size" id="controller-layout-size" type="range" min="${Math.round(CONTROLLER_SIZE_MIN * 100)}" max="${Math.round(CONTROLLER_SIZE_MAX * 100)}" step="5" value="${size}" aria-label="${escapeHtml(t('controllerLayout.size'))}" />
-      <div class="controller-layout-pos" id="controller-layout-pos">SOL ${pos(draft.left)} &nbsp;•&nbsp; SAĞ ${pos(draft.right)}</div>
+
       <div class="controller-layout-editor-actions">
         <button class="controller-layout-action secondary" data-controller-layout-reset type="button">${escapeHtml(t('controllerLayout.reset'))}</button>
         <button class="controller-layout-action secondary" data-controller-layout-cancel type="button">${escapeHtml(t('controllerLayout.cancel'))}</button>
@@ -161,12 +164,8 @@ export function openControllerLayoutEditor(manager) {
       const capped = metrics.scale < draft.size - 0.005;
       badge.textContent = `${editorMode(manager)} · ${Math.round(metrics.scale * 100)}%${capped ? ' (sığdırıldı)' : ''}`;
     }
-    const pos = root.querySelector('#controller-layout-pos');
-    if (pos) {
-      pos.textContent = `SOL ${Math.round(draft.left.x * 100)}% · ${Math.round(draft.left.y * 100)}% • SAĞ ${Math.round(draft.right.x * 100)}% · ${Math.round(draft.right.y * 100)}%`;
-    }
     const output = root.querySelector('#controller-layout-size-value');
-    if (output && document.activeElement?.id !== 'controller-layout-size') {
+    if (output) {
       output.value = `${Math.round(draft.size * 100)}%`;
     }
     return metrics;
@@ -234,29 +233,24 @@ export function openControllerLayoutEditor(manager) {
     `;
     bindStage();
 
-    const sizeInput = root.querySelector('#controller-layout-size');
-    sizeInput?.addEventListener('input', (event) => {
-      draft.size = Math.round(clamp(
-        Number(event.currentTarget.value) / 100,
-        CONTROLLER_SIZE_MIN,
-        CONTROLLER_SIZE_MAX,
-      ) * 100) / 100;
-      const output = root.querySelector('#controller-layout-size-value');
-      if (output) output.value = `${Math.round(draft.size * 100)}%`;
-      updatePreview();
-    });
-    sizeInput?.addEventListener('change', () => {
-      draft = constrainControllerLayout(draft);
-      updatePreview();
+    root.querySelectorAll('[data-controller-layout-size-step]').forEach(btn => {
+      btn.addEventListener('click', (event) => {
+        const step = Number(event.currentTarget.dataset.controllerLayoutSizeStep) * 0.05;
+        draft.size = Math.round(clamp(
+          draft.size + step,
+          CONTROLLER_SIZE_MIN,
+          CONTROLLER_SIZE_MAX
+        ) * 100) / 100;
+        draft = constrainControllerLayout(draft);
+        updatePreview();
+      });
     });
     root.querySelector('[data-controller-layout-save]')?.addEventListener('click', () => close({ save: true }));
     root.querySelector('[data-controller-layout-cancel]')?.addEventListener('click', () => close({ save: false }));
     root.querySelector('[data-controller-layout-close]')?.addEventListener('click', () => close({ save: false }));
     root.querySelector('[data-controller-layout-reset]')?.addEventListener('click', () => {
       draft = constrainControllerLayout(getDefaultControllerLayout());
-      const size = root.querySelector('#controller-layout-size');
       const output = root.querySelector('#controller-layout-size-value');
-      if (size) size.value = String(Math.round(draft.size * 100));
       if (output) output.value = `${Math.round(draft.size * 100)}%`;
       updatePreview();
     });
@@ -313,7 +307,7 @@ export function openControllerLayoutEditor(manager) {
         updatePreview();
       }
     });
-    root.querySelector('#controller-layout-size')?.focus({ preventScroll: true });
+    root.querySelector('[data-controller-layout-close]')?.focus({ preventScroll: true });
   };
 
   const close = ({ save = false } = {}) => {

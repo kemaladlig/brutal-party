@@ -4,6 +4,7 @@ import { playExplosion, playStart, playJoin, playGap, playItemPickup, playDashWh
 import { t } from '../i18n.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { drawPickup } from '../core/arenaKit.js';
 import { resolveSlotName } from '../core/slotManager.js';
 import { updateCurveBotAI } from '../ai/curveAI.js';
@@ -94,27 +95,29 @@ export class CurveGame extends BaseMiniGame {
   }
 
   initKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      if (this.isLocalInputActive && isSlotActionEvent(e, SLOT_INDEX_BY_ACTION_CODE[e.code])) {
-        this.triggerBoost(SLOT_INDEX_BY_ACTION_CODE[e.code]);
-        return;
-      }
-      if (!this.isLocalInputActive) return;
-      this.keys[e.code] = true;
-      this.keys[e.key] = true;
-    });
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.code] = false;
-      this.keys[e.key] = false;
-      // Tuş bırakma: o slotta dokunmatik direksiyon yoksa düz git
-      // (dokunmatik basılıyken klavye bırakması dokunuşu ezmesin)
-      const slot = CURVE_KEY_SLOTS[e.code];
-      if (slot === undefined) return;
-      if ((this.tabletopSteerState?.[slot] || 0) !== 0) return;
-      const player = this.players[slot];
-      if (player && player.slotType === 'human' && this.keyboardSteer(slot) === 0) {
-        player.steer = 0;
-      }
+    bindKeyboard(this, {
+      keydown: (e) => {
+        if (this.isLocalInputActive && isSlotActionEvent(e, SLOT_INDEX_BY_ACTION_CODE[e.code])) {
+          this.triggerBoost(SLOT_INDEX_BY_ACTION_CODE[e.code]);
+          return;
+        }
+        if (!this.isLocalInputActive) return;
+        this.keys[e.code] = true;
+        this.keys[e.key] = true;
+      },
+      keyup: (e) => {
+        this.keys[e.code] = false;
+        this.keys[e.key] = false;
+        // Tuş bırakma: o slotta dokunmatik direksiyon yoksa düz git
+        // (dokunmatik basılıyken klavye bırakması dokunuşu ezmesin)
+        const slot = CURVE_KEY_SLOTS[e.code];
+        if (slot === undefined) return;
+        if ((this.tabletopSteerState?.[slot] || 0) !== 0) return;
+        const player = this.players[slot];
+        if (player && player.slotType === 'human' && this.keyboardSteer(slot) === 0) {
+          player.steer = 0;
+        }
+      },
     });
   }
 

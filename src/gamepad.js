@@ -733,7 +733,7 @@ export class GamepadManager {
     this.isReady = false;
     this.stagingOpen = false;
     this.countdownActive = false;
-    this._pongInvertManualSet = false;
+    this.pongInvertManualSet = false;
     this._worldViewEnabled = false;
     this.overlay.innerHTML = renderLocalGamepadShell(this.selectedHostGame);
     this._workspaceOverride = document.getElementById('local-mobile-workspace');
@@ -763,7 +763,7 @@ export class GamepadManager {
     this.stagingOpen = false;
     this.countdownActive = false;
     // Reset manual invert flag on fresh join so auto-detection kicks in
-    this._pongInvertManualSet = false;
+    this.pongInvertManualSet = false;
 
     this._bindBrowserLocks();
     this.renderShell();
@@ -880,11 +880,18 @@ export class GamepadManager {
     this._bindLayoutEditorButton();
   }
 
+  // PONG ters-yön override'ı sıfırla: yeni koltuğun otomatik yönü yeniden
+  // uygulansın. main.js iki kumandayı da bu kapıdan nötrler; alanı doğrudan
+  // yazmaz (ters butonu `pongInvertManualSet`'i kendi koyar).
+  resetPongInvert() {
+    this.pongInvertManualSet = false;
+  }
+
   updateSlot(newSlot, newColor) {
     this.playerIndex = newSlot;
     if (newColor) this.playerColor = newColor;
     // Reset manual invert so new seat's auto-direction is applied
-    this._pongInvertManualSet = false;
+    this.resetPongInvert();
 
     const label = document.getElementById('header-player-name');
     const seatTag = document.getElementById('header-seat-tag');

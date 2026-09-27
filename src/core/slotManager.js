@@ -1,9 +1,18 @@
-// Slot Manager: Host Player Slots State, UI Sync, Engine Slot & Score Mapping
-import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+// Slot Manager: Host Player Slots State, Engine Slot & Score Mapping
+// Koltuk kartlarının DOM boyaması `ui/slotCardView.js`'dedir; burada yalnız
+// durum ve motor eşlemesi vardır.
 import { getSlotCustomization, findSlotColorDuplicates, getBotPersona, getLocalSeatColors, rimHex } from './customizationManager.js';
+import {
+  hasSlotCard,
+  paintSlotAvatar,
+  paintSlotCard,
+  paintReadyCounter,
+  paintColorClashBadges,
+  dispatchHostSlotsChanged,
+  dispatchColorClash,
+} from '../ui/slotCardView.js';
 import { safeGet, safeSet } from './safeStorage.js';
 import { getStoredPlayerName, ensureStoredNick } from '../net.js';
-import { t } from '../i18n.js';
 
 export function resolveSlotName(index, slotType = 'human', customName = '') {
   if (slotType === 'bot_normal') return getBotPersona(index, false).name;
@@ -55,64 +64,12 @@ export function updateHostSlot(
   displayColor = undefined,
   isHost = undefined,
 ) {
-  const slotEl = document.getElementById(`slot-p${slotIndex + 1}`);
-  const readyTag = document.getElementById(`ready-tag-p${slotIndex + 1}`);
-  if (!slotEl) return;
+  // Kart DOM'u yoksa (LOCAL/oyun içi kabuk) durum da boyama da değişmez:
+  // hostPlayerSlots yalnız host lobisinde yazılır.
+  if (!hasSlotCard(slotIndex)) return;
 
-  const nameEl = slotEl.querySelector('.slot-name');
-  // Eylem düğmeleri koltuk sheet'i açıkken çipten sheet'e taşınır; sorgu
-  // belge genelinde data-slot ile yapılır (taşıma sırasında da bulunur).
-  const botBtn = document.querySelector(`.slot-bot-btn[data-slot="${slotIndex}"]`);
-  const slotCanvas = document.getElementById(`slot-canvas-p${slotIndex + 1}`);
-
-  if (slotCanvas) {
-    // 68px backing store: çip 44px gösterilir, TV'de keskin durması için 2x çözünürlük.
-    const ctx = slotCanvas.getContext('2d');
-    ctx.clearRect(0, 0, slotCanvas.width, slotCanvas.height);
-    if (isConnected) {
-      if (kind === 'bot_god') {
-        const persona = getBotPersona(slotIndex, true);
-        drawBrutalAvatar(ctx, 34, 34, 26, {
-          slotIndex,
-          color: persona.color,
-          expression: persona.expression,
-          showPointer: false,
-          borderWidth: 4,
-          shadowOffset: 3,
-        });
-      } else if (kind === 'bot') {
-        const persona = getBotPersona(slotIndex, false);
-        drawBrutalAvatar(ctx, 34, 34, 26, {
-          slotIndex,
-          color: persona.color,
-          expression: persona.expression,
-          showPointer: false,
-          borderWidth: 4,
-          shadowOffset: 3,
-        });
-      } else {
-        const entryPrev = hostPlayerSlots[slotIndex];
-        drawBrutalAvatar(ctx, 34, 34, 26, {
-          slotIndex,
-          avatar: entryPrev?.avatar || undefined,
-          color: entryPrev?.displayColor || entryPrev?.avatar?.color || undefined,
-          showPips: false,
-          showPointer: false,
-          borderWidth: 4,
-          shadowOffset: 3,
-        });
-      }
-    } else {
-      // Boş yuvarlak kesikli sınır
-      ctx.strokeStyle = '#C8C3BA';
-      ctx.lineWidth = 4;
-      ctx.setLineDash([6, 6]);
-      ctx.beginPath();
-      ctx.arc(34, 34, 24, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  }
+  // Çip, kart metninden ÖNCE çizilir ve kaynak eski kayıttır (mevcut sıra).
+  paintSlotAvatar(slotIndex, { isConnected, kind, entry: hostPlayerSlots[slotIndex] });
 
   if (isConnected) {
     const prevEntry = hostPlayerSlots[slotIndex];
@@ -122,115 +79,29 @@ export function updateHostSlot(
       avatar: avatar !== undefined ? avatar : (prevEntry?.avatar || null),
       displayColor: displayColor !== undefined ? displayColor : (prevEntry?.displayColor || null),
     };
-    const isBotNormal = kind === 'bot';
-    const isBotGod = kind === 'bot_god';
-    const isAnyBot = isBotNormal || isBotGod;
-    const persona = isAnyBot ? getBotPersona(slotIndex, isBotGod) : null;
-
-    slotEl.classList.add('connected');
-    slotEl.classList.toggle('is-bot', isAnyBot);
-    slotEl.classList.toggle('is-bot-god', isBotGod);
-    slotEl.classList.toggle('ready', isReady && !isAnyBot);
-
-    if (nameEl) nameEl.textContent = isAnyBot ? (name || persona.name) : name;
-    if (readyTag) {
-      if (isBotGod) {
-        readyTag.textContent = persona.shortName || t('lobby.god');
-        readyTag.classList.remove('ready');
-      } else if (isBotNormal) {
-        readyTag.textContent = persona.shortName || t('lobby.bot');
-        readyTag.classList.remove('ready');
-      } else {
-        readyTag.textContent = isReady ? t('lobby.ready') : t('lobby.wait');
-        readyTag.classList.toggle('ready', isReady);
-      }
-    }
-    // Açık buton (sadece ayar açıksa): bot kartında ✕ (kaldır), boş koltukta +BOT.
-    // Kapalıyken normal akışta sadece oyuncu eklenir/çıkarılır.
-    const botsOn = isBotEkleEnabled();
-    if (botBtn) {
-      if (botsOn && isAnyBot) {
-        const label = botBtn.querySelector('.slot-bot-label');
-        if (label) label.textContent = t('host.removeBot');
-        else botBtn.textContent = '✕';
-        botBtn.classList.remove('hidden');
-      } else {
-        botBtn.classList.add('hidden');
-      }
-    }
   } else {
     hostPlayerSlots[slotIndex] = null;
-    slotEl.classList.remove('connected', 'ready', 'is-bot', 'is-bot-god');
-    if (nameEl) nameEl.textContent = t('pause.empty');
-    if (readyTag) {
-      // Boş koltukta durum rozeti ismi tekrarlar ("BOŞ / BOŞ") — çipte yalnız
-      // isim kalsa yeter; rozet boşta boş kalır.
-      readyTag.textContent = '';
-      readyTag.classList.remove('ready');
-    }
-    // Boş koltukta +BOT butonu (sadece ayar açıksa)
-    if (botBtn) {
-      if (isBotEkleEnabled()) {
-        const label = botBtn.querySelector('.slot-bot-label');
-        if (label) label.textContent = t('host.addBot');
-        else botBtn.textContent = t('host.addBot');
-        botBtn.classList.remove('hidden');
-      } else {
-        botBtn.classList.add('hidden');
-      }
-    }
   }
 
-  // Botlar sayıma dahil değildir (hazır vermezler, sayacı kilitlemezler)
-  const humans = hostPlayerSlots.filter((p) => p !== null && p.kind !== 'bot' && p.kind !== 'bot_god');
-  const connectedCount = humans.length;
-  const readyCount = humans.filter((p) => p?.isReady).length;
-  const readyCounter = document.getElementById('lobby-ready-counter');
-  if (readyCounter) {
-    if (connectedCount === 0) {
-      readyCounter.textContent = t('lobby.waiting');
-    } else if (readyCount === connectedCount) {
-      readyCounter.textContent = t('lobby.readyToStart', readyCount, connectedCount);
-    } else {
-      readyCounter.textContent = t('lobby.connected', connectedCount, readyCount);
-    }
-  }
+  paintSlotCard(slotIndex, hostPlayerSlots[slotIndex], { botsEnabled: isBotEkleEnabled() });
+  paintReadyCounter(hostPlayerSlots);
   refreshColorClashUI();
   // Host lobi koltuk düzenleyicisi aynı slot snapshot'ını okur; yeni katılım,
   // ayrılma veya renk güncellemesinde seçim butonlarını da anında tazele.
-  try {
-    window.dispatchEvent(new CustomEvent('brutal_host_slots_changed'));
-  } catch {}
+  dispatchHostSlotsChanged();
 }
 
-// Aynı display rengine sahip insan koltuklarına ⚠️ rozeti + kart vurgusu.
+// Aynı display rengine sahip insan koltuklarına çakışma rozeti + kart vurgusu.
 // Kart DOM'u yoksa (LOCAL/oyun içi) sessizce geçilir.
 export function refreshColorClashUI() {
-  let clash = new Set();
+  let clash = [];
   try {
     clash = findSlotColorDuplicates(hostPlayerSlots);
-  } catch { clash = new Set(); }
-  for (let i = 0; i < 4; i++) {
-    const slotEl = document.getElementById(`slot-p${i + 1}`);
-    if (!slotEl) continue;
-    const isClash = clash.has(i);
-    slotEl.classList.toggle('color-clash', isClash);
-    let warn = slotEl.querySelector('.slot-clash-tag');
-    if (isClash && !warn) {
-      warn = document.createElement('span');
-      warn.className = 'slot-clash-tag';
-      slotEl.appendChild(warn);
-    }
-    if (warn) {
-      warn.textContent = isClash ? t('lobby.clash') : '';
-      warn.classList.toggle('hidden', !isClash);
-    }
+  } catch {
+    clash = [];
   }
-  try {
-    window.dispatchEvent(new CustomEvent('brutal_color_clash', {
-      detail: { clash: [...clash] },
-    }));
-  } catch {}
+  paintColorClashBadges(clash);
+  dispatchColorClash(clash);
 }
 
 function applySlotDataToEntity(engine, currentMode, i, slotType, slotName, slotColor, isJoined, rimColor) {

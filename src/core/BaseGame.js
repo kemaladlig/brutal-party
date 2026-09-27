@@ -3,16 +3,13 @@
 // standardized 4-player local keyboard listeners, multi-touch virtual joysticks & lobby rendering.
 
 import { prefersReducedMotion, motionScale } from '../ui/motion.js';
-import { getStandardSeatRects, renderLobbySeatCard, renderLobbyStartButton, getSeatColorDotRect, renderControlGuide } from '../controlGuide.js';
-import { getLocalSeatColors, ensureLocalSeatColor, cycleLocalSeatColor, getBotPersona } from './customizationManager.js';
+import { ensureLocalSeatColor, cycleLocalSeatColor, getBotPersona } from './customizationManager.js';
 import { resolveSlotName } from './slotManager.js';
-import { isSlotActionEvent, keyboardVectorFrom, getKeyLabel } from './inputMaps.js';
+import { isSlotActionEvent, keyboardVectorFrom, STEER_KEY_HINTS } from './inputMaps.js';
+import { createTabletopRenderer } from './tabletopRenderer.js';
+import { bindKeyboard, bindKeyboardCapture, unbindKeyboard } from './keyboardDispatch.js';
 import { getQuadrant, roundOverSkipGuard } from './touchFlow.js';
-import { UI_COLORS, getDisplayProfile, shouldShowVirtualControls, isTouchDevice } from '../ui/tokens.js';
-import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
-import { roundGapSeconds } from './roundLifecycle.js';
-import { t } from '../i18n.js';
-import { drawTabletopIcon } from './tabletopIcons.js';
+import { getDisplayProfile, shouldShowVirtualControls } from '../ui/tokens.js';
 import {
   AIM_HOLD_TO_FIRE,
   AIM_RELEASE_TO_FIRE,
@@ -27,18 +24,6 @@ import {
 import { isInputIntent, matchesInputAction } from './inputIntent.js';
 import { assertControlDescriptorParity } from './controlDescriptor.js';
 import { AimInputState, getAimAction } from './aimInput.js';
-
-const STEER_KEY_HINTS = ['A/D', '←/→', 'J/L', 'F/H'];
-
-function pathRoundRect(ctx, x, y, w, h, r) {
-  if (typeof ctx.roundRect === 'function') {
-    ctx.beginPath();
-    ctx.roundRect(x, y, w, h, r);
-  } else {
-    ctx.beginPath();
-    ctx.rect(x, y, w, h);
-  }
-}
 
 export class BaseMiniGame {
   constructor(canvas) {
@@ -90,7 +75,7 @@ export class BaseMiniGame {
     this.keys = {};
     this._keyboardBound = false;
     this.inputSource = null;
-    this._inputSourceKeyboardGuard = (e) => {
+    bindKeyboardCapture(this, (e) => {
       if (!this.isLocalInputActive) return;
       const isControlKey = e.code === 'Space'
         || e.key === ' '
@@ -102,11 +87,10 @@ export class BaseMiniGame {
       if (this.inputSource === 'touch') {
         e.preventDefault();
         e.stopImmediatePropagation();
-        return;
+        return false;
       }
       this.inputSource = 'keyboard';
-    };
-    window.addEventListener('keydown', this._inputSourceKeyboardGuard, true);
+    });
 
     // 4 Corner Floating Virtual Joysticks (P1: BL, P2: TL, P3: TR, P4: BR)
     this.joysticks = [
@@ -143,6 +127,10 @@ export class BaseMiniGame {
       cx: initW / 2,
       cy: initH / 2,
     };
+
+    // Masa-ortası kontrol/lobi/HUD çiziminin tek sahibi (Faz 2.1): aşağıdaki
+    // delegasyonlar motor sözleşmesini korur, çizim buradan okunur.
+    this._tabletop = createTabletopRenderer(this);
   }
 
   updateViewport(w = window.innerWidth, h = window.innerHeight) {
@@ -304,42 +292,50 @@ export class BaseMiniGame {
     if (this._keyboardBound) return;
     this._keyboardBound = true;
 
-    window.addEventListener('keydown', (e) => {
-      if (!this.isLocalInputActive) return;
-      const isControlKey = e.code === 'Space'
-        || e.key === ' '
-        || e.code.startsWith('Arrow')
-        || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyI', 'KeyJ', 'KeyK', 'KeyL', 'KeyT', 'KeyF', 'KeyG', 'KeyH', 'KeyB'].includes(e.code);
-      if (isControlKey && !this.claimInputSource('keyboard')) return;
+    bindKeyboard(this, {
+      keydown: (e) => {
+        if (!this.isLocalInputActive) return;
+        const isControlKey = e.code === 'Space'
+          || e.key === ' '
+          || e.code.startsWith('Arrow')
+          || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyI', 'KeyJ', 'KeyK', 'KeyL', 'KeyT', 'KeyF', 'KeyG', 'KeyH', 'KeyB'].includes(e.code);
+        if (isControlKey && !this.claimInputSource('keyboard')) return;
 
-      // Blur any focused DOM element (like bento menu buttons) to avoid accidental click invocation via Space
-      if (document.activeElement && document.activeElement !== document.body && document.activeElement !== this.canvas) {
-        try { document.activeElement.blur(); } catch {}
-      }
+        // Blur any focused DOM element (like bento menu buttons) to avoid accidental click invocation via Space
+        if (document.activeElement && document.activeElement !== document.body && document.activeElement !== this.canvas) {
+          try { document.activeElement.blur(); } catch {}
+        }
 
-      // Prevent default scrolling / button triggering on game control keys
-      if (e.code === 'Space' || e.key === ' ' || e.code.startsWith('Arrow') || e.code === 'Tab') {
-        e.preventDefault();
-      }
+        // Prevent default scrolling / button triggering on game control keys
+        if (e.code === 'Space' || e.key === ' ' || e.code.startsWith('Arrow') || e.code === 'Tab') {
+          e.preventDefault();
+        }
 
-      this.keys[e.key] = true;
-      if (e.key) this.keys[e.key.toLowerCase()] = true;
-      this.keys[e.code] = true;
+        this.keys[e.key] = true;
+        if (e.key) this.keys[e.key.toLowerCase()] = true;
+        this.keys[e.code] = true;
 
-      if (this.state === 'PLAYING' && typeof onPlayerAction === 'function') {
-        for (let i = 0; i < 4; i++) {
-          if (this.isPlayerActionKey(e, i)) {
-            onPlayerAction(i, e);
+        if (this.state === 'PLAYING' && typeof onPlayerAction === 'function') {
+          for (let i = 0; i < 4; i++) {
+            if (this.isPlayerActionKey(e, i)) {
+              onPlayerAction(i, e);
+            }
           }
         }
-      }
+      },
+      keyup: (e) => {
+        this.keys[e.key] = false;
+        if (e.key) this.keys[e.key.toLowerCase()] = false;
+        this.keys[e.code] = false;
+      },
     });
+  }
 
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.key] = false;
-      if (e.key) this.keys[e.key.toLowerCase()] = false;
-      this.keys[e.code] = false;
-    });
+  // Motor tahliyesi (Faz 4.5 releaseEngine bu kapıyı çağırır): paylaşılan
+  // klavye dispatch'ünden bu motorun aboneliğini kaldırır. Çağrılmazsa ölü
+  // motorun tuş durumu yüzünden oyun dışındayken de güncellenir.
+  destroy() {
+    unbindKeyboard(this);
   }
 
   isPlayerActionKey(e, slotIndex) {
@@ -1131,375 +1127,38 @@ export class BaseMiniGame {
     ];
   }
 
-  getControlAlpha(value, active = false, near = false) {
-    if (!isTouchDevice()) return value;
-    if (near) return Math.min(value, 0.12);
-    return Math.min(value, active ? 0.4 : 0.22);
-  }
+  // ---------------------------------------------------------------------------
+  // Tabletop çizim delegasyonu (Faz 2.1)
+  // Gövdeler core/tabletopRenderer.js'te; motor sözleşmesi ve davranış birebir
+  // korunur, yalnız çizim tek sahibe indi.
+  // ---------------------------------------------------------------------------
 
-  renderControls(ctx, { players = this.getEntitiesList(), extraEntities = [] } = {}) {
-    if (this.state !== 'PLAYING' && this.state !== 'ROUND_PAUSE') return;
-    if (!shouldShowVirtualControls({ isHosting: !!this.suppressVirtualControls, force: !!this.forceVirtualControls })) {
-      return;
-    }
-
-    const profile = getDisplayProfile(this.arena);
-    const baseR = Math.round(44 * profile.baseUnit);
-    const knobR = Math.round(19 * profile.baseUnit);
-    const corners = this.getTabletopControlCorners();
-    const schema = this.getTabletopSchema();
-
-    for (let i = 0; i < 4; i++) {
-      if (this.localControlSlot !== null && i !== this.localControlSlot) continue;
-      const p = players?.[i];
-      if (!p || !p.isJoined || p.isAlive === false || p.slotType !== 'human') {
-        continue;
-      }
-      const corner = corners[i];
-      const playerColor = p.color || UI_COLORS.primary || '#D84727';
-
-      // 1. DİREKSİYON (SOL / SAĞ) BUTONLARI ÇİZİMİ
-      if (schema.steer && corner.steerButtons) {
-        const isNear = this.checkEntityProximity(corner.box.cx, corner.box.cy, corner.box.w * 0.7, extraEntities);
-
-        // A. OYUNCU İSİM VE KLAVYE ÇİPİ (Üst Bilgi Rozeti)
-        const chipText = `${p.name || resolveSlotName(i)} [${STEER_KEY_HINTS[i]}]`;
-        ctx.save();
-        ctx.font = '900 11px "JetBrains Mono", monospace';
-        const textMetrics = ctx.measureText(chipText);
-        const chipW = Math.max(80, textMetrics.width + 20);
-        const chipH = 18;
-        const isTop = corner.rotation !== 0;
-        const chipCx = corner.box.cx;
-        const chipCy = isTop ? (corner.box.y + corner.box.h + chipH / 2 + 5) : (corner.box.y - chipH / 2 - 5);
-
-        ctx.translate(chipCx, chipCy);
-        if (corner.rotation) ctx.rotate(corner.rotation);
-        ctx.globalAlpha = this.getControlAlpha(isNear ? 0.20 : 0.85, false, isNear);
-
-        // Çip gölgesi ve gövdesi
-        const chipR = chipH / 2;
-        ctx.fillStyle = 'rgba(20, 16, 31, 0.18)';
-        pathRoundRect(ctx, -chipW / 2, -chipH / 2 + 2, chipW, chipH, chipR);
-        ctx.fill();
-        ctx.fillStyle = UI_COLORS.card || '#FAF7F2';
-        pathRoundRect(ctx, -chipW / 2, -chipH / 2, chipW, chipH, chipR);
-        ctx.fill();
-        ctx.strokeStyle = UI_COLORS.faint || '#8C8175';
-        ctx.lineWidth = 1.5;
-        pathRoundRect(ctx, -chipW / 2, -chipH / 2, chipW, chipH, chipR);
-        ctx.stroke();
-
-        // Slot renk noktası
-        ctx.fillStyle = playerColor;
-        ctx.beginPath();
-        ctx.arc(-chipW / 2 + 8, 0, 3.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#1A1A1A';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // Çip metni
-        ctx.fillStyle = '#1A1A1A';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(chipText, -chipW / 2 + 15, 0.5);
-        ctx.restore();
-
-        // B. DİREKSİYON BUTONLARI (SOL & SAĞ)
-        for (const sBtn of corner.steerButtons) {
-          const isPressed = this.tabletopSteerState[i] === sBtn.dir;
-          const kb = keyboardVectorFrom(this.keys, i);
-          const kbActive = (sBtn.dir < 0 && kb.x < 0) || (sBtn.dir > 0 && kb.x > 0);
-          const active = isPressed || kbActive;
-
-          ctx.save();
-          ctx.globalAlpha = this.getControlAlpha(isNear ? 0.20 : (active ? 0.98 : 0.75), active, isNear);
-          ctx.translate(sBtn.cx, sBtn.cy);
-          if (sBtn.rotation) ctx.rotate(sBtn.rotation);
-
-          const halfW = sBtn.w / 2;
-          const halfH = sBtn.h / 2;
-          const sR = Math.min(14, sBtn.h * 0.28);
-          const shadow = active ? 1 : 3;
-          const offset = active ? 2 : 0;
-
-          // Tactile Soft Shadow
-          ctx.fillStyle = 'rgba(20, 16, 31, 0.28)';
-          pathRoundRect(ctx, -halfW, -halfH + shadow, sBtn.w, sBtn.h, sR);
-          ctx.fill();
-
-          // Buton Gövdesi
-          ctx.fillStyle = active ? `${playerColor}33` : '#FAF7F2';
-          pathRoundRect(ctx, -halfW + offset, -halfH + offset, sBtn.w, sBtn.h, sR);
-          ctx.fill();
-
-          // Kenarlık
-          ctx.strokeStyle = active ? playerColor : '#2B2018';
-          ctx.lineWidth = active ? 2.5 : 2;
-          pathRoundRect(ctx, -halfW + offset, -halfH + offset, sBtn.w, sBtn.h, sR);
-          ctx.stroke();
-
-          // Vektör Direksiyon İkonu (◀ / ▶)
-          const steerIconColor = active ? playerColor : '#1A1A1A';
-          drawTabletopIcon(ctx, sBtn.label || sBtn.id, offset, offset + 1, 24, {
-            color: steerIconColor,
-            accentColor: playerColor,
-          });
-
-          // Klavye İpucu Rozeti ([A], [D] vb.)
-          if (sBtn.keyHint) {
-            ctx.fillStyle = 'rgba(20, 20, 22, 0.85)';
-            const badgeW = Math.max(16, sBtn.keyHint.length * 6 + 6);
-            ctx.fillRect(-halfW + offset + 2, -halfH + offset + 2, badgeW, 10);
-            ctx.font = '900 7.5px monospace';
-            ctx.fillStyle = '#FFFFFF';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(sBtn.keyHint, -halfW + offset + 2 + badgeW / 2, -halfH + offset + 7);
-          }
-
-          ctx.restore();
-        }
-      } else if (schema.joystick !== false) {
-        // 2. STANDART JOYSTICK ÇİZİMİ
-        const joy = this.joysticks[i];
-        if (joy.active) {
-          const isNear = this.checkEntityProximity(joy.currX, joy.currY, baseR * 2.2, extraEntities) ||
-                         this.checkEntityProximity(joy.originX, joy.originY, baseR * 2.2, extraEntities);
-
-          ctx.save();
-          ctx.globalAlpha = this.getControlAlpha(isNear ? 0.20 : 0.95, true, isNear);
-
-          // Dış kontrast halka
-          ctx.strokeStyle = UI_COLORS.outlineContrast || 'rgba(250, 247, 242, 0.9)';
-          ctx.lineWidth = Math.max(3, Math.round(4.5 * profile.baseUnit));
-          ctx.beginPath();
-          ctx.arc(joy.originX, joy.originY, baseR, 0, Math.PI * 2);
-          ctx.stroke();
-
-          ctx.strokeStyle = UI_COLORS.ink || '#1A1A1A';
-          ctx.lineWidth = Math.max(2, Math.round(2.5 * profile.baseUnit));
-          ctx.setLineDash([4, 4]);
-          ctx.beginPath();
-          ctx.arc(joy.originX, joy.originY, baseR, 0, Math.PI * 2);
-          ctx.stroke();
-
-          // Topuz (Knob)
-          ctx.setLineDash([]);
-          ctx.fillStyle = playerColor;
-          ctx.beginPath();
-          ctx.arc(joy.currX, joy.currY, knobR, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = UI_COLORS.ink || '#1A1A1A';
-          ctx.lineWidth = Math.max(2, Math.round(2.5 * profile.baseUnit));
-          ctx.stroke();
-          ctx.restore();
-        } else {
-          // Dinlenme pedi (Masa-ortası ekran köşesi rehberi)
-          const isNear = this.checkEntityProximity(corner.x, corner.y, baseR * 2.2, extraEntities);
-
-          ctx.save();
-          ctx.translate(corner.x, corner.y);
-          if (corner.rotation) ctx.rotate(corner.rotation);
-          ctx.globalAlpha = this.getControlAlpha(isNear ? 0.15 : 0.40, false, isNear);
-
-          ctx.strokeStyle = playerColor;
-          ctx.lineWidth = Math.max(2, Math.round(2.5 * profile.baseUnit));
-          ctx.setLineDash([4, 4]);
-          ctx.beginPath();
-          ctx.arc(0, 0, baseR, 0, Math.PI * 2);
-          ctx.stroke();
-
-          ctx.fillStyle = playerColor;
-          ctx.font = '900 13px "JetBrains Mono", monospace';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(`P${i + 1}`, 0, 0);
-          ctx.restore();
-        }
-      }
-
-      if (schema.aim && corner.aimBox) {
-        const aim = this.getAimVector(i);
-        const aimR = corner.aimBox.r || corner.aimBox.w / 2;
-        const isAimNear = this.checkEntityProximity(corner.aimBox.cx, corner.aimBox.cy, aimR * 2.2, extraEntities);
-        ctx.save();
-        ctx.globalAlpha = this.getControlAlpha(isAimNear ? 0.15 : (aim.force > 0.05 ? 0.95 : 0.42), aim.force > 0.05, isAimNear);
-        ctx.strokeStyle = playerColor;
-        ctx.lineWidth = Math.max(2, Math.round(2.5 * profile.baseUnit));
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.arc(corner.aimBox.cx, corner.aimBox.cy, aimR, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        const knobDistance = aimR * 0.58 * aim.force;
-        ctx.fillStyle = playerColor;
-        ctx.beginPath();
-        ctx.arc(
-          corner.aimBox.cx + Math.cos(aim.angle || 0) * knobDistance,
-          corner.aimBox.cy + Math.sin(aim.angle || 0) * knobDistance,
-          Math.max(8, knobR * 0.72),
-          0,
-          Math.PI * 2,
-        );
-        ctx.fill();
-        ctx.strokeStyle = UI_COLORS.ink || '#1A1A1A';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // 2. STANDART AKSİYON BUTONLARI ÇİZİMİ
-      if (corner.actionButtons && corner.actionButtons.length > 0) {
-        for (const btn of corner.actionButtons) {
-          const act = btn.schema;
-          const isPressed = !!this.tabletopActionState[i]?.[btn.id];
-          const isNear = this.checkEntityProximity(btn.cx, btn.cy, btn.w * 1.2, extraEntities);
-
-          // Cooldown kontrolü (maxCooldown statik, cooldownMaxField varlık başına okunur)
-          let cooldown = 0;
-          let maxCooldown = act.maxCooldown || 1.0;
-          let isReady = true;
-          if (act.cooldownField && typeof p[act.cooldownField] === 'number') {
-            cooldown = Math.max(0, p[act.cooldownField]);
-            const perEntityMax = act.cooldownMaxField ? p[act.cooldownMaxField] : undefined;
-            if (typeof perEntityMax === 'number' && perEntityMax > 0) {
-              maxCooldown = perEntityMax;
-            }
-            isReady = cooldown <= 0;
-          }
-          // Hazırlık koşulu ayrı alandan okunabilir (ör. tanks şarjör sayacı:
-          // dolum sürerken bile fişek varsa buton hazırdır)
-          if (act.readyField && typeof p[act.readyField] === 'number') {
-            isReady = p[act.readyField] > 0;
-          }
-
-          // Charge (yay gerilme vb.) kontrolü
-          let chargeRatio = 0;
-          if (act.holdToCharge) {
-            const cVal = p[act.chargeField || 'charge'];
-            const mVal = p[act.maxChargeField || 'maxCharge'] || 1.0;
-            if (typeof cVal === 'number') {
-              chargeRatio = Math.max(0, Math.min(1, cVal / mVal));
-            } else if (p.charging || p.isAiming) {
-              chargeRatio = 0.5;
-            }
-          }
-
-          // Cooldown hazır olma (Ready pulse) takibi
-          this._cooldownTracker = this._cooldownTracker || {};
-          this._readyPulseTracker = this._readyPulseTracker || {};
-          const pulseKey = `${i}_${btn.id}`;
-          const prevCooldown = this._cooldownTracker[pulseKey] ?? 0;
-          if (prevCooldown > 0 && cooldown <= 0 && isReady) {
-            this._readyPulseTracker[pulseKey] = performance.now();
-          }
-          this._cooldownTracker[pulseKey] = cooldown;
-
-          ctx.save();
-          ctx.globalAlpha = this.getControlAlpha(isNear ? 0.20 : (isPressed ? 0.95 : 0.70), isPressed, isNear);
-          ctx.translate(btn.cx, btn.cy);
-          if (btn.rotation) ctx.rotate(btn.rotation);
-
-          const halfW = btn.w / 2;
-          const halfH = btn.h / 2;
-          const bR = Math.min(14, btn.w * 0.28);
-          const shadow = isPressed ? 1 : 3;
-          const offset = isPressed ? 2 : 0;
-
-          // Tactile Soft Shadow
-          ctx.fillStyle = 'rgba(20, 16, 31, 0.28)';
-          pathRoundRect(ctx, -halfW, -halfH + shadow, btn.w, btn.h, bR);
-          ctx.fill();
-
-          // Buton Gövdesi
-          ctx.fillStyle = isReady ? (isPressed ? '#E0DFDC' : '#FAF7F2') : '#2A2A2E';
-          pathRoundRect(ctx, -halfW + offset, -halfH + offset, btn.w, btn.h, bR);
-          ctx.fill();
-
-          // Cooldown Dolum Maskesi (Aşağıdan yukarıya kararır)
-          if (!isReady && maxCooldown > 0) {
-            const frac = Math.max(0, Math.min(1, cooldown / maxCooldown));
-            ctx.save();
-            pathRoundRect(ctx, -halfW + offset, -halfH + offset, btn.w, btn.h, bR);
-            ctx.clip();
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-            ctx.fillRect(-halfW + offset, halfH + offset - btn.h * frac, btn.w, btn.h * frac);
-            ctx.restore();
-          }
-
-          // Charge Barı (Sarı altın yay gerilme dolumu)
-          if (chargeRatio > 0) {
-            ctx.save();
-            pathRoundRect(ctx, -halfW + offset, -halfH + offset, btn.w, btn.h, bR);
-            ctx.clip();
-            ctx.fillStyle = 'rgba(255, 222, 89, 0.55)';
-            ctx.fillRect(-halfW + offset, halfH + offset - btn.h * chargeRatio, btn.w, btn.h * chargeRatio);
-            ctx.restore();
-          }
-
-          // Kenarlık
-          ctx.strokeStyle = isReady ? playerColor : '#555555';
-          ctx.lineWidth = isReady ? 2.5 : 1.5;
-          pathRoundRect(ctx, -halfW + offset, -halfH + offset, btn.w, btn.h, bR);
-          ctx.stroke();
-
-          // Yetenek Doldu "Ready!" Vurgusu (Tactile shockwave ring)
-          const pulseStart = this._readyPulseTracker[pulseKey] || 0;
-          const pulseAge = performance.now() - pulseStart;
-          if (pulseAge < 400) {
-            const pNorm = pulseAge / 400;
-            const expand = Math.round(pNorm * 9);
-            ctx.save();
-            ctx.strokeStyle = playerColor;
-            ctx.lineWidth = Math.max(1.5, 3.5 * (1 - pNorm));
-            ctx.globalAlpha = (1 - pNorm) * 0.9;
-            pathRoundRect(ctx, -halfW + offset - expand, -halfH + offset - expand, btn.w + expand * 2, btn.h + expand * 2, bR + expand);
-            ctx.stroke();
-            ctx.restore();
-          }
-
-          // Vektör Arcade İkon Çizimi (Brutalist net geometri, dinamik renk)
-          const iconColor = isReady ? (isPressed ? playerColor : '#141416') : 'rgba(250, 247, 242, 0.40)';
-          const iconY = cooldown > 0 ? (offset - 4) : (offset + 1);
-          const iconKey = act.id === 'action' ? (act.icon || act.id) : (act.id || act.icon);
-          drawTabletopIcon(ctx, iconKey, offset, iconY, 24, {
-            color: iconColor,
-            isReady,
-            accentColor: playerColor,
-          });
-
-          if (!isReady && cooldown > 0) {
-            ctx.font = '900 11px "JetBrains Mono", monospace';
-            ctx.fillStyle = '#F59E0B';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(`${cooldown.toFixed(1)}s`, offset, halfH + offset - 8);
-          }
-
-          // Klavye İpucu Rozeti (slot başına doğru tuş; statik keyHint önceliklidir)
-          const keyHintKind = act.id === 'smoke' ? 'smoke' : act.id === 'dash' ? 'dash' : 'action';
-          const keyHint = act.keyHint || getKeyLabel(keyHintKind, i);
-          if (keyHint) {
-            ctx.fillStyle = 'rgba(20, 20, 22, 0.85)';
-            const badgeW = Math.max(22, keyHint.length * 6 + 6);
-            ctx.fillRect(-halfW + offset + 2, -halfH + offset + 2, badgeW, 10);
-            ctx.font = '900 7.5px monospace';
-            ctx.fillStyle = '#FFFFFF';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(keyHint, -halfW + offset + 2 + badgeW / 2, -halfH + offset + 7);
-          }
-
-          ctx.restore();
-        }
-      }
-    }
+  renderControls(ctx, options) {
+    this._tabletop.renderControls(ctx, options);
   }
 
   renderStandardJoysticks(ctx, players = this.players) {
-    this.renderControls(ctx, { players });
+    this._tabletop.renderStandardJoysticks(ctx, players);
+  }
+
+  renderStandardScoreboard(ctx, options) {
+    this._tabletop.renderStandardScoreboard(ctx, options);
+  }
+
+  renderStandardRoundBanner(ctx, options) {
+    this._tabletop.renderStandardRoundBanner(ctx, options);
+  }
+
+  renderStandardMatchOver(ctx, options) {
+    this._tabletop.renderStandardMatchOver(ctx, options);
+  }
+
+  renderStandardLobby(ctx, options) {
+    this._tabletop.renderStandardLobby(ctx, options);
+  }
+
+  renderHUD(ctx, options = {}) {
+    this._tabletop.renderHUD(ctx, options);
   }
 
   // Resolves combined input intent from both virtual touch joystick and local keyboard
@@ -1618,7 +1277,7 @@ export class BaseMiniGame {
   }
 
   // ---------------------------------------------------------------------------
-  // Interactive UI & Canvas Lobby Rendering
+  // Interactive UI (canvas tap dispatch)
   // ---------------------------------------------------------------------------
 
   handleUiTap(pos) {
@@ -1636,68 +1295,6 @@ export class BaseMiniGame {
     return false;
   }
 
-  renderStandardScoreboard(ctx, { targetScore = this.targetScore || 3, entities = null } = {}) {
-    const playersList = this.getEntitiesList();
-    const activeEntities = entities || playersList.filter((p) => p && p.isJoined && (p.isAlive !== false));
-    renderAdaptiveScoreboard(ctx, {
-      arena: this.arena,
-      players: playersList,
-      scores: this.scores || this.setScores || [0, 0, 0, 0],
-      targetScore,
-      entities: activeEntities,
-      isHosting: !!this.hideLobbyStartButton,
-      state: this.state,
-      uiButtons: this.uiButtons,
-    });
-  }
-
-  renderStandardRoundBanner(ctx, { title = null, titleColor = null, sub = '' } = {}) {
-    const cleanWinner = this.roundWinner ? cleanWinnerName(this.roundWinner.name || '') : '';
-    const defTitle = cleanWinner ? `${cleanWinner} KAZANDI!` : (t('game.draw') || 'BERABERE!');
-    const defColor = this.roundWinner?.color || UI_COLORS.ink || '#1A1A1A';
-    renderRoundBanner(ctx, {
-      arena: this.arena,
-      title: title || defTitle,
-      titleColor: titleColor || defColor,
-      sub,
-      // Boşluğun kalan saniyesi: bant "kim kazandı"yı, sayı "ne zaman
-      // dönüyoruz"u söyler. Okuma `roundLifecycle`'tadır — motorlar sayacı
-      // farklı adta tutuyor ve buraya oyun-özel dal yazılmaz.
-      countdown: roundGapSeconds(this),
-    });
-  }
-
-  renderStandardMatchOver(ctx, { headline = null, rows = null, onRestart = () => this.startNewMatch() } = {}) {
-    const playersList = this.getEntitiesList();
-    const cleanWinner = this.matchWinner ? cleanWinnerName(this.matchWinner.name || '') : '';
-    const defRows = rows || playersList
-      .filter((p) => p && p.isJoined)
-      .map((p) => ({
-        color: p.color || UI_COLORS.players[p.index] || UI_COLORS.resultInk,
-        name: p.name || `P${p.index + 1}`,
-        score: Number(this.scores?.[p.index] ?? this.setScores?.[p.index] ?? 0),
-        value: `${this.scores?.[p.index] ?? this.setScores?.[p.index] ?? 0}★`,
-      }));
-
-    // Kart kutusu saklanır: "kartın dışına dokun = yeniden başlat" kısayolu
-    // iki eylemli kartta LOBİ dokunuşunu çalmasın diye (`matchOverRestartTap`).
-    this.matchOverCard = renderMatchOver(ctx, {
-      arena: this.arena,
-      viewport: this.viewport,
-      uiButtons: this.uiButtons,
-      headline: headline || t('canvas.champ') || 'ŞAMPİYON',
-      winnerName: cleanWinner,
-      // Kazanan rengi koyu panelde okunur olmalı: berabere/düşük renk gelirse
-      // panelin altın vurgusuna düşer (eski `UI_COLORS.ink` koyu zeminde
-      // görünmez metin üretiyordu).
-      winnerColor: this.matchWinner?.color || UI_COLORS.resultGold,
-      winnerEntity: this.matchWinner || null,
-      rows: defRows,
-      onRestart,
-      onLobby: () => this.requestReturnToLobby(),
-    });
-  }
-
   // Maç sonu kartının ikinci eylemi. İki lobi var ve farkı motor bilmez:
   // ağ modunda (host) lobi kabuğundur — oda/koltuk/relay kararını `main.js`
   // verir, motor yalnız niyet bildirir. LOCAL'de lobi motorun kendi LOBBY
@@ -1708,159 +1305,5 @@ export class BaseMiniGame {
       return;
     }
     this.resetMatch();
-  }
-
-  renderStandardLobby(ctx, {
-    arena = this.arena,
-    dockRect = null,
-    colors = [],
-    playerNames = [],
-    onStart = () => this.startNewMatch(),
-    accent = '#D84727',
-    customControls = null,
-    rotateTop = false,
-    onSeatChange = null,
-  } = {}) {
-    const bounds = dockRect || ((this.viewport && this.viewport.width > 0) ? this.viewport : arena);
-    const corners = getStandardSeatRects(arena, undefined, bounds);
-    const localMode = !this.hideLobbyStartButton;
-    const localColors = localMode ? getLocalSeatColors() : null;
-
-    for (let i = 0; i < 4; i++) {
-      const pos = corners[i];
-      const slotType = this.slotTypes[i];
-      const p = this.players?.[i] || this.tanks?.[i] || this.paddles?.[i] || this.curves?.[i] || this.snakes?.[i];
-      const name = p ? (p.name || '') : (playerNames[i] || '');
-      const color = colors[i] || '#D84727';
-      const isTop = i === 1 || i === 2;
-
-      renderLobbySeatCard(ctx, {
-        x: pos.x,
-        y: pos.y,
-        w: pos.w,
-        h: pos.h,
-        slotIndex: i,
-        slotType: slotType,
-        playerName: name,
-        playerColor: color,
-        rotation: rotateTop && isTop ? Math.PI : 0,
-        seatColor: localMode ? (localColors[i] || color) : null,
-        showColorDot: localMode,
-      });
-
-      // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
-      if (localMode) {
-        const dot = getSeatColorDotRect(pos);
-        this.uiButtons.push({
-          x: dot.x,
-          y: dot.y,
-          w: dot.w,
-          h: dot.h,
-          onClick: () => this.cycleLocalSeat(i),
-        });
-      }
-
-      this.uiButtons.push({
-        x: pos.x,
-        y: pos.y,
-        w: pos.w,
-        h: pos.h,
-        onClick: () => {
-          this.cycleSlotType(i);
-          if (typeof onSeatChange === 'function') onSeatChange(i);
-        },
-      });
-    }
-
-    if (typeof customControls === 'function') {
-      customControls(ctx);
-    }
-
-    const joinedCount = this.getActivePlayerCount();
-    renderLobbyStartButton(ctx, {
-      arena,
-      uiButtons: this.uiButtons,
-      joinedCount,
-      accent,
-      minJoined: this.minPlayersToStart || 2,
-      onStart,
-      centerYOffset: customControls ? 18 : 0,
-      hidden: !!this.hideLobbyStartButton,
-    });
-  }
-
-  renderHUD(ctx, options = {}) {
-    this.uiButtons = [];
-
-    const {
-      guideTitle = '',
-      guideEntries = null,
-      colors = this.playerColors || [],
-      playerNames = [],
-      accent = '#D84727',
-      onStart = () => this.startNewMatch(),
-      rotateTop = true,
-      onSeatChange = null,
-      customControls = null,
-      customHud = null,
-      showScoreboard = true,
-      targetScore = this.targetScore || 3,
-      scoreboardEntities = null,
-      roundBannerTitle = null,
-      roundBannerColor = null,
-      roundBannerSub = '',
-      matchOverHeadline = null,
-      matchOverRows = null,
-      onRestart = () => this.startNewMatch(),
-      dockToViewport = true,
-    } = options;
-
-    const bounds = (dockToViewport && this.viewport && this.viewport.width > 0) ? this.viewport : this.arena;
-
-    if (this.state === 'LOBBY') {
-      if (guideTitle && guideEntries) {
-        renderControlGuide(ctx, this.arena, guideTitle, guideEntries);
-      }
-      if (typeof options.customLobby === 'function') {
-        options.customLobby(ctx);
-      } else {
-        this.renderStandardLobby(ctx, {
-          arena: this.arena,
-          dockRect: bounds,
-          colors,
-          playerNames,
-          accent,
-          onStart,
-          rotateTop,
-          onSeatChange,
-          customControls,
-        });
-      }
-    } else if (this.state === 'ROUND_OVER') {
-      if (showScoreboard) {
-        this.renderStandardScoreboard(ctx, { targetScore, entities: scoreboardEntities });
-      }
-      this.renderStandardRoundBanner(ctx, {
-        title: roundBannerTitle,
-        titleColor: roundBannerColor,
-        sub: roundBannerSub,
-      });
-    } else if (this.state === 'MATCH_OVER') {
-      // Skoru artık kartın kendisi taşıyor: aynı ekranda hem köşe/top-bar
-      // skorboardu hem kartın sıralama satırları = aynı bilgi iki yerde.
-      this.renderStandardMatchOver(ctx, {
-        headline: matchOverHeadline,
-        rows: matchOverRows,
-        onRestart,
-      });
-    } else if (this.state === 'PLAYING' || this.state === 'ROUND_PAUSE') {
-      if (showScoreboard) {
-        this.renderStandardScoreboard(ctx, { targetScore, entities: scoreboardEntities });
-      }
-    }
-
-    if (typeof customHud === 'function') {
-      customHud(ctx);
-    }
   }
 }

@@ -5,6 +5,7 @@ import { getSlotCustomization, getBotPersona } from '../core/customizationManage
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { t } from '../i18n.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { updateCollapseBotAI } from '../ai/collapseAI.js';
 import { readSlotKeys } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
@@ -217,12 +218,14 @@ export class CollapseGame extends BaseMiniGame {
   }
 
   initKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      if (!this.isLocalInputActive) return;
-      this.keys[e.code] = true;
-    });
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.code] = false;
+    bindKeyboard(this, {
+      keydown: (e) => {
+        if (!this.isLocalInputActive) return;
+        this.keys[e.code] = true;
+      },
+      keyup: (e) => {
+        this.keys[e.code] = false;
+      },
     });
   }
 

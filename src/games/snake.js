@@ -5,6 +5,7 @@ import { getSlotCustomization, getBotPersona } from '../core/customizationManage
 import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { t } from '../i18n.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { updateSnakeBotAI } from '../ai/snakeAI.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import {
@@ -126,21 +127,23 @@ export class SnakeGame extends BaseMiniGame {
   }
 
   initKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      if (!this.isLocalInputActive) return;
-      this.keys[e.code] = true;
-    });
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.code] = false;
-      const slot = SNAKE_KEY_SLOTS[e.code];
-      if (slot === undefined) return;
-      const player = this.players[slot];
-      if (!player || player.slotType !== 'human') return;
-      const ki = this.keyboardInput(slot);
-      if ((this.tabletopSteerState?.[slot] || 0) === 0 && ki.steer === 0) {
-        player.steer = 0;
-      }
-      player.isBoost = ki.boost || !!this.tabletopActionState?.[slot]?.boost;
+    bindKeyboard(this, {
+      keydown: (e) => {
+        if (!this.isLocalInputActive) return;
+        this.keys[e.code] = true;
+      },
+      keyup: (e) => {
+        this.keys[e.code] = false;
+        const slot = SNAKE_KEY_SLOTS[e.code];
+        if (slot === undefined) return;
+        const player = this.players[slot];
+        if (!player || player.slotType !== 'human') return;
+        const ki = this.keyboardInput(slot);
+        if ((this.tabletopSteerState?.[slot] || 0) === 0 && ki.steer === 0) {
+          player.steer = 0;
+        }
+        player.isBoost = ki.boost || !!this.tabletopActionState?.[slot]?.boost;
+      },
     });
   }
 

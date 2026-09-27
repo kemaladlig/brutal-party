@@ -1,239 +1,7 @@
-// Local Party Games Suite - Main Application Controller & State Machine
-import { TouchManager } from './touchManager.js';
-import {
-  initEngineRegistry,
-  ensureEngine,
-  isEngineLoaded,
-  getEngine,
-  getControllerMeta,
-  getEngineGame,
-  forEachEngine,
-} from './core/engineRegistry.js';
-import { playJoin, toggleAudio, getIsMuted } from './audio.js';
-import { partyNetwork } from './network.js';
-import { GamepadManager } from './gamepad.js';
-import { createStateSync } from './core/stateSync.js';
-import {
-  HAS_SUPABASE_CONFIG,
-  isPublicOrigin,
-  getActiveNetwork,
-  ensureActiveNetwork,
-  disconnectInactiveNetwork,
-  getStoredPlayerName,
-  storePlayerName,
-  cleanPlayerName,
-  ensureStoredNick,
-  supabaseRelay,
-} from './net.js';
-
-import { initToastAndInstall, showInstallToast, showConnectionBanner, hideConnectionBanner } from './ui/toast.js';
-import {
-  UI_COLORS,
-  uiFont,
-  CONTROL_SURFACE,
-  getControlSurface,
-  getControlSurfacePreference,
-  isTouchDevice,
-} from './ui/tokens.js';
-import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, clearRemoteMove, clearRemoteAim, isBotEkleEnabled, getColorClashIndices, refreshSlotCard, refreshAllHostSlots } from './core/slotManager.js';
-import { getAvatarProfile, sanitizeAvatar, pickFreeColor, setSlotAvatar, clearSlotAvatar, loadLocalSeatColors, ensureLocalSeatColorsForTypes, getLocalSeatColors } from './core/customizationManager.js';
-import {
-  initPauseModal,
-  openPauseModal,
-  closePauseModal,
-  renderPauseSeats,
-  getIsPaused,
-  setIsPaused,
-} from './ui/pauseModal.js';
-import { initJoinModal, openJoinModal } from './ui/joinModal.js';
-import { initSettingsModal, openSettingsModal } from './ui/settingsModal.js';
-import { hydrateIconSlots } from './ui/iconSlots.js';
-import {
-  mountAppShell,
-  openView,
-  revealAppShell,
-  hideAppShell,
-  setShellInputOwner,
-  setShellPlatformMode,
-  lockLandscape,
-  unlockOrientation,
-  beginMatchChrome,
-  resumeMatchChrome,
-} from './ui/appShell.js';
-// Görünümler yan etki olarak kayıt olur (src/ui/views/registry.js tek kayıt noktası).
-import './ui/views/homeView.js';
-import './ui/views/roomView.js';
-import './ui/views/lobbyView.js';
-import './ui/views/gamesView.js';
-import './ui/views/profileView.js';
-import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
-import { isFullscreen, toggleFullscreen, onFullscreenChange, fullscreenOfferable } from './ui/fullscreen.js';
-import { getTabletopIconSvg, drawTabletopIcon } from './core/tabletopIcons.js';
-import { getSlotSwapError } from './core/slotRules.js';
-import { showReaction, clearReactions, setReactionFieldAnchor } from './ui/reactionLayer.js';
-import { ensureReactionTriggers, setReactionSender } from './ui/reactionPicker.js';
-import { getControlDescriptor } from './core/controlDescriptor.js';
-import { InputIntentRouter } from './core/inputRouter.js';
-import { acquireWakeLock, releaseWakeLock } from './core/wakeLock.js';
-import {
-  initHostLobby,
-  showHostLobbyModal,
-  hideHostLobbyModal,
-  startHostPingBadge,
-  stopHostPingBadge,
-  getEffectiveJoinUrl,
-  getCurrentHostGameMode,
-  setCurrentHostGameMode,
-  setHostPlayerButtonState,
-  openHostSeatEditor,
-} from './ui/hostLobby.js';
-
-// DOM Elements
-const canvas = document.getElementById('game-canvas');
-// Eski `#menu-overlay` sayfası silindi; menü yüzeyi `src/ui/appShell.js`.
-const inGameHud = document.getElementById('in-game-hud');
-const btnQuickTvLobby = document.getElementById('btn-quick-tv-lobby');
-const btnQuickFullscreen = document.getElementById('btn-quick-fullscreen');
-const quickFullscreenIcon = document.getElementById('quick-fullscreen-icon');
-const btnQuickReact = document.getElementById('btn-quick-react');
-const btnOpenOptions = document.getElementById('btn-open-options');
-
-// Platform / Match Mode: 'LOCAL' | 'TV_CONSOLE' | 'ONLINE'
-let platformMode = isPublicOrigin() && HAS_SUPABASE_CONFIG ? 'ONLINE' : 'TV_CONSOLE';
-export function updatePlatformMode(newMode) {
-  if (!['LOCAL', 'TV_CONSOLE', 'ONLINE'].includes(newMode) || newMode === platformMode) return;
-  platformMode = newMode;
-  // Mod değişiminde eski ağ singleton'ı temizlenir; yeni mod kendi ağını seçer.
-  disconnectInactiveNetwork(platformMode);
-  connectionWasDown = false;
-  hideConnectionBanner();
-  setShellPlatformMode(newMode);
-  window.dispatchEvent(new CustomEvent('brutal_platform_mode_changed', { detail: { mode: platformMode } }));
-}
-
-export function activeNet() {
-  return getActiveNetwork(platformMode);
-}
-
-// ── Tepkiler (lobi + oyun içi) ────────────────────────────────────────────
-// Tek görsel katman, tek gönderici. Yüzeyler yalnız `data-reaction-open`
-// işaretler; balonların konumu `data-reaction-anchor` ya da aşağıdaki saha
-// çapasıyla bulunur. Oyun içi saha = viewport px (canvas fixed 0,0 tam ekran),
-// dolayısıyla motor varlık koordinatı doğrudan ekran koordinatıdır.
-setReactionFieldAnchor((slotIndex) => {
-  const engine = getActiveGameEngine();
-  const entity = engine?.getEntitiesList?.()?.[slotIndex];
-  if (!entity || !Number.isFinite(entity.x) || !Number.isFinite(entity.y)) return null;
-  // Baş üstü göstergelerin (cephane/can/halka) ÜSTÜNDE kalsın.
-  return { x: entity.x, y: entity.y - (entity.radius || 18) - 28 };
-});
-
-ensureReactionTriggers();
-
-setReactionSender('host', (key) => {
-  const net = activeNet();
-  if (!net.isHosting) return false;
-  const seat = getCurrentHostSeat();
-  const slotIndex = Number.isInteger(seat) ? seat : -1;
-  const sent = net.sendHostReaction?.(slotIndex, key) === true;
-  // Kendi tepkimiz sunucudan dönmez; yerel geri besleme anlıktır.
-  showReaction({ key, slotIndex, color: net.players?.[slotIndex]?.color || null });
-  return sent;
-});
-
-function updateReactionButtons(hosting) {
-  // Tepki gönderimi yalnız odada anlamlı: LOCAL'de alıcı yok.
-  btnQuickReact?.classList.toggle('hidden', !hosting);
-}
-
-function onNetworkReaction(slotIndex, key) {
-  const color = activeNet().players?.[slotIndex]?.color || null;
-  showReaction({ key, slotIndex, color });
-}
-
-// State Machine: 'MENU' + GAME_ORDER ('PONG' | 'TANKS' | 'CURVE' | 'BOMB' | 'HEIST' | 'ARCHER')
-let currentMode = 'MENU';
-let lastTransitionTime = 0;
-
-// ONLINE host P1 olarak açılır; koltuk düzenleyici ile sonradan taşınabilir.
-// TV_CONSOLE host ise bu state'i lobi butonuyla açıp kapatır; network
-// authority yine host cihazda kalır.
-let hostPlayerActive = false;
-let hostPlayerSlot = null;
-let pendingHostSeatBeforeSwap = null;
-
 export function markTransition() {
   lastTransitionTime = performance.now();
 }
 
-// Engine Instances & Cartridge Registry (code-split: engines load on demand)
-const touchManager = new TouchManager(canvas);
-initEngineRegistry(canvas);
-
-export function getActiveGameEngine() {
-  return getEngineGame(currentMode);
-}
-
-// Gamepad Controller Manager
-const gamepadOverlay = document.getElementById('gamepad-overlay');
-const gamepadManager = new GamepadManager(gamepadOverlay, partyNetwork);
-
-// LOCAL one-player mobile surface uses the same declarative controller templates,
-// but its input is routed directly to the local authoritative engine.
-const localMobileOverlay = document.getElementById('local-mobile-controls');
-const localGamepadManager = new GamepadManager(localMobileOverlay, {
-  roomCode: null,
-  reservedHostSlot: null,
-  supportsWorldFrames: false,
-  sendInput(data) {
-    const engine = getActiveGameEngine();
-    if (engine && typeof engine.handleRemoteInput === 'function') {
-      const slot = getLocalControlSlot(engine);
-      if (slot >= 0) inputRouter.dispatch(slot, data, 'local');
-    }
-  },
-}, { localMode: true });
-
-// Faz 2.4: LOCAL sonuç ekranı butonları yetkili host eylemlerine bağlanır.
-// Uzak kumanda bu bağı kullanmaz (host yetkisi dokunulmaz).
-localGamepadManager.onLocalResultAction = (action) => {
-  if (action === 'replay') {
-    try { getEngine(currentMode)?.start?.(); } catch {}
-  } else if (action === 'lobby') {
-    try { getEngine(currentMode)?.reset?.(); } catch {}
-  }
-};
-
-const inputRouter = new InputIntentRouter({
-  getDescriptor: () => getControlDescriptor(currentMode, getControllerMeta(currentMode)?.schema),
-  getEngine: getActiveGameEngine,
-});
-
-function neutralizeTransientInput() {
-  touchManager.resetTouches();
-  gamepadManager.neutralizeInput();
-  localGamepadManager.neutralizeInput();
-}
-
-import { setupWindowChrome } from './ui/windowChrome.js';
-
-// Setup Window Chrome (High-DPI Resize, Fullscreen UI, Service Worker, visibility)
-const { resizeCanvas, scheduleResize } = setupWindowChrome({
-  canvas,
-  touchManager,
-  forEachEngine,
-  neutralizeTransientInput,
-  resumeMatchChrome,
-  acquireWakeLock,
-  getCurrentMode: () => currentMode,
-  activeNet,
-  hideConnectionBanner
-});
-
-// State Management
-// Mode switches are async: game engines load on demand (code-splitting).
-// A token guard drops stale switches (user taps A then quickly B).
-let modeSwitchToken = 0;
 export async function setGameMode(mode) {
   markTransition();
   modeSwitchToken += 1;
@@ -334,66 +102,20 @@ export async function setGameMode(mode) {
   setSeatTapHook();
 }
 
-function resetActiveGame() {
+export function resetActiveGame() {
   const now = performance.now();
   getEngine(currentMode)?.reset();
   touchManager.resetTouches();
 }
 
-function onResumeAfterPause() {
+export function onResumeAfterPause() {
   const now = performance.now();
   getEngine(currentMode)?.onResume(now);
   touchManager.resetTouches();
 }
 
-// Responsive Tap Listener
-function addTapListener(el, callback) {
-  if (!el) return;
-  let startX = 0;
-  let startY = 0;
-  let startTime = 0;
-  let touchHandled = false;
-
-  el.addEventListener('touchstart', (e) => {
-    if (e.touches && e.touches.length > 0) {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-      startTime = performance.now();
-      touchHandled = false;
-    }
-  }, { passive: true });
-
-  el.addEventListener('touchend', (e) => {
-    if (e.changedTouches && e.changedTouches.length > 0) {
-      const endX = e.changedTouches[0].clientX;
-      const endY = e.changedTouches[0].clientY;
-      const dist = Math.hypot(endX - startX, endY - startY);
-      const elapsed = performance.now() - startTime;
-      if (dist < 14 && elapsed < 450) {
-        touchHandled = true;
-        const now = performance.now();
-        if (now - lastTransitionTime < 80) return;
-        lastTransitionTime = now;
-        e.preventDefault();
-        callback(e);
-      }
-    }
-  }, { passive: false });
-
-  el.addEventListener('click', (e) => {
-    if (touchHandled) {
-      touchHandled = false;
-      return;
-    }
-    const now = performance.now();
-    if (now - lastTransitionTime < 80) return;
-    lastTransitionTime = now;
-    callback(e);
-  });
-}
-
 // Host Room Creation (TV_CONSOLE TV host / ONLINE P1 phone host)
-async function openHostLobby(gameMode = 'HORDE') {
+export async function openHostLobby(gameMode = 'HORDE') {
   pendingHostSeatBeforeSwap = null;
   setCurrentHostGameMode(gameMode);
   hostPlayerActive = platformMode === 'ONLINE';
@@ -649,7 +371,7 @@ async function openHostLobby(gameMode = 'HORDE') {
   }
 }
 
-function getHostPlayerIdentity() {
+export function getHostPlayerIdentity() {
   let avatar = null;
   try { avatar = getAvatarProfile(); } catch { avatar = null; }
   return {
@@ -658,7 +380,7 @@ function getHostPlayerIdentity() {
   };
 }
 
-function applyHostPlayerState(state = {}) {
+export function applyHostPlayerState(state = {}) {
   const previousSlot = hostPlayerSlot;
   const active = state.active === true || state.player?.isHost === true;
   if (!active) pendingHostSeatBeforeSwap = null;
@@ -696,35 +418,7 @@ function applyHostPlayerState(state = {}) {
   renderPauseSeats(handleSeatSwap);
 }
 
-// Cihaz profili değiştiğinde (KARAKTER ekranı / TV-lobi atölyesi / zar):
-// host'un kendi koltuğu taze profili izler (uzak koltuklar AVATAR_UPDATE ile
-// gelir) ve canlı motor yeniden senkronlanır. Bu kapı yokken seçim ancak
-// sonraki mod geçişinde sahaya yansıyordu ("bazen yansımıyor" raporu).
-if (typeof window !== 'undefined') {
-  window.addEventListener('brutal_customization_changed', () => {
-    try {
-      if (hostPlayerActive && hostPlayerSlot !== null) {
-        const seat = hostPlayerSlots[hostPlayerSlot];
-        if (seat && seat.kind !== 'bot' && seat.kind !== 'bot_god') {
-          const fresh = getAvatarProfile();
-          seat.avatar = { ...fresh };
-          seat.displayColor = fresh.color;
-          setSlotAvatar(hostPlayerSlot, { ...fresh });
-          updateHostSlot(hostPlayerSlot, true, seat.name, seat.isReady, seat.kind, { ...fresh }, fresh.color);
-        }
-      }
-    } catch {}
-    try {
-      refreshStagingBar();
-    } catch {}
-    try {
-      const liveEngine = getActiveGameEngine();
-      if (liveEngine) syncSlotsToEngine(liveEngine, currentMode, activeNet().isHosting);
-    } catch {}
-  });
-}
-
-function toggleHostPlayer() {
+export function toggleHostPlayer() {
   if (platformMode !== 'TV_CONSOLE' || !activeNet().isHosting) return false;
   if (hostPlayerActive) {
     const result = activeNet().setHostPlayerActive?.(false);
@@ -760,12 +454,7 @@ function toggleHostPlayer() {
   return true;
 }
 
-// Controller Join Room Execution
-// Bağlantı vs uygulama hatası yönlendirici: reconnect/kopuş mesajları kalıcı
-// banda, diğer hatalar (oda bulunamadı, kod çakışması vb.) kaybolan toast'a.
-// Kopuş sonrası ilk oyun durumu geldiğinde online flash'i için bayrak tutulur.
-let connectionWasDown = false;
-function routeConnectionMessage(err) {
+export function routeConnectionMessage(err) {
   let msg = String(err?.message || err || '');
   // Sunucudan gelen bilinen hata kodları istemci diline çevrilir (kablo sabit).
   if (/ODA DOLU|ROOM FULL/.test(msg)) msg = t('net.roomFull');
@@ -780,20 +469,7 @@ function routeConnectionMessage(err) {
   }
 }
 
-// Bağlantı başarısı lobi ve oyun akışlarının ikisinde de geçerlidir. Eski
-// yaklaşım yalnızca GAME_STATE'e bakıyordu; lobide kalan "yeniden
-// bağlanıyor" bandının kalmasının ana nedeni buydu.
-function markConnectionRestored(message = t('net.reconnected'), forceOnline = false) {
-  const wasDown = connectionWasDown;
-  connectionWasDown = false;
-  if (wasDown || forceOnline) {
-    showConnectionBanner('online', message);
-  } else {
-    hideConnectionBanner();
-  }
-}
-
-async function executeJoin(rawCode, rawName, requestedMode = null) {
+export async function executeJoin(rawCode, rawName, requestedMode = null) {
   if (requestedMode) updatePlatformMode(requestedMode);
   const code = (rawCode || '').trim().toUpperCase();
   const name = (rawName || '').trim().toUpperCase() || ensureStoredNick();
@@ -919,13 +595,13 @@ async function executeJoin(rawCode, rawName, requestedMode = null) {
   }
 }
 
-function getCurrentHostSeat() {
+export function getCurrentHostSeat() {
   const state = activeNet().getHostPlayerState?.();
   if (state?.active && Number.isInteger(state.slotIndex)) return state.slotIndex;
   return hostPlayerSlot;
 }
 
-function syncHostSeatFromNetwork() {
+export function syncHostSeatFromNetwork() {
   const net = activeNet();
   if (!net.isHosting) return;
   const state = net.getHostPlayerState?.();
@@ -942,7 +618,7 @@ function syncHostSeatFromNetwork() {
   }
 }
 
-function syncHostSeatAfterSwap(slotA, slotB) {
+export function syncHostSeatAfterSwap(slotA, slotB) {
   const net = activeNet();
   if (!net.isHosting || !hostPlayerActive || pendingHostSeatBeforeSwap === null) {
     pendingHostSeatBeforeSwap = null;
@@ -963,7 +639,7 @@ function syncHostSeatAfterSwap(slotA, slotB) {
   syncHostSeatFromNetwork();
 }
 
-function handleSeatSwap(slotA, slotB) {
+export function handleSeatSwap(slotA, slotB) {
   const net = activeNet();
   if (!Number.isInteger(slotA) || !Number.isInteger(slotB) || slotA < 0 || slotA > 3 || slotB < 0 || slotB > 3 || slotA === slotB) {
     return false;
@@ -1007,7 +683,7 @@ function handleSeatSwap(slotA, slotB) {
   return true;
 }
 
-function handleRotateSeats() {
+export function handleRotateSeats() {
   if (seatsLocked) {
     showInstallToast(t('toast.countdownLock'));
     return;
@@ -1063,17 +739,14 @@ function handleRotateSeats() {
   }
 }
 
-// Host lobi kartlarını state'ten yeniden çiz: `slotManager.refreshAllHostSlots`
-// tek sahibedir (lokalde eski refreshHostSlotCards kopyası kapanmıştır).
-
-function setLocalReadyFlags(isReady) {
+export function setLocalReadyFlags(isReady) {
   for (let i = 0; i < 4; i++) {
     const entry = hostPlayerSlots[i];
     if (entry) updateHostSlot(i, true, entry.name, isReady, entry.kind);
   }
 }
 
-function returnHostToLobby() {
+export function returnHostToLobby() {
   pendingHostSeatBeforeSwap = null;
   exitStagingToLobby();
   if (!activeNet().isHosting) {
@@ -1113,7 +786,7 @@ function returnHostToLobby() {
   }
 }
 
-function handleExitToMenu() {
+export function handleExitToMenu() {
   pendingHostSeatBeforeSwap = null;
   if (activeNet().isHosting) {
     closePauseModal();
@@ -1135,7 +808,7 @@ function handleExitToMenu() {
   }
 }
 
-function handleGameCardClick(mode) {
+export function handleGameCardClick(mode) {
   if (activeNet().isHosting) {
     openHostLobby(mode);
   } else {
@@ -1145,75 +818,14 @@ function handleGameCardClick(mode) {
   }
 }
 
-// ── İki kademeli başlatma: LOBİ → STAGING (saha+koltuk) → sayaç → OYUN ──
-let stagingMode = null;
-let seatsLocked = false;
-let countdownTimer = null;
-// Son sayaç değeri: 8 Hz yayın paketi (`stateSync`) ve yerel kumanda paketi
-// buradan okur (değer iki yerde tutulmaz).
-let lastCountdownT = 0;
-
-/**
- * Oda fazının TEK türetimi. Uzak 8 Hz paket ile YEREL kumanda paketi aynı
- * kararı okumak zorundadır (AGENTS §8: state iki yerde tutulmaz).
- *
- * Ölçülen kusur: yerel paket `phase: 'GAME'` yazıyordu — yani tek cihazda
- * masa-ortası/telefon-üstü oynayan oyuncu SAHAYA GEÇ aşamasını ve 3-2-1
- * geri sayımını kumanda yüzeyinde HİÇ görmüyordu; TV/host canvas'ı sayacı
- * gösterirken onun ekranı doğrudan oyuna atlıyordu.
- */
-function roomPhase() {
+export function roomPhase() {
   if (currentMode === 'MENU') return 'LOBBY';
   if (countdownTimer) return 'COUNTDOWN';
   if (stagingMode) return 'STAGING';
   return 'GAME';
 }
 
-// Uzak-girdi canlılık damgaları: analog sessizlik süpürücüsü için.
-// Koltuk politikası değişmez — sadece latch nötrlenir, koltuk dolu kalır.
-// Move ve aim ayrı izlenir; biri stale olunca yalnız o taraf temizlenir.
-const lastRemoteInputAt = {};
-const lastMoveAt = {};
-const lastAimAt = {};
-// Kumanda avatar-güncelleme kısması (slot başına 1sn sel koruması)
-const lastAvatarAt = {};
-const STALE_ANALOG_MS = 1500;
-setInterval(() => {
-  if (!activeNet().isHosting) return;
-  if (currentMode === 'MENU' || stagingMode || countdownTimer) return;
-  const engine = getActiveGameEngine();
-  if (!engine) return;
-  const now = performance.now();
-  for (let i = 0; i < 4; i++) {
-    const lastMove = lastMoveAt[i];
-    const lastAim = lastAimAt[i];
-    const lastAny = lastRemoteInputAt[i];
-    if (lastMove === undefined && lastAim === undefined && lastAny === undefined) continue;
-    const moveStale = lastMove !== undefined && now - lastMove >= STALE_ANALOG_MS;
-    const aimStale = lastAim !== undefined && now - lastAim >= STALE_ANALOG_MS;
-    const anyStale = lastAny !== undefined && now - lastAny >= STALE_ANALOG_MS
-      && lastMove === undefined && lastAim === undefined;
-    if (moveStale && aimStale) {
-      clearRemoteSlot(engine, currentMode, i);
-      delete lastMoveAt[i];
-      delete lastAimAt[i];
-      delete lastRemoteInputAt[i];
-    } else if (moveStale) {
-      clearRemoteMove(engine, currentMode, i);
-      delete lastMoveAt[i];
-      if (lastAim === undefined) delete lastRemoteInputAt[i];
-    } else if (aimStale) {
-      clearRemoteAim(engine, currentMode, i);
-      delete lastAimAt[i];
-      if (lastMove === undefined) delete lastRemoteInputAt[i];
-    } else if (anyStale) {
-      clearRemoteSlot(engine, currentMode, i);
-      delete lastRemoteInputAt[i];
-    }
-  }
-}, 500);
-
-function refreshStagingBar() {
+export function refreshStagingBar() {
   if (!stagingMode) return;
   const humans = hostPlayerSlots.filter((p) => p !== null && p.kind !== 'bot');
   const connected = humans.length;
@@ -1232,16 +844,16 @@ function refreshStagingBar() {
   }
 }
 
-function showStagingBar() {
+export function showStagingBar() {
   document.getElementById('staging-bar')?.classList.remove('hidden');
   refreshStagingBar();
 }
 
-function hideStagingBar() {
+export function hideStagingBar() {
   document.getElementById('staging-bar')?.classList.add('hidden');
 }
 
-function showCountdownOverlay(t) {
+export function showCountdownOverlay(t) {
   const ov = document.getElementById('countdown-overlay');
   const num = document.getElementById('countdown-overlay-number');
   if (!ov || !num) return;
@@ -1254,11 +866,11 @@ function showCountdownOverlay(t) {
   num.classList.add('animate');
 }
 
-function hideCountdownOverlay() {
+export function hideCountdownOverlay() {
   document.getElementById('countdown-overlay')?.classList.add('hidden');
 }
 
-function cancelCountdown() {
+export function cancelCountdown() {
   if (countdownTimer) {
     clearInterval(countdownTimer);
     countdownTimer = null;
@@ -1266,7 +878,7 @@ function cancelCountdown() {
   hideCountdownOverlay();
 }
 
-function startEngineNow(mode) {
+export function startEngineNow(mode) {
   // Maç başı reset motorun oyuncu renklerini yeniden kurar; host display
   // renkleri (override dahil) hemen ardından tekrar yazılır.
   const engine = getEngine(mode);
@@ -1276,22 +888,17 @@ function startEngineNow(mode) {
   syncLocalMobileControls();
 }
 
-// Faz 3 — yaşam döngüsü.
-// Krom NIYETI `src/ui/fullscreen.js`'te tutulur (ikinci bir yerde değil —
-// AGENTS §8). Host'un ekranını açık tutan wake lock `src/core/wakeLock.js`'te
-// tek sahibindedir (kumanda `gamepad.js` ile aynı bütçe).
-
 // BAŞLAT dokunuşu (kullanıcı hareketi) içinden çağrılır: yön kilidi ve tam
 // ekran kabuğun krom politikasından geçer (`appShell.beginMatchChrome` — main.js
 // içine krom dalı yazılmaz). Host telefon hem oyun hem kumanda olduğu için
 // ekran açık tutulur (kapalı kumanda yüzeyi varsayılanı).
-function requestMatchChrome() {
+export function requestMatchChrome() {
   beginMatchChrome();
   acquireWakeLock();
 }
 
 // BAŞLAT #1: sahayı aç — motor LOBBY'de arena gösterir, koltuk seçimi başlar
-async function enterStaging(mode) {
+export async function enterStaging(mode) {
   // Sert renk engeli: aynı display rengine sahip iki insan koltuğu varken
   // sahaya geçilemez (LOCAL'de koltuklar boş → küme boş → engel yok).
   if (activeNet().isHosting && getColorClashIndices().length > 0) {
@@ -1322,7 +929,7 @@ async function enterStaging(mode) {
 }
 
 // BAŞLAT #2: 3-2-1 → oyun (koltuklar kilitli)
-function runCountdown() {
+export function runCountdown() {
   if (!stagingMode || countdownTimer) return;
   if (activeNet().isHosting && hostPlayerSlots.filter(Boolean).length < 2) {
     showInstallToast(t('lobby.waiting'));
@@ -1364,7 +971,7 @@ function runCountdown() {
   countdownTimer = setInterval(tick, 1000);
 }
 
-function exitStagingToLobby() {
+export function exitStagingToLobby() {
   cancelCountdown();
   seatsLocked = false;
   stagingMode = null;
@@ -1372,10 +979,7 @@ function exitStagingToLobby() {
   hideCountdownOverlay();
 }
 
-// ── Tek koltuk gerçeği: TV sahasından koltuğa dokununca bot ekle/çıkar ──
-const BOT_SEAT_NAMES = ['BOT · 1', 'BOT · 2', 'BOT · 3', 'BOT · 4'];
-
-function handleLobbySeatTap(index) {
+export function handleLobbySeatTap(index) {
   if (!activeNet().isHosting) return;
   // Bot ekleme kapalıysa normal akış: sadece oyuncu eklenir/çıkarılır
   if (!isBotEkleEnabled()) return;
@@ -1395,7 +999,7 @@ function handleLobbySeatTap(index) {
   }
 }
 
-function addBotSlot(index, kind = 'bot') {
+export function addBotSlot(index, kind = 'bot') {
   const name = kind === 'bot_god' ? `GOD · ${index + 1}` : (BOT_SEAT_NAMES[index] || `BOT · ${index + 1}`);
   activeNet().setSlotBot?.(index, name, kind);
   updateHostSlot(index, true, name, false, kind);
@@ -1406,11 +1010,11 @@ function addBotSlot(index, kind = 'bot') {
   showInstallToast(kind === 'bot_god' ? t('toast.godAdded', index + 1) : t('toast.botAdded', index + 1));
 }
 
-function addBotGodSlot(index) {
+export function addBotGodSlot(index) {
   addBotSlot(index, 'bot_god');
 }
 
-function removeBotSlot(index) {
+export function removeBotSlot(index) {
   activeNet().clearSlotBot?.(index);
   updateHostSlot(index, false);
   refreshStagingBar();
@@ -1423,7 +1027,7 @@ function removeBotSlot(index) {
 // Motorların LOBBY tap'lerini host'a yönlendir (sadece host iken aktif)
 // + canvas MAÇI BAŞLAT butonunu host'ta gizle: TV akışı tek yoldan
 // (DOM staging çubuğu → sayaç) yürür, çift başlat düğmesi kalmaz.
-function setSeatTapHook() {
+export function setSeatTapHook() {
   const hosting = activeNet().isHosting;
   const localHostPlayer = hosting && hostPlayerActive && hostPlayerSlot !== null;
   const touchDevice = isTouchDevice();
@@ -1444,486 +1048,3 @@ function setSeatTapHook() {
   });
 }
 
-let localMobileControlsActive = false;
-let lastLocalControlSyncAt = 0;
-
-function getLocalHumanCount(engine = getActiveGameEngine()) {
-  const entities = typeof engine?.getEntitiesList === 'function'
-    ? engine.getEntitiesList()
-    : (engine?.players || engine?.tanks || engine?.paddles || []);
-  return entities.filter((entity) => entity?.isJoined && entity?.slotType === 'human').length;
-}
-
-function getEffectiveLocalSurface(engine = getActiveGameEngine()) {
-  const pref = getControlSurfacePreference();
-  // Kullanıcı açıkça MOBILE veya TABLETOP seçtiyse tercihi korunur
-  if (pref === CONTROL_SURFACE.MOBILE || pref === CONTROL_SURFACE.TABLETOP) {
-    return pref;
-  }
-  return getLocalHumanCount(engine) > 1
-    ? CONTROL_SURFACE.TABLETOP
-    : getControlSurface();
-}
-
-function isLocalHostPlayer() {
-  return activeNet().isHosting && hostPlayerActive && hostPlayerSlot !== null;
-}
-
-function getLocalControlSlot(engine = getActiveGameEngine()) {
-  if (hostPlayerActive && hostPlayerSlot !== null) return hostPlayerSlot;
-  const entities = typeof engine?.getEntitiesList === 'function'
-    ? engine.getEntitiesList()
-    : (engine?.players || engine?.tanks || engine?.paddles || []);
-  return entities.findIndex((entity) => entity?.isJoined && entity?.slotType === 'human');
-}
-
-function syncLocalMobileControls(now = performance.now()) {
-  const engine = getActiveGameEngine();
-  const localSlot = getLocalControlSlot(engine);
-  const isLocalHost = isLocalHostPlayer();
-  // Faz 2.4: MATCH_OVER'da yüzey açık kalır (sonuç ekranı state paketini alır).
-  const activeState = engine?.state === 'PLAYING' || engine?.state === 'MATCH_OVER';
-  const shouldShow = (platformMode === 'LOCAL' || isLocalHost)
-    && getEffectiveLocalSurface(engine) === CONTROL_SURFACE.MOBILE
-    && currentMode !== 'MENU'
-    && activeState
-    && localSlot >= 0
-    && !getIsPaused();
-
-  if (shouldShow && (
-    !localMobileControlsActive
-    || localGamepadManager.gameMode !== currentMode
-    || localGamepadManager.playerIndex !== localSlot
-  )) {
-    const localColors = getLocalSeatColors();
-    localGamepadManager.initLocal({
-      slotIndex: localSlot,
-      name: ensureStoredNick(),
-      color: localColors[localSlot] || UI_COLORS.players[localSlot] || '#D84727',
-    }, currentMode);
-    localMobileControlsActive = true;
-    lastLocalControlSyncAt = 0;
-  } else if (!shouldShow && localMobileControlsActive) {
-    localGamepadManager.hide();
-    localMobileControlsActive = false;
-    lastLocalControlSyncAt = 0;
-  }
-
-  if (!localMobileControlsActive || now - lastLocalControlSyncAt < 125) return;
-  const entry = getEngine(currentMode);
-  if (!entry || typeof entry.packet !== 'function') return;
-  const packet = { ...entry.packet(), gameMode: currentMode, phase: roomPhase() };
-  // Geri sayım tik'i yerel kumandaya da taşınır: perde sayıyı bu alandan okur.
-  if (countdownTimer) packet.t = lastCountdownT;
-  // Faz 2.4: LOCAL sonuç ekranı için state + skor tablosu verisi. Bu paket
-  // yalnız local kumandaya gider; uzak 8Hz protokolü değiştirilmez.
-  const game = entry.game;
-  if (game) {
-    packet.state = game.state;
-    if (Array.isArray(game.players)) {
-      packet.names = game.players.map((p) => p?.name || '');
-      packet.colors = game.players.map((p) => p?.color || '');
-    }
-    const mw = game.matchWinner;
-    packet.winner = (mw && Number.isInteger(mw.index))
-      ? { index: mw.index, name: mw.name || '', color: mw.color || '' }
-      : null;
-  }
-  localGamepadManager.handleStateSync(packet);
-  lastLocalControlSyncAt = now;
-}
-
-function applyControlSurfacePreference() {
-  setSeatTapHook();
-  syncLocalMobileControls();
-}
-
-function applyDevicePreferenceChange(key) {
-  if (key !== 'pongInvert' && key !== 'pongSensitivity') return;
-  if (currentMode !== 'PONG') return;
-  gamepadManager.resetPongInvert();
-  localGamepadManager.resetPongInvert();
-  if (gamepadManager.gameMode === 'PONG') gamepadManager.renderGameController('PONG');
-  if (localMobileControlsActive && localGamepadManager.gameMode === 'PONG') {
-    localGamepadManager.renderGameController('PONG');
-  }
-}
-
-// Initialise UI Submodules
-ensureStoredNick();
-initToastAndInstall();
-// Tarayıcı çevrimdışı/çevrimiçi geçişleri (uçak modu, Wi-Fi kopuşu): kumanda
-// tarafında anlık bant bildirimi. Relay mesajları aynı banda yazar.
-window.addEventListener('offline', () => {
-  connectionWasDown = true;
-  showConnectionBanner('offline', t('net.offline'));
-});
-window.addEventListener('online', () => {
-  markConnectionRestored(t('net.onlineBack'), true);
-});
-initJoinModal({ onExecuteJoin: executeJoin });
-initSettingsModal({
-  onControlsChanged: applyControlSurfacePreference,
-  onPreferencesChanged: applyDevicePreferenceChange,
-});
-applyI18nToDOM();
-// Dil değişiminde TV lobi kartları anında yeniden çizilir (BOŞ/HAZIR etiketleri).
-onLangChange(() => {
-  try { refreshAllHostSlots(); } catch {}
-  setHostPlayerButtonState(hostPlayerActive, platformMode);
-});
-// Ayar düğmesi artık shell üst şeridinde: `mountAppShell({ actions.openSettings })`.
-initHostLobby({
-  getActiveNet: () => activeNet(),
-  getPlatformMode: () => platformMode,
-  onStageGame: (mode) => {
-    enterStaging(mode);
-  },
-  onToggleHostPlayer: () => toggleHostPlayer(),
-  onCloseLobby: () => {
-    exitStagingToLobby();
-    for (let i = 0; i < 4; i++) {
-      clearSlotAvatar(i);
-      updateHostSlot(i, false);
-    }
-    applyHostPlayerState({ active: false });
-    hideConnectionBanner();
-    connectionWasDown = false;
-    activeNet().disconnect();
-    setSeatTapHook();
-    setGameMode('MENU');
-  },
-  onSwapSlots: (slotA, slotB) => handleSeatSwap(slotA, slotB),
-  getSlot: (slotIndex) => hostPlayerSlots[slotIndex],
-  isSeatSwapLocked: () => seatsLocked,
-  onToggleBotSlot: (slotIndex) => {
-    handleLobbySeatTap(slotIndex);
-  },
-  onSetSlotColor: (slotIndex, hex) => {
-    const entry = hostPlayerSlots[slotIndex];
-    if (!entry || entry.kind === 'bot' || entry.kind === 'bot_god') return;
-    entry.displayColor = hex;
-    try {
-      activeNet().setSlotColor?.(slotIndex, hex);
-    } catch {}
-    refreshSlotCard(slotIndex);
-    refreshStagingBar();
-    const engine = getActiveGameEngine();
-    if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
-    renderPauseSeats(handleSeatSwap);
-  },
-  onRandomizeSlotColor: (slotIndex) => {
-    const entry = hostPlayerSlots[slotIndex];
-    if (!entry || entry.kind === 'bot' || entry.kind === 'bot_god') return;
-    const taken = hostPlayerSlots
-      .filter((p, i) => p && p.kind !== 'bot' && p.kind !== 'bot_god' && i !== slotIndex)
-      .map((p) => p.displayColor || p.avatar?.color || p.color)
-      .filter(Boolean);
-    const hex = pickFreeColor(taken);
-    entry.displayColor = hex;
-    try {
-      activeNet().setSlotColor?.(slotIndex, hex);
-    } catch {}
-    refreshSlotCard(slotIndex);
-    refreshStagingBar();
-    const engine = getActiveGameEngine();
-    if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
-    showInstallToast(t('toast.seatColor', slotIndex + 1));
-  },
-});
-
-// Staging bar (BAŞLAT #2 + lobiye dönüş)
-document.getElementById('btn-staging-edit-seats')?.addEventListener('click', () => {
-  openHostSeatEditor();
-});
-document.getElementById('btn-staging-launch')?.addEventListener('click', () => {
-  runCountdown();
-});
-document.getElementById('btn-staging-lobby')?.addEventListener('click', () => {
-  returnHostToLobby();
-});
-initPauseModal({
-  getCurrentMode: () => currentMode,
-  getIsHosting: () => activeNet().isHosting,
-  onSwapSeats: handleSeatSwap,
-  onRotateSeats: handleRotateSeats,
-  onResume: onResumeAfterPause,
-  onReset: resetActiveGame,
-  onExitMenu: handleExitToMenu,
-  onTvLobby: returnHostToLobby,
-  onBotsToggled: (enabled) => {
-    // Kapatılınca mevcut botlar temizlenir; açılınca kartlar butonları gösterir
-    if (!enabled) {
-      for (let i = 0; i < 4; i++) {
-        if (hostPlayerSlots[i]?.kind === 'bot') {
-          activeNet().clearSlotBot?.(i);
-          updateHostSlot(i, false);
-        }
-      }
-      const engine = getActiveGameEngine();
-      if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
-    }
-    refreshAllHostSlots();
-    showInstallToast(enabled ? t('toast.botsOn') : t('toast.botsOff'));
-  },
-  onControlsToggled: applyControlSurfacePreference,
-  onControllerLayout: openControllerLayoutFromPause,
-});
-
-// Oyun seçimi artık shell'in `games` görünümünde: kartlar orada üretiliyor ve
-// `preloadEngine` tetiklemesi `gamesView.js` içinde. Eski menü sayfasının kart
-// döngüsü, picker modalı, showcase carousel'ı ve hero banner dropzone'ı silindi.
-addTapListener(btnQuickTvLobby, returnHostToLobby);
-
-// Maç sonu kartının ikinci eylemi motorun değil kabuğun işidir: motor yalnız
-// niyet bildirir, oda/koltuk/relay kararını `returnHostToLobby` verir.
-window.addEventListener('brutal_return_to_lobby', () => returnHostToLobby());
-
-
-
-function openControllerLayoutFromPause() {
-  const preferLocal = platformMode === 'LOCAL' || isLocalHostPlayer();
-  if (preferLocal) {
-    syncLocalMobileControls();
-    if (localGamepadManager.openControllerLayoutEditor()) return;
-  }
-  if (gamepadManager.openControllerLayoutEditor()) return;
-  showInstallToast(t('controllerLayout.unavailable'));
-}
-
-addTapListener(btnOpenOptions, () => {
-  const engine = getActiveGameEngine();
-  const localLayoutAvailable = (platformMode === 'LOCAL' || isLocalHostPlayer())
-    && getEffectiveLocalSurface(engine) === CONTROL_SURFACE.MOBILE
-    && getLocalControlSlot(engine) >= 0;
-  const remoteLayoutAvailable = !gamepadOverlay.classList.contains('hidden')
-    && gamepadManager.gameMode !== 'LOBBY';
-  openPauseModal({
-    currentMode,
-    isHosting: activeNet().isHosting,
-    onSwapCallback: handleSeatSwap,
-    controllerLayoutAvailable: localLayoutAvailable || remoteLayoutAvailable,
-  });
-});
-
-// Check URL query parameters for automatic controller join (QR scan or link)
-const urlParams = new URLSearchParams(window.location.search);
-const autoJoinCode = urlParams.get('join');
-if (autoJoinCode) {
-  const requestedJoinMode = urlParams.get('mode');
-  const autoJoinMode = requestedJoinMode === 'tv' || requestedJoinMode === 'TV_CONSOLE'
-    ? 'TV_CONSOLE'
-    : (requestedJoinMode === 'online' || requestedJoinMode === 'ONLINE' || isPublicOrigin()
-      ? 'ONLINE'
-      : 'TV_CONSOLE');
-  updatePlatformMode(autoJoinMode);
-  openJoinModal(autoJoinCode, autoJoinMode);
-  executeJoin(autoJoinCode, ensureStoredNick(), autoJoinMode);
-}
-
-
-
-
-
-// Warning for public site missing Supabase config
-if (isPublicOrigin() && !HAS_SUPABASE_CONFIG) {
-  showInstallToast(t('toast.noOnlineEnv'));
-}
-
-// Host → kumanda durum yayını (8 Hz + dirty-check) ve ONLINE dünya kareleri
-// (30 Hz) core/stateSync.js'te; oda akışı (roomPhase/sayaç) burada kalır.
-const stateSync = createStateSync({
-  getMode: () => currentMode,
-  getNet: () => activeNet(),
-  getRoomPhase: () => roomPhase(),
-  getCountdown: () => (countdownTimer ? { t: lastCountdownT } : null),
-});
-const broadcastGameStateIfNeeded = (now) => stateSync.broadcastGameStateIfNeeded(now);
-const broadcastWorldStateIfNeeded = (now) => stateSync.broadcastWorldStateIfNeeded(now);
-
-// Duraklatma göstergesi: donmuş karenin üstünde canvas-içi rozet
-// (DOM modal zaten açık; TV'de "oyun mu bozuldu" belirsizliğini giderir).
-function renderPauseOverlay(ctx) {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  const label = t('pause.badge');
-  const iconSize = 22;
-  const iconGap = 10;
-  const pillH = 56;
-
-  ctx.save();
-  ctx.font = uiFont('button');
-  const textW = ctx.measureText(label).width;
-  const pillW = Math.ceil(textW + iconSize + iconGap + 48);
-  const pillX = w / 2 - pillW / 2;
-  const pillY = h / 2 - pillH / 2;
-
-  ctx.fillStyle = 'rgba(26, 26, 26, 0.45)';
-  ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = UI_COLORS.ink;
-  ctx.fillRect(pillX + 4, pillY + 4, pillW, pillH);
-  ctx.fillStyle = UI_COLORS.ink;
-  ctx.fillRect(pillX, pillY, pillW, pillH);
-  ctx.strokeStyle = UI_COLORS.paperWarm;
-  ctx.lineWidth = 3;
-  ctx.strokeRect(pillX, pillY, pillW, pillH);
-
-  const groupX = w / 2 - (iconSize + iconGap + textW) / 2;
-  drawTabletopIcon(ctx, 'pause', groupX + iconSize / 2, pillY + pillH / 2, iconSize, { color: UI_COLORS.white });
-  ctx.fillStyle = UI_COLORS.white;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, groupX + iconSize + iconGap, pillY + pillH / 2);
-  ctx.restore();
-}
-
-// Master Animation Loop (requestAnimationFrame) - Safe Execution Sandbox & Error Boundary
-const ctx2d = canvas.getContext('2d');
-let consecutiveEngineErrors = 0;
-let lastEngineError = null;
-
-function renderEngineCrashOverlay(ctx, error) {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  ctx.save();
-  ctx.fillStyle = 'rgba(26, 26, 26, 0.88)';
-  ctx.fillRect(0, 0, w, h);
-
-  const cardW = Math.min(480, w * 0.9);
-  const cardH = 172;
-  const cx = w / 2;
-  const cy = h / 2;
-
-  ctx.fillStyle = '#D84727';
-  ctx.fillRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH);
-  ctx.strokeStyle = '#FFFFFF';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH);
-
-  ctx.fillStyle = '#FFFFFF';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = '900 16px "Space Grotesk", sans-serif';
-  ctx.fillText(t('crash.title'), cx, cy - 44);
-
-  ctx.font = '800 12px "JetBrains Mono", monospace';
-  ctx.fillText(String(error?.message || t('crash.default')).slice(0, 50), cx, cy - 14);
-
-  // TODO(teşhis): HEIST motor hatasının kök satırı. Kullanıcı bu satırı
-  // okuduktan sonra kalıcı düzeltme yapılacak ve burası kaldırılacak.
-  const frame = String(error?.stack || '')
-    .split('\n')
-    .slice(1)
-    .map((line) => line.trim())
-    .find((line) => line.startsWith('at '));
-  ctx.font = '700 10px "JetBrains Mono", monospace';
-  ctx.fillText(frame ? frame.replace(/^at\s+/, '').slice(0, 62) : t('crash.default'), cx, cy + 8);
-
-  ctx.font = '900 13px "Space Grotesk", sans-serif';
-  ctx.fillText(t('crash.action'), cx, cy + 48);
-  ctx.restore();
-}
-
-// Perf: menüde oyun canvas'ı boş — 60 Hz rAF GPU'yu gereksiz uyandırır.
-// Menüde 4 fps yeterli (animasyon DOM tarafında), oyuna geçince tam hız.
-let _menuIdleTimer = 0;
-
-function loop(timestamp) {
-  // Menu idle guard: canvas oyun dışı, DOM shell aktif.
-  if (currentMode === 'MENU' && !getEngine(currentMode)) {
-    ctx2d.save();
-    ctx2d.fillStyle = UI_COLORS.bg || '#14101F';
-    ctx2d.fillRect(0, 0, window.innerWidth, window.innerHeight);
-    ctx2d.restore();
-    // Hosting sırasında broadcast yine çalışmalı (lobi paketi)
-    try { broadcastGameStateIfNeeded(timestamp); } catch {}
-    // 4 fps idle — GPU neredeyse hiç uyanmaz
-    if (!_menuIdleTimer) {
-      _menuIdleTimer = setTimeout(() => { _menuIdleTimer = 0; requestAnimationFrame(loop); }, 250);
-    }
-    return;
-  }
-
-  syncLocalMobileControls(timestamp);
-
-  try {
-    broadcastGameStateIfNeeded(timestamp);
-  } catch (err) {
-    console.warn('[Broadcast] Error:', err);
-  }
-
-  const isPaused = getIsPaused();
-  const loopEntry = getEngine(currentMode);
-
-  if (loopEntry) {
-    try {
-      if (!isPaused && consecutiveEngineErrors < 5) {
-        loopEntry.game.update(timestamp);
-      }
-      broadcastWorldStateIfNeeded(timestamp);
-      loopEntry.game.render();
-      consecutiveEngineErrors = 0;
-    } catch (err) {
-      consecutiveEngineErrors++;
-      lastEngineError = err;
-      console.error(`[Engine Error: ${currentMode}]`, err);
-      if (consecutiveEngineErrors >= 5) {
-        renderEngineCrashOverlay(ctx2d, lastEngineError);
-      }
-    }
-
-    if (isPaused) {
-      try {
-        renderPauseOverlay(ctx2d);
-      } catch (_) {}
-    }
-  }
-
-  if (currentMode !== 'MENU') {
-    try {
-      touchManager.renderOverlay(ctx2d);
-    } catch (err) {
-      console.warn('[Touch Overlay] Error:', err);
-    }
-  }
-
-  requestAnimationFrame(loop);
-}
-
-// Initial Setup
-resizeCanvas();
-setShellPlatformMode(platformMode);
-hydrateIconSlots(document);
-hydrateIconSlots(document, 'lobbyIcon', { size: 18, strokeWidth: 2.3 });
-mountAppShell({
-  platformMode,
-  actions: {
-    onGameSelect: (mode) => handleGameCardClick(mode),
-    // Oda ekranından gelen adım: odayı aç VE shell'i lobi ekranında göster.
-    openHostLobby: () => {
-      revealAppShell();
-      openHostLobby(getCurrentHostGameMode());
-    },
-    openJoin: (code, mode) => openJoinModal(code || '', mode || 'TV_CONSOLE'),
-    setPlatformMode: (mode) => updatePlatformMode(mode),
-    getPlatformMode: () => platformMode,
-    openSettings: () => openSettingsModal(),
-    onLobbyShown: () => refreshAllHostSlots(),
-    // Lobi ekranından ayrılırken oda da kapanır: geri düğmesi "odadan çık"
-    // demektir, "oda ekranına geri dön" değil (bkz. lobbyView `backToRoot`).
-    onLobbyExit: () => {
-      if (!activeNet().isHosting) return;
-      for (let i = 0; i < 4; i++) {
-        clearSlotAvatar(i);
-        updateHostSlot(i, false);
-      }
-      hideConnectionBanner();
-      connectionWasDown = false;
-      activeNet().disconnect();
-      setGameMode('MENU');
-    },
-  },
-});
-setGameMode('MENU');
-refreshAllHostSlots();
-requestAnimationFrame(loop);

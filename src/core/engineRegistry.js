@@ -40,29 +40,22 @@ export const CARTRIDGES = {
       load: () => import('../ui/pongWorldView.js'),
     },
     load: () => import('../games/game.js').then((m) => m.Game),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; game.accumulator = 0; },
-        onResume: (now) => { game.lastTime = now; game.accumulator = 0; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => {
-          const chgIdx = game.paddles.findIndex((p) => p.spinCharge > 0);
-          return {
-            scores: game.setScores,
-            lives: game.paddles.map((p) => Math.max(0, p.lives || 0)),
-            rally: game.ball?.rallyCount || 0,
-            timeLeft: Math.max(0, Math.ceil((game.roundLimit || 120) - (game.roundPlayTimer || 0))),
-            spn: Math.abs(game.ball?.spin || 0) > 8 ? 1 : 0,
-            chgIdx,
-            chgT: chgIdx >= 0 ? Math.round(game.paddles[chgIdx].spinCharge * 10) / 10 : 0,
-            cd: game.spinCooldowns.map((c) => Math.ceil(c)),
-          };
-        },
-      };
-    },
+    createEngine: (game) => makeEngine(game, {
+      packet: () => {
+        const chgIdx = game.paddles.findIndex((p) => p.spinCharge > 0);
+        return {
+          scores: game.setScores,
+          lives: game.paddles.map((p) => Math.max(0, p.lives || 0)),
+          rally: game.ball?.rallyCount || 0,
+          timeLeft: Math.max(0, Math.ceil((game.roundLimit || 120) - (game.roundPlayTimer || 0))),
+          spn: Math.abs(game.ball?.spin || 0) > 8 ? 1 : 0,
+          chgIdx,
+          chgT: chgIdx >= 0 ? Math.round(game.paddles[chgIdx].spinCharge * 10) / 10 : 0,
+          cd: game.spinCooldowns.map((c) => Math.ceil(c)),
+        };
+      },
+      onFrame: (g) => { g.accumulator = 0; },
+    }),
   },
 
   TANKS: {
@@ -77,27 +70,19 @@ export const CARTRIDGES = {
       load: () => import('../ui/tanksWorldView.js'),
     },
     load: () => import('../games/tanks.js').then((m) => m.TanksGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          ammo: game.tanks.map((t) => {
-            const v = game.ammoVisual(t);
-            return { n: v.readyCount, load: Math.round(v.progress * 20) / 20 };
-          }),
-          alive: game.tanks.map((t) => t.isAlive),
-          timeLeft: Math.max(0, Math.ceil((game.roundLimit || 90) - (game.roundTimer || 0))),
-          suddenDeath: game.suddenDeath ? 1 : 0,
-          introTime: Math.max(0, Math.ceil(game.spawnIntroTimer || 0)),
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        ammo: game.tanks.map((t) => {
+          const v = game.ammoVisual(t);
+          return { n: v.readyCount, load: Math.round(v.progress * 20) / 20 };
         }),
-      };
-    },
+        alive: game.tanks.map((t) => t.isAlive),
+        timeLeft: Math.max(0, Math.ceil((game.roundLimit || 90) - (game.roundTimer || 0))),
+        suddenDeath: game.suddenDeath ? 1 : 0,
+        introTime: Math.max(0, Math.ceil(game.spawnIntroTimer || 0)),
+      }),
+    }),
   },
 
   CURVE: {
@@ -112,23 +97,15 @@ export const CARTRIDGES = {
       load: () => import('../ui/curveWorldView.js'),
     },
     load: () => import('../games/curve.js').then((m) => m.CurveGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          alive: game.players.map((p) => p.isAlive ?? p.alive),
-          timeLeft: Math.max(0, Math.ceil((game.roundLimit || 120) - (game.roundTimer || 0))),
-          matchDraw: game.matchDraw === true,
-          cd: game.players.map((p) => Math.ceil((Math.max(0, p.boostCooldown || 0) / 4.0) * 100)),
-        }),
-      };
-    },
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        alive: game.players.map((p) => p.isAlive ?? p.alive),
+        timeLeft: Math.max(0, Math.ceil((game.roundLimit || 120) - (game.roundTimer || 0))),
+        matchDraw: game.matchDraw === true,
+        cd: game.players.map((p) => Math.ceil((Math.max(0, p.boostCooldown || 0) / 4.0) * 100)),
+      }),
+    }),
   },
 
   BOMB: {
@@ -143,24 +120,16 @@ export const CARTRIDGES = {
       load: () => import('../ui/bombWorldView.js'),
     },
     load: () => import('../games/bomb.js').then((m) => m.BombGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          carrier: game.bombCarrierIndex,
-          bombTime: Math.ceil(game.bombTimer || 0),
-          timeLeft: Math.max(0, Math.ceil((game.roundLimit || 90) - (game.roundTimer || 0))),
-          matchDraw: game.matchDraw === true,
-          cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown || 0) / 2.2) * 100)),
-        }),
-      };
-    },
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        carrier: game.bombCarrierIndex,
+        bombTime: Math.ceil(game.bombTimer || 0),
+        timeLeft: Math.max(0, Math.ceil((game.roundLimit || 90) - (game.roundTimer || 0))),
+        matchDraw: game.matchDraw === true,
+        cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown || 0) / 2.2) * 100)),
+      }),
+    }),
   },
 
   HEIST: {
@@ -175,24 +144,16 @@ export const CARTRIDGES = {
       load: () => import('../ui/heistWorldView.js'),
     },
     load: () => import('../games/heist.js').then((m) => m.HeistGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          timeLeft: Math.ceil(game.roundTimer || 0),
-          carried: game.players.map((p) => p.carriedGold || 0),
-          vault: game.players.map((p) => p.vaultGold || 0),
-          matchDraw: game.matchDraw === true,
-          cd: game.players.map((p) => Math.ceil((Math.max(0, p.tackleCooldown || 0) / 3.5) * 100)),
-        }),
-      };
-    },
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        timeLeft: Math.ceil(game.roundTimer || 0),
+        carried: game.players.map((p) => p.carriedGold || 0),
+        vault: game.players.map((p) => p.vaultGold || 0),
+        matchDraw: game.matchDraw === true,
+        cd: game.players.map((p) => Math.ceil((Math.max(0, p.tackleCooldown || 0) / 3.5) * 100)),
+      }),
+    }),
   },
 
   ARCHER: {
@@ -207,23 +168,15 @@ export const CARTRIDGES = {
       load: () => import('../ui/archerWorldView.js'),
     },
     load: () => import('../games/archer.js').then((m) => m.ArcherGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          alive: game.players.map((p) => p.isAlive),
-          timeLeft: Math.ceil(game.roundTimer || 0),
-          chg: game.players.map((p) => Math.round((p.charge || 0) * 100)),
-          cd: game.players.map((p) => Math.ceil((Math.max(0, p.shotCooldown || 0) / 0.8) * 100)),
-        }),
-      };
-    },
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        alive: game.players.map((p) => p.isAlive),
+        timeLeft: Math.ceil(game.roundTimer || 0),
+        chg: game.players.map((p) => Math.round((p.charge || 0) * 100)),
+        cd: game.players.map((p) => Math.ceil((Math.max(0, p.shotCooldown || 0) / 0.8) * 100)),
+      }),
+    }),
   },
 
   CROWN: {
@@ -238,24 +191,16 @@ export const CARTRIDGES = {
       load: () => import('../ui/crownWorldView.js'),
     },
     load: () => import('../games/crown.js').then((m) => m.CrownGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          king: game.crown.carrierIndex,
-          matchDraw: game.matchDraw === true,
-          timeLeft: Math.max(0, Math.ceil(game.roundTimer || 0)),
-          crownTimes: game.players.map((p) => Math.round(p.crownHoldTime * 10) / 10),
-          cd: game.players.map((p) => Math.ceil((Math.max(0, p.tackleCooldown || 0) / 2.0) * 100)),
-        }),
-      };
-    },
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        king: game.crown.carrierIndex,
+        matchDraw: game.matchDraw === true,
+        timeLeft: Math.max(0, Math.ceil(game.roundTimer || 0)),
+        crownTimes: game.players.map((p) => Math.round(p.crownHoldTime * 10) / 10),
+        cd: game.players.map((p) => Math.ceil((Math.max(0, p.tackleCooldown || 0) / 2.0) * 100)),
+      }),
+    }),
   },
 
   ZONE: {
@@ -270,25 +215,17 @@ export const CARTRIDGES = {
       load: () => import('../ui/zoneWorldView.js'),
     },
     load: () => import('../games/zone.js').then((m) => m.ZoneGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          pct: game.pct.map((p) => Math.round(p)),
-          kills: game.kills,
-          timeLeft: Math.ceil(game.roundTimer || 0),
-          leader: game.leaderIndex,
-          matchDraw: game.matchDraw === true,
-          cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown || 0) / 4.0) * 100)),
-        }),
-      };
-    },
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        pct: game.pct.map((p) => Math.round(p)),
+        kills: game.kills,
+        timeLeft: Math.ceil(game.roundTimer || 0),
+        leader: game.leaderIndex,
+        matchDraw: game.matchDraw === true,
+        cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown || 0) / 4.0) * 100)),
+      }),
+    }),
   },
 
   SNAKE: {
@@ -303,24 +240,16 @@ export const CARTRIDGES = {
       load: () => import('../ui/snakeWorldView.js'),
     },
     load: () => import('../games/snake.js').then((m) => m.SnakeGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          alive: game.players.map((p) => p.isAlive),
-          nrg: game.players.map((p) => Math.round(p.boostEnergy ?? 100)),
-          lock: game.players.map((p) => (p.boostLocked ? 1 : 0)),
-          timeLeft: Math.max(0, Math.ceil((game.roundLimit || 120) - (game.roundTimer || 0))),
-          matchDraw: game.matchDraw === true,
-        }),
-      };
-    },
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        alive: game.players.map((p) => p.isAlive),
+        nrg: game.players.map((p) => Math.round(p.boostEnergy ?? 100)),
+        lock: game.players.map((p) => (p.boostLocked ? 1 : 0)),
+        timeLeft: Math.max(0, Math.ceil((game.roundLimit || 120) - (game.roundTimer || 0))),
+        matchDraw: game.matchDraw === true,
+      }),
+    }),
   },
 
   LASER: {
@@ -335,37 +264,28 @@ export const CARTRIDGES = {
       load: () => import('../ui/laserWorldView.js'),
     },
     load: () => import('../games/laser.js').then((m) => m.LaserGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          alive: game.players.map((p) => p.isAlive),
-          hp: game.players.map((p) => p.hp || 0),
-          matchDraw: game.matchDraw === true,
-          timeLeft: Math.ceil(game.matchTimer || 0),
-          cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 4.0) * 100)),
-          cdFire: game.players.map((p) => {
-            if ((p.ammo ?? 2) > 0) return 0;
-            const reloadMax = p.fastTimer > 0 ? 0.45 : 0.9;
-            return Math.ceil((Math.max(0, p.reloadTimer || 0) / reloadMax) * 100);
-          }),
-          ammo: game.players.map((p) => (p.ammo !== undefined ? p.ammo : 2)),
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        alive: game.players.map((p) => p.isAlive),
+        hp: game.players.map((p) => p.hp || 0),
+        matchDraw: game.matchDraw === true,
+        timeLeft: Math.ceil(game.matchTimer || 0),
+        cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 4.0) * 100)),
+        cdFire: game.players.map((p) => {
+          if ((p.ammo ?? 2) > 0) return 0;
+          const reloadMax = p.fastTimer > 0 ? 0.45 : 0.9;
+          return Math.ceil((Math.max(0, p.reloadTimer || 0) / reloadMax) * 100);
         }),
-      };
-    },
+        ammo: game.players.map((p) => (p.ammo !== undefined ? p.ammo : 2)),
+      }),
+    }),
   },
 
   CLONE: {
     id: 'CLONE',
     category: 'strategy',
     title: 'BRUTAL CLONE',
-    retired: true,
     hudTag: 'CLONE',
     tacticalHintKey: 'hint.clone',
     color: '#6366F1',
@@ -373,24 +293,16 @@ export const CARTRIDGES = {
     worldView: {
       load: () => import('../ui/cloneWorldView.js'),
     },
-    load: () => import('../games-retired/clone.js').then((m) => m.CloneGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          alive: game.players.map((p) => p.isAlive),
-          timeLeft: Math.max(0, Math.ceil(game.roundTime || 0)),
-          matchDraw: game.matchDraw === true,
-          cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 1.6) * 100)),
-        }),
-      };
-    },
+    load: () => import('../games/clone.js').then((m) => m.CloneGame),
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        alive: game.players.map((p) => p.isAlive),
+        timeLeft: Math.max(0, Math.ceil(game.roundTime || 0)),
+        matchDraw: game.matchDraw === true,
+        cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 1.6) * 100)),
+      }),
+    }),
   },
 
   COLLAPSE: {
@@ -405,23 +317,15 @@ export const CARTRIDGES = {
       load: () => import('../ui/collapseWorldView.js'),
     },
     load: () => import('../games/collapse.js').then((m) => m.CollapseGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          alive: game.players.map((p) => p.isAlive),
-          timeLeft: Math.max(0, Math.ceil(game.roundTime || 0)),
-          matchDraw: game.matchDraw === true,
-          cd: game.players.map((p) => Math.ceil((Math.max(0, p.jumpCooldown) / 1.6) * 100)),
-        }),
-      };
-    },
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        alive: game.players.map((p) => p.isAlive),
+        timeLeft: Math.max(0, Math.ceil(game.roundTime || 0)),
+        matchDraw: game.matchDraw === true,
+        cd: game.players.map((p) => Math.ceil((Math.max(0, p.jumpCooldown) / 1.6) * 100)),
+      }),
+    }),
   },
 
   NINJA: {
@@ -436,24 +340,16 @@ export const CARTRIDGES = {
       load: () => import('../ui/ninjaWorldView.js'),
     },
     load: () => import('../games/ninja.js').then((m) => m.NinjaGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          alive: game.players.map((p) => p.isAlive),
-          timeLeft: Math.max(0, Math.ceil(game.roundTime || 0)),
-          matchDraw: game.matchDraw === true,
-          cd: game.players.map((p) => Math.ceil((Math.max(0, p.strikeCooldown) / 1.3) * 100)),
-          cd2: game.players.map((p) => Math.ceil((Math.max(0, p.smokeCooldown || 0) / 5.0) * 100)),
-        }),
-      };
-    },
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        alive: game.players.map((p) => p.isAlive),
+        timeLeft: Math.max(0, Math.ceil(game.roundTime || 0)),
+        matchDraw: game.matchDraw === true,
+        cd: game.players.map((p) => Math.ceil((Math.max(0, p.strikeCooldown) / 1.3) * 100)),
+        cd2: game.players.map((p) => Math.ceil((Math.max(0, p.smokeCooldown || 0) / 5.0) * 100)),
+      }),
+    }),
   },
 
   HORDE: {
@@ -469,40 +365,32 @@ export const CARTRIDGES = {
       load: () => import('../ui/hordeWorldView.js'),
     },
     load: () => import('../games/horde.js').then((m) => m.HordeGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          alive: game.players.map((player) => player.isAlive),
-          hp: game.players.map((player) => Math.max(0, player.hp || 0)),
-          phase: game.state === 'ROUND_PAUSE' ? 'armory' : game.state,
-          round: game.round,
-          nextRound: game.nextRound,
-          wave: game.wave,
-          enemiesLeft: game.enemies.length,
-          portal: !!game.portal,
-          waveTime: Math.max(0, Math.ceil(game.waveTimer || 0)),
-          roundBreakTime: Math.max(0, Math.ceil(game.roundBreakTimer || 0)),
-          weapons: game.players.map((player) => player.weaponId || 'SIDEARM'),
-          ammo: game.players.map((player) => (Number.isFinite(player.ammo) ? player.ammo : -1)),
-          magazines: game.players.map((player) => Number.isFinite(player.magazine) ? player.magazine : -1),
-          reloading: game.players.map((player) => (Number(player.reloadTimer) || 0) > 0),
-          cd: game.players.map((player) => {
-            const maxCooldown = 4 * Math.pow(0.8, Number(player.upgrades?.SERVO) || 0);
-            return Math.min(100, Math.ceil((Math.max(0, player.dashCooldown || 0) / maxCooldown) * 100));
-          }),
-          cdFire: game.players.map((player) => game.state === 'ROUND_PAUSE'
-            ? 100
-            : Math.min(100, Math.ceil((Math.max(0, player.attackCooldown || 0) + (Number(player.reloadTimer) || 0)) * 100))),
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        alive: game.players.map((player) => player.isAlive),
+        hp: game.players.map((player) => Math.max(0, player.hp || 0)),
+        phase: game.state === 'ROUND_PAUSE' ? 'armory' : game.state,
+        round: game.round,
+        nextRound: game.nextRound,
+        wave: game.wave,
+        enemiesLeft: game.enemies.length,
+        portal: !!game.portal,
+        waveTime: Math.max(0, Math.ceil(game.waveTimer || 0)),
+        roundBreakTime: Math.max(0, Math.ceil(game.roundBreakTimer || 0)),
+        weapons: game.players.map((player) => player.weaponId || 'SIDEARM'),
+        ammo: game.players.map((player) => (Number.isFinite(player.ammo) ? player.ammo : -1)),
+        magazines: game.players.map((player) => Number.isFinite(player.magazine) ? player.magazine : -1),
+        reloading: game.players.map((player) => (Number(player.reloadTimer) || 0) > 0),
+        cd: game.players.map((player) => {
+          const maxCooldown = 4 * Math.pow(0.8, Number(player.upgrades?.SERVO) || 0);
+          return Math.min(100, Math.ceil((Math.max(0, player.dashCooldown || 0) / maxCooldown) * 100));
         }),
-      };
-    },
+        cdFire: game.players.map((player) => game.state === 'ROUND_PAUSE'
+          ? 100
+          : Math.min(100, Math.ceil((Math.max(0, player.attackCooldown || 0) + (Number(player.reloadTimer) || 0)) * 100))),
+      }),
+    }),
   },
 
   RACE: {
@@ -518,29 +406,42 @@ export const CARTRIDGES = {
       load: () => import('../ui/raceWorldView.js'),
     },
     load: () => import('../games/race.js').then((m) => m.RaceGame),
-    createEngine: (game) => {
-      return {
-        game,
-        reset: () => game.resetMatch(),
-        onEnter: (now) => { game.lastTime = now; },
-        onResume: (now) => { game.lastTime = now; },
-        start: () => game.startNewMatch(),
-        worldPacket: () => game.createWorldPacket(),
-        packet: () => ({
-          scores: game.scores,
-          timeLeft: Math.ceil(game.roundTimer || 0),
-          matchDraw: game.matchDraw === true,
-          roundId: game.roundId || 0,
-          laps: game.players.map((player) => player.laps || 0),
-          progress: game.players.map((player) => Math.round(game.getProgressFraction(player) * 100)),
-          targetLaps: game.targetLaps,
-          leader: game.getLeaderIndex(),
-          cd: game.players.map((player) => Math.ceil((Math.max(0, player.dashCooldown || 0) / 2.8) * 100)),
-        }),
-      };
-    },
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        timeLeft: Math.ceil(game.roundTimer || 0),
+        matchDraw: game.matchDraw === true,
+        roundId: game.roundId || 0,
+        laps: game.players.map((player) => player.laps || 0),
+        progress: game.players.map((player) => Math.round(game.getProgressFraction(player) * 100)),
+        targetLaps: game.targetLaps,
+        leader: game.getLeaderIndex(),
+        cd: game.players.map((player) => Math.ceil((Math.max(0, player.dashCooldown || 0) / 2.8) * 100)),
+      }),
+    }),
   },
 };
+
+/**
+ * Ortam iskeleti: `game`, `reset`, `onEnter`, `onResume`, `start`,
+ * `worldPacket`. 15 kartuşun altısı da birebir aynıydı; oyun-özeli tek
+ * parça `packet`, PONG'un `accumulator` sıfırlamasıdır (`onFrame`).
+ */
+function makeEngine(game, { packet, onFrame = null } = {}) {
+  const enter = (now) => {
+    game.lastTime = now;
+    if (onFrame) onFrame(game);
+  };
+  return {
+    game,
+    reset: () => game.resetMatch(),
+    onEnter: enter,
+    onResume: enter,
+    start: () => game.startNewMatch(),
+    worldPacket: () => game.createWorldPacket(),
+    packet,
+  };
+}
 
 const registry = {};
 const loadingPromises = {};

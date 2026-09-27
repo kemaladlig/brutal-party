@@ -8,7 +8,7 @@
 - [x] 0.4 Ölü opcode'lar düştü (ARCHER_CHARGE(_END), LASER_AIM/FIRE/RELEASE, HORDE_FIRE/RELEASE, SNAKE_DIR) — `c40095b`
 - [x] 0.5 Ölü metotlar (game.js vb.) önceki oturumda biçildi — `8e3b14a`; kalan yok (grep doğrulandı)
 - [x] 0.6 inputRouter/inputSource kararı: KORUNDU (inputRouter tek tüketici ama `tests/inputIntent.test.mjs` kilitli saf katman; inputSource BaseGame'de aktif kullanım)
-- [ ] 0.0 CLONE kararı: "emekli ama oynanabilir" mi, tam kaldırma mı? (kullanıcı kararı)
+- [x] 0.0 CLONE kararı: Geri gelsin (aktif oyunlar arasına eklenecek).
 
 ## Faz 1 — Gölgeleyen kopyaları kapat (~1-2 gün, gerçek bug)
 
@@ -23,19 +23,21 @@
 
 ## Faz 2 — Katmanlama (~2-3 gün, taşıma; ekleme yok)
 
-- [ ] 2.1 BaseGame ~610 satır tabletop çizimi → core/tabletopRenderer.js
-- [ ] 2.2 Klavye listener sızıntısı → inputMaps.js tek paylaşılan dispatch (−14 dinleyici)
-- [ ] 2.3 Registry: 14 kopya createEngine iskeleti → makeEngine (−120 satır)
-- [ ] 2.4 main.js (2151 satır) → roomFlow.js + core/stateSync.js + hud.js; ~1400 satır hedef
-- [ ] 2.5 slotManager DOM boyaması çıkar; _pongInvertManualSet → resetPongInvert()
-- [ ] 2.6 Supabase'i ilk yükten at: net.js eager import → online dalında dinamik import
+- [x] 2.1 BaseGame ~610 satır tabletop çizimi → core/tabletopRenderer.js (BaseGame 1866→1302 satır, 7 delegasyon; `STEER_KEY_HINTS` artık inputMaps'ten türetiliyor; render smoke testi eklendi) — check ✓, test 383/383 ✓, build ✓
+- [x] 2.2 Klavye listener sızıntısı → `core/keyboardDispatch.js` tek paylaşılan dispatch (11 motorun `initKeyboard` gövdesi indi, 3 pencere dinleyicisi; `BaseGame.destroy()` aboneliği bırakır) — test 384/384
+- [x] 2.3 Registry: 15 kopya `createEngine` iskeleti → `makeEngine` (621→523 satır, yalnız `packet` oyun-özeli) — bundle 446→444 kB
+- [ ] 2.4 main.js (2151 satır) → oda akışı + chrome çıkarma; hedef ~1400
+  - [x] Yayın bloğu → `core/stateSync.js` (8 Hz state + 30 Hz world, `samePacket`; 4 getter, DOM'suz) — main.js 2129→2059
+  - [ ] Oda akışı (`openHostLobby`/`executeJoin`/koltuk/sayaç ≈ 780 satır) ve chrome (≈ 210 satır) çıkarılacak — **karar**: oda durumu (`currentMode`/`stagingMode`/`hostPlayerActive`/`seatsLocked`) `roomFlow` modülüne taşınacak.
+- [x] 2.5 slotManager DOM boyaması → `ui/slotCardView.js` (189→51 satır gövde) + `resetPongInvert()` (main.js özel alana dokunmuyor) — sahte DOM testi eklendi
+- [x] 2.6 Supabase ilk yükten at: `net.js` eager import → `ensureActiveNetwork()` dinamik import (LOCAL/TV_CONSOLE 227 kB SDK indirmiyor; ana chunk 444.6→413.9 kB)
 
 ## Faz 3 — Ürün riskleri (karar + küçük kod)
 
 - [ ] 3.1 Global hata gözlemi: onerror/unhandledrejection reporter + 107 bare catch{}'a bağla
 - [ ] 3.2 SW sertleştirme: precache allSettled, skipWaiting → onaylı aktivasyon, maskable icon
 - [ ] 3.3 CI: node --test glob + tek GitHub Actions (check+test+build)
-- [ ] 3.0 ONLINE/CGNAT kararı: (A) TURN ekle | (B) 30Hz world kanalını kaldır (kullanıcı kararı)
+- [x] 3.0 ONLINE/CGNAT kararı: 30Hz world kanalını kaldır.
 - [ ] 3.4 Oda kodu: 4-6 karakter alfanümerik, tek üreteç networkProtocol.js
 
 ## Faz 4 — Motor epikentresi: crown + race (~2-3 gün, sonda)

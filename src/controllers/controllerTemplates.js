@@ -680,7 +680,7 @@ function mountSlider1D(gamepad, container, schema) {
   const verticalAxis = gamepad.playerIndex === 2 || gamepad.playerIndex === 3;
   const sensitivity = getPreference('pongSensitivity');
 
-  if (!gamepad._pongInvertManualSet) {
+  if (!gamepad.pongInvertManualSet) {
     const invertPreference = getPreference('pongInvert');
     gamepad.isPongInverted = invertPreference === 'on'
       ? true
@@ -748,7 +748,7 @@ function mountSlider1D(gamepad, container, schema) {
 
   invertBtn?.addEventListener('click', () => {
     gamepad.isPongInverted = !gamepad.isPongInverted;
-    gamepad._pongInvertManualSet = true;
+    gamepad.pongInvertManualSet = true;
     setPreference('pongInvert', gamepad.isPongInverted ? 'on' : 'off');
     const isManuallyFlipped = gamepad.isPongInverted !== baseInvert;
     invertBtn.classList.toggle('inverted', isManuallyFlipped);

@@ -1074,8 +1074,7 @@
   position: absolute;
   inset: 0;
   z-index: 260;
-  display: flex;
-  flex-direction: column;
+  display: block;
   overflow: hidden;
   pointer-events: auto;
   touch-action: none;
@@ -1089,18 +1088,18 @@
 }
 
 .controller-layout-stage {
-  position: relative;
-  flex: 1;
-  min-height: 220px;
+  position: absolute;
+  inset: 0;
   overflow: hidden;
   touch-action: none;
 }
 
 .controller-layout-safe {
   position: absolute;
-  border: 2px solid var(--edge-strong);
+  border: 2px dashed var(--edge-strong);
   border-radius: 14px;
-  background: var(--sheen-08);
+  background: transparent;
+  opacity: 0.3;
   pointer-events: none;
 }
 
@@ -1199,20 +1198,21 @@
 .controller-layout-handle:active,
 .controller-layout-editor.is-dragging .controller-layout-handle {
   cursor: grabbing;
-  transform: translate(-50%, -50%) scale(1.08);
+  transform: translate(-50%, -50%) scale(1.2);
   background: var(--bot-tag);
-  box-shadow: var(--shadow-edge);
+  box-shadow: var(--shadow-edge), 0 0 0 14px var(--tint-paper-50);
 }
 
 .controller-layout-editor-panel {
-  position: relative;
-  left: auto;
-  bottom: auto;
-  width: auto;
-  max-height: 52%;
+  position: absolute;
+  left: 50%;
+  bottom: calc(12px + var(--controller-safe-bottom, 0px));
+  width: calc(100% - 24px);
+  max-width: 400px;
+  max-height: calc(100% - 24px);
   overflow: auto;
-  transform: none;
-  margin: 0 12px calc(12px + var(--controller-safe-bottom, 0px));
+  transform: translateX(-50%);
+  margin: 0;
   padding: 14px;
   box-sizing: border-box;
   border: 1.5px solid var(--edge-strong);
@@ -1262,32 +1262,61 @@
   font: 700 12px/1.4 'Space Grotesk', sans-serif;
 }
 
-.controller-layout-size-row {
+.controller-layout-size-stepper {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font: 900 12px/1.2 'JetBrains Mono', monospace;
+  margin: 12px 0 16px;
+  background: var(--surface);
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--radius-btn);
+  padding: 4px;
+  box-shadow: var(--shadow-soft);
+}
+
+.controller-layout-size-btn {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--edge-strong);
+  border-radius: calc(var(--radius-btn) - 2px);
+  background: var(--paper);
   color: var(--n-900);
-}
-
-.controller-layout-size-row output {
-  color: var(--p1);
-}
-
-.controller-layout-size {
-  width: 100%;
-  min-height: 44px;
-  margin: 4px 0 8px;
-  accent-color: var(--p1);
+  font: 900 24px/1 'Space Grotesk', sans-serif;
   cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.05s ease, box-shadow 0.05s ease, background-color 0.05s ease;
 }
 
-.controller-layout-pos {
-  margin: 0 0 12px;
-  font: 800 11px/1.4 'JetBrains Mono', monospace;
-  color: var(--n-700);
-  text-align: center;
+.controller-layout-size-btn:active {
+  transform: scale(0.92);
+  box-shadow: var(--shadow-edge);
+  background: var(--sheen-60);
+}
+
+.controller-layout-size-display {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.controller-layout-size-label {
+  font: 800 9px/1.2 'JetBrains Mono', monospace;
+  color: var(--n-600);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.controller-layout-size-display output {
+  font: 900 16px/1.2 'JetBrains Mono', monospace;
+  color: var(--p1);
 }
 
 .controller-layout-editor-actions {

@@ -502,3 +502,83 @@ test('ZONE resolves equal timeout without awarding the first index', () => {
   assert.equal(game.roundWinner, null);
   assert.equal(game.tiedRounds, 1);
 });
+
+// AGENTS §4: masa-ortası çizim `core/tabletopRenderer.js`'te, BaseGame yalnız
+// delegasyon. Motor sözleşmesi (this.renderControls / this.renderHUD /
+// renderStandard*) korunduğu için her state'te çizim hâlâ patlamamalı — test
+// motorun kendi render()'ını değil, taşınan yüzeyi doğrudan çalıştırır.
+test('tabletopRenderer surface renders every HUD state without throwing', () => {
+  for (const configure of [configureBomb, configureHeist, configureCrown, configureSnake, configureCurve, configureZone]) {
+    const game = configure();
+
+    game.state = 'PLAYING';
+    game.keys = { KeyA: true, KeyD: true, KeyJ: true, KeyL: true };
+    game.tabletopSteerState = [-1, 1, 0, 0];
+    game.renderControls(context, { extraEntities: [] });
+    game.renderControls(context);
+    game.renderStandardJoysticks(context);
+
+    game.state = 'ROUND_OVER';
+    game.roundWinner = game.players?.[0] || null;
+    game.renderHUD(context, { roundBannerSub: '3' });
+
+    game.state = 'MATCH_OVER';
+    game.matchWinner = game.players?.[0] || null;
+    game.renderHUD(context);
+    assert.ok(game.matchOverCard, 'maç sonu kart kutusu motor alanına yazılmalı');
+
+    game.state = 'LOBBY';
+    game.renderHUD(context, { guideTitle: 'K', guideEntries: [{ icon: 'action', label: 'A' }] });
+    assert.ok(game.uiButtons.length >= 4, 'lobi dört koltuk butonu üretmeli');
+  }
+});
+
+// AGENTS §4 (tek kaynak): direksiyon ipucu dizisi elle yazılmaz, klavye
+// eşlemesinden türetilir. Harf kayması (A/D → S/D) oyuncuya yanlış tuş
+// gösterir; bu yüzden türetilen dizi sözleşmeyle birebir aynı olmalı.
+test('STEER_KEY_HINTS is derived from the slot keyboard map, not hand-written', async () => {
+  const { STEER_KEY_HINTS } = await server.ssrLoadModule('/src/core/inputMaps.js');
+  assert.deepEqual(STEER_KEY_HINTS, ['A/D', '←/→', 'J/L', 'F/H']);
+});
+
+// Faz 2.2: 11 motorun keydown/keyup dinleyicisi artık `core/keyboardDispatch`
+// içindeki tek çift üzerinden dağıtılır. Motor başına yeni `window`
+// dinleyicisi eklenmez; `destroy()` aboneliği bırakır, yani tahliye edilen
+// motor artık tuş olaylarını görmez (sızıntı yok).
+test('keyboard listeners go through one shared dispatch and release on destroy', async () => {
+  const { keyboardSubscriberCount, unbindKeyboard } = await server.ssrLoadModule('/src/core/keyboardDispatch.js');
+
+  const windowAdd = globalThis.window.addEventListener;
+  let added = 0;
+  globalThis.window.addEventListener = function patched(type, ...rest) {
+    if (type === 'keydown' || type === 'keyup') added++;
+    return windowAdd.call(this, type, ...rest);
+  };
+
+  try {
+    const before = keyboardSubscriberCount();
+    const game = new BombGame(canvas);
+    game.resize(800, 600);
+    const afterBind = keyboardSubscriberCount();
+    assert.ok(afterBind > before, 'motor klavye aboneliği kaydedilmeli');
+
+    // Motor başına tam olarak bir down + bir up abonelik (ondan fazlası
+    // her initKeyboard çağrısında çoğalırdı).
+    assert.equal(afterBind - before, 2);
+
+    // Aynı motor ikinci kez bağlansa abonelik artmaz.
+    game.initKeyboard();
+    assert.equal(keyboardSubscriberCount(), afterBind);
+
+    // destroy() aboneliği bırakır.
+    game.destroy();
+    assert.equal(keyboardSubscriberCount(), before);
+
+    // İlk motorun bağlanması paylaşılan çifti kurar; sonrakiler yenisi eklemez.
+    assert.equal(added <= 3, true, `paylaşılan dispatch en çok 3 dinleyici eklemeli, ${added} eklendi`);
+  } finally {
+    globalThis.window.addEventListener = windowAdd;
+  }
+
+  assert.equal(typeof unbindKeyboard, 'function');
+});

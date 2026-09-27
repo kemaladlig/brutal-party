@@ -54,6 +54,13 @@ export function getKeyCapLabel(code) {
   return code;
 }
 
+// Slot başına direksiyon tuş çifti ('A/D', '←/→', 'J/L', 'F/H'): masa-ortası
+// steer butonlarının klavye rozeti ve isim çipi bunu okur. Harfler elle
+// yazılmaz — `STANDARD_KEY_SLOTS` + `getKeyCapLabel`'dan türetilir (tek kayıt).
+export const STEER_KEY_HINTS = STANDARD_KEY_SLOTS.map(
+  (s) => `${getKeyCapLabel(s.l)}/${getKeyCapLabel(s.r)}`,
+);
+
 export function getKeyLabel(kind, index) {
   const list = KEY_LABELS[kind];
   return list ? list[index] : '';

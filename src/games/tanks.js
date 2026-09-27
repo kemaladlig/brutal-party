@@ -5,6 +5,7 @@ import { t } from '../i18n.js';
 import { renderTopPill } from '../ui/hud.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { resolveSlotName } from '../core/slotManager.js';
 import { getProjectileSubsteps } from '../core/physics2d.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
@@ -297,45 +298,47 @@ export class TanksGame extends BaseMiniGame {
       const tank = this.tanks[i];
       return tank && tank.isJoined && tank.isAlive && tank.slotType === 'human' ? tank : null;
     };
-    window.addEventListener('keydown', (e) => {
-      if (e.repeat) return;
-      if (!this.isLocalInputActive) return;
-      this.keys[e.code] = true;
-      this.keys[e.key] = true;
-      if (this.state !== 'PLAYING') return;
-      const slot = slotOfMove[e.code];
-      if (slot !== undefined) {
-        e.preventDefault();
-        const tank = isHumanAlive(slot);
-        if (tank) {
-          if (this.spawnIntroTimer > 0) return;
-          this.driveOwner[slot] = 'kb';
-          tank.isDriving = true;
+    bindKeyboard(this, {
+      keydown: (e) => {
+        if (e.repeat) return;
+        if (!this.isLocalInputActive) return;
+        this.keys[e.code] = true;
+        this.keys[e.key] = true;
+        if (this.state !== 'PLAYING') return;
+        const slot = slotOfMove[e.code];
+        if (slot !== undefined) {
+          e.preventDefault();
+          const tank = isHumanAlive(slot);
+          if (tank) {
+            if (this.spawnIntroTimer > 0) return;
+            this.driveOwner[slot] = 'kb';
+            tank.isDriving = true;
+          }
+          return;
         }
-        return;
-      }
-      const fireSlot = FIRE_KEYS.indexOf(e.code);
-      if (fireSlot !== -1) {
-        e.preventDefault();
-        const tank = isHumanAlive(fireSlot);
-        if (tank) this.attemptFire(tank);
-      }
-    });
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.code] = false;
-      this.keys[e.key] = false;
-      const slot = slotOfMove[e.code];
-      if (slot === undefined) return;
-      if (MOVE_KEYS[slot].some((c) => this.keys[c])) return;
-      // Sadece klavye sürdüyse dur+ateş; kumanda/dokunmatik sürüşüne dokunma
-      if (this.driveOwner[slot] !== 'kb') return;
-      this.driveOwner[slot] = null;
-      const tank = this.tanks[slot];
-      if (!tank) return;
-      tank.isDriving = false;
-      if (this.state === 'PLAYING' && tank.isJoined && tank.isAlive && tank.slotType === 'human') {
-        this.attemptFire(tank);
-      }
+        const fireSlot = FIRE_KEYS.indexOf(e.code);
+        if (fireSlot !== -1) {
+          e.preventDefault();
+          const tank = isHumanAlive(fireSlot);
+          if (tank) this.attemptFire(tank);
+        }
+      },
+      keyup: (e) => {
+        this.keys[e.code] = false;
+        this.keys[e.key] = false;
+        const slot = slotOfMove[e.code];
+        if (slot === undefined) return;
+        if (MOVE_KEYS[slot].some((c) => this.keys[c])) return;
+        // Sadece klavye sürdüyse dur+ateş; kumanda/dokunmatik sürüşüne dokunma
+        if (this.driveOwner[slot] !== 'kb') return;
+        this.driveOwner[slot] = null;
+        const tank = this.tanks[slot];
+        if (!tank) return;
+        tank.isDriving = false;
+        if (this.state === 'PLAYING' && tank.isJoined && tank.isAlive && tank.slotType === 'human') {
+          this.attemptFire(tank);
+        }
+      },
     });
   }
 

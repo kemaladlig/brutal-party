@@ -7,6 +7,7 @@ import { resetFireFeedback, updateFireFeedback } from '../core/fireFeedback.js';
 import { t } from '../i18n.js';
 import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
@@ -162,12 +163,14 @@ export class LaserGame extends BaseMiniGame {
   }
 
   initKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      if (!this.isLocalInputActive) return;
-      this.keys[e.code] = true;
-    });
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.code] = false;
+    bindKeyboard(this, {
+      keydown: (e) => {
+        if (!this.isLocalInputActive) return;
+        this.keys[e.code] = true;
+      },
+      keyup: (e) => {
+        this.keys[e.code] = false;
+      },
     });
   }
 

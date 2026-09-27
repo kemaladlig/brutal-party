@@ -1,184 +1,79 @@
 # AGENTS.md — AI Agent Çalışma Kuralları
 
-Bu dosya **AI agent'lar ve geliştiriciler** içindir: mimari sözleşmeler, yasaklar, sayısal bütçeler, iş akışları.
-Proje haritası (dosya sorumlulukları, protokol tablosu, motor listesi, karar defteri, açık işler) **`docs/PROJECT_MAP.md`**'dedir — mimari, protokol, motor veya sözleşme değişikliklerinde ilgili bölümüne mutlaka başvurulur; küçük ve izole düzeltmelerde haritanın tamamını yüklemek yerine hedefe odaklanılır.
+Bu dosya her oturumda yüklenir: yalnız sözleşmeler, bütçeler, yasaklar. Gerekçe/hikâye yok.
+Detay `docs/PROJECT_MAP.md`'dedir — tamamını dump etme, `grep` ile ilgili bölümü oku. Yapı/protokol/motor değişince iki dosyayı da güncelle.
 
 ---
 
-## 1. Yığın & Platform Modları
+## 1. Yığın & Modlar
 
-- Vanilla HTML5 + CSS3 + ES Modules, HTML5 Canvas, Vite build, PWA (`public/manifest.webmanifest`, `sw.js`).
-- Üç platform modu: `LOCAL` (tek cihaz, ağ yok) · `TV_CONSOLE` (TV host + telefon kumandalar; host isteğe bağlı local P1, lokal WebSocket) · `ONLINE` (bir oyuncunun telefonu P1 host; 1-3 uzak telefon Supabase keşfi + WebRTC oyun akışı).
-- Ağ seçici: `src/net.js` — TV_CONSOLE → `src/network.js` (PartyNetwork/WS), ONLINE → `src/supabaseRelay.js`. LOCAL'de ağ kullanılmaz.
-- Supabase kimlik bilgileri **build'e gömülür**: `.env` → `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (**publishable key** `sb_publishable_...` formatı), `VITE_PUBLIC_URL`. Anahtarları asla koda gömme, asla commit'le.
+- Vanilla HTML5 + CSS3 + ES Modules, Canvas, Vite, PWA (`public/manifest.webmanifest`, `sw.js`).
+- Üç mod: `LOCAL` (ağ yok) · `TV_CONSOLE` (TV host + telefon kumanda, lokal WS) · `ONLINE` (P1 telefonu host; Supabase keşif + WebRTC).
+- Ağ seçici `src/net.js` → TV_CONSOLE `src/network.js`, ONLINE `src/supabaseRelay.js`.
+- Supabase anahtarları build'e `.env`'den gelir (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_PUBLIC_URL`). Koda gömme, commit'leme.
 
-## 2. Yetki Modeli (değiştirilemez)
+## 2. Yetki (değiştirilemez)
 
-- **Host cihaz tek yetkilidir (authoritative).** TV_CONSOLE'da TV host, ONLINE'da P1 oyuncusunun telefonu. Simülasyon sadece bu cihazda çalışır.
-- Kumandalar **sadece input** gönderir: joystick `(x, y)` veya buton eylemleri. Kumandada oyun mantığı yürütülmez.
-- Motorlar uzak girdiyi yalnızca `handleRemoteInput(slotIndex, data)` üzerinden alır.
-- Host, oyun durumunu kumandalara yayınlar (madde 5'teki bütçeyle).
+- Host tek yetkilidir (TV_CONSOLE'da TV, ONLINE'da P1 telefonu). Simülasyon yalnız host'ta.
+- Kumandalar yalnız input gönderir (`(x,y)` / buton). Motorda ağ kodu, kumandada simülasyon yok.
+- Uzak girdi yalnız `handleRemoteInput(slotIndex, data)` üzerinden. Yayın bütçesi §6'dadır.
 
 ## 3. Engine Registry — tek kayıt noktası
 
-- `src/core/engineRegistry.js` → `GAME_ORDER` (15 oyun: PONG…RACE — güncel liste dosyadadır, buraya kopyalanmaz).
-- Retired ama oynanabilir cartridge motorları `src/games-retired/` altında yaşar; registry kaydı, ID, controller, world-view ve ağ protokolü korunur. `GAME_ORDER` aktif oyunları önce, retired oyunları sonra sıralar. **Bir oyunu arşivden çıkarmak = `retired: true` bayını silmek + dosyayı `src/games/`'e taşımak** (klasör adı sözleşmedir) + `GAME_ORDER`'de retired'ların arkasına almak + `PROJECT_MAP.md` dosya listesi/motor tablosu. Arşivden çıkan oyun artık `RETIRED_GAME_IDS`'te değildir, `gamesView` ARŞİV rozetini otomatik düşürür. CROWN bu yolla çıkarıldı; tek kalan retired oyun CLONE'dur.
-- Yeni oyun = `engineRegistry.js` içinde `GAME_ORDER` kaydı + tek `CARTRIDGES.MOD` bloğu (`load/createEngine/reset/onEnter/onResume/start/packet`; görüntüleme destekleyen oyunlarda ayrıca `worldPacket/worldView`). `main.js` veya `gamepad.js` içine `else if (mode === ...)` zinciri **eklemek yasaktır**.
-- Entry sözleşmesi: `game` (BaseMiniGame türevi) · `reset()` · `onEnter/onResume(now)` (fizik sıçramasını önler) · `start()` (sayaç sonrası) · `packet()` (8 Hz host HUD/state) · opsiyonel `worldPacket()` + `CARTRIDGES[MOD].worldView` (30 Hz P2P görüntüleme; PONG, ARCHER, TANKS, CURVE, BOMB, HEIST, ZONE, SNAKE, LASER, COLLAPSE, NINJA, HORDE, RACE, CROWN — 15 oyun). Yeni world-view oyunu eklemek için: `src/games/[oyun]View.js` + `src/ui/[oyun]WorldView.js` + registry'de `worldView.load`/`worldPacket`; çekirdek `src/games/worldCore.js`'ten gelir.
-- Motor sözleşmesi: `resetMatch/reset()`, `startNewMatch()`, `startNewRound()`, `update(now)`, `render()`, `resize(w,h)`, `handleRemoteInput(slotIndex, data)`. `resize(w,h)` **CSS px** alır (`canvas.width` değil) ve saha kutusunu `computePlayfield` ile üretir.
-- **Lokal (Tek Cihaz / PC & Masa-ortası) Sözleşmesi:**
-  - Her motor sadece TV+telefon modunda değil, tek cihazda (`LOCAL`) da tam oynanabilir olmalıdır.
-  - **LOBBY UI & Başlatma:** Motor LOBBY durumundayken canvas üzerinde `uiButtons` ile 4 köşe koltuk kartlarını (`cycleSlotType(i)`) ve merkezde `▶ MAÇI BAŞLAT` butonunu (`startNewMatch()`) çizmelidir. `onTouchStart` içinde `uiButtons` tap dispatch zorunludur.
-  - **Klavye Desteği:** PC testleri ve yerel klavye oyunu için 4 slot klavye eşlemesi: P1 (`WASD` + `Space`), P2 (`Ok Tuşları` + `Enter`), P3 (`IJKL` + `O`), P4 (`TFGH` + `B`).
-  - **Masa-ortası Dokunmatik:** Tablet/telefon masa-ortası modu için 4 köşe dinamik yüzen sanal joystick ve aksiyon butonları.
-  - **Kontrol Kılavuzu:** `renderControlGuide(ctx, arena, ...)` çağrısı.
-- **LOBBY tap kuralı:** Motor sahasındaki koltuk dokunuşu önce `this.onLobbySeatTap(index)` hook'una sorar (host bot ekle/çıkar için kullanır). Hook yoksa ve `isHosting` ise `cycleSlotType` çalışır; host değilse hiçbir şey yapılmaz. Motor içine ağ/relay kodu yazılmaz.
-- **Ortak `src/core/` yardımcıları (refactor Faz 1-7, tek kaynak):** Motorlar aşağıdakileri kopyalamaz/yeniden yazmaz, `import` eder:
-  - `networkProtocol.js` — ONLINE/TV_CONSOLE ortak input doğrulama sözleşmesi
-  - `inputMaps.js` — klavye slot haritaları: `getSlotKeys`, `keyboardVectorFrom`, `readSlotKeys`, `isSlotActionEvent`, `slotForActionCode`, `buildCodeToSlotMap` (standart 4x harita + `SECOND_ACTION_KEYS`).
-  - `touchFlow.js` — dokunmatik akış: `getQuadrant`, `roundOverSkipGuard` (BaseGame `handleRoundOverSkip(timerField)`; PONG `roundOverTimer` geçirir), `lobbyCenterStartTap`, `lobbyQuadrantTap`, `matchOverRestartTap` (istisna: tanks `getCornerZone`, PONG `getPlayerZoneAt`).
-  - `physics2d.js` — fizik/çarpışma: `clampToArena`, `resolveAABB`, `pointBlocked`, `updateMovers`, `distToSegmentSquared`, `segmentCircleIntersection`, `segmentAabbIntersection`, `getProjectileSubsteps`, `damp`, `normalizeAngle`.
-  - **Hız/sönümleme ölçeği:** `damp(perFrame60, dt)` = `Math.pow(perFrame60, dt*60)`. Host döngüsü sabit adımlı **değildir** (`main.js` düz rAF, `dt = min(dt, 0.05)`), bu yüzden `v *= 0.96` gibi kare-başına katsayılar 60 fps'te saniyede %8.6, 30 fps'te %29 kaybettirir — aynı ceza yavaş cihazda iki kat uzun sürer. Hız çarpanı yazarken `damp` kullanılır (düz çarpma yalnız `Math.exp(-rate*dt)` gibi **zaman tabanlı** ifadelerde serbesttir).
-  - `playfield.js` — **saha geometrisinin tek kaynağı**: `computePlayfield(w, h, preset)` + `FIELD_PRESETS` (`standard`/`roomy`/`crown`/`flat`/`dense`/`racing`) ve ölçek yardımcıları `fieldPx`/`fieldRadius`/`fieldSpeed`. Motor `resize()` içinde kenarlık/arena hesabı **yazmaz**; `this.arena = computePlayfield(width, height, '<preset>')` der ve mevcut `left/top/right/bottom/width/height/size` alanları aynen gelir (`aspect` + `unit` ek alanlardır). `unit`, saha kısa kenarının 952px (1920×1080) referansına oranıdır ve **saha içi ölçeğin tek otoritesidir** — `tokens.js` `entityScale` kaldırıldı. Mutlak px tabanı yazmak yasaktır; taban `fieldRadius(pf, px, minFraction)` gibi **göreli** olmalıdır. Motor `canvas.width/height` **okumaz/yazmaz** (DPR backing store `main.js`'in sahipliğindedir; okumak device-px verir, yazmak `ctx.scale(dpr,dpr)`'ı siler). **Kompakt yatay kuralı:** telefon yatayda (`width > height` ve kısa kenar < 540px) dikey pay `max(10, h*0.03)`'e iner ve saha tam taşar (full-bleed); masaüstü/TV/tablet ve **portrait** değişmez.
-  - `roundLifecycle.js` — ortak raunt/maç terminal kuralı: timeout, all-survivor draw ve MATCH_OVER geçişleri.
-  - `pickupSystem.js` — power-up akışı: `spawnPickup`, `collectPickups`, `tickPickupTimers` + `EFFECTS` kayıt defteri.
-  - `arenaKit.js` — ortak görsel + `buildLayout(name, arena)` düzen presets (`pillars`, `columns4`, `cross`, `crossfire`, `scatter`, `bunker`, `courtyard`, `split`) + `drawObstacle`/`drawPickup`. Motor kendi `buildMap()`'inde yalnız oyuna özgü ek katmanları/meta'yı tutar; ortak geometri preset adıyla çağrılır. **Geçiş genişliği kollardan değil `minPassage`'ten türetilir:** kolların iç açıklığı sabit bir orana bağlıysa (`courtyard` `bW/2`'yi, eskiden `cross` `armT`'yi kullanıyordu) preset yalnız küçük gövdeli oyunlarda geçilir kalır ve büyüyen bir gövde ortada hapsolur.
-  - **Engel derileri tek kaynaktır ve tema seçer:** `OBSTACLE_STYLES` dışa açıktır (`stone`/`dark`/`crate` + `metal`/`ice`/`rock`/`crateHeavy`/`hazard`/`plinth`). `drawObstacle(ctx, box, { variant, theme })` — `variant` verilirse kazanır (7 motor geçiyor), yoksa `theme.block` (motor hex SEÇMEZ, `drawField`'a geçtiği temayı geçirir), o da yoksa `stone`. Yeni deri eklerken `drawObstacle`'a `if/else` zinciri BÜYÜMEZ: deri başına detay `detail` fonksiyon tablosundadır. `obstacleMass(box)` engel dikdörtgeninden deterministik kabartma türetir (siluet/bounding kutu değişmez, paket alanı eklenmez; 4 px kovaya kuantlanır çünkü paket koordinatı 0.1'e yuvarlar). **`render()` yolunda tahsis yok:** blok başına `createLinearGradient` (12 blok × 60 fps = saniyede 720 nesne) yerine gövde yoluna `clip` + tek dolgu.
-  - `fieldKit.js` — **saha zemini/çevre tek kaynağı**: `FIELD_THEMES` (tema paleti + motif/köşe dili) + `THEME_FIELDS` (tema sözleşmesinin anahtar listesi), `FIELD_MOTIFS`, `hashFieldSeed(mode, roundId)`, `paintFieldLayer` (zemin tabanı + ışık havuzu + doku deseni + derz + ızgara + çerçeve + motif + seeded dekor + vignette + **kitlesel duvar bandı** + yama + marks), `drawField(ctx, arena, { mode, theme, seed, marks, patches, variant })` (offscreen bake + cache + blit), `paintBackdrop(ctx, viewport, arena, { mode })` (**sahanın dışının tek sahibi** — arenayı masada yanan yüzey gibi oturtur), `releaseFieldLayers`. Statik katman bir kez pişirilir, frame başına tek `drawImage` — motor `render()`'ı kendi zemin fill/grid/duvar stroke'unu ve kendi `#F4F0EA`/`#F4F4F0` viewport dolgusunu YAZMAZ. **Ağa alan eklemez:** dekor `(mode, roundId)`'den hash'lenir, ikisi de world packet'inde zaten vardır; katmanda `Math.random()`/`Date.now()`/`performance.now()`/`shadowBlur`/`getImageData`/pattern'a `setTransform` yasaktır (kaynak taraması kilitler). `marks` oyun başına sabit modül fonksiyonudur; veriye bağlı katman `variant` ile anahtarlanır; cache anahtarı arena kutusunu **2 px**'e kuantlar (alt-piksel sürüklenme yeniden bake üretmesin).
-  - **Zemin L\* bütçesi (ölçüldü, pazarlık edilemez):** krem aile o kadar parlak ki **ışık şiddetiyle derinlik satın alınamaz.** P3 sarısı `#FFD24A` L\* = 85.9; `floorLow` #E6DDCC + vignette + duvar bandı sahanın alt bandında ölçülen zemini L\* 85.9'a indirip sarı ile kontrastı **sıfırlamıştı**. Kural: her temanın zemin ailesi L\* ∈ [92.5, 97.5] ve rampa aralığı ≤ 6 — derinlik **kroma** ile kurulur (üst soluk, alt sıcak), L\* ile değil. `tests/fieldKit.test.mjs §8` bunu palette üzerinde zorlar. Kontrastı zorlamadan önce sarının yerine ne konacağını söyle.
-  - **TEMPO BÜTÇESİ (ölçüldü; "yavaş" şikâyetlerinin tek kaynağı):** geometriye `pxConstants`/`arenaLayout` bütçeleri vardır, **tempoya yoktu** — 15 oyun × 2 sayı elle tutuluyordu. Kanıt: `raceLogic.js` "RACE hala yavaş" yorumu, 190→215 tahminle bulundu, sonuç yine yavaş, ikinci tur. `tests/movementBudget.test.mjs` üç ölçüyü kilitler:
-    - **A · saha geçiş süresi = 952 / tasarımHızı** (sn) — "dünya büyük, ben küçüğüm". Oyun başına `maxA`. SNAKE/CLONE/COLLAPSE yavaştı.
-    - **B · gövde/sn = tasarımHız / (2 × tasarımYarıçap)** — "kendi bedenime göre yavağım". Oyun başına `minB`. BOMB (2.4) ve CROWN (2.9) yavaştı; ikisi de hızdan çok **yarıçaptan** yavaştı.
-    - **C · ivme tepkisi = tasarımHız / tasarımİvme** (sn) — RACE A ve B'yi ikisi de geçerken "yavaş" dedirtiyordu; tek sebebi 0.46 sn'lik rampaydı.
-    A ve B birlikte tek sıra vermiyor; ikisi de ayrı ayrı kilitlenir. Referans: kullanıcının "iyi" dediği ARCHER (A 4.8, B 3.5). Aynı test **ölçek değişmezliğini** de zorlar (tasarım hızı/yarıçapı 5 viewport'ta birebir aynı) — ham-px sızıntılarının regresyon kilidi budur. **Yeni hız/yarıçap yazarken ya da "bu oyun yavaş" geri bildirimi alırken önce ölç, sonra ayarla; tahminle iki tur kaybetmenin kanıtı dosyada duruyor.**
-  - **Ölçek kaçağı yasağı (ölçüldü, pahalıya mal oldu):** hareket `fieldSpeed`, uzamsal her şey `fieldRadius`/`fieldPx`/`bodyPx`'ten geçer. Ham px'in bedeli `unit` ile çarpıldığı bir yerde **görünmez**; sadece oran bozulur. Ölçülen üç örnek: (1) HEIST `Math.max(108, base - weight*13)` — `base` cihaz px, 108/13 tasarım px; telefonda taban `base`'in üstünde kaldığı için %46 fazla hız + **açgözlülük mekaniği hiç çalışmadı**. (2) HORDE `ENEMY_SHOT_SPEED`/`weapon.projectileSpeed` ham → telefonda mermi/oyuncu hızı oranı masaüstünün 2.5 katı ("her şey çok hızlı"); `life: range/speed` ise `1/unit`'ı bir **süreye** sokuyordu. (3) `REVIVE/PORTAL/LOADOUT_RADIUS` ham → ters yönde, telefonda 2.5× kolay. **Süre hesabı tasarım oranıyla yapılır** (`range / projectileSpeed`), asla cihaz hızıyla bölünmez.
-  - **Orantı fiziksel hedef DEĞİLDİR (ölçüldü):** `unit = size/952` orantıyı birebir korur — 24" monitörde 15px gövde, 6" telefon ekranında 6px'tir. HORDE'da ölçülen "karınca gibi küçük" tam olarak budur. `minFraction` tabanı bu işi **göreli** olduğu için çözemez (büyük ekranda da şişirir; `horde.js` bu yüzden sadece kaldırdı). Doğru araç **mutlak CSS px tabanı**, ve orantıyı bozmamak için tüm gövdelere **tek çarpan**: `HORDE_TUNING.LEGIBILITY_PX` + `bodyScale()` (`Math.max(1, …)` → masaüstünde 1). Yeni bir oyunda fiziksel hedef şikâyeti gelirse bu kalıp `fieldRadius`'a değil, o oyunun çarpanına eklenir — çünkü tabanı paylaşmak tüm motorları değiştirir.
-  - **Tema alanları YALNIZ primitif:** HORDE haritaları temaları `{...FIELD_THEMES.foundry}` şeklinde **sığ** yayılımla türetir (`hordeConfig.js`); nested bir nesne üç haritada aynı referansı taşır ve `Object.freeze` alt nesneyi dondurmaz. `lightPool` bu yüzden nesne değil sayıdır, havuzun konumu `paintFloorBase` içinde sabittir. `fieldTheme()` bilinmeyen anahtarı uyararak düşürür.
-  - `playerEntity.js` — oyuncu varlığı: `createPlayer`, `tickEffectTimers`, `advancePlayer` (kademeli çıkarım — bomb/heist/race entegre; PONG/tanks/curve/snake/zone/collapse kendi gövdesinde kalır).
-  - `avatarInGame.js` — oyun içi avatar: `drawGameAvatar`, `normalizeExpression`, `blinkState`. Saha içi avatar **her zaman** `faceMode: 'play'` ile çizilir: renk + büyük göz + disk içi hacim + göz kırpma/bakış + iç alt gölge (2.5D küresellik). **Karakterde erişuar ve gövde deseni YOKTUR** (sahada da, özelleştirme menüsünde de, botlarda da) — siluet daima tam yuvarlak, kimlik renk + yüz + halkadan gelir. Menü/lobi/kumanda önizlemesi aynı gövdeyi `full` kipte çizer (hacim yok).
-  - `tabletopIcons.js` — Lucide vektör ikon kütüphanesi: OS emojileri yerine Canvas 2D için `drawTabletopIcon`, DOM/kumanda butonları için `getTabletopIconSvg`. İkonlarda ham OS emojisi yazılmaz, buradan çağrılır.
-  - `preferences.js` — versioned cihaz tercihleri ve legacy control-surface migration; ses/haptik/PONG ayarlarının tek kaynağı.
-  - `haptics.js` — tüm engine/controller vibration çağrılarının ortak preference gate'i.
-  - `inputSource.js` — keyboard/touch/pointer input source arbitration; aktif cihaz başına tek kaynak kilidi.
-  - `controlDescriptor.js` — phone/tabletop/network için normalize kontrol sözleşmesi ve parity doğrulaması.
-  - `inputIntent.js` — transport input packet'lerini canonical engine intent alanına projekte eder; mevcut `action` alanı geriye uyumlu kalır.
-  - `aimInput.js` — ARCHER/HORDE/LASER için oyuncu başına canonical held/active/vector/sequence state'i; stale/out-of-order guard ve explicit release/cancel semantiğini tek yerde tutar. `tap` alanı **yalnız üreticiden** taşınır — state hiçbir zaman süre/tasarım okumasıyla tap türetmez.
-  - `autoAim.js` — hızlı dokunma (tap) auto-aim'in saf hedef seçicisi: `findAutoAimTarget(from, candidates, { maxRange, valid })` en yakın geçerli adayı ve açısını döndürür. Menzil bütçesi motordan `fieldRadius` ile **göreli** gelir; hedef politikası (kim aday, ne zaman ateş) motorlarındır.
-  - `fireFeedback.js` / `fireFeedbackEffects.js` — ARCHER/HORDE/LASER için cooldown progress, blocked/ready/shot feedback state'i; blocked sesi/haptic'i yalnız cooldown episode başına bir kez çalar.
-  - `AIM_MOVE` / `AIM_PRESS` / `AIM_RELEASE` — yalnız ARCHER/HORDE/LASER için sağ analog eksen ve attack lifecycle'ı; analog 50 ms throttle, bas/bırak discrete ve host-authoritative uygulanır. Sağ joystick basılıyken attack durumundadır; ARCHER/LASER bırakışta ateşler, HORDE bırakışta ateşi bırakır. Nötr dokunuş ateş üretmez. **Hızlı dokunma** (≤220 ms ve ≤12 px sürükleme) `AIM_RELEASE`'a `tap:true` yazar; host `autoAim` ile en yakın hedefe kilitlenip tek atış eder (ARCHER sabit 0.5 şarj; hedef yoksa baktığı yöne). `tap` yalnız telefon `TwinStickAimController` üreticisindendir; klavye/tabletop/fiziksel kumanda ve eski istemciler üretmez, akışları değişmez.
-  - **Basılı yön keepalive (CURVE/SNAKE):** yön paketi (`CURVE_STEER`/`SNAKE_STEER`) yalnız yön değişince gönderilir; host'un 1.5 sn analog-sessizlik süpürücüsü bu yüzden basılı yönü sıfırlar. Basılı yön 250 ms'de bir tekrarlanır (`STEER_KEEPALIVE_MS`) — telefon `controllerTemplates` + fiziksel kumunda `physicalGamepadAdapter`. Yeni "basılı tut" tipi yön girdisi eklerken aynı keepalive'i eklemek zorunludur.
-  - `inputRouter.js` — normalize edilmiş local/network input'u aktif authoritative engine'e taşır; transport adapter'ları engine/mode lookup bilmez.
-  - `gamepadInputAdapter.js` — transport'tan bağımsız 50ms analog throttle, dead-zone ve nötr analog state; fiziksel gamepad ikincil kaynak için temel sınır.
-  - `physicalGamepadAdapter.js` — Browser Gamepad API polling adapter'ı; touch/keyboard/pointer öncelikli, host engine'e yalnızca aynı transport packet'lerini gönderir.
-  - `gamepadShell.js` — GamepadManager'dan ayrılmış stabil kumanda shell/presenter markup'ı.
-  - `reactions.js` — tepki (eski adıyla emoji) setinin TEK kaynağı; wire değeri `tabletopIcons` ikon anahtarıdır, `normalizeReactionKey` hem istemcide hem oda sunucusunda aynı beyaz listeyi uygular. `REACTION` çift yönlüdür: kumanda→host ve host→kumanda (`slotIndex: -1` = host koltukta değil); ikisi de slot/host başına 1 sn hız kapısına tabidir.
-  - `ui/reactionLayer.js` / `ui/reactionPicker.js` — lobi + oyun içi + kumanda için TEK tepki görseli ve TEK seçici. Yüzeyler yalnız `data-reaction-anchor="<slot>"` (balon çapası) ve `data-reaction-open` + `data-reaction-send="host|pad"` (seçici) işaretler; ikinci bir tepki UI'ı açmak yasaktır.
+- `src/core/engineRegistry.js` → `GAME_ORDER` (15 oyun, liste dosyadadır) + `CARTRIDGES.MOD` bloğu (`load/createEngine/reset/onEnter/onResume/start/packet`, world-view oyunlarında `worldPacket/worldView`).
+- `main.js` / `gamepad.js` içine `else if (mode === ...)` veya moda özel mount dalı yasak. Yeni oyun = registry kaydı + şema; çekirdek dosyaya dokunulmaz.
+- Retired motorlar `src/games-retired/`'dedir; çıkarmak = bayrağı sil + `src/games/`'e taşı + `GAME_ORDER`'de retired arkasına al + PROJECT_MAP güncelle.
+- Motor sözleşmesi: `resetMatch/reset`, `startNewMatch`, `startNewRound`, `update`, `render`, `resize(w,h)`, `handleRemoteInput`. `resize` CSS px alır, `computePlayfield` ile arena kurar.
+- LOCAL sözleşmesi: her motor tek cihazda tam oynanır — canvas LOBBY (4 köşe kart + `▶ MAÇI BAŞLAT`), 4 slot klavye (P1 WASD+Space, P2 Oklar+Enter, P3 IJKL+O, P4 TFGH+B), 4 köşe dokunmatik joystick, `renderControlGuide` çağrısı.
+- LOBBY tap: önce `onLobbySeatTap(index)` hook'u; yoksa ve `isHosting` ise `cycleSlotType`, değilse hiçbir şey.
 
-## 4. Slot Modeli — tek koltuk gerçeği
+## 4. `src/core/` tek kaynaktır — kopyalama yok
 
-- TV tarafı: `hostPlayerSlots[i] = { name, isReady, kind }`, `kind ∈ 'human' | 'bot'`. TV_CONSOLE host varsayılan olarak koltuklarda yer almaz; lobi düğmesiyle aynı cihazı P1 local oyuncusuna dönüştürebilir.
-- ONLINE host cihazı da oyuncudur ve P1'e rezerve edilir; kalan en fazla 3 uzak telefon P2-P4 olur. Relay tarafı (Supabase `players[]`, WS `room.players[]`) koltukların kaynağıdır; host listesi, motor slotları ve telefon ızgarası hep snapshot'tan beslenir.
-- `SLOTS_UPDATE` parity kuralı: WS ve Supabase **aynı payload şeklini** yayınlar (`slotIndex, name, color, kind, isReady, isHost`; snapshot ayrıca `reservedHostSlot` taşır). Birine eklenen alan diğerine de eklenir.
-- İsimler `toUpperCase()`, en fazla 12 karakter.
-- Bot koltuğu ne hedef ne kaynak olur: `SWITCH_SLOT` hedefi olamaz, ghost-reconnect botu yiyemez, hayalet geri kazanım botları atlar, sayaçta koltuk işlemleri kilitlidir (`seatsLocked`).
-- Bot ekleme **varsayılan kapalıdır** (`isBotEkleEnabled()` → localStorage); pause menüsündeki `🤖 BOT EKLEME` düğmesiyle açılır. Kapalıyken bot butonları/ipucu çizilmez, saha tap'i bot eklemez — normal akışta sadece oyuncu eklenir/çıkarılır.
-- **Ready-reset kuralı:** `GAME_STARTED` ve `RETURNED_TO_LOBBY` olaylarında hazır bayrağı **iki tarafta da** sıfırlanır (host `hostPlayerSlots` + kumanda `resetReady()`). Tek taraflı sıfırlama "takılı HAZIR" bug'ı üretir.
-- Oda kodu 3 haneli sayı (`100–999`).
+Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inputMaps`, `touchFlow`, `physics2d`, `playfield`, `roundLifecycle`, `pickupSystem`, `arenaKit`, `fieldKit`, `playerEntity`, `avatarInGame`, `tabletopIcons`, `tabletopRenderer`, `preferences`, `haptics`, `inputSource`, `controlDescriptor`, `inputIntent`, `aimInput`, `autoAim`, `fireFeedback`, `inputRouter`, `gamepadInputAdapter`, `physicalGamepadAdapter`, `gamepadShell`, `reactions`, `ui/reactionLayer`, `ui/reactionPicker`. API detayı dosyadadır.
+- Zaman ölçeği: kare-başı çarpan yerine `damp()` / zaman tabanlı ifade kullan (`main.js` sabit adımlı değildir, `dt = min(dt, 0.05)`).
+- Ölçek: hareket `fieldSpeed`, uzamsal her şey `fieldRadius`/`fieldPx`'ten geçer; ham px yasak. `canvas.width/height` okunmaz/yazılmaz (DPR `main.js`'indir).
+- Zemin/çevre yalnız `drawField` + `paintBackdrop` ile çizilir; motor kendi zemin/grid/duvar/viewport dolgusu yazmaz.
+- Tempo ve zemin-L\* bütçeleri testle kilitlidir (`tests/movementBudget.test.mjs`, `tests/fieldKit.test.mjs §8`) — sayıları buraya kopyalama, teste bak.
+- `tap` yalnız telefon üreticisinden gelir, state türetmez. Basılı-tut yön girdisi 250 ms keepalive taşır (`STEER_KEEPALIVE_MS`).
+- Avatar sahada daima `faceMode: 'play'`, tam yuvarlak siluet; aksesuar/desen yok.
 
-## 5. Ağ Bütçesi (sayılar değişmeden korunur)
+## 5. Slot Modeli
 
-- Host HUD/state broadcast **8 Hz (125 ms)** + JSON dirty-check; skor/taşıyıcı/sinyal gibi kritik olaylar **anında** gönderilir (hızlı yol).
-- ONLINE world-view oyunları için ayrı unreliable WebRTC `world` kanalından **30 Hz tam snapshot** gönderilir. Bu paketler Supabase'e düşmez; `control` kanalı reliable/ordered kalır.
-- World-frame transport 30 Hz'de kalır; client `GamepadWorldView` snapshot'ları jitter buffer'da tutup native `requestAnimationFrame` ile 60 Hz+ sunum yapar. Interpolate edilen projectile/NPC/moving-wall entity'leri stable id taşır; `sentAt` yalnız source clock/diagnostic metadata'dır. Interpolasyon duvar içi extrapolation yapmaz, round/state/host sınırında snap olur.
-- Kumanda input throttle **50 ms** + ölübant (`JOYSTICK/MOVE/AIM/PADDLE/CURVE`); `AIM_PRESS/AIM_RELEASE`, `DASH/TACKLE/ateş` throttle dışıdır. Aktif sağ aim joystick'u stale-input süpürücüsüne karşı 250 ms keepalive taşır.
-- Ping **15 sn**, kopma watchdog **30 sn**.
+- TV: `hostPlayerSlots[i] = { name, isReady, kind }`, `kind ∈ 'human'|'bot'`. TV host varsayılan koltukta değil; düğmeyle P1 olur. ONLINE host P1'e rezerve, uzaklar P2-P4.
+- Tek gerçek relay snapshot'ıdır (`players[]`); çakışırsa relay kazanır. WS ve Supabase `SLOTS_UPDATE` şeması aynıdır (`slotIndex, name, color, kind, isReady, isHost` + `reservedHostSlot`).
+- İsimler `toUpperCase()`, ≤12 karakter. Bot hedef/kaynak olamaz, sayaçta koltuklar kilitli (`seatsLocked`). Bot ekleme varsayılan kapalı.
+- `GAME_STARTED` ve `RETURNED_TO_LOBBY`'de hazır bayrağı iki tarafta da sıfırlanır. Oda kodu 100–999.
 
-## 6. Oda Akışı
+## 6. Ağ Bütçesi
 
-`Bekleme lobisi (modal) → SAHAYA GEÇ (staging, koltuk seçimi serbest) → 3-2-1 sayaç (koltuklar kilitli) → oyun → LOBİYE DÖN (oda kapanmaz, oyuncular kalır)`.
-Modal açıkken canvas tap'leri motora düşmez; staging'de düşer (bot ekleme/çıkarma bu yolla çalışır).
+- Host → kumanda 8 Hz (125 ms) + dirty-check; kritik olaylar anında. ONLINE world-view 30 Hz unreliable `world` kanalı (Supabase'e düşmez); client jitter buffer + 60 Hz+ rAF, interpolasyon extrapolation yapmaz, sınırda snap.
+- Kumanda → host 50 ms throttle + ölübant; `AIM_PRESS/RELEASE`, `DASH/TACKLE/ateş` throttle dışı. Sağ aim 250 ms keepalive.
+- Ping 15 sn, watchdog 30 sn.
 
-## 7. UI Kuralları
+## 7. Oda Akışı
 
-- Neo-brutalist dil: Space Grotesk + JetBrains Mono, kalın sınırlar, sert kutu gölgeleri, yüksek kontrast.
-- **Tek renk sözlüğü:** `src/styles/tokens.css` (CSS) + `src/ui/tokens.js` (canvas/JS) aynı değerleri taşır ve birlikte güncellenir. `src/` altındaki hiçbir `.css`'te ham renk literal(i) — `hex`, `rgb()`, `rgba()`, `hsl()` **veya isimlendirilmiş renk anahtar kelimesi** (`black`, `white`, `red`…) — yazılmaz; `npm run check` içindeki `scripts/token-lint.mjs` bunu **ve** tanımsız `var()` referansını zorlar. Yeni renk gerekiyorsa önce sözlüğe ekle, sonra `var(--token)` kullan. (Yerel bileşen değişkeni `--x:` olarak tanımlanabilir, `setProperty` ile runtime atanabilir, `var(--x, yedek)` fallback'li olabilir — üçü de geçerlidir.)
-- **Token rolleri (koyu uygulama kimliği):**
-  - `--ink`/`--muted`/`--faint` **metindir**; `--surface`/`--surface-2`/`--elevated`/`--panel` **yüzeydir**. Nötr rampa koyu temada ters çevrilidir: `--n-900` en açık tondur. Tek tek nötr uydurmak yasaktır.
-  - **Kenar ve gölge kenarı `--edge` / `--edge-strong`'tir, `--ink` değil.** Koyu zeminde `--ink` ile çizilen 2-3px kenar kartı tel kafes gibi gösterir.
-  - **Doygun dolgu üstündeki yazı `--on-accent`'tir** (turuncu/altın/sarı dolgular). `--ink` koyu temada açık olduğu için bu yüzeylerde kullanılamaz; `--white` yalnız "doygun renk üstündeki yazı" içindir.
-  - **Krem saha kapsamı:** oyun sırasında canvas üstüne oturan DOM kaplamaları (`#in-game-hud`, `#staging-bar`, `#countdown-overlay`, `#local-mobile-controls`) ve kumanda yüzeyi (`#gamepad-overlay`) `data-theme="field"` alır; `tokens.css` bu kapsamda yüzey/mürekkep token'larını geri eşler. Sahaya yeni bir DOM kaplaması eklenirse aynı kapsamı alır — açık zeminde açık yazı yazmak yasaktır.
-  - Global sıfırlamalar `tokens.css`'tedir ve korunur: `button, input, select, textarea { font: inherit; color: inherit }` (UA `buttontext` siyahı koyu zeminde görünmez metin üretir) ve tek `.hidden { display: none !important }` (her öğenin kendi `#id.hidden` kuralı taşınmaz).
-- **Overlay semantiği tek yerdedir:** `src/ui/overlayHost.js` açık diyalogların sahibidir (odak trap, Escape, backdrop, `<html data-overlay>`). Modal açan her modül `openOverlay(id, { el, onClose })` çağırır, kapanışta `closeOverlay(id)`; kendi overlay kilidi tutmaz. Overlay açıkken shell girdi sahipliğini bırakır (`setShellInputSuspender`) — ok tuşları arkaya kaçmaz.
-- Görsel dil: **koyu uygulama yüzeyi** (derin lacivert-mor) + sıcak krem **saha** (oyun içi canvas ve krem kapsamdaki DOM kaplamaları) + doygun accent, **yuvarlak radius** (`--radius-card/btn/pill`) ve yumuşak katmanlı gölge (`--shadow-soft/float/edge/pop/press`). Sert kutu gölgesi (`--shadow-hard`) bilinçli olarak korunmuş bir DNA kalıntısıdır; sayfa ve kart yüzeylerinde `--grad-surface/--grad-card` tercih edilir. Nötr kararlar tek rampa üzerinden verilir (`--n-900`…`--n-000`), tek tek nötr uydurmak yasaktır.
-- **Modaller `src/ui/` altındadır** (`hostLobby`, `joinModal`, `pauseModal`, `settingsModal`, `customizeModal`, `toast`); `main.js` orkestrasyonu yapar, modal DOM'u kurmaz. Görünümler (shell ekranları) ise `src/ui/views/` altında, `views/registry.js` üzerinden kayıt olur.
-- **Ortak DOM bileşenleri tek uygulamadır:** oyuncu isim alanı `playerNameField.js`, ikon yuvaları `iconSlots.js` (`hydrateIconSlots(root, attr, defaults)`), sekme şeridi `tabStrip.js` (OYUNLAR kategorileri + KARAKTER RENK/İFADE aynı bileşeni kullanır; stili `scene.css` `.tab-strip`). Statik markup ikonu **yazmaz**, yalnız `data-icon` / `data-lobby-icon` ile yerini işaretler; ikinci bir ikon uygulaması açmak yasaktır.
-- Kumanda tarafı: `CARTRIDGES[MOD].schema` deklaratif tanımı (`src/controllers/gamepadSchemas.js`); PONG hariç tüm oyunlarda isimli skor şeridi (`score-strip`). `worldView` tanımlı modlarda canvas altta, kontroller üstte overlay olur; client motor/fizik çalıştırmaz.
-- Kumanda ergonomisi kararı: **dikeyde alt-orta kuşak** (`safe-area + 12vh`, 96px taban / 170px tavan), **yatayda köşeler** (sol-alt joystick, sağ-alt aksiyon). Yeni kumanda bu düzene uyar.
-- **Uygulama kabuğu (`src/ui/appShell.js`) tek sahiptir:** `dvh`, safe-area, view stack (yatay push/pop), donanım geri tuşu, Escape, rotate gate, orientation lock, girdi sahipliği ve **üç yüzen gezinme butonu** (solda dikey ortada alt alta ANASAYFA/OYUNLAR/KARAKTER; marka + sistem simgeleri sağ üst köşede tek satır; ÜST ŞERİT ve BANT YÜZEYİ YOKTUR — kullanıcı kararı, geri düğmesi de yok, bkz. bir sonraki madde). Dışarıdan açılan ekranlar `revealView(id)` / `closeView(id)` kullanır (zaten açık olan ekrana `revealView` dokunmaz). Başka modül bu listener'ları eklemez. Görünüm = `src/ui/views/` altında bir dosya + `registerView()` satırı; `main.js`/`gamepad.js` içine ekran adına özel dal **eklemek yasaktır**.
-- **Sahne ekranları ortak dili kullanır:** `src/styles/scene.css` arka plan katmanlarını, karakter/rozeti ve `.scene-btn` buton ailesini tek yerde tanımlar; `home.css`/`room.css`/`games.css` yalnız **konum** yerelleştirir. Yeni bir sahne ekranı yaparken buton stili yazmak yasaktır — `is-gold` / `is-teal` / `is-ghost` ağırlıklarından birini seç. Aynı işi iki yol göstermek (aynı iki ekranda yerel oynama gibi) yasaktır. Sahne ekranı **katalog/sayfa gibi okunmaz**: ayrı bir "önizleme paneli", ikinci bir başlık satırı veya ağır kart çerçevesi eklemek yasaktır — seçili öğenin adı/özeti sahnenin kendi yüzeyinde DEV YAZI durur, tek eylem düğmesi vardır.
-- **SAHNE ÇİZGİSİ (`--scene-stage-y`) tek kaynaktır:** zeminin üst kenarı/ekseni bu yüzdeyle verilir — ana menüde CSS diski değil `public/background.webp` görselindeki turuncu platformun ekseni (görselde %83.9, `home.css` `82%`; ölçü ve `cover` kırpma gerekçesi dosya yorumunda). Sahneye oturan karakter (`.scene-hero.is-staged`) ayağını bu çizgiye dayandırır (`bottom: calc(100% - var(--scene-stage-y) - var(--hero-ground-gap))`); `--hero-ground-gap` = `0.153 × --hero-size` (`drawAvatarStage`de zemin gölgesinin kutu tabanına uzaklığı, `r = 0.34·s`). Disk ve karakter ayrı ayrı konumlanmaz; `top: 50%` + `bottom: -14%` gibi bağımsız değerler **denk gelmeme** bug'ı üretir (kullanıcı raporu). Bir öğe yatayda `transform: translateX(-50%)` ile ortalanıyorsa `data-focus` **taşıyamaz** — kabuğun `[data-focus].is-focused { transform: scale() }` kuralı `translateX`'i ezip öğeyi kaydırır; merkezleme `margin-left: calc(-50% boyut)` ile yapılır.
-- **Lobi bir GÖRÜNÜMDÜR, modal değildir:** `views/lobbyView.js` `index.html`'deki `#tv-host-modal > .tv-host-card` düğümünü **devralır** (`keepAlive` + idempotent `build`); devralma sonrası boş kalan modal kabuğu `remove()` edilir (yerinde `position: fixed` scrim + `backdrop-filter` kalırsa tüm ekranı bulanıklaştırır). Durum sınıfları (`is-online-room`, `is-seat-editor`) ve onların CSS'i **kart üzerinde** yaşar (`hostLobby.js` `.lobby-card`'a yazar, `lobby.css` `.lobby-card.is-*` ile eşleştirir) — `#tv-host-modal.*` seçicisi yazmak yasaktır. Lobi yerleşim kuralları `room.css`'te `.lobby-scene .lobby-card` özgüllüğüyle yazılır (tek sınıf `lobby.css`'teki `.tv-host-card` kurallarının altında kalıyordu).
-- **Lobide 15 oyunun hepsi görünmez — karusel:** tek kapak + ad + taktik ipucu + iki adım düğmesi (`setHostGameMode`, `GAME_ORDER` sırası). Oyun değişimi TEK fonksiyondan geçer (`setHostGameMode`: relay + `lobby:game` olayı); görünüm yalnız dinler. Lobide bölüm anahtarı, dikey sayfa akışı ve yatay track yoktur — iki sütun × iki satır tek düzen her boyutta kaydırmasız çalışır. Lobinin altındaki koyu ray (`--lobby-rail`) zorunludur: sahnenin en aydınlık yerinde saydam yüzey + açık metin okunmuyor.
-- **Üst şerit ve dikey BANT KALKTI; kalıcı gezinme üç YÜZEN butondur (bant/yüzey YASAK — kullanıcı kararı):** solda, ekrana DIKEY ORTALANMIŞ halde alt alta yalnız `ANASAYFA / OYUNLAR / KARAKTER` yüzükleri sahnenin üstünde yüzer (ikon + mini etiket; kısa ekranda yalnız ikon); zemin bandı, kenarlık şeridi veya tam yükseklik ray YÜZEYİ çizmek yasaktır. Marka (`#shell-home`: ikon + `BRUTAL PARTY` yazısı, `PARTY` aksan renginde) SOL ÜSTTE yüzer ve `goHome()` çalıştırır; ses/dil/tam ekran/ayarlar simgeleri sağ üst köşede TEK YATAY SATIRDA yüzer; platform rozeti kaldırıldı. "Nereye girdiysem ana menüye dön" işi bu gezinmenin ilk girdisinin işidir; `goHome()` yığını köke indirir ve `onLobbyExit` ile odayı kapatır. Kalıcı olmayan görünümler (`rail: null` — oda, lobi) gezinmede görünmez; sıra `rail.order` ile belirlenir. `chrome:'none'` (lobi) gezinmeyi ve köşe kümesini de gizler. `#shell-back`/`#shell-topbar` markup'ı silinmiştir — geri düğmesi ve üst şerit eklemek yasaktır. Escape / donanım geri tuşu / tarayıcı history'si yine `back()` çalıştırır.
-- **Sayfa akışı yasaktır:** dikey `overflow-y: auto` yalnız `index.html`'de kalan tek lobi/ayar panelinde geçerlidir; shell ekranlarında sığmayan içerik ya `[data-h-track]` yatay track'inde sayfalanır ya da kendi içinde kapsüllenmiş bir scroller'a girer. Konsol düzeni odakla gezinilir (`focusRouter`), sayfa scrollbar'ıyla değil.
-- Mobil: `portrait` + `landscape` desteklenir, `overflow-x` yasak, dokunmatiklerde `touch-action` zorunlu. App geneli **landscape kilitlidir**; telefonda dikeyde rotate gate (`#app-rotate-gate`) gösterilir.
-- **Sonuç yüzeyi tek dildedir (tur bandı, final kartı, kumanda sonuç ekranı):** panel primitifleri `src/ui/resultPanel.js`'tedir (`drawResultPanel`/`dimBehindPanel`/`resultPanelRadius`/`uiTextScale`) — koyu gradyan panel + radius + katmanlı yumuşak gölge + tek ince `--result-card-edge` kenar, `--result-*` mürekkep ailesi. Krem kart + 3px `--ink` çerçeve + ofsetli sert gölge YAZILMAZ; sahanın kreminde kayboluyor ve uygulamanın koyu yüzey dilinden kopuyordu (kullanıcı: "çok demode"). `uiTextScale` arayüz yazısını **asla 1.0'ın altına düşürmez** (UI_TEXT kademeleri telefon referansıdır; profil ölçeğinin 0.72'ye inmesi saha varlığı içindir).
-- **Final kartı içerikten türer:** `hud.js → layoutMatchOverCard(arena, { rowCount, actionCount })` saf düzen fonksiyonudur, `renderMatchOver` yalnız çizer ve **kart kutusunu döndürür**. Sabit yükseklik yasak (eski 230 px: telefonda satır↔buton boşluğu 8 px'e iniyor, 5. satır butona biniyordu). Eylem butonu ≥ `UI_SIZES.finalBtnHMin` (44 px dokunma tabanı; eski 33-39 px), iki eylem sığmazsa alt alta. En-boy ≥ `finalSplitAspect` yüzeyde kart İKİ SÜTUN: solda kazanan (avatar üstte, ad altta — yan yana koyunca 12 karakterlik isim 568 px'lik yatay telefona sığmıyor), sağda sıralama + eylemler. Doğal yükseklik sahayı aşarsa birim ölçek geri çekilip kutu yeniden kurulur (üstten/alttan kırpılma yerine).
-- **Sıralama verisi deklaratiftir:** motorlar `matchOverRows: [{ color, name, value, score }]` verir — kopya metin (`"${name}: ${score}★"`) kartta bir daha biçimlendirilmez. `score` sayısal sıralama anahtarıdır: her satır taşıyorsa kart listeyi kendisi dizer ve rütbeyi basar; taşımıyorsa rütbe sütunu hiç çizilmez (koltuk sırasıyla üretilen listede "1" uydurmak olmaz). Kazanan adı `drawGameAvatar` + altın vurgu ile çizilir; metin sığmıyorsa öncesinde punto düşürülür, yetmezse `…` ile budanır (canvas `fillText` `maxWidth`'ü glifleri inceltir — kullanılmaz).
-- **Maç sonu iki eylemlidir:** YENİDEN OYNA + LOBİYE DÖN (`onLobby`). Ağ modunda lobi kabuğundur: motor `BaseGame.requestReturnToLobby()` ile `brutal_return_to_lobby` olayı yayınlar, kararı `main.js → returnHostToLobby()` verir; LOCAL'de lobi motorun kendi LOBBY state'idir (`resetMatch()`). `touchFlow.matchOverRestartTap` kart KUTUSU İÇİNE düşen dokunuşta yeniden başlatmaz — iki eylemli kartta bu, lobiye niyetli teması çalardı.
-- **Kumanda tam ekran sonucu landscape-first'tir:** `gamepad.css` içinde `.gamepad-result` için `@media (orientation: landscape)` dalı vardır (lead + board iki sütun). Dikey merkezleme `justify-content: center` ile DEĞİL, sütunların `margin-block: auto`su ile kurulur: merkezilmiş taşan içerik `#gamepad-overlay { overflow: hidden }` içinde üstten VE alttan kırpılıyor (ölçüldü: 844×390 → 26 px, 667×375 → 41 px taşma; tek dikey sütun 376 px tutuyordu).
-- Motion: `src/ui/motion.js` (`prefersReducedMotion`, `motionScale`) + tokenlar (`src/ui/tokens.js`) tek kaynaktır; yeni UI bu iki dosyadan sızar, lokal stil tanımlamaz. Temel UI hissi global kurala uyar (kısa fade/press, kuru pop-in yok).
-- İkonografi: Butonlarda ve UI'da ham OS emojileri yerine tek kaynak `src/core/tabletopIcons.js` (`getTabletopIconSvg` / `drawTabletopIcon`) kullanılır. Kumanda aksiyon tuşlarında metin başlığı olmaz; ortalanmış, büyük ve net Lucide SVG ikonu yer alır.
+`Lobi (modal) → SAHAYA GEÇ (staging) → 3-2-1 sayaç (kilitli) → oyun → LOBİYE DÖN (oda kapanmaz)`. Modal açıkken canvas tap motora düşmez; staging'de düşer.
 
-## 8. Yasaklar
+## 8. UI Kuralları (özet)
 
-- `main.js` / `gamepad.js` içine moda özel `if/else` zinciri veya imperatif mount fonksiyonu ekleme — `src/controllers/gamepadSchemas.js` + `CARTRIDGES[MOD].schema` kullan.
-- Motora `src/core/` ortak yardımcı mantığını kopyalama / yeniden yazma (inputMaps, touchFlow, physics2d, pickupSystem, arenaKit/buildLayout, fieldKit/drawField, playerEntity, avatarInGame, tabletopIcons) — tek kaynak `src/core/`'dur.
-- **Saha zemini/duvarını motor `render()`'ında yeniden çizme** — `fieldKit.drawField(ctx, arena, { mode, seed })` çağrılır. Zemin dolgusu + ızgara + çerçeve + köşe plakası + duvar konturu yazan ikinci bir yol kalıyorsa bu bir regresyondur (`tests/fieldKit.test.mjs` paket alanlarını, `pxConstants` ölçeklemesini, tema sözleşmesini ve bake maliyet tavanını kilitler).
-- **Arenanın dışını (viewport kenar boşluğunu) motora ham krem dolgu olarak bırakma** — sahanın çevresi `fieldKit.paintBackdrop(ctx, viewport, arena, { mode })`'tır. "Bembeyaz ekran" hissinin en az yarısı arenanın etrafındaki dev düz `#F4F0EA`/`#F4F4F0` bandıdır; 23 ayrı `fillRect` çağrı noktası tek çağrıya iner.
-- **Zemini koyulaştırarak kontrast aramak** — L\* bütçesi §3'te. Krem ailede ışık şiddeti rampası P3 sarısını (`#FFD24A`, L\* 85.9) zemine gömer; ölçülen başarısızlık `floorLow: #E6DDCC` ile **ΔL\* = 0** idi. Ayrışma ihtiyacı zeminden değil varlığın **altındaki temas gölgesinden ve koyu kromdan** karşılanır.
-- **Oynarken sürekli chrome çizme (mobil yatay):** kompakt yatayda (`isCompactLandscape(w,h)`) saha üst payı ~3px olduğu için `arena.top`'a konumlanan sabit panel/şerit sahanın içine düşer. `renderControlGuide(..., { duringPlay: true })` bu durumda çizmez; yardım/ayar tek butonun açtığı mola panelinde yaşar (`renderPauseControls`, ikon-only + klavye tuş yazısı). HUD yerleşim kararları `isCompactLandscape` üzerinden tek yerden verilir.
-- Kumanda veya canvas UI'a ham OS emojisi yazma — `src/core/tabletopIcons.js` kullan.
-- **DOM UI'a ham OS emojisi yazma** (ayarlar sheet'i, katılım sheet'i, profil, lobi dahil) — `tabletopIcons.js` + `src/ui/iconSlots.js` (`hydrateIconSlots`) kullan. Statik markup'ta ikonu `data-icon="<ad>"` ile işaretle, metin i18n sözlüğüne gömme.
-- **TEPKI YÜZEYİ İSTİSNASI (kullanıcı kararı):** tepki gönderme yüzeyi (`src/core/reactions.js` → `src/styles/reactions.css`) gerçek emoji gösterir; vektörel ikon değil. İstisna **yalnız görsel yüzeye** aittir:
-  - Tel (wire) yine de ASCII anahtar taşır (`emoji: 'flame'`); sunucu/istemci beyaz listesi ve hız kapısı bozulmaz — istisna ağda değil, ekranda.
-  - Emoji glyph'ı tek kaynaktan (`reactionGlyph`) gelir; statik markup'ta `data-reaction-glyph="<key>"` yalnız **yeri** işaretler (`reactionPicker.ensureReactionTriggers` doldurur), dosyalara emoji serpiştirmek yasaktır.
-  - Emoji font stack'i `reactions.css` içinde tek yerde tanımlıdır; balonun kenar/P etiketi rengi `reactionColorOf` ile gelir.
-- State'i iki yerde tutma (TV listesi ↔ relay tablosu çakışırsa relay kazanır).
-- Kumandaya oyun simülasyonu, motora ağ kodu koyma.
-- Çok gerekmedikçe yeni `*.md` dosyası oluşturma. Mevcut `AGENTS.md` + `docs/PROJECT_MAP.md` yeterlidir; yapı/protokol değişince ikisi de güncellenir. Yeni döküman şartsa kullanıcıya sor.
-- **Doğal ve hedefe yönelik okuma:** Belirli bir sembol veya fonksiyon aranırken önce `grep_search` ile hedefe odaklanılır; ancak mimari akışı, dosya yapısını veya stilleri doğru anlamak gerektiğinde tam dosya veya geniş blok okumaktan çekinilmez. Yapay satır sınırlaması veya okuma yasağı yoktur; gereksiz devasa dosyalar (bundle, lockfile, dev loglar) bağlama dökülmez.
+- Renk sözlüğü `src/styles/tokens.css` + `src/ui/tokens.js` (birlikte güncellenir). `src/**/*.css`'te ham renk literali ve tanımsız `var()` yasak (`scripts/token-lint.mjs`). Koyu yüzey + krem saha (`data-theme="field"`); kenar `--edge`, doygun dolgu yazısı `--on-accent`.
+- Overlay tek sahip `src/ui/overlayHost.js` (`openOverlay/closeOverlay`). Modal `src/ui/` altındadır; görünüm `src/ui/views/` + `registerView` ile eklenir, `main.js`/`gamepad.js`'e ekran dalı yazılmaz.
+- Kabuk `src/ui/appShell.js`: view stack, geri/Escape, rotate gate, üç yüzen gezinme (ANASAYFA/OYUNLAR/KARAKTER). Üst şerit/bant/geri düğmesi yasak. Sayfa akışı yasak (dikey scroll yalnız lobi/ayar panelinde).
+- Sahne dili `src/styles/scene.css` + `.scene-btn` (`is-gold/is-teal/is-ghost`); sahneye ikinci panel/başlık/kart çerçevesi yok.
+- Sonuç yüzeyi `src/ui/resultPanel.js` + `hud.js layoutMatchOverCard` (içerikten türeyen kart, sabit yükseklik yok, ≥44 px buton). Satırlar deklaratif `matchOverRows`; rütbe yalnız `score` varsa basılır.
+- İkon tek kaynak `src/core/tabletopIcons.js` + `iconSlots.js` (`data-icon`); kumanda aksiyonu ikon-only. Ham OS emojisi yasak — tek istisna tepki yüzeyi (`reactions.js` → glyph + `reactionGlyph`, tel değeri ASCII anahtar).
+- Motion `src/ui/motion.js` + tokenlar; `transform`/`opacity` dışı animasyon yok, `prefers-reduced-motion`'a uyulur.
 
-## 9. Yeni Oyun Ekleme Checklist'i
+## 9. Yasaklar
 
-Motor sözleşmesi (madde 3) +:
+- Çekirdeğe moda/ekrana özel dal; `src/core` mantığını motora kopyalama; `drawField`/`paintBackdrop` dışı zemin/çevre çizimi; state'i iki yerde tutma; kumandada simülasyon / motorda ağ kodu; ham renk/emoji (tepki glifi hariç); ikinci overlay/sekme/ikon/tepki uygulaması; gereksiz `*.md`.
+- Okuma: hedefe `grep` ile git, mimari gerektiriyorsa tam dosya oku; bundle/lock/log'u bağlama dökme.
 
-- [ ] `src/games/[oyun].js` (varlık alanları farklıysa `syncSlotsToEngine` içine dal ekle)
-  - [ ] **Lokal Lobi:** Canvas üzerinde 4 köşe slot kartı (`uiButtons` -> `cycleSlotType`) ve merkez `▶ MAÇI BAŞLAT` (`startNewMatch`)
-  - [ ] **Lokal Kontroller:** 4 slot klavye eşlemesi (WASD, Oklar, IJKL, TFGH) + dokunmatik 360° yüzen joystick
-  - [ ] **Kontrol Rehberi:** `renderControlGuide` çağrısı
-- [ ] `src/ai/[oyun]AI.js` (bot karar motoru)
-- [ ] `GAME_ORDER` + 1 satır `registerEngine` (`src/core/engineRegistry.js` & `src/main.js`)
-- [ ] `src/controllers/gamepadSchemas.js` → `GAMEPAD_SCHEMAS[MOD]` deklaratif şeması
-- [ ] `index.html` → bento kartı (`id="btn-select-[mod]"`, küçük harf) + TV lobi çipi + kumanda önizlemesi
-- [ ] Madde 10'daki formülle `public/assets/games/[oyun].webp` (1:1, optimize)
-- [ ] `docs/PROJECT_MAP.md` motor tablosu ve dosya listesi güncellemesi
-- [ ] `npm run check` ve `npm run build` temiz + kalıntı taraması (`else if (mode ===` dönmemeli)
+## 10. Yeni Oyun (özet)
 
-## 10. Oyun Görseli Üretim Formülü
-
-```
-Ultra-minimalist 3D isometric illustration of [OYUN NESNELERİ/KONSEPT], floating on a clean square platform
-with subtle thickness, stylized low-poly matte smooth surfaces, soft studio key lighting from top-left,
-gentle ambient occlusion, subtle crisp drop shadow on warm cream background (#f4f4f0),
-modern neo-brutalist game icon aesthetic, clean geometry, no text, no watermark, 1:1 aspect ratio.
-```
-
-Kurallar: metin/logo/filigran/yüz yok; 1:1 (512/1024px, sıkıştırılmış JPEG/WebP); kullanıldığı 3 yer — menü bento kartı, TV lobi çipi, kumanda lobi önizlemesi. (Eski 6 oyunun birebir promptları git geçmişindedir, buraya kopyalanmaz.)
+`src/games/[oyun].js` (sözleşme + lokal lobi/klavye/joystick/rehber) + `src/ai/[oyun]AI.js` + registry kaydı + `gamepadSchemas.js` şeması + `index.html` bento/çip/önizleme + `public/assets/games/[oyun].webp` (maddedeki formül, 1:1) + PROJECT_MAP satırı. Detay PROJECT_MAP §6'dadır.
 
 ## 11. Doğrulama
 
-- `npm run check` (`tsc --noEmit`) hatasız geçmeli.
-- `npm run build` hatasız geçmeli.
-- Davranış değişikliğinde 3 prova: (a) hazır→lobi dönüşü bayrakları, (b) koltuk takasında TV+kumanda isimleri, (c) bot ekle/çıkar görünürlüğü.
-- Commit mesajı kısa ve Türkçe/İngilizce karışık mevcut stile uygun; push yalnızca kullanıcı isterse.
+- `npm run check` ve `npm run build` temiz. Davranış değişikliğinde 3 prova: hazır→lobi bayrakları, koltuk takasında TV+kumanda isimleri, bot ekle/çıkar görünürlüğü.
+- Push yalnız kullanıcı isterse.

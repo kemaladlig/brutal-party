@@ -149,3 +149,16 @@ test('backdrop cache key is quantized like the field layer', () => {
   // ileride yine ayrışır).
   assert.match(kit, /const q = quantize2/, 'saha katmanı ayrı bir kova yazmış');
 });
+
+// AGENTS §4: karar arena uzayında verilir, pencerenin değil. Kompakt yatay
+// eşiği `window.innerWidth/Height`'a verilirse HUD, payı üreten computePlayfield
+// ile ayrışır ve kontrol kılavuzu sahaya biner. Bu yüzden yasak repo-geneli:
+// isim listesini iki dosyayla sınırlayan bir tarama, üçüncü bir çağrı açılınca
+// sessizce geçer.
+test('isCompactLandscape is only ever asked about the arena, never the window', () => {
+  const offenders = [];
+  for (const file of SRC_JS) {
+    if (/isCompactLandscape\s*\(\s*window\./.test(codeOf(file))) offenders.push(file);
+  }
+  assert.deepEqual(offenders, [], `isCompactLandscape(window...) — karar arena uzayında verilir: ${offenders.join(', ')}`);
+});

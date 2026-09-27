@@ -8,6 +8,7 @@ import { t } from '../i18n.js';
 import { renderSpatialBadge, renderRoundBanner } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { createPongWorldPacket, drawPongArena } from './pongView.js';
 import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
 import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
@@ -151,18 +152,20 @@ export class Game extends BaseMiniGame {
   }
 
   initKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      if (!this.isLocalInputActive) return;
-      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) {
-        e.preventDefault();
-      }
-      this.keys[e.code] = true;
-      // Aksiyon tuşları: 🌀 falso (basımda bir kez) — Space/Enter/O/B
-      const spinSlot = slotForActionCode(e.code);
-      if (spinSlot !== -1) this.triggerSpin(spinSlot);
-    });
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.code] = false;
+    bindKeyboard(this, {
+      keydown: (e) => {
+        if (!this.isLocalInputActive) return;
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) {
+          e.preventDefault();
+        }
+        this.keys[e.code] = true;
+        // Aksiyon tuşları: 🌀 falso (basımda bir kez) — Space/Enter/O/B
+        const spinSlot = slotForActionCode(e.code);
+        if (spinSlot !== -1) this.triggerSpin(spinSlot);
+      },
+      keyup: (e) => {
+        this.keys[e.code] = false;
+      },
     });
   }
 

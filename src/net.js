@@ -2,8 +2,18 @@
 // LOCAL modda network kullanılmaz (tek cihaz).
 
 import { partyNetwork } from './network.js';
-import { supabaseRelay } from './supabaseRelay.js';
 import { safeGet, safeSet } from './core/safeStorage.js';
+
+// Supabase relay'i ve SDK'sı İLK YÜKTE GELMEZ: `supabaseRelay.js` dinamik
+// import'tur (SDK ~227 kB). LOCAL/TV_CONSOLE hiç indirmez; ONLINE ya da public
+// origin'de oda kurulmadan hemen önce `ensureActiveNetwork()` ile yüklenir.
+// Bu yüzden relay gereken dalda `getActiveNetwork()` senkron YETERSİZDİR —
+// oda kuran iki yol (`openHostLobby` / `executeJoin`) önce `ensureActiveNetwork`
+// bekler, o noktadan sonra kimlik karşılaştırmaları güvenlidir.
+//
+// Live binding: yüklendikçe dolan singleton (import edenler güncel değeri görür).
+export let supabaseRelay = null;
+let relayLoad = null;
 
 export const PUBLIC_URL = (
   import.meta.env.VITE_PUBLIC_URL ||
@@ -41,20 +51,58 @@ export function isPublicOrigin() {
   }
 }
 
+/** Bu modda/o origin'de Supabase relay'i gerekiyor mu? */
+export function relayRequired(platformMode) {
+  if (!HAS_SUPABASE_CONFIG) return false;
+  return isPublicOrigin() || isOnlineMode(platformMode);
+}
+
+/** Relay modülünü yükler (tek sefer; eşzamanlı istekler tek promise'i paylaşır). */
+export function loadSupabaseRelay() {
+  if (supabaseRelay) return Promise.resolve(supabaseRelay);
+  if (!relayLoad) {
+    relayLoad = import('./supabaseRelay.js')
+      .then((mod) => {
+        supabaseRelay = mod.supabaseRelay;
+        return supabaseRelay;
+      })
+      .catch((err) => {
+        // Hata durumu temizlenir; sonraki deneme yeniden yüklemeyi dener.
+        relayLoad = null;
+        throw err;
+      });
+  }
+  return relayLoad;
+}
+
+export function isSupabaseRelayLoaded() {
+  return supabaseRelay !== null;
+}
+
+/**
+ * Oda kurmadan/hayata katılmadan hemen önce çağrılır: gerekiyorsa relay'i
+ * yükler ve oda kuracak ağ nesnesini döndürür. Bundan sonra
+ * `getActiveNetwork()` senkron olarak doğru ağı verir.
+ */
+export async function ensureActiveNetwork(platformMode) {
+  if (relayRequired(platformMode)) await loadSupabaseRelay();
+  return getActiveNetwork(platformMode);
+}
+
 /** Aktif platforma göre kullanılacak network singleton'ını döndürür. */
 export function getActiveNetwork(platformMode) {
   // Public sitede (Vercel, PWA vb.) yerel Node.js WS sunucusu bulunmaz;
   // bu yüzden Supabase tanımlıysa TV_CONSOLE ve ONLINE modu Supabase Broadcast üzerinden çalışır.
-  if (isPublicOrigin() && HAS_SUPABASE_CONFIG) {
-    return supabaseRelay;
-  }
-  return isOnlineMode(platformMode) && HAS_SUPABASE_CONFIG ? supabaseRelay : partyNetwork;
+  if (relayRequired(platformMode) && supabaseRelay) return supabaseRelay;
+  return partyNetwork;
 }
 
 /** Kullanılmayan tarafı sessizce kapatır (mod değişiminde hayalet bağlantı kalmasın). */
 export function disconnectInactiveNetwork(platformMode) {
   const active = getActiveNetwork(platformMode);
   const inactive = active === supabaseRelay ? partyNetwork : supabaseRelay;
+  // Relay henüz yüklenmediyse kapatılacak bir relay bağlantısı da yoktur.
+  if (!inactive) return;
   try {
     inactive.disconnect();
   } catch {
@@ -62,7 +110,7 @@ export function disconnectInactiveNetwork(platformMode) {
   }
 }
 
-export { partyNetwork, supabaseRelay };
+export { partyNetwork };
 
 const PLAYER_NAME_KEY = 'brutal-party-player-name';
 
