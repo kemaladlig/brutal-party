@@ -142,6 +142,41 @@
   50%      { box-shadow: 0 8px 0 var(--play-edge), 0 18px 32px var(--scene-shadow), 0 0 50px var(--glow-accent-soft); }
 }
 
+/* ── KURULUM düğmesi — "beni yükle" nabzı ───────────────────────────────
+   `.available` yalnız kurulum GERÇEKTEN yapılabilirken basılır
+   (`ui/toast.js`: Chrome istemi hazır, ya da iOS'ta Ana Ekran'a Ekle
+   açık). Döngü 2.6 sn'dir ve çevrimin çoğunda düğme durur — kalıcı
+   titreme değil, arada bir göz kırpan bir davet.
+
+   Hareket `translate` BİREYİ özelliğiyle yazılır: kabuğun
+   `[data-focus].is-focused { transform: scale(...) }` kuralı `transform`
+   animasyonunu ezer (bu dosyanın başındaki uyarı), `translate` ise onunla
+   çarpışmadan üstüne biner. `prefers-reduced-motion` küresel olarak
+   `animations.css §9`'da söner; her iki anahtar kare de durdukları değerde
+   (translate 0, glow sönük) bittiği için sönme görüntü bozmaz. */
+.home-install.available {
+  animation: homeInstallBob 2.6s ease-in-out infinite;
+}
+
+.home-install.available:active {
+  animation: none;
+  translate: 0 0;
+  box-shadow: 0 9px 20px var(--scene-btn-shadow);
+}
+
+@keyframes homeInstallBob {
+  0%, 70%, 100% {
+    translate: 0 0;
+    box-shadow: 0 9px 20px var(--scene-btn-shadow);
+  }
+  78% {
+    translate: 0 -4px;
+    box-shadow: 0 13px 24px var(--scene-btn-shadow), 0 0 22px var(--glow-accent-soft);
+  }
+  86% { translate: 0 1px; }
+  92% { translate: 0 0; }
+}
+
 /* ── Sağ kenar: KODLA, altında KURULUM ──────────────────────────────────
    KODLA odaya katılır, KURULUM uygulamayı yükler. İkisi de yalnız uygulama
    yüklenebilir durumdayken görünür (`toast.js` `.hidden` ile yönetir);

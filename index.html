@@ -16,6 +16,17 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <!-- iOS ana ekranı SVG `rel=icon`'ı GÖRMEZ: simge sağlıksız düşer ve Apple
+         ekran görüntüsü kutusu kullanır. PNG + bu bağlantı zorunlu. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/icon-512.png" />
+    <!-- Kritik boyama: `style.css` → `tokens.css` iki bloklayan tur atlıyor ve
+         Google Fonts bir üçüncü. Onlar çözülene dek ekran UA beyazı kalıyordu —
+         kurulmuş uygulamada "beyaz flaş" tam olarak buysa. Değer `--surface`
+         (`styles/tokens.css`) ve `manifest.webmanifest` background_color ile
+         AYNI olmalıdır; üçü birden güncellenir. -->
+    <style>
+      html, body { margin: 0; padding: 0; background-color: #14101F; }
+    </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -565,6 +576,20 @@
 
     <!-- Kalıcı bağlantı durum bandı: offline/reconnecting süresince görünür -->
     <div id="connection-banner" class="connection-banner" role="alert" aria-live="assertive"></div>
+
+    <!-- MARKALI AÇILIŞ — JS GEREKTİRMEZ. Yalnız markup + CSS'tir; modül grafı
+         indirilip `mountAppShell()` çalışana kadar ekranı o tutar, yoksa
+         kullanıcı çırılçıplak koyu bir yüzeye bakardı. `html.is-booted`
+         kabuk ilk açığa çıkışında ekilir (`appShell.revealAppShell`) ve BİR
+         DAHA KALKMAZ — oyun ekranında katmanın geri gelmemesi bu yüzdendir.
+         Kompozisyon native splash ile aynıdır (`android/.../drawable/splash`):
+         kurulu uygulamada tek kesintisiz açılış hissedilsin. -->
+      <div id="app-boot" class="app-boot">
+        <div class="app-boot-mark">BRUTAL <span>PARTY</span></div>
+        <div class="app-boot-stage" aria-hidden="true"></div>
+        <div class="app-boot-ring" aria-hidden="true"></div>
+        <span class="app-boot-label" data-i18n="shell.boot">Yükleniyor</span>
+      </div>
 
     <script type="module" src="/src/main.js"></script>
     </div> <!-- #app -->

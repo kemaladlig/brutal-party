@@ -17,10 +17,20 @@ export function isStandaloneApp() {
   return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 }
 
+/** iOS'un kendi kurulum akışı var (Paylaş → Ana Ekrana Ekle), ama
+ *  `beforeinstallprompt` olayı HİÇ üretilmez — kurulum yolu orada farklıdır. */
+export function isIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
 export function updateInstallButtonVisibility() {
   const standalone = isStandaloneApp();
+  // `.available` = "kurulum ŞU AN yapılabilir". Chrome/Android'de bunu gerçek
+  // `beforeinstallprompt` basılır; iOS'ta ise düğme elle akışa gider. Simge
+  // nabzı (`styles/home.css`) bu sınıfa bağlıdır.
   document.querySelectorAll(INSTALL_SELECTOR).forEach((btn) => {
     btn.classList.toggle('hidden', standalone);
+    if (!standalone && isIOS()) btn.classList.add('available');
   });
 }
 
@@ -93,8 +103,7 @@ export function initToastAndInstall() {
       return;
     }
 
-    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    showInstallToast(isIos ? t('pwa.ios') : t('pwa.other'));
+    showInstallToast(isIOS() ? t('pwa.ios') : t('pwa.other'));
   });
 
   window.addEventListener('appinstalled', () => {

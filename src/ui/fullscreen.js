@@ -115,6 +115,19 @@ export function requestMatchFullscreen() {
   return true;
 }
 
+/**
+ * Sekme/uygulama dönüşünde tam ekranı YENİDEN iste. Koşul burada, çünkü krom
+ * NİYETİNİN sahibi burasıdır: uygulama bu sekmede kendisi almış olmalı ve
+ * kullanıcı bırakmamış olmalı. `visibilitychange` bir kullanıcı jesti değildir;
+ * masaüstü/TV'de tarayıcı izin vermese de denemeyi gereksiz kılan asıl sebep,
+ * kullanıcının bırakma hakkıdır.
+ */
+export function resumeMatchFullscreen() {
+  if (!shouldOfferFullscreen() || !matchFullscreenEngaged() || isFullscreen()) return false;
+  requestFullscreen();
+  return true;
+}
+
 export function toggleFullscreen(showToast = true) {
   const active = isFullscreen();
   if (active) {

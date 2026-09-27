@@ -338,3 +338,78 @@
   .shell-btn { min-height: 38px; padding: 0 15px; font-size: 12px; }
   .shell-btn-sm { min-height: 32px; }
 }
+
+/* ── Markalı açılış katmanı ───────────────────────────────────────────────
+   JS GEREKTİRMEZ: markup + CSS'tir, modül grafı inip kabuk açığa çıkana kadar
+   ekranı bu tutar. `html.is-booted` ilk açılışta ekilir ve BİR DAHA KALKMAZ
+   (`appShell.revealAppShell`) — oyun ekranında katmanın geri gelmemesi bu
+   yüzden `is-revealed` değil kalıcı bir sınıfa bağlıdır. z-index rotate
+   gate'in (400) üstündedir. */
+
+.app-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 18px;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px))
+           max(24px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
+  background: var(--grad-surface);
+  color: var(--ink);
+  font-family: var(--font-grotesk);
+  text-align: center;
+  transition: opacity 260ms ease, visibility 0s linear 260ms;
+}
+
+.app-boot-mark {
+  font: 900 clamp(26px, 6vw, 54px)/1 var(--font-grotesk);
+  letter-spacing: 0.08em;
+}
+
+.app-boot-mark span {
+  color: var(--accent);
+}
+
+/* Zemin çizgisi — sahnenin turuncu platform dilinin en yalın hali. */
+.app-boot-stage {
+  width: min(58vw, 340px);
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  box-shadow: var(--glow-accent);
+}
+
+.app-boot-ring {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid var(--edge);
+  border-top-color: var(--accent);
+  animation: appBootSpin 900ms linear infinite;
+}
+
+.app-boot-label {
+  font: 700 11px/1 var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+@keyframes appBootSpin {
+  to { transform: rotate(360deg); }
+}
+
+html.is-booted .app-boot {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Nabız durur, katman yine de kalkar: geçiş yok, anında gizli. */
+  .app-boot { transition: none; }
+  .app-boot-ring { animation: none; }
+  html.is-booted .app-boot { visibility: hidden; }
+}

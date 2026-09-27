@@ -498,6 +498,7 @@ export const EN = {
   // ── App Shell ──
   'shell.rotateTitle': 'ROTATE YOUR DEVICE',
   'shell.rotateHint': 'This game is played in landscape.',
+  'shell.boot': 'Loading',
   'shell.home.tagline': '4 players · 15 games · one party',
   'shell.playNow': 'PLAY',
   'shell.play.pick': '15 GAMES · 2-4 PLAYERS',

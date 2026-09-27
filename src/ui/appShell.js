@@ -16,9 +16,8 @@ import { isTouchDevice } from './tokens.js';
 import { prefersReducedMotion } from './motion.js';
 import { toggleAudio, getIsMuted, playMenuTick } from '../audio.js';
 import {
-  isFullscreen, requestFullscreen, toggleFullscreen, onFullscreenChange,
-  fullscreenOfferable, requestMatchFullscreen, shouldOfferFullscreen,
-  matchFullscreenEngaged,
+  isFullscreen, toggleFullscreen, onFullscreenChange,
+  fullscreenOfferable, requestMatchFullscreen, resumeMatchFullscreen,
 } from './fullscreen.js';
 import { isStandaloneApp } from './toast.js';
 import { getLang, setLang, onLangChange, t } from '../i18n.js';
@@ -414,7 +413,7 @@ export function beginMatchChrome() {
  */
 export function resumeMatchChrome() {
   lockLandscape();
-  if (shouldOfferFullscreen() && matchFullscreenEngaged() && !isFullscreen()) requestFullscreen();
+  resumeMatchFullscreen();
 }
 
 // ---------------------------------------------------------------------------
@@ -675,6 +674,10 @@ export function mountAppShell({ actions: injectedActions = {}, platformMode: mod
 export function revealAppShell() {
   if (!mounted || revealed) return;
   revealed = true;
+  // Markalı açılış katmanı kalıcı olarak kalkar. `is-revealed` DEĞİL: o bayrak
+  // oyuna geçince `hideAppShell()` tarafından geri alınıyor ve açılış ekranı
+  // maç ekranının üstüne geri binerdi.
+  document.documentElement.classList.add('is-booted');
   shellEl?.classList.remove('hidden');
   shellEl?.classList.add('is-revealed');
   setShellInputOwner('menu');

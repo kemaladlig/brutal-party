@@ -498,6 +498,7 @@ export const TR = {
   // ── App Shell ──
   'shell.rotateTitle': 'CİHAZINI YAN ÇEVİR',
   'shell.rotateHint': 'Bu oyun yatay ekranda oynanır.',
+  'shell.boot': 'Yükleniyor',
   'shell.home.tagline': '4 oyuncu · 15 oyun · tek parti',
   'shell.playNow': 'OYNA',
   'shell.play.pick': '15 OYUN · 2-4 OYUNCU',
