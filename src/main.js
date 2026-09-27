@@ -106,6 +106,9 @@ export function updatePlatformMode(newMode) {
   roomFlow.setConnectionWasDown(false);
   hideConnectionBanner();
   setShellPlatformMode(newMode);
+  // Platform modu yüzey kararının girdisidir (LOCAL/ONLINE host'u yerel
+  // oyuncudur); geçişte motor bayrakları ve DOM yüzeyi yeniden türetilir.
+  applyControlSurfacePreference();
   window.dispatchEvent(new CustomEvent('brutal_platform_mode_changed', { detail: { mode: platformMode } }));
 }
 
@@ -198,9 +201,12 @@ const inputRouter = new InputIntentRouter({
 
 // Oda akışı, üstteki kumanda/rotalar HAZIR olduktan SONRA kurulur: `deps`
 // kısayolları TDZ'de okunamaz (main.js'i bir daha yüklenemez yapıyordu).
+// Değişebilen tek bağımlılık olan platform modu FONKSİYON olarak verilir:
+// `createRoomFlow` deps'ı destructuring ile okur, dolayısıyla getter özelliği
+// bir kez kopyalanıp donardı (LOCAL'de hiç kontrol yüzeyi doğmuyordu).
 export const roomFlow = createRoomFlow({
   activeNet,
-  get platformMode() { return platformMode; },
+  getPlatformMode: () => platformMode,
   updatePlatformMode,
   canvas,
   onNetworkReaction,
@@ -311,8 +317,11 @@ function addTapListener(el, callback) {
 }
 
 
-let localMobileControlsActive = false;
 let lastLocalControlSyncAt = 0;
+// Görünürlüğün TEK kaynağı overlay'in `hidden` sınıfıdır (`GamepadManager.hide`
+// / `initLocal` yazar); ikinci bir boolean bayrak bayat kalıp yüzeyi bir daha
+// açılmamak üzere kapatabiliyordu.
+const localMobileControlsVisible = () => !localMobileOverlay.classList.contains('hidden');
 
 function getLocalControlSlot(engine = getActiveGameEngine()) {
   if (roomFlow.getHostPlayerActive() && roomFlow.getHostPlayerSlot() !== null) return roomFlow.getHostPlayerSlot();
@@ -334,7 +343,7 @@ function syncLocalMobileControls(now = performance.now()) {
     && !getIsPaused();
 
   if (shouldShow && (
-    !localMobileControlsActive
+    !localMobileControlsVisible()
     || localGamepadManager.gameMode !== roomFlow.getCurrentMode()
     || localGamepadManager.playerIndex !== localSlot
   )) {
@@ -344,15 +353,13 @@ function syncLocalMobileControls(now = performance.now()) {
       name: ensureStoredNick(),
       color: localColors[localSlot] || UI_COLORS.players[localSlot] || '#D84727',
     }, roomFlow.getCurrentMode());
-    localMobileControlsActive = true;
     lastLocalControlSyncAt = 0;
-  } else if (!shouldShow && localMobileControlsActive) {
+  } else if (!shouldShow && localMobileControlsVisible()) {
     localGamepadManager.hide();
-    localMobileControlsActive = false;
     lastLocalControlSyncAt = 0;
   }
 
-  if (!localMobileControlsActive || now - lastLocalControlSyncAt < 125) return;
+  if (!localMobileControlsVisible() || now - lastLocalControlSyncAt < 125) return;
   const entry = getEngine(roomFlow.getCurrentMode());
   if (!entry || typeof entry.packet !== 'function') return;
   const packet = { ...entry.packet(), gameMode: roomFlow.getCurrentMode(), phase: roomFlow.roomPhase() };
@@ -389,7 +396,7 @@ function applyDevicePreferenceChange(prefs) {
   gamepadManager.resetPongInvert();
   localGamepadManager.resetPongInvert();
   if (gamepadManager.gameMode === 'PONG') gamepadManager.renderGameController('PONG');
-  if (localMobileControlsActive && localGamepadManager.gameMode === 'PONG') {
+  if (localMobileControlsVisible() && localGamepadManager.gameMode === 'PONG') {
     localGamepadManager.renderGameController('PONG');
   }
 }

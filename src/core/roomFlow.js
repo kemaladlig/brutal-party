@@ -16,7 +16,7 @@ import { acquireWakeLock, releaseWakeLock } from './wakeLock.js';
 
 export function createRoomFlow(deps) {
   const {
-    activeNet, platformMode, updatePlatformMode,
+    activeNet, getPlatformMode, updatePlatformMode,
     canvas, onNetworkReaction,
     touchManager, localGamepadManager, gamepadManager, inputRouter,
     inGameHud, btnQuickTvLobby, getActiveGameEngine, updateReactionButtons,
@@ -168,12 +168,12 @@ function onResumeAfterPause() {
 async function openHostLobby(gameMode = 'HORDE') {
   pendingHostSeatBeforeSwap = null;
   setCurrentHostGameMode(gameMode);
-  hostPlayerActive = platformMode === 'ONLINE';
+  hostPlayerActive = getPlatformMode() === 'ONLINE';
   hostPlayerSlot = hostPlayerActive ? 0 : null;
-  setHostPlayerButtonState(hostPlayerActive, platformMode);
+  setHostPlayerButtonState(hostPlayerActive, getPlatformMode());
   let hostAvatar = null;
   try { hostAvatar = getAvatarProfile(); } catch { hostAvatar = null; }
-  const hostIsPlayer = platformMode === 'ONLINE';
+  const hostIsPlayer = getPlatformMode() === 'ONLINE';
   const hostIdentity = {
     name: ensureStoredNick(),
     avatar: hostAvatar,
@@ -187,7 +187,7 @@ async function openHostLobby(gameMode = 'HORDE') {
   try {
     // ONLINE/public dalında relay modülü ilk yükte gelmez; oda kurulmadan
     // hemen önce burada yüklenir. Yükleme hatası bu catch'e düşer.
-    const net = await ensureActiveNetwork(platformMode);
+    const net = await ensureActiveNetwork(getPlatformMode());
     await net.hostRoom(gameMode, {
       onConnectionRestored: () => markConnectionRestored(),
       onHostPlayerState: (state) => {
@@ -195,9 +195,9 @@ async function openHostLobby(gameMode = 'HORDE') {
         if (state?.error) showInstallToast(t('toast.hostPlayerJoinFail'));
       },
       onRoomCreated: (roomCode) => {
-        const joinUrl = getEffectiveJoinUrl(roomCode, platformMode);
+        const joinUrl = getEffectiveJoinUrl(roomCode, getPlatformMode());
         showHostLobbyModal(roomCode, joinUrl);
-        startHostPingBadge(() => activeNet().ping, platformMode);
+        startHostPingBadge(() => activeNet().ping, getPlatformMode());
         setSeatTapHook();
         // LOCAL koltuk renkleri relay odasına sızmasın (gelen avatarlar yazar)
         for (let i = 0; i < 4; i++) {
@@ -206,7 +206,7 @@ async function openHostLobby(gameMode = 'HORDE') {
         }
         // ONLINE odada host cihaz aynı zamanda P1 oyuncusudur. TV_CONSOLE
         // host'un kendi P1'i ancak lobi düğmesiyle aktifleşir.
-        const hostState = platformMode === 'ONLINE'
+        const hostState = getPlatformMode() === 'ONLINE'
           ? activeNet().getHostPlayerState?.()
           : null;
         const onlineHostPlayer = hostState?.player || activeNet().players?.[0] || null;
@@ -440,7 +440,7 @@ function applyHostPlayerState(state = {}) {
 
   hostPlayerActive = active;
   hostPlayerSlot = slot;
-  setHostPlayerButtonState(active, platformMode);
+  setHostPlayerButtonState(active, getPlatformMode());
 
   if (active && slot !== null) {
     const player = state.player || getHostPlayerIdentity();
@@ -491,7 +491,7 @@ if (typeof window !== 'undefined') {
 }
 
 function toggleHostPlayer() {
-  if (platformMode !== 'TV_CONSOLE' || !activeNet().isHosting) return false;
+  if (getPlatformMode() !== 'TV_CONSOLE' || !activeNet().isHosting) return false;
   if (hostPlayerActive) {
     const result = activeNet().setHostPlayerActive?.(false);
     if (result === false) {
@@ -572,14 +572,14 @@ async function executeJoin(rawCode, rawName, requestedMode = null) {
   storePlayerName(name);
   showInstallToast(t('toast.joining', code));
 
-  disconnectInactiveNetwork(platformMode);
+  disconnectInactiveNetwork(getPlatformMode());
   let net = activeNet();
   gamepadManager.network = net;
 
   try {
     // ONLINE/public dalında relay modülü ilk yükte gelmez; katılmadan hemen
     // önce burada yüklenir. Yükleme hatası aşağıdaki catch'e düşer.
-    net = await ensureActiveNetwork(platformMode);
+    net = await ensureActiveNetwork(getPlatformMode());
     gamepadManager.network = net;
     let joinAvatar = null;
     try { joinAvatar = getAvatarProfile(); } catch { joinAvatar = null; }
@@ -869,9 +869,9 @@ function returnHostToLobby() {
   // kumandalar eski kanalda asılı kalıp STAGING_STARTED'i kaçırıyordu).
   const roomCode = activeNet().roomCode;
   if (roomCode) {
-    const joinUrl = getEffectiveJoinUrl(roomCode, platformMode);
+    const joinUrl = getEffectiveJoinUrl(roomCode, getPlatformMode());
     showHostLobbyModal(roomCode, joinUrl);
-    startHostPingBadge(() => activeNet().ping, platformMode);
+    startHostPingBadge(() => activeNet().ping, getPlatformMode());
     setSeatTapHook();
     refreshAllHostSlots();
   } else {
@@ -1075,8 +1075,8 @@ async function enterStaging(mode) {
   for (let i = 0; i < 4; i++) {
     const e = hostPlayerSlots[i];
     const currentHostSeat = getCurrentHostSeat();
-    const isReady = (platformMode === 'ONLINE' && hostPlayerActive && i === currentHostSeat)
-      || (platformMode === 'TV_CONSOLE' && hostPlayerActive && i === currentHostSeat);
+    const isReady = (getPlatformMode() === 'ONLINE' && hostPlayerActive && i === currentHostSeat)
+      || (getPlatformMode() === 'TV_CONSOLE' && hostPlayerActive && i === currentHostSeat);
     if (e) updateHostSlot(i, true, e.name, isReady, e.kind);
   }
   refreshStagingBar();
@@ -1194,7 +1194,7 @@ function getLocalControlMode() {
   return resolveLocalControlMode({
     isHosting: hosting,
     isLocalHostPlayer: hosting && hostPlayerActive && hostPlayerSlot !== null,
-    isLocalMode: platformMode === 'LOCAL',
+    isLocalMode: getPlatformMode() === 'LOCAL',
     localSlot: hostPlayerSlot,
   });
 }
