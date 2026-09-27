@@ -827,7 +827,7 @@ export class SnakeGame extends BaseMiniGame {
       matchOverHeadline: this.matchDraw ? t('game.draw') : t('snake.champ'),
       matchOverRows: this.players
         .filter((p) => p.isJoined)
-        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` })),
+        .map((p) => ({ color: p.color, name: p.name, value: `${this.scores[p.index] || 0}★`, score: this.scores[p.index] || 0 })),
       onSeatChange: (i) => {
         if (this.players[i]) {
           this.players[i].isJoined = this.isSlotJoined(i);

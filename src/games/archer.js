@@ -885,7 +885,9 @@ export class ArcherGame extends BaseMiniGame {
       matchOverHeadline: t('archer.champ'),
       matchOverRows: this.players.filter((p) => p.isJoined).map((p) => ({
         color: p.color,
-        text: `${p.name}: ${this.scores[p.index]}★ · ${this.roundWins[p.index]}R`,
+        name: p.name,
+        value: `${this.scores[p.index]}★ · ${this.roundWins[p.index]}R`,
+        score: this.scores[p.index],
       })),
       onSeatChange: (i) => {
         if (this.players[i]) {

@@ -1314,7 +1314,7 @@ export class TanksGame extends BaseMiniGame {
       matchOverHeadline: t('tanks.champ'),
       matchOverRows: this.tanks
         .filter((tank) => tank.isJoined)
-        .map((tank) => ({ color: tank.color, text: `${tank.name}: ${this.scores[tank.index] || 0}★` })),
+        .map((tank) => ({ color: tank.color, name: tank.name, value: `${this.scores[tank.index] || 0}★`, score: this.scores[tank.index] || 0 })),
       onSeatChange: (i) => {
         if (this.tanks[i]) {
           this.tanks[i].isJoined = this.isSlotJoined(i);

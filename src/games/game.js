@@ -756,7 +756,7 @@ export class Game extends BaseMiniGame {
       matchOverHeadline: t('game.champWon') || 'ŞAMPİYON',
       matchOverRows: this.paddles
          .filter((p) => p.isJoined)
-         .map((p) => ({ color: p.color, text: `${p.name}: ${this.setScores[p.index] || 0} SET` })),
+         .map((p) => ({ color: p.color, name: p.name, value: `${this.setScores[p.index] || 0} SET`, score: this.setScores[p.index] || 0 })),
       onRestart: () => {
         this.state = 'LOBBY';
         this.setScores = [0, 0, 0, 0];

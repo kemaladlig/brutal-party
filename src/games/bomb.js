@@ -973,7 +973,7 @@ export class BombGame extends BaseMiniGame {
       matchOverRows: this.matchWinner
         ? this.players
             .filter((p) => p.isJoined)
-            .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` }))
+            .map((p) => ({ color: p.color, name: p.name, value: `${this.scores[p.index] || 0}★`, score: this.scores[p.index] || 0 }))
         : [],
       onRestart: () => this.resetCurrentGame(),
       customControls: (c) => {

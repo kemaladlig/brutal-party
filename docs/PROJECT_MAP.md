@@ -33,6 +33,7 @@ src/controllers/
 src/gamepad.css             Kumanda stilleri (mobil ergonomi + canvas/control katmanları; üst bar kaldırıldı → yüzen çipler, lobi/skor/sayaç token'larla yeni sisteme)
 src/ui/gamepadWorldView.js  Generic client world-frame canvas: DPR, 3-8 snapshot jitter buffer, 60 Hz rAF sunum, seq/stale yönetimi
 src/ui/worldViewKit.js      World-view kromu (banner/placeholder/stale + fitWorld) — tüm renderer'lar tek kaynaktan
+src/ui/resultPanel.js       Sonuç yüzeyinin panel primitifleri: drawResultPanel / dimBehindPanel / resultPanelRadius / uiTextScale — tur bandı, final kartı ve kumanda bandı aynı dili konuşur (yalnız token import eder, kumanda paketi hud.js'i çekmez)
 src/ui/snakeWorldView.js    Client-only Snake world renderer; simülasyon/fizik çalıştırmaz
 src/ui/pongWorldView.js     Client-only Pong world renderer; simülasyon/fizik çalıştırmaz
 src/ui/raceWorldView.js     Client-only Race world renderer; simülasyon/fizik çalıştırmaz
@@ -445,7 +446,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
    * Canvas-içi koltuk kartları `src/controlGuide.js` içindeki `renderLobbySeatCard` + `getStandardSeatRects` (responsive kare, `min*0.22`, 96–148px, inset 20) + `renderLobbyStartButton` (min(220)x60, şartlı yazı) ile çizilir; ölçü/stil tüm motorlarda aynıdır.
    * Konum istisnası: PONG kenar-orta kullanır (ölçü yine standart kare). Davranış (cycle zinciri, tap hook, bot kuralları) motora aittir, helper sadece çizer.
 8. **Arayüz Sistemi (token → helper → erişilebilirlik):**
-   * `src/ui/tokens.js` (renk/tipografi/ölçü sözlüğü, CSS `:root` ile aynı değerler, `getDisplayProfile`, `shouldShowVirtualControls`) + `src/ui/hud.js` (`renderTopPill`, `renderAdaptiveScoreboard`, `renderEntityHUD`, `renderCornerScores`, `renderRoundBanner`, `renderMatchOver`) + `src/ui/motion.js` (`prefersReducedMotion`, `motionScale`, `pulse`).
+   * `src/ui/tokens.js` (renk/tipografi/ölçü sözlüğü, CSS `:root` ile aynı değerler, `getDisplayProfile`, `shouldShowVirtualControls`) + `src/ui/hud.js` (`renderTopPill`, `renderAdaptiveScoreboard`, `renderEntityHUD`, `renderCornerScores`, `renderRoundBanner`, `layoutMatchOverCard` + `renderMatchOver`) + `src/ui/resultPanel.js` (sonuç panelinin tek primitifi) + `src/ui/motion.js` (`prefersReducedMotion`, `motionScale`, `pulse`).
   * `getDisplayProfile` yalnız **UI** ölçeği (`baseUnit`/`safePadding`) üretir. Saha içi varlık ölçeği burada **değildir**: eski `entityScale` alanı hiçbir motor tarafından okunmadığı için kaldırıldı, yetkisi `playfield.js` → `arena.unit` + `fieldPx`/`fieldRadius`/`fieldSpeed` oldu.
    * Final state adı tektir: `MATCH_OVER` (PONG/BOMB/HEIST/CROWN `GAME_OVER` birleştirildi). DUEL fazları (`STANDOFF/TENSION/SIGNAL`) oyun mekaniğidir, korunur.
    * Oyuncu paleti tektir: `UI_COLORS.players` (DUEL kanonik palete bağlandı, TV↔kumanda eşleşir).

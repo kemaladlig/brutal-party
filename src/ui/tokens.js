@@ -327,20 +327,23 @@ export const UI_SIZES = {
   finalPad: 16,
   finalRowH: 30,
   finalRowGap: 6,
-  finalSectionGap: 8,
+  finalSectionGap: 12,
   finalLabelH: 14,
   finalNameH: 28,
-  finalLabelNameGap: 12,
+  finalLabelNameGap: 6,
+  finalHeroR: 26,
+  finalHeroRSplit: 30,
   finalBtnHMin: 44, // dokunma tabanı: altında isabetli basış sayılmaz
   finalBtnTall: 48,
   finalBtnMinW: 96,
   finalBtnGap: 10,
   finalCardW: 440,
   finalCardWSplit: 640,
-  finalCardMaxWidth: 0.92, // saha genişliğinin üst sınırı
-  finalCardMaxHeight: 0.94, // saha yüksekliğinin üst sınırı
-  finalLeadShare: 0.4, // iki sütunlu düzende kazanan sütununun payı
-  finalLeadMaxW: 240,
+  finalMaxWidthFraction: 0.92, // saha genişliğinin üst sınırı
+  finalMaxHeightFraction: 0.94, // saha yüksekliğinin üst sınırı
+  finalLeadShare: 0.42, // iki sütunlu düzende kazanan sütununun payı
+  finalLeadMaxW: 260,
+  finalTextMinRatio: 0.62, // ada/kopya sığmıyorsa puntonun inebileceği taban
   finalColGap: 18,
   finalRadiusMax: 26,
   finalSplitAspect: 1.55, // bu en-boy oranı ve üstünde kart iki sütuna geçer

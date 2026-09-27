@@ -1431,7 +1431,7 @@ export class ZoneGame extends BaseMiniGame {
       matchOverHeadline: t('zone.champ'),
       matchOverRows: this.players
         .filter((p) => p.isJoined)
-        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★ • %${this.pct[p.index]} • ${this.kills[p.index]}✂` })),
+        .map((p) => ({ color: p.color, name: p.name, value: `${this.scores[p.index] || 0}★ • %${this.pct[p.index]} • ${this.kills[p.index]}✂`, score: this.scores[p.index] || 0 })),
       onSeatChange: (i) => this.syncLobbySeat(i),
       onRestart: () => this.startNewMatch(),
     });

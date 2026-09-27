@@ -34,6 +34,8 @@ before(async () => {
     innerHeight: 720,
     addEventListener: noop,
     removeEventListener: noop,
+    // `requestReturnToLobby` ağ modunda pencere olayı yayınlar.
+    dispatchEvent: noop,
     AudioContext: null,
   };
   globalThis.document = {
@@ -128,17 +130,29 @@ test('repeated tied rounds end as an explicit match draw', () => {
   assert.equal(game.state, 'MATCH_OVER');
 });
 
-test('match-over rendering does not accumulate restart buttons', () => {
+test('match-over rendering does not accumulate action buttons', () => {
   const game = createGame();
   game.state = 'MATCH_OVER';
   game.matchWinner = game.players[0];
   game.render();
+  // Kart iki eylem taşır: YENİDEN OYNA + LOBİYE DÖN.
   const firstCount = game.uiButtons.length;
   game.render();
   game.render();
 
-  assert.equal(firstCount, 1);
-  assert.equal(game.uiButtons.length, 1);
+  assert.equal(firstCount, 2);
+  assert.equal(game.uiButtons.length, 2);
+
+  // Kartın boşluğu yeniden başlatmaz (iki eylemli kartta bu, lobî'ye
+  // niyetli dokunuşu çalardı); dokunuş buton hedefinden geçer.
   game.onTouchStart({ x: game.arena.cx, y: game.arena.cy, id: 99 });
+  assert.equal(game.state, 'MATCH_OVER');
+
+  const [replay] = game.uiButtons;
+  game.onTouchStart({
+    x: replay.x + replay.w / 2,
+    y: replay.y + replay.h / 2,
+    id: 100,
+  });
   assert.equal(game.state, 'LOBBY');
 });

@@ -1204,16 +1204,21 @@ export class RaceGame extends BaseMiniGame {
     } else if (this.state === 'MATCH_OVER') {
       this.uiButtons = [];
       const rows = this.players.filter((player) => player.isJoined).map((player) => ({
-        text: t('race.scoreRow', player.name, this.scores[player.index]),
+        name: player.name,
+        value: String(this.scores[player.index] || 0),
+        score: this.scores[player.index] || 0,
         color: player.color,
       }));
-      renderMatchOver(ctx, {
+      this.matchOverCard = renderMatchOver(ctx, {
         arena,
+        viewport: this.viewport,
         uiButtons: this.uiButtons,
         headline: this.matchDraw ? t('game.draw') : t('game.champWon'),
         winnerName: this.matchWinner?.name || '',
-        winnerColor: this.matchWinner?.color || UI_COLORS.ink,
+        winnerColor: this.matchWinner?.color || UI_COLORS.resultGold,
+        winnerEntity: this.matchWinner || null,
         rows,
+        onLobby: () => this.requestReturnToLobby(),
         onRestart: () => {
           this.resetMatch();
           playJoin();

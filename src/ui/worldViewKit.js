@@ -3,6 +3,8 @@
 // Sadece i18n + çizim import eder; oyun simülasyonu/AI import etmez.
 
 import { t } from '../i18n.js';
+import { UI_COLORS, uiFont, getDisplayProfile } from './tokens.js';
+import { drawResultPanel, uiTextScale } from './resultPanel.js';
 
 // World koordinatlarını client canvas'a orantılı sığdırır ve draw'u dünya uzayında
 // çağırır. arena: [left, top, right, bottom].
@@ -62,34 +64,23 @@ function pathRoundRect(ctx, x, y, w, h, r) {
 }
 
 export function drawWorldBanner(ctx, width, height, title, subtitle = '') {
-  const boxWidth = Math.min(width - 32, 420);
-  const boxHeight = subtitle ? 92 : 64;
-  const x = (width - boxWidth) / 2;
-  const y = (height - boxHeight) / 2;
-  const boxR = 16;
+  // Host'taki tur/final bandıyla aynı panel: kumanda başka dil konuşmaz.
+  const ts = uiTextScale(getDisplayProfile(width, height).baseUnit);
+  const boxW = Math.min(width - 32, Math.round(420 * ts));
+  const boxH = Math.round((subtitle ? 88 : 64) * ts);
+  const box = { x: (width - boxW) / 2, y: (height - boxH) / 2, w: boxW, h: boxH };
 
   ctx.save();
-  ctx.fillStyle = 'rgba(10, 8, 24, 0.42)';
-  pathRoundRect(ctx, x, y + 4, boxWidth, boxHeight, boxR);
-  ctx.fill();
-
-  ctx.fillStyle = '#D84727';
-  pathRoundRect(ctx, x, y, boxWidth, boxHeight, boxR);
-  ctx.fill();
-
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
-  ctx.lineWidth = 2.5;
-  pathRoundRect(ctx, x, y, boxWidth, boxHeight, boxR);
-  ctx.stroke();
-
-  ctx.fillStyle = '#FFFFFF';
+  drawResultPanel(ctx, box, ts);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '900 24px "Space Grotesk", sans-serif';
-  ctx.fillText(title, width / 2, y + (subtitle ? 30 : boxHeight / 2));
+  ctx.fillStyle = UI_COLORS.resultGold;
+  ctx.font = uiFont('button', ts);
+  ctx.fillText(title, width / 2, subtitle ? box.y + boxH * 0.38 : box.y + boxH / 2, boxW - Math.round(28 * ts));
   if (subtitle) {
-    ctx.font = '800 12px "JetBrains Mono", monospace';
-    ctx.fillText(subtitle, width / 2, y + 64);
+    ctx.fillStyle = UI_COLORS.resultMuted;
+    ctx.font = uiFont('monoBody', ts);
+    ctx.fillText(subtitle, width / 2, box.y + boxH * 0.7, boxW - Math.round(28 * ts));
   }
   ctx.restore();
 }

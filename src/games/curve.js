@@ -1077,7 +1077,7 @@ export class CurveGame extends BaseMiniGame {
       matchOverHeadline: this.matchDraw ? t('game.draw') : t('curve.champ'),
       matchOverRows: this.players
         .filter((player) => player.isJoined)
-        .map((player) => ({ color: player.color, text: `${player.name}: ${this.scores[player.index] || 0}★` })),
+        .map((player) => ({ color: player.color, name: player.name, value: `${this.scores[player.index] || 0}★`, score: this.scores[player.index] || 0 })),
       onSeatChange: (i) => {
         if (this.players[i]) {
           this.players[i].isJoined = this.isSlotJoined(i);

@@ -930,7 +930,7 @@ export class CollapseGame extends BaseMiniGame {
       matchOverHeadline: t('collapse.champ'),
       matchOverRows: this.players
         .filter((p) => p.isJoined)
-        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` })),
+        .map((p) => ({ color: p.color, name: p.name, value: `${this.scores[p.index]}★`, score: this.scores[p.index] })),
       onRestart: () => this.startNewMatch(),
       onSeatChange: (i) => {
         if (this.players[i]) {

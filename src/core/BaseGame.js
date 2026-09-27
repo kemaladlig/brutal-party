@@ -64,6 +64,9 @@ export class BaseMiniGame {
 
     // Interactive UI Rectangles [{ x, y, w, h, onClick }]
     this.uiButtons = [];
+    // Çerçevede çizilen final kartının kutusu; her kare yeniden yazılır.
+    // "Karta dokunmak turu yeniden başlatmasın" gardi bunu okur (touchFlow).
+    this.matchOverCard = null;
 
     // Host modunda main tarafından atanır: LOBBY koltuk tap'leri motora
     // yazmadan önce host'a sorulur (bot ekleme/çıkarma). Lokal oyunda null
@@ -1663,10 +1666,13 @@ export class BaseMiniGame {
       .map((p) => ({
         color: p.color || UI_COLORS.players[p.index] || UI_COLORS.resultInk,
         name: p.name || `P${p.index + 1}`,
+        score: Number(this.scores?.[p.index] ?? this.setScores?.[p.index] ?? 0),
         value: `${this.scores?.[p.index] ?? this.setScores?.[p.index] ?? 0}★`,
       }));
 
-    renderMatchOver(ctx, {
+    // Kart kutusu saklanır: "kartın dışına dokun = yeniden başlat" kısayolu
+    // iki eylemli kartta LOBİ dokunuşunu çalmasın diye (`matchOverRestartTap`).
+    this.matchOverCard = renderMatchOver(ctx, {
       arena: this.arena,
       viewport: this.viewport,
       uiButtons: this.uiButtons,
@@ -1683,10 +1689,16 @@ export class BaseMiniGame {
     });
   }
 
-  // Maç sonu kartının ikinci eylemi. Lobiyi/kapamayı kimin yönettiği motorun
-  // işi değil: `main.js` bu olayı dinler ve ağ/yerel kararını kendisi verir.
+  // Maç sonu kartının ikinci eylemi. İki lobi var ve farkı motor bilmez:
+  // ağ modunda (host) lobi kabuğundur — oda/koltuk/relay kararını `main.js`
+  // verir, motor yalnız niyet bildirir. LOCAL'de lobi motorun kendi LOBBY
+  // state'idir (koltuk/renk seçimi), dışarı çıkılacak bir şey yoktur.
   requestReturnToLobby() {
-    window.dispatchEvent(new CustomEvent('brutal_return_to_lobby'));
+    if (this.hideLobbyStartButton) {
+      window.dispatchEvent(new CustomEvent('brutal_return_to_lobby'));
+      return;
+    }
+    this.resetMatch();
   }
 
   renderStandardLobby(ctx, {

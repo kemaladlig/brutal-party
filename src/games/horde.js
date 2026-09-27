@@ -1744,7 +1744,7 @@ export class HordeGame extends BaseMiniGame {
       matchOverRows: this.players
         .filter((player) => player.isJoined)
         .sort((a, b) => this.scores[b.index] - this.scores[a.index])
-        .map((player) => ({ color: player.color, text: `${player.name}: ${this.scores[player.index] || 0}` })),
+        .map((player) => ({ color: player.color, name: player.name, value: `${this.scores[player.index] || 0}`, score: this.scores[player.index] || 0 })),
       onRestart: () => this.startNewMatch(),
       onSeatChange: (index) => {
         const player = this.players[index];

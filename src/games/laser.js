@@ -1202,7 +1202,7 @@ export class LaserGame extends BaseMiniGame {
       matchOverRows: this.players
         .filter((p) => p.isJoined)
         .sort((a, b) => (this.scores[b.index] || 0) - (this.scores[a.index] || 0))
-        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index] || 0}★` })),
+        .map((p) => ({ color: p.color, name: p.name, value: `${this.scores[p.index] || 0}★`, score: this.scores[p.index] || 0 })),
       onRestart: () => this.startNewMatch(),
       onSeatChange: (i) => {
         if (this.players[i]) {

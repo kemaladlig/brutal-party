@@ -1,6 +1,7 @@
 import {
   UI_COLORS,
   UI_SIZES,
+  UI_TEXT,
   UI_FONTS,
   uiFont,
   getUiScale,
@@ -10,6 +11,7 @@ import {
 import { t } from '../i18n.js';
 import { hasTabletopIcon, drawTabletopIcon } from '../core/tabletopIcons.js';
 import { isCompactLandscape } from '../core/playfield.js';
+import { drawResultPanel, dimBehindPanel, resultPanelRadius, uiTextScale } from './resultPanel.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 
 function pathRoundRect(ctx, x, y, w, h, r) {
@@ -1053,93 +1055,16 @@ export function renderEntityHUD(ctx, {
   ctx.restore();
 }
 
-// ---------------------------------------------------------------------------
-// Sonuç yüzeyi dili — final kartı ve raund bandı aynı paneli paylaşır.
-//
-// Eski hâli (krem kart + 3px mürekkep çerçeve + ofsetli sert gölge) sahaya
-// gömülüyor ve uygulamanın güncel koyu yüzey dilinden kopuyordu; telefon
-// kumandasındaki tam ekran sonuç (`--result-*`) başka bir dil konuşuyordu.
-// Sonuç anları artık tek panelde buluşur.
-// ---------------------------------------------------------------------------
-
-// `--result-bg` gradyanının karşılığı. Kare başına tahsis yerine kutu
-// geometrisiyle önbelleğe alınır (yalnız resize'da yeniden üretilir).
-let resultPanelCache = null;
-
-function resultPanelFill(ctx, box) {
-  const key = `${Math.round(box.y)}:${Math.round(box.h)}`;
-  if (!resultPanelCache || resultPanelCache.key !== key) {
-    const grad = ctx.createLinearGradient(0, box.y, 0, box.y + box.h);
-    grad.addColorStop(0, UI_COLORS.resultPanelTop);
-    grad.addColorStop(1, UI_COLORS.resultPanelBottom);
-    resultPanelCache = { key, grad };
-  }
-  return resultPanelCache.grad;
-}
-
-// Yumuşak gölge: iç içe saydam yuvarlak katmanlar. `shadowBlur` kare başına
-// pahalı, tek `rgba` ofset kutu ise "sert kutu gölgesi"ne (eski dil) düşüyor.
-function drawResultPanel(ctx, box, scale, radius = null) {
-  const r = Number.isFinite(radius) ? radius : Math.round(Math.min(26, box.w * 0.055));
-  ctx.save();
-  const layers = [
-    [Math.round(11 * scale), 0.07],
-    [Math.round(6 * scale), 0.11],
-    [Math.round(2 * scale), 0.15],
-  ];
-  for (const [spread, alpha] of layers) {
-    ctx.fillStyle = `rgba(${UI_COLORS.resultShadowRgb}, ${alpha})`;
-    pathRoundRect(
-      ctx,
-      box.x - spread,
-      box.y - spread + Math.round(4 * scale),
-      box.w + spread * 2,
-      box.h + spread * 2,
-      r + spread,
-    );
-    ctx.fill();
-  }
-
-  ctx.fillStyle = resultPanelFill(ctx, box);
-  pathRoundRect(ctx, box.x, box.y, box.w, box.h, r);
-  ctx.fill();
-
-  // Tek ince kenar: tel kafes değil, panelin ışığı.
-  ctx.strokeStyle = UI_COLORS.resultEdge;
-  ctx.lineWidth = 1.5;
-  pathRoundRect(ctx, box.x, box.y, box.w, box.h, r);
-  ctx.stroke();
-  ctx.restore();
-}
-
-// Sonuç yüzeylerinin arkasını kısık tutmak için tek örtü. `viewport` verilirse
-// ekranın tamamı, yoksa saha karartılır — sahanın dışı `paintBackdrop`'ın.
-function dimBehindResult(ctx, arena, viewport) {
-  const box = viewport && viewport.width > 0 ? viewport : arena;
-  ctx.save();
-  ctx.fillStyle = UI_COLORS.scrim;
-  ctx.fillRect(box.left ?? box.x ?? 0, box.top ?? box.y ?? 0, box.width, box.height);
-  ctx.restore();
-}
-
-// Metin tabanı: UI_TEXT kademeleri telefon referansıyla (ölçek 1) tune edildi.
-// `getDisplayProfile` MOBILE'da 0.72'ye kadar düşürüyor — saha varlıkları için
-// doğru, ama arayüz yazısını okunmaz hâle getiriyordu. Yazı yalnız büyür.
-function uiTextScale(scale, max = 1.7) {
-  return Math.max(1, Math.min(max, scale));
-}
-
-// Standart raund bandı: başlık + alt bilgi.
+// Standart raund bandı: başlık + alt bilgi. Final kartıyla aynı paneli paylaşır
+// — tur sonu ile maç sonu iki farklı dilde konuşmaz.
 export function renderRoundBanner(ctx, { arena, title, titleColor, sub = '' }) {
-  const scale = getUiScale(arena);
-  const ts = uiTextScale(scale);
+  const ts = uiTextScale(getUiScale(arena));
   const boxW = Math.min(Math.round(440 * ts), arena.width * 0.88);
   const boxH = Math.round((sub ? 88 : 68) * ts);
   const box = { x: arena.cx - boxW / 2, y: arena.cy - boxH / 2, w: boxW, h: boxH };
 
   ctx.save();
   drawResultPanel(ctx, box, ts);
-
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = titleColor || UI_COLORS.resultInk;
@@ -1160,117 +1085,159 @@ export function cleanWinnerName(name) {
 }
 
 // Final kartı düzeni: kartın yüksekliği İÇERİKTEN türer. Eskiden 230 tasarım
-// px'te sabitti, bu yüzden telefonda 4 satır ile buton arasında ölçülen 8 px
-// kalıyor ve 5. satır butonun üstüne biniyordu. Ayrıca tek sütunlu düzen yatay
+// px'te sabitti; telefonda 4 satır ile buton arasında ölçülen boşluk 8 px'e
+// iniyor ve beşinci satır butonun üstüne biniyordu. Tek sütunlu hâli de yatay
 // telefonda arena yüksekliğinin %48'ini yiyordu (masaüstünde %38) — küçük
 // ekranda kart daha da baskındı.
 //
-// Geniş yüzeylerde (en-boy ≥ `finalSplitAspect`) kart iki sütuna bölünür:
-// solda kazanan, sağda sıralama + eylemler. Telefon kumandasındaki tam ekran
-// sonucun yatay kadrajıyla aynı karar.
+// Geniş yüzeyde (en-boy ≥ `finalSplitAspect`) kart iki sütuna bölünür: solda
+// kazanan, sağda sıralama ve eylemler. Telefon kumandasındaki tam ekran sonucun
+// yatay kadrajıyla aynı karar, böylece iki yüzey aynı şeyi anlatır.
 //
 // Saf fonksiyondur (çizim yok): `tests/matchOverLayout.test.mjs` bu sözleşmeyi
 // telefon yatayından TV'ye kadar kilitler.
 export function layoutMatchOverCard(arena, { rowCount = 0, actionCount = 1 } = {}) {
   const S = UI_SIZES;
   const split = arena.width / (arena.height || 1) >= S.finalSplitAspect;
-  // Yazı tabanı: `UI_TEXT` kademeleri telefon referansıyla (ölçek 1) tune
-  // edildi, profil ölçeği MOBILE'da 0.72'ye kadar düşürüyor. Saha varlığı için
-  // doğru olan bu, arayüz yazısını okunmaz hâle getiriyordu.
-  const ts = uiTextScale(getUiScale(arena));
-  const u = (v) => Math.round(v * ts);
+  const maxH = arena.height * S.finalMaxHeightFraction;
 
-  const pad = u(S.finalPad);
-  const rowH = u(S.finalRowH);
-  const rowGap = u(S.finalRowGap);
-  const sectionGap = u(12);
-  const labelH = u(S.finalLabelH);
-  const heroR = u(split ? 30 : 26);
-  const nameH = u(S.finalNameH);
-  const btnGap = u(S.finalBtnGap);
-  const btnH = Math.max(S.finalBtnHMin, u(S.finalBtnTall)); // 44 px: dokunma tabanı
+  // tek geçiş: birim ölçek → tüm kutular. Doğal yükseklik sahayı aşarsa aynı
+  // hesap bir kez daha, küçültülmüş ölçekle kurulur (kart asla taşmaz).
+  const build = (ts) => {
+    const u = (v) => Math.round(v * ts);
+    const pad = u(S.finalPad);
+    const rowH = u(S.finalRowH);
+    const rowGap = u(S.finalRowGap);
+    const sectionGap = u(S.finalSectionGap);
+    const labelH = u(S.finalLabelH);
+    const nameH = u(S.finalNameH);
+    const nameGap = u(S.finalLabelNameGap);
+    const heroR = u(split ? S.finalHeroRSplit : S.finalHeroR);
+    const btnGap = u(S.finalBtnGap);
+    const btnH = Math.max(S.finalBtnHMin, u(S.finalBtnTall)); // 44 px: dokunma tabanı
 
-  const cardW = Math.min(u(split ? S.finalCardWSplit : S.finalCardW), arena.width * S.finalCardMaxWidth);
-  const innerW = cardW - pad * 2;
-  const leadW = split ? Math.min(innerW * S.finalLeadShare, u(S.finalLeadMaxW)) : innerW;
-  const colGap = split ? u(S.finalColGap) : 0;
-  const boardW = split ? innerW - leadW - colGap : innerW;
+    const cardW = Math.min(
+      u(split ? S.finalCardWSplit : S.finalCardW),
+      arena.width * S.finalMaxWidthFraction,
+    );
+    const innerW = cardW - pad * 2;
+    const colGap = split ? u(S.finalColGap) : 0;
+    const leadW = split ? Math.min(innerW * S.finalLeadShare, u(S.finalLeadMaxW)) : innerW;
+    const boardW = split ? innerW - leadW - colGap : innerW;
 
-  // İki eylem yan yana `finalBtnMinW`'in altına düşecekse alt alta geçer:
-  // dokunma hedefinin genişliği yüksekliğinden ödünç alınamaz.
-  const sideBySide = actionCount < 2
-    || (boardW - btnGap * (actionCount - 1)) / actionCount >= S.finalBtnMinW;
-  const btnW = sideBySide ? (boardW - btnGap * (actionCount - 1)) / actionCount : boardW;
-  const actionsH = actionCount <= 0 ? 0
-    : (sideBySide ? btnH : actionCount * btnH + (actionCount - 1) * btnGap);
+    // İki eylem yan yana `finalBtnMinW`'in altına düşecekse alt alta geçer:
+    // dokunma hedefinin genişliği yüksekliğinden ödünç alınamaz.
+    const sideBySide = actionCount < 2
+      || (boardW - btnGap * (actionCount - 1)) / actionCount >= S.finalBtnMinW;
+    const btnW = sideBySide ? (boardW - btnGap * (actionCount - 1)) / actionCount : boardW;
+    const actionsH = actionCount <= 0 ? 0
+      : (sideBySide ? btnH : actionCount * btnH + (actionCount - 1) * btnGap);
 
-  const rowsH = rowCount <= 0 ? 0 : rowCount * rowH + (rowCount - 1) * rowGap;
-  const boardH = rowsH + (rowsH && actionsH ? sectionGap : 0) + actionsH;
-  const leadH = labelH + u(S.finalSectionGap) + Math.max(heroR * 2, nameH);
+    const rowsH = rowCount <= 0 ? 0 : rowCount * rowH + (rowCount - 1) * rowGap;
+    const boardH = rowsH + (rowsH && actionsH ? sectionGap : 0) + actionsH;
+    // Kazanan bloğu: geniş yüzeyde avatar ÜSTTE, ad ALTTA — ad sütunun tüm
+    // genişliğini kullanır (yan yana koyunca 12 karakterlik isim 568 px'lik
+    // yatay telefona sığmıyordu). Dar yüzeyde avatar ve ad aynı satırda.
+    const leadH = split
+      ? labelH + nameGap + heroR * 2 + nameGap + nameH
+      : labelH + nameGap + Math.max(heroR * 2, nameH);
 
-  const cardH = Math.min(
-    pad + (split ? Math.max(leadH, boardH) : leadH + sectionGap + boardH) + pad,
-    arena.height * S.finalCardMaxHeight,
-  );
-  const x = arena.cx - cardW / 2;
-  const y = arena.cy - cardH / 2;
+    const naturalH = pad + (split ? Math.max(leadH, boardH) : leadH + sectionGap + boardH) + pad;
+    const cardH = Math.min(naturalH, maxH);
 
-  // Sütunlar kendi bandında dikeyde ortalanır: yatayda kısa kalan sütun
-  // ortada, uzun olan bant boyunca yayılır.
-  const bandH = Math.max(0, cardH - pad * 2);
-  const leadTop = y + pad + Math.max(0, (bandH - leadH) / 2);
-  const boardTop = y + pad + Math.max(0, (bandH - boardH) / 2);
-  const leadX = x + pad;
-  const boardX = split ? leadX + leadW + colGap : x + pad;
+    const x = arena.cx - cardW / 2;
+    const y = arena.cy - cardH / 2;
+    const bandH = cardH - pad * 2;
+    const leadX = x + pad;
+    const boardX = split ? leadX + leadW + colGap : x + pad;
+    // Sütunlar kendi bandında dikeyde ortalanır: kısa kalan sütun ortada, uzun
+    // olan bant boyunca yayılır.
+    const leadTop = y + pad + Math.max(0, (bandH - leadH) / 2);
+    const boardTop = y + pad + Math.max(0, (bandH - boardH) / 2);
 
-  const hero = {
-    cx: leadX + heroR,
-    cy: leadTop + labelH + u(S.finalSectionGap) + Math.max(heroR, nameH / 2),
-    r: heroR,
+    const hero = {
+      cx: leadX + heroR,
+      cy: split
+        ? leadTop + labelH + nameGap + heroR
+        : leadTop + labelH + nameGap + Math.max(heroR, nameH / 2),
+      r: heroR,
+    };
+    const name = split
+      ? { x: leadX, y: hero.cy + heroR + nameGap, w: leadW, h: nameH }
+      : {
+        x: hero.cx + heroR + nameGap,
+        y: hero.cy - nameH / 2,
+        w: Math.max(0, leadW - heroR * 2 - nameGap),
+        h: nameH,
+      };
+
+    const rows = [];
+    for (let i = 0; i < rowCount; i++) {
+      rows.push({ x: boardX, y: boardTop + i * (rowH + rowGap), w: boardW, h: rowH });
+    }
+    const actionsTop = boardTop + rowsH + (rowsH && actionsH ? sectionGap : 0);
+    const actions = [];
+    for (let i = 0; i < actionCount; i++) {
+      actions.push(sideBySide
+        ? { x: boardX + i * (btnW + btnGap), y: actionsTop, w: btnW, h: btnH }
+        : { x: boardX, y: actionsTop + i * (btnH + btnGap), w: boardW, h: btnH });
+    }
+
+    const box = { x, y, w: cardW, h: cardH };
+    return {
+      ts,
+      split,
+      naturalH,
+      ...box,
+      pad,
+      radius: resultPanelRadius(box),
+      label: { x: leadX, y: leadTop, w: leadW, h: labelH },
+      name,
+      hero,
+      rows,
+      actions,
+    };
   };
-  const name = {
-    x: hero.cx + heroR + u(S.finalLabelNameGap),
-    y: hero.cy - nameH / 2,
-    w: Math.max(0, leadW - heroR * 2 - u(S.finalLabelNameGap)),
-    h: nameH,
-  };
-  const rows = [];
-  for (let i = 0; i < rowCount; i++) {
-    rows.push({ x: boardX, y: boardTop + i * (rowH + rowGap), w: boardW, h: rowH });
-  }
-  const actionsTop = boardTop + rowsH + (rowsH && actionsH ? sectionGap : 0);
-  const actions = [];
-  for (let i = 0; i < actionCount; i++) {
-    actions.push({
-      x: sideBySide ? boardX + i * (btnW + btnGap) : boardX,
-      y: sideBySide ? actionsTop : actionsTop + i * (btnH + btnGap),
-      w: btnW,
-      h: btnH,
-    });
-  }
 
-  return {
-    ts,
-    split,
-    x,
-    y,
-    w: cardW,
-    h: cardH,
-    pad,
-    radius: Math.round(Math.min(S.finalRadiusMax, cardW * 0.055)),
-    label: { x: leadX, y: leadTop, w: leadW, h: labelH },
-    name,
-    hero,
-    rows,
-    actions,
-    btnW,
-    btnH,
-  };
+  const first = build(uiTextScale(getUiScale(arena)));
+  if (first.naturalH <= maxH) return first;
+  return build(uiTextScale(getUiScale(arena)) * (maxH / first.naturalH));
 }
 
-// Standart final kartı. `rows` yapılandırılmıştır: `{ color, name, value }`.
-// Motorların eski `{ color, text }` biçimi de tek satırda çalışır (isim olarak
-// düşer), böylece geçiş sırasında hiçbir oyun çıplak kalma.
+// Canvas `fillText(text, x, y, maxWidth)` sığmayan metni KICIRTIK yapar
+// (glifler incelir, okunmaz). Son çare olarak sonlu karakterle budarız.
+function clipTextTo(ctx, text, maxWidth) {
+  if (!text || maxWidth <= 0 || ctx.measureText(text).width <= maxWidth) return text;
+  let lo = 0;
+  let hi = text.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (ctx.measureText(`${text.slice(0, mid)}…`).width <= maxWidth) lo = mid;
+    else hi = mid - 1;
+  }
+  return `${text.slice(0, Math.max(1, lo))}…`;
+}
+
+// Ölçeği yazı sığana kadar geri çeker, tabanın altına inmez; hâlâ taşarsa
+// `clipTextTo` budar. Dönen değer ardından kullanılacak `uiFont` ölçeğidir.
+function fontScaleFor(ctx, role, ts, text, maxWidth) {
+  const minPx = Math.max(12, UI_TEXT[role][1] * ts * UI_SIZES.finalTextMinRatio);
+  let scale = ts;
+  ctx.font = uiFont(role, scale);
+  if (!text || maxWidth <= 0 || ctx.measureText(text).width <= maxWidth) return scale;
+  while (scale * UI_TEXT[role][1] > minPx) {
+    scale *= 0.94;
+    ctx.font = uiFont(role, scale);
+    if (ctx.measureText(text).width <= maxWidth) return scale;
+  }
+  ctx.font = uiFont(role, scale);
+  return scale;
+}
+
+// Standart final kartı. `rows` yapılandırılmıştır: `{ color, name, value }` —
+// motorlar kopya metin yerine veri verir, biçimi bu kart bir kere kurar.
+// Kazananın avatarı `winnerEntity`'den gelir (koltuk aksesuarı/ifadesi dahil),
+// böylece ödül anı oyuncunun kendi karakteriyle kutlanır.
 export function renderMatchOver(ctx, {
   arena,
   uiButtons,
@@ -1285,50 +1252,69 @@ export function renderMatchOver(ctx, {
 }) {
   const entries = rows.slice(0, 4).map((row) => ({
     color: row.color || UI_COLORS.resultInk,
-    name: String(row.name ?? row.text ?? ''),
+    name: String(row.name ?? ''),
     value: row.value === undefined || row.value === null ? '' : String(row.value),
+    // `score` sıralama anahtarıdır: motor veri verir, kart rütbeyi kendisi
+    // çözer. Verilmediğinde rütbe sütunu çizilmez — koltuk sırasıyla üretilen
+    // satırlara "1" yazmak sıralamayı uydurmak olurdu.
+    score: Number.isFinite(row.score) ? row.score : null,
   }));
+  // Rütbeyi kart çözer: her satır sayısal puanını taşıyorsa listeyi ona göre
+  // dizer ve numaralandırır. Taşımayan listede sıra motora aittir ve uydurma
+  // bir "1" basılmaz.
+  if (entries.length > 0 && entries.every((entry) => entry.score !== null)) {
+    entries.sort((a, b) => b.score - a.score);
+    entries.forEach((entry, i) => { entry.rank = i + 1; });
+  } else {
+    entries.forEach((entry) => { entry.rank = null; });
+  }
+  if (entries.length > 0 && entries.every((entry) => entry.score !== null)) {
+    entries.sort((a, b) => b.score - a.score);
+    entries.forEach((entry, i) => { entry.rank = i + 1; });
+  }
   const actions = [];
   if (typeof onRestart === 'function') actions.push({ label: t('canvas.playAgain'), kind: 'primary', onClick: onRestart });
   if (typeof onLobby === 'function') actions.push({ label: t('pad.toLobby'), kind: 'secondary', onClick: onLobby });
 
   const g = layoutMatchOverCard(arena, { rowCount: entries.length, actionCount: actions.length });
   const cleanWinner = cleanWinnerName(winnerName);
-  const textPad = Math.round(6 * g.ts);
+  // Berabere: kazanan adı yoktur, motorun etiketi büyük söze iner — ikiz
+  // "BERABERE! BERABERE!" çizmemek için.
+  const labelText = cleanWinner ? String(headline || '').toUpperCase() : '';
+  const heroText = cleanWinner || String(headline || t('game.draw')).toUpperCase();
+  const inset = Math.round(6 * g.ts);
 
   ctx.save();
-  dimBehindResult(ctx, arena, viewport);
+  dimBehindPanel(ctx, viewport && viewport.width > 0 ? viewport : arena);
   drawResultPanel(ctx, { x: g.x, y: g.y, w: g.w, h: g.h }, g.ts, g.radius);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
 
-  // Üst etiket: "ŞAMPİYON" / "OKÇU ŞAMPİYONU" — motor verir. Kazanan
-  // yoksa (berabere) etiket büyük söze taşınır: ikiz "BERABERE! BERABERE!"
-  // çizmemek için.
-  const labelText = cleanWinner ? String(headline || '').toUpperCase() : '';
-  const heroText = cleanWinner || String(headline || t('game.draw')).toUpperCase();
   ctx.font = uiFont('finalLabel', g.ts);
   ctx.fillStyle = UI_COLORS.resultMuted;
-  ctx.fillText(labelText, g.label.x, g.label.y + g.label.h / 2, g.label.w);
+  ctx.fillText(clipTextTo(ctx, labelText, g.label.w), g.label.x, g.label.y + g.label.h / 2);
 
-  // Kazanan: avatar + ad. Berabere'de avatar yoktur, söz soluk durur.
   if (cleanWinner) {
     drawGameAvatar(ctx, g.hero.cx, g.hero.cy, g.hero.r, winnerEntity || {
       name: cleanWinner,
       color: winnerColor,
-      index: Number.isInteger(winnerEntity?.index) ? winnerEntity.index : 0,
-    }, { label: '', color: winnerColor, borderColor: winnerColor, faceMode: 'play' });
+      index: 0,
+    }, { label: '', color: winnerColor, borderColor: winnerColor });
 
-    ctx.font = uiFont('finalHero', g.ts);
+    const heroScale = fontScaleFor(ctx, 'finalHero', g.ts, cleanWinner, g.name.w);
+    ctx.font = uiFont('finalHero', heroScale);
     ctx.fillStyle = UI_COLORS.resultGold;
-    ctx.fillText(cleanWinner, g.name.x, g.name.y + g.name.h / 2, g.name.w);
+    ctx.fillText(clipTextTo(ctx, cleanWinner, g.name.w), g.name.x, g.name.y + g.name.h / 2);
   } else {
-    ctx.font = uiFont('finalHero', g.ts);
+    const heroScale = fontScaleFor(ctx, 'finalHero', g.ts, heroText, g.w - g.pad * 2);
+    ctx.font = uiFont('finalHero', heroScale);
     ctx.fillStyle = UI_COLORS.resultInk;
-    ctx.fillText(heroText, g.name.x, g.name.y + g.name.h / 2, arena.width - g.pad * 2);
+    ctx.fillText(clipTextTo(ctx, heroText, g.w - g.pad * 2), g.label.x, g.hero.cy);
   }
 
   // Sıralama: saydam satır pill'leri — rütbe, renk noktası, isim solda, puan sağda.
+  const showRank = entries.length > 0 && entries.every((entry) => Number.isInteger(entry.rank));
+  const rankW = showRank ? Math.round(20 * g.ts) : 0;
   entries.forEach((entry, i) => {
     const row = g.rows[i];
     ctx.fillStyle = UI_COLORS.resultRow;
@@ -1336,25 +1322,28 @@ export function renderMatchOver(ctx, {
     ctx.fill();
 
     const cy = row.y + row.h / 2;
-    ctx.font = uiFont('monoLabel', g.ts);
-    ctx.fillStyle = UI_COLORS.resultMuted;
-    ctx.fillText(String(i + 1), row.x + textPad, cy);
+    if (showRank) {
+      ctx.font = uiFont('monoLabel', g.ts);
+      ctx.fillStyle = UI_COLORS.resultMuted;
+      ctx.fillText(String(entry.rank), row.x + inset, cy);
+    }
 
     const dotR = Math.max(4, Math.round(6 * g.ts));
-    const dotX = row.x + textPad + Math.round(14 * g.ts);
+    const dotX = row.x + inset + rankW + dotR;
     ctx.beginPath();
     ctx.arc(dotX, cy, dotR, 0, Math.PI * 2);
     ctx.fillStyle = entry.color;
     ctx.fill();
 
     const nameX = dotX + dotR + Math.round(9 * g.ts);
-    const valueX = row.x + row.w - textPad;
+    const valueX = row.x + row.w - inset;
     ctx.font = uiFont('finalRowValue', g.ts);
     const valueW = entry.value ? ctx.measureText(entry.value).width : 0;
 
+    const nameMax = Math.max(0, valueX - valueW - Math.round(12 * g.ts) - nameX);
     ctx.font = uiFont('finalRow', g.ts);
     ctx.fillStyle = UI_COLORS.resultInk;
-    ctx.fillText(entry.name, nameX, cy, Math.max(0, valueX - valueW - Math.round(12 * g.ts) - nameX));
+    ctx.fillText(clipTextTo(ctx, entry.name, nameMax), nameX, cy);
 
     if (entry.value) {
       ctx.textAlign = 'right';
@@ -1368,18 +1357,22 @@ export function renderMatchOver(ctx, {
   // Eylemler: birincil altın, ikincil yeşil — kumanda sonuç ekranıyla aynı dil.
   actions.forEach((action, i) => {
     const btn = g.actions[i];
-    const r = Math.round(btn.h * 0.30);
     ctx.fillStyle = action.kind === 'primary' ? UI_COLORS.gold : UI_COLORS.success;
-    pathRoundRect(ctx, btn.x, btn.y, btn.w, btn.h, r);
+    pathRoundRect(ctx, btn.x, btn.y, btn.w, btn.h, Math.round(btn.h * 0.30));
     ctx.fill();
 
     ctx.textAlign = 'center';
     ctx.font = uiFont('buttonSmall', g.ts);
     ctx.fillStyle = UI_COLORS.onAccent;
-    ctx.fillText(action.label, btn.x + btn.w / 2, btn.y + btn.h / 2, btn.w - Math.round(14 * g.ts));
+    ctx.fillText(clipTextTo(ctx, action.label, btn.w - Math.round(14 * g.ts)), btn.x + btn.w / 2, btn.y + btn.h / 2);
+    ctx.textAlign = 'left';
 
     uiButtons?.push({ x: btn.x, y: btn.y, w: btn.w, h: btn.h, onClick: action.onClick });
   });
 
   ctx.restore();
+
+  // Kart kutusu dışarı verilir: "kartın boşluğuna dokunmak yeniden
+  // başlatmasın" gardi bunu okur (`touchFlow.matchOverRestartTap`).
+  return { x: g.x, y: g.y, w: g.w, h: g.h };
 }

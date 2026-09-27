@@ -44,7 +44,17 @@ export function lobbyQuadrantTap(game, touch, { onSeatChange } = {}) {
 
 // MATCH_OVER yeniden başlatma tap'i: uiTap sonrası çağrılır.
 // radius=Infinity her dokunuşta başlatır (zone deseni).
+//
+// Final kartının kendisi iki eylem butonu taşır (YENİDEN OYNA / LOBİYE DÖN).
+// Kartın İÇİNE düşen dokunuş butonlardan birine ait değilse hiçbir şey
+// yapılmaz — aksi hâlde LOBİ'ye niyetli bir temas kısayolu tetiklerdi.
 export function matchOverRestartTap(game, touch, { radius = 75, onRestart } = {}) {
+  const card = game.matchOverCard;
+  if (card
+    && touch.x >= card.x && touch.x <= card.x + card.w
+    && touch.y >= card.y && touch.y <= card.y + card.h) {
+    return false;
+  }
   if (Number.isFinite(radius)) {
     const d = Math.hypot(touch.x - game.arena.cx, touch.y - game.arena.cy);
     if (d >= radius) return false;

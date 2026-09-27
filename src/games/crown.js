@@ -1543,7 +1543,7 @@ export class CrownGame extends BaseMiniGame {
       matchOverHeadline: this.matchDraw ? t('game.draw') : (t('crown.champ') || 'ŞAMPİYON'),
       matchOverRows: this.players
         .filter((p) => p.isJoined)
-        .map((p) => ({ color: p.color, text: `${p.name}: ${this.scores[p.index]}★` })),
+        .map((p) => ({ color: p.color, name: p.name, value: `${this.scores[p.index]}★`, score: this.scores[p.index] })),
       onRestart: () => this.startNewMatch(),
       customControls: (c) => {
         const { cx, cy, width, height } = this.arena;
