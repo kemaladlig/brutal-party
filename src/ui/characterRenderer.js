@@ -172,20 +172,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
 
   const r = radius;
 
-  // 1. Zemin temas gölgesi — yere oturan basık elips. Daire gölge gövdeyi
-  // "yüzen sticker" gibi gösteriyordu; elips temas hissi verir.
-  // `shadowOffset: 0` gölgeyi kapatır — sahne (`drawAvatarStage`) kendi
-  // zemin gölgesini çizdiği için orada çift gölge olmaması için 0 geçilir.
-  if (shadowOffset > 0) {
-    ctx.save();
-    ctx.translate(shadowOffset, r + Math.max(2, r * 0.12));
-    ctx.scale(1, 0.32);
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
+  // 1. Zemin temas gölgesi kaldırıldı (Kullanıcı isteği üzerine iptal edildi)
 
   // 1b. Gövde (clip: hacim katmanı daire sınırını geçemesin)
   ctx.save();
