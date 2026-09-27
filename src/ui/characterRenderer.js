@@ -502,31 +502,22 @@ function playFaceShading(ctx, r) {
     };
     drawEye(-eyeSpreadY);
     drawEye(eyeSpreadY);
-    // Sırıtış (GRIN) — iki gözün önünde simetrik, geniş ve net dişli sırıtış.
-    // Gözler x≈0.60r'de biter; ağız 0.50r..0.54r'den başlayıp 0.78r'ye kadar açılır.
-    // Dişler Y ekseni boyunca simetrik dağıtılır; tek tarafa sıkışma/eksiklik giderildi.
-    const mx = r * (isPlayFace ? 0.54 : 0.50);
-    const mw = r * 0.26;
-    const mh = r * 0.25;
+    // Sırıtış (GRIN) — gözlerin önünde değil, yüzün ön köşesinde duran beyaz sırıtış.
+    // Gözler x≈0.64r'de biter; ağız 0.66r..0.70r'den başlayıp ~0.88r'de biter.
+    const mx = r * (isPlayFace ? 0.70 : 0.66);
+    const mw = r * 0.20;
+    const mh = r * 0.22;
 
     // Ağız yolu (iç kavis ve dış kavis)
     const traceMouth = () => {
       ctx.beginPath();
       ctx.moveTo(mx, -mh);
       ctx.quadraticCurveTo(mx + mw, 0, mx, mh);
-      ctx.quadraticCurveTo(mx + mw * 0.32, 0, mx, -mh);
+      ctx.quadraticCurveTo(mx + mw * 0.30, 0, mx, -mh);
       ctx.closePath();
     };
 
-    // 2.5D Ağız derinlik gölgesi
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-    ctx.save();
-    ctx.translate(1.2, 1.6);
-    traceMouth();
-    ctx.fill();
-    ctx.restore();
-
-    // Beyaz diş dolgusu
+    // Beyaz diş dolgusu (gölgesiz: gölge beyazı kirli gösteriyordu)
     ctx.fillStyle = '#FFFFFF';
     traceMouth();
     ctx.fill();

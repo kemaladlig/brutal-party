@@ -16,12 +16,20 @@
 /* ── Arka plan: stüdyo zemini (public/background.webp) ──
    Görselin kendi gradyanı, turuncu platformu ve pembe ufuğu var; CSS sahne
    katmanları (backdrop/spotlight/arena diski) home'da kapanır — iki zemin
-   üst üste binmez. `--scene-stage-y` platformun ÜST kenarına (görselde
-   ~%73.5; cover kırpmasıyla 900×460'ta ~%75.5) çekilir: karakterin ayağı
-   diskin tepesine basar. Vinyet kalır — kenar derinliği görseli taşar. */
+   üst üste binmez. Vinyet kalır — kenar derinliği görseli taşar.
+
+   Platform ölçüleri (2752×1536 görselde ölçüldü): üst kenar %73.8, alt kenar
+   %93.9 → disk ekseni %83.9, yatay merkez tam %50 (görsel ortalanmış).
+
+   Konum ALTTAN sabitlenir (`50% 100%`): `cover` yalnız EKRAN ORANı 1.79'dan
+   geniş olduğunda dikey kırpma yapar ve `50% 50%` kırpma payını ortaya
+   bölerek platformu ekranın DIŞINA (aşağı) iterdi. Alt sabitlemede kırpma
+   payı tek yere (yukarı) düşer, platform en kötü ~%80'e çekilir ve her
+   genişlikte görselin alt kenarına yapışık kalır. Dar ekranda dikey kırpma
+   olmadığı için konum tam olarak %83.9'dur. */
 .home-scene {
-  --scene-stage-y: 75%;
-  background: url('/background.webp') 50% 50% / cover no-repeat var(--scene-bottom);
+  --scene-stage-y: 82%;
+  background: url('/background.webp') 50% 100% / cover no-repeat var(--scene-bottom);
 }
 
 .home-scene .scene-backdrop,
@@ -31,14 +39,19 @@
 }
 
 .home-hero {
-  --hero-size: min(46vh, 440px);
-  /* Avatarın zemin halkası canvas'ın alt kenarından ~%15 yukarıda çizilir
-     (`drawAvatarStage`: `groundY = h/2 + 1.02r`, `r ≈ 0.343·s`). Halka diskin
-     tam üst kenarına gelsin diye kahraman bu kadar daha AŞAĞI iner
-     (`bottom` küçülür). */
-  --hero-ground-gap: calc(0.15 * var(--hero-size));
+  --hero-size: min(56vh, 500px);
+  /* Ayağın (zemin gölgesi merkezinin) kutu tabanına uzaklığı:
+     `drawAvatarStage`de `groundY = h/2 + 1.02r`, `r = 0.37·s` → `0.123·s`.
+     Kahraman bu kadar AŞAĞI inince gölge tam olarak platformun eksenine oturur
+     (`--scene-stage-y`). */
+  --hero-ground-gap: calc(0.123 * var(--hero-size));
   left: 50%;
-  transform: translateX(-50%);
+  width: var(--hero-size);
+  /* Merkezleme BİLEREK `transform` DEĞİL: `[data-focus].is-focused`
+     (`shell.css`) odaklanan her öğeye `transform: scale()` uygular ve
+     `translateX(-50%)`'yi ezerdi — karakter odak alır almez sağa kayıyordu.
+     Negatif kenar boşluğu ölçekten bağımsız, her durumda tam merkez. */
+  margin-left: calc(var(--hero-size) / -2);
 }
 
 .home-hero-canvas {
@@ -48,14 +61,15 @@
 
 /* ── Karakter etkileşimi: dokunma ipucu + TV odak ipucu ── */
 
-/* "Karaktere dokun (Zıplat!)" — rozetin altında tek satır mono; ilk dokunuşta
-   `.hidden` ile kalkar. Dar/çok kısa düzenlerde yer yok: hiç gösterilmez. */
+/* "Karaktere dokun (Zıplat!)" — karakterin BAŞININ ÜSTÜNDE, gökyüzüne karşı
+   okunur (ayak altındaki platform koyu; ipucu orada kayboluyor ve isim
+   rozetiyle çakışıyordu). İlk dokunuşta `.hidden` ile kalkar. */
 .home-boing-hint {
   position: absolute;
-  top: 100%;
+  bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  margin-top: 36px;
+  margin-bottom: 10px;
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 800;
@@ -180,7 +194,9 @@
 /* ── Kısa ekran (telefon yatay) ──────────────────────────────────────── */
 
 @media (max-height: 470px) {
-  .home-hero-canvas { width: min(34vh, 210px); height: min(34vh, 210px); }
+  /* Kısa ekranda kahraman küçülür; AYAĞIN oturduğu çizgi (`--scene-stage-y`)
+     değişmez, sadece ölçek küçülür. */
+  .home-hero { --hero-size: min(34vh, 210px); }
   .home-identity { padding: 4px 8px 4px 12px; border-width: 1.5px; }
 
   .home-actions {
@@ -228,8 +244,12 @@
    ve dar ekranda üst üste biner. Dar düzen YIĞINIR: eylemler üstte tek sıra →
    sahne ortada → OYNA altta tam genişlik. */
 @media (max-width: 620px) {
-  .home-hero { top: 44%; bottom: auto; }
-  .home-hero-canvas { width: min(30vh, 220px); height: min(30vh, 220px); }
+  /* Dar düzende (dikey telefon — rotate gate arkasında) alt şerit eylemler
+     tam genişlikte sahnenin yerini alıyor: kahraman küçülür ve platformun
+     arka kenarına yakın bir çizgiye çekilir, böylece isim rozeti butonların
+     arkasında kalmaz. Yatay düzende (asıl hedef) bu kural oynamaz. */
+  .home-scene { --scene-stage-y: 76%; }
+  .home-hero { --hero-size: min(26vh, 200px); }
 
   /* Yığın: ODA KUR + OYNA altta tam genişlik, KODLA + KURULUM üstte sağda. */
   .home-actions {
@@ -255,9 +275,11 @@
     right: max(12px, env(safe-area-inset-right));
   }
 
+  /* Bilgi şeridi karakterin altındaki boşluktan okunur; `top` sabit bir
+     yüzdeye değil, gerçek oturma çizgisine bağlanır. */
   .home-facts {
     bottom: auto;
-    top: calc(44% + min(30vh, 220px) * 0.5 + 56px);
+    top: calc(var(--scene-stage-y) + 0.123 * min(26vh, 200px) + 60px);
     font-size: 9px;
     letter-spacing: 0.08em;
   }

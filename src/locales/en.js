@@ -235,6 +235,7 @@ export const EN = {
   'host.actions': 'Lobby actions',
   'host.close': 'CLOSE LOBBY',
   'host.stage': 'TO ARENA',
+  'host.launchGame': 'START MATCH',
   'host.backToLobby': 'BACK TO LOBBY',
   'host.onlineLobby': 'ONLINE LOBBY',
   'host.tvLobby': 'TV HOST PARTY LOBBY',

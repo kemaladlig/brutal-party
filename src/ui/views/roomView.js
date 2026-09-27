@@ -21,8 +21,8 @@ function el(tag, className, html) {
 }
 
 const OPTIONS = [
-  { id: 'TV_CONSOLE', label: 'TV', icon: 'tv' },
-  { id: 'ONLINE', label: 'ONLINE', icon: 'globe' },
+  { id: 'TV_CONSOLE', key: 'shell.room.tv', icon: 'tv' },
+  { id: 'ONLINE', key: 'shell.room.online', icon: 'globe' },
 ];
 
 registerView('room', {
@@ -91,9 +91,9 @@ registerView('room', {
         const opt = OPTIONS[i];
         const word = btn.querySelector('.room-choice-word');
         const desc = btn.querySelector('.room-choice-desc');
-        word.textContent = t(opt.label);
+        word.textContent = t(opt.key);
         desc.textContent = t(`shell.room.${opt.id === 'TV_CONSOLE' ? 'tvDesc' : 'onlineDesc'}`);
-        btn.setAttribute('aria-label', `${t(opt.label)} — ${desc.textContent}`);
+        btn.setAttribute('aria-label', `${t(opt.key)} — ${desc.textContent}`);
       });
     }
     applyTexts();

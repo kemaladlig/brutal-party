@@ -138,7 +138,7 @@ function buildCard() {
 
   const tabs = createTabStrip({
     items: [
-      { id: 'color', label: t('custom.tabColor'), icon: 'sparkles' },
+      { id: 'color', label: t('custom.tabColor'), icon: 'palette' },
       { id: 'face', label: t('custom.tabFace'), icon: 'eye' },
     ],
     onChange: (id) => {

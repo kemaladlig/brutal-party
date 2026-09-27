@@ -2,20 +2,28 @@
    ortak kaynağından; burada yalnız yerleşim ve iki dev seçenek var.
    Liste/kart düzeni YOK: seçenekler ekranda oyun başlığı gibi durur. */
 
-/* Karakter sol köşede, ana menüye göre daha küçük. Arena diski de onun
-   altına kayar (sahnenin zemini karakterin durduğu yerde olmalı). */
+/* Karakter, arena diski ve spot ışığı TEK eksende (`--room-axis`): sahne sola
+   kaydığında karakter de onunla birlikte kayar. Karakter ekran kenarına
+   sabitlenmezdi (disk 30%'ya kaymışken kendisi 24px'te kalıyor, diskin sol
+   kenarında asılı ve dengesiz görünüyordu).
+   Merkezleme `transform` DEĞİL: kabuğun `[data-focus].is-focused { transform:
+   scale() }` kuralı `translateX`i ezer (bkz. `home.css` `.home-hero`). */
+.room-scene { --room-axis: 30%; }
+
 .room-hero {
-  left: max(24px, env(safe-area-inset-left));
+  --room-size: min(34vh, 260px);
+  left: var(--room-axis);
   bottom: max(18px, env(safe-area-inset-bottom));
-  transform: none;
+  width: var(--room-size);
+  margin-left: calc(var(--room-size) / -2);
 }
 
-.room-scene .scene-floor { left: 30%; }
-.room-scene .scene-spotlight { left: 30%; }
+.room-scene .scene-floor { left: var(--room-axis); }
+.room-scene .scene-spotlight { left: var(--room-axis); }
 
 .room-hero-canvas {
-  width: min(34vh, 260px);
-  height: min(34vh, 260px);
+  width: var(--room-size);
+  height: var(--room-size);
 }
 
 .room-badge {
@@ -126,7 +134,7 @@
 /* ── Kısa ekran (telefon yatay) ──────────────────────────────────────── */
 
 @media (max-height: 470px) {
-  .room-hero-canvas { width: min(30vh, 190px); height: min(30vh, 190px); }
+  .room-hero { --room-size: min(30vh, 190px); }
   .room-choices { right: max(16px, env(safe-area-inset-right)); gap: 10px; width: min(52vw, 380px); }
   .room-choice { padding: 10px 14px 12px; border-radius: 18px; }
   .room-choice-word { font-size: clamp(22px, 7vh, 32px); }
@@ -138,6 +146,10 @@
 /* Dar + uzun (dikey telefon — rotate gate arkasında): seçenekler üstte
    yığılır, karakter altta kalır. */
 @media (max-width: 620px) {
+  /* Dar düzende seçenekler üstte tam genişlikte: eksen ve karakter ortalanır,
+     ikisi yine aynı çizgide kalır. */
+  .room-scene { --room-axis: 50%; }
+
   .room-choices {
     left: max(12px, env(safe-area-inset-left));
     right: max(12px, env(safe-area-inset-right));
@@ -152,11 +164,9 @@
   .room-choice-icon { right: 12px; width: 40px; height: 40px; }
 
   .room-hero {
-    left: 50%;
+    --room-size: min(26vh, 180px);
     bottom: max(14px, env(safe-area-inset-bottom));
-    transform: translateX(-50%);
   }
-  .room-hero-canvas { width: min(26vh, 180px); height: min(26vh, 180px); }
 }
 
 /* ── Lobi görünümü — BRAWL STARS / WILD RIFT pre-match düzeni ───────────

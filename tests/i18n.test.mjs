@@ -10,6 +10,14 @@ test('canvas.champ resolves in both languages', () => {
   setLang('tr');
 });
 
+test('host.launchGame resolves in both languages', () => {
+  setLang('tr');
+  assert.equal(t('host.launchGame'), 'MAÇI BAŞLAT');
+  setLang('en');
+  assert.equal(t('host.launchGame'), 'START MATCH');
+  setLang('tr');
+});
+
 test('language dispatch terminates when a listener subscribes mid-dispatch', () => {
   // Eski appShell hatasının minyatürü: dinleyici her çağrıda yeni bir
   // dinleyici ekliyordu. `Set.forEach` eklenen girdileri de gezdiğinden bu,

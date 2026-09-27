@@ -235,6 +235,7 @@ export const TR = {
   'host.actions': 'Lobi eylemleri',
   'host.close': 'LOBİYİ KAPAT',
   'host.stage': 'SAHAYA GEÇ',
+  'host.launchGame': 'MAÇI BAŞLAT',
   'host.backToLobby': 'LOBİYE DÖN',
   'host.onlineLobby': 'ONLINE LOBİ',
   'host.tvLobby': 'TV HOST PARTİ LOBİSİ',
