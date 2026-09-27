@@ -28,7 +28,7 @@ function deckColorStyle(color) {
  * Mounts a declarative controller onto the given container.
  * Returns an instance object with { handleSync, teardown }.
  *
- * @param {GamepadManager} gamepad
+ * @param {object} gamepad  GamepadManager örneği
  * @param {HTMLElement} container
  * @param {Object} schema
  */
@@ -377,6 +377,8 @@ function mountArcadeDrive(gamepad, container, schema) {
 
   const driveBtn = document.getElementById('btn-tank-drive');
   let isDriving = false;
+  /** @type {ReturnType<typeof setInterval> | 0} */
+  let driveKeepaliveId = 0;
 
   const startDrive = (e) => {
     e?.preventDefault();
@@ -386,12 +388,19 @@ function mountArcadeDrive(gamepad, container, schema) {
     gamepad.sendInput({ action: schema.driveAction || 'TANK_DRIVE', driving: true });
     gamepad.vibrate(20);
     gamepad.playTick();
+    // Basılı pedal keepalive'i: host'un analog sessizlik süpürücüsü
+    // (STALE_ANALOG_MS = 1500) tek paketle `isDriving`'i sıfırlıyordu.
+    driveKeepaliveId = setInterval(() => {
+      if (isDriving) gamepad.sendInput({ action: schema.driveAction || 'TANK_DRIVE', driving: true });
+    }, CONTROL_KEEPALIVE_MS);
   };
 
   const stopDrive = (e) => {
     e?.preventDefault();
     if (!isDriving) return;
     isDriving = false;
+    clearInterval(driveKeepaliveId);
+    driveKeepaliveId = 0;
     driveBtn?.classList.remove('active');
     gamepad.sendInput({ action: schema.driveAction || 'TANK_DRIVE', driving: false });
   };
@@ -429,7 +438,7 @@ function mountArcadeDrive(gamepad, container, schema) {
         const raw = data.ammo[gamepad.playerIndex];
         const n = typeof raw === 'number' ? raw : (raw?.n ?? 0);
         const load = typeof raw === 'object' ? (raw?.load ?? 0) : 0;
-        const ammoPips = document.querySelectorAll('#tank-ammo-hud .cartridge-pip');
+        const ammoPips = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('#tank-ammo-hud .cartridge-pip'));
         ammoPips.forEach((pip, idx) => {
           pip.classList.toggle('loaded', idx < n);
           if (idx === n && load > 0) {
@@ -443,6 +452,8 @@ function mountArcadeDrive(gamepad, container, schema) {
       }
     },
     teardown() {
+      clearInterval(driveKeepaliveId);
+      driveKeepaliveId = 0;
       if (isDriving) {
         try {
           gamepad.sendInput({ action: schema.driveAction || 'TANK_DRIVE', driving: false });
@@ -508,6 +519,7 @@ function mountSteerAction(gamepad, container, schema) {
   const activeTouches = new Map();
   let mouseDir = 0;
   let currentActiveDir = 0;
+  let lastSteerVibrateAt = 0;
 
   const sendSteer = (dir) => gamepad.sendInput({
     action: schema.steerAction || 'CURVE_STEER',
@@ -530,13 +542,19 @@ function mountSteerAction(gamepad, container, schema) {
     if (desiredDir !== currentActiveDir) {
       currentActiveDir = desiredDir;
       sendSteer(currentActiveDir);
-      if (currentActiveDir !== 0) gamepad.vibrate(15);
+      // Sınırda parmak gidip gelince yön flip'leri titreşim spam'i yapıyordu;
+      // serinleme: aynı anda en fazla biri hissedilir.
+      const now = performance.now();
+      if (currentActiveDir !== 0 && now - lastSteerVibrateAt >= 200) {
+        lastSteerVibrateAt = now;
+        gamepad.vibrate(15);
+      }
     }
   };
 
   const getDirForPoint = (clientX, clientY) => {
     const el = document.elementFromPoint(clientX, clientY);
-    const steerBtn = el?.closest('[data-steer]');
+    const steerBtn = /** @type {HTMLElement | null} */ (el?.closest('[data-steer]'));
     if (steerBtn) return parseInt(steerBtn.dataset.steer, 10);
     const rect = (steerZone || rocker)?.getBoundingClientRect();
     if (!rect) return 0;

@@ -41,10 +41,10 @@ export const GATE_THRESHOLDS = Object.freeze({
  *
  * @param {object} input
  * @param {string} input.mode - Oyun modu (örn. 'HORDE', 'ARCHER')
- * @param {object|null} input.desktop - Masaüstü (1920x1080) ölçümü
- * @param {object|null} input.phone - Telefon (852x393) ölçümü
- * @param {object|null} [input.corridor] - Koridor geçilebilirlik ölçümü
- * @param {object|null} [input.viewFidelity] - View yarıçap fallback denetimi
+ * @param {QualityMeasurement|null} input.desktop - Masaüstü (1920x1080) ölçümü
+ * @param {QualityMeasurement|null} input.phone - Telefon (852x393) ölçümü
+ * @param {QualityMeasurement|null} [input.corridor] - Koridor geçilebilirlik ölçümü
+ * @param {QualityMeasurement|null} [input.viewFidelity] - View yarıçap fallback denetimi
  * @param {number} [input.unscaledGeometryCount] - I5 ölçeklenmemiş geometri px sayısı
  * @param {number} [input.unscaledMotionCuesCount] - I6 ölçeklenmemiş hareket ipucu sayısı
  * @returns {object} Değerlendirme sonucu: { mode, passed, gates, reports, failures }

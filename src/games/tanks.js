@@ -389,7 +389,7 @@ export class TanksGame extends BaseMiniGame {
     }
     for (const tank of this.tanks) {
       this.remapPoint(tank, oldArena, this.arena);
-      tank.size = fieldRadius(this.arena, 26, 0);
+      tank.size = fieldRadius(this.arena, 34, 0);
       tank.driveSpeed = fieldSpeed(this.arena, 175);
       tank.speed = tank.driveSpeed;
     }
@@ -451,9 +451,11 @@ export class TanksGame extends BaseMiniGame {
         isAlive: true,
         isJoined: isJoined,
         slotType: this.slotTypes[i],
-        // Taban gövde: mutlak 26px telefonda saha yüksekliğinin %6.7'si,
-        // masaüstünde %2.7'si idi. Artık göreli taban.
-        size: fieldRadius(this.arena, 26, 0),
+        // Taban gövde göreli; 34 = saha kısa kenarının ~%3.6'sı (çarpışma
+        // yarıçapı size/2 → 12%+ koridorlarda geçiş payı korunur). Online
+        // kumanda ekranında %2.7 çok küçük kaldığı için diğer oyunların
+        // (HEIST 36, BOMB 36) seviyesine çekildi.
+        size: fieldRadius(this.arena, 34, 0),
         reloadCooldown: 0.55,
         reloadTimer: 0,
         muzzleFlashTimer: 0,
@@ -713,10 +715,8 @@ export class TanksGame extends BaseMiniGame {
           maxBounces: 2,
           owner: tank.index,
           id: this.nextBulletId++,
-          // Mermi yarıçapı saha ile ölçeklenir. Mutlak 4.5px telefonda
-          // saha kısa kenarının %1.16'sı, masaüstünde %0.47'siydi — 2.5x
-          // şişme. Mermi gözle zor seçildiği için fark edilmiyordu.
-          radius: fieldRadius(this.arena, 4.5, 0),
+          // Mermi yarıçapı saha ile ölçeklenir; gövde rebalance'ı ile 6.
+          radius: fieldRadius(this.arena, 6, 0),
         });
       }
     } else {
@@ -731,7 +731,7 @@ export class TanksGame extends BaseMiniGame {
         maxBounces: 2,
         owner: tank.index,
         id: this.nextBulletId++,
-        radius: fieldRadius(this.arena, 4.5, 0),
+        radius: fieldRadius(this.arena, 6, 0),
       });
     }
 
@@ -1286,7 +1286,7 @@ export class TanksGame extends BaseMiniGame {
       accent: '#D84727',
       scoreboardEntities: [
         ...this.tanks.filter((t) => t.isJoined && t.isAlive).map((t) => ({ x: t.x, y: t.y, radius: t.size || 20 })),
-        ...this.bullets.map((b) => ({ x: b.x, y: b.y, radius: fieldRadius(this.arena, 10, 0) })),
+        ...this.bullets.map((b) => ({ x: b.x, y: b.y, radius: fieldRadius(this.arena, 13, 0) })),
       ],
       matchOverHeadline: t('tanks.champ'),
       matchOverRows: this.tanks

@@ -3,10 +3,10 @@ import {
   UI_SIZES,
   UI_TEXT,
   UI_FONTS,
+  CONTROL_MODE,
   uiFont,
   getUiScale,
   getDisplayProfile,
-  shouldShowVirtualControls,
 } from './tokens.js';
 import { t } from '../i18n.js';
 import { hasTabletopIcon, drawTabletopIcon } from '../core/tabletopIcons.js';
@@ -744,7 +744,7 @@ export function renderAdaptiveScoreboard(ctx, {
   targetScore = 3,
   entities = [],
   forceLayout = null, // 'corners' | 'top-bar' | null (otomatik)
-  isHosting = false,
+  controlMode = /** @type {string} */ (CONTROL_MODE.NONE),
   timeRemaining = null,
   isRoundOver = false,
   state = null,
@@ -763,7 +763,9 @@ export function renderAdaptiveScoreboard(ctx, {
 
   let layout = forceLayout;
   if (!layout) {
-    const controlsActive = shouldShowVirtualControls({ isHosting });
+    // DOM kumandası da sahayı kapatıyor: ikisi de üst şeride taşar.
+    const controlsActive = controlMode === CONTROL_MODE.DOM
+      || controlMode === CONTROL_MODE.CANVAS;
     // Sanal kontroller ekrandaysa parmak çakışmasını önlemek için daima top-bar
     layout = controlsActive ? 'top-bar' : 'corners';
   }
@@ -1282,6 +1284,7 @@ export function renderMatchOver(ctx, {
   onLobby = null,
   viewport = null,
 }) {
+  /** @type {any[]} */
   const entries = rows.slice(0, 4).map((row) => ({
     color: row.color || UI_COLORS.resultInk,
     name: String(row.name ?? ''),

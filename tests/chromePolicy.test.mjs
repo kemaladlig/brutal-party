@@ -78,25 +78,25 @@ test('exactly one rotate gate exists — the shell owns it', () => {
 // girdi-kaynağı değişimlerinde (dönüş / arka plan / odak kaybı) KALMALI —
 // kilit iki yönlüdür, yoksa "hepsini sil" de geçer sayılırdı.
 test('a plain resize never drops live touches', () => {
-  const main = codeOf('src/main.js');
-  assert.match(main, /window\.addEventListener\('resize',\s*scheduleResize\)/,
+  const chrome = codeOf('src/ui/windowChrome.js');
+  assert.match(chrome, /window\.addEventListener\('resize',\s*scheduleResize\)/,
     'resize artık doğrudan handler kullanıyor; birleştirme (rAF) kayboldu');
 
-  const body = main.slice(main.indexOf('function scheduleResize()'));
-  const scheduleBody = body.slice(0, body.indexOf('\n}') + 2);
+  const body = chrome.slice(chrome.indexOf('function scheduleResize()'));
+  const scheduleBody = body.slice(0, body.indexOf('\n  }') + 4);
   assert.ok(scheduleBody.includes('requestAnimationFrame'), 'kare başına birleştirme kalkmış');
   assert.ok(!scheduleBody.includes('neutralizeTransientInput'),
     'resize yolunda dokunuş nörleniyor — çubuk kıpırtısı basılı joysticki düşürür');
-  assert.ok(!main.includes("window.addEventListener('resize', () => {\n  resizeCanvas();"),
+  assert.ok(!chrome.includes("window.addEventListener('resize', () => {\n  resizeCanvas();"),
     'eski satır içi resize handler geri gelmiş');
 });
 
 test('input is still neutralized on the real source-change events', () => {
-  const main = codeOf('src/main.js');
+  const chrome = codeOf('src/ui/windowChrome.js');
   for (const event of ['orientationchange', 'visibilitychange', 'blur']) {
-    const at = main.indexOf(`addEventListener('${event}'`);
+    const at = chrome.indexOf(`addEventListener('${event}'`);
     assert.ok(at >= 0, `${event} dinleyicisi kaybolmuş`);
-    const chunk = main.slice(at, at + 420);
+    const chunk = chrome.slice(at, at + 420);
     assert.ok(chunk.includes('neutralizeTransientInput'),
       `${event} artık dokunuşları nötrlemiyor — gerçek girdi kaybı senaryosu açıkta`);
   }
@@ -107,12 +107,13 @@ test('input is still neutralized on the real source-change events', () => {
 // cihazda masa-ortası/telefon-üstü oyuncusu SAHAYA GEÇ ve 3-2-1'i kumanda
 // yüzeyinde hiç göremiyordu.
 test('room phase has exactly one derivation', () => {
+  const flow = codeOf('src/core/roomFlow.js');
   const main = codeOf('src/main.js');
-  assert.match(main, /function roomPhase\(\)/, 'tek türetim fonksiyonu kaybolmuş');
+  assert.match(flow, /function roomPhase\(\)/, 'tek türetim fonksiyonu kaybolmuş');
   assert.ok(!/phase:\s*'GAME'/.test(main),
     'yerel pakete sabit phase yazılıyor — kumanda geri sayım/staging fazını kaybeder');
-  const uses = (main.match(/roomPhase\(\)/g) || []).length;
-  assert.ok(uses >= 3, `roomPhase() en az tanım + iki çağrı olmalı (bulunan ${uses})`);
+  const uses = (main.match(/roomFlow\.roomPhase\(\)/g) || []).length;
+  assert.ok(uses >= 2, `roomFlow.roomPhase() en az iki çağrı olmalı (bulunan ${uses})`);
 });
 
 // D1 sözleşmesi: geri sayım, kumanda yüzeyinin içeriğini EZMEZ. Eski yol

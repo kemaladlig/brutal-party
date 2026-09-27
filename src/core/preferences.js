@@ -42,7 +42,7 @@ function clamp(value, min, max) {
 }
 
 export function normalizePreferences(value = {}) {
-  const source = value && typeof value === 'object' ? value : {};
+  const source = /** @type {Record<string, any>} */ (value && typeof value === 'object' ? value : {});
   const sensitivity = Number(source.pongSensitivity);
   return {
     version: PREFERENCES_VERSION,

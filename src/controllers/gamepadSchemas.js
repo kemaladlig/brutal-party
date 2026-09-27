@@ -59,13 +59,6 @@ export const GAMEPAD_SCHEMAS = {
     onSync(gamepad, data) {
       const isCarrier = data.carrier === gamepad.playerIndex;
       gamepad.overlay.classList.toggle('bomb-carrier-alert', isCarrier);
-      const tacticalRoleEl = document.getElementById('tactical-role-text');
-      if (tacticalRoleEl) {
-        tacticalRoleEl.textContent = isCarrier
-          ? t('pad.bombCarry')
-          : t('pad.bombSafe');
-        tacticalRoleEl.style.color = isCarrier ? '#ff6b6b' : '#25d366';
-      }
     },
     onTeardown(gamepad) {
       gamepad.overlay.classList.remove('bomb-carrier-alert');
@@ -96,15 +89,6 @@ export const GAMEPAD_SCHEMAS = {
       });
       const isLead = lead === gamepad.playerIndex && max > 0;
       gamepad.overlay.classList.toggle('gem-carrier-alert', isLead);
-      const tacticalRoleEl = document.getElementById('tactical-role-text');
-      if (tacticalRoleEl) {
-        tacticalRoleEl.textContent = isLead
-          ? t('pad.heistLead')
-          : lead >= 0 && max > 0
-            ? t('pad.heistChase', lead + 1)
-            : t('pad.heistGrab');
-        tacticalRoleEl.style.color = isLead ? '#ffd700' : '#ffffff';
-      }
     },
     onTeardown(gamepad) {
       gamepad.overlay.classList.remove('gem-carrier-alert');
@@ -135,13 +119,6 @@ export const GAMEPAD_SCHEMAS = {
     onSync(gamepad, data) {
       const isKing = data.king === gamepad.playerIndex;
       gamepad.overlay.classList.toggle('crown-king-alert', isKing);
-      const tacticalRoleEl = document.getElementById('tactical-role-text');
-      if (tacticalRoleEl) {
-        tacticalRoleEl.textContent = isKing
-          ? t('pad.kingKeep')
-          : t('pad.kingSteal');
-        tacticalRoleEl.style.color = isKing ? '#ffd700' : '#ffffff';
-      }
     },
     onTeardown(gamepad) {
       gamepad.overlay.classList.remove('crown-king-alert');

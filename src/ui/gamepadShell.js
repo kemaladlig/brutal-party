@@ -21,6 +21,13 @@ function renderMenuButton() {
   return `<button class="gamepad-menu-btn" id="btn-gamepad-menu" type="button" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${getTabletopIconSvg('more_vertical', { size: 18, color: '#141414', strokeWidth: 2.3 })}</button>`;
 }
 
+// Skor göz atma: sahada kalıcı bant yok, skor bu düğmenin peek'iyle istenir
+// (bant `hidden` başlar, `gamepad.js` yönetir). Menü düğmesiyle aynı 44px çip.
+function renderScorePeekButton() {
+  const label = t('pad.scoreboard');
+  return `<button class="gamepad-menu-btn gamepad-score-btn" id="btn-score-peek" type="button" hidden aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${getTabletopIconSvg('crown', { size: 18, color: '#141414', strokeWidth: 2.3 })}</button>`;
+}
+
 function renderMenuPanel({ showLayoutEditor = true }) {
   const fullscreenLabel = t('pad.fullscreen');
   const leaveLabel = t('pad.leave');
@@ -40,12 +47,12 @@ function renderReactButton() {
   return `<button class="gamepad-react-btn" type="button" data-reaction-open data-reaction-send="pad" data-i18n-aria="pad.reactTitle" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"><span class="reaction-glyph" aria-hidden="true">${reactionGlyph('laugh')}</span></button>`;
 }
 
+// Oyun sırasındaki tek üst metin: SKOR / süre / can / cephane. Kutu, gölge ve
+// etiket yok — çıplak satır sahanın üst kenarında durur, `gamepad.js` doldurur.
 function renderHudContainers() {
   return `
-    <div class="gamepad-hud" id="gamepad-hud">
-      <span id="hud-game-tag"></span>
+    <div class="gamepad-status" id="gamepad-status">
       <span class="hud-live-status" id="hud-live-status" aria-live="polite"></span>
-      <span class="tactical-role-text" id="tactical-role-text"></span>
     </div>
     <div class="gamepad-killfeed" id="gamepad-killfeed" aria-live="polite"></div>
     <div class="gamepad-result" id="gamepad-result" aria-hidden="true"></div>
@@ -78,6 +85,7 @@ export function renderRemoteGamepadShell({
         ${renderReactButton()}
       </div>
       <div class="header-right-group">
+        ${renderScorePeekButton()}
         <div class="gamepad-menu" id="gamepad-menu">
           ${renderMenuButton()}
           ${renderMenuPanel({ showLayoutEditor })}
@@ -85,7 +93,7 @@ export function renderRemoteGamepadShell({
       </div>
     </div>
 
-    <div class="score-strip hidden" id="score-strip"></div>
+    <div class="score-strip hidden" id="score-strip" aria-hidden="true"></div>
     <div class="gamepad-workspace" id="gamepad-workspace"></div>
     ${renderHudContainers()}
   `;

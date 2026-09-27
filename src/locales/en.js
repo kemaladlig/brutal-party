@@ -120,7 +120,11 @@ export const EN = {
   'toast.godAdded': 'P{0}: GOD BOT (LEGENDARY) added!',
   'toast.seatCleared': 'P{0} cleared.',
   'toast.seatColor': 'P{0} switched color.',
-  'toast.updateReady': 'New version ready — refresh the page.',
+  'toast.updateReady': 'New version ready — tap to refresh.',
+  'toast.checkingUpdate': 'Checking for updates...',
+  'toast.upToDate': 'Application is up to date.',
+  'toast.updateCheckFail': 'Failed to check for updates.',
+  'toast.swUnsupported': 'Browser does not support updates.',
   'toast.noOnlineEnv': 'ONLINE unavailable: Vercel env vars missing.',
   // ── Connection banner ──
   'net.offline': 'INTERNET CONNECTION LOST',
@@ -157,13 +161,13 @@ export const EN = {
   // ── Join modal ──
   'join.pasted': 'Room code pasted!',
   'join.clipFail': 'Clipboard unreadable.',
-  'join.needCode': 'Enter a valid 3-digit room code.',
+  'join.needCode': 'Enter a valid room code.',
   'join.clipHint': 'Clipboard unreadable, type the code manually.',
   'join.badge': 'ONLINE PLAYER',
   'join.title': 'JOIN ROOM',
-  'join.codeLabel': '3-DIGIT ROOM CODE',
+  'join.codeLabel': 'ROOM CODE',
   'join.paste': 'PASTE',
-  'join.codePh': 'E.G. 421',
+  'join.codePh': 'E.G. A4X9',
   'join.asYou': '· JOINING',
   'join.hint': 'Change it from the menu character card.',
   'join.submit': 'CONNECT CONTROLLER →',
@@ -427,6 +431,7 @@ export const EN = {
   'crash.title': 'GAME ENGINE CRASHED',
   'crash.default': 'Unknown engine error',
   'crash.action': 'TAP THE SETTINGS ICON FOR MENU / OPTIONS',
+  'error.generic': 'An unexpected error occurred.',
   // ── Menu ──
   // ── App Shell ──
   'shell.rotateTitle': 'ROTATE YOUR DEVICE',
@@ -456,6 +461,8 @@ export const EN = {
   'menu.fullscreen': 'Fullscreen',
   'menu.exitFullscreen': 'Exit Fullscreen',
   'menu.settings': 'Settings',
+  'menu.checkUpdate': 'Check for Updates',
+  'menu.updateReady': 'New Version Ready (Refresh)',
   // ── Game cards ──
   // ── Tactical hints (controller) ──
   // ── Controller (phone) ──
@@ -486,6 +493,7 @@ export const EN = {
   'pad.seatHint': 'Tap the seat you want. Your current, host, and bot seats are locked.',
   'pad.seatHintEarly': 'You can change seats now; they lock when the host opens the arena.',
   'pad.menu': 'Menu',
+  'pad.scoreboard': 'Score',
   'pad.arenaPrep': 'ARENA PREPARING',
   'pad.arenaPrepText': 'Check your name and get ready when the host opens the arena.',
   'pad.charHint': 'Pick a unique color — same color blocks arena entry.',

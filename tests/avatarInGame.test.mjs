@@ -256,8 +256,8 @@ test('all views where body is avatar call drawGameAvatar (TANKS is sole commande
     'src/games/ninjaView.js',
     'src/games/snakeView.js',
     'src/games/zoneView.js',
-    'src/games-retired/cloneView.js',
-    'src/games/crown.js',
+    'src/games/cloneView.js',
+    'src/games/crownView.js',
   ];
   for (const f of viewFiles) {
     const content = fs.readFileSync(f, 'utf8');

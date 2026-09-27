@@ -50,7 +50,7 @@ function blendPointArrays(previous, current, t) {
 // diğer oyunlarda bu alan yoktur, `finiteNum(undefined)` → null olur ve atlanır.
 const TRANSFORM_KEYS = ['x', 'y', 'angle', 'heading', 'x1', 'y1', 'x2', 'y2', 'swingT'];
 
-function blendObject(previous, current, t) {
+function blendObject(previous, current, t, options) {
   if (!previous || !current || typeof previous !== 'object' || typeof current !== 'object') {
     return current;
   }
@@ -65,11 +65,17 @@ function blendObject(previous, current, t) {
       : lerp(before, after, t);
   }
 
-  if (Array.isArray(previous.trail) && Array.isArray(current.trail)) {
-    output.trail = blendPointArrays(previous.trail, current.trail, t);
-  }
-  if (Array.isArray(previous.history) && Array.isArray(current.history)) {
-    output.history = blendPointArrays(previous.history, current.history, t);
+  // SNAKE gövdesi her snapshot'ta yay-uzunluğuyla yeniden örneklenir: indeks
+  // i her karede patikada FARKLI bir noktaya denk gelir. İndeks-lerp gövdeyi
+  // her karede patika boyunca kaydırıp sürekli bir titreme/emerme çiziyor —
+  // trail current kareden snap alınır, baş/angle yine yumuşatılır.
+  if (!options?.snapTrail) {
+    if (Array.isArray(previous.trail) && Array.isArray(current.trail)) {
+      output.trail = blendPointArrays(previous.trail, current.trail, t);
+    }
+    if (Array.isArray(previous.history) && Array.isArray(current.history)) {
+      output.history = blendPointArrays(previous.history, current.history, t);
+    }
   }
   return output;
 }
@@ -91,7 +97,7 @@ function entityKey(entity, index, kind) {
   return `index:${index}`;
 }
 
-function blendObjectList(previous, current, t, kind) {
+function blendObjectList(previous, current, t, kind, options) {
   if (!Array.isArray(current)) return current;
   if (!Array.isArray(previous) || previous.length === 0) return current;
 
@@ -104,11 +110,11 @@ function blendObjectList(previous, current, t, kind) {
     const key = entityKey(entity, index, kind);
     const before = previousByKey.get(key)
       || (Number.isInteger(entity?.id) ? previous[index] : null);
-    return blendObject(before, entity, t);
+    return blendObject(before, entity, t, options);
   });
 }
 
-function blendPackedList(previous, current, t, kind, coordinateIndexes = [0, 1]) {
+function blendPackedList(previous, current, t, kind, coordinateIndexes = /** @type {readonly number[]} */ ([0, 1])) {
   if (!Array.isArray(current)) return current;
   if (!Array.isArray(previous) || previous.length === 0) return current;
 
@@ -177,6 +183,7 @@ export function blendWorldFrames(previous, current, t) {
   }
 
   // Stable object entities: players, enemies, NPCs, projectiles, and effects.
+  const blendOptions = current.mode === 'SNAKE' ? { snapTrail: true } : undefined;
   for (const kind of [
     'players',
     'enemies',
@@ -194,13 +201,13 @@ export function blendWorldFrames(previous, current, t) {
     'loadoutCrates',
   ]) {
     if (Array.isArray(previous[kind]) && Array.isArray(current[kind])) {
-      output[kind] = blendObjectList(previous[kind], current[kind], alpha, kind);
+      output[kind] = blendObjectList(previous[kind], current[kind], alpha, kind, blendOptions);
     }
   }
 
   // Packed entity arrays. New entities stay at their authoritative position;
   // entities that disappear from the next snapshot are never extrapolated.
-  for (const [kind, coordinateIndexes] of [
+  for (const [kind, coordinateIndexes] of /** @type {const} */ ([
     ['arrows', [0, 1]],
     ['bullets', [0, 1]],
     ['tombs', [0, 1]],
@@ -208,7 +215,7 @@ export function blendWorldFrames(previous, current, t) {
     ['loot', [0, 1]],
     ['steps', [0, 1]],
     ['near', [1, 2, 3, 4, 7]],
-  ]) {
+  ])) {
     if (Array.isArray(previous[kind]) && Array.isArray(current[kind])) {
       output[kind] = blendPackedList(
         previous[kind],

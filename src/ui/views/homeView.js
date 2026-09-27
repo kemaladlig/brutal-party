@@ -29,6 +29,7 @@ function el(tag, className, html) {
  * Sahne düğmesi: `weight` = 'gold' | 'teal' | 'ghost'.
  * `at` konum/ölçü sınıfı ekler (`home-play`, `home-room`, `home-join`); aile
  * kuralı `.scene-btn` üzerinde kalır, yerleşim `home.css`'te yerelleşir.
+ * @param {{id?: string, icon?: string, label?: string, sub?: string, weight?: string, at?: string, onClick?: (ev?: any) => void, focus?: string}} opts
  */
 function sceneButton({ id, icon, label, sub, weight, at = '', onClick, focus = 'act' }) {
   const btn = el('button', `scene-btn is-${weight}${at ? ` ${at}` : ''}`);

@@ -188,11 +188,10 @@ export class CurveGame extends BaseMiniGame {
         prevX: s.x,
         prevY: s.y,
         angle: s.angle,
-        // Gövde yarıçapı ve hız sahayla birlikte ölçeklenir: `headRadius 5`
-        // sabitken telefonda saha kısa kenarının %1.29'u, masaüstünde %0.53'ü
-        // (2.5x fark). Motor ölçekler, view `player.radius` okur, world packet
-        // taşır (ARCHER/NINJA/LASER ile aynı desen).
-        radius: fieldRadius(this.arena, 6, 0.006),
+        // Gövde yarıçapı ve hız sahayla birlikte ölçeklenir; world packet
+        // taşır (ARCHER/NINJA/LASER ile aynı desen). Online kumanda ekranında
+        // %0.6 okunamadığı için kafa %0.95 tabana çekildi.
+        radius: fieldRadius(this.arena, 9, 0.0095),
         speed: fieldSpeed(this.arena, 160),
         turnSpeed: 2.85,
         steer: 0, // -1 (left), 0 (none), +1 (right)

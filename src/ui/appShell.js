@@ -20,6 +20,7 @@ import {
   fullscreenOfferable, requestMatchFullscreen, resumeMatchFullscreen,
 } from './fullscreen.js';
 import { isStandaloneApp } from './toast.js';
+import { isUpdateAvailable, onUpdateStatusChange, applyUpdate, checkForUpdates } from '../core/updateManager.js';
 import { getLang, setLang, onLangChange, t } from '../i18n.js';
 import {
   registerView, getView, hasView, listRailViews, setRootView, getRootViewId,
@@ -539,10 +540,7 @@ function mountNavActions() {
       btn.querySelector('span')?.remove();
     },
   });
-  // Tam ekran düğmesi YALNIZ çubuğun gerçekten var olduğu yüzeyde vardır:
-  // kurulmuş/PWA'da çubuk tanım gereği yok, iPhone'da API yok. Zaten tam
-  // ekranda olan bir yüzeyle "tam ekran ol" düğmesi göstermek gürültüdür.
-  const fsBtn = fullscreenOfferable() ? iconButton({
+  const fsBtn = iconButton({
     id: 'shell-fullscreen', label: t('menu.fullscreen'), icon: isFullscreen() ? 'minimize_2' : 'maximize_2',
     pressed: isFullscreen(),
     onClick: (btn) => {
@@ -551,15 +549,30 @@ function mountNavActions() {
       btn.innerHTML = getTabletopIconSvg(active ? 'minimize_2' : 'maximize_2', { size: 18 });
       btn.setAttribute('aria-pressed', String(active));
     },
-  }) : null;
+  });
+  const updateAvailable = isUpdateAvailable();
+  const updateBtn = iconButton({
+    id: 'shell-update',
+    label: updateAvailable ? t('menu.updateReady') : t('menu.checkUpdate'),
+    icon: 'reload',
+    onClick: () => {
+      if (isUpdateAvailable()) {
+        applyUpdate();
+      } else {
+        checkForUpdates();
+      }
+    },
+  });
+  if (updateAvailable) {
+    updateBtn.classList.add('has-update');
+  }
+
   const settingsBtn = iconButton({
     id: 'shell-settings', label: t('menu.settings'), icon: 'settings',
     onClick: () => actions.openSettings?.(),
   });
 
-  host.append(soundBtn, langBtn);
-  if (fsBtn) host.append(fsBtn);
-  host.append(settingsBtn);
+  host.append(soundBtn, langBtn, fsBtn, updateBtn, settingsBtn);
   if (navActionsBound) return;
   navActionsBound = true;
   // Canlı düğüme bakılır: eski rebuild'in kopuk `fsBtn` kapanışı güncellenmez.
@@ -568,6 +581,14 @@ function mountNavActions() {
     if (!live) return;
     live.innerHTML = getTabletopIconSvg(active ? 'minimize_2' : 'maximize_2', { size: 18 });
     live.setAttribute('aria-pressed', String(active));
+  });
+  onUpdateStatusChange((available) => {
+    const live = shellEl?.querySelector('#shell-update');
+    if (!live) return;
+    live.classList.toggle('has-update', available);
+    const label = available ? t('menu.updateReady') : t('menu.checkUpdate');
+    live.setAttribute('aria-label', label);
+    live.title = label;
   });
   onLangChange(() => mountNavActions());
 }
@@ -615,7 +636,7 @@ export function goHome() {
 }
 
 /**
- * @param {object} opts
+ * @param {{actions?: any, platformMode?: any}} [opts]
  *   actions   — main.js'in sahip olduğu eylemler (openHostLobby, openJoinModal,
  *               onGameSelect, setGameMode...). Shell yalnız çağırır, bilmez.
  *   platformMode — başlangıç platform modu.

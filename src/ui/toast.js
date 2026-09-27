@@ -2,8 +2,13 @@
 import { t } from '../i18n.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 
-const installToast = document.getElementById('install-toast');
-const connectionBanner = document.getElementById('connection-banner');
+// `document` yalnız `typeof` ile kontrol edilir: `document?.x` kısayolu
+// `document` tanımsızken ReferenceError verir. Testler `getElementById`
+// içermeyen bir stub tanımlar (motor testleri DOM'suz çalışır) ve
+// `errorReporter` bu modülü içe aktardığı için burası yüklenebilir olmalı.
+const hasDom = typeof document !== 'undefined' && typeof document.getElementById === 'function';
+const installToast = hasDom ? document.getElementById('install-toast') : null;
+const connectionBanner = hasDom ? document.getElementById('connection-banner') : null;
 
 // Yükleme düğmesi birden çok yerde yaşar (profil kartı + ana menü simgesi)
 // ve shell tarafından sonradan üretilebilir. Bu yüzden `id` değil, TEK bir
@@ -14,7 +19,7 @@ const INSTALL_SELECTOR = '[data-install-app]';
 let deferredInstallPrompt = null;
 
 export function isStandaloneApp() {
-  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  return window.matchMedia('(display-mode: standalone)').matches || /** @type {any} */ (window.navigator).standalone === true;
 }
 
 /** iOS'un kendi kurulum akışı var (Paylaş → Ana Ekrana Ekle), ama
@@ -34,9 +39,10 @@ export function updateInstallButtonVisibility() {
   });
 }
 
-export function showInstallToast(message, iconKey = null) {
+export function showInstallToast(message, iconKey = null, onClick = null) {
   if (!installToast) return;
   installToast.textContent = '';
+  installToast.onclick = null;
   if (iconKey) {
     const iconSpan = document.createElement('span');
     iconSpan.className = 'toast-icon';
@@ -44,10 +50,22 @@ export function showInstallToast(message, iconKey = null) {
     installToast.append(iconSpan);
   }
   installToast.append(document.createTextNode(message));
+  if (typeof onClick === 'function') {
+    installToast.style.cursor = 'pointer';
+    installToast.onclick = (e) => {
+      e.stopPropagation();
+      onClick();
+      installToast.classList.remove('visible');
+    };
+  } else {
+    installToast.style.cursor = '';
+  }
   installToast.classList.add('visible');
-  window.clearTimeout(showInstallToast.timer);
-  showInstallToast.timer = window.setTimeout(() => {
+  window.clearTimeout(/** @type {any} */ (showInstallToast).timer);
+  /** @type {any} */ (showInstallToast).timer = window.setTimeout(() => {
     installToast.classList.remove('visible');
+    installToast.style.cursor = '';
+    installToast.onclick = null;
   }, 5000);
 }
 
@@ -61,9 +79,9 @@ export function showConnectionBanner(state, message) {
   connectionBanner.textContent = message || '';
   connectionBanner.dataset.state = state;
   connectionBanner.classList.add('visible');
-  window.clearTimeout(showConnectionBanner.timer);
+  window.clearTimeout(/** @type {any} */ (showConnectionBanner).timer);
   if (state === 'online') {
-    showConnectionBanner.timer = window.setTimeout(() => {
+    /** @type {any} */ (showConnectionBanner).timer = window.setTimeout(() => {
       connectionBanner.classList.remove('visible');
     }, 2000);
   }
@@ -71,8 +89,8 @@ export function showConnectionBanner(state, message) {
 
 export function hideConnectionBanner() {
   if (!connectionBanner) return;
-  window.clearTimeout(showConnectionBanner.timer);
-  showConnectionBanner.timer = null;
+  window.clearTimeout(/** @type {any} */ (showConnectionBanner).timer);
+  /** @type {any} */ (showConnectionBanner).timer = null;
   connectionBanner.classList.remove('visible');
 }
 
@@ -90,7 +108,7 @@ export function initToastAndInstall() {
   // delegasyonu kullanılır (doğrudan addEventListener erken bağlansa null'da
   // kalırdı ve buton hiç çalışmazdı).
   document.addEventListener('click', async (e) => {
-    const btn = e.target?.closest?.(INSTALL_SELECTOR);
+    const btn = /** @type {Element} */ (e.target)?.closest?.(INSTALL_SELECTOR);
     if (!btn) return;
     if (deferredInstallPrompt) {
       deferredInstallPrompt.prompt();

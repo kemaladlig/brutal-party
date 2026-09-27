@@ -18,7 +18,7 @@ const toAttr = (name) => name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 /**
  * @param {ParentNode} root
  * @param {string} attr — yuva özniteliğinin camelCase adı (`icon`, `lobbyIcon`)
- * @param {{size?: number, strokeWidth?: number}} [defaults] — öznitelik yoksa
+ * @param {{size?: number, strokeWidth?: number}} [defaults] - öznitelik yoksa
  */
 export function hydrateIconSlots(root = document, attr = 'icon', defaults = {}) {
   if (!root?.querySelectorAll) return;

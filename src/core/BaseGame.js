@@ -9,7 +9,7 @@ import { isSlotActionEvent, keyboardVectorFrom, STEER_KEY_HINTS } from './inputM
 import { createTabletopRenderer } from './tabletopRenderer.js';
 import { bindKeyboard, bindKeyboardCapture, unbindKeyboard } from './keyboardDispatch.js';
 import { getQuadrant, roundOverSkipGuard } from './touchFlow.js';
-import { getDisplayProfile, shouldShowVirtualControls } from '../ui/tokens.js';
+import { CONTROL_MODE, getDisplayProfile, shouldShowVirtualControls } from '../ui/tokens.js';
 import {
   AIM_HOLD_TO_FIRE,
   AIM_RELEASE_TO_FIRE,
@@ -29,6 +29,19 @@ export class BaseMiniGame {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+
+    // Motor sözleşmesi alanları (AGENTS.md §3, tipler: src/types/minigame.d.ts).
+    // Alt sınıf motorlar bunları kendi kurucu/reset'lerinde doldurur; temel
+    // sınıf yalnızca sözleşmeyi bildirir — burada yalnız null/falsy bildirim var.
+    /** @type {MiniGameEntity[] | null} */ this.players = null;
+    /** @type {MiniGameEntity[] | null} */ this.tanks = null;
+    /** @type {MiniGameEntity[] | null} */ this.paddles = null;
+    /** @type {MiniGameEntity[] | null} */ this.curves = null;
+    /** @type {MiniGameEntity[] | null} */ this.snakes = null;
+    /** @type {string[] | null} */ this.playerColors = null;
+    /** @type {MiniGameArena | null} */ this.arena = null;
+    /** @type {string | null} */ this.controlMode = null;
+    /** @type {boolean} */ this.hideLobbyStartButton = false;
 
     // States: 'LOBBY', 'PLAYING', 'ROUND_OVER', 'MATCH_OVER', etc.
     this.state = 'LOBBY';
@@ -62,8 +75,9 @@ export class BaseMiniGame {
     // ONLINE host telefonu P1'i kendisi oynar; TV_CONSOLE host varsayılan
     // olarak seyirci ekranıdır, ancak lobi düğmesiyle local P1 oyuncusuna
     // dönüşebilir. Render/input katmanı bu iki rolü ortak kodla ayırır.
-    this.suppressVirtualControls = false;
-    this.forceVirtualControls = false;
+    // Tek yazarı `roomFlow.setSeatTapHook` (resolveLocalControlMode çıktısı);
+    // motor kendi kararını vermez.
+    this.localControlMode = CONTROL_MODE.NONE;
     this.localControlSlot = null;
 
     // Klavye çapraz-konuşma kilidi: main.setGameMode yalnızca aktif motoru
@@ -303,7 +317,7 @@ export class BaseMiniGame {
 
         // Blur any focused DOM element (like bento menu buttons) to avoid accidental click invocation via Space
         if (document.activeElement && document.activeElement !== document.body && document.activeElement !== this.canvas) {
-          try { document.activeElement.blur(); } catch {}
+          try { /** @type {HTMLElement} */ (document.activeElement).blur(); } catch {}
         }
 
         // Prevent default scrolling / button triggering on game control keys
@@ -438,6 +452,7 @@ export class BaseMiniGame {
   // Tabletop Universal Layout & Schema
   // ---------------------------------------------------------------------------
 
+  /** Motor şeması alt sınıfta zenginleşir; taban geniş imzayı korur. @returns {any} */
   getTabletopSchema() {
     return {
       joystick: true,
@@ -498,12 +513,25 @@ export class BaseMiniGame {
     return this.getAimMode() === AIM_HOLD_TO_FIRE;
   }
 
+  /**
+   * Motor sözleşmesi prototip kancaları (`onSlotAim*`, `onSlotSteer`,
+   * `onSlotAction`) yalnız alt sınıf motorlarda tanımlıdır; temel sınıf
+   * bunları çağırır ama sahiplenmez. Tip kaydı: MiniGameEngine.
+   * @param {string} name
+   * @returns {((...args: any[]) => any) | undefined}
+   */
+  contractHook(name) {
+    const fn = /** @type {any} */ (this)[name];
+    return typeof fn === 'function' ? fn : undefined;
+  }
+
   setAimVector(slotIndex, input = {}) {
     const state = this.getAimState(slotIndex);
     if (!state) return null;
     state.setVector(input);
     this._syncAimState(slotIndex);
-    if (typeof this.onSlotAim === 'function') this.onSlotAim(slotIndex, input);
+    const onSlotAim = this.contractHook('onSlotAim');
+    if (onSlotAim) onSlotAim.call(this, slotIndex, input);
     return state.snapshot();
   }
 
@@ -519,9 +547,10 @@ export class BaseMiniGame {
     const event = state.move(source, input, input);
     this._syncAimState(slotIndex);
     if (event.accepted && event.type === 'press') {
-      this.onSlotAimHold?.(slotIndex, true, { ...event, source });
+      this.contractHook('onSlotAimHold')?.call(this, slotIndex, true, { ...event, source });
     }
-    if (typeof this.onSlotAim === 'function') this.onSlotAim(slotIndex, input);
+    const onSlotAim = this.contractHook('onSlotAim');
+    if (onSlotAim) onSlotAim.call(this, slotIndex, input);
     return event;
   }
 
@@ -532,9 +561,10 @@ export class BaseMiniGame {
     const event = state.press(source, input, input);
     this._syncAimState(slotIndex);
     if (event.accepted && !event.previousHeld) {
-      this.onSlotAimHold?.(slotIndex, true, { ...event, source });
+      this.contractHook('onSlotAimHold')?.call(this, slotIndex, true, { ...event, source });
     }
-    if (typeof this.onSlotAim === 'function') this.onSlotAim(slotIndex, input);
+    const onSlotAim = this.contractHook('onSlotAim');
+    if (onSlotAim) onSlotAim.call(this, slotIndex, input);
     return event;
   }
 
@@ -549,9 +579,10 @@ export class BaseMiniGame {
     });
     this._syncAimState(slotIndex);
     if (event.accepted && event.previousHeld) {
-      this.onSlotAimHold?.(slotIndex, false, { ...event, source });
+      this.contractHook('onSlotAimHold')?.call(this, slotIndex, false, { ...event, source });
     }
-    if (typeof this.onSlotAim === 'function') this.onSlotAim(slotIndex, input);
+    const onSlotAim = this.contractHook('onSlotAim');
+    if (onSlotAim) onSlotAim.call(this, slotIndex, input);
     return event;
   }
 
@@ -561,7 +592,7 @@ export class BaseMiniGame {
     const events = state.clear(source, cancelled);
     this._syncAimState(slotIndex);
     for (const event of events) {
-      this.onSlotAimHold?.(slotIndex, false, { ...event, source: event.source });
+      this.contractHook('onSlotAimHold')?.call(this, slotIndex, false, { ...event, source: event.source });
     }
     return events;
   }
@@ -571,7 +602,7 @@ export class BaseMiniGame {
     if (!state) return;
     const events = state.clear(null, true);
     for (const event of events) {
-      this.onSlotAimHold?.(slotIndex, false, { ...event, source: event.source });
+      this.contractHook('onSlotAimHold')?.call(this, slotIndex, false, { ...event, source: event.source });
     }
     state.reset();
     this._syncAimState(slotIndex);
@@ -591,7 +622,7 @@ export class BaseMiniGame {
         source,
         cancelled: data.cancelled === true,
       });
-    if (event?.accepted && typeof this.onSlotAimHold !== 'function') {
+    if (event?.accepted && !this.contractHook('onSlotAimHold')) {
       if (action === 'AIM_PRESS' && !event.previousHeld) onPress?.(slotIndex, data, event);
       if (action === 'AIM_RELEASE' && event.previousHeld) onRelease?.(slotIndex, event);
     }
@@ -601,10 +632,7 @@ export class BaseMiniGame {
   isTabletopAimPoint(touch) {
     if (!touch || !['PLAYING', 'ROUND_PAUSE'].includes(this.state)) return false;
     const schema = this.getTabletopSchema();
-    if (!schema?.aim || !shouldShowVirtualControls({
-      isHosting: !!this.suppressVirtualControls,
-      force: !!this.forceVirtualControls,
-    })) return false;
+    if (!schema?.aim || !shouldShowVirtualControls({ mode: this.localControlMode })) return false;
     const players = this.getEntitiesList();
     const corners = this.getTabletopControlCorners();
     for (let i = 0; i < 4; i++) {
@@ -634,16 +662,18 @@ export class BaseMiniGame {
   }
 
   handleSlotSteer(slotIndex, dir) {
-    if (typeof this.onSlotSteer === 'function') {
-      this.onSlotSteer(slotIndex, dir);
+    const onSlotSteer = this.contractHook('onSlotSteer');
+    if (onSlotSteer) {
+      onSlotSteer.call(this, slotIndex, dir);
     } else if (this.players?.[slotIndex]) {
       this.players[slotIndex].steer = dir;
     }
   }
 
   handleSlotAction(slotIndex, actionId, isDown) {
-    if (typeof this.onSlotAction === 'function') {
-      this.onSlotAction(slotIndex, actionId, isDown);
+    const onSlotAction = this.contractHook('onSlotAction');
+    if (onSlotAction) {
+      onSlotAction.call(this, slotIndex, actionId, isDown);
     }
   }
 
@@ -654,7 +684,7 @@ export class BaseMiniGame {
     const players = this.getEntitiesList();
 
     // 1. Masa-ortası Dokunmatik Kontrolleri (Steer ve Action butonları)
-    if (shouldShowVirtualControls({ isHosting: !!this.suppressVirtualControls, force: !!this.forceVirtualControls })) {
+    if (shouldShowVirtualControls({ mode: this.localControlMode })) {
       const corners = this.getTabletopControlCorners();
       for (let i = 0; i < 4; i++) {
         if (this.localControlSlot !== null && i !== this.localControlSlot) continue;
@@ -882,6 +912,7 @@ export class BaseMiniGame {
     return false;
   }
 
+  /** @returns {MiniGameControlCorner[]} */
   getTabletopControlCorners() {
     const vp = (this.viewport && this.viewport.width > 0)
       ? this.viewport
@@ -1304,6 +1335,6 @@ export class BaseMiniGame {
       window.dispatchEvent(new CustomEvent('brutal_return_to_lobby'));
       return;
     }
-    this.resetMatch();
+    /** @type {any} */ (this).resetMatch();
   }
 }

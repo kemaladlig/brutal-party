@@ -11,8 +11,6 @@ import {
   renderFloatingTexts,
 } from '../ui/hud.js';
 import { renderControlGuide } from '../controlGuide.js';
-import { drawObstacle } from '../core/arenaKit.js';
-import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { clampToArena, distToSegmentSquared, normalizeAngle } from '../core/physics2d.js';
 import { computePlayfield, fieldPx, fieldSpeed } from '../core/playfield.js';
 import { beginDrawRound, hasMatchResult, roundGapSeconds } from '../core/roundLifecycle.js';
@@ -36,7 +34,7 @@ import {
 import { t } from '../i18n.js';
 import { RaceAI } from '../ai/raceAI.js';
 import { RACE_TUNING, getRaceProgress } from './raceLogic.js';
-import { createRaceWorldPacket } from './raceView.js';
+import { createRaceWorldPacket, drawRaceWorld } from './raceView.js';
 
 export const TRACK_PRESETS = ['CIRCUIT', 'ZIGZAG', 'SPIRAL'];
 
@@ -68,7 +66,7 @@ export class RaceGame extends BaseMiniGame {
     this.ai = new RaceAI(this);
     this.targetLaps = RACE_TUNING.targetLaps;
     this.targetScore = RACE_TUNING.targetScore;
-    this.roundTimer = RACE_TUNING.roundTime;
+    this.roundTimer = /** @type {number} */ (RACE_TUNING.roundTime);
     this.roundTransitionTimer = 0;
     this.roundWinner = null;
     this.matchWinner = null;
@@ -644,7 +642,7 @@ export class RaceGame extends BaseMiniGame {
       }
       if (!player.isDrafting) player.draftingTimer = Math.max(0, player.draftingTimer - dt * 2);
 
-      let moveVec = { x: 0, y: 0, active: false, magnitude: 0 };
+      let moveVec = /** @type {{x: number, y: number, active: boolean, magnitude?: number}} */ ({ x: 0, y: 0, active: false, magnitude: 0 });
       if (player.slotType === 'human') {
         moveVec = this.getPlayerMovementVector(index);
       } else if (player.slotType === 'bot_normal' || player.slotType === 'bot_god') {
@@ -653,7 +651,7 @@ export class RaceGame extends BaseMiniGame {
 
       let maxSpeed = this.spd(RACE_TUNING.baseSpeed);
       let acceleration = this.spd(RACE_TUNING.baseAcceleration);
-      let dragRate = RACE_TUNING.dragRate;
+      let dragRate = /** @type {number} */ (RACE_TUNING.dragRate);
       if (player.isDashing || player.nitroBoostTimer > 0) {
         maxSpeed = this.spd(RACE_TUNING.dashSpeed);
         acceleration = this.spd(RACE_TUNING.dashAcceleration);
@@ -915,122 +913,6 @@ export class RaceGame extends BaseMiniGame {
     this.roundTransitionTimer = RACE_TUNING.roundTransition;
   }
 
-  drawNitroPad(ctx, pad) {
-    const pulse = 1 + Math.sin(performance.now() * 0.006) * 0.04;
-    ctx.save();
-    ctx.translate(pad.x, pad.y);
-    ctx.rotate(pad.angle);
-    ctx.scale(pulse, pulse);
-    ctx.fillStyle = UI_COLORS.ink;
-    ctx.fillRect(-pad.w / 2 + 4, -pad.h / 2 + 4, pad.w, pad.h);
-    ctx.fillStyle = UI_COLORS.turbo;
-    ctx.fillRect(-pad.w / 2, -pad.h / 2, pad.w, pad.h);
-    ctx.strokeStyle = UI_COLORS.ink;
-    const u = this.arena.unit || 1;
-    ctx.lineWidth = Math.max(1, 2.5 * u);
-    ctx.strokeRect(-pad.w / 2, -pad.h / 2, pad.w, pad.h);
-    drawTabletopIcon(ctx, 'zap', 0, 0, Math.min(pad.w, pad.h) * 0.62, {
-      color: UI_COLORS.ink,
-      strokeWidth: 2.4,
-    });
-    ctx.restore();
-  }
-
-  drawPlayer(ctx, player) {
-    const jumpOffsetY = -player.jumpZ * 0.8;
-    const shadowScale = Math.max(0.68, 1 - player.jumpZ * 0.018);
-
-    ctx.save();
-    ctx.translate(player.x, player.y);
-    ctx.scale(shadowScale, shadowScale);
-    ctx.fillStyle = player.jumpZ > 1 ? 'rgba(26, 26, 26, 0.25)' : 'rgba(26, 26, 26, 0.16)';
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 15, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    if (player.isDrafting) {
-      ctx.save();
-      const u = this.arena.unit || 1;
-      ctx.strokeStyle = '#38BDF8';
-      ctx.lineWidth = Math.max(1, 2 * u);
-      ctx.beginPath();
-      ctx.moveTo(player.x, player.y + jumpOffsetY);
-      ctx.lineTo(
-        player.x - Math.cos(player.angle) * 35,
-        player.y + jumpOffsetY - Math.sin(player.angle) * 35,
-      );
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    const jumpScale = 1 + Math.min(0.38, player.jumpZ * 0.035);
-    ctx.save();
-    ctx.translate(player.x, player.y + jumpOffsetY);
-    ctx.scale(jumpScale, jumpScale);
-    ctx.rotate(player.angle);
-
-    if (player.isDashing || player.nitroBoostTimer > 0) {
-      ctx.fillStyle = UI_COLORS.turbo;
-      ctx.fillRect(-28, -8, 14, 16);
-    }
-    if (player.empDisruptedTimer > 0) {
-      const u = this.arena.unit || 1;
-      ctx.strokeStyle = '#0EA5E9';
-      ctx.lineWidth = Math.max(1, 3 * u);
-      ctx.beginPath();
-      ctx.arc(0, 0, 20, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    ctx.fillStyle = player.color;
-    ctx.beginPath();
-    ctx.moveTo(16, 0);
-    ctx.lineTo(-12, -10);
-    ctx.lineTo(-8, 0);
-    ctx.lineTo(-12, 10);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = UI_COLORS.ink;
-    const u = this.arena.unit || 1;
-    ctx.lineWidth = Math.max(1, 2.5 * u);
-    ctx.stroke();
-    ctx.restore();
-
-    const pipCount = player.index + 1;
-    const pipSpacing = 5;
-    const startX = player.x - ((pipCount - 1) * pipSpacing) / 2;
-    for (let pipIndex = 0; pipIndex < pipCount; pipIndex++) {
-      ctx.beginPath();
-      ctx.arc(startX + pipIndex * pipSpacing, player.y + jumpOffsetY, 2.2, 0, Math.PI * 2);
-      ctx.fillStyle = UI_COLORS.card;
-      ctx.fill();
-      ctx.strokeStyle = UI_COLORS.ink;
-      const u = this.arena.unit || 1;
-      ctx.lineWidth = Math.max(1, 1 * u);
-      ctx.stroke();
-    }
-
-    const targetCheckpoint = this.checkpoints[player.nextCheckpoint];
-    if (targetCheckpoint && this.state === 'PLAYING') {
-      const arrowAngle = Math.atan2(targetCheckpoint.y - player.y, targetCheckpoint.x - player.x);
-      ctx.save();
-      ctx.translate(
-        player.x + Math.cos(arrowAngle) * 26,
-        player.y + Math.sin(arrowAngle) * 26 + jumpOffsetY,
-      );
-      ctx.rotate(arrowAngle);
-      ctx.fillStyle = targetCheckpoint.color;
-      ctx.beginPath();
-      ctx.moveTo(6, 0);
-      ctx.lineTo(-4, -4);
-      ctx.lineTo(-4, 4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
-  }
-
   render() {
     const ctx = this.ctx;
     const width = this.viewport.width;
@@ -1061,83 +943,7 @@ export class RaceGame extends BaseMiniGame {
     }
 
     const arena = this.arena;
-    const u = arena.unit || 1;
-    ctx.fillStyle = UI_COLORS.paperWarm;
-    ctx.fillRect(arena.left, arena.top, arena.width, arena.height);
-    ctx.strokeStyle = UI_COLORS.ink;
-    ctx.lineWidth = Math.max(1, 4 * u);
-    ctx.strokeRect(arena.left, arena.top, arena.width, arena.height);
-
-    ctx.strokeStyle = 'rgba(26, 26, 26, 0.06)';
-    ctx.lineWidth = Math.max(1, 1 * u);
-    for (let x = arena.left; x < arena.right; x += 40) {
-      ctx.beginPath();
-      ctx.moveTo(x, arena.top);
-      ctx.lineTo(x, arena.bottom);
-      ctx.stroke();
-    }
-    for (let y = arena.top; y < arena.bottom; y += 40) {
-      ctx.beginPath();
-      ctx.moveTo(arena.left, y);
-      ctx.lineTo(arena.right, y);
-      ctx.stroke();
-    }
-
-    for (const pulse of this.empPulses) {
-      ctx.save();
-      ctx.strokeStyle = '#0EA5E9';
-      ctx.lineWidth = Math.max(1, 4 * u);
-      ctx.beginPath();
-      ctx.arc(pulse.x, pulse.y, pulse.radius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    for (const slick of this.oilSlicks) {
-      ctx.save();
-      ctx.fillStyle = 'rgba(26, 26, 26, 0.75)';
-      ctx.beginPath();
-      ctx.arc(slick.x, slick.y, slick.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = UI_COLORS.turbo;
-      ctx.lineWidth = Math.max(1, 2 * u);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    this.nitroPads.forEach((pad) => this.drawNitroPad(ctx, pad));
-    for (const spinner of this.obstacleSpinners) {
-      ctx.save();
-      ctx.translate(spinner.x, spinner.y);
-      ctx.rotate(spinner.angle);
-      drawObstacle(ctx, { x: -spinner.length / 2, y: -8, w: spinner.length, h: 16 }, { variant: 'stone' });
-      ctx.fillStyle = UI_COLORS.ink;
-      ctx.beginPath();
-      ctx.arc(0, 0, 8, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    for (const checkpoint of this.checkpoints) {
-      ctx.save();
-      ctx.fillStyle = checkpoint.color;
-      ctx.globalAlpha = 0.25;
-      ctx.beginPath();
-      ctx.arc(checkpoint.x, checkpoint.y, checkpoint.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 0.85;
-      ctx.strokeStyle = checkpoint.color;
-      ctx.lineWidth = Math.max(1, 3 * u);
-      ctx.setLineDash([6, 4]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = UI_COLORS.ink;
-      ctx.font = `900 16px ${UI_FONTS.mono}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(checkpoint.name, checkpoint.x, checkpoint.y);
-      ctx.restore();
-    }
+    drawRaceWorld(ctx, this, arena, this.players.map((p) => p.color), this.lastTime);
 
     if (this.state === 'PLAYING') {
       renderTopPill(ctx, {
@@ -1150,10 +956,6 @@ export class RaceGame extends BaseMiniGame {
         // kapatıyordu; çubuk yerine çıplak metne düşer.
         persistent: true,
       });
-    }
-
-    for (const player of this.players) {
-      if (player.isJoined && player.isAlive) this.drawPlayer(ctx, player);
     }
 
     renderFloatingTexts(ctx, this.floatingTexts, 0);

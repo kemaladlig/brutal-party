@@ -429,7 +429,10 @@ function routeAroundPillars(game, bot, aimX, aimY, isGod, panic) {
 // ANA FONKSİYON
 // ============================================================
 
-export function updateBombBotAI(game, bot, dt) {
+import { createReadOnlyView } from '../core/botView.js';
+
+export function updateBombBotAI(rawGame, bot, dt) {
+  const game = createReadOnlyView(rawGame);
   const carrier = game.players[game.bombCarrierIndex];
   const isCarrier = bot.index === game.bombCarrierIndex;
   const isGod = bot.slotType === 'bot_god';

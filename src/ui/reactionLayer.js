@@ -132,10 +132,10 @@ function buildBubble(key, slotIndex, color, label) {
 
 /**
  * Tepki balonu gösterir.
- * @param {object} opts
- * @param {string} opts.key          — `REACTIONS` içinden anahtar (ya da legacy emoji)
- * @param {number} [opts.slotIndex]  — koltuk; -1/null ise etiketsiz (host, koltukta değil)
- * @param {string} [opts.color]      — oyuncu rengi; yoksa koltuk paletinden
+ * @param {object} [opts]
+ * @param {string} [opts.key]        - `REACTIONS` içinden anahtar (ya da legacy emoji)
+ * @param {number} [opts.slotIndex]  - koltuk; -1/null ise etiketsiz (host, koltukta değil)
+ * @param {string} [opts.color]      - oyuncu rengi; yoksa koltuk paletinden
  */
 export function showReaction({ key, slotIndex = -1, color = null } = {}) {
   const reactionKey = normalizeReactionKey(key);
@@ -151,6 +151,7 @@ export function showReaction({ key, slotIndex = -1, color = null } = {}) {
   const el = buildBubble(reactionKey, slot, accent, label);
   layer.appendChild(el);
 
+  /** @type {{el: any, slotIndex: number, timer: ReturnType<typeof setTimeout> | 0}} */
   const bubble = { el, slotIndex: slot, timer: 0 };
   bubble.timer = setTimeout(() => dropBubble(bubble), CLEANUP_GRACE_MS);
   const body = el.firstElementChild;

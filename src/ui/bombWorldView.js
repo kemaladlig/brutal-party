@@ -31,14 +31,14 @@ export function createWorldViewRenderer() {
         const pillars = frame.pillars.map(([x, y, w, h]) => ({ x, y, w, h }));
         const carrierIndex = frame.carrier;
         const carrier = frame.players.find((p) => p.slot === carrierIndex) || null;
-        drawBombArena(ctx, arena, pillars, {
+        drawBombArena(ctx, arena, pillars, /** @type {any} */ ({
           carrier: carrier ? { ...carrier, alive: carrier.alive } : null,
           bombTimer: frame.bombTimer,
           bombMaxTime: frame.bombMaxTime,
           // Host ile aynı dekor: seed `(BOMB, roundId)`'den türer, `roundId`
           // zaten pakette. Ek alan gönderilmez.
           seed: hashFieldSeed('BOMB', frame.roundId),
-        });
+        }));
         drawBombInk(ctx, frame.ink.map(([x, y, radius]) => ({ x, y, radius })));
         drawBombPickups(ctx, frame.pickups.map(([x, y, type, animTime, size]) => ({ x, y, type, animTime, size })));
         const players = frame.players.map((p) => ({

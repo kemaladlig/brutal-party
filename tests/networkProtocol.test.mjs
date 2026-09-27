@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isValidNetworkInput } from '../src/core/networkProtocol.js';
+import {
+  isValidNetworkInput,
+  generateRoomCode,
+  normalizeRoomCode,
+  isValidRoomCode,
+  ROOM_CODE_ALPHABET,
+} from '../src/core/networkProtocol.js';
 import { roundGapSeconds } from '../src/core/roundLifecycle.js';
 
 test('accepts controller actions used by every online game schema', () => {
@@ -84,3 +90,42 @@ test('roundGap quantizes to half seconds and never goes negative', () => {
   assert.equal(roundGapSeconds({ state: 'ROUND_OVER', roundTransitionTimer: NaN }), 0);
   assert.equal(roundGapSeconds({ state: 'ROUND_OVER', roundTransitionTimer: '2.4' }), 2.5);
 });
+
+test('generateRoomCode produces valid alphanumeric codes of specified length', () => {
+  const code = generateRoomCode(4);
+  assert.equal(typeof code, 'string');
+  assert.equal(code.length, 4);
+  for (const char of code) {
+    assert.equal(ROOM_CODE_ALPHABET.includes(char), true, `char ${char} should be in alphabet`);
+  }
+  // Custom length
+  const longCode = generateRoomCode(6);
+  assert.equal(longCode.length, 6);
+  for (const char of longCode) {
+    assert.equal(ROOM_CODE_ALPHABET.includes(char), true);
+  }
+  // Disambiguation: no O, 0, I, 1 in alphabet
+  assert.equal(ROOM_CODE_ALPHABET.includes('O'), false);
+  assert.equal(ROOM_CODE_ALPHABET.includes('0'), false);
+  assert.equal(ROOM_CODE_ALPHABET.includes('I'), false);
+  assert.equal(ROOM_CODE_ALPHABET.includes('1'), false);
+});
+
+test('normalizeRoomCode trims and uppercases code', () => {
+  assert.equal(normalizeRoomCode('  a4x9  '), 'A4X9');
+  assert.equal(normalizeRoomCode(123), '123');
+  assert.equal(normalizeRoomCode(null), '');
+  assert.equal(normalizeRoomCode(undefined), '');
+});
+
+test('isValidRoomCode validates 3-6 char alphanumeric codes', () => {
+  assert.equal(isValidRoomCode('A4X9'), true);
+  assert.equal(isValidRoomCode('123'), true); // legacy 3-digit
+  assert.equal(isValidRoomCode('ABCDEF'), true);
+  assert.equal(isValidRoomCode('ab'), false); // too short
+  assert.equal(isValidRoomCode('ABCDEFG'), false); // too long (7)
+  assert.equal(isValidRoomCode('A4-9'), false); // special char
+  assert.equal(isValidRoomCode(null), false);
+  assert.equal(isValidRoomCode(''), false);
+});
+

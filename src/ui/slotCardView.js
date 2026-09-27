@@ -23,7 +23,7 @@ export function hasSlotCard(slotIndex) {
  * davranış; state yazımı çizimden sonra gelir).
  */
 export function paintSlotAvatar(slotIndex, { isConnected, kind, entry }) {
-  const slotCanvas = document.getElementById(`slot-canvas-p${slotIndex + 1}`);
+  const slotCanvas = /** @type {HTMLCanvasElement} */ (document.getElementById(`slot-canvas-p${slotIndex + 1}`));
   if (!slotCanvas) return;
 
   const ctx = slotCanvas.getContext('2d');

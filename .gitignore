@@ -16,3 +16,6 @@ BRUTAL-PARTY.apk
 # opencode tarayici araci ekran goruntuleri (dogrulama artiklari, kaynak degil)
 .openchamber/
 .design-qa/
+# Playwright çalışma artıkları
+test-results/
+playwright-report/

@@ -6,16 +6,17 @@ import { openOverlay, closeOverlay } from './overlayHost.js';
 import { hydrateIconSlots } from './iconSlots.js';
 import { showInstallToast } from './toast.js';
 import { createTabStrip } from './tabStrip.js';
+import { normalizeRoomCode, isValidRoomCode } from '../core/networkProtocol.js';
 import { t, onLangChange } from '../i18n.js';
 
 const joinRoomModal = document.getElementById('join-room-modal');
-const inputRoomCode = document.getElementById('input-room-code');
+const inputRoomCode = /** @type {HTMLInputElement} */ (document.getElementById('input-room-code'));
 const joinAsName = document.getElementById('join-as-name');
 const btnSubmitJoin = document.getElementById('btn-submit-join');
 const btnCancelJoin = document.getElementById('btn-cancel-join');
 const btnPasteRoomCode = document.getElementById('btn-paste-room-code');
 
-const heroInputCode = document.getElementById('hero-input-code');
+const heroInputCode = /** @type {HTMLInputElement} */ (document.getElementById('hero-input-code'));
 const btnHeroJoin = document.getElementById('btn-hero-join');
 const btnHeroPaste = document.getElementById('btn-hero-paste');
 const onlineHeroInputCode = document.getElementById('online-input-code');
@@ -128,8 +129,8 @@ export function initJoinModal({ onExecuteJoin }) {
     try {
       const text = await navigator.clipboard.readText();
       if (text && inputRoomCode) {
-        const match = text.match(/join=([A-Za-z0-9]{3})/i) || text.match(/\b([A-Za-z0-9]{3})\b/);
-        inputRoomCode.value = (match ? match[1] : text.slice(0, 3)).toUpperCase();
+        const match = text.match(/join=([A-Za-z0-9]{3,6})/i) || text.match(/\b([A-Za-z0-9]{4,6})\b/) || text.match(/\b([A-Za-z0-9]{3})\b/);
+        inputRoomCode.value = normalizeRoomCode(match ? match[1] : text.slice(0, 4));
         showInstallToast(t('join.pasted'));
       }
     } catch (err) {
@@ -148,7 +149,7 @@ export function initJoinModal({ onExecuteJoin }) {
       closeJoinModal();
     }
   });
-  const joinCard = joinRoomModal?.querySelector('.join-room-card');
+  const joinCard = /** @type {HTMLElement} */ (joinRoomModal?.querySelector('.join-room-card'));
   let joinStartY = null;
   joinCard?.addEventListener('touchstart', (e) => {
     if (e.touches[0]) joinStartY = e.touches[0].clientY;
@@ -161,8 +162,8 @@ export function initJoinModal({ onExecuteJoin }) {
   }, { passive: true });
 
   btnSubmitJoin?.addEventListener('click', () => {
-    const code = inputRoomCode?.value?.trim().toUpperCase();
-    if (!code || code.length < 3) {
+    const code = normalizeRoomCode(inputRoomCode?.value);
+    if (!code || !isValidRoomCode(code)) {
       showInstallToast(t('join.needCode'));
       return;
     }
@@ -171,9 +172,9 @@ export function initJoinModal({ onExecuteJoin }) {
   });
 
   inputRoomCode?.addEventListener('input', (e) => {
-    const code = (e.target.value || '').trim().toUpperCase();
-    e.target.value = code;
-    if (code.length === 3) {
+    const code = normalizeRoomCode(/** @type {HTMLInputElement} */ (e.target).value);
+    /** @type {HTMLInputElement} */ (e.target).value = code;
+    if (code.length === 4) {
       closeJoinModal();
       onExecuteJoin(code, ensureStoredNick(), joinModalMode);
     }
@@ -181,8 +182,8 @@ export function initJoinModal({ onExecuteJoin }) {
 
   // Hero Quick Join — TV ve ONLINE kartları aynı yardımcıyı paylaşır.
   const joinFromHeroInput = (input, mode) => {
-    const code = input?.value?.trim().toUpperCase();
-    if (!code || code.length < 3) {
+    const code = normalizeRoomCode(input?.value);
+    if (!code || !isValidRoomCode(code)) {
       openJoinModal(code, mode);
       return;
     }
@@ -192,14 +193,14 @@ export function initJoinModal({ onExecuteJoin }) {
   const bindHeroInput = (input, button, mode) => {
     button?.addEventListener('click', () => joinFromHeroInput(input, mode));
     input?.addEventListener('input', (e) => {
-      const code = (e.target.value || '').trim().toUpperCase();
+      const code = normalizeRoomCode(e.target.value);
       e.target.value = code;
-      if (code.length === 3) onExecuteJoin(code, ensureStoredNick(), mode);
+      if (code.length === 4) onExecuteJoin(code, ensureStoredNick(), mode);
     });
     input?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
-        const code = input?.value?.trim().toUpperCase();
-        if (code && code.length === 3) onExecuteJoin(code, ensureStoredNick(), mode);
+        const code = normalizeRoomCode(input?.value);
+        if (code && isValidRoomCode(code)) onExecuteJoin(code, ensureStoredNick(), mode);
       }
     });
   };

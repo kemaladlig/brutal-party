@@ -51,10 +51,10 @@ function setActiveTab(tabId) {
 }
 
 function applyTabVisibility() {
-  document.querySelectorAll('.customize-tab').forEach((btn) => {
+  /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.customize-tab')).forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.tab === activeTab);
   });
-  document.querySelectorAll('.custom-section[data-section]').forEach((sec) => {
+  /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.custom-section[data-section]')).forEach((sec) => {
     sec.classList.toggle('hidden', sec.dataset.section !== activeTab);
   });
 }
@@ -166,7 +166,7 @@ function createModalDOM() {
 
   // Sekme çubuğu
   document.querySelector('.customize-tabs')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.customize-tab');
+    const btn = /** @type {HTMLElement | null} */ (/** @type {Element} */ (e.target).closest('.customize-tab'));
     if (!btn) return;
     setActiveTab(btn.dataset.tab);
   });
@@ -252,7 +252,7 @@ function renderSelectionGrids() {
     }).join('');
 
     palGrid.onclick = (e) => {
-      const btn = e.target.closest('.color-swatch-btn');
+      const btn = /** @type {HTMLElement | null} */ (/** @type {Element} */ (e.target).closest('.color-swatch-btn'));
       if (!btn) return;
       currentCustom.color = btn.dataset.hex;
       saveAvatarProfile(currentCustom);
@@ -274,7 +274,7 @@ function renderSelectionGrids() {
     }).join('');
 
     expGrid.onclick = (e) => {
-      const btn = e.target.closest('.custom-chip-btn');
+      const btn = /** @type {HTMLElement | null} */ (/** @type {Element} */ (e.target).closest('.custom-chip-btn'));
       if (!btn) return;
       currentCustom.expression = btn.dataset.id;
       saveAvatarProfile(currentCustom);
@@ -293,7 +293,7 @@ function renderSelectionGrids() {
     }).join('');
 
     rimGrid.onclick = (e) => {
-      const btn = e.target.closest('.rim-swatch-btn');
+      const btn = /** @type {HTMLElement | null} */ (/** @type {Element} */ (e.target).closest('.rim-swatch-btn'));
       if (!btn) return;
       currentCustom.rim = btn.dataset.id;
       saveAvatarProfile(currentCustom);
@@ -305,7 +305,7 @@ function renderSelectionGrids() {
 function startPreviewLoop() {
   if (animFrameId) cancelAnimationFrame(animFrameId);
 
-  const canvas = document.getElementById('customize-preview-canvas');
+  const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('customize-preview-canvas'));
   if (!canvas) return;
 
   // Ölçü yalnız kutu değiştiğinde tazelenir; her karede `getBoundingClientRect`
@@ -374,8 +374,8 @@ let detachCardGaze = null;
  */
 export function initMenuAvatarCard(root = document) {
   const cardEl = root.querySelector('#menu-customize-card');
-  const stageEl = root.querySelector('#menu-avatar-stage');
-  const canvasEl = root.querySelector('#menu-avatar-canvas');
+  const stageEl = /** @type {HTMLElement} */ (root.querySelector('#menu-avatar-stage'));
+  const canvasEl = /** @type {HTMLCanvasElement} */ (root.querySelector('#menu-avatar-canvas'));
   if (!canvasEl) return;
 
   // Kartın yaşam makinesi — heroAvatar ile aynı fabrika, `modal` preset'i.
@@ -450,7 +450,7 @@ export function initMenuAvatarCard(root = document) {
   // Kart gövdesine dokunulduğunda açık isim düzenlemesi varsa kapat
   cardEl?.addEventListener('click', (e) => {
     // Tıklanan eleman butonlar veya input değilse ve isim düzenleme açıksa kapat
-    const target = e.target;
+    const target = /** @type {Element} */ (e.target);
     if (target && target.closest && (target.closest('.hero-custom-btn') || target.closest('.menu-name-input-row') || target.closest('.menu-name-icon-btn'))) {
       return;
     }
@@ -490,7 +490,7 @@ export function initMenuAvatarCard(root = document) {
   let cachedProfile = getAvatarProfile();
 
   window.addEventListener('brutal_customization_changed', (e) => {
-    cachedProfile = e.detail?.customization || getAvatarProfile();
+    cachedProfile = /** @type {CustomEvent} */ (e).detail?.customization || getAvatarProfile();
     updateCardName();
   });
 

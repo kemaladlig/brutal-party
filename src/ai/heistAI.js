@@ -88,7 +88,10 @@ const TIER = {
   },
 };
 
-export function updateHeistBotAI(game, bot, dt) {
+import { createReadOnlyView } from '../core/botView.js';
+
+export function updateHeistBotAI(rawGame, bot, dt) {
+  const game = createReadOnlyView(rawGame);
   const P = TIER[bot.slotType] || TIER.bot_normal;
   const myVault = game.vaults[bot.index];
   const { left, right, top, bottom, cx, cy } = game.arena;

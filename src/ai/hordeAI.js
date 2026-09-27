@@ -3,6 +3,7 @@
 import { normalizeAngle } from '../core/physics2d.js';
 import { fieldPx } from '../core/playfield.js';
 import { getPlayerWeapon } from '../games/hordeConfig.js';
+import { createReadOnlyView } from '../core/botView.js';
 
 function distanceSq(ax, ay, bx, by) {
   const dx = ax - bx;
@@ -44,7 +45,8 @@ function aimAt(bot, target) {
   bot.isAiming = difference < (bot.slotType === 'bot_god' ? 0.42 : 0.3);
 }
 
-export function updateHordeBotAI(game, bot, dt) {
+export function updateHordeBotAI(rawGame, bot, dt) {
+  const game = createReadOnlyView(rawGame);
   if (!bot?.isAlive || game.state !== 'PLAYING') {
     if (bot) {
       bot.steerX = 0;

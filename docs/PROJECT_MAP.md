@@ -45,6 +45,11 @@ src/controlGuide.js         Oyun-içi kontrol helper overlay'i
 src/touchManager.js         Dokunmatik giriş yöneticisi (TV / masa-ortası lokal)
 src/i18n.js                 UI metin motoru (t(), dil, olaylar); src/locales/ tr.js, en.js
 src/types/game.d.ts         Ortak tipler (PlayerSlot, Cartridge, EngineContract)
+src/types/minigame.d.ts     Motor sözleşmesinin TİP hâli: MiniGameEngine/MiniGameArena/
+                            MiniGameEntity/MiniGameControlCorner + KeyboardEvent/Window augment.
+                            Global bildirim (runtime değer yok); yeni motor alanı önce buraya.
+src/types/geometry.d.ts     Paylaşılan geometri/ölçüm tipleri: FieldGeometry/FieldPalette/
+                            QualityMeasurement/WorldFrame + HTMLCanvasElement __fieldRole.
 src/audio.js                Synthesizer / Web Audio ses efektleri
 
 src/core/
@@ -61,7 +66,14 @@ src/core/
                             sunum durumu burada yaşar
   tabletopIcons.js          Lucide vektör ikon kütüphanesi (drawTabletopIcon + getTabletopIconSvg)
   engineRegistry.js         GAME_ORDER (aktif önce, retired sonra), CARTRIDGES (15 kartuş),
-                            ensureEngine/preloadEngine, registerEngine/getEngine/forEachEngine
+                            ensureEngine/preloadEngine (modül ısıtır, örnek kurmaz),
+                            registerEngine/getEngine/forEachEngine,
+                            releaseEngine/releaseAllExcept (Faz 4.5 tek-koltuk: mod değişiminde
+                            aktif olmayan örnekler BaseGame.destroy() ile yıkılır),
+                            isEngineWarm (soğuk-modül toast kapısı), getLoadedModes (teşhis)
+  botView.js                AI ateşduvarı: createReadOnlyView — derin salt-okunur Proxy
+                            (set/delete/mutate-yasak, metotlar raw this ile çalışır);
+                            15/15 AI girişinde game sarmalanır, yazım yalnız bot varlığına
   slotManager.js            Koltuk yönetimi: hostPlayerSlots, syncSlotsToEngine, swapEngineSlots,
                             getColorClashIndices (sert renk engeli), clearRemoteSlot (kopan nötral)
   slotRules.js              Saf koltuk taşıma kuralları (hedef/kaynak, bot, host, kilit)
@@ -172,6 +184,18 @@ server/
 public/                     PWA (manifest.webmanifest, sw.js, ikonlar) + public/assets/games/*.webp
 tests/                      Node test runner: protokol, WebRTC, world snapshot, renderer, kontrol
                             rehberi, kısıt taramaları (pxConstants/fieldKit/movementBudget), health
+tests-e2e/                  Playwright (npm run test:e2e): engine-smoke.spec.js — tüm GAME_ORDER
+                            motorlarını registry'den yükleyip LOBBY→PLAYING 240 kare sürer;
+                            visual-baseline.spec.js — seeded PRNG + donmuş saatle motor başına
+                            kare-60 canvas ekran tabanı (*.js-snapshots/, --update-snapshots)
+tests/relayProbes.test.mjs  §11'in 3 provasının protokol karşılığı: hazır→lobi sıfırlama,
+                            takas isim senkronu, bot görünürlüğü — gerçek WS sunucusu üzerinde
+playwright.config.mjs       e2e yapılandırması (vite:3100 webServer, chromium headless)
+scripts/typecheck.mjs       tsc --checkJs ratchet'i: --stats dosya tablosu, --max (taban:
+                            scripts/typecheck-baseline.txt, şu an 0) — `npm run typecheck`
+scripts/rules-lint.mjs      AGENTS.md K1–K6 makine bekçisi (mode=== dalı, ham renk, canvas
+                            DPR, cartridge bütünlüğü, emoji, PROJECT_MAP tazeliği); borç
+                            tabanı scripts/rules-lint-baseline.json — `npm run check:rules`
 ```
 
 ---

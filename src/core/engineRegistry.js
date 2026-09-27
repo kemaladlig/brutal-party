@@ -8,6 +8,7 @@
 
 import { GAMEPAD_SCHEMAS } from '../controllers/gamepadSchemas.js';
 import { t } from '../i18n.js';
+import { reportError } from './errorReporter.js';
 
 export const GAME_ORDER = [
   'HORDE',
@@ -427,6 +428,10 @@ export const CARTRIDGES = {
  * `worldPacket`. 15 kartuşun altısı da birebir aynıydı; oyun-özeli tek
  * parça `packet`, PONG'un `accumulator` sıfırlamasıdır (`onFrame`).
  */
+/**
+ * @param {any} game
+ * @param {{packet?: () => any, onFrame?: ((g: any) => void) | null}} [hooks]
+ */
 function makeEngine(game, { packet, onFrame = null } = {}) {
   const enter = (now) => {
     game.lastTime = now;
@@ -445,6 +450,9 @@ function makeEngine(game, { packet, onFrame = null } = {}) {
 
 const registry = {};
 const loadingPromises = {};
+// Modül bir kez indirildiğinde buraya yazılır (Faz 4.5: örnek yıkılsa bile
+// import önbelleği kalıcıdır) — yükleme toast'i ancak soğuk modülde basılır.
+const moduleWarm = new Set();
 let engineCanvas = null;
 
 // Boot'ta bir kez çağrılır (motor kurmaz — sadece canvas'ı saklar).
@@ -464,6 +472,7 @@ export async function ensureEngine(mode) {
       if (!engineCanvas) throw new Error('Engine canvas not set');
       const entry = cart.createEngine(new GameClass(engineCanvas));
       registerEngine(mode, entry);
+      moduleWarm.add(mode);
       return entry;
     }).catch((err) => {
       delete loadingPromises[mode];
@@ -477,11 +486,21 @@ export function isEngineLoaded(mode) {
   return !!registry[mode];
 }
 
-// Fire-and-forget ön-yükleme (kart hover/touchstart): hatalar sessizce yutulur,
-// gerçek seçim anındaki ensureEngine yine de sonucu/hatayı yönetir.
+// Örnek yıkılmış olsa bile modül bir kez indirildiyse true — yükleme
+// bildiriminin yalnız soğuk modülde basılması için.
+export function isEngineWarm(mode) {
+  return !!registry[mode] || moduleWarm.has(mode);
+}
+
+// Fire-and-forget ön-yükleme (kart hover/touchstart): yalnız MODÜLü ısıtır,
+// örnek kurmaz — tek-koltuk tahliyesi (releaseAllExcept) önbelleği korur.
+// Hatalar sessizce yutulur; gerçek seçim anındaki ensureEngine yine de
+// sonucu/hatayı yönetir.
 export function preloadEngine(mode) {
+  const cart = CARTRIDGES[mode];
+  if (!cart || typeof cart.load !== 'function') return;
   if (registry[mode] || loadingPromises[mode]) return;
-  ensureEngine(mode).catch(() => {});
+  cart.load().then(() => moduleWarm.add(mode)).catch(() => {});
 }
 
 export function registerEngine(mode, entry) {
@@ -502,6 +521,36 @@ export function forEachEngine(cb) {
   }
 }
 
+// ── Faz 4.5 — tek-koltuk tahliyesi ──────────────────────────────────────────
+// ES modül önbelleği boşaltılamaz; ama motor ÖRNEĞİ yıkılabilir. Mod
+// değişiminde aktif olmayan tüm örnekler destroy edilir (BaseGame.destroy()
+// klavye aboneliğini bırakır); sonraki seçimde örnek ucuzca yeniden kurulur,
+// modül zaten bellektedir. `destroy()` motor zamanlayıcısı olan bir oyuna
+// genişletilirse buradan geçmek zorundadır.
+export function releaseEngine(mode) {
+  const entry = registry[mode];
+  if (!entry) return false;
+  try {
+    entry.game?.destroy?.();
+  } catch (err) {
+    reportError(err, `engineRegistry.releaseEngine:${mode}`, { warnOnly: true });
+  }
+  delete registry[mode];
+  delete loadingPromises[mode];
+  return true;
+}
+
+export function releaseAllExcept(activeMode) {
+  for (const mode of Object.keys(registry)) {
+    if (mode !== activeMode) releaseEngine(mode);
+  }
+}
+
+// Teşhis kancası: bellek baskısı ölçümü için hangi örnekler ayakta.
+export function getLoadedModes() {
+  return Object.keys(registry);
+}
+
 // NOTE: initAllCartridges removed (code-splitting) — engines load on demand
 // via ensureEngine(). forEachEngine/getEngine only see loaded engines.
 
@@ -514,7 +563,6 @@ export function getControllerMeta(mode) {
   return {
     hudTag: cart.hudTag,
     lobbyTitle: cart.lobbyTitle || cart.title,
-    tacticalHint: t(cart.tacticalHintKey || ''),
     tacticalHintKey: cart.tacticalHintKey,
     schema: cart.schema,
     worldView: cart.worldView || null,

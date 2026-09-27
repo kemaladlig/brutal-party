@@ -1,6 +1,9 @@
 // Brutal Collapse bot zekâsı: en çok sağlam komşulu hücreye yürü + güçlendirmeleri topla + tehlike sezince zıpla.
 
-export function updateCollapseBotAI(game, bot, dt) {
+import { createReadOnlyView } from '../core/botView.js';
+
+export function updateCollapseBotAI(rawGame, bot, dt) {
+  const game = createReadOnlyView(rawGame);
   bot.botCheckTimer -= dt;
 
   if (bot.botCheckTimer <= 0) {

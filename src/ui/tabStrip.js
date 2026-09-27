@@ -19,12 +19,13 @@ function el(tag, className, html) {
 }
 
 /**
- * @param {object} opts
+ * @param {{items?: Array<{id: string, label: string, icon?: string, count?: (number|string|null)}>, onChange?: ((id: string) => void) | null}} [opts]
  *   items    — [{ id, label, icon?, count? }]
  *   onChange — sekme id'si ile çağrılır (kullanıcı seçimi)
  * @returns {{ node: HTMLElement, setActive: (id: string) => void,
  *             setCount: (id: string, n: number|string) => void,
- *             setLabel: (id: string, text: string) => void }}
+ *             setLabel: (id: string, text: string) => void,
+ *             active: (string|null) }}
  */
 export function createTabStrip({ items = [], onChange = null } = {}) {
   const node = el('div', 'tab-strip');

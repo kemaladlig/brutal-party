@@ -3,6 +3,7 @@
 
 import { storePlayerName, escapeHtml } from './net.js';
 import { showInstallToast } from './ui/toast.js';
+import { initErrorReporter, reportError } from './core/errorReporter.js';
 import { toggleFullscreen, fullscreenOfferable } from './ui/fullscreen.js';
 import { UI_COLORS } from './ui/tokens.js';
 import { motionScale } from './ui/motion.js';
@@ -40,6 +41,10 @@ import {
 import { isCompactLandscape } from './core/playfield.js';
 import { getSlotSwapError } from './core/slotRules.js';
 
+// Skor bandının açık kalacağı süre. Canvas tarafındaki peek ile aynı değer
+// (`hud.js` PEEK_MS): iki yüzey farklı süre gösteremez.
+const SCORE_PEEK_MS = 2800;
+
 // Kumanda kayıt tablosu: tek kaynaktan (engineRegistry) beslenir
 const CONTROLLER_META = new Proxy({}, {
   get(target, prop) {
@@ -47,8 +52,12 @@ const CONTROLLER_META = new Proxy({}, {
   },
 });
 
+initErrorReporter();
+
 export class GamepadManager {
   constructor(overlayEl, network, { localMode = false } = {}) {
+    /** @type {((action: string) => void) | null} Dışarıdan (main.js) bağlanır; _onResultAction köprüsü. */
+    this.onLocalResultAction = null;
     this.overlay = overlayEl;
     this.network = network;
     this.inputAdapter = new GamepadInputAdapter((data) => this.sendInput(data));
@@ -111,6 +120,8 @@ export class GamepadManager {
     this._elCache = new Map();
     this._lastStripJson = '';
     this._lastStatusStr = '';
+    this._scorePeekUntil = 0;
+    this._scorePeekTimer = 0;
     this._visibilityBound = false;
     this._browserLocksBound = false;
     this._activeController = null;
@@ -279,7 +290,7 @@ export class GamepadManager {
     // guide are real obstacles. Remote roots already start below these bands;
     // the intersection check keeps the same adapter valid in both surfaces.
     const obstacles = this.overlay.querySelectorAll(
-      '.gamepad-header, .mobile-gamepad-toolbar, .gamepad-hud, .gamepad-control-guide:not([hidden]), .score-strip:not(.hidden)',
+      '.gamepad-header, .mobile-gamepad-toolbar, .gamepad-status.is-on, .gamepad-control-guide:not([hidden]), .score-strip:not(.hidden)',
     );
     for (const obstacle of obstacles) {
       const rect = obstacle.getBoundingClientRect();
@@ -489,7 +500,7 @@ export class GamepadManager {
       e?.preventDefault();
       if (state.cooling) return;
       state.cooling = true;
-      try { onFire(); } catch {}
+      try { onFire(); } catch (err) { reportError(err, 'gamepad.onFire'); }
       this.vibrate(vibratePattern);
       playMenuTick();
       if (!btn || !btn.isConnected) return;
@@ -620,11 +631,11 @@ export class GamepadManager {
     this._destroyWorldView();
     this._setActiveLayoutRoot(null);
     if (this._activeController?.teardown) {
-      try { this._activeController.teardown(); } catch {}
+      try { this._activeController.teardown(); } catch (err) { reportError(err, 'gamepad.teardown'); }
       this._activeController = null;
     }
     if (this._mountAbort) {
-      try { this._mountAbort.abort(); } catch {}
+      try { this._mountAbort.abort(); } catch (err) { reportError(err, 'gamepad.mountAbort'); }
       this._mountAbort = null;
     }
   }
@@ -640,7 +651,7 @@ export class GamepadManager {
           this.sendInput(neutral, { force: true });
         }
       }
-    } catch {}
+    } catch (err) { reportError(err, 'gamepad.sendNeutralForMode'); }
   }
 
   _bindVisibilityNeutral() {
@@ -861,6 +872,14 @@ export class GamepadManager {
     });
     this._closeGamepadMenu = closeMenu;
 
+    // Skor göz atma (taç): bant 2.8 sn görünür, sonra kendiliğinden kapanır.
+    // Süre canvas tarafındaki peek ile aynı (`hud.js` PEEK_MS).
+    const scoreBtn = document.getElementById('btn-score-peek');
+    scoreBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleScorePeek();
+    });
+
     document.getElementById('btn-leave-gamepad')?.addEventListener('click', () => {
       closeMenu();
       this.network.disconnect();
@@ -934,46 +953,87 @@ export class GamepadManager {
     }
   }
 
-  // İsimli skor şeridi (sub-HUD): koltuk rengi + isim + skor. PONG hariç tüm
-  // oyun modlarında görünür (PONG'un kendi canlı skorbord'u isim alır).
+  // Skor şeridi: koltuk rengi + isim + skor, YALNIZCA peek anında görünür.
+  // Oyun sırasında saha boş kalır; düğme `toggleScorePeek` açar.
+  //
+  // Görünürlüğün tek sahibi `_syncScoreChrome` — bant ve düğmeyi o, içeriği
+  // bu metot yazar. İkisi ayrı yollardan açılıp kapanırsa bant açıkken düğme
+  // kaybolur ya da tersi.
   renderScoreStrip(names, scores) {
     const strip = this._el('score-strip');
     if (!strip) return;
-    if (this.gameMode === 'LOBBY' || !Array.isArray(names) || !Array.isArray(scores)) {
-      strip.classList.add('hidden');
+    const eligible = this.gameMode !== 'LOBBY'
+      && this.gameMode !== 'PONG'
+      && Array.isArray(names)
+      && Array.isArray(scores);
+
+    if (!eligible) {
       strip.innerHTML = '';
       this._lastStripJson = '';
-      return;
-    }
-    if (this.gameMode === 'PONG') {
-      strip.classList.add('hidden');
-      strip.innerHTML = '';
-      this._lastStripJson = '';
+      this._syncScoreChrome();
       return;
     }
     // Skor/isim/renk değişmediyse innerHTML'i yeniden kurma (8Hz layout/GC titremesi)
     const slotColorsSig = (this.slots || []).map((s) => s?.color || '').join('|');
     const sig = JSON.stringify([names, scores, this.playerIndex, slotColorsSig]);
-    if (sig === this._lastStripJson) {
-      strip.classList.remove('hidden');
+    if (sig !== this._lastStripJson) {
+      this._lastStripJson = sig;
+      const fallbackColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
+      // Yalnız dolu koltuklar: boş çip yer kaplar ve tepki çıpası olmaz.
+      strip.innerHTML = [0, 1, 2, 3]
+        .filter((idx) => !!names[idx])
+        .map((idx) => {
+          const isMine = idx === this.playerIndex;
+          const dotColor = this.slots?.[idx]?.color || fallbackColors[idx];
+          return `
+            <div class="score-chip${isMine ? ' is-mine' : ''}" data-reaction-anchor="${idx}">
+              <span class="score-dot" style="background-color: ${dotColor}"></span>
+              <span class="score-name">${escapeHtml(names[idx])}</span>
+              <span class="score-val">${scores[idx] ?? 0}</span>
+            </div>
+          `;
+        })
+        .join('');
+    }
+    this._syncScoreChrome();
+  }
+
+  /** Bant + düğme görünürlüğünün tek karar noktası (peek penceresi + mod). */
+  _syncScoreChrome() {
+    const peeking = this._scorePeekUntil > performance.now();
+    const strip = this._el('score-strip');
+    const canPeek = this.gameMode !== 'LOBBY'
+      && this.gameMode !== 'PONG'
+      && !!strip
+      && strip.childElementCount > 0;
+    const show = peeking && canPeek;
+    strip?.classList.toggle('hidden', !show);
+    strip?.setAttribute('aria-hidden', show ? 'false' : 'true');
+    const btn = this._el('btn-score-peek');
+    if (btn) btn.hidden = !canPeek;
+    if (!peeking && this._scorePeekTimer) {
+      clearTimeout(this._scorePeekTimer);
+      this._scorePeekTimer = 0;
+    }
+  }
+
+  /** Tek dokunuş: açık değilse `SCORE_PEEK_MS` göster, açıksa hemen kapat. */
+  toggleScorePeek() {
+    this.vibrate(10);
+    playMenuTick();
+    if (this._scorePeekUntil > performance.now()) {
+      this._scorePeekUntil = 0;
+      this._syncScoreChrome();
       return;
     }
-    this._lastStripJson = sig;
-    const fallbackColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-    strip.innerHTML = [0, 1, 2, 3].map((idx) => {
-      const name = names[idx];
-      const isEmpty = !name;
-      const isMine = idx === this.playerIndex;
-      const dotColor = this.slots?.[idx]?.color || fallbackColors[idx];
-      return `
-        <div class="score-chip${isMine ? ' is-mine' : ''}${isEmpty ? ' is-empty' : ''}" data-reaction-anchor="${idx}">
-          <span class="score-dot" style="background-color: ${dotColor}"></span>
-          <span class="score-name">${isEmpty ? t('pad.empty') : escapeHtml(name)}</span>
-          <span class="score-val">${scores[idx] ?? 0}</span>
-        </div>
-      `;
-    }).join('');
-    strip.classList.remove('hidden');
+    this._scorePeekUntil = performance.now() + SCORE_PEEK_MS;
+    this._syncScoreChrome();
+    clearTimeout(this._scorePeekTimer);
+    this._scorePeekTimer = window.setTimeout(() => {
+      this._scorePeekTimer = 0;
+      this._scorePeekUntil = 0;
+      this._syncScoreChrome();
+    }, SCORE_PEEK_MS);
   }
 
   // İki kademeli başlatma: koltuk seçimi lobi açılışında hazırdır;
@@ -1016,7 +1076,7 @@ export class GamepadManager {
     `;
     this.overlay.appendChild(veil);
     this._veilEl = veil;
-    this._veilNumber = veil.querySelector('.countdown-number');
+    this._veilNumber = /** @type {HTMLElement | null} */ (veil.querySelector(".countdown-number"));
     this._veilKey = key;
     return veil;
   }
@@ -1058,18 +1118,8 @@ export class GamepadManager {
     const guideMode = mode === 'LOBBY' ? this.selectedHostGame : mode;
     const meta = CONTROLLER_META[guideMode] || null;
     const guideEl = this._el('gamepad-control-guide');
-    const roleEl = this._el('tactical-role-text');
     const guide = getControllerGuide(guideMode, meta?.schema);
-    const modeChanged = this._guideMode !== guideMode;
     this._guideMode = guideMode;
-
-    if (roleEl) {
-      const hint = meta?.tacticalHint || '';
-      if (hint && (modeChanged || !roleEl.textContent)) {
-        roleEl.textContent = hint;
-        roleEl.style.color = '';
-      }
-    }
 
     if (!guide || !guideEl) {
       guideEl?.setAttribute('hidden', '');
@@ -1111,6 +1161,11 @@ export class GamepadManager {
     this._elCache.clear();
     this._lastStripJson = '';
     this._lastStatusStr = '';
+    this._scorePeekUntil = 0;
+    if (this._scorePeekTimer) {
+      clearTimeout(this._scorePeekTimer);
+      this._scorePeekTimer = 0;
+    }
     this._lastScores = null;
     this._resultActive = false;
     this._cloneCdBtn = null;
@@ -1121,13 +1176,7 @@ export class GamepadManager {
 
     workspace.innerHTML = '';
 
-    const modeTag = document.getElementById('hud-game-tag');
-    if (modeTag) {
-      modeTag.textContent = CONTROLLER_META[mode]?.hudTag || (mode === 'LOBBY' ? t('pad.lobbyTag') : mode);
-    }
-
     if (mode === 'LOBBY') {
-      document.getElementById('score-strip')?.classList.add('hidden');
       this.mountLobbyController(workspace);
       this._bindLayoutEditorButton();
     } else {
@@ -1155,6 +1204,7 @@ export class GamepadManager {
       }
       this._setActiveLayoutRoot(mountTarget);
     }
+    this._syncScoreChrome();
     this.renderControlGuide(mode);
     this._syncOrientationState();
     this._applyControllerLayout(this._layoutPreview || this.getControllerLayout());
@@ -1238,7 +1288,7 @@ export class GamepadManager {
 
   // Lobi karakter önizlemesi (kendi cihaz profili, yazısız)
   drawLobbyCharacterPreview() {
-    const canvas = document.getElementById('lobby-character-preview');
+    const canvas = /** @type {HTMLCanvasElement | null} */ (document.getElementById("lobby-character-preview"));
     if (!canvas) return;
     try {
       if (!this.avatar) this.avatar = getAvatarProfile();
@@ -1407,7 +1457,7 @@ export class GamepadManager {
   }
 
   // Floating Dynamic Joystick Helper (Center-on-touch, no fixed center)
-  bindJoystick(zoneId, knobId, onInput, { onPress, onRelease } = {}) {
+  bindJoystick(zoneId, knobId, onInput, { onPress, onRelease } = /** @type {{onPress?: ((input: any) => void) | null, onRelease?: ((input: any, opts?: any) => void) | null}} */ ({})) {
     const zone = document.getElementById(zoneId);
     const knob = document.getElementById(knobId);
     if (!zone || !knob) return;
@@ -1648,8 +1698,10 @@ export class GamepadManager {
    * ekranın üstünde, rozet aynı bilgiyi iki yere basardı.
    */
   _syncRoundGap(data) {
-    const hud = this._el('gamepad-hud');
-    if (!hud) return;
+    // Raunt boşluğu rozeti durum satırının içinde bir öğedir, ayrı katman değil:
+    // saha üstünde yalnız o satır var.
+    const status = this._el('gamepad-status');
+    if (!status) return;
     const left = Number(data.roundGap) || 0;
     let chip = this._el('round-gap-chip');
     if (!chip) {
@@ -1658,7 +1710,7 @@ export class GamepadManager {
       chip.id = 'round-gap-chip';
       chip.className = 'round-gap-chip';
       chip.setAttribute('aria-live', 'polite');
-      hud.appendChild(chip);
+      status.appendChild(chip);
     }
     if (left > 0) {
       const text = t('pad.roundGap', String(Math.ceil(left)));
@@ -1795,25 +1847,19 @@ export class GamepadManager {
     }
 
     if (this._activeController?.handleSync) {
-      try { this._activeController.handleSync(data); } catch {}
+      try { this._activeController.handleSync(data); } catch (err) { reportError(err, 'gamepad.handleSync'); }
     }
 
-    const modeTag = this._el('hud-game-tag');
     const liveStatus = this._el('hud-live-status');
 
-    if (modeTag && data.gameMode) {
-      const tag = data.gameMode === 'LOBBY'
-        ? t('pad.lobbyTag')
-        : (CONTROLLER_META[data.gameMode]?.hudTag || data.gameMode);
-      if (modeTag.textContent !== tag) modeTag.textContent = tag;
-    }
-
-    // İsimli skor şeridi (PONG kendi skorbord'unu kullanır, diğer modlar şeridi)
+    // Skor şeridi içeriği (PONG kendi skorbord'unu kullanır). Görünürlüğü
+    // peek'e bağlı: `_syncScoreChrome` her paket içinde yeniden karar verir.
     if (data.scores) {
       this.renderScoreStrip(data.names, data.scores);
     }
 
-    // Üst durum şeridi: metin tek kaynaktan (controllerStatus registry).
+    // Sahadaki tek üst metin: SKOR / süre / can / cephane. Metin tek kaynaktan
+    // (controllerStatus registry) gelir ve çıplaktır — kutu/etiket yok.
     // PONG skorbord/falso, TANKS cephane, BOMB/CROWN/HEIST uyarıları şablonların
     // handleSync/onSync'inde yaşar — burada oyun-özel dal tutulmaz.
     if (liveStatus) {
@@ -1827,13 +1873,13 @@ export class GamepadManager {
       }
     }
 
-    // Faz 2.2: üst HUD şeridi yalnız oyun oynanırken görünür (lobi/sayaç/sonuç
-    // kapalı). Uzak pakette `state` yoksa GAME fazı oynama kabul edilir.
-    const hud = this._el('gamepad-hud');
-    if (hud) {
+    // Durum satırı yalnız oyun oynanırken görünür (lobi/sayaç/sonuç kapalı).
+    // Uzak pakette `state` yoksa GAME fazı oynama kabul edilir.
+    const status = this._el('gamepad-status');
+    if (status) {
       const quiet = ['LOBBY', 'STAGING', 'COUNTDOWN', 'MATCH_OVER'];
       const inPlay = phase === 'GAME' && (!data.state || !quiet.includes(data.state));
-      hud.classList.toggle('reveal', inPlay);
+      status.classList.toggle('is-on', inPlay);
     }
 
     // Faz 2.4: LOCAL authoritative state sinyaliyle sonuç ekranı açılır/kapanır.

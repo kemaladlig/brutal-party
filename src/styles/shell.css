@@ -183,6 +183,24 @@
   transform: scale(0.92);
 }
 
+.shell-icon-btn.has-update {
+  position: relative;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.shell-icon-btn.has-update::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: var(--glow-accent);
+}
+
 /* Sinema kipi sadeleşti: üst bant kalktı. `chrome: 'cinema'` artık yalnız
    "sahne tam kaplama (padding yok)" demek. */
 #app-shell.is-cinema .shell-view { padding: 0; }

@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cleanPlayerName, getClientId } from './net.js';
 import { WebRTCManager } from './webrtcManager.js';
 import { sanitizeAvatar, pickFreeColor, isPaletteHex, getAvatarProfile } from './core/customizationManager.js';
-import { isValidNetworkInput } from './core/networkProtocol.js';
+import { isValidNetworkInput, generateRoomCode, normalizeRoomCode } from './core/networkProtocol.js';
 import { normalizeReactionKey } from './core/reactions.js';
 import { t } from './i18n.js';
 
@@ -224,7 +224,7 @@ export class SupabaseRelay {
     this.reservedHostSlot = this.hostPlayerSlot;
 
     // Generate room code
-    this.roomCode = this._generateRoomCode();
+    this.roomCode = generateRoomCode();
 
     // Connect to Supabase
     this.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -278,7 +278,7 @@ export class SupabaseRelay {
                 reservedHostSlot: this.reservedHostSlot,
               });
             }
-            resolve();
+            resolve(undefined);
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             clearTimeout(failTimer);
             console.error('[SupabaseRelay] HOST subscribe failed:', status, err?.message || '');
@@ -743,7 +743,7 @@ export class SupabaseRelay {
   async joinRoom(roomCode, playerName, callbacks = {}, avatar = null, _isRetry = false) {
     assertSupabaseConfig();
     this.role = 'CONTROLLER';
-    this.roomCode = roomCode.toUpperCase().trim();
+    this.roomCode = normalizeRoomCode(roomCode);
     this.playerName = cleanPlayerName(playerName);
     this.callbacks = { ...this.callbacks, ...callbacks };
     if (!_isRetry) {
@@ -783,7 +783,7 @@ export class SupabaseRelay {
             this._seenHosts = new Map();
             this.hostId = null;
             this._announceWait = setTimeout(() => this._sendLockedJoin(), 1500);
-            resolve();
+            resolve(undefined);
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             clearTimeout(failTimer);
             console.error('[SupabaseRelay] CONTROLLER subscribe failed:', status, err?.message || '');
@@ -1179,10 +1179,6 @@ export class SupabaseRelay {
       event,
       payload: { ...payload, senderId: this.myId },
     });
-  }
-
-  _generateRoomCode() {
-    return String(Math.floor(100 + Math.random() * 900));
   }
 
   _startPingHeartbeat() {

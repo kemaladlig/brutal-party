@@ -2,6 +2,7 @@
 // Koltuk kartlarının DOM boyaması `ui/slotCardView.js`'dedir; burada yalnız
 // durum ve motor eşlemesi vardır.
 import { getSlotCustomization, findSlotColorDuplicates, getBotPersona, getLocalSeatColors, rimHex } from './customizationManager.js';
+import { reportError } from './errorReporter.js';
 import {
   hasSlotCard,
   paintSlotAvatar,
@@ -94,7 +95,7 @@ export function updateHostSlot(
 // Aynı display rengine sahip insan koltuklarına çakışma rozeti + kart vurgusu.
 // Kart DOM'u yoksa (LOCAL/oyun içi) sessizce geçilir.
 export function refreshColorClashUI() {
-  let clash = [];
+  let clash = /** @type {any} */ ([]);
   try {
     clash = findSlotColorDuplicates(hostPlayerSlots);
   } catch {
@@ -255,7 +256,7 @@ export function clearRemoteMove(engine, currentMode, slotIndex) {
         }
       }
     }
-  } catch {}
+  } catch (err) { reportError(err, 'slotManager.clearRemoteMove', { warnOnly: true }); }
 }
 
 // Aim tarafı stale düştüğünde: nişan/ateş bırakılır, hareket korunur.
@@ -280,7 +281,7 @@ export function clearRemoteAim(engine, currentMode, slotIndex) {
       const player = engine.players?.[slotIndex];
       if (player) player.isAiming = false;
     }
-  } catch {}
+  } catch (err) { reportError(err, 'slotManager.clearRemoteAim', { warnOnly: true }); }
 }
 
 export function clearRemoteSlot(engine, currentMode, slotIndex) {
@@ -345,7 +346,7 @@ export function clearRemoteSlot(engine, currentMode, slotIndex) {
       }
     }
     // PONG mutlak pozisyondur (sürüklenmez) — nötr gerekmez.
-  } catch {}
+  } catch (err) { reportError(err, 'slotManager.clearRemoteSlot', { warnOnly: true }); }
 }
 
 export function clearAllRemoteSlots(engine, currentMode) {

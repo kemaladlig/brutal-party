@@ -18,6 +18,7 @@ export function isBotSlot(slot) {
 /**
  * Return a stable reason code when a seat move is not allowed.
  * Empty target seats are valid; an empty source is not a move.
+ * @param {{from?: number|null, to?: number|null, slots?: any[], reservedHostSlot?: number|null, locked?: boolean, remote?: boolean, requireSource?: boolean}} [options]
  */
 export function getSlotSwapError({
   from,

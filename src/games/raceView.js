@@ -155,7 +155,10 @@ function drawTrackBase(ctx, arena) {
 }
 
 function drawOilSlicks(ctx, oilSlicks) {
-  for (const [x, y, radius] of oilSlicks || []) {
+  for (const slick of oilSlicks || []) {
+    const x = Array.isArray(slick) ? slick[0] : slick.x;
+    const y = Array.isArray(slick) ? slick[1] : slick.y;
+    const radius = Array.isArray(slick) ? slick[2] : slick.radius;
     const u = radius / 30;
     ctx.save(); ctx.fillStyle = 'rgba(26, 26, 26, 0.75)';
     ctx.beginPath(); ctx.arc(x, y, Math.max(1, radius), 0, Math.PI * 2); ctx.fill();
@@ -164,7 +167,11 @@ function drawOilSlicks(ctx, oilSlicks) {
 }
 
 function drawNitroPad(ctx, pad, now) {
-  const [x, y, width, height, angle] = pad;
+  const x = Array.isArray(pad) ? pad[0] : pad.x;
+  const y = Array.isArray(pad) ? pad[1] : pad.y;
+  const width = Array.isArray(pad) ? pad[2] : pad.w;
+  const height = Array.isArray(pad) ? pad[3] : pad.h;
+  const angle = Array.isArray(pad) ? pad[4] : pad.angle;
   const pulse = 1 + Math.sin(now * 0.006) * 0.04;
   const u = Math.min(width, height) / 28;
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.scale(pulse, pulse);
@@ -209,7 +216,8 @@ function drawPlayer(ctx, player, color, checkpoints) {
   ctx.fillStyle = player.jumpZ > 1 ? 'rgba(26, 26, 26, 0.25)' : 'rgba(26, 26, 26, 0.16)';
   ctx.beginPath(); ctx.ellipse(0, 0, 15 * u, 8 * u, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
 
-  if (player.drafting) {
+  const isDrafting = player.drafting ?? player.isDrafting;
+  if (isDrafting) {
     ctx.save(); ctx.strokeStyle = '#38BDF8'; ctx.lineWidth = 2 * u; ctx.beginPath();
     ctx.moveTo(player.x, player.y + jumpOffsetY);
     ctx.lineTo(player.x - Math.cos(player.angle) * 35 * u, player.y + jumpOffsetY - Math.sin(player.angle) * 35 * u);
@@ -217,8 +225,11 @@ function drawPlayer(ctx, player, color, checkpoints) {
   }
   const jumpScale = 1 + Math.min(0.38, (player.jumpZ || 0) * 0.035);
   ctx.save(); ctx.translate(player.x, player.y + jumpOffsetY); ctx.scale(jumpScale, jumpScale); ctx.rotate(player.angle);
-  if (player.dashing || player.boosting) { ctx.fillStyle = UI_COLORS.turbo; ctx.fillRect(-28 * u, -8 * u, 14 * u, 16 * u); }
-  if (player.disrupted) { ctx.strokeStyle = '#0EA5E9'; ctx.lineWidth = 3 * u; ctx.beginPath(); ctx.arc(0, 0, 20 * u, 0, Math.PI * 2); ctx.stroke(); }
+  const isDashing = player.dashing ?? player.isDashing;
+  const isBoosting = player.boosting ?? ((player.nitroBoostTimer || 0) > 0);
+  if (isDashing || isBoosting) { ctx.fillStyle = UI_COLORS.turbo; ctx.fillRect(-28 * u, -8 * u, 14 * u, 16 * u); }
+  const isDisrupted = player.disrupted ?? ((player.empDisruptedTimer || 0) > 0);
+  if (isDisrupted) { ctx.strokeStyle = '#0EA5E9'; ctx.lineWidth = 3 * u; ctx.beginPath(); ctx.arc(0, 0, 20 * u, 0, Math.PI * 2); ctx.stroke(); }
   ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(16 * u, 0); ctx.lineTo(-12 * u, -10 * u); ctx.lineTo(-8 * u, 0); ctx.lineTo(-12 * u, 10 * u); ctx.closePath(); ctx.fill();
   ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 2.5 * u; ctx.stroke(); ctx.restore();
 
@@ -228,7 +239,8 @@ function drawPlayer(ctx, player, color, checkpoints) {
     ctx.save(); ctx.translate(player.x + Math.cos(arrowAngle) * 26 * u, player.y + Math.sin(arrowAngle) * 26 * u + jumpOffsetY); ctx.rotate(arrowAngle);
     ctx.fillStyle = target.color; ctx.beginPath(); ctx.moveTo(6 * u, 0); ctx.lineTo(-4 * u, -4 * u); ctx.lineTo(-4 * u, 4 * u); ctx.closePath(); ctx.fill(); ctx.restore();
   }
-  const pipCount = player.slot + 1;
+  const slot = player.slot ?? player.index ?? 0;
+  const pipCount = slot + 1;
   const startX = player.x - ((pipCount - 1) * 5 * u) / 2;
   for (let index = 0; index < pipCount; index += 1) {
     ctx.beginPath(); ctx.arc(startX + index * 5 * u, player.y + jumpOffsetY, 2.2 * u, 0, Math.PI * 2);
@@ -241,9 +253,13 @@ export function drawRaceWorld(ctx, frame, arena, colors = [], now = performance.
   drawEmpPulses(ctx, frame.empPulses);
   drawOilSlicks(ctx, frame.oilSlicks);
   for (const pad of frame.nitroPads || []) drawNitroPad(ctx, pad, now);
-  for (const spinner of frame.spinners || []) drawSpinner(ctx, spinner);
+  const spinners = frame.spinners || frame.obstacleSpinners || [];
+  for (const spinner of spinners) drawSpinner(ctx, spinner);
   for (const checkpoint of frame.checkpoints || []) drawCheckpoint(ctx, checkpoint);
   for (const player of frame.players || []) {
-    if (player.joined && player.alive) drawPlayer(ctx, player, colors[player.slot] || PLAYER_FALLBACK[player.slot] || PLAYER_FALLBACK[0], frame.checkpoints);
+    const isJoined = player.joined ?? player.isJoined;
+    const isAlive = player.alive ?? player.isAlive;
+    const slot = player.slot ?? player.index ?? 0;
+    if (isJoined && isAlive) drawPlayer(ctx, player, colors[slot] || PLAYER_FALLBACK[slot] || PLAYER_FALLBACK[0], frame.checkpoints);
   }
 }

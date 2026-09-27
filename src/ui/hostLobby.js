@@ -23,7 +23,7 @@ const hostRoomCode = document.getElementById('host-room-code');
 const hostJoinUrl = document.getElementById('host-join-url');
 const qrCanvas = document.getElementById('qr-canvas');
 const btnHostLaunchGame = document.getElementById('btn-host-launch-game');
-const btnHostTogglePlayer = document.getElementById('btn-host-toggle-player');
+const btnHostTogglePlayer = /** @type {HTMLButtonElement} */ (document.getElementById('btn-host-toggle-player'));
 const btnHostClose = document.getElementById('btn-host-close');
 const btnHostCopyLink = document.getElementById('btn-host-copy-link');
 const btnHostWhatsappShare = document.getElementById('btn-host-whatsapp-share');
@@ -63,9 +63,10 @@ let seatEditorOpen = false;
 let lobbyExitSuppressed = false;
 let currentRoomCode = '';
 let currentJoinUrl = '';
+let getActiveNet = () => null;
+/** @type {(index: number) => any} */
 let getSlotState = () => null;
 let isSeatSwapLocked = () => false;
-let getActiveNet = () => null;
 
 // ── Sheet altyapısı ───────────────────────────────────────────────────────
 // `.lobby-sheet` kökü aynı zamanda backdrop'tur: `overlayHost` köke tıklamayı
@@ -97,14 +98,14 @@ export function isLobbySheetOpen(id) {
 }
 
 function paintSeatSwapUi() {
-  const buttons = document.querySelectorAll('.slot-swap-btn');
+  const buttons = /** @type {NodeListOf<HTMLButtonElement>} */ (document.querySelectorAll('.slot-swap-btn'));
   const hint = document.getElementById('host-slot-hint');
   const subtitle = document.getElementById('tv-host-subtitle');
   const launchBtn = btnHostLaunchGame;
   if (seatEditorOpen || !launchBtn?.classList.contains('blocked')) {
     setButtonLabel(launchBtn, seatEditorOpen ? 'host.closeEditor' : 'host.stage');
   }
-  const launchIcon = launchBtn?.querySelector('[data-lobby-icon]');
+  const launchIcon = /** @type {HTMLElement} */ (launchBtn?.querySelector('[data-lobby-icon]'));
   if (launchIcon) {
     const icon = seatEditorOpen ? 'close' : 'play';
     launchIcon.dataset.lobbyIcon = icon;
@@ -228,7 +229,7 @@ export function startHostPingBadge(getPing, platformMode) {
   stopHostPingBadge();
   const badge = document.querySelector('.tv-host-badge');
   const badgeText = badge?.querySelector('.host-badge-text');
-  const modeIcon = badge?.querySelector('[data-lobby-icon]');
+  const modeIcon = /** @type {HTMLElement} */ (badge?.querySelector('[data-lobby-icon]'));
   if (!badge || !badgeText) return;
   const isOnline = platformMode === 'ONLINE';
   tvHostModal?.classList.toggle('is-online-room', isOnline);
@@ -403,7 +404,7 @@ export function initHostLobby({
 
   // Sheet kabuğu: backdrop `overlayHost`'ta; buradaki X düğmeleri aynı
   // kapanış yolundan geçer (odak/Escape tek sahibi bozulmasın).
-  document.querySelectorAll('[data-sheet-close]').forEach((btn) => {
+  /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-sheet-close]')).forEach((btn) => {
     btn.addEventListener('click', () => dismissLobbySheet(`lobby-${btn.dataset.sheetClose}`));
   });
   document.getElementById('btn-lobby-invite')?.addEventListener('click', openInviteSheet);
@@ -416,7 +417,7 @@ export function initHostLobby({
   // çip DOĞRUDAN hedef olur (gizli takas düğmesine tıklanır — mantık tek yer).
   document.querySelectorAll('.slot-chip-main').forEach((chipBtn) => {
     chipBtn.addEventListener('click', () => {
-      const chip = chipBtn.closest('.host-player-slot');
+      const chip = /** @type {HTMLElement} */ (chipBtn.closest('.host-player-slot'));
       const slot = parseInt(chip?.dataset.slot ?? '', 10);
       if (Number.isNaN(slot)) return;
       if (seatSwapSource !== null) {
@@ -424,7 +425,7 @@ export function initHostLobby({
           resetSeatSwapSelection();
           return;
         }
-        const swapBtn = chip.querySelector('.slot-swap-btn');
+        const swapBtn = /** @type {HTMLButtonElement} */ (chip.querySelector('.slot-swap-btn'));
         if (swapBtn?.disabled) {
           showInstallToast(isBotSlot(getSlotState(slot)) ? t('toast.botSeatLocked') : t('toast.swapBlocked'));
           return;
@@ -469,7 +470,7 @@ export function initHostLobby({
     const below = r.bottom + 6;
     pop.style.top = `${below + popH > window.innerHeight - 8 ? Math.max(8, r.top - popH - 6) : below}px`;
 
-    pop.querySelectorAll('.slot-palette-swatch').forEach((sw) => {
+    /** @type {NodeListOf<HTMLElement>} */ (pop.querySelectorAll('.slot-palette-swatch')).forEach((sw) => {
       sw.addEventListener('click', (e) => {
         e.stopPropagation();
         if (typeof onSetSlotColor === 'function') onSetSlotColor(idx, sw.dataset.hex);
@@ -492,7 +493,7 @@ export function initHostLobby({
     }, 0);
   };
 
-  document.querySelectorAll('.slot-color-btn').forEach((btn) => {
+  /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.slot-color-btn')).forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const idx = parseInt(btn.dataset.slot, 10);
@@ -516,13 +517,13 @@ export function initHostLobby({
     setButtonLabel(launchBtn, clashCount > 0 ? 'stage.split' : 'host.stage');
   };
   window.addEventListener('brutal_color_clash', (e) => {
-    paintLaunchGuard(e.detail?.clash?.length || 0);
+    paintLaunchGuard(/** @type {CustomEvent} */ (e).detail?.clash?.length || 0);
   });
 
   // Koltuk taşıma: önce oyuncunun sheet'inden KOLTUK DEĞİŞTİR seçilir, sheet
   // kapanır ve hedef çipe dokunulur. (Eski komşu koltukla döndürme modeli
   // mobilde hangi oyuncunun taşındığını görünmez kılıyordu.)
-  document.querySelectorAll('.slot-swap-btn').forEach((btn) => {
+  /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.slot-swap-btn')).forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const slot = parseInt(btn.dataset.slot, 10);
@@ -574,7 +575,7 @@ export function initHostLobby({
 
   // Bot eylemi koltuk sheet'inin içinde: boş koltukta "+ BOT", bot çipinde
   // "BOT KALDIR" (slotManager etiketi ve görünürlüğü yönetir).
-  document.querySelectorAll('.slot-bot-btn').forEach((btn) => {
+  /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.slot-bot-btn')).forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const idx = parseInt(btn.dataset.slot, 10);

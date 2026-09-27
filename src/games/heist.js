@@ -1,6 +1,7 @@
 // BRUTAL HEIST (Game 05): 2-4 Player Local Party Gold & Vault Stealing
 // Weight Physics, Shoulder Tackle Loot Knockout, Vault Banking & Raids, 45s Gold Rush & Bot AI
 import { getSlotCustomization } from '../core/customizationManager.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import {
   playStart,
   playJoin,

@@ -8,6 +8,7 @@ import { toggleAudio, getIsMuted } from '../audio.js';
 import { openOverlay, closeOverlay } from './overlayHost.js';
 import { hydrateIconSlots } from './iconSlots.js';
 import { showInstallToast } from './toast.js';
+import { checkForUpdates } from '../core/updateManager.js';
 import { t, getLang, setLang, onLangChange } from '../i18n.js';
 import {
   CONTROL_SURFACE,
@@ -25,14 +26,15 @@ const btnSettingsHaptics = document.getElementById('btn-settings-haptics');
 const btnSettingsPongInvertAuto = document.getElementById('btn-settings-pong-invert-auto');
 const btnSettingsPongInvertOn = document.getElementById('btn-settings-pong-invert-on');
 const btnSettingsPongInvertOff = document.getElementById('btn-settings-pong-invert-off');
-const settingsPongSensitivity = document.getElementById('settings-pong-sensitivity');
-const settingsPongSensitivityValue = document.getElementById('settings-pong-sensitivity-value');
+const settingsPongSensitivity = /** @type {HTMLInputElement} */ (document.getElementById('settings-pong-sensitivity'));
+const settingsPongSensitivityValue = /** @type {HTMLOutputElement} */ (document.getElementById('settings-pong-sensitivity-value'));
 const btnSettingsControlAuto = document.getElementById('btn-settings-control-auto');
 const btnSettingsControlMobile = document.getElementById('btn-settings-control-mobile');
 const btnSettingsControlTabletop = document.getElementById('btn-settings-control-tabletop');
 const btnLangTr = document.getElementById('btn-lang-tr');
 const btnLangEn = document.getElementById('btn-lang-en');
 const settingsStorage = document.getElementById('settings-storage');
+const btnSettingsCheckUpdate = document.getElementById('btn-settings-check-update');
 
 function setSwitch(el, on) {
   if (!el) return;
@@ -92,7 +94,7 @@ export function isSettingsOpen() {
   return !!settingsModal && !settingsModal.classList.contains('hidden');
 }
 
-export function initSettingsModal({ onBotsToggled, onControlsChanged, onPreferencesChanged } = {}) {
+export function initSettingsModal() {
   // Statik markup'taki ikon yuvaları bir kez doldurulur (ikon adı HTML'de,
   // çizim `tabletopIcons`tan gelir; AGENTS.md §7).
   hydrateIconSlots(settingsModal);
@@ -110,7 +112,6 @@ export function initSettingsModal({ onBotsToggled, onControlsChanged, onPreferen
     setBotEkleEnabled(next);
     setSwitch(btnSettingsBots, next);
     showInstallToast(next ? t('toast.botsOn') : t('toast.botsOff'));
-    if (typeof onBotsToggled === 'function') onBotsToggled(next);
   });
 
   btnSettingsColorblind?.addEventListener('click', () => {
@@ -125,13 +126,11 @@ export function initSettingsModal({ onBotsToggled, onControlsChanged, onPreferen
     setPreference('hapticsEnabled', next);
     setSwitch(btnSettingsHaptics, next);
     showInstallToast(next ? t('toast.hapticsOn') : t('toast.hapticsOff'));
-    if (typeof onPreferencesChanged === 'function') onPreferencesChanged('hapticsEnabled', next);
   });
 
   const setPongInvert = (value) => {
     setPreference('pongInvert', value);
     refreshSettingsSwitches();
-    if (typeof onPreferencesChanged === 'function') onPreferencesChanged('pongInvert', value);
   };
   btnSettingsPongInvertAuto?.addEventListener('click', () => setPongInvert('auto'));
   btnSettingsPongInvertOn?.addEventListener('click', () => setPongInvert('on'));
@@ -141,11 +140,13 @@ export function initSettingsModal({ onBotsToggled, onControlsChanged, onPreferen
     const value = Number(settingsPongSensitivity.value);
     setPreference('pongSensitivity', value);
     if (settingsPongSensitivityValue) settingsPongSensitivityValue.value = value.toFixed(2);
-    if (typeof onPreferencesChanged === 'function') onPreferencesChanged('pongSensitivity', value);
   });
 
+  // Karşılaştırma TERCİHE karşıdır, çözülmüş yüzeye karşı değil: `auto` bir
+  // telefonda zaten `mobile` çözüyordu ve "Mobil"e dokunmak sessiz no-op'tu —
+  // segment seçilmiyor, tercih kaydedilmiyordu.
   const applyControlSurface = (surface) => {
-    if (getControlSurface() === surface) return;
+    if (getControlSurfacePreference() === surface) return;
     setControlSurface(surface);
     refreshSettingsSwitches();
     showInstallToast(surface === CONTROL_SURFACE.AUTO
@@ -153,7 +154,6 @@ export function initSettingsModal({ onBotsToggled, onControlsChanged, onPreferen
       : surface === CONTROL_SURFACE.MOBILE
         ? t('toast.controlsMobile')
         : t('toast.controlsTabletop'));
-    if (typeof onControlsChanged === 'function') onControlsChanged(surface);
   };
 
   btnSettingsControlAuto?.addEventListener('click', () => applyControlSurface(CONTROL_SURFACE.AUTO));
@@ -162,6 +162,8 @@ export function initSettingsModal({ onBotsToggled, onControlsChanged, onPreferen
 
   btnLangTr?.addEventListener('click', () => setLang('tr'));
   btnLangEn?.addEventListener('click', () => setLang('en'));
+
+  btnSettingsCheckUpdate?.addEventListener('click', () => checkForUpdates());
 
   settingsModal?.addEventListener('click', (e) => {
     if (e.target === settingsModal) closeSettingsModal();

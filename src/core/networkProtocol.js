@@ -81,3 +81,40 @@ export function isValidNetworkInput(data) {
       return false;
   }
 }
+
+// ── Oda Kodu Sözleşmesi (O, 0, I, 1 hariç 31 karakterlik alfanümerik alfabe) ──
+export const ROOM_CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+
+/**
+ * 4 karakterlik, okunması ve telaffuzu kolay, benzersiz alfanümerik oda kodu üretir.
+ * @param {number} [length=4]
+ * @returns {string}
+ */
+export function generateRoomCode(length = 4) {
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    const idx = Math.floor(Math.random() * ROOM_CODE_ALPHABET.length);
+    result += ROOM_CODE_ALPHABET[idx];
+  }
+  return result;
+}
+
+/**
+ * Oda kodunu temizler ve büyük harfe çevirir.
+ * @param {any} code
+ * @returns {string}
+ */
+export function normalizeRoomCode(code) {
+  return (code ?? '').toString().trim().toUpperCase();
+}
+
+/**
+ * Oda kodunun geçerli uzunlukta (3-6 karakter) ve alfanümerik olduğunu doğrular.
+ * @param {any} code
+ * @returns {boolean}
+ */
+export function isValidRoomCode(code) {
+  if (typeof code !== 'string' && typeof code !== 'number') return false;
+  const clean = normalizeRoomCode(code);
+  return clean.length >= 3 && clean.length <= 6 && /^[A-Z0-9]+$/.test(clean);
+}

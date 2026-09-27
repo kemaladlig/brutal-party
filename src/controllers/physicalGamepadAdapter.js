@@ -35,7 +35,7 @@ export class PhysicalGamepadAdapter {
     schedule = (callback) => globalThis.requestAnimationFrame?.(callback) ?? setTimeout(callback, 16),
     cancel = (handle) => globalThis.cancelAnimationFrame?.(handle) ?? clearTimeout(handle),
     deadzone = DEFAULT_DEADZONE,
-  } = {}) {
+  } = /** @type {{send?: (data: any) => void, getMode?: () => string, getDescriptor?: () => any, isBlocked?: () => boolean, getGamepads?: () => (Gamepad | null)[], now?: () => number, schedule?: (callback: any) => number, cancel?: (handle: any) => void, deadzone?: number}} */ ({})) {
     this.send = send;
     this.getMode = getMode;
     this.getDescriptor = getDescriptor;

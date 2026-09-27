@@ -62,7 +62,10 @@ const TIER = {
   },
 };
 
-export function updateCurveBotAI(game, bot, dt) {
+import { createReadOnlyView } from '../core/botView.js';
+
+export function updateCurveBotAI(rawGame, bot, dt) {
+  const game = createReadOnlyView(rawGame);
   const TIER_PARAMS = TIER[bot.slotType] || TIER.bot_normal;
   // INVERT bot steer'ını aynalamaz — raycast'inin doğrultusunu duvara çevirirdi.
   // Bunun yerine karar kalitesi düşer: daha sık yanlış taraf, delik dikme yok.

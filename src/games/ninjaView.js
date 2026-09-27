@@ -168,7 +168,7 @@ export function drawNinjaFrame(ctx, arena, obstacles) {
 }
 
 export function drawNinjaSteps(ctx, steps) {
-  for (const [x, y, alpha] of steps || []) {
+  for (const { x, y, alpha } of steps || []) {
     ctx.save();
     ctx.globalAlpha = clamp01(alpha);
     ctx.fillStyle = '#9C988F';

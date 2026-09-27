@@ -28,16 +28,16 @@ function writeIntent(key, on) {
 export function isFullscreen() {
   return !!(
     document.fullscreenElement ||
-    document.webkitFullscreenElement ||
-    document.mozFullScreenElement ||
-    document.msFullscreenElement
+    /** @type {any} */ (document).webkitFullscreenElement ||
+    /** @type {any} */ (document).mozFullScreenElement ||
+    /** @type {any} */ (document).msFullscreenElement
   );
 }
 
 /** Tarayıcı bu yüzeyde tam ekrana izin veriyor mu? iPhone Safari'de ve çoğu
  *  standalone çalıştırmada hayır — o zaman düğmeyi göstermek de yanlış. */
 export function fullscreenSupported() {
-  const el = document.documentElement;
+  const el = /** @type {any} */ (document.documentElement);
   return !!(
     el.requestFullscreen
     || el.webkitRequestFullscreen
@@ -71,7 +71,7 @@ export function matchFullscreenEngaged() {
 
 export function requestFullscreen() {
   try {
-    const el = document.documentElement;
+    const el = /** @type {any} */ (document.documentElement);
     if (el.requestFullscreen) {
       const p = el.requestFullscreen();
       if (p && typeof p.catch === 'function') p.catch(() => {});
@@ -90,12 +90,12 @@ export function exitFullscreen() {
     if (document.exitFullscreen) {
       const p = document.exitFullscreen();
       if (p && typeof p.catch === 'function') p.catch(() => {});
-    } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
-    } else if (document.mozCancelFullScreen) {
-      document.mozCancelFullScreen();
-    } else if (document.msExitFullscreen) {
-      document.msExitFullscreen();
+    } else if (/** @type {any} */ (document).webkitExitFullscreen) {
+      /** @type {any} */ (document).webkitExitFullscreen();
+    } else if (/** @type {any} */ (document).mozCancelFullScreen) {
+      /** @type {any} */ (document).mozCancelFullScreen();
+    } else if (/** @type {any} */ (document).msExitFullscreen) {
+      /** @type {any} */ (document).msExitFullscreen();
     }
   } catch {}
 }

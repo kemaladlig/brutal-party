@@ -523,12 +523,12 @@ function pathRoundRect(ctx, x, y, w, h, r) {
  * düşük okunur, çünkü ortalama düşüş çok daha hızlı sıfıra iner.
  */
 const SHADOW_SPRITE_SIZE = 64;
-const SHADOW_SPRITE_STOPS = [
+const SHADOW_SPRITE_STOPS = /** @type {Array<[number, string]>} */ ([
   [0, 'rgba(18, 14, 28, 0.17)'],
   [0.35, 'rgba(18, 14, 28, 0.11)'],
   [0.65, 'rgba(18, 14, 28, 0.04)'],
   [1, 'rgba(18, 14, 28, 0)'],
-];
+]);
 let shadowSprite = null;
 let shadowSpriteTried = false;
 

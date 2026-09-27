@@ -56,7 +56,44 @@ export const UI_COLORS = {
   resultShadowRgb: '4, 2, 12',
   // Doygun altın/yeşil dolgu üstündeki mürekkep (`--on-accent`).
   onAccent: '#2A1400',
+  // --- Crown / Arena / Brutalist Sahne & Prop Token'ları ---
+  crownRed: '#D84727',
+  crownBlue: '#1D5D8A',
+  crownGold: '#D99B26',
+  crownGreen: '#2F6A4F',
+  crownPaper: '#F4F0EA',
+  crownPaperLight: '#FAF7F2',
+  crownStone: '#2B2B28',
+  crownStoneDark: '#1A1A1A',
+  crownStoneDarker: '#333330',
+  crownHazard: '#262624',
+  crownAmber: '#F59E0B',
+  crownSpark: '#FFDE59',
+  crownTeleport: '#48CAE4',
+  crownFlash: '#FFD9C0',
+  crownPillarBorder: '#E0DAD0',
+  crownPillarEdge: '#8A857C',
+  crownConveyorLine: '#6E6E66',
+  crownConveyorArrow: '#4A4A45',
+  crownConveyorEdge: '#E5DFD5',
+  crownForest: '#2D6A4F',
+  crownPressed: '#E0DFDC',
+  crownUnreadyFill: '#2A2A2E',
+  crownUnreadyBorder: '#555555',
+  crownDarkIcon: '#141416',
+  blastFlash: '#FFD9C0',
+  blastSpark: '#FFD122',
+  inkDark: '#1A1A1A',
+  lineDark: '#1C1C1A',
+  pureBlack: '#000000',
 };
+
+export const CROWN_COLORS = Object.freeze([
+  UI_COLORS.crownRed,
+  UI_COLORS.crownBlue,
+  UI_COLORS.crownGold,
+  UI_COLORS.crownGreen,
+]);
 
 export const UI_FONTS = {
   grotesk: '"Space Grotesk", sans-serif',
@@ -279,37 +316,51 @@ export function setControlSurface(value) {
 }
 
 // Eski çağıranlar için uyum katmanı; yeni tek kaynak control surface'tır.
-export function getVirtualControlsSetting() {
-  const preference = getControlSurfacePreference();
-  if (preference === CONTROL_SURFACE.AUTO) return 'auto';
-  return getControlSurface() === CONTROL_SURFACE.MOBILE ? 'on' : 'off';
-}
 
-export function setVirtualControlsSetting(value) {
-  if (value === 'auto' || value === 'on') setControlSurface(CONTROL_SURFACE.AUTO);
-  else if (value === 'off') setControlSurface(CONTROL_SURFACE.TABLETOP);
-}
+export const CONTROL_MODE = Object.freeze({
+  NONE: 'none',
+  DOM: 'dom',
+  CANVAS: 'canvas',
+});
 
-export function shouldShowVirtualControls({
+/**
+ * Otorite cihazın yerel kontrol yüzeyi — TEK karar noktası.
+ *
+ * Yüzey iki yerden geliyordu (DOM kumandası `main.js`, canvas masa-ortası
+ * `BaseGame`/`tabletopRenderer`) ve ikisi de aynı anda farklı şey söylüyordu:
+ * DOM tarafı "birden çok insan koltuğu var" diye masa-ortasına zorluyordu,
+ * canvas tarafı ham tercihi okuyordu. Tercih `mobile` iken ikisi de kapanıyor
+ * ve host (LOCAL'de ya da ONLINE'da P1) hiçbir kontrolü kalmıyordu.
+ *
+ * Koltuk sayısı bilgisi değildir: ONLINE'da uzak oyuncular da `human`
+ * sayılır. Açık kullanıcı seçimi her zaman kazanır; `auto` sadece cihaz
+ * profiline bakar.
+ *
+ * @returns {{mode: 'none'|'dom'|'canvas', localControlSlot: number|null}}
+ *   `localControlSlot` yalnız bu cihazın oynadığı koltuktur; canvas köşe
+ *   kontrolleri başka koltuklara dokunulabilir çizilmemeli (authority kuralı).
+ */
+export function resolveLocalControlMode({
   isHosting = false,
-  isTouchDevice: touchDevice = null,
-  force = false,
-  surface = null,
+  isLocalHostPlayer = false,
+  isLocalMode = false,
+  preference = getControlSurfacePreference(),
+  localSlot = null,
 } = {}) {
-  // ONLINE/TV host authority-local touch veya LOCAL masa-ortası modu.
-  if (force) return true;
-  if (isHosting) return false;
+  // Cihaz oyuncu değilse (kumanda ekranı, TV host spectator) yerel yüzey yok.
+  if (!isLocalMode && !(isHosting && isLocalHostPlayer)) {
+    return { mode: CONTROL_MODE.NONE, localControlSlot: null };
+  }
+  const surface = resolveControlSurface(preference);
+  return {
+    mode: surface === CONTROL_SURFACE.MOBILE ? CONTROL_MODE.DOM : CONTROL_MODE.CANVAS,
+    localControlSlot: Number.isInteger(localSlot) ? localSlot : null,
+  };
+}
 
-  // Mobil yüzey LOCAL'da DOM kumandasıyla karşılanır; canvas masa-ortası
-  // katmanı yalnız tabletop tercihinde görünür.
-  const selectedSurface = resolveControlSurface(surface || getControlSurfacePreference());
-  if (selectedSurface === CONTROL_SURFACE.MOBILE) return false;
-  // Explicit tabletop (and desktop AUTO) is a real playable surface, not a
-  // touch-only hint. This keeps the four canvas corner controls available on PC.
-  if (selectedSurface === CONTROL_SURFACE.TABLETOP) return true;
-
-  const touch = touchDevice === null ? isTouchDevice() : touchDevice;
-  return !!touch;
+/** Canvas köşe kontrollerinin çizilip dokunulabilir olup olmadığı. */
+export function shouldShowVirtualControls({ mode = /** @type {string} */ (CONTROL_MODE.NONE) } = {}) {
+  return mode === CONTROL_MODE.CANVAS;
 }
 
 // Standart ölçüler (CSS pikseli)

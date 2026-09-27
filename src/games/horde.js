@@ -84,7 +84,7 @@ export const HORDE_TUNING = Object.freeze({
   REVIVE_TIME: 3,
   REVIVE_RADIUS: 44,
   PORTAL_TIME: 3,
-  PORTAL_RADIUS: 44,
+  PORTAL_RADIUS: 60,
   WAVE_LIMIT: 90,
   WAVE_BREAK_TIME: 2.4,
   ROUND_BREAK_TIME: 15,
@@ -163,7 +163,7 @@ export class HordeGame extends BaseMiniGame {
     this.round = 1;
     this.wave = 1;
     this.roundId = 0;
-    this.waveTimer = HORDE_TUNING.WAVE_LIMIT;
+    this.waveTimer = /** @type {number} */ (HORDE_TUNING.WAVE_LIMIT);
     this.waveBreakTimer = 0;
     this.roundBreakTimer = 0;
     this.nextRound = 1;
@@ -518,6 +518,42 @@ export class HordeGame extends BaseMiniGame {
       enemy.y = point.y;
       enemy.spawnDelay = 0.35 + (i % 5) * 0.14 + Math.random() * 0.18;
       this.enemies.push(enemy);
+    }
+
+    if (!this.isBossWave) {
+      const barrelCount = 2 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < barrelCount; i++) {
+        const barrel = {
+          id: this._nextEnemyId++,
+          type: 'barrel',
+          isBoss: false,
+          elite: false,
+          x: this.arena.cx,
+          y: this.arena.cy,
+          vx: 0,
+          vy: 0,
+          radius: this.bodyPx(20),
+          speed: 0,
+          hp: 4,
+          maxHp: 4,
+          damage: 0,
+          attackEvery: Infinity,
+          attackTimer: Infinity,
+          healTimer: Infinity,
+          angle: 0,
+          hitTimer: 0,
+          spawnDelay: 0.1,
+          lungeTimer: 0,
+          lungeCooldown: 0,
+          avoidDir: 1,
+          summonThresholds: [],
+          summonIndex: 0,
+        };
+        const point = this.randomEdgePoint(barrel.radius + 15);
+        barrel.x = point.x;
+        barrel.y = point.y;
+        this.enemies.push(barrel);
+      }
     }
   }
 
@@ -919,7 +955,13 @@ export class HordeGame extends BaseMiniGame {
     player.ammo -= 1;
     player.attackCooldown = weapon.fireInterval * (player.fastTimer > 0 ? 0.88 : 1);
     notifyFireShot(player);
-    playShoot();
+    if (player.ammo <= 2) {
+      playDryFire();
+      playShoot();
+      this.spawnParticles(player.x + Math.cos(player.angle) * this.bodyPx(30), player.y + Math.sin(player.angle) * this.bodyPx(30), '#FACC15', 3);
+    } else {
+      playShoot();
+    }
     player.idleReloadTimer = 0;
     if (player.ammo <= 0) this.startReload(player);
   }
@@ -1108,6 +1150,60 @@ export class HordeGame extends BaseMiniGame {
       enemy.healTimer -= dt;
       enemy.lungeTimer = Math.max(0, enemy.lungeTimer - dt);
       enemy.lungeCooldown = Math.max(0, enemy.lungeCooldown - dt);
+
+      if (enemy.isBoss) {
+        enemy.specialTimer = (enemy.specialTimer || 5) - dt;
+        if (enemy.specialTimer <= 0) {
+          enemy.specialTimer = 4.5 + Math.random() * 2;
+          const target = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+          if (target) {
+            this.enemies.push({
+              id: this._nextEnemyId++,
+              type: 'bomb',
+              isBoss: false,
+              elite: false,
+              x: target.x,
+              y: target.y,
+              vx: 0,
+              vy: 0,
+              radius: this.bodyPx(80),
+              speed: 0,
+              hp: 9999,
+              maxHp: 9999,
+              damage: 0,
+              attackEvery: Infinity,
+              attackTimer: 1.5,
+              healTimer: Infinity,
+              angle: 0,
+              hitTimer: 0,
+              spawnDelay: 0,
+              lungeTimer: 0,
+              lungeCooldown: 0,
+              avoidDir: 1,
+              summonThresholds: [],
+              summonIndex: 0,
+            });
+          }
+        }
+      }
+
+      if (enemy.type === 'bomb') {
+        if (enemy.attackTimer <= 0) {
+          playExplosion();
+          this.spawnParticles(enemy.x, enemy.y, '#E63946', 40);
+          this.addTrauma(0.6);
+          for (const p of alivePlayers) {
+            if (distanceSq(p.x, p.y, enemy.x, enemy.y) <= Math.pow(enemy.radius + p.radius, 2)) {
+              this.damagePlayer(p, 2);
+            }
+          }
+          enemy.hp = 0;
+          const idx = this.enemies.indexOf(enemy);
+          if (idx >= 0) this.enemies.splice(idx, 1);
+        }
+        continue;
+      }
+
       this.maybeSummonBossAdds(enemy);
       let target = null;
       let minDistanceSq = Infinity;
@@ -1344,7 +1440,7 @@ export class HordeGame extends BaseMiniGame {
     if (!enemy || enemy.hp <= 0) return;
     enemy.hp -= damage;
     enemy.hitTimer = 0.1;
-    if (knockback > 0) {
+    if (knockback > 0 && enemy.type !== 'barrel') {
       const magnitude = Math.max(1, projectileSpeed) || 1;
       enemy.x += (dirX / magnitude) * knockback;
       enemy.y += (dirY / magnitude) * knockback;
@@ -1354,6 +1450,44 @@ export class HordeGame extends BaseMiniGame {
     if (enemy.hp > 0) return;
     const index = this.enemies.indexOf(enemy);
     if (index >= 0) this.enemies.splice(index, 1);
+
+    if (enemy.type === 'barrel') {
+      this.spawnParticles(enemy.x, enemy.y, '#F97316', 30);
+      playExplosion();
+      const radiusSq = Math.pow(this.bodyPx(140), 2);
+      const hitEnemies = this.enemies.filter(e => distanceSq(e.x, e.y, enemy.x, enemy.y) <= radiusSq);
+      for (const e of hitEnemies) {
+        this.damageEnemy(e, 8, ownerIndex, 150, e.x - enemy.x, e.y - enemy.y, 1);
+      }
+      for (const p of this.alivePlayers) {
+        if (distanceSq(p.x, p.y, enemy.x, enemy.y) <= radiusSq) {
+          this.damagePlayer(p, 1);
+        }
+      }
+      this.addTrauma(0.4);
+      return;
+    }
+
+    if (enemy.elite || enemy.isBoss) {
+      if (Math.random() < (enemy.isBoss ? 1.0 : 0.35)) {
+        const types = ['HEAL', 'SHIELD', 'FAST', 'TRIPLE'];
+        const type = types[Math.floor(Math.random() * types.length)];
+        if (!this.pickups) this.pickups = [];
+        if (this.pickups.length < HORDE_TUNING.PICKUP_MAX + 2) {
+          this.pickups.push({
+            x: enemy.x,
+            y: enemy.y,
+            type,
+            radius: this.bodyPx(15),
+            size: this.bodyPx(30),
+            animTime: 0,
+            life: 14.0,
+            phase: Math.random() * Math.PI * 2,
+          });
+        }
+      }
+    }
+
     const owner = this.players[ownerIndex];
     const points = enemy.isBoss ? 3 : enemy.elite ? 2 : 1;
     if (owner) this.scores[owner.index] += points;

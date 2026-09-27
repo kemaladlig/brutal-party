@@ -25,7 +25,7 @@ const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
  * Tek-kaynak oyuncu eşlemesi: host render + snapshot aynı fonksiyonu kullanır.
  * @param {array} players - ham host oyuncuları
  * @param {array} lasers - ham host lazerleri (aktif sayımı için)
- * @param {object} tuning - { maxActive, maxAmmo, maxHp, reloadTime, dashCd }
+ * @param {{maxActive?: number, maxAmmo?: number, maxHp?: number, reloadTime?: number, dashCd?: number, shotInterval?: number}} [tuning]
  * @param {function} aimOf - (p) => [{x,y}...] nişan pol çizgisi (host traceAim)
  * @param {boolean} withAim - PLAYING dışı sahnelerde aim çizilmez
  */

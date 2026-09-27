@@ -909,7 +909,7 @@ export class BombGame extends BaseMiniGame {
         players: this.players,
         scores: this.scores,
         entities: this.players.filter((p) => p.isJoined),
-        isHosting: !!this.hideLobbyStartButton,
+        controlMode: this.localControlMode,
         state: this.state,
       });
       const remain = Math.max(0, this.bombTimer);

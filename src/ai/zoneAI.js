@@ -72,7 +72,10 @@ function ensurePlan(game, bot) {
   return bot.aiPlan;
 }
 
-export function updateZoneBotAI(game, bot, dt) {
+import { createReadOnlyView } from '../core/botView.js';
+
+export function updateZoneBotAI(rawGame, bot, dt) {
+  const game = createReadOnlyView(rawGame);
   const prof = PROFILES[bot.slotType] || PROFILES.bot_normal;
   const plan = ensurePlan(game, bot);
   const G = game.gridSize();
@@ -485,10 +488,23 @@ function steer(game, bot, prof, plan, myCell, myTag, trailing, dt) {
       const baseAng = Math.atan2(dy, dx);
       const baseLen = Math.hypot(dx, dy) || 1;
       const alts = [Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2];
+      let escaped = false;
       for (const off of alts) {
         const ax = Math.cos(baseAng + off) * baseLen;
         const ay = Math.sin(baseAng + off) * baseLen;
-        if (!isOwnTrailAhead(ax, ay)) { dx = ax; dy = ay; break; }
+        if (!isOwnTrailAhead(ax, ay)) { dx = ax; dy = ay; escaped = true; break; }
+      }
+      // Dört alternatif de kapalıysa niyeti hiç değiştirmeden bırakma: iz
+      // yönüne körlemesine yürümek duvar-ağzı sıkışması yapıyordu. Perpendiküler
+      // eksenlerden temiz olanına kay, o da kapalıysa niyeti koru.
+      if (!escaped) {
+        const perp = [
+          { x: -dy, y: dx },
+          { x: dy, y: -dx },
+        ];
+        for (const p of perp) {
+          if (!isOwnTrailAhead(p.x, p.y)) { dx = p.x; dy = p.y; break; }
+        }
       }
     }
   }

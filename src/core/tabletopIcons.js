@@ -5,7 +5,7 @@
 
 /**
  * Lucide İkon Tanımları (24x24 Standart Grid)
- * @type {Record<string, { id: string, aliases: string[], path: string, mode?: 'stroke' | 'fill' | 'both', strokeWidth?: number }>}
+ * @type {Record<string, { id: string, aliases: string[], path: string, mode?: 'stroke' | 'fill' | 'both', strokeWidth?: number, fillRule?: string }>}
  */
 const LUCIDE_REGISTRY = {
   plus: {
@@ -52,6 +52,12 @@ const LUCIDE_REGISTRY = {
     id: 'reload',
     aliases: ['🔄', 'ammo', 'reload', 'magazine'],
     path: 'M21 12a9 9 0 1 1-2.64-6.36 M21 3v6h-6',
+    mode: 'stroke',
+  },
+  alert_triangle: {
+    id: 'alert_triangle',
+    aliases: ['⚠️', 'alert', 'warning', 'error'],
+    path: 'm21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z M12 9v4 M12 17h.01',
     mode: 'stroke',
   },
   bomb: {

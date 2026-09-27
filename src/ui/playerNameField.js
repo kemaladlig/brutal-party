@@ -30,11 +30,12 @@ export const DEFAULT_NAME_IDS = Object.freeze({
 });
 
 /**
- * @param {object} opts
+ * @param {{ids?: Record<string, string>, prefix?: string, onChange?: ((name: string) => void) | null}} [opts]
  *   ids       — DOM id'leri (varsayılan: eski profil kartı id'leri).
  *   prefix    — sınıf ön eki (`home-` / ``).
  *   onChange  — isim kalıcı olarak değiştiğinde çağrılır.
- * @returns {{ el: HTMLElement, setName: (s: string) => void, focusEdit: () => void, destroy: () => void }}
+ * @returns {{ el: HTMLElement, setName: (s: string) => void, refresh: () => void,
+ *             focusEdit: () => void, closeEdit: () => void, destroy: () => void }}
  */
 export function createPlayerNameField({ ids = {}, prefix = '', onChange = null } = {}) {
   const id = { ...DEFAULT_NAME_IDS, ...ids };

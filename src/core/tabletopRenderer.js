@@ -41,7 +41,7 @@ export function createTabletopRenderer(game) {
 
   function renderControls(ctx, { players = game.getEntitiesList(), extraEntities = [] } = {}) {
     if (game.state !== 'PLAYING' && game.state !== 'ROUND_PAUSE') return;
-    if (!shouldShowVirtualControls({ isHosting: !!game.suppressVirtualControls, force: !!game.forceVirtualControls })) {
+    if (!shouldShowVirtualControls({ mode: game.localControlMode })) {
       return;
     }
 
@@ -58,7 +58,7 @@ export function createTabletopRenderer(game) {
         continue;
       }
       const corner = corners[i];
-      const playerColor = p.color || UI_COLORS.primary || '#D84727';
+      const playerColor = p.color || UI_COLORS.primary || UI_COLORS.crownRed;
 
       // 1. DİREKSİYON (SOL / SAĞ) BUTONLARI ÇİZİMİ
       if (schema.steer && corner.steerButtons) {
@@ -84,10 +84,10 @@ export function createTabletopRenderer(game) {
         ctx.fillStyle = 'rgba(20, 16, 31, 0.18)';
         pathRoundRect(ctx, -chipW / 2, -chipH / 2 + 2, chipW, chipH, chipR);
         ctx.fill();
-        ctx.fillStyle = UI_COLORS.card || '#FAF7F2';
+        ctx.fillStyle = UI_COLORS.card || UI_COLORS.crownPaperLight;
         pathRoundRect(ctx, -chipW / 2, -chipH / 2, chipW, chipH, chipR);
         ctx.fill();
-        ctx.strokeStyle = UI_COLORS.faint || '#8C8175';
+        ctx.strokeStyle = UI_COLORS.faint;
         ctx.lineWidth = 1.5;
         pathRoundRect(ctx, -chipW / 2, -chipH / 2, chipW, chipH, chipR);
         ctx.stroke();
@@ -97,12 +97,12 @@ export function createTabletopRenderer(game) {
         ctx.beginPath();
         ctx.arc(-chipW / 2 + 8, 0, 3.5, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = '#1A1A1A';
+        ctx.strokeStyle = UI_COLORS.inkDark;
         ctx.lineWidth = 1;
         ctx.stroke();
 
         // Çip metni
-        ctx.fillStyle = '#1A1A1A';
+        ctx.fillStyle = UI_COLORS.inkDark;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.fillText(chipText, -chipW / 2 + 15, 0.5);
@@ -132,18 +132,18 @@ export function createTabletopRenderer(game) {
           ctx.fill();
 
           // Buton Gövdesi
-          ctx.fillStyle = active ? `${playerColor}33` : '#FAF7F2';
+          ctx.fillStyle = active ? `${playerColor}33` : UI_COLORS.crownPaperLight;
           pathRoundRect(ctx, -halfW + offset, -halfH + offset, sBtn.w, sBtn.h, sR);
           ctx.fill();
 
           // Kenarlık
-          ctx.strokeStyle = active ? playerColor : '#2B2018';
+          ctx.strokeStyle = active ? playerColor : UI_COLORS.line;
           ctx.lineWidth = active ? 2.5 : 2;
           pathRoundRect(ctx, -halfW + offset, -halfH + offset, sBtn.w, sBtn.h, sR);
           ctx.stroke();
 
           // Vektör Direksiyon İkonu (◀ / ▶)
-          const steerIconColor = active ? playerColor : '#1A1A1A';
+          const steerIconColor = active ? playerColor : UI_COLORS.inkDark;
           drawTabletopIcon(ctx, sBtn.label || sBtn.id, offset, offset + 1, 24, {
             color: steerIconColor,
             accentColor: playerColor,
@@ -155,7 +155,7 @@ export function createTabletopRenderer(game) {
             const badgeW = Math.max(16, sBtn.keyHint.length * 6 + 6);
             ctx.fillRect(-halfW + offset + 2, -halfH + offset + 2, badgeW, 10);
             ctx.font = '900 7.5px monospace';
-            ctx.fillStyle = '#FFFFFF';
+            ctx.fillStyle = UI_COLORS.white;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(sBtn.keyHint, -halfW + offset + 2 + badgeW / 2, -halfH + offset + 7);
@@ -180,7 +180,7 @@ export function createTabletopRenderer(game) {
           ctx.arc(joy.originX, joy.originY, baseR, 0, Math.PI * 2);
           ctx.stroke();
 
-          ctx.strokeStyle = UI_COLORS.ink || '#1A1A1A';
+          ctx.strokeStyle = UI_COLORS.ink || UI_COLORS.inkDark;
           ctx.lineWidth = Math.max(2, Math.round(2.5 * profile.baseUnit));
           ctx.setLineDash([4, 4]);
           ctx.beginPath();
@@ -193,7 +193,7 @@ export function createTabletopRenderer(game) {
           ctx.beginPath();
           ctx.arc(joy.currX, joy.currY, knobR, 0, Math.PI * 2);
           ctx.fill();
-          ctx.strokeStyle = UI_COLORS.ink || '#1A1A1A';
+          ctx.strokeStyle = UI_COLORS.ink || UI_COLORS.inkDark;
           ctx.lineWidth = Math.max(2, Math.round(2.5 * profile.baseUnit));
           ctx.stroke();
           ctx.restore();
@@ -246,7 +246,7 @@ export function createTabletopRenderer(game) {
           Math.PI * 2,
         );
         ctx.fill();
-        ctx.strokeStyle = UI_COLORS.ink || '#1A1A1A';
+        ctx.strokeStyle = UI_COLORS.ink || UI_COLORS.inkDark;
         ctx.lineWidth = 2;
         ctx.stroke();
         ctx.restore();
@@ -314,7 +314,7 @@ export function createTabletopRenderer(game) {
           ctx.fill();
 
           // Buton Gövdesi
-          ctx.fillStyle = isReady ? (isPressed ? '#E0DFDC' : '#FAF7F2') : '#2A2A2E';
+          ctx.fillStyle = isReady ? (isPressed ? UI_COLORS.crownPressed : UI_COLORS.crownPaperLight) : UI_COLORS.crownUnreadyFill;
           pathRoundRect(ctx, -halfW + offset, -halfH + offset, btn.w, btn.h, bR);
           ctx.fill();
 
@@ -340,7 +340,7 @@ export function createTabletopRenderer(game) {
           }
 
           // Kenarlık
-          ctx.strokeStyle = isReady ? playerColor : '#555555';
+          ctx.strokeStyle = isReady ? playerColor : UI_COLORS.crownUnreadyBorder;
           ctx.lineWidth = isReady ? 2.5 : 1.5;
           pathRoundRect(ctx, -halfW + offset, -halfH + offset, btn.w, btn.h, bR);
           ctx.stroke();
@@ -361,7 +361,7 @@ export function createTabletopRenderer(game) {
           }
 
           // Vektör Arcade İkon Çizimi (Brutalist net geometri, dinamik renk)
-          const iconColor = isReady ? (isPressed ? playerColor : '#141416') : 'rgba(250, 247, 242, 0.40)';
+          const iconColor = isReady ? (isPressed ? playerColor : UI_COLORS.crownDarkIcon) : 'rgba(250, 247, 242, 0.40)';
           const iconY = cooldown > 0 ? (offset - 4) : (offset + 1);
           const iconKey = act.id === 'action' ? (act.icon || act.id) : (act.id || act.icon);
           drawTabletopIcon(ctx, iconKey, offset, iconY, 24, {
@@ -372,7 +372,7 @@ export function createTabletopRenderer(game) {
 
           if (!isReady && cooldown > 0) {
             ctx.font = '900 11px "JetBrains Mono", monospace';
-            ctx.fillStyle = '#F59E0B';
+            ctx.fillStyle = UI_COLORS.crownAmber;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(`${cooldown.toFixed(1)}s`, offset, halfH + offset - 8);
@@ -386,7 +386,7 @@ export function createTabletopRenderer(game) {
             const badgeW = Math.max(22, keyHint.length * 6 + 6);
             ctx.fillRect(-halfW + offset + 2, -halfH + offset + 2, badgeW, 10);
             ctx.font = '900 7.5px monospace';
-            ctx.fillStyle = '#FFFFFF';
+            ctx.fillStyle = UI_COLORS.white;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(keyHint, -halfW + offset + 2 + badgeW / 2, -halfH + offset + 7);
@@ -411,7 +411,7 @@ export function createTabletopRenderer(game) {
       scores: game.scores || game.setScores || [0, 0, 0, 0],
       targetScore,
       entities: activeEntities,
-      isHosting: !!game.hideLobbyStartButton,
+      controlMode: game.localControlMode,
       state: game.state,
       uiButtons: game.uiButtons,
     });
@@ -420,7 +420,7 @@ export function createTabletopRenderer(game) {
   function renderStandardRoundBanner(ctx, { title = null, titleColor = null, sub = '' } = {}) {
     const cleanWinner = game.roundWinner ? cleanWinnerName(game.roundWinner.name || '') : '';
     const defTitle = cleanWinner ? `${cleanWinner} KAZANDI!` : (t('game.draw') || 'BERABERE!');
-    const defColor = game.roundWinner?.color || UI_COLORS.ink || '#1A1A1A';
+    const defColor = game.roundWinner?.color || UI_COLORS.ink || UI_COLORS.inkDark;
     renderRoundBanner(ctx, {
       arena: game.arena,
       title: title || defTitle,
@@ -470,7 +470,7 @@ export function createTabletopRenderer(game) {
     colors = [],
     playerNames = [],
     onStart = () => game.startNewMatch(),
-    accent = '#D84727',
+    accent = UI_COLORS.crownRed,
     customControls = null,
     rotateTop = false,
     onSeatChange = null,
@@ -485,7 +485,7 @@ export function createTabletopRenderer(game) {
       const slotType = game.slotTypes[i];
       const p = game.players?.[i] || game.tanks?.[i] || game.paddles?.[i] || game.curves?.[i] || game.snakes?.[i];
       const name = p ? (p.name || '') : (playerNames[i] || '');
-      const color = colors[i] || '#D84727';
+      const color = colors[i] || UI_COLORS.crownRed;
       const isTop = i === 1 || i === 2;
 
       renderLobbySeatCard(ctx, {
@@ -551,7 +551,7 @@ export function createTabletopRenderer(game) {
       guideEntries = null,
       colors = game.playerColors || [],
       playerNames = [],
-      accent = '#D84727',
+      accent = UI_COLORS.crownRed,
       onStart = () => game.startNewMatch(),
       rotateTop = true,
       onSeatChange = null,

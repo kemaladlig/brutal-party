@@ -1,7 +1,10 @@
 // Brutal Pong: Bot AI (Normal & God Mode) — matador vuruşu, gölgeleme, iniş tahmini.
 // Karar motoru buradadır; Paddle varlığı (çizim/fizik) src/games/paddle.js'tedir.
 
-export function updatePongBotAI(game, paddle, dt) {
+import { createReadOnlyView } from '../core/botView.js';
+
+export function updatePongBotAI(rawGame, paddle, dt) {
+  const game = createReadOnlyView(rawGame);
   const ball = game.ball;
   if (!ball || ball.isDead) return;
 
@@ -77,7 +80,7 @@ export function updatePongBotAI(game, paddle, dt) {
     paddle.targetCoord = Math.max(paddle.minCoord, Math.min(paddle.maxCoord, paddle.coord));
 
   } else {
-    // 🤖 NORMAL BOT: Human-like latency, soft tracking, occasional misses
+    // 🤖 NORMAL BOT: human-like latency, soft tracking, occasional misses
     paddle.botErrorTimer -= dt;
     if (paddle.botErrorTimer <= 0) {
       const arenaRef = Math.min(game.arena.width || 400, game.arena.height || 400);
@@ -87,9 +90,10 @@ export function updatePongBotAI(game, paddle, dt) {
     }
 
     if (isHeadingTowards) {
-      // Track current ball position with slight error
-      const ballPos = isHorizontal ? ball.x : ball.y;
-      desiredCoord = ballPos + paddle.botErrorOffset;
+      // Topun O ANKİ konumunu değil DÜŞECEĞİ yeri takip et. Eski sürüm
+      // `ballPos` kullanıyordu; açılı topta raket her zaman geride kalıyordu.
+      const predicted = predictPongLanding(paddle, ball, arena);
+      desiredCoord = predicted + paddle.botErrorOffset;
     } else {
       desiredCoord = (paddle.minCoord + paddle.maxCoord) / 2;
     }
@@ -98,9 +102,14 @@ export function updatePongBotAI(game, paddle, dt) {
       desiredCoord = (paddle.minCoord + paddle.maxCoord) / 2;
     }
 
-    // Normal Bot moves at human-relative speed
+    // Normal Bot moves at human-relative speed.
+    // Eski sürüm sabit `arenaRef * 0.85` idi; top tavanı `shortSide * 1.5`
+    // (spin ile ~1.88) olduğu için bot toptan %43 yavaştı ve ralli bitmeden
+    // yapısal olarak kaybediyordu. Hız topun gerçek hızına görelenir, tavan
+    // insan raketine yakın tutulur — hâlâ kazanılabilir ama zor.
     const arenaRef = Math.min(game.arena.width || 400, game.arena.height || 400);
-    const maxMove = arenaRef * 0.85 * dt;
+    const ballSpeed = Math.hypot(ball.vx, ball.vy) || arenaRef * 1.5;
+    const maxMove = Math.max(arenaRef * 1.15, ballSpeed * 0.8) * dt;
     const curCoord = Number.isFinite(paddle.coord) ? paddle.coord : (paddle.minCoord + paddle.maxCoord) / 2;
     const diff = desiredCoord - curCoord;
     paddle.coord = curCoord + Math.sign(diff) * Math.min(Math.abs(diff), maxMove);

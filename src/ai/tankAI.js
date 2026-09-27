@@ -1,28 +1,69 @@
 // Micro-Tanks: Bot AI with Shell Avoidance, Direct Line-of-Sight, Ricochet Calculation & Patrol
 import { fieldPx, fieldSpeed } from '../core/playfield.js';
+import { normalizeAngle, hasClearLine, approachAngle, segmentAabbIntersection } from '../core/physics2d.js';
+import { createReadOnlyView } from '../core/botView.js';
 
-export function normalizeAngle(angle) {
-  let a = angle;
-  while (a > Math.PI) a -= Math.PI * 2;
-  while (a < -Math.PI) a += Math.PI * 2;
-  return a;
-}
-
-export function lineIntersectsRect(x1, y1, x2, y2, r) {
-  const minX = Math.min(x1, x2);
-  const maxX = Math.max(x1, x2);
-  const minY = Math.min(y1, y2);
-  const maxY = Math.max(y1, y2);
-
-  if (maxX < r.x || minX > r.x + r.w || maxY < r.y || minY > r.y + r.h) return false;
-  return true;
-}
-
+// Görüş hattı vektör matematiği core'da (segment/AABB kesişimi). Buradaki sürüm
+// AABB kesişimi kullanıyordu: diyagonal ışın direğin 20px yanından geçse bile
+// "engel var" deyip ateş etmeyi reddediyordu.
 export function hasLineOfSight(game, x1, y1, x2, y2) {
-  for (const obs of game.obstacles) {
-    if (lineIntersectsRect(x1, y1, x2, y2, obs)) {
-      return false;
+  return hasClearLine(x1, y1, x2, y2, game.obstacles);
+}
+
+// Sekme yüzeyi: arena duvarı (analitik) veya engel (segment kesişimi).
+// Mermi ikisinden de sekiyor (tanks.js:1095 tek eksenli min-yüz kuralı), ama
+// burada yalnız duvarlar sayılıyordu — god botun "sekerek vur" hâli çalışmıyordu.
+function firstBounceSurface(game, x, y, dirX, dirY) {
+  let best = null;
+  let bestDist = Infinity;
+
+  if (dirX > 0) {
+    const d = (game.arena.right - x) / dirX;
+    if (d > 0 && d < bestDist) {
+      bestDist = d;
+      best = { x: game.arena.right, y: y + dirY * d, nx: -1, ny: 0 };
     }
+  } else if (dirX < 0) {
+    const d = (game.arena.left - x) / dirX;
+    if (d > 0 && d < bestDist) {
+      bestDist = d;
+      best = { x: game.arena.left, y: y + dirY * d, nx: 1, ny: 0 };
+    }
+  }
+
+  if (dirY > 0) {
+    const d = (game.arena.bottom - y) / dirY;
+    if (d > 0 && d < bestDist) {
+      bestDist = d;
+      best = { x: x + dirX * d, y: game.arena.bottom, nx: 0, ny: -1 };
+    }
+  } else if (dirY < 0) {
+    const d = (game.arena.top - y) / dirY;
+    if (d > 0 && d < bestDist) {
+      bestDist = d;
+      best = { x: x + dirX * d, y: game.arena.top, nx: 0, ny: 1 };
+    }
+  }
+
+  for (const obs of game.obstacles) {
+    const hit = segmentAabbIntersection(x, y, x + dirX * bestDist, y + dirY * bestDist, obs, 0);
+    if (hit && hit.t < bestDist) {
+      bestDist = hit.t;
+      best = { x: hit.x, y: hit.y, nx: hit.nx, ny: hit.ny, rect: obs };
+    }
+  }
+
+  return best;
+}
+
+// Sekme yüzeyinin kendisi bu engel: gelen ve dönen bacakları onunla test etmek
+// her zaman kapalı döndürür ve engelden seken atışı elemek yerine tümüyle
+// reddederdi.
+function lineClearExcept(game, x1, y1, x2, y2, skipRect) {
+  if (!game.obstacles) return true;
+  for (const obs of game.obstacles) {
+    if (obs === skipRect) continue;
+    if (segmentAabbIntersection(x1, y1, x2, y2, obs, 0) !== null) return false;
   }
   return true;
 }
@@ -30,56 +71,24 @@ export function hasLineOfSight(game, x1, y1, x2, y2) {
 export function checkRicochetShot(game, tank, enemies) {
   const dirX = Math.cos(tank.angle);
   const dirY = Math.sin(tank.angle);
-  let hitPoint = null;
-  let normal = null;
-  let shortestDist = 999;
+  if (Math.abs(dirX) < 1e-6 && (Math.abs(dirY) < 1e-6)) return false;
 
-  if (dirX > 0) {
-    const d = (game.arena.right - tank.x) / dirX;
-    if (d > 0 && d < shortestDist) {
-      shortestDist = d;
-      hitPoint = { x: game.arena.right, y: tank.y + dirY * d };
-      normal = { x: -1, y: 0 };
-    }
-  } else if (dirX < 0) {
-    const d = (game.arena.left - tank.x) / dirX;
-    if (d > 0 && d < shortestDist) {
-      shortestDist = d;
-      hitPoint = { x: game.arena.left, y: tank.y + dirY * d };
-      normal = { x: 1, y: 0 };
-    }
-  }
+  const surface = firstBounceSurface(game, tank.x, tank.y, dirX, dirY);
+  if (!surface) return false;
+  if (!lineClearExcept(game, tank.x, tank.y, surface.x, surface.y, surface.rect)) return false;
 
-  if (dirY > 0) {
-    const d = (game.arena.bottom - tank.y) / dirY;
-    if (d > 0 && d < shortestDist) {
-      shortestDist = d;
-      hitPoint = { x: tank.x + dirX * d, y: game.arena.bottom };
-      normal = { x: 0, y: -1 };
-    }
-  } else if (dirY < 0) {
-    const d = (game.arena.top - tank.y) / dirY;
-    if (d > 0 && d < shortestDist) {
-      shortestDist = d;
-      hitPoint = { x: tank.x + dirX * d, y: game.arena.top };
-      normal = { x: 0, y: 1 };
-    }
-  }
-
-  if (!hitPoint || !normal) return false;
-  if (!hasLineOfSight(game, tank.x, tank.y, hitPoint.x, hitPoint.y)) return false;
-
-  const dot = dirX * normal.x + dirY * normal.y;
-  const rx = dirX - 2 * dot * normal.x;
-  const ry = dirY - 2 * dot * normal.y;
+  const dot = dirX * surface.nx + dirY * surface.ny;
+  const rx = dirX - 2 * dot * surface.nx;
+  const ry = dirY - 2 * dot * surface.ny;
+  if (rx === 0 && ry === 0) return false;
 
   for (const enemy of enemies) {
-    const edx = enemy.x - hitPoint.x;
-    const edy = enemy.y - hitPoint.y;
+    const edx = enemy.x - surface.x;
+    const edy = enemy.y - surface.y;
     const angleToEnemy = Math.atan2(edy, edx);
     const rayAngle = Math.atan2(ry, rx);
     if (Math.abs(normalizeAngle(rayAngle - angleToEnemy)) < 0.22) {
-      if (hasLineOfSight(game, hitPoint.x, hitPoint.y, enemy.x, enemy.y)) {
+      if (lineClearExcept(game, surface.x, surface.y, enemy.x, enemy.y, surface.rect)) {
         return true;
       }
     }
@@ -143,7 +152,8 @@ function pickTarget(game, tank, enemies, tier) {
   return best;
 }
 
-export function updateTankBotAI(game, tank, dt) {
+export function updateTankBotAI(rawGame, tank, dt) {
+  const game = createReadOnlyView(rawGame);
   const P = TIER[tank.slotType] || TIER.bot_normal;
   const isGod = tank.slotType === 'bot_god';
   const enemies = game.tanks.filter((t) => t.index !== tank.index && t.isJoined && t.isAlive);
@@ -271,7 +281,7 @@ export function updateTankBotAI(game, tank, dt) {
   const turnRate = (tank.rotationSpeed || 2.8) * dt * (isGod ? 1.5 : 1.0);
   tank._aiSteered = false;
   if (!arrived && Math.abs(steerDiff) > 0.06) {
-    tank.angle += Math.sign(steerDiff) * Math.min(Math.abs(steerDiff), turnRate);
+    tank.angle = approachAngle(tank.angle, angleToWp, turnRate);
     tank._aiSteered = true;
   }
 

@@ -225,6 +225,18 @@
   box-shadow: var(--shadow-edge);
 }
 
+/* Skor göz atma (taç) — menü çipiyle aynı görsel dil, 44px dokunma tabanı.
+   Oyun dışında (lobi, PONG) `gamepad.js` gizler. */
+.gamepad-header .header-right-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gamepad-score-btn[hidden] {
+  display: none;
+}
+
 .gamepad-menu-panel {
   position: absolute;
   top: calc(100% + 8px);
@@ -311,42 +323,37 @@
   display: none !important;
 }
 
-/* Compact status + control guide band. It is informational only; control
-   zones remain the only interactive surfaces below it.
-   Faz 2: sahnenin üstünde yüzen, yarı saydam güvenli şerit. Varsayılan kapalı,
-   oyun açılınca `.reveal` sınıfıyla yükselir (gamepad.js). */
-.gamepad-hud {
+/* Saha üstündeki TEK metin: SKOR / süre / can / cephane (gamepad.js doldurur).
+   Kutu, gölge, kenar, etiket yok — çıplak satır. Saha dışında bir katman
+   bırakmamak, telefonda görüşü saklamaktan önemli; bu satır bilgiyi taşır,
+   alanı kaplamaz. Kontrol bölgeleri tek etkileşimli yüzey olarak kalır. */
+.gamepad-status {
   position: absolute;
   top: max(8px, env(safe-area-inset-top, 8px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 60;
-  min-height: 0;
+  /* Orta kuşak: sol tepki çipi (54px) + sağ taç/menü (106px) arasında kalan
+     boşluk. Fazlası çiplerin altına kayar. */
+  max-width: calc(100vw - 200px);
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 14px;
-  background: var(--grad-card);
-  border: 1.5px solid var(--edge-strong);
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-float);
-  color: var(--ink);
+  gap: 8px;
   box-sizing: border-box;
   overflow: hidden;
   opacity: 0;
-  translate: 0 -8px;
+  translate: 0 -6px;
   pointer-events: none;
   transition: opacity 0.2s ease, translate 0.2s ease;
-  max-width: calc(100vw - 24px);
   white-space: nowrap;
 }
 
-.gamepad-hud.reveal {
+.gamepad-status.is-on {
   opacity: 1;
   translate: 0 0;
 }
 
-/* Raunt boşluğu rozeti — HUD şeridinin içinde bir bölüm, ayrı bir katman değil.
+/* Raunt boşluğu rozeti — durum satırının içinde bir bölüm, ayrı bir katman değil.
    Bant host canvas'ında zaten var; buradaki işlev "bir sonraki raunta ne kadar
    var" sorusunun telefonda da okunması ("bam diye başlıyor" şikâyeti).
 
@@ -358,7 +365,7 @@
 .round-gap-chip {
   display: none;
   align-items: center;
-  padding-left: 10px;
+  padding-left: 8px;
   border-left: 1.5px solid var(--edge-strong);
   font-family: 'JetBrains Mono', monospace;
   font-size: 10.5px;
@@ -369,7 +376,7 @@
   color: var(--gold-deep);
 }
 
-/* Kapalıyken `display: none`: akışta yer kaplamaz, yokken şerid kaymaz. */
+/* Kapalıyken `display: none`: akışta yer kaplamaz, yokken satır kaymaz. */
 .round-gap-chip.is-open {
   display: inline-flex;
   animation: roundGapIn 180ms ease;
@@ -380,8 +387,7 @@
   to { opacity: 1; translate: 0; }
 }
 
-.hud-live-status,
-.tactical-role-text {
+.hud-live-status {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -390,50 +396,26 @@
   font-size: 11px;
   font-weight: 800;
   line-height: 1.2;
-}
-
-.hud-live-status {
   color: var(--ink);
-}
-
-.tactical-role-text {
-  color: var(--gold-deep);
-  margin-left: auto;
-}
-
-#hud-game-tag {
-  font-family: 'Space Grotesk', sans-serif;
-  font-weight: 900;
-  font-size: 12px;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  color: var(--on-accent, var(--gold-deep));
-  background: var(--n-100);
-  border-radius: var(--radius-pill);
-  padding: 1px 8px;
-  flex-shrink: 0;
+  /* Saha zemini krem (`--paper`): koyu kontur aynı zamanda koyu engellerin
+     üstünden geçerken de okunur kılar. */
+  text-shadow: 0 1px 0 var(--paper), 0 -1px 0 var(--paper), 1px 0 0 var(--paper), -1px 0 0 var(--paper);
 }
 
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
-  .gamepad-hud {
-    top: max(10px, env(safe-area-inset-top, 10px));
-    padding: 6px 12px;
-  }
-
-  .hud-live-status,
-  .tactical-role-text {
+  .hud-live-status {
     font-size: 10px;
   }
 }
 
-/* Uzak kumanda: üst bar yok — skor şeridi yüzen çiplerle aynı üst kuşakta
-   (çipler sağda, şerit ortada), HUD pill'i onun altına iner. */
-#gamepad-overlay .gamepad-hud {
-  top: calc(max(10px, env(safe-area-inset-top, 10px)) + 56px);
+/* Uzak kumanda: tepki/menü çipleri sağda durur; durum satırı onların solunda
+   kalan üst kuşağı kullanır, sahanın içine inmez. */
+#gamepad-overlay .gamepad-status {
+  top: max(10px, env(safe-area-inset-top, 10px));
 }
 
-/* LOCAL'de üstünde ince toolbar olabilir; pill onunla çakışmaz (orta-boş). */
-#local-mobile-controls .gamepad-hud {
+/* LOCAL'de üstünde ince toolbar olabilir; satır onunla çakışmaz (orta-boş). */
+#local-mobile-controls .gamepad-status {
   top: max(10px, env(safe-area-inset-top, 10px));
 }
 
@@ -957,19 +939,23 @@
   background-color: var(--glow-danger-soft);
 }
 
-/* İsimli skor şeridi (tüm oyun modları) — yüzen yumuşak hap satırı.
-   Header absolute yüzer (44px çipler + safe-area); şerit normal akışta ilk
-   öğedir — header'ın altına binmesin diye üstte pay bırakılır. */
+/* İsimli skor şeridi — PEEK. Oyun sırasında akışta YER ALMAZ: mutlak konumlu
+   ve `.hidden` başlar, saha tam boydur. Yalnız `#btn-score-peek` (taç) 2.8 sn
+   açar; `gamepad.js` görünürlüğün tek sahibidir. */
 .score-strip {
+  position: absolute;
+  top: calc(max(10px, env(safe-area-inset-top, 10px)) + 48px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 58;
   width: 100%;
   max-width: 440px;
   display: flex;
   gap: 6px;
-  padding: 6px 10px 0;
-  margin-top: calc(max(10px, env(safe-area-inset-top, 10px)) + 46px);
+  padding: 0 10px;
   box-sizing: border-box;
-  margin-left: auto;
-  margin-right: auto;
+  /* Tepki balonu bu çiplere yaslanır; dokunma hedefi değil. */
+  pointer-events: none;
 }
 
 .score-strip.hidden {
@@ -999,10 +985,6 @@
   opacity: 0.72;
   border-style: solid;
   cursor: not-allowed;
-}
-
-.score-chip.is-empty {
-  opacity: 0.35;
 }
 
 .score-dot {
@@ -3115,14 +3097,14 @@
 
 /* Azaltılmış hareket: cila animasyonları durağan duruma iner (motionScale kuralı) */
 @media (prefers-reduced-motion: reduce) {
-  .gamepad-hud,
+  .gamepad-status,
   .gamepad-result {
     transition: none;
     translate: none;
   }
 
   .gamepad-result.reveal,
-  .gamepad-hud.reveal {
+  .gamepad-status.is-on {
     opacity: 1;
   }
 

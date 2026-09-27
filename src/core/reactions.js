@@ -33,6 +33,7 @@ export const REACTIONS = Object.freeze([
 
 export const REACTION_KEYS = Object.freeze(REACTIONS.map((r) => r.key));
 
+/** @type {Set<string>} */
 const REACTION_SET = new Set(REACTION_KEYS);
 const GLYPHS = new Map(REACTIONS.map((r) => [r.key, r.glyph]));
 

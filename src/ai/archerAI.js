@@ -1,7 +1,8 @@
 // Brutal Archery bot zekâsı: mesafe tutma + yay germe zamanlaması + kaçınma.
 // Yalnızca game.arena / game.players / game.beginCharge / game.looseArrow kullanır.
 
-import { segmentAabbIntersection } from '../core/physics2d.js';
+import { segmentAabbIntersection, normalizeAngle, approachAngle } from '../core/physics2d.js';
+import { createReadOnlyView } from '../core/botView.js';
 
 function hasShotLane(game, bot, target) {
   return !(game.obstacles || []).some((obstacle) => (
@@ -12,7 +13,16 @@ function hasShotLane(game, bot, target) {
 const ARCHER_IDEAL_DIST = 240;
 const ARCHER_MAX_ENGAGE = 480;
 
-export function updateArcherBotAI(game, bot, dt) {
+// Yüz dönüş hızı (rad/sn). Bot insan gibi hedefe döner; anlık snap yerine
+// sınırlı hız kullanılır, yoksa nişan almak bedava olur.
+const ARCHER_TURN_RATE = 7.0;
+// Yay geriliyken nişan takibi hızlanır (tel ucundaki ok hâlâ isabet eder).
+const ARCHER_CHARGE_TURN_RATE = 11.0;
+// Salma kapısı: namlu hedeften bu kadar sapıyorsa ok boşa gider, gergiyi tut.
+const ARCHER_RELEASE_TOLERANCE = 0.2;
+
+export function updateArcherBotAI(rawGame, bot, dt) {
+  const game = createReadOnlyView(rawGame);
   bot.botTimer -= dt;
 
   // Hedef: en yakın katılan rakip
@@ -64,14 +74,18 @@ export function updateArcherBotAI(game, bot, dt) {
   if (mag > 0.15) {
     bot.steerX = mx / mag;
     bot.steerY = my / mag;
-    if (!bot.charging) bot.angle = Math.atan2(bot.steerY, bot.steerX);
   } else {
     bot.steerX = 0;
     bot.steerY = 0;
   }
 
+  // Yüz (angle) HAREKET YÖNÜ DEĞİL, HEDEF YÖNÜDÜR. Strafe vektörü buraya
+  // yazılırsa namlu hedefe hiçbir mesafede kilitlenemez (atan(0.7)=0.61 rad
+  // sapma, gergi kapısı 0.35 rad) ve bot hiç ok atmaz.
   const aimAt = Math.atan2(dy, dx);
-  const angDiff = Math.abs(((aimAt - bot.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+  const turnRate = bot.charging ? ARCHER_CHARGE_TURN_RATE : ARCHER_TURN_RATE;
+  bot.angle = approachAngle(bot.angle, aimAt, turnRate * dt);
+  const angDiff = Math.abs(normalizeAngle(aimAt - bot.angle));
 
   const laneClear = hasShotLane(game, bot, target);
   if (!bot.charging) {
@@ -81,10 +95,9 @@ export function updateArcherBotAI(game, bot, dt) {
       game.beginCharge(bot);
     }
   } else {
-    // Gererken hedefi takip et
-    bot.angle = aimAt;
     // Tam gerişte sal, veya dip dibeyken erken sal
-    if (laneClear && (bot.charge >= 0.9 || (targetDist < 130 && bot.charge > 0.3))) {
+    if (laneClear && angDiff < ARCHER_RELEASE_TOLERANCE
+        && (bot.charge >= 0.9 || (targetDist < 130 && bot.charge > 0.3))) {
       game.looseArrow(bot);
     } else if (!laneClear || targetDist > ARCHER_MAX_ENGAGE * 1.3) {
       // Hedef kaçtıysa veya engel araya girdiyse gergiyi iptal et

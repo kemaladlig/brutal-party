@@ -32,6 +32,10 @@ function numberOr(value, fallback) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+/**
+ * @param {any} value
+ * @param {{x: number, y: number}} fallback
+ */
 function pointOr(value, fallback) {
   const source = value && typeof value === 'object' ? value : {};
   return {
@@ -40,8 +44,9 @@ function pointOr(value, fallback) {
   };
 }
 
+/** @param {{version?: unknown, size?: unknown, left?: unknown, right?: unknown}} [value] */
 export function normalizeControllerLayout(value = {}) {
-  const source = value && typeof value === 'object' ? value : {};
+  const source = /** @type {Record<string, any>} */ (value && typeof value === 'object' ? value : {});
   return {
     version: CONTROLLER_LAYOUT_VERSION,
     size: Math.round(clamp(
@@ -114,6 +119,10 @@ function placeSide({ desired, group, frame, side, center, centerGap, scale }) {
  * `groups` contains local viewport rects for the visible/hit target union on
  * each side. The returned translations are applied to every target belonging
  * to that side, so a moved hit zone never gets left behind at its old place.
+ */
+/**
+ * @param {any} value
+ * @param {{viewport?: {width?: number, height?: number}, safeFrame?: any, groups?: {left?: any, right?: any}, centerGap?: number|null, minTouchTarget?: number}} [options]
  */
 export function resolveControllerLayout(value, {
   viewport = { width: 1, height: 1 },

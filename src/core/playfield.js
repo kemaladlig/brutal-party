@@ -138,7 +138,7 @@ const ZERO_INSETS = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
  *
  * @param {number} width
  * @param {number} height
- * @param {object} spec - FIELD_PRESETS girdisi
+ * @param {FieldPresetSpec} spec - FIELD_PRESETS girdisi
  * @param {{top:number,right:number,bottom:number,left:number}} [safe]
  * @param {boolean} [compact]
  */
@@ -196,7 +196,8 @@ export function resolveInsets(width, height, spec, safe = ZERO_INSETS, compact =
  *   left: number, top: number, right: number, bottom: number,
  *   width: number, height: number, cx: number, cy: number,
  *   size: number, aspect: number, unit: number,
- *   insets: { top: number, right: number, bottom: number, left: number }
+ *   insets: { top: number, right: number, bottom: number, left: number },
+ *   profile: any
  * }}
  */
 export function computePlayfield(width, height, preset = DEFAULT_PRESET) {

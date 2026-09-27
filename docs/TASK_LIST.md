@@ -26,30 +26,30 @@
 - [x] 2.1 BaseGame ~610 satır tabletop çizimi → core/tabletopRenderer.js (BaseGame 1866→1302 satır, 7 delegasyon; `STEER_KEY_HINTS` artık inputMaps'ten türetiliyor; render smoke testi eklendi) — check ✓, test 383/383 ✓, build ✓
 - [x] 2.2 Klavye listener sızıntısı → `core/keyboardDispatch.js` tek paylaşılan dispatch (11 motorun `initKeyboard` gövdesi indi, 3 pencere dinleyicisi; `BaseGame.destroy()` aboneliği bırakır) — test 384/384
 - [x] 2.3 Registry: 15 kopya `createEngine` iskeleti → `makeEngine` (621→523 satır, yalnız `packet` oyun-özeli) — bundle 446→444 kB
-- [ ] 2.4 main.js (2151 satır) → oda akışı + chrome çıkarma; hedef ~1400
+- [x] 2.4 main.js (2151 satır) → oda akışı + chrome çıkarma; hedef ~1400 (main.js 772 satıra indi)
   - [x] Yayın bloğu → `core/stateSync.js` (8 Hz state + 30 Hz world, `samePacket`; 4 getter, DOM'suz) — main.js 2129→2059
-  - [ ] Oda akışı (`openHostLobby`/`executeJoin`/koltuk/sayaç ≈ 780 satır) ve chrome (≈ 210 satır) çıkarılacak — **karar**: oda durumu (`currentMode`/`stagingMode`/`hostPlayerActive`/`seatsLocked`) `roomFlow` modülüne taşınacak.
+  - [x] Oda akışı (`openHostLobby`/`executeJoin`/koltuk/sayaç) → `core/roomFlow.js` ve chrome → `ui/windowChrome.js` çıkarıldı.
 - [x] 2.5 slotManager DOM boyaması → `ui/slotCardView.js` (189→51 satır gövde) + `resetPongInvert()` (main.js özel alana dokunmuyor) — sahte DOM testi eklendi
 - [x] 2.6 Supabase ilk yükten at: `net.js` eager import → `ensureActiveNetwork()` dinamik import (LOCAL/TV_CONSOLE 227 kB SDK indirmiyor; ana chunk 444.6→413.9 kB)
 
 ## Faz 3 — Ürün riskleri (karar + küçük kod)
 
-- [ ] 3.1 Global hata gözlemi: onerror/unhandledrejection reporter + 107 bare catch{}'a bağla
-- [ ] 3.2 SW sertleştirme: precache allSettled, skipWaiting → onaylı aktivasyon, maskable icon
-- [ ] 3.3 CI: node --test glob + tek GitHub Actions (check+test+build)
+- [x] 3.1 Global hata gözlemi: onerror/unhandledrejection reporter (`src/core/errorReporter.js`) + bare catch{} blokları bağlandı
+- [x] 3.2 SW sertleştirme: precache allSettled, skipWaiting → onaylı aktivasyon, maskable icon, sağ üst bar ve ayarlar modalına "Güncellemeleri Kontrol Et" butonu (`src/core/updateManager.js`)
+- [x] 3.3 CI: node --test glob (`package.json` güncellendi) + tek GitHub Actions (.github/workflows/ci.yml)
 - [x] 3.0 ONLINE/CGNAT kararı: 30Hz world kanalını kaldır.
-- [ ] 3.4 Oda kodu: 4-6 karakter alfanümerik, tek üreteç networkProtocol.js
+- [x] 3.4 Oda kodu: tek üreteç networkProtocol.js, daima 4 karakter (O, 0, I, 1 hariç 31 karakterlik alfabe); doğrulayıcı eski 3 haneli kodlar için 3-6 kabul eder (tests/networkProtocol.test.mjs ile kilitli)
 
 ## Faz 4 — Motor epikentresi: crown + race (~2-3 gün, sonda)
 
-- [ ] 4.1 crown host-render → drawCrownWorld (−640 satır), race → drawRaceWorld (−180)
-- [ ] 4.2 crown update() bölünmesi + crownView 30Hz bake'i (paket ~%30 küçülür)
-- [ ] 4.3 Renk token'ları: crown 76 hex + worldCore + BaseGame default'ları → tokens.js
-- [ ] 4.4 AI ateşduvarı: BotView salt-okunur algı bağlamı (10 AI dosyası)
-- [ ] 4.5 Motor tahliyesi: releaseEngine(mode) LRU + bellek baskısı kancası
+- [x] 4.1 crown host-render → drawCrownWorld (−522 satır), race → drawRaceWorld (−210 satır)
+- [x] 4.2 crown update() bölünmesi + crownView 30Hz bake'i (paket ~%30 küçülür)
+- [x] 4.3 Renk token'ları: crown 76 hex + worldCore + BaseGame default'ları → tokens.js
+- [x] 4.4 AI ateşduvarı (KAPATILDI — yeni BotView sınıfı port edilmedi): mevcut `core/botView.js` salt-okunur proxy'si 15/15 AI giriş noktasına bağlandı (archer şablonu: `rawGame` → `createReadOnlyView`; tüm kimlik kıyasları zaten `index` tabanlı). `tests/botFirewall.test.mjs` her motor için 3 botlu ~15 sn maç yürütür; proxy ihlali throw eder. Tam test 421/421.
+- [x] 4.5 Motor tahliyesi (KAPATILDI — LRU kurulmadı): ES modül önbelleği boşaltılamaz, LRU yalnız örnek tutardı. Yerine tek-koltuk: `releaseEngine`/`releaseAllExcept` (engineRegistry) — mod değişiminde aktif olmayan örnekler `BaseGame.destroy()` ile yıkılır; hover ön-yükleme yalnız modül ısıtır (`isEngineWarm` toast kapısı); teşhis: `getLoadedModes()`.
 
 ## Doğrulama (her adımda)
 
-- [ ] `npm run check` temiz
-- [ ] `npm test` yeşil
-- [ ] Davranış değişikliğinde 3 prova: hazır→lobi bayrakları, koltuk takası, bot görünürlüğü
+- [x] `npm run check` temiz — 2026-09-27 ✓ (token-lint: 215 token, ham literal yok)
+- [x] `npm test` yeşil — 2026-09-27 ✓ 421/421 (Faz 4 kapanışı; önceki: 406/406)
+- [ ] Davranış değişikliğinde 3 prova (elle, cihazda): hazır→lobi bayrakları, koltuk takası, bot görünürlüğü

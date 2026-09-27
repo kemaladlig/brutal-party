@@ -385,7 +385,9 @@ export class ZoneGame extends BaseMiniGame {
         x: bcx, y: bcy, heading: outward,
         radius: fieldRadius(this.arena, ZONE_TUNING.PLAYER_RADIUS, 0),
         speed: fieldSpeed(this.arena, ZONE_TUNING.MOVE_SPEED),
-        isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
+        // BaseGame.handleStandardRemoteJoystick `!player.isAlive` olan uzak
+        // JOYSTICK_MOVE paketlerini düşürür; ZONE'da ölüm yok → daima true.
+        isJoined: this.isSlotJoined(i), isAlive: true, slotType: this.slotTypes[i],
         trail: [], lastCell: -1,
         // İz-başlangıç anchor'ı: base'den çıkılan tam piksel nokta (render
         // kopukluğunu önler — ilk iz hücresinin merkezi değil, çıkış noktası).

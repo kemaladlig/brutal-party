@@ -25,7 +25,7 @@ export function createWorldViewRenderer() {
       ));
       ctx.save();
       ctx.fillStyle = '#F4F0EA'; ctx.fillRect(0, 0, width, height);
-      fitWorld(ctx, width, height, frame.arena, () => drawCrownWorld(ctx, frame, arena, colors));
+      fitWorld(ctx, width, height, frame.arena, () => drawCrownWorld(ctx, frame, arena, colors, now));
       ctx.restore();
       if (frame.gameState === 'ROUND_OVER') {
         drawWorldBanner(ctx, width, height, t('game.roundOver'), slots?.[frame.roundWinner]?.name || '');

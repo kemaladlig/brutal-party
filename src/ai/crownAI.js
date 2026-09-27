@@ -1,4 +1,5 @@
 import { fieldPx } from '../core/playfield.js';
+import { createReadOnlyView } from '../core/botView.js';
 
 // Brutal Crown: Bot AI — KING / LOOSE / HUNT state machine.
 // Kademe: NORMAL yarışçı-adil (panikler, hata yapar), GOD neredeyse yenilmez
@@ -181,7 +182,8 @@ function decideCrownTackle(game, bot, P) {
   return false;
 }
 
-export function updateCrownBotAI(game, bot, dt) {
+export function updateCrownBotAI(rawGame, bot, dt) {
+  const game = createReadOnlyView(rawGame);
   const P = TIER[bot.slotType] || TIER.bot_normal;
   const { left, right, top, bottom, cx, cy } = game.arena;
   const crown = game.crown;

@@ -3,6 +3,8 @@
 // createWorldSnapshot(game, { mode, mapPlayer, extras }) + isValidWorldBase(frame, mode, {...}).
 // Client asla simülasyon/AI import etmez; burası salt serializer/validator + saf canvas draw'dır.
 
+import { UI_COLORS } from '../ui/tokens.js';
+
 export const round1 = (v) => Math.round(Number(v) * 10) / 10;
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 
@@ -45,7 +47,7 @@ export function packParticles(particles, cap = 64) {
     // life/maxLife yoksa alpha konvansiyonuna düş (NINJA/CLONE/LASER partikülleri)
     life: round1(pt.life ?? pt.alpha ?? 0),
     maxLife: round1(pt.maxLife ?? 1),
-    color: typeof pt.color === 'string' ? pt.color : '#1A1A1A',
+    color: typeof pt.color === 'string' ? pt.color : UI_COLORS.inkDark,
   }));
 }
 
@@ -101,7 +103,7 @@ export function drawBlast(ctx, blast, arena) {
   const flash = Math.max(0, 1 - p / 0.2);
   if (flash > 0 && arena) {
     ctx.globalAlpha = flash * 0.55;
-    ctx.fillStyle = '#FFD9C0';
+    ctx.fillStyle = UI_COLORS.blastFlash;
     ctx.fillRect(arena.left, arena.top, arena.width, arena.height);
     ctx.globalAlpha = 1;
   }
@@ -109,7 +111,7 @@ export function drawBlast(ctx, blast, arena) {
   // 2) İçten çevreye: koyu is yüzüğü (patlama ömrü boyunca solar).
   const scorch = Math.max(0, 1 - p * 0.75);
   ctx.globalAlpha = 0.30 * scorch;
-  ctx.fillStyle = '#1A1A1A';
+  ctx.fillStyle = UI_COLORS.inkDark;
   ctx.beginPath();
   ctx.ellipse(x, y, 30 * u, 24 * u, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -117,8 +119,8 @@ export function drawBlast(ctx, blast, arena) {
 
   // 3) Şok halkaları: biri koyu ve geniş, biri kırmızı ve gecikmeli.
   const rings = [
-    { from: 0.0, to: 0.72, r0: 10, r1: 96, w: 7, color: '#1A1A1A' },
-    { from: 0.12, to: 1.0, r0: 6, r1: 62, w: 5, color: '#D84727' },
+    { from: 0.0, to: 0.72, r0: 10, r1: 96, w: 7, color: UI_COLORS.inkDark },
+    { from: 0.12, to: 1.0, r0: 6, r1: 62, w: 5, color: UI_COLORS.crownRed },
   ];
   for (const ring of rings) {
     const local = (p - ring.from) / (ring.to - ring.from);
@@ -138,12 +140,12 @@ export function drawBlast(ctx, blast, arena) {
   const core = Math.max(0, 1 - p / 0.25);
   if (core > 0) {
     ctx.globalAlpha = core;
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = UI_COLORS.white;
     ctx.beginPath();
     ctx.arc(x, y, (10 + 26 * core) * u, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = core * 0.5;
-    ctx.fillStyle = '#FFD122';
+    ctx.fillStyle = UI_COLORS.blastSpark;
     ctx.beginPath();
     ctx.arc(x, y, (20 + 40 * core) * u, 0, Math.PI * 2);
     ctx.fill();
@@ -154,8 +156,8 @@ export function drawBlast(ctx, blast, arena) {
 
 /**
  * Deklaratif snapshot: oyun yalnız `mode` + oyuncu eşlemesi + oyuna özgü `extras` verir.
- * @param {object} game - yetkili host motoru
- * @param {object} def - { mode, mapPlayer(p)=>object, extras?:object, particleCap?:number, list?:array (varsayılan game.players) }
+ * @param {MiniGameEngine} game - yetkili host motoru
+ * @param {{mode?: string, mapPlayer?: (p: any) => any, extras?: object, particleCap?: number, list?: any[]}} def
  */
 export function createWorldSnapshot(game, { mode, mapPlayer, extras = {}, particleCap = 64, list = null } = {}) {
   if (!game || !mode || typeof mapPlayer !== 'function') return null;
@@ -190,9 +192,9 @@ function isValidPackedParticle(pt) {
 
 /**
  * Base frame doğrulama: sürüm/mod/seq + arena + oyuncular + partiküller.
- * @param {object} frame - WORLD_FRAME
+ * @param {WorldFrame} frame - WORLD_FRAME
  * @param {string} mode
- * @param {object} opt - { checkPlayer?, checkExtra?, maxPlayers?, maxParticles? }
+ * @param {{checkPlayer?: ((p: any) => boolean) | null, checkExtra?: ((e: any) => boolean) | null, maxPlayers?: number, maxParticles?: number}} opt
  */
 export function isValidWorldBase(frame, mode, { checkPlayer = null, checkExtra = null, maxPlayers = 4, maxParticles = 64 } = {}) {
   if (!frame || frame.action !== 'WORLD_FRAME' || frame.version !== 1 || frame.mode !== mode) return false;
@@ -227,7 +229,7 @@ export function drawAlphaTexts(ctx, texts, { size = 15, outline = false } = {}) 
       ctx.lineWidth = 3.5 * (size / 15);
       ctx.strokeText(ft.text, ft.x, ft.y);
     }
-    ctx.fillStyle = ft.color || '#1A1A1A';
+    ctx.fillStyle = ft.color || UI_COLORS.inkDark;
     ctx.fillText(ft.text, ft.x, ft.y);
     ctx.restore();
   }
@@ -238,7 +240,7 @@ export function drawCircleParticles(ctx, particles) {
     ctx.save();
     const denom = Number(part.maxLife) || 0;
     ctx.globalAlpha = Math.max(0, Math.min(1, denom > 0 ? part.life / denom : 0));
-    ctx.fillStyle = part.color || '#1A1A1A';
+    ctx.fillStyle = part.color || UI_COLORS.inkDark;
     ctx.beginPath();
     ctx.arc(part.x, part.y, Number(part.size ?? part.radius) || 3, 0, Math.PI * 2);
     ctx.fill();
@@ -251,7 +253,7 @@ export function drawSquareParticles(ctx, particles) {
     ctx.save();
     const denom = Number(part.maxLife) || 0;
     ctx.globalAlpha = Math.max(0, Math.min(1, denom > 0 ? part.life / denom : 0));
-    ctx.fillStyle = part.color || '#1A1A1A';
+    ctx.fillStyle = part.color || UI_COLORS.inkDark;
     const s = Number(part.size) || 3;
     ctx.fillRect(part.x - s / 2, part.y - s / 2, s, s);
     ctx.restore();

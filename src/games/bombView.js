@@ -119,7 +119,12 @@ export function isValidBombWorldFrame(frame) {
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
-export function drawBombArena(ctx, arena, pillars, { carrier = null, bombTimer = 15, bombMaxTime = 15, seed } = {}) {
+/**
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {FieldGeometry|null} arena
+ * @param {any[]} pillars
+ */
+export function drawBombArena(ctx, arena, pillars, { carrier = null, bombTimer = 15, bombMaxTime = 15, seed } = /** @type {{carrier?: any, bombTimer?: number, bombMaxTime?: number, seed?: number}} */ ({})) {
   // Statik saha katmanı (zemin gradyanı + ızgara + merkez halkaları + köşe
   // plakaları + dekor + duvar) `fieldKit` tarafından bir kez pişirilip blit
   // edilir; paket alanı eklenmez, seed `(BOMB, roundId)`'den türer.

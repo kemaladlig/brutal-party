@@ -97,7 +97,7 @@ export class TouchManager {
     // Mouse Fallback
     this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
     window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-    window.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+    window.addEventListener('mouseup', () => this.handleMouseUp());
   }
 
   handlePointerStart(e) {

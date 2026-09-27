@@ -149,6 +149,10 @@ export class LaserGame extends BaseMiniGame {
     this.fireLaser(player);
   }
 
+  get maxAmmo() {
+    return LASER_TUNING.MAX_AMMO;
+  }
+
   snapAimToNearestRival(shooter) {
     const hit = findAutoAimTarget(shooter, this.players, {
       maxRange: fieldRadius(this.arena, 900, 0.35),
@@ -1133,7 +1137,16 @@ export class LaserGame extends BaseMiniGame {
     // Arena sahnesi ortak laserView draw'larından gelir (host↔client aynı).
     const withFx = this.state === 'PLAYING';
     const scenePlayers = mapLaserPlayers(
-      this.players, this.lasers, LASER_TUNING, (p) => this.traceAim(p), withFx,
+      this.players, this.lasers, {
+        // mapLaserPlayers camelCase sözleşmesiyle okur; LASER_TUNING anahtar
+        // adları farklı — doğrudan geçmek sessizce default'lara düşerdi.
+        maxActive: LASER_TUNING.MAX_ACTIVE,
+        maxAmmo: LASER_TUNING.MAX_AMMO,
+        maxHp: LASER_TUNING.MAX_HP,
+        reloadTime: LASER_TUNING.RELOAD_TIME,
+        dashCd: LASER_TUNING.DASH_CD,
+        shotInterval: LASER_TUNING.SHOT_INTERVAL,
+      }, (p) => this.traceAim(p), withFx,
     );
     drawLaserArena(ctx, this.arena, this.obstacles, this.movingWalls, { roundId: this.roundId });
 

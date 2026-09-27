@@ -51,7 +51,7 @@ function buildPicker() {
   el.setAttribute('aria-modal', 'true');
   renderContent(el);
   el.addEventListener('click', (e) => {
-    const pick = e.target.closest?.('[data-reaction]');
+    const pick = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (e.target).closest?.('[data-reaction]'));
     if (pick) {
       sendFor(el.dataset.reactionSend)?.(pick.dataset.reaction);
       playMenuPop();
@@ -86,7 +86,7 @@ function bindTriggers() {
   triggerBound = true;
   hydrateGlyphSlots(document);
   document.addEventListener('click', (e) => {
-    const trigger = e.target.closest?.('[data-reaction-open]');
+    const trigger = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (e.target).closest?.('[data-reaction-open]'));
     if (!trigger) return;
     e.preventDefault();
     e.stopPropagation();

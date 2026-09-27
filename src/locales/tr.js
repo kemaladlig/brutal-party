@@ -120,7 +120,11 @@ export const TR = {
   'toast.godAdded': 'P{0}: GOD BOT (EFSANEVİ) eklendi!',
   'toast.seatCleared': 'P{0} boşaltıldı.',
   'toast.seatColor': 'P{0} rengine geçti.',
-  'toast.updateReady': 'Yeni sürüm hazır — sayfayı yenileyin.',
+  'toast.updateReady': 'Yeni sürüm hazır — yenilemek için dokunun.',
+  'toast.checkingUpdate': 'Güncellemeler kontrol ediliyor...',
+  'toast.upToDate': 'Uygulama güncel.',
+  'toast.updateCheckFail': 'Güncelleme denetlenemedi.',
+  'toast.swUnsupported': 'Tarayıcıda güncelleme desteklenmiyor.',
   'toast.noOnlineEnv': 'ONLINE çalışmaz: Vercel Environment Variables eksik.',
   // ── Connection banner ──
   'net.offline': 'İNTERNET BAĞLANTISI KESİLDİ',
@@ -157,13 +161,13 @@ export const TR = {
   // ── Join modal ──
   'join.pasted': 'Oda kodu yapıştırıldı!',
   'join.clipFail': 'Pano okunamadı.',
-  'join.needCode': 'Geçerli 3 haneli oda kodunu girin.',
+  'join.needCode': 'Geçerli oda kodunu girin.',
   'join.clipHint': 'Pano okunamadı, kodu elle yazabilirsiniz.',
   'join.badge': 'ONLINE OYUNCU',
   'join.title': 'ODAYA KATIL',
-  'join.codeLabel': '3 HANELİ ODA KODU',
+  'join.codeLabel': 'ODA KODU',
   'join.paste': 'YAPIŞTIR',
-  'join.codePh': 'ÖR: 421',
+  'join.codePh': 'ÖR: A4X9',
   'join.asYou': 'OLARAK KATILIYORSUN',
   'join.hint': 'İsmi menüdeki karakter kartından değiştirebilirsin.',
   'join.submit': 'KUMANDAYI BAĞLA →',
@@ -427,6 +431,7 @@ export const TR = {
   'crash.title': 'OYUN MOTORUNDA BİR HATA OLUŞTU',
   'crash.default': 'Bilinmeyen motor hatası',
   'crash.action': 'MENÜ / SEÇENEKLER İÇİN AYARLAR SİMGESİNE DOKUNUN',
+  'error.generic': 'Beklenmeyen bir hata oluştu.',
   // ── Menu ──
   // ── App Shell ──
   'shell.rotateTitle': 'CİHAZINI YAN ÇEVİR',
@@ -457,6 +462,8 @@ export const TR = {
   'menu.fullscreen': 'Tam Ekran',
   'menu.exitFullscreen': 'Küçült',
   'menu.settings': 'Ayarlar',
+  'menu.checkUpdate': 'Güncellemeleri Kontrol Et',
+  'menu.updateReady': 'Yeni Sürüm Hazır (Yenile)',
   // ── Game cards ──
   // ── Tactical hints (controller) ──
   // ── Controller (phone) ──
@@ -487,6 +494,7 @@ export const TR = {
   'pad.seatHint': 'Geçmek istediğin koltuğa dokun. Kendi koltuğun, host ve bot koltukları kilitli.',
   'pad.seatHintEarly': 'Koltuğunu değiştirebilirsin; host sahayı açınca kilitlenir.',
   'pad.menu': 'Menü',
+  'pad.scoreboard': 'Skor',
   'pad.arenaPrep': 'SAHA HAZIRLANIYOR',
   'pad.arenaPrepText': 'İsmini kontrol et. Host sahayı açınca hazır ol.',
   'pad.charHint': 'Rengini farklı seç — aynı renkte SAHAYA GEÇ kilitlenir.',

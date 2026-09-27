@@ -9,32 +9,72 @@ function normalizeAngle(a) {
   return a;
 }
 
-// Botun şu anki namlu açısından ateşlenirse birini vurur mu? (sanal sekme simülasyonu)
-function simHitsSomeone(game, bot) {
-  let simX = bot.x + Math.cos(bot.angle) * 20;
-  let simY = bot.y + Math.sin(bot.angle) * 20;
-  let simVx = Math.cos(bot.angle);
-  let simVy = Math.sin(bot.angle);
-  let bounces = 4;
-  for (let s = 0; s < 45; s++) {
-    simX += simVx * 25;
-    simY += simVy * 25;
-    if (simX < game.arena.left || simX > game.arena.right) { simVx *= -1; bounces--; }
-    if (simY < game.arena.top || simY > game.arena.bottom) { simVy *= -1; bounces--; }
-    const allObs = game.movingWalls?.length ? [...game.obstacles, ...game.movingWalls] : game.obstacles;
+// Sanal sekme simülasyonu — motorun (laser.js:938-978) YANSIMA KURALINI
+// birebir kopyalar. Önceki sürüm üç ayrı yerde ayrışıyordu:
+//  1) engele çarpınca İKİ ekseni birden çeviriyordu (motor tek eksen çevirir)
+//  2) duvara çarpınca konumu içeri geri almıyordu (motor clamp'liyor)
+//  3) 25px adımlı örnekliyordu; ince duvarlar/oyuncular simde görünmezdi
+// Ayrıca sim bot.angle ile atıyordu, fireLaser ise targetAngle'ı kullanıyor.
+// Sapma mermi ucunda ~100px'ye dönüşüyordu; atış yönü artık atılan yön.
+const SIM_STEP = 6;
+const SIM_MAX_STEPS = 260;
+const SIM_BOUNCES = 4;
+const SIM_MUZZLE = 20;
+const SIM_HIT_RADIUS = 22;
+
+function reflectOffRect(px, py, rect) {
+  // laser.js:962-968 — minimum penetrasyon ekseni, tek eksen çevrilir.
+  const dLeft = px - rect.x;
+  const dRight = (rect.x + rect.w) - px;
+  const dTop = py - rect.y;
+  const dBottom = (rect.y + rect.h) - py;
+  const min = Math.min(dLeft, dRight, dTop, dBottom);
+  if (min === dLeft || min === dRight) return { vx: -1, vy: 0 };
+  return { vx: 0, vy: -1 };
+}
+
+function simHitsSomeone(game, bot, fireAngle) {
+  const angle = Number.isFinite(fireAngle) ? fireAngle : bot.angle;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const { left, right, top, bottom } = game.arena;
+  let simX = bot.x + cos * SIM_MUZZLE;
+  let simY = bot.y + sin * SIM_MUZZLE;
+  let simVx = cos;
+  let simVy = sin;
+  let bounces = SIM_BOUNCES;
+  const allObs = game.movingWalls?.length ? [...game.obstacles, ...game.movingWalls] : game.obstacles;
+
+  for (let s = 0; s < SIM_MAX_STEPS && bounces >= 0; s++) {
+    simX += simVx * SIM_STEP;
+    simY += simVy * SIM_STEP;
+
+    // Duvar: eksen çevir + konumu içeri al (motor laser.js:946-957)
+    if (simX < left || simX > right) {
+      simVx *= -1;
+      simX = Math.max(left, Math.min(right, simX));
+      bounces--;
+    }
+    if (simY < top || simY > bottom) {
+      simVy *= -1;
+      simY = Math.max(top, Math.min(bottom, simY));
+      bounces--;
+    }
     for (const obs of allObs) {
       if (simX > obs.x && simX < obs.x + obs.w && simY > obs.y && simY < obs.y + obs.h) {
-        // Sanal yansımada eksen kabaca seçilir (hızlı kontrol için yeterli)
-        simVx *= -1;
+        const r = reflectOffRect(simX, simY, obs);
+        simVx *= r.vx;
+        simVy *= r.vy;
         bounces--;
         break;
       }
     }
     if (bounces < 0) return false;
+
     for (const p of game.players) {
       if (!p.isJoined || !p.isAlive || p.index === bot.index) continue;
       if (p.dashTimer > 0 || p.invulnTimer > 0) continue;
-      if (Math.hypot(simX - p.x, simY - p.y) < 24) return true;
+      if (Math.hypot(simX - p.x, simY - p.y) < SIM_HIT_RADIUS) return true;
     }
   }
   return false;
@@ -56,7 +96,10 @@ function incomingLaserDir(game, bot) {
   return null;
 }
 
-export function updateLaserBotAI(game, bot, dt) {
+import { createReadOnlyView } from '../core/botView.js';
+
+export function updateLaserBotAI(rawGame, bot, dt) {
+  const game = createReadOnlyView(rawGame);
   bot.botCheckTimer -= dt;
   bot.botRetarget -= dt;
 
@@ -148,12 +191,22 @@ export function updateLaserBotAI(game, bot, dt) {
     bot.targetAngle = Math.atan2(aimY, aimX);
 
     // Ateş: namlu hedefe dönük + simülasyon tutuyorsa (tepki gecikmeli)
+    const maxAmmo = game.maxAmmo ?? 2;
     const canShoot = (bot.ammo ?? 2) > 0 && (bot.shotCooldown || 0) <= 0;
+    // isAiming her karede yazılır: nişan hızı buna bağlı (laser.js:887-895).
+    // Önceden yalnız botCheckTimer dalında atanıyordu, atış arası 0.4-0.8sn
+    // boyunca yanlış false kalıyor ve bot yavaş nişan alıyordu.
+    bot.isAiming = false;
     if (canShoot && bot.botCheckTimer <= 0) {
       const diff = Math.abs(normalizeAngle(bot.targetAngle - bot.angle));
       bot.isAiming = diff < 0.35;
       if (diff < 0.25) {
-        if (simHitsSomeone(game, bot)) {
+        const confirmed = simHitsSomeone(game, bot, bot.targetAngle);
+        // Şarjör tamken tezgâhı doğrulamak zorunda değiliz: silah zaten doluyor,
+        // boşa atmanın maliyeti sıfır. Aksi hâlde sim bir kez "ısıka" dediğinde
+        // bot iki mermisini sessizce tutar ve hiç ateş etmezdi.
+        const safeToLoose = confirmed || (bot.ammo ?? 0) >= maxAmmo;
+        if (safeToLoose) {
           game.fireLaser(bot);
           bot.isAiming = false;
           bot.botCheckTimer = 0.4 + Math.random() * 0.4;
@@ -161,8 +214,6 @@ export function updateLaserBotAI(game, bot, dt) {
           bot.botCheckTimer = 0.2;
         }
       }
-    } else {
-      bot.isAiming = false;
     }
   } else if (destX !== null) {
     const px = destX - bot.x;

@@ -274,6 +274,37 @@
   --confetti-3: #ffcc00;
   --confetti-4: #35b36a;
   --confetti-5: #ffb020;
+
+  /* ---- Crown arena & prop tokens ---- */
+  --crown-red: #d84727;
+  --crown-blue: #1d5d8a;
+  --crown-gold: #d99b26;
+  --crown-green: #2f6a4f;
+  --crown-paper: #f4f0ea;
+  --crown-paper-light: #faf7f2;
+  --crown-stone: #2b2b28;
+  --crown-stone-dark: #1a1a1a;
+  --crown-stone-darker: #333330;
+  --crown-hazard: #262624;
+  --crown-amber: #f59e0b;
+  --crown-spark: #ffde59;
+  --crown-teleport: #48cae4;
+  --crown-flash: #ffd9c0;
+  --crown-pillar-border: #e0dad0;
+  --crown-pillar-edge: #8a857c;
+  --crown-conveyor-line: #6e6e66;
+  --crown-conveyor-arrow: #4a4a45;
+  --crown-conveyor-edge: #e5dfd5;
+  --crown-forest: #2d6a4f;
+  --crown-pressed: #e0dfdc;
+  --crown-unready-fill: #2a2a2e;
+  --crown-unready-border: #555555;
+  --crown-dark-icon: #141416;
+  --blast-flash: #ffd9c0;
+  --blast-spark: #ffd122;
+  --ink-dark: #1a1a1a;
+  --line-dark: #1c1c1a;
+  --pure-black: #000000;
 }
 
 /* ======================================================================

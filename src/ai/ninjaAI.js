@@ -1,7 +1,33 @@
 // Brutal Ninja bot zekâsı: MOVE/HIDE durum makinesi + yakın-menzil kılıç.
 // Yalnızca game.arena / game.players / game.attemptStrike kullanır.
 
-export function updateNinjaBotAI(game, bot, dt) {
+import { createReadOnlyView } from '../core/botView.js';
+import { hasClearLine } from '../core/physics2d.js';
+
+const NINJA_STRIKE_RANGE = 105;
+const NINJA_STRIKE_RANGE_BLIND = 55;
+const NINJA_SMOKE_RANGE = 110;
+
+// Menzildeki EN YAKIN uygun düşman. `players` sırasına bakmak yanlıştı:
+// birden fazla rakip menzildeyken sırası gelene vuruyordu. Ayrıca engel arkasındaki
+// düşmana kılıç atmayı engeller (attemptStrike duvar kontrolü yapmıyor).
+function nearestTargetInRange(game, bot, range, blindRange) {
+  let best = null;
+  let bestDist = Infinity;
+  for (const enemy of game.players) {
+    if (!enemy.isJoined || !enemy.isAlive || enemy.index === bot.index) continue;
+    const d = Math.hypot(enemy.x - bot.x, enemy.y - bot.y);
+    const limit = enemy.alpha > 0.25 ? range : blindRange;
+    if (d >= limit || d >= bestDist) continue;
+    if (!hasClearLine(bot.x, bot.y, enemy.x, enemy.y, game.obstacles)) continue;
+    bestDist = d;
+    best = enemy;
+  }
+  return best;
+}
+
+export function updateNinjaBotAI(rawGame, bot, dt) {
+  const game = createReadOnlyView(rawGame);
   bot.botTimer -= dt;
 
   // Durum makinesi: MOVE (yürü) -> HIDE (dur ve görünmez ol)
@@ -34,16 +60,12 @@ export function updateNinjaBotAI(game, bot, dt) {
 
   // Tehlike veya fener ışığı durumunda sis bombası
   if (bot.smokeCooldown <= 0 && (bot.inLight || Math.random() < 0.05)) {
-    for (const enemy of game.players) {
-      if (!enemy.isJoined || !enemy.isAlive || enemy.index === bot.index) continue;
-      if (Math.hypot(enemy.x - bot.x, enemy.y - bot.y) < 110) {
-        game.attemptSmoke(bot);
-        bot.botState = 'MOVE';
-        bot.botTimer = 1.0;
-        bot.botTargetX = game.arena.cx + (Math.random() - 0.5) * game.arena.size * 0.7;
-        bot.botTargetY = game.arena.cy + (Math.random() - 0.5) * game.arena.size * 0.7;
-        break;
-      }
+    if (nearestTargetInRange(game, bot, NINJA_SMOKE_RANGE, NINJA_SMOKE_RANGE)) {
+      game.attemptSmoke(bot);
+      bot.botState = 'MOVE';
+      bot.botTimer = 1.0;
+      bot.botTargetX = game.arena.cx + (Math.random() - 0.5) * game.arena.size * 0.7;
+      bot.botTargetY = game.arena.cy + (Math.random() - 0.5) * game.arena.size * 0.7;
     }
   }
 
@@ -62,25 +84,17 @@ export function updateNinjaBotAI(game, bot, dt) {
     }
   }
 
-  // Tehdit/av algılama: 100px içinde ve (görünür veya 55px dibinde) ise saldır
+  // Tehdit/av algılama: menzildeki en yakın görünür (ya da çok yakın) düşmana saldır
   if (bot.strikeCooldown <= 0) {
-    for (const enemy of game.players) {
-      if (!enemy.isJoined || !enemy.isAlive || enemy.index === bot.index) continue;
+    const prey = nearestTargetInRange(game, bot, NINJA_STRIKE_RANGE, NINJA_STRIKE_RANGE_BLIND);
+    if (prey) {
+      bot.angle = Math.atan2(prey.y - bot.y, prey.x - bot.x);
+      bot.steerX = Math.cos(bot.angle);
+      bot.steerY = Math.sin(bot.angle);
+      game.attemptStrike(bot);
 
-      const tDx = enemy.x - bot.x;
-      const tDy = enemy.y - bot.y;
-      const tDist = Math.hypot(tDx, tDy);
-
-      if (tDist < 105 && (enemy.alpha > 0.25 || tDist < 55)) {
-        bot.angle = Math.atan2(tDy, tDx);
-        bot.steerX = Math.cos(bot.angle);
-        bot.steerY = Math.sin(bot.angle);
-        game.attemptStrike(bot);
-
-        bot.botState = 'HIDE';
-        bot.botTimer = 2.0;
-        break;
-      }
+      bot.botState = 'HIDE';
+      bot.botTimer = 2.0;
     }
   }
 }

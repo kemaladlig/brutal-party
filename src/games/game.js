@@ -28,7 +28,7 @@ export class Game extends BaseMiniGame {
     this.state = 'LOBBY';
 
     // Arena geometry (responsive rectangle)
-    this.arena = {
+    /** @type {MiniGameArena} */ this.arena = {
       cx: 0,
       cy: 0,
       width: 0,
@@ -276,6 +276,7 @@ export class Game extends BaseMiniGame {
     return Math.round(minDim * (this.arena.bumperRatio || 0.085));
   }
 
+  /** @returns {number} aktif koltuk indeksi; saha dışı dokunuşta -1 */
   getPlayerZoneAt(point) {
     const { cx, cy, width, height } = this.arena;
     const w = width || window.innerWidth;
@@ -358,12 +359,12 @@ export class Game extends BaseMiniGame {
     const oldArena = { ...this.arena };
     const isPortrait = height > width;
 
-    this.arena = {
+    this.arena = /** @type {MiniGameArena} */ ({
       ...computePlayfield(width, height, 'standard'),
       // Bumper ratio – portrait has taller walls so opening must be proportionally wider
       bumperRatio: isPortrait ? 0.09 : 0.10,
       getGoalBounds: (side) => this.getGoalBounds(side),
-    };
+    });
 
     // Update paddle bounds to fit new goal mouth
     this.paddles.forEach((paddle) => paddle.updateLayout(this.arena));
@@ -711,7 +712,7 @@ export class Game extends BaseMiniGame {
       this.ball.draw(ctx);
     }
 
-    const activeEntities = [this.ball];
+    const activeEntities = /** @type {any[]} */ ([this.ball]);
     // Paddle proksi yarıçapı: hayalet-solma (proximity ghosting) hesabı için
     // sentetik varlık, oynanışta kullanılmıyor — ama görsel ağırlığı
     // temsil ettiği için saha ile ölçeklenmeli. Mutlak 24px telefonda topun

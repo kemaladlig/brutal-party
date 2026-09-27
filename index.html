@@ -279,11 +279,11 @@
           </div>
           <div class="join-inputs">
             <div class="join-code-row">
-              <label class="join-label" data-i18n="join.codeLabel">3 HANELİ ODA KODU</label>
+              <label class="join-label" data-i18n="join.codeLabel">ODA KODU</label>
               <button class="paste-code-btn" id="btn-paste-room-code" type="button"><span data-icon="copy" data-icon-size="12" aria-hidden="true"></span><span data-i18n="join.paste">YAPIŞTIR</span></button>
             </div>
             <div class="code-input-wrap">
-              <input type="text" id="input-room-code" class="brutal-input" maxlength="3" data-i18n-ph="join.codePh" placeholder="ÖR: 421" autocapitalize="characters" inputmode="numeric" />
+              <input type="text" id="input-room-code" class="brutal-input" maxlength="6" data-i18n-ph="join.codePh" placeholder="ÖR: A4X9" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" />
               <button class="code-clear-btn hidden" id="btn-clear-room-code" type="button" data-i18n-aria="menu.clearCode" aria-label="Kodu temizle" title="Kodu temizle"><span data-icon="close" data-icon-size="12" aria-hidden="true"></span></button>
             </div>
 
@@ -568,6 +568,10 @@
               <span data-i18n="settings.storage">Kayıt</span>
               <strong id="settings-storage">…</strong>
             </div>
+            <button id="btn-settings-check-update" class="scene-btn is-ghost" type="button" style="width: 100%; margin-top: 10px;">
+              <span data-icon="reload" data-icon-size="14" aria-hidden="true"></span>
+              <span data-i18n="menu.checkUpdate">Güncellemeleri Kontrol Et</span>
+            </button>
           </section>
           </div>
         </div>

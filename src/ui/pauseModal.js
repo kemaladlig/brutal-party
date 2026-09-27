@@ -10,8 +10,9 @@ import { toggleAudio, getIsMuted } from '../audio.js';
 import { t, onLangChange } from '../i18n.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange, fullscreenOfferable } from './fullscreen.js';
 import {
+  CONTROL_MODE,
   CONTROL_SURFACE,
-  getControlSurface,
+  resolveLocalControlMode,
   setControlSurface,
 } from './tokens.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
@@ -126,9 +127,16 @@ function setSwitch(el, on) {
   }
 }
 
+// Otorite cihazın yerel kontrol yüzeyi. `main.js` bağlar (`roomFlow` tek
+// sahibi); anahtar ve DOM yüzeyi AYNI yanıtı okur, ayrı yorum yok.
+let readControlMode = () => resolveLocalControlMode({ isLocalMode: true });
+
 function setControlsSwitch(el) {
   if (!el) return;
-  const mobile = getControlSurface() === CONTROL_SURFACE.MOBILE;
+  // Anahtar TERCİHİ değil, ekranda gerçekten ne çizileceğini okur: eskiden
+  // çözülmüş yüzeyi okurdu, sahayı ise başka bir yorum belirliyordu; ikisi
+  // ayrışınca anahtar "açık" derken masa-ortası bekliyordu.
+  const mobile = readControlMode().mode === CONTROL_MODE.DOM;
   const badge = el.querySelector('.toggle-state-badge');
   el.classList.toggle('on', mobile);
   el.setAttribute('aria-checked', mobile ? 'true' : 'false');
@@ -188,7 +196,7 @@ export function renderPauseSeats(onSwapCallback) {
     })
     .join('');
 
-  grid.querySelectorAll('.pause-seat-btn').forEach((btn) => {
+  /** @type {NodeListOf<HTMLButtonElement>} */ (grid.querySelectorAll('.pause-seat-btn')).forEach((btn) => {
     btn.addEventListener('click', () => {
       if (btn.disabled) return;
       const slotIdx = parseInt(btn.dataset.slot, 10);
@@ -255,6 +263,7 @@ export function closePauseModal(onCloseCallback) {
 export function initPauseModal({
   getCurrentMode,
   getIsHosting,
+  getControlMode,
   onSwapSeats,
   onRotateSeats,
   onResume,
@@ -262,9 +271,10 @@ export function initPauseModal({
   onExitMenu,
   onTvLobby,
   onBotsToggled,
-  onControlsToggled,
   onControllerLayout,
 }) {
+  if (typeof getControlMode === 'function') readControlMode = getControlMode;
+
   btnResumeGame?.addEventListener('click', () => {
     closePauseModal(onResume);
   });
@@ -310,7 +320,10 @@ export function initPauseModal({
   });
 
   btnToggleTouchControls?.addEventListener('click', () => {
-    const next = getControlSurface() === CONTROL_SURFACE.MOBILE
+    // Anahtar iki durumlu; üç değerli tercihin (`auto`) çözümü ne gösteriyorsa
+    // ona tersini yaz. Yazım `subscribePreferences` aboneliğinden akar, yüzey
+    // aynı anda DOM + canvas tarafına birden uygulanır.
+    const next = readControlMode().mode === CONTROL_MODE.DOM
       ? CONTROL_SURFACE.TABLETOP
       : CONTROL_SURFACE.MOBILE;
     setControlSurface(next);
@@ -318,9 +331,6 @@ export function initPauseModal({
     showInstallToast(next === CONTROL_SURFACE.MOBILE
       ? t('toast.controlsMobile')
       : t('toast.controlsTabletop'));
-    if (typeof onControlsToggled === 'function') {
-      onControlsToggled(next);
-    }
   });
 
   btnControllerLayout?.addEventListener('click', () => {
@@ -366,7 +376,7 @@ export function initPauseModal({
       btnResumeGame?.click();
     }
   });
-  const pauseSheet = pauseModal?.querySelector('.pause-sheet');
+  const pauseSheet = /** @type {HTMLElement} */ (pauseModal?.querySelector('.pause-sheet'));
   let sheetStartY = null;
   pauseSheet?.addEventListener('touchstart', (e) => {
     if (e.touches[0]) sheetStartY = e.touches[0].clientY;

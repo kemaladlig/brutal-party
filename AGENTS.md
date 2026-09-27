@@ -29,7 +29,8 @@ Detay `docs/PROJECT_MAP.md`'dedir — tamamını dump etme, `grep` ile ilgili b�
 
 ## 4. `src/core/` tek kaynaktır — kopyalama yok
 
-Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inputMaps`, `touchFlow`, `physics2d`, `playfield`, `roundLifecycle`, `pickupSystem`, `arenaKit`, `fieldKit`, `playerEntity`, `avatarInGame`, `tabletopIcons`, `tabletopRenderer`, `preferences`, `haptics`, `inputSource`, `controlDescriptor`, `inputIntent`, `aimInput`, `autoAim`, `fireFeedback`, `inputRouter`, `gamepadInputAdapter`, `physicalGamepadAdapter`, `gamepadShell`, `reactions`, `ui/reactionLayer`, `ui/reactionPicker`. API detayı dosyadadır.
+Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inputMaps`, `touchFlow`, `physics2d`, `playfield`, `roundLifecycle`, `pickupSystem`, `arenaKit`, `fieldKit`, `playerEntity`, `avatarInGame`, `tabletopIcons`, `tabletopRenderer`, `preferences`, `haptics`, `inputSource`, `controlDescriptor`, `inputIntent`, `aimInput`, `autoAim`, `botView`, `fireFeedback`, `inputRouter`, `gamepadInputAdapter`, `physicalGamepadAdapter`, `gamepadShell`, `reactions`, `ui/reactionLayer`, `ui/reactionPicker`. API detayı dosyadadır.
+- Motor sözleşmesinin TİP karşılığı tek kaynaktır: `src/types/minigame.d.ts` (MiniGameEngine/MiniGameArena/MiniGameEntity — global bildirim, runtime'da değer üretmez) + `src/types/geometry.d.ts` (FieldGeometry/FieldPalette/QualityMeasurement/WorldFrame). Yeni motor alanı/hook'u önce buraya yazılır; BaseGame sözleşme alanlarını kurucuda `@type` ile bildirir, prototip hook'ları `contractHook()` ile çağrılır.
 - Zaman ölçeği: kare-başı çarpan yerine `damp()` / zaman tabanlı ifade kullan (`main.js` sabit adımlı değildir, `dt = min(dt, 0.05)`).
 - Ölçek: hareket `fieldSpeed`, uzamsal her şey `fieldRadius`/`fieldPx`'ten geçer; ham px yasak. `canvas.width/height` okunmaz/yazılmaz (DPR `main.js`'indir).
 - Zemin/çevre yalnız `drawField` + `paintBackdrop` ile çizilir; motor kendi zemin/grid/duvar/viewport dolgusu yazmaz.
@@ -42,7 +43,7 @@ Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inp
 - TV: `hostPlayerSlots[i] = { name, isReady, kind }`, `kind ∈ 'human'|'bot'`. TV host varsayılan koltukta değil; düğmeyle P1 olur. ONLINE host P1'e rezerve, uzaklar P2-P4.
 - Tek gerçek relay snapshot'ıdır (`players[]`); çakışırsa relay kazanır. WS ve Supabase `SLOTS_UPDATE` şeması aynıdır (`slotIndex, name, color, kind, isReady, isHost` + `reservedHostSlot`).
 - İsimler `toUpperCase()`, ≤12 karakter. Bot hedef/kaynak olamaz, sayaçta koltuklar kilitli (`seatsLocked`). Bot ekleme varsayılan kapalı.
-- `GAME_STARTED` ve `RETURNED_TO_LOBBY`'de hazır bayrağı iki tarafta da sıfırlanır. Oda kodu 100–999.
+- `GAME_STARTED` ve `RETURNED_TO_LOBBY`'de hazır bayrağı iki tarafta da sıfırlanır. Oda kodu 4 karakterli alfanümerik (O, 0, I, 1 hariç).
 
 ## 6. Ağ Bütçesi
 
@@ -76,4 +77,7 @@ Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inp
 ## 11. Doğrulama
 
 - `npm run check` ve `npm run build` temiz. Davranış değişikliğinde 3 prova: hazır→lobi bayrakları, koltuk takasında TV+kumanda isimleri, bot ekle/çıkar görünürlüğü.
+- `npm run check` artık `tsc --checkJs` (tsconfig `checkJs: true` — 55k satırın tamamı denetlenir) + `check:undef` + `check:tokens` + `check:rules` taşır. Yeni tip hatası = check kırık; istatistik: `npm run typecheck -- --stats`, ratchet tabanı `scripts/typecheck-baseline.txt`.
+- `scripts/rules-lint.mjs` (K1–K6, AGENTS.md § haritalı) yeni ihlalde exit 1; mevcut borç `scripts/rules-lint-baseline.json`'da dosya+kural sayısıyla dondurulmuştur — borcu ancak azaltırken güncelle (`--update`).
+- Motor/akış değişikliğinde `npm run test:e2e` (Playwright, `tests-e2e/`): `engine-smoke.spec.js` tüm GAME_ORDER motorlarını registry'den yükleyip LOBBY→PLAYING 240 kare sürer; `visual-baseline.spec.js` seeded-PRNG + donmuş saatle motor başına kare-60 canvas ekran tabanı karşılaştırır (baseline yenileme: `--update-snapshots`). §11'in 3 provası `tests/relayProbes.test.mjs`'te protokol seviyesinde otomatik. @ts-ignore/@ts-nocheck politikası: @ts-ignore yasak, @ts-nocheck yalnız `sebep — tarih` yorumuyla.
 - Push yalnız kullanıcı isterse.

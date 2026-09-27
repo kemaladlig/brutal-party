@@ -50,7 +50,10 @@ function raycastFreeDistance(game, startX, startY, angle, maxDist, ownerIndex, n
   return maxDist;
 }
 
-export function updateSnakeBotAI(game, bot, dt) {
+import { createReadOnlyView } from '../core/botView.js';
+
+export function updateSnakeBotAI(rawGame, bot, dt) {
+  const game = createReadOnlyView(rawGame);
   bot.botCheckTimer -= dt;
   if (bot.botCheckTimer > 0) return;
   bot.botCheckTimer = 0.06;

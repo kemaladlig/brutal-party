@@ -1,7 +1,7 @@
 // Room & Networking Manager for Brutal Party // 4P
 // Manages rooms, host connections, controller slots (P1..P4), and low-latency input streaming.
 import { sanitizeAvatar, pickFreeColor, isPaletteHex } from '../src/core/customizationManager.js';
-import { isValidNetworkInput } from '../src/core/networkProtocol.js';
+import { isValidNetworkInput, generateRoomCode as createRoomCode } from '../src/core/networkProtocol.js';
 import { normalizeReactionKey } from '../src/core/reactions.js';
 
 // Sunucu tarafı isim temizleyici (istemcideki net.js cleanPlayerName ile aynı
@@ -61,10 +61,9 @@ export class RoomManager {
     }
   }
 
-  // 3 haneli sayısal oda kodu (100-999): yazması ve söylemesi kolay.
-  // Baştaki sıfır bilerek yok (042 vs 42 karmaşası olmaz).
+  // 4 karakterli alfanümerik oda kodu (O, 0, I, 1 hariç): okunması ve yazılması kolay.
   generateRoomCode() {
-    const code = String(Math.floor(100 + Math.random() * 900));
+    const code = createRoomCode();
     // Guarantee uniqueness
     if (this.rooms.has(code)) return this.generateRoomCode();
     return code;

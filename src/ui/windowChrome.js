@@ -2,6 +2,7 @@ import { isFullscreen, toggleFullscreen, onFullscreenChange, fullscreenOfferable
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { t, onLangChange } from '../i18n.js';
 import { showInstallToast } from './toast.js';
+import { initUpdateManager } from '../core/updateManager.js';
 
 const MAX_CANVAS_PIXELS = 2_100_000;
 
@@ -13,7 +14,7 @@ function effectiveDpr(width, height) {
 }
 
 export function isTextEntryActive() {
-  const el = document.activeElement;
+  const el = /** @type {HTMLElement} */ (document.activeElement);
   if (!el) return false;
   const tag = el.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable === true;
@@ -128,29 +129,8 @@ export function setupWindowChrome({
     });
   }
 
-  // Service Worker
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker
-        .register('/sw.js')
-        .then((reg) => {
-          reg.update();
-          console.log('[PWA] ServiceWorker registered and updated:', reg.scope);
-          const notifyUpdate = () => showInstallToast(t('toast.updateReady'));
-          if (reg.waiting) notifyUpdate();
-          reg.addEventListener('updatefound', () => {
-            const worker = reg.installing;
-            if (!worker) return;
-            worker.addEventListener('statechange', () => {
-              if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-                notifyUpdate();
-              }
-            });
-          });
-        })
-        .catch((err) => console.warn('[PWA] ServiceWorker registration failed:', err));
-    });
-  }
+  // Service Worker & Güncelleme Yöneticisi
+  initUpdateManager();
 
   return { resizeCanvas, scheduleResize };
 }

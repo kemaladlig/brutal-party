@@ -35,7 +35,7 @@ export function lobbyCenterStartTap(game, touch, { radius = 65, minJoined = 2 } 
 
 // Lobi kadran tap: cycleSlotType + motor-özel koltuk senkronu (onSeatChange).
 // Dönüş: dokunulan kadran indeksi.
-export function lobbyQuadrantTap(game, touch, { onSeatChange } = {}) {
+export function lobbyQuadrantTap(game, touch, { onSeatChange } = /** @type {{onSeatChange?: ((q: number) => void) | null}} */ ({})) {
   const q = getQuadrant(game.arena, touch.x, touch.y);
   game.cycleSlotType(q);
   if (typeof onSeatChange === 'function') onSeatChange(q);
@@ -48,7 +48,11 @@ export function lobbyQuadrantTap(game, touch, { onSeatChange } = {}) {
 // Final kartının kendisi iki eylem butonu taşır (YENİDEN OYNA / LOBİYE DÖN).
 // Kartın İÇİNE düşen dokunuş butonlardan birine ait değilse hiçbir şey
 // yapılmaz — aksi hâlde LOBİ'ye niyetli bir temas kısayolu tetiklerdi.
-export function matchOverRestartTap(game, touch, { radius = 75, onRestart } = {}) {
+/**
+ * @param {any} game
+ * @param {{x: number, y: number}} touch
+ */
+export function matchOverRestartTap(game, touch, { radius = 75, onRestart } = /** @type {{radius?: number, onRestart?: (() => void) | null}} */ ({})) {
   const card = game.matchOverCard;
   if (card
     && touch.x >= card.x && touch.x <= card.x + card.w

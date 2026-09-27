@@ -86,7 +86,7 @@ function bindBackdrop() {
 
 /**
  * @param {string} id — Aynı id iki kez açılmamalı; ikinci çağrı yok sayılır.
- * @param {object} opts
+ * @param {{el?: any, onClose?: any, onEscape?: any, closeOnBackdrop?: boolean}} [opts]
  *   el              — diyalog kökü (focus trap + backdrop hedefi).
  *   onClose         — kapanışta çağrılır (kendi animasyonunu temizlesin).
  *   onEscape        — `false` dönerse Escape bu diyaloğu kapatmaz.

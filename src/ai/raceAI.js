@@ -2,13 +2,14 @@
 // oil/spinner avoidance and rate-limited dash usage.
 
 import { distToSegmentSquared, normalizeAngle } from '../core/physics2d.js';
+import { createReadOnlyView } from '../core/botView.js';
 
 const DECISION_MIN = 0.35;
 const DECISION_MAX = 0.6;
 
 export class RaceAI {
-  constructor(game) {
-    this.game = game;
+  constructor(rawGame) {
+    this.game = createReadOnlyView(rawGame);
     this.elapsed = 0;
     this.decisionTimer = [0, 0, 0, 0];
     this.reset();

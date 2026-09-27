@@ -309,6 +309,8 @@ export function fieldTheme(id, fallback = FIELD_THEMES.default) {
 /**
  * (mode, roundId) → uint32 seed. FNV-1a + avalanche; saf tamsayı matematiği
  * olduğu için host ve client BİREBİR aynı seed'i üretir.
+ *
+ * @param {number|string} [roundId] - sayaç ya da tema kimliği (sayıya çevrilemeyen adlar 0'a katlanır)
  */
 export function hashFieldSeed(mode, roundId = 0) {
   const name = String(mode || 'FIELD');
@@ -1021,11 +1023,11 @@ function paintPatches(ctx, w, h, u, palette, patches) {
  * istisnadır (kapı ağzı kenar çizgisini kesmek ZORUNDADIR).
  *
  * @param {CanvasRenderingContext2D} ctx
- * @param {object} arena - { width, height } (arena içi çizim için yeterli)
- * @param {object} palette - `fieldTheme()` çıktısı
- * @param {object} opts - { seed, marks, patches }
+ * @param {FieldGeometry} arena - { width, height } (arena içi çizim için yeterli)
+ * @param {FieldPalette} palette - `fieldTheme()` çıktısı
+ * @param {{seed?: number, marks?: any, patches?: any}} opts
  */
-export function paintFieldLayer(ctx, arena, palette, { seed = 1, marks = null, patches = null } = {}) {
+export function paintFieldLayer(ctx, arena, palette, { seed = 1, marks = null, patches = null } = /** @type {{seed?: number, marks?: any, patches?: any}} */ ({})) {
   const w = Math.max(1, Number(arena?.width) || 0);
   const h = Math.max(1, Number(arena?.height) || 0);
   const u = arenaUnit(arena);
@@ -1151,9 +1153,9 @@ const backdropCache = new Map();
  * tek blit.
  *
  * @param {CanvasRenderingContext2D} ctx
- * @param {object} viewport - { width, height } (tüm canvas)
- * @param {object} arena    - playfield kutusu (ışık ve gölge bundan türer)
- * @param {object} [opts]   - { mode, theme }
+ * @param {FieldGeometry} viewport - { width, height } (tüm canvas)
+ * @param {FieldGeometry} arena    - playfield kutusu (ışık ve gölge bundan türer)
+ * @param {{mode?: string, theme?: any}} [opts]
  */
 export function paintBackdrop(ctx, viewport, arena, opts = {}) {
   if (!ctx || !viewport || !arena) return;
@@ -1346,8 +1348,8 @@ export const fieldLayerStats = { bakes: 0, blits: 0, fallbacks: 0, tiles: 0, bac
  * doğrudan çizime düşer — görsel aynı, maliyet eskisi kadardır.
  *
  * @param {CanvasRenderingContext2D} ctx
- * @param {object} arena - playfield çıktısı (left/top/right/bottom/unit)
- * @param {object} [opts] - { mode, theme, seed, marks, patches, variant }
+ * @param {FieldGeometry} arena - playfield çıktısı (left/top/right/bottom/unit)
+ * @param {{mode?: string, theme?: any, seed?: number, marks?: any, patches?: any, variant?: any}} [opts]
  *
  * `marks` bir oyun başına SABİT fonksiyon olmalıdır (modül seviyesinde tanımlanır):
  * cache anahtarı `marks`'i içermez, çünkü aynı `mode` için her frame aynı statik

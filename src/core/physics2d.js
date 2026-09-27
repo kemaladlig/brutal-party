@@ -283,3 +283,40 @@ export function normalizeAngle(angle) {
   while (normalized < -Math.PI) normalized += Math.PI * 2;
   return normalized;
 }
+
+/**
+ * Turns `current` toward `target` by at most `maxStep` radians, taking the
+ * short way around the circle. Frame-rate independent: `maxStep` is a rate in
+ * radians per second, so callers pass `rate * dt`.
+ * @param {number} current
+ * @param {number} target
+ * @param {number} maxStep - Maximum radians to move this call
+ * @returns {number}
+ */
+export function approachAngle(current, target, maxStep) {
+  const diff = normalizeAngle(target - current);
+  if (!Number.isFinite(maxStep) || maxStep <= 0) return current;
+  if (Math.abs(diff) <= maxStep) return normalizeAngle(target);
+  return normalizeAngle(current + Math.sign(diff) * maxStep);
+}
+
+/**
+ * True when nothing in `rects` blocks the straight line from (x1,y1) to
+ * (x2,y2). Uses real segment/AABB intersection — a bounding-box overlap test
+ * reports blocked for diagonal shots that pass wide of the obstacle, which
+ * makes callers refuse valid lines of sight.
+ * @param {Array<Object>} rects - Obstacles as { x, y, w, h }
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} x2
+ * @param {number} y2
+ * @param {number} [pad=0] - Extra padding around each rect
+ * @returns {boolean}
+ */
+export function hasClearLine(x1, y1, x2, y2, rects, pad = 0) {
+  if (!rects) return true;
+  for (const rect of rects) {
+    if (segmentAabbIntersection(x1, y1, x2, y2, rect, pad) !== null) return false;
+  }
+  return true;
+}

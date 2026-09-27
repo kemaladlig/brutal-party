@@ -141,8 +141,8 @@ export function isValidPongWorldFrame(frame) {
  * yeniden basılır, sonra içeri doğru hafif gölge eklenir — düz leke yerine
  * "çukur kapı" okunur.
  *
- * @param {object} arena - { left, top, right, bottom }
- * @param {object|null} goals - { top|bottom|left|right: [min, max] }
+ * @param {FieldGeometry} arena - { left, top, right, bottom }
+ * @param {Record<string, any>|null} goals - kapı açıklıkları: { top|bottom|left|right: [min, max] }
  * @returns {Array<{x:number,y:number,w:number,h:number}>}
  */
 export function pongGoalPatches(arena, goals) {
@@ -185,6 +185,12 @@ function paddleBounds(paddle) {
   return { x: paddle.x - halfThickness, y: paddle.y - halfLength, w: paddle.thickness, h: paddle.length };
 }
 
+/**
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {FieldGeometry|null} arena
+ * @param {Record<string, [number, number]>|null} [goals]
+ * @param {{seed?: number}} [opts]
+ */
 export function drawPongArena(ctx, arena, goals = null, { seed } = {}) {
   // Statik saha katmanı `fieldKit` tarafından pişirilir: zemin gradyanı, ızgara,
   // iç çerçeve, iki merkez halkası, köşe plakaları + nişanlar, dekor, duvar.

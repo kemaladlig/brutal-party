@@ -4,7 +4,7 @@
 import { normalizeInputIntent } from './inputIntent.js';
 
 export class InputIntentRouter {
-  constructor({ getDescriptor, getEngine } = {}) {
+  constructor({ getDescriptor, getEngine } = /** @type {{getDescriptor?: () => any, getEngine?: () => any}} */ ({})) {
     this.getDescriptor = getDescriptor;
     this.getEngine = getEngine;
   }

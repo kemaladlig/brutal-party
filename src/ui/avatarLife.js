@@ -197,7 +197,6 @@ export function createAvatarLife({ preset = 'home', reducedMotion = () => false 
    * Dokunma tepkisi. Koordinatlar canvas CSS px; açı dokunma noktasına göre
    * bakış hedefi olarak kurulur (uzaktan okunan en ucuz "beni fark etti" ipucu).
    * @param {{ x: number, y: number, centerX: number, centerY: number, radius: number, color?: string }} p
-   * @param {number} [now]
    */
   function poke(p) {
     const r = Math.max(1, p.radius);

@@ -39,7 +39,7 @@ export const HORDE_VIEW_LIMITS = Object.freeze({
 
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
-const ENEMY_TYPES = new Set(['chaser', 'shooter', 'tank', 'healer']);
+const ENEMY_TYPES = new Set(['chaser', 'shooter', 'tank', 'healer', 'barrel', 'bomb']);
 const WEAPON_IDS = new Set(['SIDEARM', 'SMG', 'SHOTGUN', 'RIFLE', 'BLADE']);
 const MAP_IDS = new Set(['foundry', 'reactor', 'core']);
 
@@ -450,30 +450,37 @@ export function drawHordeArena(ctx, arena, themeId = 'foundry') {
 function drawExtractionGate(ctx, portal, now) {
   const rotations = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
   const pu = (portal.r || 30) / 30;
+  const progress = portal.progress || 0;
   ctx.save();
   ctx.translate(portal.x, portal.y);
   ctx.rotate(rotations[portal.side] || 0);
-  const pulse = 0.22 + Math.sin(now / 180) * 0.06;
-  ctx.globalAlpha = pulse;
+
+  const glow = 0.4 + Math.sin(now / 100) * 0.2;
+  ctx.globalAlpha = glow;
+  
   ctx.fillStyle = '#7C3AED';
-  ctx.fillRect(-portal.r, -portal.r * 0.62, portal.r * 2, portal.r * 1.24);
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = Math.max(2, 7 * pu);
-  ctx.strokeRect(-portal.r, -portal.r * 0.62, portal.r * 2, portal.r * 1.24);
-  ctx.strokeStyle = '#FACC15';
-  ctx.lineWidth = Math.max(2, 7 * pu);
   ctx.beginPath();
-  ctx.moveTo(-portal.r * 0.75, portal.r * 0.42);
-  ctx.lineTo(portal.r * 0.75, portal.r * 0.42);
-  ctx.stroke();
-  ctx.fillStyle = '#FACC15';
-  ctx.beginPath();
-  ctx.moveTo(0, portal.r * 0.05);
-  ctx.lineTo(-12, portal.r * 0.3);
-  ctx.lineTo(12, portal.r * 0.3);
-  ctx.closePath();
+  ctx.arc(0, 0, portal.r * (0.6 + progress * 0.6), 0, Math.PI * 2);
   ctx.fill();
+  
+  ctx.globalAlpha = 0.8;
+  ctx.strokeStyle = '#FACC15';
+  ctx.lineWidth = Math.max(2, 4 * pu);
+  const spin = now / 200 + progress * 15;
+  const numRings = 4;
+  for (let i = 0; i < numRings; i++) {
+    ctx.beginPath();
+    const r = portal.r * (0.2 + (i / numRings) * (0.5 + progress * 0.5));
+    ctx.arc(0, 0, r, spin + i, spin + i + Math.PI);
+    ctx.stroke();
+  }
+  
+  ctx.fillStyle = '#FACC15';
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, portal.r * 0.15 * (1 + progress * 2), 0, Math.PI * 2);
+  ctx.fill();
+  
   ctx.restore();
 }
 
@@ -532,6 +539,23 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
     ctx.restore();
   }
 
+  if (enemy.type === 'bomb') {
+    ctx.save();
+    ctx.translate(enemy.x, enemy.y);
+    ctx.globalAlpha = 0.3 + (enemy.hit ? 0.7 : 0);
+    ctx.fillStyle = '#E63946';
+    ctx.beginPath();
+    ctx.arc(0, 0, enemy.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#E63946';
+    ctx.lineWidth = Math.max(2, 4 * eu);
+    ctx.setLineDash([15, 10]);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
   // Can çubuğu ölçeği: `enemy.r`'ye göreli. Mutlak taban (eski `Math.max(20, ...)`
   // ve 10px boşluk) telefonda düşman 9px'e küçülürken çubuğu 20px'te
   // tutuyordu — yani NPC "küçük" algısının bir kısmı çizimden geliyordu.
@@ -548,12 +572,16 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
       ? '#334155'
       : enemy.type === 'healer'
         ? '#16A34A'
-        : '#E63946';
+        : enemy.type === 'barrel'
+          ? '#F97316'
+          : '#E63946';
   ctx.fillStyle = enemy.hit && withFx ? '#FFFFFF' : fill;
   ctx.strokeStyle = enemy.boss || enemy.elite ? '#FACC15' : '#1A1A1A';
   ctx.lineWidth = Math.max(1.5, (enemy.boss ? 5 : 3) * eu);
   ctx.beginPath();
-  if (enemy.type === 'tank') {
+  if (enemy.type === 'barrel') {
+    ctx.arc(0, 0, enemy.r, 0, Math.PI * 2);
+  } else if (enemy.type === 'tank') {
     ctx.rect(-enemy.r, -enemy.r, enemy.r * 2, enemy.r * 2);
   } else if (enemy.type === 'healer') {
     ctx.moveTo(0, -enemy.r);
@@ -561,8 +589,25 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
     ctx.lineTo(0, enemy.r);
     ctx.lineTo(-enemy.r, 0);
     ctx.closePath();
+  } else if (enemy.type === 'shooter') {
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3;
+      if (i === 0) ctx.moveTo(Math.cos(a) * enemy.r, Math.sin(a) * enemy.r);
+      else ctx.lineTo(Math.cos(a) * enemy.r, Math.sin(a) * enemy.r);
+    }
+    ctx.closePath();
   } else {
-    ctx.arc(0, 0, enemy.r, 0, Math.PI * 2);
+    if (enemy.elite) {
+      for (let i = 0; i < 10; i++) {
+        const a = (i * Math.PI) / 5;
+        const r2 = i % 2 === 0 ? enemy.r : enemy.r * 0.75;
+        if (i === 0) ctx.moveTo(Math.cos(a) * r2, Math.sin(a) * r2);
+        else ctx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
+      }
+      ctx.closePath();
+    } else {
+      ctx.arc(0, 0, enemy.r, 0, Math.PI * 2);
+    }
   }
   ctx.fill();
   ctx.stroke();
@@ -570,6 +615,12 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
     ctx.strokeStyle = '#FFF7A3';
     ctx.lineWidth = Math.max(1, 2 * eu);
     ctx.stroke();
+  }
+  if (enemy.type === 'barrel') {
+    ctx.fillStyle = '#FACC15';
+    ctx.beginPath();
+    ctx.arc(0, 0, enemy.r * 0.4, 0, Math.PI * 2);
+    ctx.fill();
   }
   if (enemy.lunging) {
     ctx.strokeStyle = '#FACC15';
@@ -926,12 +977,22 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
     ctx.save();
     ctx.lineCap = 'round';
     for (const bullet of bullets) {
-      ctx.strokeStyle = bullet.color || (bullet.enemy ? '#E63946' : '#D84727');
-      ctx.lineWidth = Math.max(3, bullet.radius);
-      ctx.beginPath();
-      ctx.moveTo(bullet.x, bullet.y);
-      ctx.lineTo(bullet.x - bullet.vx * 0.025, bullet.y - bullet.vy * 0.025);
-      ctx.stroke();
+      if (bullet.enemy) {
+        ctx.fillStyle = bullet.color || '#E63946';
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, Math.max(3, bullet.radius) + 1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = bullet.color || '#D84727';
+        ctx.lineWidth = Math.max(3, bullet.radius);
+        ctx.beginPath();
+        ctx.moveTo(bullet.x, bullet.y);
+        ctx.lineTo(bullet.x - bullet.vx * 0.025, bullet.y - bullet.vy * 0.025);
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }

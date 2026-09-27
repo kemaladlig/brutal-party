@@ -89,7 +89,9 @@ export function createWorldViewRenderer() {
 
         drawCurveGrid(ctx, arena);
         drawCurveFieldMask(ctx, { x: left, y: top, s: arena.size }, unpackCurveFieldMask(frame.field), colors, unpackCurveGapMask(frame.gaps));
-        drawCurveNearSegments(ctx, frame.near || [], colors, arena?.unit || 1);
+        // Birim host formülüyle türetilir (arena.unit pakette yok); `|| 1`
+        // telefonda kalınlıkları 2-3x şişiriyordu.
+        drawCurveNearSegments(ctx, frame.near || [], colors, arena.size / 952);
         drawCurvePickups(ctx, frame.pickups || []);
         drawAlphaTexts(ctx, frame.texts || [], { size: 12, outline: true });
         drawSquareParticles(ctx, frame.particles || []);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createCloneWorldPacket,
   isValidCloneWorldFrame,
-} from '../src/games-retired/cloneView.js';
+} from '../src/games/cloneView.js';
 
 function makeGame() {
   return {

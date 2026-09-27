@@ -28,7 +28,7 @@ export class TwinStickAimController {
     onPress,
     onMove,
     onRelease,
-    vibrate = () => {},
+    vibrate = /** @type {(pattern?: any) => void} */ (() => {}),
     signal = null,
   }) {
     this.zone = zoneEl;
@@ -37,7 +37,7 @@ export class TwinStickAimController {
     this.onPress = onPress;
     this.onMove = onMove;
     this.onRelease = onRelease;
-    this.vibrate = vibrate;
+    this.vibrate = /** @type {(pattern?: any) => void} */ (vibrate);
     this.externalSignal = signal;
     this.abortController = new AbortController();
     this.externalAbortHandler = null;
@@ -80,7 +80,7 @@ export class TwinStickAimController {
     this.lastInput = { dx: 0, dy: 0, angle: 0, force: 0, aimHeld: true };
     this.positionBase(clientX, clientY, rect);
     this.base?.classList.add('aim-held');
-    this.updateKnob(0, 0, 0);
+    this.updateKnob(0, 0);
     this.vibrate(10);
     this.onPress?.({ ...this.lastInput });
     this.startHeartbeat();
