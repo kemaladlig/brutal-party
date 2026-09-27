@@ -9,7 +9,7 @@ import { renderSpatialBadge, renderRoundBanner } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { createPongWorldPacket, drawPongArena } from './pongView.js';
-import { hashFieldSeed } from '../core/fieldKit.js';
+import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
 import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, matchOverRestartTap } from '../core/touchFlow.js';
@@ -702,9 +702,9 @@ export class Game extends BaseMiniGame {
     const { ctx, canvas } = this;
     ctx.save();
 
-    // Background paper
-    ctx.fillStyle = '#F4F0EA';
-    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+    // Sahanın dışı: arenanın etrafındaki masa (`fieldKit` tek sahibi).
+    // Sarsıntıdan etkilenmez — tepsi masanın üstünde kayar.
+    paintBackdrop(ctx, { width: window.innerWidth, height: window.innerHeight }, this.arena, { mode: 'PONG' });
 
     // Screen Shake (Trauma)
     if (this.trauma > 0) {

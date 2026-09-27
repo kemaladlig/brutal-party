@@ -672,10 +672,10 @@ export class CurveGame extends BaseMiniGame {
       this.spawnFloatingText(player.x, player.y - 14, t('curve.cut'), player.color);
     } else if (item.type === 'GHOST') {
       player.ghostTimer = 4.0;
-      this.spawnFloatingText(player.x, player.y - 14, '👻 HAYALET!', '#70E000');
+      this.spawnFloatingText(player.x, player.y - 14, 'HAYALET!', '#70E000');
     } else if (item.type === 'TURBO') {
       player.turboTimer = 4.5;
-      this.spawnFloatingText(player.x, player.y - 14, '⚡ TURBO!', '#FFD122');
+      this.spawnFloatingText(player.x, player.y - 14, 'TURBO!', '#FFD122');
     } else if (item.type === 'INVERT') {
       this.players.forEach((p) => {
         if (p.index !== player.index && p.isJoined && p.isAlive) {
@@ -691,13 +691,13 @@ export class CurveGame extends BaseMiniGame {
       this.players.forEach((p) => {
         if (p.index !== player.index && p.isJoined && p.isAlive) {
           p.freezeTimer = 2.5;
-          this.spawnFloatingText(p.x, p.y - 14, '❄️ DONDU!', '#90E0EF');
+          this.spawnFloatingText(p.x, p.y - 14, 'DONDU!', '#90E0EF');
         }
       });
       this.spawnFloatingText(player.x, player.y - 14, t('curve.ice'), player.color);
     } else if (item.type === 'BOMB') {
       this.spawnBombBlast(player.x, player.y);
-      this.spawnFloatingText(player.x, player.y - 14, '💣 PATLAMA!', '#FF473A');
+      this.spawnFloatingText(player.x, player.y - 14, 'PATLAMA!', '#FF473A');
     } else if (item.type === 'THICK') {
       player.thickTimer = 4.5;
       this.spawnFloatingText(player.x, player.y - 14, t('curve.wall'), '#D99B26');

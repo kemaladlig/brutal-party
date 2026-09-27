@@ -1194,6 +1194,17 @@
   .lobby-sheet #qr-canvas { width: clamp(96px, 24vh, 120px) !important; }
 }
 
+/* Ultra-kısa yatay (≤370px): sağ kolonun sabit giderleri (ray, başlık,
+   2 CTA) küçülür ki 4 koltuk satırı + ▶ MAÇI BAŞLAT kırpılmadan sığsın. */
+@media (max-height: 370px) {
+  .lobby-scene .lobby-side { gap: 6px; }
+  .lobby-scene .host-players-list { gap: 4px; }
+  .lobby-scene .tv-start-btn { min-height: 42px; box-shadow: 0 5px 0 var(--play-edge), 0 10px 20px var(--scene-btn-shadow); }
+  .lobby-scene .tv-host-player-btn { min-height: 34px; }
+  .lobby-scene .lobby-side-actions { gap: 6px; padding-bottom: max(6px, env(safe-area-inset-bottom, 6px)); }
+  .lobby-scene .slot-avatar-preview { width: clamp(24px, 5.4vh, 30px); height: clamp(24px, 5.4vh, 30px); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lobby-game-cover.is-in,
   .lobby-scene .host-player-slot.is-swap-target .slot-chip-main { animation: none; }

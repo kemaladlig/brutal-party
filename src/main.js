@@ -64,7 +64,7 @@ import './ui/views/gamesView.js';
 import './ui/views/profileView.js';
 import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
 import { isFullscreen, requestFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
-import { getTabletopIconSvg } from './core/tabletopIcons.js';
+import { getTabletopIconSvg, drawTabletopIcon } from './core/tabletopIcons.js';
 import { getSlotSwapError } from './core/slotRules.js';
 import { showReaction, clearReactions, setReactionFieldAnchor } from './ui/reactionLayer.js';
 import { ensureReactionTriggers, setReactionSender } from './ui/reactionPicker.js';
@@ -1902,12 +1902,18 @@ function broadcastWorldStateIfNeeded(now) {
 function renderPauseOverlay(ctx) {
   const w = window.innerWidth;
   const h = window.innerHeight;
-  const pillW = 260;
+  const label = t('pause.badge');
+  const iconSize = 22;
+  const iconGap = 10;
   const pillH = 56;
+
+  ctx.save();
+  ctx.font = uiFont('button');
+  const textW = ctx.measureText(label).width;
+  const pillW = Math.ceil(textW + iconSize + iconGap + 48);
   const pillX = w / 2 - pillW / 2;
   const pillY = h / 2 - pillH / 2;
 
-  ctx.save();
   ctx.fillStyle = 'rgba(26, 26, 26, 0.45)';
   ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = UI_COLORS.ink;
@@ -1917,11 +1923,13 @@ function renderPauseOverlay(ctx) {
   ctx.strokeStyle = UI_COLORS.paperWarm;
   ctx.lineWidth = 3;
   ctx.strokeRect(pillX, pillY, pillW, pillH);
+
+  const groupX = w / 2 - (iconSize + iconGap + textW) / 2;
+  drawTabletopIcon(ctx, 'pause', groupX + iconSize / 2, pillY + pillH / 2, iconSize, { color: UI_COLORS.white });
   ctx.fillStyle = UI_COLORS.white;
-  ctx.font = uiFont('button');
-  ctx.textAlign = 'center';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText('⏸ DURAKLATILDI', w / 2, pillY + pillH / 2);
+  ctx.fillText(label, groupX + iconSize + iconGap, pillY + pillH / 2);
   ctx.restore();
 }
 

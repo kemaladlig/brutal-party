@@ -365,11 +365,16 @@ for (const [w, h] of SIZES) {
   pinViewport(w, h);
 
   const canvas = document.createElement('canvas');
-  const dpr = 1;
+  // `&dpr=2.2` — gerçek cihaz DPR'ını taklit eder. `fieldKit` bake ölçeği
+  // `getTransform().a`'dan okunduğu için dpr=1 yalnızca %1 ölçeği doğrular;
+  // telefonun gördüğü 1.5x bake + upscale ancak gerçek dpr ile görünür.
+  const dpr = num('dpr', 1);
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
 
   const game = new GameClass({ width: canvas.width, height: canvas.height, getContext: () => ctx });
   game.resize(w, h);

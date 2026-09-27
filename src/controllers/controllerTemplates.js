@@ -257,11 +257,12 @@ function mountTwinStickAction(gamepad, container, schema) {
     onMove(input, opts) {
       gamepad._sendAnalog({ action: 'AIM_MOVE', ...input }, opts);
     },
-    onRelease(input, { cancelled = false } = {}) {
+    onRelease(input, { cancelled = false, tap = false } = {}) {
       gamepad._sendAimInput({
         action: 'AIM_RELEASE',
         ...input,
         ...(cancelled ? { cancelled: true } : {}),
+        ...(tap ? { tap: true } : {}),
       });
     },
   });

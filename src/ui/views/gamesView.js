@@ -161,6 +161,7 @@ registerView('games', {
       const list = visibleModes();
       const shown = new Set(list);
       tiles.forEach((tile, mode) => { tile.hidden = !shown.has(mode); });
+      grid.scrollTop = 0;
 
       if (activeMode && !shown.has(activeMode)) select(list[0]);
       // Odak listesi değişti: shell'e tazeleme sinyali.

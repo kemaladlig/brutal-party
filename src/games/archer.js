@@ -17,6 +17,7 @@ import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../c
 import { pointBlocked, updateMovers, clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
+import { findAutoAimTarget } from '../core/autoAim.js';
 import {
   createArcherWorldPacket,
   drawArcherArena,
@@ -422,11 +423,21 @@ export class ArcherGame extends BaseMiniGame {
     cancelled = false,
     hasDirection = false,
     angle = null,
+    tap = false,
   } = {}) {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
     if (isDown) {
       this.beginCharge(player);
+      return;
+    }
+    // Hızlı dokunma (tap): sürükleyip nişan almaya gerek kalmadan host
+    // en yakın rakibe kilitlenir ve garantili orta güçte tek atış yapar.
+    // Hedef yoksa baktığı yöne sıkar.
+    if (tap && !cancelled && this.isReleaseToFireAim() && this.state === 'PLAYING') {
+      this.snapAimToNearestRival(player);
+      player.charge = Math.max(player.charge, 0.5);
+      this.looseArrow(player);
       return;
     }
     if (!this.isReleaseToFireAim() || cancelled || !hasDirection) {
@@ -436,6 +447,15 @@ export class ArcherGame extends BaseMiniGame {
     }
     if (Number.isFinite(angle)) player.angle = angle;
     this.looseArrow(player);
+  }
+
+  snapAimToNearestRival(shooter) {
+    const hit = findAutoAimTarget(shooter, this.players, {
+      maxRange: fieldRadius(this.arena, 900, 0.35),
+      valid: (p) => p !== shooter && p.isJoined && p.isAlive && p.slotType === 'human',
+    });
+    if (hit) shooter.angle = hit.angle;
+    return hit;
   }
 
   onTouchStart(touch) {

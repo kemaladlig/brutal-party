@@ -5,6 +5,7 @@ const finiteNum = (value) => typeof value === 'number' && Number.isFinite(value)
 const validAimMeta = (data) => (
   (data.aimHeld === undefined || typeof data.aimHeld === 'boolean')
   && (data.seq === undefined || (Number.isInteger(data.seq) && data.seq >= 0))
+  && (data.tap === undefined || typeof data.tap === 'boolean')
 );
 
 /**

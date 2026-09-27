@@ -23,7 +23,7 @@ import { pulse } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { buildLayout } from '../core/arenaKit.js';
-import { hashFieldSeed } from '../core/fieldKit.js';
+import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
@@ -858,9 +858,9 @@ export class BombGame extends BaseMiniGame {
     const { ctx } = this;
     ctx.save();
 
-    // Background paper
-    ctx.fillStyle = '#F4F0EA';
-    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
+    // Sahanın dışı: arenanın etrafındaki masa. `fieldKit` tek sahibi — düz krem
+    // dolgu "bembeyaz ekran" hissinin en az yarısıydı. Sarsıntıdan etkilenmez.
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'BOMB' });
 
     // Screen Shake (Trauma)
     if (this.trauma > 0) {

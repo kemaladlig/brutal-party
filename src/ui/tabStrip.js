@@ -9,6 +9,7 @@
 
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { playMenuTick } from '../audio.js';
+import { prefersReducedMotion } from './motion.js';
 
 function el(tag, className, html) {
   const node = document.createElement(tag);
@@ -32,6 +33,17 @@ export function createTabStrip({ items = [], onChange = null } = {}) {
   let activeId = items.length ? items[0].id : null;
   const buttons = new Map();
 
+  // Taşma durumunda kenarlardaki yarım sekme "kestiğini" hissettiren yumuşak
+  // sol/sağ karartma (`scene.css` .is-clip-*). Şerit kaydırılabilir değilken
+  // sınıf eklenmez, maske hiç uygulanmaz.
+  const updateClip = () => {
+    const max = node.scrollWidth - node.clientWidth;
+    node.classList.toggle('is-clip-l', node.scrollLeft > 2);
+    node.classList.toggle('is-clip-r', max > 2 && node.scrollLeft < max - 2);
+  };
+  node.addEventListener('scroll', updateClip, { passive: true });
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(updateClip).observe(node);
+
   for (const item of items) {
     const btn = el('button', 'tab-btn');
     btn.type = 'button';
@@ -51,6 +63,12 @@ export function createTabStrip({ items = [], onChange = null } = {}) {
       if (btn.dataset.tab === activeId) return;
       playMenuTick();
       setActive(btn.dataset.tab);
+      // Seçili sekme her zaman tam görünür: taşan şeritte ortaya kaydırılır.
+      btn.scrollIntoView({
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+        inline: 'center',
+        block: 'nearest',
+      });
       onChange?.(btn.dataset.tab);
     });
     buttons.set(item.id, { btn, label, count });

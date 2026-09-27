@@ -29,7 +29,6 @@ export function renderControlGuide(ctx, arena, title, entries, { duringPlay = fa
   const panelY = 6;
   const panelWidth = Math.min(arena.width, viewportWidth - 24);
   const panelX = (viewportWidth - panelWidth) / 2;
-  const text = entries.map((e) => stripHtml(e)).join('   •   ');
 
   if (panelHeight <= 14) return;
 
@@ -43,19 +42,38 @@ export function renderControlGuide(ctx, arena, title, entries, { duringPlay = fa
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const maxTextWidth = panelWidth - 24;
-  const displayText = text.length > 70 ? `${text.slice(0, 67)}...` : text;
+  const sep = '   •   ';
+  const parts = entries.map((e) => stripHtml(e));
+
+  // Ölçüm-tabanlı sığdırma: önce girişleri olduğu gibi dener, sığmazsa fazlasını
+  // sondan '…' ile budar; tek satır hâlâ taşıyorsa karakter kesimi + '…' uygular.
+  // fillText'in maxWidth parametresi metni yatayda sıkıştırarak (condense)
+  // okunmaz hale getirdiği için burada kullanılmaz.
+  const fitLine = (prefix, list) => {
+    const total = list.length;
+    const kept = list.slice();
+    const widthOf = (arr, more) => ctx.measureText(prefix + arr.join(sep) + (more ? '…' : '')).width;
+    while (kept.length > 1 && widthOf(kept, kept.length < total) > maxTextWidth) kept.pop();
+    let line = prefix + kept.join(sep) + (kept.length < total ? '…' : '');
+    if (ctx.measureText(line).width > maxTextWidth) {
+      let slice = line.length - 1;
+      while (slice > prefix.length + 4 && ctx.measureText(line.slice(0, slice) + '…').width > maxTextWidth) slice -= 3;
+      line = line.slice(0, Math.max(prefix.length + 4, slice)) + '…';
+    }
+    return line;
+  };
 
   if (isPortrait) {
     ctx.fillStyle = UI_COLORS.danger;
     ctx.font = uiFont('monoLabel');
-    ctx.fillText(title, viewportWidth / 2, panelY + 16);
+    ctx.fillText(fitLine('', [title]), viewportWidth / 2, panelY + 16);
     ctx.font = uiFont('body');
     ctx.fillStyle = UI_COLORS.white;
-    ctx.fillText(displayText, viewportWidth / 2, panelY + panelHeight - 16, maxTextWidth);
+    ctx.fillText(fitLine('', parts), viewportWidth / 2, panelY + panelHeight - 16);
   } else {
     ctx.fillStyle = UI_COLORS.paperWarm;
     ctx.font = uiFont('monoLabel');
-    ctx.fillText(`${title}  //  ${displayText}`, viewportWidth / 2, panelY + panelHeight / 2, maxTextWidth);
+    ctx.fillText(fitLine(`${title}  //  `, parts), viewportWidth / 2, panelY + panelHeight / 2);
   }
 
   if (isPortrait && arena.bottom < viewportHeight - 12) {

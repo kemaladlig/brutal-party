@@ -8,6 +8,8 @@ test('accepts controller actions used by every online game schema', () => {
     { action: 'AIM_MOVE', dx: 0, dy: 0, angle: 0, force: 0, aimHeld: false, seq: 1 },
     { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1 },
     { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1 },
+    { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1, tap: true },
+    { action: 'AIM_RELEASE', dx: 0, dy: 0, angle: 0, force: 0, tap: true, seq: 9 },
     { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1, cancelled: false },
     { action: 'AIM_RELEASE', dx: 0, dy: 0, angle: 0, force: 0, cancelled: true },
     { action: 'PADDLE_MOVE', position: 0.5 },
@@ -42,6 +44,7 @@ test('rejects malformed or out-of-range network input', () => {
   assert.equal(isValidNetworkInput({ action: 'AIM_RELEASE', dx: 0, dy: 0, angle: 0, force: 0, cancelled: 'yes' }), false);
   assert.equal(isValidNetworkInput({ action: 'AIM_MOVE', dx: 0, dy: 0, angle: 0, force: 0, seq: -1 }), false);
   assert.equal(isValidNetworkInput({ action: 'AIM_MOVE', dx: 0, dy: 0, angle: 0, force: 0, aimHeld: 'yes' }), false);
+  assert.equal(isValidNetworkInput({ action: 'AIM_RELEASE', dx: 0, dy: 0, angle: 0, force: 0, tap: 'yes' }), false);
   assert.equal(isValidNetworkInput({ action: 'PADDLE_MOVE', position: 1.2 }), false);
   assert.equal(isValidNetworkInput({ action: 'SNAKE_STEER', dir: 2 }), false);
   assert.equal(isValidNetworkInput({ action: 'SWITCH_SLOT', targetSlot: 4 }), false);

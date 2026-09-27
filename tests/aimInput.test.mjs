@@ -70,3 +70,19 @@ test('a lower-sequence reconnect press starts a fresh held session', () => {
   assert.equal(press.type, 'press');
   assert.equal(state.held, true);
 });
+
+test('release carries tap only when the producer declares it', () => {
+  const state = new AimInputState();
+  state.press('network', vector(0, 0), { seq: 1, aimHeld: true });
+  const silent = state.release('network', vector(0, 0), { seq: 2 });
+  assert.equal(silent.tap, false);
+
+  state.press('network', vector(0, 0), { seq: 3, aimHeld: true });
+  const declared = state.release('network', vector(0, 0), { seq: 4, tap: true });
+  assert.equal(declared.tap, true);
+  assert.equal(declared.hasDirection, false);
+
+  state.press('network', vector(0, 0), { seq: 5, aimHeld: true });
+  const cancelledTap = state.release('network', vector(0, 0), { seq: 6, tap: true, cancelled: true });
+  assert.equal(cancelledTap.cancelled, true);
+});

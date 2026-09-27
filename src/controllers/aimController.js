@@ -4,9 +4,18 @@
 const MIN_RADIUS = 44;
 const MAX_RADIUS = 64;
 const DEADZONE = 0.1;
+// Quick-tap gesture: short press with almost no drag → host resolves auto-aim.
+const TAP_MAX_MS = 220;
+const TAP_MAX_DRAG_PX = 12;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function nowMs() {
+  return typeof performance !== 'undefined' && Number.isFinite(performance.now())
+    ? performance.now()
+    : Date.now();
 }
 
 export class TwinStickAimController {
@@ -36,6 +45,8 @@ export class TwinStickAimController {
     this.pointerMode = typeof window !== 'undefined' && 'PointerEvent' in window;
     this.originX = 0;
     this.originY = 0;
+    this.pressStartedAt = 0;
+    this.maxDragDistance = 0;
     this.maxRadius = 54;
     this.lastInput = { dx: 0, dy: 0, angle: 0, force: 0, aimHeld: false };
     this.heartbeatTimer = null;
@@ -61,6 +72,8 @@ export class TwinStickAimController {
     const shortSide = Math.min(rect.width || 54, rect.height || 54);
     this.originX = clientX;
     this.originY = clientY;
+    this.pressStartedAt = nowMs();
+    this.maxDragDistance = 0;
     this.maxRadius = clamp(shortSide * 0.24, MIN_RADIUS, MAX_RADIUS);
     this.lastInput = { dx: 0, dy: 0, angle: 0, force: 0, aimHeld: true };
     this.positionBase(clientX, clientY, rect);
@@ -77,6 +90,7 @@ export class TwinStickAimController {
     const rawDx = clientX - this.originX;
     const rawDy = clientY - this.originY;
     const distance = Math.hypot(rawDx, rawDy);
+    if (distance > this.maxDragDistance) this.maxDragDistance = distance;
     const clampedDistance = Math.min(distance, this.maxRadius);
     const angle = distance > 0.001 ? Math.atan2(rawDy, rawDx) : this.lastInput.angle;
     const rawForce = clampedDistance / this.maxRadius;
@@ -109,7 +123,10 @@ export class TwinStickAimController {
     this.activeTouchId = null;
     this.stopHeartbeat();
     this.clearVisual();
-    this.onRelease?.(finalInput, { cancelled });
+    const tap = !cancelled
+      && nowMs() - this.pressStartedAt <= TAP_MAX_MS
+      && this.maxDragDistance <= TAP_MAX_DRAG_PX;
+    this.onRelease?.(finalInput, { cancelled, tap });
     return true;
   }
 

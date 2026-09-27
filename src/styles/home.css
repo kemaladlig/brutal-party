@@ -242,6 +242,16 @@
   .home-facts { display: none; }
 }
 
+/* Aşırı kısa yatay (<300px): sağ-orta KODLA/KURULUM yığını sağ-alt eylem
+   satırının üstüne biner — yığını eylemlerin hemen üstüne sabitle. */
+@media (max-height: 300px) {
+  .home-side {
+    top: auto;
+    transform: none;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+  }
+}
+
 /* Dar + uzun (dikey telefon — rotate gate arkasında).
    Yatay düzende üç ayrı kutu (sol eylem / sahne / sağ eylem) yan yana durur
    ve dar ekranda üst üste biner. Dar düzen YIĞINIR: eylemler üstte tek sıra →

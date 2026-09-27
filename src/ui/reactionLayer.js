@@ -10,7 +10,7 @@
 // CSS'ten alır, konumu ise canlı varlığı takip etmek için rAF ile yenilenir.
 
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
-import { normalizeReactionKey, REACTIONS } from '../core/reactions.js';
+import { normalizeReactionKey, REACTIONS, reactionColorOf } from '../core/reactions.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
@@ -122,7 +122,7 @@ function buildBubble(key, slotIndex, color, label) {
   // oynatır — ikisi aynı `transform` üzerinde yarışmaz.
   el.innerHTML = `
     <div class="reaction-bubble-body">
-      <span class="reaction-bubble-icon">${getTabletopIconSvg(key, { size: 26, color: 'currentColor', strokeWidth: 2.4 })}</span>
+      <span class="reaction-bubble-icon">${getTabletopIconSvg(key, { size: 30, color: reactionColorOf(key) || 'currentColor', strokeWidth: 2.2 })}</span>
       ${tag}
     </div>`;
   return el;

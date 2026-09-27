@@ -32,6 +32,7 @@ import { spawnPickup } from '../core/pickupSystem.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
 import { drawPickup } from '../core/arenaKit.js';
+import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { createCrownWorldPacket } from '../games/crownView.js';
 
 export const CROWN_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -42,11 +43,11 @@ export const CROWN_TUNING = {
 };
 
 export const CROWN_MAP_PRESETS = [
-  { id: 'citadel_patrol', name: '01 // 🏰 SARAY AVCILARI (SİPERLER, PİSTONLAR & MANTARLAR)' },
-  { id: 'conveyors', name: '02 // 🌀 KONVEYÖR HIZ YOLU (AKAN BANTLAR & HIZ PEDLERİ)' },
-  { id: 'banana_maze', name: '03 // 🍌 MUZ VE DİKEN LABİRENTİ (KORİDORLAR & 4 MANTAR)' },
-  { id: 'moving_citadel', name: '04 // ⚡ MERKEZ KALE (4 KAPILI SIĞINAK & KANAT PİSTONLARI)' },
-  { id: 'chaos_flipper', name: '05 // 💥 KAOS FIRLATICI (6 YAYLI MANTAR & ÇAPRAZ BANTLAR)' },
+  { id: 'citadel_patrol', name: '01 // SARAY AVCILARI (SİPERLER, PİSTONLAR & MANTARLAR)' },
+  { id: 'conveyors', name: '02 // KONVEYÖR HIZ YOLU (AKAN BANTLAR & HIZ PEDLERİ)' },
+  { id: 'banana_maze', name: '03 // MUZ VE DİKEN LABİRENTİ (KORİDORLAR & 4 MANTAR)' },
+  { id: 'moving_citadel', name: '04 // MERKEZ KALE (4 KAPILI SIĞINAK & KANAT PİSTONLARI)' },
+  { id: 'chaos_flipper', name: '05 // KAOS FIRLATICI (6 YAYLI MANTAR & ÇAPRAZ BANTLAR)' },
 ];
 
 export class CrownGame extends BaseMiniGame {
@@ -856,7 +857,7 @@ export class CrownGame extends BaseMiniGame {
         if (king.crownHoldTime >= this.targetCrownTime) {
           playPiggyBreak();
           playCashRegister();
-          this.addFloatingText(cx, cy, `👑 ${king.name} RAUNDU KAZANDI!`, king.color);
+          this.addFloatingText(cx, cy, `${king.name} RAUNDU KAZANDI!`, king.color);
           this.awardCrownWinner(king);
           return;
         }
@@ -1104,7 +1105,7 @@ export class CrownGame extends BaseMiniGame {
             p.vx += sp.dirX * 240;
             p.vy += sp.dirY * 240;
             playDashWhoosh();
-            this.addFloatingText(p.x, p.y - 20, '⚡ TURBO!', '#F59E0B');
+            this.addFloatingText(p.x, p.y - 20, 'TURBO!', '#F59E0B');
           }
         }
       }
@@ -1117,7 +1118,7 @@ export class CrownGame extends BaseMiniGame {
           p.slipTimer = 1.25;
           p.slipAngle = 0;
           playSlip();
-          this.addFloatingText(p.x, p.y - 25, '🍌 KAYDI!', '#FFDE59');
+          this.addFloatingText(p.x, p.y - 25, 'KAYDI!', '#FFDE59');
 
           for (let k = 0; k < 8; k++) {
             this.particles.push({
@@ -1144,7 +1145,7 @@ export class CrownGame extends BaseMiniGame {
           playItemPickup();
           if (pk.type === 'TURBO') {
             p.turboTimer = 3.5;
-            this.addFloatingText(p.x, p.y - 25, '⚡ TURBO!', '#D99B26');
+            this.addFloatingText(p.x, p.y - 25, 'TURBO!', '#D99B26');
           } else if (pk.type === 'TELEPORT') {
             // Taçtan en uzak köşeye kaçış
             const ref = this.crown.carrierIndex !== null && this.players[this.crown.carrierIndex]
@@ -1169,7 +1170,7 @@ export class CrownGame extends BaseMiniGame {
             this.addFloatingText(p.x, p.y - 25, t('crown.escape'), '#48CAE4');
           } else if (pk.type === 'SLIP') {
             this.inkPuddles.push({ x: p.x, y: p.y, radius: fieldRadius(this.arena, 22, 0), duration: 10.0 });
-            this.addFloatingText(p.x, p.y - 25, '🍌 TUZAK!', '#FFDE59');
+            this.addFloatingText(p.x, p.y - 25, 'TUZAK!', '#FFDE59');
           }
           this.pickups.splice(i, 1);
           break;
@@ -1194,7 +1195,7 @@ export class CrownGame extends BaseMiniGame {
           p.hasCrown = true;
           p.crownHoldTime = 0;
           playCashRegister();
-          this.addFloatingText(p.x, p.y - 30, '👑 KRAL OLDU!', p.color);
+          this.addFloatingText(p.x, p.y - 30, 'KRAL OLDU!', p.color);
 
           for (let k = 0; k < 16; k++) {
             this.particles.push({
@@ -1554,7 +1555,7 @@ export class CrownGame extends BaseMiniGame {
         c.font = '800 12px "JetBrains Mono", monospace';
         c.textAlign = 'center';
         c.textBaseline = 'middle';
-        c.fillText(`🗺️ ${CROWN_MAP_PRESETS[this.selectedMapIndex].name} ▾`, cx, mapBtnY + mapBtnH / 2);
+        c.fillText(`${CROWN_MAP_PRESETS[this.selectedMapIndex].name} ▾`, cx, mapBtnY + mapBtnH / 2);
         c.restore();
 
         this.uiButtons.push({
@@ -1628,7 +1629,7 @@ export class CrownGame extends BaseMiniGame {
     ctx.font = '900 13px "Space Grotesk", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('⭐', b.x, b.y);
+    ctx.fillText('★', b.x, b.y);
 
     // Expanding shockwave ring when pulsed
     if (b.pulse > 0.1) {
@@ -1780,10 +1781,7 @@ export class CrownGame extends BaseMiniGame {
     ctx.fill();
 
     ctx.fillStyle = '#FFDE59';
-    ctx.font = '900 13px "Space Grotesk", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('⚡', h.x, h.y);
+    drawTabletopIcon(ctx, 'zap', h.x, h.y, 13, { color: '#FFDE59' });
 
     ctx.restore();
   }
@@ -1795,10 +1793,7 @@ export class CrownGame extends BaseMiniGame {
     ctx.ellipse(b.x + 2, b.y + 4, 14, 6, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.font = '22px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🍌', b.x, b.y);
+    drawTabletopIcon(ctx, 'banana', b.x, b.y, 22, { color: '#FFD24A' });
     ctx.restore();
   }
 
@@ -1891,14 +1886,11 @@ export class CrownGame extends BaseMiniGame {
       ctx.save();
       const dazeAngle = performance.now() * 0.008;
       const starR = r + 14;
-      ctx.font = '900 14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
       for (let s = 0; s < 3; s++) {
         const a = dazeAngle + (s * Math.PI * 2) / 3;
         const sx = x + Math.cos(a) * starR;
         const sy = y + Math.sin(a) * (starR * 0.4) - r - 10;
-        ctx.fillText('💫', sx, sy);
+        drawTabletopIcon(ctx, 'sparkles', sx, sy, 14, { color: '#D99B26' });
       }
 
       ctx.strokeStyle = '#D99B26';
@@ -1911,7 +1903,10 @@ export class CrownGame extends BaseMiniGame {
 
       ctx.fillStyle = '#D99B26';
       ctx.font = '900 13px "JetBrains Mono", monospace';
-      ctx.fillText('💥 SERSEM!', x, y - r - 26);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('SERSEM!', x + 10, y - r - 26);
+      drawTabletopIcon(ctx, 'flame', x - 28, y - r - 26, 13, { color: '#D99B26' });
       ctx.restore();
     }
 
@@ -1985,7 +1980,8 @@ export class CrownGame extends BaseMiniGame {
       ctx.font = `900 ${Math.round(12 * bScale)}px "JetBrains Mono", monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`👑 ${remain.toFixed(1)}s`, x, badgeY + badgeH / 2);
+      ctx.fillText(`${remain.toFixed(1)}s`, x + 10, badgeY + badgeH / 2);
+      drawTabletopIcon(ctx, 'crown', x - 30, badgeY + badgeH / 2, 13, { color: urgent ? '#D84727' : '#D99B26' });
     }
 
     ctx.restore();

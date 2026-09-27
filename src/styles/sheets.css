@@ -677,7 +677,10 @@
   color: var(--ink);
 }
 
-@media (max-width: 760px), (orientation: portrait) {
+/* Dokunmatik Yatay telefonlar (≤960px) de alt sayfa dilini alır: genişlik
+   760px üstü olsa bile (800×360) kök alt-sayfa hizasında (lobby.css coarse
+   dalı); kart radius/dil tutarlılığı burada tamamlanır. */
+@media (max-width: 760px), (orientation: portrait), (pointer: coarse) and (orientation: landscape) and (max-width: 960px) {
   .join-room-card {
     width: 100%;
     max-width: none;
@@ -700,7 +703,7 @@
 /* Geniş ekranda ayarlar ORTAYA hizalı sağ panel (kabuk `justify-content:
    flex-end` ile sağa yapıştırıyordu; iki sütunlu geniş bir panel için bu
    rahatsız edici bir "boş ekran" bırakıyordu). Dar ekranda alt sayfa. */
-@media (min-width: 761px) and (orientation: landscape) {
+@media (min-width: 640px) and (orientation: landscape) {
   #settings-modal { justify-content: center; }
   #settings-modal .pause-sheet {
     width: min(880px, calc(100vw - 40px));
@@ -727,10 +730,22 @@
   border-inline-start: 2px solid var(--n-100);
 }
 
-@media (max-width: 760px), (orientation: portrait) {
+@media (max-width: 639px), (orientation: portrait) {
   .pause-sheet-body.settings-cols { grid-template-columns: minmax(0, 1fr); }
   .settings-col + .settings-col {
     padding-inline-start: 0;
     border-inline-start: 0;
   }
+}
+
+/* Ultra-kısa yatay (telefon ≤430px yükseklik): sheet satır giderleri
+   küçülür — scroller kalır ama kaydırma yükü belirgin azalır. */
+@media (orientation: landscape) and (max-height: 430px) {
+  .pause-sheet-body { gap: 10px; padding: 10px 12px 12px; }
+  .sheet-section + .sheet-section { padding-top: 8px; }
+  .pause-btn { min-height: 40px; }
+  .pause-btn.primary { min-height: 44px; }
+  .switch-row,
+  .quick-toggle-btn { min-height: 38px; padding: 6px 10px; }
+  .quick-action-btn { min-height: 40px; }
 }

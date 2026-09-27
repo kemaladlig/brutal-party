@@ -427,7 +427,7 @@ export class CloneGame extends BaseMiniGame {
         this.addTrauma(0.25);
         playExplosion();
         this.spawnGlitch(clone.x, clone.y, clone.color);
-        this.spawnFloatingText(attacker.x, attacker.y - 18, '⚡ MASUM KLON! (CEZA)', '#E63946');
+        this.spawnFloatingText(attacker.x, attacker.y - 18, 'MASUM KLON! (CEZA)', '#E63946');
         return;
       }
     }
@@ -577,7 +577,7 @@ export class CloneGame extends BaseMiniGame {
               playItemPickup();
               this.spawnBurst(t.x, t.y, t.color);
               const compText = t.completions >= 2 ? ` (${t.completions}x ✓)` : '';
-              this.spawnFloatingText(player.x, player.y - 20, `${t.icon} ${t.name} +1★${compText}`, '#2F6A4F');
+              this.spawnFloatingText(player.x, player.y - 20, `${t.name} +1★${compText}`, '#2F6A4F');
               if (this.scores[player.index] >= this.targetScore) {
                 this.handleRoundEnd(player);
                 return;

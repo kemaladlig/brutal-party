@@ -6,20 +6,49 @@ import { t } from '../i18n.js';
 
 // World koordinatlarını client canvas'a orantılı sığdırır ve draw'u dünya uzayında
 // çağırır. arena: [left, top, right, bottom].
-export function fitWorld(ctx, width, height, arena, draw) {
+/**
+ * World→ekran dönüşümünün TEK çözümü. `fitWorld` ve `worldScreenBox` aynı
+ * matematiği iki yerde tekrar yazarsa arka plan ile saha kayar.
+ */
+export function worldFit(width, height, arena) {
   const [left, top, right, bottom] = arena;
   const worldWidth = Math.max(1, right - left);
   const worldHeight = Math.max(1, bottom - top);
   const scale = Math.min(width / worldWidth, height / worldHeight);
-  const offsetX = (width - worldWidth * scale) / 2;
-  const offsetY = (height - worldHeight * scale) / 2;
+  return {
+    scale,
+    left,
+    top,
+    worldWidth,
+    worldHeight,
+    offsetX: (width - worldWidth * scale) / 2,
+    offsetY: (height - worldHeight * scale) / 2,
+  };
+}
 
+export function fitWorld(ctx, width, height, arena, draw) {
+  const f = worldFit(width, height, arena);
   ctx.save();
-  ctx.translate(offsetX, offsetY);
-  ctx.scale(scale, scale);
-  ctx.translate(-left, -top);
+  ctx.translate(f.offsetX, f.offsetY);
+  ctx.scale(f.scale, f.scale);
+  ctx.translate(-f.left, -f.top);
   draw();
   ctx.restore();
+}
+
+/**
+ * Arenanın EKRAN uzayındaki kutusu. Sahanın dışını boyayan `paintBackdrop`
+ * ekran uzayında çizilir (fitWorld'ün DIŞINDA), ama arenanın nereye oturduğunu
+ * bilmesi gerekir — dünya koordinatlarıyla çağrılırsa gölge sahadan kayar.
+ */
+export function worldScreenBox(width, height, arena) {
+  const f = worldFit(width, height, arena);
+  return {
+    left: f.offsetX,
+    top: f.offsetY,
+    width: f.worldWidth * f.scale,
+    height: f.worldHeight * f.scale,
+  };
 }
 
 function pathRoundRect(ctx, x, y, w, h, r) {

@@ -1370,7 +1370,7 @@ export class TanksGame extends BaseMiniGame {
       ctx.font = '900 12.5px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const role = tank.slotType === 'bot_god' ? '⚡GOD' : tank.slotType === 'bot_normal' ? '🤖BOT' : 'P' + (tank.index + 1);
+      const role = tank.slotType === 'bot_god' ? 'GOD' : tank.slotType === 'bot_normal' ? 'BOT' : 'P' + (tank.index + 1);
       ctx.fillText(`${role} • ${tank.name}`, tank.x, tagY + tagH / 2);
       ctx.restore();
     });

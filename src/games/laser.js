@@ -15,6 +15,7 @@ import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../c
 import { clampToArena, resolveAABB, updateMovers } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
+import { findAutoAimTarget } from '../core/autoAim.js';
 import {
   createLaserWorldPacket,
   mapLaserPlayers,
@@ -125,6 +126,7 @@ export class LaserGame extends BaseMiniGame {
     cancelled = false,
     hasDirection = false,
     angle = null,
+    tap = false,
   } = {}) {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
@@ -133,9 +135,25 @@ export class LaserGame extends BaseMiniGame {
       return;
     }
     player.isAiming = false;
+    // Hızlı dokunma (tap): en yakın rakibe kilitlenip anında ateş eder;
+    // hedef yoksa baktığı yöne. Kooldown/ammo kapıları fireLaser içinde.
+    if (tap && !cancelled && this.isReleaseToFireAim()) {
+      this.snapAimToNearestRival(player);
+      this.fireLaser(player);
+      return;
+    }
     if (!this.isReleaseToFireAim() || cancelled || !hasDirection) return;
     if (Number.isFinite(angle)) player.targetAngle = angle;
     this.fireLaser(player);
+  }
+
+  snapAimToNearestRival(shooter) {
+    const hit = findAutoAimTarget(shooter, this.players, {
+      maxRange: fieldRadius(this.arena, 900, 0.35),
+      valid: (p) => p !== shooter && p.isJoined && p.isAlive && p.slotType === 'human',
+    });
+    if (hit) shooter.targetAngle = hit.angle;
+    return hit;
   }
 
   createWorldPacket() {
@@ -575,7 +593,7 @@ export class LaserGame extends BaseMiniGame {
       victim.shield = false;
       victim.invulnTimer = 0.5;
       this.spawnSparks(victim.x, victim.y, '#0EA5E9', 16);
-      this.spawnFloatingText(victim.x, victim.y - 20, '🛡️ KALKAN KORUDU!', '#0EA5E9');
+      this.spawnFloatingText(victim.x, victim.y - 20, 'KALKAN KORUDU!', '#0EA5E9');
       this.addTrauma(0.2);
       playStumble();
       return;
@@ -892,7 +910,7 @@ export class LaserGame extends BaseMiniGame {
         onCollect: (g, p, pk) => {
           if (pk.type === 'HEAL') {
             p.hp = Math.min(LASER_TUNING.MAX_HP + 1, p.hp + 1);
-            this.spawnFloatingText(p.x, p.y - 20, '❤ +1 CAN', '#2F6A4F');
+            this.spawnFloatingText(p.x, p.y - 20, '+1 CAN', '#2F6A4F');
           } else if (pk.type === 'FAST') {
             p.fastTimer = LASER_TUNING.FAST_TIME;
             this.spawnFloatingText(p.x, p.y - 20, t('laser.rapid'), '#FFDE59');

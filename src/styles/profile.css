@@ -264,6 +264,21 @@
   margin: -3px -2px 0;
 }
 
+/* Sekme şeridi + ZARLA tek satır: şerit satırı doldurur, dice sıkışmaz
+   (kural sonra gelir: üstteki sıkışmazlık override'ını yalnız genişlikte gevşetir). */
+.profile-toolbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.profile-toolbar .tab-strip {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* Panel alanı: sığmazsa KENDİ İÇİNDE kayar (sayfa akışı yok — AGENTS.md §7). */
 .profile-panels {
   flex: 1 1 auto;

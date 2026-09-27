@@ -82,3 +82,43 @@ test('twin-stick aim sends a real final vector and does not cancel on recenter',
     restore();
   }
 });
+
+test('quick tap declares tap, drag and long press do not', async () => {
+  const restore = installPointerWindow();
+  try {
+    const zone = new FakeElement();
+    const packets = [];
+    const controller = new TwinStickAimController({
+      zoneEl: zone,
+      knobEl: new FakeElement(),
+      onPress: (input) => packets.push({ type: 'press', input }),
+      onMove: (input) => packets.push({ type: 'move', input }),
+      onRelease: (input, meta) => packets.push({ type: 'release', input, meta }),
+    });
+
+    zone.dispatch('pointerdown', { pointerId: 1, pointerType: 'touch', clientX: 120, clientY: 120, button: 0 });
+    window.dispatch('pointerup', { pointerId: 1, clientX: 122, clientY: 121 });
+    assert.equal(packets.at(-1).meta.tap, true);
+
+    packets.length = 0;
+    zone.dispatch('pointerdown', { pointerId: 2, pointerType: 'touch', clientX: 120, clientY: 120, button: 0 });
+    window.dispatch('pointermove', { pointerId: 2, clientX: 180, clientY: 120 });
+    window.dispatch('pointerup', { pointerId: 2, clientX: 180, clientY: 120 });
+    assert.equal(packets.at(-1).meta.tap, false);
+
+    packets.length = 0;
+    zone.dispatch('pointerdown', { pointerId: 3, pointerType: 'touch', clientX: 120, clientY: 120, button: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 240));
+    window.dispatch('pointerup', { pointerId: 3, clientX: 120, clientY: 120 });
+    assert.equal(packets.at(-1).meta.tap, false);
+
+    packets.length = 0;
+    zone.dispatch('pointerdown', { pointerId: 4, pointerType: 'touch', clientX: 120, clientY: 120, button: 0 });
+    window.dispatch('pointercancel', { pointerId: 4 });
+    assert.equal(packets.at(-1).meta.tap, false);
+    assert.equal(packets.at(-1).meta.cancelled, true);
+    controller.destroy();
+  } finally {
+    restore();
+  }
+});

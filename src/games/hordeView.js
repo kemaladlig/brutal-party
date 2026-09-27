@@ -51,6 +51,7 @@ export function mapHordePlayer(player, tuning = {}) {
   const ammo = Number.isFinite(weapon.magazine) ? Math.max(0, Math.round(player.ammo ?? weapon.magazine)) : -1;
   const reloadDuration = Math.max(0.01, getReloadTime(player));
   const fireInterval = Math.max(0.01, weapon.fireInterval * (player.fastTimer > 0 ? 0.88 : 1));
+  const swingTime = Number.isFinite(weapon.swingTime) ? weapon.swingTime : 0.2;
   return {
     slot: player.index,
     joined: player.isJoined !== false,
@@ -80,6 +81,9 @@ export function mapHordePlayer(player, tuning = {}) {
     reloading: (Number(player.reloadTimer) || 0) > 0,
     reload: round1(1 - clamp01((Number(player.reloadTimer) || 0) / reloadDuration)),
     swing: (Number(player.weaponSwingTimer) || 0) > 0,
+    // Bıçak vuruşu animasyon ilerlemesi 0→1 (host canlı timer'dan, istemci
+    // 30Hz snapshot alır; worldInterpolation bu alanı yumuşatır).
+    swingT: round1(clamp01(1 - (Number(player.weaponSwingTimer) || 0) / swingTime)),
     expression: typeof player.expression === 'string' ? player.expression : 'FOCUS',
     // Gözlerin baktığı yön: `targetAngle` motor zaten nişan/koşu yönü olarak
     // tutuyor. Sadece nişan/koşu yönü anlamlı olduğunda paketlenir; eski
@@ -267,7 +271,10 @@ function isValidHordePlayer(player) {
     && Number.isInteger(player.magazine) && player.magazine >= -1
     && typeof player.reloading === 'boolean'
     && finite(player.reload) && player.reload >= 0 && player.reload <= 1
-    && typeof player.swing === 'boolean';
+    && typeof player.swing === 'boolean'
+    // `swingT` yalnız yeni sürümde var; eski host paketi alanı taşımaz (lookAngle
+    // kuralı gibi). Varsa 0..1 sınırında olmalı.
+    && (player.swingT === undefined || (finite(player.swingT) && player.swingT >= 0 && player.swingT <= 1));
 }
 
 function isValidHordeExtra(frame) {
@@ -607,22 +614,70 @@ function drawPlayerWeapon(ctx, player) {
   ctx.save();
   ctx.rotate(player.angle || 0);
   if (player.weaponKind === 'melee') {
-    if (player.swing) {
-      ctx.strokeStyle = player.weaponColor;
-      ctx.lineWidth = 8 * u;
+    // Bıçak: geniş etki alanı görselde de okunur — yay yarıçapı silahın
+    // menziline orantılı (150), tarama açısı weapon.arc (~3.8 ≈ 218°) ile
+    // eşleşir. `swingT` 0→1 iken bıçak -ARC_HALF'ten +ARC_HALF'e keser
+    // (`strike`), son %20'de nötral pozisyona toparlanır; böylece vuruş
+    // bitince bıçak yerine sıçramaz, sadece kesim izi solar.
+    const SWEEP_R = 150 * k;
+    const ARC_HALF = 1.9;
+    const bladeLen = 44 * k;
+    const bladeStart = SWEEP_R - bladeLen;
+    const drawBlade = (extraAngle) => {
+      ctx.rotate(extraAngle || 0);
+      ctx.fillStyle = player.weaponColor;
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 2 * u;
+      ctx.lineJoin = 'round';
       ctx.beginPath();
-      ctx.arc(10 * k, 0, 54 * k, -0.8, 0.8);
+      ctx.moveTo(bladeStart, -bladeLen * 0.18);
+      ctx.lineTo(bladeStart + bladeLen, 0);
+      ctx.lineTo(bladeStart, bladeLen * 0.18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.rotate(-(extraAngle || 0));
+    };
+
+    if (player.swing) {
+      // `swingT` yalnız yeni sürümde gelir (host canlı timer'dan, istemci 30Hz
+      // snapshot + worldInterpolation yumuşatır). Eski hostun gönderdiği boş
+      // `swingT`'te statik parlak kesim çizilir — animasyon kırılmaz, donmaz.
+      const hasProgress = Number.isFinite(player.swingT);
+      const p = hasProgress ? clamp01(player.swingT) : 0.5;
+      const strike = Math.min(1, p / 0.8);
+      const leading = -ARC_HALF + strike * ARC_HALF * 2;
+      const bladeAngle = p <= 0.8 ? leading : ARC_HALF * (1 - (p - 0.8) / 0.2);
+      const tail = hasProgress ? 1 - p : 0.85;
+      const sweepEnd = hasProgress ? leading : ARC_HALF;
+
+      // Süpürülen sektör dolgusu + renkli yay izi + parlak beyaz kesim çekirdeği.
+      ctx.globalAlpha = 0.14 * tail;
+      ctx.fillStyle = player.weaponColor;
+      ctx.beginPath();
+      ctx.moveTo(8 * k, 0);
+      ctx.arc(8 * k, 0, SWEEP_R, -ARC_HALF, sweepEnd);
+      ctx.closePath();
+      ctx.fill();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = player.weaponColor;
+      ctx.globalAlpha = tail * 0.9;
+      ctx.lineWidth = 9 * u;
+      ctx.beginPath();
+      ctx.arc(8 * k, 0, SWEEP_R, -ARC_HALF, sweepEnd);
       ctx.stroke();
       ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 2.5 * u;
+      ctx.globalAlpha = tail;
+      ctx.lineWidth = 3 * u;
+      ctx.beginPath();
+      ctx.arc(8 * k, 0, SWEEP_R, -ARC_HALF, sweepEnd);
       ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      drawBlade(hasProgress ? bladeAngle : 0);
+    } else {
+      drawBlade(0);
     }
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 5 * u;
-    ctx.beginPath();
-    ctx.moveTo(12 * k, 0);
-    ctx.lineTo(38 * k, 0);
-    ctx.stroke();
   } else {
     if (player.aiming) {
       ctx.strokeStyle = player.weaponColor;
@@ -834,7 +889,9 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
   drawHordeArena(ctx, arena, scene.theme);
 
   for (const obstacle of scene.obstacles || []) {
-    drawObstacle(ctx, obstacle, { variant: scene.theme === 'reactor' ? 'dark' : scene.theme === 'core' ? 'stone' : 'crate' });
+    // Deri artık MOTORDA SEÇİLMİYOR: harita teması `FIELD_THEMES[*].block`
+    // üzerinden gelir (foundry→crate, reactor→metal, core→dark).
+    drawObstacle(ctx, obstacle, { theme: scene.theme });
   }
 
   if (scene.portal) drawExtractionGate(ctx, scene.portal, now);

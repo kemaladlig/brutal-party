@@ -35,6 +35,7 @@ import {
   resolveControllerLayout,
   CONTROLLER_MIN_TOUCH_TARGET,
 } from './core/controllerLayout.js';
+import { isCompactLandscape } from './core/playfield.js';
 import { getSlotSwapError } from './core/slotRules.js';
 
 // Kumanda kayıt tablosu: tek kaynaktan (engineRegistry) beslenir
@@ -289,8 +290,9 @@ export class GamepadManager {
       }
     }
 
-    const landscape = window.innerWidth >= window.innerHeight;
-    if (landscape) {
+    // Kuşak tavanı yalnız kompakt telefon yatayında geçerli; tablet-yatay ve
+    // masaüstü penceresi tam yükseklik çerçevesini kullanır (AGENTS.md:121).
+    if (isCompactLandscape(rootRect.width, rootRect.height)) {
       // Keep the established lower control belt clear of the world view.
       frame.bottom = Math.min(frame.bottom, rootRect.height * 0.88);
     }
@@ -347,7 +349,10 @@ export class GamepadManager {
       height * 0.8,
       Math.max(insets.top, toolbarRect ? Math.max(0, toolbarRect.bottom - overlayRect.top) : 0),
     );
-    const bottomInset = Math.max(insets.bottom, window.innerWidth >= window.innerHeight ? height * 0.12 : 0);
+    const bottomInset = Math.max(
+      insets.bottom,
+      isCompactLandscape(width, height) ? height * 0.12 : 0,
+    );
     const frame = {
       left: Math.min(insets.left, width * 0.25),
       top,

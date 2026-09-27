@@ -344,23 +344,28 @@ const LUCIDE_REGISTRY = {
     mode: 'stroke',
     strokeWidth: 3,
   },
+  // Tepki çıkartmaları: dolu, koyu kromlu "sticker" glifleri. Renk `reactions.js`
+  // içindeki tepkinin `color` alanından gelir; yüz ifadeleri (laugh/cry) delikleri
+  // `fillRule: 'evenodd'` ile oyar (efekt = "beyaz göz" hissi). `mode:'fill'`
+  // kontursuz dolgudur (birleşik siluetler için), `'both'` dolgu + kalın kontur.
   laugh: {
     id: 'laugh',
     aliases: ['🤪', 'derp', 'crazy', 'laugh'],
-    path: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z M9 9h.01 M15 9h.01 M8 13a4 4 0 0 0 8 0z',
-    mode: 'both',
+    path: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z M8 8.9a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2z M16 8.9a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2z M7.5 15.2c0 2.5 2 4.4 4.5 4.4s4.5-1.9 4.5-4.4z',
+    mode: 'fill',
+    fillRule: 'evenodd',
   },
   heart: {
     id: 'heart',
     aliases: ['😍', 'heart', 'love'],
     path: 'M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z',
-    mode: 'stroke',
+    mode: 'both',
   },
   star: {
     id: 'star',
     aliases: ['🤩', 'star', 'excited'],
     path: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
-    mode: 'stroke',
+    mode: 'both',
   },
   moon: {
     id: 'moon',
@@ -371,8 +376,9 @@ const LUCIDE_REGISTRY = {
   skull: {
     id: 'skull',
     aliases: ['🧟', 'zombie', 'skull', 'undead'],
-    path: 'M12 2a8 8 0 0 0-8 8c0 2.9 1.56 5.22 4 6.45V19a3 3 0 0 0 3 3h2a3 3 0 0 0 3-3v-2.55c2.44-1.23 4-3.55 4-6.45a8 8 0 0 0-8-8z M9 12h.01 M15 12h.01',
-    mode: 'stroke',
+    path: 'M12 3.4a8.6 8.6 0 0 0-8.6 8.6c0 3 1.5 5.4 3.8 6.8v3.4h9.6v-3.4c2.3-1.4 3.8-3.8 3.8-6.8a8.6 8.6 0 0 0-8.6-8.6z M8.4 10.2a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2z M15.6 10.2a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2z M11.1 16h1.8l-.9 2.4z M10 20.2h4v1.6h-4z',
+    mode: 'fill',
+    fillRule: 'evenodd',
   },
   smile: {
     id: 'smile',
@@ -457,8 +463,35 @@ const LUCIDE_REGISTRY = {
   ghost: {
     id: 'ghost',
     aliases: ['👻', 'ghost', 'spook'],
-    path: 'M9 10h.01 M15 10h.01 M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z',
-    mode: 'stroke',
+    path: 'M12 2.5a7.5 7.5 0 0 0-8 7.5v10l2.4-2.3 2.6 2.6 2.5-2.5 2.5 2.5 2.6-2.6L20 20V10a7.5 7.5 0 0 0-8-7.5z M9.2 9.9a2.1 2.1 0 1 0 0 4.2 2.1 2.1 0 0 0 0-4.2z M14.8 9.9a2.1 2.1 0 1 0 0 4.2 2.1 2.1 0 0 0 0-4.2z',
+    mode: 'fill',
+    fillRule: 'evenodd',
+  },
+  // Yeni tepki çıkartmaları (kiss / thumbsup / cry / sleepy) — dolu, koyu kromlu.
+  kiss: {
+    id: 'kiss',
+    aliases: ['💋', 'dudak', 'opucuk', 'kiss'],
+    path: 'M12 8.3C10.6 8.3 9.4 9.5 8.6 10.6 8.1 11.4 7 11.6 6.1 11.5 5 11.4 3.9 12.1 4.1 13.1c.16.78.97 1.24 1.83 1.4.97.18 1.8.57 2.5 1.1C9.5 16.4 10.8 17.6 12 17.6s2.5-1.2 3.57-2c.7-.53 1.53-.92 2.5-1.1.86-.16 1.67-.62 1.83-1.4.2-1-.94-1.7-2-1.6-.9.1-2-.1-2.57-.9C14.6 9.5 13.4 8.3 12 8.3z',
+    mode: 'both',
+  },
+  thumbsup: {
+    id: 'thumbsup',
+    aliases: ['👍', 'like', 'beğen', 'thumbs_up', 'thumbs-up', 'thumbsup'],
+    path: 'M5.926 12.63 6.926 5.63A2.6 2.6 0 0 1 12.074 6.37L11.074 13.37A2.6 2.6 0 0 1 5.926 12.63z M9 12h6.5a3.5 3.5 0 0 1 3.5 3.5v2a3.5 3.5 0 0 1-3.5 3.5H9a3.5 3.5 0 0 1-3.5-3.5v-2A3.5 3.5 0 0 1 9 12z',
+    mode: 'fill',
+  },
+  cry: {
+    id: 'cry',
+    aliases: ['😢', '😭', 'ağla', 'cry', 'sad'],
+    path: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z M7.6 9.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z M15.2 9.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z M5.9 16.4a3.1 2.6 0 1 0 6.2 0 3.1 2.6 0 0 0-6.2 0z M16 11.6c1.5 0 2.4 1 2.4 2.2 0 1.6-2.4 3.8-2.4 3.8s-2.4-2.2-2.4-3.8c0-1.2.9-2.2 2.4-2.2z',
+    mode: 'fill',
+    fillRule: 'evenodd',
+  },
+  sleepy: {
+    id: 'sleepy',
+    aliases: ['😴', 'uyku', 'sleep', 'sleepy'],
+    path: 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z',
+    mode: 'both',
   },
   search: {
     id: 'search',
@@ -477,6 +510,12 @@ const LUCIDE_REGISTRY = {
     aliases: ['🍌', 'banana', 'slip', 'peel'],
     path: 'M4 13c3.5-2 8-2 11.5 1.5 M5 17c4-3 9.5-3 14 1 M8 21c3-4 7-5 12-2 M3 9a14.5 14.5 0 0 1 18 0',
     mode: 'stroke',
+  },
+  pause: {
+    id: 'pause',
+    aliases: ['⏸', 'pause', 'hold'],
+    path: 'M6 4h4v16H6z M14 4h4v16h-4z',
+    mode: 'fill',
   },
 };
 
@@ -555,11 +594,12 @@ export function drawTabletopIcon(ctx, iconKey, cx, cy, size = 24, options = {}) 
       ctx.lineJoin = 'round';
 
       const mode = def.mode || 'stroke';
+      const rule = def.fillRule || 'nonzero';
       if (mode === 'both') {
-        ctx.fill(path2d);
+        ctx.fill(path2d, rule);
         ctx.stroke(path2d);
       } else if (mode === 'fill') {
-        ctx.fill(path2d);
+        ctx.fill(path2d, rule);
       } else {
         ctx.stroke(path2d);
       }
@@ -607,8 +647,9 @@ export function getTabletopIconSvg(iconKey, options = {}) {
 
   const fillAttr = (mode === 'fill' || mode === 'both') ? color : 'none';
   const strokeAttr = (mode === 'fill') ? 'none' : color;
+  const ruleAttr = def.fillRule ? ` fill-rule="${def.fillRule}"` : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fillAttr}" stroke="${strokeAttr}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" class="${className} lucide-${def.id}">
-    <path d="${def.path}" />
+    <path d="${def.path}"${ruleAttr} />
   </svg>`.trim();
 }

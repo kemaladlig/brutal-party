@@ -25,27 +25,83 @@
 // Tema kimliği (`accent`) HORDE tarafından da okunduğu için tema sözleşmesi
 // `floor/grid/accent/motif` alanlarını korur.
 
-import { fieldPx, fieldRadius } from './playfield.js';
+import { FIELD_DESIGN, fieldPx, fieldRadius } from './playfield.js';
 
 // ---------------------------------------------------------------------------
 // Tema kayıt defteri
 // ---------------------------------------------------------------------------
 
-/** Ortak zemin dili: her tema bu alanların tamamını taşır. */
+/**
+ * Ortak zemin dili: her tema bu alanların TAMAMINI taşır.
+ *
+ * KREM BÜTÇESİ (sert kural, `tests/fieldKit.test.mjs` kilitler): tabanın her
+ * noktası L* ∈ [80, 97] aralığında kalır ve `floorHigh↔floorLow` farkı ΔL* ≤ 18.
+ * Varlıklar `#1A1A1A` konturlu (L* ≈ 10) olduğundan bu bütçe sahanın HER yerinde
+ * ~70 puanlık kontrast bırakır. Zemin koyulaştırarak ayrışma ARANMAZ — o iş
+ * varlığın altındaki temas gölgesinin işidir (bkz. arenaKit/avatarInGame).
+ *
+ * SAYISAL ALANLAR: `lightPool`/`wallT`/`seams`/`decals`/`textureAlpha` gibi
+ * alanlar ilkel tiptedir. Nested nesne YAZILAMAZ: `HORDE_MAPS` temaları
+ * `{...FIELD_THEMES.foundry}` şeklinde SIZ YAYILIMLA türetir (hordeConfig.js),
+ * paylaşılan bir alt-nesne üç haritada aynı referansı taşır ve `Object.freeze`
+ * onu dondurmaz.
+ */
 const THEME_BASE = Object.freeze({
-  floor: '#FAF7F2',            // taban krem
-  floorEdge: '#F1ECE2',        // gradyanın alt ucu (tabandan ~%4 koyu)
+  // --- zemin ---
+  // ÖLÇÜLMÜŞ KISIT (rebrand'in en önemli bulgusu): krem ailesi o kadar parlak
+  // ki İŞIK şiddetiyle derinlik satın alınamaz. P3 sarısı #FFD24A L* = 85.93;
+  // tabanı ondan ayıran bütçe ~6 puan. `floorLow` #E6DDCC (L* 88.4) + vignette
+  // + duvar gölge bandı sahanın alt yarısında ölçilen zemini L* 85.9'a indirip
+  // sarıyla kontrastı SIFIRA düşürdü (kullanıcı "daha iyi iş yapabiliriz" derken
+  // bu tuzağın kendisiydi). Bu yüzden rampa ŞIKLIK/kroma ile kurulur, L* ile
+  // değil: üst soluk ve soğuğa yakın, alt belirgin sıcak — kroma farkı malzeme
+  // ve derinlik okur, L* farkı sarıyı yer.
+  //
+  // TAVAN: `floorHigh` L* ≤ 97.5 (üstü "bembeyaz"ın ta kendisi), taban L* ≥ 92.5
+  // (boyanın +1.5 puanlık gölgeleme payıyla sarının üstünde kalır).
+  floor: '#F8F2E7',            // taban krem (orta ton, L* 95.7)
+  floorHigh: '#FBF6EC',        // ışık gelen üst bölge (L* 97.0)
+  floorEdge: '#F3EBDA',        // orta-üst geçiş durakı (L* 93.3)
+  floorLow: '#F2E9D8',         // en alt — aynı parlaklıkta, daha sıcak (L* 92.6)
+  lightPool: 0.3,              // 0..1 — üst-sol ışık havuzunun şiddeti
   grid: 'rgba(26, 26, 26, 0.05)',
   frame: 'rgba(26, 26, 26, 0.10)',  // iç çerçeve hairline
+  // --- yüzey dokusu (tek seferlik bake, sonra 2 op) ---
+  // Varsayılan `speckle`: hiçbir yön/kafes kurmadığı için oyun nesneleriyle
+  // anlam çakışması olmayan tek reçete. Yönü olan dokular opt-in.
+  texture: 'speckle',          // 'none' | 'weave' | 'speckle' | 'plate' | 'tile'
+  textureAlpha: 0.4,           // 0..1 — desenin üstüne bindirilmesi
+  seams: 2,                    // 0..4 — tam-genişlik derz çizgisi
+  // --- kimlik ---
   accent: '#D84727',
   motif: 'rings',
   corners: 'plate',            // 'plate' | 'crosshair' | 'both' | 'none'
   cornerInk: '#2B2B28',
-  wall: '#1A1A1A',
-  wallShade: 'rgba(26, 26, 26, 0.15)', // sağ/alt iç gölge (ışık sol-üstten)
+  // --- tepsi kenarı (SİYAH ÇERÇEVE YOK) ---
+  // Kullanıcı raporu: "köşeler simsiyah çerçeve, sert köşeli". Koyu kontur ve
+  // kütleli bant kalktı; sahanın sınırı artık üç şeyle okunur: yuvarlatılmış
+  // tepsi kesimi, tek ince iç gölge çizgisi ve `paintBackdrop`'un arenanın
+  // arkasına düşürdüğü gölge. Yani sınır bilgisi boya şeridinden değil,
+  // derinlikten gelir.
+  edgeInk: 'rgba(26, 26, 26, 0.16)',      // tepsi iç duvarı
+  edgeLight: 'rgba(255, 255, 255, 0.6)',  // pahlı kenarın ışık çizgisi
+  trayR: 18,                              // tasarım px; saha ölçeğiyle büyür
+  // Sağ/alt iç gölge (ışık sol-üstten). Bu bant zeminden L* yer; alt kenarda
+  // zemin rampasıyla AYNI bütçeyi iki kez yememesi için düşük tutulur — 0.15
+  // iken sahanın alt bandında P3 sarısıyla ölçülen fark 3.6'ya iniyordu.
+  wallShade: 'rgba(26, 26, 26, 0.11)',
+  // --- dekor ---
   decal: 'rgba(26, 26, 26, 0.055)',
   decals: 1,                   // 0..2 dekor yoğunluğu çarpanı
+  // --- motorun kendi yüzeyi (arenaKit.drawObstacle bu deriyi seçer) ---
+  block: 'stone',
+  // --- sahanın dışı (paintBackdrop) ---
+  backdrop: '#F4F0EA',
+  backdropInk: '#2B2B28',
 });
+
+/** Tema sözleşmesinin anahtarları — testler bu listeyi enumerate eder. */
+export const THEME_FIELDS = Object.freeze(Object.keys(THEME_BASE));
 
 function theme(overrides) {
   return Object.freeze({ ...THEME_BASE, ...overrides });
@@ -55,50 +111,165 @@ function theme(overrides) {
  * `mode` (ya da tema kimliği) → tema. Tanımsız oyunlar ortak krem saha diline
  * düşer; böylece yeni oyun eklemek burada tek satır.
  */
+/**
+ * `mode` (ya da tema kimliği) → tema. Tanımsız oyunlar ortak krem saha diline
+ * düşer; böylece yeni oyun eklemek burada tek satır.
+ *
+ * OYUN BAŞINA HUE, AYNI PARLAKLIK (kullanıcı kararı: "hâlâ rengi beyaz").
+ * Her tema DÖRT zemin durağı taşır ve hepsi CIE L\* ∈ [92.7, 97.3] içinde,
+ * aralık ≤ 5 — `tests/fieldKit.test.mjs §8` bunu palette üzerinde zorlar.
+ * Neden bu kadar dar: P3 sarısı #FFD24A L\* = 85.9. Tabanı ondan ayıran toplam
+ * bütçe ~7 puan. Bu yüzden derinlik L\* ile DEĞİL, hue/kroma ile kurulur:
+ * BOMB kiremit, TANKS adaçayı, LASER mavi-gri, HORDE 'core' menekşe — hepsi
+ * aynı parlaklıkta, hiçbiri sarıya basmıyor.
+ *
+ * Sıcak tonlar sistemik olarak koyulaşır (kiremit/amber L\*'ı düşürür):
+ * değerler beyaza harmanlanarak bütçeye çekildi, hue korunarak.
+ */
 export const FIELD_THEMES = Object.freeze({
   default: theme({}),
 
-  // PONG: sahanın kendisi fil yeri — çizgiler belirgin, motif iki halka, köşelerde
-  // hem L plaka hem nişan çizgisi (host'un eski saha dilinin tamamı).
+  // PONG — soğuk kâğıt kort. Çizgiler belirgin, motif iki halka, köşelerde hem
+  // L plaka hem nişan çizgisi (host'un eski saha dilinin tamamı).
   PONG: theme({
+    floorHigh: '#F7F7F4', floor: '#F4F4F0', floorEdge: '#EFF0EA', floorLow: '#ECECE5',
     grid: 'rgba(26, 26, 26, 0.055)',
     frame: 'rgba(26, 26, 26, 0.13)',
     motif: 'rings',
     corners: 'both',
+    texture: 'tile',
+    seams: 3,
   }),
 
-  // BOMB: krem + koyu çerçeve, sıcak gölge.
+  // BOMB — sıcak kiremit. Kasa derisiyle aynı aile.
   BOMB: theme({
-    floor: '#FAF7F2',
-    floorEdge: '#F2ECE1',
+    floorHigh: '#FCF4E9', floor: '#F9EFE6', floorEdge: '#F6EADE', floorLow: '#F4E8DB',
     grid: 'rgba(26, 26, 26, 0.06)',
     frame: 'rgba(26, 26, 26, 0.11)',
-    motif: 'rings',
-    corners: 'plate',
     decal: 'rgba(43, 43, 40, 0.06)',
+    block: 'crate',
+    texture: 'weave',
   }),
 
-  // HORDE: üç mevcut harita teması, `hordeConfig.HORDE_MAPS` bunlara bağlanır.
+  // TANKS — adaçayı yeşili, çim/çakıl karışımı saha.
+  TANKS: theme({
+    floorHigh: '#F6F8F0', floor: '#F3F5EC', floorEdge: '#EEF1E5', floorLow: '#EBEEDF',
+    grid: 'rgba(26, 26, 26, 0.065)',
+    motif: 'crosshairRings',
+    texture: 'speckle',
+    block: 'stone',
+  }),
+
+  // SNAKE — kehribar/amber.
+  SNAKE: theme({
+    floorHigh: '#FBF4E8', floor: '#F8F1E2', floorEdge: '#F4EBD9', floorLow: '#F3E9D5',
+    grid: 'rgba(26, 26, 26, 0.06)',
+    texture: 'speckle',
+    block: 'stone',
+  }),
+
+  // LASER — soğuk mavi-gri, metalik.
+  LASER: theme({
+    floorHigh: '#F5F7F9', floor: '#F2F4F7', floorEdge: '#ECEFF3', floorLow: '#E9EDF1',
+    grid: 'rgba(26, 26, 26, 0.06)',
+    accent: '#0E7490',
+    motif: 'reactor',
+    texture: 'plate',
+    block: 'metal',
+  }),
+
+  // ZONE — nane yeşili; bölge boyaması zaten renk taşıyor, zemin sakin kalmalı.
+  ZONE: theme({
+    floorHigh: '#F2F7F3', floor: '#EEF4F0', floorEdge: '#E8F0EA', floorLow: '#E4ECE6',
+    grid: 'rgba(26, 26, 26, 0.05)',
+    texture: 'speckle',
+    block: 'plinth',
+  }),
+
+  // HEIST — ılık kum.
+  HEIST: theme({
+    floorHigh: '#FAF4EC', floor: '#F8F0E7', floorEdge: '#F5EBDF', floorLow: '#F3E9DB',
+    grid: 'rgba(26, 26, 26, 0.06)',
+    motif: 'vault',
+    texture: 'weave',
+    block: 'crate',
+  }),
+
+  // ARCHER — zeytin/fitil.
+  ARCHER: theme({
+    floorHigh: '#F7F6ED', floor: '#F4F2E8', floorEdge: '#F0EDDF', floorLow: '#EDEADC',
+    grid: 'rgba(26, 26, 26, 0.06)',
+    corners: 'crosshair',
+    texture: 'speckle',
+    block: 'rock',
+  }),
+
+  // NINJA — arduvaz, gece avlusuna soğuk gönderme.
+  NINJA: theme({
+    floorHigh: '#F4F5F7', floor: '#F1F2F5', floorEdge: '#EBEDF1', floorLow: '#E8EAEF',
+    grid: 'rgba(26, 26, 26, 0.07)',
+    accent: '#7C3AED',
+    motif: 'core',
+    corners: 'none',
+    texture: 'plate',
+    block: 'dark',
+  }),
+
+  // CURVE — çelik. Izgarası hareketin yönünü okutur, doku seyrek kalmalı.
+  CURVE: theme({
+    floorHigh: '#F6F6F7', floor: '#F3F3F5', floorEdge: '#EDEEF1', floorLow: '#EAEAEF',
+    grid: 'rgba(26, 26, 26, 0.06)',
+    texture: 'plate',
+    block: 'dark',
+  }),
+
+  // RACE — asfalt kremi; pist yüzeyi zaten kendi çizgilerini taşıyor.
+  RACE: theme({
+    floorHigh: '#F8F5F1', floor: '#F6F2EB', floorEdge: '#F2EDE5', floorLow: '#F0EBE2',
+    grid: 'rgba(26, 26, 26, 0.05)',
+    texture: 'tile',
+    seams: 3,
+    block: 'hazard',
+  }),
+
+  // CROWN (retired) — altın krem, taht ritmi.
+  CROWN: theme({
+    floorHigh: '#FAF5E8', floor: '#F8F1E2', floorEdge: '#F4ECD9', floorLow: '#F2EAD5',
+    grid: 'rgba(26, 26, 26, 0.06)',
+    motif: 'crown',
+    texture: 'tile',
+    block: 'plinth',
+  }),
+
+  // HORDE: üç harita teması — `hordeConfig.HORDE_MAPS` bunları sığ yayılımla
+  // devralır. Eskiden yalnız `floor` override'ı vardı, yani rampanın geri kalanı
+  // ortak kremden geliyordu ve harita tonu sahanın yarısında kayboluyordu.
   foundry: theme({
-    floor: '#F1EEE7',
+    floorHigh: '#F9F6EF', floor: '#F6F3EB', floorEdge: '#F2EDE2', floorLow: '#F0EADF',
     grid: 'rgba(26, 26, 26, 0.075)',
     accent: '#D84727',
     motif: 'foundry',
     corners: 'none',
+    texture: 'plate',
+    block: 'crate',
   }),
   reactor: theme({
-    floor: '#E9F1F3',
+    floorHigh: '#F2F7F8', floor: '#EFF4F6', floorEdge: '#E7EFF2', floorLow: '#E3ECEF',
     grid: 'rgba(14, 116, 144, 0.10)',
     accent: '#0891B2',
     motif: 'reactor',
     corners: 'none',
+    texture: 'speckle',
+    block: 'metal',
   }),
   core: theme({
-    floor: '#EEEAF5',
+    floorHigh: '#F8F6FC', floor: '#F5F2FA', floorEdge: '#F1EDF7', floorLow: '#EEE9F5',
     grid: 'rgba(91, 33, 182, 0.10)',
     accent: '#7C3AED',
     motif: 'core',
     corners: 'none',
+    texture: 'speckle',
+    block: 'dark',
   }),
 });
 
@@ -108,9 +279,21 @@ const THEME_INDEX = new Map(
   Object.entries(FIELD_THEMES).map(([id, palette]) => [id.toLowerCase(), palette]),
 );
 
-/** Tema kimliği (`foundry` / `BOMB`) ya da doğrudan tema nesnesi çözer. */
+/**
+ * Tema kimliği (`foundry` / `BOMB`) ya da doğrudan tema nesnesi çözer.
+ *
+ * Bilinmeyen anahtar DÜŞÜRÜLÜR ve uyarılır: `floorHighh` gibi bir yazım hatası
+ * varsayılanı ezip sessizce görünmez kalmasın.
+ */
 export function fieldTheme(id, fallback = FIELD_THEMES.default) {
-  if (id && typeof id === 'object') return { ...THEME_BASE, ...id };
+  if (id && typeof id === 'object') {
+    const merged = { ...THEME_BASE };
+    for (const key of Object.keys(id)) {
+      if (THEME_FIELDS.includes(key)) merged[key] = id[key];
+      else console.warn(`[fieldKit] bilinmeyen tema alanı yok sayıldı: ${key}`);
+    }
+    return Object.freeze(merged);
+  }
   if (typeof id === 'string') {
     const found = THEME_INDEX.get(id.toLowerCase());
     if (found) return found;
@@ -246,17 +429,353 @@ export const FIELD_MOTIFS = Object.freeze({
     ctx.stroke();
     ctx.restore();
   },
+
+  /** TANKS: merkez halkası + nişan çizgileri (arena atış talimi dili). */
+  crosshairRings(ctx, w, h, u, palette) {
+    const cx = w / 2;
+    const cy = h / 2;
+    const min = Math.min(w, h);
+    const r = min * 0.16;
+    ctx.save();
+    ctx.globalAlpha = 0.11;
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = Math.max(1.5, 3.2 * u);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    const tick = min * 0.045;
+    ctx.beginPath();
+    ctx.moveTo(cx - r - tick, cy); ctx.lineTo(cx - r + tick, cy);
+    ctx.moveTo(cx + r - tick, cy); ctx.lineTo(cx + r + tick, cy);
+    ctx.moveTo(cx, cy - r - tick); ctx.lineTo(cx, cy - r + tick);
+    ctx.moveTo(cx, cy + r - tick); ctx.lineTo(cx, cy + r + tick);
+    ctx.stroke();
+    ctx.restore();
+  },
+
+  /** HEIST: iç içe kasa kareleri + radyal çentikler. */
+  vault(ctx, w, h, u, palette) {
+    const cx = w / 2;
+    const cy = h / 2;
+    const min = Math.min(w, h);
+    ctx.save();
+    ctx.globalAlpha = 0.1;
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = Math.max(1.5, 3.4 * u);
+    for (let i = 0; i < 2; i += 1) {
+      const r = min * (0.1 + i * 0.055);
+      ctx.strokeRect(cx - r, cy - r, r * 2, r * 2);
+    }
+    ctx.beginPath();
+    for (let i = 0; i < 8; i += 1) {
+      const a = (i * Math.PI) / 4;
+      const r0 = min * 0.158;
+      const r1 = min * 0.185;
+      ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+      ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+    }
+    ctx.stroke();
+    ctx.restore();
+  },
+
+  /** CROWN: merkez yayı üzerinde üç küçük elmas (taht ritmi). */
+  crown(ctx, w, h, u, palette) {
+    const cx = w / 2;
+    const cy = h / 2;
+    const min = Math.min(w, h);
+    const r = min * 0.035;
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = Math.max(1.5, 3 * u);
+    ctx.beginPath();
+    for (let i = 0; i < 3; i += 1) {
+      const x = cx + (i - 1) * r * 3.4;
+      const y = cy + (i === 1 ? -r * 1.2 : r * 0.6);
+      ctx.moveTo(x, y - r); ctx.lineTo(x + r, y);
+      ctx.lineTo(x, y + r); ctx.lineTo(x - r, y);
+      ctx.closePath();
+    }
+    ctx.stroke();
+    ctx.restore();
+  },
 });
 
 // ---------------------------------------------------------------------------
 // Statik katmanın çizimi (arena-içi 0..w / 0..h koordinatları)
 // ---------------------------------------------------------------------------
 
+/**
+ * Saha içi ölçeğin okunması.
+ *
+ * PARITY SÖZLEŞMESİ: `computePlayfield` `unit`'i `[minUnit, maxUnit]` aralığına
+ * KIRPAR (playfield.js). World-view arenaları bu alanı hiç taşımadan gelir
+ * (ör. `ui/tanksWorldView.js` yalnız kutu üretir). Kırpılmamış `size/952` yedeği
+ * telefon yatayında eşik altına düştüğü için AYNI cache anahtarı host'ta ve
+ * kumanda telefonunda farklı geometri çizerdi. Yedek de kırpılır.
+ */
 function arenaUnit(arena) {
   const u = Number(arena?.unit);
-  if (Number.isFinite(u) && u > 0) return u;
+  if (Number.isFinite(u) && u > 0) return clampUnit(u);
   const size = Number(arena?.size) || Math.min(arena?.width || 0, arena?.height || 0);
-  return size > 0 ? size / 952 : 1;
+  return size > 0 ? clampUnit(size / FIELD_DESIGN.shortSide) : 1;
+}
+
+function clampUnit(u) {
+  return Math.min(FIELD_DESIGN.maxUnit, Math.max(FIELD_DESIGN.minUnit, u));
+}
+
+// ---------------------------------------------------------------------------
+// Zemin tabanı — düz dolgu değil, ışık alan bir yüzey
+// ---------------------------------------------------------------------------
+
+/** Işık yönü sabitleri: `wallShade` bantlarıyla AYNI (sol-üstten gelir). */
+const LIGHT_X = 0.34;
+const LIGHT_Y = 0.28;
+const TRANSPARENT_WHITE = 'rgba(255, 255, 255, 0)';
+
+/**
+ * Tabanı çizer. Arena-içi 0..w / 0..h koordinatlarındadır ve BİR KERE çağrılır:
+ * hem katmanın kendisi hem de `paintPatches` (kapı boşluğu yamaları) bu fonksiyonu
+ * kullanır, böylece yama arkasındaki gradyanla BİREBİR eşleşir — eskiden yama
+ * düz `palette.floor` olduğu için her kapı ağzında görünür dikiş bırakıyordu.
+ */
+function paintFloorBase(ctx, w, h, u, palette) {
+  const high = palette.floorHigh || palette.floor;
+  const low = palette.floorLow || palette.floorEdge || palette.floor;
+
+  // 1. opak taban — sonraki her şey bunun üstüne bindirilir.
+  ctx.fillStyle = palette.floor;
+  ctx.fillRect(0, 0, w, h);
+
+  // 2. üst aydınlanma (ışık üstten geldiği için sahanın üst yarısı daha canlı).
+  const topH = Math.max(1, h * 0.55);
+  const top = ctx.createLinearGradient(0, 0, 0, topH);
+  top.addColorStop(0, high);
+  top.addColorStop(1, TRANSPARENT_WHITE);
+  ctx.fillStyle = top;
+  ctx.fillRect(0, 0, w, topH);
+
+  // 3. alt derinleşme — "bembeyaz" hissinin asıl panzehiri: taban altta belirgin
+  //    koyulaşır, yani sahada bir ufuk yönü vardır.
+  const lowFrom = h * 0.42;
+  const deep = ctx.createLinearGradient(0, lowFrom, 0, h);
+  deep.addColorStop(0, TRANSPARENT_WHITE);
+  deep.addColorStop(1, low);
+  ctx.fillStyle = deep;
+  ctx.fillRect(0, lowFrom, w, h - lowFrom);
+
+  // 4. ışık havuzu — radyal, sol-üstte. `fieldPx` kullanılmaz: konum ve yarıçap
+  //    sahanın kendisiyle orantılı, dolayısıyla ölçekten bağımsızdır.
+  const pool = Number(palette.lightPool);
+  if (pool > 0) {
+    const px = w * LIGHT_X;
+    const py = h * LIGHT_Y;
+    const r = Math.max(1, Math.hypot(w, h) * 0.78);
+    const glow = ctx.createRadialGradient(px, py, 0, px, py, r);
+    glow.addColorStop(0, `rgba(255, 255, 255, ${(0.5 * Math.min(1, pool)).toFixed(3)})`);
+    glow.addColorStop(1, TRANSPARENT_WHITE);
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  // 5. sol duvardan sekme gölgesi — sağ/alt bantlarıyla birlikte çerçeveyi
+  //    "üstüne bindirilmiş bir dikdörtgen" olmaktan çıkarıp sahayı kuşatır.
+  const bounce = Math.max(fieldPx({ unit: u }, 10), Math.min(w, h) * 0.05);
+  const left = ctx.createLinearGradient(0, 0, bounce, 0);
+  left.addColorStop(0, 'rgba(26, 26, 26, 0.045)');
+  left.addColorStop(1, 'rgba(26, 26, 26, 0)');
+  ctx.fillStyle = left;
+  ctx.fillRect(0, 0, bounce, h);
+}
+
+// ---------------------------------------------------------------------------
+// Yüzey dokusu — küçük bir tile bir kez üretilir, desene çevrilip katmana serilir
+// ---------------------------------------------------------------------------
+
+/**
+ * Tile kenarı TASARIM px'i (CSS px) cinsindendir: tam sayı user-space tekrarı,
+ * desen kaynağının arena kökenine hizalanmasını garanti eder ve kırıklı
+ * kenar-ızgarası artefaktını üretmez.
+ *
+ * PERİYOT BÜYÜK TUTULUR (32px): 24px'de desen ızgara çizgileriyle üst üste
+ * binip "kareli kâğıt" okuması verdi — yani dokunun çözmek için geldiği düzlüğü
+ * artırdı. Kafes seyreldikçe yüzey, sıklaştıkça desen olur.
+ *
+ * KONTRAST TAVANI: hiçbir fırça izi effective α > 0.05 üretemez (reçete α ×
+ * `textureAlpha`). Dekorun alt sınırı 0.055, ızgaranın 0.05 — dokunun üstünde
+ * olursa oyun nesnesiyle karıştırılacak ikinci bir çizgi katmanı olur.
+ */
+const TILE_DESIGN = 32;
+const TILE_MIN = 20;
+const TILE_MAX = 80;
+const MAX_TILE_ENTRIES = 8;
+
+/** Doku reçeteleri. Hepsi SİMSİK olmak zorundadır (bkz. yorumlar). */
+const TILE_RECIPES = Object.freeze({
+  /**
+   * Kumaş dokusu: tek yönde seyrek atki + dikine kısa atımlar. Köşeden köşeye
+   * ÇAPRAZ YOK — tam çapraz, tile'landığında gözle görülür bir elmas kafes
+   * kuruyor ve ızgarayla savaşıyor.
+   */
+  weave(t, side) {
+    const line = Math.max(1, side * 0.045);
+    t.strokeStyle = 'rgba(26, 26, 26, 0.055)';
+    t.lineWidth = line;
+    t.beginPath();
+    t.moveTo(0, side); t.lineTo(side, 0);
+    t.stroke();
+    t.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    t.lineWidth = line;
+    t.beginPath();
+    t.moveTo(0, side * 0.5); t.lineTo(side * 0.5, 0);
+    t.moveTo(side * 0.5, side); t.lineTo(side, side * 0.5);
+    t.stroke();
+  },
+
+  /**
+   * Plaka: tek yönde çok seyrek tarama. Paralel çizgiler tile kenarında
+   * birbirine tam kapanır (periyot side/2), dolayısıyla simsiiktir.
+   */
+  plate(t, side) {
+    t.strokeStyle = 'rgba(26, 26, 26, 0.04)';
+    t.lineWidth = Math.max(1, side * 0.035);
+    const half = side / 2;
+    t.beginPath();
+    t.moveTo(0, 0); t.lineTo(side, side);
+    t.moveTo(0, half); t.lineTo(half, side);
+    t.moveTo(half, 0); t.lineTo(side, half);
+    t.stroke();
+  },
+
+  /**
+   * Kâğıt taneciği: tam-sayı alt-ızgarada hash'li noktalar. Noktalar kenara
+   * DEĞMEZ (içeride kalır), dolayısıyla tekrar sınırı yoktur — simsiik.
+   * Varsayılan doku budur: hiçbir yön/kafes kurmaz, bu yüzden hiçbir oyun
+   * nesnesiyle anlam çakışması yaşamaz.
+   */
+  speckle(t, side) {
+    const cells = 8;
+    const step = side / cells;
+    const dot = Math.max(1, step * 0.3);
+    t.fillStyle = 'rgba(26, 26, 26, 0.06)';
+    for (let gy = 0; gy < cells; gy += 1) {
+      for (let gx = 0; gx < cells; gx += 1) {
+        if (!hashBit(gx, gy, side)) continue;
+        t.fillRect(gx * step + step * 0.3, gy * step + step * 0.3, dot, dot);
+      }
+    }
+  },
+
+  /** Döşeme derzi: sağ+alt kenarda 1px-varı oyuk. Kenarlar birleşince ızgara olur. */
+  tile(t, side) {
+    const grout = Math.max(1, side * 0.045);
+    t.fillStyle = 'rgba(26, 26, 26, 0.06)';
+    t.fillRect(side - grout, 0, grout, side);
+    t.fillRect(0, side - grout, side, grout);
+    t.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    t.fillRect(side - grout * 2, 0, grout, side);
+    t.fillRect(0, side - grout * 2, side, grout);
+  },
+});
+
+/** `speckle` için deterministik bit — seed/gürültü yok, yalnız tam sayı hash. */
+function hashBit(gx, gy, side) {
+  let h = Math.imul(gx + 1, 374761393) ^ Math.imul(gy + 1, 668265263) ^ Math.imul(side, 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return ((h >>> 24) & 7) > 3;
+}
+
+const tileCache = new Map();
+
+/**
+ * Doku tile'ını döndürür (yoksa `null`). Tile'lar `side` (tam sayı CSS px)
+ * cinsinden anahtarlanır, yani DPR/ölçek değişse bile AYNI bitmap yeniden
+ * kullanılır — en fazla 8 tile ≈ 0.16 MB.
+ *
+ * Tile kendi canvas'ına çizilir: bu, katmanın çizim logunun cache isabet/hata
+ * durumunda BİREBİR aynı kalmasını sağlar (koskoca desen katman ctx'ine
+ * çizilseydi ikinci frame'de log kısalırdı).
+ */
+function textureTile(palette, u) {
+  const name = String(palette.texture || '');
+  const recipe = TILE_RECIPES[name];
+  if (!recipe) return null;
+  const side = Math.max(TILE_MIN, Math.min(TILE_MAX, Math.round(TILE_DESIGN * u)));
+  const key = `${name}|${side}`;
+  const hit = tileCache.get(key);
+  if (hit) {
+    tileCache.delete(key);
+    tileCache.set(key, hit);
+    return hit.canvas;
+  }
+  const canvas = createLayerCanvas();
+  if (!canvas) return null;
+  canvas.width = side;
+  canvas.height = side;
+  canvas.__fieldRole = 'tile';
+  const t = canvas.getContext('2d');
+  if (!t) return null;
+  recipe(t, side);
+  fieldLayerStats.tiles += 1;
+  tileCache.set(key, { canvas });
+  while (tileCache.size > MAX_TILE_ENTRIES) {
+    const oldest = tileCache.keys().next().value;
+    const entry = tileCache.get(oldest);
+    if (entry?.canvas) {
+      entry.canvas.width = 0;
+      entry.canvas.height = 0;
+    }
+    tileCache.delete(oldest);
+  }
+  return canvas;
+}
+
+/** Deseni sahaya serer: iki op — pattern üret + tek dolgu. */
+function paintTexture(ctx, w, h, u, palette) {
+  const alpha = Number(palette.textureAlpha);
+  if (!(alpha > 0)) return;
+  const tile = textureTile(palette, u);
+  if (!tile || typeof ctx.createPattern !== 'function') return;
+  // `pattern.setTransform(...)` KULLANILMAZ: desenin kökeni user-space orijinine
+  // (arena köşesine) bağlıdır, dolayısıyla zaten hizalıdır.
+  const pattern = ctx.createPattern(tile, 'repeat');
+  if (!pattern) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.fillStyle = pattern;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+/**
+ * Tam-genişlik derz çizgileri: bir zemini "kâğıt"tan "döşenmiş yüzey"e çeviren
+ * en ucuz tek değişiklik. Konumlar `seed`'den türer ve kaba bir yarı-saha
+ * ızgarasına yuvarlanır, böylece raunt değiştince derzler kaymaz — yalnızca
+ * yer değiştirir.
+ */
+function paintSeams(ctx, w, h, u, palette, seed) {
+  const count = Math.round(Number(palette.seams) || 0);
+  if (!(count > 0)) return;
+  const rng = seededRandom(seed ^ 0x5bf03635);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(26, 26, 26, 0.05)';
+  ctx.lineWidth = Math.max(1, 1.2 * u);
+  ctx.beginPath();
+  for (let i = 0; i < Math.min(4, count); i += 1) {
+    const frac = 0.25 + rng() * 0.5;
+    if (rng() < 0.5) {
+      const x = Math.round(w * frac);
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+    } else {
+      const y = Math.round(h * frac);
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
 }
 
 function paintCorners(ctx, w, h, u, palette, inset, edge) {
@@ -316,25 +835,38 @@ function paintDecals(ctx, w, h, u, palette, seed) {
   let count = Math.round((min * min) / 26000) * intensity;
   if (u < 0.5) count = Math.round(count * 0.6);
   if (u < 0.35) count = Math.round(count * 0.4);
-  count = Math.max(0, Math.min(26, count));
+  count = Math.max(0, Math.min(40, count));
   if (count === 0) return;
 
   const rng = seededRandom(seed);
   const margin = min * 0.07;
   const spanX = w - margin * 2;
   const spanY = h - margin * 2;
+  const band = min * 0.12;
   const pf = { size: min, unit: u };
+
+  // Kenar-ağırlıklı yerleşim: dekorun ~%45'i dış banda düşer. Orası hem
+  // vignette'in koyulaştığı hem de düz dolgunun en belli şekilde "hiçbir şey
+  // yapmadığı" yer; merkez ise temiz kalır — varlıklar orada yaşıyor ve
+  // hareketli bir leke oyun nesnesiyle karıştırılır.
+  const place = () => {
+    if (rng() >= 0.45) return [margin + rng() * spanX, margin + rng() * spanY];
+    const edge = rng();
+    if (edge < 0.25) return [rng() * w, rng() * band];
+    if (edge < 0.5) return [rng() * w, h - rng() * band];
+    if (edge < 0.75) return [rng() * band, rng() * h];
+    return [w - rng() * band, rng() * h];
+  };
 
   ctx.save();
   for (let i = 0; i < count; i += 1) {
-    const x = margin + rng() * spanX;
-    const y = margin + rng() * spanY;
+    const [x, y] = place();
     const roll = rng();
     ctx.globalAlpha = 0.6 + rng() * 0.4;
     ctx.strokeStyle = palette.decal;
     ctx.fillStyle = palette.decal;
 
-    if (roll < 0.42) {
+    if (roll < 0.34) {
       // çizik
       const len = fieldRadius(pf, 26, 0.02) * (0.6 + rng() * 0.9);
       const a = rng() * Math.PI;
@@ -343,13 +875,13 @@ function paintDecals(ctx, w, h, u, palette, seed) {
       ctx.moveTo(x - Math.cos(a) * len * 0.5, y - Math.sin(a) * len * 0.5);
       ctx.lineTo(x + Math.cos(a) * len * 0.5, y + Math.sin(a) * len * 0.5);
       ctx.stroke();
-    } else if (roll < 0.78) {
+    } else if (roll < 0.62) {
       // leke
       const r = fieldRadius(pf, 30, 0.018) * (0.25 + rng() * 0.7);
       ctx.beginPath();
       ctx.ellipse(x, y, r, r * (0.5 + rng() * 0.5), rng() * Math.PI, 0, Math.PI * 2);
       ctx.fill();
-    } else {
+    } else if (roll < 0.8) {
       // yay
       const r = fieldRadius(pf, 70, 0.05) * (0.5 + rng() * 0.8);
       const start = rng() * Math.PI * 2;
@@ -357,11 +889,81 @@ function paintDecals(ctx, w, h, u, palette, seed) {
       ctx.beginPath();
       ctx.arc(x, y, r, start, start + 0.7 + rng() * 1.1);
       ctx.stroke();
+    } else if (roll < 0.92) {
+      // çentik kümesi — darbe izi; dört minik kare, hepsi tam sayıya yaslanır
+      const s = Math.max(1, fieldPx(pf, 2));
+      for (let k = 0; k < 4; k += 1) {
+        ctx.fillRect(Math.round(x + (k % 2) * s * 2), Math.round(y + Math.floor(k / 2) * s * 2), s, s);
+      }
+      rng();
+    } else {
+      // sürtme halkası
+      const r = fieldRadius(pf, 34, 0.024) * (0.5 + rng() * 0.8);
+      ctx.lineWidth = Math.max(1, 1.6 * u);
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.stroke();
     }
   }
   ctx.restore();
 }
 
+/**
+ * Tepsi köşe yarıçapı: saha ölçeğiyle büyür (telefonda ~7px, TV'de ~22px).
+ * KESİM, iç gölge çizgisi ve `paintBackdrop`'un arkaya düşürdüğü gölge AYNI
+ * yarıçapı kullanır — farklıysa köşe iki ayrı silüet gibi okunur.
+ */
+function trayRadius(u, palette) {
+  return Math.max(4, Math.min(26, fieldPx({ unit: u }, Number(palette.trayR) || 18)));
+}
+
+/**
+ * Path'e yuvarlak dikdörtgen ALT-yolu EKLER (`beginPath` çağırmaz) — halkayı tek
+ * path'te iki dikdörtgenle kurup `fill('evenodd')` verebilmek için şart.
+ * `roundRect` yoksa düz dikdörtgene düşer: görsel köşeli olur ama çökmez.
+ */
+function appendRoundRect(ctx, x, y, w, h, r) {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, w, h, r);
+    return true;
+  }
+  ctx.rect(x, y, w, h);
+  return false;
+}
+
+/**
+ * Tepsi kenarı: siyah çerçevenin yerine geçer.
+ *
+ * Koyu bant ve kontur kalktı. Sınır artık üç bedelsiz ipucuyla okunur: katmanın
+ * yuvarlatılmış kesimi (aşağıda clip), tek ince iç gölge çizgisi ve
+ * paintBackdrop'un arenanın arkasına düşürdüğü gölge. Üst/sol ışık çizgisi
+ * pahlı kenar hissini tamamlar — ışık yönü wallShade bantlarıyla aynıdır.
+ *
+ * ÖNEMLİ: çarpışma hâlâ DİKDÖRTGEN. Yuvarlatılmış köşede bir varlık kenarı
+ * yarıçap kadar aşabilir; bu yüzden yarıçap saha ölçeğiyle sınırlıdır
+ * (telefonda ~7px) ve köşeyi okuyan oyunlar (PONG) plakalarını korur.
+ */
+function paintTrayEdge(ctx, w, h, u, palette, r) {
+  const lw = Math.max(1.5, 2.4 * u);
+  ctx.save();
+
+  // İç gölge çizgisi — tepsi duvarı. Çizgi kenarın YARISINA oturur, kesimin
+  // dışına taşmaz.
+  ctx.strokeStyle = palette.edgeInk;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  appendRoundRect(ctx, lw / 2, lw / 2, Math.max(1, w - lw), Math.max(1, h - lw), Math.max(1, r - lw / 2));
+  ctx.stroke();
+
+  // Işık çizgisi — pahlı kenar. Birkaç px içeride, çok daha ince.
+  ctx.strokeStyle = palette.edgeLight;
+  ctx.lineWidth = Math.max(1, 1.2 * u);
+  ctx.beginPath();
+  appendRoundRect(ctx, lw * 1.6, lw * 1.6, Math.max(1, w - lw * 3.2), Math.max(1, h - lw * 3.2), Math.max(1, r - lw * 1.6));
+  ctx.stroke();
+
+  ctx.restore();
+}
 /**
  * Sahanın dışına taşan statik parçaların üstünü temizler: kapı boşluğu gibi.
  * Duvar konturu bilerek SONRA çizilir, böylece yama saha kenarındaki duvarı da
@@ -376,8 +978,16 @@ function paintPatches(ctx, w, h, u, palette, patches) {
     const pw = Number(patch.w);
     const ph = Number(patch.h);
     if (![x, y, pw, ph].every(Number.isFinite) || pw <= 0 || ph <= 0) continue;
-    ctx.fillStyle = palette.floor;
-    ctx.fillRect(x, y, pw, ph);
+
+    // Zemin BÜTÜN sahaya göre tanımlı gradyanlarla türer; yamayı kırpıp aynı
+    // tabanı çizmek, düz `palette.floor` dolguyla kalan dikişi tamamen siler.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, pw, ph);
+    ctx.clip();
+    paintFloorBase(ctx, w, h, u, palette);
+    paintTexture(ctx, w, h, u, palette);
+    ctx.restore();
 
     // Yamaya hafif bir iç gölge: düz leke yerine "çukur kapı" hissi.
     const depth = Math.max(fieldPx({ unit: u }, 6), Math.min(pw, ph) * 0.55);
@@ -406,6 +1016,16 @@ function paintPatches(ctx, w, h, u, palette, patches) {
  * (0,0)..(w,h): hem offscreen bake hem de DOM'suz doğrudan çizim yolu aynı
  * kodu kullanır.
  *
+ * KARE BAŞINA MALİYET SIFIR: bu fonksiyon yalnızca bake sırasında çağrılır,
+ * sonrasındaki her frame tek bir `drawImage` blit'tir. Görsel ağırlık bilinçli
+ * olarak BURAYA konur — kare çizim yoluna değil.
+ *
+ * ÇİZİM SIRA SÖZLEŞMESİ (testler bunu kilitler): yuvarlatılmış kesim → zemin
+ * tabanı → doku → derz → ızgara → iç çerçeve → motif → dekor → köşeler →
+ * vignette → iç gölge bantları → **tepsi kenarı** → yamalar → marks. Tepsi
+ * kenarından sonra hiçbir şey kenara stroke çekmez; yamalar ve `marks` bilerek
+ * istisnadır (kapı ağzı kenar çizgisini kesmek ZORUNDADIR).
+ *
  * @param {CanvasRenderingContext2D} ctx
  * @param {object} arena - { width, height } (arena içi çizim için yeterli)
  * @param {object} palette - `fieldTheme()` çıktısı
@@ -417,25 +1037,24 @@ export function paintFieldLayer(ctx, arena, palette, { seed = 1, marks = null, p
   const u = arenaUnit(arena);
   const min = Math.min(w, h);
   const inset = Math.max(fieldPx({ unit: u }, 12), min * 0.045);
-  // Duvar konturu yarım çizgi kalınlığı kadar içeri alınır (katman kenarına
-  // taşmasın); köşe plakaları da aynı mesafeden başlar.
-  const wallW = Math.max(2, 4 * u);
-  const edge = wallW * 0.6;
+  // Koyu çerçeve kalktı. Kenar bilgisi üç bedelsiz ipucundan gelir: yuvarlatılmış
+  // kesim, tek ince iç gölge çizgisi ve arenanın arkasına düşen gölge
+  // (`paintBackdrop`). `edgePad` gölge bantlarını kesimin üstüne bindirmez.
+  const rTray = trayRadius(u, palette);
+  const edgePad = Math.max(1, 1.2 * u);
 
   ctx.save();
   ctx.beginPath();
-  ctx.rect(0, 0, w, h);
+  appendRoundRect(ctx, 0, 0, w, h, rTray);
   ctx.clip();
 
-  // 1. Zemin gradyanı — düz dolgunun yerine, ışık solda-üstte olduğu için
-  //    taban üstte açık altta bir tık derin.
-  const floorGrad = ctx.createLinearGradient(0, 0, 0, h);
-  floorGrad.addColorStop(0, palette.floor);
-  floorGrad.addColorStop(1, palette.floorEdge);
-  ctx.fillStyle = floorGrad;
-  ctx.fillRect(0, 0, w, h);
+  // 1-3. Zemin yüzeyi: çok-duraklı taban + ışık havuzu, tek seferlik doku
+  //      deseni ve tam-genişlik derzler.
+  paintFloorBase(ctx, w, h, u, palette);
+  paintTexture(ctx, w, h, u, palette);
+  paintSeams(ctx, w, h, u, palette, seed);
 
-  // 2. Izgara — tek path, tek stroke. Hücre boyutu `unit` ile büyür, böylece
+  // 4. Izgara — tek path, tek stroke. Hücre boyutu `unit` ile büyür, böylece
   //    küçük ekranda 1px'e yaklaşan ince çizgi oluşmaz.
   const cell = Math.max(fieldPx({ unit: u }, 30), min / 13);
   ctx.strokeStyle = palette.grid;
@@ -451,54 +1070,59 @@ export function paintFieldLayer(ctx, arena, palette, { seed = 1, marks = null, p
   }
   ctx.stroke();
 
-  // 3. İç çerçeve hairline
+  // 5. İç çerçeve hairline
   ctx.strokeStyle = palette.frame;
   ctx.lineWidth = Math.max(1, 1.5 * u);
   ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
 
-  // 4. Merkez motifi
+  // 6. Merkez motifi
   const motif = FIELD_MOTIFS[palette.motif] || FIELD_MOTIFS.rings;
   motif(ctx, w, h, u, palette);
 
-  // 5. Seed'li dekor (yalnız bu katmanda, yalnız seed'den)
+  // 7. Seed'li dekor (yalnız bu katmanda, yalnız seed'den)
   paintDecals(ctx, w, h, u, palette, seed);
 
-  // 6. Köşe işaretleri
-  paintCorners(ctx, w, h, u, palette, inset, edge);
+  // 8. Köşe işaretleri — tepsi kenar çizgisinin hemen içinden başlarlar.
+  paintCorners(ctx, w, h, u, palette, inset, edgePad * 2);
 
-  // 7. Vignette — tek radyal gradyan
+  // 9. Vignette — tek radyal gradyan. Vinyet ve duvar gölge bandı zeminden
+  //    ~1.5 L* yer; `THEME_BASE` başlığındaki taban L* ≥ 92.5 bütçesi bunu sayar.
   const cx = w / 2;
   const cy = h / 2;
-  const outer = Math.max(1, Math.hypot(cx, cy));
-  const vig = ctx.createRadialGradient(cx, cy, outer * 0.42, cx, cy, outer);
+  const outerR = Math.max(1, Math.hypot(cx, cy));
+  const vig = ctx.createRadialGradient(cx, cy, outerR * 0.42, cx, cy, outerR);
   vig.addColorStop(0, 'rgba(26, 26, 26, 0)');
-  vig.addColorStop(1, 'rgba(26, 26, 26, 0.085)');
+  vig.addColorStop(1, 'rgba(26, 26, 26, 0.07)');
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, w, h);
 
-  // 8. Duvar iç gölgesi: sağ + alt (ışık sol-üstten gelir)
+  // 10. İç gölge: sağ + alt — gölge duvarın üstüne değil, yanındaki zemine
+  //     düşer. Işık sol-üstten gelir. Koyu çerçeve kalktıktan sonra bu bant
+  //     sahanın "bir tepsi içinde" olduğunu okutan ana ipucudur.
   const band = Math.max(fieldPx({ unit: u }, 8), min * 0.055);
-  const rightShade = ctx.createLinearGradient(w - band, 0, w, 0);
+  const floorRight = w - edgePad;
+  const rightShade = ctx.createLinearGradient(floorRight - band, 0, floorRight, 0);
   rightShade.addColorStop(0, 'rgba(26, 26, 26, 0)');
   rightShade.addColorStop(1, palette.wallShade);
   ctx.fillStyle = rightShade;
-  ctx.fillRect(w - band, 0, band, h);
-  const bottomShade = ctx.createLinearGradient(0, h - band, 0, h);
+  ctx.fillRect(floorRight - band, edgePad, band, Math.max(1, h - edgePad * 2));
+  const floorBottom = h - edgePad;
+  const bottomShade = ctx.createLinearGradient(0, floorBottom - band, 0, floorBottom);
   bottomShade.addColorStop(0, 'rgba(26, 26, 26, 0)');
   bottomShade.addColorStop(1, palette.wallShade);
   ctx.fillStyle = bottomShade;
-  ctx.fillRect(0, h - band, w, band);
+  ctx.fillRect(edgePad, floorBottom - band, Math.max(1, w - edgePad * 2), band);
 
-  // 9. Duvar konturu — yarım çizgi katman kenarına taşmasın diye içeri alınır
-  const half = wallW / 2;
-  ctx.strokeStyle = palette.wall;
-  ctx.lineWidth = wallW;
-  ctx.strokeRect(half, half, w - wallW, h - wallW);
+  // 11. Tepsi kenarı (iç gölge çizgisi + pahlı ışık çizgisi) — siyah çerçevenin
+  //     yerine geçer. Sahanın SON kenar çizgisi budur; sonrasında hiçbir şey
+  //     kenara stroke çekmez (yamalar ve marks bilerek istisnadır).
+  paintTrayEdge(ctx, w, h, u, palette, rTray);
 
-  // 10. Yama (kapı boşluğu vb.) — duvarın üstüne, yani açıklık gerçekten açık
+  // 12. Yama (kapı boşluğu vb.) — tepsi kenarının üstüne, yani açıklık kenar
+  //     çizgisini gerçekten keser.
   paintPatches(ctx, w, h, u, palette, patches);
 
-  // 11. Oyunun kendi statik işaretleri (PONG halkaları, HORDE spawn kapıları)
+  // 13. Oyunun kendi statik işaretleri (PONG halkaları, HORDE spawn kapıları)
   if (typeof marks === 'function') {
     ctx.save();
     marks(ctx, { width: w, height: h, unit: u, cx, cy, min }, palette);
@@ -506,6 +1130,126 @@ export function paintFieldLayer(ctx, arena, palette, { seed = 1, marks = null, p
   }
 
   ctx.restore();
+}
+
+// ---------------------------------------------------------------------------
+// Sahanın DİŞI — arenayı bir masada yanan yüzey gibi oturtan arka plan
+// ---------------------------------------------------------------------------
+
+/**
+ * Düzgün (düşük frekanslı) bir görüntü olduğu için ~3× düşük örneklemeyi kaldırır:
+ * bütçe saha katmanının üçte biri.
+ */
+const MAX_BACKDROP_PIXELS = 600_000;
+const MAX_BACKDROP_ENTRIES = 2;
+const backdropCache = new Map();
+
+/**
+ * Arenanın çevresini boyar. "Bembeyaz ekran" hissinin en az yarısı sahanın
+ * kendisi değil, etrafındaki dev düz krem kenar boşluğudur (13 motorda 23 ayrı
+ * ham `fillRect` çağır noktası). Bedava: katman bir kez pişirilir, frame başına
+ * tek blit.
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {object} viewport - { width, height } (tüm canvas)
+ * @param {object} arena    - playfield kutusu (ışık ve gölge bundan türer)
+ * @param {object} [opts]   - { mode, theme }
+ */
+export function paintBackdrop(ctx, viewport, arena, opts = {}) {
+  if (!ctx || !viewport || !arena) return;
+  const w = Math.max(1, Number(viewport.width) || 0);
+  const h = Math.max(1, Number(viewport.height) || 0);
+  const box = {
+    left: Number(arena?.left) || 0,
+    top: Number(arena?.top) || 0,
+    width: Math.max(1, Number(arena?.width) || 0),
+    height: Math.max(1, Number(arena?.height) || 0),
+  };
+  if (w <= 0 || h <= 0) return;
+
+  const palette = fieldTheme(opts.theme ?? opts.mode);
+  const key = [
+    palette.backdrop, Math.round(w), Math.round(h),
+    Math.round(box.left), Math.round(box.top), box.width, box.height,
+  ].join('|');
+
+  const hit = backdropCache.get(key);
+  if (hit) {
+    backdropCache.delete(key);
+    backdropCache.set(key, hit); // LRU
+    ctx.drawImage(hit.canvas, 0, 0, w, h);
+    return;
+  }
+
+  const layer = createLayerCanvas();
+  if (!layer) {
+    paintBackdropLayer(ctx, w, h, box, palette);
+    return;
+  }
+  const scale = Math.max(0.5, Math.min(1, Math.sqrt(MAX_BACKDROP_PIXELS / Math.max(1, w * h))));
+  layer.width = Math.max(1, Math.round(w * scale));
+  layer.height = Math.max(1, Math.round(h * scale));
+  layer.__fieldRole = 'backdrop';
+  const lctx = layer.getContext('2d');
+  if (!lctx) {
+    paintBackdropLayer(ctx, w, h, box, palette);
+    return;
+  }
+  lctx.setTransform(scale, 0, 0, scale, 0, 0);
+  paintBackdropLayer(lctx, w, h, box, palette);
+  fieldLayerStats.backdrops += 1;
+
+  backdropCache.set(key, { canvas: layer });
+  while (backdropCache.size > MAX_BACKDROP_ENTRIES) {
+    const oldest = backdropCache.keys().next().value;
+    const entry = backdropCache.get(oldest);
+    if (entry?.canvas) {
+      entry.canvas.width = 0;
+      entry.canvas.height = 0;
+    }
+    backdropCache.delete(oldest);
+  }
+  ctx.drawImage(layer, 0, 0, w, h);
+}
+
+/** Arka plan katmanının kendisi: viewport koordinatları (0,0)..(w,h). */
+function paintBackdropLayer(ctx, w, h, box, palette) {
+  const cx = box.left + box.width / 2;
+  const cy = box.top + box.height / 2;
+  const glowR = Math.max(1, Math.hypot(w, h) * 0.62);
+  const u = arenaUnit({ width: box.width, height: box.height });
+
+  ctx.fillStyle = palette.backdrop;
+  ctx.fillRect(0, 0, w, h);
+
+  // 1. Arenanın merkezinden dışa düşen ışık: saha, masada yanan bir yüzey olur.
+  const pool = ctx.createRadialGradient(cx, cy, Math.max(1, glowR * 0.2), cx, cy, glowR);
+  pool.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+  pool.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = pool;
+  ctx.fillRect(0, 0, w, h);
+
+  // 2. Köşe kararması — ekranda ikinci bir çerçeve.
+  const vig = ctx.createRadialGradient(cx, cy, glowR * 0.55, cx, cy, glowR);
+  vig.addColorStop(0, 'rgba(26, 26, 26, 0)');
+  vig.addColorStop(1, 'rgba(26, 26, 26, 0.07)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, w, h);
+
+  // 3. Arenanın geriye düşen gölgesi: `shadowBlur` yerine 3 iç-içe halka.
+  //    YARIÇAP saha katmanının kesimiyle AYNI olmalı — farklıysa tepsi ile
+  //    gölgesi iki ayrı silüet gibi okunur ve "yüzen tepsi" hissini kırar.
+  const r = trayRadius(u, palette);
+  const shadowRing = (dx, dy, lw, color) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    appendRoundRect(ctx, box.left + dx, box.top + dy, box.width, box.height, r);
+    ctx.stroke();
+  };
+  shadowRing(3 * u, 4 * u, Math.max(2, 5 * u), 'rgba(26, 26, 26, 0.05)');
+  shadowRing(6 * u, 8 * u, Math.max(2, 8 * u), 'rgba(26, 26, 26, 0.035)');
+  shadowRing(10 * u, 13 * u, Math.max(2, 12 * u), 'rgba(26, 26, 26, 0.02)');
 }
 
 // ---------------------------------------------------------------------------
@@ -542,15 +1286,24 @@ function layerScale(ctx, arena) {
   return Math.max(0.5, scale);
 }
 
+/**
+ * Cache anahtarı arena kutusunu 2 CSS px'e kuantlar.
+ *
+ * Neden: telefonda URL-bar'ı kaybolması ve döndürme jesti saha kutusunu alt-piksel
+ * kaydırır. Eski 0.1 px hassasiyeti her karede YENİ anahtar üretiyordu — yani
+ * hareket sırasında kare başına bir bake. Katman artık pahalıya pişildiği için bu
+ * başına bir takılma olurdu; 2 px görsel olarak görünmez, anahtarı ise kararlı kılar.
+ */
 function layerKey({ mode, themeId, seed, arena, scale, variant }) {
+  const q = (v) => Math.round(v / 2) * 2;
   return [
     mode,
     themeId,
     seed,
-    Math.round(arena.left * 10),
-    Math.round(arena.top * 10),
-    Math.round(arena.width * 10),
-    Math.round(arena.height * 10),
+    q(arena.left),
+    q(arena.top),
+    q(arena.width),
+    q(arena.height),
     scale.toFixed(2),
     variant,
   ].join('|');
@@ -580,7 +1333,7 @@ function evictIfNeeded() {
 }
 
 /** Bake sayaçları — testler ve performans ölçümü için (çizim yolunu değiştirmez). */
-export const fieldLayerStats = { bakes: 0, blits: 0, fallbacks: 0 };
+export const fieldLayerStats = { bakes: 0, blits: 0, fallbacks: 0, tiles: 0, backdrops: 0 };
 
 /**
  * Sahayı çizer: geçerli bir offscreen katman varsa tek `drawImage`, yoksa
@@ -640,6 +1393,7 @@ export function drawField(ctx, arena, opts = {}) {
 
   layer.width = Math.max(1, Math.round(width * scale));
   layer.height = Math.max(1, Math.round(height * scale));
+  layer.__fieldRole = 'layer';
   const lctx = layer.getContext('2d');
   if (!lctx) {
     fieldLayerStats.fallbacks += 1;
@@ -668,4 +1422,16 @@ export function releaseFieldLayers() {
     }
   }
   layerCache.clear();
+  releaseCaches(tileCache);
+  releaseCaches(backdropCache);
+}
+
+function releaseCaches(cache) {
+  for (const entry of cache.values()) {
+    if (entry?.canvas) {
+      entry.canvas.width = 0;
+      entry.canvas.height = 0;
+    }
+  }
+  cache.clear();
 }

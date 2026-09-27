@@ -535,6 +535,7 @@ export class BaseMiniGame {
     const event = state.release(source, input, {
       ...input,
       cancelled: options.cancelled === true,
+      tap: options.tap === true || input.tap === true,
     });
     this._syncAimState(slotIndex);
     if (event.accepted && event.previousHeld) {

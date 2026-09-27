@@ -555,7 +555,7 @@ export class ZoneGame extends BaseMiniGame {
       p.dashCooldown = 0;
       p.dashTimer = ZONE_TUNING.DASH_TIME * 1.5;
       p.isDashing = true;
-      this.addFloatingText(p.x, p.y - 34, '⚡ FLASH DEPAR!', '#FFD122');
+      this.addFloatingText(p.x, p.y - 34, 'FLASH DEPAR!', '#FFD122');
       this.burst(r.x, r.y, '#FFD122', 26);
       this.addTrauma(0.2);
       playPowerUp();
@@ -618,7 +618,7 @@ export class ZoneGame extends BaseMiniGame {
     p.stunTimer = ZONE_TUNING.STUN;
     p.blinkTimer = 0;
     if (announce) {
-      this.addFloatingText(p.x, p.y - 24, '❄ DONDU!', '#FFFFFF');
+      this.addFloatingText(p.x, p.y - 24, 'DONDU!', '#FFFFFF');
       playStumble();
     }
   }
@@ -754,7 +754,7 @@ export class ZoneGame extends BaseMiniGame {
         && this.pct[killerIndex] + 10 <= this.pct[this.leaderIndex]) {
       stunDur = ZONE_TUNING.STUN + 0.5;
       const kb = this.players[killerIndex];
-      if (kb) this.addFloatingText(kb.x, kb.y - 46, '🏹 AVCI BONUSU!', kb.color);
+      if (kb) this.addFloatingText(kb.x, kb.y - 46, 'AVCI BONUSU!', kb.color);
     }
     v.stunTimer = stunDur;
     if (killerIndex !== null && killerIndex !== undefined && killerIndex >= 0) {
@@ -784,7 +784,7 @@ export class ZoneGame extends BaseMiniGame {
 
     const midX = (a.x + b.x) / 2;
     const midY = (a.y + b.y) / 2;
-    this.addFloatingText(midX, midY - 20, '💥 KAFA KAFAYA!', '#FFFFFF');
+    this.addFloatingText(midX, midY - 20, 'KAFA KAFAYA!', '#FFFFFF');
     this.burst(midX, midY, '#FFFFFF', 28);
     this.addTrauma(0.45);
     playExplosion();

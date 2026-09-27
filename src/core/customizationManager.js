@@ -144,26 +144,26 @@ export const BOT_PERSONAS = [
 
 export const GOD_BOT_PERSONAS = [
   {
-    name: '⚡ ZEUS [GOD]',
-    shortName: '⚡ ZEUS',
+    name: 'ZEUS [GOD]',
+    shortName: 'ZEUS',
     color: '#D84727', // Kızıl Kırmızı
     expression: 'ANGRY',
   },
   {
-    name: '⚡ TITAN [GOD]',
-    shortName: '⚡ TITAN',
+    name: 'TITAN [GOD]',
+    shortName: 'TITAN',
     color: '#FF5722', // Alev Turuncu
     expression: 'SHADES',
   },
   {
-    name: '⚡ ARES [GOD]',
-    shortName: '⚡ ARES',
+    name: 'ARES [GOD]',
+    shortName: 'ARES',
     color: '#7928CA', // Siber Mor
     expression: 'ANGRY',
   },
   {
-    name: '⚡ OMEGA [GOD]',
-    shortName: '⚡ OMEGA',
+    name: 'OMEGA [GOD]',
+    shortName: 'OMEGA',
     color: '#2D3436', // Karbon Siyah
     expression: 'CYBORG',
   },

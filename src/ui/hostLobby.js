@@ -461,8 +461,13 @@ export function initHostLobby({
     `;
     document.body.appendChild(pop);
     const r = anchorBtn.getBoundingClientRect();
-    pop.style.left = `${Math.max(8, Math.min(window.innerWidth - 220, r.left + window.scrollX - 60))}px`;
-    pop.style.top = `${r.bottom + window.scrollY + 6}px`;
+    // position:fixed — pencere kaydırılmaz (body sabit); viewport payına göre
+    // hesaplanır. Kısa yatayda alta sığmazsa anchornın üstüne ters çevrilir.
+    const popW = pop.offsetWidth;
+    const popH = pop.offsetHeight;
+    pop.style.left = `${Math.max(8, Math.min(window.innerWidth - popW - 8, r.left - 60))}px`;
+    const below = r.bottom + 6;
+    pop.style.top = `${below + popH > window.innerHeight - 8 ? Math.max(8, r.top - popH - 6) : below}px`;
 
     pop.querySelectorAll('.slot-palette-swatch').forEach((sw) => {
       sw.addEventListener('click', (e) => {

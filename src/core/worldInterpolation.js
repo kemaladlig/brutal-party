@@ -46,7 +46,9 @@ function blendPointArrays(previous, current, t) {
   return changed ? output : current;
 }
 
-const TRANSFORM_KEYS = ['x', 'y', 'angle', 'heading', 'x1', 'y1', 'x2', 'y2'];
+// `swingT` (HORDE bıçak vuruşu ilerlemesi) da düz sayı olduğu için yumuşatılır;
+// diğer oyunlarda bu alan yoktur, `finiteNum(undefined)` → null olur ve atlanır.
+const TRANSFORM_KEYS = ['x', 'y', 'angle', 'heading', 'x1', 'y1', 'x2', 'y2', 'swingT'];
 
 function blendObject(previous, current, t) {
   if (!previous || !current || typeof previous !== 'object' || typeof current !== 'object') {

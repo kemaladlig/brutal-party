@@ -334,6 +334,20 @@
 
 .tab-strip::-webkit-scrollbar { display: none; }
 
+/* Kaydırılabilir taşmada kenar karartması (`tabStrip.js` sınıfları yönetir). */
+.tab-strip.is-clip-l {
+  mask-image: linear-gradient(to right, transparent, #000 24px);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
+}
+.tab-strip.is-clip-r {
+  mask-image: linear-gradient(to left, transparent, #000 24px);
+  -webkit-mask-image: linear-gradient(to left, transparent, #000 24px);
+}
+.tab-strip.is-clip-l.is-clip-r {
+  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+
 .tab-btn {
   display: inline-flex;
   align-items: center;
@@ -376,6 +390,7 @@
 .tab-btn.is-focused { box-shadow: var(--glow-accent); }
 .tab-btn:active { transform: translateY(2px); }
 
-@media (max-height: 470px) {
+/* Kısa yatay (telefon/küçük tablet): şerit tek satıra sığsın — kompakt pil. */
+@media (max-height: 560px) {
   .tab-btn { min-height: 30px; padding: 0 10px; font-size: 9px; gap: 5px; }
 }

@@ -538,18 +538,8 @@
   -webkit-overflow-scrolling: touch;
 }
 
-@media (orientation: landscape) and (min-aspect-ratio: 1/1) {
-  .lobby-controller-view {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px 18px;
-    padding: 10px 24px;
-    align-items: center;
-    max-width: 740px;
-    margin: 0 auto;
-    overflow-y: auto;
-  }
-}
+/* Yatay düzenin TEK kuralı aşağıda (FAZ lobisi, "Yatay mod: lobi iki kolon")
+   — eski 1fr/1fr dalı onunla çelişiyordu, kaldırıldı. */
 
 /* 1. Unified Player Profile Card */
 /* Karakter kartı: kimlik satırı (avatar + isim) üstte, aksiyon butonları
@@ -926,15 +916,19 @@
   background-color: var(--glow-danger-soft);
 }
 
-/* İsimli skor şeridi (tüm oyun modları) — yüzen yumuşak hap satırı */
+/* İsimli skor şeridi (tüm oyun modları) — yüzen yumuşak hap satırı.
+   Header absolute yüzer (44px çipler + safe-area); şerit normal akışta ilk
+   öğedir — header'ın altına binmesin diye üstte pay bırakılır. */
 .score-strip {
   width: 100%;
   max-width: 440px;
   display: flex;
   gap: 6px;
   padding: 6px 10px 0;
+  margin-top: calc(max(10px, env(safe-area-inset-top, 10px)) + 46px);
   box-sizing: border-box;
-  margin: 0 auto;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .score-strip.hidden {
@@ -1499,6 +1493,8 @@
     align-content: center;
     align-items: start;
     gap: 8px;
+    max-width: 740px;
+    margin: 0 auto;
     padding: max(64px, calc(env(safe-area-inset-top, 0px) + 56px)) 16px max(12px, env(safe-area-inset-bottom, 0px));
   }
 
@@ -1517,6 +1513,49 @@
   /* Yatayda yer kazancı: oyun görseli gizlenir, oyun adı metni kalır */
   .lobby-game-preview-card .lobby-game-thumb-preview {
     display: none;
+  }
+}
+
+/* Kısa yatay (telefon ~430px altı): lobi kaydırmasız sığsın — kart iç
+   payları ve tipografi küçülür, Hücum düzeni aynı kalır. */
+@media (orientation: landscape) and (max-height: 430px) {
+  .lobby-controller-view {
+    padding-top: max(56px, calc(env(safe-area-inset-top, 0px) + 48px));
+    gap: 6px;
+  }
+
+  .lobby-seats-card {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .lobby-seat-btn {
+    padding: 6px 4px;
+    gap: 2px;
+  }
+
+  .lobby-seat-btn .seat-num {
+    font-size: 18px;
+  }
+
+  .lobby-seat-btn .seat-status {
+    font-size: 9px;
+  }
+
+  .btn-ready-toggle {
+    padding: 10px 18px;
+    font-size: 15px;
+  }
+
+  .lobby-profile-card {
+    grid-template-columns: 44px minmax(0, 1fr);
+    padding: 8px 12px;
+    row-gap: 6px;
+  }
+
+  .lobby-character-preview {
+    width: 44px;
+    height: 44px;
   }
 }
 
@@ -2198,10 +2237,12 @@
   box-sizing: border-box;
 }
 
+/* Yükseklik duyarlı: kısa yatay telefonda (320-430px) buton yarım-kutudan
+   taşmasın; genişlik yalnız tavanı belirler. */
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .action-dash-btn {
-    width: clamp(120px, 22vw, 148px);
-    height: clamp(120px, 22vw, 148px);
+    width: clamp(96px, min(22vw, 26vh), 148px);
+    height: clamp(96px, min(22vw, 26vh), 148px);
   }
 }
 
@@ -2233,8 +2274,8 @@
 
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .action-spin-btn {
-    width: clamp(120px, 22vw, 148px);
-    height: clamp(120px, 22vw, 148px);
+    width: clamp(96px, min(22vw, 26vh), 148px);
+    height: clamp(96px, min(22vw, 26vh), 148px);
   }
 }
 
@@ -2365,10 +2406,13 @@
 
 /* Virtual Floating Dynamic Joystick on Phone
    Faz 2: görünür, thumb boyutlu, yumuşak halkalı Brawl dili. Geometri aynıdır
-   (controllerLayout.js ölçüleri + bindJoystick); yalnız sunum değişti. */
+   (controllerLayout.js ölçüleri + bindJoystick); yalnız sunum değişti.
+   Taban kutusuna (%100) ve 136px tavana kilitlidir: yarım-kutu vh ile
+   küçüldüğünde taban taşmaz, JS ölçümü (data-controller-layout-target)
+   görünürlükle aynı kalır. */
 .phone-joy-base {
-  width: clamp(116px, 28vw, 136px);
-  height: clamp(116px, 28vw, 136px);
+  width: min(136px, 100%);
+  height: min(136px, 100%);
   border-radius: 50%;
   border: 2.5px solid var(--joy-ring);
   background:
@@ -2497,7 +2541,9 @@
   .tanks-arcade-view,
   .steer-action-view {
     align-items: flex-end;
-    padding-bottom: max(12px, env(safe-area-inset-bottom, 12px), 12vh);
+    /* Kuşak payı telefon yatayında 12vh; tablet/masaüstü yatayında 64px'te
+       kelepçelenir — dikey kuşak matematiği geniş ekrana taşmasın. */
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 12px), min(12vh, 64px));
   }
 
   .joystick-action-view .joystick-half,
@@ -2513,7 +2559,7 @@
   }
 
   .pong-controller-view {
-    padding-bottom: max(16px, env(safe-area-inset-bottom, 16px), 10vh);
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 16px), min(10vh, 56px));
   }
 
   /* Stage 2 control-deck scrim: on a phone the field is now full-bleed
@@ -2528,7 +2574,7 @@
     content: '';
     position: absolute;
     inset: auto 0 0 0;
-    height: 38vh;
+    height: min(38vh, 170px);
     pointer-events: none;
     background: linear-gradient(
       to top,

@@ -39,16 +39,20 @@
 
 .games-head .tab-strip { flex: 1 1 auto; }
 
-/* Izgara DİKEY KAYAR: 4 sütun sabit, satırlar otomatik; taşan içerik iç
-   scroller'da akar. Kartlar kare kalır (kapak `object-fit: cover`). */
+/* Izgara DİKEY KAYAR: 4 sütun sabit, satırlar içeriğe göre uzar; taşan içerik
+   iç scroller'da akar. Kartlar kare kalır (kapak `object-fit: cover`).
+   FLEX+WRAP bilerek tercih edildi: CSS Grid'de sabit yükseklikli scroll
+   kapsayıcısında `auto` satırlar aspect-ratio katkısını yitirip kapsayıcıya
+   sıkıştırılıyor (satır 92px, kart 142px) — kısa yatay telefonda satırlar
+   üst üste biniyordu. Flex satırları her zaman en uzun kartla boylanır. */
 .games-grid {
+  --games-gap: clamp(8px, 1.1vw, 14px);
   flex: 1 1 auto;
   min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: auto;
-  align-content: start;
-  gap: clamp(8px, 1.1vw, 14px);
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: var(--games-gap);
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
@@ -68,6 +72,7 @@
 
 .game-card {
   position: relative;
+  flex: 0 0 calc((100% - 3 * var(--games-gap)) / 4);
   aspect-ratio: 1;
   min-height: 0;
   padding: 0;

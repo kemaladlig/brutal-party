@@ -190,7 +190,11 @@ function buildCard() {
     paintSelection(prof);
   });
 
-  editor.append(tabs.node, panels, diceBtn);
+  // Dice sekme şeridiyle aynı satırda: kısa yatayda paneller küçülürken
+  // buton akışın sonunda overflow:hidden altında kaybolmasın.
+  const toolbar = el('div', 'profile-toolbar');
+  toolbar.append(tabs.node, diceBtn);
+  editor.append(toolbar, panels);
   body.append(editor);
 
   function paintSelection(prof) {

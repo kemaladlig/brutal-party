@@ -1,6 +1,7 @@
 // Ortak arena görsel kiti — engeller, layout oluşturma ve power-up rozetleri tek yerden.
 // Motorlar buildLayout(name, arena) çağırabilir; ÇİZİM (drawObstacle, drawPickup) buradan gelir.
 import { drawTabletopIcon, hasTabletopIcon } from './tabletopIcons.js';
+import { fieldTheme } from './fieldKit.js';
 
 export const PICKUP_META = {
   TURBO:        { label: 'TRB', icon: 'zap', glyph: '⚡', color: '#FFB020', ink: '#241C15' },
@@ -29,11 +30,136 @@ export const PICKUP_META = {
   REPAIR_TILES: { label: 'TAM', icon: 'hammer', glyph: '🔨', color: '#35B36A', ink: '#FFFFFF' },
 };
 
-const OBSTACLE_STYLES = {
-  stone: { top: '#5A524C', fill: '#433D39', bevel: 'rgba(255,255,255,0.22)', edge: '#23201D', shadow: 'rgba(20, 16, 31, 0.32)' },
-  dark:  { top: '#302A3D', fill: '#221D2E', bevel: 'rgba(255,255,255,0.18)', edge: '#130F1A', shadow: 'rgba(10, 8, 20, 0.42)' },
-  crate: { top: '#9A7745', fill: '#7A5B32', bevel: 'rgba(255,255,255,0.24)', edge: '#4C351B', shadow: 'rgba(20, 16, 31, 0.32)' },
+/**
+ * Engel derileri — TEK kaynak, DIŞA AÇIK kayıt defteri.
+ *
+ * Eskiden private'tı ve 3 deri vardı; motorlar yalnız o üçünü seçebiliyordu.
+ * Artık `THEME_BASE.block` bir deri kimliği taşır, motor hex SEÇMEZ: sahaya
+ * geçtiği temayı engeline de geçirir (`opts.theme`).
+ *
+ * `detail` bir fonksiyondur ve YAPILMAZ: blok başına karede gradyan üretmek
+ * (12 blok × 60 fps = saniyede 720 nesne) telefonda GC takılması olarak geri
+ * döner. Detaylar yalnız düz dolgu/çizgi kullanır.
+ */
+export const OBSTACLE_STYLES = {
+  stone: { top: '#5A524C', fill: '#433D39', bevel: 'rgba(255,255,255,0.22)', edge: '#23201D', shadow: 'rgba(20, 16, 31, 0.32)', detail: detailStone },
+  dark:  { top: '#302A3D', fill: '#221D2E', bevel: 'rgba(255,255,255,0.18)', edge: '#130F1A', shadow: 'rgba(10, 8, 20, 0.42)', detail: null },
+  crate: { top: '#9A7745', fill: '#7A5B32', bevel: 'rgba(255,255,255,0.24)', edge: '#4C351B', shadow: 'rgba(20, 16, 31, 0.32)', detail: detailCrate },
+
+  // Soğuk metal: tek speküler şerit, koyu iç dudağ.
+  metal: { top: '#8A9099', fill: '#6B7280', bevel: 'rgba(255,255,255,0.34)', edge: '#2F343B', shadow: 'rgba(16, 20, 28, 0.38)', detail: detailMetal },
+  // Buz: iç içe iki kontur, açık gölge.
+  ice: { top: '#D8EEF7', fill: '#8FCBDE', bevel: 'rgba(255,255,255,0.55)', edge: '#3E7C93', shadow: 'rgba(30, 70, 86, 0.26)', detail: detailIce },
+  // Kaya: kırık köşe iki üçgen + tanecik.
+  rock: { top: '#5E584F', fill: '#4A4640', bevel: 'rgba(255,255,255,0.16)', edge: '#28251F', shadow: 'rgba(20, 16, 31, 0.36)', detail: detailRock },
+  // Ağır kasa: kasa derisi + iki kuşak.
+  crateHeavy: { top: '#8A6A3E', fill: '#5F451F', bevel: 'rgba(255,255,255,0.20)', edge: '#33230E', shadow: 'rgba(16, 12, 24, 0.40)', detail: detailCrateHeavy },
+  // Tehlike: gövde koyu, uyarı şeritleri sabit kehribar.
+  hazard: { top: '#3A3346', fill: '#221D2E', bevel: 'rgba(255,255,255,0.14)', edge: '#130F1A', shadow: 'rgba(10, 8, 20, 0.42)', detail: detailHazard },
+  // Kaideli taş: AÇIK zeminli sahalarda blok "cisim" olarak okunsun diye.
+  // (Hepsi #433D39 olunca blok çerçeveye gömülüp düzleşiyor.)
+  plinth: { top: '#D8D0C2', fill: '#B7AC98', bevel: 'rgba(255,255,255,0.55)', edge: '#6E665A', shadow: 'rgba(40, 34, 24, 0.28)', detail: detailPlinth },
 };
+
+/** Deri detayları — blok başına 0-2 op, tek path'te toplanır. */
+function detailStone(ctx, x, y, w, h, u) {
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  const s = Math.max(1, 2 * u);
+  ctx.fillRect(x + w * 0.22, y + h * 0.3, s, s);
+  ctx.fillRect(x + w * 0.58, y + h * 0.16, s, s);
+  ctx.fillRect(x + w * 0.72, y + h * 0.46, s, s);
+}
+
+function detailCrate(ctx, x, y, w, h, u) {
+  ctx.strokeStyle = 'rgba(40, 26, 10, 0.45)';
+  ctx.lineWidth = Math.max(1, 1.6 * u);
+  ctx.beginPath();
+  ctx.moveTo(x + 2 * u, y + h * 0.5); ctx.lineTo(x + w - 2 * u, y + h * 0.5);
+  ctx.moveTo(x + w * 0.5, y + 2 * u); ctx.lineTo(x + w * 0.5, y + h - 2 * u);
+  ctx.stroke();
+}
+
+function detailCrateHeavy(ctx, x, y, w, h, u, style) {
+  ctx.fillStyle = style.edge;
+  const band = Math.max(1.5, 2.6 * u);
+  ctx.fillRect(x, y + h * 0.2, w, band);
+  ctx.fillRect(x, y + h * 0.66, w, band);
+}
+
+function detailMetal(ctx, x, y, w, h, u) {
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  ctx.fillRect(x + Math.min(w * 0.16, 4 * u), y + 2 * u, Math.max(1, w * 0.12), Math.max(2, h - 4 * u));
+}
+
+function detailIce(ctx, x, y, w, h, u) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = Math.max(1, 1.4 * u);
+  const inset = Math.max(1.5, 3 * u);
+  ctx.strokeRect(x + inset, y + inset, Math.max(1, w - inset * 2), Math.max(1, h - inset * 2));
+}
+
+function detailRock(ctx, x, y, w, h, u) {
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  const c = Math.max(2, Math.min(w, h) * 0.2);
+  ctx.beginPath();
+  ctx.moveTo(x, y + c); ctx.lineTo(x + c, y); ctx.lineTo(x, y); ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath();
+  ctx.moveTo(x + w, y + h - c); ctx.lineTo(x + w - c, y + h); ctx.lineTo(x + w, y + h); ctx.closePath();
+  ctx.fill();
+}
+
+function detailPlinth(ctx, x, y, w, h, u, style) {
+  ctx.strokeStyle = style.edge;
+  ctx.globalAlpha = 0.35;
+  ctx.lineWidth = Math.max(1, 1.2 * u);
+  const inset = Math.max(2, 4 * u);
+  ctx.strokeRect(x + inset, y + inset, Math.max(1, w - inset * 2), Math.max(1, h - inset * 2.4));
+  ctx.globalAlpha = 1;
+}
+
+/** Uyarı şeritleri: üst yüze kırpılmış çapraz çizgiler. Sayı BAĞLIDIR. */
+function detailHazard(ctx, x, y, w, h, u) {
+  const topH = h * 0.42;
+  if (topH < 4) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, topH);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(255, 209, 34, 0.85)';
+  ctx.lineWidth = Math.max(2, 3.4 * u);
+  ctx.beginPath();
+  // Adım hem genişliğe hem şerit yüksekliğine bölünür ve SAYI 4'te bağlanır:
+  // `w/4` tek başına uzun-fişek bir blokta 17 çapraz üretiyordu (op bütçesini
+  // tek aşan buydu). Her çapraz 2 op (moveTo + lineTo).
+  const step = Math.max(7, w / 3, topH / 2);
+  for (let i = 0; i < 4 && (i - 1) * step < w + topH; i += 1) {
+    ctx.moveTo(x + (i - 1) * step, y + topH);
+    ctx.lineTo(x + (i - 1) * step + topH, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Çizilecek deriyi çözer: açık `variant` her zaman kazanır (motorlar ona
+ * güveniyor), yoksa tema'nın `block` kimliği, o da yoksa `stone`.
+ *
+ * KARE BAŞINA TAHSİZ YOK: bu fonksiyon çağrı başına nesne ÜRETMEZ — tablodaki
+ * hazır referansı döndürür. Üretirse 12 blok × 60 fps = saniyede 720 nesne eder.
+ */
+export function obstacleStyle(opts = {}) {
+  const id = opts.variant || themeBlockId(opts.theme) || 'stone';
+  return OBSTACLE_STYLES[id] || OBSTACLE_STYLES.stone;
+}
+
+/** Tema kimliğinden (string ya da palet nesnesi) varsayılan engel derisini okur. */
+function themeBlockId(theme) {
+  if (!theme) return null;
+  const palette = typeof theme === 'string' ? fieldTheme(theme) : theme;
+  return palette && typeof palette.block === 'string' ? palette.block : null;
+}
 
 // ---------------------------------------------------------------------------
 // Düzen yerleşimi — en-boy oranı farkındalığı
@@ -368,22 +494,137 @@ function pathRoundRect(ctx, x, y, w, h, r) {
   }
 }
 
-// Tactile Brawl Stars tarzı engel bloğu: yuvarlak köşeler, 3B basık alt kenar, üst bevel ışığı ve yumuşak zemin gölgesi.
+/**
+ * Yumuşak temas gölgesi damgası — BİR KEZ üretilir, varlık başına tek `drawImage`.
+ *
+ * Neden elips değil: 3 iç-içe elips yumuşak düşüşün yalnız TAKLİDİDİR ve kenarda
+ * görünen bantlar bırakır — kullanıcının "kalitesiz / ben buradayım der gibi"
+ * dediği şey tam olarak bu bandalanmaydı. Gerçek radyal düşüş bir bitmap'te
+ * bir kez hesaplanır, kare başına maliyeti tek blit. `shadowBlur` DEĞİL: o her
+ * çizimde konvolüsyon yapar ve GPU hızlı yolunu kapatır.
+ *
+ * 64×64 ≈ 16 KB. Alfa tavanı 0.17 — önceki sert yolun ~0.15 çekirdeğinden bile
+ * düşük okunur, çünkü ortalama düşüş çok daha hızlı sıfıra iner.
+ */
+const SHADOW_SPRITE_SIZE = 64;
+const SHADOW_SPRITE_STOPS = [
+  [0, 'rgba(18, 14, 28, 0.17)'],
+  [0.35, 'rgba(18, 14, 28, 0.11)'],
+  [0.65, 'rgba(18, 14, 28, 0.04)'],
+  [1, 'rgba(18, 14, 28, 0)'],
+];
+let shadowSprite = null;
+let shadowSpriteTried = false;
+
+function getShadowSprite() {
+  if (shadowSprite || shadowSpriteTried) return shadowSprite;
+  shadowSpriteTried = true;
+  if (typeof document === 'undefined' || typeof document.createElement !== 'function') return null;
+  try {
+    const canvas = document.createElement('canvas');
+    const g = canvas.getContext && canvas.getContext('2d');
+    if (!g) return null;
+    canvas.width = SHADOW_SPRITE_SIZE;
+    canvas.height = SHADOW_SPRITE_SIZE;
+    const half = SHADOW_SPRITE_SIZE / 2;
+    const grad = g.createRadialGradient(half, half, 0, half, half, half);
+    for (const [stop, color] of SHADOW_SPRITE_STOPS) grad.addColorStop(stop, color);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, SHADOW_SPRITE_SIZE, SHADOW_SPRITE_SIZE);
+    shadowSprite = canvas;
+  } catch {
+    shadowSprite = null;
+  }
+  return shadowSprite;
+}
+
+/** DOM'suz ortam (test/SSR) için düşüş: üç iç-içe elips, bantlı ama çizilmeyen. */
+function contactShadowFallback(ctx, cx, baseY, rx, ry, style) {
+  ctx.fillStyle = style.shadow || 'rgba(26, 26, 26, 0.32)';
+  const layers = [[1, 0.05], [0.72, 0.05], [0.45, 0.06]];
+  for (const [scale, alpha] of layers) {
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.ellipse(cx, baseY, rx * scale, ry * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/**
+ * Bloğun TABANINA oturan, çok hafif temas gölgesi.
+ *
+ * İki kural: (1) boyut bloğun **ayak izininden** türer, yüksekliğinden değil —
+ * uzun-fişek bloğun altına dev gri leke koymak, gölgeyi "bloğun gövdesinin
+ * kopyası" sanmaktan doğan hataydı; (2) ışık yönü saha dilinde sabit
+ * (sol-üstten, bkz. `fieldKit.paintFloorBase`), bu yüzden YATAY OFSET yok —
+ * gölge her zaman tam altta ve belli belirsiz.
+ */
+function contactShadow(ctx, x, y, w, h, u, style, mass) {
+  const footprint = Math.min(w, h);
+  const cx = x + w / 2;
+  const baseY = y + h + Math.max(0.5, footprint * 0.03 + 0.8 * u);
+  const rx = w / 2 + Math.max(1, footprint * 0.04);
+  const ry = Math.max(1.2, footprint * 0.1 + u) * (0.85 + 0.3 * mass);
+  const sprite = getShadowSprite();
+  if (!sprite) {
+    contactShadowFallback(ctx, cx, baseY, rx, ry, style);
+    return;
+  }
+  // Birim kare damga → dikey ölçekle elipse dönüşür. `save/restore` zaten
+  // çağıranın elinde; burada yalnız transform sıkıştırıyoruz.
+  ctx.translate(cx, baseY);
+  ctx.scale(1, ry / rx);
+  ctx.drawImage(sprite, -rx, -rx, rx * 2, rx * 2);
+  ctx.scale(1, rx / ry);
+  ctx.translate(-cx, -baseY);
+}
+
+/**
+ * Blok başına deterministik "kabartma" [0,1): aynı kutu her cihazda aynı
+ * yükseklikte okunur.
+ *
+ * Girdi yalnız kutunun kendisidir — engel dikdörtgenleri world packet'te zaten
+ * taşınır, yani PAKET ALANI EKLENMEZ ve host ile client aynı değeri üretir.
+ * Kutu 4 px kovaya kuantlanır: paket `round1` ile 0.1 px'e yuvarladığı için ham
+ * float üzerinden hash'lemek host↔client bir kovayı tersleyebilirdi.
+ *
+ * SİLÜET VE BOUNDING KUTU DEĞİŞMEZ — yalnızca relief (alt kenar kalınlığı,
+ * gölge ofseti, detay) türer. Çarpışma algısı birebir doğru kalır.
+ */
+export function obstacleMass(obs) {
+  const q = (v) => Math.round((Number(v) || 0) / 4);
+  let h = Math.imul(q(obs.x) + 1, 374761393)
+    ^ Math.imul(q(obs.y) + 1, 668265263)
+    ^ Math.imul(q(obs.w) + 1, 1274126177)
+    ^ Math.imul(q(obs.h) + 1, 2246822507);
+  h = Math.imul(h ^ (h >>> 13), 3266489917) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+/**
+ * Tactile engel bloğu: yuvarlak köşeler, 3B basık alt kenar, üst bevel ışığı ve
+ * zemine oturan temas gölgesi.
+ *
+ * BÜTÇE: blok başına ~10 dolgu/stroke ve KARE BAŞINA SIFIR TAHSİZ. Bu yüzden alt
+ * koyulaştırma gradyanla değil, GÖVDE YOLUNUN ÜSTÜNE clip'lenmiş tek dolguyla
+ * yapılır; deri detayı `detail` fonksiyon tablosundan gelir (`drawObstacle`
+ * içine `if/else` zinciri büyümez). Tavan `arenaLayout.test.mjs`'te kilitli.
+ */
 export function drawObstacle(ctx, obs, opts = {}) {
-  const style = OBSTACLE_STYLES[opts.variant || 'stone'] || OBSTACLE_STYLES.stone;
+  const style = obstacleStyle(opts);
   const { x, y, w, h } = obs;
+  if (!(w > 0 && h > 0)) return;
   const u = Math.max(0.42, Math.min(1.5, Math.min(w, h) / 48));
   const r = Math.max(3, Math.min(10 * u, Math.min(w, h) * 0.22));
   const border = Math.max(1.5, 2.2 * u);
-  const bottomRim = Math.max(2, 3.5 * u);
-  const shadowY = 3.5 * u;
+  const mass = obstacleMass(obs);
+  const bottomRim = Math.max(2, 3.5 * u) * (0.7 + 0.6 * mass);
 
   ctx.save();
 
-  // 1. Yumuşak Zemin Gölgesi (sert siyah kutu yerine)
-  ctx.fillStyle = style.shadow || 'rgba(20, 16, 31, 0.32)';
-  pathRoundRect(ctx, x, y + shadowY, w, h, r);
-  ctx.fill();
+  // 1. Temas gölgesi — taban izinden türer, hafif, her zaman altta.
+  contactShadow(ctx, x, y, w, h, u, style, mass);
 
   // 2. Alt Gövde / 3B Basık Kenar
   ctx.fillStyle = style.fill;
@@ -405,7 +646,20 @@ export function drawObstacle(ctx, obs, opts = {}) {
     ctx.stroke();
   }
 
-  // 4. Dış Kontur
+  // 4. Alt kenar koyulaştırması — gövde yolu zaten canvas'ta, onu clip'leyip
+  //    tek dolgu yapıyoruz: +4 op, SIFIR tahsis (gradyan yerine).
+  ctx.save();
+  pathRoundRect(ctx, x, y, w, h, r);
+  ctx.clip();
+  ctx.globalAlpha = 0.32;
+  ctx.fillStyle = style.edge;
+  ctx.fillRect(x, y + h - bottomRim, w, bottomRim);
+  ctx.restore();
+
+  // 5. Deri detayı (0-2 op)
+  if (style.detail) style.detail(ctx, x, y, w, h, u, style);
+
+  // 6. Dış Kontur
   ctx.strokeStyle = style.edge;
   ctx.lineWidth = border;
   pathRoundRect(ctx, x, y, w, h, r);

@@ -927,7 +927,7 @@ export class HeistGame extends BaseMiniGame {
       playCashRegister();
       playVaultAlarm();
       attacker.vaultGold += 3;
-      this.addFloatingText(attacker.x, attacker.y - 30, '🛡️ KASA SAVUNMASI! (+3 BONUS)', '#FFDE59');
+      this.addFloatingText(attacker.x, attacker.y - 30, 'KASA SAVUNMASI! (+3 BONUS)', '#FFDE59');
     }
 
     // 2. Direct Vampiric Theft (Loot Siphon)
@@ -942,7 +942,7 @@ export class HeistGame extends BaseMiniGame {
 
       playCoinPickup();
       this.addFloatingText(attacker.x, attacker.y - 25, t('heist.robbed', stolen), '#FFDE59');
-      this.addFloatingText(victim.x, victim.y - 25, `-${stolen} 🪙 SOYULDUN!`, '#D84727');
+      this.addFloatingText(victim.x, victim.y - 25, `-${stolen} SOYULDUN!`, '#D84727');
 
       // Golden particle beam siphon from victim to attacker
       for (let s = 0; s < 12; s++) {

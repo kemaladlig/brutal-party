@@ -20,6 +20,8 @@ import {
   segmentCircleIntersection,
 } from '../core/physics2d.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
+import { paintBackdrop } from '../core/fieldKit.js';
+import { findAutoAimTarget } from '../core/autoAim.js';
 import { createPlayer, tickEffectTimers } from '../core/playerEntity.js';
 import { collectPickups, spawnPickup, tickPickupTimers } from '../core/pickupSystem.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
@@ -77,6 +79,9 @@ export const HORDE_TUNING = Object.freeze({
   PICKUP_MAX: 3,
   MAX_ENEMIES: HORDE_VIEW_LIMITS.enemies,
   MAX_PROJECTILES: 96,
+  // Şarjör yenileme: bu süre boyunca ateş edilmezse (meşgul olmasa bile) kısmen
+  // dolu şarjör kendini yeniden doldurur. Ateş her zaman sayacı sıfırlar.
+  AUTO_RELOAD_DELAY: 3,
 });
 
 // Gövde yarıçapları. Oyuncu 14, düşmanlar 19-30: aralık açıldı çünkü ölçülen
@@ -214,6 +219,7 @@ export class HordeGame extends BaseMiniGame {
       player.magazine = getPlayerWeapon(player).magazine;
       player.ammo = player.magazine;
       player.reloadTimer = 0;
+      player.idleReloadTimer = 0;
       player.weaponSwingTimer = 0;
       player.upgrades = {};
       player.loadoutChoiceCrateId = null;
@@ -415,6 +421,7 @@ export class HordeGame extends BaseMiniGame {
       player.magazine = getPlayerWeapon(player).magazine;
       player.ammo = player.magazine;
       player.reloadTimer = 0;
+      player.idleReloadTimer = 0;
       player.weaponSwingTimer = 0;
       player.upgrades = {};
       player.loadoutChoiceCrateId = null;
@@ -749,20 +756,61 @@ export class HordeGame extends BaseMiniGame {
     }
   }
 
-  onSlotAimHold(slotIndex, isDown) {
+  onSlotAimHold(slotIndex, isDown, { cancelled = false, tap = false } = {}) {
     const player = this.players[slotIndex];
     if (!player?.isJoined || !player.isAlive) return;
     const aimState = this.getAimState(slotIndex);
     player.isAiming = isDown && this.state === 'PLAYING' && this.isHoldToFireAim() && aimState?.active === true;
+    // HOLD_TO_FIRE'da tap tek başına ateş üretmez (basılı-tutma + force
+    // gerekir); hızlı dokunma tek atışlık auto-aim epizodudur.
+    if (!isDown && tap && !cancelled && !isBot(player)) {
+      if (!this.snapAimToNearestEnemy(player)) {
+        player.targetAngle = player.angle;
+      }
+      this.firePlayer(player);
+    }
+  }
+
+  snapAimToNearestEnemy(shooter) {
+    const hit = findAutoAimTarget(shooter, this.enemies, {
+      maxRange: fieldRadius(this.arena, 900, 0.35),
+      valid: (e) => !(e.spawnDelay > 0) && e.hp > 0,
+    });
+    if (hit) {
+      shooter.targetAngle = hit.angle;
+      shooter.angle = hit.angle;
+    }
+    return hit;
   }
 
   updatePlayerWeapon(player, dt) {
     if (player.weaponSwingTimer > 0) player.weaponSwingTimer = Math.max(0, player.weaponSwingTimer - dt);
+    // Şarjör yenileme: yalnız oyun sırasında, kısmen/boş dolu ateşli silahta ve
+    // yeniden doldurma sürmediğinde sayaç birikir. Ateş (`firePlayer`) sayacı
+    // sıfırlar; 3 sn (AUTO_RELOAD_DELAY) ateşsiz bekleyen oyuncu — nişan alsa
+    // bile — şarjörü otomatik doldurur. Böylece yarı boş şarjörle dalga arası
+    // beklerken "el boş gibi" kalmak yerine hazırda tam dolu olur.
+    const weapon = getPlayerWeapon(player);
+    if (
+      this.state === 'PLAYING'
+      && weapon.kind === 'gun'
+      && Number.isFinite(weapon.magazine)
+      && player.reloadTimer <= 0
+      && player.ammo < weapon.magazine
+    ) {
+      player.idleReloadTimer = (Number(player.idleReloadTimer) || 0) + dt;
+      if (player.idleReloadTimer >= HORDE_TUNING.AUTO_RELOAD_DELAY) {
+        player.idleReloadTimer = 0;
+        this.startReload(player);
+      }
+    } else {
+      player.idleReloadTimer = 0;
+    }
     if (player.reloadTimer <= 0) return;
     player.reloadTimer = Math.max(0, player.reloadTimer - dt);
     if (player.reloadTimer === 0) {
-      const weapon = getPlayerWeapon(player);
       player.ammo = Number.isFinite(weapon.magazine) ? weapon.magazine : -1;
+      player.idleReloadTimer = 0;
     }
   }
 
@@ -825,13 +873,15 @@ export class HordeGame extends BaseMiniGame {
     player.attackCooldown = weapon.fireInterval * (player.fastTimer > 0 ? 0.88 : 1);
     notifyFireShot(player);
     playShoot();
+    player.idleReloadTimer = 0;
     if (player.ammo <= 0) this.startReload(player);
   }
 
   fireBlade(player, weapon) {
-    player.weaponSwingTimer = 0.2;
+    player.weaponSwingTimer = Number.isFinite(weapon.swingTime) ? weapon.swingTime : 0.2;
     player.attackCooldown = weapon.fireInterval;
     notifyFireShot(player);
+    player.idleReloadTimer = 0;
     let hitAny = false;
     for (const enemy of this.enemies) {
       if (enemy.spawnDelay > 0) continue;
@@ -843,9 +893,12 @@ export class HordeGame extends BaseMiniGame {
       if (Math.abs(normalizeAngle(angle - player.angle)) > weapon.arc * 0.5) continue;
       if (this.hasBlockedShot(player.x, player.y, enemy.x, enemy.y)) continue;
       this.damageEnemy(enemy, weapon.damage, player.index, weapon.knockback, dx, dy, distance);
+      // Kesik izi: kırmızı hasar partikülüne ek olarak silah renginde kıvılcım
+      // — geniş yaylı bıçakta "hangi yön tarandı" hissi için.
+      this.spawnParticles(enemy.x, enemy.y - enemy.radius * 0.4, weapon.color, 4);
       hitAny = true;
     }
-    if (hitAny) this.addTrauma(0.2);
+    if (hitAny) this.addTrauma(0.3);
     playPaddleHit(0.75);
   }
 
@@ -945,6 +998,7 @@ export class HordeGame extends BaseMiniGame {
         player.magazine = getPlayerWeapon(player).magazine;
       player.ammo = player.magazine;
         player.reloadTimer = 0;
+        player.idleReloadTimer = 0;
         this.spawnFloatingText(player.x, player.y - 24, t(`horde.weapon.${crate.weaponId}`), crate.color);
       } else {
         this.applyLoadoutUpgrade(player, crate.upgradeId);
@@ -975,6 +1029,7 @@ export class HordeGame extends BaseMiniGame {
       bot.magazine = getPlayerWeapon(bot).magazine;
       bot.ammo = bot.magazine;
       bot.reloadTimer = 0;
+      bot.idleReloadTimer = 0;
     } else {
       this.applyLoadoutUpgrade(bot, crate.upgradeId);
     }
@@ -991,6 +1046,7 @@ export class HordeGame extends BaseMiniGame {
       player.magazine = getPlayerWeapon(player).magazine;
       player.ammo = player.magazine;
       player.reloadTimer = 0;
+      player.idleReloadTimer = 0;
     }
   }
 
@@ -1404,6 +1460,7 @@ export class HordeGame extends BaseMiniGame {
       player.attackCooldown = 0;
       player.reloadTimer = 0;
       resetFireFeedback(player);
+      player.idleReloadTimer = 0;
       player.magazine = getPlayerWeapon(player).magazine;
       player.ammo = player.magazine;
       player.loadoutChoiceCrateId = null;
@@ -1608,11 +1665,12 @@ export class HordeGame extends BaseMiniGame {
   render() {
     const { ctx } = this;
     ctx.save();
-    ctx.fillStyle = '#F4F4F0';
-    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
+    const scene = mapHordeScene(this, HORDE_TUNING);
+    // Sahanın dışı (masa) sarsıntıdan ETKİLENMEZ: tepsi masanın üstünde kayar,
+    // masa kaymaz. Bu yüzden backdrop `applyScreenShake`ten ÖNCE basılır.
+    paintBackdrop(ctx, this.viewport, this.arena, { theme: scene.theme });
     this.applyScreenShake(ctx);
 
-    const scene = mapHordeScene(this, HORDE_TUNING);
     drawHordeWorld(ctx, this.arena, scene, { withFx: this.state === 'PLAYING', now: this.lastTime });
     drawHordeParticles(ctx, this.particles);
     drawHordeStatus(ctx, this.arena, scene);

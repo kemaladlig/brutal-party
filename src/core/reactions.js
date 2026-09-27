@@ -5,20 +5,27 @@
 // `normalizeReactionKey` ağdan gelen değeri beyaz listeye indirger; eski
 // istemcilerin gönderdiği emojiler takma adla aynı anahtara çevrilir.
 //
-// Anahtar uzunluğu sunucudaki eski 8 karakterlik kırpma sınırına sığar; yeni
-// anahtar eklerken `REACTION_KEY_MAX` kontrolü testte kilitlidir.
+// `color`, her tepkinin GÖRSEL kimliğidir (dolu çıkartma "sticker" glifi).
+// Bu dosya sunucu tarafında da import edildiğinden renkler düz hex veridir;
+// tema/UI token'ları değildir. Anahtar uzunluğu sunucudaki eski 8 karakterlik
+// kırpma sınırına sığar; yeni anahtar eklerken `REACTION_KEY_MAX` kontrolü
+// testte kilitlidir.
 
 export const REACTION_KEY_MAX = 8;
 
 export const REACTIONS = Object.freeze([
-  Object.freeze({ key: 'laugh', labelKey: 'react.laugh' }),
-  Object.freeze({ key: 'flame', labelKey: 'react.flame' }),
-  Object.freeze({ key: 'skull', labelKey: 'react.skull' }),
-  Object.freeze({ key: 'heart', labelKey: 'react.heart' }),
-  Object.freeze({ key: 'star', labelKey: 'react.star' }),
-  Object.freeze({ key: 'crown', labelKey: 'react.crown' }),
-  Object.freeze({ key: 'zap', labelKey: 'react.zap' }),
-  Object.freeze({ key: 'ghost', labelKey: 'react.ghost' }),
+  Object.freeze({ key: 'laugh', labelKey: 'react.laugh', color: '#F2759B' }),
+  Object.freeze({ key: 'flame', labelKey: 'react.flame', color: '#F2782C' }),
+  Object.freeze({ key: 'skull', labelKey: 'react.skull', color: '#9AA5B5' }),
+  Object.freeze({ key: 'heart', labelKey: 'react.heart', color: '#E5474F' }),
+  Object.freeze({ key: 'star', labelKey: 'react.star', color: '#FFC53D' }),
+  Object.freeze({ key: 'crown', labelKey: 'react.crown', color: '#E8A33D' }),
+  Object.freeze({ key: 'zap', labelKey: 'react.zap', color: '#3B4EDE' }),
+  Object.freeze({ key: 'ghost', labelKey: 'react.ghost', color: '#AA9BF0' }),
+  Object.freeze({ key: 'kiss', labelKey: 'react.kiss', color: '#E0486D' }),
+  Object.freeze({ key: 'thumbsup', labelKey: 'react.thumbsup', color: '#2FA66E' }),
+  Object.freeze({ key: 'cry', labelKey: 'react.cry', color: '#5B8DEF' }),
+  Object.freeze({ key: 'sleepy', labelKey: 'react.sleepy', color: '#7D5CE6' }),
 ]);
 
 export const REACTION_KEYS = Object.freeze(REACTIONS.map((r) => r.key));
@@ -40,12 +47,25 @@ const LEGACY_ALIASES = Object.freeze({
   '⚡': 'zap',
   '😱': 'zap',
   '👻': 'ghost',
+  '💋': 'kiss',
+  '🥰': 'kiss',
+  '👍': 'thumbsup',
+  '🙏': 'thumbsup',
+  '😢': 'cry',
+  '😭': 'cry',
+  '😴': 'sleepy',
 });
 
 export const DEFAULT_REACTION = 'flame';
 
 export function isReactionKey(value) {
   return typeof value === 'string' && REACTION_SET.has(value);
+}
+
+/** Tepkinin çıkartma (sticker) dolgu rengi; bilinmiyorsa null. */
+export function reactionColorOf(key) {
+  if (typeof key !== 'string') return null;
+  return REACTIONS.find((r) => r.key === key)?.color || null;
 }
 
 /**

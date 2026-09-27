@@ -10,8 +10,8 @@ import {
   drawBombParticles,
   isValidBombWorldFrame,
 } from '../games/bombView.js';
-import { hashFieldSeed } from '../core/fieldKit.js';
-import { fitWorld, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
+import { fitWorld, worldScreenBox, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
@@ -24,8 +24,9 @@ export function createWorldViewRenderer() {
       const arena = { left, top, right, bottom, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
 
       ctx.save();
-      ctx.fillStyle = '#F4F0EA';
-      ctx.fillRect(0, 0, width, height);
+      // Sahanın dışı EKRAN uzayında çizilir; arenanın ekran kutusu `worldScreenBox`
+      // ile çözülür — dünya koordinatlarıyla çağrılırsa gölge sahadan kayar.
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'BOMB' });
       fitWorld(ctx, width, height, frame.arena, () => {
         const pillars = frame.pillars.map(([x, y, w, h]) => ({ x, y, w, h }));
         const carrierIndex = frame.carrier;

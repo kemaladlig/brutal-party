@@ -7,8 +7,8 @@ import {
   drawPongShockwaves,
   isValidPongWorldFrame,
 } from '../games/pongView.js';
-import { hashFieldSeed } from '../core/fieldKit.js';
-import { fitWorld, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
+import { fitWorld, worldScreenBox, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { t } from '../i18n.js';
 
 const PLAYER_FALLBACK = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -35,8 +35,9 @@ export function createWorldViewRenderer() {
       ));
 
       ctx.save();
-      ctx.fillStyle = '#F4F0EA';
-      ctx.fillRect(0, 0, width, height);
+      // Sahanın dışı EKRAN uzayında çizilir; arenanın ekran kutusu `worldScreenBox`
+      // ile çözülür — dünya koordinatlarıyla çağrılırsa gölge sahadan kayar.
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'PONG' });
       fitWorld(ctx, width, height, frame.arena, () => {
         drawPongArena(ctx, arena, frame.goals, { seed: hashFieldSeed('PONG', frame.roundId) });
         drawPongShockwaves(ctx, frame.ball?.shockwaves);

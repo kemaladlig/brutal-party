@@ -33,7 +33,13 @@ export function normalizeInputIntent(data, descriptor = null, source = 'network'
       intent = { type: 'action', id: 'aim', phase: 'press', ...(seq === null ? {} : { seq }) };
       break;
     case 'AIM_RELEASE':
-      intent = { type: 'action', id: 'aim', phase: 'release', ...(seq === null ? {} : { seq }) };
+      intent = {
+        type: 'action',
+        id: 'aim',
+        phase: 'release',
+        ...(seq === null ? {} : { seq }),
+        ...(data.tap === true ? { tap: true } : {}),
+      };
       break;
     case 'JOYSTICK_MOVE':
     case 'MOVE':

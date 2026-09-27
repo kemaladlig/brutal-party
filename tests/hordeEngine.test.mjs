@@ -134,6 +134,34 @@ test('remote joystick, held fire and dash share the current input contract', () 
   assert.equal(game.getAimState(0).held, false);
 });
 
+test('quick tap fires one auto-aimed shot at the nearest zombie', () => {
+  const game = setup();
+  const player = game.players[0];
+  player.weaponId = 'RIFLE';
+  player.ammo = 50;
+  player.attackCooldown = 0;
+  player.reloadTimer = 0;
+  player.x = 400;
+  player.y = 300;
+  player.angle = 0;
+  player.targetAngle = 0;
+  const before = game.projectiles.length;
+  game.enemies.push({
+    id: 'tap-target', type: 'chaser', x: 400, y: 100, radius: 14,
+    hp: 50, maxHp: 50, spawnDelay: 0, vx: 0, vy: 0, angle: 0,
+  });
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 0, dy: 0, angle: 0, force: 0, aimHeld: true, seq: 1 });
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 0, dy: 0, angle: 0, force: 0, seq: 2, tap: true });
+  assert.ok(game.projectiles.length > before, 'tap should fire once');
+  const shot = game.projectiles.at(-1);
+  assert.ok(shot.vy < 0 && Math.abs(shot.vx) < Math.abs(shot.vy), 'shot should chase the enemy above');
+
+  game.projectiles.length = before;
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 0, dy: 0, angle: 0, force: 0, aimHeld: true, seq: 3 });
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 0, dy: 0, angle: 0, force: 0, seq: 4 });
+  assert.equal(game.projectiles.length, before, 'release without tap must not fire');
+});
+
 test('neutral Horde aim does not fire until a real direction is held', () => {
   const game = setup();
   const player = game.players[0];

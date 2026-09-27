@@ -5,6 +5,13 @@
 //   3) Geçersizleştirme doğru anahtarlarda olur (seed, arena, dpr, variant).
 //   4) Katman AĞA ALAN EKLEMEZ — pilot oyunların paket anahtarları sabittir.
 //   5) DOM'suz ortamda (test/SSR) doğrudan çizime düşer, çökmez.
+//   6) OKUNABİLİRLİK BÜTÇESİ: zemin L* aralığı oyuncu renkleriyle çarpışamaz
+//      (bkz. §8 — bu kapı olmadan "daha güzel zemin" isteği kaçınılmaz olarak
+//      P3 sarısını zemine gömer).
+//   7) Parity: `unit` taşımayan world-view arenasının çizimi, kırpılmış `unit`'li
+//      host çizgisiyle BİREBİR aynıdır.
+//   8) Bake maliyeti ve yasaklı API'lar (shadowBlur / getImageData / pattern
+//      setTransform) kaynak taramasıyla kilitlidir.
 
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,6 +20,7 @@ import { join } from 'node:path';
 
 import {
   FIELD_THEMES,
+  THEME_FIELDS,
   drawField,
   fieldLayerStats,
   fieldTheme,
@@ -20,7 +28,8 @@ import {
   paintFieldLayer,
   releaseFieldLayers,
 } from '../src/core/fieldKit.js';
-import { computePlayfield } from '../src/core/playfield.js';
+import { computePlayfield, FIELD_DESIGN } from '../src/core/playfield.js';
+import { UI_COLORS } from '../src/ui/tokens.js';
 import { pongGoalPatches, pongGoalVariant } from '../src/games/pongView.js';
 import { createBombWorldPacket } from '../src/games/bombView.js';
 import { createPongWorldPacket } from '../src/games/pongView.js';
@@ -94,6 +103,15 @@ function installCanvasStub() {
   return created;
 }
 
+/**
+ * Alan yalnız SAHA KATMANLARINI döndürür. `fieldKit` artık birden fazla canvas
+ * sınıfı üretiyor ('layer' saha, 'tile' doku, 'backdrop' saha dışı); dizi
+ * konumuna göre assertion yapmak ilk eklenenle kayıyor — rol etiketi tek kararlı anahtar.
+ */
+function layersOf(created) {
+  return created.filter((canvas) => canvas.__fieldRole === 'layer');
+}
+
 // ---------------------------------------------------------------------------
 // 1. Deterministik seed
 // ---------------------------------------------------------------------------
@@ -128,16 +146,24 @@ test('field layer geometry stays inside the arena and scales with unit', () => {
 
   for (const arena of [tv, phone]) {
     const log = paint(arena, fieldTheme('BOMB'), { seed: 11 });
-    const rects = log
-      .filter((entry) => entry.startsWith('strokeRect('))
-      .map((entry) => entry.slice('strokeRect('.length, -1).split(',').map(Number));
-    const wall = rects.at(-1);
-    assert.equal(rects.length >= 2, true, 'iç çerçeve + duvar konturu çizilmeli');
+    // Çerçeve çizgileri iki biçimde gelebilir: `strokeRect` (iç çerçeve) ve
+    // `roundRect` + `stroke` (yuvarlak köşeli duvar). KONUMUNA göre değil,
+    // EN GENİŞ olanına göre denetlenir — bir şey sonradan eklendiğinde
+    // pozisyon-bazlı assertion yanlış hedefe geçip yine geçer.
+    const frames = log
+      .filter((e) => e.startsWith('strokeRect(') || e.startsWith('roundRect('))
+      // `roundRect` 5. argüman olarak yarıçap taşır; kutu yine ilk dördüdür.
+      .map((e) => e.slice(e.indexOf('(') + 1, -1).split(',').slice(0, 4).map(Number));
+    assert.ok(frames.length >= 3, `iç çerçeve + duvar bandı + dış kontur çizilmeli (${frames.length})`);
+    const wall = frames.reduce((a, b) => (b[2] * b[3] > a[2] * a[3] ? b : a));
     assert.equal(wall.length, 4, `duvar 4 argümanlı olmalı: ${wall}`);
-    // Duvar dikdörtgeni katman sınırları içinde kalmalı (yarım çizgi içeri alınır).
     assert.ok(wall[0] >= 0 && wall[1] >= 0, `duvar sol/üstten taşmamalı: ${wall}`);
     assert.ok(wall[0] + wall[2] <= arena.width + 0.01, 'duvar sağdan taşmamalı');
     assert.ok(wall[1] + wall[3] <= arena.height + 0.01, 'duvar alttan taşmamalı');
+    // Yuvarlatılmış köşe: dış kontur bir `roundRect` olmalı (köşeli çerçeve
+    // "ekrana yapıştırılmış kutu" okutuyordu — kullanıcı raporu).
+    const lastFrame = log.filter((e) => e.startsWith('roundRect('));
+    assert.ok(lastFrame.length >= 2, 'duvar bandı yuvarlak köşeli olmalı');
   }
 
   // Küçük saha (telefon) daha az dekor üretmeli: ince çizgi alias olmasın.
@@ -160,8 +186,9 @@ test('drawField bakes once and blits afterwards', () => {
   drawField(ctx, arena, opts);
   assert.equal(fieldLayerStats.bakes, 1);
   assert.equal(fieldLayerStats.blits, 0);
-  assert.equal(created.length, 1);
-  assert.equal(created[0].width, Math.round(arena.width * 1), 'dpr yoksa 1x backing store');
+  const layers = layersOf(created);
+  assert.equal(layers.length, 1, 'tek saha katmanı pişirilmeli');
+  assert.equal(layers[0].width, Math.round(arena.width * 1), 'dpr yoksa 1x backing store');
 
   drawField(ctx, arena, opts);
   drawField(ctx, arena, opts);
@@ -200,11 +227,16 @@ test('layer cache is bounded and releases evicted backing stores', () => {
     drawField(ctx, arena, { mode: 'BOMB', seed: hashFieldSeed('BOMB', round) });
   }
   // Beş ayrı katman pişirildi ama yalnız ikisi tutuluyor; LRU kalan üçünün
-  // backing store'u sıfırlanmalı (mobil bellek).
+  // backing store'u sıfırlanmalı (mobil bellek). Doku tile'ları serbest
+  // bırakılmaz — onlar raunttan bağımsız, oturum başına yeniden kullanılır.
   assert.equal(fieldLayerStats.bakes, 5);
-  const evicted = created.filter((canvas) => canvas.width === 0);
+  const layers = layersOf(created);
+  assert.equal(layers.length, 5, 'beş saha katmanı pişirilmeli');
+  const evicted = layers.filter((canvas) => canvas.width === 0);
   assert.equal(evicted.length, 3, `3 katman serbest bırakılmalı, ${evicted.length} bırakıldı`);
-  assert.ok(created[3].width > 0 && created[4].width > 0, 'en son iki katman tutulmalı');
+  assert.ok(layers[3].width > 0 && layers[4].width > 0, 'en son iki katman tutulmalı');
+  assert.equal(created.filter((c) => c.__fieldRole === 'tile').length, 1,
+    'doku deseni anahtarsız yeniden kullanılır, beş bake üretmez');
 });
 
 test('drawField falls back to direct painting when no canvas can be created', () => {
@@ -316,14 +348,167 @@ test('fieldKit never reads wall-clock or global randomness', () => {
   }
 });
 
-test('every theme is complete and the HORDE maps read from the registry', () => {
-  for (const [id, palette] of Object.entries(FIELD_THEMES)) {
-    for (const key of ['floor', 'floorEdge', 'grid', 'frame', 'accent', 'wall', 'wallShade', 'decal', 'motif', 'corners']) {
-      assert.equal(typeof palette[key], 'string', `${id}.${key} eksik`);
-    }
-  }
+test('theme ids resolve case-insensitively and unknown games share one field', () => {
+  // Alan bütünlüğü bir sonraki testte THEME_FIELDS'tan TÜRETİLİR olarak denetlenir;
+  // burada elle anahtar listesi yazmak, sözleşme her değiştiğinde yalan söyleyen
+  // bir ikinci kaynak olurdu (ilk hali tam olarak bunu yaptı).
   assert.equal(fieldTheme('foundry').accent, '#D84727');
   assert.equal(fieldTheme('FOUNDRY').motif, 'foundry', 'tema kimliği büyük/küçük harften bağımsız');
   assert.equal(fieldTheme('YOK').motif, FIELD_THEMES.default.motif, 'bilinmeyen oyun ortak sahaya düşer');
   assert.equal(fieldTheme({ floor: '#123456' }).floor, '#123456', 'nesne tema olarak kabul edilir');
+  // HORDE haritaları registry'den yayılır — oradan gelen tema kimliği çözülmeli.
+  for (const id of ['foundry', 'reactor', 'core']) {
+    assert.ok(FIELD_THEMES[id], `HORDE harita teması ${id} registry'de olmalı`);
+    assert.equal(fieldTheme(id), FIELD_THEMES[id]);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 7. Tema sözleşmesi — liste elle yazılmaz, THEME_FIELDS'tan TÜRETİLİR
+// ---------------------------------------------------------------------------
+test('themes carry every contract field, with primitive types only', () => {
+  const base = fieldTheme('default');
+  for (const [id, palette] of Object.entries(FIELD_THEMES)) {
+    for (const key of THEME_FIELDS) {
+      assert.ok(key in palette, `${id}.${key} eksik`);
+      assert.equal(typeof palette[key], typeof base[key], `${id}.${key} tipi THEME_BASE ile uyuşmalı`);
+    }
+  }
+  // Sığ yayılım tuzağı: HORDE haritaları temaları `{...FIELD_THEMES.foundry}`
+  // şeklinde türetir. Nested bir nesne üç haritada AYNI referansı taşır ve
+  // Object.freeze alt nesneyi dondurmaz. Bu yüzden sözleşme primitif ister.
+  for (const [id, palette] of Object.entries(FIELD_THEMES)) {
+    for (const key of THEME_FIELDS) {
+      assert.notEqual(typeof palette[key], 'object', `${id}.${key} nested olamaz (sığ yayılım)`);
+    }
+  }
+  // Yazım hatası sessizce varsayılanı ezmesin.
+  assert.equal(fieldTheme({ floorHighh: '#000000' }).floorHigh, base.floorHigh);
+});
+
+// ---------------------------------------------------------------------------
+// 8. OKUNABİLİRLİK BÜTÇESİ — "daha güzel zemin" ile "rekabetçi okunabilirlik"
+//    arasındaki pazarlığı sıfırlayan kapı.
+//
+//    Ölçülen gerçek: P3 sarısı #FFD24A L* = 85.93. Krem aile o kadar parlak ki
+//    tabanı koyulaştırarak derinlik satın alınamaz — `floorLow` #E6DDCC (L* 88.4)
+//    + vignette + duvar bandı sahanın alt yarısında zemini L* 85.9'a indirip
+//    sarıyla kontrastı SIFIRLAMIŞTI. Derinlik bundan böyle kroma ile kurulur.
+//    Bu testi gevşetmeden önce sarının yerine ne koyacağını söyle.
+// ---------------------------------------------------------------------------
+const srgbToLinear = (c) => {
+  const v = c / 255;
+  return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+};
+/** Yalnız CIE L* yeterli: ayrışma ışık şiddetiyle satın alınıyor/yitiriliyor. */
+function lstar(hex) {
+  const v = parseInt(String(hex).slice(1), 16);
+  const Y = 0.2126 * srgbToLinear((v >> 16) & 255)
+    + 0.7152 * srgbToLinear((v >> 8) & 255)
+    + 0.0722 * srgbToLinear(v & 255);
+  return Y > 0.008856 ? 116 * Y ** (1 / 3) - 16 : 903.3 * Y;
+}
+
+test('floor stays inside the legibility budget against every player color', () => {
+  const FLOOR_KEYS = ['floor', 'floorHigh', 'floorEdge', 'floorLow'];
+  // Vignette + duvar gölge bandının zeminden yediği pay; bütçenin içindedir.
+  const SHADING_ALLOWANCE = 1.5;
+  const players = UI_COLORS.players.map((hex) => ({ hex, L: lstar(hex) }));
+  const darkestPlayer = Math.min(...players.map((p) => p.L));
+
+  for (const [id, palette] of Object.entries(FIELD_THEMES)) {
+    const ramp = FLOOR_KEYS.map((key) => ({ key, L: lstar(palette[key]) }));
+    for (const { key, L } of ramp) {
+      assert.ok(L <= 97.5, `${id}.${key} L*=${L.toFixed(1)}: üst sınır 97.5 — üstü "bembeyaz"ın ta kendisi`);
+      assert.ok(L >= 92.5, `${id}.${key} L*=${L.toFixed(1)}: alt sınır 92.5 — taban sarıya yapışıyor`);
+    }
+    const span = Math.max(...ramp.map((r) => r.L)) - Math.min(...ramp.map((r) => r.L));
+    assert.ok(span <= 6, `${id}: zemin L* aralığı ${span.toFixed(1)} > 6 — sarı bütçesi`);
+    const floorMin = Math.min(...ramp.map((r) => r.L));
+    assert.ok(floorMin - SHADING_ALLOWANCE > darkestPlayer,
+      `${id}: en koyu zemin (${floorMin.toFixed(1)}) en koyu oyuncu renginden (${darkestPlayer.toFixed(1)}) yukarıda kalmalı`);
+  }
+});
+
+test('the brightest floor never blows out to white', () => {
+  for (const [id, palette] of Object.entries(FIELD_THEMES)) {
+    assert.ok(lstar(palette.floorHigh) < 97.5, `${id}.floorHigh beyaza patlıyor`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 9. Parity ve maliyet kapıları
+// ---------------------------------------------------------------------------
+test('a bare arena (no `unit` field) paints exactly like the clamped playfield', () => {
+  // World-view arenaları `unit` TAŞIMAZ (ör. ui/tanksWorldView.js kutu üretir).
+  // `arenaUnit` yedeği kırpılmazsa aynı cache anahtarı host'ta ve telefonda
+  // FARKLI geometri çizerdi.
+  for (const [w, h] of [PHONE, TABLET, [2340, 1080], [420, 900]]) {
+    const full = computePlayfield(w, h, 'standard');
+    const bare = { ...full };
+    delete bare.unit;
+    const seed = hashFieldSeed('BOMB', 4);
+    assert.deepEqual(paint(bare, fieldTheme('BOMB'), { seed }), paint(full, fieldTheme('BOMB'), { seed }),
+      `${w}x${h}: unit'suz arena farklı çizemez`);
+    // Kırpma gerçekten devrede: eşik altı bir kutu `minUnit`e oturmalı.
+    assert.ok(full.unit >= FIELD_DESIGN.minUnit && full.unit <= FIELD_DESIGN.maxUnit);
+  }
+});
+
+test('sub-pixel arena drift never re-bakes (2px key quantization)', () => {
+  installCanvasStub();
+  const arena = computePlayfield(...TABLET, 'standard');
+  const ctx = recorder();
+  drawField(ctx, arena, { mode: 'BOMB', seed: 9 });
+  drawField(ctx, { ...arena, left: arena.left + 0.6, top: arena.top + 1.1, width: arena.width + 0.8 }, { mode: 'BOMB', seed: 9 });
+  assert.equal(fieldLayerStats.bakes, 1, 'alt-piksel sürüklenme yeniden pişirmemeli');
+  assert.equal(fieldLayerStats.blits, 1);
+  // 2 px'ten büyük kayma AYNI katmanı yeniden kullanamaz (ölçek değişti).
+  drawField(ctx, { ...arena, width: arena.width + 40 }, { mode: 'BOMB', seed: 9 });
+  assert.equal(fieldLayerStats.bakes, 2);
+});
+
+test('the texture cache never changes the painted layer log', () => {
+  // Tile kendi canvas'ına kurulur; katman ctx'i yalnız `createPattern` + bir
+  // dolgu görür. Desen katman ctx'ine kurulsa idi, ikinci çağrıda cache isabeti
+  // logu kısaltır ve "aynı seed ⇒ aynı katman" assertion'ı bunu YAKALAMAZDI.
+  const created = installCanvasStub();
+  const arena = computePlayfield(...TABLET, 'standard');
+  const ctx = recorder();
+  drawField(ctx, arena, { mode: 'BOMB', seed: 21 });
+  const firstLayerLog = [...layersOf(created)[0].ctx.log];
+  releaseFieldLayers();
+  drawField(ctx, arena, { mode: 'BOMB', seed: 21 });
+  assert.deepEqual(layersOf(created)[0].ctx.log, firstLayerLog, 'desen önbelleği katman logunu değiştirmemeli');
+});
+
+test('bake cost stays bounded on a full-HD field', () => {
+  // Katman başına bedava ama SINIRSIZ bake = ilk karede 40 ms tekleme ve
+  // resize fırtınası. Sayı literal: bake op'ları artırılsa önce bu tavan konuşur.
+  const arena = computePlayfield(1920, 1080, 'standard');
+  const log = paint(arena, fieldTheme('default'), { seed: 12345 });
+  assert.ok(log.length < 900, `bake op sayısı ${log.length} — tavan 900`);
+});
+
+test('the bake path never touches the known perf and determinism cliffs', () => {
+  const source = readFileSync(join(process.cwd(), 'src/core/fieldKit.js'), 'utf8')
+    .split(/\r?\n/)
+    .filter((line) => !line.trim().startsWith('//') && !line.trim().startsWith('*'))
+    .join('\n');
+  for (const forbidden of [
+    'Math.random', 'Date.now', 'performance.now', 'new Date',
+    'shadowBlur',           // 2D canvas'ta GPU hızlı yolunu kapatır
+    'ctx.filter',           // tam ekran konvolüsyon
+    'createImageData', 'getImageData', // test recorder'ında .data undefined
+  ]) {
+    assert.equal(source.includes(forbidden), false, `fieldKit ${forbidden} kullanmamalı`);
+  }
+  // `setTransform` YALNIZ bake kurulumundaki iki satıra aittir (`lctx` ölçek
+  // dönüşümü). Desen YOLUNA ya da bir CanvasPattern'a taşınırsa çizim bozulur:
+  // recorder'da TypeError, gerçek ctx'te hizasız dikiş.
+  const setTransforms = source.match(/setTransform\(/g) || [];
+  const layerSetTransforms = source.match(/lctx\.setTransform\(/g) || [];
+  assert.equal(setTransforms.length, layerSetTransforms.length,
+    'setTransform yalnız lctx (bake kurulumu) üzerinde kullanılmalı');
+  assert.equal(layerSetTransforms.length, 2, 'iki bake kurulumu: saha katmanı + backdrop');
 });

@@ -8,7 +8,7 @@
 // Modal semantiği `overlayHost`'un sahipliğindedir (odak trap, Escape, scrim).
 
 import { openOverlay, closeOverlay } from './overlayHost.js';
-import { REACTIONS } from '../core/reactions.js';
+import { REACTIONS, reactionColorOf } from '../core/reactions.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { t } from '../i18n.js';
 import { escapeHtml } from '../net.js';
@@ -37,7 +37,7 @@ function renderContent(el) {
         ${REACTIONS.map((r) => `
           <button class="reaction-pick" type="button" data-reaction="${r.key}"
             aria-label="${escapeHtml(t(r.labelKey))}" title="${escapeHtml(t(r.labelKey))}">
-            ${getTabletopIconSvg(r.key, { size: 26, color: 'currentColor', strokeWidth: 2.4 })}
+            ${getTabletopIconSvg(r.key, { size: 28, color: reactionColorOf(r.key) || 'currentColor', strokeWidth: 2.2 })}
           </button>`).join('')}
       </div>
     </div>`;

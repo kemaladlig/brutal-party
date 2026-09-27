@@ -8,7 +8,8 @@ import {
   isValidHordeWorldFrame,
 } from '../games/hordeView.js';
 import { t } from '../i18n.js';
-import { drawWorldBanner, fitWorld, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { drawWorldBanner, fitWorld, worldScreenBox, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from './tokens.js';
 
 const HORDE_FALLBACK = ['#D84727', '#1D5D8A', '#D99B26', '#2D6A4F'];
@@ -37,8 +38,9 @@ export function createWorldViewRenderer() {
       }));
 
       ctx.save();
-      ctx.fillStyle = '#F4F4F0';
-      ctx.fillRect(0, 0, width, height);
+      // Sahanın dışı EKRAN uzayında çizilir; arenanın ekran kutusu `worldScreenBox`
+      // ile çözülür — dünya koordinatlarıyla çağrılırsa gölge sahadan kayar.
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { theme: scene.theme });
       fitWorld(ctx, width, height, frame.arena, () => {
         drawHordeWorld(ctx, arena, scene, { withFx: frame.gameState === 'PLAYING', now });
         drawHordeStatus(ctx, arena, scene);

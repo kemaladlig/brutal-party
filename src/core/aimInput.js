@@ -227,6 +227,8 @@ export class AimInputState {
       hasDirection,
       angle,
       cancelled: owner.cancelled,
+      // Quick-tap auto-aim is declarative: only the producer sets `tap`.
+      tap: input.tap === true || data.tap === true,
     };
   }
 

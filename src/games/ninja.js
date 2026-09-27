@@ -834,7 +834,7 @@ export class NinjaGame extends BaseMiniGame {
           this.floatingTexts.push({
             x: victim.x,
             y: victim.y - 20,
-            text: `⚔️ ${attacker.name} +1★`,
+            text: `${attacker.name} +1★`,
             color: attacker.color,
             bg: '#141416',
             pop: true,

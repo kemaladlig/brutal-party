@@ -302,3 +302,91 @@ test('an empty field yields no obstacles', () => {
     assert.deepEqual(buildLayout(name, { cx: 0, cy: 0, size: 0 }), [], name);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Obstacle material (Faz 2) — skins, relief, and the zero-allocation rule
+// ---------------------------------------------------------------------------
+
+const { OBSTACLE_STYLES, obstacleStyle, obstacleMass, drawObstacle } = await import(
+  '../src/core/arenaKit.js'
+);
+const { FIELD_THEMES } = await import('../src/core/fieldKit.js');
+
+/** A ctx that fails loudly on the two things that cost GC pressure per frame. */
+function strictRecorder() {
+  const log = [];
+  const bomb = (name) => { throw new Error(`drawObstacle allocated ${name} per frame`); };
+  const target = {
+    log,
+    createLinearGradient: () => bomb('createLinearGradient'),
+    createRadialGradient: () => bomb('createRadialGradient'),
+    createPattern: () => bomb('createPattern'),
+  };
+  return new Proxy(target, {
+    get(t, key) {
+      if (key in t) return t[key];
+      return (...args) => { log.push(`${String(key)}(${args.map((a) => (typeof a === 'number' ? Math.round(a * 100) / 100 : String(a))).join(',')})`); };
+    },
+    set(t, key, value) { t[key] = value; return true; },
+  });
+}
+
+test('every obstacle skin carries the full palette and a legal detail hook', () => {
+  for (const [id, style] of Object.entries(OBSTACLE_STYLES)) {
+    for (const key of ['top', 'fill', 'bevel', 'edge', 'shadow']) {
+      assert.equal(typeof style[key], 'string', `${id}.${key} missing`);
+    }
+    assert.ok(style.detail === null || typeof style.detail === 'function',
+      `${id}.detail must be a function or null — no if/else chain grows in drawObstacle`);
+  }
+  // The three legacy ids must survive: seven engines pass them explicitly.
+  for (const id of ['stone', 'dark', 'crate']) {
+    assert.ok(OBSTACLE_STYLES[id], `${id} is referenced by engines and may not be removed`);
+  }
+});
+
+test('skin resolution: explicit variant wins, then the theme, then stone', () => {
+  assert.equal(obstacleStyle({ variant: 'crate' }), OBSTACLE_STYLES.crate);
+  assert.equal(obstacleStyle({}), OBSTACLE_STYLES.stone, 'no hint at all falls back to stone');
+  assert.equal(obstacleStyle({ variant: 'YOK' }), OBSTACLE_STYLES.stone);
+  // Theme-driven: the engine picks no hex, it forwards the same theme it gave
+  // drawField. `variant` still overrides so nothing that passes one breaks.
+  assert.equal(obstacleStyle({ theme: 'foundry' }), OBSTACLE_STYLES[FIELD_THEMES.foundry.block]);
+  assert.equal(obstacleStyle({ theme: 'reactor' }), OBSTACLE_STYLES.metal);
+  assert.equal(obstacleStyle({ theme: 'reactor', variant: 'dark' }), OBSTACLE_STYLES.dark);
+  assert.equal(obstacleStyle({ theme: FIELD_THEMES.core }), OBSTACLE_STYLES[FIELD_THEMES.core.block]);
+  // Resolution must not allocate: it returns the registry's own reference.
+  assert.equal(obstacleStyle({ theme: 'reactor' }), obstacleStyle({ theme: 'reactor' }));
+});
+
+test('obstacle relief is deterministic and survives world-packet rounding', () => {
+  const obs = { x: 412.37, y: 260.91, w: 96, h: 64 };
+  const m = obstacleMass(obs);
+  assert.ok(m >= 0 && m < 1, `mass must be in [0,1), got ${m}`);
+  assert.equal(obstacleMass({ ...obs }), m, 'pure function of the rect');
+  // World packets round coordinates to 0.1 (worldCore.round1). Bucketing to 4px
+  // means host floats and client-rounded values must agree.
+  assert.equal(obstacleMass({ ...obs, x: 412.4, y: 260.9 }), m, '0.1px packet rounding may not flip the bucket');
+  assert.notEqual(obstacleMass({ ...obs, x: 900, y: 260.91 }), m, 'different blocks differ');
+  // Relief must not move the silhouette: same rect, same drawn bounds.
+  const a = strictRecorder();
+  const b = strictRecorder();
+  drawObstacle(a, { x: 100, y: 100, w: 96, h: 64 }, { variant: 'stone' });
+  drawObstacle(b, { x: 100, y: 100, w: 96, h: 64 }, { variant: 'crate' });
+  assert.ok(a.log.length > 0 && b.log.length > 0);
+});
+
+test('drawObstacle allocates nothing per frame and stays within its op budget', () => {
+  for (const variant of Object.keys(OBSTACLE_STYLES)) {
+    const ctx = strictRecorder();
+    drawObstacle(ctx, { x: 120, y: 80, w: 96, h: 72 }, { variant });
+    // save/restore/clip/beginPath are state bookkeeping, not raster work.
+    const raster = ctx.log.filter((e) => /^(fill|stroke|fillRect|strokeRect|ellipse|moveTo|lineTo|arc)\(/.test(e));
+    assert.ok(raster.length <= 26, `${variant}: ${raster.length} raster/path ops (budget 26)`);
+    assert.ok(!ctx.log.some((e) => e.includes('Gradient')), `${variant} must not build gradients`);
+  }
+  // Degenerate rects are skipped instead of throwing.
+  const ctx = strictRecorder();
+  drawObstacle(ctx, { x: 0, y: 0, w: 0, h: 0 }, {});
+  assert.equal(ctx.log.length, 0);
+});

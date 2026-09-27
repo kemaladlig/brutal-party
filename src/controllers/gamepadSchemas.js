@@ -79,7 +79,7 @@ export const GAMEPAD_SCHEMAS = {
       {
         id: 'tackle',
         action: 'TACKLE',
-        icon: '🥊',
+        icon: 'flame',
         label: t('pad.shove'),
         color: '#d99b26',
         cooldown: 3.5,
@@ -239,7 +239,7 @@ export const GAMEPAD_SCHEMAS = {
       {
         id: 'jump',
         action: 'DASH',
-        icon: '⏫',
+        icon: 'zap',
         label: t('pad.jump'),
         color: '#B5831F',
         cooldown: 1.6,

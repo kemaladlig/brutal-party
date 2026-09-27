@@ -74,3 +74,17 @@ test('aim lifecycle actions preserve their canonical aim intent', () => {
     type: 'action', id: 'aim', phase: 'release', seq: 8, source: 'network',
   });
 });
+
+test('quick-tap flag survives intent projection only when declared true', () => {
+  const descriptor = getControlDescriptor('ARCHER', GAMEPAD_SCHEMAS.ARCHER);
+  const tapped = normalizeInputIntent(
+    { action: 'AIM_RELEASE', dx: 0, dy: 0, angle: 0, force: 0, aimHeld: false, seq: 3, tap: true },
+    descriptor,
+  );
+  assert.equal(getInputIntent(tapped).tap, true);
+  const dragged = normalizeInputIntent(
+    { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1, aimHeld: false, seq: 4 },
+    descriptor,
+  );
+  assert.equal('tap' in getInputIntent(dragged), false);
+});
