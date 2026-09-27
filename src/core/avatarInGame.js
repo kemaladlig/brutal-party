@@ -4,7 +4,7 @@
  *
  * OYUN İÇİ AVATAR SÖZLEŞMESİ
  * Sahadaki karakter dekor değil, birimdir. Buradan geçen her avatar:
- *   - düz renk + kalın çerçeve + disk İÇİ hacim (sol üst ışık / sağ alt gölge)
+ *   - düz renk + seçilebilir halka + disk İÇİ hacim (sol üst ışık / sağ alt gölge)
  *   - büyütülmüş gözler, oyun durumundan gelen yüz ifadesi
  *   - koltuk fazına kaydırılmış göz kırpma
  *   - ASLA aksesuar / gövde deseni taşımaz
@@ -13,6 +13,7 @@
  */
 
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { rimHex } from './customizationManager.js';
 
 /**
  * Göz kırpma ritmi. Menü önizlemesinden (sabit 3.2s) ayrı: oyun içi hızlı ve
@@ -99,7 +100,14 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
     // test/harness yolu zaman bağımlı olmaz).
     blinkProgress: opts.isBlinking ? 1 : blinkState(opts.now, slotIndex),
     showPointer: opts.showPointer !== undefined ? opts.showPointer : true,
-    borderColor: opts.borderColor || '#1C1C1A',
+    // Halka: oyun-durumu sinyali (opts) > host senkronu (entity) > world-view
+    // hydration (slot avatarı) > klasik. View'lar koyu varsayılanı sabit
+    // yazmaz — yazarsa halka ezilir (bomb/heist/zone ternary'lerine bkz.).
+    borderColor: opts.borderColor
+      || player.rimColor
+      || rimHex(player.avatar?.rim, null)
+      || rimHex(opts.avatar?.rim, null)
+      || '#1C1C1A',
     borderWidth,
   });
 }

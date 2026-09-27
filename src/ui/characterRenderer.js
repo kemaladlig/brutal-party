@@ -1,15 +1,17 @@
 // Brutal Party — Birleşik Karakter Çizim Motoru (Unified Brutal Avatar Renderer)
 // Tüm mini-oyunlarda (BOMB, HEIST, CROWN, COLLAPSE, CLONE, NINJA, LASER, ZONE, vb.)
 // ve Karakter Özelleştirme Arayüzünde standart avatar çizimini sağlar.
-import { getSlotAvatar, getAvatarProfile, getBotPersona } from '../core/customizationManager.js';
+import { getSlotAvatar, getAvatarProfile, getBotPersona, rimHex } from '../core/customizationManager.js';
 
 /**
  * KARAKTER = DÜZ RENK + YÜZ. Erişuar ve gövde deseni YOK.
  *
  * Siluet her yerde tam yuvarlak: ölçülen çizilen bbox gövdeyle sınırlı
- * (36x37 @ r=16), yarıçap ve çarpışma aynı değeri paylaşıyor. Karakterin tek
- * iki özelliği rengi (10 palet + renk körü paleti) ve yüz ifadesi (12 ifade);
- * botlar da aynı sözleşme için yalnız isim/renk/yüz taşır.
+ * (36x37 @ r=16), yarıçap ve çarpışma aynı değeri paylaşıyor. Küresellik
+ * diskin İÇİNDE verilir (hacim gradyanları + iç alt gölge) — dışarı taşan
+ * geometri yoktur. Karakterin üç özelliği rengi (10 palet + renk körü
+ * paleti), yüz ifadesi (12 ifade) ve halka rengi (4 halka); botlar da aynı
+ * sözleşme için yalnız isim/renk/yüz taşır (halkaları sabit klasiktir).
  *
  * `faceMode: 'play'` — OYUN İÇİ yüz kipi: gözler büyür (0.24r → 0.30r) ve
  * disk içinde hacim (ışık/gölge) eklenir. Menü/lobi/kumanda önizlemesi
@@ -56,6 +58,30 @@ function playFaceShading(ctx, r) {
   const entry = { diffuse, shade };
   byRadius.set(key, entry);
   return entry;
+}
+
+/**
+ * Disk içi alt gölge (ambient occlusion) gradyanı — topu yere oturtan
+ * katman. Dışarı taşan geometriyle (yan duvar bandı) "kâsede top" gibi
+ * okunuyordu; bu katman clip'in İÇİNDE kalır, siluet değişmez. `playFaceShading`
+ * ile aynı cache deseni: karede yeni gradient üretilmez.
+ */
+const BODY_AO_CACHE = new WeakMap();
+
+function bodyAoGradient(ctx, r) {
+  let byRadius = BODY_AO_CACHE.get(ctx);
+  if (!byRadius) {
+    byRadius = new Map();
+    BODY_AO_CACHE.set(ctx, byRadius);
+  }
+  const key = Math.round(r * 4) / 4;
+  const cached = byRadius.get(key);
+  if (cached) return cached;
+  const g = ctx.createLinearGradient(0, r * 0.2, 0, r);
+  g.addColorStop(0, 'rgba(12, 6, 26, 0)');
+  g.addColorStop(1, 'rgba(12, 6, 26, 0.30)');
+  byRadius.set(key, g);
+  return g;
 }
 
 /**
@@ -109,7 +135,7 @@ function playFaceShading(ctx, r) {
     label = '',
     showPointer = false,
     pointerColor = '#FFFFFF',
-    borderColor = '#1A1A1A',
+    borderColor = null,
     borderWidth = 3,
     shadowOffset = 3,
     blinkProgress = 0, // 0 = açık, 1 = tam kapalı
@@ -118,6 +144,13 @@ function playFaceShading(ctx, r) {
 
   if (radius <= 0) return;
 
+  // Halka: çağıran açık renk vermediyse (oyun-durumu sinyali) avatarın halka
+  // seçimidir. Bot personaları sabit klasiktir — kimlikleri değişmez.
+  const ringHex = isBot
+    ? '#1A1A1A'
+    : rimHex(options.rim || avatarOpt?.rim || profileFallback?.rim);
+  const ringColor = borderColor || ringHex;
+
   ctx.save();
   ctx.translate(x, y);
   if (scale !== 1.0) ctx.scale(scale, scale);
@@ -125,11 +158,16 @@ function playFaceShading(ctx, r) {
 
   const r = radius;
 
-  // 1. Zemin Sert Gölge
+  // 1. Zemin temas gölgesi — yere oturan basık elips. Daire gölge gövdeyi
+  // "yüzen sticker" gibi gösteriyordu; elips temas hissi verir.
+  ctx.save();
+  ctx.translate(shadowOffset, r + Math.max(2, r * 0.12));
+  ctx.scale(1, 0.32);
   ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
   ctx.beginPath();
-  ctx.arc(shadowOffset, shadowOffset + 1, r, 0, Math.PI * 2);
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
 
   // 1b. Gövde (clip: hacim katmanı daire sınırını geçemesin)
   ctx.save();
@@ -152,14 +190,34 @@ function playFaceShading(ctx, r) {
     ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
   }
 
+  // Alt gölge (ambient occlusion): diskin alt üçte biri içten kararır,
+  // top yere oturur. Her kipte aynıdır — menü/saha farkı yalnız `play`/`volume`
+  // hacmidir, bu katman ortaktır.
+  if (!isMicro) {
+    ctx.fillStyle = bodyAoGradient(ctx, r);
+    ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
+  }
+
   ctx.restore(); // Clipping sonu
 
   // 2. Gövde Dış Çerçevesi (Neo-brutalist kalın kontur)
-  ctx.strokeStyle = isTackling ? '#FFDE59' : borderColor;
+  ctx.strokeStyle = isTackling ? '#FFDE59' : ringColor;
   ctx.lineWidth = isTackling ? borderWidth * 1.5 : borderWidth;
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.stroke();
+
+  // 2a. Halka dış tanımı: açık halka (beyaz) açık zeminde — önizleme platosu,
+  // krem saha — kayboluyordu. Koyu halkada görünmez, maliyeti tek arc yayımı,
+  // mikroda piksel çamuru olmasın diye kapalı.
+  if (!isMicro) {
+    const hair = Math.max(1, r * 0.02);
+    ctx.strokeStyle = 'rgba(26, 26, 26, 0.55)';
+    ctx.lineWidth = hair;
+    ctx.beginPath();
+    ctx.arc(0, 0, r + borderWidth / 2 + hair / 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 
   // 3. İsteğe Bağlı Yön Oku (Directional Pointer)
   if (showPointer) {
@@ -235,23 +293,46 @@ function playFaceShading(ctx, r) {
       ctx.stroke();
     }
   } else if (expression === 'SHADES') {
-    // Neo-brutalist Güneş Gözlüğü
-    const gx = r * 0.15;
-    const gw = r * 0.95;
-    const gh = r * 0.52;
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(gx, -gh / 2, gw * 0.75, gh);
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(gx, -gh / 2, gw * 0.75, gh);
+    // Neo-brutalist güneş gözlüğü: iki gözün üstünde İKİ yuvarlak cam + köprü
+    // + şakak kolu. (Eski tek bar bakış ekseni boyunca uzanıp gövdeyi kesiyordu.)
+    const lensR = eyeR * 1.3;
+    const drawLens = (ey) => {
+      ctx.fillStyle = '#1A1A1A';
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey, lensR, 0, Math.PI * 2);
+      ctx.fill();
+      // Açık gövdede kaybolmasın diye ince beyaz çerçeve (mikroda çamur olur).
+      if (!isMicro) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.lineWidth = Math.max(1, r * 0.03);
+        ctx.stroke();
+      }
+    };
+    drawLens(-eyeSpreadY);
+    drawLens(eyeSpreadY);
 
-    // Beyaz yansıma çizgisi
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(gx + 4, -gh / 4);
-    ctx.lineTo(gx + gw * 0.45, gh / 4);
-    ctx.stroke();
+    if (!isMicro) {
+      // Köprü: camların iç kenarları arası kısa hat (gömülüyse görünmez, zararsız).
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = Math.max(1.5, r * 0.06);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(eyeOffsetX, -eyeSpreadY + lensR * 0.75);
+      ctx.lineTo(eyeOffsetX, eyeSpreadY - lensR * 0.75);
+      // Şakak kolları: cam dışından gövde kenarına.
+      ctx.moveTo(eyeOffsetX - lensR * 0.85, -eyeSpreadY);
+      ctx.lineTo(eyeOffsetX - lensR * 0.85 - r * 0.3, -eyeSpreadY);
+      ctx.moveTo(eyeOffsetX - lensR * 0.85, eyeSpreadY);
+      ctx.lineTo(eyeOffsetX - lensR * 0.85 - r * 0.3, eyeSpreadY);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+
+      // Üst camda beyaz parıltı.
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX - lensR * 0.3, -eyeSpreadY - lensR * 0.35, Math.max(1, lensR * 0.22), 0, Math.PI * 2);
+      ctx.fill();
+    }
   } else if (expression === 'CYBORG') {
     // Sayborg Vizörü
     const vx = r * 0.2;
@@ -299,29 +380,44 @@ function playFaceShading(ctx, r) {
     ctx.lineTo(eyeOffsetX + eyeR + 2, eyeSpreadY - 2);
     ctx.stroke();
   } else if (expression === 'WINK') {
-    // Bir göz açık, bir göz kırpan
-    // Üst göz açık
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath();
-    ctx.arc(eyeOffsetX, -eyeSpreadY, eyeR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 1.8;
-    ctx.stroke();
-
+    // Neşeli göz kırpma: bir göz açık ve iri, diğeri ∩ kemer.
+    // `isEyeClosed` evrensel kırpma karesidir — o karede açık göz de çizgi olur;
+    // yoksa ifade "sürekli kırpıyor" gibi okunurdu.
+    const openR = eyeR * 1.1;
     if (!isEyeClosed) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, -eyeSpreadY, openR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+
       ctx.fillStyle = '#1A1A1A';
       ctx.beginPath();
-      ctx.arc(eyeOffsetX + 2, -eyeSpreadY, eyeR * 0.5, 0, Math.PI * 2);
+      ctx.arc(eyeOffsetX + 2, -eyeSpreadY, openR * 0.5, 0, Math.PI * 2);
       ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX + 3, -eyeSpreadY - 1.5, openR * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = '#1A1A1A';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(eyeOffsetX - openR + 1, -eyeSpreadY);
+      ctx.lineTo(eyeOffsetX + openR - 1, -eyeSpreadY);
+      ctx.stroke();
     }
 
-    // Alt göz kırpma çizgisi
+    // Kırpan göz: neşeli ∩ kemer (kırpma karesinde bile kemer kalır — kimliktir).
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.arc(eyeOffsetX, eyeSpreadY, eyeR * 0.9, -0.6, 0.6);
+    ctx.arc(eyeOffsetX, eyeSpreadY + eyeR * 0.35, eyeR * 0.85, Math.PI * 1.08, Math.PI * 1.92);
     ctx.stroke();
+    ctx.lineCap = 'butt';
   } else if (expression === 'DERP') {
     // Şaşkın / Çılgın gözler (biri büyük biri küçük)
     ctx.fillStyle = '#FFFFFF';
@@ -517,37 +613,28 @@ function playFaceShading(ctx, r) {
       ctx.closePath();
     };
 
-    // Beyaz diş dolgusu (gölgesiz: gölge beyazı kirli gösteriyordu)
+    // Sırıtış (GRIN) — bembeyaz diş: ağız dolgusu beyaz, diş aralıkları gövde
+    // rengiyle açılır, SİYAH ÇİZGİ YOK (dış kontur dahil).
     ctx.fillStyle = '#FFFFFF';
     traceMouth();
     ctx.fill();
 
-    // Diş ayırıcı çizgiler (sadece ağız içinde kalsın)
+    // Diş aralıkları (Y ekseni boyunca 4 diş): gövde rengi hatlar.
     ctx.save();
     traceMouth();
     ctx.clip();
 
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = Math.max(1.2, r * 0.03);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1.5, r * 0.045);
 
-    // Diş aralıkları (Y ekseni boyunca 4 diş)
     ctx.beginPath();
     for (const ty of [-mh * 0.46, 0, mh * 0.46]) {
-      ctx.moveTo(mx, ty);
-      ctx.lineTo(mx + mw * 1.1, ty);
+      ctx.moveTo(mx - 1, ty);
+      ctx.lineTo(mx + mw * 1.2, ty);
     }
-    // Üst / alt diş ayrım çizgisi (orta kavis)
-    ctx.moveTo(mx, -mh);
-    ctx.quadraticCurveTo(mx + mw * 0.65, 0, mx, mh);
     ctx.stroke();
 
     ctx.restore();
-
-    // Dış ağız konturu (kalın brutalist sınır)
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = Math.max(1.5, r * 0.04);
-    traceMouth();
-    ctx.stroke();
   } else {
     // FOCUS / Standart çift göz
     const drawEye = (ey) => {

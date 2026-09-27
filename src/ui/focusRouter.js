@@ -134,11 +134,21 @@ export function createFocusRouter({ getScope, getTrack = null, onFocusChange = n
     if (!keep || index < 0) setIndex(items.length ? 0 : -1, { focus: false });
   }
 
+  /** Kayıtlı görünümün açılış hedefi: seçiciyle verilen öğeye odaklan. */
+  function focusElement(target) {
+    if (!target || !items.length) return false;
+    const next = items.indexOf(target);
+    if (next < 0) return false;
+    setIndex(next, { force: true });
+    return true;
+  }
+
   return {
     move,
     page,
     activate,
     refresh,
+    focusElement,
     // Görünüm açılışı: index zaten 0 olsa bile DOM odağı taşınmalı.
     focusFirst: () => setIndex(Math.max(0, index), { force: true }),
     clear: () => { items = []; index = -1; },

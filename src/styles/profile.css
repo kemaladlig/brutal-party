@@ -357,6 +357,58 @@
 
 .profile-expression.is-focused { box-shadow: 0 0 0 3px var(--accent-2); }
 
+/* Halka: halka rengi + göbekte o anki gövde rengi (kombin önizlemesi). */
+.profile-rims {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 6px;
+}
+
+.profile-rim {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 5px 10px;
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--sheen-08);
+  color: var(--hud-ink);
+  font: 800 11px/1 var(--font-grotesk);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.profile-rim-ring {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 5px solid var(--rim);
+  background: var(--dot);
+  box-shadow: 0 0 0 1.5px var(--hud-line);
+}
+
+.profile-rim > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-rim:hover { background: var(--sheen-15); }
+.profile-rim:active { transform: scale(0.96); }
+
+.profile-rim.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.profile-rim.is-focused { box-shadow: 0 0 0 3px var(--accent-2); }
+
 .profile-dice {
   flex: 0 0 auto;
   justify-content: center;

@@ -412,7 +412,7 @@ export function drawHeistPlayers(ctx, players, { withFx = true, now = 0 } = {}) 
     drawGameAvatar(ctx, 0, 0, radius, player, {
       facingAngle: player.angle || 0,
       expression: currentExp,
-      borderColor: player.tackling ? '#FFDE59' : '#1C1C1A',
+      borderColor: player.tackling ? '#FFDE59' : (player.rimColor || '#1C1C1A'),
       borderWidth: Math.max(1.5, (player.tackling ? 4.5 : 3) * u),
       // Kaçarken gözler koşu yönüne bakar; tackle'da gövde yönü zaten hedefe
       // döndüğü için bakış gövdeyle birlikte döner.

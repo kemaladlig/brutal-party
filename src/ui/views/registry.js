@@ -16,6 +16,8 @@ let rootId = 'home';
  *   build(ctx) — DOM döndürür. ctx: { actions, t, onNavigate }
  *   onEnter / onExit — ekran görünürken / gizlenirken.
  *   focus     — true ise görünüm açılınca odak bu görünüme taşınır.
+ *   initialFocus — açılışta odaklanacak öğenin seçicisi (ör. '#home-play').
+ *     Verilmezse listedeki ilk `[data-focus]` hedefi seçilir.
  */
 export function registerView(id, view) {
   if (!id || typeof id !== 'string') return;

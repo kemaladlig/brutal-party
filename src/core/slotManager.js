@@ -1,6 +1,6 @@
 // Slot Manager: Host Player Slots State, UI Sync, Engine Slot & Score Mapping
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
-import { getSlotCustomization, findSlotColorDuplicates, getBotPersona, getLocalSeatColors } from './customizationManager.js';
+import { getSlotCustomization, findSlotColorDuplicates, getBotPersona, getLocalSeatColors, rimHex } from './customizationManager.js';
 import { safeGet, safeSet } from './safeStorage.js';
 import { getStoredPlayerName, ensureStoredNick } from '../net.js';
 import { t } from '../i18n.js';
@@ -233,7 +233,7 @@ export function refreshColorClashUI() {
   } catch {}
 }
 
-function applySlotDataToEntity(engine, currentMode, i, slotType, slotName, slotColor, isJoined) {
+function applySlotDataToEntity(engine, currentMode, i, slotType, slotName, slotColor, isJoined, rimColor) {
   if (currentMode === 'PONG') {
     const p = engine.paddles?.[i];
     if (p) {
@@ -241,6 +241,7 @@ function applySlotDataToEntity(engine, currentMode, i, slotType, slotName, slotC
       p.slotType = slotType;
       p.name = slotName;
       p.color = slotColor;
+      p.rimColor = rimColor;
       p.updateLayout?.(engine.arena);
     }
   } else if (currentMode === 'TANKS') {
@@ -251,6 +252,7 @@ function applySlotDataToEntity(engine, currentMode, i, slotType, slotName, slotC
       tank.slotType = slotType;
       tank.name = slotName;
       tank.color = slotColor;
+      tank.rimColor = rimColor;
     }
   } else if (currentMode === 'CURVE') {
     if (engine.slotTypes) engine.slotTypes[i] = slotType;
@@ -260,6 +262,7 @@ function applySlotDataToEntity(engine, currentMode, i, slotType, slotName, slotC
       player.slotType = slotType;
       player.name = slotName;
       player.color = slotColor;
+      player.rimColor = rimColor;
     }
   } else if (
     currentMode === 'BOMB' || currentMode === 'HEIST' || currentMode === 'ARCHER' ||
@@ -274,6 +277,7 @@ function applySlotDataToEntity(engine, currentMode, i, slotType, slotName, slotC
       player.slotType = slotType;
       player.name = slotName;
       player.color = slotColor;
+      player.rimColor = rimColor;
     }
   }
 }
@@ -293,11 +297,15 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
       const slotColor = isAnyBot
         ? botPersona.color
         : (slot?.displayColor || slot?.avatar?.color || custom.color);
+      // Halka botlarda sabit klasik; insanda relay avatarı → cihaz profili.
+      const slotRim = isAnyBot
+        ? rimHex('CLASSIC')
+        : rimHex(slot?.avatar?.rim || custom.rim);
       const slotName = slot
         ? resolveSlotName(i, botType, slot.name)
         : `P${i + 1}`;
 
-      applySlotDataToEntity(engine, currentMode, i, botType, slotName, slotColor, !!slot);
+      applySlotDataToEntity(engine, currentMode, i, botType, slotName, slotColor, !!slot, slotRim);
     }
   } else {
     // LOCAL mod: engine.slotTypes veya paddle slotlarını cihaz profili & bot personalarıyla eşle
@@ -313,9 +321,10 @@ export function syncSlotsToEngine(engine, currentMode, isHosting) {
       const slotColor = isAnyBot
         ? botPersona.color
         : (locals[i] || custom.color);
+      const slotRim = isAnyBot ? rimHex('CLASSIC') : rimHex(custom.rim);
       const slotName = resolveSlotName(i, slotType);
 
-      applySlotDataToEntity(engine, currentMode, i, slotType, slotName, slotColor, isJoined);
+      applySlotDataToEntity(engine, currentMode, i, slotType, slotName, slotColor, isJoined, slotRim);
     }
   }
 }

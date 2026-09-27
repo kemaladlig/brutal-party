@@ -818,6 +818,37 @@
   text-align: center;
 }
 
+/* Halka ızgarası: halka rengi + göbekte o anki renk (kombin önizlemesi). */
+.rim-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rim-swatch-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 5px solid var(--rim);
+  background-color: var(--dot);
+  /* Halka zeminde kaybolmasın diye ince kontrast hairline: `--edge-strong`
+     her temada zeminden ayrışmak üzere tasarlıdır (beyaz halka açık zeminde,
+     klasik halka koyu zeminde okunur). */
+  box-shadow: 0 0 0 2px var(--edge-strong), 3px 3px 0 var(--edge-strong);
+  cursor: pointer;
+  transition: transform 0.05s ease, box-shadow 0.05s ease;
+}
+
+.rim-swatch-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 2px var(--edge-strong), 1px 1px 0 var(--edge-strong);
+}
+
+.rim-swatch-btn.selected {
+  outline: 3px solid var(--bot-tag);
+  transform: scale(1.08);
+}
+
 /* Footer */
 .customize-footer {
   flex: 0 0 auto;

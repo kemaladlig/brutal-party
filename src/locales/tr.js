@@ -256,6 +256,7 @@ export const TR = {
   'custom.secPattern': 'GÖVDE DESENİ',
   'custom.tabColor': 'RENK',
   'custom.tabFace': 'YÜZ',
+  'custom.tabRim': 'HALKA',
   'custom.save': 'KAYDET VE TAMAMLA',
   // ── Palette / face names ──
   'color.red': 'KIRMIZI',
@@ -302,6 +303,10 @@ export const TR = {
   'expr.ZOMBIE.desc': 'Donuk zombi bakışı',
   'expr.GRIN': 'Sırıtış',
   'expr.GRIN.desc': 'Kötü niyetli geniş sırıtış',
+  'rim.CLASSIC': 'Klasik',
+  'rim.BONE': 'Beyaz',
+  'rim.GOLD': 'Altın',
+  'rim.FROST': 'Buz',
   // ── Staging bar & countdown ──
   'stage.split': 'RENKLERİ AYIRIN',
   'stage.start': '▶ MAÇI BAŞLAT ({0}/{1} HAZIR)',

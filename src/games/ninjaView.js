@@ -350,7 +350,6 @@ export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true,
     drawGameAvatar(ctx, 0, 0, R, player, {
       facingAngle: 0,
       expression: player.strike ? 'angry' : 'normal',
-      borderColor: '#1A1A1A',
       borderWidth: Math.max(1.5, 2.5 * u),
       // Dönüş view seviyesinde (`ctx.rotate(player.angle)`) yapıldığı için
       // avatarın yerel yüzü sabit; bakış da yerel uzayda kalmalı, yoksa

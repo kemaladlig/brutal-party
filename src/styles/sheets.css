@@ -544,6 +544,37 @@
   letter-spacing: 0.02em;
 }
 
+/* Mod seçimi: aynı modal TV kumandası ve ONLINE oyuncu girişini yapar.
+   Ortak `.tab-strip` bileşeni karta uyarlanır (iki eşit sekme); ikinci bir
+   sekme stili açılmaz, yalnız kart zeminine uyum için yüzey/mürekkep
+   kapsanır. Aktif sekme ortak accent dilinde kalır. */
+#join-mode-strip { margin-top: 8px; }
+
+#join-mode-strip .tab-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  overflow: visible;
+}
+
+#join-mode-strip .tab-btn {
+  justify-content: center;
+  background: var(--elevated);
+  border-color: var(--edge);
+  color: var(--ink);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  opacity: 0.6;
+}
+
+#join-mode-strip .tab-btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  opacity: 1;
+}
+
 .join-inputs { gap: 8px; }
 
 /* Etiket + YAPIŞTIR tek satırda; kod alanı ikisinin arasında. */

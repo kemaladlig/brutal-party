@@ -223,7 +223,6 @@ export function drawCloneCharacter(ctx, x, y, angle, color, { dashing = false, s
     facingAngle: angle,
     expression: exp,
     showPointer: true,
-    borderColor: '#1A1A1A',
     borderWidth: Math.max(1.5, 2.5 * cu),
   });
 

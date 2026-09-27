@@ -115,7 +115,8 @@ src/core/
                             readSlotKeys, isSlotActionEvent, slotForActionCode, buildCodeToSlotMap,
                             KEY_LABELS/getKeyLabel — motorlar tuş kopyası tutmaz (Faz 1 refactor, Eylül 2026)
   customizationManager.js   Cihaz-başı TEK profil (localStorage), rastgele varsayılan renk,
-                            sanitizeAvatar/pickFreeColor/findSlotColorDuplicates, koltuk avatar kayıt defteri
+                            sanitizeAvatar/pickFreeColor/findSlotColorDuplicates, AVATAR_RIMS +
+                            rimHex/rimName, koltuk avatar kayıt defteri (avatar = {color, expression, rim})
   touchFlow.js              Tek dokunmatik akış: getQuadrant (BL/BR→TL/TR: 0/1/2/3),
                             roundOverSkipGuard (timerField varsayılan roundTransitionTimer;
                             PONG roundOverTimer geçirir), lobbyCenterStartTap (r=65, min 2),
@@ -150,6 +151,8 @@ src/core/
   avatarInGame.js           Ortak oyun içi avatar çizimi: drawGameAvatar, normalizeExpression, blinkState —
                             archer, ninja, bomb, heist, horde, crown, collapse, clone, laser, snake, zone entegre (tanks komutan istisnası).
                             Saha içi avatar daima faceMode:'play' (ERIŞUAR/DESEN YOK) — madde 18.
+                            Halka çözüm sırası: oyun-durumu sinyali (opts.borderColor) > entity.rimColor
+                            (slotManager senkronu) > slot avatarı (world-view hydration) > klasik.
   qualityGate.js            Cihaz bağımsızlık kalite kapısı sözleşmesi: 7 kapı (I1-I7: ölçek, hız, geçiş, view sadakati, geometri, hareket ipuçları, okunabilirlik) + 4 rapor (I8-I11: oran sapması, gövde/saha, chrome payı, tepki süresi) + TUNING_ANCHOR (tablet 16:10 1180×820) + evaluateGame (Eylül 2026)
   qualityAuditors.js        I4, I5, I6 kapıları için saf denetleyici ve tarayıcı fonksiyonları (auditViewFidelityInContent, auditMotionCuesInContent, auditUnscaledGeometryInContent) + fail-closed kontrol (Eylül 2026)
 
@@ -216,8 +219,8 @@ src/ui/
                             renderRoundBanner, renderControlGuide, renderCornerScores,
                             renderArenaWatermarkTimer, getStandardSeatRects)
   customizeModal.js         İKİ YOLLU avatar atölyesi. `initMenuAvatarCard(root)` KARAKTER
-                            ekranının avatar sahnesini + ifade çipini bağlar (asıl yol; profil
-                            görünümü düzenleyicidir). `openCustomizeModal()` yalnız TV lobisi ve
+                            ekranının avatar sahnesini + ifade/halka çiplerini bağlar (asıl yol; profil
+                            görünümü düzenleyicidir). Üç sekme: RENK/YÜZ/HALKA. `openCustomizeModal()` yalnız TV lobisi ve
                             kumanda yolunda ikincil sheet olarak kullanılır — ana menüden
                             açılmaz (bir ekran = bir iş, karar 32)
   characterRenderer.js      Birleşik avatar çizimi: options.avatar/kayıt defteri, `options.volume`
@@ -465,7 +468,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
    * Tank botu aktif direksiyon (kısa-yön dönüş + duvar kaçışı), boşta spin korunur.
    * Kalan: ses `playTone` birleştirme + DUEL ok-tuşu gerilimi (sözleşme literali korundu).
 16. **Cihaz-başı karakter + yazısız kimlik (avatar senkronu):**
-    * Her cihaz tek profil tutar (`brutalparty.avatar.profile`); ilk açılışta rastgele renk — herkes default kırmızıyla gelmez. Atölye 4 sekmelidir (renk/yüz/aksesuar/desen; TV menü + kumanda lobi aynı modal).
+    * Her cihaz tek profil tutar (`brutalparty.avatar.profile`, `{color, expression, rim}`); ilk açılışta rastgele renk — herkes default kırmızıyla gelmez. Atölye 3 sekmelidir (RENK/YÜZ/HALKA; KARAKTER ekranı + kumanda modalı aynı veri, zar üçünü de karıştırır).
     * Kumanda profilini relay ile taşır (JOIN/`AVATAR_UPDATE`); host sanitize eder (`sanitizeAvatar`), yüz kayıt defterinden (`slotIndex` → avatar) okunur. Renk koltuğa değil oyuncuya aittir (takasta taşınır).
     * Saha içi yazı yasaktır: kimlik = display rengi + pip (koltuk no kadar nokta) + köşe/koltuk pozisyonu. `renderTextLabel` kapısı kaldırıldı.
     * Ağ bütçesi korunur: avatar ~40B, JOIN/slot yayınlarında taşınır; 8Hz dirty-check + discrete 1sn kısma geçerlidir.

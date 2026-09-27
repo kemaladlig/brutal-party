@@ -1,4 +1,4 @@
-// KARAKTER — cihazın karakteri: canlı avatar, isim, renk ve yüz ifadesi.
+// KARAKTER — cihazın karakteri: canlı avatar, isim, renk, yüz ifadesi ve halka.
 //
 // Bu ekran bir DÜZENLEYİCİDİR ve MERKEZİ sekme şeridini (`tabStrip.js`,
 // OYUNLAR ile aynı bileşen) kullanır: RENK ve İFADE yan yana iki sütun yerine
@@ -18,11 +18,13 @@ import { registerView } from './registry.js';
 import {
   getActivePalettes,
   AVATAR_EXPRESSIONS,
+  AVATAR_RIMS,
   getAvatarProfile,
   saveAvatarProfile,
   resetAvatarProfile,
   paletteName,
   expressionName,
+  rimName,
 } from '../../core/customizationManager.js';
 import { playMenuTick } from '../../audio.js';
 
@@ -62,6 +64,23 @@ function buildExpressionGrid(onPick) {
     chip.innerHTML = `<span class="profile-expression-face">${getTabletopIconSvg(exp.icon || 'eye', { size: 15, strokeWidth: 2.2 })}</span><span>${expressionName(exp.id, exp.name)}</span>`;
     chip.addEventListener('click', () => onPick(exp.id));
     grid.append(chip);
+  }
+  return grid;
+}
+
+/** Halka stilleri: halka rengi + içinde o anki gövde rengi (kombin önizlemesi). */
+function buildRimGrid(onPick) {
+  const grid = el('div', 'profile-rims');
+  for (const rim of AVATAR_RIMS) {
+    const btn = el('button', 'profile-rim');
+    btn.type = 'button';
+    btn.dataset.id = rim.id;
+    btn.title = rimName(rim.id, rim.name);
+    btn.setAttribute('aria-label', rimName(rim.id, rim.name));
+    btn.style.setProperty('--rim', rim.hex);
+    btn.innerHTML = `<span class="profile-rim-ring"></span><span>${rimName(rim.id, rim.name)}</span>`;
+    btn.addEventListener('click', () => onPick(rim.id));
+    grid.append(btn);
   }
   return grid;
 }
@@ -133,17 +152,26 @@ function buildCard() {
     applyProfile((p) => { p.expression = id; });
   }));
 
+  const rimPanel = el('section', 'profile-panel');
+  rimPanel.dataset.panel = 'rim';
+  rimPanel.append(buildRimGrid((id) => {
+    playMenuTick();
+    applyProfile((p) => { p.rim = id; });
+  }));
+
   const panels = el('div', 'profile-panels');
-  panels.append(colorPanel, facePanel);
+  panels.append(colorPanel, facePanel, rimPanel);
 
   const tabs = createTabStrip({
     items: [
       { id: 'color', label: t('custom.tabColor'), icon: 'palette' },
       { id: 'face', label: t('custom.tabFace'), icon: 'eye' },
+      { id: 'rim', label: t('custom.tabRim'), icon: 'circle_dot' },
     ],
     onChange: (id) => {
       colorPanel.classList.toggle('is-active', id === 'color');
       facePanel.classList.toggle('is-active', id === 'face');
+      rimPanel.classList.toggle('is-active', id === 'rim');
     },
   });
 
@@ -175,6 +203,13 @@ function buildCard() {
       const on = prof.expression === chip.dataset.id;
       chip.classList.toggle('is-active', on);
       chip.setAttribute('aria-pressed', String(on));
+    });
+    // Halka önizlemesinin göbeği o anki gövde rengidir — kombin canlı okunur.
+    rimPanel.querySelectorAll('.profile-rim').forEach((btn) => {
+      const on = prof.rim === btn.dataset.id;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', String(on));
+      btn.style.setProperty('--dot', prof.color);
     });
   }
 
@@ -210,6 +245,8 @@ registerView('profile', {
       const faceTab = view.querySelector('.tab-btn[data-tab="face"] span');
       if (colorTab) colorTab.textContent = t('custom.tabColor');
       if (faceTab) faceTab.textContent = t('custom.tabFace');
+      const rimTab = view.querySelector('.tab-btn[data-tab="rim"] span');
+      if (rimTab) rimTab.textContent = t('custom.tabRim');
       const dice = view.querySelector('.profile-dice .scene-btn-label');
       if (dice) dice.textContent = t('custom.random');
     });

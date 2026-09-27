@@ -679,6 +679,34 @@ function applyHostPlayerState(state = {}) {
   renderPauseSeats(handleSeatSwap);
 }
 
+// Cihaz profili değiştiğinde (KARAKTER ekranı / TV-lobi atölyesi / zar):
+// host'un kendi koltuğu taze profili izler (uzak koltuklar AVATAR_UPDATE ile
+// gelir) ve canlı motor yeniden senkronlanır. Bu kapı yokken seçim ancak
+// sonraki mod geçişinde sahaya yansıyordu ("bazen yansımıyor" raporu).
+if (typeof window !== 'undefined') {
+  window.addEventListener('brutal_customization_changed', () => {
+    try {
+      if (hostPlayerActive && hostPlayerSlot !== null) {
+        const seat = hostPlayerSlots[hostPlayerSlot];
+        if (seat && seat.kind !== 'bot' && seat.kind !== 'bot_god') {
+          const fresh = getAvatarProfile();
+          seat.avatar = { ...fresh };
+          seat.displayColor = fresh.color;
+          setSlotAvatar(hostPlayerSlot, { ...fresh });
+          updateHostSlot(hostPlayerSlot, true, seat.name, seat.isReady, seat.kind, { ...fresh }, fresh.color);
+        }
+      }
+    } catch {}
+    try {
+      refreshStagingBar();
+    } catch {}
+    try {
+      const liveEngine = getActiveGameEngine();
+      if (liveEngine) syncSlotsToEngine(liveEngine, currentMode, activeNet().isHosting);
+    } catch {}
+  });
+}
+
 function toggleHostPlayer() {
   if (platformMode !== 'TV_CONSOLE' || !activeNet().isHosting) return false;
   if (hostPlayerActive) {

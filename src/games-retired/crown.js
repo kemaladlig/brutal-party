@@ -1934,7 +1934,7 @@ export class CrownGame extends BaseMiniGame {
       drawGameAvatar(ctx, x, y, r, p, {
         facingAngle: facingAngle,
         expression: currentExp,
-        borderColor: p.isTackling ? '#FFFFFF' : '#1A1A1A',
+        borderColor: p.isTackling ? '#FFFFFF' : (p.rimColor || '#1A1A1A'),
         borderWidth: p.isTackling ? 4.5 : 3,
         now: this.lastTime,
       });

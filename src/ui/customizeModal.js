@@ -1,15 +1,17 @@
 // Brutal Party — Karakter Özelleştirme Modali (Character Customization UI)
-// Cihaz-başı TEK profil: renk + yüz ifadesi. Erişuar ve gövde deseni YOK
+// Cihaz-başı TEK profil: renk + yüz ifadesi + halka. Erişuar ve gövde deseni YOK
 // (sahada da, menüde de; siluet daima tam yuvarlak).
 // Hem Ana Menüden, hem TV lobisinden, hem telefon kumandasından açılır.
 import {
   getActivePalettes,
   AVATAR_EXPRESSIONS,
+  AVATAR_RIMS,
   getAvatarProfile,
   saveAvatarProfile,
   resetAvatarProfile,
   paletteName,
   expressionName,
+  rimName,
 } from '../core/customizationManager.js';
 import { openOverlay, closeOverlay } from './overlayHost.js';
 import { t, onLangChange } from '../i18n.js';
@@ -29,7 +31,7 @@ let previewAngle = 0;
 let previewBlinkTimer = 0;
 let isPreviewBlinking = false;
 const TAB_KEY = 'brutalparty.avatar.tab';
-const TAB_IDS = ['color', 'face'];
+const TAB_IDS = ['color', 'face', 'rim'];
 let activeTab = 'color';
 
 function loadActiveTab() {
@@ -129,6 +131,7 @@ function createModalDOM() {
             <div class="customize-tabs" role="tablist">
               <button class="customize-tab active" data-tab="color" type="button" data-i18n="custom.tabColor">${t('custom.tabColor')}</button>
               <button class="customize-tab" data-tab="face" type="button" data-i18n="custom.tabFace">${t('custom.tabFace')}</button>
+              <button class="customize-tab" data-tab="rim" type="button" data-i18n="custom.tabRim">${t('custom.tabRim')}</button>
             </div>
 
             <!-- 1. Renk Seçimi -->
@@ -139,6 +142,11 @@ function createModalDOM() {
             <!-- 2. Yüz İfadesi -->
             <div class="custom-section hidden" data-section="face">
               <div class="chips-grid" id="grid-expressions"></div>
+            </div>
+
+            <!-- 3. Halka -->
+            <div class="custom-section hidden" data-section="rim">
+              <div class="rim-grid" id="grid-rims"></div>
             </div>
           </div>
         </div>
@@ -273,6 +281,25 @@ function renderSelectionGrids() {
       renderSelectionGrids();
     };
   }
+
+  // 3. Halkalar (göbekte o anki renk — kombin önizlemesi)
+  const rimGrid = document.getElementById('grid-rims');
+  if (rimGrid) {
+    rimGrid.innerHTML = AVATAR_RIMS.map((rim) => {
+      const isSelected = currentCustom.rim === rim.id;
+      return `
+        <button class="rim-swatch-btn ${isSelected ? 'selected' : ''}" data-id="${rim.id}" style="--rim: ${rim.hex}; --dot: ${currentCustom.color}" title="${rimName(rim.id, rim.name)}" type="button" aria-label="${rimName(rim.id, rim.name)}"></button>
+      `;
+    }).join('');
+
+    rimGrid.onclick = (e) => {
+      const btn = e.target.closest('.rim-swatch-btn');
+      if (!btn) return;
+      currentCustom.rim = btn.dataset.id;
+      saveAvatarProfile(currentCustom);
+      renderSelectionGrids();
+    };
+  }
 }
 
 function startPreviewLoop() {
@@ -314,6 +341,7 @@ function startPreviewLoop() {
       drawAvatarStage(ctx, w, h, r, {
         color: currentCustom.color,
         expression: currentCustom.expression,
+        rim: currentCustom.rim,
         facingAngle: previewAngle,
         isBlinking: isPreviewBlinking,
       }, Math.sin(now * 0.004) * r * 0.08);
@@ -370,10 +398,12 @@ export function initMenuAvatarCard(root = document) {
       const exprId = prof?.expression || 'FOCUS';
       const exprDef = AVATAR_EXPRESSIONS.find((e) => e.id === exprId);
       const expr = expressionName(exprId, 'Odaklı');
-      // Karakterin tek özellikleri renk ve yüz: "kuşanılan" tek çip yüz ifadesi.
+      const rimDef = AVATAR_RIMS.find((rm) => rm.id === (prof?.rim || 'CLASSIC'));
+      const rim = rimName(prof?.rim || 'CLASSIC', 'Klasik');
+      // Karakterin üç özelliği: yüz + halka çipleri.
       // İkon `tabletopIcons`'tan gelir ve İFADENİN KENDİ ikonudur (AGENTS.md §7:
       // ham OS emojisi yasak; tüm çipleri 'eye' çizmek de aynı hata).
-      equippedEl.innerHTML = `<span class="equipped-chip expr-chip">${getTabletopIconSvg(exprDef?.icon || 'eye', { size: 13 })}<span>${expr}</span></span>`;
+      equippedEl.innerHTML = `<span class="equipped-chip expr-chip">${getTabletopIconSvg(exprDef?.icon || 'eye', { size: 13 })}<span>${expr}</span></span><span class="equipped-chip rim-chip">${getTabletopIconSvg('circle_dot', { size: 13 })}<span>${rim}</span></span>`;
     }
   };
   updateCardName();
@@ -482,6 +512,7 @@ export function initMenuAvatarCard(root = document) {
     drawAvatarStage(ctx, w, h, r, {
       color: custom.color,
       expression: out.expression,
+      rim: custom.rim,
       facingAngle: out.facingAngle,
       isBlinking: out.isBlinking,
       scale: out.scale,

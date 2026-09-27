@@ -5,6 +5,7 @@ import { ensureStoredNick } from '../net.js';
 import { openOverlay, closeOverlay } from './overlayHost.js';
 import { hydrateIconSlots } from './iconSlots.js';
 import { showInstallToast } from './toast.js';
+import { createTabStrip } from './tabStrip.js';
 import { t, onLangChange } from '../i18n.js';
 
 const joinRoomModal = document.getElementById('join-room-modal');
@@ -36,7 +37,33 @@ const joinCodeLabel = joinRoomModal?.querySelector('.join-label');
 const joinAsYou = joinRoomModal?.querySelector('.join-as-badge span[data-i18n="join.asYou"]');
 const joinHint = joinRoomModal?.querySelector('.join-as-hint');
 
-let joinModalMode = null;
+let joinModalMode = 'TV_CONSOLE';
+
+function normalizeJoinMode(mode) {
+  return mode === 'ONLINE' ? 'ONLINE' : 'TV_CONSOLE';
+}
+
+// Mod şeridi: aynı modal hem TV kumandası hem ONLINE oyuncu girişini yapar.
+// Tek kayıt kuralı gereği ikinci bir sekme uygulaması açılmaz — `tabStrip.js`
+// ortak bileşeni kullanılır; etiketler oda ekranıyla aynı sözlüktendir.
+const joinModeStripHost = document.getElementById('join-mode-strip');
+const joinModeStrip = joinModeStripHost ? createTabStrip({
+  items: [
+    { id: 'TV_CONSOLE', label: t('shell.room.tv'), icon: 'tv' },
+    { id: 'ONLINE', label: t('shell.room.online'), icon: 'globe' },
+  ],
+  onChange: (id) => setJoinMode(id),
+}) : null;
+if (joinModeStripHost && joinModeStrip) {
+  joinModeStripHost.append(joinModeStrip.node);
+  joinModeStrip.setActive(joinModalMode);
+}
+
+function setJoinMode(mode) {
+  joinModalMode = normalizeJoinMode(mode);
+  joinModeStrip?.setActive(joinModalMode);
+  applyJoinModeCopy(joinModalMode);
+}
 
 function applyJoinModeCopy(mode) {
   const suffix = mode === 'ONLINE' ? 'Player' : 'Controller';
@@ -50,6 +77,8 @@ function applyJoinModeCopy(mode) {
 }
 
 onLangChange(() => {
+  joinModeStrip?.setLabel('TV_CONSOLE', t('shell.room.tv'));
+  joinModeStrip?.setLabel('ONLINE', t('shell.room.online'));
   if (joinRoomModal && !joinRoomModal.classList.contains('hidden')) {
     applyJoinModeCopy(joinModalMode);
   }
@@ -75,8 +104,7 @@ bindClearButton(btnClearHeroCode, heroInputCode);
 bindClearButton(btnClearOnlineHeroCode, onlineHeroInputCode);
 
 export function openJoinModal(prefilledCode = '', mode = null) {
-  joinModalMode = mode;
-  applyJoinModeCopy(mode);
+  setJoinMode(mode || joinModalMode || 'TV_CONSOLE');
   if (inputRoomCode) {
     inputRoomCode.value = prefilledCode.toUpperCase();
   }

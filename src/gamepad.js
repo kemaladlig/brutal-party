@@ -1241,6 +1241,7 @@ export class GamepadManager {
       drawBrutalAvatar(ctx, canvas.width / 2, canvas.height / 2, 20, {
         color: this.avatar.color,
         expression: this.avatar.expression,
+        rim: this.avatar.rim,
         showPips: false,
         showPointer: false,
         borderWidth: 2.5,

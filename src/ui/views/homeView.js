@@ -52,6 +52,10 @@ registerView('home', {
   // görselinin üstüne biner.
   rail: { icon: 'home', label: 'ANASAYFA', order: 0 },
   chrome: 'cinema',
+  // Açılış odağı OYNA'dır: karakter (`data-focus="hero"`) DOM'da ilk sırada
+  // olduğu için `focusFirst()` sayfa yüklenince ona düşüyor, altın odak
+  // halkası + büyüme karakteri "seçili" gösteriyordu.
+  initialFocus: '#home-play',
   build(ctx) {
     const { actions: actions_, openView } = ctx;
     const view = el('div', 'scene home-scene');

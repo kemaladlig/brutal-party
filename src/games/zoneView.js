@@ -355,7 +355,7 @@ export function drawZonePlayers(ctx, players, { cell = 0, leaderIndex = -1, with
       label: `P${(p.slot ?? p.index ?? 0) + 1}`,
       expression: currentExp,
       showPointer: true,
-      borderColor: p.stun > 0 ? '#48CAE4' : '#1C1C1A',
+      borderColor: p.stun > 0 ? '#48CAE4' : (p.rimColor || '#1C1C1A'),
       borderWidth: 3 * u,
     });
 

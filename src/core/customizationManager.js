@@ -1,7 +1,7 @@
 // Brutal Party — Karakter Özelleştirme Veri Yöneticisi
 // Cihaz-başı TEK profil: kullanıcı kendini bir kere belirler, oturduğu her
 // koltukta aynı karakter görünür (kumanda kendi profilini relay ile host'a taşır).
-// Renkler, yüz ifadeleri, aksesuarlar ve gövde desenleri için tek gerçek kaynak.
+// Renkler, yüz ifadeleri ve halka stilleri için tek gerçek kaynak.
 
 import { safeGet, safeSet, safeRemove } from './safeStorage.js';
 import { t } from '../i18n.js';
@@ -19,6 +19,9 @@ export function expressionName(id, fallback) {
 }
 export function expressionDesc(id, fallback) {
   return tx(`expr.${id}.desc`, fallback ?? '');
+}
+export function rimName(id, fallback) {
+  return tx(`rim.${id}`, fallback ?? id);
 }
 
 export const AVATAR_PALETTES = [
@@ -84,7 +87,27 @@ export const AVATAR_EXPRESSIONS = [
   { id: 'GRIN', name: 'Sırıtış', icon: 'smile', desc: 'Kötü niyetli geniş sırıtış' },
 ];
 
-// AKSUAR ve GÖVDE DESENİ YOK. Karakterin tek iki özelliği RENGİ ve YÜZÜ.
+// ── Halka stilleri (RIM): gövdeyi saran dış çerçevenin rengi ──
+// Mikro boyda okunan tek şey siluet kenarıdır; iç detay kaybolur. Aynı stroke
+// çağrısı boyanır — gradyan/doku yok, kare maliyeti sıfır. Oyun-durumu
+// sinyalleri (dash beyazı, tackle sarısı) her zaman halkayı ezer.
+export const AVATAR_RIMS = [
+  { id: 'CLASSIC', name: 'Klasik', hex: '#1A1A1A' },
+  { id: 'BONE', name: 'Beyaz', hex: '#F4F4F0' },
+  { id: 'GOLD', name: 'Altın', hex: '#FFC42E' },
+  { id: 'FROST', name: 'Buz', hex: '#48CAE4' },
+];
+
+const RIM_IDS = new Set(AVATAR_RIMS.map((r) => r.id));
+const RIM_HEX = new Map(AVATAR_RIMS.map((r) => [r.id, r.hex]));
+
+// Halka id → hex. Bilinmeyen/eksik id klasik çerçeveye düşer (eski profiller,
+// botsal persona, world-view hydration — hepsi aynı kapıdan geçer).
+export function rimHex(id, fallback = '#1A1A1A') {
+  return RIM_HEX.get(id) || fallback;
+}
+
+// AKSUAR ve GÖVDE DESENİ YOK. Karakterin üç özelliği RENGİ, YÜZÜ ve HALKASI.
 // Siluet daima tam yuvarlak; sahnede okunabilirlik çarpışma yarıçapıyla
 // örtüşüyor (ölçülen: gövde 36x37 @ r=16). Daha önce seçilebilen 14 aksesuar
 // (taç/halo/kanat/şapka…) ve 8 desen hem gövdeyi taşırıyor hem de sahada
@@ -164,7 +187,7 @@ const PROFILE_KEY = 'brutalparty.avatar.profile';
 const LEGACY_PREFIX = 'brutalparty.avatar.slot_';
 
 function defaultFace() {
-  return { expression: 'FOCUS' };
+  return { expression: 'FOCUS', rim: 'CLASSIC' };
 }
 
 // Rastgele karakter zarı: yüz ifadesini listeden seçer.
@@ -199,7 +222,7 @@ function migrateLegacyProfile() {
 // her yeni cihaz farklı renkle gelir, herkes varsayılan kırmızıda buluşmaz.
 export function getAvatarProfile() {
   migrateLegacyProfile();
-  const fallback = { color: randomAvatarColor(), ...randomFace() };
+  const fallback = { color: randomAvatarColor(), ...randomFace(), rim: 'CLASSIC' };
   try {
     const raw = safeGet(PROFILE_KEY);
     if (raw) {
@@ -232,7 +255,13 @@ export function saveAvatarProfile(profile) {
 }
 
 export function resetAvatarProfile() {
-  const def = { color: randomAvatarColor(), ...randomFace() };
+  // Zar renk + yüz + halkayı yeniler (RASTGELE KARAKTER hepsini karıştırır).
+  const rims = AVATAR_RIMS.map((r) => r.id);
+  const def = {
+    color: randomAvatarColor(),
+    ...randomFace(),
+    rim: rims[(Math.random() * rims.length) | 0],
+  };
   return saveAvatarProfile(def);
 }
 
@@ -251,9 +280,10 @@ export function sanitizeAvatar(input, opts = {}) {
       ? opts.fallbackColor
       : randomAvatarColor());
   const expression = EXPRESSION_IDS.has(src.expression) ? src.expression : 'FOCUS';
+  const rim = RIM_IDS.has(src.rim) ? src.rim : 'CLASSIC';
   // Eski profiller `accessory`/`pattern` taşıyordu; sanitize bunları düşürür,
   // yani kalıcı veri silinmeden karakter yeni sözleşmeye uyar.
-  return { color, expression };
+  return { color, expression, rim };
 }
 
 export function isPaletteHex(hex) {
@@ -337,15 +367,29 @@ export function applyLocalSeatToRegistry(slotIndex, hex) {
 }
 
 // Rengi yoksa ata (koltuk insan olduğunda çağrılır); her zaman geçerli hex döner.
+// Önce cihaz profilinin rengi denenir: kişi menüde ne seçtiyse oyunda o görünür.
+// Doluysa (başka koltuk almışsa) palet sırasındaki ilk boş renge düşülür.
 export function ensureLocalSeatColor(slotIndex) {
   if (!localSeatCache) localSeatCache = readLocalSeatColors();
   let hex = localSeatCache[slotIndex];
   if (!hex || !isPaletteHex(hex)) {
-    hex = nextFreeLocalColor(slotIndex);
+    hex = preferredLocalSeatColor(slotIndex);
     setLocalSeatColor(slotIndex, hex);
   }
   applyLocalSeatToRegistry(slotIndex, hex);
   return hex;
+}
+
+// Profil rengi boşsa onu, yoksa ilk boş palet rengini önerir.
+function preferredLocalSeatColor(slotIndex) {
+  try {
+    const profileHex = String(getAvatarProfile()?.color || '').toUpperCase();
+    const taken = new Set(
+      (localSeatCache || []).filter((c, i) => c && i !== slotIndex).map((c) => String(c).toUpperCase())
+    );
+    if (profileHex && isPaletteHex(profileHex) && !taken.has(profileHex)) return profileHex;
+  } catch {}
+  return nextFreeLocalColor(slotIndex);
 }
 
 // Noktaya dokununca: sıradaki boş renge geçir (persist + registry).
@@ -426,7 +470,7 @@ export function saveSlotCustomization(slotIndex, custom) {
 
 export function resetSlotCustomization(slotIndex) {
   const safeIdx = Math.max(0, Math.min(3, slotIndex || 0));
-  const clean = { color: randomAvatarColor(), ...randomFace() };
+  const clean = { color: randomAvatarColor(), ...randomFace(), rim: 'CLASSIC' };
   setSlotAvatar(safeIdx, clean);
   return { ...clean };
 }

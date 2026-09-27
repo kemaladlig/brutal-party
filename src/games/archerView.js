@@ -252,7 +252,6 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena
       label: `P${slotIndex + 1}`,
       expression: player.charging ? 'angry' : (stun ? 'dizzy' : 'normal'),
       showPointer: true,
-      borderColor: '#1A1A1A',
       borderWidth: 2.5 * u,
       // Dönüş view seviyesinde yapıldığı için avatarın yerel yüzü sabit;
       // bakış da YEREL uzayda verilir (gövde dönüşüne eklenir, üstüne binmez).

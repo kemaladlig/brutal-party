@@ -256,6 +256,7 @@ export const EN = {
   'custom.secPattern': 'BODY PATTERN',
   'custom.tabColor': 'COLOR',
   'custom.tabFace': 'FACE',
+  'custom.tabRim': 'RING',
   'custom.save': 'SAVE & DONE',
   // ── Palette / face names ──
   'color.red': 'RED',
@@ -302,6 +303,10 @@ export const EN = {
   'expr.ZOMBIE.desc': 'Dull undead stare',
   'expr.GRIN': 'Grin',
   'expr.GRIN.desc': 'Wide mischievous grin',
+  'rim.CLASSIC': 'Classic',
+  'rim.BONE': 'White',
+  'rim.GOLD': 'Gold',
+  'rim.FROST': 'Frost',
   // ── Staging bar & countdown ──
   'stage.split': 'SPLIT COLORS',
   'stage.start': '▶ START MATCH ({0}/{1} READY)',

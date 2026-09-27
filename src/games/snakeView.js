@@ -320,7 +320,6 @@ export function drawSnakePlayers(ctx, players, now = 0) {
       label: `P${(player.slot ?? player.index ?? 0) + 1}`,
       expression,
       showPointer: true,
-      borderColor: '#1A1A1A',
       borderWidth: 2.5 * u,
       shadowOffset: 2,
     });

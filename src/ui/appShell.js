@@ -202,6 +202,21 @@ function ensureNode(entry) {
 }
 
 /**
+ * Görünüm açılış odağı: kayıt `initialFocus` seçicisi vermişse o öğe, yoksa
+ * listedeki ilk hedef. Görünüm adına özel dal açmadan registry üzerinden
+ * çalışır (AGENTS.md §8).
+ */
+function focusViewInitial(view) {
+  if (!router || view?.focus === false) return;
+  const sel = view?.initialFocus;
+  if (sel) {
+    const target = currentView()?.node?.querySelector?.(sel);
+    if (target && router.focusElement(target)) return;
+  }
+  router.focusFirst();
+}
+
+/**
  * Görünüm aç. `replace` geri tuşu geçmişi eklemez (kök→ekran geçişleri için).
  */
 export function openView(id, { replace = false } = {}) {
@@ -242,7 +257,7 @@ export function openView(id, { replace = false } = {}) {
   applyViewChrome(view);
   syncRailActive();
   router.refresh({ keep: false });
-  if (view.focus !== false) router.focusFirst();
+  focusViewInitial(view);
   // Giriş animasyonu bittiğinde yerleşim oturur; odak listesini tazele.
   window.setTimeout(() => router.refresh({ keep: true }), TRANSITION_MS);
 
@@ -283,7 +298,7 @@ export function back() {
   applyViewChrome(previous.view);
   syncRailActive();
   router.refresh({ keep: false });
-  router.focusFirst();
+  focusViewInitial(previous.view);
   try { previous.view.onEnter?.({ node: previous.node, actions }); } catch (err) { console.error('[shell] onEnter', err); }
   return true;
 }
@@ -305,7 +320,7 @@ export function resetToRoot() {
   applyViewChrome(root.view);
   syncRailActive();
   router.refresh({ keep: false });
-  router.focusFirst();
+  focusViewInitial(root.view);
   try { root.view.onEnter?.({ node: root.node, actions }); } catch (err) { console.error('[shell] onEnter', err); }
 }
 
@@ -622,7 +637,10 @@ export function revealAppShell() {
   shellEl?.classList.add('is-revealed');
   setShellInputOwner('menu');
   openView(getRootViewId(), { replace: true });
-  window.setTimeout(() => router?.refresh({ keep: false }), 60);
+  // Yerleşim oturduktan sonra liste tazelenir; mevcut odak KORUNUR — `keep:
+  // false` açılış hedefini (ör. home'da OYNA) ilk öğeye (karakter) geri
+  // döndürüyordu.
+  window.setTimeout(() => router?.refresh({ keep: true }), 60);
   startGamepadPoll();
 }
 

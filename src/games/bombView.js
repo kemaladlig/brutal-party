@@ -272,7 +272,7 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
     drawGameAvatar(ctx, 0, 0, radius, player, {
       facingAngle: player.angle,
       expression: currentExp,
-      borderColor: player.dash > 0 ? '#FFFFFF' : '#1C1C1A',
+      borderColor: player.dash > 0 ? '#FFFFFF' : (player.rimColor || '#1C1C1A'),
       borderWidth: uMin(player.dash > 0 ? 4.5 : 3),
       // Bomba taşıyıcısı kaçarken gözleri kaçış yönüne bakar: gövde `angle`
       // ile döner, bakış `vx/vy`'den türetilir.
