@@ -1587,12 +1587,6 @@ export class BaseMiniGame {
     }
   }
 
-  // Lokal klavye/dokunmatik discrete girdileri için giriş noktası.
-  handleLocalInput(slotIndex, data = {}) {
-    if (!this.claimInputSource('touch')) return;
-    this.applySlotInput(slotIndex, data);
-  }
-
   // Varsayılan uzak girdi: JOYSTICK_MOVE vektöre, discrete aksiyonlar
   // applySlotInput'a düşer. 15 motorun tamamı bunu override eder.
   handleRemoteInput(slotIndex, data = {}) {

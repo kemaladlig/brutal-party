@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { GAME_ORDER } from '../src/core/engineRegistry.js';
 import { GAMEPAD_SCHEMAS } from '../src/controllers/gamepadSchemas.js';
 import { getControlDescriptor } from '../src/core/controlDescriptor.js';
-import { getInputIntent, normalizeInputIntent } from '../src/core/inputIntent.js';
+import { normalizeInputIntent } from '../src/core/inputIntent.js';
 import { InputIntentRouter } from '../src/core/inputRouter.js';
 import { isValidNetworkInput } from '../src/core/networkProtocol.js';
 
@@ -16,8 +16,8 @@ test('every game projects its phone actions to stable engine intents', () => {
       const packet = { action: transportAction };
       assert.equal(isValidNetworkInput(packet), true, `${mode}:${transportAction}`);
       const normalized = normalizeInputIntent(packet, descriptor);
-      assert.equal(getInputIntent(normalized).type, 'action');
-      assert.equal(getInputIntent(normalized).id, action.id);
+      assert.equal(normalized.intent.type, 'action');
+      assert.equal(normalized.intent.id, action.id);
     }
   }
 });
@@ -34,7 +34,7 @@ test('continuous controls normalize without losing transport fields', () => {
   for (const [mode, packet, type] of cases) {
     const descriptor = getControlDescriptor(mode, GAMEPAD_SCHEMAS[mode]);
     const normalized = normalizeInputIntent(packet, descriptor, 'local');
-    assert.equal(getInputIntent(normalized).type, type);
+    assert.equal(normalized.intent.type, type);
     assert.equal(normalized.action, packet.action);
   }
 });
@@ -67,10 +67,10 @@ test('aim lifecycle actions preserve their canonical aim intent', () => {
     { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1, aimHeld: false, seq: 8 },
     descriptor,
   );
-  assert.deepEqual(getInputIntent(press), {
+  assert.deepEqual(press.intent, {
     type: 'action', id: 'aim', phase: 'press', seq: 7, source: 'network',
   });
-  assert.deepEqual(getInputIntent(release), {
+  assert.deepEqual(release.intent, {
     type: 'action', id: 'aim', phase: 'release', seq: 8, source: 'network',
   });
 });
@@ -81,10 +81,10 @@ test('quick-tap flag survives intent projection only when declared true', () => 
     { action: 'AIM_RELEASE', dx: 0, dy: 0, angle: 0, force: 0, aimHeld: false, seq: 3, tap: true },
     descriptor,
   );
-  assert.equal(getInputIntent(tapped).tap, true);
+  assert.equal(tapped.intent.tap, true);
   const dragged = normalizeInputIntent(
     { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1, aimHeld: false, seq: 4 },
     descriptor,
   );
-  assert.equal('tap' in getInputIntent(dragged), false);
+  assert.equal('tap' in dragged.intent, false);
 });

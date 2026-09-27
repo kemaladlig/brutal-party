@@ -542,20 +542,9 @@ export const CARTRIDGES = {
   },
 };
 
-export const RETIRED_GAME_IDS = Object.freeze(
-  GAME_ORDER.filter((id) => CARTRIDGES[id]?.retired === true),
-);
-
 const registry = {};
 const loadingPromises = {};
 let engineCanvas = null;
-
-export function registerCartridge(cartridge) {
-  CARTRIDGES[cartridge.id] = cartridge;
-  if (!GAME_ORDER.includes(cartridge.id)) {
-    GAME_ORDER.push(cartridge.id);
-  }
-}
 
 // Boot'ta bir kez çağrılır (motor kurmaz — sadece canvas'ı saklar).
 export function initEngineRegistry(canvas) {

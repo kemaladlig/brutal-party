@@ -706,10 +706,6 @@ export function isAppShellRevealed() {
   return revealed;
 }
 
-export function getShellStackIds() {
-  return stack.map((entry) => entry.id);
-}
-
 // Görünümler kayıt noktasından gelir; modül yüklenince root belirlenir.
 setRootView('home');
 

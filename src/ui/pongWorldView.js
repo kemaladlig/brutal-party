@@ -62,5 +62,3 @@ export function createWorldViewRenderer() {
     },
   };
 }
-
-export const createPongWorldViewRenderer = createWorldViewRenderer;

@@ -43,5 +43,3 @@ export function createWorldViewRenderer() {
     },
   };
 }
-
-export const createCrownWorldViewRenderer = createWorldViewRenderer;

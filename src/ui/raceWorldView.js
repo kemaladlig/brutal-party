@@ -56,5 +56,3 @@ export function createWorldViewRenderer() {
     },
   };
 }
-
-export const createRaceWorldViewRenderer = createWorldViewRenderer;

@@ -14,7 +14,7 @@ import { buildLayout } from '../core/arenaKit.js';
 import { readSlotKeys } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
-import { pointBlocked, updateMovers, clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
+import { updateMovers, clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { findAutoAimTarget } from '../core/autoAim.js';
@@ -507,10 +507,6 @@ export class ArcherGame extends BaseMiniGame {
       p.charge = 0;
       p.keyActionLatch = false;
     });
-  }
-
-  pointBlocked(x, y) {
-    return pointBlocked(x, y, this.obstacles, 0);
   }
 
   update(now) {

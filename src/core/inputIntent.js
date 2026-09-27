@@ -97,7 +97,3 @@ export function matchesInputAction(data, id, fallbackAction, phase = null) {
   if (data?.intent) return isInputIntent(data, 'action', id, phase);
   return data?.action === fallbackAction;
 }
-
-export function getInputIntent(data) {
-  return data?.intent || null;
-}

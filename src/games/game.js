@@ -238,10 +238,6 @@ export class Game extends BaseMiniGame {
     return kbDir;
   }
 
-  applyKeyboardControls(dt) {
-    this.applyControls(dt);
-  }
-
   getGoalBounds(side) {
     const isHorizontal = side === 'bottom' || side === 'top';
     // Kale açıklığı kendi kenarına oranlı: her duvarda %62 açık, her aspect'te adil.
@@ -344,13 +340,6 @@ export class Game extends BaseMiniGame {
 
   onTouchesReset() {
     this.resetTabletopTouches();
-  }
-
-  isPlayerActive(index) {
-    const p = this.paddles[index];
-    // Klavye yoluyla aynı kapı (applyKeyboardControls): bot/ölü/katılmamış
-    // dokunmatikle de sürülemez
-    return p && p.isJoined && !p.isEliminated && !p.isBot;
   }
 
   getActivePlayerCount() {
@@ -680,10 +669,6 @@ export class Game extends BaseMiniGame {
       const minDim = Math.min(this.arena.width, this.arena.height);
       paddle.setTarget(paddle.targetCoord + Math.sign(input.dir) * minDim * 1.5 * (input.dt || 0.016));
     }
-  }
-
-  handleLocalInput(slotIndex, data = {}) {
-    this.applySlotInput(slotIndex, data);
   }
 
   handleRemoteInput(slotIndex, data) {
