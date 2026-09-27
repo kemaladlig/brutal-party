@@ -102,15 +102,42 @@ test('input is still neutralized on the real source-change events', () => {
   }
 });
 
+// Oda fazı TEK yerden türetilir. Ölçülen kusur: yerel kumanda paketi
+// `phase: 'GAME'` yazıyor, türetim ise yalnız ağ paketinde duruyordu — tek
+// cihazda masa-ortası/telefon-üstü oyuncusu SAHAYA GEÇ ve 3-2-1'i kumanda
+// yüzeyinde hiç göremiyordu.
+test('room phase has exactly one derivation', () => {
+  const main = codeOf('src/main.js');
+  assert.match(main, /function roomPhase\(\)/, 'tek türetim fonksiyonu kaybolmuş');
+  assert.ok(!/phase:\s*'GAME'/.test(main),
+    'yerel pakete sabit phase yazılıyor — kumanda geri sayım/staging fazını kaybeder');
+  const uses = (main.match(/roomPhase\(\)/g) || []).length;
+  assert.ok(uses >= 3, `roomPhase() en az tanım + iki çağrı olmalı (bulunan ${uses})`);
+});
+
+// D1 sözleşmesi: geri sayım, kumanda yüzeyinin içeriğini EZMEZ. Eski yol
+// `workspace.innerHTML = ...` idi → lobi kartı yıkılıyor, hemen ardından
+// ikinci bir tam kurulum oluyordu ve kullanıcı iki yok-var sıçraması görüyordu.
+test('the countdown is a veil, not a workspace wipe', () => {
+  const gp = codeOf('src/gamepad.js');
+  const at = gp.indexOf('showCountdown(t) {');
+  assert.ok(at >= 0, 'showCountdown bulunamadı');
+  const body = gp.slice(at, gp.indexOf('\n  }', at));
+  assert.ok(!/workspace\.innerHTML|getElementById\('gamepad-workspace'\)/.test(body),
+    'geri sayım workspace içeriğini eziyor — takas perdenin altında olmalı');
+  assert.match(gp, /this\.overlay\.appendChild\(veil\)/,
+    'perde workspace DIŞINA ekilmeli; yoksa renderGameController onu yıkar');
+  // Perde her yüzey kurulumunda tek noktadan kapanmalı.
+  const render = gp.indexOf('renderGameController(mode) {');
+  assert.ok(gp.slice(render, render + 400).includes('this.hideCountdown()'),
+    'renderGameController perdeyi kapatmıyor — takılı kalan sayaç üretir');
+});
+
 // AGENTS §3: cache anahtarı kareye oturur. `paintBackdrop` bir ara 1 px
 // hassasiyetle ve w/h'yi hiç kuantumlamadan anahtar üretiyordu; çubuk
 // animasyonundaki her ara tam-piksel yükseklik tüm viewport'u yeniden
 // pişirip 2 girdili LRU'da ping-pong üretiyordu.
-//
-// NOT: bu kilidi `src/core/fieldKit.js`'in kendi commit'iyle birlikte
-// ekleyeceğiz — dosyada o commit'ten önce başka bir iş akışının yarım
-// değişikliği duruyor ve kilit, düzeltme commit'lenmeden yeşil olamaz.
-test('backdrop cache key is quantized like the field layer', { skip: 'fieldKit.js düzeltmesi commit edilince açılacak' }, () => {
+test('backdrop cache key is quantized like the field layer', () => {
   const kit = codeOf('src/core/fieldKit.js');
   const at = kit.indexOf('export function paintBackdrop');
   assert.ok(at >= 0, 'paintBackdrop bulunamadı');
