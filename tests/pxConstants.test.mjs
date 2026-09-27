@@ -7,7 +7,7 @@
 // its keep: the constants are literal numbers in a small, known set of files, and
 // the failure mode (a silent miss) is invisible to the test suite otherwise.
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -60,6 +60,7 @@ const DESIGN_TABLES = [
 const SCALED_LITERAL = /(?:\d+(?:\.\d+)?)\s*[*/]\s*(?:this\.)?(?:hu|u|k|scale|unit|px|fieldPx|fieldRadius|fieldSpeed)\b/;
 
 function walk(dir, out = []) {
+  if (!existsSync(dir)) return out;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) walk(full, out);
