@@ -298,6 +298,7 @@ export const EN = {
   // ── Canvas shared ──
   'canvas.zones': 'PLAYER ZONES',
   'canvas.need2': 'NEED 2 PLAYERS',
+  'canvas.start': 'START',
   'canvas.playAgain': 'PLAY AGAIN',
   'canvas.champ': 'CHAMPION',
   // ── Shared game strings ──

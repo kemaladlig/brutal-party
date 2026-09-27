@@ -298,6 +298,7 @@ export const TR = {
   // ── Canvas shared ──
   'canvas.zones': 'OYUNCU BÖLGELERİ',
   'canvas.need2': '2 KİŞİ GEREKİYOR',
+  'canvas.start': 'BAŞLA',
   'canvas.playAgain': 'YENİDEN OYNA',
   'canvas.champ': 'ŞAMPİYON',
   // ── Shared game strings ──

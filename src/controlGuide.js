@@ -425,7 +425,7 @@ export function renderLobbyStartButton(ctx, {
   ctx.font = ready ? uiFont('button') : uiFont('body');
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(ready ? t('pause.resume') : t('canvas.need2'), arena.cx, btnY + (btnH - bottomRim) / 2);
+  ctx.fillText(ready ? t('canvas.start') : t('canvas.need2'), arena.cx, btnY + (btnH - bottomRim) / 2);
   ctx.restore();
 
   if (ready) {
