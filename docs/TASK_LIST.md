@@ -6,14 +6,14 @@
 - [x] 0.2 Ölü i18n anahtarları biçildi (240 anahtar) — `e5d5c1a` (önceki oturum)
 - [x] 0.3 Ölü export/metot/alias biçildi (60 tablo-kullanımlı anahtar korundu) — `8e3b14a` (önceki oturum)
 - [x] 0.4 Ölü opcode'lar düştü (ARCHER_CHARGE(_END), LASER_AIM/FIRE/RELEASE, HORDE_FIRE/RELEASE, SNAKE_DIR) — `c40095b`
-- [ ] 0.5 Ölü metotlar: game.js applyKeyboardControls/isPlayerActive/handleLocalInput, BaseGame ölü dal, archer wrapper
-- [ ] 0.6 inputRouter.js sadeleştirme (tek tüketici main.js), inputSource.js → BaseGame inline kararı
+- [x] 0.5 Ölü metotlar (game.js vb.) önceki oturumda biçildi — `8e3b14a`; kalan yok (grep doğrulandı)
+- [x] 0.6 inputRouter/inputSource kararı: KORUNDU (inputRouter tek tüketici ama `tests/inputIntent.test.mjs` kilitli saf katman; inputSource BaseGame'de aktif kullanım)
 - [ ] 0.0 CLONE kararı: "emekli ama oynanabilir" mi, tam kaldırma mı? (kullanıcı kararı)
 
 ## Faz 1 — Gölgeleyen kopyaları kapat (~1-2 gün, gerçek bug)
 
-- [ ] 1.1 6× cycleSlotType kopyası → BaseGame + onSeatCycled hook
-- [ ] 1.2 5× inline ekran sarsıntısı → applyScreenShake (bake-cache determinizmi)
+- [x] 1.1 6× cycleSlotType kopyası → BaseGame + onSeatCycled hook (crown bot-renk bug'i kapanır) — `c9db3ab`, tam test 388/388
+- [x] 1.2 5× inline ekran sarsıntısı → applyScreenShake (game/bomb/heist/curve/tanks) — `613d21b`, tam test 388/388
 - [ ] 1.3 bot_god relay paritesi (supabaseRelay tek satır)
 - [ ] 1.4 Throttle tek kaynak: throttleSlot() → networkProtocol.js (WS + relay aynı kapı)
 - [ ] 1.5 Aim heartbeat 200→250ms sabite + dt tavanları tek değer
