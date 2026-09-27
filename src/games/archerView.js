@@ -4,6 +4,7 @@
 // asla simülasyon/AI import etmez.
 
 import { drawObstacle, drawPickup } from '../core/arenaKit.js';
+import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
@@ -135,15 +136,12 @@ export function isValidArcherWorldFrame(frame) {
 }
 
 // --- Ortak çizim yardımcıları (host + client aynı fonksiyonu çağırır) ---
-export function drawArcherArena(ctx, arena, obstacles) {
-  const { left, top, width, height } = arena;
-  const u = arena?.unit ?? 1;
-  ctx.fillStyle = '#E8E5DF';
-  ctx.fillRect(left, top, width, height);
-  for (const obs of obstacles) drawObstacle(ctx, obs, { variant: 'stone' });
-  ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 6 * u;
-  ctx.strokeRect(left, top, width, height);
+export function drawArcherArena(ctx, arena, obstacles, opts = {}) {
+  // Statik saha tek kaynaktan: zemin tonu, dokusu, derzi, seeded dekoru ve
+  // yuvarlatılmış tepsi kesimi `fieldKit`'te pişirilir, frame başına tek blit.
+  // Eskiden burada düz `#E8E5DF` dolgu + kare siyah `strokeRect` vardı.
+  drawField(ctx, arena, { mode: 'ARCHER', seed: hashFieldSeed('ARCHER', opts.roundId) });
+  for (const obs of obstacles) drawObstacle(ctx, obs, { theme: 'ARCHER' });
 }
 
 export function drawArcherPickups(ctx, pickups) {

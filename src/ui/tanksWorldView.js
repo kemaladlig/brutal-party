@@ -10,7 +10,8 @@ import {
   isValidTanksWorldFrame,
 } from '../games/tanksView.js';
 import { drawSquareParticles } from '../games/worldCore.js';
-import { fitWorld, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { fitWorld, worldScreenBox, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
@@ -28,10 +29,15 @@ export function createWorldViewRenderer() {
       arena.size = Math.min(arena.width, arena.height);
 
       ctx.save();
-      ctx.fillStyle = '#F4F0EA';
-      ctx.fillRect(0, 0, width, height);
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'TANKS' });
       fitWorld(ctx, width, height, frame.arena, () => {
-        drawTanksArena(ctx, arena, frame.obstacles.map(([x, y, w, h]) => ({ x, y, w, h })), frame.suddenDeath);
+        drawTanksArena(
+          ctx,
+          arena,
+          frame.obstacles.map(([x, y, w, h]) => ({ x, y, w, h })),
+          frame.suddenDeath,
+          { roundId: frame.roundId },
+        );
         const ownerColors = frame.players.map((p) => slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || TANK_FALLBACK[p.slot]);
         drawTanksBullets(ctx, frame.bullets.map(([x, y, radius, owner]) => ({ x, y, radius, owner })), ownerColors);
         drawTanksTracers(ctx, frame.tracers || []);

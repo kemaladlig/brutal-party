@@ -10,6 +10,7 @@ import {
 import { t } from '../i18n.js';
 import { hasTabletopIcon, drawTabletopIcon } from '../core/tabletopIcons.js';
 import { isCompactLandscape } from '../core/playfield.js';
+import { drawGameAvatar } from '../core/avatarInGame.js';
 
 function pathRoundRect(ctx, x, y, w, h, r) {
   if (typeof ctx.roundRect === 'function') {
@@ -1052,42 +1053,103 @@ export function renderEntityHUD(ctx, {
   ctx.restore();
 }
 
+// ---------------------------------------------------------------------------
+// Sonuç yüzeyi dili — final kartı ve raund bandı aynı paneli paylaşır.
+//
+// Eski hâli (krem kart + 3px mürekkep çerçeve + ofsetli sert gölge) sahaya
+// gömülüyor ve uygulamanın güncel koyu yüzey dilinden kopuyordu; telefon
+// kumandasındaki tam ekran sonuç (`--result-*`) başka bir dil konuşuyordu.
+// Sonuç anları artık tek panelde buluşur.
+// ---------------------------------------------------------------------------
+
+// `--result-bg` gradyanının karşılığı. Kare başına tahsis yerine kutu
+// geometrisiyle önbelleğe alınır (yalnız resize'da yeniden üretilir).
+let resultPanelCache = null;
+
+function resultPanelFill(ctx, box) {
+  const key = `${Math.round(box.y)}:${Math.round(box.h)}`;
+  if (!resultPanelCache || resultPanelCache.key !== key) {
+    const grad = ctx.createLinearGradient(0, box.y, 0, box.y + box.h);
+    grad.addColorStop(0, UI_COLORS.resultPanelTop);
+    grad.addColorStop(1, UI_COLORS.resultPanelBottom);
+    resultPanelCache = { key, grad };
+  }
+  return resultPanelCache.grad;
+}
+
+// Yumuşak gölge: iç içe saydam yuvarlak katmanlar. `shadowBlur` kare başına
+// pahalı, tek `rgba` ofset kutu ise "sert kutu gölgesi"ne (eski dil) düşüyor.
+function drawResultPanel(ctx, box, scale, radius = null) {
+  const r = Number.isFinite(radius) ? radius : Math.round(Math.min(26, box.w * 0.055));
+  ctx.save();
+  const layers = [
+    [Math.round(11 * scale), 0.07],
+    [Math.round(6 * scale), 0.11],
+    [Math.round(2 * scale), 0.15],
+  ];
+  for (const [spread, alpha] of layers) {
+    ctx.fillStyle = `rgba(${UI_COLORS.resultShadowRgb}, ${alpha})`;
+    pathRoundRect(
+      ctx,
+      box.x - spread,
+      box.y - spread + Math.round(4 * scale),
+      box.w + spread * 2,
+      box.h + spread * 2,
+      r + spread,
+    );
+    ctx.fill();
+  }
+
+  ctx.fillStyle = resultPanelFill(ctx, box);
+  pathRoundRect(ctx, box.x, box.y, box.w, box.h, r);
+  ctx.fill();
+
+  // Tek ince kenar: tel kafes değil, panelin ışığı.
+  ctx.strokeStyle = UI_COLORS.resultEdge;
+  ctx.lineWidth = 1.5;
+  pathRoundRect(ctx, box.x, box.y, box.w, box.h, r);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Sonuç yüzeylerinin arkasını kısık tutmak için tek örtü. `viewport` verilirse
+// ekranın tamamı, yoksa saha karartılır — sahanın dışı `paintBackdrop`'ın.
+function dimBehindResult(ctx, arena, viewport) {
+  const box = viewport && viewport.width > 0 ? viewport : arena;
+  ctx.save();
+  ctx.fillStyle = UI_COLORS.scrim;
+  ctx.fillRect(box.left ?? box.x ?? 0, box.top ?? box.y ?? 0, box.width, box.height);
+  ctx.restore();
+}
+
+// Metin tabanı: UI_TEXT kademeleri telefon referansıyla (ölçek 1) tune edildi.
+// `getDisplayProfile` MOBILE'da 0.72'ye kadar düşürüyor — saha varlıkları için
+// doğru, ama arayüz yazısını okunmaz hâle getiriyordu. Yazı yalnız büyür.
+function uiTextScale(scale, max = 1.7) {
+  return Math.max(1, Math.min(max, scale));
+}
+
 // Standart raund bandı: başlık + alt bilgi.
-// TV ve büyük monitörlerde orantılı genişler.
 export function renderRoundBanner(ctx, { arena, title, titleColor, sub = '' }) {
   const scale = getUiScale(arena);
-  const boxW = Math.min(Math.round(440 * scale), arena.width * 0.88);
-  const boxH = Math.round(80 * Math.min(1.4, scale));
-  const boxX = arena.cx - boxW / 2;
-  const boxY = arena.cy - boxH / 2;
-  const shadow = Math.max(3, Math.round(5 * Math.min(1.4, scale)));
-
-  const boxR = Math.min(18, boxH * 0.22);
+  const ts = uiTextScale(scale);
+  const boxW = Math.min(Math.round(440 * ts), arena.width * 0.88);
+  const boxH = Math.round((sub ? 88 : 68) * ts);
+  const box = { x: arena.cx - boxW / 2, y: arena.cy - boxH / 2, w: boxW, h: boxH };
 
   ctx.save();
-  ctx.fillStyle = 'rgba(10, 8, 24, 0.38)';
-  pathRoundRect(ctx, boxX, boxY + shadow, boxW, boxH, boxR);
-  ctx.fill();
-
-  ctx.fillStyle = UI_COLORS.card;
-  pathRoundRect(ctx, boxX, boxY, boxW, boxH, boxR);
-  ctx.fill();
-
-  ctx.strokeStyle = UI_COLORS.ink;
-  ctx.lineWidth = Math.max(2.5, Math.round(3 * Math.min(1.3, scale)));
-  pathRoundRect(ctx, boxX, boxY, boxW, boxH, boxR);
-  ctx.stroke();
+  drawResultPanel(ctx, box, ts);
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = titleColor;
-  ctx.font = uiFont('button', Math.min(1.35, scale));
-  ctx.fillText(title, arena.cx, sub ? boxY + boxH * 0.38 : boxY + boxH / 2, boxW - 24);
+  ctx.fillStyle = titleColor || UI_COLORS.resultInk;
+  ctx.font = uiFont('button', ts);
+  ctx.fillText(title, arena.cx, sub ? box.y + boxH * 0.38 : box.y + boxH / 2, boxW - Math.round(28 * ts));
 
   if (sub) {
-    ctx.fillStyle = UI_COLORS.muted;
-    ctx.font = uiFont('monoBody', Math.min(1.3, scale));
-    ctx.fillText(sub, arena.cx, boxY + boxH * 0.72, boxW - 24);
+    ctx.fillStyle = UI_COLORS.resultMuted;
+    ctx.font = uiFont('monoBody', ts);
+    ctx.fillText(sub, arena.cx, box.y + boxH * 0.72, boxW - Math.round(28 * ts));
   }
   ctx.restore();
 }
@@ -1097,73 +1159,227 @@ export function cleanWinnerName(name) {
   return name.replace(/^P[1-4]\s*[•·\-–—]\s*/i, '').trim();
 }
 
-// Standart final kutusu: başlık + kazanan + skor listesi + çalışan 'YENİDEN OYNA' butonu.
+// Final kartı düzeni: kartın yüksekliği İÇERİKTEN türer. Eskiden 230 tasarım
+// px'te sabitti, bu yüzden telefonda 4 satır ile buton arasında ölçülen 8 px
+// kalıyor ve 5. satır butonun üstüne biniyordu. Ayrıca tek sütunlu düzen yatay
+// telefonda arena yüksekliğinin %48'ini yiyordu (masaüstünde %38) — küçük
+// ekranda kart daha da baskındı.
+//
+// Geniş yüzeylerde (en-boy ≥ `finalSplitAspect`) kart iki sütuna bölünür:
+// solda kazanan, sağda sıralama + eylemler. Telefon kumandasındaki tam ekran
+// sonucun yatay kadrajıyla aynı karar.
+//
+// Saf fonksiyondur (çizim yok): `tests/matchOverLayout.test.mjs` bu sözleşmeyi
+// telefon yatayından TV'ye kadar kilitler.
+export function layoutMatchOverCard(arena, { rowCount = 0, actionCount = 1 } = {}) {
+  const S = UI_SIZES;
+  const split = arena.width / (arena.height || 1) >= S.finalSplitAspect;
+  // Yazı tabanı: `UI_TEXT` kademeleri telefon referansıyla (ölçek 1) tune
+  // edildi, profil ölçeği MOBILE'da 0.72'ye kadar düşürüyor. Saha varlığı için
+  // doğru olan bu, arayüz yazısını okunmaz hâle getiriyordu.
+  const ts = uiTextScale(getUiScale(arena));
+  const u = (v) => Math.round(v * ts);
+
+  const pad = u(S.finalPad);
+  const rowH = u(S.finalRowH);
+  const rowGap = u(S.finalRowGap);
+  const sectionGap = u(12);
+  const labelH = u(S.finalLabelH);
+  const heroR = u(split ? 30 : 26);
+  const nameH = u(S.finalNameH);
+  const btnGap = u(S.finalBtnGap);
+  const btnH = Math.max(S.finalBtnHMin, u(S.finalBtnTall)); // 44 px: dokunma tabanı
+
+  const cardW = Math.min(u(split ? S.finalCardWSplit : S.finalCardW), arena.width * S.finalCardMaxWidth);
+  const innerW = cardW - pad * 2;
+  const leadW = split ? Math.min(innerW * S.finalLeadShare, u(S.finalLeadMaxW)) : innerW;
+  const colGap = split ? u(S.finalColGap) : 0;
+  const boardW = split ? innerW - leadW - colGap : innerW;
+
+  // İki eylem yan yana `finalBtnMinW`'in altına düşecekse alt alta geçer:
+  // dokunma hedefinin genişliği yüksekliğinden ödünç alınamaz.
+  const sideBySide = actionCount < 2
+    || (boardW - btnGap * (actionCount - 1)) / actionCount >= S.finalBtnMinW;
+  const btnW = sideBySide ? (boardW - btnGap * (actionCount - 1)) / actionCount : boardW;
+  const actionsH = actionCount <= 0 ? 0
+    : (sideBySide ? btnH : actionCount * btnH + (actionCount - 1) * btnGap);
+
+  const rowsH = rowCount <= 0 ? 0 : rowCount * rowH + (rowCount - 1) * rowGap;
+  const boardH = rowsH + (rowsH && actionsH ? sectionGap : 0) + actionsH;
+  const leadH = labelH + u(S.finalSectionGap) + Math.max(heroR * 2, nameH);
+
+  const cardH = Math.min(
+    pad + (split ? Math.max(leadH, boardH) : leadH + sectionGap + boardH) + pad,
+    arena.height * S.finalCardMaxHeight,
+  );
+  const x = arena.cx - cardW / 2;
+  const y = arena.cy - cardH / 2;
+
+  // Sütunlar kendi bandında dikeyde ortalanır: yatayda kısa kalan sütun
+  // ortada, uzun olan bant boyunca yayılır.
+  const bandH = Math.max(0, cardH - pad * 2);
+  const leadTop = y + pad + Math.max(0, (bandH - leadH) / 2);
+  const boardTop = y + pad + Math.max(0, (bandH - boardH) / 2);
+  const leadX = x + pad;
+  const boardX = split ? leadX + leadW + colGap : x + pad;
+
+  const hero = {
+    cx: leadX + heroR,
+    cy: leadTop + labelH + u(S.finalSectionGap) + Math.max(heroR, nameH / 2),
+    r: heroR,
+  };
+  const name = {
+    x: hero.cx + heroR + u(S.finalLabelNameGap),
+    y: hero.cy - nameH / 2,
+    w: Math.max(0, leadW - heroR * 2 - u(S.finalLabelNameGap)),
+    h: nameH,
+  };
+  const rows = [];
+  for (let i = 0; i < rowCount; i++) {
+    rows.push({ x: boardX, y: boardTop + i * (rowH + rowGap), w: boardW, h: rowH });
+  }
+  const actionsTop = boardTop + rowsH + (rowsH && actionsH ? sectionGap : 0);
+  const actions = [];
+  for (let i = 0; i < actionCount; i++) {
+    actions.push({
+      x: sideBySide ? boardX + i * (btnW + btnGap) : boardX,
+      y: sideBySide ? actionsTop : actionsTop + i * (btnH + btnGap),
+      w: btnW,
+      h: btnH,
+    });
+  }
+
+  return {
+    ts,
+    split,
+    x,
+    y,
+    w: cardW,
+    h: cardH,
+    pad,
+    radius: Math.round(Math.min(S.finalRadiusMax, cardW * 0.055)),
+    label: { x: leadX, y: leadTop, w: leadW, h: labelH },
+    name,
+    hero,
+    rows,
+    actions,
+    btnW,
+    btnH,
+  };
+}
+
+// Standart final kartı. `rows` yapılandırılmıştır: `{ color, name, value }`.
+// Motorların eski `{ color, text }` biçimi de tek satırda çalışır (isim olarak
+// düşer), böylece geçiş sırasında hiçbir oyun çıplak kalma.
 export function renderMatchOver(ctx, {
-  arena, uiButtons, headline, winnerName = '', winnerColor = UI_COLORS.ink, rows = [], onRestart,
+  arena,
+  uiButtons,
+  headline,
+  winnerName = '',
+  winnerColor = UI_COLORS.resultGold,
+  winnerEntity = null,
+  rows = [],
+  onRestart,
+  onLobby = null,
+  viewport = null,
 }) {
-  const scale = getUiScale(arena);
-  const boxW = Math.min(Math.round(460 * scale), Math.min(arena.width, arena.height) * 0.90);
-  const boxH = Math.round(230 * Math.min(1.35, scale));
-  const boxX = arena.cx - boxW / 2;
-  const boxY = arena.cy - boxH / 2;
-  const shadow = Math.max(4, Math.round(6 * Math.min(1.4, scale)));
-  const boxR = Math.min(22, boxW * 0.08);
+  const entries = rows.slice(0, 4).map((row) => ({
+    color: row.color || UI_COLORS.resultInk,
+    name: String(row.name ?? row.text ?? ''),
+    value: row.value === undefined || row.value === null ? '' : String(row.value),
+  }));
+  const actions = [];
+  if (typeof onRestart === 'function') actions.push({ label: t('canvas.playAgain'), kind: 'primary', onClick: onRestart });
+  if (typeof onLobby === 'function') actions.push({ label: t('pad.toLobby'), kind: 'secondary', onClick: onLobby });
+
+  const g = layoutMatchOverCard(arena, { rowCount: entries.length, actionCount: actions.length });
+  const cleanWinner = cleanWinnerName(winnerName);
+  const textPad = Math.round(6 * g.ts);
 
   ctx.save();
-  ctx.fillStyle = 'rgba(10, 8, 24, 0.45)';
-  pathRoundRect(ctx, boxX, boxY + shadow, boxW, boxH, boxR);
-  ctx.fill();
-
-  ctx.fillStyle = UI_COLORS.card;
-  pathRoundRect(ctx, boxX, boxY, boxW, boxH, boxR);
-  ctx.fill();
-
-  ctx.strokeStyle = UI_COLORS.ink;
-  ctx.lineWidth = Math.max(2.5, Math.round(3 * Math.min(1.3, scale)));
-  pathRoundRect(ctx, boxX, boxY, boxW, boxH, boxR);
-  ctx.stroke();
-
-  ctx.textAlign = 'center';
+  dimBehindResult(ctx, arena, viewport);
+  drawResultPanel(ctx, { x: g.x, y: g.y, w: g.w, h: g.h }, g.ts, g.radius);
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = UI_COLORS.ink;
-  ctx.font = uiFont('body', Math.min(1.3, scale));
-  ctx.fillText(headline, arena.cx, boxY + Math.round(30 * scale));
 
-  const cleanWinner = cleanWinnerName(winnerName);
-  ctx.fillStyle = cleanWinner ? winnerColor : UI_COLORS.ink;
-  ctx.font = uiFont('title', Math.min(1.3, scale));
-  ctx.fillText(cleanWinner ? `${cleanWinner} KAZANDI!` : 'BERABERE!', arena.cx, boxY + Math.round(68 * scale), boxW - 24);
+  // Üst etiket: "ŞAMPİYON" / "OKÇU ŞAMPİYONU" — motor verir. Kazanan
+  // yoksa (berabere) etiket büyük söze taşınır: ikiz "BERABERE! BERABERE!"
+  // çizmemek için.
+  const labelText = cleanWinner ? String(headline || '').toUpperCase() : '';
+  const heroText = cleanWinner || String(headline || t('game.draw')).toUpperCase();
+  ctx.font = uiFont('finalLabel', g.ts);
+  ctx.fillStyle = UI_COLORS.resultMuted;
+  ctx.fillText(labelText, g.label.x, g.label.y + g.label.h / 2, g.label.w);
 
-  ctx.font = uiFont('monoBody', Math.min(1.2, scale));
-  const rowStep = Math.round(18 * Math.min(1.3, scale));
-  rows.forEach((row, i) => {
-    ctx.fillStyle = row.color;
-    ctx.fillText(row.text, arena.cx, boxY + Math.round(96 * scale) + i * rowStep, boxW - 24);
+  // Kazanan: avatar + ad. Berabere'de avatar yoktur, söz soluk durur.
+  if (cleanWinner) {
+    drawGameAvatar(ctx, g.hero.cx, g.hero.cy, g.hero.r, winnerEntity || {
+      name: cleanWinner,
+      color: winnerColor,
+      index: Number.isInteger(winnerEntity?.index) ? winnerEntity.index : 0,
+    }, { label: '', color: winnerColor, borderColor: winnerColor, faceMode: 'play' });
+
+    ctx.font = uiFont('finalHero', g.ts);
+    ctx.fillStyle = UI_COLORS.resultGold;
+    ctx.fillText(cleanWinner, g.name.x, g.name.y + g.name.h / 2, g.name.w);
+  } else {
+    ctx.font = uiFont('finalHero', g.ts);
+    ctx.fillStyle = UI_COLORS.resultInk;
+    ctx.fillText(heroText, g.name.x, g.name.y + g.name.h / 2, arena.width - g.pad * 2);
+  }
+
+  // Sıralama: saydam satır pill'leri — rütbe, renk noktası, isim solda, puan sağda.
+  entries.forEach((entry, i) => {
+    const row = g.rows[i];
+    ctx.fillStyle = UI_COLORS.resultRow;
+    pathRoundRect(ctx, row.x, row.y, row.w, row.h, Math.round(row.h * 0.32));
+    ctx.fill();
+
+    const cy = row.y + row.h / 2;
+    ctx.font = uiFont('monoLabel', g.ts);
+    ctx.fillStyle = UI_COLORS.resultMuted;
+    ctx.fillText(String(i + 1), row.x + textPad, cy);
+
+    const dotR = Math.max(4, Math.round(6 * g.ts));
+    const dotX = row.x + textPad + Math.round(14 * g.ts);
+    ctx.beginPath();
+    ctx.arc(dotX, cy, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = entry.color;
+    ctx.fill();
+
+    const nameX = dotX + dotR + Math.round(9 * g.ts);
+    const valueX = row.x + row.w - textPad;
+    ctx.font = uiFont('finalRowValue', g.ts);
+    const valueW = entry.value ? ctx.measureText(entry.value).width : 0;
+
+    ctx.font = uiFont('finalRow', g.ts);
+    ctx.fillStyle = UI_COLORS.resultInk;
+    ctx.fillText(entry.name, nameX, cy, Math.max(0, valueX - valueW - Math.round(12 * g.ts) - nameX));
+
+    if (entry.value) {
+      ctx.textAlign = 'right';
+      ctx.font = uiFont('finalRowValue', g.ts);
+      ctx.fillStyle = UI_COLORS.resultGold;
+      ctx.fillText(entry.value, valueX, cy);
+      ctx.textAlign = 'left';
+    }
   });
 
-  const btnW = Math.round(UI_SIZES.finalBtnW * Math.min(1.35, scale));
-  const btnH = Math.round(UI_SIZES.finalBtnH * Math.min(1.3, scale));
-  const btnX = arena.cx - btnW / 2;
-  const btnY = boxY + boxH - btnH - Math.round(18 * scale);
-  const btnR = Math.round(12 * Math.min(1.3, scale));
+  // Eylemler: birincil altın, ikincil yeşil — kumanda sonuç ekranıyla aynı dil.
+  actions.forEach((action, i) => {
+    const btn = g.actions[i];
+    const r = Math.round(btn.h * 0.30);
+    ctx.fillStyle = action.kind === 'primary' ? UI_COLORS.gold : UI_COLORS.success;
+    pathRoundRect(ctx, btn.x, btn.y, btn.w, btn.h, r);
+    ctx.fill();
 
-  ctx.fillStyle = 'rgba(10, 8, 24, 0.3)';
-  pathRoundRect(ctx, btnX, btnY + 3, btnW, btnH, btnR);
-  ctx.fill();
+    ctx.textAlign = 'center';
+    ctx.font = uiFont('buttonSmall', g.ts);
+    ctx.fillStyle = UI_COLORS.onAccent;
+    ctx.fillText(action.label, btn.x + btn.w / 2, btn.y + btn.h / 2, btn.w - Math.round(14 * g.ts));
 
-  ctx.fillStyle = UI_COLORS.ink;
-  pathRoundRect(ctx, btnX, btnY, btnW, btnH, btnR);
-  ctx.fill();
+    uiButtons?.push({ x: btn.x, y: btn.y, w: btn.w, h: btn.h, onClick: action.onClick });
+  });
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-  ctx.lineWidth = 1.5;
-  pathRoundRect(ctx, btnX, btnY, btnW, btnH, btnR);
-  ctx.stroke();
-
-  ctx.fillStyle = UI_COLORS.white;
-  ctx.font = uiFont('buttonSmall', Math.min(1.3, scale));
-  ctx.fillText(t('canvas.playAgain'), arena.cx, btnY + btnH / 2);
   ctx.restore();
-
-  uiButtons.push({ x: btnX, y: btnY, w: btnW, h: btnH, onClick: onRestart });
 }

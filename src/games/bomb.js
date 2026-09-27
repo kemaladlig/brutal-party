@@ -27,7 +27,7 @@ import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
-import { clampToArena, resolveAABB } from '../core/physics2d.js';
+import { clampToArena, damp, resolveAABB } from '../core/physics2d.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { createPlayer, tickEffectTimers, advancePlayer } from '../core/playerEntity.js';
@@ -51,6 +51,18 @@ const BOMB_ROUND_LIMIT = 90;
 // Gövde yarıçapı (1920x1080 referansı). `fieldRadius` tabanı GÖRELİ: mutlak px
 // tabanı küçük sahada varlığı şişiriyordu. Alt sınır zaten `minUnit` verir.
 const BOMB_RADIUS = 36;
+
+// Hareket bütçesi (tasarım px/sn ve sn). Sahayı geçiş süresi `952 / hız` sn'dir,
+// çözünürlükten bağımsız. BOMB gövdesi 36 px — aktif oyunların en büyüğü —
+// olduğu için hız, ARCHER'ın (198 / r28) "gövde/sn" değerine yaklaşacak şekilde
+// seçildi: 175 → 200 (2.4 → 2.8 gövde/sn). Dash mesafesi 360×0.22 = 79 px
+// (%8.3) ile HORDE'ın %11.4'ünün altındaydı; 430×0.26 = 112 px (%11.7) eşitler.
+// Süreyi gereğinden az uzatıyoruz: BOMB'ta dash süresince hedefsiz duruyorsun.
+const BOMB_TUNING = Object.freeze({
+  MOVE_SPEED: 200,
+  DASH_SPEED: 430,
+  DASH_DURATION: 0.26,
+});
 
 export const MAP_PRESETS = [
   { id: 'columns4', name: '01 // 4 SİPER KOLONU' },
@@ -256,9 +268,9 @@ export class BombGame extends BaseMiniGame {
         radius: r,
         // Gövde ve HIZ birlikte ölçeklenir: saha küçülürken gövde de
         // küçülür, hız de küçülür, böylece sahanı geçiş süresi sabit kalır
-        // (masaüstünde 952/175 = 5.4sn, telefonda 387/71 = 5.4sn). Hız
+        // (masaüstünde 952/200 = 4.8sn, telefonda 387/79 = 4.9sn). Hız
         // ölçeklenmezse oyun küçük ekranda ağırlaşırdı.
-        speed: fieldSpeed(this.arena, 175),
+        speed: fieldSpeed(this.arena, BOMB_TUNING.MOVE_SPEED),
         isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i],
         stepCycle: 0,
@@ -365,7 +377,7 @@ export class BombGame extends BaseMiniGame {
 
     p.dashCooldown = BOMB_DASH_COOLDOWN;
     p.dashMaxCooldown = BOMB_DASH_COOLDOWN;
-    p.dashTimer = 0.22;
+    p.dashTimer = BOMB_TUNING.DASH_DURATION;
     p.isDashing = true;
     this.trauma = Math.min(1.0, this.trauma + 0.15);
 
@@ -758,16 +770,19 @@ export class BombGame extends BaseMiniGame {
         currentSpeed *= 1.35; // Escaper burst sprint!
       }
       if (player.dashTimer > 0) {
-        currentSpeed = fieldSpeed(this.arena, 360); // Supersonic dash speed!
+        currentSpeed = fieldSpeed(this.arena, BOMB_TUNING.DASH_SPEED); // Supersonic dash speed!
       }
       if (player.stumbleTimer > 0) {
         currentSpeed *= 0.15; // Receiver stumble delay: heavily slowed down for 0.6s!
       }
 
       if (player.slipTimer > 0) {
-        // Low traction while slipping
-        player.vx *= 0.96;
-        player.vy *= 0.96;
+        // Low traction while slipping. `damp` keeps the authored 60 Hz strength:
+        // a bare `*= 0.96` per frame was ~8.6%/s at 60 fps but ~29%/s at 30 fps,
+        // so the same 1.3 s hazard froze you twice as long on a slow device.
+        const slipDrag = damp(0.96, dt);
+        player.vx *= slipDrag;
+        player.vy *= slipDrag;
       } else {
         const inputLen = Math.hypot(inputX, inputY);
         if (inputLen > 0.05) {
@@ -792,8 +807,9 @@ export class BombGame extends BaseMiniGame {
             });
           }
         } else {
-          player.vx *= 0.7;
-          player.vy *= 0.7;
+          const idleDrag = damp(0.7, dt);
+          player.vx *= idleDrag;
+          player.vy *= idleDrag;
         }
       }
 

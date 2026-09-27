@@ -6,17 +6,24 @@ export const RACE_TUNING = Object.freeze({
   roundTime: 90,
   roundTransition: 2.5,
   playerRadius: 19,
-  // 190 → 215 (+%13). "RACE hala yavaş" geri bildirimi. Önceki turda dekorları
-  // küçülttüğümü sandım; oysa araç hızı hiç değişmemişti — yavaşlık dekor
-  // boyutundan değil, tempo değerinden geliyormuş. `propPx` dekoru, bu gövde
-  // temposunu; ikisi ayrı ayarlar. İvme de hızla birlikte ölçeklendi ki
-  // hızlansa da tepki süresi aynı kalsın.
+  // 190 → 215 → hız 215'te sabit. "RACE hala yavaş" geri bildirimi ikinci kez
+  // geldi ve bu sefer ölçüm gösterdi: hız zaten ortalamanın üstündeydi
+  // (952/215 = 4.4sn, HORDE 5.6 / ARCHER 4.8). Yavaşlık hızdan değil İVMEDEN
+  // geliyordu — 0 → maks 215/470 = 0.46sn, bir kaskad sonrası gaz tepkisi
+  // yarım saniye sürüyordu. baseAcceleration 470 → 720 (0 → 0.30sn) ve
+  // `dragRate` 3.7 → 2.8 (direksiyondan çekilince yavaşlaması) ile tepki
+  // kısaltıldı; dash ivmesi de aynı yarıçap oranını koruyor.
   baseSpeed: 215,
-  baseAcceleration: 470,
+  baseAcceleration: 720,
   dashSpeed: 365,
-  dashAcceleration: 920,
+  dashAcceleration: 1180,
   dashDuration: 0.38,
   dashCooldown: 2.8,
+  // Sürükleme katsayısı (1/sn, zaten `Math.exp(-rate*dt)` ile dt-duyarlı).
+  // 3.7 → 2.8: gaz bırakıldığında araç eskisi kadar "yapışkan" değil, yani
+  // virajdan çıkışta hızı koruyor. Skid sürüklemesi oranı korundu.
+  dragRate: 2.8,
+  skidDragRate: 1.0,
   jumpVelocity: 30,
   jumpGravity: 42,
   jumpClearance: 7.5,

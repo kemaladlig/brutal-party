@@ -9,7 +9,8 @@ import {
 } from '../games/snakeView.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
-import { fitWorld, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { fitWorld, worldScreenBox, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 
 export function createSnakeWorldViewRenderer() {
   return {
@@ -20,8 +21,7 @@ export function createSnakeWorldViewRenderer() {
       const arena = { left, top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
 
       ctx.save();
-      ctx.fillStyle = '#F4F4F0';
-      ctx.fillRect(0, 0, width, height);
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'SNAKE' });
       fitWorld(ctx, width, height, frame.arena, () => {
         const walls = frame.walls.map(([x, y, w, h]) => ({ x, y, w, h }));
         const foods = frame.foods.map(([x, y, type, size]) => ({ x, y, type, size, pulse: 0 }));
@@ -34,7 +34,7 @@ export function createSnakeWorldViewRenderer() {
         }));
         const particles = (frame.particles || []).map((particle) => ({ ...particle }));
 
-        drawSnakeArena(ctx, arena, walls);
+        drawSnakeArena(ctx, arena, walls, { roundId: frame.roundId });
         drawSnakeFoods(ctx, foods, now);
         drawSnakePlayers(ctx, players, now);
         drawSnakeParticles(ctx, particles);

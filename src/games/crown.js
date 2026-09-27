@@ -22,7 +22,7 @@ import { matchesInputAction } from '../core/inputIntent.js';
 import { renderTopPill, renderEntityHUD, renderArenaWatermarkTimer, renderAdaptiveScoreboard } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
-import { clampToArena, resolveAABB, pointBlocked } from '../core/physics2d.js';
+import { clampToArena, damp, resolveAABB, pointBlocked } from '../core/physics2d.js';
 import { createPlayer } from '../core/playerEntity.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { updateCrownBotAI } from '../ai/crownAI.js';
@@ -40,6 +40,13 @@ export const CROWN_NAMES = ['P1', 'P2', 'P3', 'P4'];
 export const CROWN_TUNING = {
   ROUND_TIME: 45,
   MAX_TIED_ROUNDS: 2,
+  // Hareket bütçesi. Hız zaten en yüksekti (952/250 = 3.8sn), yavaşlık
+  // GÖVDEDEN geliyordu: r43, aktif oyunların en büyüğüydü (2.9 gövde/sn,
+  // BOMB 2.4 / ARCHER 3.5). 250 hız korunur, 43 → 36: gövde/sn 3.47'ye çıkar,
+  // saha geçiş süresi değişmez. 4 corner spawn köşeye %38/%36 ofsetli olduğu
+  // için küçülen gövde spawn'ları bozmaz.
+  PLAYER_RADIUS: 36,
+  MOVE_SPEED: 250,
 };
 
 export const CROWN_MAP_PRESETS = [
@@ -448,7 +455,7 @@ export class CrownGame extends BaseMiniGame {
     const { cx, cy, width, height } = this.arena;
     const spawnOffX = width * 0.38;
     const spawnOffY = height * 0.36;
-    const r = fieldRadius(this.arena, 43, 0);
+    const r = fieldRadius(this.arena, CROWN_TUNING.PLAYER_RADIUS, 0);
 
     // 4 Corner Spawns: BL (P1), TL (P2), TR (P3), BR (P4)
     const spawns = [
@@ -465,7 +472,7 @@ export class CrownGame extends BaseMiniGame {
         defaultNames: CROWN_NAMES,
         defaultColors: CROWN_COLORS,
         radius: r,
-        speed: fieldSpeed(this.arena, 250),
+        speed: fieldSpeed(this.arena, CROWN_TUNING.MOVE_SPEED),
         isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i],
         hasCrown: false,
@@ -876,8 +883,9 @@ export class CrownGame extends BaseMiniGame {
 
       this.crown.x += this.crown.vx * dt;
       this.crown.y += this.crown.vy * dt;
-      this.crown.vx *= 0.94;
-      this.crown.vy *= 0.94;
+      const crownDrag = damp(0.94, dt);
+      this.crown.vx *= crownDrag;
+      this.crown.vy *= crownDrag;
 
       const cr = this.crown.radius;
       if (this.crown.x - cr < left) { this.crown.x = left + cr; this.crown.vx *= -0.8; playWallHit(); }
@@ -970,19 +978,20 @@ export class CrownGame extends BaseMiniGame {
       }
 
       // Heavy crown handicap: 165 px/s vs 250 px/s (tasarım px/s)
-      let speed = fieldSpeed(this.arena, p.hasCrown ? 165 : 250);
+      let speed = fieldSpeed(this.arena, p.hasCrown ? 165 : CROWN_TUNING.MOVE_SPEED);
       if (p.turboTimer > 0) speed = fieldSpeed(this.arena, 340);
       if (p.inSlow) speed *= 0.55; // bariyer yavaşlatma alanı
 
       const inLen = Math.hypot(inX, inY);
       if (p.slipTimer > 0) {
-        p.vx *= 0.97;
-        p.vy *= 0.97;
+        const slipDrag = damp(0.97, dt);
+        p.vx *= slipDrag;
+        p.vy *= slipDrag;
       } else if (p.stumbleTimer > 0) {
         // Sersemlikte savrulma korunur (uçuş hissi): hız ezilmez, sadece süzülür
-        const damp = Math.max(0, 1 - 2.2 * dt);
-        p.vx *= damp;
-        p.vy *= damp;
+        const stumbleDrag = Math.max(0, 1 - 2.2 * dt);
+        p.vx *= stumbleDrag;
+        p.vy *= stumbleDrag;
         if (inLen > 0.05) p.facingAngle = Math.atan2(inY, inX);
       } else {
         if (inLen > 0.05) {
@@ -997,8 +1006,9 @@ export class CrownGame extends BaseMiniGame {
             p.vx = (inX / inLen) * speed;
             p.vy = (inY / inLen) * speed;
           } else {
-            p.vx *= 0.82;
-            p.vy *= 0.82;
+            const idleDrag = damp(0.82, dt);
+            p.vx *= idleDrag;
+            p.vy *= idleDrag;
           }
         }
       }

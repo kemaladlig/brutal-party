@@ -23,8 +23,8 @@ export const GAME_ORDER = [
   'COLLAPSE',
   'NINJA',
   'RACE',
-  'CLONE',
   'CROWN',
+  'CLONE',
 ];
 
 export const CARTRIDGES = {
@@ -230,7 +230,6 @@ export const CARTRIDGES = {
     id: 'CROWN',
     category: 'fight',
     title: 'BRUTAL CROWN',
-    retired: true,
     hudTag: 'CROWN',
     tacticalHintKey: 'hint.crown',
     color: '#EAB308',
@@ -238,7 +237,7 @@ export const CARTRIDGES = {
     worldView: {
       load: () => import('../ui/crownWorldView.js'),
     },
-    load: () => import('../games-retired/crown.js').then((m) => m.CrownGame),
+    load: () => import('../games/crown.js').then((m) => m.CrownGame),
     createEngine: (game) => {
       return {
         game,

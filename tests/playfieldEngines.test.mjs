@@ -38,7 +38,7 @@ const ENGINES = [
   ['COLLAPSE', '/src/games/collapse.js', 'CollapseGame', 'standard'],
   ['CLONE', '/src/games-retired/clone.js', 'CloneGame', 'standard'],
   ['HORDE', '/src/games/horde.js', 'HordeGame', 'roomy'],
-  ['CROWN', '/src/games-retired/crown.js', 'CrownGame', 'crown'],
+  ['CROWN', '/src/games/crown.js', 'CrownGame', 'crown'],
   ['TANKS', '/src/games/tanks.js', 'TanksGame', 'flat'],
   ['ZONE', '/src/games/zone.js', 'ZoneGame', 'dense'],
   ['RACE', '/src/games/race.js', 'RaceGame', 'racing'],

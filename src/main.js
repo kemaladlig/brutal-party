@@ -1228,6 +1228,22 @@ let stagingMode = null;
 let seatsLocked = false;
 let countdownTimer = null;
 
+/**
+ * Oda fazının TEK türetimi. Uzak 8 Hz paket ile YEREL kumanda paketi aynı
+ * kararı okumak zorundadır (AGENTS §8: state iki yerde tutulmaz).
+ *
+ * Ölçülen kusur: yerel paket `phase: 'GAME'` yazıyordu — yani tek cihazda
+ * masa-ortası/telefon-üstü oynayan oyuncu SAHAYA GEÇ aşamasını ve 3-2-1
+ * geri sayımını kumanda yüzeyinde HİÇ görmüyordu; TV/host canvas'ı sayacı
+ * gösterirken onun ekranı doğrudan oyuna atlıyordu.
+ */
+function roomPhase() {
+  if (currentMode === 'MENU') return 'LOBBY';
+  if (countdownTimer) return 'COUNTDOWN';
+  if (stagingMode) return 'STAGING';
+  return 'GAME';
+}
+
 // Uzak-girdi canlılık damgaları: analog sessizlik süpürücüsü için.
 // Koltuk politikası değişmez — sadece latch nötrlenir, koltuk dolu kalır.
 // Move ve aim ayrı izlenir; biri stale olunca yalnız o taraf temizlenir.
@@ -1589,7 +1605,9 @@ function syncLocalMobileControls(now = performance.now()) {
   if (!localMobileControlsActive || now - lastLocalControlSyncAt < 125) return;
   const entry = getEngine(currentMode);
   if (!entry || typeof entry.packet !== 'function') return;
-  const packet = { ...entry.packet(), gameMode: currentMode, phase: 'GAME' };
+  const packet = { ...entry.packet(), gameMode: currentMode, phase: roomPhase() };
+  // Geri sayım tik'i yerel kumandaya da taşınır: perde sayıyı bu alandan okur.
+  if (countdownTimer) packet.t = lastCountdownT;
   // Faz 2.4: LOCAL sonuç ekranı için state + skor tablosu verisi. Bu paket
   // yalnız local kumandaya gider; uzak 8Hz protokolü değiştirilmez.
   const game = entry.game;
@@ -1750,6 +1768,10 @@ initPauseModal({
 // döngüsü, picker modalı, showcase carousel'ı ve hero banner dropzone'ı silindi.
 addTapListener(btnQuickTvLobby, returnHostToLobby);
 
+// Maç sonu kartının ikinci eylemi motorun değil kabuğun işidir: motor yalnız
+// niyet bildirir, oda/koltuk/relay kararını `returnHostToLobby` verir.
+window.addEventListener('brutal_return_to_lobby', () => returnHostToLobby());
+
 function updateQuickFullscreen(active) {
   const isFs = typeof active === 'boolean' ? active : isFullscreen();
   const label = isFs ? t('menu.exitFullscreen') : t('menu.fullscreen');
@@ -1905,7 +1927,7 @@ function broadcastGameStateIfNeeded(now) {
     packet = { gameMode: currentMode };
     const entry = getEngine(currentMode);
     if (entry) Object.assign(packet, entry.packet());
-    packet.phase = countdownTimer ? 'COUNTDOWN' : (stagingMode ? 'STAGING' : 'GAME');
+    packet.phase = roomPhase();
     if (countdownTimer) packet.t = lastCountdownT;
   }
   packet.names = hostPlayerSlots.map((p) => (p ? p.name : null));

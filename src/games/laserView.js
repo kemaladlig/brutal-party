@@ -5,6 +5,7 @@
 // taşınır (client raycast çalıştırmaz); sayaç filigranı host HUD'udur.
 
 import { drawPickup, drawObstacle } from '../core/arenaKit.js';
+import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
 import { renderEntityHUD, renderFireCooldown } from '../ui/hud.js';
@@ -162,42 +163,39 @@ export function isValidLaserWorldFrame(frame) {
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
-export function drawLaserArena(ctx, arena, obstacles, walls) {
-  const { left, top, right, bottom, width, height } = arena;
-  const u = arena?.unit ?? (width ? width / 952 : 1);
-
-  ctx.fillStyle = '#FAF7F2';
-  ctx.fillRect(left, top, width, height);
-
-  ctx.strokeStyle = '#E8E2D8';
+/**
+ * LASER'a özgü STATİK işaret — bake'in içine girer.
+ *
+ * Modül seviyesinde sabit fonksiyon olmak ZORUNDA: `drawField` cache anahtarı
+ * `marks`'i taşımaz, çünkü aynı `mode` için her frame aynı statik işaret beklenir.
+ * Köşe plakaları artık `fieldKit`'in ortak `corners: 'plate'` dilidir, burada
+ * tekrarlanmaz.
+ */
+function laserFieldMarks(ctx, pf, palette) {
+  const { width: w, height: h, unit: u } = pf;
+  ctx.strokeStyle = palette.frame;
   ctx.lineWidth = Math.max(1, 1.5 * u);
-  ctx.strokeRect(left + width * 0.12, top + height * 0.12, width * 0.76, height * 0.76);
+  ctx.strokeRect(w * 0.12, h * 0.12, w * 0.76, h * 0.76);
+}
 
-  const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
-  ctx.strokeStyle = '#2B2B28';
-  ctx.lineWidth = Math.max(1.5, 3 * u);
-  const cornerPlates = [
-    [[left, top + bLen], [left, top], [left + bLen, top]],
-    [[right - bLen, top], [right, top], [right, top + bLen]],
-    [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
-    [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
-  ];
-  for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.lineTo(x3, y3);
-    ctx.stroke();
-  }
+export function drawLaserArena(ctx, arena, obstacles, walls, opts = {}) {
+  // Statik saha `fieldKit`'te: soğuk mavi-gri zemin, plaka dokusu, iç sınır
+  // kutusu, köşe plakaları ve yuvarlatılmış tepsi kesimi — bir kez pişer.
+  drawField(ctx, arena, {
+    mode: 'LASER',
+    seed: hashFieldSeed('LASER', opts.roundId),
+    marks: laserFieldMarks,
+  });
 
   for (const obs of obstacles) {
-    drawObstacle(ctx, obs, { variant: 'stone' });
+    drawObstacle(ctx, obs, { theme: 'LASER' });
   }
 
+  // Hareketli duvarlar CANLI: konum host simülasyonundan gelir, bake edilemez.
   for (const mw of walls) {
     ctx.save();
     ctx.strokeStyle = 'rgba(26, 26, 26, 0.22)';
-    ctx.lineWidth = Math.max(1, 2 * u);
+    ctx.lineWidth = Math.max(1, 2 * (arena?.unit ?? 1));
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
     if (mw.axis === 'y') {
@@ -220,10 +218,6 @@ export function drawLaserArena(ctx, arena, obstacles, walls) {
     }
     ctx.restore();
   }
-
-  ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = Math.max(2, 6 * u);
-  ctx.strokeRect(left, top, width, height);
 }
 
 export function drawLaserPickups(ctx, pickups) {

@@ -1661,19 +1661,32 @@ export class BaseMiniGame {
     const defRows = rows || playersList
       .filter((p) => p && p.isJoined)
       .map((p) => ({
-        color: p.color || UI_COLORS.ink,
-        text: `${p.name}: ${this.scores?.[p.index] ?? this.setScores?.[p.index] ?? 0}★`,
+        color: p.color || UI_COLORS.players[p.index] || UI_COLORS.resultInk,
+        name: p.name || `P${p.index + 1}`,
+        value: `${this.scores?.[p.index] ?? this.setScores?.[p.index] ?? 0}★`,
       }));
 
     renderMatchOver(ctx, {
       arena: this.arena,
+      viewport: this.viewport,
       uiButtons: this.uiButtons,
       headline: headline || t('canvas.champ') || 'ŞAMPİYON',
       winnerName: cleanWinner,
-      winnerColor: this.matchWinner?.color || UI_COLORS.ink || '#1A1A1A',
+      // Kazanan rengi koyu panelde okunur olmalı: berabere/düşük renk gelirse
+      // panelin altın vurgusuna düşer (eski `UI_COLORS.ink` koyu zeminde
+      // görünmez metin üretiyordu).
+      winnerColor: this.matchWinner?.color || UI_COLORS.resultGold,
+      winnerEntity: this.matchWinner || null,
       rows: defRows,
       onRestart,
+      onLobby: () => this.requestReturnToLobby(),
     });
+  }
+
+  // Maç sonu kartının ikinci eylemi. Lobiyi/kapamayı kimin yönettiği motorun
+  // işi değil: `main.js` bu olayı dinler ve ağ/yerel kararını kendisi verir.
+  requestReturnToLobby() {
+    window.dispatchEvent(new CustomEvent('brutal_return_to_lobby'));
   }
 
   renderStandardLobby(ctx, {
@@ -1812,9 +1825,8 @@ export class BaseMiniGame {
         sub: roundBannerSub,
       });
     } else if (this.state === 'MATCH_OVER') {
-      if (showScoreboard) {
-        this.renderStandardScoreboard(ctx, { targetScore, entities: scoreboardEntities });
-      }
+      // Skoru artık kartın kendisi taşıyor: aynı ekranda hem köşe/top-bar
+      // skorboardu hem kartın sıralama satırları = aynı bilgi iki yerde.
       this.renderStandardMatchOver(ctx, {
         headline: matchOverHeadline,
         rows: matchOverRows,

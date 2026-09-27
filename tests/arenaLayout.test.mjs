@@ -21,7 +21,10 @@ const SQUARE = [900, 900];
 // test sessizce yanlış şeyi ölçmeye devam eder — o yüzden aşağıdaki
 // `design radii mirror the engines` testi bunu kilitliyor.
 const BODY_RADIUS = {
-  ARCHER: 28, HORDE: 33, BOMB: 36, HEIST: 36, TANKS: 26, LASER: 19, NINJA: 18,
+  // HORDE tank gövdesi 33 → 42 (gövde okunurluğu ×1.27; oyuncu 15 → 19).
+  // Geçiş tabanı en büyük gövdeden türer, dolayısıyla harita seyrelmesi
+  // beklenen bir yan etkidir — aşağıdaki test bunu ölçüyor.
+  ARCHER: 28, HORDE: 42, BOMB: 36, HEIST: 36, TANKS: 26, LASER: 19, NINJA: 18,
 };
 
 // Baseline = pre-change square placement: a synthetic aspect of 1 forces

@@ -23,7 +23,7 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateHeistBotAI } from '../ai/heistAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
-import { clampToArena, resolveAABB } from '../core/physics2d.js';
+import { clampToArena, damp, resolveAABB } from '../core/physics2d.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { createPlayer } from '../core/playerEntity.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
@@ -46,6 +46,38 @@ export const HEIST_TUNING = {
   ROUND_TIME: 45,
   MAX_TIED_ROUNDS: 2,
 };
+
+/**
+ * Greed weight curve — SAF, DOM/Canvas bağımsız (deterministik test için).
+ * `raceLogic.js` kalıbı: oyun kuralının saf kısmı test edilebilir bir
+ * fonksiyon olarak durur, motor yalnız onu çağırır.
+ *
+ * Taşınan yük hızı düşürür; taban ve adım TASARIM px/sn olduğu için
+ * `baseSpeed` ile AYNI ölçekten geçmek zorunludur. `baseSpeed` spawn'da
+ * `fieldSpeed(arena, BASE_SPEED)` ile cihaz px'e çevrilmiş olur, ham sayıyla
+ * karşılaştırılırsa 530 px'ten kısa her sahada taban `base`'in ÜSTÜNDE kalır:
+ * telefonda (unit 0.39) `base = 74 < 108` → karakter sabit 108 px/sn'de
+ * koşar (tasarımın %46 üstü) ve HİÇBİR yük onu yavaşlatmaz. Açgözlülük
+ * mekaniği mobilde hiç çalışmıyordu.
+ *
+ * `tests/movementBudget.test.mjs` bu sızıntıyı kilitliyor.
+ */
+export const HEIST_GREED = Object.freeze({
+  BASE_SPEED: 190,
+  MIN_SPEED: 108,
+  PER_WEIGHT: 13,
+});
+
+export function computeGreedSpeed(arena, baseSpeed, weight) {
+  const safeBase = Number.isFinite(baseSpeed)
+    ? baseSpeed
+    : fieldSpeed(arena, HEIST_GREED.BASE_SPEED);
+  const safeWeight = Number.isFinite(weight) ? weight : 0;
+  return Math.max(
+    fieldSpeed(arena, HEIST_GREED.MIN_SPEED),
+    safeBase - safeWeight * fieldSpeed(arena, HEIST_GREED.PER_WEIGHT),
+  );
+}
 
 export class HeistGame extends BaseMiniGame {
   constructor(canvas) {
@@ -635,11 +667,12 @@ export class HeistGame extends BaseMiniGame {
     }
 
     // Loot physics update
+    const lootDrag = damp(0.94, dt);
     for (const item of this.lootItems) {
       item.x += item.vx * dt;
       item.y += item.vy * dt;
-      item.vx *= 0.94;
-      item.vy *= 0.94;
+      item.vx *= lootDrag;
+      item.vy *= lootDrag;
       item.animTime += dt;
     }
 
@@ -687,7 +720,7 @@ export class HeistGame extends BaseMiniGame {
       // --- GREED WEIGHT CURVE: speed scales down with carried loot ---
       const base = Number.isFinite(player.baseSpeed) ? player.baseSpeed : (player.speed || 190);
       const weight = Number.isFinite(player.carriedWeight) ? player.carriedWeight : 0;
-      let currentSpeed = Math.max(108, base - weight * 13);
+      let currentSpeed = computeGreedSpeed(this.arena, base, weight);
       if (player.tackleTimer > 0) {
         currentSpeed = fieldSpeed(this.arena, 340); // Tackle surge speed!
       }
@@ -716,8 +749,9 @@ export class HeistGame extends BaseMiniGame {
           });
         }
       } else {
-        player.vx *= 0.7;
-        player.vy *= 0.7;
+        const idleDrag = damp(0.7, dt);
+        player.vx *= idleDrag;
+        player.vy *= idleDrag;
       }
 
       player.x += player.vx * dt;
@@ -1028,9 +1062,8 @@ export class HeistGame extends BaseMiniGame {
     ctx.save();
     this.uiButtons = [];
 
-    // Background paper
-    ctx.fillStyle = '#F4F0EA';
-    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
+    // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'HEIST' });
 
     if (this.trauma > 0) {
       const shakeIntensity = this.trauma * this.trauma * 14;
@@ -1040,7 +1073,7 @@ export class HeistGame extends BaseMiniGame {
     }
 
     // Arena sahnesi ortak heistView draw'larından gelir (host↔client aynı).
-    drawHeistArena(ctx, this.arena, this.pillars);
+    drawHeistArena(ctx, this.arena, this.pillars, { roundId: this.roundId });
     if (this.state !== 'LOBBY') {
       const scenePlayers = this.players.map((p) => ({
         ...p,

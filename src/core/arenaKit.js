@@ -431,11 +431,27 @@ function buildSquareLayout(name, arena, minPassage) {
   if (layoutName === 'courtyard') {
     const bW = Math.round(size * 0.24);
     const bH = Math.round(size * 0.07);
+    // Dört kollu çıkarma (pinwheel) düzeni. Döner kolların ARALARINDAKİ
+    // koridor genişliği, kolların uzunluğundan türer:
+    //   koridor = kolMerkezi - bH/2 - kolYarıUzunluk
+    // Kol uzunluğu SABİT bir oran olduğu için bu koridor da sabitti
+    // (0.075 × size) ve yalnız küçük gövdeli oyunlarda geçerliydi.
+    // HORDE tankı 33 → 42 px büyüyünce ihtiyaç 70px'i geçti ve 900x900'de
+    // koridor 58px'te kaldı: orta cepteki disk kenara hiç ulaşamadı.
+    // `cross` preset'i bu hatadan bir tur önce kurtulmuştu (kolların iç ucu
+    // `armStart = centreHalf + minPassage`); burada da kol uzunluğu
+    // `minPassage`'tan türetilir. Kısaltılan yer `densify` ile geri dolar.
+    const barOffset = size * 0.23;
+    const armHalf = Math.min(
+      bW / 2,
+      barOffset - bH / 2 - minPassage,
+    );
+    const bW2 = Math.max(0, armHalf * 2);
     return [
-      { x: cx - bW / 2, y: cy - size * 0.23 - bH / 2, w: bW, h: bH },
-      { x: cx - bW / 2, y: cy + size * 0.23 - bH / 2, w: bW, h: bH },
-      { x: cx - size * 0.23 - bH / 2, y: cy - bW / 2, w: bH, h: bW },
-      { x: cx + size * 0.23 - bH / 2, y: cy - bW / 2, w: bH, h: bW },
+      { x: cx - bW / 2, y: cy - barOffset - bH / 2, w: bW, h: bH },
+      { x: cx - bW / 2, y: cy + barOffset - bH / 2, w: bW, h: bH },
+      { x: cx - barOffset - bH / 2, y: cy - armHalf, w: bH, h: bW2 },
+      { x: cx + barOffset - bH / 2, y: cy - armHalf, w: bH, h: bW2 },
     ];
   }
 

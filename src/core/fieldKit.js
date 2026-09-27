@@ -190,6 +190,7 @@ export const FIELD_THEMES = Object.freeze({
   HEIST: theme({
     floorHigh: '#FAF4EC', floor: '#F8F0E7', floorEdge: '#F5EBDF', floorLow: '#F3E9DB',
     grid: 'rgba(26, 26, 26, 0.06)',
+    accent: '#D99B26',
     motif: 'vault',
     texture: 'weave',
     block: 'crate',
@@ -232,7 +233,7 @@ export const FIELD_THEMES = Object.freeze({
     block: 'hazard',
   }),
 
-  // CROWN (retired) — altın krem, taht ritmi.
+  // CROWN — altın krem, taht ritmi.
   CROWN: theme({
     floorHigh: '#FAF5E8', floor: '#F8F1E2', floorEdge: '#F4ECD9', floorLow: '#F2EAD5',
     grid: 'rgba(26, 26, 26, 0.06)',
@@ -453,27 +454,20 @@ export const FIELD_MOTIFS = Object.freeze({
     ctx.restore();
   },
 
-  /** HEIST: iç içe kasa kareleri + radyal çentikler. */
+  /**
+   * HEIST: kesikli altın merkez halkası. Motorun eski sahnesindeki tek
+   * anlamlı merkez işareti buydu (ganimet bölgesi); motif olarak bake'e girer,
+   * böylece kare başına `setLineDash` + arc maliyeti kalmaz.
+   */
   vault(ctx, w, h, u, palette) {
     const cx = w / 2;
     const cy = h / 2;
-    const min = Math.min(w, h);
     ctx.save();
-    ctx.globalAlpha = 0.1;
     ctx.strokeStyle = palette.accent;
-    ctx.lineWidth = Math.max(1.5, 3.4 * u);
-    for (let i = 0; i < 2; i += 1) {
-      const r = min * (0.1 + i * 0.055);
-      ctx.strokeRect(cx - r, cy - r, r * 2, r * 2);
-    }
+    ctx.lineWidth = Math.max(1.5, 2.5 * u);
+    ctx.setLineDash([6 * u, 6 * u]);
     ctx.beginPath();
-    for (let i = 0; i < 8; i += 1) {
-      const a = (i * Math.PI) / 4;
-      const r0 = min * 0.158;
-      const r1 = min * 0.185;
-      ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
-      ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
-    }
+    ctx.arc(cx, cy, Math.min(w, h) * 0.22, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   },
@@ -1137,6 +1131,12 @@ export function paintFieldLayer(ctx, arena, palette, { seed = 1, marks = null, p
 // ---------------------------------------------------------------------------
 
 /**
+ * Katman anahtarları için tek kuantum kovası. Sahayı yeniden pişirmeyi
+ * tetiklemeyen en ince adımdır: 2 px, alt-piksel sürüklenmeyi yutar.
+ */
+const quantize2 = (v) => Math.round(v / 2) * 2;
+
+/**
  * Düzgün (düşük frekanslı) bir görüntü olduğu için ~3× düşük örneklemeyi kaldırır:
  * bütçe saha katmanının üçte biri.
  */
@@ -1168,9 +1168,14 @@ export function paintBackdrop(ctx, viewport, arena, opts = {}) {
   if (w <= 0 || h <= 0) return;
 
   const palette = fieldTheme(opts.theme ?? opts.mode);
+  // Anahtar saha katmanıyla AYNI kareye oturur (2 px): alt-piksel sürüklenme ve
+  // tarayıcı çubuğunun açılıp kapanması her ara tam-piksel yükseklik için tüm
+  // viewport'u yeniden pişirmesin. Katman blit'te w×h'ye gerildiği için
+  // düşük frekanslı bu görüntüde fark yoktur.
   const key = [
-    palette.backdrop, Math.round(w), Math.round(h),
-    Math.round(box.left), Math.round(box.top), box.width, box.height,
+    palette.backdrop, quantize2(w), quantize2(h),
+    quantize2(box.left), quantize2(box.top),
+    quantize2(box.width), quantize2(box.height),
   ].join('|');
 
   const hit = backdropCache.get(key);
@@ -1295,7 +1300,7 @@ function layerScale(ctx, arena) {
  * başına bir takılma olurdu; 2 px görsel olarak görünmez, anahtarı ise kararlı kılar.
  */
 function layerKey({ mode, themeId, seed, arena, scale, variant }) {
-  const q = (v) => Math.round(v / 2) * 2;
+  const q = quantize2;
   return [
     mode,
     themeId,

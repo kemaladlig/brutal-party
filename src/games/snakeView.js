@@ -4,6 +4,7 @@
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { isWorldEntityVisible } from './worldCore.js';
 import { drawObstacle } from '../core/arenaKit.js';
+import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 
 const TRAIL_SPACING = 10;
@@ -175,33 +176,13 @@ export function isValidSnakeWorldFrame(frame) {
   ));
 }
 
-export function drawSnakeArena(ctx, arena, walls) {
-  const { left, top, width, height } = arena;
-  const u = arena?.unit ?? 1;
-  ctx.fillStyle = '#FAF7F2';
-  ctx.fillRect(left, top, width, height);
-
-  ctx.strokeStyle = '#EBE7DF';
-  ctx.lineWidth = 1 * u;
-  const step = 36 * u;
-  ctx.beginPath();
-  for (let x = left + step; x < left + width; x += step) {
-    ctx.moveTo(x, top);
-    ctx.lineTo(x, top + height);
-  }
-  for (let y = top + step; y < top + height; y += step) {
-    ctx.moveTo(left, y);
-    ctx.lineTo(left + width, y);
-  }
-  ctx.stroke();
-
-  for (const wall of walls) {
-    drawObstacle(ctx, wall, { variant: 'stone' });
-  }
-
-  ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 6 * u;
-  ctx.strokeRect(left, top, width, height);
+export function drawSnakeArena(ctx, arena, walls, opts = {}) {
+  // Statik saha `fieldKit`'te: kehribar tonlu zemin, tanecik dokusu, seeded
+  // dekor ve yuvarlatılmış tepsi kesimi. Eskiden burada düz `#FAF7F2` dolgu +
+  // kare-değişkenli el-ile ızgara döngüsü + siyah `strokeRect` vardı; hepsi
+  // artık bake'te, frame başına tek blit.
+  drawField(ctx, arena, { mode: 'SNAKE', seed: hashFieldSeed('SNAKE', opts.roundId) });
+  for (const wall of walls) drawObstacle(ctx, wall, { theme: 'SNAKE' });
 }
 
 export function drawSnakeFoods(ctx, foods, now = 0) {

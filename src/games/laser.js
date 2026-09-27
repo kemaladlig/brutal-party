@@ -8,6 +8,7 @@ import { t } from '../i18n.js';
 import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { updateLaserBotAI } from '../ai/laserAI.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
@@ -1140,8 +1141,8 @@ export class LaserGame extends BaseMiniGame {
   render() {
     const { ctx } = this;
     ctx.save();
-    ctx.fillStyle = '#F4F4F0';
-    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
+    // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'LASER' });
     this.applyScreenShake(ctx);
 
     // Arena sahnesi ortak laserView draw'larından gelir (host↔client aynı).
@@ -1149,7 +1150,7 @@ export class LaserGame extends BaseMiniGame {
     const scenePlayers = mapLaserPlayers(
       this.players, this.lasers, LASER_TUNING, (p) => this.traceAim(p), withFx,
     );
-    drawLaserArena(ctx, this.arena, this.obstacles, this.movingWalls);
+    drawLaserArena(ctx, this.arena, this.obstacles, this.movingWalls, { roundId: this.roundId });
 
     // Duvar ve engellerin üzerinde her zaman net görünen sayaç & köşe skorları
     if (this.state === 'PLAYING') {

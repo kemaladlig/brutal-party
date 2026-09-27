@@ -6,6 +6,7 @@ import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js'
 import { t } from '../i18n.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateSnakeBotAI } from '../ai/snakeAI.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import {
   createSnakeWorldPacket,
   drawSnakeArena,
@@ -27,6 +28,18 @@ export const SNAKE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 const SNAKE_KEY_SLOTS = buildCodeToSlotMap();
 
 const SNAKE_HEAD_RADIUS = 15;
+// Hareket bütçesi. SNAKE bir dönüş oyunu: dönüş yarıçapı `hız / ω` olduğu
+// için TEK başına hızı artırmak kontrolü götürürdü (140/3.4 = 41 px →
+// 175/3.4 = 51 px, yarıçap %25 genişlerdi). 140/3.4 = 41.2 ve 175/4.1 = 42.7
+// px: yarıçap sabit kalırken saha geçiş süresi 952/140 = 6.8sn'den
+// 952/175 = 5.4sn'ye iner. ω'yu hızla birlikte ölçeklemek zorunludur.
+// MOVE_SPEED uzamsaldır (fieldSpeed'ten geçer); TURN_SPEED radyan/sn'dir ve
+// ÖLÇEKLENMEZ — ω'yu da ölçeklersek dönüş yarıçapı cihaz px'inde sabit
+// kalır, yani telefonda sahanın %11'i olur ve dönüş dibe çakılır.
+const SNAKE_TUNING = Object.freeze({
+  MOVE_SPEED: 175,
+  TURN_SPEED: 4.1,
+});
 // Kuyruk boyu tavanı: uzayan oyunda ızgara-rebuild sınırlı kalır
 const SNAKE_MAX_LEN = 320;
 const SNAKE_MAX_FOODS = 32;
@@ -171,7 +184,8 @@ export class SnakeGame extends BaseMiniGame {
     for (const p of this.players) {
       this.remapPoint(p, oldArena, this.arena);
       p.radius = fieldRadius(this.arena, SNAKE_HEAD_RADIUS);
-      p.speed = fieldSpeed(this.arena, 140);
+      p.speed = fieldSpeed(this.arena, SNAKE_TUNING.MOVE_SPEED);
+      p.turnSpeed = SNAKE_TUNING.TURN_SPEED;
       clampToArena(p, p.radius || 5, this.arena, { zeroVelocity: true });
     }
     for (const p of this.players) {
@@ -214,7 +228,7 @@ export class SnakeGame extends BaseMiniGame {
         color: isBot ? persona.color : (custom.color || SNAKE_COLORS[i]),
         x: s.x, y: s.y, angle: s.angle, targetAngle: null,
         radius: fieldRadius(this.arena, SNAKE_HEAD_RADIUS),
-        speed: fieldSpeed(this.arena, 140), turnSpeed: 3.4,
+        speed: fieldSpeed(this.arena, SNAKE_TUNING.MOVE_SPEED), turnSpeed: SNAKE_TUNING.TURN_SPEED,
         steer: 0, isBoost: false, boostEnergy: 100, boostMaxEnergy: 100, boostLocked: false,
         isAlive: true, isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i], segments: [], currentLen: 0, targetLen: 65,
@@ -787,11 +801,11 @@ export class SnakeGame extends BaseMiniGame {
     const { ctx } = this;
     const now = performance.now();
     ctx.save();
-    ctx.fillStyle = '#F4F4F0';
-    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
+    // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'SNAKE' });
     this.applyScreenShake(ctx);
 
-    drawSnakeArena(ctx, this.arena, this.walls);
+    drawSnakeArena(ctx, this.arena, this.walls, { roundId: this.roundId });
 
     // masa-ortası kontrolleri sahnenin üstünde, varlıkların altında kalır.
     this.uiButtons = [];

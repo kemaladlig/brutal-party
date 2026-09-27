@@ -11,7 +11,8 @@ import {
   isValidHeistWorldFrame,
 } from '../games/heistView.js';
 import { drawSquareParticles } from '../games/worldCore.js';
-import { fitWorld, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { fitWorld, worldScreenBox, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
@@ -27,10 +28,9 @@ export function createWorldViewRenderer() {
       arena.size = Math.min(arena.width, arena.height);
 
       ctx.save();
-      ctx.fillStyle = '#F4F0EA';
-      ctx.fillRect(0, 0, width, height);
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'HEIST' });
       fitWorld(ctx, width, height, frame.arena, () => {
-        drawHeistArena(ctx, arena, frame.pillars.map(([x, y, w, h]) => ({ x, y, w, h })));
+        drawHeistArena(ctx, arena, frame.pillars.map(([x, y, w, h]) => ({ x, y, w, h })), { roundId: frame.roundId });
         const players = frame.players.map((p) => ({
           ...p,
           index: p.slot,

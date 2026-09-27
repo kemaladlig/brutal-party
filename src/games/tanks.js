@@ -4,6 +4,7 @@ import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoi
 import { t } from '../i18n.js';
 import { renderTopPill } from '../ui/hud.js';
 import { prefersReducedMotion } from '../ui/motion.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { resolveSlotName } from '../core/slotManager.js';
 import { getProjectileSubsteps } from '../core/physics2d.js';
@@ -1244,8 +1245,8 @@ export class TanksGame extends BaseMiniGame {
     const { ctx } = this;
     ctx.save();
 
-    ctx.fillStyle = '#F4F4F0';
-    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
+    // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'TANKS' });
 
     if (this.trauma > 0 && !prefersReducedMotion()) {
       const intensity = this.trauma * this.trauma * 16;
@@ -1258,7 +1259,7 @@ export class TanksGame extends BaseMiniGame {
       x: this.arena.cx,
       y: this.arena.cy,
       radius: this.suddenDeathRadius,
-    });
+    }, { roundId: this.roundId });
 
     this.uiButtons = [];
 

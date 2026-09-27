@@ -8,6 +8,7 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateNinjaBotAI } from '../ai/ninjaAI.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
@@ -911,13 +912,14 @@ export class NinjaGame extends BaseMiniGame {
     const now = performance.now();
     ctx.save();
 
-    ctx.fillStyle = '#D6D3CD';
-    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
+    // Sahanın dışı (masa) — `fieldKit` tek sahibi. Host `#D6D3CD`, client
+    // `#F4F0EA` yazıyordu: aynı oyunun masası iki cihazda farklı renkti.
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'NINJA' });
     this.applyScreenShake(ctx);
 
     // Arena sahnesi ortak ninjaView draw'larından gelir (host↔client aynı).
     const withFx = this.state === 'PLAYING';
-    drawNinjaArena(ctx, this.arena);
+    drawNinjaArena(ctx, this.arena, { roundId: this.roundId });
     drawNinjaSteps(ctx, this.footsteps);
 
     drawNinjaDecals(ctx, this.cutDecals);

@@ -9,7 +9,8 @@ import {
   drawArcherParticles,
   isValidArcherWorldFrame,
 } from '../games/archerView.js';
-import { fitWorld, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { fitWorld, worldScreenBox, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
@@ -22,13 +23,16 @@ export function createWorldViewRenderer() {
       const arena = { left, top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
 
       ctx.save();
-      ctx.fillStyle = '#D6D3CD';
-      ctx.fillRect(0, 0, width, height);
+      // Sahanın dışı EKRAN uzayında çizilir; arenanın ekran kutusu `worldScreenBox`
+      // ile çözülür. Masa rengi artık temadan gelir — host `#D6D3CD` yazıyordu,
+      // client başka bir renk: aynı oyunun masası iki cihazda farklıydı.
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'ARCHER' });
       fitWorld(ctx, width, height, frame.arena, () => {
         drawArcherArena(
           ctx,
           arena,
-          frame.obstacles.map(([x, y, w, h]) => ({ x, y, w, h }))
+          frame.obstacles.map(([x, y, w, h]) => ({ x, y, w, h })),
+          { roundId: frame.roundId }
         );
         drawArcherPickups(
           ctx,

@@ -52,13 +52,27 @@ export const HORDE_TUNING = Object.freeze({
   ROUNDS: 3,
   WAVES_PER_ROUND: 3,
   MAX_HP: 5,
-  PLAYER_RADIUS: 15,
-  // Gövde tabanı YOK. Önce burada `PLAYER_R_MIN: 0.024` / `ENEMY_R_MIN: 0.022`
-  // vardı ve bunlar TASARIM PAYININ ÜSTÜNDE olduğu için MASAÜSTÜNDE de
-  // devreye giriyordu: oyuncu +%43, chaser +%31, shooter +%50, tank +%0
-  // şişiyordu. Sonuç: oyuncu görsel olarak büyük, NPC'ler birbirine
-  // yaklaşıp boyut çeşitliliğini yitiriyordu. Tabanları kaldırdık; alan
-  // çöktüğünde `playfield.FIELD_DESIGN.minUnit` (0.30) zaten alt sınırı verir.
+  PLAYER_RADIUS: 19,
+  // Orantılı taban YOK, ama MUTLAK CSS px tabanı VAR (`LEGIBILITY_PX`).
+  //
+  // Önce `PLAYER_R_MIN: 0.024` / `ENEMY_R_MIN: 0.022` vardı; bunlar saha
+  // YÜZDESİ olduğu için MASAÜSTÜNDE de devreye giriyordu (oyuncu +%43,
+  // chaser +%31) ve NPC'ler birbirine yaklaşıp boyut çeşitliliğini
+  // yitiriyordu. Orantı tabanı PRENSİPTE telefonda da işe yaramaz:
+  // `unit = size/952` orantıyı birebir korur, 24" monitörde 15px olan gövde
+  // 6" ekranda 6px'tir. Yani "oran" doğruydu ama FİZİKSEL HEDEF küçüktü.
+  //
+  // Ölçülen durum: telefonda oyuncu çapı 12px (karınca), mermiler oyuncunun
+  // 7.5 katı hızda (bkz. `LEGIBILITY_PX` ve mermi ölçeği notları). Bu
+  // yüzden iki AYRI önlem var:
+  //   1) Tasarım yarıçapları ×1.27 büyütüldü → web'de de okunur.
+  //   2) `LEGIBILITY_PX` tabanı → telefonda tüm gövdeler birlikte büyür.
+  //
+  // (2) bütün gövdelere TEK çarpan olarak uygulanır (`bodyScale`), böylece
+  // oyuncu/düşman oranı ve isabet zorluğu DEĞİŞMEZ; sadece hepsi birden
+  // okunur olur. `Math.max(1, …)` sayesinde masaüstünde `1`'dir: hiçbir
+  // şeyi şişirmez, sadece küçük sahada devreye girer.
+  LEGIBILITY_PX: 11,
   MOVE_SPEED: 171,
   FAST_MULT: 1.42,
   ENEMY_SHOT_SPEED: 270,
@@ -84,45 +98,37 @@ export const HORDE_TUNING = Object.freeze({
   AUTO_RELOAD_DELAY: 3,
 });
 
-// Gövde yarıçapları. Oyuncu 14, düşmanlar 19-30: aralık açıldı çünkü ölçülen
-// şikâyet "biz büyüğüz" idi. 1. dalga / 1. turda `healerChance`/`tankChance`/
-// `shooterChance` sıfır olduğu için sahadaki TEK düşman tipi chaser'dır —
-// yani ilk izlenimi `ENEMY_BASE.chaser` belirliyor.
+// Gövde yarıçapları. Geçmiş: 14/16/18/21 → 17/20/22/26 → 19/23/25/30 →
+// 15/25/21/33/28. Bu turda **hepsi ×1.27**: kullanıcı telefonda oynarken
+// "kendi karakterim karınca gibi küçük" ve "rakipler öyle" dedi; web'de de
+// "biraz küçük kalmış" dedi. Yani istek hem tasarım hem okunurluk.
 //
-// Değişim iki turda oldu: 14/16/18/21 -> 17/20/22/26 (1.22x) -> 19/23/25/30.
-// Oyuncu bu turda 16 -> 14 küçüldü. `BOSS_BASE` aynı oranı koruyor
-// (chaser 39/20=1.95 -> 45/23=1.96, tank 48/26=1.85 -> 55/30=1.83).
+// ×1.27 sonrası bağıl oranlar korunuyor (oyuncu/chaser 0.60 → 0.59) ve
+// `BOSS_BASE` aynı çarpanı alıyor (chaser/tank 1.96 → 1.96).
+// `minPassage` en büyük gövdeden (tank) türediği için taban da yükselir;
+// `arenaLayout.test.mjs` bunu `BODY_RADIUS.HORDE` üzerinden doğruluyor.
 //
-// Düşman büyüdükçe `minPassage` tabanı da yükseliyor (tank 30 -> masaüstünde
-// 71px) ve halka biraz daha çok eleniyor: 8 preset × 4 cihazda toplam blok
-// 258 -> 253 (%2), harita seyreklemiyor.
-// Düşman gövdeleri 14/16/18/21 → 17/20/22/26 → **19/23/25/30** (1.36x toplam).
-// Son tur: "düşmanları birazcık daha büyüt" — 1.09x daha. Oyuncu 14'te kalıyor,
-// yani oyuncu/chaser 0.61: oyuncu artık her düşmandan küçük, kahraman hissi
-// korunuyor ama düşmanlar siluette okunuyor.
-//
-// Hızlar: kullanıcı "herkes çok hızlı hareket ediyor" dedi, "çok az düşür"
-// istedi → 0.90x (112→101, 78→70, 44→40, 68→61). Oyuncu `MOVE_SPEED` de aynı
-// katsayıyla indirildi: sadece düşmanları yavaşlatmak oyuncuyu yalnızlaştırırdı.
-// Son turda gövde büyürken hızlara dokunulmadı — büyük gövde + aynı hız
-// göreli olarak daha da hızlı hissettirir, ama kullanıcı açıkça hız
-// şikâyeti belirtmedi.
+// HIZLARA DOKUNULMADI (171 = 5.6sn saha geçişi, sağlıklı). Ölçülen
+// "çok hızlı" hissi HAREKETTEN değil, mermilerden geliyordu: oyuncu mermisi
+// `fieldSpeed`'ten geçerken `ENEMY_SHOT_SPEED` ve `weapon.projectileSpeed`
+// geçmiyordu. Telefonda mermi/oyuncu hızı oranı masaüstünün 2.5 katıydı
+// (düşman 3.92'ye karşı 1.58) → "sürekli uçan mermiler" hissi. İki taraf
+// birlikte ölçeklenince oyuncu/düşman mermisi oranı (1.93) KORUNUR ve
+// kaçma zorluğu masaüstüyle aynı olur.
 const ENEMY_BASE = Object.freeze({
-  chaser: { hp: 3, radius: 25, speed: 101, damage: 1, attackEvery: 0.95 },
-  shooter: { hp: 2, radius: 21, speed: 70, damage: 1, attackEvery: 1.55 },
-  tank: { hp: 8, radius: 33, speed: 40, damage: 2, attackEvery: 1.8 },
-  healer: { hp: 5, radius: 28, speed: 61, damage: 0, attackEvery: 3.2 },
+  chaser: { hp: 3, radius: 32, speed: 101, damage: 1, attackEvery: 0.95 },
+  shooter: { hp: 2, radius: 27, speed: 70, damage: 1, attackEvery: 1.55 },
+  tank: { hp: 8, radius: 42, speed: 40, damage: 2, attackEvery: 1.8 },
+  healer: { hp: 5, radius: 36, speed: 61, damage: 0, attackEvery: 3.2 },
 });
 
-// Boss'lar tabanla aynı oranı korur (chaser 45/23=1.96, tank 55/26=2.12 →
-// yeni tabanla 49/25=1.96, 64/33=1.94). `minPassage` en büyük gövdeden
-// türediği için tank 33 -> geçiş tabanı da yükselir; `arenaLayout.test.mjs`
-// bunu BODY_RADIUS.HORDE üzerinden doğruluyor.
+// Boss'lar tabanla aynı oranı korur (chaser 49/25=1.96 → 62/32=1.94, tank
+// 64/33=1.94 → 81/42=1.93).
 const BOSS_BASE = Object.freeze({
-  chaser: { hp: 42, radius: 49, speed: 104, damage: 2, attackEvery: 0.8 },
-  shooter: { hp: 30, radius: 42, speed: 76, damage: 2, attackEvery: 1.15 },
-  tank: { hp: 62, radius: 64, speed: 40, damage: 3, attackEvery: 1.45 },
-  healer: { hp: 36, radius: 47, speed: 66, damage: 1, attackEvery: 2.6 },
+  chaser: { hp: 42, radius: 62, speed: 104, damage: 2, attackEvery: 0.8 },
+  shooter: { hp: 30, radius: 53, speed: 76, damage: 2, attackEvery: 1.15 },
+  tank: { hp: 62, radius: 81, speed: 40, damage: 3, attackEvery: 1.45 },
+  healer: { hp: 36, radius: 60, speed: 66, damage: 1, attackEvery: 2.6 },
 });
 
 function isBot(player) {
@@ -201,7 +207,7 @@ export class HordeGame extends BaseMiniGame {
       const persona = bot ? getBotPersona(index, slotType === 'bot_god') : null;
       const spawn = this.spawnPoint(index);
       const player = createPlayer(index, spawn, {
-        radius: fieldRadius(this.arena, HORDE_TUNING.PLAYER_RADIUS, 0),
+        radius: this.bodyPx(HORDE_TUNING.PLAYER_RADIUS),
         speed: fieldSpeed(this.arena, HORDE_TUNING.MOVE_SPEED),
         baseSpeed: fieldSpeed(this.arena, HORDE_TUNING.MOVE_SPEED),
         isJoined: slotType !== 'empty',
@@ -247,6 +253,34 @@ export class HordeGame extends BaseMiniGame {
       y: this.arena.cy + Math.sin(angle) * distance,
       angle,
     };
+  }
+
+  /**
+   * Küçük saha okunurluk çarpanı: TASARIM px → cihaz px gövde ölçeği.
+   *
+   * `fieldRadius` orantıyı (`size/952`) korur, ama orantı fiziksel hedef
+   * DEĞİLDİR: 24" monitörde 15px gövde, 6" telefon ekranında 6px'tir. Bu
+   * yüzden telefonda oyuncu 12px çaplı "karınca" oluyordu. Çarpan, oyuncu
+   * gövdesini `LEGIBILITY_PX`'e (11px yarıçap) getirecek kadar büyütür.
+   *
+   * `Math.max(1, …)` masaüstünde tam olarak 1'dir: hiçbir şeyi şişirmez.
+   * Bütün gövde yarıçapları (oyuncu, düşman, boss, mermi, kasa, halka) TEK
+   * bu çarpandan geçtiği için oyuncu/düşman oranı ve isabet zorluğu sabit
+   * kalır — yalnız hepsi birden okunur olur.
+   */
+  bodyScale() {
+    const unit = this.arena.unit || 1;
+    return Math.max(1, HORDE_TUNING.LEGIBILITY_PX / (HORDE_TUNING.PLAYER_RADIUS * unit));
+  }
+
+  /** Gövde çarpanından geçmiş uzamsal değer (tasarım px → cihaz px). */
+  bodyPx(designPx, minFraction = 0) {
+    return fieldRadius(this.arena, designPx * this.bodyScale(), minFraction);
+  }
+
+  /** Saha ile ölçeklenen zaman-uzamsal değer (tasarım px/sn → cihaz px/sn). */
+  bodySpeed(designPxPerSec) {
+    return fieldSpeed(this.arena, designPxPerSec);
   }
 
   resize(width, height) {
@@ -310,7 +344,7 @@ export class HordeGame extends BaseMiniGame {
     // boşluğa sıkışır.
     this.obstacles = this.arena.size > 0
       ? buildLayout(map.layout, this.arena, {
-        minPassage: fieldRadius(this.arena, ENEMY_BASE.tank.radius, 0) * 2.4,
+        minPassage: this.bodyPx(ENEMY_BASE.tank.radius) * 2.4,
       })
       : [];
   }
@@ -501,7 +535,7 @@ export class HordeGame extends BaseMiniGame {
       y: this.arena.cy,
       vx: 0,
       vy: 0,
-      radius: fieldRadius(this.arena, base.radius * (elite ? 1.12 : 1), 0),
+      radius: this.bodyPx(base.radius * (elite ? 1.12 : 1)),
       speed: fieldSpeed(this.arena, base.speed * (elite ? 1.08 : 1)),
       hp,
       maxHp: hp,
@@ -578,8 +612,8 @@ export class HordeGame extends BaseMiniGame {
         types: ['HEAL', 'SHIELD', 'FAST', 'TRIPLE'],
         max: HORDE_TUNING.PICKUP_MAX,
         obstacles: this.obstacles,
-        size: 30,
-        pad: 24,
+        size: this.bodyPx(30),
+        pad: this.bodyPx(24),
       });
     }
     tickPickupTimers(this, dt);
@@ -850,22 +884,35 @@ export class HordeGame extends BaseMiniGame {
 
     let pellets = weapon.pellets;
     if (player.tripleTimer > 0) pellets += 2;
-    const speed = weapon.projectileSpeed * (player.fastTimer > 0 ? 1.12 : 1);
+    // Mermi hızı DAHA ÖNCE ham px'ti (`weapon.projectileSpeed`), hareket
+    // hızı ise `fieldSpeed`'ten geçiyordu. Telefonda mermi/oyuncu oranı
+    // masaüstünün 2.5 katıydı → "sürekli uçan mermi" hissi. Oyuncu mermisi
+    // VE düşman mermisi birlikte ölçeklenir: oyuncu/düşman mermisi oranı
+    // (520/270 = 1.93) sabit kalır, kaçma zorluğu masaüstüyle eşitlenir.
+    //
+    // `life` TASARIM oranı olarak hesaplanır (`range / projectileSpeed`),
+    // cihaz hızıyla değil: `range / speed` yazılsaydı ömre `1/unit` girerdi,
+    // yani telefonda mermi 2.5 kat uzun yaşar ve 460px menzille 384px'lik
+    // sahayı iki kez geçerdi. İkisi de tasarım px olduğu için birim düşer
+    // ve ömür her cihazda 0.885 sn olur; kat edilen mesafe `460 * unit`.
+    const speed = this.bodySpeed(weapon.projectileSpeed) * (player.fastTimer > 0 ? 1.12 : 1);
+    const life = weapon.range / weapon.projectileSpeed;
+    const knockback = this.bodyPx(weapon.knockback);
     for (let i = 0; i < pellets; i++) {
       const spread = pellets === 1 ? 0 : (i / (pellets - 1) - 0.5) * weapon.spread * 2;
       const angle = player.angle + spread + (Math.random() - 0.5) * weapon.spread * 0.35;
       this.addProjectile({
         owner: player.index,
         isEnemy: false,
-        x: player.x + Math.cos(angle) * 20,
-        y: player.y + Math.sin(angle) * 20,
+        x: player.x + Math.cos(angle) * this.bodyPx(20),
+        y: player.y + Math.sin(angle) * this.bodyPx(20),
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        radius: weapon.id === 'RIFLE' ? 5 : weapon.id === 'SHOTGUN' ? 4 : 6,
+        radius: this.bodyPx(weapon.id === 'RIFLE' ? 5 : weapon.id === 'SHOTGUN' ? 4 : 6),
         damage: weapon.damage,
-        life: weapon.range / speed,
+        life,
         color: weapon.color,
-        knockback: weapon.knockback,
+        knockback,
         pierce: weapon.pierce,
       });
     }
@@ -888,11 +935,11 @@ export class HordeGame extends BaseMiniGame {
       const dx = enemy.x - player.x;
       const dy = enemy.y - player.y;
       const distance = Math.hypot(dx, dy);
-      if (distance > weapon.range + enemy.radius) continue;
+      if (distance > this.bodyPx(weapon.range) + enemy.radius) continue;
       const angle = Math.atan2(dy, dx);
       if (Math.abs(normalizeAngle(angle - player.angle)) > weapon.arc * 0.5) continue;
       if (this.hasBlockedShot(player.x, player.y, enemy.x, enemy.y)) continue;
-      this.damageEnemy(enemy, weapon.damage, player.index, weapon.knockback, dx, dy, distance);
+      this.damageEnemy(enemy, weapon.damage, player.index, this.bodyPx(weapon.knockback), dx, dy, distance);
       // Kesik izi: kırmızı hasar partikülüne ek olarak silah renginde kıvılcım
       // — geniş yaylı bıçakta "hangi yön tarandı" hissi için.
       this.spawnParticles(enemy.x, enemy.y - enemy.radius * 0.4, weapon.color, 4);
@@ -983,14 +1030,14 @@ export class HordeGame extends BaseMiniGame {
       { x: this.arena.cx, y: this.arena.cy },
     ];
     const point = candidates.find((candidate) => !pointBlocked(candidate.x, candidate.y, this.obstacles, 48)) || candidates[candidates.length - 1];
-    return { x: point.x, y: point.y, radius: HORDE_TUNING.LOADOUT_RADIUS };
+    return { x: point.x, y: point.y, radius: this.bodyPx(HORDE_TUNING.LOADOUT_RADIUS) };
   }
 
   tryClaimLoadout(player) {
     if (!player?.isAlive || player.loadoutChoiceCrateId !== null) return;
     for (const crate of this.loadoutCrates) {
       if (crate.claimedBy !== null) continue;
-      if (distanceSq(player.x, player.y, crate.x, crate.y) > (HORDE_TUNING.LOADOUT_RADIUS + player.radius) ** 2) continue;
+      if (distanceSq(player.x, player.y, crate.x, crate.y) > (crate.radius + player.radius) ** 2) continue;
       crate.claimedBy = player.index;
       player.loadoutChoiceCrateId = crate.id;
       if (crate.kind === 'weapon') {
@@ -1179,14 +1226,15 @@ export class HordeGame extends BaseMiniGame {
   }
 
   fireEnemyProjectile(enemy, angle, damage, color) {
+    const shotSpeed = this.bodySpeed(HORDE_TUNING.ENEMY_SHOT_SPEED);
     this.addProjectile({
       owner: enemy.id,
       isEnemy: true,
-      x: enemy.x + Math.cos(angle) * (enemy.radius + 6),
-      y: enemy.y + Math.sin(angle) * (enemy.radius + 6),
-      vx: Math.cos(angle) * HORDE_TUNING.ENEMY_SHOT_SPEED,
-      vy: Math.sin(angle) * HORDE_TUNING.ENEMY_SHOT_SPEED,
-      radius: enemy.isBoss ? 8 : 6,
+      x: enemy.x + Math.cos(angle) * (enemy.radius + this.bodyPx(6)),
+      y: enemy.y + Math.sin(angle) * (enemy.radius + this.bodyPx(6)),
+      vx: Math.cos(angle) * shotSpeed,
+      vy: Math.sin(angle) * shotSpeed,
+      radius: this.bodyPx(enemy.isBoss ? 8 : 6),
       damage,
       life: 3,
       color,
@@ -1349,9 +1397,10 @@ export class HordeGame extends BaseMiniGame {
   }
 
   updateTombs(dt, alivePlayers) {
+    const reviveRadiusSq = this.bodyPx(HORDE_TUNING.REVIVE_RADIUS) ** 2;
     for (let i = this.tombs.length - 1; i >= 0; i--) {
       const tomb = this.tombs[i];
-      const reviving = alivePlayers.some((player) => distanceSq(player.x, player.y, tomb.x, tomb.y) <= HORDE_TUNING.REVIVE_RADIUS ** 2);
+      const reviving = alivePlayers.some((player) => distanceSq(player.x, player.y, tomb.x, tomb.y) <= reviveRadiusSq);
       if (reviving) tomb.timer += dt;
       else tomb.timer = Math.max(0, tomb.timer - dt * 1.5);
       if (tomb.timer < (tomb.reviveDuration || HORDE_TUNING.REVIVE_TIME)) continue;
@@ -1403,14 +1452,15 @@ export class HordeGame extends BaseMiniGame {
 
   createExtractionGate() {
     const side = Math.floor(Math.random() * 4);
-    const margin = HORDE_TUNING.PORTAL_RADIUS + 8;
+    const radius = this.bodyPx(HORDE_TUNING.PORTAL_RADIUS);
+    const margin = radius + 8;
     const point = [
       { x: this.arena.cx, y: this.arena.top + margin },
       { x: this.arena.right - margin, y: this.arena.cy },
       { x: this.arena.cx, y: this.arena.bottom - margin },
       { x: this.arena.left + margin, y: this.arena.cy },
     ][side];
-    return { ...point, side, radius: HORDE_TUNING.PORTAL_RADIUS, timer: 0 };
+    return { ...point, side, radius, timer: 0 };
   }
 
   advanceWave() {
@@ -1421,8 +1471,8 @@ export class HordeGame extends BaseMiniGame {
       types: ['HEAL', 'SHIELD'],
       max: 1,
       obstacles: this.obstacles,
-      size: 30,
-      pad: 28,
+      size: this.bodyPx(30),
+      pad: this.bodyPx(28),
     });
   }
 

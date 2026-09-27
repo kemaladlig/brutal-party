@@ -1367,38 +1367,121 @@
   pointer-events: auto;
 }
 
+/* ======================================================================
+   KUMANDA GÜVERTE SAYDAMLIGI — kontroller sahanın altında da görünsün
+   ----------------------------------------------------------------------
+   Kumanda (uzak) ve LOCAL mobil yüzeyler aynı beş arketipi kullanır ve
+   ikisinde de kontroller SAHANIN ÜSTÜNE biner: uzak yüzeyde world
+   canvas'ı (`.gamepad-game-stage.has-world-view`), LOCAL'de host canvas'ı.
+   Dolgu opak kaldığı için kontrol, sahanın kendi kadrajını kapatıyordu.
+
+   Kural tek cümle: YALNIZ DOLGU saydamar (`--deck-fill` 40%, basılı/aktif
+   `--deck-fill-active` 80%). Kenar, halka, gölge, cooldown scrim'i ve
+   cooldown sayısı tam güçte kalır — kontrolün tanınabilirliği dolgudan
+   değil, sınırından gelir; saha ise geri kazanılır.
+
+   Mürekkep `--on-accent`'e döner. Bu zorunlu, süs değil: saha krem
+   (~L* 95) ve 40% doygun dolgu krem üstünde açık bir pastel'e
+   düşüyor — altın üstünde beyaz ~1.4:1, kırmızı üstünde ~1.75:1
+   (okunmaz); `--on-accent` aynı dolgularda 9–12:1. Bu token zaten
+   "doygun/altın dolgu üstündeki yazı" sözleşmesinin taşıyıcısı.
+
+   Kapsam tek satır: `.gamepad-control-overlay` (uzak + world view) ve
+   `#local-mobile-controls` (LOCAL). Bu iki kapsam mount noktasıdır ve
+   yalnız kontroller mount EDİLDİĞİ için varlıkları zaten "saha arkada"
+   sinyalidir — `is-playing` gibi bir durum sınıfına bağlamak gerekmez.
+   Lobi bu arketiplerden birini mount etmez, dolayısıyla dolgu orada
+   opak kalır (arkada canvas yok). World view olmayan uzak dal
+   (`.gamepad-game-mount` doğrudan workspace içinde) de kapsam dışıdır:
+   saha yoktur, opak kalmak doğrudur.
+
+   Bu blok, `.gamepad-control-overlay` için yazılmış ve coarse-pointer
+   kırılımında 0.22'ye inen eski `steer-*` `opacity` karartmasını da
+   ikame eder: LOCAL yüzey o karartmayı hiç almıyordu, yani iki yüzey
+   aynı kontrolleri farklı saydamlıkta gösteriyordu.
+
+   Maliyet: yalnız alpha harmanlama. `backdrop-filter`/blur YOK (mobil
+   GPU'da tek gerçek risk), yeni katman yok, kare başına JS yok.
+   ====================================================================== */
+
+/* Kontrollerin kendisi dokunmaz yüzey: world canvas'ı geçirir, yalnız
+   gerçek hedefler (`pointer-events: auto` listesi) girdi alır. */
 .gamepad-control-overlay .steer-action-view {
   pointer-events: none;
-  opacity: 0.78;
-  transition: opacity 0.15s ease;
 }
 
-.gamepad-control-overlay .steer-rocker-btn,
-.gamepad-control-overlay .steer-action-btn {
-  opacity: 0.82;
-  transition: opacity 0.15s ease, transform 0.06s ease;
+/* --- Aksiyon butonları: BOMB/HEIST/TWIN_STICK/STEER aksiyon/PONG spin --- */
+:is(.gamepad-control-overlay, #local-mobile-controls) .action-dash-btn,
+:is(.gamepad-control-overlay, #local-mobile-controls) .action-spin-btn {
+  background-color: var(--deck-color, var(--gold));
+  background-color: color-mix(in srgb, var(--deck-color, var(--gold)) var(--deck-fill), transparent);
+  color: var(--on-accent);
 }
 
-.gamepad-control-overlay .steer-rocker-btn.active,
-.gamepad-control-overlay .steer-action-btn.active {
-  opacity: 1;
+/* `holding` = basılı-tut şemasının (ARCHER/HORDE) semantik sınıfı; JS zaten
+   yazıyordu, CSS okumuyordu. Basılı dolgu `--deck-fill-active`'e döner. */
+:is(.gamepad-control-overlay, #local-mobile-controls) .action-dash-btn:is(:active, .active, .holding),
+:is(.gamepad-control-overlay, #local-mobile-controls) .action-spin-btn:is(:active, .active, .holding) {
+  background-color: color-mix(in srgb, var(--deck-color, var(--gold)) var(--deck-fill-active), transparent);
 }
 
-/* Telefon/tablet: saha her zaman okunur kalsın. */
-@media (any-pointer: coarse), (hover: none) {
-  .gamepad-control-overlay .steer-action-view {
-    opacity: 1;
-  }
+/* --- TANKS ateş: kırmızı (yedek) / oyuncu rengi, beyaz ikon → koyu mürekkep --- */
+:is(.gamepad-control-overlay, #local-mobile-controls) .tank-fire-btn {
+  background-color: color-mix(in srgb, var(--deck-color, var(--danger)) var(--deck-fill), transparent);
+  color: var(--on-accent);
+}
 
-  .gamepad-control-overlay .steer-rocker-btn,
-  .gamepad-control-overlay .steer-action-btn {
-    opacity: 0.22;
-  }
+:is(.gamepad-control-overlay, #local-mobile-controls) .tank-fire-btn:is(:active, .active) {
+  background-color: color-mix(in srgb, var(--deck-color, var(--danger)) var(--deck-fill-active), transparent);
+}
 
-  .gamepad-control-overlay .steer-rocker-btn.active,
-  .gamepad-control-overlay .steer-action-btn.active {
-    opacity: 0.4;
-  }
+/* --- STEER rocker (CURVE/SNAKE) + TANKS pedalı: beyaz plaka, ağır kenar taşır.
+       Mürekkep zaten koyu (`--n-900`) — 40% beyaz krem üstünde koyu yazıyla
+       okunur, ayrıca geçersiz kılma gerekmez.
+       Basılı/aktif durum BURALDA yazılmaz: taban kuralları `.steer-rocker-btn`
+       ve `.tank-drive-pedal` için `!important` dolayısıyla dolu `--yellow` /
+       `--success` + koyu mürekkep dayatıyor. `!important` bir CSS kuralını
+       yener; buraya 80% kademesi eklemek erişilemez kod olurdu. Basılı
+       geri bildirimi zaten tam güçte. --- */
+:is(.gamepad-control-overlay, #local-mobile-controls) .steer-rocker-cluster,
+:is(.gamepad-control-overlay, #local-mobile-controls) .steer-rocker-btn,
+:is(.gamepad-control-overlay, #local-mobile-controls) .tank-drive-pedal {
+  background-color: color-mix(in srgb, var(--white) var(--deck-fill), transparent);
+}
+
+/* --- PONG: 1B sürgü yolu + çevir butonu. Tutamak dolgusu KALIR solid:
+       60px tutamak üstündeki beyaz "PADDLE" etiketi 40% dolguda okunmaz. --- */
+:is(.gamepad-control-overlay, #local-mobile-controls) .pong-horizontal-track,
+:is(.gamepad-control-overlay, #local-mobile-controls) .pong-invert-btn {
+  background-color: color-mix(in srgb, var(--n-900) var(--deck-fill), transparent);
+  color: var(--muted);
+}
+
+:is(.gamepad-control-overlay, #local-mobile-controls) .pong-invert-btn.inverted {
+  color: var(--gold-deep);
+}
+
+:is(.gamepad-control-overlay, #local-mobile-controls) .pong-horizontal-track:active,
+:is(.gamepad-control-overlay, #local-mobile-controls) .pong-invert-btn:active {
+  background-color: color-mix(in srgb, var(--n-900) var(--deck-fill-active), transparent);
+}
+
+/* --- Joystick tutamağı (taban zaten saydam: `--joy-drum` 0.16) --- */
+:is(.gamepad-control-overlay, #local-mobile-controls) .phone-joy-knob {
+  background-color: color-mix(in srgb, var(--deck-color, var(--n-700)) var(--deck-fill), transparent);
+}
+
+/* Nişan tutamağı basılıyken dolgu geri çıkar: hedef elin altındadır. */
+:is(.gamepad-control-overlay, #local-mobile-controls) .phone-joy-base:is(.aim-active, .aim-held) .phone-joy-knob {
+  background-color: color-mix(in srgb, var(--deck-color, var(--n-700)) var(--deck-fill-active), transparent);
+}
+
+/* Geçiş: dolgu 150 ms. Basış anında dolgu "zıplamasın".
+   `.steer-rocker-btn` listede değil: kendi `transition` bildirimi var
+   (0.05s) ve iki `transition` bildirimi yan yana gelince yalnız sonuncu
+   geçerli olurdu — onun temposuna karışmıyoruz. */
+:is(.gamepad-control-overlay, #local-mobile-controls) :is(.action-dash-btn, .action-spin-btn, .tank-fire-btn, .pong-horizontal-track, .pong-invert-btn) {
+  transition: background-color 0.15s ease, transform 0.06s ease, box-shadow 0.06s ease;
 }
 
 /* Landscape Mode — header çipleri sabit boyutta kalır (bar yok) */
@@ -1444,6 +1527,45 @@
 }
 
 /* Geri sayım görünümü (koltuklar kilitli) */
+/* Geri sayım PERDESİ — `#gamepad-overlay` çocuğu, workspace'in DIŞINDA.
+   Dışarıda olması sözleşme: `renderGameController` workspace'in içini
+   temizler; perde orada dursaydı her takasta yok olur ve geçiş yine kesmeye
+   dönerdi. z-index: tam ekran sonucun (120) üstünde, kumanda düzenleme
+   editörünün (260) altında. Zemin pad'in kendi kâğıdı — `.countdown-number`
+   `--ink` ile yazılıyor, koyu scrim §7'nin "açık zeminde açık yazı" yasağına
+   değil de okunmazlık tuzağına düşürürdü. */
+.countdown-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 180ms ease, visibility 0s linear 180ms;
+}
+
+.countdown-veil.is-open {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 180ms ease, visibility 0s linear 0s;
+}
+
+/* Her tik'te tek kez: sayı biraz büyük doğar, oturur. `prefers-reduced-motion`
+   küresel olarak süreyi sıfırlar (animations.css §9) ve bitiş değeri
+   `scale(1)` olduğu için sönme görüntü bozmaz. */
+.countdown-veil .countdown-number.is-tick {
+  animation: countdownTick 420ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+@keyframes countdownTick {
+  from { transform: scale(1.34); opacity: 0.35; }
+  to { transform: scale(1); opacity: 1; }
+}
+
 .countdown-view {
   width: 100%;
   height: 100%;
@@ -1837,6 +1959,8 @@
   height: clamp(84px, 15vh, 108px);
   border-radius: 20px;
   background: var(--danger);
+  /* Güverte rengi template'ten gelir; kırmızı yalnız yedek. */
+  background-color: var(--deck-color, var(--danger));
   border: 3.5px solid var(--n-900);
   box-shadow: var(--btn-lift);
   color: var(--white);
@@ -2212,11 +2336,13 @@
 }/* Faz 2 — yuvarlak glossy aksiyon butonları + aktif squash
    Geometri (boyut/yer) controllerLayout + controlDefs sözleşmesinden gelir;
    burada yalnız sunum yenilenir. */
+/* Güverte rengi template'ten `--deck-color` olarak gelir; yedek, rengi
+   taşımayan (şema `color` vermeyen) butonların taban dolgusu. */
 .action-dash-btn {
   width: clamp(112px, 30vw, 136px);
   height: clamp(112px, 30vw, 136px);
   border-radius: 50%;
-  background-color: var(--gold);
+  background-color: var(--deck-color, var(--gold));
   border: 2.5px solid var(--btn-border-soft);
   background-image: var(--btn-gloss);
   box-shadow: var(--btn-lift);
@@ -2251,7 +2377,7 @@
   width: clamp(112px, 30vw, 136px);
   height: clamp(112px, 30vw, 136px);
   border-radius: 50%;
-  background-color: var(--p2);
+  background-color: var(--deck-color, var(--p2));
   border: 2.5px solid var(--btn-border-soft);
   background-image: var(--btn-gloss);
   box-shadow: var(--btn-lift);
@@ -2479,6 +2605,7 @@
   height: 58px;
   border-radius: 50%;
   border: 2.5px solid var(--n-700);
+  background-color: var(--deck-color, var(--n-700));
   background-image:
     radial-gradient(circle at 32% 26%, var(--joy-knob-gloss) 0%, var(--sheen-08) 48%, var(--dim-25) 142%);
   box-shadow: inset 0 -6px 10px var(--dim-18), var(--joy-lift);
@@ -2638,9 +2765,15 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: max(20px, env(safe-area-inset-top, 20px)) max(16px, env(safe-area-inset-right, 16px)) max(20px, env(safe-area-inset-bottom, 20px)) max(16px, env(safe-area-inset-left, 16px));
+  /* Dikey merkezleme `justify-content: center` ile DEĞİL, sütunların
+     `margin-block: auto`'su ile yapılır: merkezilmiş taşan içerik
+     `overflow: hidden` üstünde üstten ve alttan KIRPILIR (ölçüldü:
+     844x390 → 26px, 667x375 → 41px taşma, ~13-21px kesik). Auto margin
+     serbest alanı eşit dağıtır, alan kalmayınca 0'a iner → her satır
+     erişilebilir kalır. */
+  justify-content: flex-start;
+  gap: 12px;
+  padding: max(16px, env(safe-area-inset-top, 16px)) max(16px, env(safe-area-inset-right, 16px)) max(16px, env(safe-area-inset-bottom, 16px)) max(16px, env(safe-area-inset-left, 16px));
   background: var(--result-bg);
   color: var(--result-ink);
   text-align: center;
@@ -2648,12 +2781,34 @@
   translate: 0 14px;
   pointer-events: none;
   transition: opacity 0.28s ease, translate 0.28s ease;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: manipulation;
 }
 
 .gamepad-result.reveal {
   opacity: 1;
   translate: 0 0;
   pointer-events: auto;
+}
+
+/* Başlık bloğu (başlık + alt bilgi + kazanan) ve skor bloğu (sıralama +
+   eylemler): portrede alt alta, yatayda yan yana iki sütun. */
+.result-lead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-block: auto;
+}
+
+.result-board {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-block: auto;
+  width: min(320px, 86vw);
 }
 
 .result-headline {
@@ -2663,7 +2818,7 @@
   letter-spacing: 1.5px;
   text-transform: uppercase;
   color: var(--result-mvp);
-  text-shadow: 0 4px 0 var(--dim-35);
+  text-shadow: 0 2px 12px var(--dim-35);
 }
 
 .result-sub {
@@ -2697,7 +2852,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: min(320px, 86vw);
+  width: 100%;
 }
 
 .result-row {
@@ -2736,7 +2891,7 @@
 .result-actions {
   display: flex;
   gap: 12px;
-  width: min(320px, 86vw);
+  width: 100%;
 }
 
 .result-btn {
@@ -2771,6 +2926,81 @@
   transform: translateY(4px);
   box-shadow: 0 2px 0 var(--dim-25), var(--btn-lift);
   filter: brightness(1.05);
+}
+
+/* Yatay telefon: uygulamanın geri kalanı gibi bu yüzey de landscape-first.
+   Tek dikey sütun 376 px tutuyor; yatayın kullanılabilir bandı (390 px
+   ekran − safe-area) daha küçük olduğu için içerik kırpılıyordu. Yükseklik
+   buradan satın alınamaz — YATAY yer var, başlık/kazanan sola, sıralama ve
+   eylemler sağa alınır. Tipografi `vh` ile bağlanır: ekran kısalırsa yazı
+   da kısalır, ama dokunma hedefleri 48 px tabanının altına inmez. */
+@media (orientation: landscape) and (min-aspect-ratio: 1/1) {
+  .gamepad-result {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: clamp(18px, 5vw, 48px);
+    padding-block: max(10px, env(safe-area-inset-top, 10px)) max(10px, env(safe-area-inset-bottom, 10px));
+  }
+
+  .result-lead,
+  .result-board {
+    min-width: 0;
+  }
+
+  .result-lead {
+    flex: 0 1 auto;
+    align-items: flex-start;
+    text-align: left;
+    gap: 4px;
+  }
+
+  .result-board {
+    flex: 0 1 auto;
+    width: min(46vw, 360px);
+    gap: 8px;
+  }
+
+  .result-headline {
+    font-size: clamp(20px, 6.5vh, 34px);
+    letter-spacing: 1px;
+  }
+
+  .result-sub {
+    font-size: 10px;
+    letter-spacing: 0.8px;
+  }
+
+  .result-mvp {
+    font-size: clamp(16px, 5vh, 26px);
+    gap: 8px;
+  }
+
+  .result-row {
+    padding: 6px 10px;
+    gap: 8px;
+    font-size: 12px;
+    border-radius: var(--radius-btn);
+  }
+
+  .result-row .result-row-dot {
+    width: 11px;
+    height: 11px;
+  }
+
+  .result-table {
+    gap: 6px;
+  }
+
+  .result-actions {
+    gap: 10px;
+  }
+
+  .result-btn {
+    /* Dokunma tabanı: yatay kuşakta parmak ucundayken 48 px'in altı isabetli
+       sayılmaz; `--radius-btn` ve ikon boyutu korunur. */
+    min-height: max(48px, 12vh);
+    font-size: 13px;
+  }
 }
 
 /* —— Konfeti (motionScale=1 ise JS üretir; azaltılmış harekette kapatılır) —— */

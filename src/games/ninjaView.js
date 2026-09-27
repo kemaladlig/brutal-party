@@ -9,6 +9,7 @@
 // - Zaman bazlı fx (slash/decals/impacts/alpha) 2 ondalık taşınır (0.07 gecikmeler kırılmasın).
 
 import { drawObstacle } from '../core/arenaKit.js';
+import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import {
   round1,
@@ -155,18 +156,15 @@ export function isValidNinjaWorldFrame(frame) {
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
-export function drawNinjaArena(ctx, arena) {
-  const { left, top, width, height } = arena;
-  ctx.fillStyle = '#E8E5DF';
-  ctx.fillRect(left, top, width, height);
+export function drawNinjaArena(ctx, arena, opts = {}) {
+  // Statik saha `fieldKit`'te: arduvaz tonlu zemin, plaka dokusu, seeded dekor
+  // ve yuvarlatılmış tepsi kesimi. Eskiden düz `#E8E5DF` dolgu + kare konturdu.
+  drawField(ctx, arena, { mode: 'NINJA', seed: hashFieldSeed('NINJA', opts.roundId) });
 }
 
 export function drawNinjaFrame(ctx, arena, obstacles) {
-  const { left, top, width, height } = arena;
-  for (const obs of obstacles) drawObstacle(ctx, obs, { variant: 'dark' });
-  ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = Math.max(2, 6 * (arena?.unit ?? 1));
-  ctx.strokeRect(left, top, width, height);
+  // Kenar/artık `drawField`'ın bake'indedir; burada yalnız engel gövdeleri kalır.
+  for (const obs of obstacles) drawObstacle(ctx, obs, { theme: 'NINJA' });
 }
 
 export function drawNinjaSteps(ctx, steps) {

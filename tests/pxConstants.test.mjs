@@ -45,7 +45,7 @@ const DESIGN_TABLES = [
   { file: 'games/horde.js', contains: 'BOSS_CHASER' },
   // CROWN tacı: constructor'da ham tasarım px, `resize()` içinde
   // `fieldRadius` ile türetiliyor. Constructor arenası `unit` içermiyor.
-  { file: 'games-retired/crown.js', contains: 'radius: 20,' },
+  { file: 'games/crown.js', contains: 'radius: 20,' },
   // raceLogic RACE_TUNING: bildirimde ham px, kullanımda race.js `this.px/spd`.
   { file: 'games/raceLogic.js', contains: 'baseSpeed:' },
   { file: 'games/raceLogic.js', contains: 'playerRadius:' },

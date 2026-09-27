@@ -1,4 +1,4 @@
-// CROWN world snapshot + client-safe drawing boundary for the retired-but-playable cartridge.
+// CROWN world snapshot + client-safe drawing boundary.
 
 import { UI_COLORS } from '../ui/tokens.js';
 import { createWorldSnapshot, isValidWorldBase, round1 } from './worldCore.js';

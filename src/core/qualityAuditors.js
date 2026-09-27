@@ -10,7 +10,7 @@ export const MODE_VIEW_MAP = Object.freeze({
   BOMB: 'src/games/bombView.js',
   HEIST: 'src/games/heistView.js',
   ARCHER: 'src/games/archerView.js',
-  CROWN: 'src/games-retired/crownView.js',
+  CROWN: 'src/games/crownView.js',
   PONG: 'src/games/pongView.js',
   NINJA: 'src/games/ninjaView.js',
   HORDE: 'src/games/hordeView.js',

@@ -7,6 +7,7 @@
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawObstacle } from '../core/arenaKit.js';
+import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import {
   round1,
   packRectList,
@@ -103,51 +104,32 @@ export function isValidHeistWorldFrame(frame) {
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
-export function drawHeistArena(ctx, arena, pillars) {
-  const { left, top, right, bottom, width, height, size, cx, cy } = arena;
-  const u = arena?.unit ?? (size ? size / 952 : 1);
-
-  ctx.fillStyle = '#FAF7F2';
-  ctx.fillRect(left, top, width, height);
-
-  ctx.strokeStyle = '#E8E2D8';
+/**
+ * HEIST'e özgü STATİK işaret — bake'in içine girer.
+ *
+ * Modül seviyesinde sabit fonksiyon olmak ZORUNDA: `drawField` cache anahtarı
+ * `marks`'i taşımaz. Köşe plakaları ve kesikli merkez halkası artık sırasıyla
+ * `fieldKit`'in `corners: 'plate'` dili ve `vault` motifidir — burada tekrarlanmaz.
+ */
+function heistFieldMarks(ctx, pf, palette) {
+  const { width: w, height: h, unit: u } = pf;
+  ctx.strokeStyle = palette.frame;
   ctx.lineWidth = Math.max(1, 1.5 * u);
-  ctx.strokeRect(left + width * 0.12, top + height * 0.12, width * 0.76, height * 0.76);
+  ctx.strokeRect(w * 0.12, h * 0.12, w * 0.76, h * 0.76);
+}
 
-  ctx.strokeStyle = '#D99B26';
-  ctx.lineWidth = Math.max(1.5, 2.5 * u);
-  ctx.setLineDash([6 * u, 6 * u]);
-  ctx.beginPath();
-  ctx.arc(cx, cy, size * 0.22, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
-  ctx.strokeStyle = '#2B2B28';
-  ctx.lineWidth = Math.max(1.5, 3 * u);
-  const cornerPlates = [
-    [[left, top + bLen], [left, top], [left + bLen, top]],
-    [[right - bLen, top], [right, top], [right, top + bLen]],
-    [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
-    [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
-  ];
-  for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.lineTo(x3, y3);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = '#1A1A1A';
-  ctx.fillRect(right, top + 6, 6, height);
-  ctx.fillRect(left + 6, bottom, width, 6);
-  ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = Math.max(2, 4 * u);
-  ctx.strokeRect(left, top, width, height);
+export function drawHeistArena(ctx, arena, pillars, opts = {}) {
+  // Statik saha `fieldKit`'te: ılık kum tonlu zemin, dokuma dokusu, kesikli altın
+  // merkez halkası, iç sınır kutusu, köşe plakaları ve yuvarlatılmış tepsi
+  // kesimi. Eskiden bunun tamamı HER FRAME raster ediliyordu.
+  drawField(ctx, arena, {
+    mode: 'HEIST',
+    seed: hashFieldSeed('HEIST', opts.roundId),
+    marks: heistFieldMarks,
+  });
 
   for (const pil of pillars) {
-    drawObstacle(ctx, pil, { variant: 'crate' });
+    drawObstacle(ctx, pil, { theme: 'HEIST' });
   }
 }
 

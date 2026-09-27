@@ -253,6 +253,26 @@ export function getProjectileSubsteps(distance, maxStep = 8) {
 }
 
 /**
+ * Frame-rate-independent velocity damping.
+ *
+ * Engines damp with a bare `v *= factor` written as if the loop ran at 60 Hz.
+ * The host loop is a plain `requestAnimationFrame` loop with a variable dt
+ * (`main.js`), so those factors silently change strength with frame rate: 0.96
+ * per frame is ~8.6%/s at 60 Hz but ~29%/s at 30 Hz — the same hazard lasting
+ * twice as long on a slow device. Expressing the factor per 60 Hz frame and
+ * converting it here keeps the authored 60 Hz feel at every frame rate.
+ *
+ * @param {number} perFrame60 - Retained fraction per 60 Hz frame (0.96 = 4% loss)
+ * @param {number} dt - Delta time in seconds
+ * @returns {number} The multiplier to apply to a velocity component
+ */
+export function damp(perFrame60, dt) {
+  if (!Number.isFinite(perFrame60) || perFrame60 <= 0) return 1;
+  if (!Number.isFinite(dt) || dt <= 0) return 1;
+  return Math.pow(perFrame60, dt * 60);
+}
+
+/**
  * Wraps an angle to [-PI, PI] without frame-dependent branch drift.
  * @param {number} angle
  * @returns {number}

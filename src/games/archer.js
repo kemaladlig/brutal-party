@@ -18,6 +18,7 @@ import { pointBlocked, updateMovers, clampToArena, resolveAABB, segmentCircleInt
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { findAutoAimTarget } from '../core/autoAim.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import {
   createArcherWorldPacket,
   drawArcherArena,
@@ -839,12 +840,12 @@ export class ArcherGame extends BaseMiniGame {
     const { ctx } = this;
     ctx.save();
 
-    ctx.fillStyle = '#D6D3CD';
-    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
+    // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'ARCHER' });
     this.applyScreenShake(ctx);
 
     // Arenanın scene kısmı ortak archerView draw'larından gelir (host↔client aynı).
-    drawArcherArena(ctx, this.arena, this.obstacles);
+    drawArcherArena(ctx, this.arena, this.obstacles, { roundId: this.roundId });
     drawArcherPickups(ctx, this.pickups);
 
     // Engellerin üzerinde her zaman net, yüksek görünürlüklü süre sayacı

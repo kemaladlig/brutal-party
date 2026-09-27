@@ -5,6 +5,7 @@
 // world snapshot'ına girmez — client tankları belirdiği anda görür.
 
 import { drawPickup, drawObstacle } from '../core/arenaKit.js';
+import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { renderEntityHUD } from '../ui/hud.js';
 import {
@@ -124,35 +125,17 @@ export function isValidTanksWorldFrame(frame) {
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
-export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null) {
-  const { left, top, right, bottom, width, height, size, cx, cy } = arena;
+export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null, opts = {}) {
+  // Statik saha `fieldKit`'te: adaçayı tonlu zemin, tanecik dokusu, merkez
+  // halkası, köşe plakaları, seeded dekor ve yuvarlatılmış tepsi kesimi.
+  // Eskiden burada ~12 ızgara stroke'u + 2 gölge bandı + kare `strokeRect`
+  // HER FRAME yeniden raster ediliyordu; hepsi artık bir kez pişip blit olur.
+  drawField(ctx, arena, { mode: 'TANKS', seed: hashFieldSeed('TANKS', opts.roundId) });
+
+  // Sudden Death CANLI: yarıçap her frame küçülüyor, yani oyun durumu — bake
+  // edilemez. Zaten world packet'inde `{active,x,y,radius}` olarak taşınıyor.
+  const { left, top, width, height } = arena;
   const u = arena?.unit ?? 1;
-
-  ctx.fillStyle = '#FAF7F2';
-  ctx.fillRect(left, top, width, height);
-
-  ctx.strokeStyle = '#E5E0D6';
-  ctx.lineWidth = 1.5 * u;
-  const gridStep = size / 6;
-  for (let x = left + gridStep; x < right; x += gridStep) {
-    ctx.beginPath();
-    ctx.moveTo(x, top);
-    ctx.lineTo(x, bottom);
-    ctx.stroke();
-  }
-  for (let y = top + gridStep; y < bottom; y += gridStep) {
-    ctx.beginPath();
-    ctx.moveTo(left, y);
-    ctx.lineTo(right, y);
-    ctx.stroke();
-  }
-
-  ctx.strokeStyle = '#DDD7CC';
-  ctx.lineWidth = 2 * u;
-  ctx.beginPath();
-  ctx.arc(cx, cy, size * 0.15, 0, Math.PI * 2);
-  ctx.stroke();
-
   if (suddenDeath?.active && suddenDeath.radius > 0) {
     ctx.save();
     ctx.fillStyle = 'rgba(216, 71, 39, 0.12)';
@@ -169,33 +152,9 @@ export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null) {
     ctx.restore();
   }
 
-  const bLen = Math.max(16, Math.round(size * 0.05));
-  ctx.strokeStyle = '#2B2B28';
-  ctx.lineWidth = 3 * u;
-  const cornerPlates = [
-    [[left, top + bLen], [left, top], [left + bLen, top]],
-    [[right - bLen, top], [right, top], [right, top + bLen]],
-    [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
-    [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
-  ];
-  for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.lineTo(x3, y3);
-    ctx.stroke();
-  }
-
   for (const obs of obstacles) {
-    drawObstacle(ctx, obs, { variant: 'stone' });
+    drawObstacle(ctx, obs, { theme: 'TANKS' });
   }
-
-  ctx.fillStyle = '#1A1A1A';
-  ctx.fillRect(right, top + 6, 6, height);
-  ctx.fillRect(left + 6, bottom, width, 6);
-  ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = 6 * u;
-  ctx.strokeRect(left, top, width, height);
 }
 
 export function drawTanksBullets(ctx, bullets, ownerColors) {

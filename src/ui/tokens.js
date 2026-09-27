@@ -41,6 +41,21 @@ export const UI_COLORS = {
   daze: '#A79C90',
   cooldownTrack: 'rgba(43, 32, 24, 0.28)',
   cooldownTrackLight: 'rgba(255, 253, 247, 0.40)',
+  // --- Sonuç/final yüzeyi: `tokens.css --result-*` ailesinin canvas karşılığı.
+  // Kartın dili sahadan (krem) değil, uygulamanın sonuç ekranından gelir:
+  // telefon kumandasındaki tam ekran sonuçla aynı panel, aynı mürekkep.
+  resultInk: '#FFF8EA',
+  resultMuted: '#CFC0AD',
+  resultGold: '#FFD27A',
+  resultPanelTop: '#2B2018',
+  resultPanelBottom: '#160F0A',
+  resultRow: 'rgba(255, 255, 255, 0.07)',
+  resultEdge: 'rgba(255, 248, 234, 0.18)',
+  // `--shadow-float`/`--dim-*` ailesinin RGB kanalları: katmanlı gölde alfa
+  // katman başına değiştiği için renk değil kanal üçlüsü taşınır.
+  resultShadowRgb: '4, 2, 12',
+  // Doygun altın/yeşil dolgu üstündeki mürekkep (`--on-accent`).
+  onAccent: '#2A1400',
 };
 
 export const UI_FONTS = {
@@ -67,6 +82,11 @@ export const UI_TEXT = {
   button: [900, 20, 'grotesk'], // BAŞLAT / YENİDEN OYNA (büyük)
   buttonSmall: [800, 15, 'grotesk'], // final butonu
   title: [900, 24, 'grotesk'], // final kazananı
+  // Sonuç kartı kademesi (koyu panel): üst etiket / kazanan / sıralama satırı.
+  finalLabel: [900, 12, 'mono'],
+  finalHero: [900, 26, 'grotesk'],
+  finalRow: [800, 14, 'grotesk'],
+  finalRowValue: [900, 14, 'mono'],
   display: [900, 32, 'grotesk'], // lobi başlığı
   hero: [900, 52, 'grotesk'], // sinyal / devasa durum
 };
@@ -300,8 +320,30 @@ export const UI_SIZES = {
   seatInset: 20,
   startW: 220,
   startH: 60,
-  finalBtnW: 190,
-  finalBtnH: 46,
+  // --- Final kartı (match over) düzeni. `layoutMatchOverCard` tek tüketicidir;
+  // `tests/matchOverLayout.test.mjs` bu sözleşmeyi telefon yatayından TV'ye
+  // beş viewport üzerinde kilitler (kart sahada kalır, satır ↔ buton boşluğu,
+  // 44 px dokunma tabanı).
+  finalPad: 16,
+  finalRowH: 30,
+  finalRowGap: 6,
+  finalSectionGap: 8,
+  finalLabelH: 14,
+  finalNameH: 28,
+  finalLabelNameGap: 12,
+  finalBtnHMin: 44, // dokunma tabanı: altında isabetli basış sayılmaz
+  finalBtnTall: 48,
+  finalBtnMinW: 96,
+  finalBtnGap: 10,
+  finalCardW: 440,
+  finalCardWSplit: 640,
+  finalCardMaxWidth: 0.92, // saha genişliğinin üst sınırı
+  finalCardMaxHeight: 0.94, // saha yüksekliğinin üst sınırı
+  finalLeadShare: 0.4, // iki sütunlu düzende kazanan sütununun payı
+  finalLeadMaxW: 240,
+  finalColGap: 18,
+  finalRadiusMax: 26,
+  finalSplitAspect: 1.55, // bu en-boy oranı ve üstünde kart iki sütuna geçer
   pillH: 34,
   bannerW: 260,
   bannerH: 64,

@@ -224,6 +224,19 @@
      yüzeyi etkilenmez. Yeni kumanda öğesi önce buraya eklenir.
      ====================================================================== */
 
+  /* Kumanda GÜVERTE saydamlığı — kontroller sahanın üstüne bindiği için
+     dolgu opak kalamaz; saha krem bir zeminde görünmez oluyordu.
+     Tek mekanizma, iki kademe: dinlenme 40%, basılı/aktif 80%.
+     Yalnız DOLGU saydamar; kenar, halka, gölge ve cooldown scrim'i tam
+     güçte kalır (yüzey sınırları kontrolü tanımlar, dolgu sadece geçirir).
+     Saha krem olduğu için güverte içeriğinin mürekkebi `--on-accent`'e
+     döner: 40% altın üstünde beyaz 1.4:1 (okunmaz), `--on-accent` ~12:1.
+     `color-mix()` ikinci bildirimdir — desteklemeyen tarayıcı opak
+     `--deck-fill` kademesinde kalır. Maliyet yalnız alpha harmanlama:
+     yeni katman, blur veya kare başına JS yok. */
+  --deck-fill: 40%;
+  --deck-fill-active: 80%;
+
   /* Görünür joystick: dinlenme diski, yumuşak halka, parlak tutamaç */
   --joy-ring: rgba(255, 255, 255, 0.6);
   --joy-ring-strong: rgba(255, 255, 255, 0.9);

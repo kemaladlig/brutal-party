@@ -10,6 +10,20 @@ import { getPreference, setPreference } from '../core/preferences.js';
 import { TwinStickAimController } from './aimController.js';
 
 /**
+ * Kontrol dolgu rengini `--deck-color` ÖZEL DEĞİŞKENİ olarak yazar, doğrudan
+ * `background-color` olarak değil.
+ *
+ * Neden: satır içi `background-color` her CSS kuralını yener (specificity
+ * değil, sıra değil — satır içi kazanır), dolgusunun yarı saydam olması
+ * mümkün olmazdı. Renk VERİ olarak kalır (oyuncu/aksiyon rengi), sunum
+ * `gamepad.css`'in güverte kurallarında tek yerde (`--deck-fill`) durur.
+ * Yalnız bu modül yazar; taban kuralları `var(--deck-color, <yedek>)` okur.
+ */
+function deckColorStyle(color) {
+  return `--deck-color: ${color};`;
+}
+
+/**
  * Mounts a declarative controller onto the given container.
  * Returns an instance object with { handleSync, teardown }.
  *
@@ -58,7 +72,7 @@ function mountJoystickAction(gamepad, container, schema) {
     actionHtml = `
       <div class="${clusterClass}">
         ${actions.map((act, i) => {
-          const bg = act.color ? `background-color: ${act.color};` : `background-color: ${gamepad.playerColor};`;
+          const bg = deckColorStyle(act.color || gamepad.playerColor);
           const border = act.border ? `border-color: ${act.border};` : '';
           const flex = act.flex ? `flex: ${act.flex};` : '';
           const minHeight = act.minHeight ? `min-height: ${act.minHeight};` : '';
@@ -67,7 +81,7 @@ function mountJoystickAction(gamepad, container, schema) {
           const actionLabel = getGuideActionLabel(act);
           return `
             <button class="action-dash-btn ${customClass}" data-action-index="${i}" type="button" aria-label="${escapeHtml(actionLabel)}" title="${escapeHtml(actionLabel)}" style="${bg} ${border} ${flex} ${minHeight}">
-              <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
+              <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: 38, color: 'currentColor', strokeWidth: 2.4 })}</span>
             </button>
           `;
         }).join('')}
@@ -75,12 +89,12 @@ function mountJoystickAction(gamepad, container, schema) {
     `;
   } else if (actions.length === 1) {
     const act = actions[0];
-    const bg = act.color ? `background-color: ${act.color};` : `background-color: ${gamepad.playerColor};`;
+    const bg = deckColorStyle(act.color || gamepad.playerColor);
     const icon = act.icon || (act.action === 'DASH' ? 'zap' : 'flame');
     const actionLabel = getGuideActionLabel(act);
     actionHtml = `
       <button class="action-dash-btn ${act.className || ''}" data-action-index="0" type="button" aria-label="${escapeHtml(actionLabel)}" title="${escapeHtml(actionLabel)}" style="${bg}">
-        <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
+        <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: 38, color: 'currentColor', strokeWidth: 2.4 })}</span>
       </button>
     `;
   }
@@ -89,7 +103,7 @@ function mountJoystickAction(gamepad, container, schema) {
     <div class="joystick-action-view">
       <div class="joystick-half" data-controller-layout-target="left" id="${joyZoneId}">
         <div class="phone-joy-base" style="border-color: ${gamepad.playerColor};">
-          <div class="phone-joy-knob" id="${joyKnobId}" style="background-color: ${gamepad.playerColor};"></div>
+          <div class="phone-joy-knob" id="${joyKnobId}" style="${deckColorStyle(gamepad.playerColor)}"></div>
         </div>
       </div>
       <div class="action-half" data-controller-layout-target="right">
@@ -201,14 +215,14 @@ function mountTwinStickAction(gamepad, container, schema) {
   const actionHtml = actions.length > 0
     ? `<div class="action-cluster-stack twin-action-cluster">
         ${actions.map((act, i) => {
-          const bg = act.color ? `background-color: ${act.color};` : `background-color: ${gamepad.playerColor};`;
+          const bg = deckColorStyle(act.color || gamepad.playerColor);
           const border = act.border ? `border-color: ${act.border};` : '';
           const flex = act.flex ? `flex: ${act.flex};` : '';
           const minHeight = act.minHeight ? `min-height: ${act.minHeight};` : '';
           const icon = act.icon || (act.action === 'DASH' ? 'zap' : 'flame');
           const label = getGuideActionLabel(act);
           return `<button class="action-dash-btn ${act.className || ''}" data-action-index="${i}" type="button" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" style="${bg} ${border} ${flex} ${minHeight}">
-            <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: 34, color: '#ffffff', strokeWidth: 2.4 })}</span>
+            <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: 34, color: 'currentColor', strokeWidth: 2.4 })}</span>
           </button>`;
         }).join('')}
       </div>`
@@ -223,13 +237,13 @@ function mountTwinStickAction(gamepad, container, schema) {
     <div class="twin-stick-action-view">
       <div class="twin-stick-half twin-move-half" data-controller-layout-target="left" id="${moveZoneId}" aria-label="${escapeHtml(moveLabel)}">
         <div class="phone-joy-base" style="border-color: ${gamepad.playerColor};">
-          <div class="phone-joy-knob" id="${moveKnobId}" style="background-color: ${gamepad.playerColor};"></div>
+          <div class="phone-joy-knob" id="${moveKnobId}" style="${deckColorStyle(gamepad.playerColor)}"></div>
         </div>
         <span class="twin-stick-label">${escapeHtml(moveLabel)}</span>
       </div>
       <div class="twin-stick-half twin-aim-half" data-controller-layout-target="right" id="${aimZoneId}" aria-label="${escapeHtml(aimLabel)}">
         <div class="phone-joy-base" style="border-color: ${gamepad.playerColor};">
-          <div class="phone-joy-knob" id="${aimKnobId}" style="background-color: ${gamepad.playerColor};"></div>
+          <div class="phone-joy-knob" id="${aimKnobId}" style="${deckColorStyle(gamepad.playerColor)}"></div>
         </div>
         <span class="twin-stick-label">${escapeHtml(aimLabel)}</span>
       </div>
@@ -349,8 +363,8 @@ function mountArcadeDrive(gamepad, container, schema) {
         </button>
       </div>
       <div class="tanks-fire-zone" data-controller-layout-target="right">
-        <button class="tank-fire-btn" id="btn-tank-fire" type="button" aria-label="${escapeHtml(fireLabel)}" title="${escapeHtml(fireLabel)}" style="background: ${gamepad.playerColor};">
-          <span class="fire-icon">${getTabletopIconSvg(schema.fireIcon || 'bomb', { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
+        <button class="tank-fire-btn" id="btn-tank-fire" type="button" aria-label="${escapeHtml(fireLabel)}" title="${escapeHtml(fireLabel)}" style="${deckColorStyle(gamepad.playerColor)}">
+          <span class="fire-icon">${getTabletopIconSvg(schema.fireIcon || 'bomb', { size: 38, color: 'currentColor', strokeWidth: 2.4 })}</span>
         </button>
         <div class="tank-ammo-hud" id="tank-ammo-hud">
           <div class="cartridge-pip loaded"></div>
@@ -447,13 +461,13 @@ function mountArcadeDrive(gamepad, container, schema) {
 const STEER_KEEPALIVE_MS = 250;
 
 function steerActionButtonHtml(act, index, playerColor, iconSize) {
-  const bg = act.color ? `background-color: ${act.color};` : `background-color: ${playerColor};`;
+  const bg = deckColorStyle(act.color || playerColor);
   const icon = act.icon || (act.action === 'DASH' ? 'zap' : 'flame');
   const label = getGuideActionLabel(act);
   return `
     <button class="action-dash-btn steer-action-btn ${act.className || ''}" data-action-index="${index}" type="button"
       aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" style="${bg}">
-      <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: iconSize, color: '#ffffff', strokeWidth: 2.4 })}</span>
+      <span class="btn-action-icon">${getTabletopIconSvg(icon, { size: iconSize, color: 'currentColor', strokeWidth: 2.4 })}</span>
     </button>
   `;
 }
@@ -710,8 +724,8 @@ function mountSlider1D(gamepad, container, schema) {
             ${gamepad.isPongInverted !== baseInvert ? tIcon('pad.autoDir') : tIcon('pad.flipDir')}
           </button>
         </div>
-        <button class="action-spin-btn" data-controller-layout-target="right" id="btn-pong-spin" type="button" aria-label="${escapeHtml(t('pad.spinShort'))}" title="${escapeHtml(t('pad.spinShort'))}" style="background-color: ${gamepad.playerColor};">
-          <span class="btn-action-icon">${getTabletopIconSvg('rotate_cw', { size: 38, color: '#ffffff', strokeWidth: 2.4 })}</span>
+        <button class="action-spin-btn" data-controller-layout-target="right" id="btn-pong-spin" type="button" aria-label="${escapeHtml(t('pad.spinShort'))}" title="${escapeHtml(t('pad.spinShort'))}" style="${deckColorStyle(gamepad.playerColor)}">
+          <span class="btn-action-icon">${getTabletopIconSvg('rotate_cw', { size: 38, color: 'currentColor', strokeWidth: 2.4 })}</span>
         </button>
       </div>
     </div>

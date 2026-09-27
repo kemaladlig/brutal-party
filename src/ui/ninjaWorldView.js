@@ -16,7 +16,8 @@ import {
   drawNinjaFx,
   isValidNinjaWorldFrame,
 } from '../games/ninjaView.js';
-import { fitWorld, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { fitWorld, worldScreenBox, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
@@ -32,10 +33,9 @@ export function createWorldViewRenderer() {
       const withFx = frame.gameState === 'PLAYING';
 
       ctx.save();
-      ctx.fillStyle = '#F4F0EA';
-      ctx.fillRect(0, 0, width, height);
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'NINJA' });
       fitWorld(ctx, width, height, frame.arena, () => {
-        drawNinjaArena(ctx, arena);
+        drawNinjaArena(ctx, arena, { roundId: frame.roundId });
         drawNinjaSteps(ctx, frame.steps || []);
         drawNinjaDecals(ctx, frame.decals || []);
         drawNinjaLanterns(ctx, frame.lanterns || [], now);

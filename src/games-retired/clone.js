@@ -27,6 +27,11 @@ export const CLONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 const CLONE_DASH_COOLDOWN = 1.6;
 const CLONE_RADIUS = 15;
+// Saha geçiş süresi 952/h: 135 → 6.35sn iken en yavaşlardan biriydi
+// (COLLAPSE 7.6, SNAKE 6.8). Bilinçli olarak minimal: CLONE'un hissi temposuz
+// değil, karmaşıklıktan geliyor; oyunu yeniden ayarlamaya değmez, sadece
+// "beklemek" hissi kaldırmak gerek.
+const CLONE_MOVE_SPEED = 150;
 const CLONE_ROUND_TIME = 60;
 const CLONE_MAX_TIED_ROUNDS = 2;
 
@@ -121,7 +126,7 @@ export class CloneGame extends BaseMiniGame {
         p.aiMemory = null;
         this.remapPoint(p, oldArena, this.arena);
         p.radius = fieldRadius(this.arena, CLONE_RADIUS);
-        p.speed = fieldSpeed(this.arena, 135);
+        p.speed = fieldSpeed(this.arena, CLONE_MOVE_SPEED);
         clampToArena(p, p.radius || CLONE_RADIUS, this.arena);
         this.resolveWallCollision(p, p.radius || CLONE_RADIUS);
       }
@@ -226,7 +231,7 @@ export class CloneGame extends BaseMiniGame {
         color: isBot ? persona.color : (custom.color || CLONE_COLORS[i]),
         x: s.x, y: s.y, angle: s.angle,
         radius: fieldRadius(this.arena, CLONE_RADIUS),
-        speed: fieldSpeed(this.arena, 135), steerX: 0, steerY: 0,
+        speed: fieldSpeed(this.arena, CLONE_MOVE_SPEED), steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         dashTimer: 0, dashCooldown: 0, slowTimer: 0,
         taskTimer: 0, currentTaskId: null,

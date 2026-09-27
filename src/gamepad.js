@@ -1002,20 +1002,64 @@ export class GamepadManager {
     this.renderGameController('LOBBY');
   }
 
-  // Geri sayım tik'i: koltuklar kilitlenir, sayaç ekranı basılır
+  /**
+   * Geri sayım PERDESİ — `#gamepad-overlay` çocuğudur, workspace'in DEĞİL.
+   *
+   * Dışarıda olması sözleşmedir: `renderGameController` workspace'in içini
+   * temizler (`workspace.innerHTML = ''`); perde orada dursaydı her takasta
+   * yok olur ve "geçiş" yeniden kesmeye dönerdi. Böylece yüzey takası perdenin
+   * ALTINDA olur: lobi → perde (soluk), takas, perde → oyun (soluşma).
+   *
+   * Eski yol `workspace.innerHTML = ...` idi: lobi kartı yıkılıyor, hemen
+   * ardından ikinci bir tam kurulum oluyordu; kullanıcı iki ayrı yok-var
+   * sıçraması görüyordu.
+   */
+  _countdownVeil() {
+    const key = `${t('pad.countBadge')}|${t('pad.countSub')}`;
+    if (this._veilEl?.isConnected && this._veilKey === key) return this._veilEl;
+    const veil = document.createElement('div');
+    veil.className = 'countdown-veil';
+    veil.setAttribute('role', 'status');
+    veil.setAttribute('aria-live', 'assertive');
+    // tIcon() ikon SVG'sini metne gömer; statik iç sözlük, kullanıcı verisi değil.
+    veil.innerHTML = `
+      <div class="countdown-view">
+        <div class="countdown-badge">${tIcon('pad.countBadge')}</div>
+        <div class="countdown-number"></div>
+        <div class="countdown-sub">${escapeHtml(t('pad.countSub'))}</div>
+      </div>
+    `;
+    this.overlay.appendChild(veil);
+    this._veilEl = veil;
+    this._veilNumber = veil.querySelector('.countdown-number');
+    this._veilKey = key;
+    return veil;
+  }
+
+  // Geri sayım tik'i: koltuklar kilitlenir, perdedeki sayı tazelenir
   showCountdown(t) {
     this.countdownActive = true;
     this._countdownT = t;
-    const workspace = document.getElementById('gamepad-workspace');
-    if (!workspace) return;
-    workspace.innerHTML = `
-      <div class="countdown-view">
-        <div class="countdown-badge">${tIcon('pad.countBadge')}</div>
-        <div class="countdown-number">${t > 0 ? t : t('pad.go')}</div>
-        <div class="countdown-sub">${t('pad.countSub')}</div>
-      </div>
-    `;
+    const veil = this._countdownVeil();
+    const num = this._veilNumber;
+    const next = t > 0 ? String(t) : t('pad.go');
+    if (num && num.textContent !== next) {
+      num.textContent = next;
+      // CSS animasyonunu tik başına yeniden başlatmak için sınıf sökülüp
+      // basılır; okuma (`offsetWidth`) tik başına bir kez, kare başına değil.
+      num.classList.remove('is-tick');
+      void num.offsetWidth;
+      num.classList.add('is-tick');
+    }
+    veil.classList.add('is-open');
     this.vibrate(t > 0 ? 40 : [40, 60, 80]);
+  }
+
+  /** Perdeyi kapat. Sahibi `renderGameController`'dır — hangi yoldan gelirse
+   *  gelsin (GAME_STARTED, STAGING, geç katılan için state sync) tek noktadan
+   *  kapanır, yoksa bir yerde perde takılı kalır. */
+  hideCountdown() {
+    this._veilEl?.classList.remove('is-open');
   }
 
   // Staging/sayaç durumunu sıfırla (oyun başladı veya lobiye dönüldü)
@@ -1069,6 +1113,9 @@ export class GamepadManager {
   }
 
   renderGameController(mode) {
+    // Yeni yüzey kurulmadan ÖNCE perde kapanır: soluşma takasın üstüne biner,
+    // böylece "lobi → sayaç → oyun" tek el değiştirme olarak okunur.
+    this.hideCountdown();
     // Eski mount sökülmeden önce: takılı joystick/sürüş varsa host'a nötr paket
     // (zone innerHTML ile gidince endJoy hiç çalışmıyordu → hayalet girdi)
     this._sendNeutralForMode();
@@ -1628,23 +1675,27 @@ export class GamepadManager {
 
     el.innerHTML = `
       <div class="confetti-burst" aria-hidden="true"></div>
-      <div class="result-headline">${t('pad.resultTitle')}</div>
-      <div class="result-sub">${t('pad.resultSub')}</div>
-      <div class="result-mvp">
-        <span class="result-mvp-dot" style="background-color: ${mvpColor}"></span>
-        <span>${escapeHtml(mvpName)}</span>
+      <div class="result-lead">
+        <div class="result-headline">${t('pad.resultTitle')}</div>
+        <div class="result-sub">${t('pad.resultSub')}</div>
+        <div class="result-mvp">
+          <span class="result-mvp-dot" style="background-color: ${mvpColor}"></span>
+          <span>${escapeHtml(mvpName)}</span>
+        </div>
       </div>
-      <div class="result-table">
-        ${rows.map((r, rank) => `
-          <div class="result-row">
-            <span class="result-row-dot" style="background-color: ${r.color}"></span>
-            <span class="result-row-name">${rank + 1}. ${escapeHtml(r.name)}</span>
-            <span class="result-row-score">${r.score}</span>
-          </div>`).join('')}
-      </div>
-      <div class="result-actions">
-        <button class="result-btn result-btn-replay" id="btn-result-replay" type="button">${getTabletopIconSvg('rotate_cw', { size: 20, color: '#241c15', strokeWidth: 2.6 })} ${t('pad.replay')}</button>
-        <button class="result-btn result-btn-lobby" id="btn-result-lobby" type="button">${getTabletopIconSvg('log_out', { size: 20, color: '#241c15', strokeWidth: 2.6 })} ${t('pad.toLobby')}</button>
+      <div class="result-board">
+        <div class="result-table">
+          ${rows.map((r, rank) => `
+            <div class="result-row">
+              <span class="result-row-dot" style="background-color: ${r.color}"></span>
+              <span class="result-row-name">${rank + 1}. ${escapeHtml(r.name)}</span>
+              <span class="result-row-score">${r.score}</span>
+            </div>`).join('')}
+        </div>
+        <div class="result-actions">
+          <button class="result-btn result-btn-replay" id="btn-result-replay" type="button">${getTabletopIconSvg('rotate_cw', { size: 20, color: '#241c15', strokeWidth: 2.6 })} ${t('pad.replay')}</button>
+          <button class="result-btn result-btn-lobby" id="btn-result-lobby" type="button">${getTabletopIconSvg('log_out', { size: 20, color: '#241c15', strokeWidth: 2.6 })} ${t('pad.toLobby')}</button>
+        </div>
       </div>
     `;
 

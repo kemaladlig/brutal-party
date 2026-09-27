@@ -653,7 +653,7 @@ export class RaceGame extends BaseMiniGame {
 
       let maxSpeed = this.spd(RACE_TUNING.baseSpeed);
       let acceleration = this.spd(RACE_TUNING.baseAcceleration);
-      let dragRate = 3.7;
+      let dragRate = RACE_TUNING.dragRate;
       if (player.isDashing || player.nitroBoostTimer > 0) {
         maxSpeed = this.spd(RACE_TUNING.dashSpeed);
         acceleration = this.spd(RACE_TUNING.dashAcceleration);
@@ -665,7 +665,7 @@ export class RaceGame extends BaseMiniGame {
       if (player.skidTimer > 0 && player.jumpZ < this.px(RACE_TUNING.jumpClearance)) {
         maxSpeed *= 0.6;
         acceleration *= 0.4;
-        dragRate = 1.2;
+        dragRate = RACE_TUNING.skidDragRate;
         player.angle += (index % 2 === 0 ? 4 : -4) * dt;
       }
       if (player.empDisruptedTimer > 0) {

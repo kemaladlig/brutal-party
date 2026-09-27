@@ -10,7 +10,8 @@ import {
   isValidLaserWorldFrame,
 } from '../games/laserView.js';
 import { drawCircleParticles, drawAlphaTexts } from '../games/worldCore.js';
-import { fitWorld, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { fitWorld, worldScreenBox, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
@@ -26,14 +27,14 @@ export function createWorldViewRenderer() {
       const withFx = frame.gameState === 'PLAYING';
 
       ctx.save();
-      ctx.fillStyle = '#F4F4F0';
-      ctx.fillRect(0, 0, width, height);
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'LASER' });
       fitWorld(ctx, width, height, frame.arena, () => {
         drawLaserArena(
           ctx,
           arena,
           frame.obstacles.map(([x, y, w, h]) => ({ x, y, w, h })),
           frame.walls || [],
+          { roundId: frame.roundId },
         );
         drawLaserPickups(ctx, frame.pickups.map(([x, y, type, anim, size]) => ({ x, y, type, anim, size })));
         const players = frame.players.map((p) => ({
