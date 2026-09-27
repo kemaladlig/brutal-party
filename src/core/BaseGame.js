@@ -216,7 +216,11 @@ export class BaseMiniGame {
       this.slotTypes[index] = 'empty';
     }
     this.syncSlotEntity(index, newColor);
+    this.onSeatCycled(index, this.slotTypes[index]);
   }
+
+  // Koltuk döngüsünden sonraki motor-özel kanca (ör. join sesi).
+  onSeatCycled(_index, _slotType) {}
 
   // Canlı motor varlığına LOCAL koltuk rengini yaz (players/tanks/paddles).
   applyLocalSeatColor(index, hex) {

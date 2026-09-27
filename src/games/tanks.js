@@ -1,5 +1,5 @@
 // Micro-Tanks: 8 Labyrinths with Multi-Tier Bot AI (Normal & God Mode), Tactical Crates & Sudden Death
-import { getSlotCustomization, ensureLocalSeatColor, getBotPersona } from '../core/customizationManager.js';
+import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
 import { t } from '../i18n.js';
 import { renderTopPill } from '../ui/hud.js';
@@ -365,28 +365,6 @@ export class TanksGame extends BaseMiniGame {
     const tank = this.tanks[slotIndex];
     if (tank && tank.isJoined && tank.isAlive && tank.slotType === 'human') {
       this.attemptFire(tank);
-    }
-  }
-
-  cycleSlotType(index) {
-    if (this.requestLobbySeatTap(index)) return;
-    if (this.slotTypes[index] === 'empty') {
-      this.slotTypes[index] = 'human';
-    } else if (this.slotTypes[index] === 'human') {
-      this.slotTypes[index] = 'bot_normal';
-    } else if (this.slotTypes[index] === 'bot_normal') {
-      this.slotTypes[index] = 'bot_god';
-    } else {
-      this.slotTypes[index] = 'empty';
-    }
-    // LOCAL: yeni insan koltuğuna boş renk ata (hook dönmediyse lokaldir)
-    if (this.slotTypes[index] === 'human' && !this.hideLobbyStartButton) {
-      this.applyLocalSeatColor(index, ensureLocalSeatColor(index));
-    }
-    if (this.tanks[index]) {
-      this.tanks[index].slotType = this.slotTypes[index];
-      this.tanks[index].isJoined = this.isSlotJoined(index);
-      this.tanks[index].name = resolveSlotName(index, this.slotTypes[index]);
     }
   }
 

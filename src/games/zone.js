@@ -3,7 +3,7 @@
 // capture. Enemy steps on your trail -> you shatter back to base size + 2s stun
 // (no elimination, party flow preserved). 90s rounds, first to 40% takes the
 // round early, first to 2 rounds is the champion.
-import { getSlotCustomization, ensureLocalSeatColor, getBotPersona } from '../core/customizationManager.js';
+import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import {
   playStart,
   playJoin,
@@ -178,21 +178,7 @@ export class ZoneGame extends BaseMiniGame {
     this.triggerDash(slotIndex);
   }
 
-  cycleSlotType(index) {
-    if (this.requestLobbySeatTap(index)) return;
-    if (this.slotTypes[index] === 'empty') {
-      this.slotTypes[index] = 'human';
-    } else if (this.slotTypes[index] === 'human') {
-      this.slotTypes[index] = 'bot_normal';
-    } else if (this.slotTypes[index] === 'bot_normal') {
-      this.slotTypes[index] = 'bot_god';
-    } else {
-      this.slotTypes[index] = 'empty';
-    }
-    // LOCAL: yeni insan koltuğuna boş renk ata (hook dönmediyse lokaldir)
-    if (this.slotTypes[index] === 'human' && !this.hideLobbyStartButton) {
-      this.applyLocalSeatColor(index, ensureLocalSeatColor(index));
-    }
+  onSeatCycled() {
     playJoin();
   }
 

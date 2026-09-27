@@ -162,18 +162,7 @@ export class HeistGame extends BaseMiniGame {
     return createHeistWorldPacket(this);
   }
 
-  cycleSlotType(index) {
-    if (this.requestLobbySeatTap(index)) return;
-    if (this.slotTypes[index] === 'empty') {
-      this.slotTypes[index] = 'human';
-    } else if (this.slotTypes[index] === 'human') {
-      this.slotTypes[index] = 'bot_normal';
-    } else if (this.slotTypes[index] === 'bot_normal') {
-      this.slotTypes[index] = 'bot_god';
-    } else {
-      this.slotTypes[index] = 'empty';
-    }
-    this.syncSlotEntity(index);
+  onSeatCycled() {
     playJoin();
   }
 

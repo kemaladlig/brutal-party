@@ -145,19 +145,8 @@ export class CrownGame extends BaseMiniGame {
     });
   }
 
-  // Standart slot döngüsü (diğer motorlarla aynı): BOŞ -> İNSAN -> BOT -> GOD -> BOŞ
-  cycleSlotType(index) {
-    if (this.requestLobbySeatTap(index)) return;
-    if (this.slotTypes[index] === 'empty') {
-      this.slotTypes[index] = 'human';
-    } else if (this.slotTypes[index] === 'human') {
-      this.slotTypes[index] = 'bot_normal';
-    } else if (this.slotTypes[index] === 'bot_normal') {
-      this.slotTypes[index] = 'bot_god';
-    } else {
-      this.slotTypes[index] = 'empty';
-    }
-    this.syncSlotEntity(index);
+  // Koltuk döngüsü BaseGame'de (persona rengi dahil); burada yalnız join sesi.
+  onSeatCycled() {
     playJoin();
   }
 
