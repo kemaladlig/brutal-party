@@ -58,7 +58,7 @@ export function mapHordePlayer(player, tuning = {}) {
     alive: player.isAlive !== false,
     x: round1(player.x || 0),
     y: round1(player.y || 0),
-    radius: round1(player.radius || 15),
+    radius: round1(player.radius || 30),
     angle: round1(player.angle || 0),
     color: typeof player.color === 'string' ? player.color : '#D84727',
     hp: Math.max(0, Math.round(Number(player.hp) || 0)),
@@ -660,7 +660,7 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
 const WEAPON_REACH = 0.7;
 
 function drawPlayerWeapon(ctx, player) {
-  const u = (player.radius || 15) / 16;
+  const u = (player.radius || 30) / 30;
   const k = u * WEAPON_REACH;
   ctx.save();
   ctx.rotate(player.angle || 0);
@@ -758,10 +758,10 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
 
     // Oyuncu gövdesi ve çevresi `player.radius`'e bağlıdır. Sabit 15px idi:
     // telefonda çarpışma yarıçapı 8.9px'e düşerken gövde 15px'te kalıyordu,
-    // yani çizilen oyuncu sahanın %1.7 katı büyüktü. "Biz büyüğüz" hissinin
-    // ölçülebilir kaynağı buydu — yarıçap sabitleri doğruydu, çizim değil.
-    const R = player.radius || 15;
-    const u = R / 16;
+    // yani çizilen oyuncu sahanın %1.7 katı büyüktü. Tasarım referansı artık
+    // FIELD_TIERS §normal gövdeyle birebir: 30px.
+    const R = player.radius || 30;
+    const u = R / 30;
 
     ctx.save();
     ctx.translate(player.x, player.y);

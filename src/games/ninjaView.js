@@ -19,7 +19,7 @@ import {
   isWorldEntityVisible,
 } from './worldCore.js';
 
-export const NINJA_RADIUS = 18;
+export const NINJA_RADIUS = 36;
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 const round2 = (v) => Math.round(Number(v) * 100) / 100;
@@ -38,7 +38,7 @@ export function createNinjaWorldPacket(game) {
       y: round1(p.y || 0),
       // Yarıçap host'ta sahayla birlikte ölçeklenir ve paketle taşınır; client
       // aynı view'i kullandığı için yeniden ölçeklemez.
-      radius: round1(p.radius || 18),
+      radius: round1(p.radius || 36),
       angle: round1(p.angle || 0),
       alpha: round2(p.alpha ?? 1),
       strike: (p.strikeTimer || 0) > 0,

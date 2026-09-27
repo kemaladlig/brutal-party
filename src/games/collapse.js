@@ -29,7 +29,8 @@ export const COLLAPSE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 const COLLAPSE_JUMP_COOLDOWN = 1.6;
 const COLLAPSE_ROUND_TIME = 60;
 const COLLAPSE_MAX_TIED_ROUNDS = 2;
-const COLLAPSE_RADIUS = 18;
+const COLLAPSE_RADIUS = 36;
+const COLLAPSE_MOVE_SPEED = 190;
 
 // 5 Farklı Rastgele Harita Tasarımı
 export const COLLAPSE_MAPS = [
@@ -259,7 +260,7 @@ export class CollapseGame extends BaseMiniGame {
       for (const p of this.players) {
         this.remapPoint(p, oldArena, this.arena);
         p.radius = fieldRadius(this.arena, COLLAPSE_RADIUS);
-        p.speed = fieldSpeed(this.arena, 125);
+        p.speed = fieldSpeed(this.arena, COLLAPSE_MOVE_SPEED);
         p.x = Math.max(gridLeft, Math.min(gridRight, p.x));
         p.y = Math.max(gridTop, Math.min(gridBottom, p.y));
         p.vx = 0;
@@ -309,7 +310,7 @@ export class CollapseGame extends BaseMiniGame {
         color: isBot ? persona.color : (custom.color || COLLAPSE_COLORS[i]),
         x: s.x, y: s.y, angle: 0,
         radius: fieldRadius(this.arena, COLLAPSE_RADIUS),
-        speed: fieldSpeed(this.arena, 125), steerX: 0, steerY: 0,
+        speed: fieldSpeed(this.arena, COLLAPSE_MOVE_SPEED), steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         jumpTimer: 0, jumpCooldown: 0, wasJumping: false,
         superJumpTimer: 0,

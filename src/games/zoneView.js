@@ -63,7 +63,7 @@ export function createZoneWorldPacket(game) {
       x: round1(p.x || 0),
       y: round1(p.y || 0),
       angle: round1(p.heading || 0),
-      radius: round1(p.radius || 18),
+      radius: round1(p.radius || 36),
       home: p.onHomeTurf === true,
       stun: round2(p.stunTimer || 0),
       blink: round2(p.blinkTimer || 0),
@@ -327,7 +327,7 @@ export function drawZonePlayers(ctx, players, { cell = 0, leaderIndex = -1, with
     if (!isWorldEntityVisible(p)) continue;
     if (withFx && p.stun > 0 && Math.floor(p.blink / 0.15) % 2 === 0) continue;
 
-    const u = (p.radius || 18) / 18;
+    const u = (p.radius || 36) / 36;
     ctx.save();
     ctx.translate(p.x, p.y);
 

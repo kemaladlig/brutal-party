@@ -33,6 +33,7 @@ export const LASER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const LASER_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 export const LASER_TUNING = {
+  PLAYER_RADIUS: 30,   // FIELD_TIERS §normal bandı (28–36)
   SPEED: 220,          // koşu hızı (px/s)
   AIM_SPEED_MULT: 0.50,// nişan alma / tetiğe basılı tutarken hız çarpanı (%50 yavaşlama, Archer stili)
   MAX_AMMO: 2,         // şarjör kapasitesi (mermi sayısı)
@@ -208,7 +209,7 @@ export class LaserGame extends BaseMiniGame {
     }
     for (const p of this.players) {
       this.remapPoint(p, oldArena, this.arena);
-      p.radius = fieldRadius(this.arena, 19, 0.02);
+      p.radius = fieldRadius(this.arena, LASER_TUNING.PLAYER_RADIUS, 0);
       p.speed = fieldSpeed(this.arena, LASER_TUNING.SPEED);
       clampToArena(p, p.radius * 0.74, this.arena, { zeroVelocity: true });
       this.collideObstacles(p, p.radius * 0.74);
@@ -396,10 +397,10 @@ export class LaserGame extends BaseMiniGame {
         color: isBot ? persona.color : (custom.color || LASER_COLORS[i]),
         x: s.x, y: s.y, angle: s.angle, targetAngle: s.angle,
         // Gövde sabit değil: view'daki 19px halkalar ve 14px çarpışma
-        // yarıçapı telefonda saha yüksekliğinin %4.9'u / %3.6'sıydı
-        // (masaüstü %2.0 / %1.5). Motor ölçekler, view `player.radius`
-        // okur, world packet taşır (ARCHER/NINJA ile aynı desen).
-        radius: fieldRadius(this.arena, 19, 0.02),
+        // FIELD_TIERS §normal (28–36): eski %3.6 telefonda-şişme minFraction
+        // mantığı 30px tasarım gövde ile gereksiz; motor ölçekler, view
+        // `player.radius` okur, world packet taşır (ARCHER/NINJA ile aynı desen).
+        radius: fieldRadius(this.arena, LASER_TUNING.PLAYER_RADIUS, 0),
         speed: fieldSpeed(this.arena, LASER_TUNING.SPEED),
         steerX: 0, steerY: 0, kbx: 0, kby: 0, remoteActive: false,
         hp: LASER_TUNING.MAX_HP, cooldown: 0,
@@ -566,8 +567,8 @@ export class LaserGame extends BaseMiniGame {
     for (const ang of angles) {
       this.lasers.push({
         id: this.nextLaserId++,
-        x: player.x + Math.cos(ang) * 20,
-        y: player.y + Math.sin(ang) * 20,
+        x: player.x + Math.cos(ang) * (player.radius + 2),
+        y: player.y + Math.sin(ang) * (player.radius + 2),
         vx: Math.cos(ang) * spd,
         vy: Math.sin(ang) * spd,
         owner: player.index,

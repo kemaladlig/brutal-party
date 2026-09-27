@@ -276,21 +276,37 @@ export function drawLaserShots(ctx, lasers) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   for (const laser of lasers || []) {
-    ctx.lineWidth = Math.max(2, 5 * (laser.radius ? laser.radius / 3 : 1));
-    ctx.strokeStyle = laser.color;
+    // Host motoru `history` ({x,y}) tutar, world packet `trail` ([x,y]) taşır;
+    // ikisi de burada tek biçime indirgenir — eskiden lokal çizim `trail`
+    // aradığı için host'ta iz asla dolmuyor, lazer nokta gibi görünüyordu.
+    const pts = Array.isArray(laser.trail)
+      ? laser.trail.slice()
+      : (Array.isArray(laser.history) ? laser.history : []).map((h) => [h.x, h.y]);
+    pts.push([laser.x, laser.y]);
+
+    // Kalınlık adım uzunluğundan türer (hız ∝ saha ölçeği): telefon-saha
+    // inceliği, TV-şehir kalınlığı kendi kendine dengelenir.
+    const n = pts.length;
+    const step = n > 1
+      ? Math.hypot(pts[n - 1][0] - pts[n - 2][0], pts[n - 1][1] - pts[n - 2][1])
+      : 10;
+    const w = Math.max(2.5, Math.min(9, step * 0.55));
+
     ctx.beginPath();
-    const trail = laser.trail || [];
-    if (trail.length > 0) {
-      ctx.moveTo(trail[0][0], trail[0][1]);
-      for (let i = 1; i < trail.length; i++) ctx.lineTo(trail[i][0], trail[i][1]);
-    }
-    ctx.lineTo(laser.x, laser.y);
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < n; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+
+    ctx.strokeStyle = laser.color;
+    ctx.lineWidth = w;
     ctx.stroke();
-    ctx.fillStyle = '#FFF';
-    ctx.beginPath(); ctx.arc(laser.x, laser.y, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = Math.max(1, 1.5 * (laser.radius ? laser.radius / 3 : 1));
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = Math.max(1.2, w * 0.38);
     ctx.stroke();
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(laser.x, laser.y, Math.max(1.5, w * 0.45), 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
@@ -302,9 +318,9 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
 
     // Gövde yarıçapı host'ta ölçeklenir ve paketle gelir; bu view host VE
     // kumanda client'ı tarafından ortak kullanıldığı için yeniden ölçeklenmez.
-    // Tasarım referansı 19px: R=19'da değerler bugünküyle aynıdır.
-    const R = player.radius || 19;
-    const u = R / 19;
+    // Tasarım referansı 30px (FIELD_TIERS §normal): R=30'da değerler eskisiyle aynı oranda.
+    const R = player.radius || 30;
+    const u = R / 30;
     const uMin = (v) => Math.max(1, v * u);
 
     ctx.save();

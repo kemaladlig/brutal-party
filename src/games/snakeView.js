@@ -109,7 +109,7 @@ export function createSnakeWorldPacket(game) {
       x: round1(player.x || 0),
       y: round1(player.y || 0),
       angle: round1(player.angle || 0),
-      radius: round1(player.radius || 15),
+      radius: round1(player.radius || 24),
       boost: !!player.isBoost,
       energy: Math.round(player.boostEnergy ?? 100),
       locked: !!player.boostLocked,
@@ -257,15 +257,17 @@ export function drawSnakePlayers(ctx, players, now = 0) {
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
 
-    const headRadius = player.radius || 15;
-    const u = headRadius / 15;
+    const headRadius = player.radius || 24;
+    const u = headRadius / 24;
 
-    ctx.lineWidth = 14 * u;
+    // Gövde kalınlığı kafa çapının ~%46/%31'i — kafa büyürken oranın
+    // incelmemesi için taban 14/9'dan 22/15'e çıkarıldı (2026-09 akort).
+    ctx.lineWidth = 22 * u;
     ctx.strokeStyle = '#1A1A1A';
     traceSnakePath(ctx, player);
     ctx.stroke();
 
-    ctx.lineWidth = 9 * u;
+    ctx.lineWidth = 15 * u;
     ctx.strokeStyle = player.color || '#D84727';
     traceSnakePath(ctx, player);
     ctx.stroke();

@@ -28,7 +28,9 @@ export const SNAKE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 // keyup ters haritası (tuş code → slot); harita inputMaps STANDARD'dan türetilir
 const SNAKE_KEY_SLOTS = buildCodeToSlotMap();
 
-const SNAKE_HEAD_RADIUS = 15;
+// FIELD_TIERS §open bandı: zincir kütlesi zaten haritayı dolduruyor;
+// gövde "biraz" büyüsün yeter (15→24), hız/zincir mekaniği sabit.
+const SNAKE_HEAD_RADIUS = 24;
 // Hareket bütçesi. SNAKE bir dönüş oyunu: dönüş yarıçapı `hız / ω` olduğu
 // için TEK başına hızı artırmak kontrolü götürürdü (140/3.4 = 41 px →
 // 175/3.4 = 51 px, yarıçap %25 genişlerdi). 140/3.4 = 41.2 ve 175/4.1 = 42.7

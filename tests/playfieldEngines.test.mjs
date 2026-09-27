@@ -40,7 +40,7 @@ const ENGINES = [
   ['HORDE', '/src/games/horde.js', 'HordeGame', 'roomy'],
   ['CROWN', '/src/games/crown.js', 'CrownGame', 'crown'],
   ['TANKS', '/src/games/tanks.js', 'TanksGame', 'flat'],
-  ['ZONE', '/src/games/zone.js', 'ZoneGame', 'dense'],
+  ['ZONE', '/src/games/zone.js', 'ZoneGame', 'standard'],
   ['RACE', '/src/games/race.js', 'RaceGame', 'racing'],
 ];
 

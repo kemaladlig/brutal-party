@@ -36,7 +36,7 @@
 
 - [x] 3.1 Global hata gözlemi: onerror/unhandledrejection reporter (`src/core/errorReporter.js`) + bare catch{} blokları bağlandı
 - [x] 3.2 SW sertleştirme: precache allSettled, skipWaiting → onaylı aktivasyon, maskable icon, sağ üst bar ve ayarlar modalına "Güncellemeleri Kontrol Et" butonu (`src/core/updateManager.js`)
-- [x] 3.3 CI: node --test glob (`package.json` güncellendi) + tek GitHub Actions (.github/workflows/ci.yml)
+- [x] 3.3 Test glob: node --test glob (`package.json` güncellendi). GitHub Actions ci.yml sonradan kaldırıldı — doğrulama lokal (`npm run check`).
 - [x] 3.0 ONLINE/CGNAT kararı: 30Hz world kanalını kaldır.
 - [x] 3.4 Oda kodu: tek üreteç networkProtocol.js, daima 4 karakter (O, 0, I, 1 hariç 31 karakterlik alfabe); doğrulayıcı eski 3 haneli kodlar için 3-6 kabul eder (tests/networkProtocol.test.mjs ile kilitli)
 

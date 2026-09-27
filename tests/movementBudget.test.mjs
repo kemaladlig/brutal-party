@@ -32,7 +32,7 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
-import { computePlayfield, fieldSpeed, FIELD_DESIGN } from '../src/core/playfield.js';
+import { computePlayfield, fieldSpeed, FIELD_DESIGN, FIELD_TIERS } from '../src/core/playfield.js';
 import { damp } from '../src/core/physics2d.js';
 
 const noop = () => {};
@@ -71,7 +71,7 @@ const ENGINES = [
   ['HORDE', '/src/games/horde.js', 'HordeGame', 'roomy'],
   ['CROWN', '/src/games/crown.js', 'CrownGame', 'crown'],
   ['TANKS', '/src/games/tanks.js', 'TanksGame', 'flat'],
-  ['ZONE', '/src/games/zone.js', 'ZoneGame', 'dense'],
+  ['ZONE', '/src/games/zone.js', 'ZoneGame', 'standard'],
   ['RACE', '/src/games/race.js', 'RaceGame', 'racing'],
 ];
 
@@ -85,24 +85,29 @@ const ENGINES = [
 // yazılı tasarım oranını değiştirmez. Bütçe tasarımı ölçtüğü için çarpan
 // buraya girmez; uygulamanın doğruluğu E bölümünde ayrıca kilitlenir.
 //
-//   mode       tasarım hız  yarıçap   A(s)    B(gövde/sn)
+//   mode       tier     tasarım hız  yarıçap   A(s)    B(gövde/sn)
+// `tier` FIELD_TIERS bandıdır ve bölüm B'de ÖLÇÜLEN tasarım yarıçapına
+// karşı doğrulanır — yani buradaki `radius` beyanı ile motorun gerçek
+// gövdesi ayrı düşemez. HEIST satırı bundan önce 24 beyan ediyordu,
+// motor 36 yazıyordu; bant kilidi bu sürüklenmeyi yakaladı.
 const BUDGET = {
-  // arena-action: A ~3.5-5.5, B ~2.7-4.0
-  CROWN: { speed: 250, radius: 36, maxA: 4.2, minB: 3.2 },
-  LASER: { speed: 220, radius: 19, maxA: 4.6, minB: 5.0 },
-  RACE: { speed: 215, radius: 19, maxA: 4.6, minB: 5.0 },
-  ARCHER: { speed: 198, radius: 28, maxA: 5.1, minB: 3.2 },
-  HEIST: { speed: 190, radius: 24, maxA: 5.3, minB: 3.6 },
-  BOMB: { speed: 200, radius: 36, maxA: 5.1, minB: 2.6 },
-  TANKS: { speed: 175, radius: 34, maxA: 5.8, minB: 2.5 },
-  HORDE: { speed: 171, radius: 19, maxA: 5.9, minB: 4.0 },
-  // cursor / territory: küçük gövde, uzun sahalar — B yüksek olmalı
-  CURVE: { speed: 160, radius: 9, maxA: 6.3, minB: 8.5 },
-  ZONE: { speed: 156, radius: 18, maxA: 6.4, minB: 4.0 },
-  NINJA: { speed: 145, radius: 18, maxA: 6.9, minB: 3.8 },
-  SNAKE: { speed: 175, radius: 15, maxA: 5.8, minB: 5.4 },
-  CLONE: { speed: 150, radius: 15, maxA: 6.6, minB: 4.6 },
-  COLLAPSE: { speed: 125, radius: 18, maxA: 7.8, minB: 3.3 },
+  // arena-action (normal gövde): A ~3.5-5.5, B ~2.6-4.0
+  CROWN: { tier: 'normal', speed: 250, radius: 36, maxA: 4.2, minB: 3.2 },
+  ARCHER: { tier: 'normal', speed: 198, radius: 28, maxA: 5.1, minB: 3.2 },
+  HEIST: { tier: 'normal', speed: 190, radius: 36, maxA: 5.3, minB: 2.6 },
+  BOMB: { tier: 'normal', speed: 200, radius: 36, maxA: 5.1, minB: 2.6 },
+  TANKS: { tier: 'normal', speed: 175, radius: 34, maxA: 5.8, minB: 2.5 },
+  ZONE: { tier: 'normal', speed: 190, radius: 36, maxA: 5.1, minB: 2.6 },
+  NINJA: { tier: 'normal', speed: 190, radius: 36, maxA: 5.1, minB: 2.6 },
+  COLLAPSE: { tier: 'normal', speed: 190, radius: 36, maxA: 5.1, minB: 2.6 },
+  LASER: { tier: 'normal', speed: 220, radius: 30, maxA: 4.6, minB: 3.6 },
+  HORDE: { tier: 'normal', speed: 155, radius: 30, maxA: 6.2, minB: 2.5 },
+  // open: küçük gövde + niş/hızlı türler
+  RACE: { tier: 'open', speed: 215, radius: 19, maxA: 4.6, minB: 5.0 },
+  CURVE: { tier: 'open', speed: 160, radius: 18, maxA: 6.3, minB: 4.4 },
+  SNAKE: { tier: 'open', speed: 175, radius: 24, maxA: 5.8, minB: 3.6 },
+  // cursor / territory / chain: küçük gövde, uzun sahalar — B yüksek olmalı
+  CLONE: { tier: 'far', speed: 150, radius: 15, maxA: 6.6, minB: 4.6 },
 };
 
 let server;
@@ -278,6 +283,16 @@ for (const [mode] of ENGINES) {
         + 'compared against a device-px value.',
       );
     }
+    // TIER band lock (AGENTS §4 / FIELD_TIERS): the MEASURED design radius must
+    // sit inside the declared tier band. Body/field ratio — not viewport margins —
+    // is what makes a map read as the same size from game to game.
+    const tier = FIELD_TIERS[budget.tier];
+    assert.ok(
+      first.radius >= tier.minDesignRadius && first.radius <= tier.maxDesignRadius,
+      `${mode}: design radius ${first.radius.toFixed(2)}px is outside tier `
+      + `'${budget.tier}' [${tier.minDesignRadius}, ${tier.maxDesignRadius}] — `
+      + 'switch tier or resize the body deliberately, never silently.',
+    );
   });
 }
 

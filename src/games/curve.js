@@ -31,6 +31,8 @@ const SLOT_INDEX_BY_ACTION_CODE = buildCodeToSlotMap(['action']);
 const SEG_GRID_CELL = 48;
 const SEG_MAX = 24000;
 const CURVE_ROUND_LIMIT = 120;
+// FIELD_TIERS §open: kafa tasarım yarıçapı (eski 9 "harita kocaman" hissi verdi)
+const CURVE_HEAD_RADIUS = 18;
 
 // HIZLAN (NITRO): kumanda/masa-ortası/klavye tek dokunuşla açılan hız patlaması.
 // Hız artarken dönüş yarıçapı genişler — hız kazancı karşılığında tepki payı düşer.
@@ -143,6 +145,7 @@ export class CurveGame extends BaseMiniGame {
     }
     for (const p of this.players) {
       this.remapPoint(p, oldArena, this.arena);
+      p.radius = fieldRadius(this.arena, CURVE_HEAD_RADIUS, 0);
       clampToArena(p, p.radius, this.arena, { zeroVelocity: true });
       p.prevX = p.x;
       p.prevY = p.y;
@@ -188,10 +191,10 @@ export class CurveGame extends BaseMiniGame {
         prevX: s.x,
         prevY: s.y,
         angle: s.angle,
-        // Gövde yarıçapı ve hız sahayla birlikte ölçeklenir; world packet
-        // taşır (ARCHER/NINJA/LASER ile aynı desen). Online kumanda ekranında
-        // %0.6 okunamadığı için kafa %0.95 tabana çekildi.
-        radius: fieldRadius(this.arena, 9, 0.0095),
+        // FIELD_TIERS §open: kafa 9→18 ("harita kocaman, yılanlar küçük"
+        // akordu); iz kalınlığı ve view/head ölçeği bunu takip eder
+        // (ARCHER/NINJA/LASER deseni).
+        radius: fieldRadius(this.arena, CURVE_HEAD_RADIUS, 0),
         speed: fieldSpeed(this.arena, 160),
         turnSpeed: 2.85,
         steer: 0, // -1 (left), 0 (none), +1 (right)
@@ -613,7 +616,7 @@ export class CurveGame extends BaseMiniGame {
 
         // Check Pickup Collision
         collectPickups(this, player, {
-          radiusOf: (p) => (p.shrinkTimer > 0 ? 2.0 : 3.0) + 6,
+          radiusOf: (p) => (p.shrinkTimer > 0 ? 0.64 : 1) * (p.radius / 3 + 6),
           onCollect: (g, p, item) => this.applyPickup(p, item),
         });
 
@@ -929,11 +932,11 @@ export class CurveGame extends BaseMiniGame {
     ctx.lineWidth = Math.max(2, Math.round(6 * u));
     ctx.strokeRect(left, top, width, height);
 
-    // Trail Segments (Dinamik kalınlık: Mini 2px, Normal 4px, Kalın Duvar 8px)
+    // Trail Segments (Dinamik kalınlık: kafa 18px'e oranlı — Mini 6, Normal 11, Kalın 23)
     ctx.lineCap = 'round';
     for (const seg of this.segments) {
       if (seg.isGap) continue;
-      ctx.lineWidth = Math.max(1, (seg.thick ? 8.5 : (seg.shrink ? 2.2 : 4)) * u);
+      ctx.lineWidth = Math.max(1, (seg.thick ? 23 : (seg.shrink ? 6 : 11)) * u);
       ctx.strokeStyle = seg.color;
       ctx.beginPath();
       ctx.moveTo(seg.x1, seg.y1);

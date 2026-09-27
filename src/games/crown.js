@@ -184,7 +184,7 @@ export class CrownGame extends BaseMiniGame {
 
       for (const p of this.players) {
         this.remapPoint(p, oldArena, this.arena);
-        p.radius = fieldRadius(this.arena, 43, 0);
+        p.radius = fieldRadius(this.arena, CROWN_TUNING.PLAYER_RADIUS, 0);
         clampToArena(p, p.radius, this.arena, { zeroVelocity: true });
         p.vx = 0; p.vy = 0;
       }

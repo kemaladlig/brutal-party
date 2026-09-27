@@ -23,6 +23,30 @@ export const FIELD_DESIGN = Object.freeze({
 });
 
 /**
+ * Harita-ölçeği standartı — oyun başına keyfi ölçek yerine 3 katman.
+ * "Harita ne kadar büyük görünüyor" hissi margin'den değil GÖVDE/SAHA
+ * oranından gelir (unit varyasyonu ±%7 iken gövde oranı 4 kat geziniyordu).
+ * Bantlar 952px referans sahasında YAZILMIŞ tasarım yarıçapıdır; ölçüm
+ * kilidi `movementBudget.test.mjs` bölüm B'dedir (her motorun gerçek
+ * tasarım yarıçapı atandığı bantta kalmak zorundadır).
+ *
+ *   normal    beğenilen arena-action grubu (BOMB/HEIST/CROWN/ARCHER/TANKS/
+ *             ZONE/NINJA/COLLAPSE/LASER/HORDE)
+ *   open      küçük gövde + hızlı/niş oyunlar (RACE/SNAKE/CURVE)
+ *   far       imleç ve görev oyunları (CLONE)
+ *
+ * Bantlar arası boşluk (16–18, 24–28) kasıtlıdır: sınır sürüklemesi
+ * yerine bilinçli tier geçişi yapılsın. İSTİSNALAR: PONG (raydaki raket,
+ * serbest gövde değil), RACE aracı `open`'dadır ama gövde değil araç
+ * hissi taşır.
+ */
+export const FIELD_TIERS = Object.freeze({
+  normal: Object.freeze({ minDesignRadius: 28, maxDesignRadius: 36 }),
+  open: Object.freeze({ minDesignRadius: 18, maxDesignRadius: 24 }),
+  far: Object.freeze({ minDesignRadius: 9, maxDesignRadius: 16 }),
+});
+
+/**
  * Kenar boşluğu tarifleri. Her preset saf veridir; motor `if/else` zinciri kurmaz.
  *
  * horizontal / vertical* → `[minPx, oran]`: `max(minPx, floor(eksen * oran))`

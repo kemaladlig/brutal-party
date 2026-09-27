@@ -428,8 +428,13 @@ test('clone bot does tackle a human across open space', () => {
 test('normal pong bot moves fast enough to reach the ball it tracks', () => {
   const game = new PongGame(canvas);
   game.resize(800, 600);
-  game.slotTypes = ['bot_normal', 'empty', 'empty', 'empty'];
-  game.initPlayers();
+  game.slotTypes = ['bot_normal', 'bot_god', 'empty', 'empty'];
+  // PONG'da initPlayers yok: paddle kendi slotType/isJoined'unu taşır,
+  // lobide slot döngüsüyle kurulur. Test aynı durumu doğrudan kurar.
+  game.paddles.forEach((p, i) => {
+    p.slotType = game.slotTypes[i];
+    p.isJoined = game.slotTypes[i] !== 'empty';
+  });
   game.startNewMatch();
   game.state = 'PLAYING';
 

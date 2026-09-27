@@ -148,7 +148,7 @@ export function createCurveWorldPacket(game) {
       x: round1(p.x || 0),
       y: round1(p.y || 0),
       // Gövde yarıçapı host'ta ölçeklenir ve paketle taşınır.
-      radius: round1(p.radius || 6),
+      radius: round1(p.radius || 18),
       angle: round1(p.angle || 0),
       shrink: (p.shrinkTimer || 0) > 0,
       thick: (p.thickTimer || 0) > 0,
@@ -255,7 +255,7 @@ export function drawCurveNearSegments(ctx, near, colors, unit = 1) {
     const reveal = s.length >= 8 ? clamp01(s[7]) : 1;
     const endX = lerp(s[1], s[3], reveal);
     const endY = lerp(s[2], s[4], reveal);
-    ctx.lineWidth = Math.max(1, ((flags & 4) ? 8.5 : ((flags & 2) ? 2.2 : 4)) * unit);
+    ctx.lineWidth = Math.max(1, ((flags & 4) ? 23 : ((flags & 2) ? 6 : 11)) * unit);
     ctx.strokeStyle = colors[s[0]] || '#1A1A1A';
     ctx.beginPath();
     ctx.moveTo(s[1], s[2]);
@@ -270,9 +270,9 @@ export function drawCurveHeads(ctx, players) {
     if (!isWorldEntityVisible(p)) continue;
     ctx.save();
     // Yarıçap host'ta ölçeklenip paketle gelir; bu view ortak kullanıldığı
-    // için yeniden ölçeklenmez. Tasarım referansı 6px.
-    const headRadius = p.shrink ? (p.radius || 6) * 0.64 : (p.radius || 6);
-    const u = headRadius / 6;
+    // için yeniden ölçeklenmez. Tasarım referansı 18px (FIELD_TIERS §open).
+    const headRadius = p.shrink ? (p.radius || 18) * 0.64 : (p.radius || 18);
+    const u = headRadius / 18;
 
     if (p.freeze) {
       ctx.strokeStyle = '#00B4D8';

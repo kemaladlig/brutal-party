@@ -100,7 +100,8 @@ src/core/
   physics2d.js              clampToArena, resolveAABB, pointBlocked, updateMovers, distToSegmentSquared,
                             segmentCircle/segmentAabbIntersection, getProjectileSubsteps, damp, normalizeAngle
   playfield.js              SAHA GEOMETRİSİNİN TEK KAYNAĞI: computePlayfield(w,h,preset) + FIELD_PRESETS
-                            (standard/roomy/crown/flat/dense/racing) + fieldPx/fieldRadius/fieldSpeed +
+                            (standard/roomy/crown/flat/dense/racing) + FIELD_TIERS (normal 28-36 /
+                            open 18-24 / far 9-16 tasarım yarıçapı) + fieldPx/fieldRadius/fieldSpeed +
                             isCompactLandscape. arena.unit saha içi ölçeğin otoritesidir; motor resize'ın
                             içinde kenarlık hesabı yazmaz, canvas.width/height okumaz/yazmaz
   roundLifecycle.js         Ortak raunt/maç terminal kuralı (timeout, all-survivor, MATCH_OVER)
@@ -274,6 +275,9 @@ Ortak doğrulama `networkProtocol.js`. **Uçtan uca:** oda kur (3 haneli kod) �
 17. **Ortak arena/fizik/power-up kiti** — `src/core/` (Faz 3-7). Detay §1 (playfield/arenaKit/physics2d/…).
 18. **Saha ölçeği tek kaynağı** — `playfield.js`; kompakt yatay dikey pay daralır; `unit` otorite;
     `minFraction` şişme yerine mutlak px taban + tek çarpan; gözle taban seçimi yok.
+    Harita-ölçeği hissi gövde/saha oranıdır: `FIELD_TIERS` üç katman — `normal` (BOMB/HEIST/CROWN/
+    ARCHER/TANKS/ZONE/NINJA/COLLAPSE/LASER/HORDE), `open` (RACE/SNAKE/CURVE), `far` (CLONE);
+    ölçülen tasarım yarıçapı bant kilidine tabi (`movementBudget.test.mjs §B`), PONG hariç.
 19. **İkonografi** — Lucide neo-brutalist; tek kaynak `tabletopIcons.js`; butonlarda metin başlığı yok.
 20. **Online world-view** — generic çekirdek `worldCore.js` + `[oyun]View` + client renderer; 30 Hz;
     oyun başına deklaratif `extras`. Client simülasyon/AI import etmez.

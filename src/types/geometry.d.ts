@@ -33,6 +33,15 @@ interface FieldPresetSpec {
   [key: string]: any;
 }
 
+/** FIELD_TIERS girdisi: 952px referans sahasında izin verilen tasarım yarıçapı bandı. */
+interface FieldTier {
+  minDesignRadius: number;
+  maxDesignRadius: number;
+}
+
+/** FIELD_TIERS anahtarı — motorun harita-ölçeği katmanı. */
+type FieldTierName = keyof typeof import('../core/playfield.js').FIELD_TIERS;
+
 /** HTMLCanvasElement'e motor/kit tarafından yazılan tanımlayıcı rozetler. */
 interface HTMLCanvasElement {
   __fieldRole?: string;

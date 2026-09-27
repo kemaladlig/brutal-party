@@ -211,7 +211,7 @@ export class NinjaGame extends BaseMiniGame {
         // Yarıçap sabit DEĞİLDİR: motor sahayla birlikte ölçekler, view
         // `player.radius` okur, world packet taşır (ARCHER ile aynı desen).
         radius: fieldRadius(this.arena, NINJA_RADIUS, 0),
-        speed: fieldSpeed(this.arena, 145), steerX: 0, steerY: 0,
+        speed: fieldSpeed(this.arena, 190), steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         alpha: 1.0, hideTimer: 0, inLight: false,
         strikeTimer: 0, strikeCooldown: 0,

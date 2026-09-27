@@ -52,7 +52,7 @@ export const HORDE_TUNING = Object.freeze({
   ROUNDS: 3,
   WAVES_PER_ROUND: 3,
   MAX_HP: 5,
-  PLAYER_RADIUS: 19,
+  PLAYER_RADIUS: 30, // FIELD_TIERS §normal bandı (28–36); eski 19 + okunurluk çarpanı yerine doğrudan iri gövde
   // Orantılı taban YOK, ama MUTLAK CSS px tabanı VAR (`LEGIBILITY_PX`).
   //
   // Önce `PLAYER_R_MIN: 0.024` / `ENEMY_R_MIN: 0.022` vardı; bunlar saha
@@ -73,7 +73,7 @@ export const HORDE_TUNING = Object.freeze({
   // okunur olur. `Math.max(1, …)` sayesinde masaüstünde `1`'dir: hiçbir
   // şeyi şişirmez, sadece küçük sahada devreye girer.
   LEGIBILITY_PX: 11,
-  MOVE_SPEED: 171,
+  MOVE_SPEED: 155, // iri gövdeyle ağır basma hissi (eski 171 telefonda "çok hızlı" geldi)
   FAST_MULT: 1.42,
   ENEMY_SHOT_SPEED: 270,
   DASH_TIME: 0.24,
@@ -703,7 +703,7 @@ export class HordeGame extends BaseMiniGame {
     }
     if (allowFire && player.isAiming && player.attackCooldown <= 0) this.firePlayer(player);
 
-    const speed = HORDE_TUNING.MOVE_SPEED
+    const speed = this.bodySpeed(HORDE_TUNING.MOVE_SPEED)
       * (player.fastTimer > 0 ? HORDE_TUNING.FAST_MULT : 1)
       * (player.dashTimer > 0 ? HORDE_TUNING.DASH_SPEED_MULT : 1);
     player.x += player.steerX * speed * dt;

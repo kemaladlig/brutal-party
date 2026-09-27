@@ -33,6 +33,7 @@ Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inp
 - Motor sözleşmesinin TİP karşılığı tek kaynaktır: `src/types/minigame.d.ts` (MiniGameEngine/MiniGameArena/MiniGameEntity — global bildirim, runtime'da değer üretmez) + `src/types/geometry.d.ts` (FieldGeometry/FieldPalette/QualityMeasurement/WorldFrame). Yeni motor alanı/hook'u önce buraya yazılır; BaseGame sözleşme alanlarını kurucuda `@type` ile bildirir, prototip hook'ları `contractHook()` ile çağrılır.
 - Zaman ölçeği: kare-başı çarpan yerine `damp()` / zaman tabanlı ifade kullan (`main.js` sabit adımlı değildir, `dt = min(dt, 0.05)`).
 - Ölçek: hareket `fieldSpeed`, uzamsal her şey `fieldRadius`/`fieldPx`'ten geçer; ham px yasak. `canvas.width/height` okunmaz/yazılmaz (DPR `main.js`'indir).
+- Harita-ölçeği hissi gövde/saha oranıdır: her motor `FIELD_TIERS` bandındandır (`normal` 28–36 · `open` 18–24 · `far` 9–16 tasarım px, 952 referans). Bant kilidi ölçülen değerle `movementBudget.test.mjs §B`'dedir; tier geçişi bilinçli yapılır, sessiz sürüklenmez (PONG hariç).
 - Zemin/çevre yalnız `drawField` + `paintBackdrop` ile çizilir; motor kendi zemin/grid/duvar/viewport dolgusu yazmaz.
 - Tempo ve zemin-L\* bütçeleri testle kilitlidir (`tests/movementBudget.test.mjs`, `tests/fieldKit.test.mjs §8`) — sayıları buraya kopyalama, teste bak.
 - `tap` yalnız telefon üreticisinden gelir, state türetmez. Basılı-tut yön girdisi 250 ms keepalive taşır (`STEER_KEEPALIVE_MS`).

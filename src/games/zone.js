@@ -71,7 +71,7 @@ export const ZONE_RELIC_DEFS = {
 export const ZONE_TUNING = {
   GRID: 64,          // capture alanı: 64x64 hücre
   BASE: 7,           // başlangıç base kenarı (7x7 hücre)
-  SPEED: 10.5,       // hücre/sn
+  SPEED: 12.8,       // hücre/sn
   TURF_SPEED_MULT: 1.15, // Kendi bölgesinde %15 defansif hız bonusu (Home Turf)
   TURN: 12.5,        // rad/sn yumuşak dönüş
   ROUND_TIME: 90.0,  // sn
@@ -85,8 +85,10 @@ export const ZONE_TUNING = {
   DASH_TIME: 0.22,   // depar süresi (sn)
   DASH_CD: 4.0,      // depar bekleme (sn)
   AVATAR_R_MULT: 1.15, // karakter yarıçapı = hücre * bu (iri görünüm, grid'e dokunmaz)
-  PLAYER_RADIUS: 18,   // tasarım referans yarıçapı (px)
-  MOVE_SPEED: 156,     // tasarım referans hareket hızı (px/s)
+  // FIELD_TIERS §normal bandı (28–36): BOMB/CROWN/HEIST ile aynı gövde.
+  // Hücre ~14.8px'te gövde 2.4 hücre — pilot eşitleme (2026-09).
+  PLAYER_RADIUS: 36,   // tasarım referans yarıçapı (px)
+  MOVE_SPEED: 190,     // tasarım referans hareket hızı (px/s) — SPEED × hücre ile birebir
   AVATAR_R_MIN: 0.018,
   TRAIL_W_MULT: 0.95,  // açık iz çizgi kalınlığı = hücre * bu
   TRAIL_GLOW_MULT: 1.05, // risk uyarısı dış parlama = hücre * bu (hazard'da +0.2)
@@ -344,7 +346,7 @@ export class ZoneGame extends BaseMiniGame {
   resize(width, height) {
     this.updateViewport(width, height);
 
-    this.arena = computePlayfield(width, height, 'dense');
+    this.arena = computePlayfield(width, height, 'standard');
     const { width: arenaW, height: arenaH } = this.arena;
 
     // Kare capture alanı arena ortasında

@@ -48,7 +48,7 @@ export function createCollapseWorldPacket(game) {
       alive: p.isAlive !== false,
       x: round1(p.x || 0),
       y: round1(p.y || 0),
-      radius: round1(p.radius || 18),
+      radius: round1(p.radius || 36),
       jump: round2((p.jumpTimer || 0) > 0 ? (p.jumpTimer || 0) / 0.45 : 0),
       super: (p.superJumpTimer || 0) > 0,
     }),
@@ -256,7 +256,7 @@ export function drawCollapsePlayers(ctx, players) {
     ctx.translate(player.x, player.y - jumpHeight);
     ctx.scale(scale, scale);
 
-    const radius = player.radius || 18;
+    const radius = player.radius || 36;
     const u = radius / 18;
 
     if (player.super) {
