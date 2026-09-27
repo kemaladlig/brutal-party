@@ -587,7 +587,7 @@ export class BombGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = Math.min((now - this.lastTime) / 1000, 0.05);
+    const dt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
 
     // Screen Shake decay

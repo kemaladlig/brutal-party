@@ -8,6 +8,7 @@ import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { getGuideActionLabel } from './controllerGuide.js';
 import { getPreference, setPreference } from '../core/preferences.js';
 import { TwinStickAimController } from './aimController.js';
+import { CONTROL_KEEPALIVE_MS } from './controlDefs.js';
 
 /**
  * Kontrol dolgu rengini `--deck-color` ÖZEL DEĞİŞKENİ olarak yazar, doğrudan
@@ -454,12 +455,10 @@ function mountArcadeDrive(gamepad, container, schema) {
 // ---------------------------------------------------------------------------
 // 3. STEER_ACTION Archetype (CURVE, SNAKE)
 // Tek yön rocker'ı (sol) + deklaratif aksiyon kümesi (sağ). Basılı tutulan yön
-// 250 ms'de bir keepalive ile tekrarlanır: host'taki analog sessizlik süpürücüsü
+// CONTROL_KEEPALIVE_MS ile tekrarlanır: host'taki analog sessizlik süpürücüsü
 // (main.js STALE_ANALOG_MS = 1500) basılı yönü 1.5 sn'de sıfırlıyor, kumanda
 // "yön tutmuyor" gibi davranıyordu.
 // ---------------------------------------------------------------------------
-const STEER_KEEPALIVE_MS = 250;
-
 function steerActionButtonHtml(act, index, playerColor, iconSize) {
   const bg = deckColorStyle(act.color || playerColor);
   const icon = act.icon || (act.action === 'DASH' ? 'zap' : 'flame');
@@ -597,7 +596,7 @@ function mountSteerAction(gamepad, container, schema) {
   const keepalive = setInterval(() => {
     const held = activeTouches.size > 0 || mouseDir !== 0;
     if (held && currentActiveDir !== 0) sendSteer(currentActiveDir);
-  }, STEER_KEEPALIVE_MS);
+  }, CONTROL_KEEPALIVE_MS);
 
   // Aksiyon düğmeleri: hold varsa bas-bırak lifecycle, yoksa cooldown'lu tap.
   const buttonEls = [];

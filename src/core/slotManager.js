@@ -520,14 +520,20 @@ export function swapEngineSlots(engine, currentMode, isHosting, slotA, slotB) {
   }
 }
 
+// Tek koltuk kartını state'ten yeniden çiz (name/isReady/kind güncel kayıttan).
+// Ekstra veri taşımayan "yakala ve yeniden boya" çağrılarının tek yeri.
+export function refreshSlotCard(i) {
+  const slot = hostPlayerSlots[i];
+  if (slot) {
+    updateHostSlot(i, true, slot.name, slot.isReady, slot.kind);
+  } else {
+    updateHostSlot(i, false);
+  }
+}
+
 export function refreshAllHostSlots() {
   for (let i = 0; i < 4; i++) {
-    const slot = hostPlayerSlots[i];
-    if (slot) {
-      updateHostSlot(i, true, slot.name, slot.isReady, slot.kind);
-    } else {
-      updateHostSlot(i, false);
-    }
+    refreshSlotCard(i);
   }
 }
 

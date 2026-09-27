@@ -581,7 +581,7 @@ export class HordeGame extends BaseMiniGame {
 
   update(now) {
     const timestamp = Number.isFinite(Number(now)) ? Number(now) : performance.now();
-    const dt = Math.max(0, Math.min((timestamp - this.lastTime) / 1000, 0.08));
+    const dt = this.clampDt(timestamp, this.lastTime);
     this.lastTime = timestamp;
     this.updateTrauma(dt);
 

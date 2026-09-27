@@ -246,6 +246,12 @@ export class BaseMiniGame {
     this.trauma = Math.min(1.0, this.trauma + amount * motionScale());
   }
 
+  // Zamana dayalı adım: kare tavanı tek bütçe (AGENTS §4 — düşen karelerde
+  // simülasyon sıçramasın; yalnızca <20fps'de bağlanır).
+  clampDt(now, lastTime) {
+    return Math.max(0, Math.min((now - lastTime) / 1000, 0.05));
+  }
+
   updateTrauma(dt, decayRate = 2.2) {
     if (this.trauma > 0) {
       this.trauma = Math.max(0, this.trauma - dt * decayRate);

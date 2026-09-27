@@ -33,7 +33,7 @@ import {
   getControlSurfacePreference,
   isTouchDevice,
 } from './ui/tokens.js';
-import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, clearRemoteMove, clearRemoteAim, isBotEkleEnabled, getColorClashIndices, refreshAllHostSlots } from './core/slotManager.js';
+import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, clearRemoteMove, clearRemoteAim, isBotEkleEnabled, getColorClashIndices, refreshSlotCard, refreshAllHostSlots } from './core/slotManager.js';
 import { getAvatarProfile, sanitizeAvatar, pickFreeColor, setSlotAvatar, clearSlotAvatar, loadLocalSeatColors, ensureLocalSeatColorsForTypes, getLocalSeatColors } from './core/customizationManager.js';
 import {
   initPauseModal,
@@ -73,6 +73,7 @@ import { showReaction, clearReactions, setReactionFieldAnchor } from './ui/react
 import { ensureReactionTriggers, setReactionSender } from './ui/reactionPicker.js';
 import { getControlDescriptor } from './core/controlDescriptor.js';
 import { InputIntentRouter } from './core/inputRouter.js';
+import { acquireWakeLock, releaseWakeLock } from './core/wakeLock.js';
 import {
   initHostLobby,
   showHostLobbyModal,
@@ -299,7 +300,7 @@ document.addEventListener('visibilitychange', () => {
   // kullanıcı bıraktıysa (niyet `fullscreen.js`'te) sessiz kalır.
   if (currentMode !== 'MENU') {
     resumeMatchChrome();
-    requestHostWakeLock();
+    acquireWakeLock();
   }
 });
 window.addEventListener('blur', () => {
@@ -329,7 +330,7 @@ export async function setGameMode(mode) {
     // Faz 3: menüye dönüşte host ekran kilidi bırakılır. Tam ekran NIYETI
     // bırakılmaz — o, sekmenin krom ilişkisinin kaydıdır ve `fullscreen.js`'te
     // yaşar (menüde düğmeyle girilen tam ekran bir sonraki maçı da kapsar).
-    releaseHostWakeLock();
+    releaseWakeLock();
     // Klavye sahipliği: yalnızca aktif motor dinler, diğerlerinin basılı tuş
     // haritası temizlenir (mod değişiminde takılı tuş kalmasın)
     forEachEngine((engineMode, entry) => {
@@ -521,7 +522,7 @@ async function openHostLobby(gameMode = 'HORDE') {
         } else {
           applyHostPlayerState({ active: false });
         }
-        refreshHostSlotCards();
+        refreshAllHostSlots();
       },
       onPlayerJoined: (msg) => {
         playJoin();
@@ -581,7 +582,7 @@ async function openHostLobby(gameMode = 'HORDE') {
               setSlotAvatar(msg.slotIndex, clean);
             } catch {}
           }
-          updateHostSlot(msg.slotIndex, true, msg.name, slot.isReady, slot.kind);
+          refreshSlotCard(msg.slotIndex);
           refreshStagingBar();
           const engine = getActiveGameEngine();
           if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
@@ -605,10 +606,8 @@ async function openHostLobby(gameMode = 'HORDE') {
         // Avatar kayıt defteri koltuk-bazlıdır: takas sonrası iki koltuğu yeniden yaz
         setSlotAvatar(slotA, hostPlayerSlots[slotA]?.avatar || null);
         setSlotAvatar(slotB, hostPlayerSlots[slotB]?.avatar || null);
-        if (hostPlayerSlots[slotA]) updateHostSlot(slotA, true, hostPlayerSlots[slotA].name, hostPlayerSlots[slotA].isReady, hostPlayerSlots[slotA].kind);
-        else updateHostSlot(slotA, false);
-        if (hostPlayerSlots[slotB]) updateHostSlot(slotB, true, hostPlayerSlots[slotB].name, hostPlayerSlots[slotB].isReady, hostPlayerSlots[slotB].kind);
-        else updateHostSlot(slotB, false);
+        refreshSlotCard(slotA);
+        refreshSlotCard(slotB);
         refreshStagingBar();
 
         const engine = getActiveGameEngine();
@@ -647,7 +646,7 @@ async function openHostLobby(gameMode = 'HORDE') {
           const slot = hostPlayerSlots[slotIndex];
           if (slot) {
             slot.name = cleanPlayerName(data.name);
-            updateHostSlot(slotIndex, true, slot.name, slot.isReady, slot.kind);
+            refreshSlotCard(slotIndex);
             refreshStagingBar();
             activeNet().setPlayerName?.(slotIndex, slot.name);
             const engine = getActiveGameEngine();
@@ -767,7 +766,7 @@ function applyHostPlayerState(state = {}) {
   setSeatTapHook();
   const engine = getActiveGameEngine();
   if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
-  refreshHostSlotCards();
+  refreshAllHostSlots();
   renderPauseSeats(handleSeatSwap);
 }
 
@@ -1125,7 +1124,7 @@ function handleRotateSeats() {
       hostPlayerSlots[i] = oldEntries[order[i]];
       setSlotAvatar(i, hostPlayerSlots[i]?.avatar || null);
     }
-    refreshHostSlotCards();
+    refreshAllHostSlots();
     renderPauseSeats(handleSeatSwap);
   } else {
     activeNet().swapSlots(0, 2);
@@ -1134,16 +1133,8 @@ function handleRotateSeats() {
   }
 }
 
-// Host lobi kartlarını state'ten yeniden çiz (butonlar + rozetler tutarlı olsun)
-function refreshHostSlotCards() {
-  for (let i = 0; i < 4; i++) {
-    const e = hostPlayerSlots[i];
-    if (e) updateHostSlot(i, true, e.name, e.isReady, e.kind);
-    else updateHostSlot(i, false);
-  }
-  // Host lobi kartları aynı zamanda koltuk seçici state'ini besler;
-  // updateHostSlot her kart güncellemesinde ilgili custom event'i yayınlar.
-}
+// Host lobi kartlarını state'ten yeniden çiz: `slotManager.refreshAllHostSlots`
+// tek sahibedir (lokalde eski refreshHostSlotCards kopyası kapanmıştır).
 
 function setLocalReadyFlags(isReady) {
   for (let i = 0; i < 4; i++) {
@@ -1186,7 +1177,7 @@ function returnHostToLobby() {
     showHostLobbyModal(roomCode, joinUrl);
     startHostPingBadge(() => activeNet().ping, platformMode);
     setSeatTapHook();
-    refreshHostSlotCards();
+    refreshAllHostSlots();
   } else {
     openHostLobby(getCurrentHostGameMode());
   }
@@ -1354,26 +1345,8 @@ function startEngineNow(mode) {
 
 // Faz 3 — yaşam döngüsü.
 // Krom NIYETI `src/ui/fullscreen.js`'te tutulur (ikinci bir yerde değil —
-// AGENTS §8). Burada yalnız host'un ekranını açık tutan wake lock durur.
-let hostWakeLock = null;
-async function requestHostWakeLock() {
-  if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
-  if (hostWakeLock) return;
-  try {
-    hostWakeLock = await navigator.wakeLock.request('screen');
-    hostWakeLock.addEventListener('release', () => {
-      hostWakeLock = null;
-    });
-  } catch {
-    hostWakeLock = null;
-  }
-}
-
-function releaseHostWakeLock() {
-  if (!hostWakeLock) return;
-  try { hostWakeLock.release(); } catch {}
-  hostWakeLock = null;
-}
+// AGENTS §8). Host'un ekranını açık tutan wake lock `src/core/wakeLock.js`'te
+// tek sahibindedir (kumanda `gamepad.js` ile aynı bütçe).
 
 // BAŞLAT dokunuşu (kullanıcı hareketi) içinden çağrılır: yön kilidi ve tam
 // ekran kabuğun krom politikasından geçer (`appShell.beginMatchChrome` — main.js
@@ -1381,7 +1354,7 @@ function releaseHostWakeLock() {
 // ekran açık tutulur (kapalı kumanda yüzeyi varsayılanı).
 function requestMatchChrome() {
   beginMatchChrome();
-  requestHostWakeLock();
+  acquireWakeLock();
 }
 
 // BAŞLAT #1: sahayı aç — motor LOBBY'de arena gösterir, koltuk seçimi başlar
@@ -1700,7 +1673,7 @@ initHostLobby({
     try {
       activeNet().setSlotColor?.(slotIndex, hex);
     } catch {}
-    updateHostSlot(slotIndex, true, entry.name, entry.isReady, entry.kind);
+    refreshSlotCard(slotIndex);
     refreshStagingBar();
     const engine = getActiveGameEngine();
     if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
@@ -1718,7 +1691,7 @@ initHostLobby({
     try {
       activeNet().setSlotColor?.(slotIndex, hex);
     } catch {}
-    updateHostSlot(slotIndex, true, entry.name, entry.isReady, entry.kind);
+    refreshSlotCard(slotIndex);
     refreshStagingBar();
     const engine = getActiveGameEngine();
     if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
@@ -1757,7 +1730,7 @@ initPauseModal({
       const engine = getActiveGameEngine();
       if (engine) syncSlotsToEngine(engine, currentMode, activeNet().isHosting);
     }
-    refreshHostSlotCards();
+    refreshAllHostSlots();
     showInstallToast(enabled ? t('toast.botsOn') : t('toast.botsOff'));
   },
   onControlsToggled: applyControlSurfacePreference,
@@ -1881,7 +1854,6 @@ if (isPublicOrigin() && !HAS_SUPABASE_CONFIG) {
 // Skor/taşıyıcı/sinyal gibi kritik değişimler throttle beklemez (refleks korunur);
 // değişiklik yoksa 125ms tabanında aynı paket tekrar gider (kumanda faz-uzlaşması).
 let lastBroadcastTime = 0;
-let lastBroadcastJson = '';
 let lastBroadcastPacket = null;
 let lastWorldBroadcastTime = 0;
 let lastCountdownT = 0;
@@ -1939,11 +1911,9 @@ function broadcastGameStateIfNeeded(now) {
   }
   packet.names = hostPlayerSlots.map((p) => (p ? p.name : null));
 
-  const json = JSON.stringify(packet);
-  if (json === lastBroadcastJson) return;
+  if (samePacket(packet, lastBroadcastPacket)) return;
 
   lastBroadcastTime = now;
-  lastBroadcastJson = json;
   lastBroadcastPacket = packet;
   activeNet().broadcastHostState(packet);
 }
@@ -2130,7 +2100,7 @@ mountAppShell({
     setPlatformMode: (mode) => updatePlatformMode(mode),
     getPlatformMode: () => platformMode,
     openSettings: () => openSettingsModal(),
-    onLobbyShown: () => refreshHostSlotCards(),
+    onLobbyShown: () => refreshAllHostSlots(),
     // Lobi ekranından ayrılırken oda da kapanır: geri düğmesi "odadan çık"
     // demektir, "oda ekranına geri dön" değil (bkz. lobbyView `backToRoot`).
     onLobbyExit: () => {
@@ -2147,5 +2117,5 @@ mountAppShell({
   },
 });
 setGameMode('MENU');
-refreshHostSlotCards();
+refreshAllHostSlots();
 requestAnimationFrame(loop);

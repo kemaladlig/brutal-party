@@ -478,7 +478,7 @@ export class CurveGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = Math.min((now - this.lastTime) / 1000, 0.08);
+    const dt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
 
     if (this.trauma > 0) {

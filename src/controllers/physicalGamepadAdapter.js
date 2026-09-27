@@ -2,13 +2,12 @@
 // It never becomes authoritative: it only emits the same transport packets as
 // the phone controller, and the host router/engine remains authoritative.
 
-import { getNeutralInputs } from './controlDefs.js';
+import { getNeutralInputs, CONTROL_KEEPALIVE_MS } from './controlDefs.js';
 import { GamepadInputAdapter } from './gamepadInputAdapter.js';
 
 const DEFAULT_DEADZONE = 0.18;
 // Host'un analog sessizlik süpürücüsü 1500 ms sonra basılı yönü sıfırlar; tutulan
 // yön bu aralıkta tekrarlanmalı (telefon kumandası `controllerTemplates.js` ile aynı).
-const STEER_KEEPALIVE_MS = 250;
 
 function clamp(value, min = -1, max = 1) {
   return Math.max(min, Math.min(max, value));
@@ -217,7 +216,7 @@ export class PhysicalGamepadAdapter {
         // Basılı yön keepalive'i: host'un analog sessizlik süpürücüsü (1500 ms)
         // basılı yönü sıfırlıyor, fiziksel kumandada da aynı beliri oluyordu.
         const now = performance.now();
-        if (now - (this.previous.dirSentAt || 0) >= STEER_KEEPALIVE_MS) {
+        if (now - (this.previous.dirSentAt || 0) >= CONTROL_KEEPALIVE_MS) {
           this.emitAction(action, { dir });
           this.previous.dirSentAt = now;
         }

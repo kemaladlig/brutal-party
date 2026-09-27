@@ -26,6 +26,7 @@ import { renderLocalGamepadShell, renderRemoteGamepadShell } from './ui/gamepadS
 import { openControllerLayoutEditor } from './ui/controllerLayoutEditor.js';
 import { ensureReactionTriggers, setReactionSender } from './ui/reactionPicker.js';
 import { showReaction, clearReactions } from './ui/reactionLayer.js';
+import { acquireWakeLock, releaseWakeLock as dropWakeLock } from './core/wakeLock.js';
 import {
   getControllerLayout,
   setControllerLayout,
@@ -111,7 +112,6 @@ export class GamepadManager {
     this._lastStripJson = '';
     this._lastStatusStr = '';
     this._visibilityBound = false;
-    this._wakeLock = null;
     this._browserLocksBound = false;
     this._activeController = null;
     this._worldView = null;
@@ -442,32 +442,10 @@ export class GamepadManager {
     return true;
   }
 
-  // Screen Wake Lock API — kumanda açıkken telefon ekranının kararmasını / kapanmasını önler
-  async requestWakeLock() {
-    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && !this._wakeLock) {
-      try {
-        this._wakeLock = await navigator.wakeLock.request('screen');
-        this._wakeLock.addEventListener('release', () => {
-          this._wakeLock = null;
-        });
-      } catch {
-        this._wakeLock = null;
-      }
-    }
-  }
-
+  // Screen wake lock, `src/core/wakeLock.js` tek sahibi (main.js host ile aynı bütçe).
   neutralizeInput() {
     this._lastLocalInputAt = performance.now();
     this._sendNeutralForMode();
-  }
-
-  releaseWakeLock() {
-    if (this._wakeLock) {
-      try {
-        this._wakeLock.release();
-      } catch {}
-      this._wakeLock = null;
-    }
   }
 
   // Sürekli analog akış için tek gönderim noktası: 50ms throttle + ölübant.
@@ -670,14 +648,14 @@ export class GamepadManager {
     this._visibilityBound = true;
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && !this.overlay.classList.contains('hidden')) {
-        this.requestWakeLock();
+        acquireWakeLock();
       } else if (document.hidden) {
         this._sendNeutralForMode();
       }
     });
     window.addEventListener('pagehide', () => {
       this._sendNeutralForMode();
-      this.releaseWakeLock();
+      dropWakeLock();
     });
     const neutralizeTransientInput = () => {
       if (!this.overlay.classList.contains('hidden')) this._sendNeutralForMode();
@@ -765,7 +743,7 @@ export class GamepadManager {
     this._bindOrientationState();
     this._bindLayoutEditorButton();
     this.renderGameController(gameMode);
-    this.requestWakeLock();
+    acquireWakeLock();
   }
 
   init(playerInfo, gameMode = 'LOBBY') {
@@ -807,7 +785,7 @@ export class GamepadManager {
     this._bindOrientationState();
     this.renderGameController(this.gameMode);
     this.overlay.classList.remove('hidden');
-    this.requestWakeLock();
+    acquireWakeLock();
     // Dil değişimi: lobide tam re-render (güvenli), oyunda sadece taktik ipucu
     // tazelenir (dokunmatik mount'a dokunulmaz — girdi kesilmez).
     if (!this._langBound) {
@@ -831,7 +809,7 @@ export class GamepadManager {
     else this.setInputBlocked(false);
     if (this.localMode) this._sendNeutralForMode();
     this.physicalGamepad.stop();
-    this.releaseWakeLock();
+    dropWakeLock();
     this._teardownMount();
     clearReactions();
     this._resultActive = false;

@@ -1,6 +1,8 @@
 // Production twin-stick aim surface. It only produces canonical transport
 // packets; attack policy remains authoritative in the game engine.
 
+import { CONTROL_KEEPALIVE_MS } from './controlDefs.js';
+
 const MIN_RADIUS = 44;
 const MAX_RADIUS = 64;
 const DEADZONE = 0.1;
@@ -158,7 +160,7 @@ export class TwinStickAimController {
     this.heartbeatTimer = setInterval(() => {
       if (this.destroyed || (this.activePointerId === null && this.activeTouchId === null)) return;
       this.onMove?.({ ...this.lastInput, aimHeld: true }, { keepalive: true });
-    }, 200);
+    }, CONTROL_KEEPALIVE_MS);
   }
 
   stopHeartbeat() {

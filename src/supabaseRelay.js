@@ -82,8 +82,6 @@ export class SupabaseRelay {
     this._webrtcConnectTimer = null;
     this._webrtcRetryDelay = 1000;
     this._webrtcGeneration = 0;
-    this._lastAnalogSentAt = Object.create(null);
-    this._lastAnalogVector = Object.create(null);
 
     // Tepki hız kapısı (WS sunucusundaki slot başına 1sn ile aynı).
     this._reactionSentAt = 0;
@@ -745,7 +743,6 @@ export class SupabaseRelay {
   async joinRoom(roomCode, playerName, callbacks = {}, avatar = null, _isRetry = false) {
     assertSupabaseConfig();
     this.role = 'CONTROLLER';
-    this._resetInputThrottle();
     this.roomCode = roomCode.toUpperCase().trim();
     this.playerName = cleanPlayerName(playerName);
     this.callbacks = { ...this.callbacks, ...callbacks };
@@ -1100,55 +1097,10 @@ export class SupabaseRelay {
     }, 12000);
   }
 
-  _resetInputThrottle() {
-    this._lastAnalogSentAt = Object.create(null);
-    this._lastAnalogVector = Object.create(null);
-  }
-
   sendInput(data) {
+    // 50ms analog throttle yalnız `GamepadInputAdapter`'da (tek kapı) — relay
+    // kimse kopyalamıyor; WS ve Supabase aynı bütçeyi adaptörden alır.
     if (this.role !== 'CONTROLLER' || !data || typeof data.action !== 'string') return;
-    const isCurveSteerChange = data.action === 'CURVE_STEER' && data.dir !== this._lastCurveDir;
-    const isAnalog = data.action === 'JOYSTICK_MOVE'
-      || data.action === 'AIM_MOVE'
-      || data.action === 'PADDLE_MOVE';
-    const isDiscrete = !isAnalog
-      || isCurveSteerChange
-      || data.force === 0
-      || data.dir === 0;
-
-    if (data.action === 'AIM_PRESS' || data.action === 'AIM_RELEASE') {
-      delete this._lastAnalogSentAt.AIM_MOVE;
-      delete this._lastAnalogVector.AIM_MOVE;
-    }
-
-    const now = performance.now();
-    if (isAnalog && !isDiscrete) {
-      const lastSent = this._lastAnalogSentAt[data.action] || 0;
-      if (now - lastSent < 50) return;
-      if (data.action === 'PADDLE_MOVE' && typeof data.position === 'number') {
-        const previous = this._lastAnalogVector.PADDLE_MOVE;
-        if (previous !== undefined && Math.abs(data.position - previous) < 0.003) return;
-        this._lastAnalogVector.PADDLE_MOVE = data.position;
-      } else {
-        const dx = data.dx || 0;
-        const dy = data.dy || 0;
-        const previous = this._lastAnalogVector[data.action] || { dx: 0, dy: 0 };
-        const threshold = data.action === 'AIM_MOVE' ? 0.005 : 0.02;
-        const isAimKeepalive = data.action === 'AIM_MOVE' && data.aimHeld === true;
-        if (!isAimKeepalive && Math.hypot(dx - previous.dx, dy - previous.dy) < threshold) return;
-        this._lastAnalogVector[data.action] = { dx, dy };
-      }
-      this._lastAnalogSentAt[data.action] = now;
-    } else if (isAnalog && data.force === 0) {
-      delete this._lastAnalogSentAt[data.action];
-      this._lastAnalogVector[data.action] = data.action === 'PADDLE_MOVE'
-        ? data.position
-        : { dx: 0, dy: 0 };
-    }
-
-    if (data.action === 'CURVE_STEER') {
-      this._lastCurveDir = data.dir;
-    }
 
     const payload = { action: 'INPUT', data };
 
@@ -1302,7 +1254,6 @@ export class SupabaseRelay {
   }
 
   disconnect() {
-    this._resetInputThrottle();
     this._manualClose = true;
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     this._lastJoin = null;

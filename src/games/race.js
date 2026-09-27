@@ -558,7 +558,7 @@ export class RaceGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = Math.max(0, Math.min((now - this.lastTime) / 1000, 0.08));
+    const dt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
     this.updateTrauma(dt);
 

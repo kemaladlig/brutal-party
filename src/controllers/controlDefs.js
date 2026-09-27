@@ -17,6 +17,11 @@ export const MAX_TABLETOP_ACTIONS = 2;
 export const AIM_RELEASE_TO_FIRE = 'RELEASE_TO_FIRE';
 export const AIM_HOLD_TO_FIRE = 'HOLD_TO_FIRE';
 
+// Basılı analog girdilerin keepalive periyodu (yön + aim heartbeat).
+// Host'taki analog sessizlik süpürücüsü (STALE_ANALOG_MS) basılı girdiyi
+// sıfırlamasın diye tek yerde tutulur; 8 Hz yayın bütçesine uyar.
+export const CONTROL_KEEPALIVE_MS = 250;
+
 export const CONTROL_DEFS = {
   PONG: { left: 'slider', right: ['spin'] },
   TANKS: { left: 'pedal', right: ['fire'] },

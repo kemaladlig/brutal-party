@@ -14,12 +14,12 @@
 
 - [x] 1.1 6× cycleSlotType kopyası → BaseGame + onSeatCycled hook (crown bot-renk bug'i kapanır) — `c9db3ab`, tam test 388/388
 - [x] 1.2 5× inline ekran sarsıntısı → applyScreenShake (game/bomb/heist/curve/tanks) — `613d21b`, tam test 388/388
-- [ ] 1.3 bot_god relay paritesi (supabaseRelay tek satır)
-- [ ] 1.4 Throttle tek kaynak: throttleSlot() → networkProtocol.js (WS + relay aynı kapı)
-- [ ] 1.5 Aim heartbeat 200→250ms sabite + dt tavanları tek değer
-- [ ] 1.6 Çift wake-lock → core/wakeLock.js (−40 satır)
-- [ ] 1.7 11× ready-quintuple zinciri → slotManager.refreshSlotCard(i)
-- [ ] 1.8 samePacket ucuzlat: depth-2 stringify → sürüm/stamp karşılaştırma
+- [x] 1.3 bot_god relay paritesi (supabaseRelay getSlots, WS ile aynı `p.kind`) — `442575b`
+- [x] 1.4 Throttle tek kaynak: relay'deki 50ms/ölübant kopyası silindi (adaptör tek kapı, −45 satır)
+- [x] 1.5 Aim heartbeat 200→250ms (`CONTROL_KEEPALIVE_MS` tek sabit, 3 tüketici) + dt tavanları `clampDt` (11 motor 0.05; crown/tanks/PONG bilinçli farklı)
+- [x] 1.6 Çift wake-lock → `core/wakeLock.js` (main.js + gamepad.js tek modül)
+- [x] 1.7 `refreshSlotCard(i)` + `refreshAllHostSlots` tekilleşti; `refreshHostSlotCards` kopyası silindi; 7 saf yeniden-boyama noktası bağlandı
+- [x] 1.8 `samePacket` (ölü kod) kirli-kontrol arayüzüne bağlandı — 125ms'lik tam JSON.stringify kalktı
 
 ## Faz 2 — Katmanlama (~2-3 gün, taşıma; ekleme yok)
 

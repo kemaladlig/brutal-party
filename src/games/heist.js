@@ -537,7 +537,7 @@ export class HeistGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = Math.min((now - this.lastTime) / 1000, 0.05);
+    const dt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
 
     if (this.trauma > 0) {
