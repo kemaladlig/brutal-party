@@ -9,14 +9,15 @@
 // zamanda `role="status"` canlı bölge). Balon yükselme/sönme animasyonunu
 // CSS'ten alır, konumu ise canlı varlığı takip etmek için rAF ile yenilenir.
 
-import { getTabletopIconSvg } from '../core/tabletopIcons.js';
-import { normalizeReactionKey, REACTIONS, reactionColorOf } from '../core/reactions.js';
+import { normalizeReactionKey, reactionGlyph, REACTIONS } from '../core/reactions.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
-const MAX_BUBBLES = 6;
+const MAX_BUBBLES = 8;
 const BUBBLE_GAP = 30;
-const CLEANUP_GRACE_MS = 2600;
+// CSS animasyon süresi (2.6 sn) üstü güvenlik payı: animasyon olayı gelmezse
+// balon yine de düşer.
+const CLEANUP_GRACE_MS = 4200;
 
 let layerEl = null;
 const bubbles = [];
@@ -70,9 +71,10 @@ function anchorFor(slotIndex) {
   if (field && Number.isFinite(field.x) && Number.isFinite(field.y)) {
     return { x: field.x, y: field.y };
   }
-  // Yedek ray: sağ kenarda dikey sütun. Kimlik etiketi balonun kendisinde.
+  // Yedek ray: sağ kenarda dikey sütun (P etiketi sağa taşar, bu yüzden
+  // kenardan içeride durur). Kimlik etiketi balonun kendisinde.
   return {
-    x: window.innerWidth - 34,
+    x: window.innerWidth - 52,
     y: Math.round(window.innerHeight * 0.36) + bubbles.length * BUBBLE_GAP,
   };
 }
@@ -122,7 +124,7 @@ function buildBubble(key, slotIndex, color, label) {
   // oynatır — ikisi aynı `transform` üzerinde yarışmaz.
   el.innerHTML = `
     <div class="reaction-bubble-body">
-      <span class="reaction-bubble-icon">${getTabletopIconSvg(key, { size: 30, color: reactionColorOf(key) || 'currentColor', strokeWidth: 2.2 })}</span>
+      <span class="reaction-bubble-glyph">${reactionGlyph(key)}</span>
       ${tag}
     </div>`;
   return el;
@@ -131,7 +133,7 @@ function buildBubble(key, slotIndex, color, label) {
 /**
  * Tepki balonu gösterir.
  * @param {object} opts
- * @param {string} opts.key          — `REACTIONS` içinden ikon anahtarı (ya da legacy emoji)
+ * @param {string} opts.key          — `REACTIONS` içinden anahtar (ya da legacy emoji)
  * @param {number} [opts.slotIndex]  — koltuk; -1/null ise etiketsiz (host, koltukta değil)
  * @param {string} [opts.color]      — oyuncu rengi; yoksa koltuk paletinden
  */

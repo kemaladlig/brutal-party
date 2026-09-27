@@ -140,6 +140,10 @@ Modal açıkken canvas tap'leri motora düşmez; staging'de düşer (bot ekleme/
 - **Oynarken sürekli chrome çizme (mobil yatay):** kompakt yatayda (`isCompactLandscape(w,h)`) saha üst payı ~3px olduğu için `arena.top`'a konumlanan sabit panel/şerit sahanın içine düşer. `renderControlGuide(..., { duringPlay: true })` bu durumda çizmez; yardım/ayar tek butonun açtığı mola panelinde yaşar (`renderPauseControls`, ikon-only + klavye tuş yazısı). HUD yerleşim kararları `isCompactLandscape` üzerinden tek yerden verilir.
 - Kumanda veya canvas UI'a ham OS emojisi yazma — `src/core/tabletopIcons.js` kullan.
 - **DOM UI'a ham OS emojisi yazma** (ayarlar sheet'i, katılım sheet'i, profil, lobi dahil) — `tabletopIcons.js` + `src/ui/iconSlots.js` (`hydrateIconSlots`) kullan. Statik markup'ta ikonu `data-icon="<ad>"` ile işaretle, metin i18n sözlüğüne gömme.
+- **TEPKI YÜZEYİ İSTİSNASI (kullanıcı kararı):** tepki gönderme yüzeyi (`src/core/reactions.js` → `src/styles/reactions.css`) gerçek emoji gösterir; vektörel ikon değil. İstisna **yalnız görsel yüzeye** aittir:
+  - Tel (wire) yine de ASCII anahtar taşır (`emoji: 'flame'`); sunucu/istemci beyaz listesi ve hız kapısı bozulmaz — istisna ağda değil, ekranda.
+  - Emoji glyph'ı tek kaynaktan (`reactionGlyph`) gelir; statik markup'ta `data-reaction-glyph="<key>"` yalnız **yeri** işaretler (`reactionPicker.ensureReactionTriggers` doldurur), dosyalara emoji serpiştirmek yasaktır.
+  - Emoji font stack'i `reactions.css` içinde tek yerde tanımlıdır; balonun kenar/P etiketi rengi `reactionColorOf` ile gelir.
 - State'i iki yerde tutma (TV listesi ↔ relay tablosu çakışırsa relay kazanır).
 - Kumandaya oyun simülasyonu, motora ağ kodu koyma.
 - Çok gerekmedikçe yeni `*.md` dosyası oluşturma. Mevcut `AGENTS.md` + `docs/PROJECT_MAP.md` yeterlidir; yapı/protokol değişince ikisi de güncellenir. Yeni döküman şartsa kullanıcıya sor.

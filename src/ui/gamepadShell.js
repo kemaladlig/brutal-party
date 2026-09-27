@@ -3,6 +3,7 @@
 
 import { escapeHtml } from '../net.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
+import { reactionGlyph } from '../core/reactions.js';
 import { t } from '../i18n.js';
 
 function renderLayoutButton() {
@@ -36,7 +37,7 @@ function renderMenuPanel({ showLayoutEditor = true }) {
 // `reactionPicker`ın tek kayıt noktasında; burada yalnız markup var.
 function renderReactButton() {
   const label = t('pad.reactTitle');
-  return `<button class="gamepad-react-btn" type="button" data-reaction-open data-reaction-send="pad" data-i18n-aria="pad.reactTitle" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${getTabletopIconSvg('laugh', { size: 19, color: '#141414', strokeWidth: 2.4 })}</button>`;
+  return `<button class="gamepad-react-btn" type="button" data-reaction-open data-reaction-send="pad" data-i18n-aria="pad.reactTitle" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"><span class="reaction-glyph" aria-hidden="true">${reactionGlyph('laugh')}</span></button>`;
 }
 
 function renderHudContainers() {

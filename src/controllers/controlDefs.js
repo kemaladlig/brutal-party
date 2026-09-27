@@ -9,6 +9,9 @@
 // Etiket/renk/cooldown gibi sunum detayları burada tutulmaz —
 // onlar `gamepadSchemas.js` (i18n) ve motor şemalarındadır.
 // Bu dosya yalnız yapısal sözleşmeyi + yön politikasını verir.
+// Twin standart (ARCHER/LASER/HORDE): iki sütun — sol move köşede,
+// sağ aim köşede; aksiyon üçüncü sütun değil aim yarısının iç yanına
+// rıhtımlanır (template + gamepad.css), sağ grup tek rect kalır.
 
 export const MAX_TABLETOP_ACTIONS = 2;
 export const AIM_RELEASE_TO_FIRE = 'RELEASE_TO_FIRE';

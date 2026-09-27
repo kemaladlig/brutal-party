@@ -1,6 +1,12 @@
 /* Tepki (reaction) katmanı + seçici — lobi, oyun içi HUD ve kumanda başlığı
    ORTAK dili. Yüzeyler yalnız `data-reaction-open` / `data-reaction-anchor`
-   işaretler; görünüm ve davranış tek yerdedir. */
+   işaretler; görünüm ve davranış tek yerdedir.
+
+   Bu yüzey projenin "ham OS emojisi yasak" kuralının BİLİNEN istisnasıdır
+   (kullanıcı kararı): tepki bir emoji olmalıdır, ikon değil. Tel yine de ASCII
+   anahtar taşır — istisna yalnız görsel yüzeyle sınırlıdır. Emoji yazı tipi
+   platformun kendi renkli emoji fontudur; uygulama font stack'i düz metin için
+   Space Grotesk / JetBrains Mono'yu kullanmaya devam eder. */
 
 /* ── Katman: yalnız görsel, dokunuş yemez ─────────────────────────────── */
 
@@ -10,6 +16,16 @@
   z-index: 240;
   pointer-events: none;
   overflow: hidden;
+}
+
+/* Emoji font stack'i: uygulama fontlarında glyph yok, tarayıcı kendi renkli
+   emoji fontuna düşer; açıkça yazmak aynı aileyi garanti eder. */
+.reaction-glyph,
+.reaction-bubble-glyph,
+.reaction-pick-glyph {
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  font-weight: 400;
+  line-height: 1;
 }
 
 .reaction-bubble {
@@ -25,27 +41,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 54px;
-  height: 54px;
-  padding: 0 9px;
+  min-width: 58px;
+  height: 58px;
+  padding: 0 10px;
   border-radius: var(--radius-pill);
   border: 2px solid var(--accent, var(--gold));
   background-color: var(--n-900);
-  color: var(--ink);
   box-shadow: var(--shadow-float);
-  animation: reaction-rise 1400ms cubic-bezier(0.22, 0.9, 0.3, 1) forwards;
+  animation: reaction-rise 2600ms cubic-bezier(0.22, 0.9, 0.3, 1) forwards;
 }
 
-.reaction-bubble-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.12));
-}
-
-.reaction-bubble-icon svg {
+.reaction-bubble-glyph {
   display: block;
+  font-size: 30px;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.18));
 }
 
 /* Koltuk etiketi: balonun sağ alt köşesinde oyuncu renginde küçük rozet. */
@@ -65,21 +74,27 @@
   letter-spacing: 0.04em;
 }
 
+/* Belirgin giriş → kısa yükseliş → TUT (okunabilirlik penceresi) → sönüş.
+   Toplam 2.6 sn: eski 1.4 sn'de balon oyuncu başından kaybolmadan okunmuyordu. */
 @keyframes reaction-rise {
   0% {
     opacity: 0;
     transform: translateY(8px) scale(0.68);
   }
-  16% {
+  10% {
     opacity: 1;
     transform: translateY(0) scale(1.1);
   }
-  30% {
-    transform: translateY(-7px) scale(1);
+  18% {
+    transform: translateY(-6px) scale(1);
+  }
+  72% {
+    opacity: 1;
+    transform: translateY(-26px) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translateY(-54px) scale(0.94);
+    transform: translateY(-64px) scale(0.94);
   }
 }
 
@@ -91,11 +106,11 @@
 
 @keyframes reaction-fade {
   0%,
-  12% {
+  6% {
     opacity: 0;
   }
-  24%,
-  70% {
+  14%,
+  78% {
     opacity: 1;
   }
   100% {
@@ -125,10 +140,9 @@
   transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.08s ease;
 }
 
-.btn-quick-react > span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.btn-quick-react > .reaction-glyph {
+  display: block;
+  font-size: 20px;
   line-height: 1;
   pointer-events: none;
 }
@@ -209,26 +223,29 @@
   height: 56px;
   padding: 0;
   border-radius: var(--radius-btn);
-  border: 2px solid var(--edge);
+  /* Kenar tepkinin kendi renginde: emoji ile kart aynı aileyi paylaşır. */
+  border: 2px solid var(--pick-accent, var(--edge));
   background-color: var(--n-900);
   box-shadow: var(--shadow-pop);
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+}
+
+.reaction-pick-glyph {
+  display: block;
+  font-size: 26px;
 }
 
 .reaction-pick:hover {
   transform: translateY(-1px);
+  background-color: var(--elevated);
 }
 
 .reaction-pick:active {
   transform: translateY(2px);
   box-shadow: 0 1px 0 var(--edge-strong);
-}
-
-.reaction-pick svg {
-  display: block;
 }
 
 @keyframes reaction-picker-in {
@@ -248,9 +265,11 @@
   }
 }
 
+/* 12 tepki: dar ekranda 4×3, genişte 6×2 (12 sütun ~750px ister — TV'de
+   kart taşar, 6 sütun iki satırda kalır). */
 @media (min-width: 560px) {
   .reaction-picker-grid {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 

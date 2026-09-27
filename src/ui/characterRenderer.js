@@ -43,10 +43,11 @@ function playFaceShading(ctx, r) {
   const cached = byRadius.get(key);
   if (cached) return cached;
 
-  // 1. Sağ-alt yumuşak küre gölgesi (gövdeye kütle ve derinlik katar)
-  const shade = ctx.createRadialGradient(r * 0.30, r * 0.35, r * 0.1, 0, 0, r * 1.05);
-  shade.addColorStop(0, 'rgba(12, 6, 26, 0.32)');
-  shade.addColorStop(0.6, 'rgba(12, 6, 26, 0.12)');
+  // 1. Sağ-alt yumuşak küre gölgesi — kütle hissi alta aittir, üst yarı
+  // düz renkte kalır. Merkez alta-sağa itildi, alpha düşük tutuldu.
+  const shade = ctx.createRadialGradient(r * 0.45, r * 0.50, r * 0.1, 0, 0, r * 1.15);
+  shade.addColorStop(0, 'rgba(12, 6, 26, 0.18)');
+  shade.addColorStop(0.55, 'rgba(12, 6, 26, 0.07)');
   shade.addColorStop(1, 'rgba(12, 6, 26, 0)');
 
   // 2. Sol-üst çok hafif ortam aydınlığı (beyaz leke yapmaz, sadece renk tonunu yumuşatır)
@@ -77,9 +78,9 @@ function bodyAoGradient(ctx, r) {
   const key = Math.round(r * 4) / 4;
   const cached = byRadius.get(key);
   if (cached) return cached;
-  const g = ctx.createLinearGradient(0, r * 0.2, 0, r);
+  const g = ctx.createLinearGradient(0, r * 0.45, 0, r);
   g.addColorStop(0, 'rgba(12, 6, 26, 0)');
-  g.addColorStop(1, 'rgba(12, 6, 26, 0.30)');
+  g.addColorStop(1, 'rgba(12, 6, 26, 0.18)');
   byRadius.set(key, g);
   return g;
 }
@@ -207,9 +208,8 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
   }
 
-  // Alt gölge (ambient occlusion): diskin alt üçte biri içten kararır,
-  // top yere oturur. Her kipte aynıdır — menü/saha farkı yalnız `play`/`volume`
-  // hacmidir, bu katman ortaktır.
+  // Alt gölge (ambient occlusion): yalnız alt çeyrek içten kararır,
+  // top yere oturur. Üst yarı düz renkte kalır. Her kipte aynıdır.
   if (!isMicro) {
     ctx.fillStyle = bodyAoGradient(ctx, r);
     ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
@@ -224,12 +224,11 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
   ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.stroke();
 
-  // 2a. Halka dış tanımı: açık halka (beyaz) açık zeminde — önizleme platosu,
-  // krem saha — kayboluyordu. Koyu halkada görünmez, maliyeti tek arc yayımı,
-  // mikroda piksel çamuru olmasın diye kapalı.
+  // 2a. Halka dış tanımı: açık halka krem sahada kaybolmasın diye ince
+  // tutulur — kalın koyu çizgi üst kenarda is gibi okunuyordu.
   if (!isMicro) {
     const hair = Math.max(1, r * 0.02);
-    ctx.strokeStyle = 'rgba(26, 26, 26, 0.55)';
+    ctx.strokeStyle = 'rgba(26, 26, 26, 0.28)';
     ctx.lineWidth = hair;
     ctx.beginPath();
     ctx.arc(0, 0, r + borderWidth / 2 + hair / 2, 0, Math.PI * 2);
@@ -488,35 +487,17 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
       ctx.stroke();
     }
   } else if (expression === 'STAR') {
-    // Yıldız gözler (heyecan)
-    const drawStar = (ey, sr) => {
-      ctx.fillStyle = '#FFDE59';
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 1.5;
+    // Mutlu kısık gözler (heyecan): iki göz neşeli ∩ kemer — yıldız
+    // dolgular uzaktan çamur okunuyordu, kapalı göz temiz durur.
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    for (const ey of [-eyeSpreadY, eyeSpreadY]) {
       ctx.beginPath();
-      for (let k = 0; k < 5; k++) {
-        const a1 = -Math.PI / 2 + (k * 2 * Math.PI) / 5;
-        const a2 = a1 + Math.PI / 5;
-        ctx.lineTo(eyeOffsetX + Math.cos(a1) * sr, ey + Math.sin(a1) * sr);
-        ctx.lineTo(eyeOffsetX + Math.cos(a2) * sr * 0.45, ey + Math.sin(a2) * sr * 0.45);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    };
-    if (!isEyeClosed) {
-      drawStar(-eyeSpreadY, eyeR * 1.3);
-      drawStar(eyeSpreadY, eyeR * 1.3);
-    } else {
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(eyeOffsetX - eyeR, -eyeSpreadY);
-      ctx.lineTo(eyeOffsetX + eyeR, -eyeSpreadY);
-      ctx.moveTo(eyeOffsetX - eyeR, eyeSpreadY);
-      ctx.lineTo(eyeOffsetX + eyeR, eyeSpreadY);
+      ctx.arc(eyeOffsetX, ey + eyeR * 0.35, eyeR * 0.85, Math.PI * 1.08, Math.PI * 1.92);
       ctx.stroke();
     }
+    ctx.lineCap = 'butt';
   } else if (expression === 'SLEEPY') {
     // Yarım kapalı uykulu gözler + Z damlası
     ctx.strokeStyle = '#1A1A1A';

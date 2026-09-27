@@ -81,7 +81,7 @@ export const AVATAR_EXPRESSIONS = [
   { id: 'CYCLOPS', name: 'Tepegöz', icon: 'circle_dot', desc: 'Dev tek göz' },
   { id: 'DERP', name: 'Çılgın', icon: 'laugh', desc: 'Eğlenceli şaşkın bakış' },
   { id: 'HEART', name: 'Aşık', icon: 'heart', desc: 'Kalp şeklinde gözler' },
-  { id: 'STAR', name: 'Yıldız', icon: 'star', desc: 'Yıldızlı heyecanlı bakış' },
+  { id: 'STAR', name: 'Neşeli', icon: 'smile', desc: 'Mutlu kısık gözler' },
   { id: 'SLEEPY', name: 'Uykulu', icon: 'moon', desc: 'Yarım kapalı uykulu gözler' },
   { id: 'ZOMBIE', name: 'Zombi', icon: 'skull', desc: 'Donuk zombi bakışı' },
   { id: 'GRIN', name: 'Sırıtış', icon: 'smile', desc: 'Kötü niyetli geniş sırıtış' },

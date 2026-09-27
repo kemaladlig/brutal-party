@@ -234,8 +234,8 @@
      `color-mix()` ikinci bildirimdir — desteklemeyen tarayıcı opak
      `--deck-fill` kademesinde kalır. Maliyet yalnız alpha harmanlama:
      yeni katman, blur veya kare başına JS yok. */
-  --deck-fill: 40%;
-  --deck-fill-active: 80%;
+  --deck-fill: 30%;
+  --deck-fill-active: 50%;
 
   /* Görünür joystick: dinlenme diski, yumuşak halka, parlak tutamaç */
   --joy-ring: rgba(255, 255, 255, 0.6);

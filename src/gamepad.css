@@ -181,6 +181,13 @@
   box-shadow: var(--shadow-edge);
 }
 
+.gamepad-react-btn .reaction-glyph {
+  display: block;
+  font-size: 20px;
+  line-height: 1;
+  pointer-events: none;
+}
+
 .btn-controller-layout[hidden] {
   display: none !important;
 }
@@ -1378,7 +1385,7 @@
 /* Keep the world canvas pass-through, but re-enable the real controller zones. */
 .gamepad-control-overlay .joystick-half,
 .gamepad-control-overlay .twin-stick-half,
-.gamepad-control-overlay .twin-action-zone,
+.gamepad-control-overlay .twin-action-cluster,
 .gamepad-control-overlay .action-half,
 .gamepad-control-overlay .tank-drive-zone,
 .gamepad-control-overlay .tanks-fire-zone,
@@ -1389,7 +1396,7 @@
 .gamepad-control-overlay .action-spin-btn,
 #local-mobile-controls .joystick-half,
 #local-mobile-controls .twin-stick-half,
-#local-mobile-controls .twin-action-zone,
+#local-mobile-controls .twin-action-cluster,
 #local-mobile-controls .action-half,
 #local-mobile-controls .tank-drive-zone,
 #local-mobile-controls .tanks-fire-zone,
@@ -2102,8 +2109,7 @@
 .btn-action-icon svg,
 .pedal-icon svg,
 .fire-icon svg,
-.btn-fullscreen-toggle svg,
-.gamepad-react-btn svg {
+.btn-fullscreen-toggle svg {
   display: block;
   pointer-events: none;
   flex-shrink: 0;
@@ -2166,7 +2172,11 @@
   margin-bottom: 0;
 }
 
-/* Twin-stick MOBA surface (ARCHER, LASER, HORDE) — aim her zaman en köşede */
+/* Twin-stick MOBA surface (ARCHER, LASER, HORDE) — iki sütun standardı:
+   sol move köşede, sağ aim köşede. Aksiyon üçüncü sütun değildir;
+   aim yarısının iç yanına rıhtımlanır (template'te aim half'in çocuğu).
+   Böylece sağ grup tek rect olur, resolver tek dx/dy üretir ve aim
+   dar ekranda dışarı itilmez. */
 .twin-stick-action-view {
   width: 100%;
   height: 100%;
@@ -2198,8 +2208,11 @@
 }
 
 .twin-aim-half {
-  order: 3;
+  order: 2;
+  flex-direction: row;
   justify-content: flex-end;
+  align-items: flex-end;
+  gap: 10px;
   padding-right: 4px;
   padding-bottom: 6px;
   border-right: 0;
@@ -2236,40 +2249,35 @@
   white-space: nowrap;
 }
 
-.twin-action-zone {
-  order: 2;
-  flex: 0 0 clamp(112px, 24vw, 190px);
-  min-width: 0;
-  height: min(170px, 34vh);
-  min-height: 96px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: 6px;
-  touch-action: none;
-}
-
 .twin-action-cluster {
   height: auto;
   max-height: 170px;
+  justify-content: flex-end;
+  padding-bottom: 2px;
 }
 
-.twin-action-cluster .action-dash-btn {
-  width: clamp(100px, 21vw, 150px);
-  height: clamp(58px, 12vh, 82px);
+/* Rıhtımlı dash: küçük ama refleks boyu. 68px taban ani basışı
+   ıskalatmaz, 84px tavan köşeyi yemez; daire hedef parmak ucudur. */
+.twin-aim-half .twin-action-cluster .action-dash-btn {
+  width: clamp(68px, min(18vw, 20vh), 84px);
+  height: clamp(68px, min(18vw, 20vh), 84px);
+  min-width: 68px;
+  min-height: 68px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 @media (orientation: portrait), (max-aspect-ratio: 1/1) {
   .twin-stick-action-view {
-    flex-wrap: wrap;
-    align-content: flex-end;
+    flex-wrap: nowrap;
+    align-content: normal;
     align-items: flex-end;
     gap: 6px;
     padding-bottom: max(14px, env(safe-area-inset-bottom, 14px));
   }
 
   .twin-stick-half {
-    flex: 1 1 42%;
+    flex: 1 1 0;
     height: min(150px, 28vh);
   }
 
@@ -2279,19 +2287,27 @@
 
   .twin-aim-half {
     order: 2;
+    flex-direction: row;
+    gap: 8px;
   }
 
-  .twin-action-zone {
-    order: 3;
-    flex: 1 1 100%;
-    height: auto;
-    min-height: 72px;
-    padding-top: 2px;
+  /* Portraitrotate-gate arkasında kalır; dar genişlikte sığsın diye
+     taban ve dash birlikte bir kademe küçülür. */
+  .twin-stick-half .phone-joy-base {
+    width: min(112px, 100%);
+    height: min(112px, 100%);
   }
 
-  .twin-action-cluster {
+  .twin-aim-half .twin-action-cluster {
     flex-direction: row;
     height: auto;
+  }
+
+  .twin-aim-half .twin-action-cluster .action-dash-btn {
+    width: clamp(56px, 16vw, 68px);
+    height: clamp(56px, 16vw, 68px);
+    min-width: 56px;
+    min-height: 56px;
   }
 }
 

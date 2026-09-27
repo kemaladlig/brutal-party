@@ -230,11 +230,11 @@ function mountTwinStickAction(gamepad, container, schema) {
 
   const moveLabel = t('pad.guideJoystick');
   const aimLabel = t('pad.guideAim');
-  const actionZoneHtml = actions.length > 0
-    ? `<div class="twin-action-zone" data-controller-layout-target="right">${actionHtml}</div>`
-    : '';
+  // Twin standart: iki sütun (sol move / sağ aim). Aksiyon üçüncü sütun
+  // değildir; aim köşede kalır, dash aim yarısının iç yanına rıhtımlanır.
+  // Böylece sağ grup tek rect olur ve layout resolver tek dx/dy üretir.
   container.innerHTML = `
-    <div class="twin-stick-action-view">
+    <div class="twin-stick-action-view${actions.length > 0 ? ' has-twin-action' : ''}">
       <div class="twin-stick-half twin-move-half" data-controller-layout-target="left" id="${moveZoneId}" aria-label="${escapeHtml(moveLabel)}">
         <div class="phone-joy-base" style="border-color: ${gamepad.playerColor};">
           <div class="phone-joy-knob" id="${moveKnobId}" style="${deckColorStyle(gamepad.playerColor)}"></div>
@@ -242,12 +242,12 @@ function mountTwinStickAction(gamepad, container, schema) {
         <span class="twin-stick-label">${escapeHtml(moveLabel)}</span>
       </div>
       <div class="twin-stick-half twin-aim-half" data-controller-layout-target="right" id="${aimZoneId}" aria-label="${escapeHtml(aimLabel)}">
+        ${actionHtml}
         <div class="phone-joy-base" style="border-color: ${gamepad.playerColor};">
           <div class="phone-joy-knob" id="${aimKnobId}" style="${deckColorStyle(gamepad.playerColor)}"></div>
         </div>
         <span class="twin-stick-label">${escapeHtml(aimLabel)}</span>
       </div>
-      ${actionZoneHtml}
     </div>
   `;
 

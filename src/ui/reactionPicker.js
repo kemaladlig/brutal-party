@@ -8,8 +8,7 @@
 // Modal semantiği `overlayHost`'un sahipliğindedir (odak trap, Escape, scrim).
 
 import { openOverlay, closeOverlay } from './overlayHost.js';
-import { REACTIONS, reactionColorOf } from '../core/reactions.js';
-import { getTabletopIconSvg } from '../core/tabletopIcons.js';
+import { REACTIONS, reactionGlyph } from '../core/reactions.js';
 import { t } from '../i18n.js';
 import { escapeHtml } from '../net.js';
 import { vibrate } from '../core/haptics.js';
@@ -36,8 +35,8 @@ function renderContent(el) {
       <div class="reaction-picker-grid">
         ${REACTIONS.map((r) => `
           <button class="reaction-pick" type="button" data-reaction="${r.key}"
-            aria-label="${escapeHtml(t(r.labelKey))}" title="${escapeHtml(t(r.labelKey))}">
-            ${getTabletopIconSvg(r.key, { size: 28, color: reactionColorOf(r.key) || 'currentColor', strokeWidth: 2.2 })}
+            style="--pick-accent: ${r.color}" aria-label="${escapeHtml(t(r.labelKey))}" title="${escapeHtml(t(r.labelKey))}">
+            <span class="reaction-pick-glyph">${reactionGlyph(r.key)}</span>
           </button>`).join('')}
       </div>
     </div>`;
@@ -85,12 +84,25 @@ function openReactionPicker(senderName = DEFAULT_SENDER) {
 function bindTriggers() {
   if (triggerBound) return;
   triggerBound = true;
+  hydrateGlyphSlots(document);
   document.addEventListener('click', (e) => {
     const trigger = e.target.closest?.('[data-reaction-open]');
     if (!trigger) return;
     e.preventDefault();
     e.stopPropagation();
     openReactionPicker(trigger.dataset.reactionSend);
+  });
+}
+
+/**
+ * Statik markup'taki `[data-reaction-glyph="<key>"]` yuvalarını gerçek emoji
+ * ile doldurur (ikon yuvasıyla aynı fikir: markup yalnız yeri işaretler,
+ * glyph tek kaynaktan gelir). Idempotent.
+ */
+function hydrateGlyphSlots(root) {
+  root.querySelectorAll('[data-reaction-glyph]').forEach((slot) => {
+    const glyph = reactionGlyph(slot.dataset.reactionGlyph);
+    if (glyph && slot.textContent !== glyph) slot.textContent = glyph;
   });
 }
 

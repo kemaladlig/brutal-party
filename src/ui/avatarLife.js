@@ -22,12 +22,12 @@ import { spawnBoingSparks, stepSparks } from './avatarStage.js';
 
 const PRESETS = {
   // Ana menü / oda sahnesi: karakter büyük (r≈163), tepki UZAKTAN okunmalı.
-  // İfade olarak WINK yerine STAR — dolgulu altın yıldızlar silüeti
-  // bozmadan uzaktan okunan tek ifade.
+  // İfade olarak WINK yerine STAR — mutlu kısık gözler (∩∩) uzaktan
+  // tek bakışta okunur, yıldız dolgular çamur oluyordu.
   home: {
-    jumpImpulse: 2.2,
-    idleImpulse: 1.1,
-    gravity: 4.2,
+    jumpImpulse: 3.0,
+    idleImpulse: 1.6,
+    gravity: 9.0,
     shadowDepthRef: 1.8,
     idleHopPeriod: 7.5,
     excitedExpression: 'STAR',
@@ -48,9 +48,9 @@ const PRESETS = {
   },
   // Atölye kartı — customizeModal'daki bugünkü davranışın sayısal karşılığı.
   modal: {
-    jumpImpulse: 1.8,
-    idleImpulse: 1.5,
-    gravity: 4.2,
+    jumpImpulse: 2.5,
+    idleImpulse: 1.8,
+    gravity: 9.0,
     shadowDepthRef: 1.8,
     idleHopPeriod: 4.8,
     excitedExpression: 'WINK',
@@ -74,6 +74,13 @@ const PRESETS = {
 const GAZE_LERP_RATE = 7.5; // sn⁻¹ — eski wrap'lı açısal interpolasyon hızı
 const POP_EASE_RATE = 10;   // sn⁻¹ — eski squash→1 yakınsaması
 const RING_DECAY_RATE = 2.2;
+// Düşüş çarpanı: iniş yerçekimi çıkışın bu katıdır — tepkisel his buradan
+// gelir (yükseliş okunaklı kalır, alçalma sarkmaz).
+const FALL_GRAVITY_MULT = 1.7;
+// Havada poke kısmi destektir: yükselen hıza bu oranda eklenir, taze itki
+// hızı tavandır. Üst üste basış hızı sıfırlayıp tepede asılı bırakıyordu.
+const AIR_POKE_FRACTION = 0.45;
+const FALL_POKE_FRACTION = 0.6;
 
 /**
  * @param {Object} [options]
@@ -121,7 +128,8 @@ export function createAvatarLife({ preset = 'home', reducedMotion = () => false 
       jumpY = 0;
       jumpVy = 0;
     } else if (jumpY < 0 || jumpVy !== 0) {
-      jumpVy += cfg.gravity * r * dt;
+      const g = (jumpVy > 0 ? cfg.gravity * FALL_GRAVITY_MULT : cfg.gravity) * r;
+      jumpVy += g * dt;
       jumpY += jumpVy * dt;
       if (jumpY >= 0) {
         jumpY = 0;
@@ -194,7 +202,14 @@ export function createAvatarLife({ preset = 'home', reducedMotion = () => false 
   function poke(p) {
     const r = Math.max(1, p.radius);
     if (!reducedMotion()) {
-      jumpVy = -cfg.jumpImpulse * r;
+      const fresh = -cfg.jumpImpulse * r;
+      if (jumpY === 0 && jumpVy === 0) {
+        jumpVy = fresh;
+      } else if (jumpVy < 0) {
+        jumpVy = Math.max(fresh, jumpVy - cfg.jumpImpulse * AIR_POKE_FRACTION * r);
+      } else {
+        jumpVy = fresh * FALL_POKE_FRACTION;
+      }
       if (jumpY > 0) jumpY = 0;
       pop = cfg.popPoke;
     }
