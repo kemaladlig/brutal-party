@@ -23,12 +23,6 @@ test('accepts controller actions used by every online game schema', () => {
     { action: 'SPIN' },
     { action: 'SNAKE_BOOST' },
     { action: 'SNAKE_BOOST_RELEASE' },
-    { action: 'ARCHER_CHARGE' },
-    { action: 'ARCHER_CHARGE_END' },
-    { action: 'LASER_AIM' },
-    { action: 'LASER_FIRE' },
-    { action: 'HORDE_FIRE' },
-    { action: 'HORDE_FIRE_RELEASE' },
     { action: 'NINJA_SMOKE' },
     { action: 'SWITCH_SLOT', targetSlot: 2 },
     { action: 'SET_NAME', name: 'PLAYER' },
@@ -50,6 +44,9 @@ test('rejects malformed or out-of-range network input', () => {
   assert.equal(isValidNetworkInput({ action: 'SNAKE_STEER', dir: 2 }), false);
   assert.equal(isValidNetworkInput({ action: 'SWITCH_SLOT', targetSlot: 4 }), false);
   assert.equal(isValidNetworkInput({ action: 'UNKNOWN' }), false);
+  for (const action of ['SNAKE_DIR', 'ARCHER_CHARGE', 'ARCHER_CHARGE_END', 'LASER_AIM', 'LASER_FIRE', 'LASER_FIRE_RELEASE', 'HORDE_FIRE', 'HORDE_FIRE_RELEASE']) {
+    assert.equal(isValidNetworkInput({ action }), false, `${action} artik kabul edilmemeli`);
+  }
 });
 
 // `roundGap` 8 Hz paketin tek yeni alanı: kumanda raunt boşluğunun süresini

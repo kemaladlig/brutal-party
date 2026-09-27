@@ -751,15 +751,7 @@ export class SnakeGame extends BaseMiniGame {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
 
-    if (isInputIntent(data, 'direction') || data.action === 'SNAKE_DIR') {
-      if (Number.isFinite(data.angle)) {
-        player.targetAngle = data.angle;
-      } else if (Number.isFinite(data.dx) && Number.isFinite(data.dy) && (data.dx !== 0 || data.dy !== 0)) {
-        player.targetAngle = Math.atan2(data.dy, data.dx);
-      }
-      player.steer = 0;
-      player.remoteSteerActive = false;
-    } else if (isInputIntent(data, 'steer') || data.action === 'SNAKE_STEER' || data.action === 'CURVE_STEER') {
+    if (isInputIntent(data, 'steer') || data.action === 'SNAKE_STEER' || data.action === 'CURVE_STEER') {
       player.steer = Number.isFinite(data.dir) ? data.dir : 0;
       player.remoteSteerActive = (player.steer !== 0);
       if (player.steer !== 0) player.targetAngle = null;

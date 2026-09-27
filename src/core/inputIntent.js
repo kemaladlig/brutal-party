@@ -59,17 +59,6 @@ export function normalizeInputIntent(data, descriptor = null, source = 'network'
     case 'SNAKE_STEER':
       intent = { type: 'steer', control: 'steer', value: Number(data.dir) || 0 };
       break;
-    case 'SNAKE_DIR': {
-      const angle = Number(data.angle);
-      intent = {
-        type: 'direction',
-        control: 'joystick',
-        angle: Number.isFinite(angle) ? angle : null,
-        dx: Number(data.dx) || 0,
-        dy: Number(data.dy) || 0,
-      };
-      break;
-    }
     case 'TANK_DRIVE':
       intent = { type: 'drive', control: 'pedal', value: data.driving === true };
       break;

@@ -53,10 +53,6 @@ export function isValidNetworkInput(data) {
     case 'SNAKE_STEER':
       return data.dir === -1 || data.dir === 0 || data.dir === 1;
 
-    case 'SNAKE_DIR':
-      return finiteNum(data.angle)
-        || (finiteNum(data.dx) && finiteNum(data.dy));
-
     case 'TANK_DRIVE':
       return typeof data.driving === 'boolean';
 
@@ -67,13 +63,6 @@ export function isValidNetworkInput(data) {
     case 'SPIN':
     case 'SNAKE_BOOST':
     case 'SNAKE_BOOST_RELEASE':
-    case 'ARCHER_CHARGE':
-    case 'ARCHER_CHARGE_END':
-    case 'LASER_AIM':
-    case 'LASER_FIRE':
-    case 'LASER_FIRE_RELEASE':
-    case 'HORDE_FIRE':
-    case 'HORDE_FIRE_RELEASE':
     case 'NINJA_SMOKE':
       return true;
 

@@ -1640,22 +1640,6 @@ export class HordeGame extends BaseMiniGame {
         joy.angle = Number.isFinite(data.angle) ? data.angle : Math.atan2(dy, dx);
         joy.force = force;
       }
-    } else if ((matchesInputAction(data, 'fire', 'HORDE_FIRE', 'press') || data.action === 'HORDE_FIRE') && this.state === 'PLAYING') {
-      const angle = player.angle;
-      this.handleSlotAimStart(slotIndex, {
-        dx: Math.cos(angle),
-        dy: Math.sin(angle),
-        angle,
-        force: 1,
-      }, { source: data.intent?.source || 'network' });
-    } else if (matchesInputAction(data, 'fire', 'HORDE_FIRE_RELEASE', 'release') || data.action === 'HORDE_FIRE_RELEASE') {
-      const angle = player.angle;
-      this.handleSlotAimEnd(slotIndex, {
-        dx: Math.cos(angle),
-        dy: Math.sin(angle),
-        angle,
-        force: 1,
-      }, { source: data.intent?.source || 'network', cancelled: false });
     } else if (matchesInputAction(data, 'dash', 'DASH')) {
       this.triggerDash(slotIndex);
     }

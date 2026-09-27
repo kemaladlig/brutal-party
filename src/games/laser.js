@@ -1062,24 +1062,6 @@ export class LaserGame extends BaseMiniGame {
           joy.force = 0;
         }
       }
-    } else if (matchesInputAction(data, 'fire', 'LASER_AIM', 'press') || data.action === 'LASER_AIM') {
-      const angle = player.angle;
-      this.handleSlotAimStart(slotIndex, {
-        dx: Math.cos(angle),
-        dy: Math.sin(angle),
-        angle,
-        force: 1,
-      }, { source: data.intent?.source || 'network' });
-    } else if (matchesInputAction(data, 'fire', 'LASER_FIRE', 'release')
-      || data.action === 'LASER_FIRE'
-      || data.action === 'LASER_FIRE_RELEASE') {
-      const angle = player.targetAngle ?? player.angle;
-      this.handleSlotAimEnd(slotIndex, {
-        dx: Math.cos(angle),
-        dy: Math.sin(angle),
-        angle,
-        force: 1,
-      }, { source: data.intent?.source || 'network', cancelled: false });
     } else if (matchesInputAction(data, 'fire', 'TANK_FIRE')) {
       this.fireLaser(player);
     } else if (matchesInputAction(data, 'dash', 'DASH')) {

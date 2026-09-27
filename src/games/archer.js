@@ -12,7 +12,7 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateArcherBotAI } from '../ai/archerAI.js';
 import { buildLayout } from '../core/arenaKit.js';
 import { readSlotKeys } from '../core/inputMaps.js';
-import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
+import { isInputIntent } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { updateMovers, clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
@@ -770,22 +770,6 @@ export class ArcherGame extends BaseMiniGame {
         player.steerY = 0;
         player.remoteActive = false;
       }
-    } else if (matchesInputAction(data, 'charge', 'ARCHER_CHARGE', 'press') || data.action === 'ARCHER_CHARGE') {
-      const angle = player.angle;
-      this.handleSlotAimStart(slotIndex, {
-        dx: Math.cos(angle),
-        dy: Math.sin(angle),
-        angle,
-        force: 1,
-      }, { source: data.intent?.source || 'network' });
-    } else if (matchesInputAction(data, 'charge', 'ARCHER_CHARGE_END', 'release') || data.action === 'ARCHER_CHARGE_END') {
-      const angle = player.angle;
-      this.handleSlotAimEnd(slotIndex, {
-        dx: Math.cos(angle),
-        dy: Math.sin(angle),
-        angle,
-        force: 1,
-      }, { source: data.intent?.source || 'network', cancelled: false });
     }
   }
 
