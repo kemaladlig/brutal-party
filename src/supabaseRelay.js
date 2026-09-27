@@ -529,7 +529,7 @@ export class SupabaseRelay {
         name: p.name,
         color: p.color,
         isReady: !!this.ready[idx],
-        kind: p.isBot ? 'bot' : 'human',
+        kind: p.isBot ? (p.kind || 'bot') : 'human',
         isHost: !!p.isHost,
       };
       if (!p.isBot && p.avatar) entry.avatar = p.avatar;
