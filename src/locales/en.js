@@ -676,6 +676,7 @@ export const EN = {
   'pad.countBadge': '{icon:hourglass} MATCH STARTING',
   'pad.go': 'GO!',
   'pad.countSub': 'HOLD PHONE • WATCH SCREEN',
+  'pad.roundGap': 'NEXT ROUND {0}s',
   'pad.orient': 'ROTATE FOR CONSOLE',
   'pad.orientTitle': 'Rotate / fullscreen for console feel',
   'pad.rotateTitle': 'ROTATE PHONE SIDEWAYS',

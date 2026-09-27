@@ -1651,6 +1651,39 @@ export class GamepadManager {
     }
   }
 
+  /**
+   * Raunt boşluğu rozeti — "bam diye başlıyor" şikâyetinin kumanda ayağı.
+   *
+   * Host canvas'ı raunt sonucunu bir bantta gösteriyor, ama kumanda o boşluğun
+   * FARKINDA değildi: paket yalnız skor taşıyordu, dolayısıyla telefonda ekran
+   * bir sonraki raunta atladığı anda değişiyordu. `roundGap` boşluk boyunca
+   * sıfırdan farklıdır; rozet kalan süreyi ve dolayısıyla tepki payını bildirir.
+   *
+   * Yerel (tek cihaz) yüzeyde bilinçli olarak YOK: orada bant zaten aynı
+   * ekranın üstünde, rozet aynı bilgiyi iki yere basardı.
+   */
+  _syncRoundGap(data) {
+    const hud = this._el('gamepad-hud');
+    if (!hud) return;
+    const left = Number(data.roundGap) || 0;
+    let chip = this._el('round-gap-chip');
+    if (!chip) {
+      if (left <= 0) return;
+      chip = document.createElement('div');
+      chip.id = 'round-gap-chip';
+      chip.className = 'round-gap-chip';
+      chip.setAttribute('aria-live', 'polite');
+      hud.appendChild(chip);
+    }
+    if (left > 0) {
+      const text = t('pad.roundGap', String(Math.ceil(left)));
+      if (chip.textContent !== text) chip.textContent = text;
+      chip.classList.add('is-open');
+      return;
+    }
+    chip.classList.remove('is-open');
+  }
+
   _showMatchResult(data) {
     if (this._resultActive) return;
     this._resultActive = true;
@@ -1820,6 +1853,8 @@ export class GamepadManager {
 
     // Faz 2.4: LOCAL authoritative state sinyaliyle sonuç ekranı açılır/kapanır.
     this._syncMatchResult(data);
+    // Raunt boşluğu rozeti (uzak kumanda): tepki payı görünür olsun.
+    this._syncRoundGap(data);
 
     // Faz 2.2: skor artışlarını sağ üst kill-feed toast'larına çevir.
     this._pushKillFeedFromScores(data);

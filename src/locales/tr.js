@@ -677,6 +677,7 @@ export const TR = {
   'pad.countBadge': '{icon:hourglass} MAÇ BAŞLIYOR',
   'pad.go': 'BAŞLA!',
   'pad.countSub': 'TELEFONU TUT • EKRANA BAK',
+  'pad.roundGap': 'SIRADAKİ RAUNT {0} SN',
   'pad.orient': 'KONSOL İÇİN YATAY ÇEVİR',
   'pad.orientTitle': 'Konsol hissi için yatay çevir / tam ekran',
   'pad.rotateTitle': 'TELEFONU YATAY ÇEVİR',

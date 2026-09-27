@@ -339,6 +339,40 @@
   translate: 0 0;
 }
 
+/* Raunt boşluğu rozeti — HUD şeridinin içinde bir bölüm, ayrı bir katman değil.
+   Bant host canvas'ında zaten var; buradaki işlev "bir sonraki raunta ne kadar
+   var" sorusunun telefonda da okunması ("bam diye başlıyor" şikâyeti).
+
+   `--result-*` ailesi BİLİNÇLİ kullanılmadı: `--result-card` yarı saydam bir
+   beyaz katmandır ve koyu sonuc panelinin ÜSTÜNDE okunur; açık HUD zemininde
+   `--result-ink` ile yan yana gelirse okunmaz metin üretirdi (AGENTS §7).
+   Bunun yerine bu yüzeyde kanıtlanmış olan altın (`--gold-deep`,
+   `.countdown-badge` ile aynı anlam: geri sayım) ve şeridin kendi kenarı. */
+.round-gap-chip {
+  display: none;
+  align-items: center;
+  padding-left: 10px;
+  border-left: 1.5px solid var(--edge-strong);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--gold-deep);
+}
+
+/* Kapalıyken `display: none`: akışta yer kaplamaz, yokken şerid kaymaz. */
+.round-gap-chip.is-open {
+  display: inline-flex;
+  animation: roundGapIn 180ms ease;
+}
+
+@keyframes roundGapIn {
+  from { opacity: 0; translate: 0 -4px; }
+  to { opacity: 1; translate: 0; }
+}
+
 .hud-live-status,
 .tactical-role-text {
   min-width: 0;

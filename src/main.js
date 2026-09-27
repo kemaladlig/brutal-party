@@ -68,6 +68,7 @@ import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange, fullscreenOfferable } from './ui/fullscreen.js';
 import { getTabletopIconSvg, drawTabletopIcon } from './core/tabletopIcons.js';
 import { getSlotSwapError } from './core/slotRules.js';
+import { roundGapSeconds } from './core/roundLifecycle.js';
 import { showReaction, clearReactions, setReactionFieldAnchor } from './ui/reactionLayer.js';
 import { ensureReactionTriggers, setReactionSender } from './ui/reactionPicker.js';
 import { getControlDescriptor } from './core/controlDescriptor.js';
@@ -1929,6 +1930,12 @@ function broadcastGameStateIfNeeded(now) {
     if (entry) Object.assign(packet, entry.packet());
     packet.phase = roomPhase();
     if (countdownTimer) packet.t = lastCountdownT;
+    // Raunt boşluğu: kumanda "bir sonraki raunta ne kadar var"ı görsün. Okuma
+    // `roundLifecycle.roundGapSeconds`'tedir — motorlar sayacı farklı adta
+    // tutuyor ve bu dosyaya oyun-özel dal yazılmaz (AGENTS §8).
+    // `state` alanAK gönderilmedi: HUD'ın `quiet` listesi MATCH_OVER'ı sayıyor,
+    // `state` gitseydi uzak kumanda maç sonunda skor şeridini kaybederdi.
+    packet.roundGap = roundGapSeconds(entry?.game);
   }
   packet.names = hostPlayerSlots.map((p) => (p ? p.name : null));
 
