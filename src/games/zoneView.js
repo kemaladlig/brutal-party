@@ -284,7 +284,8 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
       ctx.lineWidth = cell * (isHazard ? 1.25 : 1.05);
       ctx.globalAlpha = isHazard ? (0.6 + 0.4 * Math.sin(nowSec * 16)) : 0.4;
       ctx.beginPath();
-      ctx.moveTo(p.trailStart[0], p.trailStart[1]);
+      const ts0 = Array.isArray(p.trailStart) ? p.trailStart : [p.x, p.y];
+      ctx.moveTo(ts0[0], ts0[1]);
       for (const ci of p.trail) {
         const c = cellCenter(ci);
         ctx.lineTo(c.x, c.y);
@@ -301,7 +302,8 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
       ctx.lineDashOffset = -(nowSec * 32) % 14;
     }
     ctx.beginPath();
-    ctx.moveTo(p.trailStart[0], p.trailStart[1]);
+    const ts = Array.isArray(p.trailStart) ? p.trailStart : [p.x, p.y];
+    ctx.moveTo(ts[0], ts[1]);
     for (const ci of p.trail) {
       const c = cellCenter(ci);
       ctx.lineTo(c.x, c.y);

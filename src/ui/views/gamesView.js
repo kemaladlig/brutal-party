@@ -1,10 +1,10 @@
 // OYUNLAR — sol gezinmenin kalıcı hedefi: 15 oyunun GALERİSİ (lobinin kardeş dili).
 //
 // Sekmeler MERKEZİ `tabStrip.js` bileşeninden gelir (KARAKTER editörü de aynı
-// bileşeni kullanır). Izgara SAYFALIDIR: her sayfada ekrana sığan 8 kapak
-// (4×2 hücre, taşma yok — "hepsi tek seferde görünmek zorunda değil" kararı),
-// sayfa okları ile gezinilir. Sağ kolonda seçili oyunun kahramanı (büyük
-// kapak + ad + taktik ipucu) ve tek altın CTA `▶ OYNA`. Kart SEÇER, CTA başlatır.
+// bileşeni kullanır). Izgara DİKEY KAYAR: kapsüllenmiş iç scroller'da 4 sütun,
+// tüm filtre sonucu tek akışta (sayfalama kaldırıldı — kullanıcı kararı).
+// Sağ kolonda seçili oyunun kahramanı (büyük kapak + ad + taktik ipucu)
+// ve tek altın CTA `▶ OYNA`. Kart SEÇER, CTA başlatır.
 //
 // Veri kaynağı değişmedi: `CARTRIDGES` + `GAME_ORDER` (registry tek nokta).
 
@@ -13,7 +13,6 @@ import { t, onLangChange } from '../../i18n.js';
 import { getTabletopIconSvg } from '../../core/tabletopIcons.js';
 import { createTabStrip } from '../tabStrip.js';
 import { registerView } from './registry.js';
-import { playMenuTick } from '../../audio.js';
 
 function el(tag, className, html) {
   const node = document.createElement(tag);
@@ -22,7 +21,7 @@ function el(tag, className, html) {
   return node;
 }
 
-const ART = (mode) => `/assets/games/${String(mode).toLowerCase()}.jpg`;
+const ART = (mode) => `/assets/games/${String(mode).toLowerCase()}.webp`;
 
 // Kategori tek kaynağı CARTRIDGES.category'dir (registry'de tanımlı).
 const CATEGORIES = [
@@ -35,8 +34,7 @@ const CATEGORIES = [
 
 const categoryById = (id) => CATEGORIES.find((c) => c.id === id);
 
-// 4 sütun × 2 satır = sayfa başına 8 kapak (games.css `.games-grid` ile birebir).
-const PAGE_SIZE = 8;
+// 4 sütun, satırlar içeriğe göre uzar; ızgara dikey kayar (iç scroller).
 
 function gameCard(mode, index) {
   const cart = CARTRIDGES[mode];
@@ -82,32 +80,16 @@ registerView('games', {
 
     const body = el('div', 'games-body');
 
-    // ── Sol/ana alan: sekme şeridi + sayfalı kapak ızgarası ────────────────
+    // ── Sol/ana alan: sekme şeridi + kayan kapak ızgarası ─────────────────
     const main = el('div', 'games-main');
 
     const tabs = createTabStrip({
       items: CATEGORIES.map((cat) => ({ id: cat.id, label: cat.label, icon: cat.icon })),
-      onChange: (id) => { state.category = id; state.page = 0; renderPage(); },
+      onChange: (id) => { state.category = id; renderFilter(); },
     });
 
-    const pageLabel = el('span', 'games-page-label', '');
-    const pagePrev = el('button', 'tab-btn games-page-btn', getTabletopIconSvg('arrow_left', { size: 14, strokeWidth: 2.4 }));
-    const pageNext = el('button', 'tab-btn games-page-btn', getTabletopIconSvg('arrow_right', { size: 14, strokeWidth: 2.4 }));
-    for (const [btn, dir] of [[pagePrev, -1], [pageNext, 1]]) {
-      btn.type = 'button';
-      btn.dataset.focus = 'tab';
-      btn.tabIndex = -1;
-      btn.addEventListener('click', () => {
-        playMenuTick();
-        state.page += dir;
-        renderPage();
-      });
-    }
-    const pager = el('div', 'games-pager');
-    pager.append(pagePrev, pageLabel, pageNext);
-
     const head = el('div', 'games-head');
-    head.append(tabs.node, pager);
+    head.append(tabs.node);
 
     const grid = el('div', 'games-grid');
     grid.setAttribute('role', 'list');
@@ -146,8 +128,8 @@ registerView('games', {
     body.append(main, side);
     view.append(body);
 
-    // ── Seçim + sayfalama: tek yerden boyanır ──────────────────────────────
-    const state = { category: 'all', page: 0 };
+    // ── Seçim + filtre: tek yerden boyanır ─────────────────────────────────
+    const state = { category: 'all' };
     let activeMode = null;
 
     const visibleModes = () => GAME_ORDER.filter(
@@ -175,20 +157,12 @@ registerView('games', {
       preloadEngine(mode);
     }
 
-    function renderPage() {
+    function renderFilter() {
       const list = visibleModes();
-      const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
-      state.page = Math.min(Math.max(state.page, 0), pages - 1);
-      const start = state.page * PAGE_SIZE;
-      const shown = new Set(list.slice(start, start + PAGE_SIZE));
+      const shown = new Set(list);
       tiles.forEach((tile, mode) => { tile.hidden = !shown.has(mode); });
 
-      pager.hidden = pages < 2;
-      pageLabel.textContent = `${state.page + 1} / ${pages}`;
-      pagePrev.disabled = state.page === 0;
-      pageNext.disabled = state.page >= pages - 1;
-
-      if (activeMode && !shown.has(activeMode)) select(list[start] || list[0]);
+      if (activeMode && !shown.has(activeMode)) select(list[0]);
       // Odak listesi değişti: shell'e tazeleme sinyali.
       refreshFocus?.();
     }
@@ -199,7 +173,7 @@ registerView('games', {
       if (mode) select(mode);
     });
     select(GAME_ORDER[0]);
-    renderPage();
+    renderFilter();
 
     function applyTexts() {
       CATEGORIES.forEach((cat) => {

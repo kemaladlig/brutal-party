@@ -64,7 +64,7 @@ test('poke jumps: shadow lifts off ground, STAR face, sparks, ring pulse', () =>
   assert.equal(life.sparks.length, 10);
   assert.ok(first.ringPulse > 0.9);
 
-  // Tepe yüksekliği ≈ impulse²/(2·g) = 1.8²/8.4 = 0.386r → gölge ≈ 0.79.
+  // Tepe yüksekliği ≈ impulse²/(2·g) = 2.2²/8.4 = 0.576r → gölge ≈ 0.68.
   let minShadow = 1;
   for (let t = T0 + 32; t < T0 + 1000; t += FRAME * 1000) {
     minShadow = Math.min(minShadow, life.step(t, FRAME, R, BASE).shadowScale);

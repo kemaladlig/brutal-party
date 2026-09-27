@@ -91,13 +91,26 @@ function bodyAoGradient(ctx, r) {
  * @param {number} y - Merkez Y
  * @param {number} radius - Avatar yarıçapı
  * @param {Object} options - Özelleştirme ve durum bayrakları
- */export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotIdx = typeof options.slotIndex === 'number' ? options.slotIndex : null;
+ */
+// Perf: getAvatarProfile her çağrıda localStorage + JSON.parse yapar.
+// Karede 4-16 avatar çizilir; 100ms TTL cache ile 1'e düşer.
+let _profileCache = null;
+let _profileCacheAt = 0;
+function cachedAvatarProfile() {
+  const now = performance.now();
+  if (_profileCache && now - _profileCacheAt < 100) return _profileCache;
+  try { _profileCache = getAvatarProfile(); } catch { _profileCache = null; }
+  _profileCacheAt = now;
+  return _profileCache;
+}
+
+export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotIdx = typeof options.slotIndex === 'number' ? options.slotIndex : null;
   const isBot = options.isBot || options.slotType === 'bot_normal' || options.slotType === 'bot_god';
   const isGod = options.isGodBot || options.slotType === 'bot_god';
 
   const botPersona = (isBot && slotIdx !== null) ? getBotPersona(slotIdx, isGod) : null;
   const registeredAvatar = slotIdx !== null ? getSlotAvatar(slotIdx) : null;
-  const profileFallback = (() => { try { return getAvatarProfile(); } catch { return null; } })();
+  const profileFallback = cachedAvatarProfile();
 
   // Koltuk avatarı: bot persona → host kayıt defteri (relay) → cihaz profili (LOCAL/fallback).
   // Renk kimlik değildir; display rengi (options.color) her zaman kazanır.
@@ -160,14 +173,18 @@ function bodyAoGradient(ctx, r) {
 
   // 1. Zemin temas gölgesi — yere oturan basık elips. Daire gölge gövdeyi
   // "yüzen sticker" gibi gösteriyordu; elips temas hissi verir.
-  ctx.save();
-  ctx.translate(shadowOffset, r + Math.max(2, r * 0.12));
-  ctx.scale(1, 0.32);
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  // `shadowOffset: 0` gölgeyi kapatır — sahne (`drawAvatarStage`) kendi
+  // zemin gölgesini çizdiği için orada çift gölge olmaması için 0 geçilir.
+  if (shadowOffset > 0) {
+    ctx.save();
+    ctx.translate(shadowOffset, r + Math.max(2, r * 0.12));
+    ctx.scale(1, 0.32);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
   // 1b. Gövde (clip: hacim katmanı daire sınırını geçemesin)
   ctx.save();

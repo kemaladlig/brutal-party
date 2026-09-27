@@ -66,6 +66,8 @@ import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
 import { isFullscreen, requestFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
 import { getTabletopIconSvg } from './core/tabletopIcons.js';
 import { getSlotSwapError } from './core/slotRules.js';
+import { showReaction, clearReactions, setReactionFieldAnchor } from './ui/reactionLayer.js';
+import { ensureReactionTriggers, setReactionSender } from './ui/reactionPicker.js';
 import { getControlDescriptor } from './core/controlDescriptor.js';
 import { InputIntentRouter } from './core/inputRouter.js';
 import {
@@ -88,6 +90,7 @@ const inGameHud = document.getElementById('in-game-hud');
 const btnQuickTvLobby = document.getElementById('btn-quick-tv-lobby');
 const btnQuickFullscreen = document.getElementById('btn-quick-fullscreen');
 const quickFullscreenIcon = document.getElementById('quick-fullscreen-icon');
+const btnQuickReact = document.getElementById('btn-quick-react');
 const btnOpenOptions = document.getElementById('btn-open-options');
 
 // Platform / Match Mode: 'LOCAL' | 'TV_CONSOLE' | 'ONLINE'
@@ -105,6 +108,42 @@ export function updatePlatformMode(newMode) {
 
 export function activeNet() {
   return getActiveNetwork(platformMode);
+}
+
+// ── Tepkiler (lobi + oyun içi) ────────────────────────────────────────────
+// Tek görsel katman, tek gönderici. Yüzeyler yalnız `data-reaction-open`
+// işaretler; balonların konumu `data-reaction-anchor` ya da aşağıdaki saha
+// çapasıyla bulunur. Oyun içi saha = viewport px (canvas fixed 0,0 tam ekran),
+// dolayısıyla motor varlık koordinatı doğrudan ekran koordinatıdır.
+setReactionFieldAnchor((slotIndex) => {
+  const engine = getActiveGameEngine();
+  const entity = engine?.getEntitiesList?.()?.[slotIndex];
+  if (!entity || !Number.isFinite(entity.x) || !Number.isFinite(entity.y)) return null;
+  // Baş üstü göstergelerin (cephane/can/halka) ÜSTÜNDE kalsın.
+  return { x: entity.x, y: entity.y - (entity.radius || 18) - 28 };
+});
+
+ensureReactionTriggers();
+
+setReactionSender('host', (key) => {
+  const net = activeNet();
+  if (!net.isHosting) return false;
+  const seat = getCurrentHostSeat();
+  const slotIndex = Number.isInteger(seat) ? seat : -1;
+  const sent = net.sendHostReaction?.(slotIndex, key) === true;
+  // Kendi tepkimiz sunucudan dönmez; yerel geri besleme anlıktır.
+  showReaction({ key, slotIndex, color: net.players?.[slotIndex]?.color || null });
+  return sent;
+});
+
+function updateReactionButtons(hosting) {
+  // Tepki gönderimi yalnız odada anlamlı: LOCAL'de alıcı yok.
+  btnQuickReact?.classList.toggle('hidden', !hosting);
+}
+
+function onNetworkReaction(slotIndex, key) {
+  const color = activeNet().players?.[slotIndex]?.color || null;
+  showReaction({ key, slotIndex, color });
 }
 
 // State Machine: 'MENU' + GAME_ORDER ('PONG' | 'TANKS' | 'CURVE' | 'BOMB' | 'HEIST' | 'ARCHER')
@@ -172,10 +211,22 @@ function neutralizeTransientInput() {
 }
 
 // High-DPI & Responsive 1:1 Canvas Resizing
+// Perf: Adaptive DPR — canvas piksel sayısını MAX_CANVAS_PIXELS ile sınırlar.
+// Orta model Android cihazlarda (2.5-3.0 DPR) 6.5M px → ~2.1M px düşürür;
+// 2D Canvas oyunda algılanabilir kalite farkı yoktur, GPU fill-rate yarıya iner.
+const MAX_CANVAS_PIXELS = 2_100_000;
+
+function effectiveDpr(width, height) {
+  const raw = Math.min(window.devicePixelRatio || 1, 2.5);
+  const pixels = width * height * raw * raw;
+  if (pixels <= MAX_CANVAS_PIXELS) return raw;
+  return Math.max(1, Math.sqrt(MAX_CANVAS_PIXELS / (width * height)));
+}
+
 function resizeCanvas() {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
   const width = window.innerWidth;
   const height = window.innerHeight;
+  const dpr = effectiveDpr(width, height);
 
   canvas.width = Math.floor(width * dpr);
   canvas.height = Math.floor(height * dpr);
@@ -249,6 +300,8 @@ export async function setGameMode(mode) {
     if (btnQuickTvLobby) {
       btnQuickTvLobby.classList.add('hidden');
     }
+    updateReactionButtons(false);
+    clearReactions();
 
     // MENU: shell görünür olur ve görünüm yığını köke döner.
     revealAppShell();
@@ -285,6 +338,7 @@ export async function setGameMode(mode) {
   if (btnQuickTvLobby) {
     btnQuickTvLobby.classList.toggle('hidden', !activeNet().isHosting);
   }
+  updateReactionButtons(activeNet().isHosting);
 
   hideAppShell();
   inGameHud.classList.remove('hidden');
@@ -612,9 +666,7 @@ async function openHostLobby(gameMode = 'HORDE') {
           inputRouter.dispatch(slotIndex, data, 'network');
         }
       },
-      onPlayerReaction: (slotIndex, emoji) => {
-        showInstallToast(`P${slotIndex + 1}: ${emoji}`);
-      },
+      onPlayerReaction: onNetworkReaction,
     }, hostIdentity);
   } catch (err) {
     console.error('[Host] Oda açılamadı:', err);
@@ -856,6 +908,11 @@ async function executeJoin(rawCode, rawName, requestedMode = null) {
           net.reservedHostSlot = Number.isInteger(reservedHostSlot) ? reservedHostSlot : null;
         }
         gamepadManager.updateSlots(slots, net.reservedHostSlot);
+      },
+      // Kumanda ekranında kimlik rengi `gamepadManager.slots`'tan gelir (skor
+      // çipiyle aynı kaynak); relay/WS `players` dizisi yalnız host'ta doludur.
+      onPlayerReaction: (slotIndex, key) => {
+        showReaction({ key, slotIndex, color: gamepadManager.slots?.[slotIndex]?.color || null });
       },
       onGameState: (data) => {
         if (connectionWasDown) markConnectionRestored();
@@ -1799,13 +1856,13 @@ function samePacket(a, b) {
 function broadcastGameStateIfNeeded(now) {
   if (!activeNet().isHosting) return;
 
-  const intervalElapsed = now - lastBroadcastTime >= 125;
-  // Paket her karede kurulur (değişiklik tespiti için şart) ama pahalı
-  // stringify yalnızca kirlenme varsa veya 125ms taban dolduysa çalışır.
+  // Perf: paket kurulumu ve stringify pahalıdır (60 Hz × derin nesne);
+  // 125ms dolmadıysa hiçbir iş yapma — kritik olaylar (skor, taşıyıcı)
+  // zaten ayrı hızlı yoldan anında gönderilir.
+  if (now - lastBroadcastTime < 125) return;
+
   let packet;
   if (currentMode === 'MENU') {
-    // Boşta tiny paket: kirlenme kontrollü olduğu için ~1 kez gider, sonra susar.
-    // Kumandalar kaçırdıkları LOBBY dönüşünü buradan yakalar.
     packet = { gameMode: 'MENU', phase: 'LOBBY' };
   } else {
     packet = { gameMode: currentMode };
@@ -1816,10 +1873,8 @@ function broadcastGameStateIfNeeded(now) {
   }
   packet.names = hostPlayerSlots.map((p) => (p ? p.name : null));
 
-  if (samePacket(packet, lastBroadcastPacket) && !intervalElapsed) return;
-
   const json = JSON.stringify(packet);
-  if (json === lastBroadcastJson && !intervalElapsed) return;
+  if (json === lastBroadcastJson) return;
 
   lastBroadcastTime = now;
   lastBroadcastJson = json;
@@ -1917,7 +1972,26 @@ function renderEngineCrashOverlay(ctx, error) {
   ctx.restore();
 }
 
+// Perf: menüde oyun canvas'ı boş — 60 Hz rAF GPU'yu gereksiz uyandırır.
+// Menüde 4 fps yeterli (animasyon DOM tarafında), oyuna geçince tam hız.
+let _menuIdleTimer = 0;
+
 function loop(timestamp) {
+  // Menu idle guard: canvas oyun dışı, DOM shell aktif.
+  if (currentMode === 'MENU' && !getEngine(currentMode)) {
+    ctx2d.save();
+    ctx2d.fillStyle = UI_COLORS.bg || '#14101F';
+    ctx2d.fillRect(0, 0, window.innerWidth, window.innerHeight);
+    ctx2d.restore();
+    // Hosting sırasında broadcast yine çalışmalı (lobi paketi)
+    try { broadcastGameStateIfNeeded(timestamp); } catch {}
+    // 4 fps idle — GPU neredeyse hiç uyanmaz
+    if (!_menuIdleTimer) {
+      _menuIdleTimer = setTimeout(() => { _menuIdleTimer = 0; requestAnimationFrame(loop); }, 250);
+    }
+    return;
+  }
+
   syncLocalMobileControls(timestamp);
 
   try {
@@ -1951,11 +2025,6 @@ function loop(timestamp) {
         renderPauseOverlay(ctx2d);
       } catch (_) {}
     }
-  } else if (currentMode === 'MENU') {
-    ctx2d.save();
-    ctx2d.fillStyle = UI_COLORS.bg || '#14101F';
-    ctx2d.fillRect(0, 0, window.innerWidth, window.innerHeight);
-    ctx2d.restore();
   }
 
   if (currentMode !== 'MENU') {

@@ -25,7 +25,7 @@ const PRESETS = {
   // İfade olarak WINK yerine STAR — dolgulu altın yıldızlar silüeti
   // bozmadan uzaktan okunan tek ifade.
   home: {
-    jumpImpulse: 1.8,
+    jumpImpulse: 2.2,
     idleImpulse: 1.1,
     gravity: 4.2,
     shadowDepthRef: 1.8,

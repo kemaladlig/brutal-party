@@ -1,4 +1,4 @@
-const CACHE_NAME = 'brutal-party-v17';
+const CACHE_NAME = 'brutal-party-v18';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -6,21 +6,21 @@ const ASSETS_TO_CACHE = [
   '/background.webp',
   '/icon-192.png',
   '/icon-512.png',
-  '/assets/games/pong.jpg',
-  '/assets/games/tanks.jpg',
-  '/assets/games/curve.jpg',
-  '/assets/games/bomb.jpg',
-  '/assets/games/heist.jpg',
-  '/assets/games/archer.jpg',
-  '/assets/games/crown.jpg',
-  '/assets/games/zone.jpg',
-  '/assets/games/snake.jpg',
-  '/assets/games/laser.jpg',
-  '/assets/games/clone.jpg',
-  '/assets/games/collapse.jpg',
-  '/assets/games/ninja.jpg',
-  '/assets/games/horde.jpg',
-  '/assets/games/race.jpg',
+  '/assets/games/pong.webp',
+  '/assets/games/tanks.webp',
+  '/assets/games/curve.webp',
+  '/assets/games/bomb.webp',
+  '/assets/games/heist.webp',
+  '/assets/games/archer.webp',
+  '/assets/games/crown.webp',
+  '/assets/games/zone.webp',
+  '/assets/games/snake.webp',
+  '/assets/games/laser.webp',
+  '/assets/games/clone.webp',
+  '/assets/games/collapse.webp',
+  '/assets/games/ninja.webp',
+  '/assets/games/horde.webp',
+  '/assets/games/race.webp',
 ];
 
 // Runtime cache şişmesin: üst sınırı aşınca en eskiler silinir

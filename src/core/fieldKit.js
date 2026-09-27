@@ -512,9 +512,10 @@ export function paintFieldLayer(ctx, arena, palette, { seed = 1, marks = null, p
 // Offscreen bake + cache
 // ---------------------------------------------------------------------------
 
-// Katman belleği: iki entry, ~2.4M px tavanı. Telefonda 852×393 @2 ≈ 1.3M px.
-const MAX_LAYER_SCALE = 2;
-const MAX_LAYER_PIXELS = 2_400_000;
+// Perf: offscreen katman belleği daraltıldı — 2D oyunda 1.5x bake yeterli,
+// mobilde ~%25 daha az GPU bellek baskısı ve daha hızlı bake.
+const MAX_LAYER_SCALE = 1.5;
+const MAX_LAYER_PIXELS = 1_800_000;
 const MAX_LAYER_ENTRIES = 2;
 
 const layerCache = new Map();

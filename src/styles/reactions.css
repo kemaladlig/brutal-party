@@ -1,0 +1,265 @@
+/* Tepki (reaction) katmanı + seçici — lobi, oyun içi HUD ve kumanda başlığı
+   ORTAK dili. Yüzeyler yalnız `data-reaction-open` / `data-reaction-anchor`
+   işaretler; görünüm ve davranış tek yerdedir. */
+
+/* ── Katman: yalnız görsel, dokunuş yemez ─────────────────────────────── */
+
+.reaction-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.reaction-bubble {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate3d(calc(var(--rx, 50%) - 50%), var(--ry, 50%), 0);
+  will-change: transform;
+}
+
+.reaction-bubble-body {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  height: 52px;
+  padding: 0 10px;
+  border-radius: var(--radius-card);
+  border: 3px solid var(--accent, var(--gold));
+  background-image: var(--grad-card);
+  color: var(--ink);
+  box-shadow: var(--shadow-float);
+  animation: reaction-rise 1400ms cubic-bezier(0.22, 0.9, 0.3, 1) forwards;
+}
+
+.reaction-bubble-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.reaction-bubble-icon svg {
+  display: block;
+}
+
+/* Koltuk etiketi: balonun sağ alt köşesinde oyuncu renginde küçük rozet. */
+.reaction-bubble-tag {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--edge-strong);
+  background-color: var(--accent, var(--gold));
+  color: var(--on-accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 900;
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+}
+
+@keyframes reaction-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.68);
+  }
+  16% {
+    opacity: 1;
+    transform: translateY(0) scale(1.1);
+  }
+  30% {
+    transform: translateY(-7px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-54px) scale(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reaction-bubble-body {
+    animation-name: reaction-fade;
+  }
+}
+
+@keyframes reaction-fade {
+  0%,
+  12% {
+    opacity: 0;
+  }
+  24%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ── Seçici: tek uygulama, üç yüzey ─────────────────────────────────── */
+
+/* Oyun içi HUD düğmesi: `#in-game-hud` sırasındaki 44px buton ailesinin
+   aynı dili (bkz. `hud.css` `btn-quick-fullscreen`). */
+.btn-quick-react {
+  width: 44px;
+  height: 44px;
+  background-color: var(--panel);
+  color: var(--ink);
+  border: 3px solid var(--edge);
+  border-radius: var(--radius-btn);
+  box-shadow: 3px 3px 0 var(--edge-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.08s ease;
+}
+
+.btn-quick-react > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.btn-quick-react:hover {
+  background-color: var(--card);
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--edge-strong);
+}
+
+.btn-quick-react:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--edge-strong);
+  background-color: var(--n-100);
+}
+
+.btn-quick-react.hidden {
+  display: none !important;
+}
+
+.reaction-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top, 16px)) max(16px, env(safe-area-inset-right, 16px))
+    max(16px, env(safe-area-inset-bottom, 16px)) max(16px, env(safe-area-inset-left, 16px));
+  background-color: var(--scrim);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  touch-action: manipulation;
+}
+
+/* Yalnız `openReactionPicker` görünür kılar; kapanış `overlayHost` üzerinden
+   `is-open` düşer (kendi overlay kilidini tutmaz). */
+.reaction-picker.is-open {
+  display: flex;
+}
+
+.reaction-picker-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-card);
+  border: 3px solid var(--edge-strong);
+  background-image: var(--grad-card);
+  box-shadow: var(--shadow-float);
+  animation: reaction-picker-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.reaction-picker-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-align: center;
+  color: var(--muted);
+}
+
+.reaction-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reaction-pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: var(--radius-btn);
+  border: 3px solid var(--edge);
+  background-color: var(--elevated);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+}
+
+.reaction-pick:hover {
+  background-color: var(--panel);
+  transform: translateY(-1px);
+}
+
+.reaction-pick:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--edge-strong);
+}
+
+.reaction-pick svg {
+  display: block;
+}
+
+@keyframes reaction-picker-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reaction-picker-card {
+    animation: none;
+  }
+}
+
+@media (min-width: 560px) {
+  .reaction-picker-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+/* Dokunmatik: ortak diyalog yerine tabandan yükselen şerit (telefon yatay). */
+@media (pointer: coarse) {
+  .reaction-picker {
+    align-items: flex-end;
+  }
+
+  .reaction-picker-card {
+    width: 100%;
+  }
+}

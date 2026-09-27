@@ -71,6 +71,8 @@ function makeTrackingCtx() {
 
 let server;
 let drawAvatarStage;
+let clampBodyYOffset;
+let stageBodyCenter;
 let spawnBoingSparks;
 let stepSparks;
 let drawSparks;
@@ -102,6 +104,8 @@ before(async () => {
   });
   const stage = await server.ssrLoadModule('/src/ui/avatarStage.js');
   drawAvatarStage = stage.drawAvatarStage;
+  clampBodyYOffset = stage.clampBodyYOffset;
+  stageBodyCenter = stage.stageBodyCenter;
   spawnBoingSparks = stage.spawnBoingSparks;
   stepSparks = stage.stepSparks;
   drawSparks = stage.drawSparks;
@@ -119,7 +123,7 @@ function seededRand(seedStart = 1234567) {
 
 const W = 200;
 const H = 200;
-const R = 74; // 200px kutuda %74 gövde
+const R = 68; // 200px kutuda %68 gövde (zıplama paylı)
 const CX = W / 2;
 const CY = H / 2;
 
@@ -151,6 +155,43 @@ test('avatar drawing does not leak canvas state into the frame', () => {
   }
 });
 
+test('body ceiling: single poke untouched, stacked pokes stay inside the bitmap', () => {
+  // Tek dokunuş tepesi (-0.39r): tavana değmez, aynen geçer.
+  const single = -0.386 * R;
+  assert.equal(clampBodyYOffset(CY, R, single, 1), single);
+  // Üçlü istif (-0.99r, pop'lu): tavana takılır, gövde üstü bitmap içinde kalır.
+  const stacked = -0.99 * R;
+  const scale = 1.06;
+  const clamped = clampBodyYOffset(CY, R, stacked, scale);
+  assert.ok(clamped > stacked, 'istif tavana takılmalı');
+  const top = CY + clamped - scale * R * 1.045;
+  assert.ok(top >= 1, `gövde üstü bitmap dışında: ${top.toFixed(2)}px`);
+  // Dejenere küçük kutu gövdeyi aşağı itmez.
+  assert.equal(clampBodyYOffset(4, 6, 0, 1), 0);
+});
+
+test('drawAvatarStage survives a stacked jump offset without leaking state', () => {
+  const ctx = makeTrackingCtx();
+  const depthBefore = ctx.stack.length;
+  drawAvatarStage(ctx, W, H, R, { color: '#2F6A4F', expression: 'STAR', facingAngle: 0 }, -0.99 * R, 0.5, 1);
+  assert.equal(ctx.stack.length, depthBefore);
+  assert.equal(ctx.underflows, 0);
+});
+test('stageBodyCenter: square centers, tall canvas anchors the body to the bottom', () => {
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} ≈ ${b}`);
+  // Kare kutu: merkezle birebir aynı (pik pik geriye uyumlu).
+  const sq = stageBodyCenter(200, 200, 68);
+  near(sq.cx, 100);
+  near(sq.cy, 100);
+  near(sq.groundY, 100 + 68 * 1.02);
+  // Uzun kutu (ana menü 1.4×): gövde altta, zemin gölgesi tabandan kare gap'te.
+  const tall = stageBodyCenter(200, 280, 68);
+  near(tall.cx, 100);
+  near(tall.cy, 280 - 100);
+  near(tall.groundY, 280 - (100 - 68 * 1.02));
+  // Üçlü istif (-0.99r) uzun kutuda tavana değmeden sığar.
+  assert.equal(clampBodyYOffset(tall.cy, 68, -0.99 * 68, 1), -0.99 * 68);
+});
 test('drawBrutalAvatar alone is state-neutral', () => {
   const ctx = makeTrackingCtx();
   drawBrutalAvatar(ctx, 50, 50, 30, {

@@ -21,17 +21,22 @@ function renderMenuButton() {
 }
 
 function renderMenuPanel({ showLayoutEditor = true }) {
-  const reactLabel = t('pad.reactTitle');
   const fullscreenLabel = t('pad.fullscreen');
   const leaveLabel = t('pad.leave');
   return `
     <div class="gamepad-menu-panel hidden" id="gamepad-menu-panel">
-      <button class="gamepad-menu-item" id="btn-toggle-emoji" type="button" data-i18n-aria="pad.reactTitle" aria-label="${escapeHtml(reactLabel)}" title="${escapeHtml(reactLabel)}">${getTabletopIconSvg('message_square', { size: 16, color: '#141414', strokeWidth: 2.3 })}<span>${escapeHtml(reactLabel)}</span></button>
       ${showLayoutEditor ? renderMenuLayoutItem() : ''}
       <button class="gamepad-menu-item" id="btn-fullscreen-toggle" type="button" aria-label="${escapeHtml(fullscreenLabel)}" title="${escapeHtml(fullscreenLabel)}">${getTabletopIconSvg('maximize_2', { size: 16, color: '#141414', strokeWidth: 2.3 })}<span>${escapeHtml(fullscreenLabel)}</span></button>
       <button class="gamepad-menu-item is-danger" id="btn-leave-gamepad" type="button" aria-label="${escapeHtml(leaveLabel)}" title="${escapeHtml(leaveLabel)}">${getTabletopIconSvg('log_out', { size: 16, color: '#141414', strokeWidth: 2.3 })}<span>${escapeHtml(leaveLabel)}</span></button>
     </div>
   `;
+}
+
+// Tepki düğmesi: lobi ve oyun içi aynı yer (başlık solu). Davranış
+// `reactionPicker`ın tek kayıt noktasında; burada yalnız markup var.
+function renderReactButton() {
+  const label = t('pad.reactTitle');
+  return `<button class="gamepad-react-btn" type="button" data-reaction-open data-reaction-send="pad" data-i18n-aria="pad.reactTitle" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${getTabletopIconSvg('laugh', { size: 19, color: '#141414', strokeWidth: 2.4 })}</button>`;
 }
 
 function renderHudContainers() {
@@ -68,6 +73,9 @@ export function renderRemoteGamepadShell({
 }) {
   return `
     <div class="gamepad-header gamepad-header-compact">
+      <div class="header-left-group">
+        ${renderReactButton()}
+      </div>
       <div class="header-right-group">
         <div class="gamepad-menu" id="gamepad-menu">
           ${renderMenuButton()}
@@ -79,13 +87,5 @@ export function renderRemoteGamepadShell({
     <div class="score-strip hidden" id="score-strip"></div>
     <div class="gamepad-workspace" id="gamepad-workspace"></div>
     ${renderHudContainers()}
-
-    <div class="emoji-wheel-modal hidden" id="emoji-wheel-modal">
-      <button class="emoji-wheel-item" data-emoji="🔥">🔥</button>
-      <button class="emoji-wheel-item" data-emoji="💀">💀</button>
-      <button class="emoji-wheel-item" data-emoji="😂">😂</button>
-      <button class="emoji-wheel-item" data-emoji="🏆">🏆</button>
-      <button class="emoji-wheel-item" data-emoji="😱">😱</button>
-    </div>
   `;
 }

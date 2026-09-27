@@ -3,6 +3,7 @@
 
 import { getClientId } from './net.js';
 import { t } from './i18n.js';
+import { normalizeReactionKey } from './core/reactions.js';
 
 export class PartyNetwork {
   constructor() {
@@ -135,6 +136,7 @@ export class PartyNetwork {
         break;
 
       case 'PLAYER_REACTION':
+        // Host yayını da aynı tiptir: kumanda tarafı da bu callback'i okur.
         if (this.callbacks.onPlayerReaction) {
           this.callbacks.onPlayerReaction(msg.slotIndex, msg.emoji);
         }
@@ -393,12 +395,32 @@ export class PartyNetwork {
     });
   }
 
-  sendReaction(emoji) {
-    if (!this.ws || this.ws.readyState !== 1) return;
+  // Kumanda -> host tepki (lobi ve oyun içi aynı yol).
+  sendReaction(key) {
+    if (this.role !== 'CONTROLLER') return false;
+    if (!this.ws || this.ws.readyState !== 1) return false;
+    const reaction = normalizeReactionKey(key);
+    if (!reaction) return false;
     this.send({
       type: 'REACTION',
-      emoji,
+      emoji: reaction,
     });
+    return true;
+  }
+
+  // Host -> kumandalar tepki. `slotIndex` -1 ise host koltukta değildir
+  // (TV_CONSOLE varsayılanı); kumanda tarafı etiketsiz balon gösterir.
+  sendHostReaction(slotIndex, key) {
+    if (this.role !== 'HOST') return false;
+    if (!this.ws || this.ws.readyState !== 1) return false;
+    const reaction = normalizeReactionKey(key);
+    if (!reaction) return false;
+    this.send({
+      type: 'REACTION',
+      slotIndex: Number.isInteger(slotIndex) ? slotIndex : -1,
+      emoji: reaction,
+    });
+    return true;
   }
 
   setReady(isReady) {

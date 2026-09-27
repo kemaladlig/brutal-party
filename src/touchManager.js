@@ -60,14 +60,13 @@ export class TouchManager {
   }
 
   getCanvasCoords(clientX, clientY) {
-    // Dynamically retrieve client bounding rect to prevent drift from mobile address bar changes
-    const rect = this.canvas.getBoundingClientRect();
-    this.rect = rect;
+    // Perf: rect yalnız pointerdown/resize'da güncellenir (updateRect);
+    // pointermove'da cache kullanılır — 60+ reflow/sn ortadan kalkar.
+    const rect = this.rect || this.canvas.getBoundingClientRect();
 
     const logicalW = this.logicalWidth || rect.width || window.innerWidth;
     const logicalH = this.logicalHeight || rect.height || window.innerHeight;
 
-    // Convert client CSS coordinates to canvas logical coordinate space (1:1 with drawing context)
     const scaleX = rect.width > 0 ? logicalW / rect.width : 1;
     const scaleY = rect.height > 0 ? logicalH / rect.height : 1;
 
@@ -104,6 +103,7 @@ export class TouchManager {
   handlePointerStart(e) {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
+    this.updateRect(); // Perf: rect yenileme yalnız dokunuş başlangıcında
     const pos = this.getCanvasCoords(e.clientX, e.clientY);
     const touchData = {
       id: e.pointerId,

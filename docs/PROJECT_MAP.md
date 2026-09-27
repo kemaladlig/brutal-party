@@ -61,7 +61,8 @@ src/styles/                 Modüler CSS katmanı: `tokens.css` (TEK renk sözl�
                             `home.css` (yalnız ana menü KONUMU), `room.css` (oda sahnesi KONUMU +
                             lobi GÖRÜNÜMÜ yerleşimi), `games.css` (oyun arenası SAHNESİ: 5×3 kapak
                             rafı + dev odak yazısı + OYNA), `profile.css`, `sheets.css` (pause/settings/join
-                            ortak sheet dili), `notices.css`, `animations.css`
+                            ortak sheet dili), `reactions.css` (tepki balonu + tepki seçici;
+                             lobi / oyun içi HUD / kumanda ortak dili), `notices.css`, `animations.css`
                             (`menu.css` ve `menuManager.js` silindi — bento sayfa artık yok)
 src/controlGuide.js         Oyun-içi kontrol yardımcısı overlay'i
 src/touchManager.js         Dokunmatik giriş yöneticisi (TV / masa-ortası lokal mod)
@@ -98,6 +99,9 @@ src/core/
   preferences.js            Versiyonlu cihaz tercihleri: controlSurface/audio/haptics/PONG + global controller layout + v1→v2 migration
   controllerLayout.js       Saf cihaz-geneli kontrol yerleşimi: normalize, safe-frame fit, merkez koruması, minimum 44px, sol/sağ taşıma çözümü
   haptics.js                Tek haptik preference gate; tüm engine/controller vibration çağrıları buradan
+  reactions.js              Tepki seti TEK kaynağı (istemci + oda sunucusu): `REACTIONS` (ikon
+                            anahtarı + i18n etiketi) ve `normalizeReactionKey` beyaz listesi.
+                            Wire değeri OS emojisi DEĞİL tabletopIcons anahtarıdır.
   inputSource.js            Saf keyboard/touch/pointer arbitration; hareket/aim kanalı coexistence bypass'ı
   controlDescriptor.js      phone/tabletop/network normalize kontrol sözleşmesi + parity doğrulaması
   inputIntent.js            Transport action → canonical engine intent projeksiyonu
@@ -182,8 +186,8 @@ src/ui/
                             sağda `TV` / `ONLINE` dev seçenekleri (`--mode-*` kimlik rengi).
                             Yerel oynama burada DEĞİL — ana menüdeki `OYNA` → OYUNLAR.
   gamesView.js              OYUNLAR galerisi (kalıcı gezinme hedefi, `rail.order: 1`, lobinin kardeş dili):
-                            solda MERKEZİ sekme şeridi (`tabStrip.js`) + SAYFALI kapak ızgarası
-                            (`.games-grid` 4×2 = 8 kapak/sayfa, kaydırma YOK, sayfa okları;
+                            solda MERKEZİ sekme şeridi (`tabStrip.js`) + DİKEY KAYAN kapak ızgarası
+                            (`.games-grid` 4 sütun iç scroller, kart girişi kademeli pop-in;
                             `.game-card` seçili altın halkalı), sağ kolonda seçili oyunun
                             kahramanı (kapak + ad + ipucu) ve tek `▶ OYNA` CTA'sı.
                             Kart SEÇER, CTA başlatır. `rail: null` değil — kalıcı hedef.
@@ -211,6 +215,15 @@ src/ui/
                             ana menü rozeti ve KARAKTER ekranı aynısını kullanır
   iconSlots.js              DOM ikon yuvaları: `[data-icon]` / `[data-lobby-icon]` → Lucide SVG doldurma
                             (statik markup ikonu elle yazmaz; ham OS emojisi yasık)
+  reactionLayer.js          Tepki BALONU katmanı (lobi + oyun içi + kumanda, tek uygulama).
+                            Konum declarative: `data-reaction-anchor="<slot>"` taşıyan İLK GÖRÜNÜR
+                            öğe (host lobi koltuk kartı / kumanda koltuk düğmesi / skor çipi),
+                            yoksa host'un `setReactionFieldAnchor` ile verdiği saha koordinatı,
+                            yoksa sağ kenarda yedek ray. Konum rAF ile canlı varlığı izler.
+  reactionPicker.js         Tepki SEÇİCİ (tek uygulama, üç yüzey): `data-reaction-open` +
+                            `data-reaction-send="host|pad"` işaretleri tek delegasyonla açılır;
+                            gönderici `setReactionSender(name, fn)` ile kaydedilir. Modal
+                            semantiği `overlayHost`'un sahipliğindedir.
   tabStrip.js               MERKEZİ sekme şeridi bileşeni (`createTabStrip`): OYUNLAR kategorileri +
                             KARAKTER RENK/İFADE aynı bileşeni kullanır; stil `scene.css` `.tab-strip`.
                             İkinci bir sekme uygulaması açmak yasaktır.
@@ -300,7 +313,7 @@ server/
   roomManager.js            Lokal WS oda yöneticisi: slot tablosu, bot/isim/takas senkronizasyonu
   vitePluginWs.js           Vite geliştirme sunucusuna entegre WebSocket plugin'i
 
-public/                     PWA (manifest.webmanifest, sw.js, ikonlar) + public/assets/games/*.jpg
+public/                     PWA (manifest.webmanifest, sw.js, ikonlar) + public/assets/games/*.webp
 tests/                      Node test runner: network protocol, WebRTC kanal/ICE regresyonları,
                             PONG/RACE/CROWN world snapshot, client renderer ve kontrol rehberi regresyonları
 ```
@@ -363,7 +376,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
 * `SWITCH_SLOT`: Telefon lobi/staging ekranından seçilen hedef koltuğa geçiş talebi (`targetSlot`); boş veya başka bir insan koltuğu hedeflenebilir, host/bot kilitlidir.
 * `PLAYER_READY`: Hazır / Hazır değil durum değişimi.
 * `SET_NAME`: İsim güncellemesi (büyük harf, maks 12 karakter).
-* `REACTION` / `PING`: Emoji tepkisi / gecikme ölçümü.
+* `REACTION` / `PING`: Tepki (ikon anahtarı) / gecikme ölçümü. `REACTION` **çift yönlüdür**: kumanda→host `PLAYER_REACTION {slotIndex, emoji}` üretir; host→kumanda aynı tipi `broadcastToPlayers` ile yayar ve `slotIndex: -1` "host koltukta değil" demektir. Değer `src/core/reactions.js` beyaz listesinden geçer (`normalizeReactionKey`; legacy emojiler takma ada indirgenir), slot/host başına 1 sn hız kapısına tabidir.
 
 ### Host → Uzak Telefon (`host_msg`):
 * `HOST_STATE_SYNC` / `GAME_STATE`: 8 Hz periyodik HUD/kumanda durumu (dirty-check ile değişmediyse göndermez).
@@ -377,6 +390,8 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
 * `SLOTS_SWAPPED`: Host tarafından iki koltuk takas edildiğinde kumandaları bilgilendirir.
 * `STAGING_STARTED` / `COUNTDOWN` / `GAME_STARTED`: Lobi akış geçişleri.
 * `RETURNED_TO_LOBBY`: Lobiye dönüş (hazır bayrakları sıfırlanır, oda kapanmaz).
+* `PLAYER_REACTION`: Host'un tepkisi (`slotIndex` + `emoji` = tepki anahtarı). Gönderici yönü
+  `handleMessage` içinde role göre ayrılır (WS `REACTION`, Supabase `host_msg.action: 'REACTION'`).
 
 ---
 
@@ -614,7 +629,7 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
    33. **Kabuk revizyonu — üst şerit kalktı, OYUNLAR/KARAKTER lobi diliyle yenilendi (2026-09):**
         * **Üst şerit (`#shell-topbar`) ve dikey BANT yüzeyi kalktı.** Kalıcı gezinme ekranın SOLUNDA, dikey ORTALANMIŞ üç YÜZEN HUD butonudur (`#shell-rail`, zemin/kenarlık bandı YOK): `ANASAYFA / OYUNLAR / KARAKTER` ikon + mini etiket (kamelyon yüzüğü, `max-height:460px`'te yalnız ikon + title). Marka (`#shell-home`: ikon + `BRUTAL PARTY` yazısı, `PARTY` aksan renginde, `goHome()`) SOL ÜSTTE tek başına yüzer; ses/dil/tam ekran/ayarlar simgeleri (`#shell-nav-actions`) sağ ÜST köşede TEK YATAY SATIRDA yüzer (`.shell-corner`); platform rozeti (`#shell-platform-pill`) kaldırıldı. Ekran adı bandı yok — sahneler kendi başlıklarını taşır. `OYUN` etiketi `OYUNLAR` oldu. Gerekçe (kullanıcı kararı): tam yükseklik opak ray "bar" gibi okundu ve yasaklandı; yalnız üç yüzük sahnenin üstünde yüzmeli.
         * **İkon görünmeme hatasının kök nedeni (`tabletopIcons.js`):** `ICON_LOOKUP` yalnız Lucide `id` + alias kaydediyordu; `home` anahtarının id'si `house` olduğundan `getTabletopIconSvg('home')` sessizce fallback `<span>` metnine düşüyordu ve ray'daki aktif düğmede metin de gizlendiği için ikon hiç görünmüyordu. Kayıt ANAHTARI da lookup'a yazılır (key/id uyuşmazlığı sınıfı kapandı).
-        * **MERKEZİ sekme sistemi (`src/ui/tabStrip.js`):** OYUNLAR kategori filtresi ve KARAKTER RENK/İFADE editörü AYNI bileşeni kullanır (stil `scene.css` `.tab-strip`). OYUNLAR'da ızgara artık SAYFALI: 4×2 = sayfa başına 8 kapak, alanı birebir doldurur, kaydırma/kesik satır YOK (kullanıcı raporu: "kartlar üst üste binmiş"); KARAKTER'de iki sütunlu editör tek panelli sekmeye indi (sığmıyordu) ve ipucu listesi kaldırıldı. Gerekçe: "hepsi tek seferde gözükmek zorunda değil — tablı yap; merkezi sistem olsun, ikisi de kullansın".
+        * **MERKEZİ sekme sistemi (`src/ui/tabStrip.js`):** OYUNLAR kategori filtresi ve KARAKTER RENK/İFADE editörü AYNI bileşeni kullanır (stil `scene.css` `.tab-strip`). OYUNLAR'da ızgara DİKEY KAYAR: 4 sütun kapsüllenmiş iç scroller, kart girişi kademeli pop-in (sayfalama kaldırıldı — kullanıcı kararı); KARAKTER'de iki sütunlu editör tek panelli sekmeye indi (sığmıyordu) ve ipucu listesi kaldırıldı. Gerekçe: "hepsi tek seferde gözükmek zorunda değil — tablı yap; merkezi sistem olsun, ikisi de kullansın".
         * **`chrome` semantiği sadeleşti:** `cinema` yalnız "sahne tam kaplama (padding yok)"; `none` (lobi) `#shell-rail`, `#shell-home` ve `.shell-corner`ı da gizler. `.shell-topbar*`/`.shell-brand-text`/`.shell-title`/`.shell-eyebrow`/`.shell-nav` CSS'i silindi. Yüzen gezinme solda yer kapladığı için `games-body` ve `profile-media` sol dolgusu buton payını (≈70px) bırakır.
         * **Lobi üst rayı yeniden sıralandı:** solda oda kodu pili + hemen sağında DAVET (tek "oda kimliği" adası), sağda durum pili + köşede ✕. Kahramanın sol üstündeki havada duran ikon-kare ızgara düğmesi kalktı; yerine sahne altı meta satırında `n / 15` sayacı + metinli `⊞ TÜM OYUNLAR` pili geldi (metin, düğmenin ne yaptığını kendi anlatır).
         * **OYUNLAR baştan yazıldı (`gamesView.js` + `games.css`):** eski yatay raf + sol-alt DEV yazı + sağ-alt OYNA düzeni yerine lobinin kardeş dili — solda kategori çipleri + kapsüllenmiş kapak ızgarası (`.game-card`, seçili altın halkalı, ARŞİV rozeti), sağ kolonda seçili oyunun kahramanı ve tek `▶ OYNA`. Kart seçer, CTA başlatır.
@@ -633,9 +648,15 @@ Kayıp paket davranışı: `world` kanalında kareler bağımsız olduğu için 
          * **Merkez kaymasının kök nedeni (ölçüldü):** `.home-hero` yatayda `transform: translateX(-50%)` ile ortalanıyordu, ama kabuk odağı `[data-focus].is-focused { transform: scale(1.035) }` uyguluyor ve **odaklanan her öğede `translateX` yok ediliyordu** — karakter sağa kayıyordu (1440 genişlikte 207px = kendi yarı genişliği). Merkezleme artık `margin-left: calc(var(--hero-size) / -2)`: ölçekten bağımsız, her odak durumunda tam merkez. Kural: **bir öğe `transform` ile ortalanıyorsa `data-focus` taşımamalı.**
          * **Platform ölçüleri** `background.webp` (2752×1536) üzerinde piksel taramasıyla ölçüldü: üst kenar %73.8, alt kenar %93.9 → **disk ekseni %83.9**, yatay merkez tam %50.
          * **Konum ALTTAN sabitlendi** (`50% 100% / cover`): `cover` yalnız ekran oranı 1.79'dan geniş olduğunda dikey kırpma yapar; `50% 50%` kırpma payını ortaya bölerek platformu ekran dışına (aşağı) itiyordu. Alt sabitlemede kırpma tek yere (yukarı) düşer, platform en kötü ~%80'e çekilir. Sahne çizgisi `--scene-stage-y: 82%` (eksenin biraz üstü — isim rozetine yer bırakır).
-         * **Kahraman büyütüldü ve ayağı platforma sabitlendi:** `--hero-size: min(56vh, 500px)` (önceki `min(46vh, 440px)`), `--hero-ground-gap: calc(0.123 * var(--hero-size))` — `drawAvatarStage`de zemin gölgesinin kutu tabanına uzaklığı `0.123·s` (`r = 0.37·s`, `groundY = h/2 + 1.02r`), yani bu değer gölge merkezini tam sahne çizgisine oturtur. Kısa ekran (`max-height:470px`) ve dar ekran (`max-width:620px`) artık **canvas boyutunu değil `--hero-size`'ı** değişir; önceden gap hesabı canvas'ın gerçek boyutundan kopuktu.
+         * **Kahraman büyütüldü ve ayağı platforma sabitlendi:** `--hero-size: min(56vh, 500px)` (önceki `min(46vh, 440px)`), `--hero-ground-gap: calc(0.153 * var(--hero-size))` — `drawAvatarStage`de zemin gölgesinin kutu tabanına uzaklığı `0.153·s` (`r = 0.34·s`, `groundY = h/2 + 1.02r`), yani bu değer gölge merkezini tam sahne çizgisine oturtur. Kısa ekran (`max-height:470px`) ve dar ekran (`max-width:620px`) artık **canvas boyutunu değil `--hero-size`'ı** değişir; önceden gap hesabı canvas'ın gerçek boyutundan kopuktu.
          * **İpucu yukarı taşındı:** "Karaktere dokun" yazısı ayak altındaki koyu platformda okunmuyor ve isim rozetiyle çakışıyordu; artık karakterin başının üstünde, gökyüzünde.
          * **Doğrulama:** `browser.capture` ile 1440×900 (karakter merkezi 720/1440 = tam merkez) ve 390×844 dikey düzende görsel kontrol; geniş ekran konumu `cover` matematiğiyle doğrulandı (16:9–21:9 arası platform %80–84 bandında kalır).
+   36. **Tepki (emoji) gönderimi — `core/reactions.js` + `ui/reactionLayer.js` + `ui/reactionPicker.js` (2026-09):**
+        * **Problem:** `REACTION` protokolde vardı ama tek işi host'ta `P${slot}: ${emoji}` **install toast'u** basmaktı; ham OS emojileriyle çalışıyordu (AGENTS §7 ihlali), kumandada menü altında gizli 5'li bir modal vardı, host gönderemiyordu, lobide hiç görünmüyordu, oyun içinde hiç görünmüyordu.
+        * **Çözüm:** tek set + tek görsel katman + tek seçici. Wire değeri artık `tabletopIcons` **ikon anahtarı** (8 tepki: laugh/flame/skull/heart/star/crown/zap/ghost); `normalizeReactionKey` hem istemcide hem `server/roomManager.js`'te aynı beyaz listeyi uygular, legacy emojiler (skin tone dahil) takma ada iner. `REACTION` çift yönlü: kumanda→host mevcut yol, host→kumanda `handleHostReaction`/`host_msg` ile yeni (host tek yetkili; `slotIndex: -1` = host koltukta değil). Hız kapısı her iki yönde 1 sn.
+        * **Görsel:** `reactionLayer` her cihazda tek `#reaction-layer` (body, `pointer-events: none`, `role=status`) üretir; balon DOM'u konumu rAF ile canlı varlığı izler (dış eleman konum, iç eleman yükselme animasyonu — aynı `transform`'da yarışmaz). Konum **declarative**: yüzeyler `data-reaction-anchor="<slot>"` işaretler (host lobi `#slot-pN`, kumanda lobi `.lobby-seat-btn`, skor çipi) ve katman İLK **GÖRÜNÜR** eşleşmeyi kullanır — gizli host lobi kopyası (`index.html`'de kalan `#tv-host-modal`) öne geçip çapayı bozmamalıdır. Oyun içinde `main.js` `setReactionFieldAnchor` ile motor varlık koordinatını verir (canvas fixed 0,0 tam ekran → arena px = viewport px).
+        * **Gönderim:** yüzeyler yalnız `data-reaction-open` + `data-reaction-send="host|pad"` işaretler; `reactionPicker` tek delegasyonu + `setReactionSender(name, fn)` ile göndericiyi kaydeder (modüller arası sıra bağımlılığı yok). Gönderenin kendi tepkisi sunucudan dönmez → yerel `showReaction` geri beslemesi her iki rolde de var. LOCAL modda alıcı yoktur: in-game HUD tepki düğmesi `activeNet().isHosting` ile gizlenir.
+        * **Doğrulama:** `tests/reactions.test.mjs` (ikon anahtarı + tel bütçesi + normalizasyon), `npm run check`/`test`/`build` temiz; tarayıcıda host lobi (koltuk kartı çapası), host oyun içi (saha çapası, HUD düğmesi), kumanda lobi (kendi koltuğu çapası) ve kumanda→host WS teslimi ölçüldü.
 
 ---
 
@@ -650,7 +671,7 @@ Yeni bir oyun ekleneceğinde aşağıdaki kayıtlar güncellenir:
 6. `index.html`: TV lobi çipi (`data-game="[MOD]"`). Oyun kataloğu tek yerde: `CARTRIDGES` (bento sayfa kaldırıldı, oyun seçimi `gamesView` ızgarasından beslenir).
 7. `src/styles/games.css` (`games-*`, `game-card`): OYUNLAR galeri görünümü. Kategori rengi `CARTRIDGES.category`'dan gelir; görünüm yalnız `CATEGORIES` etiketlerini tanımlar.
 8. `public/sw.js`: yeni görseli precache'e ekle ve cache sürümünü artır.
-9. `public/assets/games/[oyun].jpg`: 1:1 kapak görseli (koyu kart içinde krem "kapak penceresi" olarak gösterilir, `--art-board`).
+9. `public/assets/games/[oyun].webp`: 1:1 kapak görseli (koyu kart içinde krem "kapak penceresi" olarak gösterilir, `--art-board`).
 10. `docs/PROJECT_MAP.md` + `AGENTS.md`: motor/AI/dosya/kontrol kayıtları.
 11. `npm test`, `npm run check` (tsc + `scripts/token-lint.mjs`), `npm run build`, `npm run health`: regresyon, statik kontrol, production build ve 15 oyunluk kalite kapısı yeşil olmadan tamamlanmaz.
 

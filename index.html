@@ -48,6 +48,9 @@
         <button id="btn-quick-fullscreen" class="btn-quick-fullscreen" type="button" aria-label="Tam Ekran" title="Tam Ekran Aç/Kapat">
           <span id="quick-fullscreen-icon" class="fs-icon" data-icon="maximize_2" aria-hidden="true"></span>
         </button>
+        <button id="btn-quick-react" class="btn-quick-react hidden" type="button" data-reaction-open data-reaction-send="host" data-i18n-aria="pad.reactTitle" aria-label="Tepki Gönder" title="Tepki Gönder">
+          <span data-icon="laugh" aria-hidden="true"></span>
+        </button>
         <button id="btn-open-options" type="button" aria-label="Seçenekler ve Menü">
           <span data-icon="more_vertical" aria-hidden="true"></span>
         </button>
@@ -97,6 +100,9 @@
             </button>
             <div class="lobby-top-right">
               <div class="lobby-status-pill" id="lobby-ready-counter" aria-live="polite">OYUNCU BEKLENİYOR</div>
+              <button class="lobby-icon-btn" id="btn-lobby-react" type="button" data-focus="lobby" data-reaction-open data-reaction-send="host" data-i18n-aria="pad.reactTitle" aria-label="Tepki Gönder" title="Tepki Gönder">
+                <span data-lobby-icon="laugh" aria-hidden="true"></span>
+              </button>
               <button class="lobby-icon-btn" id="btn-host-close" type="button" data-focus="lobby" data-i18n-aria="host.close" title="Lobiyi kapat">
                 <span data-lobby-icon="close" aria-hidden="true"></span>
               </button>
@@ -119,7 +125,7 @@
               </div>
               <div class="host-slot-hint" id="host-slot-hint" aria-live="polite">Oyuncu kartındaki KOLTUK DEĞİŞTİR’e dokun, sonra hedef koltuğu seç.</div>
               <div class="host-players-list">
-                <div class="host-player-slot" id="slot-p1" data-slot="0">
+                <div class="host-player-slot" id="slot-p1" data-slot="0" data-reaction-anchor="0">
                   <button class="slot-chip-main" type="button" data-focus="lobby">
                     <canvas class="slot-avatar-preview" id="slot-canvas-p1" width="68" height="68" aria-hidden="true"></canvas>
                     <span class="slot-info">
@@ -134,7 +140,7 @@
                     <button class="slot-swap-btn" data-slot="0" data-i18n-aria="host.swapDown" title="Koltuğu değiştir" type="button" aria-pressed="false"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span><span class="slot-swap-label" data-i18n="host.swapAction">KOLTUK DEĞİŞTİR</span></button>
                   </div>
                 </div>
-                <div class="host-player-slot" id="slot-p2" data-slot="1">
+                <div class="host-player-slot" id="slot-p2" data-slot="1" data-reaction-anchor="1">
                   <button class="slot-chip-main" type="button" data-focus="lobby">
                     <canvas class="slot-avatar-preview" id="slot-canvas-p2" width="68" height="68" aria-hidden="true"></canvas>
                     <span class="slot-info">
@@ -149,7 +155,7 @@
                     <button class="slot-swap-btn" data-slot="1" data-i18n-aria="host.swapDown" title="Koltuğu değiştir" type="button" aria-pressed="false"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span><span class="slot-swap-label" data-i18n="host.swapAction">KOLTUK DEĞİŞTİR</span></button>
                   </div>
                 </div>
-                <div class="host-player-slot" id="slot-p3" data-slot="2">
+                <div class="host-player-slot" id="slot-p3" data-slot="2" data-reaction-anchor="2">
                   <button class="slot-chip-main" type="button" data-focus="lobby">
                     <canvas class="slot-avatar-preview" id="slot-canvas-p3" width="68" height="68" aria-hidden="true"></canvas>
                     <span class="slot-info">
@@ -164,7 +170,7 @@
                     <button class="slot-swap-btn" data-slot="2" data-i18n-aria="host.swapDown" title="Koltuğu değiştir" type="button" aria-pressed="false"><span data-lobby-icon="arrow_left_right" aria-hidden="true"></span><span class="slot-swap-label" data-i18n="host.swapAction">KOLTUK DEĞİŞTİR</span></button>
                   </div>
                 </div>
-                <div class="host-player-slot" id="slot-p4" data-slot="3">
+                <div class="host-player-slot" id="slot-p4" data-slot="3" data-reaction-anchor="3">
                   <button class="slot-chip-main" type="button" data-focus="lobby">
                     <canvas class="slot-avatar-preview" id="slot-canvas-p4" width="68" height="68" aria-hidden="true"></canvas>
                     <span class="slot-info">

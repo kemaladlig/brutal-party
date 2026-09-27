@@ -482,7 +482,7 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
     ctx.beginPath();
     ctx.arc(0, 0, enemy.r + 10, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.setLineDash([]);
+    // Perf: setLineDash([]) kaldırıldı — ctx.restore() zaten durumu geri alır
     ctx.rotate(-now / 500);
     ctx.strokeStyle = '#FFFFFF';
     ctx.lineWidth = Math.max(1, 3 * eu);
@@ -574,15 +574,13 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
   }
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(enemy.r * 0.45, -3, enemy.r * 0.55, 6);
-  ctx.restore();
+  ctx.restore(); // Perf: health bar save/restore kaldırıldı — fillRect bağlamcıksız
 
   const ratio = clamp01(enemy.hp / enemy.maxHp);
-  ctx.save();
   ctx.fillStyle = '#1A1A1A';
   ctx.fillRect(enemy.x - barW / 2, enemy.y - enemy.r - barGap, barW, barH);
   ctx.fillStyle = enemy.boss || enemy.elite ? '#FACC15' : '#E63946';
   ctx.fillRect(enemy.x - barW / 2, enemy.y - enemy.r - barGap, barW * ratio, barH);
-  ctx.restore();
 }
 
 /**
@@ -865,15 +863,19 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
     ctx.restore();
   }
 
-  for (const bullet of scene.bullets || []) {
+  // Perf: tüm mermiler tek save/restore ile çizilir (64+ state push/pop kaldırıldı)
+  const bullets = scene.bullets;
+  if (bullets && bullets.length > 0) {
     ctx.save();
-    ctx.strokeStyle = bullet.color || (bullet.enemy ? '#E63946' : '#D84727');
-    ctx.lineWidth = Math.max(3, bullet.radius);
     ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(bullet.x, bullet.y);
-    ctx.lineTo(bullet.x - bullet.vx * 0.025, bullet.y - bullet.vy * 0.025);
-    ctx.stroke();
+    for (const bullet of bullets) {
+      ctx.strokeStyle = bullet.color || (bullet.enemy ? '#E63946' : '#D84727');
+      ctx.lineWidth = Math.max(3, bullet.radius);
+      ctx.beginPath();
+      ctx.moveTo(bullet.x, bullet.y);
+      ctx.lineTo(bullet.x - bullet.vx * 0.025, bullet.y - bullet.vy * 0.025);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 

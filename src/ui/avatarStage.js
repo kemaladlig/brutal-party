@@ -10,8 +10,50 @@
 // türetilen yarıçap her breakpoint'te aynı oranı tutar ve net (DPR) çizilir.
 import { drawBrutalAvatar } from './characterRenderer.js';
 
-/** Gövde çapı, kutunun kısa kenarının bu oranı kadar olsun. */
-const BODY_RATIO = 0.74;
+/** Gövde çapı, kutunun kısa kenarının bu oranı kadar olsun.
+ *
+ * Neden 0.68: tek zıplama tepesi `jumpImpulse=1.8r` ile `v²/2g ≈ 0.39r`, dış
+ * kontur payı ~0.04r — toplam ~0.43r üst boşluk ister. 0.74'te boşluk 0.35r'da
+ * kalıp gövde canvas üst kenarında kesiliyordu; 0.68'de boşluk 0.47r olur.
+ * (Art arda dokunuş istifi ayrı tavan kilidiyle tutulur: `clampBodyYOffset`.) */
+const BODY_RATIO = 0.68;
+
+/** Gövde dış yarıçap payı (kontur + dış tanım çizgisi). */
+const BODY_STROKE = 1.045;
+
+/**
+ * Sahne gövde merkezi: gövde her zaman kutunun ALTINA sabitlenir (zemin
+ * gölgesi kutu tabanından `groundGap` yukarıda). Kare kutuda merkezle birebir
+ * aynıdır (`cy = h/2`); UZUN kutuda gövde altta kalır, üstte zıplama gökyüzü
+ * açılır — ana menü kahraman canvas'ı bu yüzden kareden uzundur.
+ * @param {number} w kutu genişliği (CSS px)
+ * @param {number} h kutu yüksekliği (CSS px)
+ * @param {number} r gövde yarıçapı (CSS px)
+ * @returns {{ cx: number, cy: number, groundY: number }}
+ */
+export function stageBodyCenter(w, h, r) {
+  const groundGap = Math.min(w, h) / 2 - r * 1.02;
+  const groundY = h - groundGap;
+  return { cx: w / 2, cy: groundY - r * 1.02, groundY };
+}
+/**
+ * Gövde dikey tavanı: `yOffset` ne kadar istiflenirse istiflensin gövde
+ * bitmap'in üst kenarını geçemez.
+ *
+ * Neden gerekli: `poke` hızı sıfırlar ama konumu korur — havada art arda
+ * dokunuş istiflenir (1.8 itkide ölçülen: tek -0.37r, çift -0.68r, üçlü
+ * -0.99r). Normal tek zıplamalar gökyüzüne değer değmez; yalnız gökyüzünü
+ * aşan istifler tavana "kafa atar" (kesilmek yerine durur).
+ * @param {number} cy gövde dinlenme merkezi (CSS px)
+ * @param {number} r gövde yarıçapı (CSS px)
+ * @param {number} yOffset istenen dikey kayma (yukarı negatif)
+ * @param {number} [scale] yeknesak pop ölçeği
+ * @returns {number} bitmap içine sığan kayma (üstte 1px emniyet payı)
+ */
+export function clampBodyYOffset(cy, r, yOffset, scale = 1) {
+  const minY = Math.min(0, 1 - cy + scale * r * BODY_STROKE);
+  return Math.max(yOffset, minY);
+}
 
 /**
  * Canvas'ın CSS kutusu değiştiğinde (görünür/gizlenme, breakpoint, yazı
@@ -196,14 +238,14 @@ function groundShadowGradient(ctx, r) {
  * @param {number} [ringPulse] - 0..1 dokunma/heyecan halkası parıltısı
  */
 export function drawAvatarStage(ctx, w, h, r, avatarOpts, yOffset = 0, shadowScale = 1, ringPulse = 0) {
-  const cx = w / 2;
-  const cy = h / 2;
+  // Gövde kutunun altına sabitlenir (`stageBodyCenter`): kare kutuda merkezle
+  // aynıdır, uzun kutuda üstte zıplama gökyüzü bırakır.
+  const { cx, cy, groundY } = stageBodyCenter(w, h, r);
 
   // Zemin gölge diski: karakteri sahneye oturtur, zıplamada uzaklaşır/küçülür.
   // Yumuşak geçişli elips: sert disk kenarları gövdeyi "yırtıyormuş" gibi
   // okunduğu için radyal gradyanla çözüldü; gradyan cache'li, ölçek transform'la.
   ctx.save();
-  const groundY = cy + r * 1.02;
   ctx.save();
   ctx.translate(cx, groundY);
   ctx.scale(shadowScale, shadowScale);
@@ -225,7 +267,11 @@ export function drawAvatarStage(ctx, w, h, r, avatarOpts, yOffset = 0, shadowSca
   ctx.setLineDash([]);
   ctx.restore();
 
-  drawBrutalAvatar(ctx, cx, cy + yOffset, r, {
+  // Gövde: istiflenmiş zıplama (`yOffset` tavanı aşmış) bitmap'e sığdırılır.
+  // Zemin gölgesi ve halka yerindedir — yalnız gövde kayması kırpılır.
+  const bodyScale = avatarOpts.scale || 1;
+  const bodyY = cy + clampBodyYOffset(cy, r, yOffset, bodyScale);
+  drawBrutalAvatar(ctx, cx, bodyY, r, {
     showPips: false,
     showPointer: false,
     // Menü sahnesinde karakter menünün tek öznesidir: düz sticker gibi
@@ -234,7 +280,9 @@ export function drawAvatarStage(ctx, w, h, r, avatarOpts, yOffset = 0, shadowSca
     // roman" gibi okunuyordu.
     volume: true,
     borderWidth: Math.max(1.5, r * 0.045),
-    shadowOffset: Math.max(1.5, r * 0.1),
+    // Sahne kendi zemin gölgesini çiziyor — gövdeye yapışık ikinci gölge
+    // çift okunuyordu, o yüzden gövde içi temas gölgesi kapalı (alttaki kalır).
+    shadowOffset: 0,
     ...avatarOpts,
   });
 }

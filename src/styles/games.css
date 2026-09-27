@@ -1,7 +1,8 @@
 /* OYUNLAR galerisi — gezinme hedefi, lobinin kardeş dili (bkz. gamesView.js).
-   Sol: MERKEZİ sekme şeridi (`tabStrip.js`) + SAYFALI kapak ızgarası. Izgara
-   kaydırılmaz: her sayfa 4×2 hücre olarak alana BİREBİR oturur (yarım kesik
-   satır yok — kullanıcı kararı). Sağ: seçili oyunun kahramanı + tek altın CTA. */
+   Sol: MERKEZİ sekme şeridi (`tabStrip.js`) + DİKEY KAYAN kapak ızgarası.
+   Izgara kapsüllenmiş iç scroller'dır (sayfa akışı değil — shell sabit kalır);
+   4 sütun, satırlar içeriğe göre uzar, kartlar kare kalır. Sağ: seçili oyunun
+   kahramanı + tek altın CTA. */
 
 .games-scene { padding: 0; }
 
@@ -12,8 +13,10 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
   gap: clamp(10px, 1.8vw, 22px);
-  /* Solda dikey ortalanmış yüzen gezinme (56px) içeriğe binmesin. */
-  padding: clamp(10px, 2vh, 18px) max(16px, env(safe-area-inset-right))
+  /* Solda dikey ortalanmış yüzen gezinme (56px) içeriğe binmesin.
+     ÜSTTE yüzen marka + köşe simgeleri (~54px kuşağı) sekme şeridine
+     binmesin diye üst pay bırakılır. */
+  padding: calc(58px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
     max(14px, env(safe-area-inset-bottom)) calc(74px + env(safe-area-inset-left));
 }
 
@@ -36,44 +39,36 @@
 
 .games-head .tab-strip { flex: 1 1 auto; }
 
-/* Sayfa okları + sayacı: sekme şeridinin sağ ucu (yalnız 8+ oyunda görünür). */
-.games-pager {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.games-pager[hidden] { display: none; }
-
-.games-page-label {
-  font: 900 10px/1 var(--font-mono);
-  letter-spacing: 0.1em;
-  color: var(--hud-muted);
-  white-space: nowrap;
-}
-
-.games-page-btn { padding: 0 10px; }
-.games-page-btn:disabled { opacity: 0.35; cursor: default; }
-.games-page-btn:disabled:active { transform: none; }
-
-/* Izgara TAŞMAZ: 4×2 sabit hücreler alanı birebir doldurur. Kartlar
-   hücreye uzar (en-boy oranı dayatılmaz; kapak `object-fit: cover` kırparsa
-   da krema zemin sayesinde iz bırakmaz). */
+/* Izgara DİKEY KAYAR: 4 sütun sabit, satırlar otomatik; taşan içerik iç
+   scroller'da akar. Kartlar kare kalır (kapak `object-fit: cover`). */
 .games-grid {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: auto;
+  align-content: start;
   gap: clamp(8px, 1.1vw, 14px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hud-line) transparent;
+  padding-bottom: 4px;
 }
+
+.games-grid::-webkit-scrollbar { width: 8px; }
+.games-grid::-webkit-scrollbar-thumb {
+  background: var(--hud-line);
+  border-radius: var(--radius-pill);
+}
+.games-grid::-webkit-scrollbar-track { background: transparent; }
 
 /* ── Kapak kartı ────────────────────────────────────────────────────────── */
 
 .game-card {
   position: relative;
-  height: 100%;
+  aspect-ratio: 1;
   min-height: 0;
   padding: 0;
   border: 2px solid var(--hud-line);
@@ -83,6 +78,29 @@
   cursor: pointer;
   box-shadow: var(--shadow-soft);
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  /* Giriş: kademeli pop-in. `backwards` — bitince hover/active transform
+     ezilmez (`both` son kareyi tutup hover'ı öldürürdü). */
+  animation: gameCardIn 320ms cubic-bezier(0.175, 0.885, 0.32, 1.15) backwards;
+}
+
+.game-card:nth-child(2) { animation-delay: 30ms; }
+.game-card:nth-child(3) { animation-delay: 60ms; }
+.game-card:nth-child(4) { animation-delay: 90ms; }
+.game-card:nth-child(5) { animation-delay: 120ms; }
+.game-card:nth-child(6) { animation-delay: 150ms; }
+.game-card:nth-child(7) { animation-delay: 180ms; }
+.game-card:nth-child(8) { animation-delay: 210ms; }
+.game-card:nth-child(9) { animation-delay: 240ms; }
+.game-card:nth-child(10) { animation-delay: 270ms; }
+.game-card:nth-child(11) { animation-delay: 300ms; }
+.game-card:nth-child(12) { animation-delay: 330ms; }
+.game-card:nth-child(13) { animation-delay: 360ms; }
+.game-card:nth-child(14) { animation-delay: 390ms; }
+.game-card:nth-child(15) { animation-delay: 420ms; }
+
+@keyframes gameCardIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: none; }
 }
 
 .game-card[hidden] { display: none; }
@@ -261,7 +279,7 @@
   .games-play .scene-btn-label { font-size: 14px; }
 }
 
-/* Kısa yatay telefon: 4×2 hücreler korunur, süsler sadeleşir. */
+/* Kısa yatay telefon: 4 sütun korunur, süsler sadeleşir. */
 @media (max-height: 430px) {
   .games-hero-cover { height: clamp(96px, 30vh, 150px); border-radius: 18px; }
   .games-hero-hint { display: none; }
@@ -269,6 +287,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .games-grid .game-card { animation: none; }
   .games-hero-cover.is-in { animation: none; }
   .games-scene :is(.game-card, .games-hero-cover) { transition: none; }
 }

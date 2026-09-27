@@ -1,6 +1,8 @@
 /* App Shell — yatay, sabit chrome'lu çerçeve.
    Temel kural: sayfa akışı yok. Görünümler viewport'a sığar; sığmayan içerik
-   `[data-h-track]` yatay track'inde sayfalanır. Dikey scrollbar yasaktır. */
+   `[data-h-track]` yatay track'inde sayfalanır ya da kapsüllenmiş iç
+   scroller'da akar (tek istisna: OYUNLAR `.games-grid` dikey scroller).
+   Pencere düzeyinde dikey scrollbar yasaktır. */
 
 #app-shell {
   position: fixed;

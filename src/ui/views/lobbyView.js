@@ -22,7 +22,7 @@ import { getCurrentHostGameMode, setHostGameMode, showLobbySheet, dismissLobbySh
 import { closeOverlay } from '../overlayHost.js';
 import { registerView } from './registry.js';
 
-const ART = (mode) => `/assets/games/${String(mode).toLowerCase()}.jpg`;
+const ART = (mode) => `/assets/games/${String(mode).toLowerCase()}.webp`;
 const SWIPE_MIN_PX = 44;
 
 function el(tag, className, html) {

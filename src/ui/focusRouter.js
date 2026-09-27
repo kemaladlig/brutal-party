@@ -8,6 +8,8 @@
 // Uygulama: `[data-focus]` taşıyan öğeler roving tabindex ile yönetilir
 // (yalnız aktif öğe Tab'e girer), yön seçimi 2D en-yakın komşu skorlamasıyla
 // yapılır. `prefersReducedMotion` kaydırmayı ve geçişleri sabitler.
+// Yatay track (`[data-h-track]`) ortalanır; dikey kapsüllenmiş scroller
+// (ör. OYUNLAR ızgarası) `nearest` mantığıyla kaydırılır.
 
 import { prefersReducedMotion } from './motion.js';
 
@@ -47,20 +49,40 @@ export function createFocusRouter({ getScope, getTrack = null, onFocusChange = n
     });
   }
 
-  /** Öğeyi yatay track içinde ortala. Dikey akış shell'da yok. */
+  /** Öğeyi görünür alana kaydır: yatay track'te ortala, dikey scroller'da nearest. */
   function ensureVisible(el) {
-    const track = el?.closest?.('[data-h-track]');
-    if (!track || !el) return;
-    const trackRect = track.getBoundingClientRect();
-    const rect = el.getBoundingClientRect();
-    // Zaten görünür alandaysa dokunma — her odak değişiminde titreme yapmasın.
-    if (rect.left >= trackRect.left + 8 && rect.right <= trackRect.right - 8) return;
-    const delta = (rect.left - trackRect.left) - (track.clientWidth - rect.width) / 2;
-    const max = Math.max(0, track.scrollWidth - track.clientWidth);
-    track.scrollTo({
-      left: Math.min(max, Math.max(0, track.scrollLeft + delta)),
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
-    });
+    if (!el) return;
+    const behavior = prefersReducedMotion() ? 'auto' : 'smooth';
+    const track = el.closest?.('[data-h-track]');
+    if (track) {
+      const trackRect = track.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+      // Zaten görünür alandaysa dokunma — her odak değişiminde titreme yapmasın.
+      if (rect.left >= trackRect.left + 8 && rect.right <= trackRect.right - 8) return;
+      const delta = (rect.left - trackRect.left) - (track.clientWidth - rect.width) / 2;
+      const max = Math.max(0, track.scrollWidth - track.clientWidth);
+      track.scrollTo({
+        left: Math.min(max, Math.max(0, track.scrollLeft + delta)),
+        behavior,
+      });
+      return;
+    }
+    // Dikey kapsüllenmiş scroller: taşan ilk atayı bul, satırı görünür kıl.
+    // `.shell-view` üstüne çıkılmaz (sayfa akışı yok — pencere kaymaz).
+    let node = el.parentElement;
+    while (node && !node.classList?.contains('shell-view')) {
+      if (node.scrollHeight > node.clientHeight + 4) {
+        const vr = node.getBoundingClientRect();
+        const rect = el.getBoundingClientRect();
+        if (rect.top < vr.top + 8) {
+          node.scrollTo({ top: node.scrollTop + (rect.top - vr.top) - 8, behavior });
+        } else if (rect.bottom > vr.bottom - 8) {
+          node.scrollTo({ top: node.scrollTop + (rect.bottom - vr.bottom) + 8, behavior });
+        }
+        return;
+      }
+      node = node.parentElement;
+    }
   }
 
   function currentTrack() {

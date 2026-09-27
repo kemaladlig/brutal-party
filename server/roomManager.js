@@ -2,6 +2,7 @@
 // Manages rooms, host connections, controller slots (P1..P4), and low-latency input streaming.
 import { sanitizeAvatar, pickFreeColor, isPaletteHex } from '../src/core/customizationManager.js';
 import { isValidNetworkInput } from '../src/core/networkProtocol.js';
+import { normalizeReactionKey } from '../src/core/reactions.js';
 
 // Sunucu tarafı isim temizleyici (istemcideki net.js cleanPlayerName ile aynı
 // kural: trim + BÜYÜK HARF + 12 + HTML/tehlikeli karakterleri at)
@@ -427,12 +428,34 @@ export class RoomManager {
     const room = this.getRoom(clientWs.roomCode);
     if (!room || !room.hostWs) return;
     if (!this._rateOk(room, `r_${clientWs.slotIndex}_REACTION`, 1000)) return;
+    const reaction = normalizeReactionKey(emoji);
+    if (!reaction) return;
     this._touchSlot(room, clientWs.slotIndex);
 
     this.sendToHost(room, {
       type: 'PLAYER_REACTION',
       slotIndex: clientWs.slotIndex,
-      emoji: (emoji ?? '🔥').toString().slice(0, 8),
+      emoji: reaction,
+    });
+  }
+
+  // Host -> kumandalar. Host tek yetkilidir; kumandalar yalnız ALIR, bu yüzden
+  // gönderici yönü açık ayrı bir yolda tanımlanır (slot -1 = koltukta değil).
+  handleHostReaction(hostWs, emoji, slotIndex) {
+    if (!hostWs || !hostWs.isHost) return;
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return;
+    const reaction = normalizeReactionKey(emoji);
+    if (!reaction) return;
+    if (!this._rateOk(room, 'r_HOST_REACTION', 1000)) return;
+
+    const slot = Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < 4
+      ? slotIndex
+      : -1;
+    this.broadcastToPlayers(room, {
+      type: 'PLAYER_REACTION',
+      slotIndex: slot,
+      emoji: reaction,
     });
   }
 

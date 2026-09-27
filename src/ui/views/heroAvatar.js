@@ -20,6 +20,7 @@
 
 import {
   syncStageCanvas, observeStageCanvas, beginStageFrame, drawAvatarStage, drawSparks,
+  stageBodyCenter,
 } from '../avatarStage.js';
 import { createAvatarLife } from '../avatarLife.js';
 import { getAvatarProfile } from '../../core/customizationManager.js';
@@ -97,15 +98,20 @@ export function mountHeroAvatar(canvas, { onPoke = null } = {}) {
 
   // ── Etkileşim ──
 
+  // Gövde merkezi canvas merkezinden farklı olabilir (uzun canvas'ta gövde
+  // altta, üstte zıplama gökyüzü vardır): bakış ve kıvılcım gövdeyi hedefler.
+  const bodyCenter = () => stageBodyCenter(stage.w, stage.h, stage.r);
+
   const pokeAt = (clientX, clientY) => {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     lastPokeAt = performance.now();
+    const bc = bodyCenter();
     life.poke({
       x: clientX - rect.left,
       y: clientY - rect.top,
-      centerX: rect.width / 2,
-      centerY: rect.height / 2,
+      centerX: bc.cx,
+      centerY: bc.cy,
       radius: stage.r,
       color: profile?.color,
     });
@@ -117,9 +123,10 @@ export function mountHeroAvatar(canvas, { onPoke = null } = {}) {
   const gazeAt = (clientX, clientY) => {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width) return;
+    const bc = bodyCenter();
     life.gaze(Math.atan2(
-      clientY - (rect.top + rect.height / 2),
-      clientX - (rect.left + rect.width / 2),
+      clientY - (rect.top + bc.cy),
+      clientX - (rect.left + bc.cx),
     ));
   };
 
@@ -143,7 +150,8 @@ export function mountHeroAvatar(canvas, { onPoke = null } = {}) {
     if (performance.now() - lastPokeAt < POKE_CLICK_DEDUPE_MS) return;
     const rect = canvas.getBoundingClientRect();
     if (!rect.width) return;
-    pokeAt(rect.left + rect.width / 2, rect.top + rect.height * 0.25);
+    const bc = bodyCenter();
+    pokeAt(rect.left + bc.cx, rect.top + bc.cy);
   };
 
   canvas.addEventListener('pointerdown', onPointerDown);

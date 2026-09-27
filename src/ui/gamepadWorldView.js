@@ -240,7 +240,11 @@ export class GamepadWorldView {
     if (this.destroyed) return;
     const width = Math.max(1, this.canvas.clientWidth || this.canvas.parentElement?.clientWidth || 1);
     const height = Math.max(1, this.canvas.clientHeight || this.canvas.parentElement?.clientHeight || 1);
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    // Perf: adaptive DPR — aynı MAX_CANVAS_PIXELS bütçesi (main.js ile tutarlı)
+    const raw = Math.min(window.devicePixelRatio || 1, 2.5);
+    const maxPx = 2_100_000;
+    const pixels = width * height * raw * raw;
+    const dpr = pixels <= maxPx ? raw : Math.max(1, Math.sqrt(maxPx / (width * height)));
     const targetWidth = Math.floor(width * dpr);
     const targetHeight = Math.floor(height * dpr);
     if (this.canvas.width !== targetWidth || this.canvas.height !== targetHeight) {

@@ -72,8 +72,9 @@ export function vitePluginWs() {
   };
 }
 
-// Kumanda rolleri (JOIN_ROOM/INPUT/REACTION/PLAYER_READY/PING) bu kümede yok:
-// onlar isHost=false ile serbestçe geçer.
+// Kumanda rolleri (JOIN_ROOM/INPUT/PLAYER_READY/PING) bu kümede yok:
+// onlar isHost=false ile serbestçe geçer. REACTION de bu kümede değil ama
+// ÇİFT YÖNLÜ: yönü role göre `handleMessage` içinde ayrılır.
 const HOST_ONLY_MSG = new Set([
   'SET_HOST_PLAYER',
   'HOST_STATE_SYNC',
@@ -148,7 +149,11 @@ export function handleMessage(ws, msg, roomManager) {
     }
 
     case 'REACTION': {
-      roomManager.handleReaction(ws, msg.emoji);
+      // REACTION çift yönlüdür: host kumandalara, kumanda host'a gönderir.
+      // Kumanda tarafında host komutları sessizce düşer (HOST_ONLY_MSG), burada
+      // yön role göre ayrılır — sahte slot/host yayını yapılamaz.
+      if (ws.isHost) roomManager.handleHostReaction(ws, msg.emoji, msg.slotIndex);
+      else roomManager.handleReaction(ws, msg.emoji);
       break;
     }
 

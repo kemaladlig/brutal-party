@@ -23,6 +23,8 @@ import { getTabletopIconSvg } from './core/tabletopIcons.js';
 import { GamepadWorldView } from './ui/gamepadWorldView.js';
 import { renderLocalGamepadShell, renderRemoteGamepadShell } from './ui/gamepadShell.js';
 import { openControllerLayoutEditor } from './ui/controllerLayoutEditor.js';
+import { ensureReactionTriggers, setReactionSender } from './ui/reactionPicker.js';
+import { showReaction, clearReactions } from './ui/reactionLayer.js';
 import {
   getControllerLayout,
   setControllerLayout,
@@ -91,9 +93,6 @@ export class GamepadManager {
 
     // Pong touch track
     this.pongPosition = 0.5;
-
-    // Emoji reaction state
-    this.isEmojiOpen = false;
 
     // Slots occupancy state from host
     this.slots = [null, null, null, null];
@@ -803,6 +802,20 @@ export class GamepadManager {
 
     this._bindBrowserLocks();
     this.renderShell();
+    // Tepki gönderimi: kumanda yalnız `pad` yolunu bilir. Gönderici
+    // reactionPicker'ın tek kayıt noktasına yazılır; markup yalnız
+    // `data-reaction-open data-reaction-send="pad"` işaretler. Kendi tepkimiz
+    // sunucudan dönmez (host yalnız kumandaya yayınlar) → yerel geri besleme.
+    if (!this.localMode) {
+      setReactionSender('pad', (key) => {
+        const sent = this.network?.sendReaction?.(key) === true;
+        if (sent) {
+          showReaction({ key, slotIndex: this.playerIndex, color: this.playerColor });
+        }
+        return sent;
+      });
+      ensureReactionTriggers();
+    }
     this._bindVisibilityNeutral();
     this._bindOrientationGate();
     this.renderGameController(this.gameMode);
@@ -833,6 +846,7 @@ export class GamepadManager {
     this.physicalGamepad.stop();
     this.releaseWakeLock();
     this._teardownMount();
+    clearReactions();
     this._resultActive = false;
     this._lastScores = null;
     this.overlay.classList.add('hidden');
@@ -893,24 +907,6 @@ export class GamepadManager {
     document.getElementById('btn-fullscreen-toggle')?.addEventListener('click', () => {
       closeMenu();
       this.toggleFullscreen();
-    });
-
-    const emojiModal = document.getElementById('emoji-wheel-modal');
-    document.getElementById('btn-toggle-emoji')?.addEventListener('click', () => {
-      closeMenu();
-      this.isEmojiOpen = !this.isEmojiOpen;
-      emojiModal?.classList.toggle('hidden', !this.isEmojiOpen);
-    });
-
-    emojiModal?.querySelectorAll('.emoji-wheel-item').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        const emoji = e.currentTarget.dataset.emoji;
-        this.network.sendReaction(emoji);
-        this.isEmojiOpen = false;
-        emojiModal?.classList.add('hidden');
-        this.vibrate(20);
-        playMenuPop();
-      });
     });
 
     this._bindLayoutEditorButton();
@@ -1005,7 +1001,7 @@ export class GamepadManager {
       const isMine = idx === this.playerIndex;
       const dotColor = this.slots?.[idx]?.color || fallbackColors[idx];
       return `
-        <div class="score-chip${isMine ? ' is-mine' : ''}${isEmpty ? ' is-empty' : ''}">
+        <div class="score-chip${isMine ? ' is-mine' : ''}${isEmpty ? ' is-empty' : ''}" data-reaction-anchor="${idx}">
           <span class="score-dot" style="background-color: ${dotColor}"></span>
           <span class="score-name">${isEmpty ? t('pad.empty') : escapeHtml(name)}</span>
           <span class="score-val">${scores[idx] ?? 0}</span>
@@ -1204,7 +1200,7 @@ export class GamepadManager {
           : t('pad.seatTarget', idx + 1, statusText);
 
     return `
-      <button class="${btnClass}" data-seat="${idx}" type="button" aria-label="${escapeHtml(ariaLabel)}"${canTarget ? '' : ' disabled'}>
+      <button class="${btnClass}" data-seat="${idx}" data-reaction-anchor="${idx}" type="button" aria-label="${escapeHtml(ariaLabel)}"${canTarget ? '' : ' disabled'}>
         <span class="seat-num" style="color: ${seatColors[idx]}">${idx + 1}</span>
         <span class="seat-status">${escapeHtml(statusText)}</span>
         <span class="seat-action">${escapeHtml(actionText)}</span>
@@ -1283,7 +1279,7 @@ export class GamepadManager {
 
         <!-- 2. Selected Game Preview Pill -->
         <div class="lobby-game-chip-bar">
-          <img src="/assets/games/${(this.selectedHostGame || 'PONG').toLowerCase()}.jpg" class="lobby-game-thumb-preview" alt="${escapeHtml(selectedTitle)}" onerror="this.style.display='none'" />
+          <img src="/assets/games/${(this.selectedHostGame || 'PONG').toLowerCase()}.webp" class="lobby-game-thumb-preview" alt="${escapeHtml(selectedTitle)}" onerror="this.style.display='none'" />
           <div class="lobby-game-chip-info">
             <span class="lobby-game-label">${t('pad.game')}</span>
             <span class="lobby-game-title" id="lobby-selected-game-text">${selectedTitle}</span>

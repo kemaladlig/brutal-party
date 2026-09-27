@@ -7,10 +7,14 @@ import { cleanPlayerName, getClientId } from './net.js';
 import { WebRTCManager } from './webrtcManager.js';
 import { sanitizeAvatar, pickFreeColor, isPaletteHex, getAvatarProfile } from './core/customizationManager.js';
 import { isValidNetworkInput } from './core/networkProtocol.js';
+import { normalizeReactionKey } from './core/reactions.js';
 import { t } from './i18n.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Tepki hız kapısı: oda sunucusundaki 1sn ile aynı (AGENTS §5 hız bütçesi).
+const REACTION_GAP_MS = 1000;
 
 function assertSupabaseConfig() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -80,6 +84,10 @@ export class SupabaseRelay {
     this._webrtcGeneration = 0;
     this._lastAnalogSentAt = Object.create(null);
     this._lastAnalogVector = Object.create(null);
+
+    // Tepki hız kapısı (WS sunucusundaki slot başına 1sn ile aynı).
+    this._reactionSentAt = 0;
+    this._hostReactionSentAt = 0;
   }
 
   get isHosting() {
@@ -466,8 +474,10 @@ export class SupabaseRelay {
         const slot = this._findSlotByPlayerId(msg.senderId);
         if (slot === -1) return;
         if (this.players[slot]) this.players[slot].lastSeen = performance.now();
+        const reaction = normalizeReactionKey(msg.emoji);
+        if (!reaction) return;
         if (this.callbacks.onPlayerReaction) {
-          this.callbacks.onPlayerReaction(slot, msg.emoji);
+          this.callbacks.onPlayerReaction(slot, reaction);
         }
         break;
       }
@@ -997,6 +1007,17 @@ export class SupabaseRelay {
         break;
       }
 
+      // Host -> kumanda tepki (WS `PLAYER_REACTION` ile aynı sözleşme).
+      case 'REACTION': {
+        const reaction = normalizeReactionKey(msg.emoji);
+        if (!reaction) return;
+        const slot = Number.isInteger(msg.slotIndex) ? msg.slotIndex : -1;
+        if (this.callbacks.onPlayerReaction) {
+          this.callbacks.onPlayerReaction(slot, reaction);
+        }
+        break;
+      }
+
       default:
         break;
     }
@@ -1155,12 +1176,38 @@ export class SupabaseRelay {
     }
   }
 
-  sendReaction(emoji) {
-    const payload = { action: 'REACTION', emoji };
-    if (this._sendControllerPayload(payload)) return;
+  // Kumanda -> host tepki. WS ile aynı hız kapısı (slot başına 1sn) relay'de
+  // istemci tarafında tutulur: sunucu yok, spam koruması burada.
+  sendReaction(key) {
+    if (this.role !== 'CONTROLLER') return false;
+    const reaction = normalizeReactionKey(key);
+    if (!reaction) return false;
+    const now = performance.now();
+    if (this._reactionSentAt && now - this._reactionSentAt < REACTION_GAP_MS) return false;
+    this._reactionSentAt = now;
+    const payload = { action: 'REACTION', emoji: reaction };
+    if (this._sendControllerPayload(payload)) return true;
     if (this.channel) {
       this._broadcast('player_msg', payload);
+      return true;
     }
+    return false;
+  }
+
+  // Host -> kumandalar tepki (lobi + oyun içi; slot -1 = host koltukta değil).
+  sendHostReaction(slotIndex, key) {
+    if (this.role !== 'HOST') return false;
+    const reaction = normalizeReactionKey(key);
+    if (!reaction) return false;
+    const now = performance.now();
+    if (this._hostReactionSentAt && now - this._hostReactionSentAt < REACTION_GAP_MS) return false;
+    this._hostReactionSentAt = now;
+    this._sendHostPayload({
+      action: 'REACTION',
+      slotIndex: Number.isInteger(slotIndex) ? slotIndex : -1,
+      emoji: reaction,
+    });
+    return true;
   }
 
   setReady(isReady) {

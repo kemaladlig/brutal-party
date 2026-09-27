@@ -1364,6 +1364,7 @@ export class ZoneGame extends BaseMiniGame {
       ...p,
       slot: p.index,
       angle: p.heading,
+      trailStart: [p.trailStartX ?? p.x ?? 0, p.trailStartY ?? p.y ?? 0],
       dashProg: p.dashCooldown > 0
         ? 1 - Math.max(0, Math.min(1, p.dashCooldown / ZONE_TUNING.DASH_CD)) : null,
       pct: this.pct[p.index] || 0,

@@ -41,10 +41,10 @@
 .home-hero {
   --hero-size: min(56vh, 500px);
   /* Ayağın (zemin gölgesi merkezinin) kutu tabanına uzaklığı:
-     `drawAvatarStage`de `groundY = h/2 + 1.02r`, `r = 0.37·s` → `0.123·s`.
+     `drawAvatarStage`de `groundY = h/2 + 1.02r`, `r = 0.34·s` → `0.153·s`.
      Kahraman bu kadar AŞAĞI inince gölge tam olarak platformun eksenine oturur
      (`--scene-stage-y`). */
-  --hero-ground-gap: calc(0.123 * var(--hero-size));
+  --hero-ground-gap: calc(0.153 * var(--hero-size));
   left: 50%;
   width: var(--hero-size);
   /* Merkezleme BİLEREK `transform` DEĞİL: `[data-focus].is-focused`
@@ -56,7 +56,10 @@
 
 .home-hero-canvas {
   width: var(--hero-size);
-  height: var(--hero-size);
+  /* Canvas kareden UZUNDUR: gövde altta oturur, üstte ~0.4×boy zıplama gökyüzü
+     vardır (`stageBodyCenter` alttan sabitler). Böylece art arda dokunuşta
+     istiflenen zıplama bitmap dışına taşmadan görünür. */
+  height: calc(var(--hero-size) * 1.4);
 }
 
 /* ── Karakter etkileşimi: dokunma ipucu + TV odak ipucu ── */
@@ -279,7 +282,7 @@
      yüzdeye değil, gerçek oturma çizgisine bağlanır. */
   .home-facts {
     bottom: auto;
-    top: calc(var(--scene-stage-y) + 0.123 * min(26vh, 200px) + 60px);
+    top: calc(var(--scene-stage-y) + 0.153 * min(26vh, 200px) + 60px);
     font-size: 9px;
     letter-spacing: 0.08em;
   }
