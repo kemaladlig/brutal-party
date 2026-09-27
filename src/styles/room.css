@@ -45,9 +45,9 @@
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
   z-index: 2;
-  width: min(46vw, 460px);
+  width: min(52vw, 560px);
 }
 
 .room-choice {
@@ -56,9 +56,11 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  justify-content: center;
+  gap: 4px;
   width: 100%;
-  padding: 14px 18px 16px;
+  min-height: clamp(122px, 20vh, 158px);
+  padding: 16px 22px 18px;
   border: 2px solid var(--scene-btn-ghost-line);
   border-radius: 22px;
   background: var(--scene-btn-ghost);
@@ -82,6 +84,7 @@
   content: '';
   position: absolute;
   inset: 0 0 0 auto;
+  z-index: 3;
   width: 0;
   background: var(--room-accent);
   opacity: 0.9;
@@ -91,6 +94,7 @@
 
 .room-choice:hover { transform: translateX(-4px); }
 .room-choice:hover::after { width: 6px; }
+.room-choice:hover .room-choice-art { transform: scale(1.05); }
 
 .room-choice.is-focused {
   transform: translateX(-8px);
@@ -98,36 +102,48 @@
 }
 
 .room-choice.is-focused::after { width: 10px; }
+.room-choice.is-focused .room-choice-art { transform: scale(1.07); }
 
 .room-choice:active { transform: translateX(-4px) scale(0.99); }
 
 .room-choice-word {
   position: relative;
-  font: 900 clamp(30px, 5.4vh, 48px)/1 var(--font-grotesk);
+  z-index: 2;
+  font: 900 clamp(34px, 6vh, 56px)/1 var(--font-grotesk);
   letter-spacing: 0.02em;
   text-shadow: 0 2px 6px var(--scene-btn-shadow);
 }
 
 .room-choice-desc {
   position: relative;
-  font: 700 12px/1.35 var(--font-grotesk);
+  z-index: 2;
+  font: 700 13.5px/1.4 var(--font-grotesk);
   color: var(--hud-muted);
-  max-width: 34ch;
+  max-width: 36ch;
 }
 
-.room-choice-icon {
+/* Seçenek görseli: modu ikon yerine SAHNE anlatır (koltuk+TV / iki ev+globus).
+   Alt katman = webp (kapak kırpım), üstünde soldan sağa açılan scrim — metin
+   solda koyu bantta okunur, görsel sağda kendine gelir. */
+.room-choice-art {
   position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: grid;
-  place-items: center;
-  width: 54px;
-  height: 54px;
-  border-radius: 18px;
-  background: var(--sheen-12);
-  color: var(--hud-ink);
-  line-height: 0;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 62% 50%;
+  pointer-events: none;
+  user-select: none;
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.room-choice::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(90deg, var(--scrim-strong) 0%, var(--scrim) 46%, transparent 88%);
   pointer-events: none;
 }
 
@@ -136,11 +152,9 @@
 @media (max-height: 470px) {
   .room-hero { --room-size: min(30vh, 190px); }
   .room-choices { right: max(16px, env(safe-area-inset-right)); gap: 10px; width: min(52vw, 380px); }
-  .room-choice { padding: 10px 14px 12px; border-radius: 18px; }
+  .room-choice { padding: 10px 14px 12px; border-radius: 18px; min-height: clamp(92px, 17vh, 118px); }
   .room-choice-word { font-size: clamp(22px, 7vh, 32px); }
   .room-choice-desc { font-size: 10.5px; }
-  .room-choice-icon { width: 42px; height: 42px; border-radius: 14px; }
-  .room-choice-icon svg { width: 20px; height: 20px; }
 }
 
 /* Dar + uzun (dikey telefon — rotate gate arkasında): seçenekler üstte
@@ -161,7 +175,6 @@
   .room-choice { padding: 10px 12px 12px; }
   .room-choice-word { font-size: 26px; }
   .room-choice-desc { font-size: 10.5px; max-width: none; }
-  .room-choice-icon { right: 12px; width: 40px; height: 40px; }
 
   .room-hero {
     --room-size: min(26vh, 180px);

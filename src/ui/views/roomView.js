@@ -6,7 +6,6 @@
 // AYNI CİHAZ seçeneği burada değil: yerel oynama ana menüdeki OYNA →
 // oyun arenası üzerinden yapılır, iki yol aynı işi göstermez.
 
-import { getTabletopIconSvg } from '../../core/tabletopIcons.js';
 import { t, onLangChange } from '../../i18n.js';
 import { playMenuTick, playMenuPop } from '../../audio.js';
 import { registerView } from './registry.js';
@@ -21,8 +20,8 @@ function el(tag, className, html) {
 }
 
 const OPTIONS = [
-  { id: 'TV_CONSOLE', key: 'shell.room.tv', icon: 'tv' },
-  { id: 'ONLINE', key: 'shell.room.online', icon: 'globe' },
+  { id: 'TV_CONSOLE', key: 'shell.room.tv', art: '/assets/illustrations/tv.webp' },
+  { id: 'ONLINE', key: 'shell.room.online', art: '/assets/illustrations/online.webp' },
 ];
 
 registerView('room', {
@@ -71,9 +70,9 @@ registerView('room', {
       btn.dataset.mode = opt.id;
       btn.tabIndex = -1;
       btn.innerHTML = `
+        <img class="room-choice-art" src="${opt.art}" alt="" aria-hidden="true" draggable="false" />
         <span class="room-choice-word"></span>
-        <span class="room-choice-desc"></span>
-        <span class="room-choice-icon">${getTabletopIconSvg(opt.icon, { size: 26, strokeWidth: 2.1 })}</span>`;
+        <span class="room-choice-desc"></span>`;
       btn.addEventListener('click', () => {
         playMenuPop();
         // Mod değişimi platform modunu da günceller: oda ekranından ayrılırken
