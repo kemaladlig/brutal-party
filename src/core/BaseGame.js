@@ -10,6 +10,7 @@ import { isSlotActionEvent, keyboardVectorFrom, getKeyLabel } from './inputMaps.
 import { getQuadrant, roundOverSkipGuard } from './touchFlow.js';
 import { UI_COLORS, getDisplayProfile, shouldShowVirtualControls, isTouchDevice } from '../ui/tokens.js';
 import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
+import { roundGapSeconds } from './roundLifecycle.js';
 import { t } from '../i18n.js';
 import { drawTabletopIcon } from './tabletopIcons.js';
 import {
@@ -1655,6 +1656,10 @@ export class BaseMiniGame {
       title: title || defTitle,
       titleColor: titleColor || defColor,
       sub,
+      // Boşluğun kalan saniyesi: bant "kim kazandı"yı, sayı "ne zaman
+      // dönüyoruz"u söyler. Okuma `roundLifecycle`'tadır — motorlar sayacı
+      // farklı adta tutuyor ve buraya oyun-özel dal yazılmaz.
+      countdown: roundGapSeconds(this),
     });
   }
 

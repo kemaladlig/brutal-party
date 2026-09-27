@@ -1057,7 +1057,7 @@ export function renderEntityHUD(ctx, {
 
 // Standart raund bandı: başlık + alt bilgi. Final kartıyla aynı paneli paylaşır
 // — tur sonu ile maç sonu iki farklı dilde konuşmaz.
-export function renderRoundBanner(ctx, { arena, title, titleColor, sub = '' }) {
+export function renderRoundBanner(ctx, { arena, title, titleColor, sub = '', countdown = 0 }) {
   const ts = uiTextScale(getUiScale(arena));
   const boxW = Math.min(Math.round(440 * ts), arena.width * 0.88);
   const boxH = Math.round((sub ? 88 : 68) * ts);
@@ -1075,6 +1075,38 @@ export function renderRoundBanner(ctx, { arena, title, titleColor, sub = '' }) {
     ctx.fillStyle = UI_COLORS.resultMuted;
     ctx.font = uiFont('monoBody', ts);
     ctx.fillText(sub, arena.cx, box.y + boxH * 0.72, boxW - Math.round(28 * ts));
+  }
+
+  // Raunt boşluğu geri sayımı — "bam diye başladı"nın panzehiri. Sayı yalnız
+  // bilgi değil, SİNYAL: oyuncu bir sonraki rauntun ne zaman geldiğini görürse
+  // geçiş ani hissedilmez ve tepki için payı olduğunu anlar.
+  //
+  // Sağ alta yaslanır: başlık ve alt metnin düzenine dokunmaz, dolayısıyla
+  // hiçbir motorun kutu hesabı değişmez. Eriyen bir ilerleme çubuğu daha şık
+  // olurdu ama başlangıç toplamını istemek 15 motora yeni bir alan demekti —
+  // bu kazanç için o bedel ödenmedi.
+  //
+  // Kuma saati ikonu dili taşımaz ve kumanda yüzeyindeki rozetle aynı anlamı
+  // taşır; çıplak "3" yerine neyin sayıldığını kendi söyler.
+  const left = Math.max(0, Number(countdown) || 0);
+  if (left > 0) {
+    const label = String(Math.ceil(left));
+    const size = Math.round(16 * ts);
+    ctx.font = uiFont('monoBody', ts);
+    const textW = ctx.measureText(label).width;
+    const gap = Math.round(5 * ts);
+    const totalW = size + gap + textW;
+    const right = box.x + box.w - Math.round(16 * ts);
+    const baseY = box.y + box.h - Math.round(14 * ts);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = UI_COLORS.resultGold;
+    if (hasTabletopIcon('hourglass')) {
+      drawTabletopIcon(ctx, 'hourglass', right - totalW + size / 2, baseY, size, {
+        color: UI_COLORS.resultGold,
+      });
+    }
+    ctx.fillText(label, right - textW, baseY);
   }
   ctx.restore();
 }

@@ -15,7 +15,7 @@ import { drawObstacle } from '../core/arenaKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { clampToArena, distToSegmentSquared, normalizeAngle } from '../core/physics2d.js';
 import { computePlayfield, fieldPx, fieldSpeed } from '../core/playfield.js';
-import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
+import { beginDrawRound, hasMatchResult, roundGapSeconds } from '../core/roundLifecycle.js';
 import { createPlayer } from '../core/playerEntity.js';
 import { getKeyLabel } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
@@ -1200,6 +1200,7 @@ export class RaceGame extends BaseMiniGame {
         title,
         titleColor: this.roundWinner?.color || UI_COLORS.ink,
         sub: t('race.roundGoal', this.targetScore),
+        countdown: roundGapSeconds(this),
       });
     } else if (this.state === 'MATCH_OVER') {
       this.uiButtons = [];

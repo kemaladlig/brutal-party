@@ -15,6 +15,7 @@ import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { vibrate } from '../core/haptics.js';
 import { computePlayfield, fieldRadius } from '../core/playfield.js';
+import { roundGapSeconds } from '../core/roundLifecycle.js';
 
 const PONG_ROUND_LIMIT = 120;
 
@@ -851,6 +852,7 @@ export class Game extends BaseMiniGame {
         title: `+1 SET: ${this.roundWinner.name}!`,
         titleColor: this.roundWinner.color,
         sub: `TOPLAM SET: ${this.setScores[this.roundWinner.index]} / ${this.targetSets}`,
+        countdown: roundGapSeconds(this),
       });
     } else {
       // Center Cross in Lobby
