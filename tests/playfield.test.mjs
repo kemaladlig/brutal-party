@@ -359,8 +359,50 @@ test('isCompactLandscape classifies phone landscape only', () => {
   assert.equal(isCompactLandscape(393, 852), false);
 });
 
-test('unit is 1.0 at the desktop design reference and scales with the field', () => {
-  const reference = computePlayfield(1920, 1080, 'standard');
+// Kuşak regresyon kilidi. Arena payları viewport kısa kenarıyla tam-bleed'e
+// geçiyor, oysa `profile.compactLandscape` bir ara arena boyutuna bakıyordu.
+// [476, 540) yatay bandında ikisi AYRIŞIYORDU: sah 3 px payla taşıyor, HUD ise
+// "kompakt değil" sanıp kontrol kılavuzunu sahanın İÇİNE çiziyordu (AGENTS §8
+// yasaklarından biri). Tek karar, tek kaynak: payı veren eşik hangisiyse HUD da
+// ona bakar. Bu eşitlik bozulursa kılavuz yine sahanın üstüne biner.
+test('the inset decision and the HUD decision are the same decision', () => {
+  const BAND = [
+    [800, 500], [900, 520], [1000, 480], [860, 477], [850, 475], [667, 375],
+  ];
+  for (const preset of Object.keys(FIELD_PRESETS)) {
+    for (const [w, h] of BAND) {
+      const arena = computePlayfield(w, h, preset);
+      const expected = isCompactLandscape(w, h);
+      assert.equal(
+        arena.profile.compactLandscape,
+        expected,
+        `${preset} @ ${w}x${h}: pay kararı ile HUD kararı ayrıştı`,
+      );
+      // Aynı sorunun arena nesnesinden sorulan hali (HUD bu yolu kullanır).
+      assert.equal(
+        isCompactLandscape(arena),
+        expected,
+        `${preset} @ ${w}x${h}: arena üzerinden okunan karar ayrıştı`,
+      );
+    }
+  }
+});
+
+// Kompakt karara gömülü ikinci sözleşme: tam-bleed bandında sahanın üstünde
+// kalıcı şerit çizecek pay YOKTUR. Bu, kılavuzun çizilmemesinin geometrik
+// gerekçesidir; pay büyürse §8 kuralı gevşer ve bunu bilerek gevşetmek gerekir.
+test('compact landscape leaves no headroom for permanent chrome', () => {
+  for (const [w, h] of [[800, 500], [852, 393], [915, 412]]) {
+    const arena = computePlayfield(w, h, 'standard');
+    assert.equal(isCompactLandscape(arena), true, `${w}x${h} kompakt olmalı`);
+    assert.ok(
+      arena.top < 8,
+      `${w}x${h}: kompakt yatayda üst pay ${arena.top} px olmalı (<8) — şerit sahaya biner`,
+    );
+  }
+});
+
+test('unit is 1.0 at the desktop design reference and scales with the field', () => {  const reference = computePlayfield(1920, 1080, 'standard');
   assert.equal(reference.size, FIELD_DESIGN.shortSide);
   assert.equal(reference.unit, 1);
 

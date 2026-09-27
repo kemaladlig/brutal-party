@@ -8,7 +8,7 @@ import { openOverlay, closeOverlay } from './overlayHost.js';
 import { showInstallToast } from './toast.js';
 import { toggleAudio, getIsMuted } from '../audio.js';
 import { t, onLangChange } from '../i18n.js';
-import { isFullscreen, toggleFullscreen, onFullscreenChange } from './fullscreen.js';
+import { isFullscreen, toggleFullscreen, onFullscreenChange, fullscreenOfferable } from './fullscreen.js';
 import {
   CONTROL_SURFACE,
   getControlSurface,
@@ -145,6 +145,9 @@ function refreshControllerLayoutButton() {
 
 export function refreshPauseSwitches() {
   setSwitch(btnToggleSound, !getIsMuted());
+  // Kurulmuş/PWA yüzeyde çubuk zaten yok, iPhone'da Fullscreen API yok:
+  // anahtar satırı gösterilmez (krom teklifi sunmayan bir yüzeyde gürültü).
+  btnToggleFullscreen?.classList.toggle('hidden', !fullscreenOfferable());
   setSwitch(btnToggleFullscreen, isFullscreen());
   setSwitch(btnToggleBots, isBotEkleEnabled());
   setSwitch(btnToggleColorblind, isColorblindEnabled());

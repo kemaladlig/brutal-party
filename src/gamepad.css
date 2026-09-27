@@ -2509,29 +2509,9 @@
 
 /* Reaction Emoji Overlay → `styles/reactions.css` (ortak tepki katmanı). */
 
-.rotate-gate {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: max(24px, env(safe-area-inset-top, 24px)) max(20px, env(safe-area-inset-right, 20px)) max(24px, env(safe-area-inset-bottom, 24px)) max(20px, env(safe-area-inset-left, 20px));
-  background: var(--dim-94);
-  color: var(--white);
-  pointer-events: auto;
-  touch-action: none;
-  box-sizing: border-box;
-}
-
-.rotate-gate[hidden] {
-  display: none !important;
-}
-
-.rotate-copy {
-  max-width: 260px;
-}
+/* Döndürme geçidi KUMANDADA DEĞİL: tek geçit `#app-rotate-gate`tir
+   (`styles/shell.css` `.app-rotate-gate`, z-index 400 — kumanda katmanının
+   üstünde). İkinci bir geçit aynı anda iki tam ekran scrim üretiyordu. */
 
 /* Shared landscape control belt: controls stay reachable above the home
    indicator while the field remains visible above them. */
@@ -2582,50 +2562,6 @@
       var(--fade-12) 45%,
       var(--fade-00) 100%
     );
-  }
-}
-
-.rotate-phone {
-  width: 64px;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 3px solid var(--yellow);
-  background: var(--ink);
-  box-shadow: var(--shadow-pop);
-}
-
-.rotate-phone svg {
-  animation: rotate-phone-hint 1.6s ease-in-out infinite;
-  will-change: transform;
-}
-
-@keyframes rotate-phone-hint {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(90deg); }
-}
-
-.rotate-title {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 17px;
-  font-weight: 900;
-  color: var(--white);
-  letter-spacing: 0.3px;
-}
-
-.rotate-sub {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--yellow);
-  letter-spacing: 0.5px;
-}
-
-
-@media (prefers-reduced-motion: reduce) {
-  .rotate-phone svg {
-    animation: none !important;
   }
 }
 

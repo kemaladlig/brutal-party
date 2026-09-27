@@ -3,6 +3,7 @@
 
 import { storePlayerName, escapeHtml } from './net.js';
 import { showInstallToast } from './ui/toast.js';
+import { toggleFullscreen, fullscreenOfferable } from './ui/fullscreen.js';
 import { UI_COLORS } from './ui/tokens.js';
 import { motionScale } from './ui/motion.js';
 import { playMenuTick, playMenuPop } from './audio.js';
@@ -714,36 +715,20 @@ export class GamepadManager {
     window.addEventListener('focus', () => { this._windowFocused = true; });
   }
 
-  _mountOrientationGate() {
-    if (document.getElementById('rotate-gate')) return;
-    const gate = document.createElement('div');
-    gate.id = 'rotate-gate';
-    gate.className = 'rotate-gate';
-    gate.setAttribute('role', 'alert');
-    gate.setAttribute('aria-live', 'assertive');
-    gate.hidden = true;
-    gate.innerHTML = `
-      <div class="rotate-phone" aria-hidden="true">${getTabletopIconSvg('rotate_cw', { size: 34, color: '#ffd700', strokeWidth: 2.6 })}</div>
-      <div class="rotate-copy">
-        <div class="rotate-title">${escapeHtml(t('pad.rotateTitle'))}</div>
-        <div class="rotate-sub">${escapeHtml(t('pad.rotateSub'))}</div>
-      </div>
-    `;
-    this.overlay.appendChild(gate);
-  }
-
-  // Landscape-first geçidi: oyun portrait ise animasyonlu döndür uyarısı basılır.
-  // Lobi portrait kalır; sayaç/oyun dışı dokunmaz. iOS lock API yok — telkin edilir.
-  _bindOrientationGate() {
+  // Kumanda YÜZEY sınıfları: CSS yerleşimi `is-playing/is-lobby/is-portrait/
+  // is-landscape` üçgenine bağlıdır. Döndürme GEÇİDİ burada değildir — tek geçit
+  // kabuğundur (`appShell.updateRotateGate`, `#app-rotate-gate`, z-index 400 kumanda
+  // katmanının üstünde). İkinci bir geçit aynı ekranda iki tam ekran scrim üretirdi.
+  _bindOrientationState() {
     if (this._orientBound) return;
     this._orientBound = true;
-    window.addEventListener('resize', () => this._updateOrientationGate());
+    window.addEventListener('resize', () => this._syncOrientationState());
     window.addEventListener('orientationchange', () => {
-      setTimeout(() => this._updateOrientationGate(), 150);
+      setTimeout(() => this._syncOrientationState(), 150);
     });
   }
 
-  _updateOrientationGate() {
+  _syncOrientationState() {
     if (!this.overlay || this.overlay.classList.contains('hidden')) return;
     const portrait = window.innerHeight > window.innerWidth;
     const playing = this.gameMode !== 'LOBBY';
@@ -751,8 +736,6 @@ export class GamepadManager {
     this.overlay.classList.toggle('is-lobby', !playing);
     this.overlay.classList.toggle('is-portrait', portrait);
     this.overlay.classList.toggle('is-landscape', !portrait);
-    const gate = this._el('rotate-gate');
-    if (gate) gate.hidden = !(playing && portrait);
   }
 
   initLocal(playerInfo = {}, gameMode = 'PONG') {
@@ -776,11 +759,10 @@ export class GamepadManager {
     this._worldViewEnabled = false;
     this.overlay.innerHTML = renderLocalGamepadShell(this.selectedHostGame);
     this._workspaceOverride = document.getElementById('local-mobile-workspace');
-    this._mountOrientationGate();
     this.overlay.classList.remove('hidden');
     this._bindBrowserLocks();
     this._bindVisibilityNeutral();
-    this._bindOrientationGate();
+    this._bindOrientationState();
     this._bindLayoutEditorButton();
     this.renderGameController(gameMode);
     this.requestWakeLock();
@@ -822,7 +804,7 @@ export class GamepadManager {
       ensureReactionTriggers();
     }
     this._bindVisibilityNeutral();
-    this._bindOrientationGate();
+    this._bindOrientationState();
     this.renderGameController(this.gameMode);
     this.overlay.classList.remove('hidden');
     this.requestWakeLock();
@@ -873,8 +855,7 @@ export class GamepadManager {
       showLayoutEditor: true,
     });
 
-    this._mountOrientationGate();
-    this._updateOrientationGate();
+    this._syncOrientationState();
 
     // ── Açılır menü (sağ üst ⋮) — oyun sırasında yanlışlıkla basılmasın ──
     const menuBtn = document.getElementById('btn-gamepad-menu');
@@ -909,22 +890,16 @@ export class GamepadManager {
       window.location.href = window.location.pathname;
     });
 
-    document.getElementById('btn-fullscreen-toggle')?.addEventListener('click', () => {
+    const fsToggle = document.getElementById('btn-fullscreen-toggle');
+    // Kurulmuş/PWA ve API'siz yüzeyde krom teklifi yok — menü satırı çizilmez.
+    fsToggle?.classList.toggle('hidden', !fullscreenOfferable());
+    fsToggle?.addEventListener('click', () => {
       closeMenu();
-      this.toggleFullscreen();
+      // Tek otorite `src/ui/fullscreen.js` — kumanda kendi FS durumunu tutmaz.
+      toggleFullscreen();
     });
 
     this._bindLayoutEditorButton();
-  }
-
-  toggleFullscreen() {
-    try {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen?.().catch(() => {});
-      } else {
-        document.exitFullscreen?.().catch(() => {});
-      }
-    } catch {}
   }
 
   updateSlot(newSlot, newColor) {
@@ -1149,7 +1124,7 @@ export class GamepadManager {
       this._setActiveLayoutRoot(mountTarget);
     }
     this.renderControlGuide(mode);
-    this._updateOrientationGate();
+    this._syncOrientationState();
     this._applyControllerLayout(this._layoutPreview || this.getControllerLayout());
     this._layoutEditor?.refresh?.();
   }

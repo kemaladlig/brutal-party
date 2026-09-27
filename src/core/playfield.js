@@ -44,7 +44,7 @@ export const FIELD_PRESETS = Object.freeze({
     verticalPortrait: Object.freeze([54, 0.12]),
     minSpan: 120,
   }),
-  // CROWN (retired).
+  // CROWN.
   crown: Object.freeze({
     horizontal: Object.freeze([16, 0.04]),
     verticalLandscape: Object.freeze([34, 0.065]),
@@ -112,7 +112,8 @@ function isCompactViewport(width, height) {
 
 /**
  * UI yerleşimi ve alan payı kararları:
- * arena verilirse `arena.profile.compactLandscape` (alan-uzayı kararı).
+ * arena verilirse `arena.profile.compactLandscape` — payları veren kararın
+ * ta kendisi, yani sahne ile HUD aynı eşeğe bakar.
  * genişlik/yükseklik verilirse geriye uyumlu cihaz sınıfı sorgusu.
  */
 export function isCompactLandscape(arenaOrWidth, height) {
@@ -223,7 +224,13 @@ export function computePlayfield(width, height, preset = DEFAULT_PRESET) {
     shortSide: size,
     unit,
     designShort: FIELD_DESIGN.shortSide,
-    compactLandscape: width > height && (size / FIELD_DESIGN.shortSide) < 0.50,
+    // SAHTE-İKİLİK DÜZELTMESİ: paylar viewport kısa kenarıyla tam-bleed'e
+    // geçiyor (`compact`, yukarıda), oysa bu alan arena boyutuna bakıyordu.
+    // Yatay yükseklik [476,540) bandındayken arena.top 3 px olduğu hâlde
+    // `compactLandscape` false kalıyor ve kontrol kılavuzu sahanın İÇİNE
+    // 28 px şerit çiziyordu (AGENTS §8 yasağı). Tek karar, tek kaynak:
+    // kompaktlık payı veren yerdir.
+    compactLandscape: compact,
   });
 
   return {

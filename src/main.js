@@ -55,6 +55,8 @@ import {
   setShellPlatformMode,
   lockLandscape,
   unlockOrientation,
+  beginMatchChrome,
+  resumeMatchChrome,
 } from './ui/appShell.js';
 // Görünümler yan etki olarak kayıt olur (src/ui/views/registry.js tek kayıt noktası).
 import './ui/views/homeView.js';
@@ -63,7 +65,7 @@ import './ui/views/lobbyView.js';
 import './ui/views/gamesView.js';
 import './ui/views/profileView.js';
 import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
-import { isFullscreen, requestFullscreen, toggleFullscreen, onFullscreenChange } from './ui/fullscreen.js';
+import { isFullscreen, toggleFullscreen, onFullscreenChange, fullscreenOfferable } from './ui/fullscreen.js';
 import { getTabletopIconSvg, drawTabletopIcon } from './core/tabletopIcons.js';
 import { getSlotSwapError } from './core/slotRules.js';
 import { showReaction, clearReactions, setReactionFieldAnchor } from './ui/reactionLayer.js';
@@ -223,9 +225,34 @@ function effectiveDpr(width, height) {
   return Math.max(1, Math.sqrt(MAX_CANVAS_PIXELS / (width * height)));
 }
 
+// Görünen kutuyu ölçer. `html/body` `position: fixed` olduğu için layout
+// viewport tarayıcı çubuğunun ARKASINA uzanabilir; güvenli olan görünen yükseklik.
+// Mobilde çubuk kıpırtısı `window.resize` değil `visualViewport.resize` üretir
+// (iOS'ta yalnızca ikincisi atar). Klavye açıkken visualViewport yazı alanını
+// gösterir — o sırada saha küçülmez, yoksa isim yazarken arena titrer.
+function isTextEntryActive() {
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable === true;
+}
+
+function measureViewport() {
+  let width = window.innerWidth;
+  let height = window.innerHeight;
+  const vv = window.visualViewport;
+  if (vv && !isTextEntryActive()) {
+    width = Math.min(width, vv.width);
+    height = Math.min(height, vv.height);
+  }
+  return {
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height)),
+  };
+}
+
 function resizeCanvas() {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
+  const { width, height } = measureViewport();
   const dpr = effectiveDpr(width, height);
 
   canvas.width = Math.floor(width * dpr);
@@ -242,10 +269,22 @@ function resizeCanvas() {
   forEachEngine((mode, entry) => entry.game.resize(width, height));
 }
 
-window.addEventListener('resize', () => {
-  resizeCanvas();
-  if (currentMode !== 'MENU') neutralizeTransientInput();
-});
+// `resize`da dokunuşlar DÜŞÜRÜLMEZ. Tarayıcı çubuğunun açılıp kapanması da bu
+// olayı üretir ve basılı joystick'i nötre salıvermek maçı kaybettirir; izdüşüm
+// zaten `setDimensions` → `updateRect` ile tazeleniyor (touchManager.js:32).
+// Girdi yalnız gerçek kaynak değişimlerinde nörlenir: dönüş, arka plan, odak
+// kaybı. Kare başına tek ölçüm: çubuk animasyonu her ara pikselde resize atar.
+let resizeFrame = 0;
+function scheduleResize() {
+  if (resizeFrame) return;
+  resizeFrame = requestAnimationFrame(() => {
+    resizeFrame = 0;
+    resizeCanvas();
+  });
+}
+
+window.addEventListener('resize', scheduleResize);
+window.visualViewport?.addEventListener('resize', scheduleResize);
 window.addEventListener('orientationchange', () => {
   neutralizeTransientInput();
   setTimeout(resizeCanvas, 150);
@@ -255,11 +294,10 @@ document.addEventListener('visibilitychange', () => {
     neutralizeTransientInput();
     return;
   }
-  // Faz 3: dönüşte yön kilidi yenilenir; maç otomatik tam ekranla başladıysa
-  // geri istenir (Sekmeye/uygulamaya geçiş fullscreen veya kilidi düşürebilir).
+  // Faz 3: dönüşte krom yenilenir. Tam ekran YENİDEN ALINMAZ — kabuk,
+  // kullanıcı bıraktıysa (niyet `fullscreen.js`'te) sessiz kalır.
   if (currentMode !== 'MENU') {
-    lockLandscape();
-    if (matchFullscreenActive && !isFullscreen()) requestFullscreen();
+    resumeMatchChrome();
     requestHostWakeLock();
   }
 });
@@ -287,8 +325,9 @@ export async function setGameMode(mode) {
     currentMode = mode;
     localGamepadManager.hide();
     localMobileControlsActive = false;
-    // Faz 3: menüye dönüşte otomatik tam ekran hedefi ve host ekran kilidi bırakılır.
-    matchFullscreenActive = false;
+    // Faz 3: menüye dönüşte host ekran kilidi bırakılır. Tam ekran NIYETI
+    // bırakılmaz — o, sekmenin krom ilişkisinin kaydıdır ve `fullscreen.js`'te
+    // yaşar (menüde düğmeyle girilen tam ekran bir sonraki maçı da kapsar).
     releaseHostWakeLock();
     // Klavye sahipliği: yalnızca aktif motor dinler, diğerlerinin basılı tuş
     // haritası temizlenir (mod değişiminde takılı tuş kalmasın)
@@ -1297,10 +1336,8 @@ function startEngineNow(mode) {
 }
 
 // Faz 3 — yaşam döngüsü.
-// Maç başı tam ekran + yön kilidi; sekmeden/uygulamadan dönüşte ikisi de
-// yenilenir; masaüstü TV yalnız yön kilidi alır (tam ekranı manuel açar).
-let matchFullscreenActive = false;
-
+// Krom NIYETI `src/ui/fullscreen.js`'te tutulur (ikinci bir yerde değil —
+// AGENTS §8). Burada yalnız host'un ekranını açık tutan wake lock durur.
 let hostWakeLock = null;
 async function requestHostWakeLock() {
   if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
@@ -1321,15 +1358,12 @@ function releaseHostWakeLock() {
   hostWakeLock = null;
 }
 
-// BAŞLAT dokunuşu (kullanıcı hareketi) içinden çağrılır: yön kilidi istenir ve
-// dokunmatik cihazda otomatik tam ekrana geçilir. Host telefon hem oyun hem
-// kumanda olduğu için ekran açık tutulur (kapalı kumanda yüzeyi varsayılanı).
+// BAŞLAT dokunuşu (kullanıcı hareketi) içinden çağrılır: yön kilidi ve tam
+// ekran kabuğun krom politikasından geçer (`appShell.beginMatchChrome` — main.js
+// içine krom dalı yazılmaz). Host telefon hem oyun hem kumanda olduğu için
+// ekran açık tutulur (kapalı kumanda yüzeyi varsayılanı).
 function requestMatchChrome() {
-  lockLandscape();
-  if (isTouchDevice()) {
-    matchFullscreenActive = true;
-    if (!isFullscreen()) requestFullscreen();
-  }
+  beginMatchChrome();
   requestHostWakeLock();
 }
 
@@ -1719,6 +1753,9 @@ addTapListener(btnQuickTvLobby, returnHostToLobby);
 function updateQuickFullscreen(active) {
   const isFs = typeof active === 'boolean' ? active : isFullscreen();
   const label = isFs ? t('menu.exitFullscreen') : t('menu.fullscreen');
+  // Kurulu/PWA yüzeyde çubuk zaten yoktur, iPhone'da API yoktur: düğme hiç
+  // çizilmez. Zaten tam ekranda olan bir yüzeyle "tam ekran ol" demek gürültüdür.
+  btnQuickFullscreen?.classList.toggle('hidden', !fullscreenOfferable());
   if (quickFullscreenIcon) {
     quickFullscreenIcon.innerHTML = getTabletopIconSvg(
       isFs ? 'minimize-2' : 'maximize-2',

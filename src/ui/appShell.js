@@ -15,7 +15,12 @@ import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { isTouchDevice } from './tokens.js';
 import { prefersReducedMotion } from './motion.js';
 import { toggleAudio, getIsMuted, playMenuTick } from '../audio.js';
-import { isFullscreen, toggleFullscreen, onFullscreenChange } from './fullscreen.js';
+import {
+  isFullscreen, requestFullscreen, toggleFullscreen, onFullscreenChange,
+  fullscreenOfferable, requestMatchFullscreen, shouldOfferFullscreen,
+  matchFullscreenEngaged,
+} from './fullscreen.js';
+import { isStandaloneApp } from './toast.js';
 import { getLang, setLang, onLangChange, t } from '../i18n.js';
 import {
   registerView, getView, hasView, listRailViews, setRootView, getRootViewId,
@@ -364,8 +369,13 @@ export function updateRotateGate() {
   gateEl.setAttribute('aria-hidden', String(!blocked));
 }
 
-/** Maç başında yön kilidi iste. iOS'ta lock API yok — gate yönlendirmeye düşer. */
+/**
+ * Maç başında yön kilidi iste. iOS'ta lock API yok — gate yönlendirmeye düşer.
+ * Kurulu/PWA yüzeyde hiç denenmez: `manifest.orientation: landscape` zaten
+ * kilitler ve bazı WebView uygulamalarında gereksiz deneme izin sorusu üretir.
+ */
 export async function lockLandscape() {
+  if (isStandaloneApp()) return false;
   const orientation = window.screen?.orientation;
   if (!orientation?.lock) return false;
   try {
@@ -378,6 +388,33 @@ export async function lockLandscape() {
 
 export function unlockOrientation() {
   try { window.screen?.orientation?.unlock?.(); } catch {}
+}
+
+/**
+ * MAÇ KROMU — tek giriş noktası. `main.js` krom dalı yazmaz, yalnız çağırır.
+ *
+ * Yönlendirme kilidi API'si iOS'ta yoktur ve kurulmuş uygulamada `manifest
+ * .orientation: landscape` zaten yeterlidir; bu yüzden standalone'da API
+ * denenmez (başarısız deneme bir de izin sorusu üretebilir). Rotate gate
+ * her durumda ayakta kalır — iOS'ta tek gerçek yönlendirme odur.
+ *
+ * Tam ekran SADECE burada, gerçek bir BAŞLAT dokunuşunun içinde istenir;
+ * niyet `fullscreen.js`'tedir ve kullanıcı bıraktıysa bir daha istenmez.
+ */
+export function beginMatchChrome() {
+  lockLandscape();
+  requestMatchFullscreen();
+}
+
+/**
+ * Sekme/uygulama dönüşünde krom yenilenir. DİKKAT: tam ekran YENİDEN
+ * ALINMAZ — çağrı `shouldOfferFullscreen()` kapısından geçer, yani kullanıcı
+ * çıkıştıysa burada da sessizdir. (Eski davranış "çık, dön, çubuğu geri al"
+ * şeklindeydi ve AGENTS §8'in kullanıcıya saygı maddesiyle çelişiyordu.)
+ */
+export function resumeMatchChrome() {
+  lockLandscape();
+  if (shouldOfferFullscreen() && matchFullscreenEngaged() && !isFullscreen()) requestFullscreen();
 }
 
 // ---------------------------------------------------------------------------
@@ -503,7 +540,10 @@ function mountNavActions() {
       btn.querySelector('span')?.remove();
     },
   });
-  const fsBtn = iconButton({
+  // Tam ekran düğmesi YALNIZ çubuğun gerçekten var olduğu yüzeyde vardır:
+  // kurulmuş/PWA'da çubuk tanım gereği yok, iPhone'da API yok. Zaten tam
+  // ekranda olan bir yüzeyle "tam ekran ol" düğmesi göstermek gürültüdür.
+  const fsBtn = fullscreenOfferable() ? iconButton({
     id: 'shell-fullscreen', label: t('menu.fullscreen'), icon: isFullscreen() ? 'minimize_2' : 'maximize_2',
     pressed: isFullscreen(),
     onClick: (btn) => {
@@ -512,13 +552,15 @@ function mountNavActions() {
       btn.innerHTML = getTabletopIconSvg(active ? 'minimize_2' : 'maximize_2', { size: 18 });
       btn.setAttribute('aria-pressed', String(active));
     },
-  });
+  }) : null;
   const settingsBtn = iconButton({
     id: 'shell-settings', label: t('menu.settings'), icon: 'settings',
     onClick: () => actions.openSettings?.(),
   });
 
-  host.append(soundBtn, langBtn, fsBtn, settingsBtn);
+  host.append(soundBtn, langBtn);
+  if (fsBtn) host.append(fsBtn);
+  host.append(settingsBtn);
   if (navActionsBound) return;
   navActionsBound = true;
   // Canlı düğüme bakılır: eski rebuild'in kopuk `fsBtn` kapanışı güncellenmez.
