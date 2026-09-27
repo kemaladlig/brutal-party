@@ -3,15 +3,19 @@
 
     <!-- API 27+: çentik/punch-hole bölgesine çizmeye izin.
          `windowLayoutInDisplayCutoutMode` yalnız 27+ bir tema niteliğidir, bu
-         yüzden `values/styles.xml` içindeki temel sürümde DURMAZ (minSdk 23).
+         yüzden `values/styles.xml` içindeki temel sürümde DURMAZ (minSdk 24).
          Yatayda çentik sol/sağ kenardadır; `shortEdges` olmadan WebView çentiğin
          arkasına çizemez ve `env(safe-area-inset-left/right)` hep 0 kalır —
          playfield o payı tam da buradan okuyor (src/core/playfield.js).
 
-         Kural: `values/styles.xml` değişirse BU dosya da aynı stile ek olarak
-         değişmelidir; iki kopya sessizce ayrışır. -->
+         Kural: kaynak nitelendirme override'ı TÜM stili değiştirir, dolayısıyla
+         `values/styles.xml` değiştiğinde BURASI da birebir aynı öğeleri taşımak
+         zorundadır; iki kopya sessizce ayrışırsa 27+ cihazlar (yani neredeyse
+         hepsi) splash'ı ve simgeyi kaybeder. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/brand_surface</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 </resources>

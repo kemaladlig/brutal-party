@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Native açılış zemini.
+
+     Yerine konan şey: Capacitor şablonunun `splash.png`'leri (11 dosya, 5 yoğunluk
+     × 2 yön + `drawable/`) SAF BEYAZ zemin üzerinde MAVİ bir Capacitor logosuydu.
+     Kullanıcı uygulamaya dokunduğunda gördüğü ilk kare beyazdı ve sonraki kare
+     koyu markalı `#app-boot`tu (index.html) — yani web katmanında temizlenen
+     "beyaz flaş" native katmanda geri konuyordu, üstelik yabancı bir logoyla.
+
+     Bu yüzden yoğunluk-PNG'leri yerine tek yoğunluk-kayıtsız XML: koyu yüzey +
+     ortada turuncu hap. `#app-boot` kompozisyonunun (kelime işareti + turuncu
+     zemin çizgisi) çizim-yeteneği olmayan katmandaki en yalın karşılığıdır;
+     Android drawable'ı metin çizemez, markanın tam hâlini `#app-boot` üstlenir.
+
+     `android:width`/`android:height` layer-list öğeleri API 23+; minSdk 24. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/brand_surface" />
+    <item
+        android:width="200dp"
+        android:height="6dp"
+        android:gravity="center">
+        <shape android:shape="rectangle">
+            <corners android:radius="3dp" />
+            <solid android:color="@color/brand_accent" />
+        </shape>
+    </item>
+</layer-list>

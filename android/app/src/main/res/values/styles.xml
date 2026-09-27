@@ -16,7 +16,20 @@
     </style>
 
 
+    <!-- Açılış teması. `android:background` splash'ı çizen şeydir (Capacitor
+         `setSplashScreen` çağırmaz, sistem/kitlik bunu tema üzerinden çizer);
+         `windowSplashScreen*` nitelikleri Android 12+'ta SYSTEM splash'ı
+         besler — orada varsayılan zemin beyazdır, yani bunlarsız 12+ cihazda
+         beyaz flaş geri gelir. Simge olarak markalı "4P" launcher rozeti.
+         `postSplashScreenTheme` BİLİNÇLİ yok: `AppTheme.NoActionBar` pencere
+         zeminini `@null` yapıyor ve splash→WebView arasında boşluk görünürdü.
+
+         DİKKAT: `values-v27/styles.xml` bu stili yeniden yazar (kaynak
+         nitelendirme kuralı: override tüm stili değiştirir). Buraya eklenen
+         her öğe oraya da eklenmelidir. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/brand_surface</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
     </style>
 </resources>

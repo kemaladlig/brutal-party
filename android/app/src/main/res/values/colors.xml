@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MARKA RENGİ SÖZLEŞMESİ: bu iki değer `src/styles/tokens.css` koyu tema
+         girdilerinin kopyasıdır ve birlikte güncellenir: oradaki surface token'ı
+         ve accent token'ı (CSS özel nitelik adları XML yorumunda yazılamaz,
+         yorum içine iki tire giremez). Android CSS'i okuyamaz; buradaki yorum
+         tek bağdır. Karşılaştır: `public/manifest.webmanifest` arka plan rengi
+         de aynı yüzey değerini taşır — üçü birden değişir. -->
+    <color name="brand_surface">#14101F</color>
+    <color name="brand_accent">#FF8C1A</color>
+</resources>
