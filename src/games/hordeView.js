@@ -42,6 +42,13 @@ export const HORDE_VIEW_LIMITS = Object.freeze({
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 const ENEMY_TYPES = new Set(['chaser', 'shooter', 'tank', 'healer', 'barrel', 'bomb']);
+
+// Sık kullanılan çizim renkleri tek adsta: literal sayısı `rules-lint` K2
+// borcunu dosya başına sayıyor, bu yüzden ortak tonlar burada durur.
+const GOLD = '#FACC15';
+const INK = '#1A1A1A';
+const FLASH = '#FFFFFF';
+const BLOOD = '#E63946';
 const WEAPON_IDS = new Set(['SIDEARM', 'SMG', 'SHOTGUN', 'RIFLE', 'BLADE']);
 const MAP_IDS = new Set(['foundry', 'reactor', 'core']);
 
@@ -163,7 +170,7 @@ export function mapHordeScene(game, tuning = {}) {
       y: round1(entry.y),
       text: String(entry.text || '').slice(0, 24),
       alpha: round1(clamp01(entry.alpha)),
-      color: typeof entry.color === 'string' ? entry.color : '#1A1A1A',
+      color: typeof entry.color === 'string' ? entry.color : INK,
     })),
     theme: MAP_IDS.has(game.mapTheme) ? game.mapTheme : getHordeMap(game.round).id,
     phase: game.state || 'LOBBY',
@@ -466,7 +473,7 @@ function drawExtractionGate(ctx, portal, now) {
   ctx.fill();
   
   ctx.globalAlpha = 0.8;
-  ctx.strokeStyle = '#FACC15';
+  ctx.strokeStyle = GOLD;
   ctx.lineWidth = Math.max(2, 4 * pu);
   const spin = now / 200 + progress * 15;
   const numRings = 4;
@@ -477,12 +484,86 @@ function drawExtractionGate(ctx, portal, now) {
     ctx.stroke();
   }
   
-  ctx.fillStyle = '#FACC15';
+  ctx.fillStyle = GOLD;
   ctx.globalAlpha = 1;
   ctx.beginPath();
   ctx.arc(0, 0, portal.r * 0.15 * (1 + progress * 2), 0, Math.PI * 2);
   ctx.fill();
   
+  ctx.restore();
+}
+
+function drawBarrelProp(ctx, enemy, eu, withFx, now) {
+  const r = enemy.r;
+  const w = r * 1.5;
+  const h = r * 1.9;
+  const damaged = 1 - clamp01(enemy.hp / enemy.maxHp);
+  ctx.save();
+  ctx.translate(enemy.x, enemy.y);
+
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.ellipse(0, h * 0.54, w * 0.58, r * 0.24, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = '#F97316';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1.5, 3 * eu);
+  ctx.beginPath();
+  ctx.rect(-w / 2, -h / 2, w, h);
+  ctx.fill();
+  ctx.stroke();
+
+  // Kapak + bantlar: varilin "silindir" okunuşu buradan gelir.
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.ellipse(0, -h / 2, w / 2, r * 0.26, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(-w / 2, -h * 0.16, w, Math.max(2, r * 0.16));
+  ctx.fillRect(-w / 2, h * 0.06, w, Math.max(2, r * 0.16));
+
+  // Uyarı chevrons: eşyanın tehlike olduğunu rengi değil işareti söyler.
+  ctx.fillStyle = GOLD;
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.3, h * 0.42);
+  ctx.lineTo(0, h * 0.24);
+  ctx.lineTo(w * 0.3, h * 0.42);
+  ctx.lineTo(w * 0.3, h * 0.52);
+  ctx.lineTo(0, h * 0.34);
+  ctx.lineTo(-w * 0.3, h * 0.52);
+  ctx.closePath();
+  ctx.fill();
+
+  // Hasar kararması — varilde can çubuğu yerine gövde okunur.
+  if (damaged > 0) {
+    ctx.globalAlpha = damaged * 0.5;
+    ctx.fillStyle = INK;
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.globalAlpha = 1;
+  }
+
+  // Fitil kıvılcımı: yanıp sönen tempo varilin ateşlenebilir olduğunu verir.
+  const spark = 0.55 + Math.sin(now / 120) * 0.45;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1, 2 * eu);
+  ctx.beginPath();
+  ctx.moveTo(w * 0.22, -h / 2);
+  ctx.lineTo(w * 0.42, -h / 2 - r * 0.42);
+  ctx.stroke();
+  ctx.globalAlpha = withFx ? 0.4 + spark * 0.6 : 1;
+  ctx.fillStyle = GOLD;
+  ctx.beginPath();
+  ctx.arc(w * 0.42, -h / 2 - r * 0.48, Math.max(1.5, r * (0.16 + spark * 0.1)), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  if (enemy.hit && withFx) {
+    ctx.strokeStyle = FLASH;
+    ctx.lineWidth = Math.max(2, 4 * eu);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -492,7 +573,7 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
     ctx.globalAlpha = 0.18 + enemy.spawnProgress * 0.35;
-    ctx.strokeStyle = enemy.elite ? '#FACC15' : '#E63946';
+    ctx.strokeStyle = enemy.elite ? GOLD : BLOOD;
     ctx.lineWidth = Math.max(1.5, 4 * eu);
     ctx.setLineDash([7, 6]);
     ctx.beginPath();
@@ -500,7 +581,7 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
     ctx.stroke();
     // Perf: setLineDash([]) kaldırıldı — ctx.restore() zaten durumu geri alır
     ctx.rotate(-now / 500);
-    ctx.strokeStyle = '#FFFFFF';
+    ctx.strokeStyle = FLASH;
     ctx.lineWidth = Math.max(1, 3 * eu);
     for (let i = 0; i < 4; i++) {
       const a = i * Math.PI / 2;
@@ -510,6 +591,16 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
       ctx.stroke();
     }
     ctx.restore();
+    return;
+  }
+
+  // Varil = patlayıcı EŞYA, birim değil (motor tarafı da öyle: hız 0,
+  // attackEvery ∞, vurunca AoE). Eski çizim dönen turuncu daire + beyaz "göz"
+  // + can çubuğuydu, yani oyuncuya "yerinde sabit duran, ateş etmeyen NPC"
+  // gibi okunuyordu. Artık dik varil kovası: bantları, uyarı işareti, yanan
+  // fitili ve hasarla kararan gövdesi var; döndürülmez, gözü ve çubuğu olmaz.
+  if (enemy.type === 'barrel') {
+    drawBarrelProp(ctx, enemy, eu, withFx, now);
     return;
   }
 
@@ -545,12 +636,12 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
     ctx.globalAlpha = 0.3 + (enemy.hit ? 0.7 : 0);
-    ctx.fillStyle = '#E63946';
+    ctx.fillStyle = BLOOD;
     ctx.beginPath();
     ctx.arc(0, 0, enemy.r, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = '#E63946';
+    ctx.strokeStyle = BLOOD;
     ctx.lineWidth = Math.max(2, 4 * eu);
     ctx.setLineDash([15, 10]);
     ctx.stroke();
@@ -581,16 +672,12 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
       ? '#334155'
       : enemy.type === 'healer'
         ? '#16A34A'
-        : enemy.type === 'barrel'
-          ? '#F97316'
-          : '#E63946';
+        : BLOOD;
   ctx.fillStyle = fill;
-  ctx.strokeStyle = enemy.boss || enemy.elite ? '#FACC15' : '#1A1A1A';
+  ctx.strokeStyle = enemy.boss || enemy.elite ? GOLD : INK;
   ctx.lineWidth = Math.max(1.5, (enemy.boss ? 5 : 3) * eu);
   ctx.beginPath();
-  if (enemy.type === 'barrel') {
-    ctx.arc(0, 0, enemy.r, 0, Math.PI * 2);
-  } else if (enemy.type === 'tank') {
+  if (enemy.type === 'tank') {
     ctx.rect(-enemy.r, -enemy.r, enemy.r * 2, enemy.r * 2);
   } else if (enemy.type === 'healer') {
     ctx.moveTo(0, -enemy.r);
@@ -626,32 +713,26 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
     ctx.stroke();
   }
   if (enemy.hit && withFx) {
-    ctx.strokeStyle = '#FFFFFF';
+    ctx.strokeStyle = FLASH;
     ctx.lineWidth = Math.max(2, 4 * eu);
     ctx.stroke();
   }
-  if (enemy.type === 'barrel') {
-    ctx.fillStyle = '#FACC15';
-    ctx.beginPath();
-    ctx.arc(0, 0, enemy.r * 0.4, 0, Math.PI * 2);
-    ctx.fill();
-  }
   if (enemy.lunging) {
-    ctx.strokeStyle = '#FACC15';
+    ctx.strokeStyle = GOLD;
     ctx.lineWidth = Math.max(1.5, 4 * eu);
     ctx.beginPath();
     ctx.moveTo(-enemy.r - 10, 0);
     ctx.lineTo(-enemy.r, 0);
     ctx.stroke();
   }
-  ctx.fillStyle = '#FFFFFF';
+  ctx.fillStyle = FLASH;
   ctx.fillRect(enemy.r * 0.45, -3, enemy.r * 0.55, 6);
   ctx.restore(); // Perf: health bar save/restore kaldırıldı — fillRect bağlamcıksız
 
   const ratio = clamp01(enemy.hp / enemy.maxHp);
-  ctx.fillStyle = '#1A1A1A';
+  ctx.fillStyle = INK;
   ctx.fillRect(enemy.x - barW / 2, enemy.y - enemy.r - barGap, barW, barH);
-  ctx.fillStyle = enemy.boss || enemy.elite ? '#FACC15' : '#E63946';
+  ctx.fillStyle = enemy.boss || enemy.elite ? GOLD : BLOOD;
   ctx.fillRect(enemy.x - barW / 2, enemy.y - enemy.r - barGap, barW * ratio, barH);
 }
 
@@ -691,7 +772,7 @@ function drawPlayerWeapon(ctx, player) {
     const drawBlade = (extraAngle) => {
       ctx.rotate(extraAngle || 0);
       ctx.fillStyle = player.weaponColor;
-      ctx.strokeStyle = '#FFFFFF';
+      ctx.strokeStyle = FLASH;
       ctx.lineWidth = 2 * u;
       ctx.lineJoin = 'round';
       ctx.beginPath();
@@ -731,7 +812,7 @@ function drawPlayerWeapon(ctx, player) {
       ctx.beginPath();
       ctx.arc(8 * k, 0, SWEEP_R, -ARC_HALF, sweepEnd);
       ctx.stroke();
-      ctx.strokeStyle = '#FFFFFF';
+      ctx.strokeStyle = FLASH;
       ctx.globalAlpha = tail;
       ctx.lineWidth = 3 * u;
       ctx.beginPath();
@@ -757,7 +838,7 @@ function drawPlayerWeapon(ctx, player) {
     const thickness = (barrel === 'shotgun' ? 10 : barrel === 'rifle' ? 6 : 8) * u;
     ctx.fillStyle = player.weaponColor;
     ctx.fillRect(13 * k, -thickness / 2, length, thickness);
-    ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeStyle = INK;
     ctx.lineWidth = 2 * u;
     ctx.strokeRect(13 * k, -thickness / 2, length, thickness);
   }
@@ -858,11 +939,11 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
       ctx.fillRect(x, y, barW, barH);
       // Dolduran kısım: doluyken silah rengi, doldurma sırasında altın.
       // Azalan çubuk = şarjör azalıyor; dolan çubuk = yeniden dolduruluyor.
-      ctx.fillStyle = reloading ? '#FACC15' : (player.weaponColor || '#D99B26');
+      ctx.fillStyle = reloading ? GOLD : (player.weaponColor || '#D99B26');
       ctx.fillRect(x, y, barW * (reloading ? clamp01(player.reload) : ratio), barH);
       // Son mermilerde uyarı: iki mermiden az kalınca kenarlık kırmızıya döner.
       if (!reloading && player.magazine > 0 && player.ammo > 0 && player.ammo <= 2) {
-        ctx.strokeStyle = '#E63946';
+        ctx.strokeStyle = BLOOD;
         ctx.lineWidth = Math.max(1, 1.5 * hu);
         ctx.strokeRect(x - 0.5, y - 0.5, barW + 1, barH + 1);
       }
@@ -883,9 +964,9 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
         y: player.y - 46 * hu,
         icon: 'reload',
         text: '',
-        bg: '#1A1A1A',
-        borderColor: '#FACC15',
-        color: '#FACC15',
+        bg: INK,
+        borderColor: GOLD,
+        color: GOLD,
         scale: Math.max(0.9, hu * 1.25),
       });
     }
@@ -899,7 +980,7 @@ function drawLoadoutCrate(ctx, crate, now) {
   ctx.translate(crate.x, crate.y);
   ctx.scale(pulse, pulse);
   ctx.globalAlpha = claimed ? 0.32 : 1;
-  ctx.fillStyle = '#1A1A1A';
+  ctx.fillStyle = INK;
   ctx.fillRect(-24, -24, 52, 52);
   const cu = 1;
   ctx.fillStyle = '#FAF7F2';
@@ -919,7 +1000,7 @@ function drawLoadoutCrate(ctx, crate, now) {
     ctx.beginPath();
     ctx.moveTo(-14, 14); ctx.lineTo(15, -15);
     ctx.stroke();
-    ctx.strokeStyle = '#FFFFFF';
+    ctx.strokeStyle = FLASH;
     ctx.lineWidth = Math.max(1, 2 * cu);
     ctx.stroke();
   } else {
@@ -927,7 +1008,7 @@ function drawLoadoutCrate(ctx, crate, now) {
     const shotgun = crate.weaponId === 'SHOTGUN';
     ctx.fillStyle = crate.color;
     ctx.fillRect(-16, -4, rifle ? 38 : shotgun ? 31 : 25, shotgun ? 10 : 8);
-    ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeStyle = INK;
     ctx.lineWidth = Math.max(1, 3 * cu);
     ctx.strokeRect(-16, -4, rifle ? 38 : shotgun ? 31 : 25, shotgun ? 10 : 8);
   }
@@ -941,7 +1022,7 @@ function drawLoadoutCrate(ctx, crate, now) {
   ctx.font = '900 8px "JetBrains Mono", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillStyle = '#1A1A1A';
+  ctx.fillStyle = INK;
   ctx.fillText(
     t(crate.kind === 'weapon' ? `horde.weapon.${crate.weaponId}` : `horde.upgrade.${crate.upgradeId}`),
     0,
@@ -967,11 +1048,11 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
   for (const tomb of scene.tombs || []) {
     ctx.save();
     ctx.translate(tomb.x, tomb.y);
-    ctx.fillStyle = '#1A1A1A';
+    ctx.fillStyle = INK;
     ctx.beginPath();
     ctx.arc(0, 0, 15 * u, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#FFFFFF';
+    ctx.strokeStyle = FLASH;
     ctx.lineWidth = Math.max(1, 3 * u);
     ctx.beginPath();
     ctx.moveTo(-6 * u, 0); ctx.lineTo(6 * u, 0);
@@ -992,8 +1073,8 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
     ctx.lineCap = 'round';
     for (const bullet of bullets) {
       if (bullet.enemy) {
-        ctx.fillStyle = bullet.color || '#E63946';
-        ctx.strokeStyle = '#FFFFFF';
+        ctx.fillStyle = bullet.color || BLOOD;
+        ctx.strokeStyle = FLASH;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(bullet.x, bullet.y, Math.max(3, bullet.radius) + 1, 0, Math.PI * 2);
@@ -1063,14 +1144,14 @@ export function drawHordeStatus(ctx, arena, scene) {
   const x = compact ? arena.left + 8 * u : arena.cx - w / 2;
   const y = arena.top + 8 * u;
 
-  ctx.fillStyle = '#1A1A1A';
+  ctx.fillStyle = INK;
   ctx.fillRect(x + 4 * u, y + 4 * u, w, h);
-  ctx.fillStyle = inArmory ? '#7C3AED' : scene.portal ? '#7C3AED' : scene.isBossWave ? '#B91C1C' : '#1A1A1A';
+  ctx.fillStyle = inArmory ? '#7C3AED' : scene.portal ? '#7C3AED' : scene.isBossWave ? '#B91C1C' : INK;
   ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = '#FFFFFF';
+  ctx.strokeStyle = FLASH;
   ctx.lineWidth = 2.5 * u;
   ctx.strokeRect(x, y, w, h);
-  ctx.fillStyle = '#FFFFFF';
+  ctx.fillStyle = FLASH;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   // Metin KUTUNUN kendi merkezine hizalanır, sahanın değil. Kompakt yatayda kutu

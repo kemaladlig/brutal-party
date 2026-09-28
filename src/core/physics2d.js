@@ -98,6 +98,43 @@ export function pointBlocked(x, y, rects, pad = 0) {
 }
 
 /**
+ * Duvar/engel taraması: istenen yön tıkalıysa, o yönün etrafında açılı
+ * adayları sırayla dener ve ilk boş yönü birim vektör olarak döner.
+ *
+ * Neden ortak: tek bir ileri örnek + dikine "strafe" (eski HORDE davranışı)
+ * düşmanı sütunun dibinde titreştirip köşeye sıkıştırıyordu; tarayan her
+ * AI (motor düşmanları ve bot oyuncular) aynı geometriyi kullanmalı.
+ *
+ * @param {number} x - Gövde merkezi X
+ * @param {number} y - Gövde merkezi Y
+ * @param {number} dirX - İstenen yön X (normalize edilmez)
+ * @param {number} dirY - İstenen yön Y
+ * @param {number} probe - İleri örnekleme mesafesi (cihaz px)
+ * @param {Array<Object>} rects - Engel dikdörtgenleri { x, y, w, h }
+ * @param {number} pad - Engeli genişletme payı (gövde yarıçapı)
+ * @param {readonly number[]} fan - Denenecek açı adayları (radyan, sıralı)
+ * @returns {{dirX: number, dirY: number, blocked: boolean}}
+ */
+export function firstFreeDirection(x, y, dirX, dirY, probe, rects, pad, fan = []) {
+  const length = Math.hypot(dirX, dirY) || 1;
+  const ux = dirX / length;
+  const uy = dirY / length;
+  if (!pointBlocked(x + ux * probe, y + uy * probe, rects, pad)) {
+    return { dirX: ux, dirY: uy, blocked: false };
+  }
+  for (const offset of fan) {
+    const cos = Math.cos(offset);
+    const sin = Math.sin(offset);
+    const rx = ux * cos - uy * sin;
+    const ry = ux * sin + uy * cos;
+    if (!pointBlocked(x + rx * probe, y + ry * probe, rects, pad)) {
+      return { dirX: rx, dirY: ry, blocked: true };
+    }
+  }
+  return { dirX: ux, dirY: uy, blocked: true };
+}
+
+/**
  * Updates moving obstacles (movers) according to style/harmonic oscillator parameters.
  * @param {Array<Object>} rects - Array of obstacle rects with optional mover object
  * @param {number} dt - Delta time in seconds

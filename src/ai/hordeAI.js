@@ -1,8 +1,8 @@
 // BRUTAL HORDE bot AI: portal önceliği, güvenli revive, hedef seçimi ve doğru ateş zamanlaması.
 
-import { normalizeAngle } from '../core/physics2d.js';
+import { firstFreeDirection, normalizeAngle } from '../core/physics2d.js';
 import { fieldPx } from '../core/playfield.js';
-import { getPlayerWeapon } from '../games/hordeConfig.js';
+import { HORDE_AVOID, getPlayerWeapon } from '../games/hordeConfig.js';
 import { createReadOnlyView } from '../core/botView.js';
 
 function distanceSq(ax, ay, bx, by) {
@@ -45,6 +45,44 @@ function aimAt(bot, target) {
   bot.isAiming = difference < (bot.slotType === 'bot_god' ? 0.42 : 0.3);
 }
 
+/**
+ * Bot'lar da motorun tarama politikasını kullanır: yön tıkalıysa açılı ilk
+ * boş yön seçilir ve bir süre kilitli kalır. Kararlar düşmanlarınkiyle
+ * aynı geometriden geldiği için bot "duvara yapışıp kalma" aynı sınıfta
+ * ortadan kalkar. `steerAroundCover` son steering adımını bozmaz, onu döndürür.
+ */
+function steerAroundCover(game, bot, dt) {
+  const desiredX = bot.steerX;
+  const desiredY = bot.steerY;
+  if (Math.hypot(desiredX, desiredY) < 0.001) {
+    bot.avoidTimer = 0;
+    return;
+  }
+  bot.avoidTimer = Math.max(0, (Number(bot.avoidTimer) || 0) - dt);
+  if (bot.avoidTimer > 0) {
+    bot.steerX = bot.avoidX;
+    bot.steerY = bot.avoidY;
+    return;
+  }
+  const probe = bot.radius + fieldPx(game.arena, HORDE_AVOID.probePx);
+  const steer = firstFreeDirection(
+    bot.x,
+    bot.y,
+    desiredX,
+    desiredY,
+    probe,
+    game.obstacles,
+    bot.radius,
+    HORDE_AVOID.fan,
+  );
+  if (!steer.blocked) return;
+  bot.steerX = steer.dirX;
+  bot.steerY = steer.dirY;
+  bot.avoidX = steer.dirX;
+  bot.avoidY = steer.dirY;
+  bot.avoidTimer = HORDE_AVOID.commitSeconds;
+}
+
 export function updateHordeBotAI(rawGame, bot, dt) {
   const game = createReadOnlyView(rawGame);
   if (!bot?.isAlive || game.state !== 'PLAYING') {
@@ -75,10 +113,15 @@ export function updateHordeBotAI(rawGame, bot, dt) {
     game.triggerDash(bot.index);
   }
 
+  // Mesafe bantları tasarım px'idir ve saha ile ölçeklenir: ham px bırakılınca
+  // 387px'lik telefon sahasında "hedefe 150px'den yakın bakma" bandı sahanın
+  // %39'u oluyordu — motor tarafında aynı sınıf hata shooter'ı donduruyordu.
+  const aimRange = fieldPx(game.arena, 150);
   if (game.portal) {
-    const portalDistance = steerToward(bot, game.portal.x, game.portal.y, 8);
-    if (target && portalDistance < 150) aimAt(bot, target);
+    const portalDistance = steerToward(bot, game.portal.x, game.portal.y, fieldPx(game.arena, 8));
+    if (target && portalDistance < aimRange) aimAt(bot, target);
     else bot.isAiming = false;
+    steerAroundCover(game, bot, dt);
     return;
   }
 
@@ -93,17 +136,21 @@ export function updateHordeBotAI(rawGame, bot, dt) {
   }
 
   const reviveDistance = Math.sqrt(tombDistance);
-  const safeToRevive = tomb && reviveDistance < 330 && (!target || targetDistance > 105 || reviveDistance < 70);
+  const safeToRevive = tomb
+    && reviveDistance < fieldPx(game.arena, 330)
+    && (!target || targetDistance > fieldPx(game.arena, 105) || reviveDistance < fieldPx(game.arena, 70));
   if (safeToRevive) {
-    steerToward(bot, tomb.x, tomb.y, 18);
-    if (target && targetDistance < 260) aimAt(bot, target);
+    steerToward(bot, tomb.x, tomb.y, fieldPx(game.arena, 18));
+    if (target && targetDistance < fieldPx(game.arena, 260)) aimAt(bot, target);
     else bot.isAiming = false;
+    steerAroundCover(game, bot, dt);
     return;
   }
 
   if (!target) {
-    steerToward(bot, game.arena.cx, game.arena.cy, 48);
+    steerToward(bot, game.arena.cx, game.arena.cy, fieldPx(game.arena, 48));
     bot.isAiming = false;
+    steerAroundCover(game, bot, dt);
     return;
   }
 
@@ -116,7 +163,7 @@ export function updateHordeBotAI(rawGame, bot, dt) {
   let my;
 
   const rangedWeapon = weapon.kind === 'gun';
-  const desiredRange = weapon.kind === 'melee' ? 58 : weapon.id === 'SHOTGUN' ? 125 : weapon.id === 'SMG' ? 185 : 245;
+  const desiredRange = fieldPx(game.arena, weapon.kind === 'melee' ? 58 : weapon.id === 'SHOTGUN' ? 125 : weapon.id === 'SMG' ? 185 : 245);
   if (rangedWeapon && distance < desiredRange * 0.72) {
     mx = -nx * 0.7 - ny * 0.45 * bot.botStrafeDir;
     my = -ny * 0.7 + nx * 0.45 * bot.botStrafeDir;
@@ -137,5 +184,6 @@ export function updateHordeBotAI(rawGame, bot, dt) {
   const magnitude = Math.hypot(mx, my) || 1;
   bot.steerX = mx / magnitude;
   bot.steerY = my / magnitude;
+  steerAroundCover(game, bot, dt);
   aimAt(bot, target);
 }

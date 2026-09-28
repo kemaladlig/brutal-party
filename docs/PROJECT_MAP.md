@@ -97,7 +97,8 @@ src/core/
   customizationManager.js   Cihaz-başı TEK profil; sanitizeAvatar/pickFreeColor; avatar kayıt defteri
   touchFlow.js              Tek dokunmatik akış: getQuadrant, roundOverSkipGuard, lobbyCenterStartTap,
                             lobbyQuadrantTap, matchOverRestartTap (istisna: tanks getCornerZone, PONG zonal)
-  physics2d.js              clampToArena, resolveAABB, pointBlocked, updateMovers, distToSegmentSquared,
+  physics2d.js              clampToArena, resolveAABB, pointBlocked, firstFreeDirection (engel taraması),
+                            updateMovers, distToSegmentSquared,
                             segmentCircle/segmentAabbIntersection, getProjectileSubsteps, damp, normalizeAngle
   playfield.js              SAHA GEOMETRİSİNİN TEK KAYNAĞI: computePlayfield(w,h,preset) + FIELD_PRESETS
                             (standard/roomy/crown/flat/dense/racing) + FIELD_TIERS (normal 28-36 /

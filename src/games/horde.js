@@ -13,6 +13,7 @@ import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import {
   clampToArena,
   damp,
+  firstFreeDirection,
   getProjectileSubsteps,
   normalizeAngle,
   pointBlocked,
@@ -29,6 +30,7 @@ import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../c
 import { updateHordeBotAI } from '../ai/hordeAI.js';
 import {
   HORDE_ARMORY_WEAPONS,
+  HORDE_AVOID,
   HORDE_UPGRADES,
   HORDE_UPGRADE_IDS,
   getDashCooldown,
@@ -77,7 +79,10 @@ export const HORDE_TUNING = Object.freeze({
   // okunur olur. `Math.max(1, …)` sayesinde masaüstünde `1`'dir: hiçbir
   // şeyi şişirmez, sadece küçük sahada devreye girer.
   LEGIBILITY_PX: 11,
-  MOVE_SPEED: 155, // iri gövdeyle ağır basma hissi (eski 171 telefonda "çok hızlı" geldi)
+  // 155 "ağır basıyordu": sahayı 6,14 sn'de geçiyordu — 15 oyun içinde en
+  // yavaş ikinci. 168 → A 5,67 sn, B 2,80 gövde/sn; bant kilidi
+  // `movementBudget.test.mjs §A` (maxA 6,2 / minB 2,5) içinde kalır.
+  MOVE_SPEED: 168,
   FAST_MULT: 1.42,
   ENEMY_SHOT_SPEED: 270,
   DASH_TIME: 0.24,
@@ -561,7 +566,6 @@ export class HordeGame extends BaseMiniGame {
           spawnDelay: 0.1,
           lungeTimer: 0,
           lungeCooldown: 0,
-          avoidDir: 1,
           summonThresholds: [],
           summonIndex: 0,
         };
@@ -602,7 +606,9 @@ export class HordeGame extends BaseMiniGame {
       spawnDelay: boss ? 0.5 : 0.4,
       lungeTimer: 0,
       lungeCooldown: 0.8 + Math.random() * 1.4,
-      avoidDir: Math.random() < 0.5 ? -1 : 1,
+      avoidTimer: 0,
+      avoidX: 0,
+      avoidY: 0,
       summonThresholds: boss ? [0.55, 0.3] : [],
       summonIndex: 0,
     };
@@ -1169,7 +1175,7 @@ export class HordeGame extends BaseMiniGame {
       healerKeep: this.bodyPx(245),
       lungeMin: this.bodyPx(100),
       lungeMax: this.bodyPx(280),
-      coverProbe: this.bodyPx(28),
+      coverProbe: this.bodyPx(HORDE_AVOID.probePx),
       healRangeSq: Math.pow(this.bodyPx(170), 2),
       shooterFire: this.bodyPx(350),
       healerFire: this.bodyPx(380),
@@ -1213,7 +1219,6 @@ export class HordeGame extends BaseMiniGame {
               spawnDelay: 0,
               lungeTimer: 0,
               lungeCooldown: 0,
-              avoidDir: 1,
               summonThresholds: [],
               summonIndex: 0,
             });
@@ -1265,16 +1270,38 @@ export class HordeGame extends BaseMiniGame {
         enemy.lungeCooldown = 2.8;
       }
       const moveSpeed = enemy.speed * (enemy.lungeTimer > 0 ? 2.2 : 1);
-      const blockedAhead = pointBlocked(
-        enemy.x + nx * (enemy.radius + band.coverProbe),
-        enemy.y + ny * (enemy.radius + band.coverProbe),
-        this.obstacles,
-        enemy.radius,
-      );
-      const strafe = blockedAhead ? enemy.avoidDir * 0.95 : 0;
-      if (blockedAhead && Math.random() < dt * 0.8) enemy.avoidDir *= -1;
-      let moveX = nx * moveMultiplier - ny * strafe;
-      let moveY = ny * moveMultiplier + nx * strafe;
+      // Engel taraması: istenen yön tıkalıysa açılı adaylardan ilk boş yön
+      // seçilir ve `commitSeconds` boyunca kilitli kalır. Eski hâli (tek ileri
+      // örnek + dikine strafe + kare başına rastgele taraf çevirme) düşmanı
+      // sütun dibinde titretip köşeye sıkıştırıyordu.
+      let moveX = nx * moveMultiplier;
+      let moveY = ny * moveMultiplier;
+      const desiredMag = Math.hypot(moveX, moveY);
+      enemy.avoidTimer = Math.max(0, (enemy.avoidTimer || 0) - dt);
+      if (desiredMag > 0.001) {
+        if (enemy.avoidTimer > 0) {
+          moveX = enemy.avoidX * desiredMag;
+          moveY = enemy.avoidY * desiredMag;
+        } else {
+          const steer = firstFreeDirection(
+            enemy.x,
+            enemy.y,
+            moveX,
+            moveY,
+            enemy.radius + band.coverProbe,
+            this.obstacles,
+            enemy.radius,
+            HORDE_AVOID.fan,
+          );
+          moveX = steer.dirX * desiredMag;
+          moveY = steer.dirY * desiredMag;
+          if (steer.blocked) {
+            enemy.avoidX = steer.dirX;
+            enemy.avoidY = steer.dirY;
+            enemy.avoidTimer = HORDE_AVOID.commitSeconds;
+          }
+        }
+      }
       const moveLength = Math.hypot(moveX, moveY) || 1;
       enemy.x += (moveX / moveLength) * moveSpeed * dt;
       enemy.y += (moveY / moveLength) * moveSpeed * dt;

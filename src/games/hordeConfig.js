@@ -92,6 +92,17 @@ export const HORDE_WEAPONS = Object.freeze({
 
 export const HORDE_ARMORY_WEAPONS = Object.freeze(['SMG', 'SHOTGUN', 'RIFLE', 'BLADE']);
 
+// Engel taraması politikası (motor düşmanları + botlar aynı ayarı okur):
+// istenen yön tıkalıyken açılı adaylar sırayla denenir ve bulunan yön
+// `commitSeconds` boyunca KİLİTLENİR. Eski davranış (dikine strafe +
+// kare başına rastgele taraf çevirme) düşmanı sütun dibinde titretip
+// köşeye sıkıştırıyordu. `probePx` gövde yarıçapına EKLENEN tasarım px'idir.
+export const HORDE_AVOID = Object.freeze({
+  fan: Object.freeze([-0.6, 0.6, -1.15, 1.15, -1.75, 1.75, -2.6, 2.6]),
+  commitSeconds: 0.55,
+  probePx: 28,
+});
+
 export const HORDE_UPGRADES = Object.freeze({
   ARMOR: Object.freeze({ id: 'ARMOR', icon: 'shield', color: '#0891B2' }),
   QUICK_RELOAD: Object.freeze({ id: 'QUICK_RELOAD', icon: 'rotate_cw', color: '#CA8A04' }),
