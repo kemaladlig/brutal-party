@@ -1,11 +1,9 @@
 // English Localization Dictionary
 export const EN = {
   // ── Pause / in-game sheet ──
-  'pause.badge': 'GAME PAUSED',
   'pause.close': 'Close',
-  'pause.sectionSeats': 'SEATS',
-  'pause.sectionControls': 'CONTROLS',
-  'pause.allSettings': 'ALL SETTINGS',
+  'pause.tabSeats': 'SEATS',
+  'pause.tabControls': 'CONTROLS',
   'pause.aimShort': 'AIM',
   'pause.aimHint': 'RIGHT STICK',
   'pause.resume': 'RESUME',

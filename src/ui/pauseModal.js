@@ -4,8 +4,13 @@
 //
 // AYARLAR BURADA ÇİZİLMEZ. Duraklatma bir önce kendi ses/bot/renk körü/tam
 // ekran anahtarlarını tutuyordu — ana menüdeki ayar sheet'inin ikinci, paralel
-// bir kopyası. Artık yalnız merkezi şemanın `quick` işaretli satırlarını
-// gömer ve "TÜM AYARLAR" ile aynı sheet'i üstüne açar: bir ayar, bir eylem.
+// bir kopyası. Artık yalnız merkezi şemanın `quick` işaretli satırlarını tek
+// şerit olarak gömer; geri kalan her şey başlıktaki dişlinin açtığı AYNI
+// sheet'tedir. Bir ayar, bir eylem, iki yüzeyle tek kapı.
+//
+// YÜKSEKLİK SABİTTİR: kalıcı eylemlerin altında HIZLI şeridi ve iki sekme
+// (KOLTUKLAR / KONTROLLER) gelir; panel alanı sabit yükseklikte kaydırır, böylece
+// sekme değişince şeritler zıplamaz.
 import { hostPlayerSlots } from '../core/slotManager.js';
 import { CARTRIDGES, getControllerMeta } from '../core/engineRegistry.js';
 import { openOverlay, closeOverlay } from './overlayHost.js';
@@ -16,37 +21,75 @@ import { getControllerGuide } from '../controllers/controllerGuide.js';
 import { getSlotKeys, KEY_LABELS, getKeyCapLabel } from '../core/inputMaps.js';
 import { createQuickSettingsPanel } from './settings/settingsPanel.js';
 import { openSettingsSheet } from './settings/settingsSheet.js';
+import { createTabStrip } from './tabStrip.js';
 
 const pauseModal = document.getElementById('pause-modal');
 const pauseGameTitle = document.getElementById('pause-game-title');
 const pauseControlsSection = document.getElementById('pause-controls-section');
 const pauseControlsBody = document.getElementById('pause-controls-body');
 const pauseControlsTouch = document.getElementById('pause-controls-touch');
-const pauseSettingsSlot = document.getElementById('pause-settings-slot');
+const pauseQuickSlot = document.getElementById('pause-quick-slot');
+const pauseTabsHost = document.getElementById('pause-tabs-host');
+const pausePanels = {
+  seats: document.getElementById('pause-panel-seats'),
+  controls: pauseControlsSection,
+};
 const btnPauseClose = document.getElementById('btn-pause-close');
+const btnPauseSettings = document.getElementById('btn-pause-settings');
 const btnResumeGame = document.getElementById('btn-resume-game');
 const btnResetMatch = document.getElementById('btn-reset-match');
 const btnTvLobby = document.getElementById('btn-tv-lobby');
 const btnExitToMenu = document.getElementById('btn-exit-to-menu');
 const btnPauseRotateSeats = document.getElementById('btn-pause-rotate-seats');
 
-// `quick` satırları + "TÜM AYARLAR" bir kez kurulur: slot boşaltılıp
-// yeniden kurulursa panelin tercih/dil abonelikleri katlanır.
+// `quick` satırları + sekmeler BİR KEZ kurulur: slot boşaltılıp yeniden
+// kurulsaydı panelin tercih/dil abonelikleri her açılışta katlanırdı.
 /** @type {ReturnType<typeof createQuickSettingsPanel> | null} */
 let quickPanel = null;
+/** @type {ReturnType<typeof createTabStrip> | null} */
+let pauseTabs = null;
 
-function mountPauseSettings() {
-  if (!pauseSettingsSlot || quickPanel) return;
+function showPausePanel(id) {
+  for (const key of Object.keys(pausePanels)) {
+    const panel = pausePanels[key];
+    if (panel) panel.hidden = key !== id;
+  }
+}
+
+function mountPauseSurface() {
+  if (quickPanel) return;
   quickPanel = createQuickSettingsPanel({});
-  const all = document.createElement('button');
-  all.type = 'button';
-  all.className = 'pause-btn settings-all-btn';
-  all.innerHTML = `<span class="btn-symbol">${getTabletopIconSvg('settings', { size: 16 })}</span><span class="btn-text"></span>`;
-  all.querySelector('.btn-text').textContent = t('pause.allSettings');
-  all.addEventListener('click', () => openSettingsSheet({ tab: 'general' }));
-  pauseSettingsSlot.append(quickPanel.bodyNode, all);
-  pauseSettingsSlot.hidden = false;
-  onLangChange(() => { all.querySelector('.btn-text').textContent = t('pause.allSettings'); });
+  pauseQuickSlot?.append(quickPanel.bodyNode);
+
+  pauseTabs = createTabStrip({
+    items: [
+      { id: 'seats', label: t('pause.tabSeats') },
+      { id: 'controls', label: t('pause.tabControls') },
+    ],
+    onChange: (id) => showPausePanel(id),
+  });
+  pauseTabsHost?.append(pauseTabs.node);
+  showPausePanel('seats');
+  // Şerit JS'te kurulduğu için `data-i18n` kapsamı dışında kalır: etiketler
+  // dile abone olur, yoksa dil değişince sekme adları eski dilde donardı.
+  onLangChange(() => {
+    if (!pauseTabs) return;
+    pauseTabs.setLabel('seats', t('pause.tabSeats'));
+    pauseTabs.setLabel('controls', t('pause.tabControls'));
+  });
+}
+
+/**
+ * Rehberi olmayan motorda KONTROLLER sekmesi basılabilir boşluk olarak
+ * durmaz; seçiliyse gösteri koltuklara geçer.
+ * @param {boolean} visible
+ */
+function setControlsTab(visible) {
+  pauseTabs?.setHidden('controls', !visible);
+  if (!visible && pauseTabs?.active === 'controls') {
+    pauseTabs.setActive('seats');
+    showPausePanel('seats');
+  }
 }
 
 let pauseSelectedSlot = null;
@@ -87,10 +130,10 @@ export function renderPauseControls(mode) {
   const schema = meta?.schema;
   const guide = getControllerGuide(mode, schema);
   if (!guide) {
-    pauseControlsSection.hidden = true;
+    setControlsTab(false);
     return;
   }
-  pauseControlsSection.hidden = false;
+  setControlsTab(true);
 
   // Dokunmatik taraf: kontroller gibi SADECE ikon (ham OS emojisi yasak —
   // bkz. AGENTS.md §8). controllerTemplates ile aynı ikon kaynağı kullanılır.
@@ -185,7 +228,7 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
   lastSwapCallback = (typeof onSwapCallback === 'function') ? onSwapCallback : null;
   pauseModal?.classList.remove('hidden');
   openOverlay('pause', { el: pauseModal, onClose: closePauseModal });
-  mountPauseSettings();
+  mountPauseSurface();
   quickPanel?.refresh();
 
   if (pauseGameTitle) {
@@ -234,6 +277,10 @@ export function initPauseModal({
   btnPauseClose?.addEventListener('click', () => {
     closePauseModal(onResume);
   });
+
+  // Ayarlar duraklatmanın ÜSTÜNDE açılır: altta duran katman kapanmaz, Escape
+  // önce en üsttekine gider (`overlayHost`).
+  btnPauseSettings?.addEventListener('click', () => openSettingsSheet());
 
   btnResetMatch?.addEventListener('click', () => {
     closePauseModal(onReset);

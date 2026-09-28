@@ -25,6 +25,7 @@ function el(tag, className, html) {
  * @returns {{ node: HTMLElement, setActive: (id: string) => void,
  *             setCount: (id: string, n: number|string) => void,
  *             setLabel: (id: string, text: string) => void,
+ *             setHidden: (id: string, hidden: boolean) => void,
  *             active: (string|null) }}
  */
 export function createTabStrip({ items = [], onChange = null } = {}) {
@@ -97,7 +98,17 @@ export function createTabStrip({ items = [], onChange = null } = {}) {
     if (entry) entry.label.textContent = text;
   }
 
+  /**
+   * Sekmeyi tümüyle kaldırar: içeriği olmayan bir sekme (ör. kontrol rehberi
+   * olmayan motor) basılabilir bir boşluk olarak durmaz. Seçili sekme
+   * gizlenirse çağırın hemen ardından `setActive` ile taşımalıdır.
+   */
+  function setHidden(id, hidden) {
+    const entry = buttons.get(id);
+    if (entry) entry.btn.hidden = !!hidden;
+  }
+
   setActive(activeId);
 
-  return { node, setActive, setCount, setLabel, get active() { return activeId; } };
+  return { node, setActive, setCount, setLabel, setHidden, get active() { return activeId; } };
 }

@@ -1,11 +1,9 @@
 // Türkçe Yerelleştirme Sözlüğü
 export const TR = {
   // ── Pause / in-game sheet ──
-  'pause.badge': 'OYUN DURAKLATILDI',
   'pause.close': 'Kapat',
-  'pause.sectionSeats': 'KOLTUKLAR',
-  'pause.sectionControls': 'KONTROLLER',
-  'pause.allSettings': 'TÜM AYARLAR',
+  'pause.tabSeats': 'KOLTUKLAR',
+  'pause.tabControls': 'KONTROLLER',
   'pause.aimShort': 'NIŞAN',
   'pause.aimHint': 'SAĞ JOYSTICK',
   'pause.resume': 'DEVAM ET',

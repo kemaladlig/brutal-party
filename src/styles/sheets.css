@@ -266,6 +266,106 @@
   overflow-wrap: anywhere;
 }
 
+/* ── Duraklatma: düz başlık + HIZLI şerit + sekmeler ────────────────────
+   ÖNCE: rozet bandı + başlık iki satır, sonra beş anahtar, koltuklar ve
+   kontrol rehberi ALT ALTA — telefon yatayda sığmıyor, kaydırma gerekiyordu.
+   ŞİMDİ: tek satır başlık (oyun adı + ayarlar + kapat), kalıcı eylemler,
+   tek satırlık HIZLI şerit, ve panel yüksekliği SABİT iki sekme.
+   Satırların dili ortaktır: `settings.css` `.setting-row` ailesi. */
+
+.pause-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 46px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--n-200);
+}
+
+.pause-head .pause-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.pause-head-btn {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.pause-head-btn:hover { background: var(--n-100); color: var(--ink); }
+.pause-head-btn:active { background: var(--n-200); transform: none; }
+
+.pause-quick-strip {
+  flex: 0 0 auto;
+}
+
+.pause-tabs-host {
+  flex: 0 0 auto;
+}
+
+/* Sekme şeridi ayar panelindeki segmentle aynı dildedir. */
+.pause-tabs-host .tab-strip {
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--n-100);
+}
+
+.pause-tabs-host .tab-btn {
+  flex: 1 1 0;
+  justify-content: center;
+  min-height: 34px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: var(--muted);
+  font: 900 11px/1 var(--font-grotesk);
+  letter-spacing: 0.06em;
+}
+
+.pause-tabs-host .tab-btn.is-active {
+  background: var(--panel);
+  border-color: transparent;
+  color: var(--ink);
+}
+
+/* Sabit yükseklik: sekme değişince şerit zıplamaz. */
+.pause-panel-host {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: clamp(96px, 22dvh, 220px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.pause-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pause-panel[hidden] { display: none; }
+
+.pause-seats-header {
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* ── Odaya katıl (kumanda) ──────────────────────────────────────────────
    Aynı sheet dili (`.pause-sheet` kardeşi): sağ panel / alt sayfa, İÇERİK
    KADAR yükseklik. Önceden 380px ortalanmış bir "form kartı" idi; telefon

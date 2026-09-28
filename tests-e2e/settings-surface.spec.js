@@ -1,12 +1,11 @@
-// Ayar yüzeyi — mobil-yatay dikey bütçesinin ve tek-kaynak sözleşmesinin gardı.
+// Ayar yüzeyleri — mobil-yatay dikey bütçesinin ve tek-kaynak sözleşmesinin gardı.
 //
-// AGENTS.md §8'in "dikey alan kritik" kararı ölçülmeden sürükleniyordu: başlık
-// şeridi + her ayarın tek ekranda olması 844×390 telefonda kaydırmaya
-// sığmıyordu. Bu spec dört şeyi kilitler:
-//   1. sekme başına içerik KAYDIRMASIZ sığar,
-//   2. her satır dokunabilir yüksekliktedir,
-//   3. erişilemeyen ayar satır çizmez (ölü düğme yok),
-//   4. duraklatma YENİ bir ayar yüzeyi kurmaz — aynı satırları gerer.
+// Kilitlenen davranışlar:
+//   1. ayar sheeti SEKME DEĞİŞİMİNDE ZIPLAMAZ (yükseklik sabittir),
+//   2. gövde kaydırmaya ihtiyaç duymaz, satırlar dokunulabilir yüksekliktedir,
+//   3. erişilemeyen ayar satır çizmez ("kullanılamıyor" düğmesi yoktur),
+//   4. duraklatma ikinci bir ayar yüzeyi kurmaz: HIZLI şeridi şemadan gelir,
+//      başlıktaki dişli AYNI sheet'i üstüne açar, Escape en üsttekine gider.
 
 import { test, expect } from '@playwright/test';
 
@@ -28,8 +27,8 @@ async function bootPhone(page) {
   await page.waitForFunction(() => document.documentElement.classList.contains('is-booted'));
 }
 
-/** LOCAL maçı gerçek giriş noktalarından kurar (motora dokunmadan). */
-async function playLocally(page) {
+/** LOCAL maçı gerçek giriş noktalarından kurar ve duraklatmayı açar. */
+async function pauseInLocalMatch(page) {
   return page.evaluate(async () => {
     const m = await import('/src/main.js');
     const reg = await import('/src/core/engineRegistry.js');
@@ -46,11 +45,11 @@ async function playLocally(page) {
       && reg.getEngine('PONG')?.game?.state === 'LOBBY');
     await m.roomFlow.enterStaging('PONG');
     m.roomFlow.runCountdown();
-    const ok = await wait(() => reg.getEngine('PONG')?.game?.state === 'PLAYING');
+    const playing = await wait(() => reg.getEngine('PONG')?.game?.state === 'PLAYING');
     await new Promise((r) => setTimeout(r, 250));
     document.getElementById('btn-open-options')?.click();
-    await wait(() => !document.getElementById('pause-modal')?.classList.contains('hidden'));
-    return ok;
+    const paused = await wait(() => !document.getElementById('pause-modal')?.classList.contains('hidden'));
+    return playing && paused;
   });
 }
 
@@ -64,43 +63,42 @@ async function selectTab(page, id) {
     document.querySelector(`.settings-tabs [data-tab="${tab}"]`)
       ?.dispatchEvent(new PointerEvent('click', { bubbles: true }));
   }, id);
-  await page.waitForTimeout(120);
+  await page.waitForTimeout(140);
 }
 
-function measure() {
+function measureSettings() {
   const scroll = document.querySelector('.settings-scroll');
-  const rows = [...document.querySelectorAll('.setting-row:not([hidden])')];
-  const head = document.querySelector('.settings-head');
-  const close = document.querySelector('.settings-sheet .sheet-close');
+  const rows = [...document.querySelectorAll('.settings-scroll .setting-row:not([hidden])')];
   return {
-    overflow: scroll ? scroll.scrollHeight - scroll.clientHeight : -1,
+    sheetHeight: Math.round(document.querySelector('.settings-sheet').getBoundingClientRect().height),
+    sheetWidth: Math.round(document.querySelector('.settings-sheet').getBoundingClientRect().width),
+    headHeight: Math.round(document.querySelector('.settings-head').getBoundingClientRect().height),
     rowCount: rows.length,
     minHeight: rows.reduce((min, row) => Math.min(min, Math.round(row.getBoundingClientRect().height)), 999),
-    headHeight: head ? Math.round(head.getBoundingClientRect().height) : -1,
-    closeWidth: close ? Math.round(close.getBoundingClientRect().width) : -1,
-    sheetWidth: Math.round(document.querySelector('.settings-sheet')?.getBoundingClientRect().width ?? 9999),
+    overflow: scroll.scrollHeight - scroll.clientHeight,
   };
 }
 
 test.describe('ayar yüzeyi — 844×390 yatay telefon', () => {
   test.use({ viewport: PHONE, hasTouch: true, isMobile: false });
 
-  test('her sekme kaydırmasız sığar, hedefler dokunulabilir', async ({ page }) => {
+  test('sekme değişince panel zıplamaz, gövde kaymaz, hedefler dokunulabilir', async ({ page }) => {
     await bootPhone(page);
     await openSettings(page);
 
+    const heights = [];
     for (const tab of ['general', 'control', 'system']) {
       await selectTab(page, tab);
-      const m = await page.evaluate(measure);
+      const m = await page.evaluate(measureSettings);
+      heights.push(m.sheetHeight);
       expect(m.rowCount, `${tab}: hiç satır çizilmedi`).toBeGreaterThan(0);
       expect(m.overflow, `${tab}: gövde kayıyor (+${m.overflow}px)`).toBeLessThanOrEqual(1);
       expect(m.minHeight, `${tab}: en küçük satır ${m.minHeight}px`).toBeGreaterThanOrEqual(40);
-      // Kaldırılan başlık şeridi ~68px'ti. Şerit 44px kapatma hedefinin
-      // ALTINA inemez (mobil dokunma bütçesi), bu yüzden tavan 60px.
-      expect(m.headHeight, `sekme şeridi ${m.headHeight}px`).toBeLessThanOrEqual(60);
-      expect(m.closeWidth, 'kapat düğmesi sekme şeridine ezmiş').toBeGreaterThanOrEqual(30);
-      expect(m.sheetWidth).toBeLessThanOrEqual(PHONE.width);
+      expect(m.headHeight, `başlık+sekme şeridi ${m.headHeight}px`).toBeLessThanOrEqual(56);
+      // İçerik tüm satır genişliğine yayılmaz: panel merkezde ve sınırlıdır.
+      expect(m.sheetWidth).toBeLessThanOrEqual(520);
     }
+    expect(new Set(heights).size, `panel yüksekliği sekmeye göre değişti: ${heights.join('/')}`).toBe(1);
   });
 
   test('yazımlar merkezi tercih deposuna ve ait olduğu modüle gider', async ({ page }) => {
@@ -139,26 +137,33 @@ test.describe('ayar yüzeyi — 844×390 yatay telefon', () => {
     await expect(page.locator('.setting-row.is-action').first()).toBeHidden();
   });
 
-  test('duraklatma aynı satırları gerer, ikinci bir ayar yüzeyi kurmaz', async ({ page }) => {
+  test('duraklatma: HIZLI şerit şemadan gelir, dişli aynı sheeti üstüne açar', async ({ page }) => {
     test.setTimeout(90_000);
     await bootPhone(page);
-    expect(await playLocally(page)).toBe(true);
+    expect(await pauseInLocalMatch(page)).toBe(true);
 
-    const quick = page.locator('#pause-settings-slot .setting-row:not([hidden])');
+    const quick = page.locator('#pause-quick-slot .setting-row:not([hidden])');
     expect(await quick.count()).toBeGreaterThan(0);
-    // Eski kopya yüzey: pause'un kendi anahtarları geri gelmemeli.
-    expect(await page.locator('#btn-toggle-sound, #btn-toggle-bots, #btn-controller-layout').count()).toBe(0);
+    // Eski kopya yüzey geri gelmemeli: pause'un kendi anahtarları ve TÜM
+    // AYARLAR düğmesi kaldırıldı, tek giriş başlıktaki dişli.
+    expect(await page.locator('#btn-toggle-sound, #btn-controller-layout, .settings-all-btn').count()).toBe(0);
 
-    const pauseBox = await page.locator('.pause-sheet').boundingBox();
-    const quickBox = await quick.first().boundingBox();
-    expect(quickBox.height).toBeLessThanOrEqual(48);
-    expect(pauseBox.height).toBeLessThan(PHONE.height);
+    const stripBox = await page.locator('#pause-quick-slot').boundingBox();
+    expect(stripBox.height).toBeLessThanOrEqual(48);
 
-    await page.locator('.settings-all-btn').click();
+    // Sekmeler: KOLTUKLAR / KONTROLLER, panel alanı sabit yükseklikte.
+    const tabs = page.locator('#pause-tabs-host .tab-btn:not([hidden])');
+    expect(await tabs.count()).toBe(2);
+    const hostBefore = (await page.locator('.pause-panel-host').boundingBox()).height;
+    await tabs.nth(1).click();
+    await expect(page.locator('#pause-panel-controls')).toBeVisible();
+    expect((await page.locator('.pause-panel-host').boundingBox()).height).toBe(hostBefore);
+
+    // Dişli → merkezi sheet pause'un ÜSTÜNDE; Escape önce onu kapatır.
+    await page.locator('#pause-tabs-host .tab-btn').first().click();
+    await page.locator('#btn-pause-settings').click();
     await page.waitForSelector('.settings-sheet', { state: 'visible' });
     await expect(page.locator('.pause-sheet')).toBeVisible();
-
-    // Escape en üsttekine gider: ayar kapanır, duraklatma açık kalır.
     await page.keyboard.press('Escape');
     await expect(page.locator('.settings-sheet')).toBeHidden();
     await expect(page.locator('.pause-sheet')).toBeVisible();

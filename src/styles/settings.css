@@ -1,9 +1,14 @@
 /* Ayarlar yüzeyi — `src/ui/settings/` modülünün tek stili.
-   Dil kardeşi `sheets.css` (scrim + `.sheet-close`), ama yerleşim burada:
-   ayarlar artık pause/join iskeletini (`.pause-sheet`) taşımıyor, çünkü o
-   iskeletin başlık şeridi bu yüzeyde yok. */
 
-/* ── Kaplama ve kabuk ─────────────────────────────────────────────────── */
+   DİL: düz panel + ince ayraç. Satır kendi kutusu DEĞİLDİR: kenarlık, gölge ve
+   ikon çerçevesi yok, yalnızca satırlar arası tek tel çizgi. Kaldırılan her
+   çerçeve, 12 satırda 12 çift kenarlık ve 12 gölge demekti — panel bir ayar
+   listesi değil "kart duvarı" gibi okunuyordu.
+
+   ÖLÇÜ: panel SABİT yüksekliktedir. İçeriğe göre boylanan panel her sekme
+   değişiminde zıplıyor ve sekme şeridi ekranda yer değiştiriyordu. */
+
+/* ── Kaplama ──────────────────────────────────────────────────────────── */
 
 .settings-scrim {
   position: fixed;
@@ -12,7 +17,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 10px;
   touch-action: manipulation;
   overscroll-behavior: contain;
 }
@@ -20,98 +25,103 @@
 .settings-sheet {
   display: flex;
   flex-direction: column;
-  /* TEK SÜTUN + GENİŞLİK TAVANI: iki sütun, sekme ihtiyacını doğuran
-     "her şey tek ekranda" kararının sonucuydu. Sekme başına 4 satır
-     620px'de rahat okunur; telefon yatayında (844×390) yükseklik
-     kaydırmasız yeter. */
-  width: min(620px, 100%);
-  max-height: min(88dvh, 620px);
-  border: 3px solid var(--edge);
-  border-radius: var(--radius-card);
-  background: var(--grad-card);
+  /* Merkezde, genişliği sınırlı bir kart: telefon yatayında tam satır
+     genişliğine yayılmak etiket ile anahtarı 400px ayırıyordu. */
+  width: min(520px, 100%);
+  height: min(300px, 100%);
+  border: 1px solid var(--n-300);
+  border-radius: 20px;
+  background: var(--elevated);
   box-shadow: var(--shadow-float);
   overflow: hidden;
-  animation: settings-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: settings-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes settings-in {
-  from { transform: translateY(18px) scale(0.98); opacity: 0; }
+  from { transform: translateY(10px) scale(0.985); opacity: 0; }
   to { transform: none; opacity: 1; }
 }
 
-/* Dokunmatik yatay telefon ve portre: alt sayfa (başparmak erişimi). */
-@media (max-width: 760px), (orientation: portrait), (pointer: coarse) and (max-height: 460px) {
-  .settings-scrim {
-    align-items: flex-end;
-    padding: 0;
-  }
-
-  .settings-sheet {
-    width: 100%;
-    max-height: 92dvh;
-    border-radius: var(--radius-card) var(--radius-card) 0 0;
-    border-bottom: 0;
-    padding-bottom: max(4px, env(safe-area-inset-bottom));
-  }
-}
-
-/* ── Başlık yerine sekme şeridi ──────────────────────────────────────────
-   Rozet + "AYARLAR" + kapat üçlüsü ~68px yiyordu (%20 dikey bütçe) ve
-   hiçbir seçim taşımıyordu. Sekme şeridi başlığın İŞİNİ de yapar: nerede
-   olduğunu söyler, nereye gidebileceğini gösterir. */
+/* ── Başlık yerine segment kontrolü ───────────────────────────────────── */
 
 .settings-head {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
-  border-bottom: 2.5px solid var(--edge);
-  background: var(--elevated);
+  gap: 8px;
+  height: 50px;
+  padding: 0 10px 0 12px;
+  border-bottom: 1px solid var(--n-200);
 }
 
-/* Ortak `.sheet-close` dokunma hedefi (44px) küçültülmez: şeridin 58px'i o
-   hedefin bedelidir, kalkanan başlık şeridi ise 68px'i hiçbir şey seçimden
-   tüketmek için harcıyordu. */
-
+/* `.tab-strip` merkezi bileşen (`tabStrip.js`); `.settings-tabs` yalnız bu
+   yüzeyin segment varyantıdır — üç eşit dilim, tek kapsayıcı içinde. */
 .settings-tabs {
   flex: 1 1 auto;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--n-100);
   overflow: visible;
 }
 
-/* Eşit üç dilim: sekme şeridi tarama hedefi olur, kaydırma gerekmez. */
 .settings-tabs .tab-btn {
   flex: 1 1 0;
   justify-content: center;
-  min-height: 38px;
+  min-height: 40px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: var(--muted);
+  font: 900 11px/1 var(--font-grotesk);
+  letter-spacing: 0.06em;
 }
+
+.settings-tabs .tab-btn.is-active {
+  background: var(--panel);
+  border-color: transparent;
+  color: var(--ink);
+}
+
+.settings-sheet .sheet-close {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+}
+
+.settings-sheet .sheet-close:hover { background: var(--n-100); color: var(--ink); }
+.settings-sheet .sheet-close:active { transform: none; background: var(--n-200); }
+
+/* ── Gövde ────────────────────────────────────────────────────────────── */
 
 .settings-scroll {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 12px;
 }
 
 .settings-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  min-height: 100%;
 }
 
 .settings-body.is-swapping {
-  animation: settings-tab-in 180ms ease;
+  animation: settings-tab-in 160ms ease;
 }
 
 @keyframes settings-tab-in {
-  from { transform: translateY(6px); opacity: 0.4; }
+  from { transform: translateY(4px); opacity: 0.5; }
   to { transform: none; opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .settings-sheet,
-  .settings-body.is-swapping { animation: none; }
 }
 
 /* ── Satırlar ─────────────────────────────────────────────────────────── */
@@ -119,38 +129,36 @@
 .setting-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  min-height: 52px;
-  padding: 6px 12px;
-  border: 2.5px solid var(--edge);
-  border-radius: var(--radius-btn);
-  background: var(--panel);
+  min-height: 50px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 1px solid var(--n-200);
+  background: transparent;
   color: var(--ink);
-  font: 800 13px/1.25 var(--font-grotesk);
+  font: 700 14px/1.25 var(--font-grotesk);
   text-align: start;
-  box-shadow: var(--shadow-edge);
-  transition: transform 140ms ease, box-shadow 140ms ease, background 160ms ease;
+  box-shadow: none;
+  transition: background 140ms ease;
 }
 
-/* Düğme sıfırlaması (`* { padding: 0 }` yetmez): satırın kendisi butondur. */
-button.setting-row { cursor: pointer; -webkit-appearance: none; appearance: none; }
+.setting-row:last-child { border-bottom: 0; }
 
-button.setting-row:active { transform: translateY(2px); box-shadow: none; }
+button.setting-row { cursor: pointer; -webkit-appearance: none; appearance: none; }
+button.setting-row:hover { background: var(--sheen-08); }
+button.setting-row:active { background: var(--sheen-15); transform: none; }
 
 /* Görünürlük satırda değil modülde karar verilir (`available()`), ama
-   `display: flex` yukarıdaki kural `[hidden]` öntanımını eziyor. */
+   yukarıdaki `display: flex` `[hidden]` öntanımını eziyor. */
 .setting-row[hidden] { display: none; }
 
 .row-ico {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
-  border: 2px solid var(--edge);
-  border-radius: 9px;
-  background: var(--n-100);
+  width: 20px;
+  color: var(--muted);
   line-height: 0;
 }
 
@@ -163,61 +171,59 @@ button.setting-row:active { transform: translateY(2px); box-shadow: none; }
 .row-track {
   flex: 0 0 auto;
   position: relative;
-  width: 46px;
-  height: 26px;
-  border: 2.5px solid var(--edge);
+  width: 44px;
+  height: 25px;
+  border: 0;
   border-radius: var(--radius-pill);
-  background: var(--n-100);
-  transition: background 160ms ease;
+  background: var(--n-300);
+  transition: background 180ms ease;
 }
 
 .row-knob {
   position: absolute;
-  top: 1px;
-  left: 1px;
+  top: 3px;
+  left: 3px;
   width: 19px;
   height: 19px;
-  border: 2px solid var(--edge);
+  border: 0;
   border-radius: 50%;
-  background: var(--panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-edge);
   transition: transform 180ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
 .setting-row.is-on .row-track { background: var(--success); }
-.setting-row.is-on .row-knob { transform: translateX(18px); }
+.setting-row.is-on .row-knob { transform: translateX(19px); }
 
-/* choice (segment) */
-.setting-row.is-choice { flex-wrap: wrap; }
-
+/* choice (satır içi segment) */
 .row-group {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   display: flex;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
   padding: 3px;
-  border: 2.5px solid var(--edge);
-  border-radius: var(--radius-btn);
+  border-radius: 11px;
   background: var(--n-100);
 }
 
 .group-btn {
   flex: 1 1 0;
   min-width: 0;
-  min-height: 38px;
-  padding: 0 8px;
+  min-height: 32px;
+  padding: 0 9px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 8px;
   background: transparent;
-  color: var(--ink);
-  font: 900 11px/1.1 var(--font-grotesk);
+  color: var(--muted);
+  font: 800 11px/1.1 var(--font-grotesk);
   letter-spacing: 0.03em;
   cursor: pointer;
   transition: background 150ms ease, color 150ms ease;
 }
 
 .group-btn.is-active {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--panel);
+  color: var(--ink);
 }
 
 /* slider */
@@ -225,44 +231,38 @@ button.setting-row:active { transform: translateY(2px); box-shadow: none; }
   flex: 1 1 auto;
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-width: 140px;
+  gap: 12px;
+  min-width: 130px;
+  max-width: 240px;
 }
 
 .slider-input {
   flex: 1 1 auto;
   min-width: 0;
-  height: 30px;
+  height: 26px;
   accent-color: var(--accent);
 }
 
 .slider-value {
   flex: 0 0 auto;
-  min-width: 42px;
+  min-width: 38px;
   text-align: end;
-  font: 900 12px/1 var(--font-mono);
+  font: 800 12px/1 var(--font-mono);
+  color: var(--muted);
 }
 
 /* static (salt-okur bilgi) */
-.setting-row.is-static {
-  background: var(--elevated);
-  box-shadow: none;
-  font-weight: 700;
-}
-
 .row-value {
   flex: 0 0 auto;
-  font: 900 12px/1 var(--font-mono);
+  font: 800 12px/1 var(--font-mono);
   color: var(--muted);
 }
 
 /* action (alt ekran açan satır) */
-.setting-row.is-action { align-items: center; }
-
 .row-hint {
   flex: 0 1 auto;
-  font: 900 9px/1 var(--font-mono);
-  letter-spacing: 0.08em;
+  font: 800 10px/1 var(--font-mono);
+  letter-spacing: 0.06em;
   color: var(--faint);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -271,43 +271,61 @@ button.setting-row:active { transform: translateY(2px); box-shadow: none; }
 
 .row-chevron {
   flex: 0 0 auto;
-  font: 900 22px/1 var(--font-grotesk);
-  color: var(--accent-ink);
+  font: 700 18px/1 var(--font-grotesk);
+  color: var(--faint);
 }
 
-/* Bekleyen bir güncelleme satırı kendisi olsun, ayrı bir rozet değil. */
-.setting-row.is-hot {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
+/* Bekleyen güncelleme: satırı vurgular, ayırt edici rozet üretmez. */
+.setting-row.is-hot .row-label { color: var(--accent-ink); }
 .setting-row.is-hot .row-hint { color: var(--accent-ink); }
 
-/* ── Oyun içi hızlı set: aynı satırlar, sıkı ölçü ─────────────────────── */
+/* ── Oyun içi hızlı şerit: aynı satırlar, yatay ve sıkı ──────────────── */
 
 .settings-body.is-quick {
-  gap: 8px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 0;
 }
 
 .is-quick .setting-row {
-  min-height: 44px;
-  font-size: 12px;
+  flex: 1 1 96px;
+  width: auto;
+  min-height: 40px;
+  padding: 0 10px;
+  gap: 8px;
+  border: 1px solid var(--n-200);
+  border-bottom: 1px solid var(--n-200);
+  border-radius: 11px;
+  font: 800 12px/1 var(--font-grotesk);
 }
 
-.is-quick .row-ico {
-  width: 26px;
-  height: 26px;
+.is-quick .setting-row:last-child { border-bottom: 1px solid var(--n-200); }
+.is-quick .row-ico { width: 16px; }
+.is-quick .row-track { width: 34px; height: 20px; }
+.is-quick .row-knob { width: 14px; height: 14px; top: 3px; left: 3px; }
+.is-quick .setting-row.is-on .row-knob { transform: translateX(14px); }
+
+/* ── Dar/yüksek yüzey: telefon portresinde alt sayfa ─────────────────── */
+
+@media (orientation: portrait), (max-width: 560px) {
+  .settings-scrim {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .settings-sheet {
+    width: 100%;
+    height: min(340px, 88dvh);
+    border-radius: 20px 20px 0 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+  }
 }
 
-.settings-all-btn { margin-top: 2px; }
-
-/* ── Ultra-kısa yatay (telefon ≤430px yükseklik) ──────────────────────── */
-
-@media (orientation: landscape) and (max-height: 430px) {
-  .settings-tabs .tab-btn { min-height: 32px; font-size: 9.5px; }
-  .settings-scroll { padding: 8px; }
-  .settings-body { gap: 8px; }
-  .setting-row { min-height: 44px; padding: 4px 10px; }
-  .row-ico { width: 26px; height: 26px; }
-  .group-btn { min-height: 32px; }
+@media (prefers-reduced-motion: reduce) {
+  .settings-sheet,
+  .settings-body.is-swapping { animation: none; }
 }
