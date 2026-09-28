@@ -106,11 +106,11 @@ test.describe('ayar yüzeyi — 844×390 yatay telefon', () => {
     await openSettings(page);
 
     const haptics = page.locator('.setting-row').filter({ hasText: /Haptik|Haptic/ });
-    await expect(haptics).toHaveAttribute('aria-checked', 'true');
+    await expect(haptics).toHaveAttribute('aria-checked', 'false');
     await haptics.click();
     const afterSwitch = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), SURFACE_KEY);
-    expect(afterSwitch.hapticsEnabled).toBe(false);
-    await expect(haptics).toHaveAttribute('aria-checked', 'false');
+    expect(afterSwitch.hapticsEnabled).toBe(true);
+    await expect(haptics).toHaveAttribute('aria-checked', 'true');
 
     await selectTab(page, 'control');
     const tabletop = page.locator('.group-btn').filter({ hasText: /Masa-ortası|Tabletop/ });
@@ -144,9 +144,10 @@ test.describe('ayar yüzeyi — 844×390 yatay telefon', () => {
 
     const quick = page.locator('#pause-quick-slot .setting-row:not([hidden])');
     expect(await quick.count()).toBeGreaterThan(0);
-    // Eski kopya yüzey geri gelmemeli: pause'un kendi anahtarları ve TÜM
-    // AYARLAR düğmesi kaldırıldı, tek giriş başlıktaki dişli.
+    // Eski kopya yüzey geri gelmemeli: pause'un kendi anahtarları yok, HIZLI
+    // şerit ve menüdeki TÜM AYARLAR satırı merkezi sheet'i açar.
     expect(await page.locator('#btn-toggle-sound, #btn-controller-layout, .settings-all-btn').count()).toBe(0);
+    await expect(page.locator('#btn-pause-all-settings')).toBeVisible();
 
     const stripBox = await page.locator('#pause-quick-slot').boundingBox();
     expect(stripBox.height).toBeLessThanOrEqual(48);
@@ -156,14 +157,20 @@ test.describe('ayar yüzeyi — 844×390 yatay telefon', () => {
     expect(await tabs.count()).toBe(2);
     const hostBefore = (await page.locator('.pause-panel-host').boundingBox()).height;
     await tabs.nth(1).click();
-    await expect(page.locator('#pause-panel-controls')).toBeVisible();
+    await expect(page.locator('#pause-controls-section')).toBeVisible();
     expect((await page.locator('.pause-panel-host').boundingBox()).height).toBe(hostBefore);
 
-    // Dişli → merkezi sheet pause'un ÜSTÜNDE; Escape önce onu kapatır.
+    // Dişli ve menüdeki TÜM AYARLAR → merkezi sheet pause'un ÜSTÜNDE;
+    // Escape önce onu kapatır.
     await page.locator('#pause-tabs-host .tab-btn').first().click();
-    await page.locator('#btn-pause-settings').click();
+    await page.locator('#btn-pause-all-settings').click();
     await page.waitForSelector('.settings-sheet', { state: 'visible' });
     await expect(page.locator('.pause-sheet')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.settings-sheet')).toBeHidden();
+    await expect(page.locator('.pause-sheet')).toBeVisible();
+    await page.locator('#btn-pause-settings').click();
+    await page.waitForSelector('.settings-sheet', { state: 'visible' });
     await page.keyboard.press('Escape');
     await expect(page.locator('.settings-sheet')).toBeHidden();
     await expect(page.locator('.pause-sheet')).toBeVisible();

@@ -39,10 +39,15 @@
   to { opacity: 0; transform: translate3d(-28px, 0, 0); }
 }
 
-/* ── Sol gezinme: SADECE üç yüzen buton, dikey ORTADA (bant YASAK) ────────
-   Üst şerit ve dikey ray zemini kalktı: solda alt alta yalnız ANASAYFA /
-   OYUNLAR / KARAKTER yüzükleri sahnenin üstünde yüzer. Marka + sistem
-   simgeleri sağ üst köşede tek satırdır. Boş alan tıklamayı engellemez. */
+/* ── Sol gezinme: TEK cam kapsül, dikey ORTADA (bant YASAK) ──────────────
+   Üst şerit ve dikey ray zemini kalktı: solda yalnız ANASAYFA / OYUNLAR /
+   KARAKTER durur ama artık AYRI kartlar değil — tek cam kapsülün içindeki
+   madalyonlar. Seçili girdi kapsülün içinde altın-turuncu bir hap olarak
+   dolar (sağ kenardaki eylem çipleri gibi "basılabilir", ama yönü dikey
+   ve ağırlığı navigasyon). Marka + sistem simgeleri sağ üst köşede tek
+   satırdır. Boş alan tıklamayı engellemez. Kapsülün kapladığı alan
+   `--rail-gutter`dır: galeri ve profil içeriği sol payını aynı tokenden
+   alır. */
 
 .shell-rail {
   position: absolute;
@@ -52,7 +57,14 @@
   z-index: 6;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
+  padding: 5px;
+  border: 1.5px solid var(--hud-line);
+  border-radius: 24px;
+  background: var(--hud-surface);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-float);
 }
 
 .shell-rail-btn {
@@ -61,50 +73,80 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  width: 68px;
-  min-height: 64px;
-  padding: 10px 4px 8px;
-  border: 1.5px solid var(--hud-line);
-  border-radius: 20px;
-  background: var(--hud-surface);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: var(--shadow-soft);
-  color: var(--hud-ink);
-  font: 900 11px/1 var(--font-grotesk);
-  letter-spacing: 0.06em;
+  width: 66px;
+  min-height: 68px;
+  padding: 6px 3px 5px;
+  border: 0;
+  border-radius: 18px;
+  background: none;
+  color: var(--hud-muted);
+  font: 900 9.5px/1 var(--font-grotesk);
+  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
-.shell-rail-btn svg { flex: 0 0 auto; }
+/* Madalyon: dinlenmede ince halka + saydam disk, seçiliyken altın dolgu. */
+.shell-rail-ico {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1.5px solid var(--hud-line);
+  background: var(--sheen-08);
+  color: var(--hud-ink);
+  line-height: 0;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
 
-.shell-rail-btn span {
+.shell-rail-ico svg { flex: 0 0 auto; }
+
+.shell-rail-label {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.shell-rail-btn:hover { border-color: var(--hud-ink); }
+.shell-rail-btn:not(.is-active):hover { color: var(--hud-ink); }
 
+.shell-rail-btn:not(.is-active):hover .shell-rail-ico {
+  background: var(--sheen-15);
+  border-color: var(--hud-ink);
+}
+
+/* Aktif girdi: kapsülün içinde dolu turuncu hap + basık sert kenar; madalyon
+   sahne butonlarının rozet diliyle (sheen + koyu mürekkep) aynı okunur. */
 .shell-rail-btn.is-active {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--grad-accent);
   color: var(--on-accent);
+  box-shadow: 0 3px 0 var(--accent-ink);
+}
+
+.shell-rail-btn.is-active .shell-rail-ico {
+  background: var(--sheen-25);
+  border-color: transparent;
+  color: inherit;
 }
 
 /* Kök girdi (ANASAYFA) her ekrandan görünür ama yalnız kökte işaretlidir. */
 .shell-rail-btn.is-root:not(.is-active) {
-  opacity: 0.8;
+  color: var(--hud-ink);
 }
 
-.shell-rail-btn.is-focused { box-shadow: var(--glow-accent); }
+.shell-rail-btn.is-focused { box-shadow: 0 0 0 3px var(--accent-2); }
 
-.shell-rail-btn:active { transform: scale(0.94); }
+.shell-rail-btn.is-active.is-focused {
+  box-shadow: 0 3px 0 var(--accent-ink), 0 0 0 3px var(--accent-2);
+}
+
+.shell-rail-btn:active { transform: translateY(2px); }
 
 /* ── Sol üst: marka (ikon + oyun adı, kullanıcı kararı) · Sağ üst: TEK YATAY
-   SATIR sistem simgeleri (rozet kaldırıldı, simgeler yan yana ve biraz büyük) ── */
+   SATIR sistem simgeleri (ses / dil / tam ekran / ayarlar). Karakter eylemleri
+   (düzenle / rastgele) ve güncelleme burada değil: ilki ana menüde karakterin
+   sağ üstünde, ikincisi ana menünün sağ kenarında büyük bir eylem çipi. ── */
 
 .shell-corner {
   position: absolute;
@@ -181,24 +223,6 @@
 
 .shell-icon-btn:active {
   transform: scale(0.92);
-}
-
-.shell-icon-btn.has-update {
-  position: relative;
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.shell-icon-btn.has-update::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: var(--glow-accent);
 }
 
 /* Sinema kipi sadeleşti: üst bant kalktı. `chrome: 'cinema'` artık yalnız
@@ -343,10 +367,14 @@
 /* ── Kısa ekran (telefon yatay): yoğunluk düşer, düzen aynı kalır ──────── */
 
 @media (max-height: 460px) {
+  :root { --rail-gutter: 88px; }
   .shell-view { padding: 9px max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left)); }
-  /* Kısa ekranda etiketler KORUNUR: yüzük ikon + kısa etiket (erişilebilir ad + title). */
-  .shell-rail-btn { width: 56px; min-height: 52px; padding: 8px 2px; border-radius: 16px; font-size: 9px; }
-  .shell-rail-btn span { display: block; }
+  /* Kısa ekranda kapsül küçülür, etiketler KALIR (madalyon + kısa etiket,
+     erişilebilir ad + title). */
+  .shell-rail { padding: 4px; gap: 3px; border-radius: 20px; }
+  .shell-rail-btn { width: 58px; min-height: 58px; padding: 5px 3px 4px; gap: 4px; font-size: 9px; }
+  .shell-rail-ico { width: 36px; height: 36px; }
+  .shell-rail-ico svg { width: 17px; height: 17px; }
   .shell-brand { gap: 8px; }
   .shell-brand-mark { width: 34px; height: 34px; border-radius: 12px; }
   .shell-brand-name { font-size: 12.5px; letter-spacing: 0.14em; }

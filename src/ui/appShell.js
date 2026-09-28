@@ -20,7 +20,6 @@ import {
   fullscreenOfferable, requestMatchFullscreen, resumeMatchFullscreen,
 } from './fullscreen.js';
 import { isStandaloneApp } from './toast.js';
-import { isUpdateAvailable, onUpdateStatusChange, applyUpdate, checkForUpdates } from '../core/updateManager.js';
 import { getLang, setLang, onLangChange, t } from '../i18n.js';
 import {
   registerView, getView, hasView, listRailViews, setRootView, getRootViewId,
@@ -103,8 +102,8 @@ function renderRail() {
     btn.title = (view.rail.label || view.title || view.id).toUpperCase();
     // Etiket i18n'den gelir ve HER ZAMAN büyük harftir (`t()` çağrısı view
     // modülünde yapılır). `getTabletopIconSvg` yalnız ikon adını bilir.
-    btn.innerHTML = `${getTabletopIconSvg(view.rail.icon, { size: 22 })}<span></span>`;
-    const label = btn.querySelector('span');
+    btn.innerHTML = `<span class="shell-rail-ico">${getTabletopIconSvg(view.rail.icon, { size: 20 })}</span><span class="shell-rail-label"></span>`;
+    const label = btn.querySelector('.shell-rail-label');
     if (label) label.textContent = (view.rail.label || '').toUpperCase();
     btn.addEventListener('click', () => {
       playMenuTick();
@@ -207,8 +206,10 @@ function ensureNode(entry) {
 }
 
 /**
- * Görünüm açılış odağı: kayıt `initialFocus` seçicisi vermişse o öğe, yoksa
- * listedeki ilk hedef. Görünüm adına özel dal açmadan registry üzerinden
+ * Görünüm açılış odağı: `focus: false` kayıtlı görünüm HİÇBİR öğeye odaklanmaz
+ * (açılışta hiçbir yerde odak halkası görünmez — odak yalnız kullanıcı bir yön
+ * tuşuna bastığında başlar). Diğer görünümlerde sıra: `initialFocus` seçicisi,
+ * yoksa listedeki ilk hedef. Görünüm adına özel dal açmadan registry üzerinden
  * çalışır (AGENTS.md §8).
  */
 function focusViewInitial(view) {
@@ -525,6 +526,8 @@ function mountNavActions() {
   if (!host) return;
   host.textContent = '';
 
+  // Karakter eylemleri (düzenle / rastgele) KÖŞEDE DEĞİL: sahne sahibi olan
+  // ana menü, ikisini de karakterin sağ üstüne koyar (`views/homeView.js`).
   const soundBtn = iconButton({
     id: 'shell-sound', label: t('menu.sound'), icon: getIsMuted() ? 'volume_x' : 'volume_2',
     pressed: !getIsMuted(),
@@ -552,29 +555,12 @@ function mountNavActions() {
       btn.setAttribute('aria-pressed', String(active));
     },
   });
-  const updateAvailable = isUpdateAvailable();
-  const updateBtn = iconButton({
-    id: 'shell-update',
-    label: updateAvailable ? t('menu.updateReady') : t('menu.checkUpdate'),
-    icon: 'reload',
-    onClick: () => {
-      if (isUpdateAvailable()) {
-        applyUpdate();
-      } else {
-        checkForUpdates();
-      }
-    },
-  });
-  if (updateAvailable) {
-    updateBtn.classList.add('has-update');
-  }
-
   const settingsBtn = iconButton({
     id: 'shell-settings', label: t('menu.settings'), icon: 'settings',
     onClick: () => actions.openSettings?.(),
   });
 
-  host.append(soundBtn, langBtn, fsBtn, updateBtn, settingsBtn);
+  host.append(soundBtn, langBtn, fsBtn, settingsBtn);
   // Sıradan webde tam ekran düğmesi yoktur (yalnız kurulu PWA).
   fsBtn.classList.toggle('hidden', !fullscreenOfferable());
   if (navActionsBound) return;
@@ -586,14 +572,6 @@ function mountNavActions() {
     live.innerHTML = getTabletopIconSvg(active ? 'minimize_2' : 'maximize_2', { size: 18 });
     live.setAttribute('aria-pressed', String(active));
   });
-  onUpdateStatusChange((available) => {
-    const live = shellEl?.querySelector('#shell-update');
-    if (!live) return;
-    live.classList.toggle('has-update', available);
-    const label = available ? t('menu.updateReady') : t('menu.checkUpdate');
-    live.setAttribute('aria-label', label);
-    live.title = label;
-  });
   onLangChange(() => mountNavActions());
 }
 
@@ -604,9 +582,10 @@ function mountNavActions() {
 function buildRailShell() {
   if (!shellEl) return;
   // Üst şerit ve bant YOK (kullanıcı kararı): solda SADECE üç kalıcı hedef
-  // (ANASAYFA / OYUNLAR / KARAKTER) DİKEY ORTADA alt alta yüzer; marka (ikon
-  // + oyun adı) SOL ÜSTTE yüzer, sistem simgeleri (ses/dil/tam ekran/ayarlar)
-  // sağ üst köşede TEK SATIRDA yüzer (platform rozeti kaldırıldı).
+  // (ANASAYFA / OYUNLAR / KARAKTER) cam kapsül içinde DİKEY ORTADA yüzer;
+  // marka (ikon + oyun adı) SOL ÜSTTE yüzer, sağ üst köşede tek satırda
+  // KARAKTER eylemleri (kalem/zar) + sistem simgeleri (ses/dil/tam ekran/
+  // ayarlar) durur. Güncelleme büyük çip olarak ana menünün SAĞ kenarında.
   // Geri düğmesi YOK: "nereye girdiysem ana menüye dön" işi gezinmenin ilk
   // girdisinin işidir. Escape / donanım geri tuşu ve tarayıcı history'si
   // yine `back()` çalıştırır.

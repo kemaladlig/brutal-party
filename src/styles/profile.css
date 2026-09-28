@@ -41,8 +41,8 @@
      ikiye bölüp ipucunu avatarın altından ekranın dibine savuruyor. */
   align-content: center;
   gap: 6px;
-  /* Sol üstte yüzen gezinme diske binmesin. */
-  padding: 20px 20px 20px calc(70px + env(safe-area-inset-left));
+  /* Sol üstte yüzen gezinme kapsülü (`--rail-gutter`) binmesin. */
+  padding: 20px 20px 20px calc(var(--rail-gutter) + env(safe-area-inset-left));
   min-width: 0;
   min-height: 0;
 }
@@ -444,14 +444,14 @@
   gap: 6px;
 }
 
-/* Kısa ekran: sahne küçülür, gezinme payı sabit kalır. */
+/* Kısa ekran: sahne küçülür, gezinme payı `--rail-gutter` ile birlikte iner. */
 @media (max-width: 900px), (max-height: 560px) {
   .profile-body { justify-content: flex-start; }
 }
 
 @media (max-width: 620px), (max-height: 460px) {
   .profile-card { grid-template-columns: minmax(110px, 0.5fr) minmax(0, 1.5fr); }
-  .profile-media { padding: 10px 10px 10px calc(62px + env(safe-area-inset-left)); }
+  .profile-media { padding: 10px 10px 10px calc(var(--rail-gutter) + env(safe-area-inset-left)); }
   .profile-stage { width: min(30vh, 160px); height: min(30vh, 160px); }
   .profile-stage-hint { display: none; }
   .profile-body { padding: 12px 14px; gap: 8px; }

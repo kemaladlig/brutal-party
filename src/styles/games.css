@@ -13,11 +13,11 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
   gap: clamp(10px, 1.8vw, 22px);
-  /* Solda dikey ortalanmış yüzen gezinme (56px) içeriğe binmesin.
-     ÜSTTE yüzen marka + köşe simgeleri (~54px kuşağı) sekme şeridine
-     binmesin diye üst pay bırakılır. */
+  /* Solda dikey ortalanmış yüzen gezinme kapsülü (`--rail-gutter`) içeriğe
+     binmesin. ÜSTTE yüzen marka + köşe simgeleri (~54px kuşağı) sekme
+     şeridine binmesin diye üst pay bırakılır. */
   padding: calc(58px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
-    max(14px, env(safe-area-inset-bottom)) calc(74px + env(safe-area-inset-left));
+    max(14px, env(safe-area-inset-bottom)) calc(var(--rail-gutter) + env(safe-area-inset-left));
 }
 
 /* ── Sol: sekmeler + sayfalı ızgara ─────────────────────────────────────── */

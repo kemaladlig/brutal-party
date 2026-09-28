@@ -113,6 +113,13 @@
   --scene-teal-bottom: #0d8b93;
   --scene-teal-edge: #076a72;
 
+  /* Üçüncü eylem rengi: mor yığın (KOD GİR). Turkuaz ve altın komşuymış gibi
+     görünmesin diye ayrı bir kimlik — aynı geometri, kendi rengi. */
+  --scene-plum-top: #c79bff;
+  --scene-plum-mid: #9b5de5;
+  --scene-plum-bottom: #7139c4;
+  --scene-plum-edge: #4d208c;
+
   /* Eski sahne modu dolguları (`.home-mode`) silindi: ana menüde üç mod
      butonu yerine tek "ODA KUR" eylemi var, seçim `room` ekranında.
      Menü yüzeyi (kumanda/lobi) `--mode-*` kimlik ailesini kullanmaya devam eder. */
@@ -213,6 +220,13 @@
   --radius-card: 18px;
   --radius-btn: 14px;
   --radius-pill: 999px;
+
+  /* ---- Sol gezinme payı ----
+     Kabuk kapsülü (ANASAYFA / OYUNLAR / KARAKTER) sol kenarda ne kadar
+     yer kaplıyorsa içerik de o kadar kaçar: tek doğruluk kaynağı burası.
+     Oyun galerisi ve profil sol payını bu tokenden alır (shell.css kısa
+     ekran kapsülüyle birlikte küçültür). */
+  --rail-gutter: 96px;
 
   --bot-tag: #ffde59;
   --font-grotesk: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;

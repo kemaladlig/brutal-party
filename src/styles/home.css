@@ -3,9 +3,8 @@
 
      üst orta : marka (kabuk üst şeridi, overlay)
      merkez   : karakter + isim rozeti
-     sol alt : ODA KUR
-     sağ alt : OYNA
-     sağ orta: KODLA
+     sağ alt : KOD GİR · ODA KUR · OYNA (giriş çipi + iki kart)
+     sağ orta: YÜKLE · GÜNCELLE çipleri
      alt orta: bilgi şeridi                                        */
 
 /* ── Merkez: karakter ──────────────────────────────────────────────────
@@ -96,6 +95,12 @@
    İki ana eylem tek bir satırda: ikincil (teal) solda, ana eylem (altın)
    sağda. Daha önce ayrı köşelerdeydiler ve sahne ikiye bölünüyordu. */
 
+/* ── Sağ alt eylem sırası: KOD GİR · ODA KUR · OYNA ─────────────────────
+   Üç eylem tek satırda ve ÜÇÜ DE AYNI YÜKSEKLİKTE (100px): aynı kart
+   geometrisi, aynı taban çizgisi. Giriş (KOD GİR) cam, oda turkuaz, oyun
+   altın; hiyerarşi RENKTEN değil GENİŞLİKTEN gelir — OYNA daha geniş ve
+   etiketi büyüktür ama kardeşlerinden daha kısa değildir. */
+
 .home-actions {
   position: absolute;
   right: max(26px, env(safe-area-inset-right));
@@ -106,12 +111,30 @@
   z-index: 3;
 }
 
+.home-join,
 .home-room,
 .home-play {
   position: static;
   transform: none;
   margin: 0;
+  /* Eşit yükseklik: OYNA'nın altın kütlesi en uzun içeriğe sahip, üçü de onun
+     ölçüsüne çekilir — kardeşler aynı taban çizgisinde oturur. */
+  min-height: 104px;
 }
+
+/* KOD GİR: ODA KUR ile aynı kart geometrisi, KENDİ RENGİYLE (mor) — alt bant
+   üç eylemi birbirinden ayırır (giriş / oda / oyun). OYNA altın kalır. */
+.home-join {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 120px;
+  padding: 14px 10px 12px;
+}
+
+.home-join .scene-btn-icon { width: 52px; height: 52px; border-radius: 17px; }
+.home-join .scene-btn-label { font-size: 12px; }
+.home-join .scene-btn-sub { display: none; }
 
 .home-room {
   flex-direction: column;
@@ -125,21 +148,165 @@
 .home-room .scene-btn-label { font-size: 12px; }
 .home-room .scene-btn-sub { display: none; }
 
+/* OYNA: aynı yükseklik, daha geniş gövde + büyük etiket (altın ana eylem). */
 .home-play {
-  padding: 16px 30px 18px;
-  gap: 16px;
+  width: 168px;
+  padding: 10px 18px;
+  justify-content: center;
+  gap: 12px;
   animation: homePlayGlow 2.6s ease-in-out infinite;
 }
 
-.home-play .scene-btn-icon { width: 54px; height: 54px; border-radius: 18px; }
-.home-play .scene-btn-label { font-size: clamp(21px, 2.6vh, 26px); letter-spacing: 0.05em; }
-.home-play .scene-btn-sub { font-size: 10.5px; letter-spacing: 0.1em; }
+.home-play .scene-btn-icon { width: 46px; height: 46px; border-radius: 16px; }
+.home-play .scene-btn-label { font-size: 20px; letter-spacing: 0.05em; }
+/* İkinci satır şeritteki bilgiyle aynı (bkz. `.home-facts`); kart genişliği
+   bütçesini korumak için burada taşınmaz. */
+.home-play .scene-btn-sub { display: none; }
 
 .home-play:active { animation: none; }
+
+/* Merkezdeki isim rozeti ve bilgi şeridi alt bantla çakışmasın: daralan
+   ekranda üç kart küçülür, şerit düşer. Genişlik merdiveni tek yerde. */
+@media (max-width: 1320px) {
+  .home-join,
+  .home-room { width: 104px; }
+  .home-play { width: 146px; }
+  .home-facts { display: none; }
+}
+
+@media (max-width: 1000px) {
+  .home-join,
+  .home-room { width: 92px; }
+  .home-play { width: 128px; }
+}
 
 @keyframes homePlayGlow {
   0%, 100% { box-shadow: 0 8px 0 var(--play-edge), 0 18px 32px var(--scene-shadow), 0 0 28px var(--glow-accent-soft); }
   50%      { box-shadow: 0 8px 0 var(--play-edge), 0 18px 32px var(--scene-shadow), 0 0 50px var(--glow-accent-soft); }
+}
+
+/* ── İsim rozeti: isim + üç nokta, YUKARI açılan menü ───────────────────
+   Rozet satır olur (isim alanı + kuyruktaki `⋮`); menü rozetin ÜSTÜNE açılır
+   (`bottom: 100%`) — alta taşma olmaz. İki öğe (isimi düzenle / rastgele nick)
+   ≥44px dokunma hedefiyle alt alta dizilir. */
+
+.home-identity {
+  position: relative;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.home-identity .home-name-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.home-more-btn { flex: 0 0 auto; }
+
+.home-more-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 216px;
+  max-width: calc(100vw - 24px);
+  padding: 6px;
+  border-radius: var(--radius-card);
+  background: var(--hud-surface);
+  border: 2px solid var(--hud-line);
+  box-shadow: 0 14px 30px var(--scene-shadow);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.home-more-menu.is-open {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.home-more-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: var(--hud-ink);
+  font: 800 12px/1.2 var(--font-grotesk);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-align: start;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.home-more-item:hover { background: var(--sheen-15); }
+.home-more-item:active { transform: scale(0.98); }
+
+.home-more-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  line-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-more-menu { transition: none; }
+}
+
+/* ── Karakter araçları: düzenle + rastgele ────────────────────────────────
+   Gövdenin sağ ÜSTÜNDE, baş hizasında. Düğmeler sahne kutusunun DIŞINDA durur
+   (`right` eksi sabit px): gövde en fazla kutunun %84'üne uzanır, düğmeler %100
+   + 8px'te başlar — her ekranda arada boşluk kalır, çakışma yapısal olarak
+   imkânsızdır. Dikeyde baş üstü (`top: 35%`) — yüze binmez. */
+
+.home-tools {
+  position: absolute;
+  top: 35%;
+  right: -54px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  /* `.scene-hero` saydam kap (pointer-events:none) — düğmeler kendi olayını alır. */
+  pointer-events: auto;
+}
+
+.home-tool {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1.5px solid var(--hud-line);
+  background: var(--hud-surface);
+  color: var(--hud-ink);
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: transform 140ms ease, border-color 140ms ease;
+}
+
+.home-tool:hover { border-color: var(--hud-ink); }
+.home-tool:active { transform: scale(0.92); }
+.home-tool.is-focused { box-shadow: var(--glow-accent); }
+
+@media (max-height: 470px) {
+  .home-tools { right: -46px; gap: 6px; }
+  .home-tool { width: 38px; height: 38px; }
+  .home-tool svg { width: 17px; height: 17px; }
 }
 
 /* ── KURULUM düğmesi — "beni yükle" nabzı ───────────────────────────────
@@ -152,35 +319,39 @@
    `[data-focus].is-focused { transform: scale(...) }` kuralı `transform`
    animasyonunu ezer (bu dosyanın başındaki uyarı), `translate` ise onunla
    çarpışmadan üstüne biner. `prefers-reduced-motion` küresel olarak
-   `animations.css §9`'da söner; her iki anahtar kare de durdukları değerde
-   (translate 0, glow sönük) bittiği için sönme görüntü bozmaz. */
+   `animations.css §9`'da söner; anahtar kareler durdukları değerde
+   (translate 0) bittiği için sönme görüntü bozmaz. */
 .home-install.available {
   animation: homeInstallBob 2.6s ease-in-out infinite;
+}
+
+/* Hareket `translate` BİREYİ, çiplerin sert kenarı (`--scene-chip-edge`)
+   ise kutunun kendi gölgesidir: ikisi ayrı özellik, birbirini ezmez —
+   keyframe'lerde gölge kopyalanmaz. */
+.home-install.available .scene-btn-icon {
+  box-shadow: 0 0 18px var(--glow-success);
 }
 
 .home-install.available:active {
   animation: none;
   translate: 0 0;
-  box-shadow: 0 9px 20px var(--scene-btn-shadow);
 }
 
 @keyframes homeInstallBob {
-  0%, 70%, 100% {
-    translate: 0 0;
-    box-shadow: 0 9px 20px var(--scene-btn-shadow);
-  }
-  78% {
-    translate: 0 -4px;
-    box-shadow: 0 13px 24px var(--scene-btn-shadow), 0 0 22px var(--glow-accent-soft);
-  }
+  0%, 70%, 100% { translate: 0 0; }
+  78% { translate: 0 -4px; }
   86% { translate: 0 1px; }
   92% { translate: 0 0; }
 }
 
-/* ── Sağ kenar: KODLA, altında KURULUM ──────────────────────────────────
-   KODLA odaya katılır, KURULUM uygulamayı yükler. İkisi de yalnız uygulama
-   yüklenebilir durumdayken görünür (`toast.js` `.hidden` ile yönetir);
-   profil kartındaki büyük "Install" satırı bu yüzden kaldırıldı. */
+/* ── Sağ kenar: YÜKLE · GÜNCELLE — eylem çipleri ─────────────────────────
+   Sol ray (gezinme) cam kapsül ve DİKEYken buradakiler yatay çiptir: sert
+   alt kenar, renkli madalyon, dokununca otururlar (`.scene-btn.is-chip`).
+   YÜKLE uygulamayı kurar, GÜNCELLE yeni sürümü uygular / denetler (üç küçük
+   sistem simgesinin arasındaydı, buraya çip olarak taşındı); YÜKLE yalnız
+   uygulama yüklenebilir durumdayken görünür (`toast.js` `.hidden`).
+   KOD GİR de bu çip ailesinden ama eylem sırasının EN SOLUNDA durur
+   (`home.css` alt bant) — oyun akışının girişi olduğu için orada. */
 
 .home-side {
   position: absolute;
@@ -189,25 +360,45 @@
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-end;
+  gap: 9px;
   z-index: 2;
 }
 
-.home-join,
-.home-install {
+.home-install,
+.home-update {
   position: static;
   transform: none;
   margin: 0;
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
-  width: 100px;
-  padding: 12px 8px 10px;
+  min-width: 140px;
+  min-height: 50px;
+  padding: 6px 14px 6px 7px;
+  gap: 10px;
 }
 
-.home-join .scene-btn-label,
-.home-install .scene-btn-label { font-size: 11px; }
+.home-install .scene-btn-icon,
+.home-update .scene-btn-icon { width: 36px; height: 36px; border-radius: 12px; }
+
+.home-install .scene-btn-label,
+.home-update .scene-btn-label { font-size: 12px; letter-spacing: 0.03em; }
+
+/* Madalyon kimliği: yükle turkuaz, güncelle turuncu. */
+#home-install .scene-btn-icon { background: var(--scene-teal-mid); color: var(--play-ink); }
+#home-update .scene-btn-icon { background: var(--accent-soft); color: var(--accent); }
+
+/* Sürüm hazır: kenar + madalyon turuncuya döner, madalyon nabız atar
+   (yalnız `transform` — §8 hareket kuralı). */
+#home-update.has-update { border-color: var(--accent); }
+#home-update.has-update .scene-btn-icon {
+  background: var(--accent);
+  color: var(--on-accent);
+  animation: homeUpdatePing 2.6s ease-in-out infinite;
+}
+
+@keyframes homeUpdatePing {
+  0%, 70%, 100% { transform: scale(1); }
+  82% { transform: scale(1.12); }
+}
 
 /* ── Bilgi şeridi ─────────────────────────────────────────────────────── */
 
@@ -242,43 +433,53 @@
     bottom: max(12px, env(safe-area-inset-bottom));
     gap: 8px;
   }
+  .home-join,
   .home-room {
-    width: 90px;
+    width: 88px;
     padding: 10px 6px 9px;
     border-radius: 16px;
   }
+  .home-join,
+  .home-room,
+  .home-play { min-height: 80px; }
+  .home-join .scene-btn-icon,
   .home-room .scene-btn-icon { width: 38px; height: 38px; border-radius: 13px; }
+  .home-join .scene-btn-label,
   .home-room .scene-btn-label { font-size: 9.5px; letter-spacing: 0.06em; }
 
   .home-play {
-    padding: 12px 20px 14px;
+    width: 132px;
+    padding: 8px 12px;
+    gap: 8px;
     border-radius: 18px;
     box-shadow: 0 6px 0 var(--play-edge), 0 14px 24px var(--scene-shadow);
     animation: none;
   }
-  .home-play .scene-btn-icon { width: 42px; height: 42px; border-radius: 15px; }
-  .home-play .scene-btn-label { font-size: 18px; }
+  .home-play .scene-btn-icon { width: 34px; height: 34px; border-radius: 12px; }
+  .home-play .scene-btn-label { font-size: 17px; }
 
   .home-side {
     right: max(14px, env(safe-area-inset-right));
-    gap: 8px;
+    gap: 7px;
   }
-  .home-join,
-  .home-install {
-    width: 78px;
-    padding: 9px 5px 8px;
+  .home-install,
+  .home-update {
+    min-width: 118px;
+    min-height: 42px;
+    padding: 5px 11px 5px 6px;
+    gap: 8px;
     border-radius: 16px;
   }
-  .home-join .scene-btn-icon,
-  .home-install .scene-btn-icon { width: 36px; height: 36px; border-radius: 12px; }
-  .home-join .scene-btn-label,
-  .home-install .scene-btn-label { font-size: 9.5px; letter-spacing: 0.06em; }
+  .home-install .scene-btn-icon,
+  .home-update .scene-btn-icon { width: 30px; height: 30px; border-radius: 10px; }
+  .home-install .scene-btn-label,
+  .home-update .scene-btn-label { font-size: 10.5px; letter-spacing: 0.04em; }
 
   .home-facts { display: none; }
 }
 
-/* Aşırı kısa yatay (<300px): sağ-orta KODLA/KURULUM yığını sağ-alt eylem
-   satırının üstüne biner — yığını eylemlerin hemen üstüne sabitle. */
+/* Aşırı kısa yatay (<300px): sağ-orta çip yığını sağ-alt eylem satırının
+   üstüne biner — yığını eylemlerin hemen üstüne sabitle. */
 @media (max-height: 300px) {
   .home-side {
     top: auto;
@@ -299,17 +500,19 @@
   .home-scene { --scene-stage-y: 76%; }
   .home-hero { --hero-size: min(26vh, 200px); }
 
-  /* Yığın: ODA KUR + OYNA altta tam genişlik, KODLA + KURULUM üstte sağda. */
+  /* Yığın: KOD GİR + ODA KUR + OYNA altta tam genişlik, iki çip üstte sağda. */
   .home-actions {
     left: max(12px, env(safe-area-inset-left));
     right: max(12px, env(safe-area-inset-right));
     bottom: max(12px, env(safe-area-inset-bottom));
     align-items: stretch;
   }
+  .home-join,
   .home-room,
   .home-play {
     flex: 1 1 0;
     width: auto;
+    min-height: 96px;
     justify-content: center;
     padding: 12px 14px 14px;
     border-radius: 18px;

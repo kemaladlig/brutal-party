@@ -13,6 +13,7 @@ export const EN = {
   'pause.seatsHint': 'Tap two seats to swap them instantly.',
   'pause.exit': 'QUIT TO MENU',
   'pause.exitArmed': 'SURE? TAP AGAIN',
+  'pause.allSettings': 'ALL SETTINGS',
   'pause.slotBottom': 'BOTTOM',
   'pause.slotTop': 'TOP',
   'pause.slotLeft': 'LEFT',

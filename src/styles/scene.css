@@ -110,7 +110,8 @@
 
 /* Ana eylem: altın yığın + basık alt kenar (3B düğme). */
 .scene-btn.is-gold,
-.scene-btn.is-teal {
+.scene-btn.is-teal,
+.scene-btn.is-plum {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   box-shadow: 0 8px 0 var(--scene-btn-line), 0 18px 32px var(--scene-shadow);
@@ -130,15 +131,50 @@
   --scene-btn-icon-bg: var(--sheen-25);
 }
 
+/* Üçüncü kimlik (KOD GİR): aynı geometri, mor yığın. */
+.scene-btn.is-plum {
+  --scene-btn-fill: linear-gradient(180deg, var(--scene-plum-top) 0%, var(--scene-plum-mid) 55%, var(--scene-plum-bottom) 100%);
+  --scene-btn-line: var(--scene-plum-edge);
+  --scene-btn-ink: var(--play-ink);
+  --scene-btn-icon-bg: var(--sheen-25);
+}
+
+/* Kenar rayı çipleri (ana menü sağı): cam dolgu + SERT alt kenar. Ağırlık
+   `is-ghost` gibi saydamdır ama dokununca oturan 3B bir butondur; kenar
+   `--scene-chip-edge` ile tek yerden tanımlanır, nabız/keyfe ait
+   keyframe'ler gölgeyi kopyalamadan aynı kenarı korur. */
+.scene-btn.is-chip {
+  --scene-btn-fill: var(--scene-btn-ghost);
+  --scene-btn-line: var(--scene-btn-ghost-line);
+  --scene-btn-ink: var(--hud-ink);
+  --scene-chip-edge: 0 5px 0 var(--outline-contrast), 0 14px 24px var(--scene-btn-shadow);
+  --scene-chip-edge-press: 0 1px 0 var(--outline-contrast), 0 6px 14px var(--scene-btn-shadow);
+  box-shadow: var(--scene-chip-edge);
+}
+
+.scene-btn.is-chip .scene-btn-icon { background: var(--sheen-14); }
+
+.scene-btn.is-chip:active {
+  transform: translateY(4px) scale(0.99);
+  box-shadow: var(--scene-chip-edge-press);
+}
+
+.scene-btn.is-chip.is-focused { box-shadow: var(--scene-chip-edge), 0 0 0 3px var(--accent-2); }
+
 .scene-btn:hover { filter: brightness(1.07); }
 .scene-btn:active { transform: translateY(6px) scale(0.985); }
 
+/* Odak halkası butonu zaten çerçeveler; kabuğun genel `scale(1.035)` kuralı
+   sahne butonlarında YOK: komşu eylemlerle (aynı satırdaki KOD GİR / ODA KUR)
+   yükseklik farkı yaratıp hizayı bozuyordu. */
 .scene-btn.is-focused {
+  transform: none;
   box-shadow: 0 9px 20px var(--scene-btn-shadow), 0 0 0 3px var(--accent-2);
 }
 
 .scene-btn.is-gold.is-focused,
-.scene-btn.is-teal.is-focused {
+.scene-btn.is-teal.is-focused,
+.scene-btn.is-plum.is-focused {
   box-shadow: 0 8px 0 var(--scene-btn-line), 0 18px 32px var(--scene-shadow),
               0 0 0 3px var(--accent-2);
 }

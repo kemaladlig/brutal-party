@@ -36,6 +36,7 @@ const pausePanels = {
 };
 const btnPauseClose = document.getElementById('btn-pause-close');
 const btnPauseSettings = document.getElementById('btn-pause-settings');
+const btnPauseAllSettings = document.getElementById('btn-pause-all-settings');
 const btnResumeGame = document.getElementById('btn-resume-game');
 const btnResetMatch = document.getElementById('btn-reset-match');
 const btnTvLobby = document.getElementById('btn-tv-lobby');
@@ -279,8 +280,10 @@ export function initPauseModal({
   });
 
   // Ayarlar duraklatmanın ÜSTÜNDE açılır: altta duran katman kapanmaz, Escape
-  // önce en üsttekine gider (`overlayHost`).
+  // önce en üsttekine gider (`overlayHost`). Başlıktaki dişliyle menüdeki
+  // TÜM AYARLAR satırı AYNI sheet'i açar (ikinci ayar yüzeyi yok).
   btnPauseSettings?.addEventListener('click', () => openSettingsSheet());
+  btnPauseAllSettings?.addEventListener('click', () => openSettingsSheet());
 
   btnResetMatch?.addEventListener('click', () => {
     closePauseModal(onReset);

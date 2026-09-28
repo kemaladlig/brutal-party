@@ -25,7 +25,7 @@ export const DEFAULT_PREFERENCES = Object.freeze({
   version: PREFERENCES_VERSION,
   controlSurface: 'auto',
   audioMuted: false,
-  hapticsEnabled: true,
+  hapticsEnabled: false,
   pongInvert: 'auto',
   pongSensitivity: 1,
   controllerLayout: DEFAULT_CONTROLLER_LAYOUT,

@@ -47,11 +47,12 @@ function normalizeJoinMode(mode) {
 // Mod şeridi: aynı modal hem TV kumandası hem ONLINE oyuncu girişini yapar.
 // Tek kayıt kuralı gereği ikinci bir sekme uygulaması açılmaz — `tabStrip.js`
 // ortak bileşeni kullanılır; etiketler oda ekranıyla aynı sözlüktendir.
+// Sıra: ONLINE önce, TV sağda (masada ONLINE ana akış, TV ikincil giriş).
 const joinModeStripHost = document.getElementById('join-mode-strip');
 const joinModeStrip = joinModeStripHost ? createTabStrip({
   items: [
-    { id: 'TV_CONSOLE', label: t('shell.room.tv'), icon: 'tv' },
     { id: 'ONLINE', label: t('shell.room.online'), icon: 'globe' },
+    { id: 'TV_CONSOLE', label: t('shell.room.tv'), icon: 'tv' },
   ],
   onChange: (id) => setJoinMode(id),
 }) : null;

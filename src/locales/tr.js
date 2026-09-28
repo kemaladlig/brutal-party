@@ -13,6 +13,7 @@ export const TR = {
   'pause.seatsHint': 'İki koltuğa dokunarak yerlerini anında takas edebilirsiniz.',
   'pause.exit': 'ANA MENÜYE DÖN',
   'pause.exitArmed': 'EMİN MİSİN? TEKRAR BAS',
+  'pause.allSettings': 'TÜM AYARLAR',
   'pause.slotBottom': 'ALT',
   'pause.slotTop': 'ÜST',
   'pause.slotLeft': 'SOL',

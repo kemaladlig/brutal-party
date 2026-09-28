@@ -30,14 +30,16 @@ export const DEFAULT_NAME_IDS = Object.freeze({
 });
 
 /**
- * @param {{ids?: Record<string, string>, prefix?: string, onChange?: ((name: string) => void) | null}} [opts]
+ * @param {{ids?: Record<string, string>, prefix?: string, showActions?: boolean, onChange?: ((name: string) => void) | null}} [opts]
  *   ids       — DOM id'leri (varsayılan: eski profil kartı id'leri).
  *   prefix    — sınıf ön eki (`home-` / ``).
+ *   showActions — false ise kalem/zar rozette çizilmez; eylemler menüden
+ *                 (`focusEdit`/`reroll`) tetiklenir.
  *   onChange  — isim kalıcı olarak değiştiğinde çağrılır.
  * @returns {{ el: HTMLElement, setName: (s: string) => void, refresh: () => void,
- *             focusEdit: () => void, closeEdit: () => void, destroy: () => void }}
+ *             focusEdit: () => void, reroll: () => void, closeEdit: () => void, destroy: () => void }}
  */
-export function createPlayerNameField({ ids = {}, prefix = '', onChange = null } = {}) {
+export function createPlayerNameField({ ids = {}, prefix = '', showActions = true, onChange = null } = {}) {
   const id = { ...DEFAULT_NAME_IDS, ...ids };
 
   const root = el('div', `${prefix}name-field`);
@@ -64,7 +66,8 @@ export function createPlayerNameField({ ids = {}, prefix = '', onChange = null }
   rerollBtn.dataset.focus = 'name';
   rerollBtn.innerHTML = getTabletopIconSvg('dice', { size: 14 });
 
-  viewRow.append(nameEl, editBtn, rerollBtn);
+  viewRow.append(nameEl);
+  if (showActions) viewRow.append(editBtn, rerollBtn);
 
   // ── Düzenleme hâli ──
   const inputRow = el('div', `${prefix}name-edit hidden`);
@@ -129,6 +132,11 @@ export function createPlayerNameField({ ids = {}, prefix = '', onChange = null }
     commit(generateNick(currentName()));
   });
 
+  function reroll() {
+    playMenuPop();
+    commit(generateNick(currentName()));
+  }
+
   saveBtn.addEventListener('click', (e) => { e.stopPropagation(); commit(input.value); });
 
   input.addEventListener('click', (e) => e.stopPropagation());
@@ -150,6 +158,7 @@ export function createPlayerNameField({ ids = {}, prefix = '', onChange = null }
     /** Dil değişiminde yeniden okuma (yer tutucu/erişilebilirlik metinleri). */
     refresh() { setName(currentName()); },
     focusEdit: openEdit,
+    reroll,
     closeEdit,
     destroy() {
       // Dinleyiciler `el` ağacı DOM'dan ayrıldığında GC'yle toplanır; açık
