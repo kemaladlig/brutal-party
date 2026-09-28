@@ -45,10 +45,23 @@
   font-size: 12px;
   font-weight: 800;
   line-height: 1.25;
+  /* İkon + metin tek satırda, aralarında sabit boşluk: ikon span'i eskiden
+     hiçbir kural taşımadığı için metne yapışıyor ve görüntü bozuk oluyordu. */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
   opacity: 0;
   pointer-events: none;
   transform: translateY(-8px);
   transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.install-toast .toast-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
 }
 
 .install-toast.visible {
