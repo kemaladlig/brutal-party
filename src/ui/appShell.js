@@ -103,7 +103,7 @@ function renderRail() {
     btn.title = (view.rail.label || view.title || view.id).toUpperCase();
     // Etiket i18n'den gelir ve HER ZAMAN büyük harftir (`t()` çağrısı view
     // modülünde yapılır). `getTabletopIconSvg` yalnız ikon adını bilir.
-    btn.innerHTML = `${getTabletopIconSvg(view.rail.icon, { size: 17 })}<span></span>`;
+    btn.innerHTML = `${getTabletopIconSvg(view.rail.icon, { size: 22 })}<span></span>`;
     const label = btn.querySelector('span');
     if (label) label.textContent = (view.rail.label || '').toUpperCase();
     btn.addEventListener('click', () => {

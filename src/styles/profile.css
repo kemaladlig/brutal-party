@@ -50,8 +50,8 @@
 /* Avatar ARENA DİSKİNDE durur (lobi/ana menü sahne dili): halka plate +
    yumuşak gölge, düz beyaz leke değil. */
 .profile-stage {
-  width: min(52vh, 380px);
-  height: min(52vh, 380px);
+  width: min(58vh, 420px);
+  height: min(58vh, 420px);
   max-width: 100%;
   display: grid;
   place-items: center;

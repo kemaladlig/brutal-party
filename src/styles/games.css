@@ -72,7 +72,7 @@
 
 .game-card {
   position: relative;
-  flex: 0 0 calc((100% - 3 * var(--games-gap)) / 4);
+  flex: 0 0 calc((100% - 2 * var(--games-gap)) / 3);
   aspect-ratio: 1;
   min-height: 0;
   padding: 0;
@@ -132,13 +132,13 @@
 
 .game-card-index {
   position: absolute;
-  top: 7px;
-  left: 7px;
-  padding: 3px 7px;
+  top: 8px;
+  left: 8px;
+  padding: 4px 8px;
   border-radius: var(--radius-pill);
   background: var(--scene-btn-ghost);
   color: var(--hud-ink);
-  font: 900 8.5px/1 var(--font-mono);
+  font: 900 9.5px/1 var(--font-mono);
   letter-spacing: 0.08em;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -149,10 +149,10 @@
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 16px 9px 7px;
+  padding: 18px 10px 8px;
   background: linear-gradient(180deg, transparent 0%, var(--scene-shadow) 72%);
   color: var(--hud-ink);
-  font: 900 10.5px/1.1 var(--font-grotesk);
+  font: 900 12px/1.1 var(--font-grotesk);
   letter-spacing: 0.05em;
   text-align: start;
   overflow: hidden;
@@ -191,7 +191,7 @@
 }
 
 .games-hero-cover {
-  height: clamp(104px, 26vh, 230px);
+  height: clamp(120px, 30vh, 260px);
   max-width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
@@ -251,15 +251,15 @@
 
 .games-play {
   flex: 0 0 auto;
-  width: min(100%, 280px);
+  width: min(100%, 300px);
   margin-top: clamp(4px, 1.4vh, 12px);
   justify-content: center;
-  padding: 12px 22px 14px;
-  gap: 12px;
+  padding: 14px 24px 16px;
+  gap: 14px;
 }
 
-.games-play .scene-btn-icon { width: 40px; height: 40px; border-radius: 14px; }
-.games-play .scene-btn-label { font-size: clamp(16px, 2.2vh, 21px); letter-spacing: 0.05em; }
+.games-play .scene-btn-icon { width: 44px; height: 44px; border-radius: 15px; }
+.games-play .scene-btn-label { font-size: clamp(17px, 2.4vh, 23px); letter-spacing: 0.05em; }
 
 /* ── Yığılma (dikey / çok dar): kahraman alta, yatay şeride dönüşür ────── */
 
