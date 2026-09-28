@@ -12,7 +12,6 @@ import { mountDeclarativeController } from './controllers/controllerTemplates.js
 import { GamepadInputAdapter } from './controllers/gamepadInputAdapter.js';
 import { getNeutralInputs } from './controllers/controlDefs.js';
 import { getControllerStatus } from './controllers/controllerStatus.js';
-import { getControllerGuide } from './controllers/controllerGuide.js';
 import { getControllerMeta } from './core/engineRegistry.js';
 import { getControlDescriptor } from './core/controlDescriptor.js';
 import { PhysicalGamepadAdapter } from './controllers/physicalGamepadAdapter.js';
@@ -129,7 +128,6 @@ export class GamepadManager {
     this._worldViewToken = 0;
     this._worldViewEnabled = false;
     this._pendingWorldFrame = null;
-    this._guideMode = null;
     this._activeLayoutRoot = null;
     this._layoutSafeProbe = null;
     this._layoutPreview = null;
@@ -289,9 +287,17 @@ export class GamepadManager {
     // LOCAL has a transparent canvas behind the DOM controls, so its HUD and
     // guide are real obstacles. Remote roots already start below these bands;
     // the intersection check keeps the same adapter valid in both surfaces.
-    const obstacles = this.overlay.querySelectorAll(
-      '.gamepad-header, .mobile-gamepad-toolbar, .gamepad-status.is-on, .gamepad-control-guide:not([hidden]), .score-strip:not(.hidden)',
-    );
+    const obstacles = [...this.overlay.querySelectorAll(
+      '.gamepad-header, .gamepad-status.is-on, .score-strip:not(.hidden)',
+    )];
+    // LOCAL'de tek çip kümesi `#in-game-hud`'dadır (overlay dışı, z-100): ona
+    // göre çerçeve kesmezsek kontroller düğmelerin altına süzülebilir.
+    if (this.localMode) {
+      const hud = document.getElementById('in-game-hud');
+      if (hud && !hud.classList.contains('hidden')) {
+        obstacles.push(...hud.querySelectorAll('button'));
+      }
+    }
     for (const obstacle of obstacles) {
       const rect = obstacle.getBoundingClientRect();
       const relativeTop = rect.top - rootRect.top;
@@ -355,7 +361,8 @@ export class GamepadManager {
     const width = Math.max(1, overlayRect.width);
     const height = Math.max(1, overlayRect.height);
     const insets = this._readLayoutSafeInsets();
-    const toolbar = this.overlay.querySelector('.gamepad-header, .mobile-gamepad-toolbar');
+    const toolbar = this.overlay.querySelector('.gamepad-header')
+      || (this.localMode ? document.querySelector('#in-game-hud:not(.hidden)') : null);
     const toolbarRect = toolbar?.getBoundingClientRect();
     const top = Math.min(
       height * 0.8,
@@ -746,7 +753,7 @@ export class GamepadManager {
     this.countdownActive = false;
     this.pongInvertManualSet = false;
     this._worldViewEnabled = false;
-    this.overlay.innerHTML = renderLocalGamepadShell(this.selectedHostGame);
+    this.overlay.innerHTML = renderLocalGamepadShell();
     this._workspaceOverride = document.getElementById('local-mobile-workspace');
     this.overlay.classList.remove('hidden');
     this._bindBrowserLocks();
@@ -806,9 +813,6 @@ export class GamepadManager {
         if (this.gameMode === 'LOBBY') {
           this.renderShell();
           this.renderGameController('LOBBY');
-        } else {
-          this._guideMode = null;
-          this.renderControlGuide(this.gameMode);
         }
       });
     }
@@ -831,16 +835,7 @@ export class GamepadManager {
   }
 
   renderShell() {
-    const seatPositions = ['P1', 'P2', 'P3', 'P4'];
-    const seatLabel = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
-    const initialGameTag = CONTROLLER_META[this.gameMode]?.hudTag || (this.gameMode === 'LOBBY' ? t('pad.lobbyTag') : this.gameMode);
-
     this.overlay.innerHTML = renderRemoteGamepadShell({
-      seatLabel,
-      playerColor: this.playerColor,
-      playerName: this.playerName,
-      gameTag: initialGameTag,
-      roomCode: this.network.roomCode,
       showLayoutEditor: true,
     });
 
@@ -911,16 +906,6 @@ export class GamepadManager {
     if (newColor) this.playerColor = newColor;
     // Reset manual invert so new seat's auto-direction is applied
     this.resetPongInvert();
-
-    const label = document.getElementById('header-player-name');
-    const seatTag = document.getElementById('header-seat-tag');
-    const seatPositions = ['P1', 'P2', 'P3', 'P4'];
-
-    if (label) label.textContent = this.playerName;
-    if (seatTag) {
-      seatTag.textContent = seatPositions[this.playerIndex] || `P${this.playerIndex + 1}`;
-      seatTag.style.backgroundColor = this.playerColor;
-    }
 
     // Sayaç sırasında workspace'i bozma (sayaç ekranı korunur)
     if (this.countdownActive) return;
@@ -1114,31 +1099,6 @@ export class GamepadManager {
     this._countdownT = null;
   }
 
-  renderControlGuide(mode) {
-    const guideMode = mode === 'LOBBY' ? this.selectedHostGame : mode;
-    const meta = CONTROLLER_META[guideMode] || null;
-    const guideEl = this._el('gamepad-control-guide');
-    const guide = getControllerGuide(guideMode, meta?.schema);
-    this._guideMode = guideMode;
-
-    if (!guide || !guideEl) {
-      guideEl?.setAttribute('hidden', '');
-      return;
-    }
-
-    const actionHtml = guide.actions.length
-      ? guide.actions.map((action) => `<span class="guide-action">${escapeHtml(action.label)}</span>`).join('<span class="guide-separator">•</span>')
-      : '';
-    guideEl.innerHTML = `
-      <span class="guide-title">${escapeHtml(t('pad.guideTitle'))}</span>
-      <span class="guide-left">${escapeHtml(guide.left.label)}</span>
-      ${guide.aim ? `<span class="guide-aim">${escapeHtml(t('pad.guideAim'))}</span>` : ''}
-      <span class="guide-hint">${escapeHtml(guide.hint)}</span>
-      ${actionHtml}
-    `;
-    guideEl.removeAttribute('hidden');
-  }
-
   _startPhysicalGamepad() {
     if (this.gameMode === 'LOBBY') {
       this.physicalGamepad.stop();
@@ -1205,7 +1165,6 @@ export class GamepadManager {
       this._setActiveLayoutRoot(mountTarget);
     }
     this._syncScoreChrome();
-    this.renderControlGuide(mode);
     this._syncOrientationState();
     this._applyControllerLayout(this._layoutPreview || this.getControllerLayout());
     this._layoutEditor?.refresh?.();
@@ -1410,10 +1369,6 @@ export class GamepadManager {
         if (JSON.stringify(profile) === before) return;
         this.avatar = { ...profile };
         this.playerColor = profile.color || this.playerColor;
-        const dot = document.getElementById('header-player-dot');
-        if (dot) dot.style.backgroundColor = this.playerColor;
-        const seatTag = document.getElementById('header-seat-tag');
-        if (seatTag) seatTag.style.backgroundColor = this.playerColor;
         const lobbySlotTag = document.getElementById('lobby-slot-tag');
         if (lobbySlotTag) lobbySlotTag.style.backgroundColor = this.playerColor;
         this.drawLobbyCharacterPreview();

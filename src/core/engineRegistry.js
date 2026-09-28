@@ -7,7 +7,6 @@
 // AI modules ride along automatically (each game imports only its own AI).
 
 import { GAMEPAD_SCHEMAS } from '../controllers/gamepadSchemas.js';
-import { t } from '../i18n.js';
 import { reportError } from './errorReporter.js';
 
 export const GAME_ORDER = [
@@ -33,7 +32,6 @@ export const CARTRIDGES = {
     id: 'PONG',
     category: 'speed',
     title: 'BRUTAL PONG',
-    hudTag: 'PONG',
     tacticalHintKey: 'hint.pong',
     color: '#D84727',
     schema: GAMEPAD_SCHEMAS.PONG,
@@ -63,7 +61,6 @@ export const CARTRIDGES = {
     id: 'TANKS',
     category: 'fight',
     title: 'MICRO-TANKS',
-    hudTag: 'TANKS',
     tacticalHintKey: 'hint.tanks',
     color: '#3B82F6',
     schema: GAMEPAD_SCHEMAS.TANKS,
@@ -90,7 +87,6 @@ export const CARTRIDGES = {
     id: 'CURVE',
     category: 'strategy',
     title: 'BRUTAL CURVE',
-    hudTag: 'CURVE',
     tacticalHintKey: 'hint.curve',
     color: '#10B981',
     schema: GAMEPAD_SCHEMAS.CURVE,
@@ -113,7 +109,6 @@ export const CARTRIDGES = {
     id: 'BOMB',
     category: 'fight',
     title: 'BRUTAL BOMB',
-    hudTag: 'BOMB',
     tacticalHintKey: 'hint.bomb',
     color: '#EF4444',
     schema: GAMEPAD_SCHEMAS.BOMB,
@@ -137,7 +132,6 @@ export const CARTRIDGES = {
     id: 'HEIST',
     category: 'fight',
     title: 'BRUTAL HEIST',
-    hudTag: 'HEIST',
     tacticalHintKey: 'hint.heist',
     color: '#F59E0B',
     schema: GAMEPAD_SCHEMAS.HEIST,
@@ -161,7 +155,6 @@ export const CARTRIDGES = {
     id: 'ARCHER',
     category: 'aim',
     title: 'BRUTAL ARCHERY',
-    hudTag: 'ARCHER',
     tacticalHintKey: 'hint.archer',
     color: '#8B5CF6',
     schema: GAMEPAD_SCHEMAS.ARCHER,
@@ -184,7 +177,6 @@ export const CARTRIDGES = {
     id: 'CROWN',
     category: 'fight',
     title: 'BRUTAL CROWN',
-    hudTag: 'CROWN',
     tacticalHintKey: 'hint.crown',
     color: '#EAB308',
     schema: GAMEPAD_SCHEMAS.CROWN,
@@ -208,7 +200,6 @@ export const CARTRIDGES = {
     id: 'ZONE',
     category: 'strategy',
     title: 'BRUTAL ZONE',
-    hudTag: 'ZONE',
     tacticalHintKey: 'hint.zone',
     color: '#06B6D4',
     schema: GAMEPAD_SCHEMAS.ZONE,
@@ -233,7 +224,6 @@ export const CARTRIDGES = {
     id: 'SNAKE',
     category: 'strategy',
     title: 'BRUTAL SNAKE',
-    hudTag: 'SNAKE',
     tacticalHintKey: 'hint.snake',
     color: '#22C55E',
     schema: GAMEPAD_SCHEMAS.SNAKE,
@@ -257,7 +247,6 @@ export const CARTRIDGES = {
     id: 'LASER',
     category: 'speed',
     title: 'BRUTAL LASER',
-    hudTag: 'LASER',
     tacticalHintKey: 'hint.laser',
     color: '#EC4899',
     schema: GAMEPAD_SCHEMAS.LASER,
@@ -287,7 +276,6 @@ export const CARTRIDGES = {
     id: 'CLONE',
     category: 'strategy',
     title: 'BRUTAL CLONE',
-    hudTag: 'CLONE',
     tacticalHintKey: 'hint.clone',
     color: '#6366F1',
     schema: GAMEPAD_SCHEMAS.CLONE,
@@ -310,7 +298,6 @@ export const CARTRIDGES = {
     id: 'COLLAPSE',
     category: 'strategy',
     title: 'BRUTAL COLLAPSE',
-    hudTag: 'COLLAPSE',
     tacticalHintKey: 'hint.collapse',
     color: '#64748B',
     schema: GAMEPAD_SCHEMAS.COLLAPSE,
@@ -333,7 +320,6 @@ export const CARTRIDGES = {
     id: 'NINJA',
     category: 'fight',
     title: 'BRUTAL NINJA',
-    hudTag: 'NINJA',
     tacticalHintKey: 'hint.ninja',
     color: '#1E293B',
     schema: GAMEPAD_SCHEMAS.NINJA,
@@ -358,7 +344,6 @@ export const CARTRIDGES = {
     category: 'fight',
     title: 'BRUTAL HORDE',
     lobbyTitle: 'BRUTAL HORDE',
-    hudTag: 'HORDE',
     tacticalHintKey: 'hint.horde',
     color: '#7C3AED',
     schema: GAMEPAD_SCHEMAS.HORDE,
@@ -399,7 +384,6 @@ export const CARTRIDGES = {
     category: 'speed',
     title: 'BRUTAL RACE',
     lobbyTitle: 'BRUTAL RACE',
-    hudTag: 'RACE',
     tacticalHintKey: 'hint.race',
     color: '#D99B26',
     schema: GAMEPAD_SCHEMAS.RACE,
@@ -556,12 +540,11 @@ export function getLoadedModes() {
 
 export function getControllerMeta(mode) {
   if (mode === 'LOBBY') {
-    return { hudTag: t('pad.lobbyTag') };
+    return {};
   }
   const cart = CARTRIDGES[mode];
   if (!cart) return null;
   return {
-    hudTag: cart.hudTag,
     lobbyTitle: cart.lobbyTitle || cart.title,
     tacticalHintKey: cart.tacticalHintKey,
     schema: cart.schema,

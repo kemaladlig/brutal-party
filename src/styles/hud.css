@@ -74,7 +74,8 @@
   background-color: var(--n-100);
 }
 
-.btn-quick-fullscreen {
+.btn-quick-fullscreen,
+.btn-layout-editor {
   width: 44px;
   height: 44px;
   background-color: var(--panel);
@@ -96,16 +97,23 @@
   transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.08s ease;
 }
 
-.btn-quick-fullscreen:hover {
+.btn-quick-fullscreen:hover,
+.btn-layout-editor:hover {
   background-color: var(--card);
   transform: translate(-1px, -1px);
   box-shadow: 4px 4px 0 var(--edge-strong);
 }
 
-.btn-quick-fullscreen:active {
+.btn-quick-fullscreen:active,
+.btn-layout-editor:active {
   transform: translate(2px, 2px);
   box-shadow: 1px 1px 0 var(--edge-strong);
   background-color: var(--n-100);
+}
+
+/* Yalnız LOCAL DOM kumandası ayaktayken görünür (`main.js`/`syncLocalMobileControls`). */
+.btn-layout-editor.hidden {
+  display: none !important;
 }
 
 .btn-quick-fullscreen.active {

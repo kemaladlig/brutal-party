@@ -6,11 +6,6 @@ import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { reactionGlyph } from '../core/reactions.js';
 import { t } from '../i18n.js';
 
-function renderLayoutButton() {
-  const label = t('controllerLayout.open');
-  return `<button class="btn-controller-layout" data-controller-layout-open type="button" data-i18n-aria="controllerLayout.open" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${getTabletopIconSvg('settings', { size: 17, color: '#141414', strokeWidth: 2.3 })}</button>`;
-}
-
 function renderMenuLayoutItem() {
   const label = t('controllerLayout.open');
   return `<button class="gamepad-menu-item" data-controller-layout-open type="button" data-i18n-aria="controllerLayout.open" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${getTabletopIconSvg('settings', { size: 16, color: '#141414', strokeWidth: 2.3 })}<span>${escapeHtml(label)}</span></button>`;
@@ -47,38 +42,31 @@ function renderReactButton() {
   return `<button class="gamepad-react-btn" type="button" data-reaction-open data-reaction-send="pad" data-i18n-aria="pad.reactTitle" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"><span class="reaction-glyph" aria-hidden="true">${reactionGlyph('laugh')}</span></button>`;
 }
 
-// Oyun sırasındaki tek üst metin: SKOR / süre / can / cephane. Kutu, gölge ve
-// etiket yok — çıplak satır sahanın üst kenarında durur, `gamepad.js` doldurur.
-function renderHudContainers() {
+// Oyun sırasındaki tek üst metin: süre / can / cephane / taşıyıcı (skor değil —
+// skor taç peek'indedir). Kutu, gölge ve etiket yok — çıplak satır sahanın üst
+// kenarında durur, `gamepad.js` doldurur. LOCAL yüzeyde satır ÇİZİLMEZ: orada
+// oyuncu canvas'ı görüyor ve motorun HUD'u (üst şerit skorbord + oyun HUD'u)
+// tek otoritedir; aynı metni DOM'da tekrarlamak iki skor yüzeyi doğururdu.
+function renderHudContainers({ status = true } = {}) {
   return `
-    <div class="gamepad-status" id="gamepad-status">
+    ${status ? `<div class="gamepad-status" id="gamepad-status">
       <span class="hud-live-status" id="hud-live-status" aria-live="polite"></span>
-    </div>
+    </div>` : ''}
     <div class="gamepad-killfeed" id="gamepad-killfeed" aria-live="polite"></div>
     <div class="gamepad-result" id="gamepad-result" aria-hidden="true"></div>
   `;
 }
 
-export function renderLocalGamepadShell(gameMode) {
+export function renderLocalGamepadShell() {
   return `
-    <div class="local-gamepad-status-stack">
-      <div class="mobile-gamepad-toolbar">
-        ${renderLayoutButton()}
-      </div>
-    </div>
     <div class="local-mobile-workspace" id="local-mobile-workspace"></div>
-    ${renderHudContainers()}
+    ${renderHudContainers({ status: false })}
   `;
 }
 
-export function renderRemoteGamepadShell({
-  seatLabel,
-  playerColor,
-  playerName,
-  gameTag,
-  roomCode,
-  showLayoutEditor = true,
-}) {
+// Kimlik/oda verisi bilinçli parametre değildir: kompakt başlık yalnız yüzen
+// çipleri taşır (tepki solda; taç + menü sağda).
+export function renderRemoteGamepadShell({ showLayoutEditor = true } = {}) {
   return `
     <div class="gamepad-header gamepad-header-compact">
       <div class="header-left-group">

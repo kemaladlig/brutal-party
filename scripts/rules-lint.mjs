@@ -58,7 +58,9 @@ const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{1F000}-\u{1F0F
 
 // CARTRIDGES kayıtlarının zorunlu alanları (makeEngine/reset/start/packet'i
 // sarmalar; motor sözleşmesi §3 motorda, kural burada yalnız kayıt bütünlüğü).
-const REQUIRED_CARTRIDGE_METHODS = ['id', 'title', 'hudTag', 'color', 'schema', 'load', 'createEngine'];
+// `hudTag` çıktı: telefon durum şeridi skor/etiket taşımıyor (tek skor yüzeyi
+// taç peek'i), tüketici kalmadı.
+const REQUIRED_CARTRIDGE_METHODS = ['id', 'title', 'color', 'schema', 'load', 'createEngine'];
 
 function scanK1(file, src) {
   if (!K1_FILES.includes(rel(file))) return [];

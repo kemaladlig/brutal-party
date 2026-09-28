@@ -49,7 +49,6 @@ export interface Cartridge {
   title: string;
   retired?: boolean;
   lobbyTitle?: string;
-  hudTag: string;
   tacticalHintKey: string;
   color: string;
   schema?: unknown;

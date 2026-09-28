@@ -79,13 +79,6 @@
   display: none !important;
 }
 
-#local-mobile-controls .local-gamepad-status-stack {
-  position: absolute;
-  inset: 0 0 auto 0;
-  z-index: 30;
-  pointer-events: none;
-}
-
 #local-mobile-controls .local-mobile-workspace {
   position: absolute;
   inset: 0;
@@ -120,8 +113,7 @@
 }
 
 .gamepad-header .header-left-group,
-.gamepad-header .header-right-group,
-.mobile-gamepad-toolbar {
+.gamepad-header .header-right-group {
   pointer-events: auto;
 }
 
@@ -153,9 +145,7 @@
   flex-shrink: 0;
 }
 
-/* Yüzen ikon çipi — LOCAL toolbar'daki ayar butonu, kumanda başlığındaki tepki
-   butonu (her ikisi de 44px yuvarlak çip ailesi). */
-.btn-controller-layout,
+/* Yüzen ikon çipi — kumanda başlığındaki tepki düğmesi (44px yuvarlak çip). */
 .gamepad-react-btn {
   width: 44px;
   min-width: 44px;
@@ -175,7 +165,6 @@
   transition: transform 0.06s ease, box-shadow 0.06s ease, background-color 0.06s ease;
 }
 
-.btn-controller-layout:active,
 .gamepad-react-btn:active {
   transform: scale(0.92);
   box-shadow: var(--shadow-edge);
@@ -186,10 +175,6 @@
   font-size: 20px;
   line-height: 1;
   pointer-events: none;
-}
-
-.btn-controller-layout[hidden] {
-  display: none !important;
 }
 
 /* ── Sağ üst açılır menü — 4 çip tek menüde toplandı; oyun sırasında
@@ -302,31 +287,11 @@
   display: none !important;
 }
 
-.mobile-gamepad-toolbar {
-  position: absolute;
-  top: max(10px, env(safe-area-inset-top, 10px));
-  right: max(10px, env(safe-area-inset-right, 10px));
-  z-index: 35;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  pointer-events: auto;
-}
-
-.btn-fullscreen-toggle,
-.btn-controller-layout,
-.btn-leave-gamepad {
-  cursor: pointer;
-}
-
-.btn-controller-layout[hidden] {
-  display: none !important;
-}
-
-/* Saha üstündeki TEK metin: SKOR / süre / can / cephane (gamepad.js doldurur).
-   Kutu, gölge, kenar, etiket yok — çıplak satır. Saha dışında bir katman
-   bırakmamak, telefonda görüşü saklamaktan önemli; bu satır bilgiyi taşır,
-   alanı kaplamaz. Kontrol bölgeleri tek etkileşimli yüzey olarak kalır. */
+/* Saha üstündeki TEK metin (uzak kumanda): süre / can / cephane / taşıyıcı.
+   Skor burada değil — taç çipin peek şeridinde. Kutu, gölge, kenar, etiket yok
+   — çıplak satır. Saha dışında bir katman bırakmamak, telefonda görüşü
+   saklamaktan önemli; bu satır bilgiyi taşır, alanı kaplamaz. Kontrol
+   bölgeleri tek etkileşimli yüzey olarak kalır. */
 .gamepad-status {
   position: absolute;
   top: max(8px, env(safe-area-inset-top, 8px));
@@ -412,77 +377,6 @@
    kalan üst kuşağı kullanır, sahanın içine inmez. */
 #gamepad-overlay .gamepad-status {
   top: max(10px, env(safe-area-inset-top, 10px));
-}
-
-/* LOCAL'de üstünde ince toolbar olabilir; satır onunla çakışmaz (orta-boş). */
-#local-mobile-controls .gamepad-status {
-  top: max(10px, env(safe-area-inset-top, 10px));
-}
-
-.gamepad-control-guide {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 5px 12px;
-  margin: 0 auto;
-  background: var(--grad-card);
-  border: 1.5px solid var(--edge-strong);
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-float);
-  box-sizing: border-box;
-  flex-shrink: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  pointer-events: none;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  font-weight: 800;
-  color: var(--ink);
-}
-
-.gamepad-control-guide[hidden] {
-  display: none !important;
-}
-
-.guide-title {
-  color: var(--p1);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  flex-shrink: 0;
-}
-
-.guide-left,
-.guide-action {
-  padding: 2px 7px;
-  background: var(--surface);
-  border: 1.5px solid var(--edge-strong);
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-soft);
-  flex-shrink: 0;
-}
-
-.guide-left {
-  color: var(--p2);
-}
-
-.guide-action {
-  color: var(--mode-profile);
-}
-
-.guide-hint,
-.guide-separator {
-  color: var(--n-600);
-  flex-shrink: 0;
-}
-
-@media (orientation: landscape) and (min-aspect-ratio: 1/1) {
-  .gamepad-control-guide {
-    min-height: 26px;
-    padding-top: 3px;
-    padding-bottom: 3px;
-    font-size: 9px;
-  }
 }
 
 /* Real-time Gamepad Pulsing Alerts */
@@ -1045,11 +939,6 @@
 
 .controller-layout-editor[hidden] {
   display: none !important;
-}
-
-#local-mobile-controls .local-gamepad-status-stack .btn-controller-layout {
-  margin-left: auto;
-  flex-shrink: 0;
 }
 
 .controller-layout-editor {
@@ -2320,10 +2209,9 @@
   }
 
   /* Portraitrotate-gate arkasında kalır; dar genişlikte sığsın diye
-     taban ve dash birlikte bir kademe küçülür. */
+     taban ve dash birlikte bir kademe küçülür (kare garanti: aspect-ratio). */
   .twin-stick-half .phone-joy-base {
     width: min(112px, 100%);
-    height: min(112px, 100%);
   }
 
   .twin-aim-half .twin-action-cluster {
@@ -2611,12 +2499,13 @@
 /* Virtual Floating Dynamic Joystick on Phone
    Faz 2: görünür, thumb boyutlu, yumuşak halkalı Brawl dili. Geometri aynıdır
    (controllerLayout.js ölçüleri + bindJoystick); yalnız sunum değişti.
-   Taban kutusuna (%100) ve 136px tavana kilitlidir: yarım-kutu vh ile
-   küçüldüğünde taban taşmaz, JS ölçümü (data-controller-layout-target)
-   görünürlükle aynı kalır. */
+   Kare garanti: genişlik 136px tavana, yükseklik kuşağa (%) bakıyordu — yatay
+   telefonda belt (28vh) 136'dan kısa kalıp tabanı ELLİPS çiziyordu (ölçüldü:
+   136×103). Yarım-kutu kuşağı AŞAN yükseklik artık yok: daire genişlikten
+   türer, JS ölçümü (data-controller-layout-target) görünürlükle aynı kalır. */
 .phone-joy-base {
   width: min(136px, 100%);
-  height: min(136px, 100%);
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
   border: 2.5px solid var(--joy-ring);
   background:
@@ -2733,8 +2622,10 @@
 
   .joystick-action-view .joystick-half,
   .joystick-action-view .action-half {
-    height: clamp(96px, 28vh, 170px);
-    min-height: 96px;
+    /* Taban 136px + 6px ped: kuşak bunun altına inse daire taşar, bölücü
+       çizgi halkadan kısa kalır. 34vh telefon yatayında ~133px verir. */
+    height: clamp(112px, 34vh, 190px);
+    min-height: 112px;
   }
 
   .action-cluster-stack,

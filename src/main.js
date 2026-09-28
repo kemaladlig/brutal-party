@@ -95,6 +95,9 @@ const btnQuickFullscreen = document.getElementById('btn-quick-fullscreen');
 const quickFullscreenIcon = document.getElementById('quick-fullscreen-icon');
 const btnQuickReact = document.getElementById('btn-quick-react');
 const btnOpenOptions = document.getElementById('btn-open-options');
+// LOCAL DOM yüzeyinin kumanda-düzeni çipi: tek yüzen kümenin (`#in-game-hud`)
+// parçasıdır; eski `mobile-gamepad-toolbar` bu kümeyle çakışıyordu.
+const btnLayoutEditor = document.getElementById('btn-layout-editor');
 
 // Platform / Match Mode: 'LOCAL' | 'TV_CONSOLE' | 'ONLINE'
 let platformMode = isPublicOrigin() && HAS_SUPABASE_CONFIG ? 'ONLINE' : 'TV_CONSOLE';
@@ -358,6 +361,8 @@ function syncLocalMobileControls(now = performance.now()) {
     localGamepadManager.hide();
     lastLocalControlSyncAt = 0;
   }
+  // Düzen çipi yalnız DOM yüzeyi ayakta iken kümede yer kaplar.
+  btnLayoutEditor?.classList.toggle('hidden', !localMobileControlsVisible());
 
   if (!localMobileControlsVisible() || now - lastLocalControlSyncAt < 125) return;
   const entry = getEngine(roomFlow.getCurrentMode());
@@ -572,6 +577,10 @@ addTapListener(btnOpenOptions, () => {
     isHosting: activeNet().isHosting,
     onSwapCallback: handleSeatSwap,
   });
+});
+
+addTapListener(btnLayoutEditor, () => {
+  openControllerLayoutFromPause();
 });
 
 // Check URL query parameters for automatic controller join (QR scan or link)

@@ -25,7 +25,8 @@ src/controllers/
   gamepadShell.js           Stabil kumanda shell/presenter markup'ı; HUD şeridi + sonuç kabı
   gamepadSchemas.js         15 oyun için deklaratif kumanda şemaları + canlı sync hook'ları
   controlDefs.js            Merkezi kontrol sözleşmesi: sol + sağ-max-2 + landscape-first + nötr paket
-  controllerStatus.js       Üst durum şeridi metinleri (15 oyun tek kayıt)
+  controllerStatus.js       Üst durum şeridi metinleri (15 oyun tek kayıt; SKOR YOK — tek skor
+                            yüzeyi taç peek + kill-feed; LOCAL'de şeri çizilmez, motor HUD'u yetkili)
   controllerGuide.js        CONTROL_DEFS + schema'dan türetilen kontrol rehberi (pause paneli kullanır)
 src/gamepad.css             Kumanda stilleri (mobil ergonomi + control-deck saydamlık token'ları)
 src/ui/gamepadWorldView.js  Client world canvas: DPR, 3-8 jitter buffer, 60 Hz+ rAF, seq/stale
