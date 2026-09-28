@@ -1,10 +1,11 @@
 // Fullscreen Manager: Cross-browser helpers and reactive state
 //
-// Krom politikasının TEK sahibi. Tam ekran kullanıcıyındır: uygulama onu
-// yalnızca maç başındaki gerçek bir dokunuşun içinde TEKLİF eder ve kullanıcı
-// bir kez bıraktıysa (buton, Escape, sistem) sekme boyunca bir daha istemez.
-// Kurulmuş/PWA yüzeyde hiç istenmez — orada çubuk tanım gereği yoktur ve
-// iPhone/standalone'da Fullscreen API ya hiç yoktur ya da kapalıdır.
+// Krom politikasının TEK sahibi. Kurulu PWA (standalone) doğrudan tam ekrana
+// alınır: ilk gerçek dokunuşun içinde + maç başında sessizce istenir ve
+// kullanıcı bir kez bıraktıysa (buton, Escape, sistem) sekme boyunca bir daha
+// istenmez. Sıradan webde tam ekran teklif edilmez — orada çubuk kullanıcınındır.
+// iPhone/standalone'da Fullscreen API yoksa zaten yapacak iş yoktur (PWA
+// tanım gereği kromsuzdur).
 import { t } from '../i18n.js';
 import { isTouchDevice } from './tokens.js';
 import { showInstallToast, isStandaloneApp } from './toast.js';
@@ -34,8 +35,8 @@ export function isFullscreen() {
   );
 }
 
-/** Tarayıcı bu yüzeyde tam ekrana izin veriyor mu? iPhone Safari'de ve çoğu
- *  standalone çalıştırmada hayır — o zaman düğmeyi göstermek de yanlış. */
+/** Tarayıcı bu yüzeyde tam ekrana izin veriyor mu? iPhone Safari'de API
+ *  yoktur — o zaman düğmeyi göstermek de yanlış. */
 export function fullscreenSupported() {
   const el = /** @type {any} */ (document.documentElement);
   return !!(
@@ -46,9 +47,10 @@ export function fullscreenSupported() {
   );
 }
 
-/** Tam ekran TEKLİFİ gösterilebilir mi (düğme/anahtar)? */
+/** Tam ekran TEKLİFİ gösterilebilir mi (düğme/anahtar)?
+ *  Yalnız kurulu PWA'da: sıradan webde tam ekrana gerek yoktur. */
 export function fullscreenOfferable() {
-  return !isStandaloneApp() && fullscreenSupported();
+  return isStandaloneApp() && fullscreenSupported();
 }
 
 /** Maç başında otomatik tam ekran istenebilir mi? */
@@ -73,7 +75,14 @@ export function requestFullscreen() {
   try {
     const el = /** @type {any} */ (document.documentElement);
     if (el.requestFullscreen) {
-      const p = el.requestFullscreen();
+      // Android'de gezinme çubuğunu da gizle (immersive); desteklemeyen
+      // tarayıcı TypeError atar — o zaman seçeneksiz dene.
+      let p = null;
+      try {
+        p = /** @type {any} */ (el.requestFullscreen).call(el, { navigationUI: 'hide' });
+      } catch {
+        p = el.requestFullscreen();
+      }
       if (p && typeof p.catch === 'function') p.catch(() => {});
     } else if (el.webkitRequestFullscreen) {
       el.webkitRequestFullscreen();
@@ -105,14 +114,47 @@ export function exitFullscreen() {
  * verir). Toast üretmez: maç açılışında gürültü değil, sessiz bir iyileştirme
  * istenir. Kullanıcı zaten tam ekrandaysa hiçbir şey yapılmaz.
  *
- * Dokunmatikle sınırlıdır: masaüstü/TV'de pencereyi ele geçirmek değil,
- * kullanıcıya kalmış bir tercihtir (düğme orada da görünür).
+ * Yalnız kurulu PWA + dokunmatik (telefon/tablet): sıradan webde tam ekrana
+ * gerek yoktur, masaüstü/TV'de pencere ele geçirilmez.
  */
 export function requestMatchFullscreen() {
   if (!isTouchDevice() || !shouldOfferFullscreen() || isFullscreen()) return false;
   writeIntent(FS_AUTO_KEY, true);
   requestFullscreen();
   return true;
+}
+
+/**
+ * Kurulu PWA soğuk açılışında ilk gerçek dokunuşta doğrudan tam ekrana gir.
+ * `requestFullscreen` jestsiz reddedildiği için yüklenirken değil, kullanıcının
+ * ilk dokunuşunda (menüde OYNA dahil herhangi bir dokunuş) denenir. Başarılı
+ * olana dek dinler; kullanıcı bıraktıysa (`shouldOfferFullscreen` false) susar.
+ * Sıradan webde hiç kurulmaz.
+ */
+let pwaGestureArmed = false;
+export function armStandaloneFullscreen() {
+  if (pwaGestureArmed) return;
+  if (typeof document === 'undefined' || typeof window === 'undefined') return;
+  try {
+    if (!isStandaloneApp() || !isTouchDevice() || !fullscreenSupported()) return;
+  } catch { return; }
+  pwaGestureArmed = true;
+  const cleanup = () => {
+    window.removeEventListener('pointerdown', tryEnter);
+    window.removeEventListener('touchend', tryEnter);
+    unsubscribe?.();
+  };
+  const tryEnter = () => {
+    // Zaten tam ekrandaysa veya kullanıcı bıraktıysa dinlemeyi bırak;
+    // deneme yapıldıysa sonucu `fullscreenchange` söyler.
+    if (isFullscreen() || !shouldOfferFullscreen()) { cleanup(); return; }
+    requestMatchFullscreen();
+  };
+  // Başarı asenkron gelir (`fullscreenchange`); o zaman dinleyici kalkar.
+  const unsubscribe = onFullscreenChange((active) => { if (active) cleanup(); });
+  // `passive: true` — kaydırma engellenmez, yalnızca dinlenir.
+  window.addEventListener('pointerdown', tryEnter, { passive: true });
+  window.addEventListener('touchend', tryEnter, { passive: true });
 }
 
 /**
@@ -135,6 +177,9 @@ export function toggleFullscreen(showToast = true) {
     if (showToast) showInstallToast(t('toast.fullscreenExit'));
     return false;
   }
+  // Sıradan webde giriş kapalıdır (düğmeler zaten gizlidir); APIsiz yüzeyde
+  // sahte "tam ekran" toast'ı verilmez.
+  if (!fullscreenOfferable()) return false;
   requestFullscreen();
   if (showToast) showInstallToast(t('toast.fullscreenEnter'));
   return true;

@@ -393,9 +393,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1.25;
   color: var(--ink);
   /* Saha zemini krem (`--paper`): koyu kontur aynı zamanda koyu engellerin
      üstünden geçerken de okunur kılar. */
@@ -404,7 +404,7 @@
 
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .hud-live-status {
-    font-size: 10px;
+    font-size: 12px;
   }
 }
 

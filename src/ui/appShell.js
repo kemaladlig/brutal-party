@@ -398,8 +398,10 @@ export function unlockOrientation() {
  * denenmez (başarısız deneme bir de izin sorusu üretebilir). Rotate gate
  * her durumda ayakta kalır — iOS'ta tek gerçek yönlendirme odur.
  *
- * Tam ekran SADECE burada, gerçek bir BAŞLAT dokunuşunun içinde istenir;
- * niyet `fullscreen.js`'tedir ve kullanıcı bıraktıysa bir daha istenmez.
+ * Tam ekran YALNIZ kurulu PWA'da, gerçek bir dokunuşun içinde istenir
+ * (maç başında burada + soğuk açılışta ilk dokunuşta `armStandaloneFullscreen`
+ * ile); sıradan webde tam ekrana gerek yoktur. Niyet `fullscreen.js`'tedir ve
+ * kullanıcı bıraktıysa bir daha istenmez.
  */
 export function beginMatchChrome() {
   lockLandscape();
@@ -573,6 +575,8 @@ function mountNavActions() {
   });
 
   host.append(soundBtn, langBtn, fsBtn, updateBtn, settingsBtn);
+  // Sıradan webde tam ekran düğmesi yoktur (yalnız kurulu PWA).
+  fsBtn.classList.toggle('hidden', !fullscreenOfferable());
   if (navActionsBound) return;
   navActionsBound = true;
   // Canlı düğüme bakılır: eski rebuild'in kopuk `fsBtn` kapanışı güncellenmez.

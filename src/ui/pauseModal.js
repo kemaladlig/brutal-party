@@ -153,8 +153,7 @@ function refreshControllerLayoutButton() {
 
 export function refreshPauseSwitches() {
   setSwitch(btnToggleSound, !getIsMuted());
-  // Kurulmuş/PWA yüzeyde çubuk zaten yok, iPhone'da Fullscreen API yok:
-  // anahtar satırı gösterilmez (krom teklifi sunmayan bir yüzeyde gürültü).
+  // Sıradan webde tam ekrana gerek yoktur; APIsiz yüzeyde anahtar gürültüdür.
   btnToggleFullscreen?.classList.toggle('hidden', !fullscreenOfferable());
   setSwitch(btnToggleFullscreen, isFullscreen());
   setSwitch(btnToggleBots, isBotEkleEnabled());

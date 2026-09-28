@@ -11,22 +11,32 @@ const ICON = {
   heart: getTabletopIconSvg('heart', { size: 12 }),
 };
 
+function activeScoreText(data) {
+  const scores = Array.isArray(data.scores) ? data.scores : [];
+  if (!Array.isArray(data.names)) return scores.slice(0, 4).join('-');
+  const parts = [];
+  for (let idx = 0; idx < scores.length && idx < 4; idx++) {
+    if (data.names[idx]) parts.push(scores[idx] ?? 0);
+  }
+  return parts.length > 0 ? parts.join('-') : scores.slice(0, 4).join('-');
+}
+
 function deadOrScore(playerIndex, data) {
   const dead = Array.isArray(data.alive) ? data.alive[playerIndex] === false : false;
-  return dead ? t('pad.dead', data.scores.join('-')) : t('pad.scoreJoin', data.scores.join('-'));
+  return dead ? t('pad.dead', activeScoreText(data)) : t('pad.scoreJoin', activeScoreText(data));
 }
 
 const STATUS_BUILDERS = {
   PONG: (i, data) => {
     const time = Number.isFinite(data.timeLeft) ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
-    return `${t('pad.rallyLive', data.rally || 0, data.scores.slice(0, 4).join('-'))}${time}`;
+    return `${t('pad.rallyLive', data.rally || 0, activeScoreText(data))}${time}`;
   },
   ARCHER: (i, data) => {
     const time = Number.isFinite(data.timeLeft) ? data.timeLeft : 0;
     const charge = Math.round(Math.max(0, Math.min(100, Number(data.chg?.[i]) || 0)));
     const cooldown = Math.max(0, Math.ceil(Number(data.cd?.[i]) || 0));
     const cooldownText = cooldown > 0 ? ` • ${cooldown}s` : '';
-    return `${t('pad.scoreJoin', data.scores.slice(0, 4).join('-'))} • ${ICON.timer} ${Math.ceil(time)}s • ${tIcon('pad.archerCharge')} ${charge}%${cooldownText}`;
+    return `${t('pad.scoreJoin', activeScoreText(data))} • ${ICON.timer} ${Math.ceil(time)}s • ${tIcon('pad.archerCharge')} ${charge}%${cooldownText}`;
   },
   TANKS: (i, data) => {
     const base = deadOrScore(i, data);
@@ -74,45 +84,45 @@ const STATUS_BUILDERS = {
   SNAKE: (i, data) => {
     const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
     const dead = Array.isArray(data.alive) ? data.alive[i] === false : false;
-    if (dead) return t('pad.dead', data.scores.join('-'));
+    if (dead) return t('pad.dead', activeScoreText(data));
     const nrg = Array.isArray(data.nrg) ? (data.nrg[i] ?? 100) : 100;
     const locked = Array.isArray(data.lock) ? !!data.lock[i] : false;
     const time = Number.isFinite(data.timeLeft) ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
-    return `${t('pad.scoreJoin', data.scores.join('-'))} • ${tIcon('pad.nrg', nrg)}${locked ? ` ${t('pad.locked')}` : ''} • ${tIcon('pad.snakeAlive', aliveCount)}${time}`;
+    return `${t('pad.scoreJoin', activeScoreText(data))} • ${tIcon('pad.nrg', nrg)}${locked ? ` ${t('pad.locked')}` : ''} • ${tIcon('pad.snakeAlive', aliveCount)}${time}`;
   },
   LASER: (i, data) => {
     const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
     const myHp = Array.isArray(data.hp) ? (data.hp[i] ?? 0) : 0;
     const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    return `${tIcon('pad.scoreJoin', data.scores.join('-'))} • ${ICON.heart}${myHp} • ${ICON.timer} ${timeStr}${draw}`;
+    return `${tIcon('pad.scoreJoin', activeScoreText(data))} • ${ICON.heart}${myHp} • ${ICON.timer} ${timeStr}${draw}`;
   },
   CLONE: (i, data) => {
     const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
     const dead = Array.isArray(data.alive) ? data.alive[i] === false : false;
-    if (dead) return t('pad.dead', data.scores.join('-'));
+    if (dead) return t('pad.dead', activeScoreText(data));
     const time = data.timeLeft !== undefined ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
     const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    return `${t('pad.scoreJoin', data.scores.join('-'))} • ${tIcon('pad.cloneAlive', aliveCount)}${time}${draw}`;
+    return `${t('pad.scoreJoin', activeScoreText(data))} • ${tIcon('pad.cloneAlive', aliveCount)}${time}${draw}`;
   },
   COLLAPSE: (i, data) => {
     const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
     const dead = Array.isArray(data.alive) ? data.alive[i] === false : false;
-    if (dead) return t('pad.dead', data.scores.join('-'));
+    if (dead) return t('pad.dead', activeScoreText(data));
     const time = data.timeLeft !== undefined ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
     const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    return `${t('pad.scoreJoin', data.scores.join('-'))} • ${tIcon('pad.collapseAlive', aliveCount)}${time}${draw}`;
+    return `${t('pad.scoreJoin', activeScoreText(data))} • ${tIcon('pad.collapseAlive', aliveCount)}${time}${draw}`;
   },
   NINJA: (i, data) => {
     const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
     const dead = Array.isArray(data.alive) ? data.alive[i] === false : false;
-    if (dead) return t('pad.dead', data.scores.join('-'));
+    if (dead) return t('pad.dead', activeScoreText(data));
     const time = data.timeLeft !== undefined ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
     const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    return `${t('pad.scoreJoin', data.scores.join('-'))} • ${tIcon('pad.ninjaAlive', aliveCount)}${time}${draw}`;
+    return `${t('pad.scoreJoin', activeScoreText(data))} • ${tIcon('pad.ninjaAlive', aliveCount)}${time}${draw}`;
   },
   HORDE: (i, data) => {
     if (Array.isArray(data.alive) && data.alive[i] === false) {
-      return `${t('pad.dead', data.scores.join('-'))} • ${t('horde.roundWave', data.round || 1, data.wave || 1)}`;
+      return `${t('pad.dead', activeScoreText(data))} • ${t('horde.roundWave', data.round || 1, data.wave || 1)}`;
     }
     const roundWave = t('horde.roundWave', data.round || 1, data.wave || 1);
     const hp = Array.isArray(data.hp) ? Math.max(0, data.hp[i] ?? 0) : 0;
@@ -124,18 +134,18 @@ const STATUS_BUILDERS = {
     let ammoText = '∞';
     if (ammo >= 0) ammoText = reloading ? t('horde.reload') : `${ammo}/${magazine}`;
     if (data.phase === 'armory') {
-      return t('pad.hordeArmory', data.scores.join('-'), data.nextRound || data.round || 1, weapon, Math.ceil(data.roundBreakTime || 0));
+      return t('pad.hordeArmory', activeScoreText(data), data.nextRound || data.round || 1, weapon, Math.ceil(data.roundBreakTime || 0));
     }
-    if (data.portal) return t('pad.hordePortal', data.scores.join('-'), roundWave, hp, `${weapon} ${ammoText}`);
+    if (data.portal) return t('pad.hordePortal', activeScoreText(data), roundWave, hp, `${weapon} ${ammoText}`);
     const enemies = Array.isArray(data.enemiesLeft) ? data.enemiesLeft[0] : (data.enemiesLeft || 0);
-    return t('pad.hordeStatus', data.scores.join('-'), roundWave, enemies, hp, `${weapon} ${ammoText}`);
+    return t('pad.hordeStatus', activeScoreText(data), roundWave, enemies, hp, `${weapon} ${ammoText}`);
   },
   RACE: (i, data) => {
     const time = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
     const lap = Array.isArray(data.laps) ? (data.laps[i] || 0) : 0;
     const targetLap = data.targetLaps || 3;
     const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    return `${t('pad.raceStatus', data.scores.join('-'), lap, targetLap, time)}${draw}`;
+    return `${t('pad.raceStatus', activeScoreText(data), lap, targetLap, time)}${draw}`;
   },
 };
 

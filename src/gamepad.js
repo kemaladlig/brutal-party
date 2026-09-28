@@ -888,7 +888,7 @@ export class GamepadManager {
     });
 
     const fsToggle = document.getElementById('btn-fullscreen-toggle');
-    // Kurulmuş/PWA ve API'siz yüzeyde krom teklifi yok — menü satırı çizilmez.
+    // Sıradan web ve API'siz yüzeyde krom teklifi yok — menü satırı çizilmez.
     fsToggle?.classList.toggle('hidden', !fullscreenOfferable());
     fsToggle?.addEventListener('click', () => {
       closeMenu();
@@ -1650,7 +1650,9 @@ export class GamepadManager {
     const colors = Array.isArray(data.colors) ? data.colors : [];
     for (let i = 0; i < 4; i++) {
       const gained = (Number(scores[i]) || 0) - (Number(prev[i]) || 0);
-      if (gained > 0) {
+      // Boş koltukta hayalet skor bildirimi yok.
+      const hasSeat = !!(names[i] || this.slots[i]?.name);
+      if (gained > 0 && hasSeat) {
         this._pushKillFeed({
           name: names[i] || this.slots[i]?.name || `P${i + 1}`,
           color: colors[i] || this.slots[i]?.color || UI_COLORS.players[i] || '#6e6357',
@@ -1731,13 +1733,16 @@ export class GamepadManager {
     const colors = Array.isArray(data.colors) ? data.colors : [];
     const scores = (Array.isArray(data.scores) ? data.scores : [0, 0, 0, 0]).map((s) => Number(s) || 0);
     const winner = data.winner && Number.isInteger(data.winner.index) ? data.winner : null;
-    const mvpIdx = winner ? winner.index : scores.reduce((best, s, i) => (s > (scores[best] ?? -1) ? i : best), 0);
+    // Yalnız dolu koltuklar: 2 kişilik maçta boş P3/P4 satırı basılmaz.
+    const occupiedIdx = scores.map((_, i) => i).filter((i) => !!(names[i] || this.slots[i]?.name));
+    const pool = occupiedIdx.length > 0 ? occupiedIdx : scores.map((_, i) => i);
+    const mvpIdx = winner ? winner.index : pool.reduce((best, i) => (scores[i] > (scores[best] ?? -1) ? i : best), pool[0]);
     const mvpName = winner ? (winner.name || names[mvpIdx] || `P${mvpIdx + 1}`) : (names[mvpIdx] || `P${mvpIdx + 1}`);
     const mvpColor = winner ? (winner.color || colors[mvpIdx] || UI_COLORS.players[mvpIdx] || '#ffb020') : (colors[mvpIdx] || UI_COLORS.players[mvpIdx] || '#ffb020');
-    const rows = scores
-      .map((score, i) => ({
+    const rows = pool
+      .map((i) => ({
         i,
-        score,
+        score: scores[i],
         name: names[i] || this.slots[i]?.name || `P${i + 1}`,
         color: colors[i] || this.slots[i]?.color || UI_COLORS.players[i] || '#6e6357',
       }))

@@ -1,4 +1,4 @@
-import { isFullscreen, toggleFullscreen, onFullscreenChange, fullscreenOfferable } from './fullscreen.js';
+import { isFullscreen, toggleFullscreen, onFullscreenChange, fullscreenOfferable, armStandaloneFullscreen } from './fullscreen.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { t, onLangChange } from '../i18n.js';
 import { showInstallToast } from './toast.js';
@@ -118,6 +118,8 @@ export function setupWindowChrome({
   updateQuickFullscreen();
   onFullscreenChange(updateQuickFullscreen);
   onLangChange(() => updateQuickFullscreen());
+  // Kurulu PWA: ilk gerçek dokunuşta doğrudan tam ekrana gir (jest şart).
+  armStandaloneFullscreen();
   
   if (btnQuickFullscreen) {
     let lastTransitionTime = 0;

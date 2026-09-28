@@ -815,13 +815,16 @@ function mountSlider1D(gamepad, container, schema) {
         const scoreDisp = document.getElementById('pong-score-display');
         const rallyDisp = document.getElementById('pong-rally-display');
         if (scoreDisp && data.scores) {
-          // İsimler varsa kimin skoru olduğu görünür: "AHMET 2 [heart]3 • MEHMET 1[heart]2"
-          // (set skoru + kalan can; boş koltukta can gösterilmez)
+          // Yalnız dolu koltuklar: 2 kişilik oyunda boş P3/P4 yazılmaz.
           const lives = Array.isArray(data.lives) ? data.lives : null;
-          const scoreTxt = Array.isArray(data.names)
-            ? data.scores.slice(0, 4).map((s, i) => {
-              const nm = data.names[i] || `P${i + 1}`;
-              const heart = lives && data.names[i] ? `${getTabletopIconSvg('heart', { size: 11 })}${lives[i] ?? 0}` : '';
+          const nameList = Array.isArray(data.names) ? data.names : [];
+          const occupied = data.scores.slice(0, 4)
+            .map((s, i) => ({ s, i }))
+            .filter(({ i }) => !!nameList[i]);
+          const scoreTxt = occupied.length > 0
+            ? occupied.map(({ s, i }) => {
+              const nm = nameList[i];
+              const heart = lives ? `${getTabletopIconSvg('heart', { size: 11 })}${lives[i] ?? 0}` : '';
               return `${nm} ${s}${heart}`;
             }).join(' • ')
             : t('pad.scoreJoin', data.scores.slice(0, 4).join(' - '));
