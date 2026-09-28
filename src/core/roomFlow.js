@@ -901,14 +901,33 @@ function handleExitToMenu() {
   }
 }
 
-function handleGameCardClick(mode) {
-  if (activeNet().isHosting) {
-    openHostLobby(mode);
-  } else {
-    // Oyun katalogu/teknik masa-ortası kartı her zaman LOCAL akışıdır.
-    updatePlatformMode('LOCAL');
-    setGameMode(mode);
+// Oyun katalogu her zaman LOCAL akıştır: eski oda (host ya da kumanda)
+// açık kalmışsa önce tamamen yıkılır, yoksa OYNA eski host lobisine düşer.
+function teardownRoomForLocal() {
+  const net = activeNet();
+  if (!net.isHosting && net.role !== 'CONTROLLER') return;
+  pendingHostSeatBeforeSwap = null;
+  closePauseModal();
+  exitStagingToLobby();
+  hideHostLobbyModal();
+  for (let i = 0; i < 4; i++) {
+    clearSlotAvatar(i);
+    updateHostSlot(i, false);
   }
+  applyHostPlayerState({ active: false });
+  hideConnectionBanner();
+  connectionWasDown = false;
+  try { net.disconnect(); } catch {}
+  try { gamepadManager.hide(); } catch {}
+  setSeatTapHook();
+}
+
+function handleGameCardClick(mode) {
+  // Host oyunu değiştirme yolu lobi karuseli/grididir (`setHostGameMode`);
+  // katalog OYNA her zaman temiz LOCAL giriş yapar.
+  teardownRoomForLocal();
+  updatePlatformMode('LOCAL');
+  setGameMode(mode);
 }
 
 // ── İki kademeli başlatma: LOBİ → STAGING (saha+koltuk) → sayaç → OYUN ──
