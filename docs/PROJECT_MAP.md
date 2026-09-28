@@ -284,7 +284,8 @@ Ortak doğrulama `networkProtocol.js`. **Uçtan uca:** oda kur (3 haneli kod) �
 21. **Kontrol rehberi** — `controllerGuide.js` tek projeksiyon; oyun-başına HTML kopyası yok.
 22. **Cihaz bağlamı+tercih** — `preferences.js` versioned; otomatik yüzey seçimi.
 23. **Ergonomi/dayanıklılık** — Pointer Events + capture; 44px; `inputSource` kaynak kilidi.
-24. **Bakım/kontrol sözleşmesi** — `controlDescriptor` parity; `inputIntent` canonical; twin-stick aim lifecycle.
+24. **Bakım/kontrol sözleşmesi** — `controlDescriptor` parity; `inputIntent` canonical; twin-stick aim lifecycle
+    (aim zone, `.action-cluster-stack`/buton kökenli olayı yok sayar → dash'a basmak ateş üretmez).
 25. **Cihaz-geneli kontrol yerleşimi** — `controllerLayout.js` saf geometri; editör; mod `if/else` yok.
 26. **Cihaz bağımsızlığı kalite kapısı** — `qualityGate.js` + `npm run health`; 16. oyun 0 ihlalle geçmeden eklenmez.
 27. **Mobil kabuk** — sabit yatay çerçeve, sayfa akışı yok; `appShell` + `overlayHost` + `focusRouter` + `views/registry`.

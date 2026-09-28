@@ -20,6 +20,16 @@ function nowMs() {
     : Date.now();
 }
 
+// Twin standartta aksiyon butonu nişan zone'unun ÇOCUĞUDUR (dash, aim
+// yarısının iç yanına rıhtımlanır). Olay kabarma ile zone'a ulaşıp AIM_PRESS
+// üretiyordu: dash'a basmak ateş etmek demekti. Butonun kendi
+// preventDefault'u bunu kesmez — pointer ve touch ayrı olay aileleridir.
+const ACTION_SURFACE_SELECTOR = 'button, .action-cluster-stack, .action-dash-btn';
+
+function isActionSurface(target) {
+  return typeof target?.closest === 'function' && !!target.closest(ACTION_SURFACE_SELECTOR);
+}
+
 export class TwinStickAimController {
   constructor({
     zoneEl,
@@ -175,6 +185,7 @@ export class TwinStickAimController {
     this.zone.addEventListener('pointerdown', (event) => {
       if (this.destroyed || this.activePointerId !== null) return;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (isActionSurface(event.target)) return;
       event.preventDefault();
       try { this.zone.setPointerCapture?.(event.pointerId); } catch {}
       if (this.start(event.clientX, event.clientY) && !this.destroyed) {
@@ -206,6 +217,7 @@ export class TwinStickAimController {
     this.zone.addEventListener('touchstart', (event) => {
       const touch = event.changedTouches[0];
       if (!touch || this.destroyed || this.activeTouchId !== null) return;
+      if (isActionSurface(event.target)) return;
       event.preventDefault();
       if (this.start(touch.clientX, touch.clientY) && !this.destroyed) {
         this.activeTouchId = touch.identifier;

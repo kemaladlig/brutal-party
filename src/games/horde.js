@@ -12,6 +12,7 @@ import { getSecondActionKey, readSlotKeys } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import {
   clampToArena,
+  damp,
   getProjectileSubsteps,
   normalizeAngle,
   pointBlocked,
@@ -47,6 +48,9 @@ import {
 } from './hordeView.js';
 
 export const HORDE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2D6A4F'];
+
+const ENEMY_BLOOD = '#E63946';
+const ENEMY_HEAL = '#16A34A';
 
 export const HORDE_TUNING = Object.freeze({
   ROUNDS: 3,
@@ -89,8 +93,20 @@ export const HORDE_TUNING = Object.freeze({
   WAVE_BREAK_TIME: 2.4,
   ROUND_BREAK_TIME: 15,
   LOADOUT_RADIUS: 34,
-  PICKUP_EVERY: 10,
-  PICKUP_MAX: 3,
+  PICKUP_EVERY: 8,
+  PICKUP_MAX: 4,
+  // Power-up ÇAPı tasarım px. `spawnPickup`'ta `size` alanı çaptır, gövde
+  // yarıçapı ise `bodyPx(30)`: 30 yazılıyken pickup oyuncunun yarısı kadardı
+  // (telefonda 12,2px çap / 24,4px oyuncu) ve sahada okunmuyordu.
+  PICKUP_SIZE: 48,
+  // Vurulma geri bildirimi: gövdeyi 6 kare saf beyaza boyamak tür rengini ve
+  // silueti siliyordu. Artık flash yalnız kontur + anlık büyüme (hordeView),
+  // süresi burada durur.
+  HIT_FLASH: 0.16,
+  // Knockback bir konum sıçraması değil itilmedir: `KNOCK_RETAIN_60` kare
+  // başı sönümle (60 Hz referans) katedilen toplam mesafe = verilen
+  // `knockback`. `damp()` sayesinde kare hızından bağımsız.
+  KNOCK_RETAIN_60: 0.72,
   MAX_ENEMIES: HORDE_VIEW_LIMITS.enemies,
   MAX_PROJECTILES: 96,
   // Şarjör yenileme: bu süre boyunca ateş edilmezse (meşgul olmasa bile) kısmen
@@ -571,6 +587,8 @@ export class HordeGame extends BaseMiniGame {
       y: this.arena.cy,
       vx: 0,
       vy: 0,
+      knockVx: 0,
+      knockVy: 0,
       radius: this.bodyPx(base.radius * (elite ? 1.12 : 1)),
       speed: fieldSpeed(this.arena, base.speed * (elite ? 1.08 : 1)),
       hp,
@@ -648,7 +666,7 @@ export class HordeGame extends BaseMiniGame {
         types: ['HEAL', 'SHIELD', 'FAST', 'TRIPLE'],
         max: HORDE_TUNING.PICKUP_MAX,
         obstacles: this.obstacles,
-        size: this.bodyPx(30),
+        size: this.bodyPx(HORDE_TUNING.PICKUP_SIZE),
         pad: this.bodyPx(24),
       });
     }
@@ -981,7 +999,7 @@ export class HordeGame extends BaseMiniGame {
       const angle = Math.atan2(dy, dx);
       if (Math.abs(normalizeAngle(angle - player.angle)) > weapon.arc * 0.5) continue;
       if (this.hasBlockedShot(player.x, player.y, enemy.x, enemy.y)) continue;
-      this.damageEnemy(enemy, weapon.damage, player.index, this.bodyPx(weapon.knockback), dx, dy, distance);
+      this.damageEnemy(enemy, weapon.damage, player.index, this.bodyPx(weapon.knockback), dx, dy);
       // Kesik izi: kırmızı hasar partikülüne ek olarak silah renginde kıvılcım
       // — geniş yaylı bıçakta "hangi yön tarandı" hissi için.
       this.spawnParticles(enemy.x, enemy.y - enemy.radius * 0.4, weapon.color, 4);
@@ -1140,6 +1158,22 @@ export class HordeGame extends BaseMiniGame {
   }
 
   updateEnemies(dt, alivePlayers) {
+    // Tüm menzil bantları tasarım px'inden `bodyPx` ile geçer. Ham px
+    // bırakılmıştı: 852×393'te saha 387px iken "dur" bandı 270px'ti, yani
+    // sahanın %70'i — shooter'ın %92 kare hareketsiz kalmasının ölçülen
+    // sebebi buydu (masaüstünde aynı kod %17). Kare başına düşman sayısıyla
+    // çarpılmasınlar diye döngü dışında bir kez türetilir.
+    const band = {
+      keep: this.bodyPx(165),
+      hold: this.bodyPx(270),
+      healerKeep: this.bodyPx(245),
+      lungeMin: this.bodyPx(100),
+      lungeMax: this.bodyPx(280),
+      coverProbe: this.bodyPx(28),
+      healRangeSq: Math.pow(this.bodyPx(170), 2),
+      shooterFire: this.bodyPx(350),
+      healerFire: this.bodyPx(380),
+    };
     for (const enemy of this.enemies) {
       if (enemy.spawnDelay > 0) {
         enemy.spawnDelay = Math.max(0, enemy.spawnDelay - dt);
@@ -1190,7 +1224,7 @@ export class HordeGame extends BaseMiniGame {
       if (enemy.type === 'bomb') {
         if (enemy.attackTimer <= 0) {
           playExplosion();
-          this.spawnParticles(enemy.x, enemy.y, '#E63946', 40);
+          this.spawnParticles(enemy.x, enemy.y, ENEMY_BLOOD, 40);
           this.addTrauma(0.6);
           for (const p of alivePlayers) {
             if (distanceSq(p.x, p.y, enemy.x, enemy.y) <= Math.pow(enemy.radius + p.radius, 2)) {
@@ -1223,17 +1257,17 @@ export class HordeGame extends BaseMiniGame {
       const ny = dy / distance;
       enemy.angle = Math.atan2(dy, dx);
       let moveMultiplier = 1;
-      if (enemy.type === 'shooter' && distance < 165) moveMultiplier = -0.8;
-      else if (enemy.type === 'shooter' && distance <= 270) moveMultiplier = 0;
-      else if (enemy.type === 'healer' && distance < 245) moveMultiplier = -0.65;
-      if (enemy.elite && enemy.type === 'chaser' && enemy.lungeCooldown <= 0 && distance > 100 && distance < 280) {
+      if (enemy.type === 'shooter' && distance < band.keep) moveMultiplier = -0.8;
+      else if (enemy.type === 'shooter' && distance <= band.hold) moveMultiplier = 0;
+      else if (enemy.type === 'healer' && distance < band.healerKeep) moveMultiplier = -0.65;
+      if (enemy.elite && enemy.type === 'chaser' && enemy.lungeCooldown <= 0 && distance > band.lungeMin && distance < band.lungeMax) {
         enemy.lungeTimer = 0.42;
         enemy.lungeCooldown = 2.8;
       }
       const moveSpeed = enemy.speed * (enemy.lungeTimer > 0 ? 2.2 : 1);
       const blockedAhead = pointBlocked(
-        enemy.x + nx * (enemy.radius + 28),
-        enemy.y + ny * (enemy.radius + 28),
+        enemy.x + nx * (enemy.radius + band.coverProbe),
+        enemy.y + ny * (enemy.radius + band.coverProbe),
         this.obstacles,
         enemy.radius,
       );
@@ -1245,26 +1279,41 @@ export class HordeGame extends BaseMiniGame {
       enemy.x += (moveX / moveLength) * moveSpeed * dt;
       enemy.y += (moveY / moveLength) * moveSpeed * dt;
 
+      // İtilme: konum sıçraması değil, sönümlü hız (vurunca ışınlanma hissi).
+      const knockVx = enemy.knockVx || 0;
+      const knockVy = enemy.knockVy || 0;
+      if (knockVx || knockVy) {
+        enemy.x += knockVx * dt;
+        enemy.y += knockVy * dt;
+        const retain = damp(HORDE_TUNING.KNOCK_RETAIN_60, dt);
+        enemy.knockVx = knockVx * retain;
+        enemy.knockVy = knockVy * retain;
+        if (Math.abs(enemy.knockVx) < 1 && Math.abs(enemy.knockVy) < 1) {
+          enemy.knockVx = 0;
+          enemy.knockVy = 0;
+        }
+      }
+
       if (enemy.type === 'healer' && enemy.healTimer <= 0) {
         enemy.healTimer = enemy.isBoss ? 3 : 5;
         for (const ally of this.enemies) {
-          if (ally === enemy || ally.hp >= ally.maxHp || distanceSq(enemy.x, enemy.y, ally.x, ally.y) > 170 * 170) continue;
+          if (ally === enemy || ally.hp >= ally.maxHp || distanceSq(enemy.x, enemy.y, ally.x, ally.y) > band.healRangeSq) continue;
           ally.hp = Math.min(ally.maxHp, ally.hp + 2);
-          ally.hitTimer = 0.12;
+          ally.hitTimer = HORDE_TUNING.HIT_FLASH;
         }
       }
 
       if (enemy.attackTimer <= 0) {
-        if (enemy.type === 'shooter' && distance < 350) {
+        if (enemy.type === 'shooter' && distance < band.shooterFire) {
           if (enemy.elite) {
-            for (const offset of [-0.16, 0, 0.16]) this.fireEnemyProjectile(enemy, enemy.angle + offset, enemy.damage, '#E63946');
+            for (const offset of [-0.16, 0, 0.16]) this.fireEnemyProjectile(enemy, enemy.angle + offset, enemy.damage, ENEMY_BLOOD);
           } else {
-            this.fireEnemyProjectile(enemy, enemy.angle, enemy.damage, '#E63946');
+            this.fireEnemyProjectile(enemy, enemy.angle, enemy.damage, ENEMY_BLOOD);
           }
           enemy.attackTimer = enemy.attackEvery;
-        } else if (enemy.type === 'healer' && distance < 380) {
+        } else if (enemy.type === 'healer' && distance < band.healerFire) {
           const shots = enemy.isBoss ? 6 : 5;
-          for (let i = 0; i < shots; i++) this.fireEnemyProjectile(enemy, enemy.angle + i * Math.PI * 2 / shots, 1, '#16A34A');
+          for (let i = 0; i < shots; i++) this.fireEnemyProjectile(enemy, enemy.angle + i * Math.PI * 2 / shots, 1, ENEMY_HEAL);
           enemy.attackTimer = enemy.attackEvery;
         } else if ((enemy.type === 'chaser' || enemy.type === 'tank') && distance < enemy.radius + target.radius + 6) {
           this.damagePlayer(target, enemy.damage);
@@ -1413,7 +1462,6 @@ export class HordeGame extends BaseMiniGame {
               projectile.knockback || 0,
               projectile.vx,
               projectile.vy,
-              Math.hypot(projectile.vx, projectile.vy) || 1,
             );
             if ((Number(projectile.pierce) || 0) > 0) projectile.pierce -= 1;
             else {
@@ -1436,17 +1484,24 @@ export class HordeGame extends BaseMiniGame {
     }
   }
 
-  damageEnemy(enemy, damage, ownerIndex, knockback = 0, dirX = 0, dirY = 0, projectileSpeed = 1) {
+  damageEnemy(enemy, damage, ownerIndex, knockback = 0, dirX = 0, dirY = 0) {
     if (!enemy || enemy.hp <= 0) return;
     enemy.hp -= damage;
-    enemy.hitTimer = 0.1;
+    enemy.hitTimer = HORDE_TUNING.HIT_FLASH;
     if (knockback > 0 && enemy.type !== 'barrel') {
-      const magnitude = Math.max(1, projectileSpeed) || 1;
-      enemy.x += (dirX / magnitude) * knockback;
-      enemy.y += (dirY / magnitude) * knockback;
-      clampToArena(enemy, enemy.radius, this.arena);
-      resolveAABB(enemy, this.obstacles, enemy.radius);
+      const magnitude = Math.hypot(dirX, dirY) || 1;
+      // `knockback` cihaz px'inden KATEDİLECEK toplam mesafedir; bunu bir
+      // karede pozisyona eklemek ("ışınlanma") yerine, o mesafeyi
+      // `KNOCK_RETAIN_60` sönümüyle bitiren bir hız veriyoruz.
+      // Toplam yol = v0 · τ, τ = -1 / (60 · ln(retain)).
+      const tau = -1 / (60 * Math.log(HORDE_TUNING.KNOCK_RETAIN_60));
+      const impulse = knockback / tau;
+      enemy.knockVx = (enemy.knockVx || 0) + (dirX / magnitude) * impulse;
+      enemy.knockVy = (enemy.knockVy || 0) + (dirY / magnitude) * impulse;
     }
+    // Vuruş geri bildirimi: isabet yönünde az sayıda kıvılcım. Partiküller
+    // ölçekli (`spawnParticles`), böylece telefonda alt-piksel nokta olmuyor.
+    this.spawnParticles(enemy.x, enemy.y, enemy.type === 'healer' ? ENEMY_HEAL : ENEMY_BLOOD, 3, dirX, dirY);
     if (enemy.hp > 0) return;
     const index = this.enemies.indexOf(enemy);
     if (index >= 0) this.enemies.splice(index, 1);
@@ -1455,9 +1510,10 @@ export class HordeGame extends BaseMiniGame {
       this.spawnParticles(enemy.x, enemy.y, '#F97316', 30);
       playExplosion();
       const radiusSq = Math.pow(this.bodyPx(140), 2);
+      const blastKnockback = this.bodyPx(150);
       const hitEnemies = this.enemies.filter(e => distanceSq(e.x, e.y, enemy.x, enemy.y) <= radiusSq);
       for (const e of hitEnemies) {
-        this.damageEnemy(e, 8, ownerIndex, 150, e.x - enemy.x, e.y - enemy.y, 1);
+        this.damageEnemy(e, 8, ownerIndex, blastKnockback, e.x - enemy.x, e.y - enemy.y);
       }
       for (const p of this.alivePlayers) {
         if (distanceSq(p.x, p.y, enemy.x, enemy.y) <= radiusSq) {
@@ -1478,8 +1534,8 @@ export class HordeGame extends BaseMiniGame {
             x: enemy.x,
             y: enemy.y,
             type,
-            radius: this.bodyPx(15),
-            size: this.bodyPx(30),
+            radius: this.bodyPx(HORDE_TUNING.PICKUP_SIZE * 0.5),
+            size: this.bodyPx(HORDE_TUNING.PICKUP_SIZE),
             animTime: 0,
             life: 14.0,
             phase: Math.random() * Math.PI * 2,
@@ -1491,7 +1547,7 @@ export class HordeGame extends BaseMiniGame {
     const owner = this.players[ownerIndex];
     const points = enemy.isBoss ? 3 : enemy.elite ? 2 : 1;
     if (owner) this.scores[owner.index] += points;
-    this.spawnParticles(enemy.x, enemy.y, enemy.isBoss || enemy.elite ? '#FACC15' : '#E63946', enemy.isBoss ? 22 : enemy.elite ? 14 : 9);
+    this.spawnParticles(enemy.x, enemy.y, enemy.isBoss || enemy.elite ? '#FACC15' : ENEMY_BLOOD, enemy.isBoss ? 22 : enemy.elite ? 14 : 9);
     this.spawnFloatingText(enemy.x, enemy.y - enemy.radius, `+${points}`, owner?.color || '#D84727');
     this.addTrauma(enemy.isBoss ? 0.55 : enemy.elite ? 0.25 : 0.16);
     playExplosion();
@@ -1695,17 +1751,25 @@ export class HordeGame extends BaseMiniGame {
     }
   }
 
-  spawnParticles(x, y, color, count = 8) {
+  /**
+   * @param {number} dirX veriliyse kıvılcımlar bu yönün etrafına toplanır
+   *   (vuruş yönü okunur); yoksa her yöne saçılır.
+   */
+  spawnParticles(x, y, color, count = 8, dirX = 0, dirY = 0) {
+    const directional = dirX !== 0 || dirY !== 0;
+    const baseAngle = directional ? Math.atan2(dirY, dirX) : 0;
     for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 35 + Math.random() * 150;
+      const angle = directional
+        ? baseAngle + (Math.random() - 0.5) * 1.5
+        : Math.random() * Math.PI * 2;
+      const speed = this.bodySpeed(35 + Math.random() * 150);
       const life = 0.25 + Math.random() * 0.35;
       this.particles.push({
         x,
         y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        radius: 2 + Math.random() * 3,
+        radius: this.bodyPx(2 + Math.random() * 3),
         color,
         life,
         maxLife: life,

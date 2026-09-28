@@ -122,3 +122,37 @@ test('quick tap declares tap, drag and long press do not', async () => {
     restore();
   }
 });
+
+// Twin standartta dash butonu aim yarısının İÇİNDEDİR. Olay kabarma ile zone'a
+// ulaşıp AIM_PRESS üretiyordu: dash'a basmak ateş etmekti. Butonun kendi
+// preventDefault'u bunu kesmez (pointer/touch ayrı olay aileleri), yüzden
+// zone tarafında yok sayılır.
+test('action button inside the aim zone never starts aim, free touch still does', () => {
+  const restore = installPointerWindow();
+  try {
+    const zone = new FakeElement();
+    const packets = [];
+    const controller = new TwinStickAimController({
+      zoneEl: zone,
+      knobEl: new FakeElement(),
+      baseEl: new FakeElement(),
+      onPress: (input) => packets.push({ type: 'press', input }),
+      onMove: (input) => packets.push({ type: 'move', input }),
+      onRelease: (input, meta) => packets.push({ type: 'release', input, meta }),
+    });
+
+    const buttonTarget = {
+      closest: (selector) => (selector.includes('action-cluster-stack') ? { matched: selector } : null),
+    };
+    zone.dispatch('pointerdown', {
+      pointerId: 9, pointerType: 'touch', clientX: 200, clientY: 200, button: 0, target: buttonTarget,
+    });
+    assert.equal(packets.length, 0);
+
+    zone.dispatch('pointerdown', { pointerId: 10, pointerType: 'touch', clientX: 120, clientY: 120, button: 0 });
+    assert.equal(packets[0].type, 'press');
+    controller.destroy();
+  } finally {
+    restore();
+  }
+});

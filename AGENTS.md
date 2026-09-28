@@ -64,6 +64,7 @@ Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inp
 - Sahne dili `src/styles/scene.css` + `.scene-btn` (`is-gold/is-teal/is-ghost`); sahneye ikinci panel/başlık/kart çerçevesi yok.
 - Sonuç yüzeyi `src/ui/resultPanel.js` + `hud.js layoutMatchOverCard` (içerikten türeyen kart, sabit yükseklik yok, ≥44 px buton). Satırlar deklaratif `matchOverRows`; rütbe yalnız `score` varsa basılır.
 - İkon tek kaynak `src/core/tabletopIcons.js` + `iconSlots.js` (`data-icon`); kumanda aksiyonu ikon-only. Ham OS emojisi yasak — tek istisna tepki yüzeyi (`reactions.js` → glyph + `reactionGlyph`, tel değeri ASCII anahtar).
+- Twin-stick'te aksiyon butonu aim zone'un ÇOCUĞUDUR; `aimController` butondan/kümeden gelen olayı yok sayar. Buton kendi `preventDefault`'u ile bunu kesmez (pointer/touch ayrı olay aileleri) → yok sayım zone tarafında zorunlu.
 - Motion `src/ui/motion.js` + tokenlar; `transform`/`opacity` dışı animasyon yok, `prefers-reduced-motion`'a uyulur.
 
 ## 9. Yasaklar

@@ -30,7 +30,9 @@ export const HORDE_VIEW_LIMITS = Object.freeze({
   enemies: 28,
   bullets: 64,
   tombs: 4,
-  pickups: 4,
+  // `PICKUP_MAX` + elite/boss dropları (`PICKUP_MAX + 2`) kadar sığmalı;
+  // aksi hâlde ONLINE world packet doğrulaması sahneyi reddeder.
+  pickups: 6,
   texts: 8,
   particles: 48,
   obstacles: 16,
@@ -566,6 +568,13 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
   ctx.save();
   ctx.translate(enemy.x, enemy.y);
   ctx.rotate(enemy.angle || 0);
+  // Vuruş: gövdeyi saf beyaza boyamak türün rengini ve siluetini birkaç kare
+  // tamamen siliyordu — "parladı" değil "kayboldu" okunuyordu. Gövde artık
+  // kendi renginde kalır, kontur parlar ve gövde anlık büyür. HP çubuğu
+  // aşağıda restore sonrası dünya koordinatlarında çizildiği için bu
+  // ölçekten etkilenmez.
+  const flinch = enemy.hit && withFx ? 1.12 : 1;
+  if (flinch !== 1) ctx.scale(flinch, flinch);
   const fill = enemy.type === 'shooter'
     ? '#7C3AED'
     : enemy.type === 'tank'
@@ -575,7 +584,7 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
         : enemy.type === 'barrel'
           ? '#F97316'
           : '#E63946';
-  ctx.fillStyle = enemy.hit && withFx ? '#FFFFFF' : fill;
+  ctx.fillStyle = fill;
   ctx.strokeStyle = enemy.boss || enemy.elite ? '#FACC15' : '#1A1A1A';
   ctx.lineWidth = Math.max(1.5, (enemy.boss ? 5 : 3) * eu);
   ctx.beginPath();
@@ -614,6 +623,11 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
   if (enemy.elite && !enemy.boss) {
     ctx.strokeStyle = '#FFF7A3';
     ctx.lineWidth = Math.max(1, 2 * eu);
+    ctx.stroke();
+  }
+  if (enemy.hit && withFx) {
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = Math.max(2, 4 * eu);
     ctx.stroke();
   }
   if (enemy.type === 'barrel') {
