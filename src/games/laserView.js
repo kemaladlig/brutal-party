@@ -9,6 +9,7 @@ import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
 import { renderEntityHUD, renderFireCooldown } from '../ui/hud.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import {
   round1,
   packRectList,
@@ -328,32 +329,22 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
 
     if (player.shield) {
       ctx.save();
-      ctx.strokeStyle = '#0EA5E9';
+      ctx.strokeStyle = UI_COLORS.hudShield;
       ctx.lineWidth = uMin(2.5);
-      ctx.fillStyle = 'rgba(14, 165, 233, 0.18)';
+      ctx.fillStyle = UI_COLORS.hudShieldFill;
       ctx.beginPath(); ctx.arc(0, 0, R + 5 * u, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       if (withFx) {
         const sAng = (performance.now() / 1000) * 3;
-        ctx.fillStyle = '#38BDF8';
+        ctx.fillStyle = UI_COLORS.hudShieldDot;
         ctx.beginPath(); ctx.arc(Math.cos(sAng) * (R + 5 * u), Math.sin(sAng) * (R + 5 * u), uMin(3.5), 0, Math.PI * 2); ctx.fill();
       }
       ctx.restore();
     }
 
-    if (player.dash >= 1) {
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = uMin(5);
-      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = uMin(2.5);
-      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
-    } else {
-      ctx.lineWidth = uMin(3);
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.25)';
-      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = player.color;
-      ctx.beginPath(); ctx.arc(0, 0, R, -Math.PI / 2, -Math.PI / 2 + clamp01(player.dash) * Math.PI * 2); ctx.stroke();
-    }
+    // Dash halkası KALDIRILDI: `renderEntityHUD` zaten aynı bilgiyi başüstü
+    // rozet olarak çiziyordu — gövde etrafında ikinci bir ince çember hem
+    // geometriyi ikiliyordu hem de krem zeminde okunmuyordu (ray 1.69:1).
+    // Hazır/doluyor durumu yalnız rozette yaşar.
 
     let barrelColor = '#FFFFFF';
     if (player.triple) barrelColor = '#F97316';
@@ -367,7 +358,9 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
     ctx.lineWidth = uMin(2); ctx.strokeStyle = '#1A1A1A';
     ctx.strokeRect(8 * u, -4 * u, 14 * u, 8 * u);
     if (player.ready) {
-      ctx.fillStyle = player.triple ? '#F97316' : (player.fast ? '#FFDE59' : '#00F0FF');
+      // Hazır noktası beyaz namlu üstünde: `#00F0FF` 1.41:1 ile görünmezdi.
+      // Koyu ton hem beyaz hem altın namluda okunur.
+      ctx.fillStyle = player.triple ? '#F97316' : (player.fast ? UI_COLORS.hudAmber : UI_COLORS.hudShield);
       ctx.beginPath(); ctx.arc(22 * u, 0, 3 * u, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
@@ -391,6 +384,9 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
     ctx.restore();
 
     const bulletColor = player.triple ? '#FB923C' : (player.fast ? '#FACC15' : player.color);
+    // İki rozet aynı anda görünürse (dash + ateş) yan yana dizilir, üst üste binmez.
+    const fireActive = Number.isFinite(player.fireCooldown) && player.fireCooldown < 0.999;
+    const chipCount = player.dash !== null && player.dash !== undefined && fireActive ? 2 : 1;
     renderEntityHUD(ctx, {
       x: player.x,
       y: player.y,
@@ -403,6 +399,8 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
       maxAmmo: player.ammoMax,
       reloadProgress: player.reload,
       cooldownProgress: player.dash,
+      chipIndex: 0,
+      chipCount,
     });
     renderFireCooldown(ctx, {
       x: player.x,
@@ -410,7 +408,10 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
       radius: R,
       progress: player.fireCooldown,
       feedback: getFireFeedbackForRender(player),
-      color: bulletColor,
+      arena,
+      icon: 'crosshair',
+      index: chipCount > 1 ? 1 : 0,
+      count: chipCount,
     });
   }
 }

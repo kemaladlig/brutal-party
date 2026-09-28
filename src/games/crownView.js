@@ -503,22 +503,28 @@ export function drawCrownPlayer(ctx, p, color, arena, lastTime, targetCrownTime 
       const a = dazeAngle + (s * Math.PI * 2) / 3;
       const sx = x + Math.cos(a) * starR;
       const sy = y + Math.sin(a) * (starR * 0.4) - r - 10;
-      drawTabletopIcon(ctx, 'sparkles', sx, sy, 14, { color: UI_COLORS.crownGold });
+      drawTabletopIcon(ctx, 'sparkles', sx, sy, 14, { color: UI_COLORS.hudAmber });
     }
 
-    ctx.strokeStyle = UI_COLORS.crownGold;
-    ctx.lineWidth = Math.max(1, 3 * u);
+    ctx.strokeStyle = UI_COLORS.hudAmber;
+    ctx.lineWidth = Math.max(1.5, 3.5 * u);
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
     ctx.arc(x, y, r + 7, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.fillStyle = UI_COLORS.crownGold;
+    // "SERSEM!" altın dolgu kontursuz 2.16:1 idi — koyu kontur + koyu altın.
+    // (`bombView.js` zaten bu deseni kullanıyordu; iki oyun aynı dili konuşur.)
     ctx.font = '900 13px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = UI_COLORS.hudInkOutline;
+    ctx.lineWidth = 3;
+    ctx.strokeText('SERSEM!', x + 10, y - r - 26);
+    ctx.fillStyle = UI_COLORS.hudAmber;
     ctx.fillText('SERSEM!', x + 10, y - r - 26);
-    drawTabletopIcon(ctx, 'flame', x - 28, y - r - 26, 13, { color: UI_COLORS.crownGold });
+    drawTabletopIcon(ctx, 'flame', x - 28, y - r - 26, 13, { color: UI_COLORS.hudAmber });
     ctx.restore();
   }
 
@@ -527,8 +533,8 @@ export function drawCrownPlayer(ctx, p, color, arena, lastTime, targetCrownTime 
     ctx.beginPath();
     ctx.arc(x, y, r * 1.55, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = UI_COLORS.crownGold;
-    ctx.lineWidth = Math.max(1, 2.5 * u);
+    ctx.strokeStyle = UI_COLORS.hudAmber;
+    ctx.lineWidth = Math.max(1.5, 3 * u);
     ctx.stroke();
   }
 
@@ -540,7 +546,8 @@ export function drawCrownPlayer(ctx, p, color, arena, lastTime, targetCrownTime 
   drawGameAvatar(ctx, x, y, r, p, {
     facingAngle,
     expression: currentExp,
-    borderColor: p.isTackling ? UI_COLORS.white : (p.rimColor || UI_COLORS.inkDark),
+    // Tackle vurgusu BEYAZDI — krem zeminde 1.10:1, görünmez. Koyu altın 4.91:1.
+    borderColor: p.isTackling ? UI_COLORS.hudAmber : (p.rimColor || UI_COLORS.inkDark),
     borderWidth: p.isTackling ? 4.5 : 3,
     now: lastTime || performance.now(),
   });
@@ -555,6 +562,7 @@ export function drawCrownPlayer(ctx, p, color, arena, lastTime, targetCrownTime 
       y,
       radius: r,
       color: UI_COLORS.crownGold,
+      arena,
       cooldownProgress: (p.tackleCooldown || 0) > 0 ? cdRatio : null,
       stun: (p.stumbleTimer || 0) > 0,
     });
@@ -566,12 +574,14 @@ export function drawCrownPlayer(ctx, p, color, arena, lastTime, targetCrownTime 
     const remain = Math.max(0, targetCrownTime - holdTime);
     const urgent = remain <= 5.0;
 
-    ctx.strokeStyle = 'rgba(26, 26, 26, 0.4)';
+    // Taç tutma yayı: KAZANMA ilerlemesi, hazır göstergesi değil — geometri
+    // kalır, renkler okunur koyuya çekilir (ray 2.45:1, altın yay 2.16:1).
+    ctx.strokeStyle = UI_COLORS.hudDim;
     ctx.lineWidth = Math.max(1, 8 * u);
     ctx.beginPath();
     ctx.arc(x, y, r + 9, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.strokeStyle = urgent ? UI_COLORS.crownRed : UI_COLORS.crownGold;
+    ctx.strokeStyle = urgent ? UI_COLORS.crownRed : UI_COLORS.hudAmber;
     ctx.lineWidth = Math.max(1, 8 * u);
     ctx.beginPath();
     ctx.arc(x, y, r + 9, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
@@ -586,12 +596,15 @@ export function drawCrownPlayer(ctx, p, color, arena, lastTime, targetCrownTime 
     ctx.strokeStyle = UI_COLORS.inkDark;
     ctx.lineWidth = Math.max(2, Math.round(2 * bScale));
     ctx.strokeRect(x - badgeW / 2, badgeY, badgeW, badgeH);
-    ctx.fillStyle = UI_COLORS.white;
+    // Rozet metni BEYAZDI: altın dolgu üstünde 2.42:1 (`--on-accent` kuralı
+    // ihlali). Koyu mürekkep altında 7.18, kırmızıda 4.85. Taç ikonu da
+    // dolgusuyla AYNI renkti — yani görünmezdi; o da koyuya çekildi.
+    ctx.fillStyle = UI_COLORS.inkDark;
     ctx.font = `900 ${Math.round(12 * bScale)}px "JetBrains Mono", monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(`${remain.toFixed(1)}s`, x + 10, badgeY + badgeH / 2);
-    drawTabletopIcon(ctx, 'crown', x - 30, badgeY + badgeH / 2, 13, { color: urgent ? UI_COLORS.crownRed : UI_COLORS.crownGold });
+    drawTabletopIcon(ctx, 'crown', x - 30, badgeY + badgeH / 2, 13, { color: UI_COLORS.inkDark });
   }
 
   ctx.restore();

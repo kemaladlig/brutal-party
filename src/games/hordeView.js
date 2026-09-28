@@ -9,6 +9,7 @@ import { isCompactLandscape } from '../core/playfield.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { getFireCooldownProgress, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
 import { renderSpatialBadge } from '../ui/hud.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import { t } from '../i18n.js';
 import {
   HORDE_UPGRADES,
@@ -911,15 +912,16 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
     // sıkarken karakterin etrafında yuvarlak olmasın, tepesinde azalan bar
     // olabilir". Halka ne olduğunu söylemiyordu; aşağıdaki şarjör barı hem
     // cephane hem bekleme durumunu tek bakışta okutuyor ve gövdeyi kapatmıyor.
-    // `renderFireCooldown` yalnız oyun içi kalır; ARCHER/LASER kendi halkasını
-    // kullanmaya devam ediyor.
+    // Halka deseni 15 oyunda da bırakıldı — ortak dil `entityStatus` rozeti
+    // (ARCHER/LASER buradan çizer).
 
     const pipW = 5 * hu;
     const pipGap = 3 * hu;
     const totalW = player.hpMax * pipW + (player.hpMax - 1) * pipGap;
     const startX = player.x - totalW / 2;
     for (let i = 0; i < player.hpMax; i++) {
-      ctx.fillStyle = i < player.hp ? player.color : 'rgba(26, 26, 26, 0.22)';
+      // Boş pip `rgba(...,0.22)` kremde ~1.5:1 idi; `hudEmpty` 4.28:1 (hud.js ile aynı dil).
+      ctx.fillStyle = i < player.hp ? player.color : UI_COLORS.hudEmpty;
       ctx.fillRect(startX + i * (pipW + pipGap), player.y - 27 * hu, pipW, 4 * hu);
     }
 
@@ -935,7 +937,7 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
       const ratio = player.magazine > 0 ? clamp01(player.ammo / player.magazine) : 0;
       const reloading = player.reloadTimer > 0;
 
-      ctx.fillStyle = 'rgba(26, 26, 26, 0.45)';
+      ctx.fillStyle = UI_COLORS.hudDim;
       ctx.fillRect(x, y, barW, barH);
       // Dolduran kısım: doluyken silah rengi, doldurma sırasında altın.
       // Azalan çubuk = şarjör azalıyor; dolan çubuk = yeniden dolduruluyor.

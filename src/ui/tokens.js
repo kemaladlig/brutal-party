@@ -29,6 +29,37 @@ export const UI_COLORS = {
   disabled: '#E5DCC9',
   // Yüksek kontrastlı dış hat ve semantik HUD token'ları
   outlineContrast: 'rgba(255, 253, 247, 0.92)',
+  // --- Saha kapsamı HUD ailesi (karakter üstü göstergeler) ---
+  // Saha zemini L* 92.5-97.5 arası krem (`fieldKit.FIELD_THEMES`); altın ve
+  // turkuaz bu zeminde 1.2-1.3:1 ile ÖLÜ. Koyu plaka üstünde aynı renkler
+  // 9.9-10.6:1. Bu yüzden "hazır" göstergeleri çember değil koyu plaka + ikon
+  // taşır (`core/entityStatus.js`).
+  hudPlate: '#1A1815',        // koyu plaka zemini
+  hudPlateInk: '#FFF8EA',     // plaka üstü yazı/ikon
+  hudReady: '#35B36A',        // hazır vurgusu (kenarlık + ikon)
+  hudDim: 'rgba(26, 26, 26, 0.55)', // dolum rayı (0.28 -> 0.55: 1.78 -> 3.4:1)
+  // Boş pip/yuva: hem koyu cephane çerçevesinin İÇİNDE (4.28:1) hem de
+  // krem saha üstünde (3.45:1) 3:1'i geçer — `#6B625A` çerçevede 2.97'de
+  // kalıyordu, `#8C8175` ise zeminde 3.18'e düşüyordu.
+  hudEmpty: '#857B71',
+  hudMuted: '#4A443E',        // pasif durum
+  // Saha üstü metin konturu: beyaz krem zeminde İŞE YARAMAZ (1.10:1).
+  // `outlineContrast` beyaz olduğu için burada ayrı bir koyu ton var.
+  hudInkOutline: 'rgba(26, 26, 26, 0.92)',
+  // Durum haleleri: krem zeminde okunacak koyu tonlar. #0EA5E9 2.30:1 ve
+  // #38BDF8 1.91:1 iken okunmuyordu; uydu noktası halkanın ÜSTÜNDE
+  // oturduğu için halkaya karşı ayrı bir açık ton taşır.
+  hudShield: '#0E7490',
+  hudShieldDot: '#CDEEF7',
+  hudShieldFill: 'rgba(14, 116, 144, 0.22)',
+  // Şarj/yay gerilme tonu: mor 3.77:1, zeminden ayrışıyor.
+  hudCharge: '#6D28D9',
+  // Durum haleleri: krem zeminde okunacak koyu tonlar (`#D99B26` 2.16:1,
+  // `#70E000` 1.52:1 iken görünmüyordu).
+  hudAmber: '#8A5A00',
+  hudGhost: '#4F8A00',
+  // Koyu çubuk/ray zemini üstünde kalan "dolu" tonları.
+  hudAmmo: '#FFB020',
   // Katman örtüleri — CSS tarafındaki --scrim ailesiyle eşleşir.
   scrim: 'rgba(24, 18, 13, 0.62)',
   scrimStrong: 'rgba(24, 18, 13, 0.84)',

@@ -45,7 +45,7 @@ export function createWorldViewRenderer() {
         );
         drawHeistLoot(ctx, frame.loot.map(([x, y, radius, type]) => ({ x, y, radius, type })));
         drawHeistPiggy(ctx, frame.piggy);
-        drawHeistPlayers(ctx, players, { withFx: frame.gameState === 'PLAYING' });
+        drawHeistPlayers(ctx, players, { withFx: frame.gameState === 'PLAYING', arena });
         drawSquareParticles(ctx, frame.particles || []);
         drawHeistTexts(ctx, frame.texts || []);
       });

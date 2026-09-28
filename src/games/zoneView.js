@@ -7,6 +7,8 @@
 
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
+import { drawStatusChip } from '../core/entityStatus.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import {
   round1,
   createWorldSnapshot,
@@ -245,8 +247,14 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
     ctx.fill();
 
     const pulse = 0.5 + 0.5 * Math.sin(nowSec * 6 + rel.phase);
+    // Relik çerçevesi tür rengini taşır (FLASH sarısı 1.2:1) — koyu taban
+    // üstünde aynı ton, kimlik korunur kenar garanti.
+    ctx.globalAlpha = 1.0;
+    ctx.strokeStyle = UI_COLORS.hudInkOutline;
+    ctx.lineWidth = 4.5 * u;
+    ctx.strokeRect(-rSize * 0.65, -rSize * 0.65, rSize * 1.3, rSize * 1.3);
     ctx.strokeStyle = color;
-    ctx.globalAlpha = 0.4 + 0.3 * pulse;
+    ctx.globalAlpha = 0.65 + 0.35 * pulse;
     ctx.lineWidth = 2.5 * u;
     ctx.strokeRect(-rSize * 0.65, -rSize * 0.65, rSize * 1.3, rSize * 1.3);
 
@@ -282,7 +290,9 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
     if (isRiskWarn) {
       ctx.strokeStyle = isHazard ? '#D84727' : p.color;
       ctx.lineWidth = cell * (isHazard ? 1.25 : 1.05);
-      ctx.globalAlpha = isHazard ? (0.6 + 0.4 * Math.sin(nowSec * 16)) : 0.4;
+      // Uyarı izi 0.4 alfa ile krem zeminde yok oluyordu (P3 ~1.1:1).
+      // Hâlâ yarı saydam, ama iki katı kontrast.
+      ctx.globalAlpha = isHazard ? (0.6 + 0.4 * Math.sin(nowSec * 16)) : 0.75;
       ctx.beginPath();
       const ts0 = Array.isArray(p.trailStart) ? p.trailStart : [p.x, p.y];
       ctx.moveTo(ts0[0], ts0[1]);
@@ -332,13 +342,20 @@ export function drawZonePlayers(ctx, players, { cell = 0, leaderIndex = -1, with
     ctx.translate(p.x, p.y);
 
     if (withFx && p.home && p.stun <= 0) {
+      // "Evde" halkası oyuncu rengini taşır (kimlik), ama 0.45 alfa ile
+      // krem zeminde yok oluyordu (P3 ~1.1:1). Koyu taban + tam alfa renk:
+      // ton korunur, kenar garanti.
+      ctx.strokeStyle = UI_COLORS.hudInkOutline;
+      ctx.globalAlpha = 1.0;
+      ctx.lineWidth = 4 * u;
+      ctx.beginPath();
+      ctx.arc(0, 0, p.radius + 3.5 * u, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.strokeStyle = p.color;
-      ctx.globalAlpha = 0.45;
       ctx.lineWidth = 2 * u;
       ctx.beginPath();
       ctx.arc(0, 0, p.radius + 3.5 * u, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.globalAlpha = 1.0;
     }
 
     if (withFx && p.slot === leaderIndex && p.pct > 0) {
@@ -362,18 +379,15 @@ export function drawZonePlayers(ctx, players, { cell = 0, leaderIndex = -1, with
     });
 
     if (p.dashProg !== null && p.dashProg !== undefined) {
-      ctx.save();
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-      ctx.lineWidth = 3.5 * u;
-      ctx.beginPath();
-      ctx.arc(0, 0, p.radius + 5 * u, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = '#FFDE59';
-      ctx.lineWidth = 3 * u;
-      ctx.beginPath();
-      ctx.arc(0, 0, p.radius + 5 * u, -Math.PI / 2, -Math.PI / 2 + clamp01(p.dashProg) * Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
+      // Dash göstergesi: ince çember (ray 2.82:1, altın yay 1.15:1) yerine rozet.
+      drawStatusChip(ctx, {
+        x: 0,
+        y: 0,
+        radius: p.radius,
+        scale: u,
+        icon: 'zap',
+        progress: clamp01(p.dashProg),
+      });
     }
 
     const label = `P${(p.slot ?? p.index ?? 0) + 1} • %${p.pct ?? 0}`;

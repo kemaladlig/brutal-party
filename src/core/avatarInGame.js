@@ -14,6 +14,32 @@
 
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { rimHex } from './customizationManager.js';
+import { UI_COLORS } from '../ui/tokens.js';
+
+/**
+ * Gövde rengin krem sahada (L* ~94) okunması için: açık gövde renginde
+ * çerçeve daima koyuya çekilir. P3 (SARI #D84727 üstü) gövdesi 1.19:1 ile
+ * kayboluyordu; çerçeve rengi zaten koyuydysa sorun yok. Görünürlük eşiği
+ * WCAG grafik ~3:1'den gevşek tutulur: gövde-çerçeve kararının amacı
+ * "siluet tanınsın", çerçeve krem zemine karşı ayrışıyor zaten.
+ */
+function relativeLuminance(hex) {
+  const s = String(hex || '').replace('#', '');
+  if (!/^[0-9a-f]{6}$/i.test(s)) return null;
+  const chan = (h) => {
+    const c = parseInt(h, 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * chan(s.slice(0, 2)) + 0.7152 * chan(s.slice(2, 4)) + 0.0722 * chan(s.slice(4, 6));
+}
+
+/** Açık gövdeye her zaman koyu çerçeve: `#FFFFFF` çerçeve krem zeminde 1.10:1. */
+function darkFrameForLightBody(bodyColor) {
+  const L = relativeLuminance(bodyColor);
+  if (L === null) return false;
+  // L* ~0.82'e (ör. #F4F2E8 0.89) kadar açık gövde: zıt koyu çerçeve şart.
+  return L >= 0.6;
+}
 
 /**
  * Göz kırpma ritmi. Menü önizlemesinden (sabit 3.2s) ayrı: oyun içi hızlı ve
@@ -87,8 +113,23 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
   const borderWidth = opts.borderWidth
     ?? Math.max(1.2, Number(radius) * 0.12);
 
+  // Açık gövde renginde çerçeveyi koyuya sabitle. Tür sinyal fonksiyonları
+  // (tackle/dash vurgusu) çerçeveyi bilerek AÇIK renge çekebilir (`opts.borderColor`).
+  // O çağrılar OPTS.ILE geldiğinden önceliği korur; açık gövde kuralı yalnız
+  // çerçevesiz/fallback yola dokunur. Açık gövde + açık çerçeve (11:1'lik
+  // fail) böylece sadece bilinçli vurguda yaşar.
+  const bodyColor = opts.color || player.color;
+  const forceDark = darkFrameForLightBody(bodyColor);
+  const darkFrame = UI_COLORS.inkDark;
+  const resolvedBorder = opts.borderColor
+    || (forceDark ? darkFrame
+      : (player.rimColor
+        || rimHex(player.avatar?.rim, null)
+        || rimHex(opts.avatar?.rim, null)
+        || darkFrame));
+
   drawBrutalAvatar(ctx, x, y, radius, {
-    color: opts.color || player.color,
+    color: bodyColor,
     slotIndex,
     facingAngle: opts.facingAngle !== undefined ? opts.facingAngle : player.facingAngle || player.angle || 0,
     label: opts.label !== undefined ? opts.label : defaultLabel,
@@ -100,14 +141,7 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
     // test/harness yolu zaman bağımlı olmaz).
     blinkProgress: opts.isBlinking ? 1 : blinkState(opts.now, slotIndex),
     showPointer: opts.showPointer !== undefined ? opts.showPointer : true,
-    // Halka: oyun-durumu sinyali (opts) > host senkronu (entity) > world-view
-    // hydration (slot avatarı) > klasik. View'lar koyu varsayılanı sabit
-    // yazmaz — yazarsa halka ezilir (bomb/heist/zone ternary'lerine bkz.).
-    borderColor: opts.borderColor
-      || player.rimColor
-      || rimHex(player.avatar?.rim, null)
-      || rimHex(opts.avatar?.rim, null)
-      || '#1C1C1A',
+    borderColor: resolvedBorder,
     borderWidth,
   });
 }

@@ -193,8 +193,7 @@ tests/                      Node test runner: protokol, WebRTC, world snapshot, 
                             rehberi, kısıt taramaları (pxConstants/fieldKit/movementBudget), health
 tests-e2e/                  Playwright (npm run test:e2e): engine-smoke.spec.js — tüm GAME_ORDER
                             motorlarını registry'den yükleyip LOBBY→PLAYING 240 kare sürer;
-                            visual-baseline.spec.js — seeded PRNG + donmuş saatle motor başına
-                            kare-60 canvas ekran tabanı (*.js-snapshots/, --update-snapshots)
+                            control-surface.spec.js — yerel kontrol yüzeyi seçimi
 tests/relayProbes.test.mjs  §11'in 3 provasının protokol karşılığı: hazır→lobi sıfırlama,
                             takas isim senkronu, bot görünürlüğü — gerçek WS sunucusu üzerinde
 playwright.config.mjs       e2e yapılandırması (vite:3100 webServer, chromium headless)

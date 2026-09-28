@@ -11,6 +11,7 @@
 import { drawObstacle } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { drawStatusChip } from '../core/entityStatus.js';
 import {
   round1,
   packRectList,
@@ -356,36 +357,43 @@ export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true,
       now,
     });
 
-    if (player.strikeProg !== null && player.strikeProg !== undefined) {
-      ctx.save();
-      ctx.strokeStyle = 'rgba(20, 20, 22, 0.4)';
-      ctx.lineWidth = Math.max(1.5, 3.5 * u);
-      ctx.beginPath();
-      ctx.arc(0, 0, R + 4 * u, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = '#F59E0B';
-      ctx.lineWidth = Math.max(1.5, 3 * u);
-      ctx.beginPath();
-      ctx.arc(0, 0, R + 4 * u, -Math.PI / 2, -Math.PI / 2 + clamp01(player.strikeProg) * Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
-    if (player.smokeProg !== null && player.smokeProg !== undefined) {
-      ctx.save();
-      ctx.strokeStyle = 'rgba(100, 100, 110, 0.3)';
-      ctx.lineWidth = Math.max(1, 2.5 * u);
-      ctx.beginPath();
-      ctx.arc(0, 0, R + 8 * u, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = '#A855F7';
-      ctx.lineWidth = Math.max(1, 2.5 * u);
-      ctx.beginPath();
-      ctx.arc(0, 0, R + 8 * u, -Math.PI / 2, -Math.PI / 2 + clamp01(player.smokeProg) * Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
-
     ctx.restore();
+
+    // Vuruş + duman göstergeleri: İKİ İNCE ÇEMBER yerine iki rozet.
+    // Eskisi gövde etrafında R+4/R+8 yarıçapında 1.5-3.5px yaylardı; ray
+    // 1.50:1, vuruş yayı 1.91:1 ile krem zeminde okunmuyordu. İkon ayrımı:
+    // kılıç = vuruş, hayalet = duman.
+    // DÖNÜŞ DIŞINDA: üstteki çerçeve `player.angle` ile dönüyor; rozet dünya
+    // koordinatında çizilir, yoksa oyuncu döndükçe yörüngede gezerdi.
+    const hasStrike = player.strikeProg !== null && player.strikeProg !== undefined;
+    const hasSmoke = player.smokeProg !== null && player.smokeProg !== undefined;
+    const chipCount = (hasStrike ? 1 : 0) + (hasSmoke ? 1 : 0);
+    let chipIndex = 0;
+    if (hasStrike) {
+      drawStatusChip(ctx, {
+        x: player.x,
+        y: player.y,
+        radius: R,
+        scale: u,
+        icon: 'sword',
+        progress: clamp01(player.strikeProg),
+        index: chipIndex,
+        count: chipCount,
+      });
+      chipIndex += 1;
+    }
+    if (hasSmoke) {
+      drawStatusChip(ctx, {
+        x: player.x,
+        y: player.y,
+        radius: R,
+        scale: u,
+        icon: 'ghost',
+        progress: clamp01(player.smokeProg),
+        index: chipIndex,
+        count: chipCount,
+      });
+    }
   }
 }
 

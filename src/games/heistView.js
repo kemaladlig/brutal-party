@@ -8,6 +8,8 @@ import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawObstacle } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
+import { drawStatusChip } from '../core/entityStatus.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import {
   round1,
   packRectList,
@@ -328,7 +330,7 @@ export function drawHeistPiggy(ctx, piggy) {
   ctx.restore();
 }
 
-export function drawHeistPlayers(ctx, players, { withFx = true, now = 0 } = {}) {
+export function drawHeistPlayers(ctx, players, { withFx = true, now = 0, arena = null } = {}) {
   let richestIndex = -1;
   let maxCarried = 2;
   for (const p of players) {
@@ -354,18 +356,34 @@ export function drawHeistPlayers(ctx, players, { withFx = true, now = 0 } = {}) 
     const u = radius / 36;
     if (withFx && (player.slot ?? player.index) === richestIndex) {
       const pulse = Math.sin(performance.now() * 0.01) * 3;
-      ctx.strokeStyle = '#FFDE59';
-      ctx.lineWidth = Math.max(1.5, 2.5 * u);
+      // En-zengin halkası: altın 1.19:1 ile görünmezdi. Koyu taban + altın üst.
+      ctx.strokeStyle = UI_COLORS.hudInkOutline;
+      ctx.lineWidth = Math.max(2.5, 4.5 * u);
       ctx.setLineDash([4 * u, 4 * u]);
       ctx.beginPath();
       ctx.arc(0, 0, radius + 10 * u + pulse, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.strokeStyle = UI_COLORS.hudAmber;
+      ctx.lineWidth = Math.max(1.5, 2.5 * u);
+      ctx.beginPath();
+      ctx.arc(0, 0, radius + 10 * u + pulse, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.setLineDash([]);
-      drawTabletopIcon(ctx, 'crown', 0, -radius - 32 * u, 22 * u, { color: '#FFDE59' });
+      // Taç ikonu çıplak altın da görünmezdi — koyu disk üstünde.
+      ctx.fillStyle = UI_COLORS.hudPlate;
+      ctx.beginPath();
+      ctx.arc(0, -radius - 32 * u, 14 * u, 0, Math.PI * 2);
+      ctx.fill();
+      drawTabletopIcon(ctx, 'crown', 0, -radius - 32 * u, 22 * u, { color: UI_COLORS.hudAmber });
     }
 
     if (withFx && player.tackling) {
-      ctx.strokeStyle = '#FFDE59';
+      ctx.strokeStyle = UI_COLORS.hudInkOutline;
+      ctx.lineWidth = Math.max(3, 6 * u);
+      ctx.beginPath();
+      ctx.arc(0, 0, radius + 6 * u, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = UI_COLORS.hudAmber;
       ctx.lineWidth = Math.max(2, 4 * u);
       ctx.beginPath();
       ctx.arc(0, 0, radius + 6 * u, 0, Math.PI * 2);
@@ -404,21 +422,11 @@ export function drawHeistPlayers(ctx, players, { withFx = true, now = 0 } = {}) 
       now,
     });
 
-    if (withFx && player.cd > 0) {
-      const cdProg = 1.0 - Math.max(0, Math.min(1, player.cd / 3.5));
-      ctx.save();
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-      ctx.lineWidth = Math.max(1.5, 3.5 * u);
-      ctx.beginPath();
-      ctx.arc(0, 0, radius + 5 * u, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = '#FFDE59';
-      ctx.lineWidth = Math.max(1.5, 3 * u);
-      ctx.beginPath();
-      ctx.arc(0, 0, radius + 5 * u, -Math.PI / 2, -Math.PI / 2 + cdProg * Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
+    // Tackle cooldown rozeti dünya koordinatında çizilir (aşağıda, restore
+    // sonrası) — çerçeve öteleme + döndürme taşımaz, üst üste binme yok.
+    const heistCdProg = withFx && player.cd > 0
+      ? 1.0 - Math.max(0, Math.min(1, player.cd / 3.5))
+      : null;
 
     if ((player.carried || 0) > 0) {
       const bagY = -radius - 12;
@@ -481,6 +489,20 @@ export function drawHeistPlayers(ctx, players, { withFx = true, now = 0 } = {}) 
     }
 
     ctx.restore();
+
+    if (heistCdProg !== null) {
+      // Tackle cooldown: ince çember (altın yay 1.19:1) yerine rozet.
+      drawStatusChip(ctx, {
+        x: px,
+        y: py,
+        radius,
+        arena,
+        scale: u,
+        icon: 'zap',
+        progress: heistCdProg,
+        remaining: Math.max(0, player.cd),
+      });
+    }
   }
 }
 

@@ -7,6 +7,7 @@ import { drawField } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { packBlast, isValidBlast, drawBlast, isWorldEntityVisible } from './worldCore.js';
 import { renderEntityHUD } from '../ui/hud.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import { t } from '../i18n.js';
 
 const round1 = (v) => Math.round(Number(v) * 10) / 10;
@@ -141,7 +142,7 @@ export function drawBombArena(ctx, arena, pillars, { carrier = null, bombTimer =
     ctx.save();
     const urgency = 1 - Math.max(0, bombTimer / Math.max(1, bombMaxTime));
     const ringRadius = carrier.radius + 18 + Math.sin(performance.now() * 0.01) * 4;
-    ctx.strokeStyle = urgency > 0.6 ? '#D84727' : '#D99B26';
+    ctx.strokeStyle = urgency > 0.6 ? '#D84727' : UI_COLORS.hudAmber;
     ctx.lineWidth = 2.5 * u;
     ctx.setLineDash([6, 6]);
     ctx.beginPath();
@@ -190,7 +191,7 @@ export function drawBombPickups(ctx, pickups) {
   }
 }
 
-export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15, withFx = true, now = 0 } = {}) {
+export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15, withFx = true, now = 0, arena = null } = {}) {
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
     const radius = player.radius || 36;
@@ -211,7 +212,8 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
       ctx.save();
       const dazeAngle = performance.now() * 0.008;
       const starR = radius + 14;
-      ctx.fillStyle = '#FFDE59';
+      // Sersem yıldızları + halka + yazı: altın 1.19:1 ile görünmezdi.
+      ctx.fillStyle = UI_COLORS.hudAmber;
       for (let s = 0; s < 3; s++) {
         const a = dazeAngle + (s * Math.PI * 2) / 3;
         const sx = Math.cos(a) * starR;
@@ -224,13 +226,13 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
       ctx.beginPath();
       ctx.arc(0, 0, radius + 6 * u, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.strokeStyle = '#FFDE59';
+      ctx.strokeStyle = UI_COLORS.hudAmber;
       ctx.lineWidth = uMin(3.5);
       ctx.beginPath();
       ctx.arc(0, 0, radius + 6 * u, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = '#FFDE59';
+      ctx.fillStyle = UI_COLORS.hudAmber;
       ctx.font = `900 ${uMin(10)}px "JetBrains Mono", monospace`;
       ctx.textAlign = 'center';
       ctx.lineJoin = 'round';
@@ -261,7 +263,8 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
       const urgency = 1 - Math.max(0, bombTimer / Math.max(1, bombMaxTime));
       const pulseSpeed = 1 + urgency * 4;
       const pulseR = radius + 8 * u + Math.sin(performance.now() * 0.015 * pulseSpeed) * 4 * u;
-      ctx.strokeStyle = urgency > 0.7 ? '#FFDE59' : '#D84727';
+      // Kritik nabız altın 1.19:1 ile görünmezdi.
+      ctx.strokeStyle = urgency > 0.7 ? UI_COLORS.hudAmber : '#D84727';
       ctx.lineWidth = uMin(urgency > 0.7 ? 4 : 3);
       ctx.beginPath();
       ctx.arc(0, 0, pulseR, 0, Math.PI * 2);
@@ -277,7 +280,8 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
     drawGameAvatar(ctx, 0, 0, radius, player, {
       facingAngle: player.angle,
       expression: currentExp,
-      borderColor: player.dash > 0 ? '#FFFFFF' : (player.rimColor || '#1C1C1A'),
+      // Dash vurgusu BEYAZDI — krem zeminde 1.10:1, görünmez.
+      borderColor: player.dash > 0 ? UI_COLORS.hudAmber : (player.rimColor || '#1C1C1A'),
       borderWidth: uMin(player.dash > 0 ? 4.5 : 3),
       // Bomba taşıyıcısı kaçarken gözleri kaçış yönüne bakar: gövde `angle`
       // ile döner, bakış `vx/vy`'den türetilir.
@@ -285,19 +289,11 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
       now,
     });
 
-    if (withFx) {
-      const cdProg = player.cd > 0
-        ? 1.0 - Math.max(0, Math.min(1, player.cd / Math.max(1, player.cdMax)))
-        : 1.0;
-      renderEntityHUD(ctx, {
-        x: 0,
-        y: 0,
-        radius,
-        color: '#FFDE59',
-        cooldownProgress: player.cd > 0 ? cdProg : null,
-        stun: player.stumble > 0,
-      });
-    }
+    // Dash rozeti dünya koordinatında çizilir (aşağıda, restore sonrası).
+    const bombCdProg = withFx && player.cd > 0
+      ? 1.0 - Math.max(0, Math.min(1, player.cd / Math.max(1, player.cdMax)))
+      : null;
+    const bombStun = withFx && player.stumble > 0;
 
     if (isCarrier) {
       const bombY = -radius - 18;
@@ -314,13 +310,25 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
       ctx.moveTo(0, bombY - 10);
       ctx.quadraticCurveTo(6, bombY - 16, 4, bombY - 20);
       ctx.stroke();
-      ctx.fillStyle = Math.random() > 0.5 ? '#FFDE59' : '#D84727';
+      ctx.fillStyle = Math.random() > 0.5 ? UI_COLORS.hudAmber : '#D84727';
       ctx.beginPath();
       ctx.arc(4, bombY - 20, 3.5, 0, Math.PI * 2);
       ctx.fill();
     }
 
     ctx.restore();
+
+    if (bombCdProg !== null || bombStun) {
+      renderEntityHUD(ctx, {
+        x: player.x,
+        y: player.y,
+        radius,
+        color: UI_COLORS.hudAmber,
+        arena,
+        cooldownProgress: bombCdProg,
+        stun: bombStun,
+      });
+    }
   }
 }
 

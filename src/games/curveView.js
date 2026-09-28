@@ -11,6 +11,7 @@
 //      kalır, yani görsel sadakat düşer ama oyun doğruluğu bozulmaz.
 
 import { drawPickup } from '../core/arenaKit.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import {
   round1,
   createWorldSnapshot,
@@ -275,21 +276,21 @@ export function drawCurveHeads(ctx, players) {
     const u = headRadius / 18;
 
     if (p.freeze) {
-      ctx.strokeStyle = '#00B4D8';
+      ctx.strokeStyle = UI_COLORS.hudShield;
       ctx.lineWidth = 2 * u;
       ctx.setLineDash([2 * u, 2 * u]);
       ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 6 * u, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
     }
     if (p.thick) {
-      ctx.strokeStyle = '#D99B26';
+      ctx.strokeStyle = UI_COLORS.hudAmber;
       ctx.lineWidth = 2.5 * u;
       ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 4.5 * u, 0, Math.PI * 2); ctx.stroke();
     }
     if (p.ghost) {
       ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 5 * u, 0, Math.PI * 2);
       ctx.setLineDash([3 * u, 3 * u]);
-      ctx.strokeStyle = '#70E000';
+      ctx.strokeStyle = UI_COLORS.hudGhost;
       ctx.lineWidth = 1.8 * u;
       ctx.stroke();
       ctx.setLineDash([]);
@@ -297,7 +298,7 @@ export function drawCurveHeads(ctx, players) {
     if (p.confused) {
       ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 7 * u, 0, Math.PI * 2);
       ctx.setLineDash([1 * u, 3 * u]);
-      ctx.strokeStyle = '#FF473A';
+      ctx.strokeStyle = UI_COLORS.danger;
       ctx.lineWidth = 2 * u;
       ctx.stroke();
       ctx.setLineDash([]);

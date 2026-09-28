@@ -376,6 +376,29 @@
   --shadow-edge: 0 2px 0 rgba(43, 32, 24, 0.32);
   --shadow-pop: 0 4px 0 rgba(43, 32, 24, 0.26), 0 8px 18px rgba(43, 32, 24, 0.18);
   --shadow-press: inset 0 3px 10px rgba(43, 32, 24, 0.3);
+
+  /* Karakter üstü göstergeler (saha kapsamı) — `src/ui/tokens.js` ile eşleşir.
+     Saha zemini L* 92.5-97.5 krem; altın/turkuaz bu zeminde 1.2-1.3:1 ile ölü,
+     koyu plaka üstünde 9.9-10.6:1. "Hazır" sinyali bu yüzden çember değil
+     koyu plaka + ikon taşır. */
+  --hud-plate: #1a1815;
+  --hud-plate-ink: #fff8ea;
+  --hud-ready: #35b36a;
+  --hud-dim: rgba(26, 26, 26, 0.55);
+  --hud-empty: #857b71;
+  --hud-muted: #4a443e;
+  /* Krem zeminde beyaz kontur işe yaramaz (1.10:1); saha metni koyu kontur alır. */
+  --hud-ink-outline: rgba(26, 26, 26, 0.92);
+  /* Durum haleleri — #0ea5e9 (2.30:1) ve #38bdf8 (1.91:1) kremde okunmuyordu. */
+  --hud-shield: #0e7490;
+  --hud-shield-dot: #cdeef7;
+  --hud-shield-fill: rgba(14, 116, 144, 0.22);
+  /* Şarj/yay gerilme tonu — #8b5cf6 yerine, zeminden daha belirgin koyu mor. */
+  --hud-charge: #6d28d9;
+  /* Durum haleleri — #d99b26 (2.16) ve #70e000 (1.52) kremde okunmuyordu. */
+  --hud-amber: #8a5a00;
+  --hud-ghost: #4f8a00;
+  --hud-ammo: #ffb020;
 }
 
 * {

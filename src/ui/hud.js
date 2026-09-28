@@ -12,6 +12,7 @@ import { hasTabletopIcon, drawTabletopIcon } from '../core/tabletopIcons.js';
 import { isCompactLandscape } from '../core/playfield.js';
 import { drawResultPanel, dimBehindPanel, resultPanelRadius, uiTextScale } from './resultPanel.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
 
 function pathRoundRect(ctx, x, y, w, h, r) {
   if (typeof ctx.roundRect === 'function') {
@@ -654,60 +655,62 @@ export function renderAdaptiveScoreboard(ctx, {
 // ---------------------------------------------------------------------------
 // Merkezi Varlık HUD (Entity Overhead Status System)
 // ---------------------------------------------------------------------------
+
+/**
+ * Ateş/doldurma göstergesi — `core/entityStatus` rozetine delegasyon.
+ *
+ * ESKİDEN burada `radius + 10` yarıçapında 3px'lik bir halka vardı; krem
+ * zeminde `cooldownTrack` (0.28 alfa) 1.78:1 ve altın yay 1.18:1 ile
+ * görünmüyordu. Üç ayrı fonksiyon (bu, `renderEntityHUD`'ın yetenek halkası,
+ * `laserView`'un dash halkası) aynı karakterin etrafını üç ayrı ince çemberle
+ * çiziyordu. Artık tek geometri, tek yer: koyu plaka + ikon.
+ */
 export function renderFireCooldown(ctx, {
   x,
   y,
   radius = 16,
   progress = null,
   feedback = null,
-  color = UI_COLORS.gold,
+  arena = null,
+  icon = 'zap',
+  index = 0,
+  count = 1,
 }) {
   const normalized = Number.isFinite(progress) ? Math.max(0, Math.min(1, progress)) : 1;
   const ttl = feedback && Number.isFinite(feedback.ttl)
     ? Math.max(0, Math.min(1, feedback.ttl))
     : 0;
+  const kind = feedback?.kind ?? null;
   const hasProgress = Number.isFinite(progress) && normalized < 0.999;
+
+  // Hiçbir şey görünecekse çizme (cooldown yok, geri bildirim yok).
   if (!hasProgress && ttl <= 0) return;
 
-  const ringR = radius + 10;
-  ctx.save();
-  if (hasProgress) {
-    ctx.strokeStyle = UI_COLORS.cooldownTrack;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(x, y, ringR, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeStyle = color || UI_COLORS.gold;
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.arc(x, y, ringR, -Math.PI / 2, -Math.PI / 2 + normalized * Math.PI * 2);
-    ctx.stroke();
+  // Atış anı: yalnız kısa bir parlama, kalıcı durum değil.
+  if (kind === 'shot' && ttl > 0) {
+    ctx.save();
+    ctx.globalAlpha = ttl * 0.9;
+    drawStatusChip(ctx, { x, y, radius, arena, icon, state: STATUS_STATE.READY, index, count });
+    ctx.restore();
+    return;
   }
 
-  if (ttl > 0 && feedback?.kind === 'blocked') {
-    ctx.globalAlpha = 0.35 + ttl * 0.65;
-    ctx.strokeStyle = UI_COLORS.danger;
-    ctx.lineWidth = 4 + ttl * 2;
-    ctx.beginPath();
-    ctx.arc(x, y, ringR + 2, 0, Math.PI * 2);
-    ctx.stroke();
-  } else if (ttl > 0 && feedback?.kind === 'ready') {
-    ctx.globalAlpha = 0.45 + ttl * 0.55;
-    ctx.strokeStyle = UI_COLORS.gold;
-    ctx.lineWidth = 3 + ttl * 3;
-    ctx.beginPath();
-    ctx.arc(x, y, ringR + 2, 0, Math.PI * 2);
-    ctx.stroke();
-  } else if (ttl > 0 && feedback?.kind === 'shot') {
-    ctx.globalAlpha = ttl * 0.8;
-    ctx.strokeStyle = color || UI_COLORS.white;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(x, y, ringR + 1, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.restore();
+  const state = kind === 'blocked'
+    ? STATUS_STATE.BLOCKED
+    : (hasProgress ? STATUS_STATE.CHARGING : STATUS_STATE.READY);
+
+  drawStatusChip(ctx, {
+    x,
+    y,
+    radius,
+    arena,
+    icon,
+    state,
+    progress: hasProgress ? normalized : 1,
+    remaining: hasProgress ? (1 - normalized) * 4 : 0,
+    index,
+    count,
+  });
 }
 
 // Tüm oyun motorlarında (Tanks, Laser, Bomb, Crown vb.) oyuncunun/tankın üstünde
@@ -731,6 +734,8 @@ export function renderEntityHUD(ctx, {
   shield = false,
   stun = false,
   label = '',
+  chipIndex = 0, // aynı karakterde ikinci bir rozet varsa (ateş + yetenek) yatay dizilim
+  chipCount = 1,
 }) {
   const s = Math.max(0.75, Math.min(1.4, scale));
   const now = performance.now();
@@ -738,61 +743,31 @@ export function renderEntityHUD(ctx, {
   ctx.save();
 
   // 1. Kalkan Balonu & Dönen Uydu
+  //
+  // Geometri durum halesi olarak kalıyor; renk okunur koyuya çevrildi
+  // (`#0EA5E9` krem zeminde 2.30:1, `#38BDF8` 1.91:1 — ikisi de görünmez).
+  // Uydu noktası halkanın üstünde oturduğu için halkanın kontrastlığından
+  // ayrı, açık bir ton taşır.
   if (shield) {
     const shieldR = radius + Math.round(9 * s);
     ctx.save();
-    ctx.strokeStyle = UI_COLORS.shield || '#0EA5E9';
+    ctx.strokeStyle = UI_COLORS.hudShield;
     ctx.lineWidth = Math.max(2, Math.round(2.5 * s));
-    ctx.fillStyle = UI_COLORS.shieldBg || 'rgba(14, 165, 233, 0.18)';
+    ctx.fillStyle = UI_COLORS.hudShieldFill;
     ctx.beginPath();
     ctx.arc(x, y, shieldR, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
     const sAng = (now / 1000) * 3.2;
-    ctx.fillStyle = '#38BDF8';
+    ctx.fillStyle = UI_COLORS.hudShieldDot;
     ctx.beginPath();
     ctx.arc(x + Math.cos(sAng) * shieldR, y + Math.sin(sAng) * shieldR, 3.5 * s, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
 
-  // 2. Yetenek / Dash / Cooldown Çemberi (Varlık etrafında yüksek kontrastlı ark)
-  if (cooldownProgress !== null && cooldownProgress !== undefined) {
-    const ringR = radius + Math.round(4.5 * s);
-    const prog = Math.max(0, Math.min(1.0, cooldownProgress));
-
-    ctx.save();
-    if (prog >= 1.0 || prog <= 0.001) {
-      // Tam hazır: Çift stroke (koyu taban + parlak beyaz üst) — açık kağıt zeminde de görünür
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
-      ctx.lineWidth = Math.max(4, Math.round(4.5 * s));
-      ctx.beginPath();
-      ctx.arc(x, y, ringR, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-      ctx.lineWidth = Math.max(2, Math.round(2.5 * s));
-      ctx.beginPath();
-      ctx.arc(x, y, ringR, 0, Math.PI * 2);
-      ctx.stroke();
-    } else {
-      // Doluyor: Koyu zemin rayı + renkli dolum yayı
-      ctx.strokeStyle = UI_COLORS.cooldownTrack || 'rgba(26, 26, 26, 0.28)';
-      ctx.lineWidth = Math.max(2.5, Math.round(3 * s));
-      ctx.beginPath();
-      ctx.arc(x, y, ringR, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.strokeStyle = color || UI_COLORS.white;
-      ctx.lineWidth = Math.max(2.5, Math.round(3 * s));
-      ctx.beginPath();
-      ctx.arc(x, y, ringR, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  // 3. Sersemleme / Daze Yıldızları
+  // 2. Sersemleme / Daze Yıldızları
   if (stun) {
     ctx.save();
     const starTime = now / 320;
@@ -800,22 +775,34 @@ export function renderEntityHUD(ctx, {
       const ang = starTime + (k * Math.PI * 2) / 3;
       const sx = x + Math.cos(ang) * (radius + 7 * s);
       const sy = (y - radius * 0.3) + Math.sin(ang) * (4 * s);
-      ctx.fillStyle = UI_COLORS.gold || '#D99B26';
+      // Koyu kontur: altın yıldız krem zeminde 1.18:1 ile görünmüyordu.
       ctx.font = `900 ${Math.round(11 * s)}px ${UI_FONTS.mono}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      ctx.lineWidth = Math.max(2, Math.round(2.5 * s));
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = UI_COLORS.hudInkOutline;
+      ctx.strokeText('★', sx, sy);
+      ctx.fillStyle = UI_COLORS.gold;
       ctx.fillText('★', sx, sy);
     }
     ctx.restore();
   }
 
-  // 4. Başüstü Göstergeleri: Cephane (Ammo) ve Can (HP)
+  // 3. Başüstü Yığını: Yetenek rozeti → Can → Cephane.
+  //
+  // Üçü de aynı dikey sütunda, tek `flipBelow` kararıyla aynı yöne döner.
+  // Daha önce yetenek göstergesi karakterin ETRAFINDA ayrı bir çemberdi;
+  // cephane başüstüydü. Aynı bilgi iki ayrı yer, iki ayrı geometri.
   const hasHp = typeof hp === 'number' && typeof maxHp === 'number' && maxHp > 0;
   const hasAmmo = typeof ammo === 'number' && typeof maxAmmo === 'number' && maxAmmo > 0;
+  const hasCooldown = cooldownProgress !== null && cooldownProgress !== undefined;
 
-  if (hasHp || hasAmmo) {
+  if (hasHp || hasAmmo || hasCooldown) {
     // Tavan / Kenar çakışma koruması (Edge Clamping / Flipping)
-    const totalOverheadH = (hasHp ? 12 * s : 0) + (hasAmmo ? 15 * s : 0);
+    const totalOverheadH = (hasCooldown ? 20 * s : 0)
+      + (hasHp ? 12 * s : 0)
+      + (hasAmmo ? 15 * s : 0);
     let flipBelow = false;
     if (arena && (y - radius - totalOverheadH < (arena.top || 0) + 10 * s)) {
       flipBelow = true;
@@ -824,6 +811,30 @@ export function renderEntityHUD(ctx, {
     let currentAnchorY = flipBelow
       ? y + radius + Math.round(10 * s)
       : y - radius - Math.round(8 * s);
+
+    // A. Yetenek / Dash hazır rozeti (`core/entityStatus` — tek geometri)
+    if (hasCooldown) {
+      const prog = Math.max(0, Math.min(1.0, cooldownProgress));
+      const chipBox = drawStatusChip(ctx, {
+        x,
+        y,
+        radius,
+        arena,
+        scale: s,
+        icon: 'zap',
+        state: prog >= 0.999 ? STATUS_STATE.READY : STATUS_STATE.CHARGING,
+        progress: prog,
+        remaining: prog < 0.999 ? (1 - prog) * 3 : 0,
+        anchorY: currentAnchorY,
+        index: chipIndex,
+        count: chipCount,
+      });
+      if (chipBox) {
+        currentAnchorY = flipBelow
+          ? currentAnchorY + chipBox.h + Math.round(4 * s)
+          : currentAnchorY - chipBox.h - Math.round(4 * s);
+      }
+    }
 
     // Yatay eksende ekran dışına taşmayı önle
     let anchorX = x;
@@ -844,7 +855,9 @@ export function renderEntityHUD(ctx, {
       ctx.save();
       for (let h = 0; h < maxHp; h++) {
         const cx = startX + h * (pw + gap) + pw / 2;
-        ctx.fillStyle = h < hp ? color : (UI_COLORS.disabled || '#E5E0D6');
+        // Boş pip `disabled` (#E5DCC9) krem zeminde 1.13:1 — görünmez.
+        // `hudEmpty` 5.6:1: dolu ile boş pip artık ayrışıyor.
+        ctx.fillStyle = h < hp ? color : UI_COLORS.hudEmpty;
         ctx.strokeStyle = UI_COLORS.ink;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -872,7 +885,7 @@ export function renderEntityHUD(ctx, {
 
       ctx.save();
       // Koyu koruyucu çerçeve + kenarlık
-      ctx.fillStyle = UI_COLORS.ammoFrame || '#141416';
+      ctx.fillStyle = UI_COLORS.ammoFrame;
       ctx.fillRect(boxX, boxY, boxW, boxH);
       ctx.strokeStyle = UI_COLORS.ink;
       ctx.lineWidth = 1.5;
@@ -884,8 +897,9 @@ export function renderEntityHUD(ctx, {
         const isReady = a < ammo;
         const isReloading = a === ammo && ammo < maxAmmo && reloadProgress > 0;
 
-        // Fişek yuvası arka planı
-        ctx.fillStyle = UI_COLORS.ammoEmpty || '#26262B';
+        // Fişek yuvası arka planı. `ammoEmpty` çerçeveyle 1.23:1 idi —
+        // boş yuva dolu yuvadan ayırt edilemiyordu. `hudEmpty` 5.6:1.
+        ctx.fillStyle = UI_COLORS.hudEmpty;
         ctx.fillRect(bx, by, bulletW, bulletH);
 
         if (isReady) {
@@ -895,8 +909,8 @@ export function renderEntityHUD(ctx, {
           ctx.fillStyle = UI_COLORS.white;
           ctx.fillRect(bx + bulletW - Math.round(3 * s), by + 1, Math.round(2.5 * s), bulletH - 2);
         } else if (isReloading) {
-          // Doluyor: Altın sarısı dolum ilerlemesi
-          ctx.fillStyle = UI_COLORS.ammoReloading || '#FACC15';
+          // Doluyor: altın dolum ilerlemesi — koyu çerçeve üstünde 9.7:1
+          ctx.fillStyle = UI_COLORS.ammoReloading;
           ctx.fillRect(bx, by, Math.round(bulletW * Math.min(1.0, reloadProgress)), bulletH);
         }
 
@@ -908,13 +922,16 @@ export function renderEntityHUD(ctx, {
     }
   }
 
-  // 5. İsteğe Bağlı Etiket (P1, P2 vb.)
+  // 4. İsteğe Bağlı Etiket (P1, P2 vb.)
   if (label) {
     ctx.save();
     ctx.font = `900 ${Math.round(10 * s)}px ${UI_FONTS.mono}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.strokeStyle = UI_COLORS.outlineContrast || 'rgba(250, 247, 242, 0.92)';
+    // Kontur KOYU olmalı: `outlineContrast` beyaz, krem zeminde 1.10:1 —
+    // yani kontur hiç iş görmüyordu ve açık renkli oyuncu etiketleri
+    // (P3 1.28:1) zeminde kayboluyordu.
+    ctx.strokeStyle = UI_COLORS.hudInkOutline;
     ctx.lineWidth = 3;
     ctx.strokeText(label, x, y + radius + Math.round(8 * s));
     ctx.fillStyle = color;

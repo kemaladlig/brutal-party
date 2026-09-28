@@ -15,6 +15,7 @@ import { distToSegmentSquared, clampToArena } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
 import { createCurveWorldPacket } from './curveView.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import { vibrate } from '../core/haptics.js';
 import { computePlayfield, fieldPx, fieldRadius, fieldSpeed } from '../core/playfield.js';
 
@@ -997,9 +998,9 @@ export class CurveGame extends BaseMiniGame {
       ctx.save();
       const headRadius = player.shrinkTimer > 0 ? player.radius * 0.64 : player.radius;
 
-      // Dondurma aurası
+      // Dondurma aurası `#00B4D8` 2.56:1 idi; `hudShield` 4.44:1.
       if (player.freezeTimer > 0) {
-        ctx.strokeStyle = '#00B4D8';
+        ctx.strokeStyle = UI_COLORS.hudShield;
         ctx.lineWidth = Math.max(1, 2 * u);
         ctx.setLineDash([2, 2]);
         ctx.beginPath();
@@ -1008,28 +1009,28 @@ export class CurveGame extends BaseMiniGame {
         ctx.setLineDash([]);
       }
 
-      // Barikat kalkanı aurası
+      // Barikat kalkanı aurası `#D99B26` 2.16:1 idi; `hudAmber` 4.91:1.
       if (player.thickTimer > 0) {
-        ctx.strokeStyle = '#D99B26';
+        ctx.strokeStyle = UI_COLORS.hudAmber;
         ctx.lineWidth = Math.max(1, 2.5 * u);
         ctx.beginPath();
         ctx.arc(player.x, player.y, headRadius + 4.5, 0, Math.PI * 2);
         ctx.stroke();
       }
 
-      // Hayalet aurası
+      // Hayalet aurası `#70E000` 1.52:1 idi; `hudGhost` 3.5:1.
       if (player.ghostTimer > 0) {
         ctx.beginPath();
         ctx.arc(player.x, player.y, headRadius + 5, 0, Math.PI * 2);
         ctx.setLineDash([3, 3]);
-        ctx.strokeStyle = '#70E000';
+        ctx.strokeStyle = UI_COLORS.hudGhost;
         ctx.lineWidth = Math.max(1, 1.8 * u);
         ctx.stroke();
         ctx.setLineDash([]);
       }
 
       if (player.confusedTimer > 0) {
-        ctx.strokeStyle = '#FF473A';
+        ctx.strokeStyle = UI_COLORS.danger;
         ctx.lineWidth = Math.max(1, 2 * u);
         ctx.setLineDash([1, 3]);
         ctx.beginPath();

@@ -218,7 +218,8 @@ function drawPlayer(ctx, player, color, checkpoints) {
 
   const isDrafting = player.drafting ?? player.isDrafting;
   if (isDrafting) {
-    ctx.save(); ctx.strokeStyle = '#38BDF8'; ctx.lineWidth = 2 * u; ctx.beginPath();
+    // Draft hattı `#38BDF8` krem zeminde 1.91:1 idi; `hudShield` 4.44:1.
+    ctx.save(); ctx.strokeStyle = UI_COLORS.hudShield; ctx.lineWidth = 2 * u; ctx.beginPath();
     ctx.moveTo(player.x, player.y + jumpOffsetY);
     ctx.lineTo(player.x - Math.cos(player.angle) * 35 * u, player.y + jumpOffsetY - Math.sin(player.angle) * 35 * u);
     ctx.stroke(); ctx.restore();
@@ -229,7 +230,10 @@ function drawPlayer(ctx, player, color, checkpoints) {
   const isBoosting = player.boosting ?? ((player.nitroBoostTimer || 0) > 0);
   if (isDashing || isBoosting) { ctx.fillStyle = UI_COLORS.turbo; ctx.fillRect(-28 * u, -8 * u, 14 * u, 16 * u); }
   const isDisrupted = player.disrupted ?? ((player.empDisruptedTimer || 0) > 0);
-  if (isDisrupted) { ctx.strokeStyle = '#0EA5E9'; ctx.lineWidth = 3 * u; ctx.beginPath(); ctx.arc(0, 0, 20 * u, 0, Math.PI * 2); ctx.stroke(); }
+  if (isDisrupted) {
+    // EMP bozulma halkası `#0EA5E9` 2.30:1 — `hudShield` 4.44:1, geometri aynı.
+    ctx.strokeStyle = UI_COLORS.hudShield; ctx.lineWidth = 3 * u; ctx.beginPath(); ctx.arc(0, 0, 20 * u, 0, Math.PI * 2); ctx.stroke();
+  }
   ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(16 * u, 0); ctx.lineTo(-12 * u, -10 * u); ctx.lineTo(-8 * u, 0); ctx.lineTo(-12 * u, 10 * u); ctx.closePath(); ctx.fill();
   ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 2.5 * u; ctx.stroke(); ctx.restore();
 

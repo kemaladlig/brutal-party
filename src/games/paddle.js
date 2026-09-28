@@ -2,6 +2,7 @@
 // Bot kararı src/ai/pongAI.js'tedir (diğer motorlarla aynı desen).
 
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import { t } from '../i18n.js';
 import { updatePongBotAI as runPongBotAI } from '../ai/pongAI.js';
 
@@ -277,7 +278,8 @@ export class Paddle {
     if (this.spinCharge > 0) {
       ctx.save();
       ctx.globalAlpha = 0.8;
-      ctx.strokeStyle = '#D99B26';
+      // `#D99B26` çerçeve krem zeminde 2.16:1 idi; `hudAmber` 4.91:1.
+      ctx.strokeStyle = UI_COLORS.hudAmber;
       ctx.lineWidth = Math.max(2, 4 * u);
       ctx.strokeRect(bounds.left - 4, bounds.top - 4, w + 8, h + 8);
       ctx.globalAlpha = 1;
@@ -286,9 +288,9 @@ export class Paddle {
       const chipH = 42;
       const chipX = (bounds.left + bounds.right) / 2 - chipW / 2;
       const chipY = (bounds.top + bounds.bottom) / 2 - chipH / 2;
-      ctx.fillStyle = '#1A1A1A';
+      ctx.fillStyle = UI_COLORS.hudPlate;
       ctx.fillRect(chipX, chipY, chipW, chipH);
-      ctx.fillStyle = '#FFDE59';
+      ctx.fillStyle = UI_COLORS.hudReady;
       ctx.font = '900 20px "Space Grotesk", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';

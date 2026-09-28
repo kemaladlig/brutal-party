@@ -6,6 +6,8 @@ import { isWorldEntityVisible } from './worldCore.js';
 import { drawObstacle } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
+import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
+import { UI_COLORS } from '../ui/tokens.js';
 
 const TRAIL_SPACING = 10;
 const MAX_TRAIL_POINTS = 48;
@@ -273,7 +275,8 @@ export function drawSnakePlayers(ctx, players, now = 0) {
     ctx.stroke();
 
     if (player.isBoost || player.boost) {
-      ctx.fillStyle = '#FFDE59';
+      // Boost halesi altın dolgu 1.19:1 ile görünmezdi — koyu altın, aynı geometri.
+      ctx.fillStyle = UI_COLORS.hudAmber;
       ctx.beginPath();
       ctx.arc(player.x, player.y, headRadius + 4 * u, 0, Math.PI * 2);
       ctx.fill();
@@ -307,20 +310,20 @@ export function drawSnakePlayers(ctx, players, now = 0) {
       shadowOffset: 2,
     });
 
+    // Boost enerjisi: ince çember (altın yay 1.19:1) yerine rozet.
+    // Kilitliyken BLOKE, doluyorken dolum barı. Kaynak 0-100 arası sayı.
     const energy = player.boostEnergy ?? player.energy ?? 100;
     if (energy < 98) {
-      const arcRadius = headRadius + 6 * u;
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.45)';
-      ctx.lineWidth = 3.5 * u;
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, arcRadius, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.strokeStyle = (player.boostLocked || player.locked) ? '#D84727' : '#FFDE59';
-      ctx.lineWidth = 3 * u;
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, arcRadius, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * (energy / 100)));
-      ctx.stroke();
+      const locked = !!(player.boostLocked || player.locked);
+      drawStatusChip(ctx, {
+        x: player.x,
+        y: player.y,
+        radius: headRadius,
+        scale: u,
+        icon: 'zap',
+        state: locked ? STATUS_STATE.BLOCKED : STATUS_STATE.CHARGING,
+        progress: Math.max(0, Math.min(1, energy / 100)),
+      });
     }
   }
 }

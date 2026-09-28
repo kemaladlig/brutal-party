@@ -52,6 +52,7 @@ export function createWorldViewRenderer() {
           bombTimer: frame.bombTimer,
           bombMaxTime: frame.bombMaxTime,
           withFx: frame.gameState === 'PLAYING',
+          arena,
         });
         drawBombBlast(ctx, frame.blast, arena);
         drawBombParticles(ctx, frame.particles || []);

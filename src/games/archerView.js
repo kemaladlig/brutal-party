@@ -9,6 +9,7 @@ import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
 import { renderFireCooldown } from '../ui/hud.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import { isWorldEntityVisible } from './worldCore.js';
 
 const ARCHER_RADIUS = 28;
@@ -199,8 +200,10 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena
     if (showFx && player.charging) {
       ctx.save();
       ctx.rotate(archerAimSway(player));
-      ctx.strokeStyle = player.charge >= 1 ? '#8B5CF6' : 'rgba(26,26,26,0.35)';
-      ctx.lineWidth = (player.charge >= 1 ? 3 : 2) * u;
+      // Hazır yay `#8B5CF6` 3.77:1, doluyorken 0.35 alfa 2.17:1. Koyu
+      // taban eklenince ikisi de krem zeminde okunur.
+      ctx.strokeStyle = player.charge >= 1 ? UI_COLORS.hudCharge : UI_COLORS.hudDim;
+      ctx.lineWidth = Math.max(2, (player.charge >= 1 ? 4 : 2.5) * u);
       ctx.setLineDash([8, 6]);
       ctx.beginPath();
       ctx.moveTo(R + 8, 0);
@@ -211,19 +214,21 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena
 
     if (showFx) {
       ctx.save();
-      ctx.strokeStyle = player.charging ? '#8B5CF6' : 'rgba(26,26,26,0.45)';
+      // Şarj yayı gövde etrafında bir yay olarak kalır (nişan geometrisi),
+      // ama tabanı koyu: doluyorken 2.17:1'lik ince gri çizgi kremde yoktu.
+      ctx.strokeStyle = player.charging ? UI_COLORS.hudCharge : UI_COLORS.hudDim;
       ctx.lineWidth = 3.5 * u;
       ctx.beginPath();
       ctx.arc(0, 0, R + 6, -1.1, 1.1);
       ctx.stroke();
       if (player.charging) {
-        ctx.fillStyle = '#8B5CF6';
+        ctx.fillStyle = UI_COLORS.hudCharge;
         ctx.beginPath();
         ctx.arc(R + 6, 0, 3 + (player.charge || 0) * 3, 0, Math.PI * 2);
         ctx.fill();
       }
       if ((player.shield || 0) > 0) {
-        ctx.strokeStyle = '#06B6D4';
+        ctx.strokeStyle = UI_COLORS.hudShield;
         ctx.lineWidth = 3 * u;
         ctx.setLineDash([6, 5]);
         ctx.beginPath();
@@ -232,8 +237,8 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena
         ctx.setLineDash([]);
       }
       if ((player.spawnProt || 0) > 0) {
-        ctx.strokeStyle = '#8B5CF6';
-        ctx.lineWidth = 2.5 * u;
+        ctx.strokeStyle = UI_COLORS.hudCharge;
+        ctx.lineWidth = 3 * u;
         ctx.setLineDash([3, 4]);
         ctx.beginPath();
         ctx.arc(0, 0, R + 15, 0, Math.PI * 2);
@@ -265,8 +270,8 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena
     ].filter(([, value]) => Number(value) > 0);
     activeEffects.forEach(([icon, value], index) => {
       drawTabletopIcon(ctx, icon, (index - (activeEffects.length - 1) / 2) * 16, -R - 20, 12, {
-        color: index % 2 === 0 ? '#D99B26' : '#8B5CF6',
-        accentColor: '#D99B26',
+        color: index % 2 === 0 ? UI_COLORS.hudAmber : UI_COLORS.hudCharge,
+        accentColor: UI_COLORS.hudAmber,
         strokeWidth: 2,
       });
     });
@@ -283,7 +288,8 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena
       radius: R,
       progress,
       feedback,
-      color: '#8B5CF6',
+      arena,
+      icon: 'zap',
     });
   }
 }

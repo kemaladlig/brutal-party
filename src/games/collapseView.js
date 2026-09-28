@@ -6,6 +6,7 @@
 
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
+import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
 import {
   round1,
   createWorldSnapshot,
@@ -259,14 +260,9 @@ export function drawCollapsePlayers(ctx, players) {
     const radius = player.radius || 36;
     const u = radius / 18;
 
-    if (player.super) {
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = Math.max(1.5, 4.5 * u);
-      ctx.beginPath(); ctx.arc(0, 0, radius * 0.72, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = '#FFDE59';
-      ctx.lineWidth = Math.max(1, 2.5 * u);
-      ctx.beginPath(); ctx.arc(0, 0, radius * 0.72, 0, Math.PI * 2); ctx.stroke();
-    }
+    // `super` rozeti aşağıda, restore sonrası dünya koordinatında çizilir
+    // (buradaki öteleme + zıplama ölçeği taşınır/ölçeklenir, taşmaz).
+    const superActive = !!player.super;
 
     drawGameAvatar(ctx, 0, 0, radius, player, {
       color: player.color,
@@ -279,6 +275,18 @@ export function drawCollapsePlayers(ctx, players) {
     });
 
     ctx.restore();
+
+    if (superActive) {
+      // Süper zıplama: çift altın ince çember (1.18:1) yerine rozet.
+      drawStatusChip(ctx, {
+        x: player.x,
+        y: player.y,
+        radius,
+        scale: u * 0.5,
+        icon: 'zap',
+        state: STATUS_STATE.READY,
+      });
+    }
   }
 }
 

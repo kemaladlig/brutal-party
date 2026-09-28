@@ -6,6 +6,7 @@
 
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
+import { drawStatusChip } from '../core/entityStatus.js';
 import {
   round1,
   packRectList,
@@ -197,11 +198,17 @@ export function drawCloneCharacter(ctx, x, y, angle, color, { dashing = false, s
   }
 
   if (task > 0) {
-    ctx.beginPath();
-    ctx.arc(0, 0, CLONE_RADIUS + 7, -Math.PI / 2, -Math.PI / 2 + (task / 1.5) * Math.PI * 2);
-    ctx.strokeStyle = '#2F6A4F';
-    ctx.lineWidth = Math.max(1.5, 3 * cu);
-    ctx.stroke();
+    // Görev ilerlemesi: ince yeşil yay (kremde 3.5:1, 3px) yerine rozet.
+    // `task` 0..1.5 saniyelik sayaçtır; ilerleme onun oranıdır.
+    drawStatusChip(ctx, {
+      x: 0,
+      y: 0,
+      radius: CLONE_RADIUS,
+      scale: cu,
+      icon: 'gem',
+      progress: Math.max(0, Math.min(1, task / 1.5)),
+      remaining: Math.max(0, 1.5 - task),
+    });
   }
 
   if (withFx && dashing) {
