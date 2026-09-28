@@ -6,7 +6,6 @@ import {
   CONTROL_MODE,
   uiFont,
   getUiScale,
-  getDisplayProfile,
 } from './tokens.js';
 import { t } from '../i18n.js';
 import { hasTabletopIcon, drawTabletopIcon } from '../core/tabletopIcons.js';
@@ -477,129 +476,6 @@ export function renderCornerScores(ctx, { arena, entries, entities = [], isRound
   ctx.restore();
 }
 
-// Skor tablosuna geçici göz atma (Peek) durumu
-let peekScoreboardUntil = 0;
-let lastPeekButtonRect = null;
-
-export function triggerScoreboardPeek(durationMs = 2800) {
-  peekScoreboardUntil = performance.now() + durationMs;
-}
-
-export function isScoreboardPeeking() {
-  return performance.now() < peekScoreboardUntil;
-}
-
-// Dokunma/tıklama koordinatının Peek butonuna isabet edip etmediğini kontrol eder
-export function checkScoreboardPeekTap(touch) {
-  if (!lastPeekButtonRect || !touch) return false;
-  const pad = 10;
-  if (
-    touch.x >= lastPeekButtonRect.x - pad &&
-    touch.x <= lastPeekButtonRect.x + lastPeekButtonRect.w + pad &&
-    touch.y >= lastPeekButtonRect.y - pad &&
-    touch.y <= lastPeekButtonRect.y + lastPeekButtonRect.h + pad
-  ) {
-    triggerScoreboardPeek(2800);
-    return true;
-  }
-  return false;
-}
-
-// Mobilde oyun esnasında sahayı 1 piksel bile işgal etmeyen Sınır Duvarı Mikro-İmleri (Top Rail Micro-Tally)
-export function renderArenaRailTally(ctx, { arena, players = [], scores = [0, 0, 0, 0], uiButtons = null }) {
-  const activePlayers = players.filter((p, i) => p && (p.isJoined ?? (p.slotType !== 'empty')));
-  const count = activePlayers.length;
-  if (count === 0) return;
-
-  const scale = getUiScale(arena);
-  const maxScore = Math.max(...scores.slice(0, 4));
-
-  const itemW = Math.round(42 * scale);
-  const gap = Math.round(5 * scale);
-  const totalW = count * itemW + (count - 1) * gap;
-  const barH = Math.round(17 * scale);
-
-  // Yerleşim: masaüstü/tablet'te üst duvar çizgisinin ortası (alanı işgal
-  // etmez). Telefon yatayda saha üst payı ~3px olduğu için oraya oturtmak
-  // EKRAN DIŞINA taşıyor ya da alanın içine düşüyor. Piyasa standardı:
-  // yatayda HUD köşeye gider, üst-orta band değil. Sol üst seçilir çünkü sağ
-  // üst köşe DOM chrome'una (üç nokta / tam ekran) ve çentik tarafına ayrılı;
-  // sahanın sol kenarı zaten safe-area ile temizlenmiş.
-  const corner = arena?.profile?.compactLandscape ?? isCompactLandscape(arena);
-  const pad = Math.round(4 * scale);
-  const startX = corner ? arena.left + pad : arena.cx - totalW / 2;
-  const barY = corner
-    ? arena.top + pad
-    : Math.max(Math.round(2 * scale), arena.top - barH / 2);
-
-  ctx.save();
-  ctx.globalAlpha = 0.88;
-
-  activePlayers.forEach((p, idx) => {
-    const origIdx = p.index ?? idx;
-    const score = scores[origIdx] || 0;
-    const isLeader = maxScore > 0 && score === maxScore;
-    const x = startX + idx * (itemW + gap);
-    const y = barY;
-
-    // Mini koyu zemin kapsülü
-    const chipR = barH / 2;
-    ctx.fillStyle = 'rgba(20, 16, 31, 0.88)';
-    pathRoundRect(ctx, x, y, itemW, barH, chipR);
-    ctx.fill();
-    ctx.strokeStyle = p.color || UI_COLORS.players[origIdx];
-    ctx.lineWidth = 1.4;
-    pathRoundRect(ctx, x, y, itemW, barH, chipR);
-    ctx.stroke();
-
-    // Renk noktası
-    ctx.fillStyle = p.color || UI_COLORS.players[origIdx];
-    ctx.beginPath();
-    ctx.arc(x + 6 * scale, y + barH / 2, 2.5 * scale, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Skor sayısı (küçük ekranda okunur boy)
-    ctx.fillStyle = isLeader ? UI_COLORS.gold : '#FFFFFF';
-    ctx.font = `900 ${Math.round(10.5 * scale)}px ${UI_FONTS.mono}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`${score}${isLeader ? '★' : ''}`, x + itemW / 2 + 3 * scale, y + barH / 2 + 0.5);
-  });
-
-  // Sağ üst dış boşlukta dokunulabilir Peek (Göz At) Çipi
-  const peekW = Math.round(40 * scale);
-  const peekH = Math.round(24 * scale);
-  const peekX = Math.min(arena.right - peekW, (arena.cx + totalW / 2) + 12);
-  const peekY = Math.max(4, arena.top - peekH - 3);
-
-  lastPeekButtonRect = { x: peekX, y: peekY, w: peekW, h: peekH };
-
-  const peekR = Math.round(6 * scale);
-  ctx.fillStyle = 'rgba(24, 20, 42, 0.72)';
-  pathRoundRect(ctx, peekX, peekY, peekW, peekH, peekR);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-  ctx.lineWidth = 1.2;
-  pathRoundRect(ctx, peekX, peekY, peekW, peekH, peekR);
-  ctx.stroke();
-
-  drawTabletopIcon(ctx, 'crown', peekX + peekW / 2, peekY + peekH / 2, Math.round(14 * scale), {
-    color: UI_COLORS.gold,
-  });
-
-  if (uiButtons && Array.isArray(uiButtons)) {
-    uiButtons.push({
-      x: peekX,
-      y: peekY,
-      w: peekW,
-      h: peekH,
-      onClick: () => triggerScoreboardPeek(2800),
-    });
-  }
-
-  ctx.restore();
-}
-
 // Evrensel Skor Paneli (Universal Scoreboard):
 // 'corners' (saha içi 4 köşe sabitlenmiş rozetler) veya 'top-bar' (üst yayın şeridi) düzenlerini destekler.
 // Geliştirici dostudur; tek parametreyle istenen yerleşim anında değiştirilebilir.
@@ -733,10 +609,12 @@ export function renderUniversalScoreboard(ctx, {
 // ---------------------------------------------------------------------------
 // Uyarlanabilir Skor Paneli (Adaptive Scoreboard)
 // ---------------------------------------------------------------------------
-// Ekran ve kontrol moduna göre en ergonomik düzeni dinamik seçer.
-// - Mobilde oyun esnasında saha zeminini %100 temiz tutar, sadece üst duvara gömülü mikro-çentik çizer.
-// - Raunt/maç sonunda veya peek butonuna dokunulduğunda tam boy kutlama kartı açılır.
-// - TV veya PC modunda: Yayın şeridini sahanın üst dış marjına veya sınırına çizer.
+// Ekran ve kontrol moduna göre en ergonomik düzeni seçer. TEK skor yüzeyi
+// vardır: sanal kontroller ekrandaysa üst şerit (parmak çakışmasını önler),
+// yoksa dört köşe rozeti. Sahanın sol üstüne ayrı bir mikro sayım çipi
+// (Top Rail Tally) ve onun "göz at" düğmesi KALDIRILDI: aynı skoru
+// ikinci bir yüzeyde tekrarlıyor, dolu/boş koltuk ayrımı yoktu ve
+// kullanıcı isteğiyle saha içinden çıktı.
 export function renderAdaptiveScoreboard(ctx, {
   arena,
   players = [],
@@ -748,18 +626,8 @@ export function renderAdaptiveScoreboard(ctx, {
   timeRemaining = null,
   isRoundOver = false,
   state = null,
-  uiButtons = null,
 }) {
-  const profile = getDisplayProfile(arena);
   const roundOver = Boolean(isRoundOver || state === 'ROUND_OVER' || state === 'MATCH_OVER' || state === 'ROUND_PAUSE');
-  const peeking = isScoreboardPeeking();
-
-  // Mobilde oyun esnasında (ve peek aktif değilse):
-  // Sahada oynanabilir alanı %100 temiz ve ferah bırak; sadece üst duvar sınır mikro-çentiğini ve peek çipini çiz.
-  if (profile.type === 'MOBILE' && !roundOver && !peeking) {
-    renderArenaRailTally(ctx, { arena, players, scores, uiButtons });
-    return;
-  }
 
   let layout = forceLayout;
   if (!layout) {

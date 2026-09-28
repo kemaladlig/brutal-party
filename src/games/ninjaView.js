@@ -389,7 +389,11 @@ export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true,
   }
 }
 
-export function drawNinjaSlashes(ctx, slashes) {
+export function drawNinjaSlashes(ctx, slashes, arena = null) {
+  // Sahadan gelen ölçek: dalga başına 12 px'lik kademe, aura genişliği ve
+  // uç boncuğu HAM px idi — telefonda (unit ~0.5) hamle 123 px'e düşerken
+  // animasyon 147 px'e uzanıyor, yani kılıç "havada" kalıyordu.
+  const u = arena?.unit ?? (arena?.size ? arena.size / 952 : 1);
   for (const sw of slashes || []) {
     const maxLife = Math.max(0.001, sw.maxLife || 0.52);
     const prog = Math.min(1.0, (sw.life || 0) / maxLife);
@@ -404,13 +408,14 @@ export function drawNinjaSlashes(ctx, slashes) {
       if ((sw.life || 0) < wave.delay) continue;
       const waveAge = (sw.life || 0) - wave.delay;
       const waveProg = Math.min(1.0, waveAge / (maxLife - wave.delay));
-      const waveDist = (1 - Math.pow(1 - waveProg, 2.8)) * (sw.maxDist + w * 12);
+      const waveDist = (1 - Math.pow(1 - waveProg, 2.8)) * (sw.maxDist + w * 12 * u);
       const waveRadius = sw.outerRadius * wave.scale * (0.8 + waveProg * 0.4);
       const innerRadius = sw.innerRadius * wave.scale;
       const arcSpread = sw.arcSpan * (1.1 - waveProg * 0.25);
       const startAng = -arcSpread / 2;
       const endAng = arcSpread / 2;
       const currentAlpha = fadeAlpha * (1.0 - waveProg * 0.45);
+      const tipR = Math.max(1.5, 4 * u);
 
       ctx.save();
       ctx.translate(waveDist, 0);
@@ -418,8 +423,8 @@ export function drawNinjaSlashes(ctx, slashes) {
       ctx.globalAlpha = currentAlpha * 0.22;
       ctx.fillStyle = wave.aura;
       ctx.beginPath();
-      ctx.arc(0, 0, waveRadius + 8, startAng * 1.15, endAng * 1.15, false);
-      ctx.arc(0, 0, Math.max(4, innerRadius - 6), endAng * 1.15, startAng * 1.15, true);
+      ctx.arc(0, 0, waveRadius + 8 * u, startAng * 1.15, endAng * 1.15, false);
+      ctx.arc(0, 0, Math.max(4 * u, innerRadius - 6 * u), endAng * 1.15, startAng * 1.15, true);
       ctx.closePath();
       ctx.fill();
 
@@ -436,7 +441,7 @@ export function drawNinjaSlashes(ctx, slashes) {
       ctx.fill();
 
       ctx.strokeStyle = '#141416';
-      ctx.lineWidth = wave.width + 1.5;
+      ctx.lineWidth = wave.width + 1.5 * u;
       ctx.stroke();
 
       ctx.strokeStyle = '#FFFFFF';
@@ -450,12 +455,12 @@ export function drawNinjaSlashes(ctx, slashes) {
       const tip2X = Math.cos(endAng) * waveRadius;
       const tip2Y = Math.sin(endAng) * waveRadius;
       ctx.fillStyle = '#FFFFFF';
-      ctx.beginPath(); ctx.arc(tip1X, tip1Y, 4, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(tip2X, tip2Y, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(tip1X, tip1Y, tipR, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(tip2X, tip2Y, tipR, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#141416';
-      ctx.lineWidth = Math.max(1, 1.5 * (wave.scale ?? 1));
-      ctx.beginPath(); ctx.arc(tip1X, tip1Y, 4, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath(); ctx.arc(tip2X, tip2Y, 4, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = Math.max(1, 1.5 * (wave.scale ?? 1) * u);
+      ctx.beginPath(); ctx.arc(tip1X, tip1Y, tipR, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(tip2X, tip2Y, tipR, 0, Math.PI * 2); ctx.stroke();
 
       ctx.restore();
     }

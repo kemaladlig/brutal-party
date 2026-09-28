@@ -737,14 +737,18 @@ function mountSlider1D(gamepad, container, schema) {
               PADDLE
             </div>
           </div>
-          <button class="pong-invert-btn ${gamepad.isPongInverted !== baseInvert ? 'inverted' : ''}" id="btn-invert-axis" type="button" title="${gamepad.isPongInverted !== baseInvert ? t('pad.autoDir') : t('pad.flipDir')}">
-            ${gamepad.isPongInverted !== baseInvert ? tIcon('pad.autoDir') : tIcon('pad.flipDir')}
-          </button>
         </div>
         <button class="action-spin-btn" data-controller-layout-target="right" id="btn-pong-spin" type="button" aria-label="${escapeHtml(t('pad.spinShort'))}" title="${escapeHtml(t('pad.spinShort'))}" style="${deckColorStyle(gamepad.playerColor)}">
           <span class="btn-action-icon">${getTabletopIconSvg('rotate_cw', { size: 38, color: 'currentColor', strokeWidth: 2.4 })}</span>
         </button>
       </div>
+      <!-- Eksen çevir: sürgünün hemen ALTINDA değil, sahnenin sol üst köşesinde.
+           Sürgü grubu data-controller-layout-target olduğu için
+           will-change:transform ile bir containing block'tur; sürgünün
+           İÇİNDE kalsaydı "daha uzağa" taşınamazdı. -->
+      <button class="pong-invert-btn ${gamepad.isPongInverted !== baseInvert ? 'inverted' : ''}" id="btn-invert-axis" type="button" title="${gamepad.isPongInverted !== baseInvert ? t('pad.autoDir') : t('pad.flipDir')}">
+        ${gamepad.isPongInverted !== baseInvert ? tIcon('pad.autoDir') : tIcon('pad.flipDir')}
+      </button>
     </div>
   `;
 

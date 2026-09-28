@@ -19,7 +19,7 @@ import {
 } from '../audio.js';
 import { t } from '../i18n.js';
 import { matchesInputAction } from '../core/inputIntent.js';
-import { renderTopPill, renderArenaWatermarkTimer, renderAdaptiveScoreboard } from '../ui/hud.js';
+import { renderTopPill, renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { clampToArena, damp, resolveAABB, pointBlocked } from '../core/physics2d.js';
 import { createPlayer } from '../core/playerEntity.js';
@@ -1383,17 +1383,10 @@ export class CrownGame extends BaseMiniGame {
 
     drawCrownWorld(ctx, this, this.arena, this.players.map((p) => p.color), this.lastTime, this.targetCrownTime);
 
-    // 4 Köşe Standart Yüksek Görünürlüklü Oyuncu Skorları & Sütunların Üzerinde Net Taç Süresi
+    // Sütun ve engellerin üzerinde net okunan taç süresi filigranı.
+    // Skorbord `renderHUD`'un işidir (aşağıda `scoreboardEntities` ile) —
+    // burada ikinci bir kopya çiziliyordu.
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      renderAdaptiveScoreboard(ctx, {
-        arena: this.arena,
-        players: this.players,
-        scores: this.scores,
-        entities: [...this.players.filter((p) => p.isJoined), this.crown],
-        controlMode: this.localControlMode,
-        state: this.state,
-      });
-
       // Saha ortasında sütun ve engellerin üzerinde her zaman net görünen taç süresi filigranı
       const king = this.crown.carrierIndex !== null ? this.players[this.crown.carrierIndex] : null;
       if (king && king.isAlive) {
@@ -1457,6 +1450,8 @@ export class CrownGame extends BaseMiniGame {
       colors: CROWN_COLORS,
       playerNames: CROWN_NAMES,
       accent: UI_COLORS.crownRed,
+      // Sütun da yakınlık hesabına girer: rozet onun üstüne gelmesin.
+      scoreboardEntities: [...this.players.filter((p) => p.isJoined), this.crown],
       roundBannerTitle: this.roundWinner ? `${this.roundWinner.name} RAUNDU KAZANDI!` : t('crown.round'),
       roundBannerColor: this.roundWinner?.color || UI_COLORS.crownGold,
       roundBannerSub: t('crown.round'),

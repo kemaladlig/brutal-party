@@ -194,30 +194,65 @@ export class ZoneGame extends BaseMiniGame {
     return ZONE_TUNING.GRID;
   }
 
+  // Konum → hücre. Konum zaten saha içine CLAMP'li olduğu için kenar payı
+  // takviyesi YOK: gövde yarıçapı kadar içeride duran oyuncu 0. hücreye
+  // yazılırsa iz çizgisi karakterden ~3 hücre kopuk çizilir (köşeye
+  // sürtününce çizgi kopuyordu). Dış halka yalnız yarıçap payı kadar
+  // fethedilemez — bu, nötr sınır bandıdır.
   posToCell(x, y) {
     if (!this.field || !this.cell) return -1;
     const G = ZONE_TUNING.GRID;
-    const wallPad = (this.players?.[0]?.radius || 14) + 2;
-    let cx;
-    if (x <= this.field.x + wallPad) {
-      cx = 0;
-    } else if (x >= this.field.x + this.field.s - wallPad) {
-      cx = G - 1;
-    } else {
-      cx = Math.floor((x - this.field.x) / this.cell);
-    }
-
-    let cy;
-    if (y <= this.field.y + wallPad) {
-      cy = 0;
-    } else if (y >= this.field.y + this.field.s - wallPad) {
-      cy = G - 1;
-    } else {
-      cy = Math.floor((y - this.field.y) / this.cell);
-    }
-
+    const cx = Math.floor((x - this.field.x) / this.cell);
+    const cy = Math.floor((y - this.field.y) / this.cell);
     if (cx < 0 || cy < 0 || cx >= G || cy >= G) return -1;
     return cy * G + cx;
+  }
+
+  /**
+   * Bir karelik hareket segmentinin geçtiği hücreler: sırayla, tekrar yok,
+   * başlangıç hücresi hariç. Izgara DDA'sı (Amanatides–Woo): kesik atlama
+   * YAPMAZ, köşe geçişinde de ara hücreyi yazar — ardışık hücreler daima
+   * 4-komşu kalır.
+   *
+   * Neden tek kaynak: kesme tespiti (`checkTrailCrossing`) ve iz KAYDI aynı
+   * listeyi okur. Tespit sık, kayıt seyrek olsaydı iz sahipliğinde boşluk
+   * kalır, çizgi köşeyi keser ve kendi izinden geçmek cezasız olurdu.
+   */
+  cellsCrossed(fromX, fromY, toX, toY) {
+    if (!this.field || !this.cell) return [];
+    const G = ZONE_TUNING.GRID;
+    const cell = this.cell;
+    const fx = (fromX - this.field.x) / cell;
+    const fy = (fromY - this.field.y) / cell;
+    const dx = (toX - fromX) / cell;
+    const dy = (toY - fromY) / cell;
+    if (dx === 0 && dy === 0) return [];
+
+    let cx = Math.floor(fx);
+    let cy = Math.floor(fy);
+    const stepX = dx > 0 ? 1 : -1;
+    const stepY = dy > 0 ? 1 : -1;
+    // Bir sonraki ızgara çizgisine kalan parametrik mesafe (t ∈ [0,1]).
+    const invX = dx !== 0 ? 1 / Math.abs(dx) : Infinity;
+    const invY = dy !== 0 ? 1 / Math.abs(dy) : Infinity;
+    let tMaxX = dx !== 0 ? (dx > 0 ? cx + 1 - fx : fx - cx) * invX : Infinity;
+    let tMaxY = dy !== 0 ? (dy > 0 ? cy + 1 - fy : fy - cy) * invY : Infinity;
+
+    const out = [];
+    for (let guard = 0; guard < G * 2; guard++) {
+      // Eşitlikte X önce: köşe geçişi iki adıma bölünür, ara hücre yazılır.
+      if (tMaxX <= tMaxY) {
+        cx += stepX;
+        tMaxX += invX;
+      } else {
+        cy += stepY;
+        tMaxY += invY;
+      }
+      if (cx < 0 || cy < 0 || cx >= G || cy >= G) break;
+      out.push(cy * G + cx);
+      if (tMaxX > 1 && tMaxY > 1) break;
+    }
+    return out;
   }
 
   cellCenter(cellIdx) {
@@ -1027,15 +1062,7 @@ export class ZoneGame extends BaseMiniGame {
   }
 
   checkTrailCrossing(player, fromX, fromY, toX, toY) {
-    const distance = Math.hypot(toX - fromX, toY - fromY);
-    const steps = Math.max(1, Math.ceil(distance / Math.max(1, this.cell * 0.45)));
-    for (let step = 1; step <= steps; step++) {
-      const ratio = step / steps;
-      const cellIdx = this.posToCell(
-        fromX + (toX - fromX) * ratio,
-        fromY + (toY - fromY) * ratio,
-      );
-      if (cellIdx < 0 || cellIdx === player.lastCell) continue;
+    for (const cellIdx of this.cellsCrossed(fromX, fromY, toX, toY)) {
       const owner = this.trailOwner[cellIdx];
       if (owner >= 0 && owner !== player.index) {
         if (this.spawnProtect <= 0) {
@@ -1211,14 +1238,41 @@ export class ZoneGame extends BaseMiniGame {
       }
 
       p.px = p.x; p.py = p.y;
-      const mx = Math.cos(p.heading) * speed * dt;
-      const my = Math.sin(p.heading) * speed * dt;
-
-      // Duvar kayması: yarıçap payıyla clamp'le, eksenler bağımsız kayar.
-      // Duvar teması cezasızdır — iz silinmez, donma yok, ses yok.
+      const stepX = Math.cos(p.heading) * speed * dt;
+      const stepY = Math.sin(p.heading) * speed * dt;
       const wr = p.radius + 1;
-      p.x = Math.min(Math.max(p.x + mx, this.field.x + wr), this.field.x + this.field.s - wr);
-      p.y = Math.min(Math.max(p.y + my, this.field.y + wr), this.field.y + this.field.s - wr);
+
+      // Duvar kayması: eksenler bağımsız clamp'lenir, sonra kalan yön
+      // HIZINI KORUR. Düz per-axis clamp'te çapraz duvar sürtünmesi hızı
+      // ikiye böler (45°'de yarıya iner) — oyuncu köşeye yaslanınca
+      // "yavaşladı" diye durur. Burada bloklanan eksen atılır, kalan
+      // yön istenen tam hıza geri ölçeklenir. Duvar teması cezasızdır:
+      // iz silinmez, donma yok, ses yok.
+      const minX = this.field.x + wr;
+      const maxX = this.field.x + this.field.s - wr;
+      const minY = this.field.y + wr;
+      const maxY = this.field.y + this.field.s - wr;
+      const clampX = (v) => Math.min(Math.max(v, minX), maxX);
+      const clampY = (v) => Math.min(Math.max(v, minY), maxY);
+      const blockedX = clampX(p.x + stepX) !== p.x + stepX;
+      const blockedY = clampY(p.y + stepY) !== p.y + stepY;
+      if (blockedX || blockedY) {
+        const want = Math.hypot(stepX, stepY);
+        const ax = clampX(p.x + stepX) - p.x;
+        const ay = clampY(p.y + stepY) - p.y;
+        const got = Math.hypot(ax, ay);
+        if (got > 1e-6) {
+          const k = want / got;
+          p.x = clampX(p.x + ax * k);
+          p.y = clampY(p.y + ay * k);
+        } else {
+          p.x = clampX(p.x + stepX);
+          p.y = clampY(p.y + stepY);
+        }
+      } else {
+        p.x += stepX;
+        p.y += stepY;
+      }
 
       // Relic Toplama Kontrolü
       for (let ri = this.relics.length - 1; ri >= 0; ri--) {
@@ -1245,15 +1299,19 @@ export class ZoneGame extends BaseMiniGame {
 
       if (this.checkTrailCrossing(p, p.px, p.py, p.x, p.y)) continue;
 
-      const cellIdx = this.posToCell(p.x, p.y);
-      if (cellIdx < 0) continue;
-      if (cellIdx === p.lastCell) continue;
-      p.lastCell = cellIdx;
+      // İz hücreleri: kare içinde geçilen HER hücre yazılır (ara hücreler
+      // dâhil). Depar hâlinde iki kare arasında 1+ hücre atlanabiliyordu;
+      // atlanan hücre sahiplik dışı kalır, çizgi köşeyi keser ve o hücreden
+      // geçmek cezasız olurdu.
+      for (const cellIdx of this.cellsCrossed(p.px, p.py, p.x, p.y)) {
+        if (cellIdx === p.lastCell) continue;
+        p.lastCell = cellIdx;
 
-      const owner = this.grid[cellIdx];
-      if (owner === p.index + 1) {
-        if (p.trail.length > 0) this.closeTrail(p.index);
-      } else {
+        if (this.grid[cellIdx] === p.index + 1) {
+          if (p.trail.length > 0) this.closeTrail(p.index);
+          break;
+        }
+
         const trailOwnerId = this.trailOwner[cellIdx];
         if (trailOwnerId >= 0 && trailOwnerId !== p.index) {
           // Düşman izine bastın: iz sahibi base boyuna döner + donar.
@@ -1265,13 +1323,13 @@ export class ZoneGame extends BaseMiniGame {
           const isImmediateTail = recentIndex >= 0 && (p.trail.length - 1 - recentIndex) <= 3;
           if (!isImmediateTail) {
             this.shatterPlayer(p.index, null);
-            continue;
+            break;
           }
         }
         if (p.trail.length >= ZONE_TUNING.TRAIL_CAP) {
           this.wipeTrail(p.index);
           this.stunPlayer(p.index, true);
-          continue;
+          break;
         }
         if (p.trail.length === 0) {
           // İz burada başlıyor: anchor = bir kare önceki konum (base çıkış

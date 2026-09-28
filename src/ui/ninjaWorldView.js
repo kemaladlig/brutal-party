@@ -29,7 +29,16 @@ export function createWorldViewRenderer() {
 
     render(ctx, frame, width, height, slots = [], now = performance.now(), selfSlot = -1) {
       const [left, top, right, bottom] = frame.arena;
-      const arena = { left, top, right, bottom, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
+      const arenaW = Math.max(1, right - left);
+      const arenaH = Math.max(1, bottom - top);
+      // `size`/`unit`: client tarafında da hamle ölçeği. Kesik animasyonunun
+      // kademe/aura px'leri bu ölçekle çizilir, yoksa telefonda kılıç
+      // menzilden uzun görünür.
+      const size = Math.min(arenaW, arenaH);
+      const arena = {
+        left, top, right, bottom, width: arenaW, height: arenaH,
+        size, unit: Math.max(0.3, Math.min(1.6, size / 952)),
+      };
       const withFx = frame.gameState === 'PLAYING';
 
       ctx.save();
@@ -48,7 +57,7 @@ export function createWorldViewRenderer() {
           avatar: slots?.[p.slot]?.avatar || null,
         }));
         drawNinjaPlayers(ctx, players, { ghostSlots: Number.isInteger(selfSlot) && selfSlot >= 0 ? [selfSlot] : [], withFx });
-        drawNinjaSlashes(ctx, frame.slashes || []);
+        drawNinjaSlashes(ctx, frame.slashes || [], arena);
         drawNinjaImpacts(ctx, frame.impacts || []);
         drawNinjaFx(ctx, frame.fx || []);
       });

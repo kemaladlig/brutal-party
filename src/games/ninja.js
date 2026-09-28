@@ -13,7 +13,7 @@ import { paintBackdrop } from '../core/fieldKit.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
-import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
+import { computePlayfield, fieldPx, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import {
   NINJA_RADIUS,
   createNinjaWorldPacket,
@@ -38,6 +38,18 @@ const NINJA_SMOKE_COOLDOWN = 5.0;
 export const NINJA_TUNING = {
   STRIKE_COOLDOWN: NINJA_STRIKE_COOLDOWN,
   SMOKE_COOLDOWN: NINJA_SMOKE_COOLDOWN,
+  // Yürüyüş ve kılıç hamlesi TASARIM px/s. Kılıç MESAFESİ türetilir
+  // (DASH_SPEED × DASH_TIME) ve kesik animasyonu bu mesafeyle birebir aynı
+  // uzunlukta doğar: hamle kısa kaldığında animasyon havada asılı kalıyor,
+  // hedef menzilden uzaktayken kılıç boşa savruluyordu.
+  MOVE_SPEED: 210,
+  DASH_SPEED: 820,
+  DASH_TIME: 0.30,
+  DASH_DIST: 246,
+  STRIKE_REACH: 48,   // süpürülen bıçak yarıçapı (tasarım px)
+  LANTERN_SLASH: 65,  // fener kesme menzili (tasarım px)
+  SLASH_OUTER_R: 68,  // hilal dış yarıçapı
+  SLASH_INNER_R: 22,  // hilal iç yarıçapı
 };
 
 export class NinjaGame extends BaseMiniGame {
@@ -211,7 +223,7 @@ export class NinjaGame extends BaseMiniGame {
         // Yarıçap sabit DEĞİLDİR: motor sahayla birlikte ölçekler, view
         // `player.radius` okur, world packet taşır (ARCHER ile aynı desen).
         radius: fieldRadius(this.arena, NINJA_RADIUS, 0),
-        speed: fieldSpeed(this.arena, 190), steerX: 0, steerY: 0,
+        speed: fieldSpeed(this.arena, NINJA_TUNING.MOVE_SPEED), steerX: 0, steerY: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         alpha: 1.0, hideTimer: 0, inLight: false,
         strikeTimer: 0, strikeCooldown: 0,
@@ -353,7 +365,11 @@ export class NinjaGame extends BaseMiniGame {
   attemptStrike(player) {
     if (this.state !== 'PLAYING' || !player.isJoined || !player.isAlive) return;
     if (player.strikeCooldown <= 0) {
-      player.strikeTimer = 0.28;
+      const unit = this.arena.unit;
+      // Animasyon menzili = kılıç mesafesi. Hamle `fieldSpeed × DASH_TIME`
+      // kadar yol alır; kesik de tam olarak o kadar uzanır.
+      const dashDist = fieldPx(this.arena, NINJA_TUNING.DASH_DIST);
+      player.strikeTimer = NINJA_TUNING.DASH_TIME;
       player.strikeCooldown = NINJA_STRIKE_COOLDOWN;
       player.alpha = 1.0;
       player.hideTimer = 0;
@@ -370,14 +386,14 @@ export class NinjaGame extends BaseMiniGame {
         life: 0,
         maxLife: 0.52,
         dist: 0,
-        maxDist: 220,
-        outerRadius: 68,
-        innerRadius: 22,
+        maxDist: dashDist,
+        outerRadius: fieldPx(this.arena, NINJA_TUNING.SLASH_OUTER_R),
+        innerRadius: fieldPx(this.arena, NINJA_TUNING.SLASH_INNER_R),
         arcSpan: Math.PI * 0.82,
         waves: [
-          { delay: 0.0, spd: 540, color: '#FFFFFF', aura: player.color, scale: 1.0, width: 4.5 },
-          { delay: 0.07, spd: 430, color: player.color, aura: '#FFFFFF', scale: 0.85, width: 3.2 },
-          { delay: 0.14, spd: 330, color: 'rgba(255, 255, 255, 0.8)', aura: player.color, scale: 0.7, width: 2.2 },
+          { delay: 0.0, spd: 540, color: '#FFFFFF', aura: player.color, scale: 1.0, width: 4.5 * unit },
+          { delay: 0.07, spd: 430, color: player.color, aura: '#FFFFFF', scale: 0.85, width: 3.2 * unit },
+          { delay: 0.14, spd: 330, color: 'rgba(255, 255, 255, 0.8)', aura: player.color, scale: 0.7, width: 2.2 * unit },
         ],
       });
 
@@ -386,11 +402,11 @@ export class NinjaGame extends BaseMiniGame {
         x: player.x,
         y: player.y,
         angle: player.angle,
-        length: 220,
+        length: dashDist,
         color: player.color,
         life: 0,
         maxLife: 0.44,
-        maxWidth: 5.5,
+        maxWidth: 5.5 * unit,
       });
 
       // 3. Yüksek Hızlı Yönlü Bıçak Kıvılcımları & Parıltılar
@@ -401,9 +417,10 @@ export class NinjaGame extends BaseMiniGame {
 
       // Kılıç savururken menzildeki feneri anında kes
       if (this.lanterns) {
+        const lanternReach = fieldPx(this.arena, NINJA_TUNING.LANTERN_SLASH);
         for (const lantern of this.lanterns) {
           if (!lantern.active) continue;
-          if (Math.hypot(player.x - lantern.x, player.y - lantern.y) < 65) {
+          if (Math.hypot(player.x - lantern.x, player.y - lantern.y) < lanternReach) {
             lantern.active = false;
             lantern.respawnTimer = 7.0;
             this.addTrauma(0.35);
@@ -787,7 +804,9 @@ export class NinjaGame extends BaseMiniGame {
       const prevY = player.y;
       player.prevX = prevX;
       player.prevY = prevY;
-      const spd = player.strikeTimer > 0 ? fieldSpeed(this.arena, 780) : player.speed;
+      const spd = player.strikeTimer > 0
+        ? fieldSpeed(this.arena, NINJA_TUNING.DASH_SPEED)
+        : player.speed;
 
       if (player.strikeTimer <= 0) {
         player.x += player.steerX * spd * dt;
@@ -807,13 +826,14 @@ export class NinjaGame extends BaseMiniGame {
     }
 
     // Kılıç isabeti & Eleme
+    const strikeReach = fieldPx(this.arena, NINJA_TUNING.STRIKE_REACH);
     for (const attacker of this.players) {
       if (!attacker.isJoined || !attacker.isAlive || attacker.strikeTimer <= 0) continue;
 
       for (const victim of this.players) {
         if (!victim.isJoined || !victim.isAlive || victim.index === attacker.index) continue;
 
-        const hit = segmentCircleIntersection(attacker.prevX ?? attacker.x, attacker.prevY ?? attacker.y, attacker.x, attacker.y, victim.x, victim.y, 48);
+        const hit = segmentCircleIntersection(attacker.prevX ?? attacker.x, attacker.prevY ?? attacker.y, attacker.x, attacker.y, victim.x, victim.y, strikeReach);
         const blocked = hit && this.obstacles.some((obs) => segmentAabbIntersection(attacker.prevX ?? attacker.x, attacker.prevY ?? attacker.y, hit.x, hit.y, obs));
         if (hit && !blocked) {
           victim.isAlive = false;
@@ -945,7 +965,7 @@ export class NinjaGame extends BaseMiniGame {
         ? 1 - Math.min(1, p.smokeCooldown / NINJA_TUNING.SMOKE_COOLDOWN) : null,
     })), { ghostSlots, withFx, now: this.lastTime });
 
-    drawNinjaSlashes(ctx, this.slashWaves);
+    drawNinjaSlashes(ctx, this.slashWaves, this.arena);
     drawNinjaImpacts(ctx, this.impactCuts);
     drawNinjaFx(ctx, this.particles);
 

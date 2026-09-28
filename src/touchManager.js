@@ -1,6 +1,5 @@
 // Universal Multi-Touch Manager for Local Party Games Suite
 // Supports multi-touch finger tracking, 1D dragging, and 1-touch corner hold/release
-import { checkScoreboardPeekTap } from './ui/hud.js';
 
 export class TouchManager {
   constructor(canvas) {
@@ -113,7 +112,6 @@ export class TouchManager {
       startY: pos.y,
       startTime: performance.now(),
     };
-    if (checkScoreboardPeekTap(touchData)) return;
     if (this.activeHandler?.claimInputSource
       && !this.activeHandler.claimInputSource('touch', { point: touchData })) return;
     try { this.canvas.setPointerCapture?.(e.pointerId); } catch {}
@@ -168,9 +166,6 @@ export class TouchManager {
         startTime: performance.now(),
       };
 
-      if (checkScoreboardPeekTap(touchData)) {
-        continue;
-      }
       if (this.activeHandler?.claimInputSource
         && !this.activeHandler.claimInputSource('touch', { point: touchData })) {
         continue;
@@ -239,10 +234,6 @@ export class TouchManager {
       startY: pos.y,
       startTime: performance.now(),
     };
-
-    if (checkScoreboardPeekTap(touchData)) {
-      return;
-    }
 
     if (this.activeHandler?.claimInputSource
       && !this.activeHandler.claimInputSource('touch', { point: touchData })) {

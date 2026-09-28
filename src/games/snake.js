@@ -33,15 +33,15 @@ const SNAKE_KEY_SLOTS = buildCodeToSlotMap();
 const SNAKE_HEAD_RADIUS = 24;
 // Hareket bütçesi. SNAKE bir dönüş oyunu: dönüş yarıçapı `hız / ω` olduğu
 // için TEK başına hızı artırmak kontrolü götürürdü (140/3.4 = 41 px →
-// 175/3.4 = 51 px, yarıçap %25 genişlerdi). 140/3.4 = 41.2 ve 175/4.1 = 42.7
-// px: yarıçap sabit kalırken saha geçiş süresi 952/140 = 6.8sn'den
-// 952/175 = 5.4sn'ye iner. ω'yu hızla birlikte ölçeklemek zorunludur.
+// 175/3.4 = 51 px, yarıçap %25 genişlerdi). 175/4.1 = 42.7 px idi; yeni
+// hız 190 ile yarıçap aynı kalsın diye ω = 190/42.7 = 4.45 rad/sn.
+// Saha geçiş süresi 952/175 = 5.4sn'den 952/190 = 5.0sn'ye iner.
 // MOVE_SPEED uzamsaldır (fieldSpeed'ten geçer); TURN_SPEED radyan/sn'dir ve
 // ÖLÇEKLENMEZ — ω'yu da ölçeklersek dönüş yarıçapı cihaz px'inde sabit
 // kalır, yani telefonda sahanın %11'i olur ve dönüş dibe çakılır.
 const SNAKE_TUNING = Object.freeze({
-  MOVE_SPEED: 175,
-  TURN_SPEED: 4.1,
+  MOVE_SPEED: 190,
+  TURN_SPEED: 4.45,
 });
 // Kuyruk boyu tavanı: uzayan oyunda ızgara-rebuild sınırlı kalır
 const SNAKE_MAX_LEN = 320;

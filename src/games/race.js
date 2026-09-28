@@ -4,7 +4,6 @@
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { UI_COLORS, UI_FONTS } from '../ui/tokens.js';
 import {
-  renderUniversalScoreboard,
   renderRoundBanner,
   renderMatchOver,
   renderTopPill,
@@ -961,21 +960,12 @@ export class RaceGame extends BaseMiniGame {
     renderFloatingTexts(ctx, this.floatingTexts, 0);
     this.renderStandardJoysticks(ctx);
 
-    const hudPlayers = this.players.map((player) => ({
-      index: player.index,
-      name: player.name,
-      color: player.color,
-      isJoined: player.isJoined,
-      slotType: player.slotType,
-    }));
-    renderUniversalScoreboard(ctx, {
-      arena,
-      players: hudPlayers,
-      scores: this.scores,
+    // Skor yüzeyi tek sahibi: `renderStandardScoreboard`. RACE masa-ortası
+    // joystick sırasında 'corners' yerleşimini zorlar (sürgü + rehber şeridi
+    // üst payı kullanır); dolu koltuk listesi oradan da `slotTypes`'ten gelir.
+    this.renderStandardScoreboard(ctx, {
       targetScore: this.targetScore,
-      entities: this.players,
-      layout: 'corners',
-      state: this.state,
+      forceLayout: 'corners',
     });
 
     if (this.state === 'PLAYING') {

@@ -16,7 +16,7 @@ import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSys
 import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
 import { createCurveWorldPacket } from './curveView.js';
 import { vibrate } from '../core/haptics.js';
-import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
+import { computePlayfield, fieldPx, fieldRadius, fieldSpeed } from '../core/playfield.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CURVE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -37,6 +37,12 @@ const CURVE_HEAD_RADIUS = 18;
 // HIZLAN (NITRO): kumanda/masa-ortası/klavye tek dokunuşla açılan hız patlaması.
 // Hız artarken dönüş yarıçapı genişler — hız kazancı karşılığında tepki payı düşer.
 const CURVE_TUNING = {
+  MOVE_SPEED: 185,
+  TURN_SPEED: 3.0,
+  // Boşluk MESAFE olarak tanımlı, süre olarak değil: süre tabanlı açık
+  // (0.16 sn) hız arttıkça uzuyordu ama kafa çapına (2×18 = 36 px) göre
+  // ölçülmediği için geçiş için hâlâ dar kalıyordu. 52 px ≈ 1.45 kafa.
+  GAP_LENGTH: 52,
   NITRO_DURATION: 1.4,
   NITRO_COOLDOWN: 4.0,
   NITRO_SPEED_MULT: 1.45,
@@ -195,14 +201,14 @@ export class CurveGame extends BaseMiniGame {
         // akordu); iz kalınlığı ve view/head ölçeği bunu takip eder
         // (ARCHER/NINJA/LASER deseni).
         radius: fieldRadius(this.arena, CURVE_HEAD_RADIUS, 0),
-        speed: fieldSpeed(this.arena, 160),
-        turnSpeed: 2.85,
+        speed: fieldSpeed(this.arena, CURVE_TUNING.MOVE_SPEED),
+        turnSpeed: CURVE_TUNING.TURN_SPEED,
         steer: 0, // -1 (left), 0 (none), +1 (right)
         isAlive: true,
         isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i],
         gapTimer: 2.5 + Math.random() * 2.0,
-        gapDuration: 0,
+        gapLeft: 0,
         isGap: false,
         ghostTimer: 0,
         turboTimer: 0,
@@ -302,7 +308,7 @@ export class CurveGame extends BaseMiniGame {
       p.isJoined = this.isSlotJoined(i);
       p.isAlive = p.isJoined;
       p.gapTimer = 2.0 + Math.random() * 2.2;
-      p.gapDuration = 0;
+      p.gapLeft = 0;
       p.isGap = false;
       p.ghostTimer = 0;
       p.turboTimer = 0;
@@ -538,10 +544,27 @@ export class CurveGame extends BaseMiniGame {
         if (player.thickTimer > 0) player.thickTimer = Math.max(0, player.thickTimer - dt);
         if (player.freezeTimer > 0) player.freezeTimer = Math.max(0, player.freezeTimer - dt);
 
-        // Gap Cycle Management
+        // Hız çarpanları girdi ve yön hesabından BAĞIMSIZDIR; boşluk
+        // döngüsü kat edilen mesafeyi bilmek için önce burada çözülür.
+        let speedMult = 1.0;
+        let turnMult = 1.0;
+        if (player.nitroTimer > 0) {
+          speedMult *= CURVE_TUNING.NITRO_SPEED_MULT;
+          turnMult *= CURVE_TUNING.NITRO_TURN_MULT;
+        }
+        if (player.turboTimer > 0) speedMult *= 1.5;
+        if (player.freezeTimer > 0) speedMult *= 0.55;
+        const currentSpeed = player.speed * speedMult;
+        const stepLen = currentSpeed * dt;
+
+        // Gap Cycle Management — boşluk MESAFE olarak ölçülür, süre olarak
+        // değil. Süre tabanlıydı: nitro/turbo ile boşluk uzuyor, temiz
+        // hızda kısalıyordu ve hiçbir hızda geçilebilir genişliğe
+        // ulaşmıyordu. Kalan mesafe yol alındıkça düşer → her hızda ve
+        // her cihazda aynı Tasarım px'lik geçit.
         if (player.isGap) {
-          player.gapDuration -= dt;
-          if (player.gapDuration <= 0) {
+          player.gapLeft -= stepLen;
+          if (player.gapLeft <= 0) {
             player.isGap = false;
             player.gapTimer = 2.4 + Math.random() * 2.2;
           }
@@ -549,7 +572,7 @@ export class CurveGame extends BaseMiniGame {
           player.gapTimer -= dt;
           if (player.gapTimer <= 0) {
             player.isGap = true;
-            player.gapDuration = 0.16; // ~25px gap
+            player.gapLeft = fieldPx(this.arena, CURVE_TUNING.GAP_LENGTH);
             playGap();
           }
         }
@@ -573,20 +596,10 @@ export class CurveGame extends BaseMiniGame {
 
         // Steer & Movement — INVERT TEK noktada burada uygulanır, yalnızca insan koltuklarına.
         // Botlar ayna gibi sürülmez (raycast kaçınmasını duvara çevirirdi); curveAI
-        // karar kalitesini düşürür. FREEZE gibi hız etkileri her koltukta aynıdır.
-        let speedMult = 1.0;
-        let turnMult = 1.0;
-        if (player.nitroTimer > 0) {
-          speedMult *= CURVE_TUNING.NITRO_SPEED_MULT;
-          turnMult *= CURVE_TUNING.NITRO_TURN_MULT;
-        }
-        if (player.turboTimer > 0) speedMult *= 1.5;
-        if (player.freezeTimer > 0) speedMult *= 0.55;
-
+        // karar kalitesini düşürür. Hız çarpanları yukarıda çözüldü.
         const confused = player.confusedTimer > 0 && player.slotType === 'human';
         player.angle += player.steer * player.turnSpeed * turnMult * (confused ? -1 : 1) * dt;
 
-        const currentSpeed = player.speed * speedMult;
         player.prevX = player.x;
         player.prevY = player.y;
         player.x += Math.cos(player.angle) * currentSpeed * dt;

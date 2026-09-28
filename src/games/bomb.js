@@ -16,7 +16,7 @@ import {
 } from '../audio.js';
 import { t } from '../i18n.js';
 import { matchesInputAction } from '../core/inputIntent.js';
-import { renderArenaWatermarkTimer, renderAdaptiveScoreboard } from '../ui/hud.js';
+import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { pulse } from '../ui/motion.js';
 
@@ -902,16 +902,10 @@ export class BombGame extends BaseMiniGame {
     drawBombParticles(ctx, this.particles);
     this.renderControls(ctx);
 
-    // Host HUD: Skorbord + bomba geri sayımı (world-view client'ı kendi HUD'unu kullanır)
+    // Host HUD: bomba geri sayımı (world-view client'ı kendi HUD'unu kullanır).
+    // Skorbord `renderHUD`'un işidir — motorun kendi `renderAdaptiveScoreboard`
+    // çağrısı ikinci bir kopya çiziyordu (aynı kartlar iki kez).
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
-      renderAdaptiveScoreboard(ctx, {
-        arena: this.arena,
-        players: this.players,
-        scores: this.scores,
-        entities: this.players.filter((p) => p.isJoined),
-        controlMode: this.localControlMode,
-        state: this.state,
-      });
       const remain = Math.max(0, this.bombTimer);
       const isPanic = remain <= 4.0;
       const carrierP2 = this.bombCarrierIndex !== null ? this.players[this.bombCarrierIndex] : null;
@@ -950,6 +944,7 @@ export class BombGame extends BaseMiniGame {
       colors: BOMB_COLORS,
       playerNames: BOMB_NAMES,
       accent: '#D84727',
+      scoreboardEntities: this.players.filter((p) => p.isJoined),
       roundBannerTitle: this.roundWinner ? `+1 SET: ${this.roundWinner.name}!` : null,
       roundBannerColor: this.roundWinner?.color,
       roundBannerSub: this.roundWinner ? `TOPLAM SET: ${this.scores[this.roundWinner.index]} / ${this.targetScore}` : '',

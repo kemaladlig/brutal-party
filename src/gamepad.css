@@ -1502,8 +1502,14 @@
 }
 
 /* --- PONG: 1B sürgü yolu + çevir butonu. Tutamak dolgusu KALIR solid:
-       60px tutamak üstündeki beyaz "PADDLE" etiketi 40% dolguda okunmaz. --- */
-:is(.gamepad-control-overlay, #local-mobile-controls) .pong-horizontal-track,
+       48px tutamak üstündeki beyaz "PADDLE" etiketi saydam dolguda okunmaz.
+       Sürgü YOLU PONG'A ÖZEL olarak bir kademe daha saydam (22%): iki kontrol
+       kütlesinin arasında kalan tek yüzey, sahanın kendisi olmalı. --- */
+:is(.gamepad-control-overlay, #local-mobile-controls) .pong-horizontal-track {
+  background-color: color-mix(in srgb, var(--n-900) 22%, transparent);
+  color: var(--muted);
+}
+
 :is(.gamepad-control-overlay, #local-mobile-controls) .pong-invert-btn {
   background-color: color-mix(in srgb, var(--n-900) var(--deck-fill), transparent);
   color: var(--muted);
@@ -1785,7 +1791,7 @@
 
 .pong-track-wrap {
   flex: 1;
-  max-width: 300px;
+  max-width: 216px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -1821,11 +1827,14 @@
   border: 1px solid var(--gold);
 }
 
-/* Yatay slider pisti: refleksif dar genişlik ve dokunsal kalınlık */
+/* Yatay slider pisti: refleksif dar genişlik ve dokunsal kalınlık.
+   300×84 bir sürgü değil, sahanın önünü kaplayan bir plakaydı: raket
+   yarıçapı kadar uzunluk hedeflemek zorunda değil, parmak hedefi 44px
+   tabanını aştığı için kısaltmak kontrolü bozmaz. */
 .pong-horizontal-track {
   width: 100%;
-  max-width: 300px;
-  height: 84px;
+  max-width: 216px;
+  height: 62px;
   background-color: var(--n-900);
   border: 4px solid var(--n-700);
   box-shadow: var(--shadow-press), var(--shadow-soft);
@@ -1839,7 +1848,7 @@
   position: absolute;
   top: 6px;
   bottom: 6px;
-  width: 60px;
+  width: 48px;
   border: 3.5px solid var(--white);
   border-radius: 8px;
   box-shadow: 0 0 20px var(--sheen-60), var(--shadow-soft);
@@ -1848,7 +1857,7 @@
   align-items: center;
   justify-content: center;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
   color: var(--white);
   transform: translateX(-50%);
@@ -1859,14 +1868,14 @@
 }
 
 .pong-controller-view.vertical .pong-track-wrap {
-  flex: 0 0 84px;
-  max-width: 84px;
+  flex: 0 0 62px;
+  max-width: 62px;
 }
 
 .pong-controller-view.vertical .pong-horizontal-track {
-  width: 84px;
-  max-width: 84px;
-  height: 180px;
+  width: 62px;
+  max-width: 62px;
+  height: 150px;
 }
 
 .pong-controller-view.vertical .pong-track-thumb.horizontal {
@@ -1875,11 +1884,19 @@
   left: 6px;
   right: 6px;
   width: auto;
-  height: 60px;
+  height: 48px;
   transform: translateY(-50%);
 }
 
+/* Eksen çevir (ters döndürme) düğmesi — PONG'A ÖZEL.
+   Eskiden sürgünün 8px altında, sürgüyü kavrayan parmağın hemen altında
+   duruyordu: sürüklerken kazara çeviriliyordu. Artık sahanın sol üst
+   köşesine sabitlenir — başparmak bölgesinden ve sürgüden uzak, ayar
+   düğmesi gibi okunur. Konumu bu yüzden yalnız PONG yüzeyinde yazılır. */
 .pong-invert-btn {
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left, 16px));
+  top: max(12px, calc(env(safe-area-inset-top, 0px) + 12px));
   font-family: 'Space Grotesk', sans-serif;
   font-size: 11px;
   font-weight: 800;

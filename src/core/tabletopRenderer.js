@@ -402,18 +402,34 @@ export function createTabletopRenderer(game) {
     renderControls(ctx, { players });
   }
 
-  function renderStandardScoreboard(ctx, { targetScore = game.targetScore || 3, entities = null } = {}) {
+  function renderStandardScoreboard(ctx, {
+    targetScore = game.targetScore || 3,
+    entities = null,
+    forceLayout = null,
+  } = {}) {
     const playersList = game.getEntitiesList();
-    const activeEntities = entities || playersList.filter((p) => p && p.isJoined && (p.isAlive !== false));
+    // "Hangi koltuk dolu" kararı TEK kaynaktan: `game.slotTypes`. Varlığın
+    // `isJoined` aynası motorun kendi güncellemesine açıktı; ayna baydaysa
+    // saha skoru 4 kişiyi gösteriyordu (2 kişi oynarken bile). Boş koltuk
+    // `null` olur → o köşede kart çizilmez.
+    const seated = playersList.map((p, i) => {
+      if (!p) return null;
+      const type = game.slotTypes?.[i];
+      const joined = type !== undefined
+        ? type !== 'empty'
+        : (p.isJoined ?? (p.slotType !== 'empty'));
+      return joined ? p : null;
+    });
+    const activeEntities = entities || seated.filter((p) => p && p.isAlive !== false);
     renderAdaptiveScoreboard(ctx, {
       arena: game.arena,
-      players: playersList,
+      players: seated,
       scores: game.scores || game.setScores || [0, 0, 0, 0],
       targetScore,
       entities: activeEntities,
       controlMode: game.localControlMode,
       state: game.state,
-      uiButtons: game.uiButtons,
+      forceLayout,
     });
   }
 
