@@ -20,6 +20,10 @@
    parçaların kendi kurallarını taşır, bu yüzden lobi bloğu ondan SONRA
    gelmeli (aşağıda tekrar). */
 @import './styles/sheets.css';
+/* Ayarların kendi dili (`src/ui/settings/` modülüyle birlikte yaşar).
+   `sheets.css`ten sonra gelir: ortak scrim/`.sheet-close`u devralır,
+   yerleşimi kendisi verir. */
+@import './styles/settings.css';
 /* Tepki balonları + tepki seçici (lobi/oyun içi/kumanda ortak dili). */
 @import './styles/reactions.css';
 @import './styles/animations.css';

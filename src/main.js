@@ -44,7 +44,7 @@ import {
   setIsPaused,
 } from './ui/pauseModal.js';
 import { initJoinModal, openJoinModal } from './ui/joinModal.js';
-import { initSettingsModal, openSettingsModal } from './ui/settingsModal.js';
+import { initSettingsSheet, openSettingsSheet } from './ui/settings/settingsSheet.js';
 import { hydrateIconSlots } from './ui/iconSlots.js';
 import {
   mountAppShell,
@@ -426,7 +426,25 @@ window.addEventListener('online', () => {
 initJoinModal({ onExecuteJoin: executeJoin });
 // Tercih yazımları `subscribePreferences` aboneliğinden akıyor; sheet'ler
 // yalnızca `setPreference` çağırır (etki uygulamasının ikinci yolu yok).
-initSettingsModal();
+// AYARLARIN TEK YÜZEYİ: ana menü, lobi ve duraklatma bu sheet'i açar.
+initSettingsSheet({
+  onBotsToggled: (enabled) => {
+    // Kapatılınca mevcut botlar temizlenir; açılınca kartlar butonları gösterir
+    if (!enabled) {
+      for (let i = 0; i < 4; i++) {
+        if (hostPlayerSlots[i]?.kind === 'bot') {
+          activeNet().clearSlotBot?.(i);
+          updateHostSlot(i, false);
+        }
+      }
+      const engine = getActiveGameEngine();
+      if (engine) syncSlotsToEngine(engine, roomFlow.getCurrentMode(), activeNet().isHosting);
+    }
+    refreshAllHostSlots();
+  },
+  openControllerLayout: openControllerLayoutFromPause,
+  canOpenControllerLayout: isControllerLayoutAvailable,
+});
 applyI18nToDOM();
 // Dil değişiminde TV lobi kartları anında yeniden çizilir (BOŞ/HAZIR etiketleri).
 onLangChange(() => {
@@ -506,29 +524,12 @@ document.getElementById('btn-staging-lobby')?.addEventListener('click', () => {
 initPauseModal({
   getCurrentMode: () => roomFlow.getCurrentMode(),
   getIsHosting: () => activeNet().isHosting,
-  getControlMode: () => roomFlow.getLocalControlMode(),
   onSwapSeats: handleSeatSwap,
   onRotateSeats: handleRotateSeats,
   onResume: onResumeAfterPause,
   onReset: resetActiveGame,
   onExitMenu: handleExitToMenu,
   onTvLobby: returnHostToLobby,
-  onBotsToggled: (enabled) => {
-    // Kapatılınca mevcut botlar temizlenir; açılınca kartlar butonları gösterir
-    if (!enabled) {
-      for (let i = 0; i < 4; i++) {
-        if (hostPlayerSlots[i]?.kind === 'bot') {
-          activeNet().clearSlotBot?.(i);
-          updateHostSlot(i, false);
-        }
-      }
-      const engine = getActiveGameEngine();
-      if (engine) syncSlotsToEngine(engine, roomFlow.getCurrentMode(), activeNet().isHosting);
-    }
-    refreshAllHostSlots();
-    showInstallToast(enabled ? t('toast.botsOn') : t('toast.botsOff'));
-  },
-  onControllerLayout: openControllerLayoutFromPause,
 });
 
 // Oyun seçimi artık shell'in `games` görünümünde: kartlar orada üretiliyor ve
@@ -542,7 +543,21 @@ window.addEventListener('brutal_return_to_lobby', () => roomFlow.returnHostToLob
 
 
 
+// Yerinde düzenlenecek bir kumanda var mı: ya bu cihazda DOM mobil kontrolleri
+// (bir koltuğa bağlı) ya da bağlı bir telefon kumandası. Ayar sheet'i bu
+// yükleme göre satırı çizer ya da çizmez.
+function isControllerLayoutAvailable() {
+  const engine = getActiveGameEngine();
+  const localLayoutAvailable = roomFlow.getLocalControlMode().mode === CONTROL_MODE.DOM
+    && getLocalControlSlot(engine) >= 0;
+  const remoteLayoutAvailable = !gamepadOverlay.classList.contains('hidden')
+    && gamepadManager.gameMode !== 'LOBBY';
+  return localLayoutAvailable || remoteLayoutAvailable;
+}
+
 function openControllerLayoutFromPause() {
+  // Ayar sheet'i kendi kabuğunu kapatır; duraklatma altta kalırdı.
+  if (getIsPaused()) closePauseModal();
   if (roomFlow.getLocalControlMode().mode === CONTROL_MODE.DOM) {
     syncLocalMobileControls();
     if (localGamepadManager.openControllerLayoutEditor()) return;
@@ -552,16 +567,10 @@ function openControllerLayoutFromPause() {
 }
 
 addTapListener(btnOpenOptions, () => {
-  const engine = getActiveGameEngine();
-  const localLayoutAvailable = roomFlow.getLocalControlMode().mode === CONTROL_MODE.DOM
-    && getLocalControlSlot(engine) >= 0;
-  const remoteLayoutAvailable = !gamepadOverlay.classList.contains('hidden')
-    && gamepadManager.gameMode !== 'LOBBY';
   openPauseModal({
     currentMode: roomFlow.getCurrentMode(),
     isHosting: activeNet().isHosting,
     onSwapCallback: handleSeatSwap,
-    controllerLayoutAvailable: localLayoutAvailable || remoteLayoutAvailable,
   });
 });
 
@@ -767,7 +776,7 @@ mountAppShell({
     openJoin: (code, mode) => openJoinModal(code || '', mode || 'TV_CONSOLE'),
     setPlatformMode: (mode) => updatePlatformMode(mode),
     getPlatformMode: () => platformMode,
-    openSettings: () => openSettingsModal(),
+    openSettings: () => openSettingsSheet(),
     onLobbyShown: () => refreshAllHostSlots(),
     // Lobi ekranından ayrılırken oda da kapanır: geri düğmesi "odadan çık"
     // demektir, "oda ekranına geri dön" değil (bkz. lobbyView `backToRoot`).

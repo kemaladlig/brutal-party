@@ -20,6 +20,7 @@ import { CARTRIDGES, GAME_ORDER } from '../../core/engineRegistry.js';
 import { getTabletopIconSvg } from '../../core/tabletopIcons.js';
 import { getCurrentHostGameMode, setHostGameMode, showLobbySheet, dismissLobbySheet, isLobbyExitSuppressed } from '../hostLobby.js';
 import { closeOverlay } from '../overlayHost.js';
+import { openSettingsSheet } from '../settings/settingsSheet.js';
 import { registerView } from './registry.js';
 
 const ART = (mode) => `/assets/games/${String(mode).toLowerCase()}.webp`;
@@ -112,6 +113,29 @@ registerView('lobby', {
       el('div', 'scene-spotlight', ''),
       el('div', 'scene-vignette', ''),
     );
+
+    // ── Ayar girişi ──────────────────────────────────────────────────────
+    // Lobide ayarlara ulaşım YOKTU: kabuk köşe kümesi `chrome: 'none'`
+    // olduğu için çizilmiyor, lobi kendi üst rayını taşıyordu. Tek dişli bu
+    // rayda yaşar ve merkezi sheet'i açar — ikinci bir ayar yüzeyi değil.
+    const topRight = card.querySelector('.lobby-top-right');
+    const settingsBtn = el('button', 'lobby-icon-btn');
+    settingsBtn.type = 'button';
+    settingsBtn.id = 'btn-lobby-settings';
+    settingsBtn.dataset.focus = 'lobby';
+    settingsBtn.innerHTML = getTabletopIconSvg('settings', { size: 18, strokeWidth: 2.3 });
+    settingsBtn.addEventListener('click', () => {
+      playMenuTick();
+      openSettingsSheet();
+    });
+    const setSettingsLabel = () => {
+      settingsBtn.setAttribute('aria-label', t('menu.settings'));
+      settingsBtn.title = t('menu.settings');
+    };
+    setSettingsLabel();
+    onLangChange(setSettingsLabel);
+    // Kapat düğmesinin SOLUNA: kapanış en sağda kalır (yıkıcı eylem kenarda).
+    topRight?.insertBefore(settingsBtn, card.querySelector('#btn-host-close'));
 
     // ── Oyun kahramanı: dev kapak + ad + ipucu (swipe'li tek kart) ──
     const selector = card.querySelector('.host-game-selector');

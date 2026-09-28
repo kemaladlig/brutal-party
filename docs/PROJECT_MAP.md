@@ -145,9 +145,14 @@ src/ui/
   avatarStage.js            Avatar sahne çizimi (yarıçapa orantılı)
   hostLobby.js              TV/ONLINE bekleme lobisi (QR, oda kodu, oyun çipleri, koltuk editörü)
   joinModal.js              Kumanda katılım modalı & kod kutusu
-  pauseModal.js             Duraklatma menüsü (koltuk takası, döndürme, ses, kontrol referansı)
+  pauseModal.js             Duraklatma menüsü (koltuk takası, döndürme, kontrol referansı, gömülü `quick` ayar satırları)
   toast.js                  PWA kurulum istemi + bağlantı bandı (data-install-app)
-  settingsModal.js          Ayarlar sheet'i (ses, haptik, kontrol yüzeyi, PONG, dil)
+  settings/                 AYARLARIN TEK YÜZEYİ — ana menü, lobi ve pause bunu açar
+    settingsActions.js        Her ayarın oku/yaz/uygula kaydı (ses, haptik, bot, renk körü, tam ekran, dil, kontrol düzeni, PONG, kumanda editörü, güncelleme, sürüm, kayıt) + `bindSettingsHooks` (main.js bağlar)
+    settingsSchema.js         Sekmeler (GENEL/KONTROL/SİSTEM) + satır tanımları (`type`, `quick`, `dynamicLabel`) — yeni ayar yalnız buraya yazılır
+    settingsRow.js            Satır DOM'u: switch / choice / slider / static / action; görünürlük `available()`dan
+    settingsPanel.js          Sekme şeridi + gövde (`createSettingsPanel`) ve pause'a gömülü `createQuickSettingsPanel`
+    settingsSheet.js          Overlay kabuğu: `initSettingsSheet` / `openSettingsSheet({tab})` / `closeSettingsSheet`
   controllerLayoutEditor.js Cihaz-geneli kumanda düzen editörü (canlı önizleme, save/reset)
   fullscreen.js             Tam ekran istek/yönetim
 

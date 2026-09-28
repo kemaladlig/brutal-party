@@ -1,41 +1,53 @@
 // In-Game Command Sheet (slide-over panel / bottom sheet) & Seat Switcher.
 // Same public API as the old pause modal: initPauseModal, openPauseModal,
 // closePauseModal, renderPauseSeats, getIsPaused, setIsPaused — main.js untouched.
-import { hostPlayerSlots, isBotEkleEnabled, setBotEkleEnabled } from '../core/slotManager.js';
+//
+// AYARLAR BURADA ÇİZİLMEZ. Duraklatma bir önce kendi ses/bot/renk körü/tam
+// ekran anahtarlarını tutuyordu — ana menüdeki ayar sheet'inin ikinci, paralel
+// bir kopyası. Artık yalnız merkezi şemanın `quick` işaretli satırlarını
+// gömer ve "TÜM AYARLAR" ile aynı sheet'i üstüne açar: bir ayar, bir eylem.
+import { hostPlayerSlots } from '../core/slotManager.js';
 import { CARTRIDGES, getControllerMeta } from '../core/engineRegistry.js';
-import { isColorblindEnabled, setColorblindEnabled } from '../core/customizationManager.js';
 import { openOverlay, closeOverlay } from './overlayHost.js';
 import { showInstallToast } from './toast.js';
-import { toggleAudio, getIsMuted } from '../audio.js';
 import { t, onLangChange } from '../i18n.js';
-import { isFullscreen, toggleFullscreen, onFullscreenChange, fullscreenOfferable } from './fullscreen.js';
-import {
-  CONTROL_MODE,
-  CONTROL_SURFACE,
-  resolveLocalControlMode,
-  setControlSurface,
-} from './tokens.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { getControllerGuide } from '../controllers/controllerGuide.js';
 import { getSlotKeys, KEY_LABELS, getKeyCapLabel } from '../core/inputMaps.js';
+import { createQuickSettingsPanel } from './settings/settingsPanel.js';
+import { openSettingsSheet } from './settings/settingsSheet.js';
 
 const pauseModal = document.getElementById('pause-modal');
 const pauseGameTitle = document.getElementById('pause-game-title');
 const pauseControlsSection = document.getElementById('pause-controls-section');
 const pauseControlsBody = document.getElementById('pause-controls-body');
 const pauseControlsTouch = document.getElementById('pause-controls-touch');
+const pauseSettingsSlot = document.getElementById('pause-settings-slot');
 const btnPauseClose = document.getElementById('btn-pause-close');
 const btnResumeGame = document.getElementById('btn-resume-game');
 const btnResetMatch = document.getElementById('btn-reset-match');
 const btnTvLobby = document.getElementById('btn-tv-lobby');
-const btnToggleSound = document.getElementById('btn-toggle-sound');
-const btnToggleFullscreen = document.getElementById('btn-toggle-fullscreen');
-const btnToggleBots = document.getElementById('btn-toggle-bots');
-const btnToggleColorblind = document.getElementById('btn-toggle-colorblind');
-const btnToggleTouchControls = document.getElementById('btn-toggle-touch-controls');
-const btnControllerLayout = document.getElementById('btn-controller-layout');
 const btnExitToMenu = document.getElementById('btn-exit-to-menu');
 const btnPauseRotateSeats = document.getElementById('btn-pause-rotate-seats');
+
+// `quick` satırları + "TÜM AYARLAR" bir kez kurulur: slot boşaltılıp
+// yeniden kurulursa panelin tercih/dil abonelikleri katlanır.
+/** @type {ReturnType<typeof createQuickSettingsPanel> | null} */
+let quickPanel = null;
+
+function mountPauseSettings() {
+  if (!pauseSettingsSlot || quickPanel) return;
+  quickPanel = createQuickSettingsPanel({});
+  const all = document.createElement('button');
+  all.type = 'button';
+  all.className = 'pause-btn settings-all-btn';
+  all.innerHTML = `<span class="btn-symbol">${getTabletopIconSvg('settings', { size: 16 })}</span><span class="btn-text"></span>`;
+  all.querySelector('.btn-text').textContent = t('pause.allSettings');
+  all.addEventListener('click', () => openSettingsSheet({ tab: 'general' }));
+  pauseSettingsSlot.append(quickPanel.bodyNode, all);
+  pauseSettingsSlot.hidden = false;
+  onLangChange(() => { all.querySelector('.btn-text').textContent = t('pause.allSettings'); });
+}
 
 let pauseSelectedSlot = null;
 let isPaused = false;
@@ -108,60 +120,6 @@ export function renderPauseControls(mode) {
   `;
 }
 
-function setSwitch(el, on) {
-  if (!el) return;
-  el.classList.toggle('on', !!on);
-  el.setAttribute('aria-checked', on ? 'true' : 'false');
-  // Rozet metni artık görsel değil: switch kendi durumunu anlatıyor
-  // (bkz. `sheets.css`), metin ekran okuyucular için `aria-checked`'te.
-  if (el === btnToggleSound) {
-    const iconSpan = el.querySelector('.toggle-icon');
-    if (iconSpan) {
-      iconSpan.innerHTML = getTabletopIconSvg(on ? 'volume-2' : 'volume-x', { size: 16 });
-    }
-  } else if (el === btnToggleFullscreen) {
-    const iconSpan = el.querySelector('.toggle-icon');
-    if (iconSpan) {
-      iconSpan.innerHTML = getTabletopIconSvg(on ? 'minimize-2' : 'maximize-2', { size: 16 });
-    }
-  }
-}
-
-// Otorite cihazın yerel kontrol yüzeyi. `main.js` bağlar (`roomFlow` tek
-// sahibi); anahtar ve DOM yüzeyi AYNI yanıtı okur, ayrı yorum yok.
-let readControlMode = () => resolveLocalControlMode({ isLocalMode: true });
-
-function setControlsSwitch(el) {
-  if (!el) return;
-  // Anahtar TERCİHİ değil, ekranda gerçekten ne çizileceğini okur: eskiden
-  // çözülmüş yüzeyi okurdu, sahayı ise başka bir yorum belirliyordu; ikisi
-  // ayrışınca anahtar "açık" derken masa-ortası bekliyordu.
-  const mobile = readControlMode().mode === CONTROL_MODE.DOM;
-  const badge = el.querySelector('.toggle-state-badge');
-  el.classList.toggle('on', mobile);
-  el.setAttribute('aria-checked', mobile ? 'true' : 'false');
-  if (badge) badge.textContent = mobile ? t('pause.on') : t('pause.off');
-}
-
-function refreshControllerLayoutButton() {
-  if (!btnControllerLayout) return;
-  const icon = btnControllerLayout.querySelector('[data-controller-layout-icon]');
-  if (icon) icon.innerHTML = getTabletopIconSvg('settings', { size: 16 });
-  btnControllerLayout.setAttribute('aria-label', t('controllerLayout.open'));
-  btnControllerLayout.setAttribute('title', t('controllerLayout.open'));
-}
-
-export function refreshPauseSwitches() {
-  setSwitch(btnToggleSound, !getIsMuted());
-  // Sıradan webde tam ekrana gerek yoktur; APIsiz yüzeyde anahtar gürültüdür.
-  btnToggleFullscreen?.classList.toggle('hidden', !fullscreenOfferable());
-  setSwitch(btnToggleFullscreen, isFullscreen());
-  setSwitch(btnToggleBots, isBotEkleEnabled());
-  setSwitch(btnToggleColorblind, isColorblindEnabled());
-  setControlsSwitch(btnToggleTouchControls);
-  refreshControllerLayoutButton();
-}
-
 export function renderPauseSeats(onSwapCallback) {
   const grid = document.getElementById('pause-seats-grid');
   if (!grid) return;
@@ -221,13 +179,14 @@ export function renderPauseSeats(onSwapCallback) {
   });
 }
 
-export function openPauseModal({ currentMode, isHosting, onSwapCallback, controllerLayoutAvailable = true }) {
+export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
   if (currentMode === 'MENU') return;
   isPaused = true;
   lastSwapCallback = (typeof onSwapCallback === 'function') ? onSwapCallback : null;
   pauseModal?.classList.remove('hidden');
   openOverlay('pause', { el: pauseModal, onClose: closePauseModal });
-  btnControllerLayout?.classList.toggle('hidden', !controllerLayoutAvailable);
+  mountPauseSettings();
+  quickPanel?.refresh();
 
   if (pauseGameTitle) {
     pauseGameTitle.textContent = CARTRIDGES[currentMode]?.title || currentMode;
@@ -244,7 +203,6 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback, control
       btnExitToMenu.textContent = isHosting ? `${getTabletopIconSvg('log_out', { size: 14 })} ${exitText}` : exitText;
     }
   }
-  refreshPauseSwitches();
   pauseSelectedSlot = null;
   renderPauseSeats(lastSwapCallback);
   renderPauseControls(currentMode);
@@ -262,18 +220,13 @@ export function closePauseModal(onCloseCallback) {
 export function initPauseModal({
   getCurrentMode,
   getIsHosting,
-  getControlMode,
   onSwapSeats,
   onRotateSeats,
   onResume,
   onReset,
   onExitMenu,
   onTvLobby,
-  onBotsToggled,
-  onControllerLayout,
 }) {
-  if (typeof getControlMode === 'function') readControlMode = getControlMode;
-
   btnResumeGame?.addEventListener('click', () => {
     closePauseModal(onResume);
   });
@@ -284,57 +237,6 @@ export function initPauseModal({
 
   btnResetMatch?.addEventListener('click', () => {
     closePauseModal(onReset);
-  });
-
-  btnToggleSound?.addEventListener('click', () => {
-    const muted = toggleAudio();
-    setSwitch(btnToggleSound, !muted);
-    showInstallToast(muted ? t('toast.soundOff') : t('toast.soundOn'));
-  });
-
-  btnToggleFullscreen?.addEventListener('click', () => {
-    const active = toggleFullscreen();
-    setSwitch(btnToggleFullscreen, active);
-  });
-
-  onFullscreenChange((active) => {
-    setSwitch(btnToggleFullscreen, active);
-  });
-
-  btnToggleBots?.addEventListener('click', () => {
-    const next = !isBotEkleEnabled();
-    setBotEkleEnabled(next);
-    setSwitch(btnToggleBots, next);
-    showInstallToast(next ? t('toast.botsOn') : t('toast.botsOff'));
-    if (typeof onBotsToggled === 'function') {
-      onBotsToggled(next);
-    }
-  });
-
-  btnToggleColorblind?.addEventListener('click', () => {
-    const next = !isColorblindEnabled();
-    setColorblindEnabled(next);
-    setSwitch(btnToggleColorblind, next);
-    showInstallToast(next ? t('toast.cbOn') : t('toast.cbOff'));
-  });
-
-  btnToggleTouchControls?.addEventListener('click', () => {
-    // Anahtar iki durumlu; üç değerli tercihin (`auto`) çözümü ne gösteriyorsa
-    // ona tersini yaz. Yazım `subscribePreferences` aboneliğinden akar, yüzey
-    // aynı anda DOM + canvas tarafına birden uygulanır.
-    const next = readControlMode().mode === CONTROL_MODE.DOM
-      ? CONTROL_SURFACE.TABLETOP
-      : CONTROL_SURFACE.MOBILE;
-    setControlSurface(next);
-    setControlsSwitch(btnToggleTouchControls);
-    showInstallToast(next === CONTROL_SURFACE.MOBILE
-      ? t('toast.controlsMobile')
-      : t('toast.controlsTabletop'));
-  });
-
-  btnControllerLayout?.addEventListener('click', () => {
-    closePauseModal();
-    if (typeof onControllerLayout === 'function') onControllerLayout();
   });
 
   // Çıkış çift-bas onay (host odası kapanacağı için; misafir tek basışta çıkar)
@@ -396,10 +298,10 @@ export function initPauseModal({
     showInstallToast(t('toast.rotated'));
   });
 
-  // Dil değişiminde açık sheet anında yenilenir.
+  // Dil değişiminde açık sheet anında yenilenir. Ayar satırları kendi
+  // dil aboneliklerinden tazelenir (panel), burada yeniden çizilmez.
   onLangChange(() => {
     if (!pauseModal || pauseModal.classList.contains('hidden')) return;
-    refreshPauseSwitches();
     renderPauseSeats(lastSwapCallback);
   });
 }
