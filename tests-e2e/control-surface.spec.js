@@ -45,6 +45,10 @@ async function playLocally(page) {
     m.roomFlow.handleGameCardClick('PONG');
     await wait(() => m.roomFlow.getCurrentMode() === 'PONG'
       && reg.getEngine('PONG')?.game?.state === 'LOBBY');
+    // Katalog girişi staging DEĞİLDİR: `stagingMode` kurucuda dolu doğarsa
+    // `roomPhase()` 'STAGING' türetir ve tek cihazdaki dokunmatik oyuncu
+    // oyunun içindeyken koltuk seçme perdesiyle kalır.
+    const beforeStaging = { staging: m.roomFlow.getStagingMode(), phase: m.roomFlow.roomPhase() };
     await m.roomFlow.enterStaging('PONG');
     m.roomFlow.runCountdown();
     await wait(() => reg.getEngine('PONG')?.game?.state === 'PLAYING');
@@ -56,6 +60,7 @@ async function playLocally(page) {
     const overlay = document.getElementById('local-mobile-controls');
     return {
       currentMode: m.roomFlow.getCurrentMode(),
+      beforeStaging,
       platformLocal: m.roomFlow.getLocalControlMode(),
       engineFlag: reg.getEngine('PONG')?.game?.localControlMode,
       state: reg.getEngine('PONG')?.game?.state,
@@ -75,6 +80,7 @@ test('LOCAL + mobil tercih: tek cihazdaki dokunmatik oyuncu kontrol yüzeyini al
   expect(r.engineFlag).toBe('dom');
   expect(r.overlayHidden).toBe(false);
   expect(r.mountedControls).toBeGreaterThan(0);
+  expect(r.beforeStaging).toEqual({ staging: null, phase: 'GAME' });
 });
 
 test('LOCAL + masa-ortası tercih: DOM yüzeyi kapanır, canvas köşe yüzeyi devralır', async ({ page }) => {

@@ -37,7 +37,7 @@ let pendingHostSeatBeforeSwap = null;
 // Sahne durumu (AGENTS §7): LOBBY → STAGING → COUNTDOWN → GAME.
 // `stagingMode` hangi oyunun sahasının açık olduğunu, `seatsLocked` sayaç
 // anında koltukların kilitli olduğunu taşır.
-let stagingMode = 'MENU';
+let stagingMode = null;
 let seatsLocked = false;
 let countdownTimer = null;
 let lastCountdownT = 0;
