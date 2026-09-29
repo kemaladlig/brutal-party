@@ -120,18 +120,28 @@ test('kazanan bloğu kartın içinde ve avatar ile ad çakışmaz', () => {
   }
 });
 
-// --- Telefonun tam ekran sonuç katmanı (CSS + markup) -----------------------
+// --- Telefonun sonuç modalı (CSS + markup) ----------------------------------
 
-test('sonuç ekranının yatay dalı var: dikey sütun kırpılma üretmez', () => {
+test('sonuç kartının yatay dalı var: dikey sütun kırpılma üretmez', () => {
   const css = readFileSync(new URL('../src/gamepad.css', import.meta.url), 'utf8');
   const landscape = /@media \(orientation: landscape\)[^{]*\{([^]*?)\n\}/g;
   let coversResult = false;
   let block;
   while ((block = landscape.exec(css)) !== null) {
-    if (block[1].includes('.gamepad-result')) coversResult = true;
+    if (block[1].includes('.result-card')) coversResult = true;
   }
-  assert.ok(coversResult, 'gamepad.css: .gamepad-result için landscape dalı yok');
-  assert.match(css, /\.gamepad-result\s*\{[^}]*overflow-y:\s*auto/, 'sonuç yüzeyi kendi içinde kaydırabilir olmalı');
+  assert.ok(coversResult, 'gamepad.css: .result-card için landscape dalı yok');
+  assert.match(css, /\.result-card\s*\{[^}]*overflow-y:\s*auto/, 'sonuç kartı kendi içinde kaydırabilir olmalı');
+});
+
+test('sonuç yüzeyi opak tam ekran değil: karartma + ortalanmış modal kart', () => {
+  const css = readFileSync(new URL('../src/gamepad.css', import.meta.url), 'utf8');
+  // Kap opak `--result-bg` ile tüm ekranı kaplamamalı; ayarlar gibi `--scrim-strong`
+  // karartması + ortada sınırlı genişlikte `.result-card` olmalı.
+  assert.match(css, /\.gamepad-result\s*\{[^}]*background:\s*var\(--scrim-strong\)/, 'sonuç kabı karartma kullanmıyor');
+  assert.doesNotMatch(css, /\.gamepad-result\s*\{[^}]*background:\s*var\(--result-bg\)/, 'sonuç kabı hâlâ opak tam ekran');
+  assert.match(css, /\.result-card\s*\{[^}]*width:\s*min\(520px, 100%\)/, 'sonuç kartı sınırlı genişlikte değil');
+  assert.match(css, /\.result-card\s*\{[^}]*background:\s*var\(--result-bg\)/, 'sonuç kartı koyu sonuç yüzeyini kullanmıyor');
 });
 
 test('sonuç ekranı iki grup sarmalayıcısıyla çizilir', () => {

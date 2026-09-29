@@ -30,7 +30,7 @@ export function createWorldViewRenderer() {
       if (frame.gameState === 'ROUND_OVER') {
         drawWorldRoundBanner(ctx, width, height, frame, slots, context);
       } else if (frame.gameState === 'MATCH_OVER') {
-        drawWorldMatchOver(ctx, width, height, frame, slots);
+        drawWorldMatchOver(ctx, width, height, frame, slots, { enter: context.matchOverEnter });
       }
     },
 

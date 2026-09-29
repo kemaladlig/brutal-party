@@ -1073,6 +1073,7 @@ export function renderMatchOver(ctx, {
   onRestart = null,
   onLobby = null,
   viewport = null,
+  enter = 1,
 }) {
   /** @type {any[]} */
   const entries = rows.slice(0, 4).map((row) => ({
@@ -1109,7 +1110,16 @@ export function renderMatchOver(ctx, {
   const heroText = cleanWinner || String(headline || t('game.draw')).toUpperCase();
   const inset = Math.round(6 * g.ts);
 
+  // Giriş yumuşaması: final kartı ani "pat" diye gelmesin (AGENTS §8). `enter`
+  // MATCH_OVER'a girişten bu yana geçen süreden türetilir; varsayılan 1 =
+  // animasyonsuz (tek kare çizen testler/durumlar etkilenmez). Kart komple
+  // solar + birkaç px aşağıdan kayar; karartma da onunla birlikte gelir.
+  const enterEase = enter >= 1 ? 1 : enter <= 0 ? 0 : 1 - Math.pow(1 - enter, 3);
   ctx.save();
+  if (enterEase < 1) {
+    ctx.globalAlpha = enterEase;
+    ctx.translate(0, Math.round((1 - enterEase) * 14 * g.ts));
+  }
   dimBehindPanel(ctx, viewport && viewport.width > 0 ? viewport : arena);
   drawResultPanel(ctx, { x: g.x, y: g.y, w: g.w, h: g.h }, g.ts, g.radius);
   ctx.textAlign = 'left';

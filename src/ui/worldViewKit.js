@@ -96,7 +96,7 @@ export function drawWorldRoundBanner(ctx, width, height, frame, slots = [], cont
  * `frame`: WORLD_FRAME snapshot'ı (`scores`, `matchWinner`, `matchDraw`).
  * `slots`: `SLOTS_UPDATE` isim/renk/avatar kaynağı — yalnız dolu koltuk çizilir.
  */
-export function drawWorldMatchOver(ctx, width, height, frame, slots = [], { headline = null } = {}) {
+export function drawWorldMatchOver(ctx, width, height, frame, slots = [], { headline = null, enter = 1 } = {}) {
   const scores = Array.isArray(frame.scores) ? frame.scores : [];
   const rows = [];
   for (let i = 0; i < scores.length; i++) {
@@ -121,6 +121,7 @@ export function drawWorldMatchOver(ctx, width, height, frame, slots = [], { head
       ? { name: winnerName, color: winnerColor, index: winnerSlot, avatar: winnerSeat.avatar || null }
       : null,
     rows,
+    enter,
   });
 }
 

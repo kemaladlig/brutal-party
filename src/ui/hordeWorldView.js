@@ -19,7 +19,7 @@ export function createWorldViewRenderer() {
   return {
     validate: isValidHordeWorldFrame,
 
-    render(ctx, frame, width, height, slots = [], now = performance.now()) {
+    render(ctx, frame, width, height, slots = [], now = performance.now(), context = {}) {
       const [left, top, right, bottom] = frame.arena;
       const arena = {
         left,
@@ -71,6 +71,7 @@ export function createWorldViewRenderer() {
       if (frame.gameState === 'MATCH_OVER') {
         drawWorldMatchOver(ctx, width, height, frame, slots, {
           headline: scene.matchResult === 'win' ? t('horde.victory') : t('horde.defeat'),
+          enter: context.matchOverEnter,
         });
       }
     },

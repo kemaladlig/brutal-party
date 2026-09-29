@@ -58,6 +58,7 @@ export function createWorldViewRenderer() {
       } else if (frame.gameState === 'MATCH_OVER') {
         drawWorldMatchOver(ctx, width, height, frame, slots, {
           headline: frame.matchDraw ? t('game.draw') : t('archer.champ'),
+          enter: context.matchOverEnter,
         });
       }
     },

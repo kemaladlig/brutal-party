@@ -28,10 +28,16 @@ function pathRoundRect(ctx, x, y, w, h, r) {
   }
 }
 
+// Final kartının giriş süresi: kart ani belirmesin, kısa bir yumuşamayla
+// gelsin. Sunum zamanlamasıdır; simülasyonu/AI'ı etkilemez.
+const MATCH_OVER_ENTER_MS = 260;
+
 export function createTabletopRenderer(game) {
   // Cooldown → hazır geçiş anları: sunum durumu, motor alanı değil.
   const cooldownTracker = {};
   const readyPulseTracker = {};
+  // MATCH_OVER'a giriş anı (ms): final kartının giriş yumuşaması için.
+  let matchOverSince = 0;
 
   function getControlAlpha(value, active = false, near = false) {
     if (!isTouchDevice()) return value;
@@ -451,7 +457,7 @@ export function createTabletopRenderer(game) {
     });
   }
 
-  function renderStandardMatchOver(ctx, { headline = null, rows = null, onRestart = () => game.startNewMatch() } = {}) {
+  function renderStandardMatchOver(ctx, { headline = null, rows = null, onRestart = () => game.startNewMatch(), enter = 1 } = {}) {
     const playersList = game.getEntitiesList();
     const cleanWinner = game.matchWinner ? cleanWinnerName(game.matchWinner.name || '') : '';
     const defRows = rows || playersList
@@ -479,6 +485,7 @@ export function createTabletopRenderer(game) {
       rows: defRows,
       onRestart,
       onLobby: () => game.requestReturnToLobby(),
+      enter,
     });
   }
 
@@ -564,6 +571,16 @@ export function createTabletopRenderer(game) {
   function renderHUD(ctx, options = {}) {
     game.uiButtons = [];
 
+    // Final kartının giriş zamanı: durum MATCH_OVER'a ilk geçtiğinde damgala,
+    // bırakınca sıfırla. Kare başına `performance.now()` yeterli; motor alanı
+    // eklemeden sunum tarafında tutulur.
+    const now = performance.now();
+    if (game.state === 'MATCH_OVER') {
+      if (!matchOverSince) matchOverSince = now;
+    } else if (matchOverSince) {
+      matchOverSince = 0;
+    }
+
     const {
       guideTitle = '',
       guideEntries = null,
@@ -626,6 +643,7 @@ export function createTabletopRenderer(game) {
         headline: matchOverHeadline,
         rows: matchOverRows,
         onRestart,
+        enter: matchOverSince ? Math.min(1, (now - matchOverSince) / MATCH_OVER_ENTER_MS) : 1,
       });
     } else if (game.state === 'PLAYING' || game.state === 'ROUND_PAUSE') {
       if (showScoreboard) {

@@ -16,7 +16,8 @@ src/network.js              PartyNetwork: lokal WebSocket istemcisi (host + kuma
 src/supabaseRelay.js        ONLINE host/player tabloları, keşif/signaling, control/world DataChannel
 src/webrtcManager.js        Star P2C manager: peer Map, SDP/ICE kuyruğu, control/world kanalları
 src/gamepad.js              Telefon kumandası: world canvas + overlay kontroller, koltuk, skor,
-                            ready, dokunmatik girdi, cooldown radyali, kill-feed, tam ekran sonuç
+                            ready, dokunmatik girdi, cooldown radyali, kill-feed, LOCAL sonuç
+                            modalı (nefes payı + `settings-in`; opak tam ekran değil)
 src/controllers/
   controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, TWIN_STICK_ACTION,
                             ARCADE_DRIVE, STEER_ACTION, SLIDER_1D + semantic layout hedefleri)
@@ -320,9 +321,11 @@ transport aynı tüketiciliği besler).
 19. **İkonografi** — Lucide neo-brutalist; tek kaynak `tabletopIcons.js`; butonlarda metin başlığı yok.
 20. **Online world-view** — generic çekirdek `worldCore.js` + `[oyun]View` + client renderer; 30 Hz;
     oyun başına deklaratif `extras`. Client simülasyon/AI import etmez. Maç sonu kartı host
-    canvas'ıyla AYNI (`hud.renderMatchOver` → `worldViewKit.drawWorldMatchOver`): kumanda ayrı
+    canvas'ıyla AYNI (`hud.renderMatchOver` → `worldViewKit.drawWorldMatchOver`): host ve
+    kumanda aynı `enter` ilerlemesiyle solarak açar (ani belirmez); kumanda ayrı
     bant yazmaz; `frame.scores` + `slots`'tan yalnız dolu koltukları çizer, eylem butonu yoktur
-    (yeniden başlatma yetkisi hostta).
+    (yeniden başlatma yetkisi hostta). LOCAL tek-cihaz sonucu telefon DOM'unda ortalanmış
+    modal olarak açılır (`gamepad.js` nefes payı + `.result-card`).
 21. **Kontrol rehberi** — `controllerGuide.js` tek projeksiyon; oyun-başına HTML kopyası yok.
 22. **Cihaz bağlamı+tercih** — `preferences.js` versioned; otomatik yüzey seçimi.
 23. **Ergonomi/dayanıklılık** — Pointer Events + capture; 44px; `inputSource` kaynak kilidi.

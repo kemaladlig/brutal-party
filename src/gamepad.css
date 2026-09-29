@@ -2715,39 +2715,68 @@
   flex-shrink: 0;
 }
 
-/* —— Tam ekran sonuç (Faz 2.4) —— */
+/* —— Maç sonu: sahne üstünde ortalanmış modal (Faz 2.4, yeniden) ——
+   ÖNCE: opak tam ekran panel (`--result-bg`) son karenin üstüne çullanıyordu;
+   kaybedince "nefes alma" payı yoktu. ŞİMDİ: yarı saydam karartma + ortada
+   genişliği sınırlı yükseltilmiş kart — ayarlar/duraklatma ile AYNI dil.
+   Giriş, `gamepad.js`'teki nefes payından SONRA `settings-in` yumuşamasıyla
+   gelir; kart ani belirmez. */
 .gamepad-result {
   position: absolute;
   inset: 0;
   z-index: 120;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  /* Dikey merkezleme `justify-content: center` ile DEĞİL, sütunların
-     `margin-block: auto`'su ile yapılır: merkezilmiş taşan içerik
-     `overflow: hidden` üstünde üstten ve alttan KIRPILIR (ölçüldü:
-     844x390 → 26px, 667x375 → 41px taşma, ~13-21px kesik). Auto margin
-     serbest alanı eşit dağıtır, alan kalmayınca 0'a iner → her satır
-     erişilebilir kalır. */
-  justify-content: flex-start;
-  gap: 12px;
+  justify-content: center;
   padding: max(16px, env(safe-area-inset-top, 16px)) max(16px, env(safe-area-inset-right, 16px)) max(16px, env(safe-area-inset-bottom, 16px)) max(16px, env(safe-area-inset-left, 16px));
-  background: var(--result-bg);
+  background: var(--scrim-strong);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   color: var(--result-ink);
   text-align: center;
   opacity: 0;
-  translate: 0 14px;
   pointer-events: none;
-  transition: opacity 0.28s ease, translate 0.28s ease;
-  overflow-y: auto;
+  transition: opacity 0.24s ease;
   overscroll-behavior: contain;
   touch-action: manipulation;
 }
 
 .gamepad-result.reveal {
   opacity: 1;
-  translate: 0 0;
   pointer-events: auto;
+}
+
+/* Nefes payı boyunca kutu görünmez ama dokunuşu tutar (bkz. `_showMatchResult`). */
+.gamepad-result.is-pending {
+  pointer-events: auto;
+}
+
+/* Kart: sahnenin ortasında sınırlı genişlik, koyu sonuç yüzeyi + ince kenar.
+   `#local-mobile-controls` `data-theme="field"` taşıdığı için `--elevated`/
+   `--ink` burada açık temaya dönerdi; sonuç yüzeyi tema-bağımsız kendi
+   `--result-*` ailesini kullanır (metin okunur kalır). İçerik uzarsa kart
+   içinde kaydırılır; taşmaz. */
+.result-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(520px, 100%);
+  max-height: 100%;
+  padding: 18px 16px;
+  border: 1px solid var(--result-card-edge);
+  border-radius: 20px;
+  background: var(--result-bg);
+  box-shadow: var(--shadow-float);
+  color: var(--result-ink);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.gamepad-result.reveal .result-card {
+  animation: settings-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Başlık bloğu (başlık + alt bilgi + kazanan) ve skor bloğu (sıralama +
@@ -2757,7 +2786,6 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  margin-block: auto;
 }
 
 .result-board {
@@ -2765,8 +2793,7 @@
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  margin-block: auto;
-  width: min(320px, 86vw);
+  width: 100%;
 }
 
 .result-headline {
@@ -2893,11 +2920,15 @@
    eylemler sağa alınır. Tipografi `vh` ile bağlanır: ekran kısalırsa yazı
    da kısalır, ama dokunma hedefleri 48 px tabanının altına inmez. */
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
-  .gamepad-result {
+  /* Yatayda kart iki sütuna açılır: başlık/kazanan solda, sıralama ve
+     eylemler sağda. Kart yine sınırlı genişlikte bir modaldır; tam ekran
+     yayılmaz (dokunma hedefleri `vh` ile bağlı, 48 px tabanının altına inmez). */
+  .result-card {
     flex-direction: row;
-    align-items: flex-start;
+    align-items: center;
+    width: min(720px, 100%);
     gap: clamp(18px, 5vw, 48px);
-    padding-block: max(10px, env(safe-area-inset-top, 10px)) max(10px, env(safe-area-inset-bottom, 10px));
+    padding: 14px 18px;
   }
 
   .result-lead,
@@ -2997,7 +3028,10 @@
   .gamepad-status,
   .gamepad-result {
     transition: none;
-    translate: none;
+  }
+
+  .gamepad-result.reveal .result-card {
+    animation: none;
   }
 
   .gamepad-result.reveal,

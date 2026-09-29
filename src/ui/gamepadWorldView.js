@@ -29,6 +29,9 @@ const MAX_INTERPOLATION_GAP_MS = 100;
 // Self-avatar prediction ufku = playout gecikmesi + bu pay. Pay, girdinin host'a
 // varış gecikmesini kaba telafi eder; büyütmek duvara taşırma riskini artırır.
 const SELF_PREDICTION_LEAD_MS = 20;
+// Maç sonu kartının giriş yumuşaması: host canvas'ıyla AYNI süre
+// (`tabletopRenderer.MATCH_OVER_ENTER_MS`) — telefon ve TV aynı anda açar.
+const MATCH_OVER_ENTER_MS = 260;
 
 const finiteNum = (value) => (
   typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -50,6 +53,10 @@ export class GamepadWorldView {
     // Raunt boşluğu (STATE_SYNC `roundGap`): raunt-sonu bandının geri sayımı.
     // Simülasyon değil sunumdur; host yalnız sayıyı yayınlar.
     this.roundGapSeconds = 0;
+    // Maç sonu kartının giriş ilerlemesi (0..1): world-view finali host ile
+    // aynı yumuşamayla açar. Yine sunum-only.
+    this.matchOverEnter = 1;
+    this._matchOverAt = 0;
     // Self-avatar prediction: sunum-only, host yetkisini değiştirmez.
     this.predictor = createSelfPredictor();
     this.selfInput = { dx: 0, dy: 0, force: 0 };
@@ -339,6 +346,15 @@ export class GamepadWorldView {
         this.selfInput,
         horizon,
       );
+      // Maç sonu kartı girişi: durum MATCH_OVER'a ilk düştüğünde damgala.
+      // gameState sunum tahmininden etkilenmez; ham örnekten okunur.
+      if (sample.frame.gameState === 'MATCH_OVER') {
+        if (!this._matchOverAt) this._matchOverAt = now;
+        this.matchOverEnter = Math.min(1, (now - this._matchOverAt) / MATCH_OVER_ENTER_MS);
+      } else if (this._matchOverAt) {
+        this._matchOverAt = 0;
+        this.matchOverEnter = 1;
+      }
       this.renderer.render(
         this.ctx,
         presentedFrame,
@@ -346,7 +362,7 @@ export class GamepadWorldView {
         this.logicalHeight,
         this.slots,
         now,
-        { selfSlot: this.selfSlot, roundGap: this.roundGapSeconds },
+        { selfSlot: this.selfSlot, roundGap: this.roundGapSeconds, matchOverEnter: this.matchOverEnter },
       );
       this.stats.lastRenderMs = performance.now() - renderStarted;
       perfMonitor.record('client.render', this.stats.lastRenderMs);

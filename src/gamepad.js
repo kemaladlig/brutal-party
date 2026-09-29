@@ -56,6 +56,10 @@ const JOY_MIN_DRAG_FORCE = 0.18;
 // host'u anında durdurmak yerine son yönü kısa bir grace boyunca koru.
 const JOY_CANCEL_GRACE_MS = 150;
 
+// Maç sonu modalının nefes payı: sonuç üstüne çullanmasın, son kare biraz
+// ekranda kalsın. Azaltılmış harekette bekleme yok — modal yine erişilebilir.
+const RESULT_BREATH_MS = 520;
+
 // Kumanda kayıt tablosu: tek kaynaktan (engineRegistry) beslenir
 const CONTROLLER_META = new Proxy({}, {
   get(target, prop) {
@@ -148,6 +152,7 @@ export class GamepadManager {
     this._layoutResizeObserver = null;
     this._lastScores = null;
     this._resultActive = false;
+    this._resultTimer = 0;
     this._unsubscribePreferences = subscribePreferences(() => {
       this._scheduleControllerLayout();
     });
@@ -844,6 +849,7 @@ export class GamepadManager {
     this._teardownMount();
     clearReactions();
     this._resultActive = false;
+    if (this._resultTimer) { clearTimeout(this._resultTimer); this._resultTimer = 0; }
     this._lastScores = null;
     this.overlay.classList.add('hidden');
     this.overlay.innerHTML = '';
@@ -1144,6 +1150,7 @@ export class GamepadManager {
     }
     this._lastScores = null;
     this._resultActive = false;
+    if (this._resultTimer) { clearTimeout(this._resultTimer); this._resultTimer = 0; }
     this._cloneCdBtn = null;
     this.gameMode = mode;
     this._startPhysicalGamepad();
@@ -1755,26 +1762,28 @@ export class GamepadManager {
 
     el.innerHTML = `
       <div class="confetti-burst" aria-hidden="true"></div>
-      <div class="result-lead">
-        <div class="result-headline">${t('pad.resultTitle')}</div>
-        <div class="result-sub">${t('pad.resultSub')}</div>
-        <div class="result-mvp">
-          <span class="result-mvp-dot" style="background-color: ${mvpColor}"></span>
-          <span>${escapeHtml(mvpName)}</span>
+      <div class="result-card" role="document">
+        <div class="result-lead">
+          <div class="result-headline">${t('pad.resultTitle')}</div>
+          <div class="result-sub">${t('pad.resultSub')}</div>
+          <div class="result-mvp">
+            <span class="result-mvp-dot" style="background-color: ${mvpColor}"></span>
+            <span>${escapeHtml(mvpName)}</span>
+          </div>
         </div>
-      </div>
-      <div class="result-board">
-        <div class="result-table">
-          ${rows.map((r, rank) => `
-            <div class="result-row">
-              <span class="result-row-dot" style="background-color: ${r.color}"></span>
-              <span class="result-row-name">${rank + 1}. ${escapeHtml(r.name)}</span>
-              <span class="result-row-score">${r.score}</span>
-            </div>`).join('')}
-        </div>
-        <div class="result-actions">
-          <button class="result-btn result-btn-replay" id="btn-result-replay" type="button">${getTabletopIconSvg('rotate_cw', { size: 20, color: '#241c15', strokeWidth: 2.6 })} ${t('pad.replay')}</button>
-          <button class="result-btn result-btn-lobby" id="btn-result-lobby" type="button">${getTabletopIconSvg('log_out', { size: 20, color: '#241c15', strokeWidth: 2.6 })} ${t('pad.toLobby')}</button>
+        <div class="result-board">
+          <div class="result-table">
+            ${rows.map((r, rank) => `
+              <div class="result-row">
+                <span class="result-row-dot" style="background-color: ${r.color}"></span>
+                <span class="result-row-name">${rank + 1}. ${escapeHtml(r.name)}</span>
+                <span class="result-row-score">${r.score}</span>
+              </div>`).join('')}
+          </div>
+          <div class="result-actions">
+            <button class="result-btn result-btn-replay" id="btn-result-replay" type="button">${getTabletopIconSvg('rotate_cw', { size: 20, color: '#241c15', strokeWidth: 2.6 })} ${t('pad.replay')}</button>
+            <button class="result-btn result-btn-lobby" id="btn-result-lobby" type="button">${getTabletopIconSvg('log_out', { size: 20, color: '#241c15', strokeWidth: 2.6 })} ${t('pad.toLobby')}</button>
+          </div>
         </div>
       </div>
     `;
@@ -1784,20 +1793,32 @@ export class GamepadManager {
     });
     el.querySelector('#btn-result-replay')?.addEventListener('click', () => this._onResultAction('replay'));
     el.querySelector('#btn-result-lobby')?.addEventListener('click', () => this._onResultAction('lobby'));
-    this._spawnConfetti(el.querySelector('.confetti-burst'));
 
-    requestAnimationFrame(() => {
+    // Nefes payı boyunca kutu görünmez ama dokunuşu TUTAR: aksi hâlde boşlukta
+    // canvas'a düşen temas `matchOverRestartTap` ile maçı istemeden başlatırdı.
+    el.classList.add('is-pending');
+    // Nefes payı: sonuç modalı hemen üstüne çullanmasın. Azaltılmış harekette
+    // bekleme yok; konfeti ve pop sesi modal göründüğü an başlar.
+    const breath = motionScale() === 0 ? 0 : RESULT_BREATH_MS;
+    clearTimeout(this._resultTimer);
+    this._resultTimer = window.setTimeout(() => {
+      this._resultTimer = 0;
       el.classList.add('reveal');
       el.setAttribute('aria-hidden', 'false');
-    });
-    playMenuPop();
+      this._spawnConfetti(el.querySelector('.confetti-burst'));
+      playMenuPop();
+    }, breath);
   }
 
   _hideMatchResult() {
     this._resultActive = false;
+    if (this._resultTimer) {
+      clearTimeout(this._resultTimer);
+      this._resultTimer = 0;
+    }
     const el = this._el('gamepad-result');
     if (!el) return;
-    el.classList.remove('reveal');
+    el.classList.remove('reveal', 'is-pending');
     el.setAttribute('aria-hidden', 'true');
     el.innerHTML = '';
   }

@@ -46,6 +46,7 @@ export function createSnakeWorldViewRenderer() {
       } else if (frame.gameState === 'MATCH_OVER') {
         drawWorldMatchOver(ctx, width, height, frame, slots, {
           headline: frame.matchDraw ? t('game.draw') : t('snake.champ'),
+          enter: context.matchOverEnter,
         });
       }
     },
