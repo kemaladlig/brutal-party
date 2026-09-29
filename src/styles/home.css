@@ -1,11 +1,15 @@
 /* Home — yalnız KONUM. Arka plan katmanları ve buton ailesi `scene.css`
    (ortak kaynak); burada sadece ana menünün yerleşimi var:
 
-     üst orta : marka (kabuk üst şeridi, overlay)
-     merkez   : karakter + isim rozeti
-     sağ alt : KOD GİR · ODA KUR · OYNA (giriş çipi + iki kart)
-     sağ orta: YÜKLE · GÜNCELLE çipleri
-     alt orta: bilgi şeridi                                        */
+     üst sol  : marka (kabuk) → altında KALDIĞIN YER çipi
+     üst sağ  : sistem simgeleri (kabuk) → altında YÜKLE · GÜNCELLE
+     merkez   : karakter + ışık konisi + iki satırlı kimlik plakası
+     sağ alt  : KOD GİR · ODA KUR · OYNA (eylem bandı)
+     alt sol  : bilgi şeridi (oyun/oyuncu/mod özeti)
+
+   Eksen mantığı: her yüzen küme bir KÖŞEYE hizalıdır (sistem işleri üst sağ,
+   oyun akışı sağ alt, kimlik merkez). Sahnenin ortasında artık hiçbir şey
+   asılı durmaz — YÜKLE/GÜNCELLE eskiden dikey ortada yüzüyordu. */
 
 /* ── Merkez: karakter ──────────────────────────────────────────────────
    Karakter SAHNEDE durur: ayağı arena diskinin üst kenarındadır
@@ -44,6 +48,9 @@
      Kahraman bu kadar AŞAĞI inince gölge tam olarak platformun eksenine oturur
      (`--scene-stage-y`). */
   --hero-ground-gap: calc(0.153 * var(--hero-size));
+  /* Işık konisinin çapı: gövdenin ~2.2 katı — gövdeyi sarar ama platformu
+     yıkamaz. */
+  --hero-glow-size: calc(var(--hero-size) * 1.55);
   left: 50%;
   width: var(--hero-size);
   /* Merkezleme BİLEREK `transform` DEĞİL: `[data-focus].is-focused`
@@ -51,6 +58,17 @@
      `translateX(-50%)`'yi ezerdi — karakter odak alır almez sağa kayıyordu.
      Negatif kenar boşluğu ölçekten bağımsız, her durumda tam merkez. */
   margin-left: calc(var(--hero-size) / -2);
+}
+
+/* Işık konisi gövde MERKEZİNE oturur. Merkez kutunun altından tam
+   `hero-size/2` yukarıdadır: `stageBodyCenter`'da `groundGap = min(w,h)/2 -
+   1.02r` ve `cy = groundY - 1.02r`, `r = 0.34·min(w,h)` olduğundan
+   `h - groundGap - cy = 0.5·min(w,h)` (canvas'ta min(w,h) = hero-size). */
+.home-hero .scene-hero-glow {
+  left: 50%;
+  bottom: calc(var(--hero-size) / 2);
+  width: var(--hero-glow-size);
+  transform: translate(-50%, 50%);
 }
 
 .home-hero-canvas {
@@ -63,20 +81,24 @@
 
 /* ── Karakter etkileşimi: dokunma ipucu + TV odak ipucu ── */
 
-/* "Karaktere dokun (Zıplat!)" — karakterin BAŞININ ÜSTÜNDE, gökyüzüne karşı
-   okunur (ayak altındaki platform koyu; ipucu orada kayboluyor ve isim
-   rozetiyle çakışıyordu). İlk dokunuşta `.hidden` ile kalkar. */
+/* "Karaktere dokun (Zıplat!)" — KİMLİK PLAKASININ ÜSTÜNDE, karakterin
+   dibinde tek satır. Eskiden kahraman kutusunun tepesine asılıydı; canvas
+   kareden %40 uzun olduğu için ekranın ta tepesine düşüyor ve karakterle
+   bağlantısı kopuyordu (kısa ekranda üstelik kırpılıyordu). Plakaya
+   bağlanınca her düzende karakterin hemen yanında kalır; ilk dokunuşta
+   `.hidden` ile kalkar. Okunurluk için gölge + `--hud-ink`. */
 .home-boing-hint {
   position: absolute;
-  bottom: 100%;
+  bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  margin-bottom: 10px;
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
-  color: var(--faint);
+  color: var(--hud-ink);
+  opacity: 0.72;
+  text-shadow: 0 2px 8px var(--scene-shadow);
   white-space: nowrap;
   pointer-events: none;
 }
@@ -87,8 +109,46 @@
   transform: scale(1.025);
 }
 
+/* ── Ortam: süzülen toz (üst boşluk) ─────────────────────────────────────
+   Sahnenin üst yarısı eskiden tamamen ölü gradyandı. Katman salt dekoratif:
+   odak hedefi değil, ekran okuyucuya kapalı, tıklamayı yutmaz. Her nokta
+   kendi konum/ölçü/gecikmesiyle gelir → tek tip sürü değil, dağınık toz.
+   Yalnız `transform`/`opacity` (AGENTS §8); `prefers-reduced-motion` altında
+   `animations.css` küresel kapısı animasyonu söndürür ve noktalar durağan
+   kalır — görüntü bozulmaz. */
+.home-sky {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.home-sky-dot {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  background: var(--sheen-65);
+  animation: homeSkyFloat 11s ease-in-out infinite;
+}
+
+.home-sky-dot.is-1 { left: 9%;  top: 26%; width: 5px; height: 5px; animation-duration: 9s;  animation-delay: -1s; opacity: 0.28; }
+.home-sky-dot.is-2 { left: 21%; top: 52%; width: 3px; height: 3px; animation-duration: 13s; animation-delay: -4s; opacity: 0.22; }
+.home-sky-dot.is-3 { left: 34%; top: 18%; width: 4px; height: 4px; animation-duration: 15s; animation-delay: -7s; opacity: 0.3; }
+.home-sky-dot.is-4 { left: 55%; top: 12%; width: 3px; height: 3px; animation-duration: 12s; animation-delay: -2s; opacity: 0.22; }
+.home-sky-dot.is-5 { left: 68%; top: 33%; width: 5px; height: 5px; animation-duration: 16s; animation-delay: -9s; opacity: 0.26; }
+.home-sky-dot.is-6 { left: 82%; top: 20%; width: 3px; height: 3px; animation-duration: 10s; animation-delay: -5s; opacity: 0.24; }
+.home-sky-dot.is-7 { left: 89%; top: 58%; width: 4px; height: 4px; animation-duration: 14s; animation-delay: -11s; opacity: 0.2; }
+
+@keyframes homeSkyFloat {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(5px, -16px, 0); }
+}
+
 @media (max-height: 470px), (max-width: 620px) {
   .home-boing-hint { display: none; }
+  /* Kısa/dar ekranda dekoratif katman kapanır: boş alan yok, çizim bütçesi
+     oyun akışına kalsın. */
+  .home-sky { display: none; }
 }
 
 /* ── Sağ alt: ODA KUR + OYNA çifti ────────────────────────────────────────
@@ -165,13 +225,14 @@
 
 .home-play:active { animation: none; }
 
-/* Merkezdeki isim rozeti ve bilgi şeridi alt bantla çakışmasın: daralan
-   ekranda üç kart küçülür, şerit düşer. Genişlik merdiveni tek yerde. */
+/* Genişlik merdiveni: daralan ekranda üç kart da küçülür ama ÜÇÜ BİRLİKTE
+   (basamak sayısı paylaşılır, aynı taban çizgisi korunur). Merkezdeki plaka ve
+   bilgi şeridi artık bu bantla çakışmıyor: plaka karakterin üstünde/altında
+   ortada, şerit alt solda, bant sağ altta — üçü farklı köşede. */
 @media (max-width: 1320px) {
   .home-join,
   .home-room { width: 104px; }
   .home-play { width: 146px; }
-  .home-facts { display: none; }
 }
 
 @media (max-width: 1000px) {
@@ -190,16 +251,42 @@
    (`bottom: 100%`) — alta taşma olmaz. İki öğe (isimi düzenle / rastgele nick)
    ≥44px dokunma hedefiyle alt alta dizilir. */
 
+/* ── Kimlik plakası: iki satır ─────────────────────────────────────────
+   Satır 1 isim + `⋮` (aynı satırda, `home-identity-row`), satır 2 kimlik
+   özeti (`· ` ile ayrılmış platform modu · gövde rengi · yüz). Plaka TEK
+   yüzeydir: eskiden yalnız nick vardı ve karakterin kimliği hiçbir yerde
+   okunmuyordu. Genişlik `max-width` ile sınırlıdır — dar ekranda plaka
+   karakterin yanına taşmaz, metin üç noktayla kısalır. */
+
 .home-identity {
   position: relative;
-  flex-direction: row;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  max-width: min(300px, 40vw);
+}
+
+.home-identity-row {
+  display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
 }
 
 .home-identity .home-name-field {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.home-identity-meta {
+  font: 800 9.5px/1.25 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--hud-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .home-more-btn { flex: 0 0 auto; }
@@ -266,47 +353,20 @@
   .home-more-menu { transition: none; }
 }
 
-/* ── Karakter araçları: düzenle + rastgele ────────────────────────────────
-   Gövdenin sağ ÜSTÜNDE, baş hizasında. Düğmeler sahne kutusunun DIŞINDA durur
-   (`right` eksi sabit px): gövde en fazla kutunun %84'üne uzanır, düğmeler %100
-   + 8px'te başlar — her ekranda arada boşluk kalır, çakışma yapısal olarak
-   imkânsızdır. Dikeyde baş üstü (`top: 35%`) — yüze binmez. */
-
-.home-tools {
-  position: absolute;
-  top: 35%;
-  right: -54px;
-  z-index: 2;
-  display: flex;
-  gap: 8px;
-  /* `.scene-hero` saydam kap (pointer-events:none) — düğmeler kendi olayını alır. */
-  pointer-events: auto;
-}
-
-.home-tool {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  border: 1.5px solid var(--hud-line);
-  background: var(--hud-surface);
-  color: var(--hud-ink);
-  cursor: pointer;
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition: transform 140ms ease, border-color 140ms ease;
-}
-
-.home-tool:hover { border-color: var(--hud-ink); }
-.home-tool:active { transform: scale(0.92); }
-.home-tool.is-focused { box-shadow: var(--glow-accent); }
-
-@media (max-height: 470px) {
-  .home-tools { right: -46px; gap: 6px; }
-  .home-tool { width: 38px; height: 38px; }
-  .home-tool svg { width: 17px; height: 17px; }
+/* ── Dar ekran: plaka karakterin BAŞININ ÜSTÜNE taşınır ───────────────────
+   Alt bantta (platform önü) plaka ile eylem kartları aynı çizgiye düşüyordu:
+   740×560'ta ad "MİNİK ASL…" olarak KODU GİR kartının arkasında kalıyordu ve
+   bu, ölçü ayarıyla değil YERLEŞİMLE çözülmesi gereken bir çakışmaydı.
+   Baş üstü yüksekliği gövde geometrisinden türer (`stageBodyCenter`):
+   gövde yarıçapı 0.34·s, gövde merkezi kutunun altından 0.5·s yukarıda →
+   baş tepesi kutu üstünden 1.4s − 0.5s − 0.34s = 0.56·s aşağıdadır; plaka
+   0.52·s'te durur, yani başın 0.04·s üstünde. */
+@media (max-width: 1000px) {
+  .home-hero.is-staged .home-identity {
+    top: auto;
+    bottom: calc(100% - 0.52 * var(--hero-size));
+    max-width: min(260px, 44vw);
+  }
 }
 
 /* ── KURULUM düğmesi — "beni yükle" nabzı ───────────────────────────────
@@ -344,20 +404,44 @@
   92% { translate: 0 0; }
 }
 
-/* ── Sağ kenar: YÜKLE · GÜNCELLE — eylem çipleri ─────────────────────────
-   Sol ray (gezinme) cam kapsül ve DİKEYken buradakiler yatay çiptir: sert
-   alt kenar, renkli madalyon, dokununca otururlar (`.scene-btn.is-chip`).
-   YÜKLE uygulamayı kurar, GÜNCELLE yeni sürümü uygular / denetler (üç küçük
-   sistem simgesinin arasındaydı, buraya çip olarak taşındı); YÜKLE yalnız
-   uygulama yüklenebilir durumdayken görünür (`toast.js` `.hidden`).
-   KOD GİR de bu çip ailesinden ama eylem sırasının EN SOLUNDA durur
-   (`home.css` alt bant) — oyun akışının girişi olduğu için orada. */
+/* ── Üst sol: KALDIĞIN YER ───────────────────────────────────────────────
+   Markanın ALTINA hizalanır. Sahnenin en büyük ölü alanı burasıydı (üst sol):
+   artık işe yarar bir giriş taşır. Madalyonda oyunun KAPAĞI vardır, yanında
+   etiket + oyun adı (`scene-btn.is-chip` ailesi — aynı geometri, aynı kenar).
+   Sol rayle dikeyde kesişmez: ray dikey ortada, çip üstte; çakışma yalnız
+   çok kısa ekranda (<470px) mümkündür, orada çip kapanır. */
+.home-resume {
+  position: absolute;
+  left: max(26px, env(safe-area-inset-left));
+  top: calc(max(10px, env(safe-area-inset-top)) + 52px);
+  z-index: 3;
+  min-width: 208px;
+  max-width: min(320px, 32vw);
+}
+
+.home-resume .scene-btn-icon { width: 42px; height: 42px; border-radius: 13px; }
+
+/* Oyun adı tek satırda kalır; uzun adlar üç noktayla kısalır (çip genişliği
+   metne göre büyümez — komşu köşelerle hizası bozulmasın). */
+.home-resume .scene-btn-sub {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Sağ kenar: YÜKLE · GÜNCELLE — sistem işleri köşesi ──────────────────
+   Çipler kabuğun sistem simgelerinin (ses / dil / tam ekran) ALTINA hizalanır:
+   üst sağ köşe "sistem" bölgesidir. Eskiden dikey ortada, sahnenin boşluğunda
+   asılı duruyorlardı — hiçbir şeye bağlı değillerdi (kullanıcı raporu: "havada
+   duran kutular"). YÜKLE uygulamayı kurar, GÜNCELLE yeni sürümü uygular /
+   denetler; YÜKLE yalnız uygulama yüklenebilir durumdayken görünür
+   (`toast.js` `.hidden`). KOD GİR de bu çip ailesindendir ama oyun akışının
+   girişi olduğu için sağ alt banttadır. */
 
 .home-side {
   position: absolute;
   right: max(22px, env(safe-area-inset-right));
-  top: 50%;
-  transform: translateY(-50%);
+  top: calc(max(10px, env(safe-area-inset-top)) + 52px);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -400,21 +484,25 @@
   82% { transform: scale(1.12); }
 }
 
-/* ── Bilgi şeridi ─────────────────────────────────────────────────────── */
-
+/* ── Bilgi şeridi ───────────────────────────────────────────────────────
+   ALT SOL: oyun/oyuncu/mod özeti. Eskiden alt ortadaydı ve eylem kartlarının
+   tam altına düşüyordu; bu yüzden ≤1320px'te tamamen kapatılmıştı — yani
+   ekranın en bilgilendirici satırı en yaygın genişlikte hiç görünmüyordu.
+   Sol alt köşe boştur (ray dikey ortada, bant sağda), şerit oraya taşındı ve
+   artık KIRPILMAZ: satır sarması serbest, genişlik sınırlı. */
 .home-facts {
   position: absolute;
-  left: 50%;
-  bottom: max(16px, env(safe-area-inset-bottom));
-  transform: translateX(-50%);
+  left: max(26px, env(safe-area-inset-left));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  max-width: min(420px, 34vw);
   padding: 7px 16px;
   border-radius: var(--radius-pill);
   background: var(--hud-surface);
   border: 2px solid var(--hud-line);
-  font: 900 10px/1 var(--font-mono);
+  font: 900 10px/1.4 var(--font-mono);
   letter-spacing: 0.12em;
   color: var(--hud-muted);
-  white-space: nowrap;
+  text-align: center;
   z-index: 2;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -475,17 +563,18 @@
   .home-install .scene-btn-label,
   .home-update .scene-btn-label { font-size: 10.5px; letter-spacing: 0.04em; }
 
+  /* Kısa ekranda üst sol köşe daralır: rayle (dikey ortada) çakışmayı
+     yapısal olarak kesmek için kayıt çipi kapanır. Kayıt verisi kaybolmaz —
+     OYUNLAR ekranındaki kartlar aynı bilgiyi taşır. */
+  .home-resume { display: none; }
   .home-facts { display: none; }
 }
 
-/* Aşırı kısa yatay (<300px): sağ-orta çip yığını sağ-alt eylem satırının
-   üstüne biner — yığını eylemlerin hemen üstüne sabitle. */
+/* Aşırı kısa yatay (<300px): sağ-üst çip yığını üç kartlık eylem bandının
+   üstüne biner — çipler kapanır. Bu yükseklikte bilgi değil yer kıymetlidir;
+   YÜKLE/GÜNCELLE aynı anda Ayarlar'dan da erişilebilir. */
 @media (max-height: 300px) {
-  .home-side {
-    top: auto;
-    transform: none;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
-  }
+  .home-side { display: none; }
 }
 
 /* Dar + uzun (dikey telefon — rotate gate arkasında).
@@ -519,19 +608,17 @@
   }
   .home-room .scene-btn-sub { display: block; }
 
+  /* Sağ üst çip yığını kabuk simgelerinin altında kalır: kabuk sağ üstü kendi
+     yönetir (ses/dil/tam ekran), home ona dokunmaz — dar düzende de aynı
+     çizgi (`+52px`). */
   .home-side {
-    top: 58px;
+    top: calc(max(10px, env(safe-area-inset-top)) + 52px);
     bottom: auto;
     transform: none;
     right: max(12px, env(safe-area-inset-right));
   }
 
-  /* Bilgi şeridi karakterin altındaki boşluktan okunur; `top` sabit bir
-     yüzdeye değil, gerçek oturma çizgisine bağlanır. */
-  .home-facts {
-    bottom: auto;
-    top: calc(var(--scene-stage-y) + 0.153 * min(26vh, 200px) + 60px);
-    font-size: 9px;
-    letter-spacing: 0.08em;
-  }
+  /* Bilgi şeridi KAPALI: dar düzende eylem bandı alt kenarı tamamen kaplar,
+     bilgi satırı için dikey yer kalmaz (yatay düzende alt solda görünür). */
+  .home-facts { display: none; }
 }

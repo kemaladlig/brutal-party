@@ -55,10 +55,8 @@ export function renderTopPill(ctx, {
     ctx.textBaseline = 'top';
     // Zeminde okunur: 1px kaydırılmış koyu kopya, sonra metin. Kutu yok.
     //
-    // Konum ÜST-ORTA: köşeler `renderCornerScores`'un dört rozetine ait
-    // (ölçüldü: 10 viewport'ta kartlar birbirine ve saha dışına taşmıyor).
-    // Sola yaslamak P2 çipiyle çakışıyordu — kapatılan çubuğun yerine
-    // yeni bir çakışma bırakmak olurdu.
+    // Konum ÜST-ORTA: başlık satırı kenarlarda (skor solda, bilgi sağda)
+    // durduğu için kalıcı bilgi ortada kalır, iki yüzey çakışmaz.
     const y = arena.top + Math.max(2, Math.round(3 * scale));
     ctx.fillStyle = UI_COLORS.ink;
     ctx.fillText(text, arena.cx + 1, y + 1);
@@ -349,305 +347,226 @@ export function renderFloatingTexts(ctx, list, dt = 0.016) {
   ctx.restore();
 }
 
-// Kurumsal SaaS & Broadcast Seviyesinde Standart Köşe Skorları:
-// 4 köşede yüksek kontrastlı, TV'den okunacak büyüklükte, lider tacı 👑 ve
-// yakınına oyuncu/top geldiğinde dinamik olarak saydamlaşan (Proximity Ghosting) brutalist rozetler.
-export function renderCornerScores(ctx, { arena, entries, entities = [], isRoundOver = false }) {
-  const { left, right, top, bottom, width, height } = arena;
-  const scale = getUiScale(arena);
-
-  // TV / Monitörde rahat okunur boyut (Genişlik: ~105-135px, Yükseklik: ~34-44px)
-  const cardW = Math.round(Math.min(width * 0.22, 120 * scale));
-  const cardH = Math.round(Math.min(height * 0.08, 38 * scale));
-  const inset = Math.round(14 * scale);
-
-  // 4 köşe kutu alanları [P1 sol-alt, P2 sol-üst, P3 sağ-üst, P4 sağ-alt]
-  const spots = [
-    { x: left + inset, y: bottom - cardH - inset, alignLeft: true },
-    { x: left + inset, y: top + inset, alignLeft: true },
-    { x: right - cardW - inset, y: top + inset, alignLeft: false },
-    { x: right - cardW - inset, y: bottom - cardH - inset, alignLeft: false },
-  ];
-
-  // Lider skoru bul
-  let highestScore = -1;
-  entries.forEach((e) => {
-    if (!e || typeof e.text !== 'string') return;
-    const num = parseInt(e.text, 10);
-    if (!isNaN(num) && num > highestScore) highestScore = num;
-  });
-
-  ctx.save();
-
-  entries.forEach((entry, i) => {
-    if (!entry) return;
-    const spot = spots[i];
-    if (!spot) return;
-    const rect = { x: spot.x, y: spot.y, w: cardW, h: cardH };
-
-    // Proximity Ghosting: Eğer herhangi bir oyuncu/top/mermi bu kutunun üstüne/yakınına gelirse
-    // kutu saydamlaşır (alpha: 0.25), saha görüşü engellenmez. Boşken okunabilir koyu karttır (0.72);
-    // açık kağıt zeminlerde beyaz metnin kaybolmaması için taban yüksek tutulur.
-    const isNearby = checkProximity(rect, entities, Math.round(35 * scale));
-    const cardAlpha = isRoundOver ? 1.0 : isNearby ? 0.25 : 0.72;
-
-    ctx.globalAlpha = cardAlpha;
-
-    if (isRoundOver) {
-      const shadowOffset = Math.max(2, Math.round(3 * Math.min(1.4, scale)));
-      // Sert Brutalist Gölge
-      ctx.fillStyle = UI_COLORS.ink;
-      ctx.fillRect(rect.x + shadowOffset, rect.y + shadowOffset, rect.w, rect.h);
-
-      // Kart Gövdesi (Krem)
-      ctx.fillStyle = UI_COLORS.card;
-      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-
-      // Dış Kenarlık
-      ctx.strokeStyle = UI_COLORS.ink;
-      ctx.lineWidth = Math.max(2, Math.round(2.5 * Math.min(1.4, scale)));
-      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
-    } else {
-      // Oyun esnasında: Koyu Füme Kapsül (açık zeminde beyaz metin okunur, aksiyon alttan seçilir)
-      ctx.fillStyle = 'rgba(24, 24, 22, 0.62)';
-      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-      ctx.lineWidth = 1.2;
-      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
-    }
-
-    // Sol Oyuncu Renk Çubuğu (Kimin skoru olduğu 1 saniyede anlaşılır)
-    const stripeW = Math.round(7 * scale);
-    ctx.fillStyle = entry.color || UI_COLORS.players[i];
-    ctx.fillRect(rect.x, rect.y, stripeW, rect.h);
-
-    // İçerik: koltuk rozeti (P1..P4) + kısa oyuncu adı + skor sayısı + lider yıldızı
-    const scoreVal = parseInt(entry.text, 10);
-    const isLeader = highestScore > 0 && scoreVal === highestScore;
-    const midY = rect.y + rect.h / 2;
-
-    // Skor genişliğini önce ölç (etiket çakışmasın)
-    const scoreFont = `900 ${Math.round(18 * scale)}px ${UI_FONTS.mono}`;
-    ctx.font = scoreFont;
-    const scoreW = ctx.measureText ? (ctx.measureText(entry.text)?.width || 40) : 40;
-    const scoreRightX = rect.x + rect.w - Math.round(8 * scale);
-    const scoreLeftX = scoreRightX - scoreW;
-
-    // Lider yıldızı: skorun hemen solunda (etikete taşmaz)
-    let starZone = 0;
-    if (isLeader) {
-      ctx.font = `900 ${Math.round(12 * scale)}px ${UI_FONTS.mono}`;
-      const starW = ctx.measureText ? (ctx.measureText('★')?.width || 12) : 12;
-      starZone = starW + Math.round(8 * scale);
-      ctx.fillStyle = UI_COLORS.gold;
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('★', scoreLeftX - Math.round(4 * scale), midY);
-    }
-
-    // Koltuk rozeti + kısa isim (P1 AHMET); taşarsa yoğunlaşır, skora taşmaz
-    const labelX = rect.x + stripeW + Math.round(6 * scale);
-    const labelMaxW = Math.max(24, scoreLeftX - starZone - Math.round(4 * scale) - labelX);
-    const shortName = (entry.name || '').toString().toUpperCase().slice(0, 7);
-    const labelText = shortName ? `P${i + 1} ${shortName}` : `P${i + 1}`;
-    ctx.font = `900 ${Math.round(11 * scale)}px ${UI_FONTS.mono}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    if (!isRoundOver) {
-      // Açık zeminlerde okunurluk için koyu kontur
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
-      ctx.lineWidth = Math.max(1.5, Math.round(2 * scale));
-      ctx.strokeText(labelText, labelX, midY, labelMaxW);
-    }
-    ctx.fillStyle = isRoundOver ? UI_COLORS.muted : 'rgba(255, 255, 255, 0.92)';
-    ctx.fillText(labelText, labelX, midY, labelMaxW);
-
-    // Skor (Büyük, Okunaklı Sayı + koyu kontur)
-    ctx.font = scoreFont;
-    ctx.textAlign = 'right';
-    if (!isRoundOver) {
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
-      ctx.lineWidth = Math.max(2, Math.round(3 * scale));
-      ctx.strokeText(entry.text, scoreRightX, midY);
-    }
-    ctx.fillStyle = isRoundOver ? (entry.color || UI_COLORS.ink) : '#FFFFFF';
-    ctx.fillText(entry.text, scoreRightX, midY);
-  });
-
-  ctx.restore();
+// ---------------------------------------------------------------------------
+// Maç Başlığı (Match Header) — TEK skor + durum yüzeyi
+// ---------------------------------------------------------------------------
+// Yapı: skor daima SOLDA, küçük bilgi (tur/dalga/süre) varsa SAĞDA. Oyunlar
+// buraya yalnız veri verir (statusText/statusTone); çizim kararı çekirdeğindir.
+// Kompakt telefonda kutu YOKTUR: zemin üstünde beyaz metin + koyu kontur.
+// Masaüstünde uygulama temasında kart (krem zemin, mürekkep kenar, sert gölge).
+// Skor önceliklidir: satır daralırsa bilgi budanır.
+function headerEntries(players) {
+  const out = [];
+  for (let i = 0; i < 4; i++) {
+    const p = players[i];
+    if (!p) continue;
+    if (!(p.isJoined ?? (p.slotType !== 'empty'))) continue;
+    out.push({
+      index: Number.isInteger(p.index) ? p.index : i,
+      name: (p.name || `P${i + 1}`).toString(),
+      color: p.color || UI_COLORS.players[i],
+    });
+  }
+  return out;
 }
 
-// Evrensel Skor Paneli (Universal Scoreboard):
-// 'corners' (saha içi 4 köşe sabitlenmiş rozetler) veya 'top-bar' (üst yayın şeridi) düzenlerini destekler.
-// Geliştirici dostudur; tek parametreyle istenen yerleşim anında değiştirilebilir.
-export function renderUniversalScoreboard(ctx, {
+function headerToneColor(tone) {
+  if (tone === 'urgent' || tone === 'boss') return UI_COLORS.danger;
+  if (tone === 'armory') return UI_COLORS.hudCharge;
+  return UI_COLORS.white;
+}
+
+export function renderMatchHeader(ctx, {
   arena,
   players = [],
   scores = [0, 0, 0, 0],
-  targetScore = 3,
+  statusText = '',
+  statusTone = null,
   entities = [],
-  layout = 'corners', // 'corners' | 'top-bar'
-  timeRemaining = null,
+  controlMode = /** @type {string} */ (CONTROL_MODE.NONE),
   isRoundOver = false,
   state = null,
 }) {
-  const scale = getUiScale(arena);
+  const seated = headerEntries(players);
+  let status = (statusText ?? '').toString().trim();
+  if (seated.length === 0 && !status) return;
   const roundOver = Boolean(isRoundOver || state === 'ROUND_OVER' || state === 'MATCH_OVER' || state === 'ROUND_PAUSE');
+  const scale = getUiScale(arena);
+  const compact = controlMode === CONTROL_MODE.DOM
+    || controlMode === CONTROL_MODE.CANVAS
+    || isCompactLandscape(arena);
+  const maxScore = seated.reduce((m, e) => Math.max(m, Number(scores[e.index]) || 0), 0);
 
-  // 1. KÖŞE DÜZENİ (Saha İçi Sabitlenmiş + Proximity Ghosting)
-  if (layout === 'corners') {
-    const entries = [0, 1, 2, 3].map((idx) => {
-      const p = players[idx];
-      const isJoined = p ? (p.isJoined ?? (p.slotType !== 'empty')) : false;
-      if (!isJoined) return null;
-      return {
-        color: p.color || UI_COLORS.players[idx],
-        text: `${scores[idx] || 0}★`,
-        name: p.name || `P${idx + 1}`,
-      };
+  if (compact) {
+    // Kutusuz tek satır: solda skor, sağda bilgi. Okunurluk konturdan gelir.
+    const fontPx = Math.max(14, Math.round(15 * scale));
+    const y = arena.top + Math.max(2, Math.round(3 * scale));
+    const padX = Math.round(8 * scale);
+    const segGap = Math.round(12 * scale);
+    const colGap = Math.round(14 * scale);
+    ctx.save();
+    ctx.font = `900 ${fontPx}px ${UI_FONTS.mono}`;
+    ctx.textBaseline = 'top';
+    ctx.lineJoin = 'round';
+    const maxW = Math.max(0, arena.width - padX * 2);
+    const segs = seated.map((e) => {
+      const v = Number(scores[e.index]) || 0;
+      return { text: `P${e.index + 1} ${v}★`, leader: maxScore > 0 && v === maxScore };
     });
-    renderCornerScores(ctx, { arena, entries, entities, isRoundOver: roundOver });
+    const segW = segs.map((s) => (ctx.measureText ? ctx.measureText(s.text)?.width || 0 : 0));
+    const scoresW = segW.reduce((a, w) => a + w, 0) + segGap * Math.max(0, segs.length - 1);
+    if (status) {
+      const room = Math.max(0, maxW - scoresW - colGap);
+      status = clipTextTo(ctx, status, room);
+    }
+    const statusW = status && ctx.measureText ? (ctx.measureText(status)?.width || 0) : 0;
+    ctx.strokeStyle = UI_COLORS.hudInkOutline;
+    ctx.lineWidth = Math.max(2.5, Math.round(3 * scale));
+    let x = arena.left + padX;
+    ctx.textAlign = 'left';
+    segs.forEach((s, k) => {
+      ctx.strokeText(s.text, x, y);
+      ctx.fillStyle = s.leader ? UI_COLORS.gold : UI_COLORS.white;
+      ctx.fillText(s.text, x, y);
+      x += (segW[k] || 0) + segGap;
+    });
+    if (status && scoresW + colGap + statusW <= maxW + 1) {
+      const sx = arena.right - padX;
+      ctx.textAlign = 'right';
+      ctx.strokeText(status, sx, y);
+      ctx.fillStyle = headerToneColor(statusTone);
+      ctx.fillText(status, sx, y);
+    }
+    ctx.restore();
     return;
   }
 
-  // 2. ÜST YAYIN ŞERİDİ (Broadcast Bar)
-  // Oyun esnasında: İnce, alçak profilli, yarı saydam füme kapsül (duvar hissi vermez, zemin görünür).
-  // Raunt sonunda: Geniş, opak, sert gölgeli kutlama kartı.
-  const activePlayers = players.filter((p, i) => p && (p.isJoined ?? (p.slotType !== 'empty')));
-  const count = Math.max(1, activePlayers.length);
-
-  const barW = Math.min(arena.width * 0.94, Math.round((roundOver ? 560 : 440) * scale));
-  const barH = Math.round((roundOver ? 40 : 25) * scale);
-  const barX = arena.cx - barW / 2;
-
-  // Akıllı Marj Yerleşimi: Arena üstünde dış boşluk varsa sahanın DIŞINA yerleştirilir (sahaya sıfır temas!)
-  const topMargin = arena.top;
-  let barY;
-  if (topMargin >= barH + 4) {
-    barY = arena.top - barH - 3;
-  } else {
-    barY = arena.top + Math.round((roundOver ? 4 : 1) * scale);
+  // Temalı kart: tek bar, solda skor, sağda bilgi.
+  const namePx = Math.round(12 * scale);
+  const scorePx = Math.round(15 * scale);
+  const statusPx = Math.round(12 * scale);
+  const cPadX = Math.round(12 * scale);
+  const dotR = Math.max(3, Math.round(4 * scale));
+  const cSegGap = Math.round(14 * scale);
+  const divGap = status ? Math.round(12 * scale) : 0;
+  ctx.save();
+  ctx.font = `900 ${namePx}px ${UI_FONTS.mono}`;
+  const labelW = seated.map((e) => {
+    const short = e.name.toUpperCase().slice(0, 5);
+    return ctx.measureText ? (ctx.measureText(`P${e.index + 1} ${short}`)?.width || 0) : 0;
+  });
+  ctx.font = `900 ${scorePx}px ${UI_FONTS.mono}`;
+  const valueW = seated.map((e) => {
+    const v = `${Number(scores[e.index]) || 0}★`;
+    return ctx.measureText ? (ctx.measureText(v)?.width || 0) : 0;
+  });
+  ctx.font = `900 ${statusPx}px ${UI_FONTS.mono}`;
+  let rightW = status && ctx.measureText ? (ctx.measureText(status)?.width || 0) : 0;
+  const dotSpan = dotR * 2 + Math.round(5 * scale);
+  const leftW = seated.reduce((a, e, k) => a + dotSpan + (labelW[k] || 0) + Math.round(6 * scale) + (valueW[k] || 0), 0)
+    + cSegGap * Math.max(0, seated.length - 1);
+  const barH = Math.round((roundOver ? 40 : 32) * scale);
+  let barW = Math.min(arena.width * 0.94, leftW + (status ? divGap * 2 + 1 + rightW : 0) + cPadX * 2);
+  barW = Math.max(barW, Math.min(arena.width * 0.94, leftW + cPadX * 2));
+  if (status && leftW + divGap * 2 + 1 + rightW + cPadX * 2 > barW) {
+    const room = Math.max(0, barW - cPadX * 2 - leftW - divGap * 2 - 1);
+    status = clipTextTo(ctx, status, room);
+    rightW = ctx.measureText ? (ctx.measureText(status)?.width || 0) : 0;
   }
+  const barX = arena.cx - barW / 2;
+  const topMargin = arena.top;
+  const barY = topMargin >= barH + 4 ? arena.top - barH - 3 : arena.top + Math.round(4 * scale);
 
   const isNearby = checkProximity({ x: barX, y: barY, w: barW, h: barH }, entities, 35);
-  // Oyun sırasında okunabilir taban (0.72), aksiyon yaklaşınca 0.25'e iner — skor kaybolmaz.
-  const barAlpha = roundOver ? 1.0 : isNearby ? 0.25 : 0.72;
-
-  ctx.save();
+  const barAlpha = roundOver ? 1.0 : isNearby ? 0.25 : 1.0;
   ctx.globalAlpha = barAlpha;
+  const shadow = Math.max(2, Math.round(3 * scale));
+  ctx.fillStyle = UI_COLORS.ink;
+  ctx.fillRect(barX + shadow, barY + shadow, barW, barH);
+  ctx.fillStyle = UI_COLORS.card;
+  ctx.fillRect(barX, barY, barW, barH);
+  ctx.strokeStyle = UI_COLORS.ink;
+  ctx.lineWidth = Math.max(2, Math.round(2 * scale));
+  ctx.strokeRect(barX, barY, barW, barH);
 
-  if (roundOver) {
-    const shadow = Math.max(2, Math.round(3 * scale));
-    ctx.fillStyle = UI_COLORS.ink;
-    ctx.fillRect(barX + shadow, barY + shadow, barW, barH);
-    ctx.fillStyle = UI_COLORS.card;
-    ctx.fillRect(barX, barY, barW, barH);
+  const midY = barY + barH / 2;
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  let cx = barX + cPadX;
+  ctx.textAlign = 'left';
+  seated.forEach((e, k) => {
+    const v = Number(scores[e.index]) || 0;
+    const leader = maxScore > 0 && v === maxScore;
+    ctx.beginPath();
+    ctx.arc(cx + dotR, midY, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = e.color;
+    ctx.fill();
     ctx.strokeStyle = UI_COLORS.ink;
-    ctx.lineWidth = Math.max(2, Math.round(2.5 * scale));
-    ctx.strokeRect(barX, barY, barW, barH);
-  } else {
-    // Koyu füme cam kapsül (açık zeminde beyaz metin okunur)
-    ctx.fillStyle = 'rgba(24, 24, 22, 0.62)';
-    ctx.fillRect(barX, barY, barW, barH);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.lineWidth = 1.2;
-    ctx.strokeRect(barX, barY, barW, barH);
-  }
-
-  // Oyuncuları yatay diz
-  const colW = (barW - Math.round(16 * scale)) / count;
-  const maxScore = Math.max(...scores.slice(0, 4));
-
-  activePlayers.forEach((p, idx) => {
-    const origIdx = p.index ?? idx;
-    const score = scores[origIdx] || 0;
-    const isLeader = maxScore > 0 && score === maxScore;
-    const colX = barX + Math.round(8 * scale) + idx * colW;
-
-    // Oyuncu rengi mini dikey çubuk
-    const stripeW = Math.max(3, Math.round((roundOver ? 5 : 3.5) * scale));
-    const stripeH = barH - Math.round((roundOver ? 14 : 8) * scale);
-    ctx.fillStyle = p.color || UI_COLORS.players[origIdx];
-    ctx.fillRect(colX, barY + (barH - stripeH) / 2, stripeW, stripeH);
-
-    // P1 + İsim (açık zeminde okunurluk için koyu kontur)
-    const pName = (p.name || `P${origIdx + 1}`).slice(0, 5);
-    const nameX = colX + stripeW + Math.round(5 * scale);
-    ctx.font = `900 ${Math.round((roundOver ? 12 : 10.5) * scale)}px ${UI_FONTS.mono}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    if (!roundOver) {
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    cx += dotSpan;
+    const short = e.name.toUpperCase().slice(0, 5);
+    const label = `P${e.index + 1} ${short}`;
+    ctx.font = `900 ${namePx}px ${UI_FONTS.mono}`;
+    ctx.fillStyle = UI_COLORS.ink;
+    ctx.fillText(label, cx, midY);
+    cx += (labelW[k] || 0) + Math.round(6 * scale);
+    const value = `${v}★`;
+    ctx.font = `900 ${scorePx}px ${UI_FONTS.mono}`;
+    if (leader) {
+      ctx.strokeStyle = UI_COLORS.ink;
       ctx.lineWidth = Math.max(1.5, Math.round(2 * scale));
-      ctx.strokeText(`${pName}`, nameX, barY + barH / 2);
-    }
-    ctx.fillStyle = roundOver ? UI_COLORS.ink : '#FFFFFF';
-    ctx.fillText(`${pName}`, nameX, barY + barH / 2);
-
-    // Taç / Yıldız
-    if (isLeader) {
+      ctx.strokeText(value, cx, midY);
       ctx.fillStyle = UI_COLORS.gold;
-      ctx.font = `900 ${Math.round((roundOver ? 12 : 10) * scale)}px ${UI_FONTS.mono}`;
-      ctx.fillText('★', colX + stripeW + Math.round((roundOver ? 46 : 38) * scale), barY + barH / 2);
+    } else {
+      ctx.fillStyle = UI_COLORS.ink;
     }
-
-    // Skor (açık zeminde okunurluk için koyu kontur)
-    const scoreX = colX + colW - Math.round(6 * scale);
-    ctx.font = `900 ${Math.round((roundOver ? 16 : 12.5) * scale)}px ${UI_FONTS.mono}`;
-    ctx.textAlign = 'right';
-    if (!roundOver) {
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
-      ctx.lineWidth = Math.max(2, Math.round(2.5 * scale));
-      ctx.strokeText(`${score}★`, scoreX, barY + barH / 2);
-    }
-    ctx.fillStyle = roundOver ? (p.color || UI_COLORS.ink) : '#FFFFFF';
-    ctx.fillText(`${score}★`, scoreX, barY + barH / 2);
+    ctx.fillText(value, cx, midY);
+    cx += (valueW[k] || 0) + cSegGap;
   });
-
+  if (status) {
+    cx -= cSegGap;
+    ctx.strokeStyle = UI_COLORS.faint;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx + divGap, barY + Math.round(7 * scale));
+    ctx.lineTo(cx + divGap, barY + barH - Math.round(7 * scale));
+    ctx.stroke();
+    ctx.font = `900 ${statusPx}px ${UI_FONTS.mono}`;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = statusTone ? headerToneColor(statusTone) : UI_COLORS.ink;
+    ctx.fillText(status, barX + barW - cPadX, midY);
+  }
   ctx.restore();
 }
 
 // ---------------------------------------------------------------------------
 // Uyarlanabilir Skor Paneli (Adaptive Scoreboard)
 // ---------------------------------------------------------------------------
-// Ekran ve kontrol moduna göre en ergonomik düzeni seçer. TEK skor yüzeyi
-// vardır: sanal kontroller ekrandaysa üst şerit (parmak çakışmasını önler),
-// yoksa dört köşe rozeti. Sahanın sol üstüne ayrı bir mikro sayım çipi
-// (Top Rail Tally) ve onun "göz at" düğmesi KALDIRILDI: aynı skoru
-// ikinci bir yüzeyde tekrarlıyor, dolu/boş koltuk ayrımı yoktu ve
-// kullanıcı isteğiyle saha içinden çıktı.
+// TEK skor + durum yüzeyi: `renderMatchHeader` (skor solda, bilgi sağda).
+// Kompakt telefonda kutusuz metin, masaüstünde temalı kart. Ayrı köşe
+// rozetleri ve yarı saydam füme bar kaldırıldı.
 export function renderAdaptiveScoreboard(ctx, {
   arena,
   players = [],
   scores = [0, 0, 0, 0],
-  targetScore = 3,
+  targetScore = 3, // imza uyumu için tutulur; hedef kartta gösterilmez
   entities = [],
-  forceLayout = null, // 'corners' | 'top-bar' | null (otomatik)
   controlMode = /** @type {string} */ (CONTROL_MODE.NONE),
-  timeRemaining = null,
+  statusText = '',
+  statusTone = null,
   isRoundOver = false,
   state = null,
 }) {
-  const roundOver = Boolean(isRoundOver || state === 'ROUND_OVER' || state === 'MATCH_OVER' || state === 'ROUND_PAUSE');
-
-  let layout = forceLayout;
-  if (!layout) {
-    // DOM kumandası da sahayı kapatıyor: ikisi de üst şeride taşar.
-    const controlsActive = controlMode === CONTROL_MODE.DOM
-      || controlMode === CONTROL_MODE.CANVAS;
-    // Sanal kontroller ekrandaysa parmak çakışmasını önlemek için daima top-bar
-    layout = controlsActive ? 'top-bar' : 'corners';
-  }
-
-  renderUniversalScoreboard(ctx, {
+  renderMatchHeader(ctx, {
     arena,
     players,
     scores,
-    targetScore,
+    statusText,
+    statusTone,
     entities,
-    layout,
-    timeRemaining,
-    isRoundOver: roundOver,
+    controlMode,
+    isRoundOver,
     state,
   });
 }

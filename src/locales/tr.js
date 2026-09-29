@@ -2,6 +2,7 @@
 export const TR = {
   // ── Pause / in-game sheet ──
   'pause.close': 'Kapat',
+  'pause.badge': 'DURAKLATILDI',
   'pause.tabSeats': 'KOLTUKLAR',
   'pause.tabControls': 'KONTROLLER',
   'pause.aimShort': 'NIŞAN',
@@ -450,6 +451,12 @@ export const TR = {
   'lobby.missing': 'Oda ekranı yüklenemedi.',
   // Ana menü mod butonları: kısa etiket + uzun açıklama (genişleyince görünür).
   'shell.home.facts': '15 OYUN · 2-4 OYUNCU · TEK CİHAZ VEYA AĞ',
+  // KALDIĞIN YER çipi ve kimlik plakası. Mod adları `platformMode` değerleriyle
+  // eşleşir (LOCAL / TV_CONSOLE / ONLINE → `homeView.platformKey`).
+  'shell.home.resume': 'KALDIĞIN YER',
+  'shell.mode.local': 'TEK CİHAZ',
+  'shell.mode.tv': 'TV MODU',
+  'shell.mode.online': 'ONLINE',
   'menu.avatarBadge': 'ATÖLYE',
   'menu.avatarTitle': 'KARAKTERİN',
   'menu.nickPh': "NICK",

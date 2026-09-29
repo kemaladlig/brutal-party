@@ -23,6 +23,7 @@ let server;
 let HordeGame;
 let GAME_ORDER;
 let CARTRIDGES;
+let HORDE_VIEW_LIMITS;
 
 before(async () => {
   globalThis.window = {
@@ -50,6 +51,7 @@ before(async () => {
     optimizeDeps: { noDiscovery: true },
   });
   ({ HordeGame } = await server.ssrLoadModule('/src/games/horde.js'));
+  ({ HORDE_VIEW_LIMITS } = await server.ssrLoadModule('/src/games/hordeView.js'));
   ({ GAME_ORDER, CARTRIDGES } = await server.ssrLoadModule('/src/core/engineRegistry.js'));
 });
 
@@ -102,6 +104,35 @@ test('single-player horde starts and keeps authoritative values finite', () => {
   }
   assert.equal(game.createWorldPacket().mode, 'HORDE');
   assert.doesNotThrow(() => game.render());
+});
+
+test('a wave holds nothing that can stall its own clear', () => {
+  // Dalga bitişi `enemies.length === 0` üzerinden ilerler (bkz. `updatePortal`).
+  // Sahnede ölü/ateşsiz bir eşya kalmamalı: eski patlayıcı variller tam olarak
+  // bunu yapıyordu — vurulmazsa tur 90sn'lik `WAVE_LIMIT` zaman aşımına
+  // kadar kilitleniyordu. Aynı sebeple dizi world-view paket limitini de
+  // taşırıyordu.
+  const game = setup();
+  game.slotTypes = ['human', 'human', 'human', 'human'];
+  game.initPlayers();
+  game.startNewMatch();
+
+  for (let round = 1; round <= 3; round++) {
+    for (let wave = 1; wave <= 3; wave++) {
+      game.round = round;
+      game.wave = wave;
+      game.startWave();
+      assert.ok(game.enemies.length > 0, `tur ${round} dalga ${wave} boş doğdu`);
+      assert.ok(
+        game.enemies.every((enemy) => enemy.type !== 'barrel'),
+        `tur ${round} dalga ${wave} inert bir eşya içeriyor`,
+      );
+      assert.ok(
+        game.enemies.length <= HORDE_VIEW_LIMITS.enemies,
+        `tur ${round} dalga ${wave} paket limitini aştı (${game.enemies.length})`,
+      );
+    }
+  }
 });
 
 test('remote joystick, held fire and dash share the current input contract', () => {

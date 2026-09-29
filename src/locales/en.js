@@ -2,6 +2,7 @@
 export const EN = {
   // ── Pause / in-game sheet ──
   'pause.close': 'Close',
+  'pause.badge': 'PAUSED',
   'pause.tabSeats': 'SEATS',
   'pause.tabControls': 'CONTROLS',
   'pause.aimShort': 'AIM',
@@ -448,6 +449,12 @@ export const EN = {
   'shell.room.sectionSeats': 'PLAYERS',
   'lobby.missing': 'Room screen could not be loaded.',
   'shell.home.facts': '15 GAMES · 2-4 PLAYERS · ONE DEVICE OR ONLINE',
+  // Resume chip + identity plate. Mode names match `platformMode` values
+  // (LOCAL / TV_CONSOLE / ONLINE → `homeView.platformKey`).
+  'shell.home.resume': 'PICK UP WHERE YOU LEFT',
+  'shell.mode.local': 'ONE DEVICE',
+  'shell.mode.tv': 'TV MODE',
+  'shell.mode.online': 'ONLINE',
   'menu.avatarBadge': 'WORKSHOP',
   'menu.avatarTitle': 'YOUR CHARACTER',
   'menu.nickPh': 'NICK',

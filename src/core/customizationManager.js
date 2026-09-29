@@ -24,6 +24,21 @@ export function rimName(id, fallback) {
   return tx(`rim.${id}`, fallback ?? id);
 }
 
+/**
+ * Kayıtlı hex → palet kaydı. İki palet (klasik + Okabe-Ito) birlikte aranır:
+ * renk körü modu açılıp kapansa da kayıtlı renk geçerli kalır (bkz. sanizeAvatar).
+ * TEK arama noktası — hex→palet çözümü ikinci kez yazılmaz.
+ * @param {string} hex
+ * @param {Array<{id: string, name: string, hex: string}>} [palettes] - arama havuzu
+ * @returns {{id: string, name: string, hex: string}|null}
+ */
+export function findPaletteByHex(hex, palettes = null) {
+  const target = String(hex || '').toUpperCase();
+  if (!target) return null;
+  const pool = palettes || [...AVATAR_PALETTES, ...COLORBLIND_PALETTES];
+  return pool.find((p) => p.hex.toUpperCase() === target) || null;
+}
+
 export const AVATAR_PALETTES = [
   { id: 'red', name: 'KIRMIZI', hex: '#D84727', border: '#1A1A1A' },
   { id: 'blue', name: 'MAVİ', hex: '#1D5D8A', border: '#1A1A1A' },
@@ -272,8 +287,7 @@ export function sanitizeAvatar(input, opts = {}) {
   const rawColor = String(src.color || '').toUpperCase();
   // Kanonik hex: önce aktif palette, yoksa diğer palette ara (mod değişimi
   // kayıtlı rengi bozmaz; iki palet de whitelist'tedir).
-  const known = [...AVATAR_PALETTES, ...COLORBLIND_PALETTES]
-    .find((p) => p.hex.toUpperCase() === rawColor);
+  const known = findPaletteByHex(rawColor);
   const color = known
     ? known.hex
     : (opts.keepColor && PALETTE_HEX.has(String(opts.fallbackColor || '').toUpperCase())

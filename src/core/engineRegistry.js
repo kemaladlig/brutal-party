@@ -27,6 +27,17 @@ export const GAME_ORDER = [
   'CLONE',
 ];
 
+/**
+ * Kapak görseli yolu — TEK formül (`public/assets/games/[oyun].webp`, 1:1).
+ * OYUNLAR galerisi ile ana menünün "KALDIĞIN YER" çipi aynı yolu buradan alır;
+ * oyun eklemek dosya adını değiştirmez (AGENTS §10 maddesi).
+ * @param {string} mode
+ * @returns {string}
+ */
+export function gameArtPath(mode) {
+  return `/assets/games/${String(mode || '').toLowerCase()}.webp`;
+}
+
 export const CARTRIDGES = {
   PONG: {
     id: 'PONG',

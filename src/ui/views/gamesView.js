@@ -8,7 +8,7 @@
 //
 // Veri kaynağı değişmedi: `CARTRIDGES` + `GAME_ORDER` (registry tek nokta).
 
-import { GAME_ORDER, CARTRIDGES, preloadEngine } from '../../core/engineRegistry.js';
+import { GAME_ORDER, CARTRIDGES, preloadEngine, gameArtPath } from '../../core/engineRegistry.js';
 import { t, onLangChange } from '../../i18n.js';
 import { getTabletopIconSvg } from '../../core/tabletopIcons.js';
 import { createTabStrip } from '../tabStrip.js';
@@ -21,7 +21,7 @@ function el(tag, className, html) {
   return node;
 }
 
-const ART = (mode) => `/assets/games/${String(mode).toLowerCase()}.webp`;
+const ART = gameArtPath;
 
 // Kategori tek kaynağı CARTRIDGES.category'dir (registry'de tanımlı).
 const CATEGORIES = [

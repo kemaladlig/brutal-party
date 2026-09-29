@@ -2,11 +2,12 @@
 
 import {
   drawHordeParticles,
-  drawHordeStatus,
   drawHordeWorld,
+  hordeHeaderStatus,
   hordeSceneFromFrame,
   isValidHordeWorldFrame,
 } from '../games/hordeView.js';
+import { renderMatchHeader } from './hud.js';
 import { t } from '../i18n.js';
 import { drawWorldBanner, fitWorld, worldScreenBox, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { paintBackdrop } from '../core/fieldKit.js';
@@ -43,7 +44,26 @@ export function createWorldViewRenderer() {
       paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { theme: scene.theme });
       fitWorld(ctx, width, height, frame.arena, () => {
         drawHordeWorld(ctx, arena, scene, { withFx: frame.gameState === 'PLAYING', now });
-        drawHordeStatus(ctx, arena, scene);
+        const header = hordeHeaderStatus({ ...scene, state: scene.phase, hasPortal: scene.portal != null });
+        const headerPlayers = [0, 1, 2, 3].map((i) => {
+          const sp = scene.players.find((player) => player.slot === i);
+          const s = slots?.[i];
+          const joined = sp ? sp.joined !== false : !!s;
+          if (!joined) return null;
+          return {
+            index: i,
+            name: s?.name || `P${i + 1}`,
+            color: s?.color || s?.displayColor || sp?.color || HORDE_FALLBACK[i],
+            isJoined: true,
+          };
+        });
+        renderMatchHeader(ctx, {
+          arena,
+          players: headerPlayers,
+          scores: frame.scores || [0, 0, 0, 0],
+          statusText: header.text,
+          statusTone: header.tone,
+        });
         drawHordeParticles(ctx, frame.particles || []);
       });
       ctx.restore();

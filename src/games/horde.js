@@ -44,8 +44,8 @@ import {
   HORDE_VIEW_LIMITS,
   createHordeWorldPacket,
   drawHordeParticles,
-  drawHordeStatus,
   drawHordeWorld,
+  hordeHeaderStatus,
   mapHordeScene,
 } from './hordeView.js';
 
@@ -539,41 +539,6 @@ export class HordeGame extends BaseMiniGame {
       enemy.y = point.y;
       enemy.spawnDelay = 0.35 + (i % 5) * 0.14 + Math.random() * 0.18;
       this.enemies.push(enemy);
-    }
-
-    if (!this.isBossWave) {
-      const barrelCount = 2 + Math.floor(Math.random() * 2);
-      for (let i = 0; i < barrelCount; i++) {
-        const barrel = {
-          id: this._nextEnemyId++,
-          type: 'barrel',
-          isBoss: false,
-          elite: false,
-          x: this.arena.cx,
-          y: this.arena.cy,
-          vx: 0,
-          vy: 0,
-          radius: this.bodyPx(20),
-          speed: 0,
-          hp: 4,
-          maxHp: 4,
-          damage: 0,
-          attackEvery: Infinity,
-          attackTimer: Infinity,
-          healTimer: Infinity,
-          angle: 0,
-          hitTimer: 0,
-          spawnDelay: 0.1,
-          lungeTimer: 0,
-          lungeCooldown: 0,
-          summonThresholds: [],
-          summonIndex: 0,
-        };
-        const point = this.randomEdgePoint(barrel.radius + 15);
-        barrel.x = point.x;
-        barrel.y = point.y;
-        this.enemies.push(barrel);
-      }
     }
   }
 
@@ -1515,7 +1480,7 @@ export class HordeGame extends BaseMiniGame {
     if (!enemy || enemy.hp <= 0) return;
     enemy.hp -= damage;
     enemy.hitTimer = HORDE_TUNING.HIT_FLASH;
-    if (knockback > 0 && enemy.type !== 'barrel') {
+    if (knockback > 0) {
       const magnitude = Math.hypot(dirX, dirY) || 1;
       // `knockback` cihaz px'inden KATEDİLECEK toplam mesafedir; bunu bir
       // karede pozisyona eklemek ("ışınlanma") yerine, o mesafeyi
@@ -1532,24 +1497,6 @@ export class HordeGame extends BaseMiniGame {
     if (enemy.hp > 0) return;
     const index = this.enemies.indexOf(enemy);
     if (index >= 0) this.enemies.splice(index, 1);
-
-    if (enemy.type === 'barrel') {
-      this.spawnParticles(enemy.x, enemy.y, '#F97316', 30);
-      playExplosion();
-      const radiusSq = Math.pow(this.bodyPx(140), 2);
-      const blastKnockback = this.bodyPx(150);
-      const hitEnemies = this.enemies.filter(e => distanceSq(e.x, e.y, enemy.x, enemy.y) <= radiusSq);
-      for (const e of hitEnemies) {
-        this.damageEnemy(e, 8, ownerIndex, blastKnockback, e.x - enemy.x, e.y - enemy.y);
-      }
-      for (const p of this.alivePlayers) {
-        if (distanceSq(p.x, p.y, enemy.x, enemy.y) <= radiusSq) {
-          this.damagePlayer(p, 1);
-        }
-      }
-      this.addTrauma(0.4);
-      return;
-    }
 
     if (enemy.elite || enemy.isBoss) {
       if (Math.random() < (enemy.isBoss ? 1.0 : 0.35)) {
@@ -1932,12 +1879,13 @@ export class HordeGame extends BaseMiniGame {
 
     drawHordeWorld(ctx, this.arena, scene, { withFx: this.state === 'PLAYING', now: this.lastTime });
     drawHordeParticles(ctx, this.particles);
-    drawHordeStatus(ctx, this.arena, scene);
 
     if (this.state === 'PLAYING') {
       this.renderControls(ctx, { extraEntities: this.enemies });
     }
 
+    // Skor + durum TEK başlıktadır (skor solda, tur/dalga sağda).
+    const header = hordeHeaderStatus(this);
     this.renderHUD(ctx, {
       guideTitle: t('guide.horde'),
       guideEntries: [
@@ -1948,7 +1896,8 @@ export class HordeGame extends BaseMiniGame {
       ],
       colors: HORDE_COLORS,
       accent: '#7C3AED',
-      showScoreboard: false,
+      statusText: header.text,
+      statusTone: header.tone,
       matchOverHeadline: this.matchResult === 'win' ? t('horde.victory') : t('horde.defeat'),
       matchOverRows: this.players
         .filter((player) => player.isJoined)

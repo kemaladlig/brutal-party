@@ -140,7 +140,7 @@ src/ui/
   tabStrip.js               MERKEZİ sekme şeridi (OYUNLAR kategorileri + KARAKTER editörü)
   canvasUI.js               Ortak canvas UI: renderLobbySeatCard, renderLobbyStartButton,
                             renderStandardLobbySeats, renderMatchOver, renderRoundBanner,
-                            renderControlGuide, renderCornerScores, renderArenaWatermarkTimer
+                            renderControlGuide, renderMatchHeader, renderArenaWatermarkTimer
   customizeModal.js         İKİ YOLLU avatar atölyesi (RENK/YÜZ/HALKA; TV lobisi + kumanda yolu)
   characterRenderer.js      Birleşik avatar çizimi (yazısız pip kimliği; text-label yasak)
   avatarStage.js            Avatar sahne çizimi (yarıçapa orantılı)

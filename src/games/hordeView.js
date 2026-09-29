@@ -5,7 +5,6 @@ import { drawObstacle, drawPickup } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { segmentAabbIntersection } from '../core/physics2d.js';
-import { isCompactLandscape } from '../core/playfield.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { getFireCooldownProgress, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
 import { renderSpatialBadge } from '../ui/hud.js';
@@ -42,7 +41,7 @@ export const HORDE_VIEW_LIMITS = Object.freeze({
 
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
-const ENEMY_TYPES = new Set(['chaser', 'shooter', 'tank', 'healer', 'barrel', 'bomb']);
+const ENEMY_TYPES = new Set(['chaser', 'shooter', 'tank', 'healer', 'bomb']);
 
 // Sık kullanılan çizim renkleri tek adsta: literal sayısı `rules-lint` K2
 // borcunu dosya başına sayıyor, bu yüzden ortak tonlar burada durur.
@@ -494,80 +493,6 @@ function drawExtractionGate(ctx, portal, now) {
   ctx.restore();
 }
 
-function drawBarrelProp(ctx, enemy, eu, withFx, now) {
-  const r = enemy.r;
-  const w = r * 1.5;
-  const h = r * 1.9;
-  const damaged = 1 - clamp01(enemy.hp / enemy.maxHp);
-  ctx.save();
-  ctx.translate(enemy.x, enemy.y);
-
-  ctx.globalAlpha = 0.28;
-  ctx.fillStyle = INK;
-  ctx.beginPath();
-  ctx.ellipse(0, h * 0.54, w * 0.58, r * 0.24, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  ctx.fillStyle = '#F97316';
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = Math.max(1.5, 3 * eu);
-  ctx.beginPath();
-  ctx.rect(-w / 2, -h / 2, w, h);
-  ctx.fill();
-  ctx.stroke();
-
-  // Kapak + bantlar: varilin "silindir" okunuşu buradan gelir.
-  ctx.fillStyle = INK;
-  ctx.beginPath();
-  ctx.ellipse(0, -h / 2, w / 2, r * 0.26, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillRect(-w / 2, -h * 0.16, w, Math.max(2, r * 0.16));
-  ctx.fillRect(-w / 2, h * 0.06, w, Math.max(2, r * 0.16));
-
-  // Uyarı chevrons: eşyanın tehlike olduğunu rengi değil işareti söyler.
-  ctx.fillStyle = GOLD;
-  ctx.beginPath();
-  ctx.moveTo(-w * 0.3, h * 0.42);
-  ctx.lineTo(0, h * 0.24);
-  ctx.lineTo(w * 0.3, h * 0.42);
-  ctx.lineTo(w * 0.3, h * 0.52);
-  ctx.lineTo(0, h * 0.34);
-  ctx.lineTo(-w * 0.3, h * 0.52);
-  ctx.closePath();
-  ctx.fill();
-
-  // Hasar kararması — varilde can çubuğu yerine gövde okunur.
-  if (damaged > 0) {
-    ctx.globalAlpha = damaged * 0.5;
-    ctx.fillStyle = INK;
-    ctx.fillRect(-w / 2, -h / 2, w, h);
-    ctx.globalAlpha = 1;
-  }
-
-  // Fitil kıvılcımı: yanıp sönen tempo varilin ateşlenebilir olduğunu verir.
-  const spark = 0.55 + Math.sin(now / 120) * 0.45;
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = Math.max(1, 2 * eu);
-  ctx.beginPath();
-  ctx.moveTo(w * 0.22, -h / 2);
-  ctx.lineTo(w * 0.42, -h / 2 - r * 0.42);
-  ctx.stroke();
-  ctx.globalAlpha = withFx ? 0.4 + spark * 0.6 : 1;
-  ctx.fillStyle = GOLD;
-  ctx.beginPath();
-  ctx.arc(w * 0.42, -h / 2 - r * 0.48, Math.max(1.5, r * (0.16 + spark * 0.1)), 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  if (enemy.hit && withFx) {
-    ctx.strokeStyle = FLASH;
-    ctx.lineWidth = Math.max(2, 4 * eu);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
 function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
   const eu = (enemy.r || 14) / 14;
   if (enemy.spawning) {
@@ -592,16 +517,6 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
       ctx.stroke();
     }
     ctx.restore();
-    return;
-  }
-
-  // Varil = patlayıcı EŞYA, birim değil (motor tarafı da öyle: hız 0,
-  // attackEvery ∞, vurunca AoE). Eski çizim dönen turuncu daire + beyaz "göz"
-  // + can çubuğuydu, yani oyuncuya "yerinde sabit duran, ateş etmeyen NPC"
-  // gibi okunuyordu. Artık dik varil kovası: bantları, uyarı işareti, yanan
-  // fitili ve hasarla kararan gövdesi var; döndürülmez, gözü ve çubuğu olmaz.
-  if (enemy.type === 'barrel') {
-    drawBarrelProp(ctx, enemy, eu, withFx, now);
     return;
   }
 
@@ -1103,68 +1018,30 @@ export function drawHordeParticles(ctx, particles) {
   drawCircleParticles(ctx, particles);
 }
 
-export function drawHordeStatus(ctx, arena, scene) {
-  const inArmory = scene.phase === 'ROUND_PAUSE';
-  const mapName = t(`horde.map.${scene.theme}`);
+// Maç başlığı verisi (host + world-view istemcisi ortak): tur/dalga + sayaç.
+// Çizim `ui/hud.renderMatchHeader`'dadır; bu dosya yalnız metni üretir.
+export function hordeHeaderStatus(source = {}) {
+  const state = source.state || source.phase || 'PLAYING';
+  const inArmory = state === 'ROUND_PAUSE';
+  const round = Math.max(1, Math.round(source.round || 1));
+  const wave = Math.max(1, Math.round(source.wave || 1));
+  const totalRounds = Math.max(1, Math.round(source.totalRounds || 3));
+  const totalWaves = Math.max(1, Math.round(source.totalWaves || 3));
+  const hasPortal = source.hasPortal ?? source.portal != null;
   const label = inArmory
-    ? `${t('horde.armory')} • ${mapName}`
-    : scene.isBossWave
-      ? `${t('horde.bossWave')} • ${mapName}`
-      : `${t('horde.progress', scene.round, scene.totalRounds, scene.wave, scene.totalWaves)} • ${mapName}`;
+    ? t('horde.armory')
+    : source.isBossWave
+      ? t('horde.bossWave')
+      : t('horde.progress', round, totalRounds, wave, totalWaves);
   const sub = inArmory
-    ? t('horde.armoryTimer', Math.ceil(scene.roundBreakTime))
-    : scene.portal
+    ? t('horde.armoryTimer', Math.ceil(Number(source.roundBreakTime) || 0))
+    : hasPortal
       ? t('horde.portalReady')
-      : scene.waveBreakTime > 0
-        ? t('horde.nextWave', Math.ceil(scene.waveBreakTime))
+      : Number(source.waveBreakTime) > 0
+        ? t('horde.nextWave', Math.ceil(Number(source.waveBreakTime) || 0))
         : '';
-  // Yerleşim: masaüstü/tablette üst-ortada banner (geniş ekranda yer ucuz).
-  // Kompakt yatayda (telefon) saha üst payı ~3px olduğu için ortada bir opak
-  // bant oynanış alanının üstünü kesiyordu; sola yaslanıp daraltılıyor.
-  // `window` yoksa (SSR, world-view packet testleri bu view'ı render eder)
-  // kompakt sayılmaz — çizim kodu varlığa bağımlı olmamalı.
-  const compact = !!(arena?.profile?.compactLandscape ?? isCompactLandscape(arena));
-  // Chip ölçeği saha kısa kenarına bağlıdır: mutlak 44/58px yükseklik
-  // telefonda saha yüksekliğinin %11'i idi, %4.7'ye indi.
-  const u = (arena.size || 952) / 952;
-  const labelFont = `900 ${Math.max(9, Math.round(14 * u))}px "Space Grotesk", sans-serif`;
-  const subFont = `800 ${Math.max(7, Math.round(11 * u))}px "JetBrains Mono", monospace`;
-
-  // Kutu İÇERİĞİNE GÖRE genişler. Sabit taban genişlik metni taşırıyordu:
-  // telefonda kutu 122px, metin ~150px — metin kutudan taşıp sol duvarın
-  // üstünde kesiliyordu. Ölçüm tabanı aşarsa kutu büyür, saha genişliğini
-  // aşarsa kırpılır.
-  ctx.save();
-  ctx.font = labelFont;
-  const labelW = ctx.measureText(label).width;
-  ctx.font = subFont;
-  const subW = sub ? ctx.measureText(sub).width : 0;
-  const padX = 16 * u;
-  const baseW = Math.min(arena.width * (compact ? 0.42 : 0.72), (compact ? 300 : 430) * u);
-  const w = Math.max(baseW, Math.min(arena.width - 16 * u, Math.max(labelW, subW) + padX));
-  const h = (sub ? 58 : 44) * u;
-  const x = compact ? arena.left + 8 * u : arena.cx - w / 2;
-  const y = arena.top + 8 * u;
-
-  ctx.fillStyle = INK;
-  ctx.fillRect(x + 4 * u, y + 4 * u, w, h);
-  ctx.fillStyle = inArmory ? '#7C3AED' : scene.portal ? '#7C3AED' : scene.isBossWave ? '#B91C1C' : INK;
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = FLASH;
-  ctx.lineWidth = 2.5 * u;
-  ctx.strokeRect(x, y, w, h);
-  ctx.fillStyle = FLASH;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  // Metin KUTUNUN kendi merkezine hizalanır, sahanın değil. Kompakt yatayda kutu
-  // sola yaslanır ama metin `arena.cx`'e göre kalırsa kutudan taşıp sol duvarın
-  // üstüne biner (ölçülen görsel kusur).
-  const textCx = x + w / 2;
-  ctx.font = labelFont;
-  ctx.fillText(label, textCx, y + (sub ? 19 * u : h / 2));
-  if (sub) {
-    ctx.font = subFont;
-    ctx.fillText(sub, textCx, y + 41 * u);
-  }
-  ctx.restore();
+  return {
+    text: sub ? `${label} • ${sub}` : label,
+    tone: source.isBossWave ? 'boss' : (inArmory || hasPortal ? 'armory' : null),
+  };
 }

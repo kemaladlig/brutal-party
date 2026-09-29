@@ -6,7 +6,6 @@ import { UI_COLORS, UI_FONTS } from '../ui/tokens.js';
 import {
   renderRoundBanner,
   renderMatchOver,
-  renderTopPill,
   renderFloatingTexts,
 } from '../ui/hud.js';
 import { renderControlGuide } from '../controlGuide.js';
@@ -944,28 +943,17 @@ export class RaceGame extends BaseMiniGame {
     const arena = this.arena;
     drawRaceWorld(ctx, this, arena, this.players.map((p) => p.color), this.lastTime);
 
-    if (this.state === 'PLAYING') {
-      renderTopPill(ctx, {
-        arena,
-        text: t('race.hud', this.getTrackName(), Math.ceil(this.roundTimer)),
-        urgent: this.roundTimer <= 15,
-        customW: 210,
-        // Tur sayacı oyun boyunca görünür: kalıcı play-state chrome. Kompakt
-        // yatayda opak çubuk sahanın üst payına (3px) oturup oynanış alanını
-        // kapatıyordu; çubuk yerine çıplak metne düşer.
-        persistent: true,
-      });
-    }
-
     renderFloatingTexts(ctx, this.floatingTexts, 0);
     this.renderStandardJoysticks(ctx);
 
-    // Skor yüzeyi tek sahibi: `renderStandardScoreboard`. RACE masa-ortası
-    // joystick sırasında 'corners' yerleşimini zorlar (sürgü + rehber şeridi
-    // üst payı kullanır); dolu koltuk listesi oradan da `slotTypes`'ten gelir.
+    // Skor + tur bilgisi TEK başlıktadır (skor solda, parkur/süre sağda).
+    // Eskiden ayrı kalıcı hap + zorunlu köşe skoru vardı: iki yüzeydi.
     this.renderStandardScoreboard(ctx, {
       targetScore: this.targetScore,
-      forceLayout: 'corners',
+      statusText: this.state === 'PLAYING'
+        ? t('race.hud', this.getTrackName(), Math.ceil(this.roundTimer))
+        : '',
+      statusTone: this.state === 'PLAYING' && this.roundTimer <= 15 ? 'urgent' : null,
     });
 
     if (this.state === 'PLAYING') {

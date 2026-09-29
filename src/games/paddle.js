@@ -252,7 +252,7 @@ export class Paddle {
       ctx.restore();
     }
 
-    // Skor köşelerde (renderCornerScores); raket yanında yalnız canlar durur
+    // Skor üst başlıkta (renderMatchHeader); raket yanında yalnız canlar durur
     {
       ctx.save();
       const count = Math.max(0, Math.floor(this.lives || 0));

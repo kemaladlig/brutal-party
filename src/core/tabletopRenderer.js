@@ -405,7 +405,8 @@ export function createTabletopRenderer(game) {
   function renderStandardScoreboard(ctx, {
     targetScore = game.targetScore || 3,
     entities = null,
-    forceLayout = null,
+    statusText = '',
+    statusTone = null,
   } = {}) {
     const playersList = game.getEntitiesList();
     // "Hangi koltuk dolu" kararı TEK kaynaktan: `game.slotTypes`. Varlığın
@@ -428,8 +429,9 @@ export function createTabletopRenderer(game) {
       targetScore,
       entities: activeEntities,
       controlMode: game.localControlMode,
+      statusText,
+      statusTone,
       state: game.state,
-      forceLayout,
     });
   }
 
@@ -576,6 +578,8 @@ export function createTabletopRenderer(game) {
       showScoreboard = true,
       targetScore = game.targetScore || 3,
       scoreboardEntities = null,
+      statusText = '',
+      statusTone = null,
       roundBannerTitle = null,
       roundBannerColor = null,
       roundBannerSub = '',
@@ -608,7 +612,7 @@ export function createTabletopRenderer(game) {
       }
     } else if (game.state === 'ROUND_OVER') {
       if (showScoreboard) {
-        renderStandardScoreboard(ctx, { targetScore, entities: scoreboardEntities });
+        renderStandardScoreboard(ctx, { targetScore, entities: scoreboardEntities, statusText, statusTone });
       }
       renderStandardRoundBanner(ctx, {
         title: roundBannerTitle,
@@ -625,7 +629,7 @@ export function createTabletopRenderer(game) {
       });
     } else if (game.state === 'PLAYING' || game.state === 'ROUND_PAUSE') {
       if (showScoreboard) {
-        renderStandardScoreboard(ctx, { targetScore, entities: scoreboardEntities });
+        renderStandardScoreboard(ctx, { targetScore, entities: scoreboardEntities, statusText, statusTone });
       }
     }
 

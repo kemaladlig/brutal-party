@@ -142,13 +142,14 @@ export function mountHeroAvatar(canvas, { onPoke = null } = {}) {
   // TV/kumanda/klavye yolu: focusRouter `el.click()`'i `[data-focus]` TAŞIYAN
   // öğeye (sahne div'i) vurur — olay çocuk canvas'a İNMEZ. Klick dinleyicisi
   // bu yüzden odak host'unda; canvas'taki pointerdown'la çift tepki 250 ms
-  // penceresiyle önlendiği gibi, rozetteki ve yüzen araçlardaki (isim/kalem/zar)
-  // tıklamalar da zıplatma üretmez. Genel `button`/`input` koruması: rozete
-  // yeni bir eylem eklense bile sahneye kabarıp karakteri zıplatamaz.
+  // penceresiyle önlendiği gibi, rozetteki tıklamalar da zıplatma üretmez.
+  // Genel `button`/`input` koruması: rozete/menüye yeni bir eylem eklense bile
+  // sahneye kabarıp karakteri zıplatamaz (karakter araçları da `⋮` menüsüne
+  // taşındı — sahneye yüzen düğme kalmadı).
   const focusHost = canvas.parentElement || canvas;
   const onClick = (e) => {
     if (e.target instanceof Element
-      && e.target.closest('.scene-badge, button, input, .home-tools')) return;
+      && e.target.closest('.scene-badge, button, input')) return;
     if (performance.now() - lastPokeAt < POKE_CLICK_DEDUPE_MS) return;
     const rect = canvas.getBoundingClientRect();
     if (!rect.width) return;

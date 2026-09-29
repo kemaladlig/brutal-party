@@ -13,6 +13,7 @@ import { resolveLocalControlMode } from '../ui/tokens.js';
 import { showReaction, clearReactions } from '../ui/reactionLayer.js';
 import { playJoin } from '../audio.js';
 import { acquireWakeLock, releaseWakeLock } from './wakeLock.js';
+import { setPreference } from './preferences.js';
 
 export function createRoomFlow(deps) {
   const {
@@ -44,6 +45,18 @@ let lastCountdownT = 0;
 
 function markTransition() {
   lastTransitionTime = performance.now();
+}
+
+/**
+ * "KALDIĞIN YER" kaydının TEK yazma noktası (okuma: `views/homeView.js`).
+ * Saha geçişi başarılı olduktan sonra çağrılır; katalogda gezinmek ya da
+ * lobide oyun değiştirmek kaydı yazmaz — kayıt "oynanan" oyunu anlatır.
+ * @param {string} mode
+ */
+function rememberLastPlayedGame(mode) {
+  if (!mode || mode === 'MENU') return;
+  setPreference('lastGameMode', mode);
+  setPreference('lastPlayedAt', Date.now());
 }
 
   
@@ -1087,6 +1100,9 @@ async function enterStaging(mode) {
   await setGameMode(mode);
   // Yükleme başarısızsa veya araya yeni geçiş girdiyse saha açılmaz.
   if (currentMode !== mode) return;
+  // "KALDIĞIN YER" kaydı: maç GERÇEKTEN sahaya geçtiğinde yazılır (katalogda
+  // gezinmek kaydı ezmez). Yazma yeri tektir; ana menü yalnız okur.
+  rememberLastPlayedGame(mode);
   stagingMode = mode;
   seatsLocked = false;
   // Lobiden çıkışta herkes BEKLE'ye çekilir (yerel sıfırlama, ekstra çağrı yok —
