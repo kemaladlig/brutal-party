@@ -4,6 +4,7 @@ import {
   createCloneWorldPacket,
   isValidCloneWorldFrame,
 } from '../src/games/cloneView.js';
+import { blendWorldFrames } from '../src/core/worldInterpolation.js';
 
 function makeGame() {
   return {
@@ -61,6 +62,20 @@ test('clone world packet is declarative, complete and monotonic', () => {
 
   assert.ok(isValidCloneWorldFrame({ action: 'WORLD_FRAME', ...first }));
   assert.equal(isValidCloneWorldFrame({ action: 'WORLD_FRAME', ...first, version: 2 }), false);
+});
+
+test('interpolated clone frame stays a valid frame (packed walls survive blending)', () => {
+  // Client 30 Hz kareleri jitter buffer'da enterpolasyonla sunar; `walls`
+  // paketlenmiş dizi olduğu için blend bunu nesneye yayıp view'ın
+  // destructuring'ini patlatıyordu.
+  const first = { action: 'WORLD_FRAME', ...createCloneWorldPacket(makeGame()) };
+  const second = { action: 'WORLD_FRAME', ...createCloneWorldPacket(makeGame()) };
+  const blended = blendWorldFrames(first, second, 0.5);
+
+  assert.ok(Array.isArray(blended.walls[0]), 'walls dizi olarak kalmalı');
+  assert.deepEqual(blended.walls[0], [300, 120, 40, 200]);
+  assert.equal(isValidCloneWorldFrame(blended), true);
+  assert.doesNotThrow(() => blended.walls.map(([x, y, w, h]) => ({ x, y, w, h })));
 });
 
 test('clone world frame validation rejects malformed input', () => {

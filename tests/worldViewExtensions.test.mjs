@@ -3,9 +3,14 @@ import assert from 'node:assert/strict';
 import { createPongWorldPacket, isValidPongWorldFrame } from '../src/games/pongView.js';
 import { createRaceWorldPacket, isValidRaceWorldFrame } from '../src/games/raceView.js';
 import { createCrownWorldPacket, isValidCrownWorldFrame } from '../src/games/crownView.js';
+import { createCloneWorldPacket, isValidCloneWorldFrame } from '../src/games/cloneView.js';
+import { createSnakeWorldPacket, isValidSnakeWorldFrame } from '../src/games/snakeView.js';
 import { createWorldViewRenderer as pongRenderer } from '../src/ui/pongWorldView.js';
 import { createWorldViewRenderer as raceRenderer } from '../src/ui/raceWorldView.js';
 import { createWorldViewRenderer as crownRenderer } from '../src/ui/crownWorldView.js';
+import { createWorldViewRenderer as cloneRenderer } from '../src/ui/cloneWorldView.js';
+import { createWorldViewRenderer as snakeRenderer } from '../src/ui/snakeWorldView.js';
+import { blendWorldFrames } from '../src/core/worldInterpolation.js';
 import { CARTRIDGES, GAME_ORDER } from '../src/core/engineRegistry.js';
 
 const noop = () => {};
@@ -66,6 +71,30 @@ function crownGame() {
   };
 }
 
+function cloneGame() {
+  return {
+    state: 'PLAYING', roundId: 1, arena: { left: 16, top: 24, right: 816, bottom: 624 },
+    taskPoints: [{ id: 'treasury', name: 'HAZİNE SANDIĞI', color: '#1D5D8A', x: 200, y: 200, radius: 40 }],
+    walls: [{ x: 300, y: 120, w: 40, h: 200 }],
+    npcClones: [{ id: 1, ownerIndex: 0, color: '#D84727', x: 500, y: 300, angle: 1.1, state: 'WALK', taskWaitTimer: 2, active: true }],
+    players: [{ index: 0, isJoined: true, isAlive: true, x: 400, y: 300, angle: 0.5, dashTimer: 0.2, slowTimer: 0, taskTimer: 0.8 }],
+    particles: [], floatingTexts: [],
+    scores: [0, 0, 0, 0], roundWinner: null, matchWinner: null,
+  };
+}
+
+function snakeGame() {
+  const segments = Array.from({ length: 8 }, (_, i) => ({ x1: i * 5, y1: 0, x2: (i + 1) * 5, y2: 0 }));
+  return {
+    state: 'PLAYING', roundId: 1, arena: { left: 16, top: 24, right: 816, bottom: 624 },
+    walls: [{ x: 300, y: 120, w: 40, h: 200 }],
+    foods: [{ x: 200, y: 220, type: 'APPLE', size: 13 }],
+    players: [{ index: 0, isJoined: true, isAlive: true, x: 40, y: 0, angle: 0.5, isBoost: false, boostEnergy: 90, boostLocked: false, segments }],
+    particles: [],
+    scores: [0, 0, 0, 0], roundWinner: null, matchWinner: null,
+  };
+}
+
 test('PONG/RACE/CROWN packets validate and preserve essential state', () => {
   const pong = createPongWorldPacket(pongGame());
   const race = createRaceWorldPacket(raceGame());
@@ -92,6 +121,30 @@ test('PONG/RACE/CROWN client renderers draw without importing simulation', () =>
     assert.doesNotThrow(() => renderer.render(context, { action: 'WORLD_FRAME', ...frame }, 800, 450, [], 1000));
     assert.doesNotThrow(() => renderer.renderPlaceholder(context, 800, 450));
     assert.doesNotThrow(() => renderer.renderStale(context, 800, 450));
+  }
+});
+
+test('packed-wall world views render an interpolated frame without throwing', () => {
+  // CLONE ve SNAKE `walls` alanını paketlenmiş dizi olarak yollar. Client 30 Hz
+  // kareleri enterpolasyonla sunduğu için blend bu listeyi nesneye yayıyor,
+  // view'ın `([x, y, w, h]) => ...` destructuring'i TypeError atıyor ve
+  // GamepadWorldView placeholder'a düşüyordu (CLONE titreme, SNAKE beyaz ekran).
+  // Üretim yolunun kendisi (paket → blend → render) kilit altında.
+  for (const [createRenderer, createPacket, validate, game] of [
+    [cloneRenderer, createCloneWorldPacket, isValidCloneWorldFrame, cloneGame()],
+    [snakeRenderer, createSnakeWorldPacket, isValidSnakeWorldFrame, snakeGame()],
+  ]) {
+    const first = { action: 'WORLD_FRAME', ...createPacket(game) };
+    const second = { action: 'WORLD_FRAME', ...createPacket(game) };
+    const renderer = createRenderer();
+    const interpolated = blendWorldFrames(first, second, 0.5);
+
+    assert.ok(Array.isArray(interpolated.walls[0]), 'paketlenmiş walls dizi kalmalı');
+    assert.equal(validate(interpolated), true, 'enterpolasyon sonrası kare geçerli');
+    assert.doesNotThrow(() => renderer.render(context, interpolated, 800, 450, [], 1000));
+    // Uç kareler de (alpha 0/1 paketi olduğu gibi döner) çizilebilmeli.
+    assert.doesNotThrow(() => renderer.render(context, first, 800, 450, [], 1000));
+    assert.doesNotThrow(() => renderer.render(context, second, 800, 450, [], 1000));
   }
 });
 

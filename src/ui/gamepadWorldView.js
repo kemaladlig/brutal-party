@@ -3,11 +3,12 @@
 // It never advances game simulation.
 
 import {
+  alignSourceClock,
   blendWorldFrames,
   canBlendWorldFrames,
   selectBufferedWorldFrame,
 } from '../core/worldInterpolation.js';
-import { applySelfPrediction, createSelfPredictor, observeSelfFrame } from '../core/selfPrediction.js';
+import { applySelfPrediction, createSelfPredictor, observeSelfFrame, selfPredictionHorizon } from '../core/selfPrediction.js';
 import { perfMonitor } from '../core/perfMonitor.js';
 import { renderWorldConnecting } from './worldViewKit.js';
 
@@ -26,9 +27,6 @@ const MIN_PLAYOUT_DELAY_MS = 35;
 const MAX_PLAYOUT_DELAY_MS = 120;
 const MAX_BUFFER_FRAMES = 8;
 const MAX_INTERPOLATION_GAP_MS = 100;
-// Self-avatar prediction ufku = playout gecikmesi + bu pay. Pay, girdinin host'a
-// varış gecikmesini kaba telafi eder; büyütmek duvara taşırma riskini artırır.
-const SELF_PREDICTION_LEAD_MS = 20;
 // Maç sonu kartının giriş yumuşaması: host canvas'ıyla AYNI süre
 // (`tabletopRenderer.MATCH_OVER_ENTER_MS`) — telefon ve TV aynı anda açar.
 const MATCH_OVER_ENTER_MS = 260;
@@ -78,6 +76,8 @@ export class GamepadWorldView {
     this.mountedAt = performance.now();
     this.isStale = false;
     this.renderDurations = [];
+    // Render hata sayacı: log kare başına değil, ilk hatada ve her 60.'da.
+    this.renderFailures = 0;
     this.rafId = 0;
     this.destroyed = false;
 
@@ -181,6 +181,8 @@ export class GamepadWorldView {
     this.lastSeq = frame.seq;
     this.lastFrameAt = now;
     this.isStale = false;
+    // Yeni kare geldi: hata sayacı sıfırlanır, bir sonraki hata "ilk" sayılır.
+    this.renderFailures = 0;
     this.stats.acceptedFrames += 1;
     this._updateSourceClock(frame.sentAt, now);
     this._queueRender();
@@ -259,12 +261,15 @@ export class GamepadWorldView {
       // local receive time, then interpolate on the host's send cadence rather
       // than on network arrival jitter. Old clients without sentAt use receive
       // time directly.
+      //
+      // Ofset YUMUŞATILMIŞ olmalı: en yeni karenin ham gidiş gecikmesi her karede
+      // tüm zaman çizelgesini kaydırıyor, playhead örneklemeler arasında ileri-geri
+      // zıplıyor ve dünya titriyordu. Ham ofset yalnız saat henüz ölçülmediyse
+      // (yeni host — `sourceClockOffsetMs` sıfırlandı) kullanılır.
       const latest = this.buffer[this.buffer.length - 1];
-      const sourceOffset = latest.receivedAt - latest.sentAt;
-      samples = this.buffer.map((sample) => ({
-        ...sample,
-        playbackAt: sample.sentAt + sourceOffset,
-      }));
+      const sourceOffset = this.stats.sourceClockOffsetMs
+        ?? (latest.receivedAt - latest.sentAt);
+      samples = alignSourceClock(this.buffer, sourceOffset);
     }
 
     return selectBufferedWorldFrame(
@@ -338,13 +343,14 @@ export class GamepadWorldView {
       const renderStarted = performance.now();
       this.stats.lastAlpha = sample.alpha;
       this.stats.lastFrameAgeMs = now - sample.after.receivedAt;
-      const horizon = (this.playoutDelayMs + SELF_PREDICTION_LEAD_MS) / 1000;
+      // Self-avatar ufku yalnız sunumun geride kaldığı boşluğu kapatır
+      // (`selfPrediction.js`); playout gecikmesi ikinci kez eklenmez.
       const presentedFrame = applySelfPrediction(
         this.predictor,
         sample.frame,
         this.selfSlot,
         this.selfInput,
-        horizon,
+        selfPredictionHorizon(this.playoutDelayMs),
       );
       // Maç sonu kartı girişi: durum MATCH_OVER'a ilk düştüğünde damgala.
       // gameState sunum tahmininden etkilenmez; ham örnekten okunur.
@@ -372,10 +378,17 @@ export class GamepadWorldView {
       this.renderDurations.push(this.stats.lastRenderMs);
       if (this.renderDurations.length > 120) this.renderDurations.shift();
     } catch (err) {
-      console.warn('[GamepadWorldView] Frame render hatası:', err);
+      // Kare başına log telefon konsolunu dolduruyordu: ilk hatayı ve her 60.'ı yaz.
+      this.renderFailures += 1;
+      if (this.renderFailures === 1 || this.renderFailures % 60 === 0) {
+        console.warn('[GamepadWorldView] Frame render hatası:', err);
+      }
       this.frame = null;
       this._clearBuffer();
       this.renderer.renderPlaceholder?.(this.ctx, this.logicalWidth, this.logicalHeight);
+      // Döngüyü burada durdurmak canvas'ı kalan placeholder'da kalıcı olarak
+      // donduruyordu (beyaz ekran). Yeni kare gelince sunum kendi toparlanır.
+      this._queueRender();
       return;
     }
 

@@ -5,6 +5,7 @@ import {
   isValidSnakeWorldFrame,
   sampleSnakeTrail,
 } from '../src/games/snakeView.js';
+import { blendWorldFrames } from '../src/core/worldInterpolation.js';
 
 function makeSegments(count, step = 5) {
   const segments = [];
@@ -66,6 +67,32 @@ test('snake world packet is compact, complete and monotonic', () => {
   assert.equal(first.players[0].trail.at(-1)[0], headX);
   assert.ok(isValidSnakeWorldFrame({ action: 'WORLD_FRAME', ...first }));
   assert.equal(isValidSnakeWorldFrame({ action: 'WORLD_FRAME', ...first, version: 2 }), false);
+});
+
+test('interpolated snake frame stays a valid frame (packed walls survive blending)', () => {
+  // SNAKE paketi `walls` alanını `[x, y, w, h]` dizisi olarak yolluyor; blend
+  // onu nesneye yayınca client render'ı TypeError atıp beyaz ekrana düşüyordu.
+  const { segments, headX } = makeSegments(12, 5);
+  const game = {
+    state: 'PLAYING',
+    roundId: 2,
+    arena: { left: 10, top: 20, right: 810, bottom: 620 },
+    walls: [{ x: 100, y: 120, w: 40, h: 50 }],
+    foods: [{ x: 200, y: 220, type: 'APPLE', size: 13 }],
+    players: [{ index: 0, isJoined: true, isAlive: true, x: headX, y: 0, angle: 0.5, isBoost: false, boostEnergy: 90, boostLocked: false, segments }],
+    scores: [0, 0, 0, 0],
+    roundWinner: null,
+    matchWinner: null,
+  };
+
+  const first = { action: 'WORLD_FRAME', ...createSnakeWorldPacket(game) };
+  const second = { action: 'WORLD_FRAME', ...createSnakeWorldPacket(game) };
+  const blended = blendWorldFrames(first, second, 0.5);
+
+  assert.ok(Array.isArray(blended.walls[0]), 'walls dizi olarak kalmalı');
+  assert.deepEqual(blended.walls[0], [100, 120, 40, 50]);
+  assert.equal(isValidSnakeWorldFrame(blended), true);
+  assert.doesNotThrow(() => blended.walls.map(([x, y, w, h]) => ({ x, y, w, h })));
 });
 
 test('world frame validation rejects oversized malformed trails', () => {

@@ -4,6 +4,7 @@ import {
   applySelfPrediction,
   createSelfPredictor,
   observeSelfFrame,
+  selfPredictionHorizon,
 } from '../src/core/selfPrediction.js';
 
 function frame(x, y, extra = {}) {
@@ -20,6 +21,25 @@ function observePair(state, from, to, dtMs = 33) {
   observeSelfFrame(state, frame(from[0], from[1], { sentAt: 1000 }), 0, 1000);
   observeSelfFrame(state, frame(to[0], to[1], { sentAt: 1000 + dtMs }), 0, 1000 + dtMs);
 }
+
+test('prediction horizon covers only the presentation gap, never the playout twice', () => {
+  assert.equal(selfPredictionHorizon(35), 0.035);
+  assert.equal(selfPredictionHorizon(120), 0.12);
+  assert.equal(selfPredictionHorizon(0), 0);
+  assert.equal(selfPredictionHorizon(-5), 0, 'negatif gecikme ileri sarma yapar');
+  assert.equal(selfPredictionHorizon(Number.NaN), 0);
+});
+
+test('self avatar is advanced by the playout gap, not beyond the host simulation', () => {
+  // Sunum zaten `playoutDelay` kadar geride; ufuk bunu kapatır, ÜSTÜNE bir şey
+  // eklemez. Fazla ileri sarma her snapshot'ta geri snap = lastik bant.
+  const state = createSelfPredictor();
+  state.speed = 200;
+  const base = frame(400, 300);
+  const out = applySelfPrediction(state, base, 0, { dx: 1, dy: 0, force: 1 }, selfPredictionHorizon(35));
+  assert.equal(out.players[0].x, 400 + 200 * 0.035);
+  assert.equal(out.players[0].y, 300);
+});
 
 test('self prediction is a no-op without the packet opt-in flag', () => {
   const state = createSelfPredictor();

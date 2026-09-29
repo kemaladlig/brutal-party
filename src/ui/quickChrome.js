@@ -74,17 +74,20 @@ export const QUICK_CHIPS = [
   },
 
   // ── Kumanda üst kümesi ───────────────────────────────────────────────────
-  {
-    id: 'pad-react', surface: 'pad', group: 'left', order: 10, kind: 'reaction',
-    cls: 'gamepad-react-btn', labelKey: 'pad.reactTitle', send: 'pad',
-  },
+  // Küme SAĞDA tek sırada: taç · tepki · ⋮. Tepki bilinçli olarak ⋮'nin solunda
+  // durur — başparmak tek elle tepkiye de menüye de erişir, yol kısa kalır.
+  // Host yüzeyinde de aynı sıra geçerli (`host-react` 40 < `host-options` 50).
   {
     id: 'pad-score', surface: 'pad', group: 'right', order: 10, kind: 'icon',
     domId: 'btn-score-peek', cls: 'gamepad-menu-btn gamepad-score-btn', icon: 'crown',
     labelKey: 'pad.scoreboard', hidden: true, hiddenAs: 'attr',
   },
   {
-    id: 'pad-menu', surface: 'pad', group: 'right', order: 20, kind: 'menu',
+    id: 'pad-react', surface: 'pad', group: 'right', order: 20, kind: 'reaction',
+    cls: 'gamepad-react-btn', labelKey: 'pad.reactTitle', send: 'pad',
+  },
+  {
+    id: 'pad-menu', surface: 'pad', group: 'right', order: 30, kind: 'menu',
     domId: 'btn-gamepad-menu', cls: 'gamepad-menu-btn', icon: 'more_vertical',
     labelKey: 'pad.menu',
   },
@@ -185,7 +188,7 @@ export function renderHostQuickBar() {
 }
 
 /**
- * Kumanda üst kümesi: sol grup (tepki) + sağ grup (skor/taç, ⋮ menüsü).
+ * Kumanda üst kümesi: sol grup (boş) + sağ grup (taç, tepki, ⋮ menüsü).
  * @param {{ showLayoutEditor?: boolean }} [ctx]
  */
 export function renderPadHeader(ctx = {}) {

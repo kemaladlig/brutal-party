@@ -21,6 +21,24 @@ const SPEED_EMA = 0.3;
 // Tahmin ufku üst sınırı: bundan uzun ileri sarma duvara/köşeye taşırır.
 const MAX_HORIZON_S = 0.2;
 
+/**
+ * Self-avatar tahmin ufku (s).
+ *
+ * Dünya karesi zaten `playoutDelayMs` kadar GEÇ sunulur; tahmin yalnız bu
+ * boşluğu kapatır. Playout gecikmesinin ikinci kez eklenmesi avatarı host'un
+ * kendi simülasyonunun ilerisine çiziyordu — her snapshot geldiğinde geri
+ * snap, yani duvara girip geri çıkan bir lastik bant. Girdi gecikmesi
+ * ölçülmediği için ufuk sunum boşluğuyla sınırlıdır; `applySelfPrediction`
+ * ayrıca `MAX_HORIZON_S` ile kırpar.
+ *
+ * @param {number} playoutDelayMs client'in oynatma gecikmesi (ms)
+ * @returns {number} saniye
+ */
+export function selfPredictionHorizon(playoutDelayMs) {
+  const delay = finite(playoutDelayMs) ? playoutDelayMs : 0;
+  return Math.max(0, delay) / 1000;
+}
+
 export function createSelfPredictor() {
   return {
     speed: 0,

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  alignSourceClock,
   blendWorldFrames,
   canBlendWorldFrames,
   selectBufferedWorldFrame,
@@ -108,6 +109,59 @@ test('blends moving world objects and singleton hazards', () => {
   assert.equal(blended.walls[0].x, 120);
   assert.equal(blended.piggy.x, 60);
   assert.deepEqual(blended.portal, [30, 40, 8, 0.75]);
+});
+
+test('keeps packed wall tuples packed (CLONE/SNAKE destructure them as tuples)', () => {
+  // `walls` iki biçimde gidiyor: LASER hareketli duvarları NESNE, CLONE/SNAKE
+  // statik duvarları `[x, y, w, h]` dizisi. Nesne tablosunda `{ ...current }`
+  // diziyi `{0:x,1:y,2:w,3:h}` nesnesine çeviriyordu; view'lar
+  // `frame.walls.map(([x, y, w, h]) => ...)` dediği için client her enterpolasyonlu
+  // karede `TypeError: is not iterable` atıp beyaz ekrana düşüyordu.
+  const previous = frame(1, 0, { mode: 'CLONE', walls: [[0, 0, 10, 20], [100, 100, 30, 40]] });
+  const current = frame(2, 0, { mode: 'CLONE', walls: [[0, 0, 10, 20], [100, 100, 50, 40]] });
+  const blended = blendWorldFrames(previous, current, 0.5);
+
+  assert.ok(Array.isArray(blended.walls[0]), 'paketlenmiş duvar nesneye yayılmaz');
+  assert.deepEqual(blended.walls[0], [0, 0, 10, 20]);
+  assert.deepEqual(blended.walls[1], [100, 100, 40, 40]);
+  // View'ın destructuring'i artık patlamaz.
+  assert.deepEqual(
+    blended.walls.map(([x, y, w, h]) => ({ x, y, w, h }))[1],
+    { x: 100, y: 100, w: 40, h: 40 },
+  );
+});
+
+test('object walls keep the object blend path (LASER moving walls)', () => {
+  const previous = frame(1, 0, { mode: 'LASER', walls: [{ id: 1, x: 0, y: 10, w: 20, h: 5 }] });
+  const current = frame(2, 0, { mode: 'LASER', walls: [{ id: 1, x: 100, y: 10, w: 20, h: 5 }] });
+  const blended = blendWorldFrames(previous, current, 0.5);
+
+  assert.equal(Array.isArray(blended.walls[0]), false);
+  assert.equal(blended.walls[0].x, 50);
+  assert.equal(blended.walls[0].w, 20, 'ölçü alanları nesne yolunda aynen kalır');
+});
+
+test('alignSourceClock keeps already-aligned samples put when a late frame lands', () => {
+  // Ham ofset (en yeni karenin `receivedAt - sentAt`) kullanılsaydı, geç gelen
+  // tek bir kare TÜM zaman çizelgesini kaydırır ve playhead örneklemeler arasında
+  // ileri-geri zıplayınca dünya titrer. Yumuşatılmış ofset aynı kareleri aynı
+  // yere koyar: geç gelen kare yalnız kendi playbackAt'ini etkiler.
+  const onTime = { frame: { seq: 1 }, receivedAt: 500, sentAt: 400 };
+  const late = { frame: { seq: 2 }, receivedAt: 560, sentAt: 433 }; // 127 ms gidiş
+
+  const first = alignSourceClock([onTime, late], 100);
+  assert.deepEqual(first.map((s) => s.playbackAt), [500, 533]);
+
+  // Aynı yumuşatılmış ofsetle bir kare daha geldi: eski oynatma zamanları SABİT.
+  const withThird = alignSourceClock([onTime, late, { frame: { seq: 3 }, receivedAt: 593, sentAt: 466 }], 100);
+  assert.equal(withThird[0].playbackAt, 500);
+  assert.equal(withThird[1].playbackAt, 533);
+  assert.equal(withThird[2].playbackAt, 566);
+
+  // Ofset yalnız link özelliğidir: yeni host'ta sıfırlanır, ölçüm gelene kadar
+  // çağıran ham ofseti kullanır (sıfır gecikme = temiz çizgi).
+  assert.equal(Number.isFinite(alignSourceClock([onTime], 0)[0].playbackAt), true);
+  assert.equal(alignSourceClock([onTime], Number.NaN).length, 1);
 });
 
 test('does not blend across round or game-state boundaries', () => {

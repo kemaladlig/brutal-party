@@ -32,7 +32,9 @@ src/controllers/
   controllerGuide.js        CONTROL_DEFS + schema'dan türetilen kontrol rehberi (pause paneli kullanır)
 src/gamepad.css             Kumanda stilleri (mobil ergonomi + control-deck saydamlık token'ları)
 src/ui/gamepadWorldView.js  Client world canvas: DPR, 3-8 jitter buffer, 60 Hz+ rAF, seq/stale,
-                             self-avatar prediction (`selfPredict` bayraklı world-view'de)
+                             self-avatar prediction (`selfPredict` bayraklı world-view'de).
+                            Oynatma saati YUMUŞATILMIŞ ofsetten hizalanır (`alignSourceClock`):
+                            ham ofset her karede zaman çizelgesini kaydırıp dünyayı titretiyordu
 src/ui/perfOverlay.js       Debug performans HUD'u (yalnız `?perf`/`bp.perf=1`); perfMonitor okur
 src/ui/worldViewKit.js      World-view kromu (raunt bandı `drawWorldRoundBanner` = host
                             `renderRoundBanner`; `drawWorldMatchOver` = host final kartı;
@@ -103,9 +105,15 @@ src/core/
                             (generateRoomCode/normalizeRoomCode/isValidRoomCode) +
                             `normalizeStateSync` — 8 Hz STATE_SYNC zarfının TEK
                             düzleştirme kapısı (her iki istemci + sunucu çağırır)
-  worldInterpolation.js     Snapshot sunum interpolasyonu (stable-id blend, no-extrapolation)
+  worldInterpolation.js     Snapshot sunum interpolasyonu (stable-id blend, no-extrapolation).
+                            `walls` iki biçimde gider (LASER nesne · CLONE/SNAKE paketlenmiş
+                            dizi): blend eleman ŞEKLİNE bakar, diziyi nesneye yaymaz —
+                            view'lar paketi dizi deseniyle açtığı için yayımak
+                            `TypeError` demekti (client titreme/beyaz ekran)
   selfPrediction.js         Sunum-only self-avatar prediction: yön canlı yerel girdiden, hız
-                            gözlenen snapshot'tan; yalnız `selfPredict` bayraklı pakette çalışır
+                            gözlenen snapshot'tan; yalnız `selfPredict` bayraklı pakette çalışır.
+                            `selfPredictionHorizon` ufku playout boşluğuyla sınırlar — gecikme
+                            ikinci kez eklenirse avatar host simülasyonunun ilerisine çizilir
   perfMonitor.js            Tek kaynak performans defteri (host kare döngüsü + client world
                             sunumu); yalnız `?perf` HUD'u okur, oyun durumu üretmez
   inputMaps.js              Tek klavye slot haritası: getSlotKeys, keyboardVectorFrom, readSlotKeys,
@@ -153,7 +161,9 @@ src/ui/
   reactionLayer.js          Tepki BALONU (lobi + oyun içi + kumanda tek uygulama, data-reaction-anchor)
   reactionPicker.js         Tepki SEÇİCİ (data-reaction-open + data-reaction-send="host|pad")
   quickChrome.js            Üst yüzen çiplerin TEK tanımı (QUICK_CHIPS): host `#in-game-hud`
-                            + kumanda başlığı buradan üretilir; sıra/görünürlük veri
+                            + kumanda başlığı buradan üretilir; sıra/görünürlük veri.
+                            Tepki çipi BİRİNCİ giriş noktası ve iki yüzeyde de ⋮
+                            menüsünün solunda (taç · tepki · ⋮)
   scoreModel.js             Skor görünümünün TEK modeli (scoreEntries): dolu koltuk + isim +
                             renk + lider; host canvas skorbord'u ve kumanda taç-peek'i besler
   tabStrip.js               MERKEZİ sekme şeridi (OYUNLAR kategorileri + KARAKTER editörü)

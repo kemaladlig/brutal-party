@@ -28,7 +28,7 @@ export function renderLocalGamepadShell() {
 }
 
 // Kimlik/oda verisi bilinçli parametre değildir: kompakt başlık yalnız yüzen
-// çipleri taşır (solda tepki; sağda taç + ⋮ menüsü). Düzen kaydı `quickChrome`.
+// çipleri taşır (sağda taç + tepki + ⋮ menüsü). Düzen kaydı `quickChrome`.
 export function renderRemoteGamepadShell({ showLayoutEditor = true } = {}) {
   const { left, right } = renderPadHeader({ showLayoutEditor });
   return `

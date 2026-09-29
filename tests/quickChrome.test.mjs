@@ -36,13 +36,18 @@ test('host yalnız host eylemlerini taşır, kumanda çiplerini taşımaz', () =
   assert.ok(!host.includes('btn-gamepad-menu'), 'kumanda menüsü host barına sızmaz');
 });
 
-test('kumanda üst kümesi solda tepki, sağda taç + ⋮ menüsü üretir', () => {
+test('kumanda üst kümesi tepkiyi ⋮ menüsünün soluna koyar', () => {
   const { left, right } = renderPadHeader();
-  assert.ok(left.includes('data-reaction-send="pad"'), 'kumanda tepkisi pad göndericisi');
-  assert.ok(left.includes('gamepad-react-btn'));
-  // Sıra: taç peek önce, ⋮ menüsü sonra (panel içi satırlar ayrı testte).
+  assert.equal(left, '', 'sol grup artık çip taşımıyor — küme tek sırada');
+  assert.ok(right.includes('data-reaction-send="pad"'), 'kumanda tepkisi pad göndericisi');
+  assert.ok(right.includes('gamepad-react-btn'));
+  // Sıra: taç peek önce, tepki, en son ⋮ menüsü (panel içi satırlar ayrı testte).
   const rightIds = idsInOrder(right).filter((id) => id.startsWith('btn-'));
   assert.deepEqual(rightIds.slice(0, 2), ['btn-score-peek', 'btn-gamepad-menu']);
+  assert.ok(
+    right.indexOf('gamepad-react-btn') < right.indexOf('id="gamepad-menu"'),
+    'tepki düğmesi ⋮ düğmesinden önce basılır (başparmak yolu kısa)',
+  );
   assert.ok(right.includes('id="gamepad-menu"'), '⋮ düğmesi ve paneli aynı sarmalayıcıda');
   assert.ok(right.includes('id="gamepad-menu-panel"'));
 });

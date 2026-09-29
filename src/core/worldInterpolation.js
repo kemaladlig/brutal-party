@@ -54,6 +54,11 @@ function blendObject(previous, current, t, options) {
   if (!previous || !current || typeof previous !== 'object' || typeof current !== 'object') {
     return current;
   }
+  // Paketlenmiş dizi NESNEYE yayılamaz: `{ ...[x, y] }` → `{ 0: x, 1: y }`.
+  // View'lar bu listeleri dizi deseniyle açar (`([x, y]) => ...`), yayılmış
+  // girdi `TypeError: is not iterable` atıp client'ı beyaz ekrana düşürüyordu.
+  // Eleman şekli `blendObjectList`'te ayrıştırılır; buradaki koruma tek kapıdır.
+  if (Array.isArray(current)) return current;
 
   const output = { ...current };
   for (const key of TRANSFORM_KEYS) {
@@ -97,6 +102,30 @@ function entityKey(entity, index, kind) {
   return `index:${index}`;
 }
 
+// Nesne tablosunda PAKETLENMİŞ dizi gelebilir. `walls` iki biçimde gidiyor:
+// LASER hareketli duvarları NESNE, CLONE/SNAKE statik duvarları `[x, y, w, h]` dizisi
+// (`packRectList`). Bu yüzden eleman şekline bakılır; hangi koordinatların
+// yumuşatılacağı oyun adından değil, LİSTE KİMLİĞİNDEN türer (tablo).
+const DEFAULT_PACKED_COORDINATES = /** @type {readonly number[]} */ ([0, 1]);
+const PACKED_COORDINATES = Object.freeze({
+  walls: /** @type {readonly number[]} */ ([0, 1, 2, 3]),
+});
+
+/** Tek bir paketlenmiş girdiyi yumuşatır; dizi olmayan taraflar korunur. */
+function blendPackedEntry(before, entity, t, coordinateIndexes) {
+  if (!Array.isArray(before) || !Array.isArray(entity)) return entity;
+
+  const output = [...entity];
+  for (const coordinateIndex of coordinateIndexes) {
+    const beforeValue = finiteNum(before[coordinateIndex]);
+    const afterValue = finiteNum(entity[coordinateIndex]);
+    if (beforeValue !== null && afterValue !== null) {
+      output[coordinateIndex] = lerp(beforeValue, afterValue, t);
+    }
+  }
+  return output;
+}
+
 function blendObjectList(previous, current, t, kind, options) {
   if (!Array.isArray(current)) return current;
   if (!Array.isArray(previous) || previous.length === 0) return current;
@@ -105,16 +134,18 @@ function blendObjectList(previous, current, t, kind, options) {
   previous.forEach((entity, index) => {
     previousByKey.set(entityKey(entity, index, kind), entity);
   });
+  const packedIndexes = PACKED_COORDINATES[kind] || DEFAULT_PACKED_COORDINATES;
 
   return current.map((entity, index) => {
     const key = entityKey(entity, index, kind);
     const before = previousByKey.get(key)
       || (Number.isInteger(entity?.id) ? previous[index] : null);
+    if (Array.isArray(entity)) return blendPackedEntry(before, entity, t, packedIndexes);
     return blendObject(before, entity, t, options);
   });
 }
 
-function blendPackedList(previous, current, t, kind, coordinateIndexes = /** @type {readonly number[]} */ ([0, 1])) {
+function blendPackedList(previous, current, t, kind, coordinateIndexes = DEFAULT_PACKED_COORDINATES) {
   if (!Array.isArray(current)) return current;
   if (!Array.isArray(previous) || previous.length === 0) return current;
 
@@ -127,17 +158,7 @@ function blendPackedList(previous, current, t, kind, coordinateIndexes = /** @ty
     const key = entityKey(entity, index, kind);
     const before = previousByKey.get(key)
       || (previous.length === current.length ? previous[index] : null);
-    if (!Array.isArray(before) || !Array.isArray(entity)) return entity;
-
-    const output = [...entity];
-    for (const coordinateIndex of coordinateIndexes) {
-      const beforeValue = finiteNum(before[coordinateIndex]);
-      const afterValue = finiteNum(entity[coordinateIndex]);
-      if (beforeValue !== null && afterValue !== null) {
-        output[coordinateIndex] = lerp(beforeValue, afterValue, t);
-      }
-    }
-    return output;
+    return blendPackedEntry(before, entity, t, coordinateIndexes);
   });
 }
 
@@ -184,6 +205,8 @@ export function blendWorldFrames(previous, current, t) {
 
   // Stable object entities: players, enemies, NPCs, projectiles, and effects.
   // Trail anlami kareden okunur (`snapTrail`) — oyun adı değil.
+  // `walls` burada iki biçimde bulunabilir (bkz. `blendObjectList`); eleman
+  // yönlendirmesi şekle bakar, tablo oyun adına göre dallanmaz.
   const blendOptions = current.snapTrail === true ? { snapTrail: true } : undefined;
   for (const kind of [
     'players',
@@ -236,6 +259,26 @@ export function blendWorldFrames(previous, current, t) {
   }
 
   return output;
+}
+
+/**
+ * Kaynak-saati hizalama: host'un monotonik `sentAt` + ofset → oynatma zamanı.
+ *
+ * `sourceOffset` YUMUŞATILMIŞ bir ofset olmalıdır. En yeni karenin ham ofseti
+ * (`receivedAt - sentAt`) her karede tüm zaman çizelgesini kaydırır; playhead
+ * düzgün ilerlerken örneklemeleri ileri-geri sıçratır ve dünya titrer. Yumuşatılmış
+ * ofset (client'ta `stats.sourceClockOffsetMs`) aynı kareleri aynı yere koyar.
+ *
+ * @param {ReadonlyArray<{ sentAt?: number | null }>} samples jitter buffer örnekleri
+ * @param {number} sourceOffset `receivedAt - sentAt` (yumuşatılmış)
+ * @returns {Array<{ sentAt?: number | null, playbackAt: number }>}
+ */
+export function alignSourceClock(samples, sourceOffset) {
+  if (!Array.isArray(samples) || !Number.isFinite(sourceOffset)) return Array.isArray(samples) ? samples : [];
+  return samples.map((sample) => ({
+    ...sample,
+    playbackAt: (finiteNum(sample?.sentAt) ?? 0) + sourceOffset,
+  }));
 }
 
 /**
