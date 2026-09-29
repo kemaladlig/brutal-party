@@ -673,6 +673,7 @@ export class HordeGame extends BaseMiniGame {
       player.steerX = 0;
       player.steerY = 0;
       player.isAiming = false;
+      player.aimHoldAuto = false;
       return;
     }
 
@@ -691,6 +692,17 @@ export class HordeGame extends BaseMiniGame {
       notifyFireBlocked(player);
     }
     if (allowFire && player.isAiming && player.attackCooldown <= 0) this.firePlayer(player);
+    // Basılı tap: aim alanı yönsüz basılı tutulunca tap'ın tam otomatik hâli —
+    // her atışta en yakın düşmana kilitlenir. Kapılar ateş edilebilir durumda
+    // çağırır; curur/blocked geri bildirimi spam olmaz.
+    if (player.aimHoldAuto && player.attackCooldown <= 0 && player.reloadTimer <= 0) {
+      const holdWeapon = getPlayerWeapon(player);
+      if (holdWeapon.kind === 'melee' || player.ammo > 0) {
+        if (!this.snapAimToNearestEnemy(player)) player.targetAngle = player.angle;
+        player.aimHoldFired = true;
+        this.firePlayer(player);
+      }
+    }
 
     const speed = this.bodySpeed(HORDE_TUNING.MOVE_SPEED)
       * (player.fastTimer > 0 ? HORDE_TUNING.FAST_MULT : 1)
@@ -776,6 +788,9 @@ export class HordeGame extends BaseMiniGame {
     const aimHeld = currentAimState?.held === true;
     const aimFiring = this.isHoldToFireAim() && aimHeld && currentAimState.active;
     player.isAiming = allowFire && aimFiring;
+    // Yönsüz basılı tutma (tap'ın tutulan hâli): sürükleme yoksa kilit auto-aim'de.
+    player.aimHoldAuto = !!allowFire && this.isHoldToFireAim() && aimHeld
+      && !currentAimState.active && !!this.getPlainAimHold(player.index);
     const dashKey = getSecondActionKey('dash', player.index);
     const dashPressed = !!dashKey && !!this.keys[dashKey];
     if (dashPressed && !player.keyDashLatch) {
@@ -815,14 +830,16 @@ export class HordeGame extends BaseMiniGame {
     }
   }
 
-  onSlotAimHold(slotIndex, isDown, { cancelled = false, tap = false } = {}) {
+  onSlotAimHold(slotIndex, isDown, { cancelled = false, tap = false, previousHeld = false } = {}) {
     const player = this.players[slotIndex];
     if (!player?.isJoined || !player.isAlive) return;
+    if (isDown && !previousHeld) player.aimHoldFired = false;
     const aimState = this.getAimState(slotIndex);
     player.isAiming = isDown && this.state === 'PLAYING' && this.isHoldToFireAim() && aimState?.active === true;
     // HOLD_TO_FIRE'da tap tek başına ateş üretmez (basılı-tutma + force
-    // gerekir); hızlı dokunma tek atışlık auto-aim epizodudur.
-    if (!isDown && tap && !cancelled && !isBot(player)) {
+    // gerekir); hızlı dokunma tek atışlık auto-aim epizodudur. Basılı tutma
+    // sırasında otomatik atış çıktıysa tap tekrar sıkmaz (çift atış yok).
+    if (!isDown && tap && !cancelled && !isBot(player) && !player.aimHoldFired) {
       if (!this.snapAimToNearestEnemy(player)) {
         player.targetAngle = player.angle;
       }

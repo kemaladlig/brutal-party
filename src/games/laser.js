@@ -130,17 +130,20 @@ export class LaserGame extends BaseMiniGame {
     hasDirection = false,
     angle = null,
     tap = false,
+    previousHeld = false,
   } = {}) {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
     if (isDown) {
+      if (!previousHeld) player.aimHoldFired = false;
       player.isAiming = this.getAimState(slotIndex)?.active === true;
       return;
     }
     player.isAiming = false;
     // Hızlı dokunma (tap): en yakın rakibe kilitlenip anında ateş eder;
     // hedef yoksa baktığı yöne. Kooldown/ammo kapıları fireLaser içinde.
-    if (tap && !cancelled && this.isReleaseToFireAim()) {
+    // Basılı tutma sırasında otomatik atış çıktıysa tap tekrar sıkmaz.
+    if (tap && !cancelled && this.isReleaseToFireAim() && !player.aimHoldFired) {
       this.snapAimToNearestRival(player);
       this.fireLaser(player);
       return;
@@ -895,12 +898,24 @@ export class LaserGame extends BaseMiniGame {
         }
         const aimState = this.getAimState(player.index);
         player.isAiming = aimState?.active === true;
+        // Yönsüz basılı tutma: tap'ın cooldown ritimli otomatik hâli.
+        player.aimHoldAuto = this.isReleaseToFireAim()
+          && aimState?.held === true && aimState?.active !== true
+          && !!this.getPlainAimHold(player.index);
         if (ki.dash && !player.keyDashLatch) {
           this.triggerDash(player.index);
           player.keyDashLatch = true;
         } else if (!ki.dash) {
           player.keyDashLatch = false;
         }
+      }
+
+      // Basılı tap: yönsüz basılı telefon kumandası, hazır olduğu an en yakın
+      // rakibe kilitlenip ateş eder (tap'ın cooldown ritimli otomatik hâli).
+      if (player.aimHoldAuto && isReadyNow) {
+        this.snapAimToNearestRival(player);
+        player.aimHoldFired = true;
+        this.fireLaser(player);
       }
 
       // Nişan yumuşatma: Nişan alırken yüksek hızlı akıcı interpolasyon (20Hz paket atlamasını 60/120fps'e yayar)

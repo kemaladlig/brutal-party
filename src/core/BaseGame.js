@@ -578,6 +578,26 @@ export class BaseMiniGame {
   }
 
   /**
+   * "Basılı tap" jöresi: telefon kumandası aim alanı yönsüz (sürüklemeden)
+   * basılı tutuluyor. Kaynak press boyunca hiç yön taşımadıysa 'tap' sayılır;
+   * sürükleme başlayınca press bitene dek manuel nişandır (owner.hasDirection
+   * kalıcı). Klavye ve masaüstü canvas dokunuşu kendi ateş yollarına sahiptir,
+   * bu jöreye girmez.
+   * @param {number} slotIndex
+   * @returns {string | null} jöreyi tutan kaynak adı ('network' | 'local') ya da null
+   */
+  getPlainAimHold(slotIndex) {
+    const state = this.getAimState(slotIndex);
+    if (!state) return null;
+    for (const [source, owner] of state.sources) {
+      if ((source === 'network' || source === 'local') && owner.held && !owner.hasDirection) {
+        return source;
+      }
+    }
+    return null;
+  }
+
+  /**
    * Motor sözleşmesi prototip kancaları (`onSlotAim*`, `onSlotSteer`,
    * `onSlotAction`) yalnız alt sınıf motorlarda tanımlıdır; temel sınıf
    * bunları çağırır ama sahiplenmez. Tip kaydı: MiniGameEngine.

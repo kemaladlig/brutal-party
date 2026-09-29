@@ -193,7 +193,7 @@ test('quick tap fires one auto-aimed shot at the nearest zombie', () => {
   assert.equal(game.projectiles.length, before, 'release without tap must not fire');
 });
 
-test('neutral Horde aim does not fire until a real direction is held', () => {
+test('plain Horde aim hold auto-fires; manual direction stays under its own rules', () => {
   const game = setup();
   const player = game.players[0];
   game.enemies = [];
@@ -201,11 +201,12 @@ test('neutral Horde aim does not fire until a real direction is held', () => {
   player.ammo = 5;
   game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 0, dy: 0, angle: 0, force: 0 });
   game.update(1016);
-  assert.equal(game.projectiles.length, 0);
+  assert.equal(game.projectiles.length, 1, 'yönsüz basılı tutma (basılı tap) otomatik ateşler');
+  assert.equal(player.aimHoldFired, true);
 
   game.handleRemoteInput(0, { action: 'AIM_MOVE', dx: 1, dy: 0, angle: 0, force: 1, aimHeld: true });
   game.update(1032);
-  assert.equal(player.ammo, 4);
+  assert.equal(player.ammo, 4); // cooldown penceresi: üst üste karede yeni atış yok
   const afterReleaseAmmo = player.ammo;
   game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 1, dy: 0, angle: 0, force: 1 });
   game.update(1048);

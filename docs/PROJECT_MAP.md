@@ -93,7 +93,9 @@ src/core/
   controlDescriptor.js      phone/tabletop/network normalize kontrol sözleşmesi + parity
   inputIntent.js            Transport action → canonical engine intent projeksiyonu
   aimInput.js               Canonical aim state: held/active/vector/sequence + stale guard
-  autoAim.js                Tap auto-aim hedef seçimi (menzil motordan göreli gelir)
+  autoAim.js                Tap auto-aim hedef seçimi (menzil motordan göreli gelir);
+                            yönsüz basılı tutma = basılı tap (BaseGame.getPlainAimHold):
+                            HORDE tam otomatik, LASER/ARCHER cooldown ritminde otomatik ateş
   fireFeedback.js          ARCHER/HORDE/LASER cooldown + blocked/ready/shot state
   fireFeedbackEffects.js    blocked efektleri episode başına bir kez
   inputRouter.js            Local/network input → aktif engine; adapter'lar lookup bilmez
