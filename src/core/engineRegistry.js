@@ -45,6 +45,8 @@ export const CARTRIDGES = {
     title: 'BRUTAL PONG',
     tacticalHintKey: 'hint.pong',
     color: '#D84727',
+    // Bölünmüş motor dosyaları denetime girer (tek dosya kuralının istisnası).
+    auditFiles: ['src/games/game.js', 'src/games/paddle.js', 'src/games/ball.js'],
     schema: GAMEPAD_SCHEMAS.PONG,
     worldView: {
       load: () => import('../ui/pongWorldView.js'),
@@ -100,6 +102,8 @@ export const CARTRIDGES = {
     title: 'BRUTAL CURVE',
     tacticalHintKey: 'hint.curve',
     color: '#10B981',
+    // Çizgi gövde: I7 okunabilirlik eşiği 4.5px (varsayılan 12px değil).
+    minPlayerDiameter: 4.5,
     schema: GAMEPAD_SCHEMAS.CURVE,
     worldView: {
       load: () => import('../ui/curveWorldView.js'),
@@ -397,6 +401,8 @@ export const CARTRIDGES = {
     lobbyTitle: 'BRUTAL RACE',
     tacticalHintKey: 'hint.race',
     color: '#D99B26',
+    // Paylaşılan tur mantığı denetime girer.
+    auditFiles: ['src/games/raceLogic.js'],
     schema: GAMEPAD_SCHEMAS.RACE,
     worldView: {
       load: () => import('../ui/raceWorldView.js'),

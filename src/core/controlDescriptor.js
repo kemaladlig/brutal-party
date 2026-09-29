@@ -9,24 +9,6 @@ import {
   getTabletopLayout,
 } from '../controllers/controlDefs.js';
 
-const SPECIAL_NETWORK_ACTIONS = {
-  PONG: [
-    { id: 'slider', transportActions: ['PADDLE_MOVE'] },
-    { id: 'spin', transportActions: ['SPIN'] },
-  ],
-  TANKS: [
-    { id: 'drive', transportActions: ['TANK_DRIVE'] },
-    { id: 'fire', transportActions: ['TANK_FIRE'] },
-  ],
-  CURVE: [
-    { id: 'steer', transportActions: ['CURVE_STEER'] },
-  ],
-  SNAKE: [
-    { id: 'steer', transportActions: ['SNAKE_STEER'] },
-    { id: 'boost', transportActions: ['SNAKE_BOOST', 'SNAKE_BOOST_RELEASE'] },
-  ],
-};
-
 function actionConfig(schema, id) {
   if (schema?.type === 'ARCADE_DRIVE') {
     if (id === 'fire') return { id, transportActions: ['TANK_FIRE'] };
@@ -51,7 +33,7 @@ function phoneActions(def, schema) {
   return def.right.map((id) => actionConfig(schema, id));
 }
 
-function networkActions(mode, def, schema) {
+function networkActions(_mode, def, schema) {
   const actions = [];
   const seen = new Set();
   const add = (id, transportActions = []) => {
@@ -61,9 +43,6 @@ function networkActions(mode, def, schema) {
     actions.push({ id, transportActions: [...transportActions] });
   };
 
-  for (const action of SPECIAL_NETWORK_ACTIONS[mode] || []) {
-    add(action.id, action.transportActions);
-  }
   for (const action of Array.isArray(schema?.actions) ? schema.actions : []) {
     if (action.id) add(action.id, [action.action, action.releaseAction].filter(Boolean));
   }
@@ -72,9 +51,10 @@ function networkActions(mode, def, schema) {
     add('fire', ['TANK_FIRE']);
   }
   if (schema?.type === 'SLIDER_1D') add('spin', ['SPIN']);
-  if (mode === 'CURVE') add('steer', ['CURVE_STEER']);
-  if (mode === 'SNAKE') add('steer', ['SNAKE_STEER']);
-  if (mode === 'PONG') add('slider', ['PADDLE_MOVE']);
+  // Taşıma bağları şemadan okunur (steerAction/sliderAction) — moda özel
+  // SPECIAL tablosu yok; yeni sol kumanda şemaya alan ekler, çekirdeğe değil.
+  if (schema?.steerAction) add('steer', [schema.steerAction]);
+  if (schema?.sliderAction) add('slider', [schema.sliderAction]);
   if (def.left === 'joystick') add('move', ['JOYSTICK_MOVE']);
   if (def.aim) add('aim', ['AIM_MOVE', 'AIM_PRESS', 'AIM_RELEASE']);
   return actions;

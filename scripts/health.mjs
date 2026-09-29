@@ -220,8 +220,8 @@ async function runHealthCheck() {
     // Statik denetimler
     const playerDesignRadius = metrics.desktop?.playerDesign ?? metrics.phone?.playerDesign ?? null;
     const viewFidelity = auditViewFidelity(mode, playerDesignRadius);
-    const unscaledMotionCuesCount = auditMotionCues(mode);
-    const unscaledGeometryCount = auditUnscaledGeometry(mode);
+    const unscaledMotionCuesCount = auditMotionCues(mode, cartridge.auditFiles);
+    const unscaledGeometryCount = auditUnscaledGeometry(mode, cartridge.auditFiles);
 
     const evaluated = evaluateGame({
       mode,
@@ -231,6 +231,7 @@ async function runHealthCheck() {
       viewFidelity,
       unscaledGeometryCount,
       unscaledMotionCuesCount,
+      minPlayerDiameter: cartridge.minPlayerDiameter,
     });
 
     evaluations.push(evaluated);

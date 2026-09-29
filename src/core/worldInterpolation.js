@@ -65,10 +65,10 @@ function blendObject(previous, current, t, options) {
       : lerp(before, after, t);
   }
 
-  // SNAKE gövdesi her snapshot'ta yay-uzunluğuyla yeniden örneklenir: indeks
-  // i her karede patikada FARKLI bir noktaya denk gelir. İndeks-lerp gövdeyi
-  // her karede patika boyunca kaydırıp sürekli bir titreme/emerme çiziyor —
-  // trail current kareden snap alınır, baş/angle yine yumuşatılır.
+  // Trail snap: gövdesi her snapshot'ta yay-uzunluğuyla yeniden örneklenen
+  // oyun (SNAKE) pakete `snapTrail: true` yazar; indeks-lerp patikada kayıp
+  // titreme çizdiği için trail current kareden snap alınır, baş/angle yine
+  // yumuşatılır. Bayrak karede taşınır — moda özel dal yok.
   if (!options?.snapTrail) {
     if (Array.isArray(previous.trail) && Array.isArray(current.trail)) {
       output.trail = blendPointArrays(previous.trail, current.trail, t);
@@ -183,7 +183,8 @@ export function blendWorldFrames(previous, current, t) {
   }
 
   // Stable object entities: players, enemies, NPCs, projectiles, and effects.
-  const blendOptions = current.mode === 'SNAKE' ? { snapTrail: true } : undefined;
+  // Trail anlami kareden okunur (`snapTrail`) — oyun adı değil.
+  const blendOptions = current.snapTrail === true ? { snapTrail: true } : undefined;
   for (const kind of [
     'players',
     'enemies',

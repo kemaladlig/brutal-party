@@ -221,10 +221,11 @@ test('negative: I7 turns red when player diameter on phone is smaller than 12px 
   assert.ok(result.failures.some((f) => f.includes('I7')));
 });
 
-// Negative test 7b: CURVE line game threshold (4.5px)
-test('I7 threshold rules: CURVE allows 4.5px minimum diameter while failing below 4.5px', () => {
+// Negative test 7b: line-game threshold (4.5px via cartridge record)
+test('I7 threshold rules: line-game cartridges allow 4.5px minimum diameter while failing below 4.5px', () => {
   const passingCurve = makeMockGameData({
     mode: 'CURVE',
+    minPlayerDiameter: 4.5,
     phone: {
       playerPx: 2.4, // diameter = 4.8px >= 4.5px
       playerPct: 1.2,
@@ -238,6 +239,7 @@ test('I7 threshold rules: CURVE allows 4.5px minimum diameter while failing belo
 
   const failingCurve = makeMockGameData({
     mode: 'CURVE',
+    minPlayerDiameter: 4.5,
     phone: {
       playerPx: 2.0, // diameter = 4.0px < 4.5px
       playerPct: 1.0,

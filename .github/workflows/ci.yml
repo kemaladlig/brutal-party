@@ -1,0 +1,44 @@
+name: CI
+
+# Doğrulama kapısı. `npm run check` artık tsc + 4 lint + birim testleri +
+# quality gate'i (health, I1-I7) zincirler; burada ek olarak build ve
+# Playwright motor matrisi koşar.
+#
+# Neden burada: AGENTS.md §11 "check/build temiz" diyordu ama kapı elle
+# çalıştırılıyordu — 445 test ve 15 oyunluk kalite kapısı hiçbir zaman
+# otomatik koşmadığı için kırmızı testler/ihlaller fark edilmeden birikti.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      # tsc + undef + token + rules lint + 453 birim testi + 15 oyunluk
+      # cihaz-bağımsızlık kalite kapısı.
+      - name: Kontrol kapısı (lint + test + health)
+        run: npm run check
+
+      - name: Üretim derlemesi
+        run: npm run build
+
+      - name: Playwright motor matrisi
+        run: npm run test:e2e

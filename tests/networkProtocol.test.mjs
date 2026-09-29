@@ -5,7 +5,7 @@ import {
   generateRoomCode,
   normalizeRoomCode,
   isValidRoomCode,
-  ROOM_CODE_ALPHABET,
+  normalizeStateSync,
 } from '../src/core/networkProtocol.js';
 import { roundGapSeconds } from '../src/core/roundLifecycle.js';
 
@@ -91,24 +91,13 @@ test('roundGap quantizes to half seconds and never goes negative', () => {
   assert.equal(roundGapSeconds({ state: 'ROUND_OVER', roundTransitionTimer: '2.4' }), 2.5);
 });
 
-test('generateRoomCode produces valid alphanumeric codes of specified length', () => {
-  const code = generateRoomCode(4);
-  assert.equal(typeof code, 'string');
-  assert.equal(code.length, 4);
-  for (const char of code) {
-    assert.equal(ROOM_CODE_ALPHABET.includes(char), true, `char ${char} should be in alphabet`);
+test('generateRoomCode produces 3-digit numeric codes', () => {
+  for (let i = 0; i < 50; i++) {
+    const code = generateRoomCode();
+    assert.equal(typeof code, 'string');
+    assert.match(code, /^\d{3}$/, `code ${code} should be 3 digits`);
+    assert.equal(isValidRoomCode(code), true);
   }
-  // Custom length
-  const longCode = generateRoomCode(6);
-  assert.equal(longCode.length, 6);
-  for (const char of longCode) {
-    assert.equal(ROOM_CODE_ALPHABET.includes(char), true);
-  }
-  // Disambiguation: no O, 0, I, 1 in alphabet
-  assert.equal(ROOM_CODE_ALPHABET.includes('O'), false);
-  assert.equal(ROOM_CODE_ALPHABET.includes('0'), false);
-  assert.equal(ROOM_CODE_ALPHABET.includes('I'), false);
-  assert.equal(ROOM_CODE_ALPHABET.includes('1'), false);
 });
 
 test('normalizeRoomCode trims and uppercases code', () => {
@@ -118,9 +107,70 @@ test('normalizeRoomCode trims and uppercases code', () => {
   assert.equal(normalizeRoomCode(undefined), '');
 });
 
+// 8 Hz STATE_SYNC paketi iki transport'ta aynı şekilde gitmeli: discriminator
+// en üstte, yük düz. TV_CONSOLE bir zamanlar `{type, state:{…}}` kovası yolluyordu
+// ve kumanda en-üst-seviye alanları okuduğu için faz/sk_or/sayaç sessizce düşüyordu.
+// Kilit: iki şekil de aynı düz pakete indirgenmeli.
+test('normalizeStateSync flattens both transport shapes to one envelope', () => {
+  const flat = {
+    type: 'HOST_STATE_SYNC',
+    gameMode: 'PONG',
+    phase: 'GAME',
+    scores: [3, 1, 0, 2],
+    names: ['AYŞE', 'FATMA', null, null],
+    roundGap: 0,
+  };
+  const nested = { type: 'HOST_STATE_SYNC', state: { ...flat, type: undefined } };
+
+  const fromFlat = normalizeStateSync(flat);
+  const fromNested = normalizeStateSync(nested);
+
+  for (const [label, out] of [['düz', fromFlat], ['kovalı', fromNested]]) {
+    assert.equal(out.phase, 'GAME', `${label}: faz en üstte olmalı`);
+    assert.equal(out.gameMode, 'PONG', `${label}: gameMode en üstte olmalı`);
+    assert.deepEqual(out.scores, [3, 1, 0, 2], `${label}: skor en üstte olmalı`);
+    assert.deepEqual(out.names, flat.names, `${label}: isimler en üstte olmalı`);
+    assert.equal(out.roundGap, 0, `${label}: roundGap en üstte olmalı`);
+    assert.equal(out.state, undefined, `${label}: iç içe kova kalmamalı`);
+  }
+  // İki transport aynı tüketicinin gördüğü paketin aynı olmasını sağlar.
+  assert.deepEqual(
+    { ...fromFlat }, { ...fromNested },
+    'düz ve kovalı zarf aynı pakete indirgenmeli',
+  );
+});
+
+// ONLINE zarfı `action` ayırıcısı taşır; normalleştirici onu korumalı
+// (sunucu/kumanda `msg.action` ile ayırıcıyı eşler).
+test('normalizeStateSync keeps the transport discriminator', () => {
+  const out = normalizeStateSync({
+    action: 'STATE_SYNC',
+    state: { phase: 'COUNTDOWN', gameMode: 'BOMB', t: 2 },
+  });
+  assert.equal(out.action, 'STATE_SYNC', 'ONLINE ayırıcısı korunur');
+  assert.equal(out.phase, 'COUNTDOWN');
+  assert.equal(out.t, 2, 'sayaç sayısı en üstte');
+  assert.equal(out.state, undefined);
+});
+
+// Motor HUD'ının `state` alanı bir STRING'dir ve 8 Hz pakette bilerek yoktur
+// (stateSync.js). Normalleştirici nesne olmayan / yabancı `state` alanına
+// dokunmamalı, yoksa oyun durumu paketin üstüne yazılır.
+test('normalizeStateSync leaves non-envelope state fields alone', () => {
+  const withStringState = { type: 'HOST_STATE_SYNC', phase: 'GAME', state: 'MATCH_OVER' };
+  assert.equal(normalizeStateSync(withStringState), withStringState, 'string state açılmaz');
+
+  const withObjectState = { type: 'HOST_STATE_SYNC', phase: 'GAME', state: { scores: [1, 0, 0, 0] } };
+  assert.equal(normalizeStateSync(withObjectState), withObjectState, 'phase/gameMode yoksa açılmaz');
+
+  for (const junk of [null, undefined, 0, '', 'x', []]) {
+    assert.equal(normalizeStateSync(junk), null, `${JSON.stringify(junk)} null dönmeli`);
+  }
+});
+
 test('isValidRoomCode validates 3-6 char alphanumeric codes', () => {
   assert.equal(isValidRoomCode('A4X9'), true);
-  assert.equal(isValidRoomCode('123'), true); // legacy 3-digit
+  assert.equal(isValidRoomCode('123'), true); // 3 haneli sayısal kod
   assert.equal(isValidRoomCode('ABCDEF'), true);
   assert.equal(isValidRoomCode('ab'), false); // too short
   assert.equal(isValidRoomCode('ABCDEFG'), false); // too long (7)

@@ -166,7 +166,7 @@ export const EN = {
   'join.title': 'JOIN ROOM',
   'join.codeLabel': 'ROOM CODE',
   'join.paste': 'PASTE',
-  'join.codePh': 'E.G. A4X9',
+  'join.codePh': 'E.G. 123',
   'join.asYou': '· JOINING',
   'join.hint': 'Change it from the menu character card.',
   'join.submit': 'CONNECT CONTROLLER →',

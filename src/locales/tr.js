@@ -167,7 +167,7 @@ export const TR = {
   'join.title': 'ODAYA KATIL',
   'join.codeLabel': 'ODA KODU',
   'join.paste': 'YAPIŞTIR',
-  'join.codePh': 'ÖR: A4X9',
+  'join.codePh': 'ÖR: 123',
   'join.asYou': 'OLARAK KATILIYORSUN',
   'join.hint': 'İsmi menüdeki karakter kartından değiştirebilirsin.',
   'join.submit': 'KUMANDAYI BAĞLA →',

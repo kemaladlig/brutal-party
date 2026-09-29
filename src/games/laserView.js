@@ -16,6 +16,7 @@ import {
   createWorldSnapshot,
   isValidWorldBase,
   isWorldEntityVisible,
+  LASER_PLAYER_RADIUS,
 } from './worldCore.js';
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -50,8 +51,10 @@ export function mapLaserPlayers(players, lasers, tuning = {}, aimOf = null, with
       alive: p.isAlive !== false,
       x: round1(p.x || 0),
       y: round1(p.y || 0),
-      // Gövde yarıçapı host'ta ölçeklenir ve paketle taşınır.
-      radius: round1(p.radius || 19),
+      // Gövde yarıçapı host'ta ölçeklenir ve paketle taşınır. Fallback motorun
+      // tek kaynağıyla aynı olmalı (I4): 19 px, oyuncu görünmez olduğunda çizimi
+      // 30 px gövdeye göre küçültüyordu.
+      radius: round1(p.radius || LASER_PLAYER_RADIUS),
       angle: round1(p.angle || 0),
       color: p.color,
       hp: Number(p.hp) || 0,
@@ -234,7 +237,7 @@ export function drawLaserAims(ctx, players) {
     if (!isWorldEntityVisible(player)) continue;
     const pts = player.aim || [];
     if (pts.length === 0) continue;
-    const u = (player.radius || 19) / 19;
+    const u = (player.radius || LASER_PLAYER_RADIUS) / LASER_PLAYER_RADIUS;
     ctx.strokeStyle = player.color;
     if (player.aiming) {
       ctx.globalAlpha = 0.95;
@@ -319,9 +322,10 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
 
     // Gövde yarıçapı host'ta ölçeklenir ve paketle gelir; bu view host VE
     // kumanda client'ı tarafından ortak kullanıldığı için yeniden ölçeklenmez.
-    // Tasarım referansı 30px (FIELD_TIERS §normal): R=30'da değerler eskisiyle aynı oranda.
-    const R = player.radius || 30;
-    const u = R / 30;
+    // Tasarım referansı LASER_PLAYER_RADIUS (FIELD_TIERS §normal 30px): R=30'da
+    // değerler eskisiyle aynı oranda. Fallback motorla aynı sabitten gelir.
+    const R = player.radius || LASER_PLAYER_RADIUS;
+    const u = R / LASER_PLAYER_RADIUS;
     const uMin = (v) => Math.max(1, v * u);
 
     ctx.save();

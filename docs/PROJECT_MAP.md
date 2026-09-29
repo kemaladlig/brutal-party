@@ -91,7 +91,10 @@ src/core/
   fireFeedback.js          ARCHER/HORDE/LASER cooldown + blocked/ready/shot state
   fireFeedbackEffects.js    blocked efektleri episode başına bir kez
   inputRouter.js            Local/network input → aktif engine; adapter'lar lookup bilmez
-  networkProtocol.js        Ortak ONLINE/TV_CONSOLE input doğrulama
+  networkProtocol.js        Ortak ONLINE/TV_CONSOLE input doğrulama + oda kodu sözleşmesi
+                            (generateRoomCode/normalizeRoomCode/isValidRoomCode) +
+                            `normalizeStateSync` — 8 Hz STATE_SYNC zarfının TEK
+                            düzleştirme kapısı (her iki istemci + sunucu çağırır)
   worldInterpolation.js     Snapshot sunum interpolasyonu (stable-id blend, no-extrapolation)
   inputMaps.js              Tek klavye slot haritası: getSlotKeys, keyboardVectorFrom, readSlotKeys,
                             isSlotActionEvent, slotForActionCode, buildCodeToSlotMap, getKeyLabel
@@ -196,8 +199,14 @@ tests-e2e/                  Playwright (npm run test:e2e): engine-smoke.spec.js 
                             motorlarını registry'den yükleyip LOBBY→PLAYING 240 kare sürer;
                             control-surface.spec.js — yerel kontrol yüzeyi seçimi
 tests/relayProbes.test.mjs  §11'in 3 provasının protokol karşılığı: hazır→lobi sıfırlama,
-                            takas isim senkronu, bot görünürlüğü — gerçek WS sunucusu üzerinde
+                            takas isim senkronu, bot görünürlüğü — gerçek WS sunucusu üzerinde.
+                            Prova 4-6 ek olarak: 8 Hz STATE_SYNC zarfının kumandaya DÜZ
+                            ulaşması, eski kova-şekilli host toleransı, iki transport eşitliği
 playwright.config.mjs       e2e yapılandırması (vite:3100 webServer, chromium headless)
+tests/worldPacketRadius.test.mjs  Tasarım yarıçap sabitlerinin motor TUNING'iyle eşitliği
+                             (view motoru import edemediği için worldCore.js kopyaları var)
+.github/workflows/ci.yml   Push/PR kapısı: `npm run check` + `npm run build` +
+                             `npm run test:e2e` — doğrulama elle koşulmaz
 scripts/typecheck.mjs       tsc --checkJs ratchet'i: --stats dosya tablosu, --max (taban:
                             scripts/typecheck-baseline.txt, şu an 0) — `npm run typecheck`
 scripts/rules-lint.mjs      AGENTS.md K1–K6 makine bekçisi (mode=== dalı, ham renk, canvas
@@ -246,6 +255,16 @@ Ortak doğrulama `networkProtocol.js`. **Uçtan uca:** oda kur (3 haneli kod) �
 
 ### host_msg (host → uzak telefon):
 - `HOST_STATE_SYNC`/`GAME_STATE` (8 Hz, dirty-check), `WORLD_FRAME` (30 Hz P2P).
+
+**STATE_SYNC zarfı — iki transport'ta AYNI şekil.** Discriminator en üstte, yük düz:
+`network.js` → `{ type: 'HOST_STATE_SYNC', ...state }` · `supabaseRelay.js` → `{ action: 'STATE_SYNC', ...state }`.
+Kumanda (`gamepad.handleStateSync`) yalnız en-üst-seviye alanları okur (`phase`, `gameMode`,
+`scores`, `names`, `t`, `roundGap`); yükü iç içe `{state:{…}}` kovasına gömmek bu alanları
+sessizce `undefined` bırakır ve periyodik paketin "kaybolan tek mesajdan kendini toparla"
+görevi ölür. `normalizeStateSync` (bkz. `core/networkProtocol.js`) iki şekli de tek düz
+pakete indirger: yeni host + eski sunucu ve eski host (kova şekilli) + yeni kumanda/sunucu.
+Kilit: `tests/relayProbes.test.mjs` prova 4 (düz ulaşım), 5 (eski host toleransı), 6 (iki
+transport aynı tüketiciliği besler).
 - `SLOTS_UPDATE` (WS+Supabase aynı şema), `JOIN_SUCCESS`, `SLOT_CHANGED`, `SLOTS_SWAPPED`.
 - `SET_SLOT_COLOR`, `SET_HOST_PLAYER` (host-only), `STAGING_STARTED`/`COUNTDOWN`/`GAME_STARTED`,
   `RETURNED_TO_LOBBY`, `PLAYER_REACTION` (çift yönlü, `slotIndex:-1` = host koltukta değil).

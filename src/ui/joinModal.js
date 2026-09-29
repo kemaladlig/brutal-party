@@ -130,8 +130,8 @@ export function initJoinModal({ onExecuteJoin }) {
     try {
       const text = await navigator.clipboard.readText();
       if (text && inputRoomCode) {
-        const match = text.match(/join=([A-Za-z0-9]{3,6})/i) || text.match(/\b([A-Za-z0-9]{4,6})\b/) || text.match(/\b([A-Za-z0-9]{3})\b/);
-        inputRoomCode.value = normalizeRoomCode(match ? match[1] : text.slice(0, 4));
+        const match = text.match(/join=(\d{3})/i) || text.match(/\b(\d{3})\b/) || text.match(/join=([A-Za-z0-9]{3,6})/i);
+        inputRoomCode.value = normalizeRoomCode(match ? match[1] : text.slice(0, 3));
         showInstallToast(t('join.pasted'));
       }
     } catch (err) {
@@ -175,7 +175,7 @@ export function initJoinModal({ onExecuteJoin }) {
   inputRoomCode?.addEventListener('input', (e) => {
     const code = normalizeRoomCode(/** @type {HTMLInputElement} */ (e.target).value);
     /** @type {HTMLInputElement} */ (e.target).value = code;
-    if (code.length === 4) {
+    if (code.length === 3) {
       closeJoinModal();
       onExecuteJoin(code, ensureStoredNick(), joinModalMode);
     }
@@ -196,7 +196,7 @@ export function initJoinModal({ onExecuteJoin }) {
     input?.addEventListener('input', (e) => {
       const code = normalizeRoomCode(e.target.value);
       e.target.value = code;
-      if (code.length === 4) onExecuteJoin(code, ensureStoredNick(), mode);
+      if (code.length === 3) onExecuteJoin(code, ensureStoredNick(), mode);
     });
     input?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {

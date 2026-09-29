@@ -992,7 +992,9 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
       if (bullet.enemy) {
         ctx.fillStyle = bullet.color || BLOOD;
         ctx.strokeStyle = FLASH;
-        ctx.lineWidth = 1.5;
+        // Mermi konturu saha ölçeğiyle büyür (I6): sabit 1.5 px telefonda
+        // kalın flaşı yok ediyordu. Taban 1 px — ince ekranda kaybolmasın.
+        ctx.lineWidth = Math.max(1, 1.5 * u);
         ctx.beginPath();
         ctx.arc(bullet.x, bullet.y, Math.max(3, bullet.radius) + 1, 0, Math.PI * 2);
         ctx.fill();

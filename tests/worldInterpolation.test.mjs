@@ -61,11 +61,12 @@ test('normalizes point trails when a sampled body changes length', () => {
 });
 
 test('SNAKE trails snap instead of index-lerp (arc-resampled body)', () => {
-  // SNAKE gövdesi her snapshot'ta yay-uzunluğuyla yeniden örneklenir;
-  // indeks-lerp gövdeyi patika boyunca kaydırıp titreme çiziyordu.
+  // Gövde her snapshot'ta yay-uzunluğuyla yeniden örneklenir; indeks-lerp
+  // gövdeyi patika boyunca kaydırıp titreme çiziyordu. Bayrak karede taşınır.
   const snakeFrame = (seq, x, trail) => ({
     ...frame(seq, x, { players: [{ slot: 0, x, y: 0, heading: 0, trail }] }),
     mode: 'SNAKE',
+    snapTrail: true,
   });
   const previous = snakeFrame(1, 0, [[0, 0], [10, 0], [20, 0]]);
   const current = snakeFrame(2, 5, [[2, 0], [12, 0], [22, 0]]);
@@ -73,6 +74,14 @@ test('SNAKE trails snap instead of index-lerp (arc-resampled body)', () => {
 
   assert.deepEqual(blended.players[0].trail, [[2, 0], [12, 0], [22, 0]]);
   assert.equal(blended.players[0].x, 2.5);
+});
+
+test('trails index-lerp by default when the frame carries no snap flag', () => {
+  const previous = frame(1, 0, { players: [{ slot: 0, x: 0, y: 0, trail: [[0, 0], [10, 0]] }] });
+  const current = frame(2, 20, { players: [{ slot: 0, x: 20, y: 0, trail: [[0, 0], [5, 0], [10, 0], [20, 0]] }] });
+  const blended = blendWorldFrames(previous, current, 0.5);
+
+  assert.equal(blended.players[0].trail.length, 4);
 });
 
 test('blends moving world objects and singleton hazards', () => {

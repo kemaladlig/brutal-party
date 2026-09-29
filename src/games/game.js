@@ -395,6 +395,33 @@ export class Game extends BaseMiniGame {
     playJoin();
   }
 
+  // PONG kimliği paddle'a yazılır + layout tazelenir (mutlak konum disiplini).
+  applySlotIdentity(index, identity = {}) {
+    super.applySlotIdentity(index, identity);
+    this.paddles?.[index]?.updateLayout?.(this.arena);
+  }
+
+  // PONG skoru set'tedir; LOCAL takasta paddle katılım bayrakları takaslanır.
+  swapLocalSlots(slotA, slotB, isHosting) {
+    if (this.setScores) {
+      const tempS = this.setScores[slotA];
+      this.setScores[slotA] = this.setScores[slotB];
+      this.setScores[slotB] = tempS;
+    }
+    if (!isHosting && this.paddles) {
+      const pA = this.paddles[slotA];
+      const pB = this.paddles[slotB];
+      if (pA && pB) {
+        const tempJoined = pA.isJoined;
+        pA.isJoined = pB.isJoined;
+        pB.isJoined = tempJoined;
+        const tempType = pA.slotType;
+        pA.slotType = pB.slotType;
+        pB.slotType = tempType;
+      }
+    }
+  }
+
   // Registry standardı: tüm motorlar startNewMatch() ile çalışır.
   startNewMatch() {
     this.startGame();

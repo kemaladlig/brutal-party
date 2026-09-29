@@ -31,6 +31,28 @@ export const MODE_VIEW_MAP = Object.freeze({
  * @param {string} [mode]
  * @returns {{ ok: boolean, drift: number, detail: string }}
  */
+/**
+ * View dosyasında kullanılan sabit adını sayısal değerine çözer.
+ * Önce dosyanın kendi tanımı, sonra `CONST_SOURCES` içindeki paylaşılan
+ * modüller. View'lar motoru import edemez (client bundle'da simülasyon yasık,
+ * AGENTS §3); bu yüzden tasarım yarıçap sabitleri `worldCore.js`'te yaşıyor ve
+ * denetleyici onları buradan okumak zorunda.
+ */
+const CONST_SOURCES = ['src/games/worldCore.js'];
+
+function resolveConst(name, content) {
+  const escape = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(?:const|let|var)\\s+${escape}\\s*=\\s*(-?\\d+(?:\\.\\d+)?)`);
+  const local = content.match(re);
+  if (local) return Number(local[1]);
+  for (const path of CONST_SOURCES) {
+    if (!existsSync(path)) continue;
+    const shared = readFileSync(path, 'utf8').match(re);
+    if (shared) return Number(shared[1]);
+  }
+  return null;
+}
+
 export function auditViewFidelityInContent(content, playerDesignRadius, mode = '') {
   if (!content) return { ok: true, drift: 0, detail: 'view yok' };
 
@@ -53,12 +75,9 @@ export function auditViewFidelityInContent(content, playerDesignRadius, mode = '
     const rawVal = match[1];
     let fallbackVal = Number(rawVal);
     if (!Number.isFinite(fallbackVal)) {
-      // Sabit adı (örn ARCHER_RADIUS, CLONE_RADIUS) ise sabit tanımını ara
-      const constMatch = content.match(new RegExp(`(?:const|let|var)\\s+${rawVal}\\s*=\\s*(\\d+(?:\\.\\d+)?)`));
-      if (constMatch) {
-        fallbackVal = Number(constMatch[1]);
-      } else {
-        // Fail-closed: sabit çözülemediyse hata
+      fallbackVal = resolveConst(rawVal, content);
+      // Fail-closed: sabit çözülemediyse hata
+      if (fallbackVal == null) {
         return { ok: false, drift: Infinity, detail: `sabit çözülemedi: ${rawVal} (fail-closed)` };
       }
     }
@@ -114,7 +133,7 @@ export function auditMotionCuesInContent(content) {
   return count;
 }
 
-export function getModeRelatedFiles(mode) {
+export function getModeRelatedFiles(mode, extraFiles = []) {
   const m = mode.toLowerCase();
   const list = [
     `src/games/${m}.js`,
@@ -122,17 +141,15 @@ export function getModeRelatedFiles(mode) {
     `src/games/${m}View.js`,
     `src/games-retired/${m}View.js`,
     `src/ui/${m}WorldView.js`,
+    // Kartuş kaydının bildirdiği ek dosyalar (PONG bölünmüş motor, RACE
+    // paylaşılan tur mantığı) — moda özel dal yok, kayıt konuşur.
+    ...extraFiles,
   ];
-  if (mode === 'PONG') {
-    list.push('src/games/game.js', 'src/games/paddle.js', 'src/games/ball.js');
-  } else if (mode === 'RACE') {
-    list.push('src/games/raceLogic.js');
-  }
   return list.filter(existsSync);
 }
 
-export function auditMotionCues(mode) {
-  const files = getModeRelatedFiles(mode);
+export function auditMotionCues(mode, extraFiles = []) {
+  const files = getModeRelatedFiles(mode, extraFiles);
   let total = 0;
   for (const file of files) {
     const content = readFileSync(file, 'utf8');
@@ -166,8 +183,8 @@ export function auditUnscaledGeometryInContent(content) {
   return count;
 }
 
-export function auditUnscaledGeometry(mode) {
-  const files = getModeRelatedFiles(mode);
+export function auditUnscaledGeometry(mode, extraFiles = []) {
+  const files = getModeRelatedFiles(mode, extraFiles);
   let total = 0;
   for (const file of files) {
     const content = readFileSync(file, 'utf8');

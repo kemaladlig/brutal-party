@@ -8,6 +8,17 @@ import { UI_COLORS } from '../ui/tokens.js';
 export const round1 = (v) => Math.round(Number(v) * 10) / 10;
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 
+// ── Tasarım yarıçap sabitleri (view tarafının ölçek referansı) ───────────────
+// Engine `fieldRadius(arena, X.PLAYER_RADIUS, 0)` ile ölçekliyor; view ise
+// ölçeklenmiş `player.radius`'ı paketten okuyup `u = R / SABIT` türetiyor.
+// SABIT motorunkiyle birebir aynı olmalı: kayma I4'ü kırıyor ve client'da
+// oyuncu görünmez olduğunda (fallback) gövde yanlış boyutta çiziliyor.
+// Client view motoru import ETMEZ (AGENTS §3), bu yüzden sabitler burada —
+// motor tarafında `TUNING.PLAYER_RADIUS` ile eşitlenmesi tests
+// `worldPacketRadius.test.mjs` tarafından kilitlidir.
+export const CROWN_PLAYER_RADIUS = 36;
+export const LASER_PLAYER_RADIUS = 30;
+
 /**
  * Host ve world-view aynı çizim fonksiyonlarını paylaşır.
  * Host varlıkları isJoined/isAlive, world snapshot ise joined/alive kullanır.

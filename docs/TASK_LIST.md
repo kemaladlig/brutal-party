@@ -1,5 +1,53 @@
 # Task List — Üretim Seviyesine Refactor
 
+## Faz A+B — Doğrulama kapısı + TV_CONSOLE state-sync (2026-09-29)
+
+Mimari taramada bulunan iki kritik bulgu. Tespit: `npm run check` yalnız lint + tsc
+koşuyordu; 445 test ve 15 oyunluk kalite kapısı **hiçbir yerde otomatik koşmuyordu**,
+bu yüzden iki kırmızı test/ihlal fark edilmeden birikmişti.
+
+- [x] A.1 `npm run check` artık zincirli: tsc + undef + tokens + rules + `npm test` + `npm run health` (453 test, exit 0)
+- [x] A.2 `.github/workflows/ci.yml` — push/PR'da `check` + `build` + `test:e2e` (elle koşulmaz)
+- [x] A.3 CLONE bot kapı yönlendirmesi düzeltildi: `patrolTask` farklı odaya geçerken
+      botun **kendi** odasının kapısını seçiyordu; merkezdeki görevler (statue/fountain →
+      `courtyard`) için o kapı hiçbir odaya çıkmıyor, bot kapıda salınıyordu. Kapı artık
+      daima **hedef** odanın kapısı, merkez için `center`; eşik `CLONE_DOOR_REACHED=40`.
+      100 koşu × 2 bot: 0 yıldız alan koşu 0/100 (eskiden 5/60). Test bütçesi 10 sn → 20 sn.
+- [x] A.4 Health 5 ihlali kapatıldı: HORDE I6 (mermi konturu `u` ile), CROWN I6 (SERSEM!
+      font/kontur ölçekli), CROWN I4 + LASER I4 (view fallback 43/19 px → motorla aynı
+      sabit, `worldCore.js` + `worldPacketRadius.test.mjs` kilidi), LASER I3 (klasik harita
+      koridoru 43 px < görsel çap 60 px; kollar arası boşluk artık oyuncu çapından türetiliyor).
+      Sonuç **15/15, 0 ihlal**. `qualityAuditors.resolveConst` paylaşılan sabitleri de çözüyor.
+- [x] B.1 `network.js broadcastHostState` → `{ type:'HOST_STATE_SYNC', ...state }` (düz).
+      Önceden `{ type, state:{…}}` kova şekli gönderiyordu; kumanda en-üst-seviye alanları
+      okuduğu için **TV_CONSOLE'da** faz uzlaşması, skor şeridi, geri sayım, cooldown
+      senkronu ve durum satırı sessizce ölüydü.
+- [x] B.2 `core/networkProtocol.normalizeStateSync` tek düzleştirme kapısı (her iki istemci +
+      sunucu çağırır): yeni host + eski sunucu, eski host + yeni kumanda/sunucu da çalışır.
+- [x] B.3 `roomManager.handleHostBroadcast` düz zarfı yansıtıyor → sunucu `room.gameMode`
+      da WS yolunda güncelleniyor (önceden kova içinde kalıyordu).
+- [x] B.4 `gamepad.showCountdown(t)` → `showCountdown(seconds)`: parametre i18n `t`'sini
+      gölgeliyordu, `seconds === 0` halinde `t('pad.go')` bir sayıyı çağırıp TypeError
+      fırlatıyordu. B bu yolu TV_CONSOLE'da erişilebilir kıldığı için B kapsamında kapandı.
+- [x] B.5 Kilit testler: `relayProbes` prova 4-6 (düz ulaşım / eski host / iki transport
+      eşitliği), `networkProtocol` 3 normalize testi, `worldPacketRadius` sabit eşitliği,
+      `botBehavior` kapı-rozeti testi (12 koşu, hepsi puan almalı).
+
+## Faz C — Sunucu güvenliği (sıradaki iş, ~1.5 gün)
+
+Taramada bulunan açık sunucu riskleri. Hiçbiri dokunulmadı, liste kayıt altında.
+
+- [ ] C.1 WS `maxPayload` + `perMessageDeflate: false` + `verifyClient` Origin kontrolü
+      (hem `server/index.js` hem `server/vitePluginWs.js`)
+- [ ] C.2 `RoomManager.rooms` TTL + tavan; `createRoom` eski odayı temizlesin
+      (`roomManager.js:87` `hostWs.roomCode` üzerine yazıyor, `handleDisconnect:739`
+      yalnız son kodu siliyor → önceki oda kalıcı sızıntı). `generateRoomCode` retry cap.
+- [ ] C.3 `JOIN_ROOM`/`HOST_CREATE_ROOM` rate limit + deneme sayacı/ban (923k kod uzayı)
+- [ ] C.4 `getRoom` → `isValidRoomCode` kullan; normalizasyon 4 kopyadan `networkProtocol`'a
+- [ ] C.5 `handleHostBroadcast` beyaz liste doğrulaması
+- [ ] C.6 `supabaseRelay.js:1177` `channel.send(...)` await + catch (şu an yutuluyor)
+- [ ] C.7 Statik sunucu başlıkları (CSP, X-Content-Type-Options, X-Frame-Options) + 404 fallback
+
 ## Faz 0 — Nokta atışı silmeler (sıfır davranış riski)
 
 - [x] 0.1 Referanssız asset'ler silindi (tabletop.jpg + 2 SVG, ~2.05MB) — `8e76a1b`
@@ -38,7 +86,7 @@
 - [x] 3.2 SW sertleştirme: precache allSettled, skipWaiting → onaylı aktivasyon, maskable icon, sağ üst bar ve ayarlar modalına "Güncellemeleri Kontrol Et" butonu (`src/core/updateManager.js`)
 - [x] 3.3 Test glob: node --test glob (`package.json` güncellendi). GitHub Actions ci.yml sonradan kaldırıldı — doğrulama lokal (`npm run check`).
 - [x] 3.0 ONLINE/CGNAT kararı: 30Hz world kanalını kaldır.
-- [x] 3.4 Oda kodu: tek üreteç networkProtocol.js, daima 4 karakter (O, 0, I, 1 hariç 31 karakterlik alfabe); doğrulayıcı eski 3 haneli kodlar için 3-6 kabul eder (tests/networkProtocol.test.mjs ile kilitli)
+- [x] 3.4 Oda kodu: tek üreteç networkProtocol.js, 3 haneli sayı; doğrulayıcı eski 4 karakterli kodlar için 3-6 kabul eder (tests/networkProtocol.test.mjs ile kilitli)
 
 ## Faz 4 — Motor epikentresi: crown + race (~2-3 gün, sonda)
 

@@ -4,6 +4,7 @@
 
 import { prefersReducedMotion, motionScale } from '../ui/motion.js';
 import { ensureLocalSeatColor, cycleLocalSeatColor, getBotPersona } from './customizationManager.js';
+import { reportError } from './errorReporter.js';
 import { resolveSlotName } from './slotManager.js';
 import { isSlotActionEvent, keyboardVectorFrom, STEER_KEY_HINTS } from './inputMaps.js';
 import { createTabletopRenderer } from './tabletopRenderer.js';
@@ -230,6 +231,69 @@ export class BaseMiniGame {
     const p = this.players?.[index] || this.tanks?.[index] || this.paddles?.[index];
     if (p) p.color = hex;
     if (Array.isArray(this.playerColors)) this.playerColors[index] = hex;
+  }
+
+  // Koltuk kimliği: slotManager'ın precompute ettiği { slotType, name, color,
+  // rimColor, isJoined } varlığa yazılır. Varlık listesi türe göre değil,
+  // doluluğa göre seçilir (players → tanks → paddles) — moda özel dal yok.
+  applySlotIdentity(index, identity = {}) {
+    const { slotType, name, color, rimColor, isJoined } = identity;
+    if (slotType !== undefined && Array.isArray(this.slotTypes)) this.slotTypes[index] = slotType;
+    const ent = this.players?.[index] || this.tanks?.[index] || this.paddles?.[index];
+    if (!ent) return;
+    if (isJoined !== undefined) ent.isJoined = isJoined;
+    if (slotType !== undefined) ent.slotType = slotType;
+    if (name !== undefined) ent.name = name;
+    if (color !== undefined) ent.color = color;
+    if (rimColor !== undefined) ent.rimColor = rimColor;
+  }
+
+  // Kopan/kapanan kumandanın latch'li girdisini nötrle — koltuk, isim, skor,
+  // bot bayrakları korunur. scope 'move' ise aim, 'aim' ise hareket korunur.
+  // Alanlar `in` ile yoklanır: her motor yalnız kendi latch'ini sıfırlar.
+  neutralizeSlotInput(index, scope = 'all') {
+    if (!Number.isInteger(index) || index < 0 || index > 3) return;
+    try {
+      if (scope !== 'move' && typeof this.resetAimInput === 'function') this.resetAimInput(index);
+      const ent = this.players?.[index] || this.tanks?.[index] || this.paddles?.[index];
+      if (ent && scope !== 'aim') {
+        if ('steer' in ent) ent.steer = 0;
+        if ('steerX' in ent) ent.steerX = 0;
+        if ('steerY' in ent) ent.steerY = 0;
+        if ('remoteActive' in ent) ent.remoteActive = false;
+        if ('remoteMoveActive' in ent) ent.remoteMoveActive = false;
+        if ('isDriving' in ent) ent.isDriving = false;
+        if ('isBoost' in ent) ent.isBoost = false;
+      }
+      if (ent && scope !== 'move') {
+        if ('charging' in ent) ent.charging = false;
+        if ('charge' in ent) ent.charge = 0;
+        if ('isAiming' in ent) ent.isAiming = false;
+      }
+      if (scope !== 'aim') {
+        const joy = this.joysticks?.[index];
+        if (joy) {
+          joy.active = false;
+          joy.force = 0;
+          if ('id' in joy) joy.id = -1;
+        }
+      }
+    } catch (err) { reportError(err, 'BaseGame.neutralizeSlotInput', { warnOnly: true }); }
+  }
+
+  // LOCAL koltuk takası: skor her zaman, kimlik yalnız host-dışında takaslanır
+  // (host'ta syncSlotsToEngine zaten üzerine yazar).
+  swapLocalSlots(slotA, slotB, isHosting) {
+    if (Array.isArray(this.scores)) {
+      const temp = this.scores[slotA];
+      this.scores[slotA] = this.scores[slotB];
+      this.scores[slotB] = temp;
+    }
+    if (!isHosting && Array.isArray(this.slotTypes)) {
+      const tempType = this.slotTypes[slotA];
+      this.slotTypes[slotA] = this.slotTypes[slotB];
+      this.slotTypes[slotB] = tempType;
+    }
   }
 
   // LOCAL lobi renk noktası: sıradaki boş renge geçir.

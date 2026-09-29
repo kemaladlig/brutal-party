@@ -276,8 +276,9 @@ export class LaserGame extends BaseMiniGame {
         }
       );
     } else if (preset === 'koridor') {
-      // 03 // HAÇ KORİDOR: Merkez geçiş boşluğu genişletildi (min 56px, karakter sıkışmaz)
-      const gap = Math.max(56, size * 0.16);
+      // 03 // HAÇ KORİDOR: Merkez geçiş boşluğu genişletildi (min 80px, karakter sıkışmaz).
+      // Köşe çıkışı (gap-th)/2 oyuncu çapını geçmeli, yoksa merkez hapsolur (I3).
+      const gap = Math.max(80, size * 0.21);
       const th = Math.max(16, size * 0.045);
       const armLen = Math.max(30, size * 0.22 - gap / 2);
       this.obstacles.push(
@@ -320,16 +321,32 @@ export class LaserGame extends BaseMiniGame {
         }
       );
     } else {
-      // 01 // KLASİK ÇAPRAZ: Geçiş aralıkları artırıldı
+      // 01 // KLASİK ÇAPRAZ: Geçiş aralıkları oyuncu çapından türetilir.
+      // Sabit oran dar geçidi bırakıyordu: yatay kollar `cx ± bw*0.5`'ten
+      // başlıyor, dikey kol da `cx - bh/2`'de bitiyor → aralarında
+      // `bw*0.5 - bh/2` = 43 px kalıyordu (oyuncu görsel çapı 60 px, I3 ihlali:
+      // koridor geçilemiyordu). Kolların iç kenarları arasındaki boşluk en az
+      // oyuncu çapı + pay kadar açık tutulur.
       const bw = size * 0.13;
       const bh = Math.max(15, size * 0.04);
+      // Koridor kabulü: oyuncu GÖRSEL çapı + %25 pay. Çarpışma yarıçapı
+      // görselin 0.74'i olsa da kapı I3 görsel çapa bakar ve oyuncu görseliyle
+      // görünür — dar geçit oyuncuya "buradan geçemezsin" dediği gibi kötü
+      // okunur. Ölçüm `tests/helpers/passability` + I3 aynı sayıyı kullanır.
+      const minGap = LASER_TUNING.PLAYER_RADIUS * 2 * 1.25;
+      // Yatay kollar iç kenarı `cx ± gap/2`; dikey kol `cx - bh/2`. Açıklık
+      // `gap/2 - bh/2` olduğundan gap'i gereken değere çıkar.
+      const gap = Math.max(bw, minGap * 2 + bh);
+      // Dikey kol yüksekliği: iki yatay kolun arasını geçecek kadar uzun,
+      // merkeze doğru birbirine yaklaşmayacak kadar kısa.
+      const vH = Math.max(bw * 0.85, minGap);
       this.obstacles.push(
-        { x: cx - bw * 1.5, y: cy - bw, w: bw, h: bh },
-        { x: cx + bw * 0.5, y: cy - bw, w: bw, h: bh },
-        { x: cx - bw * 1.5, y: cy + bw - bh, w: bw, h: bh },
-        { x: cx + bw * 0.5, y: cy + bw - bh, w: bw, h: bh },
-        { x: cx - bh / 2, y: cy - bw * 1.4, w: bh, h: bw * 0.85 },
-        { x: cx - bh / 2, y: cy + bw * 0.55, w: bh, h: bw * 0.85 }
+        { x: cx - gap - bw * 0.5, y: cy - bw, w: bw, h: bh },
+        { x: cx + gap * 0.5, y: cy - bw, w: bw, h: bh },
+        { x: cx - gap - bw * 0.5, y: cy + bw - bh, w: bw, h: bh },
+        { x: cx + gap * 0.5, y: cy + bw - bh, w: bw, h: bh },
+        { x: cx - bh / 2, y: cy - bw - vH / 2, w: bh, h: vH },
+        { x: cx - bh / 2, y: cy + bw - vH / 2, w: bh, h: vH }
       );
 
       // Hareketli duvarlar: Merkez çevresinde yavaş yatay kayan 2 dikey bar

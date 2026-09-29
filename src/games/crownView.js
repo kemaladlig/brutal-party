@@ -1,7 +1,7 @@
 // CROWN world snapshot + client-safe drawing boundary.
 
 import { UI_COLORS, CROWN_COLORS } from '../ui/tokens.js';
-import { createWorldSnapshot, isValidWorldBase, round1 } from './worldCore.js';
+import { createWorldSnapshot, isValidWorldBase, round1, CROWN_PLAYER_RADIUS } from './worldCore.js';
 
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
 const PLAYER_FALLBACK = CROWN_COLORS;
@@ -74,7 +74,7 @@ export function createCrownWorldPacket(game) {
       alive: player.isAlive !== false,
       x: round1(player.x || 0),
       y: round1(player.y || 0),
-      radius: round1(player.radius || 43),
+      radius: round1(player.radius || CROWN_PLAYER_RADIUS),
       hasCrown: player.hasCrown === true,
       crownHoldTime: round1(player.crownHoldTime || 0),
       turbo: (Number(player.turboTimer) || 0) > 0,
@@ -515,12 +515,15 @@ export function drawCrownPlayer(ctx, p, color, arena, lastTime, targetCrownTime 
 
     // "SERSEM!" altın dolgu kontursuz 2.16:1 idi — koyu kontur + koyu altın.
     // (`bombView.js` zaten bu deseni kullanıyordu; iki oyun aynı dili konuşur.)
-    ctx.font = '900 13px "JetBrains Mono", monospace';
+    // Font ve kontur `u` ile ölçeklenir: sabit 13 px / 3 px telefonda okunmaz
+    // kalıyordu (I6). En az 1 px taban, ince ekranda çizgi kaybolmasın.
+    const textU = Math.max(1, u);
+    ctx.font = `900 ${Math.max(9, 13 * textU)}px "JetBrains Mono", monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = UI_COLORS.hudInkOutline;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * textU;
     ctx.strokeText('SERSEM!', x + 10, y - r - 26);
     ctx.fillStyle = UI_COLORS.hudAmber;
     ctx.fillText('SERSEM!', x + 10, y - r - 26);

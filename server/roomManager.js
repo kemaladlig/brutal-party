@@ -1,7 +1,7 @@
 // Room & Networking Manager for Brutal Party // 4P
 // Manages rooms, host connections, controller slots (P1..P4), and low-latency input streaming.
 import { sanitizeAvatar, pickFreeColor, isPaletteHex } from '../src/core/customizationManager.js';
-import { isValidNetworkInput, generateRoomCode as createRoomCode } from '../src/core/networkProtocol.js';
+import { isValidNetworkInput, generateRoomCode as createRoomCode, normalizeStateSync } from '../src/core/networkProtocol.js';
 import { normalizeReactionKey } from '../src/core/reactions.js';
 
 // Sunucu tarafı isim temizleyici (istemcideki net.js cleanPlayerName ile aynı
@@ -45,7 +45,17 @@ export class RoomManager {
 
   _sweepGhosts() {
     const now = Date.now();
-    for (const room of this.rooms.values()) {
+    for (const [code, room] of this.rooms) {
+      // Host soketi ölmüş oda sonsuza dek yaşamamalı (close gelmeden ölen host).
+      if (!room.hostWs || room.hostWs.readyState !== 1) {
+        for (const p of room.players || []) {
+          if (p && !p.isHost && p.ws && p.ws.readyState === 1) {
+            try { p.ws.send(JSON.stringify({ type: 'HOST_DISCONNECTED', message: 'TV Host odadan ayrıldı.' })); } catch {}
+          }
+        }
+        this.rooms.delete(code);
+        continue;
+      }
       let changed = false;
       for (let i = 0; i < 4; i++) {
         const p = room.players[i];
@@ -61,15 +71,31 @@ export class RoomManager {
     }
   }
 
-  // 4 karakterli alfanümerik oda kodu (O, 0, I, 1 hariç): okunması ve yazılması kolay.
+  // 3 haneli sayısal oda kodu: yazması ve söylemesi kolay.
   generateRoomCode() {
-    const code = createRoomCode();
-    // Guarantee uniqueness
-    if (this.rooms.has(code)) return this.generateRoomCode();
-    return code;
+    for (let i = 0; i < 50; i++) {
+      const code = createRoomCode();
+      // Guarantee uniqueness
+      if (!this.rooms.has(code)) return code;
+    }
+    // 810k kombinasyonda 50 çakışma pratikte imkânsız; oda sızıntısı varsa
+    // en eskiyi boşaltıp ilerle (sınırsız recursion yerine capped loop).
+    let oldest = null;
+    for (const room of this.rooms.values()) {
+      if (!oldest || room.createdAt < oldest.createdAt) oldest = room;
+    }
+    if (oldest) this.rooms.delete(oldest.code);
+    return createRoomCode();
   }
 
   createRoom(hostWs, gameMode = 'PONG', hostIdentity = {}) {
+    if (this.rooms.size >= 200) {
+      let oldest = null;
+      for (const room of this.rooms.values()) {
+        if (!oldest || room.createdAt < oldest.createdAt) oldest = room;
+      }
+      if (oldest) this.rooms.delete(oldest.code);
+    }
     const code = this.generateRoomCode();
     const room = {
       code,
@@ -402,13 +428,21 @@ export class RoomManager {
     const room = this.getRoom(hostWs.roomCode);
     if (!room) return;
 
+    // Eski host'lar yükü `{state:{…}}` kovası içinde yolladı; sunucu da iki
+    // şekli kabul eder (bkz. core/networkProtocol.normalizeStateSync). Kumandaya
+    // yansıtılan zarf DÜZ olur: discriminator + alanlar, iç içe kova yok.
+    const state = normalizeStateSync(payload);
+    if (!state) return;
+
     // If host changes game mode
-    if (payload.gameMode) {
-      room.gameMode = payload.gameMode;
+    if (state.gameMode) {
+      room.gameMode = state.gameMode;
     }
 
-    // Broadcast state to all connected controller phones (host seat dahil değil)
-    const json = JSON.stringify(payload);
+    // Broadcast state to all connected controller phones (host seat dahil değil).
+    // `state` zarfın kendisini de taşır (discriminator en üstte), ayrıca
+    // birleştirmeye gerek yok — iç içe `state` kovası zaten düzleştirildi.
+    const json = JSON.stringify(state);
     for (const p of room.players) {
       if (p?.isHost) continue;
       this._sendToPlayer(p, json);

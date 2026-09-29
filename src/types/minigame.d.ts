@@ -138,5 +138,18 @@ interface MiniGameEngine {
   onSlotSteer?(slotIndex: number, dir: number): void;
   onSlotAction?(slotIndex: number, actionId: string, isDown: boolean): void;
 
+  // Koltuk sözleşmesi — slotManager'ın moda özel dallarının yerini tutar.
+  // 16. oyun çekirdeğe dokunmadan gelir (PONG layout tazeliği için ezer).
+  applySlotIdentity(index: number, identity: {
+    slotType?: string;
+    name?: string;
+    color?: string;
+    rimColor?: string;
+    isJoined?: boolean;
+  }): void;
+  // scope: 'move' (aim korunur) | 'aim' (hareket korunur) | 'all' (ikisi de).
+  neutralizeSlotInput(index: number, scope?: 'move' | 'aim' | 'all'): void;
+  swapLocalSlots(slotA: number, slotB: number, isHosting: boolean): void;
+
   [key: string]: any;
 }

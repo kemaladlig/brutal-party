@@ -17,6 +17,10 @@ const CLONE_TACKLE_MAX = 60;
 // Botun görev noktasında "varmış" sayılma payı. Sabit 30 px, saha küçükken
 // (telefonda görev yarıçapı ~14 px) noktaya 30 px'te durup ödül alamıyordu.
 const CLONE_TASK_ARRIVE = 12;
+// Kapı geçiş noktasına "vardım" demek için gereken mesafe. Duvar itme kodu
+// (patrolTask) botu kapının birkaç px dışına itebildiği için eşik oda çapından
+// dar olmalı; aksi hâlde bot kapıda salınıp hedefe hiç giremiyor.
+const CLONE_DOOR_REACHED = 40;
 
 // Tapınak kapı geçiş noktaları (duvarlara takılmadan oda değiştirmek için)
 function getDoorWaypoints(arena) {
@@ -30,6 +34,9 @@ function getDoorWaypoints(arena) {
     libraryDoor: { x: right - roomW + doorSize * 0.5, y: top + roomH + 15 },
     treasuryDoor: { x: left + roomW - doorSize * 0.5, y: bottom - roomH - 15 },
     altarDoor: { x: right - roomW + doorSize * 0.5, y: bottom - roomH - 15 },
+    // Merkez (courtyard) oda değil, dört odanın arasındaki geçiş alanı. Buraya
+    // düşen görevler (statue/fountain) için kapı karşılığı budur; dört odanın
+    // kapısı da merkeze açılır.
     center: { x: cx, y: cy },
   };
 }
@@ -236,15 +243,25 @@ function patrolTask(game, bot, mem, dt) {
     return;
   }
 
-  // Farklı bir odadaysak önce kapı geçiş noktasına git, sonra hedefe
+  // Farklı bir odadaysak önce KAPIDAN geç, sonra hedefe. Kapı daima HEDEF
+  // odanın kapısıdır: botun kendi odasının kapısı (`${currentZone}Door`) bir
+  // oda ileri götürüyordu ve merkezdeki görevler (`statue`/`fountain` —
+  // `courtyard`) için hiçbir kapı karşılığı yoktu. Bot kendi kapısına gidip
+  // dönüp aynı noktaya saplanıyor, hiç görev puanı alamıyordu.
   let moveTargetX = task.x;
   let moveTargetY = task.y;
   if (currentZone !== targetZone) {
-    const key = currentZone === 'courtyard' ? `${targetZone}Door` : `${currentZone}Door`;
-    const door = waypoints[key];
-    if (door && Math.hypot(door.x - bot.x, door.y - bot.y) > 25) {
-      moveTargetX = door.x;
-      moveTargetY = door.y;
+    // Merkezdeki görev için hedef oda 'courtyard' — geçiş noktası `center`.
+    const doorKey = targetZone === 'courtyard' ? 'center' : `${targetZone}Door`;
+    const door = waypoints[doorKey];
+    if (door) {
+      // Kapıyı geçtikten sonra hedefe düz git: hedefe doğrudan yürümek
+      // duvarlı tapınakta sıkışıp salınıyordu.
+      const doorDist = Math.hypot(door.x - bot.x, door.y - bot.y);
+      if (doorDist > CLONE_DOOR_REACHED) {
+        moveTargetX = door.x;
+        moveTargetY = door.y;
+      }
     }
   }
 

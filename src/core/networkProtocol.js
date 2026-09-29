@@ -82,21 +82,43 @@ export function isValidNetworkInput(data) {
   }
 }
 
-// ── Oda Kodu Sözleşmesi (O, 0, I, 1 hariç 31 karakterlik alfanümerik alfabe) ──
-export const ROOM_CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+// ── STATE_SYNC Paket Sözleşmesi ───────────────────────────────────────────
+// Host 8 Hz periyodik durum paketini iki transport üzerinden yollar. İki
+// transport da alanları DÜZ gönderir (discriminator en üstte, yük yanında):
+//   ONLINE     supabaseRelay.js → { action: 'STATE_SYNC', ...state }
+//   TV_CONSOLE network.js      → { type: 'HOST_STATE_SYNC', ...state }
+// Kumanda tarafı (`gamepad.handleStateSync`) yalnız en-üst-seviye alanları
+// okur; iç içe gömülü kova gönderen bir host o alanları sessizce undefined
+// bulur ve faz uzlaşması / skor şeridi / sayaç / cooldown senkronu düşer.
+//
+// Bu normalize edici iki yönlü güvenlik sağlar: yeni host + eski sunucu,
+// eski host (kova şeklinde) + yeni sunucu/kumanda. Yeni şekte paket zaten
+// düzdür ve dokunulmadan geçer.
 
 /**
- * 4 karakterlik, okunması ve telaffuzu kolay, benzersiz alfanümerik oda kodu üretir.
- * @param {number} [length=4]
+ * STATE_SYNC paketini tek şekle indirger (her zaman düz yük).
+ * @param {any} msg - ham taşıma zarfı
+ * @returns {any} tüketiciye verilecek düz paket
+ */
+export function normalizeStateSync(msg) {
+  if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return null;
+  const { state, ...outer } = msg;
+  if (!state || typeof state !== 'object' || Array.isArray(state)) return msg;
+  // Yalnız STATE_SYNC kovaları açılır. Motor HUD'ının `state` alanı bir
+  // string'dir (stateSync.js `state` alanını bilerek göndermez) ve burada
+  // nesne kontrolü sayesinde zaten eleniyor; `phase`/`gameMode` yoksa dokunma.
+  if (!('phase' in state) && !('gameMode' in state)) return msg;
+  return { ...state, ...outer };
+}
+
+// ── Oda Kodu Sözleşmesi: 3 haneli sayı (000-999). Az kişi, hızlı giriş. ──
+/**
+ * 3 haneli sayısal oda kodu üretir (benzersizlik çağrıcıda: RoomManager kayıtlı
+ * kodla çakışanı eleyip yeniden dener).
  * @returns {string}
  */
-export function generateRoomCode(length = 4) {
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    const idx = Math.floor(Math.random() * ROOM_CODE_ALPHABET.length);
-    result += ROOM_CODE_ALPHABET[idx];
-  }
-  return result;
+export function generateRoomCode() {
+  return String(Math.floor(Math.random() * 1000)).padStart(3, '0');
 }
 
 /**

@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cleanPlayerName, getClientId } from './net.js';
 import { WebRTCManager } from './webrtcManager.js';
 import { sanitizeAvatar, pickFreeColor, isPaletteHex, getAvatarProfile } from './core/customizationManager.js';
-import { isValidNetworkInput, generateRoomCode, normalizeRoomCode } from './core/networkProtocol.js';
+import { isValidNetworkInput, generateRoomCode, normalizeRoomCode, normalizeStateSync } from './core/networkProtocol.js';
 import { normalizeReactionKey } from './core/reactions.js';
 import { t } from './i18n.js';
 
@@ -919,7 +919,8 @@ export class SupabaseRelay {
 
       case 'STATE_SYNC': {
         if (this.callbacks.onGameState) {
-          this.callbacks.onGameState(msg);
+          // Zarfı soy: kumanda en-üst-seviye alanları okur (bkz. networkProtocol).
+          this.callbacks.onGameState(normalizeStateSync(msg));
         }
         break;
       }

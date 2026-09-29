@@ -1066,13 +1066,15 @@ export class GamepadManager {
     return veil;
   }
 
-  // Geri sayım tik'i: koltuklar kilitlenir, perdedeki sayı tazelenir
-  showCountdown(t) {
+  // Geri sayım tik'i: koltuklar kilitlenir, perdedeki sayı tazelenir.
+  // Parametre `seconds`: i18n `t`'si gölgelenmesin — `seconds === 0` halinde
+  // "t('pad.go')" bir sayıyı fonksiyon gibi çağırıp TypeError fırlatıyordu.
+  showCountdown(seconds) {
     this.countdownActive = true;
-    this._countdownT = t;
+    this._countdownT = seconds;
     const veil = this._countdownVeil();
     const num = this._veilNumber;
-    const next = t > 0 ? String(t) : t('pad.go');
+    const next = seconds > 0 ? String(seconds) : t('pad.go');
     if (num && num.textContent !== next) {
       num.textContent = next;
       // CSS animasyonunu tik başına yeniden başlatmak için sınıf sökülüp
@@ -1082,7 +1084,8 @@ export class GamepadManager {
       num.classList.add('is-tick');
     }
     veil.classList.add('is-open');
-    this.vibrate(t > 0 ? 40 : [40, 60, 80]);
+    // GO! tik'i desenle, ara sayılar kısa vuruşla.
+    this.vibrate(seconds > 0 ? 40 : [40, 60, 80]);
   }
 
   /** Perdeyi kapat. Sahibi `renderGameController`'dır — hangi yoldan gelirse

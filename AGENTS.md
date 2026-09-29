@@ -45,7 +45,7 @@ Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inp
 - TV: `hostPlayerSlots[i] = { name, isReady, kind }`, `kind ∈ 'human'|'bot'`. TV host varsayılan koltukta değil; düğmeyle P1 olur. ONLINE host P1'e rezerve, uzaklar P2-P4.
 - Tek gerçek relay snapshot'ıdır (`players[]`); çakışırsa relay kazanır. WS ve Supabase `SLOTS_UPDATE` şeması aynıdır (`slotIndex, name, color, kind, isReady, isHost` + `reservedHostSlot`).
 - İsimler `toUpperCase()`, ≤12 karakter. Bot hedef/kaynak olamaz, sayaçta koltuklar kilitli (`seatsLocked`). Bot ekleme varsayılan kapalı.
-- `GAME_STARTED` ve `RETURNED_TO_LOBBY`'de hazır bayrağı iki tarafta da sıfırlanır. Oda kodu 4 karakterli alfanümerik (O, 0, I, 1 hariç).
+- `GAME_STARTED` ve `RETURNED_TO_LOBBY`'de hazır bayrağı iki tarafta da sıfırlanır. Oda kodu 3 haneli sayıdır.
 
 ## 6. Ağ Bütçesi
 
@@ -83,8 +83,11 @@ Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inp
 
 ## 11. Doğrulama
 
-- `npm run check` ve `npm run build` temiz. Davranış değişikliğinde 3 prova: hazır→lobi bayrakları, koltuk takasında TV+kumanda isimleri, bot ekle/çıkar görünürlüğü.
+- **TEK kapı: `npm run check` = `tsc` + `check:undef` + `check:tokens` + `check:rules` + `npm test` + `npm run health`.** Yeşil olmadan iş bitmiş sayılmaz. Tam kapı: `npm run check && npm run build && npm run test:e2e`. CI (`.github/workflows/ci.yml`) push/PR'da bu üçünü koşar — elle koşulmaz.
+- `npm run health` **I1-I7 kapılarıdır** (cihaz bağımsızlığı): ihlal exit 1. I8-I11 yalnız rapor. Tasarım yarıçap sabitleri `games/worldCore.js`'te (`CROWN_PLAYER_RADIUS`, `LASER_PLAYER_RADIUS`); motor `TUNING.PLAYER_RADIUS` ile eşleşmesi `tests/worldPacketRadius.test.mjs`'te kilitli — view motoru import edemediği için iki kopyadır.
+- Davranış değişikliğinde 3 prova: hazır→lobi bayrakları, koltuk takasında TV+kumanda isimleri, bot ekle/çıkar görünürlüğü.
 - `npm run check` artık `tsc --checkJs` (tsconfig `checkJs: true` — 55k satırın tamamı denetlenir) + `check:undef` + `check:tokens` + `check:rules` taşır. Yeni tip hatası = check kırık; istatistik: `npm run typecheck -- --stats`, ratchet tabanı `scripts/typecheck-baseline.txt`.
+- **STATE_SYNC paketi iki transport'ta aynı şekilde gönderilir**: discriminator en üstte, yük DÜZ (`{ type:'HOST_STATE_SYNC', ...state }` / `{ action:'STATE_SYNC', ...state }`). Kumanda yalnız en-üst-seviye alanları okur; iç içe kova gönderen bir host faz uzlaşmasını, skor şeridini ve geri sayımı sessizce düşürür. Çevirme/tepeleme tek kapısı `core/networkProtocol.normalizeStateSync` (her iki istemci + sunucu çağırır). Kilit: `tests/relayProbes.test.mjs` prova 4-6.
 - `scripts/rules-lint.mjs` (K1–K6, AGENTS.md § haritalı) yeni ihlalde exit 1; mevcut borç `scripts/rules-lint-baseline.json`'da dosya+kural sayısıyla dondurulmuştur — borcu ancak azaltırken güncelle (`--update`).
 - Motor/akış değişikliğinde `npm run test:e2e` (Playwright, `tests-e2e/`): `engine-smoke.spec.js` tüm GAME_ORDER motorlarını registry'den yükleyip LOBBY→PLAYING 240 kare sürer; `control-surface.spec.js` yerel kontrol yüzeyi seçimini doğrular. §11'in 3 provası `tests/relayProbes.test.mjs`'te protokol seviyesinde otomatik. @ts-ignore/@ts-nocheck politikası: @ts-ignore yasak, @ts-nocheck yalnız `sebep — tarih` yorumuyla.
 - Push yalnız kullanıcı isterse.

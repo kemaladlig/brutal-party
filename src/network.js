@@ -4,6 +4,7 @@
 import { getClientId } from './net.js';
 import { t } from './i18n.js';
 import { normalizeReactionKey } from './core/reactions.js';
+import { normalizeStateSync } from './core/networkProtocol.js';
 
 export class PartyNetwork {
   constructor() {
@@ -172,7 +173,8 @@ export class PartyNetwork {
       case 'GAME_STATE':
         this._lastHostMsgAt = performance.now();
         if (this.callbacks.onGameState) {
-          this.callbacks.onGameState(msg);
+          // Zarfı soy: kumanda en-üst-seviye alanları okur (bkz. networkProtocol).
+          this.callbacks.onGameState(normalizeStateSync(msg));
         }
         break;
       case 'HOST_DISCONNECTED':
@@ -308,9 +310,13 @@ export class PartyNetwork {
 
   broadcastHostState(state) {
     if (this.role !== 'HOST' || !this.ws || this.ws.readyState !== 1) return;
+    // Alanlar DÜZ gönderilir — supabaseRelay.js:572 ile birebir aynı şekil.
+    // Zarfın içine gömülü `state` kovası, en-üst-seviye okuyan kumandayı
+    // (gamepad.handleStateSync) boş bırakıyordu: TV_CONSOLE'da faz uzlaşması,
+    // skor şeridi, sayaç ve cooldown senkronu hiç çalışmıyordu.
     this.send({
       type: 'HOST_STATE_SYNC',
-      state,
+      ...state,
     });
   }
 

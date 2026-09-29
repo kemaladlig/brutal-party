@@ -86,6 +86,9 @@ export function createSnakeWorldPacket(game) {
     seq: game._worldSeq,
     roundId: Number(game.roundId) || 0,
     gameState: game.state || 'LOBBY',
+    // Gövde yay-uzunluğuyla yeniden örneklenir — interpolator trail'i
+    // indeks-lerp yerine snap alır (worldInterpolation bayrak okur).
+    snapTrail: true,
     arena: [
       round1(arena.left || 0),
       round1(arena.top || 0),

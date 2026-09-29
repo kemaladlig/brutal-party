@@ -47,6 +47,8 @@ export const GATE_THRESHOLDS = Object.freeze({
  * @param {QualityMeasurement|null} [input.viewFidelity] - View yarıçap fallback denetimi
  * @param {number} [input.unscaledGeometryCount] - I5 ölçeklenmemiş geometri px sayısı
  * @param {number} [input.unscaledMotionCuesCount] - I6 ölçeklenmemiş hareket ipucu sayısı
+ * @param {number} [input.minPlayerDiameter] - I7 okunabilir minimum çap (kartuş kaydı
+ *   taşır; verilmezse GATE_THRESHOLDS.minPlayerDiameterPx)
  * @returns {object} Değerlendirme sonucu: { mode, passed, gates, reports, failures }
  */
 export function evaluateGame(input) {
@@ -58,6 +60,7 @@ export function evaluateGame(input) {
     viewFidelity = { ok: true, drift: 0, detail: '' },
     unscaledGeometryCount = 0,
     unscaledMotionCuesCount = 0,
+    minPlayerDiameter = GATE_THRESHOLDS.minPlayerDiameterPx,
   } = input;
 
   const gates = {};
@@ -166,10 +169,12 @@ export function evaluateGame(input) {
     failures.push(`I6: ${unscaledMotionCuesCount} adet ölçeklenmemiş hareket ipucu / lineWidth (B11)`);
   }
 
-  // --- I7: Gövde okunabilirliği (Telefon ekranında oyuncu çapı >= 12 CSS px, CURVE için >= 4.5 CSS px) ---
+  // --- I7: Gövde okunabilirliği (Telefon ekranında oyuncu çapı >= eşik;
+  // çizgi oyunları eşiği kartuş kaydında taşır, örn. CURVE 4.5px) ---
   const phonePlayerPx = phone?.playerPx != null ? phone.playerPx * 2 : null;
-  const isLineGame = mode === 'CURVE';
-  const minRequiredDiameter = isLineGame ? 4.5 : GATE_THRESHOLDS.minPlayerDiameterPx;
+  const minRequiredDiameter = Number.isFinite(minPlayerDiameter) && minPlayerDiameter > 0
+    ? minPlayerDiameter
+    : GATE_THRESHOLDS.minPlayerDiameterPx;
   if (phonePlayerPx != null) {
     const ok = phonePlayerPx >= minRequiredDiameter;
     const ratio = phonePlayerPx / minRequiredDiameter;

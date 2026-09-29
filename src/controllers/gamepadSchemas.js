@@ -9,6 +9,7 @@ export const GAMEPAD_SCHEMAS = {
   PONG: {
     type: 'SLIDER_1D',
     def: CONTROL_DEFS.PONG,
+    sliderAction: 'PADDLE_MOVE',
     spinCooldown: 20.0,
   },
 

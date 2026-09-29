@@ -121,7 +121,7 @@ test('room phase has exactly one derivation', () => {
 // ikinci bir tam kurulum oluyordu ve kullanıcı iki yok-var sıçraması görüyordu.
 test('the countdown is a veil, not a workspace wipe', () => {
   const gp = codeOf('src/gamepad.js');
-  const at = gp.indexOf('showCountdown(t) {');
+  const at = gp.indexOf('showCountdown(seconds) {');
   assert.ok(at >= 0, 'showCountdown bulunamadı');
   const body = gp.slice(at, gp.indexOf('\n  }', at));
   assert.ok(!/workspace\.innerHTML|getElementById\('gamepad-workspace'\)/.test(body),

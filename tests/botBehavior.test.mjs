@@ -367,9 +367,39 @@ test('clone bots still earn task stars when no human is present', () => {
   game.startNewMatch();
   game.state = 'PLAYING';
 
-  step(game, 600); // 10sn: görev noktasında bekleme +1★
+  // Bot görev seçimini rastgele yapar ve yolculuk 8-9 saniye sürebilir; tek
+  // koşu 10 sn sınırında kırılgan kalıyordu (60 koşunun ~5'i sıfır). Bütçe
+  // gerçek davranışı ölçecek kadar geniş, testin amacını (insan yokken de
+  // görev puanı kazanılır) bozmayacak kadar kısa.
+  step(game, 1200); // 20sn: görev noktasına var + 1.5sn bekleme +1★
   const total = game.scores.reduce((a, b) => a + b, 0);
   assert.ok(total > 0, 'botlar insan yokken hiç görev puanı kazanmadı');
+});
+
+// Kilit regresyonu: `patrolTask` farklı odaya geçerken botun KENDİ odasının
+// kapısını seçiyordu. Merkezdeki görevler (statue/fountain → 'courtyard') için
+// o kapı hiçbir odaya çıkmıyor; bot kapı noktasında salınıp hiç puan kazanamıyordu.
+// Ölçüm: 12 bağımsız koşunun HEPSİ görev puanı almalı (eskiden rastgele sıfırdı).
+test('clone bots reach tasks in every zone, including courtyard (door routing)', () => {
+  let zeroRuns = 0;
+  const completedTasks = new Set();
+  for (let run = 0; run < 12; run++) {
+    const game = new CloneGame(canvas);
+    game.resize(800, 600);
+    game.slotTypes = slots(2);
+    game.initPlayers();
+    game.startNewMatch();
+    game.state = 'PLAYING';
+
+    step(game, 900); // 15sn
+    if (game.scores.reduce((a, b) => a + b, 0) === 0) zeroRuns++;
+    for (const t of game.taskPoints) {
+      if ((t.completions || 0) > 0) completedTasks.add(t.id);
+    }
+  }
+  assert.equal(zeroRuns, 0, `${zeroRuns}/12 koşuda botlar hiç puan alamadı (kapı yönlendirmesi bozuk)`);
+  // Görev noktaları harita seed'ine göre değişir; en az biri tamamlanmalı.
+  assert.ok(completedTasks.size > 0, 'hiçbir görev noktası tamamlanmadı');
 });
 
 // Şüphe puanı insan sinyalleriyle birikir (dash +80, görev +dt*30). Bot insanı
