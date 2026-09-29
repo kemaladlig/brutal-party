@@ -129,7 +129,14 @@ src/core/
                             open 18-24 / far 9-16 tasarım yarıçapı) + fieldPx/fieldRadius/fieldSpeed +
                             isCompactLandscape. arena.unit saha içi ölçeğin otoritesidir; motor resize'ın
                             içinde kenarlık hesabı yazmaz, canvas.width/height okumaz/yazmaz
-  roundLifecycle.js         Ortak raunt/maç terminal kuralı (timeout, all-survivor, MATCH_OVER)
+  roundLifecycle.js         Raunt/maç akışının TEK sahibi: `ROUND_GAP` tempo tablosu
+                            (WIN 2.6 / DRAW 1.6 / MATCH_END 2.6 — oyun başına değer
+                            YOK), `beginRound`/`beginDrawRound`/`endMatch` üreticileri,
+                            `tickRoundFlow` TEK geçiş bloğu, `setRoundTimer`/`roundTimerField`
+                            alan çözümü (PONG `roundOverTimer`, geri kalanı
+                            `roundTransitionTimer`), `roundGapSeconds` 8 Hz `roundGap` kaynağı.
+                            Motor `update()` yalnız `if (tickRoundFlow(this, dt)) return;`
+                            yazar; sayacı kendi indirmez. Kilit: tests/roundLifecycle.test.mjs
   pickupSystem.js           power-up akışı: spawnPickup/collectPickups/tickPickupTimers + EFFECTS kaydı
   arenaKit.js               Ortak arena görsel kiti: buildLayout(name, arena, {minPassage}) düzen
                             presets (pillars/columns4/cross/crossfire/scatter/bunker/courtyard/split) +
@@ -325,6 +332,14 @@ transport aynı tüketiciliği besler).
 16. **Cihaz-başı karakter + yazısız kimlik** — avatar = renk + yüz (+ rim); saha içi yazı/text-label yok;
     renk oyuncuya aittir (takas taşır); LOCAL koltuk-başı renk.
 17. **Ortak arena/fizik/power-up kiti** — `src/core/` (Faz 3-7). Detay §1 (playfield/arenaKit/physics2d/…).
+17b. **Raunt/maç akışı tek sahibi** — `core/roundLifecycle`. Tempo olayın
+    özelliğidir, oyunun değil: `ROUND_GAP` tablosu. 15 motor aynı geçiş
+    bloğunu kopyalamış, her biri kendi boşluğunu (1.8–2.8 s) seçmişti; kumandadaki
+    `roundGap` rozeti o yüzden oyundan oyuna farklı sayıyordu. Artık motor
+    `tickRoundFlow` çağırır, üretici `beginRound`/`beginDrawRound`/`endMatch`'tir.
+    Maç sonu ANINDA değil boşluk sonrasıdır (her oyunda aynı ölçü) — kazanan
+    bant görünmeden kartın açılması "bam" etkisi yapıyordu. Kilit:
+    `tests/roundLifecycle.test.mjs` (davranış + "motor kendi geçişini yazmaz" kilidi).
 18. **Saha ölçeği tek kaynağı** — `playfield.js`; kompakt yatay dikey pay daralır; `unit` otorite;
     `minFraction` şişme yerine mutlak px taban + tek çarpan; gözle taban seçimi yok.
     Harita-ölçeği hissi gövde/saha oranıdır: `FIELD_TIERS` üç katman — `normal` (BOMB/HEIST/CROWN/

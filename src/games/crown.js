@@ -27,7 +27,7 @@ import { updateCrownBotAI } from '../ai/crownAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { spawnPickup } from '../core/pickupSystem.js';
-import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
+import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
 import { UI_COLORS, CROWN_COLORS } from '../ui/tokens.js';
 import { createCrownWorldPacket, drawCrownWorld } from './crownView.js';
@@ -598,32 +598,27 @@ export class CrownGame extends BaseMiniGame {
   }
 
   awardCrownWinner(winner) {
-    this.roundWinner = winner;
     this.tiedRounds = 0;
-    this.matchDraw = false;
     this.scores[winner.index]++;
     if (this.scores[winner.index] >= this.targetScore) {
-      this.state = 'MATCH_OVER';
-      this.matchWinner = winner;
+      this.roundWinner = winner;
+      endMatch(this, winner, 'target-score');
       return;
     }
-    this.state = 'ROUND_OVER';
-    this.roundTransitionTimer = 2.8;
+    beginRound(this, winner, 'crown');
   }
 
   finishTiedRound(reason = 'timeout') {
     if (!this.players.some((p) => p.isJoined)) {
-      beginDrawRound(this, reason, 1.6);
+      beginDrawRound(this, reason);
       return;
     }
-    this.roundWinner = null;
     this.tiedRounds += 1;
     if (this.tiedRounds >= CROWN_TUNING.MAX_TIED_ROUNDS) {
-      beginDrawRound(this, reason, 1.6);
+      beginDrawRound(this, reason);
       return;
     }
-    this.state = 'ROUND_OVER';
-    this.roundTransitionTimer = 2.8;
+    beginRound(this, null, reason);
   }
 
   triggerTackle(playerIndex) {
@@ -755,17 +750,7 @@ export class CrownGame extends BaseMiniGame {
   }
 
   updateRoundLifecycle(dt) {
-    if (this.state === 'ROUND_OVER') {
-      this.roundTransitionTimer -= dt;
-      if (this.roundTransitionTimer <= 0) {
-        if (hasMatchResult(this)) {
-          this.state = 'MATCH_OVER';
-        } else {
-          this.startNewRound();
-        }
-      }
-      return false;
-    }
+    if (tickRoundFlow(this, dt)) return false;
 
     if (this.state !== 'PLAYING') return false;
 

@@ -27,7 +27,7 @@ import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
 import { clampToArena, damp, resolveAABB } from '../core/physics2d.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { createPlayer } from '../core/playerEntity.js';
-import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
+import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import {
   createHeistWorldPacket,
   drawHeistArena,
@@ -363,32 +363,27 @@ export class HeistGame extends BaseMiniGame {
   awardVaultWinner(winner) {
     this.roundTied = false;
     this.tiedRounds = 0;
-    this.matchDraw = false;
-    this.roundWinner = winner;
     this.scores[winner.index]++;
     if (this.scores[winner.index] >= this.targetScore) {
-      this.state = 'MATCH_OVER';
-      this.matchWinner = winner;
+      this.roundWinner = winner;
+      endMatch(this, winner, 'target-score');
       return;
     }
-    this.state = 'ROUND_OVER';
-    this.roundTransitionTimer = 2.8;
+    beginRound(this, winner, 'vault');
   }
 
   finishTiedRound(reason = 'tie') {
     if (!this.players.some((p) => p.isJoined)) {
-      beginDrawRound(this, reason, 1.6);
+      beginDrawRound(this, reason);
       return;
     }
     this.roundTied = true;
-    this.roundWinner = null;
     this.tiedRounds += 1;
     if (this.tiedRounds >= HEIST_TUNING.MAX_TIED_ROUNDS) {
-      beginDrawRound(this, reason, 1.6);
+      beginDrawRound(this, reason);
       return;
     }
-    this.state = 'ROUND_OVER';
-    this.roundTransitionTimer = 2.8;
+    beginRound(this, null, reason);
   }
 
   spawnPiggyBank() {
@@ -546,17 +541,7 @@ export class HeistGame extends BaseMiniGame {
     }
 
     // Round Over countdown
-    if (this.state === 'ROUND_OVER') {
-      this.roundTransitionTimer -= dt;
-      if (this.roundTransitionTimer <= 0) {
-        if (hasMatchResult(this)) {
-          this.state = 'MATCH_OVER';
-        } else {
-          this.startNewRound();
-        }
-      }
-      return;
-    }
+    if (tickRoundFlow(this, dt)) return;
 
     if (this.state !== 'PLAYING') return;
 

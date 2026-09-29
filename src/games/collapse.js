@@ -19,7 +19,7 @@ import {
   drawCollapsePlayers,
 } from './collapseView.js';
 import { drawCircleParticles } from './worldCore.js';
-import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
+import { beginDrawRound, beginRound, tickRoundFlow } from '../core/roundLifecycle.js';
 import { tickPickupTimers } from '../core/pickupSystem.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
 
@@ -415,26 +415,19 @@ export class CollapseGame extends BaseMiniGame {
   finishRound(winner, reason = 'elimination', awardPoint = false) {
     if (this.state !== 'PLAYING') return;
     if (winner) {
-      this.roundWinner = winner;
-      this.roundResolutionReason = reason;
       this.tiedRounds = 0;
-      this.matchDraw = false;
       if (awardPoint) this.scores[winner.index] += 1;
       if (this.scores[winner.index] >= this.targetScore) this.matchWinner = winner;
-      this.state = 'ROUND_OVER';
-      this.roundTransitionTimer = 2.5;
+      beginRound(this, winner, reason);
       return;
     }
 
-    this.roundWinner = null;
-    this.roundResolutionReason = reason;
     this.tiedRounds += 1;
     if (!this.players.some((p) => p.isJoined) || this.tiedRounds >= COLLAPSE_MAX_TIED_ROUNDS) {
-      beginDrawRound(this, reason, 1.6);
+      beginDrawRound(this, reason);
       return;
     }
-    this.state = 'ROUND_OVER';
-    this.roundTransitionTimer = 2.5;
+    beginRound(this, null, reason);
   }
 
   resolveTimeout() {
@@ -569,14 +562,7 @@ export class CollapseGame extends BaseMiniGame {
       this.trauma = Math.max(0, this.trauma - dt * 2.2);
     }
 
-    if (this.state === 'ROUND_OVER') {
-      this.roundTransitionTimer -= dt;
-      if (this.roundTransitionTimer <= 0) {
-        if (hasMatchResult(this)) this.state = 'MATCH_OVER';
-        else this.startRound();
-      }
-      return;
-    }
+    if (tickRoundFlow(this, dt)) return;
 
     if (this.state !== 'PLAYING') return;
 

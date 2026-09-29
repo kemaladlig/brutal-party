@@ -13,7 +13,7 @@ import { isInputIntent } from '../core/inputIntent.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { distToSegmentSquared, clampToArena } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
-import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
+import { beginDrawRound, beginRound, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import { createCurveWorldPacket } from './curveView.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import { vibrate } from '../core/haptics.js';
@@ -501,16 +501,7 @@ export class CurveGame extends BaseMiniGame {
       this.spawnIntroTimer = Math.max(0, this.spawnIntroTimer - dt);
     }
 
-    if (this.state === 'ROUND_OVER') {
-      this.roundTransitionTimer -= dt;
-      if (this.roundTransitionTimer <= 0) {
-        if (hasMatchResult(this)) {
-          this.state = 'MATCH_OVER';
-        } else {
-          this.startRound();
-        }
-      }
-    }
+    if (tickRoundFlow(this, dt)) return;
 
     if (this.state === 'PLAYING') {
       this.roundTimer += dt;
@@ -874,13 +865,10 @@ export class CurveGame extends BaseMiniGame {
 
   handleRoundEnd(winner) {
     if (!winner) {
-      beginDrawRound(this, 'no-survivor', 2.2);
+      beginDrawRound(this, 'no-survivor');
       return;
     }
-    this.state = 'ROUND_OVER';
-    this.roundWinner = winner;
-    this.matchDraw = false;
-    this.roundTransitionTimer = 2.2;
+    beginRound(this, winner, 'no-survivor');
   }
 
   updateBotAI(bot, dt) {

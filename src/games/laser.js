@@ -7,6 +7,7 @@ import { resetFireFeedback, updateFireFeedback } from '../core/fireFeedback.js';
 import { t } from '../i18n.js';
 import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { endMatch as endSharedMatch } from '../core/roundLifecycle.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { paintBackdrop } from '../core/fieldKit.js';
@@ -660,10 +661,7 @@ export class LaserGame extends BaseMiniGame {
 
   endMatch(winnerOrNull, reason = winnerOrNull ? 'target-kills' : 'draw') {
     if (this.state === 'MATCH_OVER') return;
-    this.state = 'MATCH_OVER';
-    this.matchWinner = winnerOrNull || null;
-    this.matchDraw = !winnerOrNull;
-    this.roundResolutionReason = reason;
+    endSharedMatch(this, winnerOrNull, reason);
   }
 
   finishOnTime() {

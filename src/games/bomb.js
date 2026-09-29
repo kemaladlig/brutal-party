@@ -31,7 +31,7 @@ import { clampToArena, damp, resolveAABB } from '../core/physics2d.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { createPlayer, tickEffectTimers, advancePlayer } from '../core/playerEntity.js';
-import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
+import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import {
   createBombWorldPacket,
   drawBombArena,
@@ -505,22 +505,18 @@ export class BombGame extends BaseMiniGame {
   resolveLoneSurvivor(alive) {
     const remaining = alive || this.players.filter((p) => p.isJoined && p.isAlive);
     if (remaining.length > 1 || this.state !== 'PLAYING') return false;
-    if (remaining.length === 1) {
-      const survivor = remaining[0];
-      this.roundWinner = survivor;
-      this.scores[survivor.index]++;
-      if (this.scores[survivor.index] >= this.targetScore) {
-        this.state = 'MATCH_OVER';
-        this.matchWinner = survivor;
-        return true;
-      }
-    } else {
-      beginDrawRound(this, 'no-survivor', 2.4);
+    if (remaining.length === 0) {
+      beginDrawRound(this, 'no-survivor');
       return true;
     }
-    this.state = 'ROUND_OVER';
-    this.matchDraw = false;
-    this.roundTransitionTimer = 2.4;
+    const survivor = remaining[0];
+    this.roundWinner = survivor;
+    this.scores[survivor.index]++;
+    if (this.scores[survivor.index] >= this.targetScore) {
+      endMatch(this, survivor, 'target-score');
+      return true;
+    }
+    beginRound(this, survivor, 'lone-survivor');
     return true;
   }
 
@@ -595,24 +591,15 @@ export class BombGame extends BaseMiniGame {
       this.trauma = Math.max(0, this.trauma - dt * 2.2);
     }
 
-    // Round Over countdown
-    if (this.state === 'ROUND_OVER') {
-      this.roundTransitionTimer -= dt;
-      if (this.roundTransitionTimer <= 0) {
-        if (hasMatchResult(this)) {
-          this.state = 'MATCH_OVER';
-        } else {
-          this.startNewRound();
-        }
-      }
-      return;
-    }
+    // Raunt/maç geçişi ortak akışta (core/roundLifecycle): süre, sonraki rauntu
+    // başlatma ve MATCH_OVER kararı motorun değil çekirdeğin işidir.
+    if (tickRoundFlow(this, dt)) return;
 
     if (this.state !== 'PLAYING') return;
 
     this.roundTimer += dt;
     if (roundTimedOut(this.roundTimer, this.roundLimit)) {
-      beginDrawRound(this, 'timeout', 1.6);
+      beginDrawRound(this, 'timeout');
       return;
     }
 

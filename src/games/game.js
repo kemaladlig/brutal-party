@@ -8,6 +8,7 @@ import { t } from '../i18n.js';
 import { renderSpatialBadge, renderRoundBanner } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { beginRound, endMatch, setRoundTimer, tickRoundFlow } from '../core/roundLifecycle.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { createPongWorldPacket, drawPongArena } from './pongView.js';
 import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
@@ -122,6 +123,9 @@ export class Game extends BaseMiniGame {
   restartRound() {
     this.startNewRound();
   }
+
+  // PONG sayacı `roundOverTimer` adıyla taşır; atla-yol kısayolu bu adı
+  // kullanmak zorunda (dokunulan alan motorun kendi sayacı).
 
   startNewRound() {
     const joined = this.paddles.filter((p) => p.isJoined);
@@ -510,22 +514,23 @@ export class Game extends BaseMiniGame {
     if (resolvedWinner) {
       this.setScores[resolvedWinner.index] = (this.setScores[resolvedWinner.index] || 0) + 1;
       if (this.setScores[resolvedWinner.index] >= this.targetSets) {
-        this.state = 'MATCH_OVER';
+        // Son set: ortak akış bir maç sonu boşluğu bırakır, `tickRoundFlow`
+        // boşluk bitince MATCH_OVER'a geçer. Anında kart açmak "bam" etkisi
+        // yapıyordu — kazanan bant görünmeden kartı buluyordu.
         this.winner = resolvedWinner;
+        endMatch(this, resolvedWinner, 'target-sets');
         return;
       }
     }
 
-    this.state = 'ROUND_OVER';
-    this.roundOverTimer = 2.0;
+    beginRound(this, resolvedWinner, reason);
   }
 
   finishAsDraw() {
-    this.state = 'MATCH_OVER';
     this.winner = null;
     this.roundWinner = null;
-    this.roundResolutionReason = 'timeout';
-    this.roundOverTimer = 0;
+    endMatch(this, null, 'timeout');
+    setRoundTimer(this, 0);
   }
 
   abortMatch() {
@@ -586,11 +591,8 @@ export class Game extends BaseMiniGame {
         this.state = 'PLAYING';
         this.launchBall();
       }
-    } else if (this.state === 'ROUND_OVER') {
-      this.roundOverTimer -= frameTime;
-      if (this.roundOverTimer <= 0) {
-        this.restartRound();
-      }
+    } else if (tickRoundFlow(this, frameTime)) {
+      // Raunt sonu → sonraki set / maç sonu kartı.Ortak akış.
     } else if (this.state === 'PLAYING') {
       this.roundPlayTimer += frameTime;
       if (this.roundPlayTimer >= this.roundLimit) {

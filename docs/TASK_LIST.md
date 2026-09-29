@@ -33,6 +33,39 @@ bu yüzden iki kırmızı test/ihlal fark edilmeden birikmişti.
       eşitliği), `networkProtocol` 3 normalize testi, `worldPacketRadius` sabit eşitliği,
       `botBehavior` kapı-rozeti testi (12 koşu, hepsi puan almalı).
 
+## Faz 0 (yeni) — Raunt/maç akışı tek sahibi ✅ (2026-09-30)
+
+Oyun akışı taraması: 15 oyunun **üç ayrı** raunt modeli vardı — 13 oyun
+`ROUND_OVER` + elle seçilmiş boşluk (1.8–2.8 s), PONG `ROUND_PAUSE` (0.9 s ölü
+top), HORDE `ROUND_PAUSE` **armory** (tek iyi tasarım, 15 oyundan 1'inde).
+Her motor aynı 6 satırlık geçiş bloğunu kopyalamış, `roundLifecycle` yalnız
+`beginDrawRound`/`hasMatchResult` ile BERABERE dalına sahipti — kazanma dalı
+hiçbir yerde ortaklaşmamıştı.
+
+- [x] 0.5 `core/roundLifecycle` tek sahibe dönüştü: `ROUND_GAP` tempo tablosu
+      (WIN 2.6 / DRAW 1.6 / MATCH_END 2.6), `beginRound` + `beginDrawRound` +
+      `endMatch` üreticileri, `tickRoundFlow` tek geçiş bloğu.
+- [x] 0.6 `setRoundTimer` + `roundTimerField`: PONG `roundOverTimer`, geri kalanı
+      `roundTransitionTimer` — alan adı tek kapıdan çözülür (motor içine yazılmaz).
+- [x] 0.7 13 motorun kopyası silindi; her `update()` artık
+      `if (tickRoundFlow(this, dt)) return;` yazıyor. RACE'in `RACE_TUNING.roundTransition`
+      ve 8 farklı sabit süre silindi.
+- [x] 0.8 **Maç sonu artık ANINDA değil**: son raunttan sonra da maç sonu boşluğu
+      var, boşluk bitince MATCH_OVER. Önce 8 oyun `MATCH_OVER`'a doğrudan atlıyordu
+      (kazanan bant görünmeden kart açılıyordu), 5 oyunda 1.8–2.0 s, 2 oyunda
+      hiç boşluk yoktu. Artık 15/15 aynı ölçü.
+- [x] 0.9 `tests/roundLifecycle.test.mjs` (15 test): davranış + **kilit** —
+      hiçbir motor kendi geçiş sayacını indiremiyor, `ROUND_OVER` okuyan her
+      motor `tickRoundFlow` çağırıyor. Geri dönüşü kapatır.
+- Doğrulama: `npm run check` 516/516 + health 15/15 · `npm run test:e2e` 6/6
+  (engine-smoke tüm 15 motoru 240 kare döndürüyor). PROJECT_MAP §1 + §5.17b.
+
+**Bilinmeyen risk (bilinçli):** giris nötrleme bu fazda YAPILMADI. Raunt
+geçişinde `neutralizeSlotInput` çağırmak LOCAL'de basılı-tutulan joystick'i
+sıfırlar (oyuncu parmağını kaldırana kadar yön gitmiyor) — mevcut davranıştan
+daha kötü. Kopan kumanda zaten watchdog + 250 ms keepalive ile nötrleşiyor.
+Aday: `ROUND_INTRO` durumu (Faz 1) ile birlikte, gerçek bir hazırlık vakti varken.
+
 ## Faz C — Sunucu güvenliği (sıradaki iş, ~1.5 gün)
 
 Taramada bulunan açık sunucu riskleri. Hiçbiri dokunulmadı, liste kayıt altında.

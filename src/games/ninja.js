@@ -12,7 +12,7 @@ import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
-import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
+import { beginDrawRound, beginRound, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldPx, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import {
   NINJA_RADIUS,
@@ -335,25 +335,19 @@ export class NinjaGame extends BaseMiniGame {
     if (this.state !== 'PLAYING') return;
     if (winner) {
       this.roundWinner = winner;
-      this.roundResolutionReason = reason;
       this.tiedRounds = 0;
-      this.matchDraw = false;
       if (awardPoint) this.scores[winner.index] += 1;
       if (this.scores[winner.index] >= this.targetScore) this.matchWinner = winner;
-      this.state = 'ROUND_OVER';
-      this.roundTransitionTimer = 2.5;
+      beginRound(this, winner, reason);
       return;
     }
 
-    this.roundWinner = null;
-    this.roundResolutionReason = reason;
     this.tiedRounds += 1;
     if (!this.players.some((p) => p.isJoined) || this.tiedRounds >= 2) {
-      beginDrawRound(this, reason, 1.6);
+      beginDrawRound(this, reason);
       return;
     }
-    this.state = 'ROUND_OVER';
-    this.roundTransitionTimer = 2.5;
+    beginRound(this, null, reason);
   }
 
   resolveTimeout() {
@@ -643,14 +637,7 @@ export class NinjaGame extends BaseMiniGame {
       if (sw.life >= sw.maxLife) this.slashWaves.splice(i, 1);
     }
 
-    if (this.state === 'ROUND_OVER') {
-      this.roundTransitionTimer -= dt;
-      if (this.roundTransitionTimer <= 0) {
-        if (hasMatchResult(this)) this.state = 'MATCH_OVER';
-        else this.startRound();
-      }
-      return;
-    }
+    if (tickRoundFlow(this, dt)) return;
 
     if (this.state !== 'PLAYING') return;
 

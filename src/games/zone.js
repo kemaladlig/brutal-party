@@ -33,7 +33,7 @@ import {
   drawZoneWaves,
 } from './zoneView.js';
 import { drawSquareParticles, drawAlphaTexts } from './worldCore.js';
-import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
+import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { vibrate } from '../core/haptics.js';
 
@@ -965,17 +965,15 @@ export class ZoneGame extends BaseMiniGame {
 
   finishTiedRound(reason = 'tie') {
     if (!this.players.some((p) => p.isJoined)) {
-      beginDrawRound(this, reason, 1.6);
+      beginDrawRound(this, reason);
       return;
     }
-    this.roundWinner = null;
     this.tiedRounds += 1;
     if (this.tiedRounds >= ZONE_TUNING.MAX_TIED_ROUNDS) {
-      beginDrawRound(this, reason, 1.6);
+      beginDrawRound(this, reason);
       return;
     }
-    this.state = 'ROUND_OVER';
-    this.roundTransitionTimer = 2.8;
+    beginRound(this, null, reason);
   }
 
   finishRound(winner) {
@@ -984,18 +982,15 @@ export class ZoneGame extends BaseMiniGame {
       this.finishTiedRound('no-winner');
       return;
     }
-    this.roundWinner = winner;
     this.tiedRounds = 0;
-    this.matchDraw = false;
     this.scores[winner.index]++;
     playCashRegister();
     if (this.scores[winner.index] >= this.targetScore) {
-      this.state = 'MATCH_OVER';
-      this.matchWinner = winner;
+      this.roundWinner = winner;
+      endMatch(this, winner, 'target-score');
       return;
     }
-    this.state = 'ROUND_OVER';
-    this.roundTransitionTimer = 2.8;
+    beginRound(this, winner, 'win-pct');
   }
 
   addFloatingText(x, y, text, color = '#FFDE59') {
@@ -1086,15 +1081,9 @@ export class ZoneGame extends BaseMiniGame {
     this.lastTime = now;
     this.updateTrauma(dt);
 
-    if (this.state === 'ROUND_OVER') {
-      this.roundTransitionTimer -= dt;
-      if (this.roundTransitionTimer <= 0) {
-        if (hasMatchResult(this)) {
-          this.state = 'MATCH_OVER';
-        } else {
-          this.startNewRound();
-        }
-      }
+    // Raunt/maç geçişi ortak akışta; efektler boşluk boyunca da akar (toz
+    // ve kıvılcımlar sahne donmasın).
+    if (tickRoundFlow(this, dt)) {
       this.updateFx(dt);
       return;
     }

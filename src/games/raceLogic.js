@@ -4,7 +4,8 @@ export const RACE_TUNING = Object.freeze({
   targetLaps: 3,
   targetScore: 2,
   roundTime: 90,
-  roundTransition: 2.5,
+  // Raunt boşluğu artık `core/roundLifecycle.ROUND_GAP` tablosundan gelir
+  // (`beginRound` varsayılanı); oyun başına ayrı değer tutulmaz.
   playerRadius: 19,
   // 190 → 215 → hız 215'te sabit. "RACE hala yavaş" geri bildirimi ikinci kez
   // geldi ve bu sefer ölçüm gösterdi: hız zaten ortalamanın üstündeydi

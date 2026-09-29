@@ -10,7 +10,7 @@ import { readSlotKeys } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
-import { beginDrawRound, hasMatchResult } from '../core/roundLifecycle.js';
+import { beginDrawRound, beginRound, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
 import {
   createCloneWorldPacket,
@@ -357,26 +357,19 @@ export class CloneGame extends BaseMiniGame {
   finishRound(winner, reason = 'elimination', awardPoint = false) {
     if (this.state !== 'PLAYING') return;
     if (winner) {
-      this.roundWinner = winner;
-      this.roundResolutionReason = reason;
       this.tiedRounds = 0;
-      this.matchDraw = false;
       if (awardPoint) this.scores[winner.index] += 1;
       if (this.scores[winner.index] >= this.targetScore) this.matchWinner = winner;
-      this.state = 'ROUND_OVER';
-      this.roundTransitionTimer = 2.5;
+      beginRound(this, winner, reason);
       return;
     }
 
-    this.roundWinner = null;
-    this.roundResolutionReason = reason;
     this.tiedRounds += 1;
     if (!this.players.some((p) => p.isJoined) || this.tiedRounds >= CLONE_MAX_TIED_ROUNDS) {
-      beginDrawRound(this, reason, 1.6);
+      beginDrawRound(this, reason);
       return;
     }
-    this.state = 'ROUND_OVER';
-    this.roundTransitionTimer = 2.5;
+    beginRound(this, null, reason);
   }
 
   resolveTimeout() {
@@ -497,14 +490,7 @@ export class CloneGame extends BaseMiniGame {
       this.trauma = Math.max(0, this.trauma - dt * 2.2);
     }
 
-    if (this.state === 'ROUND_OVER') {
-      this.roundTransitionTimer -= dt;
-      if (this.roundTransitionTimer <= 0) {
-        if (hasMatchResult(this)) this.state = 'MATCH_OVER';
-        else this.startRound();
-      }
-      return;
-    }
+    if (tickRoundFlow(this, dt)) return;
 
     if (this.state !== 'PLAYING') return;
 

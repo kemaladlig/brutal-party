@@ -19,7 +19,7 @@ import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { distToSegmentSquared, getProjectileSubsteps, clampToArena } from '../core/physics2d.js';
-import { beginDrawRound, hasMatchResult, roundTimedOut } from '../core/roundLifecycle.js';
+import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
 
 export const SNAKE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -484,17 +484,7 @@ export class SnakeGame extends BaseMiniGame {
       this.trauma = Math.max(0, this.trauma - dt * 2.2);
     }
 
-    if (this.state === 'ROUND_OVER') {
-      this.roundTransitionTimer -= dt;
-      if (this.roundTransitionTimer <= 0) {
-        if (hasMatchResult(this)) {
-          this.state = 'MATCH_OVER';
-        } else {
-          this.startRound();
-        }
-      }
-      return;
-    }
+    if (tickRoundFlow(this, dt)) return;
 
     if (this.state !== 'PLAYING') return;
 
@@ -779,19 +769,16 @@ export class SnakeGame extends BaseMiniGame {
 
   handleRoundEnd(winner) {
     if (!winner) {
-      beginDrawRound(this, 'no-survivor', 2.5);
+      beginDrawRound(this, 'no-survivor');
       return;
     }
-    this.state = 'ROUND_OVER';
-    this.roundWinner = winner;
-    this.matchDraw = false;
     this.scores[winner.index]++;
     if (this.scores[winner.index] >= this.targetScore) {
-      this.state = 'MATCH_OVER';
-      this.matchWinner = winner;
+      this.roundWinner = winner;
+      endMatch(this, winner, 'target-score');
       return;
     }
-    this.roundTransitionTimer = 2.5;
+    beginRound(this, winner, 'no-survivor');
   }
 
   render() {

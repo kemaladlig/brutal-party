@@ -11,7 +11,7 @@ import {
 import { renderControlGuide } from '../controlGuide.js';
 import { clampToArena, distToSegmentSquared, normalizeAngle } from '../core/physics2d.js';
 import { computePlayfield, fieldPx, fieldSpeed } from '../core/playfield.js';
-import { beginDrawRound, hasMatchResult, roundGapSeconds } from '../core/roundLifecycle.js';
+import { beginDrawRound, beginRound, endMatch, roundGapSeconds, tickRoundFlow } from '../core/roundLifecycle.js';
 import { createPlayer } from '../core/playerEntity.js';
 import { getKeyLabel } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
@@ -561,14 +561,7 @@ export class RaceGame extends BaseMiniGame {
     if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') return;
 
     this.tickFloatingTexts(dt);
-    if (this.state === 'ROUND_OVER') {
-      this.roundTransitionTimer = Math.max(0, this.roundTransitionTimer - dt);
-      if (this.roundTransitionTimer <= 0) {
-        if (hasMatchResult(this)) this.state = 'MATCH_OVER';
-        else this.startNewRound();
-      }
-      return;
-    }
+    if (tickRoundFlow(this, dt)) return;
     if (this.state !== 'PLAYING') return;
 
     this.roundTimer = Math.max(0, this.roundTimer - dt);
@@ -884,31 +877,27 @@ export class RaceGame extends BaseMiniGame {
 
   endRound(winner, reason = 'finish') {
     if (this.state !== 'PLAYING') return;
-    this.roundWinner = winner || null;
-    this.roundResolutionReason = reason;
     this.uiButtons = [];
 
     if (winner) {
       this.tiedRounds = 0;
-      this.matchDraw = false;
       this.scores[winner.index] += 1;
       this.addTrauma(0.5);
       playItemPickup();
       if (this.scores[winner.index] >= this.targetScore) {
-        this.matchWinner = winner;
-        this.state = 'MATCH_OVER';
+        this.roundWinner = winner;
+        endMatch(this, winner, 'target-score');
         return;
       }
     } else {
       this.tiedRounds += 1;
       if (!this.players.some((p) => p.isJoined) || this.tiedRounds >= 2) {
-        beginDrawRound(this, reason, 1.6);
+        beginDrawRound(this, reason);
         return;
       }
     }
 
-    this.state = 'ROUND_OVER';
-    this.roundTransitionTimer = RACE_TUNING.roundTransition;
+    beginRound(this, winner, reason);
   }
 
   render() {

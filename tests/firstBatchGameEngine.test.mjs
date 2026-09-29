@@ -304,6 +304,16 @@ test('ARCHER round ids advance and repeated ties end as a draw', () => {
   game.scores = [3, 3, 0, 0];
   game.roundHits = [0, 0, 0, 0];
   game.handleRoundEnd();
+  // Maç sonu artık ANINDA değil: ortak akış bir boşluk bırakır, boşluk
+  // dolunca `tickRoundFlow` MATCH_OVER'a geçer. "Bam diye" kart açılmayı bu
+  // yüzden her motor aynı ölçüde geciktirir.
+  assert.equal(game.state, 'ROUND_OVER');
+  assert.equal(game.matchDraw, true);
+  assert.equal(game.matchWinner, null);
+  assert.ok(game.roundTransitionTimer > 0, 'maç sonu boşluğu birikiyor');
+
+  game.roundTransitionTimer = 0;
+  game.update(16);
   assert.equal(game.state, 'MATCH_OVER');
   assert.equal(game.matchDraw, true);
   assert.equal(game.matchWinner, null);
@@ -360,6 +370,8 @@ test('TANKS gates spawn actions, advances round ids, and resolves timeout', () =
   game.spawnIntroTimer = 0;
   game.lastTime = 0;
   game.update(16);
+  // Zaman aşımı artık maç sonudur (TANKS'ta beraberlik puan getirmez), ama
+  // doğrudan değil: ortak akış bir maç sonu boşluğu bırakır.
   assert.equal(game.state, 'ROUND_OVER');
   assert.equal(game.matchDraw, true);
   game.roundTransitionTimer = 0;

@@ -8,6 +8,7 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { resolveSlotName } from '../core/slotManager.js';
 import { getProjectileSubsteps } from '../core/physics2d.js';
+import { beginDrawRound, beginRound, endMatch, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { updateTankBotAI as runTankBotAI } from '../ai/tankAI.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
@@ -785,16 +786,7 @@ export class TanksGame extends BaseMiniGame {
       this.spawnIntroTimer = Math.max(0, this.spawnIntroTimer - dt);
     }
 
-    if (this.state === 'ROUND_OVER') {
-      this.roundTransitionTimer -= dt;
-      if (this.roundTransitionTimer <= 0) {
-        if (this.matchWinner || this.matchDraw) {
-          this.state = 'MATCH_OVER';
-        } else {
-          this.startRound();
-        }
-      }
-    }
+    if (tickRoundFlow(this, dt)) return;
 
     if (this.state === 'PLAYING') {
       this.roundTimer += dt;
@@ -942,13 +934,13 @@ export class TanksGame extends BaseMiniGame {
   }
 
   finishAsDraw() {
-    this.state = 'ROUND_OVER';
-    this.roundWinner = null;
-    this.matchWinner = null;
-    this.matchDraw = true;
     this.suddenDeath = false;
     this.suddenDeathRadius = 0;
-    this.roundTransitionTimer = 1.8;
+    // Beraberlik bir MAÇ sonudur (TANKS'ta hayatta kalan tek tank yoksa
+    // raunttan puan gelmez), ama ANINDA değil: `beginDrawRound` boşluğa sokar,
+    // `tickRoundFlow` boşluk bitince MATCH_OVER'a geçer. Ölümcül vuruştan sonra
+    // ekranın bir anda değişmemesi bu boşluğun işi.
+    beginDrawRound(this, 'no-survivor');
   }
 
   updateTankBotAI(tank, dt) {
@@ -1210,15 +1202,15 @@ export class TanksGame extends BaseMiniGame {
       return;
     }
 
-    this.state = 'ROUND_OVER';
-    this.roundWinner = winnerTank;
     this.suddenDeath = false;
     this.suddenDeathRadius = 0;
-    this.roundTransitionTimer = 1.8;
     this.scores[winnerTank.index]++;
     if (this.scores[winnerTank.index] >= this.targetScore) {
-      this.matchWinner = winnerTank;
+      this.roundWinner = winnerTank;
+      endMatch(this, winnerTank, 'target-score');
+      return;
     }
+    beginRound(this, winnerTank, 'last-tank');
   }
 
   render() {

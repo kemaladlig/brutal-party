@@ -9,6 +9,7 @@ import { resetFireFeedback, updateFireFeedback } from '../core/fireFeedback.js';
 import { t } from '../i18n.js';
 import { renderArenaWatermarkTimer } from '../ui/hud.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
+import { beginRound, tickRoundFlow } from '../core/roundLifecycle.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { updateArcherBotAI } from '../ai/archerAI.js';
 import { buildLayout } from '../core/arenaKit.js';
@@ -523,13 +524,7 @@ export class ArcherGame extends BaseMiniGame {
       this.trauma = Math.max(0, this.trauma - dt * 2.2);
     }
 
-    if (this.state === 'ROUND_OVER') {
-      this.roundTransitionTimer -= dt;
-      if (this.roundTransitionTimer <= 0) {
-        this.matchWinner ? this.state = 'MATCH_OVER' : this.startRound();
-      }
-      return;
-    }
+    if (tickRoundFlow(this, dt)) return;
 
     if (this.state !== 'PLAYING') return;
 
@@ -820,9 +815,7 @@ export class ArcherGame extends BaseMiniGame {
       if (hitWinners.length === 1) roundWinner = hitWinners[0];
     }
 
-    this.state = 'ROUND_OVER';
-    this.roundWinner = roundWinner;
-    this.roundTransitionTimer = 2.5;
+    beginRound(this, roundWinner, roundWinner ? 'last-man' : 'tie');
 
     if (roundWinner) {
       this.tieRounds = 0;
@@ -837,7 +830,6 @@ export class ArcherGame extends BaseMiniGame {
     if (this.tieRounds >= 2) {
       this.matchWinner = null;
       this.matchDraw = true;
-      this.state = 'MATCH_OVER';
     }
   }
 
