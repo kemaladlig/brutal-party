@@ -98,11 +98,17 @@ export function setupWindowChrome({
   // Quick Fullscreen UI
   const btnQuickFullscreen = document.getElementById('btn-quick-fullscreen');
   const quickFullscreenIcon = document.getElementById('quick-fullscreen-icon');
+  // ⋮ sayfasındaki karşılık: üst küme maçta gizlendiği için tam ekran buradan
+  // da açılır. İki düğmenin durumu TEK kaynaktan (`updateQuickFullscreen`).
+  const btnPauseFullscreen = document.getElementById('btn-pause-fullscreen');
+  const pauseFullscreenIcon = document.getElementById('pause-fullscreen-icon');
+  const pauseFullscreenLabel = document.getElementById('pause-fullscreen-label');
 
   function updateQuickFullscreen(active) {
     const isFs = typeof active === 'boolean' ? active : isFullscreen();
     const label = isFs ? t('menu.exitFullscreen') : t('menu.fullscreen');
-    btnQuickFullscreen?.classList.toggle('hidden', !fullscreenOfferable());
+    const offerable = fullscreenOfferable();
+    btnQuickFullscreen?.classList.toggle('hidden', !offerable);
     if (quickFullscreenIcon) {
       quickFullscreenIcon.innerHTML = getTabletopIconSvg(
         isFs ? 'minimize-2' : 'maximize-2',
@@ -113,6 +119,16 @@ export function setupWindowChrome({
     btnQuickFullscreen?.setAttribute('title', label);
     btnQuickFullscreen?.setAttribute('aria-label', label);
     btnQuickFullscreen?.setAttribute('aria-pressed', String(isFs));
+    btnPauseFullscreen?.classList.toggle('hidden', !offerable);
+    if (pauseFullscreenIcon) {
+      pauseFullscreenIcon.innerHTML = getTabletopIconSvg(
+        isFs ? 'minimize-2' : 'maximize-2',
+        { size: 16 },
+      );
+    }
+    if (pauseFullscreenLabel) pauseFullscreenLabel.textContent = label;
+    btnPauseFullscreen?.setAttribute('aria-label', label);
+    btnPauseFullscreen?.setAttribute('aria-pressed', String(isFs));
   }
   
   updateQuickFullscreen();
@@ -123,12 +139,14 @@ export function setupWindowChrome({
   
   if (btnQuickFullscreen) {
     let lastTransitionTime = 0;
-    btnQuickFullscreen.addEventListener('click', (e) => {
+    const onFullscreenTap = () => {
       const now = performance.now();
       if (now - lastTransitionTime < 80) return;
       lastTransitionTime = now;
       toggleFullscreen();
-    });
+    };
+    btnQuickFullscreen.addEventListener('click', onFullscreenTap);
+    btnPauseFullscreen?.addEventListener('click', onFullscreenTap);
   }
 
   // Service Worker & Güncelleme Yöneticisi

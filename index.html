@@ -286,7 +286,7 @@
               <button class="paste-code-btn" id="btn-paste-room-code" type="button"><span data-icon="copy" data-icon-size="12" aria-hidden="true"></span><span data-i18n="join.paste">YAPIŞTIR</span></button>
             </div>
             <div class="code-input-wrap">
-              <input type="text" id="input-room-code" class="brutal-input" maxlength="6" data-i18n-ph="join.codePh" placeholder="ÖR: A4X9" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" />
+              <input type="text" id="input-room-code" class="brutal-input" maxlength="3" inputmode="numeric" data-i18n-ph="join.codePh" placeholder="ÖR: 123" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" />
               <button class="code-clear-btn hidden" id="btn-clear-room-code" type="button" data-i18n-aria="menu.clearCode" aria-label="Kodu temizle" title="Kodu temizle"><span data-icon="close" data-icon-size="12" aria-hidden="true"></span></button>
             </div>
 
@@ -362,6 +362,18 @@
                 <span class="btn-symbol"><span data-icon="settings" data-icon-size="16" aria-hidden="true"></span></span>
                 <span class="btn-text" data-i18n="pause.allSettings">TÜM AYARLAR</span>
               </button>
+              <!-- Üst küme maçta ⋮'ye indiği için tam ekran + tepki buradadır:
+                   hızlı düğmelerin sayfa içi karşılıkları, ikinci yüzey yok. -->
+              <div class="sheet-row-actions" id="pause-quick-row">
+                <button id="btn-pause-fullscreen" class="pause-btn hidden" type="button" aria-pressed="false">
+                  <span class="btn-symbol"><span id="pause-fullscreen-icon" data-icon="maximize_2" data-icon-size="16" aria-hidden="true"></span></span>
+                  <span class="btn-text" id="pause-fullscreen-label">Tam Ekran</span>
+                </button>
+                <button id="btn-pause-react" class="pause-btn hidden" type="button" data-reaction-open data-reaction-send="host" data-i18n-aria="pad.reactTitle" aria-label="Tepki Gönder">
+                  <span class="btn-symbol"><span class="reaction-glyph" data-reaction-glyph="laugh" aria-hidden="true"></span></span>
+                  <span class="btn-text" data-i18n="react.title">TEPKİ GÖNDER</span>
+                </button>
+              </div>
             </section>
 
             <!-- 2. HIZLI: satırlar şemadan üretilir (`src/ui/settings/`), elle

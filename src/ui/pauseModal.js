@@ -22,6 +22,7 @@ import { getSlotKeys, KEY_LABELS, getKeyCapLabel } from '../core/inputMaps.js';
 import { createQuickSettingsPanel } from './settings/settingsPanel.js';
 import { openSettingsSheet } from './settings/settingsSheet.js';
 import { createTabStrip } from './tabStrip.js';
+import { fullscreenOfferable } from './fullscreen.js';
 
 const pauseModal = document.getElementById('pause-modal');
 const pauseGameTitle = document.getElementById('pause-game-title');
@@ -40,6 +41,8 @@ const btnPauseAllSettings = document.getElementById('btn-pause-all-settings');
 const btnResumeGame = document.getElementById('btn-resume-game');
 const btnResetMatch = document.getElementById('btn-reset-match');
 const btnTvLobby = document.getElementById('btn-tv-lobby');
+const btnPauseReact = document.getElementById('btn-pause-react');
+const pauseQuickRow = document.getElementById('pause-quick-row');
 const btnExitToMenu = document.getElementById('btn-exit-to-menu');
 const btnPauseRotateSeats = document.getElementById('btn-pause-rotate-seats');
 
@@ -238,6 +241,12 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
   if (btnTvLobby) {
     btnTvLobby.classList.toggle('hidden', !isHosting);
   }
+  // Üst kümedeki tepki düğmesinin sayfa içi karşılığı: yalnız host gönderir.
+  // İki düğme de gizliyse satır yer kaplamaz (sabit panel yüksekliği korunur).
+  if (btnPauseReact) {
+    btnPauseReact.classList.toggle('hidden', !isHosting);
+  }
+  pauseQuickRow?.classList.toggle('hidden', !fullscreenOfferable() && !isHosting);
   if (btnExitToMenu) {
     const textEl = btnExitToMenu.querySelector('.btn-text');
     const exitText = t('pause.exit');

@@ -326,6 +326,18 @@ let lastLocalControlSyncAt = 0;
 // açılmamak üzere kapatabiliyordu.
 const localMobileControlsVisible = () => !localMobileOverlay.classList.contains('hidden');
 
+// Maç akarken üst küme ⋮'ye iner (`#in-game-hud.is-match` + CSS): skor şeridi
+// ve saha üst payı boş kalır. Lobi kurulumunda (motor LOBBY, oda GAME fazında)
+// hızlı düğmeler yerinde durur; hazırlık/sayaçta küme zaten ⋮'dir.
+function syncInGameHud() {
+  if (!inGameHud) return;
+  const phase = roomFlow.roomPhase();
+  const engineState = getActiveGameEngine()?.state;
+  const inMatch = phase === 'STAGING' || phase === 'COUNTDOWN'
+    || (phase === 'GAME' && !!engineState && engineState !== 'LOBBY');
+  inGameHud.classList.toggle('is-match', inMatch);
+}
+
 function getLocalControlSlot(engine = getActiveGameEngine()) {
   if (roomFlow.getHostPlayerActive() && roomFlow.getHostPlayerSlot() !== null) return roomFlow.getHostPlayerSlot();
   const entities = typeof engine?.getEntitiesList === 'function'
@@ -723,6 +735,7 @@ function loop(timestamp) {
   }
 
   syncLocalMobileControls(timestamp);
+  syncInGameHud();
 
   try {
     broadcastGameStateIfNeeded(timestamp);

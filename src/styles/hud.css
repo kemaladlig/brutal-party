@@ -13,6 +13,13 @@
   display: none !important;
 }
 
+/* Maç akarken küme tek düğmeye (⋮) iner: skor şeridi ve saha üst payı boş
+   kalır. LOBİYE DÖN, tam ekran, tepki ve düzen çipi ⋮ sayfasındadır; lobi
+   kurulumunda (motor LOBBY) hızlı düğmeler yerinde durur. */
+#in-game-hud.is-match > :not(#btn-open-options) {
+  display: none !important;
+}
+
 .btn-quick-tv-lobby {
   height: 44px;
   padding: 0 14px;
