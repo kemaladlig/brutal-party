@@ -13,6 +13,7 @@ import { isCompactLandscape } from '../core/playfield.js';
 import { drawResultPanel, dimBehindPanel, resultPanelRadius, uiTextScale } from './resultPanel.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
+import { scoreEntries } from './scoreModel.js';
 
 function pathRoundRect(ctx, x, y, w, h, r) {
   if (typeof ctx.roundRect === 'function') {
@@ -355,21 +356,8 @@ export function renderFloatingTexts(ctx, list, dt = 0.016) {
 // Kompakt telefonda kutu YOKTUR: zemin üstünde beyaz metin + koyu kontur.
 // Masaüstünde uygulama temasında kart (krem zemin, mürekkep kenar, sert gölge).
 // Skor önceliklidir: satır daralırsa bilgi budanır.
-function headerEntries(players) {
-  const out = [];
-  for (let i = 0; i < 4; i++) {
-    const p = players[i];
-    if (!p) continue;
-    if (!(p.isJoined ?? (p.slotType !== 'empty'))) continue;
-    out.push({
-      index: Number.isInteger(p.index) ? p.index : i,
-      name: (p.name || `P${i + 1}`).toString(),
-      color: p.color || UI_COLORS.players[i],
-    });
-  }
-  return out;
-}
-
+// Skor satırları tek modelden gelir (`scoreModel.js`): koltuk seçimi ve lider
+// kuralı host canvas'ı ile kumanda peek'i arasında paylaşılır.
 function headerToneColor(tone) {
   if (tone === 'urgent' || tone === 'boss') return UI_COLORS.danger;
   if (tone === 'armory') return UI_COLORS.hudCharge;
@@ -387,7 +375,7 @@ export function renderMatchHeader(ctx, {
   isRoundOver = false,
   state = null,
 }) {
-  const seated = headerEntries(players);
+  const seated = scoreEntries({ players, scores });
   let status = (statusText ?? '').toString().trim();
   if (seated.length === 0 && !status) return;
   const roundOver = Boolean(isRoundOver || state === 'ROUND_OVER' || state === 'MATCH_OVER' || state === 'ROUND_PAUSE');
@@ -395,7 +383,6 @@ export function renderMatchHeader(ctx, {
   const compact = controlMode === CONTROL_MODE.DOM
     || controlMode === CONTROL_MODE.CANVAS
     || isCompactLandscape(arena);
-  const maxScore = seated.reduce((m, e) => Math.max(m, Number(scores[e.index]) || 0), 0);
 
   if (compact) {
     // Kutusuz tek satır: solda skor, sağda bilgi. Okunurluk konturdan gelir.
@@ -410,8 +397,7 @@ export function renderMatchHeader(ctx, {
     ctx.lineJoin = 'round';
     const maxW = Math.max(0, arena.width - padX * 2);
     const segs = seated.map((e) => {
-      const v = Number(scores[e.index]) || 0;
-      return { text: `P${e.index + 1} ${v}★`, leader: maxScore > 0 && v === maxScore };
+      return { text: `P${e.index + 1} ${e.score}★`, leader: e.leader };
     });
     const segW = segs.map((s) => (ctx.measureText ? ctx.measureText(s.text)?.width || 0 : 0));
     const scoresW = segW.reduce((a, w) => a + w, 0) + segGap * Math.max(0, segs.length - 1);
@@ -457,7 +443,7 @@ export function renderMatchHeader(ctx, {
   });
   ctx.font = `900 ${scorePx}px ${UI_FONTS.mono}`;
   const valueW = seated.map((e) => {
-    const v = `${Number(scores[e.index]) || 0}★`;
+    const v = `${e.score}★`;
     return ctx.measureText ? (ctx.measureText(v)?.width || 0) : 0;
   });
   ctx.font = `900 ${statusPx}px ${UI_FONTS.mono}`;
@@ -495,8 +481,8 @@ export function renderMatchHeader(ctx, {
   let cx = barX + cPadX;
   ctx.textAlign = 'left';
   seated.forEach((e, k) => {
-    const v = Number(scores[e.index]) || 0;
-    const leader = maxScore > 0 && v === maxScore;
+    const v = e.score;
+    const leader = e.leader;
     ctx.beginPath();
     ctx.arc(cx + dotR, midY, dotR, 0, Math.PI * 2);
     ctx.fillStyle = e.color;
@@ -1078,13 +1064,13 @@ function fontScaleFor(ctx, role, ts, text, maxWidth) {
 // böylece ödül anı oyuncunun kendi karakteriyle kutlanır.
 export function renderMatchOver(ctx, {
   arena,
-  uiButtons,
+  uiButtons = null,
   headline,
   winnerName = '',
   winnerColor = UI_COLORS.resultGold,
   winnerEntity = null,
   rows = [],
-  onRestart,
+  onRestart = null,
   onLobby = null,
   viewport = null,
 }) {

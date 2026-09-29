@@ -289,11 +289,12 @@ test('field visuals add no packet fields (BOMB/PONG/HORDE)', () => {
 
   // Saha görseli seed'i `(mode, roundId)`'den türetir; pakette YENİ alan yoktur.
   // Tek istisna `blast`: saha görseli değil, BOMB'un patlama katmanı (4 sayı,
-  // aynı anda tek patlama) — bkz. worldCore.packBlast.
+  // aynı anda tek patlama) — bkz. worldCore.packBlast. `selfPredict` de saha
+  // görseli değil: client self-avatar prediction opt-in bayrağı (core/selfPrediction).
   assert.deepEqual(Object.keys(packets.BOMB).sort(), [
     'arena', 'blast', 'bombMaxTime', 'bombTimer', 'carrier', 'gameState', 'ink', 'matchDraw',
     'matchWinner', 'mode', 'particles', 'pickups', 'pillars', 'players', 'roundId',
-    'roundWinner', 'scores', 'seq', 'version',
+    'roundWinner', 'scores', 'selfPredict', 'seq', 'version',
   ]);
   assert.deepEqual(Object.keys(packets.PONG).sort(), [
     'arena', 'ball', 'gameState', 'goals', 'matchWinner', 'mode', 'particles', 'players',
@@ -303,7 +304,7 @@ test('field visuals add no packet fields (BOMB/PONG/HORDE)', () => {
     'arena', 'bullets', 'enemies', 'enemiesLeft', 'gameState', 'isBossWave', 'loadoutCrates',
     'matchResult', 'matchWinner', 'mode', 'nextRound', 'obstacles', 'particles', 'phase',
     'pickups', 'players', 'portal', 'round', 'roundBreakTime', 'roundBreakTotal', 'roundId',
-    'roundWinner', 'scores', 'seq', 'texts', 'theme', 'tombs', 'totalRounds', 'totalWaves',
+    'roundWinner', 'scores', 'selfPredict', 'seq', 'texts', 'theme', 'tombs', 'totalRounds', 'totalWaves',
     'version', 'wave', 'waveBreakTime', 'waveTime', 'waveTimedOut',
   ]);
 });

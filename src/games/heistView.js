@@ -40,6 +40,7 @@ export function createHeistWorldPacket(game) {
       cd: round1(p.tackleCooldown || 0),
     }),
     extras: {
+      selfPredict: true,
       roundTimer: round1(game.roundTimer || 0),
       goldRush: game.goldRushActive === true,
       matchDraw: game.matchDraw === true,

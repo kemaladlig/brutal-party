@@ -7,6 +7,8 @@ import {
   canBlendWorldFrames,
   selectBufferedWorldFrame,
 } from '../core/worldInterpolation.js';
+import { applySelfPrediction, createSelfPredictor, observeSelfFrame } from '../core/selfPrediction.js';
+import { perfMonitor } from '../core/perfMonitor.js';
 import { renderWorldConnecting } from './worldViewKit.js';
 
 export { blendWorldFrames };
@@ -16,11 +18,17 @@ const CONNECTING_AFTER_MS = 1500;
 const DEFAULT_INTERVAL_MS = 1000 / 30;
 const MIN_INTERVAL_MS = 25;
 const MAX_INTERVAL_MS = 250;
-const DEFAULT_PLAYOUT_DELAY_MS = 50;
-const MIN_PLAYOUT_DELAY_MS = 50;
+// Taban playout = bir 30 Hz kare aralığı + pay. 50 ms taban, düşük jitterli
+// bağlantıda bile kendi hareketini gecikmeli gösteriyordu; 35 ms gerçek
+// gecikmeyi ~15 ms kısar, jitter yükselince adaptif formül yine yukarı çeker.
+const DEFAULT_PLAYOUT_DELAY_MS = 35;
+const MIN_PLAYOUT_DELAY_MS = 35;
 const MAX_PLAYOUT_DELAY_MS = 120;
 const MAX_BUFFER_FRAMES = 8;
 const MAX_INTERPOLATION_GAP_MS = 100;
+// Self-avatar prediction ufku = playout gecikmesi + bu pay. Pay, girdinin host'a
+// varış gecikmesini kaba telafi eder; büyütmek duvara taşırma riskini artırır.
+const SELF_PREDICTION_LEAD_MS = 20;
 
 const finiteNum = (value) => (
   typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -39,6 +47,12 @@ export class GamepadWorldView {
       : blendWorldFrames;
     this.slots = slots;
     this.selfSlot = Number.isInteger(selfSlot) ? selfSlot : -1;
+    // Raunt boşluğu (STATE_SYNC `roundGap`): raunt-sonu bandının geri sayımı.
+    // Simülasyon değil sunumdur; host yalnız sayıyı yayınlar.
+    this.roundGapSeconds = 0;
+    // Self-avatar prediction: sunum-only, host yetkisini değiştirmez.
+    this.predictor = createSelfPredictor();
+    this.selfInput = { dx: 0, dy: 0, force: 0 };
 
     // `frame` is the newest accepted snapshot. `buffer` contains the samples
     // used by the delayed presenter; it is intentionally separate from frame.
@@ -93,6 +107,22 @@ export class GamepadWorldView {
     this._queueRender();
   }
 
+  // Raunt boşluğunun kalan saniyesi (STATE_SYNC). Değişmezse yeniden çizme.
+  setRoundGap(seconds) {
+    const next = Math.max(0, Number(seconds) || 0);
+    if (next === this.roundGapSeconds) return;
+    this.roundGapSeconds = next;
+    this._queueRender();
+  }
+
+  // Live local move input for self-avatar prediction. Zeros (release/neutral)
+  // simply disable prediction for the next draw — no simulation happens here.
+  setSelfInput(input) {
+    this.selfInput = input
+      ? { dx: Number(input.dx) || 0, dy: Number(input.dy) || 0, force: Number(input.force) || 0 }
+      : { dx: 0, dy: 0, force: 0 };
+  }
+
   accept(frame) {
     if (
       this.destroyed
@@ -139,6 +169,7 @@ export class GamepadWorldView {
     this.prevAt = this.currAt || now;
     this.currAt = now;
     this.frame = frame;
+    observeSelfFrame(this.predictor, frame, this.selfSlot, now);
     this.lastReceiveAt = now;
     this.lastSeq = frame.seq;
     this.lastFrameAt = now;
@@ -183,6 +214,7 @@ export class GamepadWorldView {
     this.intervalMs = DEFAULT_INTERVAL_MS;
     this.jitterMs = 0;
     this.playoutDelayMs = DEFAULT_PLAYOUT_DELAY_MS;
+    this.predictor = createSelfPredictor();
   }
 
   _updateTiming(delta) {
@@ -267,6 +299,8 @@ export class GamepadWorldView {
     if (this.destroyed) return;
 
     const now = performance.now();
+    if (this._lastDrawAt) perfMonitor.record('client.frame', now - this._lastDrawAt);
+    this._lastDrawAt = now;
     this.ctx.setTransform(this.dpr || 1, 0, 0, this.dpr || 1, 0, 0);
 
     if (!this.frame) {
@@ -297,16 +331,28 @@ export class GamepadWorldView {
       const renderStarted = performance.now();
       this.stats.lastAlpha = sample.alpha;
       this.stats.lastFrameAgeMs = now - sample.after.receivedAt;
+      const horizon = (this.playoutDelayMs + SELF_PREDICTION_LEAD_MS) / 1000;
+      const presentedFrame = applySelfPrediction(
+        this.predictor,
+        sample.frame,
+        this.selfSlot,
+        this.selfInput,
+        horizon,
+      );
       this.renderer.render(
         this.ctx,
-        sample.frame,
+        presentedFrame,
         this.logicalWidth,
         this.logicalHeight,
         this.slots,
         now,
-        this.selfSlot,
+        { selfSlot: this.selfSlot, roundGap: this.roundGapSeconds },
       );
       this.stats.lastRenderMs = performance.now() - renderStarted;
+      perfMonitor.record('client.render', this.stats.lastRenderMs);
+      perfMonitor.gauge('client.playout', this.playoutDelayMs);
+      perfMonitor.gauge('client.jitter', this.jitterMs);
+      perfMonitor.gauge('client.frameAge', this.stats.lastFrameAgeMs);
       this.renderDurations.push(this.stats.lastRenderMs);
       if (this.renderDurations.length > 120) this.renderDurations.shift();
     } catch (err) {

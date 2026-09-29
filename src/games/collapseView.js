@@ -54,6 +54,7 @@ export function createCollapseWorldPacket(game) {
       super: (p.superJumpTimer || 0) > 0,
     }),
     extras: {
+      selfPredict: true,
       cell: round1(game.cellSize || 0),
       matchDraw: game.matchDraw === true,
       timeLeft: round1(game.roundTime || 0),

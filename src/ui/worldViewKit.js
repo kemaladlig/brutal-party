@@ -3,8 +3,8 @@
 // Sadece i18n + çizim import eder; oyun simülasyonu/AI import etmez.
 
 import { t } from '../i18n.js';
-import { UI_COLORS, uiFont, getDisplayProfile } from './tokens.js';
-import { drawResultPanel, uiTextScale } from './resultPanel.js';
+import { UI_COLORS } from './tokens.js';
+import { renderMatchOver, renderRoundBanner } from './hud.js';
 
 // World koordinatlarını client canvas'a orantılı sığdırır ve draw'u dünya uzayında
 // çağırır. arena: [left, top, right, bottom].
@@ -63,26 +63,65 @@ function pathRoundRect(ctx, x, y, w, h, r) {
   }
 }
 
-export function drawWorldBanner(ctx, width, height, title, subtitle = '') {
-  // Host'taki tur/final bandıyla aynı panel: kumanda başka dil konuşmaz.
-  const ts = uiTextScale(getDisplayProfile(width, height).baseUnit);
-  const boxW = Math.min(width - 32, Math.round(420 * ts));
-  const boxH = Math.round((subtitle ? 88 : 64) * ts);
-  const box = { x: (width - boxW) / 2, y: (height - boxH) / 2, w: boxW, h: boxH };
+/**
+ * Raunt sonu bandı — host canvas'ının (`tabletopRenderer.renderStandardRoundBanner`
+ * → `hud.renderRoundBanner`) AYNISI. Kumanda eskiden ayrı bir `drawWorldBanner`
+ * yazıyordu: panel ölçüsü, başlık rengi ve geri sayım farklıydı; aynı raunt
+ * telefonda ve TV'de iki türlü görünüyordu. Artık tek `renderRoundBanner` çizer.
+ *
+ * Başlık host ile aynı kuraldan türer: kazanan varsa `game.won`, berabere ise
+ * `game.draw`; renk kazananın koltuk rengidir. `context.roundGap` raunt
+ * boşluğunun kalan saniyesidir (STATE_SYNC'ten gelir) ve host'taki aynı sağ-alt
+ * geri sayımı besler.
+ */
+export function drawWorldRoundBanner(ctx, width, height, frame, slots = [], context = {}) {
+  const idx = Number.isInteger(frame?.roundWinner) ? frame.roundWinner : null;
+  const seat = idx !== null ? slots?.[idx] : null;
+  const name = seat?.name || '';
+  renderRoundBanner(ctx, {
+    arena: { cx: width / 2, cy: height / 2, width, height },
+    title: name ? t('game.won', name) : t('game.draw'),
+    titleColor: seat?.color || null,
+    countdown: Math.max(0, Number(context?.roundGap) || 0),
+  });
+}
 
-  ctx.save();
-  drawResultPanel(ctx, box, ts);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = UI_COLORS.resultGold;
-  ctx.font = uiFont('button', ts);
-  ctx.fillText(title, width / 2, subtitle ? box.y + boxH * 0.38 : box.y + boxH / 2, boxW - Math.round(28 * ts));
-  if (subtitle) {
-    ctx.fillStyle = UI_COLORS.resultMuted;
-    ctx.font = uiFont('monoBody', ts);
-    ctx.fillText(subtitle, width / 2, box.y + boxH * 0.7, boxW - Math.round(28 * ts));
+/**
+ * Maç sonu kartı — host canvas'ının (`tabletopRenderer.renderStandardMatchOver`
+ * → `hud.renderMatchOver`) AYNISI. Kumanda world-view'ı ayrı bir bant yazınca
+ * telefonla TV farklı oyun gibi görünüyordu; tek `layoutMatchOverCard` +
+ * `drawResultPanel` burada da çizilir. Eylem butonları YOKtur: yeniden başlatma
+ * yetkisi host'tadır, kumanda yalnız sonucu gösterir.
+ *
+ * `frame`: WORLD_FRAME snapshot'ı (`scores`, `matchWinner`, `matchDraw`).
+ * `slots`: `SLOTS_UPDATE` isim/renk/avatar kaynağı — yalnız dolu koltuk çizilir.
+ */
+export function drawWorldMatchOver(ctx, width, height, frame, slots = [], { headline = null } = {}) {
+  const scores = Array.isArray(frame.scores) ? frame.scores : [];
+  const rows = [];
+  for (let i = 0; i < scores.length; i++) {
+    const seat = slots?.[i];
+    const name = seat?.name || '';
+    if (!name) continue;
+    const score = Number(scores[i]) || 0;
+    rows.push({ color: seat?.color || UI_COLORS.players[i], name, value: String(score), score });
   }
-  ctx.restore();
+
+  const winnerSlot = Number.isInteger(frame.matchWinner) ? frame.matchWinner : null;
+  const winnerSeat = winnerSlot !== null ? slots?.[winnerSlot] : null;
+  const winnerName = winnerSeat?.name || '';
+  const winnerColor = winnerSeat?.color || UI_COLORS.resultGold;
+
+  renderMatchOver(ctx, {
+    arena: { cx: width / 2, cy: height / 2, width, height },
+    headline: headline || (frame.matchDraw ? t('game.draw') : t('game.champWon')),
+    winnerName,
+    winnerColor,
+    winnerEntity: winnerSeat
+      ? { name: winnerName, color: winnerColor, index: winnerSlot, avatar: winnerSeat.avatar || null }
+      : null,
+    rows,
+  });
 }
 
 export function renderWorldPlaceholder(ctx, width, height, fill = '#14101F') {

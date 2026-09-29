@@ -25,6 +25,8 @@ import {
   ensureStoredNick,
   supabaseRelay,
 } from './net.js';
+import { perfMonitor } from './core/perfMonitor.js';
+import { mountPerfOverlay } from './ui/perfOverlay.js';
 
 import { initToastAndInstall, showInstallToast, showConnectionBanner, hideConnectionBanner } from './ui/toast.js';
 import {
@@ -46,6 +48,7 @@ import {
 import { initJoinModal, openJoinModal } from './ui/joinModal.js';
 import { initSettingsSheet, openSettingsSheet } from './ui/settings/settingsSheet.js';
 import { hydrateIconSlots } from './ui/iconSlots.js';
+import { renderHostQuickBar } from './ui/quickChrome.js';
 import {
   mountAppShell,
   openView,
@@ -90,6 +93,9 @@ import {
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("game-canvas"));
 // Eski `#menu-overlay` sayfası silindi; menü yüzeyi `src/ui/appShell.js`.
 const inGameHud = document.getElementById('in-game-hud');
+// Host üst kümesi tek tanımdan (`quickChrome`) üretilir; index.html yalnız
+// boş kabı taşır. Markup burada basıldığı için aşağıdaki id yakalamaları hazırdır.
+if (inGameHud) inGameHud.innerHTML = renderHostQuickBar();
 const btnQuickTvLobby = document.getElementById('btn-quick-tv-lobby');
 const btnQuickFullscreen = document.getElementById('btn-quick-fullscreen');
 const quickFullscreenIcon = document.getElementById('quick-fullscreen-icon');
@@ -670,6 +676,8 @@ function renderPauseOverlay(ctx) {
 const ctx2d = canvas.getContext('2d');
 let consecutiveEngineErrors = 0;
 let lastEngineError = null;
+// Debug ölçüm: host kare aralığı (yalnız `?perf` iken okunur; maliyeti yok).
+let lastPerfFrameAt = 0;
 
 function renderEngineCrashOverlay(ctx, error) {
   const w = window.innerWidth;
@@ -747,12 +755,21 @@ function loop(timestamp) {
   const loopEntry = getEngine(roomFlow.getCurrentMode());
 
   if (loopEntry) {
+    if (lastPerfFrameAt) perfMonitor.record('host.frame', timestamp - lastPerfFrameAt);
+    lastPerfFrameAt = timestamp;
     try {
+      const perfUpdateStart = performance.now();
       if (!isPaused && consecutiveEngineErrors < 5) {
         loopEntry.game.update(timestamp);
       }
+      const perfBroadcastStart = performance.now();
       broadcastWorldStateIfNeeded(timestamp);
+      const perfRenderStart = performance.now();
       loopEntry.game.render();
+      const perfRenderEnd = performance.now();
+      perfMonitor.record('host.update', perfBroadcastStart - perfUpdateStart);
+      perfMonitor.record('host.broadcast', perfRenderStart - perfBroadcastStart);
+      perfMonitor.record('host.render', perfRenderEnd - perfRenderStart);
       consecutiveEngineErrors = 0;
     } catch (err) {
       consecutiveEngineErrors++;
@@ -768,6 +785,8 @@ function loop(timestamp) {
         renderPauseOverlay(ctx2d);
       } catch (err) { reportError(err, 'main.loop.renderPauseOverlay'); }
     }
+  } else {
+    lastPerfFrameAt = 0;
   }
 
   if (roomFlow.getCurrentMode() !== 'MENU') {
@@ -817,4 +836,5 @@ mountAppShell({
 });
 roomFlow.setGameMode('MENU');
 refreshAllHostSlots();
+mountPerfOverlay();
 requestAnimationFrame(loop);

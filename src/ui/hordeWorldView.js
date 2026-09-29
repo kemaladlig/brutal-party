@@ -9,7 +9,7 @@ import {
 } from '../games/hordeView.js';
 import { renderMatchHeader } from './hud.js';
 import { t } from '../i18n.js';
-import { drawWorldBanner, fitWorld, worldScreenBox, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { drawWorldMatchOver, fitWorld, worldScreenBox, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from './tokens.js';
 
@@ -69,13 +69,9 @@ export function createWorldViewRenderer() {
       ctx.restore();
 
       if (frame.gameState === 'MATCH_OVER') {
-        drawWorldBanner(
-          ctx,
-          width,
-          height,
-          scene.matchResult === 'win' ? t('horde.victory') : t('horde.defeat'),
-          t('horde.finalScore', frame.scores.join(' - ')),
-        );
+        drawWorldMatchOver(ctx, width, height, frame, slots, {
+          headline: scene.matchResult === 'win' ? t('horde.victory') : t('horde.defeat'),
+        });
       }
     },
 

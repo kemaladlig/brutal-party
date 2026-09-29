@@ -12,7 +12,7 @@ import { toggleAudio, getIsMuted } from '../../audio.js';
 import { getLang, setLang, t } from '../../i18n.js';
 import { showInstallToast } from '../toast.js';
 import { CONTROL_SURFACE, getControlSurfacePreference, setControlSurface } from '../tokens.js';
-import { fullscreenOfferable, isFullscreen, onFullscreenChange, toggleFullscreen } from '../fullscreen.js';
+import { canToggleFullscreen, isFullscreen, onFullscreenChange, toggleFullscreen } from '../fullscreen.js';
 
 /**
  * Yüzey-özel kancalar: `main.js` tek noktadan bağlar. Eylemin sonucunun
@@ -75,7 +75,7 @@ export const settingsActions = {
   fullscreen: {
     get: () => isFullscreen(),
     toggle: () => { toggleFullscreen(); },
-    available: () => fullscreenOfferable(),
+    available: () => canToggleFullscreen(),
     subscribe: (fn) => onFullscreenChange(fn),
   },
 

@@ -73,6 +73,8 @@ test('laser world packet is declarative, complete and monotonic', () => {
   assert.equal(first.texts[0].text, '+1 KILL');
   assert.equal(first.matchDraw, false);
   assert.equal(first.timeLeft, 0);
+  // Self-avatar prediction pilot opt-in (bkz. core/selfPrediction.js).
+  assert.equal(first.selfPredict, true);
 
   assert.ok(isValidLaserWorldFrame({ action: 'WORLD_FRAME', ...first }));
   assert.equal(isValidLaserWorldFrame({ action: 'WORLD_FRAME', ...first, version: 2 }), false);

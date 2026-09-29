@@ -1,0 +1,20 @@
+/* Debug performans HUD'u — yalnız `?perf` ile DOM'a girer (src/ui/perfOverlay.js).
+   Üretim yüzeyi değildir; yine de tek renk sözlüğünden (tokens.css) beslenir. */
+.perf-hud {
+  position: fixed;
+  left: 8px;
+  bottom: 8px;
+  z-index: 9999;
+  max-width: calc(100% - 16px);
+  padding: 6px 8px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-btn);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: pre;
+  pointer-events: none;
+  opacity: 0.92;
+}

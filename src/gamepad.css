@@ -1541,17 +1541,6 @@
   text-shadow: 0 10px 24px var(--dim-35);
 }
 
-.countdown-sub {
-  font-family: 'JetBrains Mono', monospace;
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 1px;
-  color: var(--n-600);
-  padding: 4px 12px;
-  background: var(--sheen-60);
-  border-radius: var(--radius-pill);
-}
-
 /* Yatay mod: lobi iki kolon (sol koltuklar, sağ isim+hazır) — kaydırmasız sığsın.
    Header chipler (44px + safe-area) kartların üstüne binmesin diye üstte
    ayrılmış pay bırakılır. */

@@ -1,5 +1,11 @@
-// Transport-neutral gamepad analog adapter. It owns only the 50 ms throttle,
+// Transport-neutral gamepad analog adapter. It owns only the analog throttle,
 // dead-zone filtering and neutral bookkeeping required by the control budget.
+
+// Analog akış throttle'ı (kumanda → host). AGENTS §6 bütçesi 50 ms'ti; host
+// zaten 33 ms'te ikinci kez kısıyordu, yani 50 ms tek bağlayıcı kısıttı ve
+// yönü ~2-3 karede bir güncelliyordu. 40 ms (25 Hz) sunucu kapısının üstünde
+// kalır (paket düşmez) ve gerçek girdi gecikmesini ~10 ms kısar.
+export const ANALOG_THROTTLE_MS = 40;
 
 export class GamepadInputAdapter {
   constructor(send, { now = () => performance.now() } = {}) {
@@ -34,7 +40,7 @@ export class GamepadInputAdapter {
       // nişan paketleri birbirini düşürür.
       if (!keepalive) {
         const lastSent = this.lastSentByAction[data.action] || 0;
-        if (timestamp - lastSent < 50) return false;
+        if (timestamp - lastSent < ANALOG_THROTTLE_MS) return false;
       }
       if (data.action === 'PADDLE_MOVE' && typeof data.position === 'number') {
         if (!keepalive && this.lastPaddlePos !== null && Math.abs(data.position - this.lastPaddlePos) < 0.003) return false;

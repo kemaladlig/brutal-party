@@ -1,4 +1,4 @@
-import { isFullscreen, toggleFullscreen, onFullscreenChange, fullscreenOfferable, armStandaloneFullscreen } from './fullscreen.js';
+import { isFullscreen, toggleFullscreen, onFullscreenChange, canToggleFullscreen, armStandaloneFullscreen } from './fullscreen.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { t, onLangChange } from '../i18n.js';
 import { showInstallToast } from './toast.js';
@@ -107,7 +107,7 @@ export function setupWindowChrome({
   function updateQuickFullscreen(active) {
     const isFs = typeof active === 'boolean' ? active : isFullscreen();
     const label = isFs ? t('menu.exitFullscreen') : t('menu.fullscreen');
-    const offerable = fullscreenOfferable();
+    const offerable = canToggleFullscreen();
     btnQuickFullscreen?.classList.toggle('hidden', !offerable);
     if (quickFullscreenIcon) {
       quickFullscreenIcon.innerHTML = getTabletopIconSvg(

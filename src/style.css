@@ -27,3 +27,6 @@
 /* Tepki balonları + tepki seçici (lobi/oyun içi/kumanda ortak dili). */
 @import './styles/reactions.css';
 @import './styles/animations.css';
+/* Debug performans HUD'u (yalnız `?perf`). En sonda: hiçbir yüzeyi ezmez,
+   tersine diğerlerinin üstünde kalır. */
+@import './styles/perf.css';

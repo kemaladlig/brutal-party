@@ -437,7 +437,7 @@ export function createTabletopRenderer(game) {
 
   function renderStandardRoundBanner(ctx, { title = null, titleColor = null, sub = '' } = {}) {
     const cleanWinner = game.roundWinner ? cleanWinnerName(game.roundWinner.name || '') : '';
-    const defTitle = cleanWinner ? `${cleanWinner} KAZANDI!` : (t('game.draw') || 'BERABERE!');
+    const defTitle = cleanWinner ? t('game.won', cleanWinner) : t('game.draw');
     const defColor = game.roundWinner?.color || UI_COLORS.ink || UI_COLORS.inkDark;
     renderRoundBanner(ctx, {
       arena: game.arena,

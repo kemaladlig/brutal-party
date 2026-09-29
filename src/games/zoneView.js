@@ -77,6 +77,7 @@ export function createZoneWorldPacket(game) {
       trailStart: [round1(p.trailStartX || p.x || 0), round1(p.trailStartY || p.y || 0)],
     }),
     extras: {
+      selfPredict: true,
       field: [round1(game.field?.x || 0), round1(game.field?.y || 0), round1(game.field?.s || 0)],
       cell: round1(game.cell || 0),
       rle: packZoneGridRle(game.grid),

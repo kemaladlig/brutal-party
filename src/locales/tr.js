@@ -496,7 +496,6 @@ export const TR = {
   'pad.ready': 'HAZIRIM',
   'pad.countBadge': '{icon:hourglass} MAÇ BAŞLIYOR',
   'pad.go': 'BAŞLA!',
-  'pad.countSub': 'TELEFONU TUT • EKRANA BAK',
   'pad.roundGap': 'SIRADAKİ RAUNT {0} SN',
   'pad.seatHint': 'Geçmek istediğin koltuğa dokun. Kendi koltuğun, host ve bot koltukları kilitli.',
   'pad.seatHintEarly': 'Koltuğunu değiştirebilirsin; host sahayı açınca kilitlenir.',

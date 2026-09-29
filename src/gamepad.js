@@ -4,8 +4,9 @@
 import { storePlayerName, escapeHtml } from './net.js';
 import { showInstallToast } from './ui/toast.js';
 import { initErrorReporter, reportError } from './core/errorReporter.js';
-import { toggleFullscreen, fullscreenOfferable } from './ui/fullscreen.js';
+import { toggleFullscreen, canToggleFullscreen } from './ui/fullscreen.js';
 import { UI_COLORS } from './ui/tokens.js';
+import { scoreEntries } from './ui/scoreModel.js';
 import { motionScale } from './ui/motion.js';
 import { playMenuTick, playMenuPop } from './audio.js';
 import { mountDeclarativeController } from './controllers/controllerTemplates.js';
@@ -43,6 +44,17 @@ import { getSlotSwapError } from './core/slotRules.js';
 // Skor bandının açık kalacağı süre. Canvas tarafındaki peek ile aynı değer
 // (`hud.js` PEEK_MS): iki yüzey farklı süre gösteremez.
 const SCORE_PEEK_MS = 2800;
+
+// Joystick hissiyat sabitleri (tek kaynak — updateJoy + bindJoystick birlikte okur).
+// Ölü bant küçük: parmağın doğal titremesi host'a "dur" göndermesin.
+const JOY_DEADZONE = 0.06;
+// Basılı tutarken kuvvet tabanı: parmak origin etrafında gezinip ölü banda
+// girince motor mikro-dur-kalk titremesi yaşıyordu ("yürürken duruyor").
+// Gerçek bırakma sıfırı yalnız endJoy/cancel gönderir.
+const JOY_MIN_DRAG_FORCE = 0.18;
+// touchcancel (bildirim, kenar jesti, avuç) gerçek parmak kaldırma DEĞİLDİR:
+// host'u anında durdurmak yerine son yönü kısa bir grace boyunca koru.
+const JOY_CANCEL_GRACE_MS = 150;
 
 // Kumanda kayıt tablosu: tek kaynaktan (engineRegistry) beslenir
 const CONTROLLER_META = new Proxy({}, {
@@ -483,6 +495,9 @@ export class GamepadManager {
 
   _sendAnalog(data, opts) {
     if (!data) return false;
+    // Self-avatar prediction'ı throttle'dan bağımsız besle: host'a gitmese de
+    // yerel dokunuş sunuma anında yansımalı (sunum-only, simülasyon değil).
+    if (data.action === 'JOYSTICK_MOVE') this._worldView?.setSelfInput(data);
     const packet = data.action === 'AIM_MOVE' && !Number.isInteger(data.seq)
       ? { ...data, seq: this._nextAimSequence() }
       : data;
@@ -651,6 +666,7 @@ export class GamepadManager {
   // Nötr paket sol kontrole göre merkezden gelir (controlDefs.getNeutralInput).
   _sendNeutralForMode() {
     try {
+      this._worldView?.setSelfInput(null);
       for (const neutral of getNeutralInputs(this.gameMode)) {
         if (neutral.action === 'AIM_MOVE' || neutral.action === 'AIM_RELEASE') {
           this._sendAimInput(neutral, { force: true });
@@ -884,7 +900,7 @@ export class GamepadManager {
 
     const fsToggle = document.getElementById('btn-fullscreen-toggle');
     // Sıradan web ve API'siz yüzeyde krom teklifi yok — menü satırı çizilmez.
-    fsToggle?.classList.toggle('hidden', !fullscreenOfferable());
+    fsToggle?.classList.toggle('hidden', !canToggleFullscreen());
     fsToggle?.addEventListener('click', () => {
       closeMenu();
       // Tek otorite `src/ui/fullscreen.js` — kumanda kendi FS durumunu tutmaz.
@@ -963,18 +979,16 @@ export class GamepadManager {
     const sig = JSON.stringify([names, scores, this.playerIndex, slotColorsSig]);
     if (sig !== this._lastStripJson) {
       this._lastStripJson = sig;
-      const fallbackColors = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-      // Yalnız dolu koltuklar: boş çip yer kaplar ve tepki çıpası olmaz.
-      strip.innerHTML = [0, 1, 2, 3]
-        .filter((idx) => !!names[idx])
-        .map((idx) => {
-          const isMine = idx === this.playerIndex;
-          const dotColor = this.slots?.[idx]?.color || fallbackColors[idx];
+      // Koltuk seçimi/isim/renk tek modelden (`scoreModel.js`) — host canvas
+      // skorbord uyla aynı kaynak, aynı dolu-koltuk kuralı.
+      strip.innerHTML = scoreEntries({ names, slots: this.slots, scores })
+        .map((entry) => {
+          const isMine = entry.index === this.playerIndex;
           return `
-            <div class="score-chip${isMine ? ' is-mine' : ''}" data-reaction-anchor="${idx}">
-              <span class="score-dot" style="background-color: ${dotColor}"></span>
-              <span class="score-name">${escapeHtml(names[idx])}</span>
-              <span class="score-val">${scores[idx] ?? 0}</span>
+            <div class="score-chip${isMine ? ' is-mine' : ''}" data-reaction-anchor="${entry.index}">
+              <span class="score-dot" style="background-color: ${entry.color}"></span>
+              <span class="score-name">${escapeHtml(entry.name)}</span>
+              <span class="score-val">${entry.score}</span>
             </div>
           `;
         })
@@ -1045,7 +1059,7 @@ export class GamepadManager {
    * sıçraması görüyordu.
    */
   _countdownVeil() {
-    const key = `${t('pad.countBadge')}|${t('pad.countSub')}`;
+    const key = t('pad.countBadge');
     if (this._veilEl?.isConnected && this._veilKey === key) return this._veilEl;
     const veil = document.createElement('div');
     veil.className = 'countdown-veil';
@@ -1056,7 +1070,6 @@ export class GamepadManager {
       <div class="countdown-view">
         <div class="countdown-badge">${tIcon('pad.countBadge')}</div>
         <div class="countdown-number"></div>
-        <div class="countdown-sub">${escapeHtml(t('pad.countSub'))}</div>
       </div>
     `;
     this.overlay.appendChild(veil);
@@ -1434,8 +1447,19 @@ export class GamepadManager {
     let originY = 0;
     let maxRadius = 46;
     let hitEdge = false;
+    // touchcancel sonrası gecikmeli nötr zamanlayıcısı (JOY_CANCEL_GRACE_MS).
+    let cancelGraceTimer = null;
+    const clearCancelGrace = () => {
+      if (cancelGraceTimer !== null) {
+        clearTimeout(cancelGraceTimer);
+        cancelGraceTimer = null;
+      }
+    };
+    const emitZero = () => emitInput({ dx: 0, dy: 0, angle: 0, force: 0 });
 
     const startAt = (clientX, clientY) => {
+      // Yeni basış grace'i iptal eder: parmak geri geldi, host yönü korusun.
+      clearCancelGrace();
       const zoneRect = zone.getBoundingClientRect();
       originX = clientX;
       originY = clientY;
@@ -1481,13 +1505,23 @@ export class GamepadManager {
         // Optional release callback is used by legacy hold controls; ordinary
         // movement joysticks send a zero vector below.
         onRelease(finalInput, { cancelled });
+      } else if (cancelled && finalInput.force > 0) {
+        // Gerçek kaldırma değil: son yönü grace boyunca koru, sonra nötrle.
+        // Grace içinde yeni basış gelirse startAt zamanlayıcıyı iptal eder.
+        clearCancelGrace();
+        cancelGraceTimer = setTimeout(() => {
+          cancelGraceTimer = null;
+          emitZero();
+        }, JOY_CANCEL_GRACE_MS);
       } else {
         // Move joystick: zero packet needed to stop movement.
-        emitInput({ dx: 0, dy: 0, angle: 0, force: 0 });
+        emitZero();
       }
     };
 
     const joySignal = this._mountAbort?.signal;
+    // Teardown'da bekleyen grace zamanlayıcısı sökülmüş yüzeye sızmasın.
+    joySignal?.addEventListener('abort', clearCancelGrace, { once: true });
     const hasTouch = typeof window !== 'undefined' && ('ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0));
 
     if (hasTouch) {
@@ -1570,9 +1604,13 @@ export class GamepadManager {
     knobEl.style.transform = `translate(${knobX}px, ${knobY}px) rotate(${angle + Math.PI / 2}rad)`;
 
     const rawForce = clampedDist / maxR;
-    // 8% deadband to eliminate resting thumb jitter
-    const deadzone = 0.08;
-    const force = rawForce < deadzone ? 0 : Math.max(0, Math.min(1, (rawForce - deadzone) / (1 - deadzone)));
+    // Küçük ölü bant yalnız dinlenen parmak titremesini keser (JOY_DEADZONE).
+    let force = rawForce < JOY_DEADZONE
+      ? 0
+      : Math.max(0, Math.min(1, (rawForce - JOY_DEADZONE) / (1 - JOY_DEADZONE)));
+    // Kasıtlı itişte (ölü bandın üstü) taban kuvvet uygula: parmak origin
+    // etrafında gezinirken host'a 0 gidip karakter dur-kalk yapmasın.
+    if (force > 0 && force < JOY_MIN_DRAG_FORCE) force = JOY_MIN_DRAG_FORCE;
     const dx = Math.max(-1, Math.min(1, Math.cos(angle) * force));
     const dy = Math.max(-1, Math.min(1, Math.sin(angle) * force));
 
@@ -1658,11 +1696,20 @@ export class GamepadManager {
    * ekranın üstünde, rozet aynı bilgiyi iki yere basardı.
    */
   _syncRoundGap(data) {
+    const left = Number(data.roundGap) || 0;
+    // World-view raunt-sonu bandı host ile AYNI paneli ve geri sayımı çizer.
+    // O yüzey açıkken durum satırındaki rozet sayıyı ikinci kez basardı; rozet
+    // yalnız world-view'sız yüzeyde (TV_CONSOLE kumandası) tek kaynaktır.
+    if (this._worldView) {
+      this._worldView.setRoundGap(left);
+      // World-view sonradan bağlanırsa erken açılmış rozet açık kalmasın.
+      this._el('round-gap-chip')?.classList.remove('is-open');
+      return;
+    }
     // Raunt boşluğu rozeti durum satırının içinde bir öğedir, ayrı katman değil:
     // saha üstünde yalnız o satır var.
     const status = this._el('gamepad-status');
     if (!status) return;
-    const left = Number(data.roundGap) || 0;
     let chip = this._el('round-gap-chip');
     if (!chip) {
       if (left <= 0) return;

@@ -368,7 +368,7 @@ export class RoomManager {
   }
 
   // Kumanda seli koruması: her analog aksiyon slot başına ~30Hz'e kısılır
-  // (AGENTS §5'in 50ms throttle'ı kumanda tarafında; burası ikinci sigortadır).
+  // (AGENTS §6'nın 40ms throttle'ı kumanda tarafında; burası ikinci sigortadır).
   // Bozuk paket düşer, discrete aksiyonlar hıza bağlanır (spam/flicker kapanır).
   handlePlayerInput(clientWs, inputData) {
     const room = this.getRoom(clientWs.roomCode);

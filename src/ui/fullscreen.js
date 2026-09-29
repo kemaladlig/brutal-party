@@ -47,8 +47,16 @@ export function fullscreenSupported() {
   );
 }
 
-/** Tam ekran TEKLİFİ gösterilebilir mi (düğme/anahtar)?
- *  Yalnız kurulu PWA'da: sıradan webde tam ekrana gerek yoktur. */
+/** Elle tam ekran düğmesi/anahtarı gösterilebilir mi? Tarayıcı API'yi
+ *  destekliyorsa HER yüzeyde evet: sıradan webde de kullanıcı isterse girer,
+ *  isterse çıkar. Otomatik teklif ayrı kapıdadır (`shouldOfferFullscreen`,
+ *  yalnız kurulu PWA). */
+export function canToggleFullscreen() {
+  return fullscreenSupported();
+}
+
+/** Otomatik tam ekran TEKLİFİ (jest/maç başı) için uygun muyuz? Yalnız kurulu
+ *  PWA: sıradan webde pencere kendiliğinden ele geçirilmez. */
 export function fullscreenOfferable() {
   return isStandaloneApp() && fullscreenSupported();
 }
@@ -177,9 +185,8 @@ export function toggleFullscreen(showToast = true) {
     if (showToast) showInstallToast(t('toast.fullscreenExit'));
     return false;
   }
-  // Sıradan webde giriş kapalıdır (düğmeler zaten gizlidir); APIsiz yüzeyde
-  // sahte "tam ekran" toast'ı verilmez.
-  if (!fullscreenOfferable()) return false;
+  // APIsiz yüzeyde (iPhone Safari) sahte "tam ekran" toast'ı verilmez.
+  if (!canToggleFullscreen()) return false;
   requestFullscreen();
   if (showToast) showInstallToast(t('toast.fullscreenEnter'));
   return true;

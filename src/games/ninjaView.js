@@ -49,6 +49,7 @@ export function createNinjaWorldPacket(game) {
         ? round2(1 - Math.min(1, p.smokeCooldown / 5.0)) : null,
     }),
     extras: {
+      selfPredict: true,
       matchDraw: game.matchDraw === true,
       timeLeft: round1(game.roundTime || 0),
       obstacles: packRectList(game.obstacles, 16),

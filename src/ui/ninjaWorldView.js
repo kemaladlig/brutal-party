@@ -16,7 +16,7 @@ import {
   drawNinjaFx,
   isValidNinjaWorldFrame,
 } from '../games/ninjaView.js';
-import { fitWorld, worldScreenBox, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
@@ -27,7 +27,7 @@ export function createWorldViewRenderer() {
   return {
     validate: isValidNinjaWorldFrame,
 
-    render(ctx, frame, width, height, slots = [], now = performance.now(), selfSlot = -1) {
+    render(ctx, frame, width, height, slots = [], now = performance.now(), context = {}) {
       const [left, top, right, bottom] = frame.arena;
       const arenaW = Math.max(1, right - left);
       const arenaH = Math.max(1, bottom - top);
@@ -56,7 +56,7 @@ export function createWorldViewRenderer() {
           color: slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || NINJA_FALLBACK[p.slot],
           avatar: slots?.[p.slot]?.avatar || null,
         }));
-        drawNinjaPlayers(ctx, players, { ghostSlots: Number.isInteger(selfSlot) && selfSlot >= 0 ? [selfSlot] : [], withFx });
+        drawNinjaPlayers(ctx, players, { ghostSlots: Number.isInteger(context?.selfSlot) && context.selfSlot >= 0 ? [context.selfSlot] : [], withFx });
         drawNinjaSlashes(ctx, frame.slashes || [], arena);
         drawNinjaImpacts(ctx, frame.impacts || []);
         drawNinjaFx(ctx, frame.fx || []);
@@ -64,11 +64,9 @@ export function createWorldViewRenderer() {
       ctx.restore();
 
       if (frame.gameState === 'ROUND_OVER') {
-        const winner = slots?.[frame.roundWinner]?.name;
-        drawWorldBanner(ctx, width, height, t('game.roundOver'), winner || '');
+        drawWorldRoundBanner(ctx, width, height, frame, slots, context);
       } else if (frame.gameState === 'MATCH_OVER') {
-        const winner = slots?.[frame.matchWinner]?.name;
-        drawWorldBanner(ctx, width, height, frame.matchDraw ? t('game.draw') : t('game.champWon'), winner || '');
+        drawWorldMatchOver(ctx, width, height, frame, slots);
       }
     },
 

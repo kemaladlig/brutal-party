@@ -494,7 +494,6 @@ export const EN = {
   'pad.ready': "I'M READY",
   'pad.countBadge': '{icon:hourglass} MATCH STARTING',
   'pad.go': 'GO!',
-  'pad.countSub': 'HOLD PHONE • WATCH SCREEN',
   'pad.roundGap': 'NEXT ROUND {0}s',
   'pad.seatHint': 'Tap the seat you want. Your current, host, and bot seats are locked.',
   'pad.seatHintEarly': 'You can change seats now; they lock when the host opens the arena.',

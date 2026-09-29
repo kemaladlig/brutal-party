@@ -48,27 +48,10 @@
       <!-- Dikey rotate gate: app geneli landscape kilit (yalnız dokunmatik) -->
       <div id="app-rotate-gate" class="app-rotate-gate hidden" aria-hidden="true"></div>
 
-      <!-- Discrete In-Game Quick Options Button (Safe Corner Placement) -->
-      <!-- data-theme="field": bu kaplama krem saha üstüne oturur, açık tema
-           kapsamına girer (bkz. tokens.css `[data-theme='field']`). -->
-      <div id="in-game-hud" class="hidden" data-theme="field">
-        <button id="btn-quick-tv-lobby" class="btn-quick-tv-lobby hidden" type="button">
-          <span data-icon="tv" aria-hidden="true"></span>
-          <span data-i18n="host.backToLobby">LOBİYE DÖN</span>
-        </button>
-        <button id="btn-layout-editor" class="btn-layout-editor hidden" type="button" data-i18n-aria="controllerLayout.open" aria-label="Kumanda Düzeni">
-          <span data-icon="settings" aria-hidden="true"></span>
-        </button>
-        <button id="btn-quick-fullscreen" class="btn-quick-fullscreen" type="button" aria-label="Tam Ekran" title="Tam Ekran Aç/Kapat">
-          <span id="quick-fullscreen-icon" class="fs-icon" data-icon="maximize_2" aria-hidden="true"></span>
-        </button>
-        <button id="btn-quick-react" class="btn-quick-react hidden" type="button" data-reaction-open data-reaction-send="host" data-i18n-aria="pad.reactTitle" aria-label="Tepki Gönder" title="Tepki Gönder">
-          <span class="reaction-glyph" data-reaction-glyph="laugh" aria-hidden="true"></span>
-        </button>
-        <button id="btn-open-options" type="button" aria-label="Seçenekler ve Menü">
-          <span data-icon="more_vertical" aria-hidden="true"></span>
-        </button>
-      </div>
+      <!-- In-Game Quick Chrome: gövde tek tanımdan (`src/ui/quickChrome.js`)
+           main.js'te basılır; burada yalnız boş kap durur. data-theme="field"
+           krem saha üstüne oturması içindir (bkz. tokens.css). -->
+      <div id="in-game-hud" class="hidden" data-theme="field"></div>
 
       <!-- Host Staging Bar (saha açıkken: sayaç öncesi son kontrol) -->
       <div id="staging-bar" class="hidden" data-theme="field">

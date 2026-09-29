@@ -81,6 +81,7 @@ export function createCrownWorldPacket(game) {
       slip: (Number(player.slipTimer) || 0) > 0,
     }),
     extras: {
+      selfPredict: true,
       timeLeft: Math.max(0, Math.ceil(game.roundTimer || 0)),
       crown: {
         x: round1(game.crown?.x || 0),

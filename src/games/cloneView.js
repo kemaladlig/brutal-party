@@ -47,6 +47,7 @@ export function createCloneWorldPacket(game) {
       task: round1(p.taskTimer || 0),
     }),
     extras: {
+      selfPredict: true,
       roundTime: round1(game.roundTime || 0),
       matchDraw: game.matchDraw === true,
       stations: (Array.isArray(game.taskPoints) ? game.taskPoints : []).slice(0, 4).map((tp) => ({

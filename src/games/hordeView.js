@@ -250,7 +250,7 @@ export function createHordeWorldPacket(game, tuning = {}) {
   return createWorldSnapshot(game, {
     mode: 'HORDE',
     mapPlayer: (player) => scene.players[player.index],
-    extras: packHordeScene(scene),
+    extras: { ...packHordeScene(scene), selfPredict: true },
     particleCap: HORDE_VIEW_LIMITS.particles,
   });
 }

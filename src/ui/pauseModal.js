@@ -22,7 +22,7 @@ import { getSlotKeys, KEY_LABELS, getKeyCapLabel } from '../core/inputMaps.js';
 import { createQuickSettingsPanel } from './settings/settingsPanel.js';
 import { openSettingsSheet } from './settings/settingsSheet.js';
 import { createTabStrip } from './tabStrip.js';
-import { fullscreenOfferable } from './fullscreen.js';
+import { canToggleFullscreen } from './fullscreen.js';
 
 const pauseModal = document.getElementById('pause-modal');
 const pauseGameTitle = document.getElementById('pause-game-title');
@@ -246,7 +246,7 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
   if (btnPauseReact) {
     btnPauseReact.classList.toggle('hidden', !isHosting);
   }
-  pauseQuickRow?.classList.toggle('hidden', !fullscreenOfferable() && !isHosting);
+  pauseQuickRow?.classList.toggle('hidden', !canToggleFullscreen() && !isHosting);
   if (btnExitToMenu) {
     const textEl = btnExitToMenu.querySelector('.btn-text');
     const exitText = t('pause.exit');

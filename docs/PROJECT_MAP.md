@@ -20,17 +20,22 @@ src/gamepad.js              Telefon kumandası: world canvas + overlay kontrolle
 src/controllers/
   controllerTemplates.js    Deklaratif kumanda şablonları (JOYSTICK_ACTION, TWIN_STICK_ACTION,
                             ARCADE_DRIVE, STEER_ACTION, SLIDER_1D + semantic layout hedefleri)
-  gamepadInputAdapter.js    50ms analog throttle + dead-zone sınırı (transport bağımsız)
+  gamepadInputAdapter.js    40ms analog throttle + dead-zone sınırı (transport bağımsız)
   physicalGamepadAdapter.js Browser Gamepad API polling; touch/keyboard öncelikli ikincil kaynak
-  gamepadShell.js           Stabil kumanda shell/presenter markup'ı; HUD şeridi + sonuç kabı
+  gamepadShell.js           Stabil kumanda shell YERLEŞİMİ (üst çipler `ui/quickChrome.js`ten
+                            üretilir); HUD şeridi + sonuç kabı
   gamepadSchemas.js         15 oyun için deklaratif kumanda şemaları + canlı sync hook'ları
   controlDefs.js            Merkezi kontrol sözleşmesi: sol + sağ-max-2 + landscape-first + nötr paket
   controllerStatus.js       Üst durum şeridi metinleri (15 oyun tek kayıt; SKOR YOK — tek skor
                             yüzeyi taç peek + kill-feed; LOCAL'de şeri çizilmez, motor HUD'u yetkili)
   controllerGuide.js        CONTROL_DEFS + schema'dan türetilen kontrol rehberi (pause paneli kullanır)
 src/gamepad.css             Kumanda stilleri (mobil ergonomi + control-deck saydamlık token'ları)
-src/ui/gamepadWorldView.js  Client world canvas: DPR, 3-8 jitter buffer, 60 Hz+ rAF, seq/stale
-src/ui/worldViewKit.js      World-view kromu (banner/placeholder/stale + fitWorld)
+src/ui/gamepadWorldView.js  Client world canvas: DPR, 3-8 jitter buffer, 60 Hz+ rAF, seq/stale,
+                             self-avatar prediction (`selfPredict` bayraklı world-view'de)
+src/ui/perfOverlay.js       Debug performans HUD'u (yalnız `?perf`/`bp.perf=1`); perfMonitor okur
+src/ui/worldViewKit.js      World-view kromu (raunt bandı `drawWorldRoundBanner` = host
+                            `renderRoundBanner`; `drawWorldMatchOver` = host final kartı;
+                            placeholder/stale + fitWorld)
 src/ui/resultPanel.js       Sonuç paneli primitifleri: drawResultPanel / dimBehindPanel /
                             resultPanelRadius / uiTextScale (tur bandı, final kartı, kumanda ortak)
 src/ui/{snake,pong,race,crown,archer,bomb,heist,tanks,clone,ninja,laser,zone,collapse,curve,horde}WorldView.js
@@ -96,6 +101,10 @@ src/core/
                             `normalizeStateSync` — 8 Hz STATE_SYNC zarfının TEK
                             düzleştirme kapısı (her iki istemci + sunucu çağırır)
   worldInterpolation.js     Snapshot sunum interpolasyonu (stable-id blend, no-extrapolation)
+  selfPrediction.js         Sunum-only self-avatar prediction: yön canlı yerel girdiden, hız
+                            gözlenen snapshot'tan; yalnız `selfPredict` bayraklı pakette çalışır
+  perfMonitor.js            Tek kaynak performans defteri (host kare döngüsü + client world
+                            sunumu); yalnız `?perf` HUD'u okur, oyun durumu üretmez
   inputMaps.js              Tek klavye slot haritası: getSlotKeys, keyboardVectorFrom, readSlotKeys,
                             isSlotActionEvent, slotForActionCode, buildCodeToSlotMap, getKeyLabel
   customizationManager.js   Cihaz-başı TEK profil; sanitizeAvatar/pickFreeColor; avatar kayıt defteri
@@ -140,6 +149,10 @@ src/ui/
   iconSlots.js              [data-icon] yuvalarını Lucide SVG ile doldurma
   reactionLayer.js          Tepki BALONU (lobi + oyun içi + kumanda tek uygulama, data-reaction-anchor)
   reactionPicker.js         Tepki SEÇİCİ (data-reaction-open + data-reaction-send="host|pad")
+  quickChrome.js            Üst yüzen çiplerin TEK tanımı (QUICK_CHIPS): host `#in-game-hud`
+                            + kumanda başlığı buradan üretilir; sıra/görünürlük veri
+  scoreModel.js             Skor görünümünün TEK modeli (scoreEntries): dolu koltuk + isim +
+                            renk + lider; host canvas skorbord'u ve kumanda taç-peek'i besler
   tabStrip.js               MERKEZİ sekme şeridi (OYUNLAR kategorileri + KARAKTER editörü)
   canvasUI.js               Ortak canvas UI: renderLobbySeatCard, renderLobbyStartButton,
                             renderStandardLobbySeats, renderMatchOver, renderRoundBanner,
@@ -229,7 +242,7 @@ scripts/rules-lint.mjs      AGENTS.md K1–K6 makine bekçisi (mode=== dalı, ha
 | CROWN | Brutal Crown | `src/games/crown.js` | `crownAI` | `mountCrownController` | **Arşivden çıkarıldı**; taç tutma; pinball bumper; 30 Hz world-view |
 | ZONE | Brutal Zone | `src/games/zone.js` | `zoneAI` | `mountZoneController` | 64×64 grid kapma; %40 early win; RLE; 30 Hz world-view |
 | SNAKE | Brutal Snake | `src/games/snake.js` | `snakeAI` | `mountSnakeController` | Yemle büyü; hold-boost; 30 Hz world-view |
-| LASER | Brutal Laser | `src/games/laser.js` | `laserAI` | `mountLaserController` | Twin-stick aim; 3 can + dash i-frame; 90sn/10 kill; 30 Hz world-view |
+| LASER | Brutal Laser | `src/games/laser.js` | `laserAI` | `mountLaserController` | Twin-stick aim; 3 can + dash i-frame; 90sn/10 kill; 30 Hz world-view; self-predict (`selfPredict:true`) |
 | CLONE | Brutal Clone | `src/games/clone.js` | `cloneAI` | `mountCloneController` | 2 gecikmeli kopya; 30 Hz world-view |
 | COLLAPSE | Brutal Collapse | `src/games/collapse.js` | `collapseAI` | `mountCollapseController` | 13×13 çöken ızgara; 60sn; 30 Hz world-view |
 | NINJA | Brutal Ninja | `src/games/ninja.js` | `ninjaAI` | `mountNinjaController` | Görünmezlik; selfSlot hayalet; 30 Hz world-view |
@@ -244,12 +257,12 @@ scripts/rules-lint.mjs      AGENTS.md K1–K6 makine bekçisi (mode=== dalı, ha
 
 Her WebRTC peer'ında iki DataChannel:
 - `control` (`ordered:true`): girdi, hazır, koltuk, 8 Hz HUD/state. WebRTC yoksa Supabase fallback.
-- `world` (`ordered:false, maxRetransmits:0`): yalnız ONLINE world-view oyunlarında 30 Hz tam snapshot; client `seq` ile eski/geç kareyi atar. TV_CONSOLE'da kapalı.
+- `world` (`ordered:false, maxRetransmits:0`): yalnız ONLINE world-view oyunlarında 30 Hz tam snapshot; client `seq` ile eski/geç kareyi atar. TV_CONSOLE'da kapalı. Playout tabanı 35 ms; pakette `selfPredict:true` varsa client kendi avatarını sunum-taraflı ileri sarar (`core/selfPrediction.js`) — host simülasyonu/yetkisi değişmez. Bayrak yalnız DOĞRUDAN-hareket oyunlarında (LASER, CROWN, BOMB, HEIST, CLONE, COLLAPSE, ARCHER, NINJA, ZONE, HORDE); steer-kinematikli RACE/SNAKE/CURVE/PONG/TANKS'ta yoktur (girdi yönü = hareket yönü değil).
 
 Ortak doğrulama `networkProtocol.js`. **Uçtan uca:** oda kur (3 haneli kod) → keşif (kod + role) → `JOIN_SUCCESS` (worldView + reservedHostSlot) → signaling (offer/answer + kuyruklu ICE) → oyun trafiği P2P `control`+`world` → Supabase devre dışı. Kayıp paket: `world` kareleri bağımsız, düzeltme gerekmez; kritik olaylar `control`'dan anında.
 
 ### player_msg (uzak telefon → host):
-- `INPUT`: joystick `(x,y)` / buton (`FIRE`, `DASH`, `TACKLE`, `HORDE_FIRE/RELEASE`). 50ms throttle; aksiyon throttlesız.
+- `INPUT`: joystick `(x,y)` / buton (`FIRE`, `DASH`, `TACKLE`, `HORDE_FIRE/RELEASE`). 40ms throttle; aksiyon throttlesız.
 - `AVATAR_UPDATE` (INPUT tüneli): kendi karakteri `{color, expression}`; host sanitize eder.
 - `JOIN_ROOM`/`JOIN`, `SWITCH_SLOT`, `PLAYER_READY`, `SET_NAME`, `REACTION`, `PING`.
 
@@ -290,7 +303,8 @@ transport aynı tüketiciliği besler).
 6. **Lokal=kumanda eşitliği** — her motor tek cihazda tam oynanır (lobi / 4 klavye / 4 joystick).
 7. **Tek tip lobi koltuğu** — `canvasUI.renderLobbySeatCard` + start butonu; PONG kenar-orta istisna.
 8. **Arayüz sistemi** — token → helper → a11y; `getDisplayProfile` yalnız UI ölçeği, saha ölçeği `arena.unit`.
-9. **Girdi sertleştirme** — analoglar tek noktada 50ms kısılır; kopan kumanda nötral + koltuk tutar;
+9. **Girdi sertleştirme** — analoglar tek noktada 40ms kısılır (host 33ms ikinci kapı); touchcancel
+   yönü 150ms grace ile korur; kopan kumanda nötral + koltuk tutar;
    WS kopma simetriği (30s watchdog + auto-rejoin); oyun kodunda dispatch `if/else` zincirsiz.
 10. **Kontrol eşleşmesi** — telefon↔motor, klavye her motorda; basılı yön 250ms keepalive; `bp_control_surface`.
 11-15. **Faz A-E (tarama raporları)** — çökme + kritik mantık, güvenlik/validasyon, oda yarışları,
@@ -305,7 +319,10 @@ transport aynı tüketiciliği besler).
     ölçülen tasarım yarıçapı bant kilidine tabi (`movementBudget.test.mjs §B`), PONG hariç.
 19. **İkonografi** — Lucide neo-brutalist; tek kaynak `tabletopIcons.js`; butonlarda metin başlığı yok.
 20. **Online world-view** — generic çekirdek `worldCore.js` + `[oyun]View` + client renderer; 30 Hz;
-    oyun başına deklaratif `extras`. Client simülasyon/AI import etmez.
+    oyun başına deklaratif `extras`. Client simülasyon/AI import etmez. Maç sonu kartı host
+    canvas'ıyla AYNI (`hud.renderMatchOver` → `worldViewKit.drawWorldMatchOver`): kumanda ayrı
+    bant yazmaz; `frame.scores` + `slots`'tan yalnız dolu koltukları çizer, eylem butonu yoktur
+    (yeniden başlatma yetkisi hostta).
 21. **Kontrol rehberi** — `controllerGuide.js` tek projeksiyon; oyun-başına HTML kopyası yok.
 22. **Cihaz bağlamı+tercih** — `preferences.js` versioned; otomatik yüzey seçimi.
 23. **Ergonomi/dayanıklılık** — Pointer Events + capture; 44px; `inputSource` kaynak kilidi.

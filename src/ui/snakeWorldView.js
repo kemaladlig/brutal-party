@@ -9,14 +9,14 @@ import {
 } from '../games/snakeView.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
-import { fitWorld, worldScreenBox, drawWorldBanner, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 
 export function createSnakeWorldViewRenderer() {
   return {
     validate: isValidSnakeWorldFrame,
 
-    render(ctx, frame, width, height, slots = [], now = performance.now()) {
+    render(ctx, frame, width, height, slots = [], now = performance.now(), context = {}) {
       const [left, top, right, bottom] = frame.arena;
       const arena = { left, top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
 
@@ -42,11 +42,11 @@ export function createSnakeWorldViewRenderer() {
       ctx.restore();
 
       if (frame.gameState === 'ROUND_OVER') {
-        const winner = slots?.[frame.roundWinner]?.name;
-        drawWorldBanner(ctx, width, height, t('game.roundOver'), winner || '');
+        drawWorldRoundBanner(ctx, width, height, frame, slots, context);
       } else if (frame.gameState === 'MATCH_OVER') {
-        const winner = slots?.[frame.matchWinner]?.name;
-        drawWorldBanner(ctx, width, height, frame.matchDraw ? t('game.draw') : t('snake.champ'), winner || '');
+        drawWorldMatchOver(ctx, width, height, frame, slots, {
+          headline: frame.matchDraw ? t('game.draw') : t('snake.champ'),
+        });
       }
     },
 

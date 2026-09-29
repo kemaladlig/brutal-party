@@ -32,6 +32,7 @@ export function createBombWorldPacket(game) {
   return {
     version: 1,
     mode: 'BOMB',
+    selfPredict: true,
     seq: game._worldSeq,
     roundId: Number(game.roundId) || 0,
     gameState: game.state || 'LOBBY',

@@ -17,7 +17,7 @@ import { prefersReducedMotion } from './motion.js';
 import { toggleAudio, getIsMuted, playMenuTick } from '../audio.js';
 import {
   isFullscreen, toggleFullscreen, onFullscreenChange,
-  fullscreenOfferable, requestMatchFullscreen, resumeMatchFullscreen,
+  canToggleFullscreen, requestMatchFullscreen, resumeMatchFullscreen,
 } from './fullscreen.js';
 import { isStandaloneApp } from './toast.js';
 import { getLang, setLang, onLangChange, t } from '../i18n.js';
@@ -561,8 +561,8 @@ function mountNavActions() {
   });
 
   host.append(soundBtn, langBtn, fsBtn, settingsBtn);
-  // Sıradan webde tam ekran düğmesi yoktur (yalnız kurulu PWA).
-  fsBtn.classList.toggle('hidden', !fullscreenOfferable());
+  // Tarayıcı destekliyorsa düğme her yüzeyde görünür (web dahil).
+  fsBtn.classList.toggle('hidden', !canToggleFullscreen());
   if (navActionsBound) return;
   navActionsBound = true;
   // Canlı düğüme bakılır: eski rebuild'in kopuk `fsBtn` kapanışı güncellenmez.

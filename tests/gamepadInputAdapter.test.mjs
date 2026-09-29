@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GamepadInputAdapter } from '../src/controllers/gamepadInputAdapter.js';
 
-test('gamepad input adapter preserves 50ms throttle and dead-zone policy', () => {
+test('gamepad input adapter preserves analog throttle and dead-zone policy', () => {
   let now = 0;
   const sent = [];
   const adapter = new GamepadInputAdapter((data) => sent.push(data), { now: () => now });
@@ -21,7 +21,7 @@ test('gamepad input adapter preserves 50ms throttle and dead-zone policy', () =>
   assert.equal(sent.length, 4);
 });
 
-test('gamepad input adapter gives move and aim independent 50ms budgets', () => {
+test('gamepad input adapter gives move and aim independent throttle budgets', () => {
   let now = 0;
   const sent = [];
   const adapter = new GamepadInputAdapter((data) => sent.push(data), { now: () => now });

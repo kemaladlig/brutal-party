@@ -1099,7 +1099,7 @@ export class SupabaseRelay {
   }
 
   sendInput(data) {
-    // 50ms analog throttle yalnız `GamepadInputAdapter`'da (tek kapı) — relay
+    // Analog throttle yalnız `GamepadInputAdapter`'da (tek kapı) — relay
     // kimse kopyalamıyor; WS ve Supabase aynı bütçeyi adaptörden alır.
     if (this.role !== 'CONTROLLER' || !data || typeof data.action !== 'string') return;
 

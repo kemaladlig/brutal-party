@@ -88,6 +88,9 @@ export function createLaserWorldPacket(game, tuning = {}) {
     mode: 'LASER',
     mapPlayer: (p) => mapLaserPlayers([p], game.lasers, tuning, (pl) => game.traceAim(pl), withAim)[0],
     extras: {
+      // Pilot: telefon sunumunda self-avatar prediction'a izin verir. Motor
+      // hızı/çarpışması değişmez; GamepadWorldView yalnız ÇİZİMİ ileri sarar.
+      selfPredict: true,
       matchDraw: game.matchDraw === true,
       timeLeft: round1(game.matchTimer || 0),
       obstacles: packRectList(game.obstacles, 16),
