@@ -96,6 +96,11 @@ export const SETTINGS_ROWS = [
       { value: 'en', labelKey: 'settings.langEn' },
     ],
   },
+  {
+    // Faz 4.3 — sakin mod: hareket kısılır + FX kademesi low (termal/bateri).
+    tab: 'system', id: 'calm', type: 'switch', action: 'calm',
+    labelKey: 'settings.calm', iconOn: { on: 'moon', off: 'zap' },
+  },
   { tab: 'system', id: 'version', type: 'static', action: 'version', labelKey: 'settings.version' },
   { tab: 'system', id: 'storage', type: 'static', action: 'storage', labelKey: 'settings.storage' },
   {

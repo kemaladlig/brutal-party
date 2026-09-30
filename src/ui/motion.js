@@ -4,6 +4,10 @@
 
 let mq = null;
 
+// Faz 4.3: "sakin mod" tercihi OS `prefers-reduced-motion` ile AYNI kapıdan
+// geçer — tek okuma noktası burasıdır, tüm motion çağrıları otomatik uyar.
+import { getPreference } from '../core/preferences.js';
+
 function media() {
   if (!mq && typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
     mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -12,7 +16,12 @@ function media() {
 }
 
 export function prefersReducedMotion() {
-  return !!media()?.matches;
+  if (media()?.matches) return true;
+  try {
+    return getPreference('calmMode') === true;
+  } catch {
+    return false;
+  }
 }
 
 // Sarsıntı çarpanı: normalde 1, azaltılmış harekette 0.

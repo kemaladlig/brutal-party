@@ -2,8 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_PREFERENCES,
+  getPreference,
   normalizePreferences,
+  setPreference,
 } from '../src/core/preferences.js';
+import { motionScale, prefersReducedMotion } from '../src/ui/motion.js';
+import { fxGlowEnabled, fxParticleScale, fxTierName } from '../src/core/perfMonitor.js';
 import {
   CONTROL_MODE,
   CONTROL_SURFACE,
@@ -143,4 +147,32 @@ test('LOCAL without a known slot falls back to the whole canvas', () => {
     }),
     { mode: CONTROL_MODE.CANVAS, localControlSlot: null },
   );
+});
+
+// ── Faz 4.3 — sakin mod ─────────────────────────────────────────────────────
+
+test('calm mode normalizes as a boolean and defaults off', () => {
+  assert.equal(DEFAULT_PREFERENCES.calmMode, false);
+  assert.equal(normalizePreferences({}).calmMode, false);
+  assert.equal(normalizePreferences({ calmMode: true }).calmMode, true);
+  assert.equal(normalizePreferences({ calmMode: 'yes' }).calmMode, false);
+});
+
+test('calm mode reduces motion and pins the FX tier to low', () => {
+  assert.equal(getPreference('calmMode'), false);
+  assert.equal(motionScale(), 1);
+  setPreference('calmMode', true);
+  try {
+    // OS tercihi yokken (node) tek kapı sakin moddur.
+    assert.equal(prefersReducedMotion(), true);
+    assert.equal(motionScale(), 0);
+    // Termal/bateri: etkin kademe low, glow kapalı, partikül ölçeği düşük.
+    assert.equal(fxTierName(), 'low');
+    assert.equal(fxGlowEnabled(), false);
+    assert.equal(fxParticleScale(), 0.4);
+  } finally {
+    setPreference('calmMode', false);
+  }
+  assert.equal(motionScale(), 1);
+  assert.equal(fxTierName(), 'high');
 });

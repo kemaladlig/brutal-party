@@ -7,6 +7,8 @@
 // (render/frame) veya ağ (playout/jitter/frame age). Sunum-only; oyun durumu
 // üretmez, host yetkisini değiştirmez.
 
+import { getPreference } from './preferences.js';
+
 const RING = 120;
 
 function makeSeries() {
@@ -56,6 +58,16 @@ const FX_TIER_SPEC = {
 };
 const FX_SLOW_FRAME_MS = 20;
 const FX_SLOW_STREAK = 30;
+
+// Faz 4.3: "sakin mod" açıkken kademe low'a sabitlenir (termal/bateri).
+// Tercih okunamazsa (test/erken boot) otomatik kademe geçerlidir.
+function calmModeActive() {
+  try {
+    return getPreference('calmMode') === true;
+  } catch {
+    return false;
+  }
+}
 
 let fxTier = 'high';
 let fxSlowStreak = 0;
@@ -117,20 +129,22 @@ export function noteFxFrameTime(ms) {
   }
 }
 
-/** Kademe adı (rapor/perf overlay). */
+/** Kademe adı (rapor/perf overlay). Sakin modda ETKİN kademe low'dur. */
 export function fxTierName() {
-  return fxTier;
+  return calmModeActive() ? 'low' : fxTier;
 }
 
 /** Partikül çarpanı — TEK okuma noktası (fxRuntime burst boyutu). */
 export function fxParticleScale() {
   ensureFxTierBoot();
+  if (calmModeActive()) return FX_TIER_SPEC.low.particleScale;
   return FX_TIER_SPEC[fxTier].particleScale;
 }
 
-/** Glow/puls aurası katmanı açık mı (low'da kapalı). */
+/** Glow/puls aurası katmanı açık mı (low'da ve sakin modda kapalı). */
 export function fxGlowEnabled() {
   ensureFxTierBoot();
+  if (calmModeActive()) return false;
   return FX_TIER_SPEC[fxTier].glow;
 }
 

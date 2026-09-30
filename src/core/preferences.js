@@ -29,6 +29,10 @@ export const DEFAULT_PREFERENCES = Object.freeze({
   pongInvert: 'auto',
   pongSensitivity: 1,
   controllerLayout: DEFAULT_CONTROLLER_LAYOUT,
+  // "Sakin mod" (Faz 4.3): OS `prefers-reduced-motion` gibi davranır (hareket
+  // kısılır) + FX kademesi low'a sabitlenir → uzun oturumda termal/bateri
+  // dostu. Tek okuma noktaları: `motion.js` ve `perfMonitor.js`.
+  calmMode: false,
   // Ana menünün "KALDIĞIN YER" girişi: en son SAHAYA GEÇİLEN oyun modu. Kayıt
   // yeri burada TEKTİR (`roomFlow.enterStaging` yazar, `homeView` okur); mod
   // kimliği `CARTRIDGES` anahtarıdır ama doğrulama registry'ye bırakılır —
@@ -68,6 +72,9 @@ export function normalizePreferences(value = {}) {
       ? Math.round(clamp(sensitivity, 0.5, 1.5) * 100) / 100
       : DEFAULT_PREFERENCES.pongSensitivity,
     controllerLayout: normalizeControllerLayout(source.controllerLayout),
+    calmMode: typeof source.calmMode === 'boolean'
+      ? source.calmMode
+      : DEFAULT_PREFERENCES.calmMode,
     // Mod kimliği yalnız boş olmayan bir dizedir; tanınmayan bir mod (silinmiş
     // oyun / eski sürüm kaydı) burada DEĞİL, okuyan tarafta `CARTRIDGES` ile
     // elenir — kayıt bozuk olsa bile menü çizilebilir kalır.

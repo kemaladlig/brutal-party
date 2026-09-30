@@ -53,6 +53,16 @@ export const settingsActions = {
     },
   },
 
+  // Faz 4.3 — sakin mod: hareketi kısar + FX kademesini low'a sabitler.
+  calm: {
+    get: () => getPreference('calmMode'),
+    toggle: () => {
+      const next = !getPreference('calmMode');
+      setPreference('calmMode', next);
+      showInstallToast(next ? t('toast.calmOn') : t('toast.calmOff'));
+    },
+  },
+
   bots: {
     get: () => isBotEkleEnabled(),
     toggle: () => {
