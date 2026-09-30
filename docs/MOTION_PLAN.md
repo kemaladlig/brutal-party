@@ -161,8 +161,11 @@ gerçek Android düşük-ucuz cihazda 60 fps yakalama (perfMonitor çıktısı k
       (satır 175 "yer-gölgesi kullanıcı isteği üzerine iptal", satır 214 "kalın koyu çizgi is gibi
       okunuyordu") → varsayım politikası gereği sessizce tersine çevrilmedi. Kullanıcı "gölge/rim
       ekle" derse kullanıcı onayıyla uygulanır.)
-- [ ] 3.2 I7 dürüstlüğü: 12 px taban `qualityGate` anchor'u (852×393) yerine gerçek en
+- [x] 3.2 I7 dürüstlüğü: 12 px taban `qualityGate` anchor'u (852×393) yerine gerçek en
       küçük hedef cihazda (SE yatay) ölçülür; rapor I8-I11'e kademe-farkı satırı eklenir.
+      (Bitti 2026-09-30 / `9e2b56c`: I7 artık SE 667×375'te ölçülür — `npm run health`
+      satırı "I7 artık EN KÜÇÜK cihazda (SE 667x375) ölçülür" der; RACE/CLONE gövdeleri
+      büyütüldü, I12 kademe-farkı raporu eklendi.)
 - [x] 3.3 Üç kademe hiyerarşi (fxKit hakemiyle zorunlu): T1 kendi avatarın+nişan hattın
       (tam opak, tam juice) · T2 aktif tehdit (mermi/kenar — parlak ama flash-seviyesi değil)
       · T3 diğer oyuncular + ambiyans (α −%25). Motorlar α'yı kendisi uydurmaz.
@@ -229,7 +232,9 @@ her avatar tanınır, HUD üstünde hiçbir şey uçuşmaz, T3 solukluğu ölç�
 
 ## Doğrulama (her fazda)
 
-- [ ] `npm run check` (tsc + undef + tokens + rules + test + health) — her PR/commit
-- [ ] `npm run test:e2e` — Faz 2 portlarında zorunlu
-- [ ] §11 3 prova davranış değişiminde; `fxKit`/`fxBudget` testleri yeni kilitler
-- [ ] Gerçek cihaz: düşük-ucuz Android (kademe düşüşü) + küçük telefon yatay (I7, okunurluk)
+- `npm run check` (tsc + undef + tokens + rules + test + health) — her PR/commit
+- `npm run test:e2e` — Faz 2 portlarında zorunlu
+- §11 3 prova davranış değişiminde; `fxKit`/`fxBudget` testleri yeni kilitler
+- **TEK AÇIK İŞ (kullanıcı tarafı):** Gerçek cihaz — düşük-ucuz Android (kademe düşüşü)
+  + küçük telefon yatay (I7, okunurluk). Agent bu ölçümü yapamaz; tüm fazlar kapandıktan
+  sonra kalan tek kanıt budur.
