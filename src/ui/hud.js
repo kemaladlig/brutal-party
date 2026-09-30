@@ -14,6 +14,7 @@ import { drawResultPanel, dimBehindPanel, resultPanelRadius, uiTextScale } from 
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
 import { scoreEntries } from './scoreModel.js';
+import { motionScale } from './motion.js';
 
 function pathRoundRect(ctx, x, y, w, h, r) {
   if (typeof ctx.roundRect === 'function') {
@@ -884,6 +885,40 @@ export function renderEntityHUD(ctx, {
   ctx.restore();
 }
 
+/**
+ * Giriş sonu "tick-zıplatma" eğrisi (Faz 3.6). `enter` 0→1 ilerlerken sonuç
+ * kartı yerine oturur; son dilimde skor değeri kısa bir zıplama yapıp oturur —
+ * kazanma anı "bitti" değil "oldu" hissi verir. Kart dili/ölçüsü DEĞİŞMEZ,
+ * yalnız metin ölçeği oynar. Azaltılmış harekette (motion 0) sabit 1.
+ * Saf ve test edilebilir.
+ * @param {number} enter 0..1 (MATCH_OVER girişinden bu yana)
+ * @param {number} [motion] motionScale()
+ * @returns {number} ölçek çarpanı (≥1)
+ */
+export function tickPopScale(enter, motion = 1) {
+  if (!(motion > 0)) return 1;
+  const t = Math.max(0, Math.min(1, Number(enter) || 0));
+  if (t <= 0.55 || t >= 1) return 1;
+  const phase = (t - 0.55) / 0.45;
+  return 1 + 0.14 * Math.sin(Math.PI * phase);
+}
+
+/**
+ * Raunt geri sayımı tik-zıplatması (Faz 3.6): her tam saniye düşüşünde sayı
+ * kısa bir zıplama yapar. Kalan sürenin ondalık kısmı yeni tikte ~1 → sayı
+ * taze; sıfıra indikçe nabız söner. Azaltılmış harekette sabit 1.
+ * @param {number} countdown kalan saniye
+ * @param {number} [motion] motionScale()
+ * @returns {number} ölçek çarpanı (≥1)
+ */
+export function roundTickPop(countdown, motion = 1) {
+  if (!(motion > 0)) return 1;
+  const left = Math.max(0, Number(countdown) || 0);
+  if (left <= 0) return 1;
+  const frac = left - Math.floor(left);
+  return 1 + 0.14 * frac;
+}
+
 // Standart raund bandı: başlık + alt bilgi. Final kartıyla aynı paneli paylaşır
 // — tur sonu ile maç sonu iki farklı dilde konuşmaz.
 export function renderRoundBanner(ctx, { arena, title, titleColor, sub = '', countdown = 0 }) {
@@ -935,7 +970,17 @@ export function renderRoundBanner(ctx, { arena, title, titleColor, sub = '', cou
         color: UI_COLORS.resultGold,
       });
     }
-    ctx.fillText(label, right - textW, baseY);
+    // Tik-zıplatma: sayı her düştüğünde kısa bir zıplama (kart dili değişmez).
+    const pop = roundTickPop(left, motionScale());
+    if (pop !== 1) {
+      ctx.save();
+      ctx.translate(right - textW / 2, baseY);
+      ctx.scale(pop, pop);
+      ctx.fillText(label, -textW / 2, 0);
+      ctx.restore();
+    } else {
+      ctx.fillText(label, right - textW, baseY);
+    }
   }
   ctx.restore();
 }
@@ -1221,7 +1266,18 @@ export function renderMatchOver(ctx, {
       ctx.textAlign = 'right';
       ctx.font = uiFont('finalRowValue', g.ts);
       ctx.fillStyle = UI_COLORS.resultGold;
-      ctx.fillText(entry.value, valueX, cy);
+      // Kazananın skoru kart yerine otururken kısa bir tick-zıplatma yapar
+      // (Faz 3.6). Yalnız sıralamanın tepesindeki satır; başka satır oynamaz.
+      const pop = showRank && entry.rank === 1 ? tickPopScale(enter, motionScale()) : 1;
+      if (pop !== 1) {
+        ctx.save();
+        ctx.translate(valueX - valueW / 2, cy);
+        ctx.scale(pop, pop);
+        ctx.fillText(entry.value, valueW / 2, 0);
+        ctx.restore();
+      } else {
+        ctx.fillText(entry.value, valueX, cy);
+      }
       ctx.textAlign = 'left';
     }
   });

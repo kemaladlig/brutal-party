@@ -19,12 +19,14 @@ let server;
 let computePlayfield;
 let getUiScale;
 let computeArenaTimerLayout;
+let tickPopScale;
+let roundTickPop;
 
 test.before(async () => {
   server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
   ({ computePlayfield } = await server.ssrLoadModule('/src/core/playfield.js'));
   ({ getUiScale } = await server.ssrLoadModule('/src/ui/tokens.js'));
-  ({ computeArenaTimerLayout } = await server.ssrLoadModule('/src/ui/hud.js'));
+  ({ computeArenaTimerLayout, tickPopScale, roundTickPop } = await server.ssrLoadModule('/src/ui/hud.js'));
 });
 
 test.after(async () => {
@@ -73,4 +75,25 @@ test('inset geometriyle (minDim) ölçeklenir, metinle sabitlenmez', () => {
     Math.abs(ratio - 2) < 0.05,
     `inset minDim ile ~2x ölçeklenmeli, ölçülen ${ratio.toFixed(3)}`,
   );
+});
+
+// Faz 3.6 — giriş sonu tick-zıplatma eğrileri. Kart dili değişmez; yalnız
+// metin ölçeği oynar ve azaltılmış harekette sabit 1 döner.
+test('tickPopScale giriş sonunda zıplar, uçlarda ve düşük harekette sabittir', () => {
+  assert.equal(tickPopScale(0), 1, 'giriş başında zıplama yok');
+  assert.equal(tickPopScale(1), 1, 'giriş bitince oturur');
+  assert.equal(tickPopScale(0.4), 1, 'erken dilimde henüz zıplama yok');
+  assert.equal(tickPopScale(0.775, 0), 1, 'azaltılmış harekette zıplama yok');
+  const peak = tickPopScale(0.775);
+  assert.ok(peak > 1 && peak <= 1.15, `tepe ölçek makul olmalı, ölçülen ${peak}`);
+  // Bump: tepe, uçlardan kesin büyük.
+  assert.ok(peak > tickPopScale(0.6) && peak > tickPopScale(0.95));
+});
+
+test('roundTickPop yeni tikte tepe, saniye sonunda nötrdür', () => {
+  assert.equal(roundTickPop(0), 1, 'geri sayım bitince zıplama yok');
+  assert.equal(roundTickPop(3), 1, 'tam saniye sınırı nötr');
+  assert.equal(roundTickPop(2.5, 0), 1, 'azaltılmış harekette zıplama yok');
+  assert.ok(roundTickPop(2.99) > roundTickPop(2.5), 'tik başında nabız daha güçlü');
+  assert.ok(roundTickPop(2.99) <= 1.15, 'tik ölçeği makul olmalı');
 });
