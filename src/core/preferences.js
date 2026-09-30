@@ -33,6 +33,10 @@ export const DEFAULT_PREFERENCES = Object.freeze({
   // kısılır) + FX kademesi low'a sabitlenir → uzun oturumda termal/bateri
   // dostu. Tek okuma noktaları: `motion.js` ve `perfMonitor.js`.
   calmMode: false,
+  // Bot tepkileri (banter): botların raunt/maç sonucunda emoji göndermesi.
+  // Varsayılan AÇIK — parti oyunu; kapatmak isteyen ayardan kapatır. Kararı
+  // `core/botReactionDirector.js` bu tercih üzerinden okur.
+  botReactions: true,
   // Ana menünün "KALDIĞIN YER" girişi: en son SAHAYA GEÇİLEN oyun modu. Kayıt
   // yeri burada TEKTİR (`roomFlow.enterStaging` yazar, `homeView` okur); mod
   // kimliği `CARTRIDGES` anahtarıdır ama doğrulama registry'ye bırakılır —
@@ -75,6 +79,9 @@ export function normalizePreferences(value = {}) {
     calmMode: typeof source.calmMode === 'boolean'
       ? source.calmMode
       : DEFAULT_PREFERENCES.calmMode,
+    botReactions: typeof source.botReactions === 'boolean'
+      ? source.botReactions
+      : DEFAULT_PREFERENCES.botReactions,
     // Mod kimliği yalnız boş olmayan bir dizedir; tanınmayan bir mod (silinmiş
     // oyun / eski sürüm kaydı) burada DEĞİL, okuyan tarafta `CARTRIDGES` ile
     // elenir — kayıt bozuk olsa bile menü çizilebilir kalır.

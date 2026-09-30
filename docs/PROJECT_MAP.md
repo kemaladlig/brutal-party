@@ -97,6 +97,11 @@ src/core/
                             travmayı traumaSink ile BaseGame'e devreder (sarsıntı sahibi motor kalır);
                             `update(dt)` içinden tick — simülasyon saati DURMAZ (sunum zamanı)
   reactions.js              Tepki seti TEK kaynağı: REACTIONS + normalizeReactionKey (wire = ikon anahtarı)
+  botBanter.js              Bot tepki KARARI (saf, DOM/ağ yok): BOT_BANTER_EVENTS + yüz→kişilik
+                            tablosu + pickBotReaction (yalnız reactions.js beyaz liste anahtarı)
+  botReactionDirector.js    Host durum-farkı yönetmeni: state/roundWinner/matchWinner/matchResult/
+                            scores[] geçişini okur, bot koltuğu adına tepki üretir (cooldown +
+                            sunucu 1 Hz bütçesi); motor/AI dosyalarına dokunmaz
   inputSource.js            keyboard/touch/pointer arbitration; kanal bazlı bypass
   controlDescriptor.js      phone/tabletop/network normalize kontrol sözleşmesi + parity
   inputIntent.js            Transport action → canonical engine intent projeksiyonu

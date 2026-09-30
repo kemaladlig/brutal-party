@@ -187,16 +187,37 @@ export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null, opts =
 
 export function drawTanksBullets(ctx, bullets, ownerColors) {
   for (const b of bullets) {
+    // 1. Zemine düşen mermi gölgesi (havada uçma hissi)
+    ctx.save();
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = UI_COLORS.inkDark;
+    ctx.beginPath();
+    ctx.arc(b.x + 1.2, b.y + 2, b.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // 2. Mermi dış konturu / gövdesi
     ctx.beginPath();
     ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-    ctx.fillStyle = '#1A1A1A';
+    ctx.fillStyle = UI_COLORS.inkDark;
     ctx.fill();
+
+    // 3. Mermi çekirdeği (sahip oyuncunun rengi)
     const ownerColor = ownerColors?.[b.owner];
     if (ownerColor) {
       ctx.beginPath();
-      ctx.arc(b.x, b.y, b.radius * 0.55, 0, Math.PI * 2);
+      ctx.arc(b.x, b.y, b.radius * 0.6, 0, Math.PI * 2);
       ctx.fillStyle = ownerColor;
       ctx.fill();
+
+      // 4. Parlak çekirdek ışıltısı (hız / enerji hissi)
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = UI_COLORS.white;
+      ctx.beginPath();
+      ctx.arc(b.x - b.radius * 0.18, b.y - b.radius * 0.18, Math.max(1, b.radius * 0.22), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
   }
 }

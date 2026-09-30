@@ -43,28 +43,30 @@ export const PICKUP_META = {
  * döner. Detaylar yalnız düz dolgu/çizgi kullanır.
  */
 export const OBSTACLE_STYLES = {
-  stone: { top: '#5A524C', fill: '#433D39', bevel: 'rgba(255,255,255,0.22)', edge: '#23201D', shadow: 'rgba(20, 16, 31, 0.32)', detail: detailStone },
-  dark:  { top: '#302A3D', fill: '#221D2E', bevel: 'rgba(255,255,255,0.18)', edge: '#130F1A', shadow: 'rgba(10, 8, 20, 0.42)', detail: null },
-  crate: { top: '#9A7745', fill: '#7A5B32', bevel: 'rgba(255,255,255,0.24)', edge: '#4C351B', shadow: 'rgba(20, 16, 31, 0.32)', detail: detailCrate },
+  // Açık granit taş: Yeşil (TANKS / ARCHER) zeminlerde yüksek kontrastlı, temiz, pürüzsüz taş blok.
+  stone: { top: '#E6E1D8', fill: '#CFC7B8', bevel: 'rgba(255,255,255,0.7)', edge: '#4E483E', shadow: 'rgba(20, 16, 31, 0.32)', detail: detailStone },
+  // Obsidyen / Koyu gece bloğu: NINJA, CURVE gibi mistik sahalarda derin koyu mor-antrasit.
+  dark:  { top: '#342C44', fill: '#231C30', bevel: 'rgba(255,255,255,0.22)', edge: '#120E1C', shadow: 'rgba(10, 8, 20, 0.45)', detail: null },
+  // Sıcak maun koli: BOMB ve HEIST gibi sıcak sahalarda zeminle kaynaşmayan, belirgin ahşap kasa.
+  crate: { top: '#7C4B24', fill: '#5C3314', bevel: 'rgba(255,255,255,0.32)', edge: '#361B08', shadow: 'rgba(20, 16, 31, 0.36)', detail: detailCrate },
 
-  // Soğuk metal: tek speküler şerit, koyu iç dudağ.
-  metal: { top: '#8A9099', fill: '#6B7280', bevel: 'rgba(255,255,255,0.34)', edge: '#2F343B', shadow: 'rgba(16, 20, 28, 0.38)', detail: detailMetal },
-  // Buz: iç içe iki kontur, açık gölge.
-  ice: { top: '#D8EEF7', fill: '#8FCBDE', bevel: 'rgba(255,255,255,0.55)', edge: '#3E7C93', shadow: 'rgba(30, 70, 86, 0.26)', detail: detailIce },
-  // Kaya: kırık köşe iki üçgen + tanecik.
-  rock: { top: '#5E584F', fill: '#4A4640', bevel: 'rgba(255,255,255,0.16)', edge: '#28251F', shadow: 'rgba(20, 16, 31, 0.36)', detail: detailRock },
-  // Ağır kasa: kasa derisi + iki kuşak.
-  crateHeavy: { top: '#8A6A3E', fill: '#5F451F', bevel: 'rgba(255,255,255,0.20)', edge: '#33230E', shadow: 'rgba(16, 12, 24, 0.40)', detail: detailCrateHeavy },
-  // Tehlike: gövde koyu, uyarı şeritleri sabit kehribar.
-  hazard: { top: '#3A3346', fill: '#221D2E', bevel: 'rgba(255,255,255,0.14)', edge: '#130F1A', shadow: 'rgba(10, 8, 20, 0.42)', detail: detailHazard },
-  // Kaideli taş: AÇIK zeminli sahalarda blok "cisim" olarak okunsun diye.
-  // (Hepsi #433D39 olunca blok çerçeveye gömülüp düzleşiyor.)
-  plinth: { top: '#D8D0C2', fill: '#B7AC98', bevel: 'rgba(255,255,255,0.55)', edge: '#6E665A', shadow: 'rgba(40, 34, 24, 0.28)', detail: detailPlinth },
+  // Soğuk platin / kobalt titanyum: tek speküler şerit, parlak metalik yüzey.
+  metal: { top: '#DDE3ED', fill: '#9BA8BD', bevel: 'rgba(255,255,255,0.85)', edge: '#3B4556', shadow: 'rgba(16, 20, 28, 0.38)', detail: detailMetal },
+  // Kristal buz: iç içe iki kontur, açık speküler gölge.
+  ice: { top: '#E6F6FC', fill: '#9BD6E8', bevel: 'rgba(255,255,255,0.75)', edge: '#3E7C93', shadow: 'rgba(30, 70, 86, 0.26)', detail: detailIce },
+  // Volkanik bazalt kaya: kırık köşe iki üçgen + tanecik.
+  rock: { top: '#484252', fill: '#332E3D', bevel: 'rgba(255,255,255,0.22)', edge: '#1B1724', shadow: 'rgba(20, 16, 31, 0.40)', detail: detailRock },
+  // Ağır endüstriyel kasa: çelik kuşaklı kasa.
+  crateHeavy: { top: '#6E421E', fill: '#4E2B10', bevel: 'rgba(255,255,255,0.28)', edge: '#2B1406', shadow: 'rgba(16, 12, 24, 0.42)', detail: detailCrateHeavy },
+  // Tehlike barikatı: gövde koyu grafit, uyarı şeritleri parlak kehribar.
+  hazard: { top: '#2E273A', fill: '#1E1828', bevel: 'rgba(255,255,255,0.20)', edge: '#100C18', shadow: 'rgba(10, 8, 20, 0.45)', detail: detailHazard },
+  // Kaideli mermer: açık ve asil kaide.
+  plinth: { top: '#F6F2E8', fill: '#D9D0C1', bevel: 'rgba(255,255,255,0.80)', edge: '#665C4E', shadow: 'rgba(40, 34, 24, 0.28)', detail: detailPlinth },
 };
 
 /** Deri detayları — blok başına 0-2 op, tek path'te toplanır. */
 function detailStone(ctx, x, y, w, h, u) {
-  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  ctx.fillStyle = 'rgba(60, 50, 40, 0.12)';
   const s = Math.max(1, 2 * u);
   ctx.fillRect(x + w * 0.22, y + h * 0.3, s, s);
   ctx.fillRect(x + w * 0.58, y + h * 0.16, s, s);

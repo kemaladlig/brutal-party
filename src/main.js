@@ -35,7 +35,7 @@ import {
   CONTROL_MODE,
 } from './ui/tokens.js';
 import { fieldTheme } from './core/fieldKit.js';
-import { subscribePreferences } from './core/preferences.js';
+import { subscribePreferences, getPreference } from './core/preferences.js';
 import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, clearRemoteMove, clearRemoteAim, isBotEkleEnabled, getColorClashIndices, refreshSlotCard, refreshAllHostSlots } from './core/slotManager.js';
 import { getAvatarProfile, sanitizeAvatar, pickFreeColor, setSlotAvatar, clearSlotAvatar, loadLocalSeatColors, ensureLocalSeatColorsForTypes, getLocalSeatColors } from './core/customizationManager.js';
 import {
@@ -74,6 +74,7 @@ import { getTabletopIconSvg, drawTabletopIcon } from './core/tabletopIcons.js';
 import { getSlotSwapError } from './core/slotRules.js';
 import { showReaction, clearReactions, setReactionFieldAnchor } from './ui/reactionLayer.js';
 import { ensureReactionTriggers, setReactionSender } from './ui/reactionPicker.js';
+import { createBotReactionDirector } from './core/botReactionDirector.js';
 import { getControlDescriptor } from './core/controlDescriptor.js';
 import { InputIntentRouter } from './core/inputRouter.js';
 import { acquireWakeLock, releaseWakeLock } from './core/wakeLock.js';
@@ -161,6 +162,27 @@ function onNetworkReaction(slotIndex, key) {
   const color = activeNet().players?.[slotIndex]?.color || null;
   showReaction({ key, slotIndex, color });
 }
+
+// ── Bot tepkileri (banter) ────────────────────────────────────────────────
+// Host maç/raunt olaylarını izler ve bot koltukları adına tepki yayar.
+// Karar `core/botBanter.js`, durum takibi `core/botReactionDirector.js`te;
+// burada YALNIZ sunum + oda yayını bağlanır (§4: mantık çekirdekte).
+// LOCAL'de ağ yoktur → balon yalnız kendi ekranında çıkar.
+function botReactionColor(slotIndex) {
+  const fromNet = activeNet()?.players?.[slotIndex]?.color;
+  if (fromNet) return fromNet;
+  return hostPlayerSlots?.[slotIndex]?.color || null;
+}
+
+const botReactionDirector = createBotReactionDirector({
+  isEnabled: () => getPreference('botReactions') !== false,
+  emit: (key, slotIndex) => {
+    showReaction({ key, slotIndex, color: botReactionColor(slotIndex) });
+    const net = activeNet();
+    // Kritik olay anlık güvenilir yoldan kumandalara da gider (§6).
+    if (net?.isHosting) net.sendHostReaction?.(slotIndex, key);
+  },
+});
 
 
 // Engine Instances & Cartridge Registry (code-split: engines load on demand)
@@ -786,6 +808,13 @@ function loop(timestamp) {
       const perfUpdateStart = performance.now();
       if (!isPaused && consecutiveEngineErrors < 5) {
         loopEntry.game.update(timestamp);
+      }
+      // Bot tepkileri: motor durumundan türeyen sunum — banter hatası motor
+      // hata sayacına yazılmaz (oyunu çökertmez).
+      try {
+        botReactionDirector.tick(loopEntry.game, timestamp);
+      } catch (err) {
+        reportError(err, 'main.loop.botBanter', { warnOnly: true });
       }
       const perfBroadcastStart = performance.now();
       broadcastWorldStateIfNeeded(timestamp);

@@ -1807,9 +1807,9 @@
 /* 02 // TANKS ARCADE CONTROLLER
    Keep the drive target compact: full-height zones hide the world view. */
 .tanks-arcade-view {
-  --tank-drive-width: clamp(136px, 24vw, 220px);
+  --tank-drive-width: clamp(112px, 19vw, 184px);
   --tank-fire-width: clamp(132px, 36vw, 160px);
-  --tank-control-height: clamp(96px, 24vh, 144px);
+  --tank-control-height: clamp(88px, 20vh, 124px);
   width: 100%;
   height: 100%;
   display: flex;
@@ -1839,19 +1839,18 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
 }
 
 @media (orientation: portrait), (max-aspect-ratio: 1/1) {
   .tanks-arcade-view {
-    --tank-control-height: clamp(96px, 22vh, 128px);
+    --tank-control-height: clamp(88px, 19vh, 116px);
     padding: 10px max(14px, env(safe-area-inset-right, 14px)) max(16px, env(safe-area-inset-bottom, 16px)) max(14px, env(safe-area-inset-left, 14px));
   }
 }
 
 @media (orientation: landscape) and (min-aspect-ratio: 1/1) {
   .tanks-arcade-view {
-    --tank-control-height: clamp(96px, 22vh, 136px);
+    --tank-control-height: clamp(88px, 19vh, 118px);
     padding: 8px max(24px, env(safe-area-inset-right, 24px)) max(14px, env(safe-area-inset-bottom, 14px)) max(24px, env(safe-area-inset-left, 24px));
   }
 }
@@ -1910,8 +1909,10 @@
 }
 
 .tank-fire-btn {
+  position: relative;
   width: 100%;
   height: clamp(84px, 15vh, 108px);
+  padding-top: 10px;
   border-radius: 20px;
   background: var(--danger);
   /* Güverte rengi template'ten gelir; kırmızı yalnız yedek. */
@@ -1947,15 +1948,24 @@
   filter: brightness(1.25) !important;
 }
 
+/* Cephane göstergesi ateş tuşunun İÇİNE gömülüdür: tuşun üst kenarında ince bir
+   şerit. Ayrı bir satır olmadığı için ateş tuşu bölgenin tabanına oturur ve
+   sürüş pedalıyla aynı hizaya gelir ("altında duran blok" tuşu yukarı itiyordu). */
 .tank-ammo-hud {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  pointer-events: none;
 }
 
 .cartridge-pip {
+  display: block;
   width: 20px;
-  height: 38px;
-  border: 2px solid var(--n-600);
+  height: 9px;
+  border: 2px solid var(--white);
   background-color: var(--n-900);
   border-radius: 3px;
 }
@@ -1963,7 +1973,7 @@
 .cartridge-pip.loaded {
   background-color: var(--gold);
   border-color: var(--white);
-  box-shadow: 0 0 10px var(--gold), var(--shadow-edge);
+  box-shadow: 0 0 8px var(--gold);
 }
 
 /* --------------------------------------------------------------------------

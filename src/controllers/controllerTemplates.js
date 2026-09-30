@@ -374,11 +374,11 @@ function mountArcadeDrive(gamepad, container, schema) {
       <div class="tanks-fire-zone" data-controller-layout-target="right">
         <button class="tank-fire-btn" id="btn-tank-fire" type="button" aria-label="${escapeHtml(fireLabel)}" title="${escapeHtml(fireLabel)}" style="${deckColorStyle(gamepad.playerColor)}">
           <span class="fire-icon">${getTabletopIconSvg(schema.fireIcon || 'bomb', { size: 38, color: 'currentColor', strokeWidth: 2.4 })}</span>
+          <span class="tank-ammo-hud" id="tank-ammo-hud" aria-hidden="true">
+            <span class="cartridge-pip loaded"></span>
+            <span class="cartridge-pip loaded"></span>
+          </span>
         </button>
-        <div class="tank-ammo-hud" id="tank-ammo-hud">
-          <div class="cartridge-pip loaded"></div>
-          <div class="cartridge-pip loaded"></div>
-        </div>
       </div>
     </div>
   `;

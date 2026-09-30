@@ -50,6 +50,14 @@ export const SETTINGS_ROWS = [
     labelKey: 'settings.bots', icon: 'bot',
   },
   {
+    // Bot tepkileri: yalnız masada bot varken anlamlı — bot ekleme kapalıyken
+    // satır ÇİZİLMEZ (§8), dolayısıyla varsayılan durumda GENEL 5 satır kalır.
+    // Bot ekleme açıkken 6 satır çizilir; §8 ayar panelinde dikey kaydırmaya
+    // izin verir, bu yüzden satır alt sınırın (44px) üstünde kalır ve kabul edilir.
+    tab: 'general', id: 'botReactions', type: 'switch', action: 'botReactions',
+    labelKey: 'settings.botReactions', icon: 'message_square',
+  },
+  {
     tab: 'general', id: 'colorblind', type: 'switch', action: 'colorblind', quick: true,
     labelKey: 'settings.colorblind', icon: 'eye',
   },

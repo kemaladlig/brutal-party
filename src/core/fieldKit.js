@@ -76,6 +76,7 @@ const THEME_BASE = Object.freeze({
   edgeTint: '26, 26, 26',      // vinyet / köşe kararması RGB'si
   shadeTint: '26, 26, 26',     // duvar gölge bandı RGB'si
   grid: 'rgba(26, 26, 26, 0.05)',
+  gridStyle: 'dots',           // 'dots' | 'crosshair' | 'court' | 'lines' | 'none'
   frame: 'rgba(26, 26, 26, 0.10)',  // iç çerçeve hairline
   // --- yüzey dokusu (tek seferlik bake, sonra 2 op) ---
   // Varsayılan `speckle`: hiçbir yön/kafes kurmadığı için oyun nesneleriyle
@@ -107,8 +108,10 @@ const THEME_BASE = Object.freeze({
   // --- motorun kendi yüzeyi (arenaKit.drawObstacle bu deriyi seçer) ---
   block: 'stone',
   // --- sahanın dışı (paintBackdrop) ---
-  backdrop: '#F4F0EA',
-  backdropInk: '#2B2B28',
+  // Ekranın tamamını oyunun zemin rengine boğmak yerine derin koyu konsol masası
+  // (--surface: #14101F). Böylece ortadaki oyun alanı spot ışığında parlayan bir arena olur.
+  backdrop: '#14101F',
+  backdropInk: '#0D0A14',
 });
 
 /** Tema sözleşmesinin anahtarları — testler bu listeyi enumerate eder. */
@@ -117,7 +120,6 @@ export const THEME_FIELDS = Object.freeze(Object.keys(THEME_BASE));
 function theme(overrides) {
   return Object.freeze({
     ...THEME_BASE,
-    backdrop: overrides.floorLow || THEME_BASE.backdrop,
     ...overrides,
   });
 }
@@ -156,6 +158,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '20, 60, 140',
     floorHigh: '#E8F4FF', floor: '#DAEEFF', floorEdge: '#C8E4FA', floorLow: '#BAD8F5', accent: '#1D4ED8',
     grid: 'rgba(26, 26, 26, 0.055)',
+    gridStyle: 'court',
     frame: 'rgba(26, 26, 26, 0.13)',
     motif: 'rings',
     corners: 'both',
@@ -170,6 +173,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '100, 40, 10',
     floorHigh: '#FFE2C4', floor: '#FFD4A0', floorEdge: '#FFC488', floorLow: '#FFB874',
     grid: 'rgba(26, 26, 26, 0.06)',
+    gridStyle: 'crosshair',
     frame: 'rgba(26, 26, 26, 0.11)',
     decal: 'rgba(43, 43, 40, 0.06)',
     block: 'crate',
@@ -183,6 +187,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '30, 80, 30',
     floorHigh: '#D4F0C4', floor: '#BEEAAA', floorEdge: '#A8DE90', floorLow: '#94D278', accent: '#3F6212',
     grid: 'rgba(26, 26, 26, 0.065)',
+    gridStyle: 'crosshair',
     motif: 'crosshairRings',
     texture: 'speckle',
     block: 'stone',
@@ -196,6 +201,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '80, 55, 10',
     floorHigh: '#FFF0C0', floor: '#FFE48A', floorEdge: '#FFD660', floorLow: '#FFC840', accent: '#B45309',
     grid: 'rgba(26, 26, 26, 0.06)',
+    gridStyle: 'dots',
     texture: 'speckle',
     block: 'stone',
   }),
@@ -207,6 +213,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '18, 40, 52',
     floorHigh: '#F5F7F9', floor: '#F2F4F7', floorEdge: '#ECEFF3', floorLow: '#E9EDF1',
     grid: 'rgba(26, 26, 26, 0.06)',
+    gridStyle: 'dots',
     accent: '#0E7490',
     motif: 'reactor',
     texture: 'plate',
@@ -220,6 +227,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '18, 46, 34',
     floorHigh: '#F2F7F3', floor: '#EEF4F0', floorEdge: '#E8F0EA', floorLow: '#E4ECE6',
     grid: 'rgba(26, 26, 26, 0.05)',
+    gridStyle: 'dots',
     texture: 'speckle',
     block: 'plinth',
   }),
@@ -231,6 +239,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '90, 60, 10',
     floorHigh: '#FFEDC0', floor: '#FFDF90', floorEdge: '#FFD070', floorLow: '#FFBE50',
     grid: 'rgba(26, 26, 26, 0.06)',
+    gridStyle: 'crosshair',
     accent: '#D99B26',
     motif: 'vault',
     texture: 'weave',
@@ -244,6 +253,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '50, 70, 10',
     floorHigh: '#E8F4B0', floor: '#D8EC90', floorEdge: '#C4E070', floorLow: '#B0D450',
     grid: 'rgba(26, 26, 26, 0.06)',
+    gridStyle: 'crosshair',
     corners: 'crosshair',
     texture: 'speckle',
     block: 'rock',
@@ -256,6 +266,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '60, 30, 100',
     floorHigh: '#EAE0FA', floor: '#E2D4F6', floorEdge: '#DAC8F2', floorLow: '#D2BCEE',
     grid: 'rgba(26, 26, 26, 0.07)',
+    gridStyle: 'dots',
     accent: '#7C3AED',
     motif: 'core',
     corners: 'none',
@@ -270,6 +281,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '30, 50, 120',
     floorHigh: '#E0EEFF', floor: '#CCE2FF', floorEdge: '#B8D6FF', floorLow: '#A6CAFF',
     grid: 'rgba(26, 26, 26, 0.06)',
+    gridStyle: 'court',
     texture: 'plate',
     block: 'dark',
   }),
@@ -281,6 +293,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '40, 40, 40',
     floorHigh: '#ECECEC', floor: '#DFDFDF', floorEdge: '#D4D4D4', floorLow: '#C9C9C9',
     grid: 'rgba(26, 26, 26, 0.05)',
+    gridStyle: 'court',
     texture: 'tile',
     seams: 3,
     block: 'hazard',
@@ -293,6 +306,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '90, 60, 10',
     floorHigh: '#FFF0C0', floor: '#FFE494', floorEdge: '#FFD86E', floorLow: '#FFCC50', accent: '#B45309',
     grid: 'rgba(26, 26, 26, 0.06)',
+    gridStyle: 'court',
     motif: 'crown',
     texture: 'tile',
     block: 'plinth',
@@ -305,6 +319,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '100, 40, 10',
     floorHigh: '#FFE0C4', floor: '#FFD0A0', floorEdge: '#FFC080', floorLow: '#FFAC60',
     grid: 'rgba(26, 26, 26, 0.075)',
+    gridStyle: 'crosshair',
     accent: '#D84727',
     motif: 'foundry',
     corners: 'none',
@@ -317,6 +332,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '10, 70, 90',
     floorHigh: '#C8F2F8', floor: '#B0EAF6', floorEdge: '#98E0F2', floorLow: '#82D8EE',
     grid: 'rgba(14, 116, 144, 0.10)',
+    gridStyle: 'dots',
     accent: '#0891B2',
     motif: 'reactor',
     corners: 'none',
@@ -329,6 +345,7 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '70, 30, 120',
     floorHigh: '#EAD6F6', floor: '#E0CAF0', floorEdge: '#D6BEEA', floorLow: '#CCB2E4',
     grid: 'rgba(91, 33, 182, 0.10)',
+    gridStyle: 'dots',
     accent: '#7C3AED',
     motif: 'core',
     corners: 'none',
@@ -1269,6 +1286,89 @@ function paintPatches(ctx, w, h, u, palette, patches) {
 }
 
 /**
+ * Oyun alanının kort / ızgara dili:
+ * Düz ve tekdüze kareli defter ızgarası yerine, oyunun türüne özgü taktiksel ve spor çizgileri.
+ * 'court' (spor kortu / hava hokeyi) | 'crosshair' (taktiksel hedefleme) | 'dots' (siber arcade) | 'lines' (klasik)
+ */
+function paintFieldGrid(ctx, w, h, u, inset, palette) {
+  const style = palette.gridStyle || 'dots';
+  if (style === 'none') return;
+  const min = Math.min(w, h);
+
+  ctx.strokeStyle = palette.grid;
+  ctx.lineWidth = Math.max(1, 1 * u);
+
+  if (style === 'court') {
+    // Spor / Hava Hokeyi Kortu (PONG / CURVE / RACE / CROWN):
+    // Düz defter çizgisi yerine temiz iç kort sınırı, orta saha kesimi ve santra çemberi
+    const cx = w / 2;
+    const cy = h / 2;
+    const courtInset = inset + Math.max(fieldPx({ unit: u }, 6), min * 0.025);
+    const cr = Math.max(fieldPx({ unit: u }, 10), min * 0.04);
+
+    ctx.beginPath();
+    appendRoundRect(ctx, courtInset, courtInset, Math.max(1, w - courtInset * 2), Math.max(1, h - courtInset * 2), cr);
+    if (w >= h) {
+      ctx.moveTo(cx, courtInset);
+      ctx.lineTo(cx, h - courtInset);
+    } else {
+      ctx.moveTo(courtInset, cy);
+      ctx.lineTo(w - courtInset, cy);
+    }
+    const circleR = Math.max(fieldPx({ unit: u }, 20), min * 0.15);
+    ctx.moveTo(cx + circleR, cy);
+    ctx.arc(cx, cy, circleR, 0, Math.PI * 2);
+    ctx.stroke();
+
+  } else if (style === 'crosshair') {
+    // Taktiksel Savaş Meydanı (TANKS / ARCHER / BOMB / HEIST):
+    // Defter çizgileri yerine seyrek taktiksel nişangah artıları (+)
+    const step = Math.max(fieldPx({ unit: u }, 54), min / 7);
+    const arm = Math.max(fieldPx({ unit: u }, 3.5), 2.5 * u);
+    ctx.beginPath();
+    for (let x = inset + step; x < w - inset; x += step) {
+      for (let y = inset + step; y < h - inset; y += step) {
+        ctx.moveTo(x - arm, y);
+        ctx.lineTo(x + arm, y);
+        ctx.moveTo(x, y - arm);
+        ctx.lineTo(x, y + arm);
+      }
+    }
+    ctx.stroke();
+
+  } else if (style === 'dots') {
+    // Siber Arcade / Dot Matrix (SNAKE / LASER / ZONE / NINJA):
+    // Kesişimlerde minik şık noktacıklar
+    const step = Math.max(fieldPx({ unit: u }, 44), min / 8);
+    const dot = Math.max(1, 1.2 * u);
+    ctx.beginPath();
+    for (let x = inset + step; x < w - inset; x += step) {
+      for (let y = inset + step; y < h - inset; y += step) {
+        ctx.moveTo(x - dot, y);
+        ctx.lineTo(x + dot, y);
+        ctx.moveTo(x, y - dot);
+        ctx.lineTo(x, y + dot);
+      }
+    }
+    ctx.stroke();
+
+  } else {
+    // Klasik hatlar
+    const cell = Math.max(fieldPx({ unit: u }, 36), min / 11);
+    ctx.beginPath();
+    for (let x = inset + cell; x < w - inset; x += cell) {
+      ctx.moveTo(x, inset);
+      ctx.lineTo(x, h - inset);
+    }
+    for (let y = inset + cell; y < h - inset; y += cell) {
+      ctx.moveTo(inset, y);
+      ctx.lineTo(w - inset, y);
+    }
+    ctx.stroke();
+  }
+}
+
+/**
  * Statik saha katmanının TAMAMINI çizer. Koordinat alanı arena içidir
  * (0,0)..(w,h): hem offscreen bake hem de DOM'suz doğrudan çizim yolu aynı
  * kodu kullanır.
@@ -1311,21 +1411,8 @@ export function paintFieldLayer(ctx, arena, palette, { seed = 1, marks = null, p
   paintTexture(ctx, w, h, u, palette);
   paintSeams(ctx, w, h, u, palette, seed);
 
-  // 4. Izgara — tek path, tek stroke. Hücre boyutu `unit` ile büyür, böylece
-  //    küçük ekranda 1px'e yaklaşan ince çizgi oluşmaz.
-  const cell = Math.max(fieldPx({ unit: u }, 30), min / 13);
-  ctx.strokeStyle = palette.grid;
-  ctx.lineWidth = Math.max(1, 1 * u);
-  ctx.beginPath();
-  for (let x = inset + cell; x < w - inset; x += cell) {
-    ctx.moveTo(x, inset);
-    ctx.lineTo(x, h - inset);
-  }
-  for (let y = inset + cell; y < h - inset; y += cell) {
-    ctx.moveTo(inset, y);
-    ctx.lineTo(w - inset, y);
-  }
-  ctx.stroke();
+  // 4. Kort / Izgara işaretleri (oyun diline özgü: kort çizgisi, taktiksel artılar veya dot matrix)
+  paintFieldGrid(ctx, w, h, u, inset, palette);
 
   // 5. İç çerçeve hairline
   ctx.strokeStyle = palette.frame;
@@ -1490,23 +1577,22 @@ function paintBackdropLayer(ctx, w, h, box, palette) {
   ctx.fillStyle = palette.backdrop;
   ctx.fillRect(0, 0, w, h);
 
-  // 1. Arenanın merkezinden dışa düşen ışık: saha, masada yanan bir yüzey olur.
-  const pool = ctx.createRadialGradient(cx, cy, Math.max(1, glowR * 0.2), cx, cy, glowR);
-  pool.addColorStop(0, rgba(palette.lightTint, 0.5));
-  pool.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  // 1. Arenanın merkezinden dışa düşen hafif ambiyans ışıltısı (tema renginde yumuşak halo)
+  const pool = ctx.createRadialGradient(cx, cy, Math.max(1, glowR * 0.15), cx, cy, glowR * 0.7);
+  pool.addColorStop(0, rgba(palette.lightTint, 0.15));
+  pool.addColorStop(0.5, rgba(palette.lightTint, 0.04));
+  pool.addColorStop(1, rgba(palette.edgeTint, 0));
   ctx.fillStyle = pool;
   ctx.fillRect(0, 0, w, h);
 
-  // 2. Köşe kararması — ekranda ikinci bir çerçeve.
-  const vig = ctx.createRadialGradient(cx, cy, glowR * 0.55, cx, cy, glowR);
+  // 2. Köşe kararması — masaüstü derinliği.
+  const vig = ctx.createRadialGradient(cx, cy, glowR * 0.45, cx, cy, glowR);
   vig.addColorStop(0, rgba(palette.edgeTint, 0));
-  vig.addColorStop(1, rgba(palette.edgeTint, 0.09));
+  vig.addColorStop(1, rgba(palette.edgeTint, 0.5));
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, w, h);
 
-  // 3. Arenanın geriye düşen gölgesi: `shadowBlur` yerine 3 iç-içe halka.
-  //    YARIÇAP saha katmanının kesimiyle AYNI olmalı — farklıysa tepsi ile
-  //    gölgesi iki ayrı silüet gibi okunur ve "yüzen tepsi" hissini kırar.
+  // 3. Arenanın geriye düşen gölgesi: tepsinin arkasına düşen katmanlı derinlik gölgeleri.
   const r = trayRadius(u, palette);
   const shadowRing = (dx, dy, lw, color) => {
     ctx.strokeStyle = color;
@@ -1515,9 +1601,9 @@ function paintBackdropLayer(ctx, w, h, box, palette) {
     appendRoundRect(ctx, box.left + dx, box.top + dy, box.width, box.height, r);
     ctx.stroke();
   };
-  shadowRing(3 * u, 4 * u, Math.max(2, 5 * u), 'rgba(26, 26, 26, 0.05)');
-  shadowRing(6 * u, 8 * u, Math.max(2, 8 * u), 'rgba(26, 26, 26, 0.035)');
-  shadowRing(10 * u, 13 * u, Math.max(2, 12 * u), 'rgba(26, 26, 26, 0.02)');
+  shadowRing(0, 2 * u, Math.max(2, 4 * u), rgba(palette.edgeTint, 0.35));
+  shadowRing(2 * u, 5 * u, Math.max(2, 8 * u), rgba(palette.edgeTint, 0.22));
+  shadowRing(4 * u, 10 * u, Math.max(3, 14 * u), rgba(palette.edgeTint, 0.12));
 }
 
 // ---------------------------------------------------------------------------

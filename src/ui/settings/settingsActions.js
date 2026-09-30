@@ -73,6 +73,18 @@ export const settingsActions = {
     },
   },
 
+  // Bot tepkileri: yalnız bot masadayken anlamlı, o yüzden satır bot ekleme
+  // açıkken görünür (§8: kullanılamayan satır çizilmez).
+  botReactions: {
+    available: () => isBotEkleEnabled(),
+    get: () => getPreference('botReactions') !== false,
+    toggle: () => {
+      const next = getPreference('botReactions') === false;
+      setPreference('botReactions', next);
+      showInstallToast(next ? t('toast.botReactionsOn') : t('toast.botReactionsOff'));
+    },
+  },
+
   colorblind: {
     get: () => isColorblindEnabled(),
     toggle: () => {

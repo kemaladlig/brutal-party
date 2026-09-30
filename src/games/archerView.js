@@ -170,9 +170,31 @@ export function drawArcherArrows(ctx, arrows, arena = null) {
   for (const a of arrows) {
     const ang = Math.atan2(a.vy || 0, a.vx || 0);
     ctx.save();
+
+    // 1. Okun zemine düşen uçuş gölgesi (havada süzülme hissi)
+    ctx.save();
+    ctx.translate(a.x + 1.5, a.y + 3);
+    ctx.rotate(ang);
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = UI_COLORS.inkDark;
+    ctx.lineWidth = 3.5 * u;
+    ctx.beginPath();
+    ctx.moveTo(-14, 0);
+    ctx.lineTo(10, 0);
+    ctx.stroke();
+    ctx.fillStyle = UI_COLORS.inkDark;
+    ctx.beginPath();
+    ctx.moveTo(16, 0);
+    ctx.lineTo(6, -5);
+    ctx.lineTo(6, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // 2. Okun kendisi
     ctx.translate(a.x, a.y);
     ctx.rotate(ang);
-    ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeStyle = UI_COLORS.inkDark;
     ctx.lineWidth = 4 * u;
     ctx.beginPath();
     ctx.moveTo(-14, 0);
@@ -185,6 +207,14 @@ export function drawArcherArrows(ctx, arrows, arena = null) {
     ctx.lineTo(6, 5);
     ctx.closePath();
     ctx.fill();
+
+    // 3. Ok ucundaki parlak nokta (hız & keskinlik ışıltısı)
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = UI_COLORS.white;
+    ctx.beginPath();
+    ctx.arc(8, 0, Math.max(1, 1.4 * u), 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.restore();
   }
 }
