@@ -29,7 +29,11 @@ export const CLONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CLONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 const CLONE_DASH_COOLDOWN = 1.6;
-const CLONE_RADIUS = 15;
+// 15 → 16 (Faz 3.2, I7 dürüstlüğü): en küçük hedef cihazda (SE yatay
+// 667×375) gövde çapı 12px tabanının altına düşüyordu (11.6px). `far`
+// bandının üst sınırında (9–16) kalır; tamsayı seçildi çünkü I4 denetleyicisi
+// ondalık fallback literallerini ("15.8" → "15") yanlış okuyor.
+const CLONE_RADIUS = 16;
 // Saha geçiş süresi 952/h: 135 → 6.35sn iken en yavaşlardan biriydi
 // (COLLAPSE 7.6, SNAKE 6.8). Bilinçli olarak minimal: CLONE'un hissi temposuz
 // değil, karmaşıklıktan geliyor; oyunu yeniden ayarlamaya değmez, sadece
@@ -426,7 +430,7 @@ this.targetScore = 2;
         // KILL olayı: burst + halka + ölüm pop'u + hit-stop + flaş + travma tek profilden.
         this.fx.emit('kill', {
           x: victim.x, y: victim.y, color: victim.color,
-          size: victim.radius || 15, angle: victim.angle || 0,
+          size: victim.radius || CLONE_RADIUS, angle: victim.angle || 0,
           dirX: victim.x - attacker.x, dirY: victim.y - attacker.y,
           slot: victim.index,
           haptic: victim.slotType === 'human',

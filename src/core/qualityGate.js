@@ -43,6 +43,10 @@ export const GATE_THRESHOLDS = Object.freeze({
  * @param {string} input.mode - Oyun modu (örn. 'HORDE', 'ARCHER')
  * @param {QualityMeasurement|null} input.desktop - Masaüstü (1920x1080) ölçümü
  * @param {QualityMeasurement|null} input.phone - Telefon (852x393) ölçümü
+ * @param {QualityMeasurement|null} [input.smallPhone] - En küçük hedef cihaz
+ *   (iPhone SE yatay 667×375) ölçümü. I7 gövde okunabilirliği ARTIK bu cihazda
+ *   ölçülür (dürüstlük): 852×393 iyimser çıpayı düşürebiliyordu. Verilmezse I7
+ *   geriye uyumlu olarak `phone`a düşer.
  * @param {QualityMeasurement|null} [input.corridor] - Koridor geçilebilirlik ölçümü
  * @param {QualityMeasurement|null} [input.viewFidelity] - View yarıçap fallback denetimi
  * @param {number} [input.unscaledGeometryCount] - I5 ölçeklenmemiş geometri px sayısı
@@ -56,6 +60,7 @@ export function evaluateGame(input) {
     mode,
     desktop,
     phone,
+    smallPhone = null,
     corridor,
     viewFidelity = { ok: true, drift: 0, detail: '' },
     unscaledGeometryCount = 0,
@@ -169,22 +174,28 @@ export function evaluateGame(input) {
     failures.push(`I6: ${unscaledMotionCuesCount} adet ölçeklenmemiş hareket ipucu / lineWidth (B11)`);
   }
 
-  // --- I7: Gövde okunabilirliği (Telefon ekranında oyuncu çapı >= eşik;
-  // çizgi oyunları eşiği kartuş kaydında taşır, örn. CURVE 4.5px) ---
-  const phonePlayerPx = phone?.playerPx != null ? phone.playerPx * 2 : null;
+  // --- I7: Gövde okunabilirliği (EN KÜÇÜK hedef cihazda oyuncu çapı >= eşik;
+  // çizgi oyunları eşiği kartuş kaydında taşır, örn. CURVE 4.5px).
+  // Faz 3.2 dürüstlük: ölçüm 852×393 "telefon" çıpasından gerçek en küçük
+  // cihaza (SE yatay 667×375) taşındı — aradaki ~%5 fark RACE/CLONE'u tabanın
+  // altına düşürüyordu. `smallPhone` verilmezse geriye uyumlu `phone`a düşer. ---
+  const i7Measurement = smallPhone ?? phone;
+  const i7PlayerPx = i7Measurement?.playerPx != null ? i7Measurement.playerPx * 2 : null;
   const minRequiredDiameter = Number.isFinite(minPlayerDiameter) && minPlayerDiameter > 0
     ? minPlayerDiameter
     : GATE_THRESHOLDS.minPlayerDiameterPx;
-  if (phonePlayerPx != null) {
-    const ok = phonePlayerPx >= minRequiredDiameter;
-    const ratio = phonePlayerPx / minRequiredDiameter;
+  if (i7PlayerPx != null) {
+    const ok = i7PlayerPx >= minRequiredDiameter;
+    const ratio = i7PlayerPx / minRequiredDiameter;
     gates.I7 = {
       ok,
-      value: +phonePlayerPx.toFixed(1),
-      formatted: `${phonePlayerPx.toFixed(1)}px`,
-      detail: ok ? 'ok' : `çap ${phonePlayerPx.toFixed(1)}px < ${minRequiredDiameter}px`,
+      value: +i7PlayerPx.toFixed(1),
+      formatted: `${i7PlayerPx.toFixed(1)}px`,
+      detail: ok
+        ? (smallPhone ? `ok (en küçük cihaz ${i7PlayerPx.toFixed(1)}px)` : 'ok')
+        : `çap ${i7PlayerPx.toFixed(1)}px < ${minRequiredDiameter}px`,
     };
-    if (!ok) failures.push(`I7: Telefonda gövde çapı ${phonePlayerPx.toFixed(1)}px < ${minRequiredDiameter}px eşiği`);
+    if (!ok) failures.push(`I7: En küçük cihazda gövde çapı ${i7PlayerPx.toFixed(1)}px < ${minRequiredDiameter}px eşiği`);
   } else {
     gates.I7 = {
       ok: false,
@@ -238,6 +249,26 @@ export function evaluateGame(input) {
     formatted: '—',
     detail: 'Adım 2 taban ölçümünde doldurulacak',
   };
+
+  // --- I12: Kademe farkı (en küçük cihaz vs 852×393 çıpası, gövde çapı) ---
+  // I7 "dürüstlük" raporu: iki cihaz arasındaki okunabilirlik düşüşünü ve en
+  // küçük cihazın 12px tabanına göre durumunu görünür kılar. Kapı değil,
+  // rapordur (exit kodunu etkilemez); I7'yi en küçük cihaza taşıma kararı
+  // (§4.2, kullanıcı onayı) bu raporun sayılarıyla verilir.
+  const anchorPhonePx = phone?.playerPx != null ? phone.playerPx * 2 : null;
+  const smallestPx = smallPhone?.playerPx != null ? smallPhone.playerPx * 2 : null;
+  if (anchorPhonePx != null && smallestPx != null && anchorPhonePx > 0) {
+    const drop = 1 - smallestPx / anchorPhonePx;
+    const below = smallestPx < minRequiredDiameter;
+    reports.I12 = {
+      value: +(drop * 100).toFixed(1),
+      formatted: `-%${(drop * 100).toFixed(0)}${below ? '!' : ''}`,
+      detail: `SE 667×375 ${smallestPx.toFixed(1)}px vs 852×393 ${anchorPhonePx.toFixed(1)}px`
+        + (below ? ` — ${minRequiredDiameter}px tabanının ALTINDA` : ''),
+    };
+  } else {
+    reports.I12 = { value: null, formatted: '—', detail: 'en küçük cihaz verisi yok' };
+  }
 
   const passed = Object.values(gates).every((g) => g.ok);
 

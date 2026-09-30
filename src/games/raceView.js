@@ -61,7 +61,7 @@ export function createRaceWorldPacket(game) {
       x: round1(player.x || 0),
       y: round1(player.y || 0),
       angle: round1(player.angle || 0),
-      radius: round1(player.radius || 19),
+      radius: round1(player.radius || 20),
       jumpZ: round1(player.jumpZ || 0),
       nextCheckpoint: Math.max(0, Number(player.nextCheckpoint) || 0),
       laps: Math.max(0, Number(player.laps) || 0),
@@ -222,7 +222,7 @@ function drawEmpPulses(ctx, pulses) {
 }
 
 function drawPlayer(ctx, player, color, checkpoints) {
-  const u = (player.radius || 19) / 19;
+  const u = (player.radius || 20) / 20;
   const jumpOffsetY = -(player.jumpZ || 0) * 0.8 * u;
   const shadowScale = Math.max(0.68, 1 - (player.jumpZ || 0) * 0.018);
   ctx.save(); ctx.translate(player.x, player.y); ctx.scale(shadowScale, shadowScale);

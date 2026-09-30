@@ -253,6 +253,35 @@ test('I7 threshold rules: line-game cartridges allow 4.5px minimum diameter whil
   assert.equal(failResult.gates.I7.ok, false);
 });
 
+// Faz 3.2 dürüstlük: I7 gövde okunabilirliği artık EN KÜÇÜK cihazda ölçülür;
+// smallPhone verilmezse geriye uyumlu `phone`a düşer. I12 kademe farkını raporlar.
+test('I7 en küçük cihazdan ölçülür ve I12 kademe farkını raporlar', () => {
+  const result = evaluateGame(makeMockGameData({
+    // en küçük cihaz çapı 12.4px >= 12px → I7 geçer
+    smallPhone: { playerPx: 6.2, playerPct: 5.88, crossTime: 4.81, aspect: 1.78, short: 375 },
+  }));
+  assert.equal(result.gates.I7.ok, true);
+  assert.equal(result.gates.I7.value, 12.4);   // 6.2 * 2 (852×393 23px değil)
+  assert.ok(result.reports.I12.value > 0);
+  assert.ok(!result.reports.I12.formatted.includes('!'));
+});
+
+test('I7: en küçük cihaz 12px tabanının altındaysa kırmızı ve I12 işaretler', () => {
+  const result = evaluateGame(makeMockGameData({
+    smallPhone: { playerPx: 5.6, playerPct: 5.88, crossTime: 4.81, aspect: 1.78, short: 375 },
+  }));
+  assert.equal(result.passed, false);
+  assert.equal(result.gates.I7.ok, false);
+  assert.ok(result.failures.some((f) => f.includes('I7')));
+  assert.ok(result.reports.I12.formatted.includes('!'));
+  assert.ok(result.reports.I12.detail.includes('ALTINDA'));
+});
+
+test('I12 smallPhone verilmezse boş raporlanır (geriye uyum)', () => {
+  const result = evaluateGame(makeMockGameData());
+  assert.equal(result.reports.I12.value, null);
+});
+
 // Reports do not fail the build
 test('reports (I8-I11) capture tuning variance without failing the build', () => {
   const result = evaluateGame(makeMockGameData({

@@ -6,7 +6,11 @@ export const RACE_TUNING = Object.freeze({
   roundTime: 90,
   // Raunt boşluğu artık `core/roundLifecycle.ROUND_GAP` tablosundan gelir
   // (`beginRound` varsayılanı); oyun başına ayrı değer tutulmaz.
-  playerRadius: 19,
+  // 19 → 20 (Faz 3.2, I7 dürüstlüğü): en küçük hedef cihazda (SE yatay
+  // 667×375) gövde çapı 12px okunabilirlik tabanının altına düşüyordu
+  // (11.8px). +%5 tasarım yarıçapı tabanı geçirir; `open` bandında kalır
+  // (18–24) ve gövde/hız bütçesi (minB) korunur.
+  playerRadius: 20,
   // 190 → 215 → hız 215'te sabit. "RACE hala yavaş" geri bildirimi ikinci kez
   // geldi ve bu sefer ölçüm gösterdi: hız zaten ortalamanın üstündeydi
   // (952/215 = 4.4sn, HORDE 5.6 / ARCHER 4.8). Yavaşlık hızdan değil İVMEDEN

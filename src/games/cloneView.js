@@ -22,7 +22,7 @@ import {
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 
-export const CLONE_RADIUS = 15;
+export const CLONE_RADIUS = 16;
 
 // İstasyon id → vektör ikon anahtarı (tek kaynak tabletopIcons)
 const STATION_ICONS = {
@@ -46,7 +46,7 @@ export function createCloneWorldPacket(game) {
       x: round1(p.x || 0),
       y: round1(p.y || 0),
       angle: round1(p.angle || 0),
-      radius: round1(p.radius || 15),
+      radius: round1(p.radius || 16),
       dash: (p.dashTimer || 0) > 0,
       slow: (p.slowTimer || 0) > 0,
       task: round1(p.taskTimer || 0),
@@ -195,7 +195,7 @@ export function drawCloneWalls(ctx, walls) {
 }
 
 export function drawCloneCharacter(ctx, x, y, angle, color, { dashing = false, slowed = false, task = 0, withFx = true } = {}) {
-  const cu = CLONE_RADIUS / 15;
+  const cu = CLONE_RADIUS / 16;
   ctx.save();
   ctx.translate(x, y);
 

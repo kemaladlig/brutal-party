@@ -30,6 +30,10 @@ const DESIGN_SHORT = 952;
 const VIEWPORTS = {
   desktop: [1920, 1080],
   phone: [852, 393],
+  // I7 dürüstlüğü (Faz 3.2): gerçek en küçük hedef cihaz — iPhone SE yatay.
+  // Gövde okunabilirliği ARTIK burada ölçülür (qualityGate I7), 852×393 yalnız
+  // I12 kademe-farkı raporunun çıpası olarak kalır.
+  small: [667, 375],
 };
 
 const noop = () => {};
@@ -227,6 +231,7 @@ async function runHealthCheck() {
       mode,
       desktop: metrics.desktop,
       phone: metrics.phone,
+      smallPhone: metrics.small,
       corridor: metrics.corridor,
       viewFidelity,
       unscaledGeometryCount,
@@ -263,7 +268,8 @@ if (asJson) {
     + 'I7(okuma)'.padEnd(10)
     + '│ ' + 'I8(sapma)'.padEnd(10)
     + 'I9(oran)'.padEnd(9)
-    + 'I10(kenar%)';
+    + 'I10(kenar%)'.padEnd(11)
+    + 'I12(kademe)';
   console.log(head);
   console.log('-'.repeat(head.length + 2));
 
@@ -292,7 +298,8 @@ if (asJson) {
       + '│ '
       + (rep.I8.formatted).padEnd(10)
       + (rep.I9.formatted).padEnd(9)
-      + (rep.I10.formatted),
+      + (rep.I10.formatted).padEnd(11)
+      + (rep.I12 ? rep.I12.formatted : '—'),
     );
   }
 
@@ -307,7 +314,9 @@ if (asJson) {
   }
 
   console.log('\nKAPILAR (I1-I7): Cihazlar arası değişmezler. İhlal build/health çıkışını 1 yapar.');
-  console.log('RAPORLAR (I8-I11): Bilgi amaçlıdır. Ayar çıpasına göre sapmayı izler, yapıyı kırmaz.');
+  console.log('RAPORLAR (I8-I12): Bilgi amaçlıdır. Ayar çıpasına göre sapmayı izler, yapıyı kırmaz.');
+  console.log("I7 artık EN KÜÇÜK cihazda (SE 667x375) ölçülür. I12(kademe): en küçük cihaz vs"
+    + " 852x393 çıpası gövde çapı farkı; '!' = en küçük cihaz 12px tabanının ALTINDA (= I7 kırmızı).");
 }
 
 const totalPassed = evaluations.every((e) => e.passed);

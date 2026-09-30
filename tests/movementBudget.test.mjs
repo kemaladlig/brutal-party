@@ -103,11 +103,11 @@ const BUDGET = {
   LASER: { tier: 'normal', speed: 220, radius: 30, maxA: 4.6, minB: 3.6 },
   HORDE: { tier: 'normal', speed: 168, radius: 30, maxA: 5.9, minB: 2.6 },
   // open: küçük gövde + niş/hızlı türler
-  RACE: { tier: 'open', speed: 215, radius: 19, maxA: 4.6, minB: 5.0 },
+  RACE: { tier: 'open', speed: 215, radius: 20, maxA: 4.6, minB: 5.0 },
   CURVE: { tier: 'open', speed: 185, radius: 18, maxA: 6.3, minB: 4.4 },
   SNAKE: { tier: 'open', speed: 190, radius: 24, maxA: 5.8, minB: 3.6 },
   // cursor / territory / chain: küçük gövde, uzun sahalar — B yüksek olmalı
-  CLONE: { tier: 'far', speed: 150, radius: 15, maxA: 6.6, minB: 4.6 },
+  CLONE: { tier: 'far', speed: 150, radius: 16, maxA: 6.6, minB: 4.6 },
 };
 
 let server;
