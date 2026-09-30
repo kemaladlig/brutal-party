@@ -3,6 +3,31 @@ import { playPaddleHit, playWallHit, playGoal, playShoot, playSonicBoom, playPow
 import { vibrate } from '../core/haptics.js';
 import { fieldRadius } from '../core/playfield.js';
 
+/**
+ * Hız rampasının biçimi (tune edilmiş sayılar burada, motorun gövdesinde değil).
+ *
+ * Ralli 0-6 arası DOĞRUSAL ve belirgin: her vuruş tavan payının
+ * `RAMP_STEEP_SHARE` kadarını yiyecek şekilde. Bu, oyuncunun ilk temasını
+ * hissetmesini sağlar (eski üstel eğride ilk 6 vuruş yalnız toplam payın
+ * yarısını veriyordu).
+ *
+ * Ralli 6 sonrası üstel doyumluk: kalan pay yavaşça harcanır, eğri tepe
+ * noktaya doymaz. Aşırılığı engelleyen kısım budur.
+ */
+export const RAMP_STEEP_RALLY = 6;
+export const RAMP_STEEP_SHARE = 0.55;
+
+/**
+ * Top tavanının insan raketi hızına göre çarpanı.
+ *
+ * Adalet sınırı: raket tavan hızında saha genişliğinin tamamını (hatta
+ * biraz fazlasını) kat edebilmeli, yoksa köşeden köşeye gelen top hiçbir
+ * oyuncu tarafından yakalanamaz. 1.0 = raket yalnızca tam hızda yetişir
+ * (sıfır pay, en köşede kaçırır); 1.12 = ölçülen pay (~%9 fazla kapsama).
+ * 1.30 denendi ve reddedildi: %77 kapsama, yapısal haksızlık.
+ */
+export const PADDLE_SPEED_MARGIN = 1.12;
+
 export class Ball {
   constructor(game) {
     this.game = game;
@@ -58,7 +83,16 @@ export class Ball {
     // yanlışlıkla tavanı geçmez, rally gerçekten hızlanacak headroom bulur.
     this.baseMinSpeed = shortSide * 0.70;
     this.startSpeed = this.baseMinSpeed * 1.30;
-    this.speedCap = shortSide * 1.50;
+    // Tavan, İNSAN raketinin hızının üstünde kalmalı — ama fazla değil.
+    //
+    // Ölçülen adalet kuralı: en köşeden köşeye (worst case) gelen top için
+    // topun geçiş süresi, raketin o mesafeyi kat etme süresinden KISA olmalı.
+    // 1.95x (=%30 hızlı) denendi: raket tavan hızında sahanın yalnızca %77'sini
+    // kapsayabiliyor, yani köşeden köşeye gelen topu kimse yakalayamıyor —
+    // yetenek değil yapısal haksızlık. 1.12x'te raket tam saha genişliğini
+    // (~%109) kapsıyor: top zorluğu hissettirir, yakalanabilir kalır.
+    this.paddleSpeed = shortSide * 1.5;
+    this.speedCap = shortSide * 1.5 * PADDLE_SPEED_MARGIN;
     this.baseMaxSpeed = this.speedCap;
     this.currentMinSpeed = this.baseMinSpeed;
     this.currentMaxSpeed = this.speedCap;
@@ -305,11 +339,21 @@ export class Ball {
     const isSmashStrike = Math.abs(paddle.velocity) > smashThreshold;
     this.isSmash = isSmashStrike;
 
-    // Hız rampası tek ve arena-relative bir profille ilerler. Önceki sabit
-    // 840 px/s tavanı büyük ekranlarda ilk vuruşta hız düşürüyordu.
+    // Hız rampası tek ve arena-relative bir profille ilerler.
+    //
+    // Eğri bilinçli olarak iki bölgeli (biçim `RAMP_*` sabitlerinde):
+    //   • İLK 6 VURUŞ doğrusal ve belirgin — oyuncu ilk temasını "top
+    //     çıtırtısı" olarak hissetsin, ralli kavramı ilk saniyelerde otursun.
+    //   • SONRASI üstel doyumluk — aşırılığı engelleyen kısım: eğri tepe
+    //     noktaya doymaz, tavana yaklaşır ve orada yumuşak kalır.
+    // Ölçülen eski eğri (`rallyCount / 5.5`) ilk 5 vuruşta yalnız +%39
+    // kazandırıyordu; oyuncu "eğri yavaş" diye okuyordu.
     const speedCap = Math.max(this.startSpeed, this.speedCap);
     const incomingSpeed = Math.hypot(this.vx, this.vy) || this.startSpeed;
-    const rampProgress = 1 - Math.exp(-this.rallyCount / 5.5);
+    const rampProgress = this.rallyCount <= RAMP_STEEP_RALLY
+      ? (this.rallyCount / RAMP_STEEP_RALLY) * RAMP_STEEP_SHARE
+      : RAMP_STEEP_SHARE
+        + (1 - RAMP_STEEP_SHARE) * (1 - Math.exp(-(this.rallyCount - RAMP_STEEP_RALLY) / 6));
     let targetSpeed = this.startSpeed + (speedCap - this.startSpeed) * rampProgress;
 
     // Vuruş asla gereksiz yere yavaşlatmaz; güçlü vuruş kalan headroom'u

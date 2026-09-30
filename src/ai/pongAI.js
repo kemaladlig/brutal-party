@@ -67,11 +67,15 @@ export function updatePongBotAI(rawGame, paddle, dt) {
       desiredCoord = (paddle.minCoord + paddle.maxCoord) / 2;
     }
 
-    // God hızı: arena + ralli ölçekli, tavan kapaklı (ışınlanma yok)
+    // God hızı: raket hızının katı + ralli bonusu, tavan kapaklı (ışınlanma yok).
+    // Raket hızı artık `ball.paddleSpeed`'ten geldiği için god da onun katı
+    // üzerinden ölçeklenir: top tavanı değişirse god da birlikte değişir,
+    // eskiden bağımsız bir `arenaRef` sabitine bağlıydı.
     const arenaRef = Math.min(game.arena.width || 400, game.arena.height || 400);
-    const godSpeed = Math.min(
-      arenaRef * 4.0,
-      arenaRef * 2.8 + (game.ball ? game.ball.rallyCount : 0) * arenaRef * 0.05
+    const paddleSpeed = game.ball?.paddleSpeed || arenaRef * 1.5;
+    const godSpeed = paddleSpeed * Math.min(
+      2.6,
+      1.8 + (game.ball ? game.ball.rallyCount : 0) * 0.035,
     );
     const maxMove = godSpeed * dt;
     const curCoord = Number.isFinite(paddle.coord) ? paddle.coord : (paddle.minCoord + paddle.maxCoord) / 2;
@@ -103,13 +107,14 @@ export function updatePongBotAI(rawGame, paddle, dt) {
     }
 
     // Normal Bot moves at human-relative speed.
-    // Eski sürüm sabit `arenaRef * 0.85` idi; top tavanı `shortSide * 1.5`
-    // (spin ile ~1.88) olduğu için bot toptan %43 yavaştı ve ralli bitmeden
-    // yapısal olarak kaybediyordu. Hız topun gerçek hızına görelenir, tavan
-    // insan raketine yakın tutulur — hâlâ kazanılabilir ama zor.
+    // Hız İNSAN raketinin kendi hızına (`ball.paddleSpeed`) bağlıdır; topun
+    // anlık hızıyla orantılamak botu yavaş yavaş topun arkasında bırakıyordu
+    // (top tavanı arttıkça fark açılıyordu). Bot şimdi "insan hızında" hareket
+    // eder, İNSANIN YAPAMADIĞI tahminle (6.6 sn'lik geometrik iniş) kazanır —
+    // kaybedilebilir ama haksız değil.
     const arenaRef = Math.min(game.arena.width || 400, game.arena.height || 400);
-    const ballSpeed = Math.hypot(ball.vx, ball.vy) || arenaRef * 1.5;
-    const maxMove = Math.max(arenaRef * 1.15, ballSpeed * 0.8) * dt;
+    const paddleSpeed = game.ball?.paddleSpeed || arenaRef * 1.5;
+    const maxMove = paddleSpeed * 0.70 * dt;
     const curCoord = Number.isFinite(paddle.coord) ? paddle.coord : (paddle.minCoord + paddle.maxCoord) / 2;
     const diff = desiredCoord - curCoord;
     paddle.coord = curCoord + Math.sign(diff) * Math.min(Math.abs(diff), maxMove);
