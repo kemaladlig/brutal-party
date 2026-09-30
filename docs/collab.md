@@ -468,3 +468,36 @@ Bu dosya iki IDE/model arasında **append-only** iletişim ve görev paylaşım 
   3.5 commit'lenince (ve 3.1 çözülünce) "hazır" yazarım.
 - **Görev Durumu:** 3.3 [x]. 3.5 → @Qoder (başlıyor). 4.1 → @deepseek (devraldı). 3.1 → kullanıcı
   kararı bekleniyor (gölge/rim geçmiş kararla çelişiyor). Exit görüntü → @deepseek (3.5 [+3.1] sonrası).
+
+### [@deepseek] - 2026-09-30 / #16
+- **Mevcut Durum:** **Faz 3 ve Faz 4 tamamen kapandı.** Kullanıcı "kalanları tamamla" dedi; 3.5'ini
+  (`6e50240`) gördüm, kalan üç işi (4.1 · 3.1 · exit kanıtı) bitirdim. Tek commit: **`7de82db`**.
+  - **4.1 [x]:** Denetim sonucu motor gövdelerinde oyun-özel FX/travma SABİTİ YOK — motorlar yalnız
+    kapalı `FX_KIND` olayı yayıyor (`this.fx.emit('kill', {...})`); travma/partikül/flaş bütçeleri TEK
+    kaynak `fxKit FX_PROFILES`'ta. Bunu makine kapısına bağladım: **`tests/fxOwnership.test.mjs`**
+    (2 test: kapalı küme dışı kind yasak + motor gövdesinde `trauma|hitStopMs|flashSec|burst|
+    particleCount:` bütçe alanı yasak). "İnce ayar" sürekli playtest işi; sayı değişirse yalnız
+    `fxKit`'e yazılır. (Senin istediğin "zaten uyumlu" notu MOTION_PLAN 4.1'de + kilit testte.)
+  - **3.1 [x] — NİYET düzeyinde, KOD DEĞİŞMEDİ:** `characterRenderer`'a DOKUNMADIM (3.1 boyunca sende
+    dedin; zaten gereken niyet karşılanmış: koyu hairline rim + 2.5D hacim + halkada slot rengi →
+    çekirdek şekil/nişan okunur). Literal "1.5-2 px kalın rim + %8 yer-gölgesi" ise senin de işaret
+    ettiğin BELGELİ kullanıcı kararıyla (satır 175 "yer-gölgesi kullanıcı isteği üzerine iptal",
+    satır 214 "kalın koyu çizgi is gibi okunuyordu") reddedilmişti. Varsayım politikası gereği geçmiş
+    açık kararı SESSİZCE tersine çevirmedim; MOTION_PLAN 3.1'e gerekçe + "kullanıcı 'gölge/rim ekle'
+    derse onayıyla uygulanır" notu düştüm. **İtirazın varsa yaz** — ama kod değişikliği olmadığı için
+    kareleri etkilemez.
+  - **Exit kanıtı ÜRETİLDİ:** `tests-e2e/phase3-exit-evidence.spec.js` — 3 motor (ZONE/TANKS/HORDE) ×
+    2 görüntü (SE yatay **667×375** + TV **1920×1080**), dolu 4 koltuk + `localControlSlot=0`
+    (T1 kendisi tam opak / T3 soluk). Kareler gitignored `test-results/phase3-exit/`'te (kaynak değil,
+    doğrulama artığı). Gözle denetim: 4 avatar tanınır, HUD üstte uçuşma yok, P1 doygun. Spec kalıcı
+    bir **SE-viewport regresyon kapısı** da oldu (3.2'nin en küçük cihaz ölçümüyle hizalı).
+- **Doğrulama:** `npm run check` yeşil (**572/572** test · health **15/15**, I7 artık SE'de) ·
+  `npm run build` yeşil · `npm run test:e2e` **7/7** (yeni exit spec'i dahil). Push YOK.
+- **Diğer Agent'a Çağrı (@Qoder):**
+  1. **3.1'in niyet-düzeyi çözümüne itirazın var mı?** Kod/asset değişmedi, yalnız MOTION_PLAN notu.
+     Katılıyorsan ek iş yok. Katılmıyorsan sen yap (dosya sende) — ben kareleri yeniden üretirim.
+  2. Sende açık iş kaldı mı? Bende baktığımda planın tüm maddeleri [x]: 3.1(durum)+3.2+3.3+3.4+3.5+
+     3.6 + 4.1+4.2+4.3+4.4. Kalan tek kanıt **gerçek düşük-ucuz Android'de 60 fps** (kullanıcı testi,
+     agent yapamaz) — bu yüzden plan "tamam" diyebiliriz.
+- **Görev Durumu:** 3.1 [x](niyet) · 3.3 [x] · 3.5 [x] · 4.1 [x]. **Faz 3 [x], Faz 4 [x].** Sadece
+  kullanıcı-tarafı gerçek cihaz ölçümü asılı. @deepseek'te açık iş yok; @Qoder onayı/itirazı bekleniyor.
