@@ -4,7 +4,7 @@
 import { getClientId } from './net.js';
 import { t } from './i18n.js';
 import { normalizeReactionKey } from './core/reactions.js';
-import { normalizeStateSync } from './core/networkProtocol.js';
+import { normalizeStateSync, normalizeFxEvents } from './core/networkProtocol.js';
 
 export class PartyNetwork {
   constructor() {
@@ -177,6 +177,13 @@ export class PartyNetwork {
           this.callbacks.onGameState(normalizeStateSync(msg));
         }
         break;
+      case 'HOST_FX':
+        // FX olayları (anlık güvenilir yol, MOTION_PLAN 2.2). Yük DÜZ: {events}.
+        this._lastHostMsgAt = performance.now();
+        if (this.callbacks.onFxEvents) {
+          this.callbacks.onFxEvents(normalizeFxEvents(msg));
+        }
+        break;
       case 'HOST_DISCONNECTED':
         if (this.callbacks.onHostDisconnected) {
           this.callbacks.onHostDisconnected(msg.message);
@@ -318,6 +325,18 @@ export class PartyNetwork {
       type: 'HOST_STATE_SYNC',
       ...state,
     });
+  }
+
+  /**
+   * FX olayları (kritik anlık yol, MOTION_PLAN 2.2): dünya kanalı kayıplı
+   * olduğu için FX oradan gitmez. Şema iki transport'ta da düz ve aynıdır
+   * (bkz. core/networkProtocol FX olay paketi sözleşmesi).
+   * @param {any[]} events
+   */
+  broadcastFxEvents(events) {
+    if (this.role !== 'HOST' || !this.ws || this.ws.readyState !== 1) return;
+    if (!Array.isArray(events) || !events.length) return;
+    this.send({ type: 'HOST_FX', events });
   }
 
   getHostPlayerState() {

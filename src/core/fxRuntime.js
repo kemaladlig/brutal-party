@@ -8,8 +8,10 @@
 
 import { motionScale } from '../ui/motion.js';
 import { UI_COLORS } from '../ui/tokens.js';
+import { fxParticleScale } from './perfMonitor.js';
 import {
   fxProfile,
+  fxPower,
   fxSpawnBurst,
   fxSpawnRing,
   fxSpawnPop,
@@ -20,6 +22,11 @@ import {
   fxNormalizedDir,
   advanceHitStop,
 } from './fxKit.js';
+
+/** Olay kuyruğu üst sınırı: taşan EN ESKİ olay düşer (anlık yol bütçesi). */
+export const FX_EVENT_QUEUE_CAP = 24;
+
+const r1 = (v) => Math.round((Number(v) || 0) * 10) / 10;
 
 export class FxRuntime {
   /** @param {{ arenaProvider?: () => any, traumaSink?: (amount: number, dirX: number, dirY: number) => void }} [options] */
@@ -38,6 +45,13 @@ export class FxRuntime {
     this.flash = 0;
     /** Paketleme-tarafı alpha türetme tabanı (en son görülen flaş süresi). */
     this.flashPeak = 0.06;
+    /**
+     * Anlık güvenilir yol için bekleyen olay kayıtları (MOTION_PLAN 2.2):
+     * `stateSync.flushFxEvents` damgalayıp yayınlar. Token BURADA basılmaz —
+     * damga oturum sayaçları networkProtocol'dedir.
+     * @type {any[]}
+     */
+    this.events = [];
   }
 
   get arena() {
@@ -54,6 +68,7 @@ export class FxRuntime {
     this.particles.length = 0;
     this.rings.length = 0;
     this.pops.length = 0;
+    this.events.length = 0;
     this.hitStop = 0;
     this.flash = 0;
   }
@@ -61,14 +76,20 @@ export class FxRuntime {
   /**
    * @param {import('./fxKit.js').FxKind} kind
    * @param {{ x: number, y: number, color?: string, dirX?: number, dirY?: number,
-   *   ringRadius?: number | null, haptic?: boolean, size?: number, angle?: number }} event
+   *   ringRadius?: number | null, haptic?: boolean, size?: number, angle?: number,
+   *   slot?: number, unit?: number }} event
    */
   emit(kind, event) {
     const profile = /** @type {any} */ (fxProfile(kind));
-    const unit = this.unit;
+    const unit = Number.isFinite(event.unit) && /** @type {number} */ (event.unit) > 0
+      ? /** @type {number} */ (event.unit)
+      : this.unit;
     const color = event.color || UI_COLORS.inkDark;
     if (profile.burst) {
-      fxSpawnBurst(this.particles, kind, { x: event.x, y: event.y, color, unit });
+      // Kademe çarpanı TEK yerde uygulanır (2.3): buradaki `count` dışında
+      // hiçbir yer partikül sayısına dokunmaz.
+      const burstCount = Math.max(1, Math.round(/** @type {any} */ (profile.burst).count * fxParticleScale()));
+      fxSpawnBurst(this.particles, kind, { x: event.x, y: event.y, color, unit, count: burstCount });
     }
     if (profile.ring) {
       fxSpawnRing(this.rings, kind, { x: event.x, y: event.y, color, unit, ringRadius: event.ringRadius ?? null });
@@ -95,7 +116,48 @@ export class FxRuntime {
       this.traumaSink(profile.trauma, dir?.x || 0, dir?.y || 0);
     }
     if (event.haptic) fxHaptic(kind);
+    this._recordEvent(kind, event, unit);
     return profile;
+  }
+
+  /**
+   * Olayı kablosuz kayıt biçimine çevirir (token SONRA basılır). Sayılar
+   * 1 ondalığa yuvarlanır — dünya paketi round1 konvansiyonuyla aynı.
+   * @param {import('./fxKit.js').FxKind} kind
+   * @param {any} event
+   * @param {number} unit
+   */
+  _recordEvent(kind, event, unit) {
+    if (this.events.length >= FX_EVENT_QUEUE_CAP) this.events.shift();
+    /** @type {Record<string, any>} */
+    const rec = {
+      fx: kind,
+      x: r1(event.x),
+      y: r1(event.y),
+      u: r1(unit),
+      power: fxPower(kind),
+    };
+    if (Number.isInteger(event.slot) && event.slot >= 0 && event.slot <= 3) rec.slot = event.slot;
+    if (typeof event.color === 'string') rec.color = event.color;
+    if (Number.isFinite(event.dirX) && Number.isFinite(event.dirY)) {
+      rec.dirX = r1(event.dirX);
+      rec.dirY = r1(event.dirY);
+    }
+    if (Number.isFinite(event.angle)) rec.angle = r1(event.angle);
+    if (Number.isFinite(event.size)) rec.size = r1(event.size);
+    if (Number.isFinite(event.ringRadius)) rec.ringRadius = r1(event.ringRadius);
+    this.events.push(rec);
+  }
+
+  /**
+   * Bekleyen olayları boşaltır (stateSync her karede çağırır — anlık yol).
+   * @returns {any[]} kopyasız çıkışı; boş dizi = bu karede olay yok
+   */
+  drainEvents() {
+    if (!this.events.length) return [];
+    const out = this.events.slice();
+    this.events.length = 0;
+    return out;
   }
 
   /**

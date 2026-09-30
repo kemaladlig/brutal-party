@@ -11,6 +11,10 @@
 //   K4 §3  engineRegistry CARTRIDGES: her kayıt zorunlu metot setine sahip mi.
 //   K5 §8  reactions.js dışında ham OS emojisi (§8 tek istisna tepki yüzeyi).
 //   K6 §10 GAME_ORDER'daki her oyun docs/PROJECT_MAP.md satırında geçiyor mu.
+//   K7 §4  src/games/** içinde ham partikül üretimi/çizimi yasak (ortak çizici
+//          worldCore.js hariç): `particles.push(` ve partikül döngüsünden
+//          sonraki 12 satır içinde `ctx.arc(`. Motorlar FX'i yalnız fxRuntime
+//          üzerinden üretir, çizerken worldCore/drawFx katmanını kullanır.
 //
 // Kural notu: @ts-ignore/baseline kaçışı yasak değildir ama her taban düşüşü
 // geri dönüşü olmayan bir kayıt değildir — dosya silinse de sayı kalır.
@@ -145,6 +149,33 @@ function scanK6(_file, src) {
   return hits;
 }
 
+const K7_EXEMPT = new Set(['src/games/worldCore.js']);
+const K7_LOOP_RE = /for\s*\(.*\bof\b.*particles/;
+
+function scanK7(file, src) {
+  const r = rel(file);
+  if (!r.startsWith('src/games/') || K7_EXEMPT.has(r)) return [];
+  const hits = [];
+  const lines = src.split('\n');
+  lines.forEach((line, i) => {
+    if (line.includes('particles.push(')) {
+      hits.push({ line: i + 1, msg: 'ham partikul uretimi — fxRuntime.emit kullan (§4)' });
+    }
+  });
+  lines.forEach((line, i) => {
+    if (!K7_LOOP_RE.test(line)) return;
+    K7_LOOP_RE.lastIndex = 0;
+    for (let j = i + 1; j <= Math.min(lines.length - 1, i + 12); j += 1) {
+      if (lines[j].includes('ctx.arc(')) {
+        hits.push({ line: i + 1, msg: 'ham partikul cizimi — worldCore/drawFx katmani kullan (§4)' });
+        break;
+      }
+    }
+    K7_LOOP_RE.lastIndex = 0;
+  });
+  return hits;
+}
+
 const SCANS = [
   { id: 'K1', files: () => K1_FILES.map((f) => join(ROOT, f)), fn: scanK1 },
   { id: 'K2', files: () => walk(SRC, '.js'), fn: scanK2 },
@@ -152,6 +183,7 @@ const SCANS = [
   { id: 'K4', files: () => [join(ROOT, 'src', 'core', 'engineRegistry.js')], fn: scanK4 },
   { id: 'K5', files: () => walk(SRC, '.js'), fn: scanK5 },
   { id: 'K6', files: () => [join(ROOT, 'src', 'core', 'engineRegistry.js')], fn: scanK6 },
+  { id: 'K7', files: () => walk(join(SRC, 'games'), '.js'), fn: scanK7 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -198,4 +230,4 @@ if (failed) {
   console.error('\nrules-lint: AGENTS.md yasağı ihlal edildi. Yeni iş için tabanı düşürmek = borcu azaltmak; artırmak yasak.');
   process.exit(1);
 }
-console.log('rules-lint: temiz — K1–K6 AGENTS.md yasaklarında yeni ihlal yok.');
+console.log('rules-lint: temiz — K1–K7 AGENTS.md yasaklarında yeni ihlal yok.');

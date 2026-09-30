@@ -25,7 +25,7 @@ import {
   ensureStoredNick,
   supabaseRelay,
 } from './net.js';
-import { perfMonitor } from './core/perfMonitor.js';
+import { perfMonitor, noteFxFrameTime } from './core/perfMonitor.js';
 import { mountPerfOverlay } from './ui/perfOverlay.js';
 
 import { initToastAndInstall, showInstallToast, showConnectionBanner, hideConnectionBanner } from './ui/toast.js';
@@ -635,6 +635,7 @@ const stateSync = createStateSync({
 });
 const broadcastGameStateIfNeeded = (now) => stateSync.broadcastGameStateIfNeeded(now);
 const broadcastWorldStateIfNeeded = (now) => stateSync.broadcastWorldStateIfNeeded(now);
+const flushFxEvents = () => stateSync.flushFxEvents();
 
 // Duraklatma göstergesi: donmuş karenin üstünde canvas-içi rozet
 // (DOM modal zaten açık; TV'de "oyun mu bozuldu" belirsizliğini giderir).
@@ -755,7 +756,10 @@ function loop(timestamp) {
   const loopEntry = getEngine(roomFlow.getCurrentMode());
 
   if (loopEntry) {
-    if (lastPerfFrameAt) perfMonitor.record('host.frame', timestamp - lastPerfFrameAt);
+    if (lastPerfFrameAt) {
+      perfMonitor.record('host.frame', timestamp - lastPerfFrameAt);
+      noteFxFrameTime(timestamp - lastPerfFrameAt);
+    }
     lastPerfFrameAt = timestamp;
     try {
       const perfUpdateStart = performance.now();
@@ -764,6 +768,7 @@ function loop(timestamp) {
       }
       const perfBroadcastStart = performance.now();
       broadcastWorldStateIfNeeded(timestamp);
+      flushFxEvents();
       const perfRenderStart = performance.now();
       loopEntry.game.render();
       const perfRenderEnd = performance.now();

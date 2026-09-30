@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cleanPlayerName, getClientId } from './net.js';
 import { WebRTCManager } from './webrtcManager.js';
 import { sanitizeAvatar, pickFreeColor, isPaletteHex, getAvatarProfile } from './core/customizationManager.js';
-import { isValidNetworkInput, generateRoomCode, normalizeRoomCode, normalizeStateSync } from './core/networkProtocol.js';
+import { isValidNetworkInput, generateRoomCode, normalizeRoomCode, normalizeStateSync, normalizeFxEvents } from './core/networkProtocol.js';
 import { normalizeReactionKey } from './core/reactions.js';
 import { t } from './i18n.js';
 
@@ -584,6 +584,19 @@ export class SupabaseRelay {
     );
   }
 
+  /**
+   * FX olayları (kritik anlık yol, MOTION_PLAN 2.2): kontrol yolunun güvenilir
+   * tesliminden gider — WebRTC'de açık peer'lara, kalanlara hedefli Supabase
+   * fallback'iyle (STATE_SYNC ile aynı dağıtım). Şema TV_CONSOLE WS ile aynı:
+   * düz `events` yükü (bkz. core/networkProtocol FX olay paketi sözleşmesi).
+   * @param {any[]} events
+   */
+  broadcastFxEvents(events) {
+    if (this.role !== 'HOST') return;
+    if (!Array.isArray(events) || !events.length) return;
+    this._sendHostPayload({ action: 'FX_EVENTS', events });
+  }
+
   getHostPlayerState() {
     const slotIndex = this._hostPlayerIndex();
     if (slotIndex < 0) return { active: false, slotIndex: null, player: null };
@@ -928,6 +941,14 @@ export class SupabaseRelay {
       case 'WORLD_FRAME': {
         if (this.callbacks.onWorldFrame) {
           this.callbacks.onWorldFrame(msg);
+        }
+        break;
+      }
+
+      case 'FX_EVENTS': {
+        // FX olayları (anlık güvenilir yol). Yük DÜZ: {events}.
+        if (this.callbacks.onFxEvents) {
+          this.callbacks.onFxEvents(normalizeFxEvents(msg));
         }
         break;
       }

@@ -1,7 +1,7 @@
 {
   "K1": {
     "src/main.js": 1,
-    "src/gamepad.js": 2
+    "src/gamepad.js": 1
   },
   "K2": {
     "src/controlGuide.js": 15,
@@ -11,11 +11,11 @@
     "src/core/customizationManager.js": 33,
     "src/core/engineRegistry.js": 15,
     "src/core/fieldKit.js": 78,
-    "src/core/playerEntity.js": 2,
+    "src/core/playerEntity.js": 1,
     "src/core/reactions.js": 12,
     "src/core/tabletopIcons.js": 2,
     "src/core/tabletopRenderer.js": 9,
-    "src/gamepad.js": 14,
+    "src/gamepad.js": 13,
     "src/games/archer.js": 5,
     "src/games/archerView.js": 4,
     "src/games/ball.js": 10,
@@ -31,9 +31,9 @@
     "src/games/game.js": 18,
     "src/games/heist.js": 25,
     "src/games/heistView.js": 42,
-    "src/games/horde.js": 20,
+    "src/games/horde.js": 19,
     "src/games/hordeConfig.js": 10,
-    "src/games/hordeView.js": 21,
+    "src/games/hordeView.js": 19,
     "src/games/laser.js": 15,
     "src/games/laserView.js": 15,
     "src/games/ninja.js": 11,
@@ -44,7 +44,7 @@
     "src/games/raceView.js": 8,
     "src/games/snake.js": 7,
     "src/games/snakeView.js": 16,
-    "src/games/tanks.js": 8,
+    "src/games/tanks.js": 5,
     "src/games/tanksView.js": 11,
     "src/games/worldCore.js": 1,
     "src/games/zone.js": 29,
@@ -61,11 +61,10 @@
     "src/ui/collapseWorldView.js": 4,
     "src/ui/crownWorldView.js": 3,
     "src/ui/curveWorldView.js": 8,
-    "src/ui/gamepadShell.js": 6,
     "src/ui/heistWorldView.js": 2,
     "src/ui/hordeWorldView.js": 2,
     "src/ui/hostLobby.js": 1,
-    "src/ui/hud.js": 18,
+    "src/ui/hud.js": 6,
     "src/ui/laserWorldView.js": 2,
     "src/ui/ninjaWorldView.js": 2,
     "src/ui/pauseModal.js": 3,
@@ -109,9 +108,25 @@
     "src/games/zone.js": 4,
     "src/locales/en.js": 3,
     "src/locales/tr.js": 3,
-    "src/ui/hud.js": 8,
+    "src/ui/hud.js": 5,
     "src/ui/playerNameField.js": 1,
     "src/ui/slotCardView.js": 1
   },
-  "K6": {}
+  "K6": {},
+  "K7": {
+    "src/games/archer.js": 1,
+    "src/games/archerView.js": 1,
+    "src/games/bomb.js": 5,
+    "src/games/clone.js": 2,
+    "src/games/collapse.js": 3,
+    "src/games/crown.js": 9,
+    "src/games/curve.js": 3,
+    "src/games/heist.js": 6,
+    "src/games/horde.js": 1,
+    "src/games/laser.js": 1,
+    "src/games/ninja.js": 5,
+    "src/games/snake.js": 3,
+    "src/games/snakeView.js": 1,
+    "src/games/zone.js": 5
+  }
 }

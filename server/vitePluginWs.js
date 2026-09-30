@@ -78,6 +78,7 @@ export function vitePluginWs() {
 const HOST_ONLY_MSG = new Set([
   'SET_HOST_PLAYER',
   'HOST_STATE_SYNC',
+  'HOST_FX',
   'SET_GAME_MODE',
   'START_GAME',
   'START_STAGING',
@@ -145,6 +146,12 @@ export function handleMessage(ws, msg, roomManager) {
 
     case 'HOST_STATE_SYNC': {
       roomManager.handleHostBroadcast(ws, msg);
+      break;
+    }
+
+    case 'HOST_FX': {
+      // FX olayları — anlık güvenilir yol (bkz. core/networkProtocol).
+      roomManager.handleHostFx(ws, msg);
       break;
     }
 

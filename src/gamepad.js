@@ -23,6 +23,8 @@ import { drawBrutalAvatar } from './ui/characterRenderer.js';
 import { openCustomizeModal } from './ui/customizeModal.js';
 import { getTabletopIconSvg } from './core/tabletopIcons.js';
 import { GamepadWorldView } from './ui/gamepadWorldView.js';
+import { fxHaptic } from './core/fxKit.js';
+import { createFxEventFilter } from './core/networkProtocol.js';
 import { renderLocalGamepadShell, renderRemoteGamepadShell } from './ui/gamepadShell.js';
 import { openControllerLayoutEditor } from './ui/controllerLayoutEditor.js';
 import { ensureReactionTriggers, setReactionSender } from './ui/reactionPicker.js';
@@ -144,6 +146,8 @@ export class GamepadManager {
     this._worldViewToken = 0;
     this._worldViewEnabled = false;
     this._pendingWorldFrame = null;
+    /** FX olay süzgeci (token tektip: yinelenen/eski olay düşer; mount'ta sıfırlanır). */
+    this._fxFilter = createFxEventFilter();
     this._activeLayoutRoot = null;
     this._layoutSafeProbe = null;
     this._layoutPreview = null;
@@ -656,6 +660,8 @@ export class GamepadManager {
   // nötr paket gönder (zone innerHTML ile sökülmeden ÖNCE çağrılmalı)
   _teardownMount() {
     this._destroyWorldView();
+    // Yeni mount = yeni oyun: FX token sayacı ve oynatma mandalı sıfırlanır.
+    this._fxFilter = createFxEventFilter();
     this._setActiveLayoutRoot(null);
     if (this._activeController?.teardown) {
       try { this._activeController.teardown(); } catch (err) { reportError(err, 'gamepad.teardown'); }
@@ -1638,6 +1644,23 @@ export class GamepadManager {
     } else {
       this._pendingWorldFrame = frame;
     }
+  }
+
+  /**
+   * FX olayları (anlık güvenilir yol, MOTION_PLAN 2.2): önce kendi koltuğunun
+   * olaylarında haptik (desen tablosu fxKit), sonra world sunum katmanına
+   * playback için teslim. §2 gereği kumandada simülasyon YOKTUR — yalnız
+   * oynatılan sunum durumu (selfPrediction precedenti). Dünya görünümü yoksa
+   * (TV kumanda) geriye yalnız haptik kalır: sarsıntı/flash TV'de (2.4).
+   * @param {any[] | null} events
+   */
+  handleFxEvents(events) {
+    const fresh = this._fxFilter(Array.isArray(events) ? events : []);
+    if (!fresh.length) return;
+    for (const ev of fresh) {
+      if (Number.isInteger(ev.slot) && ev.slot === this.playerIndex) fxHaptic(ev.fx);
+    }
+    if (this._worldView) this._worldView.acceptFx(fresh);
   }
 
   // Faz 2.2 — kill-feed: skor artışını sağ üstte toast olarak bildirir.

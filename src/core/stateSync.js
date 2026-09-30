@@ -8,6 +8,7 @@
 // `world` kanalıdır (Supabase'e düşmez).
 
 import { getEngine } from './engineRegistry.js';
+import { createFxStamp } from './networkProtocol.js';
 import { roundGapSeconds } from './roundLifecycle.js';
 import { hostPlayerSlots } from './slotManager.js';
 
@@ -97,5 +98,20 @@ export function createStateSync({ getMode, getNet, getRoomPhase, getCountdown })
     net.broadcastWorldFrame(frame);
   }
 
-  return { broadcastGameStateIfNeeded, broadcastWorldStateIfNeeded };
+  // FX olayları: kritik olayların ANLIK güvenilir yolu (MOTION_PLAN 2.2).
+  // Throttle YOKTUR (gönderim yalnız gerçekten olay varken olur); world
+  // kanalının 30 Hz kayıplı teslimine FX bırakılmaz. Damga oturum sayaçlıdır
+  // (networkProtocol.createFxStamp) — kumanda eski/yinelenen olayı atar.
+  const stampFxEvents = createFxStamp();
+  function flushFxEvents() {
+    const net = getNet();
+    if (!net.isHosting || typeof net.broadcastFxEvents !== 'function') return;
+    const entry = getEngine(getMode());
+    const drained = entry?.game?.fx?.drainEvents?.();
+    if (!drained || !drained.length) return;
+    const events = stampFxEvents(drained);
+    if (events.length) net.broadcastFxEvents(events);
+  }
+
+  return { broadcastGameStateIfNeeded, broadcastWorldStateIfNeeded, flushFxEvents };
 }

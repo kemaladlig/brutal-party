@@ -9,7 +9,10 @@ import {
   selectBufferedWorldFrame,
 } from '../core/worldInterpolation.js';
 import { applySelfPrediction, createSelfPredictor, observeSelfFrame, selfPredictionHorizon } from '../core/selfPrediction.js';
-import { perfMonitor } from '../core/perfMonitor.js';
+import { perfMonitor, noteFxFrameTime } from '../core/perfMonitor.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha, isFxKind } from '../core/fxKit.js';
+import { drawFxFlash } from '../games/worldCore.js';
 import { renderWorldConnecting } from './worldViewKit.js';
 
 export { blendWorldFrames };
@@ -58,6 +61,14 @@ export class GamepadWorldView {
     // Self-avatar prediction: sunum-only, host yetkisini değiştirmez.
     this.predictor = createSelfPredictor();
     this.selfInput = { dx: 0, dy: 0, force: 0 };
+
+    // FX olay playback'i (MOTION_PLAN 2.2): anlık güvenilir yoldan gelen
+    // olaylar burada yalnız SUNUM durumuna çevrilir (§2: kumandada sim yok).
+    // `fxLive` mandalı: ilk olaydan itibaren frame.fx/frame.particles YERİNE
+    // bu katman çizer — iki kaynak aynı anda çizilirse partikül ikiye katlanır.
+    this.fx = createFxRuntime({});
+    this.fxLive = false;
+    this._fxUpdatedAt = 0;
 
     // `frame` is the newest accepted snapshot. `buffer` contains the samples
     // used by the delayed presenter; it is intentionally separate from frame.
@@ -189,8 +200,48 @@ export class GamepadWorldView {
     return true;
   }
 
+  /**
+   * FX olayı kabulü (anlık güvenilir yol). Olaylar damgalı ve süzülmüş gelir
+   * (gamepad.handleFxEvents); burada yalnız oynatılır.
+   * @param {any[]} events
+   */
+  acceptFx(events) {
+    if (this.destroyed || !Array.isArray(events) || !events.length) return;
+    for (const ev of events) {
+      if (!ev || !isFxKind(ev.fx)) continue;
+      this.fx.emit(ev.fx, {
+        x: ev.x,
+        y: ev.y,
+        unit: ev.u,
+        color: ev.color,
+        dirX: ev.dirX,
+        dirY: ev.dirY,
+        angle: ev.angle,
+        size: ev.size,
+        ringRadius: ev.ringRadius ?? null,
+        slot: ev.slot,
+        haptic: false,
+      });
+    }
+    this.fxLive = true;
+    this._queueRender();
+  }
+
+  /** FX katmanı (obje biçimi) — view'lar `context.fx` üzerinden çizer. */
+  fxLayer() {
+    return {
+      pops: this.fx.pops,
+      rings: this.fx.rings,
+      particles: this.fx.particles,
+      flash: this.fx.flash,
+      flashPeak: this.fx.flashPeak,
+    };
+  }
+
   reset() {
     this._clearBuffer();
+    this.fx.clear();
+    this.fxLive = false;
     this.frame = null;
     this.prevFrame = null;
     this.hostId = null;
@@ -311,8 +362,16 @@ export class GamepadWorldView {
     if (this.destroyed) return;
 
     const now = performance.now();
-    if (this._lastDrawAt) perfMonitor.record('client.frame', now - this._lastDrawAt);
+    if (this._lastDrawAt) {
+      perfMonitor.record('client.frame', now - this._lastDrawAt);
+      noteFxFrameTime(now - this._lastDrawAt);
+    }
     this._lastDrawAt = now;
+    // FX playback kendi saatini burada işletir (sunum-only); kare yokken de
+    // sönmesi gerekir — şuursuz birikme olmasın.
+    const fxDt = this._fxUpdatedAt ? Math.min(0.05, (now - this._fxUpdatedAt) / 1000) : 0.016;
+    this._fxUpdatedAt = now;
+    if (this.fxLive) this.fx.update(fxDt);
     this.ctx.setTransform(this.dpr || 1, 0, 0, this.dpr || 1, 0, 0);
 
     if (!this.frame) {
@@ -321,6 +380,9 @@ export class GamepadWorldView {
       } else {
         this.renderer.renderPlaceholder?.(this.ctx, this.logicalWidth, this.logicalHeight);
       }
+      // Degrade (Supabase: world kanalı yok) — kabul edilmiş gramer: yalnız
+      // flaş (MOTION_PLAN madde 2). Katmanı view çizemez (çerçeve yok).
+      this._drawFlashOverlay();
       return;
     }
 
@@ -368,7 +430,7 @@ export class GamepadWorldView {
         this.logicalHeight,
         this.slots,
         now,
-        { selfSlot: this.selfSlot, roundGap: this.roundGapSeconds, matchOverEnter: this.matchOverEnter },
+        { selfSlot: this.selfSlot, roundGap: this.roundGapSeconds, matchOverEnter: this.matchOverEnter, fx: this.fxLive ? this.fxLayer() : null },
       );
       this.stats.lastRenderMs = performance.now() - renderStarted;
       perfMonitor.record('client.render', this.stats.lastRenderMs);
@@ -396,6 +458,13 @@ export class GamepadWorldView {
     // This gives the canvas a real display-refresh cadence between 30 Hz
     // snapshots instead of starting/stopping rAF for every packet.
     this._queueRender();
+  }
+
+  /** Ekran-uzayı flaş katmanı (yalnız çerçevesiz degrade yolunda çağrılır). */
+  _drawFlashOverlay() {
+    if (!this.fxLive) return;
+    const alpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (alpha > 0) drawFxFlash(this.ctx, this.logicalWidth, this.logicalHeight, alpha);
   }
 
   _checkStale() {

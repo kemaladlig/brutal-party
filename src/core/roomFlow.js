@@ -669,6 +669,10 @@ async function executeJoin(rawCode, rawName, requestedMode = null) {
       onWorldFrame: (frame) => {
         gamepadManager.handleWorldFrame(frame);
       },
+      onFxEvents: (events) => {
+        // FX olayları (anlık güvenilir yol): kumanda yalnız oynatır (§2).
+        gamepadManager.handleFxEvents(events);
+      },
       onError: (err) => {
         routeConnectionMessage(err);
       },

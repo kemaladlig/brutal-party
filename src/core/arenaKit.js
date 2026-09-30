@@ -2,6 +2,7 @@
 // Motorlar buildLayout(name, arena) çağırabilir; ÇİZİM (drawObstacle, drawPickup) buradan gelir.
 import { drawTabletopIcon, hasTabletopIcon } from './tabletopIcons.js';
 import { fieldTheme } from './fieldKit.js';
+import { fxGlowEnabled } from './perfMonitor.js';
 
 export const PICKUP_META = {
   TURBO:        { label: 'TRB', icon: 'zap', glyph: '⚡', color: '#FFB020', ink: '#241C15' },
@@ -698,13 +699,15 @@ export function drawPickup(ctx, pk, opts = {}) {
   ctx.translate(pk.x, pk.y);
   ctx.scale(pulse, pulse);
 
-  // 1. Hafif Dış Puls Aurası (glow)
-  ctx.beginPath();
-  ctx.arc(0, 0, half + 3.5 * u, 0, Math.PI * 2);
-  ctx.fillStyle = color;
-  ctx.globalAlpha = 0.22;
-  ctx.fill();
-  ctx.globalAlpha = 1.0;
+  // 1. Hafif Dış Puls Aurası (glow) — düşük FX kademesinde kapalı (2.3).
+  if (fxGlowEnabled()) {
+    ctx.beginPath();
+    ctx.arc(0, 0, half + 3.5 * u, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.22;
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+  }
 
   // 2. Yumuşak Zemin Gölgesi
   ctx.beginPath();

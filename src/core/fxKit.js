@@ -126,6 +126,17 @@ export function fxHaptic(kind) {
 }
 
 /**
+ * Olayın şiddet gücü (0..1) — kablosuz paketteki `power` alanı budur:
+ * travma bütçesi, yoksa 0. Degrade grameri (flash+squash) bu skaladan okur.
+ * @param {string} kind
+ * @returns {number}
+ */
+export function fxPower(kind) {
+  const trauma = /** @type {any} */ (fxProfile(kind)).trauma;
+  return Number.isFinite(trauma) ? trauma : 0;
+}
+
+/**
  * Eski partikülleri düşürerek gelecek burst'e yer açar.
  * @param {any[]} list @param {number} incoming
  */
@@ -139,16 +150,19 @@ function fxTrim(list, incoming) {
  * konvansiyonuyla aynı şekil: x,y,vx,vy,life,maxLife,size,color).
  * @param {any[] | null | undefined} list
  * @param {FxKind} kind
- * @param {{ x: number, y: number, color?: string, angle?: number | null, unit?: number, rng?: () => number }} opts
+ * @param {{ x: number, y: number, color?: string, angle?: number | null, unit?: number, rng?: () => number, count?: number }} opts
+ *   `count` yalnız kademe çarpanını uygulayan FxRuntime'dan geçilir (2.3);
+ *   doğrudan çağrılar profili birebir kullanır (kilitler buna güvenir).
  * @returns {number} üretilen partikül sayısı
  */
-export function fxSpawnBurst(list, kind, { x, y, color = UI_COLORS.inkDark, angle = null, unit = 1, rng = Math.random }) {
+export function fxSpawnBurst(list, kind, { x, y, color = UI_COLORS.inkDark, angle = null, unit = 1, rng = Math.random, count = NaN }) {
   const burst = /** @type {any} */ (fxProfile(kind)).burst;
   if (!burst || !Array.isArray(list)) return 0;
-  fxTrim(list, burst.count);
+  const n = Number.isFinite(count) && count > 0 ? Math.min(burst.count, Math.floor(count)) : burst.count;
+  fxTrim(list, n);
   const u = Number.isFinite(unit) && unit > 0 ? unit : 1;
   const sizeVar = burst.sizeVar || 0;
-  for (let i = 0; i < burst.count; i += 1) {
+  for (let i = 0; i < n; i += 1) {
     const spread = angle == null ? 0 : (rng() * 2 - 1) * 1.25;
     const a = angle == null ? rng() * Math.PI * 2 : angle + spread;
     const speed = (burst.speed + (rng() * 2 - 1) * burst.speedVar) * u;
@@ -163,7 +177,7 @@ export function fxSpawnBurst(list, kind, { x, y, color = UI_COLORS.inkDark, angl
       color: (burst.inkMix && rng() < burst.inkMix) ? UI_COLORS.inkDark : color,
     });
   }
-  return burst.count;
+  return n;
 }
 
 /**

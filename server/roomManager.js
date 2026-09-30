@@ -1,7 +1,7 @@
 // Room & Networking Manager for Brutal Party // 4P
 // Manages rooms, host connections, controller slots (P1..P4), and low-latency input streaming.
 import { sanitizeAvatar, pickFreeColor, isPaletteHex } from '../src/core/customizationManager.js';
-import { isValidNetworkInput, generateRoomCode as createRoomCode, normalizeStateSync } from '../src/core/networkProtocol.js';
+import { isValidNetworkInput, generateRoomCode as createRoomCode, normalizeStateSync, normalizeFxEvents } from '../src/core/networkProtocol.js';
 import { normalizeReactionKey } from '../src/core/reactions.js';
 
 // Sunucu tarafı isim temizleyici (istemcideki net.js cleanPlayerName ile aynı
@@ -443,6 +443,22 @@ export class RoomManager {
     // `state` zarfın kendisini de taşır (discriminator en üstte), ayrıca
     // birleştirmeye gerek yok — iç içe `state` kovası zaten düzleştirildi.
     const json = JSON.stringify(state);
+    for (const p of room.players) {
+      if (p?.isHost) continue;
+      this._sendToPlayer(p, json);
+    }
+  }
+
+  // FX olayları (MOTION_PLAN 2.2): anlık güvenilir yol. Şema iki transport'ta
+  // da AYNI ve düz ({ type:'HOST_FX', events }); dünya kanalı kayıplıdır, FX
+  // oradan gitmez. rol kapısı HOST_ONLY_MSG'te.
+  handleHostFx(hostWs, payload) {
+    if (!hostWs || !hostWs.isHost) return;
+    const room = this.getRoom(hostWs.roomCode);
+    if (!room) return;
+    const events = normalizeFxEvents(payload);
+    if (!events || !events.length) return;
+    const json = JSON.stringify({ type: 'HOST_FX', events });
     for (const p of room.players) {
       if (p?.isHost) continue;
       this._sendToPlayer(p, json);

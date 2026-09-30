@@ -248,7 +248,7 @@ tests/worldPacketRadius.test.mjs  Tasarım yarıçap sabitlerinin motor TUNING'i
                              `npm run test:e2e` — doğrulama elle koşulmaz
 scripts/typecheck.mjs       tsc --checkJs ratchet'i: --stats dosya tablosu, --max (taban:
                             scripts/typecheck-baseline.txt, şu an 0) — `npm run typecheck`
-scripts/rules-lint.mjs      AGENTS.md K1–K6 makine bekçisi (mode=== dalı, ham renk, canvas
+scripts/rules-lint.mjs      AGENTS.md K1–K7 makine bekçisi (mode=== dalı, ham renk, canvas
                             DPR, cartridge bütünlüğü, emoji, PROJECT_MAP tazeliği); borç
                             tabanı scripts/rules-lint-baseline.json — `npm run check:rules`
 ```
@@ -294,6 +294,12 @@ Ortak doğrulama `networkProtocol.js`. **Uçtan uca:** oda kur (3 haneli kod) �
 
 ### host_msg (host → uzak telefon):
 - `HOST_STATE_SYNC`/`GAME_STATE` (8 Hz, dirty-check), `WORLD_FRAME` (30 Hz P2P).
+- `HOST_FX`/`FX_EVENTS` (anlık güvenilir yol, throttle yok): `network.js` →
+  `{ type: 'HOST_FX', events }` · `supabaseRelay.js` → `{ action: 'FX_EVENTS', events }`.
+  Olay `{ fx, token, x, y, u, power, slot?, color?, dirX?, dirY?, angle?, size?, ringRadius? }`
+  (`fx` kapalı küme, `token` oturum sayaçlı); doğrulama `networkProtocol` (`isValidFxEvent`/
+  `normalizeFxEvents`), damga `createFxStamp`, süzgeç `createFxEventFilter`. Kilit:
+  `tests/fxEvents.test.mjs`.
 
 **STATE_SYNC zarfı — iki transport'ta AYNI şekil.** Discriminator en üstte, yük düz:
 `network.js` → `{ type: 'HOST_STATE_SYNC', ...state }` · `supabaseRelay.js` → `{ action: 'STATE_SYNC', ...state }`.
