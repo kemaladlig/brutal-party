@@ -146,6 +146,10 @@ olayları; kendi partikül/metot gövdeleri silindi, API kabukları korundu).
 
 **Çıkış kanıtı:** `engine-smoke` 15 motor × 240 kare yeşil; `relayProbes` §11 provası yeşil;
 gerçek Android düşük-ucuz cihazda 60 fps yakalama (perfMonitor çıktısı kanıt).
+> **Durum (2026-09-30):** kod tarafı tamam — `npm run check` yeşil (tsc + undef + tokens +
+> rules + test 545/545 + health 15/15) · `npm run build` yeşil · `npm run test:e2e` 6/6
+> (engine-smoke CURVE dahil 15 motor × 240 kare + relayProbes/control-surface/perf-overlay).
+> **Kalan tek kanıt: gerçek düşük-ucuz Android'de 60 fps ölçümü** (kullanıcı testi, agent yapamaz).
 
 ## Faz 3 — Okunurluk ve hiyerarşi (~1 hafta, Faz 2 ile kısmen paralel)
 
