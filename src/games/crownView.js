@@ -165,6 +165,7 @@ export function isValidCrownWorldFrame(frame) {
 
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { fxReadAlpha } from '../core/fxKit.js';
 import { drawPickup } from '../core/arenaKit.js';
 import { renderEntityHUD } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
@@ -492,7 +493,7 @@ export function drawCrown(ctx, x, y, scale = 1.0, isLoose = false, arena = null,
   ctx.restore();
 }
 
-export function drawCrownPlayer(ctx, p, color, arena, lastTime, targetCrownTime = 15.0) {
+export function drawCrownPlayer(ctx, p, color, arena, lastTime, targetCrownTime = 15.0, selfSlot = -1) {
   ctx.save();
   const { x, y, radius: r } = p;
   const facingAngle = p.facingAngle ?? 0;
@@ -562,6 +563,7 @@ export function drawCrownPlayer(ctx, p, color, arena, lastTime, targetCrownTime 
     borderColor: p.isTackling ? UI_COLORS.hudAmber : (p.rimColor || UI_COLORS.inkDark),
     borderWidth: p.isTackling ? 4.5 : 3,
     now: lastTime || performance.now(),
+    alpha: fxReadAlpha({ isSelf: selfSlot >= 0 && (p.slot ?? p.index) === selfSlot, hasViewer: selfSlot >= 0 }),
   });
 
   const isAlive = p.alive ?? p.isAlive ?? true;
@@ -622,7 +624,7 @@ export function drawCrownPlayer(ctx, p, color, arena, lastTime, targetCrownTime 
   ctx.restore();
 }
 
-export function drawCrownWorld(ctx, frameOrGame, arena, colors = [], lastTime = performance.now(), targetCrownTime = 15.0) {
+export function drawCrownWorld(ctx, frameOrGame, arena, colors = [], lastTime = performance.now(), targetCrownTime = 15.0, selfSlot = -1) {
   drawCrownArena(ctx, arena);
 
   const speedPads = frameOrGame.speedPads || [];
@@ -673,7 +675,7 @@ export function drawCrownWorld(ctx, frameOrGame, arena, colors = [], lastTime = 
     if (isJoined === false || isAlive === false) continue;
     const slot = p.slot ?? p.index ?? 0;
     const playerColor = colors[slot] || p.color || PLAYER_FALLBACK[slot] || PLAYER_FALLBACK[0];
-    drawCrownPlayer(ctx, p, playerColor, arena, lastTime, targetCrownTime);
+    drawCrownPlayer(ctx, p, playerColor, arena, lastTime, targetCrownTime, selfSlot);
 
     if (p.hasCrown) {
       const cScale = 0.95 + Math.sin(floatAnim * 1.5) * 0.05;

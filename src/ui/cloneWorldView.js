@@ -42,13 +42,13 @@ export function createWorldViewRenderer() {
         drawCloneStations(ctx, frame.stations || []);
         drawCloneWalls(ctx, frame.walls.map(([x, y, w, h]) => ({ x, y, w, h })));
         for (const c of frame.clones || []) {
-          drawCloneCharacter(ctx, c.x, c.y, c.angle, c.color, { task: c.task, withFx });
+          drawCloneCharacter(ctx, c.x, c.y, c.angle, c.color, { task: c.task, withFx, selfSlot: context.selfSlot ?? -1 });
         }
         for (const p of frame.players) {
           if (p.joined === false || p.alive === false) continue;
           drawCloneCharacter(ctx, p.x, p.y, p.angle,
             slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || CLONE_FALLBACK[p.slot],
-            { dashing: p.dash, slowed: p.slow, task: p.task, withFx });
+            { dashing: p.dash, slowed: p.slow, task: p.task, withFx, slot: p.slot, selfSlot: context.selfSlot ?? -1 });
         }
         // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
         drawCloneFxLayer(ctx, fxLive

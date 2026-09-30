@@ -5,6 +5,7 @@
 // ham emoji tel üstüne çıkmaz); geri sayım filigranı host HUD'udur.
 
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip } from '../core/entityStatus.js';
 import {
@@ -194,7 +195,7 @@ export function drawCloneWalls(ctx, walls) {
   }
 }
 
-export function drawCloneCharacter(ctx, x, y, angle, color, { dashing = false, slowed = false, task = 0, withFx = true } = {}) {
+export function drawCloneCharacter(ctx, x, y, angle, color, { dashing = false, slowed = false, task = 0, withFx = true, slot = -1, selfSlot = -1 } = {}) {
   const cu = CLONE_RADIUS / 16;
   ctx.save();
   ctx.translate(x, y);
@@ -242,6 +243,8 @@ export function drawCloneCharacter(ctx, x, y, angle, color, { dashing = false, s
     expression: exp,
     showPointer: true,
     borderWidth: Math.max(1.5, 2.5 * cu),
+    // 3.3: kendi gövdem T1 (tam); NPC kopyalar (slot -1) ve diğer oyuncular T3 (−%25).
+    alpha: fxReadAlpha({ isSelf: selfSlot >= 0 && slot === selfSlot, hasViewer: selfSlot >= 0 }),
   });
 
   ctx.restore();

@@ -30,7 +30,7 @@ export function createWorldViewRenderer() {
       ctx.save();
       ctx.fillStyle = '#F4F0EA'; ctx.fillRect(0, 0, width, height);
       fitWorld(ctx, width, height, frame.arena, () => {
-        drawCrownWorld(ctx, frame, arena, colors, now);
+        drawCrownWorld(ctx, frame, arena, colors, now, undefined, context.selfSlot ?? -1);
         // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
         drawCrownFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }

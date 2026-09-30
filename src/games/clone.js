@@ -788,6 +788,7 @@ this.targetScore = 2;
       drawCloneCharacter(ctx, c.x, c.y, c.angle, c.color, {
         task: c.state === 'TASK' ? (1 - c.taskWaitTimer / 4) * 2 : 0,
         withFx,
+        selfSlot: this.localControlSlot ?? -1,
       });
     }
 
@@ -798,6 +799,8 @@ this.targetScore = 2;
         slowed: player.slowTimer > 0,
         task: player.taskTimer,
         withFx,
+        slot: player.index,
+        selfSlot: this.localControlSlot ?? -1,
       });
     }
 

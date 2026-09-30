@@ -1313,7 +1313,7 @@ export class CrownGame extends BaseMiniGame {
     ctx.fillStyle = UI_COLORS.crownPaper;
     ctx.fillRect(0, 0, width, height);
 
-    drawCrownWorld(ctx, this, this.arena, this.players.map((p) => p.color), this.lastTime, this.targetCrownTime);
+    drawCrownWorld(ctx, this, this.arena, this.players.map((p) => p.color), this.lastTime, this.targetCrownTime, this.localControlSlot ?? -1);
 
     // Sütun ve engellerin üzerinde net okunan taç süresi filigranı.
     // Skorbord `renderHUD`'un işidir (aşağıda `scoreboardEntities` ile) —

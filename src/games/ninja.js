@@ -939,7 +939,7 @@ this.targetScore = 2;
         ? 1 - Math.min(1, p.strikeCooldown / NINJA_TUNING.STRIKE_COOLDOWN) : null,
       smokeProg: (p.smokeCooldown || 0) > 0
         ? 1 - Math.min(1, p.smokeCooldown / NINJA_TUNING.SMOKE_COOLDOWN) : null,
-    })), { ghostSlots, withFx, now: this.lastTime });
+    })), { ghostSlots, withFx, now: this.lastTime, selfSlot: this.localControlSlot ?? -1 });
 
     drawNinjaSlashes(ctx, this.slashWaves, this.arena);
     drawNinjaImpacts(ctx, this.impactCuts);

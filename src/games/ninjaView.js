@@ -11,6 +11,7 @@
 import { drawObstacle } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { fxReadAlpha } from '../core/fxKit.js';
 import { drawStatusChip } from '../core/entityStatus.js';
 import {
   round1,
@@ -343,7 +344,10 @@ function drawNinjaSelfGhost(ctx, player) {
   ctx.restore();
 }
 
-export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true, now = 0 } = {}) {
+export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true, now = 0, selfSlot = -1 } = {}) {
+  // 3.3: tek görür varsa kendi avatarın T1, diğerleri T3 (−%25). opts.alpha görünmezlik
+  // α'sı (aşağıda ctx.globalAlpha=player.alpha) ile ÇARPILIR — compose olur.
+  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
   const ghosts = new Set(Array.isArray(ghostSlots) ? ghostSlots : []);
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
@@ -369,6 +373,7 @@ export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true,
       // dönen çerçeveyle birlikte iki kez dönerdi. Ninja'da gövde yönü zaten
       // hedefe döndüğü için ayrı bakış hedefi yok.
       now,
+      alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
     });
 
     ctx.restore();

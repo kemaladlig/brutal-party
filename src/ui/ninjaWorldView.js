@@ -61,7 +61,7 @@ export function createWorldViewRenderer() {
           color: slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || NINJA_FALLBACK[p.slot],
           avatar: slots?.[p.slot]?.avatar || null,
         }));
-        drawNinjaPlayers(ctx, players, { ghostSlots: Number.isInteger(context?.selfSlot) && context.selfSlot >= 0 ? [context.selfSlot] : [], withFx });
+        drawNinjaPlayers(ctx, players, { ghostSlots: Number.isInteger(context?.selfSlot) && context.selfSlot >= 0 ? [context.selfSlot] : [], withFx, selfSlot: context.selfSlot ?? -1 });
         drawNinjaSlashes(ctx, frame.slashes || [], arena);
         drawNinjaImpacts(ctx, frame.impacts || []);
         drawNinjaFxLayer(ctx, fxLive
