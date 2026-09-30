@@ -20,6 +20,7 @@ import {
   drawSquareParticles,
 } from './worldCore.js';
 import { drawFxRings, drawFxPops } from './worldCore.js';
+import { fxReadAlpha } from '../core/fxKit.js';
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 
@@ -238,7 +239,10 @@ export function getTankAmmoVisual(tank) {
   return tankAmmoVisual(tank);
 }
 
-export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true } = {}) {
+export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true, selfSlot = -1 } = {}) {
+  // 3.3 okunurluk: tek görür varsa (ONLINE kumanda selfSlot / LOCAL tek koltuk) kendi
+  // tankın T1 (tam opak), diğer oyuncular T3 (−%25). Paylaşılan TV'de görür yok → dim yok.
+  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
   for (const tank of tanks) {
     if (!isWorldEntityVisible(tank)) continue;
     const s = tank.size || 20;
@@ -249,6 +253,8 @@ export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true } = {})
     const pop = 1 + 0.10 * hitT;
 
     ctx.save();
+    const tierA = fxReadAlpha({ isSelf: hasViewer && (tank.slot ?? tank.index) === selfSlot, hasViewer });
+    if (tierA < 1) ctx.globalAlpha *= tierA;
     ctx.translate(tank.x, tank.y);
     ctx.rotate(tank.angle || 0);
     ctx.scale(pop, pop);

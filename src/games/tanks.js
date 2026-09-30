@@ -1258,7 +1258,7 @@ this.targetScore = 2;
       reloadCd: tk.reloadCooldown || 1.1,
       triple: tk.hasTripleShot === true,
     }));
-    drawTanksTanks(ctx, sceneTanks, { arena: this.arena, withFx: this.state === 'PLAYING' });
+    drawTanksTanks(ctx, sceneTanks, { arena: this.arena, withFx: this.state === 'PLAYING', selfSlot: this.localControlSlot ?? -1 });
 
     if (this.state === 'PLAYING' && this.spawnIntroTimer > 0) {
       this.renderSpawnBeacons(ctx);

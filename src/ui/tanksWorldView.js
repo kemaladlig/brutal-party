@@ -54,7 +54,7 @@ export function createWorldViewRenderer() {
           color: slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || TANK_FALLBACK[p.slot],
           avatar: slots?.[p.slot]?.avatar || null,
         }));
-        drawTanksTanks(ctx, tanks, { arena, withFx: frame.gameState === 'PLAYING' });
+        drawTanksTanks(ctx, tanks, { arena, withFx: frame.gameState === 'PLAYING', selfSlot: context.selfSlot ?? -1 });
         // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
         drawTanksFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
