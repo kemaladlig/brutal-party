@@ -100,7 +100,7 @@ const BUDGET = {
   ZONE: { tier: 'normal', speed: 190, radius: 36, maxA: 5.1, minB: 2.6 },
   NINJA: { tier: 'normal', speed: 210, radius: 36, maxA: 5.1, minB: 2.6 },
   COLLAPSE: { tier: 'normal', speed: 190, radius: 36, maxA: 5.1, minB: 2.6 },
-  LASER: { tier: 'normal', speed: 220, radius: 30, maxA: 4.6, minB: 3.6 },
+  LASER: { tier: 'normal', speed: 220, radius: 36, maxA: 4.6, minB: 3.0 },
   HORDE: { tier: 'normal', speed: 168, radius: 30, maxA: 5.9, minB: 2.6 },
   // open: küçük gövde + niş/hızlı türler
   RACE: { tier: 'open', speed: 215, radius: 20, maxA: 4.6, minB: 5.0 },

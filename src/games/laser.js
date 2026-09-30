@@ -37,7 +37,7 @@ export const LASER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const LASER_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 export const LASER_TUNING = {
-  PLAYER_RADIUS: 30,   // FIELD_TIERS §normal bandı (28–36)
+  PLAYER_RADIUS: 36,   // FIELD_TIERS §normal bandı üst sınırı (28–36); crown/zone/ninja ile hizalı (eski 30 "çok uzak" okunuyordu)
   SPEED: 220,          // koşu hızı (px/s)
   AIM_SPEED_MULT: 0.50,// nişan alma / tetiğe basılı tutarken hız çarpanı (%50 yavaşlama, Archer stili)
   MAX_AMMO: 2,         // şarjör kapasitesi (mermi sayısı)
@@ -140,20 +140,19 @@ export class LaserGame extends BaseMiniGame {
     hasDirection = false,
     angle = null,
     tap = false,
-    previousHeld = false,
   } = {}) {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive || player.slotType !== 'human') return;
     if (isDown) {
-      if (!previousHeld) player.aimHoldFired = false;
+      // Basılı tutma = yalnız nişan. Ateş YOK (kullanıcı sözleşmesi 2026-09-30):
+      // tap oto-nişan ateş, sürükleyip bırakma nişanlı ateş.
       player.isAiming = this.getAimState(slotIndex)?.active === true;
       return;
     }
     player.isAiming = false;
     // Hızlı dokunma (tap): en yakın rakibe kilitlenip anında ateş eder;
     // hedef yoksa baktığı yöne. Kooldown/ammo kapıları fireLaser içinde.
-    // Basılı tutma sırasında otomatik atış çıktıysa tap tekrar sıkmaz.
-    if (tap && !cancelled && this.isReleaseToFireAim() && !player.aimHoldFired) {
+    if (tap && !cancelled && this.isReleaseToFireAim()) {
       this.snapAimToNearestRival(player);
       this.fireLaser(player);
       return;
@@ -916,24 +915,14 @@ export class LaserGame extends BaseMiniGame {
         }
         const aimState = this.getAimState(player.index);
         player.isAiming = aimState?.active === true;
-        // Yönsüz basılı tutma: tap'ın cooldown ritimli otomatik hâli.
-        player.aimHoldAuto = this.isReleaseToFireAim()
-          && aimState?.held === true && aimState?.active !== true
-          && !!this.getPlainAimHold(player.index);
+        // Yönsüz basılı tutma artık otomatik ateş ÜRETMEZ (kullanıcı sözleşmesi
+        // 2026-09-30): tutma yalnız nişan; ateş tap veya sürükleyip bırakma ile.
         if (ki.dash && !player.keyDashLatch) {
           this.triggerDash(player.index);
           player.keyDashLatch = true;
         } else if (!ki.dash) {
           player.keyDashLatch = false;
         }
-      }
-
-      // Basılı tap: yönsüz basılı telefon kumandası, hazır olduğu an en yakın
-      // rakibe kilitlenip ateş eder (tap'ın cooldown ritimli otomatik hâli).
-      if (player.aimHoldAuto && isReadyNow) {
-        this.snapAimToNearestRival(player);
-        player.aimHoldFired = true;
-        this.fireLaser(player);
       }
 
       // Nişan yumuşatma: Nişan alırken yüksek hızlı akıcı interpolasyon (20Hz paket atlamasını 60/120fps'e yayar)

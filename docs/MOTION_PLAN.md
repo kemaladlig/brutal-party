@@ -238,3 +238,21 @@ her avatar tanınır, HUD üstünde hiçbir şey uçuşmaz, T3 solukluğu ölç�
 - **TEK AÇIK İŞ (kullanıcı tarafı):** Gerçek cihaz — düşük-ucuz Android (kademe düşüşü)
   + küçük telefon yatay (I7, okunurluk). Agent bu ölçümü yapamaz; tüm fazlar kapandıktan
   sonra kalan tek kanıt budur.
+
+## Faz sonrası kullanıcı düzeltmeleri (2026-09-30)
+
+Gerçek-cihaz geri bildirimiyle üç düzeltme:
+
+1. **Basılı-tutma grameri (ARCHER/LASER):** yönsüz basılı tutma artık otomatik ateş
+   üretmez — tutma yalnız nişan / yay germe; ateş **tap** (oto-nişan) veya **sürükleyip
+   bırakma** ile. HORDE `HOLD_TO_FIRE` değişmedi. `aimHoldAuto`/`aimHoldFired` yolu
+   archer+laser'dan kaldırıldı; kilit `tests/aimHoldFire.test.mjs`.
+2. **LASER ölçeği:** gövde yarıçapı `normal` bandın altından (30) üst sınırına (36)
+   çekildi — crown/zone/ninja ile hizalı (kullanıcı: "karakterler çok uzak"). **Eşik
+   kaydırma (§4.2) BİLİNÇLİ ve gerekçeli:** `movementBudget` LASER `minB` 3.6→3.0
+   (yeni gövde/sn 3.06; hâlâ zone 2.64 / tanks 2.57'nin üstünde), `radius` beyanı 36
+   (bant içi). Gövde/saha oranı tek zoom kaldıracıdır ve 36 bandın izin verdiği üst değer.
+3. **LOCAL analog gecikme:** yerel DOM kumandası da uzak-ağ için konan **40 ms throttle
+   + ölübant**'tan geçiyordu (curve gibi sürekli-direksiyon oyunlarında "girdi geç
+   geliyor"). `GamepadInputAdapter` artık `throttleMs` alır; LOCAL adaptörü 0 ms ile
+   kurulur, uzak kumanda 40 ms bütçesini korur (AGENTS §6).

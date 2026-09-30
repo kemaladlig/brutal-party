@@ -8,9 +8,17 @@
 export const ANALOG_THROTTLE_MS = 40;
 
 export class GamepadInputAdapter {
-  constructor(send, { now = () => performance.now() } = {}) {
+  /**
+   * @param {(data: any) => void} send
+   * @param {{ now?: () => number, throttleMs?: number }} [opts]
+   *   `throttleMs` uzak kumanda bütçesidir (AGENTS §6). LOCAL tek cihazda ağ
+   *   yoktur; 0 verilerek analog akış anında motora bırakılır (yön ~25 Hz'e
+   *   kısılıp "girdi geç geliyor" hissi yaratmasın).
+   */
+  constructor(send, { now = () => performance.now(), throttleMs = ANALOG_THROTTLE_MS } = {}) {
     this.send = send;
     this.now = now;
+    this.throttleMs = throttleMs;
     this.reset();
   }
 
@@ -40,7 +48,7 @@ export class GamepadInputAdapter {
       // nişan paketleri birbirini düşürür.
       if (!keepalive) {
         const lastSent = this.lastSentByAction[data.action] || 0;
-        if (timestamp - lastSent < ANALOG_THROTTLE_MS) return false;
+        if (timestamp - lastSent < this.throttleMs) return false;
       }
       if (data.action === 'PADDLE_MOVE' && typeof data.position === 'number') {
         if (!keepalive && this.lastPaddlePos !== null && Math.abs(data.position - this.lastPaddlePos) < 0.003) return false;

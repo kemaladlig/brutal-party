@@ -337,8 +337,8 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true, se
 
     // Gövde yarıçapı host'ta ölçeklenir ve paketle gelir; bu view host VE
     // kumanda client'ı tarafından ortak kullanıldığı için yeniden ölçeklenmez.
-    // Tasarım referansı LASER_PLAYER_RADIUS (FIELD_TIERS §normal 30px): R=30'da
-    // değerler eskisiyle aynı oranda. Fallback motorla aynı sabitten gelir.
+    // Tasarım referansı LASER_PLAYER_RADIUS (FIELD_TIERS §normal üst sınır 36px):
+    // R=36'da değerler eskisiyle aynı oranda. Fallback motorla aynı sabitten gelir.
     const R = player.radius || LASER_PLAYER_RADIUS;
     const u = R / LASER_PLAYER_RADIUS;
     const uMin = (v) => Math.max(1, v * u);

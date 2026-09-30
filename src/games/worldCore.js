@@ -17,7 +17,7 @@ const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 // motor tarafında `TUNING.PLAYER_RADIUS` ile eşitlenmesi tests
 // `worldPacketRadius.test.mjs` tarafından kilitlidir.
 export const CROWN_PLAYER_RADIUS = 36;
-export const LASER_PLAYER_RADIUS = 30;
+export const LASER_PLAYER_RADIUS = 36;
 
 /**
  * Host ve world-view aynı çizim fonksiyonlarını paylaşır.

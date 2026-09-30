@@ -437,20 +437,19 @@ export class ArcherGame extends BaseMiniGame {
     hasDirection = false,
     angle = null,
     tap = false,
-    previousHeld = false,
   } = {}) {
     const player = this.players[slotIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
-    if (isDown && !previousHeld) player.aimHoldFired = false;
     if (isDown) {
+      // Basılı tutma = yayı ger (draw). Ateş YOK: kullanıcı sözleşmesi
+      // "tap oto-nişan ateş, tutma yalnız nişan". Sürükleyip bırakınca ok
+      // gider; yönsüz bırakmada geriliş iptal olur.
       this.beginCharge(player);
       return;
     }
-    // Hızlı dokunma (tap): sürükleyip nişan almaya gerek kalmadan host
-    // en yakın rakibe kilitlenir ve garantili orta güçte tek atış yapar.
-    // Hedef yoksa baktığı yöne sıkar. Basılı tutma otomatik atış yaptıysa
-    // tap tekrar sıkmaz.
-    if (tap && !cancelled && this.isReleaseToFireAim() && this.state === 'PLAYING' && !player.aimHoldFired) {
+    // Hızlı dokunma (tap): sürüklemeden host en yakın rakibe kilitlenir ve
+    // garantili orta güçte (0.5) tek ok bırakır. Hedef yoksa baktığı yöne.
+    if (tap && !cancelled && this.isReleaseToFireAim() && this.state === 'PLAYING') {
       this.snapAimToNearestRival(player);
       player.charge = Math.max(player.charge, 0.5);
       this.looseArrow(player);
@@ -617,24 +616,10 @@ export class ArcherGame extends BaseMiniGame {
           }, { source: 'keyboard', cancelled: false });
         }
 
-        // Basılı tap: ok daima tap gücünde (0.5) hazır tutulur ve cooldown
-        // açılır açılmaz en yakın rakibe sıkılır; ok bırakılır, yay yeniden
-        // gerilir — tutma sürdükçe 0.8 sn'lik ritim devam eder.
-        const padAimState = this.getAimState(player.index);
-        player.aimHoldAuto = this.isReleaseToFireAim()
-          && padAimState?.held === true && padAimState?.active !== true
-          && !!this.getPlainAimHold(player.index);
-        if (player.aimHoldAuto) {
-          if (!player.charging && player.shotCooldown <= 0) this.beginCharge(player);
-          if (player.charging) {
-            player.charge = Math.max(player.charge, 0.5);
-            if (player.shotCooldown <= 0) {
-              this.snapAimToNearestRival(player);
-              player.aimHoldFired = true;
-              this.looseArrow(player);
-            }
-          }
-        }
+        // Yönsüz basılı tutma artık otomatik ateş ÜRETMEZ (kullanıcı sözleşmesi
+        // 2026-09-30): tutma yalnız yayı gerer; ateş tap veya sürükleyip
+        // bırakma ile gelir. `charging`i `onSlotAimHold` açtı, şarj aşağıda
+        // büyür, bırakmada `looseArrow` okur.
       }
 
       if (player.charging) {

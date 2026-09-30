@@ -10,7 +10,7 @@ import { scoreEntries } from './ui/scoreModel.js';
 import { motionScale } from './ui/motion.js';
 import { playMenuTick, playMenuPop } from './audio.js';
 import { mountDeclarativeController } from './controllers/controllerTemplates.js';
-import { GamepadInputAdapter } from './controllers/gamepadInputAdapter.js';
+import { GamepadInputAdapter, ANALOG_THROTTLE_MS } from './controllers/gamepadInputAdapter.js';
 import { getNeutralInputs } from './controllers/controlDefs.js';
 import { getControllerStatus } from './controllers/controllerStatus.js';
 import { getControllerMeta } from './core/engineRegistry.js';
@@ -77,7 +77,13 @@ export class GamepadManager {
     this.onLocalResultAction = null;
     this.overlay = overlayEl;
     this.network = network;
-    this.inputAdapter = new GamepadInputAdapter((data) => this.sendInput(data));
+    // LOCAL tek cihazda ağ yoktur: uzak kumanda için konan 40 ms analog
+    // throttle'ı anlamsız gecikme yaratır (curve gibi sürekli-direksiyon
+    // oyunlarında "girdi geç geliyor" hissi). Yerel adaptör 0 ms ile kurulur;
+    // uzak kumanda 40 ms bütçesini korur (AGENTS §6).
+    this.inputAdapter = new GamepadInputAdapter((data) => this.sendInput(data), {
+      throttleMs: localMode ? 0 : ANALOG_THROTTLE_MS,
+    });
     this._aimSequence = 0;
     this._lastLocalInputAt = 0;
     this._windowFocused = true;
