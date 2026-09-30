@@ -153,8 +153,14 @@ gerçek Android düşük-ucuz cihazda 60 fps yakalama (perfMonitor çıktısı k
 
 ## Faz 3 — Okunurluk ve hiyerarşi (~1 hafta, Faz 2 ile kısmen paralel)
 
-- [ ] 3.1 Siluet: avatar dış halkasına 1.5-2 px koyu rim + %8 yer-gölgesi (slot rengi
+- [x] 3.1 Siluet: avatar dış halkasına 1.5-2 px koyu rim + %8 yer-gölgesi (slot rengi
       HALKADA kalır, çekirdek şekil/nişan okunur) — `avatarInGame`/`tabletopRenderer`'da tek.
+      (Çözüm 2026-09-30, kod DEĞİŞMEDİ — niyet zaten karşılanmış: `characterRenderer` koyu hairline
+      rim (`rgba(26,26,26,.28)`) + 2.5D hacim + halkada slot rengiyle çekirdek şekil/nişan okunur.
+      Literal 1.5-2 px kalın rim ve %8 yer-gölgesi, kullanıcının ÖNCEKİ açık kararıyla reddedilmişti
+      (satır 175 "yer-gölgesi kullanıcı isteği üzerine iptal", satır 214 "kalın koyu çizgi is gibi
+      okunuyordu") → varsayım politikası gereği sessizce tersine çevrilmedi. Kullanıcı "gölge/rim
+      ekle" derse kullanıcı onayıyla uygulanır.)
 - [ ] 3.2 I7 dürüstlüğü: 12 px taban `qualityGate` anchor'u (852×393) yerine gerçek en
       küçük hedef cihazda (SE yatay) ölçülür; rapor I8-I11'e kademe-farkı satırı eklenir.
 - [x] 3.3 Üç kademe hiyerarşi (fxKit hakemiyle zorunlu): T1 kendi avatarın+nişan hattın
@@ -181,8 +187,12 @@ her avatar tanınır, HUD üstünde hiçbir şey uçuşmaz, T3 solukluğu ölç�
 
 ## Faz 4 — Ayarlama ve kalıcılık (sürekli, Faz 3 sonrası)
 
-- [ ] 4.1 Oyun-özel travma/FX tabloları yalnız `CARTRIDGES` kayıt alanlarında tutulur
-      (motor gövdesinde sayı yok); playtest turu başına bir oyun ince ayar.
+- [x] 4.1 Oyun-özel travma/FX tabloları yalnız `CARTRIDGES` kayıt alanlarında tutulur
+      (motor gövdesinde sayı yok); playtest turu başına bir oyun ince ayar. (Denetim 2026-09-30:
+      motorlar yalnız kapalı `FX_KIND` olayı yayar (`this.fx.emit('kill', {...})`); travma/partikül/
+      flaş bütçeleri TEK kaynak `fxKit FX_PROFILES`'ta — motor gövdesinde bütçe sabiti YOK. Kilit:
+      `tests/fxOwnership.test.mjs` (kapalı küme + bütçe-alanı yasağı). "İnce ayar" sürekli bir
+      playtest işidir; sayı değişince yalnız `fxKit`'e yazılır, motora değil.)
 - [x] 4.2 Tempo/L\* kilitleriyle sürtüşme POLİTİKASI: juice bir kapıyı kırarsa kapı mı
       haksız değişim mi önce kararlaştırılır; eşik genişletme AGENTS güncellemesiyle VE
       kullanıcı onayıyla yapılır — sessiz eşik kaydırma yasak. (AGENTS §11'e politika satırı eklendi.)
