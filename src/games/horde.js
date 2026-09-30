@@ -1904,7 +1904,7 @@ export class HordeGame extends BaseMiniGame {
     paintBackdrop(ctx, this.viewport, this.arena, { theme: scene.theme });
     this.applyScreenShake(ctx);
 
-    drawHordeWorld(ctx, this.arena, scene, { withFx: this.state === 'PLAYING', now: this.lastTime });
+    drawHordeWorld(ctx, this.arena, scene, { withFx: this.state === 'PLAYING', now: this.lastTime, selfSlot: this.localControlSlot ?? -1 });
     // FX katmanı ortak hordeView draw'ından gelir (host↔client aynı).
     drawHordeFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
 

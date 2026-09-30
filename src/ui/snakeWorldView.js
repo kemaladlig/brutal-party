@@ -41,7 +41,7 @@ export function createSnakeWorldViewRenderer() {
 
         drawSnakeArena(ctx, arena, walls, { roundId: frame.roundId });
         drawSnakeFoods(ctx, foods, now);
-        drawSnakePlayers(ctx, players, now);
+        drawSnakePlayers(ctx, players, now, context.selfSlot ?? -1);
         drawSnakeFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
           : {

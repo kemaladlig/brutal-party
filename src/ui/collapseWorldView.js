@@ -61,7 +61,7 @@ export function createWorldViewRenderer() {
           color: slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || COLLAPSE_FALLBACK[p.slot],
           avatar: slots?.[p.slot]?.avatar || null,
         }));
-        drawCollapsePlayers(ctx, players);
+        drawCollapsePlayers(ctx, players, { selfSlot: context.selfSlot ?? -1 });
         // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
         drawCollapseFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }

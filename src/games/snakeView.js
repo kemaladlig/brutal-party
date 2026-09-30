@@ -2,6 +2,7 @@
 // The authoritative game uses the same drawing helpers as remote phone clients.
 
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { fxReadAlpha } from '../core/fxKit.js';
 import {
   isWorldEntityVisible,
   packFxState,
@@ -262,7 +263,10 @@ function traceSnakePath(ctx, player) {
   }
 }
 
-export function drawSnakePlayers(ctx, players, now = 0) {
+export function drawSnakePlayers(ctx, players, now = 0, selfSlot = -1) {
+  // 3.3 okunurluk hiyerarşisi: tek görür varsa kendi avatarın T1, diğerleri T3
+  // (−%25); α yalnız fxKit'ten gelir, motor kendi α'sını uydurmaz.
+  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
@@ -318,6 +322,7 @@ export function drawSnakePlayers(ctx, players, now = 0) {
       showPointer: true,
       borderWidth: 2.5 * u,
       shadowOffset: 2,
+      alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
     });
 
     // Boost enerjisi: ince çember (altın yay 1.19:1) yerine rozet.

@@ -61,7 +61,7 @@ export function createWorldViewRenderer() {
           frame.gridV,
         );
         drawZoneWaves(ctx, frame.waves || [], frame.cell);
-        drawZonePlayers(ctx, players, { cell: frame.cell, leaderIndex: frame.leader, withFx });
+        drawZonePlayers(ctx, players, { cell: frame.cell, leaderIndex: frame.leader, withFx, selfSlot: context.selfSlot ?? -1 });
         drawZoneFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
           : {

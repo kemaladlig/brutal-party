@@ -814,7 +814,7 @@ this.targetScore = 2;
     this.uiButtons = [];
     this.renderControls(ctx, { extraEntities: this.foods });
     drawSnakeFoods(ctx, this.foods, now);
-    drawSnakePlayers(ctx, this.players, now);
+    drawSnakePlayers(ctx, this.players, now, this.localControlSlot ?? -1);
     // FX katmanı ortak snakeView draw'ından gelir (host↔client aynı).
     drawSnakeFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
 

@@ -5,6 +5,7 @@
 // tabletopIcons vektörleridir (SUPER_JUMP→chevrons_up, REPAIR_TILES→hammer, BLAST_WAVE→wind).
 
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
 import {
@@ -262,7 +263,10 @@ export function drawCollapsePickups(ctx, pickups, now = 0) {
   }
 }
 
-export function drawCollapsePlayers(ctx, players) {
+export function drawCollapsePlayers(ctx, players, { selfSlot = -1 } = {}) {
+  // 3.3 okunurluk hiyerarşisi: tek görür varsa kendi avatarın T1, diğerleri T3
+  // (−%25); α yalnız fxKit'ten gelir.
+  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
 
@@ -295,6 +299,7 @@ export function drawCollapsePlayers(ctx, players) {
       showPointer: false,
       borderWidth: Math.max(1.5, 2.5 * u),
       shadowOffset: Math.max(1, 2 * u),
+      alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
     });
 
     ctx.restore();

@@ -6,6 +6,7 @@
 // Relic ikonları tek kaynak tabletopIcons registry anahtarıdır (snapshot'ta ikon değil tür gider).
 
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip } from '../core/entityStatus.js';
 import { UI_COLORS } from '../ui/tokens.js';
@@ -354,7 +355,10 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
   ctx.strokeRect(x, y, s, s);
 }
 
-export function drawZonePlayers(ctx, players, { cell = 0, leaderIndex = -1, withFx = true } = {}) {
+export function drawZonePlayers(ctx, players, { cell = 0, leaderIndex = -1, withFx = true, selfSlot = -1 } = {}) {
+  // 3.3 okunurluk hiyerarşisi: tek görür varsa kendi avatarın T1, diğerleri T3
+  // (−%25); α yalnız fxKit'ten gelir.
+  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
   for (const p of players) {
     if (!isWorldEntityVisible(p)) continue;
     if (withFx && p.stun > 0 && Math.floor(p.blink / 0.15) % 2 === 0) continue;
@@ -398,6 +402,7 @@ export function drawZonePlayers(ctx, players, { cell = 0, leaderIndex = -1, with
       showPointer: true,
       borderColor: p.stun > 0 ? '#48CAE4' : (p.rimColor || '#1C1C1A'),
       borderWidth: 3 * u,
+      alpha: fxReadAlpha({ isSelf: hasViewer && (p.slot ?? p.index) === selfSlot, hasViewer }),
     });
 
     if (p.dashProg !== null && p.dashProg !== undefined) {

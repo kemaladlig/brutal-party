@@ -880,7 +880,7 @@ this.targetScore = 2;
     drawCollapsePickups(ctx, this.pickups, now);
 
     // 6. OYUNCULAR (Havada yükselme, gölge derinliği ve şok halkası)
-    drawCollapsePlayers(ctx, this.players);
+    drawCollapsePlayers(ctx, this.players, { selfSlot: this.localControlSlot ?? -1 });
 
     // 7. FX KATMANI (ortak collapseView draw'ı — host↔client aynı)
     drawCollapseFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });

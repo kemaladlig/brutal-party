@@ -1455,7 +1455,7 @@ export class ZoneGame extends BaseMiniGame {
     }));
     drawZoneWaves(ctx, this.captureWaves, this.cell);
     if (this.state !== 'LOBBY') {
-      drawZonePlayers(ctx, scenePlayers, { cell: this.cell, leaderIndex: this.leaderIndex, withFx });
+      drawZonePlayers(ctx, scenePlayers, { cell: this.cell, leaderIndex: this.leaderIndex, withFx, selfSlot: this.localControlSlot ?? -1 });
     }
     // FX katmanı ortak zoneView draw'ından gelir (host↔client aynı).
     drawZoneFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });

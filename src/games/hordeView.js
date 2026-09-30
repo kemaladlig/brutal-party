@@ -4,6 +4,7 @@
 import { drawObstacle, drawPickup } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { fxReadAlpha } from '../core/fxKit.js';
 import { segmentAabbIntersection } from '../core/physics2d.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { getFireCooldownProgress, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
@@ -773,7 +774,10 @@ function drawPlayerWeapon(ctx, player) {
   ctx.restore();
 }
 
-function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
+function drawHordePlayers(ctx, players, { withFx = true, now = 0, selfSlot = -1 } = {}) {
+  // 3.3 okunurluk hiyerarşisi: tek görür varsa kendi avatarın T1, diğerleri T3
+  // (−%25); α yalnız fxKit'ten gelir.
+  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
   const blink = Math.floor(now / 120) % 2 === 0;
   for (const player of players) {
     if (!player.joined || !player.alive) continue;
@@ -823,6 +827,7 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0 } = {}) {
       // bakışta okunur. Gövde `angle`'da kalır, bakış gövdeden bağımsızdır.
       lookAngle: player.lookAngle,
       now,
+      alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
     });
     ctx.restore();
 
@@ -960,7 +965,7 @@ function drawLoadoutCrate(ctx, crate, now) {
   ctx.restore();
 }
 
-export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof performance !== 'undefined' ? performance.now() : 0 } = {}) {
+export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof performance !== 'undefined' ? performance.now() : 0, selfSlot = -1 } = {}) {
   drawHordeArena(ctx, arena, scene.theme);
 
   for (const obstacle of scene.obstacles || []) {
@@ -1024,7 +1029,7 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
   }
 
   for (const enemy of scene.enemies || []) drawEnemy(ctx, enemy, withFx, now, scene.obstacles || []);
-  drawHordePlayers(ctx, scene.players || [], { withFx, now });
+  drawHordePlayers(ctx, scene.players || [], { withFx, now, selfSlot });
   drawAlphaTexts(ctx, scene.texts || [], { size: 15, outline: true });
 }
 

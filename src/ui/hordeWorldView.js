@@ -49,7 +49,7 @@ export function createWorldViewRenderer() {
       // ile çözülür — dünya koordinatlarıyla çağrılırsa gölge sahadan kayar.
       paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { theme: scene.theme });
       fitWorld(ctx, width, height, frame.arena, () => {
-        drawHordeWorld(ctx, arena, scene, { withFx: frame.gameState === 'PLAYING', now });
+        drawHordeWorld(ctx, arena, scene, { withFx: frame.gameState === 'PLAYING', now, selfSlot: context.selfSlot ?? -1 });
         const header = hordeHeaderStatus({ ...scene, state: scene.phase, hasPortal: scene.portal != null });
         const headerPlayers = [0, 1, 2, 3].map((i) => {
           const sp = scene.players.find((player) => player.slot === i);
