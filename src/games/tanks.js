@@ -22,9 +22,12 @@ import {
   drawTanksTracers,
   drawTanksCrates,
   drawTanksTanks,
+  drawTanksFxLayer,
 } from './tanksView.js';
-import { drawSquareParticles } from './worldCore.js';
-import { vibrate } from '../core/haptics.js';
+import { drawFxFlash } from './worldCore.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
+import { UI_COLORS } from '../ui/tokens.js';
 
 export const TANK_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const TANK_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -206,7 +209,13 @@ export class TanksGame extends BaseMiniGame {
     this.tanks = [];
     this.bullets = [];
     this.nextBulletId = 1;
-    this.particles = [];
+    // FX runtime (MOTION_PLAN Faz 1): partikül/ring/pop/hit-stop tek sahibi;
+    // `this.particles` worldCore konvansiyonu için alias'tır.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
+    /** @type {any[]} */ this.particles = this.fx.particles;
     this.shotTracers = [];
 
     // Match Scores & Target
@@ -265,7 +274,7 @@ this.targetScore = 2;
     this.suddenDeathRadius = 0;
     this.bullets = [];
     this.nextBulletId = 1;
-    this.particles = [];
+    this.fx.clear();
     this.crates = [];
     this.shotTracers = [];
     this.cornerTouchIds = [-1, -1, -1, -1];
@@ -405,7 +414,8 @@ this.targetScore = 2;
     }
     for (const b of this.bullets) this.remapPoint(b, oldArena, this.arena);
     for (const c of this.crates) this.remapPoint(c, oldArena, this.arena);
-    this.particles = [];
+    // Biriken partiküller ESKİ arena ölçeğindeydi; yeni unit ile karışmasın.
+    this.fx.clear();
     this.shotTracers = [];
   }
 
@@ -460,6 +470,7 @@ this.targetScore = 2;
         isDriving: false,
         isAlive: true,
         isJoined: isJoined,
+        hitFlash: 0,
         slotType: this.slotTypes[i],
         // Taban gövde göreli; 34 = saha kısa kenarının ~%3.6'sı (çarpışma
         // yarıçapı size/2 → 12%+ koridorlarda geçiş payı korunur). Online
@@ -633,7 +644,7 @@ this.targetScore = 2;
     this.state = 'PLAYING';
     this.bullets = [];
     this.nextBulletId = 1;
-    this.particles = [];
+    this.fx.clear();
     this.shotTracers = [];
     this.crates = [];
     this.crateSpawnTimer = 6.0;
@@ -747,11 +758,15 @@ this.targetScore = 2;
     }
 
     playShoot();
-    this.addTrauma(0.08);
-
-    if (tank.slotType === 'human' && typeof navigator !== 'undefined' && navigator.vibrate) {
-      vibrate(22);
-    }
+    // FX olayı: shot profili trauma bütçesini uygular; haptik insan koltuğuna.
+    this.fx.emit('shot', {
+      x: tank.x + Math.cos(tank.angle) * barrelLen,
+      y: tank.y + Math.sin(tank.angle) * barrelLen,
+      dirX: Math.cos(tank.angle),
+      dirY: Math.sin(tank.angle),
+      color: tank.color,
+      haptic: tank.slotType === 'human',
+    });
 
     this.shotTracers.push({
       x1: tank.x + Math.cos(tank.angle) * barrelLen,
@@ -785,12 +800,16 @@ this.targetScore = 2;
   }
 
   update(now) {
-    const dt = Math.max(0, Math.min((now - this.lastTime) / 1000, 0.1));
+    const rawDt = Math.max(0, Math.min((now - this.lastTime) / 1000, 0.1));
     this.lastTime = now;
+    // Hit-stop: host tek otorite olduğundan saat burada yavaşlar; kumandalar
+    // yalnız yayınlanan kareyi görür — sapma imkânsız (§2 korunur).
+    const dt = this.fx.tick(rawDt);
 
-    if (this.trauma > 0) {
-      this.trauma = Math.max(0, this.trauma - dt * 2.2);
-    }
+    this.updateTrauma(dt);
+    // FX saatleri STATE'ten bağımsız akar: kill raundu bitirirse patlama
+    // animasyonu ROUND_OVER boşluğunda donmaz, oynanmaya devam eder.
+    this.fx.update(dt);
 
     if (this.spawnIntroTimer > 0) {
       this.spawnIntroTimer = Math.max(0, this.spawnIntroTimer - dt);
@@ -804,7 +823,11 @@ this.targetScore = 2;
         this.suddenDeath = true;
         this.suddenDeathElapsed = 0;
         this.suddenDeathRadius = Math.min(this.arena.width, this.arena.height) * 0.72;
-        this.addTrauma(0.16);
+        this.fx.emit('zone', {
+          x: this.arena.cx,
+          y: this.arena.cy,
+          ringRadius: this.suddenDeathRadius,
+        });
         playPowerUp();
       }
       if (this.suddenDeath) this.updateSuddenDeath(dt);
@@ -827,7 +850,7 @@ this.targetScore = 2;
           if (!tank.isAlive || !tank.isJoined) continue;
           if (Math.hypot(tank.x - crate.x, tank.y - crate.y) < tank.size * 0.75) {
             playPowerUp();
-            this.spawnRicochetSparks(crate.x, crate.y);
+            this.fx.emit('pickup', { x: crate.x, y: crate.y, color: tank.color, haptic: tank.slotType === 'human' });
             if (crate.type === 'TURBO') {
               tank.turboTimer = 6.0;
             } else if (crate.type === 'TRIPLE') {
@@ -860,11 +883,14 @@ this.targetScore = 2;
         if (tank.muzzleFlashTimer > 0) {
           tank.muzzleFlashTimer = Math.max(0, tank.muzzleFlashTimer - dt);
         }
+        if (tank.hitFlash > 0) {
+          tank.hitFlash = Math.max(0, tank.hitFlash - dt);
+        }
 
         if (tank.turboTimer > 0) {
           tank.turboTimer = Math.max(0, tank.turboTimer - dt);
           if (Math.random() < 0.25) {
-            this.spawnTreadDust(tank.x, tank.y);
+            this.fx.emit('dust', { x: tank.x, y: tank.y, color: UI_COLORS.dim });
           }
         }
 
@@ -889,7 +915,6 @@ this.targetScore = 2;
 
       this.separateTanks();
       this.updateBullets(dt);
-      this.updateParticles(dt);
       for (let i = this.shotTracers.length - 1; i >= 0; i--) {
         this.shotTracers[i].life -= dt;
         if (this.shotTracers[i].life <= 0) this.shotTracers.splice(i, 1);
@@ -933,14 +958,25 @@ this.targetScore = 2;
     }
   }
 
-  destroyTank(tank) {
+  destroyTank(tank, killerDir = null) {
     if (!tank || !tank.isAlive) return;
     tank.isAlive = false;
     tank.isDriving = false;
     this.driveOwner[tank.index] = null;
-    this.spawnTankExplosion(tank.x, tank.y, tank.color);
+    // KILL olayı: burst + halka + ölüm pop'u + hit-stop + flaş + travma tek
+    // profilden (fxKit). Haptik yalnız host cihazında titreştirir; kumanda
+    // haptiği Faz 2'de FX olayının anlık taşımasıyla yerelde üretilecek.
+    this.fx.emit('kill', {
+      x: tank.x,
+      y: tank.y,
+      color: tank.color,
+      size: tank.size || 34,
+      angle: tank.angle || 0,
+      dirX: killerDir?.vx ?? 0,
+      dirY: killerDir?.vy ?? 0,
+      haptic: tank.slotType === 'human',
+    });
     playExplosion();
-    this.addTrauma(0.4);
   }
 
   finishAsDraw() {
@@ -955,19 +991,6 @@ this.targetScore = 2;
 
   updateTankBotAI(tank, dt) {
     runTankBotAI(this, tank, dt);
-  }
-
-  spawnTreadDust(x, y) {
-    this.particles.push({
-      x: x + (Math.random() - 0.5) * 12,
-      y: y + (Math.random() - 0.5) * 12,
-      vx: (Math.random() - 0.5) * 25,
-      vy: (Math.random() - 0.5) * 25,
-      life: 0.25,
-      maxLife: 0.25,
-      size: 3,
-      color: '#99948A',
-    });
   }
 
   separateTanks() {
@@ -1121,7 +1144,7 @@ this.targetScore = 2;
         if (bounced) {
           b.bounces++;
           playRicochet();
-          this.spawnRicochetSparks(b.x, b.y);
+          this.fx.emit('spark', { x: b.x, y: b.y });
 
           if (b.bounces > b.maxBounces) {
             this.bullets.splice(i, 1);
@@ -1141,18 +1164,22 @@ this.targetScore = 2;
             if (tank.hasShield) {
               tank.hasShield = false;
               this.bullets.splice(i, 1);
-              this.spawnRicochetSparks(tank.x, tank.y);
+              // HIT: kalkan absorption — tam kill dizisi değil; yön mermiden.
+              tank.hitFlash = 0.12; // drawTanksTanks pop+parlama kanalı
+              this.fx.emit('hit', {
+                x: tank.x,
+                y: tank.y,
+                color: tank.color,
+                dirX: b.vx,
+                dirY: b.vy,
+                haptic: tank.slotType === 'human',
+              });
               playRicochet();
-              this.addTrauma(0.2);
               continue bulletLoop;
             }
 
             this.bullets.splice(i, 1);
-            this.destroyTank(tank);
-
-            if (tank.slotType === 'human' && typeof navigator !== 'undefined' && navigator.vibrate) {
-              vibrate([40, 50, 80]);
-            }
+            this.destroyTank(tank, b);
             continue bulletLoop;
           }
         }
@@ -1161,49 +1188,15 @@ this.targetScore = 2;
   }
 
   spawnRicochetSparks(x, y) {
-    for (let i = 0; i < 4; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 60 + Math.random() * 80;
-      this.particles.push({
-        x,
-        y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 0.22,
-        maxLife: 0.22,
-        size: 3,
-        color: '#1A1A1A',
-      });
-    }
+    this.fx.emit('spark', { x, y });
   }
 
   spawnTankExplosion(x, y, color) {
-    for (let i = 0; i < 16; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 50 + Math.random() * 150;
-      this.particles.push({
-        x,
-        y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 0.65,
-        maxLife: 0.65,
-        size: 4 + Math.random() * 4,
-        color: Math.random() > 0.4 ? color : '#1A1A1A',
-      });
-    }
+    this.fx.emit('kill', { x, y, color });
   }
 
   updateParticles(dt) {
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.life -= dt;
-      if (p.life <= 0) {
-        this.particles.splice(i, 1);
-      }
-    }
+    this.fx.update(dt);
   }
 
   handleRoundEnd(winnerTank) {
@@ -1230,7 +1223,8 @@ this.targetScore = 2;
     // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
     paintBackdrop(ctx, this.viewport, this.arena, { mode: 'TANKS' });
 
-    this.applyScreenShake(ctx, 16);
+    // Sarsıntı ofseti sahayla ölçekli (I5: ham px yok) — 16 tasarım px.
+    this.applyScreenShake(ctx, fieldRadius(this.arena, 16, 0));
 
     // Arena sahnesi ortak tanksView draw'larından gelir (host↔client aynı).
     drawTanksArena(ctx, this.arena, this.obstacles, {
@@ -1243,7 +1237,7 @@ this.targetScore = 2;
     this.uiButtons = [];
 
     drawTanksBullets(ctx, this.bullets, TANK_COLORS);
-    drawSquareParticles(ctx, this.particles);
+    drawTanksFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
     drawTanksTracers(ctx, this.shotTracers);
     drawTanksCrates(ctx, this.crates);
 
@@ -1252,6 +1246,7 @@ this.targetScore = 2;
       slot: tk.index,
       driving: tk.isDriving === true,
       muzzle: tk.muzzleFlashTimer || 0,
+      hitFlash: tk.hitFlash || 0,
       bot: tk.slotType === 'bot_normal' || tk.slotType === 'bot_god',
       god: tk.slotType === 'bot_god',
       shield: tk.hasShield === true,
@@ -1304,6 +1299,11 @@ this.targetScore = 2;
     });
 
     ctx.restore();
+
+    // Kill flaşı sahne transformunun DIŞINDA: masaüstü/telefon fark etmeksizin
+    // tam ekranı kaplar, sarsıntıdan etkilenmez (sunum kanalı, §8).
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 
   renderSpawnBeacons(ctx) {

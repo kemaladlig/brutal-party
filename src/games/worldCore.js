@@ -270,3 +270,60 @@ export function drawSquareParticles(ctx, particles) {
     ctx.restore();
   }
 }
+/**
+ * Şok dalgası halkası draw'u (fxKit konvansiyonu; host↔client aynı).
+ * Halka saftır: yarıçap life/maxLife ile r0→r1 arasında türetilir, alpha
+ * life'tan söner — snapshot üzerinden yeniden üretilebilir (§2 client çizimi).
+ */
+export function drawFxRings(ctx, rings) {
+  for (const ring of rings || []) {
+    const denom = Number(ring.maxLife) || 0;
+    if (denom <= 0) continue;
+    const t = Math.max(0, Math.min(1, 1 - ring.life / denom));
+    const radius = (Number(ring.r0) || 0) + ((Number(ring.r1) || 0) - (Number(ring.r0) || 0)) * t;
+    if (radius <= 0) continue;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, ring.life / denom)) * 0.85;
+    ctx.strokeStyle = ring.color || UI_COLORS.inkDark;
+    ctx.lineWidth = Math.max(1, Number(ring.width) || 2);
+    ctx.beginPath();
+    ctx.arc(ring.x, ring.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+/**
+ * Ölüm pop'u draw'u (fxKit KILL kanalı; host↔client aynı). Gölge %100→%170
+ * büyür, life'tan söner; silinen varlığın "bir anda yok olma" hissini keser.
+ */
+export function drawFxPops(ctx, pops) {
+  for (const pop of pops || []) {
+    const denom = Number(pop.maxLife) || 0;
+    if (denom <= 0) continue;
+    const t = Math.max(0, Math.min(1, 1 - pop.life / denom));
+    const scale = 1 + 0.7 * t;
+    const s = (Number(pop.size) || 20) * scale;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, pop.life / denom)) * 0.55;
+    ctx.translate(pop.x, pop.y);
+    ctx.rotate(pop.angle || 0);
+    ctx.fillStyle = pop.color || UI_COLORS.inkDark;
+    ctx.fillRect(-s / 2, -s / 2, s, s);
+    ctx.restore();
+  }
+}
+/**
+ * Tam-saha kill flaşı (fxKit kill profili). Yalnız sunum; worldView snapshot'ı
+ * `flash` alanını görürse AYNI fonksiyonu çağırır.
+ * Renk MÜREKKEP: saha krem (#F4F0EA) olduğu için beyaz flaş görünmez
+ * (ΔRGB≈3, ölçüldü); koyu göz kırpımı brutalist baskı diline de uyar.
+ */
+export function drawFxFlash(ctx, width, height, alpha) {
+  const a = Math.max(0, Math.min(1, Number(alpha) || 0));
+  if (a <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.fillStyle = UI_COLORS.ink;
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
+}

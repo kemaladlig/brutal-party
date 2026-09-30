@@ -101,6 +101,20 @@ interface MiniGameEngine {
   matchWinner: number | null;
   slotTypes: MiniGameSlotType[];
   trauma: number;
+  // FX runtime (fxRuntime.FxRuntime) — FX kullanan motorlarda kurucuda oluşur;
+  // motorlar olay üretir, partikül/ring/pop/hit-stop bütçeleri fxKit'tedir.
+  fx?: {
+    particles: any[];
+    rings: any[];
+    pops: any[];
+    hitStop: number;
+    flash: number;
+    flashPeak: number;
+    emit(kind: string, event: any): any;
+    tick(rawDt: number): number;
+    update(dt: number): void;
+    clear(): void;
+  };
   keys: Record<string, boolean>;
   uiButtons: any[];
   viewport: { left: number; top: number; right: number; bottom: number; width: number; height: number; cx: number; cy: number };

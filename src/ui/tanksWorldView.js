@@ -7,9 +7,11 @@ import {
   drawTanksTracers,
   drawTanksCrates,
   drawTanksTanks,
+  drawTanksFxLayer,
   isValidTanksWorldFrame,
 } from '../games/tanksView.js';
-import { drawSquareParticles } from '../games/worldCore.js';
+import { drawFxFlash } from '../games/worldCore.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from './tokens.js';
@@ -49,7 +51,13 @@ export function createWorldViewRenderer() {
           avatar: slots?.[p.slot]?.avatar || null,
         }));
         drawTanksTanks(ctx, tanks, { arena, withFx: frame.gameState === 'PLAYING' });
-        drawSquareParticles(ctx, frame.particles || []);
+        // FX katmanı: host'un paketlediği saf anlık görüntü (tuple → halka/pop).
+        const fx = frame.fx;
+        drawTanksFxLayer(ctx, {
+          pops: (fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
+          rings: (fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
+          particles: frame.particles || [],
+        });
         if (frame.intro?.active) {
            ctx.save();
            ctx.textAlign = 'center';
@@ -61,6 +69,11 @@ export function createWorldViewRenderer() {
          }
       });
       ctx.restore();
+
+      // Kill flaşı ekran-space: host alfası paketten gelir, client kendi
+      // simülasyonunu üretmez (§2 — kumanda yalnız sunar).
+      const flashAlpha = fxFlashAlpha(frame.fx?.flash, frame.fx?.flashPeak);
+      if (flashAlpha > 0) drawFxFlash(ctx, width, height, flashAlpha);
 
       if (frame.gameState === 'ROUND_OVER') {
         drawWorldRoundBanner(ctx, width, height, frame, slots, context);

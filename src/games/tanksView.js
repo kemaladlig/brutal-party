@@ -6,6 +6,7 @@
 
 import { drawPickup, drawObstacle } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { renderEntityHUD } from '../ui/hud.js';
 import {
@@ -14,7 +15,9 @@ import {
   createWorldSnapshot,
   isValidWorldBase,
   isWorldEntityVisible,
+  drawSquareParticles,
 } from './worldCore.js';
+import { drawFxRings, drawFxPops } from './worldCore.js';
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 
@@ -35,6 +38,7 @@ export function createTanksWorldPacket(game) {
       radius: round1(tk.size || 26),
       driving: tk.isDriving === true,
       muzzle: round1(tk.muzzleFlashTimer || 0),
+      hitFlash: round1(tk.hitFlash || 0),
       bot: tk.slotType === 'bot_normal' || tk.slotType === 'bot_god',
       god: tk.slotType === 'bot_god',
       shield: tk.hasShield === true,
@@ -74,8 +78,31 @@ export function createTanksWorldPacket(game) {
         active: (game.spawnIntroTimer || 0) > 0,
         time: round1(game.spawnIntroTimer || 0),
       },
+      // FX kanalı (MOTION_PLAN Faz 1): host FX runtime'ının saf anlık görüntüsü.
+      // Halkalar/pop'lar life'tan türetilir — client kendi saatini yürütmez,
+      // 30 Hz snapshot tazelemesi animasyon için yeterlidir (kısa ömürler).
+      fx: packFxState(game.fx),
     },
   });
+}
+
+/** fxRuntime → paket yükü. Kapanlar view bütçesiyle sınırlıdır. */
+export function packFxState(fx) {
+  if (!fx) return { rings: [], pops: [], flash: 0, flashPeak: 0 };
+  const rings = (Array.isArray(fx.rings) ? fx.rings : []).slice(0, 8).map((r) => [
+    round1(r.x), round1(r.y), round1(r.r0), round1(r.r1), round1(r.life), round1(r.maxLife), round1(r.width),
+    typeof r.color === 'string' ? r.color : UI_COLORS.inkDark,
+  ]);
+  const pops = (Array.isArray(fx.pops) ? fx.pops : []).slice(0, 6).map((p) => [
+    round1(p.x), round1(p.y), round1(p.size), round1(p.angle || 0), round1(p.life), round1(p.maxLife),
+    typeof p.color === 'string' ? p.color : UI_COLORS.inkDark,
+  ]);
+  return {
+    rings,
+    pops,
+    flash: round1(fx.flash || 0),
+    flashPeak: round1(fx.flashPeak || 0.06),
+  };
 }
 
 function isValidTanksPlayer(p) {
@@ -113,6 +140,15 @@ function isValidTanksExtra(frame) {
     const intro = frame.intro;
     if (!intro || typeof intro.active !== 'boolean' || !finite(intro.time) || intro.time < 0) return false;
   }
+  // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
+  if (frame.fx !== undefined) {
+    const fx = frame.fx;
+    if (!fx || !Array.isArray(fx.rings) || fx.rings.length > 8) return false;
+    if (!fx.rings.every((r) => Array.isArray(r) && r.length === 8 && r.slice(0, 7).every(finite) && typeof r[7] === 'string')) return false;
+    if (!Array.isArray(fx.pops) || fx.pops.length > 6) return false;
+    if (!fx.pops.every((p) => Array.isArray(p) && p.length === 7 && p.slice(0, 6).every(finite) && typeof p[6] === 'string')) return false;
+    if (!finite(fx.flash) || !finite(fx.flashPeak)) return false;
+  }
   return true;
 }
 
@@ -125,6 +161,18 @@ export function isValidTanksWorldFrame(frame) {
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
+
+/**
+ * FX katmanının tek çizim sırası: pop → ring → partikül. Host motoru ve
+ * client worldView AYNI fonksiyonu çağırır (host↔client aynı görünüm ilkesi).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
+ */
+export function drawTanksFxLayer(ctx, layer) {
+  drawFxPops(ctx, layer?.pops);
+  drawFxRings(ctx, layer?.rings);
+  drawSquareParticles(ctx, layer?.particles);
+}
 export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null, opts = {}) {
   // Statik saha `fieldKit`'te: adaçayı tonlu zemin, tanecik dokusu, merkez
   // halkası, köşe plakaları, seeded dekor ve yuvarlatılmış tepsi kesimi.
@@ -216,10 +264,15 @@ export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true } = {})
     if (!isWorldEntityVisible(tank)) continue;
     const s = tank.size || 20;
     const u = arena?.unit ?? (s / 40);
+    // HIT kanalı (fxKit 'hit'): isabet alan tank 1.10→1.00 pop + mürekkep
+    // kontur parlama; hitFlashTimer motor yazar, client snapshot'tan okur.
+    const hitT = Math.max(0, Math.min(1, (tank.hitFlash || 0) / 0.12));
+    const pop = 1 + 0.10 * hitT;
 
     ctx.save();
     ctx.translate(tank.x, tank.y);
     ctx.rotate(tank.angle || 0);
+    ctx.scale(pop, pop);
 
     ctx.fillStyle = '#1A1A1A';
     ctx.fillRect(-s / 2 - 3, -s / 2, 5, s);
@@ -230,6 +283,14 @@ export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true } = {})
     ctx.strokeStyle = '#1A1A1A';
     ctx.lineWidth = 2.5 * u;
     ctx.strokeRect(-s / 2 + 2, -s / 2 + 2, s - 4, s - 4);
+    if (hitT > 0) {
+      ctx.save();
+      ctx.globalAlpha = hitT * 0.9;
+      ctx.strokeStyle = UI_COLORS.white;
+      ctx.lineWidth = 3.5 * u;
+      ctx.strokeRect(-s / 2 + 2, -s / 2 + 2, s - 4, s - 4);
+      ctx.restore();
+    }
 
     ctx.fillStyle = '#1A1A1A';
     ctx.fillRect(0, -3.5, s * 0.78, 7);

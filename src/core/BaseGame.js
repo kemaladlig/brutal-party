@@ -58,6 +58,10 @@ export class BaseMiniGame {
 
     // Screen Shake / Trauma (0.0 to 1.0)
     this.trauma = 0;
+    // Yönlü sarsıntı durumu (addDirectionalTrauma yazar; sıfır = klasik jitter)
+    this._traumaDirX = 0;
+    this._traumaDirY = 0;
+    this._traumaImpulse = 0;
 
     // Timing
     this.lastTime = performance.now();
@@ -312,6 +316,20 @@ export class BaseMiniGame {
     this.trauma = Math.min(1.0, this.trauma + amount * motionScale());
   }
 
+  // Yönlü travma itkisi (fxRuntime olaylarından): sonraki applyScreenShake,
+  // jitter yerine itki vektörü ağırlıklı ofset uygular. Motor bunu çağırmadan
+  // addTrauma davranışı değişmez (geriye uyumlu).
+  addDirectionalTrauma(amount, dirX = 0, dirY = 0) {
+    this.addTrauma(amount);
+    const mag = Math.hypot(dirX, dirY);
+    if (mag > 0 && motionScale() > 0) {
+      this._traumaDirX = dirX / mag;
+      this._traumaDirY = dirY / mag;
+      // İtki ağırlığı travmaya eş zamanlı söner (updateTrauma).
+      this._traumaImpulse = Math.min(1, this._traumaImpulse + Math.min(1, amount * 2.5));
+    }
+  }
+
   // Zamana dayalı adım: kare tavanı tek bütçe (AGENTS §4 — düşen karelerde
   // simülasyon sıçramasın; yalnızca <20fps'de bağlanır).
   clampDt(now, lastTime) {
@@ -322,14 +340,21 @@ export class BaseMiniGame {
     if (this.trauma > 0) {
       this.trauma = Math.max(0, this.trauma - dt * decayRate);
     }
+    if (this._traumaImpulse > 0) {
+      this._traumaImpulse = Math.max(0, this._traumaImpulse - dt * decayRate);
+    }
   }
 
   applyScreenShake(ctx, maxOffset = 14) {
     if (prefersReducedMotion()) return;
     if (this.trauma > 0) {
       const shakeIntensity = this.trauma * this.trauma * maxOffset;
-      const offsetX = (Math.random() - 0.5) * 2 * shakeIntensity;
-      const offsetY = (Math.random() - 0.5) * 2 * shakeIntensity;
+      // Yönlü itki varsa ofset vektör ağırlıklıdır; itki söndükçe jitter'a döner.
+      const w = Math.min(1, this._traumaImpulse) * 0.7;
+      const jx = (Math.random() - 0.5) * 2;
+      const jy = (Math.random() - 0.5) * 2;
+      const offsetX = shakeIntensity * (jx * (1 - w) + this._traumaDirX * w);
+      const offsetY = shakeIntensity * (jy * (1 - w) + this._traumaDirY * w);
       ctx.translate(offsetX, offsetY);
     }
   }

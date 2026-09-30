@@ -90,6 +90,12 @@ src/core/
   preferences.js            Versiyonlu cihaz tercihleri (+ controllerLayout v2 profili, v1→v2 migration)
   controllerLayout.js       Saf cihaz-geneli kontrol yerleşimi (normalize, safe-frame, 44px)
   haptics.js                Tek haptik preference gate
+  fxKit.js                  FX OLAY SÖZLEŞMESİ TEK KAYNAĞI (MOTION_PLAN): kapalı FX_KIND kümesi +
+                            FX_PROFILES bütçe tablosu (burst/ring/trauma/hit-stop/flaş, tasarım px),
+                            havuz kapları, hit-stop zaman ölçeği (advanceHitStop), haptik desen tablosu
+  fxRuntime.js              Motor eşlikçisi: olayı partikül+halka+pop+flaş+hit-stop'a çevirir;
+                            travmayı traumaSink ile BaseGame'e devreder (sarsıntı sahibi motor kalır);
+                            `update(dt)` içinden tick — simülasyon saati DURMAZ (sunum zamanı)
   reactions.js              Tepki seti TEK kaynağı: REACTIONS + normalizeReactionKey (wire = ikon anahtarı)
   inputSource.js            keyboard/touch/pointer arbitration; kanal bazlı bypass
   controlDescriptor.js      phone/tabletop/network normalize kontrol sözleşmesi + parity
