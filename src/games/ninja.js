@@ -26,8 +26,11 @@ import {
   drawNinjaPlayers,
   drawNinjaSlashes,
   drawNinjaImpacts,
-  drawNinjaFx,
+  drawNinjaFxLayer,
 } from './ninjaView.js';
+import { drawFxFlash } from './worldCore.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 
 export const NINJA_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const NINJA_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -72,7 +75,12 @@ this.targetScore = 2;
     this.obstacles = [];
     this.lanterns = [];
     this.footsteps = [];
-    this.particles = [];
+    // FX runtime (MOTION_PLAN Faz 2c): kesik/duman/fener kırığı olaylarının tek sahibi.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
+    /** @type {any[]} */ this.particles = this.fx.particles;
     this.slashWaves = [];
     this.afterimages = [];
     this.cutDecals = [];
@@ -150,6 +158,8 @@ this.targetScore = 2;
     this.arena = computePlayfield(width, height, 'standard');
 
     this.buildMap();
+    // Arena değişti: eski koordinatlı FX atılır.
+    this.fx.clear();
 
     if (this.state === 'LOBBY' || !this.players.length) {
       this.initPlayers();
@@ -255,7 +265,7 @@ this.targetScore = 2;
     this.tiedRounds = 0;
     this.roundTime = 45;
     this.roundTransitionTimer = 0;
-    this.particles = [];
+    this.fx.clear();
     this.slashWaves = [];
     this.afterimages = [];
     this.cutDecals = [];
@@ -297,7 +307,7 @@ this.targetScore = 2;
     this.roundId += 1;
     this.roundTransitionTimer = 0;
     this.roundTime = 45;
-    this.particles = [];
+    this.fx.clear();
     this.slashWaves = [];
     this.afterimages = [];
     this.cutDecals = [];
@@ -377,7 +387,13 @@ this.targetScore = 2;
       player.alpha = 1.0;
       player.hideTimer = 0;
       playItemPickup();
-      this.addTrauma(0.3);
+      // Kılıç savuruşu: `hit` olayı (yönlü travma + halka) — eski 0.3 travma
+      // profilin 0.2 tavanına indi, karşılığında hit-stop + halka geldi.
+      this.fx.emit('hit', {
+        x: player.x, y: player.y, color: player.color,
+        dirX: Math.cos(player.angle), dirY: Math.sin(player.angle),
+        slot: player.index, haptic: player.slotType === 'human',
+      });
 
       // 1. Dalga dalga yayılan çok katmanlı kesik şok dalgaları (Multi-stage Dimensional Crescent Slashes)
       this.slashWaves.push({
@@ -426,7 +442,11 @@ this.targetScore = 2;
           if (Math.hypot(player.x - lantern.x, player.y - lantern.y) < lanternReach) {
             lantern.active = false;
             lantern.respawnTimer = 7.0;
-            this.addTrauma(0.35);
+            // Fener kırığı: `kill` olayı (fener ölür — ekran seviyesi an).
+            this.fx.emit('kill', {
+              x: lantern.x, y: lantern.y, color: '#FFD700', size: lantern.radius || 60,
+              slot: player.index, haptic: player.slotType === 'human',
+            });
             playExplosion();
             this.spawnLanternBreak(lantern.x, lantern.y);
             this.impactCuts.push({
@@ -451,8 +471,11 @@ this.targetScore = 2;
       player.alpha = 0.0;
       player.hideTimer = 1.2;
       playExplosion();
-      this.spawnSmoke(player.x, player.y, player.color, 36);
-      this.addTrauma(0.22);
+      // Duman: `zone` olayı (halka + travma) — eski 0.22 → profil 0.16.
+      this.fx.emit('zone', {
+        x: player.x, y: player.y, color: player.color,
+        slot: player.index, haptic: player.slotType === 'human',
+      });
     }
   }
 
@@ -468,69 +491,26 @@ this.targetScore = 2;
     });
   }
 
+  // Duman: profil `zone` (halka) + `dust` (bulut) çifti — eski 36 parçacıklı
+  // girdap artık kademeli (fxParticleScale) burst üretir.
   spawnSmoke(x, y, color, count = 30) {
-    // 1. Duman şok dalgası halkası
-    this.particles.push({
-      type: 'shockRing',
-      x, y,
-      radius: 8,
-      maxRadius: 48,
-      color: color,
-      alpha: 0.9,
-      decay: 2.5,
-    });
-
-    // 2. Girdaplı duman bulutları ve parçacıkları
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = 20 + Math.random() * 110;
-      this.particles.push({
-        type: 'smoke',
-        x, y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        color: i % 3 === 0 ? color : (i % 2 === 0 ? '#1A1A1A' : '#444444'),
-        radius: 6 + Math.random() * 9,
-        alpha: 0.95,
-        decay: 1.2 + Math.random() * 0.8,
-      });
-    }
+    this.fx.emit('dust', { x, y, color });
   }
 
   spawnSlashSparks(x, y, angle, color) {
-    // İleriye doğru 18 adet keskin jilet kıvılcımı
-    for (let i = 0; i < 18; i++) {
-      const pAngle = angle + (Math.random() - 0.5) * 1.4;
-      const spd = 120 + Math.random() * 220;
-      this.particles.push({
-        type: 'spark',
-        x: x + Math.cos(angle) * 16,
-        y: y + Math.sin(angle) * 16,
-        vx: Math.cos(pAngle) * spd,
-        vy: Math.sin(pAngle) * spd,
-        color: i % 2 === 0 ? '#FFFFFF' : color,
-        radius: 2 + Math.random() * 2.5,
-        alpha: 1.0,
-        decay: 3.5 + Math.random() * 1.5,
-      });
-    }
+    // İleriye doğru keskin jilet kıvılcımı: `spark` (yönlü burst).
+    this.fx.emit('spark', {
+      x: x + Math.cos(angle) * 16,
+      y: y + Math.sin(angle) * 16,
+      color,
+      dirX: Math.cos(angle), dirY: Math.sin(angle),
+    });
   }
 
   spawnLanternBreak(x, y) {
-    for (let i = 0; i < 22; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = 80 + Math.random() * 180;
-      this.particles.push({
-        type: 'shard',
-        x, y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        color: i % 3 === 0 ? '#1A1A1A' : (i % 2 === 0 ? '#FFD700' : '#E63946'),
-        radius: 3 + Math.random() * 3.5,
-        alpha: 1.0,
-        decay: 2.2,
-      });
-    }
+    // Parça kırılması: `spark` + `dust` (kırık cam hissi).
+    this.fx.emit('spark', { x, y, color: '#FFD700' });
+    this.fx.emit('dust', { x, y, color: '#1A1A1A' });
   }
 
   onTouchStart(touch) {
@@ -583,12 +563,12 @@ this.targetScore = 2;
   }
 
   update(now) {
-    const dt = this.clampDt(now, this.lastTime);
+    const rawDt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
-
-    if (this.trauma > 0) {
-      this.trauma = Math.max(0, this.trauma - dt * 2.2);
-    }
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    const dt = this.fx.tick(rawDt);
+    this.updateTrauma(dt);
+    this.fx.update(dt);
 
     // Ayak izleri
     for (let i = this.footsteps.length - 1; i >= 0; i--) {
@@ -625,21 +605,15 @@ this.targetScore = 2;
       const prog = Math.min(1.0, sw.life / sw.maxLife);
       sw.dist = (1 - Math.pow(1 - prog, 2.5)) * sw.maxDist;
 
-      // İlerleme sırasında hafif mikro kıvılcımlar
+      // İlerleme sırasında hafif mikro kıvılcımlar (`spark` olayı)
       if (Math.random() < 0.35 && prog < 0.7) {
         const curX = sw.x + Math.cos(sw.angle) * sw.dist;
         const curY = sw.y + Math.sin(sw.angle) * sw.dist;
-        const pAng = sw.angle + (Math.random() - 0.5) * 1.2;
-        this.particles.push({
-          type: 'spark',
+        this.fx.emit('spark', {
           x: curX,
           y: curY,
-          vx: Math.cos(pAng) * (70 + Math.random() * 90),
-          vy: Math.sin(pAng) * (70 + Math.random() * 90),
           color: sw.color,
-          radius: 1.8,
-          alpha: 0.9,
-          decay: 4.5,
+          dirX: Math.cos(sw.angle), dirY: Math.sin(sw.angle),
         });
       }
 
@@ -835,7 +809,13 @@ this.targetScore = 2;
           victim.isAlive = false;
           attacker.strikeTimer = 0;
           this.scores[attacker.index]++;
-          this.addTrauma(0.55);
+          // Eleme: `kill` olayı (ekran seviyesi an) — travma 0.55 → 0.4 tavanı.
+          this.fx.emit('kill', {
+            x: victim.x, y: victim.y, color: victim.color, size: NINJA_RADIUS,
+            angle: attacker.angle,
+            dirX: victim.x - attacker.x, dirY: victim.y - attacker.y,
+            slot: victim.index, haptic: victim.slotType === 'human',
+          });
           playExplosion();
 
           // Çapraz X kesik patlaması
@@ -963,7 +943,8 @@ this.targetScore = 2;
 
     drawNinjaSlashes(ctx, this.slashWaves, this.arena);
     drawNinjaImpacts(ctx, this.impactCuts);
-    drawNinjaFx(ctx, this.particles);
+    // FX katmanı ortak ninjaView draw'ından gelir (host↔client aynı).
+    drawNinjaFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
 
     // Havaya süzülen metin bildirimleri (+1★, KILIÇ ATIL, vb.)
     renderFloatingTexts(ctx, this.floatingTexts, 0.016);
@@ -1009,5 +990,9 @@ this.targetScore = 2;
       },
     });
     ctx.restore();
+
+    // Eleme flaşı sahne transformunun DIŞINDA: tam ekranı kaplar.
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 }

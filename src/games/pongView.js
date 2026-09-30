@@ -5,6 +5,11 @@ import {
   createWorldSnapshot,
   isValidWorldBase,
   round1,
+  packFxState,
+  isValidFxState,
+  drawFxRings,
+  drawFxPops,
+  drawCircleParticles,
 } from './worldCore.js';
 import { drawField } from '../core/fieldKit.js';
 
@@ -80,9 +85,14 @@ export function createPongWorldPacket(game) {
         trail: packTrail(ball.trail),
         shockwaves: packShockwaves(ball.shockwaves),
       },
+      // FX kanalı (MOTION_PLAN Faz 2c): host FX runtime'ının saf anlık görüntüsü.
+      fx: packFxState(game.fx),
     },
   });
 }
+
+/** fxRuntime → paket yükü. Tek kaynak worldCore (re-export). */
+export { packFxState };
 
 function validPaddle(paddle) {
   return !!paddle
@@ -125,10 +135,24 @@ function validGoals(goals) {
 }
 
 export function isValidPongWorldFrame(frame) {
+  // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
+  if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
   return isValidWorldBase(frame, 'PONG', {
     checkPlayer: validPaddle,
     checkExtra: (candidate) => validBall(candidate.ball) && validGoals(candidate.goals),
   });
+}
+
+/**
+ * FX katmanının tek çizim sırası: pop → ring → partikül. Host motoru ve
+ * client worldView AYNI fonksiyonu çağırır (host↔client aynı görünüm ilkesi).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
+ */
+export function drawPongFxLayer(ctx, layer) {
+  drawFxPops(ctx, layer?.pops);
+  drawFxRings(ctx, layer?.rings);
+  drawCircleParticles(ctx, layer?.particles);
 }
 
 // ---------------------------------------------------------------------------

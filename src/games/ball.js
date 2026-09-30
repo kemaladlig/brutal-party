@@ -1,7 +1,7 @@
 // Ball physics with progressive speed escalation, smash mechanics, sonic booms & overdrive hazards
 import { playPaddleHit, playWallHit, playGoal, playShoot, playSonicBoom, playPowerUp } from '../audio.js';
-import { vibrate } from '../core/haptics.js';
 import { fieldRadius } from '../core/playfield.js';
+import { UI_COLORS } from '../ui/tokens.js';
 
 /**
  * Hız rampasının biçimi (tune edilmiş sayılar burada, motorun gövdesinde değil).
@@ -255,8 +255,9 @@ export class Ball {
         this.x = arena.cx + nx * (hazardRadius + this.radius + 2);
         this.y = arena.cy + ny * (hazardRadius + this.radius + 2);
         playWallHit();
-        this.spawnShockwave(this.x, this.y, '#D84727');
-        this.game.addTrauma(0.18);
+        this.spawnShockwave(this.x, this.y, UI_COLORS.crownRed);
+        // Merkez tehlike: spark olayı (ortam efekti, haptiksiz).
+        this.game.fx.emit('spark', { x: this.x, y: this.y, color: UI_COLORS.crownRed });
         return;
       }
     }
@@ -369,7 +370,7 @@ export class Ball {
 
     const overdriveStart = this.startSpeed + (speedCap - this.startSpeed) * 0.55;
     if (targetSpeed > overdriveStart || isSmashStrike) {
-      this.spawnShockwave(this.x, this.y, isSmashStrike ? '#D84727' : '#1A1A1A');
+      this.spawnShockwave(this.x, this.y, isSmashStrike ? UI_COLORS.crownRed : '#1A1A1A');
     }
     if (targetSpeed > speedCap * 0.92) {
       playSonicBoom();
@@ -452,27 +453,33 @@ export class Ball {
       }
       this.spin = dir * this.baseMinSpeed * 2.2;
       this.spawnShockwave(this.x, this.y, '#D99B26');
-      this.game.addTrauma(0.22);
+      // Kurulu falso: hit olayı (yönlü travma + haptik).
+      this.game.fx.emit('hit', {
+        x: this.x, y: this.y, color: paddle.color,
+        dirX: this.vx, dirY: this.vy, slot: paddle.index,
+        haptic: paddle.slotType === 'human',
+      });
       playPowerUp();
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        vibrate([30, 40, 30]);
-      }
     }
 
     // Audio & Haptics
     const pitchIntensity = Math.min(2.2, 1.0 + this.rallyCount * 0.08);
     if (isSmashStrike) {
       playShoot();
-      this.game.addTrauma(0.24);
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        vibrate([25, 40]);
-      }
+      // Smac: hit olayı (yönlü travma + haptik).
+      this.game.fx.emit('hit', {
+        x: this.x, y: this.y, color: paddle.color,
+        dirX: this.vx, dirY: this.vy, slot: paddle.index,
+        haptic: paddle.slotType === 'human',
+      });
     } else {
       playPaddleHit(pitchIntensity);
-      this.game.addTrauma(0.12 + Math.min(0.18, this.rallyCount * 0.015));
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        vibrate(18);
-      }
+      // Ralli vuruşu: hit olayı (haptiksiz — her vuruşta titretmez).
+      this.game.fx.emit('hit', {
+        x: this.x, y: this.y, color: paddle.color,
+        dirX: this.vx, dirY: this.vy, slot: paddle.index,
+        haptic: false,
+      });
     }
   }
 
@@ -603,7 +610,8 @@ export class Ball {
   onWallBounce(arena, wallAxis = 'horizontal') {
     this.consecutiveWallBounces++;
     playWallHit();
-    this.game.addTrauma(0.06);
+    // Duvar sekmesi: spark olayı (travmasız ortam efekti).
+    this.game.fx.emit('spark', { x: this.x, y: this.y, color: '#5E5B54' });
     this.spawnShockwave(this.x, this.y, '#5E5B54');
 
     // Pure deterministic bounce: only ensure the ball doesn't glide 100% flat along a wall
@@ -633,11 +641,14 @@ export class Ball {
     paddle.takeDamage();
     playGoal();
 
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      vibrate([40, 50, 70]);
-    }
+    // Gol: kill olayı (burst + halka + pop + hit-stop + flaş + travma + haptik).
+    this.game.fx.emit('kill', {
+      x: this.x, y: this.y, color: paddle.color,
+      size: this.radius || 11, angle: 0,
+      dirX: this.vx, dirY: this.vy, slot: paddle.index,
+      haptic: paddle.slotType === 'human',
+    });
 
-    this.game.addTrauma(0.38);
     this.game.onPlayerScoredOn(playerIndex);
   }
 
@@ -674,7 +685,7 @@ export class Ball {
     const spinning = Math.abs(this.spin) > 8;
     ctx.beginPath();
     ctx.arc(this.x, this.y, baseRadius, 0, Math.PI * 2);
-    ctx.fillStyle = spinning ? '#D99B26' : (this.isSmash ? '#D84727' : '#111111');
+    ctx.fillStyle = spinning ? '#D99B26' : (this.isSmash ? UI_COLORS.crownRed : '#111111');
     ctx.fill();
 
     ctx.strokeStyle = '#000000';

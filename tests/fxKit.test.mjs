@@ -166,9 +166,9 @@ function gameSources() {
     .map((f) => [f, readFileSync(join(dir, f), 'utf8')]);
 }
 
-test('converted engines own no particle state: tanks+horde+laser+archer+clone+collapse+heist+bomb+crown locked (Faz 2b)', () => {
+test('converted engines own no particle state: tanks+horde+laser+archer+clone+collapse+heist+bomb+crown+pong locked (Faz 2c)', () => {
   // FX runtime'a geçen motorlar kendi havuzunu kuramaz, travmayı elle ekleyemez.
-  for (const name of ['tanks.js', 'horde.js', 'laser.js', 'archer.js', 'clone.js', 'collapse.js', 'heist.js', 'bomb.js', 'crown.js']) {
+  for (const name of ['tanks.js', 'horde.js', 'laser.js', 'archer.js', 'clone.js', 'collapse.js', 'heist.js', 'bomb.js', 'crown.js', 'game.js']) {
     const src = readFileSync(join(ROOT, 'src', 'games', name), 'utf8');
     assert.ok(/createFxRuntime\(/.test(src), `${name} fxRuntime kullanmalı`);
     assert.ok(!/this\.particles\s*=\s*\[\s*\]/.test(src), `${name} kendi partikül dizisini kuramaz (alias hariç kurucuda)`);

@@ -3,7 +3,7 @@
 import {
   drawSnakeArena,
   drawSnakeFoods,
-  drawSnakeParticles,
+  drawSnakeFxLayer,
   drawSnakePlayers,
   isValidSnakeWorldFrame,
 } from '../games/snakeView.js';
@@ -11,12 +11,17 @@ import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { paintBackdrop } from '../core/fieldKit.js';
+import { drawFxFlash } from '../games/worldCore.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 
 export function createSnakeWorldViewRenderer() {
   return {
     validate: isValidSnakeWorldFrame,
 
     render(ctx, frame, width, height, slots = [], now = performance.now(), context = {}) {
+      // FX kaynağı (MOTION_PLAN 2.2): olay playback'i (`context.fx`) varsa O
+      // çizer ve frame.fx/frame.particles YOK SAYILIR (çift çizim).
+      const fxLive = !!context.fx;
       const [left, top, right, bottom] = frame.arena;
       const arena = { left, top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
 
@@ -37,9 +42,21 @@ export function createSnakeWorldViewRenderer() {
         drawSnakeArena(ctx, arena, walls, { roundId: frame.roundId });
         drawSnakeFoods(ctx, foods, now);
         drawSnakePlayers(ctx, players, now);
-        drawSnakeParticles(ctx, particles);
+        drawSnakeFxLayer(ctx, fxLive
+          ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
+          : {
+              pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
+              rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
+              particles,
+            });
       });
       ctx.restore();
+
+      // Ölüm flaşı ekran-space: playback mandalı açıkken oynatıcıdan, değilse
+      // host paketinden okunur (tek kaynak kuralı).
+      const fxSrc = fxLive ? context.fx : frame.fx;
+      const flashAlpha = fxFlashAlpha(fxSrc?.flash, fxSrc?.flashPeak);
+      if (flashAlpha > 0) drawFxFlash(ctx, width, height, flashAlpha);
 
       if (frame.gameState === 'ROUND_OVER') {
         drawWorldRoundBanner(ctx, width, height, frame, slots, context);

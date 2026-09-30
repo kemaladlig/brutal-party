@@ -3,7 +3,16 @@
 
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { UI_COLORS } from '../ui/tokens.js';
-import { createWorldSnapshot, isValidWorldBase, round1 } from './worldCore.js';
+import {
+  createWorldSnapshot,
+  isValidWorldBase,
+  round1,
+  packFxState,
+  isValidFxState,
+  drawFxRings,
+  drawFxPops,
+  drawCircleParticles,
+} from './worldCore.js';
 
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
 const PLAYER_FALLBACK = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -76,6 +85,8 @@ export function createRaceWorldPacket(game) {
       nitroPads: packPads(game.nitroPads),
       spinners: packSpinners(game.obstacleSpinners),
       empPulses: packEmpPulses(game.empPulses),
+      // FX kanalı (MOTION_PLAN Faz 2c): host FX runtime'ının saf anlık görüntüsü.
+      fx: packFxState(game.fx),
     },
   });
 }
@@ -121,6 +132,8 @@ function validEmpPulses(value) {
 }
 
 export function isValidRaceWorldFrame(frame) {
+  // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
+  if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
   return isValidWorldBase(frame, 'RACE', {
     checkPlayer: validPlayer,
     checkExtra: (candidate) => (
@@ -266,4 +279,16 @@ export function drawRaceWorld(ctx, frame, arena, colors = [], now = performance.
     const slot = player.slot ?? player.index ?? 0;
     if (isJoined && isAlive) drawPlayer(ctx, player, colors[slot] || PLAYER_FALLBACK[slot] || PLAYER_FALLBACK[0], frame.checkpoints);
   }
+}
+
+/**
+ * FX katmanının tek çizim sırası: pop → ring → partikül. Host motoru ve
+ * client worldView AYNI fonksiyonu çağırır (host↔client aynı görünüm ilkesi).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
+ */
+export function drawRaceFxLayer(ctx, layer) {
+  drawFxPops(ctx, layer?.pops);
+  drawFxRings(ctx, layer?.rings);
+  drawCircleParticles(ctx, layer?.particles);
 }

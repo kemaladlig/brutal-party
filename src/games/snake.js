@@ -12,7 +12,7 @@ import {
   createSnakeWorldPacket,
   drawSnakeArena,
   drawSnakeFoods,
-  drawSnakeParticles,
+  drawSnakeFxLayer,
   drawSnakePlayers,
 } from './snakeView.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
@@ -21,6 +21,9 @@ import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap
 import { distToSegmentSquared, getProjectileSubsteps, clampToArena } from '../core/physics2d.js';
 import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { drawFxFlash } from './worldCore.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 
 export const SNAKE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const SNAKE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -127,7 +130,12 @@ this.targetScore = 2;
     this.tiedRounds = 0;
     this.players = [];
     this.foods = [];
-    this.particles = [];
+    // FX runtime (MOTION_PLAN Faz 2c): boost izi/yemek/ölüm olaylarının tek sahibi.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
+    /** @type {any[]} */ this.particles = this.fx.particles;
     this.walls = [];
     this.mapIndex = 0;
     this.roundId = 0;
@@ -199,6 +207,8 @@ this.targetScore = 2;
     this.arena = computePlayfield(width, height, 'standard');
 
     this.buildMapWalls();
+    // Arena değişti: eski koordinatlı FX atılır.
+    this.fx.clear();
 
     if (this.state === 'LOBBY' || !this.players.length) {
       this.initPlayers();
@@ -272,6 +282,7 @@ this.targetScore = 2;
     this.foods = [];
     this.segGrid = new Map();
     this.segGridDirty = false;
+    this.fx.clear();
     this.onTouchesReset();
     this.pickRandomMap();
     this.initPlayers();
@@ -310,6 +321,7 @@ this.targetScore = 2;
     this.roundTransitionTimer = 0;
     this.segGrid = new Map();
     this.segGridDirty = false;
+    this.fx.clear();
     this.onTouchesReset();
     this.pickRandomMap();
     playStart();
@@ -496,12 +508,12 @@ this.targetScore = 2;
   }
 
   update(now) {
-    const dt = this.clampDt(now, this.lastTime);
+    const rawDt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
-
-    if (this.trauma > 0) {
-      this.trauma = Math.max(0, this.trauma - dt * 2.2);
-    }
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    const dt = this.fx.tick(rawDt);
+    this.updateTrauma(dt);
+    this.fx.update(dt);
 
     if (tickRoundFlow(this, dt)) return;
 
@@ -627,18 +639,18 @@ this.targetScore = 2;
           if (f.type === 'GOLDEN_STAR') {
             player.targetLen += 70;
             player.foodCount = (player.foodCount || 0) + 3;
-            this.spawnSparkles(f.x, f.y, '#FFDE59', 16);
+            this.spawnSparkles(f.x, f.y, '#FFDE59', 16, player);
           } else if (f.type === 'TURBO_BERRY') {
             player.targetLen += 40;
             player.foodCount = (player.foodCount || 0) + 1;
             player.boostEnergy = Math.min(100, player.boostEnergy + 55);
             player.boostLocked = false;
-            this.spawnSparkles(f.x, f.y, '#A259FF', 12);
+            this.spawnSparkles(f.x, f.y, '#A259FF', 12, player);
           } else {
             player.targetLen += 38;
             player.foodCount = (player.foodCount || 0) + 1;
             player.boostEnergy = Math.min(100, player.boostEnergy + 15);
-            this.spawnSparkles(f.x, f.y, '#D84727', 8);
+            this.spawnSparkles(f.x, f.y, '#D84727', 8, player);
           }
 
           if (player.targetLen > SNAKE_MAX_LEN) player.targetLen = SNAKE_MAX_LEN;
@@ -653,14 +665,7 @@ this.targetScore = 2;
       }
     }
 
-    // Parçacıklar
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.alpha -= p.decay * dt;
-      if (p.alpha <= 0) this.particles.splice(i, 1);
-    }
+    // Partikül yaşam döngüsü artık fxRuntime'ın (`this.fx.update(dt)`).
 
     const alive = this.players.filter((p) => p.isJoined && p.isAlive);
     if (alive.length <= 1) {
@@ -701,55 +706,35 @@ this.targetScore = 2;
     return (px - projX) * (px - projX) + (py - projY) * (py - projY);
   }
 
+  // Boost kuyruk izi: tek partiküllü `dust` olayı (ortam efekti, haptiksiz).
   spawnExhaust(x, y, color) {
-    this.particles.push({
-      x, y,
-      vx: (Math.random() - 0.5) * 30,
-      vy: (Math.random() - 0.5) * 30,
-      color: Math.random() < 0.5 ? '#FFDE59' : color,
-      radius: 2 + Math.random() * 2.5,
-      alpha: 0.8,
-      decay: 3.5,
+    this.fx.emit('dust', { x, y, color });
+  }
+
+  // Yemek toplama: `pickup` olayı (burst; oyuncu insan ise haptik).
+  spawnSparkles(x, y, color, count = 8, player = null) {
+    this.fx.emit('pickup', {
+      x, y, color,
+      size: Math.max(2, Math.round(count / 2)),
+      haptic: player ? player.slotType === 'human' : false,
     });
-  }
-
-  spawnSparkles(x, y, color, count = 8) {
-    for (let i = 0; i < count; i++) {
-      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
-      const spd = 35 + Math.random() * 70;
-      this.particles.push({
-        x, y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        color,
-        radius: 2.5 + Math.random() * 2,
-        alpha: 1.0,
-        decay: 2.2,
-      });
-    }
-  }
-
-  spawnExplosion(x, y, color) {
-    for (let i = 0; i < 26; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = 40 + Math.random() * 130;
-      this.particles.push({
-        x, y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        color: i % 2 === 0 ? color : '#1A1A1A',
-        radius: 3 + Math.random() * 3.5,
-        alpha: 1.0,
-        decay: 1.6,
-      });
-    }
   }
 
   eliminatePlayer(player) {
     player.isAlive = false;
-    this.addTrauma(0.4);
     playExplosion();
-    this.spawnExplosion(player.x, player.y, player.color);
+    // Yılan öldü: kill olayı (burst+ring+pop+hit-stop+flaş+travma+haptik).
+    this.fx.emit('kill', {
+      x: player.x,
+      y: player.y,
+      color: player.color,
+      size: player.radius || 24,
+      angle: player.angle || 0,
+      dirX: -Math.cos(player.angle || 0),
+      dirY: -Math.sin(player.angle || 0),
+      slot: player.index,
+      haptic: player.slotType === 'human',
+    });
 
     // Ölen yılanın vücudu zengin meyve parçalarına dönüşür
     let dropCount = 0;
@@ -830,7 +815,8 @@ this.targetScore = 2;
     this.renderControls(ctx, { extraEntities: this.foods });
     drawSnakeFoods(ctx, this.foods, now);
     drawSnakePlayers(ctx, this.players, now);
-    drawSnakeParticles(ctx, this.particles);
+    // FX katmanı ortak snakeView draw'ından gelir (host↔client aynı).
+    drawSnakeFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
 
     this.renderHUD(ctx, {
       guideTitle: t('guide.snake'),
@@ -856,6 +842,10 @@ this.targetScore = 2;
     });
 
     ctx.restore();
+
+    // Ölüm flaşı sahne transformunun DIŞINDA: tam ekranı kaplar.
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 }
 

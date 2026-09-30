@@ -25,9 +25,15 @@ function makeGame() {
     }],
     impactCuts: [{ x: 410, y: 300, angle: 0.5, color: '#D84727', life: 0.1, maxLife: 0.35 }],
     particles: [
-      { x: 100, y: 100, radius: 4, alpha: 0.7, color: '#888888' },
-      { type: 'shockRing', x: 200, y: 200, radius: 12, alpha: 0.9, color: '#D84727' },
+      { x: 100, y: 100, size: 4, life: 0.14, maxLife: 0.2, color: '#888888' },
     ],
+    fx: {
+      rings: [{ x: 200, y: 200, r0: 8, r1: 48, life: 0.2, maxLife: 0.32, width: 3, color: '#D84727' }],
+      pops: [],
+      particles: [],
+      flash: 0,
+      flashPeak: 0.06,
+    },
     players: [{
       index: 0,
       isJoined: true,
@@ -62,7 +68,8 @@ test('ninja world packet is declarative, complete and monotonic', () => {
   assert.equal(first.ghosts[0].alpha, 0.75);
   assert.equal(first.slashes[0].waves[1].delay, 0.07);
   assert.equal(first.impacts[0].maxLife, 0.35);
-  assert.equal(first.fx[1].ring, true);
+  assert.equal(first.fx.rings.length, 1);
+  assert.equal(first.fx.rings[0][7], '#D84727');
   const p = first.players[0];
   assert.equal(p.strike, true);
   assert.ok(p.strikeProg > 0 && p.strikeProg < 1);
@@ -80,7 +87,7 @@ test('ninja world frame validation rejects malformed input', () => {
 
   assert.equal(isValidNinjaWorldFrame(frame), true);
   assert.equal(isValidNinjaWorldFrame({ ...frame, slashes: [{ ...frame.slashes[0], waves: [1, 2, 3, 4, 5] }] }), false);
-  assert.equal(isValidNinjaWorldFrame({ ...frame, fx: [{ ...frame.fx[0], ring: 1 }] }), false);
+  assert.equal(isValidNinjaWorldFrame({ ...frame, fx: { ...frame.fx, rings: [[1, 2, 3]] } }), false);
   assert.equal(isValidNinjaWorldFrame({ ...frame, players: [{ ...frame.players[0], alpha: NaN }] }), false);
   assert.equal(isValidNinjaWorldFrame({ ...frame, matchDraw: 0 }), false);
   assert.equal(isValidNinjaWorldFrame({ ...frame, mode: 'CLONE' }), false);

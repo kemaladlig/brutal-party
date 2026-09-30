@@ -18,6 +18,11 @@ import {
   createWorldSnapshot,
   isValidWorldBase,
   isWorldEntityVisible,
+  packFxState,
+  isValidFxState,
+  drawFxRings,
+  drawFxPops,
+  drawCircleParticles,
 } from './worldCore.js';
 
 export const NINJA_RADIUS = 36;
@@ -100,13 +105,10 @@ export function createNinjaWorldPacket(game) {
         life: round2(ic.life || 0),
         maxLife: round2(ic.maxLife || 0.35),
       })),
-      fx: (Array.isArray(game.particles) ? game.particles : []).slice(0, 64).map((pt) => ({
-        x: round1(pt.x), y: round1(pt.y),
-        radius: round1(pt.radius ?? pt.size ?? 4),
-        alpha: round2(pt.alpha ?? pt.life ?? 0.8),
-        color: typeof pt.color === 'string' ? pt.color : '#888888',
-        ring: pt.type === 'shockRing',
-      })),
+      // FX kanalı (MOTION_PLAN Faz 2c): host FX runtime'ının saf anlık görüntüsü.
+      // (Eski `fx` partikül dizisi bu anahtarı işgal ediyordu; kanal adı tek
+      // konvansiyon olsun diye runtime'a devredildi, v1 partikül yedeği `particles`.)
+      fx: packFxState(game.fx),
     },
   });
 }
@@ -143,18 +145,29 @@ function isValidNinjaExtra(frame) {
   if (!Array.isArray(frame.impacts) || frame.impacts.length > 8) return false;
   if (!frame.impacts.every((ic) => ic && finite(ic.x) && finite(ic.y) && finite(ic.angle)
     && typeof ic.color === 'string' && finite(ic.life) && finite(ic.maxLife))) return false;
-  if (!Array.isArray(frame.fx) || frame.fx.length > 64) return false;
-  if (!frame.fx.every((pt) => pt && finite(pt.x) && finite(pt.y) && finite(pt.radius)
-    && finite(pt.alpha) && typeof pt.color === 'string' && typeof pt.ring === 'boolean')) return false;
   return true;
 }
 
 // --- Client frame doğrulaması ---
 export function isValidNinjaWorldFrame(frame) {
+  // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
+  if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
   return isValidWorldBase(frame, 'NINJA', {
     checkPlayer: isValidNinjaPlayer,
     checkExtra: isValidNinjaExtra,
   });
+}
+
+/**
+ * FX katmanının tek çizim sırası: pop → ring → partikül. Host motoru ve
+ * client worldView AYNI fonksiyonu çağırır (host↔client aynı görünüm ilkesi).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
+ */
+export function drawNinjaFxLayer(ctx, layer) {
+  drawFxPops(ctx, layer?.pops);
+  drawFxRings(ctx, layer?.rings);
+  drawCircleParticles(ctx, layer?.particles);
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
@@ -501,26 +514,6 @@ export function drawNinjaImpacts(ctx, impacts) {
     ctx.moveTo(-span, -span * 0.6); ctx.lineTo(span, span * 0.6);
     ctx.moveTo(-span * 0.6, span); ctx.lineTo(span * 0.6, -span);
     ctx.stroke();
-    ctx.restore();
-  }
-}
-
-export function drawNinjaFx(ctx, fx) {
-  for (const pt of fx || []) {
-    ctx.save();
-    ctx.globalAlpha = clamp01(pt.alpha ?? 0.8);
-    if (pt.ring) {
-      ctx.strokeStyle = pt.color;
-      ctx.lineWidth = Math.max(1, 2.5 * ((pt.radius || 4) / 4));
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2);
-      ctx.stroke();
-    } else {
-      ctx.fillStyle = pt.color;
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2);
-      ctx.fill();
-    }
     ctx.restore();
   }
 }

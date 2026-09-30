@@ -2,7 +2,15 @@
 // The authoritative game uses the same drawing helpers as remote phone clients.
 
 import { drawGameAvatar } from '../core/avatarInGame.js';
-import { isWorldEntityVisible } from './worldCore.js';
+import {
+  isWorldEntityVisible,
+  packFxState,
+  packParticles,
+  isValidFxState,
+  drawFxRings,
+  drawFxPops,
+  drawCircleParticles,
+} from './worldCore.js';
 import { drawObstacle } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
@@ -120,13 +128,9 @@ export function createSnakeWorldPacket(game) {
       locked: !!player.boostLocked,
       trail: sampleSnakeTrail(player.segments, player.x, player.y),
     })),
-    particles: particles.slice(0, 64).map((particle) => ({
-      x: round1(particle.x || 0),
-      y: round1(particle.y || 0),
-      radius: round1(particle.radius || 1),
-      alpha: Math.max(0, Math.min(1, Number(particle.alpha) || 0)),
-      color: typeof particle.color === 'string' ? particle.color : '#1A1A1A',
-    })),
+    particles: packParticles(particles, 64),
+    // FX kanalı (MOTION_PLAN Faz 2c): host FX runtime'ının saf anlık görüntüsü.
+    fx: packFxState(game.fx),
     scores: (game.scores || [0, 0, 0, 0]).map((score) => Number(score) || 0),
     matchDraw: game.matchDraw === true,
     roundWinner: winnerSlot(game.roundWinner),
@@ -159,10 +163,13 @@ export function isValidSnakeWorldFrame(frame) {
     particle
     && finite(particle.x)
     && finite(particle.y)
-    && finite(particle.radius)
-    && finite(particle.alpha)
+    && finite(particle.size)
+    && finite(particle.life)
+    && finite(particle.maxLife)
     && typeof particle.color === 'string'
   ))) return false;
+  // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
+  if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
   return frame.players.every((player) => (
     player
     && typeof player.joined === 'boolean' && typeof player.alive === 'boolean'
@@ -331,14 +338,14 @@ export function drawSnakePlayers(ctx, players, now = 0) {
   }
 }
 
-export function drawSnakeParticles(ctx, particles) {
-  for (const particle of particles) {
-    ctx.save();
-    ctx.globalAlpha = Math.max(0, Math.min(1, particle.alpha));
-    ctx.fillStyle = particle.color;
-    ctx.beginPath();
-    ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
+/**
+ * FX katmanının tek çizim sırası: pop → ring → partikül. Host motoru ve
+ * client worldView AYNI fonksiyonu çağırır (host↔client aynı görünüm ilkesi).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
+ */
+export function drawSnakeFxLayer(ctx, layer) {
+  drawFxPops(ctx, layer?.pops);
+  drawFxRings(ctx, layer?.rings);
+  drawCircleParticles(ctx, layer?.particles);
 }

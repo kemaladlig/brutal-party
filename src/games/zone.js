@@ -31,11 +31,13 @@ import {
   drawZoneField,
   drawZonePlayers,
   drawZoneWaves,
+  drawZoneFxLayer,
 } from './zoneView.js';
-import { drawSquareParticles, drawAlphaTexts } from './worldCore.js';
+import { drawAlphaTexts, drawFxFlash } from './worldCore.js';
 import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
-import { vibrate } from '../core/haptics.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 
 export const ZONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ZONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -141,7 +143,12 @@ export class ZoneGame extends BaseMiniGame {
     this.relics = [];
     this.relicSpawnTimer = ZONE_TUNING.RELIC_SPAWN_INIT;
     this.captureWaves = [];
-    this.particles = [];
+    // FX runtime (MOTION_PLAN Faz 2c): toz/patlama/kapanış olaylarının tek sahibi.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
+    /** @type {any[]} */ this.particles = this.fx.particles;
     this.floatingTexts = [];
     this.territoryDirty = true;
     this.territoryLayer = document.createElement('canvas');
@@ -467,7 +474,7 @@ export class ZoneGame extends BaseMiniGame {
     this.relics = [];
     this.relicSpawnTimer = ZONE_TUNING.RELIC_SPAWN_INIT;
     this.captureWaves = [];
-    this.particles = [];
+    this.fx.clear();
     this.floatingTexts = [];
     this.trauma = 0;
     this.baseCorner = null;
@@ -514,7 +521,7 @@ export class ZoneGame extends BaseMiniGame {
     this.relics = [];
     this.relicSpawnTimer = ZONE_TUNING.RELIC_SPAWN_INIT;
     this.captureWaves = [];
-    this.particles = [];
+    this.fx.clear();
     this.floatingTexts = [];
     this.trauma = 0;
     // Raund hijyeni: önceki turdan joystick/tuş girdisi sarkmasın
@@ -565,7 +572,7 @@ export class ZoneGame extends BaseMiniGame {
       bobPhase: Math.random() * Math.PI * 2,
       scale: 0,
     });
-    this.burst(center.x, center.y, ZONE_RELIC_DEFS[type].color, 12);
+    this.fx.emit('spark', { x: center.x, y: center.y, color: ZONE_RELIC_DEFS[type].color });
   }
 
   collectRelic(playerIndex, relicIndex) {
@@ -581,8 +588,12 @@ export class ZoneGame extends BaseMiniGame {
       p.dashTimer = ZONE_TUNING.DASH_TIME * 1.5;
       p.isDashing = true;
       this.addFloatingText(p.x, p.y - 34, 'FLASH DEPAR!', '#FFD122');
-      this.burst(r.x, r.y, '#FFD122', 26);
-      this.addTrauma(0.2);
+      // Relic pickup: `zone` olayı (halka + travma + haptik).
+      this.fx.emit('zone', {
+        x: r.x, y: r.y, color: '#FFD122',
+        dirX: Math.cos(p.heading), dirY: Math.sin(p.heading),
+        slot: playerIndex, haptic: p.slotType === 'human',
+      });
       playPowerUp();
       playDashWhoosh();
     } else if (r.type === 'SEISMIC') {
@@ -619,7 +630,12 @@ export class ZoneGame extends BaseMiniGame {
       this.recomputePct();
       this.territoryDirty = true;
       this.addFloatingText(p.x, p.y - 34, t('zone.quake', claimedCount), '#FF473A');
-      this.burst(r.x, r.y, '#FF473A', 36);
+      // Deprem: `kill` olayı — ekran seviyesi an (burst+ring+pop+hit-stop+flaş).
+      this.fx.emit('kill', {
+        x: r.x, y: r.y, color: '#FF473A', size: this.cell * 4,
+        ringRadius: this.cell * 8,
+        slot: playerIndex, haptic: p.slotType === 'human',
+      });
       this.captureWaves.push({
         x: r.x,
         y: r.y,
@@ -629,7 +645,6 @@ export class ZoneGame extends BaseMiniGame {
         alpha: 1.0,
         speed: this.cell * 24,
       });
-      this.addTrauma(0.45);
       playExplosion();
       playCashRegister();
     }
@@ -656,20 +671,15 @@ export class ZoneGame extends BaseMiniGame {
     p.dashCooldown = ZONE_TUNING.DASH_CD;
     p.dashTimer = ZONE_TUNING.DASH_TIME;
     p.isDashing = true;
-    this.addTrauma(0.15);
+    // Depar: `zone` olayı (halka + travma + haptik) — toz bulutu profille gelir.
+    this.fx.emit('zone', {
+      x: p.x - Math.cos(p.heading) * p.radius,
+      y: p.y - Math.sin(p.heading) * p.radius,
+      color: '#D5D0C7',
+      dirX: Math.cos(p.heading), dirY: Math.sin(p.heading),
+      slot: playerIndex, haptic: p.slotType === 'human',
+    });
     playDashWhoosh();
-    // Depar toz bulutu (arka taraf)
-    for (let i = 0; i < 9; i++) {
-      const a = p.heading + Math.PI + (Math.random() - 0.5) * 0.9;
-      const spd = 40 + Math.random() * 90;
-      this.particles.push({
-        x: p.x - Math.cos(p.heading) * p.radius,
-        y: p.y - Math.sin(p.heading) * p.radius,
-        vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
-        life: 0.3 + Math.random() * 0.2, maxLife: 0.5,
-        color: '#D5D0C7', size: 4 + Math.random() * 4,
-      });
-    }
   }
 
   // Katil ödülü: kurbanın base-dışı hücrelerini katile uzaklığına göre dizer,
@@ -739,26 +749,11 @@ export class ZoneGame extends BaseMiniGame {
     const bcx = this.field.x + ((r.x0 + r.x1 + 1) / 2) * this.cell;
     const bcy = this.field.y + ((r.y0 + r.y1 + 1) / 2) * this.cell;
 
-    // Shatter Fragment Recall: İz parçacıkları üsse geri uçar
+    // Shatter Fragment Recall: İz parçacıkları üsse geri uçar (`kill` olayının
+    // burst'ı bu işi tek çağrıyla yapar — ızgaradan örneklenen yön yerine
+    // merkezden dışa yayılan profil burst'ı).
     if (oldTrail.length > 0) {
-      const step = Math.max(1, Math.floor(oldTrail.length / 10));
-      for (let ti = 0; ti < oldTrail.length; ti += step) {
-        const tc = this.cellCenter(oldTrail[ti]);
-        const dx = bcx - tc.x;
-        const dy = bcy - tc.y;
-        const dist = Math.hypot(dx, dy) || 1;
-        const spd = 120 + Math.random() * 160;
-        this.particles.push({
-          x: tc.x,
-          y: tc.y,
-          vx: (dx / dist) * spd,
-          vy: (dy / dist) * spd,
-          life: 0.55,
-          maxLife: 0.55,
-          color: v.color,
-          size: 4 + Math.random() * 3,
-        });
-      }
+      this.fx.emit('dust', { x: bcx, y: bcy, color: v.color });
     }
 
     v.x = bcx; v.y = bcy;
@@ -794,10 +789,14 @@ export class ZoneGame extends BaseMiniGame {
     }
     this.addFloatingText(v.x, v.y - 12, t('zone.baseBack'), '#FFFFFF');
     this.recomputePct();
-    this.burst(v.x, v.y, v.color, 24);
-    this.addTrauma(0.55);
+    // Kesilme: `kill` olayı (burst+ring+pop+hit-stop+flaş+travma 0.4) —
+    // eski 0.55 travma ekran bütçesinin (0.4) altına indi.
+    this.fx.emit('kill', {
+      x: v.x, y: v.y, color: v.color, size: v.radius || 18, angle: v.heading,
+      dirX: v.x - bcx, dirY: v.y - bcy,
+      slot: v.index, haptic: v.slotType === 'human',
+    });
     playExplosion();
-    if (typeof navigator !== 'undefined' && navigator.vibrate) vibrate([40, 50, 70]);
   }
 
   // Kafa kafaya çarpışma: Her iki oyuncu da üsse geri ışınlanır, izleri silinir
@@ -810,8 +809,8 @@ export class ZoneGame extends BaseMiniGame {
     const midX = (a.x + b.x) / 2;
     const midY = (a.y + b.y) / 2;
     this.addFloatingText(midX, midY - 20, 'KAFA KAFAYA!', '#FFFFFF');
-    this.burst(midX, midY, '#FFFFFF', 28);
-    this.addTrauma(0.45);
+    // Kafa kafa: `kill` olayı (tek ekran-seviyesi an; her iki koltuk de görür).
+    this.fx.emit('kill', { x: midX, y: midY, color: '#FFFFFF', size: this.cell * 3, haptic: false });
     playExplosion();
 
     const penalizeAndReset = (idx) => {
@@ -825,20 +824,9 @@ export class ZoneGame extends BaseMiniGame {
       const bcx = this.field.x + ((r.x0 + r.x1 + 1) / 2) * this.cell;
       const bcy = this.field.y + ((r.y0 + r.y1 + 1) / 2) * this.cell;
 
-      // İz parçacıkları üsse geri uçar
+      // İz parçacıkları üsse geri uçar (`dust` olayı — profil burst'ı).
       if (oldTrail.length > 0) {
-        const step = Math.max(1, Math.floor(oldTrail.length / 8));
-        for (let ti = 0; ti < oldTrail.length; ti += step) {
-          const tc = this.cellCenter(oldTrail[ti]);
-          const dx = bcx - tc.x, dy = bcy - tc.y;
-          const dist = Math.hypot(dx, dy) || 1;
-          this.particles.push({
-            x: tc.x, y: tc.y,
-            vx: (dx / dist) * 160, vy: (dy / dist) * 160,
-            life: 0.5, maxLife: 0.5,
-            color: p.color, size: 4,
-          });
-        }
+        this.fx.emit('dust', { x: bcx, y: bcy, color: p.color });
       }
 
       // %50 Toprak Kaybı: Base dışı hücrelerin en uzaktaki %50'si nötrleşir
@@ -877,13 +865,12 @@ export class ZoneGame extends BaseMiniGame {
       p.lastCell = this.posToCell(bcx, bcy);
       p.stunTimer = ZONE_TUNING.STUN;
       this.addFloatingText(bcx, bcy - 20, t('zone.baseBack2'), '#FFFFFF');
-      this.burst(bcx, bcy, p.color, 16);
+      this.fx.emit('pickup', { x: bcx, y: bcy, color: p.color, haptic: p.slotType === 'human' });
     };
 
     penalizeAndReset(i);
     penalizeAndReset(j);
     this.recomputePct();
-    if (typeof navigator !== 'undefined' && navigator.vibrate) vibrate([40, 50, 70]);
   }
 
   // İz kapanışı: iz hücreleri + çevrili kalan nötr/düşman hücreler kapanana geçer.
@@ -943,19 +930,16 @@ export class ZoneGame extends BaseMiniGame {
     // Kademeli kapanış geri bildirimi: küçük hamle fısıldar, devasa hamle gümler
     if (gained >= 100) {
       this.addFloatingText(p.x, p.y - 22, t('zone.mega', this.pct[index]), p.color);
-      this.burst(p.x, p.y, '#FFDE59', 30);
-      this.addTrauma(0.45);
+      this.fx.emit('kill', { x: p.x, y: p.y, color: '#FFDE59', size: p.radius || 18, slot: index, haptic: p.slotType === 'human' });
       playCoinPickup();
       playCashRegister();
     } else if (gained >= 20) {
       this.addFloatingText(p.x, p.y - 22, t('zone.area', this.pct[index]), p.color);
-      this.burst(p.x, p.y, '#FFDE59', 16);
-      this.addTrauma(0.25);
+      this.fx.emit('hit', { x: p.x, y: p.y, color: '#FFDE59', slot: index, haptic: p.slotType === 'human' });
       playCoinPickup();
     } else if (gained > 0) {
       this.addFloatingText(p.x, p.y - 22, `+%${this.pct[index]}`, p.color);
-      this.burst(p.x, p.y, '#FFDE59', 8);
-      this.addTrauma(0.1);
+      this.fx.emit('pickup', { x: p.x, y: p.y, color: '#FFDE59', slot: index, haptic: p.slotType === 'human' });
       playCoinPickup();
     }
     if (this.pct[index] >= ZONE_TUNING.WIN_PCT && this.state === 'PLAYING') {
@@ -997,23 +981,10 @@ export class ZoneGame extends BaseMiniGame {
     this.floatingTexts.push({ x, y, text, color, life: 1.1, maxLife: 1.1 });
   }
 
-  burst(x, y, color, n) {
-    for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const sp = 60 + Math.random() * 160;
-      this.particles.push({
-        x, y,
-        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-        life: 0.45, maxLife: 0.45,
-        color: Math.random() > 0.35 ? color : '#1A1A1A',
-        size: 3 + Math.random() * 4,
-      });
-    }
-  }
-
   addTrauma(amount) {
     this.trauma = Math.min(1.0, this.trauma + amount);
   }
+
 
   turnToward(current, target, maxStep) {
     let d = target - current;
@@ -1077,8 +1048,10 @@ export class ZoneGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = this.clampDt(now, this.lastTime);
+    const rawDt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    const dt = this.fx.tick(rawDt);
     this.updateTrauma(dt);
 
     // Raunt/maç geçişi ortak akışta; efektler boşluk boyunca da akar (toz
@@ -1115,7 +1088,7 @@ export class ZoneGame extends BaseMiniGame {
       rel.lifetime -= dt;
       rel.scale = Math.min(1.0, rel.scale + dt * 4);
       if (rel.lifetime <= 0) {
-        this.burst(rel.x, rel.y, ZONE_RELIC_DEFS[rel.type].color, 8);
+        this.fx.emit('dust', { x: rel.x, y: rel.y, color: ZONE_RELIC_DEFS[rel.type].color });
         this.relics.splice(ri, 1);
       }
     }
@@ -1212,17 +1185,12 @@ export class ZoneGame extends BaseMiniGame {
       if (onHomeTurf) speed *= ZONE_TUNING.TURF_SPEED_MULT;
       if (dashing) speed *= ZONE_TUNING.DASH_MULT;
 
-      // Home Turf hafif rüzgar/kıvılcım efekti
+      // Home Turf hafif rüzgar/kıvılcım efekti (`dust` olayı)
       if (onHomeTurf && Math.random() < 0.18) {
-        this.particles.push({
+        this.fx.emit('dust', {
           x: p.x + (Math.random() - 0.5) * p.radius,
           y: p.y + (Math.random() - 0.5) * p.radius,
-          vx: -Math.cos(p.heading) * 20,
-          vy: -Math.sin(p.heading) * 20,
-          life: 0.22,
-          maxLife: 0.22,
           color: p.color,
-          size: 2.5,
         });
       }
 
@@ -1361,13 +1329,8 @@ export class ZoneGame extends BaseMiniGame {
       ft.life -= dt;
       if (ft.life <= 0) this.floatingTexts.splice(i, 1);
     }
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const pt = this.particles[i];
-      pt.x += pt.vx * dt;
-      pt.y += pt.vy * dt;
-      pt.life -= dt;
-      if (pt.life <= 0) this.particles.splice(i, 1);
-    }
+    // Partikül/halka/pop yaşam döngüsü fxRuntime'ın (`draw*FxLayer` de oradan).
+    this.fx.update(dt);
     for (let i = this.captureWaves.length - 1; i >= 0; i--) {
       const cw = this.captureWaves[i];
       cw.radius += cw.speed * dt;
@@ -1478,6 +1441,10 @@ export class ZoneGame extends BaseMiniGame {
     });
 
     ctx.restore();
+
+    // Kesilme flaşı sahne transformunun DIŞINDA: tam ekranı kaplar.
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 
   /** Host sahne çizimi: dalga/oyuncu/partikül/metin katmanları ortak zoneView/worldCore draw'larından. */
@@ -1495,7 +1462,8 @@ export class ZoneGame extends BaseMiniGame {
     if (this.state !== 'LOBBY') {
       drawZonePlayers(ctx, scenePlayers, { cell: this.cell, leaderIndex: this.leaderIndex, withFx });
     }
-    drawSquareParticles(ctx, this.particles);
+    // FX katmanı ortak zoneView draw'ından gelir (host↔client aynı).
+    drawZoneFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
     drawAlphaTexts(ctx, this.floatingTexts, { size: 13, outline: true });
   }
 }

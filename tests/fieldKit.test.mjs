@@ -300,7 +300,7 @@ test('field visuals add no packet fields (BOMB/PONG/HORDE)', () => {
     'roundWinner', 'scores', 'selfPredict', 'seq', 'version',
   ]);
   assert.deepEqual(Object.keys(packets.PONG).sort(), [
-    'arena', 'ball', 'gameState', 'goals', 'matchWinner', 'mode', 'particles', 'players',
+    'arena', 'ball', 'fx', 'gameState', 'goals', 'matchWinner', 'mode', 'particles', 'players',
     'roundId', 'roundWinner', 'scores', 'seq', 'timeLeft', 'version',
   ]);
   assert.deepEqual(Object.keys(packets.HORDE).sort(), [

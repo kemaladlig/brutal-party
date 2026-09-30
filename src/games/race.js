@@ -32,7 +32,10 @@ import {
 import { t } from '../i18n.js';
 import { RaceAI } from '../ai/raceAI.js';
 import { RACE_TUNING, getRaceProgress } from './raceLogic.js';
-import { createRaceWorldPacket, drawRaceWorld } from './raceView.js';
+import { createRaceWorldPacket, drawRaceWorld, drawRaceFxLayer } from './raceView.js';
+import { drawFxFlash } from './worldCore.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 
 export const TRACK_PRESETS = ['CIRCUIT', 'ZIGZAG', 'SPIRAL'];
 
@@ -93,6 +96,12 @@ export class RaceGame extends BaseMiniGame {
     this.obstacleSpinners = [];
     this.empPulses = [];
     this.players = [];
+
+    // FX runtime (MOTION_PLAN Faz 2c): sarsıntı/tokaların tek olay sahibi.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
 
     this.initPlayers();
     this.bindStandardKeyboard((slotIndex) => this.triggerDash(slotIndex));
@@ -294,6 +303,7 @@ export class RaceGame extends BaseMiniGame {
     this.initPlayers();
     this.resetRacers();
     this.ai.reset();
+    this.fx.clear();
     this.onTouchesReset();
   }
 
@@ -381,6 +391,7 @@ export class RaceGame extends BaseMiniGame {
     this.floatingTexts = [];
     this.resetRacers();
     this.ai.resetRound();
+    this.fx.clear();
     this.onTouchesReset();
     playStart();
   }
@@ -431,7 +442,12 @@ export class RaceGame extends BaseMiniGame {
     player.isJumping = true;
     player.jumpZ = Math.max(0, player.jumpZ);
     player.vz = Math.max(player.vz, this.spd(RACE_TUNING.jumpVelocity));
-    this.addTrauma(0.2);
+    // Dash: `zone` olayı (halka + travma); yalnız insan koltukta haptik.
+    this.fx.emit('zone', {
+      x: player.x, y: player.y, color: player.color,
+      dirX: player.vx, dirY: player.vy, slot: player.index,
+      haptic: player.slotType === 'human',
+    });
     playDashWhoosh();
 
     const leaderIndex = this.getLeaderIndex();
@@ -554,9 +570,12 @@ export class RaceGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = this.clampDt(now, this.lastTime);
+    const rawDt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    const dt = this.fx.tick(rawDt);
     this.updateTrauma(dt);
+    this.fx.update(dt);
 
     if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') return;
 
@@ -579,7 +598,13 @@ export class RaceGame extends BaseMiniGame {
         const insideRing = distance <= pulse.radius && distance >= pulse.radius - 30;
         if (insideRing && target.empDisruptedTimer <= 0 && target.jumpZ < this.px(RACE_TUNING.jumpClearance)) {
           target.empDisruptedTimer = RACE_TUNING.empDuration;
-          this.addTrauma(0.2);
+          // EMP vuruşu: `hit` olayı (yönlü travma + 50 ms hit-stop).
+          this.fx.emit('hit', {
+            x: target.x, y: target.y, color: UI_COLORS.shield,
+            dirX: target.x - pulse.x, dirY: target.y - pulse.y,
+            slot: target.index,
+            haptic: target.slotType === 'human',
+          });
           this.spawnFloatingText(target.x, target.y - 18, t('race.empHit'), '#0EA5E9', {
             bg: UI_COLORS.card,
             urgent: true,
@@ -696,7 +721,12 @@ export class RaceGame extends BaseMiniGame {
         if (player.speed > 20) player.angle = Math.atan2(player.vy, player.vx);
         if (player.wallFeedbackCooldown <= 0) {
           player.wallFeedbackCooldown = 0.65;
-          this.addTrauma(0.25);
+          // Duvar sektirmesi: `hit` olayı (çarpma yönünde travma).
+          this.fx.emit('hit', {
+            x: player.x, y: player.y, color: UI_COLORS.ink,
+            dirX: player.vx, dirY: player.vy, slot: player.index,
+            haptic: player.slotType === 'human',
+          });
           this.spawnFloatingText(player.x, player.y - 18, t('race.wallBounce'), UI_COLORS.ink, {
             bg: UI_COLORS.turbo,
             pop: true,
@@ -710,7 +740,9 @@ export class RaceGame extends BaseMiniGame {
           const distance = Math.hypot(player.x - slick.x, player.y - slick.y);
           if (distance < slick.radius + player.radius && player.skidTimer <= 0) {
             player.skidTimer = 0.8;
-            this.addTrauma(0.15);
+            // Kayma: `zone` olayı (halka + travma) — kayma itki değil çarpma
+            // değil, bu yüzden haptik yok.
+            this.fx.emit('zone', { x: player.x, y: player.y, color: UI_COLORS.dim, haptic: false });
             this.spawnFloatingText(player.x, player.y - 15, t('race.skid'), UI_COLORS.ink, {
               bg: UI_COLORS.turbo,
             });
@@ -746,7 +778,12 @@ export class RaceGame extends BaseMiniGame {
         }
         player.nitroBoostTimer = RACE_TUNING.nitroDuration;
         player.nitroPadLocked = true;
-        this.addTrauma(0.2);
+        // Nitro: `zone` olayı (halka + travma + haptik).
+        this.fx.emit('zone', {
+          x: player.x, y: player.y, color: UI_COLORS.turbo,
+          dirX: player.vx, dirY: player.vy, slot: player.index,
+          haptic: player.slotType === 'human',
+        });
         this.spawnFloatingText(player.x, player.y - 15, t('race.nitro'), UI_COLORS.ink, {
           bg: UI_COLORS.turbo,
           pop: true,
@@ -782,7 +819,12 @@ export class RaceGame extends BaseMiniGame {
             : spinner.angle + Math.PI / 2;
           player.vx = Math.cos(pushAngle) * 220;
           player.vy = Math.sin(pushAngle) * 220;
-          this.addTrauma(0.25);
+          // Dönen çubuk: `hit` olayı (itki yönünde travma).
+          this.fx.emit('hit', {
+            x: player.x, y: player.y, color: UI_COLORS.danger,
+            dirX: player.vx, dirY: player.vy, slot: player.index,
+            haptic: player.slotType === 'human',
+          });
           this.spawnFloatingText(player.x, player.y - 15, t('race.spinnerHit'), UI_COLORS.danger, {
             bg: UI_COLORS.card,
             urgent: true,
@@ -861,7 +903,9 @@ export class RaceGame extends BaseMiniGame {
         if (first.bumpCooldown <= 0 || second.bumpCooldown <= 0) {
           first.bumpCooldown = 0.15;
           second.bumpCooldown = 0.15;
-          this.addTrauma(0.1);
+          // Araç-araç çarpma: `spark` olayı (hafif kıvılcım, haptiksiz —
+          // iki tarafta da "benden değil" hissi; çarpışma zaten sık).
+          this.fx.emit('spark', { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2, color: UI_COLORS.ink });
           playWallHit();
         }
         clampToArena(first, first.radius || this.px(RACE_TUNING.playerRadius), this.arena);
@@ -882,7 +926,15 @@ export class RaceGame extends BaseMiniGame {
     if (winner) {
       this.tiedRounds = 0;
       this.scores[winner.index] += 1;
-      this.addTrauma(0.5);
+      // Raunt kazananı: `kill` olayı (burst+halka+pop+hit-stop+flaş — tek
+      // ekran-seviyesi an; eski 0.5 travma bu profilin 0.4 tavanına indi).
+      this.fx.emit('kill', {
+        x: winner.x, y: winner.y, color: winner.color,
+        size: winner.radius || this.px(RACE_TUNING.playerRadius),
+        angle: winner.angle || 0,
+        dirX: winner.vx, dirY: winner.vy, slot: winner.index,
+        haptic: winner.slotType === 'human',
+      });
       playItemPickup();
       if (this.scores[winner.index] >= this.targetScore) {
         this.roundWinner = winner;
@@ -931,6 +983,9 @@ export class RaceGame extends BaseMiniGame {
 
     const arena = this.arena;
     drawRaceWorld(ctx, this, arena, this.players.map((p) => p.color), this.lastTime);
+
+    // FX katmanı ortak raceView draw'ından gelir (host↔client aynı).
+    drawRaceFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.fx.particles });
 
     renderFloatingTexts(ctx, this.floatingTexts, 0);
     this.renderStandardJoysticks(ctx);
@@ -997,6 +1052,10 @@ export class RaceGame extends BaseMiniGame {
     }
 
     ctx.restore();
+
+    // Tur zaferi flaşı sahne transformunun DIŞINDA: tam ekranı kaplar.
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, width, height, flashAlpha);
   }
 
   resize(width, height) {
@@ -1025,6 +1084,8 @@ export class RaceGame extends BaseMiniGame {
       });
       this.floatingTexts.forEach((item) => this.remapPoint(item, oldArena, this.arena));
     }
+    // Arena değişti: eski koordinatlı FX atılır.
+    this.fx.clear();
     this.onTouchesReset();
   }
 }

@@ -6,16 +6,18 @@ import { getLocalSeatColors, ensureLocalSeatColor } from '../core/customizationM
 import { renderLobbySeatCard, getStandardSeatSize, renderLobbyStartButton, getSeatColorDotRect } from '../controlGuide.js';
 import { t } from '../i18n.js';
 import { renderSpatialBadge, renderRoundBanner } from '../ui/hud.js';
-import { getUiScale } from '../ui/tokens.js';
+import { getUiScale, UI_COLORS } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { beginRound, endMatch, setRoundTimer, tickRoundFlow } from '../core/roundLifecycle.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
-import { createPongWorldPacket, drawPongArena } from './pongView.js';
+import { createPongWorldPacket, drawPongArena, drawPongFxLayer } from './pongView.js';
+import { drawFxFlash } from './worldCore.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
 import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, matchOverRestartTap } from '../core/touchFlow.js';
-import { vibrate } from '../core/haptics.js';
 import { computePlayfield, fieldRadius } from '../core/playfield.js';
 import { roundGapSeconds } from '../core/roundLifecycle.js';
 
@@ -47,6 +49,14 @@ export class Game extends BaseMiniGame {
     // Entities
     this.paddles = PLAYER_CONFIGS.map((cfg) => new Paddle(cfg, this));
     this.ball = new Ball(this);
+
+    // FX runtime (MOTION_PLAN Faz 2c): hit-stop/olay tek sahibi;
+    // `this.particles` worldCore konvansiyonu için alias'tır.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
+    /** @type {any[]} */ this.particles = this.fx.particles;
 
     // Screen shake / trauma (0.0 to 1.0)
     this.trauma = 0;
@@ -110,6 +120,7 @@ export class Game extends BaseMiniGame {
       p.updateLayout(this.arena);
     });
     this.ball.reset(this.arena.cx, this.arena.cy);
+    this.fx.clear();
   }
 
   resetMatch() {
@@ -153,6 +164,7 @@ export class Game extends BaseMiniGame {
     this.ball.vx = 0;
     this.ball.vy = 0;
     if (this.ball) this.ball.spin = 0;
+    this.fx.clear();
   }
 
   initKeyboard() {
@@ -184,7 +196,6 @@ export class Game extends BaseMiniGame {
     p.spinCharge = 6.0;
     this.spinCooldowns[index] = 20;
     playPowerUp();
-    if (typeof navigator !== 'undefined' && navigator.vibrate) vibrate([25, 35]);
     return true;
   }
 
@@ -388,6 +399,8 @@ export class Game extends BaseMiniGame {
       // Maç ortası: top orantılı taşınır, hız korunur
       this.remapPoint(this.ball, oldArena, this.arena);
     }
+    // Arena değişti: eski koordinatlı FX/state atılır (partikül sızıntısı yok).
+    this.fx.clear();
   }
 
   togglePlayerJoin(index) {
@@ -574,18 +587,19 @@ export class Game extends BaseMiniGame {
   }
 
   update(now) {
-    const frameTime = Math.max(0, Math.min((now - (this.lastTime || now)) / 1000, 0.1));
+    const rawFrameTime = Math.max(0, Math.min((now - (this.lastTime || now)) / 1000, 0.1));
     this.lastTime = now;
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    const frameTime = this.fx.tick(rawFrameTime);
+
+    this.updateTrauma(frameTime);
+    this.fx.update(frameTime);
 
     // Falso beklemeleri her framede erir
     for (let i = 0; i < 4; i++) {
       if (this.spinCooldowns[i] > 0) {
         this.spinCooldowns[i] = Math.max(0, this.spinCooldowns[i] - frameTime);
       }
-    }
-
-    if (this.trauma > 0) {
-      this.trauma = Math.max(0, this.trauma - frameTime * 2.2);
     }
 
     if (this.state === 'ROUND_PAUSE') {
@@ -696,8 +710,9 @@ export class Game extends BaseMiniGame {
     b.lastHitPaddle = -1;
     b.paddleHitCooldown = 0.08;
     this.stallRecoveryCount += 1;
-    b.spawnShockwave(b.x, b.y, '#D99B26');
-    this.addTrauma(0.06);
+    b.spawnShockwave(b.x, b.y, UI_COLORS.crownGold);
+    // Nötr servis: spark olayı (ortam efekti, haptiksiz).
+    this.fx.emit('spark', { x: b.x, y: b.y, color: UI_COLORS.crownGold });
   }
 
   // Faz 2 Dual-Input Bridge (referans implementasyon): uzak + lokal girdi
@@ -758,6 +773,9 @@ export class Game extends BaseMiniGame {
       this.ball.draw(ctx);
     }
 
+    // FX katmanı ortak pongView draw'ından gelir (host↔client aynı).
+    drawPongFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+
     const activeEntities = /** @type {any[]} */ ([this.ball]);
     // Paddle proksi yarıçapı: hayalet-solma (proximity ghosting) hesabı için
     // sentetik varlık, oynanışta kullanılmıyor — ama görsel ağırlığı
@@ -800,6 +818,10 @@ export class Game extends BaseMiniGame {
     });
 
     ctx.restore();
+
+    // Gol flaşı sahne transformunun DIŞINDA: tam ekranı kaplar (tanks deseni).
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 
   renderArena(ctx) {
