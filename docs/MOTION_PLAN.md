@@ -108,7 +108,7 @@ olayları; kendi partikül/metot gövdeleri silindi, API kabukları korundu).
 - [ ] 2.4 TV_CONSOLE: sarsıntı/flash TV'de kalır (zaten host), kumandaya yalnız haptik +
       buton pop'u düşer — §2 gereği kumanda simülasyonsuz kalır. (Not: Parça 1'de yol hazır —
       `gamepad.handleFxEvents` dünya görünümü yoksa yalnız haptik çalar; tam 2.4 dalgası Parça 2-4'te.)
-- [ ] 2.5 Dönüşüm dalgaları: (a) tanks+horde+laser+archer (ateşli, en çok isabet) →
+- [x] 2.5 Dönüşüm dalgaları: (a) tanks+horde+laser+archer (ateşli, en çok isabet) →
       (b) crown/bomb/clone/collapse/heist (etkileşimli) → (c) pong/snake/ball/race/zone/ninja/
       game (düşük olay sıklığı, dokunuş-minimum). Her dalga sonunda `npm run check`.
       ((a) bitti 2026-09-30: tanks (Faz 1) + horde+laser+archer — shot/hit/kill/pickup/spark/
@@ -119,6 +119,11 @@ olayları; kendi partikül/metot gövdeleri silindi, API kabukları korundu).
       hit/zone, bomb dust/spark/pickup/hit/kill/score, crown dust/spark/pickup/hit/score
       (travma lavabosuz — ZERO CAMERA SHAKE korunur); `packFxState`/`isValidFxState`
       worldCore'da tek kaynak (tanksView re-export); kilit 9 motora genişledi.)
+      ((c) bitti 2026-09-30: pong(game/ball)+snake+race+zone+ninja — düşük olay sıklığı:
+      spark/hit/kill/dust/score, `draw*FxLayer` ortak çizimi, `fxLive` playback, `fx` paket
+      yükü; ball/game/race'te tekrarlanan ham hex'ler `UI_COLORS` token'larına bağlandı
+      (K2 tabanı düşürüldü). Kapılar: rules temiz · test 543/543 · health 15/15. Commit 6c817b5.
+      NOT: 15. motor CURVE bu dalgada yok — 2.1 kapsamında ayrı iş, `curve.js` hâlâ K7 borcu.)
 - [x] 2.6 `rules-lint` K7 kilidi: `src/games/**` içinde `particles.push(` ve partikül
       döngüsünden sonraki 12 satır içinde `ctx.arc(` yasak (ortak çizici `worldCore.js` hariç).
       Borç `scripts/rules-lint-baseline.json`'da donduruldu; `npm run check` kilitler.
