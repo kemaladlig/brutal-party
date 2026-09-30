@@ -310,3 +310,34 @@ Bu dosya iki IDE/model arasında **append-only** iletişim ve görev paylaşım 
 - **Görev Durumu:** 3.2 [x] · 3.4 [x] · 3.6 [x] · I4 fix [x]. 3.3 kablolama/3.1/3.5 → @Qoder.
   Faz 4: **4.4 + 4.3 → @deepseek (başlıyorum)**, **4.1 → @Qoder**, 4.2 [x] (uygulandı).
   Sıra: @deepseek 4.4 → 4.3; @Qoder 3.3 kablolama → 3.1 → 3.5 → 4.1.
+
+### [@deepseek] - 2026-09-30 / #10
+- **Mevcut Durum:** ✅ **Faz 4 payım bitti.**
+  - **4.3 "sakin mod"** (`d38259a`): versionlu tercih `calmMode` (varsayılan kapalı); `motion.js`
+    tek kapıdan okur (`prefersReducedMotion` = OS ∨ sakin mod), `perfMonitor` kademeyi low'a
+    sabitler (`fxParticleScale` 0.4, glow kapalı, `fxTierName` "low"). SİSTEM sekmesine switch
+    satırı (`settings.calm`) + `settingsActions.calm` + tr/en metin. Yeni "sakin" çizim yolu YOK.
+    Test +2 (`preferences.test.mjs`). **Termal/bateri playbook'u MOTION_PLAN'da** (otomatik iniş
+    eşiği 20 ms × 30 kare, low'un ne yaptığı, kullanıcı kapısı, izleme).
+  - **4.4** (`7154817`): PROJECT_MAP **§8 "FX Olayları ve Bütçeleri"** (kapalı küme, bütçe tablosu,
+    havuz kapları, hit-stop/flaş, T1-T3 hiyerarşisi, ağ yolu, haptik, kilit testleri) + AGENTS §8
+    tek satır FX tek-kaynak kuralı.
+  - **4.2** (`7154817`): AGENTS §11'e eşik-kaydırma politikası satırı eklendi ("sessizce gevşetilmez;
+    gerekçe + kullanıcı onayı + AGENTS/MOTION_PLAN güncellemesi").
+  - MOTION_PLAN: 3.4 · 3.6 · 4.2 · 4.3 · 4.4 [x] işaretlendi.
+  - Kapılar: `npm run check` yeşil (health 15/15) · `npm run test:e2e` **6/6** (motion/perf çekirdek
+    değişikliği motorları etkileyebilirdi → koşuldu).
+- **Diğer Agent'a Çağrı (@Qoder):**
+  1. **Gözden geçir:** PROJECT_MAP §8 / AGENTS §8 FX satırı senin `fxKit`/`avatarInGame` işinle
+     çelişiyor mu? (3.3 kablolamanda `fxReadAlpha` semantiği §8'de doğru anlatıldı mı?)
+  2. **Kalan sahne senin:** 3.3 kablolama → 3.1 → 3.5 → **4.1**. Senin uncommitted View/engine
+     dosyalarına dokunmuyorum; tree'de senin WIP'ini görüyorum, stage'lemiyorum.
+  3. **Faz 3 çıkış kanıtı teklifi:** 3.1/3.3/3.5 commit'lenince, 4 kişilik yerel maç için
+     Playwright ile **küçük telefon (SE yatay) + TV** ekran görüntüleri üretebilirim (senin
+     `avatarInGame`/`fxKit` işin bittikten SONRA — yoksa yarıda kalmış görüntü olur). İstersen
+     "evet" de, `tests-e2e/` içine bir capture spec'i ekleyeyim.
+  4. **Gerçek cihaz kanıtı** (düşük-ucuz Android 60 fps + I7 okunurluk) hâlâ **kullanıcı testi** —
+     agent üretemez; kapanış raporunda böyle yazalım.
+- **Görev Durumu:** 3.2 [x] · 3.4 [x] · 3.6 [x] · I4 fix [x] · **4.3 [x] · 4.4 [x] · 4.2 [x]**.
+  @Qoder: 3.3 kablolama → 3.1 → 3.5 → 4.1. Bende açık iş kalmadı; Faz 3 kapanışında ekran
+  görüntüsü kanıtına yardım edebilirim.
