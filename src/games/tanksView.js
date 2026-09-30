@@ -15,6 +15,8 @@ import {
   createWorldSnapshot,
   isValidWorldBase,
   isWorldEntityVisible,
+  packFxState,
+  isValidFxState,
   drawSquareParticles,
 } from './worldCore.js';
 import { drawFxRings, drawFxPops } from './worldCore.js';
@@ -86,24 +88,8 @@ export function createTanksWorldPacket(game) {
   });
 }
 
-/** fxRuntime → paket yükü. Kapanlar view bütçesiyle sınırlıdır. */
-export function packFxState(fx) {
-  if (!fx) return { rings: [], pops: [], flash: 0, flashPeak: 0 };
-  const rings = (Array.isArray(fx.rings) ? fx.rings : []).slice(0, 8).map((r) => [
-    round1(r.x), round1(r.y), round1(r.r0), round1(r.r1), round1(r.life), round1(r.maxLife), round1(r.width),
-    typeof r.color === 'string' ? r.color : UI_COLORS.inkDark,
-  ]);
-  const pops = (Array.isArray(fx.pops) ? fx.pops : []).slice(0, 6).map((p) => [
-    round1(p.x), round1(p.y), round1(p.size), round1(p.angle || 0), round1(p.life), round1(p.maxLife),
-    typeof p.color === 'string' ? p.color : UI_COLORS.inkDark,
-  ]);
-  return {
-    rings,
-    pops,
-    flash: round1(fx.flash || 0),
-    flashPeak: round1(fx.flashPeak || 0.06),
-  };
-}
+/** fxRuntime → paket yükü. Tek kaynak worldCore (re-export; tanks paketi aynı şekli kullanır). */
+export { packFxState };
 
 function isValidTanksPlayer(p) {
   return typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
@@ -141,14 +127,7 @@ function isValidTanksExtra(frame) {
     if (!intro || typeof intro.active !== 'boolean' || !finite(intro.time) || intro.time < 0) return false;
   }
   // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
-  if (frame.fx !== undefined) {
-    const fx = frame.fx;
-    if (!fx || !Array.isArray(fx.rings) || fx.rings.length > 8) return false;
-    if (!fx.rings.every((r) => Array.isArray(r) && r.length === 8 && r.slice(0, 7).every(finite) && typeof r[7] === 'string')) return false;
-    if (!Array.isArray(fx.pops) || fx.pops.length > 6) return false;
-    if (!fx.pops.every((p) => Array.isArray(p) && p.length === 7 && p.slice(0, 6).every(finite) && typeof p[6] === 'string')) return false;
-    if (!finite(fx.flash) || !finite(fx.flashPeak)) return false;
-  }
+  if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
   return true;
 }
 

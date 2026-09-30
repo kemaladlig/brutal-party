@@ -27,8 +27,11 @@ import {
   drawLaserAims,
   drawLaserShots,
   drawLaserPlayers,
+  drawLaserFxLayer,
 } from './laserView.js';
-import { drawCircleParticles, drawAlphaTexts } from './worldCore.js';
+import { drawAlphaTexts, drawFxFlash } from './worldCore.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 
 export const LASER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const LASER_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -84,7 +87,13 @@ export class LaserGame extends BaseMiniGame {
     this.obstacles = [];
     this.movingWalls = [];
     this.pickups = [];
-    this.particles = [];
+    // FX runtime (MOTION_PLAN Faz 2a): partikül/ring/pop/hit-stop tek sahibi;
+    // `this.particles` worldCore konvansiyonu için alias'tır.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
+    /** @type {any[]} */ this.particles = this.fx.particles;
     this.floatingTexts = [];
     this.keys = {};
     this.selectedMapIndex = 0;
@@ -226,6 +235,8 @@ export class LaserGame extends BaseMiniGame {
       this.remapPoint(pk, oldArena, this.arena);
       clampToArena(pk, pk.radius || pk.size || 15, this.arena);
     }
+    // Biriken partiküller ESKİ arena ölçeğindeydi; yeni unit ile karışmasın.
+    this.fx.clear();
   }
 
   buildMap() {
@@ -450,7 +461,7 @@ export class LaserGame extends BaseMiniGame {
     this.lasers = [];
     this.nextLaserId = 1;
     this.pickups = [];
-    this.particles = [];
+    this.fx.clear();
     this.floatingTexts = [];
     this.onTouchesReset();
     // Seçili harita korunur (BOMB deseni)
@@ -491,7 +502,7 @@ export class LaserGame extends BaseMiniGame {
     this.lasers = [];
     this.nextLaserId = 1;
     this.pickups = [];
-    this.particles = [];
+    this.fx.clear();
     this.floatingTexts = [];
     this.matchTimer = LASER_TUNING.MATCH_TIME;
     this.pickupTimer = LASER_TUNING.PICKUP_EVERY;
@@ -521,20 +532,9 @@ export class LaserGame extends BaseMiniGame {
     });
   }
 
-  spawnSparks(x, y, color, count = 8) {
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = 40 + Math.random() * 120;
-      this.particles.push({
-        x, y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        color,
-        radius: 2 + Math.random() * 2.5,
-        alpha: 1.0,
-        decay: 2.2,
-      });
-    }
+  spawnSparks(x, y, color, _count = 8) {
+    // API kabuğu korundu (6 çağrı noktası); sayı profilden gelir (kademe ölçekli).
+    this.fx.emit('spark', { x, y, color });
   }
 
   spawnFloatingText(x, y, text, color) {
@@ -582,7 +582,6 @@ export class LaserGame extends BaseMiniGame {
     playGunshot();
     if (Number.isFinite(player.targetAngle)) player.angle = player.targetAngle;
     const spd = fieldSpeed(this.arena, LASER_TUNING.LASER_SPEED * (player.fastTimer > 0 ? LASER_TUNING.FAST_MULT : 1));
-    
     // Triple Laser modu aktifse: 3 yöne ateş (-16°, 0°, +16°)
     const angles = player.tripleTimer > 0 ? [player.angle - 0.28, player.angle, player.angle + 0.28] : [player.angle];
     for (const ang of angles) {
@@ -598,7 +597,16 @@ export class LaserGame extends BaseMiniGame {
         history: [],
       });
     }
-    this.addTrauma(0.12);
+    // FX olayı: shot profili trauma bütçesini uygular; haptik insan koltuğuna.
+    this.fx.emit('shot', {
+      x: player.x + Math.cos(player.angle) * (player.radius + 2),
+      y: player.y + Math.sin(player.angle) * (player.radius + 2),
+      dirX: Math.cos(player.angle),
+      dirY: Math.sin(player.angle),
+      color: player.color,
+      slot: player.index,
+      haptic: player.slotType === 'human',
+    });
   }
 
   triggerDash(playerIndex) {
@@ -609,7 +617,7 @@ export class LaserGame extends BaseMiniGame {
     if (p.dashCooldown > 0) return;
     p.dashCooldown = LASER_TUNING.DASH_CD;
     p.dashTimer = LASER_TUNING.DASH_TIME;
-    this.addTrauma(0.12);
+    this.fx.emit('dust', { x: p.x, y: p.y, color: p.color });
     playDashWhoosh();
   }
 
@@ -622,16 +630,18 @@ export class LaserGame extends BaseMiniGame {
     if (victim.shield) {
       victim.shield = false;
       victim.invulnTimer = 0.5;
-      this.spawnSparks(victim.x, victim.y, '#0EA5E9', 16);
+      this.fx.emit('hit', {
+        x: victim.x, y: victim.y, color: '#0EA5E9',
+        dirX: laser.vx, dirY: laser.vy, slot: victim.index,
+        haptic: victim.slotType === 'human',
+      });
       this.spawnFloatingText(victim.x, victim.y - 20, 'KALKAN KORUDU!', '#0EA5E9');
-      this.addTrauma(0.2);
       playStumble();
       return;
     }
 
     victim.hp -= 1;
     victim.invulnTimer = LASER_TUNING.INVULN;
-    this.spawnSparks(victim.x, victim.y, laser.color, 8);
     // Geri tepme: lazer yönünde itiş
     const spd = Math.hypot(laser.vx, laser.vy) || 1;
     victim.kbx += (laser.vx / spd) * 260;
@@ -641,7 +651,13 @@ export class LaserGame extends BaseMiniGame {
       victim.respawnTimer = LASER_TUNING.RESPAWN;
       victim.steerX = 0; victim.steerY = 0;
       victim.shield = false; victim.fastTimer = 0; victim.tripleTimer = 0;
-      this.spawnSparks(victim.x, victim.y, victim.color, 24);
+      // KILL olayı: burst + halka + ölüm pop'u + hit-stop + flaş + travma tek profilden.
+      this.fx.emit('kill', {
+        x: victim.x, y: victim.y, color: victim.color,
+        size: victim.radius || 30, angle: victim.angle || 0,
+        dirX: laser.vx, dirY: laser.vy, slot: victim.index,
+        haptic: victim.slotType === 'human',
+      });
       this.spawnFloatingText(victim.x, victim.y - 20, '+1 KILL ★', '#2F6A4F');
       const owner = this.players[laser.owner];
       if (owner && owner.isJoined && owner.isAlive) {
@@ -651,10 +667,13 @@ export class LaserGame extends BaseMiniGame {
           return;
         }
       }
-      this.addTrauma(0.5);
       playExplosion();
     } else {
-      this.addTrauma(0.25);
+      this.fx.emit('hit', {
+        x: victim.x, y: victim.y, color: laser.color,
+        dirX: laser.vx, dirY: laser.vy, slot: victim.index,
+        haptic: victim.slotType === 'human',
+      });
       playStumble();
     }
   }
@@ -739,12 +758,13 @@ export class LaserGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = this.clampDt(now, this.lastTime);
+    const rawDt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    const dt = this.fx.tick(rawDt);
 
-    if (this.trauma > 0) {
-      this.trauma = Math.max(0, this.trauma - dt * 2.2);
-    }
+    this.updateTrauma(dt);
+    this.fx.update(dt);
 
     if (this.state !== 'PLAYING') return;
 
@@ -947,6 +967,10 @@ export class LaserGame extends BaseMiniGame {
       collectPickups(this, player, {
         radiusOf: () => 14,
         onCollect: (g, p, pk) => {
+          this.fx.emit('pickup', {
+            x: p.x, y: p.y, color: p.color, slot: p.index,
+            haptic: p.slotType === 'human',
+          });
           if (pk.type === 'HEAL') {
             p.hp = Math.min(LASER_TUNING.MAX_HP + 1, p.hp + 1);
             this.spawnFloatingText(p.x, p.y - 20, '+1 CAN', '#2F6A4F');
@@ -1031,15 +1055,6 @@ export class LaserGame extends BaseMiniGame {
         this.lasers.splice(i, 1);
       }
       if (this.state !== 'PLAYING') return;
-    }
-
-    // Parçacıklar
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.alpha -= p.decay * dt;
-      if (p.alpha <= 0) this.particles.splice(i, 1);
     }
 
     // Uçuşan metinler
@@ -1211,8 +1226,8 @@ export class LaserGame extends BaseMiniGame {
     // Oyuncular
     drawLaserPlayers(ctx, scenePlayers, { arena: this.arena, withFx });
 
-    // Parçacıklar (lazer kıvılcımları)
-    drawCircleParticles(ctx, this.particles);
+    // FX katmanı ortak laserView draw'ından gelir (host↔client aynı).
+    drawLaserFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
 
     // Uçuşan metinler (+1 KILL ★)
     drawAlphaTexts(ctx, this.floatingTexts, { size: 16, outline: true });
@@ -1300,5 +1315,9 @@ export class LaserGame extends BaseMiniGame {
       },
     });
     ctx.restore();
+
+    // Kill flaşı sahne transformunun DIŞINDA: tam ekranı kaplar (tanks deseni).
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 }

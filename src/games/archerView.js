@@ -10,7 +10,14 @@ import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
 import { renderFireCooldown } from '../ui/hud.js';
 import { UI_COLORS } from '../ui/tokens.js';
-import { isWorldEntityVisible } from './worldCore.js';
+import {
+  isWorldEntityVisible,
+  packFxState,
+  isValidFxState,
+  drawFxRings,
+  drawFxPops,
+  drawCircleParticles,
+} from './worldCore.js';
 
 const ARCHER_RADIUS = 28;
 const FALLBACK = '#D84727';
@@ -90,10 +97,13 @@ export function createArcherWorldPacket(game) {
     particles: particles.slice(0, 64).map((pt) => ({
       x: round1(pt.x),
       y: round1(pt.y),
-      radius: round1(pt.radius || 1),
-      alpha: clamp01(pt.alpha),
+      radius: round1(pt.size ?? pt.radius ?? 3),
+      alpha: clamp01((pt.life ?? pt.alpha ?? 0) / (pt.maxLife ?? 1)),
       color: typeof pt.color === 'string' ? pt.color : '#1A1A1A',
     })),
+    // FX kanalı (MOTION_PLAN Faz 2a): host FX runtime'ının saf anlık görüntüsü
+    // (tanks deseni). Playback canlıyken paket yükü yok sayılır (yedek kanal).
+    fx: packFxState(game.fx),
     scores: (game.scores || [0, 0, 0, 0]).map((s) => Number(s) || 0),
     roundWinner: winnerSlot(game.roundWinner),
     matchWinner: winnerSlot(game.matchWinner),
@@ -122,6 +132,8 @@ export function isValidArcherWorldFrame(frame) {
   if (!Array.isArray(frame.players) || frame.players.length > 4) return false;
   if (!Array.isArray(frame.particles) || frame.particles.length > 64) return false;
   if (!frame.particles.every((pt) => pt && finite(pt.x) && finite(pt.y) && finite(pt.radius) && finite(pt.alpha) && typeof pt.color === 'string')) return false;
+  // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
+  if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
   return frame.players.every((p) => (
     p
     && typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
@@ -295,14 +307,14 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena
   }
 }
 
-export function drawArcherParticles(ctx, particles) {
-  for (const p of particles) {
-    ctx.save();
-    ctx.globalAlpha = clamp01(p.alpha);
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
+/**
+ * FX katmanının tek çizim sırası: pop → ring → partikül. Host motoru ve
+ * client worldView AYNI fonksiyonu çağırır (tanks deseni).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
+ */
+export function drawArcherFxLayer(ctx, layer) {
+  drawFxPops(ctx, layer?.pops);
+  drawFxRings(ctx, layer?.rings);
+  drawCircleParticles(ctx, layer?.particles);
 }

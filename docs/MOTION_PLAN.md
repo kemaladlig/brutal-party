@@ -97,19 +97,31 @@ olayları; kendi partikül/metot gövdeleri silindi, API kabukları korundu).
 - [ ] 2.1 15 motor FX olayı üretmeye geçer; motor-içi partikül state/kopyaları silinir
       (horde/archer/curve/bombView vb. — `drawCircleParticles` import'ları fxKit'e bağlanır).
       Kural: motor `ctx`'e FX için hiçbir şey yazmaz; ağ motoru FX'i üretmez, motoru çizmez.
-- [ ] 2.2 ONLINE: FX olayları anlık güvenilir yola eklenir (WS + Supabase aynı şema);
-      `networkProtocol`'a normalize edici (state-sync precedenti); `worldViewKit`'te
-      çizen-interpolatör donması (madde 2) + FX playback.
-- [ ] 2.3 Kademe bütçeleri `perfMonitor`'a bağlanır: boot'ta cihaz metriğinden low/mid/high
-      (partikül ×0.4/×0.7/×1.0, glow katmanı low'da kapalı); 20 ms üstü kare-süresi sürerse
-      bir kademe düşer. Kademe tek yerden okunur.
+- [x] 2.2 ONLINE: FX olayları anlık güvenilir yola eklendi (WS + Supabase aynı düz şema:
+      `{ type: 'HOST_FX', events }` / `{ action: 'FX_EVENTS', events }`);
+      `networkProtocol` normalize edici (`isValidFxEvent`/`normalizeFxEvents`/`createFxStamp`/
+      `createFxEventFilter`); kumanda playback (`gamepadWorldView.acceptFx` + `fxLive` mandalı).
+      Kilit: `tests/fxEvents.test.mjs`.
+- [x] 2.3 Kademe bütçeleri `perfMonitor`'a bağlandı: lazy-boot cihaz metriğinden low/mid/high
+      (partikül ×0.4/×0.7/×1.0, glow katmanı low'da kapalı); 20 ms üstü kare-süresi 30 kare
+      sürerse bir kademe düşer. Tek okuma noktası `fxRuntime.emit` (`count` çarpanı).
 - [ ] 2.4 TV_CONSOLE: sarsıntı/flash TV'de kalır (zaten host), kumandaya yalnız haptik +
-      buton pop'u düşer — §2 gereği kumanda simülasyonsuz kalır.
+      buton pop'u düşer — §2 gereği kumanda simülasyonsuz kalır. (Not: Parça 1'de yol hazır —
+      `gamepad.handleFxEvents` dünya görünümü yoksa yalnız haptik çalar; tam 2.4 dalgası Parça 2-4'te.)
 - [ ] 2.5 Dönüşüm dalgaları: (a) tanks+horde+laser+archer (ateşli, en çok isabet) →
       (b) crown/bomb/clone/collapse/heist (etkileşimli) → (c) pong/snake/ball/race/zone/ninja/
       game (düşük olay sıklığı, dokunuş-minimum). Her dalga sonunda `npm run check`.
-- [ ] 2.6 `rules-lint` kuralı: `src/games/**` içinde yeni `ctx.arc` partikül deseni /
-      `particles.push` yasak (baseline ratchet). `npm run check` artık bunu da kilitler.
+      ((a) bitti 2026-09-30: tanks (Faz 1) + horde+laser+archer — shot/hit/kill/pickup/spark/
+      dust olayı, `draw*FxLayer` ortak çizimi, `fxLive` playback mandalı, `fx` paket
+      yükü (v1 uyumlu opsiyonel); kilit `tests/fxKit.test.mjs` 4 motora genişledi.)
+- [x] 2.6 `rules-lint` K7 kilidi: `src/games/**` içinde `particles.push(` ve partikül
+      döngüsünden sonraki 12 satır içinde `ctx.arc(` yasak (ortak çizici `worldCore.js` hariç).
+      Borç `scripts/rules-lint-baseline.json`'da donduruldu; `npm run check` kilitler.
+
+> **Faz 2 sapma notu (Parça 1):** plandaki "çizen-interpolatör donması" TEK SAAT modeliyle
+> ikame edildi — hit-stop host karesini yavaşlatır, kumanda ayrı donma bütçesi bilmez
+> (Faz 1 sapması 1 yerinde duruyor). `frame.fx`/`frame.particles` v1 yedeği olarak duruyor:
+> `fxLive` mandalı açıkken yok sayılır, olay yoksa çizilir. Kaldırma kararı Parça 4'e.
 
 **Çıkış kanıtı:** `engine-smoke` 15 motor × 240 kare yeşil; `relayProbes` §11 provası yeşil;
 gerçek Android düşük-ucuz cihazda 60 fps yakalama (perfMonitor çıktısı kanıt).

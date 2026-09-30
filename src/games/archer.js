@@ -27,8 +27,11 @@ import {
   drawArcherPickups,
   drawArcherArrows,
   drawArcherPlayers,
-  drawArcherParticles,
+  drawArcherFxLayer,
 } from './archerView.js';
+import { drawFxFlash } from './worldCore.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 
 export const ARCHER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ARCHER_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -71,7 +74,13 @@ export class ArcherGame extends BaseMiniGame {
     this.arrows = [];
     this.nextArrowId = 1;
     this.obstacles = [];
-    this.particles = [];
+    // FX runtime (MOTION_PLAN Faz 2a): partikül/ring/pop/hit-stop tek sahibi;
+    // `this.particles` worldCore konvansiyonu için alias'tır.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
+    /** @type {any[]} */ this.particles = this.fx.particles;
     this.roundTime = ARCHER_ROUND_TIME;
     this.roundTimer = ARCHER_ROUND_TIME;
     this.roundId = 0;
@@ -131,6 +140,8 @@ export class ArcherGame extends BaseMiniGame {
     }
     for (const p of this.players) this.remapPoint(p, oldArena, this.arena);
     for (const a of this.arrows) this.remapPoint(a, oldArena, this.arena);
+    // Biriken partiküller ESKİ arena ölçeğindeydi; yeni unit ile karışmasın.
+    this.fx.clear();
   }
 
   buildMap() {
@@ -196,7 +207,7 @@ export class ArcherGame extends BaseMiniGame {
     this.roundTransitionTimer = 0;
     this.arrows = [];
     this.nextArrowId = 1;
-    this.particles = [];
+    this.fx.clear();
     this.pickups = [];
     this.mapIndex = 0;
     this.buildMap();
@@ -236,7 +247,7 @@ export class ArcherGame extends BaseMiniGame {
     this.roundTimer = ARCHER_ROUND_TIME;
     this.arrows = [];
     this.nextArrowId = 1;
-    this.particles = [];
+    this.fx.clear();
     this.pickups = [];
     this.pickupTimer = 8.0;
     // Raund başına rastgele harita
@@ -329,29 +340,22 @@ export class ArcherGame extends BaseMiniGame {
         power: charge,
       });
     }
+    // FX olayı: shot profili trauma bütçesini uygular; haptik insan koltuğuna.
+    this.fx.emit('shot', {
+      x: player.x + Math.cos(aim) * (player.radius + 6),
+      y: player.y + Math.sin(aim) * (player.radius + 6),
+      dirX: Math.cos(aim),
+      dirY: Math.sin(aim),
+      color: player.color,
+      slot: player.index,
+      haptic: player.slotType === 'human',
+    });
     playItemPickup();
   }
 
   aimAngle(player) {
     const wobble = 0.03 + 0.12 * (1 - player.charge);
     return player.angle + Math.sin(player.swayPhase) * wobble;
-  }
-
-  spawnHitBurst(x, y, color, big) {
-    const n = big ? 20 : 12;
-    for (let i = 0; i < n; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = 60 + Math.random() * 160;
-      this.particles.push({
-        x, y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        color: i % 3 === 0 ? '#FFFFFF' : color,
-        radius: 2 + Math.random() * 3,
-        alpha: 1.0,
-        decay: 2.6,
-      });
-    }
   }
 
   spawnPickup() {
@@ -365,6 +369,10 @@ export class ArcherGame extends BaseMiniGame {
 
   applyPickup(player, pk) {
     playItemPickup();
+    this.fx.emit('pickup', {
+      x: player.x, y: player.y, color: player.color, slot: player.index,
+      haptic: player.slotType === 'human',
+    });
     if (pk.type === 'TURBO') {
       player.turboTimer = 3.5;
       playPowerUp();
@@ -517,12 +525,13 @@ export class ArcherGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = this.clampDt(now, this.lastTime);
+    const rawDt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    const dt = this.fx.tick(rawDt);
 
-    if (this.trauma > 0) {
-      this.trauma = Math.max(0, this.trauma - dt * 2.2);
-    }
+    this.updateTrauma(dt);
+    this.fx.update(dt);
 
     if (tickRoundFlow(this, dt)) return;
 
@@ -690,14 +699,18 @@ export class ArcherGame extends BaseMiniGame {
         a.y = hit.y;
         a.dist += step * hit.t;
         if (hit.type === 'obstacle') {
-          this.spawnHitBurst(a.x, a.y, '#9C988F', false);
+          this.fx.emit('spark', { x: a.x, y: a.y, color: '#9C988F' });
           dead = true;
         } else {
           const victim = hit.victim;
           // KALKAN bir ok emer: skor/stun yok
           if (victim.shield > 0) {
             victim.shield -= 1;
-            this.spawnHitBurst(victim.x, victim.y, '#06B6D4', true);
+            this.fx.emit('hit', {
+              x: victim.x, y: victim.y, color: '#06B6D4',
+              dirX: a.vx, dirY: a.vy, slot: victim.index,
+              haptic: victim.slotType === 'human',
+            });
             playExplosion();
             dead = true;
           } else {
@@ -715,8 +728,11 @@ export class ArcherGame extends BaseMiniGame {
             const kd = Math.hypot(kx, ky) || 1;
             victim.x = Math.max(this.arena.left + victim.radius, Math.min(this.arena.right - victim.radius, victim.x + (kx / kd) * 26));
             victim.y = Math.max(this.arena.top + victim.radius, Math.min(this.arena.bottom - victim.radius, victim.y + (ky / kd) * 26));
-            this.spawnHitBurst(victim.x, victim.y, victim.color, close);
-            this.addTrauma(close ? 0.45 : 0.25);
+            this.fx.emit('hit', {
+              x: victim.x, y: victim.y, color: victim.color,
+              dirX: a.vx, dirY: a.vy, slot: victim.index,
+              haptic: victim.slotType === 'human',
+            });
             playExplosion();
             dead = true;
           }
@@ -740,15 +756,6 @@ export class ArcherGame extends BaseMiniGame {
         radiusOf: () => player.radius,
         onCollect: (g, p, pk) => this.applyPickup(p, pk),
       });
-    }
-
-    // Parçacıklar
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.alpha -= p.decay * dt;
-      if (p.alpha <= 0) this.particles.splice(i, 1);
     }
   }
 
@@ -868,8 +875,8 @@ export class ArcherGame extends BaseMiniGame {
     // Oyuncular
     drawArcherPlayers(ctx, this.players, { showFx: this.state === 'PLAYING', now: this.lastTime });
 
-    // Parçacıklar
-    drawArcherParticles(ctx, this.particles);
+    // FX katmanı ortak archerView draw'ından gelir (host↔client aynı).
+    drawArcherFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
 
     this.renderControls(ctx, { extraEntities: this.arrows });
     this.renderHUD(ctx, {
@@ -899,5 +906,9 @@ export class ArcherGame extends BaseMiniGame {
       },
     });
     ctx.restore();
+
+    // Kill flaşı sahne transformunun DIŞINDA: tam ekranı kaplar (tanks deseni).
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 }

@@ -43,11 +43,14 @@ import {
 import {
   HORDE_VIEW_LIMITS,
   createHordeWorldPacket,
-  drawHordeParticles,
+  drawHordeFxLayer,
   drawHordeWorld,
   hordeHeaderStatus,
   mapHordeScene,
 } from './hordeView.js';
+import { drawFxFlash } from './worldCore.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 
 export const HORDE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2D6A4F'];
 
@@ -177,7 +180,13 @@ export class HordeGame extends BaseMiniGame {
     this.tombs = [];
     this.obstacles = [];
     this.loadoutCrates = [];
-    this.particles = [];
+    // FX runtime (MOTION_PLAN Faz 2a): partikül/ring/pop/hit-stop tek sahibi;
+    // `this.particles` worldCore konvansiyonu için alias'tır.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
+    /** @type {any[]} */ this.particles = this.fx.particles;
     this.floatingTexts = [];
     this.portal = null;
     this.scores = [0, 0, 0, 0];
@@ -354,6 +363,8 @@ export class HordeGame extends BaseMiniGame {
       this.portal.x = Math.max(this.arena.left + this.portal.radius, Math.min(this.arena.right - this.portal.radius, this.portal.x));
       this.portal.y = Math.max(this.arena.top + this.portal.radius, Math.min(this.arena.bottom - this.portal.radius, this.portal.y));
     }
+    // Biriken partiküller ESKİ arena ölçeğindeydi; yeni unit ile karışmasın.
+    this.fx.clear();
   }
 
   buildMap(round = this.round) {
@@ -394,7 +405,7 @@ export class HordeGame extends BaseMiniGame {
     this.tombs = [];
     this.buildMap(1);
     this.loadoutCrates = [];
-    this.particles = [];
+    this.fx.clear();
     this.floatingTexts = [];
     this.portal = null;
     this._nextEnemyId = 1;
@@ -606,9 +617,12 @@ export class HordeGame extends BaseMiniGame {
 
   update(now) {
     const timestamp = Number.isFinite(Number(now)) ? Number(now) : performance.now();
-    const dt = this.clampDt(timestamp, this.lastTime);
+    const rawDt = this.clampDt(timestamp, this.lastTime);
     this.lastTime = timestamp;
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    const dt = this.fx.tick(rawDt);
     this.updateTrauma(dt);
+    this.fx.update(dt);
 
     if (this.state === 'ROUND_PAUSE') {
       this.updateRoundBreak(dt);
@@ -961,10 +975,19 @@ export class HordeGame extends BaseMiniGame {
     player.ammo -= 1;
     player.attackCooldown = weapon.fireInterval * (player.fastTimer > 0 ? 0.88 : 1);
     notifyFireShot(player);
+    // FX olayı: shot profili trauma bütçesini uygular; haptik insan koltuğuna.
+    this.fx.emit('shot', {
+      x: player.x + Math.cos(player.angle) * this.bodyPx(20),
+      y: player.y + Math.sin(player.angle) * this.bodyPx(20),
+      dirX: Math.cos(player.angle),
+      dirY: Math.sin(player.angle),
+      color: weapon.color,
+      slot: player.index,
+      haptic: player.slotType === 'human',
+    });
     if (player.ammo <= 2) {
       playDryFire();
       playShoot();
-      this.spawnParticles(player.x + Math.cos(player.angle) * this.bodyPx(30), player.y + Math.sin(player.angle) * this.bodyPx(30), '#FACC15', 3);
     } else {
       playShoot();
     }
@@ -977,7 +1000,16 @@ export class HordeGame extends BaseMiniGame {
     player.attackCooldown = weapon.fireInterval;
     notifyFireShot(player);
     player.idleReloadTimer = 0;
-    let hitAny = false;
+    // Yakın dövüş savruluşu: shot olayı (isabet görseli damageEnemy'den gelir).
+    this.fx.emit('shot', {
+      x: player.x + Math.cos(player.angle) * this.bodyPx(20),
+      y: player.y + Math.sin(player.angle) * this.bodyPx(20),
+      dirX: Math.cos(player.angle),
+      dirY: Math.sin(player.angle),
+      color: weapon.color,
+      slot: player.index,
+      haptic: player.slotType === 'human',
+    });
     for (const enemy of this.enemies) {
       if (enemy.spawnDelay > 0) continue;
       const dx = enemy.x - player.x;
@@ -988,12 +1020,7 @@ export class HordeGame extends BaseMiniGame {
       if (Math.abs(normalizeAngle(angle - player.angle)) > weapon.arc * 0.5) continue;
       if (this.hasBlockedShot(player.x, player.y, enemy.x, enemy.y)) continue;
       this.damageEnemy(enemy, weapon.damage, player.index, this.bodyPx(weapon.knockback), dx, dy);
-      // Kesik izi: kırmızı hasar partikülüne ek olarak silah renginde kıvılcım
-      // — geniş yaylı bıçakta "hangi yön tarandı" hissi için.
-      this.spawnParticles(enemy.x, enemy.y - enemy.radius * 0.4, weapon.color, 4);
-      hitAny = true;
     }
-    if (hitAny) this.addTrauma(0.3);
     playPaddleHit(0.75);
   }
 
@@ -1010,6 +1037,10 @@ export class HordeGame extends BaseMiniGame {
   }
 
   applyPickup(player, pickup) {
+    this.fx.emit('pickup', {
+      x: player.x, y: player.y, color: player.color, slot: player.index,
+      haptic: player.slotType === 'human',
+    });
     if (pickup.type === 'HEAL') {
       player.hp = Math.min(player.maxHp, player.hp + 1);
       this.spawnFloatingText(player.x, player.y - 22, t('horde.heal'), '#2D6A4F');
@@ -1211,8 +1242,10 @@ export class HordeGame extends BaseMiniGame {
       if (enemy.type === 'bomb') {
         if (enemy.attackTimer <= 0) {
           playExplosion();
-          this.spawnParticles(enemy.x, enemy.y, ENEMY_BLOOD, 40);
-          this.addTrauma(0.6);
+          // İntihar bombacısı: kill profili (alan hasarı + flaş + travma).
+          this.fx.emit('kill', {
+            x: enemy.x, y: enemy.y, color: ENEMY_BLOOD, size: enemy.radius || 80,
+          });
           for (const p of alivePlayers) {
             if (distanceSq(p.x, p.y, enemy.x, enemy.y) <= Math.pow(enemy.radius + p.radius, 2)) {
               this.damagePlayer(p, 2);
@@ -1446,7 +1479,7 @@ export class HordeGame extends BaseMiniGame {
         if (obstacleHit) {
           projectile.x = obstacleHit.x;
           projectile.y = obstacleHit.y;
-          this.spawnParticles(projectile.x, projectile.y, projectile.color || '#1A1A1A', 4);
+          this.fx.emit('spark', { x: projectile.x, y: projectile.y, color: projectile.color || '#1A1A1A' });
           consumed = true;
           break;
         }
@@ -1508,9 +1541,15 @@ export class HordeGame extends BaseMiniGame {
       enemy.knockVx = (enemy.knockVx || 0) + (dirX / magnitude) * impulse;
       enemy.knockVy = (enemy.knockVy || 0) + (dirY / magnitude) * impulse;
     }
-    // Vuruş geri bildirimi: isabet yönünde az sayıda kıvılcım. Partiküller
-    // ölçekli (`spawnParticles`), böylece telefonda alt-piksel nokta olmuyor.
-    this.spawnParticles(enemy.x, enemy.y, enemy.type === 'healer' ? ENEMY_HEAL : ENEMY_BLOOD, 3, dirX, dirY);
+    // Vuruş geri bildirimi: isabet yönünde hit olayı (profil: burst + halka +
+    // kısa hit-stop + yönlü travma). Sahibi insansa haptik onun koltuğuna.
+    const ownerForHaptic = this.players[ownerIndex];
+    this.fx.emit('hit', {
+      x: enemy.x, y: enemy.y,
+      color: enemy.type === 'healer' ? ENEMY_HEAL : ENEMY_BLOOD,
+      dirX, dirY, slot: ownerIndex,
+      haptic: ownerForHaptic?.slotType === 'human',
+    });
     if (enemy.hp > 0) return;
     const index = this.enemies.indexOf(enemy);
     if (index >= 0) this.enemies.splice(index, 1);
@@ -1538,9 +1577,15 @@ export class HordeGame extends BaseMiniGame {
     const owner = this.players[ownerIndex];
     const points = enemy.isBoss ? 3 : enemy.elite ? 2 : 1;
     if (owner) this.scores[owner.index] += points;
-    this.spawnParticles(enemy.x, enemy.y, enemy.isBoss || enemy.elite ? '#FACC15' : ENEMY_BLOOD, enemy.isBoss ? 22 : enemy.elite ? 14 : 9);
+    // KILL olayı: burst + halka + ölüm pop'u + hit-stop + flaş + travma tek profilden.
+    this.fx.emit('kill', {
+      x: enemy.x, y: enemy.y,
+      color: enemy.isBoss || enemy.elite ? '#FACC15' : ENEMY_BLOOD,
+      size: enemy.radius || 30, angle: enemy.angle || 0,
+      dirX, dirY, slot: ownerIndex,
+      haptic: owner?.slotType === 'human',
+    });
     this.spawnFloatingText(enemy.x, enemy.y - enemy.radius, `+${points}`, owner?.color || '#D84727');
-    this.addTrauma(enemy.isBoss ? 0.55 : enemy.elite ? 0.25 : 0.16);
     playExplosion();
   }
 
@@ -1555,7 +1600,10 @@ export class HordeGame extends BaseMiniGame {
     }
     player.hp -= Math.max(1, damage || 1);
     player.invulnTimer = HORDE_TUNING.HIT_INVULN;
-    this.spawnParticles(player.x, player.y, player.color, 7);
+    this.fx.emit('hit', {
+      x: player.x, y: player.y, color: player.color, slot: player.index,
+      haptic: player.slotType === 'human',
+    });
     playStumble();
     if (player.hp <= 0) {
       player.hp = 0;
@@ -1742,50 +1790,12 @@ export class HordeGame extends BaseMiniGame {
     }
   }
 
-  /**
-   * @param {number} dirX veriliyse kıvılcımlar bu yönün etrafına toplanır
-   *   (vuruş yönü okunur); yoksa her yöne saçılır.
-   */
-  spawnParticles(x, y, color, count = 8, dirX = 0, dirY = 0) {
-    const directional = dirX !== 0 || dirY !== 0;
-    const baseAngle = directional ? Math.atan2(dirY, dirX) : 0;
-    for (let i = 0; i < count; i++) {
-      const angle = directional
-        ? baseAngle + (Math.random() - 0.5) * 1.5
-        : Math.random() * Math.PI * 2;
-      const speed = this.bodySpeed(35 + Math.random() * 150);
-      const life = 0.25 + Math.random() * 0.35;
-      this.particles.push({
-        x,
-        y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        radius: this.bodyPx(2 + Math.random() * 3),
-        color,
-        life,
-        maxLife: life,
-      });
-    }
-    if (this.particles.length > HORDE_VIEW_LIMITS.particles * 2) {
-      this.particles.splice(0, this.particles.length - HORDE_VIEW_LIMITS.particles * 2);
-    }
-  }
-
   spawnFloatingText(x, y, text, color) {
     this.floatingTexts.push({ x, y, text, color, vy: -28, alpha: 1, decay: 1.2 });
     if (this.floatingTexts.length > HORDE_VIEW_LIMITS.texts * 2) this.floatingTexts.shift();
   }
 
   updateEffects(dt) {
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const particle = this.particles[i];
-      particle.x += particle.vx * dt;
-      particle.y += particle.vy * dt;
-      particle.vx *= Math.max(0, 1 - dt * 3.5);
-      particle.vy *= Math.max(0, 1 - dt * 3.5);
-      particle.life -= dt;
-      if (particle.life <= 0) this.particles.splice(i, 1);
-    }
     for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
       const entry = this.floatingTexts[i];
       entry.y += entry.vy * dt;
@@ -1895,7 +1905,8 @@ export class HordeGame extends BaseMiniGame {
     this.applyScreenShake(ctx);
 
     drawHordeWorld(ctx, this.arena, scene, { withFx: this.state === 'PLAYING', now: this.lastTime });
-    drawHordeParticles(ctx, this.particles);
+    // FX katmanı ortak hordeView draw'ından gelir (host↔client aynı).
+    drawHordeFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
 
     if (this.state === 'PLAYING') {
       this.renderControls(ctx, { extraEntities: this.enemies });
@@ -1931,5 +1942,9 @@ export class HordeGame extends BaseMiniGame {
       },
     });
     ctx.restore();
+
+    // Kill flaşı sahne transformunun DIŞINDA: tam ekranı kaplar (tanks deseni).
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 }

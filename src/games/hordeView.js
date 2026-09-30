@@ -21,7 +21,11 @@ import {
   createWorldSnapshot,
   drawAlphaTexts,
   drawCircleParticles,
+  drawFxRings,
+  drawFxPops,
   isValidWorldBase,
+  packFxState,
+  isValidFxState,
   packRectList,
   round1,
 } from './worldCore.js';
@@ -250,7 +254,13 @@ export function createHordeWorldPacket(game, tuning = {}) {
   return createWorldSnapshot(game, {
     mode: 'HORDE',
     mapPlayer: (player) => scene.players[player.index],
-    extras: { ...packHordeScene(scene), selfPredict: true },
+    extras: {
+      ...packHordeScene(scene),
+      selfPredict: true,
+      // FX kanalı (MOTION_PLAN Faz 2a): host FX runtime'ının saf anlık görüntüsü
+      // (tanks deseni). Playback canlıyken paket yükü yok sayılır (yedek kanal).
+      fx: packFxState(game.fx),
+    },
     particleCap: HORDE_VIEW_LIMITS.particles,
   });
 }
@@ -360,6 +370,8 @@ function isValidHordeExtra(frame) {
   if (frame.roundBreakTotal !== 15) return false;
   if (typeof frame.waveTimedOut !== 'boolean' || typeof frame.isBossWave !== 'boolean') return false;
   if (frame.matchResult !== null && frame.matchResult !== 'win' && frame.matchResult !== 'loss') return false;
+  // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
+  if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
   return true;
 }
 
@@ -1016,8 +1028,10 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
   drawAlphaTexts(ctx, scene.texts || [], { size: 15, outline: true });
 }
 
-export function drawHordeParticles(ctx, particles) {
-  drawCircleParticles(ctx, particles);
+export function drawHordeFxLayer(ctx, layer) {
+  drawFxPops(ctx, layer?.pops);
+  drawFxRings(ctx, layer?.rings);
+  drawCircleParticles(ctx, layer?.particles);
 }
 
 // Maç başlığı verisi (host + world-view istemcisi ortak): tur/dalga + sayaç.

@@ -71,6 +71,42 @@ export function winnerIndex(v) {
 }
 
 // ---------------------------------------------------------------------------
+// FX runtime anlık görüntüsü (MOTION_PLAN Faz 1-2): host fxRuntime → paket yükü.
+// Halkalar/pop'lar life'tan türetilir; client kendi saatini yürütmez, 30 Hz
+// snapshot + anlık FX olay playback'i (`context.fx`) birlikte çalışır —
+// playback canlıyken (`fxLive`) paket yükü yedek olarak yok sayılır.
+// ---------------------------------------------------------------------------
+
+/** fxRuntime → paket yükü. Kaplar view bütçesiyle sınırlıdır (rings 8, pops 6). */
+export function packFxState(fx) {
+  if (!fx) return { rings: [], pops: [], flash: 0, flashPeak: 0.06 };
+  const rings = (Array.isArray(fx.rings) ? fx.rings : []).slice(0, 8).map((r) => [
+    round1(r.x), round1(r.y), round1(r.r0), round1(r.r1), round1(r.life), round1(r.maxLife), round1(r.width),
+    typeof r.color === 'string' ? r.color : UI_COLORS.inkDark,
+  ]);
+  const pops = (Array.isArray(fx.pops) ? fx.pops : []).slice(0, 6).map((p) => [
+    round1(p.x), round1(p.y), round1(p.size), round1(p.angle || 0), round1(p.life), round1(p.maxLife),
+    typeof p.color === 'string' ? p.color : UI_COLORS.inkDark,
+  ]);
+  return {
+    rings,
+    pops,
+    flash: round1(fx.flash || 0),
+    flashPeak: round1(fx.flashPeak || 0.06),
+  };
+}
+
+/** Paket FX yükü doğrulaması (v1 uyumu: alan yoksa çağıran atlar, burada false yok). */
+export function isValidFxState(fx) {
+  if (!fx || !Array.isArray(fx.rings) || fx.rings.length > 8) return false;
+  if (!fx.rings.every((r) => Array.isArray(r) && r.length === 8 && r.slice(0, 7).every(finite) && typeof r[7] === 'string')) return false;
+  if (!Array.isArray(fx.pops) || fx.pops.length > 6) return false;
+  if (!fx.pops.every((p) => Array.isArray(p) && p.length === 7 && p.slice(0, 6).every(finite) && typeof p[6] === 'string')) return false;
+  if (!finite(fx.flash) || !finite(fx.flashPeak)) return false;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Patlama katmanı (BOMB) — tek olay, 4 sayı
 // ---------------------------------------------------------------------------
 
@@ -226,8 +262,7 @@ export function isValidWorldBase(frame, mode, { checkPlayer = null, checkExtra =
   return true;
 }
 
-/** Alfa metin draw'u (CLONE/LASER konvansiyonu; host↔client aynı, mutate etmez). */
-export function drawAlphaTexts(ctx, texts, { size = 15, outline = false } = {}) {
+/** Alfa metin draw'u (CLONE/LASER konvansiyonu; host↔client aynı, mutate etmez). */export function drawAlphaTexts(ctx, texts, { size = 15, outline = false } = {}) {
   for (const ft of texts || []) {
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, ft.alpha ?? 1));

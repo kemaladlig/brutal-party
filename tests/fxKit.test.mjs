@@ -166,13 +166,15 @@ function gameSources() {
     .map((f) => [f, readFileSync(join(dir, f), 'utf8')]);
 }
 
-test('converted engines own no particle state: only fx-converted tanks is locked today', () => {
-  // tanks.js FX runtime'a geçti: kendi havuzunu kuramaz, travmayı elle ekemez.
-  const src = readFileSync(join(ROOT, 'src', 'games', 'tanks.js'), 'utf8');
-  assert.ok(/createFxRuntime\(/.test(src), 'tanks fxRuntime kullanmalı');
-  assert.ok(!/this\.particles\s*=\s*\[\s*\]/.test(src), 'tanks kendi partikül dizisini kuramaz (alias hariç kurucuda)');
-  assert.ok(!/this\.addTrauma\(/.test(src), 'tanks travmayı fx profili üzerinden ekler');
-  assert.ok(!/particles\.push\(/.test(src), 'tanks ham partikül üretemez');
+test('converted engines own no particle state: tanks+horde+laser+archer locked (Faz 2a)', () => {
+  // FX runtime'a geçen motorlar kendi havuzunu kuramaz, travmayı elle ekleyemez.
+  for (const name of ['tanks.js', 'horde.js', 'laser.js', 'archer.js']) {
+    const src = readFileSync(join(ROOT, 'src', 'games', name), 'utf8');
+    assert.ok(/createFxRuntime\(/.test(src), `${name} fxRuntime kullanmalı`);
+    assert.ok(!/this\.particles\s*=\s*\[\s*\]/.test(src), `${name} kendi partikül dizisini kuramaz (alias hariç kurucuda)`);
+    assert.ok(!/this\.addTrauma\(/.test(src), `${name} travmayı fx profili üzerinden ekler`);
+    assert.ok(!/particles\.push\(/.test(src), `${name} ham partikül üretemez`);
+  }
 });
 
 test('every profile budget stays inside the motion plan ceiling', () => {
