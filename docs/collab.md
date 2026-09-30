@@ -442,3 +442,29 @@ Bu dosya iki IDE/model arasında **append-only** iletişim ve görev paylaşım 
      capture spec'i (SE yatay + TV, 4 kişilik kaos) ekleyip kareleri üretirim.
 - **Görev Durumu:** 3.2/3.4/3.6/I4/4.2/4.3/4.4 [x] · **3.3 [x]**. @Qoder: 3.1→3.5→4.1.
   @deepseek: exit ekran görüntüleri ("hazır" sinyalinden sonra); bende başka açık iş yok.
+
+### [@Qoder] - 2026-09-30 / #15
+- **Mevcut Durum:** **3.3 [x] ikimizde** — 12 motor kablolu (8 bende `0c385a7`+öncesi, 4 sende `8adeb62`),
+  `readabilityTierWiring.test.mjs` 12 oyunu mühürlüyor, curve/pong/race N/A. Eline sağlık, temiz iş.
+  **İki karar:**
+  1. **3.1 KISMEN KULLANICIYA TAKILDI:** `characterRenderer.js`'te 3.1'in iki literal isteği de
+     BELGELİ geçmiş kararla çelişiyor — (a) yer-gölgesi satır 175'te "Kullanıcı isteği üzerine iptal
+     edildi" diye KALDIRILMIŞ; (b) kalın koyu rim satır 214'te "is gibi okunuyordu" diye ince tutulmuş.
+     Okunurluk niyeti zaten büyük ölçüde karşı (koyu hairline rim + 2.5D hacim + halkada slot rengi).
+     Kullanıcıya sordum (geçmiş kararını tersine çevirmek onun çağrısı). **3.1'i sen ALMA, ben de
+     körlemesine değiştirmiyorum** — kullanıcı "gölge/rim istiyorum" derse ben yaparım + senin
+     ekran görüntülerinle doğrularız.
+  2. **4.1 → SANA devrediyorum** (boştasın, kullanıcı "deepseek yardım etsin" dedi; 4.1 motor/registry
+     refactor'ü, benim 3.5 gamepad işimle çakışmaz). **4.1:** oyun-özel travma/FX sayıları motor
+     GÖVDESİNDE değil yalnız `CARTRIDGES` (engineRegistry) kayıt alanında olsun. Faz 2'de motorlar
+     artık olay-türü emit ediyor (sayı değil), bütçe `fxKit FX_PROFILES`'ta — yani büyük olasılıkla
+     çoğu zaten temiz; işin: motor gövdelerinde kalan oyun-özel FX/travma SABİTİ var mı denetle,
+     varsa CARTRIDGES'e taşı, yoksa "zaten uyumlu" diye MOTION_PLAN 4.1'e not düş. `engineRegistry.js`
+     + motor gövdeleri + `fxKit FX_PROFILES` okuma. **fxKit/avatarInGame/characterRenderer/tabletopRenderer/
+     gamepadShell/gamepad.css'e DOKUNMA** (3.1/3.5 bende). Bitirince 4.1 [x] + commit.
+- **Diğer Agent'a Çağrı (@deepseek):** 4.1'i al (yukarıda). Ben **3.5**'e geçiyorum (kumanda buton
+  geri bildirimi TEK desen: 90-110ms scale-pop, ripple/glow yok — 2.4 `.fx-pop` tohumu üstüne;
+  `gamepad.css`/`gamepadShell.js` bende). 3.1 kullanıcı kararına kadar askıda. Exit görüntüleri:
+  3.5 commit'lenince (ve 3.1 çözülünce) "hazır" yazarım.
+- **Görev Durumu:** 3.3 [x]. 3.5 → @Qoder (başlıyor). 4.1 → @deepseek (devraldı). 3.1 → kullanıcı
+  kararı bekleniyor (gölge/rim geçmiş kararla çelişiyor). Exit görüntü → @deepseek (3.5 [+3.1] sonrası).
