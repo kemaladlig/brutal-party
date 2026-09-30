@@ -14,9 +14,11 @@ import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap
 import { distToSegmentSquared, clampToArena } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
-import { createCurveWorldPacket } from './curveView.js';
+import { createCurveWorldPacket, drawCurveFxLayer } from './curveView.js';
+import { drawFxFlash } from './worldCore.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
-import { vibrate } from '../core/haptics.js';
 import { computePlayfield, fieldPx, fieldRadius, fieldSpeed } from '../core/playfield.js';
 
 export const CURVE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -103,7 +105,12 @@ this.targetScore = 2;
     this.players = [];
     this.segments = [];
     this.nextSegmentId = 1;
-    this.particles = [];
+    // FX runtime (MOTION_PLAN Faz 2c): nitro/pickup/bomba/eleme olaylarının tek sahibi.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
+    /** @type {any[]} */ this.particles = this.fx.particles;
     this.pickups = [];
     this.pickupSpawnTimer = 8.0;
 
@@ -187,7 +194,8 @@ this.targetScore = 2;
     }
     this.segGridDirty = true;
     for (const item of this.pickups) this.remapPoint(item, oldArena, this.arena);
-    this.particles = [];
+    // Arena değişti: eski koordinatlı FX atılır.
+    this.fx.clear();
   }
 
   initPlayers() {
@@ -257,7 +265,7 @@ this.targetScore = 2;
     this.nextSegmentId = 1;
     this.segGrid = new Map();
     this.segGridDirty = false;
-    this.particles = [];
+    this.fx.clear();
     this.pickups = [];
     this.floatingTexts = [];
     this.onTouchesReset();
@@ -290,7 +298,7 @@ this.targetScore = 2;
     this.nextSegmentId = 1;
     this.segGrid = new Map();
     this.segGridDirty = false;
-    this.particles = [];
+    this.fx.clear();
     this.pickups = [];
     this.floatingTexts = [];
     this.pickupSpawnTimer = 5.5;
@@ -376,22 +384,13 @@ this.targetScore = 2;
     player.boostCooldown = CURVE_TUNING.NITRO_COOLDOWN;
     player.nitroTimer = CURVE_TUNING.NITRO_DURATION;
     playDashWhoosh();
-    this.addTrauma(0.12);
+    // Nitro: `zone` olayı (halka + travma 0.16) — eski 0.12 travma profille gelir.
+    this.fx.emit('zone', {
+      x: player.x, y: player.y, color: '#FFD122',
+      dirX: Math.cos(player.angle), dirY: Math.sin(player.angle),
+      slot: player.index, haptic: player.slotType === 'human',
+    });
     this.spawnFloatingText(player.x, player.y - 16, t('curve.nitro'), player.color);
-    for (let i = 0; i < 10; i++) {
-      const angle = player.angle + Math.PI + (Math.random() - 0.5) * 0.9;
-      const speed = 60 + Math.random() * 110;
-      this.particles.push({
-        x: player.x,
-        y: player.y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 0.35,
-        maxLife: 0.35,
-        size: 3 + Math.random() * 3,
-        color: i % 2 === 0 ? '#FFD122' : player.color,
-      });
-    }
   }
 
   // Masa-ortası köşe butonu + klavye aksiyon tuşu aynı kapıdan geçer.
@@ -456,10 +455,6 @@ this.targetScore = 2;
     });
   }
 
-  addTrauma(amount) {
-    this.trauma = Math.min(1.0, this.trauma + amount);
-  }
-
   spawnFloatingText(x, y, text, color) {
     if (!this.floatingTexts) this.floatingTexts = [];
     this.floatingTexts.push({
@@ -474,7 +469,9 @@ this.targetScore = 2;
 
   spawnBombBlast(x, y) {
     playExplosion();
-    this.addTrauma(0.35);
+    // Bomba patlaması: `kill` olayı (burst+ring+pop+hit-stop+flaş) — eski 0.35
+    // travma profilin 0.4 tavanında.
+    this.fx.emit('kill', { x, y, color: '#FF473A', size: 70, haptic: false });
 
     // 70px yarıçapındaki segmentleri sil
     const radiusSq = 70 * 70;
@@ -490,31 +487,15 @@ this.targetScore = 2;
     if (removed) {
       this.segGridDirty = true;
     }
-
-    // Patlama parçacıkları
-    for (let i = 0; i < 28; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 40 + Math.random() * 150;
-      this.particles.push({
-        x,
-        y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 0.6,
-        maxLife: 0.6,
-        size: 3 + Math.random() * 5,
-        color: i % 2 === 0 ? '#FFD122' : '#FF473A',
-      });
-    }
   }
 
   update(now) {
-    const dt = this.clampDt(now, this.lastTime);
+    const rawDt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
-
-    if (this.trauma > 0) {
-      this.trauma = Math.max(0, this.trauma - dt * 2.2);
-    }
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    const dt = this.fx.tick(rawDt);
+    this.updateTrauma(dt);
+    this.fx.update(dt);
 
     if (this.spawnIntroTimer > 0) {
       this.spawnIntroTimer = Math.max(0, this.spawnIntroTimer - dt);
@@ -671,21 +652,16 @@ this.targetScore = 2;
       }
     }
 
-    // Update Particles
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.life -= dt;
-      if (p.life <= 0) {
-        this.particles.splice(i, 1);
-      }
-    }
+    // Partikül yaşam döngüsü artık fxRuntime'da (`this.fx.update(dt)`).
   }
 
   applyPickup(player, item) {
     playItemPickup();
-    this.addTrauma(0.12);
+    // Pickup toplama: `pickup` olayı (burst; insan koltukta haptik).
+    this.fx.emit('pickup', {
+      x: item.x, y: item.y, color: player.color,
+      slot: player.index, haptic: player.slotType === 'human',
+    });
 
     if (item.type === 'SCISSORS') {
       const mySegs = this.segments.filter((s) => s.owner === player.index);
@@ -838,27 +814,17 @@ this.targetScore = 2;
 
   eliminatePlayer(player) {
     player.isAlive = false;
-    this.addTrauma(0.35);
     playExplosion();
 
-    for (let i = 0; i < 18; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 40 + Math.random() * 140;
-      this.particles.push({
-        x: player.x,
-        y: player.y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 0.55,
-        maxLife: 0.55,
-        size: 3 + Math.random() * 4,
-        color: Math.random() > 0.3 ? player.color : '#1A1A1A',
-      });
-    }
-
-    if (player.slotType === 'human' && typeof navigator !== 'undefined' && navigator.vibrate) {
-      vibrate([40, 50, 70]);
-    }
+    // Kesilme: `kill` olayı (burst+ring+pop+hit-stop+flaş) — eski 0.35 travma ve
+    // cihaz geneli `vibrate` kaldı; haptik artık koltuk bazlı (uzak kumanda
+    // yalnız kendi koltuğunda titrer).
+    this.fx.emit('kill', {
+      x: player.x, y: player.y, color: player.color,
+      size: fieldRadius(this.arena, 20, 0), angle: player.angle,
+      dirX: -Math.cos(player.angle), dirY: -Math.sin(player.angle),
+      slot: player.index, haptic: player.slotType === 'human',
+    });
 
     this.players.forEach((p) => {
       if (p.index !== player.index && p.isJoined && p.isAlive) {
@@ -1004,14 +970,8 @@ this.targetScore = 2;
       }
     }
 
-    // Particles
-    for (const p of this.particles) {
-      const alpha = p.life / p.maxLife;
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = alpha;
-      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
-      ctx.globalAlpha = 1.0;
-    }
+    // FX katmanı ortak curveView draw'ından gelir (host↔client aynı).
+    drawCurveFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
 
     // Heads
     for (const player of this.players) {
@@ -1126,6 +1086,10 @@ this.targetScore = 2;
     });
 
     ctx.restore();
+
+    // Eleme flaşı sahne transformunun DIŞINDA: tam ekranı kaplar.
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 
   renderSpawnBeacons(ctx) {

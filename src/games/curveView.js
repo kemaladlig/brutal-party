@@ -17,6 +17,10 @@ import {
   createWorldSnapshot,
   isValidWorldBase,
   isWorldEntityVisible,
+  packFxState,
+  isValidFxState,
+  drawFxRings,
+  drawFxPops,
   drawSquareParticles,
   drawAlphaTexts,
 } from './worldCore.js';
@@ -177,6 +181,8 @@ export function createCurveWorldPacket(game) {
         alpha: Math.max(0, Math.min(1, (ft.maxLife ? ft.life / ft.maxLife : 0))),
         color: typeof ft.color === 'string' ? ft.color : '#1A1A1A',
       })),
+      // FX kanalı (MOTION_PLAN Faz 2c): host FX runtime'ının saf anlık görüntüsü.
+      fx: packFxState(game.fx),
     },
   });
 }
@@ -211,10 +217,24 @@ function isValidCurveExtra(frame) {
 }
 
 export function isValidCurveWorldFrame(frame) {
+  // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
+  if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
   return isValidWorldBase(frame, 'CURVE', {
     checkPlayer: isValidCurvePlayer,
     checkExtra: isValidCurveExtra,
   });
+}
+
+/**
+ * FX katmanının tek çizim sırası: pop → ring → partikül. Host motoru ve
+ * client worldView AYNI fonksiyonu çağırır (host↔client aynı görünüm ilkesi).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
+ */
+export function drawCurveFxLayer(ctx, layer) {
+  drawFxPops(ctx, layer?.pops);
+  drawFxRings(ctx, layer?.rings);
+  drawSquareParticles(ctx, layer?.particles);
 }
 
 // --- Ortak çizim yardımcıları (client dünya sahnesi) ---

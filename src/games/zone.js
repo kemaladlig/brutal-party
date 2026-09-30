@@ -981,11 +981,6 @@ export class ZoneGame extends BaseMiniGame {
     this.floatingTexts.push({ x, y, text, color, life: 1.1, maxLife: 1.1 });
   }
 
-  addTrauma(amount) {
-    this.trauma = Math.min(1.0, this.trauma + amount);
-  }
-
-
   turnToward(current, target, maxStep) {
     let d = target - current;
     while (d > Math.PI) d -= Math.PI * 2;

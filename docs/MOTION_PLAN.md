@@ -97,6 +97,7 @@ olayları; kendi partikül/metot gövdeleri silindi, API kabukları korundu).
 - [ ] 2.1 15 motor FX olayı üretmeye geçer; motor-içi partikül state/kopyaları silinir
       (horde/archer/curve/bombView vb. — `drawCircleParticles` import'ları fxKit'e bağlanır).
       Kural: motor `ctx`'e FX için hiçbir şey yazmaz; ağ motoru FX'i üretmez, motoru çizmez.
+      (14/15 bitti; CURVE bu dalganın son işi — bkz. 2.5(c) notu.)
 - [x] 2.2 ONLINE: FX olayları anlık güvenilir yola eklendi (WS + Supabase aynı düz şema:
       `{ type: 'HOST_FX', events }` / `{ action: 'FX_EVENTS', events }`);
       `networkProtocol` normalize edici (`isValidFxEvent`/`normalizeFxEvents`/`createFxStamp`/
@@ -124,6 +125,11 @@ olayları; kendi partikül/metot gövdeleri silindi, API kabukları korundu).
       yükü; ball/game/race'te tekrarlanan ham hex'ler `UI_COLORS` token'larına bağlandı
       (K2 tabanı düşürüldü). Kapılar: rules temiz · test 543/543 · health 15/15. Commit 6c817b5.
       NOT: 15. motor CURVE bu dalgada yok — 2.1 kapsamında ayrı iş, `curve.js` hâlâ K7 borcu.)
+      ((d) 2026-09-30: CURVE — nitro/pickup `zone`+`pickup`, bomba patlaması ve kesilme `kill`,
+      eski `vibrate([40,50,70])` koltuk bazlı `haptic`e; `curveView` `drawCurveFxLayer` +
+      `fx` yükü; `curve.js`/`zone.js` ölü `addTrauma` override'ları silindi. K7 borcu 17 → 0:
+      `scripts/rules-lint-baseline.json` içinde `K7` boşaltıldı, artık HER K7 ihlali gate'i
+      kırar. Kapılar: rules temiz · test 543/543 · health 15/15 · e2e 6/6.)
 - [x] 2.6 `rules-lint` K7 kilidi: `src/games/**` içinde `particles.push(` ve partikül
       döngüsünden sonraki 12 satır içinde `ctx.arc(` yasak (ortak çizici `worldCore.js` hariç).
       Borç `scripts/rules-lint-baseline.json`'da donduruldu; `npm run check` kilitler.

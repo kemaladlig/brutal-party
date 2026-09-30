@@ -26,9 +26,9 @@
     "src/games/collapse.js": 5,
     "src/games/collapseView.js": 13,
     "src/games/crownView.js": 8,
-    "src/games/curve.js": 26,
+    "src/games/curve.js": 25,
     "src/games/curveView.js": 5,
-    "src/games/game.js": 18,
+    "src/games/game.js": 17,
     "src/games/heist.js": 22,
     "src/games/heistView.js": 42,
     "src/games/horde.js": 18,
@@ -37,17 +37,17 @@
     "src/games/laser.js": 15,
     "src/games/laserView.js": 15,
     "src/games/ninja.js": 11,
-    "src/games/ninjaView.js": 27,
+    "src/games/ninjaView.js": 26,
     "src/games/paddle.js": 9,
     "src/games/pongView.js": 9,
     "src/games/race.js": 11,
     "src/games/raceView.js": 8,
-    "src/games/snake.js": 7,
-    "src/games/snakeView.js": 16,
+    "src/games/snake.js": 5,
+    "src/games/snakeView.js": 15,
     "src/games/tanks.js": 5,
     "src/games/tanksView.js": 11,
     "src/games/worldCore.js": 1,
-    "src/games/zone.js": 29,
+    "src/games/zone.js": 28,
     "src/games/zoneView.js": 17,
     "src/main.js": 7,
     "src/supabaseRelay.js": 1,
@@ -113,11 +113,5 @@
     "src/ui/slotCardView.js": 1
   },
   "K6": {},
-  "K7": {
-    "src/games/curve.js": 3,
-    "src/games/ninja.js": 5,
-    "src/games/snake.js": 3,
-    "src/games/snakeView.js": 1,
-    "src/games/zone.js": 5
-  }
+  "K7": {}
 }
