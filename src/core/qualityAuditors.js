@@ -61,7 +61,10 @@ export function auditViewFidelityInContent(content, playerDesignRadius, mode = '
     return { ok: false, drift: Infinity, detail: 'motor yarıçapı okunamadı (fail-closed)' };
   }
 
-  const fallbackRegex = /\b(?:player|p|ball)\.radius\s*(?:\|\||\?\?)\s*([A-Za-z0-9_]+|\d+(?:\.\d+)?)/g;
+  // Ondalık literal tam yakalanır: `[A-Za-z0-9_]+` ilk alternatif "15.8"de "15"i
+  // kapıyordu (A bunu tamsayı sabitle maskeliyordu, bug latent kaldı). Tanımlayıcı
+  // artık rakamla BAŞLAYAMAZ, sayı alternatifi literalın tamamını tüketir.
+  const fallbackRegex = /\b(?:player|p|ball)\.radius\s*(?:\|\||\?\?)\s*(\d+(?:\.\d+)?|[A-Za-z_][A-Za-z0-9_]*)/g;
   const matches = [...content.matchAll(fallbackRegex)];
 
   if (matches.length === 0) {
@@ -82,14 +85,18 @@ export function auditViewFidelityInContent(content, playerDesignRadius, mode = '
       }
     }
 
-    const drift = Math.abs(Math.round(playerDesignRadius) - fallbackVal);
+    // Sadakat ondalık çözünürlükte ölçülür: `15.8` ile `15` aynı değildir.
+    // Motor yarıçapı yuvarlanmaz — view literalı motorun TAM değerini yansıtmalı;
+    // eşit literal float artığı bırakırsa 0.05 px toleransı yakalar, gerçek
+    // literal farkı (ör. 15 vs 15.8 = 0.8) yakalanır.
+    const drift = Math.abs(playerDesignRadius - fallbackVal);
     if (drift > maxDrift) {
       maxDrift = drift;
-      worstDetail = `motor ${playerDesignRadius}px vs view ${fallbackVal}px (fark ${drift}px)`;
+      worstDetail = `motor ${playerDesignRadius}px vs view ${fallbackVal}px (fark ${(+drift.toFixed(1))}px)`;
     }
   }
 
-  const ok = maxDrift === 0;
+  const ok = maxDrift < 0.05;
   return {
     ok,
     drift: +maxDrift.toFixed(1),

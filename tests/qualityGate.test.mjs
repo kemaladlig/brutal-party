@@ -160,6 +160,25 @@ test('scanner negative: auditViewFidelityInContent fails closed when constant ca
   assert.ok(fidelity.detail.includes('sabit çözülemedi'));
 });
 
+// Negative test 4d: Decimal fallback literals are parsed faithfully (I4 bug fix)
+test('scanner: decimal view fallback is not truncated to an integer (I4)', () => {
+  // Regresyon kilidi: eski regex "15.8"i "15" sanıp 15 motor yarıçapında
+  // sıfır sapma raporluyordu (sahte yeşil). Artık 0.8 px sapma görünür.
+  const truncated = auditViewFidelityInContent(`const r = player.radius || 15.8;`, 15, 'TEST');
+  assert.equal(truncated.ok, false);
+  assert.equal(truncated.drift, 0.8);
+
+  // Aynı ondalık değer motorda da varsa tam eşleşme (yuvarlama yok).
+  const exact = auditViewFidelityInContent(`const r = player.radius || 15.8;`, 15.8, 'TEST');
+  assert.equal(exact.ok, true);
+  assert.equal(exact.drift, 0);
+
+  // Ondalık literal, tamsayı motordan farklıysa yakalanır (0.2 px).
+  const off = auditViewFidelityInContent(`const r = player.radius || 15.8;`, 16, 'TEST');
+  assert.equal(off.ok, false);
+  assert.equal(off.drift, 0.2);
+});
+
 // Negative test 5: Scanner - Unscaled geometry px (I5)
 test('scanner negative: auditUnscaledGeometryInContent detects literal borderWidth and fails I5', () => {
   const cleanCode = `
