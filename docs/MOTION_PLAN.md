@@ -203,6 +203,11 @@ her avatar tanınır, HUD üstünde hiçbir şey uçuşmaz, T3 solukluğu ölç�
       motion` kadar "sakin mod" tercihi de ayar şemasında satır olur (§8: şema+actions).
 - [x] 4.4 PROJECT_MAP'e "FX olayları ve bütçeleri" bölümü + AGENTS §8'e tek satır:
       "FX yalnız `fxKit` olayından doğar; motor/çekirdek partikül state'i tutmaz."
+- [x] 4.5 Vibrant Pastel Arcade tema seferberliği ve merkezi yayılım (kullanıcı kararı):
+      Soluk krem/monokrom zeminler yerine 15 oyuna özgü zengin 4 duraklı pastel zeminler
+      (`fieldKit.js`), genişletilmiş L* bütçesi (`L* ∈ [75, 97.5]`, `ΔL* ≤ 14`, `tests/fieldKit.test.mjs §8`),
+      sunset sahne gradyanı (`tokens.css`), dinamik viewport vinyeti ve ZONE renk eşleme onarımı.
+      Merkezi yayılım: HUD, staging geri sayım, telefon kumandası, FX partikülleri ve sonuç aurası.
 
 > **4.3 playbook (termal/bateri, uzun oturum):**
 > 1. **Otomatik iniş** — `perfMonitor`: boot'ta cihaz metriği (`cores`/`deviceMemory`) ilk
@@ -256,3 +261,20 @@ Gerçek-cihaz geri bildirimiyle üç düzeltme:
    + ölübant**'tan geçiyordu (curve gibi sürekli-direksiyon oyunlarında "girdi geç
    geliyor"). `GamepadInputAdapter` artık `throttleMs` alır; LOCAL adaptörü 0 ms ile
    kurulur, uzak kumanda 40 ms bütçesini korur (AGENTS §6).
+
+---
+
+## Zemin-L* Kısıtı Gevşetme Kararı (2026-09-30)
+
+**Karar: zemin-L\* alt sınırı 92.5 → 75, üst sınır 97.5 korunur, ΔL\* ≤ 14 (eski: 6).**
+
+**Gerekçe:** Orijinal kısıt P3 sarısı (#FFD24A, L\*=85.9) ile zemin çakışmasını önlüyordu.
+Kullanıcı oyunun "daha renkli" görünmesini istedi ve kısıt kaldırma kararını açıkça onayladı.
+Oyuncu okunurluğu avatarların `#1A1A1A` koyu konturu ile korunur — zemin L\* değil kontur
+kontrast sağlar. Yeni alt sınır 75: L\*~40-60 aralığındaki tüm oyuncu renklerinden >14 puan
+parlak, konturla birlikte yeterli ayrışma sağlanır.
+
+**Etkilenen dosyalar:** `src/core/fieldKit.js` (FIELD_THEMES), `tests/fieldKit.test.mjs` (§8 sınırları).
+
+**Geri alma:** `floor/floorHigh/floorEdge/floorLow` değerlerini L\*∈[92.5,97.5] bandına çekmek
+ve test sınırlarını eski haline döndürmek yeterlidir.

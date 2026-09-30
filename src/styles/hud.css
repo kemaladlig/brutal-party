@@ -75,6 +75,10 @@
   transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
 
+#in-game-hud.is-match #btn-open-options {
+  border-color: var(--game-accent, var(--edge));
+}
+
 #btn-open-options:active {
   transform: translate(2px, 2px);
   box-shadow: 1px 1px 0 var(--edge-strong);

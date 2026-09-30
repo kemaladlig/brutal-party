@@ -34,6 +34,7 @@ import {
   uiFont,
   CONTROL_MODE,
 } from './ui/tokens.js';
+import { fieldTheme } from './core/fieldKit.js';
 import { subscribePreferences } from './core/preferences.js';
 import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, clearRemoteMove, clearRemoteAim, isBotEkleEnabled, getColorClashIndices, refreshSlotCard, refreshAllHostSlots } from './core/slotManager.js';
 import { getAvatarProfile, sanitizeAvatar, pickFreeColor, setSlotAvatar, clearSlotAvatar, loadLocalSeatColors, ensureLocalSeatColorsForTypes, getLocalSeatColors } from './core/customizationManager.js';
@@ -332,11 +333,31 @@ let lastLocalControlSyncAt = 0;
 // açılmamak üzere kapatabiliyordu.
 const localMobileControlsVisible = () => !localMobileOverlay.classList.contains('hidden');
 
+let lastAppliedThemeMode = null;
+function syncInGameTheme() {
+  const current = roomFlow.getCurrentMode();
+  if (current === lastAppliedThemeMode) return;
+  lastAppliedThemeMode = current;
+  if (!current || String(current).toLowerCase() === 'menu') {
+    document.documentElement.style.removeProperty('--game-accent');
+    document.documentElement.style.removeProperty('--game-floor');
+    document.documentElement.style.removeProperty('--game-edge');
+    return;
+  }
+  const th = fieldTheme(current);
+  if (th) {
+    document.documentElement.style.setProperty('--game-accent', th.accent);
+    document.documentElement.style.setProperty('--game-floor', th.floor);
+    document.documentElement.style.setProperty('--game-edge', th.floorEdge);
+  }
+}
+
 // Maç akarken üst küme ⋮'ye iner (`#in-game-hud.is-match` + CSS): skor şeridi
 // ve saha üst payı boş kalır. Lobi kurulumunda (motor LOBBY, oda GAME fazında)
 // hızlı düğmeler yerinde durur; hazırlık/sayaçta küme zaten ⋮'dir.
 function syncInGameHud() {
   if (!inGameHud) return;
+  syncInGameTheme();
   const phase = roomFlow.roomPhase();
   const engineState = getActiveGameEngine()?.state;
   const inMatch = phase === 'STAGING' || phase === 'COUNTDOWN'

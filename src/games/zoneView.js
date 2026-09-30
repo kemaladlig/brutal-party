@@ -218,7 +218,7 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
     paintTerritory(layer, grid, colors, stamp);
   }
 
-  ctx.fillStyle = '#EFEAE0';
+  ctx.fillStyle = '#CCFAE0';
   ctx.fillRect(x, y, s, s);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(layer.canvas, x, y, s, s);

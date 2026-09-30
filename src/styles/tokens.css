@@ -10,14 +10,14 @@
 
   /* ---- Yüzeyler ---- */
   --surface: #14101f;
-  --surface-2: #1c1730;
-  --elevated: #241d3d;
+  --surface-2: #1a1435;
+  --elevated: #201944;
   --paper: var(--surface);
   --paper-warm: var(--surface-2);
   --card: var(--elevated);
   /* Buton/kart yüzeyi. `--white` artık "doygun dolgu üstündeki yazı"dır ve
      öyle kalır; yüzey rengi bu token'dır. */
-  --panel: #2b2348;
+  --panel: #272050;
 
   /* ---- Mürekkep / çizgi ---- */
   --ink: #f6f1e8;
@@ -63,17 +63,22 @@
   /* ---- Marka rengi (yalnız WhatsApp davet butonu) ---- */
   --brand-whatsapp: #25d366;
 
+  /* ---- Dinamik oyun teması token'ları (oyun/staging anında JS ile doldurulur) ---- */
+  --game-accent: var(--yellow);
+  --game-floor: var(--paper);
+  --game-edge: var(--edge);
+
   /* ---- Sahne (ana menü tam kaplama yüzeyi) ----
      Ana menü artık düz bir sayfa değil, üzerinde karakterin durduğu bir
      arena: derin lacivert gökyüzünden canlı altın zemine düşen ışık.
      Koyu üst → aydınlık alt geçişi derinlik verir ve açık renkli HUD
      ile yüzey bileşenleri koyu zeminde öne çıkar. */
   --scene-top: #1a1f5c;
-  --scene-mid: #4b3aa6;
-  --scene-low: #b8459b;
+  --scene-mid: #6028cc;
+  --scene-low: #d4369e;
   --scene-bottom: #ffb03a;
-  --scene-glow: rgba(255, 226, 150, 0.55);
-  --scene-spot: rgba(255, 232, 168, 0.45);
+  --scene-glow: rgba(255, 200, 80, 0.72);
+  --scene-spot: rgba(255, 218, 100, 0.62);
   --scene-edge: rgba(8, 10, 40, 0.55);
   --scene-shadow: rgba(10, 8, 40, 0.5);
   --scene-floor: #e8871f;

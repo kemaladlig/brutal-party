@@ -38,8 +38,9 @@ import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } fr
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
+import { UI_COLORS } from '../ui/tokens.js';
 
-export const ZONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
+export const ZONE_COLORS = Object.freeze([...UI_COLORS.players]);
 export const ZONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 // Relic tipleri: Arena içinde nötr/orta alanda beliren taktiksel güç kristalleri
@@ -1344,7 +1345,8 @@ export class ZoneGame extends BaseMiniGame {
     for (let i = 0; i < this.grid.length; i++) {
       const o = this.grid[i];
       if (o === 0) continue;
-      tctx.fillStyle = ZONE_COLORS[o - 1];
+      const playerColor = this.players?.[o - 1]?.color || ZONE_COLORS[o - 1] || '#888888';
+      tctx.fillStyle = playerColor;
       tctx.fillRect(i % G, (i / G) | 0, 1, 1);
     }
     this.territoryDirty = false;
@@ -1364,12 +1366,13 @@ export class ZoneGame extends BaseMiniGame {
         ? 1 - Math.max(0, Math.min(1, p.dashCooldown / ZONE_TUNING.DASH_CD)) : null,
       pct: this.pct[p.index] || 0,
     }));
+    const colors = this.players.map((p, i) => p?.color || ZONE_COLORS[i]);
     drawZoneField(
       ctx,
       [this.field.x, this.field.y, this.field.s],
       this.cell,
       this.grid,
-      ZONE_COLORS,
+      colors,
       scenePlayers,
       this.relics,
       nowSec,
@@ -1420,7 +1423,7 @@ export class ZoneGame extends BaseMiniGame {
         'P3 [IJKL/O]',
         'P4 [TFGH/B]',
       ],
-      colors: ZONE_COLORS,
+      colors: this.players.map((p, i) => p?.color || ZONE_COLORS[i]),
       accent: '#2F6A4F',
       roundBannerTitle: this.roundWinner ? t('zone.took', this.roundWinner.name) : t('game.draw'),
       roundBannerColor: this.roundWinner ? this.roundWinner.color : '#1A1A1A',

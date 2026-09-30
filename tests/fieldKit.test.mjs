@@ -393,14 +393,15 @@ test('themes carry every contract field, with primitive types only', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. OKUNABİLİRLİK BÜTÇESİ — "daha güzel zemin" ile "rekabetçi okunabilirlik"
-//    arasındaki pazarlığı sıfırlayan kapı.
+// 8. OKUNABİLİRLİK BÜTÇESİ — renkli sahalar, kontur-korumalı okunurluk.
 //
-//    Ölçülen gerçek: P3 sarısı #FFD24A L* = 85.93. Krem aile o kadar parlak ki
-//    tabanı koyulaştırarak derinlik satın alınamaz — `floorLow` #E6DDCC (L* 88.4)
-//    + vignette + duvar bandı sahanın alt yarısında zemini L* 85.9'a indirip
-//    sarıyla kontrastı SIFIRLAMIŞTI. Derinlik bundan böyle kroma ile kurulur.
-//    Bu testi gevşetmeden önce sarının yerine ne koyacağını söyle.
+//    KARAR (2026-09-30, MOTION_PLAN §Zemin-L* Kısıtı Gevşetme): zemin-L*
+//    alt sınırı 92.5 → 75'e indirildi. Orijinal sınır P3 sarısı (#FFD24A,
+//    L*=85.9) ile zemin çakışmasını önlemek için vardı. Yeni tasarım kararı:
+//    oyuncu okunurluğu zemin parlaklığından değil avatarın `#1A1A1A` koyu
+//    konturu ile sağlanır. L*≥75 zemini L*~40-60 oyuncu renklerinden >14
+//    puan parlak — konturla yeterli ayrışma garantilidir.
+//    ΔL* ≤ 14 (eski 6): renkli rampalara alan açar.
 // ---------------------------------------------------------------------------
 const srgbToLinear = (c) => {
   const v = c / 255;
@@ -417,7 +418,8 @@ function lstar(hex) {
 
 test('floor stays inside the legibility budget against every player color', () => {
   const FLOOR_KEYS = ['floor', 'floorHigh', 'floorEdge', 'floorLow'];
-  // Vignette + duvar gölge bandının zeminden yediği pay; bütçenin içindedir.
+  // Kontur-korumalı bütçe: zemin L* ≥ 75 (MOTION_PLAN §Zemin-L* Kısıtı Gevşetme).
+  // Oyuncu konturları #1A1A1A (L*≈10) ile zeminden ayrışır; L* farkı 14+ puan.
   const SHADING_ALLOWANCE = 1.5;
   const players = UI_COLORS.players.map((hex) => ({ hex, L: lstar(hex) }));
   const darkestPlayer = Math.min(...players.map((p) => p.L));
@@ -425,11 +427,11 @@ test('floor stays inside the legibility budget against every player color', () =
   for (const [id, palette] of Object.entries(FIELD_THEMES)) {
     const ramp = FLOOR_KEYS.map((key) => ({ key, L: lstar(palette[key]) }));
     for (const { key, L } of ramp) {
-      assert.ok(L <= 97.5, `${id}.${key} L*=${L.toFixed(1)}: üst sınır 97.5 — üstü "bembeyaz"ın ta kendisi`);
-      assert.ok(L >= 92.5, `${id}.${key} L*=${L.toFixed(1)}: alt sınır 92.5 — taban sarıya yapışıyor`);
+      assert.ok(L <= 97.5, `${id}.${key} L*=${L.toFixed(1)}: üst sınır 97.5 — beyaza patlıyor`);
+      assert.ok(L >= 75, `${id}.${key} L*=${L.toFixed(1)}: alt sınır 75 — oyuncu konturu L*~10, fark >14 gerekli`);
     }
     const span = Math.max(...ramp.map((r) => r.L)) - Math.min(...ramp.map((r) => r.L));
-    assert.ok(span <= 6, `${id}: zemin L* aralığı ${span.toFixed(1)} > 6 — sarı bütçesi`);
+    assert.ok(span <= 14, `${id}: zemin L* aralığı ${span.toFixed(1)} > 14`);
     const floorMin = Math.min(...ramp.map((r) => r.L));
     assert.ok(floorMin - SHADING_ALLOWANCE > darkestPlayer,
       `${id}: en koyu zemin (${floorMin.toFixed(1)}) en koyu oyuncu renginden (${darkestPlayer.toFixed(1)}) yukarıda kalmalı`);
@@ -439,6 +441,7 @@ test('floor stays inside the legibility budget against every player color', () =
 test('the brightest floor never blows out to white', () => {
   for (const [id, palette] of Object.entries(FIELD_THEMES)) {
     assert.ok(lstar(palette.floorHigh) < 97.5, `${id}.floorHigh beyaza patlıyor`);
+    assert.ok(lstar(palette.floorHigh) >= 75, `${id}.floorHigh çok koyu — oyuncu okunurluk bütçesi`);
   }
 });
 

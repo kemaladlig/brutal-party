@@ -156,7 +156,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  border: 1.5px solid var(--edge-strong);
+  border: 1.5px solid var(--game-accent, var(--edge-strong));
   background: var(--surface);
   color: var(--ink);
   box-shadow: var(--shadow-soft);
@@ -1529,7 +1529,7 @@
   font-weight: 800;
   font-size: 13px;
   letter-spacing: 1.5px;
-  color: var(--gold-deep);
+  color: var(--game-accent, var(--gold-deep));
 }
 
 .countdown-number {
@@ -1537,7 +1537,7 @@
   font-weight: 900;
   font-size: 110px;
   line-height: 1;
-  color: var(--ink);
+  color: var(--game-accent, var(--ink));
   text-shadow: 0 10px 24px var(--dim-35);
 }
 

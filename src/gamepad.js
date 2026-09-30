@@ -24,6 +24,7 @@ import { openCustomizeModal } from './ui/customizeModal.js';
 import { getTabletopIconSvg } from './core/tabletopIcons.js';
 import { GamepadWorldView } from './ui/gamepadWorldView.js';
 import { fxHaptic, fxPadFeedback } from './core/fxKit.js';
+import { fieldTheme } from './core/fieldKit.js';
 import { createFxEventFilter } from './core/networkProtocol.js';
 import { renderLocalGamepadShell, renderRemoteGamepadShell } from './ui/gamepadShell.js';
 import { openControllerLayoutEditor } from './ui/controllerLayoutEditor.js';
@@ -1061,6 +1062,12 @@ export class GamepadManager {
     this.countdownActive = false;
     this._countdownT = null;
     if (gameMode) this.selectedHostGame = gameMode;
+    const th = gameMode ? fieldTheme(gameMode) : null;
+    if (this.overlay && th) {
+      this.overlay.style.setProperty('--game-accent', th.accent);
+      this.overlay.style.setProperty('--game-floor', th.floor);
+      this.overlay.style.setProperty('--game-edge', th.floorEdge);
+    }
     this.renderGameController('LOBBY');
   }
 
@@ -1131,6 +1138,12 @@ export class GamepadManager {
     this.stagingOpen = false;
     this.countdownActive = false;
     this._countdownT = null;
+    const isLobby = String(this.gameMode).toLowerCase() === 'lobby';
+    if (this.overlay && isLobby) {
+      this.overlay.style.removeProperty('--game-accent');
+      this.overlay.style.removeProperty('--game-floor');
+      this.overlay.style.removeProperty('--game-edge');
+    }
   }
 
   _startPhysicalGamepad() {
@@ -1165,6 +1178,19 @@ export class GamepadManager {
     if (this._resultTimer) { clearTimeout(this._resultTimer); this._resultTimer = 0; }
     this._cloneCdBtn = null;
     this.gameMode = mode;
+    const isLobby = String(mode).toLowerCase() === 'lobby';
+    const th = !isLobby ? fieldTheme(mode) : null;
+    if (this.overlay) {
+      if (th) {
+        this.overlay.style.setProperty('--game-accent', th.accent);
+        this.overlay.style.setProperty('--game-floor', th.floor);
+        this.overlay.style.setProperty('--game-edge', th.floorEdge);
+      } else if (!this.stagingOpen) {
+        this.overlay.style.removeProperty('--game-accent');
+        this.overlay.style.removeProperty('--game-floor');
+        this.overlay.style.removeProperty('--game-edge');
+      }
+    }
     this._startPhysicalGamepad();
     const workspace = this._workspaceOverride || document.getElementById('gamepad-workspace');
     if (!workspace) return;

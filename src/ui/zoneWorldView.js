@@ -17,7 +17,7 @@ import { fitWorld, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlacehol
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
-const ZONE_FALLBACK = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
+const ZONE_FALLBACK = UI_COLORS.players;
 
 export function createWorldViewRenderer() {
   return {

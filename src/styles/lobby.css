@@ -331,7 +331,7 @@
 .staging-launch-btn {
   flex: 1;
   padding: 14px 12px;
-  background-color: var(--p1);
+  background-color: var(--game-accent, var(--p1));
   color: var(--white);
   border: 3px solid var(--edge);
   border-radius: var(--radius-btn);
@@ -396,7 +396,7 @@
   font-weight: 900;
   font-size: min(38vw, 260px);
   line-height: 1;
-  color: var(--yellow);
+  color: var(--game-accent, var(--yellow));
   -webkit-text-stroke: 4px var(--ink);
   text-shadow: 10px 10px 0px var(--ink);
 }

@@ -121,6 +121,7 @@
 }
 
 .game-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-float); }
+.game-card:hover img { transform: scale(1.035); filter: saturate(1.15) brightness(1.05); }
 .game-card:active { transform: scale(0.96); }
 
 .game-card.is-active {

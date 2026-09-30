@@ -63,14 +63,14 @@ const THEME_BASE = Object.freeze({
   floorHigh: '#FBF6EC',        // ışık gelen üst bölge (L* 97.0)
   floorEdge: '#F3EBDA',        // orta-üst geçiş durakı (L* 93.3)
   floorLow: '#F2E9D8',         // en alt — aynı parlaklıkta, daha sıcak (L* 92.6)
-  lightPool: 0.3,              // 0..1 — üst-sol ışık havuzunun şiddeti
+  lightPool: 0.58,              // 0..1 — üst-sol ışık havuzunun şiddeti
   // Işığın RENGİ. Varsayılan nötr beyaz; tema hue'si verirse havuz o renkle
   // yanar ve saha "boyanmış kâğıt" değil, "içinden ışık geçen bir yüzey"
   // okur. `lightTint`/`edgeTint`/`shadeTint` sayısal değil, rgba metnidir —
   // böylece tema yazarken alpha'yı tek yerde görürsün (THEME_FIELDS sözleşmesi
   // ilkel tiplerle sınırlıdır, nested nesne yazılamaz).
   lightTint: '255, 255, 255',  // ışık havuzunun RGB'si
-  lightAlpha: 0.5,             // havuz tepe opaklığı (× lightPool)
+  lightAlpha: 0.72,             // havuz tepe opaklığı (× lightPool)
   // Vinyet ve duvar gölgesi nötr siyah yerine tema renginde: köşeler soğumak
   // yerine oyunun rengine döner, zemin tek parça krem gibi okunmaz.
   edgeTint: '26, 26, 26',      // vinyet / köşe kararması RGB'si
@@ -115,7 +115,11 @@ const THEME_BASE = Object.freeze({
 export const THEME_FIELDS = Object.freeze(Object.keys(THEME_BASE));
 
 function theme(overrides) {
-  return Object.freeze({ ...THEME_BASE, ...overrides });
+  return Object.freeze({
+    ...THEME_BASE,
+    backdrop: overrides.floorLow || THEME_BASE.backdrop,
+    ...overrides,
+  });
 }
 
 /**
@@ -145,13 +149,12 @@ export const FIELD_THEMES = Object.freeze({
     shadeTint: '46, 38, 30',
   }),
 
-  // PONG — soğuk kâğıt kort. Çizgiler belirgin, motif iki halka, köşelerde hem
-  // L plaka hem nişan çizgisi (host'un eski saha dilinin tamamı).
+  // PONG — soğuk buz mavisi kort.
   PONG: theme({
-    lightTint: '226, 240, 255',
-    edgeTint: '30, 40, 52',
-    shadeTint: '30, 40, 52',
-    floorHigh: '#F7F7F4', floor: '#F4F4F0', floorEdge: '#EFF0EA', floorLow: '#ECECE5',
+    lightTint: '200, 230, 255',
+    edgeTint: '20, 60, 140',
+    shadeTint: '20, 60, 140',
+    floorHigh: '#E8F4FF', floor: '#DAEEFF', floorEdge: '#C8E4FA', floorLow: '#BAD8F5', accent: '#1D4ED8',
     grid: 'rgba(26, 26, 26, 0.055)',
     frame: 'rgba(26, 26, 26, 0.13)',
     motif: 'rings',
@@ -160,12 +163,12 @@ export const FIELD_THEMES = Object.freeze({
     seams: 3,
   }),
 
-  // BOMB — sıcak kiremit. Kasa derisiyle aynı aile.
+  // BOMB — sıcak mercan/turuncu. Patlama enerjisi.
   BOMB: theme({
-    accent: '#C2410C', motif: 'spark',    lightTint: '255, 226, 190',
-    edgeTint: '58, 32, 20',
-    shadeTint: '58, 32, 20',
-    floorHigh: '#FCF4E9', floor: '#F9EFE6', floorEdge: '#F6EADE', floorLow: '#F4E8DB',
+    accent: '#C2410C', motif: 'spark',    lightTint: '255, 170, 80',
+    edgeTint: '100, 40, 10',
+    shadeTint: '100, 40, 10',
+    floorHigh: '#FFE2C4', floor: '#FFD4A0', floorEdge: '#FFC488', floorLow: '#FFB874',
     grid: 'rgba(26, 26, 26, 0.06)',
     frame: 'rgba(26, 26, 26, 0.11)',
     decal: 'rgba(43, 43, 40, 0.06)',
@@ -173,25 +176,25 @@ export const FIELD_THEMES = Object.freeze({
     texture: 'weave',
   }),
 
-  // TANKS — adaçayı yeşili, çim/çakıl karışımı saha.
+  // TANKS — çayır yeşili. Savaş meydanı çim.
   TANKS: theme({
-    lightTint: '226, 255, 214',
-    edgeTint: '26, 48, 32',
-    shadeTint: '26, 48, 32',
-    floorHigh: '#F6F8F0', floor: '#F3F5EC', floorEdge: '#EEF1E5', floorLow: '#EBEEDF', accent: '#3F6212',
+    lightTint: '140, 220, 100',
+    edgeTint: '30, 80, 30',
+    shadeTint: '30, 80, 30',
+    floorHigh: '#D4F0C4', floor: '#BEEAAA', floorEdge: '#A8DE90', floorLow: '#94D278', accent: '#3F6212',
     grid: 'rgba(26, 26, 26, 0.065)',
     motif: 'crosshairRings',
     texture: 'speckle',
     block: 'stone',
   }),
 
-  // SNAKE — kehribar/amber.
+  // SNAKE — kehribar/amber. Sıcak ve tatlı.
   SNAKE: theme({
     motif: 'coil',
-    lightTint: '255, 238, 186',
-    edgeTint: '58, 42, 16',
-    shadeTint: '58, 42, 16',
-    floorHigh: '#FBF4E8', floor: '#F8F1E2', floorEdge: '#F4EBD9', floorLow: '#F3E9D5', accent: '#B45309',
+    lightTint: '255, 220, 80',
+    edgeTint: '80, 55, 10',
+    shadeTint: '80, 55, 10',
+    floorHigh: '#FFF0C0', floor: '#FFE48A', floorEdge: '#FFD660', floorLow: '#FFC840', accent: '#B45309',
     grid: 'rgba(26, 26, 26, 0.06)',
     texture: 'speckle',
     block: 'stone',
@@ -221,12 +224,12 @@ export const FIELD_THEMES = Object.freeze({
     block: 'plinth',
   }),
 
-  // HEIST — ılık kum.
+  // HEIST — altın kum. Ganimetçi sıcaklığı.
   HEIST: theme({
-    lightTint: '255, 234, 186',
-    edgeTint: '56, 40, 18',
-    shadeTint: '56, 40, 18',
-    floorHigh: '#FAF4EC', floor: '#F8F0E7', floorEdge: '#F5EBDF', floorLow: '#F3E9DB',
+    lightTint: '255, 210, 100',
+    edgeTint: '90, 60, 10',
+    shadeTint: '90, 60, 10',
+    floorHigh: '#FFEDC0', floor: '#FFDF90', floorEdge: '#FFD070', floorLow: '#FFBE50',
     grid: 'rgba(26, 26, 26, 0.06)',
     accent: '#D99B26',
     motif: 'vault',
@@ -234,24 +237,24 @@ export const FIELD_THEMES = Object.freeze({
     block: 'crate',
   }),
 
-  // ARCHER — zeytin/fitil.
+  // ARCHER — açık zeytin/yeşil-sarı. Orman av meydanı.
   ARCHER: theme({
-    accent: '#3F6212', motif: 'arcs',    lightTint: '246, 255, 206',
-    edgeTint: '40, 46, 20',
-    shadeTint: '40, 46, 20',
-    floorHigh: '#F7F6ED', floor: '#F4F2E8', floorEdge: '#F0EDDF', floorLow: '#EDEADC',
+    accent: '#3F6212', motif: 'arcs',    lightTint: '180, 230, 80',
+    edgeTint: '50, 70, 10',
+    shadeTint: '50, 70, 10',
+    floorHigh: '#E8F4B0', floor: '#D8EC90', floorEdge: '#C4E070', floorLow: '#B0D450',
     grid: 'rgba(26, 26, 26, 0.06)',
     corners: 'crosshair',
     texture: 'speckle',
     block: 'rock',
   }),
 
-  // NINJA — arduvaz, gece avlusuna soğuk gönderme.
+  // NINJA — lavanta. Gece avlusu, mor-gri.
   NINJA: theme({
-    lightTint: '226, 214, 255',
-    edgeTint: '36, 26, 58',
-    shadeTint: '36, 26, 58',
-    floorHigh: '#F4F5F7', floor: '#F1F2F5', floorEdge: '#EBEDF1', floorLow: '#E8EAEF',
+    lightTint: '180, 140, 255',
+    edgeTint: '60, 30, 100',
+    shadeTint: '60, 30, 100',
+    floorHigh: '#EAE0FA', floor: '#E2D4F6', floorEdge: '#DAC8F2', floorLow: '#D2BCEE',
     grid: 'rgba(26, 26, 26, 0.07)',
     accent: '#7C3AED',
     motif: 'core',
@@ -260,49 +263,47 @@ export const FIELD_THEMES = Object.freeze({
     block: 'dark',
   }),
 
-  // CURVE — çelik. Izgarası hareketin yönünü okutur, doku seyrek kalmalı.
+  // CURVE — çelik mavi/periwinkle. Hız pistinin soğuk çizgisi.
   CURVE: theme({
-    accent: '#1D4ED8', motif: 'flow',    lightTint: '226, 236, 255',
-    edgeTint: '26, 34, 52',
-    shadeTint: '26, 34, 52',
-    floorHigh: '#F6F6F7', floor: '#F3F3F5', floorEdge: '#EDEEF1', floorLow: '#EAEAEF',
+    accent: '#1D4ED8', motif: 'flow',    lightTint: '140, 180, 255',
+    edgeTint: '30, 50, 120',
+    shadeTint: '30, 50, 120',
+    floorHigh: '#E0EEFF', floor: '#CCE2FF', floorEdge: '#B8D6FF', floorLow: '#A6CAFF',
     grid: 'rgba(26, 26, 26, 0.06)',
     texture: 'plate',
     block: 'dark',
   }),
 
-  // RACE — asfalt kremi; pist yüzeyi zaten kendi çizgilerini taşıyor.
+  // RACE — gri asfalt. Pist yüzeyi.
   RACE: theme({
-    accent: '#1A1A1A', motif: 'chequer',    lightTint: '255, 232, 206',
-    edgeTint: '58, 42, 26',
-    shadeTint: '58, 42, 26',
-    floorHigh: '#F8F5F1', floor: '#F6F2EB', floorEdge: '#F2EDE5', floorLow: '#F0EBE2',
+    accent: '#1A1A1A', motif: 'chequer',    lightTint: '220, 220, 220',
+    edgeTint: '40, 40, 40',
+    shadeTint: '40, 40, 40',
+    floorHigh: '#ECECEC', floor: '#DFDFDF', floorEdge: '#D4D4D4', floorLow: '#C9C9C9',
     grid: 'rgba(26, 26, 26, 0.05)',
     texture: 'tile',
     seams: 3,
     block: 'hazard',
   }),
 
-  // CROWN — altın krem, taht ritmi.
+  // CROWN — altın kral. Taht ritmi.
   CROWN: theme({
-    lightTint: '255, 240, 198',
-    edgeTint: '58, 44, 20',
-    shadeTint: '58, 44, 20',
-    floorHigh: '#FAF5E8', floor: '#F8F1E2', floorEdge: '#F4ECD9', floorLow: '#F2EAD5', accent: '#B45309',
+    lightTint: '255, 215, 80',
+    edgeTint: '90, 60, 10',
+    shadeTint: '90, 60, 10',
+    floorHigh: '#FFF0C0', floor: '#FFE494', floorEdge: '#FFD86E', floorLow: '#FFCC50', accent: '#B45309',
     grid: 'rgba(26, 26, 26, 0.06)',
     motif: 'crown',
     texture: 'tile',
     block: 'plinth',
   }),
 
-  // HORDE: üç harita teması — `hordeConfig.HORDE_MAPS` bunları sığ yayılımla
-  // devralır. Eskiden yalnız `floor` override'ı vardı, yani rampanın geri kalanı
-  // ortak kremden geliyordu ve harita tonu sahanın yarısında kayboluyordu.
+  // HORDE: üç harita teması — `hordeConfig.HORDE_MAPS` bunları sığ yayılımla devralır.
   foundry: theme({
-    lightTint: '255, 216, 176',
-    edgeTint: '62, 30, 18',
-    shadeTint: '62, 30, 18',
-    floorHigh: '#F9F6EF', floor: '#F6F3EB', floorEdge: '#F2EDE2', floorLow: '#F0EADF',
+    lightTint: '255, 160, 80',
+    edgeTint: '100, 40, 10',
+    shadeTint: '100, 40, 10',
+    floorHigh: '#FFE0C4', floor: '#FFD0A0', floorEdge: '#FFC080', floorLow: '#FFAC60',
     grid: 'rgba(26, 26, 26, 0.075)',
     accent: '#D84727',
     motif: 'foundry',
@@ -311,10 +312,10 @@ export const FIELD_THEMES = Object.freeze({
     block: 'crate',
   }),
   reactor: theme({
-    lightTint: '198, 240, 255',
-    edgeTint: '16, 44, 58',
-    shadeTint: '16, 44, 58',
-    floorHigh: '#F2F7F8', floor: '#EFF4F6', floorEdge: '#E7EFF2', floorLow: '#E3ECEF',
+    lightTint: '100, 220, 240',
+    edgeTint: '10, 70, 90',
+    shadeTint: '10, 70, 90',
+    floorHigh: '#C8F2F8', floor: '#B0EAF6', floorEdge: '#98E0F2', floorLow: '#82D8EE',
     grid: 'rgba(14, 116, 144, 0.10)',
     accent: '#0891B2',
     motif: 'reactor',
@@ -323,10 +324,10 @@ export const FIELD_THEMES = Object.freeze({
     block: 'metal',
   }),
   core: theme({
-    lightTint: '228, 208, 255',
-    edgeTint: '40, 26, 62',
-    shadeTint: '40, 26, 62',
-    floorHigh: '#F8F6FC', floor: '#F5F2FA', floorEdge: '#F1EDF7', floorLow: '#EEE9F5',
+    lightTint: '180, 120, 255',
+    edgeTint: '70, 30, 120',
+    shadeTint: '70, 30, 120',
+    floorHigh: '#EAD6F6', floor: '#E0CAF0', floorEdge: '#D6BEEA', floorLow: '#CCB2E4',
     grid: 'rgba(91, 33, 182, 0.10)',
     accent: '#7C3AED',
     motif: 'core',

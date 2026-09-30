@@ -441,3 +441,28 @@ testler aynı saf fonksiyonları paylaşır.
 - **Haptik:** `FX_HAPTIC` olay→desen; `haptics.js` tercih kapısından geçer.
 
 Kilit testleri: `tests/fxKit.test.mjs`, `tests/fxEvents.test.mjs`.
+
+---
+
+## 9. Görsel Dil & Tema Seferberliği ("Vibrant Pastel Arcade")
+
+Oyunun görsel dili, soluk/monokrom krem zeminlerden canlı, neşeli ve oyun kimliğini hissettiren **"Vibrant Pastel Arcade"** diline evrilmiştir.
+
+- **Felsefe ve Okunabilirlik:**
+  - Her minigame'e özgü, doymuş ancak göz yormayan 4 duraklı pastel zemin rampası (`floorHigh` → `floorLow`).
+  - $L^* \ge 75$ ve $\Delta L^* \le 14$ CIE Lab bütçesi (`tests/fieldKit.test.mjs §8`) ile kilitlenmiş taban; koyu konturlu avatarlar (P1–P4) sahanın her noktasında yüksek kontrastla parlar.
+  - Sınır derinliği: sert siyah konturlar yerine pahlı kenar (`edgeLight` + `edgeInk`) ve yumuşak ışık havuzu (`lightPool: 0.58`, `lightAlpha: 0.72`).
+  - Viewport çerçevesi (`backdrop`): sahanın dışı siyah veya donuk bej değil, sahanın `floorLow` pastel rengiyle harmanlanmış yumuşak vinyet.
+
+- **Merkezi Mimari (Single Source of Truth):**
+  - **Tasarım token'ları:** `src/styles/tokens.css` ve `src/ui/tokens.js`.
+  - **Saha paletleri & temalar:** `src/core/fieldKit.js` içindeki `FIELD_THEMES` ve `fieldTheme(mode)` fonksiyonu.
+  - **Dönüşüm kolaylığı:** Görsel dilin tek merkezden türemesi sayesinde 15 motorun simülasyon koduna veya her oyunun çizim döngüsüne dokunmadan tüm oyunların zeminleri, viewport'ları, HUD'ları ve kumandaları anında senkronize olur.
+
+- **Uygulama ve Yayılım Aşamaları (Roadmap):**
+  1. **Saha Zeminleri ve Sahne:** 15 oyunun pastel rampaları (`fieldKit.js`), sunset menü gradyanı ve derinleştirilmiş koyu yüzeyler (`tokens.css`, `scene.css`).
+  2. **HUD ve Staging Sayaç:** Oyun içi çip auraları ve 3-2-1 geri sayım perdesinin aktif oyunun `accent` rengini taşıması (`main.js`, `hud.css`, `lobby.css`).
+  3. **Telefon Kumandası (Gamepad Shell):** Aktif oyuna göre kumanda üst barı ve buton auralarının temayı yansıtması (`gamepad.js`, `gamepad.css`).
+  4. **FX & Partikül Uyumu:** Kıvılcım/toz efektlerinin nötr griden tema vurgusuna geçişi (`fxKit.js`).
+  5. **Zafer ve Sonuç Paneli:** Maç sonu kartında kazanan rengi ve pastel kutlama aurası (`resultPanel.js`, `worldViewKit.js`).
+
