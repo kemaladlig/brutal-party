@@ -9,7 +9,7 @@ import {
 } from './tokens.js';
 import { t } from '../i18n.js';
 import { hasTabletopIcon, drawTabletopIcon } from '../core/tabletopIcons.js';
-import { isCompactLandscape } from '../core/playfield.js';
+import { isCompactLandscape, fieldPx } from '../core/playfield.js';
 import { drawResultPanel, dimBehindPanel, resultPanelRadius, uiTextScale } from './resultPanel.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
@@ -118,6 +118,7 @@ export function renderArenaWatermarkTimer(ctx, {
   alpha = 0.45,
   ringProgress = null,
   offsetY = 0,
+  placement = 'center',
 }) {
   if (!text) return;
   const scale = getUiScale(arena);
@@ -126,11 +127,37 @@ export function renderArenaWatermarkTimer(ctx, {
   // Sayacın okunur olması yeterli; ilerlemeyi zaten halka taşıyor. Eski
   // tavan (minDim'in %18'i, masaüstünde ~142px) saha yüksekliğinin %15.6'sını
   // kaplıyordu — kalıcı bir sayaç için gereğinden büyük. Yeni tavan %9.5.
-  const mainFontSize = Math.max(30, Math.min(Math.round(78 * (scale / 1.55)), Math.floor(minDim * 0.095)));
+  //
+  // 'top'/'bottom' modunda punto küçülür: kenar konumu HUD'ın yoğun olduğu
+  // banttır, merkez konumundaki kadar yer kaplamamalı.
+  const edgePlacement = placement === 'top' || placement === 'bottom';
+  const sizeScale = edgePlacement ? 0.72 : 1;
+  const mainFontSize = Math.max(24, Math.min(
+    Math.round(78 * (scale / 1.55) * sizeScale),
+    Math.floor(minDim * 0.095 * sizeScale),
+  ));
   const subFontSize = Math.max(11, Math.min(Math.round(16 * scale), Math.floor(minDim * 0.032)));
 
+  // Kenar konumu: HUD'ın yoğun olduğu üst/alt bant. Ölçek `scale` ile gelir
+  // (`getUiScale` arenanın gerçek px'ini zaten biliyor), ayrı `arenaUnit`
+  // gerektirmez — `fieldPx` tasarım px'i ölçekli CSS px'e çevirir.
+  // Kenar konumu: HUD'ın yoğun olduğu üst/alt bant. `inset` hem yazıyı hem
+  // ilerleme halkasını içeri alır; halka yarıçapı `minDim * 0.10` olduğu için
+  // konum kaydırma tek başına yetmez — halka da kenardan içeride kalmalı.
+  //
+  // Ölçülen hata: ilk sürüm `inset = max(fieldPx(scale,26), minDim*0.11)`
+  // idi; 1600x900'de bu 90px çıkıyordu, halka ise 90+ yarıçaplık yüzünden
+  // arenanın üst bandındaki engellerin ÜSTÜNE biniyordu. Pay, halka yarıçapı
+  // + yazı yüksekliğiyle birlikte hesaplanır.
+  const ringR = Math.max(minDim * 0.10, mainFontSize * 0.85);
+  const inset = Math.max(
+    fieldPx({ unit: scale }, 26),
+    minDim * 0.06 + ringR * 0.55,
+  );
   const cx = arena.cx;
-  const cy = arena.cy + offsetY;
+  const cy = placement === 'top' ? arena.top + inset
+    : placement === 'bottom' ? arena.bottom - inset
+      : arena.cy + offsetY;
 
   ctx.save();
 
@@ -144,7 +171,6 @@ export function renderArenaWatermarkTimer(ctx, {
 
   // İlerleme halkası: 12 yönünden (üst) başlar, kalan süreyi temsil ederek saat yönünde azalarak biter
   if (typeof ringProgress === 'number' && Number.isFinite(ringProgress)) {
-    const ringR = Math.max(minDim * 0.10, mainFontSize * 0.85);
     const clamped = Math.max(0, Math.min(1.0, ringProgress));
 
     // Arka plan sabit ray halkası (kontrastlı dış çizgi + iç ray)

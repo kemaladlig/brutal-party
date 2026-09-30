@@ -114,15 +114,48 @@ test('eski `startRound` motorları da desteklenir', () => {
   assert.equal(started, 1);
 });
 
-test('beginDrawRound maç sonucunu TEMİZLEMEZ — beraberlik bir raunttur', () => {
+test('beginDrawRound maç sonucu YAZMAZ — beraberlik bir RAUNTtur, maç değil', () => {
   const game = fakeGame({ matchWinner: { index: 0 }, matchDraw: false });
   beginDrawRound(game, 'timeout');
 
   assert.equal(game.state, 'ROUND_OVER');
   assert.equal(game.roundWinner, null);
   assert.equal(game.matchWinner, null, 'önceki maç sonucu sızmamalı');
-  assert.equal(game.matchDraw, true);
+  // KRİTİK: berabere raunt maçı bitirmez. `matchDraw` yalnız "maç berabere
+  // bitti" demektir; `hasMatchResult` onu okuduğu için burada `true` yazmak
+  // boşluk dolunca akışı MATCH_OVER'a kaçırıyor ve raunt bitmiyordu.
+  assert.equal(game.matchDraw, false, 'berabere raunt maç sonucu yazmaz');
+  assert.equal(game.roundDrew, true, 'beraberlik ayrı alanda okunur');
+  assert.equal(hasMatchResult(game), false, 'berabere raunt maç sonucu DEĞİLDİR');
   assert.equal(game.roundTransitionTimer, ROUND_GAP.DRAW);
+});
+
+test('berabere raunt boşluktan sonra sonraki rauntu başlatır', () => {
+  const game = fakeGame();
+  let started = 0;
+  game.startNewRound = () => { started += 1; game.state = 'PLAYING'; };
+  beginDrawRound(game, 'timeout');
+  game.roundTransitionTimer = 0;
+
+  assert.equal(tickRoundFlow(game, 0.016), true);
+  assert.equal(started, 1, 'berabere raunttan sonra oyun DEVAM eder');
+  assert.equal(game.state, 'PLAYING');
+});
+
+test('endMatch(null) boşluğa girmeden maçı berabere bitirir', () => {
+  const game = fakeGame();
+  endMatch(game, null, 'tied-out');
+  assert.equal(game.state, 'MATCH_OVER');
+  assert.equal(game.matchDraw, true);
+  assert.ok(hasMatchResult(game));
+});
+
+test('roundDrew motor sonraki raunda sızmaz (beginRound temizler)', () => {
+  const game = fakeGame();
+  beginDrawRound(game, 'tie');
+  assert.equal(game.roundDrew, true);
+  beginRound(game, { index: 0, name: 'AYSE' }, 'kill');
+  assert.equal(game.roundDrew, false, 'kazanan raunt beraberlik bayrağını temizler');
 });
 
 test('beginRound kazananı yazar, beraberlik bayrağını temizler', () => {

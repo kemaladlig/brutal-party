@@ -505,7 +505,7 @@ export class RaceGame extends BaseMiniGame {
       if (this.handleUiTap(touch)) return;
       matchOverRestartTap(this, touch, {
         onRestart: () => {
-          this.resetMatch();
+          this.startNewMatch();
           playJoin();
         },
       });
@@ -892,7 +892,7 @@ export class RaceGame extends BaseMiniGame {
     } else {
       this.tiedRounds += 1;
       if (!this.players.some((p) => p.isJoined) || this.tiedRounds >= 2) {
-        beginDrawRound(this, reason);
+        endMatch(this, null, reason);
         return;
       }
     }
@@ -990,7 +990,7 @@ export class RaceGame extends BaseMiniGame {
         rows,
         onLobby: () => this.requestReturnToLobby(),
         onRestart: () => {
-          this.resetMatch();
+          this.startNewMatch();
           playJoin();
         },
       });

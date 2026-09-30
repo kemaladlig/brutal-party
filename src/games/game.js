@@ -212,8 +212,11 @@ export class Game extends BaseMiniGame {
   // Lokal kontroller: klavye veya tabletop direksiyon butonları ile sürüş
   applyControls(dt) {
     if (this.state !== 'PLAYING') return;
-    const minDim = Math.min(this.arena.width, this.arena.height);
-    const speed = minDim * 1.5;
+    // Raket hızı top profilinin KENDİSİNDEN gelir (`ball.paddleSpeed`).
+    // Ayrı sabit (`minDim * 1.5`) tutmak top tavanı değiştiğinde sessizce
+    // adaletsizlik yaratıyordu: top tavan hızında geliyor, raket de tam o
+    // hızda sürüyor, yani tepki payı sıfıra düşüyordu.
+    const speed = this.ball?.paddleSpeed ?? Math.min(this.arena.width, this.arena.height) * 1.5;
     this.paddles.forEach((p, i) => {
       if (!p.isJoined || p.isEliminated || p.isBot) return;
       const d = this.resolveSlotMoveDir(i);
@@ -323,7 +326,7 @@ export class Game extends BaseMiniGame {
     // 2. Maç Sonu Yeniden Başlatma
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      matchOverRestartTap(this, touch, { onRestart: () => { this.resetMatch(); playJoin(); } });
+      matchOverRestartTap(this, touch, { onRestart: () => { this.startNewMatch(); playJoin(); } });
       return;
     }
 
@@ -630,9 +633,17 @@ export class Game extends BaseMiniGame {
     }
   }
 
-  // Takılma-kırıcı: top 2.5 sn'de 4px bile oynamadıysa VEYA ralli 6 sn'dir
-  // ilerlemiyorsa (disk çevresi oyalanması) deterministik nötr servis verir.
-  // Fizik tuzaklarının (disk/cep/köşe) son sigortasıdır.
+  // Takılma-kırıcı: top GERÇEKTEN takılıyorsa (hız hattının altında ve konum
+  // ilerlemiyor) VEYA ralli 6 sn'dir ilerlemiyorsa (disk çevresi oyalanması)
+  // deterministik nötr servis verir. Fizik tuzaklarının son sigortasıdır.
+  //
+  // ÖNEMLİ: eskiden "2.5 sn'de 4px oynamadı" sayılıyordu — sabit 4 px, 1/120 sn
+  // adımda gizli bir HIZ eşiğidir (4 px/adım == 480 px/s). Servis hızı
+  // `startSpeed = baseMinSpeed * 1.30` tam olarak bu eşiğin 0.1% üstünde
+  // kalıyordu (800x600'da 480.48 px/s), hava sürtünmesi topu 0.03 sn sonra
+  // eşiğin ALTINA düşürüyor ve 2.5 sn sonra UÇAN top ışınlanıyordu. Oyuncu
+  // bunu "top 1-2 sekmeden sonra bir kereliğine tuhaf davranıyor" diye
+  // yaşıyordu. Eşik artık sabit px değil: topun kendi hız tabanının oranı.
   breakStall(dt) {
     const b = this.ball;
     if (b.isDead) {
@@ -646,8 +657,14 @@ export class Game extends BaseMiniGame {
     } else {
       this.rallyStallT = (this.rallyStallT || 0) + dt;
     }
+    // Konum ilerlemesi, adıma değil zamana göre ölçülür: sabit px eşiği
+    // saha ölçeğiyle oyun hızını değiştiriyordu (küçük saha = daha erken tetik).
+    // "Durdu" demek için top hız tabanının büyük bir kısmının ALTINDA olmalı.
+    const ballSpeed = Math.hypot(b.vx, b.vy);
+    const speedFloor = b.baseMinSpeed || 1;
+    const crawling = ballSpeed < speedFloor * 0.25;
     const moved = Math.hypot(b.x - (this.stallX ?? b.x), b.y - (this.stallY ?? b.y));
-    if (moved > 4) {
+    if (!crawling || moved > 1) {
       this.stallTimer = 0;
       this.stallX = b.x;
       this.stallY = b.y;

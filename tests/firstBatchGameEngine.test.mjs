@@ -151,6 +151,154 @@ test('PONG stall recovery returns to a neutral lane', () => {
   assert.equal(game.stallRecoveryCount, 1);
 });
 
+test('PONG never teleports a ball that is still flying', () => {
+  // Regresyon: takılma-kırıcı "2.5 sn'de 4 px oynamadı" diye sayıyordu. Sabit
+  // 4 px, 1/120 sn adımda 480 px/s'lik GİZLİ bir hız eşiğidir ve servis hızı
+  // (startSpeed = baseMinSpeed * 1.30) tam onun 0.1% üstündeydi. Sürtünme
+  // topu eşiğin altına düşürüp 2.5 sn sonra UÇAN topu merkeze ışınlıyordu —
+  // oyuncunun "top birkaç sekmeden sonra bir kereliğine tuhaf davranıyor"
+  // dediği şey buydu. Kırıcı yalnız top hız tabanının altına düşerse çalışmalı.
+  for (const [width, height] of [[800, 600], [1280, 720], [1920, 1080], [393, 852]]) {
+    const game = configurePong();
+    game.resize(width, height);
+    game.state = 'PLAYING';
+    game.launchBall();
+
+    const step = game.fixedStep;
+    let teleports = 0;
+    for (let i = 0; i < 120 * 6; i++) {
+      // Servis hızından düşen, topu hiç engellemeden uçan bir top.
+      game.ball.vx *= game.ball.dragFactor;
+      game.ball.vy *= game.ball.dragFactor;
+      game.ball.x += game.ball.vx * step;
+      game.ball.y += game.ball.vy * step;
+      game.lastRallySeen = game.ball.rallyCount;
+
+      const pos = { x: game.ball.x, y: game.ball.y };
+      game.breakStall(step);
+      if (Math.hypot(game.ball.x - pos.x, game.ball.y - pos.y) > 40) teleports++;
+      // saha dışına çıkmasın
+      if (game.ball.x < game.arena.left || game.ball.x > game.arena.right
+        || game.ball.y < game.arena.top || game.ball.y > game.arena.bottom) {
+        game.ball.x = game.arena.cx;
+        game.ball.y = game.arena.cy;
+      }
+    }
+
+    assert.equal(
+      teleports,
+      0,
+      `${width}x${height}: flying ball teleported ${teleports}x in 6s — the stall breaker is firing on a moving ball`,
+    );
+  }
+});
+
+test('PONG stall breaker still recovers a genuinely stopped ball', () => {
+  // Yukarıdaki düzeltmenin bedeli: kırıcı hâlâ kendi işini yapıyor mu?
+  // Top durduğunda (hız ~0) 2.5 sn sonra nötr servis vermeli.
+  for (const [width, height] of [[800, 600], [393, 852]]) {
+    const game = configurePong();
+    game.resize(width, height);
+    game.state = 'PLAYING';
+    game.ball.x = 130;
+    game.ball.y = 130;
+    game.ball.vx = 0;
+    game.ball.vy = 0;
+    game.stallTimer = 0;
+    game.stallX = game.ball.x;
+    game.stallY = game.ball.y;
+    game.lastRallySeen = game.ball.rallyCount;
+    game.rallyStallT = 0;
+
+    for (let i = 0; i < 120 * 2.4; i++) game.breakStall(game.fixedStep);
+    assert.equal(game.stallRecoveryCount, 0, `${width}x${height}: fired early`);
+
+    for (let i = 0; i < 120 * 0.4; i++) game.breakStall(game.fixedStep);
+    assert.equal(game.stallRecoveryCount, 1, `${width}x${height}: stopped ball was not recovered`);
+    assert.ok(Math.hypot(game.ball.vx, game.ball.vy) > 0, 'recovery must put the ball back in play');
+  }
+});
+
+test('PONG ball stays within reach of the fastest human paddle', () => {
+  // Adalet kuralı: top tavan hızında gelirken oyuncu, raketin TAPMAYAN kalan
+  // mesafeyi (goalSpan - length) top sahanın bir ucundan diğerine geçerken
+  // kapatabilmelidir. Değişmez "cap/paddle" çarpanı bu yüzden sabit bir
+  // sayı değil, ölçümle kilitli bir üst sınırdır: çok yüksek çarpan topu
+  // yapısal olarak yakalanamaz kılıyordu (1.30x denendi -> raket sahanın
+  // yalnızca %77'sini kapsıyordu, kimse köşeden köşeye topu tutamıyordu).
+  for (const [width, height] of [[800, 600], [1280, 720], [1920, 1080], [852, 393], [393, 852]]) {
+    const game = configurePong();
+    game.resize(width, height);
+
+    const ball = game.ball;
+    const paddle = game.paddles[0];
+    const cap = Math.max(ball.startSpeed, ball.speedCap);
+    const travelRange = game.getGoalBounds('bottom').goalSpan - paddle.length;
+    const ballCrossTime = game.arena.size / cap;
+    const paddleTime = travelRange / ball.paddleSpeed;
+
+    assert.ok(
+      paddleTime <= ballCrossTime,
+      `${width}x${height}: paddle needs ${paddleTime.toFixed(3)}s to cover ${travelRange.toFixed(0)}px `
+      + `but the ball crosses in ${ballCrossTime.toFixed(3)}s — a corner shot becomes uncatchable`,
+    );
+    // And it must not be trivially easy either: some tension is the point.
+    assert.ok(
+      cap > ball.paddleSpeed,
+      `${width}x${height}: cap (${cap.toFixed(0)}) must exceed paddle speed `
+      + `(${ball.paddleSpeed.toFixed(0)}) or the rally has no pressure`,
+    );
+  }
+});
+
+test('PONG speed curve is steep early then flattens', () => {
+  // Eğri biçimi korunuyor mu: ilk 6 vuruş belirgin hızlanmalı, sonrası
+  // yumuşak oturmalı (aşırılığı engelleyen kısım). Ölçüm: ilk 6 vuruşun
+  // kazancı, sonraki 9 vuruşun kazancından büyük olmalı.
+  for (const [width, height] of [[800, 600], [1920, 1080]]) {
+    const game = configurePong();
+    game.resize(width, height);
+    game.ball.reset(game.arena.cx, game.arena.cy);
+    game.state = 'PLAYING';
+
+    const paddle = game.paddles[0];
+    const speedAfter = (hit) => {
+      game.ball.rallyCount = hit;
+      game.ball.lastHitPlayer = -1;
+      game.ball.isSmash = false;
+      paddle.velocity = 0;
+      game.ball.x = paddle.coord;
+      game.ball.y = paddle.fixedPerpendicular - game.ball.radius - 3;
+      game.ball.vx = 0;
+      game.ball.vy = game.ball.startSpeed;
+      game.ball.resolvePaddleCollision(paddle);
+      return Math.hypot(game.ball.vx, game.ball.vy);
+    };
+
+    const serve = speedAfter(0);
+    const atSix = speedAfter(6);
+    const atFifteen = speedAfter(15);
+
+    const earlyGain = atSix - serve;
+    const lateGain = atFifteen - atSix;
+    assert.ok(
+      earlyGain > lateGain,
+      `${width}x${height}: first 6 hits gain ${earlyGain.toFixed(0)} px/s but the next 9 gain `
+      + `${lateGain.toFixed(0)} — the curve should be steep early and flat late`,
+    );
+
+    // Monotonic: never slows down mid-rally, never exceeds the cap.
+    let prev = 0;
+    const cap = Math.max(game.ball.startSpeed, game.ball.speedCap);
+    for (let hit = 0; hit <= 20; hit++) {
+      const s = speedAfter(hit);
+      assert.ok(s >= prev - 1e-6, `${width}x${height} rally ${hit} slowed down: ${s.toFixed(0)} < ${prev.toFixed(0)}`);
+      assert.ok(s <= cap + 1e-6, `${width}x${height} rally ${hit} exceeded cap: ${s.toFixed(0)} > ${cap.toFixed(0)}`);
+      prev = s;
+    }
+  }
+});
+
 test('PONG speed rises on every hit across TV-sized viewports', () => {
   for (const [width, height] of [[800, 600], [1920, 1080], [3840, 2160]]) {
     const game = configurePong();

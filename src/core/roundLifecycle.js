@@ -88,11 +88,21 @@ export function setRoundTimer(game, seconds) {
 }
 
 /**
- * Berabere raunt sonu → ROUND_OVER.
+ * Beraberlik/çıkmaz raunt sonu → ROUND_OVER.
  *
- * Maç sonucu TUTULMAZ (`matchWinner = null`, `matchDraw = true`): beraberlik bir
- * raunttur, maç değil. `roundWinner` de temizlenir — bant "berabere" der, kazanan
- * adını yazmaz.
+ * Maç sonucu TUTULMAZ. `matchDraw` YALNIZ "maç berabere bitti" demektir;
+ * boşluk dolunca `tickRoundFlow` maç bittiyse MATCH_OVER'a, bitmediyse
+ * `startNewRound` çağırır. Raunt beraberliği `roundDrew` ile anlatılır —
+ * bant "berabere" yazar, kazanan adını yazmaz.
+ *
+ * Ölçülen hata: burada `matchDraw = true` yazılıyordu. `hasMatchResult`
+ * `matchDraw`'ı okuduğu için boşluk dolunca akış `startNewRound` yerine
+ * MATCH_OVER'a geçiyordu; yani BOMB/CURVE/SNAKE'de 90-120 saniyelik
+ * normal bir beraberlik tüm maçı bitiriyordu, CLONE/COLLAPSE/HEIST/ZONE'de
+ * `MAX_TIED_ROUNDS` sayacı hiç işe yaramıyordu.
+ *
+ * Gerçekten berabere biten MAÇ isteyen motor `endMatch(game, null, reason)`
+ * çağırır.
  *
  * @param {any} game
  * @param {string} [reason] tanılama etiketi (paket/log için)
@@ -102,7 +112,8 @@ export function beginDrawRound(game, reason = 'draw', transition = ROUND_GAP.DRA
   game.state = 'ROUND_OVER';
   game.roundWinner = null;
   game.matchWinner = null;
-  game.matchDraw = true;
+  game.matchDraw = false;
+  game.roundDrew = true;
   game.roundResolutionReason = reason;
   setRoundTimer(game, transition);
   return game;
@@ -125,17 +136,37 @@ export function beginRound(game, winner, reason = 'round', gap = ROUND_GAP.WIN) 
   game.state = 'ROUND_OVER';
   game.roundWinner = winner || null;
   game.matchDraw = false;
+  game.roundDrew = !winner;
   game.roundResolutionReason = reason;
   setRoundTimer(game, gap);
   return game;
 }
 
 /**
+ * Berabere biten MAÇ, boşluğa girerek (son rauntu görsel olarak "solmaya"
+ * bırakan motorlar için).
+ *
+ * Neden ayrı: boşluğu doldurmak `beginRound`'in, beraberliği MAÇ sonu saymak
+ * `endMatch`'in işidir. Elle `beginRound(null)` + `matchDraw = true` yazmak
+ * çalışır ama SIRAYA BAĞLIDIR — `beginRound` `matchDraw`'ı temizlediği için
+ * iki çağrının yer değiştirilmesi sessizce maçı yeniden oynanabilir kılar.
+ * Burada tek kapı var.
+ *
+ * @param {any} game
+ * @param {string} [reason]
+ * @param {number} [gap] boşluk; verilmezse `ROUND_GAP.MATCH_END`
+ */
+export function endMatchInGap(game, reason = 'draw-match', gap = ROUND_GAP.MATCH_END) {
+  beginRound(game, null, reason, gap);
+  game.matchDraw = true;
+  return game;
+}
+
+/**
  * Maç sonu → doğrudan MATCH_OVER.
  *
- * Yalnız "maç bitti" diyen motorlar için (ara boşluk istemeyenler). Son rauntu
- * da bir boşluğa sokmak isteyen motor `beginRound` + `endMatch` sırasını
- * kullanmalı; ikisi birlikte çalışır.
+ * `winner` null ise maç BERABERE biter (`matchDraw = true`). Boşluk isteyen
+ * motor `endMatchInGap` kullanır.
  *
  * @param {any} game
  * @param {any} winner kazanan varlık, ya da null (berabere maç)
@@ -145,12 +176,18 @@ export function endMatch(game, winner, reason = 'match') {
   game.state = 'MATCH_OVER';
   game.matchWinner = winner || null;
   game.matchDraw = !winner;
+  game.roundDrew = false;
   game.roundResolutionReason = reason;
   return game;
 }
 
 export function hasMatchResult(game) {
   return !!(game.matchWinner || game.matchDraw);
+}
+
+/** Boşluğa giren raunt berabere mi bitti? Bant ve kumanda bundan okur. */
+export function roundWasDraw(game) {
+  return !!game?.roundDrew;
 }
 
 export function roundTimedOut(timer, limit) {

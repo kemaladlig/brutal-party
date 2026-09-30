@@ -965,12 +965,12 @@ export class ZoneGame extends BaseMiniGame {
 
   finishTiedRound(reason = 'tie') {
     if (!this.players.some((p) => p.isJoined)) {
-      beginDrawRound(this, reason);
+      endMatch(this, null, reason);
       return;
     }
     this.tiedRounds += 1;
     if (this.tiedRounds >= ZONE_TUNING.MAX_TIED_ROUNDS) {
-      beginDrawRound(this, reason);
+      endMatch(this, null, reason);
       return;
     }
     beginRound(this, null, reason);
@@ -1036,7 +1036,7 @@ export class ZoneGame extends BaseMiniGame {
       return;
     }
     if (this.state === 'MATCH_OVER') {
-      matchOverRestartTap(this, touch, { radius: Infinity, onRestart: () => { this.resetMatch(); playJoin(); } });
+      matchOverRestartTap(this, touch, { radius: Infinity, onRestart: () => { this.startNewMatch(); playJoin(); } });
       return;
     }
     if (this.state === 'PLAYING') {
@@ -1431,6 +1431,10 @@ export class ZoneGame extends BaseMiniGame {
         color: isUrgent ? '#D84727' : (leader ? leader.color : null),
         alpha: isUrgent ? 0.70 : 0.46,
         ringProgress: Math.max(0, remain / 90),
+        // Sayaç oyun alanının ÜSTÜNDEDİR. Ölçülen kusur: merkez konumunda
+        // devasa sayı bir oyuncunun üstüne biniyordu (BOMB ekran görüntüsünde
+        // '10.5s' doğrudan P1'in üstündeydi) — merkez, oyunun olduğu yerdir.
+        placement: 'top',
       });
     }
   }

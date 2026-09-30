@@ -119,14 +119,20 @@ test('non-playing remote joystick packets are neutralized', () => {
 
 test('repeated tied rounds end as an explicit match draw', () => {
   const game = createGame();
+
+  // İlk beraberlik yalnız bir RAUNTtur: maç bitmez, oyun devam eder.
   game.endRound(null, 'timeout');
   assert.equal(game.tiedRounds, 1);
-  game.startNewRound();
-  game.endRound(null, 'timeout');
-  assert.equal(game.matchDraw, true);
   assert.equal(game.state, 'ROUND_OVER');
+  assert.equal(game.matchDraw, false, 'berabere raunt maç sonucu yazmaz');
   game.roundTransitionTimer = 0;
   game.update(performance.now() + 16);
+  assert.notEqual(game.state, 'MATCH_OVER', 'berabere raunt maçı bitirmez');
+
+  // İkinci üst üste beraberlikte maç BERABERE biter.
+  game.endRound(null, 'timeout');
+  assert.equal(game.tiedRounds, 2);
+  assert.equal(game.matchDraw, true);
   assert.equal(game.state, 'MATCH_OVER');
 });
 
@@ -154,5 +160,10 @@ test('match-over rendering does not accumulate action buttons', () => {
     y: replay.y + replay.h / 2,
     id: 100,
   });
-  assert.equal(game.state, 'LOBBY');
+  // "YENİDEN OYNA" artık LOBBY'ye değil DOĞRUDAN yeni maça gider: eski davranış
+  // skoru sıfırlayıp 3-2-1 sayacını baştan kuruyordu, yani maç sonrası en pahalı
+  // 10 saniye. Lobiye dönmek kartın İKİNCİ eylemi olarak duruyor.
+  assert.equal(game.state, 'PLAYING');
+  assert.equal(game.matchWinner, null);
+  assert.equal(game.scores.every((v) => v === 0), true);
 });

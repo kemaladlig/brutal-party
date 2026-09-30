@@ -303,7 +303,7 @@ test('CURVE-01: INVERT süresi bot ve insanlarda geri sayar, kendiliğinden bite
   }
 });
 
-test('BOMB resolves zero survivors as a match draw and rejects stunned dash', () => {
+test('BOMB rejects stunned dash and keeps a tied round going before ending the match', () => {
   const game = configureBomb();
   assert.equal(game.roundId, 1);
 
@@ -318,11 +318,25 @@ test('BOMB resolves zero survivors as a match draw and rejects stunned dash', ()
   game.state = 'PLAYING';
   game.lastTime = 1000;
   game.update(1016);
-  assert.equal(game.state, 'ROUND_OVER');
-  assert.equal(game.matchDraw, true);
 
+  // İlk beraberlik bir RAUNTtur: maç bitmez, oyun devam eder.
+  assert.equal(game.state, 'ROUND_OVER');
+  assert.equal(game.matchDraw, false, 'berabere raunt maç sonucu yazmaz');
+  assert.equal(game.roundDrew, true);
+
+  // Boşluk dolunca sonraki raunt başlar.
   game.roundTransitionTimer = 0;
   game.update(1032);
+  assert.notEqual(game.state, 'MATCH_OVER');
+
+  // Üst üste BOMB_MAX_TIED_ROUNDS beraberlikte maç BERABERE biter.
+  // DİKKAT: `startNewRound` oyuncuları yeniden doğurur — öldürme SONRA yapılır.
+  game.lastTime = 2000;
+  game.update(2016);
+  assert.equal(game.state, 'PLAYING', 'ikinci raunt başladı');
+  game.players.forEach((p) => { p.isAlive = false; });
+  game.update(2032);
+  assert.equal(game.matchDraw, true, 'üst üste beraberlikte maç berabere biter');
   assert.equal(game.state, 'MATCH_OVER');
 });
 
@@ -341,8 +355,15 @@ test('CURVE gates spawn input and resolves timeout as a draw', () => {
   game.roundTimer = game.roundLimit - 0.001;
   game.lastTime = 1016;
   game.update(1032);
+
+  // Zaman aşımı berabere RAUNTtur — maç bitmez, oyun devam eder.
   assert.equal(game.state, 'ROUND_OVER');
-  assert.equal(game.matchDraw, true);
+  assert.equal(game.matchDraw, false, 'zaman aşımı maçı bitirmez');
+  assert.equal(game.roundDrew, true);
+
+  game.roundTransitionTimer = 0;
+  game.update(1048);
+  assert.notEqual(game.state, 'MATCH_OVER');
 });
 
 test('SNAKE separates food score, sweeps wall collision, and resolves zero survivors', () => {
@@ -375,8 +396,15 @@ test('SNAKE separates food score, sweeps wall collision, and resolves zero survi
   game.state = 'PLAYING';
   game.lastTime = 1000;
   game.update(1016);
+
+  // Kimse hayatta kalmadıysa berabere RAUNT: maç bitmez, oyun devam eder.
   assert.equal(game.state, 'ROUND_OVER');
-  assert.equal(game.matchDraw, true);
+  assert.equal(game.matchDraw, false, 'berabere raunt maç sonucu yazmaz');
+  assert.equal(game.roundDrew, true);
+
+  game.roundTransitionTimer = 0;
+  game.update(1032);
+  assert.notEqual(game.state, 'MATCH_OVER');
 });
 
 test('CURVE HIZLAN accelerates, widens the turn and then cools down', () => {
@@ -452,8 +480,11 @@ test('HEIST terminates an empty match and advances round ids', () => {  const ga
   game.state = 'PLAYING';
   game.lastTime = 1000;
   game.update(1016);
-  assert.equal(game.state, 'ROUND_OVER');
+
+  // Kimse kalmadıysa MAÇ berabere biter (HEIST'te oyuncu yoksa devam edecek
+  // bir maç yok) — ama yine de boşluktan sonra, anında değil.
   assert.equal(game.matchDraw, true);
+  assert.equal(game.state, 'MATCH_OVER');
 });
 
 test('CROWN resets dropped hold time and resolves timeout', () => {

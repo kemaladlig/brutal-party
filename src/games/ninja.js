@@ -12,7 +12,7 @@ import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
-import { beginDrawRound, beginRound, tickRoundFlow } from '../core/roundLifecycle.js';
+import { beginRound, endMatch, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldPx, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import {
   NINJA_RADIUS,
@@ -58,7 +58,16 @@ export class NinjaGame extends BaseMiniGame {
     this.arena = { cx: 0, cy: 0, size: 0, left: 0, right: 0, top: 0, bottom: 0 };
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty'];
     this.scores = [0, 0, 0, 0];
-    this.targetScore = 5;
+    // Maç hedefi ve raunt süresi — kısaltma (ninja.js).
+// Gerekçe: parti oyununda maç uzunluğu = yeniden başlatma sayısı. Ölçülen
+// durum: hedefler 2-5 arası dağınıktı ve bir kısmı 5'ti (CLONE/NINJA/
+// SNAKE/COLLAPSE/CURVE); ilk açılışta 5 hedef, dakikalar süren bir maç
+// demek, yani oyuncu iki dakika içinde 'tekrar oynayalım' demiyor.
+// Kural: çoğu oyun 2 hedefte biter (ilk-iki kuralı — bir parti turunda
+// kazanan çabuk bellenir, maç tekrarına yer kalır). LOSER'a özgü
+// süreler korunur: HORDE/LASER kill/süre oyunlarıdır, onlarda hedef 2
+// olmak turu anlamsız kılardı.
+this.targetScore = 2;
     this.players = [];
     this.obstacles = [];
     this.lanterns = [];
@@ -344,7 +353,7 @@ export class NinjaGame extends BaseMiniGame {
 
     this.tiedRounds += 1;
     if (!this.players.some((p) => p.isJoined) || this.tiedRounds >= 2) {
-      beginDrawRound(this, reason);
+      endMatch(this, null, reason);
       return;
     }
     beginRound(this, null, reason);
@@ -544,7 +553,7 @@ export class NinjaGame extends BaseMiniGame {
 
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      matchOverRestartTap(this, touch, { onRestart: () => { this.resetMatch(); playJoin(); } });
+      matchOverRestartTap(this, touch, { onRestart: () => { this.startNewMatch(); playJoin(); } });
       return;
     }
 

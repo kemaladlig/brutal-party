@@ -26,7 +26,7 @@ import { buildLayout } from '../core/arenaKit.js';
 import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
-import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, damp, resolveAABB } from '../core/physics2d.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
@@ -47,7 +47,13 @@ export const BOMB_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 // Depar bekleme süresi (sn) — triggerDash, entity HUD ve masa-ortası butonu aynı kaynaktan okur
 const BOMB_DASH_COOLDOWN = 2.2;
-const BOMB_ROUND_LIMIT = 90;
+// Raunt süresi kısaltıldı: ölçülen bekleme 90-120 sn bandındaydı, yani
+// gerekçesiz bir raunt en az 1.5 dakika sürüyordu. Partide maç uzunluğu
+// = yeniden başlatma sayısıdır; 60-75 sn bandı raunt bitiminde iki oyuncu
+// arasındaki kararı anında ikinci maça taşır.
+const BOMB_ROUND_LIMIT = 60;
+// Üst üste bu kadar beraberlikte maç berabere kapanır.
+const BOMB_MAX_TIED_ROUNDS = 2;
 // Gövde yarıçapı (1920x1080 referansı). `fieldRadius` tabanı GÖRELİ: mutlak px
 // tabanı küçük sahada varlığı şişiriyordu. Alt sınır zaten `minUnit` verir.
 const BOMB_RADIUS = 36;
@@ -95,7 +101,17 @@ export class BombGame extends BaseMiniGame {
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty']; // P1 Human, P2 Normal Bot default
 
     // Set Tournament Scoring
-    this.targetScore = 3;
+    // Maç hedefi ve raunt süresi — kısaltma (bomb.js).
+// Gerekçe: parti oyununda maç uzunluğu = yeniden başlatma sayısı. Ölçülen
+// durum: hedefler 2-5 arası dağınıktı ve bir kısmı 5'ti (CLONE/NINJA/
+// SNAKE/COLLAPSE/CURVE); ilk açılışta 5 hedef, dakikalar süren bir maç
+// demek, yani oyuncu iki dakika içinde 'tekrar oynayalım' demiyor.
+// Kural: çoğu oyun 2 hedefte biter (ilk-iki kuralı — bir parti turunda
+// kazanan çabuk bellenir, maç tekrarına yer kalır). LOSER'a özgü
+// süreler korunur: HORDE/LASER kill/süre oyunlarıdır, onlarda hedef 2
+// olmak turu anlamsız kılardı.
+this.targetScore = 2;
+    this.tiedRounds = 0;
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
@@ -281,6 +297,8 @@ export class BombGame extends BaseMiniGame {
     this.roundWinner = null;
     this.matchWinner = null;
     this.matchDraw = false;
+    this.tiedRounds = 0;
+    this.roundDrew = false;
     this.roundResolutionReason = null;
     this.roundId = 0;
     this.roundTimer = 0;
@@ -313,6 +331,7 @@ export class BombGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
     this.matchDraw = false;
+    this.tiedRounds = 0;
     this.roundResolutionReason = null;
     this.startNewRound();
   }
@@ -505,11 +524,9 @@ export class BombGame extends BaseMiniGame {
   resolveLoneSurvivor(alive) {
     const remaining = alive || this.players.filter((p) => p.isJoined && p.isAlive);
     if (remaining.length > 1 || this.state !== 'PLAYING') return false;
-    if (remaining.length === 0) {
-      beginDrawRound(this, 'no-survivor');
-      return true;
-    }
+    if (remaining.length === 0) return this.finishTiedRound('no-survivor');
     const survivor = remaining[0];
+    this.tiedRounds = 0;
     this.roundWinner = survivor;
     this.scores[survivor.index]++;
     if (this.scores[survivor.index] >= this.targetScore) {
@@ -517,6 +534,19 @@ export class BombGame extends BaseMiniGame {
       return true;
     }
     beginRound(this, survivor, 'lone-survivor');
+    return true;
+  }
+
+  // Berabere raunt: puan verilmez, oyun devam eder. Üst üste BOMB_MAX_TIED_ROUNDS
+  // beraberlikte maç berabere biter — berabere raunt artık maçı bitirmediği için
+  // bu sayaç çıkmaz döngüyü keser (bkz. core/roundLifecycle.beginDrawRound).
+  finishTiedRound(reason = 'tie') {
+    this.tiedRounds += 1;
+    if (this.tiedRounds >= BOMB_MAX_TIED_ROUNDS) {
+      endMatch(this, null, reason);
+      return true;
+    }
+    beginDrawRound(this, reason);
     return true;
   }
 
@@ -532,6 +562,16 @@ export class BombGame extends BaseMiniGame {
     // 1. UI Buttons tap handling (yalnızca Lobi ve Maç Sonu ekranlarında)
     if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
+    }
+
+    // MATCH_OVER: kartın DIŞINDA dokunma = yeniden başlat (ortak kısayol).
+    // Ölçülen kusur: bu dallar yalnız `handleUiTap` çalıştırıp geçiyordu,
+    // yani maç sonunda ekrana dokunmak HİÇBİR ŞEY yapmıyordu — oyuncu
+    // 'tekrar oynayalım' diyebilmek için yol yoktu. `matchOverRestartTap`
+    // kartın içine dokunmayı yutar (yanlışlıkla yeniden başlatmayı önler).
+    if (this.state === 'MATCH_OVER') {
+      matchOverRestartTap(this, touch, { onRestart: () => this.startNewMatch() });
+      return;
     }
 
     if (this.handleRoundOverSkip()) return;
@@ -599,7 +639,10 @@ export class BombGame extends BaseMiniGame {
 
     this.roundTimer += dt;
     if (roundTimedOut(this.roundTimer, this.roundLimit)) {
-      beginDrawRound(this, 'timeout');
+      // Zaman aşımı bir BERABERE RAUNTtur, maç sonu değil: kimse puan almaz.
+      // Oyuncu kalmadıysa maç da kapanır (yoksa sonsuz çıkmaz döngüsü olur).
+      if (this.players.some((p) => p.isJoined)) this.finishTiedRound('timeout');
+      else endMatch(this, null, 'timeout');
       return;
     }
 
@@ -905,6 +948,10 @@ export class BombGame extends BaseMiniGame {
         color: isPanic ? '#D84727' : (carrierP2 ? carrierP2.color : null),
         alpha: isPanic ? 0.72 : 0.50,
         ringProgress: Math.max(0, remain / this.bombMaxTime),
+        // Sayaç oyun alanının ÜSTÜNDEDİR. Ölçülen kusur: merkez konumunda
+        // devasa sayı bir oyuncunun üstüne biniyordu (BOMB ekran görüntüsünde
+        // '10.5s' doğrudan P1'in üstündeydi) — merkez, oyunun olduğu yerdir.
+        placement: 'top',
       });
     }
 
@@ -942,7 +989,14 @@ export class BombGame extends BaseMiniGame {
             .filter((p) => p.isJoined)
             .map((p) => ({ color: p.color, name: p.name, value: `${this.scores[p.index] || 0}★`, score: this.scores[p.index] || 0 }))
         : [],
-      onRestart: () => this.resetCurrentGame(),
+      // Maç sonu "tekrar oyna" hedefi: `startNewMatch`, `resetMatch` DEĞİL.
+// Ölçülen tutarsızlık: 15 motorun 11'i `resetMatch()` çağırıyordu — o da
+// motoru LOBBY'ye döndürür, yani skor silinir ve 3-2-1 sayacı baştan
+// kurulur. Maç bittikten sonra tekrar oynamak isteyen oyuncu için en
+// pahalı 10 saniye. `startNewMatch` aynı yerde sıfırlar ama DOĞRUDAN
+// oynanabilir duruma geçer. Lobiye dönmek kartın ikinci eylemi olarak
+// zaten var (`requestReturnToLobby`), yani hiçbir yol kaybolmaz.
+onRestart: () => this.startNewMatch(),
       customControls: (c) => {
         const { arena } = this;
         const mapBtnW = Math.min(220, arena.size * 0.52);

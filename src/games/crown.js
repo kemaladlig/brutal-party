@@ -25,7 +25,7 @@ import { clampToArena, damp, resolveAABB, pointBlocked } from '../core/physics2d
 import { createPlayer } from '../core/playerEntity.js';
 import { updateCrownBotAI } from '../ai/crownAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
-import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { spawnPickup } from '../core/pickupSystem.js';
 import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
@@ -610,12 +610,12 @@ export class CrownGame extends BaseMiniGame {
 
   finishTiedRound(reason = 'timeout') {
     if (!this.players.some((p) => p.isJoined)) {
-      beginDrawRound(this, reason);
+      endMatch(this, null, reason);
       return;
     }
     this.tiedRounds += 1;
     if (this.tiedRounds >= CROWN_TUNING.MAX_TIED_ROUNDS) {
-      beginDrawRound(this, reason);
+      endMatch(this, null, reason);
       return;
     }
     beginRound(this, null, reason);
@@ -1386,6 +1386,7 @@ export class CrownGame extends BaseMiniGame {
           color: urgent ? UI_COLORS.crownRed : king.color,
           alpha: urgent ? 0.70 : 0.48,
           ringProgress: 1.0 - progress,
+          placement: 'top',
         });
       } else {
         renderArenaWatermarkTimer(ctx, {
@@ -1393,6 +1394,7 @@ export class CrownGame extends BaseMiniGame {
           text: 'TACI KAP',
           subText: '',
           alpha: 0.35,
+          placement: 'top',
         });
       }
     }
@@ -1485,6 +1487,16 @@ export class CrownGame extends BaseMiniGame {
   onTouchStart(touch) {
     if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
+    }
+
+    // MATCH_OVER: kartın DIŞINDA dokunma = yeniden başlat (ortak kısayol).
+    // Ölçülen kusur: bu dallar yalnız `handleUiTap` çalıştırıp geçiyordu,
+    // yani maç sonunda ekrana dokunmak HİÇBİR ŞEY yapmıyordu — oyuncu
+    // 'tekrar oynayalım' diyebilmek için yol yoktu. `matchOverRestartTap`
+    // kartın içine dokunmayı yutar (yanlışlıkla yeniden başlatmayı önler).
+    if (this.state === 'MATCH_OVER') {
+      matchOverRestartTap(this, touch, { onRestart: () => this.startNewMatch() });
+      return;
     }
 
     if (this.handleRoundOverSkip()) return;

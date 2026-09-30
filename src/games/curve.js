@@ -13,7 +13,7 @@ import { isInputIntent } from '../core/inputIntent.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { distToSegmentSquared, clampToArena } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
-import { beginDrawRound, beginRound, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
+import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import { createCurveWorldPacket } from './curveView.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import { vibrate } from '../core/haptics.js';
@@ -31,7 +31,15 @@ const SLOT_INDEX_BY_ACTION_CODE = buildCodeToSlotMap(['action']);
 // Oyun kuralı değişmez — sadece aday kümesi daralır.
 const SEG_GRID_CELL = 48;
 const SEG_MAX = 24000;
-const CURVE_ROUND_LIMIT = 120;
+// Raunt süresi kısaltıldı: ölçülen bekleme 90-120 sn bandındaydı, yani
+// gerekçesiz bir raunt en az 1.5 dakika sürüyordu. Partide maç uzunluğu
+// = yeniden başlatma sayısıdır; 60-75 sn bandı raunt bitiminde iki oyuncu
+// arasındaki kararı anında ikinci maça taşır.
+const CURVE_ROUND_LIMIT = 75;
+// Üst üste bu kadar beraberlikte maç berabere kapanır. Berabere raunt artık
+// maçı bitirmediği için (bkz. core/roundLifecycle.beginDrawRound) bu sayaç
+// çıkmaz döngüyü keser.
+const CURVE_MAX_TIED_ROUNDS = 2;
 // FIELD_TIERS §open: kafa tasarım yarıçapı (eski 9 "harita kocaman" hissi verdi)
 const CURVE_HEAD_RADIUS = 18;
 
@@ -70,7 +78,17 @@ export class CurveGame extends BaseMiniGame {
 
     // Tournament scores
     this.scores = [0, 0, 0, 0];
-    this.targetScore = 5;
+    // Maç hedefi ve raunt süresi — kısaltma (curve.js).
+// Gerekçe: parti oyununda maç uzunluğu = yeniden başlatma sayısı. Ölçülen
+// durum: hedefler 2-5 arası dağınıktı ve bir kısmı 5'ti (CLONE/NINJA/
+// SNAKE/COLLAPSE/CURVE); ilk açılışta 5 hedef, dakikalar süren bir maç
+// demek, yani oyuncu iki dakika içinde 'tekrar oynayalım' demiyor.
+// Kural: çoğu oyun 2 hedefte biter (ilk-iki kuralı — bir parti turunda
+// kazanan çabuk bellenir, maç tekrarına yer kalır). LOSER'a özgü
+// süreler korunur: HORDE/LASER kill/süre oyunlarıdır, onlarda hedef 2
+// olmak turu anlamsız kılardı.
+this.targetScore = 2;
+    this.tiedRounds = 0;
     this.roundWinner = null;
     this.matchWinner = null;
     this.matchDraw = false;
@@ -257,6 +275,7 @@ export class CurveGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
     this.matchDraw = false;
+    this.tiedRounds = 0;
     this.roundResolutionReason = null;
     this.startRound();
   }
@@ -403,7 +422,7 @@ export class CurveGame extends BaseMiniGame {
     // 2. Center Restart Button (Match Over)
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      matchOverRestartTap(this, touch, { onRestart: () => { this.resetMatch(); playJoin(); } });
+      matchOverRestartTap(this, touch, { onRestart: () => { this.startNewMatch(); playJoin(); } });
       return;
     }
 
@@ -506,7 +525,9 @@ export class CurveGame extends BaseMiniGame {
     if (this.state === 'PLAYING') {
       this.roundTimer += dt;
       if (roundTimedOut(this.roundTimer, this.roundLimit)) {
-        beginDrawRound(this, 'timeout', 1.6);
+        // Zaman aşımı BERABERE RAUNTtur, maç sonu değil: kimse puan almaz.
+      if (this.players.some((p) => p.isJoined)) this.finishTiedRound('timeout');
+      else endMatch(this, null, 'timeout');
         return;
       }
 
@@ -865,10 +886,23 @@ export class CurveGame extends BaseMiniGame {
 
   handleRoundEnd(winner) {
     if (!winner) {
-      beginDrawRound(this, 'no-survivor');
+      this.finishTiedRound('no-survivor');
       return;
     }
+    this.tiedRounds = 0;
     beginRound(this, winner, 'no-survivor');
+  }
+
+  // Berabere raunt: puan verilmez, oyun devam eder. Üst üste sınıra ulaşılırsa
+  // maç berabere biter (bkz. core/roundLifecycle.beginDrawRound).
+  finishTiedRound(reason = 'tie') {
+    this.tiedRounds += 1;
+    if (this.tiedRounds >= CURVE_MAX_TIED_ROUNDS) {
+      endMatch(this, null, reason);
+      return true;
+    }
+    beginDrawRound(this, reason);
+    return true;
   }
 
   updateBotAI(bot, dt) {

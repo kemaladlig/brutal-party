@@ -703,7 +703,7 @@ export class LaserGame extends BaseMiniGame {
 
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      matchOverRestartTap(this, touch, { onRestart: () => { this.resetMatch(); playJoin(); } });
+      matchOverRestartTap(this, touch, { onRestart: () => { this.startNewMatch(); playJoin(); } });
       return;
     }
 
@@ -1191,6 +1191,10 @@ export class LaserGame extends BaseMiniGame {
         urgent: remain <= 10,
         alpha: remain <= 10 ? 0.70 : 0.46,
         ringProgress: Math.max(0, remain / 90),
+        // Sayaç oyun alanının ÜSTÜNDEDİR. Ölçülen kusur: merkez konumunda
+        // devasa sayı bir oyuncunun üstüne biniyordu (BOMB ekran görüntüsünde
+        // '10.5s' doğrudan P1'in üstündeydi) — merkez, oyunun olduğu yerdir.
+        placement: 'top',
       });
 
     }

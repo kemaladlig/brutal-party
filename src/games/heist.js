@@ -23,7 +23,7 @@ import { pulse } from '../ui/motion.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { updateHeistBotAI } from '../ai/heistAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
-import { lobbyCenterStartTap, lobbyQuadrantTap } from '../core/touchFlow.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, damp, resolveAABB } from '../core/physics2d.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { createPlayer } from '../core/playerEntity.js';
@@ -374,13 +374,13 @@ export class HeistGame extends BaseMiniGame {
 
   finishTiedRound(reason = 'tie') {
     if (!this.players.some((p) => p.isJoined)) {
-      beginDrawRound(this, reason);
+      endMatch(this, null, reason);
       return;
     }
     this.roundTied = true;
     this.tiedRounds += 1;
     if (this.tiedRounds >= HEIST_TUNING.MAX_TIED_ROUNDS) {
-      beginDrawRound(this, reason);
+      endMatch(this, null, reason);
       return;
     }
     beginRound(this, null, reason);
@@ -486,6 +486,16 @@ export class HeistGame extends BaseMiniGame {
     // 1. UI Buttons tap handling (yalnızca Lobi ve Maç Sonu ekranlarında)
     if (this.state === 'LOBBY' || this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
+    }
+
+    // MATCH_OVER: kartın DIŞINDA dokunma = yeniden başlat (ortak kısayol).
+    // Ölçülen kusur: bu dallar yalnız `handleUiTap` çalıştırıp geçiyordu,
+    // yani maç sonunda ekrana dokunmak HİÇBİR ŞEY yapmıyordu — oyuncu
+    // 'tekrar oynayalım' diyebilmek için yol yoktu. `matchOverRestartTap`
+    // kartın içine dokunmayı yutar (yanlışlıkla yeniden başlatmayı önler).
+    if (this.state === 'MATCH_OVER') {
+      matchOverRestartTap(this, touch, { onRestart: () => this.startNewMatch() });
+      return;
     }
 
     if (this.handleRoundOverSkip()) return;
@@ -1083,6 +1093,10 @@ export class HeistGame extends BaseMiniGame {
         color: isUrgent ? '#D84727' : '#D99B26',
         alpha: isUrgent ? 0.70 : 0.46,
         ringProgress: Math.max(0, remain / HEIST_TUNING.ROUND_TIME),
+        // Sayaç oyun alanının ÜSTÜNDEDİR. Ölçülen kusur: merkez konumunda
+        // devasa sayı bir oyuncunun üstüne biniyordu (BOMB ekran görüntüsünde
+        // '10.5s' doğrudan P1'in üstündeydi) — merkez, oyunun olduğu yerdir.
+        placement: 'top',
       });
     }
 
@@ -1121,7 +1135,14 @@ export class HeistGame extends BaseMiniGame {
       matchOverRows: this.players
         .filter((p) => p.isJoined)
         .map((p) => ({ color: p.color, name: p.name, value: `${this.scores[p.index]}`, score: this.scores[p.index] })),
-      onRestart: () => this.resetCurrentGame(),
+      // Maç sonu "tekrar oyna" hedefi: `startNewMatch`, `resetMatch` DEĞİL.
+// Ölçülen tutarsızlık: 15 motorun 11'i `resetMatch()` çağırıyordu — o da
+// motoru LOBBY'ye döndürür, yani skor silinir ve 3-2-1 sayacı baştan
+// kurulur. Maç bittikten sonra tekrar oynamak isteyen oyuncu için en
+// pahalı 10 saniye. `startNewMatch` aynı yerde sıfırlar ama DOĞRUDAN
+// oynanabilir duruma geçer. Lobiye dönmek kartın ikinci eylemi olarak
+// zaten var (`requestReturnToLobby`), yani hiçbir yol kaybolmaz.
+onRestart: () => this.startNewMatch(),
     });
 
     ctx.restore();

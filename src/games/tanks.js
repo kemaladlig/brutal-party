@@ -8,12 +8,12 @@ import { BaseMiniGame } from '../core/BaseGame.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { resolveSlotName } from '../core/slotManager.js';
 import { getProjectileSubsteps } from '../core/physics2d.js';
-import { beginDrawRound, beginRound, endMatch, tickRoundFlow } from '../core/roundLifecycle.js';
+import { beginRound, endMatch, endMatchInGap, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { updateTankBotAI as runTankBotAI } from '../ai/tankAI.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
-import { lobbyCenterStartTap } from '../core/touchFlow.js';
+import { lobbyCenterStartTap, matchOverRestartTap } from '../core/touchFlow.js';
 import {
   createTanksWorldPacket,
   getTankAmmoVisual,
@@ -211,7 +211,16 @@ export class TanksGame extends BaseMiniGame {
 
     // Match Scores & Target
     this.scores = [0, 0, 0, 0];
-    this.targetScore = 3;
+    // Maç hedefi ve raunt süresi — kısaltma (tanks.js).
+// Gerekçe: parti oyununda maç uzunluğu = yeniden başlatma sayısı. Ölçülen
+// durum: hedefler 2-5 arası dağınıktı ve bir kısmı 5'ti (CLONE/NINJA/
+// SNAKE/COLLAPSE/CURVE); ilk açılışta 5 hedef, dakikalar süren bir maç
+// demek, yani oyuncu iki dakika içinde 'tekrar oynayalım' demiyor.
+// Kural: çoğu oyun 2 hedefte biter (ilk-iki kuralı — bir parti turunda
+// kazanan çabuk bellenir, maç tekrarına yer kalır). LOSER'a özgü
+// süreler korunur: HORDE/LASER kill/süre oyunlarıdır, onlarda hedef 2
+// olmak turu anlamsız kılardı.
+this.targetScore = 2;
     this.roundWinner = null;
     this.matchWinner = null;
     this.matchDraw = false;
@@ -544,13 +553,14 @@ export class TanksGame extends BaseMiniGame {
       return;
     }
 
+    // Ölçülen kusur: burada `matchOverRestartTap` yerine elle yazılmış bir kopya
+    // vardı ve LOBBY'ye dönüyordu — yani maç bittiğinde dokunmak skoru sıfırlayıp
+    // lobiye atıyor, yani "tekrar oyna" YOKTU. Ortak kısayol `startNewMatch`
+    // çağırır: skor sıfırlanır, oyun biten yerde yeniden başlar. Maçta kalmak
+    // partinin en pahalı anıdır (herkes yeni oyun arar).
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      if (Math.hypot(touch.x - this.arena.cx, touch.y - this.arena.cy) < 75) {
-        this.state = 'LOBBY';
-        this.scores = [0, 0, 0, 0];
-        playJoin();
-      }
+      matchOverRestartTap(this, touch, { onRestart: () => this.startNewMatch() });
       return;
     }
 
@@ -937,10 +947,10 @@ export class TanksGame extends BaseMiniGame {
     this.suddenDeath = false;
     this.suddenDeathRadius = 0;
     // Beraberlik bir MAÇ sonudur (TANKS'ta hayatta kalan tek tank yoksa
-    // raunttan puan gelmez), ama ANINDA değil: `beginDrawRound` boşluğa sokar,
-    // `tickRoundFlow` boşluk bitince MATCH_OVER'a geçer. Ölümcül vuruştan sonra
-    // ekranın bir anda değişmemesi bu boşluğun işi.
-    beginDrawRound(this, 'no-survivor');
+    // raunttan puan gelmez), ama ANINTA değil: boşluğa girer, `tickRoundFlow`
+    // boşluk bitince MATCH_OVER'a geçer. Ölümcül vuruştan sonra ekranın bir anda
+    // değişmemesi bu boşluğun işi.
+    endMatchInGap(this, 'no-survivor');
   }
 
   updateTankBotAI(tank, dt) {

@@ -64,6 +64,17 @@ const THEME_BASE = Object.freeze({
   floorEdge: '#F3EBDA',        // orta-üst geçiş durakı (L* 93.3)
   floorLow: '#F2E9D8',         // en alt — aynı parlaklıkta, daha sıcak (L* 92.6)
   lightPool: 0.3,              // 0..1 — üst-sol ışık havuzunun şiddeti
+  // Işığın RENGİ. Varsayılan nötr beyaz; tema hue'si verirse havuz o renkle
+  // yanar ve saha "boyanmış kâğıt" değil, "içinden ışık geçen bir yüzey"
+  // okur. `lightTint`/`edgeTint`/`shadeTint` sayısal değil, rgba metnidir —
+  // böylece tema yazarken alpha'yı tek yerde görürsün (THEME_FIELDS sözleşmesi
+  // ilkel tiplerle sınırlıdır, nested nesne yazılamaz).
+  lightTint: '255, 255, 255',  // ışık havuzunun RGB'si
+  lightAlpha: 0.5,             // havuz tepe opaklığı (× lightPool)
+  // Vinyet ve duvar gölgesi nötr siyah yerine tema renginde: köşeler soğumak
+  // yerine oyunun rengine döner, zemin tek parça krem gibi okunmaz.
+  edgeTint: '26, 26, 26',      // vinyet / köşe kararması RGB'si
+  shadeTint: '26, 26, 26',     // duvar gölge bandı RGB'si
   grid: 'rgba(26, 26, 26, 0.05)',
   frame: 'rgba(26, 26, 26, 0.10)',  // iç çerçeve hairline
   // --- yüzey dokusu (tek seferlik bake, sonra 2 op) ---
@@ -127,11 +138,19 @@ function theme(overrides) {
  * değerler beyaza harmanlanarak bütçeye çekildi, hue korunarak.
  */
 export const FIELD_THEMES = Object.freeze({
-  default: theme({}),
+  default: theme({
+    accent: '#1D5D8A',
+    lightTint: '255, 244, 222',
+    edgeTint: '46, 38, 30',
+    shadeTint: '46, 38, 30',
+  }),
 
   // PONG — soğuk kâğıt kort. Çizgiler belirgin, motif iki halka, köşelerde hem
   // L plaka hem nişan çizgisi (host'un eski saha dilinin tamamı).
   PONG: theme({
+    lightTint: '226, 240, 255',
+    edgeTint: '30, 40, 52',
+    shadeTint: '30, 40, 52',
     floorHigh: '#F7F7F4', floor: '#F4F4F0', floorEdge: '#EFF0EA', floorLow: '#ECECE5',
     grid: 'rgba(26, 26, 26, 0.055)',
     frame: 'rgba(26, 26, 26, 0.13)',
@@ -143,6 +162,9 @@ export const FIELD_THEMES = Object.freeze({
 
   // BOMB — sıcak kiremit. Kasa derisiyle aynı aile.
   BOMB: theme({
+    accent: '#C2410C', motif: 'spark',    lightTint: '255, 226, 190',
+    edgeTint: '58, 32, 20',
+    shadeTint: '58, 32, 20',
     floorHigh: '#FCF4E9', floor: '#F9EFE6', floorEdge: '#F6EADE', floorLow: '#F4E8DB',
     grid: 'rgba(26, 26, 26, 0.06)',
     frame: 'rgba(26, 26, 26, 0.11)',
@@ -153,7 +175,10 @@ export const FIELD_THEMES = Object.freeze({
 
   // TANKS — adaçayı yeşili, çim/çakıl karışımı saha.
   TANKS: theme({
-    floorHigh: '#F6F8F0', floor: '#F3F5EC', floorEdge: '#EEF1E5', floorLow: '#EBEEDF',
+    lightTint: '226, 255, 214',
+    edgeTint: '26, 48, 32',
+    shadeTint: '26, 48, 32',
+    floorHigh: '#F6F8F0', floor: '#F3F5EC', floorEdge: '#EEF1E5', floorLow: '#EBEEDF', accent: '#3F6212',
     grid: 'rgba(26, 26, 26, 0.065)',
     motif: 'crosshairRings',
     texture: 'speckle',
@@ -162,7 +187,11 @@ export const FIELD_THEMES = Object.freeze({
 
   // SNAKE — kehribar/amber.
   SNAKE: theme({
-    floorHigh: '#FBF4E8', floor: '#F8F1E2', floorEdge: '#F4EBD9', floorLow: '#F3E9D5',
+    motif: 'coil',
+    lightTint: '255, 238, 186',
+    edgeTint: '58, 42, 16',
+    shadeTint: '58, 42, 16',
+    floorHigh: '#FBF4E8', floor: '#F8F1E2', floorEdge: '#F4EBD9', floorLow: '#F3E9D5', accent: '#B45309',
     grid: 'rgba(26, 26, 26, 0.06)',
     texture: 'speckle',
     block: 'stone',
@@ -170,6 +199,9 @@ export const FIELD_THEMES = Object.freeze({
 
   // LASER — soğuk mavi-gri, metalik.
   LASER: theme({
+    lightTint: '206, 238, 255',
+    edgeTint: '18, 40, 52',
+    shadeTint: '18, 40, 52',
     floorHigh: '#F5F7F9', floor: '#F2F4F7', floorEdge: '#ECEFF3', floorLow: '#E9EDF1',
     grid: 'rgba(26, 26, 26, 0.06)',
     accent: '#0E7490',
@@ -180,6 +212,9 @@ export const FIELD_THEMES = Object.freeze({
 
   // ZONE — nane yeşili; bölge boyaması zaten renk taşıyor, zemin sakin kalmalı.
   ZONE: theme({
+    accent: '#15803D', motif: 'burst',    lightTint: '214, 255, 232',
+    edgeTint: '18, 46, 34',
+    shadeTint: '18, 46, 34',
     floorHigh: '#F2F7F3', floor: '#EEF4F0', floorEdge: '#E8F0EA', floorLow: '#E4ECE6',
     grid: 'rgba(26, 26, 26, 0.05)',
     texture: 'speckle',
@@ -188,6 +223,9 @@ export const FIELD_THEMES = Object.freeze({
 
   // HEIST — ılık kum.
   HEIST: theme({
+    lightTint: '255, 234, 186',
+    edgeTint: '56, 40, 18',
+    shadeTint: '56, 40, 18',
     floorHigh: '#FAF4EC', floor: '#F8F0E7', floorEdge: '#F5EBDF', floorLow: '#F3E9DB',
     grid: 'rgba(26, 26, 26, 0.06)',
     accent: '#D99B26',
@@ -198,6 +236,9 @@ export const FIELD_THEMES = Object.freeze({
 
   // ARCHER — zeytin/fitil.
   ARCHER: theme({
+    accent: '#3F6212', motif: 'arcs',    lightTint: '246, 255, 206',
+    edgeTint: '40, 46, 20',
+    shadeTint: '40, 46, 20',
     floorHigh: '#F7F6ED', floor: '#F4F2E8', floorEdge: '#F0EDDF', floorLow: '#EDEADC',
     grid: 'rgba(26, 26, 26, 0.06)',
     corners: 'crosshair',
@@ -207,6 +248,9 @@ export const FIELD_THEMES = Object.freeze({
 
   // NINJA — arduvaz, gece avlusuna soğuk gönderme.
   NINJA: theme({
+    lightTint: '226, 214, 255',
+    edgeTint: '36, 26, 58',
+    shadeTint: '36, 26, 58',
     floorHigh: '#F4F5F7', floor: '#F1F2F5', floorEdge: '#EBEDF1', floorLow: '#E8EAEF',
     grid: 'rgba(26, 26, 26, 0.07)',
     accent: '#7C3AED',
@@ -218,6 +262,9 @@ export const FIELD_THEMES = Object.freeze({
 
   // CURVE — çelik. Izgarası hareketin yönünü okutur, doku seyrek kalmalı.
   CURVE: theme({
+    accent: '#1D4ED8', motif: 'flow',    lightTint: '226, 236, 255',
+    edgeTint: '26, 34, 52',
+    shadeTint: '26, 34, 52',
     floorHigh: '#F6F6F7', floor: '#F3F3F5', floorEdge: '#EDEEF1', floorLow: '#EAEAEF',
     grid: 'rgba(26, 26, 26, 0.06)',
     texture: 'plate',
@@ -226,6 +273,9 @@ export const FIELD_THEMES = Object.freeze({
 
   // RACE — asfalt kremi; pist yüzeyi zaten kendi çizgilerini taşıyor.
   RACE: theme({
+    accent: '#1A1A1A', motif: 'chequer',    lightTint: '255, 232, 206',
+    edgeTint: '58, 42, 26',
+    shadeTint: '58, 42, 26',
     floorHigh: '#F8F5F1', floor: '#F6F2EB', floorEdge: '#F2EDE5', floorLow: '#F0EBE2',
     grid: 'rgba(26, 26, 26, 0.05)',
     texture: 'tile',
@@ -235,7 +285,10 @@ export const FIELD_THEMES = Object.freeze({
 
   // CROWN — altın krem, taht ritmi.
   CROWN: theme({
-    floorHigh: '#FAF5E8', floor: '#F8F1E2', floorEdge: '#F4ECD9', floorLow: '#F2EAD5',
+    lightTint: '255, 240, 198',
+    edgeTint: '58, 44, 20',
+    shadeTint: '58, 44, 20',
+    floorHigh: '#FAF5E8', floor: '#F8F1E2', floorEdge: '#F4ECD9', floorLow: '#F2EAD5', accent: '#B45309',
     grid: 'rgba(26, 26, 26, 0.06)',
     motif: 'crown',
     texture: 'tile',
@@ -246,6 +299,9 @@ export const FIELD_THEMES = Object.freeze({
   // devralır. Eskiden yalnız `floor` override'ı vardı, yani rampanın geri kalanı
   // ortak kremden geliyordu ve harita tonu sahanın yarısında kayboluyordu.
   foundry: theme({
+    lightTint: '255, 216, 176',
+    edgeTint: '62, 30, 18',
+    shadeTint: '62, 30, 18',
     floorHigh: '#F9F6EF', floor: '#F6F3EB', floorEdge: '#F2EDE2', floorLow: '#F0EADF',
     grid: 'rgba(26, 26, 26, 0.075)',
     accent: '#D84727',
@@ -255,6 +311,9 @@ export const FIELD_THEMES = Object.freeze({
     block: 'crate',
   }),
   reactor: theme({
+    lightTint: '198, 240, 255',
+    edgeTint: '16, 44, 58',
+    shadeTint: '16, 44, 58',
     floorHigh: '#F2F7F8', floor: '#EFF4F6', floorEdge: '#E7EFF2', floorLow: '#E3ECEF',
     grid: 'rgba(14, 116, 144, 0.10)',
     accent: '#0891B2',
@@ -264,6 +323,9 @@ export const FIELD_THEMES = Object.freeze({
     block: 'metal',
   }),
   core: theme({
+    lightTint: '228, 208, 255',
+    edgeTint: '40, 26, 62',
+    shadeTint: '40, 26, 62',
     floorHigh: '#F8F6FC', floor: '#F5F2FA', floorEdge: '#F1EDF7', floorLow: '#EEE9F5',
     grid: 'rgba(91, 33, 182, 0.10)',
     accent: '#7C3AED',
@@ -348,6 +410,19 @@ function seededRandom(seed) {
  * tutulur: saha okunurluğunu (I7) ve "burada engel var" okumasını bozmaz.
  * Çizim alanı ARENA-İÇİ 0..w / 0..h koordinatlarıdır.
  */
+/**
+ * Merkez motifinin okunurluk katsayısı.
+ *
+ * Ölçülen kusur: motifler α 0.11-0.12'de çiziliyordu — zeminden bir tık
+ * yukarıda, yani "orada bir şey var" hissi vermek yerine sadece lekeydi.
+ * Kullanıcı geri bildirimi ("saha yeterince renkli değil, oyunun ruhu yok")
+ * ve 15 oyundan 7'sinin motifsiz olup aynı `rings` fallback'ine düşmesi aynı
+ * eksikliğin iki yüzü. Motif artık merkezde kimlik taşıyan bir grafik: 0.26
+ * zeminden ayrılır ama oyuncu (P3 sarısı L* 85.9) üstüne binince okunmaz
+ * olmaz — motif çizgilerinin etrafı boştur.
+ */
+const MOTIF_ALPHA = 0.26;
+
 export const FIELD_MOTIFS = Object.freeze({
   none: () => {},
 
@@ -376,7 +451,7 @@ export const FIELD_MOTIFS = Object.freeze({
     const cy = h / 2;
     const r = Math.min(w, h) * 0.21;
     ctx.save();
-    ctx.globalAlpha = 0.12;
+    ctx.globalAlpha = MOTIF_ALPHA;
     ctx.strokeStyle = palette.accent;
     ctx.lineWidth = Math.max(1.5, 4 * u);
     ctx.beginPath();
@@ -401,7 +476,7 @@ export const FIELD_MOTIFS = Object.freeze({
     const cy = h / 2;
     const min = Math.min(w, h);
     ctx.save();
-    ctx.globalAlpha = 0.12;
+    ctx.globalAlpha = MOTIF_ALPHA;
     ctx.strokeStyle = palette.accent;
     ctx.lineWidth = Math.max(1.5, 4 * u);
     for (let i = 0; i < 3; i += 1) {
@@ -417,7 +492,7 @@ export const FIELD_MOTIFS = Object.freeze({
     const cy = h / 2;
     const r = Math.min(w, h) * 0.19;
     ctx.save();
-    ctx.globalAlpha = 0.12;
+    ctx.globalAlpha = MOTIF_ALPHA;
     ctx.strokeStyle = palette.accent;
     ctx.lineWidth = Math.max(1.5, 4 * u);
     ctx.beginPath();
@@ -440,7 +515,7 @@ export const FIELD_MOTIFS = Object.freeze({
     const min = Math.min(w, h);
     const r = min * 0.16;
     ctx.save();
-    ctx.globalAlpha = 0.11;
+    ctx.globalAlpha = MOTIF_ALPHA;
     ctx.strokeStyle = palette.accent;
     ctx.lineWidth = Math.max(1.5, 3.2 * u);
     ctx.beginPath();
@@ -453,6 +528,179 @@ export const FIELD_MOTIFS = Object.freeze({
     ctx.moveTo(cx, cy - r - tick); ctx.lineTo(cx, cy - r + tick);
     ctx.moveTo(cx, cy + r - tick); ctx.lineTo(cx, cy + r + tick);
     ctx.stroke();
+    ctx.restore();
+  },
+
+  /**
+   * BOMB: patlayıcı pati yıldızı — altı noktalı merkez + kesikli halka.
+   * Oyunun saat baskısıyla (bombTimer) bir ritim taşıdığı için motif de
+   * "tıklayan saat" gibi kırık parçalı: eksik bir çemberden bir parça çalınır.
+   */
+  spark(ctx, w, h, u, palette) {
+    const cx = w / 2;
+    const cy = h / 2;
+    const min = Math.min(w, h);
+    ctx.save();
+    ctx.globalAlpha = MOTIF_ALPHA;
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = Math.max(1.5, 3.4 * u);
+    ctx.beginPath();
+    for (let i = 0; i < 6; i += 1) {
+      const a = (i * Math.PI) / 3;
+      const x = cx + Math.cos(a) * min * 0.1;
+      const y = cy + Math.sin(a) * min * 0.1;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([10 * u, 8 * u]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, min * 0.2, -0.5, Math.PI * 1.7);
+    ctx.stroke();
+    ctx.restore();
+  },
+
+  /**
+   * SNAKE: iç içe kırık baklava — büyüyen halka ritmi. Hayvanın uzamasıyla
+   * ölçeklenen tek motif (iç halka ölçek değiştikçe açılır).
+   */
+  coil(ctx, w, h, u, palette) {
+    const cx = w / 2;
+    const cy = h / 2;
+    const min = Math.min(w, h);
+    ctx.save();
+    ctx.globalAlpha = MOTIF_ALPHA;
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = Math.max(1.5, 3.2 * u);
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < 3; i += 1) {
+      const r = min * (0.07 + i * 0.065);
+      ctx.beginPath();
+      for (let k = 0; k < 4; k += 1) {
+        const a = (k * Math.PI) / 2 + (i * Math.PI) / 8;
+        const x = cx + Math.cos(a) * r;
+        const y = cy + Math.sin(a) * r;
+        if (k === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+
+  /**
+   * ZONE: merkezden dışa yayılan ışın demeti. Bölge oyunu "alan kapma"
+   * olduğu için motif de yayılmayı anlatır — dört eksen çizgisi, köşelere
+   * doğru kırpılmış (tam çizgi ızgarayla yarışırdı).
+   */
+  burst(ctx, w, h, u, palette) {
+    const cx = w / 2;
+    const cy = h / 2;
+    const min = Math.min(w, h);
+    ctx.save();
+    ctx.globalAlpha = MOTIF_ALPHA;
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = Math.max(1.5, 3 * u);
+    ctx.beginPath();
+    const inner = min * 0.06;
+    const outer = min * 0.23;
+    for (let i = 0; i < 8; i += 1) {
+      const a = (i * Math.PI) / 4;
+      const x0 = cx + Math.cos(a) * inner;
+      const y0 = cy + Math.sin(a) * inner;
+      const x1 = cx + Math.cos(a) * outer;
+      const y1 = cy + Math.sin(a) * outer;
+      if (i % 2 === 0) {
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+      } else {
+        ctx.moveTo(x1 * 0.82 + cx * 0.18, y1 * 0.82 + cy * 0.18);
+        ctx.lineTo(x1, y1);
+      }
+    }
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, inner, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  },
+
+  /**
+   * ARCHER: nişan yayları — merkezden açılan iki eşit yay ve ok ekseni.
+   * (TANKS'in `crosshairRings`'i nişan DIŞI nişangâh dilidir; ARCHER'inki
+   * yayın uçlarına nişanlanan atış dilidir — aynı motif iki kez kullanılmaz.)
+   */
+  arcs(ctx, w, h, u, palette) {
+    const cx = w / 2;
+    const cy = h / 2;
+    const min = Math.min(w, h);
+    ctx.save();
+    ctx.globalAlpha = MOTIF_ALPHA;
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = Math.max(1.5, 3.2 * u);
+    for (const r of [min * 0.13, min * 0.21]) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, -Math.PI / 4, Math.PI / 4);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, Math.PI * 0.75, Math.PI * 1.25);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - min * 0.26);
+    ctx.lineTo(cx, cy + min * 0.26);
+    ctx.stroke();
+    ctx.restore();
+  },
+
+  /**
+   * CURVE: eğri akış izi — merkezden iki S kıvrımlı şerit. Izgaranın okuduğu
+   * yön hareketindir; motif de aynı şekilde yönü verir ama merkezde.
+   */
+  flow(ctx, w, h, u, palette) {
+    const cx = w / 2;
+    const cy = h / 2;
+    const min = Math.min(w, h);
+    ctx.save();
+    ctx.globalAlpha = MOTIF_ALPHA;
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = Math.max(1.5, 3.4 * u);
+    ctx.lineCap = 'round';
+    for (const off of [-min * 0.06, min * 0.06]) {
+      ctx.beginPath();
+      ctx.moveTo(cx - min * 0.24, cy + off);
+      ctx.quadraticCurveTo(cx - min * 0.08, cy - off * 2.1, cx, cy + off);
+      ctx.quadraticCurveTo(cx + min * 0.08, cy + off * 2.1, cx + min * 0.24, cy - off);
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+
+  /**
+   * RACE: start/finish çizgisi — merkezde dama tahtası bandı (kendi çizgileri
+   * pistte ayrıca var; buradaki motif pist YOLUNU değil BAŞLANGIÇ ritmini verir
+   * ve iki yarıyı eşit ısıtır).
+   */
+  chequer(ctx, w, h, u, palette) {
+    const cx = w / 2;
+    const cy = h / 2;
+    const min = Math.min(w, h);
+    const cell = Math.max(2, min * 0.028);
+    const cols = 8;
+    const rows = 3;
+    const bandW = cell * cols;
+    const bandH = cell * rows;
+    ctx.save();
+    ctx.globalAlpha = MOTIF_ALPHA;
+    ctx.fillStyle = palette.accent;
+    for (let r = 0; r < rows; r += 1) {
+      for (let c = 0; c < cols; c += 1) {
+        if ((r + c) % 2 !== 0) continue;
+        ctx.fillRect(cx - bandW / 2 + c * cell, cy - bandH / 2 + r * cell, cell, cell);
+      }
+    }
     ctx.restore();
   },
 
@@ -481,7 +729,7 @@ export const FIELD_MOTIFS = Object.freeze({
     const min = Math.min(w, h);
     const r = min * 0.035;
     ctx.save();
-    ctx.globalAlpha = 0.12;
+    ctx.globalAlpha = MOTIF_ALPHA;
     ctx.strokeStyle = palette.accent;
     ctx.lineWidth = Math.max(1.5, 3 * u);
     ctx.beginPath();
@@ -531,6 +779,18 @@ const LIGHT_Y = 0.28;
 const TRANSPARENT_WHITE = 'rgba(255, 255, 255, 0)';
 
 /**
+ * Tema RGB'sinden rgba metni üretir. Tema alanları ilkel (string/number)
+ * tutulduğu için (nested nesne yazılamaz) gradyan durakları burada birleşir —
+ * gradyan çağrısının içinde `palette.lightTint.split(',')` yazmak üç ayrı yerde
+ * tekrar ederdi. Geçersiz/eksik RGB güvenle beyaza düşer (görsel hata üretmez).
+ */
+function rgba(tint, alpha) {
+  const parts = String(tint || '255, 255, 255').split(',').map((v) => v.trim());
+  const [r, g, b] = parts.length === 3 ? parts : ['255', '255', '255'];
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
  * Tabanı çizer. Arena-içi 0..w / 0..h koordinatlarındadır ve BİR KERE çağrılır:
  * hem katmanın kendisi hem de `paintPatches` (kapı boşluğu yamaları) bu fonksiyonu
  * kullanır, böylece yama arkasındaki gradyanla BİREBİR eşleşir — eskiden yama
@@ -569,7 +829,7 @@ function paintFloorBase(ctx, w, h, u, palette) {
     const py = h * LIGHT_Y;
     const r = Math.max(1, Math.hypot(w, h) * 0.78);
     const glow = ctx.createRadialGradient(px, py, 0, px, py, r);
-    glow.addColorStop(0, `rgba(255, 255, 255, ${(0.5 * Math.min(1, pool)).toFixed(3)})`);
+    glow.addColorStop(0, rgba(palette.lightTint, (palette.lightAlpha * Math.min(1, pool)).toFixed(3)));
     glow.addColorStop(1, TRANSPARENT_WHITE);
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, w, h);
@@ -1087,8 +1347,8 @@ export function paintFieldLayer(ctx, arena, palette, { seed = 1, marks = null, p
   const cy = h / 2;
   const outerR = Math.max(1, Math.hypot(cx, cy));
   const vig = ctx.createRadialGradient(cx, cy, outerR * 0.42, cx, cy, outerR);
-  vig.addColorStop(0, 'rgba(26, 26, 26, 0)');
-  vig.addColorStop(1, 'rgba(26, 26, 26, 0.07)');
+  vig.addColorStop(0, rgba(palette.edgeTint, 0));
+  vig.addColorStop(1, rgba(palette.edgeTint, 0.1));
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, w, h);
 
@@ -1231,15 +1491,15 @@ function paintBackdropLayer(ctx, w, h, box, palette) {
 
   // 1. Arenanın merkezinden dışa düşen ışık: saha, masada yanan bir yüzey olur.
   const pool = ctx.createRadialGradient(cx, cy, Math.max(1, glowR * 0.2), cx, cy, glowR);
-  pool.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+  pool.addColorStop(0, rgba(palette.lightTint, 0.5));
   pool.addColorStop(1, 'rgba(255, 255, 255, 0)');
   ctx.fillStyle = pool;
   ctx.fillRect(0, 0, w, h);
 
   // 2. Köşe kararması — ekranda ikinci bir çerçeve.
   const vig = ctx.createRadialGradient(cx, cy, glowR * 0.55, cx, cy, glowR);
-  vig.addColorStop(0, 'rgba(26, 26, 26, 0)');
-  vig.addColorStop(1, 'rgba(26, 26, 26, 0.07)');
+  vig.addColorStop(0, rgba(palette.edgeTint, 0));
+  vig.addColorStop(1, rgba(palette.edgeTint, 0.09));
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, w, h);
 

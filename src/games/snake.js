@@ -46,7 +46,15 @@ const SNAKE_TUNING = Object.freeze({
 // Kuyruk boyu tavanı: uzayan oyunda ızgara-rebuild sınırlı kalır
 const SNAKE_MAX_LEN = 320;
 const SNAKE_MAX_FOODS = 32;
-const SNAKE_ROUND_LIMIT = 120;
+// Raunt süresi kısaltıldı: ölçülen bekleme 90-120 sn bandındaydı, yani
+// gerekçesiz bir raunt en az 1.5 dakika sürüyordu. Partide maç uzunluğu
+// = yeniden başlatma sayısıdır; 60-75 sn bandı raunt bitiminde iki oyuncu
+// arasındaki kararı anında ikinci maça taşır.
+const SNAKE_ROUND_LIMIT = 75;
+// Üst üste bu kadar beraberlikte maç berabere kapanır. Berabere raunt artık
+// maçı bitirmediği için (bkz. core/roundLifecycle.beginDrawRound) bu sayaç
+// çıkmaz döngüyü keser.
+const SNAKE_MAX_TIED_ROUNDS = 2;
 const SEG_GRID_CELL = 48;
 
 // Harita Varyasyonları (Her maç/raunt otomatik rastgele seçilir)
@@ -106,7 +114,17 @@ export class SnakeGame extends BaseMiniGame {
     this.arena = { cx: 0, cy: 0, size: 0, left: 0, right: 0, top: 0, bottom: 0 };
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty'];
     this.scores = [0, 0, 0, 0];
-    this.targetScore = 5;
+    // Maç hedefi ve raunt süresi — kısaltma (snake.js).
+// Gerekçe: parti oyununda maç uzunluğu = yeniden başlatma sayısı. Ölçülen
+// durum: hedefler 2-5 arası dağınıktı ve bir kısmı 5'ti (CLONE/NINJA/
+// SNAKE/COLLAPSE/CURVE); ilk açılışta 5 hedef, dakikalar süren bir maç
+// demek, yani oyuncu iki dakika içinde 'tekrar oynayalım' demiyor.
+// Kural: çoğu oyun 2 hedefte biter (ilk-iki kuralı — bir parti turunda
+// kazanan çabuk bellenir, maç tekrarına yer kalır). LOSER'a özgü
+// süreler korunur: HORDE/LASER kill/süre oyunlarıdır, onlarda hedef 2
+// olmak turu anlamsız kılardı.
+this.targetScore = 2;
+    this.tiedRounds = 0;
     this.players = [];
     this.foods = [];
     this.particles = [];
@@ -267,6 +285,7 @@ export class SnakeGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.matchWinner = null;
     this.matchDraw = false;
+    this.tiedRounds = 0;
     this.roundResolutionReason = null;
     this.startRound();
   }
@@ -452,7 +471,7 @@ export class SnakeGame extends BaseMiniGame {
 
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      matchOverRestartTap(this, touch, { onRestart: () => { this.resetMatch(); playJoin(); } });
+      matchOverRestartTap(this, touch, { onRestart: () => { this.startNewMatch(); playJoin(); } });
       return;
     }
 
@@ -490,7 +509,9 @@ export class SnakeGame extends BaseMiniGame {
 
     this.roundTimer += dt;
     if (roundTimedOut(this.roundTimer, this.roundLimit)) {
-      beginDrawRound(this, 'timeout', 1.6);
+      // Zaman aşımı BERABERE RAUNTtur, maç sonu değil: kimse puan almaz.
+      if (this.players.some((p) => p.isJoined)) this.finishTiedRound('timeout');
+      else endMatch(this, null, 'timeout');
       return;
     }
 
@@ -769,9 +790,10 @@ export class SnakeGame extends BaseMiniGame {
 
   handleRoundEnd(winner) {
     if (!winner) {
-      beginDrawRound(this, 'no-survivor');
+      this.finishTiedRound('no-survivor');
       return;
     }
+    this.tiedRounds = 0;
     this.scores[winner.index]++;
     if (this.scores[winner.index] >= this.targetScore) {
       this.roundWinner = winner;
@@ -779,6 +801,18 @@ export class SnakeGame extends BaseMiniGame {
       return;
     }
     beginRound(this, winner, 'no-survivor');
+  }
+
+  // Berabere raunt: puan verilmez, oyun devam eder. Üst üste sınıra ulaşılırsa
+  // maç berabere biter.
+  finishTiedRound(reason = 'tie') {
+    this.tiedRounds += 1;
+    if (this.tiedRounds >= SNAKE_MAX_TIED_ROUNDS) {
+      endMatch(this, null, reason);
+      return true;
+    }
+    beginDrawRound(this, reason);
+    return true;
   }
 
   render() {

@@ -3,7 +3,7 @@
  * Part of Phase 6 Architecture Refactor.
  */
 
-import { getSlotCustomization } from './customizationManager.js';
+import { getSlotCustomization, getBotPersona } from './customizationManager.js';
 import { clampToArena, resolveAABB } from './physics2d.js';
 
 /**
@@ -33,7 +33,14 @@ export function createPlayer(i, spawn, opts = {}) {
   return {
     index: i,
     name: existingName || defaultNames[i] || `P${i + 1}`,
-    color: isBot ? '#8E8E93' : custom.color || defaultColors[i],
+    // Bot rengi: persona rengi (`BOT_PERSONAS`/`GOD_BOT_PERSONAS`), gri DEĞİL.
+    // Ölçülen kusur: botlar sabit `#8E8E93` alıyordu, yani persona paletinde
+    // tanımlı dört canlı renk hiç kullanılmıyordu. BLOB ekran görüntüsünde P2
+    // soluk gri bir lekeydi, P1'in canlı turuncisiyle arada okunurluk farkı
+    // vardı — oyuncu "karşımdaki kim?" sorusunu her karede bedel ödüyordu.
+    // Persona rengi aynı zamanda oyun-özel `defaultColors`'tan bağımsızdır:
+    // oyuncu renginin oyunun kimliğiyle çakışmamasını garanti eder.
+    color: isBot ? (getBotPersona(i, slotType === 'bot_god').color) : custom.color || defaultColors[i],
     x: spawn.x,
     y: spawn.y,
     vx: 0,
