@@ -114,6 +114,11 @@ olayları; kendi partikül/metot gövdeleri silindi, API kabukları korundu).
       ((a) bitti 2026-09-30: tanks (Faz 1) + horde+laser+archer — shot/hit/kill/pickup/spark/
       dust olayı, `draw*FxLayer` ortak çizimi, `fxLive` playback mandalı, `fx` paket
       yükü (v1 uyumlu opsiyonel); kilit `tests/fxKit.test.mjs` 4 motora genişledi.)
+      ((b) bitti 2026-09-30: crown+bomb+clone+collapse+heist — olay merdiveni oyuna göre:
+      clone tackle-kill/hit+pickup, collapse dust/hit/kill, heist dust/spark/pickup/score/
+      hit/zone, bomb dust/spark/pickup/hit/kill/score, crown dust/spark/pickup/hit/score
+      (travma lavabosuz — ZERO CAMERA SHAKE korunur); `packFxState`/`isValidFxState`
+      worldCore'da tek kaynak (tanksView re-export); kilit 9 motora genişledi.)
 - [x] 2.6 `rules-lint` K7 kilidi: `src/games/**` içinde `particles.push(` ve partikül
       döngüsünden sonraki 12 satır içinde `ctx.arc(` yasak (ortak çizici `worldCore.js` hariç).
       Borç `scripts/rules-lint-baseline.json`'da donduruldu; `npm run check` kilitler.

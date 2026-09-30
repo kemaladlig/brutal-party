@@ -1,6 +1,6 @@
 // Client-only CROWN world renderer. It never imports or runs CrownGame/AI.
 
-import { drawCrownWorld, isValidCrownWorldFrame } from '../games/crownView.js';
+import { drawCrownWorld, drawCrownFxLayer, isValidCrownWorldFrame } from '../games/crownView.js';
 import { fitWorld, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { t } from '../i18n.js';
 
@@ -11,6 +11,10 @@ export function createWorldViewRenderer() {
     validate: isValidCrownWorldFrame,
 
     render(ctx, frame, width, height, slots = [], now = performance.now(), context = {}) {
+      // FX kaynağı (MOTION_PLAN 2.2): olay playback'i (`context.fx`) varsa O
+      // çizer ve frame.fx/frame.particles YOK SAYILIR (tanks deseni). Yoksa
+      // v1 host'un paketlediği anlık görüntü (yedek kanal).
+      const fxLive = !!context.fx;
       const [left, top, right, bottom] = frame.arena;
       const arena = {
         left, top, right, bottom,
@@ -25,7 +29,17 @@ export function createWorldViewRenderer() {
       ));
       ctx.save();
       ctx.fillStyle = '#F4F0EA'; ctx.fillRect(0, 0, width, height);
-      fitWorld(ctx, width, height, frame.arena, () => drawCrownWorld(ctx, frame, arena, colors, now));
+      fitWorld(ctx, width, height, frame.arena, () => {
+        drawCrownWorld(ctx, frame, arena, colors, now);
+        // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
+        drawCrownFxLayer(ctx, fxLive
+          ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
+          : {
+              pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
+              rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
+              particles: frame.particles || [],
+            });
+      });
       ctx.restore();
       if (frame.gameState === 'ROUND_OVER') {
         drawWorldRoundBanner(ctx, width, height, frame, slots, context);

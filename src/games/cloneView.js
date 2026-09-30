@@ -13,6 +13,11 @@ import {
   createWorldSnapshot,
   isValidWorldBase,
   drawAlphaTexts,
+  packFxState,
+  isValidFxState,
+  drawFxRings,
+  drawFxPops,
+  drawCircleParticles,
 } from '../games/worldCore.js';
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -78,6 +83,9 @@ export function createCloneWorldPacket(game) {
         alpha: Math.max(0, Math.min(1, Number(ft.alpha ?? ft.life ?? 1) || 0)),
         color: typeof ft.color === 'string' ? ft.color : '#1A1A1A',
       })),
+      // FX kanalı (MOTION_PLAN Faz 2b): host FX runtime'ının saf anlık görüntüsü
+      // (tanks deseni). Playback canlıyken paket yükü yok sayılır (yedek kanal).
+      fx: packFxState(game.fx),
     },
   });
 }
@@ -104,6 +112,8 @@ function isValidCloneExtra(frame) {
   if (!Array.isArray(frame.texts) || frame.texts.length > 8) return false;
   if (!frame.texts.every((ft) => ft && finite(ft.x) && finite(ft.y) && typeof ft.text === 'string'
     && finite(ft.alpha) && typeof ft.color === 'string')) return false;
+  // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
+  if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
   return true;
 }
 
@@ -238,3 +248,15 @@ export function drawCloneCharacter(ctx, x, y, angle, color, { dashing = false, s
 }
 
 export { drawAlphaTexts as drawCloneTexts };
+
+/**
+ * FX katmanının tek çizim sırası: pop → ring → partikül. Host motoru ve
+ * client worldView AYNI fonksiyonu çağırır (tanks deseni).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
+ */
+export function drawCloneFxLayer(ctx, layer) {
+  drawFxPops(ctx, layer?.pops);
+  drawFxRings(ctx, layer?.rings);
+  drawCircleParticles(ctx, layer?.particles);
+}

@@ -292,9 +292,10 @@ test('field visuals add no packet fields (BOMB/PONG/HORDE)', () => {
   // aynı anda tek patlama) — bkz. worldCore.packBlast. `selfPredict` de saha
   // görseli değil: client self-avatar prediction opt-in bayrağı (core/selfPrediction).
   // `fx`: host FX runtime anlık görüntüsü (rings/pops/flash — tanks deseni,
-  // Faz 2a'da HORDE'a eklendi; v1 yedeği, playback canlıyken yok sayılır).
+  // Faz 2'de portlanan motorlara eklendi: HORDE, BOMB (+ clone/collapse/heist/crown/laser/archer
+  // kendi paket testlerinde kilitli); v1 yedeği, playback canlıyken yok sayılır).
   assert.deepEqual(Object.keys(packets.BOMB).sort(), [
-    'arena', 'blast', 'bombMaxTime', 'bombTimer', 'carrier', 'gameState', 'ink', 'matchDraw',
+    'arena', 'blast', 'bombMaxTime', 'bombTimer', 'carrier', 'fx', 'gameState', 'ink', 'matchDraw',
     'matchWinner', 'mode', 'particles', 'pickups', 'pillars', 'players', 'roundId',
     'roundWinner', 'scores', 'selfPredict', 'seq', 'version',
   ]);

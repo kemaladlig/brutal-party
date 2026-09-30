@@ -19,8 +19,11 @@ import {
   drawCloneWalls,
   drawCloneCharacter,
   drawCloneTexts,
+  drawCloneFxLayer,
 } from './cloneView.js';
-import { drawCircleParticles } from '../games/worldCore.js';
+import { drawFxFlash } from '../games/worldCore.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 
 export const CLONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CLONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -55,7 +58,13 @@ this.targetScore = 2;
     this.walls = [];
     this.taskPoints = [];
     this.npcClones = [];
-    this.particles = [];
+    // FX runtime (MOTION_PLAN Faz 2b): partikül/ring/pop/hit-stop tek sahibi;
+    // `this.particles` worldCore konvansiyonu için alias'tır.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
+    /** @type {any[]} */ this.particles = this.fx.particles;
     this.floatingTexts = [];
     this.roundTime = CLONE_ROUND_TIME;
     this.roundId = 0;
@@ -141,6 +150,8 @@ this.targetScore = 2;
       }
       for (const c of this.npcClones) this.resolveWallCollision(c, CLONE_RADIUS);
     }
+    // Biriken partiküller ESKİ arena ölçeğindeydi; yeni unit ile karışmasın.
+    this.fx.clear();
   }
 
   buildMap() {
@@ -294,7 +305,7 @@ this.targetScore = 2;
     this.tiedRounds = 0;
     this.roundTime = CLONE_ROUND_TIME;
     this.roundTransitionTimer = 0;
-    this.particles = [];
+    this.fx.clear();
     this.floatingTexts = [];
     this.initPlayers();
     this.onTouchesReset();
@@ -331,7 +342,7 @@ this.targetScore = 2;
     this.roundId += 1;
     this.roundTransitionTimer = 0;
     this.roundTime = CLONE_ROUND_TIME;
-    this.particles = [];
+    this.fx.clear();
     this.floatingTexts = [];
     this.onTouchesReset();
     playStart();
@@ -412,9 +423,15 @@ this.targetScore = 2;
         victim.isAlive = false;
         attacker.dashTimer = 0;
         this.scores[attacker.index] += 2;
-        this.addTrauma(0.5);
+        // KILL olayı: burst + halka + ölüm pop'u + hit-stop + flaş + travma tek profilden.
+        this.fx.emit('kill', {
+          x: victim.x, y: victim.y, color: victim.color,
+          size: victim.radius || 15, angle: victim.angle || 0,
+          dirX: victim.x - attacker.x, dirY: victim.y - attacker.y,
+          slot: victim.index,
+          haptic: victim.slotType === 'human',
+        });
         playExplosion();
-        this.spawnBurst(victim.x, victim.y, victim.color);
         this.spawnFloatingText(victim.x, victim.y - 18, t('clone.real'), '#2F6A4F');
 
         this.checkAlive();
@@ -431,9 +448,13 @@ this.targetScore = 2;
         clone.active = false;
         attacker.dashTimer = 0;
         attacker.slowTimer = 2.5; // Ceza!
-        this.addTrauma(0.25);
+        this.fx.emit('hit', {
+          x: clone.x, y: clone.y, color: '#E63946',
+          dirX: clone.x - attacker.x, dirY: clone.y - attacker.y,
+          slot: attacker.index,
+          haptic: attacker.slotType === 'human',
+        });
         playExplosion();
-        this.spawnGlitch(clone.x, clone.y, clone.color);
         this.spawnFloatingText(attacker.x, attacker.y - 18, 'MASUM KLON! (CEZA)', '#E63946');
         return;
       }
@@ -492,12 +513,13 @@ this.targetScore = 2;
   }
 
   update(now) {
-    const dt = Math.max(0, Math.min((now - this.lastTime) / 1000, 0.08));
+    const rawDt = Math.max(0, Math.min((now - this.lastTime) / 1000, 0.08));
     this.lastTime = now;
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    const dt = this.fx.tick(rawDt);
 
-    if (this.trauma > 0) {
-      this.trauma = Math.max(0, this.trauma - dt * 2.2);
-    }
+    this.updateTrauma(dt);
+    this.fx.update(dt);
 
     if (tickRoundFlow(this, dt)) return;
 
@@ -575,7 +597,10 @@ this.targetScore = 2;
               t.completions = (t.completions || 0) + 1;
               this.scores[player.index]++;
               playItemPickup();
-              this.spawnBurst(t.x, t.y, t.color);
+              this.fx.emit('pickup', {
+                x: t.x, y: t.y, color: t.color, slot: player.index,
+                haptic: player.slotType === 'human',
+              });
               const compText = t.completions >= 2 ? ` (${t.completions}x ✓)` : '';
               this.spawnFloatingText(player.x, player.y - 20, `${t.name} +1★${compText}`, '#2F6A4F');
               if (this.scores[player.index] >= this.targetScore) {
@@ -671,15 +696,6 @@ this.targetScore = 2;
       }
     }
 
-    // Parçacıklar
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.alpha -= p.decay * dt;
-      if (p.alpha <= 0) this.particles.splice(i, 1);
-    }
-
     // Uçuşan metinler
     for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
       const ft = this.floatingTexts[i];
@@ -695,38 +711,6 @@ this.targetScore = 2;
     }
 
     this.checkAlive();
-  }
-
-  spawnBurst(x, y, color) {
-    for (let i = 0; i < 22; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = 40 + Math.random() * 110;
-      this.particles.push({
-        x, y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        color: i % 2 === 0 ? color : '#1A1A1A',
-        radius: 3 + Math.random() * 3.5,
-        alpha: 1.0,
-        decay: 1.7,
-      });
-    }
-  }
-
-  spawnGlitch(x, y, color) {
-    for (let i = 0; i < 18; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = 25 + Math.random() * 80;
-      this.particles.push({
-        x, y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        color: '#E63946',
-        radius: 2.5 + Math.random() * 2.5,
-        alpha: 1.0,
-        decay: 2.2,
-      });
-    }
   }
 
   spawnFloatingText(x, y, text, color) {
@@ -813,11 +797,11 @@ this.targetScore = 2;
       });
     }
 
-    drawCircleParticles(ctx, this.particles);
+    // FX katmanı ortak cloneView draw'ından gelir (host↔client aynı).
+    drawCloneFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
     drawCloneTexts(ctx, this.floatingTexts.map((ft) => ({
       x: ft.x, y: ft.y, text: ft.text, alpha: ft.alpha, color: ft.color,
     })));
-
     // Geri sayım filigranı (son 15 saniye)
     if (this.state === 'PLAYING' && this.roundTime <= 15) {
       ctx.save();
@@ -856,5 +840,9 @@ this.targetScore = 2;
       },
     });
     ctx.restore();
+
+    // Kill flaşı sahne transformunun DIŞINDA: tam ekranı kaplar (tanks deseni).
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 }

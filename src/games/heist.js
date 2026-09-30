@@ -36,8 +36,11 @@ import {
   drawHeistPiggy,
   drawHeistPlayers,
   drawHeistTexts,
+  drawHeistFxLayer,
 } from './heistView.js';
-import { drawSquareParticles } from './worldCore.js';
+import { drawFxFlash } from './worldCore.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 
 export const HEIST_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const HEIST_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -121,14 +124,19 @@ export class HeistGame extends BaseMiniGame {
     // Entities
     this.players = [];
     this.lootItems = [];
-    this.particles = [];
+    // FX runtime (MOTION_PLAN Faz 2b): partikül/ring/pop/hit-stop tek sahibi;
+    // `this.particles` worldCore konvansiyonu için alias'tır.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
+    /** @type {any[]} */ this.particles = this.fx.particles;
     this.floatingTexts = [];
     this.piggyBank = null;
     this.piggySpawned30 = false;
     this.piggySpawned15 = false;
 
-    // Screen Shake (Trauma)
-    this.trauma = 0;
+    // Screen Shake (Trauma): tek sahip BaseGame'dir (fx olaylarından beslenir).
     this.lastTime = performance.now();
 
     this.initKeyboard();
@@ -222,7 +230,8 @@ export class HeistGame extends BaseMiniGame {
       clampToArena(this.piggyBank, this.piggyBank.radius || 24, this.arena, { zeroVelocity: true });
       this.piggyBank.vx = 0; this.piggyBank.vy = 0;
     }
-    this.particles = [];
+    // Biriken partiküller ESKİ arena ölçeğindeydi; yeni unit ile karışmasın.
+    this.fx.clear();
     this.floatingTexts = [];
   }
 
@@ -284,7 +293,7 @@ export class HeistGame extends BaseMiniGame {
     this.roundTimer = HEIST_TUNING.ROUND_TIME;
     this.goldRushActive = false;
     this.lootItems = [];
-    this.particles = [];
+    this.fx.clear();
     this.floatingTexts = [];
     this.trauma = 0;
     this.lastTime = performance.now();
@@ -334,7 +343,7 @@ export class HeistGame extends BaseMiniGame {
     this.roundTied = false;
     this.roundTransitionTimer = 0;
     this.lootItems = [];
-    this.particles = [];
+    this.fx.clear();
     this.floatingTexts = [];
 
     // Respawn players & reset vaults for new round
@@ -401,7 +410,10 @@ export class HeistGame extends BaseMiniGame {
       animTime: 0,
     };
     playVaultAlarm();
-    this.trauma = 0.4;
+    // Kumbara girişi: harita-duyurusu (zone profili: halka + duyuru travması).
+    this.fx.emit('zone', {
+      x: this.arena.cx, y: this.arena.cy, ringRadius: this.piggyBank.radius * 3,
+    });
     this.addFloatingText(this.arena.cx, this.arena.cy - 40, t('heist.pig'), '#FFDE59');
   }
 
@@ -451,24 +463,10 @@ export class HeistGame extends BaseMiniGame {
     p.tackleCooldown = HEIST_TUNING.TACKLE_COOLDOWN;
     p.tackleTimer = 0.22;
     p.isTackling = true;
-    this.trauma = Math.min(1.0, this.trauma + 0.18);
+    // Omuz hamlesi: dust bulutu (haptiksiz ortam olayı; whoosh sesi eşlik eder).
+    this.fx.emit('dust', { x: p.x, y: p.y, color: p.color });
 
     playDashWhoosh();
-
-    // Spawn dust burst
-    const behindAngle = p.facingAngle + Math.PI;
-    for (let i = 0; i < 10; i++) {
-      this.particles.push({
-        x: p.x + Math.cos(behindAngle) * p.radius,
-        y: p.y + Math.sin(behindAngle) * p.radius,
-        vx: Math.cos(behindAngle + (Math.random() - 0.5) * 0.8) * 80,
-        vy: Math.sin(behindAngle + (Math.random() - 0.5) * 0.8) * 80,
-        life: 0.28,
-        maxLife: 0.4,
-        color: '#D5D0C7',
-        size: 4 + Math.random() * 3,
-      });
-    }
   }
 
   addFloatingText(x, y, text, color = '#FFDE59') {
@@ -543,12 +541,13 @@ export class HeistGame extends BaseMiniGame {
   }
 
   update(now) {
-    const dt = this.clampDt(now, this.lastTime);
+    const rawDt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    const dt = this.fx.tick(rawDt);
 
-    if (this.trauma > 0) {
-      this.trauma = Math.max(0, this.trauma - dt * 2.2);
-    }
+    this.updateTrauma(dt);
+    this.fx.update(dt);
 
     // Round Over countdown
     if (tickRoundFlow(this, dt)) return;
@@ -559,7 +558,8 @@ export class HeistGame extends BaseMiniGame {
     this.roundTimer -= dt;
     if (this.roundTimer <= 10.0 && !this.goldRushActive) {
       this.goldRushActive = true;
-      this.trauma = 0.5;
+      // Altın hücumu: harita-duyurusu (zone profili).
+      this.fx.emit('zone', { x: this.arena.cx, y: this.arena.cy });
       this.addFloatingText(this.arena.cx, this.arena.cy - 30, t('heist.rush'), '#FFDE59');
       playVaultAlarm();
       // Drop royal loot
@@ -661,15 +661,6 @@ export class HeistGame extends BaseMiniGame {
       item.animTime += dt;
     }
 
-    // Update Particles
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const part = this.particles[i];
-      part.x += part.vx * dt;
-      part.y += part.vy * dt;
-      part.life -= dt;
-      if (part.life <= 0) this.particles.splice(i, 1);
-    }
-
     // Update Players
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
@@ -722,16 +713,7 @@ export class HeistGame extends BaseMiniGame {
         player.facingAngle = Math.atan2(normY, normX);
 
         if (player.tackleTimer > 0 && Math.random() < 0.4) {
-          this.particles.push({
-            x: player.x,
-            y: player.y,
-            vx: (Math.random() - 0.5) * 40,
-            vy: (Math.random() - 0.5) * 40,
-            life: 0.2,
-            maxLife: 0.2,
-            color: '#FFDE59',
-            size: 4,
-          });
+          this.fx.emit('spark', { x: player.x, y: player.y, color: '#FFDE59' });
         }
       } else {
         const idleDrag = damp(0.7, dt);
@@ -756,6 +738,10 @@ export class HeistGame extends BaseMiniGame {
           player.carriedWeight += item.weight;
 
           playCoinPickup();
+          this.fx.emit('pickup', {
+            x: item.x, y: item.y, color: player.color, slot: player.index,
+            haptic: player.slotType === 'human',
+          });
           this.addFloatingText(item.x, item.y - 12, `+${item.value}`, item.type === 'DIAMOND' ? '#48CAE4' : '#FFDE59');
           this.lootItems.splice(l, 1);
         }
@@ -778,22 +764,12 @@ export class HeistGame extends BaseMiniGame {
           player.carriedWeight = 0;
 
           playCashRegister();
-          this.trauma = 0.25;
+          // Kasa skoru: score profili (halka + skor travması + haptik).
+          this.fx.emit('score', {
+            x: player.x, y: player.y, color: player.color, slot: player.index,
+            haptic: player.slotType === 'human',
+          });
           this.addFloatingText(myVault.x + myVault.w / 2, myVault.y + myVault.h / 2, `+${banked} KASALANDI!`, '#FFFFFF');
-
-          // Golden sparkle burst inside vault
-          for (let s = 0; s < 18; s++) {
-            this.particles.push({
-              x: player.x,
-              y: player.y,
-              vx: (Math.random() - 0.5) * 140,
-              vy: (Math.random() - 0.5) * 140,
-              life: 0.45,
-              maxLife: 0.45,
-              color: '#FFDE59',
-              size: 4 + Math.random() * 3,
-            });
-          }
         }
       }
 
@@ -822,7 +798,11 @@ export class HeistGame extends BaseMiniGame {
                 player.raidTimer = 0;
 
                 playVaultAlarm();
-                this.trauma = 0.4;
+                // Hırsızlık: pickup olayı (ganimet + haptik).
+                this.fx.emit('pickup', {
+                  x: player.x, y: player.y, color: player.color, slot: player.index,
+                  haptic: player.slotType === 'human',
+                });
                 this.addFloatingText(player.x, player.y - 20, t('heist.stolen', stolen), '#D84727');
               }
             }
@@ -893,7 +873,6 @@ export class HeistGame extends BaseMiniGame {
     pig.hp -= 1;
     pig.hitTimer = 0.25;
     playHeavyImpact();
-    this.trauma = Math.min(1.0, this.trauma + 0.3);
     const dx = pig.x - attacker.x;
     const dy = pig.y - attacker.y;
     const dist = Math.hypot(dx, dy) || 1;
@@ -905,23 +884,29 @@ export class HeistGame extends BaseMiniGame {
         this.spawnLootItem('COIN', pig.x + (Math.random() - 0.5) * 70, pig.y + (Math.random() - 0.5) * 70);
       }
       this.spawnLootItem('DIAMOND', pig.x, pig.y);
-      for (let i = 0; i < 10; i++) {
-        this.particles.push({
-          x: pig.x, y: pig.y,
-          vx: (Math.random() - 0.5) * 320, vy: (Math.random() - 0.5) * 320,
-          life: 0.4, maxLife: 0.5, color: '#FFDE59', size: 4 + Math.random() * 4,
-        });
-      }
+      // Kumbara kırılması: hit olayı (burst + halka + haptik).
+      this.fx.emit('hit', {
+        x: pig.x, y: pig.y, color: '#FFDE59',
+        dirX: dx / dist, dirY: dy / dist, slot: attacker.index,
+        haptic: attacker.slotType === 'human',
+      });
       this.addFloatingText(pig.x, pig.y - 34, 'KUMBARA KIRILDI!', '#FFDE59');
       playPiggyBreak();
     } else {
+      this.fx.emit('spark', { x: pig.x, y: pig.y, color: '#FFDE59' });
       this.addFloatingText(pig.x, pig.y - 34, t('heist.crack', pig.hp), '#FFFFFF');
     }
   }
 
   executeLootKnockout(attacker, victim) {
     playHeavyImpact();
-    this.trauma = 0.65;
+    // Omuz darbesi: hit olayı (burst + halka + yönlü travma + haptik).
+    this.fx.emit('hit', {
+      x: victim.x, y: victim.y, color: victim.color,
+      dirX: victim.x - attacker.x, dirY: victim.y - attacker.y,
+      slot: victim.index,
+      haptic: victim.slotType === 'human',
+    });
     victim.stumbleTimer = 1.0;
     attacker.isTackling = false; // hit landed
 
@@ -962,20 +947,6 @@ export class HeistGame extends BaseMiniGame {
       playCoinPickup();
       this.addFloatingText(attacker.x, attacker.y - 25, t('heist.robbed', stolen), '#FFDE59');
       this.addFloatingText(victim.x, victim.y - 25, `-${stolen} SOYULDUN!`, '#D84727');
-
-      // Golden particle beam siphon from victim to attacker
-      for (let s = 0; s < 12; s++) {
-        this.particles.push({
-          x: victim.x,
-          y: victim.y,
-          vx: -nx * 190 + (Math.random() - 0.5) * 80,
-          vy: -ny * 190 + (Math.random() - 0.5) * 80,
-          life: 0.45,
-          maxLife: 0.45,
-          color: '#FFDE59',
-          size: 5,
-        });
-      }
 
       // Drop the remaining carried loot onto the ground (chaos scramble!)
       const dropRest = victim.carriedGold;
@@ -1022,22 +993,6 @@ export class HeistGame extends BaseMiniGame {
       // Victim is completely empty, still get satisfying slam!
       this.addFloatingText(victim.x, victim.y - 25, t('heist.boom'), '#FFFFFF');
     }
-
-    // Comic book impact sparks
-    for (let p = 0; p < 16; p++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = 60 + Math.random() * 160;
-      this.particles.push({
-        x: (attacker.x + victim.x) / 2,
-        y: (attacker.y + victim.y) / 2,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        life: 0.35,
-        maxLife: 0.35,
-        color: Math.random() > 0.5 ? '#FFFFFF' : '#FFDE59',
-        size: 4 + Math.random() * 3,
-      });
-    }
   }
 
   // --- RENDERING PIPELINE ---
@@ -1077,7 +1032,8 @@ export class HeistGame extends BaseMiniGame {
       } : null);
       drawHeistPlayers(ctx, scenePlayers, { withFx: this.state === 'PLAYING', now: this.lastTime, arena: this.arena });
     }
-    drawSquareParticles(ctx, this.particles);
+    // FX katmanı ortak heistView draw'ından gelir (host↔client aynı).
+    drawHeistFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
     drawHeistTexts(ctx, this.floatingTexts);
     this.renderControls(ctx);
 
@@ -1146,6 +1102,10 @@ onRestart: () => this.startNewMatch(),
     });
 
     ctx.restore();
+
+    // Kill flaşı sahne transformunun DIŞINDA: tam ekranı kaplar (tanks deseni).
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 
 

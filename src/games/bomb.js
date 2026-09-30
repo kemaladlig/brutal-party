@@ -39,8 +39,11 @@ import {
   drawBombInk,
   drawBombPickups,
   drawBombPlayers,
-  drawBombParticles,
+  drawBombFxLayer,
 } from './bombView.js';
+import { drawFxFlash } from './worldCore.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 
 export const BOMB_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const BOMB_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -135,7 +138,13 @@ this.targetScore = 2;
     this.pickups = [];
     this.pickupSpawnTimer = 6.0;
     this.inkPuddles = [];
-    this.particles = [];
+    // FX runtime (MOTION_PLAN Faz 2b): partikül/ring/pop/hit-stop tek sahibi;
+    // `this.particles` worldCore konvansiyonu için alias'tır.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
+    /** @type {any[]} */ this.particles = this.fx.particles;
     // Aktif patlama katmanı (null = patlama yok). Pakete `blast` olarak gider.
     this.blast = null;
 
@@ -235,7 +244,8 @@ this.targetScore = 2;
       this.remapPoint(ink, oldArena, this.arena);
       clampToArena(ink, ink.radius || 22, this.arena);
     }
-    this.particles = [];
+    // Biriken partiküller ESKİ arena ölçeğindeydi; yeni unit ile karışmasın.
+    this.fx.clear();
   }
 
   buildMapPillars() {
@@ -305,7 +315,7 @@ this.targetScore = 2;
     this.bombCarrierIndex = -1;
     this.pickups = [];
     this.inkPuddles = [];
-    this.particles = [];
+    this.fx.clear();
     this.blast = null;
     this.trauma = 0;
     this.lastTime = performance.now();
@@ -359,7 +369,7 @@ this.targetScore = 2;
     this.roundTransitionTimer = 0;
     this.pickups = [];
     this.inkPuddles = [];
-    this.particles = [];
+    this.fx.clear();
     this.blast = null;
 
     // Respawn players at corner positions
@@ -387,26 +397,10 @@ this.targetScore = 2;
     p.dashMaxCooldown = BOMB_DASH_COOLDOWN;
     p.dashTimer = BOMB_TUNING.DASH_DURATION;
     p.isDashing = true;
-    this.trauma = Math.min(1.0, this.trauma + 0.15);
+    // Depar: dust bulutu (haptiksiz ortam olayı; whoosh sesi eşlik eder).
+    this.fx.emit('dust', { x: p.x, y: p.y, color: p.color });
 
     playDashWhoosh();
-
-    // Spawn burst dust/smoke particles behind player
-    const behindAngle = p.facingAngle + Math.PI;
-    for (let i = 0; i < 9; i++) {
-      const spd = 40 + Math.random() * 90;
-      const spread = (Math.random() - 0.5) * 0.9;
-      this.particles.push({
-        x: p.x + Math.cos(behindAngle) * p.radius,
-        y: p.y + Math.sin(behindAngle) * p.radius,
-        vx: Math.cos(behindAngle + spread) * spd,
-        vy: Math.sin(behindAngle + spread) * spd,
-        life: 0.3 + Math.random() * 0.2,
-        maxLife: 0.5,
-        color: '#D5D0C7',
-        size: 4 + Math.random() * 4,
-      });
-    }
   }
 
   transferBomb(toPlayerIndex) {
@@ -421,7 +415,14 @@ this.targetScore = 2;
 
     this.bombCarrierIndex = toPlayerIndex;
     this.passCooldown = 1.6; // Solid window before another pass can occur
-    this.trauma = 0.55;
+    // Bomba devri: hit olayı (burst + halka + yönlü travma + haptik).
+    this.fx.emit('hit', {
+      x: newCarrier.x, y: newCarrier.y, color: newCarrier.color,
+      dirX: prevCarrier ? newCarrier.x - prevCarrier.x : 0,
+      dirY: prevCarrier ? newCarrier.y - prevCarrier.y : 0,
+      slot: toPlayerIndex,
+      haptic: newCarrier.slotType === 'human',
+    });
 
     playBombPass();
     playStumble();
@@ -448,20 +449,6 @@ this.targetScore = 2;
       this.resolveCollisions(newCarrier);
       this.resolveCollisions(prevCarrier);
     }
-
-    // Spawn sparks between runners
-    for (let i = 0; i < 20; i++) {
-      this.particles.push({
-        x: newCarrier.x,
-        y: newCarrier.y,
-        vx: (Math.random() - 0.5) * 260,
-        vy: (Math.random() - 0.5) * 260,
-        life: 0.35,
-        maxLife: 0.35,
-        color: '#FFDE59',
-        size: 3 + Math.random() * 4,
-      });
-    }
   }
 
   explodeCarrier() {
@@ -469,42 +456,18 @@ this.targetScore = 2;
     if (!carrier || !carrier.isAlive) return;
 
     carrier.isAlive = false;
-    this.trauma = 1.0;
+    // Patlama: kill olayı (burst + halka + pop + hit-stop + flaş + travma tek profilden).
+    // Patlama katmanı (`this.blast` → drawBlast) mekanik görseldir, korunur.
+    this.fx.emit('kill', {
+      x: carrier.x, y: carrier.y, color: carrier.color,
+      size: carrier.radius || 36, angle: 0, slot: carrier.index,
+      haptic: carrier.slotType === 'human',
+    });
     playExplosion();
 
     // Patlama katmanı: is yüzüğü + şok halkaları + çekirdek parlama
     // (worldCore.drawBlast). Aynı çizim telefon world-view'da da görünür.
     this.blast = { x: carrier.x, y: carrier.y, t: 0, max: 0.6 };
-
-    // Kor + is parçacıkları: kısa ömürlü kırık parça + yavaş sönen duman
-    for (let i = 0; i < 34; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = 90 + Math.random() * 320;
-      this.particles.push({
-        x: carrier.x,
-        y: carrier.y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        life: 0.55 + Math.random() * 0.5,
-        maxLife: 1.05,
-        color: i % 2 === 0 ? '#1A1A1A' : '#D84727',
-        size: 4 + Math.random() * 7,
-      });
-    }
-    for (let i = 0; i < 10; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = 20 + Math.random() * 60;
-      this.particles.push({
-        x: carrier.x,
-        y: carrier.y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        life: 0.9 + Math.random() * 0.5,
-        maxLife: 1.4,
-        color: '#6B6560',
-        size: 6 + Math.random() * 9,
-      });
-    }
 
     const alive = this.players.filter((p) => p.isJoined && p.isAlive);
 
@@ -623,13 +586,13 @@ this.targetScore = 2;
   }
 
   update(now) {
-    const dt = this.clampDt(now, this.lastTime);
+    const rawDt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    const dt = this.fx.tick(rawDt);
 
-    // Screen Shake decay
-    if (this.trauma > 0) {
-      this.trauma = Math.max(0, this.trauma - dt * 2.2);
-    }
+    this.updateTrauma(dt);
+    this.fx.update(dt);
 
     // Raunt/maç geçişi ortak akışta (core/roundLifecycle): süre, sonraki rauntu
     // başlatma ve MATCH_OVER kararı motorun değil çekirdeğin işidir.
@@ -714,17 +677,6 @@ this.targetScore = 2;
       p.duration -= dt;
       if (p.duration <= 0) {
         this.inkPuddles.splice(i, 1);
-      }
-    }
-
-    // Update Particles
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const part = this.particles[i];
-      part.x += part.vx * dt;
-      part.y += part.vy * dt;
-      part.life -= dt;
-      if (part.life <= 0) {
-        this.particles.splice(i, 1);
       }
     }
 
@@ -814,16 +766,7 @@ this.targetScore = 2;
 
           // Motion trails
           if ((player.turboTimer > 0 || player.dashTimer > 0) && Math.random() < 0.5) {
-            this.particles.push({
-              x: player.x,
-              y: player.y,
-              vx: (Math.random() - 0.5) * 30,
-              vy: (Math.random() - 0.5) * 30,
-              life: 0.22,
-              maxLife: 0.22,
-              color: player.dashTimer > 0 ? '#FFFFFF' : '#FFDE59',
-              size: player.dashTimer > 0 ? 5 : 3,
-            });
+            this.fx.emit('spark', { x: player.x, y: player.y, color: player.color });
           }
         } else {
           const idleDrag = damp(0.7, dt);
@@ -847,8 +790,15 @@ this.targetScore = 2;
         }
       }
 
-      // Pickups interaction
+      // Pickups interaction (efektler pickupSystem'de; FX burada: toplama olayı)
+      const pickupBefore = this.pickups.length;
       collectPickups(this, player);
+      if (this.pickups.length < pickupBefore) {
+        this.fx.emit('pickup', {
+          x: player.x, y: player.y, color: player.color, slot: player.index,
+          haptic: player.slotType === 'human',
+        });
+      }
     }
 
     // Carrier vs Opponents Collision & Bomb Transfer!
@@ -930,7 +880,8 @@ this.targetScore = 2;
       arena: this.arena,
     });
     drawBombBlast(ctx, this.blast, this.arena);
-    drawBombParticles(ctx, this.particles);
+    // FX katmanı ortak bombView draw'ından gelir (host↔client aynı).
+    drawBombFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
     this.renderControls(ctx);
 
     // Host HUD: bomba geri sayımı (world-view client'ı kendi HUD'unu kullanır).
@@ -1050,6 +1001,10 @@ onRestart: () => this.startNewMatch(),
     });
 
     ctx.restore();
+
+    // Kill flaşı sahne transformunun DIŞINDA: tam ekranı kaplar (tanks deseni).
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 
 }

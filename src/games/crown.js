@@ -30,7 +30,8 @@ import { spawnPickup } from '../core/pickupSystem.js';
 import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
 import { UI_COLORS, CROWN_COLORS } from '../ui/tokens.js';
-import { createCrownWorldPacket, drawCrownWorld } from './crownView.js';
+import { createCrownWorldPacket, drawCrownWorld, drawCrownFxLayer } from './crownView.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
 
 export { CROWN_COLORS };
 export const CROWN_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -112,13 +113,16 @@ export class CrownGame extends BaseMiniGame {
       floatAnim: 0,
     };
 
-    this.particles = [];
+    // FX runtime (MOTION_PLAN Faz 2b): partikül/ring/pop/hit-stop tek sahibi;
+    // `this.particles` worldCore konvansiyonu için alias'tır. Travma lavabosu
+    // YOK: CROWN "ZERO CAMERA SHAKE" tasarımlıdır, sarsıntı eklenmez.
+    this.fx = createFxRuntime({ arenaProvider: () => this.arena });
+    /** @type {any[]} */ this.particles = this.fx.particles;
     this.floatingTexts = [];
     this.initKeyboard();
   }
 
-  getTabletopSchema() {
-    return {
+  getTabletopSchema() {    return {
       ...this.getCentralTabletopLayout('CROWN'),
       actions: [
         {
@@ -207,7 +211,8 @@ export class CrownGame extends BaseMiniGame {
         this.remapPoint(ink, oldArena, this.arena);
         clampToArena(ink, ink.radius || 22, this.arena);
       }
-      this.particles = [];
+      // Biriken partiküller ESKİ arena ölçeğindeydi; yeni unit ile karışmasın.
+      this.fx.clear();
     }
   }
 
@@ -497,7 +502,7 @@ export class CrownGame extends BaseMiniGame {
     this.roundId = 0;
     this.tiedRounds = 0;
     this.roundTimer = CROWN_TUNING.ROUND_TIME;
-    this.particles = [];
+    this.fx.clear();
     this.floatingTexts = [];
     this.trauma = 0;
     this.lastTime = performance.now();
@@ -544,7 +549,7 @@ export class CrownGame extends BaseMiniGame {
     this.roundResolutionReason = null;
     this.roundId += 1;
     this.roundTimer = CROWN_TUNING.ROUND_TIME;
-    this.particles = [];
+    this.fx.clear();
     this.floatingTexts = [];
     this.pickupTimer = 4.0;
     this._cachedWorldPacket = null;
@@ -600,6 +605,11 @@ export class CrownGame extends BaseMiniGame {
   awardCrownWinner(winner) {
     this.tiedRounds = 0;
     this.scores[winner.index]++;
+    // Raunt zaferi: score olayı (halka + haptik; sarsıntısız).
+    this.fx.emit('score', {
+      x: winner.x, y: winner.y, color: winner.color, slot: winner.index,
+      haptic: winner.slotType === 'human',
+    });
     if (this.scores[winner.index] >= this.targetScore) {
       this.roundWinner = winner;
       endMatch(this, winner, 'target-score');
@@ -647,17 +657,8 @@ export class CrownGame extends BaseMiniGame {
 
     playDashWhoosh();
 
-    for (let i = 0; i < 8; i++) {
-      this.particles.push({
-        x: player.x + (Math.random() - 0.5) * 16,
-        y: player.y + (Math.random() - 0.5) * 16,
-        vx: -dirX * (60 + Math.random() * 40),
-        vy: -dirY * (60 + Math.random() * 40),
-        color: player.color,
-        size: 5 + Math.random() * 4,
-        life: 0.25,
-      });
-    }
+    // Omuz hamlesi: dust bulutu (haptiksiz ortam olayı; whoosh sesi eşlik eder).
+    this.fx.emit('dust', { x: player.x, y: player.y, color: player.color });
   }
 
   // Taç rastgele bir noktaya savrulur (haritada aksiyon dağılır)
@@ -683,17 +684,8 @@ export class CrownGame extends BaseMiniGame {
     this.crown.vx = (Math.random() - 0.5) * 120;
     this.crown.vy = (Math.random() - 0.5) * 120;
     playDashWhoosh();
-    for (let k = 0; k < 14; k++) {
-      this.particles.push({
-        x: this.crown.x,
-        y: this.crown.y,
-        vx: (Math.random() - 0.5) * 260,
-        vy: (Math.random() - 0.5) * 260,
-        color: UI_COLORS.crownSpark,
-        size: 4 + Math.random() * 5,
-        life: 0.45,
-      });
-    }
+    // Taç savrulması: spark olayı (ortam efekti, haptiksiz).
+    this.fx.emit('spark', { x: this.crown.x, y: this.crown.y, color: UI_COLORS.crownSpark });
   }
 
   addFloatingText(x, y, text, color = UI_COLORS.inkDark) {
@@ -835,18 +827,6 @@ export class CrownGame extends BaseMiniGame {
         this.crown.vy = 0;
 
         king.crownHoldTime += dt;
-
-        if (Math.random() < 0.35) {
-          this.particles.push({
-            x: king.x + (Math.random() - 0.5) * king.radius * 2,
-            y: king.y + (Math.random() - 0.5) * king.radius * 2,
-            vx: (Math.random() - 0.5) * 30,
-            vy: -20 - Math.random() * 40,
-            color: UI_COLORS.crownSpark,
-            size: 3 + Math.random() * 4,
-            life: 0.35,
-          });
-        }
 
         if (king.crownHoldTime >= this.targetCrownTime) {
           playPiggyBreak();
@@ -1038,18 +1018,7 @@ export class CrownGame extends BaseMiniGame {
             h.pulse = 1.0;
             p.stumbleTimer = Math.max(p.stumbleTimer, 1.0);
             playWallHit();
-          }
-
-          for (let k = 0; k < 6; k++) {
-            this.particles.push({
-              x: h.x + nx * h.radius,
-              y: h.y + ny * h.radius,
-              vx: (nx + (Math.random() - 0.5) * 0.8) * 120,
-              vy: (ny + (Math.random() - 0.5) * 0.8) * 120,
-              color: UI_COLORS.crownSpark,
-              size: 4 + Math.random() * 4,
-              life: 0.25,
-            });
+            this.fx.emit('spark', { x: p.x, y: p.y, color: UI_COLORS.crownSpark });
           }
         }
       }
@@ -1074,18 +1043,7 @@ export class CrownGame extends BaseMiniGame {
             b.hitCool = 0.25;
             b.pulse = 1.0;
             playHeavyImpact();
-          }
-
-          for (let k = 0; k < 7; k++) {
-            this.particles.push({
-              x: b.x + nx * b.radius,
-              y: b.y + ny * b.radius,
-              vx: (nx + (Math.random() - 0.5) * 0.8) * 130,
-              vy: (ny + (Math.random() - 0.5) * 0.8) * 130,
-              color: UI_COLORS.crownSpark,
-              size: 4 + Math.random() * 4,
-              life: 0.25,
-            });
+            this.fx.emit('spark', { x: p.x, y: p.y, color: UI_COLORS.crownSpark });
           }
         }
       }
@@ -1112,18 +1070,7 @@ export class CrownGame extends BaseMiniGame {
           p.slipAngle = 0;
           playSlip();
           this.addFloatingText(p.x, p.y - 25, 'KAYDI!', UI_COLORS.crownSpark);
-
-          for (let k = 0; k < 8; k++) {
-            this.particles.push({
-              x: b.x,
-              y: b.y,
-              vx: (Math.random() - 0.5) * 120,
-              vy: (Math.random() - 0.5) * 120,
-              color: UI_COLORS.crownSpark,
-              size: 4 + Math.random() * 3,
-              life: 0.35,
-            });
-          }
+          this.fx.emit('spark', { x: b.x, y: b.y, color: UI_COLORS.crownSpark });
 
           this.bananaPeels.splice(i, 1);
           break;
@@ -1136,6 +1083,10 @@ export class CrownGame extends BaseMiniGame {
         const distPk = Math.hypot(p.x - pk.x, p.y - pk.y);
         if (distPk < pr + pk.radius) {
           playItemPickup();
+          this.fx.emit('pickup', {
+            x: p.x, y: p.y, color: p.color, slot: p.index,
+            haptic: p.slotType === 'human',
+          });
           if (pk.type === 'TURBO') {
             p.turboTimer = 3.5;
             this.addFloatingText(p.x, p.y - 25, 'TURBO!', UI_COLORS.crownGold);
@@ -1189,18 +1140,10 @@ export class CrownGame extends BaseMiniGame {
           p.crownHoldTime = 0;
           playCashRegister();
           this.addFloatingText(p.x, p.y - 30, 'KRAL OLDU!', p.color);
-
-          for (let k = 0; k < 16; k++) {
-            this.particles.push({
-              x: p.x,
-              y: p.y,
-              vx: (Math.random() - 0.5) * 140,
-              vy: (Math.random() - 0.5) * 140,
-              color: UI_COLORS.crownSpark,
-              size: 5 + Math.random() * 5,
-              life: 0.4,
-            });
-          }
+          this.fx.emit('pickup', {
+            x: p.x, y: p.y, color: p.color, slot: p.index,
+            haptic: p.slotType === 'human',
+          });
         }
       }
     }
@@ -1246,6 +1189,12 @@ export class CrownGame extends BaseMiniGame {
               p2.vy = ny * 380;
               p1.isTackling = false;
               p2.isTackling = false;
+              // Karşılıklı omuz: hit olayı (orta nokta, haptik iki insana da değil bire).
+              this.fx.emit('hit', {
+                x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2,
+                color: p1.color, dirX: nx, dirY: ny, slot: p1.index,
+                haptic: p1.slotType === 'human',
+              });
               playHeavyImpact();
             } else if (tackler && target) {
               tackler.isTackling = false;
@@ -1265,24 +1214,26 @@ export class CrownGame extends BaseMiniGame {
                 playHeavyImpact();
                 playStumble();
                 this.addFloatingText(target.x, target.y - 30, t('crown.dropped'), UI_COLORS.crownSpark);
-
-                for (let k = 0; k < 32; k++) {
-                  this.particles.push({
-                    x: target.x,
-                    y: target.y,
-                    vx: (Math.random() - 0.5) * 240,
-                    vy: (Math.random() - 0.5) * 240,
-                    color: Math.random() < 0.6 ? UI_COLORS.crownSpark : tackler.color,
-                    size: 4 + Math.random() * 6,
-                    life: 0.5,
-                  });
-                }
+                // Taç düşürme: hit olayı (yön takler→hedef, haptik hedefe).
+                this.fx.emit('hit', {
+                  x: target.x, y: target.y, color: tackler.color,
+                  dirX: tackler === p1 ? nx : -nx, dirY: tackler === p1 ? ny : -ny,
+                  slot: target.index,
+                  haptic: target.slotType === 'human',
+                });
               } else {
                 target.vx = (tackler === p1 ? nx : -nx) * 340;
                 target.vy = (tackler === p1 ? ny : -ny) * 340;
                 target.stumbleTimer = 1.0;
                 tackler.vx = -(tackler === p1 ? nx : -nx) * 120;
                 tackler.vy = -(tackler === p1 ? ny : -ny) * 120;
+                // Taçsız omuz: hit olayı (sarsıntısız — ZERO CAMERA SHAKE korunur).
+                this.fx.emit('hit', {
+                  x: target.x, y: target.y, color: tackler.color,
+                  dirX: tackler === p1 ? nx : -nx, dirY: tackler === p1 ? ny : -ny,
+                  slot: target.index,
+                  haptic: target.slotType === 'human',
+                });
                 playPaddleHit(1.6);
               }
             }
@@ -1323,26 +1274,22 @@ export class CrownGame extends BaseMiniGame {
   }
 
   updateParticlesAndTexts(dt) {
-    // --- 7. Update Floating Texts & Particles ---
+    // --- 7. Update Floating Texts (partiküller fxRuntime'tadır) ---
     for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
       const ft = this.floatingTexts[i];
       ft.y -= dt * 30;
       ft.life -= dt;
       if (ft.life <= 0) this.floatingTexts.splice(i, 1);
     }
-
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const part = this.particles[i];
-      part.x += part.vx * dt;
-      part.y += part.vy * dt;
-      part.life -= dt;
-      if (part.life <= 0) this.particles.splice(i, 1);
-    }
   }
 
   update(now) {
-    const dt = Math.max(0, Math.min(0.064, (now - this.lastTime) / 1000));
+    const rawDt = Math.max(0, Math.min(0.064, (now - this.lastTime) / 1000));
     this.lastTime = now;
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    // Travma lavabosu yok (ZERO CAMERA SHAKE korunur); hit-stop/flaş/haptik çalışır.
+    const dt = this.fx.tick(rawDt);
+    this.fx.update(dt);
 
     if (!this.updateRoundLifecycle(dt)) return;
 
@@ -1399,13 +1346,8 @@ export class CrownGame extends BaseMiniGame {
       }
     }
 
-    // Render Particles
-    for (const p of this.particles) {
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    // FX katmanı ortak crownView draw'ından gelir (host↔client aynı).
+    drawCrownFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
 
     // Masa-ortası sanal kontroller (joystick + TACKLE butonu, BaseGame tek kaynak)
     if (this.state === 'PLAYING') {

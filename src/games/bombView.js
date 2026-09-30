@@ -5,7 +5,10 @@
 import { drawPickup, drawObstacle } from '../core/arenaKit.js';
 import { drawField } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
-import { packBlast, isValidBlast, drawBlast, isWorldEntityVisible } from './worldCore.js';
+import {
+  packBlast, isValidBlast, drawBlast, isWorldEntityVisible,
+  packFxState, isValidFxState, drawFxRings, drawFxPops, drawSquareParticles,
+} from './worldCore.js';
 import { renderEntityHUD } from '../ui/hud.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import { t } from '../i18n.js';
@@ -84,6 +87,9 @@ export function createBombWorldPacket(game) {
     matchDraw: game.matchDraw === true,
     roundWinner: winnerSlot(game.roundWinner),
     matchWinner: winnerSlot(game.matchWinner),
+    // FX kanalı (MOTION_PLAN Faz 2b): host FX runtime'ının saf anlık görüntüsü
+    // (tanks deseni). Playback canlıyken paket yükü yok sayılır (yedek kanal).
+    fx: packFxState(game.fx),
   };
 }
 
@@ -110,6 +116,8 @@ export function isValidBombWorldFrame(frame) {
   if (!Array.isArray(frame.players) || frame.players.length > 4) return false;
   if (!Array.isArray(frame.particles) || frame.particles.length > 64) return false;
   if (!frame.particles.every((pt) => pt && finite(pt.x) && finite(pt.y) && finite(pt.size) && finite(pt.life) && finite(pt.maxLife) && typeof pt.color === 'string')) return false;
+  // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
+  if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
   return frame.players.every((p) => (
     p
     && typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
@@ -333,12 +341,14 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
   }
 }
 
-export function drawBombParticles(ctx, particles) {
-  for (const part of particles) {
-    ctx.save();
-    ctx.globalAlpha = clamp01(part.maxLife > 0 ? part.life / part.maxLife : 0);
-    ctx.fillStyle = part.color;
-    ctx.fillRect(part.x - part.size / 2, part.y - part.size / 2, part.size, part.size);
-    ctx.restore();
-  }
+/**
+ * FX katmanının tek çizim sırası: pop → ring → partikül. Host motoru ve
+ * client worldView AYNI fonksiyonu çağırır (tanks deseni).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
+ */
+export function drawBombFxLayer(ctx, layer) {
+  drawFxPops(ctx, layer?.pops);
+  drawFxRings(ctx, layer?.rings);
+  drawSquareParticles(ctx, layer?.particles);
 }

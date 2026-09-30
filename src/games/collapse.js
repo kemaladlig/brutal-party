@@ -17,8 +17,11 @@ import {
   drawCollapseWaves,
   drawCollapsePickups,
   drawCollapsePlayers,
+  drawCollapseFxLayer,
 } from './collapseView.js';
-import { drawCircleParticles } from './worldCore.js';
+import { drawFxFlash } from './worldCore.js';
+import { createFxRuntime } from '../core/fxRuntime.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 import { beginRound, endMatch, tickRoundFlow } from '../core/roundLifecycle.js';
 import { tickPickupTimers } from '../core/pickupSystem.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
@@ -175,7 +178,13 @@ export class CollapseGame extends BaseMiniGame {
 // olmak turu anlamsız kılardı.
 this.targetScore = 2;
     this.players = [];
-    this.particles = [];
+    // FX runtime (MOTION_PLAN Faz 2b): partikül/ring/pop/hit-stop tek sahibi;
+    // `this.particles` worldCore konvansiyonu için alias'tır.
+    this.fx = createFxRuntime({
+      arenaProvider: () => this.arena,
+      traumaSink: (amount, dirX, dirY) => this.addDirectionalTrauma(amount, dirX, dirY),
+    });
+    /** @type {any[]} */ this.particles = this.fx.particles;
     this.fallingTiles = [];
     this.pickups = [];
     this.shockwaves = [];
@@ -283,6 +292,8 @@ this.targetScore = 2;
       for (const tile of this.fallingTiles) this.remapPoint(tile, oldArena, this.arena);
       for (const wave of this.shockwaves) this.remapPoint(wave, oldArena, this.arena);
     }
+    // Biriken partiküller ESKİ arena ölçeğindeydi; yeni unit ile karışmasın.
+    this.fx.clear();
   }
 
   buildGrid() {
@@ -340,7 +351,7 @@ this.targetScore = 2;
     this.roundTime = COLLAPSE_ROUND_TIME;
     this.roundTransitionTimer = 0;
     this.pickups = [];
-    this.particles = [];
+    this.fx.clear();
     this.fallingTiles = [];
     this.shockwaves = [];
     this.pickRandomMap();
@@ -382,6 +393,7 @@ this.targetScore = 2;
     this.pickups = [];
     this.fallingTiles = [];
     this.shockwaves = [];
+    this.fx.clear();
     this.pickupSpawnTimer = 3.5;
     this.onTouchesReset();
     playStart();
@@ -458,24 +470,16 @@ this.targetScore = 2;
   }
 
   spawnJumpDust(x, y) {
-    for (let i = 0; i < 8; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = 20 + Math.random() * 40;
-      this.particles.push({
-        x, y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        color: '#FAF7F2',
-        radius: 2.5 + Math.random() * 2,
-        alpha: 0.8,
-        decay: 3.0,
-      });
-    }
+    // API kabuğu korundu (2 çağrı noktası); sayı profilden gelir (kademe ölçekli).
+    this.fx.emit('dust', { x, y });
   }
 
   triggerLandingStomp(player) {
     // İniş Şok Dalgası: Yakındaki rakipleri hafifçe dışarı iter
-    this.addTrauma(0.2);
+    this.fx.emit('hit', {
+      x: player.x, y: player.y, color: player.color, slot: player.index,
+      haptic: player.slotType === 'human',
+    });
     this.shockwaves.push({ x: player.x, y: player.y, radius: 8, maxRadius: 52, color: player.color, alpha: 0.8 });
     this.spawnJumpDust(player.x, player.y);
 
@@ -564,12 +568,13 @@ this.targetScore = 2;
   }
 
   update(now) {
-    const dt = this.clampDt(now, this.lastTime);
+    const rawDt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
+    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
+    const dt = this.fx.tick(rawDt);
 
-    if (this.trauma > 0) {
-      this.trauma = Math.max(0, this.trauma - dt * 2.2);
-    }
+    this.updateTrauma(dt);
+    this.fx.update(dt);
 
     if (tickRoundFlow(this, dt)) return;
 
@@ -764,15 +769,6 @@ this.targetScore = 2;
       }
     }
 
-    // Parçacıklar
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.alpha -= p.decay * dt;
-      if (p.alpha <= 0) this.particles.splice(i, 1);
-    }
-
     const alive = this.players.filter((p) => p.isJoined && p.isAlive);
     if (alive.length <= 1) {
       this.handleRoundEnd(alive.length === 1 ? alive[0] : null);
@@ -780,42 +776,19 @@ this.targetScore = 2;
   }
 
   spawnCrumble(x, y) {
-    for (let i = 0; i < 8; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = 20 + Math.random() * 60;
-      this.particles.push({
-        x, y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd + 35,
-        color: '#D99B26',
-        radius: 2 + Math.random() * 2.5,
-        alpha: 1.0,
-        decay: 2.0,
-      });
-    }
-  }
-
-  spawnVoidDust(x, y, color) {
-    for (let i = 0; i < 20; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = 30 + Math.random() * 90;
-      this.particles.push({
-        x, y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        color: i % 2 === 0 ? color : '#FAF7F2',
-        radius: 3 + Math.random() * 3,
-        alpha: 1.0,
-        decay: 1.8,
-      });
-    }
+    // Çöken karo ufalanması: dust profili (ortam olayı, haptiksiz).
+    this.fx.emit('dust', { x, y });
   }
 
   eliminatePlayer(player) {
     player.isAlive = false;
-    this.addTrauma(0.45);
+    // KILL olayı: burst + halka + ölüm pop'u + hit-stop + flaş + travma tek profilden.
+    this.fx.emit('kill', {
+      x: player.x, y: player.y, color: player.color,
+      size: player.radius || 36, angle: 0, slot: player.index,
+      haptic: player.slotType === 'human',
+    });
     playExplosion();
-    this.spawnVoidDust(player.x, player.y, player.color);
   }
 
   handleRemoteInput(slotIndex, data) {
@@ -909,8 +882,8 @@ this.targetScore = 2;
     // 6. OYUNCULAR (Havada yükselme, gölge derinliği ve şok halkası)
     drawCollapsePlayers(ctx, this.players);
 
-    // 7. PARÇACIKLAR
-    drawCircleParticles(ctx, this.particles);
+    // 7. FX KATMANI (ortak collapseView draw'ı — host↔client aynı)
+    drawCollapseFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
 
     if (this.state === 'PLAYING') {
       this.renderControls(ctx);
@@ -941,5 +914,9 @@ this.targetScore = 2;
     });
 
     ctx.restore();
+
+    // Kill flaşı sahne transformunun DIŞINDA: tam ekranı kaplar (tanks deseni).
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 }

@@ -1,7 +1,10 @@
 // CROWN world snapshot + client-safe drawing boundary.
 
 import { UI_COLORS, CROWN_COLORS } from '../ui/tokens.js';
-import { createWorldSnapshot, isValidWorldBase, round1, CROWN_PLAYER_RADIUS } from './worldCore.js';
+import {
+  createWorldSnapshot, isValidWorldBase, round1, CROWN_PLAYER_RADIUS,
+  packFxState, isValidFxState, drawFxRings, drawFxPops, drawCircleParticles,
+} from './worldCore.js';
 
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
 const PLAYER_FALLBACK = CROWN_COLORS;
@@ -97,6 +100,9 @@ export function createCrownWorldPacket(game) {
       ink: (game.inkPuddles?.length ? packCircles(game.inkPuddles) : EMPTY_ARR),
       speedPads: getBakedSpeedPads(game),
       pickups: (game.pickups?.length ? packPickups(game.pickups) : EMPTY_ARR),
+      // FX kanalı (MOTION_PLAN Faz 2b): host FX runtime'ının saf anlık görüntüsü
+      // (tanks deseni). Playback canlıyken paket yükü yok sayılır (yedek kanal).
+      fx: packFxState(game.fx),
     },
   });
 }
@@ -151,6 +157,8 @@ export function isValidCrownWorldFrame(frame) {
       && candidate.pickups.every((pickup) => Array.isArray(pickup) && pickup.length === 4
         && pickup.slice(0, 3).every(finite) && pickup[2] > 0
         && typeof pickup[3] === 'string')
+      // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
+      && (candidate.fx === undefined || isValidFxState(candidate.fx))
     ),
   });
 }
@@ -672,5 +680,17 @@ export function drawCrownWorld(ctx, frameOrGame, arena, colors = [], lastTime = 
       drawCrown(ctx, p.x, p.y - (p.radius || 36) - 8, cScale, false, arena, floatAnim);
     }
   }
+}
+
+/**
+ * FX katmanının tek çizim sırası: pop → ring → partikül. Host motoru ve
+ * client worldView AYNI fonksiyonu çağırır (tanks deseni).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
+ */
+export function drawCrownFxLayer(ctx, layer) {
+  drawFxPops(ctx, layer?.pops);
+  drawFxRings(ctx, layer?.rings);
+  drawCircleParticles(ctx, layer?.particles);
 }
 

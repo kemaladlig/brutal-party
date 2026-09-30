@@ -7,9 +7,11 @@ import {
   drawBombPickups,
   drawBombPlayers,
   drawBombBlast,
-  drawBombParticles,
+  drawBombFxLayer,
   isValidBombWorldFrame,
 } from '../games/bombView.js';
+import { drawFxFlash } from '../games/worldCore.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
 import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { UI_COLORS } from './tokens.js';
@@ -20,6 +22,10 @@ export function createWorldViewRenderer() {
     validate: isValidBombWorldFrame,
 
     render(ctx, frame, width, height, slots = [], now = performance.now(), context = {}) {
+      // FX kaynağı (MOTION_PLAN 2.2): olay playback'i (`context.fx`) varsa O
+      // çizer ve frame.fx/frame.particles YOK SAYILIR (tanks deseni). Yoksa
+      // v1 host'un paketlediği anlık görüntü (yedek kanal).
+      const fxLive = !!context.fx;
       const [left, top, right, bottom] = frame.arena;
       const arena = { left, top, right, bottom, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
 
@@ -55,9 +61,26 @@ export function createWorldViewRenderer() {
           arena,
         });
         drawBombBlast(ctx, frame.blast, arena);
-        drawBombParticles(ctx, frame.particles || []);
+        // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
+        drawBombFxLayer(ctx, fxLive
+          ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
+          : {
+              pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
+              rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
+              particles: (frame.particles || []).map((pt) => ({
+                x: pt.x, y: pt.y, vx: 0, vy: 0,
+                life: pt.life ?? 0, maxLife: pt.maxLife ?? 1,
+                size: pt.size ?? 3, color: pt.color,
+              })),
+            });
       });
       ctx.restore();
+
+      // Kill flaşı ekran-space: playback mandalı açıkken oynatıcıdan, değilse
+      // host paketinden okunur (tek kaynak kuralı).
+      const fxSrc = fxLive ? context.fx : frame.fx;
+      const flashAlpha = fxFlashAlpha(fxSrc?.flash, fxSrc?.flashPeak);
+      if (flashAlpha > 0) drawFxFlash(ctx, width, height, flashAlpha);
 
       if (frame.gameState === 'ROUND_OVER') {
         drawWorldRoundBanner(ctx, width, height, frame, slots, context);
