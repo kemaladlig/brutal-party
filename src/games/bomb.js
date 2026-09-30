@@ -878,6 +878,7 @@ this.targetScore = 2;
       withFx: this.state === 'PLAYING',
       now: this.lastTime,
       arena: this.arena,
+      selfSlot: this.localControlSlot ?? -1,
     });
     drawBombBlast(ctx, this.blast, this.arena);
     // FX katmanı ortak bombView draw'ından gelir (host↔client aynı).

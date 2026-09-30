@@ -7,6 +7,7 @@
 import { drawPickup, drawObstacle } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { fxReadAlpha } from '../core/fxKit.js';
 import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
 import { renderEntityHUD, renderFireCooldown } from '../ui/hud.js';
 import { UI_COLORS } from '../ui/tokens.js';
@@ -326,7 +327,9 @@ export function drawLaserShots(ctx, lasers) {  ctx.lineCap = 'round';
   }
 }
 
-export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } = {}) {
+export function drawLaserPlayers(ctx, players, { arena = null, withFx = true, selfSlot = -1 } = {}) {
+  // 3.3: tek görür varsa kendi avatarın T1, diğerleri T3 (−%25); α fxKit'ten.
+  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
   const blink = Math.floor(performance.now() / 120) % 2 === 0;
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
@@ -395,6 +398,7 @@ export function drawLaserPlayers(ctx, players, { arena = null, withFx = true } =
       showPointer: false,
       borderWidth: uMin(3),
       shadowOffset: 2 * u,
+      alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
     });
 
     ctx.restore();

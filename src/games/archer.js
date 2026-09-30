@@ -873,7 +873,7 @@ export class ArcherGame extends BaseMiniGame {
     drawArcherArrows(ctx, this.arrows);
 
     // Oyuncular
-    drawArcherPlayers(ctx, this.players, { showFx: this.state === 'PLAYING', now: this.lastTime });
+    drawArcherPlayers(ctx, this.players, { showFx: this.state === 'PLAYING', now: this.lastTime, selfSlot: this.localControlSlot ?? -1 });
 
     // FX katmanı ortak archerView draw'ından gelir (host↔client aynı).
     drawArcherFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });

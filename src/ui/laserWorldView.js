@@ -51,7 +51,7 @@ export function createWorldViewRenderer() {
         }));
         if (withFx) drawLaserAims(ctx, players);
         drawLaserShots(ctx, frame.lasers || []);
-        drawLaserPlayers(ctx, players, { arena, withFx });
+        drawLaserPlayers(ctx, players, { arena, withFx, selfSlot: context.selfSlot ?? -1 });
         // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
         drawLaserFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }

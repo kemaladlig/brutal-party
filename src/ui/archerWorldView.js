@@ -54,7 +54,7 @@ export function createWorldViewRenderer() {
           color: slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || '#D84727',
           avatar: slots?.[p.slot]?.avatar || null,
         }));
-        drawArcherPlayers(ctx, players, { showFx: frame.gameState === 'PLAYING' });
+        drawArcherPlayers(ctx, players, { showFx: frame.gameState === 'PLAYING', selfSlot: context.selfSlot ?? -1 });
         // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
         drawArcherFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }

@@ -59,6 +59,7 @@ export function createWorldViewRenderer() {
           bombMaxTime: frame.bombMaxTime,
           withFx: frame.gameState === 'PLAYING',
           arena,
+          selfSlot: context.selfSlot ?? -1,
         });
         drawBombBlast(ctx, frame.blast, arena);
         // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.

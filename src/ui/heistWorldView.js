@@ -51,7 +51,7 @@ export function createWorldViewRenderer() {
         );
         drawHeistLoot(ctx, frame.loot.map(([x, y, radius, type]) => ({ x, y, radius, type })));
         drawHeistPiggy(ctx, frame.piggy);
-        drawHeistPlayers(ctx, players, { withFx: frame.gameState === 'PLAYING', arena });
+        drawHeistPlayers(ctx, players, { withFx: frame.gameState === 'PLAYING', arena, selfSlot: context.selfSlot ?? -1 });
         // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
         drawHeistFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }

@@ -5,6 +5,7 @@
 import { drawPickup, drawObstacle } from '../core/arenaKit.js';
 import { drawField } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { fxReadAlpha } from '../core/fxKit.js';
 import {
   packBlast, isValidBlast, drawBlast, isWorldEntityVisible,
   packFxState, isValidFxState, drawFxRings, drawFxPops, drawSquareParticles,
@@ -200,7 +201,9 @@ export function drawBombPickups(ctx, pickups) {
   }
 }
 
-export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15, withFx = true, now = 0, arena = null } = {}) {
+export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15, withFx = true, now = 0, arena = null, selfSlot = -1 } = {}) {
+  // 3.3: tek görür varsa kendi avatarın T1, diğerleri T3 (−%25); α fxKit'ten.
+  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
     const radius = player.radius || 36;
@@ -296,6 +299,7 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
       // ile döner, bakış `vx/vy`'den türetilir.
       lookAngle: (player.vx || player.vy) ? Math.atan2(player.vy || 0, player.vx || 0) : undefined,
       now,
+      alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
     });
 
     // Dash rozeti dünya koordinatında çizilir (aşağıda, restore sonrası).

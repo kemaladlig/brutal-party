@@ -1224,7 +1224,7 @@ export class LaserGame extends BaseMiniGame {
     drawLaserShots(ctx, this.lasers);
 
     // Oyuncular
-    drawLaserPlayers(ctx, scenePlayers, { arena: this.arena, withFx });
+    drawLaserPlayers(ctx, scenePlayers, { arena: this.arena, withFx, selfSlot: this.localControlSlot ?? -1 });
 
     // FX katmanı ortak laserView draw'ından gelir (host↔client aynı).
     drawLaserFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });

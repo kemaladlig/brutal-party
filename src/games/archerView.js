@@ -6,6 +6,7 @@
 import { drawObstacle, drawPickup } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
 import { renderFireCooldown } from '../ui/hud.js';
@@ -196,7 +197,9 @@ function archerAimSway(player) {
   return Math.sin(player.swayPhase || 0) * (0.03 + 0.12 * (1 - (player.charge || 0)));
 }
 
-export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena = null } = {}) {
+export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena = null, selfSlot = -1 } = {}) {
+  // 3.3: tek görür varsa kendi avatarın T1 (tam), diğerleri T3 (−%25). α fxKit'ten okunur.
+  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
     const slotIndex = (player.slot ?? player.index) ?? 0;
@@ -273,6 +276,7 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena
       // bakış da YEREL uzayda verilir (gövde dönüşüne eklenir, üstüne binmez).
       lookAngle: player.charge > 0 ? archerAimSway(player) : undefined,
       now,
+      alpha: fxReadAlpha({ isSelf: hasViewer && slotIndex === selfSlot, hasViewer }),
     });
 
     const activeEffects = [

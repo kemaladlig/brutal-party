@@ -1030,7 +1030,7 @@ export class HeistGame extends BaseMiniGame {
         maxHp: this.piggyBank.maxHp,
         anim: this.piggyBank.animTime || 0,
       } : null);
-      drawHeistPlayers(ctx, scenePlayers, { withFx: this.state === 'PLAYING', now: this.lastTime, arena: this.arena });
+      drawHeistPlayers(ctx, scenePlayers, { withFx: this.state === 'PLAYING', now: this.lastTime, arena: this.arena, selfSlot: this.localControlSlot ?? -1 });
     }
     // FX katmanı ortak heistView draw'ından gelir (host↔client aynı).
     drawHeistFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });

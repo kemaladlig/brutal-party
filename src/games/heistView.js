@@ -5,6 +5,7 @@
 // coin yıldızı (★) tüm platformlarda metin render edilen stabil bir gliftir.
 
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawObstacle } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
@@ -341,7 +342,9 @@ export function drawHeistPiggy(ctx, piggy) {
   ctx.restore();
 }
 
-export function drawHeistPlayers(ctx, players, { withFx = true, now = 0, arena = null } = {}) {
+export function drawHeistPlayers(ctx, players, { withFx = true, now = 0, arena = null, selfSlot = -1 } = {}) {
+  // 3.3: tek görür varsa kendi avatarın T1, diğerleri T3 (−%25); α fxKit'ten.
+  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
   let richestIndex = -1;
   let maxCarried = 2;
   for (const p of players) {
@@ -431,6 +434,7 @@ export function drawHeistPlayers(ctx, players, { withFx = true, now = 0, arena =
         ? Math.atan2(player.vy || 0, player.vx || 0)
         : undefined,
       now,
+      alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
     });
 
     // Tackle cooldown rozeti dünya koordinatında çizilir (aşağıda, restore
