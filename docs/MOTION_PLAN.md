@@ -160,11 +160,11 @@ gerçek Android düşük-ucuz cihazda 60 fps yakalama (perfMonitor çıktısı k
 - [ ] 3.3 Üç kademe hiyerarşi (fxKit hakemiyle zorunlu): T1 kendi avatarın+nişan hattın
       (tam opak, tam juice) · T2 aktif tehdit (mermi/kenar — parlak ama flash-seviyesi değil)
       · T3 diğer oyuncular + ambiyans (α −%25). Motorlar α'yı kendisi uydurmaz.
-- [ ] 3.4 HUD bandı ↔ oyun alanı dokunmazlığı geniş viewport'ta yeniden doğrulanır
+- [x] 3.4 HUD bandı ↔ oyun alanı dokunmazlığı geniş viewport'ta yeniden doğrulanır
       (inset metin yüksekliğinden değil halka yarıçapından türemeli — bilinen tuzak).
 - [ ] 3.5 Kumanda buton geri bildirimi SADECE 90-110 ms scale-pop; ripple/glow yok.
       `gamepadShell`/şema tarafında tek desen.
-- [ ] 3.6 Sonuç/raunt bantlarındaki mevcut `enter` animasyonlarına (260 ms) FX final
+- [x] 3.6 Sonuç/raunt bantlarındaki mevcut `enter` animasyonlarına (260 ms) FX final
       kareleri eklenir: kazanma anı → skor sayacı tick-zıplatması; mevcut kart dili bozulmaz.
 
 **Çıkış kanıtı:** 4 kişilik kaos anında yan yana ekran görüntüleri (küçük telefon + TV):
@@ -174,13 +174,26 @@ her avatar tanınır, HUD üstünde hiçbir şey uçuşmaz, T3 solukluğu ölç�
 
 - [ ] 4.1 Oyun-özel travma/FX tabloları yalnız `CARTRIDGES` kayıt alanlarında tutulur
       (motor gövdesinde sayı yok); playtest turu başına bir oyun ince ayar.
-- [ ] 4.2 Tempo/L\* kilitleriyle sürtüşme POLİTİKASI: juice bir kapıyı kırarsa kapı mı
+- [x] 4.2 Tempo/L\* kilitleriyle sürtüşme POLİTİKASI: juice bir kapıyı kırarsa kapı mı
       haksız değişim mi önce kararlaştırılır; eşik genişletme AGENTS güncellemesiyle VE
-      kullanıcı onayıyla yapılır — sessiz eşik kaydırma yasak.
-- [ ] 4.3 Termal/bateri: uzun oturumda low kademeye inişin playbook'u; `prefers-reduced-
+      kullanıcı onayıyla yapılır — sessiz eşik kaydırma yasak. (AGENTS §11'e politika satırı eklendi.)
+- [x] 4.3 Termal/bateri: uzun oturumda low kademeye inişin playbook'u; `prefers-reduced-
       motion` kadar "sakin mod" tercihi de ayar şemasında satır olur (§8: şema+actions).
-- [ ] 4.4 PROJECT_MAP'e "FX olayları ve bütçeleri" bölümü + AGENTS §8'e tek satır:
+- [x] 4.4 PROJECT_MAP'e "FX olayları ve bütçeleri" bölümü + AGENTS §8'e tek satır:
       "FX yalnız `fxKit` olayından doğar; motor/çekirdek partikül state'i tutmaz."
+
+> **4.3 playbook (termal/bateri, uzun oturum):**
+> 1. **Otomatik iniş** — `perfMonitor`: boot'ta cihaz metriği (`cores`/`deviceMemory`) ilk
+>    kademeyi seçer (≤2 çekirdek veya ≤2 GB → `low`; ≥8 çekirdek & ≥3 GB → `high`; arası `mid`).
+>    Çalışırken kare süresi 20 ms üstünde **30 ardışık kare** sürerse kademe bir basamak iner
+>    (`high→mid→low`); düzelince yükselmez (histerezis: tekrar ısınmayı önler).
+> 2. **Low'da ne olur** — `fxParticleScale` 0.4, `fxGlowEnabled` false (aura katmanı kapanır).
+>    Travma/sarsıntı bütçesine DOKUNMAZ; o `motionScale` kapısındadır (§8).
+> 3. **Kullanıcı kapısı** — "Sakin mod" (Ayarlar → SİSTEM) hareketi kısar (`motionScale` 0) +
+>    kademeyi `low`'a **sabitler**; kapatınca otomatik kademe geri gelir. Tek okuma noktaları:
+>    `motion.js` + `perfMonitor.js`; ayrı bir "sakin" çizim yolu YOKTUR.
+> 4. **İzleme** — `?perf` / `bp.perf=1` → `perfOverlay`; etkin kademe `fxTierName()` ("low" sakin
+>    modda da doğru raporlanır).
 
 ## Riskler ve bilinçli tercihler
 

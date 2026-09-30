@@ -72,6 +72,7 @@ Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inp
 - İkon tek kaynak `src/core/tabletopIcons.js` + `iconSlots.js` (`data-icon`); kumanda aksiyonu ikon-only. Ham OS emojisi yasak — tek istisna tepki yüzeyi (`reactions.js` → glyph + `reactionGlyph`, tel değeri ASCII anahtar).
 - Twin-stick'te aksiyon butonu aim zone'un ÇOCUĞUDUR; `aimController` butondan/kümeden gelen olayı yok sayar. Buton kendi `preventDefault`'u ile bunu kesmez (pointer/touch ayrı olay aileleri) → yok sayım zone tarafında zorunlu.
 - Motion `src/ui/motion.js` + tokenlar; `transform`/`opacity` dışı animasyon yok, `prefers-reduced-motion`'a uyulur.
+- FX yalnız `fxKit` olayından doğar (`emitFx` → `fxRuntime`); motor/çekirdek partikül state'i tutmaz, FX olayları anlık güvenilir yoldan gider (world kanalında taşınmaz).
 
 ## 9. Yasaklar
 
@@ -92,3 +93,4 @@ Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inp
 - `scripts/rules-lint.mjs` (K1–K7, AGENTS.md § haritalı) yeni ihlalde exit 1; mevcut borç `scripts/rules-lint-baseline.json`'da dosya+kural sayısıyla dondurulmuştur — borcu ancak azaltırken güncelle (`--update`).
 - Motor/akış değişikliğinde `npm run test:e2e` (Playwright, `tests-e2e/`): `engine-smoke.spec.js` tüm GAME_ORDER motorlarını registry'den yükleyip LOBBY→PLAYING 240 kare sürer; `control-surface.spec.js` yerel kontrol yüzeyi seçimini doğrular. §11'in 3 provası `tests/relayProbes.test.mjs`'te protokol seviyesinde otomatik. @ts-ignore/@ts-nocheck politikası: @ts-ignore yasak, @ts-nocheck yalnız `sebep — tarih` yorumuyla.
 - Push yalnız kullanıcı isterse.
+- **Eşik kaydırma politikası (MOTION_PLAN 4.2):** juice bir kapıyı (tempo/`movementBudget`, zemin-L\* `fieldKit`) kırarsa eşik SESSİZCE gevşetilmez; kapı mı haksız yoksa değişim mi meşru önce karara bağlanır ve genişletme yalnız gerekçe + kullanıcı onayı + bu satır/MOTION_PLAN güncellemesiyle yapılır.

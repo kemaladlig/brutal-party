@@ -409,3 +409,34 @@ Doğrulama metotları, piksel ölçümleri ve kullanıcı-geri-bildirim gerekçe
 - `~/.config/opencode/AGENTS.md` — tüm projelerde geçerli temel; çakışırsa **proje dosyası kazanır**.
 - Bu depo: `AGENTS.md` (sözleşmeler) + `docs/PROJECT_MAP.md` (harita).
 - Antigravity/Claude/Copilot global dosyaları master'dan senkronlanır.
+
+---
+
+## 8. FX Olayları ve Bütçeleri
+
+**Tek kaynak `src/core/fxKit.js`.** Motorlar OLAY üretir (`emitFx`); partikül/halka/pop/flaş/
+hit-stop/haptik bütçeleri yalnız buradan geçer. Motor gövdesinde FX sayısı/α'sı UYDURULMAZ;
+`fxKit` tablosu ve `fxRuntime` çeviricisi otoritedir. Domainsizdir — host motoru, world-view ve
+testler aynı saf fonksiyonları paylaşır.
+
+- **Kapalı olay kümesi:** `FX_KIND` = `shot` · `hit` · `kill` · `pickup` · `score` · `blocked` ·
+  `spark` · `dust` · `zone`. Küme dışı kind throw eder (`fxProfile`).
+- **Bütçe tablosu `FX_PROFILES`:** olay başına partikül patlaması (count/speed/size/life), şok
+  halkası (r0→r1/width), `trauma` (0..1, travma² ile uygulanır), `hitStopMs`, `flashSec`.
+  Tüm uzamsal sayılar TASARIM px'idir; spawn anında `unit` ile çarpılır (I5/I6).
+- **Havuz kapları:** partikül `FX_PARTICLE_CAP` 96 · halka `FX_RING_CAP` 12 · ölüm pop'u
+  `FX_POP_CAP` 8; kap dolunca en eski atılır.
+- **Zaman/sunum bütçesi:** `advanceHitStop` donuk sürede dt'yi `FX_HITSTOP_SCALE` (0.06) yapar,
+  artan gerçek zaman sonraki kareye iade edilir; kill flaşı `fxFlashAlpha` → tepe `FX_FLASH_ALPHA`
+  (0.35). Azaltılmış harekette (`motionScale()===0`) hit-stop ve travma üretilmez; partikül bilgi
+  taşıdığı için üretilmeye devam eder.
+- **Okunurluk hiyerarşisi (3.3, TEK hakem):** `FX_TIER` T1 own / T2 threat / T3 other;
+  `FX_TIER_ALPHA` = 1 · 1 · 0.75; `fxReadAlpha({isSelf, isThreat, hasViewer})`. Paylaşılan TV'de
+  "kendi" yoktur → dim yok (`hasViewer:false` → 1). Motorlar `globalAlpha`'yı bu çarpanla ÇARPAR.
+- **Ağ:** FX olayları anlık GÜVENİLİR yoldan gider (`HOST_FX` / `FX_EVENTS`), world kanalında
+  taşınmaz (§3). Olay şeması `{ fx, token, x, y, u, power, slot?, color?, dirX?, dirY?, angle?,
+  size?, ringRadius? }`; doğrulama `isValidFxEvent`/`normalizeFxEvents`, damga `createFxStamp`,
+  süzgeç `createFxEventFilter`.
+- **Haptik:** `FX_HAPTIC` olay→desen; `haptics.js` tercih kapısından geçer.
+
+Kilit testleri: `tests/fxKit.test.mjs`, `tests/fxEvents.test.mjs`.
