@@ -103,6 +103,43 @@ export function fxFlashAlpha(flashSec, peakSec) {
   return FX_FLASH_ALPHA * Math.min(1, flashSec / peakSec);
 }
 
+/**
+ * MOTION_PLAN 3.3 — Üç kademeli okunurluk hiyerarşisi (TEK hakem burası).
+ * Motorlar α'yı KENDİSİ UYDURMAZ; bu tablodan okur. Kademe anlamları:
+ * - T1 OWN   : görüntüleyenin kendi avatarı + nişan hattı → tam opak, tam juice.
+ * - T2 THREAT: aktif tehdit (mermi/kenar/tehlike) → parlak (α 1) ama ekran-flaş
+ *              seviyesinin ALTINDA (flaş tavanı `FX_FLASH_ALPHA`, tek-ekran-efekti bütçesi).
+ * - T3 OTHER : diğer oyuncular + ambiyans/dekor → α −%25 (0.75).
+ * @readonly
+ */
+export const FX_TIER = Object.freeze({ OWN: 'T1', THREAT: 'T2', OTHER: 'T3' });
+
+/** Kademe → α çarpanı (kapalı küme). T2 parlak kalır; flaş tavanı ayrı bütçedir. */
+export const FX_TIER_ALPHA = Object.freeze({ T1: 1, T2: 1, T3: 0.75 });
+
+/**
+ * Kademe α çarpanı. Bilinmeyen kademe → 1 (dim yok, güvenli varsayılan).
+ * @param {string} tier `FX_TIER` değeri
+ * @returns {number} 0..1
+ */
+export function fxTierAlpha(tier) {
+  const a = /** @type {any} */ (FX_TIER_ALPHA)[tier];
+  return a === undefined ? 1 : a;
+}
+
+/**
+ * Varlığı görüntüleyene göre sınıflayıp α çarpanını döndürür (3.3 hakemi).
+ * `hasViewer` false ise (paylaşılan LOCAL TV / selfSlot<0 — TEK "kendi" yok) diğer
+ * oyuncular DIMLENMEZ: kontrast kurulacak bir T1 olmadığından α 1 döner.
+ * @param {{ isSelf?: boolean, isThreat?: boolean, hasViewer?: boolean }} [o]
+ * @returns {number} 0..1 α çarpanı (ctx.globalAlpha ile ÇARPILIR, yerine geçmez)
+ */
+export function fxReadAlpha({ isSelf = false, isThreat = false, hasViewer = true } = {}) {
+  if (isSelf) return FX_TIER_ALPHA.T1;
+  if (isThreat) return FX_TIER_ALPHA.T2;
+  return hasViewer ? FX_TIER_ALPHA.T3 : FX_TIER_ALPHA.T1;
+}
+
 /** @param {string} kind @returns {boolean} */
 export function isFxKind(kind) {
   return Object.prototype.hasOwnProperty.call(FX_PROFILES, kind);

@@ -143,5 +143,8 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
     showPointer: opts.showPointer !== undefined ? opts.showPointer : true,
     borderColor: resolvedBorder,
     borderWidth,
+    // 3.3 okunurluk kademesi: çağıran `fxReadAlpha` ile hesapladığı α'yı geçirir;
+    // drawBrutalAvatar bunu ctx.globalAlpha ile ÇARPAR (kendi başına dim uydurmaz).
+    alpha: opts.alpha,
   });
 }

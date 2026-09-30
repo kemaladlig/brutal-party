@@ -29,6 +29,10 @@ import {
   advanceHitStop,
   fxNormalizedDir,
   fxPadFeedback,
+  FX_TIER,
+  FX_TIER_ALPHA,
+  fxTierAlpha,
+  fxReadAlpha,
 } from '../src/core/fxKit.js';
 import { createFxRuntime } from '../src/core/fxRuntime.js';
 
@@ -219,4 +223,41 @@ test('2.4 fxPadFeedback: bozuk/eksik yük pop üretmez (dayanıklılık)', () =>
   assert.deepEqual(res.ownKinds, []);
   assert.equal(res.pop, false);
 });
+
+// MOTION_PLAN 3.3 — üç kademeli okunurluk hiyerarşisi: α TEK hakemden (fxKit) okunur,
+// motorlar uydurmaz. T1 kendi (tam), T2 tehdit (parlak, flaş-altı), T3 diğerleri (−%25).
+test('3.3 FX_TIER_ALPHA: T1/T2 tam opak, T3 −%25; kapalı küme', () => {
+  assert.equal(FX_TIER_ALPHA.T1, 1);
+  assert.equal(FX_TIER_ALPHA.T2, 1);
+  assert.equal(FX_TIER_ALPHA.T3, 0.75);
+  assert.deepEqual(Object.keys(FX_TIER).sort(), ['OTHER', 'OWN', 'THREAT']);
+  // T2 parlak kalır ama ekran-flaş tavanının altında olmalıdır (flaş ayrı bütçe).
+  assert.ok(FX_TIER_ALPHA.T2 <= 1);
+  assert.ok(FX_FLASH_ALPHA < 1, 'flaş tavanı tam beyaz perde değil');
+});
+
+test('3.3 fxTierAlpha: bilinen kademeler + bilinmeyen → 1 (dim yok, güvenli)', () => {
+  assert.equal(fxTierAlpha(FX_TIER.OWN), 1);
+  assert.equal(fxTierAlpha(FX_TIER.THREAT), 1);
+  assert.equal(fxTierAlpha(FX_TIER.OTHER), 0.75);
+  assert.equal(fxTierAlpha('T9'), 1);
+  assert.equal(fxTierAlpha(undefined), 1);
+});
+
+test('3.3 fxReadAlpha: own/threat/other sınıflaması + tek-görür-yok dimi', () => {
+  // Kendi avatarın her zaman tam (hasViewer ne olursa olsun).
+  assert.equal(fxReadAlpha({ isSelf: true, hasViewer: true }), 1);
+  assert.equal(fxReadAlpha({ isSelf: true, hasViewer: false }), 1);
+  // Tehdit parlak (T2).
+  assert.equal(fxReadAlpha({ isThreat: true }), 1);
+  // Diğer oyuncu, TEK görür varken −%25 (T3).
+  assert.equal(fxReadAlpha({ hasViewer: true }), 0.75);
+  // Paylaşılan LOCAL TV / selfSlot<0: tek "kendi" yok → diğerleri DIMLENMEZ.
+  assert.equal(fxReadAlpha({ hasViewer: false }), 1);
+  // Varsayılan argüman güvenli: boş çağrı = other+viewer → T3.
+  assert.equal(fxReadAlpha(), 0.75);
+  // isSelf, isThreat'i yener (kendi avatarın tehdit sayılmaz).
+  assert.equal(fxReadAlpha({ isSelf: true, isThreat: true }), 1);
+});
+
 
