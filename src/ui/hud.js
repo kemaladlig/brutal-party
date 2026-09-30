@@ -106,6 +106,30 @@ export function renderTopPill(ctx, {
   ctx.restore();
 }
 
+/**
+ * Saha-içi kenar sayacı/halkasının yerleşimi (Faz 3.4). Saf ve test edilebilir:
+ * `inset` HUD bandını sahanın içinde tutar ve halka yarıçapına bağlıdır —
+ * yalnız metin yüksekliğinden türetilirse halka arena üst bandına taşar
+ * (bilinen tuzak). Bu fonksiyon tek kaynaktır; `renderArenaWatermarkTimer`
+ * buradan okur.
+ * @param {{ scale: number, minDim: number, sizeScale?: number }} p
+ * @returns {{ mainFontSize: number, subFontSize: number, ringR: number, inset: number }}
+ */
+export function computeArenaTimerLayout({ scale, minDim, sizeScale = 1 }) {
+  const mainFontSize = Math.max(24, Math.min(
+    Math.round(78 * (scale / 1.55) * sizeScale),
+    Math.floor(minDim * 0.095 * sizeScale),
+  ));
+  const subFontSize = Math.max(11, Math.min(Math.round(16 * scale), Math.floor(minDim * 0.032)));
+  // `inset >= ringR`: halkanın üst kenarı (inset - ringR) arena dışına taşmaz.
+  const ringR = Math.max(minDim * 0.10, mainFontSize * 0.85);
+  const inset = Math.max(
+    fieldPx({ unit: scale }, 26),
+    minDim * 0.06 + ringR * 0.55,
+  );
+  return { mainFontSize, subFontSize, ringR, inset };
+}
+
 // Saha ortası büyük filigran sayaç / zamanlayıcı / durum metni.
 // TV ve büyük monitörlerde koltuktan rahatça görülecek kadar büyüktür,
 // yüksek kontrastlı ve net, ancak saha zemininde çizildiği için oyuncuları ve oyunu engellemez.
@@ -132,15 +156,6 @@ export function renderArenaWatermarkTimer(ctx, {
   // banttır, merkez konumundaki kadar yer kaplamamalı.
   const edgePlacement = placement === 'top' || placement === 'bottom';
   const sizeScale = edgePlacement ? 0.72 : 1;
-  const mainFontSize = Math.max(24, Math.min(
-    Math.round(78 * (scale / 1.55) * sizeScale),
-    Math.floor(minDim * 0.095 * sizeScale),
-  ));
-  const subFontSize = Math.max(11, Math.min(Math.round(16 * scale), Math.floor(minDim * 0.032)));
-
-  // Kenar konumu: HUD'ın yoğun olduğu üst/alt bant. Ölçek `scale` ile gelir
-  // (`getUiScale` arenanın gerçek px'ini zaten biliyor), ayrı `arenaUnit`
-  // gerektirmez — `fieldPx` tasarım px'i ölçekli CSS px'e çevirir.
   // Kenar konumu: HUD'ın yoğun olduğu üst/alt bant. `inset` hem yazıyı hem
   // ilerleme halkasını içeri alır; halka yarıçapı `minDim * 0.10` olduğu için
   // konum kaydırma tek başına yetmez — halka da kenardan içeride kalmalı.
@@ -148,12 +163,8 @@ export function renderArenaWatermarkTimer(ctx, {
   // Ölçülen hata: ilk sürüm `inset = max(fieldPx(scale,26), minDim*0.11)`
   // idi; 1600x900'de bu 90px çıkıyordu, halka ise 90+ yarıçaplık yüzünden
   // arenanın üst bandındaki engellerin ÜSTÜNE biniyordu. Pay, halka yarıçapı
-  // + yazı yüksekliğiyle birlikte hesaplanır.
-  const ringR = Math.max(minDim * 0.10, mainFontSize * 0.85);
-  const inset = Math.max(
-    fieldPx({ unit: scale }, 26),
-    minDim * 0.06 + ringR * 0.55,
-  );
+  // + yazı yüksekliğiyle birlikte hesaplanır (tek kaynak: computeArenaTimerLayout).
+  const { mainFontSize, subFontSize, ringR, inset } = computeArenaTimerLayout({ scale, minDim, sizeScale });
   const cx = arena.cx;
   const cy = placement === 'top' ? arena.top + inset
     : placement === 'bottom' ? arena.bottom - inset
