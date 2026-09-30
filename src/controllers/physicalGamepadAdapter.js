@@ -102,7 +102,39 @@ export class PhysicalGamepadAdapter {
   }
 
   sendNeutral() {
-    for (const neutral of getNeutralInputs(this.getMode())) this.send(neutral);
+    // Yalnız BU adaptörün gerçekten tuttuğu kanalları nötrler. `getNeutralInputs`
+    // mod geneli paket üretir; körlemesine göndermek, aynı transport'u paylaşan
+    // dokunmatik yüzeyin basılı girdisini (ör. TANKS pedalı) eziyordu. Fiziksel
+    // kumanda ikincil kaynaktır (bkz. dosya başlığı) — başkasının latch'ini
+    // bırakma yetkisi yok. Dokunma-aktif kısması (`_lastLocalInputAt`) devreye
+    // girip burada nötr patlatınca pedal "geç tepki veriyor" gibi davranıyordu.
+    for (const neutral of getNeutralInputs(this.getMode())) {
+      if (this.holdsChannel(neutral)) this.send(neutral);
+    }
+    // Nötrledikten sonra bu adaptör hiçbir kanal tutmuyor: bayat sahiplik,
+    // sonraki nötrde başka kaynağın latch'ini ezmesin.
+    this.previous.driving = false;
+    this.previous.dir = 0;
+    this.previous.vectorActive = false;
+    this.previous.aimActive = false;
+  }
+
+  /** @param {{ action?: string }} packet */
+  holdsChannel(packet) {
+    switch (packet?.action) {
+      case 'TANK_DRIVE':
+        return this.previous.driving === true;
+      case 'CURVE_STEER':
+      case 'SNAKE_STEER':
+        return (this.previous.dir || 0) !== 0;
+      case 'JOYSTICK_MOVE':
+        return this.previous.vectorActive === true;
+      case 'AIM_MOVE':
+      case 'AIM_RELEASE':
+        return this.previous.aimActive === true;
+      default:
+        return true;
+    }
   }
 
   findPad() {

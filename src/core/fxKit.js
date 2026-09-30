@@ -13,11 +13,12 @@
 import { UI_COLORS } from '../ui/tokens.js';
 import { vibrate } from './haptics.js';
 
-/** @typedef {'shot'|'hit'|'kill'|'pickup'|'score'|'blocked'|'spark'|'dust'|'zone'} FxKind */
+/** @typedef {'shot'|'hit'|'slay'|'kill'|'pickup'|'score'|'blocked'|'spark'|'dust'|'zone'} FxKind */
 
 export const FX_KIND = Object.freeze({
   SHOT: 'shot',
   HIT: 'hit',
+  SLAY: 'slay',
   KILL: 'kill',
   PICKUP: 'pickup',
   SCORE: 'score',
@@ -47,6 +48,16 @@ export const FX_PROFILES = Object.freeze({
     ring: Object.freeze({ r0: 4, r1: 26, life: 0.22, width: 2 }),
     trauma: 0.2,
     hitStopMs: 50,
+  }),
+  // SLAY: sıradan (trash) düşman ölümü — KILL'in ekran-flaşsız, kısa hit-stoplu
+  // kardeşi. HORDE gibi çok-ölümlü oyunlarda her NPC KILL basınca flaş sürekli
+  // yanıp hit-stop `Math.max` ile kilitlenir; flaş yalnız elit/boss/patlamaya
+  // (KILL) saklanır. Ölüm pop'u + burst + halka korunur.
+  slay: Object.freeze({
+    burst: Object.freeze({ count: 12, speed: 118, speedVar: 70, life: 0.5, size: 5, sizeVar: 3, inkMix: 0.5 }),
+    ring: Object.freeze({ r0: 8, r1: 70, life: 0.28, width: 3 }),
+    trauma: 0.3,
+    hitStopMs: 70,
   }),
   kill: Object.freeze({
     burst: Object.freeze({ count: 18, speed: 120, speedVar: 80, life: 0.65, size: 6, sizeVar: 4, inkMix: 0.4 }),
@@ -79,6 +90,7 @@ export const FX_PROFILES = Object.freeze({
 export const FX_HAPTIC = Object.freeze({
   shot: 22,
   hit: 14,
+  slay: Object.freeze([22, 30, 46]),
   kill: Object.freeze([40, 50, 80]),
   pickup: 12,
   score: Object.freeze([15, 30, 15]),

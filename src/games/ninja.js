@@ -11,7 +11,7 @@ import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
-import { clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
+import { clampToArena, pointBlocked, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { beginRound, endMatch, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldPx, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import {
@@ -54,6 +54,48 @@ export const NINJA_TUNING = {
   SLASH_OUTER_R: 68,  // hilal dış yarıçapı
   SLASH_INNER_R: 22,  // hilal iç yarıçapı
 };
+
+/**
+ * Fenerin GÖVDE yarıçapı (çarpışma/doğuş payı). Işık halesi (`lantern.radius`)
+ * değil, gözle görülen çekirdek ölçüsünden türer; sahayla ölçeklenir.
+ */
+function lanternBodyRadius(arena) {
+  return Math.max(10, fieldPx(arena, 16));
+}
+
+/**
+ * Fener için ENGELE DEĞMEYEN bir doğuş noktası seçer.
+ *
+ * Ölçülen kusur: geri doğan fener `arena.cx, cy`'ye konuyordu — ama merkez
+ * sütunu tam orayı kapsıyor. Fener engelin İÇİNDE kalıyor, çarpışma kodu
+ * yalnız hızı çevirdiği için dışarı çıkamıyor ve merkezde titriyordu; oyuncu
+ * kılıç menziline de giremediği için fener ölümsüzleşiyordu.
+ *
+ * Rastgele denemeler çoğu saha için yeter; yoğun saha yedeği dış halkada
+ * açılı tarama yapar. Son çare olarak sol-üst köşe boşluğu döner (asla
+ * engelin merkezine düşmemek, konumun güzel olmasından önceliklidir).
+ */
+function findOpenLanternSpot(arena, obstacles, clearance) {
+  const minX = arena.left + clearance;
+  const maxX = arena.right - clearance;
+  const minY = arena.top + clearance;
+  const maxY = arena.bottom - clearance;
+  if (maxX > minX && maxY > minY) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const x = minX + Math.random() * (maxX - minX);
+      const y = minY + Math.random() * (maxY - minY);
+      if (!pointBlocked(x, y, obstacles, clearance)) return { x, y };
+    }
+  }
+  const ring = arena.size * 0.4;
+  for (let i = 0; i < 16; i++) {
+    const ang = (i / 16) * Math.PI * 2;
+    const x = Math.max(minX, Math.min(maxX, arena.cx + Math.cos(ang) * ring));
+    const y = Math.max(minY, Math.min(maxY, arena.cy + Math.sin(ang) * ring));
+    if (!pointBlocked(x, y, obstacles, clearance)) return { x, y };
+  }
+  return { x: minX, y: minY };
+}
 
 export class NinjaGame extends BaseMiniGame {
   constructor(canvas) {
@@ -198,18 +240,17 @@ this.targetScore = 2;
     );
 
     const lanternSpeed = fieldSpeed(this.arena, 114);
+    const bodyR = lanternBodyRadius(this.arena);
+    this.lanternBodyR = bodyR;
+    const clearance = bodyR + fieldPx(this.arena, 6);
     const startAngles = [Math.PI * 0.22, Math.PI * 0.78, Math.PI * 1.45];
-    const startPositions = [
-      { x: cx - size * 0.22, y: cy - size * 0.18 },
-      { x: cx + size * 0.22, y: cy + size * 0.18 },
-      { x: cx, y: cy - size * 0.28 },
-    ];
     for (let i = 0; i < 3; i++) {
       const ang = startAngles[i];
       const spd = lanternSpeed * (0.85 + Math.random() * 0.3);
+      const spot = findOpenLanternSpot(this.arena, this.obstacles, clearance);
       this.lanterns.push({
-        x: startPositions[i].x,
-        y: startPositions[i].y,
+        x: spot.x,
+        y: spot.y,
         vx: Math.cos(ang) * spd,
         vy: Math.sin(ang) * spd,
         radius: bw * 0.95,
@@ -625,13 +666,21 @@ this.targetScore = 2;
     if (this.state !== 'PLAYING') return;
 
     // Fizik Tabanlı Seken Fenerler
+    const lanternBodyR = this.lanternBodyR || lanternBodyRadius(this.arena);
+    const wallPad = lanternBodyR + fieldPx(this.arena, 6);
     for (const lantern of this.lanterns) {
       if (!lantern.active) {
         lantern.respawnTimer -= dt;
         if (lantern.respawnTimer <= 0) {
           lantern.active = true;
-          lantern.x = this.arena.cx;
-          lantern.y = this.arena.cy;
+          // Engelin içine değil, AÇIK bir noktaya doğ (merkez sütunu değil).
+          const spot = findOpenLanternSpot(
+            this.arena,
+            this.obstacles,
+            lanternBodyR + fieldPx(this.arena, 6),
+          );
+          lantern.x = spot.x;
+          lantern.y = spot.y;
           const ang = Math.random() * Math.PI * 2;
           const spd = fieldSpeed(this.arena, 114);
           lantern.vx = Math.cos(ang) * spd;
@@ -643,40 +692,65 @@ this.targetScore = 2;
       lantern.x += lantern.vx * dt;
       lantern.y += lantern.vy * dt;
 
-      // Arena duvar sekmesi
-      if (lantern.x < this.arena.left + 8) {
-        lantern.x = this.arena.left + 8;
+      // Arena duvar sekmesi (pay gövde yarıçapıyla ölçeklenir).
+      if (lantern.x < this.arena.left + wallPad) {
+        lantern.x = this.arena.left + wallPad;
         lantern.vx = Math.abs(lantern.vx);
-      } else if (lantern.x > this.arena.right - 8) {
-        lantern.x = this.arena.right - 8;
+      } else if (lantern.x > this.arena.right - wallPad) {
+        lantern.x = this.arena.right - wallPad;
         lantern.vx = -Math.abs(lantern.vx);
       }
-      if (lantern.y < this.arena.top + 8) {
-        lantern.y = this.arena.top + 8;
+      if (lantern.y < this.arena.top + wallPad) {
+        lantern.y = this.arena.top + wallPad;
         lantern.vy = Math.abs(lantern.vy);
-      } else if (lantern.y > this.arena.bottom - 8) {
-        lantern.y = this.arena.bottom - 8;
+      } else if (lantern.y > this.arena.bottom - wallPad) {
+        lantern.y = this.arena.bottom - wallPad;
         lantern.vy = -Math.abs(lantern.vy);
       }
 
-      // Engel sekmesi
+      // Engel sekmesi: feneri önce dışarı TAŞI, sonra normal boyunca yansıt.
+      // Eski kod yalnız hızı çeviriyordu; fener engelin içinde kalınca her
+      // karede yön değiştirip kilitleniyordu ("engelde hapsolan ışık").
       for (const obs of this.obstacles) {
-        if (lantern.x > obs.x - 6 && lantern.x < obs.x + obs.w + 6 &&
-            lantern.y > obs.y - 6 && lantern.y < obs.y + obs.h + 6) {
+        const closestX = Math.max(obs.x, Math.min(lantern.x, obs.x + obs.w));
+        const closestY = Math.max(obs.y, Math.min(lantern.y, obs.y + obs.h));
+        let nx = lantern.x - closestX;
+        let ny = lantern.y - closestY;
+        let dist = Math.hypot(nx, ny);
+        if (dist >= lanternBodyR) continue;
+
+        if (dist > 0.001) {
+          nx /= dist;
+          ny /= dist;
+          const push = lanternBodyR - dist;
+          lantern.x += nx * push;
+          lantern.y += ny * push;
+        } else {
+          // Merkez engelin İÇİNDE: en yakın yüzden dışarı it.
           const dx1 = lantern.x - obs.x;
           const dx2 = (obs.x + obs.w) - lantern.x;
           const dy1 = lantern.y - obs.y;
           const dy2 = (obs.y + obs.h) - lantern.y;
           const minD = Math.min(dx1, dx2, dy1, dy2);
-          if (minD === dx1 || minD === dx2) lantern.vx *= -1;
-          else lantern.vy *= -1;
-          const angNoise = (Math.random() - 0.5) * 0.25;
-          const curAng = Math.atan2(lantern.vy, lantern.vx) + angNoise;
-          const spd = Math.hypot(lantern.vx, lantern.vy);
-          lantern.vx = Math.cos(curAng) * spd;
-          lantern.vy = Math.sin(curAng) * spd;
-          break;
+          if (minD === dx1) { nx = -1; ny = 0; lantern.x = obs.x - lanternBodyR; }
+          else if (minD === dx2) { nx = 1; ny = 0; lantern.x = obs.x + obs.w + lanternBodyR; }
+          else if (minD === dy1) { nx = 0; ny = -1; lantern.y = obs.y - lanternBodyR; }
+          else { nx = 0; ny = 1; lantern.y = obs.y + obs.h + lanternBodyR; }
         }
+
+        // Normal boyunca yansı (yalnız içeri giren bileşen çevrilir).
+        const dot = lantern.vx * nx + lantern.vy * ny;
+        if (dot < 0) {
+          lantern.vx -= 2 * dot * nx;
+          lantern.vy -= 2 * dot * ny;
+        }
+        // Sekme açısına hafif gürültü + hızı koru.
+        const angNoise = (Math.random() - 0.5) * 0.25;
+        const curAng = Math.atan2(lantern.vy, lantern.vx) + angNoise;
+        const spd = Math.hypot(lantern.vx, lantern.vy) || fieldSpeed(this.arena, 114);
+        lantern.vx = Math.cos(curAng) * spd;
+        lantern.vy = Math.sin(curAng) * spd;
+        break;
       }
     }
 

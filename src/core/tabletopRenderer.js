@@ -12,7 +12,7 @@ import { getStandardSeatRects, renderLobbySeatCard, renderLobbyStartButton, getS
 import { getLocalSeatColors } from './customizationManager.js';
 import { resolveSlotName } from './slotManager.js';
 import { keyboardVectorFrom, getKeyLabel, STEER_KEY_HINTS } from './inputMaps.js';
-import { UI_COLORS, getDisplayProfile, shouldShowVirtualControls, isTouchDevice } from '../ui/tokens.js';
+import { UI_COLORS, CONTROL_MODE, getDisplayProfile, shouldShowVirtualControls, isTouchDevice } from '../ui/tokens.js';
 import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { roundGapSeconds } from './roundLifecycle.js';
 import { t } from '../i18n.js';
@@ -637,14 +637,25 @@ export function createTabletopRenderer(game) {
         sub: roundBannerSub,
       });
     } else if (game.state === 'MATCH_OVER') {
-      // Skoru artık kartın kendisi taşıyor: aynı ekranda hem köşe/top-bar
-      // skorboardu hem kartın sıralama satırları = aynı bilgi iki yerde.
-      renderStandardMatchOver(ctx, {
-        headline: matchOverHeadline,
-        rows: matchOverRows,
-        onRestart,
-        enter: matchOverSince ? Math.min(1, (now - matchOverSince) / MATCH_OVER_ENTER_MS) : 1,
-      });
+      // LOCAL DOM (telefon kumandası) sonucu kendi modalında taşır:
+      // gamepad.js `.result-card` — karartma + nefes payı + YENİDEN/LOBİ
+      // butonları. Canvas kartı da çizilirse sonuç İKİ KEZ belirir: önce
+      // canvas final kartı, ~yarım saniye sonra karartılı telefon modalı
+      // ("önce bir ekran, sonra arka plan kararıp maç bitti ekranı"). Bu
+      // yüzeyde kart ÇİZİLMEZ; host/TV (CANVAS/NONE) kartın tek sahibidir.
+      if (game.localControlMode === CONTROL_MODE.DOM) {
+        // Kart çizilmediği için canvas'ın "kart dışına dokun = yeniden başlat"
+        // kısayolu da kapanır; tüm sahaya yayılan dikdörtgen onu nötrler.
+        // Yeniden başlatma yetkisi telefon modalının butonundadır.
+        game.matchOverCard = { x: -1e6, y: -1e6, w: 2e6, h: 2e6 };
+      } else {
+        renderStandardMatchOver(ctx, {
+          headline: matchOverHeadline,
+          rows: matchOverRows,
+          onRestart,
+          enter: matchOverSince ? Math.min(1, (now - matchOverSince) / MATCH_OVER_ENTER_MS) : 1,
+        });
+      }
     } else if (game.state === 'PLAYING' || game.state === 'ROUND_PAUSE') {
       if (showScoreboard) {
         renderStandardScoreboard(ctx, { targetScore, entities: scoreboardEntities, statusText, statusTone });

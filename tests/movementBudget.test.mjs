@@ -96,7 +96,7 @@ const BUDGET = {
   ARCHER: { tier: 'normal', speed: 198, radius: 28, maxA: 5.1, minB: 3.2 },
   HEIST: { tier: 'normal', speed: 190, radius: 36, maxA: 5.3, minB: 2.6 },
   BOMB: { tier: 'normal', speed: 200, radius: 36, maxA: 5.1, minB: 2.6 },
-  TANKS: { tier: 'normal', speed: 175, radius: 34, maxA: 5.8, minB: 2.5 },
+  TANKS: { tier: 'normal', speed: 175, radius: 30, maxA: 5.8, minB: 2.5 },
   ZONE: { tier: 'normal', speed: 190, radius: 36, maxA: 5.1, minB: 2.6 },
   NINJA: { tier: 'normal', speed: 210, radius: 36, maxA: 5.1, minB: 2.6 },
   COLLAPSE: { tier: 'normal', speed: 190, radius: 36, maxA: 5.1, minB: 2.6 },
@@ -189,9 +189,13 @@ function spawn(mode, w, h) {
   return { game, player };
 }
 
-/** Gövde yarıçapı alanı oyun başına değişiyor (TANKS `size` kullanıyor). */
+/** Gövde yarıçapı alanı oyun başına değişiyor. TANKS `size` taşır ve `size`
+ *  KAREDİR (kenar): çarpışma half = size/2. Yarıçapı yarısıdır — `size`ı
+ *  yarıçap saymak tankları yarı boyutta ölçmek (ve bandı kandırmak) demekti. */
 function bodyRadius(entity) {
-  return Number.isFinite(entity.radius) ? entity.radius : entity.size;
+  if (Number.isFinite(entity.radius)) return entity.radius;
+  if (Number.isFinite(entity.size)) return entity.size / 2;
+  return NaN;
 }
 
 /**

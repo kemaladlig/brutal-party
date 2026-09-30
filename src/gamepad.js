@@ -11,7 +11,7 @@ import { motionScale } from './ui/motion.js';
 import { playMenuTick, playMenuPop } from './audio.js';
 import { mountDeclarativeController } from './controllers/controllerTemplates.js';
 import { GamepadInputAdapter, ANALOG_THROTTLE_MS } from './controllers/gamepadInputAdapter.js';
-import { getNeutralInputs } from './controllers/controlDefs.js';
+import { getNeutralInputs, CONTROL_KEEPALIVE_MS } from './controllers/controlDefs.js';
 import { getControllerStatus } from './controllers/controllerStatus.js';
 import { getControllerMeta } from './core/engineRegistry.js';
 import { getControlDescriptor } from './core/controlDescriptor.js';
@@ -62,6 +62,12 @@ const JOY_CANCEL_GRACE_MS = 150;
 // Maç sonu modalının nefes payı: sonuç üstüne çullanmasın, son kare biraz
 // ekranda kalsın. Azaltılmış harekette bekleme yok — modal yine erişilebilir.
 const RESULT_BREATH_MS = 520;
+
+// Host-yetkili aksiyon butonunun köprü payı: basıldıktan sonra host `cd`
+// yayını gelene kadar butonu bu kadar kilitli tutar. Host kabul ettiyse ilk
+// `cd > 0` paketiyle kilit host'un bitişine bağlanır; host reddettiyse
+// (kayma/çarpma/cooldown) süre sonunda buton açılır.
+const HOST_CD_BRIDGE_MS = 450;
 
 // Kumanda kayıt tablosu: tek kaynaktan (engineRegistry) beslenir
 const CONTROLLER_META = new Proxy({}, {
@@ -524,42 +530,104 @@ export class GamepadManager {
   // bas → onFire() + buton kilitlenir, süre dolunca eski haline döner.
   // Sayaç mount sökümünde temizlenir (CdTimer sızıntısı kapandı).
   // Faz 2.1: metin yerine radyal cooldown (--cd conic) + merkez saniye rozeti.
-  cooledAction(btn, secs, readyLabel, onFire, vibratePattern) {
-    const state = { cooling: false, timer: null };
+  //
+  // `hostSynced` (şemada `syncHostCooldown`): kilit SÜRESİ host'un yayınladığı
+  // `cd` alanından gelir — tek yetkili host'tur. Ölçülen kusur: yerel sayaç
+  // host reddinde de (BOMB'ta kayma, HEIST'te çarpma) basıyordu, yani "bazen
+  // dash/tackle çalışmıyor" ve buton gereksiz yere 2-3 sn ölü kalıyordu.
+  // Artık: kabul → kilit host bitişine bağlı (hit-stop'u da doğru sayar);
+  // ret → köprü payı sonunda buton açılır. Yerel sayaç `syncHostCooldown`
+  // işaretlemeyen aksiyonlarda eski davranışını korur.
+  cooledAction(btn, secs, readyLabel, onFire, vibratePattern, { hostSynced = false } = {}) {
+    const state = { cooling: false, confirmed: false, bridgeTimer: 0, maxTimer: 0, localTimer: 0 };
     const signal = this._mountAbort?.signal;
+
+    const clearTimers = () => {
+      if (state.bridgeTimer) { window.clearTimeout(state.bridgeTimer); state.bridgeTimer = 0; }
+      if (state.maxTimer) { window.clearTimeout(state.maxTimer); state.maxTimer = 0; }
+      if (state.localTimer) { window.clearInterval(state.localTimer); state.localTimer = 0; }
+    };
+
+    const unlock = () => {
+      clearTimers();
+      state.cooling = false;
+      state.confirmed = false;
+      if (!btn || !btn.isConnected) return;
+      this.resetButtonCooldown(btn, { flash: true });
+      this.vibrate(15);
+      playMenuPop();
+    };
+
     if (signal) {
       signal.addEventListener('abort', () => {
-        if (state.timer) clearInterval(state.timer);
-        state.timer = null;
+        clearTimers();
         state.cooling = false;
+        state.confirmed = false;
       }, { once: true });
     }
-    return (e) => {
+
+    const handler = (e) => {
       e?.preventDefault();
       if (state.cooling) return;
       state.cooling = true;
+      state.confirmed = false;
       try { onFire(); } catch (err) { reportError(err, 'gamepad.onFire'); }
       this.vibrate(vibratePattern);
       playMenuTick();
       if (!btn || !btn.isConnected) return;
-      let remaining = secs;
-      this.setButtonCooldown(btn, remaining, secs);
-      if (state.timer) clearInterval(state.timer);
-      state.timer = setInterval(() => {
-        remaining -= 0.1;
-        if (remaining <= 0.05) {
-          clearInterval(state.timer);
-          state.timer = null;
-          state.cooling = false;
-          if (!btn.isConnected) return;
-          this.resetButtonCooldown(btn, { flash: true });
-          this.vibrate(15);
-          playMenuPop();
-        } else {
-          this.setButtonCooldown(btn, remaining, secs);
-        }
-      }, 100);
+
+      if (!hostSynced) {
+        let remaining = secs;
+        this.setButtonCooldown(btn, remaining, secs);
+        if (state.localTimer) window.clearInterval(state.localTimer);
+        state.localTimer = window.setInterval(() => {
+          remaining -= 0.1;
+          if (remaining <= 0.05) {
+            window.clearInterval(state.localTimer);
+            state.localTimer = 0;
+            state.cooling = false;
+            if (!btn.isConnected) return;
+            this.resetButtonCooldown(btn, { flash: true });
+            this.vibrate(15);
+            playMenuPop();
+          } else {
+            this.setButtonCooldown(btn, remaining, secs);
+          }
+        }, 100);
+        return;
+      }
+
+      // Anlık geri bildirim + köprü: host `cd > 0` yayını gelirse kilit host'a
+      // bağlanır (aşağıda), gelmezse reddedildi sayılıp açılır.
+      this.setButtonCooldown(btn, secs, secs);
+      if (state.bridgeTimer) window.clearTimeout(state.bridgeTimer);
+      state.bridgeTimer = window.setTimeout(() => {
+        state.bridgeTimer = 0;
+        if (!state.confirmed) unlock();
+      }, HOST_CD_BRIDGE_MS);
     };
+
+    // Host `cd` yayını (0..1 kesir) — yalnız hostSynced aksiyonlarda.
+    handler.syncHost = (pct) => {
+      if (!hostSynced) return;
+      const clamped = Math.max(0, Math.min(1, Number(pct) || 0));
+      if (clamped > 0) {
+        state.cooling = true;
+        state.confirmed = true;
+        if (state.bridgeTimer) { window.clearTimeout(state.bridgeTimer); state.bridgeTimer = 0; }
+        if (btn && btn.isConnected) this.setButtonCooldown(btn, clamped * secs, secs);
+        // Yayın kesilirse buton kilitli kalmasın: her pakette tavan tazelenir.
+        if (state.maxTimer) window.clearTimeout(state.maxTimer);
+        state.maxTimer = window.setTimeout(() => { state.maxTimer = 0; unlock(); }, (secs + 2) * 1000);
+        return;
+      }
+      if (!state.cooling) return;
+      // Basıştan önce üretilmiş (henüz cd=0) paket olabilir: köprüyü bekle.
+      if (state.bridgeTimer) return;
+      unlock();
+    };
+
+    return handler;
   }
 
   // Radyal cooldown dolgusu — `--cd` (kalan kesir 0..1) conic'e, `.cd-num`
@@ -1567,6 +1635,17 @@ export class GamepadManager {
     const joySignal = this._mountAbort?.signal;
     // Teardown'da bekleyen grace zamanlayıcısı sökülmüş yüzeye sızmasın.
     joySignal?.addEventListener('abort', clearCancelGrace, { once: true });
+    // Basılı analog keepalive'i: parmak sabit tutulurken `touchmove` üretmediği
+    // için host'a hiç paket gitmiyor, host'un analog sessizlik süpürücüsü
+    // (STALE_ANALOG_MS) yönü sıfırlıyordu — "yürürken ateş edince karakter
+    // duruyor" bunun sonucuydu (aim keepalive'lı olduğu için ateş sürüyordu).
+    // Basılıyken son vektör CONTROL_KEEPALIVE_MS ile tekrar gönderilir; steer ve
+    // fiziksel gamepad zaten aynısını yapar (tek politika).
+    const keepaliveTimer = setInterval(() => {
+      const held = activeTouchId !== null || activePointerId !== null || isMouseDown;
+      if (held && lastInput.force > 0.05) onInput({ ...lastInput }, { keepalive: true });
+    }, CONTROL_KEEPALIVE_MS);
+    joySignal?.addEventListener('abort', () => clearInterval(keepaliveTimer), { once: true });
     const hasTouch = typeof window !== 'undefined' && ('ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0));
 
     if (hasTouch) {
@@ -1577,8 +1656,13 @@ export class GamepadManager {
         const touch = e.changedTouches[0];
         if (!touch) return;
         e.preventDefault();
-        // Önceki dokunuş kapatılmadan yeni basış geldiyse güvenle devret
+        // Sahibi hâlâ basılıysa ikinci parmak yönü KAPMASIN: eski davranış her
+        // yeni basışta origin'i kaydırıp karakteri dur-kalk yapıyordu. Yalnız
+        // sahip gerçekten kalkmışsa (identifier aktif dokunuşlar arasında yoksa)
+        // güvenle devret.
         if (activeTouchId !== null) {
+          const ownerStillDown = Array.from(e.touches || []).some((t) => t.identifier === activeTouchId);
+          if (ownerStillDown) return;
           endJoy(false);
         }
         activeTouchId = touch.identifier;

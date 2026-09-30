@@ -59,14 +59,51 @@ test('physical gamepad adapter emits canonical transport actions without becomin
   adapter.stop();
 });
 
-test('physical gamepad adapter yields to local input and sends neutral only on transition', () => {
-  let blocked = true;
+test('physical gamepad adapter neutralizes only channels it actually held', () => {
+  // Dokunmatik yüzeyle aynı transport'u paylaşır: adaptör HİÇ tutmadığı bir
+  // kanalı nötrlemez, yoksa başka kaynağın basılı girdisini (ör. pedal/joystick)
+  // ezer. Yalnız kendi tuttuğu kanalı bırakır.
+  let blocked = false;
   const sent = [];
+  const connectedPad = pad({ axes: [0.6, 0, 0, 0] });
   const adapter = new PhysicalGamepadAdapter({
     send: (data) => sent.push(data),
     getMode: () => 'RACE',
     getDescriptor: () => getControlDescriptor('RACE', GAMEPAD_SCHEMAS.RACE),
     isBlocked: () => blocked,
+    getGamepads: () => [connectedPad],
+    now: () => 100,
+    schedule: () => 1,
+    cancel: () => {},
+  });
+  adapter.start();
+  adapter.poll();
+  assert.equal(sent.at(-1).action, 'JOYSTICK_MOVE');
+  assert.ok(sent.at(-1).force > 0, 'moving pad emits a live vector');
+
+  // Engelleme geçişi: yalnız KENDİ tuttuğu kanalı bırakır.
+  blocked = true;
+  adapter.poll();
+  const release = sent.at(-1);
+  assert.equal(release.action, 'JOYSTICK_MOVE');
+  assert.equal(release.force, 0);
+  const afterRelease = sent.length;
+
+  // Engelleme sürerken tekrar tekrar nötr yayılmaz (tek geçiş).
+  adapter.poll();
+  assert.equal(sent.length, afterRelease);
+});
+
+test('physical gamepad adapter emits nothing when blocked without ever holding input', () => {
+  // Regresyon: yerel girinti kısması (`_lastLocalInputAt`) devreye girdiğinde
+  // adaptör mod geneli nötr patlatıyordu; bu, kullanıcının basılı tuttuğu
+  // dokunmatik pedalı iptal ediyordu ("ilerleme tuşu geç tepki veriyor").
+  const sent = [];
+  const adapter = new PhysicalGamepadAdapter({
+    send: (data) => sent.push(data),
+    getMode: () => 'TANKS',
+    getDescriptor: () => getControlDescriptor('TANKS', GAMEPAD_SCHEMAS.TANKS),
+    isBlocked: () => true,
     getGamepads: () => [pad()],
     now: () => 100,
     schedule: () => 1,
@@ -75,12 +112,5 @@ test('physical gamepad adapter yields to local input and sends neutral only on t
   adapter.start();
   adapter.poll();
   adapter.poll();
-  assert.equal(sent.length, 1);
-  assert.equal(sent[0].action, 'JOYSTICK_MOVE');
-  assert.equal(sent[0].force, 0);
-
-  blocked = false;
-  adapter.poll();
-  adapter.poll();
-  assert.equal(sent.length, 1);
+  assert.equal(sent.length, 0);
 });

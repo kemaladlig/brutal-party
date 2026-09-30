@@ -114,8 +114,8 @@ function mountJoystickAction(gamepad, container, schema) {
   `;
 
   // Bind Dynamic Floating Joystick
-  gamepad.bindJoystick(joyZoneId, joyKnobId, (input) => {
-    gamepad._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
+  gamepad.bindJoystick(joyZoneId, joyKnobId, (input, opts) => {
+    gamepad._sendAnalog({ action: 'JOYSTICK_MOVE', ...input }, opts);
   });
 
   // Bind Action Buttons
@@ -124,7 +124,8 @@ function mountJoystickAction(gamepad, container, schema) {
   actions.forEach((act, i) => {
     const btn = container.querySelector(`[data-action-index="${i}"]`);
     if (!btn) return;
-    buttonEls.push({ config: act, el: btn });
+    const entry = { config: act, el: btn };
+    buttonEls.push(entry);
 
     const vibratePattern = act.vibrate ?? [25, 35];
 
@@ -164,8 +165,10 @@ function mountJoystickAction(gamepad, container, schema) {
       secs,
       readyLabel,
       () => gamepad.sendInput({ action: act.action, ...(act.payload || {}) }),
-      vibratePattern
+      vibratePattern,
+      { hostSynced: !!act.syncHostCooldown }
     );
+    entry.handler = handler;
 
     btn.addEventListener('touchstart', handler, { passive: false });
     btn.addEventListener('mousedown', handler);
@@ -175,13 +178,15 @@ function mountJoystickAction(gamepad, container, schema) {
     handleSync(data) {
       // Sync Host Cooldown percentage to dim buttons if configured
       // (per-action field: varsayılan 'cd', örn. LASER ateş 'cdFire', NINJA sis 'cd2')
-      buttonEls.forEach(({ config, el }) => {
-        if (config.syncHostCooldown && el.isConnected) {
-          const field = config.hostCdField || 'cd';
-          const arr = Array.isArray(data[field]) ? data[field] : null;
-          const cdPct = arr ? arr[gamepad.playerIndex] || 0 : 0;
-          el.style.opacity = cdPct > 0 ? 0.55 : 1;
-        }
+      // Host `cd` aynı zamanda butonun KİLİT süresidir (host yetkilidir):
+      // reddedilen aksiyon butonu ölü bırakmaz, kabul edilen host bitişine bağlanır.
+      buttonEls.forEach(({ config, el, handler }) => {
+        if (!config.syncHostCooldown || !el.isConnected) return;
+        const field = config.hostCdField || 'cd';
+        const arr = Array.isArray(data[field]) ? data[field] : null;
+        const pct = arr ? Math.max(0, Math.min(1, (Number(arr[gamepad.playerIndex]) || 0) / 100)) : 0;
+        el.style.opacity = pct > 0 ? 0.55 : 1;
+        handler?.syncHost?.(pct);
       });
 
       // Custom onSync callback from schema (e.g. carrier alert, king alert, role text)
@@ -252,8 +257,8 @@ function mountTwinStickAction(gamepad, container, schema) {
     </div>
   `;
 
-  gamepad.bindJoystick(moveZoneId, moveKnobId, (input) => {
-    gamepad._sendAnalog({ action: 'JOYSTICK_MOVE', ...input });
+  gamepad.bindJoystick(moveZoneId, moveKnobId, (input, opts) => {
+    gamepad._sendAnalog({ action: 'JOYSTICK_MOVE', ...input }, opts);
   });
   const aimZoneEl = container.querySelector(`#${aimZoneId}`);
   const aimKnobEl = container.querySelector(`#${aimKnobId}`);
@@ -287,7 +292,8 @@ function mountTwinStickAction(gamepad, container, schema) {
   actions.forEach((act, i) => {
     const btn = container.querySelector(`[data-action-index="${i}"]`);
     if (!btn) return;
-    buttonEls.push({ config: act, el: btn });
+    const entry = { config: act, el: btn };
+    buttonEls.push(entry);
     const vibratePattern = act.vibrate ?? [25, 35];
     if (act.hold && act.releaseAction) {
       const sendDown = (e) => {
@@ -320,20 +326,22 @@ function mountTwinStickAction(gamepad, container, schema) {
       getGuideActionLabel(act),
       () => gamepad.sendInput({ action: act.action, ...(act.payload || {}) }),
       vibratePattern,
+      { hostSynced: !!act.syncHostCooldown }
     );
+    entry.handler = handler;
     btn.addEventListener('touchstart', handler, { passive: false });
     btn.addEventListener('mousedown', handler);
   });
 
   return {
     handleSync(data) {
-      buttonEls.forEach(({ config, el }) => {
-        if (config.syncHostCooldown && el.isConnected) {
-          const field = config.hostCdField || 'cd';
-          const arr = Array.isArray(data[field]) ? data[field] : null;
-          const cdPct = arr ? arr[gamepad.playerIndex] || 0 : 0;
-          el.style.opacity = cdPct > 0 ? 0.55 : 1;
-        }
+      buttonEls.forEach(({ config, el, handler }) => {
+        if (!config.syncHostCooldown || !el.isConnected) return;
+        const field = config.hostCdField || 'cd';
+        const arr = Array.isArray(data[field]) ? data[field] : null;
+        const pct = arr ? Math.max(0, Math.min(1, (Number(arr[gamepad.playerIndex]) || 0) / 100)) : 0;
+        el.style.opacity = pct > 0 ? 0.55 : 1;
+        handler?.syncHost?.(pct);
       });
       if (typeof schema.onSync === 'function') schema.onSync(gamepad, data, { buttonEls });
     },
@@ -622,7 +630,8 @@ function mountSteerAction(gamepad, container, schema) {
   actions.forEach((act, i) => {
     const btn = container.querySelector(`[data-action-index="${i}"]`);
     if (!btn) return;
-    buttonEls.push({ config: act, el: btn });
+    const entry = { config: act, el: btn };
+    buttonEls.push(entry);
     const vibratePattern = act.vibrate ?? [25, 35];
 
     if (act.hold && act.releaseAction) {
@@ -657,18 +666,21 @@ function mountSteerAction(gamepad, container, schema) {
       getGuideActionLabel(act),
       () => gamepad.sendInput({ action: act.action, ...(act.payload || {}) }),
       vibratePattern,
+      { hostSynced: !!act.syncHostCooldown }
     );
+    entry.handler = handler;
     btn.addEventListener('touchstart', handler, { passive: false });
     btn.addEventListener('mousedown', handler);
   });
 
   return {
     handleSync(data) {
-      buttonEls.forEach(({ config, el }) => {
-        if (config.syncHostCooldown && el.isConnected) {
-          const arr = Array.isArray(data.cd) ? data.cd : null;
-          el.style.opacity = arr && (arr[gamepad.playerIndex] || 0) > 0 ? 0.55 : 1;
-        }
+      buttonEls.forEach(({ config, el, handler }) => {
+        if (!config.syncHostCooldown || !el.isConnected) return;
+        const arr = Array.isArray(data.cd) ? data.cd : null;
+        const pct = arr ? Math.max(0, Math.min(1, (Number(arr[gamepad.playerIndex]) || 0) / 100)) : 0;
+        el.style.opacity = pct > 0 ? 0.55 : 1;
+        handler?.syncHost?.(pct);
       });
       if (typeof schema.onSync === 'function') schema.onSync(gamepad, data, { buttonEls });
     },

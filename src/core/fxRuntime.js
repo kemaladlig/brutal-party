@@ -94,7 +94,7 @@ export class FxRuntime {
     if (profile.ring) {
       fxSpawnRing(this.rings, kind, { x: event.x, y: event.y, color, unit, ringRadius: event.ringRadius ?? null });
     }
-    if (kind === 'kill') {
+    if (kind === 'kill' || kind === 'slay') {
       fxSpawnPop(this.pops, {
         x: event.x,
         y: event.y,

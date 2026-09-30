@@ -21,6 +21,7 @@ const context = new Proxy({
 const canvas = { width: 800, height: 600, getContext: () => context };
 let server;
 let HordeGame;
+let HORDE_TUNING;
 let GAME_ORDER;
 let CARTRIDGES;
 let HORDE_VIEW_LIMITS;
@@ -50,7 +51,7 @@ before(async () => {
     logLevel: 'error',
     optimizeDeps: { noDiscovery: true },
   });
-  ({ HordeGame } = await server.ssrLoadModule('/src/games/horde.js'));
+  ({ HordeGame, HORDE_TUNING } = await server.ssrLoadModule('/src/games/horde.js'));
   ({ HORDE_VIEW_LIMITS } = await server.ssrLoadModule('/src/games/hordeView.js'));
   ({ GAME_ORDER, CARTRIDGES } = await server.ssrLoadModule('/src/core/engineRegistry.js'));
 });
@@ -443,4 +444,33 @@ test('armory choices persist into the next round and final boss ends without a p
   assert.equal(game.state, 'MATCH_OVER');
   assert.equal(game.matchResult, 'win');
   assert.equal(game.portal, null);
+});
+
+test('round-start crates never stack, on narrow and wide fields', () => {
+  for (const [w, h] of [[800, 600], [1280, 600]]) {
+    for (const round of [1, 2, 3]) {
+      const game = setup();
+      game.resize(w, h);
+      game.round = round;
+      game.buildMap(round);
+      game.generateLoadoutCrates();
+      const crates = game.loadoutCrates;
+      assert.equal(crates.length, 4);
+      for (let i = 0; i < crates.length; i++) {
+        for (let j = i + 1; j < crates.length; j++) {
+          const d = Math.hypot(crates[i].x - crates[j].x, crates[i].y - crates[j].y);
+          assert.ok(d >= crates[i].radius * 2, `crates overlap on ${w}x${h} round ${round}: ${Math.round(d)}px`);
+        }
+      }
+    }
+  }
+});
+
+test('wave-advance bonus pickups use the standard pickup size', () => {
+  const game = setup();
+  game.pickups = [];
+  game.advanceWave();
+  const bonus = game.pickups[0];
+  assert.ok(bonus, 'expected a bonus pickup after a wave advance');
+  assert.equal(bonus.size, game.bodyPx(HORDE_TUNING.PICKUP_SIZE));
 });

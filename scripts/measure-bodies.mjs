@@ -62,7 +62,8 @@ function readPlayer(game) {
   const p = game.players?.[0];
   if (p && Number.isFinite(p.radius)) return { radius: p.radius, source: 'players[0].radius' };
   const tank = game.tanks?.[0];
-  if (tank && Number.isFinite(tank.size)) return { radius: tank.size, source: 'tanks[0].size' };
+  // TANKS `size` = kare kenarı; gövde yarıçapı yarısıdır (çarpışma half=size/2).
+  if (tank && Number.isFinite(tank.size)) return { radius: tank.size / 2, source: 'tanks[0].size/2' };
   if (game.ball && Number.isFinite(game.ball.radius)) {
     return { radius: game.ball.radius, source: 'ball.radius' };
   }
@@ -78,7 +79,7 @@ function readLargestOther(game) {
   }
   const tanks = game.tanks || [];
   if (tanks.length > 1) {
-    const r = Math.max(...tanks.slice(1).map((t) => t.size || 0));
+    const r = Math.max(...tanks.slice(1).map((t) => (t.size || 0) / 2));
     if (r > 0) return { radius: r, kind: 'tank' };
   }
   if (game.crown && Number.isFinite(game.crown.radius)) {

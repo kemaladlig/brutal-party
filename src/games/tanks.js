@@ -46,8 +46,8 @@ export const MAP_LAYOUTS = [
       { x: 0.68, y: 0.20, w: 0.04, h: 0.30 },
       { x: 0.28, y: 0.50, w: 0.04, h: 0.30 },
       { x: 0.68, y: 0.50, w: 0.04, h: 0.30 },
-      { x: 0.18, y: 0.48, w: 0.24, h: 0.04 },
-      { x: 0.58, y: 0.48, w: 0.24, h: 0.04 },
+      { x: 0.18, y: 0.48, w: 0.20, h: 0.04 },
+      { x: 0.62, y: 0.48, w: 0.20, h: 0.04 },
       { x: 0.46, y: 0.30, w: 0.08, h: 0.40 },
     ],
     spawns: [
@@ -408,7 +408,7 @@ this.targetScore = 2;
     }
     for (const tank of this.tanks) {
       this.remapPoint(tank, oldArena, this.arena);
-      tank.size = fieldRadius(this.arena, 34, 0);
+      tank.size = fieldRadius(this.arena, 60, 0);
       tank.driveSpeed = fieldSpeed(this.arena, 175);
       tank.speed = tank.driveSpeed;
     }
@@ -472,11 +472,14 @@ this.targetScore = 2;
         isJoined: isJoined,
         hitFlash: 0,
         slotType: this.slotTypes[i],
-        // Taban gövde göreli; 34 = saha kısa kenarının ~%3.6'sı (çarpışma
-        // yarıçapı size/2 → 12%+ koridorlarda geçiş payı korunur). Online
-        // kumanda ekranında %2.7 çok küçük kaldığı için diğer oyunların
-        // (HEIST 36, BOMB 36) seviyesine çekildi.
-        size: fieldRadius(this.arena, 34, 0),
+        // `size` KAREDİR (kenar), gövde YARIÇAPI = size/2. 60 → yarıçap 30 =
+        // saha kısa kenarının ~%6.3'ü, `normal` bandında [28,36]. Önceki 34
+        // yarıçap sanılıyordu ama çizim/çarpışma onu kenar olarak kullandığı
+        // için gövde fiilen yarıçapta 17'ye (bandın yarısı) düşüyordu — tanklar
+        // bu yüzden TV'de de mobilde de akranlarının (BOMB/HEIST 36) yarısı
+        // görünüyordu. 01 // LABİRENT'in 0.04'lük iki yarığı 0.08'e açıldı ki
+        // büyüyen gövde o geçitlerden rahat geçsin.
+        size: fieldRadius(this.arena, 60, 0),
         reloadCooldown: 0.55,
         reloadTimer: 0,
         muzzleFlashTimer: 0,

@@ -564,6 +564,34 @@ test('tabletopRenderer surface renders every HUD state without throwing', () => 
   }
 });
 
+// AGENTS §11: LOCAL DOM (telefon) sonucu TEK yüzeydir — telefon modalı
+// (`gamepad.js .result-card`). Canvas final kartı da çizilirse sonuç iki kez
+// belirir: önce canvas kartı, ~yarım saniye sonra karartılı modal. DOM
+// yüzeyinde kart çizilmez; host/TV (CANVAS/NONE) kartın tek sahibidir.
+test('MATCH_OVER canvas card is suppressed on the LOCAL DOM surface', async () => {
+  const { CONTROL_MODE } = await server.ssrLoadModule('/src/ui/tokens.js');
+  for (const configure of [configureBomb, configureHeist]) {
+    const game = configure();
+    game.state = 'MATCH_OVER';
+    game.matchWinner = game.players?.[0] || null;
+
+    game.localControlMode = CONTROL_MODE.CANVAS;
+    game.matchOverCard = null;
+    game.renderHUD(context);
+    assert.ok(
+      game.matchOverCard && game.matchOverCard.w < 1e6,
+      'canvas yüzeyi final kartını çizip gerçek kutusunu yazmalı',
+    );
+
+    game.localControlMode = CONTROL_MODE.DOM;
+    game.renderHUD(context);
+    assert.ok(
+      game.matchOverCard && game.matchOverCard.w >= 1e6,
+      'DOM yüzeyinde kart çizilmez; yalnız tüm sahaya yayılan dokunuş yutucu kalır',
+    );
+  }
+});
+
 // AGENTS §4 (tek kaynak): direksiyon ipucu dizisi elle yazılmaz, klavye
 // eşlemesinden türetilir. Harf kayması (A/D → S/D) oyuncuya yanlış tuş
 // gösterir; bu yüzden türetilen dizi sözleşmeyle birebir aynı olmalı.

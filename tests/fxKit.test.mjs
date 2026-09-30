@@ -162,6 +162,18 @@ test('runtime emits through profiles: hit spawns burst+ring, kill adds pop+flash
   assert.equal(alias.length, 0);
 });
 
+test('slay is the flashless trash-death channel: pop+ring, no flash, shorter stop than kill', () => {
+  const fx = createFxRuntime({ arenaProvider: () => ({ unit: 1 }) });
+  fx.emit('slay', { x: 0, y: 0, color: '#ABCDEF', size: 30 });
+  assert.equal(fx.pops.length, 1, 'slay carries the death pop');
+  assert.equal(fx.rings.length, 1);
+  assert.equal(fx.flash, 0, 'slay never drives the screen flash');
+  assert.ok(fx.hitStop > 0, 'slay keeps a short hit-stop');
+  assert.ok(fx.hitStop < FX_PROFILES.kill.hitStopMs / 1000, 'slay hit-stop stays under kill');
+  // Kanal yalnız kill: slay flash sahibi değil (kapalı küme + tek-ekran bütçesi).
+  assert.equal(FX_PROFILES.slay.flashSec, undefined);
+});
+
 // ——— Mimari kilitler (Faz 2 dönüşüm dalgalarının jandarması) ———
 
 function gameSources() {

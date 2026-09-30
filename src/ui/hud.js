@@ -502,7 +502,10 @@ export function renderMatchHeader(ctx, {
   const barY = topMargin >= barH + 4 ? arena.top - barH - 3 : arena.top + Math.round(4 * scale);
 
   const isNearby = checkProximity({ x: barX, y: barY, w: barW, h: barH }, entities, 35);
-  const barAlpha = roundOver ? 1.0 : isNearby ? 0.25 : 1.0;
+  // Yakın varlıkta bar sönükleşir ki oyunu örtmesin — ama 0.25'te mürekkep
+  // yazı sahaya karışıp okunmaz oluyordu (zemin rengine göre değişen okunurluk).
+  // Taban 0.85: bar yarı saydam kalır, skor/durum okunur kalır.
+  const barAlpha = roundOver ? 1.0 : isNearby ? 0.85 : 1.0;
   ctx.globalAlpha = barAlpha;
   const shadow = Math.max(2, Math.round(3 * scale));
   ctx.fillStyle = UI_COLORS.ink;
@@ -558,6 +561,13 @@ export function renderMatchHeader(ctx, {
     ctx.stroke();
     ctx.font = `900 ${statusPx}px ${UI_FONTS.mono}`;
     ctx.textAlign = 'right';
+    // Tonlu durum (boss/urgent/armory) krem kartta tek başına zayıf kalabiliyor;
+    // lider skorunda olduğu gibi koyu konturla okunur kılınır.
+    if (statusTone) {
+      ctx.strokeStyle = UI_COLORS.ink;
+      ctx.lineWidth = Math.max(1.5, Math.round(2 * scale));
+      ctx.strokeText(status, barX + barW - cPadX, midY);
+    }
     ctx.fillStyle = statusTone ? headerToneColor(statusTone) : UI_COLORS.ink;
     ctx.fillText(status, barX + barW - cPadX, midY);
   }

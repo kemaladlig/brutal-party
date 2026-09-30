@@ -1377,17 +1377,22 @@
 }
 
 /* --- STEER rocker (CURVE/SNAKE) + TANKS pedalı: beyaz plaka, ağır kenar taşır.
-       Mürekkep zaten koyu (`--n-900`) — 40% beyaz krem üstünde koyu yazıyla
+       Mürekkep zaten koyu (`--n-900`) — dolgu krem üstünde koyu yazıyla
        okunur, ayrıca geçersiz kılma gerekmez.
-       Basılı/aktif durum BURALDA yazılmaz: taban kuralları `.steer-rocker-btn`
-       ve `.tank-drive-pedal` için `!important` dolayısıyla dolu `--yellow` /
-       `--success` + koyu mürekkep dayatıyor. `!important` bir CSS kuralını
-       yener; buraya 80% kademesi eklemek erişilemez kod olurdu. Basılı
-       geri bildirimi zaten tam güçte. --- */
+       Basılı/aktif dolgu da `--deck-fill-active` kademesinde kalır (aşağıdaki
+       `:is(:active, .active)` kuralı): taban `.tank-drive-pedal.active` artık
+       `!important` taşımıyor, yoksa 50% kademesini erişilemez kılardı. --- */
 :is(.gamepad-control-overlay, #local-mobile-controls) .steer-rocker-cluster,
 :is(.gamepad-control-overlay, #local-mobile-controls) .steer-rocker-btn,
 :is(.gamepad-control-overlay, #local-mobile-controls) .tank-drive-pedal {
   background-color: color-mix(in srgb, var(--white) var(--deck-fill), transparent);
+}
+
+/* TANKS pedalı basılı: sinyal yeşili aynı saydamlık dilinde kalır. Dolu
+   `--success` sahayı kapatıyordu — kullanıcı "basınca daha da opak" diye
+   bildirdi. Kenar/gölge/ikon tam güçte kalır. */
+:is(.gamepad-control-overlay, #local-mobile-controls) .tank-drive-pedal:is(:active, .active) {
+  background-color: color-mix(in srgb, var(--success) var(--deck-fill-active), transparent);
 }
 
 /* --- PONG: 1B sürgü yolu + çevir butonu. Tutamak dolgusu KALIR solid:
@@ -1897,7 +1902,10 @@
 .tank-drive-pedal:active {
   transform: translate(2px, 3px) !important;
   box-shadow: var(--shadow-edge) !important;
-  background-color: var(--success) !important;
+  /* `!important` YOK: overlay yüzeylerinde (world view / local mobil)
+     aşağıdaki/üstteki `:is(...)` kuralı `--deck-fill-active` kademesini
+     kazanmalı. Bu dolgu yalnız canvassız opak yüzey yedeğidir. */
+  background-color: var(--success);
   color: var(--white) !important;
 }
 

@@ -420,8 +420,11 @@ hit-stop/haptik bütçeleri yalnız buradan geçer. Motor gövdesinde FX sayıs�
 `fxKit` tablosu ve `fxRuntime` çeviricisi otoritedir. Domainsizdir — host motoru, world-view ve
 testler aynı saf fonksiyonları paylaşır.
 
-- **Kapalı olay kümesi:** `FX_KIND` = `shot` · `hit` · `kill` · `pickup` · `score` · `blocked` ·
-  `spark` · `dust` · `zone`. Küme dışı kind throw eder (`fxProfile`).
+- **Kapalı olay kümesi:** `FX_KIND` = `shot` · `hit` · `slay` · `kill` · `pickup` · `score` · `blocked` ·
+  `spark` · `dust` · `zone`. Küme dışı kind throw eder (`fxProfile`). `slay` = sıradan (trash)
+  düşman ölümü: pop+burst+halka+kısa hit-stop, FLAŞ YOK. HORDE çok-ölümlü olduğu için flaş
+  yalnız `kill`'e (elit/boss/patlama) saklanır; aksi halde her NPC ölümü ekranı yakıp
+  `hitStop = Math.max` ile zamanı kilitler.
 - **Bütçe tablosu `FX_PROFILES`:** olay başına partikül patlaması (count/speed/size/life), şok
   halkası (r0→r1/width), `trauma` (0..1, travma² ile uygulanır), `hitStopMs`, `flashSec`.
   Tüm uzamsal sayılar TASARIM px'idir; spawn anında `unit` ile çarpılır (I5/I6).

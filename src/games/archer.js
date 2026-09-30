@@ -1,5 +1,6 @@
 // BRUTAL ARCHERY: 2-4 oyunculu okçuluk arenası — serbest hareket, basılı tutarak
-// yay ger, bırakınca ok at. Nişan = bakış yönü + salınım (tam geriş daha stabil).
+// yay ger, bırakınca ok at. Nişan = bakış yönü + salınım (tam gerişte salınım sıfır,
+// yani tam çekilmiş yay deterministik atış verir).
 // Yakın mesafe vuruş 2 puan, uzak vuruş 1 puan. 60sn raundu en çok puanla bitiren
 // raundu alır; 2 raund alan şampiyon.
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
@@ -320,7 +321,11 @@ export class ArcherGame extends BaseMiniGame {
     player.shotCooldown = ARCHER_SHOT_COOLDOWN;
     notifyFireShot(player);
 
-    const aim = this.aimAngle(player);
+    // `charge` artık player'dan SİLİNDİ; nişan salınımı yakalanan bu değerle
+    // hesaplanmalı. Aksi hâlde aimAngle charge=0 okur ve her atış (tam geriliş
+    // dâhil) sabit 0.15 rad sapardı — kullanıcının bildirdiği "tam charge bile
+    // şansa hissettiriyor" durumu tam olarak buydu.
+    const aim = this.aimAngle(player, charge);
     const speed = fieldSpeed(this.arena, 300 + 420 * charge);
     const shots = player.multiShots > 0 ? 3 : 1;
     if (player.multiShots > 0) player.multiShots -= 1;
@@ -353,8 +358,15 @@ export class ArcherGame extends BaseMiniGame {
     playItemPickup();
   }
 
-  aimAngle(player) {
-    const wobble = 0.03 + 0.12 * (1 - player.charge);
+  aimAngle(player, chargeOverride = null) {
+    // TAM GERİLİŞ (charge=1) SALINIMSIZDIR: ok tam bakış yönüne gider, yani
+    // tam çekilen yay deterministik bir atış verir. Kısmi gerilişte salınım
+    // doğrusal azalır (0.15 rad → 0). `chargeOverride` çağıranın yakaladığı
+    // şarj değeridir (looseArrow player.charge'u sıfırlamadan önce geçirir);
+    // verilmezse o anki player.charge kullanılır.
+    const raw = chargeOverride === null || chargeOverride === undefined ? player.charge : chargeOverride;
+    const charge = Math.max(0, Math.min(1, raw || 0));
+    const wobble = 0.15 * (1 - charge);
     return player.angle + Math.sin(player.swayPhase) * wobble;
   }
 

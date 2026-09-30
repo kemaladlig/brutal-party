@@ -1071,8 +1071,11 @@ export class HordeGame extends BaseMiniGame {
       { x: 0.24, y: 0.17 },
     ];
     this.loadoutCrates = [];
+    const placed = [];
     weaponIds.forEach((weaponId, index) => {
       const weapon = getPlayerWeapon({ weaponId });
+      const pos = this.loadoutPosition(positions[index], placed);
+      placed.push(pos);
       this.loadoutCrates.push({
         id: this._nextLoadoutId++,
         kind: 'weapon',
@@ -1080,10 +1083,11 @@ export class HordeGame extends BaseMiniGame {
         upgradeId: null,
         color: weapon.color,
         claimedBy: null,
-        ...this.loadoutPosition(positions[index]),
+        ...pos,
       });
     });
     const upgrade = HORDE_UPGRADES[upgradeId];
+    const upgradePos = this.loadoutPosition(positions[3], placed);
     this.loadoutCrates.push({
       id: this._nextLoadoutId++,
       kind: 'upgrade',
@@ -1091,25 +1095,53 @@ export class HordeGame extends BaseMiniGame {
       upgradeId,
       color: upgrade.color,
       claimedBy: null,
-      ...this.loadoutPosition(positions[3]),
+      ...upgradePos,
     });
   }
 
-  loadoutPosition(offset) {
+  /**
+   * Sandık yerini seçer. Adaylar SIRAYLA denenir: engelsiz VE daha önce
+   * yerleştirilmiş sandıklardan yeterince uzak ilk aday kazanır. Böylece
+   * engelin tercih edilen noktayı kapattığı haritalarda (courtyard) dört
+   * sandık aynı merkez yedeğine düşüp üst üste binmez (bkz. round 3).
+   * Hiçbir aday minGap'i tutturamazsa en az örtüşen seçilir.
+   * @param {{ x: number, y: number }} offset
+   * @param {Array<{ x: number, y: number }>} placed
+   */
+  loadoutPosition(offset, placed = []) {
     const size = Math.max(120, this.arena.size || 640);
+    // Tercih edilen authored nokta, sonra çok halkalı aday ızgarası: courtyard
+    // gibi dar geçitli haritalarda tek halka (0.27) engelle kapanıp dört sandığı
+    // aynı yedeğe düşürüyordu. Farklı yarıçaplar boş koridor yakalar.
     const candidates = [
       { x: this.arena.cx + offset.x * size, y: this.arena.cy + offset.y * size },
-      ...Array.from({ length: 8 }, (_, index) => {
+      ...[0.22, 0.3, 0.38].flatMap((rr) => Array.from({ length: 8 }, (_, index) => {
         const angle = index * Math.PI / 4;
         return {
-          x: this.arena.cx + Math.cos(angle) * size * 0.27,
-          y: this.arena.cy + Math.sin(angle) * size * 0.27,
+          x: this.arena.cx + Math.cos(angle) * size * rr,
+          y: this.arena.cy + Math.sin(angle) * size * rr,
         };
-      }),
+      })),
       { x: this.arena.cx, y: this.arena.cy },
     ];
-    const point = candidates.find((candidate) => !pointBlocked(candidate.x, candidate.y, this.obstacles, 48)) || candidates[candidates.length - 1];
-    return { x: point.x, y: point.y, radius: this.bodyPx(HORDE_TUNING.LOADOUT_RADIUS) };
+    const radius = this.bodyPx(HORDE_TUNING.LOADOUT_RADIUS);
+    const minGap = radius * 2.4;
+    let fallback = null;
+    let fallbackDist = -Infinity;
+    for (const candidate of candidates) {
+      if (pointBlocked(candidate.x, candidate.y, this.obstacles, 48)) continue;
+      let nearest = Infinity;
+      for (const other of placed) {
+        nearest = Math.min(nearest, Math.hypot(candidate.x - other.x, candidate.y - other.y));
+      }
+      if (nearest >= minGap) return { x: candidate.x, y: candidate.y, radius };
+      if (nearest > fallbackDist) {
+        fallbackDist = nearest;
+        fallback = candidate;
+      }
+    }
+    const point = fallback || candidates[candidates.length - 1];
+    return { x: point.x, y: point.y, radius };
   }
 
   tryClaimLoadout(player) {
@@ -1577,10 +1609,13 @@ export class HordeGame extends BaseMiniGame {
     const owner = this.players[ownerIndex];
     const points = enemy.isBoss ? 3 : enemy.elite ? 2 : 1;
     if (owner) this.scores[owner.index] += points;
-    // KILL olayı: burst + halka + ölüm pop'u + hit-stop + flaş + travma tek profilden.
-    this.fx.emit('kill', {
+    // Ölüm olayı: sıradan NPC `slay` (burst + halka + pop + kısa hit-stop, FLAŞ
+    // YOK); elit/boss `kill` (tam bütçe + tek-ekran flaşı). Böylece kalabalıkta
+    // her ölüm ekranı yakmaz, flaş özel ölümlere saklanır (§ fxKit).
+    const eliteKill = enemy.isBoss || enemy.elite;
+    this.fx.emit(eliteKill ? 'kill' : 'slay', {
       x: enemy.x, y: enemy.y,
-      color: enemy.isBoss || enemy.elite ? '#FACC15' : ENEMY_BLOOD,
+      color: eliteKill ? '#FACC15' : ENEMY_BLOOD,
       size: enemy.radius || 30, angle: enemy.angle || 0,
       dirX, dirY, slot: ownerIndex,
       haptic: owner?.slotType === 'human',
@@ -1700,7 +1735,7 @@ export class HordeGame extends BaseMiniGame {
       types: ['HEAL', 'SHIELD'],
       max: 1,
       obstacles: this.obstacles,
-      size: this.bodyPx(30),
+      size: this.bodyPx(HORDE_TUNING.PICKUP_SIZE),
       pad: this.bodyPx(28),
     });
   }

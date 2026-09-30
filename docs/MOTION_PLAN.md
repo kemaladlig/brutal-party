@@ -66,9 +66,10 @@ Kod taramasının tespit ettiği **mevcut kaldıraçlar** (yeniden yazılmayacak
 > köşesini koyulaştırıyor; crop'ta halka+burst+pop net (BOT bandı altında
 > kalmayan boş alanda).
 
-- [x] 1.1 `src/core/fxKit.js`: kapalı olay kümesi `shot | hit | kill | pickup | score |
-      blocked | spark | dust | zone` (ölüm pop'u `kill` içinde gömülü); olay → kanal
-      bütçe tablosu; tek ekran-efekti kuralı (yalnız kill flaş basar — testli);
+- [x] 1.1 `src/core/fxKit.js`: kapalı olay kümesi `shot | hit | slay | kill | pickup | score |
+      blocked | spark | dust | zone` (ölüm pop'u `kill`/`slay` içinde gömülü); olay → kanal
+      bütçe tablosu; tek ekran-efekti kuralı (yalnız kill flaş basar — testli; `slay`
+      flaşsız trash ölümü);
       `FX_PROFILES` bütçe tavanları testle kilitli (trauma ≤0.4, hit-stop ≤150 ms,
       burst ≤18). Çiziciler `worldCore.drawFxRings/drawFxPops/drawFxFlash`.
 - [x] 1.2 `src/core/fxRuntime.js`: havuzlu partikül/ring/pop player, kap

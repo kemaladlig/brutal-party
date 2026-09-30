@@ -192,9 +192,12 @@ export function drawArcherArrows(ctx, arrows, arena = null) {
 /**
  * Nişan sallanması — çizilen nişan çizgisi ile gözlerin baktığı yön aynı
  * değeri kullanmalı, yoksa "gözler başka yere bakıyor" ayrışması çıkıyor.
+ * Sim tarafındaki `ArcherGame.aimAngle` ile AYNI formül: tam gerilişte (charge=1)
+ * salınım sıfırdır, ok tam bakış yönüne gider.
  */
 function archerAimSway(player) {
-  return Math.sin(player.swayPhase || 0) * (0.03 + 0.12 * (1 - (player.charge || 0)));
+  const charge = clamp01(player.charge);
+  return Math.sin(player.swayPhase || 0) * (0.15 * (1 - charge));
 }
 
 export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena = null, selfSlot = -1 } = {}) {
