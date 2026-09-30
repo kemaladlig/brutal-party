@@ -2451,6 +2451,20 @@
   100% { transform: scale(1); filter: brightness(1); }
 }
 
+/* 2.4 — TV_CONSOLE kumanda FX geri bildirimi: dünya görünümü yokken kendi
+   olayında kısa scale-pop (Faz 3.5 grameri: ~100 ms, ripple/glow yok,
+   transform-only). Sarsıntı/flash TV'de kalır; bu yalnız dokunsal-görsel onay. */
+.action-dash-btn.fx-pop,
+.action-spin-btn.fx-pop,
+.tank-fire-btn.fx-pop {
+  animation: fx-btn-pop 0.1s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes fx-btn-pop {
+  0% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
 /* Multi-action clusters (LASER, NINJA) */
 .action-cluster-stack {
   display: flex;
@@ -3041,7 +3055,10 @@
 
   .killfeed-toast,
   .action-dash-btn.ready-flash,
-  .action-spin-btn.ready-flash {
+  .action-spin-btn.ready-flash,
+  .action-dash-btn.fx-pop,
+  .action-spin-btn.fx-pop,
+  .tank-fire-btn.fx-pop {
     animation: none !important;
   }
 

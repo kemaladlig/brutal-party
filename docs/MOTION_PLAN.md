@@ -94,10 +94,11 @@ olayları; kendi partikül/metot gövdeleri silindi, API kabukları korundu).
 
 ## Faz 2 — Port ağları ve taşıma (~1 hafta)
 
-- [ ] 2.1 15 motor FX olayı üretmeye geçer; motor-içi partikül state/kopyaları silinir
+- [x] 2.1 15 motor FX olayı üretmeye geçer; motor-içi partikül state/kopyaları silinir
       (horde/archer/curve/bombView vb. — `drawCircleParticles` import'ları fxKit'e bağlanır).
       Kural: motor `ctx`'e FX için hiçbir şey yazmaz; ağ motoru FX'i üretmez, motoru çizmez.
-      (14/15 bitti; CURVE bu dalganın son işi — bkz. 2.5(c) notu.)
+      (15/15 bitti 2026-09-30: son motor CURVE wave (d) ile kapandı — `src/games/**`'te
+      `particles.push(` sıfır, K7 borcu 17→0, `rules-lint-baseline.json` K7 boş.)
 - [x] 2.2 ONLINE: FX olayları anlık güvenilir yola eklendi (WS + Supabase aynı düz şema:
       `{ type: 'HOST_FX', events }` / `{ action: 'FX_EVENTS', events }`);
       `networkProtocol` normalize edici (`isValidFxEvent`/`normalizeFxEvents`/`createFxStamp`/
@@ -106,9 +107,13 @@ olayları; kendi partikül/metot gövdeleri silindi, API kabukları korundu).
 - [x] 2.3 Kademe bütçeleri `perfMonitor`'a bağlandı: lazy-boot cihaz metriğinden low/mid/high
       (partikül ×0.4/×0.7/×1.0, glow katmanı low'da kapalı); 20 ms üstü kare-süresi 30 kare
       sürerse bir kademe düşer. Tek okuma noktası `fxRuntime.emit` (`count` çarpanı).
-- [ ] 2.4 TV_CONSOLE: sarsıntı/flash TV'de kalır (zaten host), kumandaya yalnız haptik +
-      buton pop'u düşer — §2 gereği kumanda simülasyonsuz kalır. (Not: Parça 1'de yol hazır —
-      `gamepad.handleFxEvents` dünya görünümü yoksa yalnız haptik çalar; tam 2.4 dalgası Parça 2-4'te.)
+- [x] 2.4 TV_CONSOLE: sarsıntı/flash TV'de kalır (zaten host), kumandaya yalnız haptik +
+      buton pop'u düşer — §2 gereği kumanda simülasyonsuz kalır. (Bitti 2026-09-30: karar
+      `fxKit.fxPadFeedback(events, playerIndex, hasWorldView)` saf fonksiyonunda tek kaynak —
+      world-view YOKSA kendi olayında haptik + `.fx-pop` buton scale-pop'u (~100 ms, Faz 3.5
+      grameri, transform-only, reduced-motion'da kapalı); world-view VARSA FX'i zaten çizer,
+      pop YOK (çift geri bildirim olmaz). `gamepad.handleFxEvents` bu kararı uygular,
+      simülasyon üretmez. Kilit: `tests/fxKit.test.mjs` 2.4 bloğu.)
 - [x] 2.5 Dönüşüm dalgaları: (a) tanks+horde+laser+archer (ateşli, en çok isabet) →
       (b) crown/bomb/clone/collapse/heist (etkileşimli) → (c) pong/snake/ball/race/zone/ninja/
       game (düşük olay sıklığı, dokunuş-minimum). Her dalga sonunda `npm run check`.

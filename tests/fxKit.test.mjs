@@ -28,6 +28,7 @@ import {
   fxUpdatePops,
   advanceHitStop,
   fxNormalizedDir,
+  fxPadFeedback,
 } from '../src/core/fxKit.js';
 import { createFxRuntime } from '../src/core/fxRuntime.js';
 
@@ -190,3 +191,32 @@ test('every profile budget stays inside the motion plan ceiling', () => {
     }
   }
 });
+
+// MOTION_PLAN 2.4 — TV_CONSOLE kumanda geri bildirimi: dünya görünümü yokken
+// kendi olayın yalnız haptik + buton pop'u üretir; sarsıntı/flash TV'de kalır.
+test('2.4 fxPadFeedback: pop yalnız kendi olayında ve dünya görünümü YOKKEN', () => {
+  const own = [{ fx: 'kill', slot: 1, token: 5 }, { fx: 'hit', slot: 2, token: 6 }];
+  // Kendi koltuğu (1) eventi var, world view YOK → pop + kendi kinds.
+  const tvPad = fxPadFeedback(own, 1, false);
+  assert.deepEqual(tvPad.ownKinds, ['kill']);
+  assert.equal(tvPad.pop, true);
+  // World view VAR (ONLINE) → FX'i zaten çizer, buton pop'u YOK (çift geri bildirim olmaz).
+  const onlinePad = fxPadFeedback(own, 1, true);
+  assert.deepEqual(onlinePad.ownKinds, ['kill']);
+  assert.equal(onlinePad.pop, false);
+  // Kendi olayın YOK → ne pop ne haptik kinds (başkasının eventi kumandayı tetiklemez).
+  const spectator = fxPadFeedback(own, 3, false);
+  assert.deepEqual(spectator.ownKinds, []);
+  assert.equal(spectator.pop, false);
+});
+
+test('2.4 fxPadFeedback: bozuk/eksik yük pop üretmez (dayanıklılık)', () => {
+  assert.deepEqual(fxPadFeedback([], 0, false), { ownKinds: [], pop: false });
+  assert.deepEqual(fxPadFeedback(null, 0, false), { ownKinds: [], pop: false });
+  // slot olmayan veya sayı-olmayan slot kendi olayı sayılmaz.
+  const malformed = [{ fx: 'hit' }, { fx: 'hit', slot: '1' }, { fx: 'hit', slot: 1.5 }];
+  const res = fxPadFeedback(malformed, 1, false);
+  assert.deepEqual(res.ownKinds, []);
+  assert.equal(res.pop, false);
+});
+

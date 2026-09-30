@@ -23,7 +23,7 @@ import { drawBrutalAvatar } from './ui/characterRenderer.js';
 import { openCustomizeModal } from './ui/customizeModal.js';
 import { getTabletopIconSvg } from './core/tabletopIcons.js';
 import { GamepadWorldView } from './ui/gamepadWorldView.js';
-import { fxHaptic } from './core/fxKit.js';
+import { fxHaptic, fxPadFeedback } from './core/fxKit.js';
 import { createFxEventFilter } from './core/networkProtocol.js';
 import { renderLocalGamepadShell, renderRemoteGamepadShell } from './ui/gamepadShell.js';
 import { openControllerLayoutEditor } from './ui/controllerLayoutEditor.js';
@@ -1657,10 +1657,32 @@ export class GamepadManager {
   handleFxEvents(events) {
     const fresh = this._fxFilter(Array.isArray(events) ? events : []);
     if (!fresh.length) return;
-    for (const ev of fresh) {
-      if (Number.isInteger(ev.slot) && ev.slot === this.playerIndex) fxHaptic(ev.fx);
+    const fb = fxPadFeedback(fresh, this.playerIndex, !!this._worldView);
+    for (const kind of fb.ownKinds) fxHaptic(kind);
+    if (this._worldView) {
+      this._worldView.acceptFx(fresh);
+    } else if (fb.pop) {
+      // 2.4 TV_CONSOLE: dünya görünümü yok — sarsıntı/flash TV'de kalır,
+      // kumandaya yalnız haptik + buton pop'u düşer (§2 simülasyonsuz).
+      this._popActionFx();
     }
-    if (this._worldView) this._worldView.acceptFx(fresh);
+  }
+
+  /**
+   * 2.4 — kumanda aksiyon butonlarında kısa scale-pop (Faz 3.5 grameri:
+   * 90-110 ms, ripple/glow yok, transform-only). Yalnız kendi olayında ve
+   * dünya görünümü yokken çağrılır.
+   */
+  _popActionFx() {
+    if (!this.overlay?.querySelectorAll) return;
+    const btns = this.overlay.querySelectorAll(
+      '.action-dash-btn, .action-spin-btn, .tank-fire-btn',
+    );
+    for (const btn of btns) {
+      btn.classList.remove('fx-pop');
+      void btn.offsetWidth;
+      btn.classList.add('fx-pop');
+    }
   }
 
   // Faz 2.2 — kill-feed: skor artışını sağ üstte toast olarak bildirir.

@@ -126,6 +126,25 @@ export function fxHaptic(kind) {
 }
 
 /**
+ * MOTION_PLAN 2.4 — TV_CONSOLE kumanda geri bildirimi kararı (saf, DOM'suz).
+ * Kumandada simülasyon YOKTUR (§2): sarsıntı/flash TV'de (host) kalır. Dünya
+ * görünümü olan kumanda (ONLINE) FX'i zaten çizer; dünya görünümü OLMAYAN
+ * kumanda (TV_CONSOLE) kendi koltuğunun olayını yalnız haptik + buton pop'u
+ * olarak duyurur. Haptik her iki durumda da kendi olaylarında çalar.
+ * @param {any[]} freshEvents `createFxEventFilter`'dan geçmiş olaylar
+ * @param {number} playerIndex bu kumandanın koltuğu
+ * @param {boolean} hasWorldView kumanda world-view çiziyor mu
+ * @returns {{ ownKinds: string[], pop: boolean }}
+ */
+export function fxPadFeedback(freshEvents, playerIndex, hasWorldView) {
+  const ownKinds = [];
+  for (const ev of Array.isArray(freshEvents) ? freshEvents : []) {
+    if (ev && Number.isInteger(ev.slot) && ev.slot === playerIndex) ownKinds.push(ev.fx);
+  }
+  return { ownKinds, pop: ownKinds.length > 0 && !hasWorldView };
+}
+
+/**
  * Olayın şiddet gücü (0..1) — kablosuz paketteki `power` alanı budur:
  * travma bütçesi, yoksa 0. Degrade grameri (flash+squash) bu skaladan okur.
  * @param {string} kind
