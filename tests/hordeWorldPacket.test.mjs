@@ -120,7 +120,9 @@ test('horde world packet is complete, monotonic and capped', () => {
   assert.equal(first.version, 1);
   assert.ok(second.seq > first.seq);
   assert.equal(first.bullets.length, HORDE_VIEW_LIMITS.bullets);
-  assert.equal(first.enemies[1].boss, true);
+  // Düşmanlar dizi olarak paketlenir: [.., type@7, boss@8, ..]
+  assert.equal(first.enemies[1][8], 1);
+  assert.equal(first.enemies[1][7], 'shooter');
   assert.equal(first.players[0].shield, true);
   assert.equal(first.players[0].weapon, 'RIFLE');
   // Gözlerin baktığı yön (nişan/koşu) paketlenir; dekor alanları (accessory/
@@ -140,7 +142,9 @@ test('horde world validation rejects malformed entities and hostile counts', () 
   const frame = { action: 'WORLD_FRAME', ...createHordeWorldPacket(makeGame()) };
   assert.equal(isValidHordeWorldFrame(frame), true);
   assert.equal(isValidHordeWorldFrame({ ...frame, mode: 'LASER' }), false);
-  assert.equal(isValidHordeWorldFrame({ ...frame, enemies: [{ ...frame.enemies[0], hp: 1.5 }] }), false);
+  const badEnemy = [...frame.enemies[0]];
+  badEnemy[5] = 1.5; // hp tam sayı olmalı
+  assert.equal(isValidHordeWorldFrame({ ...frame, enemies: [badEnemy] }), false);
   assert.equal(isValidHordeWorldFrame({ ...frame, bullets: [[0, 0, 0]] }), false);
   assert.equal(isValidHordeWorldFrame({ ...frame, obstacles: [[0, 0, 0]] }), false);
   assert.equal(isValidHordeWorldFrame({ ...frame, loadoutCrates: [{ ...frame.loadoutCrates[0], weaponId: 'ROCKET' }] }), false);

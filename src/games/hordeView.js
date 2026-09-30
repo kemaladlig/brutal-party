@@ -25,7 +25,6 @@ import {
   drawFxRings,
   drawFxPops,
   isValidWorldBase,
-  packFxState,
   isValidFxState,
   packRectList,
   round1,
@@ -197,23 +196,27 @@ export function mapHordeScene(game, tuning = {}) {
 
 function packHordeScene(scene) {
   return {
-    enemies: scene.enemies.map((enemy) => ({
-      id: enemy.id,
-      x: enemy.x,
-      y: enemy.y,
-      r: enemy.r,
-      angle: enemy.angle,
-      hp: enemy.hp,
-      maxHp: enemy.maxHp,
-      type: enemy.type,
-      boss: enemy.boss,
-      elite: enemy.elite,
-      hit: enemy.hit,
-      spawning: enemy.spawning,
-      spawnProgress: enemy.spawnProgress,
-      telegraph: enemy.telegraph,
-      lunging: enemy.lunging,
-    })),
+    // Düşmanlar DİZİ olarak paketlenir (obje değil): 15 alanın JSON anahtar
+    // yükü 28 düşmanda ~3.8 KB'ı buluyordu. Sıra `hordeSceneFromFrame` ve
+    // `isValidHordeExtra` ile birebir aynı; boolean'lar 0/1.
+    // [id, x, y, r, angle, hp, maxHp, type, boss, elite, hit, spawning, spawnProgress, telegraph, lunging]
+    enemies: scene.enemies.map((enemy) => [
+      enemy.id,
+      enemy.x,
+      enemy.y,
+      enemy.r,
+      enemy.angle,
+      enemy.hp,
+      enemy.maxHp,
+      enemy.type,
+      enemy.boss ? 1 : 0,
+      enemy.elite ? 1 : 0,
+      enemy.hit ? 1 : 0,
+      enemy.spawning ? 1 : 0,
+      enemy.spawnProgress,
+      enemy.telegraph ? 1 : 0,
+      enemy.lunging ? 1 : 0,
+    ]),
     bullets: scene.bullets.map((bullet) => [
       bullet.x,
       bullet.y,
@@ -258,11 +261,14 @@ export function createHordeWorldPacket(game, tuning = {}) {
     extras: {
       ...packHordeScene(scene),
       selfPredict: true,
-      // FX kanalı (MOTION_PLAN Faz 2a): host FX runtime'ının saf anlık görüntüsü
-      // (tanks deseni). Playback canlıyken paket yükü yok sayılır (yedek kanal).
-      fx: packFxState(game.fx),
+      // NOT: `frame.fx`/`frame.particles` HORDE'da artık paketlenmez. FX esas
+      // olarak anlık güvenilir kanaldan (`FX_EVENTS` → `context.fx`, fxLive)
+      // gelir; kumanda o mandal açıkken bu iki alanı zaten yok sayar
+      // (MOTION_PLAN Faz 2 sapma notu, "kaldırma kararı Parça 4"). Tam baskıda
+      // bu ~4 KB/kare × 30 Hz idi. `particles: []` şema uyumu için
+      // createWorldSnapshot'tan gelir; `particleCap: 0` içeriğini boşaltır.
     },
-    particleCap: HORDE_VIEW_LIMITS.particles,
+    particleCap: 0,
   });
 }
 
@@ -299,20 +305,15 @@ function isValidHordePlayer(player) {
 
 function isValidHordeExtra(frame) {
   if (!Array.isArray(frame.enemies) || frame.enemies.length > HORDE_VIEW_LIMITS.enemies) return false;
-  if (!frame.enemies.every((enemy) => enemy
-    && Number.isInteger(enemy.id) && enemy.id >= 0
-    && finite(enemy.x) && finite(enemy.y) && finite(enemy.r) && enemy.r > 0
-    && finite(enemy.angle)
-    && Number.isInteger(enemy.hp) && enemy.hp >= 0
-    && Number.isInteger(enemy.maxHp) && enemy.maxHp > 0
-    && ENEMY_TYPES.has(enemy.type)
-    && typeof enemy.boss === 'boolean'
-    && typeof enemy.elite === 'boolean'
-    && typeof enemy.hit === 'boolean'
-    && typeof enemy.spawning === 'boolean'
-    && finite(enemy.spawnProgress) && enemy.spawnProgress >= 0 && enemy.spawnProgress <= 1
-    && typeof enemy.telegraph === 'boolean'
-    && typeof enemy.lunging === 'boolean')) return false;
+  if (!frame.enemies.every((enemy) => Array.isArray(enemy) && enemy.length === 15
+    && Number.isInteger(enemy[0]) && enemy[0] >= 0
+    && finite(enemy[1]) && finite(enemy[2]) && finite(enemy[3]) && enemy[3] > 0
+    && finite(enemy[4])
+    && Number.isInteger(enemy[5]) && enemy[5] >= 0
+    && Number.isInteger(enemy[6]) && enemy[6] > 0
+    && ENEMY_TYPES.has(enemy[7])
+    && [8, 9, 10, 11, 13, 14].every((i) => enemy[i] === 0 || enemy[i] === 1)
+    && finite(enemy[12]) && enemy[12] >= 0 && enemy[12] <= 1)) return false;
 
   if (!Array.isArray(frame.bullets) || frame.bullets.length > HORDE_VIEW_LIMITS.bullets) return false;
   if (!frame.bullets.every((bullet) => Array.isArray(bullet) && bullet.length === 9
@@ -388,7 +389,16 @@ export function hordeSceneFromFrame(frame) {
   if (!frame) return null;
   return {
     players: Array.isArray(frame.players) ? frame.players : [],
-    enemies: Array.isArray(frame.enemies) ? frame.enemies : [],
+    enemies: Array.isArray(frame.enemies) ? frame.enemies.map(([id, x, y, r, angle, hp, maxHp, type, boss, elite, hit, spawning, spawnProgress, telegraph, lunging]) => ({
+      id, x, y, r, angle, hp, maxHp, type,
+      boss: boss === 1,
+      elite: elite === 1,
+      hit: hit === 1,
+      spawning: spawning === 1,
+      spawnProgress,
+      telegraph: telegraph === 1,
+      lunging: lunging === 1,
+    })) : [],
     bullets: Array.isArray(frame.bullets) ? frame.bullets.map(([x, y, vx, vy, radius, enemy, id, angle, color]) => ({
       x, y, vx, vy, radius, enemy: enemy === 1, id, angle, color,
     })) : [],

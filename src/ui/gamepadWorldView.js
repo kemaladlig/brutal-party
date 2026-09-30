@@ -335,9 +335,12 @@ export class GamepadWorldView {
     if (this.destroyed) return;
     const width = Math.max(1, this.canvas.clientWidth || this.canvas.parentElement?.clientWidth || 1);
     const height = Math.max(1, this.canvas.clientHeight || this.canvas.parentElement?.clientHeight || 1);
-    // Perf: adaptive DPR — aynı MAX_CANVAS_PIXELS bütçesi (main.js ile tutarlı)
-    const raw = Math.min(window.devicePixelRatio || 1, 2.5);
-    const maxPx = 2_100_000;
+    // Perf: world-view DPR bütçesi host canvas'ından AYRIDIR. Client'ta
+    // HORDE gibi yoğun sahneler ~2000 op/kare üretiyor; 2.1 Mpx + DPR 2.5
+    // orta segment telefonda rAF'ı 30-45 Hz'e düşürüyordu. 2.0 tavan ve
+    // 1.6 Mpx bütçesi keskinliği korur, çizim maliyetini ~%35 kısar.
+    const raw = Math.min(window.devicePixelRatio || 1, 2);
+    const maxPx = 1_600_000;
     const pixels = width * height * raw * raw;
     const dpr = pixels <= maxPx ? raw : Math.max(1, Math.sqrt(maxPx / (width * height)));
     const targetWidth = Math.floor(width * dpr);
@@ -437,6 +440,13 @@ export class GamepadWorldView {
       perfMonitor.gauge('client.playout', this.playoutDelayMs);
       perfMonitor.gauge('client.jitter', this.jitterMs);
       perfMonitor.gauge('client.frameAge', this.stats.lastFrameAgeMs);
+      // Tanı kuyruğu (perf HUD, kumanda sayfasında `?perf`): kare düşüşü,
+      // jitter buffer derinliği ve ölçülen gönderim aralığı — "kasma" nın
+      // ağ (#1/#4/#5) mı çizim (#3/#6) mı olduğunu tek oturumda ayrıştırır.
+      perfMonitor.gauge('client.dropped', this.stats.droppedFrames);
+      perfMonitor.gauge('client.accepted', this.stats.acceptedFrames);
+      perfMonitor.gauge('client.buffer', this.buffer.length);
+      perfMonitor.gauge('client.interval', this.intervalMs);
       this.renderDurations.push(this.stats.lastRenderMs);
       if (this.renderDurations.length > 120) this.renderDurations.shift();
     } catch (err) {

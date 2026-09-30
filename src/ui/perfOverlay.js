@@ -23,6 +23,8 @@ function format(snapshot) {
     `CLIENT frame ${pair(snapshot, 'client.frame')}  rnd ${pair(snapshot, 'client.render')}  `
       + `playout ${round(gauges['client.playout'])}  jitter ${round(gauges['client.jitter'])}  `
       + `age ${round(gauges['client.frameAge'])}`,
+    `CLIENT drop ${round(gauges['client.dropped'])}  acc ${round(gauges['client.accepted'])}  `
+      + `buf ${round(gauges['client.buffer'])}  int ${round(gauges['client.interval'])}ms`,
   ].join('\n');
 }
 

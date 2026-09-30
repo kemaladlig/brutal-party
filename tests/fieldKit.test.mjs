@@ -292,8 +292,10 @@ test('field visuals add no packet fields (BOMB/PONG/HORDE)', () => {
   // aynı anda tek patlama) — bkz. worldCore.packBlast. `selfPredict` de saha
   // görseli değil: client self-avatar prediction opt-in bayrağı (core/selfPrediction).
   // `fx`: host FX runtime anlık görüntüsü (rings/pops/flash — tanks deseni,
-  // Faz 2'de portlanan motorlara eklendi: HORDE, BOMB (+ clone/collapse/heist/crown/laser/archer
-  // kendi paket testlerinde kilitli); v1 yedeği, playback canlıyken yok sayılır).
+  // Faz 2'de portlanan motorlara eklendi: BOMB/PONG; v1 yedeği, playback
+  // canlıyken yok sayılır). HORDE artık `fx` TAŞIMAZ: FX anlık güvenilir
+  // kanaldan gelir (MOTION_PLAN "kaldırma kararı Parça 4"), bu yüzden anahtar
+  // listesinde `fx` yoktur; `particles` şema uyumu için boş kalır.
   assert.deepEqual(Object.keys(packets.BOMB).sort(), [
     'arena', 'blast', 'bombMaxTime', 'bombTimer', 'carrier', 'fx', 'gameState', 'ink', 'matchDraw',
     'matchWinner', 'mode', 'particles', 'pickups', 'pillars', 'players', 'roundId',
@@ -304,7 +306,7 @@ test('field visuals add no packet fields (BOMB/PONG/HORDE)', () => {
     'roundId', 'roundWinner', 'scores', 'seq', 'timeLeft', 'version',
   ]);
   assert.deepEqual(Object.keys(packets.HORDE).sort(), [
-    'arena', 'bullets', 'enemies', 'enemiesLeft', 'fx', 'gameState', 'isBossWave', 'loadoutCrates',
+    'arena', 'bullets', 'enemies', 'enemiesLeft', 'gameState', 'isBossWave', 'loadoutCrates',
     'matchResult', 'matchWinner', 'mode', 'nextRound', 'obstacles', 'particles', 'phase',
     'pickups', 'players', 'portal', 'round', 'roundBreakTime', 'roundBreakTotal', 'roundId',
     'roundWinner', 'scores', 'selfPredict', 'seq', 'texts', 'theme', 'tombs', 'totalRounds', 'totalWaves',
