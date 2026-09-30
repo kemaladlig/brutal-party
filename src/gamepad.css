@@ -2440,15 +2440,17 @@
   box-shadow: none;
 }
 
-/* Hazır titreşimi: cooldown dolduğunda kısa bir yeniden doğuş (Faz 2) */
+/* Hazır titreşimi: cooldown dolduğunda kısa bir yeniden doğuş.
+   Faz 3.5: buton geri bildirimi TEK gramer — 90-110 ms scale-pop, ripple/glow YOK
+   (eski brightness() parlaması kaldırıldı; yalnız transform ölçeği). */
 .action-dash-btn.ready-flash,
 .action-spin-btn.ready-flash {
-  animation: cd-ready-pop 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: cd-ready-pop 0.1s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @keyframes cd-ready-pop {
-  0% { transform: scale(0.9); filter: brightness(1.25); }
-  100% { transform: scale(1); filter: brightness(1); }
+  0% { transform: scale(0.92); }
+  100% { transform: scale(1); }
 }
 
 /* 2.4 — TV_CONSOLE kumanda FX geri bildirimi: dünya görünümü yokken kendi

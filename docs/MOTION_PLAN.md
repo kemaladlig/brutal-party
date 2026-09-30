@@ -157,13 +157,22 @@ gerçek Android düşük-ucuz cihazda 60 fps yakalama (perfMonitor çıktısı k
       HALKADA kalır, çekirdek şekil/nişan okunur) — `avatarInGame`/`tabletopRenderer`'da tek.
 - [ ] 3.2 I7 dürüstlüğü: 12 px taban `qualityGate` anchor'u (852×393) yerine gerçek en
       küçük hedef cihazda (SE yatay) ölçülür; rapor I8-I11'e kademe-farkı satırı eklenir.
-- [ ] 3.3 Üç kademe hiyerarşi (fxKit hakemiyle zorunlu): T1 kendi avatarın+nişan hattın
+- [x] 3.3 Üç kademe hiyerarşi (fxKit hakemiyle zorunlu): T1 kendi avatarın+nişan hattın
       (tam opak, tam juice) · T2 aktif tehdit (mermi/kenar — parlak ama flash-seviyesi değil)
       · T3 diğer oyuncular + ambiyans (α −%25). Motorlar α'yı kendisi uydurmaz.
+      (Bitti 2026-09-30: TEK hakem `fxKit.fxReadAlpha({isSelf,isThreat,hasViewer})` / `fxTierAlpha`
+      (T1=1·T2=1·T3=0.75). 12 motor kablolu — selfSlot (engine `localControlSlot` / world-view
+      `context.selfSlot`) → tier α; paylaşılan TV'de tek-görür yok → dim YOK. α `drawGameAvatar`
+      opts.alpha ile View'ın kendi globalAlpha'sıyla compose olur. curve/pong/race N/A (drawGameAvatar
+      yok). Kilit: `tests/readabilityTierWiring.test.mjs` (12 oyun) + `tests/fxKit.test.mjs` 3.3 bloğu.)
 - [x] 3.4 HUD bandı ↔ oyun alanı dokunmazlığı geniş viewport'ta yeniden doğrulanır
       (inset metin yüksekliğinden değil halka yarıçapından türemeli — bilinen tuzak).
-- [ ] 3.5 Kumanda buton geri bildirimi SADECE 90-110 ms scale-pop; ripple/glow yok.
-      `gamepadShell`/şema tarafında tek desen.
+- [x] 3.5 Kumanda buton geri bildirimi SADECE 90-110 ms scale-pop; ripple/glow yok.
+      `gamepadShell`/şema tarafında tek desen. (Bitti 2026-09-30: oyun-içi aksiyon butonlarında
+      ripple/glow YOK — geri bildirim scale tabanlı (`:active` transform) + 2.4 `.fx-pop` (100 ms).
+      `cd-ready-pop` 300 ms + `brightness()` glow → **100 ms saf scale-pop**'a indirildi (glow kaldırıldı,
+      reduced-motion'da kapalı). Lobby-seat/ready-toggle/layout-editor glow'ları birer SEÇİM durumu
+      göstergesi, buton-geri-bildirimi değil → 3.5 kapsamı dışında bırakıldı. Tek gramer: 90-110 ms scale-pop.)
 - [x] 3.6 Sonuç/raunt bantlarındaki mevcut `enter` animasyonlarına (260 ms) FX final
       kareleri eklenir: kazanma anı → skor sayacı tick-zıplatması; mevcut kart dili bozulmaz.
 
