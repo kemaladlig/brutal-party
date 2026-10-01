@@ -21,7 +21,6 @@ export const GAME_ORDER = [
   'SNAKE',
   'COLLAPSE',
   'NINJA',
-  'RACE',
   'CROWN',
 ];
 
@@ -340,41 +339,11 @@ export const CARTRIDGES = {
       }),
     }),
   },
-
-  RACE: {
-    id: 'RACE',
-    category: 'speed',
-    title: 'RACE',
-    lobbyTitle: 'RACE',
-    tacticalHintKey: 'hint.race',
-    color: '#D99B26',
-    // Paylaşılan tur mantığı denetime girer.
-    auditFiles: ['src/games/raceLogic.js'],
-    schema: GAMEPAD_SCHEMAS.RACE,
-    worldView: {
-      load: () => import('../ui/raceWorldView.js'),
-    },
-    load: () => import('../games/race.js').then((m) => m.RaceGame),
-    createEngine: (game) => makeEngine(game, {
-      packet: () => ({
-        scores: game.scores,
-        timeLeft: Math.ceil(game.roundTimer || 0),
-        matchDraw: game.matchDraw === true,
-        roundId: game.roundId || 0,
-        laps: game.players.map((player) => player.laps || 0),
-        progress: game.players.map((player) => Math.round(game.getProgressFraction(player) * 100)),
-        targetLaps: game.targetLaps,
-        leader: game.getLeaderIndex(),
-        cd: game.players.map((player) => Math.ceil((Math.max(0, player.dashCooldown || 0) / 2.8) * 100)),
-        nitro: game.players.map((player) => Math.round(player.nitroEnergy ?? 100)),
-      }),
-    }),
-  },
 };
 
 /**
  * Ortam iskeleti: `game`, `reset`, `onEnter`, `onResume`, `start`,
- * `worldPacket`. 13 kartuşun altısı da birebir aynıydı; oyun-özeli tek
+ * `worldPacket`. 12 kartuşun altısı da birebir aynıydı; oyun-özeli tek
  * parça `packet`, PONG'un `accumulator` sıfırlamasıdır (`onFrame`).
  */
 /**

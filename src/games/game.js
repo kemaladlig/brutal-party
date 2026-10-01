@@ -225,7 +225,11 @@ export class Game extends BaseMiniGame {
 
   // Lokal kontroller: klavye veya tabletop direksiyon butonları ile sürüş
   applyControls(dt) {
-    if (this.state !== 'PLAYING') return;
+    // ROUND_PAUSE = servis önizlemesi: telegraf bu pencerede gösterilir ve
+    // oyuncunun raketi konumlandırması beklenir. Yalnız PLAYING'e izin vermek
+    // klavye/tabletop sürüşünü tam hazırlık anında ölü bırakıyordu ("kontrol
+    // geç geliyor"); önizlemede de sürülebilir.
+    if (this.state !== 'PLAYING' && this.state !== 'ROUND_PAUSE') return;
     // Raket hızı top profilinin KENDİSİNDEN gelir (`ball.paddleSpeed`).
     // Ayrı sabit (`minDim * 1.5`) tutmak top tavanı değiştiğinde sessizce
     // adaletsizlik yaratıyordu: top tavan hızında geliyor, raket de tam o

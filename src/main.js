@@ -399,7 +399,14 @@ function syncLocalMobileControls(now = performance.now()) {
   const engine = getActiveGameEngine();
   const localSlot = getLocalControlSlot(engine);
   // Faz 2.4: MATCH_OVER'da yüzey açık kalır (sonuç ekranı state paketini alır).
-  const activeState = engine?.state === 'PLAYING' || engine?.state === 'MATCH_OVER';
+  // ROUND_PAUSE = raunt-içi servis önizlemesi (telegraf bu pencerede çizilir):
+  // yüzey burada kapalı kalırsa oyuncu raketi tam da hazırlık anında süremez,
+  // kontrol ancak top fırlayınca (PLAYING) belirir — "kontrol geç geliyor".
+  // Maç-öncesi 3-2-1 sayacı motoru hâlâ LOBBY'de tutar, dolayısıyla bu geçiş
+  // sayacı sızdırmaz.
+  const activeState = engine?.state === 'PLAYING'
+    || engine?.state === 'ROUND_PAUSE'
+    || engine?.state === 'MATCH_OVER';
   const shouldShow = roomFlow.getLocalControlMode().mode === CONTROL_MODE.DOM
     && roomFlow.getCurrentMode() !== 'MENU'
     && activeState

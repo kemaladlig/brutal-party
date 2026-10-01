@@ -29,7 +29,7 @@ test('continuous controls normalize without losing transport fields', () => {
     ['TANKS', { action: 'TANK_DRIVE', driving: true }, 'drive'],
     ['CURVE', { action: 'CURVE_STEER', dir: -1 }, 'steer'],
     ['SNAKE', { action: 'SNAKE_STEER', dir: 1 }, 'steer'],
-    ['RACE', { action: 'JOYSTICK_MOVE', dx: 0.2, dy: -0.4, angle: -1.1, force: 0.5 }, 'move'],
+    ['BOMB', { action: 'JOYSTICK_MOVE', dx: 0.2, dy: -0.4, angle: -1.1, force: 0.5 }, 'move'],
   ];
   for (const [mode, packet, type] of cases) {
     const descriptor = getControlDescriptor(mode, GAMEPAD_SCHEMAS[mode]);
@@ -42,7 +42,7 @@ test('continuous controls normalize without losing transport fields', () => {
 test('input router keeps adapter and engine lookup outside the manager', () => {
   const received = [];
   const router = new InputIntentRouter({
-    getDescriptor: () => getControlDescriptor('RACE', GAMEPAD_SCHEMAS.RACE),
+    getDescriptor: () => getControlDescriptor('BOMB', GAMEPAD_SCHEMAS.BOMB),
     getEngine: () => ({
       handleRemoteInput(slotIndex, data) {
         received.push({ slotIndex, data });

@@ -25,11 +25,10 @@ interface FieldGeometry {
 
 /** FIELD_PRESETS girdisi (playfield.resolveInsets). */
 interface FieldPresetSpec {
-  fixed?: { left?: number; right?: number; top?: number; bottom?: number };
-  minDimFraction?: number;
   horizontal?: unknown;
   verticalPortrait?: unknown;
   verticalLandscape?: unknown;
+  minSpan?: number;
   [key: string]: any;
 }
 

@@ -124,13 +124,6 @@ const STATUS_BUILDERS = {
     const enemies = Array.isArray(data.enemiesLeft) ? data.enemiesLeft[0] : (data.enemiesLeft || 0);
     return t('pad.hordeStatus', roundWave, enemies, hp, `${weapon} ${ammoText}`);
   },
-  RACE: (i, data) => {
-    const time = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
-    const lap = Array.isArray(data.laps) ? (data.laps[i] || 0) : 0;
-    const targetLap = data.targetLaps || 3;
-    const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    return `${t('pad.raceStatus', lap, targetLap, time)}${draw}`;
-  },
 };
 
 export function getControllerStatus(mode, playerIndex, data) {

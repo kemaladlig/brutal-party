@@ -56,8 +56,8 @@ export const HEIST_TUNING = {
 
 /**
  * Greed weight curve — SAF, DOM/Canvas bağımsız (deterministik test için).
- * `raceLogic.js` kalıbı: oyun kuralının saf kısmı test edilebilir bir
- * fonksiyon olarak durur, motor yalnız onu çağırır.
+ * Oyun kuralının saf kısmı test edilebilir bir fonksiyon olarak durur,
+ * motor yalnız onu çağırır.
  *
  * Taşınan yük hızı düşürür; taban ve adım TASARIM px/sn olduğu için
  * `baseSpeed` ile AYNI ölçekten geçmek zorunludur. `baseSpeed` spawn'da

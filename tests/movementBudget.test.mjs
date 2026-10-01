@@ -4,7 +4,7 @@
 // olduğunu söyler ve `fieldSpeed`/`fieldRadius` ile geçilmesini zorunlu
 // kılar. Ama "ölçek doğru" demek "tempo doğru" demek DEĞİLDİR, ve tempo için
 // hiçbir test yoktu. 14 oyun × 2 ölçü elle tutuluyordu. Kanıt:
-// `raceLogic.js` "RACE hala yavaş" yorumu — 190 → 215 tahminle bulundu,
+// Bir motorun "hâlâ yavaş" yorumu — 190 → 215 tahminle bulundu,
 // sonuç yine yavaş, ikinci tur. Ölçüm yoksa çözüm de yok.
 //
 // İKİ ÖLÇÜ, İKİ FARKLI "yavaş" KANALI:
@@ -14,11 +14,6 @@
 //
 //   B  gövde/sn = tasarımHızı / (2 × tasarımYarıçap)
 //      "kendi bedenime göre yavağım" hissi. BOMB (2.4) ve CROWN (2.9) yavaştı.
-//
-//   C  ivme tepkisi = tasarımHız / tasarımİvme   (saniye)
-//      RACE'i hiçbir A/B ölçüsü yakalamıyordu (A 4.4, B 5.7 — ikisi de iyi)
-//      ama 0 → maks 0.46 s rampası "yavaş" dedirtiyordu.
-//
 // A ve B birlikte tek bir sıra vermiyor; bu yüzden ikisi de ayrı kilitleniyor.
 //
 // ÜÇÜNCE KİLİT — ÖLÇEK DEĞİŞMEZLİĞİ. `unit` tasarım değerinin `size/952`
@@ -70,12 +65,10 @@ const ENGINES = [
   ['CROWN', '/src/games/crown.js', 'CrownGame', 'crown'],
   ['TANKS', '/src/games/tanks.js', 'TanksGame', 'flat'],
   ['ZONE', '/src/games/zone.js', 'ZoneGame', 'standard'],
-  ['RACE', '/src/games/race.js', 'RaceGame', 'racing'],
 ];
 
-// Bütçe, oyun başınadır: türler gerçekten farklı (CURVE imleç, ZONE bölge,
-// RACE araç) ve tek bir global aralık hem anlamsız hem de ayarlanabilir
-// olmaktan çıkar. Referans: kullanıcının "iyi" dediği ARCHER (A 4.81, B 3.5).
+// Bütçe, oyun başınadır: türler gerçekten farklı (CURVE imleç, ZONE bölge)
+// ve tek bir global aralık hem anlamsız hem de ayarlanabilir olmaktan çıkar. Referans: kullanıcının "iyi" dediği ARCHER (A 4.81, B 3.5).
 //
 // `radius` YAZILMIŞ tasarım yarıçapıdır — HORDE'un okunurluk çarpanı
 // UYGULANMADAN önceki değer. Çarpan bilinçli bir takas: orantıyı sabit
@@ -99,7 +92,6 @@ const BUDGET = {
   NINJA: { tier: 'normal', speed: 210, radius: 36, maxA: 5.1, minB: 2.6 },
   COLLAPSE: { tier: 'normal', speed: 190, radius: 36, maxA: 5.1, minB: 2.6 },
   HORDE: { tier: 'normal', speed: 168, radius: 30, maxA: 5.9, minB: 2.6 },
-  RACE: { tier: 'normal', speed: 215, radius: 34, maxA: 4.6, minB: 3.1 },
   // open: küçük gövde + niş/hızlı türler
   CURVE: { tier: 'open', speed: 185, radius: 18, maxA: 6.3, minB: 4.4 },
   SNAKE: { tier: 'open', speed: 190, radius: 24, maxA: 5.8, minB: 3.6 },
@@ -112,7 +104,6 @@ const loaded = new Map();
 // doğrudan Node altında import EDİLEMEZ; Vite SSR üzerinden yüklenirler.
 let HORDE_TUNING;
 let getPlayerWeapon;
-let RACE_TUNING;
 let computeGreedSpeed;
 let HEIST_GREED;
 
@@ -160,7 +151,6 @@ before(async () => {
 
   ({ HORDE_TUNING } = await server.ssrLoadModule('/src/games/horde.js'));
   ({ getPlayerWeapon } = await server.ssrLoadModule('/src/games/hordeConfig.js'));
-  ({ RACE_TUNING } = await server.ssrLoadModule('/src/games/raceLogic.js'));
   ({ computeGreedSpeed, HEIST_GREED } = await server.ssrLoadModule('/src/games/heist.js'));
 });
 
@@ -179,7 +169,6 @@ function spawn(mode, w, h) {
   game.resize(w, h);
   if (typeof game.initPlayers === 'function') game.initPlayers();
   else if (typeof game.initTanks === 'function') game.initTanks();
-  else if (typeof game.resetRacers === 'function') game.resetRacers();
   const player = (game.players || game.tanks || [])[0];
   assert.ok(player, `${mode} produced no player entity at ${w}x${h}`);
   return { game, player };
@@ -300,28 +289,6 @@ function unitAt(mode, w, h) {
   const [, , , preset] = ENGINES.find(([id]) => id === mode);
   return computePlayfield(w, h, preset).unit;
 }
-
-// ---------------------------------------------------------------------------
-// C) İvme tepkisi (RACE — A ve B'nin ikisini de geçen tek yavaşlık kanalı)
-// ---------------------------------------------------------------------------
-
-test('RACE throttle response is a deliberate, fast-ramp value', () => {
-  const ramp = RACE_TUNING.baseSpeed / RACE_TUNING.baseAcceleration;
-  assert.ok(
-    ramp <= 0.35,
-    `RACE takes ${ramp.toFixed(2)}s to reach top speed. This is the third `
-    + 'slowness channel: RACE measured FAST on both cross-time (4.4s) and '
-    + 'body/s (5.7), so only the acceleration ramp explained "RACE is slow".',
-  );
-  // Dash ramp keeps a comparable response ratio; a dash that accelerates slower
-  // than the base throttle feels like the boost does nothing.
-  const dashRamp = RACE_TUNING.dashSpeed / RACE_TUNING.dashAcceleration;
-  assert.ok(
-    dashRamp <= ramp * 1.2,
-    `RACE dash ramp ${dashRamp.toFixed(2)}s is slower than the base ramp `
-    + `${ramp.toFixed(2)}s — the boost would feel inert.`,
-  );
-});
 
 // ---------------------------------------------------------------------------
 // D) HEIST açgözlülük eğrisi — saf fonksiyon, viewport'tan bağımsız olmalı

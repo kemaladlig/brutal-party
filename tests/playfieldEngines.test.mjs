@@ -40,7 +40,6 @@ const ENGINES = [
   ['CROWN', '/src/games/crown.js', 'CrownGame', 'crown'],
   ['TANKS', '/src/games/tanks.js', 'TanksGame', 'flat'],
   ['ZONE', '/src/games/zone.js', 'ZoneGame', 'standard'],
-  ['RACE', '/src/games/race.js', 'RaceGame', 'racing'],
 ];
 
 let server;
@@ -165,7 +164,6 @@ for (const [mode, , , preset] of ENGINES) {
     game.slotTypes = ['human', 'bot_normal', 'bot_normal', 'bot_normal'];
     if (typeof game.initPlayers === 'function') game.initPlayers();
     if (typeof game.initTanks === 'function') game.initTanks();
-    if (typeof game.resetRacers === 'function') game.resetRacers();
 
     // LOBBY resize re-seeds spawn points; PLAYING takes the remap branch, which
     // is the path that has to keep entities on the field.
@@ -241,7 +239,6 @@ for (const [mode, , , preset] of ENGINES) {
       game.slotTypes = ['human', 'bot_normal', 'bot_normal', 'bot_normal'];
       if (typeof game.initPlayers === 'function') game.initPlayers();
       if (typeof game.initTanks === 'function') game.initTanks();
-      if (typeof game.resetRacers === 'function') game.resetRacers();
       return { body: bodyOf(game), size: game.arena.size };
     };
 

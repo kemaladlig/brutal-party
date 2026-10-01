@@ -14,7 +14,6 @@ export const MODE_VIEW_MAP = Object.freeze({
   PONG: 'src/games/pongView.js',
   NINJA: 'src/games/ninjaView.js',
   HORDE: 'src/games/hordeView.js',
-  RACE: 'src/games/raceView.js',
   ZONE: 'src/games/zoneView.js',
   TANKS: 'src/games/tanksView.js',
   SNAKE: 'src/games/snakeView.js',
@@ -147,8 +146,8 @@ export function getModeRelatedFiles(mode, extraFiles = []) {
     `src/games/${m}View.js`,
     `src/games-retired/${m}View.js`,
     `src/ui/${m}WorldView.js`,
-    // Kartuş kaydının bildirdiği ek dosyalar (PONG bölünmüş motor, RACE
-    // paylaşılan tur mantığı) — moda özel dal yok, kayıt konuşur.
+    // Kartuş kaydının bildirdiği ek dosyalar (PONG bölünmüş motor) —
+    // moda özel dal yok, kayıt konuşur.
     ...extraFiles,
   ];
   return list.filter(existsSync);

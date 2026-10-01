@@ -324,8 +324,6 @@ export const TR = {
   'guide.tanks': 'TUT: İLERLE • BIRAK: ATEŞ ET • 3 KEZ KAZANAN ŞAMPİYON',
   'guide.zone': 'JOYSTICK: YÖN • DEPAR: HIZLAN • %40 ALAN KAZANIR',
   'guide.horde': 'SOL: HAREKET • SAĞ: TUT: NİŞAN + ATEŞ • DEPAR: KAÇIŞ • 3 TUR HAYATTA KAL',
-  'guide.race': 'JOYSTICK: DÜMEN • AKSİYON: ZIPLA / DEPAR • 3 CHECKPOINT VE 3 TUR',
-  'guide.raceKeys': 'P1: WASD + {0} • P2: OKLAR + {1} • P3: IJKL + {2} • P4: TFGH + {3}',
   // ── BOMB ──
   'bomb.safe': '{icon:shield} GÜVENDE',
   // ── COLLAPSE ──
@@ -394,18 +392,6 @@ export const TR = {
   'horde.upgrade.SERVO': 'SERVO DEPAR',
   'horde.upgrade.FIELD_MEDIC': 'ALAN İLK YARDIM',
   'horde.upgrade.MAGNET': 'MANYET',
-  // ── RACE ──
-  'race.hud': '{0} • {1} SN',
-  'race.dash': 'PARKOUR DEPAR',
-  'race.empDash': 'EMP ŞOKU',
-  'race.empHit': 'EMP ÇARPMASI',
-  'race.wallBounce': 'DUVAR SEKİŞİ',
-  'race.skid': 'KAYMA',
-  'race.nitro': 'NİTRO BOOST',
-  'race.spinnerHit': 'ÇARPIŞMA',
-  'race.lap': 'TUR {0}/{1}',
-  'race.checkpoint': '{0} TAMAM',
-  'race.roundGoal': 'HEDEF: {0} RAUND ZAFERİ',
   // ── SNAKE ──
   'snake.champ': 'YILAN ŞAMPİYONU!',
   // ── TANKS ──
@@ -535,7 +521,6 @@ export const TR = {
   'pad.hordeStatus': '{0} • DÜŞMAN {1} • CAN {2} • {3}',
   'pad.hordePortal': '{0} • ÇIKIŞ HAZIR • CAN {1} • {2}',
   'pad.hordeArmory': 'TUR {0} ARMORY • {1} • {2} SN',
-  'pad.raceStatus': 'TUR {0}/{1} • {2}',
   'pad.bombFree': 'BOMBA BOŞTA ({0})',
   'pad.bombAt': 'BOMBA: P{0} ({1})',
   'pad.bombCarry': '{icon:bomb} BOMBA SENDE! RAKİPLERE DOKUN VE AKTAR!',
@@ -551,9 +536,6 @@ export const TR = {
   'host.seatEditorHint': 'Oyuncuları doğrudan başka bir koltuğa taşı.',
   'host.closeEditor': 'KOLTUKLARI KAPAT',
   'host.leavePlayer': 'OYUNCU KOLTUĞUNDAN ÇIK',
-  'race.trackCircuit': 'DEVRE',
-  'race.trackZigzag': 'ZİKZAG',
-  'race.trackSpiral': 'SPİRAL',
   'shell.play.pick': '15 OYUN · 2-4 OYUNCU',
   'shell.side.join': 'KODU GİR',
   'shell.side.update': 'Güncelle',
@@ -571,7 +553,6 @@ export const TR = {
   'hint.collapse': '{icon:gamepad} HAREKET ET • BOŞLUKTAN ZIPLA',
   'hint.ninja': '{icon:gamepad} HAREKET ET • DURUP GİZLEN • {icon:sword} KILIÇ • {icon:wind} SİS',
   'hint.horde': 'SOL: HAREKET • SAĞ: TUT, NİŞAN + ATEŞ • DEPAR • TUR SONU YÜKSELTME',
-  'hint.race': 'DÜMEN VER • ZIPLA / DEPAR • NİTRO PADI KULLAN',
   'react.laugh': 'Kahkaha',
   'react.flame': 'Ateş',
   'react.skull': 'Ölüm',

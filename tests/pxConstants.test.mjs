@@ -46,9 +46,6 @@ const DESIGN_TABLES = [
   // CROWN tacı: constructor'da ham tasarım px, `resize()` içinde
   // `fieldRadius` ile türetiliyor. Constructor arenası `unit` içermiyor.
   { file: 'games/crown.js', contains: 'radius: 20,' },
-  // raceLogic RACE_TUNING: bildirimde ham px, kullanımda race.js `this.px/spd`.
-  { file: 'games/raceLogic.js', contains: 'baseSpeed:' },
-  { file: 'games/raceLogic.js', contains: 'playerRadius:' },
 ];
 
 // Aynı ifadede bir ölçek çarpanıyla çarpılan literal zaten orantılıdır:
@@ -122,8 +119,6 @@ test('absolute px inventory is triaged, not growing', () => {
   // için mutlak px taşımıyor; taban SIFIR, yani yeni bir mutlak px eklendiği
   // anda test kırılır.
   //
-  //   RACE   yağ lekesi 26-30, nitro pad 40-45x28, spinner 110-140, EMP 10,
-  //          başlangıç ızgarası 32/28                      -> this.px(...)
   //   TANKS  mermi 4.5, HUD proksi 10                      -> fieldRadius(...)
   //   PONG   HUD proksi 24                                  -> fieldRadius(...)
   //   CROWN  36 harita yarıçapı, oyuncu/taç 20, mürekkep 22,

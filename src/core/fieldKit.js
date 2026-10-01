@@ -272,19 +272,6 @@ export const FIELD_THEMES = Object.freeze({
     block: 'dark',
   }),
 
-  // RACE — gri asfalt. Pist yüzeyi.
-  RACE: theme({
-    accent: '#1A1A1A', motif: 'chequer',    lightTint: '220, 220, 220',
-    edgeTint: '40, 40, 40',
-    shadeTint: '40, 40, 40',
-    floorHigh: '#ECECEC', floor: '#DFDFDF', floorEdge: '#D4D4D4', floorLow: '#C9C9C9',
-    grid: 'rgba(26, 26, 26, 0.05)',
-    gridStyle: 'court',
-    texture: 'tile',
-    seams: 3,
-    block: 'hazard',
-  }),
-
   // CROWN — altın kral. Taht ritmi.
   CROWN: theme({
     lightTint: '255, 215, 80',
@@ -689,32 +676,6 @@ export const FIELD_MOTIFS = Object.freeze({
       ctx.quadraticCurveTo(cx - min * 0.08, cy - off * 2.1, cx, cy + off);
       ctx.quadraticCurveTo(cx + min * 0.08, cy + off * 2.1, cx + min * 0.24, cy - off);
       ctx.stroke();
-    }
-    ctx.restore();
-  },
-
-  /**
-   * RACE: start/finish çizgisi — merkezde dama tahtası bandı (kendi çizgileri
-   * pistte ayrıca var; buradaki motif pist YOLUNU değil BAŞLANGIÇ ritmini verir
-   * ve iki yarıyı eşit ısıtır).
-   */
-  chequer(ctx, w, h, u, palette) {
-    const cx = w / 2;
-    const cy = h / 2;
-    const min = Math.min(w, h);
-    const cell = Math.max(2, min * 0.028);
-    const cols = 8;
-    const rows = 3;
-    const bandW = cell * cols;
-    const bandH = cell * rows;
-    ctx.save();
-    ctx.globalAlpha = MOTIF_ALPHA;
-    ctx.fillStyle = palette.accent;
-    for (let r = 0; r < rows; r += 1) {
-      for (let c = 0; c < cols; c += 1) {
-        if ((r + c) % 2 !== 0) continue;
-        ctx.fillRect(cx - bandW / 2 + c * cell, cy - bandH / 2 + r * cell, cell, cell);
-      }
     }
     ctx.restore();
   },
@@ -1300,7 +1261,7 @@ function paintFieldGrid(ctx, w, h, u, inset, palette) {
   ctx.lineWidth = Math.max(1, 1 * u);
 
   if (style === 'court') {
-    // Spor / Hava Hokeyi Kortu (PONG / CURVE / RACE / CROWN):
+    // Spor / Hava Hokeyi Kortu (PONG / CURVE / CROWN):
     // Düz defter çizgisi yerine temiz iç kort sınırı, orta saha kesimi ve santra çemberi
     const cx = w / 2;
     const cy = h / 2;

@@ -35,7 +35,6 @@ export const CONTROL_DEFS = {
   COLLAPSE: { left: 'joystick', right: ['jump'] },
   NINJA: { left: 'joystick', right: ['strike', 'smoke'] },
   HORDE: { left: 'joystick', aim: true, aimMode: AIM_HOLD_TO_FIRE, right: ['dash'] },
-  RACE: { left: 'joystick', right: ['dash'] },
 };
 
 // Oyun her zaman yatay oynanır; lobi portrait kalabilir.
@@ -63,7 +62,6 @@ const TABLETOP_LEFT = {
   COLLAPSE: 'joystick',
   NINJA: 'joystick',
   HORDE: 'joystick',
-  RACE: 'joystick',
 };
 
 export function getTabletopLayout(mode) {

@@ -473,7 +473,7 @@ this.targetScore = 2;
         hitFlash: 0,
         slotType: this.slotTypes[i],
         // `size` KAREDİR (kenar), gövde YARIÇAPI = size/2. 68 → yarıçap 34 =
-        // saha kısa kenarının ~%7.1'i, `normal` bandında [28,36] (RACE/BOMB ayarında).
+        // saha kısa kenarının ~%7.1'i, `normal` bandında [28,36] (BOMB ayarında).
         // Mobilde tanklar tok, paletler ve gövde net okunur.
         size: fieldRadius(this.arena, 68, 0),
         reloadCooldown: 0.55,

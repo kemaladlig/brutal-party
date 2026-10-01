@@ -76,9 +76,9 @@ function step(game, seconds) {
 }
 
 test('horde is registered once with world-view and declared controls', () => {
-  assert.equal(GAME_ORDER.length, 13);
+  assert.equal(GAME_ORDER.length, 12);
   assert.equal(GAME_ORDER.filter((mode) => mode === 'HORDE').length, 1);
-  assert.ok(GAME_ORDER.indexOf('HORDE') < GAME_ORDER.indexOf('RACE'));
+  assert.ok(GAME_ORDER.indexOf('HORDE') < GAME_ORDER.indexOf('CROWN'));
   assert.equal(CARTRIDGES.HORDE.worldView ? true : false, true);
   assert.equal(CARTRIDGES.HORDE.schema.def.right.join(','), 'dash');
   assert.deepEqual(CARTRIDGES.HORDE.schema.actions.map((action) => action.id), ['dash']);

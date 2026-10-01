@@ -193,9 +193,9 @@ async function measure() {
         if (init) init.call(game);
         game.startNewMatch();
         game.lastTime = 1000;
-        // Girdi ver: oyuncu kontrollü yarışçılar (PONG topu, RACE aracı,
-        // ZONE/SNAKE gövdesi) girdi olmadan HIZLANMAZ. 1.5 saniye
-        // sürülür: ivmelenen motorlarda 0.32s yeterli değildi, RACE ölçümü
+        // Girdi ver: oyuncu kontrollü gövdeler (PONG topu, ZONE/SNAKE gövdesi)
+        // girdi olmadan HIZLANMAZ. 1.5 saniye
+        // sürülür: ivmelenen motorlarda 0.32s yeterli değildi, ölçüm
         // "hızlanmanın başındaki" değeri veriyordu (11.7s) — gerçek tempo değil.
         const FRAMES = 94; // ~1.5s @60fps
         for (let i = 0; i < FRAMES; i += 1) {

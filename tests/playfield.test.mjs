@@ -38,7 +38,6 @@ const ALL_VIEWPORTS = [...UNCHANGED_VIEWPORTS, ...COMPACT_VIEWPORTS];
 // wall-stroke floor, a notched one expands to clear the cutout.
 const COMPACT_VERTICAL_FLOOR = 3;
 const SAFE_AREA_FLOOR = 3;
-const COMPACT_MIN_DIM_FRACTION = 0.04;
 const NO_SAFE_AREA = { top: 0, right: 0, bottom: 0, left: 0 };
 const compactVertical = (h, safe = NO_SAFE_AREA) => Math.max(
   COMPACT_VERTICAL_FLOOR,
@@ -73,8 +72,6 @@ function insetBox(marginX, marginY, viewW, viewH) {
 }
 
 // archetype → { engines, formula, integral }
-// `integral: false` for racing: RACE's margin is a raw fraction of the short
-// side, never floored, so its geometry is fractional by design.
 const LEGACY = {
   standard: {
     engines: ['PONG', 'ARCHER', 'BOMB', 'HEIST', 'CURVE', 'NINJA', 'SNAKE', 'COLLAPSE'],
@@ -121,17 +118,10 @@ const LEGACY = {
       w, h,
     ),
   },
-  racing: {
-    engines: ['RACE'],
-    integral: false,
-    formula: (w, h) => {
-      const m = Math.min(w, h) * 0.08;
-      return box(m, m + 30, (w - m) - m, (h - m - 20) - (m + 30));
-    },
-  },
 };
 
-// racing yolunda `h - m - 20` ile `top + (h - top - bottom)` 1 ULP ayrışabilir.
+// Sınırlı kayan-nokta toleransı: `top + (h - top - bottom)` gibi ifadeler
+// 1 ULP ayrışabilir.
 const EPSILON = 1e-9;
 
 for (const [preset, { engines, formula, integral }] of Object.entries(LEGACY)) {
@@ -261,35 +251,10 @@ test('safe area is ignored outside compact landscape', () => {
   }
 });
 
-test('RACE compacts its min-dimension margin but keeps its fixed HUD bands', () => {
-  for (const [w, h] of COMPACT_VIEWPORTS) {
-    const pf = computePlayfield(w, h, 'racing');
-    const base = Math.min(w, h) * COMPACT_MIN_DIM_FRACTION;
-    // `insets` are the reserved bands; `top`/`bottom` are the resulting EDGE
-    // coordinates. Different quantities — don't conflate them.
-    assert.ok(Math.abs(pf.insets.left - base) <= EPSILON, `racing @ ${w}x${h} left inset`);
-    assert.ok(Math.abs(pf.insets.top - (base + 30)) <= EPSILON, `racing @ ${w}x${h} top inset`);
-    assert.ok(Math.abs(pf.insets.bottom - (base + 20)) <= EPSILON, `racing @ ${w}x${h} bottom inset`);
-    // The 30/20px bands anchor RACE's top pill and bottom chrome; only the
-    // percentage margin shrinks. RACE's field is anchored to the viewport
-    // origin, so the edges sit exactly at the reserved bands.
-    assert.ok(Math.abs(pf.top - pf.insets.top) <= EPSILON, `racing @ ${w}x${h} top edge`);
-    assert.ok(Math.abs(pf.bottom - (h - pf.insets.bottom)) <= EPSILON, `racing @ ${w}x${h} bottom edge`);
-  }
-
-  // and it must still be a net gain over the pre-Stage-2 8% margin
-  for (const [w, h] of COMPACT_VIEWPORTS) {
-    const before = LEGACY.racing.formula(w, h);
-    const after = computePlayfield(w, h, 'racing');
-    assert.ok(after.height > before.h, `racing @ ${w}x${h} should gain height`);
-  }
-});
-
 test('compact landscape reclaims real height versus the old flat margin', () => {
   // The whole point of Stage 2: a phone in landscape must get a taller field
   // than it did before. Lock the direction and a conservative floor.
   for (const [preset, def] of Object.entries(LEGACY)) {
-    if (preset === 'racing') continue;
     for (const [w, h] of COMPACT_VIEWPORTS) {
       const before = def.formula(w, h);
       const after = computePlayfield(w, h, preset);

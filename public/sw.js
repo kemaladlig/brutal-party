@@ -23,7 +23,6 @@ const ASSETS_TO_CACHE = [
   '/assets/games/collapse.webp',
   '/assets/games/ninja.webp',
   '/assets/games/horde.webp',
-  '/assets/games/race.webp',
 ];
 
 // Runtime cache şişmesin: üst sınırı aşınca en eskiler silinir. Tavan

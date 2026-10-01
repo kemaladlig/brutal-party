@@ -6,7 +6,7 @@ import { getControllerGuide, getGuideActionLabel } from '../src/controllers/cont
 
 test('control guide projects every registered schema without per-game HTML', () => {
   const modes = Object.keys(CONTROL_DEFS);
-  assert.equal(modes.length, 13);
+  assert.equal(modes.length, 12);
   for (const mode of modes) {
     const guide = getControllerGuide(mode, GAMEPAD_SCHEMAS[mode]);
     assert.ok(guide, `${mode} has a guide`);

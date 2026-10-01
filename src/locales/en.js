@@ -323,8 +323,6 @@ export const EN = {
   'guide.tanks': 'HOLD: DRIVE • RELEASE: FIRE • 3 WINS TAKE CROWN',
   'guide.zone': 'JOYSTICK: DIRECTION • DASH: SPEED • 40% ZONE WINS',
   'guide.horde': 'LEFT: MOVE • RIGHT: HOLD TO AIM + FIRE • DASH: ESCAPE • SURVIVE 3 ROUNDS',
-  'guide.race': 'JOYSTICK: STEER • ACTION: JUMP / DASH • 3 CHECKPOINTS AND 3 LAPS',
-  'guide.raceKeys': 'P1: WASD + {0} • P2: ARROWS + {1} • P3: IJKL + {2} • P4: TFGH + {3}',
   // ── BOMB ──
   'bomb.safe': '{icon:shield} SAFE',
   // ── COLLAPSE ──
@@ -393,18 +391,6 @@ export const EN = {
   'horde.upgrade.SERVO': 'SERVO DASH',
   'horde.upgrade.FIELD_MEDIC': 'FIELD MEDIC',
   'horde.upgrade.MAGNET': 'MAGNET',
-  // ── RACE ──
-  'race.hud': '{0} • {1}s',
-  'race.dash': 'PARKOUR DASH',
-  'race.empDash': 'EMP PULSE',
-  'race.empHit': 'EMP HIT',
-  'race.wallBounce': 'WALL BOUNCE',
-  'race.skid': 'SKID',
-  'race.nitro': 'NITRO BOOST',
-  'race.spinnerHit': 'COLLISION',
-  'race.lap': 'LAP {0}/{1}',
-  'race.checkpoint': '{0} CLEAR',
-  'race.roundGoal': 'GOAL: {0} ROUND WINS',
   // ── SNAKE ──
   'snake.champ': 'SNAKE CHAMPION!',
   // ── TANKS ──
@@ -533,7 +519,6 @@ export const EN = {
   'pad.hordeStatus': '{0} • ENEMIES {1} • HP {2} • {3}',
   'pad.hordePortal': '{0} • EXTRACT READY • HP {1} • {2}',
   'pad.hordeArmory': 'ROUND {0} ARMORY • {1} • {2}s',
-  'pad.raceStatus': 'LAP {0}/{1} • {2}',
   'pad.bombFree': 'BOMB FREE ({0})',
   'pad.bombAt': 'BOMB: P{0} ({1})',
   'pad.bombCarry': '{icon:bomb} BOMB ON YOU! TAG RIVALS TO PASS!',
@@ -549,9 +534,6 @@ export const EN = {
   'host.seatEditorHint': 'Move players directly to another seat.',
   'host.closeEditor': 'CLOSE SEATS',
   'host.leavePlayer': 'LEAVE PLAYER SEAT',
-  'race.trackCircuit': 'CIRCUIT',
-  'race.trackZigzag': 'ZIGZAG',
-  'race.trackSpiral': 'SPIRAL',
   'shell.play.pick': '15 GAMES · 2-4 PLAYERS',
   'shell.side.join': 'CODE',
   'shell.side.update': 'Update',
@@ -569,7 +551,6 @@ export const EN = {
   'hint.collapse': '{icon:gamepad} MOVE • JUMP THE GAPS',
   'hint.ninja': '{icon:gamepad} MOVE • STAND STILL TO HIDE • {icon:sword} BLADE • {icon:wind} SMOKE',
   'hint.horde': 'LEFT: MOVE • RIGHT: HOLD TO AIM + FIRE • DASH • draft upgrades each round',
-  'hint.race': 'STEER • JUMP / DASH • USE NITRO PADS',
   'react.laugh': 'Laugh',
   'react.flame': 'Fire',
   'react.skull': 'Death',

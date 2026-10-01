@@ -31,7 +31,7 @@ export const FIELD_DESIGN = Object.freeze({
  * tasarım yarıçapı atandığı bantta kalmak zorundadır).
  *
  *   normal    beğenilen arena-action grubu (BOMB/HEIST/CROWN/ARCHER/TANKS/
- *             ZONE/NINJA/COLLAPSE/HORDE/RACE)
+ *             ZONE/NINJA/COLLAPSE/HORDE)
  *   open      küçük gövde + hızlı/niş oyunlar (SNAKE/CURVE)
  *   far       imleç ve görev oyunları (şu an kullanıcısız — bant yerinde durur)
  *
@@ -49,8 +49,6 @@ export const FIELD_TIERS = Object.freeze({
  * Kenar boşluğu tarifleri. Her preset saf veridir; motor `if/else` zinciri kurmaz.
  *
  * horizontal / vertical* → `[minPx, oran]`: `max(minPx, floor(eksen * oran))`
- * minDimFraction        → kenarlar kısa kenardan türetilir (RACE); floor uygulanmaz
- * fixed                 → kenara eklenen sabit px (RACE üst/alt bant)
  * minSpan               → arena genişlik/yüksekliğine alt sınır (HORDE)
  */
 export const FIELD_PRESETS = Object.freeze({
@@ -85,11 +83,6 @@ export const FIELD_PRESETS = Object.freeze({
     verticalLandscape: Object.freeze([24, 0.045]),
     verticalPortrait: Object.freeze([48, 0.12]),
   }),
-  // RACE: kısa kenardan türetilen simetrik pay + sabit üst/alt bant.
-  racing: Object.freeze({
-    minDimFraction: 0.08,
-    fixed: Object.freeze({ top: 30, right: 0, bottom: 20, left: 0 }),
-  }),
 });
 
 const DEFAULT_PRESET = 'standard';
@@ -122,10 +115,6 @@ function axisInset(spec, extent) {
 // payda yarısı ekran dışına taşar ve "duvar yok" gibi görünür.
 const COMPACT_VERTICAL_FLOOR = 3;
 const SAFE_AREA_FLOOR = 3;
-// RACE kısa kenardan türetilen pay kullanır; telefonda %8 + sabit 30/20 bant
-// yüksekliğin %29'unu yiyordu. Kompakt modda pay yarıya iner, sabit bantlar
-// (track/HUD çerçevesi) yerinde kalır.
-const COMPACT_MIN_DIM_FRACTION = 0.04;
 
 function isCompactViewport(width, height) {
   // getDisplayProfile MOBILE'ı `minDim < 540` ile belirler. YATAY = genişlik >
@@ -166,21 +155,6 @@ const ZERO_INSETS = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
  * @param {boolean} [compact]
  */
 export function resolveInsets(width, height, spec, safe = ZERO_INSETS, compact = isCompactViewport(width, height)) {
-  const fixed = spec.fixed || {};
-  const minDimFraction = compact && spec.minDimFraction > 0
-    ? COMPACT_MIN_DIM_FRACTION
-    : spec.minDimFraction;
-
-  if (minDimFraction > 0) {
-    const base = Math.min(width, height) * minDimFraction;
-    return {
-      left: base + (fixed.left || 0),
-      right: base + (fixed.right || 0),
-      top: base + (fixed.top || 0),
-      bottom: base + (fixed.bottom || 0),
-    };
-  }
-
   if (!compact) {
     // Güvenli alan yalnız kompakt yatayda anlamlı. Masaüstü/tablet/portrait
     // preset payında kalır ve çentik sorgusu onlarda hiç yapılmaz.

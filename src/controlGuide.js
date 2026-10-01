@@ -11,7 +11,7 @@ const GUIDE_COLORS = UI_COLORS.players;
 /**
  * Kontrol rehberi şeridi.
  *
- * `duringPlay: true` çağıran motorlar (RACE) bunu oyun sırasında da çizer.
+ * `duringPlay: true` çağıran motorlar bunu oyun sırasında da çizer.
  * Telefon yatayda oynarken saha kısa olduğu için sürekli bir üst şerit
  * pahalıdır: Stage 2 sonrası saha üst payı ~3px'e indiği için şerit (~28px)
  * sahanın %7'sini kalıcı olarak kapatıyordu. Piyasa standardı (landscape mobil
