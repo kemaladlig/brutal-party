@@ -98,7 +98,7 @@ export function setRoundTimer(game, seconds) {
  * Ölçülen hata: burada `matchDraw = true` yazılıyordu. `hasMatchResult`
  * `matchDraw`'ı okuduğu için boşluk dolunca akış `startNewRound` yerine
  * MATCH_OVER'a geçiyordu; yani BOMB/CURVE/SNAKE'de 90-120 saniyelik
- * normal bir beraberlik tüm maçı bitiriyordu, CLONE/COLLAPSE/HEIST/ZONE'de
+ * normal bir beraberlik tüm maçı bitiriyordu, COLLAPSE/HEIST/ZONE'de
  * `MAX_TIED_ROUNDS` sayacı hiç işe yaramıyordu.
  *
  * Gerçekten berabere biten MAÇ isteyen motor `endMatch(game, null, reason)`

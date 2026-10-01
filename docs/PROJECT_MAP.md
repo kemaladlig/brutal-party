@@ -273,7 +273,6 @@ scripts/rules-lint.mjs      AGENTS.md K1–K7 makine bekçisi (mode=== dalı, ha
 | CROWN | Brutal Crown | `src/games/crown.js` | `crownAI` | `mountCrownController` | **Arşivden çıkarıldı**; taç tutma; pinball bumper; 30 Hz world-view |
 | ZONE | Brutal Zone | `src/games/zone.js` | `zoneAI` | `mountZoneController` | 64×64 grid kapma; %40 early win; RLE; 30 Hz world-view |
 | SNAKE | Brutal Snake | `src/games/snake.js` | `snakeAI` | `mountSnakeController` | Yemle büyü; hold-boost; 30 Hz world-view |
-| LASER | Brutal Laser | `src/games/laser.js` | `laserAI` | `mountLaserController` | Twin-stick aim; 3 can + dash i-frame; 90sn/10 kill; 30 Hz world-view; self-predict (`selfPredict:true`) |
 | COLLAPSE | Brutal Collapse | `src/games/collapse.js` | `collapseAI` | `mountCollapseController` | 13×13 çöken ızgara; 60sn; 30 Hz world-view |
 | NINJA | Brutal Ninja | `src/games/ninja.js` | `ninjaAI` | `mountNinjaController` | Görünmezlik; selfSlot hayalet; 30 Hz world-view |
 | HORDE | Brutal Horde | `src/games/horde.js` | `hordeAI` | `TWIN_STICK_ACTION` | 1-4P takım savunması; 3 tur × 3 dalga; armory; 3 harita; elite+boss; 30 Hz world-view |
@@ -287,7 +286,7 @@ scripts/rules-lint.mjs      AGENTS.md K1–K7 makine bekçisi (mode=== dalı, ha
 
 Her WebRTC peer'ında iki DataChannel:
 - `control` (`ordered:true`): girdi, hazır, koltuk, 8 Hz HUD/state. WebRTC yoksa Supabase fallback.
-- `world` (`ordered:false, maxRetransmits:0`): yalnız ONLINE world-view oyunlarında 30 Hz tam snapshot; client `seq` ile eski/geç kareyi atar. TV_CONSOLE'da kapalı. Playout tabanı 35 ms; pakette `selfPredict:true` varsa client kendi avatarını sunum-taraflı ileri sarar (`core/selfPrediction.js`) — host simülasyonu/yetkisi değişmez. Bayrak yalnız DOĞRUDAN-hareket oyunlarında (LASER, CROWN, BOMB, HEIST, COLLAPSE, ARCHER, NINJA, ZONE, HORDE); steer-kinematikli RACE/SNAKE/CURVE/PONG/TANKS'ta yoktur (girdi yönü = hareket yönü değil).
+- `world` (`ordered:false, maxRetransmits:0`): yalnız ONLINE world-view oyunlarında 30 Hz tam snapshot; client `seq` ile eski/geç kareyi atar. TV_CONSOLE'da kapalı. Playout tabanı 35 ms; pakette `selfPredict:true` varsa client kendi avatarını sunum-taraflı ileri sarar (`core/selfPrediction.js`) — host simülasyonu/yetkisi değişmez. Bayrak yalnız DOĞRUDAN-hareket oyunlarında (CROWN, BOMB, HEIST, COLLAPSE, ARCHER, NINJA, ZONE, HORDE); steer-kinematikli RACE/SNAKE/CURVE/PONG/TANKS'ta yoktur (girdi yönü = hareket yönü değil).
 
 Ortak doğrulama `networkProtocol.js`. **Uçtan uca:** oda kur (3 haneli kod) → keşif (kod + role) → `JOIN_SUCCESS` (worldView + reservedHostSlot) → signaling (offer/answer + kuyruklu ICE) → oyun trafiği P2P `control`+`world` → Supabase devre dışı. Kayıp paket: `world` kareleri bağımsız, düzeltme gerekmez; kritik olaylar `control`'dan anında.
 
@@ -349,7 +348,7 @@ transport aynı tüketiciliği besler).
     renk oyuncuya aittir (takas taşır); LOCAL koltuk-başı renk.
 17. **Ortak arena/fizik/power-up kiti** — `src/core/` (Faz 3-7). Detay §1 (playfield/arenaKit/physics2d/…).
 17b. **Raunt/maç akışı tek sahibi** — `core/roundLifecycle`. Tempo olayın
-    özelliğidir, oyunun değil: `ROUND_GAP` tablosu. 15 motor aynı geçiş
+    özelliğidir, oyunun değil: `ROUND_GAP` tablosu. 13 motor aynı geçiş
     bloğunu kopyalamış, her biri kendi boşluğunu (1.8–2.8 s) seçmişti; kumandadaki
     `roundGap` rozeti o yüzden oyundan oyuna farklı sayıyordu. Artık motor
     `tickRoundFlow` çağırır, üretici `beginRound`/`beginDrawRound`/`endMatch`'tir.
@@ -359,7 +358,7 @@ transport aynı tüketiciliği besler).
 18. **Saha ölçeği tek kaynağı** — `playfield.js`; kompakt yatay dikey pay daralır; `unit` otorite;
     `minFraction` şişme yerine mutlak px taban + tek çarpan; gözle taban seçimi yok.
     Harita-ölçeği hissi gövde/saha oranıdır: `FIELD_TIERS` üç katman — `normal` (BOMB/HEIST/CROWN/
-    ARCHER/TANKS/ZONE/NINJA/COLLAPSE/LASER/HORDE), `open` (RACE/SNAKE/CURVE), `far` (şu an boş — son kullanıcısı CLONE'du);
+    ARCHER/TANKS/ZONE/NINJA/COLLAPSE/HORDE), `open` (RACE/SNAKE/CURVE), `far` (kullanıcısız, bant yerinde duruyor);
     ölçülen tasarım yarıçapı bant kilidine tabi (`movementBudget.test.mjs §B`), PONG hariç.
 19. **İkonografi** — Lucide neo-brutalist; tek kaynak `tabletopIcons.js`; butonlarda metin başlığı yok.
 20. **Online world-view** — generic çekirdek `worldCore.js` + `[oyun]View` + client renderer; 30 Hz;
@@ -463,10 +462,10 @@ Oyunun görsel dili, soluk/monokrom krem zeminlerden canlı, neşeli ve oyun kim
 - **Merkezi Mimari (Single Source of Truth):**
   - **Tasarım token'ları:** `src/styles/tokens.css` ve `src/ui/tokens.js`.
   - **Saha paletleri & temalar:** `src/core/fieldKit.js` içindeki `FIELD_THEMES` ve `fieldTheme(mode)` fonksiyonu.
-  - **Dönüşüm kolaylığı:** Görsel dilin tek merkezden türemesi sayesinde 15 motorun simülasyon koduna veya her oyunun çizim döngüsüne dokunmadan tüm oyunların zeminleri, viewport'ları, HUD'ları ve kumandaları anında senkronize olur.
+  - **Dönüşüm kolaylığı:** Görsel dilin tek merkezden türemesi sayesinde 13 motorun simülasyon koduna veya her oyunun çizim döngüsüne dokunmadan tüm oyunların zeminleri, viewport'ları, HUD'ları ve kumandaları anında senkronize olur.
 
 - **Uygulama ve Yayılım Aşamaları (Roadmap):**
-  1. **Saha Zeminleri ve Sahne:** 15 oyunun pastel rampaları (`fieldKit.js`), sunset menü gradyanı ve derinleştirilmiş koyu yüzeyler (`tokens.css`, `scene.css`).
+  1. **Saha Zeminleri ve Sahne:** 13 oyunun pastel rampaları (`fieldKit.js`), sunset menü gradyanı ve derinleştirilmiş koyu yüzeyler (`tokens.css`, `scene.css`).
   2. **HUD ve Staging Sayaç:** Oyun içi çip auraları ve 3-2-1 geri sayım perdesinin aktif oyunun `accent` rengini taşıması (`main.js`, `hud.css`, `lobby.css`).
   3. **Telefon Kumandası (Gamepad Shell):** Aktif oyuna göre kumanda üst barı ve buton auralarının temayı yansıtması (`gamepad.js`, `gamepad.css`).
   4. **FX & Partikül Uyumu:** Kıvılcım/toz efektlerinin nötr griden tema vurgusuna geçişi (`fxKit.js`).

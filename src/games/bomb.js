@@ -106,8 +106,8 @@ export class BombGame extends BaseMiniGame {
     // Set Tournament Scoring
     // Maç hedefi ve raunt süresi — kısaltma (bomb.js).
 // Gerekçe: parti oyununda maç uzunluğu = yeniden başlatma sayısı. Ölçülen
-// durum: hedefler 2-5 arası dağınıktı ve bir kısmı 5'ti (CLONE/NINJA/
-// SNAKE/COLLAPSE/CURVE); ilk açılışta 5 hedef, dakikalar süren bir maç
+// durum: hedefler 2-5 arası dağınıktı ve bir kısmı 5'ti (NINJA/SNAKE/
+// COLLAPSE/CURVE); ilk açılışta 5 hedef, dakikalar süren bir maç
 // demek, yani oyuncu iki dakika içinde 'tekrar oynayalım' demiyor.
 // Kural: çoğu oyun 2 hedefte biter (ilk-iki kuralı — bir parti turunda
 // kazanan çabuk bellenir, maç tekrarına yer kalır). LOSER'a özgü

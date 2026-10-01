@@ -177,7 +177,7 @@ export function evaluateGame(input) {
   // --- I7: Gövde okunabilirliği (EN KÜÇÜK hedef cihazda oyuncu çapı >= eşik;
   // çizgi oyunları eşiği kartuş kaydında taşır, örn. CURVE 4.5px).
   // Faz 3.2 dürüstlük: ölçüm 852×393 "telefon" çıpasından gerçek en küçük
-  // cihaza (SE yatay 667×375) taşındı — aradaki ~%5 fark RACE/CLONE'u tabanın
+  // cihaza (SE yatay 667×375) taşındı — aradaki ~%5 fark RACE'i tabanın
   // altına düşürüyordu. `smallPhone` verilmezse geriye uyumlu `phone`a düşer. ---
   const i7Measurement = smallPhone ?? phone;
   const i7PlayerPx = i7Measurement?.playerPx != null ? i7Measurement.playerPx * 2 : null;

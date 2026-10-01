@@ -20,7 +20,7 @@ Detay `docs/PROJECT_MAP.md`'dedir — tamamını dump etme, `grep` ile ilgili b�
 
 ## 3. Engine Registry — tek kayıt noktası
 
-- `src/core/engineRegistry.js` → `GAME_ORDER` (15 oyun, liste dosyadadır) + `CARTRIDGES.MOD` bloğu (`load/createEngine/reset/onEnter/onResume/start/packet`, world-view oyunlarında `worldPacket/worldView`).
+- `src/core/engineRegistry.js` → `GAME_ORDER` (13 oyun, liste dosyadadır) + `CARTRIDGES.MOD` bloğu (`load/createEngine/reset/onEnter/onResume/start/packet`, world-view oyunlarında `worldPacket/worldView`).
 - `main.js` / `gamepad.js` içine `else if (mode === ...)` veya moda özel mount dalı yasak. Yeni oyun = registry kaydı + şema; çekirdek dosyaya dokunulmaz.
 - Retired motorlar `src/games-retired/`'dedir; çıkarmak = bayrağı sil + `src/games/`'e taşı + `GAME_ORDER`'de retired arkasına al + PROJECT_MAP güncelle.
 - Motor sözleşmesi: `resetMatch/reset`, `startNewMatch`, `startNewRound`, `update`, `render`, `resize(w,h)`, `handleRemoteInput`. `resize` CSS px alır, `computePlayfield` ile arena kurar.
@@ -86,7 +86,7 @@ Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inp
 ## 11. Doğrulama
 
 - **TEK kapı: `npm run check` = `tsc` + `check:undef` + `check:tokens` + `check:rules` + `npm test` + `npm run health`.** Yeşil olmadan iş bitmiş sayılmaz. Tam kapı: `npm run check && npm run build && npm run test:e2e`. CI (`.github/workflows/ci.yml`) push/PR'da bu üçünü koşar — elle koşulmaz.
-- `npm run health` **I1-I7 kapılarıdır** (cihaz bağımsızlığı): ihlal exit 1. I8-I11 yalnız rapor. Tasarım yarıçap sabitleri `games/worldCore.js`'te (`CROWN_PLAYER_RADIUS`, `LASER_PLAYER_RADIUS`); motor `TUNING.PLAYER_RADIUS` ile eşleşmesi `tests/worldPacketRadius.test.mjs`'te kilitli — view motoru import edemediği için iki kopyadır.
+- `npm run health` **I1-I7 kapılarıdır** (cihaz bağımsızlığı): ihlal exit 1. I8-I11 yalnız rapor. Tasarım yarıçap sabitleri `games/worldCore.js`'te (`CROWN_PLAYER_RADIUS`); motor `TUNING.PLAYER_RADIUS` ile eşleşmesi `tests/worldPacketRadius.test.mjs`'te kilitli — view motoru import edemediği için iki kopyadır.
 - Davranış değişikliğinde 3 prova: hazır→lobi bayrakları, koltuk takasında TV+kumanda isimleri, bot ekle/çıkar görünürlüğü.
 - `npm run check` artık `tsc --checkJs` (tsconfig `checkJs: true` — 55k satırın tamamı denetlenir) + `check:undef` + `check:tokens` + `check:rules` taşır. Yeni tip hatası = check kırık; istatistik: `npm run typecheck -- --stats`, ratchet tabanı `scripts/typecheck-baseline.txt`.
 - **STATE_SYNC paketi iki transport'ta aynı şekilde gönderilir**: discriminator en üstte, yük DÜZ (`{ type:'HOST_STATE_SYNC', ...state }` / `{ action:'STATE_SYNC', ...state }`). Kumanda yalnız en-üst-seviye alanları okur; iç içe kova gönderen bir host faz uzlaşmasını, skor şeridini ve geri sayımı sessizce düşürür. Çevirme/tepeleme tek kapısı `core/networkProtocol.normalizeStateSync` (her iki istemci + sunucu çağırır). Kilit: `tests/relayProbes.test.mjs` prova 4-6.
