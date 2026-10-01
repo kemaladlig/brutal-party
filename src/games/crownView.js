@@ -1,6 +1,7 @@
 // CROWN world snapshot + client-safe drawing boundary.
 
 import { UI_COLORS, CROWN_COLORS } from '../ui/tokens.js';
+import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import {
   createWorldSnapshot, isValidWorldBase, round1, CROWN_PLAYER_RADIUS,
   packFxState, isValidFxState, drawFxRings, drawFxPops, drawCircleParticles,
@@ -173,43 +174,8 @@ import { getUiScale } from '../ui/tokens.js';
 const getRect = (r) => (Array.isArray(r) ? { x: r[0], y: r[1], w: r[2], h: r[3] } : r);
 const getCircle = (c) => (Array.isArray(c) ? { x: c[0], y: c[1], radius: c[2], pulse: c[3] || 0 } : c);
 
-export function drawCrownArena(ctx, arena) {
-  const { left, top, right, bottom, width: aW, height: aH } = arena;
-  const width = aW ?? (right - left);
-  const height = aH ?? (bottom - top);
-  const u = arena.unit || 1;
-
-  ctx.fillStyle = UI_COLORS.crownPaperLight;
-  ctx.fillRect(left, top, width, height);
-
-  ctx.strokeStyle = UI_COLORS.crownConveyorEdge;
-  ctx.lineWidth = Math.max(1, 1.5 * u);
-  ctx.strokeRect(left + width * 0.12, top + height * 0.12, width * 0.76, height * 0.76);
-
-  const bLen = Math.max(16, Math.round(Math.min(width, height) * 0.05));
-  ctx.strokeStyle = UI_COLORS.crownStone;
-  ctx.lineWidth = Math.max(1, 3 * u);
-  const cornerPlates = [
-    [[left, top + bLen], [left, top], [left + bLen, top]],
-    [[right - bLen, top], [right, top], [right, top + bLen]],
-    [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
-    [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
-  ];
-  for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.lineTo(x3, y3);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = UI_COLORS.inkDark;
-  ctx.fillRect(right, top + 6, 6, height);
-  ctx.fillRect(left + 6, bottom, width, 6);
-
-  ctx.strokeStyle = UI_COLORS.inkDark;
-  ctx.lineWidth = Math.max(1, 4 * u);
-  ctx.strokeRect(left, top, width, height);
+export function drawCrownArena(ctx, arena, opts = {}) {
+  drawField(ctx, arena, { mode: 'CROWN', seed: hashFieldSeed('CROWN', opts.roundId) });
 }
 
 export function drawSpeedPad(ctx, spRaw, arena) {
@@ -624,8 +590,8 @@ export function drawCrownPlayer(ctx, p, color, arena, lastTime, targetCrownTime 
   ctx.restore();
 }
 
-export function drawCrownWorld(ctx, frameOrGame, arena, colors = [], lastTime = performance.now(), targetCrownTime = 15.0, selfSlot = -1) {
-  drawCrownArena(ctx, arena);
+export function drawCrownWorld(ctx, frameOrGame, arena, colors = [], lastTime = performance.now(), targetCrownTime = 15.0, selfSlot = -1, opts = {}) {
+  drawCrownArena(ctx, arena, opts);
 
   const speedPads = frameOrGame.speedPads || [];
   for (const sp of speedPads) drawSpeedPad(ctx, sp, arena);

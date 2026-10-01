@@ -12,7 +12,8 @@ import {
 } from '../games/cloneView.js';
 import { drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
-import { fitWorld, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
@@ -35,10 +36,9 @@ export function createWorldViewRenderer() {
       const withFx = frame.gameState === 'PLAYING';
 
       ctx.save();
-      ctx.fillStyle = '#151515';
-      ctx.fillRect(0, 0, width, height);
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'CLONE' });
       fitWorld(ctx, width, height, frame.arena, () => {
-        drawCloneArena(ctx, arena);
+        drawCloneArena(ctx, arena, { roundId: frame.roundId });
         drawCloneStations(ctx, frame.stations || []);
         drawCloneWalls(ctx, frame.walls.map(([x, y, w, h]) => ({ x, y, w, h })));
         for (const c of frame.clones || []) {

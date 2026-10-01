@@ -32,6 +32,7 @@ import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js'
 import { UI_COLORS, CROWN_COLORS } from '../ui/tokens.js';
 import { createCrownWorldPacket, drawCrownWorld, drawCrownFxLayer } from './crownView.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 
 export { CROWN_COLORS };
 export const CROWN_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -1306,14 +1307,12 @@ export class CrownGame extends BaseMiniGame {
   // --- Render Loop (ZERO CAMERA SHAKE!) ---
   render() {
     const ctx = this.ctx;
-    const { width, height } = this.canvas;
 
     ctx.save();
-    // Warm brutalist paper background
-    ctx.fillStyle = UI_COLORS.crownPaper;
-    ctx.fillRect(0, 0, width, height);
+    // Sahanın dışı (masa) — `fieldKit` tek sahibi
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'CROWN' });
 
-    drawCrownWorld(ctx, this, this.arena, this.players.map((p) => p.color), this.lastTime, this.targetCrownTime, this.localControlSlot ?? -1);
+    drawCrownWorld(ctx, this, this.arena, this.players.map((p) => p.color), this.lastTime, this.targetCrownTime, this.localControlSlot ?? -1, { roundId: this.roundId });
 
     // Sütun ve engellerin üzerinde net okunan taç süresi filigranı.
     // Skorbord `renderHUD`'un işidir (aşağıda `scoreboardEntities` ile) —

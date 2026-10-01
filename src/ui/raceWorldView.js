@@ -7,7 +7,8 @@ import {
 } from '../games/raceView.js';
 import { drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
-import { fitWorld, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { t } from '../i18n.js';
 
 const PLAYER_FALLBACK = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -37,10 +38,9 @@ export function createWorldViewRenderer() {
       ));
 
       ctx.save();
-      ctx.fillStyle = '#F4F0EA';
-      ctx.fillRect(0, 0, width, height);
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'RACE' });
       fitWorld(ctx, width, height, frame.arena, () => {
-        drawRaceWorld(ctx, frame, arena, colors, now);
+        drawRaceWorld(ctx, frame, arena, colors, now, { roundId: frame.roundId });
         drawRaceFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
           : {

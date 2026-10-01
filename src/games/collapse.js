@@ -25,6 +25,7 @@ import { fxFlashAlpha } from '../core/fxKit.js';
 import { beginRound, endMatch, tickRoundFlow } from '../core/roundLifecycle.js';
 import { tickPickupTimers } from '../core/pickupSystem.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 
 export const COLLAPSE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const COLLAPSE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -815,27 +816,12 @@ this.targetScore = 2;
 
   render() {
     const { ctx } = this;
-    const viewW = this.viewport.width;
-    const viewH = this.viewport.height;
     const now = performance.now();
     ctx.save();
 
-    // 1. KARANLIK UÇURUM ARKA PLANI
-    ctx.fillStyle = '#141414';
-    ctx.fillRect(0, 0, viewW, viewH);
+    // Sahanın dışı (uçurum / masa) — `fieldKit` tek sahibi
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'COLLAPSE' });
     this.applyScreenShake(ctx);
-
-    // Boşluk derinlik ızgarası (CSS px — ctx zaten dpr ile ölçekli)
-    ctx.strokeStyle = '#1F1F1F';
-    const u = this.arena.unit || 1;
-    ctx.lineWidth = Math.max(1, 1 * u);
-    const abyssStep = 40;
-    for (let x = 0; x < viewW; x += abyssStep) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, viewH); ctx.stroke();
-    }
-    for (let y = 0; y < viewH; y += abyssStep) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(viewW, y); ctx.stroke();
-    }
 
     // 2. DÜŞEN 3D BLOKLAR (Uçurumda aşağı düşenler — dönerek düşer)
     drawCollapseFalling(ctx, this.fallingTiles);

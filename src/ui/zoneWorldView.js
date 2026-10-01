@@ -13,7 +13,8 @@ import {
 } from '../games/zoneView.js';
 import { drawAlphaTexts, drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
-import { fitWorld, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
@@ -35,11 +36,8 @@ export function createWorldViewRenderer() {
       const nowSec = now / 1000;
 
       ctx.save();
-      ctx.fillStyle = '#F4F4F0';
-      ctx.fillRect(0, 0, width, height);
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'ZONE' });
       fitWorld(ctx, width, height, frame.arena, () => {
-        ctx.fillStyle = '#FAF7F2';
-        ctx.fillRect(left, top, arena.width, arena.height);
 
         const players = frame.players.map((p) => ({
           ...p,
@@ -59,6 +57,7 @@ export function createWorldViewRenderer() {
           nowSec,
           null,
           frame.gridV,
+          { roundId: frame.roundId },
         );
         drawZoneWaves(ctx, frame.waves || [], frame.cell);
         drawZonePlayers(ctx, players, { cell: frame.cell, leaderIndex: frame.leader, withFx, selfSlot: context.selfSlot ?? -1 });

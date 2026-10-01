@@ -36,6 +36,7 @@ import { createRaceWorldPacket, drawRaceWorld, drawRaceFxLayer } from './raceVie
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 
 export const TRACK_PRESETS = ['CIRCUIT', 'ZIGZAG', 'SPIRAL'];
 
@@ -954,13 +955,8 @@ export class RaceGame extends BaseMiniGame {
 
   render() {
     const ctx = this.ctx;
-    const width = this.viewport.width;
-    const height = this.viewport.height;
-
     ctx.save();
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = UI_COLORS.paperOutside || UI_COLORS.paper;
-    ctx.fillRect(0, 0, width, height);
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'RACE' });
     this.applyScreenShake(ctx);
 
     if (this.state === 'LOBBY') {
@@ -982,7 +978,7 @@ export class RaceGame extends BaseMiniGame {
     }
 
     const arena = this.arena;
-    drawRaceWorld(ctx, this, arena, this.players.map((p) => p.color), this.lastTime);
+    drawRaceWorld(ctx, this, arena, this.players.map((p) => p.color), this.lastTime, { roundId: this.roundId });
 
     // FX katmanı ortak raceView draw'ından gelir (host↔client aynı).
     drawRaceFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.fx.particles });
@@ -1055,7 +1051,7 @@ export class RaceGame extends BaseMiniGame {
 
     // Tur zaferi flaşı sahne transformunun DIŞINDA: tam ekranı kaplar.
     const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
-    if (flashAlpha > 0) drawFxFlash(ctx, width, height, flashAlpha);
+    if (flashAlpha > 0) drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
   }
 
   resize(width, height) {

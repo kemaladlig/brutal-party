@@ -38,6 +38,7 @@ import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } fr
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 
 export const ZONE_COLORS = Object.freeze([...UI_COLORS.players]);
@@ -1378,6 +1379,7 @@ export class ZoneGame extends BaseMiniGame {
       nowSec,
       this.territoryDirty ? this.repaintTerritory() : this.territoryLayer,
       1,
+      { roundId: this.roundId },
     );
 
     if (this.state === 'PLAYING') {
@@ -1403,13 +1405,8 @@ export class ZoneGame extends BaseMiniGame {
   render() {
     const { ctx } = this;
     ctx.save();
-    ctx.fillStyle = '#F4F4F0';
-    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'ZONE' });
     this.applyScreenShake(ctx, 14);
-
-    const { left, top, width, height } = this.arena;
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(left, top, width, height);
 
     this.renderField(ctx);
     this.renderZoneScene(ctx);

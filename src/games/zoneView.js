@@ -9,6 +9,7 @@ import { drawGameAvatar } from '../core/avatarInGame.js';
 import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip } from '../core/entityStatus.js';
+import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import {
   round1,
@@ -205,9 +206,13 @@ function paintTerritory(layer, grid, colors, stamp) {
   layer.stamp = stamp;
 }
 
-export function drawZoneField(ctx, field, cell, grid, colors, players, relics, nowSec = 0, layerCanvas = null, stamp = 0) {
+export function drawZoneField(ctx, field, cell, grid, colors, players, relics, nowSec = 0, layerCanvas = null, stamp = 0, opts = {}) {
   const [x, y, s] = field;
   if (s <= 0) return;
+  const u = s / 952;
+
+  const arena = { left: x, top: y, width: s, height: s, size: s, cx: x + s / 2, cy: y + s / 2 };
+  drawField(ctx, arena, { mode: 'ZONE', seed: hashFieldSeed('ZONE', opts.roundId) });
 
   const layer = layerCanvas
     ? { canvas: layerCanvas, ctx: null, stamp }
@@ -218,41 +223,9 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
     paintTerritory(layer, grid, colors, stamp);
   }
 
-  ctx.fillStyle = '#CCFAE0';
-  ctx.fillRect(x, y, s, s);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(layer.canvas, x, y, s, s);
   ctx.imageSmoothingEnabled = true;
-
-  ctx.strokeStyle = 'rgba(26,26,26,0.08)';
-  const u = s / 952;
-  ctx.lineWidth = 1 * u;
-  const step = s / 8;
-  ctx.beginPath();
-  for (let i = 1; i < 8; i++) {
-    ctx.moveTo(x + i * step, y);
-    ctx.lineTo(x + i * step, y + s);
-    ctx.moveTo(x, y + i * step);
-    ctx.lineTo(x + s, y + i * step);
-  }
-  ctx.stroke();
-
-  const bLen = Math.max(16, Math.round(s * 0.05));
-  ctx.strokeStyle = '#2B2B28';
-  ctx.lineWidth = 3 * u;
-  const cornerPlates = [
-    [[x, y + bLen], [x, y], [x + bLen, y]],
-    [[x + s - bLen, y], [x + s, y], [x + s, y + bLen]],
-    [[x, y + s - bLen], [x, y + s], [x + bLen, y + s]],
-    [[x + s - bLen, y + s], [x + s, y + s], [x + s, y + s - bLen]],
-  ];
-  for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.lineTo(x3, y3);
-    ctx.stroke();
-  }
 
   // Relic kristalleri (ikon tek kaynak vektör)
   for (const rel of relics) {

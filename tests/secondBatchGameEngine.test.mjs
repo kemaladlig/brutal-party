@@ -444,16 +444,30 @@ test('CURVE HIZLAN accelerates, widens the turn and then cools down', () => {
   assert.ok(baseSpeed > 0);
 
   // Zamanlayıcılar işler, nitro biter ve cooldown dolar. Oyuncular iz çarpışmasıyla
-  // elenirse raunt erken biter ve timer'lar donar; test yalnız timer'ları ölçtiği
-  // için her karede kadroyu ayakta tutar.
+  // elenirse raunt erken biter ve timer'lar donar; test yalnız timer'ları ölçtüğü
+  // için konumları sabitleyip (aşağıda) kadroyu ayakta tutar.
   game.lastTime = 1000;
   game.update(1016);
   assert.ok(player.boostCooldown < 4 && player.boostCooldown > 3.9);
+  // Dört koltuk, dört ayrı sabit nokta: noktalar birbirinden uzak ki hiçbir
+  // oyuncu başkasının izine giremesin (kendi izi de 220 ms sonra ölümcül).
+  const anchors = game.players.map((_, i) => ({
+    x: game.arena.cx + (i % 2 === 0 ? -1 : 1) * game.arena.size * 0.3,
+    y: game.arena.cy + (i < 2 ? -1 : 1) * game.arena.size * 0.3,
+  }));
   for (let f = 0; f < 120; f += 1) {
-    game.players.forEach((p) => { p.isAlive = true; });
+    game.players.forEach((p, i) => {
+      p.isAlive = p.isJoined;
+      if (!p.isJoined) return;
+      p.x = anchors[i].x;
+      p.y = anchors[i].y;
+      p.angle = 0;
+      p.steer = 0;
+    });
     game.state = 'PLAYING';
     game.update(game.lastTime + 16);
   }
+  assert.equal(game.state, 'PLAYING', 'raun ölçüm sırasında bitmemeliydi');
   assert.equal(player.nitroTimer, 0);
   assert.ok(player.boostCooldown > 0 && player.boostCooldown < 4);
 });

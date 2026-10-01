@@ -1,7 +1,8 @@
 // Client-only CROWN world renderer. It never imports or runs CrownGame/AI.
 
 import { drawCrownWorld, drawCrownFxLayer, isValidCrownWorldFrame } from '../games/crownView.js';
-import { fitWorld, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 import { t } from '../i18n.js';
 
 const PLAYER_FALLBACK = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -28,9 +29,9 @@ export function createWorldViewRenderer() {
         slots?.[player.slot]?.color || PLAYER_FALLBACK[player.slot] || PLAYER_FALLBACK[0]
       ));
       ctx.save();
-      ctx.fillStyle = '#F4F0EA'; ctx.fillRect(0, 0, width, height);
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'CROWN' });
       fitWorld(ctx, width, height, frame.arena, () => {
-        drawCrownWorld(ctx, frame, arena, colors, now, undefined, context.selfSlot ?? -1);
+        drawCrownWorld(ctx, frame, arena, colors, now, undefined, context.selfSlot ?? -1, { roundId: frame.roundId });
         // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
         drawCrownFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }

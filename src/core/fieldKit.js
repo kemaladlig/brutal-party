@@ -220,12 +220,12 @@ export const FIELD_THEMES = Object.freeze({
     block: 'metal',
   }),
 
-  // ZONE — nane yeşili; bölge boyaması zaten renk taşıyor, zemin sakin kalmalı.
+  // ZONE — nane yeşili; bölge boyaması zaten renk taşıyor, zemin sakin ama canlı.
   ZONE: theme({
-    accent: '#15803D', motif: 'burst',    lightTint: '214, 255, 232',
-    edgeTint: '18, 46, 34',
-    shadeTint: '18, 46, 34',
-    floorHigh: '#F2F7F3', floor: '#EEF4F0', floorEdge: '#E8F0EA', floorLow: '#E4ECE6',
+    accent: '#15803D', motif: 'burst',    lightTint: '200, 255, 225',
+    edgeTint: '20, 60, 40',
+    shadeTint: '20, 60, 40',
+    floorHigh: '#E6F6ED', floor: '#D8F0E2', floorEdge: '#C8EAD5', floorLow: '#B8E2C8',
     grid: 'rgba(26, 26, 26, 0.05)',
     gridStyle: 'dots',
     texture: 'speckle',
@@ -309,6 +309,28 @@ export const FIELD_THEMES = Object.freeze({
     gridStyle: 'court',
     motif: 'crown',
     texture: 'tile',
+    block: 'plinth',
+  }),
+
+  // COLLAPSE — kristal uçurum, indigo/mor taş karo platform.
+  COLLAPSE: theme({
+    accent: '#6366F1', motif: 'crosshair',    lightTint: '210, 200, 255',
+    edgeTint: '30, 20, 60',
+    shadeTint: '30, 20, 60',
+    floorHigh: '#E8E4F0', floor: '#DDD8E8', floorEdge: '#D3CCDF', floorLow: '#C9C1D6',
+    gridStyle: 'dots',
+    texture: 'tile',
+    block: 'stone',
+  }),
+
+  // CLONE — kadim tapınak & mistik kütüphane, zümrüt/teal doku.
+  CLONE: theme({
+    accent: '#0D9488', motif: 'rings',    lightTint: '160, 240, 220',
+    edgeTint: '20, 60, 55',
+    shadeTint: '20, 60, 55',
+    floorHigh: '#E6F6F2', floor: '#D8F0E8', floorEdge: '#CAEADC', floorLow: '#BCE2D2',
+    gridStyle: 'crosshair',
+    texture: 'weave',
     block: 'plinth',
   }),
 

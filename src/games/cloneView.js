@@ -8,6 +8,7 @@ import { drawGameAvatar } from '../core/avatarInGame.js';
 import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip } from '../core/entityStatus.js';
+import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import {
   round1,
   packRectList,
@@ -127,26 +128,8 @@ export function isValidCloneWorldFrame(frame) {
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
-export function drawCloneArena(ctx, arena) {
-  const { left, top, right, bottom, width, height, size } = arena;
-  const u = arena?.unit ?? (size ? size / 952 : 1);
-
-  ctx.fillStyle = '#E8E5DF';
-  ctx.fillRect(left, top, width, height);
-
-  ctx.strokeStyle = '#D5D1C7';
-  ctx.lineWidth = Math.max(1, 1.5 * u);
-  const step = size / 9;
-  for (let x = left + step; x < right; x += step) {
-    ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
-  }
-  for (let y = top + step; y < bottom; y += step) {
-    ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
-  }
-
-  ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = Math.max(2, 6 * u);
-  ctx.strokeRect(left, top, width, height);
+export function drawCloneArena(ctx, arena, opts = {}) {
+  drawField(ctx, arena, { mode: 'CLONE', seed: hashFieldSeed('CLONE', opts.roundId) });
 }
 
 export function drawCloneStations(ctx, stations) {

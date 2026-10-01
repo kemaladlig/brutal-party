@@ -2,6 +2,7 @@
 // The phone never imports RaceGame/AI; it only validates and renders snapshots.
 
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
+import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import {
   createWorldSnapshot,
@@ -155,16 +156,8 @@ export function isValidRaceWorldFrame(frame) {
   });
 }
 
-function drawTrackBase(ctx, arena) {
-  const { left, top, right, bottom } = arena;
-  const width = Math.max(1, right - left);
-  const height = Math.max(1, bottom - top);
-  const u = arena?.unit ?? 1;
-  ctx.fillStyle = '#FAF7F2'; ctx.fillRect(left, top, width, height);
-  ctx.strokeStyle = 'rgba(26, 26, 26, 0.06)'; ctx.lineWidth = 1 * u;
-  for (let x = left; x < right; x += 40 * u) { ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke(); }
-  for (let y = top; y < bottom; y += 40 * u) { ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke(); }
-  ctx.strokeStyle = UI_COLORS.ink; ctx.lineWidth = 4 * u; ctx.strokeRect(left, top, width, height);
+export function drawTrackBase(ctx, arena, opts = {}) {
+  drawField(ctx, arena, { mode: 'RACE', seed: hashFieldSeed('RACE', opts.roundId) });
 }
 
 function drawOilSlicks(ctx, oilSlicks) {
@@ -265,8 +258,8 @@ function drawPlayer(ctx, player, color, checkpoints) {
   }
 }
 
-export function drawRaceWorld(ctx, frame, arena, colors = [], now = performance.now()) {
-  drawTrackBase(ctx, arena);
+export function drawRaceWorld(ctx, frame, arena, colors = [], now = performance.now(), opts = {}) {
+  drawTrackBase(ctx, arena, opts);
   drawEmpPulses(ctx, frame.empPulses);
   drawOilSlicks(ctx, frame.oilSlicks);
   for (const pad of frame.nitroPads || []) drawNitroPad(ctx, pad, now);

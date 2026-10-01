@@ -24,6 +24,7 @@ import {
 import { drawFxFlash } from '../games/worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
+import { paintBackdrop } from '../core/fieldKit.js';
 
 export const CLONE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const CLONE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -770,13 +771,12 @@ this.targetScore = 2;
   render() {
     const { ctx } = this;
     ctx.save();
-    ctx.fillStyle = '#151515';
-    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'CLONE' });
     this.applyScreenShake(ctx);
 
     // Arena sahnesi ortak cloneView draw'larından gelir (host↔client aynı).
     const withFx = this.state === 'PLAYING';
-    drawCloneArena(ctx, this.arena);
+    drawCloneArena(ctx, this.arena, { roundId: this.roundId });
     drawCloneStations(ctx, this.taskPoints.map((tp) => ({
       x: tp.x, y: tp.y, radius: tp.radius || 40,
       color: tp.color || '#888888', icon: tp.icon, name: tp.name,
