@@ -8,11 +8,11 @@
 // ve motor metotları (getTabletopControlCorners, getAimVector, cycleSlotType)
 // motorun kendisinden gelir, yeni motor davranış değiştirmeden geçerlidir.
 
-import { getStandardSeatRects, renderLobbySeatCard, renderLobbyStartButton, getSeatColorDotRect, renderControlGuide } from '../controlGuide.js';
+import { getStandardSeatRects, getStandardSeatSize, renderLobbySeatCard, renderLobbyStartButton, getSeatColorDotRect, renderControlGuide } from '../controlGuide.js';
 import { getLocalSeatColors } from './customizationManager.js';
 import { resolveSlotName } from './slotManager.js';
 import { keyboardVectorFrom, getKeyLabel, STEER_KEY_HINTS } from './inputMaps.js';
-import { UI_COLORS, CONTROL_MODE, getDisplayProfile, shouldShowVirtualControls, isTouchDevice } from '../ui/tokens.js';
+import { UI_COLORS, UI_SIZES, CONTROL_MODE, getDisplayProfile, shouldShowVirtualControls, isTouchDevice } from '../ui/tokens.js';
 import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { roundGapSeconds } from './roundLifecycle.js';
 import { t } from '../i18n.js';
@@ -38,6 +38,11 @@ export function createTabletopRenderer(game) {
   const readyPulseTracker = {};
   // MATCH_OVER'a giriş anı (ms): final kartının giriş yumuşaması için.
   let matchOverSince = 0;
+  // Lobi kalkış animasyonu: koltuklar merkezden köşelerine süzülür.
+  let lobbyDeparting = false;
+  let lobbyDepartStartTime = 0;
+  const LOBBY_DEPART_MS = 340;
+  let pendingStartFn = null;
 
   function getControlAlpha(value, active = false, near = false) {
     if (!isTouchDevice()) return value;
@@ -489,6 +494,28 @@ export function createTabletopRenderer(game) {
     });
   }
 
+  function getClusteredSeatRects(arena, bounds) {
+    const cx = arena.cx || (bounds.left + bounds.width / 2);
+    const cy = arena.cy || (bounds.top + bounds.height / 2);
+    const btnW = Math.min(UI_SIZES.startW, bounds.width * 0.45);
+    const btnH = UI_SIZES.startH;
+    const standardSize = getStandardSeatSize(arena || bounds);
+
+    const maxH = (bounds.height - btnH - 36) / 2.2;
+    const maxW = (bounds.width - 36) / 2.2;
+    const s = Math.max(76, Math.min(standardSize, Math.floor(Math.min(maxW, maxH))));
+
+    const gapX = Math.max(12, Math.min(26, Math.floor(bounds.width * 0.035)));
+    const gapY = Math.max(8, Math.min(18, Math.floor(bounds.height * 0.025)));
+
+    return [
+      { x: cx - s - gapX / 2, y: cy + btnH / 2 + gapY, w: s, h: s }, // P1 Sol-Alt
+      { x: cx - s - gapX / 2, y: cy - btnH / 2 - gapY - s, w: s, h: s }, // P2 Sol-Üst
+      { x: cx + gapX / 2, y: cy - btnH / 2 - gapY - s, w: s, h: s }, // P3 Sağ-Üst
+      { x: cx + gapX / 2, y: cy + btnH / 2 + gapY, w: s, h: s }, // P4 Sağ-Alt
+    ];
+  }
+
   function renderStandardLobby(ctx, {
     arena = game.arena,
     dockRect = null,
@@ -505,8 +532,42 @@ export function createTabletopRenderer(game) {
     const localMode = !game.hideLobbyStartButton;
     const localColors = localMode ? getLocalSeatColors() : null;
 
+    // LOCAL modda koltuklar merkezde toplanır (sağ üstteki menü/fullscreen tuşlarıyla çakışmayı önler).
+    // Başlat dendiğinde yumuşak animasyonla köşelerine uçarlar.
+    const clustered = localMode ? getClusteredSeatRects(arena, bounds) : corners;
+
+    let animT = 0;
+    if (lobbyDeparting) {
+      const elapsed = performance.now() - lobbyDepartStartTime;
+      const rawT = Math.min(1, elapsed / LOBBY_DEPART_MS);
+      // easeOutCubic: hızlı başlayıp yumuşakça köşelerine varır
+      animT = 1 - Math.pow(1 - rawT, 3);
+      if (rawT >= 1) {
+        lobbyDeparting = false;
+        const startFn = pendingStartFn;
+        pendingStartFn = null;
+        if (typeof startFn === 'function') startFn();
+      }
+    }
+
+    const currentPositions = [];
     for (let i = 0; i < 4; i++) {
-      const pos = corners[i];
+      if (animT > 0) {
+        const c = clustered[i];
+        const k = corners[i];
+        currentPositions.push({
+          x: c.x + (k.x - c.x) * animT,
+          y: c.y + (k.y - c.y) * animT,
+          w: c.w + (k.w - c.w) * animT,
+          h: c.h + (k.h - c.h) * animT,
+        });
+      } else {
+        currentPositions.push(clustered[i]);
+      }
+    }
+
+    for (let i = 0; i < 4; i++) {
+      const pos = currentPositions[i];
       const slotType = game.slotTypes[i];
       const p = game.players?.[i] || game.tanks?.[i] || game.paddles?.[i] || game.curves?.[i] || game.snakes?.[i];
       const name = p ? (p.name || '') : (playerNames[i] || '');
@@ -527,28 +588,31 @@ export function createTabletopRenderer(game) {
         showColorDot: localMode,
       });
 
-      // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
-      if (localMode) {
-        const dot = getSeatColorDotRect(pos);
+      // Animasyon sırasında buton tıklamaları kilitlenir
+      if (animT === 0) {
+        // Nokta önce: tap dispatch ilk eşleşmede durur, nokta kartın içindedir.
+        if (localMode) {
+          const dot = getSeatColorDotRect(pos);
+          game.uiButtons.push({
+            x: dot.x,
+            y: dot.y,
+            w: dot.w,
+            h: dot.h,
+            onClick: () => game.cycleLocalSeat(i),
+          });
+        }
+
         game.uiButtons.push({
-          x: dot.x,
-          y: dot.y,
-          w: dot.w,
-          h: dot.h,
-          onClick: () => game.cycleLocalSeat(i),
+          x: pos.x,
+          y: pos.y,
+          w: pos.w,
+          h: pos.h,
+          onClick: () => {
+            game.cycleSlotType(i);
+            if (typeof onSeatChange === 'function') onSeatChange(i);
+          },
         });
       }
-
-      game.uiButtons.push({
-        x: pos.x,
-        y: pos.y,
-        w: pos.w,
-        h: pos.h,
-        onClick: () => {
-          game.cycleSlotType(i);
-          if (typeof onSeatChange === 'function') onSeatChange(i);
-        },
-      });
     }
 
     if (typeof customControls === 'function') {
@@ -556,16 +620,33 @@ export function createTabletopRenderer(game) {
     }
 
     const joinedCount = game.getActivePlayerCount();
+
+    const handleStart = () => {
+      if (lobbyDeparting) return;
+      if (localMode) {
+        lobbyDeparting = true;
+        lobbyDepartStartTime = performance.now();
+        pendingStartFn = onStart;
+      } else {
+        onStart();
+      }
+    };
+
+    ctx.save();
+    if (animT > 0) {
+      ctx.globalAlpha = Math.max(0, 1 - animT * 1.8);
+    }
     renderLobbyStartButton(ctx, {
       arena,
-      uiButtons: game.uiButtons,
+      uiButtons: animT === 0 ? game.uiButtons : [],
       joinedCount,
       accent,
       minJoined: game.minPlayersToStart || 2,
-      onStart,
+      onStart: handleStart,
       centerYOffset: customControls ? 18 : 0,
       hidden: !!game.hideLobbyStartButton,
     });
+    ctx.restore();
   }
 
   function renderHUD(ctx, options = {}) {
@@ -582,8 +663,6 @@ export function createTabletopRenderer(game) {
     }
 
     const {
-      guideTitle = '',
-      guideEntries = null,
       colors = game.playerColors || [],
       playerNames = [],
       accent = UI_COLORS.crownRed,
@@ -608,10 +687,13 @@ export function createTabletopRenderer(game) {
 
     const bounds = (dockToViewport && game.viewport && game.viewport.width > 0) ? game.viewport : game.arena;
 
+    if (game.state !== 'LOBBY') {
+      lobbyDeparting = false;
+      pendingStartFn = null;
+    }
+
     if (game.state === 'LOBBY') {
-      if (guideTitle && guideEntries) {
-        renderControlGuide(ctx, game.arena, guideTitle, guideEntries);
-      }
+      // Üst bilgi bandı kaldırıldı: lobi ekranı sade ve temiz kalır.
       if (typeof options.customLobby === 'function') {
         options.customLobby(ctx);
       } else {

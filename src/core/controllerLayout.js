@@ -2,13 +2,13 @@
 // controller manager/editor so this module remains testable and side-effect free.
 
 export const CONTROLLER_LAYOUT_VERSION = 1;
-export const CONTROLLER_SIZE_MIN = 0.8;
-export const CONTROLLER_SIZE_MAX = 1.3;
+export const CONTROLLER_SIZE_MIN = 0.6;
+export const CONTROLLER_SIZE_MAX = 1.6;
 export const CONTROLLER_MIN_TOUCH_TARGET = 44;
 
 export const DEFAULT_CONTROLLER_LAYOUT = Object.freeze({
   version: CONTROLLER_LAYOUT_VERSION,
-  size: 1,
+  size: 0.85,
   left: Object.freeze({ x: 0.16, y: 0.86 }),
   right: Object.freeze({ x: 0.84, y: 0.86 }),
 });

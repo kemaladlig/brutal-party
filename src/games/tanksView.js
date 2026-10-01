@@ -185,40 +185,127 @@ export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null, opts =
   }
 }
 
+function pathRoundRect(ctx, x, y, w, h, r) {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+  }
+}
+
 export function drawTanksBullets(ctx, bullets, ownerColors) {
   for (const b of bullets) {
-    // 1. Zemine düşen mermi gölgesi (havada uçma hissi)
+    const ownerColor = ownerColors?.[b.owner] || UI_COLORS.crownGold;
+    const hasVelocity = (b.vx !== undefined && b.vy !== undefined && (b.vx !== 0 || b.vy !== 0));
+    const speed = hasVelocity ? Math.hypot(b.vx, b.vy) : 0;
+    const angle = hasVelocity ? Math.atan2(b.vy, b.vx) : 0;
+    const r = Math.max(3.5, b.radius || 4.5);
+
     ctx.save();
-    ctx.globalAlpha = 0.28;
-    ctx.fillStyle = UI_COLORS.inkDark;
-    ctx.beginPath();
-    ctx.arc(b.x + 1.2, b.y + 2, b.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    ctx.translate(b.x, b.y);
 
-    // 2. Mermi dış konturu / gövdesi
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-    ctx.fillStyle = UI_COLORS.inkDark;
-    ctx.fill();
+    if (hasVelocity && speed > 5) {
+      ctx.rotate(angle);
 
-    // 3. Mermi çekirdeği (sahip oyuncunun rengi)
-    const ownerColor = ownerColors?.[b.owner];
-    if (ownerColor) {
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.radius * 0.6, 0, Math.PI * 2);
-      ctx.fillStyle = ownerColor;
-      ctx.fill();
-
-      // 4. Parlak çekirdek ışıltısı (hız / enerji hissi)
+      // 1. Zemine düşen hız gölgesi (hafif aşağıda & arkaya uzanan gölge)
       ctx.save();
-      ctx.globalAlpha = 0.85;
-      ctx.fillStyle = UI_COLORS.white;
-      ctx.beginPath();
-      ctx.arc(b.x - b.radius * 0.18, b.y - b.radius * 0.18, Math.max(1, b.radius * 0.22), 0, Math.PI * 2);
+      ctx.globalAlpha = 0.20;
+      ctx.fillStyle = UI_COLORS.inkDark;
+      const shadowTail = Math.min(28, r * 4.5);
+      pathRoundRect(ctx, -shadowTail, 1.5, shadowTail + r, r * 1.6, r * 0.8);
       ctx.fill();
       ctx.restore();
+
+      // 2. Işık hüzmesi kuyruğu (luminescent laser beam trail)
+      const tailLen = Math.min(38, Math.max(20, r * 5.0));
+      const beamGrad = ctx.createLinearGradient(-tailLen, 0, r * 0.5, 0);
+      beamGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      beamGrad.addColorStop(0.35, ownerColor);
+      beamGrad.addColorStop(1, ownerColor);
+
+      // Dış ışıma konisi (energy glow cone)
+      ctx.save();
+      ctx.globalAlpha = 0.70;
+      ctx.fillStyle = beamGrad;
+      ctx.beginPath();
+      ctx.moveTo(r * 1.1, 0);
+      ctx.lineTo(-tailLen, -r * 0.65);
+      ctx.lineTo(-tailLen, r * 0.65);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      // İç parlak beyaz akkor lazer hüzmesi (hyper-bright white core beam)
+      const coreGrad = ctx.createLinearGradient(-tailLen * 0.75, 0, r * 0.3, 0);
+      coreGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+      coreGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.75)');
+      coreGrad.addColorStop(1, 'rgba(255, 255, 255, 0.98)');
+
+      ctx.fillStyle = coreGrad;
+      ctx.beginPath();
+      ctx.moveTo(r * 0.8, 0);
+      ctx.lineTo(-tailLen * 0.7, -r * 0.28);
+      ctx.lineTo(-tailLen * 0.7, r * 0.28);
+      ctx.closePath();
+      ctx.fill();
+
+      // 3. Mermi Enerji Kapsülü (Aerodynamic Plasma Slug Head)
+      // Dış neon halka / aura
+      ctx.save();
+      ctx.globalAlpha = 0.45;
+      ctx.fillStyle = ownerColor;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Koyu brutalist dış kabuk
+      ctx.fillStyle = UI_COLORS.inkDark;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r * 1.25, r * 0.95, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Renkli enerji çekirdeği
+      ctx.fillStyle = ownerColor;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r * 0.95, r * 0.70, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Beyaz sıcak akkor iç parıltı
+      ctx.fillStyle = UI_COLORS.white;
+      ctx.beginPath();
+      ctx.ellipse(r * 0.2, 0, r * 0.55, r * 0.38, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+    } else {
+      // Hız bilinmiyorsa dairesel plazma küresi
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = UI_COLORS.inkDark;
+      ctx.beginPath();
+      ctx.arc(1.2, 2, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.fillStyle = UI_COLORS.inkDark;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = ownerColor;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = UI_COLORS.white;
+      ctx.beginPath();
+      ctx.arc(-r * 0.2, -r * 0.2, r * 0.3, 0, Math.PI * 2);
+      ctx.fill();
     }
+
+    ctx.restore();
   }
 }
 
@@ -280,32 +367,154 @@ export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true, selfSl
     ctx.rotate(tank.angle || 0);
     ctx.scale(pop, pop);
 
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(-s / 2 - 3, -s / 2, 5, s);
-    ctx.fillRect(s / 2 - 2, -s / 2, 5, s);
+    // ── 1. Alt Şasi Gölgesi ──────────────────────────────────────
+    ctx.save();
+    ctx.globalAlpha = 0.26;
+    ctx.fillStyle = UI_COLORS.inkDark;
+    pathRoundRect(ctx, -s * 0.54 + 2, -s * 0.50 + 3, s * 1.08, s * 1.00, 4 * u);
+    ctx.fill();
+    ctx.restore();
 
+    // ── 2. Paletler (Tracks/Treads - İki yanda: -Y ve +Y) ─────────
+    const trackW = s * 1.12;
+    const trackH = s * 0.24;
+    const trackR = 3.5 * u;
+    const isDriving = !!tank.driving;
+    const treadStep = s * 0.22;
+    const treadShift = isDriving ? (Date.now() * 0.02) % treadStep : 0;
+
+    // Üst (sol) palet (-Y tarafı)
+    ctx.fillStyle = UI_COLORS.inkDark;
+    pathRoundRect(ctx, -trackW / 2, -s * 0.52, trackW, trackH, trackR);
+    ctx.fill();
+    ctx.strokeStyle = UI_COLORS.lineDark;
+    ctx.lineWidth = 1.6 * u;
+    ctx.stroke();
+
+    // Alt (sağ) palet (+Y tarafı)
+    pathRoundRect(ctx, -trackW / 2, s * 0.52 - trackH, trackW, trackH, trackR);
+    ctx.fill();
+    ctx.stroke();
+
+    // Palet dişleri / tekerlek segmentleri
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.lineWidth = 1.4 * u;
+    for (let tx = -trackW / 2 + 3 + treadShift; tx < trackW / 2 - 3; tx += treadStep) {
+      // Üst palet dişi
+      ctx.beginPath();
+      ctx.moveTo(tx, -s * 0.52 + 1);
+      ctx.lineTo(tx, -s * 0.52 + trackH - 1);
+      ctx.stroke();
+
+      // Alt palet dişi
+      ctx.beginPath();
+      ctx.moveTo(tx, s * 0.52 - trackH + 1);
+      ctx.lineTo(tx, s * 0.52 - 1);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // ── 3. Şasi ve Zırh Gövdesi (Armored Hull) ─────────────────────
+    const hullL = s * 0.88;
+    const hullW = s * 0.72;
+    const hullR = 4 * u;
+
+    // Koyu brutalist alt şasi
+    ctx.fillStyle = UI_COLORS.inkDark;
+    pathRoundRect(ctx, -hullL / 2, -hullW / 2, hullL, hullW, hullR);
+    ctx.fill();
+
+    // Oyuncu renginde üst zırh plakası
     ctx.fillStyle = tank.color;
-    ctx.fillRect(-s / 2 + 2, -s / 2 + 2, s - 4, s - 4);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2.5 * u;
-    ctx.strokeRect(-s / 2 + 2, -s / 2 + 2, s - 4, s - 4);
+    pathRoundRect(ctx, -hullL / 2 + 2 * u, -hullW / 2 + 2 * u, hullL - 4 * u, hullW - 4 * u, hullR - 1 * u);
+    ctx.fill();
+
+    ctx.strokeStyle = UI_COLORS.inkDark;
+    ctx.lineWidth = 2.4 * u;
+    ctx.stroke();
+
+    // Ön zırh pahı (Front Glacis Plate - +X yönü)
+    ctx.fillStyle = UI_COLORS.inkDark;
+    ctx.beginPath();
+    ctx.moveTo(hullL / 2 - 2 * u, -hullW * 0.35);
+    ctx.lineTo(hullL / 2 + 3 * u, 0);
+    ctx.lineTo(hullL / 2 - 2 * u, hullW * 0.35);
+    ctx.closePath();
+    ctx.fill();
+
+    // Arka motor havalandırma ızgarası (-X yönü)
+    ctx.save();
+    ctx.strokeStyle = UI_COLORS.inkDark;
+    ctx.lineWidth = 1.8 * u;
+    const rearX = -hullL / 2 + 5 * u;
+    ctx.beginPath();
+    ctx.moveTo(rearX, -hullW * 0.28);
+    ctx.lineTo(rearX, hullW * 0.28);
+    ctx.moveTo(rearX + 4 * u, -hullW * 0.22);
+    ctx.lineTo(rearX + 4 * u, hullW * 0.22);
+    ctx.stroke();
+    ctx.restore();
+
+    // Hit Flash vurgusu
     if (hitT > 0) {
       ctx.save();
       ctx.globalAlpha = hitT * 0.9;
       ctx.strokeStyle = UI_COLORS.white;
       ctx.lineWidth = 3.5 * u;
-      ctx.strokeRect(-s / 2 + 2, -s / 2 + 2, s - 4, s - 4);
+      pathRoundRect(ctx, -hullL / 2 + 2 * u, -hullW / 2 + 2 * u, hullL - 4 * u, hullW - 4 * u, hullR - 1 * u);
+      ctx.stroke();
       ctx.restore();
     }
 
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(0, -3.5, s * 0.78, 7);
+    // ── 4. Taret Platformu & Ağır Top Namlusu ──────────────────────
+    const barrelLen = s * 0.86;
+    const barrelW = Math.max(5, s * 0.20);
 
+    // Namlu kalkanı (Gun Mantlet / Kundak tabanı)
+    ctx.fillStyle = UI_COLORS.inkDark;
+    pathRoundRect(ctx, s * 0.08, -barrelW * 0.9, s * 0.24, barrelW * 1.8, 2 * u);
+    ctx.fill();
+
+    // Namlu borusu (Cannon Barrel)
+    ctx.fillStyle = UI_COLORS.inkDark;
+    ctx.fillRect(s * 0.16, -barrelW / 2, barrelLen - s * 0.16, barrelW);
+
+    // Namlu üstü açık metalik vurgu şeridi
     ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = UI_COLORS.white;
+    ctx.fillRect(s * 0.20, -barrelW * 0.25, barrelLen - s * 0.30, barrelW * 0.5);
+    ctx.restore();
+
+    // Namlu ucu alev gizleyen / fren (Muzzle Brake)
+    ctx.fillStyle = UI_COLORS.inkDark;
+    ctx.fillRect(barrelLen - 2 * u, -barrelW * 0.75, 4.5 * u, barrelW * 1.5);
+    ctx.strokeStyle = UI_COLORS.lineDark;
+    ctx.lineWidth = 1 * u;
+    ctx.strokeRect(barrelLen - 2 * u, -barrelW * 0.75, 4.5 * u, barrelW * 1.5);
+
+    // Taret çember tabanı (Turret Ring)
+    ctx.fillStyle = UI_COLORS.inkDark;
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.38, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ── 5. Komutan Figürü (Mini Brutal Avatar) ─────────────────────
     // İSTİSNA (Adım 3.5): TANKS'ta avatar tankın kendisi DEĞİL, şasi üzerine
-    // yerleşen mini komutan figürüdür (s*0.32). Bu figürde disk hacmi/büyük gözler
+    // yerleşen mini komutan figürüdür (s*0.30). Bu figürde disk hacmi/büyük gözler
     // yerine şasi üstü rozet ölçeğinde brutal avatar çizilir.
-    drawBrutalAvatar(ctx, 0, 0, s * 0.32, {
+    ctx.save();
+    // Taret kapağı bileziği
+    ctx.fillStyle = tank.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.34, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = UI_COLORS.inkDark;
+    ctx.lineWidth = 1.8 * u;
+    ctx.stroke();
+
+    drawBrutalAvatar(ctx, 0, 0, s * 0.30, {
       color: tank.color,
       slotIndex: tank.slot ?? tank.index,
       slotType: tank.god ? 'bot_god' : tank.bot ? 'bot_normal' : 'human',
@@ -321,17 +530,33 @@ export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true, selfSl
 
     ctx.restore();
 
+    // ── 6. Muzzle Flash Ateş Parıltısı ──────────────────────────
     if (withFx && (tank.muzzle || 0) > 0) {
       ctx.save();
       ctx.translate(tank.x, tank.y);
       ctx.rotate(tank.angle || 0);
-      ctx.globalAlpha = Math.max(0, Math.min(1, (tank.muzzle || 0) / 0.12));
+      const flashAlpha = Math.max(0, Math.min(1, (tank.muzzle || 0) / 0.12));
+      ctx.globalAlpha = flashAlpha;
+
+      const flashX = barrelLen + 4 * u;
+      // Dış sarı patlama yıldızı
       ctx.fillStyle = '#FFDE59';
       ctx.beginPath();
-      ctx.moveTo(s * 0.72, 0);
-      ctx.lineTo(s * 0.38, -s * 0.2);
-      ctx.lineTo(s * 0.38, s * 0.2);
+      ctx.moveTo(flashX + s * 0.42, 0);
+      ctx.lineTo(flashX + s * 0.14, -s * 0.22);
+      ctx.lineTo(flashX + s * 0.20, -s * 0.08);
+      ctx.lineTo(flashX, -s * 0.26);
+      ctx.lineTo(flashX + s * 0.06, 0);
+      ctx.lineTo(flashX, s * 0.26);
+      ctx.lineTo(flashX + s * 0.20, s * 0.08);
+      ctx.lineTo(flashX + s * 0.14, s * 0.22);
       ctx.closePath();
+      ctx.fill();
+
+      // İç sıcak akkor beyaz çekirdek
+      ctx.fillStyle = UI_COLORS.white;
+      ctx.beginPath();
+      ctx.arc(flashX + s * 0.10, 0, s * 0.12, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -340,7 +565,7 @@ export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true, selfSl
       ctx.save();
       ctx.beginPath();
       ctx.arc(tank.x, tank.y, s * 0.92, 0, Math.PI * 2);
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = UI_COLORS.inkDark;
       ctx.lineWidth = 2.5 * u;
       ctx.setLineDash([4, 4]);
       ctx.stroke();

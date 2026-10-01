@@ -50,7 +50,7 @@ test('preference normalization preserves existing settings while adding layout d
   assert.equal(result.pongSensitivity, 1.25);
   assert.deepEqual(result.controllerLayout, {
     version: 1,
-    size: 1,
+    size: 0.85,
     left: { x: 0.16, y: 0.86 },
     right: { x: 0.84, y: 0.86 },
   });

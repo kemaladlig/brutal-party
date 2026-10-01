@@ -35,7 +35,10 @@ const COLLAPSE_MAX_TIED_ROUNDS = 2;
 const COLLAPSE_RADIUS = 36;
 const COLLAPSE_MOVE_SPEED = 190;
 
-// 5 Farklı Rastgele Harita Tasarımı
+// 5 Farklı Rastgele Harita Tasarımı — hepsi geniş tutulur (min ~%75 dolu):
+// çeşitlilik deliklerle değil kenar formuyla gelir (klasik/islands/atoll/
+// elmas/plaza). Mantık ızgarası 13x13 aynı kalır, yalnız görsel derinlik
+// collapseView'dadır.
 export const COLLAPSE_MAPS = [
   {
     id: 'classic',
@@ -66,14 +69,13 @@ export const COLLAPSE_MAPS = [
       for (let r = 0; r < rows; r++) {
         const row = [];
         for (let c = 0; c < cols; c++) {
-          // Ada sınırları (daha geniş adalar)
+          // Geniş adalar + 5 hücre genişliğinde köprüler + 5x5 merkez.
           const inIsland = (r < midR - 1 || r > midR + 1) && (c < midC - 1 || c > midC + 1);
-          // Köprüler: 3 hücre genişliğinde
           const isBridge = (
-            (Math.abs(r - midR) <= 1 && c > 1 && c < cols - 2) ||
-            (Math.abs(c - midC) <= 1 && r > 1 && r < rows - 2)
+            (Math.abs(r - midR) <= 2 && c >= 1 && c < cols - 1) ||
+            (Math.abs(c - midC) <= 2 && r >= 1 && r < rows - 1)
           );
-          const isCenter = Math.abs(r - midR) <= 1 && Math.abs(c - midC) <= 1;
+          const isCenter = Math.abs(r - midR) <= 2 && Math.abs(c - midC) <= 2;
           row.push(inIsland || isBridge || isCenter ? 0 : 2);
         }
         g.push(row);
@@ -92,11 +94,10 @@ export const COLLAPSE_MAPS = [
         const row = [];
         for (let c = 0; c < cols; c++) {
           const dist = Math.hypot(r - midR, c - midC);
-          // Daha geniş merkez + daha geniş halka
-          const isCenter = dist <= 2.5;
-          const isRing = dist >= 2.8 && dist <= 6.0;
-          // Çapraz geçitler 2 hücre genişliğinde
-          const isCrossWalk = (Math.abs(r - midR) <= 1.0 || Math.abs(c - midC) <= 1.0) && dist <= 6.2;
+          // Hendek yok: merkez + halka örtüşür, dış sınır 6.6'ya kadar dolu.
+          const isCenter = dist <= 3.2;
+          const isRing = dist >= 2.6 && dist <= 6.5;
+          const isCrossWalk = (Math.abs(r - midR) <= 1.5 || Math.abs(c - midC) <= 1.5) && dist <= 6.6;
           row.push(isCenter || isRing || isCrossWalk ? 0 : 2);
         }
         g.push(row);
@@ -115,7 +116,8 @@ export const COLLAPSE_MAPS = [
         const row = [];
         for (let c = 0; c < cols; c++) {
           const manhattan = Math.abs(r - midR) + Math.abs(c - midC);
-          row.push(manhattan <= 6.2 ? 0 : 2);
+          // Eskiden 6.2'ydi (%50 alan); 8.5 ile büyük elmas.
+          row.push(manhattan <= 8.5 ? 0 : 2);
         }
         g.push(row);
       }
@@ -126,35 +128,17 @@ export const COLLAPSE_MAPS = [
     id: 'corridors',
     name: 'GENİŞ KORİDORLAR',
     generate: (rows, cols) => {
+      // Tam plaza: tek hücre köşeler dışında her yer dolu. Koridor hissi
+      // görsel derzlerle verilir, delikle değil — en büyük arena.
       const g = [];
       for (let r = 0; r < rows; r++) {
         const row = [];
         for (let c = 0; c < cols; c++) {
-          const isBorder = r === 0 || r === rows - 1 || c === 0 || c === cols - 1;
-          // Dış koridor 3 hücre genişliğinde (önceki 1 hücre → fazla dar)
-          const isOuterCorridor = (r >= 1 && r <= 3) || (r >= rows - 4 && r <= rows - 2) ||
-                                  (c >= 1 && c <= 3) || (c >= cols - 4 && c <= cols - 2);
-          // Merkez haç 3 hücre genişliğinde
-          const isCenterCross = (
-            (Math.abs(r - Math.floor(rows / 2)) <= 1 && c >= 2 && c <= cols - 3) ||
-            (Math.abs(c - Math.floor(cols / 2)) <= 1 && r >= 2 && r <= rows - 3)
-          );
-          row.push(!isBorder && (isOuterCorridor || isCenterCross) ? 0 : 2);
+          const isCorner = (r === 0 && c === 0) || (r === 0 && c === cols - 1) ||
+                           (r === rows - 1 && c === 0) || (r === rows - 1 && c === cols - 1);
+          row.push(isCorner ? 2 : 0);
         }
         g.push(row);
-      }
-      // Minimum alan garantisi: %45 altında rastgele boşlukları sağlama çevir
-      const totalCells = rows * cols;
-      let solidCount = g.flat().filter((v) => v === 0).length;
-      if (solidCount / totalCells < 0.45) {
-        for (let r = 1; r < rows - 1; r++) {
-          for (let c = 1; c < cols - 1; c++) {
-            if (g[r][c] === 2 && solidCount / totalCells < 0.45 && Math.random() < 0.3) {
-              g[r][c] = 0;
-              solidCount++;
-            }
-          }
-        }
       }
       return g;
     },

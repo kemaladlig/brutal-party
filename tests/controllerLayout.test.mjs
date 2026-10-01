@@ -18,7 +18,7 @@ test('controller layout normalization clamps size and normalized positions', () 
     right: { x: Number.NaN, y: 0.4 },
   });
   assert.equal(result.version, DEFAULT_CONTROLLER_LAYOUT.version);
-  assert.equal(result.size, 1.3);
+  assert.equal(result.size, 1.6);
   assert.deepEqual(result.left, { x: 0, y: 1 });
   assert.deepEqual(result.right, { x: DEFAULT_CONTROLLER_LAYOUT.right.x, y: 0.4 });
 });

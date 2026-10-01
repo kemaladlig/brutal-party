@@ -45,7 +45,7 @@ export function createWorldViewRenderer() {
           { roundId: frame.roundId },
         );
         const ownerColors = frame.players.map((p) => slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || TANK_FALLBACK[p.slot]);
-        drawTanksBullets(ctx, frame.bullets.map(([x, y, radius, owner]) => ({ x, y, radius, owner })), ownerColors);
+        drawTanksBullets(ctx, frame.bullets.map(([x, y, radius, owner, vx, vy]) => ({ x, y, radius, owner, vx, vy })), ownerColors);
         drawTanksTracers(ctx, frame.tracers || []);
         drawTanksCrates(ctx, frame.crates.map(([x, y, size, type]) => ({ x, y, size, type })));
         const tanks = frame.players.map((p) => ({

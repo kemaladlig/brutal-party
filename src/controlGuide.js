@@ -4,6 +4,7 @@ import { getBotPersona } from './core/customizationManager.js';
 import { isCompactLandscape } from './core/playfield.js';
 import { t } from './i18n.js';
 import { stripHtml } from './controllers/controllerGuide.js';
+import { drawTabletopIcon } from './core/tabletopIcons.js';
 
 const GUIDE_COLORS = UI_COLORS.players;
 
@@ -314,27 +315,35 @@ export function renderLobbySeatCard(ctx, {
 
   ctx.restore();
 
-  // LOCAL hızlı renk noktası (kartın sağ-üstü, mutlak koordinat — tap kutusuyla eşleşir)
+  // LOCAL hızlı renk rozeti (kartın sağ-üstü, mutlak koordinat — tap kutusuyla eşleşir)
   if (drawColorDotAfter) {
-    const dotR = 11;
-    const dotX = x + w - 28;
-    const dotY = y + 28;
+    const dotR = 12.5;
+    const dotX = x + w - 26;
+    const dotY = y + 26;
     ctx.save();
+
+    // 1. Brutal yumuşak 3D gölge
     ctx.beginPath();
     ctx.arc(dotX + 2, dotY + 2, dotR, 0, Math.PI * 2);
-    ctx.fillStyle = UI_COLORS.ink;
+    ctx.fillStyle = 'rgba(20, 16, 31, 0.35)';
     ctx.fill();
+
+    // 2. Renkli rozet gövdesi
     ctx.beginPath();
     ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
     ctx.fillStyle = colorDotFill;
     ctx.fill();
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = UI_COLORS.ink;
+
+    // 3. Brutalist dış hat
+    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = UI_COLORS.inkDark;
     ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(dotX, dotY, dotR * 0.38, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.fill();
+
+    // 4. Renk Paleti İkonu (açık sarıda koyu kontrast, diğerlerinde beyaz)
+    const isLightBg = colorDotFill === UI_COLORS.players[2] || colorDotFill === '#FFD24A' || colorDotFill === '#FFDE59';
+    const iconColor = isLightBg ? UI_COLORS.inkDark : UI_COLORS.white;
+    drawTabletopIcon(ctx, 'palette', dotX, dotY, 15, { color: iconColor, strokeWidth: 2.2 });
+
     ctx.restore();
   }
 }

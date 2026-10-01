@@ -8,6 +8,7 @@ import { drawGameAvatar } from '../core/avatarInGame.js';
 import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import {
   round1,
   createWorldSnapshot,
@@ -72,13 +73,13 @@ export function createCollapseWorldPacket(game) {
         scale: round2(ft.scale ?? 1),
         alpha: round2(ft.alpha ?? 1),
         size: round1(ft.size || 20),
-        color: typeof ft.colorVariant === 'string' ? ft.colorVariant : '#D99B26',
+        color: typeof ft.colorVariant === 'string' ? ft.colorVariant : UI_COLORS.crownGold,
       })),
       waves: (Array.isArray(game.shockwaves) ? game.shockwaves : []).slice(0, 8).map((sw) => ({
         x: round1(sw.x), y: round1(sw.y),
         radius: round1(sw.radius || 0),
         alpha: round2(sw.alpha ?? 1),
-        color: typeof sw.color === 'string' ? sw.color : '#FFFFFF',
+        color: typeof sw.color === 'string' ? sw.color : UI_COLORS.white,
       })),
       pickups: (Array.isArray(game.pickups) ? game.pickups : []).slice(0, 6).map((pu) => ({
         x: round1(pu.x), y: round1(pu.y),
@@ -128,6 +129,38 @@ export function isValidCollapseWorldFrame(frame) {
   });
 }
 
+function tilePath(ctx, x, y, w, h, r) {
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, radius);
+    return;
+  }
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+}
+
+// Taş levha hissi için silik beşgen derz: collision hep karedir,
+// yalnız görsel dokudur.
+function etchPentagon(ctx, cx, cy, pr, rotation, style, width) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation);
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+    const px = Math.cos(a) * pr;
+    const py = Math.sin(a) * pr;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.strokeStyle = style;
+  ctx.lineWidth = width;
+  ctx.stroke();
+  ctx.restore();
+}
+
 // --- Ortak çizim yardımcıları (host + client) ---
 export function drawCollapseFalling(ctx, falling) {
   for (const ft of falling || []) {
@@ -136,11 +169,27 @@ export function drawCollapseFalling(ctx, falling) {
     ctx.translate(ft.x, ft.y);
     ctx.rotate(ft.rot || 0);
     ctx.scale(ft.scale ?? 1, ft.scale ?? 1);
-    ctx.fillStyle = ft.color || '#D99B26';
-    ctx.fillRect(-ft.size / 2, -ft.size / 2, ft.size, ft.size);
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = Math.max(1, 2 * (ft.size / 20));
-    ctx.strokeRect(-ft.size / 2, -ft.size / 2, ft.size, ft.size);
+    const s = ft.size || 20;
+    const r = s * 0.18;
+    ctx.globalAlpha = clamp01(ft.alpha ?? 1) * 0.45;
+    ctx.fillStyle = UI_COLORS.pureBlack;
+    tilePath(ctx, -s / 2, -s / 2 + Math.max(2, s * 0.1), s, s, r);
+    ctx.fill();
+    ctx.globalAlpha = clamp01(ft.alpha ?? 1);
+    ctx.fillStyle = ft.color || UI_COLORS.crownGold;
+    tilePath(ctx, -s / 2, -s / 2, s, s, r);
+    ctx.fill();
+    ctx.globalAlpha = clamp01(ft.alpha ?? 1) * 0.22;
+    ctx.fillStyle = UI_COLORS.white;
+    tilePath(ctx, -s / 2 + s * 0.12, -s / 2 + s * 0.1, s * 0.76, s * 0.28, r * 0.7);
+    ctx.fill();
+    ctx.globalAlpha = clamp01(ft.alpha ?? 1) * 0.18;
+    etchPentagon(ctx, 0, s * 0.08, s * 0.22, 0.3, UI_COLORS.pureBlack, Math.max(1, s * 0.04));
+    ctx.globalAlpha = clamp01(ft.alpha ?? 1);
+    ctx.strokeStyle = UI_COLORS.inkDark;
+    ctx.lineWidth = Math.max(1, 2 * (s / 20));
+    tilePath(ctx, -s / 2, -s / 2, s, s, r);
+    ctx.stroke();
     ctx.restore();
   }
 }
@@ -152,8 +201,9 @@ export function drawCollapseGrid(ctx, arena, cell, states, warn, { withFx = true
   const offsetX = arena.cx - (cols * cellSize) / 2;
   const offsetY = arena.cy - (rows * cellSize) / 2;
   const warnByIdx = new Map((warn || []).map(([idx, timer]) => [idx, timer]));
-  const padding = 1.5;
-  const bevel = 4;
+  const padding = Math.max(1.5, cellSize * 0.05);
+  const depth = Math.max(2, cellSize * 0.11);
+  const radius = cellSize * 0.18;
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -187,28 +237,62 @@ export function drawCollapseGrid(ctx, arena, cell, states, warn, { withFx = true
       ctx.save();
       ctx.translate(ox, oy);
       ctx.scale(scl, scl);
-      ctx.fillStyle = '#0B0B0B';
-      ctx.fillRect(-tw / 2, -th / 2 + bevel, tw, th);
+      ctx.translate(-tw / 2, -th / 2);
 
       const u = arena?.unit ?? (cellSize ? cellSize / 40 : 1);
+      // Derinlik: alttan taşan koyu levha gövdesi.
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = UI_COLORS.pureBlack;
+      tilePath(ctx, 0, depth, tw, th, radius);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
       if (state === 0) {
         const toneShift = ((r * 7 + c * 13) % 18) - 9;
         const baseL = 248 + toneShift;
         ctx.fillStyle = `rgb(${baseL}, ${baseL - 3}, ${baseL - 8})`;
-        ctx.fillRect(-tw / 2, -th / 2, tw, th);
-        ctx.strokeStyle = '#2B2B2B';
+        tilePath(ctx, 0, 0, tw, th, radius);
+        ctx.fill();
+        // Üst ışık: taş levha parlaklığı.
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = UI_COLORS.white;
+        tilePath(ctx, tw * 0.1, th * 0.08, tw * 0.8, th * 0.26, radius * 0.6);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = UI_COLORS.crownStone;
         ctx.lineWidth = Math.max(1, 1.5 * u);
-        ctx.strokeRect(-tw / 2, -th / 2, tw, th);
+        tilePath(ctx, 0, 0, tw, th, radius);
+        ctx.stroke();
+        ctx.globalAlpha = 0.16;
+        etchPentagon(
+          ctx, tw / 2, th * 0.58, Math.min(tw, th) * 0.24,
+          ((r * 7 + c * 13) % 5) * 0.12 - 0.2,
+          UI_COLORS.inkDark, Math.max(1, 1.2 * u),
+        );
+        ctx.globalAlpha = 1;
       } else {
         const rr = 255;
         const gg = Math.floor(154 * ratio + 26 * (1 - ratio));
         ctx.fillStyle = `rgb(${rr}, ${gg}, 0)`;
-        ctx.fillRect(-tw / 2, -th / 2, tw, th);
-        ctx.fillStyle = `rgba(255, ${Math.floor(220 * ratio + 100)}, 60, 0.55)`;
-        ctx.fillRect(-tw / 2, -th / 2, tw, th * 0.35);
-        ctx.strokeStyle = ratio > 0.5 ? '#C84A00' : '#991200';
+        tilePath(ctx, 0, 0, tw, th, radius);
+        ctx.fill();
+        ctx.globalAlpha = 0.55;
+        const hl = Math.floor(220 * ratio + 100);
+        ctx.fillStyle = `rgb(${rr}, ${hl}, 60)`;
+        tilePath(ctx, tw * 0.1, th * 0.08, tw * 0.8, th * 0.3, radius * 0.6);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = ratio > 0.5 ? UI_COLORS.accent : UI_COLORS.danger;
         ctx.lineWidth = Math.max(1, 2 * u);
-        ctx.strokeRect(-tw / 2, -th / 2, tw, th);
+        tilePath(ctx, 0, 0, tw, th, radius);
+        ctx.stroke();
+        ctx.globalAlpha = 0.35;
+        etchPentagon(
+          ctx, tw / 2, th * 0.58, Math.min(tw, th) * 0.24,
+          ((r * 7 + c * 13) % 5) * 0.12 - 0.2,
+          UI_COLORS.danger, Math.max(1, 1.4 * u),
+        );
+        ctx.globalAlpha = 1;
       }
       ctx.restore();
     }
@@ -219,7 +303,7 @@ export function drawCollapseWaves(ctx, waves) {
   for (const sw of waves || []) {
     ctx.save();
     ctx.globalAlpha = clamp01(sw.alpha ?? 1);
-    ctx.strokeStyle = sw.color || '#FFFFFF';
+    ctx.strokeStyle = sw.color || UI_COLORS.white;
     ctx.lineWidth = Math.max(1.5, 3.5 * ((sw.radius || 20) / 20));
     ctx.beginPath();
     ctx.arc(sw.x, sw.y, sw.radius || 0, 0, Math.PI * 2);
@@ -249,15 +333,15 @@ export function drawCollapsePickups(ctx, pickups, now = 0) {
     ctx.save();
     ctx.translate(pu.x, pu.y);
 
-    ctx.strokeStyle = pu.type === 'SUPER_JUMP' ? '#FFDE59' : (pu.type === 'REPAIR_TILES' ? '#2F6A4F' : '#1D5D8A');
+    ctx.strokeStyle = pu.type === 'SUPER_JUMP' ? UI_COLORS.turbo : (pu.type === 'REPAIR_TILES' ? UI_COLORS.crownGreen : UI_COLORS.crownBlue);
     ctx.lineWidth = Math.max(1, 2.5 * u);
     ctx.beginPath(); ctx.arc(0, 0, r + 4, 0, Math.PI * 2); ctx.stroke();
 
-    ctx.fillStyle = '#FAF7F2';
+    ctx.fillStyle = UI_COLORS.crownPaperLight;
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = Math.max(1, 2 * u); ctx.stroke();
+    ctx.strokeStyle = UI_COLORS.inkDark; ctx.lineWidth = Math.max(1, 2 * u); ctx.stroke();
 
-    drawTabletopIcon(ctx, PICKUP_ICONS[pu.type] || 'wind', 0, 0, 18, { color: '#1A1A1A' });
+    drawTabletopIcon(ctx, PICKUP_ICONS[pu.type] || 'wind', 0, 0, 18, { color: UI_COLORS.inkDark });
 
     ctx.restore();
   }
@@ -276,10 +360,14 @@ export function drawCollapsePlayers(ctx, players, { selfSlot = -1 } = {}) {
     const scale = 1.0 + (jumpHeight / 16) * 0.45;
 
     ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = UI_COLORS.pureBlack;
     ctx.beginPath();
     ctx.arc(player.x, player.y + 4, Math.max(4, 9 - jumpHeight * 0.3), 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+
+    ctx.save();
 
     ctx.translate(player.x, player.y - jumpHeight);
     ctx.scale(scale, scale);
