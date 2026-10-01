@@ -1,69 +1,211 @@
-/* Home — yalnız KONUM. Arka plan katmanları ve buton ailesi `scene.css`
-   (ortak kaynak); burada sadece ana menünün yerleşimi var:
+/* Home — ana menü arenası. Buton ailesi ve sahne katmanları `scene.css`
+   (ortak kaynak); burada sahnenin YERLEŞİMİ ve yaşamı var:
 
-     üst sol  : marka (kabuk) → altında KALDIĞIN YER çipi
-     üst sağ  : sistem simgeleri (kabuk) → altında YÜKLE · GÜNCELLE
-     merkez   : karakter + ışık konisi + iki satırlı kimlik plakası
-     sağ alt  : KOD GİR · ODA KUR · OYNA (eylem bandı)
-     alt sol  : bilgi şeridi (oyun/oyuncu/mod özeti)
+     üst sol  : marka wordmark'ı (harfler cascade düşer, ışık süpürmesi geçer)
+     sol sahne: karakter + ışık diski + ayak altı halka nabzı + kimlik plakası
+     ufuk     : oyun kapağı vitrini (marquee) — featured'ın kaynağı
+     sağ kolon: FEATURED kartı + OYNA + ODA KUR / KOD GİR ikilisi
+     üst sağ  : kabuk simgeleri altında YÜKLE · GÜNCELLE
+     alt sol  : bilgi şeridi
 
-   Eksen mantığı: her yüzen küme bir KÖŞEYE hizalıdır (sistem işleri üst sağ,
-   oyun akışı sağ alt, kimlik merkez). Sahnenin ortasında artık hiçbir şey
-   asılı durmaz — YÜKLE/GÜNCELLE eskiden dikey ortada yüzüyordu. */
+   Geniş ekranda Brawl düzeni (sol sahne / sağ cephe); kısa ve dar ekranda
+   kolon ALT BANTA, featured kart ÜST SOLA katlanır. Sahne her açılışta
+   `.is-entering` ile KURULUR (girdi animasyonları ~1,6 s), süre bitince sınıf
+   düşer ve hover/temel değerler serbest kalır. Hareket yalnız transform/opacity
+   ve bireysel `translate`/`scale`/`rotate` özellikleridir; azaltılmış hareket
+   `animations.css §9`'da küresel susar. */
 
-/* ── Merkez: karakter ──────────────────────────────────────────────────
-   Karakter SAHNEDE durur: ayağı arena diskinin üst kenarındadır
-   (`is-staged` + `--scene-stage-y`, `scene.css`). Daha önce `top: 50%` idi ve
-   isim rozeti karakterle diskin arasında havada asılı kalıyordu. */
+/* ── Sahne ölçekleri ────────────────────────────────────────────────────── */
 
-/* ── Arka plan: stüdyo zemini (public/background.webp) ──
-   Görselin kendi gradyanı, turuncu platformu ve pembe ufuğu var; CSS sahne
-   katmanları (backdrop/spotlight/arena diski) home'da kapanır — iki zemin
-   üst üste binmez. Vinyet kalır — kenar derinliği görseli taşar.
-
-   Platform ölçüleri (2752×1536 görselde ölçüldü): üst kenar %73.8, alt kenar
-   %93.9 → disk ekseni %83.9, yatay merkez tam %50 (görsel ortalanmış).
-
-   Konum ALTTAN sabitlenir (`50% 100%`): `cover` yalnız EKRAN ORANı 1.79'dan
-   geniş olduğunda dikey kırpma yapar ve `50% 50%` kırpma payını ortaya
-   bölerek platformu ekranın DIŞINA (aşağı) iterdi. Alt sabitlemede kırpma
-   payı tek yere (yukarı) düşer, platform en kötü ~%80'e çekilir ve her
-   genişlikte görselin alt kenarına yapışık kalır. Dar ekranda dikey kırpma
-   olmadığı için konum tam olarak %83.9'dur. */
 .home-scene {
+  --hero-x: 31%;
   --scene-stage-y: 82%;
+  --rail-w: clamp(240px, 26vw, 330px);
+  /* OYNA + boşluk + ikili satır: FEATURED kartı bu yüksekliğin üstüne oturur
+     (ikisi de alt kenardan sabitlenir, kolon tek blok gibi durur). */
+  --rail-stack-h: 226px;
+}
+
+/* ── Atmosfer: arka plan, aurora, yer diski ─────────────────────────────
+   Arka plan kendi KATMANIDIR (`home-bg`) — parallax oraya yazılır, sahneye
+   değil; kenarlardan -2% taşar ki kayma boşluk göstermesin. CSS sahne
+   gradient'leri kapalı (webp'nin kendi gradyanı var); ARENA DİSKİ açık:
+   karakter sola geçtiğinde webp platformu her kırpma oranında oraya uzanmaz,
+   disk kahramanı bulunduğu yere çapalar. */
+
+.home-bg {
+  position: absolute;
+  inset: -2%;
+  z-index: 0;
   background: url('/background.webp') 50% 100% / cover no-repeat var(--scene-bottom);
+  will-change: transform;
 }
 
 .home-scene .scene-backdrop,
-.home-scene .scene-spotlight,
-.home-scene .scene-floor {
+.home-scene .scene-spotlight {
   display: none;
 }
 
+.home-scene .scene-floor {
+  left: var(--hero-x);
+  width: min(64vw, 760px);
+  opacity: 0.36;
+}
+
+.home-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.home-aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(64px);
+  will-change: transform;
+}
+
+.home-aurora-blob.is-a {
+  left: -10%;
+  top: -16%;
+  width: 58vmin;
+  aspect-ratio: 1;
+  background: radial-gradient(closest-side, var(--home-aurora-a) 0%, transparent 72%);
+  animation: homeAuroraA 26s ease-in-out infinite;
+}
+
+.home-aurora-blob.is-b {
+  right: -8%;
+  top: -10%;
+  width: 46vmin;
+  aspect-ratio: 1;
+  background: radial-gradient(closest-side, var(--home-aurora-b) 0%, transparent 72%);
+  animation: homeAuroraB 31s ease-in-out infinite;
+}
+
+.home-aurora-blob.is-c {
+  left: 26%;
+  top: 30%;
+  width: 42vmin;
+  aspect-ratio: 1;
+  background: radial-gradient(closest-side, var(--home-aurora-c) 0%, transparent 72%);
+  animation: homeAuroraC 23s ease-in-out infinite;
+}
+
+@keyframes homeAuroraA {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(7vmin, 5vmin, 0) scale(1.12); }
+}
+
+@keyframes homeAuroraB {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.06); }
+  50%      { transform: translate3d(-6vmin, 7vmin, 0) scale(0.94); }
+}
+
+@keyframes homeAuroraC {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(0.96); }
+  50%      { transform: translate3d(5vmin, -6vmin, 0) scale(1.1); }
+}
+
+/* ── Marka kiliti: ikon + iki satır ──────────────────────────────────────
+   Kabuğun köşe çipi ANA MENÜDE gizlidir (`:has` kuralı, dosya sonu) — bu
+   kilit markanın kendisidir. İki satır hafif eğimle oturur, harfler sırayla
+   düşer (`--i` index'i JS'ten), kelimenin üzerinden periyodik ışık
+   süpürmesi geçer. Satır `overflow:hidden` düşüşü maskeler; süpürme overlay
+   blend'le yalnız harflerin üstünde parlar. */
+
+.home-wordmark {
+  position: absolute;
+  z-index: 2;
+  left: max(30px, env(safe-area-inset-left));
+  top: calc(max(10px, env(safe-area-inset-top)) + 16px);
+  display: flex;
+  align-items: center;
+  gap: 0.28em;
+  max-width: min(50vw, 640px);
+  transform: rotate(-2.5deg);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+
+.home-wm-mark {
+  flex: none;
+  width: clamp(40px, 4.4vw, 72px);
+  height: auto;
+  border-radius: 22%;
+  box-shadow: 0 0.14em 0.34em var(--scene-shadow);
+}
+
+.home-wm-line { overflow: hidden; }
+
+.home-wm-line.is-gold { margin-left: 0.34em; }
+
+.home-wm-letter {
+  --i: 0;
+  display: inline-block;
+  font: 900 clamp(36px, 5.2vw, 80px)/1.02 var(--font-grotesk);
+  letter-spacing: -0.02em;
+  color: var(--home-wordmark-ink);
+  text-shadow:
+    0 0.055em 0 var(--home-wordmark-shadow),
+    0 0.18em 0.5em var(--scene-shadow);
+  /* Giriş sonrası nefes: harfler sırayla yürüyen hafif bir dalga yapar.
+     Genlik ~%2 punto — marka okunaklı kalırken yazı "canlı" durur. Süre
+     uzun, dalga kısa: çoğu zaman durağan, ara sıra kıpırtı (gürültü değil). */
+  animation: homeWmWave 7.2s ease-in-out infinite;
+  animation-delay: calc(0.9s + var(--i) * 0.13s);
+}
+
+@keyframes homeWmWave {
+  0%, 70%, 100% { translate: 0 0; }
+  8%            { translate: 0 -0.05em; }
+  16%           { translate: 0 0.028em; }
+  24%           { translate: 0 0; }
+}
+
+.home-wm-line.is-gold .home-wm-letter { color: var(--home-wordmark-gold); }
+
+.home-scene.is-entering .home-wm-letter {
+  animation: homeLetterIn 560ms cubic-bezier(0.22, 1.35, 0.3, 1) both;
+  animation-delay: calc(120ms + var(--i) * 42ms);
+}
+
+@keyframes homeLetterIn {
+  0%   { opacity: 0; translate: 0 -0.9em; rotate: -6deg; }
+  62%  { opacity: 1; translate: 0 0.06em; rotate: 0deg; }
+  100% { opacity: 1; translate: 0 0; }
+}
+
+/* İkon harflerden bir adım önce oturur: kilit "mühürlenir", sonra yazı düşer. */
+.home-scene.is-entering .home-wm-mark {
+  animation: homeMarkIn 520ms cubic-bezier(0.22, 1.35, 0.3, 1) both;
+  animation-delay: 40ms;
+}
+
+@keyframes homeMarkIn {
+  0%   { opacity: 0; scale: 0.4; rotate: -14deg; }
+  100% { opacity: 1; scale: 1; rotate: 0deg; }
+}
+
+/* ── Sol sahne: karakter ────────────────────────────────────────────────
+   Karakter SAHNEDE durur: ayağı arena diskinin üst kenarındadır (`is-staged` +
+   `--scene-stage-y`, `scene.css`). Yatay konum `--hero-x`; kısa/dar ekranda
+   merkeze döner. Ortalama `transform` DEĞİL `margin-left` ile yapılır —
+   kabuğun odak ölçeği `translateX`'i ezerdi. */
+
 .home-hero {
-  --hero-size: min(62vh, 580px);
+  --hero-size: min(58vh, 520px);
   /* Ayağın (zemin gölgesi merkezinin) kutu tabanına uzaklığı:
-     `drawAvatarStage`de `groundY = h/2 + 1.02r`, `r = 0.34·s` → `0.153·s`.
-     Kahraman bu kadar AŞAĞI inince gölge tam olarak platformun eksenine oturur
-     (`--scene-stage-y`). */
+     `drawAvatarStage`de `groundY = h/2 + 1.02r`, `r = 0.34·s` → `0.153·s`. */
   --hero-ground-gap: calc(0.153 * var(--hero-size));
-  /* Işık konisinin çapı: gövdenin ~2.2 katı — gövdeyi sarar ama platformu
-     yıkamaz. */
   --hero-glow-size: calc(var(--hero-size) * 1.55);
-  left: 50%;
+  left: var(--hero-x);
   width: var(--hero-size);
-  /* Merkezleme BİLEREK `transform` DEĞİL: `[data-focus].is-focused`
-     (`shell.css`) odaklanan her öğeye `transform: scale()` uygular ve
-     `translateX(-50%)`'yi ezerdi — karakter odak alır almez sağa kayıyordu.
-     Negatif kenar boşluğu ölçekten bağımsız, her durumda tam merkez. */
   margin-left: calc(var(--hero-size) / -2);
 }
 
-/* Işık konisi gövde MERKEZİNE oturur. Merkez kutunun altından tam
-   `hero-size/2` yukarıdadır: `stageBodyCenter`'da `groundGap = min(w,h)/2 -
-   1.02r` ve `cy = groundY - 1.02r`, `r = 0.34·min(w,h)` olduğundan
-   `h - groundGap - cy = 0.5·min(w,h)` (canvas'ta min(w,h) = hero-size). */
 .home-hero .scene-hero-glow {
   left: 50%;
   bottom: calc(var(--hero-size) / 2);
@@ -73,20 +215,48 @@
 
 .home-hero-canvas {
   width: var(--hero-size);
-  /* Canvas kareden UZUNDUR: gövde altta oturur, üstte ~0.4×boy zıplama gökyüzü
-     vardır (`stageBodyCenter` alttan sabitler). Böylece art arda dokunuşta
-     istiflenen zıplama bitmap dışına taşmadan görünür. */
+  /* Canvas kareden UZUNDUR: gövde altta oturur, üstte ~0,4×boy zıplama gökyüzü
+     vardır (`stageBodyCenter` alttan sabitler). */
   height: calc(var(--hero-size) * 1.4);
+}
+
+.home-scene.is-entering .home-hero {
+  animation: homeHeroIn 660ms cubic-bezier(0.3, 1.25, 0.35, 1) both;
+  animation-delay: 90ms;
+}
+
+@keyframes homeHeroIn {
+  0%   { opacity: 0; translate: 0 -9vh; }
+  62%  { opacity: 1; translate: 0 1.4vh; }
+  100% { opacity: 1; translate: 0 0; }
+}
+
+/* Ayak altı halka nabzı: arenanın kalp atışı. Hareket yalnız bireysel
+   `scale` + `opacity`; duran `translate` konumlandırmadır, çarpışmaz. */
+.home-pulse {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--hero-ground-gap) - 10px);
+  width: 82%;
+  aspect-ratio: 1 / 0.3;
+  translate: -50% 50%;
+  border-radius: 50%;
+  border: 3px solid var(--home-pulse-line);
+  opacity: 0;
+  pointer-events: none;
+  animation: homePulseRing 3.6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+
+.home-pulse.is-2 { animation-delay: 1.8s; }
+
+@keyframes homePulseRing {
+  0%   { scale: 0.5; opacity: 0.5; }
+  70%  { opacity: 0; }
+  100% { scale: 1.65; opacity: 0; }
 }
 
 /* ── Karakter etkileşimi: dokunma ipucu + TV odak ipucu ── */
 
-/* "Karaktere dokun (Zıplat!)" — KİMLİK PLAKASININ ÜSTÜNDE, karakterin
-   dibinde tek satır. Eskiden kahraman kutusunun tepesine asılıydı; canvas
-   kareden %40 uzun olduğu için ekranın ta tepesine düşüyor ve karakterle
-   bağlantısı kopuyordu (kısa ekranda üstelik kırpılıyordu). Plakaya
-   bağlanınca her düzende karakterin hemen yanında kalır; ilk dokunuşta
-   `.hidden` ile kalkar. Okunurluk için gölge + `--hud-ink`. */
 .home-boing-hint {
   position: absolute;
   bottom: calc(100% + 6px);
@@ -103,19 +273,12 @@
   pointer-events: none;
 }
 
-/* Kumanda/klavye odağı: karakterin kendisi hedef — hafif büyüme "seçili"
-   hissi verir; Enter/OK aynı zıplama tepkisini tetikler (heroAvatar.js). */
 .home-hero.is-focused .home-hero-canvas {
   transform: scale(1.025);
 }
 
-/* ── Ortam: süzülen toz (üst boşluk) ─────────────────────────────────────
-   Sahnenin üst yarısı eskiden tamamen ölü gradyandı. Katman salt dekoratif:
-   odak hedefi değil, ekran okuyucuya kapalı, tıklamayı yutmaz. Her nokta
-   kendi konum/ölçü/gecikmesiyle gelir → tek tip sürü değil, dağınık toz.
-   Yalnız `transform`/`opacity` (AGENTS §8); `prefers-reduced-motion` altında
-   `animations.css` küresel kapısı animasyonu söndürür ve noktalar durağan
-   kalır — görüntü bozulmaz. */
+/* ── Ortam: süzülen renkli toz (üst boşluk) ─────────────────────────────── */
+
 .home-sky {
   position: absolute;
   inset: 0;
@@ -139,131 +302,355 @@
 .home-sky-dot.is-6 { left: 82%; top: 20%; width: 3px; height: 3px; animation-duration: 10s; animation-delay: -5s; opacity: 0.24; }
 .home-sky-dot.is-7 { left: 89%; top: 58%; width: 4px; height: 4px; animation-duration: 14s; animation-delay: -11s; opacity: 0.2; }
 
+/* Yarısı altın, yarısı krem: toz da sahnenin renk ailesinden olsun. */
+.home-sky-dot.is-1,
+.home-sky-dot.is-3,
+.home-sky-dot.is-5,
+.home-sky-dot.is-7 { background: var(--scene-spot); }
+
 @keyframes homeSkyFloat {
   0%, 100% { transform: translate3d(0, 0, 0); }
   50%      { transform: translate3d(5px, -16px, 0); }
 }
 
-@media (max-height: 470px), (max-width: 620px) {
-  .home-boing-hint { display: none; }
-  /* Kısa/dar ekranda dekoratif katman kapanır: boş alan yok, çizim bütçesi
-     oyun akışına kalsın. */
-  .home-sky { display: none; }
-}
+/* ── Ufuk vitrini: oyun kapakları ──────────────────────────────────────
+   Şerit ufuk çizgisinin hemen üstünde, karakterin ARKASINDA yüzer ve 4,8 sn'de
+   bir diğer kapağa kayar (döngü `homeShowcase.js`'tedir). Natif kaydırıcıdır:
+   parmakla itilir, `data-h-track` ile odak yolcusu odaklanan kapağı merkezler.
+   Kenar maskesi kapakları ekran kenarında eritir. */
 
-/* ── Sağ alt: ODA KUR + OYNA çifti ────────────────────────────────────────
-   İki ana eylem tek bir satırda: ikincil (teal) solda, ana eylem (altın)
-   sağda. Daha önce ayrı köşelerdeydiler ve sahne ikiye bölünüyordu. */
-
-/* ── Sağ alt eylem sırası: KOD GİR · ODA KUR · OYNA ─────────────────────
-   Üç eylem tek satırda ve ÜÇÜ DE AYNI YÜKSEKLİKTE (100px): aynı kart
-   geometrisi, aynı taban çizgisi. Giriş (KOD GİR) cam, oda turkuaz, oyun
-   altın; hiyerarşi RENKTEN değil GENİŞLİKTEN gelir — OYNA daha geniş ve
-   etiketi büyüktür ama kardeşlerinden daha kısa değildir. */
-
-.home-actions {
+.home-marquee {
+  /* Odak oranı (JS de buradan okur) ve boşluk payı (yarı kapak genişliği):
+     breakpoint'ler yalnız bu iki sayıyı değiştirir. */
+  --mq-focus: 0.56;
+  --mq-edge: 66px;
   position: absolute;
-  right: max(26px, env(safe-area-inset-right));
-  bottom: max(22px, env(safe-area-inset-bottom));
+  z-index: 1;
+  left: 0;
+  /* Şerit FEATURED kartının ALTINDAN değil YANINDAN biter: kapaklar opaktan
+     geçip yarıda kesilmez, kenar maskesi kartın önünde söner. */
+  right: calc(max(24px, env(safe-area-inset-right)) + var(--rail-w) + 34px);
+  top: calc(var(--scene-stage-y) - clamp(150px, 24vh, 260px));
   display: flex;
-  align-items: flex-end;
-  gap: 10px;
+  align-items: center;
+  gap: clamp(10px, 1.2vw, 20px);
+  padding: 16px 0 26px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
+}
+
+.home-marquee::-webkit-scrollbar { display: none; }
+
+/* İlk/son kapağın DA odak noktasına gelebilmesi için boşluklar: odak oranı
+   kadar kaydırılabilir alan (en az `şerit×odak − kapak/2`). % tabanı kapsayıcı
+   genişliğidir; JS'te ölçüme gerek kalmaz. */
+.home-marquee::before,
+.home-marquee::after {
+  content: '';
+}
+
+.home-marquee::before { flex: 0 0 calc(var(--mq-focus) * 100% - var(--mq-edge)); }
+.home-marquee::after { flex: 0 0 calc(100% - var(--mq-focus) * 100% - var(--mq-edge)); }
+
+.home-marquee-item {
+  position: relative;
+  flex: 0 0 auto;
+  width: clamp(84px, 9vw, 128px);
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  background: none;
+  cursor: pointer;
+  opacity: 0.55;
+  scale: 0.82;
+  transition:
+    scale 300ms cubic-bezier(0.2, 0.9, 0.3, 1),
+    opacity 300ms ease,
+    filter 300ms ease;
+}
+
+.home-marquee-art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: inherit;
+  border: 2px solid var(--scene-edge);
+  box-shadow: 0 10px 22px var(--scene-btn-shadow);
+}
+
+.home-marquee-item:hover { opacity: 0.9; }
+
+.home-marquee-item.is-featured {
+  opacity: 1;
+  scale: 1.14;
+  filter: saturate(1.08);
+  z-index: 2;
+}
+
+.home-marquee-item.is-featured .home-marquee-art {
+  border-color: var(--scene-spot);
+  box-shadow: 0 14px 28px var(--scene-shadow), 0 0 26px var(--glow-accent-soft);
+}
+
+.home-scene.is-entering .home-marquee {
+  animation: homeStripIn 560ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  animation-delay: 260ms;
+}
+
+@keyframes homeStripIn {
+  0%   { opacity: 0; translate: 0 -18px; }
+  100% { opacity: 1; translate: 0 0; }
+}
+
+/* ── FEATURED kartı: vitrinin merkeze bakan kapağı ─────────────────────
+   Sağ kolonun tepesinde; tek dokunuşla o oyunla sahaya geçilir. KALDIĞIN YER
+   kaydı vitrinin başlangıç kapağı olduğu için ayrı çip yoktur — overline
+   "KALDIĞIN YER"e döner. Kapak nefes alır (`scale`), kart hover'da kalkar. */
+
+.home-featured {
+  position: absolute;
   z-index: 3;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: calc(max(22px, env(safe-area-inset-bottom)) + var(--rail-stack-h) + 14px);
+  width: var(--rail-w);
+  padding: 0;
+  border: 3px solid var(--hud-line);
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--hud-surface);
+  box-shadow: 0 16px 34px var(--scene-shadow);
+  color: var(--hud-ink);
+  text-align: start;
+  cursor: pointer;
+  transition: translate 220ms ease, border-color 220ms ease;
 }
 
-.home-join,
-.home-room,
-.home-play {
-  position: static;
-  transform: none;
-  margin: 0;
-  /* Eşit yükseklik: OYNA'nın altın kütlesi en uzun içeriğe sahip, üçü de onun
-     ölçüsüne çekilir — kardeşler aynı taban çizgisinde oturur. */
-  min-height: 104px;
+.home-featured:hover {
+  translate: 0 -3px;
+  border-color: var(--hud-ink);
 }
 
-/* KOD GİR: ODA KUR ile aynı kart geometrisi, KENDİ RENGİYLE (mor) — alt bant
-   üç eylemi birbirinden ayırır (giriş / oda / oyun). OYNA altın kalır. */
-.home-join {
-  flex-direction: column;
+.home-featured:active { translate: 0 1px; }
+
+.home-featured-art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  scale: 1.06;
+  animation: homeCoverBreathe 11s ease-in-out infinite;
+}
+
+@keyframes homeCoverBreathe {
+  0%, 100% { scale: 1.06; }
+  50%      { scale: 1.13; }
+}
+
+.home-featured-copy {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  width: 120px;
-  padding: 14px 10px 12px;
+  gap: 10px;
+  padding: 24px 12px 10px;
+  background: linear-gradient(0deg, var(--scrim-strong) 8%, transparent 100%);
 }
 
-.home-join .scene-btn-icon { width: 52px; height: 52px; border-radius: 17px; }
-.home-join .scene-btn-label { font-size: 12px; }
-.home-join .scene-btn-sub { display: none; }
-
-.home-room {
+.home-featured-text {
+  display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  width: 120px;
-  padding: 14px 10px 12px;
+  gap: 2px;
+  min-width: 0;
 }
 
-.home-room .scene-btn-icon { width: 52px; height: 52px; border-radius: 17px; }
-.home-room .scene-btn-label { font-size: 12px; }
-.home-room .scene-btn-sub { display: none; }
+.home-featured-overline {
+  font: 800 9px/1.3 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold-deep);
+}
 
-/* OYNA: aynı yükseklik, daha geniş gövde + büyük etiket (altın ana eylem). */
+.home-featured.is-resume .home-featured-overline { color: var(--hud-muted); }
+
+.home-featured-title {
+  font: 900 15px/1.15 var(--font-grotesk);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-featured-go {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--grad-accent);
+  color: var(--on-accent);
+  box-shadow: 0 4px 0 var(--accent-ink);
+  line-height: 0;
+  transition: scale 200ms cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+
+.home-featured:hover .home-featured-go { scale: 1.1; }
+
+.home-scene.is-entering .home-featured {
+  animation: homeCardIn 460ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  animation-delay: 180ms;
+}
+
+/* ── Sağ kolon: OYNA + ODA KUR / KOD GİR ───────────────────────────────
+   Üç eylem tek kolonda: hiyerarşi GENİŞLİK + RENKTEN gelir (altın tam genişlik,
+   ikili alt satırda). Aynı geometri (`scene-btn` ailesi). */
+
+.home-rail {
+  position: absolute;
+  z-index: 3;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  width: var(--rail-w);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .home-play {
-  width: 168px;
+  width: 100%;
+  min-height: 112px;
   padding: 10px 18px;
   justify-content: center;
-  gap: 12px;
+  gap: 14px;
+  border-radius: 22px;
   animation: homePlayGlow 2.6s ease-in-out infinite;
+  overflow: hidden; /* ışık süpürmesi buton kasasında kırpsın */
 }
 
-.home-play .scene-btn-icon { width: 46px; height: 46px; border-radius: 16px; }
-.home-play .scene-btn-label { font-size: 20px; letter-spacing: 0.05em; }
-/* İkinci satır şeritteki bilgiyle aynı (bkz. `.home-facts`); kart genişliği
-   bütçesini korumak için burada taşınmaz. */
+/* Işık süpürmesi marka kilidinden OYNA'ya devredildi: jest artık ana
+   eylemi parlatıyor. Bant genişliği = buton genişliği; -100%→+100%
+   yolculuğu kutunun kenarlarında başlar/biter ve opaklık yalnız kutu
+   içindeyken açıktır — buton dışında boşlukta akan kamaşma yoktur. */
+.home-play::after {
+  content: '';
+  position: absolute;
+  inset: -30% 0;
+  background: linear-gradient(105deg, transparent 42%, var(--home-play-sheen) 50%, transparent 58%);
+  mix-blend-mode: screen;
+  transform: translateX(-100%);
+  animation: homePlaySheen 6.5s ease-in-out 2.6s infinite;
+  pointer-events: none;
+}
+
+@keyframes homePlaySheen {
+  0%   { transform: translateX(-100%); opacity: 0; }
+  3%   { opacity: 1; }
+  12%  { opacity: 1; }
+  15%  { transform: translateX(100%); opacity: 0; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+.home-play .scene-btn-icon { width: 52px; height: 52px; border-radius: 18px; }
+.home-play .scene-btn-label { font-size: 24px; letter-spacing: 0.05em; }
 .home-play .scene-btn-sub { display: none; }
-
-.home-play:active { animation: none; }
-
-/* Genişlik merdiveni: daralan ekranda üç kart da küçülür ama ÜÇÜ BİRLİKTE
-   (basamak sayısı paylaşılır, aynı taban çizgisi korunur). Merkezdeki plaka ve
-   bilgi şeridi artık bu bantla çakışmıyor: plaka karakterin üstünde/altında
-   ortada, şerit alt solda, bant sağ altta — üçü farklı köşede. */
-@media (max-width: 1320px) {
-  .home-join,
-  .home-room { width: 104px; }
-  .home-play { width: 146px; }
-}
-
-@media (max-width: 1000px) {
-  .home-join,
-  .home-room { width: 92px; }
-  .home-play { width: 128px; }
-}
 
 @keyframes homePlayGlow {
   0%, 100% { box-shadow: 0 8px 0 var(--play-edge), 0 18px 32px var(--scene-shadow), 0 0 28px var(--glow-accent-soft); }
   50%      { box-shadow: 0 8px 0 var(--play-edge), 0 18px 32px var(--scene-shadow), 0 0 50px var(--glow-accent-soft); }
 }
 
-/* ── İsim rozeti: isim + üç nokta, YUKARI açılan menü ───────────────────
-   Rozet satır olur (isim alanı + kuyruktaki `⋮`); menü rozetin ÜSTÜNE açılır
-   (`bottom: 100%`) — alta taşma olmaz. İki öğe (isimi düzenle / rastgele nick)
-   ≥44px dokunma hedefiyle alt alta dizilir. */
+.home-rail-duo { display: flex; gap: 14px; }
 
-/* ── Kimlik plakası: iki satır ─────────────────────────────────────────
-   Satır 1 isim + `⋮` (aynı satırda, `home-identity-row`), satır 2 kimlik
-   özeti (`· ` ile ayrılmış platform modu · gövde rengi · yüz). Plaka TEK
-   yüzeydir: eskiden yalnız nick vardı ve karakterin kimliği hiçbir yerde
-   okunmuyordu. Genişlik `max-width` ile sınırlıdır — dar ekranda plaka
-   karakterin yanına taşmaz, metin üç noktayla kısalır. */
+.home-join,
+.home-room {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 98px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 10px 12px;
+}
+
+.home-join .scene-btn-icon,
+.home-room .scene-btn-icon { width: 52px; height: 52px; border-radius: 17px; }
+.home-join .scene-btn-label,
+.home-room .scene-btn-label { font-size: 12px; }
+.home-join .scene-btn-sub,
+.home-room .scene-btn-sub { display: none; }
+
+/* Girdi koreografisi: kolon sağdan sırayla oturur. */
+.home-scene.is-entering .home-play {
+  animation: homeCardIn 460ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  animation-delay: 300ms;
+}
+
+.home-scene.is-entering .home-rail-duo {
+  animation: homeCardIn 460ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  animation-delay: 400ms;
+}
+
+@keyframes homeCardIn {
+  0%   { opacity: 0; translate: 48px 0; }
+  100% { opacity: 1; translate: 0 0; }
+}
+
+/* Butonlar yaşasın: basışta yay geri tepmesi (`scale` bireysel — `scene.css`
+   press `transform`'ını ezmez), odakta ikon pop'u. */
+.home-rail .scene-btn:active {
+  animation: homePressSpring 300ms ease-out;
+}
+
+@keyframes homePressSpring {
+  0%   { scale: 0.975; }
+  55%  { scale: 1.012; }
+  100% { scale: 1; }
+}
+
+.home-rail .scene-btn.is-focused .scene-btn-icon {
+  animation: homeIconPop 320ms cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+@keyframes homeIconPop {
+  0%, 100% { scale: 1; }
+  45%      { scale: 1.16; }
+}
+
+.home-scene.is-entering .home-side {
+  animation: homeFadeIn 520ms ease both;
+  animation-delay: 500ms;
+}
+
+.home-scene.is-entering .home-facts {
+  animation: homeFadeIn 620ms ease both;
+  animation-delay: 650ms;
+}
+
+@keyframes homeFadeIn {
+  from { opacity: 0; }
+}
+
+/* ── Kimlik plakası ──────────────────────────────────────────────────────
+   Karakterin kartviziti: satır 1 isim + `⋮`, satır 2 renk örneği · gövde
+   rengi · yüz. Mod etiketi bilinçli YOK — plaka karakterin kimliğidir,
+   bağlantının değil. Uzun metin asla taşmaz: ad ve meta kendi ellipsis'ini
+   taşır; plaka `max-width` ile kaskatı sınırlıdır. */
 
 .home-identity {
   position: relative;
   flex-direction: column;
   align-items: stretch;
-  gap: 3px;
-  max-width: min(300px, 40vw);
+  gap: 4px;
+  padding: 7px 7px 7px 14px;
+  border-radius: 18px;
+  border-width: 1.5px;
+  max-width: min(280px, 40vw);
 }
 
 .home-identity-row {
@@ -279,115 +666,55 @@
 }
 
 .home-identity-meta {
-  font: 800 9.5px/1.25 var(--font-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  text-align: center;
-  color: var(--hud-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.home-more-btn { flex: 0 0 auto; }
-
-.home-more-menu {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  right: 0;
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 216px;
-  max-width: calc(100vw - 24px);
-  padding: 6px;
-  border-radius: var(--radius-card);
-  background: var(--hud-surface);
-  border: 2px solid var(--hud-line);
-  box-shadow: 0 14px 30px var(--scene-shadow);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  opacity: 0;
-  transform: translateY(6px);
-  pointer-events: none;
-  transition: opacity 160ms ease, transform 160ms ease;
-}
-
-.home-more-menu.is-open {
-  opacity: 1;
-  transform: none;
-  pointer-events: auto;
-}
-
-.home-more-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 0;
-  border-radius: var(--radius-btn);
-  background: transparent;
-  color: var(--hud-ink);
-  font: 800 12px/1.2 var(--font-grotesk);
-  letter-spacing: 0.03em;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  font: 800 9px/1.2 var(--font-mono);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  text-align: start;
-  cursor: pointer;
+  color: var(--hud-muted);
+}
+
+/* Swatch = karakterin GERÇEK gövde rengi (JS profil değerini boyar): renk
+   artık yalnız sözcük değil, görüntü. Halkası yüzeyde okunur kalır. */
+.home-identity-swatch {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--hud-muted);
+  box-shadow: 0 0 0 1.5px var(--sheen-15);
+}
+
+.home-identity-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.home-more-item:hover { background: var(--sheen-15); }
-.home-more-item:active { transform: scale(0.98); }
-
-.home-more-icon {
-  display: grid;
-  place-items: center;
+/* Kompakt simge şeridi (açılır menünün yerine): ada yapışık sağ grup —
+   kalem (adı düzenle) ve tek zar (isim + karakter birlikte). Düğme
+   geometrisi `home-name-action` (30px cam daire). */
+.home-identity-tools {
   flex: 0 0 auto;
-  line-height: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-more-menu { transition: none; }
-}
-
-/* ── Dar ekran: plaka karakterin BAŞININ ÜSTÜNE taşınır ───────────────────
-   Alt bantta (platform önü) plaka ile eylem kartları aynı çizgiye düşüyordu:
-   740×560'ta ad "MİNİK ASL…" olarak KODU GİR kartının arkasında kalıyordu ve
-   bu, ölçü ayarıyla değil YERLEŞİMLE çözülmesi gereken bir çakışmaydı.
-   Baş üstü yüksekliği gövde geometrisinden türer (`stageBodyCenter`):
-   gövde yarıçapı 0.34·s, gövde merkezi kutunun altından 0.5·s yukarıda →
-   baş tepesi kutu üstünden 1.4s − 0.5s − 0.34s = 0.56·s aşağıdadır; plaka
-   0.52·s'te durur, yani başın 0.04·s üstünde. */
-@media (max-width: 1000px) {
-  .home-hero.is-staged .home-identity {
-    top: auto;
-    bottom: calc(100% - 0.52 * var(--hero-size));
-    max-width: min(260px, 44vw);
-  }
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
 }
 
 /* ── KURULUM düğmesi — "beni yükle" nabzı ───────────────────────────────
-   `.available` yalnız kurulum GERÇEKTEN yapılabilirken basılır
-   (`ui/toast.js`: Chrome istemi hazır, ya da iOS'ta Ana Ekran'a Ekle
-   açık). Döngü 2.6 sn'dir ve çevrimin çoğunda düğme durur — kalıcı
-   titreme değil, arada bir göz kırpan bir davet.
+    `.available` yalnız kurulum GERÇEKTEN yapılabilirken basılır (`toast.js`).
+    Hareket `translate` BİREYİ özelliğiyle yazılır: kabuğun odak ölçeği
+    `transform`'ı ezmez. Sönme görüntü bozmaz (keyframe 0'da biter). */
 
-   Hareket `translate` BİREYİ özelliğiyle yazılır: kabuğun
-   `[data-focus].is-focused { transform: scale(...) }` kuralı `transform`
-   animasyonunu ezer (bu dosyanın başındaki uyarı), `translate` ise onunla
-   çarpışmadan üstüne biner. `prefers-reduced-motion` küresel olarak
-   `animations.css §9`'da söner; anahtar kareler durdukları değerde
-   (translate 0) bittiği için sönme görüntü bozmaz. */
 .home-install.available {
   animation: homeInstallBob 2.6s ease-in-out infinite;
 }
 
-/* Hareket `translate` BİREYİ, çiplerin sert kenarı (`--scene-chip-edge`)
-   ise kutunun kendi gölgesidir: ikisi ayrı özellik, birbirini ezmez —
-   keyframe'lerde gölge kopyalanmaz. */
 .home-install.available .scene-btn-icon {
   box-shadow: 0 0 18px var(--glow-success);
 }
@@ -404,39 +731,7 @@
   92% { translate: 0 0; }
 }
 
-/* ── Üst sol: KALDIĞIN YER ───────────────────────────────────────────────
-   Markanın ALTINA hizalanır. Sahnenin en büyük ölü alanı burasıydı (üst sol):
-   artık işe yarar bir giriş taşır. Madalyonda oyunun KAPAĞI vardır, yanında
-   etiket + oyun adı (`scene-btn.is-chip` ailesi — aynı geometri, aynı kenar).
-   Sol rayle dikeyde kesişmez: ray dikey ortada, çip üstte; çakışma yalnız
-   çok kısa ekranda (<470px) mümkündür, orada çip kapanır. */
-.home-resume {
-  position: absolute;
-  left: max(26px, env(safe-area-inset-left));
-  top: calc(max(10px, env(safe-area-inset-top)) + 52px);
-  z-index: 3;
-  min-width: 208px;
-  max-width: min(320px, 32vw);
-}
-
-.home-resume .scene-btn-icon { width: 42px; height: 42px; border-radius: 13px; }
-
-/* Oyun adı tek satırda kalır; uzun adlar üç noktayla kısalır (çip genişliği
-   metne göre büyümez — komşu köşelerle hizası bozulmasın). */
-.home-resume .scene-btn-sub {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ── Sağ kenar: YÜKLE · GÜNCELLE — sistem işleri köşesi ──────────────────
-   Çipler kabuğun sistem simgelerinin (ses / dil / tam ekran) ALTINA hizalanır:
-   üst sağ köşe "sistem" bölgesidir. Eskiden dikey ortada, sahnenin boşluğunda
-   asılı duruyorlardı — hiçbir şeye bağlı değillerdi (kullanıcı raporu: "havada
-   duran kutular"). YÜKLE uygulamayı kurar, GÜNCELLE yeni sürümü uygular /
-   denetler; YÜKLE yalnız uygulama yüklenebilir durumdayken görünür
-   (`toast.js` `.hidden`). KOD GİR de bu çip ailesindendir ama oyun akışının
-   girişi olduğu için sağ alt banttadır. */
+/* ── Sağ kenar: YÜKLE · GÜNCELLE — sistem işleri köşesi ──────────────── */
 
 .home-side {
   position: absolute;
@@ -470,8 +765,7 @@
 #home-install .scene-btn-icon { background: var(--scene-teal-mid); color: var(--play-ink); }
 #home-update .scene-btn-icon { background: var(--accent-soft); color: var(--accent); }
 
-/* Sürüm hazır: kenar + madalyon turuncuya döner, madalyon nabız atar
-   (yalnız `transform` — §8 hareket kuralı). */
+/* Sürüm hazır: kenar + madalyon turuncuya döner, madalyon nabız atar. */
 #home-update.has-update { border-color: var(--accent); }
 #home-update.has-update .scene-btn-icon {
   background: var(--accent);
@@ -484,12 +778,8 @@
   82% { transform: scale(1.12); }
 }
 
-/* ── Bilgi şeridi ───────────────────────────────────────────────────────
-   ALT SOL: oyun/oyuncu/mod özeti. Eskiden alt ortadaydı ve eylem kartlarının
-   tam altına düşüyordu; bu yüzden ≤1320px'te tamamen kapatılmıştı — yani
-   ekranın en bilgilendirici satırı en yaygın genişlikte hiç görünmüyordu.
-   Sol alt köşe boştur (ray dikey ortada, bant sağda), şerit oraya taşındı ve
-   artık KIRPILMAZ: satır sarması serbest, genişlik sınırlı. */
+/* ── Bilgi şeridi (alt sol) ───────────────────────────────────────────── */
+
 .home-facts {
   position: absolute;
   left: max(26px, env(safe-area-inset-left));
@@ -508,35 +798,122 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
-/* ── Kısa ekran (telefon yatay) ──────────────────────────────────────── */
+/* ── Kademeli daralma (yatay tablet) ──────────────────────────────────── */
 
-@media (max-height: 470px) {
-  /* Kısa ekranda kahraman küçülür; AYAĞIN oturduğu çizgi (`--scene-stage-y`)
-     değişmez, sadece ölçek küçülür. */
-  .home-hero { --hero-size: min(40vh, 260px); }
-  .home-identity { padding: 4px 8px 4px 12px; border-width: 1.5px; }
+/* 1100–1750px arası: maksimum boyuttaki kahraman topu şerit merkeziyle
+   çakışmaya başlar — odak topun sağına erken kaçar. */
+@media (max-width: 1750px) {
+  .home-marquee { --mq-focus: 0.7; }
+}
 
-  .home-actions {
-    right: max(16px, env(safe-area-inset-right));
-    bottom: max(12px, env(safe-area-inset-bottom));
-    gap: 8px;
+@media (max-width: 1100px) {
+  .home-scene {
+    --hero-x: 35%;
+    --rail-w: clamp(216px, 25vw, 280px);
+    --rail-stack-h: 206px;
   }
+  /* Dikey daraldı: kartla kahraman arasındaki tek temiz cep sağda — odak
+     oraya kayar (boşluklar `--mq-focus`'tan türediği için birlikte gider). */
+  .home-marquee { --mq-focus: 0.86; }
+  .home-play { min-height: 98px; }
+  .home-play .scene-btn-label { font-size: 20px; }
+  .home-play .scene-btn-icon { width: 44px; height: 44px; }
   .home-join,
-  .home-room {
-    width: 88px;
-    padding: 10px 6px 9px;
+  .home-room { min-height: 88px; }
+  .home-join .scene-btn-icon,
+  .home-room .scene-btn-icon { width: 44px; height: 44px; border-radius: 15px; }
+  .home-featured-art { aspect-ratio: 16 / 11; }
+}
+
+@media (max-width: 900px) {
+  .home-scene { --hero-x: 38%; }
+}
+
+/* Plaka ayağın ALTINDAYKEN bilgi şeridiyle çarpışır: kahraman sola geçince
+   plaka şeridin üstüne düşer (eski düzen 50%'te olduğu için çakışmazdı).
+   Kaplama hesabı: kanvas tabanı = stage-y·H + 0,153·s, plaka ~44px; şerit
+   ise alttan ~66px yer kaplar. Bu ancak H ≳ 900'de ayrışır — üstü büyük
+   masaüstüdür, plaka orada ayak altında kalabilir. Dar dikey ekran (rotate
+   gate arkası) her zaman baş-üstüne geçer. */
+@media (max-height: 900px), (max-width: 620px) {
+  .home-hero.is-staged .home-identity {
+    top: auto;
+    bottom: calc(100% - 0.52 * var(--hero-size));
+    max-width: min(280px, 44vw);
+  }
+}
+
+/* ── Telefon yatay / dar ekran ─────────────────────────────────────────
+   Ana cihaz BURASI (844×390 · 930×430) — tasarım dili küçülerek gelir,
+   kaybolmaz: marka kilidi (ikon + iki satır) ÜST-SOL köşededir — kabuğun
+   eski çipi ana menüde zaten gizli; kapak vitrini karakterin BELİNDEN geçer,
+   FEATURED kart başparmak bölgesinde (alt sol) ve şerit onun sağından
+   başlar, eylemler sağ-alt banta katlanır. Kimlik plakası karakterin BAŞINA
+   taşınır: alt bantla çakışmasın. Dikey (rotate gate arkası) sade kalır. */
+
+@media (max-height: 470px), (max-width: 620px) {
+  .home-scene {
+    --hero-x: 50%;
+    /* Ayak çizgisi alt bandın ÜSTÜNDE kalmalı: bant ~96px + güvenli bölge
+       yer; 82% kısa ekranda gövdenin altını bandın arkasına gömer. */
+    --scene-stage-y: 74%;
+  }
+  .home-hero { --hero-size: min(40vh, 250px); }
+
+  .home-wordmark { display: none; }
+  .home-marquee { display: none; }
+  .home-aurora-blob.is-c { display: none; }
+  .home-boing-hint { display: none; }
+  .home-facts { display: none; }
+
+  /* FEATURED → alt sol mini yatay kart (başparmak bölgesi; sağ-alt bantla
+   aynı hizada, sahnenin altında durur). Sol gezinme kapsülü (ray) dikey
+   ortada durur ve alt ucu bu satıra iner — kart onun SAĞINDAN başlar. */
+  .home-featured {
+    top: auto;
+    right: auto;
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 94px);
+    left: calc(96px + env(safe-area-inset-left));
+    width: min(220px, 52vw);
+    display: flex;
+    align-items: stretch;
+    border-width: 2px;
     border-radius: 16px;
   }
-  .home-join,
-  .home-room,
-  .home-play { min-height: 80px; }
-  .home-join .scene-btn-icon,
-  .home-room .scene-btn-icon { width: 38px; height: 38px; border-radius: 13px; }
-  .home-join .scene-btn-label,
-  .home-room .scene-btn-label { font-size: 9.5px; letter-spacing: 0.06em; }
+  .home-featured-art {
+    width: 74px;
+    height: auto;
+    aspect-ratio: 1;
+    animation: none;
+    scale: 1;
+  }
+  .home-featured-copy {
+    position: static;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 6px 8px;
+    background: none;
+  }
+  .home-featured-title { font-size: 12px; }
+  .home-featured-overline { font-size: 8px; }
+  .home-featured-go { width: 30px; height: 30px; }
 
+  /* Kolon → alt bant (sağ-alt köşe): duo solda sabit genişlik, OYNA sağda.
+     Bant ekranı germez — eski davranış gibi köşede durur. */
+  .home-rail {
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: auto;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .home-rail-duo { order: 1; flex: 0 0 auto; gap: 10px; }
   .home-play {
-    width: 132px;
+    order: 2;
+    flex: 0 0 auto;
+    width: 140px;
+    min-height: 84px;
     padding: 8px 12px;
     gap: 8px;
     border-radius: 18px;
@@ -545,7 +922,20 @@
   }
   .home-play .scene-btn-icon { width: 34px; height: 34px; border-radius: 12px; }
   .home-play .scene-btn-label { font-size: 17px; }
+  .home-join,
+  .home-room {
+    flex: 0 0 auto;
+    width: 104px;
+    min-height: 84px;
+    padding: 10px 6px 9px;
+    border-radius: 16px;
+  }
+  .home-join .scene-btn-icon,
+  .home-room .scene-btn-icon { width: 38px; height: 38px; border-radius: 13px; }
+  .home-join .scene-btn-label,
+  .home-room .scene-btn-label { font-size: 9.5px; letter-spacing: 0.06em; }
 
+  /* Üst sağ sistem çipleri kompakt. */
   .home-side {
     right: max(14px, env(safe-area-inset-right));
     gap: 7px;
@@ -562,63 +952,61 @@
   .home-update .scene-btn-icon { width: 30px; height: 30px; border-radius: 10px; }
   .home-install .scene-btn-label,
   .home-update .scene-btn-label { font-size: 10.5px; letter-spacing: 0.04em; }
-
-  /* Kısa ekranda üst sol köşe daralır: rayle (dikey ortada) çakışmayı
-     yapısal olarak kesmek için kayıt çipi kapanır. Kayıt verisi kaybolmaz —
-     OYUNLAR ekranındaki kartlar aynı bilgiyi taşır. */
-  .home-resume { display: none; }
-  .home-facts { display: none; }
 }
 
-/* Aşırı kısa yatay (<300px): sağ-üst çip yığını üç kartlık eylem bandının
-   üstüne biner — çipler kapanır. Bu yükseklikte bilgi değil yer kıymetlidir;
-   YÜKLE/GÜNCELLE aynı anda Ayarlar'dan da erişilebilir. */
+/* Yatay telefon (asıl cihaz): kelime markası ve vitrin geri gelir — boyut
+   küçülür, dil korunur. Marka ÜST-SOL köşededir (kabuğun eski çipi ana
+   menüde zaten gizli, mükerrer marka yok): ikon + iki satır, sahnedeki
+   kilitle aynı oran. Vitrin karakterin belinden geçer; odak %74'te ki
+   featured kapak topun sağında görünsün. */
+@media (max-height: 470px) {
+  .home-wordmark {
+    display: flex; /* birleşik telefon bloğu gizlemişti; konum taban stildir */
+    max-width: none;
+    /* Ray kapsülü dikey ortada ~%22'den başlar; kilit onun ÜSTÜNDE kalmalı. */
+    top: calc(max(10px, env(safe-area-inset-top)) + 10px);
+  }
+  .home-wm-mark { width: clamp(34px, 9.5vh, 52px); }
+  .home-wm-letter { font-size: clamp(20px, 5.8vh, 28px); }
+
+  .home-marquee {
+    display: flex;
+    --mq-focus: 0.5;
+    --mq-edge: 36px;
+    /* Sabit genişlikli vitrin koridoru: topun sağından ekran kenarına.
+       Kapaklar bu pencerenin içinden geçer (giriş/çıkış maskeli) — uçları
+       hiçbir HUD'un altında kaybolmaz; FEATURED kart (alt sol) koridora
+       hiç girmez. */
+    left: calc(50% + 66px);
+    right: max(10px, env(safe-area-inset-right));
+    /* Şerit gövde merkezinden geçer: ~stage-y − 0,34·boyut. %53 kısa
+       yatayda (390–430) topun üst-yarısına oturur, plakaya (≤%45) dokunmaz. */
+    top: 53%;
+    gap: 8px;
+    padding: 6px 0 10px;
+  }
+  .home-marquee-item { width: clamp(54px, 6.8vw, 72px); border-radius: 14px; opacity: 0.75; }
+  .home-marquee-item.is-featured { scale: 1.08; }
+}
+
+/* Dikey telefon (rotate gate arkasında): alt bant alt kenarı tamamen kaplar;
+   oda alt etiketi geri açılır (eski davranış). */
+@media (max-width: 620px) {
+  .home-scene { --scene-stage-y: 76%; }
+  .home-hero { --hero-size: min(26vh, 200px); }
+  .home-room .scene-btn-sub { display: block; }
+}
+
+/* Aşırı kısa yatay (<300px): sistem çipleri kapanır (Ayarlar'dan erişilebilir). */
 @media (max-height: 300px) {
   .home-side { display: none; }
 }
 
-/* Dar + uzun (dikey telefon — rotate gate arkasında).
-   Yatay düzende üç ayrı kutu (sol eylem / sahne / sağ eylem) yan yana durur
-   ve dar ekranda üst üste biner. Dar düzen YIĞINIR: eylemler üstte tek sıra →
-   sahne ortada → OYNA altta tam genişlik. */
-@media (max-width: 620px) {
-  /* Dar düzende (dikey telefon — rotate gate arkasında) alt şerit eylemler
-     tam genişlikte sahnenin yerini alıyor: kahraman küçülür ve platformun
-     arka kenarına yakın bir çizgiye çekilir, böylece isim rozeti butonların
-     arkasında kalmaz. Yatay düzende (asıl hedef) bu kural oynamaz. */
-  .home-scene { --scene-stage-y: 76%; }
-  .home-hero { --hero-size: min(26vh, 200px); }
-
-  /* Yığın: KOD GİR + ODA KUR + OYNA altta tam genişlik, iki çip üstte sağda. */
-  .home-actions {
-    left: max(12px, env(safe-area-inset-left));
-    right: max(12px, env(safe-area-inset-right));
-    bottom: max(12px, env(safe-area-inset-bottom));
-    align-items: stretch;
-  }
-  .home-join,
-  .home-room,
-  .home-play {
-    flex: 1 1 0;
-    width: auto;
-    min-height: 96px;
-    justify-content: center;
-    padding: 12px 14px 14px;
-    border-radius: 18px;
-  }
-  .home-room .scene-btn-sub { display: block; }
-
-  /* Sağ üst çip yığını kabuk simgelerinin altında kalır: kabuk sağ üstü kendi
-     yönetir (ses/dil/tam ekran), home ona dokunmaz — dar düzende de aynı
-     çizgi (`+52px`). */
-  .home-side {
-    top: calc(max(10px, env(safe-area-inset-top)) + 52px);
-    bottom: auto;
-    transform: none;
-    right: max(12px, env(safe-area-inset-right));
-  }
-
-  /* Bilgi şeridi KAPALI: dar düzende eylem bandı alt kenarı tamamen kaplar,
-     bilgi satırı için dikey yer kalmaz (yatay düzende alt solda görünür). */
-  .home-facts { display: none; }
+/* Ana menüde kabuğun köşe çipi GİZLİDİR: sahnenin marka kilidi (ikon +
+   wordmark) markanın kendisidir — aynı köşede iki marka mükerrer. Diğer
+   ekranlarda (katalog/oda/profil) çip durur; gezinme kaybı yok, ray'daki
+   ANASAYFA her görünümde erişilebilir. */
+#app-shell:has(.home-scene) .shell-brand {
+  display: none;
 }
+

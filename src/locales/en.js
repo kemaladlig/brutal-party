@@ -456,18 +456,16 @@ export const EN = {
   'shell.room.sectionSeats': 'PLAYERS',
   'lobby.missing': 'Room screen could not be loaded.',
   'shell.home.facts': '15 GAMES · 2-4 PLAYERS · ONE DEVICE OR ONLINE',
-  // Resume chip + identity plate. Mode names match `platformMode` values
-  // (LOCAL / TV_CONSOLE / ONLINE → `homeView.platformKey`).
+  // Showcase (marquee + featured card). Featured game rotates; with a resume
+  // record the first target is the resume game.
+  'shell.home.featured': 'FEATURED',
   'shell.home.resume': 'PICK UP WHERE YOU LEFT',
-  'shell.mode.local': 'ONE DEVICE',
-  'shell.mode.tv': 'TV MODE',
-  'shell.mode.online': 'ONLINE',
   'menu.avatarBadge': 'WORKSHOP',
   'menu.avatarTitle': 'YOUR CHARACTER',
   'menu.nickPh': 'NICK',
   'menu.editName': 'Edit name',
   'menu.rerollName': 'Random nick',
-  'menu.more': 'Options',
+  'menu.rerollAll': 'Random name & character',
   'menu.saveName': 'Save',
   'menu.boing': 'Tap the character (Boing!)',
   'menu.clearCode': 'Clear code',

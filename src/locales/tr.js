@@ -458,18 +458,16 @@ export const TR = {
   'lobby.missing': 'Oda ekranı yüklenemedi.',
   // Ana menü mod butonları: kısa etiket + uzun açıklama (genişleyince görünür).
   'shell.home.facts': '15 OYUN · 2-4 OYUNCU · TEK CİHAZ VEYA AĞ',
-  // KALDIĞIN YER çipi ve kimlik plakası. Mod adları `platformMode` değerleriyle
-  // eşleşir (LOCAL / TV_CONSOLE / ONLINE → `homeView.platformKey`).
+  // Vitrin (marquee + featured kart). Öne çıkan oyun döner; kayıt varsa ilk
+  // hedef KALDIĞIN YER'dir.
+  'shell.home.featured': 'ÖNE ÇIKAN',
   'shell.home.resume': 'KALDIĞIN YER',
-  'shell.mode.local': 'TEK CİHAZ',
-  'shell.mode.tv': 'TV MODU',
-  'shell.mode.online': 'ONLINE',
   'menu.avatarBadge': 'ATÖLYE',
   'menu.avatarTitle': 'KARAKTERİN',
   'menu.nickPh': "NICK",
   'menu.editName': 'İsmi düzenle',
   'menu.rerollName': 'Rastgele nick',
-  'menu.more': 'Seçenekler',
+  'menu.rerollAll': 'İsmi ve karakteri değiştir',
   'menu.saveName': 'Kaydet',
   'menu.boing': 'Karaktere dokun (Zıplat!)',
   'menu.clearCode': 'Kodu temizle',

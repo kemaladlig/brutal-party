@@ -157,10 +157,23 @@ export function mountHeroAvatar(canvas, { onPoke = null } = {}) {
     pokeAt(rect.left + bc.cx, rect.top + bc.cy);
   };
 
+  // TV/klavye bakışı: odak bir eyleme taşındığında karakter O eyleme bakar —
+  // imleç yokluğunda "bakış takibi"nin karşılığı odak yolcusunun kendisidir.
+  // Olay (`shell:focuschange`) kabuk tarafından GÖRÜNÜM kökünde yayılır.
+  const onFocusChange = (ev) => {
+    const target = ev instanceof CustomEvent ? ev.detail?.el : null;
+    if (!(target instanceof Element)) return;
+    if (target === canvas || target.contains(canvas) || canvas.contains(target)) return;
+    const rect = target.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    gazeAt(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  };
+
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointerenter', onPointerEnter, { passive: true });
   canvas.addEventListener('pointermove', onPointerMove, { passive: true });
   focusHost.addEventListener('click', onClick);
+  document.addEventListener('shell:focuschange', onFocusChange);
 
   start();
 
@@ -174,6 +187,7 @@ export function mountHeroAvatar(canvas, { onPoke = null } = {}) {
     canvas.removeEventListener('pointerenter', onPointerEnter);
     canvas.removeEventListener('pointermove', onPointerMove);
     focusHost.removeEventListener('click', onClick);
+    document.removeEventListener('shell:focuschange', onFocusChange);
     window.removeEventListener('brutal_customization_changed', onChanged);
   };
 }

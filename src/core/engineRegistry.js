@@ -42,7 +42,7 @@ export const CARTRIDGES = {
   PONG: {
     id: 'PONG',
     category: 'speed',
-    title: 'BRUTAL PONG',
+    title: 'PONG',
     tacticalHintKey: 'hint.pong',
     color: '#D84727',
     // Bölünmüş motor dosyaları denetime girer (tek dosya kuralının istisnası).
@@ -99,7 +99,7 @@ export const CARTRIDGES = {
   CURVE: {
     id: 'CURVE',
     category: 'strategy',
-    title: 'BRUTAL CURVE',
+    title: 'CURVE',
     tacticalHintKey: 'hint.curve',
     color: '#10B981',
     // Çizgi gövde: I7 okunabilirlik eşiği 4.5px (varsayılan 12px değil).
@@ -123,7 +123,7 @@ export const CARTRIDGES = {
   BOMB: {
     id: 'BOMB',
     category: 'fight',
-    title: 'BRUTAL BOMB',
+    title: 'BOMB',
     tacticalHintKey: 'hint.bomb',
     color: '#EF4444',
     schema: GAMEPAD_SCHEMAS.BOMB,
@@ -146,7 +146,7 @@ export const CARTRIDGES = {
   HEIST: {
     id: 'HEIST',
     category: 'fight',
-    title: 'BRUTAL HEIST',
+    title: 'HEIST',
     tacticalHintKey: 'hint.heist',
     color: '#F59E0B',
     schema: GAMEPAD_SCHEMAS.HEIST,
@@ -169,7 +169,7 @@ export const CARTRIDGES = {
   ARCHER: {
     id: 'ARCHER',
     category: 'aim',
-    title: 'BRUTAL ARCHERY',
+    title: 'ARCHERY',
     tacticalHintKey: 'hint.archer',
     color: '#8B5CF6',
     schema: GAMEPAD_SCHEMAS.ARCHER,
@@ -191,7 +191,7 @@ export const CARTRIDGES = {
   CROWN: {
     id: 'CROWN',
     category: 'fight',
-    title: 'BRUTAL CROWN',
+    title: 'CROWN',
     tacticalHintKey: 'hint.crown',
     color: '#EAB308',
     schema: GAMEPAD_SCHEMAS.CROWN,
@@ -214,7 +214,7 @@ export const CARTRIDGES = {
   ZONE: {
     id: 'ZONE',
     category: 'strategy',
-    title: 'BRUTAL ZONE',
+    title: 'ZONE',
     tacticalHintKey: 'hint.zone',
     color: '#06B6D4',
     schema: GAMEPAD_SCHEMAS.ZONE,
@@ -238,7 +238,7 @@ export const CARTRIDGES = {
   SNAKE: {
     id: 'SNAKE',
     category: 'strategy',
-    title: 'BRUTAL SNAKE',
+    title: 'SNAKE',
     tacticalHintKey: 'hint.snake',
     color: '#22C55E',
     schema: GAMEPAD_SCHEMAS.SNAKE,
@@ -261,7 +261,7 @@ export const CARTRIDGES = {
   LASER: {
     id: 'LASER',
     category: 'speed',
-    title: 'BRUTAL LASER',
+    title: 'LASER',
     tacticalHintKey: 'hint.laser',
     color: '#EC4899',
     schema: GAMEPAD_SCHEMAS.LASER,
@@ -290,7 +290,7 @@ export const CARTRIDGES = {
   CLONE: {
     id: 'CLONE',
     category: 'strategy',
-    title: 'BRUTAL CLONE',
+    title: 'CLONE',
     tacticalHintKey: 'hint.clone',
     color: '#6366F1',
     schema: GAMEPAD_SCHEMAS.CLONE,
@@ -312,7 +312,7 @@ export const CARTRIDGES = {
   COLLAPSE: {
     id: 'COLLAPSE',
     category: 'strategy',
-    title: 'BRUTAL COLLAPSE',
+    title: 'COLLAPSE',
     tacticalHintKey: 'hint.collapse',
     color: '#64748B',
     schema: GAMEPAD_SCHEMAS.COLLAPSE,
@@ -334,7 +334,7 @@ export const CARTRIDGES = {
   NINJA: {
     id: 'NINJA',
     category: 'fight',
-    title: 'BRUTAL NINJA',
+    title: 'NINJA',
     tacticalHintKey: 'hint.ninja',
     color: '#1E293B',
     schema: GAMEPAD_SCHEMAS.NINJA,
@@ -357,8 +357,8 @@ export const CARTRIDGES = {
   HORDE: {
     id: 'HORDE',
     category: 'fight',
-    title: 'BRUTAL HORDE',
-    lobbyTitle: 'BRUTAL HORDE',
+    title: 'HORDE',
+    lobbyTitle: 'HORDE',
     tacticalHintKey: 'hint.horde',
     color: '#7C3AED',
     schema: GAMEPAD_SCHEMAS.HORDE,
@@ -397,8 +397,8 @@ export const CARTRIDGES = {
   RACE: {
     id: 'RACE',
     category: 'speed',
-    title: 'BRUTAL RACE',
-    lobbyTitle: 'BRUTAL RACE',
+    title: 'RACE',
+    lobbyTitle: 'RACE',
     tacticalHintKey: 'hint.race',
     color: '#D99B26',
     // Paylaşılan tur mantığı denetime girer.

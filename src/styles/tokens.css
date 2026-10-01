@@ -90,6 +90,18 @@
   --scene-ring: rgba(120, 46, 4, 0.16);
   --glow-accent-soft: rgba(255, 176, 58, 0.55);
 
+  /* Ana menü atmosferi (redesign): aurora blob'ları, wordmark derinliği ve
+     arena nabzı. Yalnız sahne (home) tüketir; renkleri scene rampasından türer. */
+  --home-aurora-a: rgba(212, 54, 158, 0.34);
+  --home-aurora-b: rgba(92, 224, 208, 0.2);
+  --home-aurora-c: rgba(255, 176, 58, 0.22);
+  --home-wordmark-ink: var(--hud-ink);
+  --home-wordmark-gold: var(--gold);
+  --home-wordmark-shadow: rgba(10, 8, 40, 0.8);
+  --home-play-sheen: rgba(255, 248, 234, 0.32);
+  --home-pulse-line: rgba(255, 214, 120, 0.55);
+  --home-marquee-veil: rgba(28, 20, 72, 0.5);
+
   /* Sahne üstünde yüzen HUD (koyu zemine karşı açık). */
   --hud-ink: #fff8ea;
   --hud-muted: #ffd9a8;

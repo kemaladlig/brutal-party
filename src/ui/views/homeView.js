@@ -1,24 +1,24 @@
-// Home — uygulamanın merkezi. Sahne dili (`styles/scene.css` ortak kaynak):
+// Home — uygulamanın merkezi; bir ARENA lobisi, düz sayfa değil. Sahne dili
+// (`styles/scene.css` ortak kaynak) + Brawl tarzı sahne düzeni:
 //
-//   · Tam kaplama arena, düz sayfa yüzeyi yok
-//   · Merkezde oyuncu karakterimiz (canlı avatar) + arkasında ışık konisi
-//     (`scene-hero-glow`); altında iki satırlı KİMLİK PLAKASI: nick + platform
-//     modu · gövde rengi · yüz. İkinci satır uydurma veri taşımaz — tercih ve
-//     avatar profilinden türer.
-//   · ÜST SOL: KALDIĞIN YER — en son sahaya geçilen oyunun kapağıyla tek
-//     dokunuşta maça döner. Kayıt `preferences.js`'tedir, yazan tek yer
-//     `roomFlow.enterStaging`dir.
-//   · SAĞ ALT: KOD GİR + ODA KUR + OYNA — giriş çipi solda, iki kart sağda.
-//     Oyun modlarını OYNA açar, oda ekranını ODA KUR, koda KOD GİR.
-//   · ÜST SAĞ: YÜKLE ve GÜNCELLE — sistem simgelerinin ALTINA hizalı iki çip
-//     (eskiden sahnenin ortasında, boşluğun içinde asılıydılar).
-//   · ALT SOL: bilgi şeridi (oyun/oyuncu/mod özeti).
+//   · Sol sahne: ÜST SOL'DA dev wordmark (harfler sırayla düşer, üzerinden
+//     ışık süpürülür) + altında karakter kendi ışık diskinde durur; ayak
+//     altından halka nabzı yayılır. Arka plan, aurora ve vitrin imleçle
+//     sığ bir paralaks yapar (`homeParallax.js`).
+//   · Ufuk çizgisi: oyun kapağı vitrini (`homeShowcase.js`) yavaşça döner;
+//     merkeze bakan kapak FEATURED karttır. KALDIĞIN YER kaydı vitrinin ilk
+//     hedefidir — ayrı çip yoktur.
+//   · Sağ kolon: FEATURED kartı (tek dokunuşla o oyuna girer) + OYNA (altın)
+//     + ODA KUR / KOD GİR ikilisi.
+//   · ÜST SAĞ: YÜKLE ve GÜNCELLE çipleri (kabuğun sistem simgeleri altında).
+//   · ALT SOL: bilgi şeridi.
 //
-// Beş eylem de `.scene-btn` ailesinden: aynı geometri, dört ağırlık
-// (`gold` / `teal` / `plum` / `chip`). Dikey akış, kart ızgarası ve
-// web-sayfası listesi yok. Mod seçimi (TV / ONLINE) oda ekranının işidir.
-// Karakter eylemleri (düzenle / rastgele) sahneye ayrı yüzen daireler olarak
-// DEĞİL, rozetin `⋮` menüsünden açılır (aynı işi iki yol göstermez; §30).
+// Eylemler `.scene-btn` ailesindendir (gold/teal/plum/chip). Kısa ekranda
+// kolon alt banta, featured kart üst sola katlanır (`home.css`). Sahne ilk
+// açılışta `is-entering` ile kurulur: başlık → karakter → vitrin → kartlar
+// sırayla yerine oturur (~1,6 s), sonra sınıf düşer ve idle döngüler kalır.
+// Mod seçimi (TV / ONLINE) oda ekranının işidir. Karakter eylemleri rozetin
+// `⋮` menüsündedir (aynı işi iki yol göstermez).
 
 import { getTabletopIconSvg } from '../../core/tabletopIcons.js';
 import {
@@ -35,7 +35,11 @@ import { playMenuTick, playMenuPop } from '../../audio.js';
 import { updateInstallButtonVisibility } from '../toast.js';
 import { registerView } from './registry.js';
 import { mountHeroAvatar } from './heroAvatar.js';
+import { mountHomeShowcase } from './homeShowcase.js';
+import { mountHomeParallax } from './homeParallax.js';
 import { createPlayerNameField } from '../playerNameField.js';
+
+const ENTER_MS = 1600; // `is-entering` süresi: en geç girdi animasyonunun bitişi.
 
 function el(tag, className, html) {
   const node = document.createElement(tag);
@@ -48,22 +52,16 @@ function el(tag, className, html) {
  * Sahne düğmesi: `weight` = 'gold' | 'teal' | 'plum' | 'ghost' | 'chip'.
  * `at` konum/ölçü sınıfı ekler (`home-play`, `home-room`, `home-join`); aile
  * kuralı `.scene-btn` üzerinde kalır, yerleşim `home.css`'te yerelleşir.
- * `art` verilirse ikon yerine GERÇEK kapak görseli çizilir (madalyon içinde) —
- * "KALDIĞIN YER" çipi hangi oyuna dönüleceğini renkle anlatır.
- * @param {{id?: string, icon?: string, art?: string, label?: string, sub?: string, weight?: string, at?: string, onClick?: (ev?: any) => void, focus?: string}} opts
+ * @param {{id?: string, icon?: string, label?: string, sub?: string, weight?: string, at?: string, onClick?: (ev?: any) => void, focus?: string}} opts
  */
-function sceneButton({ id, icon, art, label, sub, weight, at = '', onClick, focus = 'act' }) {
+function sceneButton({ id, icon, label, sub, weight, at = '', onClick, focus = 'act' }) {
   const btn = el('button', `scene-btn is-${weight}${at ? ` ${at}` : ''}`);
   btn.type = 'button';
   if (id) btn.id = id;
   btn.dataset.focus = focus;
   btn.tabIndex = -1;
-  // Kapak görseli dekoratiftir: oyunun adı `.scene-btn-sub`'da yazıyla durur.
-  const medallion = art
-    ? `<img class="scene-btn-art" src="${art}" alt="" loading="lazy" decoding="async" />`
-    : getTabletopIconSvg(icon, { size: 22, strokeWidth: 2.2 });
   btn.innerHTML = `
-    <span class="scene-btn-icon">${medallion}</span>
+    <span class="scene-btn-icon">${getTabletopIconSvg(icon, { size: 22, strokeWidth: 2.2 })}</span>
     <span class="scene-btn-copy">
       <span class="scene-btn-label"></span>
       ${sub ? '<span class="scene-btn-sub"></span>' : ''}
@@ -73,9 +71,52 @@ function sceneButton({ id, icon, art, label, sub, weight, at = '', onClick, focu
 }
 
 /**
- * Üst boşluğu "canlı" tutan süzülen toz. Salt dekoratif: odak hedefi değil,
- * ekran okuyucuya kapalı, tıklamayı yutmaz. Her nokta kendi gecikme/ölçü
- * sınıfıyla gelir (`home.css`), böylece hareket tek tip değil dağınık okunur.
+ * Marka kilidi: ikon + BRUTAL / PARTY iki satır; harfler `--i` sırasıyla
+ * cascade düşer, kelimenin üzerinden periyodik ışık süpürmesi geçer.
+ * Ana menüde kabuğun köşe çipi gizlenir (home.css `:has` kuralı) — bu kilit
+ * markanın kendisidir; gezinme erişilebilir adı ray'daki ANASAYFA'dadır.
+ */
+function wordmark() {
+  const wrap = el('div', 'home-wordmark');
+  wrap.setAttribute('aria-hidden', 'true');
+  const mark = el('img', 'home-wm-mark');
+  mark.src = '/icon.svg';
+  mark.alt = '';
+  mark.width = 72;
+  mark.height = 72;
+  mark.decoding = 'async';
+  const stack = el('div', 'home-wm-stack');
+  let i = 0;
+  for (const [word, isGold] of [['BRUTAL', false], ['PARTY', true]]) {
+    const line = el('div', `home-wm-line${isGold ? ' is-gold' : ''}`);
+    for (const ch of String(word)) {
+      const letter = el('span', 'home-wm-letter', ch);
+      letter.style.setProperty('--i', String(i));
+      i += 1;
+      line.append(letter);
+    }
+    stack.append(line);
+  }
+  wrap.append(mark, stack);
+  return wrap;
+}
+
+/**
+ * Üst boşluğu "canlı" tutan renk katmanı: üç dev aurora blob'u kendi
+ * ritimlerinde sürüklenir; imleç parallaxı `[data-par] ile üstüne biner.
+ * Salt dekoratif: odak hedefi değil, ekran okuyucuya kapalı, tıklamayı yutmaz.
+ */
+function auroraLayer() {
+  const layer = el('div', 'home-aurora');
+  layer.setAttribute('aria-hidden', 'true');
+  layer.dataset.par = '1.4';
+  for (const kind of ['is-a', 'is-b', 'is-c']) layer.append(el('span', `home-aurora-blob ${kind}`));
+  return layer;
+}
+
+/**
+ * Süzülen toz. Salt dekoratif; her nokta kendi gecikme/ölçü sınıfıyla gelir
+ * (`home.css`), böylece hareket tek tip değil dağınık okunur.
  * `prefers-reduced-motion` altında `animations.css` küresel kapısı susar.
  */
 function skyLayer() {
@@ -83,18 +124,6 @@ function skyLayer() {
   sky.setAttribute('aria-hidden', 'true');
   for (let i = 1; i <= 7; i += 1) sky.append(el('span', `home-sky-dot is-${i}`));
   return sky;
-}
-
-/**
- * Platform modu → sözlük anahtarı soneki (`shell.mode.*`). Bilinmeyen/boş
- * değer "tek cihaz"a düşer: kimlik plakası hiçbir durumda eksik kalmaz.
- * @param {string} [mode]
- * @returns {'local'|'tv'|'online'}
- */
-function platformKey(mode) {
-  if (mode === 'TV_CONSOLE') return 'tv';
-  if (mode === 'ONLINE') return 'online';
-  return 'local';
 }
 
 /**
@@ -121,27 +150,6 @@ function toolButton(labelKey, icon, onClick, small = false) {
   return btn;
 }
 
-/**
- * Rozet menü öğesi: ikon + metin etiketi, ≥44px dokunma hedefi.
- * Tıklama sahneye kabarmaz — karakter zıplamaz.
- */
-function badgeMenuItem(icon, labelKey, onPick) {
-  const item = el('button', 'home-more-item',
-    `<span class="home-more-icon">${getTabletopIconSvg(icon, { size: 18 })}</span>`
-    + `<span class="home-more-label"></span>`);
-  item.type = 'button';
-  item.dataset.focus = 'name';
-  item.tabIndex = -1;
-  item.dataset.labelKey = labelKey;
-  item.querySelector('.home-more-label').textContent = t(labelKey);
-  item.setAttribute('aria-label', t(labelKey));
-  item.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    onPick();
-  });
-  return item;
-}
-
 registerView('home', {
   title: 'BRUTAL PARTY',
   // Gezinmenin ilk hedefi (kök). `chrome: 'cinema'` saydam krom: sahne
@@ -153,30 +161,40 @@ registerView('home', {
   focus: false,
   build(ctx) {
     const { actions: actions_, openView } = ctx;
-    const view = el('div', 'scene home-scene');
+    const view = el('div', 'scene home-scene is-entering');
 
+    // ── Atmosfer katmanları (arkadan öne) ──
+    const bg = el('div', 'home-bg');
+    bg.setAttribute('aria-hidden', 'true');
+    bg.dataset.par = '0.35';
     view.append(
-      el('div', 'scene-backdrop', ''),
-      el('div', 'scene-spotlight', ''),
-      el('div', 'scene-floor', ''),
+      bg,
+      auroraLayer(),
       el('div', 'scene-vignette', ''),
+      skyLayer(),
     );
 
-    // ── Ortam katmanı: üst boşluk ──
-    view.append(skyLayer());
+    // ── Ufuk vitrini: oyun kapakları (featured'ın kaynağı) ──
+    // Parallax YOK: şerit kendi kayar; imleç sürüklemesi kapaklarda titreme
+    // okunuyordu. Katman sabit durur, hareket yalnız kaydırmadandır.
+    const marquee = el('div', 'home-marquee');
+    marquee.dataset.hTrack = '';
+    view.append(marquee);
 
-    // ── Merkez: karakter + düzenlenebilir isim ──
+    // ── Sol sahne: karakter + ışık diski + kimlik plakası ──
     // `is-staged`: karakter arena diskinin üst kenarına oturur (bkz. scene.css).
     // `data-focus`: TV/klavye gezinmesinde karakter bir hedeftir — Enter/OK
     // `el.click()` ile aynı zıplama tepkisini tetikler (focusRouter).
     const stage = el('div', 'scene-hero home-hero is-staged');
     stage.dataset.focus = 'hero';
     stage.tabIndex = -1;
-    // Karakterin ARKASINDAKİ ışık konisi. Ana menü kendi zemin görselini
-    // kullandığı için sahnenin backdrop katmanları kapalı (`home.css`); koyu
-    // gövdeli avatarlar parlak ufukta "delik" gibi okunuyordu. Katman sahne
-    // dilinden gelir (`scene.css`), ölçüsü `home.css`'te kahramana bağlanır.
-    stage.append(el('div', 'scene-hero-glow', ''));
+    // Ayak altından yayılan halka nabzı: arenanın kalp atışı. Salt dekoratif;
+    // hareket yalnız `scale`/`opacity` (`home.css`).
+    stage.append(
+      el('div', 'scene-hero-glow', ''),
+      el('span', 'home-pulse', ''),
+      el('span', 'home-pulse is-2', ''),
+    );
     const canvas = document.createElement('canvas');
     canvas.className = 'scene-hero-canvas home-hero-canvas';
     stage.append(canvas);
@@ -196,59 +214,37 @@ registerView('home', {
       },
     });
     const badge = el('div', 'scene-badge home-identity');
-    // Satır 1: isim + `⋮`. Satır 2 (`.home-identity-meta`): platform modu ·
-    // gövde rengi · yüz — hepsi mevcut veriden, aşağıdaki `applyTexts` yazar.
+    // Satır 1: isim + simge şeridi. Satır 2 (`.home-identity-meta`): renk
+    // örneği · gövde rengi · yüz — hepsi mevcut veriden, `applyTexts` yazar.
     const nameRow = el('div', 'home-identity-row');
     nameRow.append(nameField.el);
-    // ── Rozet kuyruğu: üç nokta + YUKARI açılan menü ──
-    // Nick (düzenle / rastgele) ve KARAKTER eylemleri (atölye / rastgele avatar)
-    // buradadır; menü rozetin ÜSTÜNE açılır (`bottom: 100%`), alta taşmaz.
-    // Rozet `.scene-badge` altında olduğu için `heroAvatar` tıklama korumasına
-    // girer — karakter zıplamaz.
-    const moreBtn = toolButton('menu.more', 'more_vertical', () => {
+    // ── Rozet kuyruğu: kompakt simge şeridi (III — açılır menü yerine) ──
+    // İki eylem: kurşun kalem (adı düzenle) + tek zar (isim VE karakteri
+    // birlikte yeniler). Menü hiç açılmaz → dar ekranda taşma sorunu
+    // kökünden yok; her eylem erişilebilir adlı tek satırlık düğmedir.
+    // Rozet `.scene-badge` altında olduğu için `heroAvatar` tıklama
+    // korumasına girer — karakter zıplamaz. Zar `saveAvatarProfile`
+    // `brutal_customization_changed` yayınladığı için kahraman (ve açık profil
+    // ekranı) kendiliğinden tazelenir.
+    const tools = el('div', 'home-identity-tools');
+    const editNameBtn = toolButton('menu.editName', 'pencil', () => {
       playMenuTick();
-      const open = moreMenu.classList.toggle('is-open');
-      moreBtn.setAttribute('aria-expanded', String(open));
+      nameField.focusEdit();
     }, true);
-    moreBtn.classList.add('home-more-btn');
-    moreBtn.setAttribute('aria-expanded', 'false');
-    moreBtn.setAttribute('aria-haspopup', 'menu');
-    nameRow.append(moreBtn);
+    const rerollAllBtn = toolButton('menu.rerollAll', 'dice', () => {
+      playMenuPop();
+      nameField.reroll();
+      saveAvatarProfile(resetAvatarProfile());
+    }, true);
+    const toolLabels = /** @type {const} */ ([
+      [editNameBtn, 'menu.editName'],
+      [rerollAllBtn, 'menu.rerollAll'],
+    ]);
+    tools.append(editNameBtn, rerollAllBtn);
+    nameRow.append(tools);
     badge.append(nameRow);
     const meta = el('div', 'home-identity-meta');
     badge.append(meta);
-    const moreMenu = el('div', 'home-more-menu');
-    moreMenu.setAttribute('role', 'menu');
-    const closeMore = () => {
-      moreMenu.classList.remove('is-open');
-      moreBtn.setAttribute('aria-expanded', 'false');
-    };
-    const editNameItem = badgeMenuItem('pencil', 'menu.editName', () => {
-      playMenuTick();
-      closeMore();
-      nameField.focusEdit();
-    });
-    const rerollNameItem = badgeMenuItem('dice', 'menu.rerollName', () => {
-      closeMore();
-      nameField.reroll();
-    });
-    // Karakter eylemleri (eski hâlde karakterin yanında YÜZEN iki yuvarlak
-    // düğmeydi; dar ekranda YÜKLE/GÜNCELLE çipleriyle çakışıyor ve KARAKTER
-    // girdisinin kopyası oluyorlardı — §30). `saveAvatarProfile`
-    // `brutal_customization_changed` yayınladığı için kahraman (ve açık profil
-    // ekranı) kendiliğinden tazelenir.
-    const editCharacterItem = badgeMenuItem('gamepad_2', 'menu.avatarTitle', () => {
-      playMenuTick();
-      closeMore();
-      openView('profile');
-    });
-    const randomAvatarItem = badgeMenuItem('dice', 'custom.random', () => {
-      playMenuPop();
-      closeMore();
-      saveAvatarProfile(resetAvatarProfile());
-    });
-    moreMenu.append(editNameItem, rerollNameItem, editCharacterItem, randomAvatarItem);
-    badge.append(moreMenu);
     // "Dokun" ipucu: PLAKANIN ÜSTÜNDE tek satır; sahneye ilk dokunuşta kalkar.
     // Plakaya bağlıdır (kahraman KUTUSUNA değil): kutu kareden %40 uzundur,
     // kutuya asıldığında ipucu ekranın tepesine — karakterden kopuk — düşüyor
@@ -258,29 +254,44 @@ registerView('home', {
     badge.append(hint);
     stage.append(badge);
 
-    view.append(stage);
+    view.append(stage, wordmark());
 
-    // ── Üst sol: KALDIĞIN YER ──
-    // Kayıt `preferences.js`'tedir; TEK yazma yeri `roomFlow.enterStaging`dir
-    // (sahaya gerçekten geçilen oyun). Tanınmayan bir mod (silinmiş oyun, eski
-    // sürüm kaydı) sessizce çizilmez — çip yalnız `CARTRIDGES`'te varsa doğar.
-    const lastMode = getPreference('lastGameMode');
-    const lastCart = lastMode ? CARTRIDGES[lastMode] : null;
-    const resumeBtn = lastCart ? sceneButton({
-      id: 'home-resume', icon: 'play', art: gameArtPath(lastCart.id),
-      label: 'shell.home.resume', sub: lastCart.title,
-      weight: 'chip', at: 'home-resume', focus: 'act',
-      // Katalogla AYNI giriş: tek eylem yolu (`onGameSelect` → sahaya geçiş).
-      onClick: () => { playMenuPop(); actions_.onGameSelect?.(lastCart.id); },
-    }) : null;
-    if (resumeBtn) view.append(resumeBtn);
+    // ── FEATURED kartı: vitrinin merkeze bakan kapağı, tek dokunuşla maça ──
+    // KALDIĞIN YER çipi buraya emildi: kayıt varsa vitrin o oyunla açılır ve
+    // overline "KALDIĞIN YER" olur. Kart tek yüzeidir; oyun adı markadır,
+    // çevrilmez.
+    const featured = el('button', 'home-featured');
+    featured.type = 'button';
+    featured.dataset.focus = 'act';
+    featured.tabIndex = -1;
+    featured.innerHTML = `
+      <img class="home-featured-art" alt="" decoding="async" />
+      <span class="home-featured-copy">
+        <span class="home-featured-text">
+          <span class="home-featured-overline"></span>
+          <span class="home-featured-title"></span>
+        </span>
+        <span class="home-featured-go">${getTabletopIconSvg('play', { size: 18, strokeWidth: 2.4 })}</span>
+      </span>`;
+    const featuredArt = featured.querySelector('.home-featured-art');
+    const featuredOverline = featured.querySelector('.home-featured-overline');
+    const featuredTitle = featured.querySelector('.home-featured-title');
 
-    // ── Sağ alt: KOD GİR + ODA KUR + OYNA, yan yana ──
-    // Üç kardeş kart, üçü de aynı yükseklikte: giriş (cam), oda (turkuaz),
-    // oyun (altın). KOD GİR eskiden sağ kenardaydı; oyun akışının girişi
-    // olduğu için eylem sırasının EN SOLUNA taşındı.
-    const actions = el('div', 'home-actions');
+    // ── Sağ kolon: OYNA (altın) + ODA KUR / KOD GİR ikilisi ──
+    const rail = el('div', 'home-rail');
 
+    const playBtn = sceneButton({
+      id: 'home-play', icon: 'play', label: 'shell.playNow', sub: 'shell.play.pick',
+      weight: 'gold', at: 'home-play', focus: 'play',
+      onClick: () => { playMenuPop(); openView('games'); },
+    });
+
+    const duo = el('div', 'home-rail-duo');
+    const roomBtn = sceneButton({
+      id: 'home-create-room', icon: 'plus', label: 'shell.room.create', sub: 'shell.room.pick',
+      weight: 'teal', at: 'home-room',
+      onClick: () => { playMenuPop(); openView('room'); },
+    });
     const joinBtn = sceneButton({
       id: 'home-join', icon: 'message_square', label: 'shell.side.join',
       weight: 'plum', at: 'home-join',
@@ -289,28 +300,14 @@ registerView('home', {
         actions_.openJoin?.('', actions_.getPlatformMode?.() === 'ONLINE' ? 'ONLINE' : 'TV_CONSOLE');
       },
     });
+    duo.append(joinBtn, roomBtn);
+    rail.append(playBtn, duo);
+    view.append(featured, rail);
 
-    const roomBtn = sceneButton({
-      id: 'home-create-room', icon: 'plus', label: 'shell.room.create', sub: 'shell.room.pick',
-      weight: 'teal', at: 'home-room',
-      onClick: () => { playMenuPop(); openView('room'); },
-    });
-
-    const playBtn = sceneButton({
-      id: 'home-play', icon: 'play', label: 'shell.playNow', sub: 'shell.play.pick',
-      weight: 'gold', at: 'home-play', focus: 'play',
-      onClick: () => { playMenuPop(); openView('games'); },
-    });
-
-    actions.append(joinBtn, roomBtn, playBtn);
-    view.append(actions);
-
-    // ── Sağ kenar: YÜKLE + GÜNCELLE — eylem çipleri ──
-    // Profil kartındaki büyük "Install" satırı buraya taşındı; GÜNCELLE ise
-    // üst köşedeki küçük sistem simgeleri arasındaydı — ikisi de ana menüden
-    // tek dokunuş, ikinci ekran değil. (KOD GİR de çip ailesindendi, ama oyun
-    // akışının girişi olduğu için eylem sırasının en soluna, kart olarak
-    // taşındı.)
+    // ── Sağ kenar: YÜKLE + GÜNCELLE — sistem işleri köşesi ──
+    // Çipler kabuğun sistem simgelerinin (ses / dil / tam ekran) ALTINA
+    // hizalanır. YÜKLE yalnız uygulama yüklenebilir durumdayken görünür
+    // (`toast.js` `.hidden`).
     const sideRail = el('div', 'home-side');
 
     const installBtn = sceneButton({
@@ -330,9 +327,43 @@ registerView('home', {
       },
     });
     sideRail.append(installBtn, updateBtn);
-    view.append(sideRail);
+    view.append(sideRail, el('div', 'home-facts', ''));
 
-    view.append(el('div', 'home-facts', ''));
+    // ── Vitrin + parallax ──
+    // KALDIĞIN YER kaydı artık ayrı çip değil, vitrinin BAŞLANGIÇ kapağıdır.
+    // Tanınmayan bir mod (silinmiş oyun, eski sürüm kaydı) sessizce yoksayılır.
+    const lastMode = getPreference('lastGameMode');
+    const resumeId = lastMode && CARTRIDGES[lastMode] ? lastMode : null;
+    let featuredId = '';
+
+    const applyFeatured = (id) => {
+      const cart = CARTRIDGES[id];
+      if (!cart) return;
+      featuredId = id;
+      featuredArt.src = gameArtPath(id);
+      featuredTitle.textContent = cart.title;
+      const overKey = id === resumeId ? 'shell.home.resume' : 'shell.home.featured';
+      featuredOverline.textContent = t(overKey);
+      featured.setAttribute('aria-label', `${t(overKey)} — ${cart.title}`);
+      featured.classList.toggle('is-resume', id === resumeId);
+    };
+    const disposeShowcase = mountHomeShowcase({
+      strip: marquee,
+      resumeId,
+      onFeatured: applyFeatured,
+      onLaunch: (id) => actions_.onGameSelect?.(id),
+    });
+    featured.addEventListener('click', () => {
+      if (!featuredId) return;
+      playMenuPop();
+      actions_.onGameSelect?.(featuredId);
+    });
+    const disposeParallax = mountHomeParallax(view);
+
+    // Giriş koreografisi tek sınıftır: CSS `is-entering` altındaki girdi
+    // animasyonları `both` ile kilitli tutulur; süre bitince sınıf düşer ve
+    // `translate` gibi temel değerler (hover'lar) geri serbest kalır.
+    const enterTimer = window.setTimeout(() => view.classList.remove('is-entering'), ENTER_MS);
 
     // ── Metinler ──
     function applyTexts() {
@@ -345,37 +376,34 @@ registerView('home', {
       set(playBtn, 'shell.playNow', 'shell.play.pick');
       set(joinBtn, 'shell.side.join');
       set(installBtn, 'menu.install');
-      // KALDIĞIN YER: etiket sözlükten, oyun adı registry'den (kart başlıkları
-      // çevrilmez — oyun adı markadır).
-      if (resumeBtn) {
-        resumeBtn.querySelector('.scene-btn-label').textContent = t('shell.home.resume');
-        resumeBtn.setAttribute('aria-label', `${t('shell.home.resume')} — ${lastCart.title}`);
-      }
-      // Kimlik plakası: platform modu · gövde rengi · yüz. Üçü de mevcut
-      // durumdan türer; dil değişiminde yeniden yazılır (palet/yüz adları da
-      // sözlükten gelir).
+      // Kimlik plakası: renk örneği · gövde rengi · yüz. Mod etiketi çıktı —
+      // plaka karakterin kartvizitidir, bağlantının değil. Swatch profili dolduran
+      // gerçek renkle boyanır (tek kaynak profil); adlar dil değişiminde tazelenir.
       const profile = getAvatarProfile();
       const palette = findPaletteByHex(profile?.color);
-      const modeKey = `shell.mode.${platformKey(actions_.getPlatformMode?.())}`;
-      meta.textContent = [
-        t(modeKey),
+      meta.textContent = '';
+      const swatch = el('span', 'home-identity-swatch');
+      swatch.setAttribute('aria-hidden', 'true');
+      if (profile?.color) swatch.style.background = profile.color;
+      const metaText = el('span', 'home-identity-text');
+      metaText.textContent = [
         palette ? paletteName(palette) : '',
         expressionName(profile?.expression),
       ].filter(Boolean).join(' · ');
+      meta.append(swatch, metaText);
       // Güncelleme çipi hem dili hem durumu izler: hazırken kenarı/etiketi
       // değişir (`has-update` → home.css nabzı).
       updateBtn.classList.toggle('has-update', isUpdateAvailable());
       set(updateBtn, isUpdateAvailable() ? 'shell.side.updateReady' : 'shell.side.update');
       hint.textContent = t('menu.boing');
       view.querySelector('.home-facts').textContent = t('shell.home.facts');
-      moreBtn.setAttribute('aria-label', t('menu.more'));
-      moreBtn.title = t('menu.more');
-      moreMenu.querySelectorAll('.home-more-item').forEach((item) => {
-        const key = item.dataset.labelKey;
-        if (!key) return;
-        item.querySelector('.home-more-label').textContent = t(key);
-        item.setAttribute('aria-label', t(key));
-      });
+      // Simge şeridi etiketleri dili izler (erişilebilir ad + ipucu).
+      for (const [btn, key] of toolLabels) {
+        btn.setAttribute('aria-label', t(key));
+        btn.title = t(key);
+      }
+      // Featured kartın overline'ı dili izler (oyun adı markadır, çevrilmez).
+      if (featuredId) applyFeatured(featuredId);
       // Uygulama zaten yüklüyse (standalone) simge hiç gösterilmez.
       updateInstallButtonVisibility();
     }
@@ -384,18 +412,6 @@ registerView('home', {
     // ayrılırken iptal edilir (ölü dinleyici bırakma yok).
     const offUpdate = onUpdateStatusChange(() => applyTexts());
 
-    // Menü açıkken dışarı dokunmak / Escape kapatır — sahneye kabarmaz.
-    const onDocPointer = (ev) => {
-      if (!moreMenu.classList.contains('is-open')) return;
-      if (ev.target instanceof Element && badge.contains(ev.target)) return;
-      closeMore();
-    };
-    const onDocKey = (ev) => {
-      if (ev.key === 'Escape') closeMore();
-    };
-    document.addEventListener('pointerdown', onDocPointer, true);
-    document.addEventListener('keydown', onDocKey, true);
-
     const dispose = mountHeroAvatar(canvas, {
       onPoke: () => hint.classList.add('hidden'),
     });
@@ -403,12 +419,13 @@ registerView('home', {
     // edilir; aksi halde dil değişiminde ölü görünümler de güncellenir.
     const offLang = onLangChange(() => { applyTexts(); nameField.refresh(); });
     view.addEventListener('shell:viewleave', () => {
+      clearTimeout(enterTimer);
       dispose();
+      disposeShowcase();
+      disposeParallax();
       nameField.destroy();
       offLang();
       offUpdate();
-      document.removeEventListener('pointerdown', onDocPointer, true);
-      document.removeEventListener('keydown', onDocKey, true);
     }, { once: true });
 
     return view;

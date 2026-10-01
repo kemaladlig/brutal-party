@@ -1407,7 +1407,7 @@ export class GamepadManager {
 
   // --- 00: LOBBY CONTROLLER (Seat Selector, Profile Card, Game Preview, Ready Toggle, Leave Room) ---
   mountLobbyController(container) {
-    const selectedTitle = CONTROLLER_META[this.selectedHostGame]?.lobbyTitle || 'BRUTAL PONG';
+    const selectedTitle = CONTROLLER_META[this.selectedHostGame]?.lobbyTitle || 'PONG';
 
     container.innerHTML = `
       <div class="lobby-controller-view">
