@@ -1051,7 +1051,6 @@ export class GamepadManager {
     const strip = this._el('score-strip');
     if (!strip) return;
     const eligible = this.gameMode !== 'LOBBY'
-      && this.gameMode !== 'PONG'
       && Array.isArray(names)
       && Array.isArray(scores);
 
@@ -1089,7 +1088,6 @@ export class GamepadManager {
     const peeking = this._scorePeekUntil > performance.now();
     const strip = this._el('score-strip');
     const canPeek = this.gameMode !== 'LOBBY'
-      && this.gameMode !== 'PONG'
       && !!strip
       && strip.childElementCount > 0;
     const show = peeking && canPeek;
@@ -2044,16 +2042,16 @@ export class GamepadManager {
 
     const liveStatus = this._el('hud-live-status');
 
-    // Skor şeridi içeriği (PONG kendi skorbord'unu kullanır). Görünürlüğü
-    // peek'e bağlı: `_syncScoreChrome` her paket içinde yeniden karar verir.
+    // Skor şeridi içeriği. Görünürlüğü peek'e bağlı: `_syncScoreChrome` her
+    // paket içinde yeniden karar verir.
     if (data.scores) {
       this.renderScoreStrip(data.names, data.scores);
     }
 
     // Sahadaki tek üst metin: SKOR / süre / can / cephane. Metin tek kaynaktan
     // (controllerStatus registry) gelir ve çıplaktır — kutu/etiket yok.
-    // PONG skorbord/falso, TANKS cephane, BOMB/CROWN/HEIST uyarıları şablonların
-    // handleSync/onSync'inde yaşar — burada oyun-özel dal tutulmaz.
+    // PONG ralli/falso, TANKS cephane, BOMB/CROWN/HEIST uyarıları buradan
+    // gelir; şablonların handleSync/onSync'inde oyun-özel dal tutulmaz.
     if (liveStatus) {
       const statusStr = data.scores
         ? getControllerStatus(data.gameMode, this.playerIndex, data)

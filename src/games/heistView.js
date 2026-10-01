@@ -241,7 +241,7 @@ export function drawHeistLoot(ctx, loot) {
     ctx.fill();
 
     if (item.type === 'DIAMOND') {
-      ctx.fillStyle = '#48CAE4';
+      ctx.fillStyle = UI_COLORS.crownTeleport;
       ctx.beginPath();
       ctx.moveTo(0, -r);
       ctx.lineTo(r, 0);
@@ -249,10 +249,23 @@ export function drawHeistLoot(ctx, loot) {
       ctx.lineTo(-r, 0);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = '#1C1C1A';
+      ctx.strokeStyle = UI_COLORS.lineDark;
       ctx.lineWidth = Math.max(1, 2.2 * lu);
       ctx.stroke();
-      drawTabletopIcon(ctx, 'gem', 0, 1, Math.max(12, r * 1.1), { color: '#FFFFFF' });
+      drawTabletopIcon(ctx, 'gem', 0, 1, Math.max(12, r * 1.1), { color: UI_COLORS.white });
+    } else if (item.type === 'RUBY') {
+      ctx.fillStyle = UI_COLORS.heistPiggy;
+      ctx.beginPath();
+      ctx.moveTo(0, -r);
+      ctx.lineTo(r, 0);
+      ctx.lineTo(0, r);
+      ctx.lineTo(-r, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = UI_COLORS.lineDark;
+      ctx.lineWidth = Math.max(1, 2.2 * lu);
+      ctx.stroke();
+      drawTabletopIcon(ctx, 'gem', 0, 1, Math.max(12, r * 1.1), { color: UI_COLORS.white });
     } else if (item.type === 'CROWN') {
       ctx.fillStyle = '#D99B26';
       ctx.fillRect(-12, -8, 24, 16);
@@ -290,21 +303,21 @@ export function drawHeistPiggy(ctx, piggy) {
   ctx.arc(3, 4, pig.radius, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = '#FFDE59';
+  ctx.fillStyle = UI_COLORS.heistPiggy;
   ctx.beginPath();
   ctx.arc(0, 0, pig.radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.lineWidth = Math.max(1.5, 3 * ((pig.radius || 18) / 18));
-  ctx.strokeStyle = '#1C1C1A';
+  ctx.strokeStyle = UI_COLORS.lineDark;
   ctx.stroke();
 
-  ctx.fillStyle = '#D99B26';
+  ctx.fillStyle = UI_COLORS.crownGold;
   ctx.beginPath();
   ctx.arc(0, 2, 8, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  ctx.fillStyle = '#1C1C1A';
+  ctx.fillStyle = UI_COLORS.lineDark;
   ctx.fillRect(-6, -14, 12, 3);
 
   ctx.beginPath();
@@ -312,7 +325,7 @@ export function drawHeistPiggy(ctx, piggy) {
   ctx.lineTo(-6, -20);
   ctx.lineTo(-4, -10);
   ctx.closePath();
-  ctx.fillStyle = '#FFDE59';
+  ctx.fillStyle = UI_COLORS.heistPiggy;
   ctx.fill();
   ctx.stroke();
 
@@ -327,9 +340,20 @@ export function drawHeistPiggy(ctx, piggy) {
   ctx.restore();
 
   ctx.save();
+  const maxHp = Math.max(1, pig.maxHp || 1);
+  if (maxHp <= 1) {
+    // Tek vuruş kimliği: can pip'i yok, nabız gibi atan bonus halkası var.
+    const pulse = 1 + Math.sin((pig.anim || 0) * 6) * 0.12;
+    ctx.strokeStyle = UI_COLORS.heistPiggy;
+    ctx.lineWidth = Math.max(2, 3 * ((pig.radius || 18) / 18));
+    ctx.beginPath();
+    ctx.arc(pig.x, pig.y, (pig.radius + 8) * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
   const pipW = 10;
   const pipH = 5;
-  const maxHp = Math.max(1, pig.maxHp || 1);
   const startPipX = pig.x - (maxHp * (pipW + 3)) / 2;
   const pipY = pig.y - pig.radius - 12;
   for (let h = 0; h < maxHp; h++) {

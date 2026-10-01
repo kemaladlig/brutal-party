@@ -619,10 +619,17 @@ export class HordeGame extends BaseMiniGame {
     const timestamp = Number.isFinite(Number(now)) ? Number(now) : performance.now();
     const rawDt = this.clampDt(timestamp, this.lastTime);
     this.lastTime = timestamp;
-    // Hit-stop TEK SAAT: host karesi yavaşlar, kumanda aynı kareyi görür (§2).
-    const dt = this.fx.tick(rawDt);
-    this.updateTrauma(dt);
-    this.fx.update(dt);
+    // HORDE istisnası: hit-stop YALNIZ sunumu yavaşlatır, simülasyonu değil.
+    // 3 tetikçi (1 insan + 2 bot) her vuruşta `hit`/`slay` basınca global saat
+    // `Math.max` ile kilitlenip oyun sürekli slow-mo'ya giriyor, basılı ateşte
+    // mermi de aynı dt ile ilerlediği için oyuncunun mermisi yavaşlıyordu.
+    // `fxDt` yalnız travma sönümü + partikül/halka/pop içindir; oyun mantığı
+    // ham `rawDt` ile akar. Elit/boss `kill`'deki kısa yavaşlama + flaş özel
+    // an olarak sunumda kalır, akışı kesmez.
+    const fxDt = this.fx.tick(rawDt);
+    this.updateTrauma(fxDt);
+    this.fx.update(fxDt);
+    const dt = rawDt;
 
     if (this.state === 'ROUND_PAUSE') {
       this.updateRoundBreak(dt);
@@ -1573,15 +1580,18 @@ export class HordeGame extends BaseMiniGame {
       enemy.knockVx = (enemy.knockVx || 0) + (dirX / magnitude) * impulse;
       enemy.knockVy = (enemy.knockVy || 0) + (dirY / magnitude) * impulse;
     }
-    // Vuruş geri bildirimi: isabet yönünde hit olayı (profil: burst + halka +
-    // kısa hit-stop + yönlü travma). Sahibi insansa haptik onun koltuğuna.
+    // Vuruş geri bildirimi: isabet yönünde hit olayı (burst + halka; zaman
+    // dondurma YOK, sarsıntı kısık). Kalabalıkta her mermi izi akışı kesmesin
+    // diye his burst/halka/pop + knockback + seste kalır. Sahibi insansa minik
+    // sarsıntı + haptik onun koltuğuna; bot vuruşu sarsıntısızdır.
     const ownerForHaptic = this.players[ownerIndex];
+    const hitByHuman = ownerForHaptic?.slotType === 'human';
     this.fx.emit('hit', {
       x: enemy.x, y: enemy.y,
       color: enemy.type === 'healer' ? ENEMY_HEAL : ENEMY_BLOOD,
       dirX, dirY, slot: ownerIndex,
-      haptic: ownerForHaptic?.slotType === 'human',
-    });
+      haptic: hitByHuman,
+    }, { hitStop: false, traumaScale: hitByHuman ? 0.35 : 0 });
     if (enemy.hp > 0) return;
     const index = this.enemies.indexOf(enemy);
     if (index >= 0) this.enemies.splice(index, 1);
@@ -1609,17 +1619,20 @@ export class HordeGame extends BaseMiniGame {
     const owner = this.players[ownerIndex];
     const points = enemy.isBoss ? 3 : enemy.elite ? 2 : 1;
     if (owner) this.scores[owner.index] += points;
-    // Ölüm olayı: sıradan NPC `slay` (burst + halka + pop + kısa hit-stop, FLAŞ
-    // YOK); elit/boss `kill` (tam bütçe + tek-ekran flaşı). Böylece kalabalıkta
-    // her ölüm ekranı yakmaz, flaş özel ölümlere saklanır (§ fxKit).
+    // Ölüm olayı: sıradan NPC `slay` (burst + halka + pop; zaman dondurma YOK,
+    // FLAŞ YOK); elit/boss `kill` (tam bütçe + tek-ekran flaşı). Sıradan ölümde
+    // his görselde kalır, sarsıntı insanda kısık / botta daha kısık; özel ölüm
+    // an olarak flaş + sarsıntıyı korur (sim zaten ayrı saatte aktığı için
+    // akış kesilmez). (§ fxKit, sunum-odaklı hit-stop)
     const eliteKill = enemy.isBoss || enemy.elite;
+    const killByHuman = owner?.slotType === 'human';
     this.fx.emit(eliteKill ? 'kill' : 'slay', {
       x: enemy.x, y: enemy.y,
       color: eliteKill ? '#FACC15' : ENEMY_BLOOD,
       size: enemy.radius || 30, angle: enemy.angle || 0,
       dirX, dirY, slot: ownerIndex,
-      haptic: owner?.slotType === 'human',
-    });
+      haptic: killByHuman,
+    }, eliteKill ? undefined : { hitStop: false, traumaScale: killByHuman ? 0.5 : 0.2 });
     this.spawnFloatingText(enemy.x, enemy.y - enemy.radius, `+${points}`, owner?.color || '#D84727');
     playExplosion();
   }

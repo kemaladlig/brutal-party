@@ -63,6 +63,9 @@
   /* ---- Marka rengi (yalnız WhatsApp davet butonu) ---- */
   --brand-whatsapp: #25d366;
 
+  /* ---- HEIST tek-vuruş bonus kimliği (yakut kumbara + yakut loot) ---- */
+  --heist-piggy: #E143C8;
+
   /* ---- Dinamik oyun teması token'ları (oyun/staging anında JS ile doldurulur) ---- */
   --game-accent: var(--yellow);
   --game-floor: var(--paper);

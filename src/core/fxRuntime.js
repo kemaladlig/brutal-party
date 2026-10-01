@@ -78,8 +78,12 @@ export class FxRuntime {
    * @param {{ x: number, y: number, color?: string, dirX?: number, dirY?: number,
    *   ringRadius?: number | null, haptic?: boolean, size?: number, angle?: number,
    *   slot?: number, unit?: number }} event
+   * @param {{ hitStop?: boolean, traumaScale?: number, flash?: boolean }} [opts]
+   *   Çok-ölümlü akışlar (HORDE) için sunum freni: `hitStop:false` zamanı
+   *   dondurmaz (burst/halka/pop yine çıkar), `traumaScale` sarsıntıyı kısar
+   *   (0 = yok), `flash:false` perdeyi kapatır. Varsayılan profili birebir uygular.
    */
-  emit(kind, event) {
+  emit(kind, event, opts = {}) {
     const profile = /** @type {any} */ (fxProfile(kind));
     const unit = Number.isFinite(event.unit) && /** @type {number} */ (event.unit) > 0
       ? /** @type {number} */ (event.unit)
@@ -104,19 +108,20 @@ export class FxRuntime {
         unit,
       });
     }
-    if (profile.hitStopMs && motionScale() > 0) {
+    if (profile.hitStopMs && motionScale() > 0 && opts.hitStop !== false) {
       this.hitStop = Math.max(this.hitStop, profile.hitStopMs / 1000);
     }
-    if (profile.flashSec && motionScale() > 0) {
+    if (profile.flashSec && motionScale() > 0 && opts.flash !== false) {
       this.flash = Math.max(this.flash, profile.flashSec);
       this.flashPeak = Math.max(this.flashPeak, profile.flashSec);
     }
-    if (profile.trauma && this.traumaSink) {
+    const traumaScale = Number.isFinite(opts.traumaScale) ? Number(opts.traumaScale) : 1;
+    if (profile.trauma && traumaScale > 0 && this.traumaSink) {
       const dir = fxNormalizedDir(event.dirX || 0, event.dirY || 0);
-      this.traumaSink(profile.trauma, dir?.x || 0, dir?.y || 0);
+      this.traumaSink(profile.trauma * traumaScale, dir?.x || 0, dir?.y || 0);
     }
     if (event.haptic) fxHaptic(kind);
-    this._recordEvent(kind, event, unit);
+    this._recordEvent(kind, event, unit, traumaScale);
     return profile;
   }
 
@@ -126,16 +131,18 @@ export class FxRuntime {
    * @param {import('./fxKit.js').FxKind} kind
    * @param {any} event
    * @param {number} unit
+   * @param {number} [traumaScale]
    */
-  _recordEvent(kind, event, unit) {
+  _recordEvent(kind, event, unit, traumaScale = 1) {
     if (this.events.length >= FX_EVENT_QUEUE_CAP) this.events.shift();
+    const scale = Number.isFinite(traumaScale) ? Math.max(0, Math.min(1, Number(traumaScale))) : 1;
     /** @type {Record<string, any>} */
     const rec = {
       fx: kind,
       x: r1(event.x),
       y: r1(event.y),
       u: r1(unit),
-      power: fxPower(kind),
+      power: fxPower(kind) * scale,
     };
     if (Number.isInteger(event.slot) && event.slot >= 0 && event.slot <= 3) rec.slot = event.slot;
     if (typeof event.color === 'string') rec.color = event.color;

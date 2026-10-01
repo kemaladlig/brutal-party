@@ -704,8 +704,6 @@ function mountSteerAction(gamepad, container, schema) {
 // 4. SLIDER_1D Archetype (PONG)
 // ---------------------------------------------------------------------------
 function mountSlider1D(gamepad, container, schema) {
-  const seatNames = ['P1', 'P2', 'P3', 'P4'];
-  const posLabel = seatNames[gamepad.playerIndex] || `P${gamepad.playerIndex + 1}`;
   const baseInvert = gamepad.playerIndex === 1 || gamepad.playerIndex === 3;
   const verticalAxis = gamepad.playerIndex === 2 || gamepad.playerIndex === 3;
   const sensitivity = getPreference('pongSensitivity');
@@ -736,11 +734,6 @@ function mountSlider1D(gamepad, container, schema) {
 
   container.innerHTML = `
     <div class="pong-controller-view ${verticalAxis ? 'vertical' : 'horizontal'}">
-      <div class="pong-live-scoreboard" id="pong-live-scoreboard">
-        <div class="pong-score-pips" id="pong-score-display">${t('pad.scoreJoin', '0 - 0')}</div>
-        <div class="pong-rally-badge" id="pong-rally-display">${tIcon('pad.rally', 0)}</div>
-      </div>
-      <div class="pong-position-badge" style="border-color: ${gamepad.playerColor}">${t('pad.tvPlace', posLabel)}</div>
       <div class="pong-bottom-zone">
         <div class="pong-track-wrap" data-controller-layout-target="left">
           <div class="pong-instruction" id="pong-direction-hint">${directionHint()}</div>
@@ -828,28 +821,6 @@ function mountSlider1D(gamepad, container, schema) {
   return {
     handleSync(data) {
       if (data.scores) {
-        const scoreDisp = document.getElementById('pong-score-display');
-        const rallyDisp = document.getElementById('pong-rally-display');
-        if (scoreDisp && data.scores) {
-          // Yalnız dolu koltuklar: 2 kişilik oyunda boş P3/P4 yazılmaz.
-          const lives = Array.isArray(data.lives) ? data.lives : null;
-          const nameList = Array.isArray(data.names) ? data.names : [];
-          const occupied = data.scores.slice(0, 4)
-            .map((s, i) => ({ s, i }))
-            .filter(({ i }) => !!nameList[i]);
-          const scoreTxt = occupied.length > 0
-            ? occupied.map(({ s, i }) => {
-              const nm = nameList[i];
-              const heart = lives ? `${getTabletopIconSvg('heart', { size: 11 })}${lives[i] ?? 0}` : '';
-              return `${nm} ${s}${heart}`;
-            }).join(' • ')
-            : t('pad.scoreJoin', data.scores.slice(0, 4).join(' - '));
-          if (scoreDisp.innerHTML !== scoreTxt) scoreDisp.innerHTML = scoreTxt;
-        }
-        if (rallyDisp && data.rally !== undefined) {
-          const rallyTxt = tIcon('pad.rally', data.rally);
-          if (rallyDisp.innerHTML !== rallyTxt) rallyDisp.innerHTML = rallyTxt;
-        }
         const sBtn = document.getElementById('btn-pong-spin');
         if (sBtn) {
           // Faz 2.1: host yetkili cooldown radyal dolguya (--cd + .cd-num) boyanır.
@@ -861,10 +832,6 @@ function mountSlider1D(gamepad, container, schema) {
           } else if (sBtn.classList.contains('cooling')) {
             gamepad.resetButtonCooldown(sBtn, { flash: false });
           }
-        }
-        if (rallyDisp && data.spn) {
-          const spn = tIcon('pad.spinning');
-          if (rallyDisp.innerHTML !== spn) rallyDisp.innerHTML = spn;
         }
       }
     },

@@ -11,6 +11,7 @@
 //      kalır, yani görsel sadakat düşer ama oyun doğruluğu bozulmaz.
 
 import { drawPickup } from '../core/arenaKit.js';
+import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import {
   round1,
@@ -238,6 +239,21 @@ export function drawCurveFxLayer(ctx, layer) {
 }
 
 // --- Ortak çizim yardımcıları (client dünya sahnesi) ---
+
+/**
+ * Sahayı çizer: statik katman `fieldKit`'te (çelik mavi zemin, `court`
+ * çizgileri, `flow` merkez motifi, yuvarlatılmış tepsi kesimi). Eskiden hem
+ * `curve.js` hem `curveWorldView.js` aynı krem zemin + ızgara + siyah
+ * `strokeRect`'i ELLE çiziyordu; ikinci kopya aynı zamanda host↔client
+ * ayrışması demekti.
+ *
+ * Modül seviyesinde sabit fonksiyon olmak ZORUNDA (bkz. `drawField` cache
+ * anahtarı): `roundId` yalnız `seed` olarak girer.
+ */
+export function drawCurveArena(ctx, arena, opts = {}) {
+  drawField(ctx, arena, { mode: 'CURVE', seed: hashFieldSeed('CURVE', opts.roundId) });
+}
+
 export function drawCurveFieldMask(ctx, fieldRect, mask, colors, gapMask = null) {
   const T = CURVE_FIELD_TILES;
   const tw = (fieldRect.s || 0) / T;

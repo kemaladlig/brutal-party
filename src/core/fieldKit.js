@@ -775,8 +775,12 @@ export const FIELD_MOTIFS = Object.freeze({
  * (ör. `ui/tanksWorldView.js` yalnız kutu üretir). Kırpılmamış `size/952` yedeği
  * telefon yatayında eşik altına düştüğü için AYNI cache anahtarı host'ta ve
  * kumanda telefonunda farklı geometri çizerdi. Yedek de kırpılır.
+ *
+ * World view'ları da bu fonksiyonu kullanmalıdır: `size / 952` yazmak
+ * kırpmanın altına düşer ve host/client arasında iz kalınlığı ayrışır
+ * (bkz. `ui/curveWorldView.js`).
  */
-function arenaUnit(arena) {
+export function arenaUnit(arena) {
   const u = Number(arena?.unit);
   if (Number.isFinite(u) && u > 0) return clampUnit(u);
   const size = Number(arena?.size) || Math.min(arena?.width || 0, arena?.height || 0);

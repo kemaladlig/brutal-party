@@ -14,6 +14,7 @@ import {
   playPiggyBreak,
 } from '../audio.js';
 import { t } from '../i18n.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import { matchesInputAction } from '../core/inputIntent.js';
 import {
   renderArenaWatermarkTimer,
@@ -49,6 +50,8 @@ export const HEIST_TUNING = {
   TACKLE_COOLDOWN: 3.5,
   ROUND_TIME: 45,
   MAX_TIED_ROUNDS: 2,
+  PIGGY_HP: 1,
+  RUBY_COUNT: 3,
 };
 
 /**
@@ -404,8 +407,8 @@ export class HeistGame extends BaseMiniGame {
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       radius: fieldRadius(this.arena, 24, 0.026),
-      hp: 3,
-      maxHp: 3,
+      hp: HEIST_TUNING.PIGGY_HP,
+      maxHp: HEIST_TUNING.PIGGY_HP,
       hitTimer: 0,
       animTime: 0,
     };
@@ -413,8 +416,9 @@ export class HeistGame extends BaseMiniGame {
     // Kumbara girişi: harita-duyurusu (zone profili: halka + duyuru travması).
     this.fx.emit('zone', {
       x: this.arena.cx, y: this.arena.cy, ringRadius: this.piggyBank.radius * 3,
+      color: UI_COLORS.heistPiggy,
     });
-    this.addFloatingText(this.arena.cx, this.arena.cy - 40, t('heist.pig'), '#FFDE59');
+    this.addFloatingText(this.arena.cx, this.arena.cy - 40, t('heist.pig'), UI_COLORS.heistPiggy);
   }
 
   spawnLootItem(type = 'COIN', customX = null, customY = null) {
@@ -432,13 +436,16 @@ export class HeistGame extends BaseMiniGame {
     }
 
     const lootPoint = { x: px, y: py };
-    clampToArena(lootPoint, type === 'CROWN' ? 14 : type === 'DIAMOND' ? 12 : 9, this.arena);
+    // Kumbara ödül kimliği: RUBY 2 değerinde, ağırlık 1'de tutulur — 45 sn'lik
+    // rauntta tek vuruşun karşılığı hızlı kasaya koşmak, yavaşlamak değil.
+    const lootRadius = type === 'CROWN' ? 14 : type === 'DIAMOND' ? 12 : type === 'RUBY' ? 11 : 9;
+    clampToArena(lootPoint, lootRadius, this.arena);
     px = lootPoint.x;
     py = lootPoint.y;
 
-    const value = type === 'CROWN' ? 5 : type === 'DIAMOND' ? 3 : 1;
+    const value = type === 'CROWN' ? 5 : type === 'DIAMOND' ? 3 : type === 'RUBY' ? 2 : 1;
     const weight = type === 'CROWN' ? 3 : type === 'DIAMOND' ? 2 : 1;
-    const radius = type === 'CROWN' ? 14 : type === 'DIAMOND' ? 12 : 9;
+    const radius = lootRadius;
 
     this.lootItems.push({
       x: px,
@@ -742,7 +749,7 @@ export class HeistGame extends BaseMiniGame {
             x: item.x, y: item.y, color: player.color, slot: player.index,
             haptic: player.slotType === 'human',
           });
-          this.addFloatingText(item.x, item.y - 12, `+${item.value}`, item.type === 'DIAMOND' ? '#48CAE4' : '#FFDE59');
+          this.addFloatingText(item.x, item.y - 12, `+${item.value}`, item.type === 'DIAMOND' ? UI_COLORS.crownTeleport : item.type === 'RUBY' ? UI_COLORS.heistPiggy : UI_COLORS.crownSpark);
           this.lootItems.splice(l, 1);
         }
       }
@@ -880,21 +887,24 @@ export class HeistGame extends BaseMiniGame {
     pig.vy = (dy / dist) * 260;
     if (pig.hp <= 0) {
       this.piggyBank = null;
-      for (let i = 0; i < 5; i++) {
-        this.spawnLootItem('COIN', pig.x + (Math.random() - 0.5) * 70, pig.y + (Math.random() - 0.5) * 70);
+      for (let i = 0; i < HEIST_TUNING.RUBY_COUNT; i++) {
+        this.spawnLootItem('RUBY', pig.x + (Math.random() - 0.5) * 70, pig.y + (Math.random() - 0.5) * 70);
       }
-      this.spawnLootItem('DIAMOND', pig.x, pig.y);
-      // Kumbara kırılması: hit olayı (burst + halka + haptik).
+      // Tek vuruşun karşılığı: kırılma hit + duyuru halkası (güvenilir FX yolunda).
       this.fx.emit('hit', {
-        x: pig.x, y: pig.y, color: '#FFDE59',
+        x: pig.x, y: pig.y, color: UI_COLORS.heistPiggy,
         dirX: dx / dist, dirY: dy / dist, slot: attacker.index,
         haptic: attacker.slotType === 'human',
       });
-      this.addFloatingText(pig.x, pig.y - 34, 'KUMBARA KIRILDI!', '#FFDE59');
+      this.fx.emit('zone', {
+        x: pig.x, y: pig.y, ringRadius: pig.radius * 3,
+        color: UI_COLORS.heistPiggy, slot: attacker.index,
+      });
+      this.addFloatingText(pig.x, pig.y - 34, t('heist.smashed'), UI_COLORS.heistPiggy);
       playPiggyBreak();
     } else {
-      this.fx.emit('spark', { x: pig.x, y: pig.y, color: '#FFDE59' });
-      this.addFloatingText(pig.x, pig.y - 34, t('heist.crack', pig.hp), '#FFFFFF');
+      this.fx.emit('spark', { x: pig.x, y: pig.y, color: UI_COLORS.heistPiggy });
+      this.addFloatingText(pig.x, pig.y - 34, t('heist.crack', pig.hp), UI_COLORS.white);
     }
   }
 

@@ -22,9 +22,11 @@ function deadText(playerIndex, data) {
 
 const STATUS_BUILDERS = {
   PONG: (i, data) => {
-    // Skor/ralli kumandanın kendi skorbordunda (`pong-live-scoreboard`);
-    // şeritte yalnız maç süresi kalır.
-    return Number.isFinite(data.timeLeft) ? `${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
+    // Skor ortak şeritte (`renderScoreStrip`); burada süre + ralli + falso.
+    const time = Number.isFinite(data.timeLeft) ? `${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
+    const rally = Number.isFinite(data.rally) && data.rally > 0 ? tIcon('pad.rally', data.rally) : '';
+    const spin = data.spn ? tIcon('pad.spinning') : '';
+    return [time, rally, spin].filter(Boolean).join(' • ');
   },
   ARCHER: (i, data) => {
     const time = Number.isFinite(data.timeLeft) ? `${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';

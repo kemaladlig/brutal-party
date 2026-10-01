@@ -474,3 +474,68 @@ test('wave-advance bonus pickups use the standard pickup size', () => {
   assert.ok(bonus, 'expected a bonus pickup after a wave advance');
   assert.equal(bonus.size, game.bodyPx(HORDE_TUNING.PICKUP_SIZE));
 });
+
+test('horde trash hits keep the sim clock running (presentation-only hit-stop)', () => {
+  const game = setup();
+  game.slotTypes = ['human', 'bot_normal', 'bot_normal', 'empty'];
+  game.initPlayers();
+  game.startNewMatch();
+  game.lastTime = 1000;
+  game.fx.clear();
+  game.trauma = 0;
+
+  // Botun normal vuruşu: zaman dondurma yok, sarsıntı yok; his burst/halkada kalır.
+  const botTarget = game.createEnemy('chaser', false, 3, false);
+  botTarget.spawnDelay = 0;
+  botTarget.x = game.players[1].x + 40;
+  botTarget.y = game.players[1].y;
+  game.enemies.push(botTarget);
+  game.damageEnemy(botTarget, 1, 1, 0, 1, 0);
+  assert.equal(game.fx.hitStop, 0, 'bot hit must not freeze the shared clock');
+  assert.equal(game.trauma, 0, 'bot hit must not shake the shared camera');
+  assert.ok(botTarget.hp > 0 || !game.enemies.includes(botTarget), 'hit applied');
+  assert.ok(game.fx.particles.length > 0 || game.fx.rings.length > 0, 'hit keeps its visual pop');
+
+  // İnsanın normal vuruşu: zaman dondurma yok, sarsıntı kısık.
+  game.fx.clear();
+  game.trauma = 0;
+  const humanTarget = game.createEnemy('chaser', false, 3, false);
+  humanTarget.spawnDelay = 0;
+  humanTarget.x = game.players[0].x + 40;
+  humanTarget.y = game.players[0].y;
+  game.enemies.push(humanTarget);
+  game.damageEnemy(humanTarget, 1, 0, 0, 1, 0);
+  assert.equal(game.fx.hitStop, 0, 'human trash hit must not freeze the sim');
+  assert.ok(game.trauma > 0 && game.trauma < 0.2, `human hit trauma throttled, got ${game.trauma}`);
+
+  // Sıradan ölüm de saati dondurmaz; elit ölüm özel an olarak kısa duraklamayı korur.
+  game.fx.clear();
+  const trash = game.createEnemy('chaser', false, 1, false);
+  trash.spawnDelay = 0;
+  trash.hp = 1;
+  trash.maxHp = 1;
+  game.enemies.push(trash);
+  game.damageEnemy(trash, 1, 0, 0, 1, 0);
+  assert.equal(game.fx.hitStop, 0, 'trash slay must not freeze the sim');
+  assert.ok(game.fx.pops.length > 0, 'trash slay keeps its death pop');
+
+  game.fx.clear();
+  const elite = game.createEnemy('chaser', false, 1, true);
+  elite.spawnDelay = 0;
+  elite.hp = 1;
+  elite.maxHp = 1;
+  game.enemies.push(elite);
+  game.damageEnemy(elite, 1, 0, 0, 1, 0);
+  assert.ok(game.fx.hitStop > 0, 'elite kill keeps its short presentation stop');
+
+  // Sim saati hit-stop sırasında bile ham dt ile akar (mermi/yürüyüş yavaşlamaz).
+  game.enemies = [game.createEnemy('chaser', false, 1, false)];
+  game.enemies[0].spawnDelay = 0;
+  game.portal = null;
+  game.fx.hitStop = 0.1;
+  const beforeWave = game.waveTimer;
+  game.lastTime = 2000;
+  game.update(2016);
+  const spent = beforeWave - game.waveTimer;
+  assert.ok(spent > 0.01, `sim must spend rawDt during hit-stop, spent ${spent}`);
+});

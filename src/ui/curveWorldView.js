@@ -5,6 +5,7 @@
 import {
   unpackCurveFieldMask,
   unpackCurveGapMask,
+  drawCurveArena,
   drawCurveFieldMask,
   drawCurveNearSegments,
   drawCurveHeads,
@@ -14,59 +15,12 @@ import {
 } from '../games/curveView.js';
 import { drawAlphaTexts, drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
-import { fitWorld, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { arenaUnit, paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
 const CURVE_FALLBACK = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
-
-function drawCurveGrid(ctx, arena) {
-  const { left, top, right, bottom, width, height, size } = arena;
-  const u = arena?.unit ?? (size ? size / 952 : 1);
-
-  ctx.fillStyle = '#FAF7F2';
-  ctx.fillRect(left, top, width, height);
-
-  ctx.strokeStyle = '#E2DDD4';
-  ctx.lineWidth = Math.max(1, 1.5 * u);
-  const gridStep = size / 6;
-  for (let x = left + gridStep; x < right; x += gridStep) {
-    ctx.beginPath();
-    ctx.moveTo(x, top);
-    ctx.lineTo(x, bottom);
-    ctx.stroke();
-  }
-  for (let y = top + gridStep; y < bottom; y += gridStep) {
-    ctx.beginPath();
-    ctx.moveTo(left, y);
-    ctx.lineTo(right, y);
-    ctx.stroke();
-  }
-
-  const bLen = Math.max(16, Math.round(size * 0.05));
-  ctx.strokeStyle = '#2B2B28';
-  ctx.lineWidth = Math.max(1.5, 3 * u);
-  const cornerPlates = [
-    [[left, top + bLen], [left, top], [left + bLen, top]],
-    [[right - bLen, top], [right, top], [right, top + bLen]],
-    [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
-    [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
-  ];
-  for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.lineTo(x3, y3);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = '#1A1A1A';
-  ctx.fillRect(right, top + 6, 6, height);
-  ctx.fillRect(left + 6, bottom, width, 6);
-  ctx.strokeStyle = '#1A1A1A';
-  ctx.lineWidth = Math.max(2, 6 * u);
-  ctx.strokeRect(left, top, width, height);
-}
 
 export function createWorldViewRenderer() {
   return {
@@ -81,8 +35,8 @@ export function createWorldViewRenderer() {
       arena.size = Math.min(arena.width, arena.height);
 
       ctx.save();
-      ctx.fillStyle = '#F4F4F0';
-      ctx.fillRect(0, 0, width, height);
+      // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
+      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'CURVE' });
       fitWorld(ctx, width, height, frame.arena, () => {
         const players = frame.players.map((p) => ({
           ...p,
@@ -92,11 +46,12 @@ export function createWorldViewRenderer() {
         }));
         const colors = players.map((p) => p.color);
 
-        drawCurveGrid(ctx, arena);
+        drawCurveArena(ctx, arena, { roundId: frame.roundId });
         drawCurveFieldMask(ctx, { x: left, y: top, s: arena.size }, unpackCurveFieldMask(frame.field), colors, unpackCurveGapMask(frame.gaps));
-        // Birim host formülüyle türetilir (arena.unit pakette yok); `|| 1`
-        // telefonda kalınlıkları 2-3x şişiriyordu.
-        drawCurveNearSegments(ctx, frame.near || [], colors, arena.size / 952);
+        // Birim host'la Aynı yoldan: `arena.unit` pakette yok, `fieldKit`'in
+        // tek otoritesi `arenaUnit` bunu kırpılmış `size/952` olarak türetir.
+        // Ham `size / 952` yazmak küçük sahada host'un altına düşüyordu.
+        drawCurveNearSegments(ctx, frame.near || [], colors, arenaUnit(arena));
         drawCurvePickups(ctx, frame.pickups || []);
         drawAlphaTexts(ctx, frame.texts || [], { size: 12, outline: true });
         drawCurveFxLayer(ctx, fxLive

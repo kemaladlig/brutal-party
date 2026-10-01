@@ -114,6 +114,7 @@ export const UI_COLORS = {
   crownDarkIcon: '#141416',
   blastFlash: '#FFD9C0',
   blastSpark: '#FFD122',
+  heistPiggy: '#E143C8',
   inkDark: '#1A1A1A',
   lineDark: '#1C1C1A',
   pureBlack: '#000000',

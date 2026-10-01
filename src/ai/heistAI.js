@@ -55,6 +55,7 @@ function decideTarget(game, bot, P, myVault, state) {
     return vaultC;
   }
   // COLLECT: değer-ağırlıklı ganimet (god) / en yakın (normal)
+  // Yakut kumbara tek vuruşluk bonus: toplam 6 değerinde hedef olarak girer.
   let bestItem = null;
   let bestW = Infinity;
   for (const item of game.lootItems) {
@@ -63,6 +64,15 @@ function decideTarget(game, bot, P, myVault, state) {
     if (w < bestW) {
       bestW = w;
       bestItem = item;
+    }
+  }
+  const pig = game.piggyBank;
+  if (pig && (bot.carriedGold || 0) <= 2) {
+    const dPig = Math.hypot(pig.x - bot.x, pig.y - bot.y);
+    const wPig = P.lootValue ? dPig / 6 : dPig * 0.7;
+    if (wPig < bestW) {
+      bestW = wPig;
+      bestItem = pig;
     }
   }
   if (bestItem) return { x: bestItem.x, y: bestItem.y };
@@ -146,6 +156,21 @@ export function updateHeistBotAI(rawGame, bot, dt) {
           dirX * Math.cos(bot.facingAngle || 0) + dirY * Math.sin(bot.facingAngle || 0) > P.alignNeed;
       }
       if (d < P.tackleRange && gapOk && aligned) {
+        bot.botLastTackle = bot.botClock;
+        game.triggerTackle(bot.index);
+      }
+    }
+  }
+
+  // Kumbara fırsatçılığı: yakındaysa omuzu kumbaraya sakla (tek vuruş, cezası yok).
+  // Host isabet yarıçapı pig.radius + p.radius + 26 ile aynı kapıdadır.
+  if (bot.tackleCooldown <= 0) {
+    const bank = game.piggyBank;
+    if (bank) {
+      const dPig = Math.hypot(bank.x - bot.x, bank.y - bot.y);
+      const reach = (P.tackleRange || 70) + 30;
+      const gapOk = bot.botClock - (bot.botLastTackle || -99) >= P.minGap;
+      if (dPig < reach && gapOk) {
         bot.botLastTackle = bot.botClock;
         game.triggerTackle(bot.index);
       }

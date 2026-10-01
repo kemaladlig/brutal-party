@@ -265,7 +265,7 @@ scripts/rules-lint.mjs      AGENTS.md K1–K7 makine bekçisi (mode=== dalı, ha
 
 | Kod | Mod adı | Motor dosyası | Bot | Kumanda | Not |
 |-----|---------|---------------|-----|---------|-----|
-| PONG | Brutal Pong | `src/games/game.js` | Paddle içinde | `mountPongController` | Kendi skorbord; kale %62 + 45° pah; ❄️ dondurma; 120sn limit; 30 Hz world-view |
+| PONG | Brutal Pong | `src/games/game.js` | Paddle içinde | `mountPongController` | Set skorü (3 set); ortak skor şeridi + ralli/falso durum satırı; kale %62 + 45° pah; ❄️ dondurma; 120sn limit; 30 Hz world-view |
 | TANKS | Micro-Tanks | `src/games/tanks.js` | `tankAI` | `mountTanksController` | Gaz+ateş; 2 chamber + triple pickup; 35sn sudden-death; 30 Hz world-view |
 | CURVE | Brutal Curve | `src/games/curve.js` | `curveAI` | `mountCurveController` | NITRO akışı; 24×24 owner+gap maskesi; 30 Hz world-view |
 | BOMB | Brutal Bomb | `src/games/bomb.js` | `bombAI` | `mountBombController` | Patlama `blast` katmanı; 90sn draw; 30 Hz world-view |

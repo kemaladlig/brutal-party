@@ -14,7 +14,8 @@ import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap
 import { distToSegmentSquared, clampToArena } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
-import { createCurveWorldPacket, drawCurveFxLayer } from './curveView.js';
+import { createCurveWorldPacket, drawCurveArena, drawCurveFxLayer } from './curveView.js';
+import { arenaUnit, paintBackdrop } from '../core/fieldKit.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
@@ -48,12 +49,17 @@ const CURVE_HEAD_RADIUS = 18;
 // HIZLAN (NITRO): kumanda/masa-ortası/klavye tek dokunuşla açılan hız patlaması.
 // Hız artarken dönüş yarıçapı genişler — hız kazancı karşılığında tepki payı düşer.
 const CURVE_TUNING = {
-  MOVE_SPEED: 185,
+  // 185 → 215: saha geçişi 5.15s → 4.43s, gövde/sn 5.14 → 5.97. Bütçe
+  // (movementBudget §A) ≤6.3s / ≥4.4 olduğu için açılma var; dönüş yarıçapı
+  // 62 → 72 px, yani çizgi biraz daha geniş açılıyor.
+  MOVE_SPEED: 215,
   TURN_SPEED: 3.0,
   // Boşluk MESAFE olarak tanımlı, süre olarak değil: süre tabanlı açık
   // (0.16 sn) hız arttıkça uzuyordu ama kafa çapına (2×18 = 36 px) göre
-  // ölçülmediği için geçiş için hâlâ dar kalıyordu. 52 px ≈ 1.45 kafa.
-  GAP_LENGTH: 52,
+  // ölçülmediğiği için geçiş için hâlâ dar kalıyordu. 60 px ≈ 1.7 kafa.
+  // Hızla birlikte ölçeklendiği için açık kalma SÜRESİ değişmedi
+  // (52/185 = 0.281s → 60/215 = 0.279s): delik %15 genişler, bedel ödenmez.
+  GAP_LENGTH: 60,
   NITRO_DURATION: 1.4,
   NITRO_COOLDOWN: 4.0,
   NITRO_SPEED_MULT: 1.45,
@@ -178,6 +184,12 @@ this.targetScore = 2;
     for (const p of this.players) {
       this.remapPoint(p, oldArena, this.arena);
       p.radius = fieldRadius(this.arena, CURVE_HEAD_RADIUS, 0);
+      // Hız da yeni arenanın `unit`'inden türetilir. Eksikti ve sessizce
+      // bozuluyordu: kafa yeni sahaya ölçeklenirken hız eski arenada
+      // kalıyordu, yani telefon döndükten / PWA tam ekrana geçtikten sonra
+      // verilen hız değeri sahneye tam oturmuyordu (SNAKE'in yaptığı gibi).
+      p.speed = fieldSpeed(this.arena, CURVE_TUNING.MOVE_SPEED);
+      p.turnSpeed = CURVE_TUNING.TURN_SPEED;
       clampToArena(p, p.radius, this.arena, { zeroVelocity: true });
       p.prevX = p.x;
       p.prevY = p.y;
@@ -879,60 +891,19 @@ this.targetScore = 2;
     const { ctx } = this;
     ctx.save();
 
-    // Background paper
-    ctx.fillStyle = '#F4F4F0';
-    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
+    // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'CURVE' });
 
     this.applyScreenShake(ctx, 16);
 
-    const { left, top, width, height, size, right, bottom, cx, cy } = this.arena;
+    // Saha içi ölçek (iz kalınlığı, etiket, çerçeve) — tek otorite `arenaUnit`.
+    const u = arenaUnit(this.arena);
 
-    ctx.fillStyle = '#FAF7F2';
-    ctx.fillRect(left, top, width, height);
-
-    ctx.strokeStyle = '#E2DDD4';
-    const u = this.arena.unit || (this.arena.size / 952);
-    ctx.lineWidth = Math.max(1, 1.5 * u);
-    const gridStep = size / 6;
-    for (let x = left + gridStep; x < right; x += gridStep) {
-      ctx.beginPath();
-      ctx.moveTo(x, top);
-      ctx.lineTo(x, bottom);
-      ctx.stroke();
-    }
-    for (let y = top + gridStep; y < bottom; y += gridStep) {
-      ctx.beginPath();
-      ctx.moveTo(left, y);
-      ctx.lineTo(right, y);
-      ctx.stroke();
-    }
-
-    // 4 Köşe Takviye Braketleri (L-plates)
-    const bLen = Math.max(16, Math.round(size * 0.05));
-    ctx.strokeStyle = '#2B2B28';
-    ctx.lineWidth = Math.max(1, 3 * u);
-    const cornerPlates = [
-      [[left, top + bLen], [left, top], [left + bLen, top]],
-      [[right - bLen, top], [right, top], [right, top + bLen]],
-      [[left, bottom - bLen], [left, bottom], [left + bLen, bottom]],
-      [[right - bLen, bottom], [right, bottom], [right, bottom - bLen]],
-    ];
-    for (const [[x1, y1], [x2, y2], [x3, y3]] of cornerPlates) {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.lineTo(x3, y3);
-      ctx.stroke();
-    }
-
-    // Dış Sert Döküm Kenarlık & Gölge
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(right, top + 6, 6, height);
-    ctx.fillRect(left + 6, bottom, width, 6);
-
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = Math.max(2, Math.round(6 * u));
-    ctx.strokeRect(left, top, width, height);
+    // Statik saha: zemin, ızgara, merkez `flow` motifi, yuvarlatılmış tepsi
+    // kesimi. Eskiden burada düz `#FAF7F2` dolgu + el-ile ızgara + köşe
+    // plakaları + siyah `strokeRect` vardı ve `curveWorldView.js` aynısını
+    // ikinci kez kopyalıyordu.
+    drawCurveArena(ctx, this.arena, { roundId: this.roundId });
 
     // Trail Segments (Dinamik kalınlık: kafa 18px'e oranlı — Mini 6, Normal 11, Kalın 23)
     ctx.lineCap = 'round';
@@ -1094,6 +1065,7 @@ this.targetScore = 2;
 
   renderSpawnBeacons(ctx) {
     const progress = this.spawnIntroTimer / 1.8;
+    const u = arenaUnit(this.arena);
 
     this.players.forEach((p) => {
       if (!p.isJoined || !p.isAlive) return;
@@ -1103,7 +1075,7 @@ this.targetScore = 2;
       ctx.beginPath();
       ctx.arc(p.x, p.y, ringR, 0, Math.PI * 2);
       ctx.strokeStyle = p.color;
-      ctx.lineWidth = Math.max(1, 2.5 * (this.arena.unit || 1));
+      ctx.lineWidth = Math.max(1, 2.5 * u);
       ctx.globalAlpha = Math.min(1.0, progress * 1.5);
       ctx.stroke();
 
@@ -1114,7 +1086,7 @@ this.targetScore = 2;
       ctx.fillStyle = p.color;
       ctx.fillRect(p.x - tagW / 2, p.y - 32, tagW, tagH);
       ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = Math.max(1, 1.5 * (this.arena.unit || 1));
+      ctx.lineWidth = Math.max(1, 1.5 * u);
       ctx.strokeRect(p.x - tagW / 2, p.y - 32, tagW, tagH);
 
       ctx.fillStyle = '#FFFFFF';
