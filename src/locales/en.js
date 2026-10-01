@@ -313,13 +313,11 @@ export const EN = {
   'game.won': '{0} WINS!',
   // ── Per-game control guides ──
   'guide.bomb': 'JOYSTICK: RUN • TAP: DASH • 3 SETS WIN',
-  'guide.clone': 'JOYSTICK: MOVE • ACTION: SHOVE • WATCH FOR FAKES',
   'guide.collapse': 'JOYSTICK: MOVE • ACTION: JUMP & SHOCKWAVE',
   'guide.curve': 'LEFT/RIGHT: STEER • TAP: NITRO • NO CRASH • 5 POINTS WIN',
   'guide.archer': 'LEFT: MOVE • RIGHT: HOLD TO AIM/DRAW • RELEASE: FIRE',
   'guide.pong': 'DRAG: MOVE PADDLE • 3 SETS WIN',
   'guide.heist': 'JOYSTICK: RUN • TAP: SHOVE • 2 ROUNDS WIN',
-  'guide.laser': 'LEFT: MOVE • RIGHT: HOLD TO AIM / RELEASE TO FIRE • DASH: ESCAPE',
   'guide.ninja': 'WASD / JOYSTICK: MOVE • {icon:sword} SPACE: BLADE DASH • {icon:wind} E: SMOKE BOMB • STAND TO VANISH',
   'guide.snake': '◀ LEFT / RIGHT ▶ STEER • {icon:zap} HOLD TO BOOST',
   'guide.tanks': 'HOLD: DRIVE • RELEASE: FIRE • 3 WINS TAKE CROWN',
@@ -329,9 +327,6 @@ export const EN = {
   'guide.raceKeys': 'P1: WASD + {0} • P2: ARROWS + {1} • P3: IJKL + {2} • P4: TFGH + {3}',
   // ── BOMB ──
   'bomb.safe': '{icon:shield} SAFE',
-  // ── CLONE ──
-  'clone.real': '{icon:crosshair} REAL TARGET! +2★',
-  'clone.champ': 'IMPOSTOR CHAMPION',
   // ── COLLAPSE ──
   'collapse.champ': 'COLLAPSE CHAMPION',
   // ── CROWN ──
@@ -362,11 +357,6 @@ export const EN = {
   'heist.vaultDrop': '{icon:flame} VAULT DROP! (-1 {icon:coins})',
   'heist.boom': '{icon:flame} BOOM!',
   'heist.champ': 'TREASURE CHAMPION! {icon:crown}',
-  // ── LASER ──
-  'laser.rapid': '{icon:zap} RAPID FIRE!',
-  'laser.shield': '{icon:shield} SHIELD UP!',
-  'laser.triple': '{icon:flame} TRIPLE LASER!',
-  'laser.champ': 'LASER CHAMPION!',
   // ── NINJA ──
   'ninja.champ': 'SHADOW CHAMPION',
   // ── HORDE ──
@@ -575,8 +565,6 @@ export const EN = {
   'hint.crown': '{icon:gamepad} MOVE • {icon:flame} SHOVE & KEEP THE CROWN',
   'hint.zone': '{icon:gamepad} MOVE • {icon:zap} DASH INTO THE ZONE',
   'hint.snake': '◀ LEFT / RIGHT ▶ STEER • {icon:zap} HOLD TO BOOST',
-  'hint.laser': '{icon:gamepad} LEFT: RUN • {icon:crosshair} RIGHT: HOLD TO AIM, RELEASE TO FIRE • {icon:wind} DASH',
-  'hint.clone': '{icon:gamepad} BLEND IN & TASK • {icon:flame} FIND & SHOVE RIVALS',
   'hint.collapse': '{icon:gamepad} MOVE • JUMP THE GAPS',
   'hint.ninja': '{icon:gamepad} MOVE • STAND STILL TO HIDE • {icon:sword} BLADE • {icon:wind} SMOKE',
   'hint.horde': 'LEFT: MOVE • RIGHT: HOLD TO AIM + FIRE • DASH • draft upgrades each round',
@@ -609,7 +597,6 @@ export const EN = {
   'pad.guidePedal': 'PEDAL',
   'pad.nrg': '{icon:zap} %{0}',
   'pad.snakeAlive': '{0} ALIVE',
-  'pad.cloneAlive': '{icon:users} {0} ALIVE',
   'pad.collapseAlive': '{0} ALIVE',
   'pad.ninjaAlive': '{0} ALIVE',
   // "on you" is drawn by the full-screen edge alert — text carries the timer only.

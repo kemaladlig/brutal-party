@@ -3,14 +3,14 @@
 // NEDEN VAR: `playfield.js` ölçeğin TEK otoritesi (`unit = size/952`)
 // olduğunu söyler ve `fieldSpeed`/`fieldRadius` ile geçilmesini zorunlu
 // kılar. Ama "ölçek doğru" demek "tempo doğru" demek DEĞİLDİR, ve tempo için
-// hiçbir test yoktu. 15 oyun × 2 ölçü elle tutuluyordu. Kanıt:
+// hiçbir test yoktu. 14 oyun × 2 ölçü elle tutuluyordu. Kanıt:
 // `raceLogic.js` "RACE hala yavaş" yorumu — 190 → 215 tahminle bulundu,
 // sonuç yine yavaş, ikinci tur. Ölçüm yoksa çözüm de yok.
 //
 // İKİ ÖLÇÜ, İKİ FARKLI "yavaş" KANALI:
 //
 //   A  saha geçiş süresi = 952 / tasarımHızı   (saniye)
-//      "dünya büyük, ben küçüğüm" hissi. SNAKE / CLONE / COLLAPSE yavaştı.
+//      "dünya büyük, ben küçüğüm" hissi. SNAKE / COLLAPSE yavaştı.
 //
 //   B  gövde/sn = tasarımHızı / (2 × tasarımYarıçap)
 //      "kendi bedenime göre yavağım" hissi. BOMB (2.4) ve CROWN (2.9) yavaştı.
@@ -65,9 +65,7 @@ const ENGINES = [
   ['CURVE', '/src/games/curve.js', 'CurveGame', 'standard'],
   ['NINJA', '/src/games/ninja.js', 'NinjaGame', 'standard'],
   ['SNAKE', '/src/games/snake.js', 'SnakeGame', 'standard'],
-  ['LASER', '/src/games/laser.js', 'LaserGame', 'standard'],
   ['COLLAPSE', '/src/games/collapse.js', 'CollapseGame', 'standard'],
-  ['CLONE', '/src/games/clone.js', 'CloneGame', 'standard'],
   ['HORDE', '/src/games/horde.js', 'HordeGame', 'roomy'],
   ['CROWN', '/src/games/crown.js', 'CrownGame', 'crown'],
   ['TANKS', '/src/games/tanks.js', 'TanksGame', 'flat'],
@@ -100,14 +98,12 @@ const BUDGET = {
   ZONE: { tier: 'normal', speed: 190, radius: 36, maxA: 5.1, minB: 2.6 },
   NINJA: { tier: 'normal', speed: 210, radius: 36, maxA: 5.1, minB: 2.6 },
   COLLAPSE: { tier: 'normal', speed: 190, radius: 36, maxA: 5.1, minB: 2.6 },
-  LASER: { tier: 'normal', speed: 220, radius: 36, maxA: 4.6, minB: 3.0 },
   HORDE: { tier: 'normal', speed: 168, radius: 30, maxA: 5.9, minB: 2.6 },
   // open: küçük gövde + niş/hızlı türler
   RACE: { tier: 'open', speed: 215, radius: 20, maxA: 4.6, minB: 5.0 },
   CURVE: { tier: 'open', speed: 185, radius: 18, maxA: 6.3, minB: 4.4 },
   SNAKE: { tier: 'open', speed: 190, radius: 24, maxA: 5.8, minB: 3.6 },
   // cursor / territory / chain: küçük gövde, uzun sahalar — B yüksek olmalı
-  CLONE: { tier: 'far', speed: 150, radius: 16, maxA: 6.6, minB: 4.6 },
 };
 
 let server;

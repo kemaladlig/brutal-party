@@ -152,7 +152,7 @@ export function updateMovers(rects, dt, style = 'sine') {
         if (m.axis === 'y') r.y = (m.baseY || 0) + offset;
       }
     } else if (r.vx !== undefined || r.vy !== undefined) {
-      // Ping-pong style moving walls (e.g., laser.js)
+      // Ping-pong style moving walls
       r.x += (r.vx || 0) * dt;
       r.y += (r.vy || 0) * dt;
       if (r.vx > 0 && r.x >= r.maxX) {

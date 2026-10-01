@@ -10,7 +10,7 @@ import { getUiScale, UI_COLORS } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { beginRound, endMatch, setRoundTimer, tickRoundFlow } from '../core/roundLifecycle.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
-import { createPongWorldPacket, drawPongArena, drawPongFxLayer } from './pongView.js';
+import { createPongWorldPacket, drawPongArena, drawPongFxLayer, drawPongServeTelegraph } from './pongView.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
@@ -22,6 +22,11 @@ import { computePlayfield, fieldRadius } from '../core/playfield.js';
 import { roundGapSeconds } from '../core/roundLifecycle.js';
 
 const PONG_ROUND_LIMIT = 120;
+// Servis öncesi geri sayım: her raunt aynı süreyi alır ki oyuncu telegrafı
+// (yön oku + iz) okuyabilsin. Eskiden gol sonrası 0.9s, maç başı 1.4s'ti;
+// kısa/uzun fark "top birden başlıyor / bazı rauntlar hemen geliyor" hissi
+// veriyordu.
+const PONG_SERVE_COUNTDOWN = 1.5;
 
 export class Game extends BaseMiniGame {
   constructor(canvas) {
@@ -148,7 +153,7 @@ export class Game extends BaseMiniGame {
     }
     this.state = 'ROUND_PAUSE';
     this.roundId += 1;
-    this.roundPauseTimer = 0.9;
+    this.roundPauseTimer = PONG_SERVE_COUNTDOWN;
     this.winner = null;
     this.roundWinner = null;
     this.roundResolutionReason = null;
@@ -161,9 +166,7 @@ export class Game extends BaseMiniGame {
     });
     this.ball.x = this.arena.cx;
     this.ball.y = this.arena.cy;
-    this.ball.vx = 0;
-    this.ball.vy = 0;
-    if (this.ball) this.ball.spin = 0;
+    this.armServe();
     this.fx.clear();
   }
 
@@ -453,7 +456,7 @@ export class Game extends BaseMiniGame {
 
     this.state = 'ROUND_PAUSE';
     this.roundId += 1;
-    this.roundPauseTimer = 1.4;
+    this.roundPauseTimer = PONG_SERVE_COUNTDOWN;
     this.winner = null;
     this.roundWinner = null;
     this.roundResolutionReason = null;
@@ -470,9 +473,7 @@ export class Game extends BaseMiniGame {
 
     this.ball.x = this.arena.cx;
     this.ball.y = this.arena.cy;
-    this.ball.vx = 0;
-    this.ball.vy = 0;
-    if (this.ball) this.ball.spin = 0;
+    this.armServe();
     this.spinCooldowns = [0, 0, 0, 0];
     this.stallTimer = 0;
     this.stallX = null;
@@ -499,16 +500,37 @@ export class Game extends BaseMiniGame {
     return true;
   }
 
-  launchBall() {
-    this.ball.reset(this.arena.cx, this.arena.cy);
+  // Raunt öncesi servis yönünü KİLİTLER: geri sayım boyunca top merkezde
+  // dururken telegraf (ok + iz) bu açıyı gösterir; `launchBall` aynı açıyı
+  // tüketir. Böylece top "birden rastgele" fırlamaz, yön önceden okunur.
+  armServe() {
+    const ball = this.ball;
+    ball.isDead = false;
+    ball.trail = [];
+    ball.vx = 0;
+    ball.vy = 0;
+    ball.spin = 0;
+    ball.serveAngle = null;
+
     const targets = this.paddles.filter((p) => p.isJoined && !p.isEliminated);
     if (!targets.length) return;
     const target = targets[Math.floor(Math.random() * targets.length)];
-    this.setBallServeVelocity(
-      target,
-      Math.min(this.ball.startSpeed, this.ball.speedCap * 0.8),
-      (Math.random() * 2 - 1) * 0.32,
-    );
+    const outwardAngle = {
+      bottom: Math.PI / 2,
+      top: -Math.PI / 2,
+      left: Math.PI,
+      right: 0,
+    }[target.side];
+    if (!Number.isFinite(outwardAngle)) return;
+    ball.serveAngle = outwardAngle + (Math.random() * 2 - 1) * 0.32;
+  }
+
+  launchBall() {
+    // Geri sayım sırasında kilitlenen yönü tüket. Doğrudan çağrılırsa (test /
+    // güvenlik ağı) yönü burada kilitle ki servis yine aktif bir raketi hedeflesin.
+    if (!Number.isFinite(this.ball.serveAngle)) this.armServe();
+    const angle = Number.isFinite(this.ball.serveAngle) ? this.ball.serveAngle : null;
+    this.ball.reset(this.arena.cx, this.arena.cy, angle);
   }
 
   resolveRound(winnerIndex = null, reason = 'goal') {
@@ -576,14 +598,13 @@ export class Game extends BaseMiniGame {
       return;
     }
 
-    // Gol sonrası kısa duraklama (uzun ölü top "donma" gibi hissettiriyor)
+    // Gol sonrası servis geri sayımı: yön telegrafı her rauntta aynı süre kalır.
     this.state = 'ROUND_PAUSE';
-    this.roundPauseTimer = 0.9;
+    this.roundPauseTimer = PONG_SERVE_COUNTDOWN;
     this.roundResolutionReason = null;
     this.ball.x = this.arena.cx;
     this.ball.y = this.arena.cy;
-    this.ball.vx = 0;
-    this.ball.vy = 0;
+    this.armServe();
   }
 
   update(now) {
@@ -770,6 +791,8 @@ export class Game extends BaseMiniGame {
 
     // Render Ball (streak hapı yok: ralli bilgisi telegraf/ENGEL ile verilir)
     if (this.state === 'PLAYING' || this.state === 'ROUND_PAUSE') {
+      // Servis telegrafı topun ALTINDA: iz + yön oku, sonra top çekirdeği.
+      if (this.state === 'ROUND_PAUSE') drawPongServeTelegraph(ctx, this.ball, this.arena);
       this.ball.draw(ctx);
     }
 
@@ -874,25 +897,27 @@ export class Game extends BaseMiniGame {
       ctx.save();
       if (this.state === 'ROUND_PAUSE') {
         const scale = getUiScale(this.arena);
-        const remaining = Math.max(0.1, this.roundPauseTimer);
-        const progress = Math.min(1, remaining / 1.4);
+        const remaining = Math.max(0, this.roundPauseTimer);
+        const progress = Math.min(1, remaining / PONG_SERVE_COUNTDOWN);
 
-        // Animated Countdown Ring around center
+        // Animated Countdown Ring around center (servis okuyla aynı merkez).
         ctx.beginPath();
         ctx.arc(cx, cy, Math.max(1, minDim * 0.16 * (0.82 + progress * 0.18)), 0, Math.PI * 2);
         ctx.strokeStyle = '#D84727';
         ctx.lineWidth = Math.max(4, Math.round(5 * scale));
         ctx.stroke();
 
+        // Etiket merkezin DIŞINDA: telegraf okuyla çakışmaz.
+        const labelY = cy - Math.max(70, minDim * 0.30);
         ctx.fillStyle = '#1C1C1A';
-        ctx.font = `900 ${Math.round(32 * scale)}px "Space Grotesk", sans-serif`;
+        ctx.font = `900 ${Math.round(30 * scale)}px "Space Grotesk", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('HAZIR!', cx, cy - Math.round(18 * scale));
+        ctx.fillText('HAZIR!', cx, labelY);
 
         ctx.fillStyle = '#D84727';
-        ctx.font = `900 ${Math.round(28 * scale)}px "JetBrains Mono", monospace`;
-        ctx.fillText(`${remaining.toFixed(1)}s`, cx, cy + Math.round(20 * scale));
+        ctx.font = `900 ${Math.round(44 * scale)}px "JetBrains Mono", monospace`;
+        ctx.fillText(`${Math.max(1, Math.ceil(remaining))}`, cx, labelY + Math.round(46 * scale));
       }
       ctx.restore();
     }

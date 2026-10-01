@@ -111,7 +111,7 @@ export class BombGame extends BaseMiniGame {
 // demek, yani oyuncu iki dakika içinde 'tekrar oynayalım' demiyor.
 // Kural: çoğu oyun 2 hedefte biter (ilk-iki kuralı — bir parti turunda
 // kazanan çabuk bellenir, maç tekrarına yer kalır). LOSER'a özgü
-// süreler korunur: HORDE/LASER kill/süre oyunlarıdır, onlarda hedef 2
+// süreler korunur: HORDE kill/süre oyunudur, onda hedef 2
 // olmak turu anlamsız kılardı.
 this.targetScore = 2;
     this.tiedRounds = 0;

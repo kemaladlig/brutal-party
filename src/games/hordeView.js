@@ -855,7 +855,7 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0, selfSlot = -1 
     // olabilir". Halka ne olduğunu söylemiyordu; aşağıdaki şarjör barı hem
     // cephane hem bekleme durumunu tek bakışta okutuyor ve gövdeyi kapatmıyor.
     // Halka deseni 15 oyunda da bırakıldı — ortak dil `entityStatus` rozeti
-    // (ARCHER/LASER buradan çizer).
+    // (ARCHER buradan çizer).
 
     const pipW = 5 * hu;
     const pipGap = 3 * hu;

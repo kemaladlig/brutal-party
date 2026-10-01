@@ -56,7 +56,7 @@ export function mountDeclarativeController(gamepad, container, schema) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. JOYSTICK_ACTION Archetype (BOMB, HEIST, CROWN, ZONE, CLONE, COLLAPSE, LASER, NINJA, HORDE)
+// 1. JOYSTICK_ACTION Archetype (BOMB, HEIST, CROWN, ZONE, COLLAPSE, NINJA, HORDE)
 // ---------------------------------------------------------------------------
 function mountJoystickAction(gamepad, container, schema) {
   const joyZoneId = `joy-zone-${Date.now()}`;
@@ -177,7 +177,7 @@ function mountJoystickAction(gamepad, container, schema) {
   return {
     handleSync(data) {
       // Sync Host Cooldown percentage to dim buttons if configured
-      // (per-action field: varsayılan 'cd', örn. LASER ateş 'cdFire', NINJA sis 'cd2')
+      // (per-action field: varsayılan 'cd', örn. NINJA sis 'cd2')
       // Host `cd` aynı zamanda butonun KİLİT süresidir (host yetkilidir):
       // reddedilen aksiyon butonu ölü bırakmaz, kabul edilen host bitişine bağlanır.
       buttonEls.forEach(({ config, el, handler }) => {

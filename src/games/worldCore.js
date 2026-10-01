@@ -17,7 +17,6 @@ const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 // motor tarafında `TUNING.PLAYER_RADIUS` ile eşitlenmesi tests
 // `worldPacketRadius.test.mjs` tarafından kilitlidir.
 export const CROWN_PLAYER_RADIUS = 36;
-export const LASER_PLAYER_RADIUS = 36;
 
 /**
  * Host ve world-view aynı çizim fonksiyonlarını paylaşır.
@@ -55,7 +54,7 @@ export function packParticles(particles, cap = 64) {
     x: round1(pt.x),
     y: round1(pt.y),
     size: round1(pt.size ?? pt.radius ?? 3),
-    // life/maxLife yoksa alpha konvansiyonuna düş (NINJA/CLONE/LASER partikülleri)
+    // life/maxLife yoksa alpha konvansiyonuna düş (NINJA partikülleri)
     life: round1(pt.life ?? pt.alpha ?? 0),
     maxLife: round1(pt.maxLife ?? 1),
     color: typeof pt.color === 'string' ? pt.color : UI_COLORS.inkDark,
@@ -262,7 +261,7 @@ export function isValidWorldBase(frame, mode, { checkPlayer = null, checkExtra =
   return true;
 }
 
-/** Alfa metin draw'u (CLONE/LASER konvansiyonu; host↔client aynı, mutate etmez). */export function drawAlphaTexts(ctx, texts, { size = 15, outline = false } = {}) {
+/** Alfa metin draw'u (ortak konvansiyon; host↔client aynı, mutate etmez). */export function drawAlphaTexts(ctx, texts, { size = 15, outline = false } = {}) {
   for (const ft of texts || []) {
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, ft.alpha ?? 1));
@@ -280,7 +279,7 @@ export function isValidWorldBase(frame, mode, { checkPlayer = null, checkExtra =
     ctx.restore();
   }
 }
-/** Daire partikül draw'u (CLONE/NINJA/LASER konvansiyonu; host↔client aynı). */
+/** Daire partikül draw'u (NINJA konvansiyonu; host↔client aynı). */
 export function drawCircleParticles(ctx, particles) {
   for (const part of particles || []) {
     ctx.save();

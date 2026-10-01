@@ -31,9 +31,9 @@ export const FIELD_DESIGN = Object.freeze({
  * tasarım yarıçapı atandığı bantta kalmak zorundadır).
  *
  *   normal    beğenilen arena-action grubu (BOMB/HEIST/CROWN/ARCHER/TANKS/
- *             ZONE/NINJA/COLLAPSE/LASER/HORDE)
+ *             ZONE/NINJA/COLLAPSE/HORDE)
  *   open      küçük gövde + hızlı/niş oyunlar (RACE/SNAKE/CURVE)
- *   far       imleç ve görev oyunları (CLONE)
+ *   far       imleç ve görev oyunları (şu an kullanıcısız — bant yerinde durur)
  *
  * Bantlar arası boşluk (16–18, 24–28) kasıtlıdır: sınır sürüklemesi
  * yerine bilinçli tier geçişi yapılsın. İSTİSNALAR: PONG (raydaki raket,

@@ -5,6 +5,7 @@ import { getSlotCustomization, getBotPersona } from '../core/customizationManage
 import { UI_COLORS } from '../ui/tokens.js';
 import { t } from '../i18n.js';
 import { updatePongBotAI as runPongBotAI } from '../ai/pongAI.js';
+import { drawPongPaddleBody } from './pongView.js';
 
 export const PLAYER_CONFIGS = [
   { index: 0, name: 'P1', side: 'bottom', axis: 'horizontal', color: '#D84727' },
@@ -112,7 +113,10 @@ export class Paddle {
     this.thickness = Math.max(14, Math.floor(minDim * 0.034));
 
     const halfPad = this.length / 2;
-    const margin  = minDim * 0.024;
+    // Raket duvara SIFIR boşlukla oturur: dış yüzü kale çizgisiyle (arena
+    // kenarı) aynı hizada. Eski `minDim * 0.024` içeri çekmesi raketi
+    // "duvarın önünde asılı" gösteriyordu.
+    const margin = 0;
 
     if (this.axis === 'horizontal') {
       const gMin = goalBounds ? goalBounds.goalMin : arena.left;
@@ -231,14 +235,9 @@ export class Paddle {
     const w = bounds.right - bounds.left;
     const h = bounds.bottom - bounds.top;
 
-    // Draw Brutalist Paddle
-    ctx.fillStyle = this.color;
-    ctx.fillRect(bounds.left, bounds.top, w, h);
-
+    // Draw Brutalist Paddle (host↔client ortak gövde dili)
     const u = arena?.unit ?? (arena?.size ? arena.size / 952 : 1);
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = Math.max(1.5, 3 * u);
-    ctx.strokeRect(bounds.left, bounds.top, w, h);
+    drawPongPaddleBody(ctx, { x: bounds.left, y: bounds.top, w, h }, this.color, u);
 
     // If bot, draw bot indicator badge inside paddle
     if (this.isBot) {

@@ -27,7 +27,6 @@ const canvas = {
 let server;
 let PongGame;
 let ArcherGame;
-let LaserGame;
 let TanksGame;
 let physics;
 let blendWorldFrames;
@@ -59,7 +58,6 @@ before(async () => {
   });
   ({ Game: PongGame } = await server.ssrLoadModule('/src/games/game.js'));
   ({ ArcherGame } = await server.ssrLoadModule('/src/games/archer.js'));
-  ({ LaserGame } = await server.ssrLoadModule('/src/games/laser.js'));
   ({ TanksGame } = await server.ssrLoadModule('/src/games/tanks.js'));
   physics = await server.ssrLoadModule('/src/core/physics2d.js');
   ({ blendWorldFrames } = await server.ssrLoadModule('/src/ui/gamepadWorldView.js'));
@@ -83,14 +81,6 @@ function configurePong() {
 
 function configureArcher() {
   const game = new ArcherGame(canvas);
-  game.resize(800, 600);
-  game.slotTypes = ['human', 'human', 'empty', 'empty'];
-  game.initPlayers();
-  return game;
-}
-
-function configureLaser() {
-  const game = new LaserGame(canvas);
   game.resize(800, 600);
   game.slotTypes = ['human', 'human', 'empty', 'empty'];
   game.initPlayers();
@@ -416,24 +406,6 @@ test('ARCHER quick tap auto-aims at the nearest rival with a guaranteed charge',
   assert.equal(game.arrows.length, 1);
   assert.ok(Math.abs(Math.atan2(game.arrows[0].vy, game.arrows[0].vx) + Math.PI / 2) < 0.25);
   assert.ok(Math.hypot(game.arrows[0].vx, game.arrows[0].vy) > 0);
-});
-
-test('LASER quick tap fires once toward the nearest rival without dragging', () => {
-  const game = configureLaser();
-  game.startNewMatch();
-  const shooter = game.players[0];
-  const rival = game.players[1];
-  shooter.x = 200;
-  shooter.y = 300;
-  shooter.angle = Math.PI;
-  shooter.targetAngle = Math.PI;
-  shooter.shotCooldown = 0;
-  rival.x = 200;
-  rival.y = 100;
-  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 0, dy: 0, angle: Math.PI, force: 0, seq: 1 });
-  game.handleRemoteInput(0, { action: 'AIM_RELEASE', dx: 0, dy: 0, angle: Math.PI, force: 0, seq: 2, tap: true });
-  assert.equal(game.lasers.length, 1);
-  assert.ok(Math.abs(Math.atan2(game.lasers[0].vy, game.lasers[0].vx) + Math.PI / 2) < 1e-6);
 });
 
 test('ARCHER round ids advance and repeated ties end as a draw', () => {

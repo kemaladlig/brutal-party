@@ -3,6 +3,7 @@
 import {
   drawPongArena,
   drawPongBall,
+  drawPongServeTelegraph,
   drawPongPaddles,
   drawPongShockwaves,
   drawPongFxLayer,
@@ -48,6 +49,8 @@ export function createWorldViewRenderer() {
         drawPongArena(ctx, arena, frame.goals, { seed: hashFieldSeed('PONG', frame.roundId) });
         drawPongShockwaves(ctx, frame.ball?.shockwaves);
         drawPongPaddles(ctx, frame.players, arena, colors);
+        // Host ile aynı servis telegrafı: raunt öncesi yön oku + arkadaki iz.
+        if (frame.gameState === 'ROUND_PAUSE') drawPongServeTelegraph(ctx, frame.ball, arena);
         drawPongBall(ctx, frame.ball);
         drawPongFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }

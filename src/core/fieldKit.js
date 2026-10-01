@@ -137,7 +137,7 @@ function theme(overrides) {
  * aralık ≤ 5 — `tests/fieldKit.test.mjs §8` bunu palette üzerinde zorlar.
  * Neden bu kadar dar: P3 sarısı #FFD24A L\* = 85.9. Tabanı ondan ayıran toplam
  * bütçe ~7 puan. Bu yüzden derinlik L\* ile DEĞİL, hue/kroma ile kurulur:
- * BOMB kiremit, TANKS adaçayı, LASER mavi-gri, HORDE 'core' menekşe — hepsi
+ * BOMB kiremit, TANKS adaçayı, HORDE 'core' menekşe — hepsi
  * aynı parlaklıkta, hiçbiri sarıya basmıyor.
  *
  * Sıcak tonlar sistemik olarak koyulaşır (kiremit/amber L\*'ı düşürür):
@@ -204,20 +204,6 @@ export const FIELD_THEMES = Object.freeze({
     gridStyle: 'dots',
     texture: 'speckle',
     block: 'stone',
-  }),
-
-  // LASER — soğuk mavi-gri, metalik.
-  LASER: theme({
-    lightTint: '206, 238, 255',
-    edgeTint: '18, 40, 52',
-    shadeTint: '18, 40, 52',
-    floorHigh: '#F5F7F9', floor: '#F2F4F7', floorEdge: '#ECEFF3', floorLow: '#E9EDF1',
-    grid: 'rgba(26, 26, 26, 0.06)',
-    gridStyle: 'dots',
-    accent: '#0E7490',
-    motif: 'reactor',
-    texture: 'plate',
-    block: 'metal',
   }),
 
   // ZONE — nane yeşili; bölge boyaması zaten renk taşıyor, zemin sakin ama canlı.
@@ -321,17 +307,6 @@ export const FIELD_THEMES = Object.freeze({
     gridStyle: 'dots',
     texture: 'tile',
     block: 'stone',
-  }),
-
-  // CLONE — kadim tapınak & mistik kütüphane, zümrüt/teal doku.
-  CLONE: theme({
-    accent: '#0D9488', motif: 'rings',    lightTint: '160, 240, 220',
-    edgeTint: '20, 60, 55',
-    shadeTint: '20, 60, 55',
-    floorHigh: '#E6F6F2', floor: '#D8F0E8', floorEdge: '#CAEADC', floorLow: '#BCE2D2',
-    gridStyle: 'crosshair',
-    texture: 'weave',
-    block: 'plinth',
   }),
 
   // HORDE: üç harita teması — `hordeConfig.HORDE_MAPS` bunları sığ yayılımla devralır.
@@ -1363,7 +1338,7 @@ function paintFieldGrid(ctx, w, h, u, inset, palette) {
     ctx.stroke();
 
   } else if (style === 'dots') {
-    // Siber Arcade / Dot Matrix (SNAKE / LASER / ZONE / NINJA):
+    // Siber Arcade / Dot Matrix (SNAKE / ZONE / NINJA):
     // Kesişimlerde minik şık noktacıklar
     const step = Math.max(fieldPx({ unit: u }, 44), min / 8);
     const dot = Math.max(1, 1.2 * u);

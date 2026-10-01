@@ -19,9 +19,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 // Kablolaması TAMAMLANMIŞ oyunlar. Yeni bir oyun 3.3'e bağlanınca buraya eklenir.
 // (curve/pong/race `drawGameAvatar` kullanmadığı için 3.3-dışıdır.)
 const WIRED_GAMES = [
-  'tanks', 'archer', 'bomb', 'heist', 'laser',
+  'tanks', 'archer', 'bomb', 'heist',
   'snake', 'collapse', 'horde', 'zone',
-  'clone', 'ninja', 'crown',
+  'ninja', 'crown',
 ];
 
 function read(...parts) {

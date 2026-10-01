@@ -19,12 +19,10 @@ export const GAME_ORDER = [
   'HEIST',
   'ZONE',
   'SNAKE',
-  'LASER',
   'COLLAPSE',
   'NINJA',
   'RACE',
   'CROWN',
-  'CLONE',
 ];
 
 /**
@@ -258,57 +256,6 @@ export const CARTRIDGES = {
     }),
   },
 
-  LASER: {
-    id: 'LASER',
-    category: 'speed',
-    title: 'LASER',
-    tacticalHintKey: 'hint.laser',
-    color: '#EC4899',
-    schema: GAMEPAD_SCHEMAS.LASER,
-    worldView: {
-      load: () => import('../ui/laserWorldView.js'),
-    },
-    load: () => import('../games/laser.js').then((m) => m.LaserGame),
-    createEngine: (game) => makeEngine(game, {
-      packet: () => ({
-        scores: game.scores,
-        alive: game.players.map((p) => p.isAlive),
-        hp: game.players.map((p) => p.hp || 0),
-        matchDraw: game.matchDraw === true,
-        timeLeft: Math.ceil(game.matchTimer || 0),
-        cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 4.0) * 100)),
-        cdFire: game.players.map((p) => {
-          if ((p.ammo ?? 2) > 0) return 0;
-          const reloadMax = p.fastTimer > 0 ? 0.45 : 0.9;
-          return Math.ceil((Math.max(0, p.reloadTimer || 0) / reloadMax) * 100);
-        }),
-        ammo: game.players.map((p) => (p.ammo !== undefined ? p.ammo : 2)),
-      }),
-    }),
-  },
-
-  CLONE: {
-    id: 'CLONE',
-    category: 'strategy',
-    title: 'CLONE',
-    tacticalHintKey: 'hint.clone',
-    color: '#6366F1',
-    schema: GAMEPAD_SCHEMAS.CLONE,
-    worldView: {
-      load: () => import('../ui/cloneWorldView.js'),
-    },
-    load: () => import('../games/clone.js').then((m) => m.CloneGame),
-    createEngine: (game) => makeEngine(game, {
-      packet: () => ({
-        scores: game.scores,
-        alive: game.players.map((p) => p.isAlive),
-        timeLeft: Math.max(0, Math.ceil(game.roundTime || 0)),
-        matchDraw: game.matchDraw === true,
-        cd: game.players.map((p) => Math.ceil((Math.max(0, p.dashCooldown) / 1.6) * 100)),
-      }),
-    }),
-  },
-
   COLLAPSE: {
     id: 'COLLAPSE',
     category: 'strategy',
@@ -426,7 +373,7 @@ export const CARTRIDGES = {
 
 /**
  * Ortam iskeleti: `game`, `reset`, `onEnter`, `onResume`, `start`,
- * `worldPacket`. 15 kartuşun altısı da birebir aynıydı; oyun-özeli tek
+ * `worldPacket`. 13 kartuşun altısı da birebir aynıydı; oyun-özeli tek
  * parça `packet`, PONG'un `accumulator` sıfırlamasıdır (`onFrame`).
  */
 /**

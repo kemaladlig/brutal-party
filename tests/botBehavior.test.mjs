@@ -21,9 +21,7 @@ const context = new Proxy({
 const canvas = { width: 800, height: 600, getContext: () => context };
 let server;
 let ArcherGame;
-let LaserGame;
 let TanksGame;
-let CloneGame;
 let PongGame;
 let updateArcherBotAI;
 let updateNinjaBotAI;
@@ -55,9 +53,7 @@ before(async () => {
     optimizeDeps: { noDiscovery: true },
   });
   ({ ArcherGame } = await server.ssrLoadModule('/src/games/archer.js'));
-  ({ LaserGame } = await server.ssrLoadModule('/src/games/laser.js'));
   ({ TanksGame } = await server.ssrLoadModule('/src/games/tanks.js'));
-  ({ CloneGame } = await server.ssrLoadModule('/src/games/clone.js'));
   ({ Game: PongGame } = await server.ssrLoadModule('/src/games/game.js'));
   ({ updateArcherBotAI } = await server.ssrLoadModule('/src/ai/archerAI.js'));
   ({ updateNinjaBotAI } = await server.ssrLoadModule('/src/ai/ninjaAI.js'));
@@ -160,110 +156,6 @@ test('archer bot does not loose through a blocked lane', () => {
   assert.equal(bot.charging, false, 'engel arkasına gergi yaptı');
 });
 
-// ----------------------------------------------------------------- LASER ----
-
-test('laser bot fires down a clear line', () => {
-  const game = new LaserGame(canvas);
-  game.resize(800, 600);
-  game.slotTypes = slots(2);
-  game.initPlayers();
-  game.startNewMatch();
-  game.state = 'PLAYING';
-
-  const bot = game.players[0];
-  const target = game.players[1];
-  target.isAlive = true;
-  target.isJoined = true;
-  target.invulnTimer = 0;
-  bot.invulnTimer = 0;
-  bot.x = game.arena.left + 120;
-  bot.y = game.arena.cy;
-  target.x = game.arena.right - 120;
-  target.y = game.arena.cy;
-  game.obstacles = [];
-  game.movingWalls = [];
-  bot.angle = 0;
-  bot.targetAngle = 0;
-
-  const before = game.lasers.length;
-  step(game, 260);
-  assert.ok(game.lasers.length > before, 'laser bot açık hatta ateş etmedi');
-});
-
-test('laser bot keeps shooting on a full magazine even when the sim is unsure', () => {
-  const game = new LaserGame(canvas);
-  game.resize(800, 600);
-  game.slotTypes = slots(2);
-  game.initPlayers();
-  game.startNewMatch();
-  game.state = 'PLAYING';
-
-  const bot = game.players[0];
-  const target = game.players[1];
-  target.isAlive = true;
-  target.isJoined = true;
-  bot.ammo = game.maxAmmo;
-  bot.shotCooldown = 0;
-  bot.angle = 0;
-  bot.targetAngle = 0;
-  bot.botCheckTimer = 0;
-  bot.x = game.arena.left + 40;
-  bot.y = game.arena.cy;
-  target.x = game.arena.right - 40;
-  target.y = game.arena.cy;
-  // Tüm sütunu kapatan duvar: tezgâh "ısıka" demez.
-  game.obstacles = [{
-    x: game.arena.cx - 10, y: game.arena.top,
-    w: 20, h: game.arena.size,
-  }];
-  game.movingWalls = [];
-
-  const before = game.lasers.length;
-  game.update(1000 + 16);
-  assert.ok(game.lasers.length > before,
-    'şarjör tamken tezgâh doğrulaması botu susturdu');
-});
-
-test('laser bot confirm sim reflects off a single axis, like the engine', () => {
-  const game = new LaserGame(canvas);
-  game.resize(800, 600);
-  game.slotTypes = slots(2);
-  game.initPlayers();
-  game.startNewMatch();
-  game.state = 'PLAYING';
-
-  const bot = game.players[0];
-  const target = game.players[1];
-  target.isAlive = true;
-  target.isJoined = true;
-  target.invulnTimer = 0;
-  bot.invulnTimer = 0;
-  bot.x = game.arena.left + 60;
-  bot.y = game.arena.cy;
-  target.x = game.arena.right - 60;
-  target.y = game.arena.cy;
-  bot.angle = 0;
-  bot.targetAngle = 0;
-  bot.ammo = 1; // tezgâh zorunlu kalsın
-  bot.shotCooldown = 0;
-  bot.botCheckTimer = 0;
-
-  // Duvarı ıskalacak ama 45°'de çarpacak şekilde yerleştir: yansımanın
-  // tek eksen çevirmesi fark yaratır.
-  game.obstacles = [{
-    x: game.arena.cx - 20, y: game.arena.cy - 120,
-    w: 30, h: 60,
-  }];
-  game.movingWalls = [];
-
-  let fired = false;
-  for (let i = 0; i < 30 && !fired; i++) {
-    game.update(1000 + (i + 1) * 16);
-    if (game.lasers.length > 0) fired = true;
-  }
-  assert.equal(fired, true, 'tek eksenli yansıma tezgâhı ısıka demedi');
-});
-
 // ----------------------------------------------------------------- TANKS ----
 
 test('tank line-of-sight accepts a diagonal shot that passes beside an obstacle', () => {
@@ -321,136 +213,6 @@ test('tank bot shoots when it has a clear line to a visible target', () => {
     game.update(1000 + (i + 1) * 16);
   }
   assert.ok(game.bullets.length > before, 'tank bot açık hatta bile ateş etmedi');
-});
-
-// ----------------------------------------------------------------- CLONE ----
-
-test('clone bots do not kill each other in a bot-only lobby', () => {
-  const game = new CloneGame(canvas);
-  game.resize(800, 600);
-  game.slotTypes = slots(4);
-  game.initPlayers();
-  game.startNewMatch();
-  game.state = 'PLAYING';
-
-  // Botları ayrı köşelere sabitle: kasten üst üste binmiyorlar, sadece
-  // dört bot varken avlanma döngüsü kurulmadığını doğruluyoruz.
-  const spots = [
-    [game.arena.left + 60, game.arena.top + 60],
-    [game.arena.right - 60, game.arena.top + 60],
-    [game.arena.left + 60, game.arena.bottom - 60],
-    [game.arena.right - 60, game.arena.bottom - 60],
-  ];
-  for (let i = 0; i < 400; i++) {
-    game.players.forEach((p, k) => {
-      if (!p.isJoined) return;
-      // Botlar da dallyabilir: eski hâlde dash kriteri anında +80 şüphe
-      // puanı veriyor, savunma refleksi de karşılıklı tetikleniyordu.
-      p.dashTimer = 0.2;
-      p.x = spots[k][0];
-      p.y = spots[k][1];
-    });
-    game.update(1000 + (i + 1) * 16);
-  }
-  const alive = game.players.filter((p) => p.isJoined && p.isAlive).length;
-  assert.equal(alive, 4, `bot-only lobide ${4 - alive} bot öldü`);
-
-  // Görev puanı kazanmak doğru davranış (1.5sn hareketsizlik +1★). Ölçtüğümüz
-  // şey avlanma, o yüzden puanı değil hayatta kalmayı doğruluyoruz.
-});
-
-test('clone bots still earn task stars when no human is present', () => {
-  const game = new CloneGame(canvas);
-  game.resize(800, 600);
-  game.slotTypes = slots(2);
-  game.initPlayers();
-  game.startNewMatch();
-  game.state = 'PLAYING';
-
-  // Bot görev seçimini rastgele yapar ve yolculuk 8-9 saniye sürebilir; tek
-  // koşu 10 sn sınırında kırılgan kalıyordu (60 koşunun ~5'i sıfır). Bütçe
-  // gerçek davranışı ölçecek kadar geniş, testin amacını (insan yokken de
-  // görev puanı kazanılır) bozmayacak kadar kısa.
-  step(game, 1200); // 20sn: görev noktasına var + 1.5sn bekleme +1★
-  const total = game.scores.reduce((a, b) => a + b, 0);
-  assert.ok(total > 0, 'botlar insan yokken hiç görev puanı kazanmadı');
-});
-
-// Kilit regresyonu: `patrolTask` farklı odaya geçerken botun KENDİ odasının
-// kapısını seçiyordu. Merkezdeki görevler (statue/fountain → 'courtyard') için
-// o kapı hiçbir odaya çıkmıyor; bot kapı noktasında salınıp hiç puan kazanamıyordu.
-// Ölçüm: 12 bağımsız koşunun HEPSİ görev puanı almalı (eskiden rastgele sıfırdı).
-test('clone bots reach tasks in every zone, including courtyard (door routing)', () => {
-  let zeroRuns = 0;
-  const completedTasks = new Set();
-  for (let run = 0; run < 12; run++) {
-    const game = new CloneGame(canvas);
-    game.resize(800, 600);
-    game.slotTypes = slots(2);
-    game.initPlayers();
-    game.startNewMatch();
-    game.state = 'PLAYING';
-
-    step(game, 900); // 15sn
-    if (game.scores.reduce((a, b) => a + b, 0) === 0) zeroRuns++;
-    for (const t of game.taskPoints) {
-      if ((t.completions || 0) > 0) completedTasks.add(t.id);
-    }
-  }
-  assert.equal(zeroRuns, 0, `${zeroRuns}/12 koşuda botlar hiç puan alamadı (kapı yönlendirmesi bozuk)`);
-  // Görev noktaları harita seed'ine göre değişir; en az biri tamamlanmalı.
-  assert.ok(completedTasks.size > 0, 'hiçbir görev noktası tamamlanmadı');
-});
-
-// Şüphe puanı insan sinyalleriyle birikir (dash +80, görev +dt*30). Bot insanı
-// ancak "şüpheli" olduktan sonra tackle eder; test de o sinyalleri üretir.
-function cloneDuel({ wall }) {
-  const game = new CloneGame(canvas);
-  game.resize(800, 600);
-  game.slotTypes = ['bot_god', 'human', 'empty', 'empty'];
-  game.initPlayers();
-  game.startNewMatch();
-  game.state = 'PLAYING';
-
-  const bot = game.players[0];
-  const human = game.players[1];
-  human.isJoined = true;
-  human.isAlive = true;
-  human.slotType = 'human';
-
-  bot.x = game.arena.left + 60;
-  bot.y = game.arena.cy;
-  human.x = bot.x + 50;
-  human.y = bot.y;
-  game.walls = wall
-    ? [{ x: bot.x + 25, y: game.arena.top, w: 10, h: game.arena.size }]
-    : [];
-  return { game, bot, human };
-}
-
-let cloneDuelForRun = null;
-
-function runDuel(frames) {
-  const { game, bot, human } = cloneDuelForRun;
-  const before = bot.dashCooldown;
-  let tackled = false;
-  for (let i = 0; i < frames; i++) {
-    human.dashTimer = 0.2;   // insan sinyali: kesin gerçek oyuncu
-    human.taskTimer = 5;
-    game.update(1000 + (i + 1) * 16);
-    if (bot.dashCooldown > before) { tackled = true; break; }
-  }
-  return tackled;
-}
-
-test('clone bot does not tackle a human through a wall', () => {
-  cloneDuelForRun = cloneDuel({ wall: true });
-  assert.equal(runDuel(300), false, 'bot duvarın içinden tackle attı');
-});
-
-test('clone bot does tackle a human across open space', () => {
-  cloneDuelForRun = cloneDuel({ wall: false });
-  assert.equal(runDuel(300), true, 'açık alanda şüpheli insanı hiç tackle etmedi');
 });
 
 // ------------------------------------------------------------------ PONG ----

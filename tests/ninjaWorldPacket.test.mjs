@@ -90,5 +90,5 @@ test('ninja world frame validation rejects malformed input', () => {
   assert.equal(isValidNinjaWorldFrame({ ...frame, fx: { ...frame.fx, rings: [[1, 2, 3]] } }), false);
   assert.equal(isValidNinjaWorldFrame({ ...frame, players: [{ ...frame.players[0], alpha: NaN }] }), false);
   assert.equal(isValidNinjaWorldFrame({ ...frame, matchDraw: 0 }), false);
-  assert.equal(isValidNinjaWorldFrame({ ...frame, mode: 'CLONE' }), false);
+  assert.equal(isValidNinjaWorldFrame({ ...frame, mode: 'SNAKE' }), false);
 });

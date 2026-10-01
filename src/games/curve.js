@@ -88,12 +88,12 @@ export class CurveGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     // Maç hedefi ve raunt süresi — kısaltma (curve.js).
 // Gerekçe: parti oyununda maç uzunluğu = yeniden başlatma sayısı. Ölçülen
-// durum: hedefler 2-5 arası dağınıktı ve bir kısmı 5'ti (CLONE/NINJA/
+// durum: hedefler 2-5 arası dağınıktı ve bir kısmı 5'ti (NINJA/
 // SNAKE/COLLAPSE/CURVE); ilk açılışta 5 hedef, dakikalar süren bir maç
 // demek, yani oyuncu iki dakika içinde 'tekrar oynayalım' demiyor.
 // Kural: çoğu oyun 2 hedefte biter (ilk-iki kuralı — bir parti turunda
 // kazanan çabuk bellenir, maç tekrarına yer kalır). LOSER'a özgü
-// süreler korunur: HORDE/LASER kill/süre oyunlarıdır, onlarda hedef 2
+// süreler korunur: HORDE kill/süre oyunudur, onda hedef 2
 // olmak turu anlamsız kılardı.
 this.targetScore = 2;
     this.tiedRounds = 0;
@@ -238,7 +238,7 @@ this.targetScore = 2;
         angle: s.angle,
         // FIELD_TIERS §open: kafa 9→18 ("harita kocaman, yılanlar küçük"
         // akordu); iz kalınlığı ve view/head ölçeği bunu takip eder
-        // (ARCHER/NINJA/LASER deseni).
+        // (ARCHER/NINJA deseni).
         radius: fieldRadius(this.arena, CURVE_HEAD_RADIUS, 0),
         speed: fieldSpeed(this.arena, CURVE_TUNING.MOVE_SPEED),
         turnSpeed: CURVE_TUNING.TURN_SPEED,

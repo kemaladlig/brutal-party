@@ -20,8 +20,6 @@ const ASSETS_TO_CACHE = [
   '/assets/games/crown.webp',
   '/assets/games/zone.webp',
   '/assets/games/snake.webp',
-  '/assets/games/laser.webp',
-  '/assets/games/clone.webp',
   '/assets/games/collapse.webp',
   '/assets/games/ninja.webp',
   '/assets/games/horde.webp',

@@ -2060,7 +2060,7 @@
   margin-bottom: 0;
 }
 
-/* Twin-stick MOBA surface (ARCHER, LASER, HORDE) — iki sütun standardı:
+/* Twin-stick MOBA surface (ARCHER, HORDE) — iki sütun standardı:
    sol move köşede, sağ aim köşede. Aksiyon üçüncü sütun değildir;
    aim yarısının iç yanına rıhtımlanır (template'te aim half'in çocuğu).
    Böylece sağ grup tek rect olur, resolver tek dx/dy üretir ve aim
@@ -2449,7 +2449,7 @@
   100% { transform: scale(1); }
 }
 
-/* Multi-action clusters (LASER, NINJA) */
+/* Multi-action clusters (NINJA) */
 .action-cluster-stack {
   display: flex;
   flex-direction: column;

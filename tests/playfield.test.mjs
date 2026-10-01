@@ -77,7 +77,7 @@ function insetBox(marginX, marginY, viewW, viewH) {
 // side, never floored, so its geometry is fractional by design.
 const LEGACY = {
   standard: {
-    engines: ['PONG', 'ARCHER', 'BOMB', 'HEIST', 'CURVE', 'NINJA', 'SNAKE', 'LASER', 'COLLAPSE', 'CLONE'],
+    engines: ['PONG', 'ARCHER', 'BOMB', 'HEIST', 'CURVE', 'NINJA', 'SNAKE', 'COLLAPSE'],
     integral: true,
     formula: (w, h) => insetBox(
       Math.max(12, Math.floor(w * 0.04)),

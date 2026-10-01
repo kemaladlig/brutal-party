@@ -3,12 +3,10 @@ import assert from 'node:assert/strict';
 import { createPongWorldPacket, isValidPongWorldFrame } from '../src/games/pongView.js';
 import { createRaceWorldPacket, isValidRaceWorldFrame } from '../src/games/raceView.js';
 import { createCrownWorldPacket, isValidCrownWorldFrame } from '../src/games/crownView.js';
-import { createCloneWorldPacket, isValidCloneWorldFrame } from '../src/games/cloneView.js';
 import { createSnakeWorldPacket, isValidSnakeWorldFrame } from '../src/games/snakeView.js';
 import { createWorldViewRenderer as pongRenderer } from '../src/ui/pongWorldView.js';
 import { createWorldViewRenderer as raceRenderer } from '../src/ui/raceWorldView.js';
 import { createWorldViewRenderer as crownRenderer } from '../src/ui/crownWorldView.js';
-import { createWorldViewRenderer as cloneRenderer } from '../src/ui/cloneWorldView.js';
 import { createWorldViewRenderer as snakeRenderer } from '../src/ui/snakeWorldView.js';
 import { blendWorldFrames } from '../src/core/worldInterpolation.js';
 import { CARTRIDGES, GAME_ORDER } from '../src/core/engineRegistry.js';
@@ -71,18 +69,6 @@ function crownGame() {
   };
 }
 
-function cloneGame() {
-  return {
-    state: 'PLAYING', roundId: 1, arena: { left: 16, top: 24, right: 816, bottom: 624 },
-    taskPoints: [{ id: 'treasury', name: 'HAZİNE SANDIĞI', color: '#1D5D8A', x: 200, y: 200, radius: 40 }],
-    walls: [{ x: 300, y: 120, w: 40, h: 200 }],
-    npcClones: [{ id: 1, ownerIndex: 0, color: '#D84727', x: 500, y: 300, angle: 1.1, state: 'WALK', taskWaitTimer: 2, active: true }],
-    players: [{ index: 0, isJoined: true, isAlive: true, x: 400, y: 300, angle: 0.5, dashTimer: 0.2, slowTimer: 0, taskTimer: 0.8 }],
-    particles: [], floatingTexts: [],
-    scores: [0, 0, 0, 0], roundWinner: null, matchWinner: null,
-  };
-}
-
 function snakeGame() {
   const segments = Array.from({ length: 8 }, (_, i) => ({ x1: i * 5, y1: 0, x2: (i + 1) * 5, y2: 0 }));
   return {
@@ -125,13 +111,12 @@ test('PONG/RACE/CROWN client renderers draw without importing simulation', () =>
 });
 
 test('packed-wall world views render an interpolated frame without throwing', () => {
-  // CLONE ve SNAKE `walls` alanını paketlenmiş dizi olarak yollar. Client 30 Hz
+  // SNAKE `walls` alanını paketlenmiş dizi olarak yollar. Client 30 Hz
   // kareleri enterpolasyonla sunduğu için blend bu listeyi nesneye yayıyor,
   // view'ın `([x, y, w, h]) => ...` destructuring'i TypeError atıyor ve
-  // GamepadWorldView placeholder'a düşüyordu (CLONE titreme, SNAKE beyaz ekran).
+  // GamepadWorldView placeholder'a düşüyordu (SNAKE beyaz ekran).
   // Üretim yolunun kendisi (paket → blend → render) kilit altında.
   for (const [createRenderer, createPacket, validate, game] of [
-    [cloneRenderer, createCloneWorldPacket, isValidCloneWorldFrame, cloneGame()],
     [snakeRenderer, createSnakeWorldPacket, isValidSnakeWorldFrame, snakeGame()],
   ]) {
     const first = { action: 'WORLD_FRAME', ...createPacket(game) };
@@ -149,7 +134,7 @@ test('packed-wall world views render an interpolated frame without throwing', ()
 });
 
 test('every registered cartridge exposes the generic world-view contract', () => {
-  assert.equal(GAME_ORDER.length, 15);
+  assert.equal(GAME_ORDER.length, 13);
   for (const id of GAME_ORDER) {
     assert.equal(typeof CARTRIDGES[id]?.worldView?.load, 'function', `${id} worldView.load`);
   }

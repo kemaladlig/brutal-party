@@ -6,13 +6,13 @@ import { getControllerGuide, getGuideActionLabel } from '../src/controllers/cont
 
 test('control guide projects every registered schema without per-game HTML', () => {
   const modes = Object.keys(CONTROL_DEFS);
-  assert.equal(modes.length, 15);
+  assert.equal(modes.length, 13);
   for (const mode of modes) {
     const guide = getControllerGuide(mode, GAMEPAD_SCHEMAS[mode]);
     assert.ok(guide, `${mode} has a guide`);
     assert.equal(guide.left.type, CONTROL_DEFS[mode].left);
     assert.ok(guide.left.label.length > 0);
-    assert.equal(guide.aim, ['ARCHER', 'HORDE', 'LASER'].includes(mode));
+    assert.equal(guide.aim, ['ARCHER', 'HORDE'].includes(mode));
     assert.ok(guide.hint.length > 0);
     assert.ok(Array.isArray(guide.actions));
     for (const action of guide.actions) assert.ok(action.label.length > 0);
@@ -26,10 +26,6 @@ test('guide action labels are resolved from intent ids, not icon text', () => {
   assert.deepEqual(getControllerGuide('ARCHER', GAMEPAD_SCHEMAS.ARCHER).actions, []);
   assert.deepEqual(
     getControllerGuide('HORDE', GAMEPAD_SCHEMAS.HORDE).actions.map((action) => action.id),
-    ['dash'],
-  );
-  assert.deepEqual(
-    getControllerGuide('LASER', GAMEPAD_SCHEMAS.LASER).actions.map((action) => action.id),
     ['dash'],
   );
   assert.deepEqual(

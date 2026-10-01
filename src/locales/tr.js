@@ -314,13 +314,11 @@ export const TR = {
   'game.won': '{0} KAZANDI!',
   // ── Per-game control guides ──
   'guide.bomb': 'JOYSTICK: KAÇ • DOKUN: DEPAR • 3 SET ALAN KAZANIR',
-  'guide.clone': 'JOYSTICK: HAREKET ET • AKSİYON: OMUZ AT • SAHTELERE DİKKAT',
   'guide.collapse': 'JOYSTICK: HAREKET ET • AKSİYON: ZIPLA & ŞOK DALGASI AT',
   'guide.curve': 'SOL/SAĞ: YÖN VER • DOKUN: HIZLAN • ÇARPMA • 5 PUAN ALAN KAZANIR',
   'guide.archer': 'SOL: HAREKET • SAĞ: TUT: NİŞAN/YAYI GER • BIRAK: ATEŞ',
   'guide.pong': 'SÜRÜKLE: RAKETİ YÖNET • 3 SET ALAN KAZANIR',
   'guide.heist': 'JOYSTICK: KOŞ • DOKUN: OMUZ AT • 2 RAUND ALAN KAZANIR',
-  'guide.laser': 'SOL: KOŞ • SAĞ: TUT: NİŞAN / BIRAK: ATEŞ • DEPAR: KAÇIŞ',
   'guide.ninja': 'WASD / JOYSTICK: HAREKET • {icon:sword} BOŞLUK: KILIÇ ATIL • {icon:wind} E: SİS BOMBASI • DURUNCA GİZLEN',
   'guide.snake': '◀ SOL / SAĞ ▶ DÖNÜŞ • {icon:zap} BASILI TUTUP HIZLAN',
   'guide.tanks': 'TUT: İLERLE • BIRAK: ATEŞ ET • 3 KEZ KAZANAN ŞAMPİYON',
@@ -330,9 +328,6 @@ export const TR = {
   'guide.raceKeys': 'P1: WASD + {0} • P2: OKLAR + {1} • P3: IJKL + {2} • P4: TFGH + {3}',
   // ── BOMB ──
   'bomb.safe': '{icon:shield} GÜVENDE',
-  // ── CLONE ──
-  'clone.real': '{icon:crosshair} GERÇEK HEDEF! +2★',
-  'clone.champ': 'SAHTEKAR ŞAMPİYONU',
   // ── COLLAPSE ──
   'collapse.champ': 'ÇÖKÜŞ ŞAMPİYONU',
   // ── CROWN ──
@@ -363,11 +358,6 @@ export const TR = {
   'heist.vaultDrop': '{icon:flame} KASADAN DÜŞTÜ! (-1 {icon:coins})',
   'heist.boom': '{icon:flame} GÜÜÜM!',
   'heist.champ': 'HAZİNE ŞAMPİYONU! {icon:crown}',
-  // ── LASER ──
-  'laser.rapid': '{icon:zap} SERİ ATEŞ!',
-  'laser.shield': '{icon:shield} KALKAN AKTİF!',
-  'laser.triple': '{icon:flame} ÜÇLÜ LAZER!',
-  'laser.champ': 'LAZER ŞAMPİYONU!',
   // ── NINJA ──
   'ninja.champ': 'GÖLGE ŞAMPİYONU',
   // ── HORDE ──
@@ -577,8 +567,6 @@ export const TR = {
   'hint.crown': '{icon:gamepad} HAREKET ET • {icon:flame} OMUZ AT VE TACI KORU',
   'hint.zone': '{icon:gamepad} HAREKET ET • {icon:zap} DEPAR İLE ALANA GİR',
   'hint.snake': '◀ SOL / SAĞ ▶ DÖNÜŞ • {icon:zap} BASILI TUTUP HIZLAN',
-  'hint.laser': '{icon:gamepad} SOL: KOŞ • {icon:crosshair} SAĞ: TUT, NİŞAN; BIRAK, ATEŞ • {icon:wind} DEPAR',
-  'hint.clone': '{icon:gamepad} ROL YAP & GÖREV YAP • {icon:flame} RAKİBİ BUL VE OMUZ AT',
   'hint.collapse': '{icon:gamepad} HAREKET ET • BOŞLUKTAN ZIPLA',
   'hint.ninja': '{icon:gamepad} HAREKET ET • DURUP GİZLEN • {icon:sword} KILIÇ • {icon:wind} SİS',
   'hint.horde': 'SOL: HAREKET • SAĞ: TUT, NİŞAN + ATEŞ • DEPAR • TUR SONU YÜKSELTME',
@@ -611,7 +599,6 @@ export const TR = {
   'pad.guidePedal': 'PEDAL',
   'pad.nrg': '{icon:zap} %{0}',
   'pad.snakeAlive': '{0} CANLI',
-  'pad.cloneAlive': '{icon:users} {0} CANLI',
   'pad.collapseAlive': '{0} CANLI',
   'pad.ninjaAlive': '{0} CANLI',
   // "sende" bilgisi tam ekran kenar uyarısında — metin yalnız süre taşır.

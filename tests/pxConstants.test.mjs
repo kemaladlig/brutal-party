@@ -128,12 +128,11 @@ test('absolute px inventory is triaged, not growing', () => {
   //   PONG   HUD proksi 24                                  -> fieldRadius(...)
   //   CROWN  36 harita yarıçapı, oyuncu/taç 20, mürekkep 22,
   //          6 konveyör hızı (170/180)                     -> fieldRadius/fieldSpeed
-  //   CLONE  6 oda yarıçapı, kon hızı 80+25                -> fieldRadius/fieldSpeed
   //
   // Bilerek doğru bırakılanlar:
   //   · PONG topu zaten `fieldRadius(arena, 16, 0.015)` — taban tasarım payının
   //     (%1.68) ALTINDA, yani yalnız çöken sahada devreye giriyor.
-  //   · LASER/SNAKE harita tabanları `Math.max(abs, oran)` ve tasarım payının
+  //   · SNAKE harita tabanları `Math.max(abs, oran)` ve tasarım payının
   //     çok altında (ör. `size*0.16` = 152px'e karşı taban 56px) → bağlamıyor.
   //   · CROWN tacının constructor'daki `radius: 20` tasarım bildirimidir;
   //     `resize()` içinde `fieldRadius` ile türetilir. Constructor arenası

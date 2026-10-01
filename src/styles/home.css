@@ -337,6 +337,10 @@
   padding: 16px 0 26px;
   overflow-x: auto;
   scrollbar-width: none;
+  /* Parmakla itince iki kapak arasında kalma → featured "ikişer atlıyor"
+     hissi veriyordu. `proximity` varışa yardım eder ama otomatik `scrollTo`
+     ile savaşmaz (mandatory gibi geri çekmez). */
+  scroll-snap-type: x proximity;
   mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
   -webkit-mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
 }
@@ -357,6 +361,7 @@
 .home-marquee-item {
   position: relative;
   flex: 0 0 auto;
+  scroll-snap-align: center;
   width: clamp(84px, 9vw, 128px);
   padding: 0;
   border: 0;
@@ -442,6 +447,28 @@
   object-fit: cover;
   scale: 1.06;
   animation: homeCoverBreathe 11s ease-in-out infinite;
+  /* Geçiş çapraz-sönmedir: JS `is-swap` ile 170ms'de soldurur, boyar, geri
+     açar. Yalnız opacity — nefes `scale`'i ezilmez. */
+  opacity: 1;
+  transition: opacity 170ms ease;
+}
+
+.home-featured-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  opacity: 1;
+  transition: opacity 170ms ease, translate 170ms ease;
+}
+
+.home-featured.is-swap .home-featured-art { opacity: 0; }
+.home-featured.is-swap .home-featured-text { opacity: 0; translate: 0 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .home-featured-art,
+  .home-featured-text { transition: none; }
+  .home-marquee { scroll-snap-type: none; }
 }
 
 @keyframes homeCoverBreathe {
@@ -464,6 +491,8 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  opacity: 1;
+  transition: opacity 170ms ease, translate 170ms ease;
 }
 
 .home-featured-overline {

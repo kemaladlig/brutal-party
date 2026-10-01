@@ -88,14 +88,14 @@ test('trails index-lerp by default when the frame carries no snap flag', () => {
 test('blends moving world objects and singleton hazards', () => {
   const previous = frame(1, 0, {
     enemies: [{ id: 4, x: 0, y: 20, angle: 0, hp: 3 }],
-    lasers: [{ id: 9, x: 10, y: 0, history: [[0, 0], [10, 0]] }],
+    tracers: [{ id: 9, x: 10, y: 0, history: [[0, 0], [10, 0]] }],
     walls: [{ id: 2, x: 100, y: 200 }],
     piggy: { x: 50, y: 60, hp: 2 },
     portal: [20, 30, 8, 0.5],
   });
   const current = frame(2, 0, {
     enemies: [{ id: 4, x: 20, y: 40, angle: Math.PI, hp: 2 }],
-    lasers: [{ id: 9, x: 30, y: 20, history: [[20, 0], [30, 20]] }],
+    tracers: [{ id: 9, x: 30, y: 20, history: [[20, 0], [30, 20]] }],
     walls: [{ id: 2, x: 140, y: 260 }],
     piggy: { x: 70, y: 80, hp: 1 },
     portal: [40, 50, 8, 0.75],
@@ -104,21 +104,21 @@ test('blends moving world objects and singleton hazards', () => {
 
   assert.equal(blended.enemies[0].x, 10);
   assert.equal(blended.enemies[0].y, 30);
-  assert.equal(blended.lasers[0].x, 20);
-  assert.deepEqual(blended.lasers[0].history, [[10, 0], [20, 10]]);
+  assert.equal(blended.tracers[0].x, 20);
+  assert.deepEqual(blended.tracers[0].history, [[10, 0], [20, 10]]);
   assert.equal(blended.walls[0].x, 120);
   assert.equal(blended.piggy.x, 60);
   assert.deepEqual(blended.portal, [30, 40, 8, 0.75]);
 });
 
-test('keeps packed wall tuples packed (CLONE/SNAKE destructure them as tuples)', () => {
-  // `walls` iki biçimde gidiyor: LASER hareketli duvarları NESNE, CLONE/SNAKE
+test('keeps packed wall tuples packed (SNAKE destructures them as tuples)', () => {
+  // `walls` iki biçimde gidiyor: hareketli duvarlar NESNE, SNAKE
   // statik duvarları `[x, y, w, h]` dizisi. Nesne tablosunda `{ ...current }`
   // diziyi `{0:x,1:y,2:w,3:h}` nesnesine çeviriyordu; view'lar
   // `frame.walls.map(([x, y, w, h]) => ...)` dediği için client her enterpolasyonlu
   // karede `TypeError: is not iterable` atıp beyaz ekrana düşüyordu.
-  const previous = frame(1, 0, { mode: 'CLONE', walls: [[0, 0, 10, 20], [100, 100, 30, 40]] });
-  const current = frame(2, 0, { mode: 'CLONE', walls: [[0, 0, 10, 20], [100, 100, 50, 40]] });
+  const previous = frame(1, 0, { mode: 'SNAKE', walls: [[0, 0, 10, 20], [100, 100, 30, 40]] });
+  const current = frame(2, 0, { mode: 'SNAKE', walls: [[0, 0, 10, 20], [100, 100, 50, 40]] });
   const blended = blendWorldFrames(previous, current, 0.5);
 
   assert.ok(Array.isArray(blended.walls[0]), 'paketlenmiş duvar nesneye yayılmaz');
@@ -131,9 +131,9 @@ test('keeps packed wall tuples packed (CLONE/SNAKE destructure them as tuples)',
   );
 });
 
-test('object walls keep the object blend path (LASER moving walls)', () => {
-  const previous = frame(1, 0, { mode: 'LASER', walls: [{ id: 1, x: 0, y: 10, w: 20, h: 5 }] });
-  const current = frame(2, 0, { mode: 'LASER', walls: [{ id: 1, x: 100, y: 10, w: 20, h: 5 }] });
+test('object walls keep the object blend path (moving walls)', () => {
+  const previous = frame(1, 0, { mode: 'NINJA', walls: [{ id: 1, x: 0, y: 10, w: 20, h: 5 }] });
+  const current = frame(2, 0, { mode: 'NINJA', walls: [{ id: 1, x: 100, y: 10, w: 20, h: 5 }] });
   const blended = blendWorldFrames(previous, current, 0.5);
 
   assert.equal(Array.isArray(blended.walls[0]), false);

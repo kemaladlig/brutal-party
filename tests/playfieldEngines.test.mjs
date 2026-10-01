@@ -2,6 +2,7 @@ import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { computePlayfield } from '../src/core/playfield.js';
+import { GAME_ORDER } from '../src/core/engineRegistry.js';
 
 const noop = () => {};
 const context = new Proxy({
@@ -25,7 +26,7 @@ const VIEWPORTS = [
 
 // mode → [module, exported class, playfield preset]
 // The preset column is the contract: it is what makes a retune in playfield.js
-// a deliberate, reviewable change instead of 15 independent edits.
+// a deliberate, reviewable change instead of 14 independent edits.
 const ENGINES = [
   ['PONG', '/src/games/game.js', 'Game', 'standard'],
   ['ARCHER', '/src/games/archer.js', 'ArcherGame', 'standard'],
@@ -34,9 +35,7 @@ const ENGINES = [
   ['CURVE', '/src/games/curve.js', 'CurveGame', 'standard'],
   ['NINJA', '/src/games/ninja.js', 'NinjaGame', 'standard'],
   ['SNAKE', '/src/games/snake.js', 'SnakeGame', 'standard'],
-  ['LASER', '/src/games/laser.js', 'LaserGame', 'standard'],
   ['COLLAPSE', '/src/games/collapse.js', 'CollapseGame', 'standard'],
-  ['CLONE', '/src/games/clone.js', 'CloneGame', 'standard'],
   ['HORDE', '/src/games/horde.js', 'HordeGame', 'roomy'],
   ['CROWN', '/src/games/crown.js', 'CrownGame', 'crown'],
   ['TANKS', '/src/games/tanks.js', 'TanksGame', 'flat'],
@@ -331,7 +330,13 @@ test('no engine is silently missing from the scale accounting', () => {
 });
 
 test('every registered engine is covered by this suite', () => {
-  assert.equal(loaded.size, 15, 'all 15 engines should load');
+  // SAYA SİLİNMEZ: registry tek nokta, liste de onu yansıtmalı.
+  assert.deepEqual(
+    ENGINES.map(([mode]) => mode).sort(),
+    [...GAME_ORDER].sort(),
+    'suite listi GAME_ORDER ile aynı küme olmalı',
+  );
+  assert.equal(loaded.size, ENGINES.length, `all ${ENGINES.length} engines should load`);
   for (const [mode, , , preset] of ENGINES) {
     assert.ok(loaded.get(mode), `${mode} failed to load`);
     assert.ok(preset, `${mode} has no declared preset`);

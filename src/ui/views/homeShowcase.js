@@ -66,6 +66,11 @@ export function mountHomeShowcase({ strip, resumeId = null, onFeatured = null, o
   let holdUntil = 0;
   let scrollRaf = 0;
   let timer = 0;
+  // Programatik kaydırma (~600ms) sırasında ara karelerdeki `scroll`
+  // olayları en-yakın-kapak hesabını tetikleyip featured'ı ara kapakta
+  // bir kare gösteriyordu — mobilde "ikişer atlıyor / titriyor" hissi.
+  // Hedef peşin `setFeatured` ile boyanır, varışa kadar sync susar.
+  let programmaticUntil = 0;
 
   const setFeatured = (id) => {
     if (!id || id === current) return;
@@ -78,15 +83,17 @@ export function mountHomeShowcase({ strip, resumeId = null, onFeatured = null, o
   const centerOn = (id, smooth = true) => {
     const el = items.get(id);
     if (!el) return;
+    programmaticUntil = performance.now() + 600;
+    setFeatured(id);
     strip.scrollTo({
       left: Math.max(0, el.offsetLeft - (strip.clientWidth * focusRatio() - el.offsetWidth / 2)),
       behavior: smooth && !reduced ? 'smooth' : 'auto',
     });
-    setFeatured(id);
   };
 
   // Hangi kapak odak noktasında? — kaydırmada odağa en yakın öğe featured olur.
   const syncFromScroll = () => {
+    if (performance.now() < programmaticUntil) return;
     const mid = strip.scrollLeft + strip.clientWidth * focusRatio();
     let best = '';
     let bestDist = Infinity;
@@ -134,7 +141,9 @@ export function mountHomeShowcase({ strip, resumeId = null, onFeatured = null, o
   // Otomatik dönüş bir ZAMANLAYICIDIR, animasyon değil; hareket `scrollTo`'nun
   // smooth kaydırmasıdır ve azaltılmış harekette hiç kurulmaz.
   const tick = () => {
-    if (performance.now() < holdUntil || strip.matches(':hover, :focus-within')) return;
+    if (document.hidden) return;
+    if (performance.now() < holdUntil || performance.now() < programmaticUntil) return;
+    if (strip.matches(':hover, :focus-within')) return;
     const i = Math.max(0, ids.indexOf(current));
     centerOn(ids[(i + 1) % ids.length]);
   };

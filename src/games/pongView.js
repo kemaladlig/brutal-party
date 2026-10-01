@@ -12,6 +12,7 @@ import {
   drawCircleParticles,
 } from './worldCore.js';
 import { drawField } from '../core/fieldKit.js';
+import { UI_COLORS } from '../ui/tokens.js';
 
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -82,6 +83,8 @@ export function createPongWorldPacket(game) {
         rally: Math.max(0, Number(ball.rallyCount) || 0),
         smash: ball.isSmash === true,
         dead: ball.isDead === true,
+        // Servis telegrafı: raunt öncesi topun gideceği yön [dx, dy] (yoksa null).
+        serve: Array.isArray(ball.serve) ? [round1(ball.serve[0]), round1(ball.serve[1])] : null,
         trail: packTrail(ball.trail),
         shockwaves: packShockwaves(ball.shockwaves),
       },
@@ -119,6 +122,10 @@ function validBall(ball) {
     && Number.isInteger(ball.rally) && ball.rally >= 0
     && typeof ball.smash === 'boolean'
     && typeof ball.dead === 'boolean'
+    && (ball.serve === null || ball.serve === undefined
+      || (Array.isArray(ball.serve) && ball.serve.length === 2
+        && finite(ball.serve[0]) && finite(ball.serve[1])
+        && Math.hypot(ball.serve[0], ball.serve[1]) > 0.0001))
     && Array.isArray(ball.trail) && ball.trail.length <= 18
     && ball.trail.every((point) => Array.isArray(point) && point.length === 3
       && finite(point[0]) && finite(point[1]) && (point[2] === 0 || point[2] === 1))
@@ -210,6 +217,98 @@ function paddleBounds(paddle) {
 }
 
 /**
+ * Raket gövdesinin TEK çizimi (host `Paddle.draw` + client `drawPongPaddles`).
+ * Düz dolgu yerine pahlı blok: üst/sol açık, alt/sağ koyu kenar + kalın
+ * kontur. İki yüzey aynı dili paylaşsın diye burada.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{x:number,y:number,w:number,h:number}} b
+ * @param {string} color
+ * @param {number} u
+ */
+export function drawPongPaddleBody(ctx, b, color, u = 1) {
+  const inset = Math.max(2, Math.min(b.w, b.h) * 0.24);
+  ctx.fillStyle = color;
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(b.x, b.y, b.w, b.h);
+  ctx.clip();
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = UI_COLORS.white;
+  ctx.fillRect(b.x, b.y, b.w, inset);
+  ctx.fillRect(b.x, b.y, inset, b.h);
+  ctx.fillStyle = UI_COLORS.inkDark;
+  ctx.fillRect(b.x, b.y + b.h - inset, b.w, inset);
+  ctx.fillRect(b.x + b.w - inset, b.y, inset, b.h);
+  ctx.restore();
+
+  ctx.strokeStyle = UI_COLORS.lineDark;
+  ctx.lineWidth = Math.max(1.5, 3 * u);
+  ctx.strokeRect(b.x, b.y, b.w, b.h);
+}
+
+/**
+ * Servis telegrafı: raunt başlamadan topun gideceği yönü ok + arkadaki izle
+ * gösterir. Host `Ball` ve client paket topu aynı alanı (`serve = [dx, dy]`)
+ * taşır, aynı çizim çağrılır.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{x:number,y:number,radius:number,serve:number[]|null}} ball
+ * @param {any} [arena]
+ */
+export function drawPongServeTelegraph(ctx, ball, arena = null) {
+  if (!ball || !Array.isArray(ball.serve)) return;
+  const mag = Math.hypot(ball.serve[0], ball.serve[1]);
+  if (!(mag > 0.0001)) return;
+  const dx = ball.serve[0] / mag;
+  const dy = ball.serve[1] / mag;
+  const r = Math.max(4, Number(ball.radius) || 11);
+  const u = arena?.unit ?? Math.max(0.6, r / 11);
+  const arm = r * 6.2;
+  const head = r * 2.4;
+  const trail = r * 5.0;
+  const px = -dy;
+  const py = dx;
+
+  ctx.save();
+
+  // Arkadaki iz: topun geldiği yönün tersine solan kesik çizgi.
+  ctx.globalAlpha = 0.42;
+  ctx.strokeStyle = UI_COLORS.inkDark;
+  ctx.lineWidth = Math.max(2, 3 * u);
+  ctx.setLineDash([Math.max(2, 3 * u), Math.max(3, 4 * u)]);
+  ctx.beginPath();
+  ctx.moveTo(ball.x - dx * r * 1.2, ball.y - dy * r * 1.2);
+  ctx.lineTo(ball.x - dx * trail, ball.y - dy * trail);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+
+  // Öndeki ok: gövde + üçgen baş.
+  const baseX = ball.x + dx * (r + r * 0.5);
+  const baseY = ball.y + dy * (r + r * 0.5);
+  const tipX = ball.x + dx * (r + arm);
+  const tipY = ball.y + dy * (r + arm);
+  ctx.strokeStyle = UI_COLORS.lineDark;
+  ctx.lineWidth = Math.max(2.5, 4 * u);
+  ctx.beginPath();
+  ctx.moveTo(baseX, baseY);
+  ctx.lineTo(tipX, tipY);
+  ctx.stroke();
+
+  ctx.fillStyle = UI_COLORS.crownRed;
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(tipX - dx * head + px * head * 0.62, tipY - dy * head + py * head * 0.62);
+  ctx.lineTo(tipX - dx * head - px * head * 0.62, tipY - dy * head - py * head * 0.62);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/**
  * @param {CanvasRenderingContext2D} ctx
  * @param {FieldGeometry|null} arena
  * @param {Record<string, [number, number]>|null} [goals]
@@ -244,8 +343,7 @@ export function drawPongPaddles(ctx, paddles, arena, colors = []) {
       continue;
     }
     const bounds = paddleBounds(paddle);
-    ctx.fillStyle = color; ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
-    ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 3 * u; ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
+    drawPongPaddleBody(ctx, bounds, color, u);
     if (paddle.lives > 0) {
       ctx.fillStyle = color;
       ctx.font = '900 14px "JetBrains Mono", monospace';

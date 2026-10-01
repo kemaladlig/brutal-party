@@ -1,8 +1,8 @@
 // Basılı tutma sözleşmesi (kullanıcı kararı 2026-09-30):
 //   HORDE  (HOLD_TO_FIRE)      → yönsüz basılı tutma tam otomatik auto-aim ateşi.
-//   LASER/ARCHER (RELEASE_TO_FIRE) → tutma YALNIZ nişan / yay germe; ateş tap
-//                                     (oto-nişan) veya sürükleyip bırakma ile.
-// Yani archer/laser'da yönsüz tutma artık otomatik ateş ÜRETMEZ.
+//   ARCHER (RELEASE_TO_FIRE)   → tutma YALNIZ nişan / yay germe; ateş tap
+//                                (oto-nişan) veya sürükleyip bırakma ile.
+// Yani archer'da yönsüz tutma artık otomatik ateş ÜRETMEZ.
 
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,7 +27,6 @@ const context = new Proxy({
 const canvas = { width: 800, height: 600, getContext: () => context };
 let server;
 let HordeGame;
-let LaserGame;
 let ArcherGame;
 
 before(async () => {
@@ -56,7 +55,6 @@ before(async () => {
     optimizeDeps: { noDiscovery: true },
   });
   ({ HordeGame } = await server.ssrLoadModule('/src/games/horde.js'));
-  ({ LaserGame } = await server.ssrLoadModule('/src/games/laser.js'));
   ({ ArcherGame } = await server.ssrLoadModule('/src/games/archer.js'));
 });
 
@@ -157,53 +155,6 @@ test('HORDE: tutma ateş ettiyse tap tekrar sıkmaz, sade tap tek atışa devam 
   press(game, 0);
   release(game, 0, true); // kare arası olmadan klasik tap
   assert.equal(shots(), beforeTap + 1, 'yön sürüklememiş sade tap yine tek atış üretir');
-});
-
-test('LASER: yönsüz basılı tutma artık otomatik ateşlemez (tutma = nişan)', () => {
-  const game = setupDuel(LaserGame);
-  const shooter = game.players[0];
-  shooter.ammo = 2;
-  shooter.reloadTimer = 0;
-  shooter.shotCooldown = 0;
-  const shots = () => game.nextLaserId;
-  const before = shots();
-
-  press(game, 0);
-  step(game, 0.6);
-  assert.equal(shots(), before, 'yönsüz basılı tutma ateş üretmemeli');
-  release(game, 0, false); // uzun tutma → tap değil
-  step(game, 0.2);
-  assert.equal(shots(), before, 'yönsüz bırakma da ateşlememeli');
-});
-
-test('LASER: tap oto-nişan tek atış üretir', () => {
-  const game = setupDuel(LaserGame);
-  const shooter = game.players[0];
-  shooter.ammo = 2;
-  shooter.reloadTimer = 0;
-  shooter.shotCooldown = 0;
-  const shots = () => game.nextLaserId;
-  const before = shots();
-
-  press(game, 0);
-  release(game, 0, true);
-  assert.equal(shots(), before + 1, 'tap tek lazer atmalı');
-});
-
-test('LASER: yönlü (sürüklemeli) nişan bırakınca ateş eder, tutarken etmez', () => {
-  const game = setupDuel(LaserGame);
-  const shooter = game.players[0];
-  shooter.ammo = 2;
-  shooter.reloadTimer = 0;
-  shooter.shotCooldown = 0;
-  const shots = () => game.nextLaserId;
-  const before = shots();
-
-  game.handleRemoteInput(0, { action: 'AIM_PRESS', dx: 1, dy: 0, angle: 0, force: 1, aimHeld: true });
-  step(game, 0.5);
-  assert.equal(shots(), before, 'RELEASE_TO_FIRE manuel nişanda tutma ateş üretmez');
-  release(game, 0, false, { dx: 1, dy: 0, angle: 0, force: 1 });
-  assert.equal(shots(), before + 1, 'manuel nişan bırakınca (yönlü) ateş eder');
 });
 
 test('ARCHER: yönsüz basılı tutma yayı gerer, ateş etmez', () => {

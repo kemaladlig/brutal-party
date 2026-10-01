@@ -9,7 +9,7 @@
 // Etiket/renk/cooldown gibi sunum detayları burada tutulmaz —
 // onlar `gamepadSchemas.js` (i18n) ve motor şemalarındadır.
 // Bu dosya yalnız yapısal sözleşmeyi + yön politikasını verir.
-// Twin standart (ARCHER/LASER/HORDE): iki sütun — sol move köşede,
+// Twin standart (ARCHER/HORDE): iki sütun — sol move köşede,
 // sağ aim köşede; aksiyon üçüncü sütun değil aim yarısının iç yanına
 // rıhtımlanır (template + gamepad.css), sağ grup tek rect kalır.
 
@@ -32,8 +32,6 @@ export const CONTROL_DEFS = {
   CROWN: { left: 'joystick', right: ['tackle'] },
   ZONE: { left: 'joystick', right: ['dash'] },
   SNAKE: { left: 'steer', right: ['boost'] },
-  LASER: { left: 'joystick', aim: true, aimMode: AIM_RELEASE_TO_FIRE, right: ['dash'] },
-  CLONE: { left: 'joystick', right: ['tackle'] },
   COLLAPSE: { left: 'joystick', right: ['jump'] },
   NINJA: { left: 'joystick', right: ['strike', 'smoke'] },
   HORDE: { left: 'joystick', aim: true, aimMode: AIM_HOLD_TO_FIRE, right: ['dash'] },
@@ -62,8 +60,6 @@ const TABLETOP_LEFT = {
   CROWN: 'joystick',
   ZONE: 'joystick',
   SNAKE: 'steer',
-  LASER: 'joystick',
-  CLONE: 'joystick',
   COLLAPSE: 'joystick',
   NINJA: 'joystick',
   HORDE: 'joystick',

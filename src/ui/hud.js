@@ -615,7 +615,7 @@ export function renderAdaptiveScoreboard(ctx, {
  * ESKİDEN burada `radius + 10` yarıçapında 3px'lik bir halka vardı; krem
  * zeminde `cooldownTrack` (0.28 alfa) 1.78:1 ve altın yay 1.18:1 ile
  * görünmüyordu. Üç ayrı fonksiyon (bu, `renderEntityHUD`'ın yetenek halkası,
- * `laserView`'un dash halkası) aynı karakterin etrafını üç ayrı ince çemberle
+ * `renderEntityHUD`'ın yetenek halkası, dash halkası) aynı karakterin etrafını üç ayrı ince çemberle
  * çiziyordu. Artık tek geometri, tek yer: koyu plaka + ikon.
  */
 export function renderFireCooldown(ctx, {
@@ -666,7 +666,7 @@ export function renderFireCooldown(ctx, {
   });
 }
 
-// Tüm oyun motorlarında (Tanks, Laser, Bomb, Crown vb.) oyuncunun/tankın üstünde
+// Tüm oyun motorlarında (Tanks, Bomb, Crown vb.) oyuncunun/tankın üstünde
 // veya etrafında cephane, can, yetenek dolum arkı, kalkan ve sersemleme gösterir.
 // - Kenar Koruma (Edge Clamping): Karakter arena tavanına yaklaştığında göstergeler
 //   otomatik olarak alta döner (flip), tavan veya duvar arkasında kaybolmaz.

@@ -15,12 +15,11 @@ export const MODE_VIEW_MAP = Object.freeze({
   NINJA: 'src/games/ninjaView.js',
   HORDE: 'src/games/hordeView.js',
   RACE: 'src/games/raceView.js',
-  LASER: 'src/games/laserView.js',
   ZONE: 'src/games/zoneView.js',
   TANKS: 'src/games/tanksView.js',
   SNAKE: 'src/games/snakeView.js',
   COLLAPSE: 'src/games/collapseView.js',
-  CLONE: 'src/games/cloneView.js',
+  
   CURVE: 'src/games/curveView.js',
 });
 

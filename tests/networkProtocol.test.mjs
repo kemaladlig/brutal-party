@@ -50,7 +50,7 @@ test('rejects malformed or out-of-range network input', () => {
   assert.equal(isValidNetworkInput({ action: 'SNAKE_STEER', dir: 2 }), false);
   assert.equal(isValidNetworkInput({ action: 'SWITCH_SLOT', targetSlot: 4 }), false);
   assert.equal(isValidNetworkInput({ action: 'UNKNOWN' }), false);
-  for (const action of ['SNAKE_DIR', 'ARCHER_CHARGE', 'ARCHER_CHARGE_END', 'LASER_AIM', 'LASER_FIRE', 'LASER_FIRE_RELEASE', 'HORDE_FIRE', 'HORDE_FIRE_RELEASE']) {
+  for (const action of ['SNAKE_DIR', 'ARCHER_CHARGE', 'ARCHER_CHARGE_END', 'HORDE_FIRE', 'HORDE_FIRE_RELEASE']) {
     assert.equal(isValidNetworkInput({ action }), false, `${action} artik kabul edilmemeli`);
   }
 });

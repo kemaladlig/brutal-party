@@ -26,7 +26,7 @@ function isBotType(type) {
   return typeof type === 'string' && BOT_TYPES.has(type);
 }
 
-/** Kazanan `{ index }` nesnesi ya da düz sayı olabilir (PONG/LASER vb.). */
+/** Kazanan `{ index }` nesnesi ya da düz sayı olabilir (PONG vb.). */
 function slotIndexOf(winner) {
   if (Number.isInteger(winner)) return Number(winner);
   if (winner && Number.isInteger(/** @type {any} */ (winner).index)) {
@@ -235,7 +235,7 @@ export class BotReactionDirector {
   }
 
   /**
-   * Oyun içi sayı artışı (CLONE/COLLAPSE/NINJA puanları, PONG golü).
+   * Oyun içi sayı artışı (COLLAPSE/NINJA puanları, PONG golü).
    * @param {ReturnType<typeof snapshotOf>} snap
    * @param {ReturnType<typeof snapshotOf>} prev
    * @param {number} now

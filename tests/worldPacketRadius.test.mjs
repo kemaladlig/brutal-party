@@ -6,7 +6,7 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
-import { CROWN_PLAYER_RADIUS, LASER_PLAYER_RADIUS } from '../src/games/worldCore.js';
+import { CROWN_PLAYER_RADIUS } from '../src/games/worldCore.js';
 
 const noop = () => {};
 const gradient = { addColorStop: noop };
@@ -114,14 +114,9 @@ test('every cartridge exposing worldPacket guarantees finite player radii in pac
 // motoru import edemez, AGENTS §3); eşleşme burada kilitlenir.
 test('worldCore design radii match the engine TUNING values', async () => {
   const { CROWN_TUNING } = await server.ssrLoadModule('/src/games/crown.js');
-  const { LASER_TUNING } = await server.ssrLoadModule('/src/games/laser.js');
 
   assert.equal(
     CROWN_PLAYER_RADIUS, CROWN_TUNING.PLAYER_RADIUS,
     'CROWN_PLAYER_RADIUS motorla eşleşmeli',
-  );
-  assert.equal(
-    LASER_PLAYER_RADIUS, LASER_TUNING.PLAYER_RADIUS,
-    'LASER_PLAYER_RADIUS motorla eşleşmeli',
   );
 });

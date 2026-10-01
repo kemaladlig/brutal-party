@@ -1,5 +1,5 @@
 // Brutal Party — Birleşik Karakter Çizim Motoru (Unified Brutal Avatar Renderer)
-// Tüm mini-oyunlarda (BOMB, HEIST, CROWN, COLLAPSE, CLONE, NINJA, LASER, ZONE, vb.)
+// Tüm mini-oyunlarda (BOMB, HEIST, CROWN, COLLAPSE, NINJA, ZONE, vb.)
 // ve Karakter Özelleştirme Arayüzünde standart avatar çizimini sağlar.
 import { getSlotAvatar, getAvatarProfile, getBotPersona, rimHex } from '../core/customizationManager.js';
 

@@ -97,13 +97,13 @@ function entityKey(entity, index, kind) {
   if (entity && typeof entity === 'object') {
     if (Number.isInteger(entity.id)) return `id:${entity.id}`;
     if (kind === 'players' && Number.isInteger(entity.slot)) return `slot:${entity.slot}`;
-    if (kind === 'clones' && Number.isInteger(entity.owner)) return `owner:${entity.owner}`;
+    if (kind === 'echoes' && Number.isInteger(entity.owner)) return `owner:${entity.owner}`;
   }
   return `index:${index}`;
 }
 
 // Nesne tablosunda PAKETLENMİŞ dizi gelebilir. `walls` iki biçimde gidiyor:
-// LASER hareketli duvarları NESNE, CLONE/SNAKE statik duvarları `[x, y, w, h]` dizisi
+// Hareketli duvarlar NESNE, SNAKE statik duvarları `[x, y, w, h]` dizisi
 // (`packRectList`). Bu yüzden eleman şekline bakılır; hangi koordinatların
 // yumuşatılacağı oyun adından değil, LİSTE KİMLİĞİNDEN türer (tablo).
 const DEFAULT_PACKED_COORDINATES = /** @type {readonly number[]} */ ([0, 1]);
@@ -211,8 +211,6 @@ export function blendWorldFrames(previous, current, t) {
   for (const kind of [
     'players',
     'enemies',
-    'clones',
-    'lasers',
     'tracers',
     'texts',
     'ghosts',

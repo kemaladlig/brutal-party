@@ -252,11 +252,9 @@ test('all views where body is avatar call drawGameAvatar (TANKS is sole commande
     'src/games/collapseView.js',
     'src/games/heistView.js',
     'src/games/hordeView.js',
-    'src/games/laserView.js',
     'src/games/ninjaView.js',
     'src/games/snakeView.js',
     'src/games/zoneView.js',
-    'src/games/cloneView.js',
     'src/games/crownView.js',
   ];
   for (const f of viewFiles) {

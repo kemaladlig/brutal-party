@@ -88,20 +88,6 @@ const STATUS_BUILDERS = {
     const time = Number.isFinite(data.timeLeft) ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
     return `${tIcon('pad.nrg', nrg)}${locked ? ` ${t('pad.locked')}` : ''} • ${tIcon('pad.snakeAlive', aliveCount)}${time}`;
   },
-  LASER: (i, data) => {
-    const timeStr = data.timeLeft !== undefined ? `${data.timeLeft}s` : '';
-    const myHp = Array.isArray(data.hp) ? (data.hp[i] ?? 0) : 0;
-    const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    return `${ICON.heart}${myHp} • ${ICON.timer} ${timeStr}${draw}`;
-  },
-  CLONE: (i, data) => {
-    const dead = deadText(i, data);
-    if (dead) return dead;
-    const aliveCount = Array.isArray(data.alive) ? data.alive.filter(Boolean).length : 0;
-    const time = data.timeLeft !== undefined ? ` • ${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
-    const draw = data.matchDraw ? ` • ${t('game.draw')}` : '';
-    return `${tIcon('pad.cloneAlive', aliveCount)}${time}${draw}`;
-  },
   COLLAPSE: (i, data) => {
     const dead = deadText(i, data);
     if (dead) return dead;

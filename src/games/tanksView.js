@@ -218,7 +218,7 @@ export function drawTanksBullets(ctx, bullets, ownerColors) {
       ctx.fill();
       ctx.restore();
 
-      // 2. Işık hüzmesi kuyruğu (luminescent laser beam trail)
+      // 2. Işık hüzmesi kuyruğu (luminescent beam trail)
       const tailLen = Math.min(38, Math.max(20, r * 5.0));
       const beamGrad = ctx.createLinearGradient(-tailLen, 0, r * 0.5, 0);
       beamGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');

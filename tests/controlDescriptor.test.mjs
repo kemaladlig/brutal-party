@@ -10,7 +10,7 @@ import { CONTROL_DEFS, getNeutralInput, getNeutralInputs } from '../src/controll
 import { keyboardVectorFrom, readSlotKeys } from '../src/core/inputMaps.js';
 
 test('all registered games have phone/tabletop/network descriptor parity', () => {
-  assert.equal(GAME_ORDER.length, 15);
+  assert.equal(GAME_ORDER.length, 13);
   for (const mode of GAME_ORDER) {
     const schema = GAMEPAD_SCHEMAS[mode];
     const result = assertControlDescriptorParity(mode, schema);
@@ -24,14 +24,14 @@ test('all registered games have phone/tabletop/network descriptor parity', () =>
     assert.ok(['slider', 'steer', 'pedal', 'joystick'].includes(descriptor.phone.left));
     assert.ok(['steer', 'joystick'].includes(descriptor.tabletop.left));
     assert.ok(descriptor.network.leftIntent);
-    assert.equal(descriptor.phone.aim, ['ARCHER', 'HORDE', 'LASER'].includes(mode));
+    assert.equal(descriptor.phone.aim, ['ARCHER', 'HORDE'].includes(mode));
     assert.equal(descriptor.tabletop.aim, descriptor.phone.aim);
     if (mode === 'HORDE') {
       assert.equal(descriptor.phone.aimMode, 'HOLD_TO_FIRE');
       assert.equal(descriptor.tabletop.aimMode, descriptor.phone.aimMode);
       assert.equal(descriptor.network.aimMode, descriptor.phone.aimMode);
     }
-    if (mode === 'ARCHER' || mode === 'LASER') {
+    if (mode === 'ARCHER') {
       assert.equal(descriptor.phone.aimMode, 'RELEASE_TO_FIRE');
       assert.equal(descriptor.tabletop.aimMode, descriptor.phone.aimMode);
       assert.equal(descriptor.network.aimMode, descriptor.phone.aimMode);
@@ -53,10 +53,8 @@ test('all registered games have phone/tabletop/network descriptor parity', () =>
 test('aim stick owns attack and only secondary actions remain on the right', () => {
   assert.deepEqual(CONTROL_DEFS.ARCHER.right, []);
   assert.deepEqual(CONTROL_DEFS.HORDE.right, ['dash']);
-  assert.deepEqual(CONTROL_DEFS.LASER.right, ['dash']);
   assert.deepEqual(GAMEPAD_SCHEMAS.ARCHER.actions, []);
   assert.deepEqual(GAMEPAD_SCHEMAS.HORDE.actions.map((action) => action.id), ['dash']);
-  assert.deepEqual(GAMEPAD_SCHEMAS.LASER.actions.map((action) => action.id), ['dash']);
   assert.deepEqual(CONTROL_DEFS.NINJA.right, ['strike', 'smoke']);
 });
 
@@ -99,7 +97,7 @@ test('descriptor exposes a neutral input for every control-bearing game', () => 
     const neutral = getNeutralInput(mode);
     if (mode === 'PONG') assert.equal(neutral, null);
     else assert.ok(neutral && typeof neutral.action === 'string');
-    if (['ARCHER', 'HORDE', 'LASER'].includes(mode)) {
+    if (['ARCHER', 'HORDE'].includes(mode)) {
       const aimNeutral = getNeutralInputs(mode);
       assert.equal(aimNeutral.some((packet) => packet.action === 'AIM_MOVE'), true);
       assert.equal(aimNeutral.some((packet) => packet.action === 'AIM_RELEASE' && packet.cancelled === true), true);

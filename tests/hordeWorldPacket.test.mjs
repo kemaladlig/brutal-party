@@ -141,7 +141,7 @@ test('horde world packet is complete, monotonic and capped', () => {
 test('horde world validation rejects malformed entities and hostile counts', () => {
   const frame = { action: 'WORLD_FRAME', ...createHordeWorldPacket(makeGame()) };
   assert.equal(isValidHordeWorldFrame(frame), true);
-  assert.equal(isValidHordeWorldFrame({ ...frame, mode: 'LASER' }), false);
+  assert.equal(isValidHordeWorldFrame({ ...frame, mode: 'NINJA' }), false);
   const badEnemy = [...frame.enemies[0]];
   badEnemy[5] = 1.5; // hp tam sayı olmalı
   assert.equal(isValidHordeWorldFrame({ ...frame, enemies: [badEnemy] }), false);

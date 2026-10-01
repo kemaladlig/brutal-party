@@ -1242,7 +1242,6 @@ export class GamepadManager {
     this._lastScores = null;
     this._resultActive = false;
     if (this._resultTimer) { clearTimeout(this._resultTimer); this._resultTimer = 0; }
-    this._cloneCdBtn = null;
     this.gameMode = mode;
     const isLobby = String(mode).toLowerCase() === 'lobby';
     const th = !isLobby ? fieldTheme(mode) : null;

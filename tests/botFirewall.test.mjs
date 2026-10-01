@@ -1,4 +1,4 @@
-// Faz 4.4 — AI ateşduvarı: her 15 motor için bot-dolu maçlar salt-okunur
+// Faz 4.4 — AI ateşduvarı: her 13 motor için bot-dolu maçlar salt-okunur
 // BotView proxy üzerinden yürütülür. Bir AI, oyun durumuna doğrudan yazmaya
 // kalkarsa proxy throw eder ve test kırmızıya döner. (Archer şablonu.)
 import test, { after, before } from 'node:test';
@@ -29,9 +29,7 @@ const ENGINES = [
   ['CURVE', '/src/games/curve.js', 'CurveGame'],
   ['NINJA', '/src/games/ninja.js', 'NinjaGame'],
   ['SNAKE', '/src/games/snake.js', 'SnakeGame'],
-  ['LASER', '/src/games/laser.js', 'LaserGame'],
   ['COLLAPSE', '/src/games/collapse.js', 'CollapseGame'],
-  ['CLONE', '/src/games/clone.js', 'CloneGame'],
   ['HORDE', '/src/games/horde.js', 'HordeGame'],
   ['CROWN', '/src/games/crown.js', 'CrownGame'],
   ['TANKS', '/src/games/tanks.js', 'TanksGame'],

@@ -176,40 +176,6 @@ export const GAMEPAD_SCHEMAS = {
     },
   },
 
-  LASER: {
-    type: 'TWIN_STICK_ACTION',
-    def: CONTROL_DEFS.LASER,
-    actions: [
-      {
-        id: 'dash',
-        action: 'DASH',
-        icon: 'zap',
-        label: t('pad.dash'),
-        className: 'laser-btn-dash',
-        cooldown: 4.0,
-        vibrate: [25, 35],
-        syncHostCooldown: true,
-      },
-    ],
-  },
-
-  CLONE: {
-    type: 'JOYSTICK_ACTION',
-    def: CONTROL_DEFS.CLONE,
-    actions: [
-      {
-        id: 'tackle',
-        action: 'TACKLE',
-        icon: '💥',
-        label: t('pad.shove'),
-        color: '#6A4C93',
-        cooldown: 1.6,
-        vibrate: [25, 40],
-        syncHostCooldown: true,
-      },
-    ],
-  },
-
   COLLAPSE: {
     type: 'JOYSTICK_ACTION',
     def: CONTROL_DEFS.COLLAPSE,

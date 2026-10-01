@@ -24,7 +24,7 @@ const BODY_RADIUS = {
   // HORDE tank gövdesi 33 → 42 (gövde okunurluğu ×1.27; oyuncu 15 → 19).
   // Geçiş tabanı en büyük gövdeden türer, dolayısıyla harita seyrelmesi
   // beklenen bir yan etkidir — aşağıdaki test bunu ölçüyor.
-  ARCHER: 28, HORDE: 42, BOMB: 36, HEIST: 36, TANKS: 34, LASER: 19, NINJA: 18,
+  ARCHER: 28, HORDE: 42, BOMB: 36, HEIST: 36, TANKS: 34, NINJA: 18,
 };
 
 // Baseline = pre-change square placement: a synthetic aspect of 1 forces

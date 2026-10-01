@@ -34,6 +34,7 @@ import { t, onLangChange } from '../../i18n.js';
 import { playMenuTick, playMenuPop } from '../../audio.js';
 import { updateInstallButtonVisibility } from '../toast.js';
 import { registerView } from './registry.js';
+import { prefersReducedMotion } from '../motion.js';
 import { mountHeroAvatar } from './heroAvatar.js';
 import { mountHomeShowcase } from './homeShowcase.js';
 import { mountHomeParallax } from './homeParallax.js';
@@ -335,8 +336,13 @@ registerView('home', {
     const lastMode = getPreference('lastGameMode');
     const resumeId = lastMode && CARTRIDGES[lastMode] ? lastMode : null;
     let featuredId = '';
+    let swapTimer = 0;
 
-    const applyFeatured = (id) => {
+    // Featured geçişi ÇAPRAZ SÖNER: önce 160ms'de eski içerik solar+kayar,
+    // sonra yenisi boyanıp geri gelir. Tek katman, transform/opacity dışı
+    // hareket yok; azaltılmış harekette anında değişir. Aynı id (dil
+    // değişimi) solmadan tazelenir — metin titremez.
+    const paintFeatured = (id) => {
       const cart = CARTRIDGES[id];
       if (!cart) return;
       featuredId = id;
@@ -346,6 +352,22 @@ registerView('home', {
       featuredOverline.textContent = t(overKey);
       featured.setAttribute('aria-label', `${t(overKey)} — ${cart.title}`);
       featured.classList.toggle('is-resume', id === resumeId);
+    };
+    const applyFeatured = (id) => {
+      if (!CARTRIDGES[id] || id === featuredId) {
+        if (CARTRIDGES[id]) paintFeatured(id);
+        return;
+      }
+      if (prefersReducedMotion() || !featuredId) {
+        paintFeatured(id);
+        return;
+      }
+      featured.classList.add('is-swap');
+      window.clearTimeout(swapTimer);
+      swapTimer = window.setTimeout(() => {
+        paintFeatured(id);
+        requestAnimationFrame(() => featured.classList.remove('is-swap'));
+      }, 170);
     };
     const disposeShowcase = mountHomeShowcase({
       strip: marquee,

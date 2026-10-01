@@ -64,10 +64,19 @@ export class Ball {
     // 🌀 Falso eğriliği: işaretli dikey ivme (px/s²), üstel söner
     this.spin = 0;
 
+    // Servis telegrafı: raunt öncesi kilitlenen çıkış açısı (yoksa null).
+    this.serveAngle = null;
+
     // Anti-loop tracker
     this.consecutiveWallBounces = 0;
     this.paddleHitCooldown = 0;
     this.lastHitPaddle = -1;
+  }
+
+  /** Servis telegrafı yönü [dx, dy]; açı kilitli değilse null. */
+  get serve() {
+    if (!Number.isFinite(this.serveAngle)) return null;
+    return [Math.cos(this.serveAngle), Math.sin(this.serveAngle)];
   }
 
   scaleToArena(arena) {
@@ -114,6 +123,7 @@ export class Ball {
   reset(cx, cy, directionAngle = null) {
     this.x = Number.isFinite(cx) ? cx : 0;
     this.y = Number.isFinite(cy) ? cy : 0;
+    this.serveAngle = null;
     this.trail = [];
     this.shockwaves = [];
     this.isDead = false;
