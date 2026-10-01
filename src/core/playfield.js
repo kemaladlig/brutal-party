@@ -31,14 +31,13 @@ export const FIELD_DESIGN = Object.freeze({
  * tasarım yarıçapı atandığı bantta kalmak zorundadır).
  *
  *   normal    beğenilen arena-action grubu (BOMB/HEIST/CROWN/ARCHER/TANKS/
- *             ZONE/NINJA/COLLAPSE/HORDE)
- *   open      küçük gövde + hızlı/niş oyunlar (RACE/SNAKE/CURVE)
+ *             ZONE/NINJA/COLLAPSE/HORDE/RACE)
+ *   open      küçük gövde + hızlı/niş oyunlar (SNAKE/CURVE)
  *   far       imleç ve görev oyunları (şu an kullanıcısız — bant yerinde durur)
  *
  * Bantlar arası boşluk (16–18, 24–28) kasıtlıdır: sınır sürüklemesi
  * yerine bilinçli tier geçişi yapılsın. İSTİSNALAR: PONG (raydaki raket,
- * serbest gövde değil), RACE aracı `open`'dadır ama gövde değil araç
- * hissi taşır.
+ * serbest gövde değil).
  */
 export const FIELD_TIERS = Object.freeze({
   normal: Object.freeze({ minDesignRadius: 28, maxDesignRadius: 36 }),

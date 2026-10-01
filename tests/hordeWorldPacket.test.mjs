@@ -71,6 +71,8 @@ function makeGame() {
     enemies: [
       { id: 1, x: 500, y: 300, radius: 18, angle: 1, hp: 3, maxHp: 3, type: 'chaser', isBoss: false, elite: false, hitTimer: 0, spawnDelay: 0, attackTimer: 1, lungeTimer: 0 },
       { id: 2, x: 600, y: 360, radius: 28, angle: 0, hp: 20, maxHp: 32, type: 'shooter', isBoss: true, elite: false, hitTimer: 0.1, spawnDelay: 0, attackTimer: 0.2, lungeTimer: 0 },
+      // Bomba: fuse alanı yalnız bu tipte paketlenir (16. eleman).
+      { id: 3, x: 420, y: 420, radius: 60, angle: 0, hp: 9999, maxHp: 9999, type: 'bomb', isBoss: false, elite: false, hitTimer: 0, spawnDelay: 0, attackTimer: 0.4, fuseTotal: 1.6, lungeTimer: 0 },
     ],
     projectiles: Array.from({ length: 70 }, (_, index) => ({
       id: index + 1,
@@ -123,6 +125,12 @@ test('horde world packet is complete, monotonic and capped', () => {
   // Düşmanlar dizi olarak paketlenir: [.., type@7, boss@8, ..]
   assert.equal(first.enemies[1][8], 1);
   assert.equal(first.enemies[1][7], 'shooter');
+  // Bomba fuse'u 16. eleman olarak gider; sıradan düşmanda alan YOKTUR
+  // (her düşmana `undefined` yazmak 28 düşman için boş JSON anahtarı olurdu).
+  assert.equal(first.enemies[1].length, 15);
+  assert.equal(first.enemies[2][7], 'bomb');
+  assert.equal(first.enemies[2].length, 16);
+  assert.equal(first.enemies[2][15], 0.8); // round1(1 - 0.4/1.6)
   assert.equal(first.players[0].shield, true);
   assert.equal(first.players[0].weapon, 'RIFLE');
   // Gözlerin baktığı yön (nişan/koşu) paketlenir; dekor alanları (accessory/
@@ -145,6 +153,13 @@ test('horde world validation rejects malformed entities and hostile counts', () 
   const badEnemy = [...frame.enemies[0]];
   badEnemy[5] = 1.5; // hp tam sayı olmalı
   assert.equal(isValidHordeWorldFrame({ ...frame, enemies: [badEnemy] }), false);
+  // Fuse yalnız 16. eleman ve 0..1 olabilir; v1 paketler (15 eleman) yine geçerli.
+  const badFuse = [...frame.enemies[2]];
+  badFuse[15] = 1.5;
+  assert.equal(isValidHordeWorldFrame({ ...frame, enemies: [badFuse] }), false);
+  assert.equal(isValidHordeWorldFrame({ ...frame, enemies: [frame.enemies[0]] }), true);
+  // 14 elemanlı dizi (eksik alan) reddedilir.
+  assert.equal(isValidHordeWorldFrame({ ...frame, enemies: [frame.enemies[0].slice(0, 14)] }), false);
   assert.equal(isValidHordeWorldFrame({ ...frame, bullets: [[0, 0, 0]] }), false);
   assert.equal(isValidHordeWorldFrame({ ...frame, obstacles: [[0, 0, 0]] }), false);
   assert.equal(isValidHordeWorldFrame({ ...frame, loadoutCrates: [{ ...frame.loadoutCrates[0], weaponId: 'ROCKET' }] }), false);
@@ -165,7 +180,10 @@ test('client scene reconstruction keeps identity and render-only data separate',
   const frame = { action: 'WORLD_FRAME', ...createHordeWorldPacket(makeGame()) };
   const scene = hordeSceneFromFrame(frame);
   assert.equal(scene.players.length, 4);
-  assert.equal(scene.enemies.length, 2);
+  assert.equal(scene.enemies.length, 3);
+  // Fuse yalnız bombada gelir; diğerlerinde `undefined` (v1 paket uyumu).
+  assert.equal(scene.enemies[2].fuse, 0.8);
+  assert.equal(scene.enemies[0].fuse, undefined);
   assert.equal(scene.bullets.length, HORDE_VIEW_LIMITS.bullets);
   assert.equal(scene.portal.progress, 0.4);
   assert.equal(scene.portal.side, 0);

@@ -15,10 +15,29 @@ function nearestEnemy(game, bot, maxDistance = Infinity) {
   let target = null;
   let best = maxDistance * maxDistance;
   for (const enemy of game.enemies || []) {
+    // Bomba hedef değildir: telegraftır, ateş ona dönmez.
+    if (enemy?.type === 'bomb' || (enemy?.spawnDelay || 0) > 0) continue;
     const d2 = distanceSq(bot.x, bot.y, enemy.x, enemy.y);
     const priority = enemy.type === 'healer' || enemy.type === 'shooter' ? d2 * 0.72 : d2;
     if (priority < best) {
       best = priority;
+      target = enemy;
+    }
+  }
+  return target;
+}
+
+function nearestBomb(game, bot) {
+  let target = null;
+  let best = Infinity;
+  for (const enemy of game.enemies || []) {
+    if (enemy?.type !== 'bomb') continue;
+    const blast = Number(enemy.radius) || 0;
+    const d2 = distanceSq(bot.x, bot.y, enemy.x, enemy.y);
+    // Telegraf içindeyse ya da kenarındaysa kaç: blast + küçük pay.
+    const escapeR = blast + (bot.radius || 0) + 12;
+    if (d2 < escapeR * escapeR && d2 < best) {
+      best = d2;
       target = enemy;
     }
   }
@@ -37,6 +56,31 @@ function steerToward(bot, x, y, stopDistance = 0) {
   bot.steerX = dx / distance;
   bot.steerY = dy / distance;
   return distance;
+}
+
+/**
+ * Noktadan UZAKLAŞ: verilen yarıçapın dışına çıkacak yön. Merkezdeyse
+ * (dx=dy=0) yön tanımsızdır — deterministik bir kaçış ekseni seçilir ki bot
+ * telegrafın tam ortasında sıkışıp kalmaz.
+ */
+function steerAwayFrom(bot, x, y, stopDistance = 0) {
+  const dx = bot.x - x;
+  const dy = bot.y - y;
+  const distance = Math.hypot(dx, dy);
+  if (distance >= stopDistance) {
+    // Zaten dışarıda: yönü koru ama zorlamadan (portala/revive'e gitmesin).
+    if (distance < 0.001) return;
+    bot.steerX = dx / distance;
+    bot.steerY = dy / distance;
+    return;
+  }
+  if (distance < 0.001) {
+    bot.steerX = 1;
+    bot.steerY = 0;
+    return;
+  }
+  bot.steerX = dx / distance;
+  bot.steerY = dy / distance;
 }
 
 function aimAt(bot, target) {
@@ -104,6 +148,30 @@ export function updateHordeBotAI(rawGame, bot, dt) {
 
   const target = nearestEnemy(game, bot);
   const targetDistance = target ? Math.hypot(target.x - bot.x, target.y - bot.y) : Infinity;
+
+  // BOMBA KAÇIŞI en yüksek öncelik: telegraf zemin hasarı 2 can götürür ve
+  // ne öldürdüğünü belli etmez. Bot içindeyse (ya da kenarındaysa) portal/revive
+  // kararlarının hepsi geçersizdir — önce daireden çık. Dışarısındaysa hiçbir şey
+  // değişmez, bot olmayan bir tehdide tepki vermez.
+  const bomb = nearestBomb(game, bot);
+  if (bomb) {
+    const blast = Number(bomb.radius) || 0;
+    const distance = Math.hypot(bomb.x - bot.x, bomb.y - bot.y) || 0.001;
+    // Depar en hızlı çıkış: dash hem hız hem dokunulmazlık verir, ama
+    // yönlü olmalı (triggerDash yönsüzde başarısız) — kaçış yönü dışa doğru.
+    if (bot.dashCooldown <= 0 && bot.dashTimer <= 0) {
+      const outwardX = (bot.x - bomb.x) / distance;
+      const outwardY = (bot.y - bomb.y) / distance;
+      bot.steerX = outwardX;
+      bot.steerY = outwardY;
+      game.triggerDash(bot.index);
+    }
+    steerAwayFrom(bot, bomb.x, bomb.y, blast + (bot.radius || 0) + fieldPx(game.arena, 26));
+    if (target && distance < fieldPx(game.arena, 150)) aimAt(bot, target);
+    else bot.isAiming = false;
+    steerAroundCover(game, bot, dt);
+    return;
+  }
 
   const weapon = getPlayerWeapon(bot);
   // Kaçış mesafesi saha ile ölçeklenir: sabit px telefonda sahanın %24'ü,

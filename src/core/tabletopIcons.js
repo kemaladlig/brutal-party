@@ -54,6 +54,17 @@ const LUCIDE_REGISTRY = {
     path: 'M21 12a9 9 0 1 1-2.64-6.36 M21 3v6h-6',
     mode: 'stroke',
   },
+  // Şarjör kutusu. HORDE cephane sayacının ikonu: "kaç mermi kaldı" sorusunu
+  // çubuktan daha doğrudan taşır (bar tek başına "ne kadar" demiyordu).
+  // Emoji takma adı YOK: bu ikon bir OS emojisiyle eşleşmiyor (🔫 her
+  // platformda başka bir silah) ve `rules-lint` K5 emoji borcunu yalnız
+  // azaltmaya izin veriyor — yeni giriş borca eklenmez.
+  ammo: {
+    id: 'ammo',
+    aliases: ['bullet', 'bullets', 'cartridge'],
+    path: 'M6 4h12v16H6z M6 8.7h12 M6 13.3h12 M6 18h12',
+    mode: 'stroke',
+  },
   alert_triangle: {
     id: 'alert_triangle',
     aliases: ['⚠️', 'alert', 'warning', 'error'],

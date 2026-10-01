@@ -472,14 +472,10 @@ this.targetScore = 2;
         isJoined: isJoined,
         hitFlash: 0,
         slotType: this.slotTypes[i],
-        // `size` KAREDİR (kenar), gövde YARIÇAPI = size/2. 60 → yarıçap 30 =
-        // saha kısa kenarının ~%6.3'ü, `normal` bandında [28,36]. Önceki 34
-        // yarıçap sanılıyordu ama çizim/çarpışma onu kenar olarak kullandığı
-        // için gövde fiilen yarıçapta 17'ye (bandın yarısı) düşüyordu — tanklar
-        // bu yüzden TV'de de mobilde de akranlarının (BOMB/HEIST 36) yarısı
-        // görünüyordu. 01 // LABİRENT'in 0.04'lük iki yarığı 0.08'e açıldı ki
-        // büyüyen gövde o geçitlerden rahat geçsin.
-        size: fieldRadius(this.arena, 60, 0),
+        // `size` KAREDİR (kenar), gövde YARIÇAPI = size/2. 68 → yarıçap 34 =
+        // saha kısa kenarının ~%7.1'i, `normal` bandında [28,36] (RACE/BOMB ayarında).
+        // Mobilde tanklar tok, paletler ve gövde net okunur.
+        size: fieldRadius(this.arena, 68, 0),
         reloadCooldown: 0.55,
         reloadTimer: 0,
         muzzleFlashTimer: 0,
@@ -740,8 +736,8 @@ this.targetScore = 2;
           maxBounces: 2,
           owner: tank.index,
           id: this.nextBulletId++,
-          // Mermi yarıçapı saha ile ölçeklenir; gövde rebalance'ı ile 6.
-          radius: fieldRadius(this.arena, 6, 0),
+          // Mermi yarıçapı saha ile ölçeklenir; tok plazma mermisi ile 8.
+          radius: fieldRadius(this.arena, 8, 0),
         });
       }
     } else {
@@ -756,7 +752,7 @@ this.targetScore = 2;
         maxBounces: 2,
         owner: tank.index,
         id: this.nextBulletId++,
-        radius: fieldRadius(this.arena, 6, 0),
+        radius: fieldRadius(this.arena, 8, 0),
       });
     }
 

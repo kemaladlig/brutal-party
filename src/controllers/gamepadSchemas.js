@@ -250,12 +250,17 @@ export const GAMEPAD_SCHEMAS = {
     actions: [{
       id: 'dash',
       action: 'DASH',
+      releaseAction: 'DASH_RELEASE',
+      hold: true,
       icon: 'zap',
-      label: t('pad.dash'),
-      color: '#0EA5E9',
-      cooldown: 2.8,
-      vibrate: [25, 35],
-      syncHostCooldown: true,
+      label: t('pad.nitro'),
+      color: '#D99B26',
+      vibrate: [20, 25],
     }],
+    onSync(gamepad, data, { buttonEls }) {
+      const btn = buttonEls[0]?.el;
+      const nrg = Array.isArray(data?.nitro) ? (data.nitro[gamepad.playerIndex] ?? 100) : 100;
+      if (btn) btn.style.opacity = nrg < 8 ? 0.45 : 1;
+    },
   },
 };

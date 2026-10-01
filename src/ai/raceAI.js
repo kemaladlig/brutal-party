@@ -129,10 +129,10 @@ export class RaceAI {
       this.decisionTimer[slotIndex] = DECISION_MIN + Math.random() * (DECISION_MAX - DECISION_MIN);
       const targetAngle = Math.atan2(directionY, directionX);
       const aligned = Math.abs(normalizeAngle(targetAngle - player.angle)) < 0.35;
-      const canDash = player.dashCooldown <= 0
+      const canDash = (player.nitroEnergy === undefined || player.nitroEnergy > 15)
         && player.skidTimer <= 0
         && player.empDisruptedTimer <= 0;
-      if (targetDistance > 140 && aligned && canDash && (isGod || Math.random() < 0.22)) {
+      if (targetDistance > 130 && aligned && canDash && (isGod || Math.random() < 0.28)) {
         this.game.triggerDash(slotIndex);
       }
     }

@@ -6,11 +6,10 @@ export const RACE_TUNING = Object.freeze({
   roundTime: 90,
   // Raunt boşluğu artık `core/roundLifecycle.ROUND_GAP` tablosundan gelir
   // (`beginRound` varsayılanı); oyun başına ayrı değer tutulmaz.
-  // 19 → 20 (Faz 3.2, I7 dürüstlüğü): en küçük hedef cihazda (SE yatay
-  // 667×375) gövde çapı 12px okunabilirlik tabanının altına düşüyordu
-  // (11.8px). +%5 tasarım yarıçapı tabanı geçirir; `open` bandında kalır
-  // (18–24) ve gövde/hız bütçesi (minB) korunur.
-  playerRadius: 20,
+  // 28 → 34 (FIELD_TIERS §normal bandı üstü, BOMB/CROWN seviyesi).
+  // Mobilde araç tok ve heybetli (~23px boy / ~20px kanat) bir arcade mikro-racer
+  // haline gelir; ekranda kaybolmaz ve yönü net okunur.
+  playerRadius: 34,
   // 190 → 215 → hız 215'te sabit. "RACE hala yavaş" geri bildirimi ikinci kez
   // geldi ve bu sefer ölçüm gösterdi: hız zaten ortalamanın üstündeydi
   // (952/215 = 4.4sn, HORDE 5.6 / ARCHER 4.8). Yavaşlık hızdan değil İVMEDEN
@@ -24,6 +23,10 @@ export const RACE_TUNING = Object.freeze({
   dashAcceleration: 1180,
   dashDuration: 0.38,
   dashCooldown: 2.8,
+  nitroCooldown: 2.8,
+  nitroMaxEnergy: 100,
+  nitroDrainRate: 38,
+  nitroRechargeRate: 16,
   // Sürükleme katsayısı (1/sn, zaten `Math.exp(-rate*dt)` ile dt-duyarlı).
   // 3.7 → 2.8: gaz bırakıldığında araç eskisi kadar "yapışkan" değil, yani
   // virajdan çıkışta hızı koruyor. Skid sürüklemesi oranı korundu.

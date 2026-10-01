@@ -74,7 +74,7 @@ function placeAtCheckpoint(player, checkpointIndex, game, laps = player.laps) {
 
 test('a single finisher receives one point and the next round rotates track', () => {
   const game = createGame();
-  placeAtCheckpoint(game.players[0], 2, game, 3);
+  placeAtCheckpoint(game.players[0], game.checkpoints.length - 1, game, 3);
   game.update(performance.now() + 16);
 
   assert.equal(game.state, 'ROUND_OVER');
@@ -89,8 +89,8 @@ test('a single finisher receives one point and the next round rotates track', ()
 
 test('simultaneous finishers are treated as a draw instead of awarding array order', () => {
   const game = createGame();
-  placeAtCheckpoint(game.players[0], 2, game, 3);
-  placeAtCheckpoint(game.players[1], 2, game, 3);
+  placeAtCheckpoint(game.players[0], game.checkpoints.length - 1, game, 3);
+  placeAtCheckpoint(game.players[1], game.checkpoints.length - 1, game, 3);
   game.update(performance.now() + 16);
 
   assert.equal(game.state, 'ROUND_OVER');

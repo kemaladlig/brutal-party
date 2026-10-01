@@ -520,6 +520,7 @@ export const TR = {
   'pad.steerLeft': '{icon:arrow_left} SOL',
   'pad.steerRight': 'SAĞ {icon:arrow_right}',
   'pad.dash': '{icon:zap} DEPAR',
+  'pad.nitro': '{icon:zap} NİTRO',
   'pad.shove': 'OMUZ AT',
   'pad.boost': '{icon:zap} HIZLAN',
   'pad.jump': '{icon:zap} ZIPLA',

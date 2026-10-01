@@ -366,6 +366,7 @@ export const CARTRIDGES = {
         targetLaps: game.targetLaps,
         leader: game.getLeaderIndex(),
         cd: game.players.map((player) => Math.ceil((Math.max(0, player.dashCooldown || 0) / 2.8) * 100)),
+        nitro: game.players.map((player) => Math.round(player.nitroEnergy ?? 100)),
       }),
     }),
   },

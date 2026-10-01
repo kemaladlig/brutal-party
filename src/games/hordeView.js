@@ -8,8 +8,7 @@ import { fxReadAlpha } from '../core/fxKit.js';
 import { segmentAabbIntersection } from '../core/physics2d.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { getFireCooldownProgress, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
-import { renderSpatialBadge } from '../ui/hud.js';
-import { UI_COLORS } from '../ui/tokens.js';
+import { UI_COLORS, UI_FONTS } from '../ui/tokens.js';
 import { t } from '../i18n.js';
 import {
   HORDE_UPGRADES,
@@ -126,6 +125,11 @@ export function mapHordeScene(game, tuning = {}) {
       spawnProgress: round1(clamp01(1 - (Number(enemy.spawnDelay) || 0) / 0.9)),
       telegraph: enemy.attackTimer < 0.5 && (enemy.type === 'shooter' || enemy.type === 'healer'),
       lunging: enemy.lungeTimer > 0,
+      // Bomba fuse ilerlemesi (0..1). Yalnız `type === 'bomb'` anlamlı;
+      // eski paketlerde yoktur → `undefined` (istemci tam halka çizer).
+      fuse: enemy.type === 'bomb'
+        ? round1(clamp01(1 - (Number(enemy.attackTimer) || 0) / Math.max(0.01, Number(enemy.fuseTotal) || 1)))
+        : undefined,
     })),
     bullets: (game.projectiles || []).slice(0, HORDE_VIEW_LIMITS.bullets).map((bullet) => ({
       id: bullet.id,
@@ -196,10 +200,12 @@ export function mapHordeScene(game, tuning = {}) {
 
 function packHordeScene(scene) {
   return {
-    // Düşmanlar DİZİ olarak paketlenir (obje değil): 15 alanın JSON anahtar
-    // yükü 28 düşmanda ~3.8 KB'ı buluyordu. Sıra `hordeSceneFromFrame` ve
+    // Düşmanlar DİZİ olarak paketlenir (obje değil): 16 alanın JSON anahtar
+    // yükü 28 düşmanda ~4.0 KB'ı buluyordu. Sıra `hordeSceneFromFrame` ve
     // `isValidHordeExtra` ile birebir aynı; boolean'lar 0/1.
-    // [id, x, y, r, angle, hp, maxHp, type, boss, elite, hit, spawning, spawnProgress, telegraph, lunging]
+    // [id, x, y, r, angle, hp, maxHp, type, boss, elite, hit, spawning, spawnProgress, telegraph, lunging, fuse]
+    // Son alan (fuse) yalnız bombada anlamlı; eski paketlerde dizi 15 elemanlıdır
+    // (v1 uyumu → `undefined`, çizim tam halka varsayar).
     enemies: scene.enemies.map((enemy) => [
       enemy.id,
       enemy.x,
@@ -216,6 +222,7 @@ function packHordeScene(scene) {
       enemy.spawnProgress,
       enemy.telegraph ? 1 : 0,
       enemy.lunging ? 1 : 0,
+      ...(enemy.fuse === undefined ? [] : [enemy.fuse]),
     ]),
     bullets: scene.bullets.map((bullet) => [
       bullet.x,
@@ -305,7 +312,9 @@ function isValidHordePlayer(player) {
 
 function isValidHordeExtra(frame) {
   if (!Array.isArray(frame.enemies) || frame.enemies.length > HORDE_VIEW_LIMITS.enemies) return false;
-  if (!frame.enemies.every((enemy) => Array.isArray(enemy) && enemy.length === 15
+  // Düşman dizisi 15 (v1) veya 16 (fuse'lı) elemanlı olabilir; eski paket
+  // v1 uyumunda kabul edilir.
+  if (!frame.enemies.every((enemy) => Array.isArray(enemy) && (enemy.length === 15 || enemy.length === 16)
     && Number.isInteger(enemy[0]) && enemy[0] >= 0
     && finite(enemy[1]) && finite(enemy[2]) && finite(enemy[3]) && enemy[3] > 0
     && finite(enemy[4])
@@ -313,7 +322,9 @@ function isValidHordeExtra(frame) {
     && Number.isInteger(enemy[6]) && enemy[6] > 0
     && ENEMY_TYPES.has(enemy[7])
     && [8, 9, 10, 11, 13, 14].every((i) => enemy[i] === 0 || enemy[i] === 1)
-    && finite(enemy[12]) && enemy[12] >= 0 && enemy[12] <= 1)) return false;
+    && finite(enemy[12]) && enemy[12] >= 0 && enemy[12] <= 1
+    && (enemy.length === 15
+      || (finite(enemy[15]) && enemy[15] >= 0 && enemy[15] <= 1)))) return false;
 
   if (!Array.isArray(frame.bullets) || frame.bullets.length > HORDE_VIEW_LIMITS.bullets) return false;
   if (!frame.bullets.every((bullet) => Array.isArray(bullet) && bullet.length === 9
@@ -389,16 +400,21 @@ export function hordeSceneFromFrame(frame) {
   if (!frame) return null;
   return {
     players: Array.isArray(frame.players) ? frame.players : [],
-    enemies: Array.isArray(frame.enemies) ? frame.enemies.map(([id, x, y, r, angle, hp, maxHp, type, boss, elite, hit, spawning, spawnProgress, telegraph, lunging]) => ({
-      id, x, y, r, angle, hp, maxHp, type,
-      boss: boss === 1,
-      elite: elite === 1,
-      hit: hit === 1,
-      spawning: spawning === 1,
-      spawnProgress,
-      telegraph: telegraph === 1,
-      lunging: lunging === 1,
-    })) : [],
+    enemies: Array.isArray(frame.enemies) ? frame.enemies.map((enemy) => {
+      const [id, x, y, r, angle, hp, maxHp, type, boss, elite, hit, spawning, spawnProgress, telegraph, lunging] = enemy;
+      return {
+        id, x, y, r, angle, hp, maxHp, type,
+        boss: boss === 1,
+        elite: elite === 1,
+        hit: hit === 1,
+        spawning: spawning === 1,
+        spawnProgress,
+        telegraph: telegraph === 1,
+        lunging: lunging === 1,
+        // 16. alan v2 eklentisi (bomba fuse); v1 paketlerde yok → undefined.
+        fuse: enemy.length > 15 ? enemy[15] : undefined,
+      };
+    }) : [],
     bullets: Array.isArray(frame.bullets) ? frame.bullets.map(([x, y, vx, vy, radius, enemy, id, angle, color]) => ({
       x, y, vx, vy, radius, enemy: enemy === 1, id, angle, color,
     })) : [],
@@ -516,6 +532,65 @@ function drawExtractionGate(ctx, portal, now) {
   ctx.restore();
 }
 
+/**
+ * Bomba = zemin telegrafı (katı cisim DEĞİL).
+ *
+ * Çizim dili kasıtlı olarak düşman siluetinden ayrı: dolu yuvarlak gövde yerine
+ * (1) patlama yarıçapını gösteren yarı saydam KIRMIZI ZEMİN alanı,
+ * (2) tam dairenin içinde kalan FUSE halkası (altın, saat yönünde azalır),
+ * (3) merkezde küçük bomba ikonu — çekirdek görsel, çarpışma yok.
+ * Oyuncunun okuması gereken tek bilgi "buradan çık, şu kadar sürem var".
+ */
+function drawBombTelegraph(ctx, enemy, now) {
+  const r = Math.max(6, enemy.r || 40);
+  const fuse = Number.isFinite(enemy.fuse) ? clamp01(enemy.fuse) : 1;
+  const pulse = 0.5 + Math.sin(now / 90) * 0.5;
+  // Son %25'te vurgu: renk kızıllaşır, nabız hızlanır.
+  const urgent = fuse < 0.25;
+  const lineW = Math.max(2, r * 0.06);
+
+  ctx.save();
+  ctx.translate(enemy.x, enemy.y);
+
+  // 1) Zemin alanı: hasarın olduğu yer. Saydam kırmızı dolgu + kesik sınır.
+  ctx.globalAlpha = 0.14 + pulse * 0.06;
+  ctx.fillStyle = BLOOD;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.globalAlpha = 0.75;
+  ctx.strokeStyle = BLOOD;
+  ctx.lineWidth = lineW;
+  ctx.setLineDash([r * 0.22, r * 0.14]);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 2) Fuse halkası: kalan süre. Saat yönünde azalan altın yay + kalan
+  //    süreyi gösteren ince beyaz halka.
+  ctx.globalAlpha = 1;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = urgent ? BLOOD : GOLD;
+  ctx.lineWidth = lineW * 1.4;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.82, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * fuse);
+  ctx.stroke();
+  if (fuse > 0.02) {
+    ctx.strokeStyle = FLASH;
+    ctx.lineWidth = Math.max(1, lineW * 0.5);
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.82, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // 3) Çekirdek: küçük bomba ikonu. Oyuncunun "içinden geçilebilir" okuması
+  //    için ikon kasıtlı olarak gövdeden çok daha küçük.
+  drawTabletopIcon(ctx, 'bomb', 0, 0, r * 0.42, { color: INK });
+  ctx.restore();
+}
+
 function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
   const eu = (enemy.r || 14) / 14;
   if (enemy.spawning) {
@@ -572,19 +647,7 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
   }
 
   if (enemy.type === 'bomb') {
-    ctx.save();
-    ctx.translate(enemy.x, enemy.y);
-    ctx.globalAlpha = 0.3 + (enemy.hit ? 0.7 : 0);
-    ctx.fillStyle = BLOOD;
-    ctx.beginPath();
-    ctx.arc(0, 0, enemy.r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = BLOOD;
-    ctx.lineWidth = Math.max(2, 4 * eu);
-    ctx.setLineDash([15, 10]);
-    ctx.stroke();
-    ctx.restore();
+    drawBombTelegraph(ctx, enemy, now);
     return;
   }
 
@@ -841,79 +904,125 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0, selfSlot = -1 
     });
     ctx.restore();
 
-    // Oyuncu çevresindeki HUD da gövde yarıçapına bağlıdır. Mutlak px'ler
-    // tasarım boyutunda doğruydu ama telefonda şişiyordu: cooldown halkası 15px
-    // sabit (gövde 5.7px), can pips'leri 27px YUKARIDA (4.7× gövde yarıçapı),
-    // cephane çubuğu 32×24px (5.6×). Üçü birden oyuncunun çizilen yayılımını
-    // gövdenin ~3.2 katına çıkarıyordu — düşman can çubuğundaki aynı hatanın
-    // oyuncu tarafındaki hali. `u` tasarım yarıçapına (14) oran olduğu için
-    // masaüstü tasarım BİREBİR korunur, sadece küçük sahada küçülür.
-    const hu = R / 14;
+    // Oyuncu üstü durum yığını da gövde yarıçapına bağlıdır: mutlak px'ler
+    // tasarım boyutunda doğruydu ama telefonda gövdeyi 5.7px'e düşerken
+    // HUD 15-32px'de kalıyordu (yayılım gövdenin ~3.2 katı). `hu` tasarım
+    // yarıçapına (14) oran olduğu için masaüstü ölçü BİREBİR korunur, yalnız
+    // küçük sahada küçülür.
+    // HUD ölçeği gövde yarıçapına bağlıdır, ama TABBAN tabanı vardır:
+    // saf oran telefonda (gövde 11px) plakayı 9px metinli bir kutuya
+    // indiriyor, rakam okunmuyordu. `Math.max(1, …)` masaüstünde tam 1'dir
+    // (hiçbir şeyi şişirmez), telefonda HUD'u okunur tabana çeker.
+    drawHordeVitals(ctx, player, Math.max(1, R / 14));
+  }
+}
 
-    // Yuvarlak cooldown halkası KALDIRILDI. Kullanıcı geri bildirimi: "mermi
-    // sıkarken karakterin etrafında yuvarlak olmasın, tepesinde azalan bar
-    // olabilir". Halka ne olduğunu söylemiyordu; aşağıdaki şarjör barı hem
-    // cephane hem bekleme durumunu tek bakışta okutuyor ve gövdeyi kapatmıyor.
-    // Halka deseni 15 oyunda da bırakıldı — ortak dil `entityStatus` rozeti
-    // (ARCHER buradan çizer).
+/**
+ * Oyuncu üstü durum yığını: kalp (can) + şarjör plakası (cephane).
+ *
+ * Ölçülen iki okunabilirlik hatası ve çözümleri:
+ *
+ *  1) CAN: 5×4px renkli dikdörtgenler (`fillRect` pips) "kaç canım kaldı"
+ *     sorusunu yanıtlamıyordu — oyuncu sadece "bir şeyler kısaldı" diye
+ *     görüyordu. Yerine KALP ikonu: dolu = can, boş = kayıp (`hudEmpty`
+ *     kontur). Sembol zaten "can" demek; saymaya gerek yok.
+ *  2) CEPHANE: soyut bir dolum çubuğu "kaç mermi kaldı" sorusunu yanıtlamıyor,
+ *     ayrıca "bar ne kadar azaldı" tahmini gerektiriyordu. Yerine koyu plaka
+ *     + şarjör ikonu + RAKAM (`18/20`). Sayı doğrudan cevaptır, ikon "neden
+ *     o sayı" der, plaka zemeni krem sahada 9:1+ kontrast verir.
+ *     Doldurma sırasında plaka altın bir dolum çubuğuna dönüşür.
+ *
+ * Yakın dövüş (BLADE) cephanesizdir: şarjör plakası çizilmez, yığın yalnız
+ * kalp kalır — olmayan bir sayı göstermek, "neden mermim yok" sorusunu
+ * üretiyordu.
+ */
+function drawHordeVitals(ctx, player, hu) {
+  const isGun = player.weaponKind === 'gun';
+  const reloading = isGun && player.reloading;
+  const hasMag = isGun && player.magazine > 0;
+  const dry = hasMag && player.ammo <= 0;
+  // "Az cephane" eşiği oransal (%25), sabit `2` değil: RIFLE'in 8'lik
+  // şarjöründe 2 mermi normal, SMG'nin 48'lik şarjöründe 2 ise felakettir.
+  const low = hasMag && !reloading && player.ammo > 0
+    && player.ammo <= Math.max(1, Math.round(player.magazine * 0.25));
 
-    const pipW = 5 * hu;
-    const pipGap = 3 * hu;
-    const totalW = player.hpMax * pipW + (player.hpMax - 1) * pipGap;
-    const startX = player.x - totalW / 2;
-    for (let i = 0; i < player.hpMax; i++) {
-      // Boş pip `rgba(...,0.22)` kremde ~1.5:1 idi; `hudEmpty` 4.28:1 (hud.js ile aynı dil).
-      ctx.fillStyle = i < player.hp ? player.color : UI_COLORS.hudEmpty;
-      ctx.fillRect(startX + i * (pipW + pipGap), player.y - 27 * hu, pipW, 4 * hu);
+  // Yığın ölçüleri TEK kere kurulur: plaka → kalp → toplam yükseklik. Satır
+  // konumları tek tek `y - 30*hu` gibi dağıtılmış sayılarla değil, bu
+  // yükseklikten türetiliyor; aksi hâlde plaka ile kalp üst üste biniyordu
+  // (telefonda plaka 12px, kalp satırı 4px arayla aynı yere düşüyordu).
+  const plateW = 44 * hu;
+  const plateH = 17 * hu;
+  const heartSize = 10 * hu;
+  const heartGap = 3 * hu;
+  const stackGap = 4 * hu;
+  const stackH = (isGun ? plateH + stackGap : 0) + heartSize;
+  // Yığın gövdenin hemen üstünde, gövde yarıçapı + nefes payı yukarısında.
+  const stackTop = player.y - (player.radius || 30) - 5 * hu - stackH;
+
+  if (isGun) {
+    const x = player.x - plateW / 2;
+    const y = stackTop;
+
+    ctx.fillStyle = UI_COLORS.hudPlate;
+    ctx.fillRect(x, y, plateW, plateH);
+    // Kenarlık yalnız dikkat gerektiren durumlarda: doldurma (altın) ya da
+    // az cephane (kırmızı). Normal durumda çerçevesiz koyu plaka — oyuncu
+    // rengi gözü dağıtmamalı, plaka zaten zeminden ayrışıyor.
+    if (reloading || low) {
+      ctx.strokeStyle = reloading ? GOLD : BLOOD;
+      ctx.lineWidth = Math.max(1, 1.5 * hu);
+      ctx.strokeRect(x - 0.5, y - 0.5, plateW + 1, plateH + 1);
     }
 
-    if (player.weaponKind === 'gun') {
-      // Şarjör göstergesi TEPEDE, can pip'larının ÜSTÜNDE. Eskisi gövdenin
-      // altındaydı ve yuvarlak cooldown halkasıyla birlikte "ne olduğu belirsiz
-      // iki çubuk" bırakıyordu. Dikey yığın (gövde yukarıdan aşağı):
-      //   rozet (yalnız cephane bittiyse) → şarjör barı → can pip'ları
-      const barW = 32 * hu;
-      const x = player.x - barW / 2;
-      const y = player.y - 36 * hu;
-      const barH = 5 * hu;
-      const ratio = player.magazine > 0 ? clamp01(player.ammo / player.magazine) : 0;
-      const reloading = player.reloadTimer > 0;
-
-      ctx.fillStyle = UI_COLORS.hudDim;
-      ctx.fillRect(x, y, barW, barH);
-      // Dolduran kısım: doluyken silah rengi, doldurma sırasında altın.
-      // Azalan çubuk = şarjör azalıyor; dolan çubuk = yeniden dolduruluyor.
-      ctx.fillStyle = reloading ? GOLD : (player.weaponColor || '#D99B26');
-      ctx.fillRect(x, y, barW * (reloading ? clamp01(player.reload) : ratio), barH);
-      // Son mermilerde uyarı: iki mermiden az kalınca kenarlık kırmızıya döner.
-      if (!reloading && player.magazine > 0 && player.ammo > 0 && player.ammo <= 2) {
-        ctx.strokeStyle = BLOOD;
-        ctx.lineWidth = Math.max(1, 1.5 * hu);
-        ctx.strokeRect(x - 0.5, y - 0.5, barW + 1, barH + 1);
-      }
-    }
-
-    // Cephanesizken yalnız döngü ikonu — metin yok.
-    //
-    // Ölçülen iki hata: (1) "CEPHANE BİTTİ" yazısı sahanın üstünü boşa
-    // kaplıyordu, ikon zaten anlamı taşıyor. (2) Sarı ikon (#FACC15) açık
-    // krem gövde üstünde (#FAF7F2) — kontrast YOK, ikon görünmüyordu. Artık
-    // koyu zemin + sarı ikon: ters çevirmekten başka yol yok, çünkü sarı
-    // açık zeminde her zaman kaybolur.
-    const dry = player.weaponKind === 'gun'
-      && (player.reloadTimer > 0 || (player.magazine > 0 && player.ammo <= 0));
-    if (dry) {
-      renderSpatialBadge(ctx, {
-        x: player.x,
-        y: player.y - 46 * hu,
-        icon: 'reload',
-        text: '',
-        bg: INK,
-        borderColor: GOLD,
-        color: GOLD,
-        scale: Math.max(0.9, hu * 1.25),
+    const iconSize = 12 * hu;
+    const iconX = x + plateH * 0.5;
+    const iconY = y + plateH / 2;
+    // Doldurma sırasında ikon döner: "bekliyor" değil "doluyor".
+    if (reloading) {
+      const spin = (typeof performance !== 'undefined' ? performance.now() : 0) / 120;
+      ctx.save();
+      ctx.translate(iconX, iconY);
+      ctx.rotate(spin);
+      drawTabletopIcon(ctx, 'reload', 0, 0, iconSize, { color: GOLD });
+      ctx.restore();
+    } else {
+      drawTabletopIcon(ctx, 'ammo', iconX, iconY, iconSize, {
+        color: dry || low ? GOLD : UI_COLORS.hudPlateInk,
       });
     }
+
+    // Rakam: kalan mermi. Şarjör kapasitesi oyuncu tarafından bilinir ve
+    // her silahda değişir; sırf gösterge genişletmek için ikinci sayı
+    // plakayı okunmaz bir kutuya çeviriyordu. Doldurma sırasında rakam yerini
+    // altın dolum rayına bırakır.
+    if (!reloading) {
+      ctx.font = `900 ${Math.round(11 * hu)}px ${UI_FONTS.mono}`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = dry || low ? GOLD : UI_COLORS.hudPlateInk;
+      ctx.fillText(hasMag ? `${player.ammo}` : '--', x + plateW - 5 * hu, iconY);
+    }
+
+    // Doldurma ilerlemesi: plakanın alt kenarında altın ray.
+    if (reloading) {
+      const barH = 3 * hu;
+      const barY = y + plateH - barH;
+      ctx.fillStyle = UI_COLORS.hudDim;
+      ctx.fillRect(x, barY, plateW, barH);
+      ctx.fillStyle = GOLD;
+      ctx.fillRect(x, barY, plateW * clamp01(player.reload), barH);
+    }
+  }
+
+  // KALPLER: dolu = kalan can, boş = `hudEmpty` (krem zeminde 3.45:1).
+  const totalW = player.hpMax * heartSize + (player.hpMax - 1) * heartGap;
+  const startX = player.x - totalW / 2;
+  const heartY = stackTop + (isGun ? plateH + stackGap : 0) + heartSize / 2;
+  for (let i = 0; i < player.hpMax; i++) {
+    const filled = i < player.hp;
+    drawTabletopIcon(ctx, 'heart', startX + i * (heartSize + heartGap) + heartSize / 2, heartY, heartSize, {
+      color: filled ? player.color : UI_COLORS.hudEmpty,
+    });
   }
 }
 

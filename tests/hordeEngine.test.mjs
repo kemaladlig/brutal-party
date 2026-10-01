@@ -304,6 +304,146 @@ test('armory upgrades alter survivability and reload behavior', () => {
   assert.ok(player.reloadTimer < 1.55);
 });
 
+test('boss bomb is a ground telegraph: no body, dodge out or dash through', () => {
+  // Ölçülen hata: bomba `enemies` dizisinde tam bir NPC gibi duruyordu —
+  // `separateEnemies`/`separatePlayersFromEnemies` onu katı cisim sayıyor,
+  // mermi/blade `damageEnemy`'e takılıyor, auto-aim hedefi seçiyordu. Yani
+  // "dodge atılacak şey" değil, "yürürken takılan kapı" gibi davranıyordu.
+  // Sözleşme: bomb YALNIZ zemin hasarıdır — çarpışma yok, vurulmaz, ateş
+  // hedefi olmaz, tek çıkış = daireden çıkmak (dash dokunulmazlık verir).
+  const game = setup();
+  game.slotTypes = ['human', 'empty', 'empty', 'empty'];
+  game.initPlayers();
+  game.startNewMatch();
+  game.enemies = [];
+  const player = game.players[0];
+  player.spawnProt = 0;
+  player.invulnTimer = 0;
+  player.dashTimer = 0;
+  player.x = 400;
+  player.y = 300;
+
+  const bomb = {
+    id: 900, type: 'bomb', isBoss: false, elite: false,
+    x: 400, y: 300, vx: 0, vy: 0, radius: 60, speed: 0,
+    hp: 9999, maxHp: 9999, damage: 0, attackEvery: Infinity,
+    attackTimer: HORDE_TUNING.BOMB_FUSE, fuseTotal: HORDE_TUNING.BOMB_FUSE, lastTick: 0,
+    healTimer: Infinity, angle: 0, hitTimer: 0, spawnDelay: 0,
+    lungeTimer: 0, lungeCooldown: 0, summonThresholds: [], summonIndex: 0,
+  };
+  game.enemies.push(bomb);
+
+  // 1) Mermi bombayı yutmaz.
+  game.projectiles = [{
+    id: 1, owner: 0, isEnemy: false, x: 340, y: 300, vx: 400, vy: 0,
+    radius: 6, damage: 3, life: 1, color: '#D84727',
+  }];
+  game.updateProjectiles(0.16);
+  assert.equal(bomb.hp, 9999, 'mermi bombayı vuramaz');
+
+  // 2) Blade de vuramaz (aynı `damageEnemy` kapısı).
+  game.damageEnemy(bomb, 5, 0, 0, 1, 0);
+  assert.equal(bomb.hp, 9999, 'blade bombayı vuramaz');
+
+  // 3) Ayrışma bombayı itmez: oyuncu doğduğu yerde kalır.
+  player.x = 400;
+  player.y = 300;
+  game.separateEnemies();
+  game.separatePlayersFromEnemies();
+  assert.equal(Math.hypot(player.x - 400, player.y - 300), 0, 'bomba oyuncuyu itmemeli');
+
+  // 4) Auto-aim bombayı hedeflemez.
+  player.targetAngle = Math.PI;
+  player.angle = Math.PI;
+  assert.equal(game.snapAimToNearestEnemy(player), null, 'bomba hedef olmamalı');
+
+  // 5) Alan hasarı yalnız dairede: içeride 2, dışarıda 0.
+  player.hp = 5;
+  game.enemies[0].attackTimer = 0.001;
+  game.updateEnemies(0.016, game.alivePlayers);
+  assert.equal(player.hp, 3, 'daire içindeki oyuncu 2 hasar almalı');
+  assert.equal(game.enemies.length, 0, 'fuse bitince bomba sahneden kalkmalı');
+
+  const outside = setup();
+  outside.enemies = [];
+  const safe = outside.players[0];
+  safe.spawnProt = 0;
+  safe.invulnTimer = 0;
+  safe.dashTimer = 0;
+  safe.hp = 5;
+  outside.enemies.push({ ...bomb, id: 902, x: 400, y: 300, attackTimer: 0.001 });
+  safe.x = 400 + 60 + safe.radius + 6;
+  safe.y = 300;
+  outside.updateEnemies(0.016, outside.alivePlayers);
+  assert.equal(safe.hp, 5, 'daire dışındaki oyuncu hasar almamalı');
+
+  // 6) Dash dokunulmazlığı patlamayı geçersiz kılar (dodge kuralı).
+  const dashGame = setup();
+  dashGame.enemies = [];
+  const dasher = dashGame.players[0];
+  dasher.spawnProt = 0;
+  dasher.invulnTimer = 0;
+  dasher.dashTimer = 0.2;
+  dasher.x = 400;
+  dasher.y = 300;
+  dashGame.enemies.push({ ...bomb, id: 901, attackTimer: 0.001, fuseTotal: HORDE_TUNING.BOMB_FUSE });
+  const beforeHp = dasher.hp;
+  dashGame.updateEnemies(0.016, dashGame.alivePlayers);
+  assert.equal(dasher.hp, beforeHp, 'dash sırasında patlama hasar vermemeli');
+});
+
+test('bots flee a bomb telegraph instead of walking into the blast', () => {
+  // Botlar eskiden bombayı hiç görmüyordu: `nearestEnemy` içinde tip filtresi
+  // yoktu ama `separatePlayersFromEnemies` onları ittiği için bot telegrafın
+  // içinde sıkışıp 2 hasar alıyordu. Kaçış kuralı: bot da oyuncuyla aynı tek
+  // kurallı — daireden çık, gerekirse dash.
+  const game = setup();
+  game.slotTypes = ['human', 'bot_normal', 'empty', 'empty'];
+  game.initPlayers();
+  game.startNewMatch();
+  game.enemies = [];
+  const bot = game.players[1];
+  bot.dashCooldown = 99; // kaçış yönünü ölçelim, dash'i değil
+  bot.x = 400;
+  bot.y = 300;
+  game.enemies.push({
+    id: 910, type: 'bomb', isBoss: false, elite: false,
+    x: 400, y: 300, vx: 0, vy: 0, radius: 60, speed: 0,
+    hp: 9999, maxHp: 9999, damage: 0, attackEvery: Infinity,
+    attackTimer: HORDE_TUNING.BOMB_FUSE, fuseTotal: HORDE_TUNING.BOMB_FUSE, lastTick: 0,
+    healTimer: Infinity, angle: 0, hitTimer: 0, spawnDelay: 0,
+    lungeTimer: 0, lungeCooldown: 0, summonThresholds: [], summonIndex: 0,
+  });
+  game.update(1016);
+  const awayX = bot.steerX;
+  const awayY = bot.steerY;
+  assert.ok(Math.hypot(awayX, awayY) > 0.1, 'bomba içindeki bot durmamalı');
+  // Merkezde yön tanımsız; deterministik bir eksen seçilir (sıkışmamak için).
+  assert.ok(Number.isFinite(awayX) && Number.isFinite(awayY));
+
+  // Daire dışında tepki YOK: bot normal hedef davranışına döner.
+  const free = setup();
+  free.slotTypes = ['human', 'bot_normal', 'empty', 'empty'];
+  free.initPlayers();
+  free.startNewMatch();
+  const freeBot = free.players[1];
+  freeBot.x = 400;
+  freeBot.y = 300;
+  free.enemies = [{
+    id: 911, type: 'bomb', isBoss: false, elite: false,
+    x: 400, y: 300, vx: 0, vy: 0, radius: 60, speed: 0,
+    hp: 9999, maxHp: 9999, damage: 0, attackEvery: Infinity,
+    attackTimer: HORDE_TUNING.BOMB_FUSE, fuseTotal: HORDE_TUNING.BOMB_FUSE, lastTick: 0,
+    healTimer: Infinity, angle: 0, hitTimer: 0, spawnDelay: 0,
+    lungeTimer: 0, lungeCooldown: 0, summonThresholds: [], summonIndex: 0,
+  }];
+  freeBot.x = 400 + 60 + freeBot.radius + 40;
+  freeBot.y = 300;
+  free.update(1016);
+  assert.equal(Math.hypot(freeBot.steerX, freeBot.steerY) < 0.05, false,
+    'daire dışındaki bot yalnız merkeze yürümeli (telegraf korkusu yok)');
+});
+
 test('map cover blocks projectiles and bosses summon pressure adds', () => {
   const coverGame = setup();
   coverGame.obstacles = [{ x: 300, y: 180, w: 60, h: 240 }];

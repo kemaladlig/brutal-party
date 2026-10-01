@@ -518,6 +518,7 @@ export const EN = {
   'pad.steerLeft': '{icon:arrow_left} LEFT',
   'pad.steerRight': 'RIGHT {icon:arrow_right}',
   'pad.dash': '{icon:zap} DASH',
+  'pad.nitro': '{icon:zap} NITRO',
   'pad.shove': 'SHOVE',
   'pad.boost': '{icon:zap} BOOST',
   'pad.jump': '{icon:zap} JUMP',

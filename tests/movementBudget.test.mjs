@@ -94,13 +94,13 @@ const BUDGET = {
   ARCHER: { tier: 'normal', speed: 198, radius: 28, maxA: 5.1, minB: 3.2 },
   HEIST: { tier: 'normal', speed: 190, radius: 36, maxA: 5.3, minB: 2.6 },
   BOMB: { tier: 'normal', speed: 200, radius: 36, maxA: 5.1, minB: 2.6 },
-  TANKS: { tier: 'normal', speed: 175, radius: 30, maxA: 5.8, minB: 2.5 },
+  TANKS: { tier: 'normal', speed: 175, radius: 34, maxA: 5.8, minB: 2.5 },
   ZONE: { tier: 'normal', speed: 190, radius: 36, maxA: 5.1, minB: 2.6 },
   NINJA: { tier: 'normal', speed: 210, radius: 36, maxA: 5.1, minB: 2.6 },
   COLLAPSE: { tier: 'normal', speed: 190, radius: 36, maxA: 5.1, minB: 2.6 },
   HORDE: { tier: 'normal', speed: 168, radius: 30, maxA: 5.9, minB: 2.6 },
+  RACE: { tier: 'normal', speed: 215, radius: 34, maxA: 4.6, minB: 3.1 },
   // open: küçük gövde + niş/hızlı türler
-  RACE: { tier: 'open', speed: 215, radius: 20, maxA: 4.6, minB: 5.0 },
   CURVE: { tier: 'open', speed: 185, radius: 18, maxA: 6.3, minB: 4.4 },
   SNAKE: { tier: 'open', speed: 190, radius: 24, maxA: 5.8, minB: 3.6 },
   // cursor / territory / chain: küçük gövde, uzun sahalar — B yüksek olmalı
@@ -288,7 +288,7 @@ for (const [mode] of ENGINES) {
     // is what makes a map read as the same size from game to game.
     const tier = FIELD_TIERS[budget.tier];
     assert.ok(
-      first.radius >= tier.minDesignRadius && first.radius <= tier.maxDesignRadius,
+      first.radius >= tier.minDesignRadius - 1e-6 && first.radius <= tier.maxDesignRadius + 1e-6,
       `${mode}: design radius ${first.radius.toFixed(2)}px is outside tier `
       + `'${budget.tier}' [${tier.minDesignRadius}, ${tier.maxDesignRadius}] — `
       + 'switch tier or resize the body deliberately, never silently.',

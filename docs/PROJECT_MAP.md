@@ -275,8 +275,8 @@ scripts/rules-lint.mjs      AGENTS.md K1–K7 makine bekçisi (mode=== dalı, ha
 | SNAKE | Brutal Snake | `src/games/snake.js` | `snakeAI` | `mountSnakeController` | Yemle büyü; hold-boost; 30 Hz world-view |
 | COLLAPSE | Brutal Collapse | `src/games/collapse.js` | `collapseAI` | `mountCollapseController` | 13×13 çöken ızgara; 60sn; 30 Hz world-view |
 | NINJA | Brutal Ninja | `src/games/ninja.js` | `ninjaAI` | `mountNinjaController` | Görünmezlik; selfSlot hayalet; 30 Hz world-view |
-| HORDE | Brutal Horde | `src/games/horde.js` | `hordeAI` | `TWIN_STICK_ACTION` | 1-4P takım savunması; 3 tur × 3 dalga; armory; 3 harita; elite+boss; 30 Hz world-view |
-| RACE | Brutal Race | `src/games/race.js` | `raceAI` | `JOYSTICK_ACTION` | 3 checkpoint/3 tur; dark/jump/nitro/draft/EMP; 30 Hz world-view |
+| HORDE | Brutal Horde | `src/games/horde.js` | `hordeAI` | `TWIN_STICK_ACTION` | 1-4P takım savunması; 3 tur × 3 dalga; armory; 3 harita; elite+boss; boss bombası = **zemin telegrafı** (gövde değil: çarpışma/vuruş/auto-aim dışı, tek kural daireden çık; `enemies[15]=fuse`); kalp+şarjör plakası; 30 Hz world-view |
+| RACE | Brutal Race | `src/games/race.js` | `raceAI` | `JOYSTICK_ACTION` | 6 checkpoint/3 tur; Catmull-Rom asfalt pist; continuous drain/recharge nitro; draft/EMP; 30 Hz world-view |
 
 ---
 
@@ -446,6 +446,25 @@ testler aynı saf fonksiyonları paylaşır.
 - **Haptik:** `FX_HAPTIC` olay→desen; `haptics.js` tercih kapısından geçer.
 
 Kilit testleri: `tests/fxKit.test.mjs`, `tests/fxEvents.test.mjs`.
+
+---
+
+## 8b. Oyun-İçi Ses Ailesi (`src/audio.js`)
+
+Sentezleyici tek modülde; oyun sesleri **olay sınıflarına ayrılmış** seslerdir, çünkü kalabalıkta
+"kendi başıma mı oldu" sorusu kulakla yanıtlanmalıdır. HORDE bu yüzden dört ayrı ses tutar
+(`tests/hordeAudioSeparation.test.mjs` imzaları kilitler):
+
+| Olay | Fonksiyon | Dalga | Karakter | Neden ayrı |
+|------|-----------|-------|----------|------------|
+| Düşman öldü (trash) | `playHordeKill` | triangle | tiz, ≤120 ms | Arka planda kaybolmaz; `SLAY_SOUND_THROTTLE` ile 70 ms'den sık çalmaz (spam hasarı maskeler) |
+| Bana isabet etti | `playHordeHurt` | square | bas, ≥200 ms | Her zaman çalar (bilgi sinyali), throttle yok |
+| Bomba patladı | `playHordeBoom` | sawtooth | derin, ≥400 ms | "Sıradan ölüm" değil, "saha çapında olay" |
+| Bombanın fuse'u | `playHordeBombTick(urgency)` | square | tiz, ≤60 ms | Dodge zamanlaması; urgency ile tizleşir |
+
+Aynı dalga ailesini paylaşan sesler (ör. `hurt` ve `fuse` — ikisi de `square`) **süreyle**
+ayrışır; imza `(type, duration)` çiftidir. Elit/boss ölümü `playExplosion`'ı korur: "önemli ölüm"
+kulağa büyük gelmelidir.
 
 ---
 

@@ -1,7 +1,7 @@
 // BRUTAL HORDE — 1-4 oyunculu takım hayatta-kalma oyunu.
 // Host authority: fizik, AI, wave ve terminal durumlar yalnız bu motorda ilerler.
 
-import { playDashWhoosh, playDryFire, playExplosion, playJoin, playPaddleHit, playShoot, playStart, playStumble } from '../audio.js';
+import { playDashWhoosh, playDryFire, playExplosion, playHordeBoom, playHordeBombTick, playHordeHurt, playHordeKill, playJoin, playPaddleHit, playShoot, playStart } from '../audio.js';
 import { notifyFireBlocked, notifyFireShot } from '../core/fireFeedbackEffects.js';
 import { resetFireFeedback, updateFireFeedback } from '../core/fireFeedback.js';
 import { t } from '../i18n.js';
@@ -103,6 +103,14 @@ export const HORDE_TUNING = Object.freeze({
   LOADOUT_RADIUS: 34,
   PICKUP_EVERY: 8,
   PICKUP_MAX: 4,
+  // Boss alan hasarı ("bomba"): saf zemin telegrafıdır, gövde değildir.
+  // `radius` patlama yarıçapıdır (telegraf dairesi), içindeki küçük çekirdek
+  // yalnız görseldir. Yürüme/itilme/ateş bu nesneye takılmaz — tek kural
+  // daireden çıkmaktır (dodge). Süre sabit ki fuse halkası her cihazda aynı okunsun.
+  BOMB_FUSE: 1.6,
+  // Sıradan kill sesi spam'i hasar sesini maskeliyordu: 70ms'den sık kill
+  // sesi çalınmaz (görsel zaten var), hurt her zaman çalar.
+  SLAY_SOUND_THROTTLE: 0.07,
   // Power-up ÇAPı tasarım px. `spawnPickup`'ta `size` alanı çaptır, gövde
   // yarıçapı ise `bodyPx(30)`: 30 yazılıyken pickup oyuncunun yarısı kadardı
   // (telefonda 12,2px çap / 24,4px oyuncu) ve sahada okunmuyordu.
@@ -209,6 +217,7 @@ export class HordeGame extends BaseMiniGame {
     this._nextEnemyId = 1;
     this._nextProjectileId = 1;
     this._nextLoadoutId = 1;
+    this._lastSlaySoundAt = 0;
 
     this.initPlayers();
     this.bindStandardKeyboard();
@@ -411,6 +420,7 @@ export class HordeGame extends BaseMiniGame {
     this._nextEnemyId = 1;
     this._nextProjectileId = 1;
     this._nextLoadoutId = 1;
+    this._lastSlaySoundAt = 0;
     this.onTouchesReset();
     this.initPlayers();
     this.lastTime = performance.now();
@@ -871,7 +881,7 @@ export class HordeGame extends BaseMiniGame {
   snapAimToNearestEnemy(shooter) {
     const hit = findAutoAimTarget(shooter, this.enemies, {
       maxRange: fieldRadius(this.arena, 900, 0.35),
-      valid: (e) => !(e.spawnDelay > 0) && e.hp > 0,
+      valid: (e) => e?.type !== 'bomb' && !(e.spawnDelay > 0) && e.hp > 0,
     });
     if (hit) {
       shooter.targetAngle = hit.angle;
@@ -1018,7 +1028,7 @@ export class HordeGame extends BaseMiniGame {
       haptic: player.slotType === 'human',
     });
     for (const enemy of this.enemies) {
-      if (enemy.spawnDelay > 0) continue;
+      if (enemy.type === 'bomb' || enemy.spawnDelay > 0) continue;
       const dx = enemy.x - player.x;
       const dy = enemy.y - player.y;
       const distance = Math.hypot(dx, dy);
@@ -1249,6 +1259,8 @@ export class HordeGame extends BaseMiniGame {
           enemy.specialTimer = 4.5 + Math.random() * 2;
           const target = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
           if (target) {
+            // Zemin telegrafı: gövde yok, itilme yok, mermi takılmaz. `radius`
+            // patlama yarıçapıdır; oyuncu tek kural olarak daireden çıkar.
             this.enemies.push({
               id: this._nextEnemyId++,
               type: 'bomb',
@@ -1264,7 +1276,9 @@ export class HordeGame extends BaseMiniGame {
               maxHp: 9999,
               damage: 0,
               attackEvery: Infinity,
-              attackTimer: 1.5,
+              attackTimer: HORDE_TUNING.BOMB_FUSE,
+              fuseTotal: HORDE_TUNING.BOMB_FUSE,
+              lastTick: 0,
               healTimer: Infinity,
               angle: 0,
               hitTimer: 0,
@@ -1279,13 +1293,24 @@ export class HordeGame extends BaseMiniGame {
       }
 
       if (enemy.type === 'bomb') {
+        // NOT: `attackTimer` yukarıda zaten azaldı, burada ikinci kez azaltma.
+        // Fuse tik-tak'ı: sona yaklaştıkça tizleşir, dodge zamanlamasını kulakla verir.
+        const fuseTotal = Number(enemy.fuseTotal) || HORDE_TUNING.BOMB_FUSE;
+        const progress = Math.max(0, Math.min(1, 1 - enemy.attackTimer / fuseTotal));
+        const tickMark = Math.floor(progress * 4);
+        if (tickMark > (enemy.lastTick || 0)) {
+          enemy.lastTick = tickMark;
+          playHordeBombTick(progress);
+        }
         if (enemy.attackTimer <= 0) {
-          playExplosion();
-          // İntihar bombacısı: kill profili (alan hasarı + flaş + travma).
+          playHordeBoom();
+          // Alan hasarı: kill profili (flaş + travma), ses boom'dur — sıradan
+          // kill sesinden ayrı ki "bomba mı patladı, biri mi öldü" karışmasın.
           this.fx.emit('kill', {
             x: enemy.x, y: enemy.y, color: ENEMY_BLOOD, size: enemy.radius || 80,
           });
           for (const p of alivePlayers) {
+            if (p.dashTimer > 0 || p.invulnTimer > 0 || p.spawnProt > 0) continue;
             if (distanceSq(p.x, p.y, enemy.x, enemy.y) <= Math.pow(enemy.radius + p.radius, 2)) {
               this.damagePlayer(p, 2);
             }
@@ -1412,6 +1437,8 @@ export class HordeGame extends BaseMiniGame {
   separatePlayersFromEnemies() {
     for (const player of this.alivePlayers) {
       for (const enemy of this.enemies) {
+        // Bomba zemin telegrafıdır: katı cisim değil, itilme/yürüme engeli yok.
+        if (enemy.type === 'bomb') continue;
         if (enemy.spawnDelay > 0) continue;
         const dx = player.x - enemy.x;
         const dy = player.y - enemy.y;
@@ -1470,10 +1497,10 @@ export class HordeGame extends BaseMiniGame {
   separateEnemies() {
     for (let i = 0; i < this.enemies.length; i++) {
       const a = this.enemies[i];
-      if (a.spawnDelay > 0) continue;
+      if (a.type === 'bomb' || a.spawnDelay > 0) continue;
       for (let j = i + 1; j < this.enemies.length; j++) {
         const b = this.enemies[j];
-        if (b.spawnDelay > 0) continue;
+        if (b.type === 'bomb' || b.spawnDelay > 0) continue;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const minimum = a.radius + b.radius;
@@ -1534,7 +1561,8 @@ export class HordeGame extends BaseMiniGame {
           }
         } else {
           for (const enemy of this.enemies) {
-            if (enemy.spawnDelay > 0) continue;
+            // Bomba mermiyi yutmaz: telegraf yerdeki işarettir, mermi üstünden geçer.
+            if (enemy.type === 'bomb' || enemy.spawnDelay > 0) continue;
             if (!segmentCircleIntersection(fromX, fromY, projectile.x, projectile.y, enemy.x, enemy.y, enemy.radius + projectile.radius)) continue;
             this.damageEnemy(
               enemy,
@@ -1567,6 +1595,8 @@ export class HordeGame extends BaseMiniGame {
 
   damageEnemy(enemy, damage, ownerIndex, knockback = 0, dirX = 0, dirY = 0) {
     if (!enemy || enemy.hp <= 0) return;
+    // Bomba dokunulmazdır: mermi/blade ona takılmaz, canı azalmaz.
+    if (enemy.type === 'bomb') return;
     enemy.hp -= damage;
     enemy.hitTimer = HORDE_TUNING.HIT_FLASH;
     if (knockback > 0) {
@@ -1634,7 +1664,17 @@ export class HordeGame extends BaseMiniGame {
       haptic: killByHuman,
     }, eliteKill ? undefined : { hitStop: false, traumaScale: killByHuman ? 0.5 : 0.2 });
     this.spawnFloatingText(enemy.x, enemy.y - enemy.radius, `+${points}`, owner?.color || '#D84727');
-    playExplosion();
+    // Ses ayrımı: sıradan kill tiz/kısa + throttle'lı (spam hurt'u maskelemesin),
+    // elit/boss kalın patlamada kalır ki "önemli ölüm" kulağa büyük gelsin.
+    if (eliteKill) {
+      playExplosion();
+    } else {
+      const nowMs = typeof performance !== 'undefined' ? performance.now() : 0;
+      if (nowMs - (this._lastSlaySoundAt || 0) >= HORDE_TUNING.SLAY_SOUND_THROTTLE * 1000) {
+        this._lastSlaySoundAt = nowMs;
+        playHordeKill();
+      }
+    }
   }
 
   damagePlayer(player, damage) {
@@ -1652,7 +1692,9 @@ export class HordeGame extends BaseMiniGame {
       x: player.x, y: player.y, color: player.color, slot: player.index,
       haptic: player.slotType === 'human',
     });
-    playStumble();
+    // Hasar sesi kill'den ayrı ailedendir (bas/square, uzun) ve throttle'suz:
+    // oyuncu kendi canını kulaktan anlar, spam içinde kaybolmaz.
+    playHordeHurt();
     if (player.hp <= 0) {
       player.hp = 0;
       player.isAlive = false;
