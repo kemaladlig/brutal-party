@@ -5,6 +5,7 @@
 import { drawPickup, drawObstacle } from '../core/arenaKit.js';
 import { drawField } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
+import { setDangerSpot } from '../core/fieldLights.js';
 import { fxReadAlpha, packFloatingTexts, isValidFloatingTexts } from '../core/fxKit.js';
 import {
   packBlast, isValidBlast, drawBlast, isWorldEntityVisible,
@@ -149,6 +150,13 @@ export function drawBombArena(ctx, arena, pillars, { carrier = null, bombTimer =
   // Statik saha katmanı (zemin gradyanı + ızgara + merkez halkaları + köşe
   // plakaları + dekor + duvar) `fieldKit` tarafından bir kez pişirilip blit
   // edilir; paket alanı eklenmez, seed `(BOMB, roundId)`'den türer.
+  // Tehlike ışık havuzu (Faz 3): taşıyıcının altında, fitil kısaldıkça
+  // büyüyüp hızlanan kırmızı/turuncu nabız. `drawField`'den ÖNCE beyan
+  // edilir — spot, aynı karede bake üstü katmana düşer.
+  if (carrier && carrier.alive !== false && Number.isFinite(carrier.x)) {
+    const urgencyPre = 1 - Math.max(0, bombTimer / Math.max(1, bombMaxTime));
+    setDangerSpot(carrier.x, carrier.y, urgencyPre, carrier.radius ?? 36);
+  }
   drawField(ctx, arena, { mode: 'BOMB', seed });
 
   // Taşıyıcı halkası canlı olduğu için statik katmanın DIŞINDA kalır.

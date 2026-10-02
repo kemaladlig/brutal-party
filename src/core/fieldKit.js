@@ -35,6 +35,12 @@ import { clearFieldReactive, drawFieldReactive } from './fieldReactive.js';
 // sıçraması. Üretici `fxRuntime.emit`, tüketici burada — bake'in üstünde,
 // reaktif kenar tepkisinin ALTINDA çizilir (iz sahaya aittir, duvara değil).
 import { clearFieldDecals, drawFieldDecals } from './fieldDecals.js';
+import { clearFieldLights, drawFieldLights } from './fieldLights.js';
+// Saha dışı ambiyans (ARENA_ELEVATION_PLAN Faz 4): climaks nabzı vinyeti
+// paintBackdrop blit'inin ÜSTÜNE, saha katmanının ALTINA çizilir — ışık yalnız
+// masaya düşer, zemin L* bütçesine dokunmaz. Modül `fieldKit`'e bağımlı
+// değildir (tek yönlü); nabız sinyali `fieldAmbience.setClimax` ile beslenir.
+import { clearFieldAmbience, drawClimaxVignette } from './fieldAmbience.js';
 
 // ---------------------------------------------------------------------------
 // Tema kayıt defteri
@@ -1507,6 +1513,8 @@ export function paintBackdrop(ctx, viewport, arena, opts = {}) {
   if (w <= 0 || h <= 0) return;
 
   const palette = fieldTheme(opts.theme ?? opts.mode);
+  // Climaks vinyeti için saha ölçeği (ucuz aritmetik; blit yolunda gradyan yok).
+  const u = arenaUnit({ width: box.width, height: box.height });
   // Anahtar saha katmanıyla AYNI kareye oturur (2 px): alt-piksel sürüklenme ve
   // tarayıcı çubuğunun açılıp kapanması her ara tam-piksel yükseklik için tüm
   // viewport'u yeniden pişirmesin. Katman blit'te w×h'ye gerildiği için
@@ -1522,12 +1530,14 @@ export function paintBackdrop(ctx, viewport, arena, opts = {}) {
     backdropCache.delete(key);
     backdropCache.set(key, hit); // LRU
     ctx.drawImage(hit.canvas, 0, 0, w, h);
+    drawClimaxVignette(ctx, box, u);
     return;
   }
 
   const layer = createLayerCanvas();
   if (!layer) {
     paintBackdropLayer(ctx, w, h, box, palette);
+    drawClimaxVignette(ctx, box, u);
     return;
   }
   const scale = Math.max(0.5, Math.min(1, Math.sqrt(MAX_BACKDROP_PIXELS / Math.max(1, w * h))));
@@ -1537,6 +1547,7 @@ export function paintBackdrop(ctx, viewport, arena, opts = {}) {
   const lctx = layer.getContext('2d');
   if (!lctx) {
     paintBackdropLayer(ctx, w, h, box, palette);
+    drawClimaxVignette(ctx, box, u);
     return;
   }
   lctx.setTransform(scale, 0, 0, scale, 0, 0);
@@ -1554,6 +1565,7 @@ export function paintBackdrop(ctx, viewport, arena, opts = {}) {
     backdropCache.delete(oldest);
   }
   ctx.drawImage(layer, 0, 0, w, h);
+  drawClimaxVignette(ctx, box, u);
 }
 
 /** Arka plan katmanının kendisi: viewport koordinatları (0,0)..(w,h). */
@@ -1601,6 +1613,24 @@ function paintBackdropLayer(ctx, w, h, box, palette) {
   shadowRing(0, 2 * u, Math.max(2, 4 * u), rgba(palette.edgeTint, 0.35));
   shadowRing(2 * u, 5 * u, Math.max(2, 8 * u), rgba(palette.edgeTint, 0.22));
   shadowRing(4 * u, 10 * u, Math.max(3, 14 * u), rgba(palette.edgeTint, 0.12));
+
+  // Faz 4 (çok katmanlı yayvan oklüzyon): temas gölgesinin ötesinde iki geniş,
+  // yumuşak katman — tepsi masanın 3-5 cm üstünde havada durur gibi düşer.
+  // Alanın içine düşen kısımları saha katmanı örter; yalnız masa görür.
+  shadowRing(6 * u, 16 * u, Math.max(4, 22 * u), rgba(palette.edgeTint, 0.06));
+  shadowRing(8 * u, 24 * u, Math.max(6, 34 * u), rgba(palette.edgeTint, 0.035));
+
+  // Faz 4 (ambient under-glow): sahanın altından masaya sızan tema ışığı.
+  // Gövde halkasından ÖNCE: gövde iç yarıyı kapatır, dışa taşan ince hale
+  // masa yüzeyinde kalır. Bir path, iki op — kare değil bake maliyeti.
+  ctx.strokeStyle = rgba(palette.lightTint, 0.05);
+  ctx.lineWidth = Math.max(4, lip * 2.4);
+  ctx.beginPath();
+  appendRoundRect(ctx, box.left - lip, box.top - lip, box.width + lip * 2, box.height + lip * 2, lipR);
+  ctx.stroke();
+  ctx.strokeStyle = rgba(palette.lightTint, 0.028);
+  ctx.lineWidth = Math.max(8, lip * 4.2);
+  ctx.stroke();
 
   // 3b. Gövde halkası: dış yuvarlak dikdörtgen EKSİ arena kutusu. even-odd
   //     tek path'te delik verir, yarena asla kapatılmaz.
@@ -1764,6 +1794,7 @@ export function drawField(ctx, arena, opts = {}) {
     ctx.drawImage(cached.canvas, box.left, box.top, box.width, box.height);
     drawFieldDecals(ctx, box, palette, seed);
     drawFieldReactive(ctx, box, palette);
+    drawFieldLights(ctx, box);
     return;
   }
 
@@ -1776,6 +1807,7 @@ export function drawField(ctx, arena, opts = {}) {
     ctx.restore();
     drawFieldDecals(ctx, box, palette, seed);
     drawFieldReactive(ctx, box, palette);
+    drawFieldLights(ctx, box);
     return;
   }
 
@@ -1801,6 +1833,7 @@ export function drawField(ctx, arena, opts = {}) {
   ctx.drawImage(layer, box.left, box.top, box.width, box.height);
   drawFieldDecals(ctx, box, palette, seed);
   drawFieldReactive(ctx, box, palette);
+  drawFieldLights(ctx, box);
 }
 
 /** Oyun değişimi / bellek baskısı: tüm bake'leri serbest bırakır. */
@@ -1818,6 +1851,8 @@ export function releaseFieldLayers() {
   // oyunun arenasında eski koordinattaki darbe/leke yanlış yerde çizilmesin.
   clearFieldReactive();
   clearFieldDecals();
+  clearFieldLights();
+  clearFieldAmbience();
 }
 
 function releaseCaches(cache) {

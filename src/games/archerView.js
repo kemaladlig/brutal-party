@@ -5,6 +5,7 @@
 
 import { drawObstacle, drawPickup } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
+import { tracerAt } from '../core/fieldLights.js';
 import { drawGameAvatar, computeAvatarKineticDeformation } from '../core/avatarInGame.js';
 import { fxReadAlpha, packFloatingTexts, isValidFloatingTexts } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
@@ -182,6 +183,7 @@ export function drawArcherPickups(ctx, pickups) {
 export function drawArcherArrows(ctx, arrows, arena = null) {
   const u = arena?.unit ?? 1;
   for (const a of arrows) {
+    tracerAt(a.x, a.y);
     const ang = Math.atan2(a.vy || 0, a.vx || 0);
     ctx.save();
 

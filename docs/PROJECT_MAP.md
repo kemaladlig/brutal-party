@@ -164,7 +164,8 @@ src/core/
                             hashFieldSeed, paintFieldLayer, drawField (offscreen bake + cache + blit,
                             arena kutusu 2px kuantlama), paintBackdrop (saha dışının tek sahibi),
                             releaseFieldLayers. Ağa alan eklemez; deterministiktir (seed = hash(mode,roundId)).
-                             Çizim SONRASI drawFieldDecals + drawFieldReactive'i çağırır
+                             Çizim SONRASI drawFieldDecals + drawFieldReactive +
+                              drawFieldLights'i çağırır
                              (statik bake üstü, varlık altı katmanlar)
   fieldReactive.js          REAKTİF SAHA KENARI (ARENA_ELEVATION_PLAN Faz 1): emitWallImpact →
                              duvar esnemesi + enerji dalgası + toz/kıvılcım; drawFieldReactive
@@ -179,6 +180,23 @@ src/core/
                              YOK. Tek üretici fxRuntime.emit — kumanda olayı anlık yoldan aldığı
                              için izler telefonda da doğar. Raunt temizliği: seed değişimi
                              (hash(mode,roundId)) yumuşak süpürme tetikler, ayrı yaşam döngüsü yok
+  fieldLights.js           DİNAMİK IŞIK HAVUZLARI (ARENA_ELEVATION_PLAN Faz 3): setDangerSpot /
+                              setRoyaltySpot / tracerAt / flashAt slot setter'ları + emitFxLight
+                              (kill→infilak, hit/slay→vuruş parıltısı); drawFieldLights
+                              (fieldKit.drawField içinden, varlıkların altında); clearFieldLights.
+                              Sabit havuzlar + sprite damgaları (renk başına tek pişirme) +
+                              saat damgası, paket alanı YOK. Slot'lar view'lardan tazelenir;
+                              world-view aynı setter'ları kendi frame'iyle besler, unit TEK
+                              kaynaktan (box.unit) türer → host/client sapması yok
+  fieldAmbience.js         SAHA DIŞI AMBİYANS (ARENA_ELEVATION_PLAN Faz 4): setClimax +
+                              drawClimaxVignette (son 5 sn / ani ölüm / son 2 hayatta kalan →
+                              karanlık masaya kalp atışı temposunda kızıl/altın vinyet; paintBackdrop
+                              bliti üstüne, saha katmanı altına — zemin L* bütçesine dokunmaz) +
+                              celebrate/drawCelebration (MATCH_OVER'da 2.5D konfeti + deterministik
+                              kamera flaşları; TEK patlama/maç sonu, çağrı zinciri kopunca yeniden
+                              kurulur). Sabit havuzlar + hash01 determinizmi, paket alanı YOK. Climaks
+                              üreticisi TEK geçit tabletopRenderer.renderStandardScoreboard; kutlama
+                              üreticisi TEK geçit hud.renderMatchOver (host + kumanda ortak)
   playerEntity.js           createPlayer, tickEffectTimers, advancePlayer
   avatarInGame.js           drawGameAvatar, normalizeExpression, blinkState — saha içi daima
                             faceMode:'play' (ERIŞUAR/DESEN YOK, tam yuvarlak siluet)

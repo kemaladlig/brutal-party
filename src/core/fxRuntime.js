@@ -13,6 +13,7 @@ import { fxParticleScale } from './perfMonitor.js';
 // `fieldDecals`'ta yaşar; burada yalnız tek satırlık bir üretim var. İz,
 // olayın ZATEN taşıdığı veriden türer → §6 ağ bütçesi sıfır, motorlarda kod yok.
 import { emitFxScar } from './fieldDecals.js';
+import { emitFxLight } from './fieldLights.js';
 import {
   fxProfile,
   fxPower,
@@ -116,6 +117,9 @@ export class FxRuntime {
     // `fieldDecals`'ta. Sunum-only — partiküller gibi simülasyona dokunmaz,
     // pakete alan eklemez, çizimi `fieldKit.drawField` yapar.
     emitFxScar(kind, event, unit);
+    // Zemin ışık parıltısı (Faz 3): aynı disiplin — olay kind'inden türer,
+    // paket alanı yok, çizimi `fieldKit.drawField` yapar.
+    emitFxLight(kind, event, unit);
     if (profile.hitStopMs && motionScale() > 0 && opts.hitStop !== false) {
       this.hitStop = Math.max(this.hitStop, profile.hitStopMs / 1000);
     }

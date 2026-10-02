@@ -200,6 +200,61 @@ export function roundTimedOut(timer, limit) {
   return Number.isFinite(limit) && limit > 0 && Number(timer) >= limit;
 }
 
+// ---------------------------------------------------------------------------
+// Climaks nabzı (ARENA_ELEVATION_PLAN Faz 4) — maçın son 5 saniyesi, ani ölüm
+// ya da son 2 hayatta kalan durumunda saha dışı vinyetin atmasını sağlayan
+// jenerik seviye. Tüketici `fieldAmbience.setClimax`; üretici TEK geçit
+// `tabletopRenderer.renderStandardScoreboard`'tır — 12 motorun tamamı her kare
+// renderHUD'dan oraya geçer, motor kodu SIFIRDIR (§3/§9).
+// ---------------------------------------------------------------------------
+
+/** Son kaç saniye "climaks" sayılır (sn). */
+export const CLIMAX_WINDOW = 5;
+
+/** Nabzın hiç atmayacağı sakin durumlar (lobi/staging/sayaç/sonuç/duraklatma). */
+const CLIMAX_QUIET_STATES = new Set(['LOBBY', 'STAGING', 'COUNTDOWN', 'MATCH_OVER', 'ROUND_PAUSE']);
+
+/**
+ * Oyun durumundan jenerik climaks seviyesi türetir. Motor-özel dal YOKTUR:
+ * yalnız ortak sözleşme alanları okunur —
+ *   - `suddenDeath` (TANKS; ani ölüm bayrağı),
+ *   - `roundLimit` − (`roundTimer` | `roundPlayTimer`) ≤ `CLIMAX_WINDOW`
+ *     (roundTimer yukarı sayan 5 motorun ortak kuralı; PONG `roundPlayTimer`),
+ *   - hayatta kalan son ikili: bir varlık ÖLMÜŞ ve yalnız 2 tanesi ayakta
+ *     (`isAlive === false` bayrağı taşıyan 7 eliminasyon motorunun ortak dili;
+ *     skor oyunlarında kimse ölmediğinden koşul hiç ateşlenmez).
+ *
+ * @param {any} game
+ * @returns {number} 0 | 1
+ */
+export function climaxLevel(game) {
+  if (!game) return 0;
+  if (CLIMAX_QUIET_STATES.has(game.state)) return 0;
+  if (game.suddenDeath) return 1;
+
+  const limit = Number(game.roundLimit);
+  const timer = Number(game.roundTimer ?? game.roundPlayTimer);
+  if (Number.isFinite(limit) && limit > 0
+    && Number.isFinite(timer) && timer >= 0 && timer <= limit
+    && limit - timer <= CLIMAX_WINDOW) {
+    return 1;
+  }
+
+  if (typeof game.getEntitiesList === 'function') {
+    const list = game.getEntitiesList();
+    let alive = 0;
+    let total = 0;
+    for (let i = 0; i < list.length; i += 1) {
+      const entity = list[i];
+      if (!entity) continue;
+      total += 1;
+      if (entity.isAlive !== false) alive += 1;
+    }
+    if (alive === 2 && total > alive) return 1;
+  }
+  return 0;
+}
+
 /**
  * Raunt/maç akışının TEK geçiş bloğu.
  *

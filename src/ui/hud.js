@@ -15,6 +15,7 @@ import { drawGameAvatar } from '../core/avatarInGame.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
 import { scoreEntries } from './scoreModel.js';
 import { motionScale } from './motion.js';
+import { celebrate, drawCelebration } from '../core/fieldAmbience.js';
 
 function pathRoundRect(ctx, x, y, w, h, r) {
   if (typeof ctx.roundRect === 'function') {
@@ -1244,12 +1245,18 @@ export function renderMatchOver(ctx, {
   // animasyonsuz (tek kare çizen testler/durumlar etkilenmez). Kart komple
   // solar + birkaç px aşağıdan kayar; karartma da onunla birlikte gelir.
   const enterEase = enter >= 1 ? 1 : enter <= 0 ? 0 : 1 - Math.pow(1 - enter, 3);
+  // Şampiyonluk konfetileri (ARENA_ELEVATION_PLAN Faz 4.3): TEK patlama / maç
+  // sonu, modül içinde kilitli. Host canvas'ı ile kumanda world-view'ı bu TEK
+  // fonksiyondan geçtiği için kutlama iki yüzeyde de doğar, byte sıfırdır.
+  const partyBox = viewport && Number(viewport.width) > 0 && Number(viewport.height) > 0 ? viewport : arena;
+  celebrate([winnerColor, ...entries.map((e) => e.color), UI_COLORS.gold], partyBox);
   ctx.save();
   if (enterEase < 1) {
     ctx.globalAlpha = enterEase;
     ctx.translate(0, Math.round((1 - enterEase) * 14 * g.ts));
   }
   dimBehindPanel(ctx, viewport && viewport.width > 0 ? viewport : arena);
+  drawCelebration(ctx, partyBox);
   drawResultPanel(ctx, { x: g.x, y: g.y, w: g.w, h: g.h }, g.ts, g.radius);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';

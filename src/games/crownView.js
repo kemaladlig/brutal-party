@@ -178,6 +178,7 @@ import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { fxReadAlpha, packFloatingTexts, isValidFloatingTexts } from '../core/fxKit.js';
 import { drawPickup } from '../core/arenaKit.js';
+import { setRoyaltySpot } from '../core/fieldLights.js';
 import { renderEntityHUD } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 
@@ -656,6 +657,8 @@ export function drawCrownWorld(ctx, frameOrGame, arena, colors = [], lastTime = 
     if (p.hasCrown) {
       const cScale = 0.95 + Math.sin(floatAnim * 1.5) * 0.05;
       drawCrown(ctx, p.x, p.y - (p.radius || 36) - 8, cScale, false, arena, floatAnim);
+      // Asalet spotu (Faz 3): taç taşıyıcının altında yumuşak altın ışık.
+      setRoyaltySpot(p.x, p.y, p.radius ?? 36);
     }
   }
 }

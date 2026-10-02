@@ -30,6 +30,7 @@ import {
 } from '../src/core/fieldDecals.js';
 import { drawField, fieldTheme, releaseFieldLayers } from '../src/core/fieldKit.js';
 import { createFxRuntime } from '../src/core/fxRuntime.js';
+import { clearFieldLights } from '../src/core/fieldLights.js';
 
 const ARENA = Object.freeze({ left: 40, top: 24, width: 800, height: 432, unit: 1 });
 const PALETTE = fieldTheme('default');
@@ -41,10 +42,12 @@ beforeEach(() => {
   virtualNow = 10_000;
   globalThis.performance.now = () => virtualNow;
   clearFieldDecals();
+  clearFieldLights();
 });
 afterEach(() => {
   delete globalThis.performance.now;
   clearFieldDecals();
+  clearFieldLights();
 });
 
 /** Çizim çağrılarını VE özellik yazımlarını string olarak sıraya yazan ctx. */
@@ -401,7 +404,13 @@ test('fieldKit.drawField paints the scar layer over the baked blit', () => {
   drawField(ctx, ARENA, opts);
   const blitAt = ctx.log.findIndex((entry) => entry.startsWith('drawImage('));
   assert.ok(blitAt >= 0, 'saha katmanı blit edilmeli');
-  assert.deepEqual(ctx.log.slice(blitAt + 1), [], 'boş havuz blit\'ten sonra tek bir op üretmemeli');
+  // Boş havuzda iz katmanı hiç op üretmez; logda kalabilecek tek şey Faz 3'ün
+  // sabit tepe projektörü damgasıdır (spot renkleri/ellipse/iz yoktur).
+  const extra = ctx.log.slice(blitAt + 1);
+  assert.ok(!extra.some((e) => e.startsWith('ellipse(') || e.startsWith('arc(')),
+    `boş havuzda iz kalıntısı olmamalı: ${JSON.stringify(extra)}`);
+  assert.ok(extra.every((e) => /^(save|beginPath|rect|clip|drawImage|restore|globalAlpha)/.test(e)),
+    `blit sonrası yalnız ışık katmanının sabit damgası kalmalı: ${JSON.stringify(extra)}`);
 
   emitFxScar('kill', { x: 300, y: 200, size: 40 }, 1);
   virtualNow += 60;

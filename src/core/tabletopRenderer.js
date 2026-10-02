@@ -14,7 +14,8 @@ import { resolveSlotName } from './slotManager.js';
 import { keyboardVectorFrom, getKeyLabel, STEER_KEY_HINTS } from './inputMaps.js';
 import { UI_COLORS, UI_SIZES, CONTROL_MODE, getDisplayProfile, shouldShowVirtualControls, isTouchDevice } from '../ui/tokens.js';
 import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
-import { roundGapSeconds } from './roundLifecycle.js';
+import { roundGapSeconds, climaxLevel } from './roundLifecycle.js';
+import { setClimax } from './fieldAmbience.js';
 import { t } from '../i18n.js';
 import { drawTabletopIcon } from './tabletopIcons.js';
 
@@ -419,6 +420,11 @@ export function createTabletopRenderer(game) {
     statusText = '',
     statusTone = null,
   } = {}) {
+    // Kritik durum nabzı (ARENA_ELEVATION_PLAN Faz 4.2): SAHNE değil SİNYAL —
+    // karanlık masaya kızıl/altın vinyet basar, bu dosyada başka hiçbir şey
+    // çizilmez. Tek geçit burası: 12 motorun tamamı her kare `renderHUD` →
+    // `renderStandardScoreboard`'tan geçer, motor kodu SIFIR.
+    setClimax(climaxLevel(game));
     const playersList = game.getEntitiesList();
     // "Hangi koltuk dolu" kararı TEK kaynaktan: `game.slotTypes`. Varlığın
     // `isJoined` aynası motorun kendi güncellemesine açıktı; ayna baydaysa

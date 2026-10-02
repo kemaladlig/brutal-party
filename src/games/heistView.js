@@ -9,6 +9,7 @@ import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawObstacle } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
+import { setRoyaltySpot } from '../core/fieldLights.js';
 import { drawStatusChip } from '../core/entityStatus.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import {
@@ -374,13 +375,19 @@ export function drawHeistPiggy(ctx, piggy) {
 export function drawHeistPlayers(ctx, players, { withFx = true, now = 0, arena = null, selfSlot = -1 } = {}) {
   // 3.3: tek görür varsa kendi avatarın T1, diğerleri T3 (−%25); α fxKit'ten.
   const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  let richest = null;
   let richestIndex = -1;
   let maxCarried = 2;
   for (const p of players) {
     if (isWorldEntityVisible(p) && (p.carried || 0) > maxCarried) {
       maxCarried = p.carried;
+      richest = p;
       richestIndex = p.slot ?? p.index;
     }
+  }
+  // Asalet spotu (Faz 3): en çok külçeyi taşıyanın altında yumuşak altın ışık.
+  if (withFx && richest && Number.isFinite(richest.x)) {
+    setRoyaltySpot(richest.x, richest.y, richest.radius ?? 36);
   }
 
   for (const player of players) {

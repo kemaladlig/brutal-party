@@ -171,15 +171,15 @@ Her faz tamamlandığında aşağıdaki kontrol kapılarından eksiksiz geçilec
   - [x] Ani dönüş patinaj ve ayak izleri (`dust` olayı → harekete paralel çift çizgi)
   - [x] Darbe boya/konfeti sıçramaları (`hit`/`slay` → vurulanın kendi renginde pul + zerrecikler)
   - [x] Raunt geçişi temizlik yaşam döngüsü (seed değişimi → 0.4 sn'lik yumuşak süpürme, süpürme bitene kadar üretim kapalı)
-- [ ] **FAZ 3: Hacimsel Dinamik Işık Havuzları**
-  - [ ] Bomba taşıyıcı tehlike aurası ve nabız havuzu
-  - [ ] Lider / Kral altın taç spotu
-  - [ ] Mermi & roket sıcak iz aydınlatması
-  - [ ] Saha merkezi tepe projektör ambiyansı
-- [ ] **FAZ 4: Saha Dışı Derinlik & Dramatik Ambiyans**
-  - [ ] Çok katmanlı diorama alt gölgesi ve masaya vuran halo (`under-glow`)
-  - [ ] Climax / Sudden Death kalp atışı vinyet nabzı
-  - [ ] Şampiyonluk konfetisi ve kutlama flaşları
+- [x] **FAZ 3: Hacimsel Dinamik Işık Havuzları**
+  - [x] Bomba taşıyıcı tehlike aurası ve nabız havuzu (`setDangerSpot`, BOMB view'ı)
+  - [x] Lider / Kral altın taç spotu (`setRoyaltySpot`, CROWN + HEIST zengin oyuncusu)
+  - [x] Mermi & roket sıcak iz aydınlatması (`tracerAt`, TANKS & ARCHER, host + world-view)
+  - [x] Saha merkezi tepe projektör ambiyansı (tüm modlarda, `drawFieldLights`)
+- [x] **FAZ 4: Saha Dışı Derinlik & Dramatik Ambiyans**
+  - [x] Çok katmanlı diorama alt gölgesi ve masaya vuran halo (`under-glow`)
+  - [x] Climax / Sudden Death kalp atışı vinyet nabzı
+  - [x] Şampiyonluk konfetisi ve kutlama flaşları
 - [ ] **FAZ 5: Reaktif & Kırılabilir Engeller**
   - [ ] Darbe anı mikro-titreme ve çatlak detayları
   - [ ] Blok talaş ve taş kıymığı parçacıkları
@@ -200,6 +200,21 @@ Her faz tamamlandığında aşağıdaki kontrol kapılarından eksiksiz geçilec
 
 Kilitler: `tests/fieldReactive.test.mjs` (fizik değişmezliği, hız eşiği, havuz tavanı, boş-havuz temsili, kırpma, eksen hâli normali), `tests/fieldKit.test.mjs` (bake op tavanı, determinizm, paket alanı yok).
 
+### Faz 3 Uygulama Notları
+
+| Konu | Karar | Gerekçe |
+|---|---|---|
+| Nereye | Yeni çekirdek modülü `src/core/fieldLights.js` | Decals/reactive ile aynı statü; `drawField` blit → decals → reactive → lights |
+| Çatışma parıltısı | `FxRuntime.emit` → `emitFxLight`: `kill`/`hit`/`slay` → kısa infilak/vuruş zemini (NINJA `kill` buradan beslenir; mermi oyunu yok) | Decals ile aynı tek geçit; paket alanı sıfır |
+| Tehlike spot | `setDangerSpot` BOMB view'ından, urgency = 1 − timer/max ile büyüyen nabız | Slot her kare tazelenir; bayat slot 140 ms'de ölür |
+| Asalet spot | `setRoyaltySpot` CROWN'da `hasCrown`, HEIST'te en çok `carried` oyuncusu | İki mod aynı slot'u paylaşır, aynı anda çalışmazlar |
+| Mermi halo | `tracerAt` TANKS/ARCHER bullet draw'larında; host + world-view aynı view yolundan | World-view unit'siz arena reconstruct eder → unit TEK kaynaktan (box.unit) |
+| Kare başına gradyan | YOK: renk başına tek 64×64 spot sprite + tek 256×256 tepe projektörü sprite'ı `drawImage` | §1 madde 4; decals testinin boş-havuz invariant'ı `fieldDecals.test.mjs`'te sabitli damga setiyle korunuyor |
+| `motionScale()===0` | Nabız/nefes donar (statik spot), parıltı hiç üretilmez | Motion plan freni |
+| Ağ | SIFIR byte — kumanda view'u aynı setter'ları kendi frame'iyle besler, host ile örtüşür | §6; faz 1'in "kumanda göremez" asimetrisi burada yok |
+
+Kilitler: `tests/fieldLights.test.mjs` (slot tazeliği/ölümü, havuz tavanı, kind kısıtı, runtime entegrasyonu, clear sıfırlaması); sapmalar `tests/fieldDecals.test.mjs` ile ortak kapıda (aynı recorder) yeşil.
+
 ### 4c. Faz 2 Uygulama Notları (yapı kararları)
 
 | Konu | Karar | Gerekçe |
@@ -215,3 +230,19 @@ Kilitler: `tests/fieldReactive.test.mjs` (fizik değişmezliği, hız eşiği, h
 | Ağ | Sıfır alan; world packet ve `isValid*WorldFrame` doğrulayıcıları değişmedi | §6 bütçesi |
 
 Kilitler: `tests/fieldDecals.test.mjs` (olay→imza eşlemesi, `FxRuntime` bağlantısı, havuz tavanı + tazeleme, boş-havuz temsili, kendi kendine sona erme, seed süpürmesi ve üretim engeli, kırpma + save/restore dengesi, `unit` ölçeği, gradyan/tahsis ve ağ yasakları, determinizm).
+
+### Faz 4 Uygulama Notları (yapı kararları)
+
+| Konu | Karar | Gerekçe |
+|---|---|---|
+| Nereye | Yeni çekirdek modülü `src/core/fieldAmbience.js`; 4.1'in statik gölge katmanları `paintBackdropLayer` bake'ine eklendi (Faz 1 pah profiliyle aynı kalıp) | Dinamik nabız/konfeti bake'e giremez; statik gölge kare maliyeti olmasın diye pişer. Modül `fieldKit`'e tek yönlü bağımlı (unit argümanla geçer), döngü yok |
+| Vinyet yeri | `paintBackdrop` blit'inin ÜSTÜNE, saha katmanının ALTINA (4 çıkışta da) | Işık yalnız koyu masaya düşer; arena bliti iç kısmı örter → zemin L\* bütçesine (§8) tek piksel dokunmaz |
+| Climaks üreticisi | TEK geçit: `tabletopRenderer.renderStandardScoreboard` → `setClimax(climaxLevel(game))`; seviye `roundLifecycle.climaxLevel` jenerik alanlardan türer (`suddenDeath` / `roundLimit − roundTimer\|roundPlayTimer` ≤ 5 / son 2 hayatta kalan) | 12 motorun tamamı her kare renderHUD'dan oraya geçer → motor kodu SIFIR (§3/§9). Sakin durumlar (lobi/sayaç/sonuç/duraklatma) Set ile kapalı |
+| Kutlama üreticisi | TEK geçit: `hud.renderMatchOver` → `celebrate(...)` + `drawCelebration` (dim ile kart arası) | Host canvas'ı ile kumanda world-view'ı AYNI fonksiyonu çağırır → kutlama iki yüzeyde de doğar, aktarılan byte sıfır (§6) |
+| Tek patlama kilidi | `celebrate` aktifken VE bittikten sonra no-op; kilit yalnız çağrı zinciri 2 sn kopunca (yeni maç) açılır. Vade dolusu burst'i celebrate DE kilitler — kart celebrate'i çizimden önce çağırdığı için söndürmeyi yalnız çizime bırakmak aynı karede yeniden açılırdı | Uzun maç-sonu ekranı konfeti döngüsüne girmemeli; kilidin tek sahibi olamaz çünkü iki çağrı sırası yarışıyor |
+| Kare başına gradyan | YOK: renk başına tek 256×256 radyal vinyet sprite'ı `drawImage` (fieldLights kalıbı) | §1 madde 4; kumanda world-view kutusu `cx/cy`'den türetilir (left/top yok), kare başına tahsis yok |
+| Belirleme / son 5 sn | Pencere ≤ 5 s: yukarı sayan 5 motorun ortak `roundLimit − roundTimer` kuralı; PONG `roundPlayTimer` yedeği; TANKS `suddenDeath` bayrağı; eliminasyon motorlarında `alive === 2 && total > alive` | Motor-özel dal yazmak yerine ortak sözleşme alanları okunur; 2 kişilik oyun baştan sona 2 kişi olduğundan koşul orada asla ateşlenmez |
+| `motionScale()===0` | Vinyet nabzı donar (sabit 0.45 seviye), konfeti hiç üretilmez | Motion plan freni; Faz 3 ile aynı davranış ailesi |
+| Ağ | SIFIR alan. Climaks host oyun durumundan, kutlama MATCH_OVER durumundan türer — ikisi de iki tarafta zaten var | §6; vinyet kumandada doğmaz (world-view'ın saha DIŞI yok — Faz 1 asimetrisi), kutlama kartla birlikte kumandada da doğar |
+
+Kilitler: `tests/fieldAmbience.test.mjs` (heartPulse zarfı, climaxLevel pencere/sınır/eliminasyon/sakin-durum, slot bayatması, boş-havuz tek-op, TEK patlama kilidi + yeniden kurulum, cx/cy kutusu, determinizm, reduced-motion, saat disiplini).

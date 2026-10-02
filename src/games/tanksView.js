@@ -7,6 +7,7 @@
 import { drawPickup, drawObstacle } from '../core/arenaKit.js';
 import { computeAvatarKineticDeformation } from '../core/avatarInGame.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
+import { tracerAt } from '../core/fieldLights.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { renderEntityHUD } from '../ui/hud.js';
@@ -209,6 +210,7 @@ function pathRoundRect(ctx, x, y, w, h, r) {
 
 export function drawTanksBullets(ctx, bullets, ownerColors) {
   for (const b of bullets) {
+    tracerAt(b.x, b.y);
     const ownerColor = ownerColors?.[b.owner] || UI_COLORS.crownGold;
     const hasVelocity = (b.vx !== undefined && b.vy !== undefined && (b.vx !== 0 || b.vy !== 0));
     const speed = hasVelocity ? Math.hypot(b.vx, b.vy) : 0;
