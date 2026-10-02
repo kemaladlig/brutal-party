@@ -160,16 +160,17 @@ Her faz tamamlandığında aşağıdaki kontrol kapılarından eksiksiz geçilec
 
 ## 4. İlerleme Takip Tablosu
 
-- [ ] **FAZ 1: Dokunsal Kütle Kenarları & Kinetik Duvar Reaksiyonu**
-  - [ ] Kalın pahlı diorama kenar profili (`paintTrayEdge`)
-  - [ ] Çarpışmalarda kinetik duvar esnemesi ve dalgalanma efekti (`WALL_HIT`)
-  - [ ] Duvar darbe tozu ve kıvılcım parçacıkları
+- [x] **FAZ 1: Dokunsal Kütle Kenarları & Kinetik Duvar Reaksiyonu**
+  - [x] Kalın pahlı diorama kenar profili (`paintTrayEdge` — temas gölgesi + speküler pah + AO bandı, dört kenar)
+  - [x] Yükseltilmiş tepsi gövdesi ve masaya oturan kalınlık (`paintBackdropLayer` — halka gövde + üst/sol ışık yüzü + katmanlı temas gölgesi)
+  - [x] Çarpışmalarda kinetik duvar esnemesi ve dalgalanma efekti (`fieldReactive.js` → `emitWallImpact`, `drawField`)
+  - [x] Duvar darbe tozu ve kıvılcım parçacıkları (deterministik `hash01` yayılımı, arena kutusuna kırpılır)
 - [ ] **FAZ 2: Canlı Savaş Alanı & Kalıcı Çatışma İzleri (Decals)**
-  - [ ] Hafif zemin izi yöneticisi (`decalRingBuffer`)
-  - [ ] Patlama is ve yanık lekeleri (`scorchMarks`)
-  - [ ] Ani dönüş patinaj ve ayak izleri (`skidMarks`)
-  - [ ] Darbe boya/konfeti sıçramaları (`splatters`)
-  - [ ] Raunt geçişi temizlik yaşam döngüsü
+  - [x] Hafif zemin izi yöneticisi (`fieldDecals.js` — 32 yuvalı halka tampon, kare başına sıfır tahsis)
+  - [x] Patlama is ve yanık lekeleri (`kill` olayı → organik lob demeti, 5.2 sn'de solar)
+  - [x] Ani dönüş patinaj ve ayak izleri (`dust` olayı → harekete paralel çift çizgi)
+  - [x] Darbe boya/konfeti sıçramaları (`hit`/`slay` → vurulanın kendi renginde pul + zerrecikler)
+  - [x] Raunt geçişi temizlik yaşam döngüsü (seed değişimi → 0.4 sn'lik yumuşak süpürme, süpürme bitene kadar üretim kapalı)
 - [ ] **FAZ 3: Hacimsel Dinamik Işık Havuzları**
   - [ ] Bomba taşıyıcı tehlike aurası ve nabız havuzu
   - [ ] Lider / Kral altın taç spotu
@@ -183,3 +184,34 @@ Her faz tamamlandığında aşağıdaki kontrol kapılarından eksiksiz geçilec
   - [ ] Darbe anı mikro-titreme ve çatlak detayları
   - [ ] Blok talaş ve taş kıymığı parçacıkları
   - [ ] Reaktif yaylı tamponlar ve zemin gizmo'ları
+
+### 4b. Faz 1 Uygulama Notları (yapı kararları)
+
+| Konu | Karar | Gerekçe |
+|---|---|---|
+| Nereye | Yeni çekirdek modülü `src/core/fieldReactive.js`; statik profil `fieldKit` içinde | Bake katmanı bir kez pişirildiği için darbe tepkisi oraya giremez. Modül `fieldKit`'e tek yönlü bağımlı (paleti dışarıdan alır), döngü yok |
+| Motor kodu | **Sıfır.** 12 oyun zaten `drawField` çağırıyor; tepki oraya çizilir | §3/§9 "moda özel dal yasak" |
+| Darbe üreticisi | Tek nokta: `physics2d.clampToArena` (normal eksen hâlinde + hız eşiği) | Bütün motorların saha duvarına temas ettiği tek geçit; aksi hâlde aynı satır 10 motora kopyalanırdı |
+| Zaman | `performance.now()` damgası + `now − stamp` farkı | Motorun `update` sırasına girmeyi gerektirmez; boş havuz ctx'ye **hiç** dokunmaz (bake log eşitliği korunur) |
+| Bellek | Sabit havuz (6 darbe / 18 zerre), kare başına sıfır tahsis | §1 madde 4; spam freni aynı noktadaki darbeleri tek kayıtta birleştirir |
+| Görünürlük | Tepki **koyu** (tema `edgeTint` + `globalAlpha`), parlak değil | Zemin krem L* 92-97; beyaz vuruş zeminde kaybolur, koyu kıvrım okunur |
+| Ağ | Sıfır alan. World-view client tepkiyi görmez | §6 bütçesi; bilinçli asimetri (2-3 px'lik kenar esnemesi uzaktan okunmaz) |
+| L\* | Yeni koyu alan **eklenmedi**: eski sağ/alt `wallShade` bandı dört kenara yayıldı ve daraldı | §1 madde 3; `tests/fieldKit.test.mjs §8` bütçesi korunur |
+
+Kilitler: `tests/fieldReactive.test.mjs` (fizik değişmezliği, hız eşiği, havuz tavanı, boş-havuz temsili, kırpma, eksen hâli normali), `tests/fieldKit.test.mjs` (bake op tavanı, determinizm, paket alanı yok).
+
+### 4c. Faz 2 Uygulama Notları (yapı kararları)
+
+| Konu | Karar | Gerekçe |
+|---|---|---|
+| Nereye | Yeni çekirdek modülü `src/core/fieldDecals.js`; çizim `fieldKit.drawField` içinden (blit üstü, `drawFieldReactive` altı) | İz sahaya aittir, kenar tepkisinden önce gelmeli; bake bir kez pişirildiği için oraya giremez |
+| Motor kodu | **Sıfır.** 12 motor zaten `drawField` çağırıyor, olaylar zaten `FxRuntime.emit`'ten geçiyor | §3/§9 "moda özel dal yasak" |
+| İz üreticisi | Tek nokta: `fxRuntime.emit` → `emitFxScar(kind, event, unit)`; eşleme `kill`→is, `hit`/`slay`→sıçrama, `dust`→patinaj | 12 motorun çatışma olaylarının ortak tek geçidi; `fxKit` kapalı kind kümesi yeni olay uydurulmasını engeller |
+| Kumanda tarafı | İzler telefonda DA doğar: `GamepadWorldView.acceptFx` olayları kendi `FxRuntime`'ında oynattığı için aynı imza üretici görür | Faz 1'in bilinçli asimetrisi burada gerekmez — olayın koordinatı zaten dünya uzayında ve çizim `fitWorld` dönüşümü içinde |
+| Raunt temizliği | `roundLifecycle`'e bağlantı YOK: `drawField`'e zaten verilen `seed = hash(mode, roundId)` değişince 0.4 sn'lik yumuşak süpürme + süpürme bitene kadar üretim kapalı | Host da kumanda da aynı seed'i okur; ayrı bir yaşam döngüsü kancası hem asimetri hem ağa alan riski doğururdu |
+| Zaman | `performance.now()` damgası + `now − stamp` farkı (Faz 1 ile aynı üç satır koruma) | Motor `update` sırasına girilmez; boş havuz ctx'ye **hiç** dokunmaz (bake log eşitliği) |
+| Bellek | Sabit 32 yuvalı halka tampon, kare başına sıfır tahsis; gradyan/Path2D yok, iz başına tek `fill`/`stroke`. Yeni iz açma temposu tavanlı (`SCAR_MIN_GAP` 0.14 sn ≈ 7 iz/sn) | §1 madde 4; aynı yerdeki aynı imza yeni slot yemez, mevcut izi tazeler. TANKS turbo dumanı / SNAKE egzozu KARE BAŞINA olay ürettiği için tek başına birleştirme yetmezdi — fren olmadan zemin halıya döner, 32 yuva bir tankın izleriyle dolardı |
+| Görünürlük | Koyu is/patinaj tema `edgeTint`'inden, sıçrama olayın kendi renginden (α tavanları 0.30/0.20/0.50) | Krem zeminde parlak leke okunmaz; §8 ham renk literali çekirdekte yasak, renk olay verisidir |
+| Ağ | Sıfır alan; world packet ve `isValid*WorldFrame` doğrulayıcıları değişmedi | §6 bütçesi |
+
+Kilitler: `tests/fieldDecals.test.mjs` (olay→imza eşlemesi, `FxRuntime` bağlantısı, havuz tavanı + tazeleme, boş-havuz temsili, kendi kendine sona erme, seed süpürmesi ve üretim engeli, kırpma + save/restore dengesi, `unit` ölçeği, gradyan/tahsis ve ağ yasakları, determinizm).

@@ -26,6 +26,15 @@
 // `floor/grid/accent/motif` alanlarını korur.
 
 import { FIELD_DESIGN, fieldPx, fieldRadius } from './playfield.js';
+// Reaktif kenar katmanı (ARENA_ELEVATION_PLAN Faz 1): statik bake'in ÜSTÜNE,
+// her karede ve paket alanı eklemeden çizilir. `fieldReactive` buraya bağımlı
+// değildir — tek yönlü bağımlılık döngüyü kapatır (renk paleti de buradan
+// gelir, tema `fieldTheme`'de yaşar).
+import { clearFieldReactive, drawFieldReactive } from './fieldReactive.js';
+// Zemin çatışma izleri (ARENA_ELEVATION_PLAN Faz 2): is, patinaj ve boya
+// sıçraması. Üretici `fxRuntime.emit`, tüketici burada — bake'in üstünde,
+// reaktif kenar tepkisinin ALTINDA çizilir (iz sahaya aittir, duvara değil).
+import { clearFieldDecals, drawFieldDecals } from './fieldDecals.js';
 
 // ---------------------------------------------------------------------------
 // Tema kayıt defteri
@@ -1168,34 +1177,68 @@ function appendRoundRect(ctx, x, y, w, h, r) {
 }
 
 /**
- * Tepsi kenarı: siyah çerçevenin yerine geçer.
+ * Tepsi kenarı: kalın, PAHLI diorama bordürü (ARENA_ELEVATION_PLAN Faz 1).
  *
- * Koyu bant ve kontur kalktı. Sınır artık üç bedelsiz ipucuyla okunur: katmanın
- * yuvarlatılmış kesimi (aşağıda clip), tek ince iç gölge çizgisi ve
- * paintBackdrop'un arenanın arkasına düşürdüğü gölge. Üst/sol ışık çizgisi
- * pahlı kenar hissini tamamlar — ışık yönü wallShade bantlarıyla aynıdır.
+ * Sınır artık iki ince çizgi değil, fiziksel bir profil — üç katman, kenardan
+ * içeri doğru: temas gölgesi (rim zeminle buluşur), speküler pah (rimin ışık
+ * alan yüzü), ve zemine sönen AO bandı. Eski tek düz `wallShade` sağ/alt
+ * bandı bu profile TAŞINDI, yani toplam karartma artmadı; kazanılan yer
+ * kenarın okunur kalınlığı.
  *
- * ÖNEMLİ: çarpışma hâlâ DİKDÖRTGEN. Yuvarlatılmış köşede bir varlık kenarı
- * yarıçap kadar aşabilir; bu yüzden yarıçap saha ölçeğiyle sınırlıdır
- * (telefonda ~7px) ve köşeyi okuyan oyunlar (PONG) plakalarını korur.
+ * L* BÜTÇESİ (§1 madde 3): buraya yeni koyu alan eklenmiyor, yalnız MEVCUT
+ * `wallShade` alanı dört kenara yayılıyor ve daralıyor. Pah dar (tasarım
+ * ~4 px) ve speküler birkaç px içeride olduğu için zeminin ölçülen L*'i
+ * bütçeyi zorlamaz; asıl okunurluk hâlâ `tests/fieldKit.test.mjs §8` bütçesinde.
+ *
+ * ÖNEMLİ: çarpışma hâlâ DİKDÖRTGEN. Pah görseldir — köşe yarıçapı saha
+ * ölçeğiyle sınırlıdır (telefonda ~7px) ve köşeyi okuyan oyunlar (PONG)
+ * plakalarını korur.
  */
 function paintTrayEdge(ctx, w, h, u, palette, r) {
   const lw = Math.max(1.5, 2.4 * u);
+  // Genişlikler saha ölçeğiyle büyür, ama küçük telefonda kalabalığı yemesin
+  // diye tavanlı. `specW` daima `ao`'nun altında kalır: önce koyu temas, sonra
+  // onun üstünde ince ışık çizgisi — tersi olsaydı (önce ışık) pah okunmazdı.
+  const ao = Math.max(2, Math.min(18, fieldPx({ unit: u }, 11)));
+  const specW = Math.max(1, Math.min(ao * 0.42, fieldPx({ unit: u }, 4.5)));
+  // Kenar bandı zemin rampa bandıyla aynı genişlikte: eski sağ/alt gölge
+  // (`band`) burada karşılığını buldu, `paintFieldLayer`'da ikinci bir kopya
+  // kalmadı.
+  const clear = `rgba(${palette.shadeTint}, 0)`;
+
   ctx.save();
 
-  // İç gölge çizgisi — tepsi duvarı. Çizgi kenarın YARISINA oturur, kesimin
-  // dışına taşmaz.
+  // 1. Temas gölgesi — dört kenar, kenardan içeri sönen AO bandı. Işık yönü
+  //    sol-üstten (`LIGHT_X`/`LIGHT_Y`) gelir; dört kenar aynı ışığı paylaşır,
+  //    yani kenarlar tek bir nesne gibi döner.
+  const sides = [
+    [ctx.createLinearGradient(0, 0, 0, ao), 0, 0, w, ao],
+    [ctx.createLinearGradient(0, 0, ao, 0), 0, 0, ao, h],
+    [ctx.createLinearGradient(0, h, 0, h - ao), 0, h - ao, w, ao],
+    [ctx.createLinearGradient(w, 0, w - ao, 0), w - ao, 0, ao, h],
+  ];
+  for (const [grad, x, y, sw, sh] of sides) {
+    grad.addColorStop(0, palette.wallShade);
+    grad.addColorStop(1, clear);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, Math.max(1, sw), Math.max(1, sh));
+  }
+
+  // 2. İç gölge çizgisi — kenarın keskin sınırı. Çizgi kenarın YARISINA oturur,
+  //    kesimin dışına taşmaz.
   ctx.strokeStyle = palette.edgeInk;
   ctx.lineWidth = lw;
   ctx.beginPath();
   appendRoundRect(ctx, lw / 2, lw / 2, Math.max(1, w - lw), Math.max(1, h - lw), Math.max(1, r - lw / 2));
   ctx.stroke();
 
-  // Işık çizgisi — pahlı kenar. Birkaç px içeride, çok daha ince.
+  // 3. Speküler pah — ince ışık çizgisi, kenarın birkaç px içinde.
   ctx.strokeStyle = palette.edgeLight;
-  ctx.lineWidth = Math.max(1, 1.2 * u);
+  ctx.lineWidth = specW;
   ctx.beginPath();
-  appendRoundRect(ctx, lw * 1.6, lw * 1.6, Math.max(1, w - lw * 3.2), Math.max(1, h - lw * 3.2), Math.max(1, r - lw * 1.6));
+  appendRoundRect(ctx, lw + specW / 2, lw + specW / 2,
+    Math.max(1, w - (lw + specW) * 2), Math.max(1, h - (lw + specW) * 2),
+    Math.max(1, r - lw - specW / 2));
   ctx.stroke();
 
   ctx.restore();
@@ -1402,26 +1445,10 @@ export function paintFieldLayer(ctx, arena, palette, { seed = 1, marks = null, p
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, w, h);
 
-  // 10. İç gölge: sağ + alt — gölge duvarın üstüne değil, yanındaki zemine
-  //     düşer. Işık sol-üstten gelir. Koyu çerçeve kalktıktan sonra bu bant
-  //     sahanın "bir tepsi içinde" olduğunu okutan ana ipucudur.
-  const band = Math.max(fieldPx({ unit: u }, 8), min * 0.055);
-  const floorRight = w - edgePad;
-  const rightShade = ctx.createLinearGradient(floorRight - band, 0, floorRight, 0);
-  rightShade.addColorStop(0, 'rgba(26, 26, 26, 0)');
-  rightShade.addColorStop(1, palette.wallShade);
-  ctx.fillStyle = rightShade;
-  ctx.fillRect(floorRight - band, edgePad, band, Math.max(1, h - edgePad * 2));
-  const floorBottom = h - edgePad;
-  const bottomShade = ctx.createLinearGradient(0, floorBottom - band, 0, floorBottom);
-  bottomShade.addColorStop(0, 'rgba(26, 26, 26, 0)');
-  bottomShade.addColorStop(1, palette.wallShade);
-  ctx.fillStyle = bottomShade;
-  ctx.fillRect(edgePad, floorBottom - band, Math.max(1, w - edgePad * 2), band);
-
-  // 11. Tepsi kenarı (iç gölge çizgisi + pahlı ışık çizgisi) — siyah çerçevenin
-  //     yerine geçer. Sahanın SON kenar çizgisi budur; sonrasında hiçbir şey
-  //     kenara stroke çekmez (yamalar ve marks bilerek istisnadır).
+  // 10. İç gölge / pah profili: kenardan içeri sönen temas gölgesi + speküler
+  //     pah çizgisi — TEK sahibi `paintTrayEdge` (aşağıda). Dört kenarı da
+  //     kapsadığı için eski sağ/alt `wallShade` bandı burada yok: aynı alan
+  //     iki yerde çizilirse kenarlar iki farklı zemine oturmuş gibi durur.
   paintTrayEdge(ctx, w, h, u, palette, rTray);
 
   // 12. Yama (kapı boşluğu vb.) — tepsi kenarının üstüne, yani açıklık kenar
@@ -1458,7 +1485,7 @@ const backdropCache = new Map();
 
 /**
  * Arenanın çevresini boyar. "Bembeyaz ekran" hissinin en az yarısı sahanın
- * kendisi değil, etrafındaki dev düz krem kenar boşluğudur (13 motorda 23 ayrı
+ * kendisi değil, etrafındaki dev düz krem kenar boşluğudur (12 motorda 23 ayrı
  * ham `fillRect` çağır noktası). Bedava: katman bir kez pişirilir, frame başına
  * tek blit.
  *
@@ -1554,18 +1581,59 @@ function paintBackdropLayer(ctx, w, h, box, palette) {
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, w, h);
 
-  // 3. Arenanın geriye düşen gölgesi: tepsinin arkasına düşen katmanlı derinlik gölgeleri.
+  // 3. Yükseltilmiş tepsi gövdesi (ARENA_ELEVATION_PLAN Faz 1). Saha bir
+  //    "yüzey" değil, masanın üzerinde duran KALIN bir diorama tepsisidir;
+  //    kalınlık sahanın DIŞINDA görünür, yani zemin L* bütçesine ve
+  //    oynanabilir alana dokunmaz.
   const r = trayRadius(u, palette);
+  const lip = trayLip(u, box, w, h);
+  const lipR = r + lip;
+
+  // 3a. Tepsinin masaya düşen gölgesi — tepsinin DIŞ kenarından başlar
+  //     (iç kenarı arena altında kaldığı için halka arena dışına taşar).
   const shadowRing = (dx, dy, lw, color) => {
     ctx.strokeStyle = color;
     ctx.lineWidth = lw;
     ctx.beginPath();
-    appendRoundRect(ctx, box.left + dx, box.top + dy, box.width, box.height, r);
+    appendRoundRect(ctx, box.left + lip + dx, box.top + lip + dy, box.width, box.height, lipR);
     ctx.stroke();
   };
   shadowRing(0, 2 * u, Math.max(2, 4 * u), rgba(palette.edgeTint, 0.35));
   shadowRing(2 * u, 5 * u, Math.max(2, 8 * u), rgba(palette.edgeTint, 0.22));
   shadowRing(4 * u, 10 * u, Math.max(3, 14 * u), rgba(palette.edgeTint, 0.12));
+
+  // 3b. Gövde halkası: dış yuvarlak dikdörtgen EKSİ arena kutusu. even-odd
+  //     tek path'te delik verir, yarena asla kapatılmaz.
+  ctx.save();
+  ctx.beginPath();
+  appendRoundRect(ctx, box.left - lip, box.top - lip, box.width + lip * 2, box.height + lip * 2, lipR);
+  appendRoundRect(ctx, box.left, box.top, box.width, box.height, r);
+  ctx.fillStyle = palette.backdropInk;
+  ctx.fill('evenodd');
+
+  // 3c. Üst/sol yüzey ışığı: tepsi üst yüzü yataydır, ışığı sol-üstten alır —
+  //     dikey dış yüz yalnız alt ve sağda görünür ve gölgede kalır. Yani üst
+  //     ve sol şeritler aydınlık, alt/sağ şeritler `backdropInk`'te kalır.
+  const lipLight = `rgba(${palette.lightTint}, 0.1)`;
+  ctx.fillStyle = lipLight;
+  ctx.fillRect(box.left - lip, box.top - lip, box.width + lip * 2, lip);
+  ctx.fillRect(box.left - lip, box.top - lip, lip, box.height + lip * 2);
+  ctx.restore();
+}
+
+/**
+ * Tepsinin saha dışına taşan gövde kalınlığı (cihaz px). Saha ölçeğiyle
+ * büyür, kompakt telefon yatayda kenarda neredeyse boşluk olmadığı için
+ * tavanlı — taşan kısım canvas kenarında kırpılır, oyun alanına dokunmaz.
+ */
+function trayLip(u, box, vw, vh) {
+  const room = Math.min(
+    Number(box?.left) || 0,
+    Number(box?.top) || 0,
+    (Number(vw) || 0) - (Number(box?.left) || 0) - (Number(box?.width) || 0),
+    (Number(vh) || 0) - (Number(box?.top) || 0) - (Number(box?.height) || 0),
+  );
+  return Math.max(2, Math.min(26, fieldPx({ unit: u }, 15), Math.max(0, room)));
 }
 
 // ---------------------------------------------------------------------------
@@ -1694,6 +1762,8 @@ export function drawField(ctx, arena, opts = {}) {
     layerCache.set(key, cached); // LRU: kullanılan entry sona gider
     fieldLayerStats.blits += 1;
     ctx.drawImage(cached.canvas, box.left, box.top, box.width, box.height);
+    drawFieldDecals(ctx, box, palette, seed);
+    drawFieldReactive(ctx, box, palette);
     return;
   }
 
@@ -1704,6 +1774,8 @@ export function drawField(ctx, arena, opts = {}) {
     ctx.translate(box.left, box.top);
     paintFieldLayer(ctx, box, palette, { seed, marks: opts.marks, patches: opts.patches });
     ctx.restore();
+    drawFieldDecals(ctx, box, palette, seed);
+    drawFieldReactive(ctx, box, palette);
     return;
   }
 
@@ -1727,6 +1799,8 @@ export function drawField(ctx, arena, opts = {}) {
   layerCache.set(key, { canvas: layer });
   evictIfNeeded();
   ctx.drawImage(layer, box.left, box.top, box.width, box.height);
+  drawFieldDecals(ctx, box, palette, seed);
+  drawFieldReactive(ctx, box, palette);
 }
 
 /** Oyun değişimi / bellek baskısı: tüm bake'leri serbest bırakır. */
@@ -1740,6 +1814,10 @@ export function releaseFieldLayers() {
   layerCache.clear();
   releaseCaches(tileCache);
   releaseCaches(backdropCache);
+  // Reaktif kenar tepkisi ve zemin izleri arena geometrisine BAĞLIDIR; yeni
+  // oyunun arenasında eski koordinattaki darbe/leke yanlış yerde çizilmesin.
+  clearFieldReactive();
+  clearFieldDecals();
 }
 
 function releaseCaches(cache) {

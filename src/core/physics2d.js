@@ -3,29 +3,55 @@
  * Part of the Phase 3 Architecture Refactor.
  */
 
+import { emitWallImpact, WALL_IMPACT_MIN_SPEED } from './fieldReactive.js';
+
 /**
- * Clamps player position (and radius) to arena boundary rectangle.
- * @param {Object} p - Entity with x, y (and optional vx, vy)
- * @param {number} r - Entity collision radius
- * @param {Object} arena - Arena object containing left, right, top, bottom
- * @param {Object} [opts] - Options { zeroVelocity: boolean }
+ * Saha DUVARINA temas tek noktadan bildirilir.
+ *
+ * Neden burada: 12 motorun on tanesi saha sınırına `clampToArena` ile değiyor
+ * ve bu, hepsinin ortak tek geçidi. Tepkiyi (ARENA_ELEVATION_PLAN Faz 1 —
+ * kinetik duvar esnemesi) her motorun kendi `if`'inde yazsaydık aynı satır on
+ * defa kopyalanırdı; AGENTS §4 "core mantığını motora kopyalama" diyor.
+ *
+ * Saflığın bedeli: `emitWallImpact` bir yan etki. Kasıtlı — durum yalnız
+ * çizim yüzeyinde yaşar, simülasyonu DEĞİŞTİRMEZ (dönüş değerine dokunmaz,
+ * hızı sıfırlamayı engellemez), paket alanı eklemez. Yani motor otoritesi
+ * (§2) ve `isValid*WorldFrame` doğrulayıcıları etkilenmez.
  */
 export function clampToArena(p, r, arena, opts = {}) {
   const { left, right, top, bottom } = arena;
+  const rawUnit = Number(/** @type {any} */ (arena)?.unit);
+  const u = Number.isFinite(rawUnit) && rawUnit > 0 ? rawUnit : 1;
+  // Normal yöndeki yaklaşma hızı eşiği (tasarım px/s × unit). Yalnız hızlı
+  // temas (dash / tackle / roket) eşiği geçer; duvara yaslanıp yürümek
+  // kenarı sürekli titreştirmez.
+  const minSpeed = WALL_IMPACT_MIN_SPEED * u;
 
   if (p.x - r < left) {
+    if (p.vx !== undefined && -p.vx > minSpeed) {
+      emitWallImpact({ x: left, y: p.y, nx: 1, ny: 0, speed: -p.vx, unit: u });
+    }
     p.x = left + r;
     if (opts.zeroVelocity && p.vx !== undefined) p.vx = 0;
   }
   if (p.x + r > right) {
+    if (p.vx !== undefined && p.vx > minSpeed) {
+      emitWallImpact({ x: right, y: p.y, nx: -1, ny: 0, speed: p.vx, unit: u });
+    }
     p.x = right - r;
     if (opts.zeroVelocity && p.vx !== undefined) p.vx = 0;
   }
   if (p.y - r < top) {
+    if (p.vy !== undefined && -p.vy > minSpeed) {
+      emitWallImpact({ x: p.x, y: top, nx: 0, ny: 1, speed: -p.vy, unit: u });
+    }
     p.y = top + r;
     if (opts.zeroVelocity && p.vy !== undefined) p.vy = 0;
   }
   if (p.y + r > bottom) {
+    if (p.vy !== undefined && p.vy > minSpeed) {
+      emitWallImpact({ x: p.x, y: bottom, nx: 0, ny: -1, speed: p.vy, unit: u });
+    }
     p.y = bottom - r;
     if (opts.zeroVelocity && p.vy !== undefined) p.vy = 0;
   }

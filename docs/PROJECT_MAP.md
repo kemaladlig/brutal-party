@@ -163,7 +163,22 @@ src/core/
   fieldKit.js               SAHA ZEMİNİ/ÇEVRESİ TEK KAYNAĞI: FIELD_THEMES + THEME_FIELDS + FIELD_MOTIFS,
                             hashFieldSeed, paintFieldLayer, drawField (offscreen bake + cache + blit,
                             arena kutusu 2px kuantlama), paintBackdrop (saha dışının tek sahibi),
-                            releaseFieldLayers. Ağa alan eklemez; deterministiktir (seed = hash(mode,roundId))
+                            releaseFieldLayers. Ağa alan eklemez; deterministiktir (seed = hash(mode,roundId)).
+                             Çizim SONRASI drawFieldDecals + drawFieldReactive'i çağırır
+                             (statik bake üstü, varlık altı katmanlar)
+  fieldReactive.js          REAKTİF SAHA KENARI (ARENA_ELEVATION_PLAN Faz 1): emitWallImpact →
+                             duvar esnemesi + enerji dalgası + toz/kıvılcım; drawFieldReactive
+                             (fieldKit.drawField içinden, varlıkların altında); clearFieldReactive.
+                             Sabit havuzlar + saat damgası (update çağrısı yok), paket alanı YOK.
+                             Tek üretici physics2d.clampToArena; 12 motorun hiçbiri kendi
+                             koduyla dokunmaz
+  fieldDecals.js            ZEMİN ÇATIŞMA İZLERİ (ARENA_ELEVATION_PLAN Faz 2): emitFxScar →
+                             is (kill) / sıçrama (hit,slay) / patinaj (dust); drawFieldDecals
+                             (fieldKit.drawField içinden, bake üstü + varlık altı); clearFieldDecals.
+                             32 yuvalı HALKA TAMPO + saat damgası (update çağrısı yok), paket alanı
+                             YOK. Tek üretici fxRuntime.emit — kumanda olayı anlık yoldan aldığı
+                             için izler telefonda da doğar. Raunt temizliği: seed değişimi
+                             (hash(mode,roundId)) yumuşak süpürme tetikler, ayrı yaşam döngüsü yok
   playerEntity.js           createPlayer, tickEffectTimers, advancePlayer
   avatarInGame.js           drawGameAvatar, normalizeExpression, blinkState — saha içi daima
                             faceMode:'play' (ERIŞUAR/DESEN YOK, tam yuvarlak siluet)
