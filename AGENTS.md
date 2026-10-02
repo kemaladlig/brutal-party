@@ -5,6 +5,19 @@ Detay `docs/PROJECT_MAP.md`'dedir — tamamını dump etme, `grep` ile ilgili b�
 
 ---
 
+## 0. HIZ MODU (geçici — kullanıcı kaldırana kadar geçerli)
+
+Bu madde §11'i ve global "verify proportionally / yeşil kapı olmadan iş bitmez" kuralını **geçersiz kılar**.
+
+- `npm run check` **isteğe bağlı**. Küçük/orta değişiklikte koşturma. Yalnız kullanıcı "check/test/build/e2e çalıştır" derse veya değişiklik mimari/protokol düzeyindeyse koş.
+- 1-3 dosyalık düzeltmede: bul → yamala → bitti. Ara açıklama, özet, "ne yaptım" tekrarı yok.
+- Bitirdiğinde tek cümle: hangi dosya, ne değişti. Uzun rapor yazma.
+- §11'deki 3 prova, e2e, PROJECT_MAP güncellemesi, webp üretimi **zorunlu değil** — kullanıcı isterse yap.
+- `rules-lint` / `typecheck-baseline` ratchet güncellemeleri beklemede bırakılır; borç birikir, sorun değil.
+- Sözleşmeler (§2 yetki, §3 engine kaydı, §5 slot, §6 ağ bütçesi, §9 yasaklar) **dokunulmaz** — hız modu sadece doğrulama adımlarını kaldırır, mimariyi serbest bırakmaz.
+
+---
+
 ## 1. Yığın & Modlar
 
 - Vanilla HTML5 + CSS3 + ES Modules, Canvas, Vite, PWA (`public/manifest.webmanifest`, `sw.js`).
@@ -29,16 +42,16 @@ Detay `docs/PROJECT_MAP.md`'dedir — tamamını dump etme, `grep` ile ilgili b�
 
 ## 4. `src/core/` tek kaynaktır — kopyalama yok
 
-Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inputMaps`, `touchFlow`, `physics2d`, `playfield`, `roundLifecycle`, `pickupSystem`, `arenaKit`, `fieldKit`, `playerEntity`, `avatarInGame`, `tabletopIcons`, `tabletopRenderer`, `preferences`, `haptics`, `inputSource`, `controlDescriptor`, `inputIntent`, `aimInput`, `autoAim`, `botView`, `botBanter`, `botReactionDirector`, `fireFeedback`, `fxKit`, `fxRuntime`, `inputRouter`, `gamepadInputAdapter`, `physicalGamepadAdapter`, `gamepadShell`, `reactions`, `ui/reactionLayer`, `ui/reactionPicker`, `ui/settings/{actions,schema,row,panel,sheet}`, `selfPrediction`. API detayı dosyadadır.
+Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inputMaps`, `touchFlow`, `physics2d`, `playfield`, `roundLifecycle`, `pickupSystem`, `arenaKit`, `fieldKit`, `projection2d`, `playerEntity`, `avatarInGame`, `tabletopIcons`, `tabletopRenderer`, `preferences`, `haptics`, `inputSource`, `controlDescriptor`, `inputIntent`, `aimInput`, `autoAim`, `botView`, `botBanter`, `botReactionDirector`, `fireFeedback`, `fxKit`, `fxRuntime`, `inputRouter`, `gamepadInputAdapter`, `physicalGamepadAdapter`, `gamepadShell`, `reactions`, `ui/reactionLayer`, `ui/reactionPicker`, `ui/settings/{actions,schema,row,panel,sheet}`, `selfPrediction`. API detayı dosyadadır.
 - **Ayarların tek yüzeyi `src/ui/settings/`dir.** Eylem kaydı (`settingsActions`) → satır tanımı (`settingsSchema`) → satır DOM'u (`settingsRow`) → sekmeli panel (`settingsPanel`) → overlay kabuğu (`settingsSheet`). Ana menü, lobi ve duraklatma AYNI sheet'i açar; pause yalnız `quick: true` işaretli satırları kendi sheetine gömer. Yeni ayar = şemaya satır + actions'a eylem. Bir yüzeye kendi `getElementById` anahtarı, kendi `addEventListener` gövdesi veya ikinci bir "hızlı ayar" ızgarası YAZILMAZ.
 - Motor sözleşmesinin TİP karşılığı tek kaynaktır: `src/types/minigame.d.ts` (MiniGameEngine/MiniGameArena/MiniGameEntity — global bildirim, runtime'da değer üretmez) + `src/types/geometry.d.ts` (FieldGeometry/FieldPalette/QualityMeasurement/WorldFrame). Yeni motor alanı/hook'u önce buraya yazılır; BaseGame sözleşme alanlarını kurucuda `@type` ile bildirir, prototip hook'ları `contractHook()` ile çağrılır.
 - Zaman ölçeği: kare-başı çarpan yerine `damp()` / zaman tabanlı ifade kullan (`main.js` sabit adımlı değildir, `dt = min(dt, 0.05)`).
 - Ölçek: hareket `fieldSpeed`, uzamsal her şey `fieldRadius`/`fieldPx`'ten geçer; ham px yasak. `canvas.width/height` okunmaz/yazılmaz (DPR `main.js`'indir).
 - Harita-ölçeği hissi gövde/saha oranıdır: her motor `FIELD_TIERS` bandındandır (`normal` 28–36 · `open` 18–24 · `far` 9–16 tasarım px, 952 referans). Bant kilidi ölçülen değerle `movementBudget.test.mjs §B`'dedir; tier geçişi bilinçli yapılır, sessiz sürüklenmez (PONG hariç).
-- Zemin/çevre yalnız `drawField` + `paintBackdrop` ile çizilir; motor kendi zemin/grid/duvar/viewport dolgusu yazmaz.
+- Zemin/çevre yalnız `drawField` + `paintBackdrop` ile çizilir; motor kendi zemin/grid/duvar/viewport dolgusu yazmaz. Eğik 2.5D varyantı aynı sahipten gelir: `drawField25d`/`drawFieldRail` (saha) + `drawObstacle25dShadow`/`drawObstacle25dMass` (engel); kamera matematiği tek kaynak `core/projection2d.js`. **Engel yüksekliği tek kaynaktır** (`arenaKit.obstacle25dHeight` + `proj.obstacleHeightScale`) ve **yalnız görseldir** — çarpışma daima `(x,y,w,h)` taban izidir; kamera açısı ile yükseklik kör noktanın (`d = h / tan(α)`) iki bağımsız koludur. Oyun-başına kablolama yardımcısı da tek kaynaktır: `makeTiltedProjector(viewport, arena, theme, proj?)` (kur+sığdır+tema; host kalıcı `proj`'u yeniden kullanır) + `arenaFromRect(rect)` (ONLINE client host ile AYNI `unit`'i türetsin). BOMB ve SNAKE bu yolu kullanır (host↔client aynı `proj`; sahne `sceneBegin`/`sceneEnd` derinlik penceresine girer); diğer oyunlar `proj` vermez, tepeden bakış yolu değişmez. Tema sözlüğü `ui/tokens.js arena25dThemes` (`bombThemeForMap` haritaya bağlı, `SNAKE_THEME_25D='garden'` sabit — SNAKE haritaları yalnız duvar düzeni paylaşır).
 - Tempo ve zemin-L\* bütçeleri testle kilitlidir (`tests/movementBudget.test.mjs`, `tests/fieldKit.test.mjs §8`) — sayıları buraya kopyalama, teste bak.
 - `tap` yalnız telefon üreticisinden gelir, state türetmez. Basılı-tut yön girdisi 250 ms keepalive taşır (`STEER_KEEPALIVE_MS`).
-- Avatar sahada daima `faceMode: 'play'`, tam yuvarlak siluet; aksesuar/desen yok.
+- Avatar sahada daima `faceMode: 'play'`; tepeden bakış oyunlarında tam yuvarlak siluet, aksesuar/desen yok. 2.5D eğik yolda (BOMB, SNAKE) `drawGameAvatar25d` karakteri TEK projekte küre olarak çizer (oyuncak topu); gözler ve uzuvlar kürenin yerel 3B eksenlerine çapalanır ve mevcut kamerayla projekte edilir (uzak göz/uzuv küçülür, arkada kalır). Uzuvlar TEK EKLEMLİ (omuz→dirsek→pati, kalça→diz→ayak), `player.vx/vy` hızıyla canlanır, küre adım ritminde seker, temas gölgesi altta; asset yok, tek çizim fonksiyonunda procedural rig'dir. Diğer oyunlar düz `drawGameAvatar` ile değişmez.
 
 ## 5. Slot Modeli
 

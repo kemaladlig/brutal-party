@@ -235,6 +235,8 @@
   --shadow-pop: 0 4px 0 rgba(4, 2, 12, 0.4), 0 8px 18px rgba(4, 2, 12, 0.3);
   --shadow-press: inset 0 3px 10px rgba(4, 2, 12, 0.45);
   --glow-accent: 0 0 0 3px rgba(255, 140, 26, 0.34), 0 6px 18px rgba(255, 140, 26, 0.3);
+  --contact-shadow: rgba(18, 14, 28, 0.16);
+  --contact-shadow-rgb: 18, 14, 28;
 
   /* ---- Yarıçap ---- */
   --radius-card: 18px;

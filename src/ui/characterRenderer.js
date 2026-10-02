@@ -2,6 +2,7 @@
 // Tüm mini-oyunlarda (BOMB, HEIST, CROWN, COLLAPSE, NINJA, ZONE, vb.)
 // ve Karakter Özelleştirme Arayüzünde standart avatar çizimini sağlar.
 import { getSlotAvatar, getAvatarProfile, getBotPersona, rimHex } from '../core/customizationManager.js';
+import { UI_COLORS } from './tokens.js';
 
 /**
  * KARAKTER = DÜZ RENK + YÜZ. Erişuar ve gövde deseni YOK.
@@ -139,6 +140,11 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
   // Oyun içi kip gözleri büyütür ve hacim ekler; menü kipi (`full`) yalnız
   // göz çizer. İkisi de dekor taşımaz — dekor artık yok.
   const isPlayFace = options.faceMode === PLAY_FACE;
+  // Yüz-yalnız kip: gövde diski/konturu/çerçevesi çizilmez, yalnız bakış yönü
+  // ve yüz ifadesi basılır. 2.5D yolda (drawGameAvatar25d) karakter tek bir
+  // projekte KÜRE'dir; yüz o kürenin üstüne dekal gibi oturur. Çağıran gövde
+  // hacmini/çerçevesini kendisi verir.
+  const faceOnly = options.faceOnly === true;
 
   const {
     facingAngle = 0,
@@ -172,54 +178,70 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
 
   const r = radius;
 
-  // 1. Zemin temas gölgesi kaldırıldı (Kullanıcı isteği üzerine iptal edildi)
-
-  // 1b. Gövde (clip: hacim katmanı daire sınırını geçemesin)
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.clip();
-
-  // Taban rengi
-  ctx.fillStyle = color;
-  ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
-
-  // Hacim: 2.5D küresel katmanlar (gölge + aydınlanma + speküler parıltı + rim)
-  // Oyun içi kip (`play`) ve menü sahnesi (`volume`) bunu ister;
-  // ikisi de clip'in İÇİNDE bittiği için siluet değişmez — düz sticker yerine 3D top gibi okur.
-  if ((isPlayFace || options.volume) && !isMicro) {
-    const { diffuse, shade } = playFaceShading(ctx, r);
-    ctx.fillStyle = shade;
-    ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
-    ctx.fillStyle = diffuse;
-    ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
-  }
-
-  // Alt gölge (ambient occlusion): yalnız alt çeyrek içten kararır,
-  // top yere oturur. Üst yarı düz renkte kalır. Her kipte aynıdır.
-  if (!isMicro) {
-    ctx.fillStyle = bodyAoGradient(ctx, r);
-    ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
-  }
-
-  ctx.restore(); // Clipping sonu
-
-  // 2. Gövde Dış Çerçevesi (Neo-brutalist kalın kontur)
-  ctx.strokeStyle = isTackling ? '#FFDE59' : ringColor;
-  ctx.lineWidth = isTackling ? borderWidth * 1.5 : borderWidth;
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // 2a. Halka dış tanımı: açık halka krem sahada kaybolmasın diye ince
-  // tutulur — kalın koyu çizgi üst kenarda is gibi okunuyordu.
-  if (!isMicro) {
-    const hair = Math.max(1, r * 0.02);
-    ctx.strokeStyle = 'rgba(26, 26, 26, 0.28)';
-    ctx.lineWidth = hair;
+  // 1. Zemin temas gölgesi (Tactile 2.5D — sahaya oturtma).
+  // Işık sol-üstten sabit (saha dili): gölge hafifçe güney-doğuya kayar ve o
+  // yönde uzar — tam alttaki simetrik leke "havada süzülme" okumasıydı.
+  if (isPlayFace && !isMicro && options.shadow !== false && !faceOnly) {
+    ctx.save();
+    ctx.fillStyle = UI_COLORS.contactShadow;
     ctx.beginPath();
-    ctx.arc(0, 0, r + borderWidth / 2 + hair / 2, 0, Math.PI * 2);
+    ctx.ellipse(r * 0.12, r * 0.66, r * 0.9, r * 0.26, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // 1b. Gövde (clip: hacim katmanı daire sınırını geçemesin). `faceOnly`'de
+  // atlanır: çağıran (2.5D küre) gövdeyi zaten çizmiştir.
+  if (!faceOnly) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Taban rengi
+    ctx.fillStyle = color;
+    ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
+
+    // Hacim: 2.5D küresel katmanlar (gölge + aydınlanma + speküler parıltı + rim)
+    // Oyun içi kip (`play`) ve menü sahnesi (`volume`) bunu ister;
+    // ikisi de clip'in İÇİNDE bittiği için siluet değişmez — düz sticker yerine 3D top gibi okur.
+    if ((isPlayFace || options.volume) && !isMicro) {
+      const { diffuse, shade } = playFaceShading(ctx, r);
+      ctx.fillStyle = shade;
+      ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
+      ctx.fillStyle = diffuse;
+      ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
+    }
+
+    // Alt gölge (ambient occlusion): yalnız alt çeyrek içten kararır,
+    // top yere oturur. Üst yarı düz renkte kalır. Her kipte aynıdır.
+    if (!isMicro) {
+      ctx.fillStyle = bodyAoGradient(ctx, r);
+      ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
+    }
+
+    ctx.restore(); // Clipping sonu
+  }
+
+  // 2. Gövde Dış Çerçevesi (Neo-brutalist kalın kontur). `faceOnly`'de kürenin
+  // kendi ink konturu vardır; ikinci çerçeve çizilmez.
+  if (!faceOnly) {
+    ctx.strokeStyle = isTackling ? '#FFDE59' : ringColor;
+    ctx.lineWidth = isTackling ? borderWidth * 1.5 : borderWidth;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.stroke();
+
+    // 2a. Halka dış tanımı: açık halka krem sahada kaybolmasın diye ince
+    // tutulur — kalın koyu çizgi üst kenarda is gibi okunuyordu.
+    if (!isMicro) {
+      const hair = Math.max(1, r * 0.02);
+      ctx.strokeStyle = 'rgba(26, 26, 26, 0.28)';
+      ctx.lineWidth = hair;
+      ctx.beginPath();
+      ctx.arc(0, 0, r + borderWidth / 2 + hair / 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 
   // 3. İsteğe Bağlı Yön Oku (Directional Pointer)

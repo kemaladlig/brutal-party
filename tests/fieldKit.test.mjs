@@ -291,14 +291,17 @@ test('field visuals add no packet fields (BOMB/PONG/HORDE)', () => {
   // Tek istisna `blast`: saha görseli değil, BOMB'un patlama katmanı (4 sayı,
   // aynı anda tek patlama) — bkz. worldCore.packBlast. `selfPredict` de saha
   // görseli değil: client self-avatar prediction opt-in bayrağı (core/selfPrediction).
+  // `mapIndex`: 2.5D saha teması haritaya bağlıdır (BOMB); client aynı temayı
+  // paketten türetir (bombView.bombThemeForMap). İstemci tarafı çizim tercihi
+  // değil, host↔client sahne eşleşmesi için gereken simülasyon alanıdır.
   // `fx`: host FX runtime anlık görüntüsü (rings/pops/flash — tanks deseni,
   // Faz 2'de portlanan motorlara eklendi: BOMB/PONG; v1 yedeği, playback
   // canlıyken yok sayılır). HORDE artık `fx` TAŞIMAZ: FX anlık güvenilir
   // kanaldan gelir (MOTION_PLAN "kaldırma kararı Parça 4"), bu yüzden anahtar
   // listesinde `fx` yoktur; `particles` şema uyumu için boş kalır.
   assert.deepEqual(Object.keys(packets.BOMB).sort(), [
-    'arena', 'blast', 'bombMaxTime', 'bombTimer', 'carrier', 'fx', 'gameState', 'ink', 'matchDraw',
-    'matchWinner', 'mode', 'particles', 'pickups', 'pillars', 'players', 'roundId',
+    'arena', 'blast', 'bombMaxTime', 'bombTimer', 'carrier', 'fx', 'gameState', 'ink', 'mapIndex',
+    'matchDraw', 'matchWinner', 'mode', 'particles', 'pickups', 'pillars', 'players', 'roundId',
     'roundWinner', 'scores', 'selfPredict', 'seq', 'version',
   ]);
   assert.deepEqual(Object.keys(packets.PONG).sort(), [
@@ -512,12 +515,13 @@ test('the bake path never touches the known perf and determinism cliffs', () => 
   ]) {
     assert.equal(source.includes(forbidden), false, `fieldKit ${forbidden} kullanmamalı`);
   }
-  // `setTransform` YALNIZ bake kurulumundaki iki satıra aittir (`lctx` ölçek
+  // `setTransform` YALNIZ bake kurulumundaki satırlara aittir (`lctx` ölçek
   // dönüşümü). Desen YOLUNA ya da bir CanvasPattern'a taşınırsa çizim bozulur:
-  // recorder'da TypeError, gerçek ctx'te hizasız dikiş.
+  // recorder'da TypeError, gerçek ctx'te hizasız dikiş. Üç bake kurulumu var:
+  // 2D saha katmanı + backdrop + 2.5D zemin katmanı.
   const setTransforms = source.match(/setTransform\(/g) || [];
   const layerSetTransforms = source.match(/lctx\.setTransform\(/g) || [];
   assert.equal(setTransforms.length, layerSetTransforms.length,
     'setTransform yalnız lctx (bake kurulumu) üzerinde kullanılmalı');
-  assert.equal(layerSetTransforms.length, 2, 'iki bake kurulumu: saha katmanı + backdrop');
+  assert.equal(layerSetTransforms.length, 3, 'üç bake kurulumu: saha katmanı + backdrop + 2.5D zemin');
 });

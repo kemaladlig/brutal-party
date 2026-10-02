@@ -314,25 +314,7 @@ const { OBSTACLE_STYLES, obstacleStyle, obstacleMass, drawObstacle } = await imp
   '../src/core/arenaKit.js'
 );
 const { FIELD_THEMES } = await import('../src/core/fieldKit.js');
-
-/** A ctx that fails loudly on the two things that cost GC pressure per frame. */
-function strictRecorder() {
-  const log = [];
-  const bomb = (name) => { throw new Error(`drawObstacle allocated ${name} per frame`); };
-  const target = {
-    log,
-    createLinearGradient: () => bomb('createLinearGradient'),
-    createRadialGradient: () => bomb('createRadialGradient'),
-    createPattern: () => bomb('createPattern'),
-  };
-  return new Proxy(target, {
-    get(t, key) {
-      if (key in t) return t[key];
-      return (...args) => { log.push(`${String(key)}(${args.map((a) => (typeof a === 'number' ? Math.round(a * 100) / 100 : String(a))).join(',')})`); };
-    },
-    set(t, key, value) { t[key] = value; return true; },
-  });
-}
+const { strictRecorder } = await import('./helpers/recorder.mjs');
 
 test('every obstacle skin carries the full palette and a legal detail hook', () => {
   for (const [id, style] of Object.entries(OBSTACLE_STYLES)) {

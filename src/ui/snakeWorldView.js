@@ -6,13 +6,15 @@ import {
   drawSnakeFxLayer,
   drawSnakePlayers,
   isValidSnakeWorldFrame,
+  SNAKE_THEME_25D,
 } from '../games/snakeView.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
-import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
-import { paintBackdrop } from '../core/fieldKit.js';
+import { drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
+import { sceneBegin, sceneEnd } from '../core/arenaKit.js';
+import { makeTiltedProjector, arenaFromRect } from '../core/projection2d.js';
 
 export function createSnakeWorldViewRenderer() {
   return {
@@ -22,34 +24,35 @@ export function createSnakeWorldViewRenderer() {
       // FX kaynağı (MOTION_PLAN 2.2): olay playback'i (`context.fx`) varsa O
       // çizer ve frame.fx/frame.particles YOK SAYILIR (çift çizim).
       const fxLive = !!context.fx;
-      const [left, top, right, bottom] = frame.arena;
-      const arena = { left, top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
+      // 2.5D eğik kamera host ile AYNI girdilerden (arena + viewport + sabit
+      // tema) kurulur; sahne birebir eşleşir. Masa zemini `drawField25d` içinde.
+      const arena = arenaFromRect(frame.arena);
+      const proj = makeTiltedProjector({ width, height }, arena, SNAKE_THEME_25D);
+      const walls = frame.walls.map(([x, y, w, h]) => ({ x, y, w, h }));
+      const foods = frame.foods.map(([x, y, type, size]) => ({ x, y, type, size, pulse: 0 }));
+      const players = frame.players.map((player) => ({
+        ...player,
+        index: player.slot,
+        color: slots?.[player.slot]?.color || UI_COLORS.players[player.slot] || '#D84727',
+        avatar: slots?.[player.slot]?.avatar || null,
+        boostEnergy: player.energy,
+      }));
+      const particles = (frame.particles || []).map((particle) => ({ ...particle }));
 
       ctx.save();
-      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'SNAKE' });
-      fitWorld(ctx, width, height, frame.arena, () => {
-        const walls = frame.walls.map(([x, y, w, h]) => ({ x, y, w, h }));
-        const foods = frame.foods.map(([x, y, type, size]) => ({ x, y, type, size, pulse: 0 }));
-        const players = frame.players.map((player) => ({
-          ...player,
-          index: player.slot,
-          color: slots?.[player.slot]?.color || UI_COLORS.players[player.slot] || '#D84727',
-          avatar: slots?.[player.slot]?.avatar || null,
-          boostEnergy: player.energy,
-        }));
-        const particles = (frame.particles || []).map((particle) => ({ ...particle }));
-
-        drawSnakeArena(ctx, arena, walls, { roundId: frame.roundId });
-        drawSnakeFoods(ctx, foods, now);
-        drawSnakePlayers(ctx, players, now, context.selfSlot ?? -1);
-        drawSnakeFxLayer(ctx, fxLive
-          ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
-          : {
-              pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
-              rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
-              particles,
-            });
-      });
+      // 2.5D derinlik penceresi — host ile birebir aynı (sceneBegin/sceneEnd).
+      sceneBegin();
+      drawSnakeArena(ctx, arena, walls, { roundId: frame.roundId, proj });
+      drawSnakeFoods(ctx, foods, now, proj);
+      drawSnakePlayers(ctx, players, now, context.selfSlot ?? -1, proj);
+      sceneEnd(ctx);
+      drawSnakeFxLayer(ctx, fxLive
+        ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
+        : {
+            pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
+            rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
+            particles,
+          }, proj);
       ctx.restore();
 
       // Ölüm flaşı ekran-space: playback mandalı açıkken oynatıcıdan, değilse

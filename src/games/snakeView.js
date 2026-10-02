@@ -1,7 +1,7 @@
 // Shared Snake world snapshot + rendering boundary.
 // The authoritative game uses the same drawing helpers as remote phone clients.
 
-import { drawGameAvatar } from '../core/avatarInGame.js';
+import { drawGameAvatar, drawGameAvatar25d } from '../core/avatarInGame.js';
 import { fxReadAlpha } from '../core/fxKit.js';
 import {
   isWorldEntityVisible,
@@ -12,14 +12,29 @@ import {
   drawFxPops,
   drawCircleParticles,
 } from './worldCore.js';
-import { drawObstacle } from '../core/arenaKit.js';
-import { drawField, hashFieldSeed } from '../core/fieldKit.js';
+import {
+  drawObstacle,
+  drawObstacle25dShadow,
+  drawObstacle25dMass,
+  sceneDraw,
+  obstacleBaseY,
+  entitySceneY,
+} from '../core/arenaKit.js';
+import { drawField, hashFieldSeed, drawField25d, drawFieldRail, fieldRailBaseY } from '../core/fieldKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
+import { shade } from '../core/projection2d.js';
 import { UI_COLORS } from '../ui/tokens.js';
 
 const TRAIL_SPACING = 10;
 const MAX_TRAIL_POINTS = 48;
+
+// SNAKE 2.5D teması: harita varyasyonları yalnız duvar düzeni paylaşır, zemin
+// ortaktır; bu yüzden tek tema. Host ve ONLINE world-view AYNI sabiti kullanır
+// (paket alanı gerekmez — değer derleme-zamanı sabitidir).
+export const SNAKE_THEME_25D = 'garden';
+// Kenar tamponlarının taban-y sırası: kuzey/batı arkaya, güney/doğu öne.
+const RAIL_SIDES = /** @type {const} */ (['north', 'west', 'east', 'south']);
 
 const round1 = (value) => Math.round(Number(value) * 10) / 10;
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
@@ -190,130 +205,214 @@ export function isValidSnakeWorldFrame(frame) {
 }
 
 export function drawSnakeArena(ctx, arena, walls, opts = {}) {
-  // Statik saha `fieldKit`'te: kehribar tonlu zemin, tanecik dokusu, seeded
-  // dekor ve yuvarlatılmış tepsi kesimi. Eskiden burada düz `#FAF7F2` dolgu +
-  // kare-değişkenli el-ile ızgara döngüsü + siyah `strokeRect` vardı; hepsi
-  // artık bake'te, frame başına tek blit.
+  const proj = opts.proj || null;
+  if (proj) {
+    // 2.5D eğik saha: masa zemini `drawField25d` içinde boyanır (çağıran
+    // `paintBackdrop` çizmez). Kenar tamponları ve engel prizmaları DERİNLİK
+    // kuyruğuna girer (çağıran `sceneBegin`/`sceneEnd` penceresi açar); engel
+    // temas gölgeleri zeminde kalır.
+    drawField25d(ctx, proj, arena);
+    for (const side of RAIL_SIDES) {
+      sceneDraw(ctx, fieldRailBaseY(arena, side), drawFieldRail, proj, { arena, side });
+    }
+    for (const wall of walls) {
+      drawObstacle25dShadow(ctx, proj, wall);
+      sceneDraw(ctx, obstacleBaseY(wall), drawObstacle25dMass, proj, wall);
+    }
+    return;
+  }
+  // Tepeden bakış (dönüştürülmemiş yol): kehribar tonlu bake + düz engel.
   drawField(ctx, arena, { mode: 'SNAKE', seed: hashFieldSeed('SNAKE', opts.roundId) });
   for (const wall of walls) drawObstacle(ctx, wall, { theme: 'SNAKE' });
 }
 
-export function drawSnakeFoods(ctx, foods, now = 0) {
-  for (const food of foods) {
-    const pulse = 1 + Math.sin(now / 220 + (food.pulse || 0)) * 0.08;
-    const radius = ((food.size || 13) / 2) * pulse;
-    const u = radius / 6.5;
-    ctx.fillStyle = 'rgba(26, 26, 26, 0.25)';
-    ctx.beginPath();
-    ctx.arc(food.x + 2, food.y + 2, radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    if (food.type === 'GOLDEN_STAR') {
-      ctx.fillStyle = '#FFDE59';
-      ctx.beginPath();
-      ctx.arc(food.x, food.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5 * u;
-      ctx.stroke();
-      drawTabletopIcon(ctx, 'star', food.x, food.y, radius * 1.3, { color: '#1A1A1A' });
-    } else if (food.type === 'TURBO_BERRY') {
-      ctx.fillStyle = '#A259FF';
-      ctx.beginPath();
-      ctx.arc(food.x, food.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2.5 * u;
-      ctx.stroke();
-      drawTabletopIcon(ctx, 'zap', food.x, food.y, radius * 1.3, { color: '#FFDE59' });
-    } else {
-      ctx.fillStyle = '#D84727';
-      ctx.beginPath();
-      ctx.arc(food.x, food.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = 2 * u;
-      ctx.stroke();
-      ctx.fillStyle = '#FFF';
-      ctx.beginPath();
-      ctx.arc(food.x - radius * 0.35, food.y - radius * 0.35, radius * 0.28, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#2F6A4F';
-      ctx.lineWidth = 2 * u;
-      ctx.beginPath();
-      ctx.moveTo(food.x, food.y - radius);
-      ctx.lineTo(food.x + 2, food.y - radius - 3);
-      ctx.stroke();
-    }
+/** Tek yem çizimi — sahne kuyruğu öğesi (2.5D'de zemine projekte). */
+function drawSnakeFoodItem(ctx, s) {
+  const { food, now, proj } = s;
+  const pulse = 1 + Math.sin(now / 220 + (food.pulse || 0)) * 0.08;
+  const baseR = ((food.size || 13) / 2) * pulse;
+  let cx = food.x;
+  let cy = food.y;
+  let radius = baseR;
+  if (proj) {
+    const sp = proj.proj(food.x, food.y, 0);
+    radius = baseR * proj.view.scale * sp.d;
+    cx = sp.x;
+    cy = sp.y;
   }
-}
-
-function traceSnakePath(ctx, player) {
+  const u = radius / 6.5;
+  ctx.fillStyle = 'rgba(26, 26, 26, 0.25)';
   ctx.beginPath();
-  if (Array.isArray(player.trail)) {
-    if (player.trail.length) {
-      ctx.moveTo(player.trail[0][0], player.trail[0][1]);
-      for (let i = 1; i < player.trail.length; i++) {
-        ctx.lineTo(player.trail[i][0], player.trail[i][1]);
-      }
-    }
-  } else if (Array.isArray(player.segments) && player.segments.length) {
-    ctx.moveTo(player.segments[0].x1, player.segments[0].y1);
-    for (const segment of player.segments) ctx.lineTo(segment.x2, segment.y2);
+  ctx.arc(cx + 2, cy + 2, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (food.type === 'GOLDEN_STAR') {
+    ctx.fillStyle = '#FFDE59';
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 2.5 * u;
+    ctx.stroke();
+    drawTabletopIcon(ctx, 'star', cx, cy, radius * 1.3, { color: '#1A1A1A' });
+  } else if (food.type === 'TURBO_BERRY') {
+    ctx.fillStyle = '#A259FF';
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 2.5 * u;
+    ctx.stroke();
+    drawTabletopIcon(ctx, 'zap', cx, cy, radius * 1.3, { color: '#FFDE59' });
+  } else {
+    ctx.fillStyle = UI_COLORS.crownRed;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 2 * u;
+    ctx.stroke();
+    ctx.fillStyle = '#FFF';
+    ctx.beginPath();
+    ctx.arc(cx - radius * 0.35, cy - radius * 0.35, radius * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#2F6A4F';
+    ctx.lineWidth = 2 * u;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - radius);
+    ctx.lineTo(cx + 2, cy - radius - 3);
+    ctx.stroke();
   }
 }
 
-export function drawSnakePlayers(ctx, players, now = 0, selfSlot = -1) {
-  // 3.3 okunurluk hiyerarşisi: tek görür varsa kendi avatarın T1, diğerleri T3
-  // (−%25); α yalnız fxKit'ten gelir, motor kendi α'sını uydurmaz.
-  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+export function drawSnakeFoods(ctx, foods, now = 0, proj = null) {
+  for (const food of foods) {
+    const half = (food.size || 13) / 2;
+    sceneDraw(ctx, entitySceneY(food.y, half), drawSnakeFoodItem, { food, now, proj }, null);
+  }
+}
+
+/**
+ * Gövde noktalarını ekran uzayına çevirir (tek kaynak). 2.5D'de her nokta
+ * projekte edilir; tepeden bakışta kimlik dönüşümü. Gövde çizimi (silüet,
+ * silindir taraması, bant deseni) hep bu listeyi kullanır.
+ */
+function snakeScreenPoints(player, proj) {
+  const mapPoint = (x, y) => (proj ? proj.proj(x, y, 0) : { x, y });
+  const out = [];
+  if (Array.isArray(player.trail) && player.trail.length) {
+    for (const point of player.trail) out.push(mapPoint(point[0], point[1]));
+  } else if (Array.isArray(player.segments) && player.segments.length) {
+    out.push(mapPoint(player.segments[0].x1, player.segments[0].y1));
+    for (const segment of player.segments) out.push(mapPoint(segment.x2, segment.y2));
+  }
+  return out;
+}
+
+function traceSnakePath(ctx, player, proj) {
+  const pts = snakeScreenPoints(player, proj);
+  ctx.beginPath();
+  if (!pts.length) return;
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+}
+
+/** Tek oyuncu (yılan) çizimi — sahne kuyruğu öğesi. Gövde zeminde, kafa küre. */
+function drawSnakePlayerItem(ctx, s) {
+  const { player, hasViewer, selfSlot, proj, now = 0 } = s;
+  const headRadius = player.radius || 24;
+  const u = headRadius / 24;
+  // 2.5D: gövde kalınlığı konumları kamera derinliğiyle ölçeklenir.
+  const k = proj ? proj.view.scale * proj.proj(player.x, player.y, 0).d : 1;
+  const alpha = fxReadAlpha({
+    isSelf: hasViewer && (player.slot ?? player.index) === selfSlot,
+    hasViewer,
+  });
+
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  for (const player of players) {
-    if (!isWorldEntityVisible(player)) continue;
+  const bodyColor = player.color || UI_COLORS.crownRed;
 
-    const headRadius = player.radius || 24;
-    const u = headRadius / 24;
-
-    // Gövde kalınlığı kafa çapının ~%46/%31'i — kafa büyürken oranın
-    // incelmemesi için taban 14/9'dan 22/15'e çıkarıldı (2026-09 akort).
-    ctx.lineWidth = 22 * u;
-    ctx.strokeStyle = '#1A1A1A';
-    traceSnakePath(ctx, player);
+  // Gövde = projekte edilmiş SİLİNDİR (düz şerit değil). Eşmerkezli taramalar
+  // (silüet → taban → alt gölge → üst ışık → spekül) boru hacmi verir; hafif
+  // yukarı kaydırılan ışık şeritleri silindirin tepesini işaretler. Ardından
+  // gövde boyunca çapraz bantlar (yılan pulu hissi) çizilir.
+  const bodyPass = (widthU, offsetU, color) => {
+    ctx.save();
+    ctx.translate(0, offsetU * u * k);
+    ctx.lineWidth = widthU * u * k;
+    ctx.strokeStyle = color;
+    traceSnakePath(ctx, player, proj);
     ctx.stroke();
+    ctx.restore();
+  };
 
-    ctx.lineWidth = 15 * u;
-    ctx.strokeStyle = player.color || '#D84727';
-    traceSnakePath(ctx, player);
-    ctx.stroke();
+  bodyPass(23, 0, '#1A1A1A');                    // silüet
+  bodyPass(19, 0, bodyColor);                    // taban
+  bodyPass(17, 2.1, shade(bodyColor, -0.22));    // alt gölge (aşağı kaydır)
+  bodyPass(9, -3.0, shade(bodyColor, 0.30));     // üst ışık
+  bodyPass(3.4, -4.2, shade(bodyColor, 0.58));   // spekül
 
-    if (player.isBoost || player.boost) {
-      // Boost halesi altın dolgu 1.19:1 ile görünmezdi — koyu altın, aynı geometri.
+  // Bant deseni: gövde boyunca ~dört noktada bir çapraz pul bandı.
+  const bodyPts = snakeScreenPoints(player, proj);
+  if (bodyPts.length > 5) {
+    ctx.save();
+    ctx.strokeStyle = shade(bodyColor, -0.45);
+    ctx.globalAlpha = 0.7;
+    ctx.lineWidth = 2.2 * u * k;
+    ctx.lineCap = 'round';
+    const half = 8.6 * u * k;
+    for (let i = 2; i < bodyPts.length - 1; i += 4) {
+      const a = bodyPts[i - 1];
+      const b = bodyPts[i + 1];
+      const p = bodyPts[i];
+      let tx = b.x - a.x;
+      let ty = b.y - a.y;
+      const len = Math.hypot(tx, ty) || 1;
+      tx /= len;
+      ty /= len;
+      const nx = -ty;
+      const ny = tx;
+      ctx.beginPath();
+      ctx.moveTo(p.x + nx * half, p.y + ny * half);
+      ctx.lineTo(p.x - nx * half, p.y - ny * half);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  if (player.isBoost || player.boost) {
+    // Boost halesi altın dolgu 1.19:1 ile görünmezdi — koyu altın, aynı geometri.
+    if (proj) {
+      proj.groundRing(ctx, player.x, player.y, headRadius + 4 * u, UI_COLORS.hudAmber, Math.max(3, 8 * u * k));
+    } else {
       ctx.fillStyle = UI_COLORS.hudAmber;
       ctx.beginPath();
       ctx.arc(player.x, player.y, headRadius + 4 * u, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
 
-    if (finite(player.tongueTimer) && player.tongueTimer < 0.4) {
-      const tongueLength = 9 * u;
-      const tongueX = player.x + Math.cos(player.angle) * (headRadius + tongueLength);
-      const tongueY = player.y + Math.sin(player.angle) * (headRadius + tongueLength);
-      ctx.strokeStyle = '#D84727';
-      ctx.lineWidth = 2 * u;
-      ctx.beginPath();
-      ctx.moveTo(player.x + Math.cos(player.angle) * headRadius, player.y + Math.sin(player.angle) * headRadius);
-      ctx.lineTo(tongueX, tongueY);
-      ctx.stroke();
-    }
+  const expression = player.isBoost || player.boost
+    ? 'excited'
+    : (player.boostLocked || player.locked ? 'panic' : 'normal');
 
-    const expression = player.isBoost || player.boost
-      ? 'excited'
-      : (player.boostLocked || player.locked ? 'panic' : 'normal');
-
+  if (proj) {
+    // 2.5D: kafa tek projekte küre (BOMB ile aynı karakter dili).
+    drawGameAvatar25d(ctx, proj, player, {
+      x: player.x,
+      y: player.y,
+      radius: headRadius,
+      color: player.color || UI_COLORS.crownRed,
+      facingAngle: player.angle,
+      label: `P${(player.slot ?? player.index ?? 0) + 1}`,
+      expression,
+      alpha,
+    });
+  } else {
     drawGameAvatar(ctx, player.x, player.y, headRadius, player, {
-      color: player.color || '#D84727',
+      color: player.color || UI_COLORS.crownRed,
       avatar: player.avatar || null,
       slotIndex: player.slot ?? player.index ?? 0,
       facingAngle: player.angle,
@@ -322,24 +421,74 @@ export function drawSnakePlayers(ctx, players, now = 0, selfSlot = -1) {
       showPointer: true,
       borderWidth: 2.5 * u,
       shadowOffset: 2,
-      alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
+      alpha,
     });
+  }
 
-    // Boost enerjisi: ince çember (altın yay 1.19:1) yerine rozet.
-    // Kilitliyken BLOKE, doluyorken dolum barı. Kaynak 0-100 arası sayı.
-    const energy = player.boostEnergy ?? player.energy ?? 100;
-    if (energy < 98) {
-      const locked = !!(player.boostLocked || player.locked);
-      drawStatusChip(ctx, {
-        x: player.x,
-        y: player.y,
-        radius: headRadius,
-        scale: u,
-        icon: 'zap',
-        state: locked ? STATUS_STATE.BLOCKED : STATUS_STATE.CHARGING,
-        progress: Math.max(0, Math.min(1, energy / 100)),
-      });
-    }
+  // Çatal dil kafanın ÖNÜNDE (avatarın üstüne, yön tarafında): periyodik
+  // animasyonlu flick — `now` tabanlı olduğu için host+client aynı ritmi
+  // yakın verir (kozmetik §6); oyun içi `tongueTimer` (yem yiyince) tam açar.
+  const flickPhase = (now + (player.index ?? 0) * 470) % 1900;
+  let tongueExt = flickPhase < 340 ? Math.sin((flickPhase / 340) * Math.PI) : 0;
+  if (finite(player.tongueTimer) && player.tongueTimer < 0.4) tongueExt = 1;
+  if (tongueExt > 0.02) {
+    const baseR = headRadius * 0.9;
+    const len = (headRadius * 0.55 + 4 * u) * tongueExt;
+    const cosA = Math.cos(player.angle);
+    const sinA = Math.sin(player.angle);
+    const tipX = player.x + cosA * (baseR + len);
+    const tipY = player.y + sinA * (baseR + len);
+    const z = headRadius * 0.35;
+    const toScreen = (x, y) => (proj ? proj.proj(x, y, z) : { x, y });
+    const root = toScreen(player.x + cosA * baseR, player.y + sinA * baseR);
+    const tip = toScreen(tipX, tipY);
+    const prong = len * 0.55;
+    const left = toScreen(tipX + Math.cos(player.angle + 0.6) * prong, tipY + Math.sin(player.angle + 0.6) * prong);
+    const right = toScreen(tipX + Math.cos(player.angle - 0.6) * prong, tipY + Math.sin(player.angle - 0.6) * prong);
+    ctx.strokeStyle = UI_COLORS.crownRed;
+    ctx.lineWidth = Math.max(1.5, 1.8 * u * k);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(root.x, root.y);
+    ctx.lineTo(tip.x, tip.y);
+    ctx.moveTo(tip.x, tip.y);
+    ctx.lineTo(left.x, left.y);
+    ctx.moveTo(tip.x, tip.y);
+    ctx.lineTo(right.x, right.y);
+    ctx.stroke();
+  }
+
+  // Boost enerjisi: ince çember (altın yay 1.19:1) yerine rozet.
+  // Kilitliyken BLOKE, doluyorken dolum barı. Kaynak 0-100 arası sayı.
+  const energy = player.boostEnergy ?? player.energy ?? 100;
+  if (energy < 98) {
+    const locked = !!(player.boostLocked || player.locked);
+    const chip = proj ? proj.proj(player.x, player.y, headRadius) : { x: player.x, y: player.y };
+    drawStatusChip(ctx, {
+      x: chip.x,
+      y: chip.y,
+      radius: headRadius * k,
+      scale: u,
+      icon: 'zap',
+      state: locked ? STATUS_STATE.BLOCKED : STATUS_STATE.CHARGING,
+      progress: Math.max(0, Math.min(1, energy / 100)),
+    });
+  }
+}
+
+export function drawSnakePlayers(ctx, players, now = 0, selfSlot = -1, proj = null) {
+  // 3.3 okunurluk hiyerarşisi: tek görür varsa kendi avatarın T1, diğerleri T3
+  // (−%25); α yalnız fxKit'ten gelir, motor kendi α'sını uydurmaz.
+  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  for (const player of players) {
+    if (!isWorldEntityVisible(player)) continue;
+    sceneDraw(
+      ctx,
+      entitySceneY(player.y, player.radius || 24),
+      drawSnakePlayerItem,
+      { player, now, hasViewer, selfSlot, proj },
+      null,
+    );
   }
 }
 
@@ -349,8 +498,8 @@ export function drawSnakePlayers(ctx, players, now = 0, selfSlot = -1) {
  * @param {CanvasRenderingContext2D} ctx
  * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
  */
-export function drawSnakeFxLayer(ctx, layer) {
-  drawFxPops(ctx, layer?.pops);
-  drawFxRings(ctx, layer?.rings);
-  drawCircleParticles(ctx, layer?.particles);
+export function drawSnakeFxLayer(ctx, layer, proj = null) {
+  drawFxPops(ctx, layer?.pops, proj);
+  drawFxRings(ctx, layer?.rings, proj);
+  drawCircleParticles(ctx, layer?.particles, proj);
 }

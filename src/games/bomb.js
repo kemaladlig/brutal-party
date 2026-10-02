@@ -22,8 +22,8 @@ import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
-import { buildLayout } from '../core/arenaKit.js';
-import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
+import { buildLayout, sceneBegin, sceneEnd } from '../core/arenaKit.js';
+import { createProjector, makeTiltedProjector } from '../core/projection2d.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
@@ -40,6 +40,7 @@ import {
   drawBombPickups,
   drawBombPlayers,
   drawBombFxLayer,
+  bombThemeForMap,
 } from './bombView.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
@@ -99,6 +100,9 @@ export class BombGame extends BaseMiniGame {
     // Arena Maps & Obstacles
     this.selectedMapIndex = 0;
     this.pillars = [];
+
+    // 2.5D eğik kamera (host↔client aynı): arena + viewport'tan her karede kurulur.
+    this.proj = createProjector();
 
     // Slot types: 'empty' | 'human' | 'bot_normal' | 'bot_god'
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty']; // P1 Human, P2 Normal Bot default
@@ -843,14 +847,24 @@ this.targetScore = 2;
     const { ctx } = this;
     ctx.save();
 
-    // Sahanın dışı: arenanın etrafındaki masa. `fieldKit` tek sahibi — düz krem
-    // dolgu "bembeyaz ekran" hissinin en az yarısıydı. Sarsıntıdan etkilenmez.
-    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'BOMB' });
+    // 2.5D eğik kamera arena + viewport'tan türetilir; ONLINE client aynı
+    // `proj`'u aynı girdilerle kurar, sahne birebir eşleşir. Tema BOMB
+    // haritasına bağlıdır (`bombThemeForMap`); client paketteki `mapIndex`ten
+    // aynı temayı türetir. Masa zemini `drawField25d` içinde boyanır.
+    makeTiltedProjector(
+      this.viewport,
+      /** @type {any} */ (this.arena),
+      bombThemeForMap(this.selectedMapIndex),
+      this.proj,
+    );
 
     // Screen Shake (Trauma)
     this.applyScreenShake(ctx, 16);
 
     // Arena sahnesi ortak bombView draw'larından gelir (host↔client aynı).
+    // 2.5D derinlik penceresi: engel prizmaları ↔ pickup/oyuncular taban-Y'ye
+    // göre sıralanır; kuzeyde kalan oyuncuyu çatı örter.
+    sceneBegin();
     const carrierP = this.players[this.bombCarrierIndex];
     drawBombArena(ctx, this.arena, this.pillars, {
       carrier: carrierP && carrierP.isAlive
@@ -858,12 +872,10 @@ this.targetScore = 2;
         : null,
       bombTimer: this.bombTimer,
       bombMaxTime: this.bombMaxTime,
-      // Dekor raunt başına değişsin; seed `(BOMB, roundId)`'den deterministik
-      // türer, yani client paket almadan aynı saha dekorunu üretir.
-      seed: hashFieldSeed('BOMB', this.roundId),
+      proj: this.proj,
     });
-    drawBombInk(ctx, this.inkPuddles);
-    drawBombPickups(ctx, this.pickups);
+    drawBombInk(ctx, this.inkPuddles, this.proj);
+    drawBombPickups(ctx, this.pickups, this.proj);
     drawBombPlayers(ctx, this.players.map((p) => ({
       ...p,
       carrier: p.index === this.bombCarrierIndex,
@@ -879,10 +891,12 @@ this.targetScore = 2;
       now: this.lastTime,
       arena: this.arena,
       selfSlot: this.localControlSlot ?? -1,
+      proj: this.proj,
     });
-    drawBombBlast(ctx, this.blast, this.arena);
+    sceneEnd(ctx);
+    drawBombBlast(ctx, this.blast, this.arena, this.proj);
     // FX katmanı ortak bombView draw'ından gelir (host↔client aynı).
-    drawBombFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+    drawBombFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles }, this.proj);
     this.renderControls(ctx);
 
     // Host HUD: bomba geri sayımı (world-view client'ı kendi HUD'unu kullanır).

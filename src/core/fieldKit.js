@@ -26,6 +26,8 @@
 // `floor/grid/accent/motif` alanlarını korur.
 
 import { FIELD_DESIGN, fieldPx, fieldRadius } from './playfield.js';
+import { MAT_PATTERN, MAT_TEXTURE, TABLE_TEXTURE, paintSurfacePattern, paintTable25d, paintTiledTextureWorld, railMaterial, shade } from './projection2d.js';
+import { fieldTexture, fieldTextureGeneration } from './fieldTextures.js';
 
 // ---------------------------------------------------------------------------
 // Tema kayıt defteri
@@ -815,6 +817,18 @@ function paintFloorBase(ctx, w, h, u, palette) {
     ctx.fillRect(0, 0, w, h);
   }
 
+  // 4b. Stadyum projektörü (Tactile 2.5D): Arenanın merkezinde toplanan sıcak
+  //     stadyum ışığı radyal gradyanı — sahaya derinlik ve arcade odağı katar.
+  const cx = w * 0.5;
+  const cy = h * 0.48;
+  const spotR = Math.max(1, Math.hypot(cx, cy) * 0.72);
+  const spot = ctx.createRadialGradient(cx, cy, 0, cx, cy, spotR);
+  spot.addColorStop(0, rgba(palette.lightTint, 0.11));
+  spot.addColorStop(0.55, rgba(palette.lightTint, 0.035));
+  spot.addColorStop(1, TRANSPARENT_WHITE);
+  ctx.fillStyle = spot;
+  ctx.fillRect(0, 0, w, h);
+
   // 5. sol duvardan sekme gölgesi — sağ/alt bantlarıyla birlikte çerçeveyi
   //    "üstüne bindirilmiş bir dikdörtgen" olmaktan çıkarıp sahayı kuşatır.
   const bounce = Math.max(fieldPx({ unit: u }, 10), Math.min(w, h) * 0.05);
@@ -958,10 +972,7 @@ function textureTile(palette, u) {
   while (tileCache.size > MAX_TILE_ENTRIES) {
     const oldest = tileCache.keys().next().value;
     const entry = tileCache.get(oldest);
-    if (entry?.canvas) {
-      entry.canvas.width = 0;
-      entry.canvas.height = 0;
-    }
+    freeLayer(entry);
     tileCache.delete(oldest);
   }
   return canvas;
@@ -1179,23 +1190,47 @@ function appendRoundRect(ctx, x, y, w, h, r) {
  * yarıçap kadar aşabilir; bu yüzden yarıçap saha ölçeğiyle sınırlıdır
  * (telefonda ~7px) ve köşeyi okuyan oyunlar (PONG) plakalarını korur.
  */
+/**
+ * Tepsi kenarı: Kauçuk saha sınır tamponları (Tactile 2.5D — FAZ 3).
+ *
+ * Düz iç çizgi yerine 3 aşamalı fiziksel vinil/kauçuk tampon geometri katmanı:
+ * 1. Dolgun tampon gövdesi (evenodd halka dolgusu, ışık gradyanlı)
+ * 2. İç zemin temas gölgesi (tamponun sahaya düşürdüğü gölge)
+ * 3. Üst ışık pahı (üst/sol pahlı kenar ışıltısı)
+ */
 function paintTrayEdge(ctx, w, h, u, palette, r) {
-  const lw = Math.max(1.5, 2.4 * u);
+  const bw = Math.max(fieldPx({ unit: u }, 6), Math.min(15, 9.5 * u));
+  const innerX = bw;
+  const innerY = bw;
+  const innerW = Math.max(1, w - bw * 2);
+  const innerH = Math.max(1, h - bw * 2);
+  const innerR = Math.max(1, r - bw);
+
   ctx.save();
 
-  // İç gölge çizgisi — tepsi duvarı. Çizgi kenarın YARISINA oturur, kesimin
-  // dışına taşmaz.
-  ctx.strokeStyle = palette.edgeInk;
-  ctx.lineWidth = lw;
+  // 1. Dolgun tampon gövdesi (Chunky Padded Bumper)
   ctx.beginPath();
-  appendRoundRect(ctx, lw / 2, lw / 2, Math.max(1, w - lw), Math.max(1, h - lw), Math.max(1, r - lw / 2));
+  appendRoundRect(ctx, 0, 0, w, h, r);
+  appendRoundRect(ctx, innerX, innerY, innerW, innerH, innerR);
+  const bumperGrad = ctx.createLinearGradient(0, 0, w * 0.4, h);
+  bumperGrad.addColorStop(0, rgba(palette.edgeTint, 0.07));
+  bumperGrad.addColorStop(1, rgba(palette.edgeTint, 0.17));
+  ctx.fillStyle = bumperGrad;
+  ctx.fill('evenodd');
+
+  // 2. Tamponun sahaya düşen iç temas gölgesi
+  const shadowW = Math.max(1.5, 2.2 * u);
+  ctx.strokeStyle = rgba(palette.edgeTint, 0.20);
+  ctx.lineWidth = shadowW;
+  ctx.beginPath();
+  appendRoundRect(ctx, innerX + shadowW * 0.4, innerY + shadowW * 0.4, Math.max(1, innerW - shadowW * 0.8), Math.max(1, innerH - shadowW * 0.8), Math.max(1, innerR - shadowW * 0.4));
   ctx.stroke();
 
-  // Işık çizgisi — pahlı kenar. Birkaç px içeride, çok daha ince.
+  // 3. Pahlı üst ışık kenarı (Top Bevel Highlight Rim)
   ctx.strokeStyle = palette.edgeLight;
   ctx.lineWidth = Math.max(1, 1.2 * u);
   ctx.beginPath();
-  appendRoundRect(ctx, lw * 1.6, lw * 1.6, Math.max(1, w - lw * 3.2), Math.max(1, h - lw * 3.2), Math.max(1, r - lw * 1.6));
+  appendRoundRect(ctx, innerX, innerY, innerW, innerH, innerR);
   ctx.stroke();
 
   ctx.restore();
@@ -1520,10 +1555,7 @@ export function paintBackdrop(ctx, viewport, arena, opts = {}) {
   while (backdropCache.size > MAX_BACKDROP_ENTRIES) {
     const oldest = backdropCache.keys().next().value;
     const entry = backdropCache.get(oldest);
-    if (entry?.canvas) {
-      entry.canvas.width = 0;
-      entry.canvas.height = 0;
-    }
+    freeLayer(entry);
     backdropCache.delete(oldest);
   }
   ctx.drawImage(layer, 0, 0, w, h);
@@ -1635,15 +1667,18 @@ function createLayerCanvas() {
   }
 }
 
+/** Offscreen katman backing store'unu serbest bırakır (mobil bellek). */
+function freeLayer(entry) {
+  if (!entry || !entry.canvas) return;
+  entry.canvas.width = 0;
+  entry.canvas.height = 0;
+}
+
 function evictIfNeeded() {
   while (layerCache.size > MAX_LAYER_ENTRIES) {
     const oldest = layerCache.keys().next().value;
-    const entry = layerCache.get(oldest);
     // Backing store'u serbest bırak (mobil bellek).
-    if (entry?.canvas) {
-      entry.canvas.width = 0;
-      entry.canvas.height = 0;
-    }
+    freeLayer(layerCache.get(oldest));
     layerCache.delete(oldest);
   }
 }
@@ -1731,23 +1766,435 @@ export function drawField(ctx, arena, opts = {}) {
 
 /** Oyun değişimi / bellek baskısı: tüm bake'leri serbest bırakır. */
 export function releaseFieldLayers() {
-  for (const entry of layerCache.values()) {
-    if (entry?.canvas) {
-      entry.canvas.width = 0;
-      entry.canvas.height = 0;
-    }
-  }
+  for (const entry of layerCache.values()) freeLayer(entry);
   layerCache.clear();
+  releaseCaches(field25dCache);
   releaseCaches(tileCache);
   releaseCaches(backdropCache);
 }
 
 function releaseCaches(cache) {
-  for (const entry of cache.values()) {
-    if (entry?.canvas) {
-      entry.canvas.width = 0;
-      entry.canvas.height = 0;
+  for (const entry of cache.values()) freeLayer(entry);
+  cache.clear();
+}
+
+// ---------------------------------------------------------------------------
+// 2.5D EĞİK SAHA (opsiyonel) — BOMB dönüşümü
+// ---------------------------------------------------------------------------
+// Tepeden bakış `drawField`'in eğik kamerayla çizilen kardeşi; aynı sahip
+// (fieldKit). Simülasyona dokunmaz — yalnız `arena` kutusunu projeksiyonla
+// çizer. Kenar tamponları DERİNLİK sırasına girdiği için çağıran onları
+// `drawFieldRail` ile sahne kuyruğuna ekler (kuzey/batı arka, güney/doğu ön).
+
+/**
+ * Eğik sahayı çizer: tema masası + tepsi + mat + ızgara + dikiş + merkez
+ * halkaları. Renkler `proj.theme`'den gelir (harita→tema eşlemesi motorunda).
+ * 2D saha gibi PİŞİRİLİR: (view, tema, arena, tilt, doku nesli) başına sabittir,
+ * kare başına yalnız `drawImage`. Kenar tamponları bilinçli olarak bake DIŞINDADIR
+ * — derinlik kuyruğunda engel/oyuncuyla sıralanırlar (kuzey/batı arka, güney/doğu ön).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {any} proj - `core/projection2d.js` Projector
+ * @param {any} arena - FieldGeometry
+ */
+const field25dCache = new Map();
+
+function evict25dIfNeeded() {
+  while (field25dCache.size > MAX_LAYER_ENTRIES) {
+    const oldest = field25dCache.keys().next().value;
+    freeLayer(field25dCache.get(oldest));
+    field25dCache.delete(oldest);
+  }
+}
+
+export function drawField25d(ctx, proj, arena) {
+  if (!ctx || !proj || !arena) return;
+  const view = proj.view;
+  const width = Number(view && view.w) || 0;
+  const height = Number(view && view.h) || 0;
+  if (width <= 0 || height <= 0) { paintField25dLayer(ctx, proj, arena); return; }
+
+  const box = { left: 0, top: 0, width, height };
+  const scale = layerScale(ctx, box);
+  const key = [
+    '25d', proj.themeName,
+    quantize2(width), quantize2(height),
+    quantize2(arena.left), quantize2(arena.top), quantize2(arena.right), quantize2(arena.bottom),
+    Number(proj.tilt).toFixed(3), Number(proj.railW).toFixed(1),
+    scale.toFixed(2), fieldTextureGeneration(),
+  ].join('|');
+
+  const cached = field25dCache.get(key);
+  if (cached) {
+    field25dCache.delete(key);
+    field25dCache.set(key, cached);
+    fieldLayerStats.blits += 1;
+    ctx.drawImage(cached.canvas, 0, 0, width, height);
+    return;
+  }
+
+  const layer = createLayerCanvas();
+  if (!layer) { fieldLayerStats.fallbacks += 1; paintField25dLayer(ctx, proj, arena); return; }
+  layer.width = Math.max(1, Math.round(width * scale));
+  layer.height = Math.max(1, Math.round(height * scale));
+  layer.__fieldRole = 'layer-25d';
+  const lctx = layer.getContext('2d');
+  if (!lctx) { fieldLayerStats.fallbacks += 1; paintField25dLayer(ctx, proj, arena); return; }
+  lctx.setTransform(scale, 0, 0, scale, 0, 0);
+  paintField25dLayer(lctx, proj, arena);
+  fieldLayerStats.bakes += 1;
+  field25dCache.set(key, { canvas: layer });
+  evict25dIfNeeded();
+  ctx.drawImage(layer, 0, 0, width, height);
+}
+
+function paintField25dLayer(ctx, proj, arena) {
+  const T = proj.theme;
+  paintTable25d(ctx, proj.view, T, proj.themeName, proj.tilt);
+  const railW = proj.railW;
+  const { left, top, right, bottom, cx, cy } = arena;
+  const size = arena.size || Math.min(arena.width, arena.height);
+  const p = proj.proj;
+
+  const matLight = shade(T.mat, 0.10);
+  const matDark = shade(T.mat, -0.13);
+  const tileTone = shade(T.mat, -0.06);
+  const edgeTone = T.matEdge || shade(T.mat, -0.18);
+  const castTone = shade(T.table, -0.5);
+  const step = Math.max(70, size / 7);
+
+  // 0. Tepsi gölgesi — masaya düşer, tahtayı yüzeyden kaldırır (katmanlı = yumuşak).
+  const off = Math.max(6, size * 0.022);
+  ctx.save();
+  ctx.fillStyle = castTone;
+  for (let k = 0; k < 3; k += 1) {
+    const grow = railW + off * (0.5 + k * 0.5);
+    const dx = off * (1 + k * 0.35);
+    ctx.globalAlpha = 0.07 - k * 0.015;
+    proj.quad(ctx,
+      p(left - grow + dx, top - grow + dx), p(right + grow + dx, top - grow + dx),
+      p(right + grow + dx, bottom + grow + dx), p(left - grow + dx, bottom + grow + dx), castTone);
+  }
+  ctx.restore();
+
+  // 1. Tepsi (mat'ın çevresi) + vinil mat.
+  proj.quad(ctx,
+    p(left - railW, top - railW), p(right + railW, top - railW),
+    p(right + railW, bottom + railW), p(left - railW, bottom + railW), T.tray);
+  proj.quad(ctx, p(left, top), p(right, top), p(right, bottom), p(left, bottom), T.mat);
+
+  // 2. Mat içi — yönlü ışık + dama, mat'a kırpılır.
+  const tl = p(left, top);
+  const tr = p(right, top);
+  const br = p(right, bottom);
+  const bl = p(left, bottom);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(tl.x, tl.y);
+  ctx.lineTo(tr.x, tr.y);
+  ctx.lineTo(br.x, br.y);
+  ctx.lineTo(bl.x, bl.y);
+  ctx.closePath();
+  ctx.clip();
+
+  const gn = p(cx, top);
+  const gs = p(cx, bottom);
+  const lg = ctx.createLinearGradient(gn.x, gn.y, gs.x, gs.y);
+  lg.addColorStop(0, matLight);
+  lg.addColorStop(1, matDark);
+  const matImg = fieldTexture(MAT_TEXTURE[proj.themeName]);
+  if (matImg) {
+    // Gerçek doku: dünya-uzayı döşenir + temaya renklendirilir; yönlü ışık
+    // yarı saydam katman olarak üstüne biner.
+    paintTiledTextureWorld(ctx, matImg, proj, left, top, right, bottom, T.mat, Math.max(80, size * 0.3));
+    ctx.save();
+    ctx.globalAlpha = 0.32;
+    ctx.fillStyle = lg;
+    ctx.fill();
+    ctx.restore();
+  } else {
+    // Prosedürel yol: yönlü ışık dolgusu + desen/dama.
+    ctx.fillStyle = lg;
+    ctx.fill();
+    const matKind = MAT_PATTERN[proj.themeName] || 'weave';
+    if (matKind === 'grid') {
+      let ix = 0;
+      for (let gx = left; gx < right; gx += step) {
+        let iy = 0;
+        const nx = Math.min(gx + step, right);
+        for (let gy = top; gy < bottom; gy += step) {
+          if (((ix + iy) & 1) === 1) {
+            const ny = Math.min(gy + step, bottom);
+            proj.quad(ctx, p(gx, gy), p(nx, gy), p(nx, ny), p(gx, ny), tileTone);
+          }
+          iy += 1;
+        }
+        ix += 1;
+      }
+    } else {
+      ctx.save();
+      ctx.globalAlpha = 0.45;
+      paintSurfacePattern(ctx, matKind, left, top, right, bottom, p,
+        arena.unit || size / 18, matDark, matLight);
+      ctx.restore();
     }
   }
-  cache.clear();
+  ctx.restore();
+
+  // 3. Izgara (dama dikişleri).
+  for (let gx = left + step; gx < right; gx += step) {
+    proj.strokePoly(ctx, [p(gx, top), p(gx, bottom)], T.stitch, 1.5, false);
+  }
+  for (let gy = top + step; gy < bottom; gy += step) {
+    proj.strokePoly(ctx, [p(left, gy), p(right, gy)], T.stitch, 1.5, false);
+  }
+
+  // 4. İç gölge (AO): mat kenarını içeriden toplar, tahta kalınlığı okunur.
+  const ao = Math.max(6, size * 0.012);
+  proj.strokePoly(ctx, [
+    p(left + ao, top + ao), p(right - ao, top + ao),
+    p(right - ao, bottom - ao), p(left + ao, bottom - ao),
+  ], matDark, Math.max(6, size * 0.014), true);
+
+  // 5. Dikişli çerçeve + mat kenarı.
+  const inset = Math.max(10, size * 0.02);
+  ctx.save();
+  ctx.setLineDash([10, 8]);
+  proj.strokePoly(ctx, [
+    p(left + inset, top + inset), p(right - inset, top + inset),
+    p(right - inset, bottom - inset), p(left + inset, bottom - inset),
+  ], T.stitch, 2.5);
+  ctx.restore();
+  proj.strokePoly(ctx, [p(left, top), p(right, top), p(right, bottom), p(left, bottom)], edgeTone, 2);
+
+  // 6. Merkez amblemi + halkalar — odak noktası.
+  proj.groundEllipse(ctx, cx, cy, size * 0.055, shade(T.mat, -0.07));
+  proj.groundRing(ctx, cx, cy, size * 0.055, edgeTone, 2);
+  const cr = size * 0.028;
+  proj.strokePoly(ctx, [
+    p(cx, cy - cr), p(cx + cr, cy), p(cx, cy + cr), p(cx - cr, cy),
+  ], T.stitch, 2, true);
+  proj.groundRing(ctx, cx, cy, size * 0.16, T.stitch, 2);
+  proj.groundRing(ctx, cx, cy, size * 0.10, T.stitch, 2);
+}
+
+/**
+ * Kenar tamponunun ÜST yüzey detayı: panel dikişleri, sahaya bakan iç kenarda
+ * aksan şeridi + pah ışığı ve cıvata dizisi. Düz prizmayı "kalıplanmış" bir
+ * kenara çevirir. Tamamen deterministiktir (hash/rastgele/zaman yok), renkler
+ * `pal`'den türetilir — yeni literal yok.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {any} proj
+ * @param {any} arena
+ * @param {'north'|'east'|'south'|'west'} side
+ * @param {{ top: string, front: string, side: string }} pal
+ */
+function drawRailDetail(ctx, proj, arena, side, pal) {
+  const rw = proj.railW;
+  const rh = proj.railH;
+  const { left, top, right, bottom } = arena;
+  const p = proj.proj;
+  const vs = proj.view.scale;
+  let x0 = 0;
+  let y0 = 0;
+  let w = 0;
+  let d = 0;
+  if (side === 'north') { x0 = left - rw; y0 = top - rw; w = arena.width + rw * 2; d = rw; }
+  else if (side === 'south') { x0 = left - rw; y0 = bottom; w = arena.width + rw * 2; d = rw; }
+  else if (side === 'west') { x0 = left - rw; y0 = top; w = rw; d = arena.height; }
+  else { x0 = right; y0 = top; w = rw; d = arena.height; }
+  const horizontal = w > d;
+
+  // 0. Görünen yan yüz: üstten ışık gradyanı + kontur. Düz renk bandını
+  //    hacimli bir kenara çevirir (drawPrism'in ink konturu üstüne binmesin
+  //    diye önce boyanır, sonra kontur yeniden çizilir).
+  let face;
+  if (side === 'north') face = [p(x0, top, rh), p(x0 + w, top, rh), p(x0 + w, top, 0), p(x0, top, 0)];
+  else if (side === 'south') face = [p(x0, y0 + d, rh), p(x0 + w, y0 + d, rh), p(x0 + w, y0 + d, 0), p(x0, y0 + d, 0)];
+  else if (side === 'west') face = [p(x0, y0, rh), p(x0, y0, 0), p(x0, y0 + d, 0), p(x0, y0 + d, rh)];
+  else face = [p(x0, y0, rh), p(x0, y0, 0), p(x0, y0 + d, 0), p(x0, y0 + d, rh)];
+  const fy = face.map((q) => q.y);
+  const fg = ctx.createLinearGradient(0, Math.min(...fy), 0, Math.max(...fy));
+  fg.addColorStop(0, shade(pal.front, 0.16));
+  fg.addColorStop(0.55, pal.front);
+  fg.addColorStop(1, shade(pal.front, -0.34));
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(face[0].x, face[0].y);
+  for (let i = 1; i < face.length; i += 1) ctx.lineTo(face[i].x, face[i].y);
+  ctx.closePath();
+  ctx.fillStyle = fg;
+  ctx.fill();
+  ctx.restore();
+  ctx.beginPath();
+  ctx.moveTo(face[0].x, face[0].y);
+  for (let i = 1; i < face.length; i += 1) ctx.lineTo(face[i].x, face[i].y);
+  ctx.closePath();
+  ctx.strokeStyle = shade(pal.front, -0.6);
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // 0b. Üst yüz dokusu (varsa): kenar da masa malzemesini taşısın — düz şerit
+  //     yerine gerçek yüzey. Dikiş/aksan/cıvata bunun üstüne biner.
+  const railTex = fieldTexture(TABLE_TEXTURE[proj.themeName]);
+  if (railTex) {
+    paintTiledTextureWorld(ctx, railTex, proj, x0, y0, x0 + w, y0 + d, pal.top, Math.max(48, rw * 2.6), rh);
+  }
+
+  const unit = arena.unit || Math.min(arena.width, arena.height) / 18;
+  const seg = Math.max(rw * 1.8, unit * 3.2);
+  const inset = rw * 0.36;
+  const seam = shade(pal.top, -0.26);
+  const accent = shade(pal.front, 0.30);
+  const bevel = shade(pal.top, 0.34);
+  const bolt = shade(pal.top, 0.20);
+  const boltEdge = shade(pal.top, -0.34);
+
+  ctx.save();
+  ctx.lineCap = 'round';
+
+  // 1. Panel dikişleri: üst yüzeyi eşit parçalara böler.
+  ctx.strokeStyle = seam;
+  ctx.lineWidth = Math.max(1.1, rw * 0.06);
+  if (horizontal) {
+    for (let x = x0 + seg; x < x0 + w - 0.5; x += seg) {
+      const a = p(x, y0, rh);
+      const b = p(x, y0 + d, rh);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+  } else {
+    for (let y = y0 + seg; y < y0 + d - 0.5; y += seg) {
+      const a = p(x0, y, rh);
+      const b = p(x0 + w, y, rh);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+  }
+
+  // 2. Aksan şeridi: sahaya bakan iç kenara paralel, temaya bağlı ince renk.
+  const ax = side === 'west' ? x0 + w - inset : side === 'east' ? x0 + inset : 0;
+  const ay = side === 'north' ? y0 + d - inset : side === 'south' ? y0 + inset : 0;
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = Math.max(1.4, rw * 0.16);
+  ctx.beginPath();
+  if (horizontal) {
+    const a = p(x0 + rw * 0.2, ay, rh + 0.01);
+    const b = p(x0 + w - rw * 0.2, ay, rh + 0.01);
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+  } else {
+    const a = p(ax, y0 + rw * 0.2, rh + 0.01);
+    const b = p(ax, y0 + d - rw * 0.2, rh + 0.01);
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+  }
+  ctx.stroke();
+
+  // 3. Pah ışığı: aksan şeridinin dışında ince açık çizgi (üst yüzey eğimi).
+  ctx.strokeStyle = bevel;
+  ctx.lineWidth = Math.max(1, rw * 0.07);
+  if (horizontal) {
+    const by = side === 'north' ? y0 + d * 0.12 : y0 + d * 0.88;
+    const a = p(x0, by, rh + 0.01);
+    const b = p(x0 + w, by, rh + 0.01);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  } else {
+    const bx = side === 'west' ? x0 + w * 0.12 : x0 + w * 0.88;
+    const a = p(bx, y0, rh + 0.01);
+    const b = p(bx, y0 + d, rh + 0.01);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+
+  // 4. Cıvatalar: aksan şeridi üzerinde eşit aralıklı, üst yüzeye yatık elips.
+  const r = rw * 0.15;
+  ctx.fillStyle = bolt;
+  ctx.strokeStyle = boltEdge;
+  ctx.lineWidth = 1.4;
+  const boltStep = seg;
+  if (horizontal) {
+    for (let x = x0 + seg * 0.5; x < x0 + w - 0.5; x += boltStep) {
+      const q = p(x, ay, rh + 0.02);
+      const rr = r * vs * q.d;
+      ctx.beginPath();
+      ctx.ellipse(q.x, q.y, rr, rr * proj.tilt, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  } else {
+    for (let y = y0 + seg * 0.5; y < y0 + d - 0.5; y += boltStep) {
+      const q = p(ax, y, rh + 0.02);
+      const rr = r * vs * q.d;
+      ctx.beginPath();
+      ctx.ellipse(q.x, q.y, rr, rr * proj.tilt, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Köşe başlığı: iki kenarın birleştiği yerde prizma uçları üst üste biner ve
+ * biçimsiz bir renk bloğu bırakırdı. Ray genişliği kadar kare, hafif yüksek bir
+ * başlık + üstte tek cıvata bunu "kalıplanmış köşe"ye çevirir. Her kenar kendi
+ * iki ucuna başlık basar; derinlik sırasında en son çizilen (ön) kenar kazanır.
+ */
+function drawRailCap(ctx, proj, x, y, pal) {
+  const rw = proj.railW;
+  const rh = proj.railH * 1.08;
+  const cap = { top: shade(pal.top, 0.14), front: shade(pal.front, 0.05), side: shade(pal.side, 0.05) };
+  proj.drawPrism(ctx, x, y, rw, rw, rh, cap);
+  const q = proj.proj(x + rw / 2, y + rw / 2, rh);
+  const rr = rw * 0.15 * proj.view.scale * q.d;
+  ctx.beginPath();
+  ctx.fillStyle = shade(pal.top, 0.22);
+  ctx.strokeStyle = shade(pal.top, -0.34);
+  ctx.lineWidth = 1.4;
+  ctx.ellipse(q.x, q.y, rr, rr * proj.tilt, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+}
+
+/**
+ * Tek kenar tamponunu çizer. Sahne kuyruğuna `sceneDraw(ctx, baseY, drawFieldRail,
+ * proj, { arena, side })` ile eklenir; taban-y sırası kuzey/batıyı arkaya,
+ * güney/doğuyu öne düşürür. Prizmanın ardından üst yüzeye panel/cıvata detayı
+ * eklenir (`drawRailDetail`), böylece kenar düz bir şerit gibi okunmaz.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {any} proj - Projector
+ * @param {{ arena: any, side: 'north'|'east'|'south'|'west' }} opts
+ */
+export function drawFieldRail(ctx, proj, opts) {
+  const { arena, side } = opts;
+  const railW = proj.railW;
+  const railH = proj.railH;
+  const { left, top, right, bottom } = arena;
+  const pal = railMaterial(proj.theme, side);
+  if (side === 'north') proj.drawPrism(ctx, left - railW, top - railW, arena.width + railW * 2, railW, railH, pal);
+  else if (side === 'south') proj.drawPrism(ctx, left - railW, bottom, arena.width + railW * 2, railW, railH, pal);
+  else if (side === 'west') proj.drawPrism(ctx, left - railW, top, railW, arena.height, railH, pal);
+  else proj.drawPrism(ctx, right, top, railW, arena.height, railH, pal);
+  drawRailDetail(ctx, proj, arena, side, pal);
+  if (side === 'north') { drawRailCap(ctx, proj, left - railW, top - railW, pal); drawRailCap(ctx, proj, right, top - railW, pal); }
+  else if (side === 'south') { drawRailCap(ctx, proj, left - railW, bottom, pal); drawRailCap(ctx, proj, right, bottom, pal); }
+  else if (side === 'west') { drawRailCap(ctx, proj, left - railW, top - railW, pal); drawRailCap(ctx, proj, left - railW, bottom, pal); }
+  else { drawRailCap(ctx, proj, right, top - railW, pal); drawRailCap(ctx, proj, right, bottom, pal); }
+}
+
+/** Kenar tamponunun derinlik anahtarı (taban-y). */
+export function fieldRailBaseY(arena, side) {
+  if (side === 'north' || side === 'west') return arena.top - 1;
+  return arena.bottom;
 }

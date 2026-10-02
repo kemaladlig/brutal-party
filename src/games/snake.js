@@ -7,13 +7,15 @@ import { t } from '../i18n.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { updateSnakeBotAI } from '../ai/snakeAI.js';
-import { paintBackdrop } from '../core/fieldKit.js';
+import { makeTiltedProjector, createProjector } from '../core/projection2d.js';
+import { sceneBegin, sceneEnd } from '../core/arenaKit.js';
 import {
   createSnakeWorldPacket,
   drawSnakeArena,
   drawSnakeFoods,
   drawSnakeFxLayer,
   drawSnakePlayers,
+  SNAKE_THEME_25D,
 } from './snakeView.js';
 import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
@@ -144,6 +146,10 @@ this.targetScore = 2;
     this.matchDraw = false;
     this.roundResolutionReason = null;
     this._worldSeq = 0;
+    // 2.5D eğik kamera: host her karede arena/viewport'a göre yeniden sığdırır
+    // (BOMB ile aynı desen). ONLINE client aynı `SNAKE_THEME_25D` + arena'dan
+    // kurar; sahne birebir eşleşir.
+    this.proj = createProjector();
 
     // İz sorgu ızgarası (hücre → segment referansları) + sorgu damgası
     this.segGrid = new Map();
@@ -804,19 +810,24 @@ this.targetScore = 2;
     const { ctx } = this;
     const now = performance.now();
     ctx.save();
-    // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
-    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'SNAKE' });
+    // 2.5D eğik kamera arena + viewport'tan türetilir; ONLINE client AYNI
+    // girdilerle aynı `proj`'u kurar, sahne birebir eşleşir. Masa zemini
+    // `drawField25d` içinde boyanır, bu yüzden `paintBackdrop` çizilmez.
+    makeTiltedProjector(this.viewport, this.arena, SNAKE_THEME_25D, this.proj);
     this.applyScreenShake(ctx);
 
-    drawSnakeArena(ctx, this.arena, this.walls, { roundId: this.roundId });
+    // 2.5D derinlik penceresi: kenar/engel/yem/oyuncu taban-Y'ye göre sıralanır.
+    sceneBegin();
+    drawSnakeArena(ctx, this.arena, this.walls, { roundId: this.roundId, proj: this.proj });
 
     // masa-ortası kontrolleri sahnenin üstünde, varlıkların altında kalır.
     this.uiButtons = [];
     this.renderControls(ctx, { extraEntities: this.foods });
-    drawSnakeFoods(ctx, this.foods, now);
-    drawSnakePlayers(ctx, this.players, now, this.localControlSlot ?? -1);
+    drawSnakeFoods(ctx, this.foods, now, this.proj);
+    drawSnakePlayers(ctx, this.players, now, this.localControlSlot ?? -1, this.proj);
+    sceneEnd(ctx);
     // FX katmanı ortak snakeView draw'ından gelir (host↔client aynı).
-    drawSnakeFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+    drawSnakeFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles }, this.proj);
 
     this.renderHUD(ctx, {
       guideTitle: t('guide.snake'),

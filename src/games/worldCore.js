@@ -4,6 +4,7 @@
 // Client asla simülasyon/AI import etmez; burası salt serializer/validator + saf canvas draw'dır.
 
 import { UI_COLORS } from '../ui/tokens.js';
+import { drawScorchDecal } from '../core/arenaKit.js';
 
 export const round1 = (v) => Math.round(Number(v) * 10) / 10;
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -136,12 +137,47 @@ export function isValidBlast(blast) {
  * Patlamanın tüm görsel katmanı: saha flaşı → beyaz çekirdek → iki şok halkası
  * → is yüzüğü. Saf draw (host ve world-view client aynı çizer), `t` geçen süre.
  */
-export function drawBlast(ctx, blast, arena) {
+export function drawBlast(ctx, blast, arena, proj = null) {
   if (!blast || !finite(blast.t)) return;
   const u = Number(arena?.unit) > 0 ? arena.unit : 1;
   const max = Math.max(0.001, Number(blast.max) || 1);
   const p = Math.max(0, Math.min(1, (Number(blast.t) || 0) / max));
   const { x, y } = blast;
+
+  // 2.5D: eğik kamerada patlama zemine projekte edilir (BOMB dönüşümü).
+  if (proj) {
+    ctx.save();
+    const flash = Math.max(0, 1 - p / 0.2);
+    if (flash > 0 && arena) {
+      ctx.globalAlpha = flash * 0.55;
+      const a = arena;
+      proj.quad(ctx,
+        proj.proj(a.left, a.top), proj.proj(a.right, a.top),
+        proj.proj(a.right, a.bottom), proj.proj(a.left, a.bottom), UI_COLORS.blastFlash);
+      ctx.globalAlpha = 1;
+    }
+    proj.groundEllipse(ctx, x, y, 30 * u, UI_COLORS.inkDark, Math.max(0, 1 - p * 0.75) * 0.5);
+    const rings = [
+      { from: 0.0, to: 0.72, r0: 10, r1: 96, w: 7, color: UI_COLORS.inkDark },
+      { from: 0.12, to: 1.0, r0: 6, r1: 62, w: 5, color: UI_COLORS.crownRed },
+    ];
+    for (const ring of rings) {
+      const local = (p - ring.from) / (ring.to - ring.from);
+      if (local <= 0 || local >= 1) continue;
+      const eased = 1 - Math.pow(1 - local, 2.2);
+      ctx.globalAlpha = (1 - local) * 0.85;
+      proj.groundRing(ctx, x, y, (ring.r0 + (ring.r1 - ring.r0) * eased) * u, ring.color,
+        Math.max(1, ring.w * u * (1 - local * 0.5)));
+    }
+    ctx.globalAlpha = 1;
+    const core = Math.max(0, 1 - p / 0.25);
+    if (core > 0) {
+      proj.groundEllipse(ctx, x, y, (10 + 26 * core) * u, UI_COLORS.white, core);
+      proj.groundEllipse(ctx, x, y, (20 + 40 * core) * u, UI_COLORS.blastSpark, core * 0.5);
+    }
+    ctx.restore();
+    return;
+  }
 
   ctx.save();
 
@@ -154,14 +190,9 @@ export function drawBlast(ctx, blast, arena) {
     ctx.globalAlpha = 1;
   }
 
-  // 2) İçten çevreye: koyu is yüzüğü (patlama ömrü boyunca solar).
+  // 2) İçten çevreye: Tactile 2.5D zemin is/yanık izi (patlama ömrü boyunca solar).
   const scorch = Math.max(0, 1 - p * 0.75);
-  ctx.globalAlpha = 0.30 * scorch;
-  ctx.fillStyle = UI_COLORS.inkDark;
-  ctx.beginPath();
-  ctx.ellipse(x, y, 30 * u, 24 * u, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
+  drawScorchDecal(ctx, x, y, 30 * u, scorch);
 
   // 3) Şok halkaları: biri koyu ve geniş, biri kırmızı ve gecikmeli.
   const rings = [
@@ -280,27 +311,39 @@ export function isValidWorldBase(frame, mode, { checkPlayer = null, checkExtra =
   }
 }
 /** Daire partikül draw'u (NINJA konvansiyonu; host↔client aynı). */
-export function drawCircleParticles(ctx, particles) {
+export function drawCircleParticles(ctx, particles, proj = null) {
   for (const part of particles || []) {
     ctx.save();
     const denom = Number(part.maxLife) || 0;
     ctx.globalAlpha = Math.max(0, Math.min(1, denom > 0 ? part.life / denom : 0));
     ctx.fillStyle = part.color || UI_COLORS.inkDark;
+    const base = Number(part.size ?? part.radius) || 3;
     ctx.beginPath();
-    ctx.arc(part.x, part.y, Number(part.size ?? part.radius) || 3, 0, Math.PI * 2);
+    if (proj) {
+      const sp = proj.proj(part.x, part.y, 0);
+      ctx.arc(sp.x, sp.y, Math.max(1, base * proj.view.scale * sp.d), 0, Math.PI * 2);
+    } else {
+      ctx.arc(part.x, part.y, base, 0, Math.PI * 2);
+    }
     ctx.fill();
     ctx.restore();
   }
 }
 /** Kare partikül draw'u (BOMB/HEIST/TANKS ortak; host↔client aynı). */
-export function drawSquareParticles(ctx, particles) {
+export function drawSquareParticles(ctx, particles, proj = null) {
   for (const part of particles || []) {
     ctx.save();
     const denom = Number(part.maxLife) || 0;
     ctx.globalAlpha = Math.max(0, Math.min(1, denom > 0 ? part.life / denom : 0));
     ctx.fillStyle = part.color || UI_COLORS.inkDark;
     const s = Number(part.size) || 3;
-    ctx.fillRect(part.x - s / 2, part.y - s / 2, s, s);
+    if (proj) {
+      const sp = proj.proj(part.x, part.y, 0);
+      const sz = Math.max(1, s * proj.view.scale * sp.d);
+      ctx.fillRect(sp.x - sz / 2, sp.y - sz / 2, sz, sz);
+    } else {
+      ctx.fillRect(part.x - s / 2, part.y - s / 2, s, s);
+    }
     ctx.restore();
   }
 }
@@ -309,7 +352,7 @@ export function drawSquareParticles(ctx, particles) {
  * Halka saftır: yarıçap life/maxLife ile r0→r1 arasında türetilir, alpha
  * life'tan söner — snapshot üzerinden yeniden üretilebilir (§2 client çizimi).
  */
-export function drawFxRings(ctx, rings) {
+export function drawFxRings(ctx, rings, proj = null) {
   for (const ring of rings || []) {
     const denom = Number(ring.maxLife) || 0;
     if (denom <= 0) continue;
@@ -318,11 +361,17 @@ export function drawFxRings(ctx, rings) {
     if (radius <= 0) continue;
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, ring.life / denom)) * 0.85;
-    ctx.strokeStyle = ring.color || UI_COLORS.inkDark;
-    ctx.lineWidth = Math.max(1, Number(ring.width) || 2);
-    ctx.beginPath();
-    ctx.arc(ring.x, ring.y, radius, 0, Math.PI * 2);
-    ctx.stroke();
+    const color = ring.color || UI_COLORS.inkDark;
+    const width = Math.max(1, Number(ring.width) || 2);
+    if (proj) {
+      proj.groundRing(ctx, ring.x, ring.y, radius, color, width);
+    } else {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 }
@@ -330,7 +379,7 @@ export function drawFxRings(ctx, rings) {
  * Ölüm pop'u draw'u (fxKit KILL kanalı; host↔client aynı). Gölge %100→%170
  * büyür, life'tan söner; silinen varlığın "bir anda yok olma" hissini keser.
  */
-export function drawFxPops(ctx, pops) {
+export function drawFxPops(ctx, pops, proj = null) {
   for (const pop of pops || []) {
     const denom = Number(pop.maxLife) || 0;
     if (denom <= 0) continue;
@@ -339,10 +388,12 @@ export function drawFxPops(ctx, pops) {
     const s = (Number(pop.size) || 20) * scale;
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, pop.life / denom)) * 0.55;
-    ctx.translate(pop.x, pop.y);
+    const sp = proj ? proj.proj(pop.x, pop.y, 0) : { x: pop.x, y: pop.y, d: 1 };
+    const k = proj ? proj.view.scale * sp.d : 1;
+    ctx.translate(sp.x, sp.y);
     ctx.rotate(pop.angle || 0);
     ctx.fillStyle = pop.color || UI_COLORS.inkDark;
-    ctx.fillRect(-s / 2, -s / 2, s, s);
+    ctx.fillRect(-(s * k) / 2, -(s * k) / 2, s * k, s * k);
     ctx.restore();
   }
 }

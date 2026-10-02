@@ -1,6 +1,6 @@
 # PROJECT_MAP — Brutal Party Proje Haritası
 
-Yaşayan referans: kod/mimari değişince güncellenir. Sözleşmeler/yasaklar/bütçeler **AGENTS.md**'dedir; bu dosya dosya haritası + motor tablosu + protokol + kararların özetidir. Teknik yol haritası **docs/TECHNICAL_ROADMAP.md**'dedir.
+Yaşayan referans: kod/mimari değişince güncellenir. Sözleşmeler/yasaklar/bütçeler **AGENTS.md**'dedir; bu dosya dosya haritası + motor tablosu + protokol + kararların özetidir. Teknik yol haritası **docs/TECHNICAL_ROADMAP.md**'dedir. 2.5D eğik sahne dönüşümü (kamera açısı, kit sahipliği, oyun çevirme tarifi) **docs/ISOMETRIC_25D_GUIDE.md**'dedir.
 Tamamını dump etme — bölüm bulmak için `grep` kullan. Son doğrulama: Refactoring sonrası (Eylül 2026).
 
 ---
@@ -150,18 +150,42 @@ src/core/
                             Motor `update()` yalnız `if (tickRoundFlow(this, dt)) return;`
                             yazar; sayacı kendi indirmez. Kilit: tests/roundLifecycle.test.mjs
   pickupSystem.js           power-up akışı: spawnPickup/collectPickups/tickPickupTimers + EFFECTS kaydı
+  projection2d.js           2.5D EĞİK KAMERA ÇEKİRDEĞİ: TILT/PERSP + createProjector (fit/proj/
+                            unproject/quad/strokePoly/contactPatch/groundEllipse/groundRing/
+                            drawPrism/drawCylinder, `theme`/`themeName`) + ARENA25D + `theme25d(name)`
+                            (tokens.arena25dThemes; wood/marble/arcade/picnic/night/garden) + materialFromColor
+                            + hueFor(seed,hues) + railMaterial(theme,side) + paintTable25d(ctx,view,theme,name,tilt)
+                            + paintSurfacePattern (prosedürel malzeme: TABLE_PATTERN/MAT_PATTERN)
+                            + TABLE_TEXTURE/MAT_TEXTURE + paintTiledTextureWorld(ctx,img,proj,..,tint,tile,z)
+                            (gerçek doku; createPattern ctx başına önbellekte)
+                            + makeTiltedProjector(viewport,arena,theme,proj?) + arenaFromRect(rect)
+                            (oyun-başına 2.5D kablolama yardımcısı; host kalıcı proj'u yeniden kullanır,
+                            ONLINE client host ile AYNI unit'i türetir).
+                            Simülasyona dokunmaz; zemin/engel/oyuncu çiziminin tek sunum dönüşümü.
+                            TILT varsayılanı 0.72 (≈46°). Renkler `ui/tokens.js`te (K2), kare başına tahsis yok
+  fieldTextures.js          Yüzey dokusu YÜKLEYİCİ (saf sunum): loadFieldTextures() + fieldTexture(name).
+                            `public/assets/textures/*.webp` (ambientCG CC0 — CREDITS.md); yüklenene kadar
+                            fieldTexture null → çağıran prosedürel yola düşer. Paket alanı EKLEMEZ; node
+                            testlerinde Image yok → hep null. main.js bir kez yükler; sw.js precache'ler.
   arenaKit.js               Ortak arena görsel kiti: buildLayout(name, arena, {minPassage}) düzen
                             presets (pillars/columns4/cross/crossfire/scatter/bunker/courtyard/split) +
                             drawObstacle + obstacleStyle (variant→theme.block→stone) + OBSTACLE_STYLES
                             (9 deri) + obstacleMass + PICKUP_META/drawPickup. Passage minPassage'ten
-                            türer (kollardan değil); render yolunda tahsis yok (clip + tek dolgu)
+                            türer (kollardan değil); render yolunda tahsis yok (clip + tek dolgu).
+                            drawObstacle25dShadow/drawObstacle25dMass (2.5D eğik engel)
   fieldKit.js               SAHA ZEMİNİ/ÇEVRESİ TEK KAYNAĞI: FIELD_THEMES + THEME_FIELDS + FIELD_MOTIFS,
                             hashFieldSeed, paintFieldLayer, drawField (offscreen bake + cache + blit,
                             arena kutusu 2px kuantlama), paintBackdrop (saha dışının tek sahibi),
+                            drawField25d/drawFieldRail/fieldRailBaseY (2.5D eğik saha; renkler
+                            `proj.theme`den — BOMB harita→tema, SNAKE sabit `garden`),
                             releaseFieldLayers. Ağa alan eklemez; deterministiktir (seed = hash(mode,roundId))
   playerEntity.js           createPlayer, tickEffectTimers, advancePlayer
-  avatarInGame.js           drawGameAvatar, normalizeExpression, blinkState — saha içi daima
-                            faceMode:'play' (ERIŞUAR/DESEN YOK, tam yuvarlak siluet)
+  avatarInGame.js           drawGameAvatar, drawGameAvatar25d (2.5D oyuncak topu: karakter
+                            TEK projekte küre + yüz `faceOnly` dekali + prosedürel uzuv rig'i
+                            (2 pati el + 2 pati ayak, hıza göre adım/kollar) + temas gölgesi), normalizeExpression,
+                            blinkState — saha içi daima
+                            faceMode:'play' (AKSESUAR/DESEN YOK; tepeden bakışta tam yuvarlak
+                            siluet, 2.5D yolda `drawGameAvatar25d` tek küre)
   qualityGate.js            Kalite kapısı sözleşmesi: 7 kapı (I1-I7) + 4 rapor (I8-I11) + TUNING_ANCHOR
                             + evaluateGame; tests `npm run health` ile 12 oyunu doğrular
   qualityAuditors.js        I4/I5/I6 kapıları için saf denetleyiciler + fail-closed
@@ -217,7 +241,7 @@ src/games/ (Oyun Motorları — BaseMiniGame türevleri):
   heist.js / heistView.js              Brutal Heist
   archer.js / archerView.js            Brutal Archery
   zone.js / zoneView.js                Brutal Zone (64x64 RLE)
-  snake.js / snakeView.js              Brutal Snake
+  snake.js / snakeView.js              Brutal Snake (2.5D eğik sahne; gövde projekte polyline + kafa küre)
   horde.js / hordeConfig.js / hordeView.js  Brutal Horde
   collapse.js / collapseView.js        Brutal Collapse (13x13)
   crown.js / crownView.js              Brutal Crown (arşivden çıkarıldı)
@@ -266,12 +290,12 @@ scripts/rules-lint.mjs      AGENTS.md K1–K7 makine bekçisi (mode=== dalı, ha
 | PONG | Brutal Pong | `src/games/game.js` | Paddle içinde | `mountPongController` | Set skorü (3 set); ortak skor şeridi + ralli/falso durum satırı; kale %62 + 45° pah; ❄️ dondurma; 120sn limit; 30 Hz world-view |
 | TANKS | Micro-Tanks | `src/games/tanks.js` | `tankAI` | `mountTanksController` | Gaz+ateş; 2 chamber + triple pickup; 35sn sudden-death; 30 Hz world-view |
 | CURVE | Brutal Curve | `src/games/curve.js` | `curveAI` | `mountCurveController` | NITRO akışı; 24×24 owner+gap maskesi; 30 Hz world-view |
-| BOMB | Brutal Bomb | `src/games/bomb.js` | `bombAI` | `mountBombController` | Patlama `blast` katmanı; 90sn draw; 30 Hz world-view |
+| BOMB | Brutal Bomb | `src/games/bomb.js` | `bombAI` | `mountBombController` | Patlama `blast` katmanı; 90sn draw; 30 Hz world-view; **2.5D eğik sahne** (host↔client aynı `core/projection2d` kamerası); saha teması haritaya bağlı (`bombThemeForMap`, paket `mapIndex`), oyuncular `drawGameAvatar25d` tek küre (oyuncak topu) |
 | HEIST | Brutal Heist | `src/games/heist.js` | `heistAI` | `mountHeistController` | 45sn raunt; bounded draw; 30 Hz world-view |
 | ARCHER | Brutal Archery | `src/games/archer.js` | `archerAI` | `TWIN_STICK_ACTION` | Basılı yay + bırakışta ok; 3 harita; power-up'lar; mesafe ölçekli stun; 30 Hz world-view |
 | CROWN | Brutal Crown | `src/games/crown.js` | `crownAI` | `mountCrownController` | **Arşivden çıkarıldı**; taç tutma; pinball bumper; 30 Hz world-view |
 | ZONE | Brutal Zone | `src/games/zone.js` | `zoneAI` | `mountZoneController` | 64×64 grid kapma; %40 early win; RLE; 30 Hz world-view |
-| SNAKE | Brutal Snake | `src/games/snake.js` | `snakeAI` | `mountSnakeController` | Yemle büyü; hold-boost; 30 Hz world-view |
+| SNAKE | Brutal Snake | `src/games/snake.js` | `snakeAI` | `mountSnakeController` | Yemle büyü; hold-boost; 30 Hz world-view; **2.5D eğik sahne** (host↔client aynı `SNAKE_THEME_25D='garden'` + `core/projection2d` kamerası); gövde projekte polyline + kafa `drawGameAvatar25d` tek küre |
 | COLLAPSE | Brutal Collapse | `src/games/collapse.js` | `collapseAI` | `mountCollapseController` | 13×13 çöken ızgara; 60sn; 30 Hz world-view |
 | NINJA | Brutal Ninja | `src/games/ninja.js` | `ninjaAI` | `mountNinjaController` | Görünmezlik; selfSlot hayalet; 30 Hz world-view |
 | HORDE | Brutal Horde | `src/games/horde.js` | `hordeAI` | `TWIN_STICK_ACTION` | 1-4P takım savunması; 3 tur × 3 dalga; armory; 3 harita; elite+boss; boss bombası = **zemin telegrafı** (gövde değil: çarpışma/vuruş/auto-aim dışı, tek kural daireden çık; `enemies[15]=fuse`); kalp+şarjör plakası; 30 Hz world-view |

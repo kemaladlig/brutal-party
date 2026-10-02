@@ -35,6 +35,7 @@ import {
   CONTROL_MODE,
 } from './ui/tokens.js';
 import { fieldTheme } from './core/fieldKit.js';
+import { loadFieldTextures } from './core/fieldTextures.js';
 import { subscribePreferences, getPreference } from './core/preferences.js';
 import { hostPlayerSlots, updateHostSlot, syncSlotsToEngine, swapEngineSlots, clearRemoteSlot, clearAllRemoteSlots, clearRemoteMove, clearRemoteAim, isBotEkleEnabled, getColorClashIndices, refreshSlotCard, refreshAllHostSlots } from './core/slotManager.js';
 import { getAvatarProfile, sanitizeAvatar, pickFreeColor, setSlotAvatar, clearSlotAvatar, loadLocalSeatColors, ensureLocalSeatColorsForTypes, getLocalSeatColors } from './core/customizationManager.js';
@@ -188,6 +189,7 @@ const botReactionDirector = createBotReactionDirector({
 // Engine Instances & Cartridge Registry (code-split: engines load on demand)
 const touchManager = new TouchManager(canvas);
 initEngineRegistry(canvas);
+loadFieldTextures();
 
 export function getActiveGameEngine() {
   return getEngineGame(roomFlow.getCurrentMode());

@@ -1,7 +1,7 @@
 // Sürüm adıyla birlikte tüm çalışma zamanı önbelleği düşürülür (activate).
 // Statik varlıklarda cache-first kullanıldığı için, bir kapak ya da simge
 // değiştiğinde bu sürüm numarası da yükseltilir.
-const CACHE_NAME = 'brutal-party-v20';
+const CACHE_NAME = 'brutal-party-v21';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -11,6 +11,11 @@ const ASSETS_TO_CACHE = [
   '/icon-512.png',
   '/assets/illustrations/tv.webp',
   '/assets/illustrations/online.webp',
+  '/assets/textures/wood.webp',
+  '/assets/textures/felt.webp',
+  '/assets/textures/grass.webp',
+  '/assets/textures/stone.webp',
+  '/assets/textures/metal.webp',
   '/assets/games/pong.webp',
   '/assets/games/tanks.webp',
   '/assets/games/curve.webp',

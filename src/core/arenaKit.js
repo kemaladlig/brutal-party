@@ -3,6 +3,8 @@
 import { drawTabletopIcon, hasTabletopIcon } from './tabletopIcons.js';
 import { fieldTheme } from './fieldKit.js';
 import { fxGlowEnabled } from './perfMonitor.js';
+import { UI_COLORS } from '../ui/tokens.js';
+import { hueFor } from './projection2d.js';
 
 export const PICKUP_META = {
   TURBO:        { label: 'TRB', icon: 'zap', glyph: '⚡', color: '#FFB020', ink: '#241C15' },
@@ -44,24 +46,24 @@ export const PICKUP_META = {
  */
 export const OBSTACLE_STYLES = {
   // Açık granit taş: Yeşil (TANKS / ARCHER) zeminlerde yüksek kontrastlı, temiz, pürüzsüz taş blok.
-  stone: { top: '#E6E1D8', fill: '#CFC7B8', bevel: 'rgba(255,255,255,0.7)', edge: '#4E483E', shadow: 'rgba(20, 16, 31, 0.32)', detail: detailStone },
+  stone: { top: '#F4EFE6', fill: '#C8BEAA', bevel: 'rgba(255,255,255,0.85)', edge: '#4A4234', shadow: 'rgba(20, 16, 31, 0.32)', detail: detailStone },
   // Obsidyen / Koyu gece bloğu: NINJA, CURVE gibi mistik sahalarda derin koyu mor-antrasit.
-  dark:  { top: '#342C44', fill: '#231C30', bevel: 'rgba(255,255,255,0.22)', edge: '#120E1C', shadow: 'rgba(10, 8, 20, 0.45)', detail: null },
+  dark:  { top: '#52436D', fill: '#241B34', bevel: 'rgba(255,255,255,0.52)', edge: '#120E1C', shadow: 'rgba(10, 8, 20, 0.45)', detail: null },
   // Sıcak maun koli: BOMB ve HEIST gibi sıcak sahalarda zeminle kaynaşmayan, belirgin ahşap kasa.
-  crate: { top: '#7C4B24', fill: '#5C3314', bevel: 'rgba(255,255,255,0.32)', edge: '#361B08', shadow: 'rgba(20, 16, 31, 0.36)', detail: detailCrate },
+  crate: { top: '#8F5425', fill: '#522A0C', bevel: 'rgba(255,255,255,0.48)', edge: '#2C1404', shadow: 'rgba(20, 16, 31, 0.36)', detail: detailCrate },
 
   // Soğuk platin / kobalt titanyum: tek speküler şerit, parlak metalik yüzey.
-  metal: { top: '#DDE3ED', fill: '#9BA8BD', bevel: 'rgba(255,255,255,0.85)', edge: '#3B4556', shadow: 'rgba(16, 20, 28, 0.38)', detail: detailMetal },
+  metal: { top: '#E8EDF5', fill: '#92A2B8', bevel: 'rgba(255,255,255,0.92)', edge: '#323C4C', shadow: 'rgba(16, 20, 28, 0.38)', detail: detailMetal },
   // Kristal buz: iç içe iki kontur, açık speküler gölge.
-  ice: { top: '#E6F6FC', fill: '#9BD6E8', bevel: 'rgba(255,255,255,0.75)', edge: '#3E7C93', shadow: 'rgba(30, 70, 86, 0.26)', detail: detailIce },
+  ice: { top: '#EAF6FD', fill: '#94CFE4', bevel: 'rgba(255,255,255,0.85)', edge: '#357187', shadow: 'rgba(30, 70, 86, 0.26)', detail: detailIce },
   // Volkanik bazalt kaya: kırık köşe iki üçgen + tanecik.
-  rock: { top: '#484252', fill: '#332E3D', bevel: 'rgba(255,255,255,0.22)', edge: '#1B1724', shadow: 'rgba(20, 16, 31, 0.40)', detail: detailRock },
+  rock: { top: '#5A5266', fill: '#2E2838', bevel: 'rgba(255,255,255,0.38)', edge: '#181320', shadow: 'rgba(20, 16, 31, 0.40)', detail: detailRock },
   // Ağır endüstriyel kasa: çelik kuşaklı kasa.
-  crateHeavy: { top: '#6E421E', fill: '#4E2B10', bevel: 'rgba(255,255,255,0.28)', edge: '#2B1406', shadow: 'rgba(16, 12, 24, 0.42)', detail: detailCrateHeavy },
+  crateHeavy: { top: '#7D4B22', fill: '#44230B', bevel: 'rgba(255,255,255,0.42)', edge: '#240F04', shadow: 'rgba(16, 12, 24, 0.42)', detail: detailCrateHeavy },
   // Tehlike barikatı: gövde koyu grafit, uyarı şeritleri parlak kehribar.
-  hazard: { top: '#2E273A', fill: '#1E1828', bevel: 'rgba(255,255,255,0.20)', edge: '#100C18', shadow: 'rgba(10, 8, 20, 0.45)', detail: detailHazard },
+  hazard: { top: '#3D344E', fill: '#1E1729', bevel: 'rgba(255,255,255,0.40)', edge: '#100C18', shadow: 'rgba(10, 8, 20, 0.45)', detail: detailHazard },
   // Kaideli mermer: açık ve asil kaide.
-  plinth: { top: '#F6F2E8', fill: '#D9D0C1', bevel: 'rgba(255,255,255,0.80)', edge: '#665C4E', shadow: 'rgba(40, 34, 24, 0.28)', detail: detailPlinth },
+  plinth: { top: '#F9F5EC', fill: '#D3C9B6', bevel: 'rgba(255,255,255,0.90)', edge: '#5E5343', shadow: 'rgba(40, 34, 24, 0.28)', detail: detailPlinth },
 };
 
 /** Deri detayları — blok başına 0-2 op, tek path'te toplanır. */
@@ -622,69 +624,248 @@ export function obstacleMass(obs) {
 }
 
 /**
- * Tactile engel bloğu: yuvarlak köşeler, 3B basık alt kenar, üst bevel ışığı ve
- * zemine oturan temas gölgesi.
- *
- * BÜTÇE: blok başına ~10 dolgu/stroke ve KARE BAŞINA SIFIR TAHSİZ. Bu yüzden alt
- * koyulaştırma gradyanla değil, GÖVDE YOLUNUN ÜSTÜNE clip'lenmiş tek dolguyla
- * yapılır; deri detayı `detail` fonksiyon tablosundan gelir (`drawObstacle`
- * içine `if/else` zinciri büyümez). Tavan `arenaLayout.test.mjs`'te kilitli.
+ * Engel ölçüleri — kare başına SIFIR TAHSİS için modül içi tek seferlik depo.
+ * Senkron ve yeniden girişi olmayan çağrılar paylaşır; ayrıntı üretmez.
  */
-export function drawObstacle(ctx, obs, opts = {}) {
-  const style = obstacleStyle(opts);
+const METRICS = { u: 0, r: 0, border: 0, mass: 0, wallH: 0 };
+
+function measureObstacle(obs) {
+  const u = Math.max(0.42, Math.min(1.5, Math.min(obs.w, obs.h) / 48));
+  METRICS.u = u;
+  METRICS.r = Math.max(3, Math.min(10 * u, Math.min(obs.w, obs.h) * 0.22));
+  METRICS.border = Math.max(1.5, 2.2 * u);
+  METRICS.mass = obstacleMass(obs);
+  // Yükseklik ekseni: kamera güneyden hafif eğik bakar, blok ekranın YUKARISINA
+  // doğru yükselir. `wallH` eski bottomRim formülüdür — deterministik ve aynı
+  // blokta her cihazda aynı. Çarpışma dikdörtgeni TABAN İZİDİR (bkz. §2.5D).
+  METRICS.wallH = Math.max(3.5, Math.min(10, 5.2 * u)) * (0.75 + 0.5 * METRICS.mass);
+  return METRICS;
+}
+
+/**
+ * Derinlik sıralaması anahtarı: bloğun zemine temas çizgisi.
+ * Karakter/pickup anahtarıyla karşılaştırılır — bkz. `sceneEntityY`.
+ */
+export function obstacleBaseY(obs) {
+  return obs.y + obs.h;
+}
+
+/** Varlık (oyuncu, pickup) derinlik anahtarı: merkezin biraz güneyi. */
+export function entitySceneY(y, radius) {
+  return y + radius * 0.5;
+}
+
+/** Zemin temas gölgesi — her koşulda HER VARLIĞIN ALTINDA çizilir. */
+export function drawObstacleGround(ctx, obs, opts = {}) {
   const { x, y, w, h } = obs;
   if (!(w > 0 && h > 0)) return;
-  const u = Math.max(0.42, Math.min(1.5, Math.min(w, h) / 48));
-  const r = Math.max(3, Math.min(10 * u, Math.min(w, h) * 0.22));
-  const border = Math.max(1.5, 2.2 * u);
-  const mass = obstacleMass(obs);
-  const bottomRim = Math.max(2, 3.5 * u) * (0.7 + 0.6 * mass);
-
+  const m = measureObstacle(obs);
   ctx.save();
-
-  // 1. Temas gölgesi — taban izinden türer, hafif, her zaman altta.
-  contactShadow(ctx, x, y, w, h, u, style, mass);
-
-  // 2. Alt Gövde / 3B Basık Kenar
-  ctx.fillStyle = style.fill;
-  pathRoundRect(ctx, x, y, w, h, r);
-  ctx.fill();
-
-  // 3. Üst Yüzey (Açık Ton Işık Yüzü)
-  if (h > bottomRim * 2) {
-    ctx.fillStyle = style.top;
-    pathRoundRect(ctx, x, y, w, h - bottomRim, [r, r, Math.max(1, r * 0.4), Math.max(1, r * 0.4)]);
-    ctx.fill();
-
-    // Üst Bevel İnce Işıltısı
-    ctx.strokeStyle = style.bevel;
-    ctx.lineWidth = Math.max(1, 1.4 * u);
-    ctx.beginPath();
-    ctx.moveTo(x + r, y + 1.2 * u);
-    ctx.lineTo(x + w - r, y + 1.2 * u);
-    ctx.stroke();
-  }
-
-  // 4. Alt kenar koyulaştırması — gövde yolu zaten canvas'ta, onu clip'leyip
-  //    tek dolgu yapıyoruz: +4 op, SIFIR tahsis (gradyan yerine).
-  ctx.save();
-  pathRoundRect(ctx, x, y, w, h, r);
-  ctx.clip();
-  ctx.globalAlpha = 0.32;
-  ctx.fillStyle = style.edge;
-  ctx.fillRect(x, y + h - bottomRim, w, bottomRim);
+  contactShadow(ctx, x, y, w, h, m.u, obstacleStyle(opts), m.mass);
   ctx.restore();
+}
 
-  // 5. Deri detayı (0-2 op)
-  if (style.detail) style.detail(ctx, x, y, w, h, u, style);
+/**
+ * Tactile 2.5D engel prizması: yuvarlak köşeli çatı yüzü (ışık yüzü), kalıplanmış
+ * vinil pah ışıltısı, çatı/ön yüz birleşim gölgesi ve zemine oturan ön yüz.
+ *
+ * Siluet = (x, y - wallH, w, h + wallH): çatı yukarı taşar, ön yüz bloğun kendi
+ * yüksekliğinde kalır. Çarpışma kutusu (x, y, w, h) DEĞİŞMEZ — görsel yükseliş
+ * painter's order ile okunur; kuzeydeki varlıkları çatı ÖRTTÜĞÜ için sahte değil,
+ * kameranın güneyden bakış açısının kendisidir (bkz. sahne kuyruğu).
+ *
+ * BÜTÇE: blok başına ≤ 18 raster/path op ve KARE BAŞINA SIFIR TAHSİŞ. Gövde
+ * koyulaştırma ve pahlar gradyanla değil, siluet clip'i altındaki düz dolgu
+ * şeritleriyle üretilir; deri detayı `detail` fonksiyon tablosundan gelir
+ * (`drawObstacleMass` içine `if/else` zinciri büyümez). Tavan `arenaLayout.test.mjs`'te kilitli.
+ */
+export function drawObstacleMass(ctx, obs, opts = {}) {
+  const { x, y, w, h } = obs;
+  if (!(w > 0 && h > 0)) return;
+  const style = obstacleStyle(opts);
+  const m = measureObstacle(obs);
+  const { u, r, border, wallH } = m;
+  const top = y - wallH;
+  const jct = y + h - wallH;
 
-  // 6. Dış Kontur
+  ctx.save();
+
+  // 1. Prizma silueti: kontur + gövde (ön/yan yüz = orta ton).
+  pathRoundRect(ctx, x, top, w, h + wallH, r);
   ctx.strokeStyle = style.edge;
   ctx.lineWidth = border;
-  pathRoundRect(ctx, x, y, w, h, r);
   ctx.stroke();
+  ctx.fillStyle = style.fill;
+  ctx.fill();
+
+  // 2-5. Yüzler — siluet clip'i köşeleri biçer, hepsi düz dolgu şeridi.
+  ctx.clip();
+
+  // 2. Çatı yüzü (açık ışık yüzü).
+  ctx.fillStyle = style.top;
+  ctx.fillRect(x - 1, top - 1, w + 2, h + 1);
+
+  // 3. Birleşim gölgesi: çatı, ön yüzün üstüne hafif gölge düşürür.
+  ctx.globalAlpha = 0.30;
+  ctx.fillStyle = style.edge;
+  ctx.fillRect(x, jct - Math.max(1, 0.8 * u), w, Math.max(1, 1.6 * u));
+
+  // 4. Ön yüz alt kenar koyulaşması — zemine oturma.
+  ctx.globalAlpha = 0.4;
+  ctx.fillRect(x, y + h - Math.max(1.5, wallH * 0.4), w, Math.max(1.5, wallH * 0.4));
+  ctx.globalAlpha = 1;
+
+  // 5. Çatı üst pah ışıltısı (kalıplanmış vinil kenar).
+  ctx.fillStyle = style.bevel;
+  ctx.fillRect(x + r * 0.6, top + Math.max(0.5, 0.6 * u), Math.max(1, w - r * 1.2), Math.max(1, 1.2 * u));
+
+  // 6. Deri detayı (0-4 op) — çatı yüzünde.
+  if (style.detail) style.detail(ctx, x, top, w, h, u, style);
 
   ctx.restore();
+}
+
+/** Gölge + prizma birlikte: derinlik sıralaması DIŞINDAKİ her kullanım. */
+export function drawObstacle(ctx, obs, opts = {}) {
+  const { w, h } = obs;
+  if (!(w > 0 && h > 0)) return;
+  drawObstacleGround(ctx, obs, opts);
+  drawObstacleMass(ctx, obs, opts);
+}
+
+// ---------------------------------------------------------------------------
+// 2.5D eğik engel (BOMB dönüşümü) — tepeden bakış çiziminin kardeşi.
+// Aynı sahip (arenaKit); yalnız projeksiyonla çizer. Gölge zemin katmanında
+// (çağıran hemen çizer), gövde derinlik kuyruğuna `sceneDraw` ile girer:
+//   sceneDraw(ctx, obstacleBaseY(obs), drawObstacle25dMass, proj, obs)
+// ---------------------------------------------------------------------------
+
+/** Zemin temas gölgesi — prizmadan ÖNCE, zemin katmanında çizilir. */
+export function drawObstacle25dShadow(ctx, proj, obs) {
+  const { x, y, w, h } = obs;
+  if (!(w > 0 && h > 0)) return;
+  proj.contactPatch(ctx, x + w / 2 + 4, y + h / 2 + 6, (w / 2) * 0.95, (h / 2) * 0.95, 0.8);
+}
+
+/**
+ * 2.5D engel yüksekliği — SADECE GÖRSEL z ekseni (çarpışma daima (x,y,w,h) taban
+ * izidir). Deterministik: ayak izinden türer (mass hash + en-boy oranı), yani
+ * host ve client PAKET DEĞİŞİKLİĞİ OLMADAN aynı yüksekliği hesaplar.
+ *
+ * Sözlük (yükseklik = "ne kadar dik duruyor", kameradan bağımsız):
+ *   • UZUN DUVAR (oran ≥ 2)     → yüksek (uzun kenar duvar gibi ayakta)
+ *   • KOLON      (minDim ≥ 40)  → orta
+ *   • KERB       (küçük blok)   → kısa
+ * `proj.obstacleHeightScale` (varsayılan 1) sahne genelinde kısaltır/uzatır.
+ *
+ * KÖR NOKTA BÜTÇESİ: engelin arkasında `d = h / tan(kamera açısı)` kadar şerit
+ * saklanır. Yani kamera açısı ile yükseklik aynı hedefin İKİ bağımsız koludur:
+ * yatık (derin) kamera isteniyorsa yüksekliği kısarak kör nokta küçük tutulur.
+ */
+export function obstacle25dHeight(obs, proj) {
+  const minDim = Math.min(obs.w, obs.h);
+  const aspect = Math.max(obs.w, obs.h) / Math.max(1, minDim);
+  const mass = obstacleMass(obs);
+  let h;
+  if (aspect >= 2) h = minDim * 0.95;        // uzun duvar
+  else if (minDim >= 40) h = minDim * 0.67;  // kolon
+  else h = minDim * 0.53;                    // kerb
+  h *= 0.85 + 0.3 * mass;                    // blok başına hafif varyasyon
+  h = Math.max(16, Math.min(56, h));
+  const scale = proj && Number.isFinite(proj.obstacleHeightScale) ? proj.obstacleHeightScale : 1;
+  return h * scale;
+}
+
+/**
+ * Gövde: UZUN blok → prizma (duvar şekli korunur), kare/kısa → silindir (kolon),
+ * büyük kare blok → prizma. Yükseklik `obstacle25dHeight`'ten (tek kaynak).
+ */
+export function drawObstacle25dMass(ctx, proj, obs) {
+  const { x, y, w, h } = obs;
+  if (!(w > 0 && h > 0)) return;
+  const pal = hueFor(x * 0.13 + y * 0.07 + w, proj.theme && proj.theme.hues);
+  const minDim = Math.min(w, h);
+  const aspect = Math.max(w, h) / Math.max(1, minDim);
+  const height = obstacle25dHeight(obs, proj);
+  if (aspect < 1.8 && minDim < 66) {
+    proj.drawCylinder(ctx, x + w / 2, y + h / 2, minDim / 2, height, pal);
+  } else {
+    proj.drawPrism(ctx, x, y, w, h, height, pal);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Derinlik sıralaması — sahne kuyruğu (2.5D painter's order)
+// ---------------------------------------------------------------------------
+// Görüşme: bloklar birbirini asla örtmez (layout testi kilitli), asıl çakışma
+// blok ↔ varlık çiftlerinde. Tam painter's order için her çizilebilir bir öğe
+// olarak kuyruğa girer ve `sceneEnd` taban Y'ye göre KARARLI sırayla çizer
+// (eşit Y'de ekleme sırası korunur). Kare başına tahsis yok: öğe nesneleri
+// havuzda yaşar, sıralama yerinde insertion sort'tur.
+const sceneItems = [];
+let sceneCount = 0;
+let sceneOpen = false;
+
+/**
+ * Sahne/sahne başı: kuyruğu AÇAR ve sayacı sıfırlar (havuzu boşaltmaz).
+ * İç içe çağrılmaz — tek sahne penceresi yeter.
+ */
+export function sceneBegin() {
+  sceneCount = 0;
+  sceneOpen = true;
+}
+
+/**
+ * Öğe ekle. `draw` imzası `draw(ctx, a, b)` — STATİK fonksiyon olmalı (kare
+ * başına closure üreten çizim, GC bütçesini bozar).
+ */
+export function scenePush(y, draw, a = null, b = null) {
+  let idx = sceneCount;
+  if (idx >= sceneItems.length) sceneItems.push({ y: 0, draw: null, a: null, b: null });
+  const item = sceneItems[idx];
+  item.y = y;
+  item.draw = draw;
+  item.a = a;
+  item.b = b;
+  sceneCount = idx + 1;
+}
+
+/**
+ * Sahne AÇIKSA kuyruğa yazar, değilse hemen çizer. Kuyruğu bilmeyen çağıranlar
+ * (testler, tekil render yolları) bu yüzden bugünkü davranışı aynen korur;
+ * sıralama yalnız `sceneBegin`/`sceneEnd` penceresi içinde devreye girer.
+ */
+export function sceneDraw(ctx, y, draw, a = null, b = null) {
+  if (!sceneOpen) {
+    draw(ctx, a, b);
+    return;
+  }
+  scenePush(y, draw, a, b);
+}
+
+/** Prizma öğesi olarak ekle (gölge değil — gölge zemin katmanında kalır). */
+export function sceneObstacle(ctx, obs, opts = null) {
+  sceneDraw(ctx, obstacleBaseY(obs), drawObstacleMass, obs, opts || undefined);
+}
+
+/** Sahneyi sıralayıp çizer ve pencereyi kapatır. Açık pencere yoksa boştur. */
+export function sceneEnd(ctx) {
+  if (!sceneOpen) return;
+  for (let i = 1; i < sceneCount; i += 1) {
+    const item = sceneItems[i];
+    let j = i - 1;
+    while (j >= 0 && sceneItems[j].y > item.y) {
+      sceneItems[j + 1] = sceneItems[j];
+      j -= 1;
+    }
+    sceneItems[j + 1] = item;
+  }
+  for (let i = 0; i < sceneCount; i += 1) {
+    const item = sceneItems[i];
+    item.draw(ctx, item.a, item.b);
+  }
+  sceneCount = 0;
+  sceneOpen = false;
 }
 
 // Ortak power-up rozeti: hafif puls aura + yumuşak gölge + canlı dairesel rozet + vektör ikon.
@@ -695,11 +876,20 @@ export function drawPickup(ctx, pk, opts = {}) {
   const iconKey = meta.icon || glyph;
   const half = (opts.size || (pk.radius ? pk.radius * 2 : 28)) / 2;
   const u = Math.max(0.6, half / 14);
+  const proj = opts.proj || null;
 
   ctx.save();
   const pulse = 1 + Math.sin((pk.animTime || 0) * 6) * 0.08;
-  ctx.translate(pk.x, pk.y);
-  ctx.scale(pulse, pulse);
+  if (proj) {
+    // 2.5D: rozet zeminden yüzer; merkez projekte, ölçek kameradan.
+    const sp = proj.proj(pk.x, pk.y, half);
+    const k = proj.view.scale * sp.d;
+    ctx.translate(sp.x, sp.y);
+    ctx.scale(pulse * k, pulse * k);
+  } else {
+    ctx.translate(pk.x, pk.y);
+    ctx.scale(pulse, pulse);
+  }
 
   // 1. Hafif Dış Puls Aurası (glow) — düşük FX kademesinde kapalı (2.3).
   if (fxGlowEnabled()) {
@@ -757,3 +947,81 @@ export function drawPickup(ctx, pk, opts = {}) {
 
   ctx.restore();
 }
+
+/**
+ * Zemin Yanık/İs İzi (Decal) — patlama ve vuruş noktalarında zemine düşen 2.5D leke.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} x
+ * @param {number} y
+ * @param {number} radius
+ * @param {number} [alpha=1]
+ * @param {{ color?: string }} [opts]
+ */
+export function drawScorchDecal(ctx, x, y, radius, alpha = 1, opts = {}) {
+  if (!ctx || radius <= 0 || alpha <= 0) return;
+  const a = Math.max(0, Math.min(1, alpha));
+  const r = radius;
+  const rgb = opts.color || UI_COLORS.contactShadowRgb;
+
+  ctx.save();
+  ctx.translate(x, y);
+
+  // 1. Dış yumuşak is dairesi
+  ctx.fillStyle = `rgba(${rgb}, ${0.22 * a})`;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r, r * 0.75, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 2. İç koyu yanık çekirdeği
+  ctx.fillStyle = `rgba(${rgb}, ${0.45 * a})`;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r * 0.55, r * 0.42, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 3. İki küçük asimetrik is sıçraması
+  ctx.fillStyle = `rgba(${rgb}, ${0.35 * a})`;
+  ctx.beginPath();
+  ctx.arc(-r * 0.35, -r * 0.25, r * 0.22, 0, Math.PI * 2);
+  ctx.arc(r * 0.4, r * 0.2, r * 0.18, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+/**
+ * Drift/Kayma İzi (Skid Mark Decal) — ani fren ve kaymalarda zemine bırakılan çift iz.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} x
+ * @param {number} y
+ * @param {number} angle
+ * @param {number} length
+ * @param {number} [alpha=1]
+ * @param {{ unit?: number, trackWidth?: number }} [opts]
+ */
+export function drawSkidMark(ctx, x, y, angle, length, alpha = 1, opts = {}) {
+  if (!ctx || length <= 0 || alpha <= 0) return;
+  const a = Math.max(0, Math.min(1, alpha));
+  const u = opts.unit || 1;
+  const spacing = (opts.trackWidth || 12) * u;
+  const trackW = Math.max(1.2, 2.0 * u);
+  const rgb = UI_COLORS.contactShadowRgb;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.strokeStyle = `rgba(${rgb}, ${0.28 * a})`;
+  ctx.lineWidth = trackW;
+  ctx.lineCap = 'round';
+
+  ctx.beginPath();
+  // Sol teker izi
+  ctx.moveTo(-length * 0.5, -spacing * 0.5);
+  ctx.lineTo(length * 0.5, -spacing * 0.5);
+  // Sağ teker izi
+  ctx.moveTo(-length * 0.5, spacing * 0.5);
+  ctx.lineTo(length * 0.5, spacing * 0.5);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
