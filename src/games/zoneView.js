@@ -71,6 +71,9 @@ export function createZoneWorldPacket(game) {
       alive: p.isAlive !== false,
       x: round1(p.x || 0),
       y: round1(p.y || 0),
+      vx: round1(p.vx || 0),
+      vy: round1(p.vy || 0),
+      dashing: (p.dashTimer || 0) > 0 || p.isDashing === true,
       angle: round1(p.heading || 0),
       radius: round1(p.radius || 36),
       home: p.onHomeTurf === true,
@@ -120,6 +123,9 @@ export function createZoneWorldPacket(game) {
 function isValidZonePlayer(p) {
   return typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
     && finite(p.angle) && finite(p.radius) && p.radius > 0
+    && (p.vx === undefined || finite(p.vx))
+    && (p.vy === undefined || finite(p.vy))
+    && (p.dashing === undefined || typeof p.dashing === 'boolean')
     && typeof p.home === 'boolean' && finite(p.stun) && finite(p.blink)
     && (p.dashProg === null || (finite(p.dashProg) && p.dashProg >= 0 && p.dashProg <= 1))
     && typeof p.relic === 'boolean' && Number.isInteger(p.pct) && p.pct >= 0 && p.pct <= 100

@@ -2,6 +2,7 @@
 // Tüm mini-oyunlarda (BOMB, HEIST, CROWN, COLLAPSE, NINJA, ZONE, vb.)
 // ve Karakter Özelleştirme Arayüzünde standart avatar çizimini sağlar.
 import { getSlotAvatar, getAvatarProfile, getBotPersona, rimHex } from '../core/customizationManager.js';
+import { UI_COLORS } from './tokens.js';
 
 /**
  * KARAKTER = DÜZ RENK + YÜZ. Erişuar ve gövde deseni YOK.
@@ -124,13 +125,19 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
   const color = options.color || (isBot ? botPersona?.color : null) || avatarOpt?.color || profileFallback?.color || '#D84727';
   const expressionRaw = options.expression || (isBot ? botPersona?.expression : null) || avatarOpt?.expression || profileFallback?.expression || 'FOCUS';
 
-  // İfade normalizasyonu (küçük harf / durum eşleştirmeleri)
-  let expression = expressionRaw;
-  if (expression === 'normal') expression = (isBot ? botPersona?.expression : null) || avatarOpt?.expression || profileFallback?.expression || 'FOCUS';
-  else if (expression === 'excited') expression = 'WINK';
-  else if (expression === 'panic') expression = 'DERP';
-  else if (expression === 'dizzy') expression = 'CYCLOPS';
-  else if (expression === 'robot') expression = 'CYBORG';
+  // İfade normalizasyonu (küçük harf / durum eşleştirmeleri — büyük/küçük duyarsız)
+  // avatarInGame.normalizeExpression zaten kanonik ID verir; burası doğrudan
+  // gelen küçük harf / eski takma adları da aynı kapıdan geçirir.
+  let expression = String(expressionRaw || 'FOCUS').toUpperCase();
+  if (expression === 'NORMAL') expression = (isBot ? botPersona?.expression : null) || avatarOpt?.expression || profileFallback?.expression || 'FOCUS';
+  else if (expression === 'EXCITED') expression = 'WINK';
+  else if (expression === 'PANIC') expression = 'PANIC';
+  else if (expression === 'DIZZY') expression = 'CYCLOPS';
+  else if (expression === 'ROBOT') expression = 'CYBORG';
+  else if (expression === 'SMIRK') expression = 'GRIN';
+  else if (expression === 'DEAD') expression = 'ZOMBIE';
+  if (typeof expression !== 'string' || !expression) expression = 'FOCUS';
+  else expression = String(expression).toUpperCase();
 
   // LOD (Level of Detail) Kuralı:
   // r < 5 (Aşırı küçük): Detaylar sadeleştirilir (göz çizimi hariç her şey düz)
@@ -154,6 +161,10 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     shadowOffset = 3,
     blinkProgress = 0, // 0 = açık, 1 = tam kapalı
     lookAngle = null, // gözlerin baktığı yön (mutlak radyan); null = yön okunur
+    squashX = 1.0,
+    squashY = 1.0,
+    squashAngle = null,
+    hitFlash = false,
   } = options;
 
   if (radius <= 0) return;
@@ -170,6 +181,15 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
   if (scale !== 1.0) ctx.scale(scale, scale);
   if (alpha < 1.0) ctx.globalAlpha = Math.max(0, Math.min(1, ctx.globalAlpha * alpha));
 
+  // Karakter Kinetiği (Squash & Stretch): hareket yönünde elastik uzama,
+  // darbede basılma. Yalnız aktifken çağrılır (idle iken kayıtlı çağrı değişmez).
+  const hasSquash = (squashX !== 1.0 || squashY !== 1.0) && typeof squashAngle === 'number';
+  if (hasSquash) {
+    ctx.rotate(squashAngle);
+    ctx.scale(squashX, squashY);
+    ctx.rotate(-squashAngle);
+  }
+
   const r = radius;
 
   // 1. Zemin temas gölgesi kaldırıldı (Kullanıcı isteği üzerine iptal edildi)
@@ -180,14 +200,14 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
   ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.clip();
 
-  // Taban rengi
-  ctx.fillStyle = color;
+  // Taban rengi (1-kare beyaz vuruş parıltısı)
+  ctx.fillStyle = hitFlash ? UI_COLORS.white : color;
   ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
 
   // Hacim: 2.5D küresel katmanlar (gölge + aydınlanma + speküler parıltı + rim)
   // Oyun içi kip (`play`) ve menü sahnesi (`volume`) bunu ister;
   // ikisi de clip'in İÇİNDE bittiği için siluet değişmez — düz sticker yerine 3D top gibi okur.
-  if ((isPlayFace || options.volume) && !isMicro) {
+  if (!hitFlash && (isPlayFace || options.volume) && !isMicro) {
     const { diffuse, shade } = playFaceShading(ctx, r);
     ctx.fillStyle = shade;
     ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
@@ -197,7 +217,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
 
   // Alt gölge (ambient occlusion): yalnız alt çeyrek içten kararır,
   // top yere oturur. Üst yarı düz renkte kalır. Her kipte aynıdır.
-  if (!isMicro) {
+  if (!hitFlash && !isMicro) {
     ctx.fillStyle = bodyAoGradient(ctx, r);
     ctx.fillRect(-r - 2, -r - 2, r * 2 + 4, r * 2 + 4);
   }
@@ -205,7 +225,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
   ctx.restore(); // Clipping sonu
 
   // 2. Gövde Dış Çerçevesi (Neo-brutalist kalın kontur)
-  ctx.strokeStyle = isTackling ? '#FFDE59' : ringColor;
+  ctx.strokeStyle = hitFlash ? UI_COLORS.white : (isTackling ? '#FFDE59' : ringColor);
   ctx.lineWidth = isTackling ? borderWidth * 1.5 : borderWidth;
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
@@ -620,6 +640,36 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     ctx.stroke();
 
     ctx.restore();
+  } else if (expression === 'PANIC') {
+    // Panik: iri açılmış gözler + küçük bebek — vuruş anı FOCUS ile karışıyordu.
+    const drawPanicEye = (ey) => {
+      ctx.fillStyle = UI_COLORS.faceWhite;
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey, eyeR * 1.08, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = UI_COLORS.faceInk;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      if (!isEyeClosed) {
+        ctx.fillStyle = UI_COLORS.faceInk;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 1.5, ey, eyeR * 0.34, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = UI_COLORS.faceWhite;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 2.4, ey - 1.6, eyeR * 0.13, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = UI_COLORS.faceInk;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(eyeOffsetX - eyeR, ey);
+        ctx.lineTo(eyeOffsetX + eyeR, ey);
+        ctx.stroke();
+      }
+    };
+    drawPanicEye(-eyeSpreadY);
+    drawPanicEye(eyeSpreadY);
   } else {
     // FOCUS / Standart çift göz
     const drawEye = (ey) => {
@@ -659,7 +709,132 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     drawEye(eyeSpreadY);
   }
 
+  // 5b. Birleşik ağız + kaş + allık — tek kaynak, tüm ifadeler burada kapanır.
+  // GRIN kendi diş ağzını çizer, ANGRY kendi kaşını çizer; kalanlar burada.
+  // Mikro boyda atlanır, fillRect yok, rotate yok, hepsi siluet içinde.
+  if (!isMicro) {
+    const mx = r * 0.58;
+    const ml = Math.max(1.5, r * 0.11);
+    const mw = Math.max(1.5, r * 0.10);
+    const mouthLineW = Math.max(1.2, r * 0.055);
+    // --- Ağız ---
+    if (expression !== 'GRIN') {
+      if (expression === 'PANIC') {
+        ctx.fillStyle = UI_COLORS.mouthDark;
+        ctx.beginPath();
+        ctx.ellipse(mx, 0, Math.max(1.2, r * 0.09), Math.max(1.8, r * 0.16), 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = UI_COLORS.tongue;
+        ctx.beginPath();
+        ctx.ellipse(mx + r * 0.03, r * 0.06, Math.max(0.8, r * 0.045), Math.max(0.8, r * 0.06), 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (expression === 'DERP' || expression === 'SLEEPY') {
+        ctx.fillStyle = UI_COLORS.mouthDark;
+        ctx.beginPath();
+        ctx.ellipse(mx, 0, Math.max(1, r * 0.07), Math.max(1.2, r * 0.11), 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = UI_COLORS.tongue;
+        ctx.beginPath();
+        ctx.ellipse(mx + r * 0.02, r * 0.04, Math.max(0.7, r * 0.032), Math.max(0.7, r * 0.05), 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (expression === 'WINK' || expression === 'HEART' || expression === 'STAR') {
+        ctx.strokeStyle = UI_COLORS.faceInk;
+        ctx.lineWidth = expression === 'STAR' ? Math.max(1.6, r * 0.07) : mouthLineW;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(mx, -ml * 1.2);
+        ctx.quadraticCurveTo(mx + mw, 0, mx, ml * 1.2);
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+      } else if (expression === 'ZOMBIE') {
+        ctx.strokeStyle = UI_COLORS.faceInk;
+        ctx.lineWidth = mouthLineW;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(mx, -ml);
+        ctx.lineTo(mx + mw * 0.6, -ml * 0.3);
+        ctx.lineTo(mx, ml * 0.3);
+        ctx.lineTo(mx + mw * 0.6, ml);
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+      } else if (expression === 'SHADES') {
+        ctx.strokeStyle = UI_COLORS.faceInk;
+        ctx.lineWidth = mouthLineW;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(mx, -ml * 0.6);
+        ctx.lineTo(mx + mw * 0.5, ml * 0.9);
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+      } else {
+        // FOCUS / CYCLOPS / CYBORG / ANGRY / SLEEPY çizgisi — sakin, kısa, dikey profil.
+        ctx.strokeStyle = UI_COLORS.faceInk;
+        ctx.lineWidth = mouthLineW;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(mx, -ml);
+        ctx.lineTo(mx + r * 0.02, ml);
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+      }
+    }
+    // --- Kaşlar (gözlük/vizör/tepegöz/mutlu-kapalı gözlerde yok) ---
+    if (expression !== 'ANGRY' && expression !== 'SHADES' && expression !== 'CYBORG' && expression !== 'CYCLOPS' && expression !== 'HEART' && expression !== 'STAR') {
+      const bx = eyeOffsetX - eyeR * 0.25;
+      const bl = eyeR * 0.65;
+      const browW = Math.max(1.2, r * 0.055);
+      ctx.strokeStyle = UI_COLORS.faceInk;
+      ctx.lineWidth = browW;
+      ctx.lineCap = 'round';
+      const brow = (ey, tilt) => {
+        ctx.beginPath();
+        ctx.moveTo(bx - bl, ey + tilt);
+        ctx.lineTo(bx + bl, ey - tilt);
+        ctx.stroke();
+      };
+      if (expression === 'PANIC') {
+        brow(-eyeSpreadY, -Math.max(1, r * 0.05));
+        brow(eyeSpreadY, Math.max(1, r * 0.05));
+      } else if (expression === 'GRIN') {
+        brow(-eyeSpreadY, -Math.max(1, r * 0.03));
+        brow(eyeSpreadY, Math.max(1, r * 0.03));
+      } else if (expression === 'WINK') {
+        brow(-eyeSpreadY, 0);
+      } else if (expression === 'SLEEPY' || expression === 'ZOMBIE' || expression === 'DERP') {
+        brow(-eyeSpreadY, 0);
+        brow(eyeSpreadY, 0);
+      } else {
+        brow(-eyeSpreadY, Math.max(0.8, r * 0.02));
+        brow(eyeSpreadY, -Math.max(0.8, r * 0.02));
+      }
+      ctx.lineCap = 'butt';
+    }
+    // --- Allık (sıcak ifadelerde yanak ısısı) ---
+    if (expression === 'HEART' || expression === 'STAR' || expression === 'WINK' || expression === 'GRIN') {
+      const br = Math.max(1.2, eyeR * 0.42);
+      const bxBlush = eyeOffsetX - eyeR * 1.1;
+      const byBlush = eyeSpreadY + eyeR * 0.75;
+      ctx.fillStyle = UI_COLORS.blush;
+      ctx.beginPath();
+      ctx.arc(bxBlush, -byBlush, br, 0, Math.PI * 2);
+      ctx.arc(bxBlush, byBlush, br, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   ctx.restore(); // Yüz dönme sonu
+
+  // 5c. İç rim ışığı — sol-üst hilal, topu ışıktan okutur. Clip dışı değil,
+  // gövde çemberinin içinde, stroke ile; fillRect sayımına dokunmaz.
+  // globalAlpha YOK: sahte ctx kayıtlarında save/restore yığını çalışmaz ve
+  // sızan alpha final kartı testini bozar; yarı saydamlık token rengindedir.
+  if (!isMicro && (isPlayFace || options.volume)) {
+    ctx.strokeStyle = UI_COLORS.rimLight;
+    ctx.lineWidth = Math.max(1, r * 0.05);
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.8, Math.PI * 1.05, Math.PI * 1.55);
+    ctx.stroke();
+  }
 
   // Dış save (translate) iadesi: bu `restore` olmadan çağıran karede
   // `translate(cx, cy)` SIZAR ve aynı karede sonra çizilen her şey

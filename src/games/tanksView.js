@@ -5,6 +5,7 @@
 // world snapshot'ına girmez — client tankları belirdiği anda görür.
 
 import { drawPickup, drawObstacle } from '../core/arenaKit.js';
+import { computeAvatarKineticDeformation } from '../core/avatarInGame.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
@@ -36,6 +37,9 @@ export function createTanksWorldPacket(game) {
       alive: tk.isAlive !== false,
       x: round1(tk.x || 0),
       y: round1(tk.y || 0),
+      vx: round1(tk.vx || 0),
+      vy: round1(tk.vy || 0),
+      recoil: round1(tk.recoil || 0),
       angle: round1(tk.angle || 0),
       size: round1(tk.size || 26),
       radius: round1(tk.size || 26),
@@ -95,6 +99,9 @@ export { packFxState };
 function isValidTanksPlayer(p) {
   return typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
     && finite(p.angle) && finite(p.size)
+    && (p.vx === undefined || finite(p.vx))
+    && (p.vy === undefined || finite(p.vy))
+    && (p.recoil === undefined || (finite(p.recoil) && p.recoil >= 0))
     && typeof p.driving === 'boolean' && finite(p.muzzle)
     && typeof p.bot === 'boolean' && typeof p.god === 'boolean'
     && typeof p.shield === 'boolean' && typeof p.eshield === 'boolean' && typeof p.stun === 'boolean'
@@ -525,6 +532,15 @@ export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true, selfSl
       showPointer: false,
       borderWidth: 1.8 * u,
       shadowOffset: 1,
+      // Kinetik parity (Faz 1): sürüş/recoil komutan figüründe de okunur.
+      // Gövde paleti sabit kalır (çarpışma silueti değişmez), juice yalnız
+      // figürde — sunum katmanı, simülasyon değil. Dünya açısı yerele çevrilir
+      // (gövde `angle` ile dönüyor).
+      ...(() => {
+        const k = computeAvatarKineticDeformation(tank, {});
+        if (k.squashAngle === null) return {};
+        return { squashX: k.squashX, squashY: k.squashY, squashAngle: k.squashAngle - (tank.angle || 0) };
+      })(),
     });
     ctx.restore();
 

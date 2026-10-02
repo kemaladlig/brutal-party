@@ -740,6 +740,7 @@ export class HordeGame extends BaseMiniGame {
       * (player.dashTimer > 0 ? HORDE_TUNING.DASH_SPEED_MULT : 1);
     player.x += player.steerX * speed * dt;
     player.y += player.steerY * speed * dt;
+    this.writeSteerVelocity(player, player.steerX * speed, player.steerY * speed);
     clampToArena(player, player.radius, this.arena);
     resolveAABB(player, this.obstacles, player.radius);
 

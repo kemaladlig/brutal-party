@@ -215,7 +215,7 @@ export function createTabletopRenderer(game) {
           ctx.save();
           ctx.translate(corner.x, corner.y);
           if (corner.rotation) ctx.rotate(corner.rotation);
-          ctx.globalAlpha = getControlAlpha(isNear ? 0.15 : 0.40, false, isNear);
+          ctx.globalAlpha = getControlAlpha(isNear ? 0.08 : 0.16, false, isNear);
 
           ctx.strokeStyle = playerColor;
           ctx.lineWidth = Math.max(2, Math.round(2.5 * profile.baseUnit));

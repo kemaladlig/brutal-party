@@ -316,6 +316,7 @@ this.targetScore = 2;
         x: s.x, y: s.y, angle: 0,
         radius: fieldRadius(this.arena, COLLAPSE_RADIUS),
         speed: fieldSpeed(this.arena, COLLAPSE_MOVE_SPEED), steerX: 0, steerY: 0,
+        vx: 0, vy: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         jumpTimer: 0, jumpCooldown: 0, wasJumping: false,
         superJumpTimer: 0,
@@ -672,6 +673,7 @@ this.targetScore = 2;
       const spd = player.jumpTimer > 0 ? player.speed * 1.85 : player.speed;
       player.x += player.steerX * spd * dt;
       player.y += player.steerY * spd * dt;
+      this.writeSteerVelocity(player, player.steerX * spd, player.steerY * spd);
 
       // Zemin etkileşimi (sadece yerdeyken); hızlı karelerde aradaki boşluğu atlamaz.
       if (player.jumpTimer <= 0) {

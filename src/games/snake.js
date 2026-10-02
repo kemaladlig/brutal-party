@@ -263,6 +263,7 @@ this.targetScore = 2;
         radius: fieldRadius(this.arena, SNAKE_HEAD_RADIUS),
         speed: fieldSpeed(this.arena, SNAKE_TUNING.MOVE_SPEED), turnSpeed: SNAKE_TUNING.TURN_SPEED,
         steer: 0, isBoost: false, boostEnergy: 100, boostMaxEnergy: 100, boostLocked: false,
+        vx: 0, vy: 0,
         isAlive: true, isJoined: this.isSlotJoined(i),
         slotType: this.slotTypes[i], segments: [], currentLen: 0, targetLen: 65,
         botCheckTimer: 0, tongueTimer: Math.random() * 2,
@@ -598,6 +599,7 @@ this.targetScore = 2;
       }
 
       const moveSpeed = player.isBoost ? player.speed * 1.65 : player.speed;
+      this.writeSteerVelocity(player, Math.cos(player.angle) * moveSpeed, Math.sin(player.angle) * moveSpeed);
       const prevX = player.x;
       const prevY = player.y;
       const targetX = prevX + Math.cos(player.angle) * moveSpeed * dt;

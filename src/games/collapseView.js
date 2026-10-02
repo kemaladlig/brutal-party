@@ -56,6 +56,8 @@ export function createCollapseWorldPacket(game) {
       alive: p.isAlive !== false,
       x: round1(p.x || 0),
       y: round1(p.y || 0),
+      vx: round1(p.vx || 0),
+      vy: round1(p.vy || 0),
       radius: round1(p.radius || 36),
       jump: round2((p.jumpTimer || 0) > 0 ? (p.jumpTimer || 0) / 0.45 : 0),
       super: (p.superJumpTimer || 0) > 0,
@@ -96,7 +98,9 @@ export function createCollapseWorldPacket(game) {
 function isValidCollapsePlayer(p) {
   return typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
     && finite(p.jump) && p.jump >= 0 && p.jump <= 1
-    && typeof p.super === 'boolean';
+    && typeof p.super === 'boolean'
+    && (p.vx === undefined || finite(p.vx))
+    && (p.vy === undefined || finite(p.vy));
 }
 
 function isValidCollapseExtra(frame) {

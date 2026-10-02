@@ -5,7 +5,7 @@
 
 import { drawObstacle, drawPickup } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
-import { drawGameAvatar } from '../core/avatarInGame.js';
+import { drawGameAvatar, computeAvatarKineticDeformation } from '../core/avatarInGame.js';
 import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
@@ -69,6 +69,11 @@ export function createArcherWorldPacket(game) {
       alive: p.isAlive !== false,
       x: round1(p.x || 0),
       y: round1(p.y || 0),
+      // Kinetik parity (Faz 1): açık hız + recoil taşınır, uzak client
+      // aynı squash'ı görür. Ölçekli cihaz px'tir, round1 yeter.
+      vx: round1(p.vx || 0),
+      vy: round1(p.vy || 0),
+      recoil: round1(p.recoil || 0),
       // Yarıçap host'ta hesaplanır (sahayla ölçeklenir) ve paketle taşınır;
       // client aynı view çizimini kullandığı için yeniden ölçeklemez.
       radius: round1(p.radius || ARCHER_RADIUS),
@@ -142,6 +147,10 @@ export function isValidArcherWorldFrame(frame) {
     && finite(p.x) && finite(p.y) && finite(p.angle)
     // radius opsiyoneldir (eski host paketleri) ama varsa pozitif olmalı.
     && (p.radius === undefined || (finite(p.radius) && p.radius > 0))
+    // Kinetik alanlar v2 eklentisidir; eski host frames'i yoktur (opsiyonel).
+    && (p.vx === undefined || finite(p.vx))
+    && (p.vy === undefined || finite(p.vy))
+    && (p.recoil === undefined || (finite(p.recoil) && p.recoil >= 0))
     && finite(p.charge) && finite(p.swayPhase) && finite(p.stun) && finite(p.reload)
     && finite(p.fireCooldown) && p.fireCooldown >= 0 && p.fireCooldown <= 1
     && isValidFireFeedbackSnapshot(p.fireFeedback)
@@ -298,9 +307,19 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena
     }
 
     const stun = (player.stun || 0) > 0;
+    // Kinetik dünya uzayında hesaplanır, gövde `angle` ile döndüğü için
+    // squash açısı yerele çevrilir (dünya - gövde). Çevirmesizde strafe
+    // (hareket ≠ bakış) iki kez dönerdi.
+    const worldK = computeAvatarKineticDeformation(player, {});
+    const localSquashAngle = worldK.squashAngle === null
+      ? null
+      : worldK.squashAngle - (player.angle || 0);
     drawGameAvatar(ctx, 0, 0, R, player, {
       color: stun ? '#9C988F' : (player.color || FALLBACK),
       facingAngle: 0,
+      squashX: worldK.squashX,
+      squashY: worldK.squashY,
+      squashAngle: localSquashAngle,
       label: `P${slotIndex + 1}`,
       expression: player.charging ? 'angry' : (stun ? 'dizzy' : 'normal'),
       showPointer: true,

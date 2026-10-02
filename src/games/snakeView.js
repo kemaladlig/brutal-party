@@ -122,6 +122,8 @@ export function createSnakeWorldPacket(game) {
       alive: player.isAlive !== false,
       x: round1(player.x || 0),
       y: round1(player.y || 0),
+      vx: round1(player.vx || 0),
+      vy: round1(player.vy || 0),
       angle: round1(player.angle || 0),
       radius: round1(player.radius || 24),
       boost: !!player.isBoost,
@@ -180,6 +182,8 @@ export function isValidSnakeWorldFrame(frame) {
     && finite(player.x)
     && finite(player.y)
     && finite(player.angle)
+    && (player.vx === undefined || finite(player.vx))
+    && (player.vy === undefined || finite(player.vy))
     && typeof player.boost === 'boolean'
     && finite(player.energy) && player.energy >= 0 && player.energy <= 100
     && typeof player.locked === 'boolean'

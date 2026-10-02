@@ -1,7 +1,7 @@
 // Sürüm adıyla birlikte tüm çalışma zamanı önbelleği düşürülür (activate).
 // Statik varlıklarda cache-first kullanıldığı için, bir kapak ya da simge
 // değiştiğinde bu sürüm numarası da yükseltilir.
-const CACHE_NAME = 'brutal-party-v20';
+const CACHE_NAME = 'brutal-party-v21';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -59,6 +59,9 @@ function isBypassed(url) {
 // yükseltmesiyle zaten düşürülür.
 function isImmutableAsset(url) {
   if (url.origin === self.location.origin) {
+    // Kenney ogg'ları hash'siz ama değişmez lisanslı pakettir: bir kez indi mi
+    // runtime'da tekrar ağa sorulmaz (ilk maçtan sonra çevrimdışı da çalar).
+    if (url.pathname.startsWith('/sound/')) return true;
     return /^\/assets\//.test(url.pathname) || /^\/(icon|background|manifest)/.test(url.pathname);
   }
   return /(^|\.)(fonts\.googleapis|fonts\.gstatic)\.com$/.test(url.hostname);

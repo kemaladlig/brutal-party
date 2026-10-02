@@ -194,7 +194,8 @@ export function resolveInsets(width, height, spec, safe = ZERO_INSETS, compact =
  *   width: number, height: number, cx: number, cy: number,
  *   size: number, aspect: number, unit: number,
  *   insets: { top: number, right: number, bottom: number, left: number },
- *   profile: any
+ *   profile: any,
+ *   safeTouchZones: any
  * }}
  */
 export function computePlayfield(width, height, preset = DEFAULT_PRESET) {
@@ -231,6 +232,19 @@ export function computePlayfield(width, height, preset = DEFAULT_PRESET) {
     compactLandscape: compact,
   });
 
+  const safeTouchZones = Object.freeze({
+    bottomLeft: Object.freeze({
+      x: insets.left,
+      y: insets.top + fieldHeight,
+      radius: Math.round(64 * unit),
+    }),
+    bottomRight: Object.freeze({
+      x: insets.left + fieldWidth,
+      y: insets.top + fieldHeight,
+      radius: Math.round(64 * unit),
+    }),
+  });
+
   return {
     left: insets.left,
     top: insets.top,
@@ -245,7 +259,26 @@ export function computePlayfield(width, height, preset = DEFAULT_PRESET) {
     unit,
     insets,
     profile,
+    safeTouchZones,
   };
+}
+
+/**
+ * Verilen noktanın sanal kontrol başparmak bölgesine (safe touch zone)
+ * çakışıp çakışmadığını denetler.
+ * @param {any} playfield
+ * @param {number} x
+ * @param {number} y
+ * @param {number} [padding]
+ * @returns {boolean}
+ */
+export function isInSafeTouchZone(playfield, x, y, padding = 0) {
+  if (!playfield?.safeTouchZones) return false;
+  const { bottomLeft, bottomRight } = playfield.safeTouchZones;
+  const d1 = Math.hypot(x - bottomLeft.x, y - bottomLeft.y);
+  if (d1 < bottomLeft.radius + padding) return true;
+  const d2 = Math.hypot(x - bottomRight.x, y - bottomRight.y);
+  return d2 < bottomRight.radius + padding;
 }
 
 /** Tasarım px → cihaz px. Sahayla birlikte orantılı büyür/küçülür. */

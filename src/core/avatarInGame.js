@@ -70,19 +70,174 @@ export function blinkState(now, slotIndex = 0) {
  * @returns {string} Normalized expression
  */
 export function normalizeExpression(exp) {
-  if (!exp) return 'NORMAL';
-  const upper = exp.toUpperCase();
+  if (!exp) return 'FOCUS';
+  const upper = String(exp).toUpperCase();
   const aliasMap = {
     ANGRY: 'ANGRY',
     PANIC: 'PANIC',
-    EXCITED: 'EXCITED',
-    DIZZY: 'DIZZY',
+    EXCITED: 'WINK',
+    DIZZY: 'CYCLOPS',
+    ROBOT: 'CYBORG',
     WINK: 'WINK',
-    SMIRK: 'SMIRK',
-    DEAD: 'DEAD',
-    NORMAL: 'NORMAL',
+    SMIRK: 'GRIN',
+    DEAD: 'ZOMBIE',
+    NORMAL: 'FOCUS',
+    FOCUS: 'FOCUS',
+    DERP: 'DERP',
+    CYCLOPS: 'CYCLOPS',
+    HEART: 'HEART',
+    STAR: 'STAR',
+    SLEEPY: 'SLEEPY',
+    ZOMBIE: 'ZOMBIE',
+    GRIN: 'GRIN',
+    SHADES: 'SHADES',
+    CYBORG: 'CYBORG',
   };
   return aliasMap[upper] || upper;
+}
+
+/**
+ * Kinetik girdi normalizasyonu (parity sözleşmesi, Faz 0).
+ *
+ * Sorun: her motor kendi hareket lehçesini konuşuyordu (`steer` vs `vx/vy`,
+ * `dash` vs `dashTimer` vs `isDashing` vs `strikeTimer`), merkezi squash
+ * yalnız `player.dashing/vx/vy/recoil` okuduğu için 6 motorda ölüydü.
+ * Bu fonksiyon ham player'ı tek KineticState'e indirir; görsel sistem
+ * ham alan okumaz.
+ *
+ * @param {Object} player - Oyuncu varlığı
+ * @param {Object} [opts] - Paket/override (world packet alanları buradan gelir)
+ * @returns {{ dashing: boolean, tackling: boolean, vx: number|null, vy: number|null, recoil: number }}
+ */
+export function getKineticState(player, opts = {}) {
+  const p = player || {};
+  const o = opts || {};
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+  // Dash: kanonik `dashing` + tüm motor lehçeleri (BOMB dashTimer/isDashing,
+  // ZONE dashTimer/isDashing, NINJA strikeTimer, COLLAPSE jumpTimer, paket `dash`/`strike`).
+  const dashing = Boolean(
+    p.dashing || o.dashing
+    || p.isDashing || o.isDashing
+    || (num(p.dashTimer) ?? 0) > 0 || (num(o.dashTimer) ?? 0) > 0
+    || (num(p.dash) ?? 0) > 0 || (num(o.dash) ?? 0) > 0
+    || (num(p.strikeTimer) ?? 0) > 0 || o.strike === true || p.strike === true
+    || (num(p.jumpTimer) ?? 0) > 0,
+  );
+
+  // Tackle: kanonik `tackling` + `isTackling` (CROWN/HEIST).
+  const tackling = Boolean(p.tackling || o.tackling || p.isTackling || o.isTackling);
+
+  // Hız: önce açık vektör, yoksa steer-türevi (idle-güvenli).
+  let vx = o.vx ?? p.vx ?? null;
+  let vy = o.vy ?? p.vy ?? null;
+  if (typeof vx !== 'number' || typeof vy !== 'number'
+    || !Number.isFinite(vx) || !Number.isFinite(vy)) {
+    vx = null;
+    vy = null;
+    const sx = num(p.steerX);
+    const sy = num(p.steerY);
+    const spd = num(p.speed);
+    if (sx !== null && sy !== null && spd !== null) {
+      vx = sx * spd;
+      vy = sy * spd;
+    } else if (typeof p.steer === 'number' && spd !== null
+      && typeof (p.angle ?? p.heading) === 'number') {
+      // SNAKE/CURVE: sürekli ileri hareket, steer yalnız dönüş.
+      const a = p.angle ?? p.heading;
+      const boost = p.isBoost ? 1.65 : 1;
+      vx = Math.cos(a) * spd * boost;
+      vy = Math.sin(a) * spd * boost;
+    } else if (p.isDriving && spd !== null && typeof p.angle === 'number') {
+      // TANKS: sürüşte gövde hızı, boşta sıfır.
+      vx = Math.cos(p.angle) * spd;
+      vy = Math.sin(p.angle) * spd;
+    }
+  }
+
+  const recoil = num(o.recoil) ?? num(p.recoil) ?? 0;
+
+  return { dashing, tackling, vx, vy, recoil };
+}
+
+/**
+ * Kinetik saat: sunum-alanı decay'leri tek kapıdan (ateş recoil'i).
+ * Simülasyon saatini yürütmez, yalnız recoil'i söndürür.
+ * @param {Object} player - Oyuncu varlığı
+ * @param {number} dt - Saniye
+ */
+export function tickKinetic(player, dt) {
+  if (!player || !(dt > 0)) return;
+  if (typeof player.recoil === 'number' && player.recoil > 0) {
+    player.recoil = Math.max(0, player.recoil - dt * 3.5);
+  }
+}
+
+/**
+ * Karakter kinetik deformasyonunu (Squash & Stretch) hesaplar.
+ *
+ * Hızlanırken hareket vektörü boyunca uzama (%10-15), darbede/frenlemede
+ * basılma, silah geri tepmesinde (recoil) anlık sıkışma üretir.
+ * Yalnız aktif kinetik durum varken değer döndürür; dururken 1.0/null
+ * döner (sıfır ek yük, sıfır fazladan canvas çağrısı).
+ *
+ * @param {Object} player - Oyuncu nesnesi
+ * @param {Object} [opts] - Seçenekler
+ * @returns {{ squashX: number, squashY: number, squashAngle: number | null }}
+ */
+export function computeAvatarKineticDeformation(player, opts = {}) {
+  if (opts.squashX !== undefined || opts.squashY !== undefined) {
+    return {
+      squashX: opts.squashX ?? 1.0,
+      squashY: opts.squashY ?? 1.0,
+      squashAngle: opts.squashAngle ?? opts.facingAngle ?? player.facingAngle ?? player.angle ?? 0,
+    };
+  }
+
+  const facingAngle = opts.facingAngle !== undefined
+    ? opts.facingAngle
+    : (player.facingAngle ?? player.angle ?? 0);
+
+  const kinetic = getKineticState(player, opts);
+
+  // 1. Dash / Depar: yön boyunca belirgin uzama, yanlardan basılma
+  if (kinetic.dashing) {
+    return { squashX: 1.18, squashY: 0.85, squashAngle: facingAngle };
+  }
+
+  // 2. Tackle / Omuz darbesi: ileri uzama
+  if (kinetic.tackling) {
+    return { squashX: 1.14, squashY: 0.88, squashAngle: facingAngle };
+  }
+
+  // 3. Hız vektöründen türeyen organik akış (açık vx/vy yoksa steer-türevi)
+  const vx = kinetic.vx;
+  const vy = kinetic.vy;
+  if (typeof vx === 'number' && typeof vy === 'number' && (vx !== 0 || vy !== 0)) {
+    const spd = Math.hypot(vx, vy);
+    if (spd > 35) {
+      const factor = Math.min(0.12, (spd / 350) * 0.10);
+      const moveAngle = Math.atan2(vy, vx);
+      return {
+        squashX: 1 + factor,
+        squashY: 1 / (1 + factor),
+        squashAngle: moveAngle,
+      };
+    }
+  }
+
+  // 4. Silah geri tepmesi (Recoil): ters yöne anlık sıkışma
+  const recoil = kinetic.recoil;
+  if (typeof recoil === 'number' && recoil > 0.05) {
+    const factor = Math.min(0.15, recoil * 0.15);
+    return {
+      squashX: 1 - factor,
+      squashY: 1 + factor,
+      squashAngle: facingAngle,
+    };
+  }
+
+  return { squashX: 1.0, squashY: 1.0, squashAngle: null };
 }
 
 /**
@@ -103,7 +258,22 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
   const slotIndex = player.index !== undefined ? player.index : 0;
   const defaultLabel = `P${slotIndex + 1}${customName}`;
 
-  const expression = normalizeExpression(opts.expression || player.expression);
+  const isHit = Boolean(
+    opts.hitFlash
+    || opts.hit
+    || player.hit
+    || (typeof player.hitTimer === 'number' && player.hitTimer > 0)
+    || (typeof player.flashTimer === 'number' && player.flashTimer > 0)
+  );
+
+  const expression = normalizeExpression(
+    opts.expression
+    || (isHit ? 'PANIC' : null)
+    || player.expression
+  );
+
+  // Karakter Kinetiği (Squash & Stretch)
+  const kinetic = computeAvatarKineticDeformation(player, opts);
 
   // Avatar kromu yarıçapla ölçeklenir. Sabit 3px çerçeve, masaüstündeki 36px
   // bir avatarın yarıçapının %8'i iken telefondaki 12px avatarın %25'idir —
@@ -146,5 +316,10 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
     // 3.3 okunurluk kademesi: çağıran `fxReadAlpha` ile hesapladığı α'yı geçirir;
     // drawBrutalAvatar bunu ctx.globalAlpha ile ÇARPAR (kendi başına dim uydurmaz).
     alpha: opts.alpha,
+    // Karakter kinetiği & 1-kare hit flash
+    squashX: kinetic.squashX,
+    squashY: kinetic.squashY,
+    squashAngle: kinetic.squashAngle,
+    hitFlash: isHit,
   });
 }

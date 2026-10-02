@@ -59,7 +59,8 @@ src/types/minigame.d.ts     Motor sözleşmesinin TİP hâli: MiniGameEngine/Min
                             Global bildirim (runtime değer yok); yeni motor alanı önce buraya.
 src/types/geometry.d.ts     Paylaşılan geometri/ölçüm tipleri: FieldGeometry/FieldPalette/
                             QualityMeasurement/WorldFrame + HTMLCanvasElement __fieldRole.
-src/audio.js                Synthesizer / Web Audio ses efektleri
+src/audio.js                Synthesizer + sample-first facade (Kenney ogg varsa onu çalar,
+                            yoksa synth; API aynı — `core/soundEngine` + `core/soundBank`)
 
 src/core/
   BaseGame.js               BaseMiniGame ortak ata: state, skor, trauma, slotTypes, klavye,
@@ -90,6 +91,10 @@ src/core/
   preferences.js            Versiyonlu cihaz tercihleri (+ controllerLayout v2 profili, v1→v2 migration)
   controllerLayout.js       Saf cihaz-geneli kontrol yerleşimi (normalize, safe-frame, 44px)
   haptics.js                Tek haptik preference gate
+  soundBank.js              Küratörlü Kenney örnek bankası TEK KAYNAĞI (SOUND_BANK +
+                            SYNTH_TO_SAMPLE + PRELOAD_IDS; ~40 dosya, apostrof yok)
+  soundEngine.js            Örnek oynatıcı: tek AudioContext, 4 bus (sfx/ui/voice/music),
+                            buffer cache + throttle + polifoni + autoplay unlock
   fxKit.js                  FX OLAY SÖZLEŞMESİ TEK KAYNAĞI (MOTION_PLAN): kapalı FX_KIND kümesi +
                             FX_PROFILES bütçe tablosu (burst/ring/trauma/hit-stop/flaş, tasarım px),
                             havuz kapları, hit-stop zaman ölçeği (advanceHitStop), haptik desen tablosu
@@ -463,6 +468,12 @@ Sentezleyici tek modülde; oyun sesleri **olay sınıflarına ayrılmış** sesl
 Aynı dalga ailesini paylaşan sesler (ör. `hurt` ve `fuse` — ikisi de `square`) **süreyle**
 ayrışır; imza `(type, duration)` çiftidir. Elit/boss ölümü `playExplosion`'ı korur: "önemli ölüm"
 kulağa büyük gelmelidir.
+
+Sample katmanı: her `play*` önce `core/soundBank.js` eşlemesindeki Kenney ogg'yi dener
+(`core/soundEngine.js` — bus + throttle + polifoni); önbellekte yoksa/bozuksa yukarıdaki
+synth çalar. Testler synth yolunu kilitler, tarayıcıda ikinci vuruştan itibaren örnek
+duyulur. Geri sayım `playCountdownTick` (3-2-1 + `fight`), staging iki tarafı da ısıtır
+(`warmGameSounds`). Banka bütünlüğü `tests/soundBank.test.mjs`'tedir.
 
 ---
 

@@ -1,5 +1,22 @@
 // Web Audio API procedural brutalist audio synthesizer
+// Sample-first layer lives in core/soundBank.js (WHAT) + core/soundEngine.js
+// (HOW). Each play* tries its curated Kenney ogg when cached; otherwise the
+// synth below covers the first hit / Node tests / decode failures.
 import { getPreference, setPreference } from './core/preferences.js';
+import { SYNTH_TO_SAMPLE } from './core/soundBank.js';
+import { tryPlaySample, bindUnlock, syncEnginePrefs, preloadSamples } from './core/soundEngine.js';
+
+function sampleFirst(id, opts) {
+  try {
+    if (tryPlaySample(id, opts)) return true;
+  } catch {}
+  return false;
+}
+function sampleFor(fnName) {
+  const id = SYNTH_TO_SAMPLE[fnName];
+  return id ? sampleFirst(id) : false;
+}
+try { bindUnlock(); } catch {}
 
 let audioCtx = null;
 let isAudioMuted = getPreference('audioMuted');
@@ -23,7 +40,37 @@ function getNoiseBuffer(ctx, seconds = 0.15) {
 export function toggleAudio() {
   isAudioMuted = !isAudioMuted;
   setPreference('audioMuted', isAudioMuted);
+  try { syncEnginePrefs(); } catch {}
   return isAudioMuted;
+}
+
+export function setAudioVolume(v) {
+  const n = Number(v);
+  const clamped = Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0.85;
+  setPreference('audioVolume', clamped);
+  try { syncEnginePrefs(); } catch {}
+  return clamped;
+}
+
+export function getAudioVolume() {
+  try {
+    const v = Number(getPreference('audioVolume'));
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.85;
+  } catch { return 0.85; }
+}
+
+export function setVoiceEnabled(on) {
+  setPreference('audioVoice', on !== false);
+  return getPreference('audioVoice') !== false;
+}
+
+export function isVoiceEnabled() {
+  try { return getPreference('audioVoice') !== false; } catch { return true; }
+}
+
+/** Warm curated samples early (call on staging / match start). @param {string[]} [ids] */
+export function warmGameSounds(ids) {
+  try { preloadSamples(Array.isArray(ids) ? ids : ['ui.tick', 'ui.confirm', 'hit.punchLight', 'shot.laserSmall', 'boom.crunch']); } catch {}
 }
 
 export function getIsMuted() {
@@ -45,6 +92,7 @@ function getAudioContext() {
 }
 
 export function playPaddleHit(intensity = 1.0) {
+  if (sampleFor('playPaddleHit')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -68,6 +116,7 @@ export function playPaddleHit(intensity = 1.0) {
 }
 
 export function playWallHit() {
+  if (sampleFor('playWallHit')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -90,6 +139,7 @@ export function playWallHit() {
 }
 
 export function playGoal() {
+  if (sampleFor('playGoal')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -112,6 +162,7 @@ export function playGoal() {
 }
 
 export function playJoin() {
+  if (sampleFor('playJoin')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -134,6 +185,7 @@ export function playJoin() {
 }
 
 export function playStart() {
+  if (sampleFor('playStart')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -159,6 +211,7 @@ export function playStart() {
 
 // Tanks procedural sounds
 export function playShoot() {
+  if (sampleFor('playShoot')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -181,6 +234,7 @@ export function playShoot() {
 }
 
 export function playRicochet() {
+  if (sampleFor('playRicochet')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -203,6 +257,7 @@ export function playRicochet() {
 }
 
 export function playExplosion() {
+  if (sampleFor('playExplosion')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -235,6 +290,7 @@ export function playExplosion() {
 // Aynı zamanda `attack`'ünü de veriyoruz ki transient duyulabilsin ama
 // acımasın; 0.001'e exponential decay 55ms'de bitiyor.
 export function playDryFire() {
+  if (sampleFor('playDryFire')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -258,6 +314,7 @@ export function playDryFire() {
 }
 
 export function playFireBlocked() {
+  if (sampleFor('playFireBlocked')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -278,6 +335,7 @@ export function playFireBlocked() {
 }
 
 export function playPowerUp() {
+  if (sampleFor('playPowerUp')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -298,6 +356,7 @@ export function playPowerUp() {
 }
 
 export function playSonicBoom() {
+  if (sampleFor('playSonicBoom')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -320,6 +379,7 @@ export function playSonicBoom() {
 }
 
 export function playGap() {
+  if (sampleFor('playGap')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -342,6 +402,7 @@ export function playGap() {
 }
 
 export function playItemPickup() {
+  if (sampleFor('playItemPickup')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -366,6 +427,7 @@ export function playItemPickup() {
 }
 
 export function playBombTick(urgency = 0) {
+  if (sampleFor('playBombTick')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -391,6 +453,7 @@ export function playBombTick(urgency = 0) {
 }
 
 export function playBombPass() {
+  if (sampleFor('playBombPass')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -413,6 +476,7 @@ export function playBombPass() {
 }
 
 export function playTeleport() {
+  if (sampleFor('playTeleport')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -438,6 +502,7 @@ export function playTeleport() {
 }
 
 export function playSlip() {
+  if (sampleFor('playSlip')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -460,6 +525,7 @@ export function playSlip() {
 }
 
 export function playDashWhoosh() {
+  if (sampleFor('playDashWhoosh')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -482,6 +548,7 @@ export function playDashWhoosh() {
 }
 
 export function playPanicHeartbeat() {
+  if (sampleFor('playPanicHeartbeat')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -507,6 +574,7 @@ export function playPanicHeartbeat() {
 }
 
 export function playStumble() {
+  if (sampleFor('playStumble')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -529,6 +597,7 @@ export function playStumble() {
 }
 
 export function playCoinPickup() {
+  if (sampleFor('playCoinPickup')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -551,6 +620,7 @@ export function playCoinPickup() {
 }
 
 export function playCashRegister() {
+  if (sampleFor('playCashRegister')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -577,6 +647,7 @@ export function playCashRegister() {
 }
 
 export function playVaultAlarm() {
+  if (sampleFor('playVaultAlarm')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -600,6 +671,7 @@ export function playVaultAlarm() {
 }
 
 export function playGunshot() {
+  if (sampleFor('playGunshot')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -642,6 +714,7 @@ export function playGunshot() {
 }
 
 export function playDrawTension() {
+  if (sampleFor('playDrawTension')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -664,6 +737,7 @@ export function playDrawTension() {
 }
 
 export function playHeavyImpact() {
+  if (sampleFor('playHeavyImpact')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -686,6 +760,7 @@ export function playHeavyImpact() {
 }
 
 export function playPiggyBreak() {
+  if (sampleFor('playPiggyBreak')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -711,6 +786,7 @@ export function playPiggyBreak() {
 }
 
 export function playFakeoutCrow() {
+  if (sampleFor('playFakeoutCrow')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -738,6 +814,7 @@ export function playFakeoutCrow() {
  * Kart üzerine gelindiğinde veya tab değiştiğinde çalan ultra hafif mekanik tık
  */
 export function playMenuTick() {
+  if (sampleFor('playMenuTick')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -762,6 +839,7 @@ export function playMenuTick() {
  * Karakter tıklandığında / zıpladığında çalan neşeli arcade boing/pop sesi
  */
 export function playMenuPop() {
+  if (sampleFor('playMenuPop')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -789,6 +867,7 @@ export function playMenuPop() {
 // düşman mı öldü" karışıyordu, bomba patlaması da aynı sesteydi.
 // Çözüm: üç ayrı renk — kill tiz/kısa, hurt bas/uzun, boom derin/uzun.
 export function playHordeKill() {
+  if (sampleFor('playHordeKill')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -811,6 +890,7 @@ export function playHordeKill() {
 }
 
 export function playHordeHurt() {
+  if (sampleFor('playHordeHurt')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -833,6 +913,7 @@ export function playHordeHurt() {
 }
 
 export function playHordeBombTick(urgency = 0) {
+  if (sampleFor('playHordeBombTick')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -856,6 +937,7 @@ export function playHordeBombTick(urgency = 0) {
 }
 
 export function playHordeBoom() {
+  if (sampleFor('playHordeBoom')) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -878,3 +960,51 @@ export function playHordeBoom() {
 }
 
 
+
+// ── Fighter voice + jingle announcers (sample-only, synth fallback: soft tick) ──
+// Staging/countdown/match-over call these; on missing buffers they degrade to
+// the tiny synth blip below so Node tests and first-visit offline stay audible.
+
+/** @param {number} seconds 3..1, 0 = GO */
+export function playCountdownTick(seconds) {
+  const n = Math.min(3, Math.max(1, Math.round(seconds) || 1));
+  const id = seconds > 0 ? ('voice.count' + n) : 'voice.fight';
+  if (sampleFirst(id)) return;
+  playGap();
+}
+
+/** @param {number} round 1-based */
+export function playRoundCall(round) {
+  const n = Math.min(5, Math.max(1, Math.round(round) || 1));
+  if (n <= 3) {
+    if (sampleFirst(n === 1 ? 'voice.round1' : n === 2 ? 'voice.round2' : 'voice.round3')) return;
+  } else if (sampleFirst('voice.final')) return;
+  playStart();
+}
+
+export function playFightShout() {
+  if (sampleFirst('voice.fight')) return;
+  playStart();
+}
+
+export function playWinVoice() {
+  if (sampleFirst('voice.win')) return;
+  if (sampleFirst('jingle.win')) return;
+  playPowerUp();
+}
+
+export function playLoseVoice() {
+  if (sampleFirst('voice.lose')) return;
+  if (sampleFirst('jingle.lose')) return;
+  playGoal();
+}
+
+export function playWinJingle() {
+  if (sampleFirst('jingle.win')) return;
+  playPowerUp();
+}
+
+export function playLoseJingle() {
+  if (sampleFirst('jingle.lose')) return;
+  playGoal();
+}

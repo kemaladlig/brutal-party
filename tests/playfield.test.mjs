@@ -9,6 +9,7 @@ import {
   FIELD_DESIGN,
   FIELD_PRESETS,
   isCompactLandscape,
+  isInSafeTouchZone,
 } from '../src/core/playfield.js';
 
 // Stage 1 guard: computePlayfield() must reproduce the arena math that every
@@ -435,3 +436,18 @@ test('fieldRadius floor is relative, so it scales with the field not the device'
     Math.abs(fieldRadius(phone, design, floor) - phone.size * floor) < EPSILON,
   );
 });
+
+test('safeTouchZones and isInSafeTouchZone accurately detect corner touch areas', () => {
+  const phone = computePlayfield(852, 393, 'standard');
+  assert.ok(phone.safeTouchZones);
+  assert.ok(phone.safeTouchZones.bottomLeft.radius > 0);
+  assert.ok(phone.safeTouchZones.bottomRight.radius > 0);
+
+  // Directly inside bottom-left corner
+  assert.equal(isInSafeTouchZone(phone, phone.left + 5, phone.bottom - 5), true);
+  // Directly inside bottom-right corner
+  assert.equal(isInSafeTouchZone(phone, phone.right - 5, phone.bottom - 5), true);
+  // Center of arena should be false
+  assert.equal(isInSafeTouchZone(phone, phone.cx, phone.cy), false);
+});
+

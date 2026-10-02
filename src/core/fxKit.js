@@ -353,3 +353,53 @@ export function fxNormalizedDir(dirX, dirY) {
   if (!Number.isFinite(mag) || mag <= 0) return null;
   return { x: dirX / mag, y: dirY / mag };
 }
+
+/**
+ * Yüzen çatışma / durum metni üretir (+1, BLOCKED!, PARRY! vb.).
+ * list dizisine standart bir öğe ekler ve dizi taşmasını engeller.
+ *
+ * @param {any[]} list
+ * @param {object} opts
+ * @param {number} opts.x
+ * @param {number} opts.y
+ * @param {string} opts.text
+ * @param {string} [opts.color]
+ * @param {string} [opts.bg]
+ * @param {string} [opts.icon]
+ * @param {boolean} [opts.urgent]
+ * @param {number} [opts.dist]
+ * @param {number} [opts.maxLife]
+ * @param {boolean} [opts.pop]
+ * @param {number} [opts.cap]
+ */
+export function emitFloatingText(list, {
+  x,
+  y,
+  text,
+  color = UI_COLORS.ink,
+  bg = UI_COLORS.white,
+  icon = '',
+  urgent = false,
+  dist = 36,
+  maxLife = 0.85,
+  pop = true,
+  cap = 16,
+}) {
+  if (!Array.isArray(list) || !text) return;
+  if (list.length >= cap) list.shift();
+  list.push({
+    x,
+    y,
+    text: String(text),
+    color,
+    bg,
+    icon,
+    urgent,
+    dist,
+    life: 0,
+    maxLife,
+    pop,
+    alpha: 1,
+    vy: -dist / maxLife,
+  });
+}

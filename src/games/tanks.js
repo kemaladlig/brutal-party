@@ -467,6 +467,7 @@ this.targetScore = 2;
         spinDirection: i % 2 === 0 ? 1 : -1,
         driveSpeed: fieldSpeed(this.arena, 175),
         speed: fieldSpeed(this.arena, 175),
+        vx: 0, vy: 0, recoil: 0,
         isDriving: false,
         isAlive: true,
         isJoined: isJoined,
@@ -717,6 +718,7 @@ this.targetScore = 2;
     tank.chamber = Math.max(0, (tank.chamber ?? tank.maxBullets) - 1);
     if (tank.reloadTimer <= 0) tank.reloadTimer = tank.reloadCooldown;
     tank.muzzleFlashTimer = 0.12;
+    tank.recoil = 1;
 
     const barrelLen = tank.size * 0.82;
     const speed = fieldSpeed(this.arena, 440);
@@ -885,6 +887,7 @@ this.targetScore = 2;
         if (tank.hitFlash > 0) {
           tank.hitFlash = Math.max(0, tank.hitFlash - dt);
         }
+        this.tickKineticEntity(tank, dt);
 
         if (tank.turboTimer > 0) {
           tank.turboTimer = Math.max(0, tank.turboTimer - dt);
@@ -905,9 +908,14 @@ this.targetScore = 2;
 
         if (tank.isDriving && canAct) {
           this.moveTankWithCollision(tank, dt);
-        } else if (tank.slotType !== 'human' && !tank._aiSteered) {
-          // AI bu kare aktif direksiyon yapmadıysa boşta yavaşça dön (lobi/ruh hali)
-          tank.angle += tank.rotationSpeed * dt;
+          const driveSpeed = tank.turboTimer > 0 ? 285 : (this.roundTimer > 35 ? 220 : tank.driveSpeed);
+          this.writeSteerVelocity(tank, Math.cos(tank.angle) * driveSpeed, Math.sin(tank.angle) * driveSpeed);
+        } else {
+          this.writeSteerVelocity(tank, 0, 0);
+          if (tank.slotType !== 'human' && !tank._aiSteered) {
+            // AI bu kare aktif direksiyon yapmadıysa boşta yavaşça dön (lobi/ruh hali)
+            tank.angle += tank.rotationSpeed * dt;
+          }
         }
         tank._aiSteered = false;
       }

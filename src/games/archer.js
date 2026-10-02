@@ -185,6 +185,7 @@ export class ArcherGame extends BaseMiniGame {
         x: s.x, y: s.y, angle: 0,
         radius: fieldRadius(this.arena, ARCHER_RADIUS, 0),
         speed: fieldSpeed(this.arena, ARCHER_SPEED), steerX: 0, steerY: 0,
+        vx: 0, vy: 0, recoil: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         charging: false, charge: 0, shotCooldown: 0, fireCooldownMax: ARCHER_SHOT_COOLDOWN,
         swayPhase: Math.random() * Math.PI * 2,
@@ -271,6 +272,9 @@ export class ArcherGame extends BaseMiniGame {
       player.isAlive = player.isJoined;
       player.steerX = 0;
       player.steerY = 0;
+      player.vx = 0;
+      player.vy = 0;
+      player.recoil = 0;
       player.charging = false;
       player.charge = 0;
       player.shotCooldown = 0;
@@ -319,6 +323,7 @@ export class ArcherGame extends BaseMiniGame {
     player.charge = 0;
     if (charge < 0.08) return;
     player.shotCooldown = ARCHER_SHOT_COOLDOWN;
+    player.recoil = 1;
     notifyFireShot(player);
 
     // `charge` artık player'dan SİLİNDİ; nişan salınımı yakalanan bu değerle
@@ -578,6 +583,7 @@ export class ArcherGame extends BaseMiniGame {
       if (player.quickdrawTimer > 0) player.quickdrawTimer -= dt;
       if (player.slipTimer > 0) player.slipTimer -= dt;
       player.swayPhase += dt * (4 + 6 * (1 - player.charge));
+      this.tickKineticEntity(player, dt);
 
       if (player.slotType !== 'human') {
         updateArcherBotAI(this, player, dt);
@@ -644,15 +650,18 @@ export class ArcherGame extends BaseMiniGame {
       const spd = player.stun > 0 ? 0 : player.speed * (player.charging ? 0.45 : 1);
       if (player.stun > 0) {
         // sersemken hareket yok
+        this.writeSteerVelocity(player, 0, 0);
       } else if (player.slipTimer > 0) {
         const slipSpeed = Math.max(spd, 320) * (player.turboTimer > 0 ? 1.55 : 1);
         player.x += Math.cos(player.angle) * slipSpeed * dt;
         player.y += Math.sin(player.angle) * slipSpeed * dt;
+        this.writeSteerVelocity(player, Math.cos(player.angle) * slipSpeed, Math.sin(player.angle) * slipSpeed);
       } else {
         let moveSpd = spd;
         if (player.turboTimer > 0) moveSpd *= 1.55;
         player.x += player.steerX * moveSpd * dt;
         player.y += player.steerY * moveSpd * dt;
+        this.writeSteerVelocity(player, player.steerX * moveSpd, player.steerY * moveSpd);
       }
 
       clampToArena(player, player.radius, this.arena);

@@ -13,6 +13,8 @@
 // yazar ve simülasyonu atlar. Böylece "kaç saniye", "kim sonraki rauntu başlatır"
 // ve "maç bitti mi" kararları motorun değil çekirdeğindir.
 
+import { playRoundCall } from '../audio.js';
+
 export const DEFAULT_DRAW_TRANSITION = 1.6;
 
 /**
@@ -62,6 +64,10 @@ export function roundTimerField(game) {
 function startNextRound(game) {
   if (typeof game.startNewRound === 'function') game.startNewRound();
   else if (typeof game.startRound === 'function') game.startRound();
+  try {
+    const roundNum = (Number(game?.roundId) || 0) + 1;
+    playRoundCall(roundNum);
+  } catch {}
 }
 
 /**

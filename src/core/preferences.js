@@ -25,6 +25,10 @@ export const DEFAULT_PREFERENCES = Object.freeze({
   version: PREFERENCES_VERSION,
   controlSurface: 'auto',
   audioMuted: false,
+  // Sample layer levels (hidden prefs — no settings row yet, GENERAL budget
+  // is full; the mute switch stays the single visible control).
+  audioVolume: 0.85,
+  audioVoice: true,
   hapticsEnabled: false,
   pongInvert: 'auto',
   pongSensitivity: 1,
@@ -66,6 +70,12 @@ export function normalizePreferences(value = {}) {
     audioMuted: typeof source.audioMuted === 'boolean'
       ? source.audioMuted
       : DEFAULT_PREFERENCES.audioMuted,
+    audioVolume: Number.isFinite(Number(source.audioVolume))
+      ? Math.min(1, Math.max(0, Number(source.audioVolume)))
+      : DEFAULT_PREFERENCES.audioVolume,
+    audioVoice: typeof source.audioVoice === 'boolean'
+      ? source.audioVoice
+      : DEFAULT_PREFERENCES.audioVoice,
     hapticsEnabled: typeof source.hapticsEnabled === 'boolean'
       ? source.hapticsEnabled
       : DEFAULT_PREFERENCES.hapticsEnabled,

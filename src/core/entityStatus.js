@@ -67,6 +67,7 @@ function roundRectPath(ctx, x, y, w, h, r) {
  *   cephane) yön kararı zaten onundur.
  * @param {number} [opts.index]      yatay dizilim indeksi
  * @param {number} [opts.count]      yatay dizilim eleman sayısı
+ * @param {boolean} [opts.transient] true ise hazır (ready) durumunda çizilmez, aksiyon alanını temiz tutar
  * @returns {null|{x:number,y:number,w:number,h:number}} çizilen kutu ya da null
  */
 export function drawStatusChip(ctx, {
@@ -82,12 +83,18 @@ export function drawStatusChip(ctx, {
   anchorY = null,
   index = 0,
   count = 1,
+  transient = false,
 }) {
   const s = Math.max(0.75, Math.min(1.5, scale));
   const resolved = state
     ?? (Number.isFinite(progress)
       ? (progress >= 0.999 ? STATUS_STATE.READY : STATUS_STATE.CHARGING)
       : STATUS_STATE.READY);
+
+  // Transient kontrolü: Hazır durumda başüstünü temiz tut
+  if (transient && resolved === STATUS_STATE.READY) {
+    return null;
+  }
 
   const showText = resolved === STATUS_STATE.CHARGING && Number.isFinite(remaining) && remaining > 0;
   const chipW = statusChipWidth(s, showText);
@@ -178,4 +185,200 @@ export function drawStatusChip(ctx, {
 
   ctx.restore();
   return { x: clampedX, y: boxY, w: chipW, h: chipH };
+}
+
+/**
+ * Varlık etrafında kompakt radyal durum yayı çizer (fitil, gerilim, şarj vb.).
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {object} opts
+ * @param {number} opts.x               karakter merkez X
+ * @param {number} opts.y               karakter merkez Y
+ * @param {number} [opts.radius]        karakter yarıçapı
+ * @param {number} [opts.progress]      0..1 dolum/kalan oranı
+ * @param {string} [opts.color]         dolum rengi (varsayılan hudReady)
+ * @param {string} [opts.trackColor]    arkaplan iz rengi (varsayılan hudPlate)
+ * @param {number} [opts.lineWidth]     çizgi kalınlığı px
+ * @param {number} [opts.startAngle]    başlangıç açısı radyan (-Math.PI/2 = tepe)
+ * @param {number} [opts.gapAngle]      tam daireden eksik bırakılan nefes açısı (0..PI)
+ * @param {number} [opts.alpha]         opaklık 0..1
+ */
+export function drawRadialArc(ctx, {
+  x,
+  y,
+  radius = 16,
+  progress = 0,
+  color = UI_COLORS.hudReady,
+  trackColor = UI_COLORS.hudPlate,
+  lineWidth = 3,
+  startAngle = -Math.PI / 2,
+  gapAngle = 0,
+  alpha = 1,
+}) {
+  const prog = Math.max(0, Math.min(1, Number(progress) || 0));
+  if (prog <= 0 && alpha <= 0) return;
+
+  const arcRadius = radius + Math.max(2, lineWidth);
+  const totalSweep = Math.PI * 2 - gapAngle;
+  const sweep = totalSweep * prog;
+
+  ctx.save();
+  if (alpha < 1) ctx.globalAlpha = Math.max(0, alpha);
+
+  // Arkaplan izi
+  if (trackColor) {
+    ctx.beginPath();
+    ctx.arc(x, y, arcRadius, startAngle, startAngle + totalSweep);
+    ctx.strokeStyle = trackColor;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  // İlerleme yayı
+  if (prog > 0) {
+    ctx.beginPath();
+    ctx.arc(x, y, arcRadius, startAngle, startAngle + sweep);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Kompakt başüstü veya gövde-çevresi can ve cephane göstergesi.
+ * 120px devasa stack yerine gövde yarıçapını aşmayan modern diegetic dil.
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {object} opts
+ * @param {number} opts.x               karakter merkez X
+ * @param {number} opts.y               karakter merkez Y
+ * @param {number} [opts.radius]        karakter yarıçapı
+ * @param {number} [opts.hp]            kalan can
+ * @param {number} [opts.maxHp]         maksimum can
+ * @param {number} [opts.ammo]          kalan mermi (-1 veya null = mermisiz)
+ * @param {number} [opts.maxAmmo]       şarjör kapasitesi
+ * @param {boolean} [opts.reloading]    dolduruluyor mu?
+ * @param {number} [opts.reloadProgress] 0..1 doldurma ilerlemesi
+ * @param {string} [opts.color]         oyuncu/varlık rengi
+ * @param {FieldGeometry} [opts.arena]  kenara taşma koruması
+ * @param {number} [opts.scale]         ölçek
+ * @param {boolean} [opts.transient]    true ise tam can & tam cephane durumunda gizlenir
+ * @param {number} [opts.alpha]         0..1 opaklık
+ * @returns {null|{x:number,y:number,w:number,h:number}}
+ */
+export function drawCompactVitals(ctx, {
+  x,
+  y,
+  radius = 16,
+  hp = null,
+  maxHp = null,
+  ammo = null,
+  maxAmmo = null,
+  reloading = false,
+  reloadProgress = 0,
+  color = UI_COLORS.ink,
+  arena = null,
+  scale = 1,
+  transient = false,
+  alpha = 1,
+}) {
+  const hasHp = Number.isFinite(hp) && Number.isFinite(maxHp) && (maxHp ?? 0) > 0;
+  const hasAmmo = Number.isFinite(ammo) && Number.isFinite(maxAmmo) && (maxAmmo ?? 0) > 0;
+
+  // Transient kontrolü: Can tam ve cephane tam ve doldurulmuyor ise başüstünü temiz tut
+  if (transient) {
+    const hpFull = !hasHp || (hp ?? 0) >= (maxHp ?? 1);
+    const ammoFull = !hasAmmo || ((ammo ?? 0) >= (maxAmmo ?? 1) && !reloading && reloadProgress <= 0);
+    if (hpFull && ammoFull) return null;
+  }
+
+  if (!hasHp && !hasAmmo) return null;
+
+  const s = Math.max(0.75, Math.min(1.4, scale));
+  const pipH = Math.max(4, Math.round(5 * s));
+  const pipGap = Math.max(2, Math.round(2.5 * s));
+  const ammoBarH = hasAmmo ? Math.max(5, Math.round(6 * s)) : 0;
+  const totalH = (hasHp ? pipH : 0) + (hasAmmo ? ammoBarH + pipGap : 0);
+
+  // Kenar / Tavan kontrolü: Tavana yakınsa gövde altına çevir (edge flip)
+  const isTopClamped = arena && (y - radius - totalH - 8 * s < (arena.top || 0) + 4);
+  let curY = isTopClamped
+    ? Math.round(y + radius + 7 * s)
+    : Math.round(y - radius - 6 * s - totalH);
+
+  let anchorX = Math.round(x);
+  if (arena) {
+    const minX = (arena.left || 0) + Math.round(24 * s);
+    const maxX = (arena.right || 800) - Math.round(24 * s);
+    anchorX = Math.max(minX, Math.min(maxX, anchorX));
+  }
+
+  ctx.save();
+  if (alpha < 1) ctx.globalAlpha = Math.max(0, alpha);
+
+  // 1. Can (HP Micro-Pips): Gövde genişliğini aşmayan sıkı mikro-bloklar
+  if (hasHp && maxHp !== null && hp !== null) {
+    const pipCount = Math.min(12, maxHp);
+    const maxBarW = Math.max(24 * s, radius * 1.6);
+    const pipW = Math.max(4, Math.round((maxBarW - (pipCount - 1) * pipGap) / pipCount));
+    const totalW = pipCount * pipW + (pipCount - 1) * pipGap;
+    const startX = Math.round(anchorX - totalW / 2);
+
+    // Koyu arkalık plaka
+    ctx.fillStyle = UI_COLORS.hudPlate;
+    ctx.fillRect(startX - 2, curY - 1, totalW + 4, pipH + 2);
+
+    for (let i = 0; i < pipCount; i++) {
+      const px = startX + i * (pipW + pipGap);
+      const isFilled = i < hp;
+      ctx.fillStyle = isFilled ? color : UI_COLORS.hudEmpty;
+      ctx.fillRect(px, curY, pipW, pipH);
+      ctx.strokeStyle = UI_COLORS.hudInkOutline;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px, curY, pipW, pipH);
+    }
+    curY += pipH + pipGap + 1;
+  }
+
+  // 2. Cephane (Kompakt Segment Rayı veya Dolum Animasyonu)
+  if (hasAmmo && maxAmmo !== null && ammo !== null) {
+    const ammoW = Math.max(26 * s, radius * 1.6);
+    const startX = Math.round(anchorX - ammoW / 2);
+
+    ctx.fillStyle = UI_COLORS.hudPlate;
+    ctx.fillRect(startX - 2, curY - 1, ammoW + 4, ammoBarH + 2);
+
+    if (reloading) {
+      // Doldurma sırasında canlı altın ilerleme rayı
+      const prog = Math.max(0, Math.min(1, reloadProgress));
+      ctx.fillStyle = UI_COLORS.hudDim;
+      ctx.fillRect(startX, curY, ammoW, ammoBarH);
+      ctx.fillStyle = UI_COLORS.gold;
+      ctx.fillRect(startX, curY, Math.round(ammoW * prog), ammoBarH);
+      ctx.strokeStyle = UI_COLORS.hudInkOutline;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(startX, curY, ammoW, ammoBarH);
+    } else {
+      // Kalan mermi pips
+      const segCount = Math.min(10, maxAmmo);
+      const segGap = Math.max(1, Math.round(1.5 * s));
+      const segW = Math.max(2, Math.round((ammoW - (segCount - 1) * segGap) / segCount));
+      const ratio = ammo / maxAmmo;
+      const isLow = ratio <= 0.25;
+
+      for (let j = 0; j < segCount; j++) {
+        const sx = startX + j * (segW + segGap);
+        const filled = (j / segCount) < ratio;
+        ctx.fillStyle = filled ? (isLow ? UI_COLORS.danger : UI_COLORS.hudReady) : UI_COLORS.hudEmpty;
+        ctx.fillRect(sx, curY, segW, ammoBarH);
+      }
+    }
+  }
+
+  ctx.restore();
+  return { x: anchorX, y: curY, w: radius * 2, h: totalH };
 }

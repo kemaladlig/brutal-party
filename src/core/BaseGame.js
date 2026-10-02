@@ -25,6 +25,7 @@ import {
 import { isInputIntent, matchesInputAction } from './inputIntent.js';
 import { assertControlDescriptorParity } from './controlDescriptor.js';
 import { AimInputState, getAimAction } from './aimInput.js';
+import { getKineticState as readKineticState, tickKinetic as decayKinetic } from './avatarInGame.js';
 
 export class BaseMiniGame {
   constructor(canvas) {
@@ -1333,6 +1334,29 @@ export class BaseMiniGame {
     }
 
     return { x: inputX, y: inputY, active, magnitude: Math.min(1, mag) };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Kinetik parity sözleşmesi (Faz 0): görsel sistem ham player okumaz.
+  // Üretici `avatarInGame.getKineticState`, saat `tickKinetic`; temel sınıf
+  // yalnız delegasyondur (tek kaynak avatarInGame.js).
+  // ---------------------------------------------------------------------------
+
+  /** @returns {{ dashing: boolean, tackling: boolean, vx: number|null, vy: number|null, recoil: number }} */
+  getKineticState(entity, opts = {}) {
+    return readKineticState(entity || {}, opts);
+  }
+
+  tickKineticEntity(entity, dt) {
+    decayKinetic(entity, dt);
+  }
+
+  // Steer-tabanlı motorlar için açık hız kaydı: `steer * speed` her kare
+  // yazılırsa world paketi + uzak client aynı squash'ı görür.
+  writeSteerVelocity(entity, vx, vy) {
+    if (!entity) return;
+    if (Number.isFinite(vx)) entity.vx = vx;
+    if (Number.isFinite(vy)) entity.vy = vy;
   }
 
   // ---------------------------------------------------------------------------

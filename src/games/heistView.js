@@ -147,7 +147,7 @@ export function drawHeistArena(ctx, arena, pillars, opts = {}) {
   }
 }
 
-export function drawHeistVaults(ctx, vaults, players) {
+export function drawHeistVaults(ctx, vaults, players, { rotateTabletop = false } = {}) {
   const bySlot = new Map((players || []).map((p) => [p.slot ?? p.index, p]));
   for (const v of vaults) {
     const p = bySlot.get(v.playerIndex);
@@ -165,7 +165,7 @@ export function drawHeistVaults(ctx, vaults, players) {
 
     ctx.save();
     ctx.translate(v.x + v.w / 2, v.y + v.h / 2);
-    if (isTop) ctx.rotate(Math.PI);
+    if (rotateTabletop && isTop) ctx.rotate(Math.PI);
 
     const badgeW = v.w - 8;
     const badgeH = 28;

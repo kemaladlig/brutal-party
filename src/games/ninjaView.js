@@ -10,7 +10,7 @@
 
 import { drawObstacle } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
-import { drawGameAvatar } from '../core/avatarInGame.js';
+import { drawGameAvatar, computeAvatarKineticDeformation } from '../core/avatarInGame.js';
 import { fxReadAlpha } from '../core/fxKit.js';
 import { drawStatusChip } from '../core/entityStatus.js';
 import {
@@ -43,6 +43,8 @@ export function createNinjaWorldPacket(game) {
       alive: p.isAlive !== false,
       x: round1(p.x || 0),
       y: round1(p.y || 0),
+      vx: round1(p.vx || 0),
+      vy: round1(p.vy || 0),
       // Yarıçap host'ta sahayla birlikte ölçeklenir ve paketle taşınır; client
       // aynı view'i kullandığı için yeniden ölçeklemez.
       radius: round1(p.radius || 36),
@@ -118,6 +120,8 @@ function isValidNinjaPlayer(p) {
   return typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
     && finite(p.angle) && finite(p.alpha) && p.alpha >= 0 && p.alpha <= 1
     && typeof p.strike === 'boolean'
+    && (p.vx === undefined || finite(p.vx))
+    && (p.vy === undefined || finite(p.vy))
     && (p.strikeProg === null || (finite(p.strikeProg) && p.strikeProg >= 0 && p.strikeProg <= 1))
     && (p.smokeProg === null || (finite(p.smokeProg) && p.smokeProg >= 0 && p.smokeProg <= 1))
     // radius opsiyoneldir (eski host paketleri) ama varsa pozitif olmalı.
@@ -364,8 +368,18 @@ export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true,
     const R = player.radius || NINJA_RADIUS;
     const u = R / NINJA_RADIUS;
 
+    // Kinetik dünya uzayında hesaplanır, gövde döndüğü için yerele çevrilir
+    // (ARCHER ile aynı desen).
+    const worldK = computeAvatarKineticDeformation(player, {});
+    const localSquashAngle = worldK.squashAngle === null
+      ? null
+      : worldK.squashAngle - (player.angle || 0);
+
     drawGameAvatar(ctx, 0, 0, R, player, {
       facingAngle: 0,
+      squashX: worldK.squashX,
+      squashY: worldK.squashY,
+      squashAngle: localSquashAngle,
       expression: player.strike ? 'angry' : 'normal',
       borderWidth: Math.max(1.5, 2.5 * u),
       // Dönüş view seviyesinde (`ctx.rotate(player.angle)`) yapıldığı için

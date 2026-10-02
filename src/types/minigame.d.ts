@@ -53,6 +53,16 @@ interface MiniGameAimVector {
   force: number;
 }
 
+/** Kinetik parity sözleşmesi (Faz 0): görsel sistem ham player okumaz,
+ *  bu normalize girdiyi okur. `getKineticState` tek üreticidir. */
+interface KineticState {
+  dashing: boolean;
+  tackling: boolean;
+  vx: number | null;
+  vy: number | null;
+  recoil: number;
+}
+
 /**
  * Sahadaki oyuncu/merbil/bottom varlığı. Motorlar kendi ek alanlarını
  * serbestçe genişletir (index imzası); paylaşılan çekirdek alanlar burada.
@@ -62,6 +72,21 @@ interface MiniGameEntity {
   y?: number;
   vx?: number;
   vy?: number;
+  // Kinetik lehçeler (normalize edilir, ham okunmaz): dash.
+  dashing?: boolean;
+  isDashing?: boolean;
+  dashTimer?: number;
+  dash?: number;
+  strikeTimer?: number;
+  strike?: boolean;
+  jumpTimer?: number;
+  // Kinetik lehçeler: tackle + recoil.
+  tackling?: boolean;
+  isTackling?: boolean;
+  recoil?: number;
+  steerX?: number;
+  steerY?: number;
+  speed?: number;
   rotation?: number;
   radius?: number;
   name?: string;

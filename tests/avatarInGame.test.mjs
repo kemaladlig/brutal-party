@@ -60,6 +60,9 @@ let server;
 let drawGameAvatar;
 let drawBrutalAvatar;
 let blinkState;
+let computeAvatarKineticDeformation;
+let getKineticState;
+let tickKinetic;
 let sanitizeAvatar;
 let getBotPersona;
 let GOD_BOT_PERSONAS;
@@ -118,6 +121,9 @@ before(async () => {
   const inGame = await server.ssrLoadModule('/src/core/avatarInGame.js');
   drawGameAvatar = inGame.drawGameAvatar;
   blinkState = inGame.blinkState;
+  computeAvatarKineticDeformation = inGame.computeAvatarKineticDeformation;
+  getKineticState = inGame.getKineticState;
+  tickKinetic = inGame.tickKinetic;
   const renderer = await server.ssrLoadModule('/src/ui/characterRenderer.js');
   drawBrutalAvatar = renderer.drawBrutalAvatar;
   const manager = await server.ssrLoadModule('/src/core/customizationManager.js');
@@ -293,4 +299,90 @@ test('negative: contract scanner flags a view that bypasses drawGameAvatar', () 
   const isValid = usesGameAvatar && !callsBrutalDirectly;
   assert.equal(isValid, false, 'view that calls drawBrutalAvatar directly must be rejected');
 });
+
+test('kinetic deformation: dash, tackle, velocity and recoil calculate correct stretch factors', () => {
+  // Idle player has no deformation (null angle, 1.0 factors)
+  const idle = computeAvatarKineticDeformation({ angle: 0 });
+  assert.equal(idle.squashX, 1.0);
+  assert.equal(idle.squashY, 1.0);
+  assert.equal(idle.squashAngle, null);
+
+  // Dash elongates forward along facing angle
+  const dash = computeAvatarKineticDeformation({ dashing: true, facingAngle: 1.5 });
+  assert.ok(dash.squashX > 1.15, 'dash stretches along X');
+  assert.ok(dash.squashY < 0.9, 'dash squashes sides');
+  assert.equal(dash.squashAngle, 1.5);
+
+  // Tackle elongates forward
+  const tackle = computeAvatarKineticDeformation({ tackling: true, angle: 0.8 });
+  assert.ok(tackle.squashX > 1.1, 'tackle stretches forward');
+  assert.equal(tackle.squashAngle, 0.8);
+
+  // Velocity stretch (vx, vy)
+  const moving = computeAvatarKineticDeformation({ vx: 200, vy: 0, angle: 0 });
+  assert.ok(moving.squashX > 1.03, 'moving player elongates along velocity');
+  assert.equal(moving.squashAngle, 0);
+
+  // Recoil flinches (squashes along angle)
+  const recoil = computeAvatarKineticDeformation({ recoil: 0.8, facingAngle: 0.2 });
+  assert.ok(recoil.squashX < 1.0, 'recoil squashes along facing angle');
+  assert.ok(recoil.squashY > 1.0, 'recoil bulges perpendicular');
+  assert.equal(recoil.squashAngle, 0.2);
+});
+
+test('kinetic parity (Faz 1): every engine dialect feeds the same squash', () => {
+  // Dash lehçeleri: isDashing / dashTimer / dash / strikeTimer / jumpTimer / paket strike
+  for (const p of [
+    { isDashing: true, angle: 0 },
+    { dashTimer: 0.2, angle: 0 },
+    { dash: 0.5, angle: 0 },
+    { strikeTimer: 0.2, angle: 0 },
+    { jumpTimer: 0.2, angle: 0 },
+  ]) {
+    const k = computeAvatarKineticDeformation(p);
+    assert.ok(k.squashX > 1.15, `dash dialect stretches: ${JSON.stringify(p)}`);
+  }
+  assert.ok(computeAvatarKineticDeformation({ angle: 0 }, { strike: true }).squashX > 1.15);
+
+  // Tackle lehçesi: isTackling
+  assert.ok(computeAvatarKineticDeformation({ isTackling: true, angle: 0 }).squashX > 1.1);
+
+  // Steer-türevi hız (ARCHER/NINJA/COLLAPSE/HORDE): steerX/steerY + speed
+  const steer = computeAvatarKineticDeformation({ steerX: 1, steerY: 0, speed: 200, angle: 0 });
+  assert.ok(steer.squashX > 1.03, 'steer-derived velocity stretches');
+  assert.equal(steer.squashAngle, 0);
+  // Idle steer sıfırsa squash yok (ZONE/heading yanlış-pozitifi yok)
+  assert.equal(computeAvatarKineticDeformation({ steerX: 0, steerY: 0, speed: 200, angle: 0 }).squashAngle, null);
+
+  // SNAKE: sürekli ileri hareket (steer sayısı + speed + angle)
+  const snake = computeAvatarKineticDeformation({ steer: 0, speed: 190, angle: 0 });
+  assert.ok(snake.squashX > 1.03, 'snake forward motion stretches');
+
+  // TANKS: sürüşte hız, boşta sıfır
+  assert.ok(computeAvatarKineticDeformation({ isDriving: true, speed: 220, angle: 0 }).squashX > 1.03);
+  assert.equal(computeAvatarKineticDeformation({ isDriving: false, speed: 220, angle: 0 }).squashAngle, null);
+
+  // Recoil saati söner (ateş sonrası ~0.3 sn)
+  const p = { recoil: 1 };
+  tickKinetic(p, 0.1);
+  assert.ok(p.recoil < 1 && p.recoil > 0, 'recoil decays with dt');
+  tickKinetic(p, 1);
+  assert.equal(p.recoil, 0, 'recoil fully decays');
+  assert.equal(getKineticState({ angle: 0 }).recoil, 0);
+});
+
+test('drawGameAvatar applies hitFlash and kinetic transforms without throwing', () => {
+  const rec = makeRecorder();
+  // Dashing player triggers kinetic rotate + scale
+  drawGameAvatar(rec, 0, 0, R, { ...player, dashing: true, facingAngle: 0.5 });
+  const hasRotate = rec.calls.some((c) => c.startsWith('rotate('));
+  const hasScale = rec.calls.some((c) => c.startsWith('scale('));
+  assert.ok(hasRotate && hasScale, 'dashing avatar must apply kinetic transform');
+
+  // Hit flash player renders
+  const hitRec = makeRecorder();
+  drawGameAvatar(hitRec, 0, 0, R, { ...player, hit: true });
+  assert.ok(hitRec.calls.length > 0, 'hit avatar must render cleanly');
+});
+
 

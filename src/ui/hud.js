@@ -689,11 +689,26 @@ export function renderEntityHUD(ctx, {
   label = '',
   chipIndex = 0, // aynı karakterde ikinci bir rozet varsa (ateş + yetenek) yatay dizilim
   chipCount = 1,
+  transient = false,
+  alpha = 1.0,
 }) {
+  const hasHp = typeof hp === 'number' && typeof maxHp === 'number' && maxHp > 0;
+  const hasAmmo = typeof ammo === 'number' && typeof maxAmmo === 'number' && maxAmmo > 0;
+  const hasCooldown = cooldownProgress !== null && cooldownProgress !== undefined;
+
+  const isHpActive = hasHp && (!transient || hp < maxHp);
+  const isAmmoActive = hasAmmo && (!transient || ammo < maxAmmo || reloadProgress > 0);
+  const isCooldownActive = hasCooldown && (!transient || cooldownProgress < 0.999);
+
+  if (!isHpActive && !isAmmoActive && !isCooldownActive && !shield && !stun && !label) {
+    return;
+  }
+
   const s = Math.max(0.75, Math.min(1.4, scale));
   const now = performance.now();
 
   ctx.save();
+  if (alpha < 1) ctx.globalAlpha = Math.max(0, alpha);
 
   // 1. Kalkan Balonu & Dönen Uydu
   //
@@ -747,15 +762,11 @@ export function renderEntityHUD(ctx, {
   // Üçü de aynı dikey sütunda, tek `flipBelow` kararıyla aynı yöne döner.
   // Daha önce yetenek göstergesi karakterin ETRAFINDA ayrı bir çemberdi;
   // cephane başüstüydü. Aynı bilgi iki ayrı yer, iki ayrı geometri.
-  const hasHp = typeof hp === 'number' && typeof maxHp === 'number' && maxHp > 0;
-  const hasAmmo = typeof ammo === 'number' && typeof maxAmmo === 'number' && maxAmmo > 0;
-  const hasCooldown = cooldownProgress !== null && cooldownProgress !== undefined;
-
-  if (hasHp || hasAmmo || hasCooldown) {
+  if (isHpActive || isAmmoActive || isCooldownActive) {
     // Tavan / Kenar çakışma koruması (Edge Clamping / Flipping)
-    const totalOverheadH = (hasCooldown ? 20 * s : 0)
-      + (hasHp ? 12 * s : 0)
-      + (hasAmmo ? 15 * s : 0);
+    const totalOverheadH = (isCooldownActive ? 20 * s : 0)
+      + (isHpActive ? 12 * s : 0)
+      + (isAmmoActive ? 15 * s : 0);
     let flipBelow = false;
     if (arena && (y - radius - totalOverheadH < (arena.top || 0) + 10 * s)) {
       flipBelow = true;
@@ -766,7 +777,7 @@ export function renderEntityHUD(ctx, {
       : y - radius - Math.round(8 * s);
 
     // A. Yetenek / Dash hazır rozeti (`core/entityStatus` — tek geometri)
-    if (hasCooldown) {
+    if (isCooldownActive) {
       const prog = Math.max(0, Math.min(1.0, cooldownProgress));
       const chipBox = drawStatusChip(ctx, {
         x,
@@ -781,6 +792,7 @@ export function renderEntityHUD(ctx, {
         anchorY: currentAnchorY,
         index: chipIndex,
         count: chipCount,
+        transient,
       });
       if (chipBox) {
         currentAnchorY = flipBelow
@@ -798,7 +810,7 @@ export function renderEntityHUD(ctx, {
     }
 
     // A. Can (HP Pip'leri)
-    if (hasHp) {
+    if (isHpActive) {
       const pw = Math.round(7 * s);
       const gap = Math.round(3 * s);
       const totalW = maxHp * pw + (maxHp - 1) * gap;
@@ -824,7 +836,7 @@ export function renderEntityHUD(ctx, {
     }
 
     // B. Mermi / Cephane Kutusu (Ammo Cartridges Box)
-    if (hasAmmo) {
+    if (isAmmoActive) {
       const bulletW = Math.round(12 * s);
       const bulletH = Math.round(7 * s);
       const bulletGap = Math.round(3 * s);

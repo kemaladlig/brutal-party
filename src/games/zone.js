@@ -429,6 +429,7 @@ export class ZoneGame extends BaseMiniGame {
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || ZONE_COLORS[i]),
         x: bcx, y: bcy, heading: outward,
+        vx: 0, vy: 0,
         radius: fieldRadius(this.arena, ZONE_TUNING.PLAYER_RADIUS, 0),
         speed: fieldSpeed(this.arena, ZONE_TUNING.MOVE_SPEED),
         // BaseGame.handleStandardRemoteJoystick `!player.isAlive` olan uzak
@@ -1227,6 +1228,8 @@ export class ZoneGame extends BaseMiniGame {
         p.x += stepX;
         p.y += stepY;
       }
+      // Kinetik parity (Faz 1): açık hız kaydı, uzak client aynı squash'ı görür.
+      this.writeSteerVelocity(p, Math.cos(p.heading) * speed, Math.sin(p.heading) * speed);
 
       // Relic Toplama Kontrolü
       for (let ri = this.relics.length - 1; ri >= 0; ri--) {

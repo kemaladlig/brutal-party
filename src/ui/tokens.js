@@ -118,6 +118,21 @@ export const UI_COLORS = {
   inkDark: '#1A1A1A',
   lineDark: '#1C1C1A',
   pureBlack: '#000000',
+  // --- Yüz rigi (tek kaynak): göz/ağız/kaş/allık tonları ---
+  // characterRenderer.js yeni katmanları buradan besler; ham literal yazmaz
+  // (K2 kotası renderer'da donduruk, sözlük istisnası tokens.js'tir).
+  faceInk: '#1A1A1A',
+  faceWhite: '#FFFFFF',
+  mouthDark: '#4A1D18',
+  tongue: '#FF6B8A',
+  blush: 'rgba(255, 90, 130, 0.30)',
+  lidShade: 'rgba(0, 0, 0, 0.15)',
+  heartPink: '#FF3B6B',
+  zombiePale: '#DDF5DD',
+  zombieIris: '#2F6A4F',
+  visorCyan: '#00F0FF',
+  visorPink: '#FF0055',
+  rimLight: 'rgba(255, 255, 255, 0.22)',
 };
 
 export const CROWN_COLORS = Object.freeze([

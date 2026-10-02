@@ -284,6 +284,7 @@ this.targetScore = 2;
         // `player.radius` okur, world packet taşır (ARCHER ile aynı desen).
         radius: fieldRadius(this.arena, NINJA_RADIUS, 0),
         speed: fieldSpeed(this.arena, NINJA_TUNING.MOVE_SPEED), steerX: 0, steerY: 0,
+        vx: 0, vy: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         alpha: 1.0, hideTimer: 0, inLight: false,
         strikeTimer: 0, strikeCooldown: 0,
@@ -855,9 +856,11 @@ this.targetScore = 2;
       if (player.strikeTimer <= 0) {
         player.x += player.steerX * spd * dt;
         player.y += player.steerY * spd * dt;
+        this.writeSteerVelocity(player, player.steerX * spd, player.steerY * spd);
       } else {
         player.x += Math.cos(player.angle) * spd * dt;
         player.y += Math.sin(player.angle) * spd * dt;
+        this.writeSteerVelocity(player, Math.cos(player.angle) * spd, Math.sin(player.angle) * spd);
       }
 
       clampToArena(player, player.radius, this.arena);

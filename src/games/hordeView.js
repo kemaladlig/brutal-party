@@ -70,6 +70,8 @@ export function mapHordePlayer(player, tuning = {}) {
     alive: player.isAlive !== false,
     x: round1(player.x || 0),
     y: round1(player.y || 0),
+    vx: round1(player.vx || 0),
+    vy: round1(player.vy || 0),
     radius: round1(player.radius || 30),
     angle: round1(player.angle || 0),
     color: typeof player.color === 'string' ? player.color : '#D84727',
@@ -284,6 +286,8 @@ function isValidHordePlayer(player) {
     && typeof player.joined === 'boolean'
     && typeof player.alive === 'boolean'
     && finite(player.x) && finite(player.y) && finite(player.angle)
+    && (player.vx === undefined || finite(player.vx))
+    && (player.vy === undefined || finite(player.vy))
     && typeof player.color === 'string'
     && Number.isInteger(player.hp) && player.hp >= 0
     && Number.isInteger(player.hpMax) && player.hpMax > 0
@@ -941,43 +945,46 @@ function drawHordeVitals(ctx, player, hu) {
   const reloading = isGun && player.reloading;
   const hasMag = isGun && player.magazine > 0;
   const dry = hasMag && player.ammo <= 0;
-  // "Az cephane" eşiği oransal (%25), sabit `2` değil: RIFLE'in 8'lik
-  // şarjöründe 2 mermi normal, SMG'nin 48'lik şarjöründe 2 ise felakettir.
   const low = hasMag && !reloading && player.ammo > 0
     && player.ammo <= Math.max(1, Math.round(player.magazine * 0.25));
 
-  // Yığın ölçüleri TEK kere kurulur: plaka → kalp → toplam yükseklik. Satır
-  // konumları tek tek `y - 30*hu` gibi dağıtılmış sayılarla değil, bu
-  // yükseklikten türetiliyor; aksi hâlde plaka ile kalp üst üste biniyordu
-  // (telefonda plaka 12px, kalp satırı 4px arayla aynı yere düşüyordu).
-  const plateW = 44 * hu;
-  const plateH = 17 * hu;
-  const heartSize = 10 * hu;
-  const heartGap = 3 * hu;
-  const stackGap = 4 * hu;
-  const stackH = (isGun ? plateH + stackGap : 0) + heartSize;
-  // Yığın gövdenin hemen üstünde, gövde yarıçapı + nefes payı yukarısında.
-  const stackTop = player.y - (player.radius || 30) - 5 * hu - stackH;
+  const isDamaged = player.hp < player.hpMax;
+  const isShootingOrLow = hasMag && (reloading || dry || low || (player.ammo < player.magazine));
 
-  if (isGun) {
+  // Transient Görünürlük: Can ve cephane tamken başüstünü tamamen temiz tut.
+  if (!isDamaged && !isShootingOrLow) {
+    return;
+  }
+
+  // Kompakt diegetic ölçüler: gövde genişliğini aşmayan zarif oranlar.
+  const plateW = Math.round(32 * hu);
+  const plateH = Math.round(14 * hu);
+  const heartSize = Math.round(7.5 * hu);
+  const heartGap = Math.max(1, Math.round(2 * hu));
+  const stackGap = Math.max(2, Math.round(3 * hu));
+  const stackH = (isShootingOrLow ? plateH : 0)
+    + (isDamaged ? heartSize : 0)
+    + (isShootingOrLow && isDamaged ? stackGap : 0);
+
+  const stackTop = player.y - (player.radius || 30) - 4 * hu - stackH;
+  let curY = stackTop;
+
+  // 1. Cephane Plakası: Yalnız atış yapılmışken, cephane azken veya dolumdayken
+  if (isShootingOrLow) {
     const x = player.x - plateW / 2;
-    const y = stackTop;
+    const y = curY;
 
     ctx.fillStyle = UI_COLORS.hudPlate;
     ctx.fillRect(x, y, plateW, plateH);
-    // Kenarlık yalnız dikkat gerektiren durumlarda: doldurma (altın) ya da
-    // az cephane (kırmızı). Normal durumda çerçevesiz koyu plaka — oyuncu
-    // rengi gözü dağıtmamalı, plaka zaten zeminden ayrışıyor.
     if (reloading || low) {
       ctx.strokeStyle = reloading ? GOLD : BLOOD;
       ctx.lineWidth = Math.max(1, 1.5 * hu);
       ctx.strokeRect(x - 0.5, y - 0.5, plateW + 1, plateH + 1);
     }
 
-    const iconSize = 12 * hu;
+    const iconSize = 10 * hu;
     const iconX = x + plateH * 0.5;
     const iconY = y + plateH / 2;
-    // Doldurma sırasında ikon döner: "bekliyor" değil "doluyor".
     if (reloading) {
       const spin = (typeof performance !== 'undefined' ? performance.now() : 0) / 120;
       ctx.save();
@@ -991,38 +998,37 @@ function drawHordeVitals(ctx, player, hu) {
       });
     }
 
-    // Rakam: kalan mermi. Şarjör kapasitesi oyuncu tarafından bilinir ve
-    // her silahda değişir; sırf gösterge genişletmek için ikinci sayı
-    // plakayı okunmaz bir kutuya çeviriyordu. Doldurma sırasında rakam yerini
-    // altın dolum rayına bırakır.
     if (!reloading) {
-      ctx.font = `900 ${Math.round(11 * hu)}px ${UI_FONTS.mono}`;
+      ctx.font = `900 ${Math.round(10 * hu)}px ${UI_FONTS.mono}`;
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = dry || low ? GOLD : UI_COLORS.hudPlateInk;
-      ctx.fillText(hasMag ? `${player.ammo}` : '--', x + plateW - 5 * hu, iconY);
+      ctx.fillText(hasMag ? `${player.ammo}` : '--', x + plateW - 4 * hu, iconY);
     }
 
-    // Doldurma ilerlemesi: plakanın alt kenarında altın ray.
     if (reloading) {
-      const barH = 3 * hu;
+      const barH = 2.5 * hu;
       const barY = y + plateH - barH;
       ctx.fillStyle = UI_COLORS.hudDim;
       ctx.fillRect(x, barY, plateW, barH);
       ctx.fillStyle = GOLD;
       ctx.fillRect(x, barY, plateW * clamp01(player.reload), barH);
     }
+
+    curY += plateH + stackGap;
   }
 
-  // KALPLER: dolu = kalan can, boş = `hudEmpty` (krem zeminde 3.45:1).
-  const totalW = player.hpMax * heartSize + (player.hpMax - 1) * heartGap;
-  const startX = player.x - totalW / 2;
-  const heartY = stackTop + (isGun ? plateH + stackGap : 0) + heartSize / 2;
-  for (let i = 0; i < player.hpMax; i++) {
-    const filled = i < player.hp;
-    drawTabletopIcon(ctx, 'heart', startX + i * (heartSize + heartGap) + heartSize / 2, heartY, heartSize, {
-      color: filled ? player.color : UI_COLORS.hudEmpty,
-    });
+  // 2. Can (Kalpler): Yalnız hasar alındığında görünür
+  if (isDamaged) {
+    const totalW = player.hpMax * heartSize + (player.hpMax - 1) * heartGap;
+    const startX = player.x - totalW / 2;
+    const heartY = curY + heartSize / 2;
+    for (let i = 0; i < player.hpMax; i++) {
+      const filled = i < player.hp;
+      drawTabletopIcon(ctx, 'heart', startX + i * (heartSize + heartGap) + heartSize / 2, heartY, heartSize, {
+        color: filled ? player.color : UI_COLORS.hudEmpty,
+      });
+    }
   }
 }
 

@@ -11,7 +11,7 @@ import { setIsPaused, closePauseModal, renderPauseSeats } from '../ui/pauseModal
 import { hideAppShell, revealAppShell, lockLandscape, beginMatchChrome } from '../ui/appShell.js';
 import { resolveLocalControlMode } from '../ui/tokens.js';
 import { showReaction, clearReactions } from '../ui/reactionLayer.js';
-import { playJoin } from '../audio.js';
+import { playJoin, playCountdownTick, playFightShout, warmGameSounds } from '../audio.js';
 import { acquireWakeLock, releaseWakeLock } from './wakeLock.js';
 import { setPreference } from './preferences.js';
 
@@ -1125,6 +1125,8 @@ async function enterStaging(mode) {
   activeNet().startStaging(mode);
   showStagingBar();
   showInstallToast(t('toast.stagingOpenHost'));
+  // Voice/countdown files warm while players ready up (lazy, no UI block).
+  try { warmGameSounds(['ui.tick', 'ui.confirm', 'hit.punchLight', 'shot.laserSmall', 'boom.crunch', 'voice.count3', 'voice.count2', 'voice.count1', 'voice.fight']); } catch {}
 }
 
 // BAŞLAT #2: 3-2-1 → oyun (koltuklar kilitli)
@@ -1153,6 +1155,7 @@ function runCountdown() {
   const tick = () => {
     if (secsLeft > 0) {
       showCountdownOverlay(secsLeft);
+      try { playCountdownTick(secsLeft); } catch {}
       lastCountdownT = secsLeft;
       activeNet().broadcastCountdown(secsLeft);
       secsLeft -= 1;
@@ -1163,6 +1166,7 @@ function runCountdown() {
       stagingMode = null;
       setLocalReadyFlags(false);
       activeNet().startGame(mode);
+      try { playFightShout(); } catch {}
       startEngineNow(mode);
     }
   };

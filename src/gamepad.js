@@ -8,7 +8,7 @@ import { toggleFullscreen, canToggleFullscreen } from './ui/fullscreen.js';
 import { UI_COLORS } from './ui/tokens.js';
 import { scoreEntries } from './ui/scoreModel.js';
 import { motionScale } from './ui/motion.js';
-import { playMenuTick, playMenuPop } from './audio.js';
+import { playMenuTick, playMenuPop, playCountdownTick, warmGameSounds } from './audio.js';
 import { mountDeclarativeController } from './controllers/controllerTemplates.js';
 import { GamepadInputAdapter, ANALOG_THROTTLE_MS } from './controllers/gamepadInputAdapter.js';
 import { getNeutralInputs, CONTROL_KEEPALIVE_MS } from './controllers/controlDefs.js';
@@ -1135,6 +1135,7 @@ export class GamepadManager {
       this.overlay.style.setProperty('--game-edge', th.floorEdge);
     }
     this.renderGameController('LOBBY');
+    try { warmGameSounds(['ui.tick', 'ui.confirm', 'voice.count3', 'voice.count2', 'voice.count1', 'voice.fight']); } catch {}
   }
 
   /**
@@ -1190,6 +1191,7 @@ export class GamepadManager {
     veil.classList.add('is-open');
     // GO! tik'i desenle, ara sayılar kısa vuruşla.
     this.vibrate(seconds > 0 ? 40 : [40, 60, 80]);
+    try { playCountdownTick(seconds); } catch {}
   }
 
   /** Perdeyi kapat. Sahibi `renderGameController`'dır — hangi yoldan gelirse

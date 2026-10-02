@@ -638,22 +638,24 @@ export function drawObstacle(ctx, obs, opts = {}) {
   const r = Math.max(3, Math.min(10 * u, Math.min(w, h) * 0.22));
   const border = Math.max(1.5, 2.2 * u);
   const mass = obstacleMass(obs);
-  const bottomRim = Math.max(2, 3.5 * u) * (0.7 + 0.6 * mass);
+  // 2.5D Basık Ön Yüz Derinliği: düz 2B kâğıt şemayı fiziksel masaüstü
+  // dioramasına çevirir (Boomerang Fu / Brawl Stars derinlik oranı %12-18).
+  const depth = Math.max(3.5 * u, Math.min(h * 0.18, 11 * u)) * (0.8 + 0.4 * mass);
 
   ctx.save();
 
   // 1. Temas gölgesi — taban izinden türer, hafif, her zaman altta.
   contactShadow(ctx, x, y, w, h, u, style, mass);
 
-  // 2. Alt Gövde / 3B Basık Kenar
+  // 2. Alt Gövde / 3B Ön Duvar (Koyu Taban)
   ctx.fillStyle = style.fill;
   pathRoundRect(ctx, x, y, w, h, r);
   ctx.fill();
 
   // 3. Üst Yüzey (Açık Ton Işık Yüzü)
-  if (h > bottomRim * 2) {
+  if (h > depth * 1.5) {
     ctx.fillStyle = style.top;
-    pathRoundRect(ctx, x, y, w, h - bottomRim, [r, r, Math.max(1, r * 0.4), Math.max(1, r * 0.4)]);
+    pathRoundRect(ctx, x, y, w, h - depth, [r, r, Math.max(1, r * 0.35), Math.max(1, r * 0.35)]);
     ctx.fill();
 
     // Üst Bevel İnce Işıltısı
@@ -663,16 +665,26 @@ export function drawObstacle(ctx, obs, opts = {}) {
     ctx.moveTo(x + r, y + 1.2 * u);
     ctx.lineTo(x + w - r, y + 1.2 * u);
     ctx.stroke();
+
+    // Ön yüz kırılma çizgisi (2.5D üst yüzey ile ön duvar ayrımı)
+    ctx.strokeStyle = style.bevel;
+    ctx.globalAlpha = 0.28;
+    ctx.lineWidth = Math.max(1, 1.0 * u);
+    ctx.beginPath();
+    ctx.moveTo(x + border, y + h - depth);
+    ctx.lineTo(x + w - border, y + h - depth);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
-  // 4. Alt kenar koyulaştırması — gövde yolu zaten canvas'ta, onu clip'leyip
-  //    tek dolgu yapıyoruz: +4 op, SIFIR tahsis (gradyan yerine).
+  // 4. Ön duvar alt kenar koyulaştırması (Zemin temas oklüzyonu) —
+  //    gövde yolu zaten canvas'ta, clip ile tek dolgu (sıfır ek tahsis).
   ctx.save();
   pathRoundRect(ctx, x, y, w, h, r);
   ctx.clip();
-  ctx.globalAlpha = 0.32;
+  ctx.globalAlpha = 0.34;
   ctx.fillStyle = style.edge;
-  ctx.fillRect(x, y + h - bottomRim, w, bottomRim);
+  ctx.fillRect(x, y + h - depth * 0.55, w, depth * 0.55);
   ctx.restore();
 
   // 5. Deri detayı (0-2 op)
