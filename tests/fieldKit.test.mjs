@@ -296,10 +296,14 @@ test('field visuals add no packet fields (BOMB/PONG/HORDE)', () => {
   // canlıyken yok sayılır). HORDE artık `fx` TAŞIMAZ: FX anlık güvenilir
   // kanaldan gelir (MOTION_PLAN "kaldırma kararı Parça 4"), bu yüzden anahtar
   // listesinde `fx` yoktur; `particles` şema uyumu için boş kalır.
+  //
+  // `texts` (BOMB): yüzen metin kanalı (SİSTEM 3) — HEIST/CROWN/CURVE/ZONE/
+  // HORDE deseninde 8 öğe + ≤0.85 sn, paket saha görseli DEĞİLDİR. Saha
+  // görseli yeni alan getirmeye devam ederken kanal bilinçli ve sınırlıdır.
   assert.deepEqual(Object.keys(packets.BOMB).sort(), [
     'arena', 'blast', 'bombMaxTime', 'bombTimer', 'carrier', 'fx', 'gameState', 'ink', 'matchDraw',
     'matchWinner', 'mode', 'particles', 'pickups', 'pillars', 'players', 'roundId',
-    'roundWinner', 'scores', 'selfPredict', 'seq', 'version',
+    'roundWinner', 'scores', 'selfPredict', 'seq', 'texts', 'version',
   ]);
   assert.deepEqual(Object.keys(packets.PONG).sort(), [
     'arena', 'ball', 'fx', 'gameState', 'goals', 'matchWinner', 'mode', 'particles', 'players',

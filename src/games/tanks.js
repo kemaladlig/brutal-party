@@ -2,7 +2,7 @@
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
 import { t } from '../i18n.js';
-import { renderTopPill } from '../ui/hud.js';
+import { renderTopPill, renderFloatingTexts } from '../ui/hud.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
@@ -26,7 +26,7 @@ import {
 } from './tanksView.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
-import { fxFlashAlpha } from '../core/fxKit.js';
+import { fxFlashAlpha, emitFloatingText } from '../core/fxKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 
 export const TANK_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -255,6 +255,7 @@ this.targetScore = 2;
 
     // Tactical Supply Crates & Sudden Death
     this.crates = [];
+    this.floatingTexts = [];
     this.crateSpawnTimer = 6.0;
     this.roundTimer = 0;
 
@@ -276,6 +277,7 @@ this.targetScore = 2;
     this.nextBulletId = 1;
     this.fx.clear();
     this.crates = [];
+    this.floatingTexts = [];
     this.shotTracers = [];
     this.cornerTouchIds = [-1, -1, -1, -1];
     this.cornerTouchOrigins = [null, null, null, null];
@@ -647,6 +649,7 @@ this.targetScore = 2;
     this.fx.clear();
     this.shotTracers = [];
     this.crates = [];
+    this.floatingTexts = [];
     this.crateSpawnTimer = 6.0;
     this.roundTimer = 0;
     this.roundId += 1;
@@ -1215,6 +1218,13 @@ this.targetScore = 2;
     this.suddenDeath = false;
     this.suddenDeathRadius = 0;
     this.scores[winnerTank.index]++;
+    // Yüzen metin (SİSTEM 3): raunt puanı yerinde okunur.
+    emitFloatingText(this.floatingTexts, {
+      x: winnerTank.x,
+      y: winnerTank.y - (winnerTank.size || 26) - 12,
+      text: '+1',
+      color: winnerTank.color,
+    });
     if (this.scores[winnerTank.index] >= this.targetScore) {
       this.roundWinner = winnerTank;
       endMatch(this, winnerTank, 'target-score');
@@ -1266,6 +1276,9 @@ this.targetScore = 2;
       triple: tk.hasTripleShot === true,
     }));
     drawTanksTanks(ctx, sceneTanks, { arena: this.arena, withFx: this.state === 'PLAYING', selfSlot: this.localControlSlot ?? -1 });
+
+    // Yüzen metin (SİSTEM 3): puan bildirimi; varlık katmanının üstünde.
+    renderFloatingTexts(ctx, this.floatingTexts, 0.016);
 
     if (this.state === 'PLAYING' && this.spawnIntroTimer > 0) {
       this.renderSpawnBeacons(ctx);

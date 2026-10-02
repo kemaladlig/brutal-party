@@ -5,7 +5,7 @@
 import { drawPickup, drawObstacle } from '../core/arenaKit.js';
 import { drawField } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
-import { fxReadAlpha } from '../core/fxKit.js';
+import { fxReadAlpha, packFloatingTexts, isValidFloatingTexts } from '../core/fxKit.js';
 import {
   packBlast, isValidBlast, drawBlast, isWorldEntityVisible,
   packFxState, isValidFxState, drawFxRings, drawFxPops, drawSquareParticles,
@@ -65,6 +65,8 @@ export function createBombWorldPacket(game) {
       alive: p.isAlive !== false,
       x: round1(p.x || 0),
       y: round1(p.y || 0),
+      vx: round1(p.vx || 0),
+      vy: round1(p.vy || 0),
       angle: round1(p.facingAngle || 0),
       radius: round1(p.radius),
       stumble: round1(p.stumbleTimer || 0),
@@ -84,6 +86,9 @@ export function createBombWorldPacket(game) {
       maxLife: round1(pt.maxLife || 1),
       color: typeof pt.color === 'string' ? pt.color : '#1A1A1A',
     })),
+    // Yüzen metinler (SİSTEM 3): host flavor kanalı, NINJA deseni. ≤0.85 sn'lik
+    // bildirim; 8 Hz state zaten taşımıyor, packet 30 Hz snapshot'ı yeter.
+    texts: packFloatingTexts(game.floatingTexts),
     scores: (game.scores || [0, 0, 0, 0]).map((s) => Number(s) || 0),
     matchDraw: game.matchDraw === true,
     roundWinner: winnerSlot(game.roundWinner),
@@ -117,6 +122,8 @@ export function isValidBombWorldFrame(frame) {
   if (!Array.isArray(frame.players) || frame.players.length > 4) return false;
   if (!Array.isArray(frame.particles) || frame.particles.length > 64) return false;
   if (!frame.particles.every((pt) => pt && finite(pt.x) && finite(pt.y) && finite(pt.size) && finite(pt.life) && finite(pt.maxLife) && typeof pt.color === 'string')) return false;
+  // `texts` v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
+  if (!isValidFloatingTexts(frame.texts)) return false;
   // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
   if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
   return frame.players.every((p) => (
@@ -124,6 +131,9 @@ export function isValidBombWorldFrame(frame) {
     && typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
     && Number.isInteger(p.slot) && p.slot >= 0 && p.slot <= 3
     && finite(p.x) && finite(p.y) && finite(p.angle) && finite(p.radius)
+    // Kinetik alanlar v2 eklentisidir; eski host paketleri taşımaz.
+    && (p.vx === undefined || finite(p.vx))
+    && (p.vy === undefined || finite(p.vy))
     && finite(p.stumble) && finite(p.immunity) && finite(p.dash) && finite(p.turbo)
     && finite(p.slip) && finite(p.slipAngle) && finite(p.cd) && finite(p.cdMax)
   ));

@@ -21,7 +21,7 @@ import {
   drawSquareParticles,
 } from './worldCore.js';
 import { drawFxRings, drawFxPops } from './worldCore.js';
-import { fxReadAlpha } from '../core/fxKit.js';
+import { fxReadAlpha, packFloatingTexts, isValidFloatingTexts } from '../core/fxKit.js';
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 
@@ -59,6 +59,9 @@ export function createTanksWorldPacket(game) {
     }),
     extras: {
       obstacles: packRectList(game.obstacles, 24),
+      // Yüzen metin (SİSTEM 3): `fxKit.packFloatingTexts` tek kaynak; host
+      // ilerletip paketler, client saf çizer.
+      texts: packFloatingTexts(game.floatingTexts),
       bullets: (Array.isArray(game.bullets) ? game.bullets : []).slice(0, 24).map((b, index) => [
         round1(b.x), round1(b.y), round1(b.radius || 4.5), b.owner,
         round1(b.vx || 0), round1(b.vy || 0),
@@ -136,6 +139,8 @@ function isValidTanksExtra(frame) {
   }
   // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
   if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
+  // texts kanalı da v2 eklentisidir (aynı opsiyonel kural).
+  if (!isValidFloatingTexts(frame.texts)) return false;
   return true;
 }
 

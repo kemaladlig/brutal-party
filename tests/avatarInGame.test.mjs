@@ -1,5 +1,6 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { createServer } from 'vite';
 
 const noop = () => {};
@@ -383,6 +384,134 @@ test('drawGameAvatar applies hitFlash and kinetic transforms without throwing', 
   const hitRec = makeRecorder();
   drawGameAvatar(hitRec, 0, 0, R, { ...player, hit: true });
   assert.ok(hitRec.calls.length > 0, 'hit avatar must render cleanly');
+});
+
+// ---------------------------------------------------------------------------
+// PARITY GATE — bu dosyanın asıl işi. Metin taraması DEĞİL, motoru ÇALIŞTIRIR
+// ve paketi okur: "efekt var mı" değil "efekt gerçekten üretiliyor mu".
+//
+// Neden runtime: squash kelimeni geçen ama ölü kod (eskiden `vx` yazmayan 6
+// motor) hiçbir metin kapısını geçmezdi. Buradaki ölçüm motorun kendi
+// paketinden okur, yani sadece HOST→KUMANDA yolunda gerçekten taşınan veri
+// sayılır.
+// ---------------------------------------------------------------------------
+
+// Avatar taşıyan oyunlar. PONG yanda kürek vardır, gövde avatarı yok; CURVE
+// imleçtir — bu ikisinin squash sözleşmesi yoktur (bilinçli istisna).
+const KINETIC_ENGINES = [
+  ['ARCHER', '/src/games/archer.js', 'ArcherGame'],
+  ['BOMB', '/src/games/bomb.js', 'BombGame'],
+  ['HEIST', '/src/games/heist.js', 'HeistGame'],
+  ['ZONE', '/src/games/zone.js', 'ZoneGame'],
+  ['SNAKE', '/src/games/snake.js', 'SnakeGame'],
+  ['COLLAPSE', '/src/games/collapse.js', 'CollapseGame'],
+  ['HORDE', '/src/games/horde.js', 'HordeGame'],
+  ['NINJA', '/src/games/ninja.js', 'NinjaGame'],
+  ['CROWN', '/src/games/crown.js', 'CrownGame'],
+  ['TANKS', '/src/games/tanks.js', 'TanksGame'],
+];
+
+test('PARITY: every avatar engine carries kinetic velocity into its world packet', async () => {
+  const { getKineticState } = await server.ssrLoadModule('/src/core/avatarInGame.js');
+
+  for (const [mode, mod, className] of KINETIC_ENGINES) {
+    const { [className]: Ctor } = await server.ssrLoadModule(mod);
+    const game = new Ctor({ width: 1600, height: 1200, style: {}, getContext: () => makeRecorder() });
+    game.resize(1280, 720);
+    if (typeof game.initPlayers === 'function') game.initPlayers();
+    else if (typeof game.initTanks === 'function') game.initTanks();
+
+    game.slotTypes[0] = 'human';
+    const entity = (game.players || game.tanks)[0];
+    entity.isJoined = true;
+    entity.isAlive = true;
+    entity.slotType = 'human';
+
+    // Girirti yolu MOTORDAN MOTORA değişir (joystick/klavye/uzak/bot), bu yüzden
+    // kapı "hız yazılsın" SÖZLEŞMESİNİ iki parçaya böler:
+    //   (a) runtime: paket oyuncu başına vx/vy taşıyor ve geçerli (aşağıda),
+    //   (b) kaynak taraması: motor hareket döngüsünde hızı YAZIYOR (aşağıda).
+    // (b) olmadan (a) "her kare 0 yazıyor" durumunu yakalayamaz — ki bu,
+    // squash'ın neden 6 motorda ölü kaldığının ta kendisiydi.
+    const packet = game.createWorldPacket();
+    assert.ok(packet, `${mode}: world packet must exist`);
+    const packed = packet.players.find((p) => (p.slot ?? p.index) === 0);
+    assert.ok(packed, `${mode}: packet must carry slot 0`);
+
+    const hasV = typeof packed.vx === 'number' && typeof packed.vy === 'number';
+    assert.ok(
+      hasV,
+      `${mode}: packet player has no vx/vy — the kinetic channel was dropped, so `
+      + 'squash cannot reach the remote controller. Write velocity every frame.',
+    );
+    assert.ok(Number.isFinite(packed.vx) && Number.isFinite(packed.vy), `${mode}: packet velocity must be finite`);
+    const kinetic = getKineticState(packed, { vx: packed.vx, vy: packed.vy });
+    assert.equal(kinetic.vx, packed.vx, `${mode}: packet velocity must survive normalization`);
+
+    if (typeof game.destroy === 'function') game.destroy();
+  }
+});
+
+test('PARITY: every avatar engine WRITES velocity in its movement loop', () => {
+  // Bu, tarihsel regresyonun kendisini kilitler: merkezi squash hazırdı, altı
+  // motor `steer` ile doğrudan `x/y` taşıyordu ve `vx/vy` hiç yazılmıyordu.
+  // Efekt "var" görünüyordu, hiç çalışmıyordu.
+  const engineFiles = [
+    'src/games/archer.js',
+    'src/games/bomb.js',
+    'src/games/heist.js',
+    'src/games/zone.js',
+    'src/games/snake.js',
+    'src/games/collapse.js',
+    'src/games/horde.js',
+    'src/games/ninja.js',
+    'src/games/crown.js',
+    'src/games/tanks.js',
+  ];
+  for (const f of engineFiles) {
+    const content = fs.readFileSync(f, 'utf8');
+    const writesVelocity = content.includes('writeSteerVelocity(')
+      || /\b(?:player|p|tank|entity)\.vx\s*=[^=]/.test(content);
+    assert.ok(
+      writesVelocity,
+      `${f} never writes entity velocity (vx/vy). Squash & stretch reads velocity, `
+      + 'so this game silently has no kinetic channel. Use BaseGame.writeSteerVelocity().',
+    );
+  }
+
+  // Negative control: kapı gerçekten kırmızıya dönüyor.
+  const dead = 'player.x += player.steerX * spd * dt;';
+  const wouldPass = dead.includes('writeSteerVelocity(') || /\b(?:player|p|tank|entity)\.vx\s*=[^=]/.test(dead);
+  assert.equal(wouldPass, false, 'the velocity-write gate must reject a steer-only movement loop');
+});
+
+test('PARITY: every avatar engine exposes a floating-text channel (SİSTEM 3)', async () => {
+  const { isValidFloatingTexts, FX_TEXT_CAP } = await server.ssrLoadModule('/src/core/fxKit.js');
+
+  for (const [mode, mod, className] of KINETIC_ENGINES) {
+    const { [className]: Ctor } = await server.ssrLoadModule(mod);
+    const game = new Ctor({ width: 1600, height: 1200, style: {}, getContext: () => makeRecorder() });
+    game.resize(1280, 720);
+    if (typeof game.initPlayers === 'function') game.initPlayers();
+    else if (typeof game.initTanks === 'function') game.initTanks();
+
+    assert.ok(
+      Array.isArray(game.floatingTexts),
+      `${mode}: no floatingTexts list — emitFloatingText would throw, and the `
+      + 'score/hit feedback channel (SİSTEM 3) is missing.',
+    );
+
+    const packet = game.createWorldPacket();
+    const texts = packet?.texts ?? packet?.extras?.texts;
+    assert.ok(
+      texts !== undefined,
+      `${mode}: world packet carries no floating-text channel, so the remote `
+      + 'controller silently loses every score/hit label.',
+    );
+    assert.ok(isValidFloatingTexts(texts, FX_TEXT_CAP), `${mode}: texts channel fails its own validator`);
+
+    if (typeof game.destroy === 'function') game.destroy();
+  }
 });
 
 

@@ -5,7 +5,7 @@
 // tabletopIcons vektörleridir (SUPER_JUMP→chevrons_up, REPAIR_TILES→hammer, BLAST_WAVE→wind).
 
 import { drawGameAvatar } from '../core/avatarInGame.js';
-import { fxReadAlpha } from '../core/fxKit.js';
+import { fxReadAlpha, packFloatingTexts, isValidFloatingTexts } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
 import { UI_COLORS } from '../ui/tokens.js';
@@ -88,6 +88,9 @@ export function createCollapseWorldPacket(game) {
         type: pu.type || 'SUPER_JUMP',
         pulse: round2(pu.pulse || 0),
       })),
+      // Yüzen metin (SİSTEM 3): `fxKit.packFloatingTexts` tek kaynak; host
+      // ilerletip paketler, client saf çizer (ui/hud.drawFloatingTextSnapshot).
+      texts: packFloatingTexts(game.floatingTexts),
       // FX kanalı (MOTION_PLAN Faz 2b): host FX runtime'ının saf anlık görüntüsü
       // (tanks deseni). Playback canlıyken paket yükü yok sayılır (yedek kanal).
       fx: packFxState(game.fx),
@@ -122,6 +125,8 @@ function isValidCollapseExtra(frame) {
     && typeof pu.type === 'string' && finite(pu.pulse))) return false;
   // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
   if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
+  // texts kanalı da v2 eklentisidir (aynı opsiyonel kural).
+  if (!isValidFloatingTexts(frame.texts)) return false;
   return true;
 }
 

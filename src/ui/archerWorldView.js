@@ -11,6 +11,7 @@ import {
 } from '../games/archerView.js';
 import { drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
+import { drawFloatingTextSnapshotList } from './hud.js';
 import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { UI_COLORS } from './tokens.js';
@@ -55,6 +56,9 @@ export function createWorldViewRenderer() {
           avatar: slots?.[p.slot]?.avatar || null,
         }));
         drawArcherPlayers(ctx, players, { showFx: frame.gameState === 'PLAYING', selfSlot: context.selfSlot ?? -1 });
+        // Yüzen metin (SİSTEM 3): host ilerletip paketlediği için client
+        // SAF çizim yapar (listeyi ilerletmek metni iki kez hızlandırırdı).
+        drawFloatingTextSnapshotList(ctx, frame.texts);
         // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
         drawArcherFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }

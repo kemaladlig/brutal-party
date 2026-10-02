@@ -21,7 +21,8 @@ import {
 } from './collapseView.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
-import { fxFlashAlpha } from '../core/fxKit.js';
+import { fxFlashAlpha, emitFloatingText } from '../core/fxKit.js';
+import { renderFloatingTexts } from '../ui/hud.js';
 import { beginRound, endMatch, tickRoundFlow } from '../core/roundLifecycle.js';
 import { tickPickupTimers } from '../core/pickupSystem.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
@@ -173,6 +174,7 @@ this.targetScore = 2;
     this.fallingTiles = [];
     this.pickups = [];
     this.shockwaves = [];
+    this.floatingTexts = [];
 
     // Izgara: 0 sağlam, 1 uyarı (çöküyor), 2 boşluk
     this.gridCOLS = 13;
@@ -340,6 +342,7 @@ this.targetScore = 2;
     this.fx.clear();
     this.fallingTiles = [];
     this.shockwaves = [];
+    this.floatingTexts = [];
     this.pickRandomMap();
     this.initPlayers();
     this.onTouchesReset();
@@ -379,6 +382,7 @@ this.targetScore = 2;
     this.pickups = [];
     this.fallingTiles = [];
     this.shockwaves = [];
+    this.floatingTexts = [];
     this.fx.clear();
     this.pickupSpawnTimer = 3.5;
     this.onTouchesReset();
@@ -423,7 +427,16 @@ this.targetScore = 2;
     if (this.state !== 'PLAYING') return;
     if (winner) {
       this.tiedRounds = 0;
-      if (awardPoint) this.scores[winner.index] += 1;
+      if (awardPoint) {
+        this.scores[winner.index] += 1;
+        // Yüzen metin (SİSTEM 3): puanın yerinde okunması.
+        emitFloatingText(this.floatingTexts, {
+          x: winner.x,
+          y: winner.y - (winner.radius || 36) - 12,
+          text: '+1',
+          color: winner.color,
+        });
+      }
       if (this.scores[winner.index] >= this.targetScore) this.matchWinner = winner;
       beginRound(this, winner, reason);
       return;
@@ -856,6 +869,9 @@ this.targetScore = 2;
 
     // 7. FX KATMANI (ortak collapseView draw'ı — host↔client aynı)
     drawCollapseFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+
+    // Yüzen metin (SİSTEM 3): puan bildirimi; FX katmanının üstünde.
+    renderFloatingTexts(ctx, this.floatingTexts, 0.016);
 
     if (this.state === 'PLAYING') {
       this.renderControls(ctx);

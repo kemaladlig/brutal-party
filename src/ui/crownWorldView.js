@@ -3,6 +3,7 @@
 import { drawCrownWorld, drawCrownFxLayer, isValidCrownWorldFrame } from '../games/crownView.js';
 import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { paintBackdrop } from '../core/fieldKit.js';
+import { drawFloatingTextSnapshotList } from './hud.js';
 import { t } from '../i18n.js';
 
 const PLAYER_FALLBACK = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -32,6 +33,9 @@ export function createWorldViewRenderer() {
       paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'CROWN' });
       fitWorld(ctx, width, height, frame.arena, () => {
         drawCrownWorld(ctx, frame, arena, colors, now, undefined, context.selfSlot ?? -1, { roundId: frame.roundId });
+        // Yüzen metin (SİSTEM 3): host ilerletip paketlediği için client
+        // SAF çizim yapar (listeyi ilerletmek metni iki kez hızlandırırdı).
+        drawFloatingTextSnapshotList(ctx, frame.texts);
         // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
         drawCrownFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }

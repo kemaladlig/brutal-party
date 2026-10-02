@@ -2,7 +2,7 @@
 // The authoritative game uses the same drawing helpers as remote phone clients.
 
 import { drawGameAvatar } from '../core/avatarInGame.js';
-import { fxReadAlpha } from '../core/fxKit.js';
+import { fxReadAlpha, packFloatingTexts, isValidFloatingTexts } from '../core/fxKit.js';
 import {
   isWorldEntityVisible,
   packFxState,
@@ -131,6 +131,9 @@ export function createSnakeWorldPacket(game) {
       locked: !!player.boostLocked,
       trail: sampleSnakeTrail(player.segments, player.x, player.y),
     })),
+    // Yüzen metin (SİSTEM 3): `fxKit.packFloatingTexts` tek kaynak; host
+    // ilerletip paketler, client saf çizer.
+    texts: packFloatingTexts(game.floatingTexts),
     particles: packParticles(particles, 64),
     // FX kanalı (MOTION_PLAN Faz 2c): host FX runtime'ının saf anlık görüntüsü.
     fx: packFxState(game.fx),
@@ -173,6 +176,8 @@ export function isValidSnakeWorldFrame(frame) {
   ))) return false;
   // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
   if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
+  // texts kanalı v2 eklentisidir (opsiyonel; eski host paketleri taşımaz).
+  if (!isValidFloatingTexts(frame.texts)) return false;
   return frame.players.every((player) => (
     player
     && typeof player.joined === 'boolean' && typeof player.alive === 'boolean'

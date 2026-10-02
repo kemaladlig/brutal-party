@@ -23,7 +23,8 @@ import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } fr
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
 import { drawFxFlash } from './worldCore.js';
-import { fxFlashAlpha } from '../core/fxKit.js';
+import { fxFlashAlpha, emitFloatingText } from '../core/fxKit.js';
+import { renderFloatingTexts } from '../ui/hud.js';
 
 export const SNAKE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const SNAKE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -130,6 +131,7 @@ this.targetScore = 2;
     this.tiedRounds = 0;
     this.players = [];
     this.foods = [];
+    this.floatingTexts = [];
     // FX runtime (MOTION_PLAN Faz 2c): boost izi/yemek/ölüm olaylarının tek sahibi.
     this.fx = createFxRuntime({
       arenaProvider: () => this.arena,
@@ -281,6 +283,7 @@ this.targetScore = 2;
     this.roundId = 0;
     this.roundTimer = 0;
     this.foods = [];
+    this.floatingTexts = [];
     this.segGrid = new Map();
     this.segGridDirty = false;
     this.fx.clear();
@@ -318,6 +321,7 @@ this.targetScore = 2;
     this.matchDraw = false;
     this.roundResolutionReason = null;
     this.foods = [];
+    this.floatingTexts = [];
     this.roundWinner = null;
     this.roundTransitionTimer = 0;
     this.segGrid = new Map();
@@ -658,6 +662,13 @@ this.targetScore = 2;
           if (player.targetLen > SNAKE_MAX_LEN) player.targetLen = SNAKE_MAX_LEN;
           this.foods.splice(i, 1);
           this.spawnFood();
+          // Yüzen metin (SİSTEM 3): yemeğin değeri yerinde okunur.
+          emitFloatingText(this.floatingTexts, {
+            x: f.x,
+            y: f.y,
+            text: f.type === 'GOLDEN_STAR' ? 'x3' : f.type === 'TURBO_BERRY' ? '+ENERJI' : '+1',
+            color: player.color,
+          });
           playItemPickup();
         }
       }
@@ -782,6 +793,13 @@ this.targetScore = 2;
     }
     this.tiedRounds = 0;
     this.scores[winner.index]++;
+    // Yüzen metin (SİSTEM 3): raunt puanı yerinde okunur.
+    emitFloatingText(this.floatingTexts, {
+      x: winner.x,
+      y: winner.y - (winner.radius || 24) - 12,
+      text: '+1',
+      color: winner.color,
+    });
     if (this.scores[winner.index] >= this.targetScore) {
       this.roundWinner = winner;
       endMatch(this, winner, 'target-score');
@@ -819,6 +837,8 @@ this.targetScore = 2;
     drawSnakePlayers(ctx, this.players, now, this.localControlSlot ?? -1);
     // FX katmanı ortak snakeView draw'ından gelir (host↔client aynı).
     drawSnakeFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+    // Yüzen metin (SİSTEM 3): yemek/puan bildirimi; FX katmanının üstünde.
+    renderFloatingTexts(ctx, this.floatingTexts, 0.016);
 
     this.renderHUD(ctx, {
       guideTitle: t('guide.snake'),

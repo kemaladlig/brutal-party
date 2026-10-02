@@ -8,7 +8,8 @@ import { playExplosion, playStart, playJoin, playItemPickup, playTeleport, playD
 import { notifyFireBlocked, notifyFireShot } from '../core/fireFeedbackEffects.js';
 import { resetFireFeedback, updateFireFeedback } from '../core/fireFeedback.js';
 import { t } from '../i18n.js';
-import { renderArenaWatermarkTimer } from '../ui/hud.js';
+import { renderArenaWatermarkTimer, renderFloatingTexts } from '../ui/hud.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { beginRound, tickRoundFlow } from '../core/roundLifecycle.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
@@ -32,7 +33,7 @@ import {
 } from './archerView.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
-import { fxFlashAlpha } from '../core/fxKit.js';
+import { fxFlashAlpha, emitFloatingText } from '../core/fxKit.js';
 
 export const ARCHER_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const ARCHER_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -89,6 +90,7 @@ export class ArcherGame extends BaseMiniGame {
     this.tieRounds = 0;
     this.matchDraw = false;
     this.pickups = [];
+    this.floatingTexts = [];
     this.pickupTimer = 8.0;
     this.mapIndex = 0;
     this.mapTime = 0;
@@ -211,6 +213,7 @@ export class ArcherGame extends BaseMiniGame {
     this.nextArrowId = 1;
     this.fx.clear();
     this.pickups = [];
+    this.floatingTexts = [];
     this.mapIndex = 0;
     this.buildMap();
     this.initPlayers();
@@ -251,6 +254,7 @@ export class ArcherGame extends BaseMiniGame {
     this.nextArrowId = 1;
     this.fx.clear();
     this.pickups = [];
+    this.floatingTexts = [];
     this.pickupTimer = 8.0;
     // Raund başına rastgele harita
     this.mapIndex = Math.floor(Math.random() * 3);
@@ -712,6 +716,9 @@ export class ArcherGame extends BaseMiniGame {
           // KALKAN bir ok emer: skor/stun yok
           if (victim.shield > 0) {
             victim.shield -= 1;
+            emitFloatingText(this.floatingTexts, {
+              x: victim.x, y: victim.y - 20, text: 'BLOK!', color: UI_COLORS.hudShield,
+            });
             this.fx.emit('hit', {
               x: victim.x, y: victim.y, color: '#06B6D4',
               dirX: a.vx, dirY: a.vy, slot: victim.index,
@@ -723,6 +730,10 @@ export class ArcherGame extends BaseMiniGame {
             const close = a.dist < ARCHER_CLOSE_DIST;
             const pts = close ? 2 : 1;
             this.scores[a.owner] += pts;
+            emitFloatingText(this.floatingTexts, {
+              x: victim.x, y: victim.y - 20, text: `+${pts}`,
+              color: this.players[a.owner]?.color || victim.color,
+            });
             this.roundHits[a.owner] = (this.roundHits[a.owner] || 0) + 1;
             // Yakın mesafede stun çok kısa (spam kilitlenmesin), uzakta tam stun
             const stunDur = a.dist < 110 ? 0.12 : (close ? 0.3 : 0.8);
@@ -883,6 +894,9 @@ export class ArcherGame extends BaseMiniGame {
 
     // FX katmanı ortak archerView draw'ından gelir (host↔client aynı).
     drawArcherFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+
+    // Yüzen skor metinleri (host flavor'ı; NINJA deseni, pakete girmez).
+    renderFloatingTexts(ctx, this.floatingTexts, 0.016);
 
     this.renderControls(ctx, { extraEntities: this.arrows });
     this.renderHUD(ctx, {

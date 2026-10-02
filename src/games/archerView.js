@@ -6,7 +6,7 @@
 import { drawObstacle, drawPickup } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar, computeAvatarKineticDeformation } from '../core/avatarInGame.js';
-import { fxReadAlpha } from '../core/fxKit.js';
+import { fxReadAlpha, packFloatingTexts, isValidFloatingTexts } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
 import { renderFireCooldown } from '../ui/hud.js';
@@ -92,6 +92,9 @@ export function createArcherWorldPacket(game) {
       multi: Math.max(0, Number(p.multiShots) || 0),
       slip: round1(p.slipTimer || 0),
     })),
+    // Yüzen metin (SİSTEM 3): `fxKit.packFloatingTexts` tek kaynak; host
+    // ilerletip paketler, client saf çizer.
+    texts: packFloatingTexts(game.floatingTexts),
     arrows: arrows.map((a, index) => [
       round1(a.x),
       round1(a.y),
@@ -140,6 +143,8 @@ export function isValidArcherWorldFrame(frame) {
   if (!frame.particles.every((pt) => pt && finite(pt.x) && finite(pt.y) && finite(pt.radius) && finite(pt.alpha) && typeof pt.color === 'string')) return false;
   // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
   if (frame.fx !== undefined && !isValidFxState(frame.fx)) return false;
+  // texts kanalı da v2 eklentisidir (aynı opsiyonel kural).
+  if (!isValidFloatingTexts(frame.texts)) return false;
   return frame.players.every((p) => (
     p
     && typeof p.joined === 'boolean' && typeof p.alive === 'boolean'

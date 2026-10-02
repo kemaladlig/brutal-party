@@ -14,6 +14,7 @@ import { drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
 import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
 import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { drawFloatingTextSnapshotList } from './hud.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
@@ -62,6 +63,9 @@ export function createWorldViewRenderer() {
           selfSlot: context.selfSlot ?? -1,
         });
         drawBombBlast(ctx, frame.blast, arena);
+        // Yüzen metin (SİSTEM 3): host ilerletip paketlediği için client
+        // SAF çizim yapar (listeyi ilerletmek metni iki kez hızlandırırdı).
+        drawFloatingTextSnapshotList(ctx, frame.texts);
         // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
         drawBombFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }

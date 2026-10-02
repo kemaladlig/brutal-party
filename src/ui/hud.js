@@ -355,6 +355,45 @@ export function renderSpatialBadge(ctx, {
   ctx.restore();
 }
 
+// Tek bir yüzen metni çizer — SAF. Ne listeyi ilerletir ne siler; konum,
+// alfa ve ölçek YALNIZ `life/maxLife` oranından türer.
+//
+// İki taraf tek yerden çizim alır: host `renderFloatingTexts` (kendi saatini
+// yürütür, listeyi temizler), uzak client paketten gelen donmuş `life` ile
+// `drawFloatingTextSnapshot`'ı çağırır. Yüzen metin pakete girdiği için bu
+// ayrım zorunlu: client listeyi ilerletirse metin iki kez hızlanır.
+export function drawFloatingTextSnapshot(ctx, item) {
+  if (!item || !item.text) return;
+  const maxLife = Number(item.maxLife) || 0.85;
+  const progress = Math.max(0, Math.min(1, (Number(item.life) || 0) / maxLife));
+  const alpha = 1.0 - Math.pow(progress, 2);
+  if (alpha <= 0) return;
+
+  renderSpatialBadge(ctx, {
+    x: item.x,
+    y: item.y - progress * (item.dist || 36),
+    text: item.text,
+    icon: item.icon || '',
+    color: item.color || UI_COLORS.ink,
+    bg: item.bg || UI_COLORS.white,
+    urgent: item.urgent || false,
+    alpha,
+    scale: 1.0 + (item.pop ? (1 - progress) * 0.3 : 0),
+  });
+}
+
+/**
+ * Paketlenmiş yüzen metin listesini çizer (uzak client yolu — MUTASYON YOK).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {Array<{x:number,y:number,text:string,life:number,maxLife:number}>} list
+ */
+export function drawFloatingTextSnapshotList(ctx, list) {
+  if (!Array.isArray(list) || list.length === 0) return;
+  ctx.save();
+  for (const item of list) drawFloatingTextSnapshot(ctx, item);
+  ctx.restore();
+}
+
 // Havaya süzülen metinleri çizer ve temizler (+1★, HASAR, BLOKE! vb.)
 export function renderFloatingTexts(ctx, list, dt = 0.016) {
   if (!list || list.length === 0) return;
@@ -367,21 +406,7 @@ export function renderFloatingTexts(ctx, list, dt = 0.016) {
       list.splice(i, 1);
       continue;
     }
-    const progress = item.life / maxLife;
-    const currentY = item.y - progress * (item.dist || 36);
-    const alpha = 1.0 - Math.pow(progress, 2);
-
-    renderSpatialBadge(ctx, {
-      x: item.x,
-      y: currentY,
-      text: item.text,
-      icon: item.icon || '',
-      color: item.color || UI_COLORS.ink,
-      bg: item.bg || UI_COLORS.white,
-      urgent: item.urgent || false,
-      alpha: Math.max(0, alpha),
-      scale: 1.0 + (item.pop ? (1 - progress) * 0.3 : 0),
-    });
+    drawFloatingTextSnapshot(ctx, item);
   }
   ctx.restore();
 }

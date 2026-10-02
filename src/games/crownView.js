@@ -78,6 +78,8 @@ export function createCrownWorldPacket(game) {
       alive: player.isAlive !== false,
       x: round1(player.x || 0),
       y: round1(player.y || 0),
+      vx: round1(player.vx || 0),
+      vy: round1(player.vy || 0),
       radius: round1(player.radius || CROWN_PLAYER_RADIUS),
       hasCrown: player.hasCrown === true,
       crownHoldTime: round1(player.crownHoldTime || 0),
@@ -101,6 +103,9 @@ export function createCrownWorldPacket(game) {
       ink: (game.inkPuddles?.length ? packCircles(game.inkPuddles) : EMPTY_ARR),
       speedPads: getBakedSpeedPads(game),
       pickups: (game.pickups?.length ? packPickups(game.pickups) : EMPTY_ARR),
+      // Yüzen metin (SİSTEM 3): `fxKit.packFloatingTexts` tek kaynak; host
+      // ilerletip paketler, client saf çizer.
+      texts: packFloatingTexts(game.floatingTexts),
       // FX kanalı (MOTION_PLAN Faz 2b): host FX runtime'ının saf anlık görüntüsü
       // (tanks deseni). Playback canlıyken paket yükü yok sayılır (yedek kanal).
       fx: packFxState(game.fx),
@@ -113,6 +118,9 @@ function validPlayer(player) {
     && typeof player.joined === 'boolean'
     && typeof player.alive === 'boolean'
     && finite(player.x) && finite(player.y)
+    // Kinetik alanlar v2 eklentisidir; eski host paketleri taşımaz.
+    && (player.vx === undefined || finite(player.vx))
+    && (player.vy === undefined || finite(player.vy))
     && finite(player.radius) && player.radius > 0
     && typeof player.hasCrown === 'boolean'
     && finite(player.crownHoldTime) && player.crownHoldTime >= 0
@@ -158,6 +166,8 @@ export function isValidCrownWorldFrame(frame) {
       && candidate.pickups.every((pickup) => Array.isArray(pickup) && pickup.length === 4
         && pickup.slice(0, 3).every(finite) && pickup[2] > 0
         && typeof pickup[3] === 'string')
+      // texts kanalı da v2 eklentisidir (aynı opsiyonel kural).
+      && isValidFloatingTexts(candidate.texts)
       // fx alanı v2 eklentisidir; eski host frames'i yoktur (opsiyonel, v1 uyumu).
       && (candidate.fx === undefined || isValidFxState(candidate.fx))
     ),
@@ -166,7 +176,7 @@ export function isValidCrownWorldFrame(frame) {
 
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
-import { fxReadAlpha } from '../core/fxKit.js';
+import { fxReadAlpha, packFloatingTexts, isValidFloatingTexts } from '../core/fxKit.js';
 import { drawPickup } from '../core/arenaKit.js';
 import { renderEntityHUD } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';

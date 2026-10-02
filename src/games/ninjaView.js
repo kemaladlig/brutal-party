@@ -4,14 +4,16 @@
 // Notlar:
 // - Görünmezlik (alpha<=0.02) rakiplerden gizlenir; yalnız kendi koltuğu (selfSlot)
 //   hayalet kontur görür — host'taki `isLocalInputActive` hayaletinin client karşılığı.
-// - Uçuşan metinler snapshot'a girmez: host `renderFloatingTexts`'i mutate eder
-//   (life += dt + splice); client snapshot'ı bozardı. ≤0.85 sn'lik flavor, 8 Hz HUD bilgi verir.
+// - Uçuşan metinler (SİSTEM 3) pakete GİRER: `fxKit.packFloatingTexts` öğeleri
+//   paketler, host `renderFloatingTexts` listeyi İLERLETİR/temizler, client ise
+//   paketten gelen donmuş `life` ile SAF çizer (`ui/hud.drawFloatingTextSnapshot`).
+//   Konum-geçmişi (afterimage/footstep) yine pakette değil — bu bir bildirim kanalı.
 // - Zaman bazlı fx (slash/decals/impacts/alpha) 2 ondalık taşınır (0.07 gecikmeler kırılmasın).
 
 import { drawObstacle } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar, computeAvatarKineticDeformation } from '../core/avatarInGame.js';
-import { fxReadAlpha } from '../core/fxKit.js';
+import { fxReadAlpha, packFloatingTexts, isValidFloatingTexts } from '../core/fxKit.js';
 import { drawStatusChip } from '../core/entityStatus.js';
 import {
   round1,
@@ -111,6 +113,8 @@ export function createNinjaWorldPacket(game) {
       // FX kanalı (MOTION_PLAN Faz 2c): host FX runtime'ının saf anlık görüntüsü.
       // (Eski `fx` partikül dizisi bu anahtarı işgal ediyordu; kanal adı tek
       // konvansiyon olsun diye runtime'a devredildi, v1 partikül yedeği `particles`.)
+      // Uyuşan (hit) anının bildirimi: tek kaynak `fxKit.packFloatingTexts`.
+      texts: packFloatingTexts(game.floatingTexts),
       fx: packFxState(game.fx),
     },
   });
@@ -130,6 +134,8 @@ function isValidNinjaPlayer(p) {
 
 function isValidNinjaExtra(frame) {
   if (typeof frame.matchDraw !== 'boolean' || !finite(frame.timeLeft) || frame.timeLeft < 0) return false;
+  // texts kanalı v2 eklentisidir (opsiyonel; eski host paketleri taşımaz).
+  if (!isValidFloatingTexts(frame.texts)) return false;
   if (!Array.isArray(frame.obstacles) || frame.obstacles.length > 16) return false;
   if (!frame.obstacles.every((r) => Array.isArray(r) && r.length === 4 && r.every(finite))) return false;
   if (!Array.isArray(frame.lanterns) || frame.lanterns.length > 6) return false;

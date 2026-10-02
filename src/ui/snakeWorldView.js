@@ -10,6 +10,7 @@ import {
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { drawFloatingTextSnapshotList } from './hud.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
@@ -42,6 +43,9 @@ export function createSnakeWorldViewRenderer() {
         drawSnakeArena(ctx, arena, walls, { roundId: frame.roundId });
         drawSnakeFoods(ctx, foods, now);
         drawSnakePlayers(ctx, players, now, context.selfSlot ?? -1);
+        // Yüzen metin (SİSTEM 3): host ilerletip paketlediği için client
+        // SAF çizim yapar (listeyi ilerletmek metni iki kez hızlandırırdı).
+        drawFloatingTextSnapshotList(ctx, frame.texts);
         drawSnakeFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
           : {

@@ -403,3 +403,60 @@ export function emitFloatingText(list, {
     vy: -dist / maxLife,
   });
 }
+
+/** Paketlenmiş yüzen metin kanallarının tümü bu kotta (ağ bütçesi, §6). */
+export const FX_TEXT_CAP = 8;
+/** Sınır: kısa vurucu bildirim. 16 karakter = kumandada okunabilir en uzun etiket. */
+const FX_TEXT_MAX_CHARS = 16;
+
+/**
+ * Yüzen metin listesini world-frame yüküne çevirir (host paketleyici).
+ *
+ * Paket, `life` alanını DONDURMUŞ gönderir: uzak client listeyi ilerletmez
+ * (`ui/hud.drawFloatingTextSnapshot` saf çizim), yoksa metin iki kez hızlanır.
+ *
+ * @param {any[]} list
+ * @param {number} [cap]
+ * @returns {Array<object>}
+ */
+export function packFloatingTexts(list, cap = FX_TEXT_CAP) {
+  if (!Array.isArray(list)) return [];
+  const r1 = (v) => Math.round(Number(v) * 10) / 10;
+  const r2 = (v) => Math.round(Number(v) * 100) / 100;
+  return list.slice(0, cap).map((ft) => ({
+    x: r1(ft.x),
+    y: r1(ft.y),
+    text: String(ft.text || '').slice(0, FX_TEXT_MAX_CHARS),
+    life: r2(ft.life || 0),
+    maxLife: r2(ft.maxLife || 0.85),
+    color: typeof ft.color === 'string' ? ft.color : UI_COLORS.inkDark,
+    bg: typeof ft.bg === 'string' ? ft.bg : UI_COLORS.white,
+    urgent: ft.urgent === true,
+    icon: typeof ft.icon === 'string' ? ft.icon : '',
+    dist: r1(ft.dist || 36),
+    pop: ft.pop !== false,
+  }));
+}
+
+/**
+ * Paketlenmiş yüzen metin kanalını doğrular (istemci kapısı).
+ *
+ * Alan YOKSA (eski host paketi) geçerlidir: kanal opsiyonel eklentidir.
+ * @param {unknown} texts
+ * @param {number} [cap]
+ */
+export function isValidFloatingTexts(texts, cap = FX_TEXT_CAP) {
+  if (texts === undefined) return true;
+  if (!Array.isArray(texts) || texts.length > cap) return false;
+  const finite = (v) => typeof v === 'number' && Number.isFinite(v);
+  return texts.every((ft) => (
+    ft
+    && finite(ft.x) && finite(ft.y)
+    && typeof ft.text === 'string' && ft.text.length <= FX_TEXT_MAX_CHARS
+    && finite(ft.life) && ft.life >= 0 && ft.life <= 1
+    && finite(ft.maxLife) && ft.maxLife > 0
+    && typeof ft.color === 'string' && typeof ft.bg === 'string'
+    && typeof ft.urgent === 'boolean' && typeof ft.icon === 'string'
+    && finite(ft.dist) && typeof ft.pop === 'boolean'
+  ));
+}

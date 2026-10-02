@@ -16,7 +16,7 @@ import {
 } from '../audio.js';
 import { t } from '../i18n.js';
 import { matchesInputAction } from '../core/inputIntent.js';
-import { renderArenaWatermarkTimer } from '../ui/hud.js';
+import { renderArenaWatermarkTimer, renderFloatingTexts } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 import { pulse } from '../ui/motion.js';
 
@@ -43,7 +43,7 @@ import {
 } from './bombView.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
-import { fxFlashAlpha } from '../core/fxKit.js';
+import { fxFlashAlpha, emitFloatingText } from '../core/fxKit.js';
 
 export const BOMB_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const BOMB_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -138,6 +138,7 @@ this.targetScore = 2;
     this.pickups = [];
     this.pickupSpawnTimer = 6.0;
     this.inkPuddles = [];
+    this.floatingTexts = [];
     // FX runtime (MOTION_PLAN Faz 2b): partikül/ring/pop/hit-stop tek sahibi;
     // `this.particles` worldCore konvansiyonu için alias'tır.
     this.fx = createFxRuntime({
@@ -315,6 +316,7 @@ this.targetScore = 2;
     this.bombCarrierIndex = -1;
     this.pickups = [];
     this.inkPuddles = [];
+    this.floatingTexts = [];
     this.fx.clear();
     this.blast = null;
     this.trauma = 0;
@@ -369,6 +371,7 @@ this.targetScore = 2;
     this.roundTransitionTimer = 0;
     this.pickups = [];
     this.inkPuddles = [];
+    this.floatingTexts = [];
     this.fx.clear();
     this.blast = null;
 
@@ -456,6 +459,14 @@ this.targetScore = 2;
     if (!carrier || !carrier.isAlive) return;
 
     carrier.isAlive = false;
+    // Patlama anının okunur metni (SİSTEM 3): kim patlattı, net.
+    emitFloatingText(this.floatingTexts, {
+      x: carrier.x,
+      y: carrier.y - (carrier.radius || 36) - 12,
+      text: 'PATLADI!',
+      color: carrier.color,
+      urgent: true,
+    });
     // Patlama: kill olayı (burst + halka + pop + hit-stop + flaş + travma tek profilden).
     // Patlama katmanı (`this.blast` → drawBlast) mekanik görseldir, korunur.
     this.fx.emit('kill', {
@@ -492,6 +503,13 @@ this.targetScore = 2;
     this.tiedRounds = 0;
     this.roundWinner = survivor;
     this.scores[survivor.index]++;
+    // Yüzen metin (SİSTEM 3): hayatta kalanın puanı yerinde okunur.
+    emitFloatingText(this.floatingTexts, {
+      x: survivor.x,
+      y: survivor.y - (survivor.radius || 36) - 12,
+      text: '+1',
+      color: survivor.color,
+    });
     if (this.scores[survivor.index] >= this.targetScore) {
       endMatch(this, survivor, 'target-score');
       return true;
@@ -883,6 +901,8 @@ this.targetScore = 2;
     drawBombBlast(ctx, this.blast, this.arena);
     // FX katmanı ortak bombView draw'ından gelir (host↔client aynı).
     drawBombFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+    // Yüzen metin (SİSTEM 3): patlama/skor bildirimi; FX katmanının üstünde.
+    renderFloatingTexts(ctx, this.floatingTexts, 0.016);
     this.renderControls(ctx);
 
     // Host HUD: bomba geri sayımı (world-view client'ı kendi HUD'unu kullanır).

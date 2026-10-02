@@ -18,6 +18,7 @@ import {
 } from '../games/ninjaView.js';
 import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { paintBackdrop } from '../core/fieldKit.js';
+import { drawFloatingTextSnapshotList } from './hud.js';
 import { drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
 import { UI_COLORS } from './tokens.js';
@@ -64,6 +65,9 @@ export function createWorldViewRenderer() {
         drawNinjaPlayers(ctx, players, { ghostSlots: Number.isInteger(context?.selfSlot) && context.selfSlot >= 0 ? [context.selfSlot] : [], withFx, selfSlot: context.selfSlot ?? -1 });
         drawNinjaSlashes(ctx, frame.slashes || [], arena);
         drawNinjaImpacts(ctx, frame.impacts || []);
+        // Yüzen metin (SİSTEM 3): host ilerletip paketlediği için client
+        // SAF çizim yapar (listeyi ilerletmek metni iki kez hızlandırırdı).
+        drawFloatingTextSnapshotList(ctx, frame.texts);
         drawNinjaFxLayer(ctx, fxLive
           ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
           : {

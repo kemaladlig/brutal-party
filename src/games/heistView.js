@@ -37,6 +37,8 @@ export function createHeistWorldPacket(game) {
       alive: p.isAlive !== false,
       x: round1(p.x || 0),
       y: round1(p.y || 0),
+      vx: round1(p.vx || 0),
+      vy: round1(p.vy || 0),
       angle: round1(p.facingAngle || 0),
       radius: round1(p.radius),
       stumble: round1(p.stumbleTimer || 0),
@@ -83,6 +85,9 @@ export function createHeistWorldPacket(game) {
 function isValidHeistPlayer(p) {
   return typeof p.joined === 'boolean' && typeof p.alive === 'boolean'
     && finite(p.angle) && finite(p.radius)
+    // Kinetik alanlar v2 eklentisidir; eski host paketleri taşımaz.
+    && (p.vx === undefined || finite(p.vx))
+    && (p.vy === undefined || finite(p.vy))
     && finite(p.stumble) && typeof p.tackling === 'boolean'
     && Number.isInteger(p.carried) && Number.isInteger(p.vault) && finite(p.cd);
 }
