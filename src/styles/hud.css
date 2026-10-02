@@ -3,7 +3,7 @@
   position: fixed;
   top: max(14px, env(safe-area-inset-top, 14px));
   right: max(14px, env(safe-area-inset-right, 14px));
-  z-index: 100;
+  z-index: var(--z-hud);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -158,7 +158,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  z-index: 150;
+  z-index: var(--z-overlay);
   backdrop-filter: blur(8px) saturate(120%);
   -webkit-backdrop-filter: blur(8px) saturate(120%);
   touch-action: manipulation;

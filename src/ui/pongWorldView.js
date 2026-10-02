@@ -8,16 +8,25 @@ import {
   drawPongShockwaves,
   drawPongFxLayer,
   isValidPongWorldFrame,
+  pongPaddleBounds,
+  PONG_THEME_25D,
 } from '../games/pongView.js';
 import { drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
-import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
-import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { hashFieldSeed } from '../core/fieldKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
+import { groundSpace } from '../core/sceneKit.js';
+import { sceneDraw } from '../core/arenaKit.js';
+import { drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { t } from '../i18n.js';
 
 const PLAYER_FALLBACK = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 
 export function createWorldViewRenderer() {
+  // 2.5D sahne zarfı renderer ömrü boyunca yaşar (proj kalıcı). Host ile AYNI
+  // girdileri verir (arena + viewport + sabit tema) → sahne birebir eşleşir.
+  const scene = createTiltedScene({ camera: TILTED_25D_CAMERA.pong });
   return {
     validate: isValidPongWorldFrame,
 
@@ -42,24 +51,36 @@ export function createWorldViewRenderer() {
       ));
 
       ctx.save();
-      // Sahanın dışı EKRAN uzayında çizilir; arenanın ekran kutusu `worldScreenBox`
-      // ile çözülür — dünya koordinatlarıyla çağrılırsa gölge sahadan kayar.
-      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'PONG' });
-      fitWorld(ctx, width, height, frame.arena, () => {
-        drawPongArena(ctx, arena, frame.goals, { seed: hashFieldSeed('PONG', frame.roundId) });
-        drawPongShockwaves(ctx, frame.ball?.shockwaves);
-        drawPongPaddles(ctx, frame.players, arena, colors);
-        // Host ile aynı servis telegrafı: raunt öncesi yön oku + arkadaki iz.
-        if (frame.gameState === 'ROUND_PAUSE') drawPongServeTelegraph(ctx, frame.ball, arena);
-        drawPongBall(ctx, frame.ball);
-        drawPongFxLayer(ctx, fxLive
-          ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
-          : {
-              pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
-              rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
-              particles: frame.particles || [],
-            });
-      });
+      // 2.5D eğik kamera: host ile AYNI girdilerden (arena + viewport + sabit
+      // tema) kurulur → sahne birebir eşleşir. Masa zemini `drawField25d`
+      // içinde boyanır, bu yüzden `paintBackdrop` çağrılmaz.
+      const proj = scene.open(ctx, { viewport: { width, height }, arena, theme: PONG_THEME_25D });
+      drawPongArena(ctx, arena, frame.goals, { seed: hashFieldSeed('PONG', frame.roundId), proj });
+      // Canlı katman zemin düzleminde, derinlik kuyruğuyla (taban-Y sırası):
+      // raketler ray hizasında olduğundan sıralama alt rayın örtmesini engeller.
+      groundSpace(ctx, proj, (c) => drawPongShockwaves(c, frame.ball?.shockwaves));
+      for (const pd of frame.players || []) {
+        const pb = pd?.joined && pd?.alive ? pongPaddleBounds(pd) : null;
+        if (!pb) { groundSpace(ctx, proj, (c) => drawPongPaddles(c, [pd], arena, colors)); continue; }
+        sceneDraw(ctx, pb.y + pb.h, (c, p) => groundSpace(c, p, (g2) => drawPongPaddles(g2, [pd], arena, colors)), proj);
+      }
+      {
+        const b = frame.ball;
+        const br = Math.max(1, Number(b?.radius) || 11);
+        sceneDraw(ctx, (Number(b?.y) || arena.cy) + br, (c, p) => groundSpace(c, p, (g2) => {
+          // Host ile aynı servis telegrafı: raunt öncesi yön oku + arkadaki iz.
+          if (frame.gameState === 'ROUND_PAUSE') drawPongServeTelegraph(g2, b, arena);
+          drawPongBall(g2, b);
+        }), proj);
+      }
+      drawPongFxLayer(ctx, fxLive
+        ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
+        : {
+            pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
+            rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
+            particles: frame.particles || [],
+          }, proj);
+      scene.close(ctx);
       ctx.restore();
 
       // Gol flaşı ekran-space: playback mandalı açıkken oynatıcıdan, değilse

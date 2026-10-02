@@ -13,10 +13,13 @@ import { t } from '../i18n.js';
 import { drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
-import { sceneBegin, sceneEnd } from '../core/arenaKit.js';
-import { makeTiltedProjector, arenaFromRect } from '../core/projection2d.js';
+import { arenaFromRect, TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
 
 export function createSnakeWorldViewRenderer() {
+  // 2.5D sahne zarfı renderer ömrü boyunca yaşar (proj kalıcı; kare başına
+  // tahsis yok). Host ile AYNI girdileri verir → sahne birebir eşleşir.
+  const scene = createTiltedScene({ camera: TILTED_25D_CAMERA.snake });
   return {
     validate: isValidSnakeWorldFrame,
 
@@ -27,7 +30,7 @@ export function createSnakeWorldViewRenderer() {
       // 2.5D eğik kamera host ile AYNI girdilerden (arena + viewport + sabit
       // tema) kurulur; sahne birebir eşleşir. Masa zemini `drawField25d` içinde.
       const arena = arenaFromRect(frame.arena);
-      const proj = makeTiltedProjector({ width, height }, arena, SNAKE_THEME_25D);
+      const proj = scene.open(ctx, { viewport: { width, height }, arena, theme: SNAKE_THEME_25D });
       const walls = frame.walls.map(([x, y, w, h]) => ({ x, y, w, h }));
       const foods = frame.foods.map(([x, y, type, size]) => ({ x, y, type, size, pulse: 0 }));
       const players = frame.players.map((player) => ({
@@ -41,11 +44,10 @@ export function createSnakeWorldViewRenderer() {
 
       ctx.save();
       // 2.5D derinlik penceresi — host ile birebir aynı (sceneBegin/sceneEnd).
-      sceneBegin();
       drawSnakeArena(ctx, arena, walls, { roundId: frame.roundId, proj });
       drawSnakeFoods(ctx, foods, now, proj);
       drawSnakePlayers(ctx, players, now, context.selfSlot ?? -1, proj);
-      sceneEnd(ctx);
+      scene.close(ctx);
       drawSnakeFxLayer(ctx, fxLive
         ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
         : {

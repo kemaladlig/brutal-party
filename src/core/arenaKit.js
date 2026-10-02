@@ -4,41 +4,31 @@ import { drawTabletopIcon, hasTabletopIcon } from './tabletopIcons.js';
 import { fieldTheme } from './fieldKit.js';
 import { fxGlowEnabled } from './perfMonitor.js';
 import { UI_COLORS } from '../ui/tokens.js';
-import { hueFor } from './projection2d.js';
+import { shade, paintMaterialTexture } from './projection2d.js';
+import { PICKUP_META, DEFAULT_PICKUP_VISUAL } from './pickupCatalog.js';
 
-export const PICKUP_META = {
-  TURBO:        { label: 'TRB', icon: 'zap', glyph: '⚡', color: '#FFB020', ink: '#241C15' },
-  FAST:         { label: 'HIZ', icon: 'zap', glyph: '⚡', color: '#FFB020', ink: '#241C15' },
-  SPEED:        { label: 'HIZ', icon: 'zap', glyph: '⚡', color: '#FFB020', ink: '#241C15' },
-  TELEPORT:     { label: 'TEL', icon: 'rotate-cw', glyph: '🌀', color: '#2BA6E8', ink: '#081D2E' },
-  SLIP:         { label: 'KAY', icon: 'banana', glyph: '🍌', color: '#FFD24A', ink: '#2E2203' },
-  MULTI:        { label: '3OK', icon: 'crosshair', glyph: '🎯', color: '#9B5DE5', ink: '#FFFFFF' },
-  QUICKDRAW:    { label: 'ÇEK', icon: 'target', glyph: '🏹', color: '#FF8C1A', ink: '#2A1400' },
-  SHIELD:       { label: 'KLK', icon: 'shield', glyph: '🛡️', color: '#0EA5E9', ink: '#06283D' },
-  TRIPLE:       { label: '3×',  icon: 'flame', glyph: '💥', color: '#E63946', ink: '#FFFFFF' },
-  SCISSORS:     { label: 'KES', icon: 'scissors', glyph: '✂️', color: '#F59E0B', ink: '#291800' },
-  GHOST:        { label: 'HAY', icon: 'ghost', glyph: '👻', color: '#94A3B8', ink: '#0F172A' },
-  INVERT:       { label: 'TERS',icon: 'rotate-ccw', glyph: '🔃', color: '#A78BFA', ink: '#241442' },
-  SHRINK:       { label: 'KÜÇ', icon: 'search', glyph: '🔍', color: '#38BDF8', ink: '#082F49' },
-  FREEZE:       { label: 'BUZ', icon: 'snowflake', glyph: '❄️', color: '#38BDF8', ink: '#082F49' },
-  BOMB:         { label: 'PAT', icon: 'bomb', glyph: '💣', color: '#EF4444', ink: '#FFFFFF' },
-  THICK:        { label: 'KAL', icon: 'brick', glyph: '🧱', color: '#A8A29E', ink: '#1C1917' },
-  WALL:         { label: 'DUV', icon: 'brick', glyph: '🧱', color: '#F97316', ink: '#2A1400' },
-  SLOW:         { label: 'YAV', icon: 'hourglass', glyph: '⏳', color: '#3B82F6', ink: '#FFFFFF' },
-  GOLDEN_STAR:  { label: '★',   icon: 'star', glyph: '⭐', color: '#FFD700', ink: '#2A1E00' },
-  TURBO_BERRY:  { label: 'HIZ', icon: 'sparkles', glyph: '✨', color: '#F43F5E', ink: '#FFFFFF' },
-  FLASH:        { label: 'HIZ', icon: 'zap', glyph: '⚡', color: '#FFD122', ink: '#241C15' },
-  SEISMIC:      { label: 'DAR', icon: 'flame', glyph: '💥', color: '#FF473A', ink: '#FFFFFF' },
-  SUPER_JUMP:   { label: 'ZIP', icon: 'chevrons-up', glyph: '🦘', color: '#FFB020', ink: '#241C15' },
-  REPAIR_TILES: { label: 'TAM', icon: 'hammer', glyph: '🔨', color: '#35B36A', ink: '#FFFFFF' },
-};
+// Power-up rozet sözlüğü TEK kaynak `core/pickupCatalog.js`'tedir (görsel +
+// davranış + gereksinim aynı kayıtta). Burada yalnız yeniden dışa verilir;
+// `drawPickup` aşağıda bunu okur.
+export { PICKUP_META };
 
 /**
  * Engel derileri — TEK kaynak, DIŞA AÇIK kayıt defteri.
  *
  * Eskiden private'tı ve 3 deri vardı; motorlar yalnız o üçünü seçebiliyordu.
  * Artık `THEME_BASE.block` bir deri kimliği taşır, motor hex SEÇMEZ: sahaya
- * geçtiği temayı engeline de geçirir (`opts.theme`).
+ * geçtiği temayı engeline de geçirir (`opts.theme` / 2.5D'de `proj.theme`).
+ *
+ * MALZEME ALANLARI (renk DEĞİL, ton üretmez → K2 borcu artmaz):
+ *   • `texture` — doku ailesi: wood | metal | stone | felt | ice | grass.
+ *     `obstacleGrain()` bu aileden 48×48 TEK bir tuval üretir (deri başına bir
+ *     kez), blok başına karede tek `drawImage` bindirmesi olarak çizilir.
+ *     `createPattern` KULLANILMAZ: desen nesnesi kare başına üretilemez
+ *     (`tests/helpers/recorder.mjs` bunu patlatır, §8/§9).
+ *   • `grain` — dokunun bindirme alfası (0 kapalı). Malzeme kimliğini taşıyan
+ *     asıl sinyal budur: ahşap damarı, metal şeridi, taş beneği.
+ *   • `wear`  — aşınma: taban AO şeridinin yoğunluğunu modüle eder. Silueti
+ *     DEĞİŞTİRMEZ (çarpışma ve okunurluk bütçesi aynı kalır).
  *
  * `detail` bir fonksiyondur ve YAPILMAZ: blok başına karede gradyan üretmek
  * (12 blok × 60 fps = saniyede 720 nesne) telefonda GC takılması olarak geri
@@ -46,24 +36,24 @@ export const PICKUP_META = {
  */
 export const OBSTACLE_STYLES = {
   // Açık granit taş: Yeşil (TANKS / ARCHER) zeminlerde yüksek kontrastlı, temiz, pürüzsüz taş blok.
-  stone: { top: '#F4EFE6', fill: '#C8BEAA', bevel: 'rgba(255,255,255,0.85)', edge: '#4A4234', shadow: 'rgba(20, 16, 31, 0.32)', detail: detailStone },
+  stone: { top: '#F4EFE6', fill: '#C8BEAA', bevel: 'rgba(255,255,255,0.85)', edge: '#4A4234', shadow: 'rgba(20, 16, 31, 0.32)', texture: 'stone', grain: 0.18, wear: 0.35, detail: detailStone },
   // Obsidyen / Koyu gece bloğu: NINJA, CURVE gibi mistik sahalarda derin koyu mor-antrasit.
-  dark:  { top: '#52436D', fill: '#241B34', bevel: 'rgba(255,255,255,0.52)', edge: '#120E1C', shadow: 'rgba(10, 8, 20, 0.45)', detail: null },
+  dark:  { top: '#52436D', fill: '#241B34', bevel: 'rgba(255,255,255,0.52)', edge: '#120E1C', shadow: 'rgba(10, 8, 20, 0.45)', texture: 'stone', grain: 0.14, wear: 0.25, detail: null },
   // Sıcak maun koli: BOMB ve HEIST gibi sıcak sahalarda zeminle kaynaşmayan, belirgin ahşap kasa.
-  crate: { top: '#8F5425', fill: '#522A0C', bevel: 'rgba(255,255,255,0.48)', edge: '#2C1404', shadow: 'rgba(20, 16, 31, 0.36)', detail: detailCrate },
+  crate: { top: '#8F5425', fill: '#522A0C', bevel: 'rgba(255,255,255,0.48)', edge: '#2C1404', shadow: 'rgba(20, 16, 31, 0.36)', texture: 'wood', grain: 0.22, wear: 0.40, detail: detailCrate },
 
   // Soğuk platin / kobalt titanyum: tek speküler şerit, parlak metalik yüzey.
-  metal: { top: '#E8EDF5', fill: '#92A2B8', bevel: 'rgba(255,255,255,0.92)', edge: '#323C4C', shadow: 'rgba(16, 20, 28, 0.38)', detail: detailMetal },
+  metal: { top: '#E8EDF5', fill: '#92A2B8', bevel: 'rgba(255,255,255,0.92)', edge: '#323C4C', shadow: 'rgba(16, 20, 28, 0.38)', texture: 'metal', grain: 0.18, wear: 0.30, detail: detailMetal },
   // Kristal buz: iç içe iki kontur, açık speküler gölge.
-  ice: { top: '#EAF6FD', fill: '#94CFE4', bevel: 'rgba(255,255,255,0.85)', edge: '#357187', shadow: 'rgba(30, 70, 86, 0.26)', detail: detailIce },
+  ice: { top: '#EAF6FD', fill: '#94CFE4', bevel: 'rgba(255,255,255,0.85)', edge: '#357187', shadow: 'rgba(30, 70, 86, 0.26)', texture: 'ice', grain: 0.22, wear: 0.30, detail: detailIce },
   // Volkanik bazalt kaya: kırık köşe iki üçgen + tanecik.
-  rock: { top: '#5A5266', fill: '#2E2838', bevel: 'rgba(255,255,255,0.38)', edge: '#181320', shadow: 'rgba(20, 16, 31, 0.40)', detail: detailRock },
+  rock: { top: '#5A5266', fill: '#2E2838', bevel: 'rgba(255,255,255,0.38)', edge: '#181320', shadow: 'rgba(20, 16, 31, 0.40)', texture: 'stone', grain: 0.24, wear: 0.45, detail: detailRock },
   // Ağır endüstriyel kasa: çelik kuşaklı kasa.
-  crateHeavy: { top: '#7D4B22', fill: '#44230B', bevel: 'rgba(255,255,255,0.42)', edge: '#240F04', shadow: 'rgba(16, 12, 24, 0.42)', detail: detailCrateHeavy },
+  crateHeavy: { top: '#7D4B22', fill: '#44230B', bevel: 'rgba(255,255,255,0.42)', edge: '#240F04', shadow: 'rgba(16, 12, 24, 0.42)', texture: 'wood', grain: 0.24, wear: 0.45, detail: detailCrateHeavy },
   // Tehlike barikatı: gövde koyu grafit, uyarı şeritleri parlak kehribar.
-  hazard: { top: '#3D344E', fill: '#1E1729', bevel: 'rgba(255,255,255,0.40)', edge: '#100C18', shadow: 'rgba(10, 8, 20, 0.45)', detail: detailHazard },
+  hazard: { top: '#3D344E', fill: '#1E1729', bevel: 'rgba(255,255,255,0.40)', edge: '#100C18', shadow: 'rgba(10, 8, 20, 0.45)', texture: 'metal', grain: 0.16, wear: 0.30, detail: detailHazard },
   // Kaideli mermer: açık ve asil kaide.
-  plinth: { top: '#F9F5EC', fill: '#D3C9B6', bevel: 'rgba(255,255,255,0.90)', edge: '#5E5343', shadow: 'rgba(40, 34, 24, 0.28)', detail: detailPlinth },
+  plinth: { top: '#F9F5EC', fill: '#D3C9B6', bevel: 'rgba(255,255,255,0.90)', edge: '#5E5343', shadow: 'rgba(40, 34, 24, 0.28)', texture: 'stone', grain: 0.14, wear: 0.25, detail: detailPlinth },
 };
 
 /** Deri detayları — blok başına 0-2 op, tek path'te toplanır. */
@@ -164,6 +154,159 @@ function themeBlockId(theme) {
   if (!theme) return null;
   const palette = typeof theme === 'string' ? fieldTheme(theme) : theme;
   return palette && typeof palette.block === 'string' ? palette.block : null;
+}
+
+// ---------------------------------------------------------------------------
+// Malzeme — deri → prizma/silindir paleti (+ doku bindirmesi)
+// ---------------------------------------------------------------------------
+// KARE BAŞINA TAHSİZ: palet nesnesi burada her çağrıda ÜRETİLMEZ. `obstacleMass`
+// [0,1) değeri 8 kovaya kuantlanır ve deri başına 8 palet BİR KEZ kurulur;
+// çizim yalnız hazır referansı okur. Karede `shade()` çağırmak blok başına üç
+// string tahsisi demekti (12 blok × 60 fps = saniyede 2160 nesne).
+
+const GRAIN_SPRITE_SIZE = 48;
+const MASS_BUCKETS = 8;
+/** deri → tuval|null. Tembel; deri başına bir kez üretilir. */
+const GRAIN_CACHE = new WeakMap();
+/** deri → palet[8]. Tembel; kova başına bir kez türetilir. */
+const MATERIAL_CACHE = new WeakMap();
+
+/**
+ * Deri dokusu — 48×48 TEK tuval, deri başına bir kez.
+ *
+ * Neden tuval de `createPattern` değil: desen nesnesi KARE BAŞINA üretilemez
+ * (§9) ve `tests/helpers/recorder.mjs` bunu anında patlatır. Burada üretilen
+ * görüntü yalnız `drawImage` ile blit edilir — kare başına ölçülebilir tek op.
+ *
+ * DOM'suz ortamda (test/SSR) `null` döner: çağıranlar bindirmeyi atlar ve düz
+ * çizim yoluna düşer. Doku DEKORATİFTİR — silueti, çarpışmayı, yüksekliği
+ * etkilemez.
+ */
+function obstacleGrain(style) {
+  if (GRAIN_CACHE.has(style)) return GRAIN_CACHE.get(style);
+  let canvas = createSpriteCanvas(GRAIN_SPRITE_SIZE);
+  if (canvas) {
+    try {
+      const g = canvas.getContext('2d');
+      if (g) paintGrain(g, style, GRAIN_SPRITE_SIZE);
+      else canvas = null;
+    } catch { canvas = null; }
+  }
+  GRAIN_CACHE.set(style, canvas);
+  return canvas;
+}
+
+/**
+ * Doku ailesine göre prosedürel tahıl. Deterministik (sabit tohumlu LCG) —
+ * host ve client aynı dokuyu üretir. Renk yalnız deriden/token'dan gelir.
+ */
+function paintGrain(g, style, S) {
+  let seed = 0x9e3779b9;
+  const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  const dark = style.edge;
+  const light = UI_COLORS.white;
+  const family = style.texture || 'stone';
+  g.lineCap = 'round';
+  if (family === 'wood') {
+    // Damar: dikey, hafif eğri çizgiler (koli tahtası).
+    for (let i = 0; i < 16; i += 1) {
+      const x = rnd() * S;
+      g.globalAlpha = 0.30 + rnd() * 0.35;
+      g.strokeStyle = rnd() < 0.62 ? dark : light;
+      g.lineWidth = 1.0 + rnd() * 2.0;
+      g.beginPath();
+      g.moveTo(x, -4);
+      g.bezierCurveTo(x + (rnd() - 0.5) * 7, S * 0.35, x + (rnd() - 0.5) * 7, S * 0.7, x + (rnd() - 0.5) * 6, S + 4);
+      g.stroke();
+    }
+  } else if (family === 'metal') {
+    // Fırça izi: yatay, kısa parlaklık şeritleri.
+    for (let i = 0; i < 18; i += 1) {
+      const y = rnd() * S;
+      g.globalAlpha = 0.25 + rnd() * 0.30;
+      g.strokeStyle = rnd() < 0.5 ? light : dark;
+      g.lineWidth = 0.8 + rnd() * 1.4;
+      g.beginPath();
+      g.moveTo(-4, y);
+      g.lineTo(S + 4, y + (rnd() - 0.5) * 3);
+      g.stroke();
+    }
+  } else if (family === 'ice') {
+    // Kristal: çapraz, keskin kılcallar. AÇIK ve KOYU karışık — yalnız beyaz
+    // kılcal buzun açık mavisinde kayboluyordu (gözle doğrulandı).
+    for (let i = 0; i < 16; i += 1) {
+      const x = rnd() * S;
+      const y = rnd() * S;
+      g.globalAlpha = 0.35 + rnd() * 0.40;
+      g.strokeStyle = rnd() < 0.5 ? dark : light;
+      g.lineWidth = 1.1 + rnd() * 1.8;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + (rnd() - 0.5) * 26, y + (rnd() - 0.5) * 26);
+      g.stroke();
+    }
+  } else if (family === 'felt' || family === 'grass') {
+    // Keçe/çim: yoğun benek. Benek yarıçapı ve alfası 1:1 ölçekte (küçük
+    // yüzeyde) okunacak kadar kaba tutulur — 1 px'lik soluk nokta kaybolur.
+    for (let i = 0; i < 90; i += 1) {
+      g.globalAlpha = 0.25 + rnd() * 0.30;
+      g.fillStyle = rnd() < 0.5 ? light : dark;
+      g.beginPath();
+      g.arc(rnd() * S, rnd() * S, 0.9 + rnd() * 1.5, 0, Math.PI * 2);
+      g.fill();
+    }
+  } else {
+    // Taş: benek + birkaç çatlak kılcallı.
+    for (let i = 0; i < 80; i += 1) {
+      g.globalAlpha = 0.28 + rnd() * 0.37;
+      g.fillStyle = rnd() < 0.45 ? light : dark;
+      g.beginPath();
+      g.arc(rnd() * S, rnd() * S, 0.9 + rnd() * 1.6, 0, Math.PI * 2);
+      g.fill();
+    }
+    for (let i = 0; i < 5; i += 1) {
+      const x = rnd() * S;
+      const y = rnd() * S;
+      g.globalAlpha = 0.35 + rnd() * 0.30;
+      g.strokeStyle = dark;
+      g.lineWidth = 1 + rnd();
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + (rnd() - 0.5) * 28, y + (rnd() - 0.5) * 28);
+      g.stroke();
+    }
+  }
+  g.globalAlpha = 1;
+}
+
+/**
+ * Deriden prizma/silindir paleti (`materialFromColor` ile AYNI sözleşme).
+ *
+ * `mass` [0,1) 8 kovaya kuantlanır; her kovanın tonu bir kez türetilir. Böylece
+ * aynı sahadaki bloklar birbirinden OKUNUR biçimde ayrışır (tek düz deri bütün
+ * sahayı tek renge boyar) ama kare başına tahsis YOK. Kova, `obstacleMass`'ten
+ * geldiği için host ve client aynı tonu üretir — pakete alan eklenmez.
+ */
+export function materialFromSkin(style, mass = 0.5) {
+  let slots = MATERIAL_CACHE.get(style);
+  if (!slots) { slots = new Array(MASS_BUCKETS); MATERIAL_CACHE.set(style, slots); }
+  const slot = Math.max(0, Math.min(MASS_BUCKETS - 1, Math.floor((Number(mass) || 0) * MASS_BUCKETS)));
+  let pal = slots[slot];
+  if (!pal) {
+    const j = (slot + 0.5) / MASS_BUCKETS - 0.5;   // −0.4375 … +0.4375
+    const step = j * 0.16;                          // toplam ±%7 değer adımı
+    pal = {
+      top: shade(style.top, step * 0.7),
+      front: shade(style.fill, step),
+      side: shade(style.fill, -0.22),
+      tex: obstacleGrain(style),
+      texAlpha: Number(style.grain) || 0,
+      texOx: Math.round(-j * 10),
+      texOy: Math.round(j * 7),
+    };
+    slots[slot] = pal;
+  }
+  return pal;
 }
 
 // ---------------------------------------------------------------------------
@@ -537,16 +680,36 @@ const SHADOW_SPRITE_STOPS = /** @type {Array<[number, string]>} */ ([
 let shadowSprite = null;
 let shadowSpriteTried = false;
 
-function getShadowSprite() {
-  if (shadowSprite || shadowSpriteTried) return shadowSprite;
-  shadowSpriteTried = true;
+/**
+ * Offscreen bitmap tuvası — TEK üretici (gölge damgası + doku).
+ *
+ * `canvas.width/height` ataması K3 kapsamındadır (DPR yalnız `main.js`); saha
+ * bitmap'leri için istisna bu TEK fonksiyonda toplanır, böylece yeni bir bitmap
+ * eklemek yeni bir K3 noktası açmaz (`rules-lint` tabanı 2 atamada durur).
+ *
+ * DOM'suz ortamda (test/SSR) `null` — çağıranlar prosedürel yola düşer.
+ */
+function createSpriteCanvas(size) {
   if (typeof document === 'undefined' || typeof document.createElement !== 'function') return null;
   try {
     const canvas = document.createElement('canvas');
-    const g = canvas.getContext && canvas.getContext('2d');
+    if (typeof canvas.getContext !== 'function') return null;
+    canvas.width = size;
+    canvas.height = size;
+    return canvas;
+  } catch {
+    return null;
+  }
+}
+
+function getShadowSprite() {
+  if (shadowSprite || shadowSpriteTried) return shadowSprite;
+  shadowSpriteTried = true;
+  const canvas = createSpriteCanvas(SHADOW_SPRITE_SIZE);
+  if (!canvas) return null;
+  try {
+    const g = canvas.getContext('2d');
     if (!g) return null;
-    canvas.width = SHADOW_SPRITE_SIZE;
-    canvas.height = SHADOW_SPRITE_SIZE;
     const half = SHADOW_SPRITE_SIZE / 2;
     const grad = g.createRadialGradient(half, half, 0, half, half, half);
     for (const [stop, color] of SHADOW_SPRITE_STOPS) grad.addColorStop(stop, color);
@@ -710,8 +873,9 @@ export function drawObstacleMass(ctx, obs, opts = {}) {
   ctx.fillStyle = style.edge;
   ctx.fillRect(x, jct - Math.max(1, 0.8 * u), w, Math.max(1, 1.6 * u));
 
-  // 4. Ön yüz alt kenar koyulaşması — zemine oturma.
-  ctx.globalAlpha = 0.4;
+  // 4. Ön yüz alt kenar koyulaşması — zemine oturma. `wear` yoğunluğu modüle
+  //    eder: aşınmış blok tabanda daha koyu okunur (siluet değişmez).
+  ctx.globalAlpha = 0.28 + 0.26 * (Number(style.wear) || 0);
   ctx.fillRect(x, y + h - Math.max(1.5, wallH * 0.4), w, Math.max(1.5, wallH * 0.4));
   ctx.globalAlpha = 1;
 
@@ -719,7 +883,13 @@ export function drawObstacleMass(ctx, obs, opts = {}) {
   ctx.fillStyle = style.bevel;
   ctx.fillRect(x + r * 0.6, top + Math.max(0.5, 0.6 * u), Math.max(1, w - r * 1.2), Math.max(1, 1.2 * u));
 
-  // 6. Deri detayı (0-4 op) — çatı yüzünde.
+  // 6. Malzeme dokusu — siluete bindirilir (clip yukarıda açıldı), doğal
+  //    ölçekte karo karo. Kaydırma `mass`'ten: aynı derideki bloklar
+  //    birbirinin kopyası görünmez. Palet ÖNBELLEKLİ referanstır (tahsis yok).
+  const grainPal = materialFromSkin(style, m.mass);
+  if (grainPal.tex) paintMaterialTexture(ctx, grainPal, x, top, w, h + wallH);
+
+  // 7. Deri detayı (0-4 op) — çatı yüzünde.
   if (style.detail) style.detail(ctx, x, top, w, h, u, style);
 
   ctx.restore();
@@ -740,11 +910,29 @@ export function drawObstacle(ctx, obs, opts = {}) {
 //   sceneDraw(ctx, obstacleBaseY(obs), drawObstacle25dMass, proj, obs)
 // ---------------------------------------------------------------------------
 
-/** Zemin temas gölgesi — prizmadan ÖNCE, zemin katmanında çizilir. */
+/**
+ * Zemin temas gölgesi — prizmadan ÖNCE, zemin katmanında çizilir.
+ *
+ * Tepeden bakış kardeşiyle (`drawObstacleGround`) AYNI `contactShadow` damgasını
+ * kullanır: üç iç-içe elips yumuşak düşüşün taklidiydi ve kenarda bant
+ * bırakıyordu ("kalitesiz" okunuşun kaynağı). Projeksiyon paralel
+ * (`persp = 0`) olduğu için ayak izi ekranda EKSENİ HİZALI bir dikdörtgendir;
+ * damga bu dikdörtgene ölçeklenir.
+ *
+ * YATAY OFSET YOK: saha dilinde ışık sol-üstten sabittir (bkz. `fieldKit`
+ * `paintFloorBase`), gölge ayak izinin tam altına oturur.
+ */
 export function drawObstacle25dShadow(ctx, proj, obs) {
   const { x, y, w, h } = obs;
   if (!(w > 0 && h > 0)) return;
-  proj.contactPatch(ctx, x + w / 2 + 4, y + h / 2 + 6, (w / 2) * 0.95, (h / 2) * 0.95, 0.8);
+  const s = proj.view.scale;
+  const p = proj.proj(x + w / 2, y + h, 0);
+  const u = Math.max(0.42, Math.min(1.5, Math.min(w, h) / 48));
+  const sw = w * s;
+  const sh = h * s * proj.tilt;
+  ctx.save();
+  contactShadow(ctx, p.x - sw / 2, p.y - sh, sw, sh, u, obstacleStyle({ theme: proj.theme }), obstacleMass(obs));
+  ctx.restore();
 }
 
 /**
@@ -779,11 +967,17 @@ export function obstacle25dHeight(obs, proj) {
 /**
  * Gövde: UZUN blok → prizma (duvar şekli korunur), kare/kısa → silindir (kolon),
  * büyük kare blok → prizma. Yükseklik `obstacle25dHeight`'ten (tek kaynak).
+ *
+ * MALZEME: engel artık hue SEÇMEZ (`hueFor` silindi). Bulunduğu temanın derisini
+ * (`arena25dThemes.<tema>.block` → `OBSTACLE_STYLES`) taşır; bloklar arası
+ * çeşitlilik `obstacleMass`'ten türeyen 8 kovalı değer adımından gelir —
+ * deterministik, paket-kovası güvenli (host ↔ client aynı ton).
  */
 export function drawObstacle25dMass(ctx, proj, obs) {
   const { x, y, w, h } = obs;
   if (!(w > 0 && h > 0)) return;
-  const pal = hueFor(x * 0.13 + y * 0.07 + w, proj.theme && proj.theme.hues);
+  const style = obstacleStyle({ theme: proj.theme });
+  const pal = materialFromSkin(style, obstacleMass(obs));
   const minDim = Math.min(w, h);
   const aspect = Math.max(w, h) / Math.max(1, minDim);
   const height = obstacle25dHeight(obs, proj);
@@ -870,9 +1064,9 @@ export function sceneEnd(ctx) {
 
 // Ortak power-up rozeti: hafif puls aura + yumuşak gölge + canlı dairesel rozet + vektör ikon.
 export function drawPickup(ctx, pk, opts = {}) {
-  const meta = PICKUP_META[pk.type] || { label: '★', icon: 'star', glyph: '⭐', color: '#FFD700', ink: '#241C15' };
+  const meta = PICKUP_META[pk.type] || DEFAULT_PICKUP_VISUAL;
   const color = opts.color || meta.color;
-  const glyph = opts.glyph || meta.glyph || '⭐';
+  const glyph = opts.glyph || meta.glyph || '';
   const iconKey = meta.icon || glyph;
   const half = (opts.size || (pk.radius ? pk.radius * 2 : 28)) / 2;
   const u = Math.max(0.6, half / 14);

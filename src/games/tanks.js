@@ -3,7 +3,8 @@ import { getSlotCustomization, getBotPersona } from '../core/customizationManage
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
 import { t } from '../i18n.js';
 import { renderTopPill } from '../ui/hud.js';
-import { paintBackdrop } from '../core/fieldKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { resolveSlotName } from '../core/slotManager.js';
@@ -23,6 +24,7 @@ import {
   drawTanksCrates,
   drawTanksTanks,
   drawTanksFxLayer,
+  TANKS_THEME_25D,
 } from './tanksView.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
@@ -191,6 +193,10 @@ export class TanksGame extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
 
+    // 2.5D sahne zarfı: kamera arena+viewport+sabit temadan sığdırılır; ONLINE
+    // client AYNI sabitle aynı sahneyi kurar (sahne birebir eşleşir).
+    this.scene = createTiltedScene({ camera: TILTED_25D_CAMERA.tanks });
+    this.proj = this.scene.proj;
     // Arena geometry
     this.arena = {
       cx: 0,
@@ -1219,8 +1225,13 @@ this.targetScore = 2;
     const { ctx } = this;
     ctx.save();
 
-    // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
-    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'TANKS' });
+    // 2.5D sahne zarfı: masa zemini `drawField25d` içinde boyanır (paintBackdrop
+    // çizilmez). Tema sabittir; ONLINE client aynı sabitle aynı sahneyi kurar.
+    this.scene.open(ctx, {
+      viewport: this.viewport,
+      arena: this.arena,
+      theme: TANKS_THEME_25D,
+    });
 
     // Sarsıntı ofseti sahayla ölçekli (I5: ham px yok) — 16 tasarım px.
     this.applyScreenShake(ctx, fieldRadius(this.arena, 16, 0));
@@ -1231,14 +1242,14 @@ this.targetScore = 2;
       x: this.arena.cx,
       y: this.arena.cy,
       radius: this.suddenDeathRadius,
-    }, { roundId: this.roundId });
+    }, { roundId: this.roundId, proj: this.proj });
 
     this.uiButtons = [];
 
-    drawTanksBullets(ctx, this.bullets, TANK_COLORS);
-    drawTanksFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
-    drawTanksTracers(ctx, this.shotTracers);
-    drawTanksCrates(ctx, this.crates);
+    drawTanksBullets(ctx, this.bullets, TANK_COLORS, this.proj);
+    drawTanksFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles }, this.proj);
+    drawTanksTracers(ctx, this.shotTracers, this.arena, this.proj);
+    drawTanksCrates(ctx, this.crates, this.proj);
 
     const sceneTanks = this.tanks.map((tk) => ({
       ...tk,
@@ -1257,7 +1268,8 @@ this.targetScore = 2;
       reloadCd: tk.reloadCooldown || 1.1,
       triple: tk.hasTripleShot === true,
     }));
-    drawTanksTanks(ctx, sceneTanks, { arena: this.arena, withFx: this.state === 'PLAYING', selfSlot: this.localControlSlot ?? -1 });
+    drawTanksTanks(ctx, sceneTanks, { arena: this.arena, withFx: this.state === 'PLAYING', selfSlot: this.localControlSlot ?? -1, proj: this.proj });
+    this.scene.close(ctx);
 
     if (this.state === 'PLAYING' && this.spawnIntroTimer > 0) {
       this.renderSpawnBeacons(ctx);

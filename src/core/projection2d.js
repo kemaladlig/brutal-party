@@ -24,7 +24,33 @@ export const TILT = 0.720;     // y sıkışması = sin(kamera yükseklik açıs
 export const PERSP = 0;        // sahte perspektif KAPALI (paralel/aksonometrik; ters projeksiyon sadeleşir)
 
 /**
- * @typedef {{top: string, front: string, side: string}} Material
+ * 2.5D oyunların kamera sunumu (host↔client TEK kaynak).
+ *
+ * Proje varsayılanı `TILT` (0.72 ≈ 46°) kullanılır: eğik/izometrik okunuş
+ * korunur — prizma cepheleri ve ray ekstrüzyonu görünür kalır. Daha tepeden
+ * bir açı (örn. 0.92) `fit` ölçeğini küçültüp zemini neredeyse tam boya
+ * getirdiği için 2.5D etkiyi ikiye katlayarak söndürür (önce zemin
+ * sıkışması gider, sonra yükseklikler küçülür) ve sahne tepeden bakışa
+ * döner; dikey dolgu için açı yükseltilmez. İki taraf da bu sabiti
+ * kullanmazsa sahne kayar.
+ */
+export const TILTED_25D_CAMERA = Object.freeze({
+  snake: Object.freeze({ tilt: 0.72, extraW: 40 }),
+  bomb: Object.freeze({ tilt: 0.72, extraW: 40 }),
+  heist: Object.freeze({ tilt: 0.72, extraW: 40 }),
+  crown: Object.freeze({ tilt: 0.72, extraW: 40 }),
+  archer: Object.freeze({ tilt: 0.72, extraW: 40 }),
+  horde: Object.freeze({ tilt: 0.72, extraW: 40 }),
+  collapse: Object.freeze({ tilt: 0.72, extraW: 40 }),
+  zone: Object.freeze({ tilt: 0.72, extraW: 40 }),
+  curve: Object.freeze({ tilt: 0.72, extraW: 40 }),
+  ninja: Object.freeze({ tilt: 0.72, extraW: 40 }),
+  tanks: Object.freeze({ tilt: 0.72, extraW: 40 }),
+  pong: Object.freeze({ tilt: 0.72, extraW: 40 }),
+});
+
+/**
+ * @typedef {{top: string, front: string, side: string, tex?: any, texAlpha?: number, texOx?: number, texOy?: number}} Material  — `tex` isteğe bağlı DOKU bindirmesidir (desen/pattern değil: `createPattern` kare başına yasaktır)
  * @typedef {{x: number, y: number, d: number}} ScreenPt
  * @typedef {{width: number, height: number}} Viewport
  * @typedef {{left: number, top: number, right: number, bottom: number, cx: number, cy: number, width: number, height: number, size: number}} Arena
@@ -86,17 +112,62 @@ export function shade(hex, pct) {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-/** Deterministik hue: aynı engel/oyuncu her karede aynı rengi alır. */
-export function hueFor(seed, hues = A.hue25d) {
-  const list = (Array.isArray(hues) && hues.length) ? hues : A.hue25d;
-  const idx = Math.abs(Math.round(Number(seed) || 0)) % list.length;
-  return list[idx];
-}
-
 /** Kenar tamponı malzemesi (kuzey/güney/doğu/batı). */
 export function railMaterial(theme, side) {
   const rails = (theme && theme.rails) || A.rail25d;
   return rails[side] || rails.north;
+}
+
+/**
+ * Malzeme dokusunu bir dikdörtgene KARO KARO basar (doğal ölçek korunur).
+ *
+ * Neden tek gerilmiş `drawImage` değil: 48 px'lik damga 200 px'lik bir duvara
+ * gerilince damar çizgileri bulanık bir gradyana dönüşür — doku okunmaz,
+ * "yumuşak ton" olur (gözle doğrulandı: karo öncesi çarşafta ahşap damarı
+ * yerine düz bir geçiş görünüyordu). Karo doğal ölçekte kaldığı için karo
+ * sayısı blok boyutuyla artar; tavan aşılırsa tek gerilmiş blit'e düşülür:
+ * zayıf ama ucuz ve SABİT maliyetli.
+ *
+ * Çağıran KIRPMAYI açar (karolar dikdörtgenin dışına taşar). `drawImage`
+ * sayılmaz; döngü op bütçesini değil yalnız blit sayısını etkiler.
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {Material} pal
+ * @param {number} x @param {number} y @param {number} w @param {number} h
+ */
+const MATERIAL_TILE_MAX = 16;
+export function paintMaterialTexture(ctx, pal, x, y, w, h) {
+  const tex = pal && pal.tex;
+  if (!tex || !(w > 0 && h > 0)) return;
+  const alpha = Number.isFinite(pal.texAlpha) ? pal.texAlpha : 0.16;
+  if (!(alpha > 0)) return;
+  // Karo, GÖRÜNTÜNÜN CİHAZ pikselinde 1:1 kalsın: DPR'li ekranda 48 px'lik
+  // damgayı 48 CSS px'e basmak onu 2x BÜYÜTÜR (doku bulanır). CTM ölçeği
+  // yoksa (test ctx'i) 1'e düşülür.
+  let ctm = 1;
+  try {
+    if (typeof ctx.getTransform === 'function') {
+      const m = ctx.getTransform();
+      if (m && Number.isFinite(Number(m.a)) && Number(m.a) > 0) ctm = Number(m.a);
+    }
+  } catch { ctm = 1; }
+  const size = (Number(tex.width) || 48) / ctm;
+  const ox = (((pal.texOx || 0) % size) + size) % size;
+  const oy = (((pal.texOy || 0) % size) + size) % size;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const cols = Math.ceil((w + ox) / size);
+  const rows = Math.ceil((h + oy) / size);
+  if (cols * rows > MATERIAL_TILE_MAX) {
+    ctx.drawImage(tex, x, y, w, h);
+  } else {
+    for (let r = 0; r < rows; r += 1) {
+      for (let c = 0; c < cols; c += 1) {
+        ctx.drawImage(tex, x - ox + c * size, y - oy + r * size, size, size);
+      }
+    }
+  }
+  ctx.restore();
 }
 
 /** @returns {Projector} */
@@ -227,40 +298,92 @@ export function createProjector(opts = {}) {
     ctx.restore();
   }
 
+
+  /**
+   * Kalıplanmış vinil prizma — oblique (tepeden-sığ) kameranın engel/tampon gövdesi.
+   *
+   * SİLUET DİKDÖRTGENDİR, altıgen değil: `PERSP = 0` olduğu için ekran x'i yalnız
+   * dünya x'inden gelir; x'i sabit bir yüz ekranda SIFIR genişliktedir, yani yan
+   * yüz hiç görünmez. Görünen iki yüz (ayak izi = çatı, artı ön duvar) ekseni
+   * hizalı iki dikdörtgendir ve birleşimleri de bir dikdörtgendir.
+   *
+   * Eski çizim üç yüzü de ayrı konturluyordu: çatı/duvar dikdörtgenlerinin çakışan
+   * kenarları çift mürekkep, "yan yüz" ise bloğun içinde duran sahte bir dikey
+   * çizgi bırakıyordu (klip-art imzası) — üstelik o çizginin sağda mı solda mı
+   * duracağı engelin `cam.x`'e göre konumuna bağlıydı, yani aynı blok sahada başka
+   * yerde farklı çiziliyordu. Yeni düzen: iki düz dolgu + TEK siluet konturu;
+   * yüz ayrımı mürekkeple değil tonla kurulur (çatı açık, duvar orta, birleşim koyu).
+   *
+   * `lineW` TASARIM px'idir (ekran px'i değil): içeride `view.scale · d` ile
+   * ölçeklenir. Sabit ekran kalınlığı küçük saha ölçeğinde mürekkebi şişiriyordu;
+   * kenar tamponları da (raylar) aynı çağrıyı kullandığı için düzeltme ikisini
+   * tutarlı kılar.
+   *
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} x @param {number} y @param {number} w @param {number} d derinlik
+   * @param {number} h görsel yükseklik (z; çarpışmaya dokunmaz)
+   * @param {Material} pal
+   * @param {number} [lineW] tasarım px cinsinden mürekkep kalınlığı
+   */
   function drawPrism(ctx, x, y, w, d, h, pal, lineW = 2.5) {
     const s = view.scale;
-    // Işık sol-üstten: çatı parlak, ön yüz orta, yan yüz koyu. Yalnız kameraya
-    // bakan yan yüz çizilir (kameranın ters tarafı görünmez).
-    const showEast = x + w / 2 < cam.x;
-    const sx = showEast ? x + w : x;
-    const q1 = proj(sx, y, 0);
-    const q2 = proj(sx, y + d, 0);
-    const q3 = proj(sx, y + d, h);
-    const q4 = proj(sx, y, h);
-    quad(ctx, q1, q2, q3, q4, pal.side);
-    strokePoly(ctx, [q1, q2, q3, q4], A.ink25d, lineW);
+    const tl = proj(x, y, h);           // çatı sol-arka = siluet üst-sol
+    const br = proj(x + w, y, h);       // çatı sağ-arka
+    const fl = proj(x, y + d, h);       // çatı sol-ön = birleşim çizgisi
+    const bl = proj(x, y + d, 0);       // ön duvar sol-taban = siluet alt-sol
 
-    const f1 = proj(x, y + d, 0);
-    const f2 = proj(x + w, y + d, 0);
-    const f3 = proj(x + w, y + d, h);
-    const f4 = proj(x, y + d, h);
-    quad(ctx, f1, f2, f3, f4, pal.front);
-    strokePoly(ctx, [f1, f2, f3, f4], A.ink25d, lineW);
+    const left = tl.x;
+    const right = br.x;
+    const top = tl.y;
+    const mid = fl.y;
+    const bottom = bl.y;
+    const wide = right - left;
+    if (!(wide > 0 && bottom > top)) return;
 
-    const t1 = proj(x, y, h);
-    const t2 = proj(x + w, y, h);
-    const t3 = proj(x + w, y + d, h);
-    const t4 = proj(x, y + d, h);
-    quad(ctx, t1, t2, t3, t4, pal.top);
-    strokePoly(ctx, [t1, t2, t3, t4], A.ink25d, lineW + 0.5);
+    const ink = Math.max(1, lineW * s * tl.d);
+    ctx.globalAlpha = 1;
 
-    // Kalıplanmış vinil pah ışıltısı (çatı ön kenarı).
+    // 1. Ön duvar (orta ton) — ayak izinin altına, izleyiciye doğru sarkar.
+    ctx.fillStyle = pal.front;
+    ctx.fillRect(left, mid, wide, bottom - mid);
+
+    // 2. Çatı (ışık yüzü) — ayak izinin kendisi.
+    ctx.fillStyle = pal.top;
+    ctx.fillRect(left, top, wide, mid - top);
+
+    // 3. Birleşim ocağı: çatı ön kenarı duvara gölge düşürür (yüz ayrımı).
+    ctx.globalAlpha = 0.26;
+    ctx.fillStyle = pal.side;
+    ctx.fillRect(left, mid, wide, Math.max(1, ink * 0.8));
+
+    // 4. Zemin AO: duvarın tabanı kararır, blok yere oturur.
+    const ao = Math.max(1.5, (bottom - mid) * 0.4);
+    ctx.globalAlpha = 0.38;
+    ctx.fillRect(left, bottom - ao, wide, ao);
+    ctx.globalAlpha = 1;
+
+    // 5. Malzeme dokusu (varsa) — siluete KIRPILARAK, doğal ölçekte karo karo.
+    if (pal.tex) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(left, top, wide, bottom - top);
+      ctx.clip();
+      paintMaterialTexture(ctx, pal, left, top, wide, bottom - top);
+      ctx.restore();
+    }
+
+    // 6. Çatı ön kenarı pah ışıltısı (kalıplanmış vinil kenar).
     ctx.beginPath();
-    ctx.moveTo(t4.x + 3 * s, t4.y - 2 * s);
-    ctx.lineTo(t3.x - 3 * s, t3.y - 2 * s);
+    ctx.moveTo(left + 3 * s, mid - 2 * s);
+    ctx.lineTo(right - 3 * s, mid - 2 * s);
     ctx.strokeStyle = A.gloss25d;
-    ctx.lineWidth = 2.5 * s * t4.d;
+    ctx.lineWidth = Math.max(1, 2.2 * s * tl.d);
     ctx.stroke();
+
+    // 7. TEK siluet konturu — iç kenarlar tonun işi, mürekkebin değil.
+    ctx.strokeStyle = A.ink25d;
+    ctx.lineWidth = ink;
+    ctx.strokeRect(left, top, wide, bottom - top);
   }
 
   function drawCylinder(ctx, x, y, r, h, pal) {
@@ -268,7 +391,10 @@ export function createProjector(opts = {}) {
     const top = proj(x, y, h);
     const rx = r * view.scale * base.d;
     const ry = rx * P.tilt;
+    if (!(rx > 0)) return;
+    const ink = Math.max(1, 2.6 * view.scale * base.d);
 
+    // 1. Gövde (orta ton) — taban elipsinin yalnız izleyiciye bakan alt yayı.
     ctx.beginPath();
     ctx.moveTo(base.x - rx, top.y);
     ctx.lineTo(base.x - rx, base.y);
@@ -277,10 +403,22 @@ export function createProjector(opts = {}) {
     ctx.closePath();
     ctx.fillStyle = pal.front;
     ctx.fill();
+
+    // 2. Malzeme dokusu gövdeye KIRPILIR; `clip` yolu tüketmez, bu yüzden
+    //    aşağıdaki kontur aynı yolu yeniden kurmadan basılabilir.
+    if (pal.tex) {
+      ctx.save();
+      ctx.clip();
+      paintMaterialTexture(ctx, pal, base.x - rx, top.y, rx * 2, base.y - top.y);
+      ctx.restore();
+    }
+
+    // 3. Gövde konturu — tabla konturuyla AYNI (ölçekli) kalınlıkta.
     ctx.strokeStyle = A.ink25d;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = ink;
     ctx.stroke();
 
+    // 4. Dikey ışık şeridi (hacim) — silindiri "kolon" yapan okuma.
     ctx.beginPath();
     ctx.moveTo(base.x + rx * 0.35, top.y);
     ctx.lineTo(base.x + rx * 0.35, base.y - ry * 0.2);
@@ -290,12 +428,13 @@ export function createProjector(opts = {}) {
     ctx.stroke();
     ctx.globalAlpha = 1;
 
+    // 5. Tabla (ışık yüzü) + konturu.
     ctx.beginPath();
     ctx.ellipse(top.x, top.y, rx, ry, 0, 0, Math.PI * 2);
     ctx.fillStyle = pal.top;
     ctx.fill();
     ctx.strokeStyle = A.ink25d;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = ink;
     ctx.stroke();
   }
 
@@ -609,7 +748,10 @@ export function paintTable25d(ctx, view, theme, name = DEFAULT_THEME_25D, tilt =
   } else {
     drawKey(1);
     const ident = (x, y) => ({ x, y });
-    paintSurfacePattern(ctx, TABLE_PATTERN[name] || 'wood',
+    // Masa deseninde de KARE IZGARA YOK: 'grid' deseni (arcade/night) oyuncak
+    // masasında "defter" okunduğu için ahşap damara indirilir.
+    const tableKind = TABLE_PATTERN[name] === 'grid' ? 'wood' : (TABLE_PATTERN[name] || 'wood');
+    paintSurfacePattern(ctx, tableKind,
       0, 0, view.w, view.h, ident, minDim * 0.05, shade(table, -0.18), shade(table, 0.14));
   }
 
@@ -657,13 +799,19 @@ export function arenaFromRect(rect) {
  *
  * `proj` verilirse yeni tahsis yapılmaz (host kalıcı instance'ını yeniden
  * kullanır); verilmezse taze üretilir (client kare-başı).
+ * `opts.tilt` projector'ın derinlik sıkışmasını (kamera açısı) ayarlar;
+ * `opts.extraW`/`extraH`/`yBias` fit'in nefes payıdır. Host ve client AYNI
+ * opts'u geçmezse kamera kayar.
  * @param {{width:number,height:number}} viewport
  * @param {any} arena
  * @param {string} theme
  * @param {ReturnType<typeof createProjector>} [proj]
+ * @param {{tilt?:number,extraW?:number,extraH?:number,yBias?:number}} [opts]
  */
-export function makeTiltedProjector(viewport, arena, theme, proj = createProjector()) {
-  proj.fit(viewport, arena, { theme });
+export function makeTiltedProjector(viewport, arena, theme, proj = createProjector(), opts = {}) {
+  const { tilt, extraW, extraH, yBias } = opts;
+  if (typeof tilt === 'number' && Number.isFinite(tilt)) proj.tilt = tilt;
+  proj.fit(viewport, arena, { theme, extraW, extraH, yBias });
   return proj;
 }
 

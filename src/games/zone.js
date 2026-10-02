@@ -32,13 +32,15 @@ import {
   drawZonePlayers,
   drawZoneWaves,
   drawZoneFxLayer,
+  ZONE_THEME_25D,
 } from './zoneView.js';
 import { drawAlphaTexts, drawFxFlash } from './worldCore.js';
 import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
-import { paintBackdrop } from '../core/fieldKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
 import { UI_COLORS } from '../ui/tokens.js';
 
 export const ZONE_COLORS = Object.freeze([...UI_COLORS.players]);
@@ -106,6 +108,10 @@ export class ZoneGame extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
 
+    // 2.5D sahne zarfı: kamera arena+viewport+sabit temadan sığdırılır; ONLINE
+    // client AYNI sabit temayla aynı sahneyi kurar (sahne birebir eşleşir).
+    this.scene = createTiltedScene({ camera: TILTED_25D_CAMERA.zone });
+    this.proj = this.scene.proj;
     this.arena = { cx: 0, cy: 0, width: 0, height: 0, size: 0, left: 0, right: 0, top: 0, bottom: 0 };
     // Kare capture alanı (arena içinde ortalı): { x, y, s } + hücre px boyu
     this.field = { x: 0, y: 0, s: 0 };
@@ -1379,37 +1385,49 @@ export class ZoneGame extends BaseMiniGame {
       nowSec,
       this.territoryDirty ? this.repaintTerritory() : this.territoryLayer,
       1,
-      { roundId: this.roundId },
+      { roundId: this.roundId, proj: this.proj },
     );
+  }
 
-    if (this.state === 'PLAYING') {
-      const remain = Math.max(0, this.roundTimer);
-      const leader = this.leaderIndex >= 0 ? this.players[this.leaderIndex] : null;
-      const isUrgent = remain <= 10.0 || (leader && this.pct[leader.index] >= 35);
-      renderArenaWatermarkTimer(ctx, {
-        arena: this.arena,
-        text: `${Math.ceil(remain)}s`,
-        subText: '',
-        urgent: isUrgent,
-        color: isUrgent ? '#D84727' : (leader ? leader.color : null),
-        alpha: isUrgent ? 0.70 : 0.46,
-        ringProgress: Math.max(0, remain / 90),
-        // Sayaç oyun alanının ÜSTÜNDEDİR. Ölçülen kusur: merkez konumunda
-        // devasa sayı bir oyuncunun üstüne biniyordu (BOMB ekran görüntüsünde
-        // '10.5s' doğrudan P1'in üstündeydi) — merkez, oyunun olduğu yerdir.
-        placement: 'top',
-      });
-    }
+  /** Raunt sayacı — ekran-uzayı HUD (sahne kapandıktan sonra çizilir). */
+  renderRoundTimer(ctx) {
+    if (this.state !== 'PLAYING') return;
+    const remain = Math.max(0, this.roundTimer);
+    const leader = this.leaderIndex >= 0 ? this.players[this.leaderIndex] : null;
+    const isUrgent = remain <= 10.0 || (leader && this.pct[leader.index] >= 35);
+    renderArenaWatermarkTimer(ctx, {
+      arena: this.arena,
+      text: `${Math.ceil(remain)}s`,
+      subText: '',
+      urgent: isUrgent,
+      color: isUrgent ? '#D84727' : (leader ? leader.color : null),
+      alpha: isUrgent ? 0.70 : 0.46,
+      ringProgress: Math.max(0, remain / 90),
+      // Sayaç oyun alanının ÜSTÜNDEDİR. Ölçülen kusur: merkez konumunda
+      // devasa sayı bir oyuncunun üstüne biniyordu (BOMB ekran görüntüsünde
+      // '10.5s' doğrudan P1'in üstündeydi) — merkez, oyunun olduğu yerdir.
+      placement: 'top',
+    });
   }
 
   render() {
     const { ctx } = this;
     ctx.save();
-    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'ZONE' });
+    // 2.5D sahne zarfı: masa zemini `drawField25d` içinde boyanır (paintBackdrop
+    // çizilmez); kuyruk `scene.close` ile boşalır.
+    this.scene.open(ctx, {
+      viewport: this.viewport,
+      arena: this.arena,
+      theme: ZONE_THEME_25D,
+    });
     this.applyScreenShake(ctx, 14);
 
     this.renderField(ctx);
     this.renderZoneScene(ctx);
+    this.scene.close(ctx);
+
+    // Ekran-uzayı HUD (sahne kapandıktan sonra) — sahne kuyruğu üstünü örtmesin.
+    this.renderRoundTimer(ctx);
     this.renderControls(ctx);
 
     this.renderHUD(ctx, {
@@ -1453,12 +1471,12 @@ export class ZoneGame extends BaseMiniGame {
         ? 1 - Math.max(0, Math.min(1, p.dashCooldown / ZONE_TUNING.DASH_CD)) : null,
       pct: this.pct[p.index] || 0,
     }));
-    drawZoneWaves(ctx, this.captureWaves, this.cell);
+    drawZoneWaves(ctx, this.captureWaves, this.cell, this.proj);
     if (this.state !== 'LOBBY') {
-      drawZonePlayers(ctx, scenePlayers, { cell: this.cell, leaderIndex: this.leaderIndex, withFx, selfSlot: this.localControlSlot ?? -1 });
+      drawZonePlayers(ctx, scenePlayers, { cell: this.cell, leaderIndex: this.leaderIndex, withFx, selfSlot: this.localControlSlot ?? -1, proj: this.proj });
     }
     // FX katmanı ortak zoneView draw'ından gelir (host↔client aynı).
-    drawZoneFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+    drawZoneFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles }, this.proj);
     drawAlphaTexts(ctx, this.floatingTexts, { size: 13, outline: true });
   }
 }

@@ -4,7 +4,10 @@
 // Not: 13x13 grid ham taşınır (169 durum + uyarı sayaçları); pickup ikonları
 // tabletopIcons vektörleridir (SUPER_JUMP→chevrons_up, REPAIR_TILES→hammer, BLAST_WAVE→wind).
 
-import { drawGameAvatar } from '../core/avatarInGame.js';
+import { drawGameAvatar, drawGameAvatar25d } from '../core/avatarInGame.js';
+import { groundSpace, chipAt } from '../core/sceneKit.js';
+import { sceneDraw } from '../core/arenaKit.js';
+import { drawField25d, drawFieldRail, fieldRailBaseY } from '../core/fieldKit.js';
 import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
@@ -162,7 +165,34 @@ function etchPentagon(ctx, cx, cy, pr, rotation, style, width) {
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
-export function drawCollapseFalling(ctx, falling) {
+
+const RAIL_SIDES = /** @type {const} */ (['north', 'west', 'east', 'south']);
+// Sabit tema: COLLAPSE haritaları yalnız ızgara düzeni paylaşır (SNAKE deseni).
+export const COLLAPSE_THEME_25D = 'night';
+
+/**
+ * Statik saha (2.5D): masa zemini + kenar rayları. Host VE ONLINE client AYNI
+ * fonksiyonu çağırır (sahne birebir eşleşir); 2D yolunda çizim yoktur (çağıran
+ * `paintBackdrop` basar).
+ */
+export function drawCollapseArena(ctx, arena, proj = null) {
+  if (!proj) return;
+  drawField25d(ctx, proj, arena);
+  for (const side of RAIL_SIDES) {
+    sceneDraw(ctx, fieldRailBaseY(arena, side), drawFieldRail, proj, { arena, side });
+  }
+}
+
+export function drawCollapseFalling(ctx, falling, proj = null) {
+  if (proj) {
+    groundSpace(ctx, proj, (c) => paintCollapseFalling(c, falling));
+    return;
+  }
+  paintCollapseFalling(ctx, falling);
+}
+
+/** Uçurumdan düşen bloklar — zemin katmanı gövdesi. */
+function paintCollapseFalling(ctx, falling) {
   for (const ft of falling || []) {
     ctx.save();
     ctx.globalAlpha = clamp01(ft.alpha ?? 1);
@@ -194,7 +224,16 @@ export function drawCollapseFalling(ctx, falling) {
   }
 }
 
-export function drawCollapseGrid(ctx, arena, cell, states, warn, { withFx = true, now = 0 } = {}) {
+export function drawCollapseGrid(ctx, arena, cell, states, warn, { withFx = true, now = 0, proj = null } = {}) {
+  if (proj) {
+    groundSpace(ctx, proj, (c) => paintCollapseGrid(c, arena, cell, states, warn, withFx, now));
+    return;
+  }
+  paintCollapseGrid(ctx, arena, cell, states, warn, withFx, now);
+}
+
+/** Izgara katmanı gövdesi — 2D ve 2.5D yolu AYNI çizimi kullanır. */
+function paintCollapseGrid(ctx, arena, cell, states, warn, withFx, now) {
   const cols = COLLAPSE_COLS;
   const rows = COLLAPSE_ROWS;
   const cellSize = cell;
@@ -299,7 +338,16 @@ export function drawCollapseGrid(ctx, arena, cell, states, warn, { withFx = true
   }
 }
 
-export function drawCollapseWaves(ctx, waves) {
+export function drawCollapseWaves(ctx, waves, proj = null) {
+  if (proj) {
+    groundSpace(ctx, proj, (c) => paintCollapseWaves(c, waves));
+    return;
+  }
+  paintCollapseWaves(ctx, waves);
+}
+
+/** Şok dalgası katmanı gövdesi (zemin halkaları). */
+function paintCollapseWaves(ctx, waves) {
   for (const sw of waves || []) {
     ctx.save();
     ctx.globalAlpha = clamp01(sw.alpha ?? 1);
@@ -318,13 +366,22 @@ export function drawCollapseWaves(ctx, waves) {
  * @param {CanvasRenderingContext2D} ctx
  * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
  */
-export function drawCollapseFxLayer(ctx, layer) {
-  drawFxPops(ctx, layer?.pops);
-  drawFxRings(ctx, layer?.rings);
-  drawCircleParticles(ctx, layer?.particles);
+export function drawCollapseFxLayer(ctx, layer, proj = null) {
+  drawFxPops(ctx, layer?.pops, proj);
+  drawFxRings(ctx, layer?.rings, proj);
+  drawCircleParticles(ctx, layer?.particles, proj);
 }
 
-export function drawCollapsePickups(ctx, pickups, now = 0) {
+export function drawCollapsePickups(ctx, pickups, now = 0, proj = null) {
+  if (proj) {
+    groundSpace(ctx, proj, (c) => paintCollapsePickups(c, pickups, now));
+    return;
+  }
+  paintCollapsePickups(ctx, pickups, now);
+}
+
+/** Güçlendirme rozetleri — zemin katmanı gövdesi. */
+function paintCollapsePickups(ctx, pickups, now) {
   for (const pu of pickups || []) {
     const pulse = 1 + Math.sin(now / 200 + (pu.pulse || 0)) * 0.12;
     const r = 13 * pulse;
@@ -347,10 +404,48 @@ export function drawCollapsePickups(ctx, pickups, now = 0) {
   }
 }
 
-export function drawCollapsePlayers(ctx, players, { selfSlot = -1 } = {}) {
+/** 2.5D oyuncu: ayakta penguen; zıplama 2D yolu gibi yarıçap büyümesiyle taklit edilir. */
+function drawCollapsePlayer25d(ctx, player, { selfSlot, proj, hasViewer }) {
+  const jumpProgress = clamp01(player.jump || 0);
+  const isJumping = jumpProgress > 0;
+  const jumpHeight = isJumping ? Math.sin(jumpProgress * Math.PI) * 16 : 0;
+  const radius = player.radius || 36;
+  const u = radius / 18;
+  const k = proj.view.scale;
+  const grow = 1 + (jumpHeight / 16) * 0.45;
+
+  // Temas gölgesi zeminde kalır.
+  proj.contactPatch(ctx, player.x, player.y, radius * 1.05, radius * 0.5, 0.55);
+
+  drawGameAvatar25d(ctx, proj, player, {
+    x: player.x,
+    y: player.y,
+    radius: radius * grow,
+    color: player.color,
+    expression: isJumping ? 'excited' : (player.super ? 'wink' : 'normal'),
+    borderWidth: Math.max(1.5, 2.5 * u),
+    now: typeof performance !== 'undefined' ? performance.now() : 0,
+    alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
+  });
+
+  if (player.super) {
+    chipAt(ctx, proj, { x: player.x, y: player.y, radius }, {
+      icon: 'zap', state: STATUS_STATE.READY, scale: k * 0.5 * u,
+    });
+  }
+}
+
+export function drawCollapsePlayers(ctx, players, { selfSlot = -1, proj = null } = {}) {
   // 3.3 okunurluk hiyerarşisi: tek görür varsa kendi avatarın T1, diğerleri T3
   // (−%25); α yalnız fxKit'ten gelir.
   const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  if (proj) {
+    for (const player of players) {
+      if (!isWorldEntityVisible(player)) continue;
+      drawCollapsePlayer25d(ctx, player, { selfSlot, proj, hasViewer });
+    }
+    return;
+  }
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
 

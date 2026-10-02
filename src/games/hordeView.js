@@ -1,9 +1,13 @@
 // BRUTAL HORDE — host/client ortak dünya snapshot'ı ve çizim sınırı.
 // Client bu dosyadan yalnız salt-okunur draw + validation kullanır; simülasyon/AI import etmez.
 
-import { drawObstacle, drawPickup } from '../core/arenaKit.js';
-import { drawField, hashFieldSeed } from '../core/fieldKit.js';
-import { drawGameAvatar } from '../core/avatarInGame.js';
+import {
+  drawObstacle, drawPickup, drawObstacle25dShadow, drawObstacle25dMass,
+  obstacleBaseY, entitySceneY, sceneDraw,
+} from '../core/arenaKit.js';
+import { drawField, hashFieldSeed, drawField25d, drawFieldRail, fieldRailBaseY, FIELD_THEMES } from '../core/fieldKit.js';
+import { drawGameAvatar, drawGameAvatar25d } from '../core/avatarInGame.js';
+import { queuePlayers, groundSpace, projectile25d } from '../core/sceneKit.js';
 import { fxReadAlpha } from '../core/fxKit.js';
 import { segmentAabbIntersection } from '../core/physics2d.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
@@ -54,6 +58,19 @@ const FLASH = '#FFFFFF';
 const BLOOD = '#E63946';
 const WEAPON_IDS = new Set(['SIDEARM', 'SMG', 'SHOTGUN', 'RIFLE', 'BLADE']);
 const MAP_IDS = new Set(['foundry', 'reactor', 'core']);
+const RAIL_SIDES = /** @type {const} */ (['north', 'west', 'east', 'south']);
+const PLAYER_SHOT = '#D84727';
+const TOMB_RING = '#2ECC71';
+const SHIELD_RING = '#06B6D4';
+const SHIELD_FILL = 'rgba(6, 182, 212, 0.18)';
+// HORDE haritaları 2.5D masa temasına eşlenir (host ve ONLINE client AYNI harita
+// kimliğinden türetir → sahne birebir eşleşir).
+const HORDE_MAP_25D = Object.freeze({ foundry: 'arcade', reactor: 'night', core: 'marble' });
+
+/** Harita kimliği → 2.5D masa teması (bilinmeyen → 'arcade'). */
+export function hordeTheme25d(mapId) {
+  return HORDE_MAP_25D[mapId] || 'arcade';
+}
 
 export function mapHordePlayer(player, tuning = {}) {
   const weapon = getPlayerWeapon(player);
@@ -480,11 +497,30 @@ function hordeFieldMarks(ctx, box, palette) {
   }
 }
 
-export function drawHordeArena(ctx, arena, themeId = 'foundry') {
+export function drawHordeArena(ctx, arena, themeId = 'foundry', proj = null) {
   // Zemin + ızgara + motif + spawn kapıları + duvar: `fieldKit` statik katmanı.
   // Palet `hordeConfig.HORDE_MAPS` → `fieldKit.FIELD_THEMES` zinciriyle gelir;
   // bilinmeyen tema kimliği eski davranış gibi `foundry`'a düşer.
   const theme = MAP_IDS.has(themeId) ? themeId : 'foundry';
+  if (proj) {
+    // 2.5D eğik saha: masa zemini `drawField25d` içinde boyanır; kenar tamponları
+    // derinlik kuyruğuna girer. Doğuş kapıları statik katmanın parçası olmadığı
+    // için zemin uzayında (afin) ayrıca basılır.
+    drawField25d(ctx, proj, arena);
+    for (const side of RAIL_SIDES) {
+      sceneDraw(ctx, fieldRailBaseY(arena, side), drawFieldRail, proj, { arena, side });
+    }
+    const accent = FIELD_THEMES[theme]?.accent || UI_COLORS.hudAmber;
+    groundSpace(ctx, proj, (c) => {
+      for (let side = 0; side < 4; side++) {
+        drawSpawnGate(c, {
+          left: arena.left, top: arena.top, right: arena.right, bottom: arena.bottom,
+          cx: arena.cx, cy: arena.cy, unit: arena.unit,
+        }, side, accent);
+      }
+    });
+    return;
+  }
   drawField(ctx, arena, {
     mode: 'HORDE',
     theme,
@@ -847,11 +883,84 @@ function drawPlayerWeapon(ctx, player) {
   ctx.restore();
 }
 
-function drawHordePlayers(ctx, players, { withFx = true, now = 0, selfSlot = -1 } = {}) {
+/** Kare-geneli oyuncu durumu (kare başına tahsis yok; oyuncuya özel veri `player`da). */
+const HORDE_PLAYER_ST = {
+  withFx: true, now: 0, selfSlot: -1, proj: null,
+};
+
+/** 2.5D oyuncu öğesi: silah/kalkan zeminde, gövde ayakta penguen, vitals üstünde. */
+function drawHordePlayerItem25d(ctx, player, st) {
+  const {
+    withFx, now, selfSlot, proj,
+  } = st;
+  const R = player.radius || 30;
+  const u = R / 30;
+  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+
+  // Silah (yay/bıçak yayılımı) ve kalkan ZEMİN düzleminde okunur.
+  groundSpace(ctx, proj, (c) => {
+    c.save();
+    c.translate(player.x, player.y);
+    if (player.dashing) {
+      c.save();
+      c.globalAlpha = 0.35;
+      c.fillStyle = player.color;
+      c.beginPath();
+      c.arc(-18 * u, 0, 14 * u, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
+    }
+    if (player.shield) {
+      c.strokeStyle = SHIELD_RING;
+      c.lineWidth = 4 * u;
+      c.fillStyle = SHIELD_FILL;
+      c.beginPath();
+      c.arc(0, 0, 22 * u, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+    }
+    drawPlayerWeapon(c, player);
+    c.restore();
+  });
+
+  // Gövde: ayakta penguen (projekte karakter, tüm 2.5D oyunlarla ortak dil).
+  drawGameAvatar25d(ctx, proj, player, {
+    x: player.x,
+    y: player.y,
+    radius: R,
+    color: player.color,
+    facingAngle: player.angle,
+    expression: player.hp <= 1 ? 'PANIC' : (player.fast || player.triple ? 'EXCITED' : player.expression),
+    now,
+    alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
+  });
+
+  // Vitals ekran-uzayında gövdenin üstünde (dik okunur).
+  const top = proj.proj(player.x, player.y, R * 2);
+  drawHordeVitals(ctx, player, Math.max(1, R / 14), top);
+}
+
+function drawHordePlayers(ctx, players, {
+  withFx = true, now = 0, selfSlot = -1, proj = null,
+} = {}) {
   // 3.3 okunurluk hiyerarşisi: tek görür varsa kendi avatarın T1, diğerleri T3
   // (−%25); α yalnız fxKit'ten gelir.
   const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
   const blink = Math.floor(now / 120) % 2 === 0;
+  if (proj) {
+    const st = HORDE_PLAYER_ST;
+    st.withFx = withFx;
+    st.now = now;
+    st.selfSlot = selfSlot;
+    st.proj = proj;
+    queuePlayers(ctx, players, {
+      state: st,
+      drawItem: drawHordePlayerItem25d,
+      radiusOf: (player) => player.radius || 30,
+      visible: (player) => !!player.joined && !!player.alive && !(withFx && player.invuln && blink),
+    });
+    return;
+  }
   for (const player of players) {
     if (!player.joined || !player.alive) continue;
     if (withFx && player.invuln && blink) continue;
@@ -875,9 +984,9 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0, selfSlot = -1 
       ctx.restore();
     }
     if (player.shield) {
-      ctx.strokeStyle = '#06B6D4';
+      ctx.strokeStyle = SHIELD_RING;
       ctx.lineWidth = 4 * u;
-      ctx.fillStyle = 'rgba(6, 182, 212, 0.18)';
+      ctx.fillStyle = SHIELD_FILL;
       ctx.beginPath();
       ctx.arc(0, 0, 22 * u, 0, Math.PI * 2);
       ctx.fill();
@@ -936,7 +1045,9 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0, selfSlot = -1 
  * kalp kalır — olmayan bir sayı göstermek, "neden mermim yok" sorusunu
  * üretiyordu.
  */
-function drawHordeVitals(ctx, player, hu) {
+function drawHordeVitals(ctx, player, hu, pos = null) {
+  const px = pos ? pos.x : player.x;
+  const py = pos ? pos.y : player.y;
   const isGun = player.weaponKind === 'gun';
   const reloading = isGun && player.reloading;
   const hasMag = isGun && player.magazine > 0;
@@ -957,10 +1068,10 @@ function drawHordeVitals(ctx, player, hu) {
   const stackGap = 4 * hu;
   const stackH = (isGun ? plateH + stackGap : 0) + heartSize;
   // Yığın gövdenin hemen üstünde, gövde yarıçapı + nefes payı yukarısında.
-  const stackTop = player.y - (player.radius || 30) - 5 * hu - stackH;
+  const stackTop = py - (player.radius || 30) - 5 * hu - stackH;
 
   if (isGun) {
-    const x = player.x - plateW / 2;
+    const x = px - plateW / 2;
     const y = stackTop;
 
     ctx.fillStyle = UI_COLORS.hudPlate;
@@ -1016,7 +1127,7 @@ function drawHordeVitals(ctx, player, hu) {
 
   // KALPLER: dolu = kalan can, boş = `hudEmpty` (krem zeminde 3.45:1).
   const totalW = player.hpMax * heartSize + (player.hpMax - 1) * heartGap;
-  const startX = player.x - totalW / 2;
+  const startX = px - totalW / 2;
   const heartY = stackTop + (isGun ? plateH + stackGap : 0) + heartSize / 2;
   for (let i = 0; i < player.hpMax; i++) {
     const filled = i < player.hp;
@@ -1084,7 +1195,105 @@ function drawLoadoutCrate(ctx, crate, now) {
   ctx.restore();
 }
 
-export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof performance !== 'undefined' ? performance.now() : 0, selfSlot = -1 } = {}) {
+/** Mezar işareti (zemin katmanı) — 2D ve 2.5D yolu AYNI çizimi kullanır. */
+function drawTombMark(ctx, tomb, u) {
+  ctx.save();
+  ctx.translate(tomb.x, tomb.y);
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.arc(0, 0, 15 * u, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = FLASH;
+  ctx.lineWidth = Math.max(1, 3 * u);
+  ctx.beginPath();
+  ctx.moveTo(-6 * u, 0); ctx.lineTo(6 * u, 0);
+  ctx.moveTo(0, -6 * u); ctx.lineTo(0, 6 * u);
+  ctx.stroke();
+  ctx.strokeStyle = TOMB_RING;
+  ctx.lineWidth = Math.max(1.5, 5 * u);
+  ctx.beginPath();
+  ctx.arc(0, 0, 21 * u, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp01(tomb.progress));
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** 2.5D eğik pickup rozeti — derinlik kuyruğu öğesi. */
+function drawHordePickupItem(ctx, proj, pickup) {
+  drawPickup(ctx, pickup, { size: pickup.size, proj });
+}
+
+/** 2.5D mermiler: düşman mermisi projekte disk, oyuncu mermisi `projectile25d`. */
+function drawHordeBullets25d(ctx, bullets, proj) {
+  if (!bullets || bullets.length === 0) return;
+  const k = proj.view.scale;
+  for (const bullet of bullets) {
+    if (bullet.enemy) {
+      const sp = proj.proj(bullet.x, bullet.y, 6);
+      ctx.save();
+      ctx.fillStyle = bullet.color || BLOOD;
+      ctx.strokeStyle = FLASH;
+      ctx.lineWidth = Math.max(1, 1.5 * k);
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, Math.max(3, bullet.radius) * k + 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      const len = Math.max(8, (bullet.radius || 6) * 2.5);
+      projectile25d(ctx, proj, {
+        x: bullet.x, y: bullet.y, vx: bullet.vx, vy: bullet.vy,
+        tail: len, head: len, lift: 8,
+        color: bullet.color || PLAYER_SHOT, width: Math.max(3, bullet.radius || 6),
+      });
+    }
+  }
+}
+
+/**
+ * HORDE 2.5D sahnesi. Düz katmanlar (zemin/kapı/portal/telegraf/mezar/düşman/
+ * sandık) zemin uzayında `groundSpace` (proj paralel → afin) ile basılır;
+ * oyuncular ayakta penguen + derinlik kuyruğu, mermiler `projectile25d`.
+ */
+function drawHordeWorld25d(ctx, arena, scene, {
+  withFx, now, selfSlot, proj,
+}) {
+  drawHordeArena(ctx, arena, scene.theme, proj);
+
+  // Engeller gerçek prizma: temas gölgesi zeminde, gövde derinlik kuyruğunda.
+  for (const obstacle of scene.obstacles || []) {
+    drawObstacle25dShadow(ctx, proj, obstacle);
+    sceneDraw(ctx, obstacleBaseY(obstacle), drawObstacle25dMass, proj, obstacle);
+  }
+
+  groundSpace(ctx, proj, (c) => {
+    if (scene.portal) drawExtractionGate(c, scene.portal, now);
+    for (const tomb of scene.tombs || []) drawTombMark(c, tomb, arena?.unit ?? 1);
+    for (const enemy of scene.enemies || []) {
+      if (enemy.type === 'bomb') drawBombTelegraph(c, enemy, now);
+      else drawEnemy(c, enemy, withFx, now, scene.obstacles || []);
+    }
+    for (const crate of scene.loadoutCrates || []) drawLoadoutCrate(c, crate, now);
+  });
+
+  for (const pickup of scene.pickups || []) {
+    sceneDraw(ctx, entitySceneY(pickup.y, (pickup.size || 28) / 2), drawHordePickupItem, proj, pickup);
+  }
+
+  drawHordeBullets25d(ctx, scene.bullets, proj);
+  drawHordePlayers(ctx, scene.players || [], { withFx, now, selfSlot, proj });
+
+  // Metinler ekran-uzayı: projekte konumda dik okunur.
+  drawAlphaTexts(ctx, (scene.texts || []).map((ft) => {
+    const sp = proj.proj(ft.x, ft.y, 20);
+    return { ...ft, x: sp.x, y: sp.y };
+  }), { size: 15, outline: true });
+}
+
+export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof performance !== 'undefined' ? performance.now() : 0, selfSlot = -1, proj = null } = {}) {
+  if (proj) {
+    drawHordeWorld25d(ctx, arena, scene, { withFx, now, selfSlot, proj });
+    return;
+  }
   drawHordeArena(ctx, arena, scene.theme);
 
   for (const obstacle of scene.obstacles || []) {
@@ -1098,26 +1307,7 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
   for (const pickup of scene.pickups || []) drawPickup(ctx, pickup, { size: pickup.size });
 
   const u = arena?.unit ?? (arena?.size ? arena.size / 952 : 1);
-  for (const tomb of scene.tombs || []) {
-    ctx.save();
-    ctx.translate(tomb.x, tomb.y);
-    ctx.fillStyle = INK;
-    ctx.beginPath();
-    ctx.arc(0, 0, 15 * u, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = FLASH;
-    ctx.lineWidth = Math.max(1, 3 * u);
-    ctx.beginPath();
-    ctx.moveTo(-6 * u, 0); ctx.lineTo(6 * u, 0);
-    ctx.moveTo(0, -6 * u); ctx.lineTo(0, 6 * u);
-    ctx.stroke();
-    ctx.strokeStyle = '#2ECC71';
-    ctx.lineWidth = Math.max(1.5, 5 * u);
-    ctx.beginPath();
-    ctx.arc(0, 0, 21 * u, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp01(tomb.progress));
-    ctx.stroke();
-    ctx.restore();
-  }
+  for (const tomb of scene.tombs || []) drawTombMark(ctx, tomb, u);
 
   // Perf: tüm mermiler tek save/restore ile çizilir (64+ state push/pop kaldırıldı)
   const bullets = scene.bullets;
@@ -1136,7 +1326,7 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
         ctx.fill();
         ctx.stroke();
       } else {
-        ctx.strokeStyle = bullet.color || '#D84727';
+        ctx.strokeStyle = bullet.color || PLAYER_SHOT;
         ctx.lineWidth = Math.max(3, bullet.radius);
         ctx.beginPath();
         ctx.moveTo(bullet.x, bullet.y);
@@ -1152,10 +1342,10 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
   drawAlphaTexts(ctx, scene.texts || [], { size: 15, outline: true });
 }
 
-export function drawHordeFxLayer(ctx, layer) {
-  drawFxPops(ctx, layer?.pops);
-  drawFxRings(ctx, layer?.rings);
-  drawCircleParticles(ctx, layer?.particles);
+export function drawHordeFxLayer(ctx, layer, proj = null) {
+  drawFxPops(ctx, layer?.pops, proj);
+  drawFxRings(ctx, layer?.rings, proj);
+  drawCircleParticles(ctx, layer?.particles, proj);
 }
 
 // Maç başlığı verisi (host + world-view istemcisi ortak): tur/dalga + sayaç.

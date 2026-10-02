@@ -9,7 +9,7 @@
 .games-body {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: var(--z-local-1);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
   gap: clamp(10px, 1.8vw, 22px);

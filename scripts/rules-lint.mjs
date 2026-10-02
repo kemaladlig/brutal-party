@@ -15,6 +15,10 @@
 //          worldCore.js hariç): `particles.push(` ve partikül döngüsünden
 //          sonraki 12 satır içinde `ctx.arc(`. Motorlar FX'i yalnız fxRuntime
 //          üzerinden üretir, çizerken worldCore/drawFx katmanını kullanır.
+//   K8 §8  src/**/*.css içinde ham z-index yasak: katman ölçeği (`--z-*`,
+//          tokens.css) TEK kaynaktır ve iki global yüzey aynı basamağı
+//          paylaşmaz. Aksi hâlde kazananı DOM sırası belirler ve bir yüzey
+//          sessizce arkada kalır.
 //
 // Kural notu: @ts-ignore/baseline kaçışı yasak değildir ama her taban düşüşü
 // geri dönüşü olmayan bir kayıt değildir — dosya silinse de sayı kalır.
@@ -176,6 +180,26 @@ function scanK7(file, src) {
   return hits;
 }
 
+// Ham z-index: değer `var(--z-…)` değilse ihlal. tokens.css muaf (ölçeğin
+// kendisi oradadır). Değer olarak `auto/initial/inherit` ve `0` da geçerli
+// değil — katman almak zorundadır.
+const K8_EXEMPT = new Set(['src/styles/tokens.css']);
+const K8_RE = /z-index\s*:\s*([^;]+);/;
+
+function scanK8(file, srcRaw) {
+  const r = rel(file);
+  if (K8_EXEMPT.has(r)) return [];
+  const src = stripComments(srcRaw);
+  const hits = [];
+  src.split('\n').forEach((line, i) => {
+    const m = line.match(K8_RE);
+    if (m && !/^\s*var\(--z-/.test(m[1])) {
+      hits.push({ line: i + 1, msg: `ham z-index ${m[1].trim()} — --z-* ölçeğini kullan (§8)` });
+    }
+  });
+  return hits;
+}
+
 const SCANS = [
   { id: 'K1', files: () => K1_FILES.map((f) => join(ROOT, f)), fn: scanK1 },
   { id: 'K2', files: () => walk(SRC, '.js'), fn: scanK2 },
@@ -184,6 +208,7 @@ const SCANS = [
   { id: 'K5', files: () => walk(SRC, '.js'), fn: scanK5 },
   { id: 'K6', files: () => [join(ROOT, 'src', 'core', 'engineRegistry.js')], fn: scanK6 },
   { id: 'K7', files: () => walk(join(SRC, 'games'), '.js'), fn: scanK7 },
+  { id: 'K8', files: () => walk(SRC, '.css'), fn: scanK8 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -230,4 +255,4 @@ if (failed) {
   console.error('\nrules-lint: AGENTS.md yasağı ihlal edildi. Yeni iş için tabanı düşürmek = borcu azaltmak; artırmak yasak.');
   process.exit(1);
 }
-console.log('rules-lint: temiz — K1–K7 AGENTS.md yasaklarında yeni ihlal yok.');
+console.log('rules-lint: temiz — K1–K8 AGENTS.md yasaklarında yeni ihlal yok.');

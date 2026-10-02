@@ -55,12 +55,20 @@ test('Faz 3 çıkış kanıtı: 4 kişilik kaos kareleri (SE yatay + TV)', async
         game.startNewMatch();
         let now = performance.now();
         game.lastTime = now;
+        // Duvar-saati simülasyona sızar (yük altında 300 kare ~13 sn gerçek zaman
+        // alır), bu yüzden SON durum oyun-bağımlı değişebilir. Sözleşme (yukarıdaki
+        // geçme koşulu) "PLAYING'e ULAŞTI"dır — yan etkisi yalnız zamanın daha çok
+        // akması olan gecikmeye dayanıklı ölçüm budur.
+        let reachedPlaying = false;
+        let lastState = game.state;
         for (let i = 0; i < frames; i++) {
           now += 16.7;
           game.update(now);
           game.render();
+          lastState = game.state;
+          if (lastState === 'PLAYING') reachedPlaying = true;
         }
-        return { state: game.state };
+        return { state: lastState, reachedPlaying };
       }, { mode, w: vp.w, h: vp.h, frames: FRAMES });
 
       // 2) Kareyi al (element ekran görüntüsü = tam çözünürlük).
@@ -69,7 +77,7 @@ test('Faz 3 çıkış kanıtı: 4 kişilik kaos kareleri (SE yatay + TV)', async
 
       // 3) Kanıt gerçekten üretildi + motor oynanabilir duruma geldi.
       expect(statSync(outPath).size, `boş kare: ${outPath}`).toBeGreaterThan(1000);
-      expect(ok.state, `${mode} PLAYING'e ulaşamadı (state=${ok.state})`).toBe('PLAYING');
+      expect(ok.reachedPlaying, `${mode} PLAYING'e ulaşamadı (son state=${ok.state})`).toBe(true);
 
       await page.evaluate(() => document.getElementById('exit-capture')?.remove());
     }

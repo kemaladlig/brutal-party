@@ -30,9 +30,10 @@ import { spawnPickup } from '../core/pickupSystem.js';
 import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
 import { UI_COLORS, CROWN_COLORS } from '../ui/tokens.js';
-import { createCrownWorldPacket, drawCrownWorld, drawCrownFxLayer } from './crownView.js';
+import { createCrownWorldPacket, drawCrownWorld, drawCrownFxLayer, CROWN_THEME_25D } from './crownView.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
-import { paintBackdrop } from '../core/fieldKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
 
 export { CROWN_COLORS };
 export const CROWN_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -59,6 +60,11 @@ export const CROWN_MAP_PRESETS = [
 export class CrownGame extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
+
+    // 2.5D sahne zarfı (`core/tiltedScene`): kamera sığdırma + derinlik kuyruğu
+    // tek yerden. `this.proj` KALICI örnektir (kare başına tahsis yok).
+    this.scene = createTiltedScene({ camera: TILTED_25D_CAMERA.crown });
+    this.proj = this.scene.proj;
 
     // Arena geometry
     this.arena = {
@@ -739,6 +745,7 @@ export class CrownGame extends BaseMiniGame {
       types: ['TURBO', 'TELEPORT', 'SLIP'],
       max: 2,
       obstacles: this.pillars,
+      strict: true,
     });
   }
 
@@ -1309,10 +1316,13 @@ export class CrownGame extends BaseMiniGame {
     const ctx = this.ctx;
 
     ctx.save();
-    // Sahanın dışı (masa) — `fieldKit` tek sahibi
-    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'CROWN' });
+    // 2.5D sahne zarfı: kamera arena+viewport+sabit tema'dan sığdırılır ve
+    // derinlik kuyruğu açılır; ONLINE client AYNI girdilerle aynı sahneyi kurar.
+    // Masa zemini `drawField25d` içinde boyanır (paintBackdrop çizilmez).
+    this.scene.open(ctx, { viewport: this.viewport, arena: this.arena, theme: CROWN_THEME_25D });
 
-    drawCrownWorld(ctx, this, this.arena, this.players.map((p) => p.color), this.lastTime, this.targetCrownTime, this.localControlSlot ?? -1, { roundId: this.roundId });
+    drawCrownWorld(ctx, this, this.arena, this.players.map((p) => p.color), this.lastTime, this.targetCrownTime, this.localControlSlot ?? -1, { roundId: this.roundId, proj: this.proj });
+    this.scene.close(ctx);
 
     // Sütun ve engellerin üzerinde net okunan taç süresi filigranı.
     // Skorbord `renderHUD`'un işidir (aşağıda `scoreboardEntities` ile) —
@@ -1346,7 +1356,7 @@ export class CrownGame extends BaseMiniGame {
     }
 
     // FX katmanı ortak crownView draw'ından gelir (host↔client aynı).
-    drawCrownFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+    drawCrownFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles }, this.proj);
 
     // Masa-ortası sanal kontroller (joystick + TACKLE butonu, BaseGame tek kaynak)
     if (this.state === 'PLAYING') {

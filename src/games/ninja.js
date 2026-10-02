@@ -9,7 +9,8 @@ import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { updateNinjaBotAI } from '../ai/ninjaAI.js';
 import { readSlotKeys, getSecondActionKey } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
-import { paintBackdrop } from '../core/fieldKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, pointBlocked, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { beginRound, endMatch, tickRoundFlow } from '../core/roundLifecycle.js';
@@ -27,6 +28,7 @@ import {
   drawNinjaSlashes,
   drawNinjaImpacts,
   drawNinjaFxLayer,
+  NINJA_THEME_25D,
 } from './ninjaView.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
@@ -101,6 +103,10 @@ export class NinjaGame extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
     this.arena = { cx: 0, cy: 0, size: 0, left: 0, right: 0, top: 0, bottom: 0 };
+    // 2.5D sahne zarfı: kamera arena+viewport+sabit temadan sığdırılır; ONLINE
+    // client AYNI sabitle aynı sahneyi kurar (sahne birebir eşleşir).
+    this.scene = createTiltedScene({ camera: TILTED_25D_CAMERA.ninja });
+    this.proj = this.scene.proj;
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty'];
     this.scores = [0, 0, 0, 0];
     // Maç hedefi ve raunt süresi — kısaltma (ninja.js).
@@ -985,21 +991,25 @@ this.targetScore = 2;
     const now = performance.now();
     ctx.save();
 
-    // Sahanın dışı (masa) — `fieldKit` tek sahibi. Host `#D6D3CD`, client
-    // `#F4F0EA` yazıyordu: aynı oyunun masası iki cihazda farklı renkti.
-    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'NINJA' });
+    // 2.5D sahne zarfı: masa zemini `drawField25d` içinde boyanır (paintBackdrop
+    // çizilmez). Tema sabittir; ONLINE client aynı sabitle aynı sahneyi kurar.
+    this.scene.open(ctx, {
+      viewport: this.viewport,
+      arena: this.arena,
+      theme: NINJA_THEME_25D,
+    });
     this.applyScreenShake(ctx);
 
     // Arena sahnesi ortak ninjaView draw'larından gelir (host↔client aynı).
     const withFx = this.state === 'PLAYING';
-    drawNinjaArena(ctx, this.arena, { roundId: this.roundId });
-    drawNinjaSteps(ctx, this.footsteps);
+    drawNinjaArena(ctx, this.arena, { roundId: this.roundId, proj: this.proj });
+    drawNinjaSteps(ctx, this.footsteps, this.proj);
 
-    drawNinjaDecals(ctx, this.cutDecals);
-    drawNinjaLanterns(ctx, this.lanterns, now);
-    drawNinjaFrame(ctx, this.arena, this.obstacles);
+    drawNinjaDecals(ctx, this.cutDecals, this.proj);
+    drawNinjaLanterns(ctx, this.lanterns, now, this.proj);
+    drawNinjaFrame(ctx, this.arena, this.obstacles, this.proj);
 
-    drawNinjaGhosts(ctx, this.afterimages);
+    drawNinjaGhosts(ctx, this.afterimages, this.proj);
 
     // Oyuncular (görünmezlik: yerel girişte tüm insanlara hayalet, client'ta yalnız selfSlot)
     const ghostSlots = this.isLocalInputActive
@@ -1013,12 +1023,13 @@ this.targetScore = 2;
         ? 1 - Math.min(1, p.strikeCooldown / NINJA_TUNING.STRIKE_COOLDOWN) : null,
       smokeProg: (p.smokeCooldown || 0) > 0
         ? 1 - Math.min(1, p.smokeCooldown / NINJA_TUNING.SMOKE_COOLDOWN) : null,
-    })), { ghostSlots, withFx, now: this.lastTime, selfSlot: this.localControlSlot ?? -1 });
+    })), { ghostSlots, withFx, now: this.lastTime, selfSlot: this.localControlSlot ?? -1, proj: this.proj });
 
-    drawNinjaSlashes(ctx, this.slashWaves, this.arena);
-    drawNinjaImpacts(ctx, this.impactCuts);
+    drawNinjaSlashes(ctx, this.slashWaves, this.arena, this.proj);
+    drawNinjaImpacts(ctx, this.impactCuts, this.proj);
     // FX katmanı ortak ninjaView draw'ından gelir (host↔client aynı).
-    drawNinjaFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+    drawNinjaFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles }, this.proj);
+    this.scene.close(ctx);
 
     // Havaya süzülen metin bildirimleri (+1★, KILIÇ ATIL, vb.)
     renderFloatingTexts(ctx, this.floatingTexts, 0.016);

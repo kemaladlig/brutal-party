@@ -7,10 +7,11 @@
     "src/controlGuide.js": 14,
     "src/controllers/controllerTemplates.js": 2,
     "src/controllers/gamepadSchemas.js": 9,
-    "src/core/arenaKit.js": 51,
+    "src/core/arenaKit.js": 26,
     "src/core/customizationManager.js": 33,
     "src/core/engineRegistry.js": 12,
     "src/core/fieldKit.js": 70,
+    "src/core/pickupCatalog.js": 25,
     "src/core/playerEntity.js": 1,
     "src/core/reactions.js": 12,
     "src/core/tabletopIcons.js": 2,
@@ -20,7 +21,6 @@
     "src/games/archerView.js": 3,
     "src/games/ball.js": 10,
     "src/games/bomb.js": 10,
-    "src/games/bombView.js": 14,
     "src/games/collapse.js": 3,
     "src/games/crownView.js": 8,
     "src/games/curve.js": 19,
@@ -36,7 +36,7 @@
     "src/games/paddle.js": 8,
     "src/games/pongView.js": 8,
     "src/games/snake.js": 5,
-    "src/games/snakeView.js": 15,
+    "src/games/snakeView.js": 11,
     "src/games/tanks.js": 5,
     "src/games/tanksView.js": 11,
     "src/games/worldCore.js": 1,
@@ -48,7 +48,6 @@
     "src/ui/archerWorldView.js": 2,
     "src/ui/avatarLife.js": 1,
     "src/ui/avatarStage.js": 6,
-    "src/ui/bombWorldView.js": 2,
     "src/ui/characterRenderer.js": 65,
     "src/ui/collapseWorldView.js": 2,
     "src/ui/crownWorldView.js": 2,
@@ -69,7 +68,7 @@
   },
   "K3": {
     "src/core/arenaKit.js": 2,
-    "src/core/fieldKit.js": 12,
+    "src/core/fieldKit.js": 4,
     "src/gamepad.js": 2,
     "src/games/zoneView.js": 2,
     "src/ui/avatarStage.js": 2,
@@ -79,7 +78,6 @@
   "K4": {},
   "K5": {
     "src/controllers/gamepadSchemas.js": 7,
-    "src/core/arenaKit.js": 24,
     "src/core/tabletopIcons.js": 68,
     "src/core/tabletopRenderer.js": 1,
     "src/games/archer.js": 1,
@@ -101,5 +99,6 @@
     "src/ui/slotCardView.js": 1
   },
   "K6": {},
-  "K7": {}
+  "K7": {},
+  "K8": {}
 }

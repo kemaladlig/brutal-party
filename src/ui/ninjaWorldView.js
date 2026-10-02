@@ -14,10 +14,12 @@ import {
   drawNinjaSlashes,
   drawNinjaImpacts,
   drawNinjaFxLayer,
+  NINJA_THEME_25D,
   isValidNinjaWorldFrame,
 } from '../games/ninjaView.js';
-import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
-import { paintBackdrop } from '../core/fieldKit.js';
+import { drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
 import { drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
 import { UI_COLORS } from './tokens.js';
@@ -26,6 +28,9 @@ import { t } from '../i18n.js';
 const NINJA_FALLBACK = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 
 export function createWorldViewRenderer() {
+  // 2.5D sahne zarfı renderer ömrü boyunca yaşar (proj kalıcı). Host ile AYNI
+  // girdileri verir (arena + viewport + sabit tema) → sahne birebir eşleşir.
+  const scene = createTiltedScene({ camera: TILTED_25D_CAMERA.ninja });
   return {
     validate: isValidNinjaWorldFrame,
 
@@ -42,36 +47,41 @@ export function createWorldViewRenderer() {
       const size = Math.min(arenaW, arenaH);
       const arena = {
         left, top, right, bottom, width: arenaW, height: arenaH,
+        cx: (left + right) / 2, cy: (top + bottom) / 2,
         size, unit: Math.max(0.3, Math.min(1.6, size / 952)),
       };
       const withFx = frame.gameState === 'PLAYING';
 
       ctx.save();
-      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'NINJA' });
-      fitWorld(ctx, width, height, frame.arena, () => {
-        drawNinjaArena(ctx, arena, { roundId: frame.roundId });
-        drawNinjaSteps(ctx, frame.steps || []);
-        drawNinjaDecals(ctx, frame.decals || []);
-        drawNinjaLanterns(ctx, frame.lanterns || [], now);
-        drawNinjaFrame(ctx, arena, frame.obstacles.map(([x, y, w, h]) => ({ x, y, w, h })));
-        drawNinjaGhosts(ctx, frame.ghosts || []);
-        const players = frame.players.map((p) => ({
-          ...p,
-          index: p.slot,
-          color: slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || NINJA_FALLBACK[p.slot],
-          avatar: slots?.[p.slot]?.avatar || null,
-        }));
-        drawNinjaPlayers(ctx, players, { ghostSlots: Number.isInteger(context?.selfSlot) && context.selfSlot >= 0 ? [context.selfSlot] : [], withFx, selfSlot: context.selfSlot ?? -1 });
-        drawNinjaSlashes(ctx, frame.slashes || [], arena);
-        drawNinjaImpacts(ctx, frame.impacts || []);
-        drawNinjaFxLayer(ctx, fxLive
-          ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
-          : {
-              pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
-              rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
-              particles: frame.particles || [],
-            });
+      // 2.5D eğik kamera: host ile AYNI girdilerden kurulur.
+      const proj = scene.open(ctx, {
+        viewport: { width, height },
+        arena,
+        theme: NINJA_THEME_25D,
       });
+      drawNinjaArena(ctx, arena, { roundId: frame.roundId, proj });
+      drawNinjaSteps(ctx, frame.steps || [], proj);
+      drawNinjaDecals(ctx, frame.decals || [], proj);
+      drawNinjaLanterns(ctx, frame.lanterns || [], now, proj);
+      drawNinjaFrame(ctx, arena, frame.obstacles.map(([x, y, w, h]) => ({ x, y, w, h })), proj);
+      drawNinjaGhosts(ctx, frame.ghosts || [], proj);
+      const players = frame.players.map((p) => ({
+        ...p,
+        index: p.slot,
+        color: slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || NINJA_FALLBACK[p.slot],
+        avatar: slots?.[p.slot]?.avatar || null,
+      }));
+      drawNinjaPlayers(ctx, players, { ghostSlots: Number.isInteger(context?.selfSlot) && context.selfSlot >= 0 ? [context.selfSlot] : [], withFx, selfSlot: context.selfSlot ?? -1, proj });
+      drawNinjaSlashes(ctx, frame.slashes || [], arena, proj);
+      drawNinjaImpacts(ctx, frame.impacts || [], proj);
+      drawNinjaFxLayer(ctx, fxLive
+        ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
+        : {
+            pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
+            rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
+            particles: frame.particles || [],
+          }, proj);
+      scene.close(ctx);
       ctx.restore();
 
       // Eleme flaşı ekran-space: playback mandalı açıkken oynatıcıdan, değilse

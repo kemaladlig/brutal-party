@@ -1857,10 +1857,8 @@ function paintField25dLayer(ctx, proj, arena) {
 
   const matLight = shade(T.mat, 0.10);
   const matDark = shade(T.mat, -0.13);
-  const tileTone = shade(T.mat, -0.06);
   const edgeTone = T.matEdge || shade(T.mat, -0.18);
   const castTone = shade(T.table, -0.5);
-  const step = Math.max(70, size / 7);
 
   // 0. Tepsi gölgesi — masaya düşer, tahtayı yüzeyden kaldırır (katmanlı = yumuşak).
   const off = Math.max(6, size * 0.022);
@@ -1915,38 +1913,21 @@ function paintField25dLayer(ctx, proj, arena) {
     // Prosedürel yol: yönlü ışık dolgusu + desen/dama.
     ctx.fillStyle = lg;
     ctx.fill();
-    const matKind = MAT_PATTERN[proj.themeName] || 'weave';
-    if (matKind === 'grid') {
-      let ix = 0;
-      for (let gx = left; gx < right; gx += step) {
-        let iy = 0;
-        const nx = Math.min(gx + step, right);
-        for (let gy = top; gy < bottom; gy += step) {
-          if (((ix + iy) & 1) === 1) {
-            const ny = Math.min(gy + step, bottom);
-            proj.quad(ctx, p(gx, gy), p(nx, gy), p(nx, ny), p(gx, ny), tileTone);
-          }
-          iy += 1;
-        }
-        ix += 1;
-      }
-    } else {
-      ctx.save();
-      ctx.globalAlpha = 0.45;
-      paintSurfacePattern(ctx, matKind, left, top, right, bottom, p,
-        arena.unit || size / 18, matDark, matLight);
-      ctx.restore();
-    }
+    // 2.5D zemininde KARE/DAMA IZGARA YOK (modern düz yüzey): doku varsa doku,
+    // yoksa YÖNSÜZ yumuşak desen. 'grid' deseni (arcade/night) 2.5D'de kareli
+    // okunduğu için 'weave'e indirilir; sahneyi motifler + doku taşır.
+    const matName = MAT_PATTERN[proj.themeName];
+    const matKind = (!matName || matName === 'grid') ? 'weave' : matName;
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    paintSurfacePattern(ctx, matKind, left, top, right, bottom, p,
+      arena.unit || size / 18, matDark, matLight);
+    ctx.restore();
   }
   ctx.restore();
 
-  // 3. Izgara (dama dikişleri).
-  for (let gx = left + step; gx < right; gx += step) {
-    proj.strokePoly(ctx, [p(gx, top), p(gx, bottom)], T.stitch, 1.5, false);
-  }
-  for (let gy = top + step; gy < bottom; gy += step) {
-    proj.strokePoly(ctx, [p(left, gy), p(right, gy)], T.stitch, 1.5, false);
-  }
+  // 3. (Kaldırıldı) Burada düz kare dikiş ızgarası çiziliyordu — "defter"
+  // okuması veriyordu. Zemin artık dokusu + motifleriyle konuşur.
 
   // 4. İç gölge (AO): mat kenarını içeriden toplar, tahta kalınlığı okunur.
   const ao = Math.max(6, size * 0.012);

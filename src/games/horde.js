@@ -22,7 +22,8 @@ import {
   segmentCircleIntersection,
 } from '../core/physics2d.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
-import { paintBackdrop } from '../core/fieldKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
 import { findAutoAimTarget } from '../core/autoAim.js';
 import { createPlayer, tickEffectTimers } from '../core/playerEntity.js';
 import { collectPickups, spawnPickup, tickPickupTimers } from '../core/pickupSystem.js';
@@ -46,6 +47,7 @@ import {
   drawHordeFxLayer,
   drawHordeWorld,
   hordeHeaderStatus,
+  hordeTheme25d,
   mapHordeScene,
 } from './hordeView.js';
 import { drawFxFlash } from './worldCore.js';
@@ -178,6 +180,10 @@ export class HordeGame extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
     this.controlMode = 'HORDE';
+    // 2.5D sahne zarfı: kamera arena+viewport+haritaya bağlı temadan sığdırılır;
+    // ONLINE client AYNI harita kimliğinden aynı temayı türetir (sahne eşleşir).
+    this.scene = createTiltedScene({ camera: TILTED_25D_CAMERA.horde });
+    this.proj = this.scene.proj;
     this.arena = { cx: 0, cy: 0, size: 0, width: 0, height: 0, left: 0, right: 0, top: 0, bottom: 0 };
     this.slotTypes = ['human', 'empty', 'empty', 'empty'];
     this.minPlayersToStart = 1;
@@ -670,6 +676,7 @@ export class HordeGame extends BaseMiniGame {
         obstacles: this.obstacles,
         size: this.bodyPx(HORDE_TUNING.PICKUP_SIZE),
         pad: this.bodyPx(24),
+        strict: true,
       });
     }
     tickPickupTimers(this, dt);
@@ -1792,6 +1799,7 @@ export class HordeGame extends BaseMiniGame {
       obstacles: this.obstacles,
       size: this.bodyPx(HORDE_TUNING.PICKUP_SIZE),
       pad: this.bodyPx(28),
+      strict: true,
     });
   }
 
@@ -1989,14 +1997,19 @@ export class HordeGame extends BaseMiniGame {
     const { ctx } = this;
     ctx.save();
     const scene = mapHordeScene(this, HORDE_TUNING);
-    // Sahanın dışı (masa) sarsıntıdan ETKİLENMEZ: tepsi masanın üstünde kayar,
-    // masa kaymaz. Bu yüzden backdrop `applyScreenShake`ten ÖNCE basılır.
-    paintBackdrop(ctx, this.viewport, this.arena, { theme: scene.theme });
+    // 2.5D sahne zarfı: masa zemini `drawField25d` içinde boyanır (paintBackdrop
+    // çizilmez). Tema harita kimliğine bağlıdır.
+    this.scene.open(ctx, {
+      viewport: this.viewport,
+      arena: this.arena,
+      theme: hordeTheme25d(scene.theme),
+    });
     this.applyScreenShake(ctx);
 
-    drawHordeWorld(ctx, this.arena, scene, { withFx: this.state === 'PLAYING', now: this.lastTime, selfSlot: this.localControlSlot ?? -1 });
+    drawHordeWorld(ctx, this.arena, scene, { withFx: this.state === 'PLAYING', now: this.lastTime, selfSlot: this.localControlSlot ?? -1, proj: this.proj });
+    this.scene.close(ctx);
     // FX katmanı ortak hordeView draw'ından gelir (host↔client aynı).
-    drawHordeFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+    drawHordeFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles }, this.proj);
 
     if (this.state === 'PLAYING') {
       this.renderControls(ctx, { extraEntities: this.enemies });

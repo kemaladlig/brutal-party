@@ -3,9 +3,13 @@
 // client bu modülden snapshot/validator + salt-okunur draw fonksiyonlarını alır,
 // asla simülasyon/AI import etmez.
 
-import { drawObstacle, drawPickup } from '../core/arenaKit.js';
-import { drawField, hashFieldSeed } from '../core/fieldKit.js';
-import { drawGameAvatar } from '../core/avatarInGame.js';
+import {
+  drawObstacle, drawPickup, drawObstacle25dShadow, drawObstacle25dMass,
+  obstacleBaseY, entitySceneY, sceneDraw,
+} from '../core/arenaKit.js';
+import { drawField, hashFieldSeed, drawField25d, drawFieldRail, fieldRailBaseY } from '../core/fieldKit.js';
+import { drawGameAvatar, drawGameAvatar25d } from '../core/avatarInGame.js';
+import { queuePlayers, chipAt, projectile25d } from '../core/sceneKit.js';
 import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { getFireCooldownProgress, getFireFeedbackForRender, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
@@ -22,6 +26,10 @@ import {
 
 const ARCHER_RADIUS = 28;
 const FALLBACK = '#D84727';
+const STUN_COLOR = '#9C988F'; // sersemlemiş gövde tonu (2.5D + tepeden bakış ortak)
+// 2.5D: haritalar yalnız engel düzenini paylaşır, tema sabittir (SNAKE deseni).
+export const ARCHER_THEME_25D = 'picnic';
+const RAIL_SIDES = /** @type {const} */ (['north', 'west', 'east', 'south']);
 
 const round1 = (v) => Math.round(Number(v) * 10) / 10;
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -152,6 +160,22 @@ export function isValidArcherWorldFrame(frame) {
 
 // --- Ortak çizim yardımcıları (host + client aynı fonksiyonu çağırır) ---
 export function drawArcherArena(ctx, arena, obstacles, opts = {}) {
+  const proj = opts.proj || null;
+  if (proj) {
+    // 2.5D eğik saha: masa zemini `drawField25d` içinde boyanır (çağıran
+    // `paintBackdrop` çizmez). Kenar tamponları ve engel prizmaları DERİNLİK
+    // kuyruğuna girer (çağıran `sceneBegin`/`sceneEnd` penceresi açar); engel
+    // temas gölgeleri zeminde kalır.
+    drawField25d(ctx, proj, arena);
+    for (const side of RAIL_SIDES) {
+      sceneDraw(ctx, fieldRailBaseY(arena, side), drawFieldRail, proj, { arena, side });
+    }
+    for (const obs of obstacles) {
+      drawObstacle25dShadow(ctx, proj, obs);
+      sceneDraw(ctx, obstacleBaseY(obs), drawObstacle25dMass, proj, obs);
+    }
+    return;
+  }
   // Statik saha tek kaynaktan: zemin tonu, dokusu, derzi, seeded dekoru ve
   // yuvarlatılmış tepsi kesimi `fieldKit`'te pişirilir, frame başına tek blit.
   // Eskiden burada düz `#E8E5DF` dolgu + kare siyah `strokeRect` vardı.
@@ -159,13 +183,27 @@ export function drawArcherArena(ctx, arena, obstacles, opts = {}) {
   for (const obs of obstacles) drawObstacle(ctx, obs, { theme: 'ARCHER' });
 }
 
-export function drawArcherPickups(ctx, pickups) {
+export function drawArcherPickups(ctx, pickups, proj = null) {
   for (const pk of pickups) {
-    drawPickup(ctx, { x: pk.x, y: pk.y, type: pk.type, animTime: pk.animTime, radius: pk.size || pk.radius || 15 });
+    const half = (pk.size || pk.radius || 15) / 2;
+    sceneDraw(ctx, (pk.y + half), drawArcherPickupItem, proj, pk);
   }
 }
 
-export function drawArcherArrows(ctx, arrows, arena = null) {
+/** Statik pickup öğesi — derinlik kuyruğu (eğik rozet `proj` ile). */
+function drawArcherPickupItem(ctx, proj, pk) {
+  drawPickup(
+    ctx,
+    { x: pk.x, y: pk.y, type: pk.type, animTime: pk.animTime, radius: pk.size || pk.radius || 15 },
+    { proj },
+  );
+}
+
+export function drawArcherArrows(ctx, arrows, arena = null, proj = null) {
+  if (proj) {
+    for (const a of arrows) sceneDraw(ctx, entitySceneY(a.y, 8), drawArcherArrowItem25d, proj, a);
+    return;
+  }
   const u = arena?.unit ?? 1;
   for (const a of arrows) {
     const ang = Math.atan2(a.vy || 0, a.vx || 0);
@@ -220,6 +258,31 @@ export function drawArcherArrows(ctx, arrows, arena = null) {
 }
 
 /**
+ * 2.5D ok: zemine düşen uçuş gölgesi + zeminden yükseltilmiş projekte şaft + uç.
+ * Derinlik kuyruğu öğesi olarak (ctx, proj, a) ile çağrılır.
+ */
+function drawArcherArrowItem25d(ctx, proj, a) {
+  const k = proj.view.scale;
+  // Gövde + zemin gölgesi ortak primitiften (sceneKit.projectile25d).
+  const tHead = projectile25d(ctx, proj, {
+    x: a.x, y: a.y, vx: a.vx, vy: a.vy,
+    tail: 14, head: 16, lift: 12, color: UI_COLORS.inkDark, width: 4,
+  });
+  // Ok başı + ışıltı (oyuna özgü uç).
+  ctx.save();
+  ctx.fillStyle = a.color || FALLBACK;
+  ctx.beginPath();
+  ctx.arc(tHead.x, tHead.y, Math.max(2, 4.2 * k), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = UI_COLORS.white;
+  ctx.beginPath();
+  ctx.arc(tHead.x, tHead.y, Math.max(1, 1.6 * k), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
  * Nişan sallanması — çizilen nişan çizgisi ile gözlerin baktığı yön aynı
  * değeri kullanmalı, yoksa "gözler başka yere bakıyor" ayrışması çıkıyor.
  * Sim tarafındaki `ArcherGame.aimAngle` ile AYNI formül: tam gerilişte (charge=1)
@@ -230,9 +293,115 @@ function archerAimSway(player) {
   return Math.sin(player.swayPhase || 0) * (0.15 * (1 - charge));
 }
 
-export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena = null, selfSlot = -1 } = {}) {
+/** Kare-geneli oyuncu durumu (kare başına tahsis yok; oyuncuya özel veri `player`da). */
+const ARCHER_PLAYER_ST = {
+  showFx: false, now: 0, selfSlot: -1, proj: null,
+};
+
+/** 2.5D oyuncu öğesi: projekte nişan/yay/gösterge halkaları + penguen gövdesi. */
+function drawArcherPlayerItem25d(ctx, player, st) {
+  const {
+    showFx, now, selfSlot, proj,
+  } = st;
+  const slotIndex = (player.slot ?? player.index) ?? 0;
+  const R = player.radius || ARCHER_RADIUS;
+  const k = proj.view.scale;
+  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  const stun = (player.stun || 0) > 0;
+
+  if (showFx) {
+    // Nişan çizgisi (zeminde, projekte): tam gerilişte ok tam bakış yönüne gider.
+    const charge = clamp01(player.charge);
+    const aim = (player.angle || 0) + archerAimSway(player);
+    const len = R + 60 + charge * 90;
+    const a = proj.proj(player.x, player.y, 0);
+    const b = proj.proj(player.x + Math.cos(aim) * len, player.y + Math.sin(aim) * len, 0);
+    ctx.save();
+    ctx.strokeStyle = player.charge >= 1 ? UI_COLORS.hudCharge : UI_COLORS.hudDim;
+    ctx.lineWidth = Math.max(2, (player.charge >= 1 ? 4 : 2.5) * k);
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.restore();
+    // Yay gövde etrafında zemin halkası olarak kalır (nişan geometrisi).
+    proj.groundRing(ctx, player.x, player.y, R + 6, player.charging ? UI_COLORS.hudCharge : UI_COLORS.hudDim, Math.max(1.5, 3.5 * k));
+    if (player.charging) {
+      const tip = proj.proj(player.x + Math.cos(aim) * (R + 6), player.y + Math.sin(aim) * (R + 6), 10);
+      ctx.save();
+      ctx.fillStyle = UI_COLORS.hudCharge;
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, Math.max(2, (3 + charge * 3) * k), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    if ((player.shield || 0) > 0) {
+      proj.groundRing(ctx, player.x, player.y, R + 11, UI_COLORS.hudShield, Math.max(1, 3 * k));
+    }
+    if ((player.spawnProt || 0) > 0) {
+      proj.groundRing(ctx, player.x, player.y, R + 15, UI_COLORS.hudCharge, Math.max(1, 3 * k));
+    }
+  }
+
+  drawGameAvatar25d(ctx, proj, player, {
+    x: player.x,
+    y: player.y,
+    radius: R,
+    color: stun ? STUN_COLOR : (player.color || FALLBACK),
+    facingAngle: player.angle || 0,
+    expression: player.charging ? 'angry' : (stun ? 'dizzy' : 'normal'),
+    borderWidth: Math.max(1.5, 2.5 * k),
+    now: now || performance.now(),
+    alpha: fxReadAlpha({ isSelf: hasViewer && slotIndex === selfSlot, hasViewer }),
+  });
+
+  // Aktif efekt rozetleri (projekte konumda).
+  const activeEffects = [
+    ['zap', player.turbo ?? player.turboTimer],
+    ['rotate-cw', player.quickdraw ?? player.quickdrawTimer],
+    ['target', player.multi ?? player.multiShots],
+    ['wind', player.slip ?? player.slipTimer],
+  ].filter(([, value]) => Number(value) > 0);
+  if (activeEffects.length) {
+    const top = proj.proj(player.x, player.y, R * 2.6);
+    activeEffects.forEach(([icon], index) => {
+      drawTabletopIcon(ctx, icon, top.x + (index - (activeEffects.length - 1) / 2) * 16 * k, top.y, Math.max(9, 12 * k), {
+        color: index % 2 === 0 ? UI_COLORS.hudAmber : UI_COLORS.hudCharge,
+        accentColor: UI_COLORS.hudAmber,
+        strokeWidth: 2,
+      });
+    });
+  }
+
+  // Ateş bekleme rozeti (projeksiyonlu durum rozeti).
+  const progress = Number.isFinite(player.fireCooldown)
+    ? player.fireCooldown
+    : getFireCooldownProgress(player, player.fireCooldownMax || 0.8);
+  if (progress < 1) {
+    chipAt(ctx, proj, { x: player.x, y: player.y, radius: R }, { scale: k, icon: 'zap', progress });
+  }
+}
+
+export function drawArcherPlayers(ctx, players, {
+  showFx = false, now = 0, arena = null, selfSlot = -1, proj = null,
+} = {}) {
   // 3.3: tek görür varsa kendi avatarın T1 (tam), diğerleri T3 (−%25). α fxKit'ten okunur.
   const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  if (proj) {
+    const st = ARCHER_PLAYER_ST;
+    st.showFx = showFx;
+    st.now = now;
+    st.selfSlot = selfSlot;
+    st.proj = proj;
+    queuePlayers(ctx, players, {
+      state: st,
+      drawItem: drawArcherPlayerItem25d,
+      radiusOf: (player) => player.radius || ARCHER_RADIUS,
+      visible: isWorldEntityVisible,
+    });
+    return;
+  }
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
     const slotIndex = (player.slot ?? player.index) ?? 0;
@@ -299,7 +468,7 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena
 
     const stun = (player.stun || 0) > 0;
     drawGameAvatar(ctx, 0, 0, R, player, {
-      color: stun ? '#9C988F' : (player.color || FALLBACK),
+      color: stun ? STUN_COLOR : (player.color || FALLBACK),
       facingAngle: 0,
       label: `P${slotIndex + 1}`,
       expression: player.charging ? 'angry' : (stun ? 'dizzy' : 'normal'),
@@ -350,8 +519,8 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena
  * @param {CanvasRenderingContext2D} ctx
  * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
  */
-export function drawArcherFxLayer(ctx, layer) {
-  drawFxPops(ctx, layer?.pops);
-  drawFxRings(ctx, layer?.rings);
-  drawCircleParticles(ctx, layer?.particles);
+export function drawArcherFxLayer(ctx, layer, proj = null) {
+  drawFxPops(ctx, layer?.pops, proj);
+  drawFxRings(ctx, layer?.rings, proj);
+  drawCircleParticles(ctx, layer?.particles, proj);
 }

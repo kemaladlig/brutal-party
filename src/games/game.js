@@ -10,11 +10,15 @@ import { getUiScale, UI_COLORS } from '../ui/tokens.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { beginRound, endMatch, setRoundTimer, tickRoundFlow } from '../core/roundLifecycle.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
-import { createPongWorldPacket, drawPongArena, drawPongFxLayer, drawPongServeTelegraph } from './pongView.js';
+import { createPongWorldPacket, drawPongArena, drawPongFxLayer, drawPongServeTelegraph, PONG_THEME_25D } from './pongView.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
-import { hashFieldSeed, paintBackdrop } from '../core/fieldKit.js';
+import { hashFieldSeed } from '../core/fieldKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
+import { groundSpace } from '../core/sceneKit.js';
+import { sceneDraw } from '../core/arenaKit.js';
 import { getSlotKeys, slotForActionCode } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, matchOverRestartTap } from '../core/touchFlow.js';
@@ -35,6 +39,10 @@ export class Game extends BaseMiniGame {
     // States: 'LOBBY', 'PLAYING', 'ROUND_PAUSE', 'MATCH_OVER'
     this.state = 'LOBBY';
 
+    // 2.5D sahne zarfı: kamera arena+viewport+sabit temadan sığdırılır; ONLINE
+    // client AYNI sabitle aynı sahneyi kurar (sahne birebir eşleşir).
+    this.scene = createTiltedScene({ camera: TILTED_25D_CAMERA.pong });
+    this.proj = this.scene.proj;
     // Arena geometry (responsive rectangle)
     /** @type {MiniGameArena} */ this.arena = {
       cx: 0,
@@ -778,9 +786,13 @@ export class Game extends BaseMiniGame {
     const { ctx, canvas } = this;
     ctx.save();
 
-    // Sahanın dışı: arenanın etrafındaki masa (`fieldKit` tek sahibi).
-    // Sarsıntıdan etkilenmez — tepsi masanın üstünde kayar.
-    paintBackdrop(ctx, { width: window.innerWidth, height: window.innerHeight }, this.arena, { mode: 'PONG' });
+    // 2.5D sahne zarfı: masa zemini `drawField25d` içinde boyanır (paintBackdrop
+    // çizilmez). Tema sabittir; ONLINE client aynı sabitle aynı sahneyi kurar.
+    this.scene.open(ctx, {
+      viewport: this.viewport,
+      arena: this.arena,
+      theme: PONG_THEME_25D,
+    });
 
     // Screen Shake (Trauma)
     this.applyScreenShake(ctx, 14);
@@ -788,20 +800,26 @@ export class Game extends BaseMiniGame {
     // Render Arena with Corner Bumpers & Goal Mouths
     this.renderArena(ctx);
 
-    // Render Inactive Walls & Paddles
+    // Render Inactive Walls & Paddles — derinlik kuyruğuna taban-Y ile girer,
+    // böylece alt raket alt rayın ÖNÜNDE kalır (eşit taban-Y'de son giren çizer).
     for (const paddle of this.paddles) {
-      paddle.draw(ctx, this.arena);
+      const b = paddle.getBounds();
+      sceneDraw(ctx, b.bottom, (c, p) => groundSpace(c, p, (g2) => paddle.draw(g2, this.arena)), this.proj);
     }
 
     // Render Ball (streak hapı yok: ralli bilgisi telegraf/ENGEL ile verilir)
     if (this.state === 'PLAYING' || this.state === 'ROUND_PAUSE') {
       // Servis telegrafı topun ALTINDA: iz + yön oku, sonra top çekirdeği.
-      if (this.state === 'ROUND_PAUSE') drawPongServeTelegraph(ctx, this.ball, this.arena);
-      this.ball.draw(ctx);
+      const br = Math.max(1, Number(this.ball.radius) || 11);
+      sceneDraw(ctx, this.ball.y + br, (c, p) => groundSpace(c, p, (g2) => {
+        if (this.state === 'ROUND_PAUSE') drawPongServeTelegraph(g2, this.ball, this.arena);
+        this.ball.draw(g2);
+      }), this.proj);
     }
 
     // FX katmanı ortak pongView draw'ından gelir (host↔client aynı).
-    drawPongFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+    drawPongFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles }, this.proj);
+    this.scene.close(ctx);
 
     const activeEntities = /** @type {any[]} */ ([this.ball]);
     // Paddle proksi yarıçapı: hayalet-solma (proximity ghosting) hesabı için
@@ -852,17 +870,29 @@ export class Game extends BaseMiniGame {
   }
 
   renderArena(ctx) {
-    const { cx, cy } = this.arena;
-    const minDim = Math.min(this.arena.width, this.arena.height);
-    const u = this.arena?.unit ?? (minDim / 952);
-
     // Statik saha katmanı: zemin gradyanı, ızgara, iç çerçeve, merkez halkaları,
     // köşe plakaları + nişanlar, dekor, duvar. `fieldKit` bir kez offscreen'a
     // pişirip blit eder; client da aynı fonksiyonu çağırır (tek saha dili).
     // Kapı boşlukları yama olarak katmanın içine pişirilir.
     drawPongArena(ctx, this.arena, this.getGoalSpans(), {
       seed: hashFieldSeed('PONG', this.roundId),
+      proj: this.proj,
     });
+
+    // Canlı saha katmanı (tehlike halkası, geri sayım, tamponlar, kale çizgileri)
+    // zemin düzlemindedir → 2.5D'de tek afin transform içinde çizilir.
+    if (this.proj) {
+      groundSpace(ctx, this.proj, (c) => this.paintArenaLive(c));
+      return;
+    }
+    this.paintArenaLive(ctx);
+  }
+
+  /** Canlı saha katmanı gövdesi (2D ve 2.5D yolu AYNI çizim). */
+  paintArenaLive(ctx) {
+    const { cx, cy } = this.arena;
+    const minDim = Math.min(this.arena.width, this.arena.height);
+    const u = this.arena?.unit ?? (minDim / 952);
 
     if (this.state === 'PLAYING' || this.state === 'ROUND_PAUSE') {
       const currentSpeed = Math.round(Math.hypot(this.ball.vx, this.ball.vy));

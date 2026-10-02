@@ -13,7 +13,7 @@
 .reaction-layer {
   position: fixed;
   inset: 0;
-  z-index: 240;
+  z-index: var(--z-reactions);
   pointer-events: none;
   overflow: hidden;
 }
@@ -166,7 +166,7 @@
 .reaction-picker {
   position: fixed;
   inset: 0;
-  z-index: 320;
+  z-index: var(--z-picker);
   display: none;
   align-items: center;
   justify-content: center;

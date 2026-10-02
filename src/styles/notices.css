@@ -33,7 +33,7 @@
   position: fixed;
   top: max(12px, env(safe-area-inset-top));
   left: max(16px, env(safe-area-inset-left));
-  z-index: 300;
+  z-index: var(--z-toast);
   width: min(300px, calc(100vw - 32px));
   padding: 11px 13px;
   border: 3px solid var(--edge);
@@ -74,7 +74,7 @@
   top: 0;
   left: 0;
   right: 0;
-  z-index: 400;
+  z-index: var(--z-banner);
   padding: max(8px, env(safe-area-inset-top)) 12px 8px;
   border-bottom: 3px solid var(--edge);
   font-family: var(--font-mono);

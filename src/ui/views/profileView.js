@@ -85,7 +85,7 @@ function buildRimGrid(onPick) {
   return grid;
 }
 
-function buildCard() {
+function buildCard(openLab) {
   const card = el('article', 'profile-card');
   card.id = 'menu-customize-card';
 
@@ -194,6 +194,21 @@ function buildCard() {
   // buton akışın sonunda overflow:hidden altında kaybolmasın.
   const toolbar = el('div', 'profile-toolbar');
   toolbar.append(tabs.node, diceBtn);
+  if (typeof openLab === 'function') {
+    const labBtn = el('button', 'scene-btn is-ghost profile-dice');
+    labBtn.type = 'button';
+    labBtn.dataset.focus = 'profile';
+    labBtn.setAttribute('aria-label', 'Avatar Lab');
+    labBtn.title = 'Avatar Lab';
+    labBtn.innerHTML = `
+      <span class="scene-btn-icon">${getTabletopIconSvg('flask_conical', { size: 18, strokeWidth: 2.2 })}</span>
+      <span class="scene-btn-copy"><span class="scene-btn-label">LAB</span></span>`;
+    labBtn.addEventListener('click', () => {
+      playMenuTick();
+      openLab('avatar-lab');
+    });
+    toolbar.append(labBtn);
+  }
   editor.append(toolbar, panels);
   body.append(editor);
 
@@ -236,9 +251,10 @@ registerView('profile', {
   title: 'KARAKTER',
   rail: { icon: 'gamepad_2', label: 'KARAKTER', order: 2 },
   keepAlive: true,
-  build() {
+  build(ctx) {
+    const openLab = ctx?.openView;
     const view = el('div', 'profile-view');
-    view.append(buildCard());
+    view.append(buildCard(openLab));
     initMenuAvatarCard(view);
     // Dil değişiminde metinler tazelenir (kart `keepAlive` olduğu için yeniden kurulmaz).
     onLangChange(() => {

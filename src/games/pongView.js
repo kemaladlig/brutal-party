@@ -11,8 +11,15 @@ import {
   drawFxPops,
   drawCircleParticles,
 } from './worldCore.js';
-import { drawField } from '../core/fieldKit.js';
+import { drawField, drawField25d, drawFieldRail, fieldRailBaseY } from '../core/fieldKit.js';
+import { drawObstacle } from '../core/arenaKit.js';
+import { sceneDraw } from '../core/arenaKit.js';
+import { groundSpace } from '../core/sceneKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
+
+const RAIL_SIDES = /** @type {const} */ (['north', 'west', 'east', 'south']);
+// Sabit tema: PONG kortu tek düzen paylaşır.
+export const PONG_THEME_25D = 'night';
 
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -156,10 +163,10 @@ export function isValidPongWorldFrame(frame) {
  * @param {CanvasRenderingContext2D} ctx
  * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
  */
-export function drawPongFxLayer(ctx, layer) {
-  drawFxPops(ctx, layer?.pops);
-  drawFxRings(ctx, layer?.rings);
-  drawCircleParticles(ctx, layer?.particles);
+export function drawPongFxLayer(ctx, layer, proj = null) {
+  drawFxPops(ctx, layer?.pops, proj);
+  drawFxRings(ctx, layer?.rings, proj);
+  drawCircleParticles(ctx, layer?.particles, proj);
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +214,7 @@ export function pongGoalVariant(goals) {
     .join(',');
 }
 
-function paddleBounds(paddle) {
+export function pongPaddleBounds(paddle) {
   const halfLength = (paddle.length || 0) / 2;
   const halfThickness = (paddle.thickness || 0) / 2;
   if (paddle.axis === 'horizontal') {
@@ -312,9 +319,43 @@ export function drawPongServeTelegraph(ctx, ball, arena = null) {
  * @param {CanvasRenderingContext2D} ctx
  * @param {FieldGeometry|null} arena
  * @param {Record<string, [number, number]>|null} [goals]
- * @param {{seed?: number}} [opts]
+ * @param {{seed?: number, proj?: any}} [opts]
  */
-export function drawPongArena(ctx, arena, goals = null, { seed } = {}) {
+export function drawPongArena(ctx, arena, goals = null, { seed, proj = null } = {}) {
+  if (proj) {
+    // 2.5D eğik saha: masa zemini + kenar rayları. Kale ağızları statik
+    // katmanın yama sistemiyle pişirilemediği için zemine şerit olarak basılır.
+    drawField25d(ctx, proj, arena);
+    for (const side of RAIL_SIDES) {
+      sceneDraw(ctx, fieldRailBaseY(arena, side), drawFieldRail, proj, { arena, side });
+    }
+    groundSpace(ctx, proj, (c) => {
+      const u = arena?.unit ?? 1;
+      c.save();
+      c.strokeStyle = UI_COLORS.crownRed;
+      c.globalAlpha = 0.55;
+      c.lineWidth = Math.max(3, 6 * u);
+      for (const side of ['bottom', 'top', 'left', 'right']) {
+        const span = goals?.[side];
+        if (!Array.isArray(span) || span.length !== 2) continue;
+        const [from, to] = span;
+        if (!finite(from) || !finite(to) || to <= from) continue;
+        c.beginPath();
+        if (side === 'bottom' || side === 'top') {
+          const yy = side === 'bottom' ? arena.bottom : arena.top;
+          c.moveTo(from, yy);
+          c.lineTo(to, yy);
+        } else {
+          const xx = side === 'right' ? arena.right : arena.left;
+          c.moveTo(xx, from);
+          c.lineTo(xx, to);
+        }
+        c.stroke();
+      }
+      c.restore();
+    });
+    return;
+  }
   // Statik saha katmanı `fieldKit` tarafından pişirilir: zemin gradyanı, ızgara,
   // iç çerçeve, iki merkez halkası, köşe plakaları + nişanlar, dekor, duvar.
   // Kapı boşlukları `pongGoalPatches` ile yama olarak katmanın İÇİne girer.
@@ -342,7 +383,7 @@ export function drawPongPaddles(ctx, paddles, arena, colors = []) {
       ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 3 * u; ctx.strokeRect(wall.x, wall.y, wall.w, wall.h);
       continue;
     }
-    const bounds = paddleBounds(paddle);
+    const bounds = pongPaddleBounds(paddle);
     drawPongPaddleBody(ctx, bounds, color, u);
     if (paddle.lives > 0) {
       ctx.fillStyle = color;

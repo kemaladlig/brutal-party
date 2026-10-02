@@ -4,9 +4,16 @@
 // Not: spawn beacon'ları (2 sn'lik giriş efekti) ile sudden-death hapı host HUD'udur,
 // world snapshot'ına girmez — client tankları belirdiği anda görür.
 
-import { drawPickup, drawObstacle } from '../core/arenaKit.js';
-import { drawField, hashFieldSeed } from '../core/fieldKit.js';
+import {
+  drawPickup, drawObstacle, drawObstacle25dShadow, drawObstacle25dMass, obstacleBaseY, sceneDraw,
+} from '../core/arenaKit.js';
+import { drawField, hashFieldSeed, drawField25d, drawFieldRail, fieldRailBaseY } from '../core/fieldKit.js';
+import { groundSpace } from '../core/sceneKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
+
+const RAIL_SIDES = /** @type {const} */ (['north', 'west', 'east', 'south']);
+// Sabit tema: TANKS haritaları yalnız engel düzeni paylaşır (SNAKE deseni).
+export const TANKS_THEME_25D = 'night';
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { renderEntityHUD } from '../ui/hud.js';
 import {
@@ -148,12 +155,29 @@ export function isValidTanksWorldFrame(frame) {
  * @param {CanvasRenderingContext2D} ctx
  * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
  */
-export function drawTanksFxLayer(ctx, layer) {
-  drawFxPops(ctx, layer?.pops);
-  drawFxRings(ctx, layer?.rings);
-  drawSquareParticles(ctx, layer?.particles);
+export function drawTanksFxLayer(ctx, layer, proj = null) {
+  drawFxPops(ctx, layer?.pops, proj);
+  drawFxRings(ctx, layer?.rings, proj);
+  drawSquareParticles(ctx, layer?.particles, proj);
 }
 export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null, opts = {}) {
+  const proj = opts.proj || null;
+  if (proj) {
+    // 2.5D eğik saha: masa zemini + kenar rayları; sudden-death alanı zemin
+    // uzayında; engeller gerçek prizma (gölge zeminde, gövde derinlik kuyruğunda).
+    drawField25d(ctx, proj, arena);
+    for (const side of RAIL_SIDES) {
+      sceneDraw(ctx, fieldRailBaseY(arena, side), drawFieldRail, proj, { arena, side });
+    }
+    if (suddenDeath?.active && suddenDeath.radius > 0) {
+      groundSpace(ctx, proj, (c) => paintTanksSuddenDeath(c, arena, suddenDeath));
+    }
+    for (const obs of obstacles) {
+      drawObstacle25dShadow(ctx, proj, obs);
+      sceneDraw(ctx, obstacleBaseY(obs), drawObstacle25dMass, proj, obs);
+    }
+    return;
+  }
   // Statik saha `fieldKit`'te: adaçayı tonlu zemin, tanecik dokusu, merkez
   // halkası, köşe plakaları, seeded dekor ve yuvarlatılmış tepsi kesimi.
   // Eskiden burada ~12 ızgara stroke'u + 2 gölge bandı + kare `strokeRect`
@@ -162,27 +186,32 @@ export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null, opts =
 
   // Sudden Death CANLI: yarıçap her frame küçülüyor, yani oyun durumu — bake
   // edilemez. Zaten world packet'inde `{active,x,y,radius}` olarak taşınıyor.
-  const { left, top, width, height } = arena;
-  const u = arena?.unit ?? 1;
   if (suddenDeath?.active && suddenDeath.radius > 0) {
-    ctx.save();
-    ctx.fillStyle = 'rgba(216, 71, 39, 0.12)';
-    ctx.beginPath();
-    ctx.rect(left, top, width, height);
-    ctx.arc(suddenDeath.x, suddenDeath.y, suddenDeath.radius, 0, Math.PI * 2, true);
-    ctx.fill('evenodd');
-    ctx.strokeStyle = '#D84727';
-    ctx.lineWidth = 3 * u;
-    ctx.setLineDash([8, 6]);
-    ctx.beginPath();
-    ctx.arc(suddenDeath.x, suddenDeath.y, suddenDeath.radius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
+    paintTanksSuddenDeath(ctx, arena, suddenDeath);
   }
 
   for (const obs of obstacles) {
     drawObstacle(ctx, obs, { theme: 'TANKS' });
   }
+}
+
+/** Sudden-death daralma alanı — zemin katmanı gövdesi (2D ve 2.5D ortak). */
+function paintTanksSuddenDeath(ctx, arena, suddenDeath) {
+  const { left, top, width, height } = arena;
+  const u = arena?.unit ?? 1;
+  ctx.save();
+  ctx.fillStyle = 'rgba(216, 71, 39, 0.12)';
+  ctx.beginPath();
+  ctx.rect(left, top, width, height);
+  ctx.arc(suddenDeath.x, suddenDeath.y, suddenDeath.radius, 0, Math.PI * 2, true);
+  ctx.fill('evenodd');
+  ctx.strokeStyle = '#D84727';
+  ctx.lineWidth = 3 * u;
+  ctx.setLineDash([8, 6]);
+  ctx.beginPath();
+  ctx.arc(suddenDeath.x, suddenDeath.y, suddenDeath.radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function pathRoundRect(ctx, x, y, w, h, r) {
@@ -195,7 +224,8 @@ function pathRoundRect(ctx, x, y, w, h, r) {
   }
 }
 
-export function drawTanksBullets(ctx, bullets, ownerColors) {
+export function drawTanksBullets(ctx, bullets, ownerColors, proj = null) {
+  if (proj) { groundSpace(ctx, proj, (c) => drawTanksBullets(c, bullets, ownerColors)); return; }
   for (const b of bullets) {
     const ownerColor = ownerColors?.[b.owner] || UI_COLORS.crownGold;
     const hasVelocity = (b.vx !== undefined && b.vy !== undefined && (b.vx !== 0 || b.vy !== 0));
@@ -309,7 +339,8 @@ export function drawTanksBullets(ctx, bullets, ownerColors) {
   }
 }
 
-export function drawTanksTracers(ctx, tracers, arena = null) {
+export function drawTanksTracers(ctx, tracers, arena = null, proj = null) {
+  if (proj) { groundSpace(ctx, proj, (c) => drawTanksTracers(c, tracers, arena)); return; }
   const u = arena?.unit ?? 1;
   for (const tracer of tracers || []) {
     ctx.save();
@@ -324,7 +355,8 @@ export function drawTanksTracers(ctx, tracers, arena = null) {
   }
 }
 
-export function drawTanksCrates(ctx, crates) {
+export function drawTanksCrates(ctx, crates, proj = null) {
+  if (proj) { groundSpace(ctx, proj, (c) => drawTanksCrates(c, crates)); return; }
   for (const crate of crates) {
     drawPickup(ctx, { x: crate.x, y: crate.y, type: crate.type, animTime: 0, radius: (crate.size || 22) / 2 }, { size: crate.size || 22 });
   }
@@ -347,7 +379,10 @@ export function getTankAmmoVisual(tank) {
   return tankAmmoVisual(tank);
 }
 
-export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true, selfSlot = -1 } = {}) {
+export function drawTanksTanks(ctx, tanks, {
+  arena = null, withFx = true, selfSlot = -1, proj = null,
+} = {}) {
+  if (proj) { groundSpace(ctx, proj, (c) => drawTanksTanks(c, tanks, { arena, withFx, selfSlot })); return; }
   // 3.3 okunurluk: tek görür varsa (ONLINE kumanda selfSlot / LOCAL tek koltuk) kendi
   // tankın T1 (tam opak), diğer oyuncular T3 (−%25). Paylaşılan TV'de görür yok → dim yok.
   const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;

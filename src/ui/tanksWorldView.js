@@ -8,18 +8,23 @@ import {
   drawTanksCrates,
   drawTanksTanks,
   drawTanksFxLayer,
+  TANKS_THEME_25D,
   isValidTanksWorldFrame,
 } from '../games/tanksView.js';
 import { drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
-import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
-import { paintBackdrop } from '../core/fieldKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
+import { drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
 const TANK_FALLBACK = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 
 export function createWorldViewRenderer() {
+  // 2.5D sahne zarfı renderer ömrü boyunca yaşar (proj kalıcı). Host ile AYNI
+  // girdileri verir (arena + viewport + sabit tema) → sahne birebir eşleşir.
+  const scene = createTiltedScene({ camera: TILTED_25D_CAMERA.tanks });
   return {
     validate: isValidTanksWorldFrame,
 
@@ -35,44 +40,50 @@ export function createWorldViewRenderer() {
       arena.size = Math.min(arena.width, arena.height);
 
       ctx.save();
-      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'TANKS' });
-      fitWorld(ctx, width, height, frame.arena, () => {
-        drawTanksArena(
-          ctx,
-          arena,
-          frame.obstacles.map(([x, y, w, h]) => ({ x, y, w, h })),
-          frame.suddenDeath,
-          { roundId: frame.roundId },
-        );
-        const ownerColors = frame.players.map((p) => slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || TANK_FALLBACK[p.slot]);
-        drawTanksBullets(ctx, frame.bullets.map(([x, y, radius, owner, vx, vy]) => ({ x, y, radius, owner, vx, vy })), ownerColors);
-        drawTanksTracers(ctx, frame.tracers || []);
-        drawTanksCrates(ctx, frame.crates.map(([x, y, size, type]) => ({ x, y, size, type })));
-        const tanks = frame.players.map((p) => ({
-          ...p,
-          index: p.slot,
-          color: slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || TANK_FALLBACK[p.slot],
-          avatar: slots?.[p.slot]?.avatar || null,
-        }));
-        drawTanksTanks(ctx, tanks, { arena, withFx: frame.gameState === 'PLAYING', selfSlot: context.selfSlot ?? -1 });
-        // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
-        drawTanksFxLayer(ctx, fxLive
-          ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
-          : {
-              pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
-              rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
-              particles: frame.particles || [],
-            });
-        if (frame.intro?.active) {
-           ctx.save();
-           ctx.textAlign = 'center';
-           ctx.textBaseline = 'middle';
-           ctx.fillStyle = '#1A1A1A';
-           ctx.font = '900 34px "Space Grotesk", sans-serif';
-           ctx.fillText(String(Math.max(1, Math.ceil(frame.intro.time))), arena.cx, arena.cy);
-           ctx.restore();
-         }
+      // 2.5D eğik kamera: host ile AYNI girdilerden kurulur.
+      const proj = scene.open(ctx, {
+        viewport: { width, height },
+        arena,
+        theme: TANKS_THEME_25D,
       });
+      drawTanksArena(
+        ctx,
+        arena,
+        frame.obstacles.map(([x, y, w, h]) => ({ x, y, w, h })),
+        frame.suddenDeath,
+        { roundId: frame.roundId, proj },
+      );
+      const ownerColors = frame.players.map((p) => slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || TANK_FALLBACK[p.slot]);
+      drawTanksBullets(ctx, frame.bullets.map(([x, y, radius, owner, vx, vy]) => ({ x, y, radius, owner, vx, vy })), ownerColors, proj);
+      drawTanksTracers(ctx, frame.tracers || [], arena, proj);
+      drawTanksCrates(ctx, frame.crates.map(([x, y, size, type]) => ({ x, y, size, type })), proj);
+      const tanks = frame.players.map((p) => ({
+        ...p,
+        index: p.slot,
+        color: slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || TANK_FALLBACK[p.slot],
+        avatar: slots?.[p.slot]?.avatar || null,
+      }));
+      drawTanksTanks(ctx, tanks, { arena, withFx: frame.gameState === 'PLAYING', selfSlot: context.selfSlot ?? -1, proj });
+      scene.close(ctx);
+      // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
+      drawTanksFxLayer(ctx, fxLive
+        ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
+        : {
+            pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
+            rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
+            particles: frame.particles || [],
+          }, proj);
+      if (frame.intro?.active) {
+        // Geri sayım metni ekran-uzayı: projekte merkezde dik okunur.
+        const ctr = proj.proj(arena.cx, arena.cy, 0);
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#1A1A1A';
+        ctx.font = '900 34px "Space Grotesk", sans-serif';
+        ctx.fillText(String(Math.max(1, Math.ceil(frame.intro.time))), ctr.x, ctr.y);
+        ctx.restore();
+      }
       ctx.restore();
 
       // Kill flaşı ekran-space: playback mandalı açıkken oynatıcıdan, değilse

@@ -39,6 +39,7 @@ import {
   packFxState, isValidFxState, drawFxRings, drawFxPops, drawSquareParticles,
 } from './worldCore.js';
 import { renderEntityHUD } from '../ui/hud.js';
+import { queuePlayers } from '../core/sceneKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import { t } from '../i18n.js';
 
@@ -413,11 +414,12 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
   st.proj = proj;
   // 3.3: tek görür varsa kendi avatarın T1, diğerleri T3 (−%25); α fxKit'ten.
   st.hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
-  for (const player of players) {
-    if (!isWorldEntityVisible(player)) continue;
-    // Derinlik anahtarı ayak tabanı — blok prizmalarıyla aynı ölçekte sıralanır.
-    sceneDraw(ctx, entitySceneY(player.y, player.radius || 36), drawBombPlayerItem, player, st);
-  }
+  queuePlayers(ctx, players, {
+    state: st,
+    drawItem: drawBombPlayerItem,
+    radiusOf: (player) => player.radius || 36,
+    visible: isWorldEntityVisible,
+  });
 }
 
 /**

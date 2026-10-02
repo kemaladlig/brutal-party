@@ -18,6 +18,8 @@ import {
   drawCollapsePickups,
   drawCollapsePlayers,
   drawCollapseFxLayer,
+  drawCollapseArena,
+  COLLAPSE_THEME_25D,
 } from './collapseView.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
@@ -25,7 +27,8 @@ import { fxFlashAlpha } from '../core/fxKit.js';
 import { beginRound, endMatch, tickRoundFlow } from '../core/roundLifecycle.js';
 import { tickPickupTimers } from '../core/pickupSystem.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
-import { paintBackdrop } from '../core/fieldKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
 
 export const COLLAPSE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const COLLAPSE_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -149,6 +152,10 @@ export const COLLAPSE_MAPS = [
 export class CollapseGame extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
+    // 2.5D sahne zarfı: kamera arena+viewport+sabit temadan sığdırılır; ONLINE
+    // client AYNI sabit temayla aynı sahneyi kurar (sahne birebir eşleşir).
+    this.scene = createTiltedScene({ camera: TILTED_25D_CAMERA.collapse });
+    this.proj = this.scene.proj;
     this.arena = { cx: 0, cy: 0, size: 0, left: 0, right: 0, top: 0, bottom: 0 };
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty'];
     this.scores = [0, 0, 0, 0];
@@ -819,12 +826,18 @@ this.targetScore = 2;
     const now = performance.now();
     ctx.save();
 
-    // Sahanın dışı (uçurum / masa) — `fieldKit` tek sahibi
-    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'COLLAPSE' });
+    // Sahanın dışı (uçurum / masa) — `fieldKit` tek sahibi. 2.5D'de masa zemini
+    // `drawField25d` içinde boyanır (paintBackdrop çizilmez).
+    this.scene.open(ctx, {
+      viewport: this.viewport,
+      arena: this.arena,
+      theme: COLLAPSE_THEME_25D,
+    });
     this.applyScreenShake(ctx);
+    drawCollapseArena(ctx, this.arena, this.proj);
 
     // 2. DÜŞEN 3D BLOKLAR (Uçurumda aşağı düşenler — dönerek düşer)
-    drawCollapseFalling(ctx, this.fallingTiles);
+    drawCollapseFalling(ctx, this.fallingTiles, this.proj);
 
     // 3. 3D IZGARA ZEMİNİ (Derinlikli Bloklar) — ortak collapseView draw'ı
     const gridStates = new Array(this.gridROWS * this.gridCOLS);
@@ -841,19 +854,21 @@ this.targetScore = 2;
     drawCollapseGrid(ctx, this.arena, this.cellSize, gridStates, gridWarn, {
       withFx: this.state === 'PLAYING',
       now,
+      proj: this.proj,
     });
 
     // 4. ŞOK DALGALARI
-    drawCollapseWaves(ctx, this.shockwaves);
+    drawCollapseWaves(ctx, this.shockwaves, this.proj);
 
     // 5. GÜÇLENDİRMELER (Pickups)
-    drawCollapsePickups(ctx, this.pickups, now);
+    drawCollapsePickups(ctx, this.pickups, now, this.proj);
 
     // 6. OYUNCULAR (Havada yükselme, gölge derinliği ve şok halkası)
-    drawCollapsePlayers(ctx, this.players, { selfSlot: this.localControlSlot ?? -1 });
+    drawCollapsePlayers(ctx, this.players, { selfSlot: this.localControlSlot ?? -1, proj: this.proj });
+    this.scene.close(ctx);
 
     // 7. FX KATMANI (ortak collapseView draw'ı — host↔client aynı)
-    drawCollapseFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+    drawCollapseFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles }, this.proj);
 
     if (this.state === 'PLAYING') {
       this.renderControls(ctx);

@@ -22,8 +22,9 @@ import { pulse } from '../ui/motion.js';
 
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
-import { buildLayout, sceneBegin, sceneEnd } from '../core/arenaKit.js';
-import { createProjector, makeTiltedProjector } from '../core/projection2d.js';
+import { buildLayout } from '../core/arenaKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
 import { updateBombBotAI } from '../ai/bombAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
@@ -101,8 +102,11 @@ export class BombGame extends BaseMiniGame {
     this.selectedMapIndex = 0;
     this.pillars = [];
 
-    // 2.5D eğik kamera (host↔client aynı): arena + viewport'tan her karede kurulur.
-    this.proj = createProjector();
+    // 2.5D sahne zarfı (`core/tiltedScene`): kamera sığdırma + derinlik kuyruğu
+    // tek yerden. `this.proj` KALICI örnektir (kare başına tahsis yok); harness
+    // `open()` her karede aynı örneği arena+viewport+temaya yeniden sığdırır.
+    this.scene = createTiltedScene({ camera: TILTED_25D_CAMERA.bomb });
+    this.proj = this.scene.proj;
 
     // Slot types: 'empty' | 'human' | 'bot_normal' | 'bot_god'
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty']; // P1 Human, P2 Normal Bot default
@@ -522,6 +526,7 @@ this.targetScore = 2;
       types: ['TURBO', 'TELEPORT', 'SLIP'],
       max: 2,
       obstacles: this.pillars,
+      strict: true,
     });
   }
 
@@ -847,16 +852,15 @@ this.targetScore = 2;
     const { ctx } = this;
     ctx.save();
 
-    // 2.5D eğik kamera arena + viewport'tan türetilir; ONLINE client aynı
-    // `proj`'u aynı girdilerle kurar, sahne birebir eşleşir. Tema BOMB
-    // haritasına bağlıdır (`bombThemeForMap`); client paketteki `mapIndex`ten
-    // aynı temayı türetir. Masa zemini `drawField25d` içinde boyanır.
-    makeTiltedProjector(
-      this.viewport,
-      /** @type {any} */ (this.arena),
-      bombThemeForMap(this.selectedMapIndex),
-      this.proj,
-    );
+    // 2.5D sahne zarfı: kamera arena+viewport+tema'dan sığdırılır; ONLINE
+    // client AYNI girdilerle aynı sahneyi kurar (sahne birebir eşleşir). Tema
+    // BOMB haritasına bağlıdır (`bombThemeForMap`); client paketteki
+    // `mapIndex`ten aynı temayı türetir. Masa zemini `drawField25d` içinde.
+    this.scene.open(ctx, {
+      viewport: this.viewport,
+      arena: this.arena,
+      theme: bombThemeForMap(this.selectedMapIndex),
+    });
 
     // Screen Shake (Trauma)
     this.applyScreenShake(ctx, 16);
@@ -864,7 +868,6 @@ this.targetScore = 2;
     // Arena sahnesi ortak bombView draw'larından gelir (host↔client aynı).
     // 2.5D derinlik penceresi: engel prizmaları ↔ pickup/oyuncular taban-Y'ye
     // göre sıralanır; kuzeyde kalan oyuncuyu çatı örter.
-    sceneBegin();
     const carrierP = this.players[this.bombCarrierIndex];
     drawBombArena(ctx, this.arena, this.pillars, {
       carrier: carrierP && carrierP.isAlive
@@ -893,7 +896,7 @@ this.targetScore = 2;
       selfSlot: this.localControlSlot ?? -1,
       proj: this.proj,
     });
-    sceneEnd(ctx);
+    this.scene.close(ctx);
     drawBombBlast(ctx, this.blast, this.arena, this.proj);
     // FX katmanı ortak bombView draw'ından gelir (host↔client aynı).
     drawBombFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles }, this.proj);

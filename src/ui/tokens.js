@@ -148,20 +148,19 @@ export const UI_COLORS = {
       south: { top: '#FFD08A', front: '#EE9F4F', side: '#CC8139' },
       west: { top: '#C7B4F2', front: '#9B7BD8', side: '#7C5FB8' },
     },
-    // Engel prizmaları — deterministik pastel tonlar (5 hue)
-    hue25d: [
-      { top: '#F6B27B', front: '#E08A4F', side: '#BC6F3A' },
-      { top: '#C79AD8', front: '#9B5FA8', side: '#7B4588' },
-      { top: '#C2D98A', front: '#9CBB5A', side: '#7C9A42' },
-      { top: '#FFB7C6', front: '#F58AA3', side: '#D26B85' },
-      { top: '#A8D8EF', front: '#74B8DC', side: '#5697BC' },
-    ],
   },
 
   // --- 2.5D Saha Temaları (harita → tema) ---------------------------------
   // Aynı geometri, farklı malzeme. BOMB harita sırasıyla eşlenir
   // (`bombView.bombThemeForMap`); host↔client aynı paket `mapIndex`inden türetir.
-  // Anahtar adları: mat/matEdge/tray/table/vigTop/vigEdge/stitch/rails/hues.
+  // Anahtar adları: mat/matEdge/tray/table/vigTop/vigEdge/stitch/rails/block.
+  //
+  // `block` = engelin MALZEME KİMLİĞİ (deri adı), ham renk değil. Engel artık
+  // "hue" seçmez: bulunduğu temanın malzemesini taşır. Harita `core/arenaKit.js`
+  // `OBSTACLE_STYLES`'tır ve `block` oradaki anahtarlarla eşleşmek ZORUNDADIR.
+  // Kural: `block` tonu zemin `mat` tonundan ΔL* ≥ 8 ayrışmalı (kapı:
+  // `tests/obstacleRender.test.mjs`) — koyu tema + koyu deri kombinasyonu
+  // engeli zemine gömer.
   arena25dThemes: {
     wood: {
       table: '#B08863', vigTop: 'rgba(255, 240, 220, 0.10)', vigEdge: 'rgba(60, 36, 24, 0.28)',
@@ -172,14 +171,12 @@ export const UI_COLORS = {
         south: { top: '#FFD08A', front: '#EE9F4F', side: '#CC8139' },
         west: { top: '#C7B4F2', front: '#9B7BD8', side: '#7C5FB8' },
       },
-      hues: [
-        { top: '#F6B27B', front: '#E08A4F', side: '#BC6F3A' },
-        { top: '#C79AD8', front: '#9B5FA8', side: '#7B4588' },
-        { top: '#C2D98A', front: '#9CBB5A', side: '#7C9A42' },
-        { top: '#FFB7C6', front: '#F58AA3', side: '#D26B85' },
-        { top: '#A8D8EF', front: '#74B8DC', side: '#5697BC' },
-      ],
+      block: 'crate',
     },
+    // AÇIK zemin → deri KOYU olmalı. `plinth` (açık mermer kaide) denendi:
+    // ΔL*(çatı, mat) = 3.1 çıktı, blok zemine gömülüyordu (kapı:
+    // tests/obstacleRender.test.mjs). Obsidyen siyah taş hem ayrışır hem de
+    // "cilalı taş" dilini korur.
     marble: {
       table: '#C9CBD0', vigTop: 'rgba(255, 255, 255, 0.18)', vigEdge: 'rgba(50, 55, 66, 0.20)',
       tray: '#F6F7F9', mat: '#E8EDF2', matEdge: '#C2CBD6', stitch: 'rgba(120, 135, 155, 0.45)',
@@ -189,13 +186,7 @@ export const UI_COLORS = {
         south: { top: '#F2C89A', front: '#D9A96A', side: '#B88A50' },
         west: { top: '#C9BEE8', front: '#A79BCC', side: '#877BB0' },
       },
-      hues: [
-        { top: '#E7B79A', front: '#C98F6A', side: '#A87450' },
-        { top: '#D8C4E4', front: '#B49BC6', side: '#9179A8' },
-        { top: '#D3E0B8', front: '#AEC488', side: '#8AA068' },
-        { top: '#F0C8CF', front: '#D6A0AA', side: '#B47E88' },
-        { top: '#C4DCE8', front: '#9FBED2', side: '#7C9CB0' },
-      ],
+      block: 'dark',
     },
     arcade: {
       table: '#241C33', vigTop: 'rgba(120, 80, 200, 0.12)', vigEdge: 'rgba(0, 0, 0, 0.45)',
@@ -206,13 +197,7 @@ export const UI_COLORS = {
         south: { top: '#FFD46A', front: '#C4A02F', side: '#8E741F' },
         west: { top: '#8A6AFF', front: '#5F3FC4', side: '#442B8E' },
       },
-      hues: [
-        { top: '#FF9AA2', front: '#D96A74', side: '#A84A52' },
-        { top: '#B39DFF', front: '#8A6FD9', side: '#644FA8' },
-        { top: '#9DFFC4', front: '#6AD99A', side: '#4AA872' },
-        { top: '#FFC59D', front: '#D9966A', side: '#A86E4A' },
-        { top: '#9DE0FF', front: '#6AB6D9', side: '#4A8AA8' },
-      ],
+      block: 'metal',
     },
     picnic: {
       table: '#A9744F', vigTop: 'rgba(255, 240, 200, 0.12)', vigEdge: 'rgba(60, 40, 20, 0.28)',
@@ -223,13 +208,7 @@ export const UI_COLORS = {
         south: { top: '#F2C0A0', front: '#D99A72', side: '#B87750' },
         west: { top: '#A6C4F2', front: '#7A9ED9', side: '#5A7EB8' },
       },
-      hues: [
-        { top: '#F2B27B', front: '#D98A4F', side: '#B86A3A' },
-        { top: '#C79AD8', front: '#9B5FA8', side: '#7B4588' },
-        { top: '#C2D98A', front: '#9CBB5A', side: '#7C9A42' },
-        { top: '#FFB7C6', front: '#F58AA3', side: '#D26B85' },
-        { top: '#A8D8EF', front: '#74B8DC', side: '#5697BC' },
-      ],
+      block: 'crateHeavy',
     },
     night: {
       table: '#16202B', vigTop: 'rgba(90, 140, 200, 0.12)', vigEdge: 'rgba(0, 0, 0, 0.50)',
@@ -240,17 +219,11 @@ export const UI_COLORS = {
         south: { top: '#FFD46A', front: '#D9A83F', side: '#A87A2B' },
         west: { top: '#B08AFF', front: '#7F5FD9', side: '#5A3FA8' },
       },
-      hues: [
-        { top: '#7FB3FF', front: '#4F82D9', side: '#3560A8' },
-        { top: '#B08AFF', front: '#7F5FD9', side: '#5A3FA8' },
-        { top: '#7FFFC4', front: '#4FD99A', side: '#35A870' },
-        { top: '#FFB37F', front: '#D9824F', side: '#A86035' },
-        { top: '#7FE4FF', front: '#4FB6D9', side: '#358AA8' },
-      ],
+      block: 'ice',
     },
     // SNAKE — tek tema (harita varyasyonları yalnız duvar düzeni; zemin ortak).
     // Açık yeşil mat + krem tepsi, yeşil yılan gövdesini yutar diye mat'ı
-    // koyulaştırmadan soluk tuttuk; engeller (hues) toprak/patika tonları.
+    // koyulaştırmadan soluk tuttuk; engeller koyu bazalt kaya (zeminden ΔL* yüksek).
     garden: {
       table: '#A9744F', vigTop: 'rgba(255, 240, 200, 0.12)', vigEdge: 'rgba(60, 40, 20, 0.28)',
       tray: '#F2E7C9', mat: '#C7DFA0', matEdge: '#9CBB6E', stitch: 'rgba(255, 255, 255, 0.55)',
@@ -260,13 +233,7 @@ export const UI_COLORS = {
         south: { top: '#F2B08A', front: '#D98A5A', side: '#B86A42' },
         west: { top: '#A6D8F2', front: '#7AAED9', side: '#5A86B8' },
       },
-      hues: [
-        { top: '#E7C79A', front: '#C9A06A', side: '#A87C50' },
-        { top: '#C79AD8', front: '#9B5FA8', side: '#7B4588' },
-        { top: '#C2D98A', front: '#9CBB5A', side: '#7C9A42' },
-        { top: '#FFB7C6', front: '#F58AA3', side: '#D26B85' },
-        { top: '#A8D8EF', front: '#74B8DC', side: '#5697BC' },
-      ],
+      block: 'rock',
     },
   },
 };

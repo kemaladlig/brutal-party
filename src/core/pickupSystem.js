@@ -3,103 +3,21 @@
  * Part of Phase 4 Architecture Refactor.
  */
 
-import { playItemPickup, playPowerUp, playTeleport, playSlip, playDashWhoosh } from '../audio.js';
+import { playItemPickup } from '../audio.js';
 import { pointBlocked } from './physics2d.js';
+import { PICKUP_CATALOG, EFFECTS, availablePickupTypes } from './pickupCatalog.js';
 
-/**
- * Pickup effect registry for various power-ups across mini-games.
- */
-export const EFFECTS = {
-  TURBO: (game, p) => {
-    p.turboTimer = 3.5;
-    playPowerUp();
-  },
-  FAST: (game, p) => {
-    p.fastTimer = 8.0;
-    playPowerUp();
-  },
-  TELEPORT: (game, p) => {
-    const { left, right, top, bottom, size } = game.arena;
-    const pad = size * 0.16;
-    const corners = [
-      { x: left + pad, y: top + pad },
-      { x: right - pad, y: top + pad },
-      { x: left + pad, y: bottom - pad },
-      { x: right - pad, y: bottom - pad },
-    ];
-    // Find corner furthest from current position or bomb carrier
-    const refPos = (game.bombCarrierIndex !== undefined && game.players[game.bombCarrierIndex])
-      ? game.players[game.bombCarrierIndex]
-      : p;
-    let bestCorner = corners[0];
-    let maxDist = -1;
-    for (const c of corners) {
-      const d = Math.hypot(c.x - refPos.x, c.y - refPos.y);
-      if (d > maxDist) {
-        maxDist = d;
-        bestCorner = c;
-      }
-    }
-    p.x = bestCorner.x;
-    p.y = bestCorner.y;
-    playTeleport();
-  },
-  SLIP: (game, p) => {
-    if (game.inkPuddles) {
-      game.inkPuddles.push({
-        x: p.x,
-        y: p.y,
-        radius: 22,
-        duration: 10.0,
-      });
-    } else {
-      p.slipTimer = 0.55;
-      playDashWhoosh();
-    }
-  },
-  MULTI: (game, p) => {
-    p.multiShots = (p.multiShots || 0) + 3;
-    playPowerUp();
-  },
-  QUICKDRAW: (game, p) => {
-    p.quickdrawTimer = 8.0;
-    playPowerUp();
-  },
-  SHIELD: (game, p) => {
-    p.shield = p.shield ? (typeof p.shield === 'number' ? p.shield + 1 : true) : true;
-    playPowerUp();
-  },
-  HEAL: (game, p) => {
-    if (p.hp !== undefined) p.hp = Math.min((game.maxHp || 3) + 1, p.hp + 1);
-  },
-  TRIPLE: (game, p) => {
-    p.tripleTimer = 8.0;
-    playPowerUp();
-  },
-  GHOST: (game, p) => {
-    p.ghostTimer = 4.0;
-    playPowerUp();
-  },
-  SUPER_JUMP: (game, p) => {
-    p.superJumpTimer = 6.0;
-    playPowerUp();
-  },
-  REPAIR_TILES: (game, p) => {
-    if (game.repairGrid) game.repairGrid(p);
-    playPowerUp();
-  },
-  BLAST_WAVE: (game, p) => {
-    if (game.triggerBlastWave) game.triggerBlastWave(p);
-    playPowerUp();
-  },
-  APPLE: (game, p) => {
-    if (p.grow) p.grow(3);
-    playItemPickup();
-  },
-};
+// Toplama davranışları TEK kaynak `core/pickupCatalog.js`'tedir (görsel +
+// davranış + gereksinim aynı kayıtta). Geriye-uyum için buradan yeniden dışa
+// verilir; `collectPickups` doğrudan katalogdan okur.
+export { EFFECTS };
 
 /**
  * Spawns a tactical pickup into game.pickups array if max capacity is not reached.
+ *
+ * `strict: true` verilirse `types` listesi oyunun KARŞILADIĞI tiplere indirilir
+ * (`pickupCatalog.requires`) — desteklenmeyen tip hiç doğmaz, sessiz no-op olmaz.
+ * Varsayılan `false`: mevcut oyunların spawn davranışı birebir korunur.
  */
 export function spawnPickup(game, opts = {}) {
   const {
@@ -108,12 +26,16 @@ export function spawnPickup(game, opts = {}) {
     size = 15,
     obstacles = game.pillars || game.obstacles || [],
     pad = 20,
+    strict = false,
   } = opts;
 
   if (!game.pickups) game.pickups = [];
   if (game.pickups.length >= max) return null;
 
-  const type = types[Math.floor(Math.random() * types.length)];
+  const pool = strict ? availablePickupTypes(types, game) : types;
+  if (!pool.length) return null;
+
+  const type = pool[Math.floor(Math.random() * pool.length)];
   const left = game.arena.left || 0;
   const top = game.arena.top || 0;
   const right = game.arena.right || (left + (game.arena.width || 400));
@@ -173,8 +95,8 @@ export function collectPickups(game, player, opts = {}) {
       playItemPickup();
       if (opts.onCollect) {
         opts.onCollect(game, player, item);
-      } else if (EFFECTS[item.type]) {
-        EFFECTS[item.type](game, player, item);
+      } else {
+        PICKUP_CATALOG[item.type]?.effect?.(game, player, item);
       }
       game.pickups.splice(i, 1);
     }

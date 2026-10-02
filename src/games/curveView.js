@@ -10,9 +10,15 @@
 //      Uzak izler kaba bir çizgi olarak temsil edilir; çarpışma host'ta tam çözünürlükte
 //      kalır, yani görsel sadakat düşer ama oyun doğruluğu bozulmaz.
 
-import { drawPickup } from '../core/arenaKit.js';
-import { drawField, hashFieldSeed } from '../core/fieldKit.js';
+import { drawPickup, sceneDraw } from '../core/arenaKit.js';
+import { drawField, hashFieldSeed, drawField25d, drawFieldRail, fieldRailBaseY } from '../core/fieldKit.js';
+import { drawGameAvatar25d } from '../core/avatarInGame.js';
+import { groundSpace } from '../core/sceneKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
+
+const RAIL_SIDES = /** @type {const} */ (['north', 'west', 'east', 'south']);
+// Sabit tema: CURVE haritaları yalnız tur düzeni paylaşır (SNAKE deseni).
+export const CURVE_THEME_25D = 'arcade';
 import {
   round1,
   createWorldSnapshot,
@@ -232,10 +238,10 @@ export function isValidCurveWorldFrame(frame) {
  * @param {CanvasRenderingContext2D} ctx
  * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
  */
-export function drawCurveFxLayer(ctx, layer) {
-  drawFxPops(ctx, layer?.pops);
-  drawFxRings(ctx, layer?.rings);
-  drawSquareParticles(ctx, layer?.particles);
+export function drawCurveFxLayer(ctx, layer, proj = null) {
+  drawFxPops(ctx, layer?.pops, proj);
+  drawFxRings(ctx, layer?.rings, proj);
+  drawSquareParticles(ctx, layer?.particles, proj);
 }
 
 // --- Ortak çizim yardımcıları (client dünya sahnesi) ---
@@ -251,10 +257,28 @@ export function drawCurveFxLayer(ctx, layer) {
  * anahtarı): `roundId` yalnız `seed` olarak girer.
  */
 export function drawCurveArena(ctx, arena, opts = {}) {
+  const proj = opts.proj || null;
+  if (proj) {
+    // 2.5D eğik saha: masa zemini + kenar rayları (host↔client AYNI).
+    drawField25d(ctx, proj, arena);
+    for (const side of RAIL_SIDES) {
+      sceneDraw(ctx, fieldRailBaseY(arena, side), drawFieldRail, proj, { arena, side });
+    }
+    return;
+  }
   drawField(ctx, arena, { mode: 'CURVE', seed: hashFieldSeed('CURVE', opts.roundId) });
 }
 
-export function drawCurveFieldMask(ctx, fieldRect, mask, colors, gapMask = null) {
+export function drawCurveFieldMask(ctx, fieldRect, mask, colors, gapMask = null, proj = null) {
+  if (proj) {
+    groundSpace(ctx, proj, (c) => paintCurveFieldMask(c, fieldRect, mask, colors, gapMask));
+    return;
+  }
+  paintCurveFieldMask(ctx, fieldRect, mask, colors, gapMask);
+}
+
+/** Bölge izi ızgarası — zemin katmanı gövdesi. */
+function paintCurveFieldMask(ctx, fieldRect, mask, colors, gapMask) {
   const T = CURVE_FIELD_TILES;
   const tw = (fieldRect.s || 0) / T;
   if (tw <= 0) return;
@@ -283,7 +307,16 @@ export function drawCurveFieldMask(ctx, fieldRect, mask, colors, gapMask = null)
   ctx.restore();
 }
 
-export function drawCurveNearSegments(ctx, near, colors, unit = 1) {
+export function drawCurveNearSegments(ctx, near, colors, unit = 1, proj = null) {
+  if (proj) {
+    groundSpace(ctx, proj, (c) => paintCurveNearSegments(c, near, colors, unit));
+    return;
+  }
+  paintCurveNearSegments(ctx, near, colors, unit);
+}
+
+/** Yakın iz parçaları — zemin katmanı gövdesi. */
+function paintCurveNearSegments(ctx, near, colors, unit) {
   ctx.save();
   ctx.lineCap = 'round';
   for (const s of near) {
@@ -302,7 +335,37 @@ export function drawCurveNearSegments(ctx, near, colors, unit = 1) {
   ctx.restore();
 }
 
-export function drawCurveHeads(ctx, players) {
+/** 2.5D kafa: ayakta penguen + zemin efekt halkaları (tek çizim dili). */
+function drawCurveHead25d(ctx, p, proj, now) {
+  const headRadius = p.shrink ? (p.radius || 18) * 0.64 : (p.radius || 18);
+  const u = headRadius / 18;
+  const k = proj.view.scale;
+
+  if (p.freeze) proj.groundRing(ctx, p.x, p.y, headRadius + 6 * u, UI_COLORS.hudShield, Math.max(1, 2 * u * k));
+  if (p.thick) proj.groundRing(ctx, p.x, p.y, headRadius + 4.5 * u, UI_COLORS.hudAmber, Math.max(1, 2.5 * u * k));
+  if (p.ghost) proj.groundRing(ctx, p.x, p.y, headRadius + 5 * u, UI_COLORS.hudGhost, Math.max(1, 1.8 * u * k));
+  if (p.confused) proj.groundRing(ctx, p.x, p.y, headRadius + 7 * u, UI_COLORS.danger, Math.max(1, 2 * u * k));
+  if (p.gapTimer <= 0.4 && !p.gap) proj.groundRing(ctx, p.x, p.y, headRadius + 4 * u, UI_COLORS.danger, Math.max(1, 1.8 * u * k));
+
+  drawGameAvatar25d(ctx, proj, p, {
+    x: p.x,
+    y: p.y,
+    radius: headRadius,
+    color: p.color,
+    facingAngle: p.angle || 0,
+    borderWidth: Math.max(1.5, 2 * u * k),
+    now,
+  });
+}
+
+export function drawCurveHeads(ctx, players, proj = null, now = 0) {
+  if (proj) {
+    for (const p of players) {
+      if (!isWorldEntityVisible(p)) continue;
+      drawCurveHead25d(ctx, p, proj, now);
+    }
+    return;
+  }
   for (const p of players) {
     if (!isWorldEntityVisible(p)) continue;
     ctx.save();
@@ -368,9 +431,9 @@ export function drawCurveHeads(ctx, players) {
   }
 }
 
-export function drawCurvePickups(ctx, pickups) {
+export function drawCurvePickups(ctx, pickups, proj = null) {
   for (const item of pickups) {
-    drawPickup(ctx, { x: item.x, y: item.y, type: item.type, animTime: 0 }, { size: item.size || 24 });
+    drawPickup(ctx, { x: item.x, y: item.y, type: item.type, animTime: 0 }, { size: item.size || 24, proj });
   }
 }
 

@@ -8,11 +8,13 @@
 //   (life += dt + splice); client snapshot'ı bozardı. ≤0.85 sn'lik flavor, 8 Hz HUD bilgi verir.
 // - Zaman bazlı fx (slash/decals/impacts/alpha) 2 ondalık taşınır (0.07 gecikmeler kırılmasın).
 
-import { drawObstacle } from '../core/arenaKit.js';
-import { drawField, hashFieldSeed } from '../core/fieldKit.js';
-import { drawGameAvatar } from '../core/avatarInGame.js';
+import { drawObstacle, drawObstacle25dShadow, drawObstacle25dMass, obstacleBaseY, sceneDraw } from '../core/arenaKit.js';
+import { drawField, hashFieldSeed, drawField25d, drawFieldRail, fieldRailBaseY } from '../core/fieldKit.js';
+import { groundSpace, chipAt } from '../core/sceneKit.js';
+import { drawGameAvatar, drawGameAvatar25d } from '../core/avatarInGame.js';
 import { fxReadAlpha } from '../core/fxKit.js';
 import { drawStatusChip } from '../core/entityStatus.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import {
   round1,
   packRectList,
@@ -165,25 +167,47 @@ export function isValidNinjaWorldFrame(frame) {
  * @param {CanvasRenderingContext2D} ctx
  * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
  */
-export function drawNinjaFxLayer(ctx, layer) {
-  drawFxPops(ctx, layer?.pops);
-  drawFxRings(ctx, layer?.rings);
-  drawCircleParticles(ctx, layer?.particles);
+export function drawNinjaFxLayer(ctx, layer, proj = null) {
+  drawFxPops(ctx, layer?.pops, proj);
+  drawFxRings(ctx, layer?.rings, proj);
+  drawCircleParticles(ctx, layer?.particles, proj);
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
+const RAIL_SIDES = /** @type {const} */ (['north', 'west', 'east', 'south']);
+// Sabit tema: NINJA haritaları yalnız engel düzeni paylaşır (SNAKE deseni).
+export const NINJA_THEME_25D = 'night';
+
 export function drawNinjaArena(ctx, arena, opts = {}) {
+  const proj = opts.proj || null;
+  if (proj) {
+    // 2.5D eğik saha: masa zemini + kenar rayları (host↔client AYNI).
+    drawField25d(ctx, proj, arena);
+    for (const side of RAIL_SIDES) {
+      sceneDraw(ctx, fieldRailBaseY(arena, side), drawFieldRail, proj, { arena, side });
+    }
+    return;
+  }
   // Statik saha `fieldKit`'te: arduvaz tonlu zemin, plaka dokusu, seeded dekor
   // ve yuvarlatılmış tepsi kesimi. Eskiden düz `#E8E5DF` dolgu + kare konturdu.
   drawField(ctx, arena, { mode: 'NINJA', seed: hashFieldSeed('NINJA', opts.roundId) });
 }
 
-export function drawNinjaFrame(ctx, arena, obstacles) {
+export function drawNinjaFrame(ctx, arena, obstacles, proj = null) {
+  if (proj) {
+    // Engeller gerçek prizma: temas gölgesi zeminde, gövde derinlik kuyruğunda.
+    for (const obs of obstacles) {
+      drawObstacle25dShadow(ctx, proj, obs);
+      sceneDraw(ctx, obstacleBaseY(obs), drawObstacle25dMass, proj, obs);
+    }
+    return;
+  }
   // Kenar/artık `drawField`'ın bake'indedir; burada yalnız engel gövdeleri kalır.
   for (const obs of obstacles) drawObstacle(ctx, obs, { theme: 'NINJA' });
 }
 
-export function drawNinjaSteps(ctx, steps) {
+export function drawNinjaSteps(ctx, steps, proj = null) {
+  if (proj) { groundSpace(ctx, proj, (c) => drawNinjaSteps(c, steps)); return; }
   for (const { x, y, alpha } of steps || []) {
     ctx.save();
     ctx.globalAlpha = clamp01(alpha);
@@ -195,7 +219,8 @@ export function drawNinjaSteps(ctx, steps) {
   }
 }
 
-export function drawNinjaDecals(ctx, decals) {
+export function drawNinjaDecals(ctx, decals, proj = null) {
+  if (proj) { groundSpace(ctx, proj, (c) => drawNinjaDecals(c, decals)); return; }
   for (const cd of decals || []) {
     const maxLife = Math.max(0.001, cd.maxLife || 0.44);
     const prog = Math.min(1.0, (cd.life || 0) / maxLife);
@@ -258,7 +283,8 @@ export function drawNinjaDecals(ctx, decals) {
   }
 }
 
-export function drawNinjaLanterns(ctx, lanterns, now = 0) {
+export function drawNinjaLanterns(ctx, lanterns, now = 0, proj = null) {
+  if (proj) { groundSpace(ctx, proj, (c) => drawNinjaLanterns(c, lanterns, now)); return; }
   for (const lantern of lanterns || []) {
     const lu = (lantern.radius || 60) / 60;
     if (!lantern.active) {
@@ -302,7 +328,8 @@ export function drawNinjaLanterns(ctx, lanterns, now = 0) {
   }
 }
 
-export function drawNinjaGhosts(ctx, ghosts) {
+export function drawNinjaGhosts(ctx, ghosts, proj = null) {
+  if (proj) { groundSpace(ctx, proj, (c) => drawNinjaGhosts(c, ghosts)); return; }
   for (const img of ghosts || []) {
     // Host ve kumanda client'ı bu view'i ORTAK kullanır; yarıçap host'ta
     // ölçeklenip paketle gelir, burada ikinci kez ölçeklenmez.
@@ -344,11 +371,88 @@ function drawNinjaSelfGhost(ctx, player) {
   ctx.restore();
 }
 
-export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true, now = 0, selfSlot = -1 } = {}) {
+/** Kare-geneli durum (kare başına tahsis yok). */
+const NINJA_PLAYER_ST = {
+  ghostSlots: [], withFx: true, now: 0, selfSlot: -1, proj: null, hasViewer: false, ghosts: null,
+};
+
+/** 2.5D oyuncu öğesi: ayakta penguen + projekte vuruş/duman rozetleri. */
+function drawNinjaPlayer25d(ctx, player, st) {
+  const {
+    withFx, now, selfSlot, proj, hasViewer, ghosts,
+  } = st;
+  const slotIndex = player.slot ?? player.index ?? 0;
+
+  // Görünmezlik: hayalet yerine (yerel girişte) projekte siluet.
+  if ((player.alpha ?? 1) <= 0.02) {
+    if (ghosts && ghosts.has(slotIndex) && withFx) {
+      const sp = proj.proj(player.x, player.y, 0);
+      const k = proj.view.scale;
+      const R = (player.radius || NINJA_RADIUS) * k;
+      ctx.save();
+      ctx.globalAlpha = 0.22;
+      ctx.strokeStyle = UI_COLORS.hudGhost;
+      ctx.lineWidth = Math.max(1, 2 * k);
+      ctx.setLineDash([3 * k, 3 * k]);
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y - R * 0.6, R, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    return;
+  }
+
+  const R = player.radius || NINJA_RADIUS;
+  const u = R / NINJA_RADIUS;
+  const k = proj.view.scale;
+
+  drawGameAvatar25d(ctx, proj, player, {
+    x: player.x,
+    y: player.y,
+    radius: R,
+    color: player.color,
+    facingAngle: player.angle || 0,
+    expression: player.strike ? 'angry' : 'normal',
+    borderWidth: Math.max(1.5, 2.5 * u * k),
+    now,
+    alpha: fxReadAlpha({ isSelf: hasViewer && slotIndex === selfSlot, hasViewer }) * clamp01(player.alpha ?? 1),
+  });
+
+  // Vuruş + duman rozetleri (projeksiyonlu, dönüşten bağımsız).
+  const hasStrike = player.strikeProg !== null && player.strikeProg !== undefined;
+  const hasSmoke = player.smokeProg !== null && player.smokeProg !== undefined;
+  const chipCount = (hasStrike ? 1 : 0) + (hasSmoke ? 1 : 0);
+  let chipIndex = 0;
+  if (hasStrike) {
+    chipAt(ctx, proj, { x: player.x, y: player.y, radius: R }, { scale: u * k, icon: 'sword', progress: clamp01(player.strikeProg), index: chipIndex, count: chipCount });
+    chipIndex += 1;
+  }
+  if (hasSmoke) {
+    chipAt(ctx, proj, { x: player.x, y: player.y, radius: R }, { scale: u * k, icon: 'ghost', progress: clamp01(player.smokeProg), index: chipIndex, count: chipCount });
+  }
+}
+
+export function drawNinjaPlayers(ctx, players, {
+  ghostSlots = [], withFx = true, now = 0, selfSlot = -1, proj = null,
+} = {}) {
   // 3.3: tek görür varsa kendi avatarın T1, diğerleri T3 (−%25). opts.alpha görünmezlik
   // α'sı (aşağıda ctx.globalAlpha=player.alpha) ile ÇARPILIR — compose olur.
   const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
   const ghosts = new Set(Array.isArray(ghostSlots) ? ghostSlots : []);
+  if (proj) {
+    const st = NINJA_PLAYER_ST;
+    st.withFx = withFx;
+    st.now = now;
+    st.selfSlot = selfSlot;
+    st.proj = proj;
+    st.hasViewer = hasViewer;
+    st.ghosts = ghosts;
+    for (const player of players) {
+      if (!isWorldEntityVisible(player)) continue;
+      drawNinjaPlayer25d(ctx, player, st);
+    }
+    return;
+  }
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
 
@@ -416,7 +520,8 @@ export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true,
   }
 }
 
-export function drawNinjaSlashes(ctx, slashes, arena = null) {
+export function drawNinjaSlashes(ctx, slashes, arena = null, proj = null) {
+  if (proj) { groundSpace(ctx, proj, (c) => drawNinjaSlashes(c, slashes, arena)); return; }
   // Sahadan gelen ölçek: dalga başına 12 px'lik kademe, aura genişliği ve
   // uç boncuğu HAM px idi — telefonda (unit ~0.5) hamle 123 px'e düşerken
   // animasyon 147 px'e uzanıyor, yani kılıç "havada" kalıyordu.
@@ -496,7 +601,8 @@ export function drawNinjaSlashes(ctx, slashes, arena = null) {
   }
 }
 
-export function drawNinjaImpacts(ctx, impacts) {
+export function drawNinjaImpacts(ctx, impacts, proj = null) {
+  if (proj) { groundSpace(ctx, proj, (c) => drawNinjaImpacts(c, impacts)); return; }
   for (const ic of impacts || []) {
     const maxLife = Math.max(0.001, ic.maxLife || 0.35);
     const p = (ic.life || 0) / maxLife;

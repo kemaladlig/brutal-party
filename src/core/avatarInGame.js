@@ -15,7 +15,7 @@
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { rimHex } from './customizationManager.js';
 import { UI_COLORS } from '../ui/tokens.js';
-import { materialFromColor, shade } from './projection2d.js';
+import { shade } from './projection2d.js';
 
 /**
  * Gövde rengin krem sahada (L* ~94) okunması için: açık gövde renginde
@@ -241,8 +241,9 @@ export function drawGameAvatar25d(ctx, proj, player, opts = {}) {
   const idle = Math.sin((nowMs / 1000) * 2 + slot) * 0.3;
   const swing = moving ? stride : idle;
   const limbW = Math.max(3, screenR * 0.22);
-  const handCol = shade(bodyColor, -0.10);
-  const footCol = shade(bodyColor, -0.22);
+  const handCol = shade(bodyColor, -0.12);
+  // Penguen paleti: gaga ve ayaklar turuncu (oyuncu renginden bağımsız).
+  const footCol = UI_COLORS.hudAmber;
 
   // Kayma/sıçrama: figür merkez çevresinde döner (krom çağıranda kalır).
   if (opts.slipAngle) {
@@ -251,69 +252,182 @@ export function drawGameAvatar25d(ctx, proj, player, opts = {}) {
     ctx.translate(-center.x, -center.y);
   }
 
-  // --- UZUVLAR (tek parça, ekran eksenine çapalı) ------------------------
-  // Uzuvlar gövde eksenine değil EKRAN eksenine çapalanır: top hangi yöne
-  // dönerse dönsün kollar/ayaklar daima görsel yanlarda kalır. Böylece yan
-  // görünüşte uzuv kameraya doğru uzanıp "aşağı sarkmaz".
-  // Kol: kalın, hafif dışa bükümlü tek parça; el ucu yuvarlak kapak (palet yok).
-  // Bacak: boru gibi kalın tek parça; ucu yuvarlak (basit ayak, palet yok).
-  const footLift = sphereR * 0.30;
-  const legGeom = (side) => ({
-    hip: { x: x + side * sphereR * 0.34, y: y, z: ballZ - sphereR * 0.30 + bob * 0.3 },
-    foot: {
-      x: x + side * sphereR * 0.56,
-      y: y,
-      z: moving ? Math.max(0, side * stride) * footLift : 0,
-    },
+  // Gövde elipsi — uzuv örtüşmesi de bunun içinde kalır.
+  const bw = screenR * 0.94;
+  const bh = screenR * 1.06;
+
+  // --- UZUVLAR (yan eksende, bakışa dik) --------------------------------
+  // Kol/bacak YAN eksene (`s3` = bakışın 90° yanı) yayılır, bakış yönüne DEĞİL:
+  // karşıdan bakışta kollar simetrik sol-sağda, yana bakışta biri önde biri
+  // arkada kalır. Eski `f3` yayılımı kolları 360° fırıldak gibi döndürüyordu.
+  const s3 = { x: -f3.y, y: f3.x, z: 0 };
+  // Kameraya göre yön: +1 tam karşı (güneye bakış), -1 tam arka (kuzeye bakış).
+  const faceCam = Math.sin(phi);
+  const sideCam = Math.abs(Math.cos(phi));
+  // Arkadan bakışta uzuvlar gövdeye toplanır ( silhouette dışına taşmaz ).
+  const tuck = 1 - Math.max(0, -faceCam) * 0.45;
+  const spread = (lat, z) => ({
+    x: x + s3.x * lat * sphereR * tuck,
+    y: y + s3.y * lat * sphereR * tuck,
+    z,
   });
-  const drawLeg = (L) => {
-    const ph = padPt(L.hip);
-    const pf = padPt(L.foot);
-    ctx.beginPath();
-    ctx.moveTo(ph.x, ph.y);
-    ctx.lineTo(pf.x, pf.y);
-    ctx.strokeStyle = footCol;
-    ctx.lineWidth = limbW * 1.1;
-    ctx.lineCap = 'round';
-    ctx.stroke();
+  const mid3 = (a, b) => ({
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+    z: (a.z + b.z) / 2,
+  });
+  // Gövde elipsine giren mi? `proj` z'yi de lateral ölçekle indirdiği için
+  // `screenR` biriminde karşılaştırma anlamlı.
+  const insideBody = (p) => {
+    const dx = (p.x - center.x) / bw;
+    const dy = (p.y - center.y) / bh;
+    return dx * dx + dy * dy <= 1;
   };
-  const legs = [legGeom(-1), legGeom(1)];
 
-  const armGeom = (side) => {
+  const limbSegs = [];
+  const pushSeg = (p0, c, p2, color, width, tip) => {
+    const m = c ? mid3(c, p2) : mid3(p0, p2);
+  limbSegs.push({
+      p0, c, p2, color, width, tip,
+      behind: camOf({ x: m.x - x, y: m.y - y, z: m.z - ballZ }) < 0 && insideBody(padPt(m)),
+    });
+  };
+  // Kuadratik yayı `PARTS` eşit aralıklı alt-yayına böl. Alt-yay denkliği
+  // ANALİTİKTİR (B(a) + (b-a)/2·B'(a) kontrol noktası), yani birleştirilen
+  // parçalar özgün eğriyi BİREBİR çizer — yuvarlatma hatası yok. Her parça
+  // kendi derinliğiyle sınıflandırıldığı için gövdenin önü/arkası geçişi
+  // parça sınırında değil, geçişin olduğu yerde olur.
+  const PARTS = 4;
+  const pushArc = (p0, c, p2, color, width, tip) => {
+    const at = (t) => ({
+      x: (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * c.x + t * t * p2.x,
+      y: (1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * c.y + t * t * p2.y,
+      z: (1 - t) * (1 - t) * p0.z + 2 * (1 - t) * t * c.z + t * t * p2.z,
+    });
+    const slopeAt = (t) => ({
+      x: 2 * (1 - t) * (c.x - p0.x) + 2 * t * (p2.x - c.x),
+      y: 2 * (1 - t) * (c.y - p0.y) + 2 * t * (p2.y - c.y),
+      z: 2 * (1 - t) * (c.z - p0.z) + 2 * t * (p2.z - c.z),
+    });
+    for (let i = 0; i < PARTS; i += 1) {
+      const a = i / PARTS;
+      const b = (i + 1) / PARTS;
+      const A = at(a);
+      const D = slopeAt(a);
+      pushSeg(
+        A,
+        { x: A.x + D.x * (b - a) / 2, y: A.y + D.y * (b - a) / 2, z: A.z + D.z * (b - a) / 2 },
+        at(b),
+        color, width, i === PARTS - 1 ? tip : null,
+      );
+    }
+  };
+  // Gövde iki katmana böler: arka uzuvlar altına, öndekiler üstüne. Arka
+  // parça AYRI bir renk almaz — yalnız gizlenir. İki sebeple: (1) herhangi bir
+  // solukluk/koyuluk ikiliği, geçişin olduğu yerde parça sınırında görünür bir
+  // dikiş bırakır (ölçüldü: φ=0'da bacağın 3/4'ü soluk + 1/4'ü dolu); (2) gövde
+  // zaten kendi hacim gradyanıyla gölgeli, arkadaki uzuvun gölgesiyle yarışmak
+  // onu daha da gürültülü kılardı. Okunurluğu taşıyan şey konum, renk değil.
+  const drawSegs = (behind) => {
+    ctx.globalAlpha = alpha;
+    for (const S of limbSegs) {
+      if (S.behind !== behind) continue;
+      const p0 = padPt(S.p0);
+      const p2 = padPt(S.p2);
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      if (S.c) {
+        const pc = padPt(S.c);
+        ctx.quadraticCurveTo(pc.x, pc.y, p2.x, p2.y);
+      } else {
+        ctx.lineTo(p2.x, p2.y);
+      }
+      ctx.strokeStyle = S.color;
+      ctx.lineWidth = S.width;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      if (S.tip === 'foot') {
+        // Ayak: küçük turuncu palet (penguen).
+        ctx.beginPath();
+        ctx.ellipse(p2.x, p2.y + limbW * 0.2, limbW * 0.95, limbW * 0.5, 0, 0, Math.PI * 2);
+        ctx.fillStyle = footCol;
+        ctx.fill();
+        ctx.strokeStyle = UI_COLORS.inkDark;
+        ctx.lineWidth = Math.max(1, limbW * 0.2);
+        ctx.stroke();
+      }
+    }
+  };
+
+  const footLift = sphereR * 0.30;
+  // Adım: bacaklar bakış yönünde (`f3`) öne-arkaya nöbetleşir, kollar ters
+  // fazda sallanır — yandan bakışta gerçek yürüme profili okunur.
+  const fwdOf = (amount, z) => ({
+    x: x + f3.x * amount * sphereR + s3.x * 0,
+    y: y + f3.y * amount * sphereR,
+    z,
+  });
+  const addFwd = (p, amount) => ({
+    x: p.x + f3.x * amount * sphereR,
+    y: p.y + f3.y * amount * sphereR,
+    z: p.z,
+  });
+  for (const side of [-1, 1]) {
+    const stepFwd = moving ? side * stride * 0.30 : 0;
+    const footZ = moving ? Math.max(0, side * stride) * footLift : 0;
+    const hip = spread(side * 0.34, ballZ - sphereR * 0.30 + bob * 0.3);
+    const footBase = spread(side * 0.52, footZ);
+    const foot = addFwd(footBase, stepFwd);
+    pushArc(hip, mid3(hip, foot), foot, shade(bodyColor, -0.12), limbW * 0.8, 'foot');
+  }
+  for (const side of [-1, 1]) {
     const liftArm = swing * side * sphereR * 0.12;
-    return {
-      shoulder: { x: x + side * sphereR * 0.78, y: y, z: ballZ + sphereR * 0.36 + liftArm },
-      mid: { x: x + side * sphereR * 1.06, y: y, z: ballZ + sphereR * 0.02 + liftArm },
-      hand: { x: x + side * sphereR * 0.98, y: y, z: ballZ - sphereR * 0.46 + liftArm },
-    };
-  };
-  const drawArm = (A) => {
-    const ps = padPt(A.shoulder);
-    const pm = padPt(A.mid);
-    const ph = padPt(A.hand);
-    ctx.beginPath();
-    ctx.moveTo(ps.x, ps.y);
-    ctx.quadraticCurveTo(pm.x, pm.y, ph.x, ph.y);
-    ctx.strokeStyle = handCol;
-    ctx.lineWidth = limbW * 1.15;
-    ctx.lineCap = 'round';
-    ctx.stroke();
-  };
-  const arms = [armGeom(-1), armGeom(1)];
+    // Kollar da hafif öne-arkaya: yürümede karşıt kol-bacak, boşta simetrik.
+    const armFwd = moving ? -side * stride * 0.22 : sideCam * side * 0.06;
+    const shoulder = addFwd(spread(side * 0.78, ballZ + sphereR * 0.36 + liftArm), armFwd * 0.5);
+    const elbow = addFwd(spread(side * 1.06, ballZ + sphereR * 0.02 + liftArm), armFwd);
+    const hand = addFwd(spread(side * 0.98, ballZ - sphereR * 0.46 + liftArm), armFwd * 1.2);
+    pushArc(shoulder, elbow, hand, handCol, limbW * 1.15, 'hand');
+  }
 
-  // Bacaklar kürenin arkasında, kollar önünde.
-  for (const L of legs) drawLeg(L);
+  // Arka uzuvlar gövdenin altında çizilir (gövde onları örter).
 
-  proj.drawSphere(ctx, x, y, ballZ, sphereR, materialFromColor(bodyColor));
+  drawSegs(true);
 
-  for (const A of arms) drawArm(A);
+  // --- GÖVDE: PENGUEN SİLUETİ -------------------------------------------
+  // Küre yerine dikey oval gövde + karın; hacim gradyan + konturdan gelir.
+  // Gövde, kürenin yarıçapıyla AYNI ölçektedir → normal tabanlı göz/uzuv
+  // çapaları değişmez; ifade, kol ve bacak sistemi aynen korunur.
+  const bodyGrad = ctx.createLinearGradient(center.x, center.y - bh, center.x, center.y + bh);
+  bodyGrad.addColorStop(0, shade(bodyColor, 0.20));
+  bodyGrad.addColorStop(0.55, bodyColor);
+  bodyGrad.addColorStop(1, shade(bodyColor, -0.28));
+  ctx.beginPath();
+  ctx.ellipse(center.x, center.y, bw, bh, 0, 0, Math.PI * 2);
+  ctx.fillStyle = bodyGrad;
+  ctx.fill();
+  ctx.lineWidth = Math.max(2, screenR * 0.08);
+  ctx.strokeStyle = shade(bodyColor, -0.45);
+  ctx.stroke();
+
+  // Karın (belly): oyuncu renginin açık tonu — kimlik korunur.
+  ctx.beginPath();
+  ctx.ellipse(center.x, center.y + bh * 0.22, bw * 0.60, bh * 0.58, 0, 0, Math.PI * 2);
+  ctx.fillStyle = shade(bodyColor, 0.80);
+  ctx.fill();
+  ctx.strokeStyle = shade(bodyColor, -0.30);
+  ctx.lineWidth = Math.max(1, screenR * 0.035);
+  ctx.stroke();
+
+  // Önde kalan uzuvlar gövdenin ÜSTÜNDE çizilir.
+  drawSegs(false);
   ctx.lineCap = 'butt';
 
-  // --- YÜZ (kameraya oturan gözler + hafif yön eğilimi) -------------------
-  // Referans gibi yüz DAİMA kameraya bakar (yoksa tepeden bakışta topun
-  // kenarına/arkasına kaçar). Bakış yönü yalnızca yüzü hafifçe iter ve göz
-  // bebeğini çevirir; gözler ekran-yatayında kalır, böylece her açıda okunur.
-  const FACE_SHIFT = 0.20;
+  // --- YÜZ (yön duyarlı: karşı/yana/profil, arkada gizli) -----------------
+  // Karşıdan: iki göz simetrik. Yana: yüz yana kayar, uzak göz ezilir.
+  // Arkadan (`faceCam < -0.45`): yüz çizilmez, ense tüyü çizilir.
+  const FACE_SHIFT = 0.34;
+  const isBackView = faceCam < -0.45;
   const eyeFrac = 0.30;
   const eyeScreen = screenR * eyeFrac;
   const tH = { x: 1, y: 0, z: 0 };
@@ -411,7 +525,18 @@ export function drawGameAvatar25d(ctx, proj, player, opts = {}) {
   const eyeL = pad(fwd, right, -0.38);
   const eyeR = pad(fwd, right, 0.38);
 
-  if (exp === 'cyclops') {
+  if (isBackView) {
+    // Ense: yüz yok, yalnız arka tüy çizgisi — "arkası dönük" okunur.
+    ctx.save();
+    ctx.strokeStyle = shade(bodyColor, -0.30);
+    ctx.lineWidth = Math.max(1.5, screenR * 0.045);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(center.x - screenR * 0.18, center.y - screenR * 0.25);
+    ctx.quadraticCurveTo(center.x, center.y - screenR * 0.45, center.x + screenR * 0.18, center.y - screenR * 0.25);
+    ctx.stroke();
+    ctx.restore();
+  } else if (exp === 'cyclops') {
     drawEye(fwd, { pupil: 0.46, closed, size: 1.4 });
   } else if (exp === 'derp') {
     drawEye(eyeL, { pupil: 0.44, closed, size: 1.1 });
@@ -425,6 +550,46 @@ export function drawGameAvatar25d(ctx, proj, player, opts = {}) {
   } else {
     drawEye(eyeL, { pupil: 0.5, closed });
     drawEye(eyeR, { pupil: 0.5, closed });
+  }
+
+  // GAGA: hacimli koni — taban gölge + turuncu gövde + üst ışık çizgisi.
+  // Yana bakışta profile döner, arkadan bakışta gizlenir.
+  if (!isBackView) {
+    const beakN = pad(fwd, upT, -0.40);
+    const bc = spherePt(beakN, -sphereR * 0.06);
+    const bwv = Math.max(3.5, screenR * 0.17);
+    const sideLean = Math.cos(phi) * sideCam;
+    const tipX = bc.x + sideLean * bwv * 0.9;
+    const tipY = bc.y + bwv * 1.15;
+    // Taban gölge (ağız altı): koniyi zeminden koparır.
+    ctx.beginPath();
+    ctx.ellipse(bc.x, bc.y + bwv * 0.55, bwv * 1.05, bwv * 0.5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(26, 26, 26, 0.22)';
+    ctx.fill();
+    // Konik gövde.
+    const beakGrad = ctx.createLinearGradient(bc.x - bwv, bc.y, bc.x + bwv, tipY);
+    beakGrad.addColorStop(0, shade(footCol, 0.25));
+    beakGrad.addColorStop(0.5, footCol);
+    beakGrad.addColorStop(1, shade(footCol, -0.25));
+    ctx.beginPath();
+    ctx.moveTo(bc.x - bwv, bc.y - bwv * 0.45);
+    ctx.lineTo(bc.x + bwv, bc.y - bwv * 0.45);
+    ctx.lineTo(tipX, tipY);
+    ctx.closePath();
+    ctx.fillStyle = beakGrad;
+    ctx.fill();
+    ctx.strokeStyle = UI_COLORS.inkDark;
+    ctx.lineWidth = Math.max(1, screenR * 0.035);
+    ctx.stroke();
+    // Üst ışık çizgisi: 2B üçgen hissini kırar.
+    ctx.beginPath();
+    ctx.moveTo(bc.x - bwv * 0.55, bc.y - bwv * 0.28);
+    ctx.lineTo(tipX - sideLean * bwv * 0.2, tipY - bwv * 0.35);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.lineWidth = Math.max(1, screenR * 0.022);
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.lineCap = 'butt';
   }
 
   ctx.restore();

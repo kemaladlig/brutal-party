@@ -5,19 +5,24 @@ import {
   drawHordeWorld,
   hordeHeaderStatus,
   hordeSceneFromFrame,
+  hordeTheme25d,
   isValidHordeWorldFrame,
 } from '../games/hordeView.js';
 import { drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
 import { renderMatchHeader } from './hud.js';
 import { t } from '../i18n.js';
-import { drawWorldMatchOver, fitWorld, worldScreenBox, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
-import { paintBackdrop } from '../core/fieldKit.js';
+import { drawWorldMatchOver, worldScreenBox, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { UI_COLORS } from './tokens.js';
 
 const HORDE_FALLBACK = ['#D84727', '#1D5D8A', '#D99B26', '#2D6A4F'];
 
 export function createWorldViewRenderer() {
+  // 2.5D sahne zarfı renderer ömrü boyunca yaşar (proj kalıcı). Host ile AYNI
+  // girdileri verir (arena + viewport + harita teması) → sahne birebir eşleşir.
+  const sceneEnvelope = createTiltedScene({ camera: TILTED_25D_CAMERA.horde });
   return {
     validate: isValidHordeWorldFrame,
 
@@ -45,40 +50,55 @@ export function createWorldViewRenderer() {
       }));
 
       ctx.save();
-      // Sahanın dışı EKRAN uzayında çizilir; arenanın ekran kutusu `worldScreenBox`
-      // ile çözülür — dünya koordinatlarıyla çağrılırsa gölge sahadan kayar.
-      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { theme: scene.theme });
-      fitWorld(ctx, width, height, frame.arena, () => {
-        drawHordeWorld(ctx, arena, scene, { withFx: frame.gameState === 'PLAYING', now, selfSlot: context.selfSlot ?? -1 });
-        const header = hordeHeaderStatus({ ...scene, state: scene.phase, hasPortal: scene.portal != null });
-        const headerPlayers = [0, 1, 2, 3].map((i) => {
-          const sp = scene.players.find((player) => player.slot === i);
-          const s = slots?.[i];
-          const joined = sp ? sp.joined !== false : !!s;
-          if (!joined) return null;
-          return {
-            index: i,
-            name: s?.name || `P${i + 1}`,
-            color: s?.color || s?.displayColor || sp?.color || HORDE_FALLBACK[i],
-            isJoined: true,
-          };
-        });
-        renderMatchHeader(ctx, {
-          arena,
-          players: headerPlayers,
-          scores: frame.scores || [0, 0, 0, 0],
-          statusText: header.text,
-          statusTone: header.tone,
-        });
-        // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
-        drawHordeFxLayer(ctx, fxLive
-          ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
-          : {
-              pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
-              rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
-              particles: frame.particles || [],
-            });
+
+      // 2.5D eğik kamera: host ile AYNI girdilerden (arena + viewport + haritaya
+      // bağlı tema) kurulur. Masa zemini `drawField25d` içinde boyanır.
+      const proj = sceneEnvelope.open(ctx, {
+        viewport: { width, height },
+        arena,
+        theme: hordeTheme25d(scene.theme),
       });
+      drawHordeWorld(ctx, arena, scene, { withFx: frame.gameState === 'PLAYING', now, selfSlot: context.selfSlot ?? -1, proj });
+      sceneEnvelope.close(ctx);
+
+      // Maç başlığı EKRAN uzayında (host ile aynı dil; 2.5D'de dünya uzayında
+      // başlık basılmaz).
+      const box = worldScreenBox(width, height, frame.arena);
+      const header = hordeHeaderStatus({ ...scene, state: scene.phase, hasPortal: scene.portal != null });
+      const headerPlayers = [0, 1, 2, 3].map((i) => {
+        const sp = scene.players.find((player) => player.slot === i);
+        const s = slots?.[i];
+        const joined = sp ? sp.joined !== false : !!s;
+        if (!joined) return null;
+        return {
+          index: i,
+          name: s?.name || `P${i + 1}`,
+          color: s?.color || s?.displayColor || sp?.color || HORDE_FALLBACK[i],
+          isJoined: true,
+        };
+      });
+      renderMatchHeader(ctx, {
+        arena: {
+          ...box,
+          right: box.left + box.width,
+          bottom: box.top + box.height,
+          cx: box.left + box.width / 2,
+          cy: box.top + box.height / 2,
+        },
+        players: headerPlayers,
+        scores: frame.scores || [0, 0, 0, 0],
+        statusText: header.text,
+        statusTone: header.tone,
+      });
+
+      // FX katmanı: olay playback'i (`context.fx`) ya da paket yükü.
+      drawHordeFxLayer(ctx, fxLive
+        ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
+        : {
+            pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
+            rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
+            particles: frame.particles || [],
+          }, proj);
       ctx.restore();
 
       // Kill flaşı ekran-space: playback mandalı açıkken oynatıcıdan, değilse

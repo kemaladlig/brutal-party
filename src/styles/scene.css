@@ -236,7 +236,7 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  z-index: 1;
+  z-index: var(--z-local-1);
   pointer-events: none;
 }
 

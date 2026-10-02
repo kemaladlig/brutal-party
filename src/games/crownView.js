@@ -1,7 +1,7 @@
 // CROWN world snapshot + client-safe drawing boundary.
 
 import { UI_COLORS, CROWN_COLORS } from '../ui/tokens.js';
-import { drawField, hashFieldSeed } from '../core/fieldKit.js';
+import { drawField, hashFieldSeed, drawField25d, drawFieldRail, fieldRailBaseY } from '../core/fieldKit.js';
 import {
   createWorldSnapshot, isValidWorldBase, round1, CROWN_PLAYER_RADIUS,
   packFxState, isValidFxState, drawFxRings, drawFxPops, drawCircleParticles,
@@ -165,22 +165,65 @@ export function isValidCrownWorldFrame(frame) {
 }
 
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
-import { drawGameAvatar } from '../core/avatarInGame.js';
+import { drawGameAvatar, drawGameAvatar25d } from '../core/avatarInGame.js';
 import { fxReadAlpha } from '../core/fxKit.js';
-import { drawPickup } from '../core/arenaKit.js';
+import {
+  drawPickup,
+  drawObstacle25dShadow,
+  drawObstacle25dMass,
+  sceneDraw,
+  obstacleBaseY,
+  entitySceneY,
+} from '../core/arenaKit.js';
+import { materialFromColor } from '../core/projection2d.js';
+import { groundRect, queuePlayers } from '../core/sceneKit.js';
 import { renderEntityHUD } from '../ui/hud.js';
 import { getUiScale } from '../ui/tokens.js';
 
 const getRect = (r) => (Array.isArray(r) ? { x: r[0], y: r[1], w: r[2], h: r[3] } : r);
 const getCircle = (c) => (Array.isArray(c) ? { x: c[0], y: c[1], radius: c[2], pulse: c[3] || 0 } : c);
 
+// CROWN 2.5D teması: haritalar yalnız engel düzeni paylaşır (SNAKE gibi), zemin
+// ortaktır → tek sabit tema (host ve ONLINE client AYNI sabiti kullanır; paket
+// alanı gerekmez, derleme-zamanı değeridir).
+export const CROWN_THEME_25D = 'marble';
+// Kenar tamponlarının taban-y sırası: kuzey/batı arkaya, güney/doğu öne.
+const RAIL_SIDES = /** @type {const} */ (['north', 'west', 'east', 'south']);
+
 export function drawCrownArena(ctx, arena, opts = {}) {
+  const proj = opts.proj || null;
+  if (proj) {
+    // 2.5D eğik saha: masa zemini `drawField25d` içinde boyanır; kenar
+    // tamponları derinlik kuyruğuna girer (çağıran zarf penceresi açar).
+    drawField25d(ctx, proj, arena);
+    for (const side of RAIL_SIDES) {
+      sceneDraw(ctx, fieldRailBaseY(arena, side), drawFieldRail, proj, { arena, side });
+    }
+    return;
+  }
   drawField(ctx, arena, { mode: 'CROWN', seed: hashFieldSeed('CROWN', opts.roundId) });
 }
 
-export function drawSpeedPad(ctx, spRaw, arena) {
+export function drawSpeedPad(ctx, spRaw, arena, proj = null) {
   const sp = getRect(spRaw);
   const u = arena?.unit || 1;
+  if (proj) {
+    // 2.5D: zemine projekte alan + ekran-okunur şerit oku.
+    groundRect(ctx, proj, sp, {
+      fill: UI_COLORS.crownHazard, stroke: UI_COLORS.crownGold, lineWidth: Math.max(1, 2.5 * u),
+    });
+    const c = proj.proj(sp.x + sp.w / 2, sp.y + sp.h / 2, 0);
+    const k = proj.view.scale * c.d;
+    const chevron = (sp.dirX ?? 1) > 0 ? '▶▶' : (sp.dirX < 0 ? '◀◀' : ((sp.dirY ?? 0) > 0 ? '▼▼' : '▲▲'));
+    ctx.save();
+    ctx.fillStyle = UI_COLORS.crownSpark;
+    ctx.font = `900 ${Math.max(9, Math.round(13 * k))}px "Space Grotesk", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(chevron, c.x, c.y);
+    ctx.restore();
+    return;
+  }
   ctx.save();
   ctx.fillStyle = UI_COLORS.inkDark;
   ctx.fillRect(sp.x + 3, sp.y + 3, sp.w, sp.h);
@@ -200,9 +243,41 @@ export function drawSpeedPad(ctx, spRaw, arena) {
   ctx.restore();
 }
 
-export function drawConveyor(ctx, cRaw, arena) {
+export function drawConveyor(ctx, cRaw, arena, proj = null) {
   const c = getRect(cRaw);
   const u = arena?.unit || 1;
+  if (proj) {
+    // 2.5D: zemine projekte bant + projekte kayan oklar.
+    groundRect(ctx, proj, c, {
+      fill: UI_COLORS.crownHazard, stroke: UI_COLORS.inkDark, lineWidth: Math.max(1, 2.5 * u),
+    });
+    const ctr = proj.proj(c.x + c.w / 2, c.y + c.h / 2, 0);
+    const k = proj.view.scale * ctr.d;
+    const spacing = 42;
+    const dirX = c.dirX ?? 1;
+    const dirY = c.dirY ?? 0;
+    const arrowChar = dirX > 0 ? '▶' : (dirX < 0 ? '◀' : (dirY > 0 ? '▼' : '▲'));
+    ctx.save();
+    ctx.fillStyle = UI_COLORS.crownGold;
+    ctx.font = `900 ${Math.max(9, Math.round(13 * k))}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (dirX !== 0) {
+      const offset = ((c.animOffset || 0) * (dirX > 0 ? 1 : -1)) % spacing;
+      for (let x = c.x + offset - spacing; x < c.x + c.w + spacing; x += spacing) {
+        const p = proj.proj(x, c.y + c.h / 2, 0);
+        ctx.fillText(arrowChar, p.x, p.y);
+      }
+    } else {
+      const offset = ((c.animOffset || 0) * (dirY > 0 ? 1 : -1)) % spacing;
+      for (let y = c.y + offset - spacing; y < c.y + c.h + spacing; y += spacing) {
+        const p = proj.proj(c.x + c.w / 2, y, 0);
+        ctx.fillText(arrowChar, p.x, p.y);
+      }
+    }
+    ctx.restore();
+    return;
+  }
   ctx.save();
   ctx.fillStyle = UI_COLORS.inkDark;
   ctx.fillRect(c.x + 3, c.y + 3, c.w, c.h);
@@ -244,10 +319,30 @@ export function drawConveyor(ctx, cRaw, arena) {
   ctx.restore();
 }
 
-export function drawMovingHazardTrack(ctx, h, arena) {
+export function drawMovingHazardTrack(ctx, h, arena, proj = null) {
   if (!h || h.minPos === undefined || h.maxPos === undefined) return;
-  ctx.save();
   const u = arena?.unit || 1;
+  if (proj) {
+    const a = h.axis === 'x' ? proj.proj(h.minPos, h.y, 0) : proj.proj(h.x, h.minPos, 0);
+    const b = h.axis === 'x' ? proj.proj(h.maxPos, h.y, 0) : proj.proj(h.x, h.maxPos, 0);
+    ctx.save();
+    ctx.strokeStyle = UI_COLORS.crownPillarBorder;
+    ctx.lineWidth = Math.max(1, 6 * u);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.strokeStyle = UI_COLORS.crownPillarEdge;
+    ctx.lineWidth = Math.max(1, 2 * u);
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  ctx.save();
   ctx.strokeStyle = UI_COLORS.crownPillarBorder;
   ctx.lineWidth = Math.max(1, 6 * u);
   ctx.beginPath();
@@ -377,8 +472,16 @@ export function drawMovingHazard(ctx, h, arena) {
   ctx.restore();
 }
 
-export function drawBananaPeel(ctx, bRaw) {
+export function drawBananaPeel(ctx, bRaw, proj = null) {
   const b = getCircle(bRaw);
+  if (proj) {
+    // 2.5D: zemine gölge + hafif yüzen ikon (projekte).
+    proj.groundEllipse(ctx, b.x, b.y, 18, UI_COLORS.inkDark, 0.32);
+    const p = proj.proj(b.x, b.y, 12);
+    const k = proj.view.scale * p.d;
+    drawTabletopIcon(ctx, 'banana', p.x, p.y, Math.max(16, 30 * k), { color: UI_COLORS.crownSpark });
+    return;
+  }
   ctx.save();
   ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
   ctx.beginPath();
@@ -388,8 +491,14 @@ export function drawBananaPeel(ctx, bRaw) {
   ctx.restore();
 }
 
-export function drawInkPuddle(ctx, inkRaw) {
+export function drawInkPuddle(ctx, inkRaw, proj = null) {
   const ink = getCircle(inkRaw);
+  if (proj) {
+    // 2.5D: mürekkep zemine yayılır — projekte elipsler.
+    proj.groundEllipse(ctx, ink.x, ink.y, ink.radius, UI_COLORS.inkDark, 1);
+    proj.groundEllipse(ctx, ink.x - 6, ink.y - 4, ink.radius * 0.4, UI_COLORS.crownStoneDarker, 1);
+    return;
+  }
   ctx.save();
   ctx.fillStyle = UI_COLORS.inkDark;
   ctx.beginPath();
@@ -590,33 +699,227 @@ export function drawCrownPlayer(ctx, p, color, arena, lastTime, targetCrownTime 
   ctx.restore();
 }
 
+/** 2.5D bumper: projekte silindir + yıldız ikonu (derinlik kuyruğu öğesi). */
+function drawBumper25d(ctx, s) {
+  const { b, proj } = s;
+  const r = b.radius;
+  proj.contactPatch(ctx, b.x, b.y, r * 1.1, r * 0.55, 0.3);
+  proj.drawCylinder(ctx, b.x, b.y, r, r * 0.9, materialFromColor(b.pulse > 0.1 ? UI_COLORS.white : UI_COLORS.crownRed));
+  const top = proj.proj(b.x, b.y, r * 0.9);
+  const k = proj.view.scale * top.d;
+  drawTabletopIcon(ctx, 'star', top.x, top.y, Math.max(10, r * 1.1 * k), { color: UI_COLORS.inkDark });
+  if (b.pulse > 0.1) {
+    proj.groundRing(ctx, b.x, b.y, r + (1 - b.pulse) * 16, UI_COLORS.crownSpark, Math.max(2, 3 * b.pulse));
+  }
+}
+
+/** 2.5D hareketli tuzak: projekte silindir + zap ikonu. */
+function drawMovingHazard25d(ctx, s) {
+  const { h, proj } = s;
+  const r = h.radius;
+  proj.contactPatch(ctx, h.x, h.y, r * 1.1, r * 0.55, 0.35);
+  proj.drawCylinder(ctx, h.x, h.y, r, r * 0.9, materialFromColor(h.pulse > 0.1 ? UI_COLORS.white : UI_COLORS.crownGold));
+  const top = proj.proj(h.x, h.y, r * 0.9);
+  const k = proj.view.scale * top.d;
+  drawTabletopIcon(ctx, 'zap', top.x, top.y, Math.max(10, 13 * (1 + k * 0.2)), { color: UI_COLORS.crownSpark });
+}
+
+/** 2.5D serbest taç: zeminden yüzen, kamera ölçekli token (kuyruk öğesi). */
+function drawCrownToken25d(ctx, s) {
+  const { crown, proj, floatAnim, scale, arena } = s;
+  const p = proj.proj(crown.x, crown.y, crown.radius || 20);
+  const k = proj.view.scale * p.d;
+  drawCrown(ctx, p.x, p.y, scale * k, true, arena, floatAnim);
+}
+
+/** 2.5D taç taşıyıcı rozeti — oyuncu öğesinin üstüne asılır (kuyruk içinde). */
+function drawCarriedCrown25d(ctx, s) {
+  const { p, proj, floatAnim, arena } = s;
+  const cScale = 0.95 + Math.sin(floatAnim * 1.5) * 0.05;
+  const cp = proj.proj(p.x, p.y, (p.radius || CROWN_PLAYER_RADIUS) * 2.2);
+  const k = proj.view.scale * cp.d;
+  drawCrown(ctx, cp.x, cp.y, cScale * k, false, arena, floatAnim);
+}
+
+/** Tek oyuncu — 2.5D (küre avatar + zemine projekte taç/sersem halkaları + rozet). */
+function drawCrownPlayer25d(ctx, p, color, arena, lastTime, targetCrownTime, selfSlot, proj) {
+  const r = p.radius || CROWN_PLAYER_RADIUS;
+  const u = arena?.unit || 1;
+  const k = proj.view.scale * proj.proj(p.x, p.y, 0).d;
+  const hasViewer = selfSlot >= 0;
+
+  if (p.hasCrown || p.stumbleTimer > 0) {
+    const ringR = p.hasCrown ? r * 1.55 : r + 7;
+    proj.groundRing(ctx, p.x, p.y, ringR, UI_COLORS.hudAmber, Math.max(2, 3 * u * k));
+  }
+
+  let currentExp = 'normal';
+  if (p.stumbleTimer > 0) currentExp = 'dizzy';
+  else if (p.isTackling) currentExp = 'angry';
+  else if (p.hasCrown) currentExp = 'excited';
+
+  const figure = drawGameAvatar25d(ctx, proj, p, {
+    x: p.x,
+    y: p.y,
+    radius: r,
+    color,
+    facingAngle: p.facingAngle ?? 0,
+    expression: currentExp,
+    borderColor: p.isTackling ? UI_COLORS.hudAmber : (p.rimColor || UI_COLORS.inkDark),
+    borderWidth: Math.max(1.5, (p.isTackling ? 4.5 : 3) * k),
+    now: lastTime || performance.now(),
+    alpha: fxReadAlpha({ isSelf: hasViewer && (p.slot ?? p.index) === selfSlot, hasViewer }),
+  });
+
+  if (p.stumbleTimer > 0) {
+    ctx.save();
+    ctx.font = `900 ${Math.max(9, Math.round(13 * k))}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = UI_COLORS.hudInkOutline;
+    ctx.lineWidth = Math.max(2, 3 * k);
+    ctx.strokeText('SERSEM!', figure.headX, figure.topY - 20 * k);
+    ctx.fillStyle = UI_COLORS.hudAmber;
+    ctx.fillText('SERSEM!', figure.headX, figure.topY - 20 * k);
+    ctx.restore();
+  }
+
+  const isAlive = p.alive ?? p.isAlive ?? true;
+  if (isAlive && (p.tackleCooldown !== undefined || p.stumbleTimer !== undefined)) {
+    const cdRatio = (p.tackleCooldown || 0) > 0
+      ? 1.0 - Math.max(0, Math.min(1, p.tackleCooldown / 2.0))
+      : null;
+    const chip = proj.proj(p.x, p.y, r);
+    renderEntityHUD(ctx, {
+      x: chip.x,
+      y: chip.y,
+      radius: r * k,
+      color: UI_COLORS.crownGold,
+      cooldownProgress: cdRatio,
+      stun: (p.stumbleTimer || 0) > 0,
+    });
+  }
+
+  if (p.hasCrown) {
+    const holdTime = p.crownHoldTime || 0;
+    const remain = Math.max(0, targetCrownTime - holdTime);
+    const urgent = remain <= 5.0;
+    // Kazanma ilerlemesi: 2.5D'de tam zemin halkası (renk aciliyeti taşır).
+    proj.groundRing(ctx, p.x, p.y, r + 9, urgent ? UI_COLORS.crownRed : UI_COLORS.hudAmber, Math.max(2, 8 * u * k));
+
+    const bScale = Math.min(1.4, getUiScale(arena)) * k;
+    const badgeW = Math.round(72 * bScale);
+    const badgeH = Math.round(22 * bScale);
+    const badgeY = figure.topY - Math.round(30 * bScale);
+    ctx.save();
+    ctx.fillStyle = urgent ? UI_COLORS.crownRed : UI_COLORS.crownGold;
+    ctx.fillRect(figure.headX - badgeW / 2, badgeY, badgeW, badgeH);
+    ctx.strokeStyle = UI_COLORS.inkDark;
+    ctx.lineWidth = Math.max(2, Math.round(2 * bScale));
+    ctx.strokeRect(figure.headX - badgeW / 2, badgeY, badgeW, badgeH);
+    ctx.fillStyle = UI_COLORS.inkDark;
+    ctx.font = `900 ${Math.round(12 * bScale)}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${remain.toFixed(1)}s`, figure.headX, badgeY + badgeH / 2);
+    ctx.restore();
+  }
+}
+
+/** Kare-geneli oyuncu durumu (kare başına tahsis yok; oyuncuya özel veri `p`de). */
+const CROWN_PLAYER_ST = {
+  arena: null, lastTime: 0, targetCrownTime: 15, selfSlot: -1, proj: null, floatAnim: 0,
+};
+
+/** Kuyruk öğesi: oyuncu + (varsa) taşıdığı taç rozeti. `p.color` önceden atanır. */
+function drawCrownPlayerItem25d(ctx, p, st) {
+  const {
+    arena, lastTime, targetCrownTime, selfSlot, proj, floatAnim,
+  } = st;
+  drawCrownPlayer25d(ctx, p, p.color, arena, lastTime, targetCrownTime, selfSlot, proj);
+  if (p.hasCrown) drawCarriedCrown25d(ctx, { p, proj, floatAnim, arena });
+}
+
 export function drawCrownWorld(ctx, frameOrGame, arena, colors = [], lastTime = performance.now(), targetCrownTime = 15.0, selfSlot = -1, opts = {}) {
-  drawCrownArena(ctx, arena, opts);
+  const proj = opts.proj || null;
 
   const speedPads = frameOrGame.speedPads || [];
-  for (const sp of speedPads) drawSpeedPad(ctx, sp, arena);
-
   const conveyors = frameOrGame.conveyors || [];
-  for (const c of conveyors) drawConveyor(ctx, c, arena);
-
   const movingHazards = frameOrGame.movingHazards || frameOrGame.hazards || [];
-  for (const h of movingHazards) drawMovingHazardTrack(ctx, h, arena);
-
   const pillars = frameOrGame.pillars || [];
-  for (const pil of pillars) drawPillar(ctx, pil, arena);
-
   const bumpers = frameOrGame.bumpers || [];
-  for (const b of bumpers) drawBumper(ctx, b, arena);
-
-  for (const h of movingHazards) drawMovingHazard(ctx, h, arena);
-
   const bananaPeels = frameOrGame.bananaPeels || frameOrGame.bananas || [];
-  for (const b of bananaPeels) drawBananaPeel(ctx, b);
-
   const inkPuddles = frameOrGame.inkPuddles || frameOrGame.ink || [];
-  for (const ink of inkPuddles) drawInkPuddle(ctx, ink);
-
   const pickups = frameOrGame.pickups || [];
+  const crown = frameOrGame.crown;
+  const players = frameOrGame.players || [];
+  const floatAnim = crown?.floatAnim ?? ((lastTime || 0) * 0.003);
+  const carrier = crown?.carrier ?? crown?.carrierIndex;
+  const isLoose = carrier === null || carrier === undefined;
+
+  drawCrownArena(ctx, arena, { ...opts, proj });
+
+  // Zemin katmanı (kuyruğa girmeden, varlıkların altında).
+  for (const sp of speedPads) drawSpeedPad(ctx, sp, arena, proj);
+  for (const c of conveyors) drawConveyor(ctx, c, arena, proj);
+  for (const h of movingHazards) drawMovingHazardTrack(ctx, h, arena, proj);
+
+  if (proj) {
+    // 2.5D: engel/sütun, bumper, tuzak ve oyuncular taban-Y derinlik kuyruğunda;
+    // zemin decalleri (muz/mürekkep) ve rozetler kuyruk dışında kalır.
+    for (const pil of pillars) {
+      const r = getRect(pil);
+      drawObstacle25dShadow(ctx, proj, r);
+      sceneDraw(ctx, obstacleBaseY(r), drawObstacle25dMass, proj, r);
+    }
+    for (const b of bumpers) {
+      const bc = getCircle(b);
+      sceneDraw(ctx, entitySceneY(bc.y, bc.radius), drawBumper25d, { b: bc, proj });
+    }
+    for (const h of movingHazards) {
+      sceneDraw(ctx, entitySceneY(h.y, h.radius), drawMovingHazard25d, { h, proj });
+    }
+    for (const b of bananaPeels) drawBananaPeel(ctx, b, proj);
+    for (const ink of inkPuddles) drawInkPuddle(ctx, ink, proj);
+    for (const pk of pickups) {
+      if (Array.isArray(pk)) drawPickup(ctx, { x: pk[0], y: pk[1], type: pk[3] }, { size: pk[2], proj });
+      else drawPickup(ctx, pk, { proj });
+    }
+    if (crown && isLoose) {
+      const scale = 1.0 + Math.sin(floatAnim) * 0.12;
+      sceneDraw(ctx, entitySceneY(crown.y, crown.radius || 20), drawCrownToken25d, {
+        crown, proj, floatAnim, scale, arena,
+      });
+    }
+    // Oyuncular: zenginleştirilmiş kopya + ortak kuyruk iskeleti (sceneKit).
+    const scenePlayers = players
+      .filter((p) => (p.joined ?? p.isJoined) !== false && (p.alive ?? p.isAlive) !== false)
+      .map((p) => {
+        const slot = p.slot ?? p.index ?? 0;
+        return { ...p, color: colors[slot] || p.color || PLAYER_FALLBACK[slot] || PLAYER_FALLBACK[0] };
+      });
+    const st = CROWN_PLAYER_ST;
+    st.arena = arena;
+    st.lastTime = lastTime;
+    st.targetCrownTime = targetCrownTime;
+    st.selfSlot = selfSlot;
+    st.proj = proj;
+    st.floatAnim = floatAnim;
+    queuePlayers(ctx, scenePlayers, {
+      state: st,
+      drawItem: drawCrownPlayerItem25d,
+      radiusOf: (p) => p.radius || CROWN_PLAYER_RADIUS,
+    });
+    return;
+  }
+
+  // --- Tepeden bakış (dönüştürülmemiş yol) ---
+  for (const pil of pillars) drawPillar(ctx, pil, arena);
+  for (const b of bumpers) drawBumper(ctx, b, arena);
+  for (const h of movingHazards) drawMovingHazard(ctx, h, arena);
+  for (const b of bananaPeels) drawBananaPeel(ctx, b);
+  for (const ink of inkPuddles) drawInkPuddle(ctx, ink);
   for (const pk of pickups) {
     if (Array.isArray(pk)) {
       drawPickup(ctx, { x: pk[0], y: pk[1], type: pk[3] }, { size: pk[2] });
@@ -624,17 +927,10 @@ export function drawCrownWorld(ctx, frameOrGame, arena, colors = [], lastTime = 
       drawPickup(ctx, pk);
     }
   }
-
-  const crown = frameOrGame.crown;
-  const floatAnim = crown?.floatAnim ?? ((lastTime || 0) * 0.003);
-  const carrier = crown?.carrier ?? crown?.carrierIndex;
-  const isLoose = carrier === null || carrier === undefined;
   if (crown && isLoose) {
     const scale = 1.0 + Math.sin(floatAnim) * 0.12;
     drawCrown(ctx, crown.x, crown.y, scale, true, arena, floatAnim);
   }
-
-  const players = frameOrGame.players || [];
   for (const p of players) {
     const isJoined = p.joined ?? p.isJoined;
     const isAlive = p.alive ?? p.isAlive;
@@ -652,13 +948,15 @@ export function drawCrownWorld(ctx, frameOrGame, arena, colors = [], lastTime = 
 
 /**
  * FX katmanının tek çizim sırası: pop → ring → partikül. Host motoru ve
- * client worldView AYNI fonksiyonu çağırır (tanks deseni).
+ * client worldView AYNI fonksiyonu çağırır (tanks deseni). `proj` verilirse
+ * eğik kameraya projekte edilir.
  * @param {CanvasRenderingContext2D} ctx
  * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
+ * @param {any} [proj]
  */
-export function drawCrownFxLayer(ctx, layer) {
-  drawFxPops(ctx, layer?.pops);
-  drawFxRings(ctx, layer?.rings);
-  drawCircleParticles(ctx, layer?.particles);
+export function drawCrownFxLayer(ctx, layer, proj = null) {
+  drawFxPops(ctx, layer?.pops, proj);
+  drawFxRings(ctx, layer?.rings, proj);
+  drawCircleParticles(ctx, layer?.particles, proj);
 }
 

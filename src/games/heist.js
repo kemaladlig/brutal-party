@@ -1,7 +1,6 @@
 // BRUTAL HEIST (Game 05): 2-4 Player Local Party Gold & Vault Stealing
 // Weight Physics, Shoulder Tackle Loot Knockout, Vault Banking & Raids, 45s Gold Rush & Bot AI
 import { getSlotCustomization } from '../core/customizationManager.js';
-import { paintBackdrop } from '../core/fieldKit.js';
 import {
   playStart,
   playJoin,
@@ -38,10 +37,14 @@ import {
   drawHeistPlayers,
   drawHeistTexts,
   drawHeistFxLayer,
+  HEIST_THEME_25D,
 } from './heistView.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
+import { sceneDraw, entitySceneY } from '../core/arenaKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
 
 export const HEIST_COLORS = ['#D84727', '#2B5B84', '#D99B26', '#2D6A4F'];
 export const HEIST_NAMES = ['P1', 'P2', 'P3', 'P4'];
@@ -89,6 +92,12 @@ export function computeGreedSpeed(arena, baseSpeed, weight) {
 export class HeistGame extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
+
+    // 2.5D sahne zarfı (`core/tiltedScene`): kamera sığdırma + derinlik kuyruğu
+    // tek yerden. `this.proj` KALICI örnektir (kare başına tahsis yok); harness
+    // `open()` her karede aynı örneği arena+viewport+temaya yeniden sığdırır.
+    this.scene = createTiltedScene({ camera: TILTED_25D_CAMERA.heist });
+    this.proj = this.scene.proj;
 
     // Arena geometry
     this.arena = {
@@ -1012,13 +1021,15 @@ export class HeistGame extends BaseMiniGame {
     ctx.save();
     this.uiButtons = [];
 
-    // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
-    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'HEIST' });
+    // 2.5D sahne zarfı: kamera arena+viewport+sabit tema'dan sığdırılır ve
+    // derinlik kuyruğu açılır; ONLINE client AYNI girdilerle aynı sahneyi kurar.
+    // Masa zemini `drawField25d` içinde boyanır (paintBackdrop çizilmez).
+    this.scene.open(ctx, { viewport: this.viewport, arena: this.arena, theme: HEIST_THEME_25D });
 
     this.applyScreenShake(ctx, 14);
 
     // Arena sahnesi ortak heistView draw'larından gelir (host↔client aynı).
-    drawHeistArena(ctx, this.arena, this.pillars, { roundId: this.roundId });
+    drawHeistArena(ctx, this.arena, this.pillars, { roundId: this.roundId, proj: this.proj });
     if (this.state !== 'LOBBY') {
       const scenePlayers = this.players.map((p) => ({
         ...p,
@@ -1030,21 +1041,33 @@ export class HeistGame extends BaseMiniGame {
         cd: p.tackleCooldown || 0,
         angle: p.facingAngle || 0,
       }));
-      drawHeistVaults(ctx, this.vaults, scenePlayers);
-      drawHeistLoot(ctx, this.lootItems);
-      drawHeistPiggy(ctx, this.piggyBank ? {
-        x: this.piggyBank.x,
-        y: this.piggyBank.y,
-        radius: this.piggyBank.radius,
-        hp: this.piggyBank.hp,
-        maxHp: this.piggyBank.maxHp,
-        anim: this.piggyBank.animTime || 0,
-      } : null);
-      drawHeistPlayers(ctx, scenePlayers, { withFx: this.state === 'PLAYING', now: this.lastTime, arena: this.arena, selfSlot: this.localControlSlot ?? -1 });
+      // Kasa bölgeleri + ganimet zemin katmanı (hemen çizilir); kumbara ve
+      // oyuncular derinlik kuyruğuna girer (engel prizmasıyla sıralanırlar).
+      drawHeistVaults(ctx, this.vaults, scenePlayers, this.proj);
+      drawHeistLoot(ctx, this.lootItems, this.proj);
+      if (this.piggyBank) {
+        const pig = {
+          x: this.piggyBank.x,
+          y: this.piggyBank.y,
+          radius: this.piggyBank.radius,
+          hp: this.piggyBank.hp,
+          maxHp: this.piggyBank.maxHp,
+          anim: this.piggyBank.animTime || 0,
+        };
+        sceneDraw(ctx, entitySceneY(pig.y, pig.radius || 18), drawHeistPiggy, pig, this.proj);
+      }
+      drawHeistPlayers(ctx, scenePlayers, {
+        withFx: this.state === 'PLAYING',
+        now: this.lastTime,
+        arena: this.arena,
+        selfSlot: this.localControlSlot ?? -1,
+        proj: this.proj,
+      });
     }
+    this.scene.close(ctx);
     // FX katmanı ortak heistView draw'ından gelir (host↔client aynı).
-    drawHeistFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
-    drawHeistTexts(ctx, this.floatingTexts);
+    drawHeistFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles }, this.proj);
+    drawHeistTexts(ctx, this.floatingTexts, this.proj);
     this.renderControls(ctx);
 
     // Host HUD: süre sayacı (world-view client'ı kendi HUD'unu kullanır)
@@ -1070,13 +1093,13 @@ export class HeistGame extends BaseMiniGame {
     if (this.state === 'PLAYING' && this.goldRushActive) {
       const pulseAlpha = pulse(0.18, 0.1, 0.012);
       ctx.fillStyle = `rgba(217, 155, 38, ${pulseAlpha})`;
-      // Arena kenar şeritleri (CSS pikseli; canvas.width device-px olur, kullanılmaz)
-      const { left, top, width, height, right, bottom } = this.arena;
+      // Altın Hücumu çerçevesi: 2.5D'de saha projekte olduğundan ekran kenarı.
+      const { width: vw, height: vh } = this.viewport;
       const edge = 16;
-      ctx.fillRect(left, top - edge, width, edge);
-      ctx.fillRect(left, bottom, width, edge);
-      ctx.fillRect(left - edge, top - edge, edge, height + edge * 2);
-      ctx.fillRect(right, top - edge, edge, height + edge * 2);
+      ctx.fillRect(0, 0, vw, edge);
+      ctx.fillRect(0, vh - edge, vw, edge);
+      ctx.fillRect(0, 0, edge, vh);
+      ctx.fillRect(vw - edge, 0, edge, vh);
     }
 
     this.renderHUD(ctx, {

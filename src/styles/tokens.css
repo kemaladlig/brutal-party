@@ -52,6 +52,50 @@
   --n-100: #3a3450;
   --n-050: #2a2540;
 
+  /* ---- Katman ölçeği (z-index) — TEK KAYNAK ----
+     İlke: SAHA en arkada, oyun içi HUD üstünde, kontrol yüzeyleri ve menüler
+     onların üstünde, geçici uyarılar en önde. Sıra MONOTOMDUR ve iki global
+     yüzey aynı basamağı PAYLAŞMAZ — paylaşırsa kazananı DOM sırası belirler
+     ve bir yüzey sessizce arkada kalır (eski 90/120/200/400 çakışmaları).
+     Ham z-index yazılmaz; kural rules-lint K8 ile denetlenir.
+       · global  : kök stacking context'te yarışır (#app çocukları + body).
+       · pad-*   : yalnız kumanda (`#gamepad-overlay`, z=--z-gamepad) içinde.
+       · local-* : yalnız bir sahne (shell görünümü) içinde. */
+  --z-field: 1;           /* saha canvas'ı (#game-canvas) */
+  --z-local-0: 0;         /* sahne zemin katmanı (bg, aurora, görsel) */
+  --z-local-1: 1;         /* sahne ara katman (hero, marquee, sahne zemini) */
+  --z-local-2: 2;         /* sahne içerik (wordmark, seçenek metni/rozeti) */
+  --z-local-3: 3;         /* sahne ön katman (featured kart, rail) */
+  --z-local-4: 4;         /* sahne en üst yerel (kontrol düğmesi) */
+  --z-rail: 6;            /* shell rail / köşe / marka */
+  --z-sheet: 30;          /* shell içi sheet (davet / koltuk) */
+  --z-pad-strip: 58;      /* kumanda skor peek şeridi */
+  --z-pad-status: 60;     /* kumanda durum satırı */
+  --z-pad-header: 65;     /* kumanda başlık / killfeed çipleri */
+  --z-pad-chip: 70;       /* kumanda içi açılır çip */
+  --z-pad-joy: 15;        /* kumanda içi yüzen joystick (yerel en üst) */
+  --z-shell: 90;          /* app-shell görünümleri (menü / lobi) */
+  --z-hud: 100;           /* oyun içi HUD (skor + hızlı çipler) */
+  --z-controls: 110;      /* LOCAL dokunmatik kontrol yüzeyi */
+  --z-staging: 120;       /* host staging barı (LOBİYE DÖN) */
+  --z-pad-result: 130;    /* kumanda maç sonu kartı */
+  --z-sheet-pop: 140;     /* koltuk renk paleti popover'ı (body seviyesi) */
+  --z-overlay: 150;       /* duraklatma sheet'i */
+  --z-settings: 160;      /* ayarlar */
+  --z-join: 180;          /* odaya katıl */
+  --z-customize: 190;     /* karakter özelleştirme */
+  --z-countdown: 200;     /* 3-2-1 sayaç perdesi (TV) */
+  --z-gamepad: 210;       /* telefon kumanda tam ekran yüzeyi */
+  --z-pad-veil: 215;      /* kumanda geri sayım perdesi */
+  --z-reactions: 240;     /* tepki balonları katmanı */
+  --z-pad-editor: 260;    /* kumanda düzen editörü */
+  --z-toast: 300;         /* global toast */
+  --z-picker: 320;        /* tepki seçici */
+  --z-gate: 400;          /* dikey rotate gate */
+  --z-banner: 410;        /* bağlantı durum bandı */
+  --z-boot: 600;          /* markalı açılış katmanı */
+  --z-debug: 9000;        /* ?perf HUD (yalnız debug) */
+
   /* ---- Yumuşak ton yüzeyleri (rozet/uyarı arka planı) ----
      Koyu temada bunlar "açık pastel dolgu" değil, doygun rengin düşük opaklıkta
      zemini olur: aynı ton, koyu yüzey üstünde okunur, birbirine girmez. */

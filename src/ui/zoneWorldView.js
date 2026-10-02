@@ -10,17 +10,22 @@ import {
   drawZoneFxLayer,
   isValidZoneWorldFrame,
   ZONE_GRID,
+  ZONE_THEME_25D,
 } from '../games/zoneView.js';
 import { drawAlphaTexts, drawFxFlash } from '../games/worldCore.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
-import { fitWorld, worldScreenBox, drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
-import { paintBackdrop } from '../core/fieldKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
+import { drawWorldRoundBanner, drawWorldMatchOver, renderWorldPlaceholder, renderWorldStale } from './worldViewKit.js';
 import { UI_COLORS } from './tokens.js';
 import { t } from '../i18n.js';
 
 const ZONE_FALLBACK = UI_COLORS.players;
 
 export function createWorldViewRenderer() {
+  // 2.5D sahne zarfı renderer ömrü boyunca yaşar (proj kalıcı). Host ile AYNI
+  // girdileri verir (arena + viewport + sabit tema) → sahne birebir eşleşir.
+  const scene = createTiltedScene({ camera: TILTED_25D_CAMERA.zone });
   return {
     validate: isValidZoneWorldFrame,
 
@@ -36,42 +41,50 @@ export function createWorldViewRenderer() {
       const nowSec = now / 1000;
 
       ctx.save();
-      paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'ZONE' });
-      fitWorld(ctx, width, height, frame.arena, () => {
-
-        const players = frame.players.map((p) => ({
-          ...p,
-          index: p.slot,
-          color: slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || ZONE_FALLBACK[p.slot],
-          avatar: slots?.[p.slot]?.avatar || null,
-        }));
-
-        drawZoneField(
-          ctx,
-          frame.field,
-          frame.cell,
-          unpackZoneGridRle(frame.rle),
-          players.map((p) => p.color),
-          players,
-          frame.relics || [],
-          nowSec,
-          null,
-          frame.gridV,
-          { roundId: frame.roundId },
-        );
-        drawZoneWaves(ctx, frame.waves || [], frame.cell);
-        drawZonePlayers(ctx, players, { cell: frame.cell, leaderIndex: frame.leader, withFx, selfSlot: context.selfSlot ?? -1 });
-        drawZoneFxLayer(ctx, fxLive
-          ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
-          : {
-              pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
-              rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
-              particles: frame.particles || [],
-            });
-        drawAlphaTexts(ctx, (frame.texts || []).map((ft) => ({
-          x: ft.x, y: ft.y, text: ft.text, alpha: ft.maxLife > 0 ? ft.life / ft.maxLife : 0, color: ft.color,
-        })));
+      // 2.5D eğik kamera: host ile AYNI girdilerden kurulur. Bölge ızgarası
+      // zemin uzayında (afin) çizilir; masa zemini `drawField25d` içinde.
+      const proj = scene.open(ctx, {
+        viewport: { width, height },
+        arena,
+        theme: ZONE_THEME_25D,
       });
+
+      const players = frame.players.map((p) => ({
+        ...p,
+        index: p.slot,
+        color: slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || ZONE_FALLBACK[p.slot],
+        avatar: slots?.[p.slot]?.avatar || null,
+      }));
+
+      drawZoneField(
+        ctx,
+        frame.field,
+        frame.cell,
+        unpackZoneGridRle(frame.rle),
+        players.map((p) => p.color),
+        players,
+        frame.relics || [],
+        nowSec,
+        null,
+        frame.gridV,
+        { roundId: frame.roundId, proj },
+      );
+      drawZoneWaves(ctx, frame.waves || [], frame.cell, proj);
+      drawZonePlayers(ctx, players, { cell: frame.cell, leaderIndex: frame.leader, withFx, selfSlot: context.selfSlot ?? -1, proj });
+      scene.close(ctx);
+      drawZoneFxLayer(ctx, fxLive
+        ? { pops: context.fx.pops, rings: context.fx.rings, particles: context.fx.particles }
+        : {
+            pops: (frame.fx?.pops || []).map(([x, y, size, angle, life, maxLife, color]) => ({ x, y, size, angle, life, maxLife, color })),
+            rings: (frame.fx?.rings || []).map(([x, y, r0, r1, life, maxLife, width, color]) => ({ x, y, r0, r1, life, maxLife, width, color })),
+            particles: frame.particles || [],
+          }, proj);
+      drawAlphaTexts(ctx, (frame.texts || []).map((ft) => {
+        const sp = proj.proj(ft.x, ft.y, 20);
+        return {
+          x: sp.x, y: sp.y, text: ft.text, alpha: ft.maxLife > 0 ? ft.life / ft.maxLife : 0, color: ft.color,
+        };
+      }));
       ctx.restore();
 
       // Kesilme flaşı ekran-space: playback mandalı açıkken oynatıcıdan, değilse

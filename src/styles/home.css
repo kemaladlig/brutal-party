@@ -36,7 +36,7 @@
 .home-bg {
   position: absolute;
   inset: -2%;
-  z-index: 0;
+  z-index: var(--z-local-0);
   background: url('/background.webp') 50% 100% / cover no-repeat var(--scene-bottom);
   will-change: transform;
 }
@@ -55,7 +55,7 @@
 .home-aurora {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: var(--z-local-0);
   pointer-events: none;
   will-change: transform;
 }
@@ -118,7 +118,7 @@
 
 .home-wordmark {
   position: absolute;
-  z-index: 2;
+  z-index: var(--z-local-2);
   left: max(30px, env(safe-area-inset-left));
   top: calc(max(10px, env(safe-area-inset-top)) + 16px);
   display: flex;
@@ -282,7 +282,7 @@
 .home-sky {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: var(--z-local-0);
   pointer-events: none;
 }
 
@@ -325,7 +325,7 @@
   --mq-focus: 0.56;
   --mq-edge: 66px;
   position: absolute;
-  z-index: 1;
+  z-index: var(--z-local-1);
   left: 0;
   /* Şerit FEATURED kartının ALTINDAN değil YANINDAN biter: kapaklar opaktan
      geçip yarıda kesilmez, kenar maskesi kartın önünde söner. */
@@ -392,7 +392,7 @@
   opacity: 1;
   scale: 1.14;
   filter: saturate(1.08);
-  z-index: 2;
+  z-index: var(--z-local-2);
 }
 
 .home-marquee-item.is-featured .home-marquee-art {
@@ -417,7 +417,7 @@
 
 .home-featured {
   position: absolute;
-  z-index: 3;
+  z-index: var(--z-local-3);
   right: max(24px, env(safe-area-inset-right));
   bottom: calc(max(22px, env(safe-area-inset-bottom)) + var(--rail-stack-h) + 14px);
   width: var(--rail-w);
@@ -541,7 +541,7 @@
 
 .home-rail {
   position: absolute;
-  z-index: 3;
+  z-index: var(--z-local-3);
   right: max(24px, env(safe-area-inset-right));
   bottom: max(22px, env(safe-area-inset-bottom));
   width: var(--rail-w);
@@ -770,7 +770,7 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 9px;
-  z-index: 2;
+  z-index: var(--z-local-2);
 }
 
 .home-install,
@@ -822,7 +822,7 @@
   letter-spacing: 0.12em;
   color: var(--hud-muted);
   text-align: center;
-  z-index: 2;
+  z-index: var(--z-local-2);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }

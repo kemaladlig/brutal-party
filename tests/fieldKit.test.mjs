@@ -30,6 +30,7 @@ import {
 } from '../src/core/fieldKit.js';
 import { computePlayfield, FIELD_DESIGN } from '../src/core/playfield.js';
 import { UI_COLORS } from '../src/ui/tokens.js';
+import { lstar } from './helpers/color.mjs';
 import { pongGoalPatches, pongGoalVariant } from '../src/games/pongView.js';
 import { createBombWorldPacket } from '../src/games/bombView.js';
 import { createPongWorldPacket } from '../src/games/pongView.js';
@@ -403,21 +404,11 @@ test('themes carry every contract field, with primitive types only', () => {
 //    L*=85.9) ile zemin çakışmasını önlemek için vardı. Yeni tasarım kararı:
 //    oyuncu okunurluğu zemin parlaklığından değil avatarın `#1A1A1A` koyu
 //    konturu ile sağlanır. L*≥75 zemini L*~40-60 oyuncu renklerinden >14
-//    puan parlak — konturla yeterli ayrışma garantilidir.
+//    puan parlak — konturla yeterli ayrışma garantidir.
 //    ΔL* ≤ 14 (eski 6): renkli rampalara alan açar.
+//    `lstar` ARTIK PAYLAŞILAN yardımcıdadır (`helpers/color.mjs`) — engel
+//    okunurluk kapısı (`obstacleRender.test.mjs`) aynı ölçümü kullanır.
 // ---------------------------------------------------------------------------
-const srgbToLinear = (c) => {
-  const v = c / 255;
-  return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-};
-/** Yalnız CIE L* yeterli: ayrışma ışık şiddetiyle satın alınıyor/yitiriliyor. */
-function lstar(hex) {
-  const v = parseInt(String(hex).slice(1), 16);
-  const Y = 0.2126 * srgbToLinear((v >> 16) & 255)
-    + 0.7152 * srgbToLinear((v >> 8) & 255)
-    + 0.0722 * srgbToLinear(v & 255);
-  return Y > 0.008856 ? 116 * Y ** (1 / 3) - 16 : 903.3 * Y;
-}
 
 test('floor stays inside the legibility budget against every player color', () => {
   const FLOOR_KEYS = ['floor', 'floorHigh', 'floorEdge', 'floorLow'];

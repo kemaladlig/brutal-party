@@ -7,7 +7,7 @@
 #app-shell {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: var(--z-shell);
   display: flex;
   flex-direction: column;
   height: 100dvh;
@@ -54,7 +54,7 @@
   left: max(10px, env(safe-area-inset-left));
   top: 50%;
   transform: translateY(-50%);
-  z-index: 6;
+  z-index: var(--z-rail);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -152,7 +152,7 @@
   position: absolute;
   top: max(10px, env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right));
-  z-index: 6;
+  z-index: var(--z-rail);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -165,7 +165,7 @@
   position: absolute;
   top: max(10px, env(safe-area-inset-top));
   left: max(12px, env(safe-area-inset-left));
-  z-index: 6;
+  z-index: var(--z-rail);
   display: flex;
   align-items: center;
   gap: 11px;
@@ -306,7 +306,7 @@
 .app-rotate-gate {
   position: fixed;
   inset: 0;
-  z-index: 400;
+  z-index: var(--z-gate);
   display: grid;
   place-items: center;
   padding: 24px;
@@ -390,12 +390,12 @@
    ekranı bu tutar. `html.is-booted` ilk açılışta ekilir ve BİR DAHA KALKMAZ
    (`appShell.revealAppShell`) — oyun ekranında katmanın geri gelmemesi bu
    yüzden `is-revealed` değil kalıcı bir sınıfa bağlıdır. z-index rotate
-   gate'in (400) üstündedir. */
+   gate'in (`--z-gate`) üstündedir. */
 
 .app-boot {
   position: fixed;
   inset: 0;
-  z-index: 600;
+  z-index: var(--z-boot);
   display: grid;
   place-items: center;
   align-content: center;

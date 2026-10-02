@@ -5,12 +5,18 @@
 // yüzlerce [len, owner] çifti; client `territoryLayer` offscreen kanvasını RLE'den yeniden kurar.
 // Relic ikonları tek kaynak tabletopIcons registry anahtarıdır (snapshot'ta ikon değil tür gider).
 
-import { drawGameAvatar } from '../core/avatarInGame.js';
+import { drawGameAvatar, drawGameAvatar25d } from '../core/avatarInGame.js';
 import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip } from '../core/entityStatus.js';
-import { drawField, hashFieldSeed } from '../core/fieldKit.js';
+import { drawField, hashFieldSeed, drawField25d, drawFieldRail, fieldRailBaseY } from '../core/fieldKit.js';
+import { groundSpace, chipAt } from '../core/sceneKit.js';
+import { sceneDraw } from '../core/arenaKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
+
+const RAIL_SIDES = /** @type {const} */ (['north', 'west', 'east', 'south']);
+// Sabit tema: ZONE haritaları yalnız ızgara boyutunu paylaşır (SNAKE deseni).
+export const ZONE_THEME_25D = 'garden';
 import {
   round1,
   createWorldSnapshot,
@@ -171,10 +177,10 @@ export function isValidZoneWorldFrame(frame) {
  * @param {CanvasRenderingContext2D} ctx
  * @param {{ pops?: any[], rings?: any[], particles?: any[] }} layer
  */
-export function drawZoneFxLayer(ctx, layer) {
-  drawFxPops(ctx, layer?.pops);
-  drawFxRings(ctx, layer?.rings);
-  drawSquareParticles(ctx, layer?.particles);
+export function drawZoneFxLayer(ctx, layer, proj = null) {
+  drawFxPops(ctx, layer?.pops, proj);
+  drawFxRings(ctx, layer?.rings, proj);
+  drawSquareParticles(ctx, layer?.particles, proj);
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
@@ -209,10 +215,28 @@ function paintTerritory(layer, grid, colors, stamp) {
 export function drawZoneField(ctx, field, cell, grid, colors, players, relics, nowSec = 0, layerCanvas = null, stamp = 0, opts = {}) {
   const [x, y, s] = field;
   if (s <= 0) return;
-  const u = s / 952;
-
-  const arena = { left: x, top: y, width: s, height: s, size: s, cx: x + s / 2, cy: y + s / 2 };
+  const proj = opts.proj || null;
+  const arena = {
+    left: x, top: y, width: s, height: s, size: s,
+    right: x + s, bottom: y + s, cx: x + s / 2, cy: y + s / 2,
+  };
+  if (proj) {
+    // 2.5D eğik saha: masa zemini + kenar rayları; ızgara/bölge/izler zemin
+    // uzayında (`proj` paralel → afin), yani tek ctx transform'la oturur.
+    drawField25d(ctx, proj, arena);
+    for (const side of RAIL_SIDES) {
+      sceneDraw(ctx, fieldRailBaseY(arena, side), drawFieldRail, proj, { arena, side });
+    }
+    groundSpace(ctx, proj, (c) => paintZoneGround(c, x, y, s, cell, grid, colors, players, relics, nowSec, layerCanvas, stamp));
+    return;
+  }
   drawField(ctx, arena, { mode: 'ZONE', seed: hashFieldSeed('ZONE', opts.roundId) });
+  paintZoneGround(ctx, x, y, s, cell, grid, colors, players, relics, nowSec, layerCanvas, stamp);
+}
+
+/** Zemin katmanı gövdesi (bölge/kristal/iz/çerçeve) — 2D ve 2.5D yolu AYNI çizim. */
+function paintZoneGround(ctx, x, y, s, cell, grid, colors, players, relics, nowSec, layerCanvas, stamp) {
+  const u = s / 952;
 
   const layer = layerCanvas
     ? { canvas: layerCanvas, ctx: null, stamp }
@@ -328,10 +352,89 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
   ctx.strokeRect(x, y, s, s);
 }
 
-export function drawZonePlayers(ctx, players, { cell = 0, leaderIndex = -1, withFx = true, selfSlot = -1 } = {}) {
+/** Kare-geneli durum (kare başına tahsis yok; oyuncuya özel veri `p`de). */
+const ZONE_PLAYER_ST = {
+  leaderIndex: -1, withFx: true, selfSlot: -1, proj: null, hasViewer: false,
+};
+
+/** 2.5D oyuncu öğesi: ayakta penguen + zemin halkası + lider taç + dash rozeti. */
+function drawZonePlayer25d(ctx, p, st) {
+  const {
+    leaderIndex, withFx, selfSlot, proj, hasViewer,
+  } = st;
+  const R = p.radius || 36;
+  const u = R / 36;
+  const k = proj.view.scale;
+
+  if (withFx && p.home && p.stun <= 0) {
+    // "Evde" halkası: koyu taban + tam alfa oyuncu rengi (kimlik korunur).
+    proj.groundRing(ctx, p.x, p.y, R + 3.5 * u, UI_COLORS.hudInkOutline, Math.max(2, 4 * u * k));
+    proj.groundRing(ctx, p.x, p.y, R + 3.5 * u, p.color, Math.max(1.5, 2 * u * k));
+  }
+
+  let currentExp = 'normal';
+  if (p.stun > 0) currentExp = 'dizzy';
+  else if ((p.trail?.length || 0) >= 22) currentExp = 'panic';
+  else if (p.relic) currentExp = 'excited';
+
+  drawGameAvatar25d(ctx, proj, p, {
+    x: p.x,
+    y: p.y,
+    radius: R,
+    color: p.color,
+    facingAngle: p.angle,
+    expression: currentExp,
+    borderColor: p.stun > 0 ? UI_COLORS.hudShield : (p.rimColor || UI_COLORS.inkDark),
+    borderWidth: Math.max(1.5, 3 * u * k),
+    now: typeof performance !== 'undefined' ? performance.now() : 0,
+    alpha: fxReadAlpha({ isSelf: hasViewer && (p.slot ?? p.index) === selfSlot, hasViewer }),
+  });
+
+  if (withFx && p.slot === leaderIndex && p.pct > 0) {
+    const top = proj.proj(p.x, p.y, R * 2.6);
+    drawTabletopIcon(ctx, 'crown', top.x, top.y, Math.max(12, 20 * k), { color: UI_COLORS.crownGold });
+  }
+
+  if (p.dashProg !== null && p.dashProg !== undefined) {
+    chipAt(ctx, proj, { x: p.x, y: p.y, radius: R }, { scale: u * k, icon: 'zap', progress: clamp01(p.dashProg) });
+  }
+
+  // Etiket plakası: ekran-uzayında gövdenin altında (dik okunur).
+  const label = `P${(p.slot ?? p.index ?? 0) + 1} • %${p.pct ?? 0}`;
+  const sp = proj.proj(p.x, p.y, 0);
+  const plateY = sp.y + R * k * 0.55;
+  ctx.save();
+  ctx.font = '900 11px "Space Grotesk", sans-serif';
+  const tw = (ctx.measureText(label).width || 40) + 12;
+  ctx.fillStyle = UI_COLORS.inkDark;
+  ctx.fillRect(sp.x - tw / 2, plateY, tw, 18);
+  ctx.fillStyle = UI_COLORS.white;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, sp.x, plateY + 9);
+  ctx.restore();
+}
+
+export function drawZonePlayers(ctx, players, {
+  cell = 0, leaderIndex = -1, withFx = true, selfSlot = -1, proj = null,
+} = {}) {
   // 3.3 okunurluk hiyerarşisi: tek görür varsa kendi avatarın T1, diğerleri T3
   // (−%25); α yalnız fxKit'ten gelir.
   const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  if (proj) {
+    const st = ZONE_PLAYER_ST;
+    st.leaderIndex = leaderIndex;
+    st.withFx = withFx;
+    st.selfSlot = selfSlot;
+    st.proj = proj;
+    st.hasViewer = hasViewer;
+    for (const p of players) {
+      if (!isWorldEntityVisible(p)) continue;
+      if (withFx && p.stun > 0 && Math.floor(p.blink / 0.15) % 2 === 0) continue;
+      drawZonePlayer25d(ctx, p, st);
+    }
+    return;
+  }
   for (const p of players) {
     if (!isWorldEntityVisible(p)) continue;
     if (withFx && p.stun > 0 && Math.floor(p.blink / 0.15) % 2 === 0) continue;
@@ -404,7 +507,16 @@ export function drawZonePlayers(ctx, players, { cell = 0, leaderIndex = -1, with
   }
 }
 
-export function drawZoneWaves(ctx, waves, cell) {
+export function drawZoneWaves(ctx, waves, cell, proj = null) {
+  if (proj) {
+    groundSpace(ctx, proj, (c) => paintZoneWaves(c, waves, cell));
+    return;
+  }
+  paintZoneWaves(ctx, waves, cell);
+}
+
+/** Kapma dalgası halkaları — zemin katmanı gövdesi. */
+function paintZoneWaves(ctx, waves, cell) {
   for (const cw of waves || []) {
     ctx.save();
     ctx.strokeStyle = cw.color;

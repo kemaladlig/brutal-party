@@ -23,6 +23,7 @@ import {
 import { drawField, hashFieldSeed, drawField25d, drawFieldRail, fieldRailBaseY } from '../core/fieldKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
+import { chipAt, queuePlayers } from '../core/sceneKit.js';
 import { shade } from '../core/projection2d.js';
 import { UI_COLORS } from '../ui/tokens.js';
 
@@ -318,8 +319,10 @@ function traceSnakePath(ctx, player, proj) {
 }
 
 /** Tek oyuncu (yılan) çizimi — sahne kuyruğu öğesi. Gövde zeminde, kafa küre. */
-function drawSnakePlayerItem(ctx, s) {
-  const { player, hasViewer, selfSlot, proj, now = 0 } = s;
+function drawSnakePlayerItem(ctx, player, st) {
+  const {
+    hasViewer, selfSlot, proj, now = 0,
+  } = st;
   const headRadius = player.radius || 24;
   const u = headRadius / 24;
   // 2.5D: gövde kalınlığı konumları kamera derinliğiyle ölçeklenir.
@@ -463,33 +466,40 @@ function drawSnakePlayerItem(ctx, s) {
   const energy = player.boostEnergy ?? player.energy ?? 100;
   if (energy < 98) {
     const locked = !!(player.boostLocked || player.locked);
-    const chip = proj ? proj.proj(player.x, player.y, headRadius) : { x: player.x, y: player.y };
-    drawStatusChip(ctx, {
-      x: chip.x,
-      y: chip.y,
-      radius: headRadius * k,
-      scale: u,
-      icon: 'zap',
-      state: locked ? STATUS_STATE.BLOCKED : STATUS_STATE.CHARGING,
-      progress: Math.max(0, Math.min(1, energy / 100)),
-    });
+    const icon = 'zap';
+    const state = locked ? STATUS_STATE.BLOCKED : STATUS_STATE.CHARGING;
+    const progress = Math.max(0, Math.min(1, energy / 100));
+    if (proj) {
+      chipAt(ctx, proj, { x: player.x, y: player.y, radius: headRadius }, {
+        scale: u, icon, state, progress,
+      });
+    } else {
+      drawStatusChip(ctx, {
+        x: player.x, y: player.y, radius: headRadius, scale: u, icon, state, progress,
+      });
+    }
   }
 }
+
+/** Kare-geneli oyuncu durumu (kare başına tahsis yok; oyuncuya özel veri `player`da). */
+const SNAKE_PLAYER_ST = {
+  now: 0, hasViewer: false, selfSlot: -1, proj: null,
+};
 
 export function drawSnakePlayers(ctx, players, now = 0, selfSlot = -1, proj = null) {
   // 3.3 okunurluk hiyerarşisi: tek görür varsa kendi avatarın T1, diğerleri T3
   // (−%25); α yalnız fxKit'ten gelir, motor kendi α'sını uydurmaz.
-  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
-  for (const player of players) {
-    if (!isWorldEntityVisible(player)) continue;
-    sceneDraw(
-      ctx,
-      entitySceneY(player.y, player.radius || 24),
-      drawSnakePlayerItem,
-      { player, now, hasViewer, selfSlot, proj },
-      null,
-    );
-  }
+  const st = SNAKE_PLAYER_ST;
+  st.now = now;
+  st.selfSlot = selfSlot;
+  st.hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  st.proj = proj;
+  queuePlayers(ctx, players, {
+    state: st,
+    drawItem: drawSnakePlayerItem,
+    radiusOf: (player) => player.radius || 24,
+    visible: isWorldEntityVisible,
+  });
 }
 
 /**

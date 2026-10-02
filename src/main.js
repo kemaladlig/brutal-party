@@ -69,6 +69,7 @@ import './ui/views/roomView.js';
 import './ui/views/lobbyView.js';
 import './ui/views/gamesView.js';
 import './ui/views/profileView.js';
+import './ui/views/avatarLabView.js';
 import { applyI18nToDOM, onLangChange, t, getLang, setLang } from './i18n.js';
 import { isFullscreen, toggleFullscreen, onFullscreenChange, fullscreenOfferable } from './ui/fullscreen.js';
 import { getTabletopIconSvg, drawTabletopIcon } from './core/tabletopIcons.js';

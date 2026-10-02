@@ -61,6 +61,9 @@ function pinViewport(w, h) {
   }
 }
 
+// Çıktı kabı — probe dalları da oyun modu da buraya basar.
+const out = document.getElementById('out');
+
 // --- probe: tek varlığın ÇİZİLEN yayılımını ölç ------------------------------
 // Çarpışma yarıçapı ile çizilen boyut AYNI şey değil. Oyun içi avatar
 // (faceMode 'play') dekor katmanı taşımıyor ama gözler büyütüldü ve disk içi
@@ -77,6 +80,128 @@ if (params.get('probe') === 'zoom') {
   frame.style.cssText = `width:760px;height:2600px;border:0;transform:scale(${num('z', 2.2)});transform-origin:top left`;
   out.appendChild(frame);
   document.title = 'probe zoom';
+} else if (params.get('probe') === 'obstacles') {
+  // ENGEL MALZEME ÇARŞAFI — 12 oyunun engel görünüşünü tek bakışta kıyaslar.
+  //
+  // GERÇEK çizim yolu kullanılır (`createProjector` + `drawObstacle25dShadow` /
+  // `drawObstacle25dMass`), kopya yok. Doku tuvalleri yalnız DOM varken üretilir
+  // (Node'da `null`), yani bu çarşaf doku yolunun TEK görsel doğrulamasıdır.
+  //
+  // Kullanım: /tests/helpers/render-harness.html?probe=obstacles
+  //           &legacy=1  → eski çizimi de alta basar (referans kolonu)
+  const { createProjector } = await import('../../src/core/projection2d.js');
+  const { drawObstacle25dMass, drawObstacle25dShadow } = await import('../../src/core/arenaKit.js');
+  const { UI_COLORS } = await import('../../src/ui/tokens.js');
+
+  const THEMES = ['wood', 'marble', 'arcade', 'picnic', 'night', 'garden'];
+  const W = 780;
+  const H = 250;
+  // Siluetler kasten farklı: uzun duvar/kolon → prizma, kare kolon → silindir.
+  const SHAPES = [
+    { label: 'uzun duvar', x: 60, y: 118, w: 200, h: 32 },
+    { label: 'kolon (prizma)', x: 310, y: 126, w: 150, h: 48 },
+    { label: 'kolon (silindir)', x: 480, y: 122, w: 58, h: 58 },
+    { label: 'kerb', x: 620, y: 130, w: 44, h: 44 },
+  ];
+
+  // ESKİ çizim (yalnız referans): üç ayrı tam kontur, bloğun `cam.x`e göre
+  // konumuna bağlı yan-yüz dikişi, sabit 2.5 px mürekkep, hash'ten pastel hue
+  // ve düz elips gölge. Karşılaştırma için birebir yeniden kuruldu.
+  const LEGACY_HUE = { top: '#F6B27B', front: '#E08A4F', side: '#BC6F3A' };
+  function legacyBlock(ctx, proj, obs) {
+    const { x, y, w, h } = obs;
+    const s = proj.view.scale;
+    const p = proj.proj;
+    const u = Math.max(0.42, Math.min(1.5, Math.min(w, h) / 48));
+    const wallH = Math.max(3.5, Math.min(10, 5.2 * u)) * 1.1;
+    const g0 = p(x + w / 2 + 4, y + h / 2 + 6, 0);
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = '#3A2A22';
+    ctx.beginPath();
+    ctx.ellipse(g0.x, g0.y, (w / 2) * 0.95 * s, (h / 2) * 0.95 * s * proj.tilt, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    const sx = (x + w / 2 < proj.cam.x) ? x + w : x;
+    const face = (pts, fill) => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i += 1) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.strokeStyle = '#3A2A22';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    };
+    face([p(sx, y, 0), p(sx, y + h, 0), p(sx, y + h, wallH), p(sx, y, wallH)], LEGACY_HUE.side);
+    face([p(x, y + h, 0), p(x + w, y + h, 0), p(x + w, y + h, wallH), p(x, y + h, wallH)], LEGACY_HUE.front);
+    face([p(x, y, wallH), p(x + w, y, wallH), p(x + w, y + h, wallH), p(x, y + h, wallH)], LEGACY_HUE.top);
+  }
+
+  const sheet = document.createElement('div');
+  sheet.id = 'obstacle-sheet';
+  const showLegacy = params.get('legacy') === '1';
+
+  const buildRow = (title, paint) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const head = document.createElement('h2');
+    head.textContent = title;
+    row.appendChild(head);
+    const canvas = document.createElement('canvas');
+    // `&dpr=2` — gerçek telefon DPR'ını taklit eder. Mürekkep konturu ve
+    // dokunun 1:1 ölçekte nasıl okunduğunu görmek için: harness tuvali 1x
+    // kalırsa kenarlar testere dişli görünür ve kalite yanlış yargılanır.
+    const dpr = num('dpr', 1);
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    canvas.style.width = `${W}px`;
+    canvas.style.height = `${H}px`;
+    row.appendChild(canvas);
+    sheet.appendChild(row);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const arena = {
+      left: 34, top: 46, right: W - 34, bottom: H - 40,
+      cx: W / 2, cy: (46 + H - 40) / 2,
+      width: W - 68, height: H - 86, size: 150,
+    };
+    const proj = createProjector();
+    proj.fit({ width: W, height: H }, arena, { theme: paint.theme, extraW: 0, extraH: 0 });
+    // Zemin: tam saha yerine mat düzlemi (çarşafın odağı engel).
+    ctx.fillStyle = proj.theme.tray;
+    ctx.fillRect(0, 0, W, H);
+    const p = proj.proj;
+    proj.quad(ctx, p(arena.left, arena.top), p(arena.right, arena.top),
+      p(arena.right, arena.bottom), p(arena.left, arena.bottom), proj.theme.mat);
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    for (const shape of SHAPES) {
+      paint.block(ctx, proj, shape);
+      ctx.fillStyle = '#1A1A1A';
+      ctx.fillText(shape.label, proj.proj(shape.x + shape.w / 2, shape.y + shape.h, 0).x, H - 18);
+    }
+  };
+
+  for (const id of THEMES) {
+    const block = UI_COLORS.arena25dThemes[id].block;
+    buildRow(`${id} — block: ${block}`, {
+      theme: id,
+      block: (ctx, proj, obs) => {
+        drawObstacle25dShadow(ctx, proj, obs);
+        drawObstacle25dMass(ctx, proj, obs);
+      },
+    });
+  }
+  if (showLegacy) {
+    buildRow('ESKİ (referans) — wood: hash pastel hue + 3 kontur + dikiş', {
+      theme: 'wood',
+      block: legacyBlock,
+    });
+  }
+
+  out.appendChild(sheet);
+  document.title = 'probe obstacles';
 } else if (['extent', 'face', 'card', 'sparks'].includes(params.get('probe'))) {
   const R = num('r', 16);
   const size = Math.ceil(R * 8);
@@ -358,7 +483,6 @@ const cartridge = CARTRIDGES[GAME];
 if (!cartridge) throw new Error(`unknown game: ${GAME}`);
 const GameClass = await cartridge.load();
 
-const out = document.getElementById('out');
 const reports = [];
 
 for (const [w, h] of SIZES) {

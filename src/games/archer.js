@@ -4,7 +4,7 @@
 // Yakın mesafe vuruş 2 puan, uzak vuruş 1 puan. 60sn raundu en çok puanla bitiren
 // raundu alır; 2 raund alan şampiyon.
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
-import { playExplosion, playStart, playJoin, playItemPickup, playTeleport, playDashWhoosh, playPowerUp } from '../audio.js';
+import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
 import { notifyFireBlocked, notifyFireShot } from '../core/fireFeedbackEffects.js';
 import { resetFireFeedback, updateFireFeedback } from '../core/fireFeedback.js';
 import { t } from '../i18n.js';
@@ -19,9 +19,12 @@ import { isInputIntent } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { updateMovers, clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
+import { PICKUP_CATALOG } from '../core/pickupCatalog.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { findAutoAimTarget } from '../core/autoAim.js';
 import { paintBackdrop } from '../core/fieldKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
 import {
   createArcherWorldPacket,
   drawArcherArena,
@@ -29,6 +32,7 @@ import {
   drawArcherArrows,
   drawArcherPlayers,
   drawArcherFxLayer,
+  ARCHER_THEME_25D,
 } from './archerView.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
@@ -66,6 +70,10 @@ export class ArcherGame extends BaseMiniGame {
   constructor(canvas) {
     super(canvas);
     this.controlMode = 'ARCHER';
+    // 2.5D sahne zarfı: kamera arena+viewport+sabit temadan sığdırılır; ONLINE
+    // client AYNI sabit temayla aynı sahneyi kurar (sahne birebir eşleşir).
+    this.scene = createTiltedScene({ camera: TILTED_25D_CAMERA.archer });
+    this.proj = this.scene.proj;
     this.arena = { cx: 0, cy: 0, size: 0, left: 0, right: 0, top: 0, bottom: 0 };
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty'];
     this.scores = [0, 0, 0, 0];
@@ -376,6 +384,7 @@ export class ArcherGame extends BaseMiniGame {
       max: 2,
       obstacles: this.obstacles,
       pad: 0,
+      strict: true,
     });
   }
 
@@ -385,40 +394,9 @@ export class ArcherGame extends BaseMiniGame {
       x: player.x, y: player.y, color: player.color, slot: player.index,
       haptic: player.slotType === 'human',
     });
-    if (pk.type === 'TURBO') {
-      player.turboTimer = 3.5;
-      playPowerUp();
-    } else if (pk.type === 'TELEPORT') {
-      const { left, right, top, bottom, size } = this.arena;
-      const pad = size * 0.16;
-      const corners = [
-        { x: left + pad, y: top + pad },
-        { x: right - pad, y: top + pad },
-        { x: left + pad, y: bottom - pad },
-        { x: right - pad, y: bottom - pad },
-      ];
-      let best = corners[0];
-      let bestD = -1;
-      for (const c of corners) {
-        const d = Math.hypot(c.x - player.x, c.y - player.y);
-        if (d > bestD) { bestD = d; best = c; }
-      }
-      player.x = best.x;
-      player.y = best.y;
-      playTeleport();
-    } else if (pk.type === 'SLIP') {
-      player.slipTimer = 0.55;
-      playDashWhoosh();
-    } else if (pk.type === 'MULTI') {
-      player.multiShots += 3;
-      playPowerUp();
-    } else if (pk.type === 'QUICKDRAW') {
-      player.quickdrawTimer = 8.0;
-      playPowerUp();
-    } else if (pk.type === 'SHIELD') {
-      player.shield = 1;
-      playPowerUp();
-    }
+    // Davranış TEK kaynak `core/pickupCatalog.js`'tedir (görsel + effect +
+    // requires aynı kayıtta); burada kopya if/else zinciri tutulmaz.
+    PICKUP_CATALOG[pk.type]?.effect?.(this, player, pk);
   }
 
   getTabletopSchema() {
@@ -841,15 +819,33 @@ export class ArcherGame extends BaseMiniGame {
     const { ctx } = this;
     ctx.save();
 
-    // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
-    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'ARCHER' });
+    // 2.5D sahne zarfı: kamera arena+viewport+temadan sığdırılır. Masa zemini
+    // `drawField25d` içinde boyanır (paintBackdrop çizilmez).
+    this.scene.open(ctx, {
+      viewport: this.viewport,
+      arena: this.arena,
+      theme: ARCHER_THEME_25D,
+    });
     this.applyScreenShake(ctx);
 
     // Arenanın scene kısmı ortak archerView draw'larından gelir (host↔client aynı).
-    drawArcherArena(ctx, this.arena, this.obstacles, { roundId: this.roundId });
-    drawArcherPickups(ctx, this.pickups);
+    drawArcherArena(ctx, this.arena, this.obstacles, { roundId: this.roundId, proj: this.proj });
+    drawArcherPickups(ctx, this.pickups, this.proj);
+
+    // Oklar
+    drawArcherArrows(ctx, this.arrows, this.arena, this.proj);
+
+    // Oyuncular
+    drawArcherPlayers(ctx, this.players, {
+      showFx: this.state === 'PLAYING',
+      now: this.lastTime,
+      selfSlot: this.localControlSlot ?? -1,
+      proj: this.proj,
+    });
+    this.scene.close(ctx);
 
     // Engellerin üzerinde her zaman net, yüksek görünürlüklü süre sayacı
+    // (ekran-uzayı HUD — sahne kapandıktan sonra çizilir).
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {
       const remain = Math.max(0, Math.ceil(this.roundTime));
       renderArenaWatermarkTimer(ctx, {
@@ -866,14 +862,8 @@ export class ArcherGame extends BaseMiniGame {
       });
     }
 
-    // Oklar
-    drawArcherArrows(ctx, this.arrows);
-
-    // Oyuncular
-    drawArcherPlayers(ctx, this.players, { showFx: this.state === 'PLAYING', now: this.lastTime, selfSlot: this.localControlSlot ?? -1 });
-
     // FX katmanı ortak archerView draw'ından gelir (host↔client aynı).
-    drawArcherFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+    drawArcherFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles }, this.proj);
 
     this.renderControls(ctx, { extraEntities: this.arrows });
     this.renderHUD(ctx, {

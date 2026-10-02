@@ -14,8 +14,11 @@ import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap
 import { distToSegmentSquared, clampToArena } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
-import { createCurveWorldPacket, drawCurveArena, drawCurveFxLayer } from './curveView.js';
-import { arenaUnit, paintBackdrop } from '../core/fieldKit.js';
+import { createCurveWorldPacket, drawCurveArena, drawCurveFxLayer, drawCurveHeads, CURVE_THEME_25D } from './curveView.js';
+import { arenaUnit } from '../core/fieldKit.js';
+import { TILTED_25D_CAMERA } from '../core/projection2d.js';
+import { createTiltedScene } from '../core/tiltedScene.js';
+import { groundSpace } from '../core/sceneKit.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
@@ -71,6 +74,10 @@ export class CurveGame extends BaseMiniGame {
     super(canvas);
 
     // Arena dimensions
+    // 2.5D sahne zarfı: kamera arena+viewport+sabit temadan sığdırılır; ONLINE
+    // client AYNI sabit temayla aynı sahneyi kurar (sahne birebir eşleşir).
+    this.scene = createTiltedScene({ camera: TILTED_25D_CAMERA.curve });
+    this.proj = this.scene.proj;
     this.arena = {
       cx: 0,
       cy: 0,
@@ -464,6 +471,7 @@ this.targetScore = 2;
       max: 3,
       size: 24,
       life: 14.0,
+      strict: true,
     });
   }
 
@@ -891,8 +899,13 @@ this.targetScore = 2;
     const { ctx } = this;
     ctx.save();
 
-    // Sahanın dışı (masa) — `fieldKit` tek sahibi, tema tonundan türer.
-    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'CURVE' });
+    // 2.5D sahne zarfı: masa zemini `drawField25d` içinde boyanır (paintBackdrop
+    // çizilmez).
+    this.scene.open(ctx, {
+      viewport: this.viewport,
+      arena: this.arena,
+      theme: CURVE_THEME_25D,
+    });
 
     this.applyScreenShake(ctx, 16);
 
@@ -903,29 +916,33 @@ this.targetScore = 2;
     // kesimi. Eskiden burada düz `#FAF7F2` dolgu + el-ile ızgara + köşe
     // plakaları + siyah `strokeRect` vardı ve `curveWorldView.js` aynısını
     // ikinci kez kopyalıyordu.
-    drawCurveArena(ctx, this.arena, { roundId: this.roundId });
+    drawCurveArena(ctx, this.arena, { roundId: this.roundId, proj: this.proj });
 
-    // Trail Segments (Dinamik kalınlık: kafa 18px'e oranlı — Mini 6, Normal 11, Kalın 23)
-    ctx.lineCap = 'round';
-    for (const seg of this.segments) {
-      if (seg.isGap) continue;
-      ctx.lineWidth = Math.max(1, (seg.thick ? 23 : (seg.shrink ? 6 : 11)) * u);
-      ctx.strokeStyle = seg.color;
-      ctx.beginPath();
-      ctx.moveTo(seg.x1, seg.y1);
-      ctx.lineTo(seg.x2, seg.y2);
-      ctx.stroke();
-    }
+    // Trail Segments — zemin düzleminde (proj paralel → tek afin transform).
+    groundSpace(ctx, this.proj, (c) => {
+      c.lineCap = 'round';
+      for (const seg of this.segments) {
+        if (seg.isGap) continue;
+        c.lineWidth = Math.max(1, (seg.thick ? 23 : (seg.shrink ? 6 : 11)) * u);
+        c.strokeStyle = seg.color;
+        c.beginPath();
+        c.moveTo(seg.x1, seg.y1);
+        c.lineTo(seg.x2, seg.y2);
+        c.stroke();
+      }
+    });
 
     // Pickups (Canlı İkon Rozetleri) — host tam çözünürlükte çizer; telefonlar
     // curveView sıkıştırılmış iki katmanlı (near + field maskesi) draw'ını kullanır.
     for (const item of this.pickups) {
-      drawPickup(ctx, item, { size: item.size || 24 });
+      drawPickup(ctx, item, { size: item.size || 24, proj: this.proj });
     }
 
     // Floating Text Notifications (Kazanılan güçler)
     if (this.floatingTexts) {
       for (const ft of this.floatingTexts) {
+        // 2.5D: metin projekte konumda, ekran-uzayında dik okunur.
+        const sp = this.proj.proj(ft.x, ft.y, 20);
         ctx.save();
         ctx.globalAlpha = Math.max(0, ft.life / ft.maxLife);
         ctx.font = '900 12px "Space Grotesk", sans-serif';
@@ -934,97 +951,29 @@ this.targetScore = 2;
         ctx.lineJoin = 'round';
         ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
         ctx.lineWidth = Math.max(1, 3.5 * u);
-        ctx.strokeText(ft.text, ft.x, ft.y);
+        ctx.strokeText(ft.text, sp.x, sp.y);
         ctx.fillStyle = ft.color;
-        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.fillText(ft.text, sp.x, sp.y);
         ctx.restore();
       }
     }
 
     // FX katmanı ortak curveView draw'ından gelir (host↔client aynı).
-    drawCurveFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });
+    drawCurveFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles }, this.proj);
 
-    // Heads
-    for (const player of this.players) {
-      if (!player.isJoined || !player.isAlive) continue;
-
-      ctx.save();
-      const headRadius = player.shrinkTimer > 0 ? player.radius * 0.64 : player.radius;
-
-      // Dondurma aurası `#00B4D8` 2.56:1 idi; `hudShield` 4.44:1.
-      if (player.freezeTimer > 0) {
-        ctx.strokeStyle = UI_COLORS.hudShield;
-        ctx.lineWidth = Math.max(1, 2 * u);
-        ctx.setLineDash([2, 2]);
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, headRadius + 6, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      // Barikat kalkanı aurası `#D99B26` 2.16:1 idi; `hudAmber` 4.91:1.
-      if (player.thickTimer > 0) {
-        ctx.strokeStyle = UI_COLORS.hudAmber;
-        ctx.lineWidth = Math.max(1, 2.5 * u);
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, headRadius + 4.5, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      // Hayalet aurası `#70E000` 1.52:1 idi; `hudGhost` 3.5:1.
-      if (player.ghostTimer > 0) {
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, headRadius + 5, 0, Math.PI * 2);
-        ctx.setLineDash([3, 3]);
-        ctx.strokeStyle = UI_COLORS.hudGhost;
-        ctx.lineWidth = Math.max(1, 1.8 * u);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      if (player.confusedTimer > 0) {
-        ctx.strokeStyle = UI_COLORS.danger;
-        ctx.lineWidth = Math.max(1, 2 * u);
-        ctx.setLineDash([1, 3]);
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, headRadius + 7, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      // Gap Warning Halo (0.4s before gap opens)
-      if (player.gapTimer <= 0.4 && !player.isGap) {
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, headRadius + 4, 0, Math.PI * 2);
-        ctx.strokeStyle = '#D84727';
-        ctx.lineWidth = Math.max(1, 1.8 * u);
-        ctx.setLineDash([2, 2]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      // Ana Kafa Noktası
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, headRadius, 0, Math.PI * 2);
-      ctx.fillStyle = player.color;
-      ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = Math.max(1, 2 * u);
-      ctx.stroke();
-
-      // Göz/Yön Noktası
-      ctx.beginPath();
-      ctx.arc(
-        player.x + Math.cos(player.angle) * (headRadius * 0.6),
-        player.y + Math.sin(player.angle) * (headRadius * 0.6),
-        Math.max(1.2, headRadius * 0.35),
-        0,
-        Math.PI * 2
-      );
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fill();
-      ctx.restore();
-    }
+    // Heads — host VE ONLINE client AYNI çizimi kullanır (host↔client eşliği).
+    drawCurveHeads(ctx, this.players.map((p) => ({
+      ...p,
+      freeze: p.freezeTimer > 0,
+      thick: p.thickTimer > 0,
+      ghost: p.ghostTimer > 0,
+      confused: p.confusedTimer > 0,
+      gap: p.isGap,
+      shrink: p.shrinkTimer > 0,
+      joined: p.isJoined,
+      alive: p.isAlive,
+    })), this.proj, this.lastTime);
+    this.scene.close(ctx);
 
     this.uiButtons = [];
     this.renderControls(ctx, { extraEntities: this.pickups });

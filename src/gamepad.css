@@ -39,7 +39,7 @@
   color: var(--n-900);
   display: flex;
   flex-direction: column;
-  z-index: 200;
+  z-index: var(--z-gamepad);
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
@@ -65,7 +65,7 @@
 #local-mobile-controls {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: var(--z-controls);
   display: block;
   pointer-events: none;
   touch-action: none;
@@ -108,7 +108,7 @@
   padding: 0;
   flex-shrink: 0;
   box-sizing: border-box;
-  z-index: 65;
+  z-index: var(--z-pad-header);
   pointer-events: none;
 }
 
@@ -236,7 +236,7 @@
   flex-direction: column;
   gap: 2px;
   box-sizing: border-box;
-  z-index: 70;
+  z-index: var(--z-pad-chip);
   animation: menu-pop 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -297,7 +297,7 @@
   top: max(8px, env(safe-area-inset-top, 8px));
   left: 50%;
   transform: translateX(-50%);
-  z-index: 60;
+  z-index: var(--z-pad-status);
   /* Orta kuşak: sol tepki çipi (54px) + sağ taç/menü (106px) arasında kalan
      boşluk. Fazlası çiplerin altına kayar. */
   max-width: calc(100vw - 200px);
@@ -841,7 +841,7 @@
   top: calc(max(10px, env(safe-area-inset-top, 10px)) + 48px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 58;
+  z-index: var(--z-pad-strip);
   width: 100%;
   max-width: 440px;
   display: flex;
@@ -944,7 +944,7 @@
 .controller-layout-editor {
   position: absolute;
   inset: 0;
-  z-index: 260;
+  z-index: var(--z-pad-editor);
   display: block;
   overflow: hidden;
   pointer-events: auto;
@@ -1062,7 +1062,7 @@
   cursor: grab;
   pointer-events: auto;
   touch-action: none;
-  z-index: 3;
+  z-index: var(--z-local-3);
   transition: transform 0.06s ease, background-color 0.15s ease, box-shadow 0.06s ease;
 }
 
@@ -1092,7 +1092,7 @@
   box-shadow: var(--shadow-float);
   pointer-events: auto;
   touch-action: manipulation;
-  z-index: 4;
+  z-index: var(--z-local-4);
 }
 
 .controller-layout-editor-heading {
@@ -1270,14 +1270,14 @@
   display: block;
   width: 100%;
   height: 100%;
-  z-index: 0;
+  z-index: var(--z-local-0);
   touch-action: none;
 }
 
 .gamepad-control-overlay {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: var(--z-local-2);
   overflow: hidden;
   pointer-events: none;
 }
@@ -1482,14 +1482,14 @@
 /* Geri sayım PERDESİ — `#gamepad-overlay` çocuğu, workspace'in DIŞINDA.
    Dışarıda olması sözleşme: `renderGameController` workspace'in içini
    temizler; perde orada dursaydı her takasta yok olur ve geçiş yine kesmeye
-   dönerdi. z-index: tam ekran sonucun (120) üstünde, kumanda düzenleme
-   editörünün (260) altında. Zemin pad'in kendi kâğıdı — `.countdown-number`
+   dönerdi. z-index: kumanda maç sonu kartının (`--z-pad-result`) üstünde,
+   düzen editörünün (`--z-pad-editor`) altında. Zemin pad'in kendi kâğıdı - `.countdown-number`
    `--ink` ile yazılıyor, koyu scrim §7'nin "açık zeminde açık yazı" yasağına
    değil de okunmazlık tuzağına düşürürdü. */
 .countdown-veil {
   position: absolute;
   inset: 0;
-  z-index: 200;
+  z-index: var(--z-pad-veil);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2382,7 +2382,7 @@
   text-shadow: 0 2px 6px var(--dim-35);
   letter-spacing: 0.5px;
   pointer-events: none;
-  z-index: 2;
+  z-index: var(--z-local-2);
 }
 
 .action-dash-btn.cooling .cd-num,
@@ -2535,7 +2535,7 @@
     inset 0 1px 0 var(--sheen-35),
     var(--joy-lift);
   opacity: 1 !important;
-  z-index: 15;
+  z-index: var(--z-pad-joy);
 }
 
 .phone-joy-base.floating::after {
@@ -2591,7 +2591,7 @@
 /* Reaction Emoji Overlay → `styles/reactions.css` (ortak tepki katmanı). */
 
 /* Döndürme geçidi KUMANDADA DEĞİL: tek geçit `#app-rotate-gate`tir
-   (`styles/shell.css` `.app-rotate-gate`, z-index 400 — kumanda katmanının
+   (`styles/shell.css` `.app-rotate-gate`, `--z-gate` — kumanda katmanının
    üstünde). İkinci bir geçit aynı anda iki tam ekran scrim üretiyordu. */
 
 /* Shared landscape control belt: controls stay reachable above the home
@@ -2670,7 +2670,7 @@
   position: absolute;
   top: max(54px, calc(env(safe-area-inset-top, 0px) + 54px));
   right: max(12px, env(safe-area-inset-right, 12px));
-  z-index: 65;
+  z-index: var(--z-pad-header);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -2722,7 +2722,7 @@
 .gamepad-result {
   position: absolute;
   inset: 0;
-  z-index: 120;
+  z-index: var(--z-pad-result);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2756,7 +2756,7 @@
    içinde kaydırılır; taşmaz. */
 .result-card {
   position: relative;
-  z-index: 1;
+  z-index: var(--z-local-1);
   display: flex;
   flex-direction: column;
   align-items: center;
