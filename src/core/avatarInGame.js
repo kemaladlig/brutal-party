@@ -15,8 +15,15 @@
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
 import { drawDioramaContactShadow } from './dioramaKit.js';
 import { avatarFlinchOffset } from './fieldFlinch.js';
-import { rimHex } from './customizationManager.js';
+import { rimHex, getSlotAvatar, getAvatarProfile } from './customizationManager.js';
 import { UI_COLORS } from '../ui/tokens.js';
+
+/**
+ * Sayı ve sonlu ise değeri, değilse `null`. `getKineticState` kare başına
+ * avatar başına birkaç kez çağrıldığı için bu yardımcı modül düzeyindedir;
+ * eskiden her çağrıda yerel bir closure üretiyordu (§3).
+ */
+const finiteOrNull = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 /**
  * Gövde rengin krem sahada (L* ~94) okunması için: açık gövde renginde
@@ -67,6 +74,33 @@ export function blinkState(now, slotIndex = 0) {
 }
 
 /**
+ * İfade takma adları — MODÜL SEVİYESİNDE sabit. Eskiden `normalizeExpression`
+ * her çağrıda bu 20 anahtarlı nesneyi yeniden kuruyordu; çağrı kare başına
+ * avatar başına birkaç kez olduğu için mobilde sürekli çöp üretiyordu (§3).
+ */
+const EXPRESSION_ALIASES = Object.freeze({
+  ANGRY: 'ANGRY',
+  PANIC: 'PANIC',
+  EXCITED: 'WINK',
+  DIZZY: 'CYCLOPS',
+  ROBOT: 'CYBORG',
+  WINK: 'WINK',
+  SMIRK: 'GRIN',
+  DEAD: 'ZOMBIE',
+  NORMAL: 'FOCUS',
+  FOCUS: 'FOCUS',
+  DERP: 'DERP',
+  CYCLOPS: 'CYCLOPS',
+  HEART: 'HEART',
+  STAR: 'STAR',
+  SLEEPY: 'SLEEPY',
+  ZOMBIE: 'ZOMBIE',
+  GRIN: 'GRIN',
+  SHADES: 'SHADES',
+  CYBORG: 'CYBORG',
+});
+
+/**
  * Normalizes expression alias strings (e.g. 'angry' -> 'ANGRY')
  * @param {string} exp - Input expression
  * @returns {string} Normalized expression
@@ -74,28 +108,7 @@ export function blinkState(now, slotIndex = 0) {
 export function normalizeExpression(exp) {
   if (!exp) return 'FOCUS';
   const upper = String(exp).toUpperCase();
-  const aliasMap = {
-    ANGRY: 'ANGRY',
-    PANIC: 'PANIC',
-    EXCITED: 'WINK',
-    DIZZY: 'CYCLOPS',
-    ROBOT: 'CYBORG',
-    WINK: 'WINK',
-    SMIRK: 'GRIN',
-    DEAD: 'ZOMBIE',
-    NORMAL: 'FOCUS',
-    FOCUS: 'FOCUS',
-    DERP: 'DERP',
-    CYCLOPS: 'CYCLOPS',
-    HEART: 'HEART',
-    STAR: 'STAR',
-    SLEEPY: 'SLEEPY',
-    ZOMBIE: 'ZOMBIE',
-    GRIN: 'GRIN',
-    SHADES: 'SHADES',
-    CYBORG: 'CYBORG',
-  };
-  return aliasMap[upper] || upper;
+  return EXPRESSION_ALIASES[upper] || upper;
 }
 
 /**
@@ -114,17 +127,16 @@ export function normalizeExpression(exp) {
 export function getKineticState(player, opts = {}) {
   const p = player || {};
   const o = opts || {};
-  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
   // Dash: kanonik `dashing` + tüm motor lehçeleri (BOMB dashTimer/isDashing,
   // ZONE dashTimer/isDashing, NINJA strikeTimer, COLLAPSE jumpTimer, paket `dash`/`strike`).
   const dashing = Boolean(
     p.dashing || o.dashing
     || p.isDashing || o.isDashing
-    || (num(p.dashTimer) ?? 0) > 0 || (num(o.dashTimer) ?? 0) > 0
-    || (num(p.dash) ?? 0) > 0 || (num(o.dash) ?? 0) > 0
-    || (num(p.strikeTimer) ?? 0) > 0 || o.strike === true || p.strike === true
-    || (num(p.jumpTimer) ?? 0) > 0,
+    || (finiteOrNull(p.dashTimer) ?? 0) > 0 || (finiteOrNull(o.dashTimer) ?? 0) > 0
+    || (finiteOrNull(p.dash) ?? 0) > 0 || (finiteOrNull(o.dash) ?? 0) > 0
+    || (finiteOrNull(p.strikeTimer) ?? 0) > 0 || o.strike === true || p.strike === true
+    || (finiteOrNull(p.jumpTimer) ?? 0) > 0,
   );
 
   // Tackle: kanonik `tackling` + `isTackling` (CROWN/HEIST).
@@ -137,9 +149,9 @@ export function getKineticState(player, opts = {}) {
     || !Number.isFinite(vx) || !Number.isFinite(vy)) {
     vx = null;
     vy = null;
-    const sx = num(p.steerX);
-    const sy = num(p.steerY);
-    const spd = num(p.speed);
+    const sx = finiteOrNull(p.steerX);
+    const sy = finiteOrNull(p.steerY);
+    const spd = finiteOrNull(p.speed);
     if (sx !== null && sy !== null && spd !== null) {
       vx = sx * spd;
       vy = sy * spd;
@@ -157,7 +169,7 @@ export function getKineticState(player, opts = {}) {
     }
   }
 
-  const recoil = num(o.recoil) ?? num(p.recoil) ?? 0;
+  const recoil = finiteOrNull(o.recoil) ?? finiteOrNull(p.recoil) ?? 0;
 
   return { dashing, tackling, vx, vy, recoil };
 }
@@ -458,12 +470,21 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
   const kineticX = flinch ? Math.max(kinetic.squashX, 1 - flinch.squeeze) : kinetic.squashX;
   const kineticY = flinch ? Math.min(kinetic.squashY, 1 + flinch.squeeze) : kinetic.squashY;
 
+  const headwear = opts.headwear !== undefined
+    ? opts.headwear
+    : (player.headwear
+      || player.avatar?.headwear
+      || (slotIndex !== null ? getSlotAvatar(slotIndex)?.headwear : null)
+      || getAvatarProfile()?.headwear
+      || 'NONE');
+
   drawBrutalAvatar(ctx, drawX, drawY, radius, {
     color: bodyColor,
     slotIndex,
     facingAngle: opts.facingAngle !== undefined ? opts.facingAngle : player.facingAngle || player.angle || 0,
     label: opts.label !== undefined ? opts.label : defaultLabel,
     expression: expression,
+    headwear,
     // Saha içi kip: dekor katmanları kapalı, gözler büyük, disk içi hacim var.
     faceMode: 'play',
     lookAngle: opts.lookAngle,

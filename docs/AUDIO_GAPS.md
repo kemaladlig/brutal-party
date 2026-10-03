@@ -45,7 +45,7 @@ Kural: click/karar anında `playMenuTick` (gezme) / `playMenuPop` (onay), maç b
 - Telefon kumandası (`gamepad.js`) sessizleri: score-peek `:976` ticksiz (yanındaki menuBtn tickli), leave-gamepad `:981` sessiz, fullscreen `:991` sessiz, leave-lobby-direct `:1481` ve `:1525` (armed + confirm ikisi de sessiz), edit-character açma `:1489` sessiz (kaydetme tickli, açma değil).
 - Pong yön butonu (`controllerTemplates.js:776` invertBtn) sessiz — toggle tick olmalı. spinBtn `:774` `cooledAction`'dan geçiyor, motor tarafında karşılığı yoksa oyun içi spin de sessiz kalır (şüpheli, engine tarafı bakılmalı).
 - Reaction picker: trigger açma (`reactionPicker.js:88-93`) sessiz, backdrop kapatma (`:62`) sessiz — sadece seçim `:57` pop veriyor.
-- Blocked-shot feedback tutarsız: `notifyFireBlocked` yalnız archer + horde'da bağlı. tanks `playDryFire`'ı ham çağırıyor, colossus'ta blocked yolu yok. Aynı tetikte farklı his.
+- Blocked-shot feedback tutarsız: `notifyFireBlocked` archer + horde + colossus'ta bağlı. tanks `playDryFire`'ı ham çağırıyor; aynı tetikte hâlâ farklı his.
 - Mute toggle (`toggleAudio`) iki yönde de sessiz — mute'ta normal ama unmute'ta confirm pop olmalı.
 - `warmGameSounds` yalnız 4 sample ısıtıyor (tick, confirm, punchLight, laserSmall). bomb tick, countdown voice, start jingle ilk basışta geç kalabilir.
 - Temiz çıkanlar (tekrar bakma): profileView (palet/yüz/rim/zar hepsi tickli), homeView + showcase + heroAvatar (pop/tick yerinde), tabStrip, settingsRow, roomView oda seçimi.

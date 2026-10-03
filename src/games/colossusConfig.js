@@ -1,5 +1,10 @@
 // BRUTAL COLOSSUS — saf oyun tuning sözleşmeleri.
 // DOM/Canvas bağımlılığı yoktur; motor, tester ve istatistikler aynı değerleri okur.
+//
+// Tasarım: 1-4 oyunculu KOOPERATİF titan avı. Boss'un silah modülleri
+// (parts) kırıldıkça hem saldırıları düşer hem de boss sersemler; takım
+// modülleri kırıp açılan pencerede çekirdeği boşaltır. Tüm saldırılar
+// okunabilir telegraph'la gelir (WINDUP_* → aktif → toparlanma).
 
 import { FIELD_THEMES } from '../core/fieldKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
@@ -74,6 +79,8 @@ export const COLOSSUS_WEAPONS = Object.freeze({
   }),
 });
 
+// `disables`: modül kırıldığında düşen saldırı. AEGIS'in zırh plakası yalnız
+// hasar cezasını kaldırır (saldırı düşürmez) — `armor: true` işaretiyle ayrılır.
 export const COLOSSUS_BOSSES = Object.freeze({
   AEGIS: Object.freeze({
     id: 'AEGIS',
@@ -81,17 +88,17 @@ export const COLOSSUS_BOSSES = Object.freeze({
     titleKey: 'colossus.bossAegisTitle',
     theme: 'foundry',
     bodyShape: 'mech',
-    baseHp: 180,
-    hpPerPlayer: 60,
+    baseHp: 130,
+    hpPerPlayer: 45,
     radius: 84,
-    speedP1: 48,
-    speedP2: 58,
-    speedP3: 75,
+    speedP1: 44,
+    speedP2: 56,
+    speedP3: 72,
     hasShieldPhase: true,
     accentColor: UI_COLORS.colossusRifle,
     parts: Object.freeze([
-      { id: 'cannon', nameKey: 'colossus.partCannon', maxHp: 35, angleOffset: -Math.PI / 2, distRatio: 0.65, radius: 22 },
-      { id: 'armorPlate', nameKey: 'colossus.partArmor', maxHp: 45, angleOffset: 0, distRatio: 0.72, radius: 24 },
+      { id: 'cannon', nameKey: 'colossus.partCannon', maxHp: 34, angleOffset: -Math.PI / 2, distRatio: 0.65, radius: 22, disables: 'MORTAR' },
+      { id: 'armorPlate', nameKey: 'colossus.partArmor', maxHp: 42, angleOffset: 0, distRatio: 0.72, radius: 24, armor: true, disables: null },
     ]),
   }),
   IGNIS: Object.freeze({
@@ -100,17 +107,17 @@ export const COLOSSUS_BOSSES = Object.freeze({
     titleKey: 'colossus.bossIgnisTitle',
     theme: 'foundry',
     bodyShape: 'scorpion',
-    baseHp: 200,
-    hpPerPlayer: 65,
+    baseHp: 145,
+    hpPerPlayer: 48,
     radius: 78,
-    speedP1: 60,
-    speedP2: 76,
-    speedP3: 94,
-    hasShieldPhase: false,
+    speedP1: 54,
+    speedP2: 68,
+    speedP3: 86,
+    hasShieldPhase: true,
     accentColor: UI_COLORS.colossusIgnis,
     parts: Object.freeze([
-      { id: 'stinger', nameKey: 'colossus.partStinger', maxHp: 38, angleOffset: Math.PI, distRatio: 0.88, radius: 22 },
-      { id: 'pincers', nameKey: 'colossus.partPincers', maxHp: 34, angleOffset: 0.35, distRatio: 0.74, radius: 24 },
+      { id: 'stinger', nameKey: 'colossus.partStinger', maxHp: 36, angleOffset: Math.PI, distRatio: 0.88, radius: 22, disables: 'LASER' },
+      { id: 'pincers', nameKey: 'colossus.partPincers', maxHp: 34, angleOffset: 0.35, distRatio: 0.74, radius: 24, disables: 'CHARGE' },
     ]),
   }),
   VOLT: Object.freeze({
@@ -119,17 +126,17 @@ export const COLOSSUS_BOSSES = Object.freeze({
     titleKey: 'colossus.bossVoltTitle',
     theme: 'reactor',
     bodyShape: 'nexus',
-    baseHp: 170,
-    hpPerPlayer: 55,
+    baseHp: 125,
+    hpPerPlayer: 44,
     radius: 74,
-    speedP1: 52,
-    speedP2: 68,
-    speedP3: 86,
-    hasShieldPhase: false,
+    speedP1: 48,
+    speedP2: 62,
+    speedP3: 80,
+    hasShieldPhase: true,
     accentColor: UI_COLORS.colossusSniper,
     parts: Object.freeze([
-      { id: 'coil', nameKey: 'colossus.partCoil', maxHp: 32, angleOffset: 0, distRatio: 0, radius: 24 },
-      { id: 'capacitors', nameKey: 'colossus.partCapacitors', maxHp: 30, angleOffset: Math.PI * 0.5, distRatio: 0.72, radius: 20 },
+      { id: 'coil', nameKey: 'colossus.partCoil', maxHp: 32, angleOffset: 0, distRatio: 0, radius: 24, disables: 'LASER' },
+      { id: 'capacitors', nameKey: 'colossus.partCapacitors', maxHp: 30, angleOffset: Math.PI * 0.5, distRatio: 0.72, radius: 20, disables: 'STOMP' },
     ]),
   }),
 });
@@ -137,64 +144,75 @@ export const COLOSSUS_BOSSES = Object.freeze({
 export const COLOSSUS_TUNING = Object.freeze({
   MAX_HP: 5,
   PLAYER_RADIUS: 30,
-  PLAYER_SPEED: 165,
+  PLAYER_SPEED: 175,
   LEGIBILITY_PX: 12,
 
   // Boss temel gövde & sağlık
   BOSS_RADIUS: 82,
-  BASE_HP: 160,
-  HP_PER_EXTRA_PLAYER: 50,
-  BOSS_SPEED_P1: 46,
+  BASE_HP: 130,
+  HP_PER_EXTRA_PLAYER: 45,
+  BOSS_SPEED_P1: 44,
   BOSS_SPEED_P2: 56,
   BOSS_SPEED_P3: 72,
-  BOSS_ROTATION_SPEED: 1.4,
+  BOSS_ROTATION_SPEED: 1.5,
+
+  // Aggro: boss hedefini bu süre kilitlemezse her kare döner, sırtına
+  // dolanma imkânsızlaşır. Kilit boyunca hedef sabit kalır.
+  AGGRO_LOCK: 2.6,
 
   // Stagger mekaniği (Sersemletme)
   STAGGER_MAX: 100,
-  STAGGER_DURATION: 3.6,
-  PILLAR_STAGGER_BONUS: 40,
+  STAGGER_DURATION: 3.4,
+  PILLAR_STAGGER_BONUS: 60,
 
   // Zırh ve zayıf nokta
-  ARMOR_DAMAGE_SCALE: 0.15,
-  CORE_ARC: Math.PI * 0.55, // ~100 derece arka koni
+  ARMOR_DAMAGE_SCALE: 0.18,
+  CORE_ARC: Math.PI * 0.6, // ~108 derece arka koni
 
   // Oyuncu yetenekleri
-  DASH_COOLDOWN: 3.5,
+  DASH_COOLDOWN: 3.2,
   DASH_DURATION: 0.22,
-  DASH_SPEED: 460,
-  REVIVE_DURATION: 2.0,
-  REVIVE_RADIUS: 52,
+  DASH_SPEED: 470,
+  REVIVE_DURATION: 1.8,
+  REVIVE_RADIUS: 56,
 
   // Faz geçiş eşikleri
   PHASE_2_HP_RATIO: 0.65,
   PHASE_3_HP_RATIO: 0.30,
 
-  // Saldırı telegrafları & süreleri
-  STOMP_COOLDOWN: 5.5,
+  // Deprem dalgası (Quake)
+  STOMP_COOLDOWN: 5.0,
   STOMP_WINDUP: 0.85,
   STOMP_DAMAGE: 1,
-  STOMP_RING_SPEED: 260,
-  STOMP_MAX_RADIUS: 390,
+  STOMP_RING_SPEED: 300,
+  STOMP_MAX_RADIUS: 420,
 
-  LASER_COOLDOWN: 6.8,
-  LASER_TRACK_TIME: 1.25,
+  // Tarayıcı ışın (Beam Sweep): izle → kilit → ateş
+  LASER_COOLDOWN: 6.6,
+  LASER_TRACK_TIME: 1.15,
   LASER_LOCK_TIME: 0.35,
-  LASER_FIRE_TIME: 0.75,
-  LASER_DAMAGE: 2,
+  LASER_FIRE_TIME: 0.7,
+  LASER_DAMAGE: 1,
+  LASER_TICK: 0.35,
   LASER_BEAM_WIDTH: 22,
 
-  MORTAR_COOLDOWN: 5.8,
-  MORTAR_FUSE: 1.4,
-  MORTAR_RADIUS: 52,
+  // Havan barajı
+  MORTAR_COOLDOWN: 6.0,
+  MORTAR_WINDUP: 0.5,
+  MORTAR_FUSE: 1.5,
+  MORTAR_RADIUS: 54,
   MORTAR_DAMAGE: 2,
 
-  CHARGE_WINDUP: 0.9,
-  CHARGE_SPEED: 320,
-  CHARGE_DURATION: 1.3,
+  // Hücum (Charge)
+  CHARGE_COOLDOWN: 7.0,
+  CHARGE_WINDUP: 0.85,
+  CHARGE_SPEED: 360,
+  CHARGE_DURATION: 1.2,
   CHARGE_DAMAGE: 2,
+  CHARGE_KNOCKBACK: 320,
 
-  // Pilonlar (Faz 2)
-  PYLON_HP: 35,
+  // Pilonlar (Faz 2 kalkanı — her boss)
+  PYLON_HP: 32,
   PYLON_RADIUS: 24,
 
   // Sütunlar (Siperler)
@@ -206,7 +224,8 @@ export const COLOSSUS_TUNING = Object.freeze({
 });
 
 /**
- * Harita ve saha yapılandırması
+ * Harita ve saha yapılandırması. Her boss faz 2'de 2 pilon açar (kalkan
+ * kırma hedefi ortak); sütun yerleşimi boss kimliğine göre değişir.
  */
 export function getColossusMap(bossId = 'AEGIS') {
   if (bossId === 'VOLT') {
@@ -219,7 +238,10 @@ export function getColossusMap(bossId = 'AEGIS') {
         { x: -0.28, y: 0.25 },
         { x: 0.28, y: 0.25 },
       ],
-      pylonOffsets: [],
+      pylonOffsets: [
+        { x: -0.34, y: 0 },
+        { x: 0.34, y: 0 },
+      ],
     };
   }
   if (bossId === 'IGNIS') {
@@ -231,7 +253,10 @@ export function getColossusMap(bossId = 'AEGIS') {
         { x: 0.32, y: -0.24 },
         { x: 0, y: 0.28 },
       ],
-      pylonOffsets: [],
+      pylonOffsets: [
+        { x: -0.30, y: 0.12 },
+        { x: 0.30, y: 0.12 },
+      ],
     };
   }
   return {

@@ -184,8 +184,9 @@ test('no face mode draws decoration, whatever the source', () => {
 test('the profile and bot personas carry no decoration fields', () => {
   // Veri katmanı: eski kayıtlı profil temizlenir, bot persona yalnız isim/renk/yüz.
   const clean = sanitizeAvatar({ color: '#D84727', expression: 'WINK', accessory: 'HALO', pattern: 'CHECKER' });
-  assert.deepEqual(Object.keys(clean).sort(), ['color', 'expression', 'rim']);
+  assert.deepEqual(Object.keys(clean).sort(), ['color', 'expression', 'headwear', 'rim']);
   assert.equal(clean.rim, 'CLASSIC');
+  assert.equal(clean.headwear, 'NONE');
   for (let i = 0; i < 4; i++) {
     const persona = getBotPersona(i, false);
     assert.deepEqual(Object.keys(persona).sort(), ['color', 'expression', 'name', 'shortName']);

@@ -3,7 +3,7 @@
 // It never advances game simulation.
 
 import {
-  alignSourceClock,
+  createWorldFrameBlender,
   blendWorldFrames,
   canBlendWorldFrames,
   selectBufferedWorldFrame,
@@ -33,6 +33,8 @@ const MAX_INTERPOLATION_GAP_MS = 100;
 // Maç sonu kartının giriş yumuşaması: host canvas'ıyla AYNI süre
 // (`tabletopRenderer.MATCH_OVER_ENTER_MS`) — telefon ve TV aynı anda açar.
 const MATCH_OVER_ENTER_MS = 260;
+// Render süresi kuyruğu (`?perf` HUD p95'i) sabit boyutlu halka tampondur.
+const RENDER_DURATION_SAMPLES = 120;
 
 const finiteNum = (value) => (
   typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -46,9 +48,10 @@ export class GamepadWorldView {
     this.renderer = renderer;
     // Gameplay position smoothing is essential state presentation, not a
     // decorative animation, so reduced-motion never disables this path.
+    // Havuzlu blender: kare başına tahsis yok (aşağıda `_sampleAt`).
     this.interpolate = typeof renderer?.interpolate === 'function'
       ? renderer.interpolate.bind(renderer)
-      : blendWorldFrames;
+      : createWorldFrameBlender();
     this.slots = slots;
     this.selfSlot = Number.isInteger(selfSlot) ? selfSlot : -1;
     // Raunt boşluğu (STATE_SYNC `roundGap`): raunt-sonu bandının geri sayımı.
@@ -69,12 +72,19 @@ export class GamepadWorldView {
     this.fx = createFxRuntime({});
     this.fxLive = false;
     this._fxUpdatedAt = 0;
+    // Render context'i kare başına yeniden kurmak yerine tek nesne üzerinde
+    // güncellenir; view'lar onu yalnız senkron okur.
+    this._renderContext = { selfSlot: this.selfSlot, roundGap: 0, matchOverEnter: 1, fx: null };
 
     // `frame` is the newest accepted snapshot. `buffer` contains the samples
     // used by the delayed presenter; it is intentionally separate from frame.
     this.frame = null;
     this.prevFrame = null;
     this.buffer = [];
+    // Buffer yalnız `accept`/`_clearBuffer` ile değişir; kaynak-saat
+    // hazırlığı (`sentAt` dolu mu) bu yüzden kare başına `.every()` yerine
+    // kabul anında bir kez hesaplanır.
+    this._sourceClockReady = false;
     this.prevAt = 0;
     this.currAt = 0;
     this.intervalMs = DEFAULT_INTERVAL_MS;
@@ -86,7 +96,11 @@ export class GamepadWorldView {
     this.lastFrameAt = 0;
     this.mountedAt = performance.now();
     this.isStale = false;
-    this.renderDurations = [];
+    // Render süresi kuyruğu: eski `array.push` + `array.shift()` kare başına
+    // 120 elemanlı memmove yapıyordu; halka O(1)'dir.
+    this.renderDurBuf = new Float64Array(RENDER_DURATION_SAMPLES);
+    this.renderDurHead = 0;
+    this.renderDurCount = 0;
     // Render hata sayacı: log kare başına değil, ilk hatada ve her 60.'da.
     this.renderFailures = 0;
     this.rafId = 0;
@@ -182,6 +196,8 @@ export class GamepadWorldView {
       sentAt: finiteNum(frame.sentAt),
     });
     if (this.buffer.length > MAX_BUFFER_FRAMES) this.buffer.splice(0, this.buffer.length - MAX_BUFFER_FRAMES);
+    this._sourceClockReady = this.buffer.length > 1
+      && this.buffer.every((sample) => sample.sentAt !== null);
 
     this.prevFrame = previousFrame;
     this.prevAt = this.currAt || now;
@@ -196,6 +212,7 @@ export class GamepadWorldView {
     this.renderFailures = 0;
     this.stats.acceptedFrames += 1;
     this._updateSourceClock(frame.sentAt, now);
+    this._stampPlaybackTimes();
     this._queueRender();
     return true;
   }
@@ -252,7 +269,11 @@ export class GamepadWorldView {
   }
 
   getStats() {
-    const sortedRenderDurations = [...this.renderDurations].sort((a, b) => a - b);
+    const sortedRenderDurations = [];
+    for (let i = 0; i < this.renderDurCount; i += 1) {
+      sortedRenderDurations.push(this.renderDurBuf[i]);
+    }
+    sortedRenderDurations.sort((a, b) => a - b);
     const p95Index = Math.max(0, Math.ceil(sortedRenderDurations.length * 0.95) - 1);
     return {
       ...this.stats,
@@ -275,6 +296,7 @@ export class GamepadWorldView {
     this.jitterMs = 0;
     this.playoutDelayMs = DEFAULT_PLAYOUT_DELAY_MS;
     this.predictor = createSelfPredictor();
+    this._sourceClockReady = false;
   }
 
   _updateTiming(delta) {
@@ -303,28 +325,34 @@ export class GamepadWorldView {
       : this.stats.sourceClockOffsetMs * 0.9 + sampleOffset * 0.1;
   }
 
-  _sampleAt(now) {
-    let samples = this.buffer;
-    const hasSourceClock = this.buffer.length > 1
-      && this.buffer.every((sample) => sample.sentAt !== null);
-    if (hasSourceClock) {
-      // `sentAt` is on the host's monotonic clock. Align the newest sample to
-      // local receive time, then interpolate on the host's send cadence rather
-      // than on network arrival jitter. Old clients without sentAt use receive
-      // time directly.
-      //
-      // Ofset YUMUŞATILMIŞ olmalı: en yeni karenin ham gidiş gecikmesi her karede
-      // tüm zaman çizelgesini kaydırıyor, playhead örneklemeler arasında ileri-geri
-      // zıplıyor ve dünya titriyordu. Ham ofset yalnız saat henüz ölçülmediyse
-      // (yeni host — `sourceClockOffsetMs` sıfırlandı) kullanılır.
-      const latest = this.buffer[this.buffer.length - 1];
-      const sourceOffset = this.stats.sourceClockOffsetMs
-        ?? (latest.receivedAt - latest.sentAt);
-      samples = alignSourceClock(this.buffer, sourceOffset);
+  /**
+   * Kaynak-saat hizalamasını buffer örneklerine YERİNDE yazar (`playbackAt`).
+   *
+   * Eskiden her çizim karesinde `alignSourceClock` çağrılıp yeni bir dizi +
+   * örnek başına `{...sample}` üretiliyordu (60 Hz GC baskısı). Örnekler yalnız
+   * `accept`/`_clearBuffer` ile değiştiği ve yumuşatılmış ofset de yalnız kabul
+   * anında güncellendiği için damga burada bir kez atılır; `_sampleAt` artık
+   * tahsis yapmaz. Eski istemcilerde (`sentAt` yok) damga atılmaz ve sunum
+   * varış zamanına düşer — davranış aynıdır.
+   */
+  _stampPlaybackTimes() {
+    const offset = this.stats.sourceClockOffsetMs;
+    const ready = this._sourceClockReady && Number.isFinite(offset);
+    for (let i = 0; i < this.buffer.length; i += 1) {
+      const sample = this.buffer[i];
+      if (ready) {
+        sample.playbackAt = (finiteNum(sample.sentAt) ?? 0) + offset;
+      } else if (sample.playbackAt !== undefined) {
+        sample.playbackAt = undefined;
+      }
     }
+  }
 
+  _sampleAt(now) {
+    // `playbackAt` kabul anında damgalanır (`_stampPlaybackTimes`); burada
+    // yalnız oynatma başlığı seçilir. Kare başına tahsis yok.
     return selectBufferedWorldFrame(
-      samples,
+      this.buffer,
       now - this.playoutDelayMs,
       MAX_INTERPOLATION_GAP_MS,
       this.interpolate,
@@ -426,6 +454,11 @@ export class GamepadWorldView {
         this._matchOverAt = 0;
         this.matchOverEnter = 1;
       }
+      const renderContext = this._renderContext;
+      renderContext.selfSlot = this.selfSlot;
+      renderContext.roundGap = this.roundGapSeconds;
+      renderContext.matchOverEnter = this.matchOverEnter;
+      renderContext.fx = this.fxLive ? this.fxLayer() : null;
       this.renderer.render(
         this.ctx,
         presentedFrame,
@@ -433,7 +466,7 @@ export class GamepadWorldView {
         this.logicalHeight,
         this.slots,
         now,
-        { selfSlot: this.selfSlot, roundGap: this.roundGapSeconds, matchOverEnter: this.matchOverEnter, fx: this.fxLive ? this.fxLayer() : null },
+        renderContext,
       );
       this.stats.lastRenderMs = performance.now() - renderStarted;
       perfMonitor.record('client.render', this.stats.lastRenderMs);
@@ -447,8 +480,10 @@ export class GamepadWorldView {
       perfMonitor.gauge('client.accepted', this.stats.acceptedFrames);
       perfMonitor.gauge('client.buffer', this.buffer.length);
       perfMonitor.gauge('client.interval', this.intervalMs);
-      this.renderDurations.push(this.stats.lastRenderMs);
-      if (this.renderDurations.length > 120) this.renderDurations.shift();
+      const durBuf = this.renderDurBuf;
+      durBuf[this.renderDurHead] = this.stats.lastRenderMs;
+      this.renderDurHead = (this.renderDurHead + 1) % durBuf.length;
+      if (this.renderDurCount < durBuf.length) this.renderDurCount += 1;
     } catch (err) {
       // Kare başına log telefon konsolunu dolduruyordu: ilk hatayı ve her 60.'ı yaz.
       this.renderFailures += 1;
@@ -495,7 +530,8 @@ export class GamepadWorldView {
     this.frame = null;
     this.prevFrame = null;
     this.buffer.length = 0;
-    this.renderDurations.length = 0;
+    this.renderDurCount = 0;
+    this.renderDurHead = 0;
     this.renderer = null;
   }
 }

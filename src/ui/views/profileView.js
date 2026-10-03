@@ -19,12 +19,14 @@ import {
   getActivePalettes,
   AVATAR_EXPRESSIONS,
   AVATAR_RIMS,
+  AVATAR_HEADWEAR,
   getAvatarProfile,
   saveAvatarProfile,
   resetAvatarProfile,
   paletteName,
   expressionName,
   rimName,
+  headwearName,
 } from '../../core/customizationManager.js';
 import { playMenuTick } from '../../audio.js';
 
@@ -81,6 +83,21 @@ function buildRimGrid(onPick) {
     btn.innerHTML = `<span class="profile-rim-ring"></span><span>${rimName(rim.id, rim.name)}</span>`;
     btn.addEventListener('click', () => onPick(rim.id));
     grid.append(btn);
+  }
+  return grid;
+}
+
+/** Baş süsleri: ikon + ad, seçili olan altın kenarlı. */
+function buildHeadwearGrid(onPick) {
+  const grid = el('div', 'profile-headwears');
+  for (const hw of AVATAR_HEADWEAR) {
+    const chip = el('button', 'profile-headwear');
+    chip.type = 'button';
+    chip.dataset.id = hw.id;
+    chip.setAttribute('aria-label', headwearName(hw.id, hw.name));
+    chip.innerHTML = `<span class="profile-headwear-icon">${getTabletopIconSvg(hw.icon || 'sparkles', { size: 15, strokeWidth: 2.2 })}</span><span>${headwearName(hw.id, hw.name)}</span>`;
+    chip.addEventListener('click', () => onPick(hw.id));
+    grid.append(chip);
   }
   return grid;
 }
@@ -159,19 +176,28 @@ function buildCard() {
     applyProfile((p) => { p.rim = id; });
   }));
 
+  const headwearPanel = el('section', 'profile-panel');
+  headwearPanel.dataset.panel = 'headwear';
+  headwearPanel.append(buildHeadwearGrid((id) => {
+    playMenuTick();
+    applyProfile((p) => { p.headwear = id; });
+  }));
+
   const panels = el('div', 'profile-panels');
-  panels.append(colorPanel, facePanel, rimPanel);
+  panels.append(colorPanel, facePanel, rimPanel, headwearPanel);
 
   const tabs = createTabStrip({
     items: [
       { id: 'color', label: t('custom.tabColor'), icon: 'palette' },
       { id: 'face', label: t('custom.tabFace'), icon: 'eye' },
       { id: 'rim', label: t('custom.tabRim'), icon: 'circle_dot' },
+      { id: 'headwear', label: t('custom.tabHeadwear'), icon: 'crown' },
     ],
     onChange: (id) => {
       colorPanel.classList.toggle('is-active', id === 'color');
       facePanel.classList.toggle('is-active', id === 'face');
       rimPanel.classList.toggle('is-active', id === 'rim');
+      headwearPanel.classList.toggle('is-active', id === 'headwear');
     },
   });
 
@@ -215,6 +241,11 @@ function buildCard() {
       btn.setAttribute('aria-pressed', String(on));
       btn.style.setProperty('--dot', prof.color);
     });
+    headwearPanel.querySelectorAll('.profile-headwear').forEach((chip) => {
+      const on = (prof.headwear || 'NONE') === chip.dataset.id;
+      chip.classList.toggle('is-active', on);
+      chip.setAttribute('aria-pressed', String(on));
+    });
   }
 
   // İlk seçim boyası (view `keepAlive` olduğu için yalnız kurulumda).
@@ -251,8 +282,20 @@ registerView('profile', {
       if (faceTab) faceTab.textContent = t('custom.tabFace');
       const rimTab = view.querySelector('.tab-btn[data-tab="rim"] span');
       if (rimTab) rimTab.textContent = t('custom.tabRim');
+      const headwearTab = view.querySelector('.tab-btn[data-tab="headwear"] span');
+      if (headwearTab) headwearTab.textContent = t('custom.tabHeadwear');
       const dice = view.querySelector('.profile-dice .scene-btn-label');
       if (dice) dice.textContent = t('custom.random');
+      view.querySelectorAll('.profile-headwear').forEach((chip) => {
+        const id = chip.dataset.id;
+        const hw = AVATAR_HEADWEAR.find((h) => h.id === id);
+        if (hw) {
+          const name = headwearName(hw.id, hw.name);
+          chip.setAttribute('aria-label', name);
+          const span = chip.querySelector('span:last-child');
+          if (span) span.textContent = name;
+        }
+      });
     });
     return view;
   },

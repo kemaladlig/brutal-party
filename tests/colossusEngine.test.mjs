@@ -503,4 +503,81 @@ test('Destructible Boss Parts can be damaged and broken, breaking front armor ne
   assert.equal(frontDmg, 10, 'Frontal hit should do 100% full damage when front armor is broken');
 });
 
+test('Charge attack damages players in its path and knocks them back', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.slotTypes = ['human', 'empty', 'empty', 'empty'];
+  game.startNewMatch();
+
+  const p1 = game.players[0];
+  const boss = game.boss;
+  boss.x = game.arena.cx;
+  boss.y = game.arena.cy - 200;
+  boss.angle = Math.PI / 2;
+  boss.state = 'CHARGE';
+  boss.chargeAngle = Math.PI / 2;
+  boss.chargeTimer = COLOSSUS_TUNING.CHARGE_DURATION;
+  boss.chargeHits = [];
+
+  p1.x = boss.x;
+  p1.y = boss.y + 60;
+  const hpBefore = p1.hp;
+
+  game.updateBoss(0.016);
+
+  assert.ok(p1.hp < hpBefore, 'Player standing in the charge path must take damage');
+  assert.ok(boss.chargeHits.includes(p1.index), 'Charge must record the hit exactly once');
+  assert.ok(Math.abs(p1.vy) > 0, 'Charge must knock the player back');
+});
+
+test('Laser beam damages players in its path while dash i-frames avoid it', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.slotTypes = ['human', 'empty', 'empty', 'empty'];
+  game.startNewMatch();
+
+  const p1 = game.players[0];
+  const boss = game.boss;
+  boss.x = game.arena.cx;
+  boss.y = game.arena.top + 60;
+  boss.laserAngle = Math.PI / 2;
+  boss.state = 'LASER_FIRE';
+  boss.laserActive = true;
+
+  p1.x = boss.x;
+  p1.y = boss.y + 200;
+  p1.laserHitCd = 0;
+  const hpBefore = p1.hp;
+  game.updateLaser(0.016);
+  assert.ok(p1.hp < hpBefore, 'Player in the beam lane must take damage');
+
+  p1.hp = COLOSSUS_TUNING.MAX_HP;
+  p1.laserHitCd = 0;
+  p1.x = boss.x;
+  p1.y = boss.y + 200;
+  game.performPlayerDash(p1);
+  game.updateLaser(0.016);
+  assert.equal(p1.hp, COLOSSUS_TUNING.MAX_HP, 'Dash must grant immunity to the beam');
+});
+
+test('Breaking a weapon module disables its attack and forces a stagger', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.selectedBossId = 'AEGIS';
+  game.startNewMatch();
+
+  const cannon = game.boss.parts.find((p) => p.id === 'cannon');
+  assert.equal(cannon.disables, 'MORTAR', 'Cannon module must gate the mortar attack');
+
+  const partAngle = game.boss.angle + cannon.angleOffset;
+  const partDist = game.boss.radius * cannon.distRatio;
+  const px = game.boss.x + Math.cos(partAngle) * partDist;
+  const py = game.boss.y + Math.sin(partAngle) * partDist;
+  game.applyDamageToBoss(cannon.maxHp + 10, px, py, 6);
+
+  assert.equal(cannon.broken, true, 'Module must break under sustained fire');
+  assert.equal(game.boss.state, 'STAGGER', 'Breaking a module must open a stagger window');
+});
+
+
 

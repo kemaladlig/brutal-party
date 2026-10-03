@@ -67,6 +67,8 @@ export function mountHeroAvatar(canvas, { onPoke = null } = {}) {
     drawAvatarStage(ctx, w, h, r, {
       color: profile?.color,
       expression: out.expression,
+      rim: profile?.rim,
+      headwear: profile?.headwear,
       facingAngle: out.facingAngle,
       isBlinking: out.isBlinking,
       scale: out.scale,

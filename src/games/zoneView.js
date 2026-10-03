@@ -256,7 +256,6 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
     const trailLen = p.trail.length;
     const isRiskWarn = trailLen >= 15;
     const isHazard = trailLen >= 22;
-    const cellCenter = (ci) => ({ x: x + ((ci % ZONE_GRID) + 0.5) * cell, y: y + (((ci / ZONE_GRID) | 0) + 0.5) * cell });
 
     ctx.save();
     if (isRiskWarn) {
@@ -269,8 +268,9 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
       const ts0 = Array.isArray(p.trailStart) ? p.trailStart : [p.x, p.y];
       ctx.moveTo(ts0[0], ts0[1]);
       for (const ci of p.trail) {
-        const c = cellCenter(ci);
-        ctx.lineTo(c.x, c.y);
+        // Hücre merkezi satır içi hesaplanır: kare başına hücre başına
+        // `{x,y}` tahsisi (4 oyuncu × 64 hücre × 2 geçiş) GC baskısı yapıyordu.
+        ctx.lineTo(x + ((ci % ZONE_GRID) + 0.5) * cell, y + (((ci / ZONE_GRID) | 0) + 0.5) * cell);
       }
       ctx.lineTo(p.x, p.y);
       ctx.stroke();
@@ -287,8 +287,7 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
     const ts = Array.isArray(p.trailStart) ? p.trailStart : [p.x, p.y];
     ctx.moveTo(ts[0], ts[1]);
     for (const ci of p.trail) {
-      const c = cellCenter(ci);
-      ctx.lineTo(c.x, c.y);
+      ctx.lineTo(x + ((ci % ZONE_GRID) + 0.5) * cell, y + (((ci / ZONE_GRID) | 0) + 0.5) * cell);
     }
     ctx.lineTo(p.x, p.y);
     ctx.stroke();

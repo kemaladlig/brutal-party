@@ -803,11 +803,491 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     ctx.stroke();
   }
 
-  // Dış save (translate) iadesi: bu `restore` olmadan çağıran karede
-  // `translate(cx, cy)` SIZAR ve aynı karede sonra çizilen her şey
-  // (menü kartındaki dokunma patlaması gibi) merkezin sağ-altına kayar.
-  // Ölçülen vaka: `?probe=sparks` patlama ağırlık merkezini
-  // (+56.6, +150.7)px (kutunun yarısı kadar) kaymış buldu; transform
-  // dökümü `1,0,0,1,160,160` gösteriyordu.
+  // 6. Ba\u015f s\u00fcs\u00fc (HEADWEAR) \u2014 disk d\u0131\u015f\u0131nda, hitbox'tan ba\u011f\u0131ms\u0131z.
+  // `facingAngle`'le d\u00f6ner: karakter ne y\u00f6ne bakarsa \u015fapka da o y\u00f6ne e\u011filir.
+  // Mikro boyda ve isBot'ta atlan\u0131r (saha ikonografi kalabal\u0131\u011fl\u0131\u011f\u0131 \u00f6nler).
+  const headwearId = String(
+    options.headwear
+    || options.avatar?.headwear
+    || avatarOpt?.headwear
+    || (slotIdx !== null ? registeredAvatar?.headwear : null)
+    || profileFallback?.headwear
+    || ''
+  ).toUpperCase();
+  if (!isMicro && !isBot && headwearId && headwearId !== 'NONE') {
+    drawHeadwear(ctx, r, facingAngle, headwearId, color);
+  }
+
+  // D\u0131\u015f save (translate) iadesi: bu `restore` olmadan \u00e7a\u011f\u0131ran karede
+  // `translate(cx, cy)` SIZAR ve ayn\u0131 karede sonra \u00e7izilen her \u015fey
+  // (men\u00fc kart\u0131ndaki dokunma patlamas\u0131 gibi) merkezin sa\u011f-alt\u0131na kayar.
+  // \u00d6l\u00e7\u00fclen vaka: `?probe=sparks` patlama a\u011f\u0131rl\u0131k merkezini
+  // (+56.6, +150.7)px (kutunun yar\u0131s\u0131 kadar) kaym\u0131\u015f buldu; transform
+  // d\u00f6k\u00fcm\u00fc `1,0,0,1,160,160` g\u00f6steriyordu.
   ctx.restore();
 }
+
+/**
+ * Ba\u015f s\u00fcs\u00fc \u00e7izer. Avatar merkezi (0,0)'dad\u0131r; disk tepesi (-r, 0) y\u00f6n\u00fcnde
+ * (facingAngle'a d\u00f6nd\u00fcr\u00fcl\u00fcr). Hitbox etkisi yok \u2014 clip yok, fill sadece disk \u00fcst\u00fcnde.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} r - avatar yar\u0131\u00e7ap\u0131
+ * @param {number} facingAngle - g\u00f6vde bak\u0131\u015f a\u00e7\u0131s\u0131 (radyan)
+ * @param {string} id - AVATAR_HEADWEAR id'si
+ * @param {string} bodyColor - g\u00f6vde rengi (baz\u0131 \u015fapkalar rengi uyumlu kullan\u0131r)
+ */
+function drawHeadwear(ctx, r, facingAngle, id, bodyColor) {
+  ctx.save();
+  // Gözlerin tam zıttına (kafanın arkası / baş tepesi) yerleştir:
+  // facingAngle = gözlerin baktığı yön (-X)
+  // facingAngle + Math.PI = başın arkası/tepesi (+X)
+  // Orijin avatarın MERKEZİNDE (0,0) kalır; aksesuarlar başın tacı üzerinde
+  // (0.42r..0.62r) başlar ve çemberin kenarından görkemli şekilde taşar (1.25r..1.38r).
+  ctx.rotate(facingAngle + Math.PI);
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (id === 'CROWN') {
+    // ── İmparatorluk Altın Tacı (Görkemli 5 tepeli kral tacı) ──
+    const baseX = r * 0.52;
+    const baseW = r * 0.58;
+
+    // 1. Kadife iç astar (Başın üstüne oturan kemerli kubbe)
+    ctx.fillStyle = UI_COLORS.hatVelvet;
+    ctx.beginPath();
+    ctx.ellipse(baseX + r * 0.12, 0, r * 0.22, baseW * 0.85, 0, -Math.PI / 2, Math.PI / 2);
+    ctx.fill();
+
+    // 2. Altın taç gövdesi — 5 sivri uçlu görkemli siluet
+    ctx.fillStyle = UI_COLORS.hatGold;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.8, r * 0.065);
+    ctx.beginPath();
+    // Taban kavisi
+    ctx.moveTo(baseX, -baseW);
+    // Sol dış tepe
+    ctx.lineTo(r * 0.85, -baseW);
+    ctx.lineTo(r * 0.68, -baseW * 0.65);
+    // Sol orta tepe
+    ctx.lineTo(r * 1.05, -baseW * 0.35);
+    ctx.lineTo(r * 0.78, -baseW * 0.16);
+    // Görkemli dev orta tepe
+    ctx.lineTo(r * 1.28, 0);
+    // Sağ orta tepe
+    ctx.lineTo(r * 0.78, baseW * 0.16);
+    ctx.lineTo(r * 1.05, baseW * 0.35);
+    ctx.lineTo(r * 0.68, baseW * 0.65);
+    // Sağ dış tepe
+    ctx.lineTo(r * 0.85, baseW);
+    ctx.lineTo(baseX, baseW);
+    // Taban kavisini kapat
+    ctx.quadraticCurveTo(baseX + r * 0.10, 0, baseX, -baseW);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 3. Altın gölge açısı (3D karikatür hacmi — sağ yarı)
+    ctx.fillStyle = UI_COLORS.hatGoldDark;
+    ctx.beginPath();
+    ctx.moveTo(baseX + r * 0.10, 0);
+    ctx.lineTo(r * 1.28, 0);
+    ctx.lineTo(r * 0.78, baseW * 0.16);
+    ctx.lineTo(r * 1.05, baseW * 0.35);
+    ctx.lineTo(r * 0.68, baseW * 0.65);
+    ctx.lineTo(r * 0.85, baseW);
+    ctx.lineTo(baseX, baseW);
+    ctx.quadraticCurveTo(baseX + r * 0.10, baseW * 0.5, baseX + r * 0.10, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // 4. Değerli Mücevherler (Faceted Gems)
+    // Orta tepe: Parlak Yakut (Ruby Diamond)
+    const gemR = Math.max(2.4, r * 0.105);
+    ctx.fillStyle = UI_COLORS.hatGem;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.2, r * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(r * 1.14, 0);
+    ctx.lineTo(r * 1.00, -gemR);
+    ctx.lineTo(r * 0.86, 0);
+    ctx.lineTo(r * 1.00, gemR);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Yakut parıltısı
+    ctx.fillStyle = UI_COLORS.hatShine;
+    ctx.beginPath();
+    ctx.arc(r * 1.05, -gemR * 0.3, gemR * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Yan tepeler: Zümrüt (Emerald) ve Safir (Sapphire)
+    const sideGemR = Math.max(2.0, r * 0.08);
+    ctx.fillStyle = UI_COLORS.hatEmerald;
+    ctx.beginPath();
+    ctx.arc(r * 0.90, -baseW * 0.35, sideGemR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = UI_COLORS.hatSapphire;
+    ctx.beginPath();
+    ctx.arc(r * 0.90, baseW * 0.35, sideGemR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 5. Taç kaidesi incileri (Base Pearls)
+    ctx.fillStyle = UI_COLORS.hatShine;
+    for (const py of [-baseW * 0.55, 0, baseW * 0.55]) {
+      const px = py === 0 ? baseX + r * 0.12 : baseX + r * 0.05;
+      ctx.beginPath();
+      ctx.arc(px, py, Math.max(1.6, r * 0.06), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+  } else if (id === 'PARTY_HAT') {
+    // ── Çılgın Parti Şapkası (Kafaya oturan neon çizgili külah) ──
+    const baseX = r * 0.44;
+    const hw = r * 0.48;
+    const tipX = r * 1.34;
+    const tipY = hw * 0.20;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(baseX, -hw);
+    ctx.lineTo(tipX, tipY);
+    ctx.lineTo(baseX, hw);
+    ctx.quadraticCurveTo(baseX + r * 0.10, 0, baseX, -hw);
+    ctx.closePath();
+
+    ctx.fillStyle = UI_COLORS.hatOrange;
+    ctx.fill();
+    ctx.clip();
+
+    // Neon şeritler
+    const spanX = tipX - baseX;
+    const stripes = [
+      { t0: 0.18, t1: 0.36, color: UI_COLORS.hatYellow },
+      { t0: 0.48, t1: 0.64, color: UI_COLORS.hatCyan },
+      { t0: 0.74, t1: 0.88, color: UI_COLORS.hatPurple },
+    ];
+    for (const s of stripes) {
+      ctx.fillStyle = s.color;
+      const x0 = baseX + spanX * s.t0;
+      const x1 = baseX + spanX * s.t1;
+      ctx.beginPath();
+      ctx.moveTo(x0, -hw * 1.6);
+      ctx.lineTo(x1, -hw * 1.6);
+      ctx.lineTo(x1, hw * 1.6);
+      ctx.lineTo(x0, hw * 1.6);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.8, r * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(baseX, -hw);
+    ctx.lineTo(tipX, tipY);
+    ctx.lineTo(baseX, hw);
+    ctx.quadraticCurveTo(baseX + r * 0.10, 0, baseX, -hw);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Pofuduk altın pom-pom kümesi
+    const pomR = Math.max(2.8, r * 0.13);
+    ctx.fillStyle = UI_COLORS.hatYellow;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.2, r * 0.035);
+    const puffs = [
+      [tipX, tipY],
+      [tipX + pomR * 0.55, tipY - pomR * 0.38],
+      [tipX + pomR * 0.55, tipY + pomR * 0.38],
+      [tipX + pomR * 0.85, tipY],
+    ];
+    for (const [px, py] of puffs) {
+      ctx.beginPath();
+      ctx.arc(px, py, pomR * 0.65, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle = UI_COLORS.hatShine;
+    ctx.beginPath();
+    ctx.arc(tipX + pomR * 0.32, tipY - pomR * 0.18, pomR * 0.24, 0, Math.PI * 2);
+    ctx.fill();
+
+  } else if (id === 'WIZARD') {
+    // ── Başbüyücü Şapkası (Geniş kenarlıklı kıvrık şapka) ──
+    const brimX = r * 0.58;
+    const brimW = r * 0.76;
+    const brimH = r * 0.25;
+    const coneEndX = r * 1.36;
+    const coneEndY = brimW * 0.40;
+
+    // 1. Geniş Koyu Kenarlık (Brim) — başın üstüne oturan elips
+    ctx.fillStyle = UI_COLORS.hatPurpleDark;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.8, r * 0.065);
+    ctx.beginPath();
+    ctx.ellipse(brimX, 0, brimH, brimW, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 2. Kıvrık Büyücü Konisi
+    ctx.fillStyle = UI_COLORS.hatPurple;
+    ctx.beginPath();
+    ctx.moveTo(brimX - brimH * 0.3, -brimW * 0.55);
+    ctx.bezierCurveTo(brimX + r * 0.40, -brimW * 0.35, brimX + r * 0.65, -brimW * 0.08, brimX + r * 0.75, brimW * 0.20);
+    ctx.lineTo(coneEndX, coneEndY);
+    ctx.lineTo(coneEndX - r * 0.20, coneEndY - brimW * 0.34);
+    ctx.bezierCurveTo(brimX + r * 0.52, brimW * 0.10, brimX + r * 0.28, brimW * 0.35, brimX - brimH * 0.3, brimW * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 3. Altın Kemer & Toka
+    ctx.fillStyle = UI_COLORS.hatGold;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.4, r * 0.04);
+    ctx.beginPath();
+    ctx.rect(brimX - brimH * 0.15, -brimW * 0.42, r * 0.15, brimW * 0.84);
+    ctx.fill();
+    ctx.stroke();
+    // Kare altın toka
+    const bSize = Math.max(3.5, r * 0.17);
+    ctx.fillStyle = UI_COLORS.hatYellow;
+    ctx.fillRect(brimX - brimH * 0.2, -bSize / 2, bSize, bSize);
+    ctx.strokeRect(brimX - brimH * 0.2, -bSize / 2, bSize, bSize);
+    ctx.fillStyle = UI_COLORS.hatInk;
+    ctx.fillRect(brimX - brimH * 0.2 + bSize * 0.25, -bSize * 0.25, bSize * 0.5, bSize * 0.5);
+
+    // 4. Parıldayan Altın Hilal ve Yıldızlar
+    ctx.fillStyle = UI_COLORS.hatYellow;
+    const mx = brimX + r * 0.38;
+    const my = -brimW * 0.08;
+    const mr = Math.max(2.4, r * 0.11);
+    ctx.beginPath();
+    ctx.arc(mx, my, mr, 0, Math.PI * 2);
+    ctx.arc(mx + mr * 0.45, my - mr * 0.25, mr * 0.85, 0, Math.PI * 2, true);
+    ctx.fill();
+
+    const sx = brimX + r * 0.60;
+    const sy = brimW * 0.09;
+    const sr = Math.max(1.6, r * 0.075);
+    ctx.beginPath();
+    ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+    ctx.fill();
+
+  } else if (id === 'HALO') {
+    // ── Kutsal Melek Halesi (Kafanın üstünde parıldayan süzülen halka) ──
+    const hx = r * 0.88;
+    const hrY = r * 0.68;
+    const hrX = r * 0.26;
+
+    ctx.save();
+    // Altın ışıma aurası
+    ctx.strokeStyle = UI_COLORS.hatHaloAura;
+    ctx.lineWidth = Math.max(4.5, r * 0.22);
+    ctx.beginPath();
+    ctx.ellipse(hx, 0, hrX, hrY, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Altın halka gövdesi
+    ctx.strokeStyle = UI_COLORS.hatGold;
+    ctx.lineWidth = Math.max(2.4, r * 0.10);
+    ctx.beginPath();
+    ctx.ellipse(hx, 0, hrX, hrY, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Beyaz speküler çekirdek
+    ctx.strokeStyle = UI_COLORS.hatShine;
+    ctx.lineWidth = Math.max(1, r * 0.04);
+    ctx.beginPath();
+    ctx.ellipse(hx, 0, hrX, hrY, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Kutsal 4 köşeli parlama yıldızları
+    const drawSparkle = (sx, sy, size) => {
+      ctx.fillStyle = UI_COLORS.hatShine;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy - size);
+      ctx.quadraticCurveTo(sx, sy, sx + size, sy);
+      ctx.quadraticCurveTo(sx, sy, sx, sy + size);
+      ctx.quadraticCurveTo(sx, sy, sx - size, sy);
+      ctx.quadraticCurveTo(sx, sy, sx - size, sy);
+      ctx.fill();
+    };
+    drawSparkle(hx - hrX * 0.2, -hrY * 0.85, Math.max(2.6, r * 0.12));
+    drawSparkle(hx + hrX * 0.3, hrY * 0.85, Math.max(2.2, r * 0.10));
+    ctx.restore();
+
+  } else if (id === 'HORNS') {
+    // ── Volkanik Şeytan Boynuzları (Kafadan filizlenen kıvrık boynuzlar) ──
+    const drawHorn = (sign) => {
+      const rootX = r * 0.42;
+      const rootY = sign * r * 0.45;
+      const midX = r * 0.82;
+      const midY = sign * r * 0.88;
+      const tipX = r * 1.25;
+      const tipY = sign * r * 0.68;
+      const baseW = r * 0.22;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(rootX, rootY - sign * baseW * 0.5);
+      ctx.bezierCurveTo(midX * 0.7, midY, midX * 1.1, midY * 1.05, tipX, tipY);
+      ctx.bezierCurveTo(midX * 0.9, midY * 0.80, rootX + r * 0.16, rootY + sign * baseW * 0.4, rootX, rootY + sign * baseW * 0.5);
+      ctx.closePath();
+
+      ctx.fillStyle = UI_COLORS.hatRed;
+      ctx.fill();
+      ctx.clip();
+
+      // Kök: obsidyen koyuluğu
+      ctx.fillStyle = UI_COLORS.hatObsidian;
+      ctx.fillRect(rootX - r * 0.2, rootY - baseW * 2, r * 0.32, baseW * 4);
+
+      // Uç: akkor alev gradyanı
+      ctx.fillStyle = UI_COLORS.hatOrange;
+      ctx.beginPath();
+      ctx.arc(tipX, tipY, r * 0.38, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = UI_COLORS.hatYellow;
+      ctx.beginPath();
+      ctx.arc(tipX, tipY, r * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Dış vuruş konturu
+      ctx.strokeStyle = UI_COLORS.hatInk;
+      ctx.lineWidth = Math.max(1.8, r * 0.065);
+      ctx.beginPath();
+      ctx.moveTo(rootX, rootY - sign * baseW * 0.5);
+      ctx.bezierCurveTo(midX * 0.7, midY, midX * 1.1, midY * 1.05, tipX, tipY);
+      ctx.bezierCurveTo(midX * 0.9, midY * 0.80, rootX + r * 0.16, rootY + sign * baseW * 0.4, rootX, rootY + sign * baseW * 0.5);
+      ctx.closePath();
+      ctx.stroke();
+
+      // Boğum çizgisi
+      ctx.strokeStyle = UI_COLORS.hatInk;
+      ctx.lineWidth = Math.max(1.2, r * 0.045);
+      ctx.beginPath();
+      ctx.moveTo(midX * 0.85, midY * 0.82);
+      ctx.lineTo(midX * 0.95, midY * 0.95);
+      ctx.stroke();
+    };
+
+    drawHorn(-1);
+    drawHorn(1);
+
+  } else if (id === 'BOW') {
+    // ── Şirin Anime/Arcade Kurdelesi (Başın arkasına takılı toka/kurdele) ──
+    const knotX = r * 0.62;
+    const knotR = Math.max(3.0, r * 0.14);
+    const loopW = r * 0.68;
+    const loopH = r * 0.36;
+
+    // Kuyruklar
+    const drawTail = (sign) => {
+      ctx.fillStyle = UI_COLORS.hatPinkDark;
+      ctx.strokeStyle = UI_COLORS.hatInk;
+      ctx.lineWidth = Math.max(1.6, r * 0.055);
+      ctx.beginPath();
+      ctx.moveTo(knotX, sign * knotR * 0.5);
+      ctx.lineTo(knotX + r * 0.48, sign * loopW * 0.55);
+      ctx.lineTo(knotX + r * 0.36, sign * loopW * 0.40);
+      ctx.lineTo(knotX + r * 0.46, sign * loopW * 0.24);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    };
+    drawTail(-1);
+    drawTail(1);
+
+    // Kanatlar (Loops)
+    const drawLoop = (sign) => {
+      ctx.fillStyle = UI_COLORS.hatGem;
+      ctx.strokeStyle = UI_COLORS.hatInk;
+      ctx.lineWidth = Math.max(1.8, r * 0.065);
+      ctx.beginPath();
+      ctx.moveTo(knotX, 0);
+      ctx.bezierCurveTo(knotX + r * 0.14, sign * loopW * 0.45, knotX + r * 0.42, sign * loopW * 0.95, knotX + r * 0.20, sign * loopW);
+      ctx.bezierCurveTo(knotX - r * 0.05, sign * loopW * 0.95, knotX - r * 0.12, sign * loopW * 0.45, knotX, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = UI_COLORS.hatPinkDark;
+      ctx.beginPath();
+      ctx.arc(knotX + r * 0.12, sign * loopW * 0.65, loopH * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = UI_COLORS.hatPinkLight;
+      ctx.beginPath();
+      ctx.ellipse(knotX + r * 0.24, sign * loopW * 0.55, loopH * 0.20, loopW * 0.22, sign * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    drawLoop(-1);
+    drawLoop(1);
+
+    // Orta Düğüm (Knot)
+    ctx.fillStyle = UI_COLORS.hatPinkKnot;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.6, r * 0.055);
+    ctx.beginPath();
+    ctx.arc(knotX, 0, knotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = UI_COLORS.hatShine;
+    ctx.beginPath();
+    ctx.arc(knotX - knotR * 0.25, -knotR * 0.25, knotR * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+
+  } else if (id === 'MOHAWK') {
+    // ── Siber Punk Neon Dikenleri (Başın sırtı boyunca uzanan ibik) ──
+    const spikeBases = [0.28, 0.46, 0.64, 0.82, 0.98];
+    const spikeTips  = [0.60, 0.90, 1.24, 1.36, 1.38];
+    const spikeWidths = [0.16, 0.21, 0.26, 0.23, 0.18];
+
+    for (let i = 0; i < 5; i++) {
+      const bx = spikeBases[i] * r;
+      const tx = spikeTips[i] * r;
+      const sw = spikeWidths[i] * r;
+
+      ctx.fillStyle = UI_COLORS.hatRed;
+      ctx.strokeStyle = UI_COLORS.hatInk;
+      ctx.lineWidth = Math.max(1.8, r * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(bx, -sw);
+      ctx.lineTo(tx, 0);
+      ctx.lineTo(bx, sw);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Neon alev uçları
+      ctx.fillStyle = UI_COLORS.hatYellow;
+      ctx.beginPath();
+      const midX = bx + (tx - bx) * 0.45;
+      ctx.moveTo(midX, -sw * 0.42);
+      ctx.lineTo(tx, 0);
+      ctx.lineTo(midX, sw * 0.42);
+      ctx.closePath();
+      ctx.fill();
+
+      // Parlak beyaz vurgu çizgisi
+      ctx.strokeStyle = UI_COLORS.hatShine;
+      ctx.lineWidth = Math.max(1, r * 0.03);
+      ctx.beginPath();
+      ctx.moveTo(bx + (tx - bx) * 0.55, 0);
+      ctx.lineTo(bx + (tx - bx) * 0.90, 0);
+      ctx.stroke();
+    }
+  }
+
+  ctx.restore();
+}
+

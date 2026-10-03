@@ -10,6 +10,7 @@ import { t } from '../i18n.js';
 import {
   COLOSSUS_PLAYER_RADIUS,
   createWorldSnapshot,
+  drawAlphaTexts,
   drawCircleParticles,
   drawFxRings,
   drawFxPops,
@@ -101,6 +102,8 @@ export function createColossusWorldPacket(game) {
         shielded: boss.shielded === true,
         laserActive: boss.laserActive === true,
         laserProgress: round1(boss.laserProgress || 0),
+        laserAngle: round1(Number.isFinite(boss.laserAngle) ? boss.laserAngle : (boss.angle || 0)),
+        chargeAngle: round1(Number.isFinite(boss.chargeAngle) ? boss.chargeAngle : (boss.angle || 0)),
         parts: (boss.parts || []).map((p) => ({
           id: p.id,
           nameKey: p.nameKey,
@@ -153,6 +156,13 @@ export function createColossusWorldPacket(game) {
         hp: round1(p.hp),
         maxHp: round1(p.maxHp),
       })),
+      texts: (game.floatingTexts || []).slice(0, COLOSSUS_VIEW_LIMITS.texts).map((entry) => ({
+        x: round1(entry.x),
+        y: round1(entry.y),
+        text: String(entry.text || '').slice(0, 20),
+        alpha: round1(Math.max(0, Math.min(1, Number(entry.alpha) || 0))),
+        color: typeof entry.color === 'string' ? entry.color : COLOR_WHITE,
+      })),
       matchOver: game.state === 'VICTORY' || game.state === 'DEFEAT' || game.state === 'MATCH_OVER',
       victory: game.matchResult === 'win' || game.matchResult === 'victory' || game.state === 'VICTORY',
       // Client'in `drawColossusWorld` FX katmanı (halka + patlama) bu state'i
@@ -170,6 +180,10 @@ export function isValidColossusWorldFrame(frame) {
 
   if (!frame.boss || typeof frame.boss !== 'object') return false;
   if (!finite(frame.boss.x) || !finite(frame.boss.y) || !finite(frame.boss.hp)) return false;
+  if (frame.texts !== undefined) {
+    if (!Array.isArray(frame.texts) || frame.texts.length > COLOSSUS_VIEW_LIMITS.texts) return false;
+    if (!frame.texts.every((entry) => entry && finite(entry.x) && finite(entry.y) && typeof entry.text === 'string')) return false;
+  }
   return true;
 }
 
@@ -193,6 +207,7 @@ export function colossusSceneFromFrame(frame) {
     mortars: Array.isArray(frame.mortars) ? frame.mortars : [],
     bullets: Array.isArray(frame.bullets) ? frame.bullets : [],
     pillars: Array.isArray(frame.pillars) ? frame.pillars : [],
+    texts: Array.isArray(frame.texts) ? frame.texts : [],
     players: Array.isArray(frame.players) ? frame.players : [],
     particles: Array.isArray(frame.particles) ? frame.particles : [],
     fx: isValidFxState(frame.fx) ? frame.fx : null,
@@ -205,8 +220,14 @@ export function colossusSceneFromFrame(frame) {
  * 2.5D Boss Çizimi (AEGIS-01 / The Colossus)
  */
 function drawBoss(ctx, boss, arena, now = 0, u = 1) {
-  const { x, y, angle, radius, hp, maxHp, phase, state, stagger, hitFlash, critFlash, shielded, laserActive, targetSlot, bodyShape = 'mech', parts = [] } = boss;
+  const { x, y, angle, radius, hp, maxHp, phase, state, stagger, hitFlash, critFlash, shielded, laserActive, targetSlot, bodyShape = 'mech', parts = [], laserAngle, chargeAngle, laserProgress } = boss;
   if (!finite(x) || !finite(y) || radius <= 0 || !finite(hp) || hp <= 0) return;
+
+  const beamAngle = finite(laserAngle) ? laserAngle : angle;
+  const chargeAim = finite(chargeAngle) ? chargeAngle : angle;
+  const isWindingLaser = state === 'WINDUP_LASER';
+  const isWindingCharge = state === 'WINDUP_CHARGE';
+  const isWindingStomp = state === 'WINDUP_STOMP';
 
   const isStaggered = state === 'STAGGER';
   const corePulse = Math.sin(now * 0.008) * 0.15 + 0.85;
@@ -497,25 +518,61 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
 
   ctx.restore(); // Boss koordinat sistemi çıkışı
 
-  // 8. Lazer Işını (Aktifken dünya uzayında çizilir)
-  if (laserActive) {
-    ctx.save();
-    const beamLen = 900;
-    const lx = x + Math.cos(angle) * (radius * 0.7);
-    const ly = y + Math.sin(angle) * (radius * 0.7);
-    const endX = lx + Math.cos(angle) * beamLen;
-    const endY = ly + Math.sin(angle) * beamLen;
+  // 8. Telegraf & Işın katmanı (dünya uzayı). Tüm renkler token sabitleri;
+  //    saydamlık `globalAlpha` ile verilir → yeni ham renk literali yok.
+  const lx = x + Math.cos(beamAngle) * (radius * 0.7);
+  const ly = y + Math.sin(beamAngle) * (radius * 0.7);
 
-    // Dış akkor
-    ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+  if (isWindingCharge) {
+    // Hücum koridoru: boss ileri atılacak; koridordan ÇIK.
+    const lane = COLOSSUS_TUNING.CHARGE_SPEED * COLOSSUS_TUNING.CHARGE_DURATION;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(chargeAim);
+    ctx.globalAlpha = 0.16 + Math.sin(now * 0.02) * 0.05;
+    ctx.fillStyle = COLOR_RED;
+    const laneH = radius * 0.95;
+    ctx.fillRect(radius * 0.4, -laneH / 2, lane, laneH);
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = COLOR_RED;
+    ctx.lineWidth = Math.max(1, 2 * u);
+    ctx.setLineDash([10, 8]);
+    ctx.strokeRect(radius * 0.4, -laneH / 2, lane, laneH);
+    ctx.restore();
+  }
+
+  if (isWindingStomp) {
+    // Deprem uyarısı: boss çevresinde nabız atan halka.
+    ctx.save();
+    const pulse = 1 + Math.sin(now * 0.02) * 0.12;
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = COLOR_ORANGE;
+    ctx.lineWidth = Math.max(1, 3 * u);
+    ctx.beginPath();
+    ctx.arc(x, y, radius * 1.5 * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.arc(x, y, radius * 2.1 * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  if (laserActive) {
+    // Gerçek ışın (kilitli, hasar verir).
+    const beamLen = 900;
+    const endX = lx + Math.cos(beamAngle) * beamLen;
+    const endY = ly + Math.sin(beamAngle) * beamLen;
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = COLOR_RED;
     ctx.lineWidth = Math.max(1, COLOSSUS_TUNING.LASER_BEAM_WIDTH * 1.8 * u);
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(lx, ly);
     ctx.lineTo(endX, endY);
     ctx.stroke();
-
-    // İç parlak ışın
+    ctx.globalAlpha = 1;
     ctx.strokeStyle = COLOR_WHITE;
     ctx.lineWidth = Math.max(1, COLOSSUS_TUNING.LASER_BEAM_WIDTH * 0.55 * u);
     ctx.beginPath();
@@ -523,17 +580,29 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
     ctx.lineTo(endX, endY);
     ctx.stroke();
     ctx.restore();
-  } else if (!isStaggered && targetSlot >= 0) {
-    // Tehdit lazeri (Hedef çizgisi)
+  } else if (isWindingLaser) {
+    // İzleme/kilit fazı: öngörü hattı; kilit dolunca düz ve kalın.
+    const lockT = Math.max(0, Math.min(1, Number(laserProgress) || 0));
     ctx.save();
-    ctx.strokeStyle = 'rgba(239, 68, 68, 0.35)';
+    ctx.globalAlpha = 0.25 + lockT * 0.55;
+    ctx.strokeStyle = COLOR_RED;
+    ctx.lineWidth = Math.max(1, (1.5 + lockT * 2.5) * u);
+    ctx.setLineDash(lockT >= 1 ? [] : [8, 6]);
+    ctx.beginPath();
+    ctx.moveTo(lx, ly);
+    ctx.lineTo(lx + Math.cos(beamAngle) * 700, ly + Math.sin(beamAngle) * 700);
+    ctx.stroke();
+    ctx.restore();
+  } else if (!isStaggered && targetSlot >= 0) {
+    // Tehdit lazeri (pasif hedef çizgisi)
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = COLOR_RED;
     ctx.lineWidth = Math.max(1, 1.5 * u);
     ctx.setLineDash([6, 6]);
     ctx.beginPath();
-    const lx = x + Math.cos(angle) * (radius * 0.7);
-    const ly = y + Math.sin(angle) * (radius * 0.7);
     ctx.moveTo(lx, ly);
-    ctx.lineTo(lx + Math.cos(angle) * 700, ly + Math.sin(angle) * 700);
+    ctx.lineTo(lx + Math.cos(beamAngle) * 700, ly + Math.sin(beamAngle) * 700);
     ctx.stroke();
     ctx.restore();
   }
@@ -957,6 +1026,11 @@ export function drawColossusWorld(ctx, arena, scene, options = {}) {
 
   // 7. Mermiler
   drawBullets(ctx, scene.bullets);
+
+  // 7.5 Hasar / durum yüzen yazıları (host↔client aynı görsel)
+  if (scene.texts?.length) {
+    drawAlphaTexts(ctx, scene.texts, { size: 15, outline: true });
+  }
 
   // 8. Partiküller & FX
   if (scene.particles?.length) {

@@ -49,7 +49,18 @@ export function createWorldViewRenderer() {
           color: slots?.[p.slot]?.color || UI_COLORS.players[p.slot] || COLLAPSE_FALLBACK[p.slot],
           avatar: slots?.[p.slot]?.avatar || null,
         }));
-        drawCollapsePlayers(ctx, players, { selfSlot: context.selfSlot ?? -1 });
+        // Yüz tehlikesi grid'den türetilir, pakete alan eklenmez.
+        const cols = 13;
+        const rows = 13;
+        const cell = frame.cell || 0;
+        drawCollapsePlayers(ctx, players, {
+          selfSlot: context.selfSlot ?? -1,
+          gridStates: frame.grid,
+          warn: frame.warn,
+          cell,
+          offsetX: arena.cx - (cols * cell) / 2,
+          offsetY: arena.cy - (rows * cell) / 2,
+        });
         // Yüzen metin (SİSTEM 3): host ilerletip paketlediği için client
         // SAF çizim yapar (listeyi ilerletmek metni iki kez hızlandırırdı).
         drawFloatingTextSnapshotList(ctx, frame.texts);

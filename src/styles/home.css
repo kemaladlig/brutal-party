@@ -18,8 +18,8 @@
 /* ── Sahne ölçekleri ────────────────────────────────────────────────────── */
 
 .home-scene {
-  --hero-x: 31%;
-  --scene-stage-y: 82%;
+  --hero-x: 50%;
+  --scene-stage-y: 74%;
   --rail-w: clamp(240px, 26vw, 330px);
   /* OYNA + boşluk + ikili satır: FEATURED kartı bu yüksekliğin üstüne oturur
      (ikisi de alt kenardan sabitlenir, kolon tek blok gibi durur). */
@@ -196,7 +196,7 @@
    kabuğun odak ölçeği `translateX`'i ezerdi. */
 
 .home-hero {
-  --hero-size: min(58vh, 520px);
+  --hero-size: clamp(200px, 34vh, 310px);
   /* Ayağın (zemin gölgesi merkezinin) kutu tabanına uzaklığı:
      `drawAvatarStage`de `groundY = h/2 + 1.02r`, `r = 0.34·s` → `0.153·s`. */
   --hero-ground-gap: calc(0.153 * var(--hero-size));
@@ -277,6 +277,12 @@
   transform: scale(1.025);
 }
 
+.home-hero.is-staged .home-identity {
+  top: auto;
+  bottom: calc(100% - 0.52 * var(--hero-size));
+  max-width: min(280px, 44vw);
+}
+
 /* ── Ortam: süzülen renkli toz (üst boşluk) ─────────────────────────────── */
 
 .home-sky {
@@ -322,19 +328,18 @@
 .home-marquee {
   /* Odak oranı (JS de buradan okur) ve boşluk payı (yarı kapak genişliği):
      breakpoint'ler yalnız bu iki sayıyı değiştirir. */
-  --mq-focus: 0.56;
-  --mq-edge: 66px;
+  --mq-focus: 0.5;
+  --mq-edge: 44px;
   position: absolute;
   z-index: 1;
-  left: 0;
-  /* Şerit FEATURED kartının ALTINDAN değil YANINDAN biter: kapaklar opaktan
-     geçip yarıda kesilmez, kenar maskesi kartın önünde söner. */
-  right: calc(max(24px, env(safe-area-inset-right)) + var(--rail-w) + 34px);
-  top: calc(var(--scene-stage-y) - clamp(150px, 24vh, 260px));
+  /* Şerit kahramanın sağından başlar — karakter kapakların üstünü kapatmaz */
+  left: calc(50% + clamp(66px, 8.5vw, 115px));
+  right: max(24px, env(safe-area-inset-right));
+  top: 53%;
   display: flex;
   align-items: center;
-  gap: clamp(10px, 1.2vw, 20px);
-  padding: 16px 0 26px;
+  gap: clamp(10px, 1.2vw, 16px);
+  padding: 8px 0 14px;
   overflow-x: auto;
   scrollbar-width: none;
   /* Parmakla itince iki kapak arasında kalma → featured "ikişer atlıyor"
@@ -418,9 +423,11 @@
 .home-featured {
   position: absolute;
   z-index: 3;
-  right: max(24px, env(safe-area-inset-right));
-  bottom: calc(max(22px, env(safe-area-inset-bottom)) + var(--rail-stack-h) + 14px);
-  width: var(--rail-w);
+  left: calc(max(24px, env(safe-area-inset-left)) + 74px);
+  bottom: max(22px, env(safe-area-inset-bottom));
+  width: clamp(230px, 22vw, 300px);
+  display: flex;
+  align-items: stretch;
   padding: 0;
   border: var(--arcade-edge-w) solid var(--hud-line);
   border-radius: var(--r-lg);
@@ -441,16 +448,25 @@
 .home-featured:active { translate: 0 1px; }
 
 .home-featured-art {
-  display: block;
-  width: 100%;
-  aspect-ratio: 16 / 10;
+  width: clamp(74px, 6.5vw, 92px);
+  height: auto;
+  aspect-ratio: 1;
   object-fit: cover;
-  scale: 1.06;
-  animation: homeCoverBreathe 11s ease-in-out infinite;
-  /* Geçiş çapraz-sönmedir: JS `is-swap` ile 170ms'de soldurur, boyar, geri
-     açar. Yalnız opacity — nefes `scale`'i ezilmez. */
-  opacity: 1;
-  transition: opacity 170ms ease;
+  flex: 0 0 auto;
+  animation: none;
+  scale: 1;
+}
+
+.home-featured-copy {
+  position: static;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: none;
 }
 
 .home-featured-text {
@@ -471,33 +487,10 @@
   .home-marquee { scroll-snap-type: none; }
 }
 
-@keyframes homeCoverBreathe {
-  0%, 100% { scale: 1.06; }
-  50%      { scale: 1.13; }
-}
-
-.home-featured-copy {
-  position: absolute;
-  inset: auto 0 0 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 24px 12px 10px;
-  background: linear-gradient(0deg, var(--scrim-strong) 8%, transparent 100%);
-}
-
-.home-featured-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  opacity: 1;
-  transition: opacity 170ms ease, translate 170ms ease;
-}
-
 .home-featured-overline {
-  font: 800 9px/1.3 var(--font-mono);
-  letter-spacing: 0.16em;
+  display: block;
+  font: 800 9px/1.2 var(--font-mono);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--gold-deep);
 }
@@ -505,7 +498,8 @@
 .home-featured.is-resume .home-featured-overline { color: var(--hud-muted); }
 
 .home-featured-title {
-  font: 700 16px/1.15 var(--font-display);
+  display: block;
+  font: 700 clamp(13px, 1.1vw, 16px)/1.15 var(--font-display);
   letter-spacing: 0.01em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -518,8 +512,8 @@
   margin-left: auto;
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: var(--grad-accent);
   color: var(--on-accent);
@@ -544,19 +538,29 @@
   z-index: 3;
   right: max(24px, env(safe-area-inset-right));
   bottom: max(22px, env(safe-area-inset-bottom));
-  width: var(--rail-w);
+  width: auto;
   display: flex;
-  flex-direction: column;
-  gap: 14px;
+  flex-direction: row;
+  align-items: stretch;
+  gap: clamp(10px, 1.2vw, 14px);
+}
+
+.home-rail-duo {
+  order: 1;
+  display: flex;
+  flex: 0 0 auto;
+  gap: clamp(10px, 1.2vw, 14px);
 }
 
 .home-play {
-  width: 100%;
-  min-height: 112px;
-  padding: 10px 18px;
+  order: 2;
+  flex: 0 0 auto;
+  width: clamp(140px, 11vw, 190px);
+  min-height: clamp(84px, 10vh, 98px);
+  padding: 8px 14px;
   justify-content: center;
-  gap: 14px;
-  border-radius: 22px;
+  gap: 10px;
+  border-radius: 20px;
   animation: homePlayGlow 2.6s ease-in-out infinite;
   overflow: hidden; /* ışık süpürmesi buton kasasında kırpsın */
 }
@@ -584,8 +588,8 @@
   100% { transform: translateX(100%); opacity: 0; }
 }
 
-.home-play .scene-btn-icon { width: 52px; height: 52px; border-radius: 18px; }
-.home-play .scene-btn-label { font-size: 24px; letter-spacing: 0.05em; }
+.home-play .scene-btn-icon { width: clamp(36px, 3vw, 46px); height: clamp(36px, 3vw, 46px); border-radius: 14px; }
+.home-play .scene-btn-label { font-size: clamp(18px, 1.5vw, 22px); letter-spacing: 0.05em; }
 .home-play .scene-btn-sub { display: none; }
 
 @keyframes homePlayGlow {
@@ -593,24 +597,23 @@
   50%      { box-shadow: 0 8px 0 var(--play-edge), 0 18px 32px var(--scene-shadow), 0 0 50px var(--glow-accent-soft); }
 }
 
-.home-rail-duo { display: flex; gap: 14px; }
-
 .home-join,
 .home-room {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 98px;
+  flex: 0 0 auto;
+  width: clamp(100px, 7.8vw, 124px);
+  min-height: clamp(84px, 10vh, 98px);
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 14px 10px 12px;
+  padding: 10px 8px 9px;
+  border-radius: 18px;
 }
 
 .home-join .scene-btn-icon,
-.home-room .scene-btn-icon { width: 52px; height: 52px; border-radius: 17px; }
+.home-room .scene-btn-icon { width: clamp(36px, 3vw, 44px); height: clamp(36px, 3vw, 44px); border-radius: 14px; }
 .home-join .scene-btn-label,
-.home-room .scene-btn-label { font-size: 12px; }
+.home-room .scene-btn-label { font-size: 11px; }
 .home-join .scene-btn-sub,
 .home-room .scene-btn-sub { display: none; }
 
@@ -654,11 +657,6 @@
 .home-scene.is-entering .home-side {
   animation: homeFadeIn 520ms ease both;
   animation-delay: 500ms;
-}
-
-.home-scene.is-entering .home-facts {
-  animation: homeFadeIn 620ms ease both;
-  animation-delay: 650ms;
 }
 
 @keyframes homeFadeIn {
@@ -807,71 +805,6 @@
   82% { transform: scale(1.12); }
 }
 
-/* ── Bilgi şeridi (alt sol) ───────────────────────────────────────────── */
-
-.home-facts {
-  position: absolute;
-  left: max(26px, env(safe-area-inset-left));
-  bottom: max(22px, env(safe-area-inset-bottom));
-  max-width: min(420px, 34vw);
-  padding: 7px 16px;
-  border-radius: var(--radius-pill);
-  background: var(--hud-surface);
-  border: 2px solid var(--hud-line);
-  font: 900 10px/1.4 var(--font-mono);
-  letter-spacing: 0.12em;
-  color: var(--hud-muted);
-  text-align: center;
-  z-index: 2;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-/* ── Kademeli daralma (yatay tablet) ──────────────────────────────────── */
-
-/* 1100–1750px arası: maksimum boyuttaki kahraman topu şerit merkeziyle
-   çakışmaya başlar — odak topun sağına erken kaçar. */
-@media (max-width: 1750px) {
-  .home-marquee { --mq-focus: 0.7; }
-}
-
-@media (max-width: 1100px) {
-  .home-scene {
-    --hero-x: 35%;
-    --rail-w: clamp(216px, 25vw, 280px);
-    --rail-stack-h: 206px;
-  }
-  /* Dikey daraldı: kartla kahraman arasındaki tek temiz cep sağda — odak
-     oraya kayar (boşluklar `--mq-focus`'tan türediği için birlikte gider). */
-  .home-marquee { --mq-focus: 0.86; }
-  .home-play { min-height: 98px; }
-  .home-play .scene-btn-label { font-size: 20px; }
-  .home-play .scene-btn-icon { width: 44px; height: 44px; }
-  .home-join,
-  .home-room { min-height: 88px; }
-  .home-join .scene-btn-icon,
-  .home-room .scene-btn-icon { width: 44px; height: 44px; border-radius: 15px; }
-  .home-featured-art { aspect-ratio: 16 / 11; }
-}
-
-@media (max-width: 900px) {
-  .home-scene { --hero-x: 38%; }
-}
-
-/* Plaka ayağın ALTINDAYKEN bilgi şeridiyle çarpışır: kahraman sola geçince
-   plaka şeridin üstüne düşer (eski düzen 50%'te olduğu için çakışmazdı).
-   Kaplama hesabı: kanvas tabanı = stage-y·H + 0,153·s, plaka ~44px; şerit
-   ise alttan ~66px yer kaplar. Bu ancak H ≳ 900'de ayrışır — üstü büyük
-   masaüstüdür, plaka orada ayak altında kalabilir. Dar dikey ekran (rotate
-   gate arkası) her zaman baş-üstüne geçer. */
-@media (max-height: 900px), (max-width: 620px) {
-  .home-hero.is-staged .home-identity {
-    top: auto;
-    bottom: calc(100% - 0.52 * var(--hero-size));
-    max-width: min(280px, 44vw);
-  }
-}
-
 /* ── Telefon yatay / dar ekran ─────────────────────────────────────────
    Ana cihaz BURASI (844×390 · 930×430) — tasarım dili küçülerek gelir,
    kaybolmaz: marka kilidi (ikon + iki satır) ÜST-SOL köşededir — kabuğun
@@ -893,7 +826,6 @@
   .home-marquee { display: none; }
   .home-aurora-blob.is-c { display: none; }
   .home-boing-hint { display: none; }
-  .home-facts { display: none; }
 
   /* FEATURED → alt sol mini yatay kart (başparmak bölgesi; sağ-alt bantla
    aynı hizada, sahnenin altında durur). Sol gezinme kapsülü (ray) dikey

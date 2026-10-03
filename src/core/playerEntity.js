@@ -41,6 +41,9 @@ export function createPlayer(i, spawn, opts = {}) {
     // Persona rengi aynı zamanda oyun-özel `defaultColors`'tan bağımsızdır:
     // oyuncu renginin oyunun kimliğiyle çakışmamasını garanti eder.
     color: isBot ? (getBotPersona(i, slotType === 'bot_god').color) : custom.color || defaultColors[i],
+    expression: isBot ? (getBotPersona(i, slotType === 'bot_god').expression) : custom.expression,
+    headwear: isBot ? 'NONE' : (custom.headwear || 'NONE'),
+    avatar: custom,
     x: spawn.x,
     y: spawn.y,
     vx: 0,

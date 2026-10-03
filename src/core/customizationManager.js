@@ -23,6 +23,9 @@ export function expressionDesc(id, fallback) {
 export function rimName(id, fallback) {
   return tx(`rim.${id}`, fallback ?? id);
 }
+export function headwearName(id, fallback) {
+  return tx(`hat.${id}`, fallback ?? id);
+}
 
 /**
  * Kayıtlı hex → palet kaydı. İki palet (klasik + Okabe-Ito) birlikte aranır:
@@ -122,7 +125,23 @@ export function rimHex(id, fallback = '#1A1A1A') {
   return RIM_HEX.get(id) || fallback;
 }
 
-// AKSUAR ve GÖVDE DESENİ YOK. Karakterin üç özelliği RENGİ, YÜZÜ ve HALKASI.
+// ── Baş süsleri (HEADWEAR): saha hitbox'ını etkilemez, yalnız görsel ──
+// Disk dışına taşan geometri — çarpışma yarıçapı değişmez, yalnız renderer
+// katmanlanır. `'NONE'` = süssüz (varsayılan).
+export const AVATAR_HEADWEAR = [
+  { id: 'NONE',      name: 'Yok',        icon: 'x' },
+  { id: 'CROWN',     name: 'Taç',        icon: 'crown' },
+  { id: 'PARTY_HAT', name: 'Parti Şapkası', icon: 'sparkles' },
+  { id: 'WIZARD',    name: 'Sihirbaz',   icon: 'scroll' },
+  { id: 'HALO',      name: 'Hale',       icon: 'gem' },
+  { id: 'HORNS',     name: 'Boynuz',     icon: 'flame' },
+  { id: 'BOW',       name: 'Fiyonk',     icon: 'heart' },
+  { id: 'MOHAWK',    name: 'Mohawk',     icon: 'zap' },
+];
+
+const HEADWEAR_IDS = new Set(AVATAR_HEADWEAR.map((h) => h.id));
+
+// AKSUAR ve GÖVDE DESENİ YOK. Karakterin dört özelliği RENGİ, YÜZÜ, HALKASI ve BAŞ SÜSÜdür.
 // Siluet daima tam yuvarlak; sahnede okunabilirlik çarpışma yarıçapıyla
 // örtüşüyor (ölçülen: gövde 36x37 @ r=16). Daha önce seçilebilen 14 aksesuar
 // (taç/halo/kanat/şapka…) ve 8 desen hem gövdeyi taşırıyor hem de sahada
@@ -202,13 +221,16 @@ const PROFILE_KEY = 'brutalparty.avatar.profile';
 const LEGACY_PREFIX = 'brutalparty.avatar.slot_';
 
 function defaultFace() {
-  return { expression: 'FOCUS', rim: 'CLASSIC' };
+  return { expression: 'FOCUS', rim: 'CLASSIC', headwear: 'NONE' };
 }
 
-// Rastgele karakter zarı: yüz ifadesini listeden seçer.
+// Rastgele karakter zarı: yüz ifadesini ve baş süsünü listeden seçer.
 // (reset butonu + ilk kurulum fallback'i kullanır; kayıtlı profillere dokunmaz.)
 function randomFace() {
-  return { expression: AVATAR_EXPRESSIONS[(Math.random() * AVATAR_EXPRESSIONS.length) | 0].id };
+  return {
+    expression: AVATAR_EXPRESSIONS[(Math.random() * AVATAR_EXPRESSIONS.length) | 0].id,
+    headwear: AVATAR_HEADWEAR[(Math.random() * AVATAR_HEADWEAR.length) | 0].id,
+  };
 }
 
 export function randomAvatarColor(excludeHexes = []) {
@@ -270,7 +292,7 @@ export function saveAvatarProfile(profile) {
 }
 
 export function resetAvatarProfile() {
-  // Zar renk + yüz + halkayı yeniler (RASTGELE KARAKTER hepsini karıştırır).
+  // Zar renk + yüz + halka + baş süsünü yeniler (RASTGELE KARAKTER hepsini karıştırır).
   const rims = AVATAR_RIMS.map((r) => r.id);
   const def = {
     color: randomAvatarColor(),
@@ -295,9 +317,10 @@ export function sanitizeAvatar(input, opts = {}) {
       : randomAvatarColor());
   const expression = EXPRESSION_IDS.has(src.expression) ? src.expression : 'FOCUS';
   const rim = RIM_IDS.has(src.rim) ? src.rim : 'CLASSIC';
+  const headwear = HEADWEAR_IDS.has(src.headwear) ? src.headwear : 'NONE';
   // Eski profiller `accessory`/`pattern` taşıyordu; sanitize bunları düşürür,
   // yani kalıcı veri silinmeden karakter yeni sözleşmeye uyar.
-  return { color, expression, rim };
+  return { color, expression, rim, headwear };
 }
 
 export function isPaletteHex(hex) {

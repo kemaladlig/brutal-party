@@ -257,7 +257,7 @@ src/games/ (Oyun Motorları — BaseMiniGame türevleri):
   zone.js / zoneView.js                Brutal Zone (64x64 RLE)
   snake.js / snakeView.js              Brutal Snake
   horde.js / hordeConfig.js / hordeView.js  Brutal Horde
-  colossus.js / colossusConfig.js / colossusView.js  Brutal Colossus (Co-op Titan Hunt)
+  colossus.js / colossusConfig.js / colossusView.js  Brutal Colossus (Co-op titan raid: telegraph'lı saldırılar + yıkılabilir modüller + faz-kalkanı)
   collapse.js / collapseView.js        Brutal Collapse (13x13)
   crown.js / crownView.js              Brutal Crown (arşivden çıkarıldı)
   ninja.js / ninjaView.js              Brutal Ninja

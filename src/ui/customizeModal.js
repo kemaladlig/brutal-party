@@ -6,12 +6,14 @@ import {
   getActivePalettes,
   AVATAR_EXPRESSIONS,
   AVATAR_RIMS,
+  AVATAR_HEADWEAR,
   getAvatarProfile,
   saveAvatarProfile,
   resetAvatarProfile,
   paletteName,
   expressionName,
   rimName,
+  headwearName,
 } from '../core/customizationManager.js';
 import { openOverlay, closeOverlay } from './overlayHost.js';
 import { t, onLangChange } from '../i18n.js';
@@ -31,7 +33,7 @@ let previewAngle = 0;
 let previewBlinkTimer = 0;
 let isPreviewBlinking = false;
 const TAB_KEY = 'brutalparty.avatar.tab';
-const TAB_IDS = ['color', 'face', 'rim'];
+const TAB_IDS = ['color', 'face', 'rim', 'headwear'];
 let activeTab = 'color';
 
 function loadActiveTab() {
@@ -132,6 +134,7 @@ function createModalDOM() {
               <button class="customize-tab active" data-tab="color" type="button" data-i18n="custom.tabColor">${t('custom.tabColor')}</button>
               <button class="customize-tab" data-tab="face" type="button" data-i18n="custom.tabFace">${t('custom.tabFace')}</button>
               <button class="customize-tab" data-tab="rim" type="button" data-i18n="custom.tabRim">${t('custom.tabRim')}</button>
+              <button class="customize-tab" data-tab="headwear" type="button" data-i18n="custom.tabHeadwear">${t('custom.tabHeadwear')}</button>
             </div>
 
             <!-- 1. Renk Seçimi -->
@@ -147,6 +150,11 @@ function createModalDOM() {
             <!-- 3. Halka -->
             <div class="custom-section hidden" data-section="rim">
               <div class="rim-grid" id="grid-rims"></div>
+            </div>
+
+            <!-- 4. Baş Süsü (headwear) — yalnız görsel, hitbox değişmez -->
+            <div class="custom-section hidden" data-section="headwear">
+              <div class="chips-grid" id="grid-headwear"></div>
             </div>
           </div>
         </div>
@@ -306,6 +314,29 @@ function renderSelectionGrids() {
       renderSelectionGrids();
     };
   }
+
+  // 4. Baş Süsleri (headwear — yalnız görsel)
+  const hwGrid = document.getElementById('grid-headwear');
+  if (hwGrid) {
+    hwGrid.innerHTML = AVATAR_HEADWEAR.map((hw) => {
+      const isSelected = currentCustom.headwear === hw.id;
+      return `
+        <button class="custom-chip-btn ${isSelected ? 'selected' : ''}" data-id="${hw.id}" type="button">
+          <span class="chip-icon">${getTabletopIconSvg(hw.icon, { size: 18 })}</span>
+          <span class="chip-title">${headwearName(hw.id, hw.name)}</span>
+        </button>
+      `;
+    }).join('');
+
+    hwGrid.onclick = (e) => {
+      const btn = /** @type {HTMLElement | null} */ (/** @type {Element} */ (e.target).closest('.custom-chip-btn'));
+      if (!btn) return;
+      playMenuTick();
+      currentCustom.headwear = btn.dataset.id;
+      saveAvatarProfile(currentCustom);
+      renderSelectionGrids();
+    };
+  }
 }
 
 function startPreviewLoop() {
@@ -348,6 +379,7 @@ function startPreviewLoop() {
         color: currentCustom.color,
         expression: currentCustom.expression,
         rim: currentCustom.rim,
+        headwear: currentCustom.headwear,
         facingAngle: previewAngle,
         isBlinking: isPreviewBlinking,
       }, Math.sin(now * 0.004) * r * 0.08);
@@ -404,12 +436,12 @@ export function initMenuAvatarCard(root = document) {
       const exprId = prof?.expression || 'FOCUS';
       const exprDef = AVATAR_EXPRESSIONS.find((e) => e.id === exprId);
       const expr = expressionName(exprId, 'Odaklı');
-      const rimDef = AVATAR_RIMS.find((rm) => rm.id === (prof?.rim || 'CLASSIC'));
       const rim = rimName(prof?.rim || 'CLASSIC', 'Klasik');
-      // Karakterin üç özelliği: yüz + halka çipleri.
-      // İkon `tabletopIcons`'tan gelir ve İFADENİN KENDİ ikonudur (AGENTS.md §7:
-      // ham OS emojisi yasak; tüm çipleri 'eye' çizmek de aynı hata).
-      equippedEl.innerHTML = `<span class="equipped-chip expr-chip">${getTabletopIconSvg(exprDef?.icon || 'eye', { size: 13 })}<span>${expr}</span></span><span class="equipped-chip rim-chip">${getTabletopIconSvg('circle_dot', { size: 13 })}<span>${rim}</span></span>`;
+      const hwId = prof?.headwear || 'NONE';
+      const hwDef = AVATAR_HEADWEAR.find((h) => h.id === hwId);
+      const hw = hwId !== 'NONE' ? headwearName(hwId, hwDef?.name || hwId) : null;
+      const hwChip = hw ? `<span class="equipped-chip hat-chip">${getTabletopIconSvg(hwDef?.icon || 'sparkles', { size: 13 })}<span>${hw}</span></span>` : '';
+      equippedEl.innerHTML = `<span class="equipped-chip expr-chip">${getTabletopIconSvg(exprDef?.icon || 'eye', { size: 13 })}<span>${expr}</span></span><span class="equipped-chip rim-chip">${getTabletopIconSvg('circle_dot', { size: 13 })}<span>${rim}</span></span>${hwChip}`;
     }
   };
   updateCardName();
@@ -519,6 +551,7 @@ export function initMenuAvatarCard(root = document) {
       color: custom.color,
       expression: out.expression,
       rim: custom.rim,
+      headwear: custom.headwear,
       facingAngle: out.facingAngle,
       isBlinking: out.isBlinking,
       scale: out.scale,

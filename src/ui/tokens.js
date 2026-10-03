@@ -138,6 +138,27 @@ export const UI_COLORS = {
   visorCyan: '#00F0FF',
   visorPink: '#FF0055',
   rimLight: 'rgba(255, 255, 255, 0.22)',
+  // --- Baş süsleri (HEADWEAR) ---
+  hatInk: '#1A1A1A',
+  hatGold: '#FFC42E',
+  hatGoldDark: '#D99B26',
+  hatVelvet: '#8B0000',
+  hatGem: '#FF3B6B',
+  hatEmerald: '#00B894',
+  hatSapphire: '#0984E3',
+  hatOrange: '#FF5722',
+  hatYellow: '#FFD700',
+  hatPurple: '#7928CA',
+  hatPurpleDark: '#5B1FA8',
+  hatHaloGlow: 'rgba(255, 255, 255, 0.65)',
+  hatHaloAura: 'rgba(255, 215, 0, 0.30)',
+  hatRed: '#D84727',
+  hatPinkKnot: '#FF6B9D',
+  hatPinkLight: '#FF85A2',
+  hatPinkDark: '#D81B60',
+  hatCyan: '#00F0FF',
+  hatShine: '#FFFFFF',
+  hatObsidian: '#2B1B17',
 };
 
 export const CROWN_COLORS = Object.freeze([

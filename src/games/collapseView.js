@@ -210,7 +210,9 @@ export function drawCollapseGrid(ctx, arena, cell, states, warn, { withFx = true
   const cellSize = cell;
   const offsetX = arena.cx - (cols * cellSize) / 2;
   const offsetY = arena.cy - (rows * cellSize) / 2;
-  const warnByIdx = new Map((warn || []).map(([idx, timer]) => [idx, timer]));
+  // Uyarı sayısı küçüktür; ara `map` dizisi üretmeden doğrudan Map'e al —
+  // kare başına 169 karoluk ızgarada bu tahsis gereksiz GC baskısıydı.
+  const warnByIdx = warn && warn.length ? new Map(warn) : null;
   const padding = Math.max(1.5, cellSize * 0.05);
   const depth = Math.max(2, cellSize * 0.11);
   const radius = cellSize * 0.18;
@@ -238,7 +240,7 @@ export function drawCollapseGrid(ctx, arena, cell, states, warn, { withFx = true
       let wobbleX = 0, wobbleY = 0, scaleAdd = 0;
       let ratio = 1;
       if (state === 1) {
-        const timer = warnByIdx.get(idx) ?? 0.85;
+        const timer = warnByIdx?.get(idx) ?? 0.85;
         ratio = Math.max(0, Math.min(1, timer / 0.85));
         if (withFx) {
           wobbleX = (Math.random() - 0.5) * 5;
@@ -362,14 +364,32 @@ export function drawCollapsePickups(ctx, pickups, now = 0) {
   }
 }
 
-export function drawCollapsePlayers(ctx, players, { selfSlot = -1 } = {}) {
+// Slot başına son bakış yönü: client paketinde angle yok, vx/vy sıfırken
+// yüz merkeze kilitlenmesin. Modül düzeyi sabit dizi, kare başına tahsis yok.
+const COLLAPSE_LAST_FACING = [0, 0, 0, 0];
+
+function collapseWarnTimer(warn, idx) {
+  if (!warn) return 0.85;
+  for (let k = 0; k < warn.length; k++) {
+    const w = warn[k];
+    if (w && w[0] === idx) return w[1];
+  }
+  return 0.85;
+}
+
+export function drawCollapsePlayers(ctx, players, { selfSlot = -1, gridStates = null, warn = null, cell = 0, offsetX = 0, offsetY = 0 } = {}) {
   // 3.3 okunurluk hiyerarşisi: tek görür varsa kendi avatarın T1, diğerleri T3
   // (−%25); α yalnız fxKit'ten gelir.
   const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  const hasGrid = Array.isArray(gridStates) && gridStates.length === COLLAPSE_COLS * COLLAPSE_ROWS && cell > 0;
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
 
-    const jumpProgress = clamp01(player.jump || 0);
+    // Host `jumpTimer`, paket `jump` taşır — ikisini de okur.
+    let rawJump = 0;
+    if (Number.isFinite(player.jump)) rawJump = player.jump;
+    else if ((player.jumpTimer || 0) > 0) rawJump = player.jumpTimer / 0.45;
+    const jumpProgress = clamp01(rawJump);
     const isJumping = jumpProgress > 0;
     const jumpHeight = isJumping ? Math.sin(jumpProgress * Math.PI) * 16 : 0;
     const scale = 1.0 + (jumpHeight / 16) * 0.45;
@@ -387,13 +407,63 @@ export function drawCollapsePlayers(ctx, players, { selfSlot = -1 } = {}) {
 
     // `super` rozeti aşağıda, restore sonrası dünya koordinatında çizilir
     // (buradaki öteleme + zıplama ölçeği taşınır/ölçeklenir, taşmaz).
-    const superActive = !!player.super;
+    // Host `superJumpTimer`, paket `super` taşır.
+    const superActive = !!player.super || (player.superJumpTimer || 0) > 0;
+
+    // Bakış: host `angle`, paket `vx/vy` — boşta son yön korunur.
+    const slot = player.slot ?? player.index ?? 0;
+    let facing = 0;
+    let hasFacing = false;
+    if (Number.isFinite(player.facingAngle)) {
+      facing = player.facingAngle;
+      hasFacing = true;
+    } else if (Number.isFinite(player.angle)) {
+      facing = player.angle;
+      hasFacing = true;
+    }
+    const vx = player.vx;
+    const vy = player.vy;
+    if (Number.isFinite(vx) && Number.isFinite(vy)) {
+      const spdSq = vx * vx + vy * vy;
+      if (spdSq > 1225) {
+        facing = Math.atan2(vy, vx);
+        hasFacing = true;
+        if (slot >= 0 && slot < 4) COLLAPSE_LAST_FACING[slot] = facing;
+      }
+    }
+    if (!hasFacing || ((player.steerX || 0) * (player.steerX || 0) + (player.steerY || 0) * (player.steerY || 0)) > 0.0225) {
+      const sx = player.steerX || 0;
+      const sy = player.steerY || 0;
+      if (sx * sx + sy * sy > 0.0225) {
+        facing = Math.atan2(sy, sx);
+        hasFacing = true;
+        if (slot >= 0 && slot < 4) COLLAPSE_LAST_FACING[slot] = facing;
+      }
+    }
+    if (!hasFacing && slot >= 0 && slot < 4) facing = COLLAPSE_LAST_FACING[slot] || 0;
+
+    // Yüz: zıplama > süper > çöken zeminde panik/kızgın > sakin.
+    // Grid zaten pakette var, ek alan yok (client-side juice).
+    let expression = 'normal';
+    if (isJumping) expression = 'excited';
+    else if (superActive) expression = 'wink';
+    else if (hasGrid) {
+      const tc = Math.floor((player.x - offsetX) / cell);
+      const tr = Math.floor((player.y - offsetY) / cell);
+      if (tc >= 0 && tc < COLLAPSE_COLS && tr >= 0 && tr < COLLAPSE_ROWS) {
+        const idx = tr * COLLAPSE_COLS + tc;
+        if (gridStates[idx] === 1) {
+          expression = collapseWarnTimer(warn, idx) < 0.4 ? 'panic' : 'angry';
+        }
+      }
+    }
 
     drawGameAvatar(ctx, 0, 0, radius, player, {
       color: player.color,
       slotIndex: player.slot ?? player.index,
       label: `P${(player.slot ?? player.index ?? 0) + 1}`,
-      expression: isJumping ? 'excited' : (player.super ? 'wink' : 'normal'),
+      expression,
+      facingAngle: facing,
       showPointer: false,
       borderWidth: Math.max(1.5, 2.5 * u),
       shadowOffset: Math.max(1, 2 * u),

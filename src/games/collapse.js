@@ -36,6 +36,7 @@ const COLLAPSE_ROUND_TIME = 60;
 const COLLAPSE_MAX_TIED_ROUNDS = 2;
 const COLLAPSE_RADIUS = 36;
 const COLLAPSE_MOVE_SPEED = 190;
+const COLLAPSE_SPAWN_GRACE = 1.6;
 
 // 5 Farklı Rastgele Harita Tasarımı — hepsi geniş tutulur (min ~%75 dolu):
 // çeşitlilik deliklerle değil kenar formuyla gelir (klasik/islands/atoll/
@@ -185,6 +186,7 @@ this.targetScore = 2;
     this.offsetY = 0;
     this.mapIndex = 0;
     this.pickupSpawnTimer = 3.0;
+    this.spawnGrace = 0;
 
     this.keys = {};
     this.roundId = 0;
@@ -311,11 +313,13 @@ this.targetScore = 2;
       const isBot = this.slotTypes[i] === 'bot_normal' || this.slotTypes[i] === 'bot_god';
       const isGod = this.slotTypes[i] === 'bot_god';
       const persona = isBot ? getBotPersona(i, isGod) : null;
+      // Spawn bakışı merkeze: tüm yüzler aynı yöne bakmasın.
+      const faceCenter = Math.atan2(this.arena.cy - s.y, this.arena.cx - s.x);
       return {
         index: i,
         name: existing?.name || (isBot ? persona.name : `P${i + 1}`),
         color: isBot ? persona.color : (custom.color || COLLAPSE_COLORS[i]),
-        x: s.x, y: s.y, angle: 0,
+        x: s.x, y: s.y, angle: Number.isFinite(existing?.angle) ? existing.angle : faceCenter,
         radius: fieldRadius(this.arena, COLLAPSE_RADIUS),
         speed: fieldSpeed(this.arena, COLLAPSE_MOVE_SPEED), steerX: 0, steerY: 0,
         vx: 0, vy: 0,
@@ -338,6 +342,7 @@ this.targetScore = 2;
     this.tiedRounds = 0;
     this.roundTime = COLLAPSE_ROUND_TIME;
     this.roundTransitionTimer = 0;
+    this.spawnGrace = 0;
     this.pickups = [];
     this.fx.clear();
     this.fallingTiles = [];
@@ -385,6 +390,7 @@ this.targetScore = 2;
     this.floatingTexts = [];
     this.fx.clear();
     this.pickupSpawnTimer = 3.5;
+    this.spawnGrace = COLLAPSE_SPAWN_GRACE;
     this.onTouchesReset();
     playStart();
     this.pickRandomMap();
@@ -408,6 +414,10 @@ this.targetScore = 2;
       player.superJumpTimer = 0;
       player.steerX = 0;
       player.steerY = 0;
+      player.vx = 0;
+      player.vy = 0;
+      // Spawn bakışı merkeze dönsün, yüzler aynı yöne kilitlenmesin.
+      player.angle = Math.atan2(this.arena.cy - player.y, this.arena.cx - player.x);
 
       // Oyuncunun altındaki 2x2 alanı güvenli yap
       const cx = Math.floor((player.x - this.offsetX) / this.cellSize);
@@ -584,6 +594,8 @@ this.targetScore = 2;
       this.resolveTimeout();
       return;
     }
+    // Spawn koruması: ilk saniyede bastığın tile çökmeye başlamaz.
+    if (this.spawnGrace > 0) this.spawnGrace -= dt;
 
     // Güçlendirme periyodu
     this.pickupSpawnTimer -= dt;
@@ -687,6 +699,10 @@ this.targetScore = 2;
       player.x += player.steerX * spd * dt;
       player.y += player.steerY * spd * dt;
       this.writeSteerVelocity(player, player.steerX * spd, player.steerY * spd);
+      // Bakış hareket yönünü takip etsin: boşta son yön korunur.
+      if ((player.steerX * player.steerX + player.steerY * player.steerY) > 0.0225) {
+        player.angle = Math.atan2(player.steerY, player.steerX);
+      }
 
       // Zemin etkileşimi (sadece yerdeyken); hızlı karelerde aradaki boşluğu atlamaz.
       if (player.jumpTimer <= 0) {
@@ -709,7 +725,7 @@ this.targetScore = 2;
 
         const cx = Math.floor((player.x - this.offsetX) / this.cellSize);
         const cy = Math.floor((player.y - this.offsetY) / this.cellSize);
-        if (this.grid[cy][cx].state === 0) {
+        if (this.spawnGrace <= 0 && this.grid[cy][cx].state === 0) {
           this.grid[cy][cx].state = 1;
           this.grid[cy][cx].timer = 0.85;
         }
@@ -865,7 +881,14 @@ this.targetScore = 2;
     drawCollapsePickups(ctx, this.pickups, now);
 
     // 6. OYUNCULAR (Havada yükselme, gölge derinliği ve şok halkası)
-    drawCollapsePlayers(ctx, this.players, { selfSlot: this.localControlSlot ?? -1 });
+    drawCollapsePlayers(ctx, this.players, {
+      selfSlot: this.localControlSlot ?? -1,
+      gridStates,
+      warn: gridWarn,
+      cell: this.cellSize,
+      offsetX: this.offsetX,
+      offsetY: this.offsetY,
+    });
 
     // 7. FX KATMANI (ortak collapseView draw'ı — host↔client aynı)
     drawCollapseFxLayer(ctx, { pops: this.fx.pops, rings: this.fx.rings, particles: this.particles });

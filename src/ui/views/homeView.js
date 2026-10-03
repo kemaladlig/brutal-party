@@ -328,7 +328,7 @@ registerView('home', {
       },
     });
     sideRail.append(installBtn, updateBtn);
-    view.append(sideRail, el('div', 'home-facts', ''));
+    view.append(sideRail);
 
     // ── Vitrin + parallax ──
     // KALDIĞIN YER kaydı artık ayrı çip değil, vitrinin BAŞLANGIÇ kapağıdır.
@@ -418,7 +418,6 @@ registerView('home', {
       updateBtn.classList.toggle('has-update', isUpdateAvailable());
       set(updateBtn, isUpdateAvailable() ? 'shell.side.updateReady' : 'shell.side.update');
       hint.textContent = t('menu.boing');
-      view.querySelector('.home-facts').textContent = t('shell.home.facts');
       // Simge şeridi etiketleri dili izler (erişilebilir ad + ipucu).
       for (const [btn, key] of toolLabels) {
         btn.setAttribute('aria-label', t(key));
