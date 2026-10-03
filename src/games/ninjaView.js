@@ -15,6 +15,7 @@ import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar, computeAvatarKineticDeformation } from '../core/avatarInGame.js';
 import { fxReadAlpha, packFloatingTexts, isValidFloatingTexts } from '../core/fxKit.js';
 import { drawStatusChip } from '../core/entityStatus.js';
+import { drawDioramaLantern } from '../core/dioramaKit.js';
 import {
   round1,
   packRectList,
@@ -271,44 +272,32 @@ export function drawNinjaDecals(ctx, decals) {
 export function drawNinjaLanterns(ctx, lanterns, now = 0) {
   for (const lantern of lanterns || []) {
     const lu = (lantern.radius || 60) / 60;
-    if (!lantern.active) {
+    const flicker = Math.sin(now / 110 + lantern.x * 0.05);
+
+    if (lantern.active) {
+      // Sahanın aydınlanma yarıçapı
       ctx.save();
-      ctx.fillStyle = '#2A2A2A';
-      ctx.fillRect(lantern.x - 9, lantern.y - 9, 18, 18);
-      ctx.strokeStyle = '#555555';
-      ctx.lineWidth = Math.max(1, 1.5 * lu);
-      ctx.strokeRect(lantern.x - 9, lantern.y - 9, 18, 18);
-      const emberPulse = (Math.sin(now / 160) + 1) * 0.5;
-      ctx.fillStyle = `rgba(230, 57, 70, ${0.4 + emberPulse * 0.5})`;
+      const grad = ctx.createRadialGradient(lantern.x, lantern.y, 10, lantern.x, lantern.y, lantern.radius);
+      grad.addColorStop(0, 'rgba(255, 215, 0, 0.22)');
+      grad.addColorStop(0.7, 'rgba(255, 215, 0, 0.08)');
+      grad.addColorStop(1, 'rgba(255, 215, 0, 0.0)');
+      ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(lantern.x, lantern.y, 3.5, 0, Math.PI * 2);
+      ctx.arc(lantern.x, lantern.y, lantern.radius, 0, Math.PI * 2);
       ctx.fill();
+
+      ctx.strokeStyle = 'rgba(217, 155, 38, 0.35)';
+      ctx.lineWidth = Math.max(1, 1.5 * lu);
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
       ctx.restore();
-      continue;
     }
 
-    ctx.save();
-    const grad = ctx.createRadialGradient(lantern.x, lantern.y, 10, lantern.x, lantern.y, lantern.radius);
-    grad.addColorStop(0, 'rgba(255, 215, 0, 0.28)');
-    grad.addColorStop(0.7, 'rgba(255, 215, 0, 0.12)');
-    grad.addColorStop(1, 'rgba(255, 215, 0, 0.0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(lantern.x, lantern.y, lantern.radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = 'rgba(217, 155, 38, 0.35)';
-    ctx.lineWidth = Math.max(1, 1.5 * lu);
-    ctx.setLineDash([4, 4]);
-    ctx.stroke();
-
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(lantern.x - 11, lantern.y - 11, 22, 22);
-    ctx.fillStyle = '#FFD700';
-    ctx.beginPath();
-    ctx.arc(lantern.x, lantern.y, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    drawDioramaLantern(ctx, lantern.x, lantern.y, {
+      u: lu,
+      active: lantern.active,
+      flicker,
+    });
   }
 }
 

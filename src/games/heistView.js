@@ -11,6 +11,7 @@ import { drawObstacle } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { setRoyaltySpot } from '../core/fieldLights.js';
 import { drawStatusChip } from '../core/entityStatus.js';
+import { drawDioramaShadow, drawDioramaCoin, drawDioramaGem, drawDioramaSphere } from '../core/dioramaKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import {
   round1,
@@ -236,67 +237,38 @@ export function drawHeistVaults(ctx, vaults, players, { rotateTabletop = false }
 
 export function drawHeistLoot(ctx, loot) {
   for (const item of loot) {
-    ctx.save();
-    ctx.translate(item.x, item.y);
     const r = item.radius || 10;
     const lu = r / 10;
 
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
-    ctx.beginPath();
-    ctx.arc(2, 2, r, 0, Math.PI * 2);
-    ctx.fill();
-
     if (item.type === 'DIAMOND') {
-      ctx.fillStyle = UI_COLORS.crownTeleport;
-      ctx.beginPath();
-      ctx.moveTo(0, -r);
-      ctx.lineTo(r, 0);
-      ctx.lineTo(0, r);
-      ctx.lineTo(-r, 0);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = UI_COLORS.lineDark;
-      ctx.lineWidth = Math.max(1, 2.2 * lu);
-      ctx.stroke();
-      drawTabletopIcon(ctx, 'gem', 0, 1, Math.max(12, r * 1.1), { color: UI_COLORS.white });
+      drawDioramaGem(ctx, item.x, item.y, r, 'diamond', { u: lu });
     } else if (item.type === 'RUBY') {
-      ctx.fillStyle = UI_COLORS.heistPiggy;
-      ctx.beginPath();
-      ctx.moveTo(0, -r);
-      ctx.lineTo(r, 0);
-      ctx.lineTo(0, r);
-      ctx.lineTo(-r, 0);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = UI_COLORS.lineDark;
-      ctx.lineWidth = Math.max(1, 2.2 * lu);
-      ctx.stroke();
-      drawTabletopIcon(ctx, 'gem', 0, 1, Math.max(12, r * 1.1), { color: UI_COLORS.white });
+      drawDioramaGem(ctx, item.x, item.y, r, 'ruby', { u: lu });
     } else if (item.type === 'CROWN') {
-      ctx.fillStyle = '#D99B26';
-      ctx.fillRect(-12, -8, 24, 16);
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = Math.max(1, 2.5 * lu);
-      ctx.strokeRect(-12, -8, 24, 16);
-      drawTabletopIcon(ctx, 'crown', 0, 1, 16, { color: '#FFFFFF' });
+      drawDioramaCoin(ctx, item.x, item.y, r * 1.15, {
+        u: lu,
+        icon: 'crown',
+        color: UI_COLORS.crownGold,
+        iconColor: UI_COLORS.white,
+      });
     } else {
-      ctx.fillStyle = '#FFDE59';
-      ctx.beginPath();
-      ctx.arc(0, 0, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#1C1C1A';
-      ctx.lineWidth = Math.max(1, 2 * lu);
-      ctx.stroke();
-      drawTabletopIcon(ctx, 'star', 0, 0, Math.max(10, r * 1.3), { color: '#1C1C1A' });
+      drawDioramaCoin(ctx, item.x, item.y, r, {
+        u: lu,
+        icon: 'star',
+        color: UI_COLORS.gold,
+      });
     }
-
-    ctx.restore();
   }
 }
 
 export function drawHeistPiggy(ctx, piggy) {
   if (!piggy) return;
   const pig = piggy;
+  const r = pig.radius || 18;
+  const u = r / 18;
+
+  // 1. Zemin temas gölgesi
+  drawDioramaShadow(ctx, pig.x, pig.y, r, { u, aspect: 0.55 });
 
   ctx.save();
   ctx.translate(pig.x, pig.y);
@@ -304,41 +276,55 @@ export function drawHeistPiggy(ctx, piggy) {
   const squash = 1 + Math.sin((pig.anim || 0) * 8) * 0.08;
   ctx.scale(squash, 1 / squash);
 
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-  ctx.beginPath();
-  ctx.arc(3, 4, pig.radius, 0, Math.PI * 2);
-  ctx.fill();
+  // 2. Volumetrik 3B Porselen Kumbara Gövdesi
+  drawDioramaSphere(ctx, 0, 0, r, UI_COLORS.heistPiggy, {
+    u,
+    highlightAlpha: 0.50,
+    shadowAlpha: 0.28,
+    strokeWidth: 2.6,
+  });
 
-  ctx.fillStyle = UI_COLORS.heistPiggy;
-  ctx.beginPath();
-  ctx.arc(0, 0, pig.radius, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.lineWidth = Math.max(1.5, 3 * ((pig.radius || 18) / 18));
-  ctx.strokeStyle = UI_COLORS.lineDark;
-  ctx.stroke();
-
+  // 3. Altın Burun
   ctx.fillStyle = UI_COLORS.crownGold;
   ctx.beginPath();
-  ctx.arc(0, 2, 8, 0, Math.PI * 2);
+  ctx.ellipse(0, 3 * u, 7 * u, 5 * u, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = UI_COLORS.lineDark;
+  ctx.lineWidth = 1.4 * u;
   ctx.stroke();
 
+  // Burun delikleri
   ctx.fillStyle = UI_COLORS.lineDark;
-  ctx.fillRect(-6, -14, 12, 3);
-
   ctx.beginPath();
-  ctx.moveTo(-14, -14);
-  ctx.lineTo(-6, -20);
-  ctx.lineTo(-4, -10);
-  ctx.closePath();
+  ctx.arc(-2.5 * u, 3 * u, 1.0 * u, 0, Math.PI * 2);
+  ctx.arc(2.5 * u, 3 * u, 1.0 * u, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 4. Tepe Jeton Yuvası (Coin Slot)
+  ctx.fillStyle = UI_COLORS.lineDark;
+  ctx.fillRect(-6 * u, -r + 2 * u, 12 * u, 2.5 * u);
+  ctx.fillStyle = UI_COLORS.crownGold;
+  ctx.fillRect(-4 * u, -r + 1.2 * u, 8 * u, 1.2 * u);
+
+  // 5. Kulaklar
   ctx.fillStyle = UI_COLORS.heistPiggy;
+  ctx.strokeStyle = UI_COLORS.lineDark;
+  ctx.lineWidth = 1.8 * u;
+
+  // Sol kulak
+  ctx.beginPath();
+  ctx.moveTo(-12 * u, -12 * u);
+  ctx.lineTo(-6 * u, -19 * u);
+  ctx.lineTo(-4 * u, -9 * u);
+  ctx.closePath();
   ctx.fill();
   ctx.stroke();
 
+  // Sağ kulak
   ctx.beginPath();
-  ctx.moveTo(14, -14);
-  ctx.lineTo(6, -20);
-  ctx.lineTo(4, -10);
+  ctx.moveTo(12 * u, -12 * u);
+  ctx.lineTo(6 * u, -19 * u);
+  ctx.lineTo(4 * u, -9 * u);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();

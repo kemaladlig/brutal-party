@@ -1,96 +1,90 @@
 # AGENTS.md — AI Agent Çalışma Kuralları
 
-Bu dosya her oturumda yüklenir: yalnız sözleşmeler, bütçeler, yasaklar. Gerekçe/hikâye yok.
-Detay `docs/PROJECT_MAP.md`'dedir — tamamını dump etme, `grep` ile ilgili bölümü oku. Yapı/protokol/motor değişince iki dosyayı da güncelle.
+Bu dosya her oturumda yüklenir: yalnız sözleşmeler, bütçeler ve yasaklar. Gerekçe/hikâye barındırmaz.
+Geniş mimari detaylar `docs/PROJECT_MAP.md`'dedir. Yapı, protokol veya motor değiştiğinde iki dosya da senkron güncellenir.
 
 ---
 
-## 1. Yığın & Modlar
+## 1. Yığın, Modlar & Yetki
 
-- Vanilla HTML5 + CSS3 + ES Modules, Canvas, Vite, PWA (`public/manifest.webmanifest`, `sw.js`).
-- Üç mod: `LOCAL` (ağ yok) · `TV_CONSOLE` (TV host + telefon kumanda, lokal WS) · `ONLINE` (P1 telefonu host; Supabase keşif + WebRTC).
-- Ağ seçici `src/net.js` → TV_CONSOLE `src/network.js`, ONLINE `src/supabaseRelay.js`.
-- Supabase anahtarları build'e `.env`'den gelir (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_PUBLIC_URL`). Koda gömme, commit'leme.
+- **Teknoloji:** Vanilla HTML5 + CSS3 + ES Modules, Canvas 2D, Vite, PWA (`sw.js`).
+- **3 Çalışma Modu:**
+  - `LOCAL`: Tek cihaz, ağ yok. 4 slot yerel klavye/joystick.
+  - `TV_CONSOLE`: TV host ekranı + telefonlar kumanda (lokal WebSocket).
+  - `ONLINE`: P1 telefonu host; keşif Supabase, veri WebRTC.
+- **Kesin Yetki:** Host tek simülasyon otoritesidir. Kumandalar yalnız girdi (`(x,y)` / buton) gönderir, simülasyon yapmaz. Motorda ağ kodu bulunmaz.
+- **Girdi Geçidi:** Uzak girdiler yalnız `handleRemoteInput(slotIndex, data)` üzerinden işlenir.
+- **Güvenlik:** Supabase anahtarları yalnız `.env`'den okunur (`VITE_SUPABASE_*`). Koda gömülmez, commit'lenmez.
 
-## 2. Yetki (değiştirilemez)
+---
 
-- Host tek yetkilidir (TV_CONSOLE'da TV, ONLINE'da P1 telefonu). Simülasyon yalnız host'ta.
-- Kumandalar yalnız input gönderir (`(x,y)` / buton). Motorda ağ kodu, kumandada simülasyon yok.
-- Uzak girdi yalnız `handleRemoteInput(slotIndex, data)` üzerinden. Yayın bütçesi §6'dadır.
+## 2. Engine Registry (Tek Kayıt Noktası)
 
-## 3. Engine Registry — tek kayıt noktası
+- `src/core/engineRegistry.js` → `GAME_ORDER` (12 oyun) ve `CARTRIDGES[MOD]` sözleşmesi.
+- `main.js` veya `gamepad.js` içine `if (mode === ...)` dalı yazmak **YASAKTIR**. Yeni oyun = registry kaydı + şema.
+- **Motor Sözleşmesi:** `resetMatch/reset`, `startNewMatch`, `startNewRound`, `update`, `render`, `resize(w,h)`, `handleRemoteInput`.
+- **LOCAL Mod Gereksinimi:** Her motor tek ekranda 4 köşeli dokunmatik lobi ve klavye haritasıyla (P1: WASD+Space, P2: Oklar+Enter, P3: IJKL+O, P4: TFGH+B) eksiksiz çalışmalıdır.
 
-- `src/core/engineRegistry.js` → `GAME_ORDER` (12 oyun, liste dosyadadır) + `CARTRIDGES.MOD` bloğu (`load/createEngine/reset/onEnter/onResume/start/packet`, world-view oyunlarında `worldPacket/worldView`).
-- `main.js` / `gamepad.js` içine `else if (mode === ...)` veya moda özel mount dalı yasak. Yeni oyun = registry kaydı + şema; çekirdek dosyaya dokunulmaz.
-- Retired motorlar `src/games-retired/`'dedir; çıkarmak = bayrağı sil + `src/games/`'e taşı + `GAME_ORDER`'de retired arkasına al + PROJECT_MAP güncelle.
-- Motor sözleşmesi: `resetMatch/reset`, `startNewMatch`, `startNewRound`, `update`, `render`, `resize(w,h)`, `handleRemoteInput`. `resize` CSS px alır, `computePlayfield` ile arena kurar.
-- LOCAL sözleşmesi: her motor tek cihazda tam oynanır — canvas LOBBY (4 köşe kart + `▶ MAÇI BAŞLAT`), 4 slot klavye (P1 WASD+Space, P2 Oklar+Enter, P3 IJKL+O, P4 TFGH+B), 4 köşe dokunmatik joystick, `renderControlGuide` çağrısı.
-- LOBBY tap: önce `onLobbySeatTap(index)` hook'u; yoksa ve `isHosting` ise `cycleSlotType`, değilse hiçbir şey.
+---
 
-## 4. `src/core/` tek kaynaktır — kopyalama yok
+## 3. Çekirdek Mantık & Living Diorama İlkeleri (`src/core/`)
 
-Motorlar ortak mantığı `import` eder, yeniden yazmaz: `networkProtocol`, `inputMaps`, `touchFlow`, `physics2d`, `playfield`, `roundLifecycle`, `pickupSystem`, `arenaKit`, `fieldKit`, `fieldReactive`, `fieldDecals`, `fieldLights`, `fieldAmbience`, `playerEntity`, `avatarInGame`, `tabletopIcons`, `tabletopRenderer`, `preferences`, `haptics`, `inputSource`, `controlDescriptor`, `inputIntent`, `aimInput`, `autoAim`, `botView`, `botBanter`, `botReactionDirector`, `fireFeedback`, `fxKit`, `fxRuntime`, `inputRouter`, `gamepadInputAdapter`, `physicalGamepadAdapter`, `gamepadShell`, `reactions`, `ui/reactionLayer`, `ui/reactionPicker`, `ui/settings/{actions,schema,row,panel,sheet}`, `selfPrediction`. API detayı dosyadadır.
-- **Ayarların tek yüzeyi `src/ui/settings/`dir.** Eylem kaydı (`settingsActions`) → satır tanımı (`settingsSchema`) → satır DOM'u (`settingsRow`) → sekmeli panel (`settingsPanel`) → overlay kabuğu (`settingsSheet`). Ana menü, lobi ve duraklatma AYNI sheet'i açar; pause yalnız `quick: true` işaretli satırları kendi sheetine gömer. Yeni ayar = şemaya satır + actions'a eylem. Bir yüzeye kendi `getElementById` anahtarı, kendi `addEventListener` gövdesi veya ikinci bir "hızlı ayar" ızgarası YAZILMAZ.
-- Motor sözleşmesinin TİP karşılığı tek kaynaktır: `src/types/minigame.d.ts` (MiniGameEngine/MiniGameArena/MiniGameEntity — global bildirim, runtime'da değer üretmez) + `src/types/geometry.d.ts` (FieldGeometry/FieldPalette/QualityMeasurement/WorldFrame). Yeni motor alanı/hook'u önce buraya yazılır; BaseGame sözleşme alanlarını kurucuda `@type` ile bildirir, prototip hook'ları `contractHook()` ile çağrılır.
-- Zaman ölçeği: kare-başı çarpan yerine `damp()` / zaman tabanlı ifade kullan (`main.js` sabit adımlı değildir, `dt = min(dt, 0.05)`).
-- Ölçek: hareket `fieldSpeed`, uzamsal her şey `fieldRadius`/`fieldPx`'ten geçer; ham px yasak. `canvas.width/height` okunmaz/yazılmaz (DPR `main.js`'indir).
-- Harita-ölçeği hissi gövde/saha oranıdır: her motor `FIELD_TIERS` bandındandır (`normal` 28–36 · `open` 18–24 · `far` 9–16 tasarım px, 952 referans). Bant kilidi ölçülen değerle `movementBudget.test.mjs §B`'dedir; tier geçişi bilinçli yapılır, sessiz sürüklenmez (PONG hariç).
-- Zemin/çevre yalnız `drawField` + `paintBackdrop` ile çizilir; motor kendi zemin/grid/duvar/viewport dolgusu yazmaz.
-- Tempo ve zemin-L\* bütçeleri testle kilitlidir (`tests/movementBudget.test.mjs`, `tests/fieldKit.test.mjs §8`) — sayıları buraya kopyalama, teste bak.
-- `tap` yalnız telefon üreticisinden gelir, state türetmez. Basılı-tut yön girdisi 250 ms keepalive taşır (`STEER_KEEPALIVE_MS`).
-- Avatar sahada daima `faceMode: 'play'`, tam yuvarlak siluet; aksesuar/desen yok.
+Motorlar ortak mantığı kopyalamaz, `src/core/` modüllerinden `import` eder:
 
-## 5. Slot Modeli
+- **Living Tabletop Diorama Görselliği:**
+  - Zemin ve çevre yalnız `drawField` + `paintBackdrop` ile çizilir; motor kendi zemin/duvar dolgusunu çizmez.
+  - **2.5D Hacim & Extrusion:** Engeller ve duvarlar düz 2D kutu değil; sol-üst -45° ana ışıktan beslenen parlak pah (specular bevel), alt tarafta koyu ön cephe (front face) ve tok yönlü temas gölgeleri (contact AO) ile çizilir.
+  - **Sıfır GC Çöpü:** Çizim döngüsünde (kare başına) yeni `CanvasGradient`, `Path2D` veya nesne tahsisi yapılamaz. Ortak damgalar ve havuzlar kullanılır.
+  - **Sıfır Ağ Maliyeti:** Zemin izleri, ışık havuzları, kenar esnemeleri ve darbe çatlakları tamamen istemci taraflı görselleştirmedir (client-side juice). Pakete alan eklenmez.
+- **Tek Ayarlar Yüzeyi:** `src/ui/settings/` (actions → schema → row → panel → sheet). Ayarlar için ayrı DOM veya ad-hoc event dinleyicisi yazılmaz.
+- **Tip Sözleşmesi:** `src/types/minigame.d.ts` ve `src/types/geometry.d.ts` tek kaynaktır.
+- **Ölçek & Hız:** Ham piksel yazılmaz. Hareket `fieldSpeed`, boyutlar `fieldRadius` / `fieldPx` ve `arena.unit` üzerinden türetilir.
+- **Avatarlar:** Sahada daima `faceMode: 'play'`, yuvarlak siluet ve 2.5D küresel hacim taşır.
 
-- TV: `hostPlayerSlots[i] = { name, isReady, kind }`, `kind ∈ 'human'|'bot'`. TV host varsayılan koltukta değil; düğmeyle P1 olur. ONLINE host P1'e rezerve, uzaklar P2-P4.
-- Tek gerçek relay snapshot'ıdır (`players[]`); çakışırsa relay kazanır. WS ve Supabase `SLOTS_UPDATE` şeması aynıdır (`slotIndex, name, color, kind, isReady, isHost` + `reservedHostSlot`).
-- İsimler `toUpperCase()`, ≤12 karakter. Bot hedef/kaynak olamaz, sayaçta koltuklar kilitli (`seatsLocked`). Bot ekleme varsayılan kapalı.
-- `GAME_STARTED` ve `RETURNED_TO_LOBBY`'de hazır bayrağı iki tarafta da sıfırlanır. Oda kodu 3 haneli sayıdır.
+---
 
-## 6. Ağ Bütçesi
+## 4. Slot & Ağ Bütçesi
 
-- Host → kumanda 8 Hz (125 ms) + dirty-check; kritik olaylar anında. FX olayları anlık güvenilir yoldan gider, world kanalında taşınmaz. ONLINE world-view 30 Hz unreliable `world` kanalı (Supabase'e düşmez); client jitter buffer + 60 Hz+ rAF, playout tabanı 35 ms; interpolasyon extrapolation yapmaz, sınırda snap. İSTİSNA: pakette `selfPredict:true` varsa client yalnız KENDİ avatarını sunum-taraflı ileri sarar (`core/selfPrediction.js`) — host yetkisi/simülasyonu değişmez, çizim sunumudur.
-- Kumanda → host 40 ms throttle + ölübant; `AIM_PRESS/RELEASE`, `DASH/TACKLE/ateş` throttle dışı. Sağ aim 250 ms keepalive.
-- Ping 15 sn, watchdog 30 sn.
+- **Slotlar:** Tek otorite relay snapshot'ıdır (`players[]`). İsimler büyük harf, $\le 12$ karakter.
+- **Host → Kumanda:** 8 Hz dirty-check; kritik durumlar anlık. ONLINE world-view 30 Hz unreliable `world` kanalı (jitter buffer + 60 Hz interpolasyon).
+- **Kumanda → Host:** 40 ms throttle + deadzone; aksiyonlar (ateş, dash, tackle) throttle dışı.
+- **STATE_SYNC Paketi:** Discriminator en üstte, yük daima düz nesnedir (`core/networkProtocol.normalizeStateSync`).
 
-## 7. Oda Akışı
+---
 
-`Lobi (modal) → SAHAYA GEÇ (staging) → 3-2-1 sayaç (kilitli) → oyun → LOBİYE DÖN (oda kapanmaz)`. Modal açıkken canvas tap motora düşmez; staging'de düşer.
+## 5. UI & Arayüz Standartları
 
-## 8. UI Kuralları (özet)
+- **Tasarım Sözlüğü:** `src/styles/tokens.css` + `src/ui/tokens.js`. Ham renk literalleri ve tanımsız `var()` yasaktır.
+- **Overlay & Modal:** Tek merkez `src/ui/overlayHost.js`.
+- **Düz Panel Dili:** Kenarlık/kutu kirliliği yok; ince ayraçlar, sabit yükseklikli sekmeler, $\ge 44\text{ px}$ dokunma hedefleri.
+- **Skorbord:** Tek yüzey `tabletopRenderer.renderStandardScoreboard` → `hud.js renderMatchHeader`.
+- **İkonlar:** `src/core/tabletopIcons.js`. Ham OS emojisi yasaktır (istisna: `reactions.js`).
+- **Motion:** Yalnız GPU dostu `transform` ve `opacity` (150–250 ms). `prefers-reduced-motion` desteklenir.
 
-- Renk sözlüğü `src/styles/tokens.css` + `src/ui/tokens.js` (birlikte güncellenir). `src/**/*.css`'te ham renk literali ve tanımsız `var()` yasak (`scripts/token-lint.mjs`). Koyu yüzey + krem saha (`data-theme="field"`); kenar `--edge`, doygun dolgu yazısı `--on-accent`.
-- Overlay tek sahip `src/ui/overlayHost.js` (`openOverlay/closeOverlay`). Modal `src/ui/` altındadır; görünüm `src/ui/views/` + `registerView` ile eklenir, `main.js`/`gamepad.js`'e ekran dalı yazılmaz.
-- **Ayar/duraklatma yüzeylerinde başlık şeridi YOKTUR** (rozet + ad ~68px, yatay telefonun %20'si; hiçbir seçim taşımıyordu). Ayarlarda sekme şeridi başlığın yerini tutar (`tabStrip.js`, `.settings-tabs`), erişilebilir ad `role="dialog"` `aria-label`ındadır; duraklatmada tek satır `.pause-head` (oyun adı + dişli + kapat).
-- **Düz panel dili**: satır kendi kutusu değildir — kenarlık/gölge/ikon çerçevesi yok, satırlar arası tek tel ayraç (`--n-200`). Panel merkezde ve genişliği sınırlıdır (`min(520px, 100%)`), tam satır genişliğine yayılmaz. **Yükseklik SABİTTİR**: sekme değişince şeritler zıplamaz. Satır ≥44px, sekme başına ≤5 satır, gövde kaydırmaya muhtaç değildir.
-- Erişilemeyen ayar satır ÇİZMEZ (`available()` → `hidden`); "kullanılamıyor" düğmesi bırakılmaz.
-- Kabuk `src/ui/appShell.js`: view stack, geri/Escape, rotate gate, üç yüzen gezinme (ANASAYFA/OYUNLAR/KARAKTER). Üst şerit/bant/geri düğmesi yasak. Sayfa akışı yasak (dikey scroll yalnız lobi/ayar panelinde).
-- Sahne dili `src/styles/scene.css` + `.scene-btn` (`is-gold/is-teal/is-ghost`); sahneye ikinci panel/başlık/kart çerçevesi yok.
-- Sonuç yüzeyi `src/ui/resultPanel.js` + `hud.js layoutMatchOverCard` (içerikten türeyen kart, sabit yükseklik yok, ≥44 px buton). Satırlar deklaratif `matchOverRows`; rütbe yalnız `score` varsa basılır. ONLINE kumanda world-view'ı AYNI kartı çizer (`worldViewKit.drawWorldMatchOver`, eylem butonu YOK — yeniden başlatma yetkisi hostta) ve raunt sonunu da host ile aynı `renderRoundBanner` ile çizer (`worldViewKit.drawWorldRoundBanner`: `game.won`/`game.draw` başlığı, kazanan rengi, `roundGap` geri sayımı). Ayrı bant yazılmaz. **Sonuç ani belirmez**: canvas final kartı `renderMatchOver(..., { enter })` ile solarak-aşağıdan gelir (host `MATCH_OVER` giriş anını damgalar, kumanda aynı 260 ms'i `context.matchOverEnter` ile verir); LOCAL tek-cihaz telefon sonucu opak tam ekran DEĞİL, sahne üstünde ortalanmış modal (`gamepad.js` `.result-card`, nefes payı + `settings-in`) — ayarlar dili.
-- **Saha skoru TEK yüzeydir**: `tabletopRenderer.renderStandardScoreboard` → `hud.js renderMatchHeader` (skor solda, bilgi sağda; oyun yalnız `statusText/statusTone` verir). Kompakt telefonda kutusuz metin (beyaz + koyu kontur), masaüstünde tema kartı. Yalnız DOLU koltuklar çizilir ve "dolu" kararı `game.slotTypes`'ten gelir (motorun `isJoined` aynası değil); motor kendi skorbordunu `renderHUD`'un dışında çizmez. Koltuk seçimi/isim/renk/lider kuralı TEK modeldir (`ui/scoreModel.js scoreEntries`): host canvas'ı ve kumanda taç-peek'i aynı kaynaktan beslenir; yüzeyler yalnız SUNAR.
-- **Üst yüzen çipler (quick chrome) TEK tanımdır** (`ui/quickChrome.js QUICK_CHIPS`): host `#in-game-hud` gövdesi ve kumanda başlığı buradan üretilir, markup iki yere kopyalanmaz. Kayıt `surface: 'host'|'pad'` + `group: 'left'|'right'|'menu'` + `order` taşır; yeni çip = tek satır. Davranış sahipleri değişmez (id/`data-*` çapasıyla bağlanır: main.js/windowChrome.js/gamepad.js). `index.html`/`gamepadShell.js` yalnız boş kabı/yerleşimi tutar.
-- İkon tek kaynak `src/core/tabletopIcons.js` + `iconSlots.js` (`data-icon`); kumanda aksiyonu ikon-only. Ham OS emojisi yasak — tek istisna tepki yüzeyi (`reactions.js` → glyph + `reactionGlyph`, tel değeri ASCII anahtar).
-- Twin-stick'te aksiyon butonu aim zone'un ÇOCUĞUDUR; `aimController` butondan/kümeden gelen olayı yok sayar. Buton kendi `preventDefault`'u ile bunu kesmez (pointer/touch ayrı olay aileleri) → yok sayım zone tarafında zorunlu.
-- Motion `src/ui/motion.js` + tokenlar; `transform`/`opacity` dışı animasyon yok, `prefers-reduced-motion`'a uyulur.
-- FX yalnız `fxKit` olayından doğar (`emitFx` → `fxRuntime`); motor/çekirdek partikül state'i tutmaz, FX olayları anlık güvenilir yoldan gider (world kanalında taşınmaz).
+---
 
-## 9. Yasaklar
+## 6. Kesin Yasaklar (Hard Rules)
 
-- Çekirdeğe moda/ekrana özel dal; `src/core` mantığını motora kopyalama; `drawField`/`paintBackdrop` dışı zemin/çevre çizimi; state'i iki yerde tutma; kumandada simülasyon / motorda ağ kodu; ham renk/emoji (tepki glifi hariç); ikinci overlay/sekme/ikon/tepki uygulaması; gereksiz `*.md`.
-- Okuma: hedefe `grep` ile git, mimari gerektiriyorsa tam dosya oku; bundle/lock/log'u bağlama dökme.
+1. Çekirdek dosyalara moda/ekrana özel `if/else` dalı eklemek.
+2. `src/core/` mantığını motor dosyalarına kopyala-yapıştır yapmak.
+3. Kumandada simülasyon / motorda ağ kodu çalıştırmak.
+4. Ağ paketlerine keyfi veya salt görsel amaçlı yeni alanlar eklemek.
+5. Kare başına (60 FPS döngüsünde) bellek tahsisi (allocation/GC thrash) yapmak.
+6. İznisiz `git push` veya `commit` yapmak.
 
-## 10. Yeni Oyun (özet)
+---
 
-`src/games/[oyun].js` (sözleşme + lokal lobi/klavye/joystick/rehber) + `src/ai/[oyun]AI.js` + registry kaydı + `gamepadSchemas.js` şeması + `index.html` bento/çip/önizleme + `public/assets/games/[oyun].webp` (maddedeki formül, 1:1) + PROJECT_MAP satırı. Detay PROJECT_MAP §6'dadır.
+## 7. Agentic Workflow & Orantılı Doğrulama (Proportional Verification)
 
-## 11. Doğrulama
+Gereksiz uzun test döngüleri agentik akışı yavaşlatır. Doğrulama işin büyüklüğüne göre **orantılı** yürütülür:
 
-- **TEK kapı: `npm run check` = `tsc` + `check:undef` + `check:tokens` + `check:rules` + `npm test` + `npm run health`.** Yeşil olmadan iş bitmiş sayılmaz. Tam kapı: `npm run check && npm run build && npm run test:e2e`. CI (`.github/workflows/ci.yml`) push/PR'da bu üçünü koşar — elle koşulmaz.
-- `npm run health` **I1-I7 kapılarıdır** (cihaz bağımsızlığı): ihlal exit 1. I8-I11 yalnız rapor. Tasarım yarıçap sabitleri `games/worldCore.js`'te (`CROWN_PLAYER_RADIUS`); motor `TUNING.PLAYER_RADIUS` ile eşleşmesi `tests/worldPacketRadius.test.mjs`'te kilitli — view motoru import edemediği için iki kopyadır.
-- Davranış değişikliğinde 3 prova: hazır→lobi bayrakları, koltuk takasında TV+kumanda isimleri, bot ekle/çıkar görünürlüğü.
-- `npm run check` artık `tsc --checkJs` (tsconfig `checkJs: true` — 55k satırın tamamı denetlenir) + `check:undef` + `check:tokens` + `check:rules` taşır. Yeni tip hatası = check kırık; istatistik: `npm run typecheck -- --stats`, ratchet tabanı `scripts/typecheck-baseline.txt`.
-- **STATE_SYNC paketi iki transport'ta aynı şekilde gönderilir**: discriminator en üstte, yük DÜZ (`{ type:'HOST_STATE_SYNC', ...state }` / `{ action:'STATE_SYNC', ...state }`). Kumanda yalnız en-üst-seviye alanları okur; iç içe kova gönderen bir host faz uzlaşmasını, skor şeridini ve geri sayımı sessizce düşürür. Çevirme/tepeleme tek kapısı `core/networkProtocol.normalizeStateSync` (her iki istemci + sunucu çağırır). Kilit: `tests/relayProbes.test.mjs` prova 4-6.
-- `scripts/rules-lint.mjs` (K1–K7, AGENTS.md § haritalı) yeni ihlalde exit 1; mevcut borç `scripts/rules-lint-baseline.json`'da dosya+kural sayısıyla dondurulmuştur — borcu ancak azaltırken güncelle (`--update`).
-- Motor/akış değişikliğinde `npm run test:e2e` (Playwright, `tests-e2e/`): `engine-smoke.spec.js` tüm GAME_ORDER motorlarını registry'den yükleyip LOBBY→PLAYING 240 kare sürer; `control-surface.spec.js` yerel kontrol yüzeyi seçimini doğrular. §11'in 3 provası `tests/relayProbes.test.mjs`'te protokol seviyesinde otomatik. @ts-ignore/@ts-nocheck politikası: @ts-ignore yasak, @ts-nocheck yalnız `sebep — tarih` yorumuyla.
-- Push yalnız kullanıcı isterse.
-- **Eşik kaydırma politikası (MOTION_PLAN 4.2):** juice bir kapıyı (tempo/`movementBudget`, zemin-L\* `fieldKit`) kırarsa eşik SESSİZCE gevşetilmez; kapı mı haksız yoksa değişim mi meşru önce karara bağlanır ve genişletme yalnız gerekçe + kullanıcı onayı + bu satır/MOTION_PLAN güncellemesiyle yapılır.
+- **1. Görsel & Stil Dokunuşları (CSS, renk, gölge, parçacık, mikro-çizim):**
+  - Tüm test suite'ini koşmak **GEREKSİZDİR**.
+  - İlgili dosyanın lint kontrolünü yap (`npm run check:tokens` veya `npm run check:rules`) ve tarayıcıda görseli doğrula.
+- **2. Küçük Düzeltme & Tek Modül (1-2 dosya, mantık iyileştirmesi):**
+  - Yalnızca etkilenen test dosyasını çalıştır: `node --test tests/[ilgili].test.mjs`.
+- **3. Ağ, Protokol, Motor veya Mimari Değişikliği (Büyük Özellik):**
+  - Tam kontrol kapısını çalıştır: `npm run check` (`tsc` + linter'lar + testler + `health`).
+- **E2E & CI (`npm run test:e2e`):** Yalnızca majör motor döngüsü değişikliklerinde veya PR öncesi koşulur; ufak adımlarda zorunlu değildir.
+- **Varsayım Politikası:** Küçük detaylarda inisiyatif alıp kararı uygula; yalnızca geri dönüşü zor veya yapısal kararlarda kullanıcıya danış.
+- **Git & Push:** Yalnızca kullanıcı açıkça istediğinde commit/push yapılır.

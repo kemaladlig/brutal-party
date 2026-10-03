@@ -1161,87 +1161,9 @@ function paintCorners(ctx, w, h, u, palette, inset, edge) {
 }
 
 function paintDecals(ctx, w, h, u, palette, seed) {
-  const intensity = Number(palette.decals);
-  if (!(intensity > 0)) return;
-  const min = Math.min(w, h);
-  if (min < 40) return;
-
-  // Alan arttıkça çoğalan ama sınırlı sayı; küçük `unit`'te (kompakt telefon
-  // yatay) azalır — ince çizgi/karma 900px'de alias olur ve gövdeyi yorar.
-  let count = Math.round((min * min) / 26000) * intensity;
-  if (u < 0.5) count = Math.round(count * 0.6);
-  if (u < 0.35) count = Math.round(count * 0.4);
-  count = Math.max(0, Math.min(40, count));
-  if (count === 0) return;
-
-  const rng = seededRandom(seed);
-  const margin = min * 0.07;
-  const spanX = w - margin * 2;
-  const spanY = h - margin * 2;
-  const band = min * 0.12;
-  const pf = { size: min, unit: u };
-
-  // Kenar-ağırlıklı yerleşim: dekorun ~%45'i dış banda düşer. Orası hem
-  // vignette'in koyulaştığı hem de düz dolgunun en belli şekilde "hiçbir şey
-  // yapmadığı" yer; merkez ise temiz kalır — varlıklar orada yaşıyor ve
-  // hareketli bir leke oyun nesnesiyle karıştırılır.
-  const place = () => {
-    if (rng() >= 0.45) return [margin + rng() * spanX, margin + rng() * spanY];
-    const edge = rng();
-    if (edge < 0.25) return [rng() * w, rng() * band];
-    if (edge < 0.5) return [rng() * w, h - rng() * band];
-    if (edge < 0.75) return [rng() * band, rng() * h];
-    return [w - rng() * band, rng() * h];
-  };
-
-  ctx.save();
-  for (let i = 0; i < count; i += 1) {
-    const [x, y] = place();
-    const roll = rng();
-    ctx.globalAlpha = 0.6 + rng() * 0.4;
-    ctx.strokeStyle = palette.decal;
-    ctx.fillStyle = palette.decal;
-
-    if (roll < 0.34) {
-      // çizik
-      const len = fieldRadius(pf, 26, 0.02) * (0.6 + rng() * 0.9);
-      const a = rng() * Math.PI;
-      ctx.lineWidth = Math.max(1, 1.4 * u);
-      ctx.beginPath();
-      ctx.moveTo(x - Math.cos(a) * len * 0.5, y - Math.sin(a) * len * 0.5);
-      ctx.lineTo(x + Math.cos(a) * len * 0.5, y + Math.sin(a) * len * 0.5);
-      ctx.stroke();
-    } else if (roll < 0.62) {
-      // leke
-      const r = fieldRadius(pf, 30, 0.018) * (0.25 + rng() * 0.7);
-      ctx.beginPath();
-      ctx.ellipse(x, y, r, r * (0.5 + rng() * 0.5), rng() * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (roll < 0.8) {
-      // yay
-      const r = fieldRadius(pf, 70, 0.05) * (0.5 + rng() * 0.8);
-      const start = rng() * Math.PI * 2;
-      ctx.lineWidth = Math.max(1, 1.2 * u);
-      ctx.beginPath();
-      ctx.arc(x, y, r, start, start + 0.7 + rng() * 1.1);
-      ctx.stroke();
-    } else if (roll < 0.92) {
-      // çentik kümesi — darbe izi; dört minik kare, hepsi tam sayıya yaslanır
-      const s = Math.max(1, fieldPx(pf, 2));
-      for (let k = 0; k < 4; k += 1) {
-        ctx.fillRect(Math.round(x + (k % 2) * s * 2), Math.round(y + Math.floor(k / 2) * s * 2), s, s);
-      }
-      rng();
-    } else {
-      // sürtme halkası
-      const r = fieldRadius(pf, 34, 0.024) * (0.5 + rng() * 0.8);
-      ctx.lineWidth = Math.max(1, 1.6 * u);
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-  }
-  ctx.restore();
+  // Statik zemin lekeleri ve sahte çizikler kaldırıldı (temiz, premium diorama zemini).
+  // Savaş izleri yalnızca gerçek çatışma olaylarında (bomba patlaması, patinaj) dinamik olarak oluşur.
+  return;
 }
 
 /**
@@ -1301,15 +1223,17 @@ function paintTrayEdge(ctx, w, h, u, palette, r) {
 
   // 1. Temas gölgesi — dört kenar, kenardan içeri sönen AO bandı.
   //    Temanın kendi derin gölge tonuyla (shadeTint) sahanın zeminle buluştuğu pahı belirginleştirir.
-  const aoShade = rgba(palette.shadeTint, 0.16);
+  //    Işık sol-üstten geldiği için sağ ve alt kenarlarda gölge daha tok ve derindir.
+  const aoShade = rgba(palette.shadeTint, 0.18);
+  const aoShadeDeep = rgba(palette.shadeTint, 0.28);
   const sides = [
-    [ctx.createLinearGradient(0, 0, 0, ao), 0, 0, w, ao],
-    [ctx.createLinearGradient(0, 0, ao, 0), 0, 0, ao, h],
-    [ctx.createLinearGradient(0, h, 0, h - ao), 0, h - ao, w, ao],
-    [ctx.createLinearGradient(w, 0, w - ao, 0), w - ao, 0, ao, h],
+    [ctx.createLinearGradient(0, 0, 0, ao), 0, 0, w, ao, aoShade],
+    [ctx.createLinearGradient(0, 0, ao, 0), 0, 0, ao, h, aoShade],
+    [ctx.createLinearGradient(0, h, 0, h - ao * 1.25), 0, h - ao * 1.25, w, ao * 1.25, aoShadeDeep],
+    [ctx.createLinearGradient(w, 0, w - ao * 1.25, 0), w - ao * 1.25, 0, ao * 1.25, h, aoShadeDeep],
   ];
-  for (const [grad, x, y, sw, sh] of sides) {
-    grad.addColorStop(0, aoShade);
+  for (const [grad, x, y, sw, sh, tint] of sides) {
+    grad.addColorStop(0, tint);
     grad.addColorStop(1, clear);
     ctx.fillStyle = grad;
     ctx.fillRect(x, y, Math.max(1, sw), Math.max(1, sh));
@@ -1317,14 +1241,14 @@ function paintTrayEdge(ctx, w, h, u, palette, r) {
 
   // 2. İç sınır bordürü — temanın edgeTint tonunda, krem zeminle yüksek kontrastlı
   //    ve renk uyumlu keskin diorama sınır çizgisi.
-  ctx.strokeStyle = rgba(palette.edgeTint, 0.38);
+  ctx.strokeStyle = rgba(palette.edgeTint, 0.44);
   ctx.lineWidth = lw;
   ctx.beginPath();
   appendRoundRect(ctx, lw / 2, lw / 2, Math.max(1, w - lw), Math.max(1, h - lw), Math.max(1, r - lw / 2));
   ctx.stroke();
 
   // 3. Speküler pah — temanın açık ışık tonundan (lightTint) vuran canlı pah çizgisi.
-  ctx.strokeStyle = rgba(palette.lightTint, 0.65);
+  ctx.strokeStyle = rgba(palette.lightTint, 0.85);
   ctx.lineWidth = specW;
   ctx.beginPath();
   appendRoundRect(ctx, lw + specW / 2, lw + specW / 2,
@@ -1697,29 +1621,26 @@ function paintBackdropLayer(ctx, w, h, box, palette) {
     appendRoundRect(ctx, box.left + lip + dx, box.top + lip + dy, box.width, box.height, lipR);
     ctx.stroke();
   };
-  shadowRing(0, 2 * u, Math.max(2, 4 * u), rgba(palette.edgeTint, 0.35));
-  shadowRing(2 * u, 5 * u, Math.max(2, 8 * u), rgba(palette.edgeTint, 0.22));
-  shadowRing(4 * u, 10 * u, Math.max(3, 14 * u), rgba(palette.edgeTint, 0.12));
+  shadowRing(0, 3 * u, Math.max(3, 6 * u), rgba(palette.edgeTint, 0.46));
+  shadowRing(2 * u, 6 * u, Math.max(3, 10 * u), rgba(palette.edgeTint, 0.30));
+  shadowRing(5 * u, 12 * u, Math.max(4, 16 * u), rgba(palette.edgeTint, 0.18));
 
-  // Faz 4 (çok katmanlı yayvan oklüzyon): temas gölgesinin ötesinde iki geniş,
-  // yumuşak katman — tepsi masanın 3-5 cm üstünde havada durur gibi düşer.
-  shadowRing(6 * u, 16 * u, Math.max(4, 22 * u), rgba(palette.edgeTint, 0.06));
-  shadowRing(8 * u, 24 * u, Math.max(6, 34 * u), rgba(palette.edgeTint, 0.035));
+  // Faz 4 (çok katmanlı yayvan oklüzyon): masanın üstünde havada asılı duran fiziksel tepsi
+  shadowRing(7 * u, 18 * u, Math.max(5, 26 * u), rgba(palette.edgeTint, 0.09));
+  shadowRing(10 * u, 28 * u, Math.max(7, 38 * u), rgba(palette.edgeTint, 0.05));
 
-  // Faz 4 (ambient under-glow): sahanın altından masaya sızan tema ışığı (daha subtle difüzyon).
-  ctx.strokeStyle = rgba(palette.lightTint, 0.03);
-  ctx.lineWidth = Math.max(4, lip * 2.2);
+  // Faz 4 (ambient under-glow): sahanın altından masaya vuran zengin atmosfer parıltısı
+  ctx.strokeStyle = rgba(palette.lightTint, 0.055);
+  ctx.lineWidth = Math.max(5, lip * 2.4);
   ctx.beginPath();
   appendRoundRect(ctx, box.left - lip, box.top - lip, box.width + lip * 2, box.height + lip * 2, lipR);
   ctx.stroke();
-  ctx.strokeStyle = rgba(palette.lightTint, 0.015);
-  ctx.lineWidth = Math.max(8, lip * 3.8);
+  ctx.strokeStyle = rgba(palette.lightTint, 0.025);
+  ctx.lineWidth = Math.max(9, lip * 4.2);
   ctx.stroke();
 
   // 3b. Gövde halkası: dış yuvarlak dikdörtgen EKSİ arena kutusu.
-  //     Kullanıcı kararı: "saha kenarları aynı renk olduğu için çok belli olmuyor, kontrastlı/renk uyumlu olsun".
-  //     Sahanın kalın dış kütlesi artık masanın karanlığında kaybolmaz; temanın derin rengiyle
-  //     tonlanmış ve masadan net ayrışan fiziksel bir diorama çerçevesi olarak parlar.
+  //     Sahanın kalın dış kütlesi masadan net ayrışan fiziksel bir diorama çerçevesi olarak parlar.
   ctx.save();
   ctx.beginPath();
   appendRoundRect(ctx, box.left - lip, box.top - lip, box.width + lip * 2, box.height + lip * 2, lipR);
@@ -1728,18 +1649,18 @@ function paintBackdropLayer(ctx, w, h, box, palette) {
   ctx.fill('evenodd');
 
   // Temanın renk tonuyla uyumlu kütle tonlaması (masadan ayrıştırır, oyun temasıyla renk uyumu kurar)
-  ctx.fillStyle = rgba(palette.shadeTint, 0.52);
+  ctx.fillStyle = rgba(palette.shadeTint, 0.65);
   ctx.fill('evenodd');
 
   // Dış kütle çerçeve çizgisi — masaya oturan fiziksel dış sınır
-  ctx.strokeStyle = rgba(palette.edgeTint, 0.42);
-  ctx.lineWidth = Math.max(1, 1.4 * u);
+  ctx.strokeStyle = rgba(palette.edgeTint, 0.55);
+  ctx.lineWidth = Math.max(1.2, 1.8 * u);
   ctx.beginPath();
   appendRoundRect(ctx, box.left - lip, box.top - lip, box.width + lip * 2, box.height + lip * 2, lipR);
   ctx.stroke();
 
   // 3c. Üst/sol yüzey ışığı: sol-üstten vuran belirgin ışık pahı
-  const lipLight = rgba(palette.lightTint, 0.24);
+  const lipLight = rgba(palette.lightTint, 0.38);
   ctx.fillStyle = lipLight;
   ctx.fillRect(box.left - lip, box.top - lip, box.width + lip * 2, lip);
   ctx.fillRect(box.left - lip, box.top - lip, lip, box.height + lip * 2);

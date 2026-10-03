@@ -10,6 +10,7 @@ import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip } from '../core/entityStatus.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
+import { drawDioramaGem } from '../core/dioramaKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import {
   round1,
@@ -233,50 +234,19 @@ export function drawZoneField(ctx, field, cell, grid, colors, players, relics, n
   ctx.drawImage(layer.canvas, x, y, s, s);
   ctx.imageSmoothingEnabled = true;
 
-  // Relic kristalleri (ikon tek kaynak vektör)
+  // Relic kristalleri (Diorama 3B oktahedron prizması)
   for (const rel of relics) {
     const bob = Math.sin(nowSec * 4 + rel.phase) * 4;
-    const rx = rel.x;
-    const ry = rel.y + bob;
     const rSize = cell * 1.6 * rel.scale;
-    const color = rel.type === 'FLASH' ? '#FFD122' : '#FF473A';
-
-    ctx.save();
-    ctx.translate(rx, ry);
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.beginPath();
-    ctx.ellipse(0, 10 - bob * 0.5, rSize * 0.7, rSize * 0.35, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    const pulse = 0.5 + 0.5 * Math.sin(nowSec * 6 + rel.phase);
-    // Relik çerçevesi tür rengini taşır (FLASH sarısı 1.2:1) — koyu taban
-    // üstünde aynı ton, kimlik korunur kenar garanti.
-    ctx.globalAlpha = 1.0;
-    ctx.strokeStyle = UI_COLORS.hudInkOutline;
-    ctx.lineWidth = 4.5 * u;
-    ctx.strokeRect(-rSize * 0.65, -rSize * 0.65, rSize * 1.3, rSize * 1.3);
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = 0.65 + 0.35 * pulse;
-    ctx.lineWidth = 2.5 * u;
-    ctx.strokeRect(-rSize * 0.65, -rSize * 0.65, rSize * 1.3, rSize * 1.3);
-
-    ctx.globalAlpha = 1.0;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(0, -rSize);
-    ctx.lineTo(rSize, 0);
-    ctx.lineTo(0, rSize);
-    ctx.lineTo(-rSize, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#1C1C1A';
-    ctx.lineWidth = 2.5 * u;
-    ctx.stroke();
-
-    drawTabletopIcon(ctx, rel.type === 'FLASH' ? 'zap' : 'flame', 0, 1, Math.max(12, rSize * 0.8), { color: '#1C1C1A' });
-    ctx.restore();
+    const isFlash = rel.type === 'FLASH';
+    drawDioramaGem(ctx, rel.x, rel.y, rSize, 'relic', {
+      u,
+      hoverY: bob,
+      color: isFlash ? UI_COLORS.crownSpark : UI_COLORS.crownRed,
+      shadowColor: isFlash ? UI_COLORS.crownGold : UI_COLORS.danger,
+      icon: isFlash ? 'zap' : 'flame',
+    });
   }
-  ctx.globalAlpha = 1;
 
   // Açık izler: risk renklendirmesi + tehlike şeridi
   ctx.lineCap = 'round';

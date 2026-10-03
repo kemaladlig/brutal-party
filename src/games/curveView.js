@@ -12,6 +12,7 @@
 
 import { drawPickup } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
+import { drawDioramaShadow, drawDioramaSphere } from '../core/dioramaKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import {
   round1,
@@ -286,18 +287,53 @@ export function drawCurveFieldMask(ctx, fieldRect, mask, colors, gapMask = null)
 export function drawCurveNearSegments(ctx, near, colors, unit = 1) {
   ctx.save();
   ctx.lineCap = 'round';
+
+  // 1. Zemin Gölgeleri (Tabletop Acrylic Tube Shadow)
+  ctx.save();
+  ctx.translate(1.5 * unit, 2.5 * unit);
+  ctx.globalAlpha = 0.18;
+  ctx.strokeStyle = UI_COLORS.inkDark;
+  for (const s of near) {
+    const flags = s[5];
+    if (flags & 1) continue; // gap
+    const reveal = s.length >= 8 ? clamp01(s[7]) : 1;
+    const endX = lerp(s[1], s[3], reveal);
+    const endY = lerp(s[2], s[4], reveal);
+    ctx.lineWidth = Math.max(1, ((flags & 4) ? 23 : ((flags & 2) ? 6 : 11)) * unit);
+    ctx.beginPath();
+    ctx.moveTo(s[1], s[2]);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 2. Ana Renk Çizgileri
   for (const s of near) {
     const flags = s[5];
     if (flags & 1) continue; // gap: görsel olarak yok
     const reveal = s.length >= 8 ? clamp01(s[7]) : 1;
     const endX = lerp(s[1], s[3], reveal);
     const endY = lerp(s[2], s[4], reveal);
-    ctx.lineWidth = Math.max(1, ((flags & 4) ? 23 : ((flags & 2) ? 6 : 11)) * unit);
-    ctx.strokeStyle = colors[s[0]] || '#1A1A1A';
+    const baseW = ((flags & 4) ? 23 : ((flags & 2) ? 6 : 11)) * unit;
+    const color = colors[s[0]] || UI_COLORS.inkDark;
+
+    ctx.lineWidth = Math.max(1, baseW);
+    ctx.strokeStyle = color;
     ctx.beginPath();
     ctx.moveTo(s[1], s[2]);
     ctx.lineTo(endX, endY);
     ctx.stroke();
+
+    // Üst parlak akrilik sırtı (specular tube ridge)
+    ctx.save();
+    ctx.globalAlpha = 0.32;
+    ctx.lineWidth = Math.max(1, baseW * 0.35);
+    ctx.strokeStyle = UI_COLORS.white;
+    ctx.beginPath();
+    ctx.moveTo(s[1], s[2]);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+    ctx.restore();
   }
   ctx.restore();
 }
@@ -306,10 +342,27 @@ export function drawCurveHeads(ctx, players) {
   for (const p of players) {
     if (!isWorldEntityVisible(p)) continue;
     ctx.save();
-    // Yarıçap host'ta ölçeklenip paketle gelir; bu view ortak kullanıldığı
-    // için yeniden ölçeklenmez. Tasarım referansı 18px (FIELD_TIERS §open).
     const headRadius = p.shrink ? (p.radius || 18) * 0.64 : (p.radius || 18);
     const u = headRadius / 18;
+    const playerColor = p.color || UI_COLORS.crownRed;
+    const angle = p.angle || 0;
+
+    // 1. Zemine Düşen Başlık Gölgesi
+    drawDioramaShadow(ctx, p.x, p.y, headRadius, { u, aspect: 0.6 });
+
+    // 2. İtici / Egzoz Parıltısı (Thruster Wake arkaya doğru)
+    ctx.save();
+    ctx.globalAlpha = 0.40;
+    ctx.fillStyle = UI_COLORS.white;
+    ctx.beginPath();
+    ctx.arc(
+      p.x - Math.cos(angle) * (headRadius * 0.9),
+      p.y - Math.sin(angle) * (headRadius * 0.9),
+      headRadius * 0.35,
+      0, Math.PI * 2,
+    );
+    ctx.fill();
+    ctx.restore();
 
     if (p.freeze) {
       ctx.strokeStyle = UI_COLORS.hudShield;
@@ -341,29 +394,32 @@ export function drawCurveHeads(ctx, players) {
     }
     if (p.gapTimer <= 0.4 && !p.gap) {
       ctx.beginPath(); ctx.arc(p.x, p.y, headRadius + 4 * u, 0, Math.PI * 2);
-      ctx.strokeStyle = '#D84727';
+      ctx.strokeStyle = UI_COLORS.crownRed;
       ctx.lineWidth = 1.8 * u;
       ctx.setLineDash([2 * u, 2 * u]);
       ctx.stroke();
       ctx.setLineDash([]);
     }
 
-    ctx.beginPath(); ctx.arc(p.x, p.y, headRadius, 0, Math.PI * 2);
-    ctx.fillStyle = p.color;
+    // 3. Volumetrik 3D Başlık Küresi
+    drawDioramaSphere(ctx, p.x, p.y, headRadius, playerColor, { u, strokeWidth: 2 });
+
+    // Göz / Yön Göstergesi (Directional Visor Bead)
+    const eyeX = p.x + Math.cos(angle) * (headRadius * 0.6);
+    const eyeY = p.y + Math.sin(angle) * (headRadius * 0.6);
+    const eyeR = Math.max(1.2, headRadius * 0.35);
+
+    ctx.fillStyle = UI_COLORS.white;
+    ctx.beginPath();
+    ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2 * u;
+
+    ctx.strokeStyle = UI_COLORS.lineDark;
+    ctx.lineWidth = 1.2 * u;
+    ctx.beginPath();
+    ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.beginPath();
-    ctx.arc(
-      p.x + Math.cos(p.angle || 0) * (headRadius * 0.6),
-      p.y + Math.sin(p.angle || 0) * (headRadius * 0.6),
-      Math.max(1.2, headRadius * 0.35),
-      0, Math.PI * 2,
-    );
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fill();
     ctx.restore();
   }
 }

@@ -8,6 +8,7 @@ import { drawGameAvatar } from '../core/avatarInGame.js';
 import { fxReadAlpha, packFloatingTexts, isValidFloatingTexts } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
+import { drawDioramaShadow, drawDioramaCoin } from '../core/dioramaKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import {
   round1,
@@ -218,12 +219,21 @@ export function drawCollapseGrid(ctx, arena, cell, states, warn, { withFx = true
     for (let c = 0; c < cols; c++) {
       const idx = r * cols + c;
       const state = states[idx];
-      if (state === 2) continue;
-
       const tx = offsetX + c * cellSize;
       const ty = offsetY + r * cellSize;
       const tw = cellSize - padding * 2;
       const th = cellSize - padding * 2;
+
+      if (state === 2) {
+        // Çökmüş karo: derin uçurum / chasm oklüzyonu
+        ctx.save();
+        ctx.fillStyle = UI_COLORS.pureBlack;
+        ctx.globalAlpha = 0.48;
+        tilePath(ctx, tx + padding, ty + padding, tw, th, radius * 0.4);
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
 
       let wobbleX = 0, wobbleY = 0, scaleAdd = 0;
       let ratio = 1;
@@ -335,24 +345,20 @@ export function drawCollapseFxLayer(ctx, layer) {
 
 export function drawCollapsePickups(ctx, pickups, now = 0) {
   for (const pu of pickups || []) {
-    const pulse = 1 + Math.sin(now / 200 + (pu.pulse || 0)) * 0.12;
+    const pulse = 1 + Math.sin(now / 200 + (pu.pulse || 0)) * 0.08;
     const r = 13 * pulse;
     const u = r / 13;
+    const hoverY = Math.sin(now / 180 + pu.x * 0.05) * 3 * u;
+    const icon = PICKUP_ICONS[pu.type] || 'wind';
+    const color = pu.type === 'SUPER_JUMP' ? UI_COLORS.turbo : (pu.type === 'REPAIR_TILES' ? UI_COLORS.crownGreen : UI_COLORS.crownBlue);
 
-    ctx.save();
-    ctx.translate(pu.x, pu.y);
-
-    ctx.strokeStyle = pu.type === 'SUPER_JUMP' ? UI_COLORS.turbo : (pu.type === 'REPAIR_TILES' ? UI_COLORS.crownGreen : UI_COLORS.crownBlue);
-    ctx.lineWidth = Math.max(1, 2.5 * u);
-    ctx.beginPath(); ctx.arc(0, 0, r + 4, 0, Math.PI * 2); ctx.stroke();
-
-    ctx.fillStyle = UI_COLORS.crownPaperLight;
-    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = UI_COLORS.inkDark; ctx.lineWidth = Math.max(1, 2 * u); ctx.stroke();
-
-    drawTabletopIcon(ctx, PICKUP_ICONS[pu.type] || 'wind', 0, 0, 18, { color: UI_COLORS.inkDark });
-
-    ctx.restore();
+    drawDioramaCoin(ctx, pu.x, pu.y, r, {
+      u,
+      hoverY,
+      color,
+      icon,
+      iconColor: UI_COLORS.inkDark,
+    });
   }
 }
 
@@ -368,13 +374,8 @@ export function drawCollapsePlayers(ctx, players, { selfSlot = -1 } = {}) {
     const jumpHeight = isJumping ? Math.sin(jumpProgress * Math.PI) * 16 : 0;
     const scale = 1.0 + (jumpHeight / 16) * 0.45;
 
-    ctx.save();
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = UI_COLORS.pureBlack;
-    ctx.beginPath();
-    ctx.arc(player.x, player.y + 4, Math.max(4, 9 - jumpHeight * 0.3), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    // 1. Zemin temas/uçuş gölgesi (Zıplama yüksekliğiyle gerçekçi diorama gölgesi)
+    drawDioramaShadow(ctx, player.x, player.y, 14, { u: 1, height: jumpHeight, aspect: 0.55 });
 
     ctx.save();
 

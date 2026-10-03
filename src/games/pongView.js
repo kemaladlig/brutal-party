@@ -12,6 +12,7 @@ import {
   drawCircleParticles,
 } from './worldCore.js';
 import { drawField } from '../core/fieldKit.js';
+import { drawDioramaShadow, drawDioramaSphere } from '../core/dioramaKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
@@ -227,6 +228,14 @@ function paddleBounds(paddle) {
  */
 export function drawPongPaddleBody(ctx, b, color, u = 1) {
   const inset = Math.max(2, Math.min(b.w, b.h) * 0.24);
+
+  // Yönlü alt gölge (tabletop tray zeminine düşen gölge)
+  ctx.save();
+  ctx.fillStyle = UI_COLORS.inkDark;
+  ctx.globalAlpha = 0.22;
+  ctx.fillRect(b.x + 2 * u, b.y + 3.5 * u, b.w, b.h);
+  ctx.restore();
+
   ctx.fillStyle = color;
   ctx.fillRect(b.x, b.y, b.w, b.h);
 
@@ -234,7 +243,7 @@ export function drawPongPaddleBody(ctx, b, color, u = 1) {
   ctx.beginPath();
   ctx.rect(b.x, b.y, b.w, b.h);
   ctx.clip();
-  ctx.globalAlpha = 0.22;
+  ctx.globalAlpha = 0.28;
   ctx.fillStyle = UI_COLORS.white;
   ctx.fillRect(b.x, b.y, b.w, inset);
   ctx.fillRect(b.x, b.y, inset, b.h);
@@ -329,7 +338,7 @@ export function drawPongArena(ctx, arena, goals = null, { seed } = {}) {
 export function drawPongPaddles(ctx, paddles, arena, colors = []) {
   const u = arena?.unit ?? 1;
   for (const paddle of paddles || []) {
-    const color = colors[paddle.slot] || '#D84727';
+    const color = colors[paddle.slot] || UI_COLORS.crownRed;
     if (!paddle.joined || !paddle.alive) {
       const wall = paddle.side === 'bottom'
         ? { x: arena.left, y: arena.bottom - 20 * u, w: arena.right - arena.left, h: 20 * u }
@@ -338,8 +347,21 @@ export function drawPongPaddles(ctx, paddles, arena, colors = []) {
           : paddle.side === 'left'
             ? { x: arena.left, y: arena.top, w: 20 * u, h: arena.bottom - arena.top }
             : { x: arena.right - 20 * u, y: arena.top, w: 20 * u, h: arena.bottom - arena.top };
-      ctx.fillStyle = '#938F86'; ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
-      ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 3 * u; ctx.strokeRect(wall.x, wall.y, wall.w, wall.h);
+      ctx.save();
+      // Beton bariyer pahı ve gölgesi
+      ctx.fillStyle = UI_COLORS.crownStone;
+      ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+      ctx.strokeStyle = UI_COLORS.inkDark;
+      ctx.lineWidth = 3 * u;
+      ctx.strokeRect(wall.x, wall.y, wall.w, wall.h);
+      // Bariyer üst aydınlık çizgisi
+      ctx.strokeStyle = UI_COLORS.crownStoneDarker;
+      ctx.lineWidth = 1.5 * u;
+      ctx.beginPath();
+      ctx.moveTo(wall.x + 2, wall.y + 2);
+      ctx.lineTo(wall.x + wall.w - 2, wall.y + 2);
+      ctx.stroke();
+      ctx.restore();
       continue;
     }
     const bounds = paddleBounds(paddle);
@@ -354,7 +376,8 @@ export function drawPongPaddles(ctx, paddles, arena, colors = []) {
       else ctx.fillText(label, paddle.x, bounds.y + bounds.h + 6);
     }
     if (paddle.spin > 0) {
-      ctx.strokeStyle = '#D99B26'; ctx.lineWidth = 4 * u;
+      ctx.strokeStyle = UI_COLORS.crownGold;
+      ctx.lineWidth = 4 * u;
       ctx.strokeRect(bounds.x - 4 * u, bounds.y - 4 * u, bounds.w + 8 * u, bounds.h + 8 * u);
     }
   }
@@ -362,17 +385,36 @@ export function drawPongPaddles(ctx, paddles, arena, colors = []) {
 
 export function drawPongBall(ctx, ball) {
   if (!ball) return;
-  const u = (ball.radius || 16) / 16;
+  const r = Math.max(2, ball.radius || 16);
+  const u = r / 16;
+
+  // 1. Enerji Top İzi (Trail)
   for (const [x, y, smash] of ball.trail || []) {
-    ctx.globalAlpha = smash ? 0.24 : 0.16;
-    ctx.fillStyle = smash ? '#D84727' : '#111111';
-    ctx.beginPath(); ctx.arc(x, y, Math.max(1, ball.radius * 0.55), 0, Math.PI * 2); ctx.fill();
+    ctx.save();
+    ctx.globalAlpha = smash ? 0.28 : 0.15;
+    ctx.fillStyle = smash ? UI_COLORS.crownRed : UI_COLORS.inkDark;
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(1, r * 0.6), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
-  ctx.globalAlpha = 1;
+
   if (ball.dead) return;
-  ctx.fillStyle = Math.abs(ball.spin || 0) > 8 ? '#D99B26' : (ball.smash ? '#D84727' : '#111111');
-  ctx.beginPath(); ctx.arc(ball.x, ball.y, Math.max(1, ball.radius), 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#000000'; ctx.lineWidth = 2.5 * u; ctx.stroke();
+
+  // 2. Zemine Düşen Küre Gölgesi (Tabletop Contact Shadow)
+  drawDioramaShadow(ctx, ball.x, ball.y, r, { u, aspect: 0.6 });
+
+  // 3. Volumetrik 3D Küre
+  const isSpin = Math.abs(ball.spin || 0) > 8;
+  const isSmash = !!ball.smash;
+  const baseColor = isSpin ? UI_COLORS.crownGold : (isSmash ? UI_COLORS.crownRed : UI_COLORS.inkDark);
+
+  drawDioramaSphere(ctx, ball.x, ball.y, r, baseColor, {
+    u,
+    glowCore: isSmash,
+    highlightAlpha: isSmash ? 0.85 : 0.42,
+    strokeWidth: 2.5,
+  });
 }
 
 export function drawPongShockwaves(ctx, shockwaves) {

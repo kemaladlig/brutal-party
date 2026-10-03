@@ -420,53 +420,128 @@ export function drawCrown(ctx, x, y, scale = 1.0, isLoose = false, arena = null,
   ctx.scale(scale, scale);
 
   const u = arena?.unit || 1;
+  const hoverY = isLoose ? Math.sin(floatAnim * 3) * 3.5 * u : 0;
+  const tilt = isLoose ? Math.sin(floatAnim * 2) * 0.08 : 0;
+
+  // 1. Zemin Gölgesi (Hover'a göre reaktif ölçeklenen elips gölge)
+  ctx.save();
+  ctx.globalAlpha = 0.26 - (isLoose ? hoverY * 0.02 : 0);
+  ctx.fillStyle = UI_COLORS.inkDark;
+  ctx.beginPath();
+  ctx.ellipse(0, 12 * u, 16 * u, 6 * u, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 2. Serbestken Altın Parıltı Aurası
   if (isLoose) {
-    const pulseR = 26 + Math.sin(floatAnim) * 4;
-    ctx.strokeStyle = 'rgba(217, 155, 38, 0.45)';
+    const pulseR = (26 + Math.sin(floatAnim * 4) * 4) * u;
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = UI_COLORS.crownGold;
     ctx.lineWidth = Math.max(1, 2.5 * u);
     ctx.beginPath();
-    ctx.arc(0, 0, pulseR, 0, Math.PI * 2);
+    ctx.arc(0, hoverY, pulseR, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.restore();
   }
 
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  // 3. Taç Gövdesi (Havada süzülme ve hafif yalpalama ile)
+  ctx.save();
+  ctx.translate(0, hoverY);
+  ctx.rotate(tilt);
+
+  // Koyu dış gölge yüzü (Sağ taraf / arkada kalan gölge yüzü)
+  ctx.fillStyle = UI_COLORS.crownAmber;
   ctx.beginPath();
-  ctx.ellipse(0, 10, 16, 6, 0, 0, Math.PI * 2);
+  ctx.moveTo(0, -15);
+  ctx.lineTo(8, -2);
+  ctx.lineTo(18, -8);
+  ctx.lineTo(16, 6);
+  ctx.lineTo(0, 6);
+  ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = UI_COLORS.crownAmber;
-  ctx.strokeStyle = UI_COLORS.inkDark;
-  ctx.lineWidth = Math.max(1, 2.5 * u);
+  // Açık ışık yüzü (Sol taraf - -45° ana ışıktan parlak altın yüz)
+  ctx.fillStyle = UI_COLORS.crownSpark;
+  ctx.beginPath();
+  ctx.moveTo(0, -15);
+  ctx.lineTo(-8, -2);
+  ctx.lineTo(-18, -8);
+  ctx.lineTo(-16, 6);
+  ctx.lineTo(0, 6);
+  ctx.closePath();
+  ctx.fill();
 
+  // Taç dış konturu
+  ctx.strokeStyle = UI_COLORS.lineDark;
+  ctx.lineWidth = Math.max(1, 2.5 * u);
   ctx.beginPath();
   ctx.moveTo(-16, 6);
   ctx.lineTo(-18, -8);
   ctx.lineTo(-8, -2);
-  ctx.lineTo(0, -14);
+  ctx.lineTo(0, -15);
   ctx.lineTo(8, -2);
   ctx.lineTo(18, -8);
   ctx.lineTo(16, 6);
   ctx.closePath();
-  ctx.fill();
   ctx.stroke();
 
-  ctx.fillStyle = UI_COLORS.crownSpark;
+  // Orta sivri sırt çizgisi (facet spine)
   ctx.beginPath();
-  ctx.rect(-15, 2, 30, 4);
-  ctx.fill();
+  ctx.moveTo(0, -15);
+  ctx.lineTo(0, 6);
   ctx.stroke();
 
+  // 4. Altın Taban Kuşağı (Beveled Crown Band)
+  ctx.fillStyle = UI_COLORS.crownGold;
+  ctx.fillRect(-15, 2, 30, 5);
+  ctx.strokeStyle = UI_COLORS.lineDark;
+  ctx.lineWidth = 1.5 * u;
+  ctx.strokeRect(-15, 2, 30, 5);
+
+  // Kuşak üstü altın boncuklar / perçinler
+  ctx.fillStyle = UI_COLORS.white;
+  for (let px = -11; px <= 11; px += 5.5) {
+    ctx.beginPath();
+    ctx.arc(px, 4.5, 1.2 * u, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 5. Kesme Değerli Taşlar (Faceted Gems)
+  // Merkez Yakut (Center Ruby - kesilmiş elmas prizma)
   ctx.fillStyle = UI_COLORS.crownRed;
   ctx.beginPath();
-  ctx.arc(0, -7, 3.5, 0, Math.PI * 2);
+  ctx.moveTo(0, -11);
+  ctx.lineTo(4, -7);
+  ctx.lineTo(0, -3);
+  ctx.lineTo(-4, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = UI_COLORS.lineDark;
+  ctx.lineWidth = 1.2 * u;
+  ctx.stroke();
+  // Yakut ışıltı noktası
+  ctx.fillStyle = UI_COLORS.white;
+  ctx.beginPath();
+  ctx.arc(-1, -8, 1.1 * u, 0, Math.PI * 2);
   ctx.fill();
 
+  // Yan Zümrütler (Side Emeralds)
   ctx.fillStyle = UI_COLORS.crownForest;
   ctx.beginPath();
-  ctx.arc(-11, -3, 2.5, 0, Math.PI * 2);
-  ctx.arc(11, -3, 2.5, 0, Math.PI * 2);
+  ctx.arc(-11, -3, 2.8 * u, 0, Math.PI * 2);
+  ctx.arc(11, -3, 2.8 * u, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = UI_COLORS.lineDark;
+  ctx.stroke();
+
+  ctx.fillStyle = UI_COLORS.white;
+  ctx.beginPath();
+  ctx.arc(-12, -4, 1.0 * u, 0, Math.PI * 2);
+  ctx.arc(10, -4, 1.0 * u, 0, Math.PI * 2);
   ctx.fill();
 
+  ctx.restore();
   ctx.restore();
 }
 

@@ -16,6 +16,7 @@ import { drawObstacle, PICKUP_SIZE } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
+import { drawDioramaShadow, drawDioramaSphere, drawDioramaCoin } from '../core/dioramaKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 
 const TRAIL_SPACING = 10;
@@ -222,53 +223,46 @@ const SNAKE_FOOD_STYLE = Object.freeze({
 export function drawSnakeFoods(ctx, foods, now = 0) {
   for (const food of foods) {
     const pulse = 1 + Math.sin(now / 220 + (food.pulse || 0)) * 0.08;
-    // `radius` motor tarafından `fieldRadius` ile ölçeklendi; eski `size` alanı
-    // ÇAP idi ve 2'ye bölünüyordu, yem gerçekte 6.5 px çiziliyordu.
     const radius = (food.radius || PICKUP_SIZE.base) * pulse;
-    // Kontur kalınlığı yarıçapla orantılı; taban = ortak pickup boyutu.
     const u = Math.max(0.7, radius / PICKUP_SIZE.base);
     const style = SNAKE_FOOD_STYLE[food.type] || SNAKE_FOOD_STYLE.APPLE;
-
-    ctx.fillStyle = 'rgba(26, 26, 26, 0.25)';
-    ctx.beginPath();
-    ctx.arc(food.x + 2, food.y + 2, radius, 0, Math.PI * 2);
-    ctx.fill();
+    const hoverY = Math.sin(now / 180 + food.x * 0.05 + food.y * 0.05) * 3 * u;
+    const drawY = food.y + hoverY;
 
     if (food.type === 'GOLDEN_STAR') {
-      ctx.fillStyle = style.body;
-      ctx.beginPath();
-      ctx.arc(food.x, food.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = style.ink;
-      ctx.lineWidth = 2.5 * u;
-      ctx.stroke();
-      drawTabletopIcon(ctx, 'star', food.x, food.y, radius * 1.3, { color: style.accent });
+      drawDioramaCoin(ctx, food.x, food.y, radius, {
+        u,
+        hoverY,
+        color: style.body,
+        icon: 'star',
+        iconColor: style.accent,
+      });
     } else if (food.type === 'TURBO_BERRY') {
-      ctx.fillStyle = style.body;
-      ctx.beginPath();
-      ctx.arc(food.x, food.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = style.ink;
-      ctx.lineWidth = 2.5 * u;
-      ctx.stroke();
-      drawTabletopIcon(ctx, 'zap', food.x, food.y, radius * 1.3, { color: style.accent });
+      drawDioramaShadow(ctx, food.x, food.y, radius, { u, height: Math.abs(hoverY) });
+      drawDioramaSphere(ctx, food.x, drawY, radius, style.body, {
+        u,
+        stroke: style.ink,
+        strokeWidth: 2.5,
+      });
+      drawTabletopIcon(ctx, 'zap', food.x, drawY, radius * 1.3, { color: style.accent });
     } else {
-      ctx.fillStyle = style.body;
-      ctx.beginPath();
-      ctx.arc(food.x, food.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = style.ink;
-      ctx.lineWidth = 2 * u;
-      ctx.stroke();
+      drawDioramaShadow(ctx, food.x, food.y, radius, { u, height: Math.abs(hoverY) });
+      drawDioramaSphere(ctx, food.x, drawY, radius, style.body, {
+        u,
+        stroke: style.ink,
+        strokeWidth: 2.0,
+      });
+      // Elma parlak parıltı noktası + sapı
       ctx.fillStyle = style.accent;
       ctx.beginPath();
-      ctx.arc(food.x - radius * 0.35, food.y - radius * 0.35, radius * 0.28, 0, Math.PI * 2);
+      ctx.arc(food.x - radius * 0.35, drawY - radius * 0.35, radius * 0.25, 0, Math.PI * 2);
       ctx.fill();
+
       ctx.strokeStyle = style.stem;
       ctx.lineWidth = 2 * u;
       ctx.beginPath();
-      ctx.moveTo(food.x, food.y - radius);
-      ctx.lineTo(food.x + 2, food.y - radius - 3);
+      ctx.moveTo(food.x, drawY - radius);
+      ctx.lineTo(food.x + 2 * u, drawY - radius - 4 * u);
       ctx.stroke();
     }
   }
@@ -301,18 +295,38 @@ export function drawSnakePlayers(ctx, players, now = 0, selfSlot = -1) {
 
     const headRadius = player.radius || 24;
     const u = headRadius / 24;
+    const playerColor = player.color || UI_COLORS.crownRed;
 
-    // Gövde kalınlığı kafa çapının ~%46/%31'i — kafa büyürken oranın
-    // incelmemesi için taban 14/9'dan 22/15'e çıkarıldı (2026-09 akort).
+    // 1. Gövde altı zemin gölgesi (Tabletop Drop Shadow)
+    ctx.save();
+    ctx.translate(2 * u, 3.5 * u);
+    ctx.globalAlpha = 0.22;
     ctx.lineWidth = 22 * u;
-    ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeStyle = UI_COLORS.inkDark;
+    traceSnakePath(ctx, player);
+    ctx.stroke();
+    ctx.restore();
+
+    // 2. Gövde dış koyu kabuğu
+    ctx.lineWidth = 22 * u;
+    ctx.strokeStyle = UI_COLORS.lineDark;
     traceSnakePath(ctx, player);
     ctx.stroke();
 
-    ctx.lineWidth = 15 * u;
-    ctx.strokeStyle = player.color || '#D84727';
+    // 3. Gövde canlı renk dolgusu
+    ctx.lineWidth = 16 * u;
+    ctx.strokeStyle = playerColor;
     traceSnakePath(ctx, player);
     ctx.stroke();
+
+    // 4. Volumetrik omurga ışık çizgisi (Dorsal Spine Highlight)
+    ctx.save();
+    ctx.globalAlpha = 0.38;
+    ctx.lineWidth = 4 * u;
+    ctx.strokeStyle = UI_COLORS.white;
+    traceSnakePath(ctx, player);
+    ctx.stroke();
+    ctx.restore();
 
     if (player.isBoost || player.boost) {
       // Boost halesi altın dolgu 1.19:1 ile görünmezdi — koyu altın, aynı geometri.

@@ -185,24 +185,33 @@ export function drawArcherArrows(ctx, arrows, arena = null) {
   for (const a of arrows) {
     tracerAt(a.x, a.y);
     const ang = Math.atan2(a.vy || 0, a.vx || 0);
+    const speed = Math.hypot(a.vx || 0, a.vy || 0);
+    const arrowColor = a.color || FALLBACK;
     ctx.save();
 
-    // 1. Okun zemine düşen uçuş gölgesi (havada süzülme hissi)
+    // 1. Zemine düşen uçuş gölgesi (havada süzülme hissi, derin diorama yüksekliği)
     ctx.save();
-    ctx.translate(a.x + 1.5, a.y + 3);
+    ctx.translate(a.x + 2.5 * u, a.y + 4.5 * u);
     ctx.rotate(ang);
-    ctx.globalAlpha = 0.25;
+    ctx.globalAlpha = 0.22;
     ctx.strokeStyle = UI_COLORS.inkDark;
     ctx.lineWidth = 3.5 * u;
     ctx.beginPath();
-    ctx.moveTo(-14, 0);
-    ctx.lineTo(10, 0);
+    ctx.moveTo(-16, 0);
+    ctx.lineTo(8, 0);
     ctx.stroke();
+    // Fletching gölgesi
+    ctx.beginPath();
+    ctx.moveTo(-16, -3);
+    ctx.lineTo(-9, 0);
+    ctx.lineTo(-16, 3);
+    ctx.stroke();
+    // Ok ucu gölgesi
     ctx.fillStyle = UI_COLORS.inkDark;
     ctx.beginPath();
-    ctx.moveTo(16, 0);
-    ctx.lineTo(6, -5);
-    ctx.lineTo(6, 5);
+    ctx.moveTo(17, 0);
+    ctx.lineTo(7, -5.5);
+    ctx.lineTo(7, 5.5);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
@@ -210,25 +219,101 @@ export function drawArcherArrows(ctx, arrows, arena = null) {
     // 2. Okun kendisi
     ctx.translate(a.x, a.y);
     ctx.rotate(ang);
-    ctx.strokeStyle = UI_COLORS.inkDark;
+
+    // Hava akımı / hız izi (micro wind streaks)
+    if (speed > 5) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = UI_COLORS.white;
+      ctx.lineWidth = 1.2 * u;
+      ctx.beginPath();
+      ctx.moveTo(-18, -4);
+      ctx.lineTo(-30, -4);
+      ctx.moveTo(-18, 4);
+      ctx.lineTo(-30, 4);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Ahşap Gövde (dış koyu hat + iç sıcak ahşap lifi)
+    ctx.strokeStyle = UI_COLORS.lineDark;
     ctx.lineWidth = 4 * u;
     ctx.beginPath();
-    ctx.moveTo(-14, 0);
-    ctx.lineTo(10, 0);
+    ctx.moveTo(-15, 0);
+    ctx.lineTo(9, 0);
     ctx.stroke();
-    ctx.fillStyle = a.color || FALLBACK;
+
+    ctx.strokeStyle = UI_COLORS.paperWarm;
+    ctx.lineWidth = 2 * u;
     ctx.beginPath();
-    ctx.moveTo(16, 0);
-    ctx.lineTo(6, -5);
-    ctx.lineTo(6, 5);
+    ctx.moveTo(-14, 0);
+    ctx.lineTo(8, 0);
+    ctx.stroke();
+
+    // Fletching (Kuyruk tüyleri - oyuncu renginde, açılı kanatlar)
+    ctx.save();
+    ctx.fillStyle = arrowColor;
+    ctx.strokeStyle = UI_COLORS.lineDark;
+    ctx.lineWidth = 1.5 * u;
+    // Üst tüy kanadı
+    ctx.beginPath();
+    ctx.moveTo(-15, 0);
+    ctx.lineTo(-16, -5.5);
+    ctx.lineTo(-8, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Alt tüy kanadı
+    ctx.beginPath();
+    ctx.moveTo(-15, 0);
+    ctx.lineTo(-16, 5.5);
+    ctx.lineTo(-8, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // Çelik Keski Ok Ucu (Beveled Steel Arrowhead)
+    // Alt gölge yüzeyi (-45° ışıkta alt taraf koyu)
+    ctx.fillStyle = UI_COLORS.inkDark;
+    ctx.beginPath();
+    ctx.moveTo(17, 0);
+    ctx.lineTo(7, 6);
+    ctx.lineTo(8, 0);
     ctx.closePath();
     ctx.fill();
 
-    // 3. Ok ucundaki parlak nokta (hız & keskinlik ışıltısı)
-    ctx.globalAlpha = 0.85;
+    // Üst aydınlık yüzeyi (ışığı alan çelik üst yüz)
+    ctx.fillStyle = arrowColor;
+    ctx.beginPath();
+    ctx.moveTo(17, 0);
+    ctx.lineTo(7, -6);
+    ctx.lineTo(8, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Dış kontur
+    ctx.strokeStyle = UI_COLORS.lineDark;
+    ctx.lineWidth = 1.8 * u;
+    ctx.beginPath();
+    ctx.moveTo(17, 0);
+    ctx.lineTo(7, -6);
+    ctx.lineTo(8, 0);
+    ctx.lineTo(7, 6);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Ok ucundaki parlak nokta & sırt çizgisi (speküler ışıltı)
+    ctx.strokeStyle = UI_COLORS.white;
+    ctx.lineWidth = 1.2 * u;
+    ctx.beginPath();
+    ctx.moveTo(8, 0);
+    ctx.lineTo(16, 0);
+    ctx.stroke();
+
     ctx.fillStyle = UI_COLORS.white;
     ctx.beginPath();
-    ctx.arc(8, 0, Math.max(1, 1.4 * u), 0, Math.PI * 2);
+    ctx.arc(16, 0, Math.max(1, 1.3 * u), 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();

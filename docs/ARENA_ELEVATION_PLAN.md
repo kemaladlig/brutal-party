@@ -180,10 +180,10 @@ Her faz tamamlandığında aşağıdaki kontrol kapılarından eksiksiz geçilec
   - [x] Çok katmanlı diorama alt gölgesi ve masaya vuran halo (`under-glow`)
   - [x] Climax / Sudden Death kalp atışı vinyet nabzı
   - [x] Şampiyonluk konfetisi ve kutlama flaşları
-- [ ] **FAZ 5: Reaktif & Kırılabilir Engeller**
-  - [ ] Darbe anı mikro-titreme ve çatlak detayları
-  - [ ] Blok talaş ve taş kıymığı parçacıkları
-  - [ ] Reaktif yaylı tamponlar ve zemin gizmo'ları
+- [x] **FAZ 5: Reaktif & Kırılabilir Engeller**
+  - [x] Darbe anı mikro-titreme ve çatlak detayları (`fieldProps.js` → `propHitFor`, `propFlinchOffset`, `drawPropCracks`)
+  - [x] Blok talaş ve taş kıymığı parçacıkları (deterministik taş tozu ve tahta talaşı sıçraması)
+  - [x] Reaktif yaylı tamponlar ve zemin gizmo'ları (`arenaKit.js` + `dioramaKit.js` ile 12 oyunun tamamına modüler aktarım)
 
 ### 4b. Faz 1 Uygulama Notları (yapı kararları)
 

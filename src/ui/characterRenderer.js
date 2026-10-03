@@ -45,16 +45,16 @@ function playFaceShading(ctx, r) {
   if (cached) return cached;
 
   // 1. Sağ-alt yumuşak küre gölgesi — kütle hissi alta aittir, üst yarı
-  // düz renkte kalır. Merkez alta-sağa itildi, alpha düşük tutuldu.
+  // düz renkte kalır. Merkez alta-sağa itildi, tok 3B derinlik.
   const shade = ctx.createRadialGradient(r * 0.45, r * 0.50, r * 0.1, 0, 0, r * 1.15);
-  shade.addColorStop(0, 'rgba(12, 6, 26, 0.18)');
-  shade.addColorStop(0.55, 'rgba(12, 6, 26, 0.07)');
+  shade.addColorStop(0, 'rgba(12, 6, 26, 0.32)');
+  shade.addColorStop(0.55, 'rgba(12, 6, 26, 0.14)');
   shade.addColorStop(1, 'rgba(12, 6, 26, 0)');
 
-  // 2. Sol-üst çok hafif ortam aydınlığı (beyaz leke yapmaz, sadece renk tonunu yumuşatır)
-  const diffuse = ctx.createRadialGradient(-r * 0.28, -r * 0.32, 0, 0, 0, r * 1.05);
-  diffuse.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
-  diffuse.addColorStop(0.5, 'rgba(255, 255, 255, 0.04)');
+  // 2. Sol-üst canlı ortam aydınlığı ve speküler yansıma (3B parlak plastik/figür hissi)
+  const diffuse = ctx.createRadialGradient(-r * 0.32, -r * 0.36, 0, 0, 0, r * 1.05);
+  diffuse.addColorStop(0, 'rgba(255, 255, 255, 0.30)');
+  diffuse.addColorStop(0.45, 'rgba(255, 255, 255, 0.10)');
   diffuse.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
   const entry = { diffuse, shade };
@@ -64,9 +64,7 @@ function playFaceShading(ctx, r) {
 
 /**
  * Disk içi alt gölge (ambient occlusion) gradyanı — topu yere oturtan
- * katman. Dışarı taşan geometriyle (yan duvar bandı) "kâsede top" gibi
- * okunuyordu; bu katman clip'in İÇİNDE kalır, siluet değişmez. `playFaceShading`
- * ile aynı cache deseni: karede yeni gradient üretilmez.
+ * katman.
  */
 const BODY_AO_CACHE = new WeakMap();
 
@@ -79,9 +77,9 @@ function bodyAoGradient(ctx, r) {
   const key = Math.round(r * 4) / 4;
   const cached = byRadius.get(key);
   if (cached) return cached;
-  const g = ctx.createLinearGradient(0, r * 0.45, 0, r);
+  const g = ctx.createLinearGradient(0, r * 0.38, 0, r);
   g.addColorStop(0, 'rgba(12, 6, 26, 0)');
-  g.addColorStop(1, 'rgba(12, 6, 26, 0.18)');
+  g.addColorStop(1, 'rgba(12, 6, 26, 0.32)');
   byRadius.set(key, g);
   return g;
 }

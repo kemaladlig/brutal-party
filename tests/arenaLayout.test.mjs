@@ -385,7 +385,7 @@ test('drawObstacle allocates nothing per frame and stays within its op budget', 
     drawObstacle(ctx, { x: 120, y: 80, w: 96, h: 72 }, { variant });
     // save/restore/clip/beginPath are state bookkeeping, not raster work.
     const raster = ctx.log.filter((e) => /^(fill|stroke|fillRect|strokeRect|ellipse|moveTo|lineTo|arc)\(/.test(e));
-    assert.ok(raster.length <= 26, `${variant}: ${raster.length} raster/path ops (budget 26)`);
+    assert.ok(raster.length <= 28, `${variant}: ${raster.length} raster/path ops (budget 28)`);
     assert.ok(!ctx.log.some((e) => e.includes('Gradient')), `${variant} must not build gradients`);
   }
   // Degenerate rects are skipped instead of throwing.

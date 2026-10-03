@@ -1,13 +1,14 @@
 // BRUTAL HORDE — host/client ortak dünya snapshot'ı ve çizim sınırı.
 // Client bu dosyadan yalnız salt-okunur draw + validation kullanır; simülasyon/AI import etmez.
 
-import { drawObstacle, drawPickup } from '../core/arenaKit.js';
+import { drawObstacle } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
-import { drawGameAvatar } from '../core/avatarInGame.js';
+import { computeAvatarKineticDeformation, drawGameAvatar } from '../core/avatarInGame.js';
 import { fxReadAlpha } from '../core/fxKit.js';
 import { segmentAabbIntersection } from '../core/physics2d.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { getFireCooldownProgress, getFireFeedbackSnapshot, isValidFireFeedbackSnapshot } from '../core/fireFeedback.js';
+import { drawDioramaShadow } from '../core/dioramaKit.js';
 import { UI_COLORS, UI_FONTS } from '../ui/tokens.js';
 import { t } from '../i18n.js';
 import {
@@ -502,37 +503,111 @@ export function drawHordeArena(ctx, arena, themeId = 'foundry') {
 function drawExtractionGate(ctx, portal, now) {
   const rotations = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
   const pu = (portal.r || 30) / 30;
-  const progress = portal.progress || 0;
+  const progress = clamp01(portal.progress || 0);
+  const R = (portal.r || 30) * 1.35;
   ctx.save();
   ctx.translate(portal.x, portal.y);
   ctx.rotate(rotations[portal.side] || 0);
 
-  const glow = 0.4 + Math.sin(now / 100) * 0.2;
-  ctx.globalAlpha = glow;
-  
   ctx.fillStyle = '#7C3AED';
+  ctx.save();
+  ctx.globalAlpha = 0.2 + Math.sin(now / 240) * 0.05;
   ctx.beginPath();
-  ctx.arc(0, 0, portal.r * (0.6 + progress * 0.6), 0, Math.PI * 2);
+  ctx.arc(0, 0, R * 1.22, 0, Math.PI * 2);
   ctx.fill();
-  
-  ctx.globalAlpha = 0.8;
+  ctx.restore();
+  const glow = 0.42 + Math.sin(now / 130) * 0.1 + progress * 0.2;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0.2, Math.min(0.75, glow));
+  ctx.beginPath();
+  ctx.arc(0, 0, R * (0.62 + progress * 0.4), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(2, 5 * pu);
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 0.98, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.85;
   ctx.strokeStyle = GOLD;
   ctx.lineWidth = Math.max(2, 4 * pu);
-  const spin = now / 200 + progress * 15;
-  const numRings = 4;
-  for (let i = 0; i < numRings; i++) {
+  ctx.lineCap = 'round';
+  const spin = now / 320 + progress * 12;
+  for (let i = 0; i < 3; i++) {
+    const r = R * (0.78 - i * 0.16);
     ctx.beginPath();
-    const r = portal.r * (0.2 + (i / numRings) * (0.5 + progress * 0.5));
-    ctx.arc(0, 0, r, spin + i, spin + i + Math.PI);
+    ctx.arc(0, 0, r, spin + i * 2.1, spin + i * 2.1 + Math.PI * 1.2);
     ctx.stroke();
   }
-  
+  ctx.restore();
+  ctx.save();
+  ctx.globalAlpha = 0.7;
+  ctx.strokeStyle = FLASH;
+  ctx.lineWidth = Math.max(1.2, 2 * pu);
+  ctx.lineCap = 'round';
+  const back = -now / 420;
+  for (let i = 0; i < 3; i++) {
+    const r = R * (0.7 - i * 0.16);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, back + i * 2.1, back + i * 2.1 + Math.PI * 0.7);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.fillStyle = FLASH;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1.2, 1.8 * pu);
+  const chevR = R * 1.08;
+  const chevS = Math.max(3, 7 * pu);
+  const bob = Math.sin(now / 180) * 2 * pu;
+  for (const fx of [-1, 0, 1]) {
+    const cx = fx * chevS * 2.2;
+    const cy = -chevR + bob;
+    ctx.beginPath();
+    ctx.moveTo(cx - chevS, cy);
+    ctx.lineTo(cx, cy + chevS);
+    ctx.lineTo(cx + chevS, cy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = INK;
+  ctx.globalAlpha = 0.65;
+  ctx.lineWidth = Math.max(2, 5 * pu);
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 0.42, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = FLASH;
+  ctx.lineWidth = Math.max(1.5, 3 * pu);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 0.42, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  ctx.restore();
+
   ctx.fillStyle = GOLD;
+  ctx.save();
   ctx.globalAlpha = 1;
   ctx.beginPath();
-  ctx.arc(0, 0, portal.r * 0.15 * (1 + progress * 2), 0, Math.PI * 2);
+  ctx.arc(0, 0, R * 0.16 * (1 + progress * 1.6), 0, Math.PI * 2);
   ctx.fill();
-  
+  ctx.fillStyle = FLASH;
+  ctx.beginPath();
+  ctx.arc(-R * 0.03, -R * 0.04, R * 0.06 * (1 + progress), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
   ctx.restore();
 }
 
@@ -592,6 +667,261 @@ function drawBombTelegraph(ctx, enemy, now) {
   // 3) Çekirdek: küçük bomba ikonu. Oyuncunun "içinden geçilebilir" okuması
   //    için ikon kasıtlı olarak gövdeden çok daha küçük.
   drawTabletopIcon(ctx, 'bomb', 0, 0, r * 0.42, { color: INK });
+  ctx.restore();
+}
+
+function traceTankHull(ctx, r) {
+  const c = r * 0.38;
+  ctx.beginPath();
+  ctx.moveTo(-r + c, -r);
+  ctx.lineTo(r - c, -r);
+  ctx.arcTo(r, -r, r, -r + c, c);
+  ctx.lineTo(r, r - c);
+  ctx.arcTo(r, r, r - c, r, c);
+  ctx.lineTo(-r + c, r);
+  ctx.arcTo(-r, r, -r, r - c, c);
+  ctx.lineTo(-r, -r + c);
+  ctx.arcTo(-r, -r, -r + c, -r, c);
+  ctx.closePath();
+}
+
+function traceHexHull(ctx, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (i * Math.PI) / 3;
+    const px = Math.cos(a) * r;
+    const py = Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
+function traceDiamondHull(ctx, r) {
+  ctx.beginPath();
+  ctx.moveTo(0, -r);
+  ctx.lineTo(r, 0);
+  ctx.lineTo(0, r);
+  ctx.lineTo(-r, 0);
+  ctx.closePath();
+}
+
+function paintEnemyVolume(ctx, r) {
+  ctx.save();
+  ctx.globalAlpha = 0.26;
+  ctx.fillStyle = FLASH;
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.28, -r * 0.34, r * 0.42, r * 0.24, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.ellipse(r * 0.05, r * 0.48, r * 0.62, r * 0.26, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawEnemyBackSpikes(ctx, r, eu) {
+  ctx.fillStyle = INK;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1, 2 * eu);
+  ctx.lineJoin = 'round';
+  for (const oy of [-0.62, 0, 0.62]) {
+    const bx = -r * 0.86;
+    const by = r * oy;
+    const tipX = -r * 1.28;
+    ctx.beginPath();
+    ctx.moveTo(bx, by - r * 0.16);
+    ctx.lineTo(tipX, by);
+    ctx.lineTo(bx, by + r * 0.16);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawChaserFace(ctx, r, eu) {
+  const eyeR = r * 0.21;
+  const eyeX = r * 0.28;
+  const eyeY = r * 0.30;
+  for (const side of [-1, 1]) {
+    const ey = eyeY * side;
+    ctx.fillStyle = UI_COLORS.faceWhite;
+    ctx.beginPath();
+    ctx.arc(eyeX, ey, eyeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = UI_COLORS.faceInk;
+    ctx.lineWidth = Math.max(1, 1.6 * eu);
+    ctx.stroke();
+    ctx.fillStyle = UI_COLORS.faceInk;
+    ctx.beginPath();
+    ctx.arc(eyeX + eyeR * 0.28, ey, eyeR * 0.48, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = UI_COLORS.faceWhite;
+    ctx.beginPath();
+    ctx.arc(eyeX + eyeR * 0.42, ey - eyeR * 0.22, eyeR * 0.14, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1.2, 2.4 * eu);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(eyeX - eyeR * 1.1, -eyeY - eyeR * 1.15);
+  ctx.lineTo(eyeX + eyeR * 0.9, -eyeY - eyeR * 0.45);
+  ctx.moveTo(eyeX - eyeR * 1.1, eyeY + eyeR * 1.15);
+  ctx.lineTo(eyeX + eyeR * 0.9, eyeY + eyeR * 0.45);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  const mx = r * 0.58;
+  const mw = r * 0.20;
+  const mh = r * 0.20;
+  ctx.fillStyle = UI_COLORS.mouthDark;
+  ctx.beginPath();
+  ctx.ellipse(mx, 0, mw, mh, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = FLASH;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(mx - mw * 0.55, side * mh * 0.85);
+    ctx.lineTo(mx - mw * 0.15, side * mh * 0.85);
+    ctx.lineTo(mx - mw * 0.35, side * mh * 0.25);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawShooterFace(ctx, r, eu, isEliteOrBoss) {
+  const barrelLen = r * 0.62;
+  const barrelThick = Math.max(2, r * 0.24);
+  ctx.fillStyle = INK;
+  ctx.fillRect(r * 0.52, -barrelThick / 2, barrelLen, barrelThick);
+  ctx.fillStyle = isEliteOrBoss ? GOLD : FLASH;
+  ctx.fillRect(r * 0.52 + barrelLen - Math.max(2, r * 0.12), -barrelThick / 2, Math.max(2, r * 0.12), barrelThick);
+  const visorW = r * 0.52;
+  const visorH = Math.max(3, r * 0.30);
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.ellipse(r * 0.08, 0, visorW / 2, visorH / 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const lensR = Math.max(2, r * 0.11);
+  for (const side of [-1, 1]) {
+    ctx.fillStyle = isEliteOrBoss ? GOLD : FLASH;
+    ctx.beginPath();
+    ctx.arc(r * 0.14, side * r * 0.13, lensR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = INK;
+    ctx.beginPath();
+    ctx.arc(r * 0.17, side * r * 0.13, lensR * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1, 2 * eu);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.55, -r * 0.42);
+  ctx.lineTo(-r * 0.30, -r * 0.52);
+  ctx.moveTo(-r * 0.55, r * 0.42);
+  ctx.lineTo(-r * 0.30, r * 0.52);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+}
+
+function drawTankFace(ctx, r, eu, isEliteOrBoss, hpRatio) {
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1, 2 * eu);
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.78, -r * 0.34);
+  ctx.lineTo(r * 0.78, -r * 0.34);
+  ctx.moveTo(-r * 0.78, r * 0.34);
+  ctx.lineTo(r * 0.78, r * 0.34);
+  ctx.stroke();
+  ctx.restore();
+  const rivetR = Math.max(1.2, r * 0.07);
+  ctx.fillStyle = FLASH;
+  for (const rx of [-0.62, 0.62]) {
+    for (const ry of [-0.62, 0.62]) {
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath();
+      ctx.arc(r * rx, r * ry, rivetR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+  const slitW = r * 0.62;
+  const slitH = Math.max(3, r * 0.30);
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.ellipse(r * 0.12, 0, slitW / 2, slitH / 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const eyeR = Math.max(2, r * 0.10);
+  for (const side of [-1, 1]) {
+    ctx.fillStyle = isEliteOrBoss ? GOLD : FLASH;
+    ctx.beginPath();
+    ctx.arc(r * 0.18, side * r * 0.13, eyeR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1, 1.8 * eu);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = -1; i <= 1; i++) {
+    ctx.moveTo(r * 0.42 + i * r * 0.12, r * 0.34);
+    ctx.lineTo(r * 0.42 + i * r * 0.12, r * 0.52);
+  }
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  if (hpRatio < 0.5) {
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = Math.max(1, 1.6 * eu);
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.55, -r * 0.62);
+    ctx.lineTo(-r * 0.25, -r * 0.30);
+    ctx.lineTo(-r * 0.45, -r * 0.05);
+    ctx.stroke();
+  }
+}
+
+function drawHealerFace(ctx, r, eu) {
+  const eyeR = r * 0.18;
+  const eyeX = r * 0.22;
+  const eyeY = r * 0.28;
+  for (const side of [-1, 1]) {
+    ctx.fillStyle = UI_COLORS.faceWhite;
+    ctx.beginPath();
+    ctx.arc(eyeX, side * eyeY, eyeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = UI_COLORS.faceInk;
+    ctx.lineWidth = Math.max(1, 1.5 * eu);
+    ctx.stroke();
+    ctx.fillStyle = UI_COLORS.faceInk;
+    ctx.beginPath();
+    ctx.arc(eyeX + eyeR * 0.22, side * eyeY, eyeR * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = UI_COLORS.faceWhite;
+    ctx.beginPath();
+    ctx.arc(eyeX + eyeR * 0.34, side * eyeY - eyeR * 0.2, eyeR * 0.13, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = UI_COLORS.faceInk;
+  ctx.lineWidth = Math.max(1, 1.6 * eu);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(r * 0.42, 0, r * 0.16, -0.9, 0.9);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  const arm = r * 0.30;
+  const thick = Math.max(2, r * 0.13);
+  ctx.save();
+  ctx.translate(-r * 0.42, 0);
+  ctx.fillStyle = UI_COLORS.faceWhite;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1, 1.5 * eu);
+  ctx.fillRect(-arm / 2, -thick / 2, arm, thick);
+  ctx.strokeRect(-arm / 2, -thick / 2, arm, thick);
+  ctx.fillRect(-thick / 2, -arm / 2, thick, arm);
+  ctx.strokeRect(-thick / 2, -arm / 2, thick, arm);
   ctx.restore();
 }
 
@@ -662,14 +992,18 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
   const barH = Math.max(2, enemy.r * 0.3);
   const barGap = Math.max(3, enemy.r * 0.55);
 
+  // Zemin Temas Gölgesi (Diorama Ground Shadow)
+  drawDioramaShadow(ctx, enemy.x, enemy.y, enemy.r, {
+    u: eu,
+    aspect: 0.55,
+    alpha: enemy.boss ? 0.36 : (enemy.elite ? 0.28 : 0.20),
+  });
+
   ctx.save();
   ctx.translate(enemy.x, enemy.y);
   ctx.rotate(enemy.angle || 0);
-  // Vuruş: gövdeyi saf beyaza boyamak türün rengini ve siluetini birkaç kare
-  // tamamen siliyordu — "parladı" değil "kayboldu" okunuyordu. Gövde artık
-  // kendi renginde kalır, kontur parlar ve gövde anlık büyür. HP çubuğu
-  // aşağıda restore sonrası dünya koordinatlarında çizildiği için bu
-  // ölçekten etkilenmez.
+  // Vuruş: gövdeyi saf beyaza boyamak türün rengini ve silueti siliyordu.
+  // Gövde kendi renginde kalır, kontur parlar ve gövde anlık büyür.
   const flinch = enemy.hit && withFx ? 1.12 : 1;
   if (flinch !== 1) ctx.scale(flinch, flinch);
   const fill = enemy.type === 'shooter'
@@ -679,40 +1013,35 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
       : enemy.type === 'healer'
         ? '#16A34A'
         : BLOOD;
+  const isEliteOrBoss = enemy.boss || enemy.elite;
+  const hpRatio = clamp01(enemy.hp / enemy.maxHp);
+  if (enemy.type === 'chaser') drawEnemyBackSpikes(ctx, enemy.r, eu);
   ctx.fillStyle = fill;
-  ctx.strokeStyle = enemy.boss || enemy.elite ? GOLD : INK;
+  ctx.strokeStyle = isEliteOrBoss ? GOLD : INK;
   ctx.lineWidth = Math.max(1.5, (enemy.boss ? 5 : 3) * eu);
-  ctx.beginPath();
+  ctx.lineJoin = 'round';
   if (enemy.type === 'tank') {
-    ctx.rect(-enemy.r, -enemy.r, enemy.r * 2, enemy.r * 2);
+    traceTankHull(ctx, enemy.r);
   } else if (enemy.type === 'healer') {
-    ctx.moveTo(0, -enemy.r);
-    ctx.lineTo(enemy.r, 0);
-    ctx.lineTo(0, enemy.r);
-    ctx.lineTo(-enemy.r, 0);
-    ctx.closePath();
+    traceDiamondHull(ctx, enemy.r);
   } else if (enemy.type === 'shooter') {
-    for (let i = 0; i < 6; i++) {
-      const a = (i * Math.PI) / 3;
-      if (i === 0) ctx.moveTo(Math.cos(a) * enemy.r, Math.sin(a) * enemy.r);
-      else ctx.lineTo(Math.cos(a) * enemy.r, Math.sin(a) * enemy.r);
-    }
-    ctx.closePath();
+    traceHexHull(ctx, enemy.r);
   } else {
-    if (enemy.elite) {
-      for (let i = 0; i < 10; i++) {
-        const a = (i * Math.PI) / 5;
-        const r2 = i % 2 === 0 ? enemy.r : enemy.r * 0.75;
-        if (i === 0) ctx.moveTo(Math.cos(a) * r2, Math.sin(a) * r2);
-        else ctx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
-      }
-      ctx.closePath();
-    } else {
-      ctx.arc(0, 0, enemy.r, 0, Math.PI * 2);
-    }
+    ctx.beginPath();
+    ctx.arc(0, 0, enemy.r, 0, Math.PI * 2);
   }
   ctx.fill();
   ctx.stroke();
+  paintEnemyVolume(ctx, enemy.r);
+  if (enemy.type === 'chaser') {
+    drawChaserFace(ctx, enemy.r, eu);
+  } else if (enemy.type === 'shooter') {
+    drawShooterFace(ctx, enemy.r, eu, isEliteOrBoss);
+  } else if (enemy.type === 'tank') {
+    drawTankFace(ctx, enemy.r, eu, isEliteOrBoss, hpRatio);
+  } else if (enemy.type === 'healer') {
+    drawHealerFace(ctx, enemy.r, eu);
+  }
   if (enemy.elite && !enemy.boss) {
     ctx.strokeStyle = '#FFF7A3';
     ctx.lineWidth = Math.max(1, 2 * eu);
@@ -731,9 +1060,36 @@ function drawEnemy(ctx, enemy, withFx, now, obstacles = []) {
     ctx.lineTo(-enemy.r, 0);
     ctx.stroke();
   }
-  ctx.fillStyle = FLASH;
-  ctx.fillRect(enemy.r * 0.45, -3, enemy.r * 0.55, 6);
-  ctx.restore(); // Perf: health bar save/restore kaldırıldı — fillRect bağlamcıksız
+  ctx.restore();
+  if (enemy.boss) {
+    const crownW = enemy.r * 0.92;
+    const crownH = Math.max(4, enemy.r * 0.42);
+    const crownY = enemy.y - enemy.r - barGap - barH - crownH;
+    ctx.save();
+    ctx.translate(enemy.x, crownY);
+    const bob = Math.sin(now / 300) * Math.max(1, enemy.r * 0.04);
+    ctx.translate(0, bob);
+    ctx.fillStyle = GOLD;
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = Math.max(1.2, 2.4 * eu);
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-crownW / 2, 0);
+    ctx.lineTo(-crownW / 2, -crownH * 0.55);
+    ctx.lineTo(-crownW * 0.25, -crownH * 0.15);
+    ctx.lineTo(0, -crownH);
+    ctx.lineTo(crownW * 0.25, -crownH * 0.15);
+    ctx.lineTo(crownW / 2, -crownH * 0.55);
+    ctx.lineTo(crownW / 2, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = FLASH;
+    ctx.beginPath();
+    ctx.arc(0, -crownH, Math.max(1.5, crownH * 0.14), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
   const ratio = clamp01(enemy.hp / enemy.maxHp);
   ctx.fillStyle = INK;
@@ -831,22 +1187,71 @@ function drawPlayerWeapon(ctx, player) {
       drawBlade(0);
     }
   } else {
-    if (player.aiming) {
-      ctx.strokeStyle = player.weaponColor;
-      ctx.lineWidth = 3 * u;
-      ctx.beginPath();
-      ctx.moveTo(22 * k, 0);
-      ctx.lineTo(54 * k, 0);
-      ctx.stroke();
-    }
+    const R = player.radius || 30;
     const barrel = player.weaponBarrel;
-    const length = (barrel === 'rifle' ? 34 : barrel === 'shotgun' ? 28 : barrel === 'smg' ? 24 : 19) * k;
-    const thickness = (barrel === 'shotgun' ? 10 : barrel === 'rifle' ? 6 : 8) * u;
+    const isRifle = barrel === 'rifle';
+    const isShotgun = barrel === 'shotgun';
+    const isSmg = barrel === 'smg';
+    const gunLen = R * (isRifle ? 1.45 : isShotgun ? 0.9 : isSmg ? 1.05 : 0.95);
+    const gunThick = R * (isShotgun ? 0.42 : isRifle ? 0.22 : isSmg ? 0.28 : 0.26);
+    const baseX = R * 0.35;
+    const tipX = baseX + gunLen;
+    if (player.aiming) {
+      ctx.save();
+      ctx.globalAlpha = 0.45;
+      ctx.strokeStyle = player.weaponColor;
+      ctx.lineWidth = Math.max(1.5, 2.5 * u);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(tipX, 0);
+      ctx.lineTo(tipX + R * 0.9, 0);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = INK;
+    ctx.fillRect(baseX - 2 * u, -gunThick / 2 - 2 * u, gunLen + 4 * u, gunThick + 4 * u);
     ctx.fillStyle = player.weaponColor;
-    ctx.fillRect(13 * k, -thickness / 2, length, thickness);
+    ctx.fillRect(baseX, -gunThick / 2, gunLen, gunThick);
     ctx.strokeStyle = INK;
-    ctx.lineWidth = 2 * u;
-    ctx.strokeRect(13 * k, -thickness / 2, length, thickness);
+    ctx.lineWidth = Math.max(1, 1.6 * u);
+    ctx.strokeRect(baseX, -gunThick / 2, gunLen, gunThick);
+    if (isShotgun) {
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = Math.max(1, 1.4 * u);
+      ctx.beginPath();
+      ctx.moveTo(baseX + gunLen * 0.15, 0);
+      ctx.lineTo(baseX + gunLen * 0.95, 0);
+      ctx.stroke();
+    } else if (isRifle) {
+      ctx.fillStyle = INK;
+      ctx.fillRect(baseX + gunLen * 0.45, -gunThick / 2 - 3.5 * u, 7 * u, 3.5 * u);
+      ctx.fillStyle = FLASH;
+      ctx.fillRect(tipX - 2 * u, -gunThick / 2 + 1 * u, 2 * u, gunThick - 2 * u);
+    } else if (isSmg) {
+      ctx.fillStyle = INK;
+      ctx.fillRect(baseX + gunLen * 0.35, gunThick / 2, 6 * u, 5 * u);
+    } else {
+      ctx.fillStyle = FLASH;
+      ctx.beginPath();
+      ctx.arc(baseX + gunLen * 0.72, 0, Math.max(1.2, gunThick * 0.16), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const justFired = typeof player.fireCooldown === 'number' && player.fireCooldown < 0.45;
+    if (player.aiming || justFired) {
+      ctx.save();
+      ctx.globalAlpha = justFired ? 0.95 : 0.55;
+      ctx.fillStyle = FLASH;
+      ctx.beginPath();
+      ctx.arc(tipX + 1 * u, 0, Math.max(2, gunThick * 0.42), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = justFired ? 0.5 : 0.25;
+      ctx.fillStyle = player.weaponColor;
+      ctx.beginPath();
+      ctx.arc(tipX + 1 * u, 0, Math.max(3, gunThick * 0.8), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
   }
   ctx.restore();
 }
@@ -889,6 +1294,16 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0, selfSlot = -1 
     }
 
     drawPlayerWeapon(ctx, player);
+    // Horde twin-stick: squash hareket yönüne bakarsa nişan yönünden ayrılıp
+    // gövde yandan basılmış gibi duruyordu. Diğer modlarda ikisi aynı yön,
+    // burada ayrı. Büyüklük aynı dil, açı hep namluya kilitli.
+    const rawSquash = computeAvatarKineticDeformation(
+      { ...player, facingAngle: player.angle, angle: player.angle },
+      { facingAngle: player.angle },
+    );
+    const tame = 0.18;
+    const squashX = 1 + (rawSquash.squashX - 1) * tame;
+    const squashY = 1 + (rawSquash.squashY - 1) * tame;
     drawGameAvatar(ctx, 0, 0, R, {
       ...player,
       index: player.slot,
@@ -905,6 +1320,11 @@ function drawHordePlayers(ctx, players, { withFx = true, now = 0, selfSlot = -1 
       lookAngle: player.lookAngle,
       now,
       alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
+      // Horde twin-stick: tam squash nişan okumasını bozuyordu, sıfırlamak
+      // hissi öldürüyordu. Diğer modlarla aynı dil, dozu kısık, açı namluda.
+      squashX,
+      squashY,
+      squashAngle: player.angle || 0,
     });
     ctx.restore();
 
@@ -1032,60 +1452,142 @@ function drawHordeVitals(ctx, player, hu) {
   }
 }
 
-function drawLoadoutCrate(ctx, crate, now) {
+function hordePickupStyle(type) {
+  if (type === 'HEAL') return { bg: UI_COLORS.success, ink: UI_COLORS.faceWhite, icon: 'heart' };
+  if (type === 'SHIELD') return { bg: UI_COLORS.hudShield, ink: UI_COLORS.faceWhite, icon: 'shield' };
+  if (type === 'FAST') return { bg: UI_COLORS.gold, ink: UI_COLORS.ink, icon: 'zap' };
+  return { bg: UI_COLORS.danger, ink: UI_COLORS.faceWhite, icon: 'flame' };
+}
+
+function drawHordePickup(ctx, pickup, u) {
+  const half = Math.max(10 * u, (pickup.size || 30) / 2);
+  const style = hordePickupStyle(pickup.type);
+  const t = Number(pickup.animTime || 0);
+  const pulse = 1 + Math.sin(t * 5.2) * 0.05;
+  const hover = (Math.sin(t * 4.1) + 1) / 2;
+  ctx.save();
+  ctx.translate(pickup.x, pickup.y);
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = style.bg;
+  ctx.beginPath();
+  ctx.ellipse(0, half * 0.42, half * 1.25, half * 0.38, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.translate(0, -hover * half * 0.18);
+  ctx.scale(pulse, pulse);
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.arc(0, half * 0.1, half, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = style.bg;
+  ctx.beginPath();
+  ctx.arc(0, 0, half * 0.92, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = FLASH;
+  ctx.beginPath();
+  ctx.ellipse(-half * 0.28, -half * 0.34, half * 0.4, half * 0.22, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1.5, half * 0.12);
+  ctx.beginPath();
+  ctx.arc(0, 0, half * 0.92, 0, Math.PI * 2);
+  ctx.stroke();
+  if (pickup.type === 'HEAL') {
+    const arm = half * 0.62;
+    const thick = Math.max(2, half * 0.26);
+    ctx.fillStyle = style.ink;
+    ctx.fillRect(-arm / 2, -thick / 2, arm, thick);
+    ctx.fillRect(-thick / 2, -arm / 2, thick, arm);
+  } else {
+    drawTabletopIcon(ctx, style.icon, 0, 0, Math.round(half * 1.05), { color: style.ink });
+  }
+  ctx.restore();
+}
+
+function drawLoadoutCrate(ctx, crate, now, arena) {
   const claimed = crate.claimedBy !== null;
-  const pulse = 1 + Math.sin(now / 240 + crate.id) * 0.05;
+  const u = arena?.unit ?? (arena?.size ? arena.size / 952 : 1);
+  const half = Math.max(20, 30 * u);
+  const pulse = 1 + Math.sin(now / 240 + (crate.id || 0)) * 0.04;
   ctx.save();
   ctx.translate(crate.x, crate.y);
+  if (!claimed) {
+    ctx.save();
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = crate.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, half * 1.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
   ctx.scale(pulse, pulse);
-  ctx.globalAlpha = claimed ? 0.32 : 1;
+  ctx.globalAlpha = claimed ? 0.35 : 1;
   ctx.fillStyle = INK;
-  ctx.fillRect(-24, -24, 52, 52);
-  const cu = 1;
-  ctx.fillStyle = '#FAF7F2';
-  ctx.fillRect(-27, -27, 50, 50);
+  ctx.fillRect(-half - 3 * u, -half - 3 * u, (half + 3 * u) * 2, (half + 3 * u) * 2);
+  ctx.fillStyle = UI_COLORS.crownPaperLight;
+  ctx.fillRect(-half, -half, half * 2, half * 2);
   ctx.strokeStyle = crate.color;
-  ctx.lineWidth = Math.max(2, 5 * cu);
-  ctx.strokeRect(-27, -27, 50, 50);
+  ctx.lineWidth = Math.max(2, 4 * u);
+  ctx.strokeRect(-half, -half, half * 2, half * 2);
   ctx.fillStyle = crate.color;
-  ctx.fillRect(-22, -22, 40, 8);
+  ctx.fillRect(-half, -half, half * 2, Math.max(3, 7 * u));
 
   if (crate.kind === 'upgrade') {
     const meta = HORDE_UPGRADES[crate.upgradeId];
-    drawTabletopIcon(ctx, meta?.icon || 'sparkles', -2, 1, 28, { color: crate.color, accentColor: crate.color });
+    drawTabletopIcon(ctx, meta?.icon || 'sparkles', 0, half * 0.18, Math.round(half * 0.95), { color: crate.color, accentColor: crate.color });
   } else if (crate.weaponId === 'BLADE') {
     ctx.strokeStyle = crate.color;
-    ctx.lineWidth = Math.max(2, 7 * cu);
+    ctx.lineWidth = Math.max(2, 6 * u);
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(-14, 14); ctx.lineTo(15, -15);
+    ctx.moveTo(-half * 0.5, half * 0.5); ctx.lineTo(half * 0.55, -half * 0.55);
     ctx.stroke();
     ctx.strokeStyle = FLASH;
-    ctx.lineWidth = Math.max(1, 2 * cu);
+    ctx.lineWidth = Math.max(1, 1.8 * u);
     ctx.stroke();
+    ctx.lineCap = 'butt';
   } else {
     const rifle = crate.weaponId === 'RIFLE';
     const shotgun = crate.weaponId === 'SHOTGUN';
+    const w = half * (rifle ? 1.25 : shotgun ? 1.05 : 0.9);
+    const h = Math.max(3, half * (shotgun ? 0.34 : 0.26));
+    ctx.fillStyle = INK;
+    ctx.fillRect(-w / 2 - 1.5 * u, -h / 2 - 1.5 * u + half * 0.15, w + 3 * u, h + 3 * u);
     ctx.fillStyle = crate.color;
-    ctx.fillRect(-16, -4, rifle ? 38 : shotgun ? 31 : 25, shotgun ? 10 : 8);
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = Math.max(1, 3 * cu);
-    ctx.strokeRect(-16, -4, rifle ? 38 : shotgun ? 31 : 25, shotgun ? 10 : 8);
+    ctx.fillRect(-w / 2, -h / 2 + half * 0.15, w, h);
+    ctx.fillStyle = FLASH;
+    ctx.fillRect(w / 2 - 3 * u, -h / 2 + half * 0.15, 3 * u, h);
   }
 
   if (claimed) {
+    ctx.globalAlpha = 1;
     ctx.fillStyle = crate.color;
     ctx.beginPath();
-    ctx.arc(18, 18, 5, 0, Math.PI * 2);
+    ctx.arc(half * 0.72, half * 0.72, Math.max(3, 4.5 * u), 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = FLASH;
+    ctx.lineWidth = Math.max(1.2, 1.8 * u);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(half * 0.72 - 2.4 * u, half * 0.72);
+    ctx.lineTo(half * 0.72 - 0.4 * u, half * 0.72 + 2 * u);
+    ctx.lineTo(half * 0.72 + 2.6 * u, half * 0.72 - 2.2 * u);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
   }
-  ctx.font = '900 8px "JetBrains Mono", monospace';
+  const fs = Math.max(9, Math.round(11 * u));
+  ctx.font = '900 ' + fs + 'px ' + UI_FONTS.mono;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillStyle = INK;
   ctx.fillText(
     t(crate.kind === 'weapon' ? `horde.weapon.${crate.weaponId}` : `horde.upgrade.${crate.upgradeId}`),
     0,
-    31,
+    half + 5 * u,
   );
   ctx.restore();
 }
@@ -1100,10 +1602,10 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
   }
 
   if (scene.portal) drawExtractionGate(ctx, scene.portal, now);
-  for (const crate of scene.loadoutCrates || []) drawLoadoutCrate(ctx, crate, now);
-  for (const pickup of scene.pickups || []) drawPickup(ctx, pickup, { size: pickup.size });
-
   const u = arena?.unit ?? (arena?.size ? arena.size / 952 : 1);
+  for (const crate of scene.loadoutCrates || []) drawLoadoutCrate(ctx, crate, now, arena);
+  for (const pickup of scene.pickups || []) drawHordePickup(ctx, pickup, u);
+
   for (const tomb of scene.tombs || []) {
     ctx.save();
     ctx.translate(tomb.x, tomb.y);
@@ -1132,22 +1634,59 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
     ctx.lineCap = 'round';
     for (const bullet of bullets) {
       if (bullet.enemy) {
+        const er = Math.max(3, bullet.radius) + 1;
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = bullet.color || BLOOD;
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, er + 3.5 * u, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
         ctx.fillStyle = bullet.color || BLOOD;
         ctx.strokeStyle = FLASH;
         // Mermi konturu saha ölçeğiyle büyür (I6): sabit 1.5 px telefonda
         // kalın flaşı yok ediyordu. Taban 1 px — ince ekranda kaybolmasın.
         ctx.lineWidth = Math.max(1, 1.5 * u);
         ctx.beginPath();
-        ctx.arc(bullet.x, bullet.y, Math.max(3, bullet.radius) + 1, 0, Math.PI * 2);
+        ctx.arc(bullet.x, bullet.y, er, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+        ctx.fillStyle = INK;
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, Math.max(1.2, er * 0.38), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = FLASH;
+        ctx.beginPath();
+        ctx.arc(bullet.x - er * 0.25, bullet.y - er * 0.28, Math.max(1, er * 0.22), 0, Math.PI * 2);
+        ctx.fill();
       } else {
-        ctx.strokeStyle = bullet.color || '#D84727';
+        const tailX = bullet.x - bullet.vx * 0.035;
+        const tailY = bullet.y - bullet.vy * 0.035;
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.strokeStyle = bullet.color || BLOOD;
+        ctx.lineWidth = Math.max(3, bullet.radius) * 2.1;
+        ctx.beginPath();
+        ctx.moveTo(bullet.x, bullet.y);
+        ctx.lineTo(tailX, tailY);
+        ctx.stroke();
+        ctx.restore();
+        ctx.strokeStyle = bullet.color || BLOOD;
         ctx.lineWidth = Math.max(3, bullet.radius);
         ctx.beginPath();
         ctx.moveTo(bullet.x, bullet.y);
-        ctx.lineTo(bullet.x - bullet.vx * 0.025, bullet.y - bullet.vy * 0.025);
+        ctx.lineTo(tailX, tailY);
         ctx.stroke();
+        ctx.strokeStyle = FLASH;
+        ctx.lineWidth = Math.max(1.2, Math.max(3, bullet.radius) * 0.45);
+        ctx.beginPath();
+        ctx.moveTo(bullet.x, bullet.y);
+        ctx.lineTo(bullet.x - (bullet.x - tailX) * 0.45, bullet.y - (bullet.y - tailY) * 0.45);
+        ctx.stroke();
+        ctx.fillStyle = FLASH;
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, Math.max(1.4, bullet.radius * 0.5), 0, Math.PI * 2);
+        ctx.fill();
       }
     }
     ctx.restore();

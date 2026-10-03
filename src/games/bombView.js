@@ -12,6 +12,7 @@ import {
   packFxState, isValidFxState, drawFxRings, drawFxPops, drawSquareParticles,
 } from './worldCore.js';
 import { renderEntityHUD } from '../ui/hud.js';
+import { drawDioramaSphere } from '../core/dioramaKit.js';
 import { UI_COLORS } from '../ui/tokens.js';
 import { t } from '../i18n.js';
 
@@ -327,24 +328,52 @@ export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15
     const bombStun = withFx && player.stumble > 0;
 
     if (isCarrier) {
-      const bombY = -radius - 18;
-      ctx.fillStyle = '#1C1C1A';
-      ctx.beginPath();
-      ctx.arc(0, bombY, 11, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#FAF7F2';
-      ctx.lineWidth = 1.5 * u;
-      ctx.stroke();
+      const urgency = 1 - Math.max(0, bombTimer / Math.max(1, bombMaxTime));
+      const pulseFreq = 6 + urgency * 16;
+      const bScale = 1 + Math.sin(performance.now() * 0.001 * pulseFreq) * (0.05 + urgency * 0.12);
+      const bombY = -radius - 20 * u;
+      const bR = 12 * u;
+
+      ctx.save();
+      ctx.translate(0, bombY);
+      ctx.scale(bScale, bScale);
+
+      // Bomba metalik gövdesi (2.5D kütle)
+      drawDioramaSphere(ctx, 0, 0, bR, UI_COLORS.inkDark, {
+        u,
+        highlightAlpha: 0.45,
+        strokeWidth: 2.2,
+      });
+
+      // Boyun halkası
+      ctx.fillStyle = UI_COLORS.inkMuted || '#1C1C1A';
+      ctx.fillRect(-bR * 0.3, -bR - 2 * u, bR * 0.6, 3 * u);
+
+      // Kıvrımlı fitil ipi
       ctx.strokeStyle = '#D84727';
-      ctx.lineWidth = 2.5 * u;
+      ctx.lineWidth = Math.max(1.5, 2.2 * u);
       ctx.beginPath();
-      ctx.moveTo(0, bombY - 10);
-      ctx.quadraticCurveTo(6, bombY - 16, 4, bombY - 20);
+      ctx.moveTo(0, -bR - 2 * u);
+      ctx.quadraticCurveTo(6 * u, -bR - 8 * u, 4 * u, -bR - 13 * u);
       ctx.stroke();
-      ctx.fillStyle = Math.random() > 0.5 ? UI_COLORS.hudAmber : '#D84727';
+
+      // Fitil ateşi ve kıvılcım (canlı sarı + kızıl parıltı)
+      const sparkT = performance.now() * 0.015;
+      const sparkR = 3.5 * u + Math.sin(sparkT * 3) * 1.5 * u;
+      ctx.fillStyle = urgency > 0.6 ? '#D84727' : UI_COLORS.hudAmber;
       ctx.beginPath();
-      ctx.arc(4, bombY - 20, 3.5, 0, Math.PI * 2);
+      ctx.arc(4 * u, -bR - 13 * u, sparkR, 0, Math.PI * 2);
       ctx.fill();
+
+      // Minik kıvılcım sıçramaları
+      ctx.fillStyle = UI_COLORS.hudAmber;
+      for (let sp = 0; sp < 3; sp++) {
+        const sa = sparkT * 2 + sp * 2.1;
+        const sdist = (4 + sp * 3) * u;
+        ctx.fillRect(4 * u + Math.cos(sa) * sdist, -bR - 13 * u + Math.sin(sa) * sdist, 1.8 * u, 1.8 * u);
+      }
+
+      ctx.restore();
     }
 
     ctx.restore();
