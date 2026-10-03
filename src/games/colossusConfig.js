@@ -2,10 +2,13 @@
 // DOM/Canvas bağımlılığı yoktur; motor, tester ve istatistikler aynı değerleri okur.
 
 import { FIELD_THEMES } from '../core/fieldKit.js';
+import { UI_COLORS } from '../ui/tokens.js';
 
 export const COLOSSUS_WEAPONS = Object.freeze({
   RIFLE: Object.freeze({
     id: 'RIFLE',
+    nameKey: 'colossus.weaponRifle',
+    icon: 'rifle',
     kind: 'gun',
     damage: 3,
     fireInterval: 0.22,
@@ -15,39 +18,119 @@ export const COLOSSUS_WEAPONS = Object.freeze({
     reloadTime: 1.25,
     knockback: 15,
     stagger: 3,
-    color: '#38BDF8',
+    color: UI_COLORS.colossusRifle,
     barrel: 'rifle',
   }),
   SHOTGUN: Object.freeze({
     id: 'SHOTGUN',
+    nameKey: 'colossus.weaponShotgun',
+    icon: 'shotgun',
     kind: 'gun',
     damage: 2,
     pellets: 5,
     spread: 0.22,
     fireInterval: 0.68,
     projectileSpeed: 520,
-    range: 260,
+    range: 280,
     magazine: 8,
     reloadTime: 1.45,
     knockback: 65,
     stagger: 9,
-    color: '#F97316',
+    color: UI_COLORS.colossusShotgun,
     barrel: 'shotgun',
   }),
-  BLADE: Object.freeze({
-    id: 'BLADE',
-    kind: 'melee',
-    damage: 8,
-    fireInterval: 0.44,
-    range: 150,
-    arc: 3.4,
-    magazine: Infinity,
-    reloadTime: 0,
-    knockback: 120,
+  SNIPER: Object.freeze({
+    id: 'SNIPER',
+    nameKey: 'colossus.weaponSniper',
+    icon: 'crosshair',
+    kind: 'gun',
+    damage: 12,
+    fireInterval: 1.05,
+    projectileSpeed: 950,
+    range: 850,
+    magazine: 5,
+    reloadTime: 1.6,
+    knockback: 40,
     stagger: 18,
-    swingTime: 0.22,
-    color: '#A78BFA',
-    barrel: 'blade',
+    color: UI_COLORS.colossusSniper,
+    barrel: 'sniper',
+  }),
+  PLASMA: Object.freeze({
+    id: 'PLASMA',
+    nameKey: 'colossus.weaponPlasma',
+    icon: 'zap',
+    kind: 'gun',
+    damage: 7,
+    aoeRadius: 42,
+    fireInterval: 0.85,
+    projectileSpeed: 460,
+    range: 520,
+    magazine: 6,
+    reloadTime: 1.5,
+    knockback: 60,
+    stagger: 14,
+    color: UI_COLORS.colossusPlasma,
+    barrel: 'plasma',
+  }),
+});
+
+export const COLOSSUS_BOSSES = Object.freeze({
+  AEGIS: Object.freeze({
+    id: 'AEGIS',
+    name: 'AEGIS-01',
+    titleKey: 'colossus.bossAegisTitle',
+    theme: 'foundry',
+    bodyShape: 'mech',
+    baseHp: 180,
+    hpPerPlayer: 60,
+    radius: 84,
+    speedP1: 48,
+    speedP2: 58,
+    speedP3: 75,
+    hasShieldPhase: true,
+    accentColor: UI_COLORS.colossusRifle,
+    parts: Object.freeze([
+      { id: 'cannon', nameKey: 'colossus.partCannon', maxHp: 35, angleOffset: -Math.PI / 2, distRatio: 0.65, radius: 22 },
+      { id: 'armorPlate', nameKey: 'colossus.partArmor', maxHp: 45, angleOffset: 0, distRatio: 0.72, radius: 24 },
+    ]),
+  }),
+  IGNIS: Object.freeze({
+    id: 'IGNIS',
+    name: 'IGNIS-V',
+    titleKey: 'colossus.bossIgnisTitle',
+    theme: 'foundry',
+    bodyShape: 'scorpion',
+    baseHp: 200,
+    hpPerPlayer: 65,
+    radius: 78,
+    speedP1: 60,
+    speedP2: 76,
+    speedP3: 94,
+    hasShieldPhase: false,
+    accentColor: UI_COLORS.colossusIgnis,
+    parts: Object.freeze([
+      { id: 'stinger', nameKey: 'colossus.partStinger', maxHp: 38, angleOffset: Math.PI, distRatio: 0.88, radius: 22 },
+      { id: 'pincers', nameKey: 'colossus.partPincers', maxHp: 34, angleOffset: 0.35, distRatio: 0.74, radius: 24 },
+    ]),
+  }),
+  VOLT: Object.freeze({
+    id: 'VOLT',
+    name: 'VOLT-OMEGA',
+    titleKey: 'colossus.bossVoltTitle',
+    theme: 'reactor',
+    bodyShape: 'nexus',
+    baseHp: 170,
+    hpPerPlayer: 55,
+    radius: 74,
+    speedP1: 52,
+    speedP2: 68,
+    speedP3: 86,
+    hasShieldPhase: false,
+    accentColor: UI_COLORS.colossusSniper,
+    parts: Object.freeze([
+      { id: 'coil', nameKey: 'colossus.partCoil', maxHp: 32, angleOffset: 0, distRatio: 0, radius: 24 },
+      { id: 'capacitors', nameKey: 'colossus.partCapacitors', maxHp: 30, angleOffset: Math.PI * 0.5, distRatio: 0.72, radius: 20 },
+    ]),
   }),
 });
 
@@ -125,10 +208,35 @@ export const COLOSSUS_TUNING = Object.freeze({
 /**
  * Harita ve saha yapılandırması
  */
-export function getColossusMap() {
+export function getColossusMap(bossId = 'AEGIS') {
+  if (bossId === 'VOLT') {
+    return {
+      id: 'volt_core',
+      theme: FIELD_THEMES.reactor,
+      pillarOffsets: [
+        { x: -0.28, y: -0.25 },
+        { x: 0.28, y: -0.25 },
+        { x: -0.28, y: 0.25 },
+        { x: 0.28, y: 0.25 },
+      ],
+      pylonOffsets: [],
+    };
+  }
+  if (bossId === 'IGNIS') {
+    return {
+      id: 'ignis_core',
+      theme: FIELD_THEMES.foundry,
+      pillarOffsets: [
+        { x: -0.32, y: -0.24 },
+        { x: 0.32, y: -0.24 },
+        { x: 0, y: 0.28 },
+      ],
+      pylonOffsets: [],
+    };
+  }
   return {
     id: 'titan_core',
-    theme: FIELD_THEMES.foundry || FIELD_THEMES.reactor,
+    theme: FIELD_THEMES.foundry,
     pillarOffsets: [
       { x: -0.30, y: -0.28 },
       { x: 0.30, y: -0.28 },

@@ -14,10 +14,12 @@ import { dirname, join } from 'node:path';
 
 import {
   ROUND_GAP,
+  announcedRoundNumber,
   beginDrawRound,
   beginRound,
   endMatch,
   hasMatchResult,
+  installRoundAnnouncements,
   roundGapSeconds,
   roundTimedOut,
   roundTimerField,
@@ -202,6 +204,35 @@ test('roundTimedOut yalnız geçerli bir üst sınırda çalışır', () => {
   assert.equal(roundTimedOut(90, 90), true);
   assert.equal(roundTimedOut(89, 90), false);
   assert.equal(roundTimedOut(999, 0), false, 'süresiz oyunda zaman aşımı yok');
+});
+
+test('raunt anons numarası increment SONRASI değeri okur (off-by-one yok)', () => {
+  // `startNewRound` roundId'yi artırdıktan sonra okunur; +1 eklenmez —
+  // eski kod bir raunt ileriden anons ediyordu ("round 1" hiç çalmıyordu).
+  assert.equal(announcedRoundNumber({ roundId: 1 }), 1);
+  assert.equal(announcedRoundNumber({ roundId: 3 }), 3);
+  assert.equal(announcedRoundNumber({ roundId: 0 }), 1);
+  assert.equal(announcedRoundNumber({}), 1);
+  assert.equal(announcedRoundNumber({ roundId: 'not-a-number' }), 1);
+  assert.equal(announcedRoundNumber(null), 1);
+});
+
+test('installRoundAnnouncements: maç başı roundId sıfırlanır, startNewMatch korunur', () => {
+  let called = 0;
+  const game = {
+    roundId: 7,
+    startNewMatch() { called += 1; this.roundId += 1; return 'ok'; },
+  };
+  installRoundAnnouncements(game);
+  const result = game.startNewMatch();
+  assert.equal(called, 1);
+  assert.equal(result, 'ok', 'sarmalayıcı dönüş değerini yutmamalı');
+  assert.equal(game.roundId, 1, 'her maç 1. raunttan başlar');
+
+  // İkinci kurulum üst üste sarmamalı (tek çağrı).
+  installRoundAnnouncements(game);
+  game.startNewMatch();
+  assert.equal(called, 2);
 });
 
 // ── KİLİT ────────────────────────────────────────────────────────────────

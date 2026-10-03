@@ -249,7 +249,10 @@ test('Lobby render populates start button and tapping start transitions to PLAYI
   game.render();
   assert.ok(game.uiButtons.length > 0, 'UI buttons must be populated in LOBBY');
 
-  const startBtn = game.uiButtons.find((btn) => Math.abs(btn.x + btn.w / 2 - game.arena.cx) < 10);
+  const startBtn = game.uiButtons.find((btn) =>
+    Math.abs(btn.x + btn.w / 2 - game.arena.cx) < 10
+    && Math.abs(btn.y + btn.h / 2 - game.arena.cy) < 60
+  );
   assert.ok(startBtn, 'Start button must exist in uiButtons');
 
   // Dokunuş başlat düğmesine tıklar
@@ -397,6 +400,107 @@ test('MATCH_OVER provides clickable uiButtons and allows keyboard restart', () =
   // Keyboard restart transitions back to PLAYING
   game.startNewMatch();
   assert.equal(game.state, 'PLAYING');
+});
+
+test('Boss Selection cycles through roster and spawns selected boss with parts and map', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+
+  assert.equal(game.selectedBossId, 'AEGIS');
+  game.cycleBossSelection(1);
+  assert.equal(game.selectedBossId, 'IGNIS');
+  game.cycleBossSelection(1);
+  assert.equal(game.selectedBossId, 'VOLT');
+  game.cycleBossSelection(1);
+  assert.equal(game.selectedBossId, 'AEGIS');
+
+  // Select IGNIS and start battle
+  game.cycleBossSelection(1);
+  assert.equal(game.selectedBossId, 'IGNIS');
+  game.startNewMatch();
+
+  assert.equal(game.boss.id, 'IGNIS');
+  assert.equal(game.boss.bodyShape, 'scorpion');
+  assert.ok(game.boss.parts.some((p) => p.id === 'stinger'), 'IGNIS must have stinger part');
+  assert.ok(game.boss.parts.some((p) => p.id === 'pincers'), 'IGNIS must have pincers part');
+
+  // Select VOLT and start battle
+  game.resetMatch();
+  game.selectedBossId = 'VOLT';
+  game.startNewMatch();
+
+  assert.equal(game.boss.id, 'VOLT');
+  assert.equal(game.boss.bodyShape, 'nexus');
+  assert.ok(game.boss.parts.some((p) => p.id === 'coil'), 'VOLT must have coil part');
+  assert.ok(game.boss.parts.some((p) => p.id === 'capacitors'), 'VOLT must have capacitors part');
+});
+
+test('Weapon Selection allows cycling loadouts and alters projectile mechanics', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+
+  // Cycle P1 weapon: RIFLE -> SHOTGUN -> SNIPER -> PLASMA
+  assert.equal(game.selectedWeapons[0], 'RIFLE');
+  game.cyclePlayerWeapon(0, 1);
+  assert.equal(game.selectedWeapons[0], 'SHOTGUN');
+
+  game.startNewMatch();
+  const p1 = game.players[0];
+  assert.equal(p1.weaponId, 'SHOTGUN');
+
+  // Shotgun fires 5 pellets
+  game.projectiles = [];
+  game.firePlayerWeapon(p1);
+  assert.equal(game.projectiles.length, 5, 'Shotgun must fire 5 pellets');
+  assert.equal(game.projectiles[0].damage, 2);
+
+  // Sniper fires single high-damage shot
+  game.cyclePlayerWeapon(0, 1); // SHOTGUN -> SNIPER
+  p1.attackCooldown = 0;
+  p1.ammo = 5;
+  game.projectiles = [];
+  game.firePlayerWeapon(p1);
+  assert.equal(game.projectiles.length, 1, 'Sniper fires 1 bullet');
+  assert.equal(game.projectiles[0].damage, 12, 'Sniper does 12 damage');
+
+  // Plasma fires explosive AoE projectile
+  game.cyclePlayerWeapon(0, 1); // SNIPER -> PLASMA
+  p1.attackCooldown = 0;
+  p1.ammo = 6;
+  game.projectiles = [];
+  game.firePlayerWeapon(p1);
+  assert.equal(game.projectiles.length, 1, 'Plasma fires 1 projectile');
+  assert.ok(game.projectiles[0].aoeRadius > 0, 'Plasma projectile has aoeRadius');
+});
+
+test('Destructible Boss Parts can be damaged and broken, breaking front armor negates damage penalty', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.selectedBossId = 'AEGIS';
+  game.startNewMatch();
+
+  const armorPart = game.boss.parts.find((p) => p.id === 'armorPlate');
+  assert.ok(armorPart, 'AEGIS must have armorPlate part');
+  assert.equal(armorPart.broken, false);
+
+  // Hit the front armor part directly
+  const partAngle = game.boss.angle + armorPart.angleOffset;
+  const partDist = game.boss.radius * armorPart.distRatio;
+  const partX = game.boss.x + Math.cos(partAngle) * partDist;
+  const partY = game.boss.y + Math.sin(partAngle) * partDist;
+
+  // Apply enough damage to break the armor plate
+  game.applyDamageToBoss(armorPart.maxHp + 5, partX, partY, 10);
+  assert.equal(armorPart.broken, true, 'Armor plate should be broken after receiving full damage');
+
+  // Frontal hits now bypass the 85% penalty because armor is broken!
+  const hpBefore = game.boss.hp;
+  const frontHitX = game.boss.x;
+  const frontHitY = game.boss.y + game.boss.radius;
+  game.applyDamageToBoss(10, frontHitX, frontHitY, 4);
+
+  const frontDmg = hpBefore - game.boss.hp;
+  assert.equal(frontDmg, 10, 'Frontal hit should do 100% full damage when front armor is broken');
 });
 
 

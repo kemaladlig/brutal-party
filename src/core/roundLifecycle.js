@@ -60,14 +60,54 @@ export function roundTimerField(game) {
   return null;
 }
 
+/**
+ * Çalınacak raunt anonsunun numarası. `roundId` motorun BENZERSİZ raunt
+ * sayacıdır; increment SONRASI değeri başlayan rauntur. Eski kod increment
+ * sonrası `+1` ekliyordu ve bir raunt ileriden anons ediyordu ("round 1" hiç,
+ * 1. raunt bitince "round 3"). Geçersiz/eksik değerde 1'e düşer.
+ * @param {any} game
+ * @returns {number}
+ */
+export function announcedRoundNumber(game) {
+  const n = Math.round(Number(game?.roundId));
+  return Number.isFinite(n) && n >= 1 ? n : 1;
+}
+
+/** Geçerli rauntu anons et (tek kapı: `playRoundCall` sınırlar). @param {any} game */
+export function announceRoundStart(game) {
+  try { playRoundCall(announcedRoundNumber(game)); } catch {}
+}
+
 /** Raunttan sonraki rauntu başlatan motor metodu. Sözleşme adı `startNewRound`. */
 function startNextRound(game) {
   if (typeof game.startNewRound === 'function') game.startNewRound();
   else if (typeof game.startRound === 'function') game.startRound();
-  try {
-    const roundNum = (Number(game?.roundId) || 0) + 1;
-    playRoundCall(roundNum);
-  } catch {}
+  announceRoundStart(game);
+}
+
+/**
+ * Maç başı raunt anonsunu tek noktadan bağla. Motorun `startNewMatch`'i
+ * sarılır: sayaç maç başına sıfırlanır (roundId aksi hâlde maçlar arasında
+ * birikir ve "yeniden oyna" yanlış raunt anons ederdi) ve başlayan raunt
+ * anons edilir. Böylece LOCAL/dokunmatik/klavye/registry yollarının HEPSİ
+ * aynı kapıdan geçer; 13 motora ayrı çağrı yazılmaz (AGENTS §6, §8).
+ *
+ * Bir kez kurulur (`__roundAnnouncements` işareti), yoksa üst üste sarmalanır.
+ * @param {any} game
+ * @returns {any}
+ */
+export function installRoundAnnouncements(game) {
+  if (!game || game.__roundAnnouncements || typeof game.startNewMatch !== 'function') return game;
+  const original = game.startNewMatch.bind(game);
+  game.startNewMatch = (...args) => {
+    game.roundId = 0;
+    const result = original(...args);
+    // Oyuncu yokluğu gibi sebeplerle lobide kalan motor anons etmez.
+    if (game.state !== 'LOBBY') announceRoundStart(game);
+    return result;
+  };
+  game.__roundAnnouncements = true;
+  return game;
 }
 
 /**

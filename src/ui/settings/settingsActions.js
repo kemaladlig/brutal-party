@@ -8,7 +8,7 @@ import { isColorblindEnabled, setColorblindEnabled } from '../../core/customizat
 import { isPersistent } from '../../core/safeStorage.js';
 import { getPreference, setPreference } from '../../core/preferences.js';
 import { applyUpdate, checkForUpdates, isUpdateAvailable, onUpdateStatusChange } from '../../core/updateManager.js';
-import { toggleAudio, getIsMuted, playMenuTick } from '../../audio.js';
+import { toggleAudio, getIsMuted, isVoiceEnabled, setVoiceEnabled, playMenuTick } from '../../audio.js';
 import { getLang, setLang, t } from '../../i18n.js';
 import { showInstallToast } from '../toast.js';
 import { CONTROL_SURFACE, getControlSurfacePreference, setControlSurface } from '../tokens.js';
@@ -44,6 +44,17 @@ export const settingsActions = {
       // Açma yönü sessiz kalmasın: satırın önden çaldığı tick mute'ta
       // yutulur, burada teyit sesi gelir.
       if (!muted) { try { playMenuTick(); } catch {} }
+    },
+  },
+
+  // Fighter anonsu (raunt/fight/geri sayım). Varsayılan KAPALI — parti
+  // gürültüsünde isteyen açar; susturma anahtarından (sound) bağımsızdır.
+  voice: {
+    get: () => isVoiceEnabled(),
+    toggle: () => {
+      const next = !isVoiceEnabled();
+      setVoiceEnabled(next);
+      showInstallToast(next ? t('toast.voiceOn') : t('toast.voiceOff'));
     },
   },
 

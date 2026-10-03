@@ -18,6 +18,7 @@ import {
   playStart,
 } from '../audio.js';
 import {
+  COLOSSUS_BOSSES,
   COLOSSUS_TUNING,
   COLOSSUS_WEAPONS,
   getColossusMap,
@@ -49,6 +50,11 @@ export class ColossusGame extends BaseMiniGame {
     this.slotTypes = ['human', 'empty', 'empty', 'empty'];
     this.minPlayersToStart = 1;
 
+    this.selectedBossId = 'AEGIS';
+    this.bossOrder = ['AEGIS', 'IGNIS', 'VOLT'];
+    this.selectedWeapons = ['RIFLE', 'SHOTGUN', 'SNIPER', 'PLASMA'];
+    this.weaponOrder = ['RIFLE', 'SHOTGUN', 'SNIPER', 'PLASMA'];
+
     this.players = [];
     this.projectiles = [];
     this.pillars = [];
@@ -71,6 +77,27 @@ export class ColossusGame extends BaseMiniGame {
 
     this.initPlayers();
     this.bindStandardKeyboard();
+  }
+
+  cycleBossSelection(delta = 1) {
+    const idx = this.bossOrder.indexOf(this.selectedBossId);
+    const nextIdx = (idx + delta + this.bossOrder.length) % this.bossOrder.length;
+    this.selectedBossId = this.bossOrder[nextIdx];
+    try { playJoin(); } catch {}
+  }
+
+  cyclePlayerWeapon(slotIndex, delta = 1) {
+    const current = this.selectedWeapons[slotIndex] || 'RIFLE';
+    const idx = this.weaponOrder.indexOf(current);
+    const nextIdx = (idx + delta + this.weaponOrder.length) % this.weaponOrder.length;
+    const nextW = this.weaponOrder[nextIdx];
+    this.selectedWeapons[slotIndex] = nextW;
+    const player = this.players[slotIndex];
+    if (player) {
+      player.weaponId = nextW;
+      player.ammo = COLOSSUS_WEAPONS[nextW]?.magazine || 16;
+    }
+    try { playJoin(); } catch {}
   }
 
   getTabletopSchema() {
@@ -156,6 +183,11 @@ export class ColossusGame extends BaseMiniGame {
       const angle = Math.PI * 0.5 + (index - 1.5) * 0.35;
       const dist = Math.min(this.arena.width, this.arena.height) * 0.38;
 
+      const weaponId = isBot
+        ? (this.selectedWeapons[index] || this.weaponOrder[index % this.weaponOrder.length])
+        : (this.selectedWeapons[index] || 'RIFLE');
+      const weaponDef = COLOSSUS_WEAPONS[weaponId] || COLOSSUS_WEAPONS.RIFLE;
+
       return {
         index,
         name: existing?.name || (isBot ? persona.name : `P${index + 1}`),
@@ -178,8 +210,8 @@ export class ColossusGame extends BaseMiniGame {
         angle: -Math.PI / 2,
         hp: COLOSSUS_TUNING.MAX_HP,
         maxHp: COLOSSUS_TUNING.MAX_HP,
-        weaponId: 'RIFLE',
-        ammo: COLOSSUS_WEAPONS.RIFLE.magazine,
+        weaponId,
+        ammo: weaponDef.magazine,
         attackCooldown: 0,
         reloadTimer: 0,
         dashCooldown: 0,
@@ -238,7 +270,8 @@ export class ColossusGame extends BaseMiniGame {
     this.state = 'PLAYING';
     this.matchResult = null;
     this.onTouchesReset();
-    const map = getColossusMap();
+    const bossDef = COLOSSUS_BOSSES[this.selectedBossId] || COLOSSUS_BOSSES.AEGIS;
+    const map = getColossusMap(bossDef.id);
 
     // 1. Oyuncuları Oluştur (Güney yarım daire)
     this.initPlayers();
@@ -247,20 +280,31 @@ export class ColossusGame extends BaseMiniGame {
       player.hp = player.maxHp;
       player.isDowned = false;
       player.reviveProgress = 0;
-      player.ammo = COLOSSUS_WEAPONS[player.weaponId]?.magazine || 16;
+      const w = COLOSSUS_WEAPONS[player.weaponId] || COLOSSUS_WEAPONS.RIFLE;
+      player.ammo = w.magazine || 16;
     }
 
     const activeCount = this.players.filter((p) => p.isJoined).length || 1;
 
     // 2. Boss'u Oluştur (Kuzey Merkez)
-    const bossHp = COLOSSUS_TUNING.BASE_HP + (activeCount - 1) * COLOSSUS_TUNING.HP_PER_EXTRA_PLAYER;
+    const bossHp = (bossDef.baseHp || COLOSSUS_TUNING.BASE_HP) + (activeCount - 1) * (bossDef.hpPerPlayer || COLOSSUS_TUNING.HP_PER_EXTRA_PLAYER);
     this.boss = {
+      id: bossDef.id,
+      name: bossDef.name,
+      titleKey: bossDef.titleKey,
+      theme: bossDef.theme,
+      bodyShape: bossDef.bodyShape,
+      accentColor: bossDef.accentColor,
+      hasShieldPhase: bossDef.hasShieldPhase !== false,
+      speedP1: bossDef.speedP1,
+      speedP2: bossDef.speedP2,
+      speedP3: bossDef.speedP3,
       x: this.arena.cx,
       y: this.arena.cy - this.arena.height * 0.22,
       vx: 0,
       vy: 0,
       angle: Math.PI / 2,
-      radius: fieldRadius(this.arena, COLOSSUS_TUNING.BOSS_RADIUS),
+      radius: fieldRadius(this.arena, bossDef.radius || COLOSSUS_TUNING.BOSS_RADIUS),
       hp: bossHp,
       maxHp: bossHp,
       phase: 1,
@@ -277,6 +321,17 @@ export class ColossusGame extends BaseMiniGame {
       laserCooldown: 5.0,
       mortarCooldown: 4.0,
       chargeCooldown: 6.0,
+      parts: (bossDef.parts || []).map((p) => ({
+        id: p.id,
+        nameKey: p.nameKey,
+        hp: p.maxHp,
+        maxHp: p.maxHp,
+        angleOffset: p.angleOffset,
+        distRatio: p.distRatio,
+        radius: p.radius,
+        broken: false,
+        hitFlash: 0,
+      })),
     };
 
     // 3. Taş Sütunları Konumlandır
@@ -492,23 +547,28 @@ export class ColossusGame extends BaseMiniGame {
 
   enterPhase2() {
     this.boss.phase = 2;
-    this.boss.shielded = true;
-    const map = getColossusMap();
+    if (this.boss.hasShieldPhase) {
+      this.boss.shielded = true;
+      const map = getColossusMap(this.boss.id);
 
-    // 2 Pilon Oluştur
-    this.pylons = map.pylonOffsets.map((offset, idx) => ({
-      id: idx,
-      x: this.arena.cx + offset.x * this.arena.width,
-      y: this.arena.cy + offset.y * this.arena.height,
-      radius: fieldRadius(this.arena, COLOSSUS_TUNING.PYLON_RADIUS),
-      hp: COLOSSUS_TUNING.PYLON_HP,
-      maxHp: COLOSSUS_TUNING.PYLON_HP,
-      active: true,
-      hitFlash: 0,
-    }));
+      // Pilon Oluştur
+      this.pylons = map.pylonOffsets.map((offset, idx) => ({
+        id: idx,
+        x: this.arena.cx + offset.x * this.arena.width,
+        y: this.arena.cy + offset.y * this.arena.height,
+        radius: fieldRadius(this.arena, COLOSSUS_TUNING.PYLON_RADIUS),
+        hp: COLOSSUS_TUNING.PYLON_HP,
+        maxHp: COLOSSUS_TUNING.PYLON_HP,
+        active: true,
+        hitFlash: 0,
+      }));
+    } else {
+      this.boss.shielded = false;
+      this.pylons = [];
+    }
 
     try { playHordeBoom(); } catch {}
-    this.addDirectionalTrauma(0.4, 0, -1);
+    this.addDirectionalTrauma(0.5, 0, -1);
   }
 
   enterPhase3() {
@@ -596,7 +656,7 @@ export class ColossusGame extends BaseMiniGame {
         if (pillar.hp <= 0) continue;
         if (distSq(p.x, p.y, pillar.x, pillar.y) < pillar.radius * pillar.radius) {
           hit = true;
-          pillar.hp -= 0.2;
+          pillar.hp -= (p.damage || 2) * 0.2;
           break;
         }
       }
@@ -619,7 +679,7 @@ export class ColossusGame extends BaseMiniGame {
         }
       }
 
-      // 3. Boss'a Çarpma (Ön Zırh vs Arka Çekirdek)
+      // 3. Boss'a Çarpma (Ön Zırh vs Arka Çekirdek ve Parçalar)
       if (!hit && this.boss && this.boss.hp > 0) {
         const dBoss = Math.sqrt(distSq(p.x, p.y, this.boss.x, this.boss.y));
         if (dBoss <= this.boss.radius) {
@@ -633,6 +693,18 @@ export class ColossusGame extends BaseMiniGame {
         }
       }
 
+      // 4. Plazma / Patlama AoE Etkisi
+      if (hit && p.aoeRadius > 0) {
+        this.addDirectionalTrauma(0.18, 0, 0);
+        try { playExplosion(); } catch {}
+        if (this.boss && !this.boss.shielded && this.boss.hp > 0) {
+          const dBoss = Math.sqrt(distSq(p.x, p.y, this.boss.x, this.boss.y));
+          if (dBoss <= this.boss.radius + p.aoeRadius && !hit) {
+            this.applyDamageToBoss((p.damage || 2) * 0.75, p.x, p.y, p.stagger || 4);
+          }
+        }
+      }
+
       if (hit || p.life <= 0) {
         this.projectiles.splice(i, 1);
       }
@@ -640,15 +712,46 @@ export class ColossusGame extends BaseMiniGame {
   }
 
   applyDamageToBoss(rawDamage, hitX, hitY, staggerAmount) {
-    // Vuruş açısını Boss'un baktığı yöne göre hesapla
+    if (!this.boss || this.boss.hp <= 0) return;
+
+    // 1. Boss Parçalarını Denetle (Destructible Parts)
+    let hitPart = null;
+    if (this.boss.parts) {
+      for (const part of this.boss.parts) {
+        if (part.broken) continue;
+        const partAngle = this.boss.angle + part.angleOffset;
+        const partDist = this.boss.radius * part.distRatio;
+        const px = this.boss.x + Math.cos(partAngle) * partDist;
+        const py = this.boss.y + Math.sin(partAngle) * partDist;
+        const pRad = part.radius || 22;
+        if (distSq(hitX, hitY, px, py) <= pRad * pRad) {
+          hitPart = part;
+          break;
+        }
+      }
+    }
+
+    if (hitPart) {
+      hitPart.hp -= rawDamage;
+      hitPart.hitFlash = 0.16;
+      if (hitPart.hp <= 0 && !hitPart.broken) {
+        hitPart.hp = 0;
+        hitPart.broken = true;
+        this.addDirectionalTrauma(0.45, 0, 0);
+        try { playExplosion(); } catch {}
+      }
+    }
+
+    // 2. Vuruş açısını Boss'un baktığı yöne göre hesapla
     const hitAngle = Math.atan2(hitY - this.boss.y, hitX - this.boss.x);
     const relAngle = Math.abs(normalizeAngle(hitAngle - this.boss.angle));
 
     // Arka zayıf nokta açısı: Math.PI etrafındaki koni
     const isRearCore = relAngle > (Math.PI - COLOSSUS_TUNING.CORE_ARC / 2);
+    const frontArmorBroken = this.boss.parts?.find((p) => p.id === 'armorPlate')?.broken === true;
 
-    if (isRearCore || this.boss.state === 'STAGGER') {
-      // ÇEKİRDEK KRİTİK VURUŞU!
+    if (isRearCore || this.boss.state === 'STAGGER' || frontArmorBroken) {
+      // ÇEKİRDEK KRİTİK VURUŞU veya ZIRH KIRILDI!
       const damage = rawDamage;
       this.boss.hp -= damage;
       this.boss.critFlash = 0.14;
@@ -739,8 +842,9 @@ export class ColossusGame extends BaseMiniGame {
         damage: w.damage,
         stagger: w.stagger,
         color: w.color,
-        radius: 3.5,
+        radius: w.aoeRadius ? 5 : 3.5,
         life: (w.range || 600) / w.projectileSpeed,
+        aoeRadius: w.aoeRadius || 0,
       });
     }
 
@@ -891,6 +995,82 @@ export class ColossusGame extends BaseMiniGame {
         player.slotType = this.slotTypes[index];
         player.isAlive = player.isJoined;
         try { playJoin(); } catch {}
+      },
+      customControls: (c) => {
+        if (this.state !== 'LOBBY') return;
+        const { cx, cy, width, height } = this.arena;
+        const bossDef = COLOSSUS_BOSSES[this.selectedBossId] || COLOSSUS_BOSSES.AEGIS;
+
+        // 1. Boss Seçim Kartı (Üst Merkez)
+        const bossCardW = Math.min(360, width * 0.76);
+        const bossCardH = 38;
+        const bossCardX = cx - bossCardW / 2;
+        const bossCardY = cy - height * 0.16;
+
+        c.save();
+        c.fillStyle = UI_COLORS.ink;
+        c.fillRect(bossCardX + 3, bossCardY + 3, bossCardW, bossCardH);
+        c.fillStyle = UI_COLORS.card;
+        c.fillRect(bossCardX, bossCardY, bossCardW, bossCardH);
+        c.strokeStyle = bossDef.accentColor || UI_COLORS.line;
+        c.lineWidth = Math.max(1.5, 2.5 * (this.arena?.unit ?? 1));
+        c.strokeRect(bossCardX, bossCardY, bossCardW, bossCardH);
+
+        c.fillStyle = UI_COLORS.ink;
+        c.font = 'bold 12px "JetBrains Mono", system-ui, sans-serif';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        const bossTitle = t(bossDef.titleKey) || bossDef.name;
+        c.fillText(`◀  BOSS: ${bossDef.name} (${bossTitle})  ▶`, cx, bossCardY + bossCardH / 2);
+        c.restore();
+
+        this.uiButtons.push({
+          x: bossCardX,
+          y: bossCardY,
+          w: bossCardW,
+          h: bossCardH,
+          onClick: () => this.cycleBossSelection(),
+        });
+
+        // 2. Oyuncu Silah Rozetleri (Alt Merkez)
+        const joinedPlayers = this.players.filter((p) => p.isJoined);
+        if (joinedPlayers.length > 0) {
+          const btnW = Math.min(110, (width * 0.8) / joinedPlayers.length - 8);
+          const btnH = 30;
+          const totalW = joinedPlayers.length * btnW + (joinedPlayers.length - 1) * 8;
+          const startX = cx - totalW / 2;
+          const btnY = cy + height * 0.16;
+
+          joinedPlayers.forEach((p, idx) => {
+            const bx = startX + idx * (btnW + 8);
+            const wDef = COLOSSUS_WEAPONS[p.weaponId] || COLOSSUS_WEAPONS.RIFLE;
+            const wName = t(wDef.nameKey) || p.weaponId;
+
+            c.save();
+            c.fillStyle = UI_COLORS.ink;
+            c.fillRect(bx + 2, btnY + 2, btnW, btnH);
+            c.fillStyle = p.color || UI_COLORS.card;
+            c.fillRect(bx, btnY, btnW, btnH);
+            c.strokeStyle = UI_COLORS.ink;
+            c.lineWidth = Math.max(1, 2 * (this.arena?.unit ?? 1));
+            c.strokeRect(bx, btnY, btnW, btnH);
+
+            c.fillStyle = UI_COLORS.white;
+            c.font = 'bold 11px system-ui, sans-serif';
+            c.textAlign = 'center';
+            c.textBaseline = 'middle';
+            c.fillText(`${p.name}: ${wName}`, bx + btnW / 2, btnY + btnH / 2);
+            c.restore();
+
+            this.uiButtons.push({
+              x: bx,
+              y: btnY,
+              w: btnW,
+              h: btnH,
+              onClick: () => this.cyclePlayerWeapon(p.index),
+            });
+          });
+        }
       },
     });
 

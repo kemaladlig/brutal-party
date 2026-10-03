@@ -8,6 +8,7 @@
 
 import { GAMEPAD_SCHEMAS } from '../controllers/gamepadSchemas.js';
 import { reportError } from './errorReporter.js';
+import { installRoundAnnouncements } from './roundLifecycle.js';
 
 export const GAME_ORDER = [
   'HORDE',
@@ -415,7 +416,11 @@ export async function ensureEngine(mode) {
   if (!loadingPromises[mode]) {
     loadingPromises[mode] = cart.load().then((GameClass) => {
       if (!engineCanvas) throw new Error('Engine canvas not set');
-      const entry = cart.createEngine(new GameClass(engineCanvas));
+      const game = new GameClass(engineCanvas);
+      // Maç başı raunt anonsu tek kapıdan: LOCAL/dokunmatik/klavye/restart
+      // yolları `startNewMatch`'i çağırdığı için burada bir kez sarılır.
+      installRoundAnnouncements(game);
+      const entry = cart.createEngine(game);
       registerEngine(mode, entry);
       moduleWarm.add(mode);
       return entry;

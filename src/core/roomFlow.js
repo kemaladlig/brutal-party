@@ -161,6 +161,9 @@ async function setGameMode(mode) {
   }
   entry.onEnter(now);
   entry.game.resize(window.innerWidth, window.innerHeight);
+  // Örnekler saha yüzeyi açılırken arka planda ısıtılır: LOCAL dahil her yolda
+  // ilk çalma synth'e düşmesin (raunt/fight anonsları dahil).
+  try { warmGameSounds(); } catch {}
   syncSlotsToEngine(entry.game, currentMode, activeNet().isHosting);
   setSeatTapHook();
 }
@@ -1126,7 +1129,7 @@ async function enterStaging(mode) {
   showStagingBar();
   showInstallToast(t('toast.stagingOpenHost'));
   // Voice/countdown files warm while players ready up (lazy, no UI block).
-  try { warmGameSounds(['ui.tick', 'ui.confirm', 'hit.punchLight', 'shot.laserSmall', 'voice.count3', 'voice.count2', 'voice.count1', 'voice.fight']); } catch {}
+  try { warmGameSounds(['ui.tick', 'ui.confirm', 'hit.punchLight', 'shot.laserSmall', 'voice.count3', 'voice.count2', 'voice.count1', 'voice.fight', 'voice.round1', 'voice.round2', 'voice.round3', 'voice.final']); } catch {}
 }
 
 // BAŞLAT #2: 3-2-1 → oyun (koltuklar kilitli)

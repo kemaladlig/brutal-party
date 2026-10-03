@@ -70,7 +70,7 @@ export function isVoiceEnabled() {
 
 /** Warm curated samples early (call on staging / match start). @param {string[]} [ids] */
 export function warmGameSounds(ids) {
-  try { preloadSamples(Array.isArray(ids) ? ids : ['ui.tick', 'ui.confirm', 'jingle.start', 'hit.punchLight', 'shot.laserSmall', 'tick.bomb', 'voice.count1', 'voice.fight']); } catch {}
+  try { preloadSamples(Array.isArray(ids) ? ids : ['ui.tick', 'ui.confirm', 'jingle.start', 'hit.punchLight', 'shot.laserSmall', 'tick.bomb', 'voice.count3', 'voice.count2', 'voice.count1', 'voice.fight', 'voice.round1', 'voice.round2', 'voice.round3', 'voice.final']); } catch {}
 }
 
 export function getIsMuted() {
@@ -977,7 +977,11 @@ export function playHordeBoom() {
 export function playCountdownTick(seconds) {
   const n = Math.min(3, Math.max(1, Math.round(seconds) || 1));
   const id = seconds > 0 ? ('voice.count' + n) : 'voice.fight';
-  if (sampleFirst(id)) return;
+  // Voice açık ve örnek hazırsa onu çal; kapalıysa görsel-olmayan `ui.tick`e
+  // düş — aksi hâlde voice kapatan oyuncu için geri sayım tamamen sessizleşirdi.
+  // (Muted durumda `sampleFirst` zaten true döner ve synth de susar.)
+  if (isVoiceEnabled() && sampleFirst(id)) return;
+  if (sampleFirst('ui.tick')) return;
   playGap();
 }
 
@@ -991,20 +995,10 @@ export function playRoundCall(round) {
 }
 
 export function playFightShout() {
-  if (sampleFirst('voice.fight')) return;
+  if (isVoiceEnabled() && sampleFirst('voice.fight')) return;
+  // Voice kapalıysa maç başı cue'su jingle'a düşer; o da yoksa synth.
+  if (sampleFirst('jingle.start')) return;
   playStart();
-}
-
-export function playWinVoice() {
-  if (sampleFirst('voice.win')) return;
-  if (sampleFirst('jingle.win')) return;
-  playPowerUp();
-}
-
-export function playLoseVoice() {
-  if (sampleFirst('voice.lose')) return;
-  if (sampleFirst('jingle.lose')) return;
-  playGoal();
 }
 
 export function playWinJingle() {

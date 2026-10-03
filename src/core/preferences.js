@@ -25,10 +25,11 @@ export const DEFAULT_PREFERENCES = Object.freeze({
   version: PREFERENCES_VERSION,
   controlSurface: 'auto',
   audioMuted: false,
-  // Sample layer levels (hidden prefs — no settings row yet, GENERAL budget
-  // is full; the mute switch stays the single visible control).
+  // Sample layer levels (audioVolume hidden — GENERAL budget is tight; the
+  // mute switch stays the single visible control). Voice: fighter voiceover
+  // (round/fight/count) is OFF by default and toggled from settings.
   audioVolume: 0.85,
-  audioVoice: true,
+  audioVoice: false,
   hapticsEnabled: false,
   pongInvert: 'auto',
   pongSensitivity: 1,

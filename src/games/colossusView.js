@@ -81,6 +81,11 @@ export function createColossusWorldPacket(game) {
     mapPlayer: mapColossusPlayer,
     extras: {
       boss: {
+        id: boss.id || 'AEGIS',
+        name: boss.name || 'AEGIS-01',
+        titleKey: boss.titleKey || 'colossus.bossAegisTitle',
+        bodyShape: boss.bodyShape || 'mech',
+        accentColor: boss.accentColor || COLOR_CYAN,
         x: round1(boss.x || 0),
         y: round1(boss.y || 0),
         angle: round1(boss.angle || 0),
@@ -96,6 +101,17 @@ export function createColossusWorldPacket(game) {
         shielded: boss.shielded === true,
         laserActive: boss.laserActive === true,
         laserProgress: round1(boss.laserProgress || 0),
+        parts: (boss.parts || []).map((p) => ({
+          id: p.id,
+          nameKey: p.nameKey,
+          hp: round1(p.hp),
+          maxHp: round1(p.maxHp),
+          broken: p.broken === true,
+          angleOffset: round1(p.angleOffset || 0),
+          distRatio: round1(p.distRatio || 0),
+          radius: round1(p.radius || 20),
+          hitFlash: round1(p.hitFlash || 0),
+        })),
       },
       pylons: (game.pylons || []).map((p) => ({
         id: p.id,
@@ -160,7 +176,10 @@ export function isValidColossusWorldFrame(frame) {
 export function colossusSceneFromFrame(frame) {
   return {
     phase: frame.gameState,
-    boss: frame.boss || {},
+    boss: frame.boss ? {
+      ...frame.boss,
+      parts: Array.isArray(frame.boss.parts) ? frame.boss.parts : [],
+    } : {},
     pylons: (frame.pylons || []).map((p) => ({
       x: p.x,
       y: p.y,
@@ -186,7 +205,7 @@ export function colossusSceneFromFrame(frame) {
  * 2.5D Boss Çizimi (AEGIS-01 / The Colossus)
  */
 function drawBoss(ctx, boss, arena, now = 0, u = 1) {
-  const { x, y, angle, radius, hp, maxHp, phase, state, stagger, hitFlash, critFlash, shielded, laserActive, targetSlot } = boss;
+  const { x, y, angle, radius, hp, maxHp, phase, state, stagger, hitFlash, critFlash, shielded, laserActive, targetSlot, bodyShape = 'mech', parts = [] } = boss;
   if (!finite(x) || !finite(y) || radius <= 0 || !finite(hp) || hp <= 0) return;
 
   const isStaggered = state === 'STAGGER';
@@ -197,7 +216,7 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
 
   // 1. Zemin Gölgesi (Contact AO + Drop Shadow)
   ctx.save();
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.45)';
+  ctx.fillStyle = COLOR_ARMOR_DARK;
   ctx.beginPath();
   ctx.ellipse(0, radius * 0.15, radius * 1.15, radius * 0.9, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -206,101 +225,228 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
   // 2. Boss Rotasyonu
   ctx.rotate(angle);
 
-  // Bacaklar / Treads (4 Mafsallı Mekanik Bacak)
-  const legCycle = Math.sin(now * 0.009) * (isStaggered ? 0.05 : 0.25);
-  const legPositions = [
-    { x: -radius * 0.7, y: -radius * 0.8, flipY: -1, phaseOffset: 0 },
-    { x: radius * 0.6, y: -radius * 0.8, flipY: -1, phaseOffset: Math.PI },
-    { x: -radius * 0.7, y: radius * 0.8, flipY: 1, phaseOffset: Math.PI },
-    { x: radius * 0.6, y: radius * 0.8, flipY: 1, phaseOffset: 0 },
-  ];
+  // 3. Gövde Çizimi (bodyShape'e göre)
+  if (bodyShape === 'scorpion') {
+    // IGNIS-V (Lav Akrebi)
+    const legPositions = [
+      { x: -radius * 0.4, y: -radius * 0.75, flipY: -1, phase: 0 },
+      { x: 0, y: -radius * 0.85, flipY: -1, phase: Math.PI * 0.5 },
+      { x: radius * 0.4, y: -radius * 0.75, flipY: -1, phase: Math.PI },
+      { x: -radius * 0.4, y: radius * 0.75, flipY: 1, phase: Math.PI },
+      { x: 0, y: radius * 0.85, flipY: 1, phase: Math.PI * 1.5 },
+      { x: radius * 0.4, y: radius * 0.75, flipY: 1, phase: 0 },
+    ];
+    ctx.fillStyle = COLOR_ARMOR_DARK;
+    ctx.strokeStyle = COLOR_RED;
+    ctx.lineWidth = Math.max(1, 2.5 * u);
+    for (const leg of legPositions) {
+      ctx.save();
+      const anim = Math.sin(now * 0.012 + leg.phase) * (isStaggered ? 1 : 6);
+      ctx.translate(leg.x, leg.y + anim * leg.flipY);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(radius * 0.2, leg.flipY * radius * 0.3);
+      ctx.stroke();
+      ctx.restore();
+    }
 
-  ctx.fillStyle = COLOR_ARMOR_DARK;
-  ctx.strokeStyle = COLOR_ARMOR_LIGHT;
-  ctx.lineWidth = Math.max(1, 3 * u);
-
-  for (const leg of legPositions) {
+    // Parçalar: Kıskaçlar (Ön)
+    const pincersBroken = parts.find((p) => p.id === 'pincers')?.broken;
     ctx.save();
-    const anim = Math.sin(now * 0.01 + leg.phaseOffset) * (isStaggered ? 2 : 8);
-    ctx.translate(leg.x + anim * 0.5, leg.y + anim * 0.3 * leg.flipY);
+    ctx.fillStyle = pincersBroken ? COLOR_ARMOR_DARK : COLOR_RED;
+    ctx.strokeStyle = pincersBroken ? COLOR_ARMOR_LIGHT : COLOR_ORANGE;
+    ctx.lineWidth = Math.max(1, 2 * u);
+    for (const flip of [-1, 1]) {
+      ctx.save();
+      ctx.translate(radius * 0.7, flip * radius * 0.4);
+      if (pincersBroken) {
+        ctx.fillRect(-6, -6, 12, 12);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.22, flip > 0 ? 0 : -Math.PI * 0.5, flip > 0 ? Math.PI * 0.5 : 0);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // Akrep Gövdesi (Segmentli Zırh)
+    ctx.save();
+    ctx.fillStyle = critFlash > 0 ? COLOR_GOLD : (hitFlash > 0 ? COLOR_WHITE : (isStaggered ? COLOR_ARMOR_DARK : COLOR_ARMOR));
+    ctx.strokeStyle = COLOR_RED;
+    ctx.lineWidth = Math.max(1, 3 * u);
     ctx.beginPath();
-    ctx.roundRect(-radius * 0.22, -radius * 0.14, radius * 0.44, radius * 0.28, 6);
+    ctx.ellipse(0, 0, radius * 0.75, radius * 0.55, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Pençe / Piston
-    ctx.fillStyle = COLOR_ARMOR;
+    // Akrep Kuyruğu & İğne
+    const stingerBroken = parts.find((p) => p.id === 'stinger')?.broken;
+    ctx.save();
+    ctx.translate(-radius * 0.5, 0);
+    ctx.strokeStyle = stingerBroken ? COLOR_ARMOR_LIGHT : COLOR_RED;
+    ctx.lineWidth = Math.max(1, 4 * u);
     ctx.beginPath();
-    ctx.arc(0, radius * 0.05 * leg.flipY, radius * 0.08, 0, Math.PI * 2);
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(-radius * 0.4, -radius * 0.3, -radius * 0.4, 0);
+    ctx.stroke();
+    if (!stingerBroken) {
+      ctx.fillStyle = COLOR_ORANGE;
+      ctx.beginPath();
+      ctx.arc(-radius * 0.4, 0, radius * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.restore();
+
+  } else if (bodyShape === 'nexus') {
+    // VOLT-OMEGA (Fırtına Çekirdeği)
+    const coilBroken = parts.find((p) => p.id === 'coil')?.broken;
+    const capBroken = parts.find((p) => p.id === 'capacitors')?.broken;
+
+    // Dönen Manyetik Halkalar (Gyros)
+    ctx.save();
+    ctx.strokeStyle = capBroken ? COLOR_ARMOR_LIGHT : COLOR_PURPLE;
+    ctx.lineWidth = Math.max(1, 2.5 * u);
+    for (let rIdx = 0; rIdx < 2; rIdx++) {
+      ctx.save();
+      ctx.rotate((rIdx === 0 ? 1 : -1) * now * 0.003);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, radius * 0.9, radius * 0.4, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Bobin ve Çekirdek
+    ctx.fillStyle = critFlash > 0 ? COLOR_GOLD : (hitFlash > 0 ? COLOR_WHITE : (isStaggered ? COLOR_ARMOR_DARK : COLOR_ARMOR));
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.5, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = coilBroken ? COLOR_ARMOR_LIGHT : COLOR_CYAN;
+    ctx.lineWidth = Math.max(1, 3 * u);
+    ctx.stroke();
+
+    // İç Plazma
+    const coreGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, radius * 0.35);
+    coreGrad.addColorStop(0, COLOR_WHITE);
+    coreGrad.addColorStop(0.5, coilBroken ? COLOR_ARMOR_LIGHT : COLOR_PURPLE);
+    coreGrad.addColorStop(1, COLOR_ARMOR_DARK);
+    ctx.fillStyle = coreGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+  } else {
+    // MECH (AEGIS-01 Kuşatma Devi)
+    const armorBroken = parts.find((p) => p.id === 'armorPlate')?.broken;
+    const cannonBroken = parts.find((p) => p.id === 'cannon')?.broken;
+
+    // Bacaklar
+    const legPositions = [
+      { x: -radius * 0.7, y: -radius * 0.8, flipY: -1, phaseOffset: 0 },
+      { x: radius * 0.6, y: -radius * 0.8, flipY: -1, phaseOffset: Math.PI },
+      { x: -radius * 0.7, y: radius * 0.8, flipY: 1, phaseOffset: Math.PI },
+      { x: radius * 0.6, y: radius * 0.8, flipY: 1, phaseOffset: 0 },
+    ];
+
+    ctx.fillStyle = COLOR_ARMOR_DARK;
+    ctx.strokeStyle = COLOR_ARMOR_LIGHT;
+    ctx.lineWidth = Math.max(1, 3 * u);
+
+    for (const leg of legPositions) {
+      ctx.save();
+      const anim = Math.sin(now * 0.01 + leg.phaseOffset) * (isStaggered ? 2 : 8);
+      ctx.translate(leg.x + anim * 0.5, leg.y + anim * 0.3 * leg.flipY);
+      ctx.beginPath();
+      ctx.roundRect(-radius * 0.22, -radius * 0.14, radius * 0.44, radius * 0.28, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = COLOR_ARMOR;
+      ctx.beginPath();
+      ctx.arc(0, radius * 0.05 * leg.flipY, radius * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Omuz Topu (Cannon)
+    ctx.save();
+    ctx.translate(0, -radius * 0.65);
+    ctx.fillStyle = cannonBroken ? COLOR_ARMOR_DARK : COLOR_ARMOR;
+    ctx.fillRect(-radius * 0.15, -radius * 0.1, radius * 0.45, radius * 0.2);
+    ctx.strokeStyle = cannonBroken ? COLOR_RED : COLOR_ARMOR_LIGHT;
+    ctx.lineWidth = Math.max(1, 2 * u);
+    ctx.strokeRect(-radius * 0.15, -radius * 0.1, radius * 0.45, radius * 0.2);
+    ctx.restore();
+
+    // Ana Zırh Gövdesi
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(radius * 0.95, 0);
+    ctx.lineTo(radius * 0.3, -radius * 0.85);
+    ctx.lineTo(-radius * 0.75, -radius * 0.75);
+    ctx.lineTo(-radius * 0.9, 0);
+    ctx.lineTo(-radius * 0.75, radius * 0.75);
+    ctx.lineTo(radius * 0.3, radius * 0.85);
+    ctx.closePath();
+
+    if (critFlash > 0) {
+      ctx.fillStyle = COLOR_GOLD;
+    } else if (hitFlash > 0) {
+      ctx.fillStyle = COLOR_WHITE;
+    } else {
+      ctx.fillStyle = isStaggered ? COLOR_ARMOR_LIGHT : COLOR_ARMOR;
+    }
+    ctx.fill();
+
+    // Zırh Pahı (Ön zırh kırıldıysa kırmızı çizgi)
+    ctx.strokeStyle = armorBroken ? COLOR_RED : (isStaggered ? COLOR_ARMOR_LIGHT : (phase === 3 ? COLOR_ORANGE : COLOR_ARMOR_LIGHT));
+    ctx.lineWidth = Math.max(1, 4 * u);
+    ctx.stroke();
+    ctx.restore();
+
+    // Arka Zayıf Nokta (Vulnerable Core)
+    const coreColor = phase === 3 ? COLOR_ORANGE : (phase === 2 ? COLOR_PURPLE : COLOR_CYAN);
+    ctx.save();
+    ctx.translate(-radius * 0.65, 0);
+    ctx.fillStyle = COLOR_ARMOR_DARK;
+    ctx.fillRect(-radius * 0.15, -radius * 0.45, radius * 0.12, radius * 0.9);
+
+    const coreRadius = radius * 0.32 * corePulse;
+    const grad = ctx.createRadialGradient(0, 0, coreRadius * 0.1, 0, 0, coreRadius);
+    grad.addColorStop(0, COLOR_WHITE);
+    grad.addColorStop(0.4, coreColor);
+    grad.addColorStop(1, COLOR_ARMOR_DARK);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, coreRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = coreColor;
+    ctx.lineWidth = Math.max(1, 2.5 * u);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.22, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
   }
 
-  // 3. Ana Zırh Gövdesi (Carapace - 2.5D Bevel)
-  ctx.save();
-  ctx.beginPath();
-  // Ön taraf sivri, arka taraf geniş zırh formu
-  ctx.moveTo(radius * 0.95, 0);
-  ctx.lineTo(radius * 0.3, -radius * 0.85);
-  ctx.lineTo(-radius * 0.75, -radius * 0.75);
-  ctx.lineTo(-radius * 0.9, 0);
-  ctx.lineTo(-radius * 0.75, radius * 0.75);
-  ctx.lineTo(radius * 0.3, radius * 0.85);
-  ctx.closePath();
-
-  // Vurulma parıltısı (Hit Flash)
-  if (critFlash > 0) {
-    ctx.fillStyle = COLOR_GOLD;
-  } else if (hitFlash > 0) {
-    ctx.fillStyle = COLOR_WHITE;
-  } else {
-    ctx.fillStyle = isStaggered ? '#475569' : COLOR_ARMOR;
+  // Kırık Parça Kıvılcımları
+  for (const part of parts) {
+    if (!part.broken) continue;
+    const px = Math.cos(part.angleOffset) * (radius * part.distRatio);
+    const py = Math.sin(part.angleOffset) * (radius * part.distRatio);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.strokeStyle = COLOR_GOLD;
+    ctx.lineWidth = Math.max(1, 2 * u);
+    const sparkAng = (now * 0.02 + part.angleOffset) % (Math.PI * 2);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(sparkAng) * 9, Math.sin(sparkAng) * 9);
+    ctx.stroke();
+    ctx.restore();
   }
-  ctx.fill();
-
-  // Zırh Pahı (Specular Bevel)
-  ctx.strokeStyle = isStaggered ? '#64748B' : (phase === 3 ? COLOR_ORANGE : COLOR_ARMOR_LIGHT);
-  ctx.lineWidth = Math.max(1, 4 * u);
-  ctx.stroke();
-
-  // Zırh Perçinleri & Çizgileri
-  ctx.strokeStyle = COLOR_ARMOR_DARK;
-  ctx.lineWidth = Math.max(1, 2 * u);
-  ctx.beginPath();
-  ctx.moveTo(radius * 0.1, -radius * 0.7);
-  ctx.lineTo(radius * 0.1, radius * 0.7);
-  ctx.moveTo(radius * 0.5, -radius * 0.4);
-  ctx.lineTo(radius * 0.5, radius * 0.4);
-  ctx.stroke();
-  ctx.restore();
-
-  // 4. Arka Zayıf Nokta (Vulnerable Plasma Core)
-  const coreColor = phase === 3 ? COLOR_ORANGE : (phase === 2 ? COLOR_PURPLE : COLOR_CYAN);
-  ctx.save();
-  ctx.translate(-radius * 0.65, 0);
-
-  // Egzoz havalandırma kapakları
-  ctx.fillStyle = COLOR_ARMOR_DARK;
-  ctx.fillRect(-radius * 0.15, -radius * 0.45, radius * 0.12, radius * 0.9);
-
-  // Plazma Çekirdek Haresi
-  const coreRadius = radius * 0.32 * corePulse;
-  const grad = ctx.createRadialGradient(0, 0, coreRadius * 0.1, 0, 0, coreRadius);
-  grad.addColorStop(0, COLOR_WHITE);
-  grad.addColorStop(0.4, coreColor);
-  grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(0, 0, coreRadius, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Çekirdek Konturu
-  ctx.strokeStyle = coreColor;
-  ctx.lineWidth = Math.max(1, 2.5 * u);
-  ctx.beginPath();
-  ctx.arc(0, 0, radius * 0.22, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
 
   // 5. Ön Hedefleme Optiği (Eye Reticle / Aiming Laser)
   ctx.save();
@@ -334,17 +480,12 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
     ctx.save();
     const shieldPulse = Math.sin(now * 0.007) * 0.08 + 0.92;
     const sRadius = radius * 1.35 * shieldPulse;
-    ctx.strokeStyle = 'rgba(167, 139, 250, 0.85)';
+    ctx.strokeStyle = COLOR_PURPLE;
     ctx.lineWidth = Math.max(1, 3.5 * u);
-    ctx.fillStyle = 'rgba(167, 139, 250, 0.14)';
     ctx.beginPath();
     ctx.arc(0, 0, sRadius, 0, Math.PI * 2);
-    ctx.fill();
     ctx.stroke();
 
-    // Heksagonal ızgara deseni
-    ctx.strokeStyle = 'rgba(167, 139, 250, 0.35)';
-    ctx.lineWidth = Math.max(1, 1.5 * u);
     for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
       ctx.beginPath();
       ctx.moveTo(Math.cos(a) * sRadius * 0.4, Math.sin(a) * sRadius * 0.4);
@@ -706,7 +847,7 @@ function drawBossHud(ctx, boss, arena, u = 1) {
   ctx.fillStyle = COLOR_WHITE;
   ctx.font = 'bold 13px system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(`AEGIS-01 — ${colossusPhaseLabel(phase)}`, arena.cx, barY - 8);
+  ctx.fillText(`${boss.name || 'AEGIS-01'} — ${colossusPhaseLabel(phase)}`, arena.cx, barY - 8);
 
   // HP Bar Arka Planı
   ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
@@ -748,6 +889,34 @@ function drawBossHud(ctx, boss, arena, u = 1) {
     ctx.font = 'bold 10px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(t('colossus.staggered'), arena.cx, stagY + 16);
+  }
+
+  // Parça Durum Rozetleri
+  const parts = boss.parts || [];
+  if (parts.length > 0) {
+    const chipY = stagY + (isStaggered ? 28 : 14);
+    const chipW = 105;
+    const totalChipsW = parts.length * chipW + (parts.length - 1) * 8;
+    const startChipX = arena.cx - totalChipsW / 2;
+
+    parts.forEach((p, idx) => {
+      const cx = startChipX + idx * (chipW + 8);
+      const isBroken = p.broken;
+      const partName = t(p.nameKey) || p.id;
+
+      ctx.fillStyle = COLOR_ARMOR_DARK;
+      ctx.fillRect(cx, chipY, chipW, 16);
+      ctx.strokeStyle = isBroken ? COLOR_RED : (p.hitFlash > 0 ? COLOR_WHITE : COLOR_ARMOR_LIGHT);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cx, chipY, chipW, 16);
+
+      ctx.font = 'bold 9px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = isBroken ? COLOR_RED : (p.hitFlash > 0 ? COLOR_WHITE : COLOR_CYAN);
+      const statusText = isBroken ? `${partName}: [${t('colossus.destroyed') || 'İMHA'}]` : `${partName}: %${Math.round((p.hp / (p.maxHp || 1)) * 100)}`;
+      ctx.fillText(statusText, cx + chipW / 2, chipY + 8);
+    });
   }
   ctx.restore();
 }

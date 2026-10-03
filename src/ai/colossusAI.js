@@ -73,12 +73,12 @@ export function updateBossAI(boss, game, dt) {
 
   // Faz 2: Kalkan ve Pilonlar
   if (boss.phase === 2 && boss.shielded) {
-    // Merkeze doğru çekil ve havan mermisi yağdır
     const toCenterAngle = Math.atan2(game.arena.cy - boss.y, game.arena.cx - boss.x);
     boss.vx = Math.cos(toCenterAngle) * (COLOSSUS_TUNING.BOSS_SPEED_P2 * 0.7);
     boss.vy = Math.sin(toCenterAngle) * (COLOSSUS_TUNING.BOSS_SPEED_P2 * 0.7);
 
-    if (boss.mortarCooldown <= 0) {
+    const cannonBroken = boss.parts?.find((p) => p.id === 'cannon')?.broken;
+    if (boss.mortarCooldown <= 0 && !cannonBroken) {
       game.triggerMortarBarrage(activePlayers);
       boss.mortarCooldown = COLOSSUS_TUNING.MORTAR_COOLDOWN;
     }
@@ -98,7 +98,54 @@ export function updateBossAI(boss, game, dt) {
     return;
   }
 
-  // Saldırı tetikleyicileri
+  // Boss Türüne Özel Saldırılar
+  if (boss.id === 'IGNIS') {
+    const stingerBroken = boss.parts?.find((p) => p.id === 'stinger')?.broken;
+    const pincersBroken = boss.parts?.find((p) => p.id === 'pincers')?.broken;
+
+    if (boss.stompCooldown <= 0 && dToTarget < 260) {
+      game.triggerStomp();
+      boss.stompCooldown = 4.2;
+    } else if (boss.laserCooldown <= 0 && !stingerBroken && dToTarget > 150) {
+      game.triggerLaser();
+      boss.laserCooldown = 5.2;
+    } else if (boss.chargeCooldown <= 0 && !pincersBroken && dToTarget > 220 && Math.abs(angleDiff) < 0.35) {
+      boss.state = 'CHARGE';
+      boss.chargeAngle = boss.angle;
+      boss.chargeTimer = 1.1;
+      boss.chargeCooldown = 5.5;
+    } else {
+      const speed = boss.phase === 3 ? (boss.speedP3 || 94) : (boss.phase === 2 ? (boss.speedP2 || 76) : (boss.speedP1 || 60));
+      boss.vx = Math.cos(boss.angle) * speed;
+      boss.vy = Math.sin(boss.angle) * speed;
+    }
+    return;
+  }
+
+  if (boss.id === 'VOLT') {
+    const coilBroken = boss.parts?.find((p) => p.id === 'coil')?.broken;
+    const capBroken = boss.parts?.find((p) => p.id === 'capacitors')?.broken;
+
+    if (boss.stompCooldown <= 0 && !capBroken && dToTarget < 250) {
+      game.triggerStomp();
+      boss.stompCooldown = 4.5;
+    } else if (boss.laserCooldown <= 0 && !coilBroken && dToTarget > 160) {
+      game.triggerLaser();
+      boss.laserCooldown = 5.0;
+    } else if (boss.chargeCooldown <= 0 && dToTarget < 150) {
+      boss.vx = -Math.cos(boss.angle) * 350;
+      boss.vy = -Math.sin(boss.angle) * 350;
+      boss.chargeCooldown = 4.0;
+    } else {
+      const speed = boss.phase === 3 ? (boss.speedP3 || 86) : (boss.phase === 2 ? (boss.speedP2 || 68) : (boss.speedP1 || 52));
+      boss.vx = Math.cos(boss.angle) * speed;
+      boss.vy = Math.sin(boss.angle) * speed;
+    }
+    return;
+  }
+
+  // Standart AEGIS-01 Davranışı
+  const cannonBroken = boss.parts?.find((p) => p.id === 'cannon')?.broken;
   if (boss.stompCooldown <= 0 && dToTarget < 280) {
     // Deprem Dalgası (Stomp)
     game.triggerStomp();
@@ -107,7 +154,7 @@ export function updateBossAI(boss, game, dt) {
     // Lazer Süpürmesi
     game.triggerLaser();
     boss.laserCooldown = COLOSSUS_TUNING.LASER_COOLDOWN;
-  } else if (boss.phase === 3 && boss.mortarCooldown <= 0) {
+  } else if (boss.phase === 3 && boss.mortarCooldown <= 0 && !cannonBroken) {
     // Faz 3 Havan Topu
     game.triggerMortarBarrage(activePlayers);
     boss.mortarCooldown = COLOSSUS_TUNING.MORTAR_COOLDOWN * 0.75;
@@ -222,9 +269,12 @@ export function updateColossusBotAI(bot, game, dt) {
       game.firePlayerWeapon(bot);
     }
   } else {
-    // FLANKER: Boss başkasına odaklı — arkasındaki zayıf noktaya (çekirdek) dolan!
+    // FLANKER: Boss başkasına odaklı — arkasındaki zayıf noktaya dolan!
     const rearAngle = normalizeAngle(boss.angle + Math.PI);
-    const flankDist = boss.radius + 140;
+    let flankDist = boss.radius + 140;
+    if (bot.weaponId === 'SHOTGUN') flankDist = boss.radius + 70;
+    else if (bot.weaponId === 'SNIPER') flankDist = boss.radius + 220;
+
     const targetFlankX = boss.x + Math.cos(rearAngle) * flankDist;
     const targetFlankY = boss.y + Math.sin(rearAngle) * flankDist;
 
@@ -239,8 +289,17 @@ export function updateColossusBotAI(bot, game, dt) {
       bot.vy = 0;
     }
 
-    // Tam çekirdeğe nişan al ve ateş et
-    bot.angle = Math.atan2(boss.y - bot.y, boss.x - bot.x);
+    // Kırılmamış bir parça varsa ona, yoksa çekirdeğe nişan al
+    const unbrokenPart = (boss.parts || []).find((p) => !p.broken);
+    if (unbrokenPart) {
+      const partAngle = boss.angle + unbrokenPart.angleOffset;
+      const partDist = boss.radius * unbrokenPart.distRatio;
+      const targetPx = boss.x + Math.cos(partAngle) * partDist;
+      const targetPy = boss.y + Math.sin(partAngle) * partDist;
+      bot.angle = Math.atan2(targetPy - bot.y, targetPx - bot.x);
+    } else {
+      bot.angle = Math.atan2(boss.y - bot.y, boss.x - bot.x);
+    }
     game.firePlayerWeapon(bot);
   }
 }

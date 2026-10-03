@@ -42,6 +42,13 @@ export const SETTINGS_ROWS = [
     labelKey: 'settings.sound', iconOn: { on: 'volume_2', off: 'volume_x' },
   },
   {
+    // Fighter anonsu (raunt/fight/geri sayım). Varsayılan KAPALI; yalnız
+    // hızlı sette çizilmez. GENERAL 6 satıra çıkar — panel dikey kaydırmayı
+    // destekler (§8), botReactions açıkken zaten 6 idi.
+    tab: 'general', id: 'voice', type: 'switch', action: 'voice',
+    labelKey: 'settings.voice', icon: 'message_square',
+  },
+  {
     tab: 'general', id: 'haptics', type: 'switch', action: 'haptics',
     labelKey: 'settings.haptics', icon: 'zap',
   },

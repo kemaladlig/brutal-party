@@ -46,6 +46,8 @@ const DESIGN_TABLES = [
   // CROWN tacı: constructor'da ham tasarım px, `resize()` içinde
   // `fieldRadius` ile türetiliyor. Constructor arenası `unit` içermiyor.
   { file: 'games/crown.js', contains: 'radius: 20,' },
+  // COLOSSUS_BOSSES: Boss ve parça tasarım tablosu, motor içinde fieldRadius ile türetilir.
+  { file: 'games/colossusConfig.js', contains: 'radius:' },
 ];
 
 // Aynı ifadede bir ölçek çarpanıyla çarpılan literal zaten orantılıdır:

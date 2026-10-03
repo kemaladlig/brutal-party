@@ -1138,7 +1138,7 @@ export class GamepadManager {
       this.overlay.style.setProperty('--game-edge', th.floorEdge);
     }
     this.renderGameController('LOBBY');
-    try { warmGameSounds(['ui.tick', 'ui.confirm', 'voice.count3', 'voice.count2', 'voice.count1', 'voice.fight']); } catch {}
+    try { warmGameSounds(['ui.tick', 'ui.confirm', 'voice.count3', 'voice.count2', 'voice.count1', 'voice.fight', 'voice.round1', 'voice.round2', 'voice.round3', 'voice.final']); } catch {}
   }
 
   /**
