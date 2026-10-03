@@ -51,7 +51,6 @@ export function createTanksWorldPacket(game) {
       bot: tk.slotType === 'bot_normal' || tk.slotType === 'bot_god',
       god: tk.slotType === 'bot_god',
       shield: tk.hasShield === true,
-      eshield: tk.shield === true,
       stun: (tk.stunTimer || 0) > 0,
       chamber: Math.max(0, Number(tk.chamber ?? tk.maxBullets ?? 2) || 0),
       maxAmmo: Math.max(1, Number(tk.maxBullets) || 2),
@@ -109,7 +108,7 @@ function isValidTanksPlayer(p) {
     && (p.recoil === undefined || (finite(p.recoil) && p.recoil >= 0))
     && typeof p.driving === 'boolean' && finite(p.muzzle)
     && typeof p.bot === 'boolean' && typeof p.god === 'boolean'
-    && typeof p.shield === 'boolean' && typeof p.eshield === 'boolean' && typeof p.stun === 'boolean'
+    && typeof p.shield === 'boolean' && typeof p.stun === 'boolean'
     && Number.isInteger(p.chamber) && Number.isInteger(p.maxAmmo)
     && finite(p.reload) && finite(p.reloadCd) && typeof p.triple === 'boolean';
 }
@@ -630,7 +629,7 @@ function drawTanksTankEntity(ctx, tank, opts) {
       ammo: v.readyCount,
       maxAmmo: tank.maxAmmo || 2,
       reloadProgress: v.progress,
-      shield: !!tank.eshield,
+      shield: !!tank.shield,
       stun: !!tank.stun,
     });
   }

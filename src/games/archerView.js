@@ -118,6 +118,9 @@ export function createArcherWorldPacket(game) {
     scores: (game.scores || [0, 0, 0, 0]).map((s) => Number(s) || 0),
     roundWinner: winnerSlot(game.roundWinner),
     matchWinner: winnerSlot(game.matchWinner),
+    // `archerWorldView` MATCH_OVER başlığını bundan seçer; paketle
+    // taşınmadığı için berabere maç "ŞAMPİYON" olarak basılıyordu.
+    matchDraw: game.matchDraw === true,
   };
 }
 

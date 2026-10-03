@@ -1280,7 +1280,6 @@ this.targetScore = 2;
       bot: tk.slotType === 'bot_normal' || tk.slotType === 'bot_god',
       god: tk.slotType === 'bot_god',
       shield: tk.hasShield === true,
-      eshield: tk.shield === true,
       stun: (tk.stunTimer || 0) > 0,
       chamber: Math.max(0, Number(tk.chamber ?? tk.maxBullets ?? 2) || 0),
       maxAmmo: Math.max(1, Number(tk.maxBullets) || 2),

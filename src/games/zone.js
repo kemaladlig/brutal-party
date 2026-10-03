@@ -98,6 +98,7 @@ export const ZONE_TUNING = {
   TRAIL_GLOW_MULT: 1.05, // risk uyarısı dış parlama = hücre * bu (hazard'da +0.2)
   RELIC_SPAWN_INIT: 4.5, // İlk relic çıkış süresi (sn)
   RELIC_SPAWN_CD: 8.5,   // Relic çıkış periyodu (sn)
+  RELIC_HYPE: 2.0,       // Relic alan avatarın "excited" ifadesi (sn)
   MAX_RELICS: 2,         // Sahada aynı anda en fazla relic sayısı
   MAX_TIED_ROUNDS: 2,     // üst üste beraberlikte maç draw sınırı
 };
@@ -436,7 +437,7 @@ export class ZoneGame extends BaseMiniGame {
         // kopukluğunu önler — ilk iz hücresinin merkezi değil, çıkış noktası).
         trailStartX: bcx, trailStartY: bcy,
         px: bcx, py: bcy,
-        stunTimer: 0, blinkTimer: 0,
+        stunTimer: 0, blinkTimer: 0, relicTimer: 0,
         dashTimer: 0, dashCooldown: 0, isDashing: false,
         aiMoveX: 0, aiMoveY: 0, aiForce: 0,
         aiMode: 'EXPAND', aiPath: [], aiTarget: -1, aiThink: Math.random() * 0.3,
@@ -581,6 +582,8 @@ export class ZoneGame extends BaseMiniGame {
 
     const def = ZONE_RELIC_DEFS[r.type];
     this.relics.splice(relicIndex, 1);
+    // Avatar "excited" penceresi (zoneView `relic` alanı bundan beslenir).
+    p.relicTimer = ZONE_TUNING.RELIC_HYPE;
 
     if (r.type === 'FLASH') {
       p.dashCooldown = 0;
@@ -1132,6 +1135,7 @@ export class ZoneGame extends BaseMiniGame {
         p.dashTimer -= dt;
         if (p.dashTimer <= 0) p.isDashing = false;
       }
+      if (p.relicTimer > 0) p.relicTimer = Math.max(0, p.relicTimer - dt);
       if (p.stunTimer > 0) {
         p.stunTimer = Math.max(0, p.stunTimer - dt);
         p.blinkTimer += dt;

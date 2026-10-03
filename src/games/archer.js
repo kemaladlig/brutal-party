@@ -87,6 +87,10 @@ export class ArcherGame extends BaseMiniGame {
     this.roundTimer = ARCHER_ROUND_TIME;
     this.roundId = 0;
     this.roundHits = [0, 0, 0, 0];
+    // Raunt kazananı RAUNT İÇİ puandan seçilir; `scores` maç toplamıdır
+    // (skorboard + paket). İkisi karışırsa 2. raunt 1. raunt liderine
+    // kendiliğinden yazılır, çünkü birikmeli lider hiç düşmez.
+    this.roundScores = [0, 0, 0, 0];
     this.tieRounds = 0;
     this.matchDraw = false;
     this.pickups = [];
@@ -207,6 +211,7 @@ export class ArcherGame extends BaseMiniGame {
     this.matchDraw = false;
     this.roundId = 0;
     this.roundHits = [0, 0, 0, 0];
+    this.roundScores = [0, 0, 0, 0];
     this.tieRounds = 0;
     this.roundTransitionTimer = 0;
     this.arrows = [];
@@ -248,6 +253,7 @@ export class ArcherGame extends BaseMiniGame {
     this.roundTransitionTimer = 0;
     this.roundId += 1;
     this.roundHits = [0, 0, 0, 0];
+    this.roundScores = [0, 0, 0, 0];
     this.roundTime = ARCHER_ROUND_TIME;
     this.roundTimer = ARCHER_ROUND_TIME;
     this.arrows = [];
@@ -732,6 +738,7 @@ export class ArcherGame extends BaseMiniGame {
             const close = a.dist < ARCHER_CLOSE_DIST;
             const pts = close ? 2 : 1;
             this.scores[a.owner] += pts;
+            this.roundScores[a.owner] += pts;
             emitFloatingText(this.floatingTexts, {
               x: victim.x, y: victim.y - 20, text: `+${pts}`,
               color: this.players[a.owner]?.color || victim.color,
@@ -820,16 +827,18 @@ export class ArcherGame extends BaseMiniGame {
   }
 
   handleRoundEnd(_winner) {
-    // 60sn sonu: en çok puanlı raundu alır. Eşitlikte önce isabet sayısı,
-    // sonra ikinci beraberlik maçı BERABERE sonlanır; sonsuz döngü oluşmaz.
+    // 60sn sonu: en çok RAUNT PUANI olan raundu alır (maç toplamı değil —
+    // aksi hâlde 1. raunt lideri 2. raundu da otomatik kazanır).
+    // Eşitlikte önce isabet sayısı, sonra ikinci beraberlik maçı BERABERE
+    // sonlanır; sonsuz döngü oluşmaz.
     let best = -1;
     let winners = [];
     this.players.forEach((p, i) => {
       if (!p.isJoined) return;
-      if (this.scores[i] > best) {
-        best = this.scores[i];
+      if (this.roundScores[i] > best) {
+        best = this.roundScores[i];
         winners = [p];
-      } else if (this.scores[i] === best) {
+      } else if (this.roundScores[i] === best) {
         winners.push(p);
       }
     });

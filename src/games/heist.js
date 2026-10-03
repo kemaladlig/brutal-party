@@ -633,9 +633,6 @@ export class HeistGame extends BaseMiniGame {
         this.finishTiedRound('timeout');
         return;
       }
-      this.state = 'ROUND_OVER';
-      this.roundTransitionTimer = 2.8;
-      return;
     }
 
     // Spawning central loot
