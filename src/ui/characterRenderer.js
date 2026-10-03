@@ -153,7 +153,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     scale = 1.0,
     label = '',
     showPointer = false,
-    pointerColor = '#FFFFFF',
+    pointerColor = UI_COLORS.faceWhite,
     borderColor = null,
     borderWidth = 3,
     shadowOffset = 3,
@@ -170,7 +170,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
   // Halka: çağıran açık renk vermediyse (oyun-durumu sinyali) avatarın halka
   // seçimidir. Bot personaları sabit klasiktir — kimlikleri değişmez.
   const ringHex = isBot
-    ? '#1A1A1A'
+    ? UI_COLORS.inkDark
     : rimHex(options.rim || avatarOpt?.rim || profileFallback?.rim);
   const ringColor = borderColor || ringHex;
 
@@ -245,7 +245,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     ctx.save();
     ctx.rotate(facingAngle);
     ctx.fillStyle = pointerColor;
-    ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeStyle = UI_COLORS.inkDark;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(r + 14, 0);
@@ -287,26 +287,26 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     // Büyük tek tepegöz
     const cx = r * 0.32;
     const cEyeR = r * 0.42;
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = UI_COLORS.faceWhite;
     ctx.beginPath();
     ctx.arc(cx, 0, cEyeR, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeStyle = UI_COLORS.inkDark;
     ctx.lineWidth = 2;
     ctx.stroke();
 
     if (!isEyeClosed) {
-      ctx.fillStyle = '#1A1A1A';
+      ctx.fillStyle = UI_COLORS.inkDark;
       ctx.beginPath();
       ctx.arc(cx + 3, 0, cEyeR * 0.46, 0, Math.PI * 2);
       ctx.fill();
       // Parıltı
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = UI_COLORS.faceWhite;
       ctx.beginPath();
       ctx.arc(cx + 4.5, -2, cEyeR * 0.16, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = UI_COLORS.inkDark;
       ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.moveTo(cx - cEyeR * 0.8, 0);
@@ -318,7 +318,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     // + şakak kolu. (Eski tek bar bakış ekseni boyunca uzanıp gövdeyi kesiyordu.)
     const lensR = eyeR * 1.3;
     const drawLens = (ey) => {
-      ctx.fillStyle = '#1A1A1A';
+      ctx.fillStyle = UI_COLORS.inkDark;
       ctx.beginPath();
       ctx.arc(eyeOffsetX, ey, lensR, 0, Math.PI * 2);
       ctx.fill();
@@ -334,7 +334,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
 
     if (!isMicro) {
       // Köprü: camların iç kenarları arası kısa hat (gömülüyse görünmez, zararsız).
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = UI_COLORS.inkDark;
       ctx.lineWidth = Math.max(1.5, r * 0.06);
       ctx.lineCap = 'round';
       ctx.beginPath();
@@ -359,7 +359,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     const vx = r * 0.2;
     const vw = r * 0.85;
     const vh = r * 0.36;
-    ctx.fillStyle = '#1A1A1A';
+    ctx.fillStyle = UI_COLORS.inkDark;
     ctx.fillRect(vx, -vh / 2, vw * 0.75, vh);
     ctx.strokeStyle = '#00F0FF';
     ctx.lineWidth = 2;
@@ -373,16 +373,16 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
   } else if (expression === 'ANGRY') {
     // Çatık kaşlı gözler
     const drawEye = (ey) => {
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = UI_COLORS.faceWhite;
       ctx.beginPath();
       ctx.arc(eyeOffsetX, ey, eyeR, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = UI_COLORS.inkDark;
       ctx.lineWidth = 1.8;
       ctx.stroke();
 
       if (!isEyeClosed) {
-        ctx.fillStyle = '#1A1A1A';
+        ctx.fillStyle = UI_COLORS.inkDark;
         ctx.beginPath();
         ctx.arc(eyeOffsetX + 2, ey, eyeR * 0.52, 0, Math.PI * 2);
         ctx.fill();
@@ -392,7 +392,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     drawEye(eyeSpreadY);
 
     // Çatık kaşlar
-    ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeStyle = UI_COLORS.inkDark;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(eyeOffsetX - eyeR, -eyeSpreadY - 3);
@@ -406,24 +406,24 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     // yoksa ifade "sürekli kırpıyor" gibi okunurdu.
     const openR = eyeR * 1.1;
     if (!isEyeClosed) {
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = UI_COLORS.faceWhite;
       ctx.beginPath();
       ctx.arc(eyeOffsetX, -eyeSpreadY, openR, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = UI_COLORS.inkDark;
       ctx.lineWidth = 1.8;
       ctx.stroke();
 
-      ctx.fillStyle = '#1A1A1A';
+      ctx.fillStyle = UI_COLORS.inkDark;
       ctx.beginPath();
       ctx.arc(eyeOffsetX + 2, -eyeSpreadY, openR * 0.5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = UI_COLORS.faceWhite;
       ctx.beginPath();
       ctx.arc(eyeOffsetX + 3, -eyeSpreadY - 1.5, openR * 0.16, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = UI_COLORS.inkDark;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(eyeOffsetX - openR + 1, -eyeSpreadY);
@@ -432,7 +432,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     }
 
     // Kırpan göz: neşeli ∩ kemer (kırpma karesinde bile kemer kalır — kimliktir).
-    ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeStyle = UI_COLORS.inkDark;
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -441,17 +441,17 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     ctx.lineCap = 'butt';
   } else if (expression === 'DERP') {
     // Şaşkın / Çılgın gözler (biri büyük biri küçük)
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = UI_COLORS.faceWhite;
     ctx.beginPath();
     ctx.arc(eyeOffsetX, -eyeSpreadY, eyeR * 1.15, 0, Math.PI * 2);
     ctx.arc(eyeOffsetX + 2, eyeSpreadY, eyeR * 0.8, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeStyle = UI_COLORS.inkDark;
     ctx.lineWidth = 1.8;
     ctx.stroke();
 
     if (!isEyeClosed) {
-      ctx.fillStyle = '#1A1A1A';
+      ctx.fillStyle = UI_COLORS.inkDark;
       ctx.beginPath();
       ctx.arc(eyeOffsetX + 3, -eyeSpreadY - 2, eyeR * 0.45, 0, Math.PI * 2);
       ctx.arc(eyeOffsetX + 1, eyeSpreadY + 2, eyeR * 0.4, 0, Math.PI * 2);
@@ -462,7 +462,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     const drawHeart = (ey) => {
       const hr = eyeR * 1.25;
       ctx.fillStyle = '#FF3B6B';
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = UI_COLORS.inkDark;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(eyeOffsetX, ey + hr * 0.85);
@@ -482,7 +482,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
       drawHeart(-eyeSpreadY);
       drawHeart(eyeSpreadY);
     } else {
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = UI_COLORS.inkDark;
       ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.moveTo(eyeOffsetX - eyeR, -eyeSpreadY);
@@ -494,7 +494,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
   } else if (expression === 'STAR') {
     // Mutlu kısık gözler (heyecan): iki göz neşeli ∩ kemer — yıldız
     // dolgular uzaktan çamur okunuyordu, kapalı göz temiz durur.
-    ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeStyle = UI_COLORS.inkDark;
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     for (const ey of [-eyeSpreadY, eyeSpreadY]) {
@@ -505,7 +505,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     ctx.lineCap = 'butt';
   } else if (expression === 'SLEEPY') {
     // Yarım kapalı uykulu gözler + Z damlası
-    ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeStyle = UI_COLORS.inkDark;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.arc(eyeOffsetX, -eyeSpreadY, eyeR, 0.15 * Math.PI, 0.85 * Math.PI);
@@ -514,7 +514,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     ctx.arc(eyeOffsetX, eyeSpreadY, eyeR, 0.15 * Math.PI, 0.85 * Math.PI);
     ctx.stroke();
     if (!isEyeClosed) {
-      ctx.fillStyle = '#1A1A1A';
+      ctx.fillStyle = UI_COLORS.inkDark;
       ctx.beginPath();
       ctx.arc(eyeOffsetX + eyeR * 0.1, -eyeSpreadY + eyeR * 0.4, eyeR * 0.28, 0, Math.PI * 2);
       ctx.arc(eyeOffsetX + eyeR * 0.1, eyeSpreadY + eyeR * 0.4, eyeR * 0.28, 0, Math.PI * 2);
@@ -542,7 +542,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
       ctx.beginPath();
       ctx.arc(eyeOffsetX, ey, eyeR, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = UI_COLORS.inkDark;
       ctx.lineWidth = 1.8;
       ctx.stroke();
       if (!isEyeClosed) {
@@ -550,12 +550,12 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
         ctx.beginPath();
         ctx.arc(eyeOffsetX + 1, ey, eyeR * 0.42, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#1A1A1A';
+        ctx.fillStyle = UI_COLORS.inkDark;
         ctx.beginPath();
         ctx.arc(eyeOffsetX + 1.5, ey + 0.5, eyeR * 0.18, 0, Math.PI * 2);
         ctx.fill();
       } else {
-        ctx.strokeStyle = '#1A1A1A';
+        ctx.strokeStyle = UI_COLORS.inkDark;
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.moveTo(eyeOffsetX - eyeR + 1, ey);
@@ -581,19 +581,19 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
       ctx.arc(eyeOffsetX + 1.2, ey + 1.6, eyeR, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = UI_COLORS.faceWhite;
       ctx.beginPath();
       ctx.arc(eyeOffsetX, ey, eyeR, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = UI_COLORS.inkDark;
       ctx.lineWidth = 1.8;
       ctx.stroke();
       if (!isEyeClosed) {
-        ctx.fillStyle = '#1A1A1A';
+        ctx.fillStyle = UI_COLORS.inkDark;
         ctx.beginPath();
         ctx.arc(eyeOffsetX + 2.5, ey, eyeR * 0.48, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = UI_COLORS.faceWhite;
         ctx.beginPath();
         ctx.arc(eyeOffsetX + 3.5, ey - 1.5, eyeR * 0.16, 0, Math.PI * 2);
         ctx.fill();
@@ -618,7 +618,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
 
     // Sırıtış (GRIN) — bembeyaz diş: ağız dolgusu beyaz, diş aralıkları gövde
     // rengiyle açılır, SİYAH ÇİZGİ YOK (dış kontur dahil).
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = UI_COLORS.faceWhite;
     traceMouth();
     ctx.fill();
 
@@ -668,6 +668,423 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     };
     drawPanicEye(-eyeSpreadY);
     drawPanicEye(eyeSpreadY);
+  } else if (expression === 'SAD') {
+    // Üzgün: sarkık üst kapak + tek gözyaşı damlası
+    const drawSadEye = (ey) => {
+      ctx.fillStyle = UI_COLORS.faceWhite;
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = UI_COLORS.inkDark;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      if (!isEyeClosed) {
+        ctx.fillStyle = UI_COLORS.inkDark;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 2, ey + eyeR * 0.28, eyeR * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Sarkık üst kapak (içe eğik)
+      ctx.strokeStyle = UI_COLORS.inkDark;
+      ctx.lineWidth = Math.max(1.6, r * 0.05);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(eyeOffsetX - eyeR * 0.9, ey - eyeR * 0.85);
+      ctx.lineTo(eyeOffsetX + eyeR * 0.9, ey - eyeR * 0.35);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+    };
+    drawSadEye(-eyeSpreadY);
+    drawSadEye(eyeSpreadY);
+    if (!isEyeClosed) {
+      const tx = eyeOffsetX + eyeR * 0.1;
+      const ty = -eyeSpreadY + eyeR * 1.15;
+      const tr = Math.max(1.6, eyeR * 0.26);
+      ctx.fillStyle = UI_COLORS.faceTear;
+      ctx.beginPath();
+      ctx.moveTo(tx, ty - tr * 1.5);
+      ctx.quadraticCurveTo(tx + tr, ty + tr * 0.3, tx, ty + tr);
+      ctx.quadraticCurveTo(tx - tr, ty + tr * 0.3, tx, ty - tr * 1.5);
+      ctx.fill();
+    }
+  } else if (expression === 'COOL') {
+    // Havalı: yarı kapaklı iki göz (kendinden emin), kalkık tek kaş, yan sırıtış.
+    const drawCoolEye = (ey) => {
+      ctx.fillStyle = UI_COLORS.lidShade;
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX + 1.2, ey + 1.6, eyeR * 1.05, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = UI_COLORS.faceWhite;
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey, eyeR * 1.05, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = UI_COLORS.faceInk;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+
+      if (!isEyeClosed) {
+        // Bebek hafif aşağı bakar: umursamaz, yarı kapaklı bakış.
+        ctx.fillStyle = UI_COLORS.faceInk;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 1.6, ey + eyeR * 0.3, eyeR * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = UI_COLORS.faceWhite;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 2.4, ey + eyeR * 0.06, eyeR * 0.16, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Ağır üst kapak: gözü yarıdan kapatan kalın, hafif eğik hat.
+      ctx.strokeStyle = UI_COLORS.faceInk;
+      ctx.lineWidth = Math.max(2.2, r * 0.075);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(eyeOffsetX - eyeR * 1.05, ey - eyeR * 0.34);
+      ctx.quadraticCurveTo(eyeOffsetX, ey - eyeR * 0.98, eyeOffsetX + eyeR * 1.05, ey - eyeR * 0.30);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+    };
+    drawCoolEye(-eyeSpreadY);
+    drawCoolEye(eyeSpreadY);
+
+    // Kalkık tek kaş — "havalı" imzası.
+    ctx.strokeStyle = UI_COLORS.faceInk;
+    ctx.lineWidth = Math.max(2.2, r * 0.07);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(eyeOffsetX - eyeR * 1.15, -eyeSpreadY - eyeR * 0.95);
+    ctx.lineTo(eyeOffsetX + eyeR * 0.95, -eyeSpreadY - eyeR * 1.55);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+  } else if (expression === 'XP') {
+    // Ölü: iki çarpı göz
+    const drawCross = (ey) => {
+      const s = eyeR * 0.85;
+      ctx.strokeStyle = UI_COLORS.inkDark;
+      ctx.lineWidth = Math.max(2.2, r * 0.07);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(eyeOffsetX - s, ey - s);
+      ctx.lineTo(eyeOffsetX + s, ey + s);
+      ctx.moveTo(eyeOffsetX + s, ey - s);
+      ctx.lineTo(eyeOffsetX - s, ey + s);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+    };
+    drawCross(-eyeSpreadY);
+    drawCross(eyeSpreadY);
+  } else if (expression === 'DOLLAR') {
+    // Zengin: iri altın akçe gözler ($ kabartmalı) + parıltı
+    const drawCoin = (ey) => {
+      ctx.fillStyle = UI_COLORS.hatYellow;
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey, eyeR * 1.06, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = UI_COLORS.hatGoldDark;
+      ctx.lineWidth = Math.max(1.8, r * 0.055);
+      ctx.stroke();
+      // İç çerçeve
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey, eyeR * 0.82, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // $ kabartması
+      const s = eyeR * 0.62;
+      ctx.strokeStyle = UI_COLORS.faceInk;
+      ctx.lineWidth = Math.max(1.8, eyeR * 0.3);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(eyeOffsetX, ey - s * 1.25);
+      ctx.lineTo(eyeOffsetX, ey + s * 1.25);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey - s * 0.42, s * 0.42, Math.PI * 0.12, Math.PI * 1.15);
+      ctx.arc(eyeOffsetX, ey + s * 0.42, s * 0.42, Math.PI * 1.12, Math.PI * 2.18);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+
+      // Parıltı
+      ctx.fillStyle = UI_COLORS.faceWhite;
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX - eyeR * 0.36, ey - eyeR * 0.44, eyeR * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    drawCoin(-eyeSpreadY);
+    drawCoin(eyeSpreadY);
+  } else if (expression === 'PIRATE') {
+    // Korsan: açık göz + kalkık kaş, dikişli deri göz bandı ve arkaya giden kayış.
+    // Açık göz
+    ctx.fillStyle = UI_COLORS.faceWhite;
+    ctx.beginPath();
+    ctx.arc(eyeOffsetX, -eyeSpreadY, eyeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = UI_COLORS.faceInk;
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+    if (!isEyeClosed) {
+      ctx.fillStyle = UI_COLORS.faceInk;
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX + 2.5, -eyeSpreadY, eyeR * 0.48, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = UI_COLORS.faceWhite;
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX + 3.4, -eyeSpreadY - 1.4, eyeR * 0.15, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Kalkık kaş (sert bakış)
+    ctx.strokeStyle = UI_COLORS.faceInk;
+    ctx.lineWidth = Math.max(2.2, r * 0.07);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(eyeOffsetX - eyeR * 1.1, -eyeSpreadY - eyeR * 1.0);
+    ctx.lineTo(eyeOffsetX + eyeR * 0.95, -eyeSpreadY - eyeR * 1.5);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+
+    // Kayış: bandı başın arkasına bağlayan tek çapraz hat (patch altında kalır)
+    ctx.strokeStyle = UI_COLORS.faceInk;
+    ctx.lineWidth = Math.max(2.4, r * 0.075);
+    ctx.lineCap = 'butt';
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.68, -r * 0.42);
+    ctx.lineTo(r * 0.56, r * 0.64);
+    ctx.stroke();
+
+    // Dikişli deri göz bandı (yamuk yastık)
+    const px = eyeOffsetX;
+    const py = eyeSpreadY;
+    const pr = eyeR * 1.15;
+    ctx.fillStyle = UI_COLORS.inkDark;
+    ctx.strokeStyle = UI_COLORS.faceInk;
+    ctx.lineWidth = Math.max(1.6, r * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(px - pr, py - pr * 0.5);
+    ctx.quadraticCurveTo(px, py - pr * 1.15, px + pr, py - pr * 0.65);
+    ctx.lineTo(px + pr * 0.85, py + pr * 0.75);
+    ctx.quadraticCurveTo(px, py + pr * 1.1, px - pr, py + pr * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Dikişler
+    ctx.strokeStyle = UI_COLORS.hatMetal;
+    ctx.lineWidth = Math.max(1.1, r * 0.032);
+    ctx.lineCap = 'round';
+    for (const [sx, sy, ex, ey2] of [
+      [px - pr * 0.55, py - pr * 0.92, px - pr * 0.62, py - pr * 0.55],
+      [px + pr * 0.10, py - pr * 1.05, px + pr * 0.18, py - pr * 0.68],
+      [px - pr * 0.60, py + pr * 0.95, px - pr * 0.68, py + pr * 0.58],
+      [px + pr * 0.05, py + pr * 1.02, px + pr * 0.14, py + pr * 0.66],
+    ]) {
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey2);
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
+  } else if (expression === 'NERD') {
+    // İnek: yuvarlak çerçeveli gözlükler
+    const frameR = eyeR * 1.2;
+    const drawNerdEye = (ey) => {
+      ctx.fillStyle = UI_COLORS.faceWhite;
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = UI_COLORS.inkDark;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      if (!isEyeClosed) {
+        ctx.fillStyle = UI_COLORS.inkDark;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 2.5, ey, eyeR * 0.46, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.strokeStyle = UI_COLORS.hatInk;
+      ctx.lineWidth = Math.max(2, r * 0.06);
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey, frameR, 0, Math.PI * 2);
+      ctx.stroke();
+    };
+    drawNerdEye(-eyeSpreadY);
+    drawNerdEye(eyeSpreadY);
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(2, r * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(eyeOffsetX, -eyeSpreadY + frameR);
+    ctx.lineTo(eyeOffsetX, eyeSpreadY - frameR);
+    ctx.stroke();
+  } else if (expression === 'CAT') {
+    // Kedi: yeşil irisli iri gözler, dikey yarık bebek ve öne uzanan bıyıklar.
+    const drawCatEye = (ey) => {
+      ctx.fillStyle = UI_COLORS.faceWhite;
+      ctx.beginPath();
+      ctx.ellipse(eyeOffsetX, ey, eyeR * 0.98, eyeR * 1.08, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = UI_COLORS.faceInk;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      if (!isEyeClosed) {
+        // Yeşil iris + dikey yarık bebek + parıltı
+        ctx.fillStyle = UI_COLORS.hatEmerald;
+        ctx.beginPath();
+        ctx.ellipse(eyeOffsetX + 1, ey, eyeR * 0.62, eyeR * 0.78, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = UI_COLORS.faceInk;
+        ctx.beginPath();
+        ctx.ellipse(eyeOffsetX + 1, ey, eyeR * 0.17, eyeR * 0.62, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = UI_COLORS.faceWhite;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX - eyeR * 0.12, ey - eyeR * 0.42, eyeR * 0.15, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = UI_COLORS.faceInk;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(eyeOffsetX - eyeR * 0.9, ey);
+        ctx.lineTo(eyeOffsetX + eyeR * 0.9, ey);
+        ctx.stroke();
+      }
+    };
+    drawCatEye(-eyeSpreadY);
+    drawCatEye(eyeSpreadY);
+
+    // Bıyıklar: öne doğru üçer ince kıl
+    ctx.strokeStyle = 'rgba(26, 26, 26, 0.55)';
+    ctx.lineWidth = Math.max(1, r * 0.028);
+    ctx.lineCap = 'round';
+    const wx = r * 0.50;
+    for (const dy of [-0.5, -0.1, 0.3]) {
+      ctx.beginPath();
+      ctx.moveTo(wx, dy * eyeR);
+      ctx.lineTo(r * 0.88, dy * eyeR * 1.9);
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
+  } else if (expression === 'SHY') {
+    // Utangaç: yana-aşağı kaçan bakış, ağır üst kapak ve yoğun allık.
+    const drawShyEye = (ey) => {
+      ctx.fillStyle = UI_COLORS.faceWhite;
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = UI_COLORS.faceInk;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      if (!isEyeClosed) {
+        // Bebek içe (burna) ve aşağı kaçar.
+        ctx.fillStyle = UI_COLORS.faceInk;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX - eyeR * 0.18, ey + eyeR * 0.34, eyeR * 0.44, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = UI_COLORS.faceWhite;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX - eyeR * 0.08, ey + eyeR * 0.16, eyeR * 0.13, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Ağır üst kapak (utançla öne düşer).
+      ctx.strokeStyle = UI_COLORS.faceInk;
+      ctx.lineWidth = Math.max(2, r * 0.06);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(eyeOffsetX - eyeR * 1.0, ey - eyeR * 0.5);
+      ctx.quadraticCurveTo(eyeOffsetX, ey - eyeR * 0.95, eyeOffsetX + eyeR * 1.0, ey - eyeR * 0.55);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+    };
+    drawShyEye(-eyeSpreadY);
+    drawShyEye(eyeSpreadY);
+  } else if (expression === 'GLAM') {
+    // Işıltı: iri mor irisli gözler, uzun üst kirpikler ve yıldız parıltısı.
+    const drawGlamEye = (ey) => {
+      ctx.fillStyle = UI_COLORS.lidShade;
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX + 1.2, ey + 1.6, eyeR * 1.08, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = UI_COLORS.faceWhite;
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey, eyeR * 1.08, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = UI_COLORS.faceInk;
+      ctx.lineWidth = Math.max(1.6, r * 0.05);
+      ctx.stroke();
+
+      if (!isEyeClosed) {
+        // Mor iris + bebek + çift parıltı
+        ctx.fillStyle = UI_COLORS.hatPurple;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 1.4, ey, eyeR * 0.72, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = UI_COLORS.faceInk;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 1.4, ey, eyeR * 0.32, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = UI_COLORS.faceWhite;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX - eyeR * 0.1, ey - eyeR * 0.42, eyeR * 0.24, 0, Math.PI * 2);
+        ctx.arc(eyeOffsetX + eyeR * 0.62, ey + eyeR * 0.4, eyeR * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Uzun üst kirpikler: üst (-Y) kenardan dışa uzanan üç kıl.
+      ctx.strokeStyle = UI_COLORS.faceInk;
+      ctx.lineWidth = Math.max(1.6, r * 0.052);
+      ctx.lineCap = 'round';
+      for (const a of [-2.15, -1.6, -1.05]) {
+        const bx = eyeOffsetX + Math.cos(a) * eyeR * 1.02;
+        const by = ey + Math.sin(a) * eyeR * 1.02;
+        const tx = eyeOffsetX + Math.cos(a) * (eyeR + r * 0.22);
+        const ty = ey + Math.sin(a) * (eyeR + r * 0.22);
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.lineTo(tx, ty);
+        ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+    };
+    drawGlamEye(-eyeSpreadY);
+    drawGlamEye(eyeSpreadY);
+
+    // Yıldız parıltısı — "ışıltı" imzası (ışıltı yüzde dört köşeli ışık).
+    const sx = eyeOffsetX - eyeR * 0.2;
+    const sy = -eyeSpreadY - eyeR * 1.75;
+    const sr = Math.max(2.4, eyeR * 0.5);
+    ctx.fillStyle = UI_COLORS.hatGold;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy - sr);
+    ctx.lineTo(sx + sr * 0.26, sy - sr * 0.26);
+    ctx.lineTo(sx + sr, sy);
+    ctx.lineTo(sx + sr * 0.26, sy + sr * 0.26);
+    ctx.lineTo(sx, sy + sr);
+    ctx.lineTo(sx - sr * 0.26, sy + sr * 0.26);
+    ctx.lineTo(sx - sr, sy);
+    ctx.lineTo(sx - sr * 0.26, sy - sr * 0.26);
+    ctx.closePath();
+    ctx.fill();
+  } else if (expression === 'KISS') {
+    // Öpücük: yumuşak iri gözler (dudaklar ağız katmanında)
+    const drawKissEye = (ey) => {
+      ctx.fillStyle = UI_COLORS.faceWhite;
+      ctx.beginPath();
+      ctx.arc(eyeOffsetX, ey, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = UI_COLORS.faceInk;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      if (!isEyeClosed) {
+        ctx.fillStyle = UI_COLORS.faceInk;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 2.5, ey, eyeR * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = UI_COLORS.faceWhite;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 3.5, ey - 1.5, eyeR * 0.16, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+    drawKissEye(-eyeSpreadY);
+    drawKissEye(eyeSpreadY);
   } else {
     // FOCUS / Standart çift göz
     const drawEye = (ey) => {
@@ -677,25 +1094,25 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
       ctx.arc(eyeOffsetX + 1.2, ey + 1.6, eyeR, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = UI_COLORS.faceWhite;
       ctx.beginPath();
       ctx.arc(eyeOffsetX, ey, eyeR, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = UI_COLORS.inkDark;
       ctx.lineWidth = 1.8;
       ctx.stroke();
 
       if (!isEyeClosed) {
-        ctx.fillStyle = '#1A1A1A';
+        ctx.fillStyle = UI_COLORS.inkDark;
         ctx.beginPath();
         ctx.arc(eyeOffsetX + 2.5, ey, eyeR * 0.48, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = UI_COLORS.faceWhite;
         ctx.beginPath();
         ctx.arc(eyeOffsetX + 3.5, ey - 1.5, eyeR * 0.16, 0, Math.PI * 2);
         ctx.fill();
       } else {
-        ctx.strokeStyle = '#1A1A1A';
+        ctx.strokeStyle = UI_COLORS.inkDark;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(eyeOffsetX - eyeR + 1, ey);
@@ -735,7 +1152,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
         ctx.beginPath();
         ctx.ellipse(mx + r * 0.02, r * 0.04, Math.max(0.7, r * 0.032), Math.max(0.7, r * 0.05), 0, 0, Math.PI * 2);
         ctx.fill();
-      } else if (expression === 'WINK' || expression === 'HEART' || expression === 'STAR') {
+      } else if (expression === 'WINK' || expression === 'HEART' || expression === 'STAR' || expression === 'SHY' || expression === 'GLAM') {
         ctx.strokeStyle = UI_COLORS.faceInk;
         ctx.lineWidth = expression === 'STAR' ? Math.max(1.6, r * 0.07) : mouthLineW;
         ctx.lineCap = 'round';
@@ -764,6 +1181,55 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
         ctx.lineTo(mx + mw * 0.5, ml * 0.9);
         ctx.stroke();
         ctx.lineCap = 'butt';
+      } else if (expression === 'SAD') {
+        // Üzgün ağız: ters kavis
+        ctx.strokeStyle = UI_COLORS.faceInk;
+        ctx.lineWidth = mouthLineW;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(mx + r * 0.06, ml * 1.5, ml * 1.15, Math.PI * 1.2, Math.PI * 1.8);
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+      } else if (expression === 'COOL' || expression === 'PIRATE') {
+        // Kendinden emin yan sırıtış
+        ctx.strokeStyle = UI_COLORS.faceInk;
+        ctx.lineWidth = mouthLineW;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(mx - ml * 0.2, -ml * 0.5);
+        ctx.lineTo(mx + mw * 0.7, ml * 0.9);
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+      } else if (expression === 'CAT') {
+        // Kedi ağzı (küçük "w")
+        ctx.strokeStyle = UI_COLORS.faceInk;
+        ctx.lineWidth = mouthLineW;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(mx - ml * 0.4, -ml * 0.2);
+        ctx.quadraticCurveTo(mx - ml * 0.1, -ml * 0.8, mx + ml * 0.1, -ml * 0.2);
+        ctx.quadraticCurveTo(mx + ml * 0.3, ml * 0.4, mx + ml * 0.6, -ml * 0.2);
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+      } else if (expression === 'XP' || expression === 'DOLLAR') {
+        // Şaşkın küçük "o" ağız
+        ctx.fillStyle = UI_COLORS.mouthDark;
+        ctx.beginPath();
+        ctx.ellipse(mx, 0, Math.max(1, r * 0.06), Math.max(1.2, r * 0.09), 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (expression === 'KISS') {
+        // Öpücük: büzülmüş dudaklar (orta çizgiyle ikiye ayrık)
+        ctx.fillStyle = UI_COLORS.heartPink;
+        ctx.strokeStyle = UI_COLORS.faceInk;
+        ctx.lineWidth = Math.max(1.2, r * 0.03);
+        ctx.beginPath();
+        ctx.ellipse(mx, 0, Math.max(1.4, r * 0.10), Math.max(1, r * 0.07), 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(mx - r * 0.06, 0);
+        ctx.lineTo(mx + r * 0.06, 0);
+        ctx.stroke();
       } else {
         // FOCUS / CYCLOPS / CYBORG / ANGRY / SLEEPY çizgisi — sakin, kısa, dikey profil.
         ctx.strokeStyle = UI_COLORS.faceInk;
@@ -777,10 +1243,12 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
       }
     }
     // --- Allık (sıcak ifadelerde yanak ısısı) ---
-    if (expression === 'HEART' || expression === 'STAR' || expression === 'WINK' || expression === 'GRIN') {
-      const br = Math.max(1.2, eyeR * 0.42);
-      const bxBlush = eyeOffsetX - eyeR * 1.1;
-      const byBlush = eyeSpreadY + eyeR * 0.75;
+    if (expression === 'HEART' || expression === 'STAR' || expression === 'WINK' || expression === 'GRIN'
+      || expression === 'SHY' || expression === 'KISS' || expression === 'GLAM') {
+      const shy = expression === 'SHY';
+      const br = Math.max(1.2, eyeR * (shy ? 0.62 : 0.42));
+      const bxBlush = eyeOffsetX - eyeR * (shy ? 1.25 : 1.1);
+      const byBlush = eyeSpreadY + eyeR * (shy ? 0.55 : 0.75);
       ctx.fillStyle = UI_COLORS.blush;
       ctx.beginPath();
       ctx.arc(bxBlush, -byBlush, br, 0, Math.PI * 2);
@@ -1284,6 +1752,514 @@ function drawHeadwear(ctx, r, facingAngle, id, bodyColor) {
       ctx.beginPath();
       ctx.moveTo(bx + (tx - bx) * 0.55, 0);
       ctx.lineTo(bx + (tx - bx) * 0.90, 0);
+      ctx.stroke();
+    }
+
+  } else if (id === 'TOP_HAT') {
+    // ── Zarif Silindir Şapka (yüksek gövde + kırmızı şerit) ──
+    const brimX = r * 0.52;
+    const brimH = r * 0.20;
+    const brimW = r * 0.78;
+    const topX = r * 1.44;
+    const half = r * 0.36;
+
+    ctx.fillStyle = UI_COLORS.hatObsidian;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.8, r * 0.06);
+    // Silindir gövde
+    ctx.beginPath();
+    ctx.moveTo(brimX - r * 0.06, -half);
+    ctx.lineTo(topX, -half);
+    ctx.lineTo(topX, half);
+    ctx.lineTo(brimX - r * 0.06, half);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Üst kapak elipsi (3D hacim)
+    ctx.fillStyle = UI_COLORS.hatInk;
+    ctx.beginPath();
+    ctx.ellipse(topX, 0, r * 0.13, half, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Kırmızı şerit
+    ctx.fillStyle = UI_COLORS.hatGem;
+    ctx.beginPath();
+    ctx.rect(brimX + r * 0.04, -half, r * 0.14, half * 2);
+    ctx.fill();
+    // Kenarlık (brim)
+    ctx.fillStyle = UI_COLORS.hatObsidian;
+    ctx.beginPath();
+    ctx.ellipse(brimX - r * 0.06, 0, brimH, brimW, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+  } else if (id === 'CAP') {
+    // ── Spor Kasket (kubbe + öne uzanan siper) ──
+    const domeX = r * 0.20;
+    const domeR = r * 0.80;
+    ctx.fillStyle = UI_COLORS.hatSapphire;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.8, r * 0.06);
+    // Kubbe (üst yarı)
+    ctx.beginPath();
+    ctx.ellipse(domeX, 0, domeR, domeR * 0.92, 0, -Math.PI / 2, Math.PI / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Siper (gözlerin önüne, -X)
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.32, 0, r * 0.60, r * 0.40, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Dikiş çizgisi
+    ctx.strokeStyle = UI_COLORS.hatHaloGlow;
+    ctx.lineWidth = Math.max(1, r * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(domeX, -domeR * 0.55);
+    ctx.quadraticCurveTo(domeX + r * 0.26, 0, domeX, domeR * 0.55);
+    ctx.stroke();
+    // Tepe düğmesi
+    ctx.fillStyle = UI_COLORS.hatSapphire;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.4, r * 0.05);
+    ctx.beginPath();
+    ctx.arc(domeX + domeR * 0.55, 0, Math.max(1.8, r * 0.07), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+  } else if (id === 'COWBOY') {
+    // ── Kovboy Şapkası (geniş kenar + kıvrık taç) ──
+    const brimX = r * 0.40;
+    const brimH = r * 0.30;
+    const brimW = r * 0.98;
+    const crown = r * 0.68;
+    ctx.fillStyle = UI_COLORS.hatGoldDark;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.8, r * 0.06);
+    // Geniş kenar
+    ctx.beginPath();
+    ctx.ellipse(brimX, 0, brimH, brimW, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Taç
+    ctx.beginPath();
+    ctx.moveTo(brimX - r * 0.05, -crown);
+    ctx.lineTo(brimX + r * 0.60, -crown * 0.72);
+    ctx.lineTo(brimX + r * 0.64, 0);
+    ctx.lineTo(brimX + r * 0.60, crown * 0.72);
+    ctx.lineTo(brimX - r * 0.05, crown);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Kemer bandı
+    ctx.fillStyle = UI_COLORS.hatRed;
+    ctx.beginPath();
+    ctx.rect(brimX + r * 0.06, -crown * 0.9, r * 0.12, crown * 1.8);
+    ctx.fill();
+
+  } else if (id === 'VIKING') {
+    // ── Viking Miğferi (metal kubbe + kıvrık boynuzlar) ──
+    const domeX = r * 0.40;
+    const domeR = r * 0.60;
+    ctx.fillStyle = UI_COLORS.hatMetal;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.8, r * 0.06);
+    ctx.beginPath();
+    ctx.ellipse(domeX, 0, domeR * 0.9, domeR, 0, -Math.PI / 2, Math.PI / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Burun koruyucu (gözlerin arasına inen metal şerit)
+    ctx.beginPath();
+    ctx.moveTo(domeX - r * 0.08, -r * 0.14);
+    ctx.lineTo(-r * 0.18, 0);
+    ctx.lineTo(domeX - r * 0.08, r * 0.14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Boynuzlar
+    const drawVikingHorn = (sign) => {
+      const rootX = r * 0.42;
+      const rootY = sign * r * 0.55;
+      ctx.fillStyle = UI_COLORS.hatBone;
+      ctx.strokeStyle = UI_COLORS.hatInk;
+      ctx.lineWidth = Math.max(1.6, r * 0.05);
+      ctx.beginPath();
+      ctx.moveTo(rootX, rootY - sign * r * 0.10);
+      ctx.quadraticCurveTo(r * 0.85, rootY + sign * r * 0.15, r * 0.96, sign * r * 1.05);
+      ctx.quadraticCurveTo(r * 0.68, rootY + sign * r * 0.10, rootX, rootY + sign * r * 0.10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    };
+    drawVikingHorn(-1);
+    drawVikingHorn(1);
+
+  } else if (id === 'HEADBAND') {
+    // ── Bandana (alın bandı + arkada uçuşan kuyruklar) ──
+    const bandX = r * 0.34;
+    ctx.fillStyle = UI_COLORS.hatRed;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.6, r * 0.05);
+    const drawBandTail = (sign) => {
+      ctx.beginPath();
+      ctx.moveTo(bandX + r * 0.10, sign * r * 0.30);
+      ctx.quadraticCurveTo(r * 1.18, sign * r * 0.55, r * 1.32, sign * r * 0.95);
+      ctx.quadraticCurveTo(r * 1.02, sign * r * 0.72, bandX + r * 0.10, sign * r * 0.48);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    };
+    drawBandTail(-1);
+    drawBandTail(1);
+    // Bant
+    ctx.beginPath();
+    ctx.ellipse(bandX, 0, r * 0.16, r * 0.66, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Düğüm
+    ctx.beginPath();
+    ctx.arc(bandX + r * 0.22, 0, Math.max(2, r * 0.12), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+  } else if (id === 'FLOWER') {
+    // ── Yanak Çiçeği (başın yanında altı yapraklı çiçek) ──
+    const fx = r * 0.74;
+    const fy = -r * 0.54;
+    const petal = Math.max(2.6, r * 0.15);
+    ctx.fillStyle = UI_COLORS.hatPinkLight;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.2, r * 0.035);
+    for (let i = 0; i < 6; i += 1) {
+      const a = (i * Math.PI) / 3;
+      ctx.beginPath();
+      ctx.ellipse(
+        fx + Math.cos(a) * petal,
+        fy + Math.sin(a) * petal,
+        petal * 0.62, petal * 0.42, a, 0, Math.PI * 2,
+      );
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle = UI_COLORS.hatYellow;
+    ctx.beginPath();
+    ctx.arc(fx, fy, petal * 0.62, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+  } else if (id === 'ANTENNA') {
+    // ── Böcek Antenleri (iki ince dal + parlayan uçlar) ──
+    const drawAntenna = (sign) => {
+      const bx = r * 0.52;
+      const by = sign * r * 0.28;
+      const tx = r * 1.08;
+      const ty = sign * r * 0.60;
+      ctx.strokeStyle = UI_COLORS.hatInk;
+      ctx.lineWidth = Math.max(1.8, r * 0.055);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo((bx + tx) / 2, by + sign * r * 0.28, tx, ty);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+      ctx.fillStyle = sign < 0 ? UI_COLORS.hatCyan : UI_COLORS.hatGem;
+      ctx.beginPath();
+      ctx.arc(tx, ty, Math.max(2.4, r * 0.13), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    };
+    drawAntenna(-1);
+    drawAntenna(1);
+
+  } else if (id === 'BEANIE') {
+    // ── Kışlık Bere (kubbeli örgü + kıvrık kenar + pom-pom) ──
+    const domeX = r * 0.34;
+    const domeR = r * 0.72;
+    ctx.fillStyle = UI_COLORS.hatPurple;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.8, r * 0.06);
+    ctx.beginPath();
+    ctx.ellipse(domeX, 0, domeR * 0.95, domeR, 0, -Math.PI / 2, Math.PI / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Kıvrık kenar
+    ctx.fillStyle = UI_COLORS.hatPurpleDark;
+    ctx.beginPath();
+    ctx.ellipse(domeX - r * 0.08, 0, r * 0.15, r * 0.74, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Dikey örgü çizgileri
+    ctx.strokeStyle = UI_COLORS.rimLight;
+    ctx.lineWidth = Math.max(1, r * 0.03);
+    for (const t of [-0.55, -0.18, 0.18, 0.55]) {
+      ctx.beginPath();
+      ctx.moveTo(domeX - r * 0.02, domeR * t * 0.85);
+      ctx.quadraticCurveTo(domeX + domeR * 0.5, domeR * t, domeX - r * 0.02, domeR * t * 0.2);
+      ctx.stroke();
+    }
+    // Pom-pom
+    ctx.fillStyle = UI_COLORS.hatShine;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.4, r * 0.05);
+    ctx.beginPath();
+    ctx.arc(domeX + domeR * 0.55, 0, Math.max(2.6, r * 0.16), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+  } else if (id === 'CAT_EARS') {
+    // ── Kedi Kulakları: baş bandı + iki yana açılan pembe içli üçgen kulaklar ──
+    // Baş bandı (kulak diplerini tacın arkasında birleştirir).
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(2.2, r * 0.14);
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.55, -Math.PI * 0.62, Math.PI * 0.62);
+    ctx.stroke();
+    ctx.strokeStyle = UI_COLORS.hatObsidian;
+    ctx.lineWidth = Math.max(1.2, r * 0.09);
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.55, -Math.PI * 0.62, Math.PI * 0.62);
+    ctx.stroke();
+
+    const drawCatEar = (sign) => {
+      // Dış kulak: geniş tabanlı, dışa bakan yuvarlak uçlu üçgen.
+      ctx.fillStyle = UI_COLORS.hatObsidian;
+      ctx.strokeStyle = UI_COLORS.hatInk;
+      ctx.lineWidth = Math.max(1.8, r * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(r * 0.12, sign * r * 0.36);
+      ctx.lineTo(r * 0.70, sign * r * 0.42);
+      ctx.quadraticCurveTo(r * 0.64, sign * r * 0.88, r * 0.50, sign * r * 1.16);
+      ctx.quadraticCurveTo(r * 0.40, sign * r * 1.24, r * 0.34, sign * r * 1.06);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // İç kulak (pembe üçgen)
+      ctx.fillStyle = UI_COLORS.hatPinkDark;
+      ctx.beginPath();
+      ctx.moveTo(r * 0.28, sign * r * 0.48);
+      ctx.lineTo(r * 0.58, sign * r * 0.52);
+      ctx.quadraticCurveTo(r * 0.52, sign * r * 0.82, r * 0.44, sign * r * 1.00);
+      ctx.quadraticCurveTo(r * 0.38, sign * r * 0.82, r * 0.28, sign * r * 0.48);
+      ctx.closePath();
+      ctx.fill();
+    };
+    drawCatEar(-1);
+    drawCatEar(1);
+
+  } else if (id === 'BUNNY_EARS') {
+    // ── Tavşan Kulakları (pembe içli iki uzun kulak) ──
+    const drawBunnyEar = (sign) => {
+      const ex = r * 0.86;
+      const ey = sign * r * 0.40;
+      ctx.save();
+      ctx.fillStyle = UI_COLORS.faceWhite;
+      ctx.strokeStyle = UI_COLORS.hatInk;
+      ctx.lineWidth = Math.max(1.6, r * 0.05);
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, r * 0.62, r * 0.23, sign * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = UI_COLORS.hatPinkLight;
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, r * 0.44, r * 0.12, sign * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+    drawBunnyEar(-1);
+    drawBunnyEar(1);
+
+  } else if (id === 'PIGTAILS') {
+    // ── İkiz Topuz (baş arkası saç bandı + iki yandan topuz) ──
+    const hairColor = UI_COLORS.hatObsidian;
+    ctx.fillStyle = hairColor;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.8, r * 0.06);
+    ctx.beginPath();
+    ctx.ellipse(r * 0.30, 0, r * 0.20, r * 0.70, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    const drawBun = (sign) => {
+      const bx = r * 0.60;
+      const by = sign * r * 0.88;
+      ctx.fillStyle = hairColor;
+      ctx.beginPath();
+      ctx.arc(bx, by, r * 0.34, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = UI_COLORS.hatHaloGlow;
+      ctx.beginPath();
+      ctx.arc(bx - r * 0.10, by - r * 0.10, r * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    drawBun(-1);
+    drawBun(1);
+
+  } else if (id === 'PROPELLER') {
+    // ── Pervane Şapka (renkli başlık + döner pervane) ──
+    const domeX = r * 0.34;
+    const domeR = r * 0.70;
+    ctx.fillStyle = UI_COLORS.hatCyan;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.8, r * 0.06);
+    ctx.beginPath();
+    ctx.ellipse(domeX, 0, domeR * 0.95, domeR, 0, -Math.PI / 2, Math.PI / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Kırmızı şerit
+    ctx.fillStyle = UI_COLORS.hatRed;
+    ctx.beginPath();
+    ctx.ellipse(domeX - r * 0.06, 0, r * 0.12, domeR, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Mil + pervane kanatları
+    const hubX = domeX + domeR * 0.95 + r * 0.30;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.4, r * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(domeX + domeR * 0.95, 0);
+    ctx.lineTo(hubX, 0);
+    ctx.stroke();
+    ctx.fillStyle = UI_COLORS.hatYellow;
+    ctx.beginPath();
+    ctx.ellipse(hubX, 0, r * 0.14, r * 0.40, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(hubX, 0, r * 0.40, r * 0.14, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = UI_COLORS.hatShine;
+    ctx.beginPath();
+    ctx.arc(hubX, 0, r * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+  } else if (id === 'PIRATE_HAT') {
+    // ── Korsan Şapkası (siyah üç köşeli kenar + kurukafa amblemi) ──
+    const baseX = r * 0.44;
+    const crown = r * 0.60;
+    const spread = r * 1.12;
+    ctx.fillStyle = UI_COLORS.hatObsidian;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.8, r * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(baseX - r * 0.05, -spread);
+    ctx.lineTo(r * 1.00, -crown * 0.5);
+    ctx.lineTo(r * 1.00, crown * 0.5);
+    ctx.lineTo(baseX - r * 0.05, spread);
+    ctx.quadraticCurveTo(r * 0.16, 0, baseX - r * 0.05, -spread);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Kurukafa amblemi
+    const sx = r * 0.74;
+    const sr = Math.max(2.2, r * 0.13);
+    ctx.fillStyle = UI_COLORS.hatShine;
+    ctx.beginPath();
+    ctx.arc(sx, 0, sr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = UI_COLORS.hatInk;
+    ctx.beginPath();
+    ctx.arc(sx - sr * 0.34, -sr * 0.12, sr * 0.22, 0, Math.PI * 2);
+    ctx.arc(sx + sr * 0.34, -sr * 0.12, sr * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+
+  } else if (id === 'GRAD_CAP') {
+    // ── Mezuniyet Kepi (kubbeli taban + kare tahta + püskül) ──
+    const baseX = r * 0.30;
+    const board = r * 0.78;
+    ctx.fillStyle = UI_COLORS.hatObsidian;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.6, r * 0.05);
+    // Kubbeli taban (kafaya oturur)
+    ctx.beginPath();
+    ctx.ellipse(baseX, 0, r * 0.22, r * 0.42, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Kare tahta (elmas görünüm)
+    ctx.beginPath();
+    ctx.moveTo(baseX + r * 0.55, 0);
+    ctx.lineTo(baseX + r * 0.10, -board * 0.5);
+    ctx.lineTo(baseX - r * 0.55, 0);
+    ctx.lineTo(baseX + r * 0.10, board * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Püskül
+    const kx = baseX + r * 0.10;
+    ctx.fillStyle = UI_COLORS.hatGold;
+    ctx.beginPath();
+    ctx.arc(kx, 0, Math.max(1.6, r * 0.07), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = UI_COLORS.hatGold;
+    ctx.lineWidth = Math.max(1.2, r * 0.04);
+    ctx.beginPath();
+    ctx.moveTo(kx, 0);
+    ctx.quadraticCurveTo(baseX + r * 0.70, r * 0.30, baseX + r * 0.50, board * 0.70);
+    ctx.stroke();
+
+  } else if (id === 'SANTA') {
+    // ── Noel Şapkası (kıvrık kırmızı külah + pofuduk kenar ve ponpon) ──
+    const baseX = r * 0.42;
+    const hw = r * 0.52;
+    const tipX = r * 1.18;
+    const tipY = -r * 0.32;
+    ctx.fillStyle = UI_COLORS.hatRed;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.8, r * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(baseX, -hw);
+    ctx.quadraticCurveTo(r * 0.90, -hw * 0.7, tipX, tipY);
+    ctx.quadraticCurveTo(r * 0.95, hw * 0.9, baseX, hw);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Pofuduk beyaz kenar
+    const puffR = Math.max(3.4, r * 0.20);
+    ctx.fillStyle = UI_COLORS.faceWhite;
+    ctx.beginPath();
+    ctx.ellipse(baseX - r * 0.02, 0, r * 0.16, hw * 1.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    for (const py of [-hw * 0.75, 0, hw * 0.75]) {
+      ctx.beginPath();
+      ctx.arc(baseX + r * 0.02, py, puffR * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    // Ponpon
+    ctx.beginPath();
+    ctx.arc(tipX, tipY, puffR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+  } else if (id === 'CHEF_HAT') {
+    // ── Aşçı Şapkası (alın bandı + pofuduk bulut tepe) ──
+    const baseX = r * 0.34;
+    const half = r * 0.42;
+    const bandH = r * 0.14;
+    ctx.fillStyle = UI_COLORS.faceWhite;
+    ctx.strokeStyle = UI_COLORS.hatInk;
+    ctx.lineWidth = Math.max(1.6, r * 0.05);
+    ctx.beginPath();
+    ctx.ellipse(baseX, 0, bandH, half, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    const cloudR = r * 0.30;
+    for (const [cx, cy] of [
+      [baseX + r * 0.30, -half * 0.55],
+      [baseX + r * 0.50, 0],
+      [baseX + r * 0.30, half * 0.55],
+      [baseX + r * 0.62, -half * 0.25],
+      [baseX + r * 0.62, half * 0.25],
+    ]) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, cloudR, 0, Math.PI * 2);
+      ctx.fill();
       ctx.stroke();
     }
   }

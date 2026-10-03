@@ -42,6 +42,12 @@ export const SETTINGS_ROWS = [
     labelKey: 'settings.sound', iconOn: { on: 'volume_2', off: 'volume_x' },
   },
   {
+    // Ses düzeyi mute'tan ayrı kayar; duraklatmada da tek dokunuşta erişilir
+    // (hızlı şeritte `sound` anahtarının yanında tam genişlik slider).
+    tab: 'general', id: 'volume', type: 'slider', action: 'volume', quick: true,
+    labelKey: 'settings.volume', min: 0, max: 1, step: 0.05,
+  },
+  {
     // Fighter anonsu (raunt/fight/geri sayım). Varsayılan KAPALI; yalnız
     // hızlı sette çizilmez. GENERAL 6 satıra çıkar — panel dikey kaydırmayı
     // destekler (§8), botReactions açıkken zaten 6 idi.

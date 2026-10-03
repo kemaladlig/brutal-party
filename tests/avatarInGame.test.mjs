@@ -79,6 +79,7 @@ let tickKinetic;
 let sanitizeAvatar;
 let getBotPersona;
 let GOD_BOT_PERSONAS;
+let AVATAR_HEADWEAR;
 
 const R = 16;
 const BORDER = 2.5;
@@ -144,6 +145,7 @@ before(async () => {
   sanitizeAvatar = manager.sanitizeAvatar;
   getBotPersona = manager.getBotPersona;
   GOD_BOT_PERSONAS = manager.GOD_BOT_PERSONAS;
+  AVATAR_HEADWEAR = manager.AVATAR_HEADWEAR;
 });
 
 after(async () => { await server?.close(); });
@@ -201,7 +203,8 @@ test('the bigger in-game eyes stay inside the circle', () => {
   // Gözler 0.24r -> 0.30r büyüdü; kazanç bedeli siluete taşmak olurdu. Sınır:
   // çizilen bbox gövde + çerçeve'yi aşamaz (ölçülen 36x37 gövde, r=16'da).
   const expressions = ['FOCUS', 'ANGRY', 'WINK', 'DERP', 'CYCLOPS', 'HEART', 'STAR',
-    'SLEEPY', 'ZOMBIE', 'GRIN', 'SHADES', 'CYBORG', 'PANIC'];
+    'SLEEPY', 'ZOMBIE', 'GRIN', 'SHADES', 'CYBORG', 'PANIC',
+    'SAD', 'COOL', 'XP', 'DOLLAR', 'PIRATE', 'NERD', 'CAT', 'SHY', 'GLAM', 'KISS'];
   for (const expression of expressions) {
     for (const lookAngle of [undefined, Math.PI / 2, -Math.PI / 2, Math.PI, 0.4]) {
       const { bounds } = drawInGame({ expression, lookAngle, facingAngle: 0.9 });
@@ -209,6 +212,21 @@ test('the bigger in-game eyes stay inside the circle', () => {
       const h = bounds.maxY - bounds.minY;
       assert.ok(w <= EXTENT_LIMIT, `${expression} width ${w.toFixed(2)} exceeds ${EXTENT_LIMIT}`);
       assert.ok(h <= EXTENT_LIMIT, `${expression} height ${h.toFixed(2)} exceeds ${EXTENT_LIMIT}`);
+    }
+  }
+});
+
+test('every headwear option renders its own geometry, and NONE is a clean body', () => {
+  // Her baş süsü ayrı bir çizim dalıdır; biri eksik/bozuk olsa saha sessizce
+  // süssüz kalırdı. NONE taban çizimdir; geri kalan her id fazladan geometri
+  // üretmeli (hitbox'a dokunmadan — disk dışına taşan görsel katman).
+  const plain = drawInGame({ headwear: 'NONE' });
+  for (const hw of AVATAR_HEADWEAR) {
+    const rec = drawInGame({ headwear: hw.id });
+    if (hw.id === 'NONE') {
+      assert.deepEqual(rec.calls, plain.calls, 'NONE fazladan bir şey çizmemeli');
+    } else {
+      assert.ok(rec.calls.length > plain.calls.length, `${hw.id} hiç baş süsü geometrisi çizmedi`);
     }
   }
 });
@@ -312,6 +330,12 @@ test('the motion smear reads every engine dialect, like the squash channel does'
   // Sürüşte değil / hız yok → iz yok.
   assert.equal(avatarSmearPower({ radius: 30, isDriving: false, speed: 30 * 12 }), 0);
   assert.equal(avatarSmearPower({ radius: 30, vx: 0, vy: 0 }), 0);
+  // Bayrak açık ama gövde YER DEĞİŞTİRMİYOR → iz yok. Yerinde zıplama
+  // (COLLAPSE `jumpTimer`) ve boş tackle (HEIST) artık "dururken arkada
+  // gölge klon" bırakmaz; vektör yazıldığı için bayrak yön yerine geçmez.
+  assert.equal(avatarSmearPower({ radius: 30, jumpTimer: 0.3, vx: 0, vy: 0 }), 0);
+  assert.equal(avatarSmearPower({ radius: 30, isTackling: true, vx: 0, vy: 0 }), 0);
+  assert.equal(avatarSmearPower({ radius: 30, dashTimer: 0.2, vx: 0, vy: 0 }), 0);
 });
 
 test('the ground shadow scales with the body, never with raw px', () => {

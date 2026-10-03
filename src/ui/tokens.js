@@ -128,6 +128,7 @@ export const UI_COLORS = {
   // (K2 kotası renderer'da donduruk, sözlük istisnası tokens.js'tir).
   faceInk: '#1A1A1A',
   faceWhite: '#FFFFFF',
+  faceTear: '#9BD7FF',
   mouthDark: '#4A1D18',
   tongue: '#FF6B8A',
   blush: 'rgba(255, 90, 130, 0.30)',
@@ -159,6 +160,8 @@ export const UI_COLORS = {
   hatCyan: '#00F0FF',
   hatShine: '#FFFFFF',
   hatObsidian: '#2B1B17',
+  hatMetal: '#9AA7B4',
+  hatBone: '#F0E6D2',
 };
 
 export const CROWN_COLORS = Object.freeze([

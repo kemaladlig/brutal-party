@@ -427,15 +427,5 @@
   }
 }
 
-.sheet-row-actions {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-}
-
-.sheet-row-actions .pause-btn {
-  flex: 1;
-  min-width: 0;
-  padding: 11px 8px;
-  font-size: 12.5px;
-}
+/* `.sheet-row-actions` yerleşimi TEK kaynaktadır (`sheets.css`): satır + sarma.
+   İkinci tanım sheet'i dikeyde şişirip kaydırma tuzağı kuruyordu. */

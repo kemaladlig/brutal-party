@@ -23,7 +23,6 @@ import { createQuickSettingsPanel } from './settings/settingsPanel.js';
 import { openSettingsSheet } from './settings/settingsSheet.js';
 import { createTabStrip } from './tabStrip.js';
 import { playMenuTick, playMenuPop } from '../audio.js';
-import { canToggleFullscreen } from './fullscreen.js';
 
 const pauseModal = document.getElementById('pause-modal');
 const pauseGameTitle = document.getElementById('pause-game-title');
@@ -38,7 +37,6 @@ const pausePanels = {
 };
 const btnPauseClose = document.getElementById('btn-pause-close');
 const btnPauseSettings = document.getElementById('btn-pause-settings');
-const btnPauseAllSettings = document.getElementById('btn-pause-all-settings');
 const btnResumeGame = document.getElementById('btn-resume-game');
 const btnResetMatch = document.getElementById('btn-reset-match');
 const btnTvLobby = document.getElementById('btn-tv-lobby');
@@ -246,11 +244,12 @@ export function openPauseModal({ currentMode, isHosting, onSwapCallback }) {
     btnTvLobby.classList.toggle('hidden', !isHosting);
   }
   // Üst kümedeki tepki düğmesinin sayfa içi karşılığı: yalnız host gönderir.
-  // İki düğme de gizliyse satır yer kaplamaz (sabit panel yüksekliği korunur).
+  // Satırda yalnız bu kalır (tam ekran hızlı şeritteki switch'tedir); host
+  // değilse satır yer kaplamaz (sabit panel yüksekliği korunur).
   if (btnPauseReact) {
     btnPauseReact.classList.toggle('hidden', !isHosting);
   }
-  pauseQuickRow?.classList.toggle('hidden', !canToggleFullscreen() && !isHosting);
+  pauseQuickRow?.classList.toggle('hidden', !isHosting);
   if (btnExitToMenu) {
     const textEl = btnExitToMenu.querySelector('.btn-text');
     const exitText = t('pause.exit');
@@ -295,10 +294,9 @@ export function initPauseModal({
   });
 
   // Ayarlar duraklatmanın ÜSTÜNDE açılır: altta duran katman kapanmaz, Escape
-  // önce en üsttekine gider (`overlayHost`). Başlıktaki dişliyle menüdeki
-  // TÜM AYARLAR satırı AYNI sheet'i açar (ikinci ayar yüzeyi yok).
+  // önce en üsttekine gider (`overlayHost`). Başlıktaki dişli AYNI sheet'i
+  // açar (ikinci ayar yüzeyi yok — gövdedeki kopya düğme kaldırıldı).
   btnPauseSettings?.addEventListener('click', () => { playMenuTick(); openSettingsSheet(); });
-  btnPauseAllSettings?.addEventListener('click', () => { playMenuTick(); openSettingsSheet(); });
 
   btnResetMatch?.addEventListener('click', () => {
     playMenuPop();

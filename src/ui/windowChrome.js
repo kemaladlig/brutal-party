@@ -99,11 +99,9 @@ export function setupWindowChrome({
   // Quick Fullscreen UI
   const btnQuickFullscreen = document.getElementById('btn-quick-fullscreen');
   const quickFullscreenIcon = document.getElementById('quick-fullscreen-icon');
-  // ⋮ sayfasındaki karşılık: üst küme maçta gizlendiği için tam ekran buradan
-  // da açılır. İki düğmenin durumu TEK kaynaktan (`updateQuickFullscreen`).
-  const btnPauseFullscreen = document.getElementById('btn-pause-fullscreen');
-  const pauseFullscreenIcon = document.getElementById('pause-fullscreen-icon');
-  const pauseFullscreenLabel = document.getElementById('pause-fullscreen-label');
+  // Tam ekranın pause içi karşılığı hızlı şeritteki switch'tir
+  // (`settingsSchema` → `settingsActions.fullscreen`); ad-hoc ikinci düğme
+  // kaldırıldı — durum TEK kaynaktan yalnız buradaki çipte tutulur.
 
   function updateQuickFullscreen(active) {
     const isFs = typeof active === 'boolean' ? active : isFullscreen();
@@ -120,16 +118,6 @@ export function setupWindowChrome({
     btnQuickFullscreen?.setAttribute('title', label);
     btnQuickFullscreen?.setAttribute('aria-label', label);
     btnQuickFullscreen?.setAttribute('aria-pressed', String(isFs));
-    btnPauseFullscreen?.classList.toggle('hidden', !offerable);
-    if (pauseFullscreenIcon) {
-      pauseFullscreenIcon.innerHTML = getTabletopIconSvg(
-        isFs ? 'minimize-2' : 'maximize-2',
-        { size: 16 },
-      );
-    }
-    if (pauseFullscreenLabel) pauseFullscreenLabel.textContent = label;
-    btnPauseFullscreen?.setAttribute('aria-label', label);
-    btnPauseFullscreen?.setAttribute('aria-pressed', String(isFs));
   }
   
   updateQuickFullscreen();
@@ -148,7 +136,6 @@ export function setupWindowChrome({
       toggleFullscreen();
     };
     btnQuickFullscreen.addEventListener('click', onFullscreenTap);
-    btnPauseFullscreen?.addEventListener('click', onFullscreenTap);
   }
 
   // Service Worker & Güncelleme Yöneticisi

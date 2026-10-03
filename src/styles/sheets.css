@@ -272,10 +272,19 @@
   gap: 8px;
 }
 
+/* İkincil eylemler tek satırda yan yana: alt alta dizim sheet'i ~150px
+   uzatıp yatay telefonda kaydırma tuzağı kuruyordu (`hud.css` eski satır
+   düzeniyle çakışıyordu — tek kaynak burasıdır). Dar yüzeyde sarar. */
 .sheet-row-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.sheet-row-actions .pause-btn {
+  flex: 1 1 140px;
+  min-width: 0;
 }
 
 /* ── Kontrol referansı: slot başına okunabilir satır ──────────────────── */
@@ -431,6 +440,10 @@
 }
 
 .pause-seat-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
   border: 0;
   border-bottom: 1px solid var(--n-200);
   border-radius: 0;
@@ -439,6 +452,8 @@
   border-left: 0;
   min-height: 50px;
   padding: 8px 14px;
+  text-align: start;
+  cursor: pointer;
 }
 
 .pause-seat-btn:last-child { border-bottom: 0; }

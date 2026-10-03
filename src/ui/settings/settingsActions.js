@@ -8,7 +8,7 @@ import { isColorblindEnabled, setColorblindEnabled } from '../../core/customizat
 import { isPersistent } from '../../core/safeStorage.js';
 import { getPreference, setPreference } from '../../core/preferences.js';
 import { applyUpdate, checkForUpdates, isUpdateAvailable, onUpdateStatusChange } from '../../core/updateManager.js';
-import { toggleAudio, getIsMuted, isVoiceEnabled, setVoiceEnabled, playMenuTick } from '../../audio.js';
+import { toggleAudio, getIsMuted, getAudioVolume, setAudioVolume, isVoiceEnabled, setVoiceEnabled, playMenuTick } from '../../audio.js';
 import { getLang, setLang, t } from '../../i18n.js';
 import { showInstallToast } from '../toast.js';
 import { CONTROL_SURFACE, getControlSurfacePreference, setControlSurface } from '../tokens.js';
@@ -45,6 +45,14 @@ export const settingsActions = {
       // yutulur, burada teyit sesi gelir.
       if (!muted) { try { playMenuTick(); } catch {} }
     },
+  },
+
+  // Ses düzeyi: mute anahtarından bağımsız kayar (0 susturmaz, yalnız kısar;
+  // tek kaynak `audio.js` + `soundEngine` master gain; iki yüzey aynı eylemi okur).
+  volume: {
+    get: () => getAudioVolume(),
+    set: (value) => { setAudioVolume(value); },
+    format: (value) => `${Math.round(Number(value) * 100)}%`,
   },
 
   // Fighter anonsu (raunt/fight/geri sayım). Varsayılan KAPALI — parti

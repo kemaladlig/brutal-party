@@ -302,6 +302,9 @@ button.setting-row:active { background: var(--sheen-15); transform: none; }
 }
 
 .is-quick .setting-row:last-child { border-bottom: 1px solid var(--n-200); }
+/* Ses düzeyi slider'ı çip genişliğine sığmaz: hızlı şeritte tam satır kaplar
+   (yanındaki `sound` anahtarıyla alt alta değil, üstünde tek bakışta). */
+.is-quick .setting-row.is-slider { flex: 1 1 100%; }
 .is-quick .row-ico { width: 16px; }
 .is-quick .row-track { width: 34px; height: 20px; }
 .is-quick .row-knob { width: 14px; height: 14px; top: 3px; left: 3px; }

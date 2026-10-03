@@ -1,6 +1,6 @@
 // Brutal Party — Karakter Özelleştirme Modali (Character Customization UI)
-// Cihaz-başı TEK profil: renk + yüz ifadesi + halka. Erişuar ve gövde deseni YOK
-// (sahada da, menüde de; siluet daima tam yuvarlak).
+// Cihaz-başı TEK profil: renk + yüz ifadesi + halka + baş süsü. Gövde deseni YOK
+// (sahada da, menüde de; siluet daima tam yuvarlak, baş süsü hitbox'a dokunmaz).
 // Hem Ana Menüden, hem TV lobisinden, hem telefon kumandasından açılır.
 import {
   getActivePalettes,

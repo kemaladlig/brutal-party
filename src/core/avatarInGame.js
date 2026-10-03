@@ -288,14 +288,17 @@ export function avatarSmearPower(player, opts = {}) {
   const r = Number(player?.radius ?? player?.size);
   if (!Number.isFinite(r) || r <= 0) return 0;
 
-  // Hız ORANı. Dash/tackle bayrağı da buraya girer: oyuncu o anda zorunlu
-  // olarak hızlıdır ama bazı motorlar (BOMB, NINJA) `vx/vy` yazmayı dash
-  // penceresinin tamamında yapmaz. Bayrağı yok saymak o oyunlarda dash'i
-  // görünmez kılardı — squash zaten aynı bayrağı okuyor.
+  // Hız ORANı. Motor bir hız vektörü yazdıysa GERÇEK hız okunur; bayrak
+  // yalnızca vektör HİÇ yoksa yön yerine geçer. Aksi hâlde yerinde zıplayan
+  // (COLLAPSE `jumpTimer`) ya da boş tackle'da duran (HEIST/COLLAPSE) oyuncu
+  // sıfır hızda bile tam güçte hayalet basardı — "dururken arkada gölge klon".
+  // Tüm motorlar hareket döngüsünde `vx/vy` yazdığı için (parity testi) dash
+  // izi kaybolmaz; yer değiştirmeyen bayrak artık iz üretmez.
   let rate = 0;
-  if (Number.isFinite(vx) && Number.isFinite(vy)) rate = Math.hypot(vx, vy) / r;
-  if (k.dashing) rate = Math.max(rate, SMEAR_FULL_RATE);
-  else if (k.tackling) rate = Math.max(rate, SMEAR_FULL_RATE * 0.8);
+  const hasVel = Number.isFinite(vx) && Number.isFinite(vy);
+  if (hasVel) rate = Math.hypot(vx, vy) / r;
+  else if (k.dashing) rate = SMEAR_FULL_RATE;
+  else if (k.tackling) rate = SMEAR_FULL_RATE * 0.8;
 
   if (rate <= SMEAR_MIN_RATE) return 0;
   const t = Math.min(1, (rate - SMEAR_MIN_RATE) / (SMEAR_FULL_RATE - SMEAR_MIN_RATE));

@@ -53,7 +53,18 @@ export const AVATAR_PALETTES = [
   { id: 'carbon', name: 'KARBON', hex: '#2D3436', border: '#1A1A1A' },
   { id: 'pink', name: 'PUNK PEMBE', hex: '#E84393', border: '#1A1A1A' },
   { id: 'cyan', name: 'BUZ MAVİSİ', hex: '#0984E3', border: '#1A1A1A' },
+  { id: 'grape', name: 'LAVANTA', hex: '#8E6BFF', border: '#1A1A1A' },
+  { id: 'lime', name: 'ASİT YEŞİLİ', hex: '#7CB518', border: '#1A1A1A' },
+  { id: 'coral', name: 'MERCAN', hex: '#FF7A5C', border: '#1A1A1A' },
+  { id: 'teal', name: 'PETROL', hex: '#0E7C86', border: '#1A1A1A' },
+  { id: 'rose', name: 'GÜL KURUSU', hex: '#C96A8B', border: '#1A1A1A' },
+  { id: 'plum', name: 'ERİK', hex: '#5B2A86', border: '#1A1A1A' },
+  { id: 'sand', name: 'ÇÖL KUMU', hex: '#BFA25A', border: '#1A1A1A' },
+  { id: 'sky', name: 'GÖK MAVİSİ', hex: '#3FA7D6', border: '#1A1A1A' },
 ];
+
+// Palet id → hex: bot persona ve halka renkleri aynı hex'i tekrar yazmaz (tek kaynak).
+const PALETTE_BY_ID = new Map(AVATAR_PALETTES.map((p) => [p.id, p.hex]));
 
 // ── Renk körü güvenli palet (Okabe-Ito, protanopi/deuteranopi dostu) ──
 // Kırmızı-yeşil çifti yoktur; ayırt edicilik renk + isim etiketiyle sağlanır.
@@ -103,6 +114,17 @@ export const AVATAR_EXPRESSIONS = [
   { id: 'SLEEPY', name: 'Uykulu', icon: 'moon', desc: 'Yarım kapalı uykulu gözler' },
   { id: 'ZOMBIE', name: 'Zombi', icon: 'skull', desc: 'Donuk zombi bakışı' },
   { id: 'GRIN', name: 'Sırıtış', icon: 'smile', desc: 'Kötü niyetli geniş sırıtış' },
+  { id: 'PANIC', name: 'Şaşkın', icon: 'alert_circle', desc: 'Vurulma anı iri açılmış gözler' },
+  { id: 'SAD', name: 'Üzgün', icon: 'cry', desc: 'Sarkık gözler ve gözyaşı' },
+  { id: 'COOL', name: 'Havalı', icon: 'kiss', desc: 'Kendinden emin yan bakış' },
+  { id: 'XP', name: 'Ölü', icon: 'ghost', desc: 'Çarpı işaretli baygın gözler' },
+  { id: 'DOLLAR', name: 'Zengin', icon: 'coins', desc: 'Para simgesi gözler' },
+  { id: 'PIRATE', name: 'Korsan', icon: 'target', desc: 'Tek göz bandı ve denizci bakışı' },
+  { id: 'NERD', name: 'İnek', icon: 'search', desc: 'Yuvarlak çerçeveli gözlükler' },
+  { id: 'CAT', name: 'Kedi', icon: 'footprints', desc: 'Yarık kedi gözleri ve bıyıklar' },
+  { id: 'SHY', name: 'Utangaç', icon: 'heart', desc: 'Süzgün bakış ve yanak allığı' },
+  { id: 'GLAM', name: 'Işıltı', icon: 'star', desc: 'Uzun kirpikler ve parıltılı gözler' },
+  { id: 'KISS', name: 'Öpücük', icon: 'kiss', desc: 'Büzülmüş dudaklar ve allık' },
 ];
 
 // ── Halka stilleri (RIM): gövdeyi saran dış çerçevenin rengi ──
@@ -114,6 +136,12 @@ export const AVATAR_RIMS = [
   { id: 'BONE', name: 'Beyaz', hex: '#F4F4F0' },
   { id: 'GOLD', name: 'Altın', hex: '#FFC42E' },
   { id: 'FROST', name: 'Buz', hex: '#48CAE4' },
+  { id: 'NEON', name: 'Neon Pembe', hex: '#FF2D95' },
+  { id: 'TOXIC', name: 'Asit', hex: PALETTE_BY_ID.get('lime') },
+  { id: 'MAGMA', name: 'Magma', hex: PALETTE_BY_ID.get('orange') },
+  { id: 'VIOLET', name: 'Mor', hex: PALETTE_BY_ID.get('grape') },
+  { id: 'EMERALD', name: 'Zümrüt', hex: PALETTE_BY_ID.get('mint') },
+  { id: 'SKY', name: 'Gök', hex: PALETTE_BY_ID.get('sky') },
 ];
 
 const RIM_IDS = new Set(AVATAR_RIMS.map((r) => r.id));
@@ -121,7 +149,7 @@ const RIM_HEX = new Map(AVATAR_RIMS.map((r) => [r.id, r.hex]));
 
 // Halka id → hex. Bilinmeyen/eksik id klasik çerçeveye düşer (eski profiller,
 // botsal persona, world-view hydration — hepsi aynı kapıdan geçer).
-export function rimHex(id, fallback = '#1A1A1A') {
+export function rimHex(id, fallback = RIM_HEX.get('CLASSIC')) {
   return RIM_HEX.get(id) || fallback;
 }
 
@@ -137,15 +165,33 @@ export const AVATAR_HEADWEAR = [
   { id: 'HORNS',     name: 'Boynuz',     icon: 'flame' },
   { id: 'BOW',       name: 'Fiyonk',     icon: 'heart' },
   { id: 'MOHAWK',    name: 'Mohawk',     icon: 'zap' },
+  { id: 'TOP_HAT',   name: 'Silindir',   icon: 'landmark' },
+  { id: 'CAP',       name: 'Kasket',     icon: 'shield' },
+  { id: 'COWBOY',    name: 'Kovboy',     icon: 'star' },
+  { id: 'VIKING',    name: 'Viking',     icon: 'swords' },
+  { id: 'HEADBAND',  name: 'Bandana',    icon: 'wind' },
+  { id: 'FLOWER',    name: 'Çiçek',      icon: 'sparkles' },
+  { id: 'ANTENNA',   name: 'Anten',      icon: 'zap' },
+  { id: 'BEANIE',    name: 'Bere',       icon: 'snowflake' },
+  { id: 'CAT_EARS',  name: 'Kedi Kulakları', icon: 'footprints' },
+  { id: 'BUNNY_EARS', name: 'Tavşan Kulakları', icon: 'heart' },
+  { id: 'PIGTAILS',  name: 'Topuz',      icon: 'sparkles' },
+  { id: 'PROPELLER', name: 'Pervane',    icon: 'wind' },
+  { id: 'PIRATE_HAT', name: 'Korsan Şapkası', icon: 'skull' },
+  { id: 'GRAD_CAP',  name: 'Mezuniyet',  icon: 'scroll' },
+  { id: 'SANTA',     name: 'Noel',       icon: 'snowflake' },
+  { id: 'CHEF_HAT',  name: 'Aşçı Şapkası', icon: 'flame' },
 ];
 
 const HEADWEAR_IDS = new Set(AVATAR_HEADWEAR.map((h) => h.id));
 
-// AKSUAR ve GÖVDE DESENİ YOK. Karakterin dört özelliği RENGİ, YÜZÜ, HALKASI ve BAŞ SÜSÜdür.
+// GÖVDE DESENİ YOK. Karakterin dört özelliği RENGİ, YÜZÜ, HALKASI ve BAŞ SÜSÜdür.
 // Siluet daima tam yuvarlak; sahnede okunabilirlik çarpışma yarıçapıyla
-// örtüşüyor (ölçülen: gövde 36x37 @ r=16). Daha önce seçilebilen 14 aksesuar
-// (taç/halo/kanat/şapka…) ve 8 desen hem gövdeyi taşırıyor hem de sahada
-// okunmuyordu; ikisi de çizim motorundan, profilden ve ağ paketinden kaldırıldı.
+// örtüşüyor (ölçülen: gövde 36x37 @ r=16). Daha önceki 8 desen hem gövdeyi
+// taşırıyor hem de sahada okunmuyordu; desen çizim motorundan, profilden ve ağ
+// paketinden kaldırıldı. Baş süsü geri geldi: hitbox'a dokunmayan, disk dışına
+// taşan yalnız görsel geometri — bu liste genişledikçe `sanitizeAvatar`
+// whitelist'i de otomatik genişler (tek kaynak).
 
 // ── Özgün Bot Karakter Kimlikleri (Bot Personas & Visual Distinction) ──
 // Her bot slotu ve zorluk seviyesi için özgün isim, renk ve yüz
@@ -153,25 +199,25 @@ export const BOT_PERSONAS = [
   {
     name: 'VOLT [BOT]',
     shortName: 'VOLT',
-    color: '#00B894', // Mint / Siber Yeşil
+    color: PALETTE_BY_ID.get('mint'), // Siber Yeşil
     expression: 'CYBORG',
   },
   {
     name: 'BYTE [BOT]',
     shortName: 'BYTE',
-    color: '#D99B26', // Altın Sarı
+    color: PALETTE_BY_ID.get('yellow'), // Altın Sarı
     expression: 'FOCUS',
   },
   {
     name: 'MECHA [BOT]',
     shortName: 'MECHA',
-    color: '#E84393', // Punk Pembe
+    color: PALETTE_BY_ID.get('pink'), // Punk Pembe
     expression: 'GRIN',
   },
   {
     name: 'NEXUS [BOT]',
     shortName: 'NEXUS',
-    color: '#1D5D8A', // Kobalt Mavi
+    color: PALETTE_BY_ID.get('blue'), // Kobalt Mavi
     expression: 'CYCLOPS',
   },
 ];
@@ -180,25 +226,25 @@ export const GOD_BOT_PERSONAS = [
   {
     name: 'ZEUS [GOD]',
     shortName: 'ZEUS',
-    color: '#D84727', // Kızıl Kırmızı
+    color: PALETTE_BY_ID.get('red'), // Kızıl Kırmızı
     expression: 'ANGRY',
   },
   {
     name: 'TITAN [GOD]',
     shortName: 'TITAN',
-    color: '#FF5722', // Alev Turuncu
+    color: PALETTE_BY_ID.get('orange'), // Alev Turuncu
     expression: 'SHADES',
   },
   {
     name: 'ARES [GOD]',
     shortName: 'ARES',
-    color: '#7928CA', // Siber Mor
+    color: PALETTE_BY_ID.get('purple'), // Siber Mor
     expression: 'ANGRY',
   },
   {
     name: 'OMEGA [GOD]',
     shortName: 'OMEGA',
-    color: '#2D3436', // Karbon Siyah
+    color: PALETTE_BY_ID.get('carbon'), // Karbon Siyah
     expression: 'CYBORG',
   },
 ];
