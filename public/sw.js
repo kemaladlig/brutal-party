@@ -1,7 +1,7 @@
 // Sürüm adıyla birlikte tüm çalışma zamanı önbelleği düşürülür (activate).
 // Statik varlıklarda cache-first kullanıldığı için, bir kapak ya da simge
 // değiştiğinde bu sürüm numarası da yükseltilir.
-const CACHE_NAME = 'brutal-party-v25';
+const CACHE_NAME = 'brutal-party-v26';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -22,12 +22,13 @@ const ASSETS_TO_CACHE = [
   '/assets/games/snake.webp',
   '/assets/games/collapse.webp',
   '/assets/games/ninja.webp',
+  '/assets/games/sumo.webp',
   '/assets/games/horde.webp',
   '/assets/games/colossus.webp',
 ];
 
 // Runtime cache şişmesin: üst sınırı aşınca en eskiler silinir. Tavan
-// precache (23) + hash'li motor chunk'ları (~20) + kapak görselleri + yazı
+// precache (24) + hash'li motor chunk'ları (~20) + kapak görselleri + yazı
 // tipleri için yeterli olmalı; 60 iken açılış sırasında precache'lenmiş kapaklar
 // süpürülüp çevrimdışı açılışı görselsiz bırakıyordu.
 const MAX_RUNTIME_ENTRIES = 240;

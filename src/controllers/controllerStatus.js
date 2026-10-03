@@ -124,6 +124,14 @@ const STATUS_BUILDERS = {
     const enemies = Array.isArray(data.enemiesLeft) ? data.enemiesLeft[0] : (data.enemiesLeft || 0);
     return t('pad.hordeStatus', roundWave, enemies, hp, `${weapon} ${ammoText}`);
   },
+  SUMO: (i, data) => {
+    const dead = deadText(i, data);
+    const time = Number.isFinite(data.timeLeft) ? `${dead ? ' • ' : ''}${ICON.timer} ${Math.ceil(data.timeLeft)}s` : '';
+    const held = Array.isArray(data.grabbed) && data.grabbed[i] === 1 ? ` • ${tIcon('pad.sumoHeld')}` : '';
+    const brace = Array.isArray(data.braced) && data.braced[i] === 1 ? ` • ${tIcon('pad.sumoBraced')}` : '';
+    const falls = Array.isArray(data.tdk) ? ` • ${data.tdk[i % 2] ?? 0}↓` : '';
+    return `${dead}${time}${held}${brace}${falls}`.replace(/^ • /, '');
+  },
 };
 
 export function getControllerStatus(mode, playerIndex, data) {

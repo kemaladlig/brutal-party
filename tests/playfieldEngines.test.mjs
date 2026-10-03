@@ -41,6 +41,7 @@ const ENGINES = [
   ['CROWN', '/src/games/crown.js', 'CrownGame', 'crown'],
   ['TANKS', '/src/games/tanks.js', 'TanksGame', 'flat'],
   ['ZONE', '/src/games/zone.js', 'ZoneGame', 'standard'],
+  ['SUMO', '/src/games/sumo.js', 'SumoGame', 'standard'],
 ];
 
 let server;

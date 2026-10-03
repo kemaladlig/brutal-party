@@ -20,7 +20,7 @@ Geniş mimari detaylar `docs/PROJECT_MAP.md`'dedir. Yapı, protokol veya motor d
 
 ## 2. Engine Registry (Tek Kayıt Noktası)
 
-- `src/core/engineRegistry.js` → `GAME_ORDER` (12 oyun) ve `CARTRIDGES[MOD]` sözleşmesi.
+- `src/core/engineRegistry.js` → `GAME_ORDER` (14 oyun) ve `CARTRIDGES[MOD]` sözleşmesi.
 - `main.js` veya `gamepad.js` içine `if (mode === ...)` dalı yazmak **YASAKTIR**. Yeni oyun = registry kaydı + şema.
 - **Motor Sözleşmesi:** `resetMatch/reset`, `startNewMatch`, `startNewRound`, `update`, `render`, `resize(w,h)`, `handleRemoteInput`.
 - **LOCAL Mod Gereksinimi:** Her motor tek ekranda 4 köşeli dokunmatik lobi ve klavye haritasıyla (P1: WASD+Space, P2: Oklar+Enter, P3: IJKL+O, P4: TFGH+B) eksiksiz çalışmalıdır.

@@ -6,6 +6,36 @@ import { t } from '../i18n.js';
 import { CONTROL_DEFS } from './controlDefs.js';
 
 export const GAMEPAD_SCHEMAS = {
+  SUMO: {
+    type: 'JOYSTICK_ACTION',
+    def: CONTROL_DEFS.SUMO,
+    layout: 'stack',
+    actions: [
+      {
+        id: 'charge',
+        action: 'SUMO_CHARGE',
+        icon: 'flame',
+        label: t('pad.charge'),
+        flex: 1.2,
+        minHeight: '76px',
+        cooldown: 1.6,
+        vibrate: [25, 40],
+        syncHostCooldown: true,
+      },
+      {
+        id: 'brace',
+        action: 'SUMO_BRACE',
+        releaseAction: 'SUMO_BRACE_RELEASE',
+        hold: true,
+        icon: 'shield',
+        label: t('pad.brace'),
+        flex: 0.9,
+        minHeight: '58px',
+        vibrate: [12],
+      },
+    ],
+  },
+
   PONG: {
     type: 'SLIDER_1D',
     def: CONTROL_DEFS.PONG,

@@ -7,6 +7,7 @@
 // AI modules ride along automatically (each game imports only its own AI).
 
 import { GAMEPAD_SCHEMAS } from '../controllers/gamepadSchemas.js';
+import { UI_COLORS } from '../ui/tokens.js';
 import { reportError } from './errorReporter.js';
 import { installRoundAnnouncements } from './roundLifecycle.js';
 
@@ -24,6 +25,7 @@ export const GAME_ORDER = [
   'COLLAPSE',
   'NINJA',
   'CROWN',
+  'SUMO',
 ];
 
 /**
@@ -338,6 +340,33 @@ export const CARTRIDGES = {
         cdFire: game.players.map((player) => game.state === 'ROUND_PAUSE'
           ? 100
           : Math.min(100, Math.ceil((Math.max(0, player.attackCooldown || 0) + (Number(player.reloadTimer) || 0)) * 100))),
+      }),
+    }),
+  },
+
+  SUMO: {
+    id: 'SUMO',
+    category: 'fight',
+    title: 'SUMO',
+    lobbyTitle: 'SUMO',
+    tacticalHintKey: 'hint.sumo',
+    // Motor paleti §8 gereği token'dan türer (yeni ham literâl yok).
+    color: UI_COLORS.danger,
+    schema: GAMEPAD_SCHEMAS.SUMO,
+    worldView: {
+      load: () => import('../ui/sumoWorldView.js'),
+    },
+    load: () => import('../games/sumo.js').then((m) => m.SumoGame),
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        alive: game.players.map((p) => p.isAlive === true && (p.fallTimer || 0) <= 0 && (p.respawnTimer || 0) <= 0),
+        timeLeft: Math.max(0, Math.ceil(game.roundTime || 0)),
+        tdk: game.teamTakedowns,
+        grabbed: game.players.map((p) => (p.grabbedBy >= 0 ? 1 : 0)),
+        braced: game.players.map((p) => (p.braced ? 1 : 0)),
+        matchDraw: game.matchDraw === true,
+        cd: game.players.map((p) => Math.ceil((Math.max(0, p.chargeCooldown) / 1.6) * 100)),
       }),
     }),
   },

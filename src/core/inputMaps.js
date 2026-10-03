@@ -14,12 +14,15 @@ export const STANDARD_KEY_SLOTS = [
 export const SECOND_ACTION_KEYS = {
   smoke: ['KeyE', 'ShiftRight', 'KeyU', 'KeyV'],
   dash: ['ShiftLeft', 'ShiftRight', 'KeyU', 'KeyR'],
+  // SUMO: ÇARP birincil tuşla (Space/Enter/O/B), TUT ikinci tuşla.
+  brace: ['KeyC', 'Period', 'KeyM', 'KeyN'],
 };
 
 export const KEY_LABELS = {
   action: ['SPACE', 'ENTER', 'O', 'B'],
   smoke: ['E', 'R-SHIFT', 'U', 'V'],
   dash: ['L-SHIFT', 'R-SHIFT', 'U', 'R'],
+  brace: ['C', '.', 'M', 'N'],
 };
 
 // `KeyboardEvent.code` → insan okunur tuş kapağı. Referans metinlerinde ham

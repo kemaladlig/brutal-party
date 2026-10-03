@@ -66,6 +66,10 @@ export function isValidNetworkInput(data) {
     case 'SNAKE_BOOST':
     case 'SNAKE_BOOST_RELEASE':
     case 'NINJA_SMOKE':
+    // SUMO: ÇARP (tek basış) ve TUT (bas-bırak) — yön taşımayan discrete aksiyon.
+    case 'SUMO_CHARGE':
+    case 'SUMO_BRACE':
+    case 'SUMO_BRACE_RELEASE':
       return true;
 
     case 'SET_NAME':

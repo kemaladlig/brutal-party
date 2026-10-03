@@ -10,7 +10,7 @@ import { CONTROL_DEFS, getNeutralInput, getNeutralInputs } from '../src/controll
 import { keyboardVectorFrom, readSlotKeys } from '../src/core/inputMaps.js';
 
 test('all registered games have phone/tabletop/network descriptor parity', () => {
-  assert.equal(GAME_ORDER.length, 13);
+  assert.equal(GAME_ORDER.length, 14);
   for (const mode of GAME_ORDER) {
     const schema = GAMEPAD_SCHEMAS[mode];
     const result = assertControlDescriptorParity(mode, schema);

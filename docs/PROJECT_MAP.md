@@ -41,7 +41,7 @@ src/ui/worldViewKit.js      World-view kromu (raunt bandı `drawWorldRoundBanner
                             placeholder/stale + fitWorld)
 src/ui/resultPanel.js       Sonuç paneli primitifleri: drawResultPanel / dimBehindPanel /
                             resultPanelRadius / uiTextScale (tur bandı, final kartı, kumanda ortak)
-src/ui/{snake,pong,crown,archer,bomb,heist,tanks,ninja,zone,collapse,curve,horde,colossus}WorldView.js
+src/ui/{snake,pong,crown,archer,bomb,heist,tanks,ninja,zone,collapse,curve,horde,colossus,sumo}WorldView.js
                             Client-only renderer'lar; simülasyon/fizik çalıştırmaz
 src/style.css               Modüler stil orkestratörü (@import). SIRA: tokens → scene →
                             home/room/games → sheets (son, override katmanı)
@@ -267,6 +267,9 @@ src/games/ (Oyun Motorları — BaseMiniGame türevleri):
   collapse.js / collapseView.js        Brutal Collapse (13x13)
   crown.js / crownView.js              Brutal Crown (arşivden çıkarıldı)
   ninja.js / ninjaView.js              Brutal Ninja
+  sumo.js / sumoView.js              Brutal Sumo (2v2 halka güreşi: ÇARP/TUT/KAPKALA üçlüsü +
+                           her düşmede küçülen kaldırılmış platform; can yok, kazanma koşulu
+                           rakibi masaya düşürmek)
   worldCore.js             Generic world-view snapshot çekirdeği (createWorldSnapshot + isValidWorldBase
                            + packers + drawSquareParticles) — yeni world-view oyunu deklaratif `extras`
                            kaydına iner
