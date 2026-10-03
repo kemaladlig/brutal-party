@@ -32,8 +32,8 @@ import { UI_COLORS } from '../ui/tokens.js';
 export const TANK_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const TANK_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
-const TANK_SUDDEN_DEATH_AT = 35;
-const TANK_ROUND_LIMIT = 90;
+const TANK_SUDDEN_DEATH_AT = 39;
+const TANK_ROUND_LIMIT = 100;
 const TANK_SUDDEN_DEATH_MIN_RADIUS = 0.22;
 const TANK_SUDDEN_DEATH_GRACE = 1.15;
 // Raunt giriş donması. Oda zaten 3-2-1 sayacı çalıştırıyor; bu ikinci pencere
@@ -224,16 +224,12 @@ export class TanksGame extends BaseMiniGame {
 
     // Match Scores & Target
     this.scores = [0, 0, 0, 0];
-    // Maç hedefi ve raunt süresi — kısaltma (tanks.js).
-// Gerekçe: parti oyununda maç uzunluğu = yeniden başlatma sayısı. Ölçülen
-// durum: hedefler 2-5 arası dağınıktı ve bir kısmı 5'ti (NINJA/
-// SNAKE/COLLAPSE/CURVE); ilk açılışta 5 hedef, dakikalar süren bir maç
-// demek, yani oyuncu iki dakika içinde 'tekrar oynayalım' demiyor.
-// Kural: çoğu oyun 2 hedefte biter (ilk-iki kuralı — bir parti turunda
-// kazanan çabuk bellenir, maç tekrarına yer kalır). LOSER'a özgü
-// süreler korunur: HORDE kill/süre oyunudur, onda hedef 2
-// olmak turu anlamsız kılardı.
-this.targetScore = 2;
+    // Maç hedefi ve raunt süresi — uzatma (tanks.js).
+// Kural (kullanıcı kararı 2026-10-04): 3 raunt alan kazanır ve raunt süreleri
+// eskisinden uzun. Parti oyununda "maç bitti" hissi erken geliyordu; çözüm
+// raundu kısaltmak değil, maçı doldurmak. Berabere raunt sayacı yalnız çıkmaz
+// döngüyü kesmek için durur. HORDE istisnadır: kill/süre oyunudur.
+this.targetScore = 3;
     this.roundWinner = null;
     this.matchWinner = null;
     this.matchDraw = false;

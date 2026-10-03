@@ -66,7 +66,7 @@ const ARCHER_RADIUS = 28;
 const ARCHER_SPEED = 198;
 const ARCHER_CHARGE_TIME = 1.0;
 const ARCHER_SHOT_COOLDOWN = 0.8;
-const ARCHER_ROUND_TIME = 60;
+const ARCHER_ROUND_TIME = 75;
 const ARCHER_CLOSE_DIST = 150;
 const ARCHER_ARROW_LIFE = 1.1;
 const ARCHER_PICKUP_TYPES = ['TURBO', 'TELEPORT', 'SLIP', 'MULTI', 'QUICKDRAW', 'SHIELD'];
@@ -79,7 +79,7 @@ export class ArcherGame extends BaseMiniGame {
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty'];
     this.scores = [0, 0, 0, 0];
     this.roundWins = [0, 0, 0, 0];
-    this.roundsToWin = 2;
+    this.roundsToWin = 3;
     this.players = [];
     this.arrows = [];
     this.nextArrowId = 1;

@@ -48,7 +48,7 @@ export const HEIST_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 export const HEIST_TUNING = {
   TACKLE_COOLDOWN: 3.5,
-  ROUND_TIME: 45,
+  ROUND_TIME: 75,
   MAX_TIED_ROUNDS: 2,
   PIGGY_HP: 1,
   RUBY_COUNT: 3,
@@ -109,7 +109,7 @@ export class HeistGame extends BaseMiniGame {
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty']; // P1 Human, P2 Normal Bot default
 
     // Tournament Scoring (Sets)
-    this.targetScore = 2; // First to 2 round wins is Champion!
+    this.targetScore = 3; // First to 3 round wins is Champion!
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;

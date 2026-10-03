@@ -69,11 +69,12 @@ function setup(Game) {
 test('COLLAPSE expires pickups and keeps a terminal round clock', () => {
   const game = setup(CollapseGame);
   assert.equal(game.roundId, 1);
+  const started = game.roundTime;
   game.pickupSpawnTimer = 99;
   game.pickups = [{ x: game.arena.cx, y: game.arena.cy, type: 'SUPER_JUMP', life: 0.001 }];
   game.update(1016);
   assert.equal(game.pickups.length, 0);
-  assert.ok(game.roundTime <= 60);
+  assert.ok(game.roundTime < started && game.roundTime > 0, 'raunt saati geri sayar ve tavanını aşmaz');
 });
 
 test('NINJA resize preserves lantern lifecycle state', () => {

@@ -89,7 +89,7 @@ export class Game extends BaseMiniGame {
     this.initKeyboard();
 
     // Tournament Set Championship
-    this.targetSets = 3;
+    this.targetSets = 4;
     this.roundLimit = PONG_ROUND_LIMIT;
     this.setScores = [0, 0, 0, 0];
     this.roundWinner = null;

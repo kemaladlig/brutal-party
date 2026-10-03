@@ -35,10 +35,12 @@ import { fxFlashAlpha } from '../core/fxKit.js';
 export const NINJA_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
 export const NINJA_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
+const NINJA_ROUND_TIME = 70;
 const NINJA_STRIKE_COOLDOWN = 1.3;
 const NINJA_SMOKE_COOLDOWN = 5.0;
 
 export const NINJA_TUNING = {
+  ROUND_TIME: NINJA_ROUND_TIME,
   STRIKE_COOLDOWN: NINJA_STRIKE_COOLDOWN,
   SMOKE_COOLDOWN: NINJA_SMOKE_COOLDOWN,
   // Yürüyüş ve kılıç hamlesi TASARIM px/s. Kılıç MESAFESİ türetilir
@@ -103,16 +105,12 @@ export class NinjaGame extends BaseMiniGame {
     this.arena = { cx: 0, cy: 0, size: 0, left: 0, right: 0, top: 0, bottom: 0 };
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty'];
     this.scores = [0, 0, 0, 0];
-    // Maç hedefi ve raunt süresi — kısaltma (ninja.js).
-// Gerekçe: parti oyununda maç uzunluğu = yeniden başlatma sayısı. Ölçülen
-// durum: hedefler 2-5 arası dağınıktı ve bir kısmı 5'ti (NINJA/
-// SNAKE/COLLAPSE/CURVE); ilk açılışta 5 hedef, dakikalar süren bir maç
-// demek, yani oyuncu iki dakika içinde 'tekrar oynayalım' demiyor.
-// Kural: çoğu oyun 2 hedefte biter (ilk-iki kuralı — bir parti turunda
-// kazanan çabuk bellenir, maç tekrarına yer kalır). LOSER'a özgü
-// süreler korunur: HORDE kill/süre oyunudur, onda hedef 2
-// olmak turu anlamsız kılardı.
-this.targetScore = 2;
+    // Maç hedefi ve raunt süresi — uzatma (ninja.js).
+// Kural (kullanıcı kararı 2026-10-04): 3 raunt alan kazanır ve raunt süreleri
+// eskisinden uzun. Parti oyununda "maç bitti" hissi erken geliyordu; çözüm
+// raundu kısaltmak değil, maçı doldurmak. Berabere raunt sayacı yalnız çıkmaz
+// döngüyü kesmek için durur. HORDE istisnadır: kill/süre oyunudur.
+this.targetScore = 3;
     this.players = [];
     this.obstacles = [];
     this.lanterns = [];
@@ -128,7 +126,7 @@ this.targetScore = 2;
     this.cutDecals = [];
     this.impactCuts = [];
     this.floatingTexts = [];
-    this.roundTime = 45;
+    this.roundTime = NINJA_ROUND_TIME;
     this.roundId = 0;
     this.matchDraw = false;
     this.roundResolutionReason = null;
@@ -305,7 +303,7 @@ this.targetScore = 2;
     this.roundResolutionReason = null;
     this.roundId = 0;
     this.tiedRounds = 0;
-    this.roundTime = 45;
+    this.roundTime = NINJA_ROUND_TIME;
     this.roundTransitionTimer = 0;
     this.fx.clear();
     this.slashWaves = [];
@@ -348,7 +346,7 @@ this.targetScore = 2;
     this.roundResolutionReason = null;
     this.roundId += 1;
     this.roundTransitionTimer = 0;
-    this.roundTime = 45;
+    this.roundTime = NINJA_ROUND_TIME;
     this.fx.clear();
     this.slashWaves = [];
     this.afterimages = [];

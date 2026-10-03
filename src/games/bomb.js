@@ -54,7 +54,7 @@ const BOMB_DASH_COOLDOWN = 2.2;
 // gerekçesiz bir raunt en az 1.5 dakika sürüyordu. Partide maç uzunluğu
 // = yeniden başlatma sayısıdır; 60-75 sn bandı raunt bitiminde iki oyuncu
 // arasındaki kararı anında ikinci maça taşır.
-const BOMB_ROUND_LIMIT = 60;
+const BOMB_ROUND_LIMIT = 75;
 // Üst üste bu kadar beraberlikte maç berabere kapanır.
 const BOMB_MAX_TIED_ROUNDS = 2;
 // Gövde yarıçapı (1920x1080 referansı). `fieldRadius` tabanı GÖRELİ: mutlak px
@@ -104,16 +104,12 @@ export class BombGame extends BaseMiniGame {
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty']; // P1 Human, P2 Normal Bot default
 
     // Set Tournament Scoring
-    // Maç hedefi ve raunt süresi — kısaltma (bomb.js).
-// Gerekçe: parti oyununda maç uzunluğu = yeniden başlatma sayısı. Ölçülen
-// durum: hedefler 2-5 arası dağınıktı ve bir kısmı 5'ti (NINJA/SNAKE/
-// COLLAPSE/CURVE); ilk açılışta 5 hedef, dakikalar süren bir maç
-// demek, yani oyuncu iki dakika içinde 'tekrar oynayalım' demiyor.
-// Kural: çoğu oyun 2 hedefte biter (ilk-iki kuralı — bir parti turunda
-// kazanan çabuk bellenir, maç tekrarına yer kalır). LOSER'a özgü
-// süreler korunur: HORDE kill/süre oyunudur, onda hedef 2
-// olmak turu anlamsız kılardı.
-this.targetScore = 2;
+    // Maç hedefi ve raunt süresi — uzatma (bomb.js).
+// Kural (kullanıcı kararı 2026-10-04): 3 raunt alan kazanır ve raunt süreleri
+// eskisinden uzun. Parti oyununda "maç bitti" hissi erken geliyordu; çözüm
+// raundu kısaltmak değil, maçı doldurmak. Berabere raunt sayacı yalnız çıkmaz
+// döngüyü kesmek için durur. HORDE istisnadır: kill/süre oyunudur.
+this.targetScore = 3;
     this.tiedRounds = 0;
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;

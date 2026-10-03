@@ -38,7 +38,7 @@ const SEG_MAX = 24000;
 // gerekçesiz bir raunt en az 1.5 dakika sürüyordu. Partide maç uzunluğu
 // = yeniden başlatma sayısıdır; 60-75 sn bandı raunt bitiminde iki oyuncu
 // arasındaki kararı anında ikinci maça taşır.
-const CURVE_ROUND_LIMIT = 75;
+const CURVE_ROUND_LIMIT = 90;
 // Üst üste bu kadar beraberlikte maç berabere kapanır. Berabere raunt artık
 // maçı bitirmediği için (bkz. core/roundLifecycle.beginDrawRound) bu sayaç
 // çıkmaz döngüyü keser.
@@ -89,16 +89,12 @@ export class CurveGame extends BaseMiniGame {
 
     // Tournament scores
     this.scores = [0, 0, 0, 0];
-    // Maç hedefi ve raunt süresi — kısaltma (curve.js).
-// Gerekçe: parti oyununda maç uzunluğu = yeniden başlatma sayısı. Ölçülen
-// durum: hedefler 2-5 arası dağınıktı ve bir kısmı 5'ti (NINJA/
-// SNAKE/COLLAPSE/CURVE); ilk açılışta 5 hedef, dakikalar süren bir maç
-// demek, yani oyuncu iki dakika içinde 'tekrar oynayalım' demiyor.
-// Kural: çoğu oyun 2 hedefte biter (ilk-iki kuralı — bir parti turunda
-// kazanan çabuk bellenir, maç tekrarına yer kalır). LOSER'a özgü
-// süreler korunur: HORDE kill/süre oyunudur, onda hedef 2
-// olmak turu anlamsız kılardı.
-this.targetScore = 2;
+    // Maç hedefi ve raunt süresi — uzatma (curve.js).
+// Kural (kullanıcı kararı 2026-10-04): 3 raunt alan kazanır ve raunt süreleri
+// eskisinden uzun. Parti oyununda "maç bitti" hissi erken geliyordu; çözüm
+// raundu kısaltmak değil, maçı doldurmak. Berabere raunt sayacı yalnız çıkmaz
+// döngüyü kesmek için durur. HORDE istisnadır: kill/süre oyunudur.
+this.targetScore = 3;
     this.tiedRounds = 0;
     this.roundWinner = null;
     this.matchWinner = null;

@@ -485,7 +485,8 @@ test('TANKS gates spawn actions, advances round ids, and resolves timeout', () =
   game.attemptFire(game.tanks[0]);
   assert.ok(game.bullets.length > before);
 
-  game.roundTimer = 90;
+  // Motorun kendi tavanına kurulur: süre yeniden ayarlanırsa test sayıya yapışmaz.
+  game.roundTimer = game.roundLimit;
   game.suddenDeath = false;
   game.spawnIntroTimer = 0;
   game.lastTime = 0;

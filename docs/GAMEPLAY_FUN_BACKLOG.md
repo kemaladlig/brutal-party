@@ -237,6 +237,30 @@ Raunt saatinin **%40 ve %70** noktasında, havuzdan seçilen **bir** scripted ol
 
 **Doğrulama:** hedefli paket testleri 12/12, `npm test` 702/702, `npm run check` bu değişikliklerde yeşil.
 
+### 8.2 RAUNT/MAÇ UZUNLUĞU RETUNE (2026-10-04, kullanıcı kararı)
+Maçlar kısa düşüyordu: hedef 2 raunt ve bazı raunt süreleri (HEIST/NINJA/CROWN 45sn)
+dolumuyordu. Yeni tablo — **raundu kısaltmak yok, maçı doldurmak**:
+
+| Mod | raunt süresi | maç hedefi |
+|---|---|---|
+| HEIST | 45 → **75** | 2 → **3** |
+| NINJA | 45 → **70** (artık `NINJA_ROUND_TIME` sabitinden) | 2 → **3** |
+| CROWN | 45 → **70** | 2 → **3** |
+| BOMB | 60 → **75** | 2 → **3** |
+| COLLAPSE | 60 → **75** | 2 → **3** |
+| ARCHER | 60 → **75** | 2 → **3** (`roundsToWin`) |
+| CURVE | 75 → **90** | 2 → **3** |
+| SNAKE | 75 → **90** | 2 → **3** |
+| ZONE | 90 → **105** | 2 → **3**, erken zafer `%40 → %45` |
+| TANKS | 90 → **100** | 2 → **3**, sudden-death eşiği 35 → 39 (oran korunur) |
+| PONG | 120 (değişmedi) | 3 set → **4 set** |
+| HORDE / COLOSSUS | kill/süre oyunları | dokunulmadı |
+
+"2 hedef" kuralını savunan yorum bloğu 6 motopta (bomb/collapse/curve/ninja/snake/tanks)
+yeni kararla değiştirildi — aksi hâlde kod kendi gerekçesiyle çelişecekti. İki test
+sayıya yapışmıştı (`roundTimer = 90`, `roundTime <= 60`); motorun kendi tavanını
+okuyacak şekilde düzeltildi, böylece bir sonraki ayar test kırmayacak.
+
 ### 8.1 Doğrulanmış ama DOKUNULMADI (karar senin)
 - **CİHAZ-BAĞIMLI HAM PİKSEL (adalet bug'ı):** `ARCHER_CLOSE_DIST = 150` (`archer.js:62`) → telefonda neredeyse **her** isabet 2 puan, masaüstünde zor 2 puan; stun eşikleri `110` (`:741`), knockback `26` (`:748-749`), slip `320`, AI `240/480/130` (`archerAI.js:13-14`) hepsi raw px; CURVE çarpışma yarıçapları + BOMB yarıçapı `70` (`curve.js:789,812-814`). AGENTS §3 ihlali. Düzeltmek masaüstü zorluğunu **yeniden ayarlar** (ve görsel baseline'ları kaydırabilir) → onayınla ayrı adım.
 - **FLAKY TEST:** `tests/matchOverEnter.test.mjs` → "enter = 0: kart opaklık 0 ile başlar" 3 tam koşumda ~1 kez düşüyor; **tek başına hep geçiyor**; sadece `src/ui/hud.js` import ediyor (dokunduğum dosyalarla ilgisi yok). alpha yazımı tek yer (`hud.js:1256`), kart içinde `Math.random` yok. Kendi HUD commit'inin bölgesi — körlemesine "tamir" etmek istemedim.

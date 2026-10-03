@@ -78,10 +78,10 @@ export const ZONE_TUNING = {
   SPEED: 12.8,       // hücre/sn
   TURF_SPEED_MULT: 1.15, // Kendi bölgesinde %15 defansif hız bonusu (Home Turf)
   TURN: 12.5,        // rad/sn yumuşak dönüş
-  ROUND_TIME: 90.0,  // sn
-  WIN_PCT: 40,       // erken zafer eşiği (%)
+  ROUND_TIME: 105.0,  // sn
+  WIN_PCT: 45,       // erken zafer eşiği (%)
   STUN: 2.0,         // çarpışma dondurması (sn)
-  TARGET_SCORE: 2,   // maçı alan raund sayısı
+  TARGET_SCORE: 3,   // maçı alan raund sayısı
   TRAIL_CAP: 1500,   // güvenlik tavanı (aşılırsa iz silinir + stun)
   TRAIL_RISK_WARN: 15, // Yüksek risk iz uyarısı
   TRAIL_HAZARD: 22,   // Tehlikeli iz kritik seviyesi (yanıp sönen şerit)

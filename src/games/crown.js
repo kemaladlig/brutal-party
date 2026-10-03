@@ -37,7 +37,7 @@ import { paintBackdrop } from '../core/fieldKit.js';
 export { CROWN_COLORS };
 export const CROWN_NAMES = ['P1', 'P2', 'P3', 'P4'];
 export const CROWN_TUNING = {
-  ROUND_TIME: 45,
+  ROUND_TIME: 70,
   MAX_TIED_ROUNDS: 2,
   // Hareket bütçesi. Hız zaten en yüksekti (952/250 = 3.8sn), yavaşlık
   // GÖVDEDEN geliyordu: r43, aktif oyunların en büyüğüydü (2.9 gövde/sn,
@@ -89,7 +89,7 @@ export class CrownGame extends BaseMiniGame {
     this.slotTypes = ['human', 'bot_normal', 'empty', 'empty'];
 
     // Tournament Scoring
-    this.targetScore = 2; // First to 2 rounds wins the match
+    this.targetScore = 3; // First to 3 rounds wins the match
     this.scores = [0, 0, 0, 0];
     this.matchDraw = false;
     this.roundResolutionReason = null;
