@@ -435,6 +435,7 @@ export function drawCelebration(ctx, box) {
   fieldAmbienceStats.flashes = liveFlashes;
   if (liveConfetti === 0 && liveFlashes === 0) return;
 
+  ctx.save();
   for (let i = 0; i < flashes.length; i += 1) {
     const f = flashes[i];
     if (!f.alive) continue;
@@ -471,4 +472,5 @@ export function drawCelebration(ctx, box) {
     ctx.fillRect(-s.size / 2, -s.tall / 2, s.size, s.tall);
     ctx.restore();
   }
+  ctx.restore();
 }

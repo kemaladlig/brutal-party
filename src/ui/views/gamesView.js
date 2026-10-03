@@ -12,6 +12,7 @@ import { GAME_ORDER, CARTRIDGES, preloadEngine, gameArtPath } from '../../core/e
 import { t, onLangChange } from '../../i18n.js';
 import { getTabletopIconSvg } from '../../core/tabletopIcons.js';
 import { createTabStrip } from '../tabStrip.js';
+import { playMenuTick, playMenuPop } from '../../audio.js';
 import { registerView } from './registry.js';
 
 function el(tag, className, html) {
@@ -98,7 +99,7 @@ registerView('games', {
       const tile = gameCard(mode, index);
       tile.setAttribute('role', 'listitem');
       // Kart dokunuşu SEÇER; başlatma tek CTA'nın işi (tek eylem kuralı).
-      tile.addEventListener('click', () => select(mode));
+      tile.addEventListener('click', () => { playMenuTick(); select(mode); });
       tiles.set(mode, tile);
       grid.append(tile);
     });
@@ -152,7 +153,7 @@ registerView('games', {
       heroCat.hidden = !cat || cat.id === 'all';
       heroHint.textContent = t(cart?.tacticalHintKey || '');
       tiles.forEach((tile, key) => tile.classList.toggle('is-active', key === mode));
-      playBtn.onclick = () => actions.onGameSelect?.(mode);
+      playBtn.onclick = () => { playMenuPop(); actions.onGameSelect?.(mode); };
       playBtn.setAttribute('aria-label', `${t('shell.playNow')} — ${cart?.title || mode}`);
       preloadEngine(mode);
     }

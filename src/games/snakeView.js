@@ -12,7 +12,8 @@ import {
   drawFxPops,
   drawCircleParticles,
 } from './worldCore.js';
-import { drawObstacle, PICKUP_SIZE } from '../core/arenaKit.js';
+import { PICKUP_SIZE, pushObstaclesToDepth } from '../core/arenaKit.js';
+import { beginDepthPass, flushDepthPass, entityDepth, DEPTH_KIND, pushDepthItem } from '../core/depthPass.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
@@ -207,8 +208,14 @@ export function drawSnakeArena(ctx, arena, walls, opts = {}) {
   // kare-değişkenli el-ile ızgara döngüsü + siyah `strokeRect` vardı; hepsi
   // artık bake'te, frame başına tek blit.
   drawField(ctx, arena, { mode: 'SNAKE', seed: hashFieldSeed('SNAKE', opts.roundId) });
-  for (const wall of walls) drawObstacle(ctx, wall, { theme: 'SNAKE' });
+  // Duvarlar havuza yazılır; `drawSnakePlayers` sonunda yılanlarla birlikte
+  // y-sırasında çizilir (2.5D okunabilirlik).
+  beginDepthPass();
+  pushObstaclesToDepth(walls, SNAKE_OBSTACLE_OPTS);
 }
+
+/** Engel çizim seçenekleri — MODÜL SABİTİ (kare başına tahsis yok). */
+const SNAKE_OBSTACLE_OPTS = Object.freeze({ theme: 'SNAKE' });
 
 // Yem paleti — tiplerin dalları arasına gömülü literal'lerin tek yeri. Değerler
 // bilinçli olarak PICKUP_META'dan FARKLIDIR: ortak rozet paleti (altın yıldız /
@@ -283,16 +290,34 @@ function traceSnakePath(ctx, player) {
   }
 }
 
+/** Derinlik geçişinin kare seviyesindeki seçenekleri — MODÜL SABİTİ. */
+const SNAKE_PLAYER_OPTS = { now: 0, hasViewer: false, selfSlot: -1 };
+
 export function drawSnakePlayers(ctx, players, now = 0, selfSlot = -1) {
   // 3.3 okunurluk hiyerarşisi: tek görür varsa kendi avatarın T1, diğerleri T3
   // (−%25); α yalnız fxKit'ten gelir, motor kendi α'sını uydurmaz.
-  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  SNAKE_PLAYER_OPTS.now = now;
+  SNAKE_PLAYER_OPTS.hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  SNAKE_PLAYER_OPTS.selfSlot = selfSlot;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
+    pushDepthItem(entityDepth(player), DEPTH_KIND.PLAYER, player, drawSnakePlayerEntity, SNAKE_PLAYER_OPTS);
+  }
 
+  // Duvarlar + yılanlar TEK y-sırasında çizilir.
+  flushDepthPass(ctx);
+}
+
+/**
+ * Tek yılanın tüm çizimi — derinlik geçişinin "çiz" geri çağrısı.
+ * MODÜL SEVİLESİ olmalıdır (kare başına kapanış = tahsis).
+ */
+function drawSnakePlayerEntity(ctx, player, opts) {
+  const { now, hasViewer, selfSlot } = opts;
+  {
     const headRadius = player.radius || 24;
     const u = headRadius / 24;
     const playerColor = player.color || UI_COLORS.crownRed;

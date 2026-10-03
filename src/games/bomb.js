@@ -202,10 +202,6 @@ this.targetScore = 2;
     return createBombWorldPacket(this);
   }
 
-  onSeatCycled() {
-    playJoin();
-  }
-
   cycleMap() {
     this.selectedMapIndex = (this.selectedMapIndex + 1) % MAP_PRESETS.length;
     // Lobide elle seçilen harita bir sonraki rauntta korunur (oto-döndürme ezmez)
@@ -551,7 +547,7 @@ this.targetScore = 2;
     // 'tekrar oynayalım' diyebilmek için yol yoktu. `matchOverRestartTap`
     // kartın içine dokunmayı yutar (yanlışlıkla yeniden başlatmayı önler).
     if (this.state === 'MATCH_OVER') {
-      matchOverRestartTap(this, touch, { onRestart: () => this.startNewMatch() });
+      matchOverRestartTap(this, touch, { onRestart: () => { this.startNewMatch(); playJoin(); } });
       return;
     }
 

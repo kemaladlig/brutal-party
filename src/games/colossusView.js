@@ -15,6 +15,7 @@ import {
   drawFxPops,
   isValidWorldBase,
   isValidFxState,
+  packFxState,
   round1,
 } from './worldCore.js';
 import { COLOSSUS_TUNING, COLOSSUS_WEAPONS } from './colossusConfig.js';
@@ -104,6 +105,7 @@ export function createColossusWorldPacket(game) {
         maxHp: round1(p.maxHp),
         radius: round1(p.radius),
         active: p.active !== false,
+        hitFlash: round1(p.hitFlash || 0),
       })),
       shockwaves: (game.shockwaves || []).slice(0, COLOSSUS_VIEW_LIMITS.shockwaves).map((s) => ({
         x: round1(s.x),
@@ -136,7 +138,11 @@ export function createColossusWorldPacket(game) {
         maxHp: round1(p.maxHp),
       })),
       matchOver: game.state === 'VICTORY' || game.state === 'DEFEAT' || game.state === 'MATCH_OVER',
-      victory: game.state === 'VICTORY',
+      victory: game.matchResult === 'win' || game.matchResult === 'victory' || game.state === 'VICTORY',
+      // Client'in `drawColossusWorld` FX katmanı (halka + patlama) bu state'i
+      // okuyor; paketlemeden önce daima null idi, yani renderer ölüydü.
+      // Alan diğer oyunlarla AYNI (`packFxState`) — yeni protokol alanı değil.
+      fx: packFxState(game.fx),
     },
   });
 }
@@ -155,7 +161,15 @@ export function colossusSceneFromFrame(frame) {
   return {
     phase: frame.gameState,
     boss: frame.boss || {},
-    pylons: Array.isArray(frame.pylons) ? frame.pylons : [],
+    pylons: (frame.pylons || []).map((p) => ({
+      x: p.x,
+      y: p.y,
+      radius: p.radius,
+      hp: p.hp,
+      maxHp: p.maxHp,
+      active: p.active,
+      hitFlash: p.hitFlash || 0,
+    })),
     shockwaves: Array.isArray(frame.shockwaves) ? frame.shockwaves : [],
     mortars: Array.isArray(frame.mortars) ? frame.mortars : [],
     bullets: Array.isArray(frame.bullets) ? frame.bullets : [],
@@ -173,7 +187,7 @@ export function colossusSceneFromFrame(frame) {
  */
 function drawBoss(ctx, boss, arena, now = 0, u = 1) {
   const { x, y, angle, radius, hp, maxHp, phase, state, stagger, hitFlash, critFlash, shielded, laserActive, targetSlot } = boss;
-  if (!finite(x) || !finite(y) || radius <= 0) return;
+  if (!finite(x) || !finite(y) || radius <= 0 || !finite(hp) || hp <= 0) return;
 
   const isStaggered = state === 'STAGGER';
   const corePulse = Math.sin(now * 0.008) * 0.15 + 0.85;
@@ -436,7 +450,7 @@ function drawPillars(ctx, pillars, u = 1) {
  */
 function drawPylons(ctx, pylons, boss, now = 0, u = 1) {
   for (const pylon of pylons) {
-    const { x, y, radius, hp, maxHp, active } = pylon;
+    const { x, y, radius, hp, maxHp, active, hitFlash } = pylon;
     if (!active || !finite(x) || !finite(y)) continue;
 
     ctx.save();
@@ -446,12 +460,12 @@ function drawPylons(ctx, pylons, boss, now = 0, u = 1) {
     ctx.arc(x, y, radius * 1.3, 0, Math.PI * 2);
     ctx.fill();
 
-    // Pilon direği
-    ctx.fillStyle = '#1E1B4B';
+    // Pilon direği (Vuruş flaşı ile aydınlanır)
+    ctx.fillStyle = hitFlash > 0 ? COLOR_WHITE : '#1E1B4B';
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = COLOR_PURPLE;
+    ctx.strokeStyle = hitFlash > 0 ? COLOR_WHITE : COLOR_PURPLE;
     ctx.lineWidth = Math.max(1, 3 * u);
     ctx.stroke();
 
@@ -459,12 +473,27 @@ function drawPylons(ctx, pylons, boss, now = 0, u = 1) {
     const floatY = Math.sin(now * 0.008 + x) * 5;
     const orbGrad = ctx.createRadialGradient(x, y + floatY, 2, x, y + floatY, radius * 0.7);
     orbGrad.addColorStop(0, COLOR_WHITE);
-    orbGrad.addColorStop(0.5, COLOR_PURPLE);
+    orbGrad.addColorStop(0.5, hitFlash > 0 ? COLOR_WHITE : COLOR_PURPLE);
     orbGrad.addColorStop(1, 'rgba(167, 139, 250, 0)');
     ctx.fillStyle = orbGrad;
     ctx.beginPath();
     ctx.arc(x, y + floatY, radius * 0.7, 0, Math.PI * 2);
     ctx.fill();
+
+    // Pilon Can Çubuğu (HP Bar)
+    const barW = Math.max(28, radius * 2.2);
+    const barH = Math.max(4, 5 * u);
+    const barX = x - barW / 2;
+    const barY = y - radius - 16 * u;
+    const hpRatio = Math.max(0, Math.min(1, (hp || 0) / (maxHp || 1)));
+
+    ctx.fillStyle = COLOR_ARMOR_DARK;
+    ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
+    ctx.fillStyle = hitFlash > 0 ? COLOR_WHITE : COLOR_PURPLE;
+    ctx.fillRect(barX, barY, barW * hpRatio, barH);
+    ctx.strokeStyle = COLOR_PURPLE;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(barX - 1, barY - 1, barW + 2, barH + 2);
 
     // Boss'a giden elektrik bağı (Tether arc)
     if (boss && boss.shielded) {
@@ -647,10 +676,20 @@ function drawPlayers(ctx, players, arena, now = 0, u = 1) {
 }
 
 /**
+ * Faz etiketinin TEK kaynağı: sahnede başlık, client'da skorbordu satırı.
+ * (Eski gömülü İngilizce yedekler locale ile ayrışmıştı; kopyalar burada.)
+ * @param {number} phase
+ * @returns {string}
+ */
+function colossusPhaseLabel(phase) {
+  return phase === 3 ? t('colossus.phase3') : (phase === 2 ? t('colossus.phase2') : t('colossus.phase1'));
+}
+
+/**
  * Üst Ekran Boss Sağlık & Sersemleme HUD'u
  */
 function drawBossHud(ctx, boss, arena, u = 1) {
-  if (!boss || !finite(boss.hp)) return;
+  if (!boss || !finite(boss.hp) || boss.hp <= 0 || !boss.maxHp) return;
 
   const { hp, maxHp, phase, state, stagger } = boss;
   const barW = Math.min(arena.width * 0.68, 540);
@@ -667,8 +706,7 @@ function drawBossHud(ctx, boss, arena, u = 1) {
   ctx.fillStyle = COLOR_WHITE;
   ctx.font = 'bold 13px system-ui, sans-serif';
   ctx.textAlign = 'center';
-  const phaseLabel = phase === 3 ? (t('colossus.phase3') || 'PHASE 3: OVERDRIVE') : (phase === 2 ? (t('colossus.phase2') || 'PHASE 2: SHIELDED') : (t('colossus.phase1') || 'PHASE 1: SIEGE'));
-  ctx.fillText(`AEGIS-01 — ${phaseLabel}`, arena.cx, barY - 8);
+  ctx.fillText(`AEGIS-01 — ${colossusPhaseLabel(phase)}`, arena.cx, barY - 8);
 
   // HP Bar Arka Planı
   ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
@@ -709,7 +747,7 @@ function drawBossHud(ctx, boss, arena, u = 1) {
     ctx.fillStyle = COLOR_GOLD;
     ctx.font = 'bold 10px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(t('colossus.staggered') || 'STAGGERED! STRIKE THE CORE!', arena.cx, stagY + 16);
+    ctx.fillText(t('colossus.staggered'), arena.cx, stagY + 16);
   }
   ctx.restore();
 }
@@ -720,6 +758,15 @@ function drawBossHud(ctx, boss, arena, u = 1) {
 export function drawColossusWorld(ctx, arena, scene, options = {}) {
   const now = options.now || performance.now();
   const u = (arena && arena.unit) || 1;
+
+  // 0. Zemin: statik saha TEK kaynaktan (`fieldKit`), diğer 12 oyunla aynı
+  //    yerleşim (AGENTS §3). Bu çağrı YOKTU — masa tablası hiç çizilmiyordu,
+  //    oyun boş koyu bir dikdörtgen içinde oynanıyordu.
+  drawField(ctx, arena, { mode: 'COLOSSUS', seed: hashFieldSeed('COLOSSUS', options.roundId) });
+
+  if (scene.phase === 'LOBBY') {
+    return;
+  }
 
   // 1. Zemin Sütunları
   drawPillars(ctx, scene.pillars, u);
@@ -755,12 +802,29 @@ export function drawColossusWorld(ctx, arena, scene, options = {}) {
   drawBossHud(ctx, scene.boss, arena, u);
 }
 
-export function colossusHeaderStatus(scene) {
+/**
+ * Client skorbordu durumu — `hordeHeaderStatus` ile aynı sözleşme
+ * (`{ text, tone }`); ton değerleri `hud.headerToneColor` ile uyumludur.
+ * Boss HP çubuğu sahne içinde çizildiği için burada YALNIZCA faz/sersemleme
+ * etiketi taşınır (ikinci bir HP çubuğu değil).
+ * @param {{boss?: {hp?: number, phase?: number, state?: string, shielded?: boolean}}} [scene]
+ * @returns {{text: string, tone: string|null}}
+ */
+export function colossusHeaderStatus(scene = {}) {
   const boss = scene.boss || {};
+  if (!boss || !finite(boss.hp) || boss.hp <= 0) {
+    return { text: '', tone: null };
+  }
+  const phase = Number(boss.phase) || 1;
+  const staggered = boss.state === 'STAGGER';
+  if (staggered) {
+    return { text: t('colossus.staggered'), tone: 'urgent' };
+  }
+  if (phase === 2 && boss.shielded) {
+    return { text: t('colossus.phase2Objective'), tone: 'urgent' };
+  }
   return {
-    bossHp: Math.max(0, Math.round(boss.hp || 0)),
-    bossMaxHp: Math.round(boss.maxHp || COLOSSUS_TUNING.BASE_HP),
-    phase: boss.phase || 1,
-    staggered: boss.state === 'STAGGER',
+    text: colossusPhaseLabel(phase),
+    tone: phase >= 2 ? 'boss' : null,
   };
 }

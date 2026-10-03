@@ -580,7 +580,7 @@ this.targetScore = 2;
     // partinin en pahalı anıdır (herkes yeni oyun arar).
     if (this.state === 'MATCH_OVER') {
       if (this.handleUiTap(touch)) return;
-      matchOverRestartTap(this, touch, { onRestart: () => this.startNewMatch() });
+      matchOverRestartTap(this, touch, { onRestart: () => { this.startNewMatch(); playJoin(); } });
       return;
     }
 

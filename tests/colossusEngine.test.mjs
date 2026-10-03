@@ -24,6 +24,7 @@ let ColossusGame;
 let COLOSSUS_TUNING;
 let createColossusWorldPacket;
 let isValidColossusWorldFrame;
+let colossusHeaderStatus;
 let GAME_ORDER;
 let CARTRIDGES;
 
@@ -56,7 +57,7 @@ before(async () => {
 
   ({ ColossusGame } = await server.ssrLoadModule('/src/games/colossus.js'));
   ({ COLOSSUS_TUNING } = await server.ssrLoadModule('/src/games/colossusConfig.js'));
-  ({ createColossusWorldPacket, isValidColossusWorldFrame } = await server.ssrLoadModule('/src/games/colossusView.js'));
+  ({ colossusHeaderStatus, createColossusWorldPacket, isValidColossusWorldFrame } = await server.ssrLoadModule('/src/games/colossusView.js'));
   ({ GAME_ORDER, CARTRIDGES } = await server.ssrLoadModule('/src/core/engineRegistry.js'));
 });
 
@@ -239,3 +240,163 @@ test('createColossusWorldPacket generates a valid frame for client worldView', (
   assert.ok(packet.boss, 'Packet must contain boss state');
   assert.equal(packet.boss.hp, game.boss.hp);
 });
+
+test('Lobby render populates start button and tapping start transitions to PLAYING', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  assert.equal(game.state, 'LOBBY');
+
+  game.render();
+  assert.ok(game.uiButtons.length > 0, 'UI buttons must be populated in LOBBY');
+
+  const startBtn = game.uiButtons.find((btn) => Math.abs(btn.x + btn.w / 2 - game.arena.cx) < 10);
+  assert.ok(startBtn, 'Start button must exist in uiButtons');
+
+  // Dokunuş başlat düğmesine tıklar
+  game.onTouchStart({
+    id: 1,
+    x: startBtn.x + startBtn.w / 2,
+    y: startBtn.y + startBtn.h / 2,
+  });
+
+  // Lobi ayrılış animasyonunun (340ms) tamamlanmasını simüle et
+  const t0 = performance.now();
+  const origNow = performance.now.bind(performance);
+  try {
+    performance.now = () => t0 + 400;
+    game.render();
+  } finally {
+    performance.now = origNow;
+  }
+
+  assert.equal(game.state, 'PLAYING', 'Game should transition to PLAYING after start tap');
+  assert.ok(game.boss, 'Boss should be spawned');
+});
+
+test('Local keyboard WASD moves player and space fires weapon', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.slotTypes = ['human', 'empty', 'empty', 'empty'];
+  game.startNewMatch();
+  game.isLocalInputActive = true;
+
+  const p1 = game.players[0];
+  const initialX = p1.x;
+
+  // D tuşuna bas (sağa hareket)
+  game.keys['KeyD'] = true;
+  game.update(performance.now() + 16);
+  assert.ok(p1.x > initialX, 'P1 should move right with KeyD');
+
+  game.keys['KeyD'] = false;
+
+  // Space bas (ateş)
+  const initialAmmo = p1.ammo;
+  game.keys['Space'] = true;
+  game.keys[' '] = true;
+  game.update(performance.now() + 32);
+  assert.ok(p1.ammo < initialAmmo || game.projectiles.length > 0, 'P1 should fire weapon on Space');
+});
+
+test('Lobby touch quadrant cycles player slots', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  assert.equal(game.state, 'LOBBY');
+  assert.equal(game.slotTypes[1], 'empty');
+
+  // P2 sol-üst kadranına dokun
+  const touch = { id: 2, x: game.arena.left + 50, y: game.arena.top + 50 };
+  game.onTouchStart(touch);
+
+  assert.notEqual(game.slotTypes[1], 'empty', 'Slot 1 should cycle from empty');
+});
+
+test('Boss and Boss HUD are not rendered in LOBBY state', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  assert.equal(game.state, 'LOBBY');
+  assert.equal(game.boss, null);
+
+  const packet = game.createWorldPacket();
+  assert.equal(packet.gameState, 'LOBBY');
+  const header = colossusHeaderStatus({ boss: game.boss });
+  assert.equal(header.text, '');
+  assert.equal(header.tone, null);
+});
+
+test('Stomp shockwave damages player only once across multiple frames without one-shotting', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.startNewMatch();
+
+  const p1 = game.players[0];
+  const initialHp = p1.hp;
+  assert.equal(initialHp, COLOSSUS_TUNING.MAX_HP);
+
+  // Position boss and shockwave near p1
+  game.boss.x = p1.x;
+  game.boss.y = p1.y - 50;
+  game.triggerStomp();
+  assert.equal(game.shockwaves.length, 1);
+
+  // Simulate 15 consecutive frames while the ring expands through p1
+  let now = 1000;
+  for (let i = 0; i < 15; i++) {
+    now += 16;
+    game.update(now);
+  }
+
+  // P1 should only have lost COLOSSUS_TUNING.STOMP_DAMAGE (1 HP), NOT one-shotted!
+  assert.equal(p1.hp, initialHp - COLOSSUS_TUNING.STOMP_DAMAGE, 'Player should only take 1 damage once from shockwave');
+  assert.equal(p1.isDowned, false, 'Player should not be downed by a single stomp');
+});
+
+test('Phase 2 shielded boss displays objective hint in headerStatus', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.startNewMatch();
+
+  // Enter Phase 2
+  game.enterPhase2();
+  assert.equal(game.boss.phase, 2);
+  assert.equal(game.boss.shielded, true);
+
+  const header = colossusHeaderStatus({ boss: game.boss });
+  assert.equal(header.tone, 'urgent');
+  assert.ok(header.text.length > 0, 'Phase 2 objective text must be displayed');
+});
+
+test('MATCH_OVER provides clickable uiButtons and allows keyboard restart', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.startNewMatch();
+
+  // Down all players to trigger MATCH_OVER defeat
+  for (const p of game.players) p.isDowned = true;
+  game.update(performance.now() + 16);
+  assert.equal(game.state, 'MATCH_OVER');
+  assert.equal(game.matchResult, 'loss');
+
+  // Input source should be accepted outside PLAYING
+  assert.equal(game.claimInputSource('touch', { point: { x: 400, y: 300 } }), true);
+
+  // Render should populate result buttons
+  game.render();
+  assert.ok(game.uiButtons.length >= 2, 'Result card must produce action buttons in uiButtons');
+
+  // Click the restart button
+  const restartBtn = game.uiButtons[0];
+  game.onTouchStart({ id: 1, x: restartBtn.x + restartBtn.w / 2, y: restartBtn.y + restartBtn.h / 2 });
+  assert.equal(game.state, 'PLAYING', 'Clicking restart button must restart match');
+
+  // Down all players again
+  for (const p of game.players) p.isDowned = true;
+  game.update(performance.now() + 32);
+  assert.equal(game.state, 'MATCH_OVER');
+
+  // Keyboard restart transitions back to PLAYING
+  game.startNewMatch();
+  assert.equal(game.state, 'PLAYING');
+});
+
+

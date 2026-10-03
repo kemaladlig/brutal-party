@@ -22,6 +22,7 @@ import { getSlotKeys, KEY_LABELS, getKeyCapLabel } from '../core/inputMaps.js';
 import { createQuickSettingsPanel } from './settings/settingsPanel.js';
 import { openSettingsSheet } from './settings/settingsSheet.js';
 import { createTabStrip } from './tabStrip.js';
+import { playMenuTick, playMenuPop } from '../audio.js';
 import { canToggleFullscreen } from './fullscreen.js';
 
 const pauseModal = document.getElementById('pause-modal');
@@ -205,9 +206,11 @@ export function renderPauseSeats(onSwapCallback) {
       if (btn.disabled) return;
       const slotIdx = parseInt(btn.dataset.slot, 10);
       if (pauseSelectedSlot === null) {
+        playMenuTick();
         pauseSelectedSlot = slotIdx;
         renderPauseSeats(onSwapCallback);
       } else if (pauseSelectedSlot === slotIdx) {
+        playMenuTick();
         pauseSelectedSlot = null;
         renderPauseSeats(onSwapCallback);
       } else {
@@ -219,6 +222,7 @@ export function renderPauseSeats(onSwapCallback) {
           : true;
         renderPauseSeats(onSwapCallback);
         if (didSwap !== false) {
+          playMenuPop();
           showInstallToast(t('toast.swapped', slotA + 1, slotB + 1));
         }
       }
@@ -281,20 +285,23 @@ export function initPauseModal({
   onTvLobby,
 }) {
   btnResumeGame?.addEventListener('click', () => {
+    playMenuTick();
     closePauseModal(onResume);
   });
 
   btnPauseClose?.addEventListener('click', () => {
+    playMenuTick();
     closePauseModal(onResume);
   });
 
   // Ayarlar duraklatmanın ÜSTÜNDE açılır: altta duran katman kapanmaz, Escape
   // önce en üsttekine gider (`overlayHost`). Başlıktaki dişliyle menüdeki
   // TÜM AYARLAR satırı AYNI sheet'i açar (ikinci ayar yüzeyi yok).
-  btnPauseSettings?.addEventListener('click', () => openSettingsSheet());
-  btnPauseAllSettings?.addEventListener('click', () => openSettingsSheet());
+  btnPauseSettings?.addEventListener('click', () => { playMenuTick(); openSettingsSheet(); });
+  btnPauseAllSettings?.addEventListener('click', () => { playMenuTick(); openSettingsSheet(); });
 
   btnResetMatch?.addEventListener('click', () => {
+    playMenuPop();
     closePauseModal(onReset);
   });
 
@@ -322,9 +329,10 @@ export function initPauseModal({
     }
     window.clearTimeout(exitArmedTimer);
     delete btnExitToMenu.dataset.armed;
+    playMenuPop();
     onExitMenu();
   });
-  btnTvLobby?.addEventListener('click', onTvLobby);
+  btnTvLobby?.addEventListener('click', () => { playMenuPop(); onTvLobby(); });
 
   // Kapatma jestleri: backdrop dokunuş + ESC + (dokunmatikte) aşağı kaydırma.
   // Hepsi DEVAM ET ile aynı kapıdan çıkar (yanlışlıkla sıfırlama/çıkış yok).
@@ -349,6 +357,7 @@ export function initPauseModal({
   }, { passive: true });
 
   btnPauseRotateSeats?.addEventListener('click', () => {
+    playMenuTick();
     if (typeof onRotateSeats === 'function') {
       onRotateSeats();
     }

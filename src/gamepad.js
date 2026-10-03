@@ -8,7 +8,7 @@ import { toggleFullscreen, canToggleFullscreen } from './ui/fullscreen.js';
 import { UI_COLORS } from './ui/tokens.js';
 import { scoreEntries } from './ui/scoreModel.js';
 import { motionScale } from './ui/motion.js';
-import { playMenuTick, playMenuPop, playCountdownTick, warmGameSounds } from './audio.js';
+import { playMenuTick, playMenuPop, playCountdownTick, playWinJingle, warmGameSounds } from './audio.js';
 import { mountDeclarativeController } from './controllers/controllerTemplates.js';
 import { GamepadInputAdapter, ANALOG_THROTTLE_MS } from './controllers/gamepadInputAdapter.js';
 import { getNeutralInputs, CONTROL_KEEPALIVE_MS } from './controllers/controlDefs.js';
@@ -975,10 +975,12 @@ export class GamepadManager {
     const scoreBtn = document.getElementById('btn-score-peek');
     scoreBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
+      playMenuTick();
       this.toggleScorePeek();
     });
 
     document.getElementById('btn-leave-gamepad')?.addEventListener('click', () => {
+      playMenuTick();
       closeMenu();
       this.network.disconnect();
       this.hide();
@@ -989,6 +991,7 @@ export class GamepadManager {
     // Sıradan web ve API'siz yüzeyde krom teklifi yok — menü satırı çizilmez.
     fsToggle?.classList.toggle('hidden', !canToggleFullscreen());
     fsToggle?.addEventListener('click', () => {
+      playMenuTick();
       closeMenu();
       // Tek otorite `src/ui/fullscreen.js` — kumanda kendi FS durumunu tutmaz.
       toggleFullscreen();
@@ -1479,6 +1482,7 @@ export class GamepadManager {
 
     // Leave room direct button
     document.getElementById('btn-leave-lobby-direct')?.addEventListener('click', () => {
+      playMenuTick();
       this.network.disconnect();
       this.hide();
       window.location.href = window.location.pathname;
@@ -1487,6 +1491,7 @@ export class GamepadManager {
     // Karakter önizleme + özelleştirme (isim dahil tek modal)
     this.drawLobbyCharacterPreview();
     document.getElementById('btn-edit-character')?.addEventListener('click', () => {
+      playMenuTick();
       let before = '';
       try {
         if (!this.avatar) this.avatar = getAvatarProfile();
@@ -1524,6 +1529,7 @@ export class GamepadManager {
     let leaveArmedTimer = null;
     leaveBtn?.addEventListener('click', () => {
       if (!leaveBtn.dataset.armed) {
+        playMenuTick();
         leaveBtn.dataset.armed = '1';
         leaveBtn.textContent = t('pad.leaveArmed');
         leaveArmedTimer = window.setTimeout(() => {
@@ -1533,6 +1539,7 @@ export class GamepadManager {
         return;
       }
       window.clearTimeout(leaveArmedTimer);
+      playMenuPop();
       this.network.disconnect();
       this.hide();
       window.location.href = window.location.pathname;
@@ -1967,6 +1974,7 @@ export class GamepadManager {
       el.setAttribute('aria-hidden', 'false');
       this._spawnConfetti(el.querySelector('.confetti-burst'));
       playMenuPop();
+      try { playWinJingle(); } catch {}
     }, breath);
   }
 

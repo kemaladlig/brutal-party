@@ -8,7 +8,7 @@ import { isColorblindEnabled, setColorblindEnabled } from '../../core/customizat
 import { isPersistent } from '../../core/safeStorage.js';
 import { getPreference, setPreference } from '../../core/preferences.js';
 import { applyUpdate, checkForUpdates, isUpdateAvailable, onUpdateStatusChange } from '../../core/updateManager.js';
-import { toggleAudio, getIsMuted } from '../../audio.js';
+import { toggleAudio, getIsMuted, playMenuTick } from '../../audio.js';
 import { getLang, setLang, t } from '../../i18n.js';
 import { showInstallToast } from '../toast.js';
 import { CONTROL_SURFACE, getControlSurfacePreference, setControlSurface } from '../tokens.js';
@@ -41,6 +41,9 @@ export const settingsActions = {
     toggle: () => {
       const muted = toggleAudio();
       showInstallToast(muted ? t('toast.soundOff') : t('toast.soundOn'));
+      // Açma yönü sessiz kalmasın: satırın önden çaldığı tick mute'ta
+      // yutulur, burada teyit sesi gelir.
+      if (!muted) { try { playMenuTick(); } catch {} }
     },
   },
 

@@ -10,6 +10,7 @@ import { getTabletopIconSvg } from '../../core/tabletopIcons.js';
 import { closeOverlay, openOverlay } from '../overlayHost.js';
 import { bindSettingsHooks } from './settingsActions.js';
 import { createSettingsPanel } from './settingsPanel.js';
+import { playMenuTick } from '../../audio.js';
 
 const SCRIM_ID = 'settings-modal';
 
@@ -40,7 +41,7 @@ function build() {
   close.type = 'button';
   close.className = 'sheet-close';
   close.innerHTML = getTabletopIconSvg('close', { size: 16, strokeWidth: 2.6 });
-  close.addEventListener('click', () => closeSettingsSheet());
+  close.addEventListener('click', () => { playMenuTick(); closeSettingsSheet(); });
 
   // `.tab-strip` merkezi bileşenin sınıfıdır; `.settings-tabs` yalnız bu
   // yüzeyin yerleşim varyantıdır (eşit üç dilim, kaydırmasız).

@@ -668,17 +668,17 @@ this.targetScore = 2;
         const eatRadius = f.radius + (player.radius || 0) * SNAKE_EAT_HEAD_SHARE;
         if (Math.hypot(player.x - f.x, player.y - f.y) < eatRadius) {
           if (f.type === 'GOLDEN_STAR') {
-            player.targetLen += 70;
+            player.targetLen += 150;
             player.foodCount = (player.foodCount || 0) + 3;
             this.spawnSparkles(f.x, f.y, '#FFDE59', 16, player);
           } else if (f.type === 'TURBO_BERRY') {
-            player.targetLen += 40;
+            player.targetLen += 80;
             player.foodCount = (player.foodCount || 0) + 1;
             player.boostEnergy = Math.min(100, player.boostEnergy + 55);
             player.boostLocked = false;
             this.spawnSparkles(f.x, f.y, '#A259FF', 12, player);
           } else {
-            player.targetLen += 38;
+            player.targetLen += 75;
             player.foodCount = (player.foodCount || 0) + 1;
             player.boostEnergy = Math.min(100, player.boostEnergy + 15);
             this.spawnSparkles(f.x, f.y, '#D84727', 8, player);

@@ -161,17 +161,19 @@ function createModalDOM() {
   document.body.insertAdjacentHTML('beforeend', modalHtml);
 
   // Olay Dinleyicileri
-  document.getElementById('btn-close-customize')?.addEventListener('click', closeCustomizeModal);
-  document.getElementById('customize-backdrop')?.addEventListener('click', closeCustomizeModal);
+  document.getElementById('btn-close-customize')?.addEventListener('click', () => { playMenuTick(); closeCustomizeModal(); });
+  document.getElementById('customize-backdrop')?.addEventListener('click', () => { playMenuTick(); closeCustomizeModal(); });
 
   // Sekme çubuğu
   document.querySelector('.customize-tabs')?.addEventListener('click', (e) => {
     const btn = /** @type {HTMLElement | null} */ (/** @type {Element} */ (e.target).closest('.customize-tab'));
     if (!btn) return;
+    playMenuTick();
     setActiveTab(btn.dataset.tab);
   });
 
   document.getElementById('btn-save-customize')?.addEventListener('click', () => {
+    playMenuPop();
     if (currentCustom) {
       saveAvatarProfile(currentCustom);
     }
@@ -180,6 +182,7 @@ function createModalDOM() {
   });
 
   document.getElementById('btn-reset-customize')?.addEventListener('click', () => {
+    playMenuTick();
     currentCustom = resetAvatarProfile();
     renderSelectionGrids();
     showInstallToast(t('custom.diced'));
@@ -254,6 +257,7 @@ function renderSelectionGrids() {
     palGrid.onclick = (e) => {
       const btn = /** @type {HTMLElement | null} */ (/** @type {Element} */ (e.target).closest('.color-swatch-btn'));
       if (!btn) return;
+      playMenuTick();
       currentCustom.color = btn.dataset.hex;
       saveAvatarProfile(currentCustom);
       renderSelectionGrids();
@@ -276,6 +280,7 @@ function renderSelectionGrids() {
     expGrid.onclick = (e) => {
       const btn = /** @type {HTMLElement | null} */ (/** @type {Element} */ (e.target).closest('.custom-chip-btn'));
       if (!btn) return;
+      playMenuTick();
       currentCustom.expression = btn.dataset.id;
       saveAvatarProfile(currentCustom);
       renderSelectionGrids();
@@ -295,6 +300,7 @@ function renderSelectionGrids() {
     rimGrid.onclick = (e) => {
       const btn = /** @type {HTMLElement | null} */ (/** @type {Element} */ (e.target).closest('.rim-swatch-btn'));
       if (!btn) return;
+      playMenuTick();
       currentCustom.rim = btn.dataset.id;
       saveAvatarProfile(currentCustom);
       renderSelectionGrids();

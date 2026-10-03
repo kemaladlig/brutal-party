@@ -3,7 +3,8 @@
 // client bu modülden snapshot/validator + salt-okunur draw fonksiyonlarını alır,
 // asla simülasyon/AI import etmez.
 
-import { drawObstacle, drawPickup } from '../core/arenaKit.js';
+import { drawPickup, pushObstaclesToDepth } from '../core/arenaKit.js';
+import { beginDepthPass, flushDepthPass, entityDepth, DEPTH_KIND, pushDepthItem } from '../core/depthPass.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { tracerAt } from '../core/fieldLights.js';
 import { drawGameAvatar, computeAvatarKineticDeformation } from '../core/avatarInGame.js';
@@ -166,12 +167,18 @@ export function isValidArcherWorldFrame(frame) {
 }
 
 // --- Ortak çizim yardımcıları (host + client aynı fonksiyonu çağırır) ---
+/** Engel çizim seçenekleri — MODÜL SABİTİ (kare başına tahsis yok). */
+const ARCHER_OBSTACLE_OPTS = Object.freeze({ theme: 'ARCHER' });
+
 export function drawArcherArena(ctx, arena, obstacles, opts = {}) {
   // Statik saha tek kaynaktan: zemin tonu, dokusu, derzi, seeded dekoru ve
   // yuvarlatılmış tepsi kesimi `fieldKit`'te pişirilir, frame başına tek blit.
   // Eskiden burada düz `#E8E5DF` dolgu + kare siyah `strokeRect` vardı.
   drawField(ctx, arena, { mode: 'ARCHER', seed: hashFieldSeed('ARCHER', opts.roundId) });
-  for (const obs of obstacles) drawObstacle(ctx, obs, { theme: 'ARCHER' });
+  // Engeller havuza yazılır; `drawArcherPlayers` sonunda oyuncularla birlikte
+  // y-sırasında çizilir.
+  beginDepthPass();
+  pushObstaclesToDepth(obstacles, ARCHER_OBSTACLE_OPTS);
 }
 
 export function drawArcherPickups(ctx, pickups) {
@@ -331,11 +338,12 @@ function archerAimSway(player) {
   return Math.sin(player.swayPhase || 0) * (0.15 * (1 - charge));
 }
 
-export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena = null, selfSlot = -1 } = {}) {
-  // 3.3: tek görür varsa kendi avatarın T1 (tam), diğerleri T3 (−%25). α fxKit'ten okunur.
-  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
-  for (const player of players) {
-    if (!isWorldEntityVisible(player)) continue;
+/**
+ * Tek oyuncunun tüm çizimi — derinlik geçişinin "çiz" geri çağrısı.
+ * MODÜL SEVİYESİ olmalıdır: kare başına `() => {}` kapanışı tahsistir.
+ */
+function drawArcherPlayerEntity(ctx, player, opts) {
+  const { showFx, now, arena, hasViewer, selfSlot } = opts;
     const slotIndex = (player.slot ?? player.index) ?? 0;
     // Yarıçap host tarafında hesaplanır ve world packet ile gelir; bu view
     // host VE kumanda client'ı tarafından ORTAK kullanıldığı için burada
@@ -452,7 +460,32 @@ export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena
       arena,
       icon: 'zap',
     });
+}
+
+/** Derinlik geçişinin kare seviyesindeki seçenekleri — MODÜL SABİTİ. */
+const ARCHER_PLAYER_OPTS = {
+  showFx: false,
+  now: 0,
+  arena: null,
+  hasViewer: false,
+  selfSlot: -1,
+};
+
+export function drawArcherPlayers(ctx, players, { showFx = false, now = 0, arena = null, selfSlot = -1 } = {}) {
+  // 3.3: tek görür varsa kendi avatarın T1 (tam), diğerleri T3 (−%25). α fxKit'ten okunur.
+  ARCHER_PLAYER_OPTS.showFx = showFx;
+  ARCHER_PLAYER_OPTS.now = now;
+  ARCHER_PLAYER_OPTS.arena = arena;
+  ARCHER_PLAYER_OPTS.hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  ARCHER_PLAYER_OPTS.selfSlot = selfSlot;
+
+  for (const player of players) {
+    if (!isWorldEntityVisible(player)) continue;
+    pushDepthItem(entityDepth(player), DEPTH_KIND.PLAYER, player, drawArcherPlayerEntity, ARCHER_PLAYER_OPTS);
   }
+
+  // Engeller + oyuncular TEK y-sırasında çizilir.
+  flushDepthPass(ctx);
 }
 
 /**

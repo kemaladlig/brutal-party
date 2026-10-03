@@ -14,6 +14,8 @@ import { fxParticleScale } from './perfMonitor.js';
 // olayın ZATEN taşıdığı veriden türer → §6 ağ bütçesi sıfır, motorlarda kod yok.
 import { emitFxScar } from './fieldDecals.js';
 import { emitFxLight } from './fieldLights.js';
+import { emitFxFlinch } from './fieldFlinch.js';
+import { punchCamera } from './cameraKit.js';
 // Engel tepkisi (ARENA_ELEVATION_PLAN Faz 5): merminin bloğa çarpması zaten
 // `spark` olarak buradan geçiyor; blok titreşimi/çatlağı aynı olaydan doğar.
 // Olay anlık güvenilir yoldan gittiği için kumandada da görünür (§6 bütçesi:
@@ -125,6 +127,16 @@ export class FxRuntime {
     // Zemin ışık parıltısı (Faz 3): aynı disiplin — olay kind'inden türer,
     // paket alanı yok, çizimi `fieldKit.drawField` yapar.
     emitFxLight(kind, event, unit);
+    // Hasar yönü oku: aynı disiplin — vurulan gövde darbenin geldiği yöne
+    // mikro-itilir. Paket alanı yok, motor kodu sıfır.
+    emitFxFlinch(kind, event);
+    // Kamera punch'ı: aynı darbe, aynı olay. Yalnız hasar türleri kamera
+    // içe atar — `shot` her mermi için tetiklendiği için atılırsa sürekli
+    // yakınlaşıp uzaklaşırdı.
+    if (kind === 'hit' || kind === 'slay' || kind === 'kill') {
+      const p = /** @type {any} */ (fxProfile(kind)).trauma;
+      punchCamera(p);
+    }
     // Engel tepkisi (Faz 5): `spark` hem mermi-bloğa teması hem birkaç ortam
     // olayında kullanılır; blok eşleşmesi ÇİZİM anında (temas noktası bloğun
     // içinde mi) yapıldığı için boşa giden `spark`lar hiçbir şey çizmez.

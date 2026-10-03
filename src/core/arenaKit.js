@@ -1,6 +1,8 @@
 // Ortak arena görsel kiti — engeller, layout oluşturma ve power-up rozetleri tek yerden.
 // Motorlar buildLayout(name, arena) çağırabilir; ÇİZİM (drawObstacle, drawPickup) buradan gelir.
 import { drawTabletopIcon, hasTabletopIcon } from './tabletopIcons.js';
+import { drawDioramaContactShadow } from './dioramaKit.js';
+import { DEPTH_KIND, entityDepth, obstacleDepth, pushDepthItem } from './depthPass.js';
 import { fieldTheme } from './fieldKit.js';
 import { fxGlowEnabled } from './perfMonitor.js';
 // Reaktif engel tepkisi (ARENA_ELEVATION_PLAN Faz 5): blok gövdesinin sahibi
@@ -525,6 +527,47 @@ function buildSquareLayout(name, arena, minPassage) {
   ];
 }
 
+// ---------------------------------------------------------------------------
+// Sahne derinlik geçişi — 12 oyunun ortak köprüsü
+// ---------------------------------------------------------------------------
+
+/**
+ * Bu iki çizici MODÜL SEVİYESİ sabittir; `pushDepthItem` kare başına
+ * fonksiyon referansı yazdığı için `() => drawObstacle(...)` gibi bir kapanış
+ * yazmak 60 Hz'de saniyede yüzlerce nesne demektir (AGENTS §1 madde 4).
+ */
+const DEPTH_DRAW_OBSTACLE = (ctx, obs, opts) => drawObstacle(ctx, obs, opts);
+const DEPTH_DRAW_PICKUP = (ctx, pk) => drawPickup(ctx, pk);
+
+/**
+ * Engel listesini derinlik havuzuna YAZAR (çizmez).
+ *
+ * View'lar `drawXArena` içinde bunu çağırır, `drawXPlayers` sonunda
+ * `flushDepthPass` ile tek seferde sıralı çizim olur. Böylece karakter bloğun
+ * arkasına geçtiğinde arkasında kalır — 2.5D hacminin okunabilirliği.
+ *
+ * @param {Array<any>} obstacles
+ * @param {any} opts - `drawObstacle` seçenekleri (view'ın MODÜL SABİTİ)
+ */
+export function pushObstaclesToDepth(obstacles, opts) {
+  if (!Array.isArray(obstacles)) return;
+  for (let i = 0; i < obstacles.length; i += 1) {
+    const obs = obstacles[i];
+    if (!obs) continue;
+    pushDepthItem(obstacleDepth(obs), DEPTH_KIND.OBSTACLE, obs, DEPTH_DRAW_OBSTACLE, opts);
+  }
+}
+
+/** Pickup listesini derinlik havuzuna yazar (havada süzülürler, zeminden yukarı). */
+export function pushPickupsToDepth(pickups) {
+  if (!Array.isArray(pickups)) return;
+  for (let i = 0; i < pickups.length; i += 1) {
+    const pk = pickups[i];
+    if (!pk) continue;
+    pushDepthItem(entityDepth(pk), DEPTH_KIND.PICKUP, pk, DEPTH_DRAW_PICKUP, null);
+  }
+}
+
 function pathRoundRect(ctx, x, y, w, h, r) {
   if (typeof ctx.roundRect === 'function') {
     ctx.beginPath();
@@ -538,87 +581,25 @@ function pathRoundRect(ctx, x, y, w, h, r) {
 /**
  * Yumuşak temas gölgesi damgası — BİR KEZ üretilir, varlık başına tek `drawImage`.
  *
- * Neden elips değil: 3 iç-içe elips yumuşak düşüşün yalnız TAKLİDİDİR ve kenarda
- * görünen bantlar bırakır — kullanıcının "kalitesiz / ben buradayım der gibi"
- * dediği şey tam olarak bu bandalanmaydı. Gerçek radyal düşüş bir bitmap'te
- * bir kez hesaplanır, kare başına maliyeti tek blit. `shadowBlur` DEĞİL: o her
- * çizimde konvolüsyon yapar ve GPU hızlı yolunu kapatır.
- *
- * 64×64 ≈ 16 KB. Alfa tavanı 0.17 — önceki sert yolun ~0.15 çekirdeğinden bile
- * düşük okunur, çünkü ortalama düşüş çok daha hızlı sıfıra iner.
+ * Sprite'in kendisi `dioramaKit`'te yaşar (oyuncu, engel, madalyon, taş, top aynı
+ * düşüşü paylaşır; iki ayrı sprite iki ayrı gölge dili demekti).
  */
 const SHADOW_INK = '12, 8, 20';
 const LIGHT_INK = '255, 255, 255';
 const shadowRgba = (a) => `rgba(${SHADOW_INK}, ${a})`;
 const lightRgba = (a) => `rgba(${LIGHT_INK}, ${a})`;
 
-const SHADOW_SPRITE_SIZE = 64;
-const SHADOW_SPRITE_STOPS = /** @type {Array<[number, string]>} */ ([
-  [0, shadowRgba(0.44)],
-  [0.34, shadowRgba(0.25)],
-  [0.68, shadowRgba(0.08)],
-  [1, shadowRgba(0)],
-]);
-let shadowSprite = null;
-let shadowSpriteTried = false;
-
-function getShadowSprite() {
-  if (shadowSprite || shadowSpriteTried) return shadowSprite;
-  shadowSpriteTried = true;
-  if (typeof document === 'undefined' || typeof document.createElement !== 'function') return null;
-  try {
-    const canvas = document.createElement('canvas');
-    const g = canvas.getContext && canvas.getContext('2d');
-    if (!g) return null;
-    canvas.width = SHADOW_SPRITE_SIZE;
-    canvas.height = SHADOW_SPRITE_SIZE;
-    const half = SHADOW_SPRITE_SIZE / 2;
-    const grad = g.createRadialGradient(half, half, 0, half, half, half);
-    for (const [stop, color] of SHADOW_SPRITE_STOPS) grad.addColorStop(stop, color);
-    g.fillStyle = grad;
-    g.fillRect(0, 0, SHADOW_SPRITE_SIZE, SHADOW_SPRITE_SIZE);
-    shadowSprite = canvas;
-  } catch {
-    shadowSprite = null;
-  }
-  return shadowSprite;
-}
-
-/** DOM'suz ortam (test/SSR) için düşüş: üç iç-içe elips. */
-function contactShadowFallback(ctx, cx, baseY, rx, ry, style) {
-  ctx.fillStyle = style.shadow || shadowRgba(0.44);
-  const layers = [[1, 0.08], [0.72, 0.12], [0.45, 0.18]];
-  for (const [scale, alpha] of layers) {
-    ctx.globalAlpha = alpha;
-    ctx.beginPath();
-    ctx.ellipse(cx, baseY, rx * scale, ry * scale, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-
 /**
  * Bloğun TABANINA oturan, yönlü 2.5D derinlik gölgesi.
  * Sol-üst ana ışıktan türeyen hafif sağ-aşağı ofset ve tok temas oklüzyonu.
  */
-function contactShadow(ctx, x, y, w, h, u, style, mass) {
+function contactShadow(ctx, x, y, w, h, u, mass) {
   const footprint = Math.min(w, h);
-  const shiftX = Math.max(1, 2.2 * u);
-  const cx = x + w / 2 + shiftX;
-  const baseY = y + h + Math.max(1, 1.8 * u + footprint * 0.02);
+  const cx = x + w / 2 + Math.max(1, 2.2 * u);
+  const drop = Math.max(1, 1.8 * u + footprint * 0.02);
   const rx = w / 2 + Math.max(1.5, footprint * 0.06);
   const ry = Math.max(2, footprint * 0.14 + 1.2 * u) * (0.85 + 0.3 * mass);
-  const sprite = getShadowSprite();
-  if (!sprite) {
-    contactShadowFallback(ctx, cx, baseY, rx, ry, style);
-    return;
-  }
-  // Birim kare damga → dikey ölçekle elipse dönüşür.
-  ctx.translate(cx, baseY);
-  ctx.scale(1, ry / rx);
-  ctx.drawImage(sprite, -rx, -rx, rx * 2, rx * 2);
-  ctx.scale(1, rx / ry);
-  ctx.translate(-cx, -baseY);
+  drawDioramaContactShadow(ctx, cx, y + h, rx, ry, { drop });
 }
 
 /**
@@ -660,7 +641,7 @@ export function drawObstacle(ctx, obs, opts = {}) {
   if (ox !== 0 || oy !== 0) ctx.translate(ox, oy);
 
   // 1. Temas & Yönlü zemin gölgesi — her zaman en altta.
-  contactShadow(ctx, x, y, w, h, u, style, mass);
+  contactShadow(ctx, x, y, w, h, u, mass);
 
   // 2. Alt Gövde / 3B Ön Duvar (Koyu Taban)
   ctx.fillStyle = style.fill;

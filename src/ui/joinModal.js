@@ -7,6 +7,7 @@ import { hydrateIconSlots } from './iconSlots.js';
 import { showInstallToast } from './toast.js';
 import { createTabStrip } from './tabStrip.js';
 import { normalizeRoomCode, isValidRoomCode } from '../core/networkProtocol.js';
+import { playMenuTick, playMenuPop } from '../audio.js';
 import { t, onLangChange } from '../i18n.js';
 
 const joinRoomModal = document.getElementById('join-room-modal');
@@ -95,6 +96,7 @@ function bindClearButton(btn, input) {
   btn.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
+    playMenuTick();
     input.value = '';
     refresh();
     input.focus();
@@ -127,6 +129,7 @@ export function initJoinModal({ onExecuteJoin }) {
   hydrateIconSlots(joinRoomModal);
 
   btnPasteRoomCode?.addEventListener('click', async () => {
+    playMenuTick();
     try {
       const text = await navigator.clipboard.readText();
       if (text && inputRoomCode) {
@@ -139,7 +142,7 @@ export function initJoinModal({ onExecuteJoin }) {
     }
   });
 
-  btnCancelJoin?.addEventListener('click', closeJoinModal);
+  btnCancelJoin?.addEventListener('click', () => { playMenuTick(); closeJoinModal(); });
 
   // Kapatma jestleri: backdrop + ESC + aşağı kaydırma (katılım tetiklemez)
   joinRoomModal?.addEventListener('click', (e) => {
@@ -168,6 +171,7 @@ export function initJoinModal({ onExecuteJoin }) {
       showInstallToast(t('join.needCode'));
       return;
     }
+    playMenuPop();
     closeJoinModal();
     onExecuteJoin(code, ensureStoredNick(), joinModalMode);
   });
@@ -185,9 +189,11 @@ export function initJoinModal({ onExecuteJoin }) {
   const joinFromHeroInput = (input, mode) => {
     const code = normalizeRoomCode(input?.value);
     if (!code || !isValidRoomCode(code)) {
+      playMenuTick();
       openJoinModal(code, mode);
       return;
     }
+    playMenuPop();
     onExecuteJoin(code, ensureStoredNick(), mode);
   };
 
@@ -210,6 +216,7 @@ export function initJoinModal({ onExecuteJoin }) {
   bindHeroInput(onlineHeroInputCode, btnOnlineHeroJoin, 'ONLINE');
 
   btnHeroPaste?.addEventListener('click', async () => {
+    playMenuTick();
     try {
       const text = await navigator.clipboard.readText();
       if (text && heroInputCode) {

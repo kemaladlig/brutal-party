@@ -166,6 +166,34 @@ export function updateColossusBotAI(bot, game, dt) {
     return;
   }
 
+  // 1.5. Faz 2 Pilon Yok Etme Önceliği (Boss Kalkanlıysa)
+  if (boss.phase === 2 && boss.shielded && (game.pylons || []).some((p) => p.active)) {
+    const activePylons = game.pylons.filter((p) => p.active);
+    let nearestPylon = activePylons[0];
+    let minPDist = distSq(bot.x, bot.y, nearestPylon.x, nearestPylon.y);
+    for (const p of activePylons) {
+      const pd = distSq(bot.x, bot.y, p.x, p.y);
+      if (pd < minPDist) {
+        minPDist = pd;
+        nearestPylon = p;
+      }
+    }
+
+    const pylonAngle = Math.atan2(nearestPylon.y - bot.y, nearestPylon.x - bot.x);
+    const pylonDist = Math.sqrt(minPDist);
+
+    if (pylonDist > 160) {
+      bot.vx = Math.cos(pylonAngle) * COLOSSUS_TUNING.PLAYER_SPEED;
+      bot.vy = Math.sin(pylonAngle) * COLOSSUS_TUNING.PLAYER_SPEED;
+    } else {
+      bot.vx = 0;
+      bot.vy = 0;
+    }
+    bot.angle = pylonAngle;
+    game.firePlayerWeapon(bot);
+    return;
+  }
+
   if (isBossTargetingMe) {
     // KITER: Boss beni kovalıyor — geri çekil ve en yakın sütunun arkasına geç
     let safeX = game.arena.cx;

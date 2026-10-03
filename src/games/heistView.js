@@ -7,7 +7,8 @@
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { fxReadAlpha } from '../core/fxKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
-import { drawObstacle } from '../core/arenaKit.js';
+import { pushObstaclesToDepth } from '../core/arenaKit.js';
+import { beginDepthPass, flushDepthPass, entityDepth, DEPTH_KIND, pushDepthItem } from '../core/depthPass.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { setRoyaltySpot } from '../core/fieldLights.js';
 import { drawStatusChip } from '../core/entityStatus.js';
@@ -149,10 +150,14 @@ export function drawHeistArena(ctx, arena, pillars, opts = {}) {
     marks: heistFieldMarks,
   });
 
-  for (const pil of pillars) {
-    drawObstacle(ctx, pil, { theme: 'HEIST' });
-  }
+  // Engeller havuza yazılır; `drawHeistPlayers` sonunda oyuncularla birlikte
+  // y-sırasında çizilir (2.5D okunabilirlik).
+  beginDepthPass();
+  pushObstaclesToDepth(pillars, HEIST_OBSTACLE_OPTS);
 }
+
+/** Engel çizim seçenekleri — MODÜL SABİTİ (kare başına tahsis yok). */
+const HEIST_OBSTACLE_OPTS = Object.freeze({ theme: 'HEIST' });
 
 export function drawHeistVaults(ctx, vaults, players, { rotateTabletop = false } = {}) {
   const bySlot = new Map((players || []).map((p) => [p.slot ?? p.index, p]));
@@ -360,7 +365,6 @@ export function drawHeistPiggy(ctx, piggy) {
 
 export function drawHeistPlayers(ctx, players, { withFx = true, now = 0, arena = null, selfSlot = -1 } = {}) {
   // 3.3: tek görür varsa kendi avatarın T1, diğerleri T3 (−%25); α fxKit'ten.
-  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
   let richest = null;
   let richestIndex = -1;
   let maxCarried = 2;
@@ -376,8 +380,39 @@ export function drawHeistPlayers(ctx, players, { withFx = true, now = 0, arena =
     setRoyaltySpot(richest.x, richest.y, richest.radius ?? 36);
   }
 
+  HEIST_PLAYER_OPTS.withFx = withFx;
+  HEIST_PLAYER_OPTS.now = now;
+  HEIST_PLAYER_OPTS.arena = arena;
+  HEIST_PLAYER_OPTS.hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  HEIST_PLAYER_OPTS.selfSlot = selfSlot;
+
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
+    HEIST_PLAYER_OPTS.richestIndex = richestIndex;
+    pushDepthItem(entityDepth(player), DEPTH_KIND.PLAYER, player, drawHeistPlayerEntity, HEIST_PLAYER_OPTS);
+  }
+
+  // Engeller + oyuncular TEK y-sırasında çizilir.
+  flushDepthPass(ctx);
+}
+
+/** Derinlik geçişinin kare seviyesindeki seçenekleri — MODÜL SABİTİ. */
+const HEIST_PLAYER_OPTS = {
+  withFx: true,
+  now: 0,
+  arena: null,
+  hasViewer: false,
+  selfSlot: -1,
+  richestIndex: -1,
+};
+
+/**
+ * Tek oyuncunun tüm çizimi — derinlik geçişinin "çiz" geri çağrısı.
+ * MODÜL SEVİYESİ olmalıdır (kare başına kapanış = tahsis).
+ */
+function drawHeistPlayerEntity(ctx, player, opts) {
+  const { withFx, now, arena, hasViewer, selfSlot, richestIndex } = opts;
+  {
     const radius = player.radius || 36;
     const px = Number.isFinite(player.x) ? player.x : 0;
     const py = Number.isFinite(player.y) ? player.y : 0;

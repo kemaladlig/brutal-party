@@ -45,6 +45,9 @@ import { clearFieldProps, drawPropGizmos } from './fieldProps.js';
 // masaya düşer, zemin L* bütçesine dokunmaz. Modül `fieldKit`'e bağımlı
 // değildir (tek yönlü); nabız sinyali `fieldAmbience.setClimax` ile beslenir.
 import { clearFieldAmbience, drawClimaxVignette } from './fieldAmbience.js';
+// Gövde hasar oku: aynı yaşam döngüsü — arena değişince eski koordinattaki
+// darbe yeni sahnede yanlış yerde okunmasın.
+import { clearFieldFlinch } from './fieldFlinch.js';
 
 // ---------------------------------------------------------------------------
 // Tema kayıt defteri
@@ -1881,6 +1884,7 @@ export function releaseFieldLayers() {
   clearFieldLights();
   clearFieldAmbience();
   clearFieldProps();
+  clearFieldFlinch();
 }
 
 function releaseCaches(cache) {

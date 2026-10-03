@@ -17,6 +17,7 @@ import {
   CONTROLLER_SIZE_MAX,
   CONTROLLER_MIN_TOUCH_TARGET,
 } from '../core/controllerLayout.js';
+import { playMenuTick, playMenuPop } from '../audio.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -235,6 +236,7 @@ export function openControllerLayoutEditor(manager) {
 
     root.querySelectorAll('[data-controller-layout-size-step]').forEach(btn => {
       btn.addEventListener('click', (event) => {
+        playMenuTick();
         const step = Number(event.currentTarget.dataset.controllerLayoutSizeStep) * 0.05;
         draft.size = Math.round(clamp(
           draft.size + step,
@@ -245,10 +247,11 @@ export function openControllerLayoutEditor(manager) {
         updatePreview();
       });
     });
-    root.querySelector('[data-controller-layout-save]')?.addEventListener('click', () => close({ save: true }));
-    root.querySelector('[data-controller-layout-cancel]')?.addEventListener('click', () => close({ save: false }));
-    root.querySelector('[data-controller-layout-close]')?.addEventListener('click', () => close({ save: false }));
+    root.querySelector('[data-controller-layout-save]')?.addEventListener('click', () => { playMenuPop(); close({ save: true }); });
+    root.querySelector('[data-controller-layout-cancel]')?.addEventListener('click', () => { playMenuTick(); close({ save: false }); });
+    root.querySelector('[data-controller-layout-close]')?.addEventListener('click', () => { playMenuTick(); close({ save: false }); });
     root.querySelector('[data-controller-layout-reset]')?.addEventListener('click', () => {
+      playMenuTick();
       draft = constrainControllerLayout(getDefaultControllerLayout());
       const output = root.querySelector('#controller-layout-size-value');
       if (output) output.value = `${Math.round(draft.size * 100)}%`;

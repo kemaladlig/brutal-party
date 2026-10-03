@@ -147,11 +147,6 @@ export class CrownGame extends BaseMiniGame {
     });
   }
 
-  // Koltuk döngüsü BaseGame'de (persona rengi dahil); burada yalnız join sesi.
-  onSeatCycled() {
-    playJoin();
-  }
-
   cycleMap() {
     this.selectedMapIndex = (this.selectedMapIndex + 1) % CROWN_MAP_PRESETS.length;
     this.buildMap();
@@ -1436,7 +1431,7 @@ export class CrownGame extends BaseMiniGame {
     // 'tekrar oynayalım' diyebilmek için yol yoktu. `matchOverRestartTap`
     // kartın içine dokunmayı yutar (yanlışlıkla yeniden başlatmayı önler).
     if (this.state === 'MATCH_OVER') {
-      matchOverRestartTap(this, touch, { onRestart: () => this.startNewMatch() });
+      matchOverRestartTap(this, touch, { onRestart: () => { this.startNewMatch(); playJoin(); } });
       return;
     }
 

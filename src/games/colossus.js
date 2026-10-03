@@ -13,6 +13,7 @@ import {
   playHordeBombTick,
   playHordeHurt,
   playHordeKill,
+  playJoin,
   playShoot,
   playStart,
 } from '../audio.js';
@@ -22,11 +23,17 @@ import {
   getColossusMap,
 } from './colossusConfig.js';
 import {
+  colossusHeaderStatus,
   createColossusWorldPacket,
   drawColossusWorld,
 } from './colossusView.js';
 import { updateBossAI, updateColossusBotAI } from '../ai/colossusAI.js';
 import { getBotPersona, getSlotCustomization } from '../core/customizationManager.js';
+import { t } from '../i18n.js';
+import { UI_COLORS } from '../ui/tokens.js';
+import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
+import { getSecondActionKey, readSlotKeys } from '../core/inputMaps.js';
+import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 
 function distSq(ax, ay, bx, by) {
   const dx = ax - bx;
@@ -57,11 +64,85 @@ export class ColossusGame extends BaseMiniGame {
 
     this.boss = null;
     this.state = 'LOBBY';
+    this.matchResult = null;
     this.roundWinner = null;
     this.matchWinner = null;
     this.scores = [0, 0, 0, 0];
 
     this.initPlayers();
+    this.bindStandardKeyboard();
+  }
+
+  getTabletopSchema() {
+    return {
+      ...this.getCentralTabletopLayout('COLOSSUS'),
+      joystick: true,
+      actions: [
+        { id: 'dash', icon: 'zap', cooldownField: 'dashCooldown', maxCooldown: COLOSSUS_TUNING.DASH_COOLDOWN },
+      ],
+    };
+  }
+
+  assertTabletopParity() {
+    return super.assertTabletopParity('COLOSSUS');
+  }
+
+  handleSlotAction(slotIndex, actionId, isDown) {
+    const player = this.players[slotIndex];
+    if (!player || !player.isJoined || !player.isAlive || player.isDowned) return;
+    if (actionId === 'dash' && isDown) {
+      this.performPlayerDash(player);
+    }
+  }
+
+  onTouchStart(touch) {
+    if (this.state === 'LOBBY') {
+      if (this.handleUiTap(touch)) return;
+      if (lobbyCenterStartTap(this, touch, { minJoined: this.minPlayersToStart })) return;
+      lobbyQuadrantTap(this, touch, {
+        onSeatChange: (index) => {
+          const player = this.players[index];
+          if (player) {
+            player.isJoined = this.isSlotJoined(index);
+            player.slotType = this.slotTypes[index];
+            player.isAlive = player.isJoined;
+          }
+          try { playJoin(); } catch {}
+        },
+      });
+      return;
+    }
+    if (this.state === 'MATCH_OVER' || this.state === 'VICTORY' || this.state === 'DEFEAT') {
+      if (this.handleUiTap(touch)) return;
+      matchOverRestartTap(this, touch, { onRestart: () => { this.startNewMatch(); try { playJoin(); } catch {} } });
+      return;
+    }
+    if (this.state === 'PLAYING') {
+      if (this.handleUiTap(touch)) return;
+      this.handleTabletopTouchStart(touch);
+    }
+  }
+
+  onTouchMove(touch) {
+    if (this.state === 'PLAYING') {
+      this.handleTabletopTouchMove(touch);
+    }
+  }
+
+  onTouchEnd(touch) {
+    this.handleTabletopTouchEnd(touch);
+  }
+
+  onTouchesReset() {
+    this.resetTabletopTouches();
+    for (const player of this.players || []) {
+      player.steerX = 0;
+      player.steerY = 0;
+      player.aimActive = false;
+      player.remoteAimActive = false;
+      player.keyDashLatch = false;
+      player.keyFireLatch = false;
+    }
   }
 
   initPlayers() {
@@ -137,11 +218,13 @@ export class ColossusGame extends BaseMiniGame {
     this.scores = [0, 0, 0, 0];
     this.roundWinner = null;
     this.matchWinner = null;
+    this.matchResult = null;
     this.startBattle();
   }
 
   resetMatch() {
     this.state = 'LOBBY';
+    this.matchResult = null;
     this.initPlayers();
     this.projectiles = [];
     this.pillars = [];
@@ -153,6 +236,8 @@ export class ColossusGame extends BaseMiniGame {
 
   startBattle() {
     this.state = 'PLAYING';
+    this.matchResult = null;
+    this.onTouchesReset();
     const map = getColossusMap();
 
     // 1. Oyuncuları Oluştur (Güney yarım daire)
@@ -212,13 +297,17 @@ export class ColossusGame extends BaseMiniGame {
   }
 
   update(now) {
-    if (this.state !== 'PLAYING') {
-      this.lastTime = now;
-      return;
-    }
-
-    const dt = Math.min((now - this.lastTime) / 1000, 0.05);
+    const rawDt = this.clampDt(now, this.lastTime);
     this.lastTime = now;
+    // Hit-stop TEK SAAT + partikül/halka/pop ömrü `fxRuntime`'a bağlı
+    // (archer/collapse deseni). Önceden `fx.update` HİÇ çağrılmıyordu:
+    // parçacıklar ve halkalar hiç yaşlanmıyor, biriktilerdi.
+    const dt = this.fx.tick(rawDt);
+
+    this.updateTrauma(dt);
+    this.fx.update(dt);
+
+    if (this.state !== 'PLAYING') return;
 
     this.updatePlayers(dt);
     this.updateBoss(dt);
@@ -229,6 +318,66 @@ export class ColossusGame extends BaseMiniGame {
     this.checkVictoryDefeat();
   }
 
+  updateHumanInput(player, dt) {
+    if (player.dashTimer > 0) return;
+
+    // 1. Hareket: Sanal joystick + Klavye (WASD / Oklar / IJKL / TFGH)
+    const movement = this.getPlayerMovementVector(player.index);
+    if (movement.active || movement.magnitude > 0.05) {
+      player.vx = movement.x * player.speed;
+      player.vy = movement.y * player.speed;
+      if (!player.aimActive) {
+        player.angle = Math.atan2(movement.y, movement.x);
+      }
+    }
+
+    // 2. Twin-stick Dokunmatik Aim & Ateş
+    const aimState = this.getAimState(player.index);
+    const aimVector = this.getAimVector(player.index);
+    if (aimState?.active) {
+      player.aimActive = true;
+      player.angle = aimVector.angle;
+      this.firePlayerWeapon(player);
+    }
+
+    // 3. Klavye Aksiyon & Ateş (Space / Enter / O / B)
+    const keyboard = readSlotKeys(this.keys, player.index);
+    if (keyboard.action) {
+      player.aimActive = true;
+      if (this.boss && this.boss.hp > 0) {
+        if (this.boss.phase === 2 && this.boss.shielded && (this.pylons || []).some((p) => p.active)) {
+          // Kalkanlıysa en yakın aktif pilona nişan al
+          const activePylons = this.pylons.filter((p) => p.active);
+          let targetPylon = activePylons[0];
+          let bestD = distSq(player.x, player.y, targetPylon.x, targetPylon.y);
+          for (const py of activePylons) {
+            const d = distSq(player.x, player.y, py.x, py.y);
+            if (d < bestD) {
+              bestD = d;
+              targetPylon = py;
+            }
+          }
+          player.angle = Math.atan2(targetPylon.y - player.y, targetPylon.x - player.x);
+        } else {
+          player.angle = Math.atan2(this.boss.y - player.y, this.boss.x - player.x);
+        }
+      }
+      this.firePlayerWeapon(player);
+    } else if (!aimState?.active && !player.remoteAimActive) {
+      player.aimActive = false;
+    }
+
+    // 4. Depar (Dash - İkincil tuş)
+    const dashKey = getSecondActionKey('dash', player.index);
+    const dashPressed = Boolean(dashKey && this.keys[dashKey]);
+    if (dashPressed && !player.keyDashLatch) {
+      this.performPlayerDash(player);
+      player.keyDashLatch = true;
+    } else if (!dashPressed) {
+      player.keyDashLatch = false;
+    }
+  }
+
   updatePlayers(dt) {
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
@@ -236,6 +385,8 @@ export class ColossusGame extends BaseMiniGame {
       // Bot Yapay Zekası
       if (player.slotType === 'bot_normal' || player.slotType === 'bot_god') {
         updateColossusBotAI(player, this, dt);
+      } else if (player.slotType === 'human' && !player.isDowned) {
+        this.updateHumanInput(player, dt);
       }
 
       // Depar Süreçleri
@@ -353,6 +504,7 @@ export class ColossusGame extends BaseMiniGame {
       hp: COLOSSUS_TUNING.PYLON_HP,
       maxHp: COLOSSUS_TUNING.PYLON_HP,
       active: true,
+      hitFlash: 0,
     }));
 
     try { playHordeBoom(); } catch {}
@@ -369,6 +521,9 @@ export class ColossusGame extends BaseMiniGame {
 
   updatePylons(dt) {
     if (this.boss?.phase !== 2) return;
+    for (const p of this.pylons) {
+      if (p.hitFlash > 0) p.hitFlash = Math.max(0, p.hitFlash - dt);
+    }
     const anyActive = this.pylons.some((p) => p.active);
     if (!anyActive && this.boss.shielded) {
       // İki pilon da yok edildi — Boss Kalkanı düştü ve Sersemledi!
@@ -382,14 +537,17 @@ export class ColossusGame extends BaseMiniGame {
     for (let i = this.shockwaves.length - 1; i >= 0; i--) {
       const s = this.shockwaves[i];
       s.radius += COLOSSUS_TUNING.STOMP_RING_SPEED * dt;
+      if (!s.hitPlayers) s.hitPlayers = new Set();
 
-      // Oyunculara Hasar Denetimi
+      // Oyunculara Hasar Denetimi — tek şok dalgası her oyuncuya yalnız 1 kez hasar verir
       for (const player of this.players) {
         if (!player.isJoined || !player.isAlive || player.isDowned) continue;
+        if (s.hitPlayers.has(player.index)) continue;
         if (player.dashTimer > 0) continue; // Dash i-frame ile atladı!
 
         const d = Math.sqrt(distSq(player.x, player.y, s.x, s.y));
         if (Math.abs(d - s.radius) < player.radius * 0.7) {
+          s.hitPlayers.add(player.index);
           this.damagePlayer(player, COLOSSUS_TUNING.STOMP_DAMAGE);
         }
       }
@@ -450,6 +608,8 @@ export class ColossusGame extends BaseMiniGame {
           if (distSq(p.x, p.y, pylon.x, pylon.y) < pylon.radius * pylon.radius) {
             hit = true;
             pylon.hp -= p.damage || 2;
+            pylon.hitFlash = 0.12;
+            try { playHordeHurt(); } catch {}
             if (pylon.hp <= 0) {
               pylon.active = false;
               try { playHordeKill(); } catch {}
@@ -535,6 +695,7 @@ export class ColossusGame extends BaseMiniGame {
       y: this.boss.y,
       radius: this.boss.radius * 0.5,
       maxRadius: COLOSSUS_TUNING.STOMP_MAX_RADIUS,
+      hitPlayers: new Set(),
     });
     this.addDirectionalTrauma(0.3, 0, 1);
     try { playHordeBoom(); } catch {}
@@ -603,8 +764,12 @@ export class ColossusGame extends BaseMiniGame {
   }
 
   checkVictoryDefeat() {
+    if (this.state === 'MATCH_OVER') return;
+
     if (this.boss && this.boss.hp <= 0) {
-      this.state = 'VICTORY';
+      this.state = 'MATCH_OVER';
+      this.matchResult = 'win';
+      this.resetInputSource();
       for (let i = 0; i < 4; i++) {
         if (this.players[i]?.isJoined) this.scores[i] += 1;
       }
@@ -615,34 +780,53 @@ export class ColossusGame extends BaseMiniGame {
 
     const aliveCount = this.players.filter((p) => p.isJoined && p.isAlive && !p.isDowned).length;
     if (aliveCount === 0) {
-      this.state = 'DEFEAT';
+      this.state = 'MATCH_OVER';
+      this.matchResult = 'loss';
+      this.resetInputSource();
       try { playHordeKill(); } catch {}
     }
   }
 
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
-    if (!player || !player.isJoined || player.isDowned) return;
+    if (!player || !player.isJoined || !data) return;
+    const isAimRelease = data.action === 'AIM_RELEASE' || data.intent?.phase === 'release';
+    if (this.state !== 'PLAYING' && !isAimRelease) return;
+    if (player.isDowned && !isAimRelease) return;
 
-    if (data.action === 'JOYSTICK_MOVE') {
-      const force = Math.min(1, Math.hypot(data.dx || 0, data.dy || 0));
-      if (force > 0.1) {
-        player.vx = data.dx * player.speed;
-        player.vy = data.dy * player.speed;
-        if (!player.aimActive) {
-          player.angle = Math.atan2(data.dy, data.dx);
-        }
-      }
-    } else if (data.action === 'AIM_MOVE') {
-      const force = Math.min(1, Math.hypot(data.dx || 0, data.dy || 0));
+    if (this.applyAimLifecycleInput(slotIndex, data)) return;
+
+    if (isInputIntent(data, 'aim') || data.action === 'AIM_MOVE') {
+      const dx = Number.isFinite(data.dx) ? data.dx : 0;
+      const dy = Number.isFinite(data.dy) ? data.dy : 0;
+      const force = Math.min(1, Math.hypot(dx, dy));
       if (force > 0.15) {
         player.aimActive = true;
-        player.angle = Math.atan2(data.dy, data.dx);
+        player.remoteAimActive = true;
+        player.angle = Math.atan2(dy, dx);
         this.firePlayerWeapon(player);
       }
-    } else if (data.action === 'AIM_RELEASE') {
+      return;
+    }
+    if (isAimRelease) {
       player.aimActive = false;
-    } else if (data.action === 'DASH') {
+      player.remoteAimActive = false;
+      return;
+    }
+    if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
+      const dx = Number.isFinite(data.dx) ? data.dx : 0;
+      const dy = Number.isFinite(data.dy) ? data.dy : 0;
+      const force = Math.min(1, Math.hypot(dx, dy));
+      if (force > 0.1) {
+        player.vx = dx * player.speed;
+        player.vy = dy * player.speed;
+        if (!player.aimActive) {
+          player.angle = Math.atan2(dy, dx);
+        }
+      }
+      return;
+    }
+    if (matchesInputAction(data, 'dash', 'DASH')) {
       this.performPlayerDash(player);
     }
   }
@@ -653,11 +837,63 @@ export class ColossusGame extends BaseMiniGame {
 
   render() {
     const ctx = this.ctx;
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.save();
+
+    // Sahanın dışı (masa) — `fieldKit` tek sahibi; aynı zamanda kare temizleyici
+    // (viewport'un tamamını boyar), bu yüzden ayrı `clearRect` yok (archer deseni).
+    paintBackdrop(ctx, this.viewport, this.arena, { mode: 'COLOSSUS' });
+    this.applyScreenShake(ctx);
 
     const packet = this.createWorldPacket();
     if (packet) {
-      drawColossusWorld(ctx, this.arena, packet, { now: performance.now() });
+      drawColossusWorld(ctx, this.arena, packet, {
+        now: performance.now(),
+        roundId: packet.roundId,
+        selfSlot: this.localControlSlot ?? -1,
+      });
     }
+
+    if (this.state === 'PLAYING') {
+      this.renderControls(ctx);
+    }
+
+    const header = colossusHeaderStatus({ boss: this.boss });
+    this.renderHUD(ctx, {
+      guideTitle: t('hint.colossus'),
+      guideEntries: [
+        'P1 [WASD/SPACE]',
+        'P2 [OKLAR/ENTER]',
+        'P3 [IJKL/O]',
+        'P4 [TFGH/B]',
+      ],
+      colors: UI_COLORS.players,
+      accent: UI_COLORS.danger,
+      statusText: this.state === 'PLAYING' ? header.text : null,
+      statusTone: this.state === 'PLAYING' ? header.tone : null,
+      matchOverHeadline: this.matchResult === 'win' || this.matchResult === 'victory' || this.state === 'VICTORY'
+        ? t('colossus.victory')
+        : t('colossus.defeat'),
+      matchOverRows: this.players
+        .filter((player) => player.isJoined)
+        .sort((a, b) => this.scores[b.index] - this.scores[a.index])
+        .map((player) => ({
+          color: player.color,
+          name: player.name,
+          value: `${this.scores[player.index] || 0}`,
+          score: this.scores[player.index] || 0,
+        })),
+      onStart: () => this.startNewMatch(),
+      onRestart: () => this.startNewMatch(),
+      onSeatChange: (index) => {
+        const player = this.players[index];
+        if (!player) return;
+        player.isJoined = this.isSlotJoined(index);
+        player.slotType = this.slotTypes[index];
+        player.isAlive = player.isJoined;
+        try { playJoin(); } catch {}
+      },
+    });
+
+    ctx.restore();
   }
 }

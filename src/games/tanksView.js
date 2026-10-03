@@ -4,7 +4,8 @@
 // Not: spawn beacon'ları (2 sn'lik giriş efekti) ile sudden-death hapı host HUD'udur,
 // world snapshot'ına girmez — client tankları belirdiği anda görür.
 
-import { drawPickup, drawObstacle } from '../core/arenaKit.js';
+import { drawPickup, pushObstaclesToDepth } from '../core/arenaKit.js';
+import { beginDepthPass, flushDepthPass, entityDepth, DEPTH_KIND, pushDepthItem } from '../core/depthPass.js';
 import { computeAvatarKineticDeformation } from '../core/avatarInGame.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { tracerAt } from '../core/fieldLights.js';
@@ -193,10 +194,14 @@ export function drawTanksArena(ctx, arena, obstacles, suddenDeath = null, opts =
     ctx.restore();
   }
 
-  for (const obs of obstacles) {
-    drawObstacle(ctx, obs, { theme: 'TANKS' });
-  }
+  // Engeller havuza yazılır; `drawTanksTanks` sonunda tanklarla birlikte
+  // y-sırasında çizilir (2.5D okunabilirlik).
+  beginDepthPass();
+  pushObstaclesToDepth(obstacles, TANKS_OBSTACLE_OPTS);
 }
+
+/** Engel çizim seçenekleri — MODÜL SABİTİ (kare başına tahsis yok). */
+const TANKS_OBSTACLE_OPTS = Object.freeze({ theme: 'TANKS' });
 
 function pathRoundRect(ctx, x, y, w, h, r) {
   if (typeof ctx.roundRect === 'function') {
@@ -361,12 +366,33 @@ export function getTankAmmoVisual(tank) {
   return tankAmmoVisual(tank);
 }
 
+/** Derinlik geçişinin kare seviyesindeki seçenekleri — MODÜL SABİTİ. */
+const TANKS_TANK_OPTS = { arena: null, withFx: true, hasViewer: false, selfSlot: -1 };
+
 export function drawTanksTanks(ctx, tanks, { arena = null, withFx = true, selfSlot = -1 } = {}) {
   // 3.3 okunurluk: tek görür varsa (ONLINE kumanda selfSlot / LOCAL tek koltuk) kendi
   // tankın T1 (tam opak), diğer oyuncular T3 (−%25). Paylaşılan TV'de görür yok → dim yok.
-  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  TANKS_TANK_OPTS.arena = arena;
+  TANKS_TANK_OPTS.withFx = withFx;
+  TANKS_TANK_OPTS.hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  TANKS_TANK_OPTS.selfSlot = selfSlot;
+
   for (const tank of tanks) {
     if (!isWorldEntityVisible(tank)) continue;
+    pushDepthItem(entityDepth({ y: tank.y, radius: tank.size || 20 }), DEPTH_KIND.PLAYER, tank, drawTanksTankEntity, TANKS_TANK_OPTS);
+  }
+
+  // Engeller + tanklar TEK y-sırasında çizilir.
+  flushDepthPass(ctx);
+}
+
+/**
+ * Tek tankın tüm çizimi — derinlik geçişinin "çiz" geri çağrısı.
+ * MODÜL SEVİYESİ olmalıdır (kare başına kapanış = tahsis).
+ */
+function drawTanksTankEntity(ctx, tank, opts) {
+  const { arena, withFx, hasViewer, selfSlot } = opts;
+  {
     const s = tank.size || 20;
     const u = arena?.unit ?? (s / 40);
     // HIT kanalı (fxKit 'hit'): isabet alan tank 1.10→1.00 pop + mürekkep

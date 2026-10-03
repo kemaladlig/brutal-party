@@ -137,7 +137,7 @@ export function createPlayerNameField({ ids = {}, prefix = '', showActions = tru
     commit(generateNick(currentName()));
   }
 
-  saveBtn.addEventListener('click', (e) => { e.stopPropagation(); commit(input.value); });
+  saveBtn.addEventListener('click', (e) => { e.stopPropagation(); playMenuPop(); commit(input.value); });
 
   input.addEventListener('click', (e) => e.stopPropagation());
   // Mobil klavye: odak alanının içine tıklamak kabuk odağını kaçırmasın.

@@ -16,6 +16,7 @@ import { UI_COLORS, UI_SIZES, CONTROL_MODE, getDisplayProfile, shouldShowVirtual
 import { renderAdaptiveScoreboard, renderRoundBanner, renderMatchOver, cleanWinnerName } from '../ui/hud.js';
 import { roundGapSeconds, climaxLevel } from './roundLifecycle.js';
 import { setClimax } from './fieldAmbience.js';
+import { setCameraClimax } from './cameraKit.js';
 import { t } from '../i18n.js';
 import { drawTabletopIcon } from './tabletopIcons.js';
 
@@ -424,7 +425,12 @@ export function createTabletopRenderer(game) {
     // karanlık masaya kızıl/altın vinyet basar, bu dosyada başka hiçbir şey
     // çizilmez. Tek geçit burası: 12 motorun tamamı her kare `renderHUD` →
     // `renderStandardScoreboard`'tan geçer, motor kodu SIFIR.
-    setClimax(climaxLevel(game));
+    const climax = climaxLevel(game);
+    setClimax(climax);
+    // AYNI jenerik sinyal kamerayı da besler (sürekli hafif yakınlaşma):
+    // "son 5 saniye" artık yalnız kenarlardaki vinyetle değil, sahnenin
+    // kendisiyle de söylüyor. İkinci bir üretici YAZILMAZ — tek kapı yukarıda.
+    setCameraClimax(climax);
     const playersList = game.getEntitiesList();
     // "Hangi koltuk dolu" kararı TEK kaynaktan: `game.slotTypes`. Varlığın
     // `isJoined` aynası motorun kendi güncellemesine açıktı; ayna baydaysa

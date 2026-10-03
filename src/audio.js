@@ -70,7 +70,7 @@ export function isVoiceEnabled() {
 
 /** Warm curated samples early (call on staging / match start). @param {string[]} [ids] */
 export function warmGameSounds(ids) {
-  try { preloadSamples(Array.isArray(ids) ? ids : ['ui.tick', 'ui.confirm', 'hit.punchLight', 'shot.laserSmall']); } catch {}
+  try { preloadSamples(Array.isArray(ids) ? ids : ['ui.tick', 'ui.confirm', 'jingle.start', 'hit.punchLight', 'shot.laserSmall', 'tick.bomb', 'voice.count1', 'voice.fight']); } catch {}
 }
 
 export function getIsMuted() {
@@ -744,49 +744,6 @@ export function playVaultAlarm() {
   osc.stop(now + 0.21);
 }
 
-export function playGunshot() {
-  if (sampleFor('playGunshot')) return;
-  const ctx = getAudioContext();
-  if (!ctx) return;
-
-  const now = ctx.currentTime;
-
-  // 1. Noise burst (Gunpowder explosion crack) — paylaşımlı tampon
-  const noise = ctx.createBufferSource();
-  noise.buffer = getNoiseBuffer(ctx, 0.15);
-
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'bandpass';
-  filter.frequency.setValueAtTime(1000, now);
-  filter.frequency.exponentialRampToValueAtTime(150, now + 0.15);
-
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.8, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-
-  noise.connect(filter);
-  filter.connect(gain);
-  gain.connect(ctx.destination);
-
-  noise.start(now);
-
-  // 2. Low sub-bass thump
-  const osc = ctx.createOscillator();
-  const oscGain = ctx.createGain();
-  osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(160, now);
-  osc.frequency.exponentialRampToValueAtTime(30, now + 0.18);
-
-  oscGain.gain.setValueAtTime(0.6, now);
-  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-
-  osc.connect(oscGain);
-  oscGain.connect(ctx.destination);
-
-  osc.start(now);
-  osc.stop(now + 0.19);
-}
-
 export function playDrawTension() {
   if (sampleFor('playDrawTension')) return;
   const ctx = getAudioContext();
@@ -857,29 +814,6 @@ export function playPiggyBreak() {
     osc.start(start);
     osc.stop(start + 0.16);
   });
-}
-
-export function playFakeoutCrow() {
-  if (sampleFor('playFakeoutCrow')) return;
-  const ctx = getAudioContext();
-  if (!ctx) return;
-
-  const now = ctx.currentTime;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-
-  osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(580, now);
-  osc.frequency.exponentialRampToValueAtTime(320, now + 0.18);
-
-  gain.gain.setValueAtTime(0.18, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-
-  osc.start(now);
-  osc.stop(now + 0.19);
 }
 
 // ── UI Micro-Interactions: Tactile Menu Audio (Procedural & Zero Latency) ──

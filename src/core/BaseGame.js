@@ -5,6 +5,7 @@
 import { prefersReducedMotion, motionScale } from '../ui/motion.js';
 import { ensureLocalSeatColor, cycleLocalSeatColor, getBotPersona } from './customizationManager.js';
 import { reportError } from './errorReporter.js';
+import { beginCamera, resetCamera } from './cameraKit.js';
 import { resolveSlotName } from './slotManager.js';
 import { isSlotActionEvent, keyboardVectorFrom, STEER_KEY_HINTS } from './inputMaps.js';
 import { createTabletopRenderer } from './tabletopRenderer.js';
@@ -26,6 +27,7 @@ import { isInputIntent, matchesInputAction } from './inputIntent.js';
 import { assertControlDescriptorParity } from './controlDescriptor.js';
 import { AimInputState, getAimAction } from './aimInput.js';
 import { getKineticState as readKineticState, tickKinetic as decayKinetic } from './avatarInGame.js';
+import { playJoin, playMenuTick } from '../audio.js';
 
 export class BaseMiniGame {
   constructor(canvas) {
@@ -63,6 +65,9 @@ export class BaseMiniGame {
     this._traumaDirX = 0;
     this._traumaDirY = 0;
     this._traumaImpulse = 0;
+    // Maç değişiminde önceki oyunun punch/climax zoom'u sızmaz (modül
+    // seviyesi süreç durumu — oyun başına değil, ekran başına tektir).
+    resetCamera();
 
     // Timing
     this.lastTime = performance.now();
@@ -227,8 +232,11 @@ export class BaseMiniGame {
     this.onSeatCycled(index, this.slotTypes[index]);
   }
 
-  // Koltuk döngüsünden sonraki motor-özel kanca (ör. join sesi).
-  onSeatCycled(_index, _slotType) {}
+  // Koltuk döngüsü sesi tabandadır: 12 motorun tamamı aynı tick'i alır,
+  // motor kancayı ezerse kendi sesini çalar (ör. bomb/crown eskiden eziyordu).
+  onSeatCycled(_index, _slotType) {
+    try { playJoin(); } catch {}
+  }
 
   // Canlı motor varlığına LOCAL koltuk rengini yaz (players/tanks/paddles).
   applyLocalSeatColor(index, hex) {
@@ -306,6 +314,7 @@ export class BaseMiniGame {
     if (this.hideLobbyStartButton) return;
     if (this.requestLobbySeatTap(index)) return;
     this.applyLocalSeatColor(index, cycleLocalSeatColor(index));
+    try { playMenuTick(); } catch {}
   }
 
   // ---------------------------------------------------------------------------
@@ -346,8 +355,25 @@ export class BaseMiniGame {
     }
   }
 
+  /**
+   * KAMERA + SARSINTI — sahne dönüşümünün TEK kapısı.
+   *
+   * Neden burada: 11 motor `applyScreenShake(ctx, n)` çağırıyor ve bu, hepsinin
+   * render()'ında "sahne dönüşümü başlıyor" dediği satır. Zoom'u ayrı bir
+   * `beginCamera` çağrısıyla eklemek 11 dosyada yeni satır ve 11 kalıbın doğru
+   * sırada tutulması demekti; oysa ikisi de aynı dönüşümün parçası.
+   *
+   * `ctx` bu noktada VIEWPORT uzayındadır (backdrop bundan ÖNCE basılır), bu
+   * yüzden arenanın kendi kutusu zoom merkezi olarak kullanılabilir.
+   *
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} maxOffset
+   */
   applyScreenShake(ctx, maxOffset = 14) {
     if (prefersReducedMotion()) return;
+    // Önce zoom, sonra sarsıntı ofseti: ikisi de `ctx.translate`/`scale`
+    // zincirine eklendiği için toplam etki bileşimlidir (çakışmaz).
+    if (this.arena) beginCamera(ctx, this.arena);
     if (this.trauma > 0) {
       const shakeIntensity = this.trauma * this.trauma * maxOffset;
       // Yönlü itki varsa ofset vektör ağırlıklıdır; itki söndükçe jitter'a döner.
@@ -376,6 +402,9 @@ export class BaseMiniGame {
   // ---------------------------------------------------------------------------
 
   claimInputSource(source, options = {}) {
+    if (this.state !== 'PLAYING') {
+      return true;
+    }
     const allowAlongside = source === 'touch'
       && !!options.point
       && this.isTabletopAimPoint(options.point);
@@ -424,6 +453,10 @@ export class BaseMiniGame {
             if (this.isPlayerActionKey(e, i)) {
               onPlayerAction(i, e);
             }
+          }
+        } else if (this.state === 'MATCH_OVER' && (e.code === 'Space' || e.code === 'Enter')) {
+          if (typeof /** @type {any} */ (this).startNewMatch === 'function') {
+            /** @type {any} */ (this).startNewMatch();
           }
         }
       },

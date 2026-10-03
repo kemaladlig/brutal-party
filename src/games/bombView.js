@@ -2,7 +2,8 @@
 // Yetkili host, uzak telefon client'larıyla aynı çizim yardımcılarını kullanır;
 // client simülasyon/AI import etmez, yalnız salt-okunur draw + snapshot/validator alır.
 
-import { drawPickup, drawObstacle } from '../core/arenaKit.js';
+import { pushObstaclesToDepth, pushPickupsToDepth } from '../core/arenaKit.js';
+import { beginDepthPass, flushDepthPass, entityDepth, DEPTH_KIND, pushDepthItem } from '../core/depthPass.js';
 import { drawField } from '../core/fieldKit.js';
 import { drawGameAvatar } from '../core/avatarInGame.js';
 import { setDangerSpot } from '../core/fieldLights.js';
@@ -142,6 +143,14 @@ export function isValidBombWorldFrame(frame) {
 }
 
 // --- Ortak çizim yardımcıları (host + client) ---
+
+/**
+ * Derinlik geçişi için MODÜL SABİTLERİ. Kare başına `({ variant: 'crate' })`
+ * gibi nesne kurmak 60 Hz'de kare başına tahsis demek; bu sabit doğrudan
+ * `pushDepthItem`'e referans olarak geçer.
+ */
+const BOMB_OBSTACLE_OPTS = Object.freeze({ variant: 'crate' });
+
 /**
  * @param {CanvasRenderingContext2D} ctx
  * @param {FieldGeometry|null} arena
@@ -160,37 +169,63 @@ export function drawBombArena(ctx, arena, pillars, { carrier = null, bombTimer =
   }
   drawField(ctx, arena, { mode: 'BOMB', seed });
 
-  // Taşıyıcı halkası canlı olduğu için statik katmanın DIŞINDA kalır.
+  // Sahne derinlik geçişi başlar: engeller artık hemen çizilmez, havuza
+  // yazılır. `drawBombPlayers` sonunda `flushDepthPass` hepsini TEK y-sırasında
+  // çizer — böylece karakter bloğun arkasına geçtiğinde arkasında kalır.
+  beginDepthPass();
+  pushObstaclesToDepth(pillars, BOMB_OBSTACLE_OPTS);
+
+  // Taşıyıcı halkası canlı olduğu için statik katmanın DIŞINDA kalır ve
+  // sahne derinlik listesine GİRER: zemin işareti olduğu için onu örten bir
+  // blok onu doğru şekilde gizler (2.5D okunabilirlik). Bombanın kendisi
+  // gövdenin ÜSTÜNDE uçtuğu için taşıyıcı her hâlükârda görünür kalır.
   const u = arena?.unit ?? 1;
 
-  for (const pil of pillars) {
-    drawObstacle(ctx, pil, { variant: 'crate' });
-  }
-
   if (carrier && carrier.alive !== false && Number.isFinite(carrier.x)) {
-    ctx.save();
-    const urgency = 1 - Math.max(0, bombTimer / Math.max(1, bombMaxTime));
-    const ringRadius = carrier.radius + 18 + Math.sin(performance.now() * 0.01) * 4;
-    ctx.strokeStyle = urgency > 0.6 ? '#D84727' : UI_COLORS.hudAmber;
-    ctx.lineWidth = 2.5 * u;
-    ctx.setLineDash([6, 6]);
-    ctx.beginPath();
-    ctx.arc(carrier.x, carrier.y, ringRadius, 0, Math.PI * 2);
-    ctx.stroke();
-    const chLen = 8;
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(carrier.x - ringRadius - chLen, carrier.y);
-    ctx.lineTo(carrier.x - ringRadius + 2, carrier.y);
-    ctx.moveTo(carrier.x + ringRadius - 2, carrier.y);
-    ctx.lineTo(carrier.x + ringRadius + chLen, carrier.y);
-    ctx.moveTo(carrier.x, carrier.y - ringRadius - chLen);
-    ctx.lineTo(carrier.x, carrier.y - ringRadius + 2);
-    ctx.moveTo(carrier.x, carrier.y + ringRadius - 2);
-    ctx.lineTo(carrier.x, carrier.y + ringRadius + chLen);
-    ctx.stroke();
-    ctx.restore();
+    BOMB_CARRIER.x = carrier.x;
+    BOMB_CARRIER.y = carrier.y;
+    BOMB_CARRIER.radius = carrier.radius ?? 36;
+    BOMB_CARRIER.timer = bombTimer;
+    BOMB_CARRIER.maxTime = bombMaxTime;
+    BOMB_CARRIER.unit = u;
+    pushDepthItem(carrier.y, DEPTH_KIND.GROUND, BOMB_CARRIER, drawBombCarrierRing, null);
   }
+}
+
+/**
+ * Taşıyıcı zemini işareti — modül sabiti referansla derinlik listesine girer
+ * (kare başına kapanış tahsisi yasak).
+ */
+// Sahne girdisi her karede `drawBombArena` içinde ÜSTÜNE YAZILIR, sonra
+// havuza yazılır; yani buradaki değerler yalnız "henüz doldurulmadı" başlangıç
+// durumudur ve hiçbir zaman okunmaz. `radius` 0'dır, tasarım px'i DEĞİL —
+// `pxConstants` tabanı sıfırdır ve bu kayıt oyun varlığı değil, kare tamponu.
+const BOMB_CARRIER = { x: 0, y: 0, radius: 0, timer: 15, maxTime: 15, unit: 1 };
+
+function drawBombCarrierRing(ctx, c) {
+  const u = c.unit;
+  const urgency = 1 - Math.max(0, c.timer / Math.max(1, c.maxTime));
+  const ringRadius = c.radius + 18 + Math.sin(performance.now() * 0.01) * 4;
+  ctx.save();
+  ctx.strokeStyle = urgency > 0.6 ? '#D84727' : UI_COLORS.hudAmber;
+  ctx.lineWidth = 2.5 * u;
+  ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.arc(c.x, c.y, ringRadius, 0, Math.PI * 2);
+  ctx.stroke();
+  const chLen = 8;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(c.x - ringRadius - chLen, c.y);
+  ctx.lineTo(c.x - ringRadius + 2, c.y);
+  ctx.moveTo(c.x + ringRadius - 2, c.y);
+  ctx.lineTo(c.x + ringRadius + chLen, c.y);
+  ctx.moveTo(c.x, c.y - ringRadius - chLen);
+  ctx.lineTo(c.x, c.y - ringRadius + 2);
+  ctx.moveTo(c.x, c.y + ringRadius - 2);
+  ctx.lineTo(c.x, c.y + ringRadius + chLen);
+  ctx.stroke();
+  ctx.restore();
 }
 
 // Patlama katmanı host↔client ortak çizimi (worldCore'da yaşar).
@@ -215,181 +250,216 @@ export function drawBombInk(ctx, puddles) {
 }
 
 export function drawBombPickups(ctx, pickups) {
-  for (const pk of pickups) {
-    drawPickup(ctx, { x: pk.x, y: pk.y, type: pk.type, animTime: pk.animTime, radius: pk.size || pk.radius || 15 });
-  }
+  // Pickup'lar engeller ve oyuncularla AYNI derinlik listesine girer: madalyon
+  // bir bloğun önündeyse önde, arkasındaysa arkada çizilir.
+  pushPickupsToDepth(pickups);
 }
 
-export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15, withFx = true, now = 0, arena = null, selfSlot = -1 } = {}) {
+/**
+ * Tek oyuncunun tüm çizimi — derinlik geçişinin "çiz" geri çağrısı.
+ * MODÜL SEVİYESİ fonksiyon olmalıdır: `pushDepthItem` kare başına referans
+ * yazdığı için burada `() => ...` kapanışı kurmak yasaktır.
+ */
+function drawBombPlayerEntity(ctx, player, opts) {
+  const { bombTimer, bombMaxTime, withFx, now, arena, hasViewer, selfSlot } = opts;
   // 3.3: tek görür varsa kendi avatarın T1, diğerleri T3 (−%25); α fxKit'ten.
-  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
-  for (const player of players) {
-    if (!isWorldEntityVisible(player)) continue;
-    const radius = player.radius || 36;
-    // Efekt kromu yarıçapla ölçeklenir. Sabit px'ler telefonda (yarıçap
-    // ~15px) halkaları gövdenin 1.4-1.8 katına, durum yazısını gövde
-    // çapının %69'una ve metni 2.8 gövde yüksekliği kadar uzağa itiyordu.
-    // `u`, masaüstü referans yarıçapı 36px'e göre normalize ölçektir: u=1
-    // olduğunda değerler bugünküyle aynıdır.
-    const u = radius / 36;
-    const uMin = (v) => Math.max(1, v * u);
+  if (!isWorldEntityVisible(player)) return;
+  const radius = player.radius || 36;
+  // Efekt kromu yarıçapla ölçeklenir. Sabit px'ler telefonda (yarıçap
+  // ~15px) halkaları gövdenin 1.4-1.8 katına, durum yazısını gövde
+  // çapının %69'una ve metni 2.8 gövde yüksekliği kadar uzağa itiyordu.
+  // `u`, masaüstü referans yarıçapı 36px'e göre normalize ölçektir: u=1
+  // olduğunda değerler bugünküyle aynıdır.
+  const u = radius / 36;
+  const uMin = (v) => Math.max(1, v * u);
+  ctx.save();
+  ctx.translate(player.x, player.y);
+
+  if (withFx && player.slip > 0) ctx.rotate(player.slipAngle);
+
+  if (withFx && player.stumble > 0) {
+    ctx.translate((Math.random() - 0.5) * 6 * u, (Math.random() - 0.5) * 6 * u);
     ctx.save();
-    ctx.translate(player.x, player.y);
-
-    if (withFx && player.slip > 0) ctx.rotate(player.slipAngle);
-
-    if (withFx && player.stumble > 0) {
-      ctx.translate((Math.random() - 0.5) * 6 * u, (Math.random() - 0.5) * 6 * u);
-      ctx.save();
-      const dazeAngle = performance.now() * 0.008;
-      const starR = radius + 14;
-      // Sersem yıldızları + halka + yazı: altın 1.19:1 ile görünmezdi.
-      ctx.fillStyle = UI_COLORS.hudAmber;
-      for (let s = 0; s < 3; s++) {
-        const a = dazeAngle + (s * Math.PI * 2) / 3;
-        const sx = Math.cos(a) * starR;
-        const sy = Math.sin(a) * (starR * 0.4) - radius - 10;
-        ctx.fillRect(sx - 3, sy - 3, 6, 6);
-      }
-      ctx.strokeStyle = '#1A1A1A';
-      ctx.lineWidth = uMin(5.5);
-      ctx.setLineDash([5 * u, 5 * u]);
-      ctx.beginPath();
-      ctx.arc(0, 0, radius + 6 * u, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = UI_COLORS.hudAmber;
-      ctx.lineWidth = uMin(3.5);
-      ctx.beginPath();
-      ctx.arc(0, 0, radius + 6 * u, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = UI_COLORS.hudAmber;
-      ctx.font = `900 ${uMin(10)}px "JetBrains Mono", monospace`;
-      ctx.textAlign = 'center';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
-      ctx.lineWidth = uMin(3);
-      ctx.strokeText('SERSEM!', 0, -radius - 26 * u);
-      ctx.fillText('SERSEM!', 0, -radius - 26 * u);
-      ctx.restore();
+    const dazeAngle = performance.now() * 0.008;
+    const starR = radius + 14;
+    // Sersem yıldızları + halka + yazı: altın 1.19:1 ile görünmezdi.
+    ctx.fillStyle = UI_COLORS.hudAmber;
+    for (let s = 0; s < 3; s++) {
+      const a = dazeAngle + (s * Math.PI * 2) / 3;
+      const sx = Math.cos(a) * starR;
+      const sy = Math.sin(a) * (starR * 0.4) - radius - 10;
+      ctx.fillRect(sx - 3, sy - 3, 6, 6);
     }
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = uMin(5.5);
+    ctx.setLineDash([5 * u, 5 * u]);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius + 6 * u, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = UI_COLORS.hudAmber;
+    ctx.lineWidth = uMin(3.5);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius + 6 * u, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = UI_COLORS.hudAmber;
+    ctx.font = `900 ${uMin(10)}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'center';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(26, 26, 26, 0.9)';
+    ctx.lineWidth = uMin(3);
+    ctx.strokeText('SERSEM!', 0, -radius - 26 * u);
+    ctx.fillText('SERSEM!', 0, -radius - 26 * u);
+    ctx.restore();
+  }
 
-    if (withFx && player.immunity > 0) {
-      ctx.save();
-      ctx.strokeStyle = '#2D6A4F';
-      ctx.lineWidth = uMin(2.5);
-      ctx.setLineDash([4 * u, 4 * u]);
-      ctx.beginPath();
-      ctx.arc(0, 0, radius + 7 * u, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fillStyle = '#2D6A4F';
-      ctx.font = `900 ${uMin(10)}px "Space Grotesk", sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillText(t('bomb.safe'), 0, -radius - 12 * u);
-      ctx.restore();
-    }
+  if (withFx && player.immunity > 0) {
+    ctx.save();
+    ctx.strokeStyle = '#2D6A4F';
+    ctx.lineWidth = uMin(2.5);
+    ctx.setLineDash([4 * u, 4 * u]);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius + 7 * u, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#2D6A4F';
+    ctx.font = `900 ${uMin(10)}px "Space Grotesk", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(t('bomb.safe'), 0, -radius - 12 * u);
+    ctx.restore();
+  }
 
-    const isCarrier = player.carrier === true;
-    if (withFx && isCarrier) {
-      const urgency = 1 - Math.max(0, bombTimer / Math.max(1, bombMaxTime));
-      const pulseSpeed = 1 + urgency * 4;
-      const pulseR = radius + 8 * u + Math.sin(performance.now() * 0.015 * pulseSpeed) * 4 * u;
-      // Kritik nabız altın 1.19:1 ile görünmezdi.
-      ctx.strokeStyle = urgency > 0.7 ? UI_COLORS.hudAmber : '#D84727';
-      ctx.lineWidth = uMin(urgency > 0.7 ? 4 : 3);
-      ctx.beginPath();
-      ctx.arc(0, 0, pulseR, 0, Math.PI * 2);
-      ctx.stroke();
-    }
+  const isCarrier = player.carrier === true;
+  if (withFx && isCarrier) {
+    const urgency = 1 - Math.max(0, bombTimer / Math.max(1, bombMaxTime));
+    const pulseSpeed = 1 + urgency * 4;
+    const pulseR = radius + 8 * u + Math.sin(performance.now() * 0.015 * pulseSpeed) * 4 * u;
+    // Kritik nabız altın 1.19:1 ile görünmezdi.
+    ctx.strokeStyle = urgency > 0.7 ? UI_COLORS.hudAmber : '#D84727';
+    ctx.lineWidth = uMin(urgency > 0.7 ? 4 : 3);
+    ctx.beginPath();
+    ctx.arc(0, 0, pulseR, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 
-    let currentExp = 'normal';
-    if (isCarrier) currentExp = 'panic';
-    else if (player.stumble > 0) currentExp = 'dizzy';
-    else if (player.dash > 0) currentExp = 'angry';
-    else if (player.turbo > 0) currentExp = 'wink';
+  let currentExp = 'normal';
+  if (isCarrier) currentExp = 'panic';
+  else if (player.stumble > 0) currentExp = 'dizzy';
+  else if (player.dash > 0) currentExp = 'angry';
+  else if (player.turbo > 0) currentExp = 'wink';
 
-    drawGameAvatar(ctx, 0, 0, radius, player, {
-      facingAngle: player.angle,
-      expression: currentExp,
-      // Dash vurgusu BEYAZDI — krem zeminde 1.10:1, görünmez.
-      borderColor: player.dash > 0 ? UI_COLORS.hudAmber : (player.rimColor || '#1C1C1A'),
-      borderWidth: uMin(player.dash > 0 ? 4.5 : 3),
-      // Bomba taşıyıcısı kaçarken gözleri kaçış yönüne bakar: gövde `angle`
-      // ile döner, bakış `vx/vy`'den türetilir.
-      lookAngle: (player.vx || player.vy) ? Math.atan2(player.vy || 0, player.vx || 0) : undefined,
-      now,
-      alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
+  drawGameAvatar(ctx, 0, 0, radius, player, {
+    facingAngle: player.angle,
+    expression: currentExp,
+    // Dash vurgusu BEYAZDI — krem zeminde 1.10:1, görünmez.
+    borderColor: player.dash > 0 ? UI_COLORS.hudAmber : (player.rimColor || '#1C1C1A'),
+    borderWidth: uMin(player.dash > 0 ? 4.5 : 3),
+    // Bomba taşıyıcısı kaçarken gözleri kaçış yönüne bakar: gövde `angle`
+    // ile döner, bakış `vx/vy`'den türetilir.
+    lookAngle: (player.vx || player.vy) ? Math.atan2(player.vy || 0, player.vx || 0) : undefined,
+    now,
+    alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
+  });
+
+  // Dash rozeti dünya koordinatında çizilir (aşağıda, restore sonrası).
+  const bombCdProg = withFx && player.cd > 0
+    ? 1.0 - Math.max(0, Math.min(1, player.cd / Math.max(1, player.cdMax)))
+    : null;
+  const bombStun = withFx && player.stumble > 0;
+
+  if (isCarrier) {
+    const urgency = 1 - Math.max(0, bombTimer / Math.max(1, bombMaxTime));
+    const pulseFreq = 6 + urgency * 16;
+    const bScale = 1 + Math.sin(performance.now() * 0.001 * pulseFreq) * (0.05 + urgency * 0.12);
+    const bombY = -radius - 20 * u;
+    const bR = 12 * u;
+
+    ctx.save();
+    ctx.translate(0, bombY);
+    ctx.scale(bScale, bScale);
+
+    // Bomba metalik gövdesi (2.5D kütle)
+    drawDioramaSphere(ctx, 0, 0, bR, UI_COLORS.inkDark, {
+      u,
+      highlightAlpha: 0.45,
+      strokeWidth: 2.2,
     });
 
-    // Dash rozeti dünya koordinatında çizilir (aşağıda, restore sonrası).
-    const bombCdProg = withFx && player.cd > 0
-      ? 1.0 - Math.max(0, Math.min(1, player.cd / Math.max(1, player.cdMax)))
-      : null;
-    const bombStun = withFx && player.stumble > 0;
+    // Boyun halkası
+    ctx.fillStyle = UI_COLORS.inkMuted || '#1C1C1A';
+    ctx.fillRect(-bR * 0.3, -bR - 2 * u, bR * 0.6, 3 * u);
 
-    if (isCarrier) {
-      const urgency = 1 - Math.max(0, bombTimer / Math.max(1, bombMaxTime));
-      const pulseFreq = 6 + urgency * 16;
-      const bScale = 1 + Math.sin(performance.now() * 0.001 * pulseFreq) * (0.05 + urgency * 0.12);
-      const bombY = -radius - 20 * u;
-      const bR = 12 * u;
+    // Kıvrımlı fitil ipi
+    ctx.strokeStyle = '#D84727';
+    ctx.lineWidth = Math.max(1.5, 2.2 * u);
+    ctx.beginPath();
+    ctx.moveTo(0, -bR - 2 * u);
+    ctx.quadraticCurveTo(6 * u, -bR - 8 * u, 4 * u, -bR - 13 * u);
+    ctx.stroke();
 
-      ctx.save();
-      ctx.translate(0, bombY);
-      ctx.scale(bScale, bScale);
+    // Fitil ateşi ve kıvılcım (canlı sarı + kızıl parıltı)
+    const sparkT = performance.now() * 0.015;
+    const sparkR = 3.5 * u + Math.sin(sparkT * 3) * 1.5 * u;
+    ctx.fillStyle = urgency > 0.6 ? '#D84727' : UI_COLORS.hudAmber;
+    ctx.beginPath();
+    ctx.arc(4 * u, -bR - 13 * u, sparkR, 0, Math.PI * 2);
+    ctx.fill();
 
-      // Bomba metalik gövdesi (2.5D kütle)
-      drawDioramaSphere(ctx, 0, 0, bR, UI_COLORS.inkDark, {
-        u,
-        highlightAlpha: 0.45,
-        strokeWidth: 2.2,
-      });
-
-      // Boyun halkası
-      ctx.fillStyle = UI_COLORS.inkMuted || '#1C1C1A';
-      ctx.fillRect(-bR * 0.3, -bR - 2 * u, bR * 0.6, 3 * u);
-
-      // Kıvrımlı fitil ipi
-      ctx.strokeStyle = '#D84727';
-      ctx.lineWidth = Math.max(1.5, 2.2 * u);
-      ctx.beginPath();
-      ctx.moveTo(0, -bR - 2 * u);
-      ctx.quadraticCurveTo(6 * u, -bR - 8 * u, 4 * u, -bR - 13 * u);
-      ctx.stroke();
-
-      // Fitil ateşi ve kıvılcım (canlı sarı + kızıl parıltı)
-      const sparkT = performance.now() * 0.015;
-      const sparkR = 3.5 * u + Math.sin(sparkT * 3) * 1.5 * u;
-      ctx.fillStyle = urgency > 0.6 ? '#D84727' : UI_COLORS.hudAmber;
-      ctx.beginPath();
-      ctx.arc(4 * u, -bR - 13 * u, sparkR, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Minik kıvılcım sıçramaları
-      ctx.fillStyle = UI_COLORS.hudAmber;
-      for (let sp = 0; sp < 3; sp++) {
-        const sa = sparkT * 2 + sp * 2.1;
-        const sdist = (4 + sp * 3) * u;
-        ctx.fillRect(4 * u + Math.cos(sa) * sdist, -bR - 13 * u + Math.sin(sa) * sdist, 1.8 * u, 1.8 * u);
-      }
-
-      ctx.restore();
+    // Minik kıvılcım sıçramaları
+    ctx.fillStyle = UI_COLORS.hudAmber;
+    for (let sp = 0; sp < 3; sp++) {
+      const sa = sparkT * 2 + sp * 2.1;
+      const sdist = (4 + sp * 3) * u;
+      ctx.fillRect(4 * u + Math.cos(sa) * sdist, -bR - 13 * u + Math.sin(sa) * sdist, 1.8 * u, 1.8 * u);
     }
 
     ctx.restore();
-
-    if (bombCdProg !== null || bombStun) {
-      renderEntityHUD(ctx, {
-        x: player.x,
-        y: player.y,
-        radius,
-        color: UI_COLORS.hudAmber,
-        arena,
-        cooldownProgress: bombCdProg,
-        stun: bombStun,
-      });
-    }
   }
+
+  ctx.restore();
+
+  if (bombCdProg !== null || bombStun) {
+    renderEntityHUD(ctx, {
+      x: player.x,
+      y: player.y,
+      radius,
+      color: UI_COLORS.hudAmber,
+      arena,
+      cooldownProgress: bombCdProg,
+      stun: bombStun,
+    });
+  }
+}
+
+/**
+ * Derinlik geçişinin kare seviyesindeki seçenekleri — MODÜL SABİTİ.
+ * `pushDepthItem` kare başına referans yazdığı için burada `{}` kurulmaz.
+ */
+const BOMB_PLAYER_OPTS = {
+  bombTimer: 15,
+  bombMaxTime: 15,
+  withFx: true,
+  now: 0,
+  arena: null,
+  hasViewer: false,
+  selfSlot: -1,
+};
+
+export function drawBombPlayers(ctx, players, { bombTimer = 15, bombMaxTime = 15, withFx = true, now = 0, arena = null, selfSlot = -1 } = {}) {
+  BOMB_PLAYER_OPTS.bombTimer = bombTimer;
+  BOMB_PLAYER_OPTS.bombMaxTime = bombMaxTime;
+  BOMB_PLAYER_OPTS.withFx = withFx;
+  BOMB_PLAYER_OPTS.now = now;
+  BOMB_PLAYER_OPTS.arena = arena;
+  BOMB_PLAYER_OPTS.hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  BOMB_PLAYER_OPTS.selfSlot = selfSlot;
+
+  for (const player of players) {
+    if (!isWorldEntityVisible(player)) continue;
+    pushDepthItem(entityDepth(player), DEPTH_KIND.PLAYER, player, drawBombPlayerEntity, BOMB_PLAYER_OPTS);
+  }
+
+  // Sahne bitti: engeller + eşyalar + oyuncular TEK y-sırasında çizilir.
+  flushDepthPass(ctx);
 }
 
 /**

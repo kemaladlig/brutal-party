@@ -1,7 +1,8 @@
 // BRUTAL HORDE — host/client ortak dünya snapshot'ı ve çizim sınırı.
 // Client bu dosyadan yalnız salt-okunur draw + validation kullanır; simülasyon/AI import etmez.
 
-import { drawObstacle } from '../core/arenaKit.js';
+import { pushObstaclesToDepth } from '../core/arenaKit.js';
+import { beginDepthPass, flushDepthPass, entityDepth, obstacleDepth, DEPTH_KIND, pushDepthItem } from '../core/depthPass.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { computeAvatarKineticDeformation, drawGameAvatar } from '../core/avatarInGame.js';
 import { fxReadAlpha } from '../core/fxKit.js';
@@ -1256,15 +1257,31 @@ function drawPlayerWeapon(ctx, player) {
   ctx.restore();
 }
 
+/** Derinlik geçişinin kare seviyesindeki seçenekleri — MODÜL SABİTİ. */
+const HORDE_PLAYER_OPTS = { withFx: true, now: 0, selfSlot: -1 };
+
 function drawHordePlayers(ctx, players, { withFx = true, now = 0, selfSlot = -1 } = {}) {
   // 3.3 okunurluk hiyerarşisi: tek görür varsa kendi avatarın T1, diğerleri T3
   // (−%25); α yalnız fxKit'ten gelir.
-  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  HORDE_PLAYER_OPTS.withFx = withFx;
+  HORDE_PLAYER_OPTS.now = now;
+  HORDE_PLAYER_OPTS.selfSlot = selfSlot;
   const blink = Math.floor(now / 120) % 2 === 0;
   for (const player of players) {
     if (!player.joined || !player.alive) continue;
     if (withFx && player.invuln && blink) continue;
+    HORDE_PLAYER_OPTS.hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+    pushDepthItem(entityDepth(player), DEPTH_KIND.PLAYER, player, drawHordePlayerEntity, HORDE_PLAYER_OPTS);
+  }
+}
 
+/**
+ * Tek oyuncunun tüm çizimi — derinlik geçişinin "çiz" geri çağrısı.
+ * MODÜL SEVİYESİ olmalıdır (kare başına kapanış = tahsis).
+ */
+function drawHordePlayerEntity(ctx, player, opts) {
+  const { withFx, now, selfSlot, hasViewer } = opts;
+  {
     // Oyuncu gövdesi ve çevresi `player.radius`'e bağlıdır. Sabit 15px idi:
     // telefonda çarpışma yarıçapı 8.9px'e düşerken gövde 15px'te kalıyordu,
     // yani çizilen oyuncu sahanın %1.7 katı büyüktü. Tasarım referansı artık
@@ -1595,16 +1612,28 @@ function drawLoadoutCrate(ctx, crate, now, arena) {
 export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof performance !== 'undefined' ? performance.now() : 0, selfSlot = -1 } = {}) {
   drawHordeArena(ctx, arena, scene.theme);
 
-  for (const obstacle of scene.obstacles || []) {
-    // Deri artık MOTORDA SEÇİLMİYOR: harita teması `FIELD_THEMES[*].block`
-    // üzerinden gelir (foundry→crate, reactor→metal, core→dark).
-    drawObstacle(ctx, obstacle, { theme: scene.theme });
-  }
+  // Sahne derinlik geçişi: engeller, kasa, eşya, düşmanlar ve oyuncular TEK
+  // y-sıralı listede çizilir. HORDE bunun en çok kazandığı oyun — kalabalık
+  // saha, 40+ engel ve düşman, hepsi birbirinin arkasına geçiyor.
+  //
+  // Engel derisi artık MOTORDA SEÇİLMİYOR: harita teması `FIELD_THEMES[*].block`
+  // üzerinden gelir (foundry→crate, reactor→metal, core→dark).
+  HORDE_OBSTACLE_OPTS.theme = scene.theme;
+  HORDE_ENEMY_OPTS.obstacles = scene.obstacles || [];
+  beginDepthPass();
+  pushObstaclesToDepth(scene.obstacles, HORDE_OBSTACLE_OPTS);
 
   if (scene.portal) drawExtractionGate(ctx, scene.portal, now);
   const u = arena?.unit ?? (arena?.size ? arena.size / 952 : 1);
-  for (const crate of scene.loadoutCrates || []) drawLoadoutCrate(ctx, crate, now, arena);
-  for (const pickup of scene.pickups || []) drawHordePickup(ctx, pickup, u);
+  for (const crate of scene.loadoutCrates || []) {
+    HORDE_CRATE_OPTS.now = now;
+    HORDE_CRATE_OPTS.arena = arena;
+    pushDepthItem(obstacleDepth(crate), DEPTH_KIND.OBSTACLE, crate, drawHordeCrateEntity, HORDE_CRATE_OPTS);
+  }
+  for (const pickup of scene.pickups || []) {
+    HORDE_PICKUP_OPTS.u = u;
+    pushDepthItem(entityDepth({ y: pickup.y, radius: pickup.r }), DEPTH_KIND.PICKUP, pickup, drawHordePickupEntity, HORDE_PICKUP_OPTS);
+  }
 
   for (const tomb of scene.tombs || []) {
     ctx.save();
@@ -1692,10 +1721,29 @@ export function drawHordeWorld(ctx, arena, scene, { withFx = true, now = typeof 
     ctx.restore();
   }
 
-  for (const enemy of scene.enemies || []) drawEnemy(ctx, enemy, withFx, now, scene.obstacles || []);
+  for (const enemy of scene.enemies || []) {
+    HORDE_ENEMY_OPTS.withFx = withFx;
+    HORDE_ENEMY_OPTS.now = now;
+    pushDepthItem(entityDepth({ y: enemy.y, radius: enemy.r }), DEPTH_KIND.PLAYER, enemy, drawHordeEnemyEntity, HORDE_ENEMY_OPTS);
+  }
   drawHordePlayers(ctx, scene.players || [], { withFx, now, selfSlot });
+
+  // Sahne bitti: tüm gövdeler y-sırasında çizilir.
+  flushDepthPass(ctx);
   drawAlphaTexts(ctx, scene.texts || [], { size: 15, outline: true });
 }
+
+// Derinlik geçişinin "çiz" geri çağrıları — hepsi MODÜL SEVİYESİ (kare başına
+// kapanış tahsisi yasak). Seçenekleri de modül sabitlerinde alan yazımıyla
+// taşınır.
+const HORDE_OBSTACLE_OPTS = { theme: null };
+const HORDE_CRATE_OPTS = { now: 0, arena: null };
+const HORDE_PICKUP_OPTS = { u: 1 };
+const HORDE_ENEMY_OPTS = { withFx: true, now: 0, obstacles: [] };
+
+const drawHordeCrateEntity = (ctx, crate, opts) => drawLoadoutCrate(ctx, crate, opts.now, opts.arena);
+const drawHordePickupEntity = (ctx, pickup, opts) => drawHordePickup(ctx, pickup, opts.u);
+const drawHordeEnemyEntity = (ctx, enemy, opts) => drawEnemy(ctx, enemy, opts.withFx, opts.now, opts.obstacles);
 
 export function drawHordeFxLayer(ctx, layer) {
   drawFxPops(ctx, layer?.pops);

@@ -16,6 +16,7 @@ import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
 import { scoreEntries } from './scoreModel.js';
 import { motionScale } from './motion.js';
 import { celebrate, drawCelebration } from '../core/fieldAmbience.js';
+import { playJoin, playMenuTick } from '../audio.js';
 
 function pathRoundRect(ctx, x, y, w, h, r) {
   if (typeof ctx.roundRect === 'function') {
@@ -1270,7 +1271,7 @@ export function renderMatchOver(ctx, {
       name: cleanWinner,
       color: winnerColor,
       index: 0,
-    }, { label: '', color: winnerColor, borderColor: winnerColor });
+    }, { label: '', color: winnerColor, borderColor: winnerColor, grounded: false });
 
     const heroScale = fontScaleFor(ctx, 'finalHero', g.ts, cleanWinner, g.name.w);
     ctx.font = uiFont('finalHero', heroScale);
@@ -1349,7 +1350,12 @@ export function renderMatchOver(ctx, {
     ctx.fillText(clipTextTo(ctx, action.label, btn.w - Math.round(14 * g.ts)), btn.x + btn.w / 2, btn.y + btn.h / 2);
     ctx.textAlign = 'left';
 
-    uiButtons?.push({ x: btn.x, y: btn.y, w: btn.w, h: btn.h, onClick: action.onClick });
+    // Kart buton sesi tek kapıdadır: birincil (YENİDEN OYNA) restart join'i,
+    // ikincil (LOBİ) menü tick'i verir — 12 motor ayrı ayrı bağlamaz.
+    const click = action.kind === 'primary'
+      ? () => { try { playJoin(); } catch {} action.onClick(); }
+      : () => { try { playMenuTick(); } catch {} action.onClick(); };
+    uiButtons?.push({ x: btn.x, y: btn.y, w: btn.w, h: btn.h, onClick: click });
   });
 
   ctx.restore();

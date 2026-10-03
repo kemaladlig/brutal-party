@@ -10,7 +10,8 @@
 //   Konum-geçmişi (afterimage/footstep) yine pakette değil — bu bir bildirim kanalı.
 // - Zaman bazlı fx (slash/decals/impacts/alpha) 2 ondalık taşınır (0.07 gecikmeler kırılmasın).
 
-import { drawObstacle } from '../core/arenaKit.js';
+import { pushObstaclesToDepth } from '../core/arenaKit.js';
+import { beginDepthPass, flushDepthPass, entityDepth, DEPTH_KIND, pushDepthItem } from '../core/depthPass.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawGameAvatar, computeAvatarKineticDeformation } from '../core/avatarInGame.js';
 import { fxReadAlpha, packFloatingTexts, isValidFloatingTexts } from '../core/fxKit.js';
@@ -190,9 +191,14 @@ export function drawNinjaArena(ctx, arena, opts = {}) {
 }
 
 export function drawNinjaFrame(ctx, arena, obstacles) {
-  // Kenar/artık `drawField`'ın bake'indedir; burada yalnız engel gövdeleri kalır.
-  for (const obs of obstacles) drawObstacle(ctx, obs, { theme: 'NINJA' });
+  // Kenar/artık `drawField`'ın bake'indedir. Engel gövdeleri havuza yazılır;
+  // `drawNinjaPlayers` sonunda oyuncularla birlikte y-sırasında çizilir.
+  beginDepthPass();
+  pushObstaclesToDepth(obstacles, NINJA_OBSTACLE_OPTS);
 }
+
+/** Engel çizim seçenekleri — MODÜL SABİTİ (kare başına tahsis yok). */
+const NINJA_OBSTACLE_OPTS = Object.freeze({ theme: 'NINJA' });
 
 export function drawNinjaSteps(ctx, steps) {
   for (const { x, y, alpha } of steps || []) {
@@ -346,7 +352,12 @@ function drawNinjaSelfGhost(ctx, player) {
 export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true, now = 0, selfSlot = -1 } = {}) {
   // 3.3: tek görür varsa kendi avatarın T1, diğerleri T3 (−%25). opts.alpha görünmezlik
   // α'sı (aşağıda ctx.globalAlpha=player.alpha) ile ÇARPILIR — compose olur.
-  const hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  NINJA_PLAYER_OPTS.now = now;
+  NINJA_PLAYER_OPTS.hasViewer = Number.isInteger(selfSlot) && selfSlot >= 0;
+  NINJA_PLAYER_OPTS.selfSlot = selfSlot;
+
+  // Hayalet işareti gövdesiz olduğu için sıralamaya GİRMEZ: zemine değil,
+  // oyuncunun yerine çizilir ve her şeyin üstünde okunmalıdır.
   const ghosts = new Set(Array.isArray(ghostSlots) ? ghostSlots : []);
   for (const player of players) {
     if (!isWorldEntityVisible(player)) continue;
@@ -356,6 +367,23 @@ export function drawNinjaPlayers(ctx, players, { ghostSlots = [], withFx = true,
       continue;
     }
 
+    pushDepthItem(entityDepth(player), DEPTH_KIND.PLAYER, player, drawNinjaPlayerEntity, NINJA_PLAYER_OPTS);
+  }
+
+  // Engeller + oyuncular TEK y-sırasında çizilir.
+  flushDepthPass(ctx);
+}
+
+/** Derinlik geçişinin kare seviyesindeki seçenekleri — MODÜL SABİTİ. */
+const NINJA_PLAYER_OPTS = { now: 0, hasViewer: false, selfSlot: -1 };
+
+/**
+ * Tek oyuncunun tüm çizimi — derinlik geçişinin "çiz" geri çağrısı.
+ * MODÜL SEVİYESİ olmalıdır (kare başına kapanış = tahsis).
+ */
+function drawNinjaPlayerEntity(ctx, player, opts) {
+  const { now, hasViewer, selfSlot } = opts;
+  {
     ctx.save();
     ctx.globalAlpha = clamp01(player.alpha ?? 1);
     ctx.translate(player.x, player.y);

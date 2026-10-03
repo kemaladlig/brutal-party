@@ -13,6 +13,8 @@
  */
 
 import { drawBrutalAvatar } from '../ui/characterRenderer.js';
+import { drawDioramaContactShadow } from './dioramaKit.js';
+import { avatarFlinchOffset } from './fieldFlinch.js';
 import { rimHex } from './customizationManager.js';
 import { UI_COLORS } from '../ui/tokens.js';
 
@@ -240,6 +242,118 @@ export function computeAvatarKineticDeformation(player, opts = {}) {
   return { squashX: 1.0, squashY: 1.0, squashAngle: null };
 }
 
+// ---------------------------------------------------------------------------
+// HIZ İZİ (motion smear)
+// ---------------------------------------------------------------------------
+
+/**
+ * Hareket hızının gövde yarıçapına oranı — smear eşiği.
+ *
+ * ÖlçekleMEZ: hem hız hem yarıçap aynı `unit` ile büyüdüğü için oran
+ * cihazdan bağımsızdır (AGENTS §3 "ölçekleme" ilkesinin ölçümsüz istisnası).
+ * 4.0 gövde/sn = normal koşu; 9.0+ = dash/turbo. Eşiğin altında hiçbir op
+ * yazılmaz, yani duran oyuncu ekranda hiçbir iz bırakmaz.
+ */
+const SMEAR_MIN_RATE = 4.0;
+/** Bu oranda iz tam güçte (bir dolu dash). */
+const SMEAR_FULL_RATE = 11.0;
+/** Aynı anda çizilen hayalet kopya sayısı. */
+const SMEAR_COPIES = 3;
+
+/**
+ * Hız izi gücü [0,1] — SAF kapı. `getKineticState` ile AYNI hız lehçelerini
+ * okur, yani smear motor lehçesinden bağımsızdır (BOMB `dashTimer`, NINJA
+ * `strikeTimer`, CROWN `isTackling`… hepsi tek yerden).
+ *
+ * @param {any} player
+ * @param {any} [opts]
+ * @returns {number} 0 = eşik altı, (0,1] = tam güç
+ */
+export function avatarSmearPower(player, opts = {}) {
+  const k = getKineticState(player, opts);
+  const vx = k.vx;
+  const vy = k.vy;
+  const r = Number(player?.radius ?? player?.size);
+  if (!Number.isFinite(r) || r <= 0) return 0;
+
+  // Hız ORANı. Dash/tackle bayrağı da buraya girer: oyuncu o anda zorunlu
+  // olarak hızlıdır ama bazı motorlar (BOMB, NINJA) `vx/vy` yazmayı dash
+  // penceresinin tamamında yapmaz. Bayrağı yok saymak o oyunlarda dash'i
+  // görünmez kılardı — squash zaten aynı bayrağı okuyor.
+  let rate = 0;
+  if (Number.isFinite(vx) && Number.isFinite(vy)) rate = Math.hypot(vx, vy) / r;
+  if (k.dashing) rate = Math.max(rate, SMEAR_FULL_RATE);
+  else if (k.tackling) rate = Math.max(rate, SMEAR_FULL_RATE * 0.8);
+
+  if (rate <= SMEAR_MIN_RATE) return 0;
+  const t = Math.min(1, (rate - SMEAR_MIN_RATE) / (SMEAR_FULL_RATE - SMEAR_MIN_RATE));
+  return t * t;
+}
+
+/**
+ * Gövdenin arkasına yönlü hız izi basar — dash/turbo ANINDA okunan tek ipucu.
+ *
+ * Neden gerekli: squash & stretch gövdeyi ESNETİR ama nereye gittiğini
+ * söylemez. Krem zeminde 12 oyunun hiçbirinde kinetik bir hareket izi yoktu;
+ * oyuncu "aniden oradaydı" gibi okunuyordu. NINJA'nın afterimage'i bunu
+ * kanıtlamıştı zaten (o oyunda çalışıyordu), sadece merkezileştirilmemişti.
+ *
+ * YÖN HIZ VECTÖRÜDÜR, gövde açısı DEĞİL: strafe eden bir oyuncuda gövde
+ * nişana dönük kalır ama hız yana gider — iz gerçek hareketi göstermelidir.
+ * Bayrağa dayalı (dash/tackle) durumda hız vektörü yoksa gövde açısına
+ * düşülür, çünkü o oyunlarda gövde zaten hareket yönüne dönüktür.
+ *
+ * SÜREKLİLİK YOKTUR: iz hızdan türetilir ve aynı karede aynı hızdan aynı
+ * sonucu verir — yani bir "geçmiş tamponu" DEĞİLDİR. Bu bilinçli: tampon
+ * kareler arası state taşırdığı için host↔client aynı görünmezdi (kumanda
+ * world-view'ı 30 Hz snapshot ile çiziyor). Türetilmiş iz iki yüzeyde de
+ * BİREBİR aynıdır ve pakete tek byte eklemez.
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} x
+ * @param {number} y
+ * @param {number} radius
+ * @param {number} power 0..1 — `avatarSmearPower` çıktısı
+ * @param {string} color gövde rengi (iz onun soluk kopyasıdır)
+ * @param {number|null} angle hareket açısı (radyan) ya da `null`
+ */
+function drawMotionSmear(ctx, x, y, radius, power, color, angle) {
+  if (!(power > 0) || !(radius > 0)) return;
+  if (!Number.isFinite(angle)) return;
+  // İzin uzunluğu: gövde çapının bir oranı. Ham px değil, gövdeyle birlikte
+  // büyür/küçülür.
+  const reach = radius * 1.15 * power;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  ctx.save();
+  for (let i = 1; i <= SMEAR_COPIES; i += 1) {
+    // Kopyalar gövdeden uzaklaştıkça söner ve küçülür — tek bir yönde
+    // eriyen çizgi değil, hızın yönünü okutan bir kuyruk.
+    const t = i / (SMEAR_COPIES + 1);
+    const back = radius * 0.34 * t + reach * t;
+    const shrink = 1 - t * 0.22;
+    ctx.globalAlpha = power * 0.24 * (1 - t * 0.72);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x - cos * back, y - sin * back, radius * shrink, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/**
+ * Hareket açısı: hız vektörü varsa o, yoksa gövde açısı.
+ * @returns {number|null} radyan, ya da yön bilgisi yoksa `null`
+ */
+function avatarMotionAngle(player, opts) {
+  const k = getKineticState(player, opts);
+  if (Number.isFinite(k.vx) && Number.isFinite(k.vy) && (k.vx !== 0 || k.vy !== 0)) {
+    return Math.atan2(k.vy, k.vx);
+  }
+  const facing = opts.facingAngle !== undefined ? opts.facingAngle : (player?.facingAngle ?? player?.angle);
+  return Number.isFinite(facing) ? facing : null;
+}
+
 /**
  * Draws character avatar for in-game entities.
  * @param {CanvasRenderingContext2D} ctx - Canvas context
@@ -298,7 +412,53 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
         || rimHex(opts.avatar?.rim, null)
         || darkFrame));
 
-  drawBrutalAvatar(ctx, x, y, radius, {
+  // ZEMİN TEMASI — oyuncunun masada DURDUĞUNU okutan katman.
+  //
+  // Neden burada: `characterRenderer` menusel önizlemeler, koltuk kartları ve
+  // kişiselleştirme ekranı da besler; orada bir temas gölgesi yanlış olurdu
+  // (karakter bir zemine değil, bir panele oturur). Sahadaki gövde ise aynı
+  // panel değildir. Bu yüzden gölge OYUN İÇİ sarmalayıcıda doğar: 12 motorun
+  // tamamı `drawGameAvatar` çağırıyor, dolayısıyla motor kodu SIFIR kalır
+  // (AGENTS §3/§9) ve iki yüzey (host canvas / kumanda world-view) aynı
+  // görünür.
+  //
+  // ÖLÇEK: her sayı gövde yarıçapının ORANIDIR — ham px yazılmaz (§3). Küre
+  // masada `drop` kadar alçalır, gölge orada basılır.
+  if (opts.grounded !== false && radius > 0) {
+    drawDioramaContactShadow(ctx, x, y, radius * 0.92, radius * 0.3, {
+      alpha: 0.62 * (typeof opts.alpha === 'number' ? opts.alpha : 1),
+      drop: radius * 0.72 + (opts.groundDrop || 0),
+    });
+  }
+
+  // HIZ İZİ — gölgenin ÜSTÜNDE, gövdenin ALTINDA. Zemin gölgesi masada kalır,
+  // iz havada gövdeyi takip eder; ikisi bu yüzden üst üste binmez.
+  if (opts.smear !== false) {
+    const smearPower = opts.smearPower ?? avatarSmearPower(player, opts);
+    drawMotionSmear(ctx, x, y, radius, smearPower, bodyColor, avatarMotionAngle(player, opts));
+  }
+
+  // HASAR OKU — vurulan gövde darbenin geldiği yöne mikro-itilir ve o yönde
+  // hafifçe ezilir. Kaynak `fxRuntime.emit('hit'|'slay'|'kill')` → `fieldFlinch`
+  // (aynı disiplin: motor kodu sıfır, paket alanı sıfır).
+  //
+  // Uygulama: itme, gövdeye ÇİZİM KOORDİNATI olarak verilir. Ayrı bir
+  // `ctx.translate` + yeniden çizim deseni yerine — `drawBrutalAvatar` zaten
+  // `(x, y)` ile konumlanıyor, fazladan save/restore ve ikinci bir gövde
+  // geçişi kazandırırdı. Gölge ve hız izi kasıtlı olarak İTİLMEZ: zemin
+  // gölgesi masada sabit kalır (yerinden oynamayan gölge doğru), iz ise
+  // hareketin kendisine aittir.
+  const flinch = opts.flinch === false
+    ? null
+    : (opts.flinchOffset ?? avatarFlinchOffset(x, y, radius));
+  const drawX = x + (flinch ? flinch.x : 0);
+  const drawY = y + (flinch ? flinch.y : 0);
+  // Darbe yönündeki ezilme kinetik deformasyonla ÇARPILIR (çarpma yönünde
+  // basılma). Mevcut kinetik önceliği bozmaz: kuvveti `Math.max` alır.
+  const kineticX = flinch ? Math.max(kinetic.squashX, 1 - flinch.squeeze) : kinetic.squashX;
+  const kineticY = flinch ? Math.min(kinetic.squashY, 1 + flinch.squeeze) : kinetic.squashY;
+
+  drawBrutalAvatar(ctx, drawX, drawY, radius, {
     color: bodyColor,
     slotIndex,
     facingAngle: opts.facingAngle !== undefined ? opts.facingAngle : player.facingAngle || player.angle || 0,
@@ -316,9 +476,9 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
     // 3.3 okunurluk kademesi: çağıran `fxReadAlpha` ile hesapladığı α'yı geçirir;
     // drawBrutalAvatar bunu ctx.globalAlpha ile ÇARPAR (kendi başına dim uydurmaz).
     alpha: opts.alpha,
-    // Karakter kinetiği & 1-kare hit flash
-    squashX: kinetic.squashX,
-    squashY: kinetic.squashY,
+    // Karakter kinetiği, hasar oku ezilmesi & 1-kare hit flash
+    squashX: kineticX,
+    squashY: kineticY,
     squashAngle: kinetic.squashAngle,
     hitFlash: isHit,
   });

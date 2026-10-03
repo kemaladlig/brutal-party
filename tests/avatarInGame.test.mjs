@@ -20,6 +20,13 @@ const gradient = { addColorStop: noop };
 function makeRecorder() {
   const ctx = {
     bounds: null,
+    // `ellipse` çağrılarının KENDİ kapsamı. Gövde bbox'ıyla karışmasın:
+    // gölgenin ölçeği, gövdenin sabit alt sınır çerçeve payından arınmış
+    // ölçülmelidir (aşağıdaki test tam olarak bunu ölçüyor).
+    ellipses: [],
+    // `arc` çağrılarının kendi kapsamı. Gövde ve smear `arc` çizdiği için
+    // ikisi ayrı listelerde ölçülür: gövde merkezde (0,0), smear ise geride.
+    arcs: [],
     calls: [],
     measureText: () => ({ width: 0 }),
     createLinearGradient: () => gradient,
@@ -47,8 +54,12 @@ function makeRecorder() {
     fill: rec('fill'), stroke: rec('stroke'),
     moveTo: rec('moveTo'), lineTo: rec('lineTo'),
     quadraticCurveTo: rec('quadraticCurveTo'), bezierCurveTo: rec('bezierCurveTo'),
-    arc(x, y, r) { ring(x, y, r); rec('arc')(-1, -1, -1); },
-    ellipse(x, y, rx, ry) { ring(x, y, rx, ry); rec('ellipse')(-1, -1, -1); },
+    arc(x, y, r) { ring(x, y, r); ctx.arcs.push({ x, y, r }); rec('arc')(-1, -1, -1); },
+    ellipse(x, y, rx, ry) {
+      ring(x, y, rx, ry);
+      ctx.ellipses.push({ x, y, rx, ry });
+      rec('ellipse')(-1, -1, -1);
+    },
     rect(x, y, w, h) { box(x, y, w, h); rec('rect')(-1, -1, -1, -1); },
     roundRect(x, y, w, h) { box(x, y, w, h); rec('roundRect')(-1, -1, -1, -1); },
     fillRect(x, y, w, h) { box(x, y, w, h); rec('fillRect')(-1, -1, -1, -1); },
@@ -61,6 +72,7 @@ let server;
 let drawGameAvatar;
 let drawBrutalAvatar;
 let blinkState;
+let avatarSmearPower;
 let computeAvatarKineticDeformation;
 let getKineticState;
 let tickKinetic;
@@ -122,6 +134,7 @@ before(async () => {
   const inGame = await server.ssrLoadModule('/src/core/avatarInGame.js');
   drawGameAvatar = inGame.drawGameAvatar;
   blinkState = inGame.blinkState;
+  avatarSmearPower = inGame.avatarSmearPower;
   computeAvatarKineticDeformation = inGame.computeAvatarKineticDeformation;
   getKineticState = inGame.getKineticState;
   tickKinetic = inGame.tickKinetic;
@@ -201,8 +214,12 @@ test('the bigger in-game eyes stay inside the circle', () => {
 
 test('the play face adds inner volume; the menu face is the same body without it', () => {
   // Hacim iki gradient `fillRect`'i ve yalnız oyun içi kipte var. Gövde,
-  // çerçeve ve gözler aynı — fark yalnız bu iki dolgu.
-  const play = drawInGame();
+  // çerçeve ve gözler aynı — fark yalnızca bu iki dolgu.
+  //
+  // `grounded: false`: temas gölgesi oyun içi sarmalayıcının BİLİNÇLİ ek
+  // katmanıdır (avatar masada durur). Yüz sözleşmesini ölçen bu test onu
+  // dışarıda bırakır; varlığı kendi testi aşağıda kilitlidir.
+  const play = drawInGame({ grounded: false });
   const menu = drawMenuFace();
   assert.deepEqual(play.calls, drawMenuFace({ faceMode: 'play' }).calls, 'wrapper must force the play face mode');
 
@@ -212,6 +229,111 @@ test('the play face adds inner volume; the menu face is the same body without it
   // Gözler oyun içinde büyük: menü yüzünün bbox'ı gövdeye daha sıkı sarılır.
   const menuWidth = menu.bounds.maxX - menu.bounds.minX;
   assert.ok(menuWidth > 0);
+});
+
+test('the in-game wrapper grounds the body on the field, the menu face does not', () => {
+  // Zemine oturan gövde okunabilirliğin ana taşı: avatar 2.5D bir masanın
+  // üstünde durur, panelin üstünde değil. Menü/koltuk/kişiselleştirme yüzeyleri
+  // bu yüzden gölge ALMAZ — orada bir "zemin" yok.
+  const grounded = drawInGame();
+  const airborne = drawInGame({ grounded: false });
+
+  const shadows = (rec) => rec.calls.filter((c) => c.startsWith('ellipse')).length;
+  assert.ok(shadows(grounded) > shadows(airborne), 'oyun içi avatar zemine oturmalı');
+  assert.equal(shadows(airborne), 0, 'menü yüzü zemin gölgesi çizmemeli');
+
+  // Gölge gövdenin ALTINDA durur: eksik avatarın gövde sınırını aşmaz, yani
+  // hitbox okunurluğunu bozmaz (oyun yarıçapı değişmez).
+  const g = grounded.bounds;
+  assert.ok(g.maxY <= R + BORDER + 1, `gölge gövde sınırını aştı: ${g.maxY}`);
+});
+
+test('the motion smear appears only above the speed threshold, and points where the body goes', () => {
+  // Hız izi hızdan TÜRETİLİR; tampon değildir. Eşiğin altında sıfır op.
+  const still = avatarSmearPower({ radius: 30 });
+  assert.equal(still, 0, 'duran gövde iz bırakmamalı');
+
+  // Düz koşu → hafif, dash → tam güç. Her iki bileşen de verilir:
+  // `getKineticState` hızı eksik kabul ederse smear da susar (kasıtlı).
+  const jog = avatarSmearPower({ radius: 30, vx: 30 * 6, vy: 0 });
+  const dash = avatarSmearPower({ radius: 30, vx: 30 * 14, vy: 0 });
+  assert.ok(jog > 0 && jog < dash, `hız arttıkça iz güçlenmeli: ${jog} vs ${dash}`);
+
+  // Gövde yarıçapına ORANLI: aynı gövde/sn oranı aynı iz gücü verir, yani
+  // eşik cihazdan bağımsız (ölçümsüz kapı).
+  const small = avatarSmearPower({ radius: 12, vx: 12 * 14, vy: 0 });
+  const large = avatarSmearPower({ radius: 48, vx: 48 * 14, vy: 0 });
+  assert.ok(Math.abs(small - large) < 1e-9, 'aynı gövde/sn oranı aynı iz gücü vermeli');
+
+  // Yön: iz gövdenin ARKASINDA, yani hareket yönünün TERSİ.
+  // Gövde açısı kasıtlı olarak HIZDAN FARKLI: strafe eden oyuncuda gövde
+  // nişana dönük kalır ama iz gerçek hareketi göstermelidir.
+  const rec = makeRecorder();
+  drawGameAvatar(rec, 0, 0, 30, { ...player, radius: 30, vx: 30 * 14, vy: 0 }, {
+    ...NOISE, facingAngle: Math.PI / 2,
+  });
+  // Gövde +X yönünde gidiyor → iz -X'te olmalı (gövde açısı +Y demişti).
+  // Kaydedici transformu yok sayar, dolayısıyla koordinatlar yereldir.
+  const behind = rec.arcs.filter((a) => a.x < -1);
+  assert.ok(behind.length > 0, 'hız izi gerçek hareket yönünün tersinde çizilmeli');
+  // Gövde açısı (+Y) kullanılsaydı kopyalar (0, -back) konumunda olurdu:
+  // geriye doğru bir kuyruk görünür, ama YANLIŞ yönde.
+  assert.equal(
+    rec.arcs.filter((a) => Math.abs(a.x) < 0.5 && a.y < -1).length,
+    0,
+    'iz gövde açısını değil hız vektörünü takip etmeli',
+  );
+
+  // Kapalıysa hiçbir iz kopya yok.
+  const off = makeRecorder();
+  drawGameAvatar(off, 0, 0, 30, { ...player, radius: 30, vx: 30 * 14, vy: 0 }, {
+    ...NOISE, facingAngle: 0, smear: false,
+  });
+  assert.equal(off.arcs.filter((a) => a.x < -1).length, 0, 'smear:false izi kapatmalı');
+});
+
+test('the motion smear reads every engine dialect, like the squash channel does', () => {
+  // Smear kinetik kanalın AYNI girdisini okur: isDashing / dashTimer / dash /
+  // strikeTimer / isTackling… Tek bir lehçe unutulursa 12 oyundan biri
+  // sessizce izsiz kalır.
+  for (const p of [
+    { radius: 30, isDashing: true },
+    { radius: 30, dashTimer: 0.2 },
+    { radius: 30, dash: 0.5 },
+    { radius: 30, strikeTimer: 0.2 },
+    { radius: 30, isTackling: true },
+    { radius: 30, steerX: 1, steerY: 0, speed: 30 * 12 },
+    { radius: 30, steer: 0, speed: 30 * 12, angle: 0 },
+    { radius: 30, isDriving: true, speed: 30 * 12, angle: 0 },
+  ]) {
+    assert.ok(avatarSmearPower(p) > 0, `lehçe iz üretmeli: ${JSON.stringify(p)}`);
+  }
+  // Sürüşte değil / hız yok → iz yok.
+  assert.equal(avatarSmearPower({ radius: 30, isDriving: false, speed: 30 * 12 }), 0);
+  assert.equal(avatarSmearPower({ radius: 30, vx: 0, vy: 0 }), 0);
+});
+
+test('the ground shadow scales with the body, never with raw px', () => {
+  // Küçük gövde (telefon) ve büyük gövde (TV) aynı gölge dilini konuşur:
+  // gölgenin tabanı ve yarı genişliği gövde yarıçapının ORANIDIR, sabit px
+  // değil. Aksi halde küçük ekranda gölge gövdeyi yutar, büyükte kaybolur.
+  const shadowOf = (r) => {
+    const rec = makeRecorder();
+    drawGameAvatar(rec, 0, 0, r, player, NOISE);
+    assert.ok(rec.ellipses.length > 0, `r=${r}: gölge elipsi çizilmedi`);
+    // En dış katman ölçülür (sprite'ın gerçek yarıçapı).
+    const e = rec.ellipses[0];
+    return { baseRatio: e.y / r, widthRatio: e.rx / r };
+  };
+
+  const small = shadowOf(8);
+  const large = shadowOf(40);
+  for (const key of ['baseRatio', 'widthRatio']) {
+    assert.ok(
+      Math.abs(small[key] - large[key]) < 0.02,
+      `${key} ölçekle değişiyor: ${small[key].toFixed(3)} vs ${large[key].toFixed(3)}`,
+    );
+  }
 });
 
 test('blink closes the eyes and is offset per slot', () => {

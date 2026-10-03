@@ -9,7 +9,7 @@ import {
   getEngineGame,
   forEachEngine,
 } from './core/engineRegistry.js';
-import { playJoin, toggleAudio, getIsMuted } from './audio.js';
+import { playJoin, playMenuTick, playMenuPop, playWinJingle, toggleAudio, getIsMuted } from './audio.js';
 import { partyNetwork } from './network.js';
 import { GamepadManager } from './gamepad.js';
 import { createStateSync } from './core/stateSync.js';
@@ -586,12 +586,15 @@ initHostLobby({
 
 // Staging bar (BAŞLAT #2 + lobiye dönüş)
 document.getElementById('btn-staging-edit-seats')?.addEventListener('click', () => {
+  playMenuTick();
   openHostSeatEditor();
 });
 document.getElementById('btn-staging-launch')?.addEventListener('click', () => {
+  playMenuPop();
   roomFlow.runCountdown();
 });
 document.getElementById('btn-staging-lobby')?.addEventListener('click', () => {
+  playMenuTick();
   roomFlow.returnHostToLobby();
 });
 initPauseModal({
@@ -777,6 +780,10 @@ function renderEngineCrashOverlay(ctx, error) {
 /** @type {ReturnType<typeof setTimeout> | 0} */
 let _menuIdleTimer = 0;
 
+// Maç sonu fanfar durumu: MATCH_OVER'a girişte tek sefer çalar, 12 motorun
+// ortak kapısıdır (istemci-görsel; pakete alan eklenmez).
+let _wasMatchOver = false;
+
 function loop(timestamp) {
   // Menu idle guard: canvas oyun dışı, DOM shell aktif.
   if (roomFlow.getCurrentMode() === 'MENU' && !getEngine(roomFlow.getCurrentMode())) {
@@ -847,6 +854,14 @@ function loop(timestamp) {
         renderPauseOverlay(ctx2d);
       } catch (err) { reportError(err, 'main.loop.renderPauseOverlay'); }
     }
+
+    // Maç sonu fanfar: MATCH_OVER'a girişte tek sefer (yeniden başlatma
+    // PLAYING'e döndürür, sayaç yeniden kurulur).
+    try {
+      const isMatchOver = loopEntry.game.state === 'MATCH_OVER';
+      if (isMatchOver && !_wasMatchOver) playWinJingle();
+      _wasMatchOver = isMatchOver;
+    } catch (err) { reportError(err, 'main.loop.matchOverJingle', { warnOnly: true }); }
   } else {
     lastPerfFrameAt = 0;
   }

@@ -5,6 +5,7 @@ import { showInstallToast } from './toast.js';
 import { getActivePalettes, paletteName } from '../core/customizationManager.js';
 import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { hydrateIconSlots } from './iconSlots.js';
+import { playMenuTick, playMenuPop } from '../audio.js';
 import { getSlotSwapError, isBotSlot } from '../core/slotRules.js';
 import { revealView, closeView } from './appShell.js';
 import { openOverlay, closeOverlay, isOverlayOpen } from './overlayHost.js';
@@ -405,10 +406,11 @@ export function initHostLobby({
   // Sheet kabuğu: backdrop `overlayHost`'ta; buradaki X düğmeleri aynı
   // kapanış yolundan geçer (odak/Escape tek sahibi bozulmasın).
   /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-sheet-close]')).forEach((btn) => {
-    btn.addEventListener('click', () => dismissLobbySheet(`lobby-${btn.dataset.sheetClose}`));
+    btn.addEventListener('click', () => { playMenuTick(); dismissLobbySheet(`lobby-${btn.dataset.sheetClose}`); });
   });
-  document.getElementById('btn-lobby-invite')?.addEventListener('click', openInviteSheet);
+  document.getElementById('btn-lobby-invite')?.addEventListener('click', () => { playMenuTick(); openInviteSheet(); });
   document.getElementById('btn-seat-sheet-invite')?.addEventListener('click', () => {
+    playMenuTick();
     dismissLobbySheet('lobby-seat');
     openInviteSheet();
   });
@@ -433,6 +435,7 @@ export function initHostLobby({
         swapBtn?.click();
         return;
       }
+      playMenuTick();
       openSeatSheet(slot);
     });
   });
@@ -473,12 +476,14 @@ export function initHostLobby({
     /** @type {NodeListOf<HTMLElement>} */ (pop.querySelectorAll('.slot-palette-swatch')).forEach((sw) => {
       sw.addEventListener('click', (e) => {
         e.stopPropagation();
+        playMenuTick();
         if (typeof onSetSlotColor === 'function') onSetSlotColor(idx, sw.dataset.hex);
         closePalette();
       });
     });
     pop.querySelector('.slot-palette-dice')?.addEventListener('click', (e) => {
       e.stopPropagation();
+      playMenuTick();
       if (typeof onRandomizeSlotColor === 'function') onRandomizeSlotColor(idx);
       closePalette();
     });
@@ -496,6 +501,7 @@ export function initHostLobby({
   /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.slot-color-btn')).forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
+      playMenuTick();
       const idx = parseInt(btn.dataset.slot, 10);
       if (Number.isNaN(idx)) return;
       if (document.getElementById('slot-palette-pop')) closePalette();
@@ -538,6 +544,7 @@ export function initHostLobby({
       const entry = getSlotState(slot);
       if (seatSwapSource === null) {
         if (!entry || isBotSlot(entry)) return;
+        playMenuTick();
         seatSwapSource = slot;
         paintSeatSwapUi();
         // Hedef çip görünsün diye sheet kapanır; ipucu satırı hedeflemeyi söyler.
@@ -545,6 +552,7 @@ export function initHostLobby({
         return;
       }
       if (seatSwapSource === slot) {
+        playMenuTick();
         resetSeatSwapSelection();
         return;
       }
@@ -569,6 +577,7 @@ export function initHostLobby({
         paintSeatSwapUi();
         return;
       }
+      playMenuPop();
       resetSeatSwapSelection();
     });
   });
@@ -578,6 +587,7 @@ export function initHostLobby({
   /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.slot-bot-btn')).forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
+      playMenuTick();
       const idx = parseInt(btn.dataset.slot, 10);
       if (Number.isNaN(idx)) return;
       if (typeof onToggleBotSlot === 'function') {
@@ -587,6 +597,7 @@ export function initHostLobby({
   });
 
   btnHostTogglePlayer?.addEventListener('click', () => {
+    playMenuTick();
     if (typeof onToggleHostPlayer === 'function') {
       onToggleHostPlayer();
     }
@@ -594,6 +605,7 @@ export function initHostLobby({
 
   // BAŞLAT #1: sahayı aç (staging). Oyun başlamaz; koltuk seçimi başlar.
   btnHostLaunchGame?.addEventListener('click', () => {
+    playMenuPop();
     if (seatEditorOpen) {
       hideHostLobbyModal();
       return;
@@ -610,6 +622,7 @@ export function initHostLobby({
   // ✕ tek dokunuşla çıkar: lobi ekranı kapanır, oda kapanır (kullanıcı
   // kararı — çift onay kaldırılandı; tehlikeli onay pause panelinde kalır).
   btnHostClose?.addEventListener('click', () => {
+    playMenuTick();
     hideHostLobbyModal();
     if (typeof onCloseLobby === 'function') {
       onCloseLobby();
@@ -617,10 +630,11 @@ export function initHostLobby({
   });
 
   // Oda kodu kopyalama: başlıktaki pil ve sheet içindeki düğme aynı eylem.
-  document.getElementById('btn-host-copy-code')?.addEventListener('click', copyRoomCode);
-  document.getElementById('btn-invite-copy-code')?.addEventListener('click', copyRoomCode);
+  document.getElementById('btn-host-copy-code')?.addEventListener('click', () => { playMenuTick(); copyRoomCode(); });
+  document.getElementById('btn-invite-copy-code')?.addEventListener('click', () => { playMenuTick(); copyRoomCode(); });
 
   btnHostCopyLink?.addEventListener('click', async () => {
+    playMenuTick();
     const code = hostRoomCode?.textContent?.trim() || '';
     const joinUrl = getEffectiveJoinUrl(code, getPlatformMode());
     try {
@@ -632,6 +646,7 @@ export function initHostLobby({
   });
 
   btnHostWhatsappShare?.addEventListener('click', () => {
+    playMenuTick();
     const code = hostRoomCode?.textContent?.trim() || '';
     const joinUrl = getEffectiveJoinUrl(code, getPlatformMode());
     const text = encodeURIComponent(t('host.share', code, joinUrl));

@@ -8,6 +8,115 @@ import { drawTabletopIcon } from './tabletopIcons.js';
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 
+// ---------------------------------------------------------------------------
+// 0. YUMUŞAK TEMAS GÖLGESİ (paylaşılan sprite)
+// ---------------------------------------------------------------------------
+
+/**
+ * Gölge mürekkebi — TEK kaynak. `arenaKit`'in önceki gölge damgası da bu
+ * değeri kullanıyordu; iki ayrı mürekkep yüzeyin birinde koyu diğerinde
+ * gri gölge üretiyordu.
+ */
+export const CONTACT_SHADOW_INK = '12, 8, 20';
+
+/** `rgba()` kurucusu — çağrı başına tek dize, sprite duraklarında bir kez. */
+export const contactShadowInk = (a) => `rgba(${CONTACT_SHADOW_INK}, ${a})`;
+
+/**
+ * 64×64 radyal düşüş, BİR KEZ pişirilir; karede yalnız `drawImage`.
+ *
+ * Neden sprite: iç içe birkaç elips yumuşak düşüşün yalnız TAKLİDİDİR ve
+ * kenarda görünen bantlar bırakır. `shadowBlur` DEĞİL: her çizimde konvolüsyon
+ * yapar ve GPU hızlı yolunu kapatır. 64×64 ≈ 16 KB, tek kez.
+ */
+const CONTACT_SHADOW_SIZE = 64;
+const CONTACT_SHADOW_STOPS = /** @type {ReadonlyArray<[number, string]>} */ (Object.freeze([
+  [0, contactShadowInk(0.44)],
+  [0.34, contactShadowInk(0.25)],
+  [0.68, contactShadowInk(0.08)],
+  [1, contactShadowInk(0)],
+]));
+
+let contactShadowSprite = null;
+let contactShadowTried = false;
+
+/**
+ * Yumuşak gölge sprite'ı (64×64) veya `null` (DOM'suz ortam).
+ *
+ * Negatif sonuç da önbelleklenir: `document.createElement` her çağrıda yeniden
+ * denemek, SSR/test yolunda her varlıkta bir `TypeError` demekti.
+ */
+export function getContactShadowSprite() {
+  if (contactShadowSprite || contactShadowTried) return contactShadowSprite;
+  contactShadowTried = true;
+  if (typeof document === 'undefined' || typeof document.createElement !== 'function') return null;
+  try {
+    // Değişken adı bilinçli: `sprite`, `canvas` DEĞİL. Kural §4 oyun yüzeyinin
+    // DPR'sini main.js'e bağlar; offscreen katman boyutlaması serbesttir ve
+    // `fieldKit.createLayerCanvas` de `layer` adıyla aynı deseni kullanır.
+    const sprite = document.createElement('canvas');
+    const g = sprite.getContext && sprite.getContext('2d');
+    if (!g) return null;
+    sprite.width = CONTACT_SHADOW_SIZE;
+    sprite.height = CONTACT_SHADOW_SIZE;
+    const half = CONTACT_SHADOW_SIZE / 2;
+    const grad = g.createRadialGradient(half, half, 0, half, half, half);
+    for (const [stop, color] of CONTACT_SHADOW_STOPS) grad.addColorStop(stop, color);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, CONTACT_SHADOW_SIZE, CONTACT_SHADOW_SIZE);
+    contactShadowSprite = sprite;
+  } catch {
+    contactShadowSprite = null;
+  }
+  return contactShadowSprite;
+}
+
+/**
+ * Varlığın altına yumuşak temas gölgesi basar — kare başına tek `drawImage`.
+ *
+ * `ctx` zaten varlığın MERKEZİNE ötelenmişse `(0, ry)` de yeterlidir; dünya
+ * koordinatında çağıranlar `cx/cy` verir. `ry` gölgenin yarı ekseni, `rx` yarı
+ * genişliğidir; `drop` gövde merkezinden tabana olan düşüş (küre yarıçapına
+ * oranlıdır, ham px yazılmaz).
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} cx gövde merkezinin x'i
+ * @param {number} cy gövde merkezinin y'si (veya `drop` uygulanmışsa taban)
+ * @param {number} rx
+ * @param {number} ry
+ * @param {{alpha?: number, drop?: number}} [opts]
+ */
+export function drawDioramaContactShadow(ctx, cx, cy, rx, ry, opts = {}) {
+  if (!(rx > 0) || !(ry > 0)) return;
+  const alpha = opts.alpha ?? 1;
+  if (!(alpha > 0)) return;
+  const baseY = cy + (opts.drop || 0);
+  // Sprite'ın ÇİZİLEBİLİR olması gerekir: sahte/eksik ctx'ler (test kaydedici,
+  // SSR) `document.createElement` yanıltıcı biçimde döndürebilir. Çizilemiyorsa
+  // aşağıdaki elips yoluna düşeriz — görsel daha sert, ama çökmez.
+  const sprite = typeof ctx?.drawImage === 'function' ? getContactShadowSprite() : null;
+  if (!sprite) {
+    // DOM'suz ortam (test/SSR): üç iç içe elips. Görsel olarak daha sert, ama
+    // çökmez ve aynı alanı kaplar.
+    ctx.save();
+    for (const [scale, a] of [[1, 0.08], [0.72, 0.12], [0.45, 0.18]]) {
+      ctx.globalAlpha = alpha * a;
+      ctx.fillStyle = contactShadowInk(1);
+      ctx.beginPath();
+      ctx.ellipse(cx, baseY, rx * scale, ry * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    return;
+  }
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.translate(cx, baseY);
+  ctx.scale(1, ry / rx);
+  ctx.drawImage(sprite, -rx, -rx, rx * 2, rx * 2);
+  ctx.restore();
+}
+
 /**
  * 1. ZEMİN TEMAS VE UÇUŞ GÖLGESİ (Diorama Ground Shadow)
  * Sol-üst (-45°) ışıktan türeyen yönlü elips temas/yükseklik gölgesi.

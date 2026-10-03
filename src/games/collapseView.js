@@ -397,6 +397,10 @@ export function drawCollapsePlayers(ctx, players, { selfSlot = -1 } = {}) {
       showPointer: false,
       borderWidth: Math.max(1.5, 2.5 * u),
       shadowOffset: Math.max(1, 2 * u),
+      // Zıplama sırasında gövde yerden ayrılır; gölge zeminle aradaki mesafeyi
+      // takip etmeli. O teması bir satır üstte `drawDioramaShadow` zaten
+      // `jumpHeight` ile çiziyor, merkezî gölge ikinci bir tabak basardı.
+      grounded: false,
       alpha: fxReadAlpha({ isSelf: hasViewer && (player.slot ?? player.index) === selfSlot, hasViewer }),
     });
 

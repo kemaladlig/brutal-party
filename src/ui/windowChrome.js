@@ -3,6 +3,7 @@ import { getTabletopIconSvg } from '../core/tabletopIcons.js';
 import { t, onLangChange } from '../i18n.js';
 import { showInstallToast } from './toast.js';
 import { initUpdateManager } from '../core/updateManager.js';
+import { playMenuTick } from '../audio.js';
 
 const MAX_CANVAS_PIXELS = 2_100_000;
 
@@ -143,6 +144,7 @@ export function setupWindowChrome({
       const now = performance.now();
       if (now - lastTransitionTime < 80) return;
       lastTransitionTime = now;
+      playMenuTick();
       toggleFullscreen();
     };
     btnQuickFullscreen.addEventListener('click', onFullscreenTap);

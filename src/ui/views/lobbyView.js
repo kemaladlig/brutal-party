@@ -218,7 +218,7 @@ registerView('lobby', {
       </div>
       <button class="sheet-close" type="button" data-grid-close></button>
     `;
-    gridHead.querySelector('[data-grid-close]').addEventListener('click', () => closeOverlay('lobby-games'));
+    gridHead.querySelector('[data-grid-close]').addEventListener('click', () => { playMenuTick(); closeOverlay('lobby-games'); });
     const gridCard = el('div', 'lobby-sheet-card is-grid');
     gridCard.append(gridHead, gridList);
     gridSheet.append(gridCard);
@@ -243,6 +243,7 @@ registerView('lobby', {
     stage.addEventListener('pointercancel', () => { swipeX = null; });
     face.addEventListener('click', () => {
       if (performance.now() - swipeAt < 300) return;
+      playMenuTick();
       openGrid();
     });
 

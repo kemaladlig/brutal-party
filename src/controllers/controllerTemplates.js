@@ -9,6 +9,7 @@ import { getGuideActionLabel } from './controllerGuide.js';
 import { getPreference, setPreference } from '../core/preferences.js';
 import { TwinStickAimController } from './aimController.js';
 import { CONTROL_KEEPALIVE_MS } from './controlDefs.js';
+import { playMenuTick } from '../audio.js';
 
 /**
  * Kontrol dolgu rengini `--deck-color` ÖZEL DEĞİŞKENİ olarak yazar, doğrudan
@@ -774,6 +775,7 @@ function mountSlider1D(gamepad, container, schema) {
   spinBtn?.addEventListener('click', spinAction);
 
   invertBtn?.addEventListener('click', () => {
+    playMenuTick();
     gamepad.isPongInverted = !gamepad.isPongInverted;
     gamepad.pongInvertManualSet = true;
     setPreference('pongInvert', gamepad.isPongInverted ? 'on' : 'off');

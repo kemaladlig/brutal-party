@@ -174,10 +174,6 @@ export class HeistGame extends BaseMiniGame {
     return createHeistWorldPacket(this);
   }
 
-  onSeatCycled() {
-    playJoin();
-  }
-
   isSlotJoined(index) {
     return this.slotTypes[index] !== 'empty';
   }
@@ -499,7 +495,7 @@ export class HeistGame extends BaseMiniGame {
     // 'tekrar oynayalım' diyebilmek için yol yoktu. `matchOverRestartTap`
     // kartın içine dokunmayı yutar (yanlışlıkla yeniden başlatmayı önler).
     if (this.state === 'MATCH_OVER') {
-      matchOverRestartTap(this, touch, { onRestart: () => this.startNewMatch() });
+      matchOverRestartTap(this, touch, { onRestart: () => { this.startNewMatch(); playJoin(); } });
       return;
     }
 

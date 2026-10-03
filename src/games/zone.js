@@ -189,10 +189,6 @@ export class ZoneGame extends BaseMiniGame {
     this.triggerDash(slotIndex);
   }
 
-  onSeatCycled() {
-    playJoin();
-  }
-
   isSlotJoined(index) {
     return this.slotTypes[index] !== 'empty';
   }

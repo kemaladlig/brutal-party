@@ -12,7 +12,7 @@ import { REACTIONS, reactionGlyph } from '../core/reactions.js';
 import { t } from '../i18n.js';
 import { escapeHtml } from '../net.js';
 import { vibrate } from '../core/haptics.js';
-import { playMenuPop } from '../audio.js';
+import { playMenuPop, playMenuTick } from '../audio.js';
 
 const OVERLAY_ID = 'reaction-picker';
 const DEFAULT_SENDER = 'host';
@@ -59,7 +59,7 @@ function buildPicker() {
       closeOverlay(OVERLAY_ID);
       return;
     }
-    if (e.target === el) closeOverlay(OVERLAY_ID);
+    if (e.target === el) { playMenuTick(); closeOverlay(OVERLAY_ID); }
   });
   document.body.appendChild(el);
   return el;
@@ -90,6 +90,7 @@ function bindTriggers() {
     if (!trigger) return;
     e.preventDefault();
     e.stopPropagation();
+    playMenuTick();
     openReactionPicker(trigger.dataset.reactionSend);
   });
 }

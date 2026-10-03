@@ -75,6 +75,19 @@ function startRound() {
   game.resize(800, 600);
   game.startNewMatch();
   drive(game, 200);
+  // Isınma karesinde botlar birbirini öldürebiliyor: ısınma penceresinin
+  // son ~5 karesi bir ölümün sınırına denk geldiğinde (ölçüldü: 195/200) bir
+  // pop zaten canlı kalıyor ve aşağıdaki "tam olarak 1 pop" kapsamları
+  // ölçtüğü şeyi değil, ısınmanın kalıntısını ölçüyordu. Test kırılganlığı
+  // üretim kodundan gelmiyor — testin başlangıç durumu temizlenmiyordu.
+  //
+  // Buradaki temizlik bir KISA SÜRELİ silme değil: `fx.clear()` tüm sunum
+  // kanallarını (pop/halka/partikül/flaş/hit-stop/olay kuyruğu) boşaltır,
+  // yani test her zaman "ısınma bitti, sıfırdan başlıyoruz" durumundan
+  // ölçer. `game.trauma` da sıfırlanır.
+  game.fx.clear();
+  game.trauma = 0;
+  game._traumaImpulse = 0;
   return game;
 }
 

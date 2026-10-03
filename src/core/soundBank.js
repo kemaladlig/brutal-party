@@ -205,7 +205,6 @@ export const SYNTH_TO_SAMPLE = {
   playCoinPickup: 'pickup.coin',
   playCashRegister: 'pickup.power',
   playVaultAlarm: 'alarm.vault',
-  playGunshot: 'shot.laserLarge',
   playDrawTension: 'ui.tick',
   playHeavyImpact: 'hit.punchHeavy',
   playPiggyBreak: 'hit.glass',
