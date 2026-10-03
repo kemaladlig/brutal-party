@@ -12,6 +12,21 @@ function hasShotLane(game, bot, target) {
 
 const ARCHER_IDEAL_DIST = 240;
 const ARCHER_MAX_ENGAGE = 480;
+// Dip dibeyken ok rakipten çalınmaz: yakın vuruş hem puan hem stun taşır.
+const ARCHER_PRIZE_GIVEUP_DIST = 140;
+
+/**
+ * Kazanç nesnesi adayı (3 puanlık dolaşan hedef). Bot göremezse insanlara
+ * bedava puan yolu olurdu — adalet gereği bot da kovalar.
+ */
+function pickPrize(game, bot, nearestEnemyDist) {
+  const list = game.scoreTargets;
+  const prize = Array.isArray(list) ? list[0] : null;
+  if (!prize) return null;
+  const d = Math.hypot(prize.x - bot.x, prize.y - bot.y);
+  if (d > ARCHER_MAX_ENGAGE || nearestEnemyDist < ARCHER_PRIZE_GIVEUP_DIST) return null;
+  return hasShotLane(game, bot, prize) ? prize : null;
+}
 
 // Yüz dönüş hızı (rad/sn). Bot insan gibi hedefe döner; anlık snap yerine
 // sınırlı hız kullanılır, yoksa nişan almak bedava olur.
@@ -42,6 +57,13 @@ export function updateArcherBotAI(rawGame, bot, dt) {
     bot.steerY = 0;
     if (bot.charging) game.looseArrow(bot);
     return;
+  }
+
+  // Rakip yerine kazanç nesnesini tercih edebilir (3 puan > 1-2 puan).
+  const prize = pickPrize(game, bot, targetDist);
+  if (prize) {
+    target = prize;
+    targetDist = Math.hypot(prize.x - bot.x, prize.y - bot.y);
   }
 
   // Sapma zamanlayıcı: periyodik strafe yönü değiştir

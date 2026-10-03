@@ -155,6 +155,12 @@ src/core/
                             Motor `update()` yalnız `if (tickRoundFlow(this, dt)) return;`
                             yazar; sayacı kendi indirmez. Kilit: tests/roundLifecycle.test.mjs
   pickupSystem.js           power-up akışı: spawnPickup/collectPickups/tickPickupTimers + EFFECTS kaydı
+  scoreTargetKit.js         KAZANÇ NESNESİ: sahanın içinde dolaşan, vurulunca puan veren ortak
+                            hedef. resetScoreTargets / updateScoreTargets (şerit yerleşimi
+                            engelsizlik süpürme testiyle doğrulanır) / scoreTargetSegmentHit /
+                            claimScoreTarget / packScoreTargets (6 sayılık satır) /
+                            drawScoreTarget* (host nesnesi + client satırı aynı çizici).
+                            Şimdilik ARCHER kullanır (3 puan, MAX 1, FIRST_AT 8sn, LIFE 12sn).
   arenaKit.js               Ortak arena görsel kiti: buildLayout(name, arena, {minPassage}) düzen
                             presets (pillars/columns4/cross/crossfire/scatter/bunker/courtyard/split) +
                             drawObstacle + obstacleStyle (variant→theme.block→stone) + OBSTACLE_STYLES

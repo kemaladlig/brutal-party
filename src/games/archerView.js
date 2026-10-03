@@ -4,6 +4,7 @@
 // asla simülasyon/AI import etmez.
 
 import { drawPickup, pushObstaclesToDepth } from '../core/arenaKit.js';
+import { drawScoreTarget, drawScoreTargetRow, isValidScoreTargetFrame, packScoreTargets } from '../core/scoreTargetKit.js';
 import { beginDepthPass, flushDepthPass, entityDepth, DEPTH_KIND, pushDepthItem } from '../core/depthPass.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { tracerAt } from '../core/fieldLights.js';
@@ -65,6 +66,8 @@ export function createArcherWorldPacket(game) {
       round1(pk.animTime || 0),
       round1(pk.radius || pk.size || 15),
     ]),
+    // Kazanç nesnesi (skor hedefi): [x, y, r, animTime, value, lifeRatio].
+    targets: packScoreTargets(game.scoreTargets),
     players: players.map((p) => ({
       slot: p.index,
       joined: p.isJoined !== false,
@@ -139,6 +142,9 @@ export function isValidArcherWorldFrame(frame) {
   if (!frame.obstacles.every((o) => Array.isArray(o) && o.length === 4 && o.every(finite))) return false;
   if (!Array.isArray(frame.pickups) || frame.pickups.length > 12) return false;
   if (!frame.pickups.every((pk) => Array.isArray(pk) && pk.length >= 3 && finite(pk[0]) && finite(pk[1]) && finite(pk[3]) && finite(pk[4]))) return false;
+  // Kazanç nesnesi kanalı sonradan eklendi: eski host paketleri taşımaz,
+  // taşıyorsa şeklen doğru olmalı (fx/texts ile aynı opsiyonel kural).
+  if (frame.targets !== undefined && !isValidScoreTargetFrame(frame.targets)) return false;
   if (!Array.isArray(frame.arrows) || frame.arrows.length > 64) return false;
   if (!frame.arrows.every((a) => Array.isArray(a)
     && (a.length === 5 || (a.length === 6 && Number.isInteger(a[5]) && a[5] >= 0))
@@ -187,6 +193,19 @@ export function drawArcherArena(ctx, arena, obstacles, opts = {}) {
 export function drawArcherPickups(ctx, pickups) {
   for (const pk of pickups) {
     drawPickup(ctx, { x: pk.x, y: pk.y, type: pk.type, animTime: pk.animTime, radius: pk.size || pk.radius || 15 });
+  }
+}
+
+/**
+ * Kazanç nesnesi (skor hedefi) — host motor nesnesinden, client paket
+ * satırından çağırır; tek giriş noktası, iki yüzey birebir aynı çizer.
+ */
+export function drawArcherScoreTargets(ctx, list) {
+  if (!Array.isArray(list)) return;
+  for (let i = 0; i < list.length; i += 1) {
+    const item = list[i];
+    if (Array.isArray(item)) drawScoreTargetRow(ctx, item);
+    else drawScoreTarget(ctx, item);
   }
 }
 

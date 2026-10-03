@@ -20,6 +20,13 @@ import { isInputIntent } from '../core/inputIntent.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { updateMovers, clampToArena, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
+import {
+  SCORE_TARGET_TUNING,
+  resetScoreTargets,
+  updateScoreTargets,
+  scoreTargetSegmentHit,
+  claimScoreTarget,
+} from '../core/scoreTargetKit.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { findAutoAimTarget } from '../core/autoAim.js';
 import { paintBackdrop } from '../core/fieldKit.js';
@@ -27,6 +34,7 @@ import {
   createArcherWorldPacket,
   drawArcherArena,
   drawArcherPickups,
+  drawArcherScoreTargets,
   drawArcherArrows,
   drawArcherPlayers,
   drawArcherFxLayer,
@@ -96,6 +104,10 @@ export class ArcherGame extends BaseMiniGame {
     this.pickups = [];
     this.floatingTexts = [];
     this.pickupTimer = 8.0;
+    // KAZANÇ NESNESİ (skor hedefi): raunt ortasında sahaya giren dolaşan hedef,
+    // vurana 3 puan. Puan artık yalnız rakip vuruşundan gelmiyor.
+    this.scoreTargets = [];
+    this.scoreTargetTimer = SCORE_TARGET_TUNING.FIRST_AT;
     this.mapIndex = 0;
     this.mapTime = 0;
     this.keys = {};
@@ -219,6 +231,7 @@ export class ArcherGame extends BaseMiniGame {
     this.fx.clear();
     this.pickups = [];
     this.floatingTexts = [];
+    resetScoreTargets(this);
     this.mapIndex = 0;
     this.buildMap();
     this.initPlayers();
@@ -262,7 +275,8 @@ export class ArcherGame extends BaseMiniGame {
     this.pickups = [];
     this.floatingTexts = [];
     this.pickupTimer = 8.0;
-    // Raund başına rastgele harita
+    resetScoreTargets(this);
+    // Raunt başına rastgele harita
     this.mapIndex = Math.floor(Math.random() * 3);
     this.buildMap();
     this.onTouchesReset();
@@ -572,6 +586,7 @@ export class ArcherGame extends BaseMiniGame {
     }
 
     this.updateMovers(dt);
+    updateScoreTargets(this, dt);
 
     // Power-up spawn ritmi (bomb gibi: 8-12sn, max 2)
     this.pickupTimer -= dt;
@@ -709,6 +724,11 @@ export class ArcherGame extends BaseMiniGame {
             hit = { type: 'player', victim, ...candidate };
           }
         }
+        // Skor hedefi aynı `t` yarışına girer: engel arkasındaki hedef vurulamaz.
+        const targetHit = scoreTargetSegmentHit(this, startX, startY, endX, endY, 4);
+        if (targetHit && (!hit || targetHit.t < hit.t)) {
+          hit = { type: 'target', target: targetHit.target, t: targetHit.t, x: targetHit.x, y: targetHit.y };
+        }
       }
 
       if (hit) {
@@ -718,6 +738,25 @@ export class ArcherGame extends BaseMiniGame {
         if (hit.type === 'obstacle') {
           this.fx.emit('spark', { x: a.x, y: a.y, color: '#9C988F' });
           playArrowHit();
+          dead = true;
+        } else if (hit.type === 'target') {
+          // KAZANÇ NESNESİ: rakip vuruşunun 1-2 puanına karşı 3 puan. Ok burada
+          // harcanır — "hedefi mi rakibi mi keseyim" kararı oyuncuya kalır.
+          const shooter = this.players[a.owner];
+          const pts = claimScoreTarget(this, hit.target);
+          this.scores[a.owner] += pts;
+          this.roundScores[a.owner] += pts;
+          this.roundHits[a.owner] = (this.roundHits[a.owner] || 0) + 1;
+          emitFloatingText(this.floatingTexts, {
+            x: hit.x, y: hit.y - 20, text: `+${pts}`,
+            color: shooter ? shooter.color : UI_COLORS.gold,
+          });
+          this.fx.emit('score', {
+            x: hit.x, y: hit.y, color: UI_COLORS.gold,
+            dirX: a.vx, dirY: a.vy, slot: a.owner,
+            haptic: !!shooter && shooter.slotType === 'human',
+          });
+          playPowerUp();
           dead = true;
         } else {
           const victim = hit.victim;
@@ -879,6 +918,7 @@ export class ArcherGame extends BaseMiniGame {
     // Arenanın scene kısmı ortak archerView draw'larından gelir (host↔client aynı).
     drawArcherArena(ctx, this.arena, this.obstacles, { roundId: this.roundId });
     drawArcherPickups(ctx, this.pickups);
+    drawArcherScoreTargets(ctx, this.scoreTargets);
 
     // Engellerin üzerinde her zaman net, yüksek görünürlüklü süre sayacı
     if (this.state === 'PLAYING' || this.state === 'ROUND_OVER') {

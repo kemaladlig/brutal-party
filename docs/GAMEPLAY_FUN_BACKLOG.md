@@ -185,6 +185,12 @@ Bugün 11 FFA modunda sahada ya sadece oyuncular ya (HORDE/COLOSSUS'ta) sadece s
 - Maliyet: tek çekirdek modül (`core/nuisanceNpc.js`) + motora bir handler; 1 varlık = paket başına ~5 alan.
 
 ### 7.3 K3 — KAZANÇ NESNESİ (yok: skoru eleme dışında bir şey veren hiçbir nesne yok)
+> **DURUM 2026-10-03: İLK DİLİM TAMAMLANDI.** Çekirdek tip `src/core/scoreTargetKit.js`
+> olarak yazıldı, **ARCHER**'da çalışıyor (3 puanlık, engelsiz şeritte dolaşan hedef;
+> botlar da onu görüyor; host ve client aynı çiziciyi kullanıyor; sözleşme testi
+> `tests/archerScoreTarget.test.mjs`). Diğer modlar için API hazır: CURVE/SNAKE
+> (halkadan geçiş = aynı tipin "geçme" varyantı), CROWN/ZONE (taht = sabit şeritli
+> varyant), HEIST (kaçış aracı), BOMB (çan).
 13 modun skor formülü ya "son kalan" ya "eleme". **Bir nesneye dokunmak/geçmek puan verseydi**, rauntlar uzar ama sıkılmaz — sürekli bir "bir sonraki hamle" olur.
 
 Tek çekirdek tip: `ScoringGate { x, y, radius, value, axisMotion, cooldownSec }`, modlar arası fark yalnız çizim + konum kuralı.

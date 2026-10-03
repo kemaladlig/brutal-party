@@ -4,6 +4,7 @@
 import {
   drawArcherArena,
   drawArcherPickups,
+  drawArcherScoreTargets,
   drawArcherArrows,
   drawArcherPlayers,
   drawArcherFxLayer,
@@ -45,6 +46,9 @@ export function createWorldViewRenderer() {
           ctx,
           frame.pickups.map(([x, y, type, animTime, size]) => ({ x, y, type, animTime, size }))
         );
+        // Kazanç nesnesi satırları dönüştürme istemez: tek çizici hem host hem
+        // client yolunu paketten besler.
+        drawArcherScoreTargets(ctx, frame.targets);
         drawArcherArrows(
           ctx,
           frame.arrows.map(([x, y, vx, vy, color]) => ({ x, y, vx, vy, color }))
