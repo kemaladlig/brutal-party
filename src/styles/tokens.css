@@ -251,6 +251,34 @@
   --bot-tag: #ffde59;
   --font-grotesk: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+  /* Display yüzü — "Arcade Oyuncak Kutusu" kimliği. Başlıklar, marka
+     wordmark'ı, sahne buton etiketleri ve maç-sonu kazanan adı buradan
+     beslenir; gövde Space Grotesk kalır. Canvas karşılığı `ui/tokens.js`
+     `UI_FONTS.display` ile BİRLİKTE değişir. */
+  --font-display: 'Fredoka', 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* ======================================================================
+     ARCADE MALZEME ÖLÇEĞİ
+     Kabuk yüzeyleri düz panel değil, basılabilir oyuncaktır: kalın kenar +
+     üst pah + sert ofset gölge. Saha katmanındaki 2.5D pah diliyle AYNI
+     ışık yönü (sol-üst -45°) kullanılır; böylece menü ile saha tek ürün
+     gibi okunur. Renk literali yoktur — yalnız mevcut yüzey token'ları.
+     ====================================================================== */
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 22px;
+  --r-xl: 30px;
+
+  --arcade-edge-w: 2.5px;
+  /* Üst pah: ışığın yüzeye düştüğü kenar. */
+  --arcade-bevel: inset 0 2px 0 rgba(255, 255, 255, 0.16);
+  /* Alt cephe: yüzeyin gövdesi koyu kalır. */
+  --arcade-under: inset 0 -3px 0 rgba(4, 2, 12, 0.32);
+  /* Sert ofset gölge kademeleri (oyuncak "basılı" hissi). */
+  --arcade-drop-sm: 0 4px 0 var(--edge-dark);
+  --arcade-drop-md: 0 7px 0 var(--edge-dark), 0 16px 30px var(--shadow-soft);
+  --arcade-drop-lg: 0 10px 0 var(--edge-dark), 0 24px 44px var(--shadow-soft);
+  --arcade-drop-press: 0 2px 0 var(--edge-dark), 0 6px 14px var(--shadow-soft);
 
   /* ======================================================================
      FAZ 2 — PLAY CHROME + SONUÇ EKRANI

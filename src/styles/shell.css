@@ -59,12 +59,12 @@
   flex-direction: column;
   gap: 4px;
   padding: 5px;
-  border: 1.5px solid var(--hud-line);
-  border-radius: 24px;
+  border: var(--arcade-edge-w) solid var(--hud-line);
+  border-radius: var(--r-xl);
   background: var(--hud-surface);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  box-shadow: var(--shadow-float);
+  box-shadow: var(--arcade-drop-md), var(--arcade-bevel);
 }
 
 .shell-rail-btn {
@@ -77,10 +77,10 @@
   min-height: 68px;
   padding: 6px 3px 5px;
   border: 0;
-  border-radius: 18px;
+  border-radius: var(--r-md);
   background: none;
   color: var(--hud-muted);
-  font: 900 9.5px/1 var(--font-grotesk);
+  font: 600 10.5px/1 var(--font-display);
   letter-spacing: 0.01em;
   cursor: pointer;
   transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
@@ -93,9 +93,10 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  border: 1.5px solid var(--hud-line);
+  border: 2px solid var(--hud-line);
   background: var(--sheen-08);
   color: var(--hud-ink);
+  box-shadow: var(--arcade-bevel);
   line-height: 0;
   transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
 }
@@ -121,7 +122,7 @@
 .shell-rail-btn.is-active {
   background: var(--grad-accent);
   color: var(--on-accent);
-  box-shadow: 0 3px 0 var(--accent-ink);
+  box-shadow: 0 4px 0 var(--accent-ink), var(--arcade-bevel);
 }
 
 .shell-rail-btn.is-active .shell-rail-ico {
@@ -183,17 +184,17 @@
 .shell-brand-mark {
   width: 44px;
   height: 44px;
-  border-radius: 15px;
-  border: 1.5px solid var(--hud-line);
+  border-radius: var(--r-md);
+  border: var(--arcade-edge-w) solid var(--hud-line);
   background: var(--hud-surface);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--arcade-drop-sm), var(--arcade-bevel);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
 .shell-brand-name {
-  font: 800 15px/1 var(--font-grotesk);
-  letter-spacing: 0.16em;
+  font: 600 17px/1 var(--font-display);
+  letter-spacing: 0.13em;
   color: var(--hud-ink);
   white-space: nowrap;
 }
@@ -210,19 +211,20 @@
   place-items: center;
   width: 42px;
   height: 42px;
-  border-radius: 50%;
-  border: 1.5px solid var(--hud-line);
+  border-radius: var(--r-md);
+  border: var(--arcade-edge-w) solid var(--hud-line);
   background: var(--hud-surface);
   color: var(--hud-ink);
   cursor: pointer;
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--arcade-drop-sm), var(--arcade-bevel);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
 }
 
 .shell-icon-btn:active {
-  transform: scale(0.92);
+  transform: translateY(3px);
+  box-shadow: var(--arcade-drop-press);
 }
 
 /* Sinema kipi sadeleşti: üst bant kalktı. `chrome: 'cinema'` artık yalnız
@@ -274,14 +276,14 @@
   gap: 8px;
   min-height: 44px;
   padding: 0 20px;
-  border-radius: var(--radius-btn);
-  border: 2.5px solid var(--edge);
+  border-radius: var(--r-md);
+  border: var(--arcade-edge-w) solid var(--edge-strong);
   background: var(--grad-card);
   color: var(--ink);
-  font: 900 13px/1 var(--font-grotesk);
-  letter-spacing: 0.06em;
+  font: 600 14px/1 var(--font-display);
+  letter-spacing: 0.05em;
   cursor: pointer;
-  box-shadow: var(--shadow-pop);
+  box-shadow: var(--arcade-drop-sm), var(--arcade-bevel);
   transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
 }
 
@@ -323,10 +325,10 @@
   gap: 10px;
   text-align: center;
   padding: 26px 30px;
-  border-radius: var(--radius-card);
-  border: 3px solid var(--edge);
+  border-radius: var(--r-lg);
+  border: var(--arcade-edge-w) solid var(--edge-strong);
   background: var(--grad-card);
-  box-shadow: var(--shadow-float);
+  box-shadow: var(--arcade-drop-md), var(--arcade-bevel);
   max-width: 320px;
 }
 
@@ -348,8 +350,8 @@
 }
 
 .rotate-gate-card strong {
-  font: 900 16px/1.2 var(--font-grotesk);
-  letter-spacing: 0.04em;
+  font: 600 18px/1.2 var(--font-display);
+  letter-spacing: 0.03em;
 }
 
 .rotate-gate-card span {
@@ -410,35 +412,38 @@
 }
 
 .app-boot-mark {
-  font: 900 clamp(26px, 6vw, 54px)/1 var(--font-grotesk);
-  letter-spacing: 0.08em;
+  font: 700 clamp(26px, 6vw, 54px)/1 var(--font-display);
+  letter-spacing: 0.06em;
 }
 
 .app-boot-mark span {
   color: var(--accent);
 }
 
-/* Zemin çizgisi — sahnenin turuncu platform dilinin en yalın hali. */
+/* Zemin çizgisi — sahnenin turuncu platform dilinin en yalın hali.
+   Arcade malzemesi: kalın gövdeli, üst pahı ve sert alt kenarı olan
+   basılabilir bir oyuncak platform (menü düğmeleriyle aynı ışık yönü). */
 .app-boot-stage {
   width: min(58vw, 340px);
-  height: 6px;
+  height: 12px;
   border-radius: var(--radius-pill);
   background: var(--accent);
-  box-shadow: var(--glow-accent);
+  box-shadow: 0 5px 0 var(--accent-ink), var(--arcade-bevel), 0 0 34px var(--glow-gold);
 }
 
 .app-boot-ring {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  border: 3px solid var(--edge);
+  border: var(--arcade-edge-w) solid var(--edge-strong);
   border-top-color: var(--accent);
+  box-shadow: var(--arcade-bevel);
   animation: appBootSpin 900ms linear infinite;
 }
 
 .app-boot-label {
-  font: 700 11px/1 var(--font-mono);
-  letter-spacing: 0.18em;
+  font: 600 13px/1 var(--font-display);
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted);
 }

@@ -145,8 +145,8 @@
 .home-wm-letter {
   --i: 0;
   display: inline-block;
-  font: 900 clamp(36px, 5.2vw, 80px)/1.02 var(--font-grotesk);
-  letter-spacing: -0.02em;
+  font: 700 clamp(36px, 5.2vw, 80px)/1.02 var(--font-display);
+  letter-spacing: -0.01em;
   color: var(--home-wordmark-ink);
   text-shadow:
     0 0.055em 0 var(--home-wordmark-shadow),
@@ -422,11 +422,11 @@
   bottom: calc(max(22px, env(safe-area-inset-bottom)) + var(--rail-stack-h) + 14px);
   width: var(--rail-w);
   padding: 0;
-  border: 3px solid var(--hud-line);
-  border-radius: 22px;
+  border: var(--arcade-edge-w) solid var(--hud-line);
+  border-radius: var(--r-lg);
   overflow: hidden;
   background: var(--hud-surface);
-  box-shadow: 0 16px 34px var(--scene-shadow);
+  box-shadow: 0 16px 34px var(--scene-shadow), var(--arcade-bevel);
   color: var(--hud-ink);
   text-align: start;
   cursor: pointer;
@@ -505,8 +505,8 @@
 .home-featured.is-resume .home-featured-overline { color: var(--hud-muted); }
 
 .home-featured-title {
-  font: 900 15px/1.15 var(--font-grotesk);
-  letter-spacing: 0.02em;
+  font: 700 16px/1.15 var(--font-display);
+  letter-spacing: 0.01em;
   text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;

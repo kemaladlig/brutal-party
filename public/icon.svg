@@ -1,22 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- "Arcade Oyuncak Kutusu" uygulama simgesi.
+     Maskable güvenli bölge: içerik merkezde ≤180 yarıçap (512 tuvalde).
+     Malzeme dili `tokens.css` ile aynı: kalın pah (bevel), sol-üst -45° ışık,
+     sert alt gölge. Renkler P1–P4 koltuk paleti + accent. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Full canvas background (matches AI icon, maskable edge-to-edge) -->
-  <rect width="512" height="512" fill="#DCD6C6"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b2b7d"/>
+      <stop offset="0.5" stop-color="#221852"/>
+      <stop offset="1" stop-color="#120d1c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.26" cy="0.16" r="0.85">
+      <stop offset="0" stop-color="#ff8c1a" stop-opacity="0.5"/>
+      <stop offset="0.5" stop-color="#ff8c1a" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#ff8c1a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0.82" cy="0.88" r="0.7">
+      <stop offset="0" stop-color="#2ba6e8" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#2ba6e8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="badge" x1="0" y1="0" x2="0.28" y2="1">
+      <stop offset="0" stop-color="#4a3d92"/>
+      <stop offset="1" stop-color="#241a52"/>
+    </linearGradient>
+    <!-- Bevel: ışık sol-üstten gelir; halka üstte parlak, altta söner. -->
+    <linearGradient id="bevel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff8ea" stop-opacity="0.72"/>
+      <stop offset="0.5" stop-color="#fff8ea" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#fff8ea" stop-opacity="0.06"/>
+    </linearGradient>
+    <linearGradient id="chipGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
 
-  <!-- Centered badge: 288x288 at 256,256 (112px padding all sides) -->
-  <g transform="translate(256, 256)">
-    <!-- Black rounded square -->
-    <rect x="-144" y="-144" width="288" height="288" rx="72" fill="#111111"/>
-    <!-- Inner off-white ring -->
-    <rect x="-128" y="-128" width="256" height="256" rx="58" fill="none" stroke="#F4F0EA" stroke-width="10"/>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <rect width="512" height="512" fill="url(#glow2)"/>
 
-    <!-- Bold 4P -->
-    <text x="0" y="28" font-family="'Space Grotesk', 'Arial Black', sans-serif" font-size="148" font-weight="900" fill="#F4F0EA" text-anchor="middle" letter-spacing="-4">4P</text>
+  <g transform="translate(256,256)">
+    <!-- Sert alt gölge (oyuncak "basılı" katmanı) -->
+    <rect x="-134" y="-134" width="284" height="284" rx="82" fill="#06040e" opacity="0.55"/>
+    <!-- Gövde -->
+    <rect x="-142" y="-142" width="284" height="284" rx="82" fill="url(#badge)" stroke="url(#bevel)" stroke-width="9"/>
 
-    <!-- 4 player squares -->
-    <rect x="-104" y="72" width="40" height="32" fill="#C45A3C"/>
-    <rect x="-48" y="72" width="40" height="32" fill="#6A8FB5"/>
-    <rect x="8" y="72" width="40" height="32" fill="#5A8A64"/>
-    <rect x="64" y="72" width="40" height="32" fill="#E3B93E"/>
+    <!-- 4P -->
+    <text x="0" y="-4" text-anchor="middle" dominant-baseline="central"
+          font-family="'Fredoka','Arial Black','Space Grotesk',sans-serif"
+          font-size="132" font-weight="700" letter-spacing="-3" fill="#fff8ea">4P</text>
+
+    <!-- 4 koltuk fişi: candy dolgu + üst parlaklık + koyu kontur -->
+    <g transform="translate(0,72)">
+      <g transform="translate(-103,0)">
+        <rect width="44" height="40" rx="12" fill="#f0483c" stroke="#06040e" stroke-opacity="0.34" stroke-width="3"/>
+        <rect x="4" y="3" width="36" height="16" rx="8" fill="url(#chipGloss)"/>
+      </g>
+      <g transform="translate(-49,0)">
+        <rect width="44" height="40" rx="12" fill="#2b7fc4" stroke="#06040e" stroke-opacity="0.34" stroke-width="3"/>
+        <rect x="4" y="3" width="36" height="16" rx="8" fill="url(#chipGloss)"/>
+      </g>
+      <g transform="translate(5,0)">
+        <rect width="44" height="40" rx="12" fill="#ffcc00" stroke="#06040e" stroke-opacity="0.34" stroke-width="3"/>
+        <rect x="4" y="3" width="36" height="16" rx="8" fill="url(#chipGloss)"/>
+      </g>
+      <g transform="translate(59,0)">
+        <rect width="44" height="40" rx="12" fill="#35b36a" stroke="#06040e" stroke-opacity="0.34" stroke-width="3"/>
+        <rect x="4" y="3" width="36" height="16" rx="8" fill="url(#chipGloss)"/>
+      </g>
+    </g>
   </g>
 </svg>

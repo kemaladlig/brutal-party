@@ -36,7 +36,7 @@
   border: 3px solid var(--edge);
   border-radius: var(--radius-btn);
   box-shadow: 3px 3px 0 var(--edge-strong);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 900;
   cursor: pointer;
@@ -111,7 +111,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 800;
   background-color: var(--p1);
@@ -149,7 +149,7 @@
 
 .paste-code-btn {
   min-height: 44px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 800;
   background-color: var(--panel);
@@ -165,7 +165,7 @@
 }
 
 .join-label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 800;
   color: var(--n-700);
@@ -192,14 +192,14 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-display);
   font-size: 12px;
   font-weight: 800;
 }
 
 .join-as-hint {
   color: var(--n-600);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 700;
   line-height: 1.35;
@@ -208,7 +208,7 @@
 .brutal-input {
   width: 100%;
   padding: 12px 14px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 18px;
   font-weight: 900;
   background-color: var(--panel);
@@ -233,7 +233,7 @@
   width: 100%;
   min-height: 44px;
   padding: 12px;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-display);
   font-size: 14px;
   font-weight: 900;
   border: 2.5px solid var(--edge);
@@ -300,7 +300,7 @@
 }
 
 .staging-badge {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-weight: 800;
   font-size: 11px;
   letter-spacing: 0.8px;
@@ -311,7 +311,7 @@
 }
 
 .staging-ready-pill {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-weight: 900;
   font-size: 12px;
   letter-spacing: 0.5px;
@@ -336,7 +336,7 @@
   border: 3px solid var(--edge);
   border-radius: var(--radius-btn);
   box-shadow: 4px 4px 0 var(--edge-strong);
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-display);
   font-weight: 900;
   font-size: 16px;
   letter-spacing: 0.04em;
@@ -361,7 +361,7 @@
   border: 3px solid var(--edge);
   border-radius: var(--radius-btn);
   box-shadow: 4px 4px 0 var(--edge-strong);
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-display);
   font-weight: 800;
   font-size: 13px;
   cursor: pointer;
@@ -392,7 +392,7 @@
 }
 
 .countdown-overlay-number {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-display);
   font-weight: 900;
   font-size: min(38vw, 260px);
   line-height: 1;
@@ -402,7 +402,7 @@
 }
 
 .countdown-overlay-sub {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-weight: 800;
   font-size: clamp(16px, 2vw, 24px);
   letter-spacing: 2.5px;
@@ -493,7 +493,7 @@
 }
 
 .customize-badge {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 900;
   background-color: var(--bot-tag);
@@ -505,7 +505,7 @@
 }
 
 .customize-title {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-display);
   font-size: clamp(20px, 3vw, 26px);
   font-weight: 900;
   color: var(--ink);
@@ -522,7 +522,7 @@
   color: var(--white);
   border: 3px solid var(--edge);
   box-shadow: 3px 3px 0 var(--edge-strong);
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-display);
   font-size: 20px;
   font-weight: 900;
   display: flex;

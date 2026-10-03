@@ -52,6 +52,9 @@ function gameCard(mode, index) {
   img.alt = '';
   img.loading = index < 8 ? 'eager' : 'lazy';
   img.decoding = 'async';
+  // Kapak swap edilirken (webp yok/bozuk) galeri kırılmasın: kart zemini +
+  // isim etiketi kalır, kırık ikon gösterilmez (kumanda önizlemeyle aynı dil).
+  img.addEventListener('error', () => { img.style.display = 'none'; }, { once: true });
 
   card.append(
     img,
@@ -111,6 +114,8 @@ registerView('games', {
     heroCover.className = 'games-hero-cover';
     heroCover.alt = '';
     heroCover.decoding = 'async';
+    // Kahraman kapak yoksa alan çökmesin: kopya + CTA ayakta kalır.
+    heroCover.addEventListener('error', () => { heroCover.style.display = 'none'; });
     const heroCat = el('span', 'games-hero-cat', '');
     const heroName = el('h3', 'games-hero-name', '');
     const heroHint = el('p', 'games-hero-hint', '');
@@ -141,6 +146,7 @@ registerView('games', {
       if (!mode || mode === activeMode) return;
       activeMode = mode;
       const cart = CARTRIDGES[mode];
+      heroCover.style.display = '';
       heroCover.src = ART(mode);
       heroCover.classList.remove('is-in');
       // Re-trigger: sınıfın düşmesi için bir kare refix zorunlu.

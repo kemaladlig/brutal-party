@@ -9,6 +9,8 @@
     "dev:https": "vite --host 0.0.0.0 --port 3000 --mode https",
     "dev:share": "node scripts/share.mjs",
     "build": "vite build",
+    "gen:icons": "node scripts/gen-icons.mjs",
+    "gen:art": "node scripts/gen-art.mjs",
     "check": "tsc --noEmit && npm run check:undef && npm run check:tokens && npm run check:rules && npm run test && npm run health",
     "typecheck": "node scripts/typecheck.mjs --stats",
     "typecheck:gate": "node scripts/typecheck.mjs",

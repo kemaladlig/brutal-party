@@ -88,13 +88,13 @@
   align-items: center;
   gap: 11px;
   padding: 9px 15px 9px 10px;
-  border-radius: 19px;
-  border: 2px solid var(--scene-btn-line);
+  border-radius: var(--r-lg);
+  border: var(--arcade-edge-w) solid var(--scene-btn-line);
   background: var(--scene-btn-fill);
   color: var(--scene-btn-ink);
   text-align: start;
   cursor: pointer;
-  box-shadow: 0 9px 20px var(--scene-btn-shadow);
+  box-shadow: 0 9px 20px var(--scene-btn-shadow), var(--arcade-bevel);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   transition: transform 180ms cubic-bezier(0.2, 0.8, 0.3, 1),
@@ -210,8 +210,8 @@
 }
 
 .scene-btn-label {
-  font: 900 13px/1.1 var(--font-grotesk);
-  letter-spacing: 0.02em;
+  font: 600 15px/1.1 var(--font-display);
+  letter-spacing: 0.01em;
   /* Sahne eylemleri DAİMA büyük harf; i18n sözlüğündeki "Yükle" gibi
      cümle biçimi yazılsa bile aile içinde tutarlı görünür. */
   text-transform: uppercase;
@@ -311,8 +311,8 @@
 }
 
 .home-name-text {
-  font: 900 18px/1.1 var(--font-grotesk);
-  letter-spacing: -0.01em;
+  font: 600 19px/1.1 var(--font-display);
+  letter-spacing: -0.005em;
   text-transform: uppercase;
   color: var(--hud-ink);
   min-width: 0;
@@ -421,12 +421,12 @@
   flex: 0 0 auto;
   min-height: 36px;
   padding: 0 13px;
-  border: 1.5px solid var(--hud-line);
+  border: 2px solid var(--hud-line);
   border-radius: var(--radius-pill);
   background: var(--hud-surface);
   color: var(--hud-ink);
-  font: 900 10px/1 var(--font-grotesk);
-  letter-spacing: 0.07em;
+  font: 600 11.5px/1 var(--font-display);
+  letter-spacing: 0.05em;
   cursor: pointer;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);

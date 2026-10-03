@@ -1,7 +1,7 @@
 // Sürüm adıyla birlikte tüm çalışma zamanı önbelleği düşürülür (activate).
 // Statik varlıklarda cache-first kullanıldığı için, bir kapak ya da simge
 // değiştiğinde bu sürüm numarası da yükseltilir.
-const CACHE_NAME = 'brutal-party-v22';
+const CACHE_NAME = 'brutal-party-v25';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

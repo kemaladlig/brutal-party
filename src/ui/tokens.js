@@ -150,34 +150,44 @@ export const CROWN_COLORS = Object.freeze([
 export const UI_FONTS = {
   grotesk: '"Space Grotesk", sans-serif',
   mono: '"JetBrains Mono", monospace',
+  // "Arcade Oyuncak Kutusu" display yüzü — `src/styles/tokens.css --font-display`
+  // ile AYNI aile. Başlık/wordmark/kazanan adı buradan çizilir; iki taraf
+  // birlikte değişir yoksa canvas HUD'u menüden kopar.
+  display: '"Fredoka", "Space Grotesk", sans-serif',
 };
 
 // Tipografi kademeleri: rol → [ağırlık, px, aile]
 export const UI_TEXT = {
   label: [800, 11, 'grotesk'], // kart altı yazı, rozet altı
-  nameTag: [900, 11, 'grotesk'], // oyuncu isim rozeti
-  tag: [900, 12, 'grotesk'], // bot rozeti
+  nameTag: [600, 11, 'display'], // oyuncu isim rozeti
+  tag: [700, 12, 'display'], // bot rozeti
   monoLabel: [900, 13, 'mono'], // kılavuz başlığı
   monoBody: [800, 12, 'mono'], // alt bilgi / skor satırı
-  section: [900, 14, 'grotesk'], // bölüm başlığı
-  seatNum: [900, 28, 'grotesk'], // koltuk numarası (dolu)
-  seatEmpty: [900, 24, 'grotesk'], // koltuk numarası (boş)
+  section: [600, 14, 'display'], // bölüm başlığı
+  seatNum: [700, 28, 'display'], // koltuk numarası (dolu)
+  seatEmpty: [700, 24, 'display'], // koltuk numarası (boş)
   pill: [900, 15, 'mono'], // üst hap (süre/skor)
   body: [800, 13, 'grotesk'], // bekleme yazısı
   hudScore: [900, 22, 'mono'], // broadcast skor sayısı
-  hudBadge: [900, 10, 'grotesk'], // mikro rozet (P1, LEADER vb.)
-  hudName: [800, 11, 'grotesk'], // HUD oyuncu adı
+  hudBadge: [600, 10, 'display'], // mikro rozet (P1, LEADER vb.)
+  hudName: [500, 11, 'display'], // HUD oyuncu adı
   floating: [900, 15, 'mono'], // havaya süzülen bildirim (+1★, HASAR)
-  button: [900, 20, 'grotesk'], // BAŞLAT / YENİDEN OYNA (büyük)
-  buttonSmall: [800, 15, 'grotesk'], // final butonu
-  title: [900, 24, 'grotesk'], // final kazananı
+  button: [700, 20, 'display'], // BAŞLAT / YENİDEN OYNA (büyük)
+  buttonSmall: [600, 15, 'display'], // final butonu
+  title: [700, 24, 'display'], // final kazananı
   // Sonuç kartı kademesi (koyu panel): üst etiket / kazanan / sıralama satırı.
   finalLabel: [900, 12, 'mono'],
-  finalHero: [900, 26, 'grotesk'],
-  finalRow: [800, 14, 'grotesk'],
+  finalHero: [700, 27, 'display'],
+  finalRow: [500, 14, 'display'],
   finalRowValue: [900, 14, 'mono'],
-  display: [900, 32, 'grotesk'], // lobi başlığı
-  hero: [900, 52, 'grotesk'], // sinyal / devasa durum
+  display: [700, 32, 'display'], // lobi başlığı
+  hero: [700, 52, 'display'], // sinyal / devasa durum
+  // Arcade Oyuncak Kutusu display kademeleri (canvas HUD tarafı).
+  // CSS `--font-display` tüketicileriyle aynı karakteri taşır.
+  displayTag: [700, 12, 'display'], // rozet/etiket
+  displayM: [600, 22, 'display'], // kart / bölüm başlığı
+  displayL: [700, 34, 'display'], // ekran başlığı
+  displayXL: [700, 52, 'display'], // kazanan / devasa durum
 };
 
 // `900 15px "JetBrains Mono", monospace` üretir.

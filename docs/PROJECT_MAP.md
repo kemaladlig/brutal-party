@@ -533,3 +533,12 @@ Oyunun görsel dili, soluk/monokrom krem zeminlerden canlı, neşeli ve oyun kim
   4. **FX & Partikül Uyumu:** Kıvılcım/toz efektlerinin nötr griden tema vurgusuna geçişi (`fxKit.js`).
   5. **Zafer ve Sonuç Paneli:** Maç sonu kartında kazanan rengi ve pastel kutlama aurası (`resultPanel.js`, `worldViewKit.js`).
 
+### 9.1 Kabuk & Menü Dili — "Arcade Oyuncak Kutusu"
+
+Saha zaten oyuncak-masası dilindeyken kabuk düz koyu panel + ince 1px ayraç dilinde kalmıştı; menüler oyundan kopuk okunuyordu. Kabuk artık sahayla **tek ürün** gibi konuşur.
+
+- **Display tipografi:** `--font-display` (`src/styles/tokens.css`) = `'Fredoka', 'Space Grotesk'`; canvas karşılığı `UI_FONTS.display` (`src/ui/tokens.js`). Gövde `Space Grotesk`, veri/mono `JetBrains Mono` kalır. İki taraf (CSS + canvas `UI_TEXT` kademeleri) **birlikte** değişir, yoksa HUD menüden kopar. Türkçe diakritikleri kapsar (latin-ext).
+- **Arcade malzeme ölçeği:** `--arcade-edge-w`, `--arcade-bevel` (üst pah), `--arcade-under` (alt cephe), `--arcade-drop-sm/md/lg`, `--arcade-drop-press`; yarıçap ölçeği `--r-sm/md/lg/xl`. Kural: kalın kenar + üst pah + **sert ofset gölge** (düz 1px ayraç dili yerine). Işık yönü sahayla aynı (sol-üst −45°).
+- **Kapsam:** shell (`shell.css`), ortak sahne butonları (`scene.css`), dört ekran (`home/games/profile/room.css`), ortak sheet/modallar (`sheets.css`, `settings.css`, `modals.css`), bildirimler (`notices.css`), canvas HUD/result (`ui/tokens.js` rolleri) ve telefon kumandası (`gamepad.css`). Yeni bir yüzey eklerken renk literali veya düz panel dili açılmaz; bu token'lar tüketilir.
+- **Doğrulama:** `npm run check:tokens` + `npm run check:rules` (görsel/mikro-çizim), tam `npm run check` yalnız yapı/protokol/motor değişiminde.
+

@@ -28,7 +28,7 @@
   border: 3px solid var(--edge);
   border-radius: var(--radius-btn);
   box-shadow: 3px 3px 0 var(--edge-strong);
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-display);
   font-weight: 800;
   font-size: 13px;
   letter-spacing: 0.04em;
@@ -61,7 +61,7 @@
   border: 3px solid var(--edge);
   border-radius: var(--radius-btn);
   box-shadow: 3px 3px 0 var(--edge-strong);
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-display);
   font-weight: 900;
   font-size: 24px;
   line-height: 1;
@@ -94,7 +94,7 @@
   border: 3px solid var(--edge);
   border-radius: var(--radius-btn);
   box-shadow: 3px 3px 0 var(--edge-strong);
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-display);
   font-weight: 900;
   font-size: 18px;
   line-height: 1;
@@ -259,7 +259,7 @@
   gap: 4px;
   height: 38px;
   padding: 0 10px;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-display);
   font-size: 15px;
   font-weight: 900;
   background: var(--panel);
@@ -289,7 +289,7 @@
 }
 
 .sheet-close .btn-esc-hint {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 800;
   color: var(--muted);
@@ -339,7 +339,7 @@
 }
 
 .sheet-section-title {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 1.2px;
@@ -348,7 +348,7 @@
 }
 
 .sheet-section-sub {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.8px;
@@ -404,7 +404,7 @@
   padding: 2px 5px;
   background: var(--ink);
   color: var(--paper);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 900;
   text-align: center;
@@ -412,7 +412,7 @@
 
 .pc-keys {
   min-width: 0;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 800;
   color: var(--n-700);

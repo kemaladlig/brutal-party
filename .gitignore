@@ -19,3 +19,5 @@ BRUTAL-PARTY.apk
 # Playwright çalışma artıkları
 test-results/
 playwright-report/
+# AI görsel kaynakları (~2MB'lık .jfif'ler): pakete/repoya girmez, isteği şişirir
+art-source/

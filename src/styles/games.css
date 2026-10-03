@@ -76,12 +76,12 @@
   aspect-ratio: 1;
   min-height: 0;
   padding: 0;
-  border: 2px solid var(--hud-line);
-  border-radius: 18px;
+  border: var(--arcade-edge-w) solid var(--hud-line);
+  border-radius: var(--r-md);
   background: var(--hud-surface);
   overflow: hidden;
   cursor: pointer;
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--arcade-drop-sm), var(--arcade-bevel);
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
   /* Giriş: kademeli pop-in. `backwards` — bitince hover/active transform
      ezilmez (`both` son kareyi tutup hover'ı öldürürdü). */
@@ -153,8 +153,8 @@
   padding: 18px 10px 8px;
   background: linear-gradient(180deg, transparent 0%, var(--scene-shadow) 72%);
   color: var(--hud-ink);
-  font: 900 12px/1.1 var(--font-grotesk);
-  letter-spacing: 0.05em;
+  font: 700 13px/1.1 var(--font-display);
+  letter-spacing: 0.03em;
   text-align: start;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -196,9 +196,9 @@
   max-width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
-  border-radius: 22px;
-  border: 2px solid var(--hud-line);
-  box-shadow: 0 18px 40px var(--scene-shadow);
+  border-radius: var(--r-lg);
+  border: var(--arcade-edge-w) solid var(--hud-line);
+  box-shadow: var(--arcade-drop-md), var(--arcade-bevel);
   display: block;
 }
 
@@ -231,8 +231,8 @@
 .games-hero-cat[hidden] { display: none; }
 
 .games-hero-name {
-  font: 900 clamp(18px, 3.6vh, 34px)/1.05 var(--font-grotesk);
-  letter-spacing: 0.01em;
+  font: 700 clamp(20px, 3.8vh, 38px)/1.05 var(--font-display);
+  letter-spacing: 0.005em;
   color: var(--hud-ink);
   text-shadow: 0 3px 14px var(--scene-shadow);
   overflow: hidden;
@@ -277,7 +277,7 @@
     gap: 12px;
   }
 
-  .games-hero-cover { height: clamp(68px, 12vh, 100px); border-radius: 16px; flex: 0 0 auto; }
+  .games-hero-cover { height: clamp(68px, 12vh, 100px); border-radius: var(--r-md); flex: 0 0 auto; }
   .games-hero-copy { text-align: start; align-items: flex-start; flex: 1 1 auto; min-width: 0; }
   .games-hero-hint { display: none; }
   .games-play { width: auto; margin: 0 0 0 auto; padding: 10px 16px 12px; }
@@ -287,7 +287,7 @@
 
 /* Kısa yatay telefon: 4 sütun korunur, süsler sadeleşir. */
 @media (max-height: 430px) {
-  .games-hero-cover { height: clamp(96px, 30vh, 150px); border-radius: 18px; }
+  .games-hero-cover { height: clamp(96px, 30vh, 150px); border-radius: var(--r-md); }
   .games-hero-hint { display: none; }
   .game-card { border-radius: 14px; }
 }

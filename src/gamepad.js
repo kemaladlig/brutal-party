@@ -704,7 +704,7 @@ export class GamepadManager {
     ctx.fillStyle = '#F4F4F0';
     ctx.fillRect(0, 0, width, height);
     ctx.fillStyle = '#1A1A1A';
-    ctx.font = '900 18px "Space Grotesk", sans-serif';
+    ctx.font = '600 19px "Fredoka", "Space Grotesk", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(t('pad.waiting'), width / 2, height / 2);

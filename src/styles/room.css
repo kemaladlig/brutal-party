@@ -61,13 +61,13 @@
   width: 100%;
   min-height: clamp(122px, 20vh, 158px);
   padding: 16px 22px 18px;
-  border: 2px solid var(--scene-btn-ghost-line);
-  border-radius: 22px;
+  border: var(--arcade-edge-w) solid var(--scene-btn-ghost-line);
+  border-radius: var(--r-lg);
   background: var(--scene-btn-ghost);
   color: var(--hud-ink);
   text-align: start;
   cursor: pointer;
-  box-shadow: 0 9px 20px var(--scene-btn-shadow);
+  box-shadow: 0 9px 20px var(--scene-btn-shadow), var(--arcade-bevel);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   overflow: hidden;
@@ -109,8 +109,8 @@
 .room-choice-word {
   position: relative;
   z-index: 2;
-  font: 900 clamp(34px, 6vh, 56px)/1 var(--font-grotesk);
-  letter-spacing: 0.02em;
+  font: 700 clamp(34px, 6vh, 56px)/1 var(--font-display);
+  letter-spacing: 0.01em;
   text-shadow: 0 2px 6px var(--scene-btn-shadow);
 }
 
@@ -338,8 +338,8 @@
   border: 1.5px solid var(--scene-btn-ghost-line);
   background: var(--scene-btn-ghost);
   color: var(--hud-ink);
-  font: 900 10.5px/1 var(--font-grotesk);
-  letter-spacing: 0.08em;
+  font: 600 11px/1 var(--font-display);
+  letter-spacing: 0.06em;
   cursor: pointer;
   transition: transform 140ms ease, background 160ms ease;
 }
@@ -473,7 +473,7 @@
 }
 
 .lobby-game-name {
-  font: 900 clamp(20px, 6vh, 50px)/1.04 var(--font-grotesk);
+  font: 700 clamp(20px, 6vh, 50px)/1.04 var(--font-display);
   letter-spacing: 0.01em;
   color: var(--hud-ink);
   text-shadow: 0 3px 14px var(--scene-btn-shadow);
@@ -545,7 +545,7 @@
   border: 1.5px solid var(--scene-btn-ghost-line);
   background: var(--scene-btn-ghost);
   color: var(--hud-ink);
-  font: 900 10px/1 var(--font-grotesk);
+  font: 600 10.5px/1 var(--font-display);
   letter-spacing: 0.08em;
   line-height: 0;
   cursor: pointer;
@@ -575,8 +575,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font: 900 10.5px/1 var(--font-grotesk);
-  letter-spacing: 0.12em;
+  font: 600 11.5px/1 var(--font-display);
+  letter-spacing: 0.1em;
   color: var(--hud-ink);
 }
 
@@ -661,7 +661,7 @@
 }
 
 .lobby-scene .slot-name {
-  font: 900 14.5px/1.15 var(--font-grotesk);
+  font: 600 14.5px/1.15 var(--font-display);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -757,7 +757,7 @@
   border: 2px solid var(--scene-btn-ghost-line);
   background: var(--scene-btn-ghost);
   color: var(--hud-ink);
-  font: 900 10.5px/1.1 var(--font-grotesk);
+  font: 600 11.5px/1 var(--font-display);
   letter-spacing: 0.06em;
   cursor: pointer;
   backdrop-filter: blur(10px);
@@ -791,8 +791,8 @@
   background: linear-gradient(180deg, var(--play-top) 0%, var(--play-mid) 55%, var(--play-bottom) 100%);
   color: var(--play-ink);
   box-shadow: 0 7px 0 var(--play-edge), 0 14px 26px var(--scene-btn-shadow);
-  font: 900 15px/1 var(--font-grotesk);
-  letter-spacing: 0.08em;
+  font: 700 16px/1 var(--font-display);
+  letter-spacing: 0.06em;
   cursor: pointer;
   transition: transform 120ms ease, box-shadow 120ms ease, background 160ms ease;
 }
@@ -985,8 +985,8 @@
   color: var(--ink);
   border: 2px solid var(--edge);
   box-shadow: var(--shadow-edge);
-  font: 900 10.5px/1.15 var(--font-grotesk);
-  letter-spacing: 0.05em;
+  font: 600 12px/1.15 var(--font-display);
+  letter-spacing: 0.04em;
   cursor: pointer;
 }
 .lobby-sheet .host-share-btn svg { width: 17px; height: 17px; }
@@ -1009,8 +1009,8 @@
   color: var(--ink);
   border: 2.5px solid var(--edge);
   box-shadow: var(--shadow-edge);
-  font: 900 12px/1 var(--font-grotesk);
-  letter-spacing: 0.06em;
+  font: 600 13px/1 var(--font-display);
+  letter-spacing: 0.05em;
   cursor: pointer;
   transition: transform 140ms ease, box-shadow 140ms ease, background 160ms ease;
 }
@@ -1129,7 +1129,7 @@
 }
 
 .lobby-grid-name {
-  font: 900 9.5px/1.15 var(--font-grotesk);
+  font: 600 10.5px/1.15 var(--font-display);
   letter-spacing: 0.03em;
   text-align: center;
   overflow: hidden;
