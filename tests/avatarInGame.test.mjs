@@ -216,6 +216,30 @@ test('the bigger in-game eyes stay inside the circle', () => {
   }
 });
 
+test("'normal' is not a state: it keeps the player's chosen face", () => {
+  // Regresyon: normalizeExpression('normal') eskiden FOCUS'a çözülüyordu, bu
+  // yüzden COLLAPSE/BOMB/ARCHER gibi 'normal' geçen motorlarda oyuncunun
+  // kişiselleştirdiği yüz sakin hâlde kayboluyordu. Artık 'normal' seçili yüze
+  // düşer ve seçili yüzle BİREBİR aynı çizimi üretir.
+  const chosen = drawInGame({ expression: 'normal' }, { ...player, expression: 'CAT' });
+  const plain = drawInGame({}, { ...player, expression: 'CAT' });
+  assert.deepEqual(chosen.calls, plain.calls, "'normal' seçili yüzü ezdi (FOCUS'a düştü)");
+
+  // Seçili yüz gerçekten farklı bir çizim: testin dişi olsun (CAT ≠ FOCUS).
+  const focusNormal = drawInGame({ expression: 'normal' }, { ...player, expression: 'FOCUS' });
+  assert.notDeepEqual(chosen.calls, focusNormal.calls, "'normal' seçili yüzü yok sayıyor");
+
+  // Gerçek DURUM takma adı hâlâ seçili yüzü geçici ezer (EXCITED -> WINK).
+  const excited = drawInGame({ expression: 'excited' }, { ...player, expression: 'CAT' });
+  const wink = drawInGame({}, { ...player, expression: 'WINK' });
+  assert.deepEqual(excited.calls, wink.calls, "'excited' durumu WINK'e çözülmedi");
+
+  // Vuruş durumu 'normal'den önce gelir: PANIC kazanır.
+  const hitNormal = drawInGame({ expression: 'normal', hitFlash: true }, { ...player, expression: 'CAT' });
+  const hitPanic = drawInGame({ hitFlash: true }, { ...player, expression: 'PANIC' });
+  assert.deepEqual(hitNormal.calls, hitPanic.calls, 'vuruş anında PANIC ezilmedi');
+});
+
 test('every headwear option renders its own geometry, and NONE is a clean body', () => {
   // Her baş süsü ayrı bir çizim dalıdır; biri eksik/bozuk olsa saha sessizce
   // süssüz kalırdı. NONE taban çizimdir; geri kalan her id fazladan geometri

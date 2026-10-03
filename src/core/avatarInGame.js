@@ -77,6 +77,10 @@ export function blinkState(now, slotIndex = 0) {
  * İfade takma adları — MODÜL SEVİYESİNDE sabit. Eskiden `normalizeExpression`
  * her çağrıda bu 20 anahtarlı nesneyi yeniden kuruyordu; çağrı kare başına
  * avatar başına birkaç kez olduğu için mobilde sürekli çöp üretiyordu (§3).
+ *
+ * `NORMAL` burada EŞLENMEZ: bir durum yüzü değil, "oyuncunun kendi yüzü"
+ * demektir. Eşlenseydi (eskiden `FOCUS`) seçili yüz sakin hâlde kaybolurdu;
+ * `drawGameAvatar` onu ayıklayıp seçili yüze düşürür (tek anlam, tek yer).
  */
 const EXPRESSION_ALIASES = Object.freeze({
   ANGRY: 'ANGRY',
@@ -87,7 +91,6 @@ const EXPRESSION_ALIASES = Object.freeze({
   WINK: 'WINK',
   SMIRK: 'GRIN',
   DEAD: 'ZOMBIE',
-  NORMAL: 'FOCUS',
   FOCUS: 'FOCUS',
   DERP: 'DERP',
   CYCLOPS: 'CYCLOPS',
@@ -395,10 +398,32 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
     || (typeof player.flashTimer === 'number' && player.flashTimer > 0)
   );
 
+  // İfade iki kaynaktan gelir:
+  //   1) DURUM takma adı ('excited', 'panic', 'angry'…) — seçili yüzü GEÇİCİ
+  //      olarak ezer (çizim çağrısı `opts.expression` ile gelir).
+  //   2) SEÇİLİ yüz — oyuncunun kişiselleştirdiği ifade.
+  //
+  // 'normal' bir durum DEĞİL, "oyuncunun kendi yüzü" demektir. Eskiden bu da
+  // FOCUS'a çevriliyordu; sonuç: COLLAPSE/BOMB/ARCHER gibi 'normal' geçen tüm
+  // motorlarda oyuncunun seçtiği yüz sakin hâlde kaybolup FOCUS oluyordu
+  // (menüde CAT, sahada FOCUS). Ayrıca seçili yüz yalnız `player.expression`'a
+  // bakıyordu; başlık (headwear) gibi koltuk/c-profil kaynağına düşmüyordu.
+  const rawExpression = opts.expression ? String(opts.expression) : '';
+  const isNeutralState = rawExpression.toUpperCase() === 'NORMAL';
+  const stateExpression = (rawExpression && !isNeutralState)
+    ? normalizeExpression(rawExpression)
+    : null;
+  // Seçili yüz kademesi — `headwear` ile AYNI kaynak sırası (tek kaynak kuralı).
+  const chosenExpression = player.expression
+    || player.avatar?.expression
+    || (slotIndex !== null ? getSlotAvatar(slotIndex)?.expression : null)
+    || getAvatarProfile()?.expression
+    || null;
+
   const expression = normalizeExpression(
-    opts.expression
+    stateExpression
     || (isHit ? 'PANIC' : null)
-    || player.expression
+    || chosenExpression
   );
 
   // Karakter Kinetiği (Squash & Stretch)
