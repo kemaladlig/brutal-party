@@ -13,10 +13,11 @@
   display: none !important;
 }
 
-/* Maç akarken küme tek düğmeye (⋮) iner: skor şeridi ve saha üst payı boş
-   kalır. LOBİYE DÖN, tam ekran, tepki ve düzen çipi ⋮ sayfasındadır; lobi
-   kurulumunda (motor LOBBY) hızlı düğmeler yerinde durur. */
-#in-game-hud.is-match > :not(#btn-open-options) {
+/* Maç akarken küme ⋮ + tepkiye iner: skor şeridi ve saha üst payı boş
+   kalır. LOBİYE DÖN, tam ekran ve düzen çipi ⋮ sayfasındadır; tepki hem
+   üstte hem ⋮ sayfasında durur; lobi kurulumunda (motor LOBBY) hızlı
+   düğmeler yerinde durur. */
+#in-game-hud.is-match > :not(#btn-open-options):not(#btn-quick-react) {
   display: none !important;
 }
 

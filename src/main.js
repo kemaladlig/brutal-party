@@ -144,7 +144,19 @@ ensureReactionTriggers();
 
 setReactionSender('host', (key) => {
   const net = activeNet();
-  if (!net.isHosting) return false;
+  if (!net.isHosting) {
+    // LOCAL solo: ağ yok, balon yalnız kendi ekranında (sıfır ağ maliyeti).
+    if (platformMode !== 'LOCAL') return false;
+    const engine = getActiveGameEngine();
+    let slotIndex = getLocalControlSlot(engine);
+    if (!Number.isInteger(slotIndex) || slotIndex < 0) slotIndex = 0;
+    const color = hostPlayerSlots?.[slotIndex]?.color
+      || getLocalSeatColors?.()?.[slotIndex]
+      || UI_COLORS.players?.[slotIndex]
+      || null;
+    showReaction({ key, slotIndex, color });
+    return true;
+  }
   const seat = getCurrentHostSeat();
   const slotIndex = Number.isInteger(seat) ? seat : -1;
   const sent = net.sendHostReaction?.(slotIndex, key) === true;
@@ -154,8 +166,9 @@ setReactionSender('host', (key) => {
 });
 
 function updateReactionButtons(hosting) {
-  // Tepki gönderimi yalnız odada anlamlı: LOCAL'de alıcı yok.
-  btnQuickReact?.classList.toggle('hidden', !hosting);
+  // Oda + LOCAL solo: HUD zaten MENU'de gizli, oyunda tepki hep görünür.
+  const show = !!hosting || platformMode === 'LOCAL';
+  btnQuickReact?.classList.toggle('hidden', !show);
 }
 
 function onNetworkReaction(slotIndex, key) {

@@ -130,9 +130,10 @@ async function setGameMode(mode) {
   const now = performance.now();
 
   if (btnQuickTvLobby) {
-    btnQuickTvLobby.classList.toggle('hidden', !activeNet().isHosting);
+    const showTop = activeNet().isHosting || getPlatformMode() === 'LOCAL';
+    btnQuickTvLobby.classList.toggle('hidden', !showTop);
   }
-  updateReactionButtons(activeNet().isHosting);
+  updateReactionButtons(activeNet().isHosting || getPlatformMode() === 'LOCAL');
 
   hideAppShell();
   inGameHud.classList.remove('hidden');
