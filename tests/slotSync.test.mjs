@@ -57,7 +57,7 @@ function slotZeroEntity(game) {
 }
 
 test('every cartridge engine honors the slot contract without core mode branches', async () => {
-  assert.equal(GAME_ORDER.length, 12);
+  assert.equal(GAME_ORDER.length, 13);
   for (const mode of GAME_ORDER) {
     const GameClass = await CARTRIDGES[mode].load();
     const game = new GameClass(canvas);

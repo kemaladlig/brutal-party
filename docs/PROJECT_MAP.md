@@ -41,7 +41,7 @@ src/ui/worldViewKit.js      World-view kromu (raunt bandı `drawWorldRoundBanner
                             placeholder/stale + fitWorld)
 src/ui/resultPanel.js       Sonuç paneli primitifleri: drawResultPanel / dimBehindPanel /
                             resultPanelRadius / uiTextScale (tur bandı, final kartı, kumanda ortak)
-src/ui/{snake,pong,crown,archer,bomb,heist,tanks,ninja,zone,collapse,curve,horde}WorldView.js
+src/ui/{snake,pong,crown,archer,bomb,heist,tanks,ninja,zone,collapse,curve,horde,colossus}WorldView.js
                             Client-only renderer'lar; simülasyon/fizik çalıştırmaz
 src/style.css               Modüler stil orkestratörü (@import). SIRA: tokens → scene →
                             home/room/games → sheets (son, override katmanı)
@@ -257,6 +257,7 @@ src/games/ (Oyun Motorları — BaseMiniGame türevleri):
   zone.js / zoneView.js                Brutal Zone (64x64 RLE)
   snake.js / snakeView.js              Brutal Snake
   horde.js / hordeConfig.js / hordeView.js  Brutal Horde
+  colossus.js / colossusConfig.js / colossusView.js  Brutal Colossus (Co-op Titan Hunt)
   collapse.js / collapseView.js        Brutal Collapse (13x13)
   crown.js / crownView.js              Brutal Crown (arşivden çıkarıldı)
   ninja.js / ninjaView.js              Brutal Ninja

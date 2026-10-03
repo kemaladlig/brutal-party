@@ -111,7 +111,7 @@ test('packed-wall world views render an interpolated frame without throwing', ()
 });
 
 test('every registered cartridge exposes the generic world-view contract', () => {
-  assert.equal(GAME_ORDER.length, 12);
+  assert.equal(GAME_ORDER.length, 13);
   for (const id of GAME_ORDER) {
     assert.equal(typeof CARTRIDGES[id]?.worldView?.load, 'function', `${id} worldView.load`);
   }

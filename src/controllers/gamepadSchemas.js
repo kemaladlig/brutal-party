@@ -244,4 +244,20 @@ export const GAMEPAD_SCHEMAS = {
     ],
   },
 
+  COLOSSUS: {
+    type: 'TWIN_STICK_ACTION',
+    def: CONTROL_DEFS.COLOSSUS,
+    actions: [
+      {
+        id: 'dash',
+        action: 'DASH',
+        icon: 'zap',
+        label: t('pad.dash'),
+        color: '#E11D48',
+        cooldown: 3.5,
+        vibrate: [25, 35],
+        syncHostCooldown: true,
+      },
+    ],
+  },
 };

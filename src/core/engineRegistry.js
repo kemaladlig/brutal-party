@@ -11,6 +11,7 @@ import { reportError } from './errorReporter.js';
 
 export const GAME_ORDER = [
   'HORDE',
+  'COLOSSUS',
   'PONG',
   'ARCHER',
   'TANKS',
@@ -336,6 +337,32 @@ export const CARTRIDGES = {
         cdFire: game.players.map((player) => game.state === 'ROUND_PAUSE'
           ? 100
           : Math.min(100, Math.ceil((Math.max(0, player.attackCooldown || 0) + (Number(player.reloadTimer) || 0)) * 100))),
+      }),
+    }),
+  },
+
+  COLOSSUS: {
+    id: 'COLOSSUS',
+    category: 'fight',
+    title: 'COLOSSUS',
+    lobbyTitle: 'COLOSSUS',
+    tacticalHintKey: 'hint.colossus',
+    color: '#E11D48',
+    schema: GAMEPAD_SCHEMAS.COLOSSUS,
+    worldView: {
+      load: () => import('../ui/colossusWorldView.js'),
+    },
+    load: () => import('../games/colossus.js').then((m) => m.ColossusGame),
+    createEngine: (game) => makeEngine(game, {
+      packet: () => ({
+        scores: game.scores,
+        alive: game.players.map((p) => p.isAlive && !p.isDowned),
+        hp: game.players.map((p) => Math.max(0, p.hp || 0)),
+        bossHp: Math.max(0, Math.round(game.boss?.hp || 0)),
+        bossMaxHp: Math.round(game.boss?.maxHp || 100),
+        phase: game.boss?.phase || 1,
+        staggered: game.boss?.state === 'STAGGER',
+        cd: game.players.map((p) => Math.min(100, Math.ceil((Math.max(0, p.dashCooldown || 0) / 3.5) * 100))),
       }),
     }),
   },

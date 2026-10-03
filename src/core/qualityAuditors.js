@@ -18,8 +18,8 @@ export const MODE_VIEW_MAP = Object.freeze({
   TANKS: 'src/games/tanksView.js',
   SNAKE: 'src/games/snakeView.js',
   COLLAPSE: 'src/games/collapseView.js',
-  
   CURVE: 'src/games/curveView.js',
+  COLOSSUS: 'src/games/colossusView.js',
 });
 
 /**
