@@ -21,3 +21,6 @@ test-results/
 playwright-report/
 # AI görsel kaynakları (~2MB'lık .jfif'ler): pakete/repoya girmez, isteği şişirir
 art-source/
+
+# AI gorsel uretici cikislari (kapak kaynaklari): pakete/repoya girmez
+vibe_images/
