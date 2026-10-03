@@ -4,7 +4,7 @@
 // Yakın mesafe vuruş 2 puan, uzak vuruş 1 puan. 60sn raundu en çok puanla bitiren
 // raundu alır; 2 raund alan şampiyon.
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
-import { playExplosion, playStart, playJoin, playItemPickup, playTeleport, playDashWhoosh, playPowerUp } from '../audio.js';
+import { playArrowHit, playArrowShoot, playDrawTension, playStart, playJoin, playItemPickup, playTeleport, playDashWhoosh, playPowerUp } from '../audio.js';
 import { notifyFireBlocked, notifyFireShot } from '../core/fireFeedbackEffects.js';
 import { resetFireFeedback, updateFireFeedback } from '../core/fireFeedback.js';
 import { t } from '../i18n.js';
@@ -304,6 +304,7 @@ export class ArcherGame extends BaseMiniGame {
     }
     if (player.stun > 0) return;
     player.charging = true;
+    playDrawTension();
   }
 
   looseArrow(player) {
@@ -364,7 +365,7 @@ export class ArcherGame extends BaseMiniGame {
       slot: player.index,
       haptic: player.slotType === 'human',
     });
-    playItemPickup();
+    playArrowShoot();
   }
 
   aimAngle(player, chargeOverride = null) {
@@ -710,6 +711,7 @@ export class ArcherGame extends BaseMiniGame {
         a.dist += step * hit.t;
         if (hit.type === 'obstacle') {
           this.fx.emit('spark', { x: a.x, y: a.y, color: '#9C988F' });
+          playArrowHit();
           dead = true;
         } else {
           const victim = hit.victim;
@@ -724,7 +726,7 @@ export class ArcherGame extends BaseMiniGame {
               dirX: a.vx, dirY: a.vy, slot: victim.index,
               haptic: victim.slotType === 'human',
             });
-            playExplosion();
+            playArrowHit();
             dead = true;
           } else {
             const close = a.dist < ARCHER_CLOSE_DIST;
@@ -750,7 +752,7 @@ export class ArcherGame extends BaseMiniGame {
               dirX: a.vx, dirY: a.vy, slot: victim.index,
               haptic: victim.slotType === 'human',
             });
-            playExplosion();
+            playArrowHit();
             dead = true;
           }
         }
@@ -887,7 +889,7 @@ export class ArcherGame extends BaseMiniGame {
     }
 
     // Oklar
-    drawArcherArrows(ctx, this.arrows);
+    drawArcherArrows(ctx, this.arrows, this.arena);
 
     // Oyuncular
     drawArcherPlayers(ctx, this.players, { showFx: this.state === 'PLAYING', now: this.lastTime, selfSlot: this.localControlSlot ?? -1 });

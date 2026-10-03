@@ -70,7 +70,7 @@ export function isVoiceEnabled() {
 
 /** Warm curated samples early (call on staging / match start). @param {string[]} [ids] */
 export function warmGameSounds(ids) {
-  try { preloadSamples(Array.isArray(ids) ? ids : ['ui.tick', 'ui.confirm', 'hit.punchLight', 'shot.laserSmall', 'boom.crunch']); } catch {}
+  try { preloadSamples(Array.isArray(ids) ? ids : ['ui.tick', 'ui.confirm', 'hit.punchLight', 'shot.laserSmall']); } catch {}
 }
 
 export function getIsMuted() {
@@ -277,6 +277,80 @@ export function playExplosion() {
 
   osc.start(now);
   osc.stop(now + 0.36);
+}
+
+// ── Olay-özgü yumuşak sesler ──
+// `playExplosion` büyük boom örneği taşıyordu (explosionCrunch, 0.9 gain).
+// Yılan ölümü / ok isabeti gibi küçük olaylarda aynı patlama hem yanlış
+// renkti hem de çok yüksekti; her olayın kendi sessiz bandı var:
+//   yılan ölümü → yumuşak "çat" · ok isabeti → tok yumruk · ok → yay "pan".
+export function playSnakePop() {
+  if (sampleFor('playSnakePop')) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(520, now);
+  osc.frequency.exponentialRampToValueAtTime(170, now + 0.09);
+
+  gain.gain.setValueAtTime(0.2, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.12);
+}
+
+export function playArrowHit() {
+  if (sampleFor('playArrowHit')) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(340, now);
+  osc.frequency.exponentialRampToValueAtTime(90, now + 0.08);
+
+  gain.gain.setValueAtTime(0.24, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.11);
+}
+
+export function playArrowShoot() {
+  if (sampleFor('playArrowShoot')) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(900, now);
+  osc.frequency.exponentialRampToValueAtTime(260, now + 0.06);
+
+  gain.gain.setValueAtTime(0.15, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.08);
 }
 
 // Kuru tetik: "klik" değil, yumuşak bir "tok".

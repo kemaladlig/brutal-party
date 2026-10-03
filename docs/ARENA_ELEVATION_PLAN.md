@@ -165,7 +165,7 @@ Her faz tamamlandığında aşağıdaki kontrol kapılarından eksiksiz geçilec
   - [x] Yükseltilmiş tepsi gövdesi ve masaya oturan kalınlık (`paintBackdropLayer` — halka gövde + üst/sol ışık yüzü + katmanlı temas gölgesi)
   - [x] Çarpışmalarda kinetik duvar esnemesi ve dalgalanma efekti (`fieldReactive.js` → `emitWallImpact`, `drawField`)
   - [x] Duvar darbe tozu ve kıvılcım parçacıkları (deterministik `hash01` yayılımı, arena kutusuna kırpılır)
-- [ ] **FAZ 2: Canlı Savaş Alanı & Kalıcı Çatışma İzleri (Decals)**
+- [x] **FAZ 2: Canlı Savaş Alanı & Kalıcı Çatışma İzleri (Decals)**
   - [x] Hafif zemin izi yöneticisi (`fieldDecals.js` — 32 yuvalı halka tampon, kare başına sıfır tahsis)
   - [x] Patlama is ve yanık lekeleri (`kill` olayı → organik lob demeti, 5.2 sn'de solar)
   - [x] Ani dönüş patinaj ve ayak izleri (`dust` olayı → harekete paralel çift çizgi)

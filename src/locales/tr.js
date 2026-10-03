@@ -312,6 +312,9 @@ export const TR = {
   'game.roundOver': 'TUR BİTTİ',
   'game.draw': 'BERABERE!',
   'game.won': '{0} KAZANDI!',
+  // Raunt giriş donması (TANKS/CURVE spawn intro): ortak `renderSpawnCountdown`
+  // etiketi. Sayıyı çizim yardımcısı üretir, bu yalnız üstteki kelime.
+  'game.spawnReady': 'HAZIR',
   // ── Per-game control guides ──
   'guide.bomb': 'JOYSTICK: KAÇ • DOKUN: DEPAR • 3 SET ALAN KAZANIR',
   'guide.collapse': 'JOYSTICK: HAREKET ET • AKSİYON: ZIPLA & ŞOK DALGASI AT',

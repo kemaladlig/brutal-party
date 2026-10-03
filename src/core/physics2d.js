@@ -4,6 +4,11 @@
  */
 
 import { emitWallImpact, WALL_IMPACT_MIN_SPEED } from './fieldReactive.js';
+// Engel darbesi (ARENA_ELEVATION_PLAN Faz 5): aşağıdaki `resolveAABB`, motorların
+// bir BLOĞA temas ettiği tek ortak geçittir; blok mikro-titremesi/çatlağı oradan
+// beslenir. Yan etki kasıtlı ve saf-dışıdır ama simülasyonu DEĞİŞTİRMEZ (konum
+// düzeltmesi/hız yansıması birebir aynı kalır) ve paket alanı eklemez.
+import { emitPropImpact, propImpactPower } from './fieldProps.js';
 
 /**
  * Saha DUVARINA temas tek noktadan bildirilir.
@@ -88,6 +93,16 @@ export function resolveAABB(p, obstacles, r, opts = {}) {
         if (p.vx !== undefined && p.vy !== undefined) {
           const dot = p.vx * nx + p.vy * ny;
           if (dot < 0) {
+            // Engel darbesi (Faz 5): yaklaşma hızı gövde yarıçapına oranlanır
+            // (ölçeksiz eşik, AGENTS §4 ham px yasağı) — yürüyerek bloğa
+            // yaslanmak tepki üretmez, dash/tackle/knockback üretir. Tepki
+            // paketlenmez; motor otoritesi ve hız yansıması birebir aynıdır.
+            const power = propImpactPower(-dot, r);
+            if (power > 0) {
+              emitPropImpact({
+                x: closestX, y: closestY, nx, ny, power, span: Math.max(6, r * 0.45),
+              });
+            }
             p.vx -= dot * nx;
             p.vy -= dot * ny;
           }

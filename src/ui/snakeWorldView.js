@@ -30,7 +30,7 @@ export function createSnakeWorldViewRenderer() {
       paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'SNAKE' });
       fitWorld(ctx, width, height, frame.arena, () => {
         const walls = frame.walls.map(([x, y, w, h]) => ({ x, y, w, h }));
-        const foods = frame.foods.map(([x, y, type, size]) => ({ x, y, type, size, pulse: 0 }));
+        const foods = frame.foods.map(([x, y, type, radius]) => ({ x, y, type, radius, pulse: 0 }));
         const players = frame.players.map((player) => ({
           ...player,
           index: player.slot,

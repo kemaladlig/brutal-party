@@ -189,13 +189,20 @@ export function tryPlaySample(id, opts = {}) {
     g.gain.value = Math.min(1.2, Math.max(0.001, v));
     src.connect(g);
     g.connect(busGains[entry.bus]);
-    lastPlayAt.set(id, now);
-    activeVoices.set(id, active + 1);
     src.onended = () => {
       activeVoices.set(id, Math.max(0, (activeVoices.get(id) || 1) - 1));
       try { src.disconnect(); g.disconnect(); } catch {}
     };
-    src.start();
+    try {
+      src.start();
+    } catch {
+      // start() fırlarsa defteri de KİRLETMEMEK: throttle/poly sayacı burada
+      // artırılmış olsaydı, o id hem sample'dan hem synth'ten kalıcı olarak
+      // susardı ("bazen ses çıkıyor bazen çıkmıyor").
+      return false;
+    }
+    lastPlayAt.set(id, now);
+    activeVoices.set(id, active + 1);
     return true;
   } catch {
     return false;

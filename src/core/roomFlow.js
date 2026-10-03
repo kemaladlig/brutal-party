@@ -1126,7 +1126,7 @@ async function enterStaging(mode) {
   showStagingBar();
   showInstallToast(t('toast.stagingOpenHost'));
   // Voice/countdown files warm while players ready up (lazy, no UI block).
-  try { warmGameSounds(['ui.tick', 'ui.confirm', 'hit.punchLight', 'shot.laserSmall', 'boom.crunch', 'voice.count3', 'voice.count2', 'voice.count1', 'voice.fight']); } catch {}
+  try { warmGameSounds(['ui.tick', 'ui.confirm', 'hit.punchLight', 'shot.laserSmall', 'voice.count3', 'voice.count2', 'voice.count1', 'voice.fight']); } catch {}
 }
 
 // BAŞLAT #2: 3-2-1 → oyun (koltuklar kilitli)

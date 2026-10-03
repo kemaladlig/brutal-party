@@ -39,7 +39,7 @@ test('snake world packet is compact, complete and monotonic', () => {
     roundId: 3,
     arena: { left: 10, top: 20, right: 810, bottom: 620 },
     walls: [{ x: 100, y: 120, w: 40, h: 50 }],
-    foods: [{ x: 200, y: 220, type: 'APPLE', size: 13 }],
+    foods: [{ x: 200, y: 220, type: 'APPLE', radius: 15 }],
     players: [{
       index: 0,
       isJoined: true,
@@ -78,7 +78,7 @@ test('interpolated snake frame stays a valid frame (packed walls survive blendin
     roundId: 2,
     arena: { left: 10, top: 20, right: 810, bottom: 620 },
     walls: [{ x: 100, y: 120, w: 40, h: 50 }],
-    foods: [{ x: 200, y: 220, type: 'APPLE', size: 13 }],
+    foods: [{ x: 200, y: 220, type: 'APPLE', radius: 15 }],
     players: [{ index: 0, isJoined: true, isAlive: true, x: headX, y: 0, angle: 0.5, isBoost: false, boostEnergy: 90, boostLocked: false, segments }],
     scores: [0, 0, 0, 0],
     roundWinner: null,

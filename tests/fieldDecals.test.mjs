@@ -404,13 +404,17 @@ test('fieldKit.drawField paints the scar layer over the baked blit', () => {
   drawField(ctx, ARENA, opts);
   const blitAt = ctx.log.findIndex((entry) => entry.startsWith('drawImage('));
   assert.ok(blitAt >= 0, 'saha katmanı blit edilmeli');
-  // Boş havuzda iz katmanı hiç op üretmez; logda kalabilecek tek şey Faz 3'ün
-  // sabit tepe projektörü damgasıdır (spot renkleri/ellipse/iz yoktur).
+  // Boş havuzda iz katmanı hiç op üretmez. Blit sonrası kalan op'lar iki katmanın
+  // sabit damgasıdır: Faz 3 tepe projektörü ve Faz 5 saha gizmo'ları (BOMB teması
+  // `bumpers: 1` + `gizmos: 'vents'` opt-in'i taşır). İkisi de YAY/ELİPS
+  // üretmez — bu yüzden "boş havuzda dairesel iz kalıntısı yok" kilidi korunur.
   const extra = ctx.log.slice(blitAt + 1);
   assert.ok(!extra.some((e) => e.startsWith('ellipse(') || e.startsWith('arc(')),
     `boş havuzda iz kalıntısı olmamalı: ${JSON.stringify(extra)}`);
-  assert.ok(extra.every((e) => /^(save|beginPath|rect|clip|drawImage|restore|globalAlpha)/.test(e)),
-    `blit sonrası yalnız ışık katmanının sabit damgası kalmalı: ${JSON.stringify(extra)}`);
+  // Kalan op'lar katman zincirinin (ışık + props) BEYAN EDİLMİŞ sözlüğüdür;
+  // listede olmayan bir op = yeni bir katman sessizce girmiş demektir.
+  assert.ok(extra.every((e) => /^(save|beginPath|rect|clip|drawImage|restore|globalAlpha|strokeStyle|fillStyle|lineWidth|fill|stroke|moveTo|lineTo|translate|rotate)/.test(e)),
+    `blit sonrası yalnız beyan edilmiş katman op'ları kalmalı: ${JSON.stringify(extra)}`);
 
   emitFxScar('kill', { x: 300, y: 200, size: 40 }, 1);
   virtualNow += 60;

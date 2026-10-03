@@ -5,6 +5,7 @@
 
 import { playItemPickup, playPowerUp, playTeleport, playSlip, playDashWhoosh } from '../audio.js';
 import { pointBlocked } from './physics2d.js';
+import { PICKUP_SIZE } from './arenaKit.js';
 
 /**
  * Pickup effect registry for various power-ups across mini-games.
@@ -105,7 +106,9 @@ export function spawnPickup(game, opts = {}) {
   const {
     types = ['TURBO', 'TELEPORT', 'SLIP'],
     max = 2,
-    size = 15,
+    // Boyut tek kaynaktan (arenaKit.PICKUP_SIZE); `size` YARIÇAP'tır —
+    // drawPickup da aynı birimi okur.
+    size = PICKUP_SIZE.base,
     obstacles = game.pillars || game.obstacles || [],
     pad = 20,
   } = opts;

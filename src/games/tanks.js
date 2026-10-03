@@ -3,7 +3,7 @@ import { getSlotCustomization, getBotPersona } from '../core/customizationManage
 import { playShoot, playRicochet, playExplosion, playDryFire, playStart, playJoin, playPowerUp } from '../audio.js';
 import { t } from '../i18n.js';
 import { renderTopPill, renderFloatingTexts } from '../ui/hud.js';
-import { paintBackdrop } from '../core/fieldKit.js';
+import { paintBackdrop, renderSpawnCountdown } from '../core/fieldKit.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { resolveSlotName } from '../core/slotManager.js';
@@ -36,6 +36,10 @@ const TANK_SUDDEN_DEATH_AT = 35;
 const TANK_ROUND_LIMIT = 90;
 const TANK_SUDDEN_DEATH_MIN_RADIUS = 0.22;
 const TANK_SUDDEN_DEATH_GRACE = 1.15;
+// Raunt giriş donması. Oda zaten 3-2-1 sayacı çalıştırıyor; bu ikinci pencere
+// oyuncuların ilk direksiyonu düzeltmesi için gereken hazırlık payı. SAYISI
+// `renderSpawnCountdown` gösterir (sessiz donma "neden ölmüyor" gibi okunuyordu).
+const TANK_SPAWN_INTRO = 2.0;
 
 // 8 Handcrafted Brutalist Labyrinth Layouts with custom tactical spawns
 export const MAP_LAYOUTS = [
@@ -331,7 +335,10 @@ this.targetScore = 2;
           e.preventDefault();
           const tank = isHumanAlive(slot);
           if (tank) {
-            if (this.spawnIntroTimer > 0) return;
+            // Spawn intro girdiyi YUTMAZ, latch'ler: hareket `canAct`
+            // (update) tarafından zaten engelleniyor, o yüzden burada
+            // yazmak güvenli. Ölçülen kusur: intro'da basılan tuş
+            // bırakılana kadar tankı sabit tutuyordu ("donuyor").
             this.driveOwner[slot] = 'kb';
             tank.isDriving = true;
           }
@@ -578,8 +585,10 @@ this.targetScore = 2;
     }
 
     if (this.state === 'PLAYING') {
-      if (this.spawnIntroTimer > 0) return;
-      // Masa-ortası ATEŞ butonları önce (varsa); köşe-tut sürüşü ardından
+      // Masa-ortası ATEŞ butonları önce (varsa); köşe-tut sürüşü ardından.
+      // Spawn intro dokunuşu da latch'ler: sürüş `isDriving` üzerinden taşınır,
+      // hareket `canAct` ile engellenir — bırakılana kadar basılı kalınan köşe
+      // intro bitince tankı kendiliğinden çıkarır (ölçülen "donuyor" kusuru).
       if (this.handleTabletopTouchStart(touch)) return;
       const corner = this.getCornerZone(touch);
       if (corner === -1) return;
@@ -658,7 +667,7 @@ this.targetScore = 2;
     this.suddenDeathRadius = 0;
     this.roundWinner = null;
     this.matchDraw = false;
-    this.spawnIntroTimer = 2.0;
+    this.spawnIntroTimer = TANK_SPAWN_INTRO;
     this.onTouchesReset();
     playStart();
 
@@ -787,11 +796,10 @@ this.targetScore = 2;
     if (!tank || !tank.isJoined || !tank.isAlive) return;
 
     if (isInputIntent(data, 'drive') || data.action === 'TANK_DRIVE') {
-      if (this.spawnIntroTimer > 0 || this.state !== 'PLAYING') {
-        tank.isDriving = false;
-        if (this.driveOwner[slotIndex] === 'remote') this.driveOwner[slotIndex] = null;
-        return;
-      }
+      // Spawn intro uzak girdiyi de SİLMEZ: bayrak basılı kaldığı sürece
+      // latch'lenir, motor zaten `canAct` ile hareketi kapatır. Ölçülen
+      // kusur: kumandada intro sırasında tutulan yön, açılışta tankı
+      // kilitliyordu ve oyuncu jostiği bırakıp yeniden basmak zorunda kalıyordu.
       tank.isDriving = !!data.driving;
       if (data.driving) {
         this.driveOwner[slotIndex] = 'remote';
@@ -821,7 +829,12 @@ this.targetScore = 2;
 
     if (tickRoundFlow(this, dt)) return;
 
-    if (this.state === 'PLAYING') {
+    // Spawn intro penceresinde RAUNT SAATİ işlemez. Ölçülen kusur: sayaç
+    // donmuş sahneyi de sayıyordu — kumanda ilk karede `timeLeft` 88 gösteriyor,
+    // sudden death 2 sn erken tetikleniyor, crate sayacı hazır olmayan bir
+    // sahneye kasa bırakabiliyordu. Saat, oyuncular gerçekten hareket edebildiği
+    // ilk karede başlar.
+    if (this.state === 'PLAYING' && this.spawnIntroTimer <= 0) {
       this.roundTimer += dt;
       if (!this.suddenDeath && this.roundTimer >= TANK_SUDDEN_DEATH_AT) {
         this.suddenDeath = true;
@@ -1282,6 +1295,14 @@ this.targetScore = 2;
 
     if (this.state === 'PLAYING' && this.spawnIntroTimer > 0) {
       this.renderSpawnBeacons(ctx);
+      // Ortak giriş geri sayımı (fieldKit): sayı + HAZIR etiketi. Sadece
+      // `t()` motorda kırılmaz, çizim ortak yüzeyden gelir.
+      renderSpawnCountdown(ctx, this.arena, {
+        remaining: this.spawnIntroTimer,
+        total: TANK_SPAWN_INTRO,
+        theme: 'TANKS',
+        label: t('game.spawnReady'),
+      });
     }
 
     // Sudden Death Top HUD Pill
@@ -1327,7 +1348,7 @@ this.targetScore = 2;
   }
 
   renderSpawnBeacons(ctx) {
-    const progress = this.spawnIntroTimer / 2.0;
+    const progress = this.spawnIntroTimer / TANK_SPAWN_INTRO;
 
     this.tanks.forEach((tank) => {
       if (!tank.isJoined || !tank.isAlive) return;

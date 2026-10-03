@@ -24,6 +24,10 @@
 // yok — aynı darbe her zaman aynı görünür (beklenmedik "yağma" olmaz).
 
 import { motionScale } from '../ui/motion.js';
+// Köşe yaylı tamponu (ARENA_ELEVATION_PLAN Faz 5): duvar darbesinin aynı anı
+// blok katmanındaki tamponu da ezer. Tek yönlü bağımlılık — `fieldProps`
+// buradan haberdar değildir, döngü yok.
+import { setWallBounce } from './fieldProps.js';
 
 /** Eşzamanlı duvar darbesi üst sınırı (havuz taşarsa en eskisi geri döner). */
 export const WALL_IMPACT_CAP = 6;
@@ -132,6 +136,11 @@ export function emitWallImpact({ x, y, nx, ny, speed, unit = 1 }) {
   // alt duvar darbesi sol duvar gibi, arenanın DIŞINA taşarak çizilirdi.
   const ax = nx > 0 ? 1 : nx < 0 ? -1 : 0;
   const ay = ny > 0 ? 1 : ny < 0 ? -1 : 0;
+
+  // Köşe yaylı tamponu (Faz 5): aynı darbe, blok katmanının tamponunu ezer.
+  // Köşe seçimi arena kutusunu bilen `drawPropGizmos`ta çözülür; burada yalnız
+  // son darbe saklanır (tek slot, kendi kendine ölür — update kancası yok).
+  setWallBounce(x, y, power);
 
   // SPAM FRENİ: aynı kenarda, aynı noktaya çok yakın zamanda gelen ikinci
   // darbe YENİ kayıt açmaz — mevcut olanın gücünü tazeler. Kalabalık bir

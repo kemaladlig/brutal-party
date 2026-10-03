@@ -2,7 +2,7 @@
 // Uzayan kuyruk ızgarada sorgulanır (uzun oyunda O(n) tarama yok).
 // Çoklu rastgele harita varyasyonları, boost enerji mekaniği ve canlı meyve türleri.
 import { getSlotCustomization, getBotPersona } from '../core/customizationManager.js';
-import { playExplosion, playStart, playJoin, playItemPickup } from '../audio.js';
+import { playSnakePop, playStart, playJoin, playItemPickup } from '../audio.js';
 import { t } from '../i18n.js';
 import { BaseMiniGame } from '../core/BaseGame.js';
 import { bindKeyboard } from '../core/keyboardDispatch.js';
@@ -19,6 +19,7 @@ import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { distToSegmentSquared, getProjectileSubsteps, clampToArena } from '../core/physics2d.js';
+import { PICKUP_SIZE } from '../core/arenaKit.js';
 import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
@@ -47,6 +48,20 @@ const SNAKE_TUNING = Object.freeze({
   MOVE_SPEED: 190,
   TURN_SPEED: 4.45,
 });
+// Yem ölçeği. Taban ortak pickup boyutundan (`PICKUP_SIZE.base`) gelir; tip
+// yalnız ÇARPANla ayrılır — mutlak px farkı `fieldRadius` tabanına takılıp
+// ezilmesin diye. Ham px YAZILMAZ: `spawnFood` tabanı `fieldRadius` üzerinden
+// geçirir, yoksa kafa sahayla birlikte büyürken yem 13 px'de kalıyor ve
+// PC'de "küçük nokta" gibi görünüyordu (ölçülen kusur).
+const SNAKE_FOOD_SCALE = Object.freeze({
+  APPLE: 1,
+  TURBO_BERRY: 1.14,
+  GOLDEN_STAR: 1.27,
+});
+// Yeme toleransı: çizilen yem yarıçapı + kafa yarıçapının bir payı. Ölçekli
+// olduğu için telefonda eski cömertliği korur, PC'de büyüyen yemle birlikte
+// büyür. Sabit px eşiği (eskiden `f.size + 4`) görüntüyle ayrışıyordu.
+const SNAKE_EAT_HEAD_SHARE = 0.6;
 // Kuyruk boyu tavanı: uzayan oyunda ızgara-rebuild sınırlı kalır
 const SNAKE_MAX_LEN = 320;
 const SNAKE_MAX_FOODS = 32;
@@ -237,7 +252,10 @@ this.targetScore = 2;
     this.segGridDirty = true;
     for (const f of this.foods) {
       this.remapPoint(f, oldArena, this.arena);
-      clampToArena(f, f.size || 13, this.arena);
+      // Yarıçap da yeni saha ölçeğinden türetilir: eski px'te kalan yem
+      // resize sonrası ya kafadan küçük ya taşar.
+      f.radius = this.foodRadius(f.type);
+      clampToArena(f, f.radius, this.arena);
     }
   }
 
@@ -339,6 +357,12 @@ this.targetScore = 2;
     return createSnakeWorldPacket(this);
   }
 
+  // Yem yarıçapı: ortak pickup tabanı × tip çarpanı, saha ölçeğinden geçmiş.
+  foodRadius(type) {
+    const base = fieldRadius(this.arena, PICKUP_SIZE.base, PICKUP_SIZE.minFraction);
+    return base * (SNAKE_FOOD_SCALE[type] ?? SNAKE_FOOD_SCALE.APPLE);
+  }
+
   spawnFood(x, y, forceType = null) {
     if (this.foods.length >= SNAKE_MAX_FOODS) return null;
     if (x === undefined || y === undefined) {
@@ -383,7 +407,7 @@ this.targetScore = 2;
     this.foods.push({
       x, y,
       type,
-      size: type === 'GOLDEN_STAR' ? 17 : (type === 'TURBO_BERRY' ? 15 : 13),
+      radius: this.foodRadius(type),
       id: Math.random(),
       pulse: Math.random() * Math.PI * 2,
     });
@@ -641,7 +665,8 @@ this.targetScore = 2;
       // Yem yeme kontrolü
       for (let i = this.foods.length - 1; i >= 0; i--) {
         const f = this.foods[i];
-        if (Math.hypot(player.x - f.x, player.y - f.y) < f.size + 4) {
+        const eatRadius = f.radius + (player.radius || 0) * SNAKE_EAT_HEAD_SHARE;
+        if (Math.hypot(player.x - f.x, player.y - f.y) < eatRadius) {
           if (f.type === 'GOLDEN_STAR') {
             player.targetLen += 70;
             player.foodCount = (player.foodCount || 0) + 3;
@@ -735,7 +760,7 @@ this.targetScore = 2;
 
   eliminatePlayer(player) {
     player.isAlive = false;
-    playExplosion();
+    playSnakePop();
     // Yılan öldü: kill olayı (burst+ring+pop+hit-stop+flaş+travma+haptik).
     this.fx.emit('kill', {
       x: player.x,

@@ -56,7 +56,7 @@ function snakeGame() {
   return {
     state: 'PLAYING', roundId: 1, arena: { left: 16, top: 24, right: 816, bottom: 624 },
     walls: [{ x: 300, y: 120, w: 40, h: 200 }],
-    foods: [{ x: 200, y: 220, type: 'APPLE', size: 13 }],
+    foods: [{ x: 200, y: 220, type: 'APPLE', radius: 15 }],
     players: [{ index: 0, isJoined: true, isAlive: true, x: 40, y: 0, angle: 0.5, isBoost: false, boostEnergy: 90, boostLocked: false, segments }],
     particles: [],
     scores: [0, 0, 0, 0], roundWinner: null, matchWinner: null,

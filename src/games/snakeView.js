@@ -12,7 +12,7 @@ import {
   drawFxPops,
   drawCircleParticles,
 } from './worldCore.js';
-import { drawObstacle } from '../core/arenaKit.js';
+import { drawObstacle, PICKUP_SIZE } from '../core/arenaKit.js';
 import { drawField, hashFieldSeed } from '../core/fieldKit.js';
 import { drawTabletopIcon } from '../core/tabletopIcons.js';
 import { drawStatusChip, STATUS_STATE } from '../core/entityStatus.js';
@@ -110,11 +110,13 @@ export function createSnakeWorldPacket(game) {
       round1(wall.w),
       round1(wall.h),
     ]),
+    // foods: [x, y, type, radius] — 4. alan YARIÇAP'tır (aynı birim
+    // arenaKit.PICKUP_SIZE ve drawSnakeFoods); eski `size` (çap) idi.
     foods: foods.map((food) => [
       round1(food.x),
       round1(food.y),
       food.type || 'APPLE',
-      round1(food.size || 13),
+      round1(food.radius || PICKUP_SIZE.base),
     ]),
     players: players.map((player) => ({
       slot: player.index,
@@ -207,47 +209,62 @@ export function drawSnakeArena(ctx, arena, walls, opts = {}) {
   for (const wall of walls) drawObstacle(ctx, wall, { theme: 'SNAKE' });
 }
 
+// Yem paleti — tiplerin dalları arasına gömülü literal'lerin tek yeri. Değerler
+// bilinçli olarak PICKUP_META'dan FARKLIDIR: ortak rozet paleti (altın yıldız /
+// pembe berry) SNAKE'ın mevcut sanatını değiştirirdi, oyun bunu doğrulamadan
+// değiştirmiyoruz. Boyut ise PICKUP_SIZE'dan gelir, buradan değil.
+const SNAKE_FOOD_STYLE = Object.freeze({
+  APPLE: { body: '#D84727', ink: '#1A1A1A', accent: '#FFF', stem: '#2F6A4F' },
+  GOLDEN_STAR: { body: '#FFDE59', ink: '#1A1A1A', accent: '#1A1A1A' },
+  TURBO_BERRY: { body: '#A259FF', ink: '#1A1A1A', accent: '#FFDE59' },
+});
+
 export function drawSnakeFoods(ctx, foods, now = 0) {
   for (const food of foods) {
     const pulse = 1 + Math.sin(now / 220 + (food.pulse || 0)) * 0.08;
-    const radius = ((food.size || 13) / 2) * pulse;
-    const u = radius / 6.5;
+    // `radius` motor tarafından `fieldRadius` ile ölçeklendi; eski `size` alanı
+    // ÇAP idi ve 2'ye bölünüyordu, yem gerçekte 6.5 px çiziliyordu.
+    const radius = (food.radius || PICKUP_SIZE.base) * pulse;
+    // Kontur kalınlığı yarıçapla orantılı; taban = ortak pickup boyutu.
+    const u = Math.max(0.7, radius / PICKUP_SIZE.base);
+    const style = SNAKE_FOOD_STYLE[food.type] || SNAKE_FOOD_STYLE.APPLE;
+
     ctx.fillStyle = 'rgba(26, 26, 26, 0.25)';
     ctx.beginPath();
     ctx.arc(food.x + 2, food.y + 2, radius, 0, Math.PI * 2);
     ctx.fill();
 
     if (food.type === 'GOLDEN_STAR') {
-      ctx.fillStyle = '#FFDE59';
+      ctx.fillStyle = style.body;
       ctx.beginPath();
       ctx.arc(food.x, food.y, radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = style.ink;
       ctx.lineWidth = 2.5 * u;
       ctx.stroke();
-      drawTabletopIcon(ctx, 'star', food.x, food.y, radius * 1.3, { color: '#1A1A1A' });
+      drawTabletopIcon(ctx, 'star', food.x, food.y, radius * 1.3, { color: style.accent });
     } else if (food.type === 'TURBO_BERRY') {
-      ctx.fillStyle = '#A259FF';
+      ctx.fillStyle = style.body;
       ctx.beginPath();
       ctx.arc(food.x, food.y, radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = style.ink;
       ctx.lineWidth = 2.5 * u;
       ctx.stroke();
-      drawTabletopIcon(ctx, 'zap', food.x, food.y, radius * 1.3, { color: '#FFDE59' });
+      drawTabletopIcon(ctx, 'zap', food.x, food.y, radius * 1.3, { color: style.accent });
     } else {
-      ctx.fillStyle = '#D84727';
+      ctx.fillStyle = style.body;
       ctx.beginPath();
       ctx.arc(food.x, food.y, radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#1A1A1A';
+      ctx.strokeStyle = style.ink;
       ctx.lineWidth = 2 * u;
       ctx.stroke();
-      ctx.fillStyle = '#FFF';
+      ctx.fillStyle = style.accent;
       ctx.beginPath();
       ctx.arc(food.x - radius * 0.35, food.y - radius * 0.35, radius * 0.28, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#2F6A4F';
+      ctx.strokeStyle = style.stem;
       ctx.lineWidth = 2 * u;
       ctx.beginPath();
       ctx.moveTo(food.x, food.y - radius);

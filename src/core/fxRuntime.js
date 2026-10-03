@@ -14,6 +14,11 @@ import { fxParticleScale } from './perfMonitor.js';
 // olayın ZATEN taşıdığı veriden türer → §6 ağ bütçesi sıfır, motorlarda kod yok.
 import { emitFxScar } from './fieldDecals.js';
 import { emitFxLight } from './fieldLights.js';
+// Engel tepkisi (ARENA_ELEVATION_PLAN Faz 5): merminin bloğa çarpması zaten
+// `spark` olarak buradan geçiyor; blok titreşimi/çatlağı aynı olaydan doğar.
+// Olay anlık güvenilir yoldan gittiği için kumandada da görünür (§6 bütçesi:
+// yeni alan yok).
+import { emitPropSpark } from './fieldProps.js';
 import {
   fxProfile,
   fxPower,
@@ -120,6 +125,10 @@ export class FxRuntime {
     // Zemin ışık parıltısı (Faz 3): aynı disiplin — olay kind'inden türer,
     // paket alanı yok, çizimi `fieldKit.drawField` yapar.
     emitFxLight(kind, event, unit);
+    // Engel tepkisi (Faz 5): `spark` hem mermi-bloğa teması hem birkaç ortam
+    // olayında kullanılır; blok eşleşmesi ÇİZİM anında (temas noktası bloğun
+    // içinde mi) yapıldığı için boşa giden `spark`lar hiçbir şey çizmez.
+    if (kind === 'spark') emitPropSpark(event);
     if (profile.hitStopMs && motionScale() > 0 && opts.hitStop !== false) {
       this.hitStop = Math.max(this.hitStop, profile.hitStopMs / 1000);
     }

@@ -36,6 +36,10 @@ import { clearFieldReactive, drawFieldReactive } from './fieldReactive.js';
 // reaktif kenar tepkisinin ALTINDA çizilir (iz sahaya aittir, duvara değil).
 import { clearFieldDecals, drawFieldDecals } from './fieldDecals.js';
 import { clearFieldLights, drawFieldLights } from './fieldLights.js';
+// Engel gizmo katmanı (ARENA_ELEVATION_PLAN Faz 5): tema opt-in'i ile köşe
+// yaylı tamponları ve dönen dişli/hava menfezleri. Statik blit + decal + ışık
+// katmanlarının ÜSTÜNE, varlıkların ALTINA çizilir; tema kapalıysa tek op yok.
+import { clearFieldProps, drawPropGizmos } from './fieldProps.js';
 // Saha dışı ambiyans (ARENA_ELEVATION_PLAN Faz 4): climaks nabzı vinyeti
 // paintBackdrop blit'inin ÜSTÜNE, saha katmanının ALTINA çizilir — ışık yalnız
 // masaya düşer, zemin L* bütçesine dokunmaz. Modül `fieldKit`'e bağımlı
@@ -78,14 +82,14 @@ const THEME_BASE = Object.freeze({
   floorHigh: '#FBF6EC',        // ışık gelen üst bölge (L* 97.0)
   floorEdge: '#F3EBDA',        // orta-üst geçiş durakı (L* 93.3)
   floorLow: '#F2E9D8',         // en alt — aynı parlaklıkta, daha sıcak (L* 92.6)
-  lightPool: 0.58,              // 0..1 — üst-sol ışık havuzunun şiddeti
+  lightPool: 0.46,              // 0..1 — üst-sol ışık havuzunun şiddeti (subtle & dengeli)
   // Işığın RENGİ. Varsayılan nötr beyaz; tema hue'si verirse havuz o renkle
   // yanar ve saha "boyanmış kâğıt" değil, "içinden ışık geçen bir yüzey"
   // okur. `lightTint`/`edgeTint`/`shadeTint` sayısal değil, rgba metnidir —
   // böylece tema yazarken alpha'yı tek yerde görürsün (THEME_FIELDS sözleşmesi
   // ilkel tiplerle sınırlıdır, nested nesne yazılamaz).
   lightTint: '255, 255, 255',  // ışık havuzunun RGB'si
-  lightAlpha: 0.72,             // havuz tepe opaklığı (× lightPool)
+  lightAlpha: 0.52,             // havuz tepe opaklığı (× lightPool, göz almayacak zarif parlaklık)
   // Vinyet ve duvar gölgesi nötr siyah yerine tema renginde: köşeler soğumak
   // yerine oyunun rengine döner, zemin tek parça krem gibi okunmaz.
   edgeTint: '26, 26, 26',      // vinyet / köşe kararması RGB'si
@@ -104,6 +108,13 @@ const THEME_BASE = Object.freeze({
   motif: 'rings',
   corners: 'plate',            // 'plate' | 'crosshair' | 'both' | 'none'
   cornerInk: '#2B2B28',
+  // --- saha gizmo'ları (ARENA_ELEVATION_PLAN Faz 5) ---
+  // Tema opt-in'dir: 12 oyunun çoğu `0`/`'none'` kalır ve prop katmanı kare
+  // başına TEK op bile yazmaz. `bumpers` köşelerdeki yaylı tamponu (duvar
+  // darbesinde ezilir), `gizmos` dönen dişli ('gears') / hava menfezi ('vents')
+  // çiftini açar. İkisi de ilkel tiptir (sığ yayılım sözleşmesi).
+  bumpers: 0,                  // 0 | 1
+  gizmos: 'none',              // 'none' | 'vents' | 'gears' | 'both'
   // --- tepsi kenarı (SİYAH ÇERÇEVE YOK) ---
   // Kullanıcı raporu: "köşeler simsiyah çerçeve, sert köşeli". Koyu kontur ve
   // kütleli bant kalktı; sahanın sınırı artık üç şeyle okunur: yuvarlatılmış
@@ -179,6 +190,8 @@ export const FIELD_THEMES = Object.freeze({
     corners: 'both',
     texture: 'tile',
     seams: 3,
+    // Faz 5: kort köşelerinde yaylı pinball tamponları (raket/duvar temasında ezilir).
+    bumpers: 1,
   }),
 
   // BOMB — sıcak mercan/turuncu. Patlama enerjisi.
@@ -193,6 +206,9 @@ export const FIELD_THEMES = Object.freeze({
     decal: 'rgba(43, 43, 40, 0.06)',
     block: 'crate',
     texture: 'weave',
+    // Faz 5: depo köşelerinde yaylı tampon + zeminde hava menfezleri (fırın hissi).
+    bumpers: 1,
+    gizmos: 'vents',
   }),
 
   // TANKS — çayır yeşili. Savaş meydanı çim.
@@ -206,6 +222,8 @@ export const FIELD_THEMES = Object.freeze({
     motif: 'crosshairRings',
     texture: 'speckle',
     block: 'stone',
+    // Faz 5: savaş meydanının ortasında dönen mazgal/dişli çifti.
+    gizmos: 'gears',
   }),
 
   // SNAKE — kehribar/amber. Sıcak ve tatlı.
@@ -764,6 +782,73 @@ function clampUnit(u) {
   return Math.min(FIELD_DESIGN.maxUnit, Math.max(FIELD_DESIGN.minUnit, u));
 }
 
+/**
+ * Raunt giriş (spawn intro) geri sayımı — TEK çizim.
+ *
+ * TANKS ve CURVE aynı pencereyi `spawnIntroTimer` ile yaşatıyordu ama ikisi de
+ * yalnız kesik çizgi + daralan halka çiziyor, SAYIYI göstermiyordu: oyuncu
+ * kontrolü deniyor, hiçbir şey olmuyor, ekranda da ne olduğunu söyleyen tek
+ * unsur yok. Bu yardımcı sayıyı ve "HAZIR!" etiketini ortak bir dille verir.
+ *
+ * Ham renk YAZMAZ: vurgu ve mürekkep saha temasından okunur (K2), yani her
+ * oyun kendi paletinde doğru okunur. Ölçek `arenaUnit` — aynı yardımcı host
+ * canvas'ında ve world-view'da çağrılabilir (`arena.unit` yoksa `arenaUnit`
+ * kısa kenardan türetir).
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{cx?: number, cy?: number, left?: number, top?: number, width?: number, height?: number, unit?: number, size?: number}} arena
+ * @param {{remaining?: number, total?: number, theme?: string, label?: string}} [opts]
+ */
+export function renderSpawnCountdown(ctx, arena, opts = {}) {
+  const {
+    remaining = 0,
+    total = 1,
+    theme = 'default',
+    label = 'HAZIR!',
+  } = opts;
+  const left = Math.max(0, Number(remaining) || 0);
+  if (left <= 0) return;
+
+  const th = fieldTheme(theme);
+  const u = arenaUnit(arena);
+  const w = Number(arena?.width) || 0;
+  const h = Number(arena?.height) || 0;
+  const minDim = Math.min(w, h) || 0;
+  if (minDim <= 0) return;
+
+  const cx = Number(arena?.cx) || (Number(arena?.left) || 0) + w / 2;
+  const cy = Number(arena?.cy) || (Number(arena?.top) || 0) + h / 2;
+  const progress = total > 0 ? Math.min(1, left / total) : 0;
+  const baseR = minDim * 0.16;
+  const ringR = Math.max(1, baseR * (0.82 + progress * 0.18));
+
+  ctx.save();
+  // Kontrast diski: krem saha üstünde koyu mürekkep her temada okunur, disk
+  // yarı saydam kaldığı için oyuncuların spawn halkaları görünür kalır.
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = th.backdropInk;
+  ctx.beginPath();
+  ctx.arc(cx, cy, baseR * 1.12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = th.accent;
+  ctx.lineWidth = Math.max(2, 5 * u);
+  ctx.beginPath();
+  ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = th.backdropInk;
+  ctx.font = `900 ${Math.round(30 * u)}px "Space Grotesk", sans-serif`;
+  ctx.fillText(label, cx, cy - 14 * u);
+  ctx.fillStyle = th.accent;
+  ctx.font = `900 ${Math.round(46 * u)}px "JetBrains Mono", monospace`;
+  ctx.fillText(String(Math.max(1, Math.ceil(left))), cx, cy + 34 * u);
+  ctx.restore();
+}
+
 // ---------------------------------------------------------------------------
 // Zemin tabanı — düz dolgu değil, ışık alan bir yüzey
 // ---------------------------------------------------------------------------
@@ -1214,9 +1299,9 @@ function paintTrayEdge(ctx, w, h, u, palette, r) {
 
   ctx.save();
 
-  // 1. Temas gölgesi — dört kenar, kenardan içeri sönen AO bandı. Işık yönü
-  //    sol-üstten (`LIGHT_X`/`LIGHT_Y`) gelir; dört kenar aynı ışığı paylaşır,
-  //    yani kenarlar tek bir nesne gibi döner.
+  // 1. Temas gölgesi — dört kenar, kenardan içeri sönen AO bandı.
+  //    Temanın kendi derin gölge tonuyla (shadeTint) sahanın zeminle buluştuğu pahı belirginleştirir.
+  const aoShade = rgba(palette.shadeTint, 0.16);
   const sides = [
     [ctx.createLinearGradient(0, 0, 0, ao), 0, 0, w, ao],
     [ctx.createLinearGradient(0, 0, ao, 0), 0, 0, ao, h],
@@ -1224,22 +1309,22 @@ function paintTrayEdge(ctx, w, h, u, palette, r) {
     [ctx.createLinearGradient(w, 0, w - ao, 0), w - ao, 0, ao, h],
   ];
   for (const [grad, x, y, sw, sh] of sides) {
-    grad.addColorStop(0, palette.wallShade);
+    grad.addColorStop(0, aoShade);
     grad.addColorStop(1, clear);
     ctx.fillStyle = grad;
     ctx.fillRect(x, y, Math.max(1, sw), Math.max(1, sh));
   }
 
-  // 2. İç gölge çizgisi — kenarın keskin sınırı. Çizgi kenarın YARISINA oturur,
-  //    kesimin dışına taşmaz.
-  ctx.strokeStyle = palette.edgeInk;
+  // 2. İç sınır bordürü — temanın edgeTint tonunda, krem zeminle yüksek kontrastlı
+  //    ve renk uyumlu keskin diorama sınır çizgisi.
+  ctx.strokeStyle = rgba(palette.edgeTint, 0.38);
   ctx.lineWidth = lw;
   ctx.beginPath();
   appendRoundRect(ctx, lw / 2, lw / 2, Math.max(1, w - lw), Math.max(1, h - lw), Math.max(1, r - lw / 2));
   ctx.stroke();
 
-  // 3. Speküler pah — ince ışık çizgisi, kenarın birkaç px içinde.
-  ctx.strokeStyle = palette.edgeLight;
+  // 3. Speküler pah — temanın açık ışık tonundan (lightTint) vuran canlı pah çizgisi.
+  ctx.strokeStyle = rgba(palette.lightTint, 0.65);
   ctx.lineWidth = specW;
   ctx.beginPath();
   appendRoundRect(ctx, lw + specW / 2, lw + specW / 2,
@@ -1578,10 +1663,12 @@ function paintBackdropLayer(ctx, w, h, box, palette) {
   ctx.fillStyle = palette.backdrop;
   ctx.fillRect(0, 0, w, h);
 
-  // 1. Arenanın merkezinden dışa düşen hafif ambiyans ışıltısı (tema renginde yumuşak halo)
+  // 1. Arenanın merkezinden dışa düşen yumuşak, subtle ambiyans ışıltısı.
+  //    Kullanıcı geri bildirimi: "ışıklandırma çok göz alıyor, canlılık getirmiş güzel ama subtle olsun"
+  //    Tepe opaklık 0.15 yerine 0.055'e çekildi — göz almadan derin atmosfer hissi verir.
   const pool = ctx.createRadialGradient(cx, cy, Math.max(1, glowR * 0.15), cx, cy, glowR * 0.7);
-  pool.addColorStop(0, rgba(palette.lightTint, 0.15));
-  pool.addColorStop(0.5, rgba(palette.lightTint, 0.04));
+  pool.addColorStop(0, rgba(palette.lightTint, 0.055));
+  pool.addColorStop(0.45, rgba(palette.lightTint, 0.015));
   pool.addColorStop(1, rgba(palette.edgeTint, 0));
   ctx.fillStyle = pool;
   ctx.fillRect(0, 0, w, h);
@@ -1616,24 +1703,23 @@ function paintBackdropLayer(ctx, w, h, box, palette) {
 
   // Faz 4 (çok katmanlı yayvan oklüzyon): temas gölgesinin ötesinde iki geniş,
   // yumuşak katman — tepsi masanın 3-5 cm üstünde havada durur gibi düşer.
-  // Alanın içine düşen kısımları saha katmanı örter; yalnız masa görür.
   shadowRing(6 * u, 16 * u, Math.max(4, 22 * u), rgba(palette.edgeTint, 0.06));
   shadowRing(8 * u, 24 * u, Math.max(6, 34 * u), rgba(palette.edgeTint, 0.035));
 
-  // Faz 4 (ambient under-glow): sahanın altından masaya sızan tema ışığı.
-  // Gövde halkasından ÖNCE: gövde iç yarıyı kapatır, dışa taşan ince hale
-  // masa yüzeyinde kalır. Bir path, iki op — kare değil bake maliyeti.
-  ctx.strokeStyle = rgba(palette.lightTint, 0.05);
-  ctx.lineWidth = Math.max(4, lip * 2.4);
+  // Faz 4 (ambient under-glow): sahanın altından masaya sızan tema ışığı (daha subtle difüzyon).
+  ctx.strokeStyle = rgba(palette.lightTint, 0.03);
+  ctx.lineWidth = Math.max(4, lip * 2.2);
   ctx.beginPath();
   appendRoundRect(ctx, box.left - lip, box.top - lip, box.width + lip * 2, box.height + lip * 2, lipR);
   ctx.stroke();
-  ctx.strokeStyle = rgba(palette.lightTint, 0.028);
-  ctx.lineWidth = Math.max(8, lip * 4.2);
+  ctx.strokeStyle = rgba(palette.lightTint, 0.015);
+  ctx.lineWidth = Math.max(8, lip * 3.8);
   ctx.stroke();
 
-  // 3b. Gövde halkası: dış yuvarlak dikdörtgen EKSİ arena kutusu. even-odd
-  //     tek path'te delik verir, yarena asla kapatılmaz.
+  // 3b. Gövde halkası: dış yuvarlak dikdörtgen EKSİ arena kutusu.
+  //     Kullanıcı kararı: "saha kenarları aynı renk olduğu için çok belli olmuyor, kontrastlı/renk uyumlu olsun".
+  //     Sahanın kalın dış kütlesi artık masanın karanlığında kaybolmaz; temanın derin rengiyle
+  //     tonlanmış ve masadan net ayrışan fiziksel bir diorama çerçevesi olarak parlar.
   ctx.save();
   ctx.beginPath();
   appendRoundRect(ctx, box.left - lip, box.top - lip, box.width + lip * 2, box.height + lip * 2, lipR);
@@ -1641,13 +1727,29 @@ function paintBackdropLayer(ctx, w, h, box, palette) {
   ctx.fillStyle = palette.backdropInk;
   ctx.fill('evenodd');
 
-  // 3c. Üst/sol yüzey ışığı: tepsi üst yüzü yataydır, ışığı sol-üstten alır —
-  //     dikey dış yüz yalnız alt ve sağda görünür ve gölgede kalır. Yani üst
-  //     ve sol şeritler aydınlık, alt/sağ şeritler `backdropInk`'te kalır.
-  const lipLight = `rgba(${palette.lightTint}, 0.1)`;
+  // Temanın renk tonuyla uyumlu kütle tonlaması (masadan ayrıştırır, oyun temasıyla renk uyumu kurar)
+  ctx.fillStyle = rgba(palette.shadeTint, 0.52);
+  ctx.fill('evenodd');
+
+  // Dış kütle çerçeve çizgisi — masaya oturan fiziksel dış sınır
+  ctx.strokeStyle = rgba(palette.edgeTint, 0.42);
+  ctx.lineWidth = Math.max(1, 1.4 * u);
+  ctx.beginPath();
+  appendRoundRect(ctx, box.left - lip, box.top - lip, box.width + lip * 2, box.height + lip * 2, lipR);
+  ctx.stroke();
+
+  // 3c. Üst/sol yüzey ışığı: sol-üstten vuran belirgin ışık pahı
+  const lipLight = rgba(palette.lightTint, 0.24);
   ctx.fillStyle = lipLight;
   ctx.fillRect(box.left - lip, box.top - lip, box.width + lip * 2, lip);
   ctx.fillRect(box.left - lip, box.top - lip, lip, box.height + lip * 2);
+
+  // 3d. Sağ/alt gölge yüzeyi: tepsi kalınlığının dikey gölgesi (2.5D derinlik)
+  const lipShade = rgba(palette.shadeTint, 0.28);
+  ctx.fillStyle = lipShade;
+  ctx.fillRect(box.left - lip, box.top + box.height, box.width + lip * 2, lip);
+  ctx.fillRect(box.left + box.width, box.top - lip, lip, box.height + lip * 2);
+
   ctx.restore();
 }
 
@@ -1795,6 +1897,7 @@ export function drawField(ctx, arena, opts = {}) {
     drawFieldDecals(ctx, box, palette, seed);
     drawFieldReactive(ctx, box, palette);
     drawFieldLights(ctx, box);
+    drawPropGizmos(ctx, box, palette);
     return;
   }
 
@@ -1808,6 +1911,7 @@ export function drawField(ctx, arena, opts = {}) {
     drawFieldDecals(ctx, box, palette, seed);
     drawFieldReactive(ctx, box, palette);
     drawFieldLights(ctx, box);
+    drawPropGizmos(ctx, box, palette);
     return;
   }
 
@@ -1834,6 +1938,7 @@ export function drawField(ctx, arena, opts = {}) {
   drawFieldDecals(ctx, box, palette, seed);
   drawFieldReactive(ctx, box, palette);
   drawFieldLights(ctx, box);
+  drawPropGizmos(ctx, box, palette);
 }
 
 /** Oyun değişimi / bellek baskısı: tüm bake'leri serbest bırakır. */
@@ -1847,12 +1952,14 @@ export function releaseFieldLayers() {
   layerCache.clear();
   releaseCaches(tileCache);
   releaseCaches(backdropCache);
-  // Reaktif kenar tepkisi ve zemin izleri arena geometrisine BAĞLIDIR; yeni
-  // oyunun arenasında eski koordinattaki darbe/leke yanlış yerde çizilmesin.
+  // Reaktif kenar tepkisi, zemin izleri ve engel darbeleri arena geometrisine
+  // BAĞLIDIR; yeni oyunun arenasında eski koordinattaki darbe/leke/tampon
+  // yanlış yerde çizilmesin.
   clearFieldReactive();
   clearFieldDecals();
   clearFieldLights();
   clearFieldAmbience();
+  clearFieldProps();
 }
 
 function releaseCaches(cache) {

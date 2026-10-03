@@ -709,7 +709,7 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
     drawEye(eyeSpreadY);
   }
 
-  // 5b. Birleşik ağız + kaş + allık — tek kaynak, tüm ifadeler burada kapanır.
+  // 5b. Birleşik ağız + allık — tek kaynak, tüm ifadeler burada kapanır.
   // GRIN kendi diş ağzını çizer, ANGRY kendi kaşını çizer; kalanlar burada.
   // Mikro boyda atlanır, fillRect yok, rotate yok, hepsi siluet içinde.
   if (!isMicro) {
@@ -777,37 +777,6 @@ export function drawBrutalAvatar(ctx, x, y, radius, options = {}) {  const slotI
         ctx.stroke();
         ctx.lineCap = 'butt';
       }
-    }
-    // --- Kaşlar (gözlük/vizör/tepegöz/mutlu-kapalı gözlerde yok) ---
-    if (expression !== 'ANGRY' && expression !== 'SHADES' && expression !== 'CYBORG' && expression !== 'CYCLOPS' && expression !== 'HEART' && expression !== 'STAR') {
-      const bx = eyeOffsetX - eyeR * 0.25;
-      const bl = eyeR * 0.65;
-      const browW = Math.max(1.2, r * 0.055);
-      ctx.strokeStyle = UI_COLORS.faceInk;
-      ctx.lineWidth = browW;
-      ctx.lineCap = 'round';
-      const brow = (ey, tilt) => {
-        ctx.beginPath();
-        ctx.moveTo(bx - bl, ey + tilt);
-        ctx.lineTo(bx + bl, ey - tilt);
-        ctx.stroke();
-      };
-      if (expression === 'PANIC') {
-        brow(-eyeSpreadY, -Math.max(1, r * 0.05));
-        brow(eyeSpreadY, Math.max(1, r * 0.05));
-      } else if (expression === 'GRIN') {
-        brow(-eyeSpreadY, -Math.max(1, r * 0.03));
-        brow(eyeSpreadY, Math.max(1, r * 0.03));
-      } else if (expression === 'WINK') {
-        brow(-eyeSpreadY, 0);
-      } else if (expression === 'SLEEPY' || expression === 'ZOMBIE' || expression === 'DERP') {
-        brow(-eyeSpreadY, 0);
-        brow(eyeSpreadY, 0);
-      } else {
-        brow(-eyeSpreadY, Math.max(0.8, r * 0.02));
-        brow(eyeSpreadY, -Math.max(0.8, r * 0.02));
-      }
-      ctx.lineCap = 'butt';
     }
     // --- Allık (sıcak ifadelerde yanak ısısı) ---
     if (expression === 'HEART' || expression === 'STAR' || expression === 'WINK' || expression === 'GRIN') {

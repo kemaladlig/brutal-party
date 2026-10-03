@@ -15,7 +15,7 @@ import { distToSegmentSquared, clampToArena } from '../core/physics2d.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
 import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import { createCurveWorldPacket, drawCurveArena, drawCurveFxLayer } from './curveView.js';
-import { arenaUnit, paintBackdrop } from '../core/fieldKit.js';
+import { arenaUnit, paintBackdrop, renderSpawnCountdown } from '../core/fieldKit.js';
 import { drawFxFlash } from './worldCore.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
 import { fxFlashAlpha } from '../core/fxKit.js';
@@ -43,6 +43,9 @@ const CURVE_ROUND_LIMIT = 75;
 // maçı bitirmediği için (bkz. core/roundLifecycle.beginDrawRound) bu sayaç
 // çıkmaz döngüyü keser.
 const CURVE_MAX_TIED_ROUNDS = 2;
+// Raunt giriş donması (TANKS ile aynı fikir, ortak çizim). SAYISI
+// `renderSpawnCountdown` gösterir — sessiz donma "oyun dondu" gibi okunuyordu.
+const CURVE_SPAWN_INTRO = 1.8;
 // FIELD_TIERS §open: kafa tasarım yarıçapı (eski 9 "harita kocaman" hissi verdi)
 const CURVE_HEAD_RADIUS = 18;
 
@@ -319,7 +322,7 @@ this.targetScore = 2;
     this.roundResolutionReason = null;
     this.roundId += 1;
     this.roundTimer = 0;
-    this.spawnIntroTimer = 1.8;
+    this.spawnIntroTimer = CURVE_SPAWN_INTRO;
     playStart();
 
     const { left, right, top, bottom, size } = this.arena;
@@ -379,9 +382,11 @@ this.targetScore = 2;
   }
 
   // steer HER ZAMAN ham niyettir; INVERT burada uygulanmaz (update'te tek noktada uygulanır).
+  // Spawn intro girdiyi SİLMEZ: simülasyonu `update` donduruyor, niyet basılı
+  // kaldığı sürece latch'leniyor (eskiden intro'da düşürülüyordu).
   onSlotSteer(slotIndex, dir) {
     const player = this.players[slotIndex];
-    if (this.state !== 'PLAYING' || this.spawnIntroTimer > 0) return;
+    if (this.state !== 'PLAYING') return;
     if (player && player.isJoined && player.isAlive && player.slotType === 'human') {
       player.steer = dir;
     }
@@ -515,7 +520,11 @@ this.targetScore = 2;
 
     if (tickRoundFlow(this, dt)) return;
 
-    if (this.state === 'PLAYING') {
+    // Spawn intro penceresinde simülasyon TUMMEN durur: raunt saati, pickup
+    // sayacı ve hareket. Ölçülen kusur: hepsi donmuş sahneyi sayıyordu —
+    // kumanda ilk karede `timeLeft` eksik gösteriyor, timeout 1.8 sn erken
+    // geliyor, hazır olmayan sahneye pickup düşüyordu.
+    if (this.state === 'PLAYING' && this.spawnIntroTimer <= 0) {
       this.roundTimer += dt;
       if (roundTimedOut(this.roundTimer, this.roundLimit)) {
         // Zaman aşımı BERABERE RAUNTtur, maç sonu değil: kimse puan almaz.
@@ -535,10 +544,6 @@ this.targetScore = 2;
       // Update Players
       for (const player of this.players) {
         if (!player.isJoined || !player.isAlive) continue;
-        if (this.spawnIntroTimer > 0) {
-          player.steer = 0;
-          continue;
-        }
 
         // Timers
         if (player.ghostTimer > 0) player.ghostTimer = Math.max(0, player.ghostTimer - dt);
@@ -850,9 +855,12 @@ this.targetScore = 2;
 
   handleRemoteInput(slotIndex, data) {
     const player = this.players[slotIndex];
-    if (this.state !== 'PLAYING' || this.spawnIntroTimer > 0) return;
+    if (this.state !== 'PLAYING') return;
     if (!player || !player.isJoined || !player.isAlive) return;
+    // Boost intro'da ateşlenmez (tek seferlik ve haksız avantaj); steer
+    // latch'lenir, simülasyon `update` tarafından dondurulur.
     if (isInputIntent(data, 'action', 'boost') || data.action === 'CURVE_BOOST') {
+      if (this.spawnIntroTimer > 0) return;
       this.triggerBoost(slotIndex);
       return;
     }
@@ -1031,6 +1039,13 @@ this.targetScore = 2;
 
     if (this.state === 'PLAYING' && this.spawnIntroTimer > 0) {
       this.renderSpawnBeacons(ctx);
+      // Ortak giriş geri sayımı (fieldKit) — TANKS ile aynı dil, tek çizim.
+      renderSpawnCountdown(ctx, this.arena, {
+        remaining: this.spawnIntroTimer,
+        total: CURVE_SPAWN_INTRO,
+        theme: 'CURVE',
+        label: t('game.spawnReady'),
+      });
     }
 
     this.renderHUD(ctx, {
@@ -1064,7 +1079,7 @@ this.targetScore = 2;
   }
 
   renderSpawnBeacons(ctx) {
-    const progress = this.spawnIntroTimer / 1.8;
+    const progress = this.spawnIntroTimer / CURVE_SPAWN_INTRO;
     const u = arenaUnit(this.arena);
 
     this.players.forEach((p) => {

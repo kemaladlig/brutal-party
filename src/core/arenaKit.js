@@ -3,6 +3,10 @@
 import { drawTabletopIcon, hasTabletopIcon } from './tabletopIcons.js';
 import { fieldTheme } from './fieldKit.js';
 import { fxGlowEnabled } from './perfMonitor.js';
+// Reaktif engel tepkisi (ARENA_ELEVATION_PLAN Faz 5): blok gövdesinin sahibi
+// burasıdır, darbe titreşimi/çatlağı da burada okunur. Tek yönlü bağımlılık —
+// `fieldProps` `arenaKit`i tanımaz, döngü yok.
+import { drawPropCracks, propFlinchOffset, propHitFor } from './fieldProps.js';
 
 export const PICKUP_META = {
   TURBO:        { label: 'TRB', icon: 'zap', glyph: '⚡', color: '#FFB020', ink: '#241C15' },
@@ -30,6 +34,21 @@ export const PICKUP_META = {
   SUPER_JUMP:   { label: 'ZIP', icon: 'chevrons-up', glyph: '🦘', color: '#FFB020', ink: '#241C15' },
   REPAIR_TILES: { label: 'TAM', icon: 'hammer', glyph: '🔨', color: '#35B36A', ink: '#FFFFFF' },
 };
+
+// Pickup ÖLÇEK tablosu (yarıçap, tasarım px) — TEK kaynak.
+//
+// `PICKUP_META` renk/ikonu, bu tablo BOYUTU tutar: `drawPickup` `size`
+// alanını yarıçap sayar (`half = radius * 2 / 2`), `spawnPickup` varsayılanı
+// buradan okur. Saha ölçekli motorlar (SNAKE yemi) de aynı sayıyı
+// `playfield.fieldRadius` üzerinden geçirir — ham px motor dosyasında yazılmaz
+// (AGENTS §4). `minFraction` küçük telefonda varlığın ezilmesini engeller.
+export const PICKUP_SIZE = Object.freeze({
+  base: 15,
+  // Güvenlik tabanı, ölçek payı: aşırı dar portre sahada varlık sıfıra
+  // düşmesin. BİLEREK çok küçük tutulur — taban yukarı çıkarıldığında tip
+  // hiyerarşisini (yıldız > berry > elma) eziyor, yem kafadan büyük çıkıyordu.
+  minFraction: 0.012,
+});
 
 /**
  * Engel derileri — TEK kaynak, DIŞA AÇIK kayıt defteri.
@@ -642,7 +661,16 @@ export function drawObstacle(ctx, obs, opts = {}) {
   // dioramasına çevirir (Boomerang Fu / Brawl Stars derinlik oranı %12-18).
   const depth = Math.max(3.5 * u, Math.min(h * 0.18, 11 * u)) * (0.8 + 0.4 * mass);
 
+  // ARENA_ELEVATION_PLAN Faz 5 — darbe tepkisi: canlı darbe varsa blok vuranın
+  // yönünde 1-2 px geri teper (prop flinch) ve yüzeyi çatlar. Havuz boşken
+  // (12 oyunun çoğu, çoğu kare) bu blok TEK ek op almaz.
+  const hit = propHitFor(obs);
+  const flinch = propFlinchOffset(hit, u);
+  const ox = hit ? -hit.nx * flinch : 0;
+  const oy = hit ? -hit.ny * flinch : 0;
+
   ctx.save();
+  if (ox !== 0 || oy !== 0) ctx.translate(ox, oy);
 
   // 1. Temas gölgesi — taban izinden türer, hafif, her zaman altta.
   contactShadow(ctx, x, y, w, h, u, style, mass);
@@ -695,6 +723,10 @@ export function drawObstacle(ctx, obs, opts = {}) {
   ctx.lineWidth = border;
   pathRoundRect(ctx, x, y, w, h, r);
   ctx.stroke();
+
+  // 7. Darbe izi (Faz 5): çatlaklar bloğun yüzeyine kırpılır, talaş kıymıkları
+  //    yüzün önüne savrulur. Yalnız canlı darbede çizilir.
+  if (hit) drawPropCracks(ctx, hit, obs, u, style);
 
   ctx.restore();
 }

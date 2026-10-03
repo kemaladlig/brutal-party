@@ -34,7 +34,7 @@ const HIT = '/sound/kenney_music-jingles/Audio/Hit jingles';
 export const SOUND_BANK = {
   // ── UI (tiny, preloaded) ──────────────────────────────────────────────
   'ui.tick': {
-    files: [`${INTERFACE}/tick_001.ogg`, `${INTERFACE}/tick_002.ogg`],
+    files: [`${INTERFACE}/tick_001.ogg`],
     bus: 'ui', volume: 0.5, pitch: 0.06, throttleMs: 30, poly: 3, preload: true,
   },
   'ui.select': {
@@ -91,6 +91,17 @@ export const SOUND_BANK = {
     files: [`${IMPACT}/impactSoft_medium_000.ogg`, `${IMPACT}/impactSoft_medium_001.ogg`],
     bus: 'sfx', volume: 0.75, pitch: 0.1, throttleMs: 60, poly: 3, preload: false,
   },
+  // Yılan ölümü: büyük patlama örneği yerine yumuşak "çat" (synth fallback
+  // playSnakePop). `hit.soft` ile aynı aile, bu olay için daha düşük gain.
+  'hit.snakePop': {
+    files: [`${IMPACT}/impactSoft_medium_000.ogg`, `${IMPACT}/impactSoft_medium_001.ogg`],
+    bus: 'sfx', volume: 0.5, pitch: 0.12, throttleMs: 90, poly: 3, preload: false,
+  },
+  // Ok isabeti: tok yumruk; patlama sesi değil.
+  'hit.arrow': {
+    files: [`${IMPACT}/impactPunch_medium_000.ogg`, `${IMPACT}/impactPunch_medium_001.ogg`, `${IMPACT}/impactPunch_medium_002.ogg`],
+    bus: 'sfx', volume: 0.55, pitch: 0.08, throttleMs: 45, poly: 4, preload: false,
+  },
 
   // ── Shots, booms, movement ────────────────────────────────────────────
   'shot.laserSmall': {
@@ -105,16 +116,17 @@ export const SOUND_BANK = {
     files: [`${SCIFI}/laserRetro_000.ogg`, `${SCIFI}/laserRetro_001.ogg`],
     bus: 'sfx', volume: 0.6, pitch: 0.08, throttleMs: 50, poly: 3, preload: false,
   },
-  'boom.crunch': {
-    files: [`${SCIFI}/explosionCrunch_000.ogg`, `${SCIFI}/explosionCrunch_001.ogg`],
-    bus: 'sfx', volume: 0.9, pitch: 0.07, throttleMs: 90, poly: 3, preload: true,
+  // Yay bırakımı: retro "pan"; `shot.laserSmall` ile aynı aile, daha sessiz.
+  'shot.bow': {
+    files: [`${SCIFI}/laserRetro_000.ogg`, `${SCIFI}/laserRetro_001.ogg`],
+    bus: 'sfx', volume: 0.5, pitch: 0.08, throttleMs: 60, poly: 3, preload: false,
   },
   'boom.low': {
     files: [`${SCIFI}/lowFrequency_explosion_000.ogg`],
     bus: 'sfx', volume: 0.95, pitch: 0.05, throttleMs: 120, poly: 2, preload: false,
   },
   'move.whoosh': {
-    files: [`${SCIFI}/thrusterFire_000.ogg`, `${SCIFI}/forceField_000.ogg`],
+    files: [`${SCIFI}/forceField_000.ogg`],
     bus: 'sfx', volume: 0.65, pitch: 0.12, throttleMs: 70, poly: 3, preload: false,
   },
   'fx.teleport': {
@@ -132,7 +144,7 @@ export const SOUND_BANK = {
     bus: 'sfx', volume: 0.7, pitch: 0.06, throttleMs: 90, poly: 2, preload: false,
   },
   'tick.bomb': {
-    files: [`${INTERFACE}/tick_001.ogg`, `${INTERFACE}/tick_002.ogg`],
+    files: [`${INTERFACE}/tick_001.ogg`],
     bus: 'sfx', volume: 0.6, pitch: 0.05, throttleMs: 0, poly: 4, preload: false,
   },
   'alarm.vault': {
@@ -175,7 +187,9 @@ export const SYNTH_TO_SAMPLE = {
   playStart: 'jingle.start',
   playShoot: 'shot.laserSmall',
   playRicochet: 'hit.metalLight',
-  playExplosion: 'boom.crunch',
+  playSnakePop: 'hit.snakePop',
+  playArrowHit: 'hit.arrow',
+  playArrowShoot: 'shot.bow',
   playDryFire: 'ui.error',
   playFireBlocked: 'ui.error',
   playPowerUp: 'pickup.power',

@@ -498,3 +498,29 @@ test('TANKS gates spawn actions, advances round ids, and resolves timeout', () =
   game.update(32);
   assert.equal(game.state, 'MATCH_OVER');
 });
+
+test('TANKS spawn intro latches held drive input and does not burn the round clock', () => {
+  const game = configureTanks();
+  game.startNewMatch();
+  const tank = game.tanks[0];
+  assert.ok(game.spawnIntroTimer > 0);
+
+  // Uzak kumanda intro sırasında yönü basılı tutar: niyet latch'lenir, düşmez.
+  game.handleRemoteInput(0, { action: 'TANK_DRIVE', driving: true });
+  assert.equal(tank.isDriving, true);
+  assert.equal(game.driveOwner[0], 'remote');
+
+  // Raunt saati intro'da işlemez: kumanda `timeLeft` ilk karede tam süreyi görür.
+  const startX = tank.x;
+  const startY = tank.y;
+  game.lastTime = 0;
+  game.update(16);
+  assert.equal(game.roundTimer, 0, 'intro penceresinde raunt saati işlememeli');
+  assert.equal(game.crateSpawnTimer, 6, 'crate sayacı donmuş sahneyi saymamalı');
+  assert.equal(tank.x, startX, 'intro sırasında tank hareket etmemeli');
+
+  // Bırakınca latch düşer (sönmemiş direksiyon yok).
+  game.handleRemoteInput(0, { action: 'TANK_DRIVE', driving: false });
+  assert.equal(tank.isDriving, false);
+  assert.equal(game.driveOwner[0], null);
+});

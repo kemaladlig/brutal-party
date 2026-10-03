@@ -311,6 +311,9 @@ export const EN = {
   'game.roundOver': 'ROUND OVER',
   'game.draw': 'DRAW!',
   'game.won': '{0} WINS!',
+  // Round-start freeze countdown (TANKS/CURVE spawn intro): shared
+  // `renderSpawnCountdown` label. The helper draws the number itself.
+  'game.spawnReady': 'READY',
   // ── Per-game control guides ──
   'guide.bomb': 'JOYSTICK: RUN • TAP: DASH • 3 SETS WIN',
   'guide.collapse': 'JOYSTICK: MOVE • ACTION: JUMP & SHOCKWAVE',

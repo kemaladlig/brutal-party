@@ -348,8 +348,13 @@ test('CURVE gates spawn input and resolves timeout as a draw', () => {
   player.steer = 1;
   game.lastTime = 1000;
   game.update(1016);
+  // Simülasyon dondurulur: açılışta dönülmez.
   assert.equal(player.angle, before);
-  assert.equal(player.steer, 0);
+  // Ama NİYET korunur: basılı tutulan yön intro bitince devralınır, oyuncu
+  // bırakıp yeniden basmak zorunda kalmaz (ölçülen "donuyor" kusuru).
+  assert.equal(player.steer, 1);
+  // Raunt saati intro penceresinde işlemez.
+  assert.equal(game.roundTimer, 0);
 
   game.spawnIntroTimer = 0;
   game.roundTimer = game.roundLimit - 0.001;
@@ -405,6 +410,35 @@ test('SNAKE separates food score, sweeps wall collision, and resolves zero survi
   game.roundTransitionTimer = 0;
   game.update(1032);
   assert.notEqual(game.state, 'MATCH_OVER');
+});
+
+test('SNAKE food radius scales with the field instead of staying at raw px', () => {
+  const game = configureSnake();
+
+  // Tasarım tabanı: ortak pickup ölçeği (arenaKit.PICKUP_SIZE.base = 15).
+  // Ölçülen kusur: yem `size: 13` ham px idi ve view onu ÇAP sayıyordu, yani
+  // gerçekte 6.5 px yarıçap çiziliyordu; kafa ise fieldRadius ile büyüyordu.
+  game.foods = [];
+  game.spawnFood(400, 300, 'APPLE');
+  game.spawnFood(500, 300, 'TURBO_BERRY');
+  game.spawnFood(600, 300, 'GOLDEN_STAR');
+  const [apple, berry, star] = game.foods;
+  const headRadius = game.players[0].radius;
+
+  assert.ok(apple.radius > 6.5, `elma yarıçapı çizimle uyuşmalı (${apple.radius})`);
+  assert.ok(berry.radius > apple.radius, 'berry elmadan büyük olmalı');
+  assert.ok(star.radius > berry.radius, 'yıldız berryden büyük olmalı');
+  assert.ok(star.radius < headRadius, 'yem kafadan büyük olmamalı');
+
+  // Saha büyüdükçe yem de büyür — göreli boyut sabit kalır.
+  const wide = configureSnake();
+  wide.resize(1600, 1200);
+  wide.foods = [];
+  wide.spawnFood(700, 500, 'APPLE');
+  assert.ok(
+    wide.foods[0].radius > apple.radius * 1.5,
+    `geniş saha yemi de büyütmeli (${wide.foods[0].radius} vs ${apple.radius})`
+  );
 });
 
 test('CURVE HIZLAN accelerates, widens the turn and then cools down', () => {
