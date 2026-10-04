@@ -314,12 +314,13 @@
 }
 
 /* === AVATAR CUSTOMIZER WORKSHOP & POPOVERS === */
-/* Left Preview Box */
+/* Dil: düz panel + ince ayraç (ayar sheet'iyle aynı aile). Satırlar ve
+   seçenekler kendi kutusu DEĞİLDİR; kalın kenarlık ve sert gölge yok. */
 .customize-preview-box {
   min-width: 0;
   min-height: 0;
-  background-color: var(--paper);
-  border-right: 3.5px solid var(--edge);
+  background-color: var(--elevated);
+  border-right: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -332,7 +333,7 @@
 @media (max-width: 680px) {
   .customize-preview-box {
     border-right: none;
-    border-bottom: 3.5px solid var(--edge);
+    border-bottom: 1px solid var(--n-200);
     padding: 12px;
   }
 }
@@ -340,9 +341,9 @@
 .preview-stage {
   width: 190px;
   height: 190px;
-  background-color: var(--card);
-  border: 3px solid var(--edge);
-  box-shadow: 4px 4px 0 var(--edge-strong);
+  background-color: var(--n-100);
+  border: 1px solid var(--n-200);
+  border-radius: var(--r-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -370,20 +371,25 @@
 .btn-reset-customize {
   min-height: 44px;
   padding: 8px 14px;
-  background-color: var(--card);
-  border: 2px solid var(--edge);
-  box-shadow: 2px 2px 0 var(--edge-strong);
+  background-color: transparent;
+  border: 1px solid var(--n-300);
+  border-radius: var(--radius-pill);
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 800;
-  color: var(--ink);
+  color: var(--muted);
   cursor: pointer;
-  transition: transform 0.05s ease, box-shadow 0.05s ease;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.btn-reset-customize:hover {
+  background-color: var(--n-100);
+  color: var(--ink);
 }
 
 .btn-reset-customize:active {
-  transform: translate(2px, 2px);
-  box-shadow: 0px 0px 0 var(--edge-strong);
+  background-color: var(--n-200);
+  color: var(--ink);
 }
 
 /* Right Options Scroll */
@@ -411,40 +417,53 @@
   display: none;
 }
 
-/* Sekme çubuğu (Avatar Atölyesi) */
+/* Sekme çubuğu (Avatar Atölyesi): ayar sheet'indeki segment kontrolle aynı
+   dil — tek kapsayıcı, şeffaf dilimler, aktif dilim düz panel. */
 .customize-tabs {
   display: flex;
-  gap: 8px;
+  gap: 2px;
   flex-shrink: 0;
+  min-height: 48px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--n-100);
 }
 
 .customize-tab {
   min-width: 0;
-  min-height: 44px;
+  min-height: 42px;
   flex: 1;
-  padding: 10px 6px;
-  background-color: var(--card);
-  border: 2.5px solid var(--edge);
-  box-shadow: 3px 3px 0 var(--edge-strong);
+  padding: 0 6px;
+  background-color: transparent;
+  border: 0;
+  border-radius: 9px;
+  box-shadow: none;
   font-family: var(--font-display);
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.5px;
-  color: var(--ink);
+  letter-spacing: 0.05em;
+  color: var(--muted);
   cursor: pointer;
-  transition: transform 0.05s ease, box-shadow 0.05s ease, background-color 0.1s ease;
+  transition: background-color 150ms ease, color 150ms ease;
   white-space: nowrap;
 }
 
+.customize-tab:hover {
+  color: var(--ink);
+}
+
 .customize-tab:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 var(--edge-strong);
+  background-color: var(--n-200);
 }
 
 .customize-tab.active {
-  background-color: var(--bot-tag);
-  box-shadow: 1px 1px 0 var(--edge-strong);
-  transform: translate(2px, 2px);
+  background-color: var(--panel);
+  color: var(--ink);
+}
+
+.customize-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }.palette-grid {
   display: flex;
   flex-wrap: wrap;
@@ -454,23 +473,21 @@
 .color-swatch-btn {
   width: 44px;
   height: 44px;
-  border: 3px solid var(--edge);
-  box-shadow: 3px 3px 0 var(--edge-strong);
+  border-radius: 12px;
+  border: 1px solid var(--n-300);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.05s ease, box-shadow 0.05s ease;
+  transition: border-color 150ms ease, opacity 150ms ease;
 }
 
-.color-swatch-btn:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 var(--edge-strong);
+.color-swatch-btn:hover {
+  border-color: var(--n-500);
 }
 
 .color-swatch-btn.selected {
-  outline: 3px solid var(--bot-tag);
-  transform: scale(1.08);
+  border: 2px solid var(--accent);
 }
 
 .swatch-check {
@@ -490,27 +507,30 @@
   min-width: 0;
   min-height: 64px;
   padding: 8px 10px;
-  background-color: var(--card);
-  border: 2.5px solid var(--edge);
-  box-shadow: 3px 3px 0 var(--edge-strong);
+  background-color: transparent;
+  border: 1px solid var(--n-200);
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 4px;
   cursor: pointer;
-  transition: transform 0.05s ease, box-shadow 0.05s ease, background-color 0.1s ease;
+  transition: background-color 150ms ease, border-color 150ms ease;
 }
 
-.custom-chip-btn:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 var(--edge-strong);
+.custom-chip-btn:hover {
+  border-color: var(--n-400);
 }
 
 .custom-chip-btn.selected {
-  background-color: var(--bot-tag);
-  box-shadow: 3px 3px 0 var(--edge-strong);
-  transform: translate(-1px, -1px);
+  background-color: var(--n-100);
+  border-color: var(--accent);
+}
+
+.custom-chip-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .chip-icon {
@@ -540,30 +560,27 @@
   border-radius: 50%;
   border: 5px solid var(--rim);
   background-color: var(--dot);
-  /* Halka zeminde kaybolmasın diye ince kontrast hairline: `--edge-strong`
-     her temada zeminden ayrışmak üzere tasarlıdır (beyaz halka açık zeminde,
-     klasik halka koyu zeminde okunur). */
-  box-shadow: 0 0 0 2px var(--edge-strong), 3px 3px 0 var(--edge-strong);
+  /* Halka zeminde kaybolmasın diye ince kontrast hairline. */
+  box-shadow: 0 0 0 1px var(--n-300);
   cursor: pointer;
-  transition: transform 0.05s ease, box-shadow 0.05s ease;
+  transition: opacity 150ms ease;
 }
 
-.rim-swatch-btn:active {
-  transform: translate(2px, 2px);
-  box-shadow: 0 0 0 2px var(--edge-strong), 1px 1px 0 var(--edge-strong);
+.rim-swatch-btn:hover {
+  box-shadow: 0 0 0 2px var(--n-400);
 }
 
 .rim-swatch-btn.selected {
-  outline: 3px solid var(--bot-tag);
-  transform: scale(1.08);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* Footer */
 .customize-footer {
   flex: 0 0 auto;
   padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
-  background-color: var(--paper-warm);
-  border-top: 3.5px solid var(--edge);
+  background-color: var(--elevated);
+  border-top: 1px solid var(--n-200);
   display: flex;
   justify-content: flex-end;
 }
@@ -571,21 +588,29 @@
 .btn-save-customize {
   min-height: 48px;
   padding: 12px 24px;
-  background-color: var(--p4);
-  color: var(--white);
-  border: 3px solid var(--edge);
-  box-shadow: 4px 4px 0 var(--edge-strong);
+  background-color: var(--accent);
+  color: var(--on-accent);
+  border: 0;
+  border-radius: var(--radius-pill);
   font-family: var(--font-display);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.05em;
   cursor: pointer;
-  transition: transform 0.05s ease, box-shadow 0.05s ease;
+  transition: opacity 150ms ease;
+}
+
+.btn-save-customize:hover {
+  opacity: 0.92;
 }
 
 .btn-save-customize:active {
-  transform: translate(3px, 3px);
-  box-shadow: 1px 1px 0 var(--edge-strong);
+  opacity: 0.82;
+}
+
+.btn-save-customize:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 
 /* Sert engel: kilitli başlat butonları */

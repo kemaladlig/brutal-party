@@ -17,11 +17,15 @@
 }
 
 /* 2. Tactile Card Pop-up with Spring Feedback */
-/* NOTE: pause sheet has its own slide-in (sheet-in-right/bottom), excluded here. */
+/* NOTE: pause sheet has its own slide-in (sheet-in-right/bottom), excluded here.
+   Customize uses the flat sheet entrance (settings-in, transform/opacity only). */
 .lobby-card,
-#join-room-modal:not(.hidden) .join-room-card,
-#customize-modal:not(.hidden) .customize-card {
+#join-room-modal:not(.hidden) .join-room-card {
   animation: brutal-card-pop 320ms cubic-bezier(0.175, 0.885, 0.32, 1.18) forwards;
+}
+
+#customize-modal:not(.hidden) .customize-card {
+  animation: settings-in 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes brutal-card-pop {

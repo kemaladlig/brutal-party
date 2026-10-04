@@ -461,11 +461,12 @@
 
 .customize-card {
   position: relative;
-  background-color: var(--card);
-  border: 4px solid var(--edge);
-  box-shadow: 10px 10px 0px var(--ink);
+  background-color: var(--elevated);
+  border: var(--arcade-edge-w) solid var(--n-300);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-float), var(--arcade-bevel);
   width: 100%;
-  max-width: 780px;
+  max-width: min(680px, 100%);
   max-height: 90vh;
   max-height: 90dvh;
   min-height: 0;
@@ -473,12 +474,7 @@
   flex-direction: column;
   box-sizing: border-box;
   overflow: hidden;
-  animation: modalPopIn 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-@keyframes modalPopIn {
-  from { transform: scale(0.92); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  animation: settings-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .customize-header {
@@ -487,19 +483,22 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  background-color: var(--paper-warm);
-  border-bottom: 3.5px solid var(--edge);
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 10px 10px 16px;
+  background-color: var(--elevated);
+  border-bottom: 1px solid var(--n-200);
 }
 
 .customize-badge {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 900;
-  background-color: var(--bot-tag);
-  color: var(--ink);
-  border: 2px solid var(--edge);
-  padding: 2px 6px;
+  letter-spacing: 0.08em;
+  background-color: var(--n-100);
+  color: var(--muted);
+  border-radius: var(--radius-pill);
+  padding: 3px 8px;
   display: inline-block;
   margin-bottom: 4px;
 }
@@ -514,14 +513,15 @@
 }
 
 .customize-close-btn {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  background-color: var(--p1);
-  color: var(--white);
-  border: 3px solid var(--edge);
-  box-shadow: 3px 3px 0 var(--edge-strong);
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  background-color: transparent;
+  color: var(--muted);
+  border: 0;
+  border-radius: 11px;
+  box-shadow: none;
   font-family: var(--font-display);
   font-size: 20px;
   font-weight: 900;
@@ -529,12 +529,22 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.05s ease, box-shadow 0.05s ease;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.customize-close-btn:hover {
+  background-color: var(--n-100);
+  color: var(--ink);
 }
 
 .customize-close-btn:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 var(--edge-strong);
+  background-color: var(--n-200);
+  color: var(--ink);
+}
+
+.customize-close-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .customize-body {
@@ -557,10 +567,10 @@
   .customize-card {
     max-height: 92vh;
     max-height: 92dvh;
-    border: 4px solid var(--edge);
-    border-bottom: 0;
+    border: 0;
+    border-top: 1px solid var(--n-300);
     border-radius: 20px 20px 0 0;
-    box-shadow: 0 -8px 0 var(--edge-dark);
+    box-shadow: var(--shadow-float);
   }
 
   .customize-body {
@@ -571,7 +581,7 @@
 
   .customize-preview-box {
     border-right: 0;
-    border-bottom: 3.5px solid var(--edge);
+    border-bottom: 1px solid var(--n-200);
     padding: 12px;
   }
 
@@ -636,7 +646,7 @@
   }
 
   .customize-preview-box {
-    border-right: 3.5px solid var(--edge);
+    border-right: 1px solid var(--n-200);
     border-bottom: 0;
     padding: 8px;
     gap: 6px;
