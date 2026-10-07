@@ -1,13 +1,27 @@
+import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-// src/ -> code-rag -> tools -> repo root
-const here = path.dirname(fileURLToPath(import.meta.url));
-const PKG_DIR = path.resolve(here, '..');
-export const REPO_ROOT = path.resolve(here, '..', '..', '..');
+// Repo root. OpenCode launches a local MCP server with the workspace as its
+// cwd, so inside the server `process.cwd()` is the project being worked on;
+// the CLI uses wherever it is invoked. CODE_RAG_REPO overrides both.
+export const REPO_ROOT = process.env.CODE_RAG_REPO
+  ? path.resolve(process.env.CODE_RAG_REPO)
+  : process.cwd();
 
-// Index scope. Add entries (e.g. 'src/games') to widen it.
-export const INDEX_ROOTS = ['src', 'docs'];
+// Index scope. CODE_RAG_ROOTS="src,docs" wins; otherwise prefer a conventional
+// src/ layout (adding docs/ when present) and fall back to the whole repo.
+function resolveRoots() {
+  const fromEnv = process.env.CODE_RAG_ROOTS;
+  if (fromEnv) {
+    return fromEnv
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  const roots = ['src', 'docs'].filter((r) => fs.existsSync(path.join(REPO_ROOT, r)));
+  return roots.length ? roots : ['.'];
+}
+export const INDEX_ROOTS = resolveRoots();
 
 export const INCLUDE_SUFFIXES = new Set(['.js', '.mjs', '.cjs', '.ts', '.css', '.md', '.html']);
 
@@ -21,6 +35,7 @@ export const EXCLUDE_DIRS = new Set([
   '.venv',
   '__pycache__',
   '.cache',
+  '.code-rag',
 ]);
 
 // Embeddings: EmbeddingGemma v1 (300M) served by Ollama. Chosen over
@@ -39,11 +54,12 @@ export const QUERY_TEXT = (q) => QUERY_PREFIX + q;
 export const DOC_TEXT = (title, code) =>
   `title: ${title} | text: ${MAX_DOC_CHARS ? code.slice(0, MAX_DOC_CHARS) : code}`;
 
-// DB path resolves against the tool directory, never the process cwd, so the
-// CLI, indexer and MCP server all hit the same database from any working dir.
+// One index per repo, kept beside the project and self-ignored (see store.js),
+// so a single tool install serves every project. CODE_RAG_DB overrides the
+// path, resolved relative to the repo root.
 export const DB_PATH = process.env.CODE_RAG_DB
-  ? path.resolve(PKG_DIR, process.env.CODE_RAG_DB)
-  : path.join(PKG_DIR, 'index.db');
+  ? path.resolve(REPO_ROOT, process.env.CODE_RAG_DB)
+  : path.join(REPO_ROOT, '.code-rag', 'index.db');
 
 // Chunk geometry. 40 lines keeps sequences short (the dominant cost) and is the
 // configuration the retrieval eval was tuned on.

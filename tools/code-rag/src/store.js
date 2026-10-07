@@ -1,10 +1,18 @@
 // SQLite store via Node's built-in node:sqlite. Vectors are stored as float32
 // blobs and searched by brute-force cosine (pilot-sized index only).
+import fs from 'node:fs';
+import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { DB_PATH } from './config.js';
 
-export function open(path = DB_PATH) {
-  const db = new DatabaseSync(path);
+export function open(file = DB_PATH) {
+  const dir = path.dirname(file);
+  fs.mkdirSync(dir, { recursive: true });
+  // Keep the index out of version control without editing the repo's own
+  // .gitignore: a `*` ignore inside the directory ignores its whole contents.
+  const ignore = path.join(dir, '.gitignore');
+  if (!fs.existsSync(ignore)) fs.writeFileSync(ignore, '*\n');
+  const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL');
   db.exec(`CREATE TABLE IF NOT EXISTS files (
     relpath TEXT PRIMARY KEY,
