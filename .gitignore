@@ -24,3 +24,4 @@ art-source/
 
 # AI gorsel uretici cikislari (kapak kaynaklari): pakete/repoya girmez
 vibe_images/
+.playwright-mcp/
