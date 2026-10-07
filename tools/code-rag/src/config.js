@@ -66,3 +66,10 @@ export const DB_PATH = process.env.CODE_RAG_DB
 export const MAX_CHUNK_LINES = Number(process.env.CODE_RAG_MAX_CHUNK_LINES ?? 40);
 export const MIN_CHUNK_LINES = 5;
 export const WINDOW_OVERLAP = Number(process.env.CODE_RAG_WINDOW_OVERLAP ?? 12);
+
+// A directory is worth auto-indexing when it has a repo marker or a conventional
+// source/docs root. Guards the background build from crawling a non-project cwd
+// (e.g. the home directory) if a tool launches the server in the wrong place.
+export function looksLikeProject(root = REPO_ROOT) {
+  return ['.git', 'src', 'docs'].some((name) => fs.existsSync(path.join(root, name)));
+}

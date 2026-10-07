@@ -13,6 +13,9 @@ export function open(file = DB_PATH) {
   const ignore = path.join(dir, '.gitignore');
   if (!fs.existsSync(ignore)) fs.writeFileSync(ignore, '*\n');
   const db = new DatabaseSync(file);
+  // Several tool sessions may run their own MCP server against the same repo
+  // index; wait briefly instead of failing when another is mid-write.
+  db.exec('PRAGMA busy_timeout = 5000');
   db.exec('PRAGMA journal_mode = WAL');
   db.exec(`CREATE TABLE IF NOT EXISTS files (
     relpath TEXT PRIMARY KEY,

@@ -68,8 +68,8 @@ config, `~/.config/opencode/opencode.jsonc`:
 ```
 
 OpenCode launches a local MCP server with the workspace as its `cwd`, so the
-server indexes whichever project the session is in. The first search in a new
-project needs one `reindex` (full build); after that it is incremental.
+server indexes whichever project the session is in. A new project is indexed in
+the background on first use — see "First use" below.
 
 ## Usage (CLI)
 
@@ -105,6 +105,18 @@ node tools/code-rag/src/cli.js status
 
 The MCP protocol for three read-only tools is small enough that a framework
 (FastMCP) would only add a dependency, hence the dependency-free server.
+
+## First use: search never blocks
+
+When a project has no index yet — or the working tree moved on — `search_code`
+and `index_status` start an incremental build **in the background** and return
+immediately with whatever is already indexed. The first call in a new project
+may therefore return few results: fall back to normal search/read and retry
+shortly. The index is ready seconds to minutes later (Ollama/GPU bound); later
+calls refresh incrementally and are cheap. `reindex` is the only synchronous
+entry point, for when you must wait for the index to be current. Only
+directories that look like a project (`.git`, `src/`, or `docs/`) are
+auto-indexed, so a stray working directory is never crawled.
 
 ## Design
 

@@ -1,12 +1,15 @@
 // Minimal MCP (Model Context Protocol) server over stdio, JSON-RPC 2.0,
-// no dependencies. Exposes semantic code search to OpenCode. The protocol for
-// two read-only tools is small enough that a framework would only add weight.
+// no dependencies. Exposes semantic code search to OpenCode and other MCP
+// clients. The protocol for three read-only tools is small enough that a
+// framework would only add weight.
 //
-// stdout carries protocol frames only; all diagnostics go to stderr.
+// Search never blocks on indexing: a missing or stale index is (re)built in the
+// background and the call returns whatever is already indexed. stdout carries
+// protocol frames only; all diagnostics go to stderr.
 import { createInterface } from 'node:readline';
 
 import { DB_PATH, INDEX_ROOTS, OLLAMA_MODEL } from './config.js';
-import { build, searchQuery, status } from './indexer.js';
+import { build, ensureIndex, isBuilding, searchQuery, status } from './indexer.js';
 
 const PROTOCOL_VERSION = '2025-06-18';
 const SERVER_INFO = { name: 'code-rag', version: '0.1.0' };
@@ -18,7 +21,9 @@ const TOOLS = [
     description:
       'Semantic search over the indexed code (and optionally docs). Use this before ' +
       'reading files to locate where a concept lives. Returns ranked chunks with file ' +
-      'path, line range and a short snippet; read the file for full context. Defaults ' +
+      'path, line range and a short snippet; read the file for full context. The index ' +
+      'warms up automatically in the background, so a first call in a new project may ' +
+      'return few results — fall back to normal search/read and retry shortly. Defaults ' +
       'to code scope because design docs tend to outrank code semantically.',
     inputSchema: {
       type: 'object',
@@ -42,14 +47,17 @@ const TOOLS = [
   },
   {
     name: 'index_status',
-    description: 'Report index freshness: file/chunk counts, backend and last indexed time.',
+    description:
+      'Report index freshness: file/chunk counts, backend, whether a build is running, ' +
+      'and last indexed time.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'reindex',
     description:
-      'Refresh the index incrementally (only changed files are re-embedded). Pass ' +
-      'full=true to rebuild from scratch. Returns how many files were indexed/skipped.',
+      'Refresh the index synchronously. Prefer search_code, which already refreshes in ' +
+      'the background; call this only when you must wait for the index to be current. ' +
+      'Pass full=true to rebuild from scratch.',
     inputSchema: {
       type: 'object',
       properties: { full: { type: 'boolean', description: 'Force a full rebuild.' } },
@@ -79,28 +87,40 @@ async function callTool(name, args) {
       else if (scope === 'docs') pathPrefix = 'docs/';
       // 'all' (or anything else) leaves pathPrefix null.
     }
+    const cold = status().chunks === 0;
+    ensureIndex(); // fire-and-forget: never blocks this call
     const results = await searchQuery(query, k, pathPrefix);
-    if (results.length === 0) return { content: [{ type: 'text', text: 'No results.' }] };
-    const text = results
-      .map((r, i) => {
-        const loc = `${r.relpath}:${r.start}-${r.end}`;
-        const sym = r.symbol ? ` · ${r.symbol}` : '';
-        return `[${i + 1}] ${loc}${sym}  (score ${r.score.toFixed(3)})\n${snippet(r.text)}`;
-      })
-      .join('\n\n');
+    const note = cold
+      ? '\n\n(code-rag: no index for this project yet — building it in the background. ' +
+        'These results may be incomplete; use normal search/read meanwhile and retry shortly.)'
+      : isBuilding()
+        ? '\n\n(code-rag: index refresh running in the background; results may lag the working tree.)'
+        : '';
+    if (results.length === 0) return { content: [{ type: 'text', text: `No results.${note}` }] };
+    const text =
+      results
+        .map((r, i) => {
+          const loc = `${r.relpath}:${r.start}-${r.end}`;
+          const sym = r.symbol ? ` · ${r.symbol}` : '';
+          return `[${i + 1}] ${loc}${sym}  (score ${r.score.toFixed(3)})\n${snippet(r.text)}`;
+        })
+        .join('\n\n') + note;
     return { content: [{ type: 'text', text }] };
   }
 
   if (name === 'index_status') {
     const st = status();
     const when = st.lastIndexed ? new Date(st.lastIndexed * 1000).toISOString() : 'never';
+    if (st.chunks === 0) ensureIndex(); // warm a fresh project on first check
     const text =
       `files=${st.files} chunks=${st.chunks} last_indexed=${when}\n` +
-      `backend=ollama (${OLLAMA_MODEL}) roots=[${INDEX_ROOTS.join(', ')}]\ndb=${DB_PATH}`;
+      `backend=ollama (${OLLAMA_MODEL}) roots=[${INDEX_ROOTS.join(', ')}]\n` +
+      `building=${isBuilding() ? 'yes' : 'no'}\ndb=${DB_PATH}`;
     return { content: [{ type: 'text', text }] };
   }
 
   if (name === 'reindex') {
+    if (isBuilding()) await ensureIndex(); // let any background build finish first
     const report = await build({ full: !!args.full, onProgress: () => {} });
     const text =
       `indexed=${report.indexed} skipped=${report.skipped} removed=${report.removed} ` +

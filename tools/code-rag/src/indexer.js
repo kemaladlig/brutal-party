@@ -10,6 +10,7 @@ import {
   INDEX_ROOTS,
   QUERY_TEXT,
   REPO_ROOT,
+  looksLikeProject,
 } from './config.js';
 import { chunkFile, langOf } from './chunker.js';
 import { embedTexts } from './embedder-ollama.js';
@@ -88,4 +89,34 @@ export async function searchQuery(query, k = 8, pathPrefix = null) {
 
 export function status() {
   return store.status(store.open());
+}
+
+// ── Background indexing ──────────────────────────────────────────────────────
+// Search must never block on a build. ensureIndex() starts a non-blocking,
+// incremental build (at most once per cooldown, and only in a real project) and
+// returns immediately; callers keep serving whatever is already indexed while
+// the build runs. Repeated calls run the same in-flight promise.
+let building = null;
+let lastKick = 0;
+const KICK_COOLDOWN_MS = 5000;
+
+export function isBuilding() {
+  return building !== null;
+}
+
+export function ensureIndex({ full = false, onProgress = () => {} } = {}) {
+  if (building) return building;
+  if (!looksLikeProject()) return null;
+  const now = Date.now();
+  if (now - lastKick < KICK_COOLDOWN_MS) return null;
+  lastKick = now;
+  building = build({ full, onProgress })
+    .catch((err) => {
+      process.stderr.write(`code-rag: background index failed: ${err?.message ?? err}\n`);
+      return null;
+    })
+    .finally(() => {
+      building = null;
+    });
+  return building;
 }
