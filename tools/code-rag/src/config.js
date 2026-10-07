@@ -7,7 +7,7 @@ const PKG_DIR = path.resolve(here, '..');
 export const REPO_ROOT = path.resolve(here, '..', '..', '..');
 
 // Index scope. Add entries (e.g. 'src/games') to widen it.
-export const INDEX_ROOTS = ['src/core', 'docs'];
+export const INDEX_ROOTS = ['src', 'docs'];
 
 export const INCLUDE_SUFFIXES = new Set(['.js', '.mjs', '.cjs', '.ts', '.css', '.md', '.html']);
 

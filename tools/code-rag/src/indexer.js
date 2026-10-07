@@ -66,9 +66,13 @@ export async function build({ full = false, batch = 16, onProgress = () => {} } 
     onProgress(`  + ${rel} (${records.length} chunks)`);
   }
 
+  // Only prune files that fall under a configured root. Without this, a build
+  // run with a narrower INDEX_ROOTS (e.g. a server that has not re-read the
+  // config) would treat every out-of-scope file as deleted and drop it.
+  const inScope = (rel) => INDEX_ROOTS.some((r) => rel === r || rel.startsWith(`${r}/`));
   let removed = 0;
   for (const row of db.prepare('SELECT relpath FROM files').all()) {
-    if (!seen.has(row.relpath)) {
+    if (!seen.has(row.relpath) && inScope(row.relpath)) {
       store.deleteFile(db, row.relpath);
       removed++;
     }
