@@ -284,7 +284,7 @@ export const GAMEPAD_SCHEMAS = {
         icon: 'zap',
         label: t('pad.dash'),
         color: '#E11D48',
-        cooldown: 3.5,
+        cooldown: 3.2,
         vibrate: [25, 35],
         syncHostCooldown: true,
       },

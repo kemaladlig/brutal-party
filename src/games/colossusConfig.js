@@ -7,6 +7,7 @@
 // okunabilir telegraph'la gelir (WINDUP_* → aktif → toparlanma).
 
 import { FIELD_THEMES } from '../core/fieldKit.js';
+import { segmentCircleIntersection } from '../core/physics2d.js';
 import { UI_COLORS } from '../ui/tokens.js';
 
 export const COLOSSUS_WEAPONS = Object.freeze({
@@ -135,7 +136,7 @@ export const COLOSSUS_BOSSES = Object.freeze({
     hasShieldPhase: true,
     accentColor: UI_COLORS.colossusSniper,
     parts: Object.freeze([
-      { id: 'coil', nameKey: 'colossus.partCoil', maxHp: 32, angleOffset: 0, distRatio: 0, radius: 24, disables: 'LASER' },
+      { id: 'coil', nameKey: 'colossus.partCoil', maxHp: 32, angleOffset: 0, distRatio: 0.56, radius: 24, disables: 'LASER' },
       { id: 'capacitors', nameKey: 'colossus.partCapacitors', maxHp: 30, angleOffset: Math.PI * 0.5, distRatio: 0.72, radius: 20, disables: 'STOMP' },
     ]),
   }),
@@ -166,8 +167,9 @@ export const COLOSSUS_TUNING = Object.freeze({
   PILLAR_STAGGER_BONUS: 60,
 
   // Zırh ve zayıf nokta
-  ARMOR_DAMAGE_SCALE: 0.18,
+  ARMOR_DAMAGE_SCALE: 0.36,
   CORE_ARC: Math.PI * 0.6, // ~108 derece arka koni
+  HURT_INVULN: 0.72,
 
   // Oyuncu yetenekleri
   DASH_COOLDOWN: 3.2,
@@ -186,11 +188,12 @@ export const COLOSSUS_TUNING = Object.freeze({
   STOMP_DAMAGE: 1,
   STOMP_RING_SPEED: 300,
   STOMP_MAX_RADIUS: 420,
+  VOLT_DOUBLE_STOMP_DELAY: 0.45,
 
   // Tarayıcı ışın (Beam Sweep): izle → kilit → ateş
   LASER_COOLDOWN: 6.6,
-  LASER_TRACK_TIME: 1.15,
-  LASER_LOCK_TIME: 0.35,
+  LASER_TRACK_TIME: 0.95,
+  LASER_LOCK_TIME: 0.38,
   LASER_FIRE_TIME: 0.7,
   LASER_DAMAGE: 1,
   LASER_TICK: 0.35,
@@ -206,6 +209,7 @@ export const COLOSSUS_TUNING = Object.freeze({
   // Hücum (Charge)
   CHARGE_COOLDOWN: 7.0,
   CHARGE_WINDUP: 0.85,
+  CHARGE_LOCK_TIME: 0.28,
   CHARGE_SPEED: 360,
   CHARGE_DURATION: 1.2,
   CHARGE_DAMAGE: 2,
@@ -273,4 +277,32 @@ export function getColossusMap(bossId = 'AEGIS') {
       { x: 0, y: 0.36 },
     ],
   };
+}
+
+/**
+ * Clips a ray segment from `(ox, oy)` along `angle` up to `maxLen` against any
+ * active/living circles (`hp === undefined || hp > 0`). Returns clipped length.
+ * @param {number} ox
+ * @param {number} oy
+ * @param {number} angle
+ * @param {number} maxLen
+ * @param {Array<{x: number, y: number, radius: number, hp?: number, active?: boolean}>} circles
+ * @returns {number}
+ */
+export function clipRayToCircles(ox, oy, angle, maxLen, circles) {
+  let bestDist = maxLen;
+  if (!Array.isArray(circles) || maxLen <= 0) return bestDist;
+  const farX = ox + Math.cos(angle) * maxLen;
+  const farY = oy + Math.sin(angle) * maxLen;
+  for (const circle of circles) {
+    if (!circle || (circle.hp !== undefined && circle.hp <= 0) || circle.active === false || !(circle.radius > 0)) {
+      continue;
+    }
+    const hit = segmentCircleIntersection(ox, oy, farX, farY, circle.x, circle.y, circle.radius);
+    if (hit && hit.t >= 0) {
+      const dist = hit.t * maxLen;
+      if (dist < bestDist) bestDist = dist;
+    }
+  }
+  return bestDist;
 }

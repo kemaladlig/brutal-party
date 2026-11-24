@@ -15,6 +15,8 @@ import {
   normalizeAngle,
   segmentCircleIntersection,
 } from '../core/physics2d.js';
+import { stepArcadeVelocity } from '../core/playerEntity.js';
+import { fxFlashAlpha } from '../core/fxKit.js';
 import { createFxRuntime } from '../core/fxRuntime.js';
 import {
   playDashWhoosh,
@@ -24,13 +26,17 @@ import {
   playHordeHurt,
   playHordeKill,
   playJoin,
+  playLoseJingle,
+  playPowerUp,
   playShoot,
   playStart,
+  playWinJingle,
 } from '../audio.js';
 import {
   COLOSSUS_BOSSES,
   COLOSSUS_TUNING,
   COLOSSUS_WEAPONS,
+  clipRayToCircles,
   getColossusMap,
 } from './colossusConfig.js';
 import {
@@ -38,6 +44,7 @@ import {
   createColossusWorldPacket,
   drawColossusWorld,
 } from './colossusView.js';
+import { drawFxFlash } from './worldCore.js';
 import { updateBossAI, updateColossusBotAI } from '../ai/colossusAI.js';
 import { getBotPersona, getSlotCustomization } from '../core/customizationManager.js';
 import { notifyFireBlocked, notifyFireShot } from '../core/fireFeedbackEffects.js';
@@ -51,6 +58,19 @@ function distSq(ax, ay, bx, by) {
   const dx = ax - bx;
   const dy = ay - by;
   return dx * dx + dy * dy;
+}
+
+function pushCircleOut(entity, cx, cy, minDist) {
+  const dx = entity.x - cx;
+  const dy = entity.y - cy;
+  const dSq = dx * dx + dy * dy;
+  if (dSq >= minDist * minDist) return false;
+  const d = Math.sqrt(dSq);
+  const nx = d > 0.001 ? dx / d : 0;
+  const ny = d > 0.001 ? dy / d : 1;
+  entity.x = cx + nx * minDist;
+  entity.y = cy + ny * minDist;
+  return true;
 }
 
 export class ColossusGame extends BaseMiniGame {
@@ -71,6 +91,7 @@ export class ColossusGame extends BaseMiniGame {
     this.pillars = [];
     this.pylons = [];
     this.shockwaves = [];
+    this.pendingEchoStomps = [];
     this.mortars = [];
     this.floatingTexts = [];
 
@@ -179,6 +200,8 @@ export class ColossusGame extends BaseMiniGame {
       player.steerY = 0;
       player.aimActive = false;
       player.remoteAimActive = false;
+      player.aimHoldAuto = false;
+      player.aimHoldFired = false;
       player.keyDashLatch = false;
       player.keyFireLatch = false;
     }
@@ -213,6 +236,8 @@ export class ColossusGame extends BaseMiniGame {
         y: this.arena.cy + Math.sin(angle) * dist,
         vx: 0,
         vy: 0,
+        knockVx: 0,
+        knockVy: 0,
         steer: 0,
         steerX: 0,
         steerY: 0,
@@ -226,11 +251,22 @@ export class ColossusGame extends BaseMiniGame {
         ammo: weaponDef.magazine,
         attackCooldown: 0,
         reloadTimer: 0,
+        idleReloadTimer: 0,
         dashCooldown: 0,
         dashTimer: 0,
+        dashDirX: 0,
+        dashDirY: 0,
+        hurtInvuln: 0,
+        hitFlash: 0,
         laserHitCd: 0,
         aimActive: false,
+        remoteAimActive: false,
+        aimHoldAuto: false,
+        aimHoldFired: false,
         aimAngle: 0,
+        keyDashLatch: false,
+        keyFireLatch: false,
+        _skidDustCd: 0,
       };
     });
   }
@@ -240,7 +276,8 @@ export class ColossusGame extends BaseMiniGame {
     const oldArena = { ...this.arena };
     this.arena = computePlayfield(w, h, 'roomy');
     if (this.boss) {
-      this.boss.radius = fieldRadius(this.arena, COLOSSUS_TUNING.BOSS_RADIUS);
+      const bossDef = COLOSSUS_BOSSES[this.boss.id] || COLOSSUS_BOSSES.AEGIS;
+      this.boss.radius = fieldRadius(this.arena, bossDef.radius || COLOSSUS_TUNING.BOSS_RADIUS);
       if (this.state !== 'LOBBY') {
         this.remapPoint(this.boss, oldArena, this.arena);
         clampToArena(this.boss, this.boss.radius, this.arena);
@@ -252,6 +289,26 @@ export class ColossusGame extends BaseMiniGame {
       if (this.state !== 'LOBBY') {
         this.remapPoint(player, oldArena, this.arena);
         clampToArena(player, player.radius, this.arena);
+      }
+    }
+    if (this.state !== 'LOBBY') {
+      const sizeScale = oldArena.size > 0 && this.arena.size > 0 ? this.arena.size / oldArena.size : 1;
+      for (const pillar of this.pillars || []) {
+        this.remapPoint(pillar, oldArena, this.arena);
+        pillar.radius = fieldRadius(this.arena, COLOSSUS_TUNING.PILLAR_RADIUS);
+      }
+      for (const pylon of this.pylons || []) {
+        this.remapPoint(pylon, oldArena, this.arena);
+        pylon.radius = fieldRadius(this.arena, COLOSSUS_TUNING.PYLON_RADIUS);
+      }
+      for (const mortar of this.mortars || []) {
+        this.remapPoint(mortar, oldArena, this.arena);
+        mortar.radius = fieldRadius(this.arena, COLOSSUS_TUNING.MORTAR_RADIUS);
+      }
+      for (const wave of this.shockwaves || []) {
+        this.remapPoint(wave, oldArena, this.arena);
+        wave.radius *= sizeScale;
+        wave.maxRadius = fieldRadius(this.arena, COLOSSUS_TUNING.STOMP_MAX_RADIUS);
       }
     }
     if (this.state === 'LOBBY' || !this.players.length) {
@@ -275,6 +332,7 @@ export class ColossusGame extends BaseMiniGame {
     this.pillars = [];
     this.pylons = [];
     this.shockwaves = [];
+    this.pendingEchoStomps = [];
     this.mortars = [];
     this.floatingTexts = [];
     this.boss = null;
@@ -296,6 +354,14 @@ export class ColossusGame extends BaseMiniGame {
       player.isDowned = false;
       player.reviveProgress = 0;
       player.laserHitCd = 0;
+      player.hurtInvuln = 0;
+      player.hitFlash = 0;
+      player.idleReloadTimer = 0;
+      player.knockVx = 0;
+      player.knockVy = 0;
+      player.dashDirX = 0;
+      player.dashDirY = 0;
+      player._skidDustCd = 0;
       const w = COLOSSUS_WEAPONS[player.weaponId] || COLOSSUS_WEAPONS.RIFLE;
       player.ammo = w.magazine || 16;
     }
@@ -338,6 +404,7 @@ export class ColossusGame extends BaseMiniGame {
       laserProgress: 0,
       laserTimer: 0,
       laserTrackTimer: 0,
+      laserLockTimer: 0,
       stompCooldown: 2.5,
       laserCooldown: 4.5,
       mortarCooldown: 4.0,
@@ -346,6 +413,7 @@ export class ColossusGame extends BaseMiniGame {
       chargeWindup: 0,
       chargeTimer: 0,
       chargeAngle: Math.PI / 2,
+      chargeLock: false,
       chargeHits: [],
       mortarWindup: 0,
       parts: (bossDef.parts || []).map((p) => ({
@@ -375,6 +443,7 @@ export class ColossusGame extends BaseMiniGame {
     this.pylons = [];
     this.projectiles = [];
     this.shockwaves = [];
+    this.pendingEchoStomps = [];
     this.mortars = [];
     this.floatingTexts = [];
     this.fx.clear();
@@ -398,46 +467,66 @@ export class ColossusGame extends BaseMiniGame {
     this.updateBoss(dt);
     this.updatePylons(dt);
     this.updateShockwaves(dt);
+    this.updateEchoStomps(dt);
     this.updateLaser(dt);
     this.updateMortars(dt);
     this.updateProjectiles(dt);
     this.checkVictoryDefeat();
   }
 
-  updateHumanInput(player, dt) {
-    if (player.dashTimer > 0) return;
+  onSlotAimHold(slotIndex, isDown, { cancelled = false, tap = false, previousHeld = false } = {}) {
+    const player = this.players[slotIndex];
+    if (!player?.isJoined || !player.isAlive) return;
+    if (isDown && !previousHeld) player.aimHoldFired = false;
+    if (!isDown) {
+      player.aimActive = false;
+      if (tap && !cancelled && !player.isDowned && player.slotType === 'human' && !player.aimHoldFired && this.state === 'PLAYING') {
+        player.angle = this.autoAimAngle(player);
+        this.firePlayerWeapon(player);
+      }
+    }
+  }
 
+  updateHumanInput(player, dt) {
     // 1. Hareket: Sanal joystick + Klavye
     const movement = this.getPlayerMovementVector(player.index);
     if (movement.active || movement.magnitude > 0.05) {
-      player.vx = movement.x * player.speed;
-      player.vy = movement.y * player.speed;
-      if (!player.aimActive) {
-        player.angle = Math.atan2(movement.y, movement.x);
+      player.steerX = movement.x;
+      player.steerY = movement.y;
+    } else {
+      player.steerX = 0;
+      player.steerY = 0;
+    }
+
+    // 2. Twin-stick Dokunmatik Aim & Ateş (hold-to-fire) + Yönsüz basılı tutma
+    const aimState = this.getAimState(player.index);
+    const aimVector = this.getAimVector(player.index);
+    const keyboard = readSlotKeys(this.keys, player.index);
+    const plainHold = Boolean(aimState?.held && this.getPlainAimHold(player.index));
+
+    if (player.dashTimer <= 0) {
+      if (aimState?.active) {
+        player.aimActive = true;
+        player.angle = aimVector.angle;
+        this.firePlayerWeapon(player);
+      } else if (plainHold) {
+        player.aimActive = true;
+        player.angle = this.autoAimAngle(player);
+        player.aimHoldFired = true;
+        this.firePlayerWeapon(player);
+      } else if (keyboard.action) {
+        player.aimActive = true;
+        player.angle = this.autoAimAngle(player);
+        this.firePlayerWeapon(player);
+      } else {
+        player.aimActive = false;
+        if (movement.magnitude > 0.05) {
+          player.angle = Math.atan2(movement.y, movement.x);
+        }
       }
     }
 
-    // 2. Twin-stick Dokunmatik Aim & Ateş (hold-to-fire)
-    const aimState = this.getAimState(player.index);
-    const aimVector = this.getAimVector(player.index);
-    if (aimState?.active) {
-      player.aimActive = true;
-      player.angle = aimVector.angle;
-      this.firePlayerWeapon(player);
-    }
-
-    // 3. Klavye Aksiyon & Ateş: kalkanlıyken aktif pilona, yoksa boss
-    //    çekirdeğine kilitlenir.
-    const keyboard = readSlotKeys(this.keys, player.index);
-    if (keyboard.action) {
-      player.aimActive = true;
-      player.angle = this.autoAimAngle(player);
-      this.firePlayerWeapon(player);
-    } else if (!aimState?.active && !player.remoteAimActive) {
-      player.aimActive = false;
-    }
-
-    // 4. Depar (Dash - İkincil tuş)
+    // 3. Depar (Dash - İkincil tuş)
     const dashKey = getSecondActionKey('dash', player.index);
     const dashPressed = Boolean(dashKey && this.keys[dashKey]);
     if (dashPressed && !player.keyDashLatch) {
@@ -458,10 +547,36 @@ export class ColossusGame extends BaseMiniGame {
       ), activePylons[0]);
       return Math.atan2(nearest.y - player.y, nearest.x - player.x);
     }
+
+    const toPlayerX = player.x - boss.x;
+    const toPlayerY = player.y - boss.y;
+    const toPlayerLen = Math.hypot(toPlayerX, toPlayerY) || 1;
+    let bestPart = null;
+    let bestScore = -Infinity;
+    for (const part of boss.parts || []) {
+      if (part.broken) continue;
+      const partAngle = boss.angle + part.angleOffset;
+      const dx = Math.cos(partAngle);
+      const dy = Math.sin(partAngle);
+      const facing = (dx * toPlayerX + dy * toPlayerY) / toPlayerLen;
+      if (facing > 0.15 && facing > bestScore) {
+        bestScore = facing;
+        bestPart = {
+          x: boss.x + dx * boss.radius * part.distRatio,
+          y: boss.y + dy * boss.radius * part.distRatio,
+        };
+      }
+    }
+    if (bestPart) {
+      return Math.atan2(bestPart.y - player.y, bestPart.x - player.x);
+    }
     return Math.atan2(boss.y - player.y, boss.x - player.x);
   }
 
   updatePlayers(dt) {
+    const reviveR = fieldRadius(this.arena, COLOSSUS_TUNING.REVIVE_RADIUS);
+    const dashSpd = fieldSpeed(this.arena, COLOSSUS_TUNING.DASH_SPEED);
+
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive) continue;
 
@@ -471,25 +586,44 @@ export class ColossusGame extends BaseMiniGame {
         this.updateHumanInput(player, dt);
       }
 
-      if (player.dashTimer > 0) player.dashTimer -= dt;
-      if (player.dashCooldown > 0) player.dashCooldown -= dt;
-      if (player.attackCooldown > 0) player.attackCooldown -= dt;
-      if (player.laserHitCd > 0) player.laserHitCd -= dt;
+      if (player.dashTimer > 0) player.dashTimer = Math.max(0, player.dashTimer - dt);
+      if (player.dashCooldown > 0) player.dashCooldown = Math.max(0, player.dashCooldown - dt);
+      if (player.attackCooldown > 0) player.attackCooldown = Math.max(0, player.attackCooldown - dt);
+      if (player.laserHitCd > 0) player.laserHitCd = Math.max(0, player.laserHitCd - dt);
+      if (player.hurtInvuln > 0) player.hurtInvuln = Math.max(0, player.hurtInvuln - dt);
+      if (player.hitFlash > 0) player.hitFlash = Math.max(0, player.hitFlash - dt);
+      if (player._skidDustCd > 0) player._skidDustCd = Math.max(0, player._skidDustCd - dt);
+
+      if (player.dashCooldown <= 0 && !player.isDowned && this.consumeSlotAction(player.index, 'dash')) {
+        this.performPlayerDash(player);
+      }
+
+      const w = COLOSSUS_WEAPONS[player.weaponId] || COLOSSUS_WEAPONS.RIFLE;
       if (player.reloadTimer > 0) {
-        player.reloadTimer -= dt;
+        player.reloadTimer = Math.max(0, player.reloadTimer - dt);
+        player.idleReloadTimer = 0;
         if (player.reloadTimer <= 0) {
-          const w = COLOSSUS_WEAPONS[player.weaponId] || COLOSSUS_WEAPONS.RIFLE;
           player.ammo = w.magazine;
         }
+      } else if (!player.isDowned && this.state === 'PLAYING' && player.ammo < w.magazine) {
+        player.idleReloadTimer = (player.idleReloadTimer || 0) + dt;
+        if (player.idleReloadTimer >= COLOSSUS_TUNING.AUTO_RELOAD_DELAY) {
+          player.idleReloadTimer = 0;
+          player.reloadTimer = w.reloadTime;
+        }
+      } else {
+        player.idleReloadTimer = 0;
       }
 
       if (player.isDowned) {
         player.vx = 0;
         player.vy = 0;
+        player.knockVx = 0;
+        player.knockVy = 0;
 
         const rescuer = this.players.find(
           (other) => other.isJoined && other.isAlive && !other.isDowned && other.index !== player.index &&
-            distSq(other.x, other.y, player.x, player.y) < COLOSSUS_TUNING.REVIVE_RADIUS * COLOSSUS_TUNING.REVIVE_RADIUS
+            distSq(other.x, other.y, player.x, player.y) < reviveR * reviveR,
         );
 
         if (rescuer) {
@@ -506,11 +640,54 @@ export class ColossusGame extends BaseMiniGame {
         continue;
       }
 
-      player.x += player.vx * dt;
-      player.y += player.vy * dt;
-      const playerDecay = damp(0.9, dt);
-      player.vx *= playerDecay;
-      player.vy *= playerDecay;
+      if (player.dashTimer > 0) {
+        const dashProg = 1 - player.dashTimer / COLOSSUS_TUNING.DASH_DURATION;
+        const dashEase = dashProg > 0.7 ? 1 - (dashProg - 0.7) * 0.65 : 1;
+        const dirX = player.dashDirX || Math.cos(player.angle);
+        const dirY = player.dashDirY || Math.sin(player.angle);
+        player.vx = dirX * dashSpd * dashEase;
+        player.vy = dirY * dashSpd * dashEase;
+      } else {
+        const reversed = stepArcadeVelocity(
+          player,
+          (player.steerX || 0) * player.speed,
+          (player.steerY || 0) * player.speed,
+          dt,
+        );
+        if (reversed && !(player._skidDustCd > 0)) {
+          player._skidDustCd = 0.22;
+          this.fx.emit('dust', { x: player.x, y: player.y, color: player.color });
+        }
+      }
+
+      const kvx = player.knockVx || 0;
+      const kvy = player.knockVy || 0;
+      player.x += (player.vx + kvx) * dt;
+      player.y += (player.vy + kvy) * dt;
+
+      if (kvx !== 0 || kvy !== 0) {
+        const knockDrag = damp(0.84, dt);
+        player.knockVx = kvx * knockDrag;
+        player.knockVy = kvy * knockDrag;
+        if (Math.hypot(player.knockVx, player.knockVy) < 2) {
+          player.knockVx = 0;
+          player.knockVy = 0;
+        }
+      }
+
+      for (const pillar of this.pillars || []) {
+        if (pillar.hp > 0) {
+          pushCircleOut(player, pillar.x, pillar.y, pillar.radius + player.radius);
+        }
+      }
+      for (const pylon of this.pylons || []) {
+        if (pylon.active) {
+          pushCircleOut(player, pylon.x, pylon.y, pylon.radius + player.radius);
+        }
+      }
+      if (this.boss && this.boss.hp > 0 && this.boss.state !== 'CHARGE' && player.dashTimer <= 0) {
+        pushCircleOut(player, this.boss.x, this.boss.y, this.boss.radius + player.radius);
+      }
 
       clampToArena(player, player.radius, this.arena);
     }
@@ -519,8 +696,11 @@ export class ColossusGame extends BaseMiniGame {
   updateBoss(dt) {
     if (!this.boss || this.boss.hp <= 0) return;
 
-    if (this.boss.hitFlash > 0) this.boss.hitFlash -= dt;
-    if (this.boss.critFlash > 0) this.boss.critFlash -= dt;
+    if (this.boss.hitFlash > 0) this.boss.hitFlash = Math.max(0, this.boss.hitFlash - dt);
+    if (this.boss.critFlash > 0) this.boss.critFlash = Math.max(0, this.boss.critFlash - dt);
+    for (const part of this.boss.parts || []) {
+      if (part.hitFlash > 0) part.hitFlash = Math.max(0, part.hitFlash - dt);
+    }
 
     updateBossAI(this.boss, this, dt);
 
@@ -531,33 +711,29 @@ export class ColossusGame extends BaseMiniGame {
     this.boss.vx *= bossDecay;
     this.boss.vy *= bossDecay;
 
-    // Duvar dibine hücum: kendini sersemletir.
+    // Duvar dibine hücum: yalnızca o duvara doğru giderken sersemler.
     if (this.boss.state === 'CHARGE') {
       const r = this.boss.radius;
-      const hitWall = this.boss.x - r <= this.arena.left
-        || this.boss.x + r >= this.arena.right
-        || this.boss.y - r <= this.arena.top
-        || this.boss.y + r >= this.arena.bottom;
+      const hitWall = (this.boss.vx < 0 && this.boss.x - r <= this.arena.left)
+        || (this.boss.vx > 0 && this.boss.x + r >= this.arena.right)
+        || (this.boss.vy < 0 && this.boss.y - r <= this.arena.top)
+        || (this.boss.vy > 0 && this.boss.y + r >= this.arena.bottom);
       this.applyChargeDamage();
-      if (hitWall) this.staggerBoss();
+      if (hitWall) {
+        this.staggerBoss();
+      }
     }
 
     // Sütunlara Çarpışma (Hücum sırasında sütuna çarparsa SERSEMLER!)
     for (const pillar of this.pillars) {
       if (pillar.hp <= 0) continue;
-      const d = Math.sqrt(distSq(this.boss.x, this.boss.y, pillar.x, pillar.y));
       const minDist = this.boss.radius + pillar.radius;
-
-      if (d < minDist) {
+      if (pushCircleOut(this.boss, pillar.x, pillar.y, minDist)) {
         if (this.boss.state === 'CHARGE') {
           pillar.hp -= 2;
           this.staggerBoss();
           try { playHordeBoom(); } catch {}
         }
-        const overlap = minDist - d;
-        const pushAngle = Math.atan2(this.boss.y - pillar.y, this.boss.x - pillar.x);
-        this.boss.x += Math.cos(pushAngle) * overlap;
-        this.boss.y += Math.sin(pushAngle) * overlap;
       }
     }
 
@@ -576,6 +752,7 @@ export class ColossusGame extends BaseMiniGame {
     const boss = this.boss;
     if (!boss || boss.state !== 'CHARGE') return;
     if (!Array.isArray(boss.chargeHits)) boss.chargeHits = [];
+    const knock = fieldSpeed(this.arena, COLOSSUS_TUNING.CHARGE_KNOCKBACK);
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive || player.isDowned) continue;
       if (player.dashTimer > 0) continue;
@@ -584,10 +761,11 @@ export class ColossusGame extends BaseMiniGame {
       if (d <= boss.radius + player.radius) {
         boss.chargeHits.push(player.index);
         this.damagePlayer(player, COLOSSUS_TUNING.CHARGE_DAMAGE);
-        const knock = COLOSSUS_TUNING.CHARGE_KNOCKBACK;
         const a = Math.atan2(player.y - boss.y, player.x - boss.x);
-        player.vx = Math.cos(a) * knock;
-        player.vy = Math.sin(a) * knock;
+        player.knockVx = Math.cos(a) * knock;
+        player.knockVy = Math.sin(a) * knock;
+        player.vx = player.knockVx;
+        player.vy = player.knockVy;
       }
     }
   }
@@ -641,14 +819,16 @@ export class ColossusGame extends BaseMiniGame {
     if (!anyActive && this.boss.shielded) {
       this.boss.shielded = false;
       this.staggerBoss();
+      this.grantTeamSurge();
       try { playExplosion(); } catch {}
     }
   }
 
   updateShockwaves(dt) {
+    const ringSpeed = fieldSpeed(this.arena, COLOSSUS_TUNING.STOMP_RING_SPEED);
     for (let i = this.shockwaves.length - 1; i >= 0; i--) {
       const s = this.shockwaves[i];
-      s.radius += COLOSSUS_TUNING.STOMP_RING_SPEED * dt;
+      s.radius += ringSpeed * dt;
       if (!s.hitPlayers) s.hitPlayers = new Set();
 
       for (const player of this.players) {
@@ -669,31 +849,48 @@ export class ColossusGame extends BaseMiniGame {
     }
   }
 
+  updateEchoStomps(dt) {
+    if (!this.pendingEchoStomps?.length) return;
+    const capBroken = this.boss?.parts?.find((part) => part.id === 'capacitors')?.broken === true;
+    for (let i = this.pendingEchoStomps.length - 1; i >= 0; i--) {
+      const echo = this.pendingEchoStomps[i];
+      echo.delay -= dt;
+      if (echo.delay <= 0) {
+        this.pendingEchoStomps.splice(i, 1);
+        if (this.boss && this.boss.hp > 0 && this.boss.state !== 'STAGGER' && !capBroken) {
+          this.shockwaves.push({
+            x: this.boss.x,
+            y: this.boss.y,
+            radius: this.boss.radius * 0.45,
+            maxRadius: fieldRadius(this.arena, COLOSSUS_TUNING.STOMP_MAX_RADIUS),
+            hitPlayers: new Set(),
+          });
+          this.addDirectionalTrauma(0.24, 0, 1);
+          try { playHordeBoom(); } catch {}
+        }
+      }
+    }
+  }
+
   updateLaser(dt) {
     const boss = this.boss;
     if (!boss || boss.state !== 'LASER_FIRE' || !boss.laserActive) return;
 
-    const range = Math.hypot(this.arena.width, this.arena.height) * 1.4;
+    const maxRange = Math.hypot(this.arena.width, this.arena.height) * 1.4;
     const originX = boss.x + Math.cos(boss.laserAngle) * boss.radius * 0.7;
     const originY = boss.y + Math.sin(boss.laserAngle) * boss.radius * 0.7;
-    const endX = originX + Math.cos(boss.laserAngle) * range;
-    const endY = originY + Math.sin(boss.laserAngle) * range;
+    const beamLen = clipRayToCircles(originX, originY, boss.laserAngle, maxRange, this.pillars);
+    const endX = originX + Math.cos(boss.laserAngle) * beamLen;
+    const endY = originY + Math.sin(boss.laserAngle) * beamLen;
     const beamHalf = fieldRadius(this.arena, COLOSSUS_TUNING.LASER_BEAM_WIDTH * 0.5);
+
+    if (beamLen < maxRange && Math.random() < 0.35) {
+      this.fx.emit('spark', { x: endX, y: endY, color: UI_COLORS.danger });
+    }
 
     for (const player of this.players) {
       if (!player.isJoined || !player.isAlive || player.isDowned) continue;
       if (player.dashTimer > 0) continue;
-
-      // Sütun ışını keser (siper anlamı).
-      let blocked = false;
-      for (const pillar of this.pillars) {
-        if (pillar.hp <= 0) continue;
-        if (segmentCircleIntersection(originX, originY, endX, endY, pillar.x, pillar.y, pillar.radius)) {
-          blocked = true;
-          break;
-        }
-      }
-      if (blocked) continue;
 
       const reach = beamHalf + player.radius;
       if (distToSegmentSquared(player.x, player.y, originX, originY, endX, endY) <= reach * reach) {
@@ -713,6 +910,7 @@ export class ColossusGame extends BaseMiniGame {
       if (m.fuse <= 0) {
         try { playExplosion(); } catch {}
         this.addDirectionalTrauma(0.2, 0, 0);
+        this.fx.emit('hit', { x: m.x, y: m.y, color: UI_COLORS.danger }, { hitStop: false, traumaScale: 0.35 });
 
         for (const player of this.players) {
           if (!player.isJoined || !player.isAlive || player.isDowned) continue;
@@ -731,31 +929,42 @@ export class ColossusGame extends BaseMiniGame {
   updateProjectiles(dt) {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
+      const prevX = p.x;
+      const prevY = p.y;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.life = (p.life || 1) - dt;
 
       let hit = false;
+      let hitX = p.x;
+      let hitY = p.y;
 
-      // 1. Sütunlara Çarpma (siper)
+      // 1. Sütunlara Çarpma (swept)
       for (const pillar of this.pillars) {
         if (pillar.hp <= 0) continue;
-        if (distSq(p.x, p.y, pillar.x, pillar.y) < pillar.radius * pillar.radius) {
+        const segHit = segmentCircleIntersection(prevX, prevY, p.x, p.y, pillar.x, pillar.y, pillar.radius);
+        if (segHit) {
           hit = true;
+          hitX = segHit.x;
+          hitY = segHit.y;
           pillar.hp -= (p.damage || 2) * 0.2;
+          this.fx.emit('spark', { x: hitX, y: hitY, color: p.color || UI_COLORS.muted });
           break;
         }
       }
 
-      // 2. Pilonlara Çarpma (Faz 2)
+      // 2. Pilonlara Çarpma (Faz 2, swept)
       if (!hit && this.boss?.phase === 2) {
         for (const pylon of this.pylons) {
           if (!pylon.active) continue;
-          if (distSq(p.x, p.y, pylon.x, pylon.y) < pylon.radius * pylon.radius) {
+          const segHit = segmentCircleIntersection(prevX, prevY, p.x, p.y, pylon.x, pylon.y, pylon.radius);
+          if (segHit) {
             hit = true;
+            hitX = segHit.x;
+            hitY = segHit.y;
             pylon.hp -= p.damage || 2;
             pylon.hitFlash = 0.12;
-            this.fx.emit('spark', { x: pylon.x, y: pylon.y, color: p.color });
+            this.fx.emit('spark', { x: hitX, y: hitY, color: p.color });
             try { playHordeHurt(); } catch {}
             if (pylon.hp <= 0) {
               pylon.active = false;
@@ -767,16 +976,38 @@ export class ColossusGame extends BaseMiniGame {
         }
       }
 
-      // 3. Boss'a Çarpma
+      // 3. Boss'a & İç Modüllere Çarpma (swept)
       if (!hit && this.boss && this.boss.hp > 0) {
-        const dBoss = Math.sqrt(distSq(p.x, p.y, this.boss.x, this.boss.y));
-        if (dBoss <= this.boss.radius) {
+        const segHit = segmentCircleIntersection(prevX, prevY, p.x, p.y, this.boss.x, this.boss.y, this.boss.radius);
+        if (segHit) {
           hit = true;
+          hitX = segHit.x;
+          hitY = segHit.y;
           if (this.boss.shielded) {
             this.boss.hitFlash = 0.08;
-            this.spawnFloatingText(p.x, p.y, t('colossus.shielded'), UI_COLORS.hudShield);
+            this.spawnFloatingText(hitX, hitY, t('colossus.shielded'), UI_COLORS.hudShield);
           } else {
-            this.applyDamageToBoss(p.damage || 2, p.x, p.y, p.stagger || 4);
+            const pSpd = Math.hypot(p.vx, p.vy);
+            if (pSpd > 1 && this.boss.parts?.length) {
+              const probeEndX = segHit.x + (p.vx / pSpd) * this.boss.radius * 0.9;
+              const probeEndY = segHit.y + (p.vy / pSpd) * this.boss.radius * 0.9;
+              let bestT = Infinity;
+              for (const part of this.boss.parts) {
+                if (part.broken) continue;
+                const partAngle = this.boss.angle + part.angleOffset;
+                const partDist = this.boss.radius * part.distRatio;
+                const cx = this.boss.x + Math.cos(partAngle) * partDist;
+                const cy = this.boss.y + Math.sin(partAngle) * partDist;
+                const pRad = Math.max(part.radius || 22, this.boss.radius * ((part.radius || 22) / 76)) * 1.15;
+                const partHit = segmentCircleIntersection(prevX, prevY, probeEndX, probeEndY, cx, cy, pRad);
+                if (partHit && partHit.t < bestT) {
+                  bestT = partHit.t;
+                  hitX = partHit.x;
+                  hitY = partHit.y;
+                }
+              }
+            }
+            this.applyDamageToBoss(p.damage || 2, hitX, hitY, p.stagger || 4);
           }
         }
       }
@@ -786,9 +1017,9 @@ export class ColossusGame extends BaseMiniGame {
         this.addDirectionalTrauma(0.18, 0, 0);
         try { playExplosion(); } catch {}
         if (this.boss && !this.boss.shielded && this.boss.hp > 0) {
-          const dBossAoE = Math.sqrt(distSq(p.x, p.y, this.boss.x, this.boss.y));
+          const dBossAoE = Math.sqrt(distSq(hitX, hitY, this.boss.x, this.boss.y));
           if (dBossAoE <= this.boss.radius + p.aoeRadius) {
-            this.applyDamageToBoss((p.damage || 2) * 0.75, p.x, p.y, p.stagger || 4);
+            this.applyDamageToBoss((p.damage || 2) * 0.75, hitX, hitY, p.stagger || 4);
           }
         }
       }
@@ -802,16 +1033,17 @@ export class ColossusGame extends BaseMiniGame {
   applyDamageToBoss(rawDamage, hitX, hitY, staggerAmount) {
     if (!this.boss || this.boss.hp <= 0) return;
 
-    // 1. Boss Modüllerini Denetle (destructible parts)
+    // 1. Boss Modüllerini Denetle (destructible parts, boss yarıçapına göre ölçekli)
     let hitPart = null;
     if (this.boss.parts) {
+      const bossScale = Math.max(0.5, this.boss.radius / 76);
       for (const part of this.boss.parts) {
         if (part.broken) continue;
         const partAngle = this.boss.angle + part.angleOffset;
         const partDist = this.boss.radius * part.distRatio;
         const px = this.boss.x + Math.cos(partAngle) * partDist;
         const py = this.boss.y + Math.sin(partAngle) * partDist;
-        const pRad = part.radius || 22;
+        const pRad = Math.max(part.radius || 22, (part.radius || 22) * bossScale) * 1.15;
         if (distSq(hitX, hitY, px, py) <= pRad * pRad) {
           hitPart = part;
           break;
@@ -836,9 +1068,10 @@ export class ColossusGame extends BaseMiniGame {
 
     const isRearCore = relAngle > (Math.PI - COLOSSUS_TUNING.CORE_ARC / 2);
     const frontArmorBroken = this.boss.parts?.find((p) => p.id === 'armorPlate')?.broken === true;
+    const allPartsBroken = (this.boss.parts || []).length > 0 && this.boss.parts.every((p) => p.broken);
 
     let damage;
-    if (isRearCore || this.boss.state === 'STAGGER' || frontArmorBroken) {
+    if (isRearCore || this.boss.state === 'STAGGER' || frontArmorBroken || allPartsBroken) {
       damage = rawDamage;
       this.boss.hp -= damage;
       this.boss.critFlash = 0.14;
@@ -859,6 +1092,7 @@ export class ColossusGame extends BaseMiniGame {
       this.addDirectionalTrauma(0.45, 0, 0);
       this.fx.emit('slay', { x: hitX, y: hitY, color: UI_COLORS.danger }, { traumaScale: 0.6 });
       this.spawnFloatingText(hitX, hitY - 18, t(hitPart.nameKey), UI_COLORS.danger);
+      this.grantTeamSurge();
       try { playExplosion(); } catch {}
     }
 
@@ -867,18 +1101,43 @@ export class ColossusGame extends BaseMiniGame {
     }
   }
 
+  grantTeamSurge() {
+    for (const player of this.players || []) {
+      if (!player.isJoined || !player.isAlive || player.isDowned) continue;
+      const healed = player.hp < player.maxHp;
+      if (healed) {
+        player.hp = Math.min(player.maxHp, player.hp + 1);
+      }
+      const w = COLOSSUS_WEAPONS[player.weaponId] || COLOSSUS_WEAPONS.RIFLE;
+      player.ammo = w.magazine;
+      player.reloadTimer = 0;
+      player.idleReloadTimer = 0;
+      if (healed) {
+        this.spawnFloatingText(player.x, player.y - player.radius, '+1 HP', UI_COLORS.gold);
+      }
+    }
+    try { playPowerUp(); } catch {}
+  }
+
   staggerBoss() {
     this.boss.state = 'STAGGER';
     this.boss.staggerTimer = COLOSSUS_TUNING.STAGGER_DURATION;
     this.boss.laserActive = false;
     this.boss.laserLock = false;
+    this.boss.chargeLock = false;
     this.addDirectionalTrauma(0.5, 0, 1);
+    this.fx.emit('slay', { x: this.boss.x, y: this.boss.y, color: UI_COLORS.gold }, { traumaScale: 0.5 });
+    this.spawnFloatingText(this.boss.x, this.boss.y - this.boss.radius * 0.6, t('colossus.staggered'), UI_COLORS.gold);
     try { playHordeBoom(); } catch {}
   }
 
   damagePlayer(player, amount) {
-    if (player.isDowned || player.dashTimer > 0) return;
+    if (player.isDowned || player.dashTimer > 0 || (player.hurtInvuln || 0) > 0) return;
     player.hp -= amount;
+    player.hurtInvuln = COLOSSUS_TUNING.HURT_INVULN;
+    player.hitFlash = 0.22;
+    this.fx.emit('hit', { x: player.x, y: player.y, color: player.color, slot: player.index });
+    this.addDirectionalTrauma(0.25, 0, 0);
     try { playHordeHurt(); } catch {}
 
     if (player.hp <= 0) {
@@ -886,7 +1145,7 @@ export class ColossusGame extends BaseMiniGame {
       player.isDowned = true;
       player.reviveProgress = 0;
       this.spawnFloatingText(player.x, player.y - 24, t('colossus.help'), UI_COLORS.danger);
-      try { playHordeKill(); } catch {}
+      try { playExplosion(); } catch {}
     }
   }
 
@@ -898,19 +1157,34 @@ export class ColossusGame extends BaseMiniGame {
       maxRadius: fieldRadius(this.arena, COLOSSUS_TUNING.STOMP_MAX_RADIUS),
       hitPlayers: new Set(),
     });
+    const capBroken = this.boss?.parts?.find((part) => part.id === 'capacitors')?.broken === true;
+    if (this.boss?.id === 'VOLT' && !capBroken) {
+      this.pendingEchoStomps.push({ delay: COLOSSUS_TUNING.VOLT_DOUBLE_STOMP_DELAY });
+    }
     this.addDirectionalTrauma(0.3, 0, 1);
     try { playHordeBoom(); } catch {}
   }
 
   triggerMortarBarrage(players) {
+    const baseRadius = fieldRadius(this.arena, COLOSSUS_TUNING.MORTAR_RADIUS);
+    const scatter = fieldRadius(this.arena, 36);
+    const twinOffset = fieldRadius(this.arena, 58);
+    const pad = baseRadius * 0.8;
+    const isIgnis = this.boss?.id === 'IGNIS';
+    const spawnCrater = (x, y, extraFuse = 0) => {
+      const cx = Math.max(this.arena.left + pad, Math.min(this.arena.right - pad, x));
+      const cy = Math.max(this.arena.top + pad, Math.min(this.arena.bottom - pad, y));
+      const fuse = COLOSSUS_TUNING.MORTAR_FUSE + extraFuse;
+      this.mortars.push({ x: cx, y: cy, radius: baseRadius, fuse, maxFuse: fuse });
+    };
     for (const p of players) {
-      this.mortars.push({
-        x: p.x + (Math.random() - 0.5) * 40,
-        y: p.y + (Math.random() - 0.5) * 40,
-        radius: fieldRadius(this.arena, COLOSSUS_TUNING.MORTAR_RADIUS),
-        fuse: COLOSSUS_TUNING.MORTAR_FUSE,
-        maxFuse: COLOSSUS_TUNING.MORTAR_FUSE,
-      });
+      const leadX = p.x + (p.vx || 0) * 0.45 + (Math.random() - 0.5) * scatter;
+      const leadY = p.y + (p.vy || 0) * 0.45 + (Math.random() - 0.5) * scatter;
+      spawnCrater(leadX, leadY, 0);
+      if (isIgnis) {
+        const ang = Math.random() * Math.PI * 2;
+        spawnCrater(leadX + Math.cos(ang) * twinOffset, leadY + Math.sin(ang) * twinOffset, 0.35);
+      }
     }
     try { playHordeBombTick(); } catch {}
   }
@@ -924,22 +1198,29 @@ export class ColossusGame extends BaseMiniGame {
 
     player.attackCooldown = w.fireInterval;
     player.ammo -= 1;
+    player.idleReloadTimer = 0;
+
+    const projSpeed = fieldSpeed(this.arena, w.projectileSpeed);
+    const projRange = fieldRadius(this.arena, w.range || 600);
+    const aoeRadius = w.aoeRadius ? fieldRadius(this.arena, w.aoeRadius) : 0;
+    const projRadius = fieldRadius(this.arena, w.aoeRadius ? 6 : 4);
+    const muzzleOffset = player.radius + fieldRadius(this.arena, 6);
 
     const pellets = w.pellets || 1;
     for (let i = 0; i < pellets; i++) {
       const spread = (Math.random() - 0.5) * (w.spread || 0.05);
       const angle = player.angle + spread;
       this.projectiles.push({
-        x: player.x + Math.cos(angle) * (player.radius + 6),
-        y: player.y + Math.sin(angle) * (player.radius + 6),
-        vx: Math.cos(angle) * w.projectileSpeed,
-        vy: Math.sin(angle) * w.projectileSpeed,
+        x: player.x + Math.cos(angle) * muzzleOffset,
+        y: player.y + Math.sin(angle) * muzzleOffset,
+        vx: Math.cos(angle) * projSpeed,
+        vy: Math.sin(angle) * projSpeed,
         damage: w.damage,
         stagger: w.stagger,
         color: w.color,
-        radius: w.aoeRadius ? 5 : 3.5,
-        life: (w.range || 600) / w.projectileSpeed,
-        aoeRadius: w.aoeRadius || 0,
+        radius: projRadius,
+        life: projRange / Math.max(1, projSpeed),
+        aoeRadius,
       });
     }
 
@@ -952,13 +1233,40 @@ export class ColossusGame extends BaseMiniGame {
   }
 
   performPlayerDash(player) {
-    if (player.dashCooldown > 0 || player.isDowned) return;
+    if (player.isDowned) return;
+    if (player.dashCooldown > 0) {
+      this.bufferSlotAction(player.index, 'dash');
+      return;
+    }
+    let dirX = 0;
+    let dirY = 0;
+    if (player.slotType === 'human') {
+      const movement = this.getPlayerMovementVector(player.index);
+      if (movement.magnitude > 0.1) {
+        dirX = movement.x / movement.magnitude;
+        dirY = movement.y / movement.magnitude;
+      }
+    }
+    if (dirX === 0 && dirY === 0) {
+      const steerLen = Math.hypot(player.steerX || 0, player.steerY || 0);
+      if (steerLen > 0.1) {
+        dirX = player.steerX / steerLen;
+        dirY = player.steerY / steerLen;
+      } else {
+        dirX = Math.cos(player.angle);
+        dirY = Math.sin(player.angle);
+      }
+    }
+
+    const dashSpd = fieldSpeed(this.arena, COLOSSUS_TUNING.DASH_SPEED);
     player.dashTimer = COLOSSUS_TUNING.DASH_DURATION;
     player.dashCooldown = COLOSSUS_TUNING.DASH_COOLDOWN;
+    player.dashDirX = dirX;
+    player.dashDirY = dirY;
+    player.vx = dirX * dashSpd;
+    player.vy = dirY * dashSpd;
 
-    player.vx = Math.cos(player.angle) * COLOSSUS_TUNING.DASH_SPEED;
-    player.vy = Math.sin(player.angle) * COLOSSUS_TUNING.DASH_SPEED;
-
+    this.fx.emit('dust', { x: player.x, y: player.y, color: player.color, slot: player.index });
     try { playDashWhoosh(); } catch {}
   }
 
@@ -988,8 +1296,12 @@ export class ColossusGame extends BaseMiniGame {
       for (let i = 0; i < 4; i++) {
         if (this.players[i]?.isJoined) this.scores[i] += 1;
       }
+      this.fx.emit('kill', { x: this.boss.x, y: this.boss.y, color: UI_COLORS.gold });
       this.addDirectionalTrauma(0.8, 0, 0);
-      try { playExplosion(); } catch {}
+      try {
+        playExplosion();
+        playWinJingle();
+      } catch {}
       return;
     }
 
@@ -998,7 +1310,7 @@ export class ColossusGame extends BaseMiniGame {
       this.state = 'MATCH_OVER';
       this.matchResult = 'loss';
       this.resetInputSource();
-      try { playHordeKill(); } catch {}
+      try { playLoseJingle(); } catch {}
     }
   }
 
@@ -1012,33 +1324,21 @@ export class ColossusGame extends BaseMiniGame {
     if (this.applyAimLifecycleInput(slotIndex, data)) return;
 
     if (isInputIntent(data, 'aim') || data.action === 'AIM_MOVE') {
-      const dx = Number.isFinite(data.dx) ? data.dx : 0;
-      const dy = Number.isFinite(data.dy) ? data.dy : 0;
-      const force = Math.min(1, Math.hypot(dx, dy));
-      if (force > 0.15) {
-        player.aimActive = true;
-        player.remoteAimActive = true;
-        player.angle = Math.atan2(dy, dx);
-        this.firePlayerWeapon(player);
-      }
-      return;
-    }
-    if (isAimRelease) {
-      player.aimActive = false;
-      player.remoteAimActive = false;
+      this.handleSlotAim(slotIndex, data, { source: data.intent?.source || 'network' });
       return;
     }
     if (isInputIntent(data, 'move') || data.action === 'JOYSTICK_MOVE') {
-      const dx = Number.isFinite(data.dx) ? data.dx : 0;
-      const dy = Number.isFinite(data.dy) ? data.dy : 0;
-      const force = Math.min(1, Math.hypot(dx, dy));
-      if (force > 0.1) {
-        player.vx = dx * player.speed;
-        player.vy = dy * player.speed;
-        if (!player.aimActive) {
-          player.angle = Math.atan2(dy, dx);
-        }
+      const dx = Number.isFinite(data.dx) ? Math.max(-1, Math.min(1, data.dx)) : 0;
+      const dy = Number.isFinite(data.dy) ? Math.max(-1, Math.min(1, data.dy)) : 0;
+      const force = Number.isFinite(data.force) ? Math.max(0, Math.min(1, data.force)) : Math.hypot(dx, dy);
+      const joy = this.joysticks?.[slotIndex];
+      if (joy) {
+        joy.active = force > 0.05;
+        joy.angle = Number.isFinite(data.angle) ? data.angle : Math.atan2(dy, dx);
+        joy.force = force;
       }
+      player.steerX = joy?.active ? dx : 0;
+      player.steerY = joy?.active ? dy : 0;
       return;
     }
     if (matchesInputAction(data, 'dash', 'DASH')) {
@@ -1107,14 +1407,14 @@ export class ColossusGame extends BaseMiniGame {
       },
       customControls: (c) => {
         if (this.state !== 'LOBBY') return;
-        const { cx, cy, width, height } = this.arena;
+        const { cx, top, bottom, width, height } = this.arena;
         const bossDef = COLOSSUS_BOSSES[this.selectedBossId] || COLOSSUS_BOSSES.AEGIS;
 
-        // 1. Boss Seçim Kartı (Üst Merkez)
-        const bossCardW = Math.min(360, width * 0.76);
-        const bossCardH = 38;
+        // 1. Boss Seçim Kartı (Üst Kenar — koltuk kartları ve Başlat düğmesiyle çakışmaz)
+        const bossCardW = Math.min(360, width * 0.72);
+        const bossCardH = 40;
         const bossCardX = cx - bossCardW / 2;
-        const bossCardY = cy - height * 0.16;
+        const bossCardY = top + Math.max(8, height * 0.03);
 
         c.save();
         c.fillStyle = UI_COLORS.ink;
@@ -1130,7 +1430,7 @@ export class ColossusGame extends BaseMiniGame {
         c.textAlign = 'center';
         c.textBaseline = 'middle';
         const bossTitle = t(bossDef.titleKey) || bossDef.name;
-        c.fillText(`◀  BOSS: ${bossDef.name} (${bossTitle})  ▶`, cx, bossCardY + bossCardH / 2);
+        c.fillText(`< BOSS: ${bossDef.name} (${bossTitle}) >`, cx, bossCardY + bossCardH / 2);
         c.restore();
 
         this.uiButtons.push({
@@ -1141,14 +1441,14 @@ export class ColossusGame extends BaseMiniGame {
           onClick: () => this.cycleBossSelection(),
         });
 
-        // 2. Oyuncu Silah Rozetleri (Alt Merkez)
+        // 2. Oyuncu Silah Rozetleri (Alt Kenar — dokunma hedefleri >= 36px)
         const joinedPlayers = this.players.filter((p) => p.isJoined);
         if (joinedPlayers.length > 0) {
-          const btnW = Math.min(110, (width * 0.8) / joinedPlayers.length - 8);
-          const btnH = 30;
+          const btnW = Math.min(126, (width * 0.84) / joinedPlayers.length - 8);
+          const btnH = 36;
           const totalW = joinedPlayers.length * btnW + (joinedPlayers.length - 1) * 8;
           const startX = cx - totalW / 2;
-          const btnY = cy + height * 0.16;
+          const btnY = bottom - btnH - Math.max(8, height * 0.03);
 
           joinedPlayers.forEach((p, idx) => {
             const bx = startX + idx * (btnW + 8);
@@ -1184,5 +1484,10 @@ export class ColossusGame extends BaseMiniGame {
     });
 
     ctx.restore();
+
+    const flashAlpha = fxFlashAlpha(this.fx.flash, this.fx.flashPeak);
+    if (flashAlpha > 0) {
+      drawFxFlash(ctx, this.viewport.width, this.viewport.height, flashAlpha);
+    }
   }
 }

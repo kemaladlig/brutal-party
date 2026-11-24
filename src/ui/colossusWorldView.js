@@ -35,6 +35,7 @@ export function createWorldViewRenderer() {
         cx: (left + right) / 2,
         cy: (top + bottom) / 2,
         size: Math.min(right - left, bottom - top),
+        unit: Math.min(right - left, bottom - top) / 820,
       };
 
       const scene = colossusSceneFromFrame(frame);
@@ -46,7 +47,12 @@ export function createWorldViewRenderer() {
       ctx.save();
       paintBackdrop(ctx, { width, height }, worldScreenBox(width, height, frame.arena), { mode: 'COLOSSUS' });
       fitWorld(ctx, width, height, frame.arena, () => {
-        drawColossusWorld(ctx, arena, scene, { now, roundId: frame.roundId, selfSlot: context.selfSlot ?? -1 });
+        drawColossusWorld(ctx, arena, scene, {
+          now,
+          roundId: frame.roundId,
+          selfSlot: context.selfSlot ?? -1,
+          fxOverride: fxLive ? context.fx : null,
+        });
         // Tek skorbordu yüzeyi (AGENTS §5): isimler + skor + faz/sersemleme
         // durumu. Boss HP çubuğu sahnenin içinde çiziliyor, burada tekrarlanmıyor.
         const header = colossusHeaderStatus(scene);

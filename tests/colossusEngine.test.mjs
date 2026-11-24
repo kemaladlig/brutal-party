@@ -22,7 +22,9 @@ const canvas = { width: 800, height: 600, getContext: () => context };
 let server;
 let ColossusGame;
 let COLOSSUS_TUNING;
+let COLOSSUS_WEAPONS;
 let createColossusWorldPacket;
+let drawColossusWorld;
 let isValidColossusWorldFrame;
 let colossusHeaderStatus;
 let GAME_ORDER;
@@ -56,8 +58,8 @@ before(async () => {
   });
 
   ({ ColossusGame } = await server.ssrLoadModule('/src/games/colossus.js'));
-  ({ COLOSSUS_TUNING } = await server.ssrLoadModule('/src/games/colossusConfig.js'));
-  ({ colossusHeaderStatus, createColossusWorldPacket, isValidColossusWorldFrame } = await server.ssrLoadModule('/src/games/colossusView.js'));
+  ({ COLOSSUS_TUNING, COLOSSUS_WEAPONS } = await server.ssrLoadModule('/src/games/colossusConfig.js'));
+  ({ colossusHeaderStatus, createColossusWorldPacket, drawColossusWorld, isValidColossusWorldFrame } = await server.ssrLoadModule('/src/games/colossusView.js'));
   ({ GAME_ORDER, CARTRIDGES } = await server.ssrLoadModule('/src/core/engineRegistry.js'));
 });
 
@@ -577,6 +579,217 @@ test('Breaking a weapon module disables its attack and forces a stagger', () => 
 
   assert.equal(cannon.broken, true, 'Module must break under sustained fire');
   assert.equal(game.boss.state, 'STAGGER', 'Breaking a module must open a stagger window');
+});
+
+test('Remote twin-stick joystick moves continuously and aim tap/hold work properly', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.slotTypes = ['human', 'empty', 'empty', 'empty'];
+  game.startNewMatch();
+
+  const p1 = game.players[0];
+  const x0 = p1.x;
+  game.handleRemoteInput(0, { action: 'JOYSTICK_MOVE', dx: 1, dy: 0, angle: 0, force: 1 });
+  game.update(1000);
+  game.update(1016);
+  const x1 = p1.x;
+  game.update(1032);
+  assert.ok(p1.x > x1 && x1 > x0, 'Remote joystick state must persist across frames');
+
+  // Quick tap aim fires auto-aimed shot on release
+  const startAmmo = p1.ammo;
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', intent: { id: 'aim', phase: 'press', seq: 1 } });
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', tap: true, intent: { id: 'aim', phase: 'release', seq: 2, tap: true } });
+  assert.ok(p1.ammo < startAmmo || game.projectiles.length > 0, 'Quick aim tap must fire once');
+
+  // Plain hold fires continuously during update until AIM_RELEASE
+  p1.attackCooldown = 0;
+  const ammoBeforeHold = p1.ammo;
+  game.handleRemoteInput(0, { action: 'AIM_PRESS', intent: { id: 'aim', phase: 'press', seq: 3 } });
+  game.update(1048);
+  assert.ok(p1.ammo < ammoBeforeHold, 'Held plain aim must fire');
+  game.handleRemoteInput(0, { action: 'AIM_RELEASE', intent: { id: 'aim', phase: 'release', seq: 4 } });
+  assert.equal(p1.aimActive, false, 'AIM_RELEASE must clear aimActive');
+});
+
+test('Dash follows movement vector even while aiming elsewhere and buffers late taps', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.slotTypes = ['human', 'empty', 'empty', 'empty'];
+  game.startNewMatch();
+
+  const p1 = game.players[0];
+  p1.steerX = 1;
+  p1.steerY = 0;
+  p1.angle = Math.PI / 2; // aiming down while moving right
+  game.keys['KeyD'] = true;
+  game.performPlayerDash(p1);
+  assert.ok(p1.dashDirX > 0.9 && Math.abs(p1.dashDirY) < 0.1, 'Dash must use live movement direction');
+  assert.ok(p1.vx > 0, 'Dash velocity must launch along movement direction');
+  game.keys['KeyD'] = false;
+
+  // Test dash input buffer inside 120ms window
+  p1.dashTimer = 0;
+  p1.dashCooldown = 0.05;
+  game.lastTime = 1000;
+  game.performPlayerDash(p1); // buffered!
+  game.update(1080); // 80ms later: cooldown expires -> buffered dash fires
+  assert.ok(p1.dashTimer > 0, 'Buffered dash tap must fire as soon as cooldown ends');
+});
+
+test('Players collide cleanly with pillars and boss without overlapping', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.slotTypes = ['human', 'empty', 'empty', 'empty'];
+  game.startNewMatch();
+
+  const p1 = game.players[0];
+  const pillar = game.pillars[0];
+  p1.x = pillar.x + 2;
+  p1.y = pillar.y;
+  game.updatePlayers(0.016);
+  const dPillar = Math.hypot(p1.x - pillar.x, p1.y - pillar.y);
+  assert.ok(dPillar >= pillar.radius + p1.radius - 0.5, `Player overlapped pillar: ${dPillar}`);
+
+  const boss = game.boss;
+  boss.state = 'IDLE';
+  p1.dashTimer = 0;
+  p1.x = boss.x + 4;
+  p1.y = boss.y;
+  game.updatePlayers(0.016);
+  const dBoss = Math.hypot(p1.x - boss.x, p1.y - boss.y);
+  assert.ok(dBoss >= boss.radius + p1.radius - 0.5, `Player overlapped boss: ${dBoss}`);
+});
+
+test('Laser beam is blocked by pillar in front of player and not by pillar behind player', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.slotTypes = ['human', 'empty', 'empty', 'empty'];
+  game.startNewMatch();
+
+  const boss = game.boss;
+  const p1 = game.players[0];
+  boss.x = game.arena.cx;
+  boss.y = game.arena.top + 80;
+  boss.laserAngle = Math.PI / 2;
+  boss.state = 'LASER_FIRE';
+  boss.laserActive = true;
+
+  // Case A: Pillar between boss and player blocks the beam
+  game.pillars = [{ x: boss.x, y: boss.y + 130, radius: 28, hp: 4, maxHp: 4 }];
+  p1.x = boss.x;
+  p1.y = boss.y + 240;
+  p1.hp = COLOSSUS_TUNING.MAX_HP;
+  p1.laserHitCd = 0;
+  p1.hurtInvuln = 0;
+  game.updateLaser(0.016);
+  assert.equal(p1.hp, COLOSSUS_TUNING.MAX_HP, 'Pillar in front must block laser');
+
+  // Case B: Pillar BEHIND player does NOT block the beam
+  game.pillars = [{ x: boss.x, y: boss.y + 340, radius: 28, hp: 4, maxHp: 4 }];
+  p1.laserHitCd = 0;
+  p1.hurtInvuln = 0;
+  game.updateLaser(0.016);
+  assert.ok(p1.hp < COLOSSUS_TUNING.MAX_HP, 'Pillar behind player must not shield player from beam');
+});
+
+test('VOLT coil can be damaged by projectiles and breaking all parts removes armor penalty and heals team', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.selectedBossId = 'VOLT';
+  game.selectedWeapons[0] = 'SNIPER';
+  game.slotTypes = ['human', 'empty', 'empty', 'empty'];
+  game.startNewMatch();
+
+  game.pillars = [];
+  const boss = game.boss;
+  boss.angle = Math.PI / 2;
+  const coil = boss.parts.find((part) => part.id === 'coil');
+  const p1 = game.players[0];
+  p1.x = boss.x;
+  p1.y = boss.y + boss.radius + 90;
+  p1.angle = -Math.PI / 2;
+  p1.hp = COLOSSUS_TUNING.MAX_HP - 1;
+  p1.ammo = 2;
+
+  game.firePlayerWeapon(p1);
+  for (let i = 0; i < 20; i++) game.updateProjectiles(0.016);
+  assert.ok(coil.hp < coil.maxHp, 'Fired projectile must hit VOLT reactor coil');
+
+  // Break remaining parts and verify Team Surge + front armor bypass
+  const cap = boss.parts.find((part) => part.id === 'capacitors');
+  coil.hp = 1;
+  cap.broken = true;
+  const cAngle = boss.angle + coil.angleOffset;
+  const cDist = boss.radius * coil.distRatio;
+  game.applyDamageToBoss(10, boss.x + Math.cos(cAngle) * cDist, boss.y + Math.sin(cAngle) * cDist, 4);
+
+  assert.equal(coil.broken, true, 'Coil should break cleanly');
+  assert.equal(p1.hp, COLOSSUS_TUNING.MAX_HP, 'Breaking a part must restore +1 HP to team');
+  assert.equal(p1.ammo, COLOSSUS_WEAPONS.SNIPER.magazine, 'Breaking a part must refill weapon magazine');
+
+  boss.state = 'IDLE';
+  const hpBefore = boss.hp;
+  game.applyDamageToBoss(10, boss.x, boss.y + boss.radius, 2);
+  assert.equal(hpBefore - boss.hp, 10, 'Breaking all parts on VOLT/IGNIS must bypass front armor penalty');
+});
+
+test('LASER_LOCK_TIME locks aim before firing and CHARGE away from wall does not self-stagger', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.slotTypes = ['human', 'empty', 'empty', 'empty'];
+  game.startNewMatch();
+
+  const boss = game.boss;
+  const p1 = game.players[0];
+
+  // Charge starting while touching left wall but aiming right must not self-stagger
+  boss.x = game.arena.left + boss.radius;
+  boss.y = game.arena.cy;
+  boss.state = 'CHARGE';
+  boss.chargeAngle = 0;
+  boss.chargeTimer = 0.5;
+  game.updateBoss(0.016);
+  assert.equal(boss.state, 'CHARGE', 'Moving away from a wall must not trigger wall-stagger');
+
+  // Laser lock phase freezes angle before firing
+  boss.state = 'WINDUP_LASER';
+  boss.x = game.arena.cx;
+  boss.y = game.arena.cy - 100;
+  boss.laserTrackTimer = 0.02;
+  boss.laserLockTimer = COLOSSUS_TUNING.LASER_LOCK_TIME;
+  boss.laserLock = false;
+  boss.angle = Math.PI / 2;
+  boss.laserAngle = Math.PI / 2;
+  p1.x = boss.x;
+  p1.y = boss.y + 180;
+
+  game.updateBoss(0.03); // crosses track -> lock
+  assert.equal(boss.laserLock, true, 'Boss must enter locked telegraph phase');
+  assert.equal(boss.state, 'WINDUP_LASER', 'Lock window stays in windup before firing');
+  const lockedAngle = boss.laserAngle;
+
+  // Player dodges far right during lock: beam must stay frozen at lockedAngle
+  p1.x = boss.x + 250;
+  p1.y = boss.y;
+  game.updateBoss(0.1);
+  assert.equal(boss.laserAngle, lockedAngle, 'Locked laser telegraph must not track dodging player');
+});
+
+test('Packet opts into selfPredict and drawColossusWorld unpacks FX tuples cleanly', () => {
+  const game = new ColossusGame(canvas);
+  game.resize(800, 600);
+  game.startNewMatch();
+
+  game.fx.emit('hit', { x: game.boss.x, y: game.boss.y, color: '#FFFFFF' });
+  game.fx.emit('kill', { x: game.boss.x, y: game.boss.y, color: '#FFB020' });
+  const packet = game.createWorldPacket();
+  assert.equal(packet.selfPredict, true, 'COLOSSUS world packet must enable selfPredict');
+  assert.ok(Array.isArray(packet.fx.rings) && packet.fx.rings.length > 0, 'Packed FX rings must exist');
+
+  assert.doesNotThrow(() => {
+    drawColossusWorld(context, game.arena, { ...packet, phase: packet.gameState }, { now: 1000, roundId: packet.roundId });
+  });
 });
 
 

@@ -19,7 +19,7 @@ import {
   packFxState,
   round1,
 } from './worldCore.js';
-import { COLOSSUS_TUNING, COLOSSUS_WEAPONS } from './colossusConfig.js';
+import { COLOSSUS_TUNING, COLOSSUS_WEAPONS, clipRayToCircles } from './colossusConfig.js';
 
 export const COLOSSUS_VIEW_LIMITS = Object.freeze({
   bullets: 64,
@@ -71,6 +71,8 @@ export function mapColossusPlayer(player) {
     isDowned: player.isDowned === true,
     reviveProgress: round1(player.reviveProgress || 0),
     invincible: (Number(player.dashTimer) || 0) > 0,
+    hurtInvuln: (Number(player.hurtInvuln) || 0) > 0,
+    hitFlash: round1(player.hitFlash || 0),
   };
 }
 
@@ -81,6 +83,7 @@ export function createColossusWorldPacket(game) {
     mode: 'COLOSSUS',
     mapPlayer: mapColossusPlayer,
     extras: {
+      selfPredict: true,
       boss: {
         id: boss.id || 'AEGIS',
         name: boss.name || 'AEGIS-01',
@@ -101,19 +104,25 @@ export function createColossusWorldPacket(game) {
         critFlash: round1(boss.critFlash || 0),
         shielded: boss.shielded === true,
         laserActive: boss.laserActive === true,
+        laserLock: boss.laserLock === true,
+        chargeLock: boss.chargeLock === true,
         laserProgress: round1(boss.laserProgress || 0),
         laserAngle: round1(Number.isFinite(boss.laserAngle) ? boss.laserAngle : (boss.angle || 0)),
         chargeAngle: round1(Number.isFinite(boss.chargeAngle) ? boss.chargeAngle : (boss.angle || 0)),
-        parts: (boss.parts || []).map((p) => ({
-          id: p.id,
-          nameKey: p.nameKey,
-          hp: round1(p.hp),
-          maxHp: round1(p.maxHp),
-          broken: p.broken === true,
-          angleOffset: round1(p.angleOffset || 0),
-          distRatio: round1(p.distRatio || 0),
-          radius: round1(p.radius || 20),
-          hitFlash: round1(p.hitFlash || 0),
+        parts: (boss.parts || []).map((part) => ({
+          id: part.id,
+          nameKey: part.nameKey,
+          hp: round1(part.hp),
+          maxHp: round1(part.maxHp),
+          broken: part.broken === true,
+          angleOffset: round1(part.angleOffset || 0),
+          distRatio: round1(part.distRatio || 0),
+          // Parça yarıçapı oyuncu yarıçapı değil: motor `part.radius` gönderir,
+          // 20 en küçük parçanın (capacitors) configured değeridir. Değişken
+          // `part` adıyla anılır — `p.radius` oyuncu yarıçapı sanılıp I4
+          // sadakat kapısını yanlış pozitifle kırıyordu.
+          radius: round1(part.radius || 20),
+          hitFlash: round1(part.hitFlash || 0),
         })),
       },
       pylons: (game.pylons || []).map((p) => ({
@@ -216,11 +225,53 @@ export function colossusSceneFromFrame(frame) {
   };
 }
 
+function unpackFxRings(rings) {
+  if (!Array.isArray(rings)) return [];
+  return rings.map((r) => (Array.isArray(r)
+    ? { x: r[0], y: r[1], r0: r[2], r1: r[3], life: r[4], maxLife: r[5], width: r[6], color: r[7] }
+    : r));
+}
+
+function unpackFxPops(pops) {
+  if (!Array.isArray(pops)) return [];
+  return pops.map((p) => (Array.isArray(p)
+    ? { x: p[0], y: p[1], size: p[2], angle: p[3], life: p[4], maxLife: p[5], color: p[6] }
+    : p));
+}
+
+function drawBossWeakCore(ctx, radius, coreColor, corePulse, u = 1) {
+  ctx.save();
+  ctx.translate(-radius * 0.65, 0);
+  ctx.fillStyle = COLOR_ARMOR_DARK;
+  ctx.fillRect(-radius * 0.15, -radius * 0.45, radius * 0.12, radius * 0.9);
+
+  const coreRadius = radius * 0.32 * corePulse;
+  const grad = ctx.createRadialGradient(0, 0, coreRadius * 0.1, 0, 0, coreRadius);
+  grad.addColorStop(0, COLOR_WHITE);
+  grad.addColorStop(0.4, coreColor);
+  grad.addColorStop(1, COLOR_ARMOR_DARK);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(0, 0, coreRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = coreColor;
+  ctx.lineWidth = Math.max(1, 2.5 * u);
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.22, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
 /**
- * 2.5D Boss Çizimi (AEGIS-01 / The Colossus)
+ * 2.5D Boss Çizimi (AEGIS-01 / IGNIS-V / VOLT-OMEGA)
  */
-function drawBoss(ctx, boss, arena, now = 0, u = 1) {
-  const { x, y, angle, radius, hp, maxHp, phase, state, stagger, hitFlash, critFlash, shielded, laserActive, targetSlot, bodyShape = 'mech', parts = [], laserAngle, chargeAngle, laserProgress } = boss;
+function drawBoss(ctx, boss, arena, now = 0, u = 1, pillars = []) {
+  const {
+    x, y, angle, radius, hp, maxHp, phase, state, stagger, hitFlash, critFlash,
+    shielded, laserActive, laserLock, chargeLock, targetSlot, bodyShape = 'mech',
+    parts = [], laserAngle, chargeAngle, laserProgress,
+  } = boss;
   if (!finite(x) || !finite(y) || radius <= 0 || !finite(hp) || hp <= 0) return;
 
   const beamAngle = finite(laserAngle) ? laserAngle : angle;
@@ -231,6 +282,7 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
 
   const isStaggered = state === 'STAGGER';
   const corePulse = Math.sin(now * 0.008) * 0.15 + 0.85;
+  const coreColor = phase === 3 ? COLOR_ORANGE : (phase === 2 ? COLOR_PURPLE : COLOR_CYAN);
 
   ctx.save();
   ctx.translate(x, y);
@@ -262,7 +314,7 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
     ctx.lineWidth = Math.max(1, 2.5 * u);
     for (const leg of legPositions) {
       ctx.save();
-      const anim = Math.sin(now * 0.012 + leg.phase) * (isStaggered ? 1 : 6);
+      const anim = Math.sin(now * 0.012 + leg.phase) * (isStaggered ? 1 : 6 * u);
       ctx.translate(leg.x, leg.y + anim * leg.flipY);
       ctx.beginPath();
       ctx.moveTo(0, 0);
@@ -281,7 +333,7 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
       ctx.save();
       ctx.translate(radius * 0.7, flip * radius * 0.4);
       if (pincersBroken) {
-        ctx.fillRect(-6, -6, 12, 12);
+        ctx.fillRect(-6 * u, -6 * u, 12 * u, 12 * u);
       } else {
         ctx.beginPath();
         ctx.arc(0, 0, radius * 0.22, flip > 0 ? 0 : -Math.PI * 0.5, flip > 0 ? Math.PI * 0.5 : 0);
@@ -300,6 +352,9 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
     ctx.ellipse(0, 0, radius * 0.75, radius * 0.55, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+
+    // Arka Zayıf Nokta (Scorpion için de belirgin)
+    drawBossWeakCore(ctx, radius * 0.92, coreColor, corePulse, u);
 
     // Akrep Kuyruğu & İğne
     const stingerBroken = parts.find((p) => p.id === 'stinger')?.broken;
@@ -356,6 +411,9 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
     ctx.beginPath();
     ctx.arc(0, 0, radius * 0.35, 0, Math.PI * 2);
     ctx.fill();
+
+    // Arka Zayıf Nokta Çekirdeği
+    drawBossWeakCore(ctx, radius * 0.85, coreColor, corePulse, u);
     ctx.restore();
 
   } else {
@@ -377,10 +435,10 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
 
     for (const leg of legPositions) {
       ctx.save();
-      const anim = Math.sin(now * 0.01 + leg.phaseOffset) * (isStaggered ? 2 : 8);
+      const anim = Math.sin(now * 0.01 + leg.phaseOffset) * (isStaggered ? 2 * u : 8 * u);
       ctx.translate(leg.x + anim * 0.5, leg.y + anim * 0.3 * leg.flipY);
       ctx.beginPath();
-      ctx.roundRect(-radius * 0.22, -radius * 0.14, radius * 0.44, radius * 0.28, 6);
+      ctx.roundRect(-radius * 0.22, -radius * 0.14, radius * 0.44, radius * 0.28, 6 * u);
       ctx.fill();
       ctx.stroke();
 
@@ -428,44 +486,38 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
     ctx.restore();
 
     // Arka Zayıf Nokta (Vulnerable Core)
-    const coreColor = phase === 3 ? COLOR_ORANGE : (phase === 2 ? COLOR_PURPLE : COLOR_CYAN);
-    ctx.save();
-    ctx.translate(-radius * 0.65, 0);
-    ctx.fillStyle = COLOR_ARMOR_DARK;
-    ctx.fillRect(-radius * 0.15, -radius * 0.45, radius * 0.12, radius * 0.9);
-
-    const coreRadius = radius * 0.32 * corePulse;
-    const grad = ctx.createRadialGradient(0, 0, coreRadius * 0.1, 0, 0, coreRadius);
-    grad.addColorStop(0, COLOR_WHITE);
-    grad.addColorStop(0.4, coreColor);
-    grad.addColorStop(1, COLOR_ARMOR_DARK);
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(0, 0, coreRadius, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = coreColor;
-    ctx.lineWidth = Math.max(1, 2.5 * u);
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.22, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
+    drawBossWeakCore(ctx, radius, coreColor, corePulse, u);
   }
 
-  // Kırık Parça Kıvılcımları
+  // Kırılabilir Modül Halkaları & Kırık Kıvılcımları (Tüm bosslarda)
   for (const part of parts) {
-    if (!part.broken) continue;
     const px = Math.cos(part.angleOffset) * (radius * part.distRatio);
     const py = Math.sin(part.angleOffset) * (radius * part.distRatio);
     ctx.save();
     ctx.translate(px, py);
-    ctx.strokeStyle = COLOR_GOLD;
-    ctx.lineWidth = Math.max(1, 2 * u);
-    const sparkAng = (now * 0.02 + part.angleOffset) % (Math.PI * 2);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(sparkAng) * 9, Math.sin(sparkAng) * 9);
-    ctx.stroke();
+    if (!part.broken) {
+      const nodeR = Math.max(7 * u, (part.radius || 22) * (radius / 76) * 0.52);
+      const pRatio = Math.max(0, Math.min(1, (part.hp || 0) / (part.maxHp || 1)));
+      ctx.globalAlpha = part.hitFlash > 0 ? 0.95 : 0.75;
+      ctx.strokeStyle = part.hitFlash > 0 ? COLOR_WHITE : COLOR_GOLD;
+      ctx.lineWidth = Math.max(1, 2.2 * u);
+      ctx.beginPath();
+      ctx.arc(0, 0, nodeR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pRatio);
+      ctx.stroke();
+      ctx.globalAlpha = part.hitFlash > 0 ? 0.55 : 0.22;
+      ctx.fillStyle = part.hitFlash > 0 ? COLOR_WHITE : COLOR_GOLD;
+      ctx.beginPath();
+      ctx.arc(0, 0, nodeR * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = COLOR_GOLD;
+      ctx.lineWidth = Math.max(1, 2 * u);
+      const sparkAng = (now * 0.02 + part.angleOffset) % (Math.PI * 2);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(sparkAng) * 9 * u, Math.sin(sparkAng) * 9 * u);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -490,7 +542,7 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
       const spAng = now * 0.015 + i * (Math.PI / 2);
       const spDist = radius * (0.4 + Math.sin(now * 0.02 + i) * 0.2);
       ctx.beginPath();
-      ctx.arc(Math.cos(spAng) * spDist, Math.sin(spAng) * spDist, 4, 0, Math.PI * 2);
+      ctx.arc(Math.cos(spAng) * spDist, Math.sin(spAng) * spDist, 4 * u, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
@@ -518,31 +570,29 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
 
   ctx.restore(); // Boss koordinat sistemi çıkışı
 
-  // 8. Telegraf & Işın katmanı (dünya uzayı). Tüm renkler token sabitleri;
-  //    saydamlık `globalAlpha` ile verilir → yeni ham renk literali yok.
+  // 8. Telegraf & Işın katmanı (dünya uzayı; sütunlara kırpılır).
   const lx = x + Math.cos(beamAngle) * (radius * 0.7);
   const ly = y + Math.sin(beamAngle) * (radius * 0.7);
 
   if (isWindingCharge) {
-    // Hücum koridoru: boss ileri atılacak; koridordan ÇIK.
-    const lane = COLOSSUS_TUNING.CHARGE_SPEED * COLOSSUS_TUNING.CHARGE_DURATION;
+    const arenaSpan = arena?.size || Math.min(arena?.width || 820, arena?.height || 820) || 820;
+    const lane = Math.min(arenaSpan * 0.92, COLOSSUS_TUNING.CHARGE_SPEED * u * COLOSSUS_TUNING.CHARGE_DURATION);
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(chargeAim);
-    ctx.globalAlpha = 0.16 + Math.sin(now * 0.02) * 0.05;
+    ctx.globalAlpha = chargeLock ? 0.30 : (0.14 + Math.sin(now * 0.02) * 0.05);
     ctx.fillStyle = COLOR_RED;
     const laneH = radius * 0.95;
     ctx.fillRect(radius * 0.4, -laneH / 2, lane, laneH);
-    ctx.globalAlpha = 0.85;
-    ctx.strokeStyle = COLOR_RED;
-    ctx.lineWidth = Math.max(1, 2 * u);
-    ctx.setLineDash([10, 8]);
+    ctx.globalAlpha = chargeLock ? 0.95 : 0.75;
+    ctx.strokeStyle = chargeLock ? COLOR_GOLD : COLOR_RED;
+    ctx.lineWidth = Math.max(1, (chargeLock ? 3 : 2) * u);
+    ctx.setLineDash(chargeLock ? [] : [10 * u, 8 * u]);
     ctx.strokeRect(radius * 0.4, -laneH / 2, lane, laneH);
     ctx.restore();
   }
 
   if (isWindingStomp) {
-    // Deprem uyarısı: boss çevresinde nabız atan halka.
     ctx.save();
     const pulse = 1 + Math.sin(now * 0.02) * 0.12;
     ctx.globalAlpha = 0.9;
@@ -558,51 +608,73 @@ function drawBoss(ctx, boss, arena, now = 0, u = 1) {
     ctx.restore();
   }
 
+  const rawMaxLen = Math.hypot(arena?.width || 900, arena?.height || 900) * 1.4;
+  const beamLen = clipRayToCircles(lx, ly, beamAngle, rawMaxLen, pillars);
+  const bx = lx + Math.cos(beamAngle) * beamLen;
+  const by = ly + Math.sin(beamAngle) * beamLen;
+
   if (laserActive) {
-    // Gerçek ışın (kilitli, hasar verir).
-    const beamLen = 900;
-    const endX = lx + Math.cos(beamAngle) * beamLen;
-    const endY = ly + Math.sin(beamAngle) * beamLen;
     ctx.save();
-    ctx.globalAlpha = 0.4;
+    ctx.globalAlpha = 0.45;
     ctx.strokeStyle = COLOR_RED;
     ctx.lineWidth = Math.max(1, COLOSSUS_TUNING.LASER_BEAM_WIDTH * 1.8 * u);
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(lx, ly);
-    ctx.lineTo(endX, endY);
+    ctx.lineTo(bx, by);
     ctx.stroke();
     ctx.globalAlpha = 1;
     ctx.strokeStyle = COLOR_WHITE;
     ctx.lineWidth = Math.max(1, COLOSSUS_TUNING.LASER_BEAM_WIDTH * 0.55 * u);
     ctx.beginPath();
     ctx.moveTo(lx, ly);
-    ctx.lineTo(endX, endY);
+    ctx.lineTo(bx, by);
     ctx.stroke();
+    if (beamLen < rawMaxLen) {
+      ctx.fillStyle = COLOR_GOLD;
+      ctx.beginPath();
+      ctx.arc(bx, by, 10 * u, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   } else if (isWindingLaser) {
-    // İzleme/kilit fazı: öngörü hattı; kilit dolunca düz ve kalın.
     const lockT = Math.max(0, Math.min(1, Number(laserProgress) || 0));
     ctx.save();
-    ctx.globalAlpha = 0.25 + lockT * 0.55;
-    ctx.strokeStyle = COLOR_RED;
-    ctx.lineWidth = Math.max(1, (1.5 + lockT * 2.5) * u);
-    ctx.setLineDash(lockT >= 1 ? [] : [8, 6]);
-    ctx.beginPath();
-    ctx.moveTo(lx, ly);
-    ctx.lineTo(lx + Math.cos(beamAngle) * 700, ly + Math.sin(beamAngle) * 700);
-    ctx.stroke();
+    if (laserLock) {
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = COLOR_RED;
+      ctx.lineWidth = Math.max(1.5, (4.2 + Math.sin(now * 0.04) * 1.2) * u);
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.globalAlpha = 0.95;
+      ctx.strokeStyle = COLOR_WHITE;
+      ctx.lineWidth = Math.max(1, 1.5 * u);
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+    } else {
+      ctx.globalAlpha = 0.25 + lockT * 0.5;
+      ctx.strokeStyle = COLOR_RED;
+      ctx.lineWidth = Math.max(1, (1.5 + lockT * 2.2) * u);
+      ctx.setLineDash([8 * u, 6 * u]);
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+    }
     ctx.restore();
   } else if (!isStaggered && targetSlot >= 0) {
-    // Tehdit lazeri (pasif hedef çizgisi)
     ctx.save();
     ctx.globalAlpha = 0.35;
     ctx.strokeStyle = COLOR_RED;
     ctx.lineWidth = Math.max(1, 1.5 * u);
-    ctx.setLineDash([6, 6]);
+    ctx.setLineDash([6 * u, 6 * u]);
     ctx.beginPath();
     ctx.moveTo(lx, ly);
-    ctx.lineTo(lx + Math.cos(beamAngle) * 700, ly + Math.sin(beamAngle) * 700);
+    ctx.lineTo(bx, by);
     ctx.stroke();
     ctx.restore();
   }
@@ -702,7 +774,7 @@ function drawPylons(ctx, pylons, boss, now = 0, u = 1) {
     ctx.fillStyle = hitFlash > 0 ? COLOR_WHITE : COLOR_PURPLE;
     ctx.fillRect(barX, barY, barW * hpRatio, barH);
     ctx.strokeStyle = COLOR_PURPLE;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = Math.max(1, 1.5 * u);
     ctx.strokeRect(barX - 1, barY - 1, barW + 2, barH + 2);
 
     // Boss'a giden elektrik bağı (Tether arc)
@@ -790,18 +862,49 @@ function drawMortars(ctx, mortars, u = 1) {
 }
 
 /**
- * Mermiler (Bullets)
+ * Mermiler (Bullets — krem zeminde yönlü izli okunabilir siluet)
  */
-function drawBullets(ctx, bullets) {
+function drawBullets(ctx, bullets, u = 1) {
   for (const b of bullets) {
-    const { x, y, color, radius } = b;
+    const { x, y, vx = 0, vy = 0, color, radius } = b;
     if (!finite(x) || !finite(y)) continue;
 
+    const r = Math.max(2.5, radius || 3.5 * u);
+    const spd = Math.hypot(vx, vy);
     ctx.save();
-    ctx.fillStyle = color || COLOR_CYAN;
-    ctx.beginPath();
-    ctx.arc(x, y, radius || 3.5, 0, Math.PI * 2);
-    ctx.fill();
+    if (spd > 1) {
+      const nx = vx / spd;
+      const ny = vy / spd;
+      const tail = r * 2.5;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = COLOR_INK;
+      ctx.lineWidth = Math.max(2, r * 1.9 + 0.5 * u);
+      ctx.beginPath();
+      ctx.moveTo(x - nx * tail, y - ny * tail);
+      ctx.lineTo(x + nx * r * 0.5, y + ny * r * 0.5);
+      ctx.stroke();
+
+      ctx.strokeStyle = color || COLOR_CYAN;
+      ctx.lineWidth = Math.max(1.5, r * 1.2 + 0.3 * u);
+      ctx.beginPath();
+      ctx.moveTo(x - nx * tail * 0.85, y - ny * tail * 0.85);
+      ctx.lineTo(x + nx * r * 0.4, y + ny * r * 0.4);
+      ctx.stroke();
+
+      ctx.fillStyle = COLOR_WHITE;
+      ctx.beginPath();
+      ctx.arc(x + nx * r * 0.2, y + ny * r * 0.2, r * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = COLOR_INK;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 1.2 * u, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = color || COLOR_CYAN;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 }
@@ -813,7 +916,11 @@ function drawPlayers(ctx, players, arena, now = 0, u = 1) {
   for (const p of players) {
     if (!p.joined || !finite(p.x) || !finite(p.y)) continue;
 
-    const { x, y, radius, angle, color, hp, hpMax, isDowned, reviveProgress, invincible } = p;
+    const {
+      x, y, vx = 0, vy = 0, radius, angle, color, hp, hpMax,
+      weaponId, ammo = 0, magazine = 1, reloading = false, reloadProgress = 0,
+      isDowned, reviveProgress, invincible, hurtInvuln = false, hitFlash = 0,
+    } = p;
 
     ctx.save();
     if (isDowned) {
@@ -840,46 +947,98 @@ function drawPlayers(ctx, players, arena, now = 0, u = 1) {
 
       // Yardım ikonu / metni
       ctx.fillStyle = COLOR_WHITE;
-      ctx.font = 'bold 12px sans-serif';
+      ctx.font = `bold ${Math.round(Math.max(10, 12 * u))}px sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText(t('colossus.help') || 'SOS', x, y + 4);
+      ctx.fillText(t('colossus.help') || 'SOS', x, y + 4 * u);
     } else {
       // Canlı oyuncu
+      if (hurtInvuln && Math.floor(now / 80) % 2 === 1) {
+        ctx.globalAlpha = 0.55;
+      }
       if (invincible) {
         ctx.strokeStyle = COLOR_WHITE;
         ctx.lineWidth = Math.max(1, 3 * u);
         ctx.beginPath();
-        ctx.arc(x, y, radius * 1.25, 0, Math.PI * 2);
+        ctx.arc(x, y, radius * 1.28, 0, Math.PI * 2);
         ctx.stroke();
       }
 
-      // Standart Tabletop Avatarı
+      // Standart Tabletop Avatarı (tam kinetik kanal + smear + flinch + hitFlash)
       drawGameAvatar(ctx, x, y, radius, {
         color,
         angle,
+        vx,
+        vy,
+        hitFlash,
+        slot: p.slot,
+        isDashing: invincible,
       }, {
         faceMode: 'play',
+        now,
       });
 
-      // Silah Namlusu
+      // Silah Namlusu (türe özgü siluet)
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(angle);
       ctx.fillStyle = COLOR_ARMOR_DARK;
-      ctx.fillRect(radius * 0.6, -radius * 0.16, radius * 0.7, radius * 0.32);
+      ctx.strokeStyle = COLOR_INK;
+      ctx.lineWidth = Math.max(1, 1.5 * u);
+      if (weaponId === 'SNIPER') {
+        ctx.fillRect(radius * 0.58, -radius * 0.11, radius * 1.05, radius * 0.22);
+        ctx.strokeRect(radius * 0.58, -radius * 0.11, radius * 1.05, radius * 0.22);
+        ctx.fillStyle = COLOR_PURPLE;
+        ctx.fillRect(radius * 0.65, -radius * 0.17, radius * 0.3, radius * 0.12);
+      } else if (weaponId === 'SHOTGUN') {
+        ctx.fillRect(radius * 0.55, -radius * 0.23, radius * 0.58, radius * 0.46);
+        ctx.strokeRect(radius * 0.55, -radius * 0.23, radius * 0.58, radius * 0.46);
+        ctx.fillStyle = COLOR_ORANGE;
+        ctx.fillRect(radius * 0.92, -radius * 0.23, radius * 0.14, radius * 0.46);
+      } else if (weaponId === 'PLASMA') {
+        ctx.fillRect(radius * 0.55, -radius * 0.20, radius * 0.64, radius * 0.40);
+        ctx.strokeRect(radius * 0.55, -radius * 0.20, radius * 0.64, radius * 0.40);
+        ctx.fillStyle = UI_COLORS.colossusPlasma;
+        ctx.beginPath();
+        ctx.arc(radius * 1.15, 0, radius * 0.15, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillRect(radius * 0.58, -radius * 0.15, radius * 0.74, radius * 0.30);
+        ctx.strokeRect(radius * 0.58, -radius * 0.15, radius * 0.74, radius * 0.30);
+      }
       ctx.restore();
 
-      // Karakter altı mini can pips
-      const pipW = 6;
-      const pipGap = 3;
+      // Yeniden doldurma yay halkası
+      if (reloading) {
+        ctx.strokeStyle = COLOR_GOLD;
+        ctx.lineWidth = Math.max(1.5, 3 * u);
+        ctx.beginPath();
+        ctx.arc(x, y, radius * 1.24, -Math.PI / 2, -Math.PI / 2 + reloadProgress * Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Karakter altı mini can pips + şarjör çubuğu
+      const pipW = Math.max(4, 6 * u);
+      const pipH = Math.max(2.5, 3.2 * u);
+      const pipGap = Math.max(2, 3 * u);
       const totalW = hpMax * pipW + (hpMax - 1) * pipGap;
       const startX = x - totalW / 2;
-      const pipY = y + radius + 8;
+      const pipY = y + radius + Math.max(5, 7 * u);
 
       for (let i = 0; i < hpMax; i++) {
         ctx.fillStyle = i < hp ? '#22C55E' : '#475569';
-        ctx.fillRect(startX + i * (pipW + pipGap), pipY, pipW, 3);
+        ctx.fillRect(startX + i * (pipW + pipGap), pipY, pipW, pipH);
       }
+
+      const ammoH = Math.max(2, 2.6 * u);
+      const ammoY = pipY + pipH + Math.max(2, 2.5 * u);
+      const ammoRatio = reloading
+        ? reloadProgress
+        : Math.max(0, Math.min(1, ammo / Math.max(1, magazine)));
+      const lowAmmo = !reloading && ammo <= Math.max(1, Math.round(magazine * 0.25));
+      ctx.fillStyle = COLOR_ARMOR_DARK;
+      ctx.fillRect(startX, ammoY, totalW, ammoH);
+      ctx.fillStyle = reloading ? COLOR_GOLD : (lowAmmo ? COLOR_RED : COLOR_CYAN);
+      ctx.fillRect(startX, ammoY, totalW * ammoRatio, ammoH);
     }
     ctx.restore();
   }
@@ -887,7 +1046,6 @@ function drawPlayers(ctx, players, arena, now = 0, u = 1) {
 
 /**
  * Faz etiketinin TEK kaynağı: sahnede başlık, client'da skorbordu satırı.
- * (Eski gömülü İngilizce yedekler locale ile ayrışmıştı; kopyalar burada.)
  * @param {number} phase
  * @returns {string}
  */
@@ -902,21 +1060,34 @@ function drawBossHud(ctx, boss, arena, u = 1) {
   if (!boss || !finite(boss.hp) || boss.hp <= 0 || !boss.maxHp) return;
 
   const { hp, maxHp, phase, state, stagger } = boss;
-  const barW = Math.min(arena.width * 0.68, 540);
-  const barH = 14;
+  const barW = Math.min(arena.width * 0.64, 520 * u);
+  const barH = Math.max(10, 14 * u);
   const barX = arena.cx - barW / 2;
-  const barY = arena.top + 28;
+  const barY = arena.top + Math.max(40, 44 * u);
 
   const isStaggered = state === 'STAGGER';
   const hpRatio = Math.max(0, Math.min(1, hp / (maxHp || 1)));
   const staggerRatio = Math.max(0, Math.min(1, stagger / COLOSSUS_TUNING.STAGGER_MAX));
 
   ctx.save();
-  // Boss Başlığı
+  // Boss Başlığı + okunabilir koyu rozet zemini
+  const titleText = `${boss.name || 'AEGIS-01'} — ${colossusPhaseLabel(phase)}`;
+  const titleFontPx = Math.round(Math.max(10, 12 * u));
+  ctx.font = `bold ${titleFontPx}px system-ui, sans-serif`;
+  const textW = ctx.measureText ? (ctx.measureText(titleText)?.width || barW * 0.55) : barW * 0.55;
+  const tagW = Math.min(barW, textW + 18 * u);
+  const tagH = Math.max(16, 18 * u);
+  const tagY = barY - tagH - 4 * u;
+  ctx.fillStyle = COLOR_ARMOR_DARK;
+  ctx.fillRect(arena.cx - tagW / 2, tagY, tagW, tagH);
+  ctx.strokeStyle = COLOR_INK;
+  ctx.lineWidth = Math.max(1, 1.5 * u);
+  ctx.strokeRect(arena.cx - tagW / 2, tagY, tagW, tagH);
+
   ctx.fillStyle = COLOR_WHITE;
-  ctx.font = 'bold 13px system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(`${boss.name || 'AEGIS-01'} — ${colossusPhaseLabel(phase)}`, arena.cx, barY - 8);
+  ctx.textBaseline = 'middle';
+  ctx.fillText(titleText, arena.cx, tagY + tagH / 2);
 
   // HP Bar Arka Planı
   ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
@@ -945,8 +1116,8 @@ function drawBossHud(ctx, boss, arena, u = 1) {
   ctx.stroke();
 
   // Sersemleme (Stagger) Barı (HP barının hemen altında)
-  const stagH = 5;
-  const stagY = barY + barH + 4;
+  const stagH = Math.max(4, 5 * u);
+  const stagY = barY + barH + 3 * u;
   ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
   ctx.fillRect(barX, stagY, barW, stagH);
 
@@ -955,36 +1126,38 @@ function drawBossHud(ctx, boss, arena, u = 1) {
 
   if (isStaggered) {
     ctx.fillStyle = COLOR_GOLD;
-    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.font = `bold ${Math.round(Math.max(9, 10 * u))}px system-ui, sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText(t('colossus.staggered'), arena.cx, stagY + 16);
+    ctx.fillText(t('colossus.staggered'), arena.cx, stagY + 14 * u);
   }
 
-  // Parça Durum Rozetleri
+  // Parça Durum Rozetleri (uyarlanabilir genişlik)
   const parts = boss.parts || [];
   if (parts.length > 0) {
-    const chipY = stagY + (isStaggered ? 28 : 14);
-    const chipW = 105;
-    const totalChipsW = parts.length * chipW + (parts.length - 1) * 8;
+    const chipGap = Math.max(4, 8 * u);
+    const chipH = Math.max(14, 16 * u);
+    const chipY = stagY + (isStaggered ? 24 * u : 10 * u);
+    const chipW = Math.min(Math.max(88, 114 * u), (arena.width * 0.85 - chipGap * (parts.length - 1)) / parts.length);
+    const totalChipsW = parts.length * chipW + (parts.length - 1) * chipGap;
     const startChipX = arena.cx - totalChipsW / 2;
 
     parts.forEach((p, idx) => {
-      const cx = startChipX + idx * (chipW + 8);
+      const cx = startChipX + idx * (chipW + chipGap);
       const isBroken = p.broken;
       const partName = t(p.nameKey) || p.id;
 
       ctx.fillStyle = COLOR_ARMOR_DARK;
-      ctx.fillRect(cx, chipY, chipW, 16);
+      ctx.fillRect(cx, chipY, chipW, chipH);
       ctx.strokeStyle = isBroken ? COLOR_RED : (p.hitFlash > 0 ? COLOR_WHITE : COLOR_ARMOR_LIGHT);
-      ctx.lineWidth = 1;
-      ctx.strokeRect(cx, chipY, chipW, 16);
+      ctx.lineWidth = Math.max(1, 1.5 * u);
+      ctx.strokeRect(cx, chipY, chipW, chipH);
 
-      ctx.font = 'bold 9px system-ui, sans-serif';
+      ctx.font = `bold ${Math.round(Math.max(8, 9 * u))}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = isBroken ? COLOR_RED : (p.hitFlash > 0 ? COLOR_WHITE : COLOR_CYAN);
-      const statusText = isBroken ? `${partName}: [${t('colossus.destroyed') || 'İMHA'}]` : `${partName}: %${Math.round((p.hp / (p.maxHp || 1)) * 100)}`;
-      ctx.fillText(statusText, cx + chipW / 2, chipY + 8);
+      const statusText = isBroken ? `${partName}: [${t('colossus.destroyed') || 'IMHA'}]` : `${partName}: %${Math.round((p.hp / (p.maxHp || 1)) * 100)}`;
+      ctx.fillText(statusText, cx + chipW / 2, chipY + chipH / 2);
     });
   }
   ctx.restore();
@@ -995,14 +1168,15 @@ function drawBossHud(ctx, boss, arena, u = 1) {
  */
 export function drawColossusWorld(ctx, arena, scene, options = {}) {
   const now = options.now || performance.now();
-  const u = (arena && arena.unit) || 1;
+  const joinedPlayer = (scene.players || []).find((p) => p && p.joined !== false && finite(p.radius) && p.radius > 0);
+  const u = (arena && finite(arena.unit) && arena.unit > 0)
+    ? arena.unit
+    : (joinedPlayer ? joinedPlayer.radius / COLOSSUS_PLAYER_RADIUS : Math.max(0.45, Math.min(arena?.width || 820, arena?.height || 820) / 820));
 
-  // 0. Zemin: statik saha TEK kaynaktan (`fieldKit`), diğer 12 oyunla aynı
-  //    yerleşim (AGENTS §3). Bu çağrı YOKTU — masa tablası hiç çizilmiyordu,
-  //    oyun boş koyu bir dikdörtgen içinde oynanıyordu.
   drawField(ctx, arena, { mode: 'COLOSSUS', seed: hashFieldSeed('COLOSSUS', options.roundId) });
 
-  if (scene.phase === 'LOBBY') {
+  const phase = scene.phase || scene.gameState;
+  if (phase === 'LOBBY') {
     return;
   }
 
@@ -1018,27 +1192,29 @@ export function drawColossusWorld(ctx, arena, scene, options = {}) {
   // 4. Havan Topu İkazları
   drawMortars(ctx, scene.mortars, u);
 
-  // 5. Boss
-  drawBoss(ctx, scene.boss, arena, now, u);
+  // 5. Boss (lazer sütunlara kırpılır)
+  drawBoss(ctx, scene.boss, arena, now, u, scene.pillars);
 
   // 6. Oyuncular
   drawPlayers(ctx, scene.players, arena, now, u);
 
   // 7. Mermiler
-  drawBullets(ctx, scene.bullets);
+  drawBullets(ctx, scene.bullets, u);
 
   // 7.5 Hasar / durum yüzen yazıları (host↔client aynı görsel)
   if (scene.texts?.length) {
-    drawAlphaTexts(ctx, scene.texts, { size: 15, outline: true });
+    drawAlphaTexts(ctx, scene.texts, { size: Math.max(12, Math.round(15 * u)), outline: true });
   }
 
-  // 8. Partiküller & FX
-  if (scene.particles?.length) {
-    drawCircleParticles(ctx, scene.particles);
+  // 8. Partiküller & FX (tuple snapshot'ları drawFxRings/Pops nesnesine açılır)
+  const fxSource = options.fxOverride || scene.fx;
+  const particles = options.fxOverride?.particles || scene.particles;
+  if (particles?.length) {
+    drawCircleParticles(ctx, particles);
   }
-  if (scene.fx) {
-    drawFxRings(ctx, scene.fx.rings);
-    drawFxPops(ctx, scene.fx.pops);
+  if (fxSource) {
+    drawFxRings(ctx, unpackFxRings(fxSource.rings));
+    drawFxPops(ctx, unpackFxPops(fxSource.pops));
   }
 
   // 9. Boss HUD
