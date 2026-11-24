@@ -12,6 +12,7 @@
 
 import { UI_COLORS } from '../ui/tokens.js';
 import { vibrate } from './haptics.js';
+import { damp } from './physics2d.js';
 
 /** @typedef {'shot'|'hit'|'slay'|'kill'|'pickup'|'score'|'blocked'|'spark'|'dust'|'zone'} FxKind */
 
@@ -253,10 +254,13 @@ export function fxSpawnBurst(list, kind, { x, y, color = UI_COLORS.inkDark, angl
  */
 export function fxUpdateParticles(list, dt) {
   if (!Array.isArray(list)) return;
+  const drag = damp(0.90, dt);
   for (let i = list.length - 1; i >= 0; i -= 1) {
     const p = list[i];
     p.x += p.vx * dt;
     p.y += p.vy * dt;
+    p.vx *= drag;
+    p.vy *= drag;
     p.life -= dt;
     if (p.life <= 0) list.splice(i, 1);
   }

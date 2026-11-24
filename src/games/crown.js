@@ -631,7 +631,10 @@ export class CrownGame extends BaseMiniGame {
     if (this.state !== 'PLAYING') return;
     const player = this.players[playerIndex];
     if (!player || !player.isJoined || !player.isAlive) return;
-    if (player.tackleCooldown > 0 || player.stumbleTimer > 0 || player.slipTimer > 0) return;
+    if (player.tackleCooldown > 0 || player.stumbleTimer > 0 || player.slipTimer > 0) {
+      this.bufferSlotAction(playerIndex, 'tackle');
+      return;
+    }
 
     player.tackleCooldown = 2.0;
     player.tackleTimer = 0.22;
@@ -915,6 +918,13 @@ export class CrownGame extends BaseMiniGame {
       if (p.slipTimer > 0) {
         p.slipTimer -= dt;
         p.slipAngle += dt * 14;
+      }
+      if (p.slotType === 'human'
+        && p.tackleCooldown <= 0
+        && p.stumbleTimer <= 0
+        && p.slipTimer <= 0
+        && this.consumeSlotAction(p.index, 'tackle')) {
+        this.triggerTackle(p.index);
       }
 
       let inX = 0;

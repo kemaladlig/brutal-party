@@ -101,11 +101,13 @@ export class FxRuntime {
       ? /** @type {number} */ (event.unit)
       : this.unit;
     const color = event.color || UI_COLORS.inkDark;
+    const dir = fxNormalizedDir(event.dirX || 0, event.dirY || 0);
+    const burstAngle = dir ? Math.atan2(dir.y, dir.x) : null;
     if (profile.burst) {
       // Kademe çarpanı TEK yerde uygulanır (2.3): buradaki `count` dışında
       // hiçbir yer partikül sayısına dokunmaz.
       const burstCount = Math.max(1, Math.round(/** @type {any} */ (profile.burst).count * fxParticleScale()));
-      fxSpawnBurst(this.particles, kind, { x: event.x, y: event.y, color, unit, count: burstCount });
+      fxSpawnBurst(this.particles, kind, { x: event.x, y: event.y, color, angle: burstAngle, unit, count: burstCount });
     }
     if (profile.ring) {
       fxSpawnRing(this.rings, kind, { x: event.x, y: event.y, color, unit, ringRadius: event.ringRadius ?? null });
@@ -150,7 +152,6 @@ export class FxRuntime {
     }
     const traumaScale = Number.isFinite(opts.traumaScale) ? Number(opts.traumaScale) : 1;
     if (profile.trauma && traumaScale > 0 && this.traumaSink) {
-      const dir = fxNormalizedDir(event.dirX || 0, event.dirY || 0);
       this.traumaSink(profile.trauma * traumaScale, dir?.x || 0, dir?.y || 0);
     }
     if (event.haptic) fxHaptic(kind);

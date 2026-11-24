@@ -48,6 +48,8 @@ export function createPlayer(i, spawn, opts = {}) {
     y: spawn.y,
     vx: 0,
     vy: 0,
+    knockVx: 0,
+    knockVy: 0,
     radius,
     facingAngle: spawn.angle || 0,
     angle: spawn.angle || 0,
@@ -123,4 +125,43 @@ export function advancePlayer(p, dt, arena, obstacles = [], opts = {}) {
   clampToArena(p, r, arena, { zeroVelocity: opts.zeroVelocity });
   resolveAABB(p, obstacles, r);
   tickEffectTimers(p, dt);
+}
+
+/**
+ * Arcade acceleration/deceleration helper with zero allocations.
+ * Returns true if the target direction sharply reverses current motion (> ~123 deg).
+ * @param {MiniGameEntity} p
+ * @param {number} targetVx
+ * @param {number} targetVy
+ * @param {number} dt
+ * @param {{ accelRate?: number, decelRate?: number }} [opts]
+ * @returns {boolean}
+ */
+export function stepArcadeVelocity(p, targetVx, targetVy, dt, opts = {}) {
+  if (!p || !(dt > 0)) return false;
+  const accelRate = opts.accelRate ?? 22;
+  const decelRate = opts.decelRate ?? 26;
+  const prevVx = Number.isFinite(p.vx) ? p.vx : 0;
+  const prevVy = Number.isFinite(p.vy) ? p.vy : 0;
+  const prevSpdSq = prevVx * prevVx + prevVy * prevVy;
+  const targetSpdSq = targetVx * targetVx + targetVy * targetVy;
+  const isAccelerating = targetSpdSq > 1;
+  let reversed = false;
+  if (prevSpdSq > 2500 && isAccelerating) {
+    const dot = prevVx * targetVx + prevVy * targetVy;
+    if (dot < 0 && (dot * dot) / (prevSpdSq * targetSpdSq) > 0.3025) {
+      reversed = true;
+    }
+  }
+  const rate = isAccelerating ? accelRate : decelRate;
+  const alpha = 1 - Math.exp(-rate * dt);
+  let nx = prevVx + (targetVx - prevVx) * alpha;
+  let ny = prevVy + (targetVy - prevVy) * alpha;
+  if (!isAccelerating && (nx * nx + ny * ny) < 0.25) {
+    nx = 0;
+    ny = 0;
+  }
+  p.vx = nx;
+  p.vy = ny;
+  return reversed;
 }

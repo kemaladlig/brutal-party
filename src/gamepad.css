@@ -2418,8 +2418,20 @@
 .action-dash-btn.cooling,
 .action-spin-btn.cooling {
   cursor: not-allowed;
-  pointer-events: none;
   box-shadow: none;
+}
+
+.action-dash-btn.fx-blocked,
+.action-spin-btn.fx-blocked,
+.tank-fire-btn.fx-blocked {
+  animation: fx-btn-blocked 0.14s ease-out;
+}
+
+@keyframes fx-btn-blocked {
+  0% { transform: translate3d(0, 0, 0); }
+  30% { transform: translate3d(-3px, 0, 0); }
+  65% { transform: translate3d(3px, 0, 0); }
+  100% { transform: translate3d(0, 0, 0); }
 }
 
 /* Hazır titreşimi: cooldown dolduğunda kısa bir yeniden doğuş.
@@ -2446,6 +2458,17 @@
 
 @keyframes fx-btn-pop {
   0% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.action-dash-btn.fx-pop-subtle,
+.action-spin-btn.fx-pop-subtle,
+.tank-fire-btn.fx-pop-subtle {
+  animation: fx-btn-pop-subtle 0.095s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes fx-btn-pop-subtle {
+  0% { transform: scale(1.04); }
   100% { transform: scale(1); }
 }
 
@@ -3042,7 +3065,13 @@
   .action-spin-btn.ready-flash,
   .action-dash-btn.fx-pop,
   .action-spin-btn.fx-pop,
-  .tank-fire-btn.fx-pop {
+  .tank-fire-btn.fx-pop,
+  .action-dash-btn.fx-pop-subtle,
+  .action-spin-btn.fx-pop-subtle,
+  .tank-fire-btn.fx-pop-subtle,
+  .action-dash-btn.fx-blocked,
+  .action-spin-btn.fx-blocked,
+  .tank-fire-btn.fx-blocked {
     animation: none !important;
   }
 

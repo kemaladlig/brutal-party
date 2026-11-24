@@ -65,13 +65,16 @@ export class PhysicalGamepadAdapter {
       dir: 0,
       dirSentAt: 0,
       driving: false,
+      driveSentAt: 0,
       position: 0.5,
       primaryDown: false,
       actionId: null,
       activeActions: [],
       mode: null,
       vectorActive: false,
+      vecSentAt: 0,
       aimActive: false,
+      aimSentAt: 0,
       aimVector: { dx: 0, dy: 0, angle: 0, force: 0 },
       blocked: false,
       padAvailable: false,
@@ -161,8 +164,8 @@ export class PhysicalGamepadAdapter {
     const force = Math.min(1, (magnitude - this.deadzone) / (1 - this.deadzone));
     return {
       dx: clamp((rawX / magnitude) * force),
-      dy: clamp((-rawY / magnitude) * force),
-      angle: Math.atan2(-rawY, rawX),
+      dy: clamp((rawY / magnitude) * force),
+      angle: Math.atan2(rawY, rawX),
       force,
     };
   }
@@ -175,8 +178,8 @@ export class PhysicalGamepadAdapter {
     const force = Math.min(1, (magnitude - this.deadzone) / (1 - this.deadzone));
     return {
       dx: clamp((rawX / magnitude) * force),
-      dy: clamp((-rawY / magnitude) * force),
-      angle: Math.atan2(-rawY, rawX),
+      dy: clamp((rawY / magnitude) * force),
+      angle: Math.atan2(rawY, rawX),
       force,
     };
   }
@@ -237,17 +240,17 @@ export class PhysicalGamepadAdapter {
 
   updateDiscrete(pad, descriptor) {
     const left = descriptor?.phone?.left;
+    const now = this.now();
     if (left === 'steer') {
       const dir = this.readDirection(pad);
       const action = this.getMode() === 'SNAKE' ? 'SNAKE_STEER' : 'CURVE_STEER';
       if (dir !== this.previous.dir) {
         this.emitAction(action, { dir });
         this.previous.dir = dir;
-        this.previous.dirSentAt = 0;
+        this.previous.dirSentAt = now;
       } else if (dir !== 0) {
         // Basılı yön keepalive'i: host'un analog sessizlik süpürücüsü (1500 ms)
         // basılı yönü sıfırlıyor, fiziksel kumandada da aynı beliri oluyordu.
-        const now = performance.now();
         if (now - (this.previous.dirSentAt || 0) >= CONTROL_KEEPALIVE_MS) {
           this.emitAction(action, { dir });
           this.previous.dirSentAt = now;
@@ -258,6 +261,10 @@ export class PhysicalGamepadAdapter {
       if (driving !== this.previous.driving) {
         this.emitAction('TANK_DRIVE', { driving });
         this.previous.driving = driving;
+        this.previous.driveSentAt = now;
+      } else if (driving && now - (this.previous.driveSentAt || 0) >= CONTROL_KEEPALIVE_MS) {
+        this.emitAction('TANK_DRIVE', { driving: true });
+        this.previous.driveSentAt = now;
       }
     } else if (left === 'slider') {
       const direction = this.readDirection(pad);
@@ -268,23 +275,40 @@ export class PhysicalGamepadAdapter {
     } else {
       const vector = this.readAxis(pad);
       if (vector.force > 0 || this.previous.vectorActive) {
-        this.analog.sendAnalog({ action: 'JOYSTICK_MOVE', ...vector });
+        if (this.analog.sendAnalog({ action: 'JOYSTICK_MOVE', ...vector })) {
+          this.previous.vecSentAt = now;
+        } else if (vector.force > 0 && now - (this.previous.vecSentAt || 0) >= CONTROL_KEEPALIVE_MS) {
+          if (this.analog.sendAnalog({ action: 'JOYSTICK_MOVE', ...vector }, { keepalive: true })) {
+            this.previous.vecSentAt = now;
+          }
+        }
       }
       this.previous.vectorActive = vector.force > 0;
       if (descriptor.phone?.aim) {
         const aim = this.readAimAxis(pad);
         const aimActive = aim.force > 0;
-        if (aimActive || this.previous.aimActive) {
-          this.analog.sendAnalog({
-            action: 'AIM_MOVE',
-            ...aim,
-            aimHeld: aimActive || this.previous.aimActive,
-          });
-        }
         if (aimActive) {
           this.previous.aimVector = { ...aim };
           if (!this.previous.aimActive) this.emitAction('AIM_PRESS', { ...aim, aimHeld: true });
-        } else if (this.previous.aimActive) {
+        }
+        if (aimActive || this.previous.aimActive) {
+          if (this.analog.sendAnalog({
+            action: 'AIM_MOVE',
+            ...aim,
+            aimHeld: aimActive || this.previous.aimActive,
+          })) {
+            this.previous.aimSentAt = now;
+          } else if (aimActive && now - (this.previous.aimSentAt || 0) >= CONTROL_KEEPALIVE_MS) {
+            if (this.analog.sendAnalog({
+              action: 'AIM_MOVE',
+              ...aim,
+              aimHeld: true,
+            }, { keepalive: true })) {
+              this.previous.aimSentAt = now;
+            }
+          }
+        }
+        if (!aimActive && this.previous.aimActive) {
           this.releaseAim(false);
         }
         this.previous.aimActive = aimActive;
@@ -306,8 +330,11 @@ export class PhysicalGamepadAdapter {
       this.previous.dir = 0;
       this.previous.dirSentAt = 0;
       this.previous.driving = false;
+      this.previous.driveSentAt = 0;
       this.previous.vectorActive = false;
+      this.previous.vecSentAt = 0;
       this.previous.aimActive = false;
+      this.previous.aimSentAt = 0;
     }
     if (!descriptor || mode === 'LOBBY' || this.isBlocked()) {
       if (!this.previous.blocked) {
@@ -320,8 +347,11 @@ export class PhysicalGamepadAdapter {
       this.previous.dir = 0;
       this.previous.dirSentAt = 0;
       this.previous.driving = false;
+      this.previous.driveSentAt = 0;
       this.previous.vectorActive = false;
+      this.previous.vecSentAt = 0;
       this.previous.aimActive = false;
+      this.previous.aimSentAt = 0;
       this.analog.reset();
       return true;
     }
@@ -336,7 +366,9 @@ export class PhysicalGamepadAdapter {
       this.previous.padAvailable = false;
       this.previous.blocked = false;
       this.previous.vectorActive = false;
+      this.previous.vecSentAt = 0;
       this.previous.aimActive = false;
+      this.previous.aimSentAt = 0;
       this.analog.reset();
       return true;
     }

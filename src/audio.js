@@ -12,10 +12,15 @@ function sampleFirst(id, opts) {
   } catch {}
   return false;
 }
-function sampleFor(fnName) {
+function sampleFor(fnName, opts) {
   const id = SYNTH_TO_SAMPLE[fnName];
-  return id ? sampleFirst(id) : false;
+  return id ? sampleFirst(id, opts) : false;
 }
+
+let _lastHordeKillMs = 0;
+let _hordeKillCombo = 0;
+let _lastCoinPickupMs = 0;
+let _coinPickupCombo = 0;
 try { bindUnlock(); } catch {}
 
 let audioCtx = null;
@@ -92,7 +97,8 @@ function getAudioContext() {
 }
 
 export function playPaddleHit(intensity = 1.0) {
-  if (sampleFor('playPaddleHit')) return;
+  const pitchScale = Math.min(1.45, Math.max(0.85, 0.94 + Math.max(0, intensity - 1) * 0.35));
+  if (sampleFor('playPaddleHit', { pitchScale })) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -501,7 +507,8 @@ export function playItemPickup() {
 }
 
 export function playBombTick(urgency = 0) {
-  if (sampleFor('playBombTick')) return;
+  const clamped = Math.max(0, Math.min(1, urgency));
+  if (sampleFor('playBombTick', { pitchScale: 0.85 + clamped * 0.6 })) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -671,7 +678,13 @@ export function playStumble() {
 }
 
 export function playCoinPickup() {
-  if (sampleFor('playCoinPickup')) return;
+  const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  _coinPickupCombo = (_lastCoinPickupMs > 0 && nowMs - _lastCoinPickupMs <= 900)
+    ? Math.min(8, _coinPickupCombo + 1)
+    : 0;
+  _lastCoinPickupMs = nowMs;
+  const pitchScale = 1 + _coinPickupCombo * 0.045;
+  if (sampleFor('playCoinPickup', { pitchScale })) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -680,8 +693,8 @@ export function playCoinPickup() {
   const gain = ctx.createGain();
 
   osc.type = 'sine';
-  osc.frequency.setValueAtTime(987, now);
-  osc.frequency.exponentialRampToValueAtTime(1318, now + 0.08);
+  osc.frequency.setValueAtTime(987 * pitchScale, now);
+  osc.frequency.exponentialRampToValueAtTime(1318 * pitchScale, now + 0.08);
 
   gain.gain.setValueAtTime(0.25, now);
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
@@ -875,7 +888,13 @@ export function playMenuPop() {
 // düşman mı öldü" karışıyordu, bomba patlaması da aynı sesteydi.
 // Çözüm: üç ayrı renk — kill tiz/kısa, hurt bas/uzun, boom derin/uzun.
 export function playHordeKill() {
-  if (sampleFor('playHordeKill')) return;
+  const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  _hordeKillCombo = (_lastHordeKillMs > 0 && nowMs - _lastHordeKillMs <= 1200)
+    ? Math.min(10, _hordeKillCombo + 1)
+    : 0;
+  _lastHordeKillMs = nowMs;
+  const pitchScale = 1 + _hordeKillCombo * 0.045;
+  if (sampleFor('playHordeKill', { pitchScale })) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -884,8 +903,8 @@ export function playHordeKill() {
   const gain = ctx.createGain();
 
   osc.type = 'triangle';
-  osc.frequency.setValueAtTime(720, now);
-  osc.frequency.exponentialRampToValueAtTime(320, now + 0.07);
+  osc.frequency.setValueAtTime(720 * pitchScale, now);
+  osc.frequency.exponentialRampToValueAtTime(320 * pitchScale, now + 0.07);
 
   gain.gain.setValueAtTime(0.18, now);
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
@@ -921,7 +940,8 @@ export function playHordeHurt() {
 }
 
 export function playHordeBombTick(urgency = 0) {
-  if (sampleFor('playHordeBombTick')) return;
+  const clamped = Math.max(0, Math.min(1, urgency));
+  if (sampleFor('playHordeBombTick', { pitchScale: 0.88 + clamped * 0.52 })) return;
   const ctx = getAudioContext();
   if (!ctx) return;
 

@@ -669,7 +669,11 @@ export class ZoneGame extends BaseMiniGame {
     // Lobi/maç-sonunda kumandadan depar tetiklenemez (uzak girdi kapısı)
     if (this.state !== 'PLAYING') return;
     const p = this.players[playerIndex];
-    if (!p || !p.isJoined || p.stunTimer > 0 || p.dashCooldown > 0) return;
+    if (!p || !p.isJoined) return;
+    if (p.stunTimer > 0 || p.dashCooldown > 0) {
+      this.bufferSlotAction(playerIndex, 'dash');
+      return;
+    }
     p.dashCooldown = ZONE_TUNING.DASH_CD;
     p.dashTimer = ZONE_TUNING.DASH_TIME;
     p.isDashing = true;
@@ -1144,6 +1148,9 @@ export class ZoneGame extends BaseMiniGame {
         p.lastCell = this.posToCell(p.x, p.y);
         p.px = p.x; p.py = p.y;
         continue;
+      }
+      if (p.slotType === 'human' && p.dashCooldown <= 0 && this.consumeSlotAction(p.index, 'dash', now)) {
+        this.triggerDash(p.index);
       }
 
       // Girdi: joystick / klavye / bot

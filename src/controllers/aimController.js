@@ -61,6 +61,8 @@ export class TwinStickAimController {
     this.maxDragDistance = 0;
     this.maxRadius = 54;
     this.lastInput = { dx: 0, dy: 0, angle: 0, force: 0, aimHeld: false };
+    this._history = Array.from({ length: 6 }, () => ({ t: 0, dx: 0, dy: 0, angle: 0, force: 0 }));
+    this._historyHead = 0;
     this.heartbeatTimer = null;
     this.destroyed = false;
 
@@ -88,6 +90,11 @@ export class TwinStickAimController {
     this.maxDragDistance = 0;
     this.maxRadius = clamp(shortSide * 0.24, MIN_RADIUS, MAX_RADIUS);
     this.lastInput = { dx: 0, dy: 0, angle: 0, force: 0, aimHeld: true };
+    for (const slot of this._history) {
+      slot.t = 0;
+      slot.force = 0;
+    }
+    this._historyHead = 0;
     this.positionBase(clientX, clientY, rect);
     this.base?.classList.add('aim-held');
     this.updateKnob(0, 0);
@@ -106,9 +113,10 @@ export class TwinStickAimController {
     const clampedDistance = Math.min(distance, this.maxRadius);
     const angle = distance > 0.001 ? Math.atan2(rawDy, rawDx) : this.lastInput.angle;
     const rawForce = clampedDistance / this.maxRadius;
-    const force = rawForce < DEADZONE
+    const normForce = rawForce < DEADZONE
       ? 0
       : clamp((rawForce - DEADZONE) / (1 - DEADZONE), 0, 1);
+    const force = normForce > 0 ? Math.pow(normForce, 1.35) : 0;
     const input = {
       dx: Math.cos(angle) * force,
       dy: Math.sin(angle) * force,
@@ -116,6 +124,15 @@ export class TwinStickAimController {
       force,
       aimHeld: true,
     };
+    if (force >= 0.08) {
+      const slot = this._history[this._historyHead];
+      slot.t = nowMs();
+      slot.dx = input.dx;
+      slot.dy = input.dy;
+      slot.angle = input.angle;
+      slot.force = input.force;
+      this._historyHead = (this._historyHead + 1) % this._history.length;
+    }
     this.lastInput = input;
     this.updateKnob(clampedDistance, angle);
     this.base?.classList.toggle('aim-active', force >= 0.08);
@@ -124,20 +141,33 @@ export class TwinStickAimController {
 
   finish(cancelled = false) {
     if (this.activePointerId === null && this.activeTouchId === null) return false;
+    const now = nowMs();
+    const tap = !cancelled
+      && now - this.pressStartedAt <= TAP_MAX_MS
+      && this.maxDragDistance <= TAP_MAX_DRAG_PX;
+    let releaseSource = this.lastInput;
+    if (!cancelled && !tap && this.lastInput.force < 0.15) {
+      let best = null;
+      for (const entry of this._history) {
+        const age = now - entry.t;
+        if (entry.t > 0 && entry.force >= 0.25 && age >= 8 && age <= 55) {
+          if (!best || entry.t > best.t) best = entry;
+        }
+      }
+      if (best) releaseSource = best;
+    }
     const finalInput = {
       ...this.lastInput,
-      dx: cancelled ? 0 : this.lastInput.dx,
-      dy: cancelled ? 0 : this.lastInput.dy,
-      force: cancelled ? 0 : this.lastInput.force,
+      dx: cancelled ? 0 : releaseSource.dx,
+      dy: cancelled ? 0 : releaseSource.dy,
+      angle: cancelled ? this.lastInput.angle : releaseSource.angle,
+      force: cancelled ? 0 : releaseSource.force,
       aimHeld: false,
     };
     this.activePointerId = null;
     this.activeTouchId = null;
     this.stopHeartbeat();
     this.clearVisual();
-    const tap = !cancelled
-      && nowMs() - this.pressStartedAt <= TAP_MAX_MS
-      && this.maxDragDistance <= TAP_MAX_DRAG_PX;
     this.onRelease?.(finalInput, { cancelled, tap });
     return true;
   }

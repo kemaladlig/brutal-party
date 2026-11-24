@@ -557,6 +557,23 @@ test('drawGameAvatar applies hitFlash and kinetic transforms without throwing', 
   assert.ok(hitRec.calls.length > 0, 'hit avatar must render cleanly');
 });
 
+test('flinch squeeze visibly squashes an idle avatar along the hit axis', () => {
+  const plain = makeRecorder();
+  drawGameAvatar(plain, 0, 0, R, player, { ...NOISE, grounded: false, smear: false, flinch: false });
+  const squished = makeRecorder();
+  drawGameAvatar(squished, 0, 0, R, player, {
+    ...NOISE,
+    grounded: false,
+    smear: false,
+    flinchOffset: { x: 2, y: 0, squeeze: 0.14 },
+  });
+  const scaleCalls = squished.calls.filter((c) => c.startsWith('scale('));
+  assert.ok(scaleCalls.length > 0, 'flinch squeeze must apply a kinetic scale transform');
+  const parsed = scaleCalls.map((c) => c.slice(6, -1).split(',').map(Number));
+  assert.ok(parsed.some(([sx, sy]) => sx < 0.95 && sy > 1.05), `expected compressed X / bulged Y, got ${scaleCalls}`);
+  assert.equal(plain.calls.filter((c) => c.startsWith('scale(')).length, 0);
+});
+
 // ---------------------------------------------------------------------------
 // PARITY GATE — bu dosyanın asıl işi. Metin taraması DEĞİL, motoru ÇALIŞTIRIR
 // ve paketi okur: "efekt var mı" değil "efekt gerçekten üretiliyor mu".
@@ -683,6 +700,23 @@ test('PARITY: every avatar engine exposes a floating-text channel (SİSTEM 3)', 
 
     if (typeof game.destroy === 'function') game.destroy();
   }
+});
+
+test('stepArcadeVelocity accelerates, decelerates cleanly to 0, and detects 180 reversals', async () => {
+  const { stepArcadeVelocity } = await server.ssrLoadModule('/src/core/playerEntity.js');
+  const p = { vx: 0, vy: 0 };
+
+  assert.equal(stepArcadeVelocity(p, 200, 0, 1 / 60), false);
+  assert.ok(p.vx > 0 && p.vx < 200, `smooth acceleration expected, got ${p.vx}`);
+
+  for (let i = 0; i < 12; i++) stepArcadeVelocity(p, 200, 0, 1 / 60);
+  assert.ok(p.vx > 180, 'reaches cruise quickly');
+
+  assert.equal(stepArcadeVelocity(p, -200, 0, 1 / 60), true, 'sharp reversal must flag skid dust');
+
+  for (let i = 0; i < 30; i++) stepArcadeVelocity(p, 0, 0, 1 / 60);
+  assert.equal(p.vx, 0, 'snaps tiny residual velocity to 0 when stopped');
+  assert.equal(p.vy, 0);
 });
 
 

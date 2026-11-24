@@ -35,6 +35,7 @@ import {
   fxReadAlpha,
 } from '../src/core/fxKit.js';
 import { createFxRuntime } from '../src/core/fxRuntime.js';
+import { isHapticsSupported } from '../src/core/haptics.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -78,6 +79,12 @@ test('burst spawns respect design-unit scaling and pool caps', () => {
   // Partiküller yaşamını yitirince temizlenir.
   fxUpdateParticles(capped, 5);
   assert.equal(capped.length, 0);
+
+  // Partikül sürtünmesi: hız zamanla sönümlenir (damp 0.90).
+  const dragged = [{ x: 0, y: 0, vx: 200, vy: 0, life: 1, maxLife: 1, size: 4, color: '#ABCDEF' }];
+  fxUpdateParticles(dragged, 0.1);
+  assert.ok(dragged.length === 1 && dragged[0].vx < 200 && dragged[0].vx > 0,
+    `expected particle drag to slow vx, got ${dragged[0]?.vx}`);
 });
 
 test('rings derive radius from life; pops decay — snapshot-safe shapes', () => {
@@ -160,6 +167,13 @@ test('runtime emits through profiles: hit spawns burst+ring, kill adds pop+flash
   fx.clear();
   assert.equal(fx.particles, alias);
   assert.equal(alias.length, 0);
+});
+
+test('runtime passes dirX/dirY to burst angle so hits spray directionally', () => {
+  const fx = createFxRuntime({ arenaProvider: () => ({ unit: 1 }) });
+  fx.emit('hit', { x: 0, y: 0, color: '#ABCDEF', dirX: 1, dirY: 0 });
+  const avgVx = fx.particles.reduce((sum, p) => sum + p.vx, 0) / fx.particles.length;
+  assert.ok(avgVx > 20, `expected +X directional burst, got avgVx=${avgVx}`);
 });
 
 test('slay is the flashless trash-death channel: pop+ring, no flash, shorter stop than kill', () => {
@@ -270,6 +284,28 @@ test('3.3 fxReadAlpha: own/threat/other sınıflaması + tek-görür-yok dimi', 
   assert.equal(fxReadAlpha(), 0.75);
   // isSelf, isThreat'i yener (kendi avatarın tehdit sayılmaz).
   assert.equal(fxReadAlpha({ isSelf: true, isThreat: true }), 1);
+});
+
+test('isHapticsSupported reflects navigator.vibrate availability safely', () => {
+  const prevDesc = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  try {
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {},
+      configurable: true,
+      writable: true,
+    });
+    assert.equal(isHapticsSupported(), false);
+
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { vibrate: () => true },
+      configurable: true,
+      writable: true,
+    });
+    assert.equal(isHapticsSupported(), true);
+  } finally {
+    if (prevDesc) Object.defineProperty(globalThis, 'navigator', prevDesc);
+    else delete globalThis.navigator;
+  }
 });
 
 

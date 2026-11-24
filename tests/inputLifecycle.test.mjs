@@ -4,6 +4,8 @@ import {
   claimInputSource,
   releaseInputSource,
 } from '../src/core/inputSource.js';
+import { noteKeyDown, noteKeyUp, resetKeyOrder } from '../src/core/keyboardDispatch.js';
+import { keyboardVectorFrom, readSlotKeys, resolveAxis } from '../src/core/inputMaps.js';
 
 test('local input source arbitrates keyboard and touch', () => {
   let source = null;
@@ -31,4 +33,27 @@ test('release only clears the owning source', () => {
   assert.equal(releaseInputSource('keyboard', 'touch'), 'keyboard');
   assert.equal(releaseInputSource('keyboard', 'keyboard'), null);
   assert.equal(releaseInputSource('keyboard', null), null);
+});
+
+test('keyboard SOCD resolves opposing keys with last-input-wins and falls back on release', () => {
+  resetKeyOrder();
+  const keys = { KeyA: true, KeyD: true };
+  // Without press order, opposing keys stay neutral (backwards-compatible)
+  assert.equal(keyboardVectorFrom(keys, 0).x, 0);
+  assert.equal(readSlotKeys(keys, 0).dx, 0);
+
+  noteKeyDown('KeyA');
+  noteKeyDown('KeyD');
+  assert.equal(keyboardVectorFrom(keys, 0).x, 1);
+  assert.equal(resolveAxis(true, true, 'KeyA', 'KeyD'), 1);
+
+  // Pressing A after D makes A win
+  noteKeyDown('KeyA');
+  assert.equal(keyboardVectorFrom(keys, 0).x, -1);
+
+  // Releasing A leaves D active
+  noteKeyUp('KeyA');
+  delete keys.KeyA;
+  assert.equal(keyboardVectorFrom(keys, 0).x, 1);
+  resetKeyOrder();
 });

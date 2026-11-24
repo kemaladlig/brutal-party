@@ -494,9 +494,13 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
   const drawX = x + (flinch ? flinch.x : 0);
   const drawY = y + (flinch ? flinch.y : 0);
   // Darbe yönündeki ezilme kinetik deformasyonla ÇARPILIR (çarpma yönünde
-  // basılma). Mevcut kinetik önceliği bozmaz: kuvveti `Math.max` alır.
-  const kineticX = flinch ? Math.max(kinetic.squashX, 1 - flinch.squeeze) : kinetic.squashX;
-  const kineticY = flinch ? Math.min(kinetic.squashY, 1 + flinch.squeeze) : kinetic.squashY;
+  // basılma). Mevcut kinetik önceliği bozmaz.
+  const kineticX = flinch ? kinetic.squashX * (1 - flinch.squeeze) : kinetic.squashX;
+  const kineticY = flinch ? kinetic.squashY * (1 + flinch.squeeze) : kinetic.squashY;
+  const flinchAngle = flinch && (flinch.x !== 0 || flinch.y !== 0)
+    ? Math.atan2(flinch.y, flinch.x)
+    : null;
+  const squashAngle = flinchAngle ?? kinetic.squashAngle;
 
   const headwear = opts.headwear !== undefined
     ? opts.headwear
@@ -528,7 +532,7 @@ export function drawGameAvatar(ctx, x, y, radius, player, opts = {}) {
     // Karakter kinetiği, hasar oku ezilmesi & 1-kare hit flash
     squashX: kineticX,
     squashY: kineticY,
-    squashAngle: kinetic.squashAngle,
+    squashAngle,
     hitFlash: isHit,
   });
 }

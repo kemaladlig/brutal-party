@@ -156,3 +156,39 @@ test('action button inside the aim zone never starts aim, free touch still does'
     restore();
   }
 });
+
+test('twin-stick aim uses precision curve and preserves recent direction on release jitter', async () => {
+  const restore = installPointerWindow();
+  try {
+    const zone = new FakeElement();
+    const packets = [];
+    const controller = new TwinStickAimController({
+      zoneEl: zone,
+      knobEl: new FakeElement(),
+      baseEl: new FakeElement(),
+      onPress: (input) => packets.push({ type: 'press', input }),
+      onMove: (input) => packets.push({ type: 'move', input }),
+      onRelease: (input, meta) => packets.push({ type: 'release', input, meta }),
+    });
+
+    // Mid-deflection should be slightly damped by the 1.35 precision curve (< linear)
+    zone.dispatch('pointerdown', { pointerId: 11, pointerType: 'touch', clientX: 120, clientY: 120, button: 0 });
+    window.dispatch('pointermove', { pointerId: 11, clientX: 147, clientY: 120 }); // ~0.5 radius
+    const midMove = packets.find((p) => p.type === 'move')?.input;
+    assert.ok(midMove && midMove.force > 0 && midMove.force < 0.44, `expected curved force < linear (~0.44), got ${midMove?.force}`);
+
+    // Full drag, wait ~20ms, tiny jitter back to deadzone right before pointerup -> keeps recent aim vector
+    window.dispatch('pointermove', { pointerId: 11, clientX: 180, clientY: 120 });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    window.dispatch('pointerup', { pointerId: 11, clientX: 121, clientY: 121 });
+
+    const release = packets.at(-1);
+    assert.equal(release.type, 'release');
+    assert.equal(release.meta.tap, false);
+    assert.ok(release.input.force >= 0.9, `expected release-jitter protection to keep prior full aim, got ${release.input.force}`);
+    assert.ok(Math.abs(release.input.angle) < 0.1);
+    controller.destroy();
+  } finally {
+    restore();
+  }
+});

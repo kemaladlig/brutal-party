@@ -12,6 +12,7 @@ import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, pointBlocked, resolveAABB, segmentCircleIntersection, segmentAabbIntersection } from '../core/physics2d.js';
+import { stepArcadeVelocity } from '../core/playerEntity.js';
 import { beginRound, endMatch, tickRoundFlow } from '../core/roundLifecycle.js';
 import { computePlayfield, fieldPx, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import {
@@ -417,6 +418,10 @@ this.targetScore = 3;
 
   attemptStrike(player) {
     if (this.state !== 'PLAYING' || !player.isJoined || !player.isAlive) return;
+    if (player.strikeCooldown > 0) {
+      this.bufferSlotAction(player.index, 'strike');
+      return;
+    }
     if (player.strikeCooldown <= 0) {
       const unit = this.arena.unit;
       // Animasyon menzili = kılıç mesafesi. Hamle `fieldSpeed × DASH_TIME`
@@ -765,6 +770,9 @@ this.targetScore = 3;
       if (player.strikeCooldown > 0) player.strikeCooldown -= dt;
       if (player.strikeTimer > 0) player.strikeTimer -= dt;
       if (player.smokeCooldown > 0) player.smokeCooldown -= dt;
+      if (player.slotType === 'human' && player.strikeCooldown <= 0 && this.consumeSlotAction(player.index, 'strike', now)) {
+        this.attemptStrike(player);
+      }
 
       if (player.slotType !== 'human') {
         updateNinjaBotAI(this, player, dt);
@@ -843,6 +851,7 @@ this.targetScore = 3;
         }
       }
 
+      if (player._skidDustCd > 0) player._skidDustCd = Math.max(0, player._skidDustCd - dt);
       const prevX = player.x;
       const prevY = player.y;
       player.prevX = prevX;
@@ -852,9 +861,14 @@ this.targetScore = 3;
         : player.speed;
 
       if (player.strikeTimer <= 0) {
-        player.x += player.steerX * spd * dt;
-        player.y += player.steerY * spd * dt;
-        this.writeSteerVelocity(player, player.steerX * spd, player.steerY * spd);
+        const reversed = stepArcadeVelocity(player, player.steerX * spd, player.steerY * spd, dt);
+        player.x += player.vx * dt;
+        player.y += player.vy * dt;
+        this.writeSteerVelocity(player, player.vx, player.vy);
+        if (reversed && !(player._skidDustCd > 0)) {
+          player._skidDustCd = 0.22;
+          this.fx.emit('dust', { x: player.x, y: player.y, color: player.color });
+        }
       } else {
         player.x += Math.cos(player.angle) * spd * dt;
         player.y += Math.sin(player.angle) * spd * dt;

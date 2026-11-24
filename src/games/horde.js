@@ -24,7 +24,7 @@ import {
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import { findAutoAimTarget } from '../core/autoAim.js';
-import { createPlayer, tickEffectTimers } from '../core/playerEntity.js';
+import { createPlayer, tickEffectTimers, stepArcadeVelocity } from '../core/playerEntity.js';
 import { collectPickups, spawnPickup, tickPickupTimers } from '../core/pickupSystem.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { updateHordeBotAI } from '../ai/hordeAI.js';
@@ -699,6 +699,13 @@ export class HordeGame extends BaseMiniGame {
     if (player.attackCooldown > 0) {
       player.attackCooldown = Math.max(0, player.attackCooldown - dt);
     }
+    if (player.slotType === 'human'
+      && player.isAlive
+      && player.dashCooldown <= 0
+      && Math.hypot(player.steerX, player.steerY) > 0.1
+      && this.consumeSlotAction(player.index, 'dash')) {
+      this.triggerDash(player.index);
+    }
     updateFireFeedback(player);
     if (!player.isAlive) {
       player.steerX = 0;
@@ -735,12 +742,28 @@ export class HordeGame extends BaseMiniGame {
       }
     }
 
+    if (player._skidDustCd > 0) player._skidDustCd = Math.max(0, player._skidDustCd - dt);
     const speed = this.bodySpeed(HORDE_TUNING.MOVE_SPEED)
       * (player.fastTimer > 0 ? HORDE_TUNING.FAST_MULT : 1)
       * (player.dashTimer > 0 ? HORDE_TUNING.DASH_SPEED_MULT : 1);
-    player.x += player.steerX * speed * dt;
-    player.y += player.steerY * speed * dt;
-    this.writeSteerVelocity(player, player.steerX * speed, player.steerY * speed);
+    if (player.dashTimer > 0) {
+      const dashProg = 1 - player.dashTimer / HORDE_TUNING.DASH_TIME;
+      const dashEase = dashProg > 0.7 ? 1 - (dashProg - 0.7) * 0.65 : 1;
+      const vx = player.steerX * speed * dashEase;
+      const vy = player.steerY * speed * dashEase;
+      player.x += vx * dt;
+      player.y += vy * dt;
+      this.writeSteerVelocity(player, vx, vy);
+    } else {
+      const reversed = stepArcadeVelocity(player, player.steerX * speed, player.steerY * speed, dt);
+      player.x += player.vx * dt;
+      player.y += player.vy * dt;
+      this.writeSteerVelocity(player, player.vx, player.vy);
+      if (reversed && !(player._skidDustCd > 0)) {
+        player._skidDustCd = 0.22;
+        this.fx.emit('dust', { x: player.x, y: player.y, color: player.color });
+      }
+    }
     clampToArena(player, player.radius, this.arena);
     resolveAABB(player, this.obstacles, player.radius);
 
@@ -835,7 +858,11 @@ export class HordeGame extends BaseMiniGame {
 
   triggerDash(index) {
     const player = this.players[index];
-    if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state) || !player?.isJoined || !player.isAlive || player.dashCooldown > 0) return false;
+    if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state) || !player?.isJoined || !player.isAlive) return false;
+    if (player.dashCooldown > 0) {
+      this.bufferSlotAction(index, 'dash');
+      return false;
+    }
     if (Math.hypot(player.steerX, player.steerY) <= 0.1) return false;
     player.dashCooldown = getDashCooldown(player, HORDE_TUNING.DASH_CD);
     player.dashTimer = HORDE_TUNING.DASH_TIME;

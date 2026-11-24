@@ -285,10 +285,12 @@ export function drawCircleParticles(ctx, particles) {
   for (const part of particles || []) {
     ctx.save();
     const denom = Number(part.maxLife) || 0;
-    ctx.globalAlpha = Math.max(0, Math.min(1, denom > 0 ? part.life / denom : 0));
+    const lifeRatio = Math.max(0, Math.min(1, denom > 0 ? part.life / denom : 0));
+    ctx.globalAlpha = lifeRatio;
     ctx.fillStyle = part.color || UI_COLORS.inkDark;
+    const r = (Number(part.size ?? part.radius) || 3) * (0.35 + 0.65 * lifeRatio);
     ctx.beginPath();
-    ctx.arc(part.x, part.y, Number(part.size ?? part.radius) || 3, 0, Math.PI * 2);
+    ctx.arc(part.x, part.y, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -298,9 +300,10 @@ export function drawSquareParticles(ctx, particles) {
   for (const part of particles || []) {
     ctx.save();
     const denom = Number(part.maxLife) || 0;
-    ctx.globalAlpha = Math.max(0, Math.min(1, denom > 0 ? part.life / denom : 0));
+    const lifeRatio = Math.max(0, Math.min(1, denom > 0 ? part.life / denom : 0));
+    ctx.globalAlpha = lifeRatio;
     ctx.fillStyle = part.color || UI_COLORS.inkDark;
-    const s = Number(part.size) || 3;
+    const s = (Number(part.size) || 3) * (0.35 + 0.65 * lifeRatio);
     ctx.fillRect(part.x - s / 2, part.y - s / 2, s, s);
     ctx.restore();
   }

@@ -178,3 +178,19 @@ test('trash kill sound is throttled, hurt and elite kill are not', () => {
   assert.ok(slayBlock.includes('if (eliteKill)'), 'elit/boss kill yolunda olmalı');
   assert.ok(slayBlock.includes('SLAY_SOUND_THROTTLE'), 'sıradan kill throttle içinde olmalı');
 });
+
+test('rapid horde kills and coin pickups escalate synth pitch', () => {
+  const firstKill = play('playHordeKill');
+  const secondKill = play('playHordeKill');
+  assert.ok(
+    secondKill.startFrequency > firstKill.startFrequency,
+    `expected combo pitch escalation (${firstKill.startFrequency} -> ${secondKill.startFrequency})`,
+  );
+
+  const firstCoin = play('playCoinPickup');
+  const secondCoin = play('playCoinPickup');
+  assert.ok(
+    secondCoin.startFrequency > firstCoin.startFrequency,
+    `expected coin chain pitch escalation (${firstCoin.startFrequency} -> ${secondCoin.startFrequency})`,
+  );
+});

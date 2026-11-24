@@ -399,7 +399,10 @@ export class SumoGame extends BaseMiniGame {
       this.throwGrabbed(player);
       return;
     }
-    if (player.chargeCooldown > 0 || player.chargeTimer > 0 || player.braced) return;
+    if (player.chargeCooldown > 0 || player.chargeTimer > 0 || player.braced) {
+      this.bufferSlotAction(player.index, 'charge');
+      return;
+    }
     player.chargeTimer = SUMO_TUNING.CHARGE_TIME;
     player.chargeCooldown = SUMO_TUNING.CHARGE_CD;
     const ax = Math.cos(player.angle);
@@ -502,6 +505,15 @@ export class SumoGame extends BaseMiniGame {
     }
 
     player.braced = player.braceHeld && player.chargeTimer <= 0 && player.grabbing < 0;
+    if (player.slotType === 'human'
+      && player.isAlive
+      && !player.braced
+      && player.chargeTimer <= 0
+      && player.chargeCooldown <= 0
+      && player.grabbing < 0
+      && this.consumeSlotAction(player.index, 'charge')) {
+      this.attemptCharge(player);
+    }
     if (player.braced) {
       // Köklenme: yere çakılma — gelen savuşturma da azalır (applyImpact).
       const hold = Math.pow(0.015, dt);

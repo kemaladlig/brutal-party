@@ -772,7 +772,11 @@ function mountSlider1D(gamepad, container, schema) {
     () => gamepad.sendInput({ action: 'SPIN' }),
     [30, 40, 30]
   );
-  spinBtn?.addEventListener('click', spinAction);
+  spinBtn?.addEventListener('touchstart', spinAction, { passive: false });
+  spinBtn?.addEventListener('mousedown', spinAction);
+  spinBtn?.addEventListener('keydown', (e) => {
+    if (e.code === 'Enter' || e.code === 'Space') spinAction(e);
+  });
 
   invertBtn?.addEventListener('click', () => {
     playMenuTick();

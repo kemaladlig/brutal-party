@@ -25,7 +25,9 @@ import { fxFlashAlpha, emitFloatingText } from '../core/fxKit.js';
 import { renderFloatingTexts } from '../ui/hud.js';
 import { beginRound, endMatch, tickRoundFlow } from '../core/roundLifecycle.js';
 import { tickPickupTimers } from '../core/pickupSystem.js';
-import { computePlayfield, fieldSpeed, fieldRadius } from '../core/playfield.js';
+import { computePlayfield, fieldPx, fieldSpeed, fieldRadius } from '../core/playfield.js';
+import { stepArcadeVelocity } from '../core/playerEntity.js';
+import { damp } from '../core/physics2d.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 
 export const COLLAPSE_COLORS = ['#D84727', '#1D5D8A', '#D99B26', '#2F6A4F'];
@@ -37,6 +39,7 @@ const COLLAPSE_MAX_TIED_ROUNDS = 2;
 const COLLAPSE_RADIUS = 36;
 const COLLAPSE_MOVE_SPEED = 190;
 const COLLAPSE_SPAWN_GRACE = 1.6;
+const COLLAPSE_COYOTE_TIME = 0.095;
 
 // 5 Farklı Rastgele Harita Tasarımı — hepsi geniş tutulur (min ~%75 dolu):
 // çeşitlilik deliklerle değil kenar formuyla gelir (klasik/islands/atoll/
@@ -318,10 +321,11 @@ this.targetScore = 3;
         x: s.x, y: s.y, angle: Number.isFinite(existing?.angle) ? existing.angle : faceCenter,
         radius: fieldRadius(this.arena, COLLAPSE_RADIUS),
         speed: fieldSpeed(this.arena, COLLAPSE_MOVE_SPEED), steerX: 0, steerY: 0,
-        vx: 0, vy: 0,
+        vx: 0, vy: 0, knockVx: 0, knockVy: 0,
         isAlive: true, isJoined: this.isSlotJoined(i), slotType: this.slotTypes[i],
         jumpTimer: 0, jumpCooldown: 0, wasJumping: false,
         superJumpTimer: 0,
+        coyoteTimer: 0,
         botCheckTimer: 0, keyActionLatch: false,
       };
     });
@@ -408,10 +412,13 @@ this.targetScore = 3;
       player.jumpCooldown = 0;
       player.wasJumping = false;
       player.superJumpTimer = 0;
+      player.coyoteTimer = 0;
       player.steerX = 0;
       player.steerY = 0;
       player.vx = 0;
       player.vy = 0;
+      player.knockVx = 0;
+      player.knockVy = 0;
       // Spawn bakışı merkeze dönsün, yüzler aynı yöne kilitlenmesin.
       player.angle = Math.atan2(this.arena.cy - player.y, this.arena.cx - player.x);
 
@@ -469,8 +476,11 @@ this.targetScore = 3;
       player.jumpTimer = isSuper ? 0.65 : 0.45;
       player.jumpCooldown = isSuper ? 0.8 : COLLAPSE_JUMP_COOLDOWN;
       player.wasJumping = true;
+      player.coyoteTimer = 0;
       playItemPickup();
       this.spawnJumpDust(player.x, player.y);
+    } else {
+      this.bufferSlotAction(player.index, 'jump');
     }
   }
 
@@ -480,23 +490,26 @@ this.targetScore = 3;
   }
 
   triggerLandingStomp(player) {
-    // İniş Şok Dalgası: Yakındaki rakipleri hafifçe dışarı iter
+    // İniş Şok Dalgası: Yakındaki rakipleri yumuşak darbe hızıyla dışarı iter
     this.fx.emit('hit', {
       x: player.x, y: player.y, color: player.color, slot: player.index,
       haptic: player.slotType === 'human',
     });
-    this.shockwaves.push({ x: player.x, y: player.y, radius: 8, maxRadius: 52, color: player.color, alpha: 0.8 });
+    const stompR = fieldPx(this.arena, 48);
+    this.shockwaves.push({ x: player.x, y: player.y, radius: 8, maxRadius: stompR * 1.08, color: player.color, alpha: 0.8 });
     this.spawnJumpDust(player.x, player.y);
 
+    const tau = -1 / (60 * Math.log(0.84));
     for (const victim of this.players) {
       if (!victim.isJoined || !victim.isAlive || victim.index === player.index || victim.jumpTimer > 0) continue;
       const dx = victim.x - player.x;
       const dy = victim.y - player.y;
       const dist = Math.hypot(dx, dy);
-      if (dist < 48 && dist > 1) {
-        const pushForce = (48 - dist) * 1.8;
-        victim.x += (dx / dist) * pushForce;
-        victim.y += (dy / dist) * pushForce;
+      if (dist < stompR && dist > 1) {
+        const pushDist = (stompR - dist) * 1.45;
+        const impulse = pushDist / tau;
+        victim.knockVx = (victim.knockVx || 0) + (dx / dist) * impulse;
+        victim.knockVy = (victim.knockVy || 0) + (dy / dist) * impulse;
       }
     }
   }
@@ -662,6 +675,9 @@ this.targetScore = 3;
           this.triggerLandingStomp(player);
         }
       }
+      if (player.slotType === 'human' && player.jumpCooldown <= 0 && this.consumeSlotAction(player.index, 'jump', now)) {
+        this.attemptJump(player);
+      }
 
       if (player.slotType !== 'human') {
         updateCollapseBotAI(this, player, dt);
@@ -689,12 +705,29 @@ this.targetScore = 3;
         }
       }
 
+      if (player._skidDustCd > 0) player._skidDustCd = Math.max(0, player._skidDustCd - dt);
       const fromX = player.x;
       const fromY = player.y;
       const spd = player.jumpTimer > 0 ? player.speed * 1.85 : player.speed;
-      player.x += player.steerX * spd * dt;
-      player.y += player.steerY * spd * dt;
-      this.writeSteerVelocity(player, player.steerX * spd, player.steerY * spd);
+      const reversed = stepArcadeVelocity(player, player.steerX * spd, player.steerY * spd, dt);
+      const kvx = player.knockVx || 0;
+      const kvy = player.knockVy || 0;
+      player.x += (player.vx + kvx) * dt;
+      player.y += (player.vy + kvy) * dt;
+      this.writeSteerVelocity(player, player.vx, player.vy);
+      if (reversed && player.jumpTimer <= 0 && !(player._skidDustCd > 0)) {
+        player._skidDustCd = 0.22;
+        this.fx.emit('dust', { x: player.x, y: player.y, color: player.color });
+      }
+      if (kvx !== 0 || kvy !== 0) {
+        const knockDrag = damp(0.84, dt);
+        player.knockVx = kvx * knockDrag;
+        player.knockVy = kvy * knockDrag;
+        if (Math.hypot(player.knockVx, player.knockVy) < 2) {
+          player.knockVx = 0;
+          player.knockVy = 0;
+        }
+      }
       // Bakış hareket yönünü takip etsin: boşta son yön korunur.
       if ((player.steerX * player.steerX + player.steerY * player.steerY) > 0.0225) {
         player.angle = Math.atan2(player.steerY, player.steerX);
@@ -704,26 +737,39 @@ this.targetScore = 3;
       if (player.jumpTimer <= 0) {
         const distance = Math.hypot(player.x - fromX, player.y - fromY);
         const steps = Math.max(1, Math.ceil(distance / Math.max(1, this.cellSize * 0.45)));
-        let fell = false;
+        let fellOutside = false;
+        let onVoidTile = false;
         for (let step = 1; step <= steps; step++) {
           const ratio = step / steps;
           const sampleX = fromX + (player.x - fromX) * ratio;
           const sampleY = fromY + (player.y - fromY) * ratio;
           const cx = Math.floor((sampleX - this.offsetX) / this.cellSize);
           const cy = Math.floor((sampleY - this.offsetY) / this.cellSize);
-          if (cx < 0 || cx >= this.gridCOLS || cy < 0 || cy >= this.gridROWS || this.grid[cy][cx].state === 2) {
+          if (cx < 0 || cx >= this.gridCOLS || cy < 0 || cy >= this.gridROWS) {
             this.eliminatePlayer(player);
-            fell = true;
+            fellOutside = true;
             break;
           }
+          if (this.grid[cy][cx].state === 2) {
+            onVoidTile = true;
+          }
         }
-        if (fell) continue;
+        if (fellOutside) continue;
 
-        const cx = Math.floor((player.x - this.offsetX) / this.cellSize);
-        const cy = Math.floor((player.y - this.offsetY) / this.cellSize);
-        if (this.spawnGrace <= 0 && this.grid[cy][cx].state === 0) {
-          this.grid[cy][cx].state = 1;
-          this.grid[cy][cx].timer = 0.85;
+        if (onVoidTile) {
+          player.coyoteTimer = (player.coyoteTimer || 0) - dt;
+          if (player.coyoteTimer <= 0) {
+            this.eliminatePlayer(player);
+            continue;
+          }
+        } else {
+          player.coyoteTimer = COLLAPSE_COYOTE_TIME;
+          const cx = Math.floor((player.x - this.offsetX) / this.cellSize);
+          const cy = Math.floor((player.y - this.offsetY) / this.cellSize);
+          if (this.spawnGrace <= 0 && this.grid[cy][cx].state === 0) {
+            this.grid[cy][cx].state = 1;
+            this.grid[cy][cx].timer = 0.85;
+          }
         }
       }
 

@@ -280,3 +280,15 @@ test('boş koltuklar botla dolar ve botlar halkanın içinde kalır', () => {
   }
   assert.ok(game.players[1].slotType === 'bot_normal');
 });
+
+test('SUMO buffers an early charge right before cooldown finishes', () => {
+  const game = setup(['human', 'human', 'empty', 'empty']);
+  const p = game.players[0];
+  p.angle = 0;
+  p.chargeCooldown = 0.05;
+  game.attemptCharge(p);
+  assert.equal(p.chargeTimer, 0, 'buffered charge waits for cooldown to end');
+
+  run(game, 0.08);
+  assert.ok(p.chargeTimer > 0, 'buffered charge must fire automatically once cooldown expires');
+});

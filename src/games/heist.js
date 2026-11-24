@@ -461,7 +461,11 @@ export class HeistGame extends BaseMiniGame {
     // Lobi/maç-sonunda kumandadan omuz tetiklenemez (uzak girdi kapısı)
     if (this.state !== 'PLAYING') return;
     const p = this.players[playerIndex];
-    if (!p || !p.isAlive || p.tackleCooldown > 0 || p.stumbleTimer > 0) return;
+    if (!p || !p.isAlive) return;
+    if (p.tackleCooldown > 0 || p.stumbleTimer > 0) {
+      this.bufferSlotAction(playerIndex, 'tackle');
+      return;
+    }
 
     p.tackleCooldown = HEIST_TUNING.TACKLE_COOLDOWN;
     p.tackleTimer = 0.22;
@@ -671,6 +675,12 @@ export class HeistGame extends BaseMiniGame {
         if (player.tackleTimer <= 0) player.isTackling = false;
       }
       if (player.stumbleTimer > 0) player.stumbleTimer -= dt;
+      if (player.slotType === 'human'
+        && player.tackleCooldown <= 0
+        && player.stumbleTimer <= 0
+        && this.consumeSlotAction(player.index, 'tackle', now)) {
+        this.triggerTackle(player.index);
+      }
 
       // Determine Movement Input
       let inputX = 0;

@@ -93,3 +93,18 @@ test('self prediction ignores a missing local player', () => {
   other.players = [{ slot: 1, x: 430, y: 300, radius: 10 }];
   assert.equal(applySelfPrediction(state, other, 0, { dx: 1, dy: 0, force: 1 }, 0.05), other);
 });
+
+test('self prediction resumes immediately after a stop using memorized cruiseSpeed', () => {
+  const state = createSelfPredictor();
+  observePair(state, [400, 300], [420, 300], 33);
+  for (let i = 0; i < 40; i++) {
+    observeSelfFrame(state, frame(420, 300, { sentAt: 1066 + i * 33 }), 0, 1066 + i * 33);
+  }
+  assert.ok(state.speed < 5, `observed speed decays during pause, got ${state.speed}`);
+  assert.ok(state.cruiseSpeed > 400, `cruiseSpeed remembers active pace, got ${state.cruiseSpeed}`);
+
+  const base = frame(420, 300);
+  const moved = applySelfPrediction(state, base, 0, { dx: 1, dy: 0, force: 1 }, 0.05);
+  assert.ok(moved.players[0].x > 420, 'first active frame after pause predicts immediately');
+  assert.equal(applySelfPrediction(state, base, 0, { dx: 0, dy: 0, force: 0 }, 0.05), base);
+});

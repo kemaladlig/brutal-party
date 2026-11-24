@@ -42,9 +42,9 @@ test('physical gamepad adapter emits canonical transport actions without becomin
   connectedPad.buttons[0] = { pressed: false, value: 0 };
   connectedPad.axes = [0, 0, 0.5, 0];
   adapter.poll();
-  assert.equal(sent.at(-2).action, 'AIM_MOVE');
-  assert.equal(sent.at(-1).action, 'AIM_PRESS');
-  assert.equal(Math.abs(sent.at(-1).angle), 0);
+  assert.equal(sent.at(-2).action, 'AIM_PRESS');
+  assert.equal(sent.at(-1).action, 'AIM_MOVE');
+  assert.equal(Math.abs(sent.at(-2).angle), 0);
 
   now = 250;
   mode = 'HORDE';
@@ -113,4 +113,45 @@ test('physical gamepad adapter emits nothing when blocked without ever holding i
   adapter.poll();
   adapter.poll();
   assert.equal(sent.length, 0);
+});
+
+test('physical gamepad Y-axis matches screen coordinates and sends held keepalives', () => {
+  let mode = 'BOMB';
+  let now = 100;
+  const connectedPad = pad({ axes: [0, -1, 0, 0] });
+  const sent = [];
+  const adapter = new PhysicalGamepadAdapter({
+    send: (data) => sent.push(data),
+    getMode: () => mode,
+    getDescriptor: () => getControlDescriptor(mode, GAMEPAD_SCHEMAS[mode]),
+    getGamepads: () => [connectedPad],
+    now: () => now,
+    schedule: () => 1,
+    cancel: () => {},
+  });
+  adapter.start();
+  adapter.poll();
+  assert.ok(sent[0].dy < -0.9, `pushing stick up (-1) must produce dy < 0, got ${sent[0].dy}`);
+
+  connectedPad.axes = [0, 1, 0, 0];
+  now = 160;
+  adapter.poll();
+  assert.ok(sent.at(-1).dy > 0.9, `pushing stick down (+1) must produce dy > 0, got ${sent.at(-1).dy}`);
+
+  const beforeKeepalive = sent.length;
+  now = 500;
+  adapter.poll();
+  assert.equal(sent.length, beforeKeepalive + 1, 'held stick must emit keepalive after CONTROL_KEEPALIVE_MS');
+
+  mode = 'TANKS';
+  connectedPad.buttons[6] = { pressed: true, value: 1 };
+  now = 600;
+  adapter.poll();
+  assert.equal(sent.at(-1).action, 'TANK_DRIVE');
+  assert.equal(sent.at(-1).driving, true);
+  now = 900;
+  adapter.poll();
+  assert.equal(sent.at(-1).action, 'TANK_DRIVE');
+  assert.equal(sent.at(-1).driving, true);
+  adapter.stop();
 });

@@ -20,7 +20,29 @@
 const captureHandlers = new Set();
 const downHandlers = new Set();
 const upHandlers = new Set();
+const keyOrder = new Map();
+let keySeq = 0;
 let bound = false;
+
+export function noteKeyDown(code) {
+  if (!code) return;
+  keySeq += 1;
+  keyOrder.set(code, keySeq);
+}
+
+export function noteKeyUp(code) {
+  if (!code) return;
+  keyOrder.delete(code);
+}
+
+export function getKeyOrder(code) {
+  return keyOrder.get(code) || 0;
+}
+
+export function resetKeyOrder() {
+  keyOrder.clear();
+  keySeq = 0;
+}
 
 /** false dönerse olay normal aşamaya inmez. */
 function run(handlers, event) {
@@ -43,13 +65,17 @@ function ensureBound() {
   if (bound) return;
   bound = true;
   window.addEventListener('keydown', (e) => {
+    if (!e.repeat && e.code) noteKeyDown(e.code);
     if (run(captureHandlers, e) === false) e.__brutalKeyboardBlocked = true;
   }, true);
   window.addEventListener('keydown', (e) => {
     if (e.__brutalKeyboardBlocked) return;
     run(downHandlers, e);
   });
-  window.addEventListener('keyup', (e) => run(upHandlers, e));
+  window.addEventListener('keyup', (e) => {
+    if (e.code) noteKeyUp(e.code);
+    run(upHandlers, e);
+  });
 }
 
 /**

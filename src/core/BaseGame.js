@@ -65,6 +65,7 @@ export class BaseMiniGame {
     this._traumaDirX = 0;
     this._traumaDirY = 0;
     this._traumaImpulse = 0;
+    this._shakePhase = 0;
     // Maç değişiminde önceki oyunun punch/climax zoom'u sızmaz (modül
     // seviyesi süreç durumu — oyun başına değil, ekran başına tektir).
     resetCamera();
@@ -138,6 +139,7 @@ export class BaseMiniGame {
     this.tabletopAimState = [null, null, null, null];
     this.aimStates = [0, 1, 2, 3].map(() => new AimInputState());
     this.aimVectors = [0, 1, 2, 3].map(() => ({ dx: 0, dy: 0, angle: 0, force: 0 }));
+    this._actionBuffers = [0, 1, 2, 3].map(() => ({ action: null, expiresAt: 0 }));
 
     // Responsive Viewport (Ayrık HUD & Dokunmatik için ekran sınırları)
     const initW = typeof window !== 'undefined' ? window.innerWidth : 800;
@@ -323,6 +325,9 @@ export class BaseMiniGame {
 
   addTrauma(amount) {
     // Azaltılmış harekette sarsıntı birikmez (motionScale 0)
+    if (amount > 0 && this.trauma === 0 && motionScale() > 0) {
+      this._shakePhase = Math.random() * Math.PI * 2;
+    }
     this.trauma = Math.min(1.0, this.trauma + amount * motionScale());
   }
 
@@ -376,12 +381,21 @@ export class BaseMiniGame {
     if (this.arena) beginCamera(ctx, this.arena);
     if (this.trauma > 0) {
       const shakeIntensity = this.trauma * this.trauma * maxOffset;
-      // Yönlü itki varsa ofset vektör ağırlıklıdır; itki söndükçe jitter'a döner.
+      const t = (typeof performance !== 'undefined' ? performance.now() * 0.001 : 0) + (this._shakePhase || 0);
+      // Yönlü itki varsa ofset vektör ağırlıklıdır; itki söndükçe pürüzsüz osilasyona döner.
       const w = Math.min(1, this._traumaImpulse) * 0.7;
-      const jx = (Math.random() - 0.5) * 2;
-      const jy = (Math.random() - 0.5) * 2;
+      const jx = Math.sin(t * 47.0) * 0.65 + Math.cos(t * 79.0) * 0.35;
+      const jy = Math.cos(t * 53.0) * 0.65 + Math.sin(t * 71.0) * 0.35;
       const offsetX = shakeIntensity * (jx * (1 - w) + this._traumaDirX * w);
       const offsetY = shakeIntensity * (jy * (1 - w) + this._traumaDirY * w);
+      if (this.trauma > 0.15 && this.arena && typeof ctx.rotate === 'function') {
+        const cx = (Number(this.arena.left) || 0) + (Number(this.arena.width) || 0) / 2;
+        const cy = (Number(this.arena.top) || 0) + (Number(this.arena.height) || 0) / 2;
+        const rot = Math.sin(t * 31.0) * (this.trauma * this.trauma) * 0.022;
+        ctx.translate(cx, cy);
+        ctx.rotate(rot);
+        ctx.translate(-cx, -cy);
+      }
       ctx.translate(offsetX, offsetY);
     }
   }
@@ -528,12 +542,27 @@ export class BaseMiniGame {
     for (let q = 0; q < 4; q++) {
       const joy = this.joysticks[q];
       if (joy.active && joy.id === touch.id) {
-        const dx = touch.x - joy.originX;
-        const dy = touch.y - joy.originY;
-        const dist = Math.hypot(dx, dy);
+        let dx = touch.x - joy.originX;
+        let dy = touch.y - joy.originY;
+        let dist = Math.hypot(dx, dy);
+        const leashR = maxRadius * 1.18;
 
-        joy.angle = Math.atan2(dy, dx);
-        joy.force = Math.min(1.0, dist / maxRadius);
+        if (dist > leashR && dist > 0.001) {
+          const pad = 12;
+          const vpLeft = (this.viewport?.left ?? 0) + pad;
+          const vpTop = (this.viewport?.top ?? 0) + pad;
+          const vpRight = Math.max(vpLeft, (this.viewport?.right ?? 800) - pad);
+          const vpBottom = Math.max(vpTop, (this.viewport?.bottom ?? 600) - pad);
+          joy.originX = Math.max(vpLeft, Math.min(vpRight, touch.x - (dx / dist) * leashR));
+          joy.originY = Math.max(vpTop, Math.min(vpBottom, touch.y - (dy / dist) * leashR));
+          dx = touch.x - joy.originX;
+          dy = touch.y - joy.originY;
+          dist = Math.hypot(dx, dy);
+        }
+
+        joy.angle = dist > 0.001 ? Math.atan2(dy, dx) : 0;
+        const rawForce = Math.min(1.0, dist / maxRadius);
+        joy.force = rawForce < 0.06 ? 0 : Math.min(1.0, (rawForce - 0.06) / 0.94);
 
         if (dist > maxRadius) {
           joy.currX = joy.originX + Math.cos(joy.angle) * maxRadius;
@@ -820,6 +849,36 @@ export class BaseMiniGame {
     }
   }
 
+  bufferSlotAction(slotIndex, actionId, windowMs = 120, now = performance.now()) {
+    if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex > 3) return false;
+    if (typeof actionId !== 'string' || !actionId) return false;
+    const buf = this._actionBuffers?.[slotIndex];
+    if (!buf) return false;
+    buf.action = actionId;
+    buf.expiresAt = now + Math.max(0, Number(windowMs) || 0);
+    return true;
+  }
+
+  consumeSlotAction(slotIndex, actionId, now = performance.now()) {
+    if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex > 3) return false;
+    const buf = this._actionBuffers?.[slotIndex];
+    if (!buf || buf.action !== actionId) return false;
+    buf.action = null;
+    if (now <= buf.expiresAt) return true;
+    buf.expiresAt = 0;
+    return false;
+  }
+
+  clearActionBuffers() {
+    if (!Array.isArray(this._actionBuffers)) return;
+    for (const buf of this._actionBuffers) {
+      if (buf) {
+        buf.action = null;
+        buf.expiresAt = 0;
+      }
+    }
+  }
+
   handleTabletopTouchStart(touch) {
     if (!['PLAYING', 'ROUND_PAUSE'].includes(this.state)) return false;
     if (!this.claimInputSource('touch', { point: touch })) return false;
@@ -1003,6 +1062,7 @@ export class BaseMiniGame {
     }
     this.tabletopAimTouches.clear();
     this.tabletopAimState = [null, null, null, null];
+    this.clearActionBuffers();
     this.resetAimInputs();
     this.resetStandardJoysticks();
   }

@@ -3,6 +3,10 @@
 
 import { getPreference } from './preferences.js';
 
+export function isHapticsSupported() {
+  return typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+}
+
 export function vibrate(pattern) {
   if (!getPreference('hapticsEnabled')) return false;
   try {

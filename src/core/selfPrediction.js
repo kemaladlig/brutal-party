@@ -42,6 +42,7 @@ export function selfPredictionHorizon(playoutDelayMs) {
 export function createSelfPredictor() {
   return {
     speed: 0,
+    cruiseSpeed: 0,
     hasPrev: false,
     prevX: 0,
     prevY: 0,
@@ -69,6 +70,7 @@ export function observeSelfFrame(state, frame, selfSlot, receivedAt) {
   if (!player || !finite(player.x) || !finite(player.y)) {
     state.hasPrev = false;
     state.speed = 0;
+    state.cruiseSpeed = 0;
     return;
   }
   // `sentAt` host monotonic clock'undadır; fark (dt) iki cihazda da gerçek
@@ -79,6 +81,11 @@ export function observeSelfFrame(state, frame, selfSlot, receivedAt) {
     if (dt >= MIN_DT_S && dt <= MAX_DT_S) {
       const inst = Math.min(Math.hypot(player.x - state.prevX, player.y - state.prevY) / dt, MAX_SPEED_PX_S);
       state.speed = state.speed === 0 ? inst : state.speed * (1 - SPEED_EMA) + inst * SPEED_EMA;
+      if (inst > 20 && inst < MAX_SPEED_PX_S) {
+        state.cruiseSpeed = state.cruiseSpeed === 0
+          ? inst
+          : state.cruiseSpeed * 0.75 + inst * 0.25;
+      }
     }
   }
   state.hasPrev = true;
@@ -103,7 +110,8 @@ export function applySelfPrediction(state, frame, selfSlot, input, horizonSecond
   const dx = finite(input?.dx) ? input.dx : 0;
   const dy = finite(input?.dy) ? input.dy : 0;
   const dirLength = Math.hypot(dx, dy);
-  if (force <= 0 || dirLength <= 0.001 || state.speed <= 0) return frame;
+  const effectiveSpeed = Math.max(state.speed || 0, state.cruiseSpeed || 0);
+  if (force <= 0 || dirLength <= 0.001 || effectiveSpeed <= 0) return frame;
 
   const horizon = finite(horizonSeconds) ? Math.max(0, Math.min(MAX_HORIZON_S, horizonSeconds)) : 0;
   if (horizon <= 0) return frame;
@@ -111,7 +119,7 @@ export function applySelfPrediction(state, frame, selfSlot, input, horizonSecond
   const player = selfPlayer(frame, selfSlot);
   if (!player || !finite(player.x) || !finite(player.y)) return frame;
 
-  const step = state.speed * Math.min(1, force) * horizon;
+  const step = effectiveSpeed * Math.min(1, force) * horizon;
   let nx = player.x + (dx / dirLength) * step;
   let ny = player.y + (dy / dirLength) * step;
 

@@ -8,7 +8,7 @@ import { bindKeyboard } from '../core/keyboardDispatch.js';
 import { drawPickup } from '../core/arenaKit.js';
 import { resolveSlotName } from '../core/slotManager.js';
 import { updateCurveBotAI } from '../ai/curveAI.js';
-import { getSlotKeys, buildCodeToSlotMap, isSlotActionEvent } from '../core/inputMaps.js';
+import { getSlotKeys, buildCodeToSlotMap, isSlotActionEvent, resolveAxis } from '../core/inputMaps.js';
 import { isInputIntent } from '../core/inputIntent.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { distToSegmentSquared, clampToArena } from '../core/physics2d.js';
@@ -160,13 +160,11 @@ this.targetScore = 3;
     });
   }
 
-  // -1 sol, +1 sağ, 0 düz (ikisi birden/basılmıyorsa düz)
+  // -1 sol, +1 sağ, 0 düz (ikisi birden/basılmıyorsa son basılan kazanır)
   keyboardSteer(index) {
     const map = getSlotKeys(index);
     if (!map) return 0;
-    const l = this.keys[map.l] ? -1 : 0;
-    const r = this.keys[map.r] ? 1 : 0;
-    return l + r;
+    return resolveAxis(!!this.keys[map.l], !!this.keys[map.r], map.l, map.r);
   }
 
   resize(width, height) {

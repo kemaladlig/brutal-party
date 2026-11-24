@@ -29,6 +29,7 @@ import {
 } from '../core/scoreTargetKit.js';
 import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { findAutoAimTarget } from '../core/autoAim.js';
+import { stepArcadeVelocity } from '../core/playerEntity.js';
 import { paintBackdrop } from '../core/fieldKit.js';
 import {
   createArcherWorldPacket,
@@ -509,7 +510,7 @@ export class ArcherGame extends BaseMiniGame {
   snapAimToNearestRival(shooter) {
     const hit = findAutoAimTarget(shooter, this.players, {
       maxRange: fieldRadius(this.arena, 900, 0.35),
-      valid: (p) => p !== shooter && p.isJoined && p.isAlive && p.slotType === 'human',
+      valid: (p) => p !== shooter && p.isJoined && p.isAlive,
     });
     if (hit) shooter.angle = hit.angle;
     return hit;
@@ -673,6 +674,7 @@ export class ArcherGame extends BaseMiniGame {
       }
 
       // Yay gererken yavaş hareket (klasik okçu cezası) · TURBO hızlandırır · SLIP kontrolsüz kaydırır
+      if (player._skidDustCd > 0) player._skidDustCd = Math.max(0, player._skidDustCd - dt);
       const spd = player.stun > 0 ? 0 : player.speed * (player.charging ? 0.45 : 1);
       if (player.stun > 0) {
         // sersemken hareket yok
@@ -685,9 +687,14 @@ export class ArcherGame extends BaseMiniGame {
       } else {
         let moveSpd = spd;
         if (player.turboTimer > 0) moveSpd *= 1.55;
-        player.x += player.steerX * moveSpd * dt;
-        player.y += player.steerY * moveSpd * dt;
-        this.writeSteerVelocity(player, player.steerX * moveSpd, player.steerY * moveSpd);
+        const reversed = stepArcadeVelocity(player, player.steerX * moveSpd, player.steerY * moveSpd, dt);
+        player.x += player.vx * dt;
+        player.y += player.vy * dt;
+        this.writeSteerVelocity(player, player.vx, player.vy);
+        if (reversed && !(player._skidDustCd > 0)) {
+          player._skidDustCd = 0.22;
+          this.fx.emit('dust', { x: player.x, y: player.y, color: player.color });
+        }
       }
 
       clampToArena(player, player.radius, this.arena);

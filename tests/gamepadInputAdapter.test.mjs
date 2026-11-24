@@ -54,3 +54,37 @@ test('gamepad input adapter dead-zones paddle position without throttling zero r
   assert.equal(adapter.sendAnalog({ action: 'PADDLE_MOVE', position: 0.5 }), false);
   assert.equal(sent.length, 2);
 });
+
+test('gamepad input adapter flushes trailing analog update and cancels on zero or reset', () => {
+  let now = 100;
+  const sent = [];
+  const scheduled = [];
+  let nextId = 1;
+  const cancelled = [];
+  const adapter = new GamepadInputAdapter((data) => sent.push(data), {
+    now: () => now,
+    schedule: (fn, ms) => {
+      const id = nextId++;
+      scheduled.push({ id, fn, ms });
+      return id;
+    },
+    cancel: (id) => cancelled.push(id),
+  });
+
+  assert.equal(adapter.sendAnalog({ action: 'JOYSTICK_MOVE', dx: 1, dy: 0, force: 1 }), true);
+  now = 115;
+  assert.equal(adapter.sendAnalog({ action: 'JOYSTICK_MOVE', dx: 0, dy: 1, force: 1 }), false);
+  assert.equal(scheduled.length, 1);
+
+  now = 145;
+  scheduled[0].fn();
+  assert.equal(sent.length, 2);
+  assert.equal(sent[1].dy, 1);
+
+  now = 155;
+  assert.equal(adapter.sendAnalog({ action: 'JOYSTICK_MOVE', dx: -1, dy: 0, force: 1 }), false);
+  assert.equal(scheduled.length, 2);
+  assert.equal(adapter.sendAnalog({ action: 'JOYSTICK_MOVE', dx: 0, dy: 0, force: 0 }), true);
+  assert.ok(cancelled.includes(scheduled[1].id));
+  adapter.reset();
+});

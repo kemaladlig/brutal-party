@@ -70,6 +70,8 @@ before(async () => {
   ({ HeistGame } = await server.ssrLoadModule('/src/games/heist.js'));
   ({ CrownGame } = await server.ssrLoadModule('/src/games/crown.js'));
   ({ ZoneGame } = await server.ssrLoadModule('/src/games/zone.js'));
+  const { CollapseGame } = await server.ssrLoadModule('/src/games/collapse.js');
+  globalThis.__CollapseGameCtor = CollapseGame;
   ({ getSlotKeys } = await server.ssrLoadModule('/src/core/inputMaps.js'));
   ({ isWorldEntityVisible } = await server.ssrLoadModule('/src/games/worldCore.js'));
 });
@@ -688,4 +690,69 @@ test('keyboard listeners go through one shared dispatch and release on destroy',
   }
 
   assert.equal(typeof unbindKeyboard, 'function');
+});
+
+test('BaseMiniGame action buffer and COLLAPSE coyote jump work reliably', () => {
+  const CollapseGame = globalThis.__CollapseGameCtor;
+  const game = new CollapseGame(canvas);
+  game.resize(800, 600);
+  game.slotTypes = ['human', 'human', 'empty', 'empty'];
+  game.initPlayers();
+  game.startNewMatch();
+  game.spawnGrace = 0;
+
+  // Generic buffer expiry & clear check
+  assert.equal(game.bufferSlotAction(0, 'jump', 120, 1000), true);
+  assert.equal(game.consumeSlotAction(0, 'jump', 1150), false, 'expired buffer must not consume');
+  assert.equal(game.bufferSlotAction(0, 'jump', 120, 1000), true);
+  assert.equal(game.consumeSlotAction(0, 'jump', 1100), true, 'buffer inside 120ms window must consume');
+
+  // Coyote time: walking onto a void tile keeps player alive for ~95ms so jump saves them
+  const p0 = game.players[0];
+  p0.jumpTimer = 0;
+  p0.jumpCooldown = 0;
+  p0.coyoteTimer = 0.095;
+  const r = 6;
+  const c = 6;
+  game.grid[r][c] = { state: 2, timer: 0 };
+  p0.x = game.offsetX + (c + 0.5) * game.cellSize;
+  p0.y = game.offsetY + (r + 0.5) * game.cellSize;
+  game.lastTime = 1000;
+  game.update(1032);
+  assert.equal(p0.isAlive, true, 'player stays alive during coyote window on void tile');
+  game.attemptJump(p0);
+  assert.ok(p0.jumpTimer > 0, 'player can execute a coyote jump');
+  game.destroy();
+});
+
+test('BOMB transferBomb and COLLAPSE stomp impart smooth knockback velocity without teleporting', () => {
+  const bomb = configureBomb();
+  bomb.passCooldown = 0;
+  bomb.bombCarrierIndex = 0;
+  const p0 = bomb.players[0];
+  const p1 = bomb.players[1];
+  p0.x = 395; p0.y = 300;
+  p1.x = 405; p1.y = 300;
+  p1.immunityTimer = 0;
+  bomb.transferBomb(1);
+  assert.ok(Math.abs(p1.x - 405) < 12, `expected tiny anti-overlap nudge, not 32px jump: ${p1.x - 405}`);
+  assert.ok((p1.knockVx || 0) > 50, `expected positive knockVx impulse, got ${p1.knockVx}`);
+  assert.ok((p0.knockVx || 0) < -50, `expected negative recoil knockVx impulse, got ${p0.knockVx}`);
+  bomb.destroy();
+
+  const CollapseGame = globalThis.__CollapseGameCtor;
+  const collapse = new CollapseGame(canvas);
+  collapse.resize(800, 600);
+  collapse.slotTypes = ['human', 'human', 'empty', 'empty'];
+  collapse.initPlayers();
+  collapse.startNewMatch();
+  const c0 = collapse.players[0];
+  const c1 = collapse.players[1];
+  c0.x = 400; c0.y = 300;
+  c1.x = 420; c1.y = 300;
+  c1.jumpTimer = 0;
+  collapse.triggerLandingStomp(c0);
+  assert.equal(c1.x, 420, 'stomp must not teleport victim on the impact frame');
+  assert.ok((c1.knockVx || 0) > 50, `stomp must impart knockVx, got ${c1.knockVx}`);
+  collapse.destroy();
 });

@@ -156,7 +156,7 @@ export function bindUnlock() {
  * throttled/suppressed — caller must then SKIP its synth so tests of the
  * synth path in Node still observe oscillators while browsers hear one hit).
  * @param {string} id
- * @param {{ volume?: number }} [opts]
+ * @param {{ volume?: number, pitchScale?: number }} [opts]
  */
 export function tryPlaySample(id, opts = {}) {
   const entry = SOUND_BANK[id];
@@ -181,9 +181,13 @@ export function tryPlaySample(id, opts = {}) {
   try {
     const src = ac.createBufferSource();
     src.buffer = buf;
-    src.playbackRate.value = entry.pitch > 0
+    const baseRate = entry.pitch > 0
       ? 1 + (Math.random() * 2 - 1) * entry.pitch
       : 1;
+    const scale = Number.isFinite(opts.pitchScale)
+      ? Math.min(1.6, Math.max(0.65, Number(opts.pitchScale)))
+      : 1;
+    src.playbackRate.value = Math.min(2.0, Math.max(0.5, baseRate * scale));
     const g = ac.createGain();
     const v = entry.volume * (Number.isFinite(opts.volume) ? Number(opts.volume) : 1);
     g.gain.value = Math.min(1.2, Math.max(0.001, v));

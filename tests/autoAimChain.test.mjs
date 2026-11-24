@@ -125,5 +125,18 @@ test('quick tap travels from phone stick to a host-authoritized auto-aim shot', 
   assert.equal(game.arrows.length, 1, 'tap must loose exactly one arrow on the host');
   assert.ok(Math.abs(Math.atan2(game.arrows[0].vy, game.arrows[0].vx) + Math.PI / 2) < 0.25,
     'arrow must be auto-aimed at the rival above');
+
+  // Bot rivals are valid auto-aim targets too.
+  game.arrows.length = 0;
+  shooter.shotCooldown = 0;
+  shooter.angle = 0;
+  rival.slotType = 'bot_normal';
+  rival.x = 200;
+  rival.y = 480;
+  zone.dispatch('pointerdown', { pointerId: 2, pointerType: 'touch', clientX: 120, clientY: 120, button: 0 });
+  window.dispatch('pointerup', { pointerId: 2, clientX: 120, clientY: 120 });
+  assert.equal(game.arrows.length, 1, 'tap must also shoot toward a bot rival');
+  assert.ok(Math.abs(Math.atan2(game.arrows[0].vy, game.arrows[0].vx) - Math.PI / 2) < 0.25,
+    'arrow must auto-aim downward toward bot rival');
   controller.destroy();
 });

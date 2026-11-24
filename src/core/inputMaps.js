@@ -3,6 +3,8 @@
 // sadece getSlotKeys(i) üzerinden okur. İkincil eylemler (smoke/dash)
 // motor-özel kalır — SECOND_ACTION_KEYS tek kayıt.
 
+import { getKeyOrder } from './keyboardDispatch.js';
+
 export const STANDARD_KEY_SLOTS = [
   { u: 'KeyW', d: 'KeyS', l: 'KeyA', r: 'KeyD', action: 'Space' },
   { u: 'ArrowUp', d: 'ArrowDown', l: 'ArrowLeft', r: 'ArrowRight', action: 'Enter' },
@@ -120,22 +122,30 @@ function letterOf(code) {
   return code && code.startsWith('Key') ? code.slice(3).toLowerCase() : null;
 }
 
+export function resolveAxis(negPressed, posPressed, negCode, posCode) {
+  if (negPressed && !posPressed) return -1;
+  if (posPressed && !negPressed) return 1;
+  if (!negPressed && !posPressed) return 0;
+  const posOrd = getKeyOrder(posCode);
+  const negOrd = getKeyOrder(negCode);
+  if (posOrd > negOrd) return 1;
+  if (negOrd > posOrd) return -1;
+  return 0;
+}
+
 // BaseGame.getPlayerKeyboardVector gövdesi: code + harf (keys['w']) kontrolü
 export function keyboardVectorFrom(keys, slotIndex) {
-  let x = 0;
-  let y = 0;
   const m = getSlotKeys(slotIndex);
-  if (!m) return { x, y };
+  if (!m) return { x: 0, y: 0 };
   const on = (code) => {
     if (keys[code]) return true;
     const letter = letterOf(code);
     return !!(letter && keys[letter]);
   };
-  if (on(m.l)) x -= 1;
-  if (on(m.r)) x += 1;
-  if (on(m.u)) y -= 1;
-  if (on(m.d)) y += 1;
-  return { x, y };
+  return {
+    x: resolveAxis(on(m.l), on(m.r), m.l, m.r),
+    y: resolveAxis(on(m.u), on(m.d), m.u, m.d),
+  };
 }
 
 // Motor keyboardInput gövdesi (sadece e.code depolayan keys[] için)
@@ -143,8 +153,8 @@ export function readSlotKeys(keys, index) {
   const m = getSlotKeys(index);
   if (!m) return { dx: 0, dy: 0, action: false };
   return {
-    dx: (keys[m.r] ? 1 : 0) - (keys[m.l] ? 1 : 0),
-    dy: (keys[m.d] ? 1 : 0) - (keys[m.u] ? 1 : 0),
+    dx: resolveAxis(!!keys[m.l], !!keys[m.r], m.l, m.r),
+    dy: resolveAxis(!!keys[m.u], !!keys[m.d], m.u, m.d),
     action: !!keys[m.action],
   };
 }

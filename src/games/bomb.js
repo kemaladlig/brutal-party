@@ -28,9 +28,9 @@ import { updateBombBotAI } from '../ai/bombAI.js';
 import { keyboardVectorFrom } from '../core/inputMaps.js';
 import { lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { clampToArena, damp, resolveAABB } from '../core/physics2d.js';
-import { computePlayfield, fieldRadius, fieldSpeed } from '../core/playfield.js';
+import { computePlayfield, fieldPx, fieldRadius, fieldSpeed } from '../core/playfield.js';
 import { spawnPickup, collectPickups, tickPickupTimers } from '../core/pickupSystem.js';
-import { createPlayer, tickEffectTimers, advancePlayer } from '../core/playerEntity.js';
+import { createPlayer, tickEffectTimers, advancePlayer, stepArcadeVelocity } from '../core/playerEntity.js';
 import { beginDrawRound, beginRound, endMatch, roundTimedOut, tickRoundFlow } from '../core/roundLifecycle.js';
 import {
   createBombWorldPacket,
@@ -386,7 +386,11 @@ this.targetScore = 3;
     // Lobi/maç-sonunda kumandadan depar tetiklenemez (uzak girdi kapısı)
     if (this.state !== 'PLAYING') return;
     const p = this.players[playerIndex];
-    if (!p || !p.isAlive || p.dashCooldown > 0 || p.slipTimer > 0 || p.stumbleTimer > 0) return;
+    if (!p || !p.isAlive) return;
+    if (p.dashCooldown > 0 || p.slipTimer > 0 || p.stumbleTimer > 0) {
+      this.bufferSlotAction(playerIndex, 'dash');
+      return;
+    }
 
     p.dashCooldown = BOMB_DASH_COOLDOWN;
     p.dashMaxCooldown = BOMB_DASH_COOLDOWN;
@@ -431,16 +435,25 @@ this.targetScore = 3;
       prevCarrier.immunityTimer = 1.6;    // immune to bomb for 1.6s
     }
 
-    // 3. Kinetic separation: physically push runners apart by 32px
+    // 3. Kinetic separation: short nudge + smooth decaying knockback velocity
     if (prevCarrier) {
       const dx = newCarrier.x - prevCarrier.x;
       const dy = newCarrier.y - prevCarrier.y;
       const d = Math.hypot(dx, dy) || 1;
-      const pushDist = 32;
-      newCarrier.x += (dx / d) * pushDist;
-      newCarrier.y += (dy / d) * pushDist;
-      prevCarrier.x -= (dx / d) * pushDist;
-      prevCarrier.y -= (dy / d) * pushDist;
+      const nx = dx / d;
+      const ny = dy / d;
+      const nudge = fieldPx(this.arena, 6);
+      newCarrier.x += nx * nudge;
+      newCarrier.y += ny * nudge;
+      prevCarrier.x -= nx * nudge;
+      prevCarrier.y -= ny * nudge;
+      const pushDist = fieldPx(this.arena, 34);
+      const tau = -1 / (60 * Math.log(0.84));
+      const impulse = pushDist / tau;
+      newCarrier.knockVx = (newCarrier.knockVx || 0) + nx * impulse;
+      newCarrier.knockVy = (newCarrier.knockVy || 0) + ny * impulse;
+      prevCarrier.knockVx = (prevCarrier.knockVx || 0) - nx * impulse;
+      prevCarrier.knockVy = (prevCarrier.knockVy || 0) - ny * impulse;
       this.resolveCollisions(newCarrier);
       this.resolveCollisions(prevCarrier);
     }
@@ -716,6 +729,13 @@ this.targetScore = 3;
         player.slipTimer -= dt;
         player.slipAngle += dt * 16.0;
       }
+      if (player.slotType === 'human'
+        && player.dashCooldown <= 0
+        && player.slipTimer <= 0
+        && player.stumbleTimer <= 0
+        && this.consumeSlotAction(player.index, 'dash', now)) {
+        this.triggerDash(player.index);
+      }
 
       // Determine Movement Intent (dx, dy)
       let inputX = 0;
@@ -757,6 +777,7 @@ this.targetScore = 3;
         currentSpeed *= 0.15; // Receiver stumble delay: heavily slowed down for 0.6s!
       }
 
+      if (player._skidDustCd > 0) player._skidDustCd = Math.max(0, player._skidDustCd - dt);
       if (player.slipTimer > 0) {
         // Low traction while slipping. `damp` keeps the authored 60 Hz strength:
         // a bare `*= 0.96` per frame was ~8.6%/s at 60 fps but ~29%/s at 30 fps,
@@ -766,29 +787,61 @@ this.targetScore = 3;
         player.vy *= slipDrag;
       } else {
         const inputLen = Math.hypot(inputX, inputY);
-        if (inputLen > 0.05) {
-          const normX = inputX / inputLen;
-          const normY = inputY / inputLen;
-          player.vx = normX * currentSpeed;
-          player.vy = normY * currentSpeed;
-          player.facingAngle = Math.atan2(normY, normX);
-          player.stepCycle += dt * 14;
-
-          // Motion trails
-          if ((player.turboTimer > 0 || player.dashTimer > 0) && Math.random() < 0.5) {
+        if (player.dashTimer > 0) {
+          const dashProg = 1 - player.dashTimer / BOMB_TUNING.DASH_DURATION;
+          const dashEase = dashProg > 0.7 ? 1 - (dashProg - 0.7) * 0.65 : 1;
+          if (inputLen > 0.05) {
+            const normX = inputX / inputLen;
+            const normY = inputY / inputLen;
+            player.vx = normX * currentSpeed * dashEase;
+            player.vy = normY * currentSpeed * dashEase;
+            player.facingAngle = Math.atan2(normY, normX);
+          } else {
+            player.vx = Math.cos(player.facingAngle || 0) * currentSpeed * dashEase;
+            player.vy = Math.sin(player.facingAngle || 0) * currentSpeed * dashEase;
+          }
+          if (Math.random() < 0.5) {
             this.fx.emit('spark', { x: player.x, y: player.y, color: player.color });
           }
         } else {
-          const idleDrag = damp(0.7, dt);
-          player.vx *= idleDrag;
-          player.vy *= idleDrag;
+          const targetVx = inputLen > 0.05 ? (inputX / inputLen) * currentSpeed : 0;
+          const targetVy = inputLen > 0.05 ? (inputY / inputLen) * currentSpeed : 0;
+          const reversed = stepArcadeVelocity(player, targetVx, targetVy, dt);
+          if (inputLen > 0.05) {
+            player.facingAngle = Math.atan2(inputY, inputX);
+            player.stepCycle += dt * 14;
+            if (reversed && !(player._skidDustCd > 0)) {
+              player._skidDustCd = 0.22;
+              this.fx.emit('dust', { x: player.x, y: player.y, color: player.color });
+            }
+            if (player.turboTimer > 0 && Math.random() < 0.5) {
+              this.fx.emit('spark', { x: player.x, y: player.y, color: player.color });
+            }
+          }
         }
       }
 
+      const kvx = player.knockVx || 0;
+      const kvy = player.knockVy || 0;
+      const preVx = player.vx;
+      const preVy = player.vy;
+      player.vx = preVx + kvx;
+      player.vy = preVy + kvy;
       // Position update & wall collisions
       player.x += player.vx * dt;
       player.y += player.vy * dt;
       this.resolveCollisions(player);
+      player.vx = preVx;
+      player.vy = preVy;
+      if (kvx !== 0 || kvy !== 0) {
+        const knockDrag = damp(0.84, dt);
+        player.knockVx = kvx * knockDrag;
+        player.knockVy = kvy * knockDrag;
+        if (Math.hypot(player.knockVx, player.knockVy) < 2) {
+          player.knockVx = 0;
+          player.knockVy = 0;
+        }
+      }
 
       // Ink Puddles interaction
       for (const puddle of this.inkPuddles) {

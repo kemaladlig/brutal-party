@@ -99,6 +99,9 @@ interface MiniGameEntity {
   steer?: number;
   score?: number;
   lastTapTime?: number;
+  knockVx?: number;
+  knockVy?: number;
+  coyoteTimer?: number;
   [key: string]: any;
 }
 
@@ -189,6 +192,9 @@ interface MiniGameEngine {
   // scope: 'move' (aim korunur) | 'aim' (hareket korunur) | 'all' (ikisi de).
   neutralizeSlotInput(index: number, scope?: 'move' | 'aim' | 'all'): void;
   swapLocalSlots(slotA: number, slotB: number, isHosting: boolean): void;
+  bufferSlotAction(slotIndex: number, actionId: string, windowMs?: number, now?: number): boolean;
+  consumeSlotAction(slotIndex: number, actionId: string, now?: number): boolean;
+  clearActionBuffers(): void;
 
   [key: string]: any;
 }

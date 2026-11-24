@@ -15,7 +15,7 @@ import {
   drawSnakeFxLayer,
   drawSnakePlayers,
 } from './snakeView.js';
-import { getSlotKeys, buildCodeToSlotMap } from '../core/inputMaps.js';
+import { getSlotKeys, buildCodeToSlotMap, resolveAxis } from '../core/inputMaps.js';
 import { isInputIntent, matchesInputAction } from '../core/inputIntent.js';
 import { getQuadrant, lobbyCenterStartTap, lobbyQuadrantTap, matchOverRestartTap } from '../core/touchFlow.js';
 import { distToSegmentSquared, getProjectileSubsteps, clampToArena } from '../core/physics2d.js';
@@ -193,14 +193,11 @@ this.targetScore = 3;
     if (!map) return { steer: 0, boost: false, targetAngle: null };
     const up = !!this.keys[map.u];
     const down = !!this.keys[map.d];
-    const left = !!this.keys[map.l];
-    const right = !!this.keys[map.r];
     const boostKey = !!this.keys[map.action];
 
-    const l = left ? -1 : 0;
-    const r = right ? 1 : 0;
+    const steer = resolveAxis(!!this.keys[map.l], !!this.keys[map.r], map.l, map.r);
     const boost = boostKey || up || down;
-    return { steer: l + r, boost, targetAngle: null };
+    return { steer, boost, targetAngle: null };
   }
 
   pickRandomMap() {

@@ -18,7 +18,7 @@ import { getControlDescriptor } from './core/controlDescriptor.js';
 import { PhysicalGamepadAdapter } from './controllers/physicalGamepadAdapter.js';
 import { t, tIcon, onLangChange } from './i18n.js';
 import { getAvatarProfile } from './core/customizationManager.js';
-import { vibrate as triggerHaptic } from './core/haptics.js';
+import { vibrate as triggerHaptic, isHapticsSupported } from './core/haptics.js';
 import { drawBrutalAvatar } from './ui/characterRenderer.js';
 import { openCustomizeModal } from './ui/customizeModal.js';
 import { getTabletopIconSvg } from './core/tabletopIcons.js';
@@ -90,6 +90,8 @@ export class GamepadManager {
     // uzak kumanda 40 ms bütçesini korur (AGENTS §6).
     this.inputAdapter = new GamepadInputAdapter((data) => this.sendInput(data), {
       throttleMs: localMode ? 0 : ANALOG_THROTTLE_MS,
+      schedule: localMode ? null : (fn, ms) => window.setTimeout(fn, ms),
+      cancel: localMode ? null : (id) => window.clearTimeout(id),
     });
     this._aimSequence = 0;
     this._lastLocalInputAt = 0;
@@ -539,7 +541,7 @@ export class GamepadManager {
   // ret → köprü payı sonunda buton açılır. Yerel sayaç `syncHostCooldown`
   // işaretlemeyen aksiyonlarda eski davranışını korur.
   cooledAction(btn, secs, readyLabel, onFire, vibratePattern, { hostSynced = false } = {}) {
-    const state = { cooling: false, confirmed: false, bridgeTimer: 0, maxTimer: 0, localTimer: 0 };
+    const state = { cooling: false, confirmed: false, bridgeTimer: 0, maxTimer: 0, localTimer: 0, lastBlockedAt: 0 };
     const signal = this._mountAbort?.signal;
 
     const clearTimers = () => {
@@ -568,7 +570,19 @@ export class GamepadManager {
 
     const handler = (e) => {
       e?.preventDefault();
-      if (state.cooling) return;
+      if (state.cooling) {
+        const now = performance.now();
+        if (now - state.lastBlockedAt >= 180) {
+          state.lastBlockedAt = now;
+          this.vibrate(8);
+          if (btn && btn.isConnected) {
+            btn.classList.remove('fx-blocked');
+            void btn.offsetWidth;
+            btn.classList.add('fx-blocked');
+          }
+        }
+        return;
+      }
       state.cooling = true;
       state.confirmed = false;
       try { onFire(); } catch (err) { reportError(err, 'gamepad.onFire'); }
@@ -734,6 +748,7 @@ export class GamepadManager {
   // Mevcut mount'un window listener'larını sök, joystick takılı kalmasın diye
   // nötr paket gönder (zone innerHTML ile sökülmeden ÖNCE çağrılmalı)
   _teardownMount() {
+    this.inputAdapter?.reset();
     this._destroyWorldView();
     // Yeni mount = yeni oyun: FX token sayacı ve oynatma mandalı sıfırlanır.
     this._fxFilter = createFxEventFilter();
@@ -752,6 +767,7 @@ export class GamepadManager {
   // Nötr paket sol kontrole göre merkezden gelir (controlDefs.getNeutralInput).
   _sendNeutralForMode() {
     try {
+      this.inputAdapter?.reset();
       this._worldView?.setSelfInput(null);
       for (const neutral of getNeutralInputs(this.gameMode)) {
         if (neutral.action === 'AIM_MOVE' || neutral.action === 'AIM_RELEASE') {
@@ -1566,6 +1582,7 @@ export class GamepadManager {
     let originY = 0;
     let maxRadius = 46;
     let hitEdge = false;
+    let cachedZoneRect = null;
     // touchcancel sonrası gecikmeli nötr zamanlayıcısı (JOY_CANCEL_GRACE_MS).
     let cancelGraceTimer = null;
     const clearCancelGrace = () => {
@@ -1580,6 +1597,7 @@ export class GamepadManager {
       // Yeni basış grace'i iptal eder: parmak geri geldi, host yönü korusun.
       clearCancelGrace();
       const zoneRect = zone.getBoundingClientRect();
+      cachedZoneRect = zoneRect;
       originX = clientX;
       originY = clientY;
       maxRadius = Math.min(52, Math.max(38, zoneRect.width * 0.22));
@@ -1599,6 +1617,23 @@ export class GamepadManager {
     };
 
     const moveAt = (clientX, clientY) => {
+      const dx = clientX - originX;
+      const dy = clientY - originY;
+      const dist = Math.hypot(dx, dy);
+      const leashR = maxRadius * 1.15;
+      if (dist > leashR && dist > 0.001) {
+        const rect = cachedZoneRect || zone.getBoundingClientRect();
+        cachedZoneRect = rect;
+        const pad = 12;
+        const nextOriginX = clientX - (dx / dist) * leashR;
+        const nextOriginY = clientY - (dy / dist) * leashR;
+        originX = Math.max(rect.left + pad, Math.min(rect.right - pad, nextOriginX));
+        originY = Math.max(rect.top + pad, Math.min(rect.bottom - pad, nextOriginY));
+        if (baseEl) {
+          baseEl.style.left = `${originX - rect.left}px`;
+          baseEl.style.top = `${originY - rect.top}px`;
+        }
+      }
       const reachedMax = this.updateJoy(clientX, clientY, originX, originY, maxRadius, knob, emitInput);
       if (reachedMax && !hitEdge) {
         hitEdge = true;
@@ -1783,6 +1818,9 @@ export class GamepadManager {
     for (const kind of fb.ownKinds) fxHaptic(kind);
     if (this._worldView) {
       this._worldView.acceptFx(fresh);
+      if (!fb.pop && fb.ownKinds.length > 0 && !isHapticsSupported()) {
+        this._popActionFx({ subtle: true });
+      }
     } else if (fb.pop) {
       // 2.4 TV_CONSOLE: dünya görünümü yok — sarsıntı/flash TV'de kalır,
       // kumandaya yalnız haptik + buton pop'u düşer (§2 simülasyonsuz).
@@ -1793,17 +1831,19 @@ export class GamepadManager {
   /**
    * 2.4 — kumanda aksiyon butonlarında kısa scale-pop (Faz 3.5 grameri:
    * 90-110 ms, ripple/glow yok, transform-only). Yalnız kendi olayında ve
-   * dünya görünümü yokken çağrılır.
+   * dünya görünümü yokken (veya haptiksiz cihazda hafif onay için) çağrılır.
+   * @param {{ subtle?: boolean }} [opts]
    */
-  _popActionFx() {
+  _popActionFx({ subtle = false } = {}) {
     if (!this.overlay?.querySelectorAll) return;
     const btns = this.overlay.querySelectorAll(
       '.action-dash-btn, .action-spin-btn, .tank-fire-btn',
     );
+    const cls = subtle ? 'fx-pop-subtle' : 'fx-pop';
     for (const btn of btns) {
-      btn.classList.remove('fx-pop');
+      btn.classList.remove('fx-pop', 'fx-pop-subtle');
       void btn.offsetWidth;
-      btn.classList.add('fx-pop');
+      btn.classList.add(cls);
     }
   }
 
