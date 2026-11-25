@@ -100,12 +100,14 @@ function pinTarget(target, x, y) {
 }
 
 function spawnOne(game) {
-  // Harita raunt başına rastgele: ilk deneme engelle boşa düşebilir ve
-  // yerleşim RETRY (2sn) ile tekrarlanır. Belirli bir tarihe değil, en geç
-  // birkaç denemeye kadar bekliyoruz.
-  for (let i = 0; i < 8; i += 1) {
+  // Harita raunt başına rastgele: şerit yerleşimi engele denk gelirse RETRY
+  // (2sn) ile yeniden denenir. Bekleme penceresi FIRST_AT + RESPAWN'ı aşmalı —
+  // bot hedefi okuyla alırsa geri sayım RESPAWN'a (16sn) düşer ve bir sonraki
+  // doğuş da süreye girer. Adım 0.25sn: hedef doğar doğmaz dönüyoruz, böylece
+  // bot onu vurmadan sabitleyebiliyoruz.
+  for (let elapsed = 0; elapsed < 30; elapsed += 0.25) {
     if (game.scoreTargets[0]) return game.scoreTargets[0];
-    run(game, 2);
+    run(game, 0.25);
   }
   return game.scoreTargets[0] || null;
 }
@@ -226,11 +228,14 @@ test('world paketi hedefi 6 sayılık satır olarak taşır ve validator tanır'
 
 test('bot da kazanç nesnesini görür — insana bedava puan yolu kalmaz', () => {
   const game = setup(['human', 'bot_normal', 'empty', 'empty']);
-  const target = spawnOne(game);
-  assert.ok(target);
-
   // Nişangâh: engelsiz düz hat, hedef botun tam sağında, rakip çok uzakta.
+  // Engeller spawn ÖNCESİ temizlenir: kazanç nesnesi yerleşimi haritaya göre
+  // rastgele nokta dener, engele denk gelince 2sn RETRY ile tekrarlar ve 8
+  // deneme yetmezse `null` döner — test harita RNG'sine bağımlı olmamalı.
   game.obstacles = [];
+  const target = spawnOne(game);
+  assert.ok(target, 'kazanç nesnesi doğmalı');
+
   pinTarget(target, game.arena.cx + 180, game.arena.cy);
   game.players[0].x = game.arena.left + 30;
   game.players[0].y = game.arena.top + 30;
